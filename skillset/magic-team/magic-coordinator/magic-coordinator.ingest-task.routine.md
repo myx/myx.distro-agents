@@ -1,6 +1,11 @@
 ---
+type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+requires-session-kind: standalone
+start-context: any
+input-scan-def: none
+review-by: inherit
 ---
 # magic-coordinator.ingest-task.routine — the actual procedure
 
@@ -9,6 +14,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -35,11 +41,15 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Does: gather, agree and file. Any natural phrasing of "ingest this", "turn this into a task" triggers it, from any requester. `magic-coordinator` runs it whoever asked.
 - Doesn't: triage, score or make backlog decisions (grooming's), or start the work it files.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **process-own-inbox**: Run `magic-team.process-inbox.routine magic-coordinator`, so asks already queued are settled with this one rather than duplicated.
+1. **process-own-inbox**: Run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`), so asks already queued are settled with this one rather than duplicated.
 2. **gather-and-agree**: Gather and agree with the requester, one topic at a time, with small, minimal-assumption questions, until the content is settled. Once a point is clear and agreed, move on.
 3. **output**: Once settled, file it, steps:
    - Default: a `note-*` in `magic-coordinator`'s own inbox (`--member-inbox-note-upsert`), or an `inquiry-*` to the member it belongs to (`post-inquiry`). Never the board. Filing does not start the work.
@@ -48,7 +58,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-Run inline: none. Run as its own session: `magic-team.coworking.routine`'s **close-session** group.
+Run inline: none. Run as its own session: none of its own.
 
 # Routine's local procedures
 
@@ -78,6 +88,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 - `--member-inbox-note-upsert <team-member> <item-filename>`
 - `--member-upsert-member-inquiry <member> <item-filename>`
 - `--member-comms-slack-send-message <team-member> <target> [text...]`
+- `--routine-run-inline <routine>`
 
 # Maintainer Notes
 

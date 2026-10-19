@@ -121,6 +121,15 @@ case "$1" in
 			IFS= read -r routineInvitees
 		} <<< "$( AgentsToolsSpawnRoutineContractExecutorsInvitees "$routineContract" )"
 		local routineName="${routineFile##*/}"
+		## The kind the routine names (the contract check above has settled that it is one of the list), and the
+		## bundled routine that defines it: the one the brief tells the member to read beside the routine.
+		local routineKind routineKindFile routineLockDoc routineScanDef
+		type AgentsToolsRoutineKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
+		routineLockDoc="$( AgentsToolsRoutineKey "$routineFile" routine-lock-document )"
+		type AgentsToolsInputScanDefNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InputScanDef.include"
+		routineScanDef="$( AgentsToolsInputScanDefNames "$( AgentsToolsRoutineKeyLines "$routineFile" input-scan-def )" )"
+		routineKind="$( AgentsToolsSpawnRoutineKindOwn "$routineFile" )"
+		routineKindFile="$( AgentsToolsSpawnRoutineKindRoutine "$routineKind" )" || { set +e ; return 1 ; }
 
 		## open warning-* set: the currently-open board warnings only (active
 		## states, never processed/archived/retained). The agent filters these
@@ -149,7 +158,7 @@ case "$1" in
 		## The Skeleton block, verbatim, with each slot filled; a template without one is refused.
 		local briefText
 		## Values travel through the environment, not -v, which would decode backslashes in them.
-		briefText="$( BRIEF_MEMBER="$targetMember" BRIEF_WARNINGS="${warnLines%$'\n'}" BRIEF_ROUTINE="$routineName" BRIEF_EXECUTORS="$routineExecutors" BRIEF_INVITEES="$routineInvitees" BRIEF_HARNESS="$briefHarness" AgentsToolsToolingTemplateFill spawn-brief.document.format.md session/AgentsSpawnPrepareBriefFill.awk )" || {
+		briefText="$( BRIEF_MEMBER="$targetMember" BRIEF_WARNINGS="${warnLines%$'\n'}" BRIEF_ROUTINE="$routineName" BRIEF_KIND="$routineKind" BRIEF_KIND_ROUTINE="$routineKindFile" BRIEF_LOCK="$routineLockDoc" BRIEF_SCAN="$routineScanDef" BRIEF_EXECUTORS="$routineExecutors" BRIEF_INVITEES="$routineInvitees" BRIEF_HARNESS="$briefHarness" AgentsToolsToolingTemplateFill spawn-brief.document.format.md session/AgentsSpawnPrepareBriefFill.awk )" || {
 			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: the brief template has no complete Skeleton block: $briefTemplate" >&2
 			set +e ; return 1
 		}

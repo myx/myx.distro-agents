@@ -46,7 +46,8 @@ def registryDate(value):
 ## of a process that is gone (MARK_GONE) ahead of its state; one whose thread lives, or that
 ## has none, carries no mark. A row of the eight fields alone says nothing of it: `-`.
 def parseSessionLevels(text):
-    levels = {"sessions": []}
+    level = pluginLevel("sessions")
+    levels = {level: []}
     sessions = {}
     for line in text.splitlines():
         fields = line.split("\t")
@@ -63,10 +64,10 @@ def parseSessionLevels(text):
                 session["tokens"] = fields[11]
                 row["wide"] = tokensShort(fields[11])
             sessions[fields[1]] = row
-            levels["sessions"].append(row)
-            levels["sessions/" + fields[1]] = []
+            levels[level].append(row)
+            levels[level + "/" + fields[1]] = []
         elif fields[0] == "run" and len(fields) >= 12 and fields[1] in sessions:
-            runs = levels["sessions/" + fields[1]]
+            runs = levels[level + "/" + fields[1]]
             run = {"session": fields[1], "spawn": fields[2], "member": fields[3], "status": fields[4],
                    "live": fields[5], "state": fields[6], "started": fields[7], "resolved": fields[8],
                    "host": fields[9], "workspace": fields[10], "activity": fields[11]}
@@ -76,7 +77,7 @@ def parseSessionLevels(text):
             row["look"] = BOLD if run["live"] == "running" else PLAIN
             sessions[fields[1]]["session"]["runs"].append(run)
             runs.append(row)
-    for row in levels["sessions"]:
+    for row in levels[level]:
         session = row["session"]
         if not session["name"] and len(session["runs"]) == 1:
             session["lone"] = True
@@ -356,7 +357,7 @@ def routineLines(routine, width):
         ("routine", routine["selector"]),
         ("owner", routine["owner"]),
         ("executors", routine["executors"]),
-        ("session", "coworking: the spawner adds magic-coordinator to it" if routine["session"] == "coworking" else routine["session"]),
+        ("session", "coworking: members working together in one session" if routine["session"] == "coworking" else routine["session"]),
         ("start", routineStart(routine) + (": its members are asked for" if routineAsksMembers(routine) else ""), stateLook(routineStart(routine))),
         ("name", "%s, unless another is typed" % routine["name"] if startable else ""),
         ("why", "" if startable else routine["reason"]),
@@ -394,7 +395,7 @@ def routinesSummary(state, path, row, form):
 
 ## The row of a session in the list of the sessions, by its id, or None.
 def sessionRowOf(state, sessionId):
-    for row in state.rows.get("sessions", ()):
+    for row in pluginRows(state, "sessions"):
         if row["id"] == sessionId and row.get("session"):
             return row
     return None
@@ -408,11 +409,11 @@ def killTargetOf(state, row):
     if row is None:
         return None
     level = levelPattern(state.path)
-    if level == "sessions" and row.get("session") and row["session"]["id"] not in ("", "-"):
+    if level == pluginLevel("sessions") and row.get("session") and row["session"]["id"] not in ("", "-"):
         session = row["session"]
         return {"kind": "session", "id": session["id"], "label": row["label"], "session": session,
                 "runs": [run for run in session["runs"] if run["live"] == "running"]}
-    if level == "sessions/*" and row.get("run"):
+    if level == pluginLevel("sessions", "*") and row.get("run"):
         run = row["run"]
         sessionRow = sessionRowOf(state, run["session"])
         return {"kind": "run", "id": run["spawn"], "label": run["member"], "run": run,
@@ -772,7 +773,7 @@ def killAnswer(text):
 ## The session `c` acts on at that row, or None where the row is no session: the control
 ## thread is a session's, so an agent of one, a section and `Launch (Start)` have none.
 def controlTargetOf(state, row):
-    if row is None or levelPattern(state.path) != "sessions" or not row.get("session"):
+    if row is None or levelPattern(state.path) != pluginLevel("sessions") or not row.get("session"):
         return None
     return row["session"] if row["session"]["id"] not in ("", "-") else None
 
@@ -847,7 +848,7 @@ def askLaunch(state, row):
         openDialog(state, "members", {"about": {"lines": [
             ("routine", routine["selector"]),
             ("executors", "any member: the ones checked below start it, in one session"),
-            ("session", "coworking: the spawner adds magic-coordinator to it" if routine["session"] == "coworking" else routine["session"]),
+            ("session", "coworking: members working together in one session" if routine["session"] == "coworking" else routine["session"]),
         ]}}, {"routine": routine, "viewKey": viewKeyOf(state)})
         return ""
     if routine["start"] != "startable":
@@ -905,9 +906,9 @@ def askUnstarted(state, row):
 ## those of the list of the team that are not refused (memberRefusal), in its order. None
 ## until that list was read.
 def memberOptions(state):
-    if "team" not in state.rows:
+    if pluginLevel("team") not in state.rows:
         return None
-    return [(row["member"]["name"], row["member"]["name"]) for row in state.rows["team"]
+    return [(row["member"]["name"], row["member"]["name"]) for row in state.rows[pluginLevel("team")]
             if row.get("member") and not memberRefusal(row["member"])]
 
 
@@ -1056,3 +1057,78 @@ ACTION_FITS["unstarted"] = unstartedFits
 ACTION_REFUSALS["kill"] = killRefusal
 ACTION_REFUSALS["launch"] = launchRefusal
 
+
+## ---- the plugin: `Sessions (Activity)` ----
+
+registerPlugin({
+    "name": "sessions",
+    "root": {"id": "sessions", "label": "Sessions (Activity)", "go": "~S~essions (Activity)", "group": "team"},
+    ## The rows a level always holds, ahead of the rows its operation gives.
+    "rows": {
+        "sessions": (("launch", "Launch (Start)", "launch", True),),
+        "sessions/launch": (("free", "Free prompt", "free", False),),
+    },
+    "summaries": {
+        "sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed")},
+        "sessions/launch": {"lines": "routinesSummary"},
+    },
+    "reads": {
+        ## The coworking sessions with their runs, and last the row of counters of the status lines.
+        "list:sessions": {"operation": ["--manager-session-list"], "active": ["--active"],
+                          "rows": "sessions", "kind": "sessions", "always": True},
+        ## The routines the members carry, each with whether the session spawner would start it.
+        "list:sessions/launch": {"operation": ["--manager-routine-list"], "rows": "routines"},
+        ## The agents of one session come with the list of the sessions.
+        "list:sessions/*": {"from": "list:sessions"},
+        "view:sessions:launch": None,
+        ## A session whole, and what its runs did: the lines its tracking thread shows.
+        "view:sessions:record": {"operation": ["--manager-session-read", "--session-id", "{id}"],
+                                 "rows": "session-read", "needs": "session"},
+        "feed:sessions:record": {"operation": ["--manager-session-transcript-read", "--session-id", "{id}"],
+                                 "log": ["--log"], "rows": "transcript", "needs": "session"},
+        ## One run of a session: --run takes the id as a run's own, the founder's too, whose id is its session's.
+        "view:sessions/*:record": {"operation": ["--manager-session-read", "--session-id", "{id}", "--run"],
+                                   "rows": "session-read", "needs": "run"},
+        "feed:sessions/*:record": {"operation": ["--manager-session-transcript-read", "--session-id", "{id}", "--run"],
+                                   "log": ["--log"], "rows": "transcript", "needs": "run"},
+        ## What the kill of a session, and of one agent, would do, and nothing is done: the rows
+        ## of the kill itself, each with what would become of it (KILL_ROWS). Read when the
+        ## confirmation of that kill opens, and once more when it is confirmed (submitKill), by
+        ## the id it names, as a kind of its own; never on the period, so what the confirmation
+        ## says does not change under the word typed into it.
+        "plan:kill:session": {"operation": ["--manager-session-kill", "--session-id", "{id}", "--plan"], "rows": "kill", "kind": "plan", "once": True},
+        "plan:kill:run": {"operation": ["--manager-session-kill", "--session-id", "{id}", "--run", "--plan"], "rows": "kill", "kind": "plan", "once": True},
+    },
+    "go": ({"name": "spawn", "path": "sessions/launch", "label": "~L~aunch (Start)"},),
+    "commands": (
+        {"name": "unstarted", "keys": ("ENTER",),
+         "views": ("sessions/launch",), "for": "a routine that cannot be started", "on": ("sessions/launch:record",), "only": True, "tells": True, "does": ("action", "unstarted")},
+        {"name": "launch", "keys": ("ENTER",), "menu": ("session", 2), "label": "Start the ro~u~tine", "status": "Start", "window": "list",
+         "views": ("sessions/launch",), "for": "a routine", "on": ("sessions/launch:record",), "only": True, "does": ("action", "launch"), "calls": ("launch",)},
+        {"name": "prompt", "keys": ("ENTER",), "menu": ("session", 2), "label": "~F~ree prompt", "status": "Start", "window": "list",
+         "views": ("sessions/launch",), "for": "the free prompt", "on": ("sessions/launch:free",), "only": True, "does": ("action", "prompt"), "calls": ("prompt",)},
+        {"name": "kill", "keys": ("k",), "menu": ("session", 1), "label": "~K~ill", "status": "Kill", "after": "colours",
+         "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "kill"), "calls": ("kill:session", "kill:run")},
+        {"name": "control", "keys": ("c",), "menu": ("session", 1), "label": "~C~ontrol thread", "status": "Control", "after": "colours",
+         "views": ("sessions", "sessions/*"), "for": "a session", "asks": True, "on": ("sessions:record",), "does": ("action", "control"), "calls": ("control",)},
+        {"name": "pause", "keys": ("p",), "menu": ("session", 3), "label": "~P~ause", "after": "colours",
+         "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "pause")},
+        {"name": "resume", "keys": ("r",), "menu": ("session", 3), "label": "~R~esume", "after": "colours",
+         "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "resume")},
+        {"name": "stop", "keys": ("s",), "menu": ("session", 3), "label": "~S~top", "after": "colours",
+         "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "stop")},
+        {"name": "restart", "keys": ("R",), "menu": ("session", 3), "label": "Res~t~art", "after": "colours",
+         "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "restart")},
+        {"name": "mode", "keys": ("v",), "menu": ("view", 4), "label": "Ne~x~t mode of the left window", "after": "colours",
+         "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "")},
+        ## the summary and the raw mode are those of a Markdown text too: the places of the Markdown view are added to theirs
+        {"name": "mode-summary", "keys": ("b",), "menu": ("view", 4), "label": "Su~m~mary", "status": "Summary", "after": "colours",
+         "views": ("sessions", "sessions/*"), "for": "a session, an agent or a Markdown text", "on": ("sessions:record", "sessions/*:record"),
+         "with": (("markdown", "on"), ("markdown", "help")), "does": ("mode", "summary")},
+        {"name": "mode-log", "keys": ("l",), "menu": ("view", 4), "label": "~L~og", "status": "Log", "after": "colours",
+         "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "log")},
+        {"name": "mode-raw", "keys": ("g",), "menu": ("view", 4), "label": "Ra~w~ log", "status": "Raw log", "after": "colours",
+         "views": ("sessions", "sessions/*"), "for": "a session, an agent or a Markdown text", "on": ("sessions:record", "sessions/*:record"),
+         "with": (("markdown", "on"), ("markdown", "help")), "does": ("mode", "raw")},
+    ),
+})

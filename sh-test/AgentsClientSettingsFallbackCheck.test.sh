@@ -268,7 +268,7 @@ echo "-- 6. the client's own sweep, and the coordinator acting as the client, re
 rigWorld
 rigSumThere="$( rigTreeSum ws-there )"
 for rigPass in first second ; do
-	rigRun --client-sweep-input-scan client-ndm
+	rigRun --intern-op-client-sweep-input-scan client-ndm
 	rigAssert "the $rigPass sweep reads Slack as the account of the borrowed token, the mailbox and the Trello account the client holds where it is set up" "$( rigN "$rigTmp/out" 'identity: slack URIGNDMTHERE (config: client-ndm)' ) $( rigN "$rigTmp/out" 'holds no Slack credentials of its own' ) $( rigN "$rigTmp/calls" 'imap-sweep imap-ndmthere.invalid us@ndmthere.invalid' ) $( rigN "$rigTmp/calls" 'trello members/me/notifications rig-trello-key-NDMTHERE' ) $( rigTeams )" "1 0 1 1 0"
 	rigAssert "its check of the settings resolves the Slack workspace and says it is not persisted here, where the system is read from the other workspace" "$( rigN "$rigTmp/out" "SLACK_WORKSPACE_DOMAIN: OK (resolved rig.invalid, not persisted here: this scope's settings of that system are read from $rigWork/ws-there, the workspace client-ndm is set up in)" )" 1
 	rigAssert "so nothing of those systems is written into this workspace's scope of the client, which one setting would cut off from the rest" "$( rigHeldHere )" 0
@@ -279,7 +279,7 @@ rigAssert "after the sweeps the client's Slack is still read from the workspace 
 rigRun --magic-client-operation-run magic-coordinator --client-comms-email-mark-seen client-ndm 41
 rigAssert "magic-coordinator's own operation, run as the client, marks a message in the mailbox the client holds where it is set up, and says once which settings are read from there" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3, $4, $5 }' "$rigTmp/calls" ) $( rigN "$rigTmp/err" "holds no settings of its own in" )" "0 imap imap-ndmthere.invalid us@ndmthere.invalid UID STORE 1"
 rigSettings NDMHERE SLACK EMAIL TRELLO | rigScopeOf ws-here client-ndm
-rigRun --client-sweep-input-scan client-ndm
+rigRun --intern-op-client-sweep-input-scan client-ndm
 rigAssert "control: where this workspace holds the client's Slack settings, the sweep reads them and persists the workspace it resolved here, as before" "$( rigN "$rigTmp/out" 'identity: slack URIGNDMHERE (config: client-ndm)' ) $( rigN "$rigTmp/out" 'SLACK_WORKSPACE_DOMAIN: OK (resolved rig.invalid)' ) $( rigN "$rigWork/ws-here/.local/.agents/client-ndm.agent.env" 'SLACK_WORKSPACE_DOMAIN=rig.invalid' ) $( rigFrom NDMTHERE )" "1 1 1 0"
 
 echo "-- 7. a setting a person writes here ends the borrowing of its system, and the tooling says so in one line, by names only --"

@@ -533,3 +533,37 @@ DIALOG_HANDLERS["confirm"] = submitConfirm
 DIALOG_HANDLERS["reject"] = submitAskAct
 DIALOG_HANDLERS["dismiss"] = submitAskAct
 
+
+## ---- the plugin: `Pending Questions` ----
+
+registerPlugin({
+    "name": "pending",
+    "root": {"id": "pending", "label": "Pending Questions", "go": "~P~ending Questions", "group": "team"},
+    "summaries": {
+        "pending": {"lines": "pendingSummary"},
+    },
+    "reads": {
+        ## The asks that wait, every owner's. The member named filters nothing with --any-owner; it
+        ## is the one the tooling's own read of every owner's asks names (the heartbeat's input scan).
+        "list:pending": {"operation": ["--member-pending-reply-read", "magic-coordinator", "--any-owner"],
+                         "rows": "pending"},
+        ## One ask, whole: what the stores hold of it.
+        "view:pending:record": {"operation": ["--member-pending-reply-read", "magic-coordinator", "{id}"],
+                                "rows": "ask", "needs": "ask"},
+        ## What can be done with one ask from the console: the row of the question, with whether it
+        ## takes words, a reject and a dismissal and with the link of its message, and a row for
+        ## each answer it takes. Read as a part of its own, "acts", beside the view of the ask.
+        "acts:pending:record": {"operation": ["--manager-pending-reply-read", "--id", "{id}"],
+                                "rows": "ask-acts", "needs": "ask"},
+    },
+    "commands": (
+        {"name": "answer", "keys": ("ENTER", "y"), "menu": ("question", 1), "label": "~A~nswer", "status": "Answer", "window": "list",
+         "views": ("pending",), "for": "a question", "on": ("pending:record",), "only": True, "says": "answer", "does": ("action", "answer"), "calls": ("answer",)},
+        {"name": "reject", "keys": ("j",), "menu": ("question", 1), "label": "Re~j~ect", "status": "Reject", "window": "list",
+         "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "reject"), "calls": ("reject",)},
+        {"name": "dismiss", "keys": ("d",), "menu": ("question", 1), "label": "~D~ismiss", "status": "Dismiss", "window": "list",
+         "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "dismiss"), "calls": ("dismiss",)},
+        {"name": "link", "keys": ("o",), "menu": ("question", 2), "label": "Show the ~l~ink", "status": "Link", "window": "list",
+         "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "link")},
+    ),
+})

@@ -6,13 +6,13 @@
 ## output goes to the tooling log (the daemon line, file descriptor 4), never into the agent's input.
 ## Held, against a rig board and workspace with a dead spawn, its running dispatch item, a review item whose reviewer
 ## session has ended, and a live session with no control thread:
-##   1. --magic-advance-input-scan acts on none of them: the dead spawn's record, the item's state, the review-by, the
+##   1. --intern-op-advance-input-scan acts on none of them: the dead spawn's record, the item's state, the review-by, the
 ##      sessions' control folders are as they were; nothing is posted and no housekeeping line is printed
 ##   2. it still reports them: the running item as a running/ row, the review item as a review/ row
 ##   3. --magic-advance-lock-acquire, the advance routine taking its lock, does the housekeeping: the dead spawn is
 ##      closed, its item moves to review, the review-by becomes magic-coordinator, the control thread is started
 ##   4. its housekeeping lines go to the tooling log, and none to its standard output
-##   5. --magic-heartbeat-input-scan leaves its lock note as it was, the recheck-date among it
+##   5. --intern-op-heartbeat-input-scan leaves its lock note as it was, the recheck-date among it
 ## Red before F3.1: the advance scan does the housekeeping itself, and its lock does none (1, 2 and 3 fail).
 ## Offline: a ps first on PATH lists the rig's own runs only; a Slack-shaped fake curl logs any post; every tree is
 ## this rig's own.
@@ -108,7 +108,7 @@ rigPosts(){ LC_ALL=C grep -c '^chat.postMessage ' "$rigTmp/calls" 2> /dev/null |
 : > "$rigTmp/calls" ; : > "$rigTmp/bodies" ; : > "$rigTmp/tooling.log"
 
 rigDeadBefore="$( rigSum "$rigW/.local/agents/spawned/rig-ldead/rig-ldead.md" )"
-rigRun "$rigTmp/scan" --magic-advance-input-scan magic-coordinator
+rigRun "$rigTmp/scan" --intern-op-advance-input-scan magic-coordinator
 [ "$( cat "$rigTmp/scan.rc" )" = 0 ] || rigRefuse "the advance scan failed in the rig: $( tail -2 "$rigTmp/scan.err" | LC_ALL=C tr '\n' ' ' )"
 
 echo "-- 1. the advance scan acts on nothing --"
@@ -146,7 +146,7 @@ mkdir -p "$rigD/inboxes/magic-coordinator"
 printf -- '---\ntype: note\nfrom: magic-coordinator\ndate: 2026-10-18\nowner: routine-heartbeat\nstate: heartbeat-running\nrecheck-date: 2026-10-18T10:00:00Z\nsession-id: rig-heartbeat\n---\n\n## state-and-lock (routine-heartbeat)\n' \
 	> "$rigD/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
 rigNoteBefore="$( rigSum "$rigD/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md" )"
-rigRun "$rigTmp/hb" --magic-heartbeat-input-scan magic-coordinator
+rigRun "$rigTmp/hb" --intern-op-heartbeat-input-scan magic-coordinator
 rigAssert "the lock note, its recheck-date among it, is byte for byte as it was" "$( rigSum "$rigD/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md" )" "$rigNoteBefore"
 
 if [ "$rigFailCount" -ne 0 ] ; then

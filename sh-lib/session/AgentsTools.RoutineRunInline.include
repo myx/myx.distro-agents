@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RoutineRunInline.include -- ThisSession's `--routine-run-inline <routine>` (F6.6): a routine run inline in the
+## caller's own session, like a call. The call hands the run the routine's steps, without its frontmatter and without its
+## Maintainer Notes; mixes the routine's Opening and Closure steps (and rules and tooling) from
+## `magic-team.inline.routine.md`, in place of those of its session kind, so an inline run carries only steps designed for
+## inline and none of a session's; and runs the routine's own `input-scan-def:` scans, through the one runner the spawner
+## uses (AgentsToolsInputScanDefRun), presenting the result as the spawner presents it: a file of the caller's sandbox
+## input/ folder, named by a line ahead of the steps. Sourced, never run. Functions only.
+##
+
+type AgentsToolsSpawnRoutineResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include"
+type AgentsToolsRoutineKeyLinesOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
+type AgentsToolsInputScanDefRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InputScanDef.include"
+type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+
+## The text of a routine run inline: its steps with the Opening and Closure steps, the rules and the tooling of
+## `magic-team.inline.routine` mixed in, the routine's frontmatter and its Maintainer Notes left out.
+AgentsToolsRoutineInlineText(){ ## routine file path
+	local inlinePath inlineSkips
+	inlinePath="$( AgentsToolsSpawnRoutineResolve magic-team.inline.routine.md )" || return 1
+	inlineSkips="$( LC_ALL=C awk -v headers="skips-inherited" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$1" )"
+	inlineSkips="${inlineSkips#skips-inherited: }"
+	ROUTINE_SKIPS="$inlineSkips" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsRoutineMix.awk" "$inlinePath" "$1" \
+		| LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsRoutineInlineStrip.awk"
+}
+
+## The run itself: the scans of the routine first, then the text.
+AgentsToolsRoutineRunInline(){ ## routine selector
+	local inlineFile inlineName inlineScans inlineMember inlineSession inlineSpawn inlineRecord inlineResult inlineTemp="" inlineNames inlineIn="" inlineLine=""
+	inlineFile="$( AgentsToolsSpawnRoutineResolve "$1" )" || return 1
+	inlineName="${inlineFile##*/}"
+	inlineScans="$( AgentsToolsRoutineKeyLinesOwn "$inlineFile" input-scan-def | LC_ALL=C grep -v -x 'none' || : )"
+	if [ -n "$inlineScans" ] ; then
+		inlineMember="$( AgentsToolsActingMember )"
+		inlineSpawn="${MDAT_SPAWN_SESSION_ID:-shell-console}"
+		inlineSession=""
+		if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] ; then
+			type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+			for inlineRecord in "$MMDAPP/.local/agents/spawned"/*/"$MDAT_SPAWN_SESSION_ID.md" ; do
+				[ -f "$inlineRecord" ] || continue
+				inlineSession="$( AgentsToolsSpawnSandboxRecordHeader "$inlineRecord" session-id )"
+				break
+			done
+		fi
+		[ -n "$inlineSession" ] || inlineSession="$( AgentsToolsActingSession )"
+		if [ -z "$inlineMember" ] ; then
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsSession}: --routine-run-inline $1: $inlineName declares an input scan, and this call comes from no member's session to run it for -- nothing was handed" >&2
+			return 1
+		fi
+		inlineNames="$( AgentsToolsInputScanDefNames "$inlineScans" )"
+		if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -d "$MDAT_SPAWN_SANDBOX_ROOT/input" ] ; then
+			inlineResult="$MDAT_SPAWN_SANDBOX_ROOT/input/input-scan.${inlineName%.routine.md}.md"
+		else
+			mkdir -p "${MMDAPP:-.}/.local/temp" 2> /dev/null
+			inlineTemp="$( mktemp "${MMDAPP:-.}/.local/temp/routine-run-inline.XXXXXX" )" || return 1
+			inlineResult="$inlineTemp"
+		fi
+		AgentsToolsInputScanDefRun "$inlineScans" "$inlineMember" "$inlineSession" "$inlineSpawn" "$inlineResult" || { [ -z "$inlineTemp" ] || rm -f "$inlineTemp" ; return 1 ; }
+		if [ -z "$inlineTemp" ] ; then
+			inlineLine="$( printf 'input-scan: input/%s of your sandbox holds the result of this routine'"'"'s input scan (%s), which this call ran for you now. In the steps below, "this run'"'"'s input scan result" means that file. Read it by line range; do not run the scan again.' "${inlineResult##*/}" "$inlineNames" )"
+		else
+			inlineLine="$( printf 'input-scan: the result of this routine'"'"'s input scan (%s), which this call ran for you now, follows the steps below under `## input scan result`; in them, "this run'"'"'s input scan result" means it.' "$inlineNames" )"
+			inlineIn="$inlineTemp"
+		fi
+	fi
+	printf 'RUN-INLINE: %s\n' "$inlineName"
+	[ -z "$inlineLine" ] || printf '%s\n' "$inlineLine"
+	printf '\n'
+	AgentsToolsRoutineInlineText "$inlineFile" || { [ -z "$inlineTemp" ] || rm -f "$inlineTemp" ; return 1 ; }
+	if [ -n "$inlineIn" ] ; then
+		printf '\n## input scan result\n\n'
+		cat "$inlineIn"
+		rm -f "$inlineIn"
+	fi
+	return 0
+}

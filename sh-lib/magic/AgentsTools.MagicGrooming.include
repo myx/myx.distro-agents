@@ -846,29 +846,29 @@ case "$1" in
 		return $?
 	;;
 
-	--magic-grooming-input-scan)
+	--intern-op-grooming-input-scan)
 		shift
 		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: syntax is <team-member>" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-grooming-input-scan: syntax is <team-member>" >&2
 			set +e ; return 1
 		fi
 		if [ $# -gt 0 ] ; then
 			case "$1" in
 				--*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-team/magic-team.grooming.routine.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-grooming-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-team/magic-team.grooming.routine.md" >&2
 					set +e ; return 1
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-team/magic-team.grooming.routine.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-grooming-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-team/magic-team.grooming.routine.md" >&2
 					set +e ; return 1
 				;;
 			esac
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-input-scan: MDAT_DATA_ROOT is not set" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-grooming-input-scan: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 		printf '%s\n\n' "## state-and-lock (routine-grooming)"
@@ -884,7 +884,7 @@ case "$1" in
 		## read-only -- grooming never acts as that identity and never writes into
 		## that inbox; --do-inbox-also-member widens the read and nothing else. Same
 		## "the members that exist, not the ones a cache remembers" enumeration
-		## --magic-sweep-input-scan uses; the roster note is a cache and does not
+		## --intern-op-sweep-input-scan uses; the roster note is a cache and does not
 		## decide which inboxes are in scope. Moved here from the advance scan, which
 		## no longer reads inquiries.
 		## Every workspace's clients, from the member directory (AgentsTools.TeamRegistry.include).
@@ -909,7 +909,7 @@ case "$1" in
 			--no-slack --no-email --no-trello \
 			--no-board-related \
 			"${groomingInboxAlso[@]+"${groomingInboxAlso[@]}"}" \
-			--context --magic-grooming-input-scan
+			--context --intern-op-grooming-input-scan
 		local groomingScanRc=$?
 		## The review items this routine reviews on this run (AgentsTools.ReviewFlow.include).
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"

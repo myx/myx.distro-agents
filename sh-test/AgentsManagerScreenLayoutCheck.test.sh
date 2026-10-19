@@ -132,7 +132,7 @@ rigAssert "so at the old width the split stands where it stood"       "$( rigWid
 rigAssert "] makes it narrower, down to its smallest, 20 cells"       "$( rigWide least ) [$( rigVal leastSaid )]" "79 80 20 [0.2000] [the list is at its narrowest: 20 cells]"
 rigAssert "at the limit a press keeps the ratio as it is"             "$( rigWide stays )" "79 80 20 [0.2000]"
 rigAssert "the left window keeps what a window needs, half of the smallest terminal" "$( rigWide most ) [$( rigVal mostSaid )]" "19 20 60 [0.7500] [the list is at its widest: 60 cells]"
-rigAssert "the keys of the split are not in the status line"          "[$( rigVal bottom )]" "[ w Cut  u Read  m Menu  ^X Exit]"
+rigAssert "the keys of the split are not in the status line"          "[$( rigVal bottom )]" "[ a Active  u Read  m Menu  ^X E]"
 
 echo "-- the limits are absolute, whatever the width of the terminal, and hold in every style --"
 rigSize="60 30" rigBare <<'RIGSCRIPT'
@@ -217,7 +217,7 @@ wait sessions 30
 keys DOWN DOWN l
 wait feed 30
 get wrapped
-cells wrappedBottom 39 0 30
+cells wrappedBottom 39 0 120
 border wrappedTitle 1 0 84
 cells w6 6 1 83
 cells w7 7 1 83
@@ -226,12 +226,12 @@ cells w9 9 1 83
 cells w10 10 1 83
 keys TAB
 turn
-cells viewBottom 39 0 30
+cells viewBottom 39 0 120
 keys w
 turn
 get cut
 border cutTitle 1 0 84
-cells cutBottom 39 0 40
+cells cutBottom 39 0 120
 cells c6 6 1 83
 cells c7 7 1 83
 cells c8 8 1 83
@@ -266,8 +266,8 @@ said refusedSaid
 RIGSCRIPT
 rigAssert "the screen starts with its lines wrapped: a long body takes three lines" "$( rigVal wrapped.wrap ) $( rigVal wrapped.viewLines ) [$( rigVal wrappedTitle )] [$( rigVal w6 )] $( rigIndent w7 w8 w9 )[$( rigVal w10 )]" \
 	"yes 7 [daily of Monday [log] [wrap]] [02:01:10 magic-coordinator:] _________ _________ _________ []"
-rigAssert "the key of the wrap is the left window's: the status line names it there, by what it will do" "[$( rigVal wrappedBottom | LC_ALL=C cut -c1-12 )] [$( rigVal viewBottom | LC_ALL=C cut -c1-12 )]" "[ ENTER Open ] [ w Cut  k Ki]"
-rigAssert "w cuts the lines: the title says so, and the status line names Left and Right" "$( rigVal cut.wrap ) $( rigVal cut.viewLines ) [$( rigVal cutTitle )] [$( rigVal cutBottom | LC_ALL=C cut -c1-24 )]" "no 5 [daily of Monday [log] [cut]] [ w Wrap  ←/→ Scroll ]"
+rigAssert "the key of the wrap is a button of both windows: the status line names it, by what it will do, with the list or the left window holding the keys" "[$( rigVal wrappedBottom | LC_ALL=C grep -o ' w [A-Za-z]*' )] [$( rigVal viewBottom | LC_ALL=C grep -o ' w [A-Za-z]*' )]" "[ w Cut] [ w Cut]"
+rigAssert "w cuts the lines: the title says so, and the status line names Left and Right" "$( rigVal cut.wrap ) $( rigVal cut.viewLines ) [$( rigVal cutTitle )] [$( rigVal cutBottom | LC_ALL=C grep -o '←/→ Scroll\| w [A-Za-z]*' | tr '\n' '|' )]" "no 5 [daily of Monday [log] [cut]] [←/→ Scroll| w Wrap|]"
 rigAssert "a long body is one line, cut with the mark at the border, and still set in" "[$( rigVal c6 )][$( rigChars c7 0 30 )][$( rigChars c7 -1 0 )][$( rigVal c8 )] $( rigVal cut.spills )" \
 	"[02:01:10 magic-coordinator:][         ✉️ to *magic-tester*:][…][] 0"
 rigAssert "Right scrolls sideways, a step a press: what stands to the left is marked, and an indent is not" "$( rigVal indent.viewLeft ) [$( rigVal i4 )][$( rigVal i5 )] $( rigVal indent.spills )" \

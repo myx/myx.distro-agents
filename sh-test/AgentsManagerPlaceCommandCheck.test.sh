@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on the workspace commands, declared once by each package in its sh-lib/config/workspace-commands.list
+## Behavioural check on the workspace commands, declared once by each package in its workspace-commands.list (in sh-lib/config/ of
+## myx.distro-agents, whose sh-lib is in folders, and in the sh-lib/ of the others)
 ## (a command a line: its name, its emoji part of it; how it runs, `output` or `terminal`; the command, `$MMDAPP` the
 ## root of the workspace; a TAB between them), and on their two products, neither made from the other: the tasks
 ## the editor's palette gets (each package's *Tools.Make.VSCodeTasksFragment.include, by the one emitter of
@@ -47,9 +48,24 @@ rigWhole(){ ## file, text -- how many lines of the file are that text, whole
 rigSourced(){ ## include -- sourced in a function, as the assembler sources a fragment
 	. "$1"
 }
-rigTasks(){ ## origin, package, prefix -- what that package's fragment gives the tasks array for the root /rig/ws-golden, as the assembler takes it: from inside a $( ), its last newlines gone
-	( MMDAPP=/rig/ws-golden ; MDLT_ORIGIN="$1" ; printf '%s\n' "$( rigSourced "$1/myx/myx.distro-$2/sh-lib/$3.Make.VSCodeTasksFragment.include" )" )
+rigFragment(){ ## origin, package, prefix -- the fragment of that package, in its sh-lib/config/ where it has that folder, else in its sh-lib/
+	local rigName="$1/myx/myx.distro-$2/sh-lib"
+	[ -f "$rigName/config/$3.Make.VSCodeTasksFragment.include" ] && printf '%s\n' "$rigName/config/$3.Make.VSCodeTasksFragment.include" || printf '%s\n' "$rigName/$3.Make.VSCodeTasksFragment.include"
 }
+rigTasks(){ ## origin, package, prefix -- what that package's fragment gives the tasks array for the root /rig/ws-golden, as the assembler takes it: from inside a $( ), its last newlines gone
+	( MMDAPP=/rig/ws-golden ; MDLT_ORIGIN="$1" ; printf '%s\n' "$( rigSourced "$( rigFragment "$1" "$2" "$3" )" )" )
+}
+## THE REAL LISTS ARE NEVER WRITTEN: what the four packages hold, summed now and again at the end
+rigListPath(){ ## package, origin -- where that package declares its workspace commands
+	case "$1" in
+		agents) printf '%s\n' "$2/myx/myx.distro-agents/sh-lib/config/workspace-commands.list" ;;
+		*) printf '%s\n' "$2/myx/myx.distro-$1/sh-lib/workspace-commands.list" ;;
+	esac
+}
+rigRealSum(){ ## -- the sums of the lists of the four packages
+	for rigPkg in source deploy remote agents ; do cksum "$( rigListPath "$rigPkg" "$MDLT_ORIGIN" )" 2> /dev/null ; done
+}
+rigRealBefore="$( rigRealSum )"
 
 echo "-- 1. the tasks of the palette: those of before, made from the declarations --"
 cat > "$rigTmp/golden.source" <<'RIGEOF'
@@ -147,10 +163,10 @@ for rigPair in source:SourceTools deploy:DeployTools remote:RemoteTools agents:A
 		"$( cmp -s "$rigTmp/golden.${rigPair%%:*}" "$rigTmp/tasks.${rigPair%%:*}" && echo same || echo differs ) $( wc -c < "$rigTmp/tasks.err" | LC_ALL=C tr -d ' ' )" "same 0"
 done
 rigAssert "each package declares its commands once, in its own list: how many, and those that run with the whole terminal, the consoles" \
-	"$( for rigPkg in source deploy remote agents ; do LC_ALL=C awk -F'\t' -v pkg="$rigPkg" '/^#/ || !NF { next } { all++ ; if ( NF != 3 || ( $2 != "output" && $2 != "terminal" ) ) bad++ ; if ( $2 == "terminal" ) term = term "," $1 } END { printf "%s=%d/%d%s ", pkg, all, bad + 0, term }' "$MDLT_ORIGIN/myx/myx.distro-$rigPkg/sh-lib/config/workspace-commands.list" 2> /dev/null || printf '%s=none ' "$rigPkg" ; done )" \
+	"$( for rigPkg in source deploy remote agents ; do LC_ALL=C awk -F'\t' -v pkg="$rigPkg" '/^#/ || !NF { next } { all++ ; if ( NF != 3 || ( $2 != "output" && $2 != "terminal" ) ) bad++ ; if ( $2 == "terminal" ) term = term "," $1 } END { printf "%s=%d/%d%s ", pkg, all, bad + 0, term }' "$( rigListPath "$rigPkg" "$MDLT_ORIGIN" )" 2> /dev/null || printf '%s=none ' "$rigPkg" ; done )" \
 	"source=5/0,🖥️ Start Source Console deploy=2/0,🖥️ Start Deploy Console remote=1/0,🖥️ Start Remote Console agents=1/0,🤖 Start Agents Console "
 rigAssert "no fragment writes a task of its own: each is made from its package's list by the one emitter" \
-	"$( for rigPair in source:SourceTools deploy:DeployTools remote:RemoteTools agents:AgentsTools ; do rigFile="$MDLT_ORIGIN/myx/myx.distro-${rigPair%%:*}/sh-lib/${rigPair#*:}.Make.VSCodeTasksFragment.include" ; printf '%s:%s ' "$( LC_ALL=C grep -c -e '"label"' -e '"command"' "$rigFile" || : )" "$( LC_ALL=C grep -c -F -e 'SourceTools.Make.VSCodeTasksFromWorkspaceCommands.include' "$rigFile" || : )" ; done )" "0:1 0:1 0:1 0:1 "
+	"$( for rigPair in source:SourceTools deploy:DeployTools remote:RemoteTools agents:AgentsTools ; do rigFile="$( rigFragment "$MDLT_ORIGIN" "${rigPair%%:*}" "${rigPair#*:}" )" ; printf '%s:%s ' "$( LC_ALL=C grep -c -e '"label"' -e '"command"' "$rigFile" || : )" "$( LC_ALL=C grep -c -F -e 'SourceTools.Make.VSCodeTasksFromWorkspaceCommands.include' "$rigFile" || : )" ; done )" "0:1 0:1 0:1 0:1 "
 
 ## THE ORIGIN OF THIS CHECK: the real one, linked, but for the list of each of the four packages, which is the rig's.
 mkdir -p "$rigOrigin/myx"
@@ -160,18 +176,25 @@ for rigEntry in "$MDLT_ORIGIN"/myx/* ; do
 		myx.distro-source|myx.distro-deploy|myx.distro-remote|myx.distro-agents) ;;
 		*) ln -s "$rigEntry" "$rigOrigin/myx/${rigEntry##*/}" ; continue ;;
 	esac
+	## sh-lib and sh-lib/config are folders of the rig's own, with the files of the real ones linked in but for the list: a write to the list
+	## must never go through a linked folder into the package
 	mkdir -p "$rigOrigin/myx/${rigEntry##*/}/sh-lib"
 	for rigOne in "$rigEntry"/* ; do [ "${rigOne##*/}" = sh-lib ] || ln -s "$rigOne" "$rigOrigin/myx/${rigEntry##*/}/${rigOne##*/}" ; done
-	for rigOne in "$rigEntry"/sh-lib/* ; do [ "${rigOne##*/}" = workspace-commands.list ] || ln -s "$rigOne" "$rigOrigin/myx/${rigEntry##*/}/sh-lib/${rigOne##*/}" ; done
+	for rigOne in "$rigEntry"/sh-lib/* ; do case "${rigOne##*/}" in config|workspace-commands.list) ;; *) ln -s "$rigOne" "$rigOrigin/myx/${rigEntry##*/}/sh-lib/${rigOne##*/}" ;; esac ; done
+	if [ -d "$rigEntry/sh-lib/config" ] ; then
+		mkdir -p "$rigOrigin/myx/${rigEntry##*/}/sh-lib/config"
+		for rigOne in "$rigEntry"/sh-lib/config/* ; do [ "${rigOne##*/}" = workspace-commands.list ] || ln -s "$rigOne" "$rigOrigin/myx/${rigEntry##*/}/sh-lib/config/${rigOne##*/}" ; done
+	fi
+	[ ! -L "$rigOrigin/myx/${rigEntry##*/}/sh-lib/config" ] || rigRefuse "the rig's sh-lib/config of ${rigEntry##*/} is a link into the package: the lists would be written there"
 done
 {
 	printf '## the rig'"'"'s own commands of myx.distro-source\n\n'
 	printf '🧪 Rig Output\toutput\tsh "$MMDAPP/rig-command.sh" output "two words"\n'
 	printf '🧪 Rig "Quoted" \\ Back\toutput\tsh '"'"'${MMDAPP}/rig-command.sh'"'"' "a \\"b\\""\n'
-} > "$rigOrigin/myx/myx.distro-source/sh-lib/config/workspace-commands.list"
-printf '🧪 Rig Deploy\toutput\tsh "$MMDAPP/rig-command.sh" deploy\n' > "$rigOrigin/myx/myx.distro-deploy/sh-lib/config/workspace-commands.list"
-printf '🧪 Rig Remote\toutput\tsh "$MMDAPP/rig-command.sh" remote\n' > "$rigOrigin/myx/myx.distro-remote/sh-lib/config/workspace-commands.list"
-printf '🧪 Rig Terminal\tterminal\tsh "$MMDAPP/rig-command.sh" terminal\n' > "$rigOrigin/myx/myx.distro-agents/sh-lib/config/workspace-commands.list"
+} > "$( rigListPath source "$rigOrigin" )"
+printf '🧪 Rig Deploy\toutput\tsh "$MMDAPP/rig-command.sh" deploy\n' > "$( rigListPath deploy "$rigOrigin" )"
+printf '🧪 Rig Remote\toutput\tsh "$MMDAPP/rig-command.sh" remote\n' > "$( rigListPath remote "$rigOrigin" )"
+printf '🧪 Rig Terminal\tterminal\tsh "$MMDAPP/rig-command.sh" terminal\n' > "$( rigListPath agents "$rigOrigin" )"
 rigTool="$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 
 rigTasks "$rigOrigin" source SourceTools > "$rigTmp/tasks.rig" 2> /dev/null
@@ -241,6 +264,8 @@ rigRun "$rigRunOp" docs "🧪_Rig_Output"
 rigAssert "a directory runs nothing" "$rigRc $( rigRan "$rigWs" ) $( rigRan "$rigFar" )" "1 nothing ran nothing ran"
 rigRun "$rigRunOp" ws-here
 rigAssert "a call without a command is refused by its syntax" "$rigRc $( LC_ALL=C grep -c -F -e "syntax is $rigRunOp <place> <command>" "$rigTmp/err" || : )" "1 1"
+
+rigAssert "nothing of the rig was written into the package: the four lists are as they were" "$( rigRealSum | cksum )" "$( printf '%s\n' "$rigRealBefore" | cksum )"
 
 echo "-- 4. the help pair --"
 for rigSyntax in "$rigListOp <place>" "$rigRunOp <place> <command>" ; do

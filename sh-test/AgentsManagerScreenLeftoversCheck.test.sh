@@ -218,7 +218,7 @@ cells statusLeft 35 0 120
 keys ?
 get h
 RIGSCRIPT
-rigAssert "the status line names the key of the help, last of the keys that work in every window, whichever window has the keys; the key opens the box of the keys" "[$( rigVal status )] [$( rigVal statusLeft )] [$( rigVal h.dialogTitle )]" "[ ENTER Open  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help] [ u Read  m Menu  ^X Exit  TAB Window  ? Help] [Keys]"
+rigAssert "the status line names the key of the help, last of the keys that work in every window, whichever window has the keys; the key opens the box of the keys" "[$( rigVal status )] [$( rigVal statusLeft )] [$( rigVal h.dialogTitle )]" "[ ENTER Open  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help] [ a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help] [Keys]"
 
 echo "-- a kill whose plan cannot be read is not asked for --"
 rigCase unread

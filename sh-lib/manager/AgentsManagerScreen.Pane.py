@@ -168,25 +168,25 @@ def localView(state, row):
     if not logShown(state, row):
         ## the summary of a session and of an agent: its facts, and nothing of its log;
         ## one that has no log has its summary alone, whatever the mode
-        if level in ("sessions", "team/*/sessions") and row.get("session"):
+        if level in (pluginLevel("sessions"), pluginLevel("team", "*/sessions")) and row.get("session"):
             return sessionLines(row["session"], state.viewWidth, state.view["info"], wrap=state.wrap)
-        if level == "sessions/*" and row.get("run"):
+        if level == pluginLevel("sessions", "*") and row.get("run"):
             return runLines(row["run"], state.viewWidth, state.view["info"])
     summary = folderSummary(state, row)
     if summary is not None:
         return summary
-    if level == "pending" and row.get("ask"):
+    if level == pluginLevel("pending") and row.get("ask"):
         ## set out again only when the ask, what is stored of it, the width or the minute has changed
         stamp = (row["ask"], id(state.view["info"]), state.viewWidth, int(nowEpoch() // 60))
         if state.view.get("askFor") == stamp:
             return None
         state.view["askFor"] = stamp
         return askLines(row["ask"], state.viewWidth, state.view["info"])
-    if level == "sessions/launch" and row.get("routine"):
+    if level == pluginLevel("sessions", "launch") and row.get("routine"):
         return routineLines(row["routine"], state.viewWidth)
-    if level == "sessions/launch" and row["kind"] == "free":
+    if level == pluginLevel("sessions", "launch") and row["kind"] == "free":
         return freePromptLines(state.viewWidth)
-    if level == "team" and row.get("member"):
+    if level == pluginLevel("team") and row.get("member"):
         ## set out again only when the member, what was read of it, the width or the minute has changed
         stamp = (row["member"], id(state.view["info"]), state.viewWidth, int(nowEpoch() // 60))
         if state.view.get("memberFor") == stamp:
@@ -204,15 +204,15 @@ def localView(state, row):
         return serverKeyLines(state, state.path, row["serverKey"], state.viewWidth)
     if row.get("keyGroup"):
         return keyGroupLines(state, state.path, [row["keyGroup"]], state.viewWidth)
-    if level == "consoles" and row.get("start"):
+    if level == pluginLevel("consoles") and row.get("start"):
         return startLines(row["start"], state.viewWidth)
-    if level in ("dashboard", TEAM_DATA["level"]) and row.get("block"):
+    if level in (pluginLevel("dashboard"), pluginLevel("teamdata")) and row.get("block"):
         return blocksView(state, row["id"], levelKey(state.path))
-    if level == TEAM_DATA["level"] + "/operations" and row["kind"] == "operation":
+    if level == pluginLevel("teamdata", "operations") and row["kind"] == "operation":
         return cleanupLines(state, row)
-    if level == "places" and row.get("place"):
+    if level == pluginLevel("places") and row.get("place"):
         return placeLines(state, row["place"], state.viewWidth, state.view["info"])
-    if level == "places/*" and row.get("placeCommand"):
+    if level == pluginLevel("places", "*") and row.get("placeCommand"):
         return placeCommandLines(row["placeCommand"], state.viewWidth)
     if row.get("grant"):
         return grantLines(row["grant"], state.viewWidth)

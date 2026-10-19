@@ -42,7 +42,8 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 [ -f "$rigInclude" ] || rigRefuse "the Slack include is not at: $rigInclude"
 [ -f "$rigRegInclude" ] || rigRefuse "the registries include is not at: $rigRegInclude"
-rigTmp="$( mktemp -d -t AgentsSlackClientPersonaCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsSlackClientPersonaCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigSkills="$rigTmp/skills" ; rigHome="$rigTmp/home"

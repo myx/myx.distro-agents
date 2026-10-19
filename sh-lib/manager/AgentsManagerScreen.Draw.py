@@ -367,7 +367,7 @@ def statusItems(state):
     for command in COMMANDS:
         if command.get("status") and commandOffered(state, command) and command["does"] != ("mode", modeNow(state)):
             wide = commandWindow(command) is None and "on" not in command
-            (everywhere if wide else own).append((keysShown(command["shown"]) if command.get("shown") else keyShown(commandKeys(command)[0]), statusWord(state, command)))
+            (everywhere if wide else own).append((keysShown(command["shown"]) if command.get("shown") else keyShown(commandKeyNow(state, command) or commandKeys(command)[0]), statusWord(state, command)))
     return own + everywhere
 
 

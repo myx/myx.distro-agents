@@ -59,7 +59,7 @@ chmod +x "$rigWs/DistroAgentsConsole.sh"
 printf '# rig armed\n' > "$rigSkills/keeper-myx/keeper-myx.armed.md"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
 printf '# rig armed\n' > "$rigSkills/magic-coordinator/magic-coordinator.armed.md"
-printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\ninvitees: magic-team\ndefault-for-session-kind: coworking\n---\n# rig coworking routine fixture\n' \
+printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\ninvitees: magic-team\nrequires-session-kind: coworking\n---\n# rig coworking routine fixture\n' \
 	> "$rigSkills/magic-team/magic-team.coworking.routine.md"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 

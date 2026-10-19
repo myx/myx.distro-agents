@@ -203,8 +203,6 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-pending <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-blocked <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-running <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-input-scan <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-advance <team-member> <ts>
@@ -223,7 +221,6 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-permission-list --member <member> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-permission-list <team-member> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-permission-revoke <ref> [--session-id <id>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-permission-escalation-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]
 📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle <team-member> <pending-id> --reason <text> [--withdraw]
 📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text> [--withdraw]
@@ -242,13 +239,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--file <changed-file>]... [<test>...]
 📘 syntax: DistroAgentsTools.fn.sh --member-retest-drain [--rest [--about <scratch-folder>]]
 📘 syntax: DistroAgentsTools.fn.sh --member-retest-result <request-id>...
-📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <tracking-document>...
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-config-check
-📘 syntax: DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-morning-review-input-scan <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-morning-review-state-advance <team-member> <ts>
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -261,34 +252,25 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-sleep-run
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-member> <owner-label>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-refresh <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-close-state-and-unlock <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-status <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-acquire <team-member> <owner-label>
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-refresh <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-advance-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-status <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-acquire <team-member> <owner-label>
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-refresh <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-status <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-acquire <team-member> <owner-label>
 📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-refresh <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-daily-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-status <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-acquire <team-member> <owner-label>
 📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-refresh <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-retro-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-status <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-advance-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-daily-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-retro-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-test-report-send <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name> [--untrash]
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]
 📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]
+📘 syntax: DistroAgentsTools.fn.sh --tester-skillset-validate-routine <routine-file|--from-stdin>
 📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge
 📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --help-setup-<domain>
@@ -3512,12 +3494,14 @@
 			itself, which is no member and is never started, or where
 			more than one routine file answers to the selector. It is
 			`broken` where the file
-			fails the routine contract: no frontmatter block, or no
-			executors or maintainers. <reason> says in words why a
+			fails the routine contract: no frontmatter block, no
+			`requires-session-kind:` naming a session kind of the
+			tooling, or no executors or maintainers. <reason> says in words why a
 			routine is not `startable`, and is `-` for one that is.
 			<executors> is the frontmatter value, `-` for a `broken`
-			file. <session> is `coworking` for a coworking-like routine,
-			to whose session the spawner adds `magic-coordinator`.
+			file. <session> is `coworking` for a routine whose
+			`requires-session-kind:` is `coworking`, and `-` for the
+			other kind.
 			<arguments> is `-`, its place kept: no routine file says, in
 			a form a program reads, whether the routine takes arguments.
 			<title> is the file's own title line. <needs>, the last
@@ -4194,79 +4178,6 @@
 			-- the approval-* item the human-owner approval negotiation
 			runs in.
 
-		--magic-grooming-input-scan <team-member>
-			Read-only: lists board items as `<state>/<item-filename>`,
-			one per line, with every frontmatter field. Always scans
-			backlog/pending/running/review/blocked/parked. Use this to find
-			an item's actual current state before calling
-			`--magic-grooming-to-*`. Also returns routine-grooming's
-			own state-and-lock note content ahead of the board rows
-			(content only, absent reported as nothing to report, not
-			an error), and the team roster cache as its own section
-			(same terms) -- no need to call `--magic-team-roster-read`
-			separately. `<team-member>` is the only argument.
-
-			Inbox scope is `<team-member>`'s own inbox plus every
-			`client-*` member, each in its own "Additional Inbox --
-			<member>" group. Widening the read is all it does: the
-			acting identity stays `<team-member>`, no client
-			credential or comms source is read, nothing is written
-			into a client inbox.
-
-		--magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]
-			Read-only combined check: backlog/pending/running/review/
-			blocked board items (not parked), the calling member's own
-			watched sources, and every client-* member's own
-			sources, each under that member's own credentials.
-			Returns only items whose channel id is the
-			three-field `slack:<channel>:<ts>` form -- a live,
-			reply-pending thread; a bare `slack:<channel>` or
-			non-slack service is not one. An empty result is
-			normal, not an error. No --state/--header override.
-
-			One document covers everyone swept. Each client
-			member's own block matches
-			--client-sweep-input-scan's own output (its `#
-			Incoming Communications Sweep -- <member>` heading,
-			`member:`/`member-kind:` lines); a client with no
-			coverage still gets a `no scan was made` block --
-			never silently missing.
-
-			Every member resumes from its OWN cut-off. With none
-			stated, the team part resumes from the calling
-			member's own stored `last_swept_ts`
-			(--magic-sweep-state-read), and each client member's
-			part from that client's own; the scan's default window
-			applies only to a member with no position stored. A
-			stated --comms-since-utime or --comms-since-date-time
-			(mutually exclusive) applies to the team part only and
-			is never forwarded to a client.
-
-			Every `## slack-message` item block carries `author:` and
-			`addressees:` right after `user:`, so no reader parses a
-			message itself. Where the text opens with the team's own
-			send header (`*_<from>_*[ @<alias>] → <addressee>; ....`),
-			`author:` is the member named there and `addressees:`
-			the members, accounts or conversations it names, or
-			`@here (unaddressed)`. Without that header, `author:` is
-			the platform sender (as `user:`) and `addressees:` the
-			accounts the text mentions, `@here (unaddressed)` for a
-			channel-wide mention, or `(none stated)`.
-
-			**Hazard: not a workspace-wide mention search** -- a
-			conversation or mention outside the already-watched
-			sources stays undiscoverable here.
-
-			Exit code, the combined verdict over everyone swept --
-			matched in the body by `sources-scanned: N of M` and
-			`NOT SCANNED`/partial markers:
-			0 every source scanned.
-			3 some scanned, some not.
-			4 none scanned.
-			1 failed before producing a document.
-			A client member's own failure counts as 4, never 1,
-			once a document exists.
-
 		--magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) routine-communication-sweep's own
 			state record FOR THAT MEMBER. Takes no filename or path argument --
@@ -4311,9 +4222,10 @@
 
 		--magic-team-roster-read <team-member>
 			Reads the team's roster cache -- member/domain/posture rows plus
-			the per-member persona subsections. `--magic-grooming-input-scan`
-			already returns this same content as its own section, so a
-			routine working from that scan does not call this op too.
+			the per-member persona subsections. The grooming input scan,
+			which the spawner runs for the grooming routine, already holds
+			this same content as its own section, so a routine working
+			from that scan does not call this op too.
 			Outputs the record content, or
 			`NO_RECORD` if none is stored yet. Read-only.
 
@@ -4352,51 +4264,6 @@
 			**Hazard**: takes no lock -- run it only when no routine
 			holds the advance or heartbeat lock, or a file another op
 			is writing could be committed half-written.
-
-		--client-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]
-			Read-only: one client-* member's own incoming external
-			comms -- Slack, email, Trello -- read as that member,
-			under its own credentials and configured sources. Use
-			for one external relationship; use
-			--magic-sweep-input-scan for the team's own.
-
-			The member name is required and must be client-* (a
-			partner-* is not accepted); the whole document is that
-			one member's scope, each section stating our own side
-			(`identity: slack <id> (config: <member>)`, same for
-			email/Trello), board items limited to ones it owns.
-			Called by that member's own session; any other session
-			is refused.
-
-			A source that couldn't be read is `sources-scanned: N
-			of M` + `**NOTE:** partial`, and counts against the
-			exit status -- never read under another member's or
-			the team's credentials. An OPTIONAL source this member
-			holds no credentials for (email, Trello) is different:
-			never contacted, no `sources-scanned:` line, not
-			counted, not partial -- its own `**NOTE:** no scan
-			was made` names the unset keys. This is the only way
-			an unconfigured source is told apart from an
-			unreachable one.
-
-			Slack sources come from this member's own
-			`SLACK_CONVERSATIONS` config (ids or `<channel>:<ts>`,
-			whitespace/comma-separated); none configured reports
-			nothing scanned, no team-scoped fallback.
-
-			A cut-off (--comms-since-utime or
-			--comms-since-date-time, mutually exclusive) is
-			optional. Given neither, the scan resumes from this
-			member's OWN stored `last_swept_ts`
-			(--magic-sweep-state-read <this member>), never the
-			caller's; with none stored, the scan's default window
-			applies. `resumed-from:` says which, and the cut-off
-			actually used is in each section's own `instrument:`
-			line.
-
-			Exit code: 0 every source scanned, 3 some scanned and
-			some not, 4 none scanned, 1 failed before producing a
-			document.
 
 		--member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>]
 		--member-wait-for-input <team-member> --wait-list-sources
@@ -4942,22 +4809,6 @@
 			on the item's `## Decisions`. Only magic-coordinator, or
 			the console, may call it.
 
-		--magic-permission-escalation-input-scan <team-member>
-			The input scan of
-			magic-coordinator.permission-escalation.routine: the
-			oldest 20 open permission asks addressed to
-			`permission-escalation.routine`, in every workspace this
-			machine knows. Opens with `shown: <n> of <total>, oldest
-			first`, or `(none)`. Each ask is a `## permission ask
-			<id>` block of `<field>: <value>` lines: workspace,
-			asked-at, member (who asked), session, refusal, tool,
-			target, place (the target as <name>:<relative>, or -),
-			reason, task-ref, item, holders (<member> <layer>,
-			<team-member> first when it holds it, the human-owner
-			last) and set-requests (the open permission-set asks of
-			the same item or session). It changes nothing. Only
-			magic-coordinator, or the console, may call it.
-
 		--member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]
 			Reads the records AskQuestion leaves, of any kind. With
 			<pending-id>, prints that one record. Without it, lists the
@@ -5224,83 +5075,6 @@
 			holds the logs of the run. A finished request is kept seven
 			days. Exit 1 where an id is unknown.
 
-		--member-work-session-input-scan <team-member>
-			Read-only: one member's own current work-session input --
-			personal, not routine-dictated (every armed member runs this
-			against its own name as it becomes armed, regardless of which
-			routine triggered the arming). Returns that same member's own
-			inbox first, as two sections: its reflections, then its notes
-			(`## inbox/<item-filename>`, frontmatter and body; top-level
-			items only, items marked `processed-at` excluded, at most 64
-			each). A section with nothing in it, a not-yet-created inbox/
-			included, prints a note saying so, not an error. Inquiries and
-			other inbox items are not returned. Then its board items:
-			pending/running/review/blocked, restricted to the items owned by
-			<team-member>, every board-item type, every frontmatter field,
-			no body; where it owns none, this part prints nothing.
-			<team-member> must be a real member skill directory,
-			and is the only argument -- no --state/--header override.
-
-		--routine-coworking-session-input-scan <team-member> <tracking-document>...
-			Read-only: routine-coworking's own step-1 board scan once the
-			session's shared goal names its own tracking document(s). Each
-			<tracking-document> is one tracking document for this particular
-			session -- a dispatch, an interview, a task or an attachment that
-			is this session's own work -- given as a bare name, without the
-			.md suffix. At least one is required -- no --state/--header
-			override alongside them. Searches every real board state (a named
-			document may
-			live in any of them) and never filters by owner (contrast
-			--member-work-session-input-scan: this is about specific named
-			documents regardless of who owns them). Returns the named
-			documents
-			plus every item reached through their own references/blocks/
-			blocked-by fields, every board-item type, every frontmatter
-			field.
-
-		--magic-heartbeat-input-scan <team-member>
-			Read-only: routine-heartbeat's own prepared input, narrowed to
-			what that routine's own steps consume. Opens with a
-			`## day-rhythm (routine-heartbeat)` section of three lines:
-			`branch: first-today|later-today|weekend` (weekend on a
-			local Saturday or Sunday; otherwise first-today unless the
-			note's `last-iteration-date` is today's local date),
-			`today-stage: <value>` (the note's own, or `not-started`
-			when its date is not today or it has none), and
-			`grooming-today: finished|running|none` (finished: the
-			grooming note says `grooming-finished` with today's
-			`last-close-date`; running: its lock is held; none
-			otherwise). Then routine-heartbeat's own state-and-lock note
-			content (the same document --magic-heartbeat-state-read
-			prints; a note that doesn't exist yet reports as nothing to
-			report, not an error; content only, never evaluates the
-			lock). No board item content and no inbox reflections.
-			Then a `## questions (pending replies)`
-			section shows the main loop's last collect of unanswered
-			questions, then every question still open, from any member,
-			with its session, asker and age. Then a `## spawned
-			sessions` section: each spawn's recorded close status and
-			exit code, and whether its process is alive now. Then a
-			`## board counts` section: one `<state>: <n>` line per board
-			state (backlog, pending, running, review, blocked, parked,
-			processed, archived, retained), counted live at scan time
-			from the `*.md` files directly in that state's folder --
-			the counts a report needs, with no count of its own. Last,
-			a `## board active items` section: one `<state>/<item-filename>`
-			line per item in running, review, pending and blocked, at
-			most 40, then `(+<n> more)`; `(none)` when empty.
-			`<team-member>` is the only argument -- no --state/--header
-			override.
-
-			In a team session (MDAT_SESSION_ID set) the report is
-			written to `.local/agents/sessions/<session>/magic-heartbeat-input-scan.md`
-			and the reply is its reference: a preview, the file's path,
-			its size in bytes and lines, and how to read the rest by
-			line range. For five minutes after that file was written, a
-			further call in the same session, from any run of it, replies
-			with the same file and reads no source. With no team session
-			the report is printed whole.
-
 		--magic-heartbeat-config-check
 			Read-only, no arguments -- routine-heartbeat's step-0
 			config gate. Checks magic-coordinator's own config for
@@ -5354,64 +5128,6 @@
 			through intact) but must not contain a comma. One malformed
 			or failing entry is reported inline without aborting the
 			rest; any failure makes the whole call exit non-zero.
-
-		--magic-morning-review-input-scan <team-member>
-			Read-only, magic-coordinator's only:
-			magic-librarian.morning-review.routine's own input.
-			<team-member> is one of its executors (magic-coordinator,
-			magic-librarian). `## cutoff`: `since:` this caller's own
-			cut-off (default 7 days back when none is stored) and
-			`next:`, the value to pass to
-			--magic-morning-review-state-advance at close. `## state
-			shape`: one `counts:` line over every board state, then
-			one `<rule>: <n>` line per rule with at most 3 items, each
-			`<state>/<item-filename>` plus its state headers only,
-			never a body: blocked-no-blocker, parked-no-recheck-date,
-			running-session-ended (by the spawned-sessions registry),
-			review-no-review-by, processed-no-processed-at. `## skillset
-			files changed since cutoff`: names only, newest first, at
-			most 20. A cap reached says `(capped, <n> shown)`. Exit 0
-			every source read, 2 some (each gap is a `**NOTE:**
-			partial` line), 1 none.
-
-		--magic-morning-review-state-advance <team-member> <ts>
-			Moves this caller's own morning-review cut-off to <ts>,
-			the scan's `next:` value, and commits it. Equal is a
-			no-op; backwards or future is refused.
-
-		--magic-advance-input-scan <team-member>
-			Routine-advance's own board scan (the same scan
-			routine-update-board and routine-heartbeat read). Scans
-			pending/running/review/blocked/parked, every board-item type, every
-			frontmatter field -- not backlog, which is
-			--magic-grooming-input-scan's. Each row is labelled
-			`<state>/<item-filename>`; a caller needing a narrower view
-			selects from the rows itself. Also returns routine-advance's
-			own state-and-lock note content ahead of the board rows
-			(content only, never evaluates the lock; absent reports as
-			nothing to report, not an error). `<team-member>` is the
-			only argument -- no --state/--header override. After the
-			board digest come three sections: `## team members`, `##
-			spawned sessions` and `## pending replies`.
-
-			Read-only: it changes nothing. What a dead spawn left open,
-			the review items of reviewer sessions that ended, and the
-			control threads that are missing are seen to when the
-			routine takes its lock (--magic-advance-lock-acquire).
-
-			In a team session (MDAT_SESSION_ID set) the report is
-			written to `.local/agents/sessions/<session>/magic-advance-input-scan.md`
-			and the reply is its reference: a preview, the file's path,
-			its size in bytes and lines, and how to read the rest by
-			line range. For five minutes after that file was written, a
-			further call in the same session, from any run of it, replies
-			with the same file and reads no source. With no team session
-			the report is printed whole.
-
-			Inbox scope is `<team-member>`'s own inbox, notes only: the
-			pending-slack-reaction and pending-trello-update records the
-			routine's comms step acts on. No inquiries, no reflections,
-			no client-* inbox -- those are --magic-grooming-input-scan's.
 
 		--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Moves a board item into board/running/, and/or patches its
@@ -5619,44 +5335,6 @@
 			when nothing is held. Takes no options; any further argument is
 			rejected.
 
-		--magic-advance-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
-		--magic-grooming-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
-		--magic-daily-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
-		--magic-retro-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
-			Releases the lock in routine closure, setting
-			`state: advance-finished`/`grooming-finished`/
-			`daily-finished`/`retro-finished`. Prints `RELEASED` (rc 0)
-			only once the close is read back from the note on disk and
-			committed/pushed as configured; otherwise prints
-			`CLOSE_NOT_RECORDED` naming what failed, keeps the lock (the
-			note is not left finished) and returns 1. The grooming and daily closes also stamp
-			`last-close-date` (today, local), which
-			--magic-heartbeat-input-scan's `grooming-today:` and
-			--magic-daily-lock-acquire's `first-today:` read.
-
-			Closing content is optional, written in the SAME upsert
-			call that sets the finished state and releases the lock --
-			one call closes a pass, not two. Omitted, the note's body
-			is preserved, only headers/lock change. Narrower than the
-			sibling --magic-*-state-and-lock-upsert ops: no
-			--upsert-from-stdin, closing content is expected prepared.
-
-			--from-file <path>
-				Replaces the whole note, frontmatter included -- a
-				field the file omits is gone from the note.
-				`session-id` is carried forward regardless, so the
-				lock is never orphaned.
-
-			--edit-patch-from-stdin
-				Applies a JSON array of {"old","new","replace_all"}
-				patches to the existing body. Mutually exclusive
-				with --from-file.
-
-			--magic-advance-close-state-and-unlock only, with
-			TEAM_DATA_GIT_REMOTE set: pushes after the unlock commit,
-			then resyncs the board. A failure of either warns on
-			stderr and still returns 0 -- the lock releases either way.
-
 		--magic-advance-lock-status <team-member>
 		--magic-grooming-lock-status <team-member>
 		--magic-daily-lock-status <team-member>
@@ -5666,36 +5344,6 @@
 			or `ACTIVE:owner=...:state=...:recheck_date=...` when held --
 			read from the lock note's own frontmatter. Takes no options;
 			any further argument is rejected.
-
-		--magic-advance-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-		--magic-grooming-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-		--magic-daily-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-		--magic-retro-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
-			Writes the calling routine's own fixed state-and-lock
-			note -- its session tracking document between
-			iterations, not a transcript. Prefer referencing
-			TEAM-DATA over copying it. `state` and `recheck-date` are
-			stamped by the operation itself (+10 minutes for advance,
-			+30 for grooming, daily and retro); pass
-			`--header:upsert:state:<routine>-finished` to close.
-
-			--header:<upsert|append|remove>:name[:value]
-				Frontmatter field operations, applied in order. A
-				repeated upsert on one field takes the last value.
-				`recheck-date` is always re-stamped, cannot be
-				overridden.
-
-			--from-file <path>
-				Replaces the whole note, frontmatter included -- an
-				omitted field is gone. `session-id` is the
-				exception, carried forward so the lock can't be
-				orphaned.
-
-			--edit-patch-from-stdin
-				Applies a JSON array of {"old","new","replace_all"}
-				patches to the existing body. Mutually exclusive
-				with --from-file. Given neither, the body is
-				preserved.
 
 		--magic-advance-sleep-run
 			Read-only, no arguments -- a fixed-duration pacing operation in
@@ -5739,7 +5387,7 @@
 			`dispatch-succeeded`/`dispatch-failed`, a "## Result"
 			section is appended, and the item moves to
 			board-review. A session that died without closing is
-			closed later by --magic-advance-input-scan, with the
+			closed later by the advance routine's lock, with the
 			ended-without-close outcome. No `RECEIPT_FILE` key is
 			ever written.
 
@@ -5889,24 +5537,58 @@
 			`ROUTINE` (the resolved filename), `MEMBERS` (spawned
 			members, space-separated).
 
-		--magic-heartbeat-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
-			Writes (creates or overwrites) routine-heartbeat's own state
-			record. Takes no filename or path argument -- storage is
-			the operation's own concern.
-			Input source is exactly one of: stdin (default), `--from-file`, or
-			`--edit-patch-from-stdin`. Empty content is rejected. If
-			`--edit-patch-from-stdin` is used, stdin must be a JSON patch array
-			for exact-literal replace operations.
-			While the note says `state: heartbeat-running`, every state
-			write also refreshes the lock: `recheck-date` is set to now
-			+ 15 minutes, the same value `--magic-heartbeat-lock-refresh`
-			writes, so a pass that keeps writing its state needs no
-			separate refresh call for it. Any other state is carried
-			over untouched.
-			Stamps `last-iteration-date` (today, local) and
-			`last-iteration-timestamp` (now, UTC `YYYY-MM-DDTHH:MM:SSZ`)
-			itself; a value the caller gives wins. A stored
-			`last-test-email-sent` the caller leaves out is kept.
+		--routine-run-inline <routine>
+			ThisSession's operation (DistroAgentsSession.fn.sh): a routine run inline in
+			the calling session, like a call that inherits the caller's session, thread
+			and context and gives back only its result. Prints `RUN-INLINE: <routine
+			file>`, then the routine's text as the run reads it: its Steps, with the
+			Opening steps, Closure steps, local rules and tooling of
+			`magic-team.inline.routine` mixed in in place of those of its session kind
+			(steps designed for inline, none of a session's, such as the reflections),
+			without the routine's frontmatter and without its Maintainer Notes.
+			<routine> is a routine's file name or a part of one, exactly one file, as
+			`--routine` takes it. Arguments of the routine (a `<team-member>`) stay in the
+			caller's prose, as for any routine.
+			The routine's own `input-scan-def:` scans are run now, through the runner the
+			spawner uses, for the calling member; the result is saved to
+			`input/input-scan.<routine>.md` of the caller's sandbox and named in a line
+			ahead of the steps, as the spawner names the scan of a session it starts. From
+			no sandbox (a console) the result follows the steps. A scan that fails does
+			not stop the call: the file says it failed and what it said. A call from no
+			member's session, for a routine that declares a scan, is refused.
+			Refused with its reason for no or more than one routine argument, or a
+			routine that matches no file or several.
+
+		--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]
+			ThisSession's operation (DistroAgentsSession.fn.sh). Updates the state
+			record of the routine the calling session runs: the document its
+			spawner locked for the session (`routine-lock-document:`). The session
+			knows its routine and that document, so the call names no routine and no
+			path, and any participant of the locked session may make it.
+			Participants never lock or unlock it; they update it with this, as often
+			as they have updates, and each update is committed, and pushed where a
+			git remote is set, before the call returns.
+			`--document <note>` names the note, and is needed only where the session
+			locked several (a routine that runs another inline).
+			Input source is exactly one of: stdin (default), `--from-file`,
+			`--edit-patch-from-stdin` (stdin is a JSON patch array for exact-literal
+			replace operations on the stored record), or header edits of the stored
+			record, `--header:upsert:<name>:<value>` and `--header:remove:<name>`.
+			Empty content is rejected. Refused with its reason where the call comes
+			from no spawned session, the session holds no lock, or the lock has been
+			given back.
+			The lock-owned fields (type, from, date, owner, state, recheck-date,
+			session-id) stay as the document has them, whatever the content gives.
+			While the note says `state: <routine>-running`, every state write also
+			refreshes the lock: `recheck-date` is set to now + 120 minutes (the
+			heartbeat: now + 15 minutes, the same value
+			`--magic-heartbeat-lock-refresh` writes), so a pass that keeps writing
+			its state needs no separate refresh call for it. Any other state is
+			carried over untouched.
+			For the heartbeat's note it also stamps `last-iteration-date` (today,
+			local) and `last-iteration-timestamp` (now, UTC `YYYY-MM-DDTHH:MM:SSZ`)
+			itself; a value the caller gives wins. A stored `last-test-email-sent`
+			the caller leaves out is kept.
 
 		--magic-heartbeat-test-report-send <team-member>
 			Sends the hourly test report. <team-member> must be
@@ -5935,13 +5617,6 @@
 			crashed one. Prints `REFRESHED` (rc 0), or `NO_LOCK_HELD` (rc 1)
 			when nothing is held. Takes no options; any further argument is rejected.
 
-		--magic-heartbeat-close-state-and-unlock <team-member>
-			Releases the lock in routine closure, setting the note's
-			`state: heartbeat-finished`. Prints `RELEASED` (rc 0) only once
-			the close is read back on disk and committed/pushed as
-			configured; otherwise `CLOSE_NOT_RECORDED`, lock kept, rc 1.
-			Takes no options; any further argument is rejected.
-
 		--magic-heartbeat-lock-status <team-member>
 			Read-only, returns 0 always -- including when free, so a caller
 			can check before deciding to start. Prints `NO_LOCK` when free,
@@ -5950,9 +5625,28 @@
 			any further argument is rejected.
 
 		--magic-heartbeat-state-read <team-member>
-			Reads back the whole record written by --magic-heartbeat-state-upsert,
+			Reads back the whole record written by the state update of the heartbeat,
 			verbatim. Outputs `NO_STATE` if nothing is stored yet.
 			Read-only.
+
+		--tester-skillset-validate-routine <routine-file|--from-stdin>
+			Checks a routine file against the routine contract
+			(`magic-team/templates/routine.contract.format.md`) and prints one
+			row for each fault, `<file>:<line>: <rule>: <text>`, exit non-zero
+			where there is any. It is the thin stub of the one validator,
+			`--intern-doc-validate routine`, and has no logic of its own;
+			`DistroAgentsTesting.fn.sh --skillset-validate-routine` is the
+			same. Read-only. It rejects, and does not warn, a routine that has
+			no `requires-session-kind:` naming a session kind (`standalone` or
+			`coworking`), no `type: routine`, no `executors:` or `maintainers:`
+			(its kind routine's defaults counted), or lacks `# Opening steps`,
+			`# Steps`, `# Closure steps` or `# Routine's local procedures`, each
+			once and in that order; a `tracking-item:`, `start-context:`
+			(with a closure line for each mode it allows), `review-by:`,
+			`routine-lock-document:`, `input-scan-def:`, `runs-at:` or `runs-after:` of a wrong form is
+			refused the same way. A finding of `operations:` is a row of the
+			rule `report-operations`: it is said and refuses nothing.
+			`--from-stdin` reads the routine from standard input.
 
 		--owner-cleanup-purge
 			Empties $MMDAPP/.local/.cleanup/ (the folder itself stays).
@@ -6188,13 +5882,6 @@
 		Line two, with 'quotes' and (parens) that would have been fragile as argv.
 		EOF
 		```
-
-		# Sweep all watched targets (magic-team, human-owner, email, Trello) for new activity --
-		# board-tracked threads and every watched source in one pass, not a single-target reader
-		`DistroAgentsTools.fn.sh --magic-sweep-input-scan magic-coordinator`
-
-		# Sweep all watched targets, incrementally since a prior check marker
-		`DistroAgentsTools.fn.sh --magic-sweep-input-scan magic-coordinator --comms-since-utime 1786140114.450349`
 
 		# Regression-test permission hardening under a deliberately permissive umask
 		`DistroAgentsTools.fn.sh --owner-credential-store-self-test`

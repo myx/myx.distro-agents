@@ -1,8 +1,11 @@
 ---
+type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 invitees: human-owner
-default-for-session-kind: root
+requires-session-kind: standalone
+input-scan-def: none
+review-by: inherit
 ---
 # magic-coordinator.root-harness.routine — the actual procedure
 
@@ -11,6 +14,7 @@ default-for-session-kind: root
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -44,6 +48,10 @@ default-for-session-kind: root
 - Doesn't:
   - Run on any other spawned instance. Those work from their own dispatch brief.
   - Touch `magic-team.coworking.routine`, the spawn-brief template or the brief tooling.
+
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
 
 # Steps
 
@@ -206,7 +214,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - `magic-coordinator.coordination-session.routine` — the `coordination-session` cycle, run at **run-operating-mode-cycle**.
 - `magic-team/dispatches/root-harness-session-start.prompt-packet.verbatim.md` — the brief `--intern-root-harness` sends, after its `INTERACTION-MODE:` and `ROUTINE:` lines.
-- `magic-team/templates/routine.contract.format.md` — the `default-for-session-kind:` key.
+- `magic-team/templates/routine.contract.format.md` — the frontmatter keys.
 
 ### Conventions
 

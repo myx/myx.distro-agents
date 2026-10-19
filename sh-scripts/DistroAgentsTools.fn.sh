@@ -313,7 +313,7 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		--member-*)
+		--member-*|--intern-op-member-work-session-input-scan)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"
 			return $?
 		;;
@@ -488,6 +488,20 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## The one validator of a document against its contract, a rule set for each kind (the routine
+		## kind so far). Read-only; one row per fault, `<file>:<line>: <rule>: <text>`.
+		--intern-doc-validate)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include"
+			return $?
+		;;
+
+		## F7.6's stub of the routine kind of that validator, with no logic of its own.
+		--tester-skillset-validate-routine)
+			shift
+			DistroAgentsTools --intern-doc-validate routine "$@"
+			return $?
+		;;
+
 		## The tool index, .local/agents/tool-index.md: every tool, and who may use what. A
 		## member's Skill read of its own skill serves that member's section of it.
 		--intern-op-tool-index)
@@ -548,17 +562,18 @@ DistroAgentsTools(){
 		;;
 
 
-		--magic-grooming-*)
+		## The input scans are tooling-internal: the spawner runs the one a routine declares in `input-scan-def:`, and no agent calls one (F6.4).
+		--magic-grooming-*|--intern-op-grooming-input-scan)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicGrooming.include"
 			return $?
 		;;
 
-		--magic-sweep-*)
+		--magic-sweep-*|--intern-op-sweep-input-scan)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweep.include"
 			return $?
 		;;
 
-		--client-sweep-*)
+		--client-sweep-*|--intern-op-client-sweep-input-scan)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientSweep.include"
 			return $?
 		;;
@@ -573,23 +588,31 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		--routine-coworking-*)
+		## The update of the locked document of a session's routine (F6.2): ThisSession's --update-routine-state reaches it here.
+		--intern-op-update-routine-state)
+			shift
+			type AgentsToolsRoutineSessionStateUpdate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include"
+			AgentsToolsRoutineSessionStateUpdate "$@"
+			return $?
+		;;
+
+		--intern-op-routine-coworking-session-input-scan)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineCoworking.include"
 			return $?
 		;;
 
-		--magic-heartbeat-*)
+		--magic-heartbeat-*|--intern-op-heartbeat-input-scan|--intern-op-heartbeat-state-upsert)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicHeartbeat.include"
 			return $?
 		;;
 
-		--magic-advance-*)
+		--magic-advance-*|--intern-op-advance-input-scan)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicAdvance.include"
 			return $?
 		;;
 
-		## magic-librarian.morning-review.routine: its input scan and cut-off advance, implementation and stubs.
-		--intern-op-morning-review-*|--magic-morning-review-*)
+		## magic-librarian.morning-review.routine: its input scan. The cut-off is the routine's own state, updated with --update-routine-state.
+		--intern-op-morning-review-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.InternOpMorningReview.include"
 			return $?
 		;;

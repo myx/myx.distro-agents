@@ -131,9 +131,9 @@ for rigMember in rig-member-a rig-member-b rig-member-c magic-coordinator human-
 	printf '# rig armed\n' > "$rigSkills/$rigMember/$rigMember.armed.md"
 done
 ## The routine a coworking session names by default, and one whose executors are the three members of scene 6.
-printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator, magic-librarian\ninvitees: magic-team\ndefault-for-session-kind: coworking\n---\n# rig coworking routine fixture\n' \
+printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator, magic-librarian\ninvitees: magic-team\nrequires-session-kind: coworking\n---\n# rig coworking routine fixture\n' \
 	> "$rigSkills/magic-team/magic-team.coworking.routine.md"
-printf -- '---\nexecutors: rig-member-a, rig-member-b, rig-member-c\nmaintainers: rig-member-a\n---\n# rig routine fixture of three executors\n' \
+printf -- '---\nexecutors: rig-member-a, rig-member-b, rig-member-c\nmaintainers: rig-member-a\nrequires-session-kind: standalone\n---\n# rig routine fixture of three executors\n' \
 	> "$rigSkills/rig-member-a/rig-member-a.trio.routine.md"
 
 ## The stand-in console of the proxy's own runs. A launch notes which run it is, with the record of that run, and

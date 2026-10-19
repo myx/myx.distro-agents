@@ -1,9 +1,13 @@
 ---
+type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 invitees: magic-librarian, magic-architect
-session: coworking
 reports-to: none
+requires-session-kind: coworking
+routine-lock-document: inbox:magic-coordinator:note-20260809T154332Z-grooming-state-and-lock.md
+input-scan-def: grooming
+review-by: inherit
 ---
 # magic-team.grooming.routine — the actual procedure
 
@@ -12,6 +16,7 @@ reports-to: none
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -46,20 +51,23 @@ reports-to: none
   - Daily status reporting (`magic-coordinator.daily.routine`).
   - Start work: nothing it writes lands in `board-running` except an `approval-*`.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **acquire-lock**: take this routine's lock with `--magic-grooming-lock-acquire`, before anything else. Contention means another grooming pass is live: this pass does not start.
-2. **session-start**: run `magic-team.coworking.routine`'s **session-start** group, then invite `magic-librarian` and `magic-architect` per its **invite-participants-visibly**.
-3. **gather-the-backlog**: open with what changed since the last pass and today's top priority, steps:
-   - read the open board and `magic-coordinator`'s inbox with `--magic-grooming-input-scan`. Its `state-and-lock` note is this pass's tracking document: keep it current with `--magic-grooming-state-and-lock-upsert`, and hold the lock with `--magic-grooming-lock-refresh` during a long pass.
-   - run `magic-team.process-inbox.routine magic-coordinator`, so fresh inbox items are triaged with the backlog.
+1. **invite-participants**: invite `magic-librarian` and `magic-architect` per `magic-team.coworking.routine`'s **invite-participants-visibly**.
+2. **gather-the-backlog**: open with what changed since the last pass and today's top priority, steps:
+   - read the open board and `magic-coordinator`'s inbox from this run's input scan result (`input/input-scan.md`). Its `state-and-lock` note is this pass's tracking document: keep it current with `--update-routine-state`, referencing items by name rather than copying them, and hold the lock with `--magic-grooming-lock-refresh` during a long pass.
+   - run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`), so fresh inbox items are triaged with the backlog.
    - refresh the `roster-note` with `--magic-team-roster-upsert` where a member's `SKILL.md` description drifted from it.
    - check Trello board coverage.
    - check Google Drive and Sheets for files modified since the last grooming, with `--member-comms-google-file-find`.
    - collect the approved items needing the human-owner's own hands (app configuration, scope grants) into one batch, and send it to him with `--member-comms-slack-send-message` during this pass — at **review-with-the-user** if he is live, else once this step ends.
-4. **triage-per-item**: give every open item, old or new, one recorded triage verb or an explicit skip reason. Time-box each item. Steps:
+3. **triage-per-item**: give every open item, old or new, one recorded triage verb or an explicit skip reason. Time-box each item. Steps:
    - decide each item by this tree, first match wins:
      - duplicate of another open item → **Merge**.
      - depends on something external that has not happened → **Block**.
@@ -91,7 +99,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - `status: dispatch-succeeded` → `board-processed`.
      - `status: dispatch-failed` with `tracks:` → close it to `board-processed` with the reason; to retry, return the tracked item to `board-pending` with what the retry needs.
      - `status: dispatch-failed`, no `tracks:` → close it to `board-processed` with the failure. Its work may be dispatched anew by judgement.
-   - apply `magic-team.handback-review.routine` to each item the scan's `## review items addressed to grooming.routine` section lists, the group acting as this item's parent for review, per "The ladder: one rung at a time".
+   - apply `magic-team.handback-review.routine` inline (`--routine-run-inline magic-team.handback-review.routine`) to each item the scan's `## review items addressed to grooming.routine` section lists, the group acting as this item's parent for review, per "The ladder: one rung at a time".
    - recheck `board-running` items, steps:
      - a claimed completion gets a `magic-tester` testing round, in place.
      - testing clean → `board-processed`; clean but needing the human-owner's sign-off → `board-blocked`.
@@ -105,20 +113,19 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - **Archived** — even waiting is not worth it: `--magic-grooming-to-archived`.
    - recheck every `board-parked` item: its trigger arrived → `--magic-grooming-to-pending` or `--magic-grooming-to-backlog`; never coming → `--magic-grooming-to-archived`.
    - **recheck-and-exit** every `board-retained` item whose `recheck-date` is due or unset: still referenced → renew `recheck-date` (`--magic-grooming-to-retained --from-state:retained`); no longer referenced → `board-processed`.
-5. **assess-finished-unresolved**: assess every item carrying `processed-at` and no `resolved-at`. Write its decided outcome into the item with a same-state `--magic-grooming-to-<state>` call. No outcome decidable: say why; it stays visible next pass.
-6. **rescore-backlog-rice**: score per `rice-scoring`, one pass over `board-backlog`, `board-pending`, `board-running`, `board-blocked` and `board-parked`, steps:
+4. **assess-finished-unresolved**: assess every item carrying `processed-at` and no `resolved-at`. Write its decided outcome into the item with a same-state `--magic-grooming-to-<state>` call. No outcome decidable: say why; it stays visible next pass.
+5. **rescore-backlog-rice**: score per `rice-scoring`, one pass over `board-backlog`, `board-pending`, `board-running`, `board-blocked` and `board-parked`, steps:
    - give every item triaged this pass that has no score its first one.
    - re-score the 10 open items with the oldest scores, oldest first.
-7. **reprioritize-across-members**: order the triaged, scored set, steps:
+6. **reprioritize-across-members**: order the triaged, scored set, steps:
    - apply the important-vs-eager distinction, informed by the scores, never decided by them.
    - read the recorded `blocks:`/`blocked-by:` edges and surface them; never recompute them here.
    - among items close in priority, prefer the one nearest to approval: the smallest remaining gap and the likeliest clean approval, whatever its size.
-8. **review-with-the-user**: present the reprioritised backlog to the human-owner as a conversation: what the team commits to, not each sub-task inside it. He reorders, pushes back or approves before it is final.
+7. **review-with-the-user**: present the reprioritised backlog to the human-owner as a conversation: what the team commits to, not each sub-task inside it. He reorders, pushes back or approves before it is final.
 
 # Closure steps
 
-1. **close-session**: run `magic-team.coworking.routine`'s **close-session** group.
-2. **close-state-and-unlock**: release the lock with `--magic-grooming-close-state-and-unlock`, passing the closing status. Reference items by name rather than copying them.
+None of its own: the Closure steps of the routine it inherits from run (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
 
 # Routine's local procedures
 
@@ -185,16 +192,14 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--magic-grooming-lock-acquire <team-member> <owner-label>`
 - `--magic-grooming-lock-refresh <team-member>`
-- `--magic-grooming-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]`
-- `--magic-grooming-input-scan <team-member>`
-- `--magic-grooming-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]`
+- `--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`
 - `--magic-grooming-to-<state> <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`, `<state>` one of `backlog`, `pending`, `parked`, `blocked`, `processed`, `archived`, `retained`
 - `--magic-grooming-create-<state> <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`, `<state>` one of `backlog`, `pending`, `running`, `blocked`, `processed`
 - `--magic-team-roster-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-comms-slack-send-message <team-member> <target> [text...]`
 - `--member-comms-google-file-find <team-member> <drive-query> --raw-query [--limit <n>]`
+- `--routine-run-inline <routine>`
 
 # Maintainer Notes
 

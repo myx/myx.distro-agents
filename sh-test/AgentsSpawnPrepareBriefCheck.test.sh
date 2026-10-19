@@ -41,13 +41,13 @@ mkdir -p "$rigSkills/magic-team" "$rigSkills/rig-member" "$rigData/board" "$rigT
 printf '# rig armed\n' > "$rigSkills/rig-member/rig-member.armed.md"
 
 ## The default routine, carrying the key --routine-default now resolves through.
-printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator, magic-librarian\ninvitees: magic-team\ndefault-for-session-kind: coworking\n---\n# rig coworking routine fixture\n' \
+printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator, magic-librarian\ninvitees: magic-team\nrequires-session-kind: coworking\n---\n# rig coworking routine fixture\n' \
 	> "$rigSkills/magic-team/magic-team.coworking.routine.md"
 ## Two routine files sharing the substring "alpha", for the ambiguous-selector case; neither
 ## carries an invitees field, for the invitees-absent-reads-none case.
-printf -- '---\nexecutors: rig-member\nmaintainers: rig-member\n---\n# rig alpha routine fixture\n' \
+printf -- '---\nexecutors: rig-member\nmaintainers: rig-member\nrequires-session-kind: standalone\n---\n# rig alpha routine fixture\n' \
 	> "$rigSkills/rig-member/rig-member.alpha.routine.md"
-printf -- '---\nexecutors: rig-member\nmaintainers: rig-member\n---\n# rig alphabeta routine fixture\n' \
+printf -- '---\nexecutors: rig-member\nmaintainers: rig-member\nrequires-session-kind: standalone\n---\n# rig alphabeta routine fixture\n' \
 	> "$rigSkills/rig-member/rig-member.alphabeta.routine.md"
 ## A routine file that breaks the contract: no opening frontmatter block at all.
 printf '%s\n' "# broken fixture: no frontmatter block at all" "executors: rig-member" "maintainers: rig-member" \
@@ -71,6 +71,7 @@ printf '%s\n' "SPAWN-PREPARE-BRIEF: rig-member" "tool-routing: use the tools and
 	"skillset-reader: Skill {name: <member>, file: <file>}, for example {name: magic-team, file: magic-team.armed.md}" \
 	"scratchpad: your own files go in the output/ folder this dispatch's own \"## Your sandbox\" section names" \
 	"read-and-obey: read rig-member.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them." \
+	"session-kind: coworking, defined by magic-team.coworking.routine.md. Read it too, the same way: its Opening steps run before the Opening steps of magic-team.coworking.routine.md, its Closure steps after the Closure steps of magic-team.coworking.routine.md, and its rules and tooling apply as well. DistroAgentsSession.fn.sh --get-routine-text magic-team.coworking.routine.md prints the routine mixed in that order." \
 	"Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}" \
 	"executors: magic-coordinator" "invitees: magic-team" \
 	"## open warning-* items" "(none open)" "When done, hand back; then Wait until dismissed." > "$rigTmp/b1.want"
@@ -145,15 +146,13 @@ rigBrief "$rigTmp/b13" --routine
 rigAssert "is refused with rc 1"                       "$( cat "$rigTmp/b13.rc" )" 1
 rigAssert "naming the one shared --routine wording"    "$( LC_ALL=C grep -c 'routine requires <selector>' "$rigTmp/b13.err" || : )" 1
 
-echo "-- --routine-default, more than one default-for-session-kind: coworking routine --"
-printf -- '---\nexecutors: rig-member\nmaintainers: rig-member\ndefault-for-session-kind: coworking\n---\n# rig second coworking routine fixture\n' \
-	> "$rigSkills/rig-member/rig-member.coworking.routine.md"
+echo "-- --routine-default, the coworking kind routine held by two members --"
+cp "$rigSkills/magic-team/magic-team.coworking.routine.md" "$rigSkills/rig-member/magic-team.coworking.routine.md"
 rigBrief "$rigTmp/b14" --routine-default
 rigAssert "is refused with rc 1"                       "$( cat "$rigTmp/b14.rc" )" 1
-rigAssert "naming the default-for-session-kind cause"  "$( LC_ALL=C grep -c 'default-for-session-kind: coworking: 2 routine file' "$rigTmp/b14.err" || : )" 1
-rigAssert "never falls through to the resolver's own ambiguous-match wording" \
-	"$( LC_ALL=C grep -c 'matches more than one routine file' "$rigTmp/b14.err" || : )" 0
-rm -f "$rigSkills/rig-member/rig-member.coworking.routine.md"
+rigAssert "naming the file as matching more than one routine file" \
+	"$( LC_ALL=C grep -c 'matches more than one routine file' "$rigTmp/b14.err" || : )" 1
+rm -f "$rigSkills/rig-member/magic-team.coworking.routine.md"
 
 echo "-- a template that cannot be used --"
 ## The template is the package's own: a temp origin (this package copied, the rest linked) holds the changed one.

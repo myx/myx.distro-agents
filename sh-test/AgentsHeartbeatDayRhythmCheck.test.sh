@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on the day-rhythm mechanics the tooling does for routine-heartbeat and
-## routine-daily, against temp stores only: --magic-heartbeat-input-scan's `## day-rhythm`
+## routine-daily, against temp stores only: --intern-op-heartbeat-input-scan's `## day-rhythm`
 ## lines (branch, today-stage, grooming-today) and its capped `## board active items`;
-## --magic-heartbeat-state-upsert stamping last-iteration-date/-timestamp (a given value
+## --intern-op-heartbeat-state-upsert stamping last-iteration-date/-timestamp (a given value
 ## wins) and keeping last-test-email-sent; --magic-heartbeat-test-report-send (refused
 ## without a recipient, built and stamped once due, NOT_DUE inside the hour) through the real
 ## email path in build-only mode with a fake curl first on PATH; --magic-daily-lock-acquire's
@@ -16,7 +16,8 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
-rigTmp="$( mktemp -d -t AgentsHeartbeatDayRhythmCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHeartbeatDayRhythmCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
@@ -69,8 +70,8 @@ rigOp(){ ## result file, op and arguments...
 	printf '%s' "$?" > "$opOut.rc"
 }
 rigScan(){ ## result file
-	rigOp "$1" --magic-heartbeat-input-scan magic-coordinator
-	[ "$( cat "$1.rc" )" = 0 ] || rigRefuse "--magic-heartbeat-input-scan failed: $( grep -m1 ERROR "$1" )"
+	rigOp "$1" --intern-op-heartbeat-input-scan magic-coordinator
+	[ "$( cat "$1.rc" )" = 0 ] || rigRefuse "--intern-op-heartbeat-input-scan failed: $( grep -m1 ERROR "$1" )"
 }
 rigRhythm(){ ## result file -- the three day-rhythm values, space-separated
 	printf '%s %s %s' "$( rigLine "$1" 'branch: ' )" "$( rigLine "$1" 'today-stage: ' )" "$( rigLine "$1" 'grooming-today: ' )"
@@ -114,13 +115,13 @@ rm -f "$rigData/board/running"/task-rig-cap-*.md
 
 echo "-- heartbeat state write: stamps --"
 printf -- '---\ntype: note\nstate: heartbeat-running\nrecheck-date: 2001-01-01 00:00 +0000\nsession-id: rig\nlast-test-email-sent: 2001-01-01T00:00:00Z\n---\n\nold\n' > "$rigHbNote"
-printf -- '---\ntoday-stage: grooming-dispatched\n---\n\nLast iteration: rig.\n' | rigOp "$rigTmp/u1" --magic-heartbeat-state-upsert magic-coordinator
+printf -- '---\ntoday-stage: grooming-dispatched\n---\n\nLast iteration: rig.\n' | rigOp "$rigTmp/u1" --intern-op-heartbeat-state-upsert magic-coordinator
 rigAssert "the write succeeds"                            "$( cat "$rigTmp/u1.rc" )" 0
 rigAssert "last-iteration-date is stamped today"          "$( rigField "$rigHbNote" last-iteration-date )" "$rigToday"
 rigAssert "last-iteration-timestamp is stamped"           "$( rigField "$rigHbNote" last-iteration-timestamp | LC_ALL=C grep -c -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' )" 1
 rigAssert "last-test-email-sent is kept"                  "$( rigField "$rigHbNote" last-test-email-sent )" "2001-01-01T00:00:00Z"
 rigAssert "the caller's own field is written"             "$( rigField "$rigHbNote" today-stage )" grooming-dispatched
-printf -- '---\nlast-iteration-date: 2026-01-02\nlast-iteration-timestamp: rig-given\n---\n\nLast iteration: rig.\n' | rigOp "$rigTmp/u2" --magic-heartbeat-state-upsert magic-coordinator
+printf -- '---\nlast-iteration-date: 2026-01-02\nlast-iteration-timestamp: rig-given\n---\n\nLast iteration: rig.\n' | rigOp "$rigTmp/u2" --intern-op-heartbeat-state-upsert magic-coordinator
 rigAssert "a given value wins, once"                      "$( rigField "$rigHbNote" last-iteration-date ) $( rigField "$rigHbNote" last-iteration-timestamp ) $( LC_ALL=C grep -c '^last-iteration-date: ' "$rigHbNote" )" "2026-01-02 rig-given 1"
 
 echo "-- heartbeat test report --"

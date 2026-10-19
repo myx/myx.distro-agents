@@ -119,7 +119,7 @@ rigAssert "a missing item is refused"                  "$( [ "$( cat "$rigTmp/m9
 echo "-- readers: active scans drop marked items, named reads still find them --"
 printf -- '---\ntype: note\n---\nstill open\n' > "$rigInbox/incoming/note-20261006T0931Z-open.md"
 printf -- '---\ntype: note\nprocessed-at: 2026-01-01 00:00 +0000\n---\nlegacy\n' > "$rigInbox/processed/note-20260101T0000Z-legacy.md"
-rigOp "$rigTmp/r1" --member-work-session-input-scan rig-member
+rigOp "$rigTmp/r1" --intern-op-member-work-session-input-scan rig-member
 rigAssert "the scan runs"                              "$( cat "$rigTmp/r1.rc" )" 0
 rigAssert "an unmarked note is listed"                 "$( rigHolds "$rigTmp/r1" 'note-20261006T0931Z-open.md' )" yes
 rigAssert "a marked note is not"                       "$( rigHolds "$rigTmp/r1" 'note-20261006T0930Z-plain.md' )" no

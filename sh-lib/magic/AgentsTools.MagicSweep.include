@@ -19,8 +19,8 @@ type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agen
 ##
 ## Serves the write guards below, and -- through AgentsToolsMagicSweepStoredPosition
 ## (AgentsTools.MagicSweepState.include) -- the input scans: with no cut-off
-## stated, --magic-sweep-input-scan resumes from the calling member's own
-## record and --client-sweep-input-scan from that client's own record.
+## stated, --intern-op-sweep-input-scan resumes from the calling member's own
+## record and --intern-op-client-sweep-input-scan from that client's own record.
 ##
 ## THREE OUTCOMES, TOLD APART BY EXIT STATUS, never by the printed string -- two
 ## of them print nothing and must not be confused:
@@ -52,12 +52,12 @@ AgentsMagicSweepStateTsNotOlder(){
 
 case "$1" in
 
-	--magic-sweep-input-scan)
+	--intern-op-sweep-input-scan)
 		shift
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>]" >&2
 			set +e ; return 1
 		fi
 
@@ -66,22 +66,22 @@ case "$1" in
 			case "$1" in
 				--comms-since-date-time|--comms-since-utime)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-sweep-input-scan: $1: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-sweep-input-scan: $1: value required" >&2
 						set +e ; return 1
 					fi
 					if [ ${#commsCutoffArgs[@]} -gt 0 ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-sweep-input-scan: --comms-since-date-time and --comms-since-utime are mutually exclusive, and neither is repeatable -- one cut-off, one spelling" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-sweep-input-scan: --comms-since-date-time and --comms-since-utime are mutually exclusive, and neither is repeatable -- one cut-off, one spelling" >&2
 						set +e ; return 1
 					fi
 					commsCutoffArgs=( "$1" "$2" )
 					shift 2
 				;;
 				--*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-sweep-input-scan: invalid option: $1 -- syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-coordinator/magic-coordinator.communication-sweep.routine.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-sweep-input-scan: invalid option: $1 -- syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-coordinator/magic-coordinator.communication-sweep.routine.md" >&2
 					set +e ; return 1
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-coordinator/magic-coordinator.communication-sweep.routine.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-coordinator/magic-coordinator.communication-sweep.routine.md" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -96,11 +96,11 @@ case "$1" in
 			--no-inbox-inquiry --no-inbox-reflections \
 			--no-inbox-notes --no-inbox-other \
 			--no-board-related \
-			--context --magic-sweep-input-scan )" || return 1
+			--context --intern-op-sweep-input-scan )" || return 1
 
 		local survivorNames
 		survivorNames="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsMagicSweepSlackThreadNames.awk" <<< "$phaseAOutput" )" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-input-scan: survivor extraction failed over the phase-A scan -- refusing to continue, since an empty survivor set here is indistinguishable from a board with no open threads" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-sweep-input-scan: survivor extraction failed over the phase-A scan -- refusing to continue, since an empty survivor set here is indistinguishable from a board with no open threads" >&2
 			set +e ; return 1
 		}
 
@@ -126,10 +126,10 @@ case "$1" in
 			case "$teamStoredRc" in
 				0)
 					commsCutoffArgs=( --comms-since-utime "$teamStoredTs" )
-					echo "# $MDSC_CMD --magic-sweep-input-scan: $callingMember: resuming from its own stored sweep position $teamStoredTs" >&2
+					echo "# $MDSC_CMD --intern-op-sweep-input-scan: $callingMember: resuming from its own stored sweep position $teamStoredTs" >&2
 				;;
 				3)
-					echo "# $MDSC_CMD --magic-sweep-input-scan: $callingMember: no sweep position stored -- the scan's own default window applies" >&2
+					echo "# $MDSC_CMD --intern-op-sweep-input-scan: $callingMember: no sweep position stored -- the scan's own default window applies" >&2
 				;;
 				*)
 					set +e ; return 1
@@ -184,7 +184,7 @@ case "$1" in
 						--do-inbox-inquiry-active --do-inbox-reflections \
 						--do-inbox-notes --do-inbox-other \
 						--no-board-related \
-						--context --magic-sweep-input-scan > "$clientSweepDir/team.document" || accountStatus=$?
+						--context --intern-op-sweep-input-scan > "$clientSweepDir/team.document" || accountStatus=$?
 					printf '%s\n' "$accountStatus" > "$clientSweepDir/team.status"
 					return 0
 				fi
@@ -194,20 +194,19 @@ case "$1" in
 				## common position. Forwarding it -- which is what this call used to do
 				## -- filtered every client's messages by the team's last team-side pass
 				## and reported the remainder as "nothing new": against the live NDM
-				## workspace that hid all ten of its messages. --client-sweep-input-scan
+				## workspace that hid all ten of its messages. --intern-op-client-sweep-input-scan
 				## resolves that member's OWN stored position itself (its own
 				## sweep-state record, the default window only when it has none).
-				## SWEPT AS THAT CLIENT. A --client-* operation is its client's own session's
-				## alone, and this pass is the coordinator's: it goes through the coordinator's
-				## own operation, which runs it as the client named (AgentsTools.MagicClient.include).
-				DistroAgentsTools --magic-client-operation-run magic-coordinator --client-sweep-input-scan "$2" \
+				## SWEPT AS THAT CLIENT. The scan reads one client's own accounts, and this pass is the
+				## coordinator's: it runs the scan as the client named, for the one call.
+				( local -x MDAT_SPAWN_AGENT="$2" ; DistroAgentsTools --intern-op-client-sweep-input-scan "$2" ) \
 					> "$clientSweepDir/$2.document" || accountStatus=$?
 				printf '%s\n' "$accountStatus" > "$clientSweepDir/$2.status"
 				return 0
 			}
 			( type Parallel > /dev/null 2>&1 || . "$MYXROOT/bin/lib/parallel.Common" || exit 1
 				Parallel AgentsToolsMagicSweepAccountOne ) < <( printf 'team\n' ; for clientMember in $clientMembers ; do printf 'client %s\n' "$clientMember" ; done ) \
-				|| echo "# $MDSC_CMD --magic-sweep-input-scan: the concurrent sweeps did not all report; each one missing is stated below" >&2
+				|| echo "# $MDSC_CMD --intern-op-sweep-input-scan: the concurrent sweeps did not all report; each one missing is stated below" >&2
 
 			## The team's own document, and its verdict, exactly where they always were.
 			magicSweepStatus="$( cat "$clientSweepDir/team.status" 2>/dev/null )" || magicSweepStatus=""

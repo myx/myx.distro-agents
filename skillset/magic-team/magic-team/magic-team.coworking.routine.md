@@ -1,9 +1,11 @@
 ---
+type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 invitees: magic-team
-default-for-session-kind: coworking
-session: coworking
+requires-session-kind: coworking
+input-scan-def: routine-coworking-session
+review-by: inherit
 ---
 # magic-team.coworking.routine — the actual procedure
 
@@ -12,6 +14,7 @@ session: coworking
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -44,7 +47,7 @@ session: coworking
   - Solo dispatch-and-report work.
   - `magic-coordinator.daily.routine`'s fan-out, where each member works its own separate assignment.
 
-# Steps
+# Opening steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
@@ -52,22 +55,27 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **declare-session-type**: state which of the two session types this is (Local rules). Every type-gated step keys off this declaration.
    - **assign-transcript-name**: coworking-like sessions only: name this session's transcript `transcript-<date>-<topic>` once. It stays fixed until close. No transcript append runs before it is named.
    - **post-opening-broadcast**: post the session type, the participants known so far and the goal, if framed, into the session thread. Post at once; completeness never delays it. Coworking-like sessions: `magic-coordinator` makes the opening Trello card update, directly or as a `note-pending-trello-update-*` record in its own inbox.
-   - **fold-in-learned-lessons**: `magic-librarian`, when a participant, runs `magic-team.process-reflections.routine` for this session's project or workspace. All other participants: each passes its own recent lessons to `magic-librarian` with `post-inquiry`, and may file a new `reflection-*`.
-   - **collect-reflections-output**: all participants: each runs `magic-team.process-inbox.routine <own-name>`, picking up what **fold-in-learned-lessons** filed.
-2. **frame-the-shared-goal**: state what the session must achieve together. Once the goal names this session's tracking documents, steps:
-   - read them with `--routine-coworking-session-input-scan` before working from them.
+   - **fold-in-learned-lessons**: `magic-librarian`, when a participant, runs `magic-team.process-reflections.routine` inline (`--routine-run-inline magic-team.process-reflections.routine`) for this session's project or workspace. All other participants: each passes its own recent lessons to `magic-librarian` with `post-inquiry`, and may file a new `reflection-*`.
+   - **collect-reflections-output**: all participants: each runs `magic-team.process-inbox.routine <own-name>` inline (`--routine-run-inline magic-team.process-inbox.routine`), picking up what **fold-in-learned-lessons** filed.
+
+# Steps
+
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
+
+1. **frame-the-shared-goal**: state what the session must achieve together. Once the goal names this session's tracking documents, steps:
+   - read them from this run's input scan result (`input/input-scan.md`) before working from them.
    - re-read any inbox item naming the same board items.
-3. **invite-participants-visibly**: invite each participant as it joins, at the start or mid-session, steps:
+2. **invite-participants-visibly**: invite each participant as it joins, at the start or mid-session, steps:
    - post `Inviting <alias>...` into the session thread, the alias from the member's own Public Information.
    - the member loads its own `Skill` and posts its armed confirmation into the same thread, in its own voice.
    - no confirmation: wait per **wait-never-quit**, then re-invite once. Still none: say so in the thread, then continue without the member if the task allows, or escalate per "The ladder: one rung at a time".
-4. **orchestrate-the-shared-task**: the executor leads the work as a participant, rules:
+3. **orchestrate-the-shared-task**: the executor leads the work as a participant, rules:
    - keep the session on its goal; redirect drift.
    - make the real-time judgement calls a solo dispatch would leave to one member.
    - carry every participant's stuck point to an outcome — the group's own agreement, carried up by "The ladder: one rung at a time", never a personal ruling.
    - the collaboration shape (hand-offs, parallel pieces, live back-and-forth) is the task's own; nothing here fixes it.
-5. **narrate-progress-in-thread**: post each scope change and each piece of work starting, as one short line in the session thread (`updated session scope: ...`, `applying ...`).
-6. **report-out-with-transcripts**: post the session's report into the session thread, with enough of the working transcript to show how the outcome was reached. The report is the executor's own text under the output-style floor; transcript excerpts are marked quotation, never restyled. Redact a sensitive part and keep the rest. A handback to the session's own parent follows, carrying what was agreed, per "The ladder: one rung at a time".
+4. **narrate-progress-in-thread**: post each scope change and each piece of work starting, as one short line in the session thread (`updated session scope: ...`, `applying ...`).
+5. **report-out-with-transcripts**: post the session's report into the session thread, with enough of the working transcript to show how the outcome was reached. The report is the executor's own text under the output-style floor; transcript excerpts are marked quotation, never restyled. Redact a sensitive part and keep the rest. A handback to the session's own parent follows, carrying what was agreed, per "The ladder: one rung at a time".
 
 # Closure steps
 
@@ -77,10 +85,11 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - write anything important that lives only in this session into its own inbox: a `note-*` or a `reflection-*`. A proposed skillset change goes to `magic-coordinator` as an `inquiry-*`, its text labelled `(draft)`.
      - write a ruling on the work into that work's own document, per **decision-lands-in-the-document-it-binds**.
      - reflect on this session's real incidents, if any: corrections, conflicts with the human-owner's words, gaps found live. Frame a broken assumption as "the model was wrong".
-     - run `magic-team.process-inbox.routine <own-name>`, covering what was just filed and any item this session touched.
+     - run `magic-team.process-inbox.routine <own-name>` inline (`--routine-run-inline magic-team.process-inbox.routine`), covering what was just filed and any item this session touched.
    - **compact-session-context**: ad-hoc/solo sessions only: confirm nothing important lives only in this session, so it is safe to clear.
    - **offer-skill-update-discussion**: coworking-like sessions only: name to the file's own maintainers any member file or routine this session showed is due for an update, and the gap. An offer; they decide now or later, by "The ladder: one rung at a time".
    - **conclude-session-thread**: react ✅ on the session thread's root with `--member-comms-slack-react`. No live session thread: skip.
+2. **dismiss-participants**: once the whole of **close-session** has run, dismiss every participant spawned into this session (`spawn-one-dispatch`'s **spawn-dismiss**). A participant reports and waits until then.
 
 # Routine's local procedures
 
@@ -101,7 +110,7 @@ All statements apply at the same time, always. These rules override a participan
   - **Ad-hoc / solo**: a single-member dispatch on its own item, an IDE chat, any other one-off activity.
   - Unsure: coworking-like. Ad-hoc is declared, never assumed.
   - `magic-coordinator.advance.routine` and `magic-coordinator.heartbeat.routine` extend this routine with their own overrides, stated in their files.
-- Invoking a structured routine always starts a full session running these Steps and Closure steps. Utility routines keep their own lighter modes (`magic-team.process-inbox.routine`'s inline mode).
+- Invoking a structured routine always starts a full session running these Opening steps, Steps and Closure steps. Utility routines keep their own lighter modes (`magic-team.process-inbox.routine`'s inline mode).
 - **Every step is the executor's**, per `reference/skill-folder-model.md`'s actor phrases. **fold-in-learned-lessons**, **collect-reflections-output** and **secure-continuity** are commanded per participant.
 - **An executor can only command members it spawned itself.** A spawned `magic-coordinator` cannot reach members the harness root spawned. Plan so the executor spawns its own participants; where members already exist under the root, the root leads and a seated coordinator participates.
 - An executor that cannot spawn its members applies each participant's `Skill` itself, and says so in the session thread and the report.
@@ -125,13 +134,13 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--routine-coworking-session-input-scan <team-member> <tracking-document>...`
 - `--member-comms-slack-send-message <team-member> <target> [text...]`
 - `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name>`
 - `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
 - `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
+- `--routine-run-inline <routine>`
 
 # Maintainer Notes
 

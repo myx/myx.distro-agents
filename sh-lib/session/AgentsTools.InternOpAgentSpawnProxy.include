@@ -1089,7 +1089,7 @@ case "$1" in
 		## caller's own hand-carried text. Refusing here (a bad selector, a routine
 		## file that fails its own contract) refuses the whole spawn, the same as any
 		## other malformed input this far in.
-		local routineRecorded="" routineReportsTo=""
+		local routineRecorded="" routineReportsTo="" routineFilePath="" startWarnings="" routineOverrides=""
 		if [ -n "$routineSelector" ] || [ "$routineDefault" = "true" ] ; then
 			local routineBriefArgs=( --intern-op-spawn-prepare-brief "$callerName" )
 			if [ "$routineDefault" = "true" ] ; then
@@ -1112,6 +1112,7 @@ case "$1" in
 			)" 2>/dev/null || routineRecorded=""
 			## A routine whose runs report to no one says so in its own frontmatter (`reports-to: none`).
 			[ ! -f "$routineRecorded" ] || [ "$( AgentsToolsSpawnSandboxRecordHeader "$routineRecorded" "$agentsRunRouteField" )" != none ] || routineReportsTo="none"
+			routineFilePath="$routineRecorded"
 			routineRecorded="${routineRecorded##*/}"
 		fi
 		## A board-tracked spawn reads its item's Decisions before anything else: they bind it.
@@ -1326,6 +1327,60 @@ case "$1" in
 			[ -n "$parentSession" ] || parentSession="$parentSessionId"
 		fi
 		[ -z "$startContextSaid" ] || startContext="$startContextSaid"
+		## WHAT THE ROUTINE REQUIRES OF THIS START, asked of the one evaluator (AgentsToolsRoutineRequirement) now
+		## that the start's context is settled and before anything is made: a refusal leaves no record, no item and
+		## no brief handed to a console, and names the start to use. The tracking item is attached where the
+		## dispatch is created or reused; `required` with none attached is supplied here, as the dispatch the
+		## spawn creates, and `forbidden` with one attached is refused.
+		if [ -n "$routineFilePath" ] && [ -f "$routineFilePath" ] ; then
+			local requirementVerdict requirementItem="attached" requirementHeld
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
+			[ "$dispatchDocMode" != "none" ] || requirementItem="none"
+			requirementVerdict="$( AgentsToolsRoutineRequirement tracking-item spawn "$routineFilePath" "item=$requirementItem context=$startContext" )" || {
+				if requirementHeld="$( AgentsToolsRoutineOverride "$spawnCallMember" "$parentSessionId" tracking-item "$routineRecorded" )" ; then
+					routineOverrides="${routineOverrides}tracking-item $routineRecorded, held through $requirementHeld"$'\n'
+					echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: $routineRecorded: ${requirementVerdict#*$'\t'} -- overridden by a permission held through $requirementHeld" >&2
+				else
+					echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $routineRecorded: ${requirementVerdict#*$'\t'} -- nothing was started$( AgentsToolsRoutineOverrideAsk tracking-item "$routineRecorded" )" >&2
+					set +e ; return 1
+				fi
+			}
+			[ "${requirementVerdict%%$'\t'*}" != "automate" ] || dispatchDocMode="create"
+			## HELP: the one party who can supply what is missing is asked, by the path every hand-off to the coordinator takes, an
+			## inquiry in its inbox naming the routine, and the start goes on with a warning that is counted: it is kept on the
+			## run's record as `start-warning:` and said here, where the start's own output (the Launch of the console among
+			## it) shows it. Counted from the records.
+			if [ "${requirementVerdict%%$'\t'*}" = "help" ] ; then
+				startWarnings="${startWarnings}start-warning: ${requirementVerdict#*$'\t'}"$'\n'
+				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: $routineRecorded: ${requirementVerdict#*$'\t'}" >&2
+				AgentsToolsRoutineStartAsk "$callerName" "$routineRecorded" tracking-item "${requirementVerdict#*$'\t'}" "$sessionId" "$MDAT_SPAWN_SESSION_ID" || :
+			fi
+			requirementVerdict="$( AgentsToolsRoutineRequirement start-context spawn "$routineFilePath" "context=$startContext" )" || {
+				if requirementHeld="$( AgentsToolsRoutineOverride "$spawnCallMember" "$parentSessionId" start-context "$routineRecorded" )" ; then
+					routineOverrides="${routineOverrides}start-context $routineRecorded, held through $requirementHeld"$'\n'
+					echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: $routineRecorded: ${requirementVerdict#*$'\t'} -- overridden by a permission held through $requirementHeld" >&2
+				else
+					echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $routineRecorded: ${requirementVerdict#*$'\t'} -- nothing was started$( AgentsToolsRoutineOverrideAsk start-context "$routineRecorded" )" >&2
+					set +e ; return 1
+				fi
+			}
+			## What the routine's `operations:` finds against its executors is said and refuses nothing: the row predicts another system's refusal.
+			requirementVerdict="$( AgentsToolsRoutineRequirement operations spawn "$routineFilePath" )" || :
+			printf '%s\n' "$requirementVerdict" | LC_ALL=C awk -F'\t' -v routine="$routineRecorded" '$1 == "reject" || $1 == "help" { print "⚠️ REPORT: " routine ": " $2 }' >&2 || :
+			## WHETHER THE RUN'S ITEM IS REVIEWED is the routine's say (`review-by:`, its own else its kind routine's, F6.5): `none`
+			## disables the review, `inherit` leaves it to where the run reports to, any other value is the reviewer. A reviewer
+			## its caller named (--review-by) stands, as the more specific.
+			local routineReviewBy
+			requirementVerdict="$( AgentsToolsRoutineRequirement review-by spawn "$routineFilePath" )" || {
+				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $routineRecorded: ${requirementVerdict#*$'\t'} -- nothing was started" >&2
+				set +e ; return 1
+			}
+			routineReviewBy="$( AgentsToolsRoutineKey "$routineFilePath" review-by )"
+			case "$routineReviewBy" in
+				''|inherit) ;;
+				*) [ -n "$reviewBySaid" ] || reviewBySaid="$routineReviewBy" ;;
+			esac
+		fi
 		[ -z "$parentSessionSaid" ] || parentSession="$parentSessionSaid"
 		[ -z "$parentNoneSaid" ] || parentSession=""
 		AgentsToolsAssertBareName "$parentSession" "the parent session" agent-spawn-proxy 2> /dev/null || parentSession=""
@@ -1357,6 +1412,24 @@ case "$1" in
 			set +e ; return 1
 		fi
 
+		## THE ROUTINE'S LOCK (F6.2): a routine that names a locking document (`routine-lock-document:`, its own or its kind
+		## routine's) is locked for this session while it starts, or the start fails, before anything below is made. A
+		## member joining the session that holds it passes. It is given back where the last run of the session closes
+		## (AgentsToolsRoutineLockRelease, from the record's `routine-lock:`), and here at once if this start fails later.
+		local routineLockDoc="" routineLockTaken="no" routineLockShort="" agentsRoutineLockTaken="no"
+		if [ -n "$routineFilePath" ] && [ -f "$routineFilePath" ] ; then
+			routineLockDoc="$( AgentsToolsRoutineKey "$routineFilePath" routine-lock-document )"
+			if [ -n "$routineLockDoc" ] ; then
+				type AgentsToolsRoutineLockAcquire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include"
+				## The routine's short name, the middle of <owner>.<name>.routine.md, is the word of its states (<name>-running, <name>-finished).
+				routineLockShort="${routineRecorded%.routine.md}" ; routineLockShort="${routineLockShort#*.}"
+				AgentsToolsRoutineLockAcquire "$routineLockDoc" "$sessionId" "$routineLockShort" || { set +e ; return 1 ; }
+				routineLockTaken="$agentsRoutineLockTaken"
+				## What taking the lock said, for the routine's steps to read (daily's `first-today:`).
+				[ -z "$agentsRoutineLockOutput" ] || spawnContext="$( printf '%s\n\n## Routine lock\n\nThe spawner took the lock of this routine for the session (%s). What taking it said, for your steps to read:\n\n%s\n' "$spawnContext" "$routineLockDoc" "$agentsRoutineLockOutput" )"
+			fi
+		fi
+
 		## The session transcript (AgentsTools.SessionTranscript.include), named now so the
 		## dispatch item and the tracking file below carry its `transcript:` from the start.
 		type AgentsTranscriptStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include" 2>/dev/null || :
@@ -1372,6 +1445,7 @@ case "$1" in
 		local sessionStateDir="$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID" outputFile=""
 		mkdir -p "$sessionStateDir" || {
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create the session state directory: $sessionStateDir" >&2
+			[ "$routineLockTaken" != "yes" ] || AgentsToolsRoutineLockUnlock "$routineLockDoc" "$sessionId" "the start of $routineRecorded failed" || :
 			set +e ; return 1
 		}
 		## Its own channel: only the launcher writes it, so no agent output can reach it.
@@ -1413,6 +1487,7 @@ case "$1" in
 			## The team data directory is created on first use, and the move primitive refuses a missing state directory.
 			mkdir -p "$MDAT_DATA_ROOT/board/running" || {
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
+				[ "$routineLockTaken" != "yes" ] || AgentsToolsRoutineLockUnlock "$routineLockDoc" "$sessionId" "the start of $routineRecorded failed" || :
 				set +e ; return 1
 			}
 			## review-by only where the caller said one (--review-by): an item that names none is
@@ -1436,8 +1511,15 @@ case "$1" in
 				${sessionCommentKept:+--header:upsert:session-comment:"$sessionCommentKept"} \
 				--log-verb:created || {
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: could not create dispatch tracking item $dispatchItemName" >&2
+				[ "$routineLockTaken" != "yes" ] || AgentsToolsRoutineLockUnlock "$routineLockDoc" "$sessionId" "the start of $routineRecorded failed" || :
 				set +e ; return 1
 			}
+			## Where a permission overrode a refusal, the item says so on its own Decisions (F6.1).
+			if [ -n "$routineOverrides" ] ; then
+				while IFS= read -r requirementHeld ; do
+					[ -z "$requirementHeld" ] || DistroAgentsTools --intern-op-decisions-append "$callerName" "$dispatchItemName" --kind resolved --text "override: $requirementHeld" > /dev/null 2>&1 || :
+				done <<< "$routineOverrides"
+			fi
 		fi
 
 		## A REUSED tracking document is marked at the START, not only closed at the
@@ -1509,6 +1591,7 @@ case "$1" in
 		## a missing one.
 		mkdir -p "$sandboxRoot/input" "$sandboxRoot/output" "$sandboxRoot/output/$callerName" || {
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create the spawn sandbox: $sandboxRoot" >&2
+			[ "$routineLockTaken" != "yes" ] || AgentsToolsRoutineLockUnlock "$routineLockDoc" "$sessionId" "the start of $routineRecorded failed" || :
 			set +e ; return 1
 		}
 		## The console renders the two roots from this, because a flag cannot cross that
@@ -1790,6 +1873,12 @@ case "$1" in
 			printf 'parent-spawn-id: %s\n' "${parentSessionId:-none}"
 			## How this run was started, the session that started it, and where it reports to, where there is one.
 			printf 'start-context: %s\n' "$startContext"
+			## The locking document this run's session holds for its routine, given back where the last run of the session closes (F6.2).
+			[ -z "$routineLockDoc" ] || printf 'routine-lock: %s\n' "$routineLockDoc"
+			## What the start warned of (the help verb), one line each, counted from the records.
+			[ -z "$startWarnings" ] || printf '%s' "$startWarnings"
+			## A refusal a permission overrode (AgentsToolsRoutineOverride), one line each.
+			[ -z "$routineOverrides" ] || printf '%s' "$routineOverrides" | LC_ALL=C awk 'NF { print "override: " $0 }'
 			[ -z "$parentSession" ] || printf 'parent-session-id: %s\n' "$parentSession"
 			[ -z "$reportsTo" ] || printf '%s: %s\n' "$agentsRunRouteField" "$reportsTo"
 			## The member that made this spawn call, where one is known: who a handback of this
@@ -1844,6 +1933,7 @@ case "$1" in
 			printf '\n# Spawn session: %s\n' "$MDAT_SPAWN_SESSION_ID"
 		} > "$sandboxTracking" || {
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't write the session tracking file: $sandboxTracking" >&2
+			[ "$routineLockTaken" != "yes" ] || AgentsToolsRoutineLockUnlock "$routineLockDoc" "$sessionId" "the start of $routineRecorded failed" || :
 			set +e ; return 1
 		}
 		## Its member's seat in the session, taken at its start (F6.9): where a live run took it
@@ -1897,7 +1987,22 @@ case "$1" in
 		elif [ -n "$trackedItemName" ] && [ -n "$trackedItemState" ] ; then
 			sandboxItem="$MDAT_DATA_ROOT/board/$trackedItemState/$trackedItemName"
 		fi
-		AgentsToolsSpawnSandboxFillInput "$sandboxRoot" "$spawnContext" "$sandboxItem" "$callerName" "$conversationThreads"
+		## THE ROUTINE'S INPUT SCANS (F6.3), run by the spawner itself, after the lock (F6.2) and with no instruction to an agent:
+		## the `input-scan-def:` lines of the routine (its own, else its kind routine's), one for each scan, their macros filled
+		## from this spawn's context, the results saved to input/input-scan.md of the sandbox, which the brief names.
+		local inputScanDef="" inputScanFile=""
+		if [ -n "$routineFilePath" ] && [ -f "$routineFilePath" ] ; then
+			inputScanDef="$( AgentsToolsRoutineKeyLines "$routineFilePath" input-scan-def | LC_ALL=C grep -v -x 'none' || : )"
+			if [ -n "$inputScanDef" ] ; then
+				type AgentsToolsInputScanDefRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InputScanDef.include"
+				inputScanFile="$sandboxRoot/.input-scan.md"
+				AgentsToolsInputScanDefRun "$inputScanDef" "$callerName" "$sessionId" "$MDAT_SPAWN_SESSION_ID" "$inputScanFile" || {
+					[ "$routineLockTaken" != "yes" ] || AgentsToolsRoutineLockUnlock "$routineLockDoc" "$sessionId" "the start of $routineRecorded failed" || :
+					set +e ; return 1
+				}
+			fi
+		fi
+		AgentsToolsSpawnSandboxFillInput "$sandboxRoot" "$spawnContext" "$sandboxItem" "$callerName" "$conversationThreads" "$inputScanFile"
 
 		## Tooling's own standing text for every spawn, beside the sandbox lines: a spawned
 		## session waits with Wait and ends only on a DISMISSED -- unless its caller blocks on

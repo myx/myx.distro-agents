@@ -1,7 +1,10 @@
 ---
+type: routine
 executors: magic-team
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
-session: coworking
+requires-session-kind: coworking
+input-scan-def: none
+review-by: inherit
 ---
 # magic-team.brainstorm.routine — the actual procedure
 
@@ -10,6 +13,7 @@ session: coworking
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -39,11 +43,15 @@ session: coworking
 - Doesn't:
   - Decide (`magic-team.discuss.routine`), capture one party's vision (`magic-team.interview.routine`), or review feasibility in depth.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **process-own-inbox**: run `magic-team.process-inbox.routine <own-name>`, collecting ideas parked there earlier.
+1. **process-own-inbox**: run `magic-team.process-inbox.routine <own-name>` inline (`--routine-run-inline magic-team.process-inbox.routine`), collecting ideas parked there earlier.
 2. **set-topic-loosely**: state the area, kept open. An example given with the topic is a floor, never a ceiling, unless a ceiling was stated.
 3. **generate-without-filtering**: put out ideas, the impractical and unlikely included. The first reasonable idea never ends generation.
 4. **assess-lightly**: give each idea a quick read — promising, interesting but needs work, or probably not — and why.
@@ -54,7 +62,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **close-session**: run `magic-team.coworking.routine`'s **close-session** group.
+None of its own: the Closure steps of the routine it inherits from run (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
 
 # Routine's local procedures
 
@@ -83,6 +91,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 - `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
 - `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
 - `--magic-grooming-create-backlog <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...` — `magic-coordinator` only
+- `--routine-run-inline <routine>`
 
 # Maintainer Notes
 

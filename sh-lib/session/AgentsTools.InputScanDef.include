@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InputScanDef.include -- a routine's own input scans (F6.3), declared in its frontmatter, one repeatable
+## line for each scan: `input-scan-def: <scan> [--option value ...]`, or `input-scan-def: none` alone for no scan.
+## <scan> is a scan of the tooling (AgentsToolsInputScanNames), run as its `--intern-op-<scan>-input-scan`
+## operation with the team member of the start as its first argument, then the options as given. A value that exists
+## only at session time is a macro, `{{<option-name>}}` over the five names of the common option set (team-member,
+## session-id, spawn-id, select-workspace, tooling-origin), written in a static document. The spawner runs each scan
+## itself, with no instruction to an agent, and saves the results to `input/input-scan.md` of the session sandbox.
+## Sourced, never run. Functions only.
+##
+## AgentsToolsInputScanDefWords is THE ONE PARSER of the line form: the validator and the spawner both call it, so
+## the form changes in this place alone.
+##
+
+## The scans of the tooling a definition may name, one a line: one for each `--intern-op-<scan>-input-scan` the
+## dispatcher routes (F6.4).
+AgentsToolsInputScanNames(){
+	printf '%s\n' advance client-sweep grooming heartbeat member-work-session morning-review permission-escalation routine-coworking-session sweep
+}
+
+## The call one definition line stands for, split into its words, one a line: the scan's operation, the team member,
+## then each option and its value with the macros filled from the spawn's context. rc 1, the reason on stderr, for a
+## line that names no scan, an option with no value, a word that is no option, or a macro that is none of the five.
+AgentsToolsInputScanDefWords(){ ## definition line, team member, session id, spawn id
+	local defWords defScan defAt defWord defFilled defOption=""
+	read -r -a defWords <<< "$1"
+	defScan="${defWords[0]:-}"
+	if [ -z "$defScan" ] || ! AgentsToolsInputScanNames | LC_ALL=C grep -q -x -- "$defScan" ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: input-scan-def: '$1' does not start with a scan of the tooling ($( AgentsToolsInputScanNames | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )) -- the form is <scan> [--option value ...], or none alone" >&2
+		return 1
+	fi
+	printf '%s\n' "--intern-op-$defScan-input-scan" "$2"
+	for (( defAt = 1 ; defAt < ${#defWords[@]} ; defAt++ )) ; do
+		defWord="${defWords[$defAt]}"
+		if [ -z "$defOption" ] ; then
+			case "$defWord" in
+				--*) defOption="$defWord" ; printf '%s\n' "$defWord" ; continue ;;
+			esac
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: input-scan-def: '$1': '$defWord' is no --option -- the form is <scan> [--option value ...]" >&2
+			return 1
+		fi
+		case "$defWord" in
+			--*)
+				echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: input-scan-def: '$1': the option $defOption has no value -- the form is <scan> [--option value ...]" >&2
+				return 1
+			;;
+		esac
+		defFilled="$( printf '%s' "$defWord" | SCAN_TEAM_MEMBER="$2" SCAN_SESSION_ID="$3" SCAN_SPAWN_ID="$4" SCAN_SELECT_WORKSPACE="${MMDAPP:-}" SCAN_TOOLING_ORIGIN="${MDLT_ORIGIN:-}" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsInputScanDefFill.awk" )"
+		case "$defFilled" in
+			*"{{"*)
+				echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: input-scan-def: '$defWord' names a macro that is none of team-member, session-id, spawn-id, select-workspace and tooling-origin" >&2
+				return 1
+			;;
+		esac
+		defOption=""
+		printf '%s\n' "$defFilled"
+	done
+	if [ -n "$defOption" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: input-scan-def: '$1': the option $defOption has no value -- the form is <scan> [--option value ...]" >&2
+		return 1
+	fi
+}
+
+## The scans a set of definition lines names, joined by `, `: what the brief says ran.
+AgentsToolsInputScanDefNames(){ ## definition lines (one a line)
+	printf '%s\n' "$1" | LC_ALL=C awk 'NF > 0 && $1 != "none" { printf "%s%s", sep, $1 ; sep = ", " } END { if ( sep != "" ) printf "\n" }'
+}
+
+## The scans run for a start, their results in one file: each line of the definition in order, then the member, session
+## and spawn it is run for, then the file. One scan: its report as it is. Several: each under `## input scan: <scan>`.
+## A scan's own failure is not the start's: the file then says it failed, and what it said, and the agent reads that.
+## rc 1 only for a definition that cannot be run at all, before any scan has run.
+AgentsToolsInputScanDefRun(){ ## definition lines (one a line), team member, session id, spawn id, result file
+	local runLines="" runLine runCount=0 runScan runWords runWord runArgs runRc runOut runErr
+	while IFS= read -r runLine ; do
+		[ -n "$runLine" ] && [ "$runLine" != "none" ] || continue
+		AgentsToolsInputScanDefWords "$runLine" "$2" "$3" "$4" > /dev/null || return 1
+		runLines="$runLines$runLine"$'\n'
+		runCount=$(( runCount + 1 ))
+	done <<< "$1"
+	: > "$5" || return 1
+	runOut="$5.one" ; runErr="$5.err"
+	while IFS= read -r runLine ; do
+		[ -n "$runLine" ] || continue
+		runScan="${runLine%% *}"
+		runWords="$( AgentsToolsInputScanDefWords "$runLine" "$2" "$3" "$4" )"
+		runArgs=()
+		while IFS= read -r runWord ; do runArgs+=( "$runWord" ) ; done <<< "$runWords"
+		runRc=0
+		DistroAgentsTools "${runArgs[@]}" > "$runOut" 2> "$runErr" || runRc=$?
+		[ "$runCount" -le 1 ] || printf '## input scan: %s\n\n' "$runScan" >> "$5"
+		if [ "$runRc" -ne 0 ] ; then
+			{
+				printf '%s\n\n' "## input scan failed"
+				printf 'The spawner ran `%s` for this start and it failed (exit %s). What it said:\n\n' "${runArgs[*]}" "$runRc"
+				cat "$runOut" "$runErr" 2> /dev/null
+			} >> "$5"
+			echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the input scan $runScan of this routine failed (exit $runRc), and input/input-scan.md says so" >&2 || :
+		else
+			cat "$runOut" >> "$5"
+		fi
+		[ "$runCount" -le 1 ] || printf '\n' >> "$5"
+	done <<< "$runLines"
+	rm -f "$runOut" "$runErr"
+	return 0
+}

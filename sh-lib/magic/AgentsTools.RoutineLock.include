@@ -1,0 +1,552 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RoutineLock.include -- the lock of a routine's own document, for every routine (F6.2).
+## Sourced, never run. Functions only.
+##
+## A routine names its lock document in `routine-lock-document: inbox:<member>:<note>.md`, a note in the
+## inbox of its executor or of a named member. The SPAWNER takes the lock while it starts the routine, or
+## fails (AgentsToolsRoutineLockAcquire), and gives it back when the session ends (AgentsToolsRoutineLockRelease,
+## called where a run's record closes). Participants never lock or unlock: they update the locked document
+## with `--update-routine-state` (AgentsToolsRoutineSessionStateUpdate), each update committed and pushed
+## where a git remote is set, before the tool returns.
+##
+## The resync-and-compare protocol of the advance lock, below, is the one every acquire runs when a remote
+## is set: refuse a conflicted copy, resync, refuse again, then refuse what is not the head's. See MAGIC.md,
+## "The advance lock paths: resync, conflict check, and the unlock order".
+##
+
+## Runs the board's own resync primitive. Caller declares advanceSyncOut.
+AgentsToolsAdvanceCloneSync(){
+	local repoRoot="$1" originUrl="$2" lockBranch="$3"
+	advanceSyncOut=""
+	if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
+		advanceSyncOut="myx.common git/cloneSync is not reachable (MYXROOT=${MYXROOT:-<unset>})"
+		return 1
+	fi
+	local syncRc=0
+	set +e
+	advanceSyncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
+	syncRc=$?
+	set -e
+	return "$syncRc"
+}
+
+## Refuses a lock whose local copy is in a state the checkout cannot vouch
+## for -- an unresolved merge, or an edit that was never committed. Runs both
+## before and after the resync: the resync itself can leave either state.
+AgentsToolsAdvanceLockStateCheck(){
+	local repoRoot="$1" lockRelPath="$2" opName="$3" phase="$4"
+	local checkOut="" checkRc=0
+
+	set +e
+	checkOut="$( git -C "$repoRoot" ls-files -u -- "$lockRelPath" 2>&1 )"
+	checkRc=$?
+	set -e
+	if [ "$checkRc" -ne 0 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_UNCHECKABLE -- could not read the index state of $lockRelPath $phase: $checkOut" >&2
+		return 1
+	fi
+	if [ -n "$checkOut" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_CONFLICT -- $lockRelPath has unmerged index entries $phase; the checkout carries an unresolved merge and the lock must not be taken over it" >&2
+		return 1
+	fi
+
+	if [ -f "$repoRoot/$lockRelPath" ] && LC_ALL=C grep -Eq '^(<<<<<<< |>>>>>>> )' "$repoRoot/$lockRelPath" ; then
+		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_CONFLICT -- $lockRelPath carries merge conflict markers $phase; the lock must not be taken over it" >&2
+		return 1
+	fi
+
+	set +e
+	checkOut="$( git -C "$repoRoot" status --porcelain -- "$lockRelPath" 2>&1 )"
+	checkRc=$?
+	set -e
+	if [ "$checkRc" -ne 0 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_UNCHECKABLE -- could not read the working-tree state of $lockRelPath $phase: $checkOut" >&2
+		return 1
+	fi
+	if [ -n "$checkOut" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_CONFLICT -- $lockRelPath differs $phase from the commit it was checked out from ($checkOut); the lock must not be taken over an uncommitted local copy" >&2
+		return 1
+	fi
+	return 0
+}
+
+## Refuses a lock whose local copy is not the one published on the branch head.
+AgentsToolsAdvanceLockHeadCheck(){
+	local repoRoot="$1" lockRelPath="$2" lockBranch="$3" opName="$4"
+	local fetchOut="" fetchRc=0 headBlob="" remoteBlob=""
+
+	## FETCH_HEAD, not origin/<branch>: an instrument that does not depend on
+	## the resync having updated the remote-tracking ref.
+	set +e
+	fetchOut="$( git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )"
+	fetchRc=$?
+	set -e
+	if [ "$fetchRc" -ne 0 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_UNCHECKABLE -- could not fetch origin/$lockBranch to compare the lock against the actual head: $fetchOut" >&2
+		return 1
+	fi
+	set +e
+	headBlob="$( git -C "$repoRoot" rev-parse --verify --quiet "HEAD:$lockRelPath" 2>/dev/null )"
+	remoteBlob="$( git -C "$repoRoot" rev-parse --verify --quiet "FETCH_HEAD:$lockRelPath" 2>/dev/null )"
+	set -e
+	if [ "$headBlob" != "$remoteBlob" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_STALE -- $lockRelPath is ${headBlob:-absent} locally and ${remoteBlob:-absent} on origin/$lockBranch; the local copy is not the actual head's and the lock must not be taken over it" >&2
+		return 1
+	fi
+	return 0
+}
+
+type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpItem.include"
+type AgentsToolsRecheckDate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
+
+## How long a taken lock reads as held without a write: the spawner's lock, and every state write that refreshes
+## it. A session's own end gives the lock back; this bounds only a holder that died without being closed.
+AgentsToolsRoutineLockMinutes(){
+	printf '%s\n' 120
+}
+
+## The member and the note a `routine-lock-document:` value names: `<member><TAB><note>`; rc 1 for any other shape.
+AgentsToolsRoutineLockParse(){ ## value
+	case "$1" in
+		inbox:*:*.md) ;;
+		*) return 1 ;;
+	esac
+	local parseRest="${1#inbox:}"
+	local parseMember="${parseRest%%:*}" parseNote="${parseRest#*:}"
+	[ -n "$parseMember" ] && [ -n "$parseNote" ] || return 1
+	case "$parseMember$parseNote" in */*|*:*|*[[:space:]]*) return 1 ;; esac
+	printf '%s\t%s\n' "$parseMember" "$parseNote"
+}
+
+## The path of the locking document, where an inbox note lives (F4.3).
+AgentsToolsRoutineLockPath(){ ## value
+	local pathParsed
+	pathParsed="$( AgentsToolsRoutineLockParse "$1" )" || return 1
+	printf '%s/%s\n' "$( AgentsToolsInboxDir "${pathParsed%%$'\t'*}" )" "${pathParsed#*$'\t'}"
+}
+
+## A frontmatter field of a note, its first value.
+AgentsToolsRoutineLockField(){ ## note path, field
+	LC_ALL=C awk -v want="$2: " 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit ; }' "$1" 2> /dev/null
+}
+
+## THE SPAWNER'S LOCK: takes the locking document for a session while a routine starts, or fails. rc 0 when this
+## session holds it afterwards (taken now, or already held by this very session: another member joining it), rc 1
+## with the reason on stderr, naming the document, when another session holds it or it could not be taken. The
+## document is committed and pushed where a remote is set, after the advance protocol's checks.
+## The lock is `state: <routine>-running`, `session-id: <this session>`, `recheck-date:` ahead; a state ending in
+## `-finished`, or a recheck-date that has passed, is free.
+AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the session id, the routine's short name
+	local lockValue="$1" lockSession="$2" lockShort="$3" lockPath lockParsed lockMember lockNote lockOwn lockOut
+	local itemState itemRecheck itemSession itemHeld itemRecheckEpoch
+	agentsRoutineLockTakenOne="no"
+	lockParsed="$( AgentsToolsRoutineLockParse "$lockValue" )" || {
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: routine-lock-document: $lockValue is not inbox:<member>:<note>.md" >&2
+		return 1
+	}
+	lockMember="${lockParsed%%$'\t'*}" ; lockNote="${lockParsed#*$'\t'}"
+	lockPath="$( AgentsToolsRoutineLockPath "$lockValue" )"
+	## The word of this document's states: the routine's own for a standing note `...-<word>-state-and-lock.md`, else the routine's short name.
+	lockOwn="$( AgentsToolsRoutineLockOwnWord "$lockNote" )"
+	[ -z "$lockOwn" ] || lockShort="$lockOwn"
+	if [ ! -f "$lockPath" ] ; then
+		## One of the five standing notes is made by the team's setup, and its absence is a fault. Any other locking document is the
+		## routine's own state, which does not exist before the routine's first start: the spawner makes it then, and commits it.
+		if [ -n "$lockOwn" ] ; then
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the locking document $lockNote of $lockMember does not exist, so the routine cannot be locked: $lockPath" >&2
+			return 1
+		fi
+		mkdir -p "${lockPath%/*}" && printf -- '---\ntype: note\nfrom: %s\nowner: %s\n---\n\n# %s\n\nThe state of the %s routine, locked by the spawner while it runs.\n' "$lockMember" "$lockMember" "${lockNote%.md}" "$lockShort" > "$lockPath" || {
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the locking document $lockNote of $lockMember does not exist and could not be made: $lockPath" >&2
+			return 1
+		}
+		type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+		AgentsToolsTeamDataCommitPaths "routine lock, $lockShort: first start made the state document" "$lockPath" || :
+	fi
+	AgentsToolsItemStaleCheck "$lockPath"
+	if [ "$itemHeld" = "true" ] ; then
+		[ "$itemSession" != "$lockSession" ] || return 0
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the routine is already running: its locking document $lockNote ($lockMember) is held by session ${itemSession:-<none>} (state ${itemState:-<none>}, recheck-date ${itemRecheck:-<none>}) -- nothing was started" >&2
+		return 1
+	fi
+	## With a remote: refuse a conflicted or uncommitted copy, resync, refuse again, then refuse a copy that is not the head's.
+	local originUrl="" repoRoot="" lockRelPath="" lockBranch=""
+	originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2> /dev/null )" || originUrl=""
+	[ -z "$originUrl" ] || repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2> /dev/null )" || repoRoot=""
+	if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
+		lockRelPath="${lockPath#"$repoRoot"/}"
+		lockBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2> /dev/null )" || lockBranch=""
+		case "$lockRelPath" in
+			/*|'')
+				echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: LOCK_UNCHECKABLE -- the locking document $lockNote does not resolve inside the board checkout $repoRoot" >&2
+				return 1
+			;;
+		esac
+		if [ -z "$lockBranch" ] || [ "$lockBranch" = "HEAD" ] ; then
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: LOCK_UNCHECKABLE -- the board checkout $repoRoot is not on a named branch" >&2
+			return 1
+		fi
+		AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" "routine lock $lockNote" "before the board resync" || return 1
+		local advanceSyncOut
+		if ! AgentsToolsAdvanceCloneSync "$repoRoot" "$originUrl" "$lockBranch" ; then
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: LOCK_UNCHECKABLE -- could not resync the board before taking the lock, so whether the local copy is the published one is UNKNOWN: $advanceSyncOut" >&2
+			return 1
+		fi
+		AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" "routine lock $lockNote" "after the board resync" || return 1
+		AgentsToolsAdvanceLockHeadCheck "$repoRoot" "$lockRelPath" "$lockBranch" "routine lock $lockNote" || return 1
+	fi
+	local lockRecheck
+	if [ -n "$lockOwn" ] ; then
+		## One of the five standing notes (advance, daily, grooming, heartbeat, retro): the spawner takes the lock through the routine's
+		## own acquire operation, as the tooling itself, so what that operation does once the lock is taken still happens (the advance's
+		## housekeeping), and what it prints reaches the run (daily's first-today:).
+		lockOut="$( ( unset MDAT_SPAWN_AGENT harnessAgent ; MDAT_SPAWN_SESSION_ID="" ; DistroAgentsTools "--magic-$lockOwn-lock-acquire" "$lockMember" "$lockSession" ) 2>&1 )" || {
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the routine is already running, or its lock could not be taken: the locking document $lockNote ($lockMember) answered: ${lockOut:-<nothing>} -- nothing was started" >&2
+			return 1
+		}
+		agentsRoutineLockOutput="${agentsRoutineLockOutput}$( printf '%s\n' "$lockOut" | LC_ALL=C grep -v -x -e 'ACQUIRED' -e 'RECLAIMED_STALE:.*' || : )"$'\n'
+	else
+		lockRecheck="$( AgentsToolsRecheckDate "$( AgentsToolsRoutineLockMinutes )" )" || lockRecheck=""
+		if ! AgentsToolsItemUpsert "$lockMember" --from-inbox "$lockMember" "$lockNote" \
+			--header:upsert:state:"$lockShort-running" \
+			--header:upsert:session-id:"$lockSession" \
+			--header:upsert:recheck-date:"$lockRecheck" \
+			--commit-message "* $lockShort.routine: spawner lock" \
+			--context --intern-op-agent-spawn-proxy > /dev/null
+		then
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the locking document $lockNote of $lockMember could not be written, so the routine is not locked -- nothing was started" >&2
+			return 1
+		fi
+	fi
+	if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
+		local fetchOut="" fetchRc=0 publishedSession
+		fetchOut="$( git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )" || fetchRc=$?
+		if [ "$fetchRc" -ne 0 ] ; then
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: LOCK_UNCHECKABLE -- could not fetch origin/$lockBranch to verify the published lock: $fetchOut" >&2
+			return 1
+		fi
+		publishedSession="$( git -C "$repoRoot" show "FETCH_HEAD:$lockRelPath" 2> /dev/null | LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' )"
+		if [ "$publishedSession" != "$lockSession" ] ; then
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: LOCK_NOT_PUBLISHED -- origin/$lockBranch:$lockRelPath reads session-id '$publishedSession', not '$lockSession' -- the lock write did not actually land on the remote" >&2
+			return 1
+		fi
+	fi
+	agentsRoutineLockTakenOne="yes"
+	return 0
+}
+
+## THE SPAWNER'S LOCK of a routine: every document its `routine-lock-document:` names (a comma-separated list: a routine that runs
+## another inline names that one's lock too), in order; one that cannot be taken gives back the ones taken before it. Sets
+## agentsRoutineLockTaken (yes where this call took at least one) and agentsRoutineLockOutput (what the routines' own acquire
+## operations printed that the run reads).
+AgentsToolsRoutineLockAcquire(){ ## the routine-lock-document value (a list), the session id, the routine's short name
+	local acqOne acqTaken=()
+	agentsRoutineLockTaken="no" ; agentsRoutineLockOutput=""
+	for acqOne in $( printf '%s' "$1" | LC_ALL=C tr ',' ' ' ) ; do
+		if ! AgentsToolsRoutineLockAcquireOne "$acqOne" "$2" "$3" ; then
+			for acqOne in ${acqTaken[@]+"${acqTaken[@]}"} ; do AgentsToolsRoutineLockUnlockOne "$acqOne" "$2" "the start failed at another lock" || : ; done
+			agentsRoutineLockTaken="no"
+			return 1
+		fi
+		[ "$agentsRoutineLockTakenOne" != "yes" ] || { acqTaken+=( "$acqOne" ) ; agentsRoutineLockTaken="yes" ; }
+	done
+	return 0
+}
+
+## THE SPAWNER'S UNLOCK of a locking document held by a session: the end recorded in the document (a receipt: what ended,
+## how, when), then the final unlock, commit and push. A document already finished, or taken over by another session:
+## nothing to do, rc 0. Never fails its caller; a refused unlock is one warning.
+AgentsToolsRoutineLockUnlockOne(){ ## one routine-lock-document value, the session id, what ended it (words)
+	local unlockValue="$1" unlockSession="$2" unlockEnded="$3" unlockPath unlockState unlockParsed unlockOwn unlockOut
+	unlockPath="$( AgentsToolsRoutineLockPath "$unlockValue" )" || return 0
+	[ -f "$unlockPath" ] || return 0
+	unlockState="$( AgentsToolsRoutineLockField "$unlockPath" state )"
+	case "$unlockState" in *-finished|'') return 0 ;; esac
+	[ "$( AgentsToolsRoutineLockField "$unlockPath" session-id )" = "$unlockSession" ] || return 0
+	unlockParsed="$( AgentsToolsRoutineLockParse "$unlockValue" )" || return 0
+	unlockOwn="$( AgentsToolsRoutineLockOwnWord "${unlockParsed#*$'\t'}" )"
+	if [ -n "$unlockOwn" ] ; then
+		## The routine's own close, as the tooling itself: what it does under the lock before it lets go (the advance's collection,
+		## the grooming's and the daily's last-close-date) and after (the heartbeat's push and sweep) is done as it always was.
+		unlockOut="$( ( unset MDAT_SPAWN_AGENT harnessAgent ; MDAT_SPAWN_SESSION_ID="" ; DistroAgentsTools "--magic-$unlockOwn-close-state-and-unlock" "${unlockParsed%%$'\t'*}" ) 2>&1 )" || \
+			echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the lock of session $unlockSession, ${unlockValue#inbox:}, could not be given back ($unlockEnded): $unlockOut" >&2 || :
+		return 0
+	fi
+	if ! AgentsToolsItemUpsert "${unlockParsed%%$'\t'*}" --from-inbox "${unlockParsed%%$'\t'*}" "${unlockParsed#*$'\t'}" \
+		--unlock-lock \
+		--header:upsert:state:"${unlockState%-running}-finished" \
+		--header:upsert:last-receipt:"$unlockEnded, $( date +"%Y-%m-%d %H:%M %z" )" \
+		--commit-message "* ${unlockState%-running}.routine: spawner unlock" \
+		--context --intern-op-agent-spawn-proxy > /dev/null 2>&1
+	then
+		echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the lock of session $unlockSession, ${unlockValue#inbox:}, could not be given back ($unlockEnded): it stays until its recheck-date" >&2 || :
+	fi
+	return 0
+}
+
+## The routine word of a standing state-and-lock note `note-<stamp>-<word>-state-and-lock.md` of the five routines that locked by hand
+## before the spawner did, whose own lock operations the spawner still calls; nothing for any other note.
+AgentsToolsRoutineLockOwnWord(){ ## note name
+	case "$1" in
+		note-*-advance-state-and-lock.md) printf advance ;;
+		note-*-daily-state-and-lock.md) printf daily ;;
+		note-*-grooming-state-and-lock.md) printf grooming ;;
+		note-*-heartbeat-state-and-lock.md) printf heartbeat ;;
+		note-*-retro-state-and-lock.md) printf retro ;;
+	esac
+}
+
+## The spawner's unlock of every document a list names.
+AgentsToolsRoutineLockUnlock(){ ## the routine-lock-document value (a list), the session id, what ended it (words)
+	local unlockEach
+	for unlockEach in $( printf '%s' "$1" | LC_ALL=C tr ',' ' ' ) ; do AgentsToolsRoutineLockUnlockOne "$unlockEach" "$2" "$3" ; done
+	return 0
+}
+
+## THE SPAWNER'S UNLOCK, where a run's record closes: gives the locking document back once the LAST run of its session
+## has ended. A record that names no lock, or a session another run of which still lives: nothing to do, rc 0.
+AgentsToolsRoutineLockRelease(){ ## spawn record, outcome, exit code
+	local releaseRecord="$1" releaseOutcome="${2:-unknown}" releaseExit="${3:-unknown}" releaseValue releaseSession releaseThis releaseOther
+	[ -f "$releaseRecord" ] || return 0
+	releaseValue="$( AgentsToolsSpawnSandboxRecordHeader "$releaseRecord" routine-lock )"
+	[ -n "$releaseValue" ] || return 0
+	releaseSession="$( AgentsToolsSpawnSandboxRecordHeader "$releaseRecord" session-id )"
+	releaseThis="${releaseRecord##*/}"
+	for releaseOther in "$MMDAPP"/.local/agents/spawned/*/*.md ; do
+		[ -f "$releaseOther" ] && [ "${releaseOther##*/}" != "$releaseThis" ] || continue
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$releaseOther" session-id )" = "$releaseSession" ] || continue
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$releaseOther" routine-lock )" = "$releaseValue" ] || continue
+		! AgentsToolsSessionRecordLive "$releaseOther" || return 0
+	done
+	AgentsToolsRoutineLockUnlock "$releaseValue" "$releaseSession" "${releaseThis%.md} ended $releaseOutcome, exit $releaseExit"
+	return 0
+}
+
+## THE LOCKING DOCUMENTS OF A SESSION: the `routine-lock:` value (a list) of the record of the run that took the lock, found
+## from the calling run's own record by the session the two share, as `<session id><TAB><value>`. rc 1, nothing printed,
+## where the session holds no lock (a participant's record carries none of its own).
+AgentsToolsRoutineSessionLockValue(){ ## the calling run's spawn id
+	local sessionRecord sessionId="" sessionOther sessionValue
+	[ -n "${1:-}" ] && [ -n "${MMDAPP:-}" ] || return 1
+	for sessionRecord in "$MMDAPP"/.local/agents/spawned/*/"$1.md" ; do
+		[ -f "$sessionRecord" ] || continue
+		sessionId="$( AgentsToolsSpawnSandboxRecordHeader "$sessionRecord" session-id )"
+		break
+	done
+	[ -n "$sessionId" ] || return 1
+	for sessionOther in "$MMDAPP"/.local/agents/spawned/*/*.md ; do
+		[ -f "$sessionOther" ] || continue
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$sessionOther" session-id )" = "$sessionId" ] || continue
+		sessionValue="$( AgentsToolsSpawnSandboxRecordHeader "$sessionOther" routine-lock )"
+		[ -z "$sessionValue" ] || { printf '%s\t%s\n' "$sessionId" "$sessionValue" ; return 0 ; }
+	done
+	return 1
+}
+
+## THE WRITE OF A LOCKED DOCUMENT: the whole record `content` replaces the document's own fields and its body, and the
+## lock-owned fields (type, from, date, owner, state, recheck-date, session-id) are carried over from the document as it
+## stands, whatever the content says for them. While the state is `<word>-running` the write refreshes the recheck-date, as
+## the spawner's own take set it. Committed, and pushed where a remote is set, before it returns.
+AgentsToolsRoutineStateWrite(){ ## the inbox member, the note, the operation (for the messages), the content
+	local writeMember="$1" writeNote="$2" writeOp="$3" stateContent="$4" writeTarget lockFields callerFields callerBody writeWord
+	writeTarget="$( AgentsToolsInboxDir "$writeMember" )/$writeNote"
+	if [ ! -f "$writeTarget" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $writeOp: $writeTarget does not exist -- the document is locked by the spawner of the routine, which has not started" >&2
+		return 1
+	fi
+	if [ -z "$stateContent" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $writeOp: empty content -- refusing to erase the stored state" >&2
+		return 1
+	fi
+	## No Windows line endings in front of the frontmatter and body split below.
+	stateContent="$( printf '%s\n' "$stateContent" | LC_ALL=C awk '{ sub(/\r$/, "") ; print }' )"
+	lockFields="$( LC_ALL=C awk '
+		NR==1 { if ($0=="---") { inFM=1 ; } ; next ; }
+		inFM {
+			if ($0=="---") exit
+			if ($0 ~ /^(type|from|date|owner|state|recheck-date|session-id): /) print
+		}
+	' "$writeTarget" )"
+	if [ -z "$lockFields" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $writeOp: $writeTarget has no readable frontmatter -- refusing to overwrite a document in an unexpected shape" >&2
+		return 1
+	fi
+	## A state write while the routine runs refreshes the lock, as the spawner's own take set it.
+	writeWord="$( printf '%s\n' "$lockFields" | LC_ALL=C sed -n 's/^state: \(.*\)-running$/\1/p' | head -n 1 )"
+	if [ -n "$writeWord" ] ; then
+		local refreshDate
+		refreshDate="$( AgentsToolsRecheckDate "$( AgentsToolsRoutineLockMinutes )" )"
+		lockFields="$( printf '%s\n' "$lockFields" | LC_ALL=C awk -v recheck="recheck-date: $refreshDate" '
+			/^recheck-date: / { print recheck ; done = 1 ; next ; }
+			{ print ; }
+			END { if (!done) print recheck ; }
+		' )"
+	fi
+	callerFields="$( printf '%s\n' "$stateContent" | LC_ALL=C awk '
+		NR==1 { if ($0=="---") { inFM=1 ; } ; next ; }
+		inFM {
+			if ($0=="---") exit
+			if ($0 !~ /^(type|from|date|owner|state|recheck-date|session-id): /) print
+		}
+	' )"
+	callerBody="$( printf '%s\n' "$stateContent" | LC_ALL=C awk '
+		NR==1 { if ($0=="---") { hasFm=1 ; } ; }
+		hasFm {
+			if ($0=="---") { delims++ ; next ; }
+			if (delims >= 2) print
+			next
+		}
+		{ print ; }
+	' )"
+	## One blank line between frontmatter and body, however many the input carried.
+	callerBody="$( printf '%s\n' "$callerBody" | LC_ALL=C awk 'BEGIN { started = 0 ; } { if (!started && $0 == "") next ; started = 1 ; print ; }' )"
+	if [ -z "$callerFields" ] && [ -z "$callerBody" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $writeOp: content parsed to empty fields and empty body -- refusing to overwrite the stored state with a lock-only document" >&2
+		return 1
+	fi
+	local mergedContent
+	mergedContent="$( printf -- '---\n%s\n%s\n---\n\n%s' "$lockFields" "$callerFields" "$callerBody" )"
+	printf '%s\n' "$mergedContent" | AgentsToolsItemUpsert "$writeMember" --from-inbox "$writeMember" "$writeNote" \
+		--upsert-from-stdin \
+		--commit-message "* ${writeWord:-routine}, state, $( date -u +%Y-%m-%dT%H:%M:%SZ )" \
+		--context "$writeOp"
+	return $?
+}
+
+## THE UPDATE OF THE SESSION'S LOCKED DOCUMENT, ThisSession's `--update-routine-state` (F6.2): one general operation. The
+## session knows its routine and the document the spawner locked for it, so the call names neither a routine nor a path, and
+## any participant of a locked session may make it. `[--document <note>] [--header:upsert:<name>:<value>]...
+## [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`: the whole record on standard input (the default),
+## a record in a file, a patch of the stored one, or header edits of the stored one. `--document` names the note, only where
+## the session locked several (a routine that runs another inline). The lock-owned fields stay as they are (AgentsToolsRoutineStateWrite),
+## so a participant can update the state as often as it has updates, and can neither take the lock nor give it back. The
+## heartbeat's note goes through the heartbeat's own writer, which also stamps its day rhythm.
+AgentsToolsRoutineSessionStateUpdate(){ ## the operation's arguments
+	local updOp="--update-routine-state" updDocument="" updHeaders="" updModes=0 updMode="" updFile="" updArg
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+	type AgentsToolsRecheckDate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
+	type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpItem.include"
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--document)
+				[ -n "${2:-}" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: --document needs the note name" >&2 ; return 1 ; }
+				updDocument="$2" ; shift 2
+			;;
+			--header:upsert:*)
+				updArg="${1#--header:upsert:}"
+				case "$updArg" in
+					?*:*) ;;
+					*) echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: $1: the form is --header:upsert:<name>:<value>" >&2 ; return 1 ;;
+				esac
+				updHeaders="$updHeaders"$'upsert\t'"${updArg%%:*}"$'\t'"${updArg#*:}"$'\n' ; shift
+			;;
+			--header:remove:*)
+				updArg="${1#--header:remove:}"
+				[ -n "$updArg" ] && [ "${updArg#*:}" = "$updArg" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: $1: the form is --header:remove:<name>" >&2 ; return 1 ; }
+				updHeaders="$updHeaders"$'remove\t'"$updArg"$'\t\n' ; shift
+			;;
+			--from-file)
+				if [ -z "${2:-}" ] || [ ! -f "$2" ] ; then
+					echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: --from-file: file not found: ${2:-}" >&2
+					return 1
+				fi
+				updFile="$2" ; updMode="file" ; updModes=$(( updModes + 1 )) ; shift 2
+			;;
+			--edit-patch-from-stdin) updMode="patch" ; updModes=$(( updModes + 1 )) ; shift ;;
+			*)
+				echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: unrecognized argument: $1 -- syntax is [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]" >&2
+				return 1
+			;;
+		esac
+	done
+	if [ "$updModes" -gt 1 ] || { [ -n "$updHeaders" ] && [ "$updModes" -gt 0 ] ; } ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: --from-file, --edit-patch-from-stdin and --header: edits are mutually exclusive" >&2
+		return 1
+	fi
+	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
+	local updLockRow updSession updValue updOne updParsed updMember updNote updPath updPick="" updCount=0 updState updHeld
+	if [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: this call comes from no session the tooling spawned (MDAT_SPAWN_SESSION_ID is not set) -- the operation is the session's own" >&2
+		return 1
+	fi
+	updLockRow="$( AgentsToolsRoutineSessionLockValue "$MDAT_SPAWN_SESSION_ID" )" || {
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: this session holds no routine lock -- its routine names no routine-lock-document:, or the session has ended" >&2
+		return 1
+	}
+	updSession="${updLockRow%%$'\t'*}" ; updValue="${updLockRow#*$'\t'}"
+	for updOne in $( printf '%s' "$updValue" | LC_ALL=C tr ',' ' ' ) ; do
+		updParsed="$( AgentsToolsRoutineLockParse "$updOne" )" || continue
+		updCount=$(( updCount + 1 ))
+		if [ -z "$updDocument" ] || [ "${updParsed#*$'\t'}" = "$updDocument" ] ; then
+			[ -n "$updPick" ] && [ -z "$updDocument" ] && { updPick="MANY" ; break ; }
+			updPick="$updOne"
+		fi
+	done
+	case "$updPick" in
+		'')
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: this session did not lock a document named $updDocument -- it locked: $updValue" >&2
+			return 1
+		;;
+		MANY)
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: this session locked several documents, so --document <note> names the one to update: $updValue" >&2
+			return 1
+		;;
+	esac
+	updParsed="$( AgentsToolsRoutineLockParse "$updPick" )"
+	updMember="${updParsed%%$'\t'*}" ; updNote="${updParsed#*$'\t'}"
+	updPath="$( AgentsToolsRoutineLockPath "$updPick" )"
+	if [ ! -f "$updPath" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: the locked document $updNote of $updMember does not exist: $updPath" >&2
+		return 1
+	fi
+	updState="$( AgentsToolsRoutineLockField "$updPath" state )" ; updHeld="$( AgentsToolsRoutineLockField "$updPath" session-id )"
+	case "$updState" in
+		*-finished|'')
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: the lock on $updNote has been given back (state ${updState:-<none>}) -- nothing was written" >&2
+			return 1
+		;;
+	esac
+	if [ "$updHeld" != "$updSession" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: $updNote is held by session ${updHeld:-<none>}, not by this session $updSession -- nothing was written" >&2
+		return 1
+	fi
+	## The record to write: header edits of the stored one, a patch of it, a file, or standard input.
+	local updContent
+	if [ -n "$updHeaders" ] ; then
+		updContent="$( HDR_OPS="$updHeaders" LC_ALL=C awk '
+			BEGIN { count = split( ENVIRON["HDR_OPS"], rows, "\n" ) ; for ( i = 1 ; i <= count ; i++ ) { if ( rows[i] == "" ) { continue ; } split( rows[i], f, "\t" ) ; if ( f[1] == "upsert" ) { up[f[2]] = f[3] ; order[++n] = f[2] ; } else { del[f[2]] = 1 ; } } }
+			NR == 1 { if ( $0 != "---" ) { bad = 1 ; exit ; } inFm = 1 ; print ; next ; }
+			inFm && $0 == "---" {
+				for ( i = 1 ; i <= n ; i++ ) { if ( ! ( order[i] in seen ) && ! ( order[i] in del ) ) { print order[i] ": " up[order[i]] ; seen[order[i]] = 1 ; } }
+				inFm = 0 ; print ; next ;
+			}
+			inFm {
+				key = $0 ; sub( /:.*$/, "", key ) ;
+				if ( key in del ) { next ; }
+				if ( key in up ) { if ( key in seen ) { next ; } print key ": " up[key] ; seen[key] = 1 ; next ; }
+			}
+			{ print ; }
+			END { if ( bad ) { exit 1 ; } }
+		' "$updPath" )" || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: $updNote has no frontmatter block to edit" >&2 ; return 1 ; }
+	elif [ "$updMode" = "patch" ] ; then
+		updContent="$( printf '%s%s' "$( cat )" "$( cat "$updPath" )" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemPatchApply.py" "$updOp" )" || return 1
+	elif [ "$updMode" = "file" ] ; then
+		updContent="$( cat "$updFile" )"
+	else
+		updContent="$( cat )"
+	fi
+	case "$updNote" in
+		note-*-heartbeat-state-and-lock.md)
+			[ -n "$updContent" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: empty content -- refusing to erase the stored heartbeat state" >&2 ; return 1 ; }
+			printf '%s\n' "$updContent" | DistroAgentsTools --intern-op-heartbeat-state-upsert "$updMember"
+			return $?
+		;;
+	esac
+	AgentsToolsRoutineStateWrite "$updMember" "$updNote" "$updOp" "$updContent"
+	return $?
+}

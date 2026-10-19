@@ -18,7 +18,8 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 ## A scan or an iteration of the main loop starts the control thread of a session of its rig that is not finished: what was started is ended before the tree is removed.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsInputScanRoutineScopeCheck.XXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsInputScanRoutineScopeCheck )" || exit 1
 trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigSkills="$rigTmp/home/.claude/skills"
 mkdir -p "$rigTmp/ws" "$rigSkills/magic-coordinator" "$rigSkills/client-rig" \
@@ -58,7 +59,7 @@ rigRow(){ ## state
 }
 
 echo "-- advance --"
-rigScan --magic-advance-input-scan
+rigScan --intern-op-advance-input-scan
 [ "$( rigRow running )" = yes ] || rigRefuse "the running row, which every revision scans, is missing, so nothing below is measured"
 for rigState in pending running blocked parked ; do
 	rigAssert "the $rigState row is returned"            "$( rigRow $rigState )" yes
@@ -70,7 +71,7 @@ rigAssert "no own reflection"                            "$( rigHas 'rig own ref
 rigAssert "no client-* inbox"                            "$( rigHas 'rig client inquiry' )" no
 
 echo "-- grooming --"
-rigScan --magic-grooming-input-scan
+rigScan --intern-op-grooming-input-scan
 rigAssert "the backlog row is returned"                  "$( rigRow backlog )" yes
 rigAssert "its own inquiry is returned"                  "$( rigHas 'rig own inquiry' )" yes
 rigAssert "its own reflection is returned"               "$( rigHas 'rig own reflection' )" yes
@@ -79,7 +80,7 @@ rigAssert "the client-* inbox is an Additional Inbox"    "$( rigHas '## Addition
 rigAssert "with its inquiry"                             "$( rigHas 'rig client inquiry' )" yes
 
 echo "-- heartbeat --"
-rigScan --magic-heartbeat-input-scan
+rigScan --intern-op-heartbeat-input-scan
 rigAssert "no board row"                                 "$( LC_ALL=C grep -c -E '^## (backlog|pending|running|blocked|parked)/' "$rigTmp/out" )" 0
 rigAssert "no own reflection"                            "$( rigHas 'rig own reflection' )" no
 

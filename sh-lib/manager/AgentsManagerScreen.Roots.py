@@ -1,47 +1,18 @@
 ##
-## AgentsManagerScreen.Roots.py -- the roots of the list and what each asks of the tooling: SECTIONS, FIXED_ROWS, SUMMARIES, READS, CALLS, STARTS, DASHBOARD, PLACES.
+## AgentsManagerScreen.Roots.py -- what the roots of the list hold and what an action asks of the tooling: TEAM_DATA, CALLS, STARTS, DASHBOARD, PLACES. The roots themselves, their rows and their reads are declared by their plugins (Plugins.py).
 ## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
 
-## The root of the list, in its order: the id of each section and what it shows as.
-SECTIONS = (
-    ("dashboard", "Dashboard (Monitor)"),
-    ("sessions", "Sessions (Activity)"),
-    ("pending", "Pending Questions"),
-    ("team", "Team Members"),
-    ("teamdata", "Team Data"),
-    ("places", "Locations (Places)"),
-    ("consoles", "Consoles"),
-    ("settings", "Settings"),
-    ("configuration", "Configuration"),
-    ("manuals", "Manuals (Help)"),
-)
 ## The root the selection is on when the screen starts: the manuals, whose help is where a user starts.
 START_ROOT = "manuals"
-## The groups of the roots, in their order, a spacer between two (spacersAt): the work of
-## the team, then where it runs and what is started there, then how it is set up, then the
-## manuals.
-SECTION_GROUPS = (("dashboard", "sessions", "pending", "team", "teamdata"), ("places", "consoles"),
-                  ("settings", "configuration"), ("manuals",))
 ## The console user's own setting of .local, beside MDLT_CONSOLE_HISTORY and no setting of
 ## the agents, that turns every spacer of the list off where it reads `disable`; the
 ## spacers are there where it names nothing else. Read from the environment of the start,
 ## where the start of the screen (`--manager`) puts what the user saved.
 SPACERS_VARIABLE = "MDLT_CONSOLE_SPACERS"
-## The roots that stand in the list only where what they show is there: by the id of the
-## root, the function that says so from what was read ("shown"), and why its item of the
-## `Go` menu does nothing where it is not ("says"). Where one is not there the roots after
-## it take its number (goKeys), and it has none.
-SECTIONS_WHEN = {
-    "teamdata": {"shown": "teamDataHere", "says": "no team data is configured for this workspace"},
-}
-## The roots that stand in the list now, in its order: those SECTIONS_WHEN does not name,
-## until a turn of the screen has said which of the others are there too (noteRoots).
-SECTIONS_NOW = [sectionId for sectionId, sectionLabel in SECTIONS if sectionId not in SECTIONS_WHEN]
 ## What the root `Team Data` shows, from two reads that give it: the blocks of the
-## dashboard it holds as rows of its own, read with the dashboard ("blocks", in the level
-## "level"); the block and the figure that say that its team data is there ("present",
+## dashboard it holds as rows of its own, read with the dashboard ("blocks"); the block and the figure that say that its team data is there ("present",
 ## with that value), and the figure of its root; the prefix of the figures that count the
 ## items of the board by state ("board"); and the lines of the digest of the settings it
 ## shows, each by its subject, its group (None: any) and its key: the mode of the
@@ -51,7 +22,6 @@ SECTIONS_NOW = [sectionId for sectionId, sectionLabel in SECTIONS if sectionId n
 ## data, of its git state, and of the main loop; "blocks", those the dashboard's own read
 ## gives the root too, so that it knows from the start whether the team data is there.
 TEAM_DATA = {
-    "level": "teamdata",
     "blocks": ("team-data", "loop"),
     "data": "team-data", "git": "team-data-git", "loop": "loop",
     "present": ("team-data", "present", "yes"),
@@ -99,19 +69,7 @@ ROW_UP = ".."
 ## The scope a credential of a subject of the digest is read from, for the form of the credential: the scopes are their
 ## own (None: the group of the line is the scope), and the credentials of the CLIs are settings of the team.
 CREDENTIAL_SCOPE = {"scopes": None, "cli": "magic-team"}
-## The rows a level always holds, ahead of the rows its operation gives:
-## id, what it shows as, kind, whether Enter dives into it.
-FIXED_ROWS = {
-    "sessions": (("launch", "Launch (Start)", "launch", True),),
-    "sessions/launch": (("free", "Free prompt", "free", False),),
-    "configuration": (("checker", "Config Checker", "checker", True), ("keys", "Server Keys", "keys", True)),
-    "manuals": (("user", "User Manuals", "manuals", True), ("commands", "Tooling Commands", "commands", True),
-                ("maintainer", "Maintainer Manuals", "manuals", True)),
-    "teamdata": (("operations", "Operations", "operations", True),) + tuple((storeId, label, "store", True) for storeId, label in TEAM_DATA_STORES),
-    "team/*": tuple((folderId, label, kind, True) for folderId, label, kind in MEMBER_FOLDERS),
-    "teamdata/operations": tuple((cleanupId, cleanup["label"], "operation", False) for cleanupId, cleanup in CLEANUPS),
-}
-## What each folder of those rows holds, in words, where the left pane sets the folder out
+## What each folder of the rows a plugin declares always there (FIXED_ROWS) holds, in words, where the left pane sets the folder out
 ## among the subjects of its root (digestSummary).
 FOLDER_WORDS = {
     "checker": "the read-only checks of the installation, run on demand",
@@ -120,222 +78,6 @@ FOLDER_WORDS = {
     "user": "the README.md of each project, in build order",
     "maintainer": "the MAGIC.md of each project, in build order",
 }
-## The levels whose listed rows the user may have by name instead of in the order the operation gave
-## them, by the key of the command "alphabetical" (orderedRows): the manuals of the projects, which
-## the operation gives in the build order.
-ALPHABETICAL = ("manuals/user", "manuals/maintainer")
-## What the left window shows of a folder, a row that opens a level of its own, while that
-## row is selected, and while the row that goes up is selected inside it: the summary of
-## what the folder holds, made from its rows in a form of its kind, by the function
-## "lines" names. By the level the folder opens, as READS names a level. A folder is read
-## when the selection comes to stand on it, and not only when it is entered (focusReads),
-## so its summary is of its real rows; until they have come the window says that it waits
-## (POPULATING). The other words are that function's own. "counted": the states that are
-## counted first, in this order, where the rows hold them; "missingFirst": the
-## lines that are missing stand ahead of the others. A folder that is not listed here
-## shows what its own row shows: a session its summary, as its mode says.
-SUMMARIES = {
-    "dashboard": {"lines": "dashboardSummary"},
-    "sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed")},
-    "sessions/launch": {"lines": "routinesSummary"},
-    "pending": {"lines": "pendingSummary"},
-    "team": {"lines": "membersSummary"},
-    "places": {"lines": "placesSummary"},
-    "consoles": {"lines": "startsSummary"},
-    "settings": {"lines": "digestSummary"},
-    "settings/*": {"lines": "subjectSummary"},
-    "configuration": {"lines": "digestSummary"},
-    "configuration/*": {"lines": "subjectSummary", "missingFirst": True},
-    "configuration/checker": {"lines": "checksSummary"},
-    "configuration/keys": {"lines": "serverKeysSummary"},
-    "teamdata": {"lines": "teamDataSummary"},
-    "teamdata/operations": {"lines": "cleanupsSummary"},
-    "teamdata/board": {"lines": "storeSummary"},
-    "teamdata/audit": {"lines": "storeSummary"},
-    "teamdata/vault": {"lines": "storeSummary"},
-    **{"teamdata/%s/*" % storeId: {"lines": "itemsSummary", "store": storeId} for storeId, storeLabel in TEAM_DATA_STORES},
-    "team/*/permissions": {"lines": "grantsSummary"},
-    "team/*/files": {"lines": "filesSummary"},
-    "team/*/sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed")},
-    "team/*/help": {"lines": "helpSummary", "chapters": "help"},
-    "manuals": {"lines": "foldersSummary"},
-    "manuals/user": {"lines": "manualsSummary"},
-    "manuals/commands": {"lines": "commandsSummary"},
-    "manuals/maintainer": {"lines": "manualsSummary"},
-}
-
-## What each level of the list and each view of the left pane asks the tooling for: the
-## operation with its arguments, as the dispatcher takes them, and under "active" what the
-## `a` filter adds. None: no operation yet, the task of that level or view names it.
-## A level below a record is named with `*` in the place of that record's id, and {level}
-## in an argument is that id. A view is named by its level and the kind of the row that is
-## selected there, and {id} in an argument is the id of that row. An entry with "always" is
-## read whatever is shown, since a status line counts by it, and "kind" then names the kind
-## it runs as, beside the one list and the one view that are shown. "rows" names the form
-## of what a list operation prints (parseLevels). A level with "from" has no read of its
-## own: the read named there fills it. Beside the "view" of a row, its facts, stands its
-## "feed", its lines, read as a kind of its own; "log" is what `l` adds to it. "needs"
-## names what a row must carry for the read to be made at all. "acts" is what can be done
-## with a row, read as one more part of it (VIEW_PARTS). "once": it is read when it is asked
-## for, and never again because its period has passed (startDueReads). "seldom": a list that
-## is read whatever is shown is read once, when the screen starts; it is read again, on
-## the period and when a read is asked for, only while it is the list shown (seldomNow). "peek": a list that
-## is read also while its section is the row the root stands on, since the left window
-## then shows that section from its rows (wantedReads).
-## "also": the reads made beside the list of a level, by their keys, while that level is
-## shown and while the folder that opens it has the focus, as a kind of their own.
-## "demand": it is read only when its command asks for it ("demand" in COMMANDS), never
-## because it was not read yet or its period has passed, and "said" is what the status
-## line says of it then.
-## {parent} in an argument is the id of the level above the level read: the member of a
-## folder of a member.
-## "each": a read that is made for every row of the level it is named by that carries what
-## it "needs", by the id of that row; its key is its name and, after a `|`, that id (readEntry).
-## The list of a level is read also while the row that opens that level is the row
-## selected, a folder that has the focus, as it would be on entering it (focusReads): once
-## the selection has rested on that row (REST_SECONDS), so a selection that runs down a
-## list starts none, and one such read at a time, as the kind "focus", beside the list
-## shown, and once for each time the selection comes to rest there: while it stays, the
-## period reads that list no more, and coming back reads it again only when its period
-## has passed since. "peek" is read with no rest, and on the period. One that is read on
-## "demand" alone is never started by the focus: its command asks for it there too.
-VIEW_PARTS = ("view", "feed", "acts")
-READS = {
-    ## The blocks of the dashboard, each with its figures, all from the one operation. It is
-    ## read on the period only while its root is selected or opened, and never else.
-    "list:dashboard": {"operation": ["--manager-dashboard-read"], "rows": "blocks", "peek": True},
-    ## The coworking sessions with their runs, and last the row of counters of the status lines.
-    "list:sessions": {"operation": ["--manager-session-list"], "active": ["--active"],
-                      "rows": "sessions", "kind": "sessions", "always": True},
-    ## The routines the members carry, each with whether the session spawner would start it.
-    "list:sessions/launch": {"operation": ["--manager-routine-list"], "rows": "routines"},
-    ## The agents of one session come with the list of the sessions.
-    "list:sessions/*": {"from": "list:sessions"},
-    ## The asks that wait, every owner's. The member named filters nothing with --any-owner; it
-    ## is the one the tooling's own read of every owner's asks names (the heartbeat's input scan).
-    "list:pending": {"operation": ["--member-pending-reply-read", "magic-coordinator", "--any-owner"],
-                     "rows": "pending"},
-    ## The members of the team as this workspace knows them, one row each.
-    "list:team": {"operation": ["--manager-team-member-list"], "rows": "members"},
-    ## The settings and the configuration of the workspace as they are, by subject: every
-    ## line with its description, whether and how it is changed, and, as its last field,
-    ## which of the two roots it is of (DIGEST_FIELDS). One read fills both roots, and under
-    ## each the level of every subject that has a line there (parseDigestLevels).
-    "list:settings": {"operation": ["--manager-config-digest", "--full"], "rows": "digest"},
-    "list:settings/*": {"from": "list:settings"},
-    "list:configuration": {"from": "list:settings"},
-    "list:configuration/*": {"from": "list:settings"},
-    ## The checks of the installation, by the owner's own read-only diagnosis of each part
-    ## of it: a row a check, with its state, why, and the command that mends it. It takes
-    ## up to a minute and some of it asks outside this machine, so it is made on demand
-    ## alone, and as a kind of its own, beside the lists.
-    "list:configuration/checker": {"operation": ["--manager-check-run"], "rows": "checks", "kind": "check", "demand": True,
-                                   "said": "it takes up to a minute"},
-    ## The public keys of this server, those to add to git and those to trust when
-    ## connecting, each with its fingerprint and its key shortened. Read on entering and
-    ## when it is asked for, not on the period.
-    "list:configuration/keys": {"operation": ["--manager-keys-list"], "rows": "keys", "once": True},
-    ## One of those keys whole: the line to paste, and where the deploy key is registered.
-    ## Read when its box opens, by the name of the key, and never before (askKeyLine).
-    "full:key": {"operation": ["--manager-keys-read", "{id}"], "rows": "key-read", "kind": "plan", "once": True},
-    ## One credential whole, read when its form is asked for it by its key and never before (revealCredential): by the
-    ## setting reader as every program reads a setting, from the scope {level} by the key {id}.
-    "full:credential": {"operation": ["--agents-config-option", "{level}", "--select", "{id}"], "rows": "credential-read", "kind": "plan", "demand": True},
-    ## The same read for each key of the list whose public file can be read, by its name:
-    ## once when the folder is opened and when it is asked for, never on the period. It
-    ## gives the whole line of a key where its row of the list does not carry it, and
-    ## where the key is to be registered.
-    "each:configuration/keys": {"operation": ["--manager-keys-read", "{id}"], "rows": "key-read", "kind": "plan", "once": True, "needs": "readable"},
-    ## What is started from here with the whole terminal, in the order of a menu: the consoles
-    ## of the workspace, each with the folder it starts in and its command, a field a word (STARTS).
-    "list:consoles": {"operation": ["--manager-console-list"], "rows": "starts"},
-    ## The root `Team Data`: its own blocks of the dashboard, its git state among them, which
-    ## is read only while the root is selected or opened (TEAM_DATA); and the digest of the
-    ## settings read beside them ("also": read with the list of the level, while it is shown
-    ## and while its folder has the focus), for the mode of the workspace and the remote of
-    ## the team data. Its `Operations` reads the digest, for the mode and the remote.
-    "list:teamdata": {"operation": ["--manager-dashboard-read", "team-data", "team-data-git", "loop"], "rows": "blocks", "also": ("list:settings",)},
-    "list:teamdata/operations": {"from": "list:settings"},
-    ## The locations the tooling knows by a name, one row each. Read whatever is shown, as a
-    ## kind of its own, since a path inside one of them stands by its name in the other
-    ## views (PLACED): once when the screen starts; again, on the period and when a read is
-    ## asked for, only while `Locations (Places)` is the list shown.
-    "list:places": {"operation": ["--manager-place-list"], "rows": "places", "kind": "places", "always": True, "seldom": True},
-    ## One location, whole: its row, what declares it, and what stands in it.
-    "view:places:record": {"operation": ["--manager-place-read", "{id}"], "rows": "place-read", "needs": "place"},
-    ## The commands of a workspace among them, those its editor's palette gets, as the declarations of this
-    ## console's packages give them. Read on entering it and when it is asked for, not on the period.
-    "list:places/*": {"operation": ["--manager-place-command-list", "{level}"], "rows": "place-commands", "once": True},
-    "view::section": None,
-    "view:sessions:launch": None,
-    ## A session whole, and what its runs did: the lines its tracking thread shows.
-    "view:sessions:record": {"operation": ["--manager-session-read", "--session-id", "{id}"],
-                             "rows": "session-read", "needs": "session"},
-    "feed:sessions:record": {"operation": ["--manager-session-transcript-read", "--session-id", "{id}"],
-                             "log": ["--log"], "rows": "transcript", "needs": "session"},
-    ## One run of a session: --run takes the id as a run's own, the founder's too, whose id is its session's.
-    "view:sessions/*:record": {"operation": ["--manager-session-read", "--session-id", "{id}", "--run"],
-                               "rows": "session-read", "needs": "run"},
-    "feed:sessions/*:record": {"operation": ["--manager-session-transcript-read", "--session-id", "{id}", "--run"],
-                               "log": ["--log"], "rows": "transcript", "needs": "run"},
-    ## One ask, whole: what the stores hold of it.
-    "view:pending:record": {"operation": ["--member-pending-reply-read", "magic-coordinator", "{id}"],
-                            "rows": "ask", "needs": "ask"},
-    ## What can be done with one ask from the console: the row of the question, with whether it
-    ## takes words, a reject and a dismissal and with the link of its message, and a row for
-    ## each answer it takes. Read as a part of its own, "acts", beside the view of the ask.
-    "acts:pending:record": {"operation": ["--manager-pending-reply-read", "--id", "{id}"],
-                            "rows": "ask-acts", "needs": "ask"},
-    ## One member, whole: its information, the sessions it is in, its grants and its settings.
-    "view:team:record": {"operation": ["--manager-team-member-read", "--full", "{id}"], "rows": "member-read", "needs": "member"},
-    ## What the kill of a session, and of one agent, would do, and nothing is done: the rows
-    ## of the kill itself, each with what would become of it (KILL_ROWS). Read when the
-    ## confirmation of that kill opens, and once more when it is confirmed (submitKill), by
-    ## the id it names, as a kind of its own; never on the period, so what the confirmation
-    ## says does not change under the word typed into it.
-    "plan:kill:session": {"operation": ["--manager-session-kill", "--session-id", "{id}", "--plan"], "rows": "kill", "kind": "plan", "once": True},
-    "plan:kill:run": {"operation": ["--manager-session-kill", "--session-id", "{id}", "--run", "--plan"], "rows": "kill", "kind": "plan", "once": True},
-    ## The folders of a member: its grants and its sessions from the read of the member, the
-    ## files of its skillset folder and one of them whole, and its help as the tooling gives
-    ## a member its help, read when it is opened and when it is asked for.
-    "list:team/*/permissions": {"operation": ["--manager-team-member-read", "--full", "{parent}"], "rows": "member-grants"},
-    "list:team/*/files": {"operation": ["--manager-team-member-files", "{parent}"], "rows": "member-files"},
-    "view:team/*/files:file": {"operation": ["--manager-team-member-files", "{parent}", "{id}"], "needs": "text", "once": True},
-    "list:team/*/sessions": {"operation": ["--manager-team-member-read", "--full", "{parent}"], "rows": "member-sessions"},
-    "view:team/*/sessions:record": {"operation": ["--manager-session-read", "--session-id", "{id}"],
-                                    "rows": "session-read", "needs": "session"},
-    "feed:team/*/sessions:record": {"operation": ["--manager-session-transcript-read", "--session-id", "{id}"],
-                                    "log": ["--log"], "rows": "transcript", "needs": "session"},
-    "list:team/*/help": {"operation": ["--member-help", "{parent}"], "rows": "member-help", "once": True, "also": ("list:help",)},
-    ## The chapters of the help of this tool, which a member's `Member Help` shows around its own
-    ## syntax lines. It is no level of the list: a read of its own, made beside that folder.
-    "list:help": {"operation": ["--manager-help-read"], "rows": "chapters", "once": True},
-    ## The root `Manuals (Help)`. The tooling commands a console user calls by name, as the
-    ## console's completion gathers them, each with the file it resolves to. Read on entering
-    ## and when it is asked for, not on the period.
-    "list:manuals/commands": {"operation": ["--manager-command-list"], "rows": "commands", "once": True},
-    ## The help of one of them, as its own `--help` prints it, read from its help files and
-    ## never by running it: of the command selected alone, once the selection rests on it, and
-    ## not on the period.
-    "view:manuals/commands:help-entry": {"operation": ["--manager-help-read", "{id}"], "once": True},
-    ## The manuals of the projects, the README.md of each (`User Manuals`) and its MAGIC.md
-    ## (`Maintainer Manuals`), in the build order, a project a row; one of them whole is read
-    ## by the name of its project, once the selection rests on it.
-    "list:manuals/user": {"operation": ["--manager-manual-read", "user"], "rows": "manuals", "once": True},
-    "view:manuals/user:help-entry": {"operation": ["--manager-manual-read", "user", "{id}"], "once": True},
-    "list:manuals/maintainer": {"operation": ["--manager-manual-read", "maintainer"], "rows": "manuals", "once": True},
-    "view:manuals/maintainer:help-entry": {"operation": ["--manager-manual-read", "maintainer", "{id}"], "once": True},
-}
-## The stores of the team data (TEAM_DATA_STORES): a store, its folders and the items in
-## it; a folder of it, its items; and one item whole, its text, read once it is selected.
-for storeId, storeLabel in TEAM_DATA_STORES:
-    READS.update({
-        "list:teamdata/%s" % storeId: {"operation": ["--manager-team-data-read", storeId], "rows": "data-store"},
-        "list:teamdata/%s/*" % storeId: {"operation": ["--manager-team-data-read", storeId, "{level}"], "rows": "data-items"},
-        "view:teamdata/%s:item" % storeId: {"operation": ["--manager-team-data-read", storeId, "-", "{id}"], "once": True},
-        "view:teamdata/%s/*:item" % storeId: {"operation": ["--manager-team-data-read", storeId, "{level}", "{id}"], "once": True},
-    })
-
 ## What each action asks the tooling for: the operation with its arguments, {id} the id of
 ## what it acts on. The screen itself signals no process and starts no CLI. A session's id
 ## finishes that session: every live run of it is ended, its questions that wait are

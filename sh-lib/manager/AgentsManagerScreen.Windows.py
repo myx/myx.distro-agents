@@ -33,15 +33,21 @@ META_SECONDS = 1.0
 ## bottom border, and "bar" says that its right border is a scroll bar while it holds more
 ## than it shows. No window has a foot now: the borders are plain, and what stood in them,
 ## the counters and the load, is the dashboard's. A command that no window names applies
-## in every window.
+## in every window, and so does a command of a plugin that names none under "window": the buttons
+## of the left window, wrap and cut, work whatever window has the keys, so no Tab is needed to
+## reach them.
 WINDOWS = (
     {"name": "view", "title": "viewTitle", "place": {"side": "left"},
      "shows": {"body": "lines", "reads": VIEW_PARTS}, "bar": True, "count": "viewCount",
-     "commands": ("wrap", "pan", "row")},
+     "commands": ("pan", "row")},
     {"name": "list", "title": "listTitle", "place": {"side": "right", "tenths": 3},
      "shows": {"body": "rows", "reads": ("list",)}, "bar": True,
-     "commands": ("launch", "prompt", "answer", "reject", "dismiss", "link", "credential", "setting", "run", "open", "up", "alphabetical", "filter", "page-left", "climb", "page-right")},
+     "commands": ("open", "up", "alphabetical", "filter", "page-left", "climb", "page-right")},
 )
+## The keys of navigation, which stay with the window that has the keys: a command that applies in one window alone (WINDOWS, "window")
+## has these keys there alone. Every other key of a command is a button, and works whichever window has the keys: the
+## wrap and the cut of the lines, the raw log, the filter of the list, no Tab needed to reach them.
+NAVIGATION_KEYS = ("ENTER", "LEFT", "RIGHT", "UP", "DOWN", "PGUP", "PGDN", "HOME", "END", " ", "BACKSPACE", "TAB", "ESC")
 ## The window the keys go to when the screen starts.
 WINDOW_FIRST = "list"
 ## The split between the two windows, which the user moves for the run of the screen: by
@@ -101,17 +107,13 @@ LINE_LOOKS = {"head": DIM}
 MARKDOWN = {"suffixes": (".md", ".markdown"), "lines": 2000, "mark": "[markdown]",
             "bound": "The first %d lines are rendered; the %d after them follow as they are.",
             "command": "bin/lib/catMarkdown.Common", "seconds": 10}
-MARKDOWN_ON = ("team/*/files:file",) + tuple(place for storeId, storeLabel in TEAM_DATA_STORES
-                                             for place in ("teamdata/%s:item" % storeId, "teamdata/%s/*:item" % storeId))
-MARKDOWN_VIEWS = tuple(place.partition(":")[0] for place in MARKDOWN_ON)
-## The help of the tooling is Markdown too, rendered as `--help` prints it (markdownLines): the
-## places of its texts, an operation of `Member Help`, the folder of a member whose summary is
-## the help (helpSummary), a command of `Tooling Commands`, whose help the family writes in the
-## same layout, and a manual of a project, the README.md and the MAGIC.md, each rendered, and
-## raw in the raw mode, as a Markdown text is.
-MARKDOWN_HELP = ("team/*/help:help-entry", "team/*:member-help", "manuals/commands:help-entry",
-                 "manuals/user:help-entry", "manuals/maintainer:help-entry")
-MARKDOWN_HELP_VIEWS = tuple(place.partition(":")[0] for place in MARKDOWN_HELP)
+## The places of those texts, MARKDOWN_ON, and the places of the help of the tooling, which is
+## Markdown too, rendered as `--help` prints it (markdownLines), MARKDOWN_HELP: the registries
+## `on` and `help` of the Markdown view (Plugins.py), where each app feature puts its own places.
+## The help's are an operation of `Member Help`, the folder of a member whose summary is the help
+## (helpSummary), a command of `Tooling Commands`, whose help the family writes in the same
+## layout, and a manual of a project, the README.md and the MAGIC.md, each rendered, and raw in
+## the raw mode, as a Markdown text is.
 ## The look of each part of a rendered Markdown text, by the name catMarkdown gives it: its
 ## headings by their level, from the third on as the third; its strong and its emphasized
 ## words; its code; a quote; a rule; its front matter; the mark of an item of a list; the
@@ -134,7 +136,8 @@ MENUS = (
     ("help", "~H~elp"),
 )
 
-## The commands, each declared once. "keys": its keys, the first being the one its menu and
+## The commands of the engine, each declared once; those of an app feature are declared with the feature's plugin (Plugins.py), in
+## the same form, and COMMANDS is built from both (ENGINE_COMMANDS here). "keys": its keys, the first being the one its menu and
 ## the status line show, where the key map of the style gives it no others (KEYMAPS). The
 ## first is always a key every terminal delivers: a function key and Alt with a letter do
 ## not arrive from every terminal, so a function key and Alt with a key stand second,
@@ -169,65 +172,25 @@ MENUS = (
 ## for the list of the folder selected where that one is, and
 ## ("mode", <name>), which takes the left window to that mode of VIEW_MODES, or to the
 ## next one where it names none. A command comes
-## to a menu, to the status line and to its key from this one place: adding one is adding
-## an entry here. Where two commands share a key, the first that applies has it. "says":
-## the word the left window names the key of an "only" command by, where it starts nothing.
+## to a menu, to the status line and to its key from one place: adding one is adding
+## an entry here, or to the "commands" of a plugin. Where two commands share a key, the first that applies has it;
+## no two of one view and one window do without one of them being `only` on its rows (keyClashes, which the build asks).
+## "says": the word the left window names the key of an "only" command by, where it starts nothing.
 ## "enters": Enter on a row it acts on enters that row, so the row is drawn as a folder is,
 ## as a row that dives into a level of its own is (rowEnters).
-## The number keys that take the list to a level: the roots have theirs by the order of
-## the root list as it is shown (SECTIONS, SECTIONS_NOW), the first root 1, and are so
-## given again whenever a root is added, moved, or comes and goes, so a root that is not
-## there leaves no gap and has none (commandKeys asks at every lookup); the levels GO_MORE names, under a root, have the numbers after the
-## last root, in its order. With each number, Alt with it. Nine numbers there are: what
-## stands after the ninth has none, and is reached by its menu.
-GO_MORE = (("sessions", "launch"),)
-
-
-def goKeys(path):
-    shown = [(sectionId,) for sectionId in SECTIONS_NOW] + list(GO_MORE)
-    if tuple(path) not in shown:
-        return ()
-    number = shown.index(tuple(path)) + 1
-    return (str(number), "ALT-%d" % number) if number <= 9 else ()
-
+## "window": the window it applies in alone, else the one WINDOWS names it in, else every window.
+## "with" and "exceptWith": the registries of other features that add their views, and their rows, to its own or take
+## them from it (Plugins.py). The number keys that take the list to a level are goKeys' (Plugins.py).
 
 ## More rows than any pane holds: a move by that many stops at the top or at the bottom (Home, End).
 MOVE_ALL = 1 << 30
 
-COMMANDS = (
+ENGINE_COMMANDS = (
     {"name": "read", "keys": ("u", "F5"), "menu": ("view", 1), "label": "~R~ead now", "status": "Read",
      "does": ("read",)},
     {"name": "menu", "keys": ("m", "F10"), "status": "Menu", "does": ("menu",)},
     {"name": "exit", "keys": ("CTRL-x", "ALT-x"), "menu": ("go", 4), "label": "E~x~it", "status": "Exit",
      "does": ("quit",)},
-    {"name": "unstarted", "keys": ("ENTER",),
-     "views": ("sessions/launch",), "for": "a routine that cannot be started", "on": ("sessions/launch:record",), "only": True, "tells": True, "does": ("action", "unstarted")},
-    {"name": "launch", "keys": ("ENTER",), "menu": ("session", 2), "label": "Start the ro~u~tine", "status": "Start",
-     "views": ("sessions/launch",), "for": "a routine", "on": ("sessions/launch:record",), "only": True, "does": ("action", "launch"), "calls": ("launch",)},
-    {"name": "prompt", "keys": ("ENTER",), "menu": ("session", 2), "label": "~F~ree prompt", "status": "Start",
-     "views": ("sessions/launch",), "for": "the free prompt", "on": ("sessions/launch:free",), "only": True, "does": ("action", "prompt"), "calls": ("prompt",)},
-    {"name": "answer", "keys": ("ENTER", "y"), "menu": ("question", 1), "label": "~A~nswer", "status": "Answer",
-     "views": ("pending",), "for": "a question", "on": ("pending:record",), "only": True, "says": "answer", "does": ("action", "answer"), "calls": ("answer",)},
-    {"name": "reject", "keys": ("j",), "menu": ("question", 1), "label": "Re~j~ect", "status": "Reject",
-     "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "reject"), "calls": ("reject",)},
-    {"name": "dismiss", "keys": ("d",), "menu": ("question", 1), "label": "~D~ismiss", "status": "Dismiss",
-     "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "dismiss"), "calls": ("dismiss",)},
-    {"name": "link", "keys": ("o",), "menu": ("question", 2), "label": "Show the ~l~ink", "status": "Link",
-     "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "link")},
-    {"name": "credential", "keys": ("ENTER",), "menu": ("view", 3), "label": "Open the cr~e~dential", "status": "Open",
-     "views": ("settings/*", "configuration/*"), "for": "a credential", "on": ("settings/*:record", "configuration/*:record"), "only": True, "tells": True, "enters": True, "does": ("action", "credential")},
-    {"name": "setting", "keys": ("ENTER",), "menu": ("view", 3), "label": "~C~hange the setting", "status": "Change",
-     "views": ("settings/*", "configuration/*"), "for": "a setting", "on": ("settings/*:record", "configuration/*:record"), "only": True, "enters": True, "says": "change", "does": ("action", "setting"), "calls": ("set",)},
-    {"name": "check", "keys": ("r",), "menu": ("view", 1), "label": "Run the ~c~hecks", "status": "Run",
-     "views": ("configuration", "configuration/checker"), "for": "the checker", "does": ("demand",)},
-    {"name": "keyline", "keys": ("f",), "menu": ("view", 3), "label": "~F~ull public line", "status": "Full",
-     "views": ("configuration/keys",), "for": "a server key", "on": ("configuration/keys:record",), "does": ("action", "line")},
-    {"name": "run", "keys": ("ENTER",), "menu": ("console", 1), "label": "~S~tart", "status": "Start",
-     "views": ("consoles",), "for": "something to start", "on": ("consoles:record",), "only": True, "says": "start", "does": ("action", "run")},
-    {"name": "cleanup", "keys": ("ENTER",), "menu": ("view", 3), "label": "Run the ~o~peration", "status": "Run",
-     "views": ("teamdata/operations",), "for": "an operation of the team data", "on": ("teamdata/operations:operation",), "only": True, "says": "run", "does": ("action", "cleanup")},
-    {"name": "placecommand", "keys": ("ENTER",), "menu": ("view", 3), "label": "R~u~n the command", "status": "Run",
-     "views": ("places/*",), "for": "a command of a workspace", "on": ("places/*:place-command",), "only": True, "enters": True, "says": "run", "does": ("action", "placecommand")},
     {"name": "open", "keys": ("ENTER",), "menu": ("go", 3), "label": "~O~pen", "status": "Open",
      "does": ("open",)},
     {"name": "up", "keys": ("BACKSPACE",), "menu": ("go", 3), "label": "~U~p one level", "status": "Up",
@@ -237,13 +200,14 @@ COMMANDS = (
     {"name": "help", "keys": ("?", "F1"), "menu": ("help", 1), "label": "~K~eys", "status": "Help",
      "does": ("action", "help")},
     {"name": "alphabetical", "keys": ("a",), "menu": ("view", 1), "label": "Alpha~b~etical or build order", "status": ("Alphabetical", "Build order"), "toggle": "alphabetical",
-     "views": ALPHABETICAL, "does": ("alphabetical",)},
+     "with": (("list", "alphabetical"),), "does": ("alphabetical",)},
     {"name": "filter", "keys": ("a",), "menu": ("view", 1), "label": "~A~ll or active", "status": ("Active", "All"), "toggle": "activeOnly",
-     "except": ALPHABETICAL, "does": ("filter",)},
+     "exceptWith": (("list", "alphabetical"),), "does": ("filter",)},
     ## the left window's own: its long lines wrapped at words, or cut and scrolled sideways
     ## ("shown": what the status line names its keys by, a pair of keys as one); and the
     ## split between the windows, a step at a time ("split", towards a wider right window
-    ## or a narrower one)
+    ## or a narrower one). The wrap works whatever window has the keys, and the sideways
+    ## scroll is the left window's, whose arrows are its own.
     {"name": "wrap", "keys": ("w",), "menu": ("view", 5), "label": "Wra~p~ or cut long lines", "status": ("Wrap", "Cut"), "toggle": "wrap",
      "does": ("wrap",)},
     {"name": "pan", "keys": ("LEFT", "RIGHT"), "status": "Scroll", "shown": "LEFT/RIGHT", "does": ("pan",)},
@@ -253,50 +217,6 @@ COMMANDS = (
     {"name": "split-narrower", "keys": ("]",), "menu": ("view", 5), "label": "Narrower lis~t~", "does": ("split", -1)},
     {"name": "style", "keys": ("I", "F9"), "menu": ("view", 3), "label": "Interface ~s~tyle: the next", "does": ("style",)},
     {"name": "colours", "keys": ("i",), "menu": ("view", 3), "label": "~I~nterface colours: the next", "does": ("colours",)},
-    {"name": "kill", "keys": ("k",), "menu": ("session", 1), "label": "~K~ill", "status": "Kill",
-     "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "kill"), "calls": ("kill:session", "kill:run")},
-    {"name": "control", "keys": ("c",), "menu": ("session", 1), "label": "~C~ontrol thread", "status": "Control",
-     "views": ("sessions", "sessions/*"), "for": "a session", "asks": True, "on": ("sessions:record",), "does": ("action", "control"), "calls": ("control",)},
-    {"name": "pause", "keys": ("p",), "menu": ("session", 3), "label": "~P~ause",
-     "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "pause")},
-    {"name": "resume", "keys": ("r",), "menu": ("session", 3), "label": "~R~esume",
-     "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "resume")},
-    {"name": "stop", "keys": ("s",), "menu": ("session", 3), "label": "~S~top",
-     "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "stop")},
-    {"name": "restart", "keys": ("R",), "menu": ("session", 3), "label": "Res~t~art",
-     "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "restart")},
-    {"name": "mode", "keys": ("v",), "menu": ("view", 4), "label": "Ne~x~t mode of the left window",
-     "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "")},
-    {"name": "mode-summary", "keys": ("b",), "menu": ("view", 4), "label": "Su~m~mary", "status": "Summary",
-     "views": ("sessions", "sessions/*") + MARKDOWN_VIEWS + MARKDOWN_HELP_VIEWS, "for": "a session, an agent or a Markdown text", "on": ("sessions:record", "sessions/*:record") + MARKDOWN_ON + MARKDOWN_HELP, "does": ("mode", "summary")},
-    {"name": "mode-log", "keys": ("l",), "menu": ("view", 4), "label": "~L~og", "status": "Log",
-     "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "log")},
-    {"name": "mode-raw", "keys": ("g",), "menu": ("view", 4), "label": "Ra~w~ log", "status": "Raw log",
-     "views": ("sessions", "sessions/*") + MARKDOWN_VIEWS + MARKDOWN_HELP_VIEWS, "for": "a session, an agent or a Markdown text", "on": ("sessions:record", "sessions/*:record") + MARKDOWN_ON + MARKDOWN_HELP, "does": ("mode", "raw")},
-    {"name": "start", "keys": ("n",), "menu": ("member", 1), "label": "~S~tart", "status": "Start",
-     "views": ("team",), "for": "a team member", "on": ("team:record",), "does": ("action", "start"), "calls": ("start",)},
-    {"name": "dashboard", "keys": goKeys(("dashboard",)), "menu": ("go", 1), "label": "~D~ashboard (Monitor)",
-     "does": ("go", ("dashboard",))},
-    {"name": "sessions", "keys": goKeys(("sessions",)), "menu": ("go", 1), "label": "~S~essions (Activity)",
-     "does": ("go", ("sessions",))},
-    {"name": "pending", "keys": goKeys(("pending",)), "menu": ("go", 1), "label": "~P~ending Questions",
-     "does": ("go", ("pending",))},
-    {"name": "team", "keys": goKeys(("team",)), "menu": ("go", 1), "label": "~T~eam Members",
-     "does": ("go", ("team",))},
-    {"name": "teamdata", "keys": goKeys(("teamdata",)), "menu": ("go", 1), "label": "Tea~m~ Data",
-     "does": ("go", ("teamdata",))},
-    {"name": "places", "keys": goKeys(("places",)), "menu": ("go", 1), "label": "Loc~a~tions (Places)",
-     "does": ("go", ("places",))},
-    {"name": "consoles", "keys": goKeys(("consoles",)), "menu": ("go", 1), "label": "Co~n~soles",
-     "does": ("go", ("consoles",))},
-    {"name": "settings", "keys": goKeys(("settings",)), "menu": ("go", 1), "label": "S~e~ttings",
-     "does": ("go", ("settings",))},
-    {"name": "configuration", "keys": goKeys(("configuration",)), "menu": ("go", 1), "label": "~C~onfiguration",
-     "does": ("go", ("configuration",))},
-    {"name": "manuals", "keys": goKeys(("manuals",)), "menu": ("go", 1), "label": "Manuals (~H~elp)",
-     "does": ("go", ("manuals",))},
-    {"name": "spawn", "keys": goKeys(("sessions", "launch")), "menu": ("go", 2), "label": "~L~aunch (Start)",
-     "does": ("go", ("sessions", "launch"))},
     {"name": "line-up", "keys": ("UP",), "does": ("move", -1, 0)},
     {"name": "line-down", "keys": ("DOWN",), "does": ("move", 1, 0)},
     {"name": "page-up", "keys": ("PGUP",), "does": ("move", 0, -1)},
@@ -309,6 +229,7 @@ COMMANDS = (
     {"name": "climb", "keys": (), "does": ("climb",)},
     {"name": "page-right", "keys": ("RIGHT",), "does": ("move", 0, 1)},
 )
+
 ## What the status line shows in place of the commands while something else has the keys:
 ## a pull-down menu. Each a key, or two with / between, and its word. A dialog names its own
 ## keys, from CONTROL_KINDS. The status line names no key but those that act for what has
@@ -348,3 +269,6 @@ REFUSALS = {
     "absent": "%s: %s",
     "wrapped": "%s: the lines are wrapped, none is cut",
 }
+
+## The commands of the engine stand in COMMANDS from here, before any plugin is registered.
+pluginsApplied(pluginsBuilt())

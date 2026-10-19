@@ -115,7 +115,7 @@ AgentsToolsManagerPlaceField(){ ## text
 }
 
 ## THE COMMANDS OF A WORKSPACE, the same its editor's palette gets: what each package of this console declares in
-## its sh-lib/config/workspace-commands.list, of the packages that workspace has, picked as the tasks of its palette are
+## its workspace-commands.list (in sh-lib/config/ of myx.distro-agents, in the sh-lib/ of the others), of the packages that workspace has, picked as the tasks of its palette are
 ## (myx.distro-source's SourceTools.Make.BuildCodeWorkspaceData.include): myx.distro-source always, another where
 ## its console at the root is executable. A row each, in that order: the package, the name, how it runs and the
 ## command, with the root put for `$MMDAPP` and `${MMDAPP}`, a TAB between them. A line of a declaration that
@@ -125,7 +125,10 @@ AgentsToolsManagerPlaceCommands(){ ## workspace root
 	for commandsPackage in source:- deploy:DistroDeployConsole.sh remote:DistroRemoteConsole.sh agents:DistroAgentsConsole.sh ; do
 		commandsConsole="${commandsPackage#*:}"
 		commandsPackage="myx.distro-${commandsPackage%%:*}"
-		commandsList="$MDLT_ORIGIN/myx/$commandsPackage/sh-lib/config/workspace-commands.list"
+		case "$commandsPackage" in
+			myx.distro-agents) commandsList="$MDLT_ORIGIN/myx/$commandsPackage/sh-lib/config/workspace-commands.list" ;;
+			*) commandsList="$MDLT_ORIGIN/myx/$commandsPackage/sh-lib/workspace-commands.list" ;;
+		esac
 		[ -f "$commandsList" ] || continue
 		[ "$commandsConsole" = "-" ] || [ -x "${1%/}/$commandsConsole" ] || continue
 		commandsRoot="${1%/}" commandsPackage="$commandsPackage" LC_ALL=C awk -F'\t' -v OFS='\t' '

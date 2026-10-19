@@ -16,6 +16,14 @@
 ##      the header change of a board item, of an inbox item marked processed and of a new inbox item, the
 ##      references a board rename rewrites, the message of an email, and the post a session takes for its own.
 ##   4. The lock: a dead lock is still broken, and the name it is moved to is not left behind, moved or not.
+##   6. NO SYSTEM TEMP FOLDER, by the owner's rule, over the code of every myx.distro-* package, myx.distro-.local among them
+##      (a file by its name, its shebang, or its place among the templates; in sh-lib, sh-scripts, builders, actions,
+##      sh-test or wherever it stands): no line names the root temp folder (`/` then `tmp`, also under `/private` and `/var`)
+##      as a path of its own, nor the temp-dir variable by its name, comments included, but a data site of the second
+##      list, each with its reason; no mktemp takes `-t`, goes without a template, or takes a bare name for one (its
+##      template holds a `/` or starts at a variable: under the workspace, or beside a target), comment lines aside;
+##      and no python tempfile call goes without `dir=`. Every site is listed. The words are built from parts here, so
+##      this file is read like every other.
 ## Offline: one mktemp tree, every call through `env -i` whose child refuses to run outside it; a fake `curl`
 ## first on PATH would log a request, and none is made.
 set -u
@@ -30,7 +38,8 @@ rigRefuse(){
 [ -f "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 rigRealAwk="$( command -v awk )" || rigRefuse "no awk on PATH"
 rigRealCat="$( command -v cat )" || rigRefuse "no cat on PATH"
-rigTmp="$( mktemp -d -t AgentsTempNamesCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsTempNamesCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigData="$rigTmp/data" ; rigSkills="$rigTmp/skills" ; rigHome="$rigTmp/home"
@@ -345,6 +354,114 @@ rigAssert "and the lock folder holds the two locks and no other name" "$( ls "$r
 
 echo "-- 5. nothing was posted --"
 rigAssert "no run of this check issued a request" "$( [ -e "$rigTmp/curl.calls" ] && wc -l < "$rigTmp/curl.calls" | LC_ALL=C tr -d ' ' || echo 0 )" "0"
+
+echo "-- 6. no system temp folder, in any package: no path to it, no temp-dir variable, no mktemp or tempfile that falls back to it --"
+## The words, from parts.
+rigNoTmpRoot="/t""mp"
+rigNoTmpVar="TMP""DIR"
+rigNoTmpMk="mk""temp"
+## THE SECOND LIST: the sites that stand, each with its reason. One line a site: package/file|how many lines hold it|
+## a text of those lines|the reason. `data:` is a site where the root temp folder is data and no place anything is
+## written.
+rigNoTmpList(){
+	printf '%s\n' \
+		"myx.distro-agents/sh-test/AgentsHarnessArgTableCheck.test.sh|1|\"cwd\" : \"$rigNoTmpRoot\"|data: the cwd a fixture hands the argument table, read and never written" \
+		"myx.distro-agents/sh-test/AgentsHarnessPermissionCheck.test.sh|2|rm -rf $rigNoTmpRoot/rig  x|data: the text of a command the permission hook records, never run" \
+		"myx.distro-agents/sh-test/AgentsHarnessPermissionCheck.test.sh|1|rm -rf $rigNoTmpRoot/rig x|data: the text of a command the permission hook records, never run" \
+		"myx.distro-agents/sh-test/AgentsWireStreamDiffCheck.test.sh|1|\"input_json_delta\",\"partial_json\"|data: a path inside a streamed tool call of a fixture, never a place written" \
+		"myx.distro-agents/sh-test/AgentsRunRuleReadersCheck.test.sh|1|rig-sw-ended-\$\$$rigNoTmpRoot|data: the tmp folder inside a spawn sandbox of the rig, a path of the rig and never the system's"
+}
+## Rule 1: the root temp folder as a path of its own -- at the start, or after anything that ends no other path (not a
+## letter, digit, `_`, `.`, `}` or `)`), and not followed by a letter, digit or `_` -- or under /private or /var; or
+## the variable's name as a word.
+rigNoTmpPattern="(^|[^A-Za-z0-9_.})])$rigNoTmpRoot([^A-Za-z0-9_]|\$)|/private$rigNoTmpRoot([^A-Za-z0-9_]|\$)|/var$rigNoTmpRoot([^A-Za-z0-9_]|\$)|(^|[^A-Za-z0-9_])$rigNoTmpVar([^A-Za-z0-9_]|\$)"
+## Rule 2: each mktemp in the place of a command -- at the start of a line, or after `$(`, `(`, a backtick, `;`, `|`,
+## `&`, `=`, `then`, `do` or `exec` -- read to the end of its command, its words split at blanks. A site where a word
+## ahead of the template is an option holding `t`, where there is no template, or where the template holds no `/` and
+## starts at no variable. Comment lines are prose, and are not read for it. The files are given after the word.
+printf '%s\n' \
+	'my $word = shift @ARGV ;' \
+	'for my $file ( @ARGV ) {' \
+	'	open( my $in, "<", $file ) or next ;' \
+	'	my $number = 0 ;' \
+	'	while ( my $line = <$in> ) {' \
+	'		$number++ ; chomp $line ;' \
+	'		next if $line =~ m@^\s*#@ ;' \
+	'		my $rest = $line ;' \
+	'		while ( $rest =~ m@(?:^\s*|[\$\(`;|&=]\s*|\bthen\s+|\bdo\s+|\bexec\s+)\Q$word\E\b([^\)\|;&`]*)(.*)$@ ) {' \
+	'			my ( $call, $after ) = ( $1, $2 ) ; $rest = $after ;' \
+	'			my ( $bad, $template ) = ( "", undef ) ;' \
+	'			for my $one ( grep { length } split( /\s+/, $call ) ) {' \
+	'				if ( !defined $template && $one =~ m@^-@ ) { $bad = "it takes -t" if $one =~ m@^-[A-Za-z]*t@ ; next ; }' \
+	'				$template = $one unless defined $template ;' \
+	'			}' \
+	'			if ( !$bad ) {' \
+	'				if ( !defined $template ) { $bad = "it has no template" ; }' \
+	'				else { ( my $plain = $template ) =~ s@^["\x27]@@ ; $bad = "its template is a bare name" unless $plain =~ m@/@ || $plain =~ m@^\$@ ; }' \
+	'			}' \
+	'			print "$file:$number: [$bad] $line\n" if $bad ;' \
+	'		}' \
+	'	}' \
+	'	close $in ;' \
+	'}' > "$rigTmp/notmp-mk.pl"
+## Rule 3: a python tempfile call with no `dir=` on its line.
+rigNoTmpPy="tempfile\.(gettempdir|mkstemp|mkdtemp|$rigNoTmpMk|NamedTemporaryFile|TemporaryFile|TemporaryDirectory|SpooledTemporaryFile)\("
+## The files read, as package/path: every file of every myx.distro-* package that is code by its name or its shebang, and
+## every template, the .git folders and the generated __pycache__ folders left out.
+rigNoTmpOrigin="$MDLT_ORIGIN/myx"
+( cd "$rigNoTmpOrigin" && ls -d myx.distro-* ) | while IFS= read -r rigNoTmpPkg ; do
+	( cd "$rigNoTmpOrigin/$rigNoTmpPkg" && find . -type f ! -path './.git/*' ! -path '*/__pycache__/*' 2> /dev/null | LC_ALL=C sort ) | while IFS= read -r rigNoTmpRel ; do
+		rigNoTmpRel="${rigNoTmpRel#./}"
+		case "$rigNoTmpRel" in
+			sh-lib/templates/*|*.sh|*.include|*.rc|*.py|*.awk) printf '%s/%s\n' "$rigNoTmpPkg" "$rigNoTmpRel" ;;
+			*) [ "$( head -c 2 "$rigNoTmpOrigin/$rigNoTmpPkg/$rigNoTmpRel" 2> /dev/null )" != '#!' ] || printf '%s/%s\n' "$rigNoTmpPkg" "$rigNoTmpRel" ;;
+		esac
+	done
+done > "$rigTmp/notmp-files"
+( cd "$rigNoTmpOrigin" && LC_ALL=C tr '\n' '\0' < "$rigTmp/notmp-files" | xargs -0 grep -n -H -E -- "$rigNoTmpPattern" 2> /dev/null ) > "$rigTmp/notmp-root"
+( cd "$rigNoTmpOrigin" && LC_ALL=C tr '\n' '\0' < "$rigTmp/notmp-files" | xargs -0 perl "$rigTmp/notmp-mk.pl" "$rigNoTmpMk" 2> /dev/null ) > "$rigTmp/notmp-mktemp"
+( cd "$rigNoTmpOrigin" && LC_ALL=C tr '\n' '\0' < "$rigTmp/notmp-files" | xargs -0 grep -n -H -E -- "$rigNoTmpPy" 2> /dev/null | LC_ALL=C grep -v -F 'dir=' ) > "$rigTmp/notmp-python"
+## The sites of the three rules against the second list: each site a line of the list takes is no site; every line of the
+## list that takes another number of sites than it says is said.
+rigNoTmpList > "$rigTmp/notmp-list"
+rigNoTmpGuard(){ ## list file, sites file
+	LC_ALL=C awk -F'|' '
+		FILENAME == ARGV[1] {
+			if ( NF != 4 || $2 !~ /^[0-9]+$/ || $3 == "" || length( $4 ) < 20 ) { print "LIST: not `file|lines|text|reason`: " $0 ; next ; }
+			n++ ; lFile[n] = $1 ; lWant[n] = $2 + 0 ; lText[n] = $3 ; lGot[n] = 0 ; next ;
+		}
+		{
+			siteFile = substr( $0, 1, index( $0, ":" ) - 1 ) ; taken = 0 ;
+			for ( i = 1 ; i <= n && !taken ; i++ ) if ( lFile[i] == siteFile && index( $0, lText[i] ) ) { lGot[i]++ ; taken = 1 ; }
+			if ( !taken ) print "SITE: " $0 ;
+		}
+		END { for ( i = 1 ; i <= n ; i++ ) if ( lGot[i] != lWant[i] ) print "LIST: " lFile[i] " holds `" lText[i] "` on " lGot[i] " line(s), the list says " lWant[i] ; }
+	' "$1" "$2"
+}
+LC_ALL=C cat "$rigTmp/notmp-root" "$rigTmp/notmp-mktemp" "$rigTmp/notmp-python" > "$rigTmp/notmp-sites"
+rigNoTmpGuard "$rigTmp/notmp-list" "$rigTmp/notmp-sites" > "$rigTmp/notmp-left"
+rigNoTmpSiteLeft="$( LC_ALL=C grep -c '^SITE: ' "$rigTmp/notmp-left" )"
+rigNoTmpListLeft="$( LC_ALL=C grep -c '^LIST: ' "$rigTmp/notmp-left" )"
+rigNoTmpMissing=""
+for rigNoTmpPkg in $( cd "$rigNoTmpOrigin" && ls -d myx.distro-* ) ; do
+	[ "$( LC_ALL=C grep -c "^$rigNoTmpPkg/" "$rigTmp/notmp-files" )" -gt 0 ] || rigNoTmpMissing="$rigNoTmpMissing $rigNoTmpPkg"
+done
+rigAssert "control: the code of every myx.distro-* package is read, myx.distro-.local among them" \
+	"$( [ "$( LC_ALL=C grep -c . "$rigTmp/notmp-files" )" -ge 400 ] && echo many ) [${rigNoTmpMissing# }] $( LC_ALL=C grep -c -x -F -e 'myx.distro-.local/sh-scripts/DistroLocalTools.fn.sh' -e 'myx.distro-agents/sh-test/AgentsTempNamesCheck.test.sh' -e 'myx.distro-deploy/sh-scripts/InstallPrepareFiles.fn.sh' -e 'myx.distro-source/sh-scripts/RebuildActions.fn.sh' -e 'myx.distro-system/sh-lib/DistroImage.SyncScriptMaker.include' "$rigTmp/notmp-files" )" "many [] 5"
+printf '%s\n' "x=$rigNoTmpRoot/a" "y=\"$rigNoTmpRoot\"" "z=\${$rigNoTmpVar:-$rigNoTmpRoot}" "w=/private$rigNoTmpRoot/b" "v=\$$rigNoTmpVar/c" > "$rigTmp/notmp-probe.sites"
+printf '%s\n' "x=\$rigTmp/a" "y=\"\$dir$rigNoTmpRoot\"" "z=\${base}$rigNoTmpRoot/b" "w=.local/temp/c" "v=${rigNoTmpVar}X" "u=$rigNoTmpRoot""file" > "$rigTmp/notmp-probe.clean"
+printf '%s\n' "a=\"\$( $rigNoTmpMk -d -t RigName )\"" "b=\$($rigNoTmpMk)" "c=\"\$( $rigNoTmpMk -d )\"" "$rigNoTmpMk -dt RigName" "d=\"\$( $rigNoTmpMk rig.XXXXXX )\"" > "$rigTmp/notmp-probe.mk"
+printf '%s\n' "a=\"\$( $rigNoTmpMk -d \"\$MMDAPP/.local/temp/RigName.XXXXXX\" )\"" "b=\"\$( $rigNoTmpMk \"\$target.XXXXXX\" )\"" "c=\$($rigNoTmpMk -d \"\${rigTmp}/x.XXXX\")" "## made by $rigNoTmpMk -t in prose" "echo \"$rigNoTmpMk failed\"" > "$rigTmp/notmp-probe.mkclean"
+rigAssert "control: each matcher finds the five sites of a probe that has them, and none in one that has not" \
+	"$( LC_ALL=C grep -c -E -- "$rigNoTmpPattern" "$rigTmp/notmp-probe.sites" ):$( LC_ALL=C grep -c -E -- "$rigNoTmpPattern" "$rigTmp/notmp-probe.clean" ) $( perl "$rigTmp/notmp-mk.pl" "$rigNoTmpMk" "$rigTmp/notmp-probe.mk" | LC_ALL=C grep -c . ):$( perl "$rigTmp/notmp-mk.pl" "$rigNoTmpMk" "$rigTmp/notmp-probe.mkclean" | LC_ALL=C grep -c . )" "5:0 5:0"
+printf '%s\n' "rig/Probe.sh|1|probe text|a reason long enough to stand in a control" > "$rigTmp/notmp-probe.list"
+printf '%s\n' "rig/Probe.sh:3:a line of the probe text" "rig/Probe.sh:4:a line the list does not hold" > "$rigTmp/notmp-probe.found"
+rigAssert "control: a site the list holds is no site, one it does not hold is said, and a line of the list that takes no site is said" \
+	"$( rigNoTmpGuard "$rigTmp/notmp-probe.list" "$rigTmp/notmp-probe.found" | LC_ALL=C tr '\n' '~' )" "SITE: rig/Probe.sh:4:a line the list does not hold~"
+rigAssert "no line of any package names the root temp folder or the variable, no mktemp takes -t, goes without a template or takes a bare name, and no python tempfile call goes without dir=, but the sites of the second list" "$rigNoTmpSiteLeft" "0"
+rigAssert "every line of the second list takes as many sites as it says" "$rigNoTmpListLeft" "0"
+[ "$rigNoTmpSiteLeft" -eq 0 ] || { echo "-- the sites --" ; LC_ALL=C grep '^SITE: ' "$rigTmp/notmp-left" | LC_ALL=C cut -c1-260 | LC_ALL=C sed -e 's/^/  /' ; }
+[ "$rigNoTmpListLeft" -eq 0 ] || { echo "-- the list --" ; LC_ALL=C grep '^LIST: ' "$rigTmp/notmp-left" | LC_ALL=C sed -e 's/^/  /' ; }
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ TEMP NAMES CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

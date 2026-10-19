@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## 1495: the sweep reads its sources and accounts concurrently, and that changes nothing
-## it reports. One --magic-sweep-input-scan runs against the timing instrument's fixture
+## it reports. One --intern-op-sweep-input-scan runs against the timing instrument's fixture
 ## (a fake Slack with a fixed latency) twice: as built, and from a copy of the package
 ## with every Parallel held to one worker. The two documents must be byte-identical once
 ## dates and times are masked, and neither run may leave an mdat-* temp file. Both runs
@@ -95,7 +95,7 @@ rigSweep(){ ## name, origin
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$( command -v curl )" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
-			cd "$MMDAPP" && exec bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --magic-sweep-input-scan magic-coordinator
+			cd "$MMDAPP" && exec bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-sweep-input-scan magic-coordinator
 		' > "$sweepDir/out" 2> "$sweepDir/err" || sweepRc=$?
 	printf '%s' "$sweepRc" > "$sweepDir/rc"
 	printf '%s' "$(( $( date +%s ) - sweepStart ))" > "$sweepDir/seconds"

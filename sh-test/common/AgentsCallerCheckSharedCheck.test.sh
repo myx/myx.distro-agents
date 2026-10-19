@@ -91,9 +91,9 @@ rigAs probe console "$rigTmp/RigStandIn.fn.sh" type AgentsToolsMagicCallerCheck 
 rigAssert "the three checks are defined there, and nothing else is needed" "$( rigRc probe ):$( LC_ALL=C grep -c 'is a function' "$rigTmp/probe.out" )" "0:3"
 
 echo "-- 2. --magic-* --"
-rigAs m1 console "$rigTmp/RigStandIn.fn.sh" AgentsToolsMagicCallerCheck magic-advance-input-scan
-rigAs m2 magic-coordinator "$rigTmp/RigStandIn.fn.sh" AgentsToolsMagicCallerCheck magic-advance-input-scan
-rigAs m3 keeper-myx "$rigTmp/RigStandIn.fn.sh" AgentsToolsMagicCallerCheck magic-advance-input-scan
+rigAs m1 console "$rigTmp/RigStandIn.fn.sh" AgentsToolsMagicCallerCheck magic-advance-lock-status
+rigAs m2 magic-coordinator "$rigTmp/RigStandIn.fn.sh" AgentsToolsMagicCallerCheck magic-advance-lock-status
+rigAs m3 keeper-myx "$rigTmp/RigStandIn.fn.sh" AgentsToolsMagicCallerCheck magic-advance-lock-status
 rigAssert "the console and the coordinator pass, another member is refused" "$( rigRc m1 ):$( rigRc m2 ):$( [ "$( rigRc m3 )" -ne 0 ] && printf refused || printf passed )" "0:0:refused"
 
 echo "-- 3. --client-* --"
@@ -109,7 +109,7 @@ rigAs g3 keeper-myx "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck man
 rigAssert "the console passes; a member's session, the coordinator's among them, is refused" "$( rigRc g1 ):$( [ "$( rigRc g2 )" -ne 0 ] && printf refused || printf passed ):$( [ "$( rigRc g3 )" -ne 0 ] && printf refused || printf passed )" "0:refused:refused"
 
 echo "-- 5. each refusal is the dispatcher's own, word for word --"
-rigAs dm keeper-myx "$rigFn" --magic-advance-input-scan magic-coordinator
+rigAs dm keeper-myx "$rigFn" --magic-advance-lock-status magic-coordinator
 rigAs dc keeper-myx "$rigFn" --client-comms-slack-read client-ndm
 rigAs dg magic-coordinator "$rigFn" --manager-session-list
 rigAssert "control: the dispatcher refuses the three, each with a refusal" "$( [ "$( rigRc dm )" -ne 0 ] && [ "$( rigRc dc )" -ne 0 ] && [ "$( rigRc dg )" -ne 0 ] && printf refused || printf passed ):$( [ "$( rigRefusalOf dm )" != none ] && [ "$( rigRefusalOf dc )" != none ] && [ "$( rigRefusalOf dg )" != none ] && printf said || printf unsaid )" refused:said

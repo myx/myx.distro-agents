@@ -38,7 +38,7 @@ AgentsToolsSpawnSandboxNearestMagic(){ ## path
 ## pointers.md, and conversation.md when the spawn continues a conversation.
 ## Copies, never links, and never secret material: the
 ## credentials line in pointers.md names the identity the tooling acts as, not a value.
-AgentsToolsSpawnSandboxFillInput(){ ## sandbox root, brief text, board item path (may be empty), member, conversation threads (may be empty)
+AgentsToolsSpawnSandboxFillInput(){ ## sandbox root, brief text, board item path (may be empty), member, conversation threads (may be empty), input scan result file (may be empty)
 	local fillInput="$1/input" fillBrief="$2" fillItem="$3" fillMember="$4" fillConversations="${5:-}"
 	local fillText fillPath fillMagic fillName fillCount=0 fillMembers fillMemberName fillMemberDir
 	[ -d "$fillInput" ] || return 0
@@ -84,6 +84,8 @@ AgentsToolsSpawnSandboxFillInput(){ ## sandbox root, brief text, board item path
 		done
 	} > "$fillInput/pointers.md" 2>/dev/null
 	[ -z "$fillConversations" ] || AgentsToolsSpawnConversationHistory "$fillInput/conversation.md" "$fillMember" "$fillConversations" "$fillItem"
+	## The result of the routine's own input scan, which the spawner ran (F6.3), beside the brief and the pointers.
+	[ -z "${6:-}" ] || [ ! -f "$6" ] || mv -f "$6" "$fillInput/input-scan.md" 2>/dev/null || :
 	## Read-only by mode, whatever the client's access flag can say: a flag with no verb
 	## grants input/ for writing too, so the files and the folder carry no write bit.
 	chmod -R a-w "$fillInput" 2>/dev/null || :
@@ -979,6 +981,11 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code
 ## said, and a later advance pass closes it. Never fails its caller.
 AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code
 	[ -f "$1" ] || return 0
+	## A run whose session holds a routine's lock gives it back when it is the last of its session (F6.2).
+	if [ -n "$( AgentsToolsSpawnSandboxRecordHeader "$1" routine-lock )" ] ; then
+		type AgentsToolsRoutineLockRelease > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include"
+		AgentsToolsRoutineLockRelease "$1" "$2" "$3" || :
+	fi
 	## A run that closes holds no seat (F6.9).
 	AgentsToolsSessionSeatRelease "$( AgentsToolsSpawnSandboxRecordHeader "$1" session-id )" "$( AgentsToolsSpawnSandboxRecordHeader "$1" owner )" "$( AgentsToolsSpawnSandboxRecordHeader "$1" spawn-id )" || :
 	AgentsToolsSpawnProxyCloseSandboxOnce "$@" && return 0

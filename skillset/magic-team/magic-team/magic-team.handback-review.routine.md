@@ -1,6 +1,10 @@
 ---
+type: routine
 executors: magic-team
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+requires-session-kind: standalone
+input-scan-def: none
+review-by: inherit
 ---
 # magic-team.handback-review.routine — the actual procedure
 
@@ -9,8 +13,10 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
+- Routine's local procedures
 - Routine's local rules
 - Routine-specific tooling
   - DistroAgentsTools magic-tooling operations
@@ -39,6 +45,10 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Move the item or dismiss the child by hand: the operations do that, and record it.
   - Review a handback from a run with `reports-to: none` whose item names no `review-by`: that handback is a report only, and moves nothing to review.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
@@ -54,6 +64,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
 # Closure steps
 
 No closing tail of its own: **review-apply** closes it.
+
+# Routine's local procedures
+
+Named procedure blocks. Steps above call them by name. Not separate routines — not visible outside this file.
+
+None.
 
 # Routine's local rules
 

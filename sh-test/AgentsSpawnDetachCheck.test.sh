@@ -55,7 +55,7 @@ for rigMember in rig-member-a rig-member-b magic-coordinator ; do
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/$rigMember/$rigMember.basic.md"
 	printf '# rig armed\n' > "$rigSkills/$rigMember/$rigMember.armed.md"
 done
-printf -- '---\nexecutors: magic-team\nmaintainers: magic-coordinator\n---\n# rig plain routine fixture\n' \
+printf -- '---\nexecutors: magic-team\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig plain routine fixture\n' \
 	> "$rigSkills/magic-team/magic-team.rigplain.routine.md"
 
 ## The console: records its own pid and process group, runs for RIG_RUN seconds as the

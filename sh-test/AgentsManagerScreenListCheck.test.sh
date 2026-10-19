@@ -276,9 +276,9 @@ keys a
 get d
 RIGSCRIPT
 rigAssert "all sessions are shown first"                             "$( rigVal a.filter )" all
-rigAssert "a does nothing while the left pane has the focus"         "$( rigVal b.focus ) $( rigVal b.filter ) [$( rigVal bTitle )]" "view all [Sessions (Activity)  [all]]"
-rigAssert "with the focus on the list it switches to the active ones" "$( rigVal c.focus ) $( rigVal c.filter ) [$( rigVal cTitle )]" "list active [Sessions (Activity)  [active]]"
-rigAssert "and back to all"                                          "$( rigVal d.filter )" all
+rigAssert "a is a button, so it works while the left pane has the focus: it switches to the active ones"  "$( rigVal b.focus ) $( rigVal b.filter ) [$( rigVal bTitle )]" "view active [Sessions (Activity)  [active]]"
+rigAssert "with the focus on the list it switches back to all" "$( rigVal c.focus ) $( rigVal c.filter ) [$( rigVal cTitle )]" "list all [Sessions (Activity)  [all]]"
+rigAssert "and once more to the active ones"                         "$( rigVal d.filter )" active
 
 echo "-- rows that come again --"
 rigScript <<'RIGSCRIPT'
@@ -394,14 +394,14 @@ cells memberKeys 37 1 83
 cells memberBottom 39 0 120
 RIGSCRIPT
 rigAssert "a session is selected: with no handler of an action built the pane names no key, and its last line is its content's" "$( rigVal none.selected ) [$( rigVal noneKeys )]" "s1 [line 036]"
-rigAssert "the status line names the keys that act on the session, and after them those of every window"             "[$( rigVal noneBottom )]" "[ BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "the status line names the keys that act on the session, and after them those of every window"             "[$( rigVal noneBottom )]" "[ BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "with handlers built, the pane still names no key: its last line is its content's, and the status line names the key that acts on a session" "[$( rigVal builtKeys )] $( rigVal builtBottom | LC_ALL=C grep -c -F ' k Kill ' )" "[line 036] 1"
 rigAssert "the content of the pane goes on to its last line"         "[$( rigVal builtLast )]" "[line 035]"
 rigAssert "and scrolls in all of its lines"                          "$( rigVal scrolled.viewTop ) [$( rigVal scrolledLast )]" "64 [line 099]"
 rigAssert "Launch (Start) has no such key"                           "$( rigVal launch.selected ) [$( rigVal launchKeys )]" "launch [line 036]"
 rigAssert "an ask has none: no key answers it"                       "$( rigVal ask.path ) $( rigVal ask.selected ) [$( rigVal askKeys )]" "pending a1 []"
 rigAssert "a team member: no line of the pane names the key that starts it" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal memberKeys )]" "team m1 []"
-rigAssert "on a team member the status line names the key that starts it"                "[$( rigVal memberBottom )]" "[ BSP Up  a Active  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "on a team member the status line names the key that starts it"                "[$( rigVal memberBottom )]" "[ BSP Up  a Active  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN LIST CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

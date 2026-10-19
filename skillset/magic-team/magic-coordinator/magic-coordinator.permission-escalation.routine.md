@@ -1,6 +1,11 @@
 ---
+type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+requires-session-kind: standalone
+start-context: any
+input-scan-def: permission-escalation
+review-by: inherit
 ---
 # magic-coordinator.permission-escalation.routine — the actual procedure
 
@@ -9,6 +14,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -40,11 +46,15 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Ask for a task's permission set, pass a permission on, or revoke one.
   - Close an ask with no verdict.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **read-input-scan**: Run `--magic-permission-escalation-input-scan magic-coordinator`. `(none)`: nothing else runs.
+1. **read-input-scan**: Read this run's input scan result (`input/input-scan.md`). `(none)`: nothing else runs.
 2. **decide-each-ask**: For each ask listed, oldest first, one of:
    - rule: an ask of another workspace is answered there: the `execute` tool's `workspace` argument, set to its `workspace:` line.
    - rule: the narrowest verdict the task needs: `allow-once`, else `allow-session`, else `allow-folder` where the ask offers it and the task works in that folder, else `allow-project` where the ask offers it and the task works across that project, else `allow-task`, which needs an `item:`.
@@ -56,7 +66,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-Run inline: none. Run as its own session: `magic-team.coworking.routine`'s **close-session** group.
+Run inline: none. Run as its own session: none of its own.
 
 # Routine's local procedures
 
@@ -79,7 +89,6 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--magic-permission-escalation-input-scan <team-member>`
 - `--magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]`
 
 # Maintainer Notes

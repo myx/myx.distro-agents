@@ -76,7 +76,7 @@ rigMember(){ ## member set root, member, status ("" for no SKILL.md) -- a member
 }
 rigTeam(){ ## member set root -- the team's own folder there, with the one routine a coworking session names by default
 	rigMember "$1" magic-team active
-	printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\ninvitees: magic-team\ndefault-for-session-kind: coworking\nsession: coworking\n---\n# rig coworking routine fixture\n' \
+	printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\ninvitees: magic-team\nrequires-session-kind: coworking\n---\n# rig coworking routine fixture\n' \
 		> "$1/magic-team/magic-team.coworking.routine.md"
 }
 rigTeam "$rigSkills"

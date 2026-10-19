@@ -72,11 +72,11 @@ rigMember(){ ## member set root, member, status ("" for no SKILL.md) -- a member
 	[ -z "$3" ] || printf -- '---\nname: %s\nstatus: %s\ninvocation_mode: auto\n---\n\n# %s\n' "$2" "$3" "$2" > "$1/$2/SKILL.md"
 }
 rigRoutine(){ ## member set root, owner, short name, executors
-	printf -- '---\nexecutors: %s\nmaintainers: magic-coordinator\n---\n# %s.%s.routine — the actual procedure\n' "$4" "$2" "$3" > "$1/$2/$2.$3.routine.md"
+	printf -- '---\nexecutors: %s\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# %s.%s.routine — the actual procedure\n' "$4" "$2" "$3" > "$1/$2/$2.$3.routine.md"
 }
 for rigRoot in "$rigSkills" "$rigThereSkills" ; do
 	rigMember "$rigRoot" magic-team active
-	printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\ninvitees: magic-team\ndefault-for-session-kind: coworking\n---\n# rig coworking routine fixture\n' > "$rigRoot/magic-team/magic-team.coworking.routine.md"
+	printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\ninvitees: magic-team\nrequires-session-kind: coworking\n---\n# rig coworking routine fixture\n' > "$rigRoot/magic-team/magic-team.coworking.routine.md"
 done
 rigMember "$rigSkills" keeper-myx active
 rigMember "$rigSkills" keeper-plain ""

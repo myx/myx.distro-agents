@@ -1,7 +1,10 @@
 ---
+type: routine
 executors: magic-team
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
-session: coworking
+requires-session-kind: coworking
+input-scan-def: none
+review-by: inherit
 ---
 # magic-team.discuss.routine — the actual procedure
 
@@ -10,6 +13,7 @@ session: coworking
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -41,11 +45,15 @@ session: coworking
   - Put a proposal to the human-owner: `magic-team.proposal.routine` does.
   - Build what it decides.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **process-own-inbox**: run `magic-team.process-inbox.routine <own-name>`, collecting items that ask for a decision.
+1. **process-own-inbox**: run `magic-team.process-inbox.routine <own-name>` inline (`--routine-run-inline magic-team.process-inbox.routine`), collecting items that ask for a decision.
 2. **frame-the-decision**: state what must be decided by the end. One topic, one thread: an unrelated topic is forked into its own thread.
 3. **surface-options-and-tradeoffs**: lay out the real alternatives, never one answer dressed as a discussion, steps:
    - bring in `magic-architect` for a structural question, `magic-librarian` for docs or conventions, the owning `keeper-*`/`partner-*` for a domain question.
@@ -60,7 +68,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **close-session**: run `magic-team.coworking.routine`'s **close-session** group.
+None of its own: the Closure steps of the routine it inherits from run (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
 
 # Routine's local procedures
 
@@ -92,6 +100,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 - `--magic-advance-to-running <team-member> <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — `magic-coordinator` only
 - `--magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — `magic-coordinator` only
 - `--magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]...` — `magic-coordinator` only
+- `--routine-run-inline <routine>`
 
 # Maintainer Notes
 

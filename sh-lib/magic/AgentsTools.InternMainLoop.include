@@ -264,7 +264,7 @@ case "$1" in
 				|| echo "# $MDSC_CMD --intern-main-loop: the children lists could not be rebuilt -- every harness scans every spawn record until an iteration rebuilds them" >&2
 			## Answers to questions whose session has ended, collected by the tooling before
 			## anything is spawned, each going to its asker's inbox. The result is kept as a
-			## file the pass only reads (--magic-heartbeat-input-scan); no model
+			## file the pass only reads (--intern-op-heartbeat-input-scan); no model
 			## does the collecting.
 			mkdir -p "$MMDAPP/.local/agents" \
 				&& DistroAgentsTools --intern-op-pending-reply-collect --ended --context --intern-main-loop \

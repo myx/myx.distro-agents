@@ -122,7 +122,7 @@ def noteRoots(state):
 
 ## The figures of a block of `Team Data` by their keys, as the dashboard last gave them.
 def teamDataFigures(state, blockId):
-    for row in state.rows.get(TEAM_DATA["level"], ()):
+    for row in pluginRows(state, "teamdata"):
         if row["id"] == blockId and row.get("block"):
             return [(figure["key"], figure) for figure in row["block"]["figures"]]
     return None
@@ -139,7 +139,7 @@ def teamDataHere(state):
 ## (None: any) and its key. None where it was not read, or holds no such line.
 def digestLineOf(state, subject, group, key):
     for root in ("configuration", "settings"):
-        for row in state.rows.get(root + "/" + subject, ()):
+        for row in pluginRows(state, root, subject):
             line = row.get("line")
             if line and line["key"] == key and group in (None, line["group"]):
                 return line
@@ -315,3 +315,53 @@ def submitCleanup(state, dialog, button):
 
 DIALOG_HANDLERS["cleanup"] = submitCleanup
 
+
+## ---- the plugin: `Team Data` ----
+
+## The root `Team Data`: its own blocks of the dashboard, its git state among them, which
+## is read only while the root is selected or opened (TEAM_DATA); and the digest of the
+## settings read beside them ("also": read with the list of the level, while it is shown
+## and while its folder has the focus), for the mode of the workspace and the remote of
+## the team data. Its `Operations` reads the digest, for the mode and the remote.
+TEAM_DATA_READS = {
+    "list:teamdata": {"operation": ["--manager-dashboard-read", "team-data", "team-data-git", "loop"], "rows": "blocks", "also": ("list:@settings",)},
+    "list:teamdata/operations": {"from": "list:@settings"},
+}
+TEAM_DATA_SUMMARIES = {
+    "teamdata": {"lines": "teamDataSummary"},
+    "teamdata/operations": {"lines": "cleanupsSummary"},
+    "teamdata/board": {"lines": "storeSummary"},
+    "teamdata/audit": {"lines": "storeSummary"},
+    "teamdata/vault": {"lines": "storeSummary"},
+}
+## The stores of the team data (TEAM_DATA_STORES): a store, its folders and the items in
+## it; a folder of it, its items; and one item whole, its text, read once it is selected.
+for storeId, storeLabel in TEAM_DATA_STORES:
+    TEAM_DATA_READS.update({
+        "list:teamdata/%s" % storeId: {"operation": ["--manager-team-data-read", storeId], "rows": "data-store"},
+        "list:teamdata/%s/*" % storeId: {"operation": ["--manager-team-data-read", storeId, "{level}"], "rows": "data-items"},
+        "view:teamdata/%s:item" % storeId: {"operation": ["--manager-team-data-read", storeId, "-", "{id}"], "once": True},
+        "view:teamdata/%s/*:item" % storeId: {"operation": ["--manager-team-data-read", storeId, "{level}", "{id}"], "once": True},
+    })
+    TEAM_DATA_SUMMARIES["teamdata/%s/*" % storeId] = {"lines": "itemsSummary", "store": storeId}
+
+registerPlugin({
+    "name": "teamdata",
+    "root": {"id": "teamdata", "label": "Team Data", "go": "Tea~m~ Data", "group": "team",
+             "when": {"shown": "teamDataHere", "says": "no team data is configured for this workspace"}},
+    "rows": {
+        "teamdata": (("operations", "Operations", "operations", True),) + tuple((storeId, label, "store", True) for storeId, label in TEAM_DATA_STORES),
+        "teamdata/operations": tuple((cleanupId, cleanup["label"], "operation", False) for cleanupId, cleanup in CLEANUPS),
+    },
+    "summaries": TEAM_DATA_SUMMARIES,
+    "reads": TEAM_DATA_READS,
+    "commands": (
+        {"name": "cleanup", "keys": ("ENTER",), "menu": ("view", 3), "label": "Run the ~o~peration", "status": "Run",
+         "views": ("teamdata/operations",), "for": "an operation of the team data", "on": ("teamdata/operations:operation",), "only": True, "says": "run", "does": ("action", "cleanup")},
+    ),
+    "integrates": {
+        "markdown": {
+            "on": tuple(place for storeId, storeLabel in TEAM_DATA_STORES for place in ("teamdata/%s:item" % storeId, "teamdata/%s/*:item" % storeId)),
+        },
+    },
+})

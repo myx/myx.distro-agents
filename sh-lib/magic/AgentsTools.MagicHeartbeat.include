@@ -93,7 +93,7 @@ AgentsToolsHeartbeatBoardActiveItems(){
 
 type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpItem.include"
 
-## The report of --magic-heartbeat-input-scan, a pure read, kept for its session by AgentsToolsInputScanCached.
+## The report of --intern-op-heartbeat-input-scan, a pure read, kept for its session by AgentsToolsInputScanCached.
 AgentsToolsHeartbeatInputScanReport(){ ## calling member
 	local callingMember="$1"
 	## The pass's branch, computed here so no member compares dates or weekdays.
@@ -134,29 +134,29 @@ AgentsToolsHeartbeatInputScanReport(){ ## calling member
 
 case "$1" in
 
-	--magic-heartbeat-input-scan)
+	--intern-op-heartbeat-input-scan)
 		shift
 		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-input-scan: syntax is <team-member>" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-heartbeat-input-scan: syntax is <team-member>" >&2
 			set +e ; return 1
 		fi
 		if [ $# -gt 0 ] ; then
 			case "$1" in
 				--*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-coordinator/magic-coordinator.heartbeat.routine.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-heartbeat-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-coordinator/magic-coordinator.heartbeat.routine.md" >&2
 					set +e ; return 1
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-coordinator/magic-coordinator.heartbeat.routine.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-heartbeat-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-coordinator/magic-coordinator.heartbeat.routine.md" >&2
 					set +e ; return 1
 				;;
 			esac
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-input-scan: MDAT_DATA_ROOT is not set" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-heartbeat-input-scan: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 		## In a team session the report is a file of its folder, served again for five minutes (AgentsTools.InputScanCache.include).
@@ -417,12 +417,12 @@ case "$1" in
 	;;
 
 
-	--magic-heartbeat-state-upsert)
+	--intern-op-heartbeat-state-upsert)
 		shift
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: syntax is <team-member> -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-heartbeat-state-upsert: syntax is <team-member> -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
 			set +e ; return 1
 		fi
 		## This document is always magic-coordinator's own -- the target path
@@ -432,16 +432,16 @@ case "$1" in
 		## belief that it wrote its own; fail loud instead of ignoring the
 		## argument silently.
 		if [ "$callingMember" != "magic-coordinator" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: <team-member> must be magic-coordinator -- this document has no other owner (got: $callingMember)" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-heartbeat-state-upsert: <team-member> must be magic-coordinator -- this document has no other owner (got: $callingMember)" >&2
 			set +e ; return 1
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: MDAT_DATA_ROOT is not set" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-heartbeat-state-upsert: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 		local stateDir="$( AgentsToolsInboxDir magic-coordinator )"
 		mkdir -p "$stateDir" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: can't create inbox directory: $stateDir" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-heartbeat-state-upsert: can't create inbox directory: $stateDir" >&2
 			set +e ; return 1
 		}
 		## Same document --magic-heartbeat-lock-acquire/-refresh/-close-unlock
@@ -451,7 +451,7 @@ case "$1" in
 		## 2026-09-09; see MAGIC.md.
 		local target="$stateDir/note-20260809T155000Z-heartbeat-state-and-lock.md"
 		if [ ! -f "$target" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: $target does not exist -- acquire the lock first (--magic-heartbeat-lock-acquire)" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-heartbeat-state-upsert: $target does not exist -- acquire the lock first (--magic-heartbeat-lock-acquire)" >&2
 			set +e ; return 1
 		fi
 		local content contentFromFile="false" bodyMode="" bodyModeCount=0
@@ -459,7 +459,7 @@ case "$1" in
 			case "$1" in
 				--from-file)
 					if [ -z "$2" ] || [ ! -f "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: --from-file: file not found: $2" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-heartbeat-state-upsert: --from-file: file not found: $2" >&2
 						set +e ; return 1
 					fi
 					content="$( cat "$2" )"
@@ -474,13 +474,13 @@ case "$1" in
 					shift
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: unrecognized argument: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-heartbeat-state-upsert: unrecognized argument: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ "$bodyModeCount" -gt 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-heartbeat-state-upsert: --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 		if [ "$bodyMode" = "patch" ] ; then
@@ -501,7 +501,7 @@ case "$1" in
 		## An empty write erases the day-rhythm state, which then reads back
 		## as "first next-iteration today" -- re-running a day's grooming.
 		if [ -z "$content" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: empty content -- refusing to erase the stored heartbeat state" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-heartbeat-state-upsert: empty content -- refusing to erase the stored heartbeat state" >&2
 			set +e ; return 1
 		fi
 		## Normalize CRLF before any frontmatter/body split below -- a caller
@@ -537,7 +537,7 @@ case "$1" in
 			}
 		' "$target" )"
 		if [ -z "$lockFields" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: $target has no readable frontmatter -- refusing to overwrite a document in an unexpected shape" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-heartbeat-state-upsert: $target has no readable frontmatter -- refusing to overwrite a document in an unexpected shape" >&2
 			set +e ; return 1
 		fi
 		## Every state write while the pass holds the lock also refreshes it -- the same
@@ -601,7 +601,7 @@ case "$1" in
 		## non-empty $content must never fall through to a silent lock-only
 		## write -- fail loud instead, same as the empty-content guard above.
 		if [ -z "$callerFields" ] && [ -z "$callerBody" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: content parsed to empty fields and empty body -- refusing to overwrite the stored heartbeat state with a lock-only document" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-heartbeat-state-upsert: content parsed to empty fields and empty body -- refusing to overwrite the stored heartbeat state with a lock-only document" >&2
 			set +e ; return 1
 		fi
 		## The pass's own date and time are the tooling's to stamp; a value the caller
@@ -631,7 +631,7 @@ case "$1" in
 			note-20260809T155000Z-heartbeat-state-and-lock.md \
 			--upsert-from-stdin \
 			--commit-message "* main-loop, heartbeat-state, $( date -u +%Y-%m-%dT%H:%M:%SZ )" \
-			--context --magic-heartbeat-state-upsert
+			--context --intern-op-heartbeat-state-upsert
 		return $?
 	;;
 
@@ -664,7 +664,7 @@ case "$1" in
 			set +e ; return 1
 		}
 		## Same document --magic-heartbeat-lock-acquire/-refresh/-close-unlock
-		## and --magic-heartbeat-state-upsert all write -- must match exactly.
+		## and --intern-op-heartbeat-state-upsert all write -- must match exactly.
 		local target="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T155000Z-heartbeat-state-and-lock.md"
 		if [ -f "$target" ] ; then
 			cat "$target"

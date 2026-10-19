@@ -1,7 +1,10 @@
 ---
+type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
-session: coworking
+requires-session-kind: coworking
+input-scan-def: none
+review-by: inherit
 ---
 # magic-team.proposal.routine — the actual procedure
 
@@ -10,6 +13,7 @@ session: coworking
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -42,20 +46,23 @@ session: coworking
   - Convergence among members (`magic-team.discuss.routine`) or collection (`magic-team.interview.routine`).
   - Stop the work the proposal came from, or build the approved change.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator`.
+1. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`).
 2. **put-the-proposal**: call `ProposeApprove` with `question` per the root clause, `proposal` per the in-thread-proposal clause, the proposal document's link as `document`, and `task_ref` naming the tracking item, if any. It posts the root once, the proposal as its reply, and waits for the verdict.
 3. **work-out-across-his-comments**: a `VERDICT: RETURNED` result is his comment, kept as a clarification. Work the proposal out against it, then call `ProposeApprove` again with `pending_id` and `revise: true`, per the revision clause. Repeat until a verdict lands.
 4. **close-on-root-reaction**: `VERDICT: approved` or `VERDICT: rejected` on that call is the terminal verdict, per the root-reaction clause, already recorded on the tracking item's Decisions by the tool.
 
 # Closure steps
 
-1. **close-session**: run `magic-team.coworking.routine`'s **close-session** group.
-2. **closing-reflection**: reflect on how the proposal process went. A behaviour or pattern with no written rule behind it becomes a `reflection-*`.
-3. **carry-the-approved-work-forward**: act on the verdict, steps:
+1. **closing-reflection**: reflect on how the proposal process went. A behaviour or pattern with no written rule behind it becomes a `reflection-*`.
+2. **carry-the-approved-work-forward**: act on the verdict, steps:
    - approved: create the work documents the approved contents call for — as many, and of whatever types, as they call for — in `board-backlog`, each carrying `approved-by`/`approved-at` and `spawned-by` the tracking item.
    - resolve the tracking item, if any, to `board-processed`, its resolution stating the verdict: approved, or rejected.
 
@@ -93,6 +100,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 - `--magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
 - `--magic-grooming-create-backlog <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`
 - `--member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+- `--routine-run-inline <routine>`
 
 # Maintainer Notes
 

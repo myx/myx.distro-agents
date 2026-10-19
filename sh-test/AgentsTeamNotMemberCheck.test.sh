@@ -68,10 +68,10 @@ rigMember(){ ## member, status ("" for no SKILL.md) -- a member's folder with th
 	[ -z "$2" ] || printf -- '---\nname: %s\nstatus: %s\ninvocation_mode: auto\n---\n\n# %s\n' "$1" "$2" "$1" > "$rigSkills/$1/SKILL.md"
 }
 rigRoutine(){ ## owner, short name, executors
-	printf -- '---\nexecutors: %s\nmaintainers: magic-coordinator\n---\n# %s.%s.routine — the actual procedure\n' "$3" "$1" "$2" > "$rigSkills/$1/$1.$2.routine.md"
+	printf -- '---\nexecutors: %s\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# %s.%s.routine — the actual procedure\n' "$3" "$1" "$2" > "$rigSkills/$1/$1.$2.routine.md"
 }
 rigMember magic-team active
-printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\ninvitees: magic-team\ndefault-for-session-kind: coworking\n---\n# rig coworking routine fixture\n' > "$rigSkills/magic-team/magic-team.coworking.routine.md"
+printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\ninvitees: magic-team\nrequires-session-kind: coworking\n---\n# rig coworking routine fixture\n' > "$rigSkills/magic-team/magic-team.coworking.routine.md"
 for rigName in keeper-myx keeper-one keeper-two keeper-three keeper-four magic-coordinator ; do rigMember "$rigName" active ; done
 rigMember human-owner reference-only
 rigRoutine keeper-myx solo keeper-myx

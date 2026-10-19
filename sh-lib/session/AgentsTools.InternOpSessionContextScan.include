@@ -1586,7 +1586,7 @@ case "$1" in
 				if AgentsToolsCommsOwnSettingsApply "$actingMember" ; then
 					printf '**NOTE:** no scan was made -- EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD are not all set in this member'"'"'s own scope; this source is optional, is counted in no source total, and does not make the scan partial\n\n'
 				else
-					printf '**NOTE:** no scan was made -- %s This source is optional, is counted in no source total, and does not make the scan partial\n\n' "$( AgentsToolsCommsOwnSideLine "$actingMember" mail --client-sweep-input-scan )"
+					printf '**NOTE:** no scan was made -- %s This source is optional, is counted in no source total, and does not make the scan partial\n\n' "$( AgentsToolsCommsOwnSideLine "$actingMember" mail --intern-op-client-sweep-input-scan )"
 				fi
 			elif [ "$emailFailed" = "true" ] ; then
 				printf 'identity: email %s (config: %s)\n' "$emailIdentity" "$actingMember"
@@ -1626,7 +1626,7 @@ case "$1" in
 				if AgentsToolsCommsOwnSettingsApply "$actingMember" ; then
 					printf '**NOTE:** no scan was made -- TRELLO_KEY/TRELLO_TOKEN are not both set in this member'"'"'s own scope; this source is optional, is counted in no source total, and does not make the scan partial\n\n'
 				else
-					printf '**NOTE:** no scan was made -- %s This source is optional, is counted in no source total, and does not make the scan partial\n\n' "$( AgentsToolsCommsOwnSideLine "$actingMember" Trello --client-sweep-input-scan )"
+					printf '**NOTE:** no scan was made -- %s This source is optional, is counted in no source total, and does not make the scan partial\n\n' "$( AgentsToolsCommsOwnSideLine "$actingMember" Trello --intern-op-client-sweep-input-scan )"
 				fi
 			elif [ "$trelloFailed" = "true" ] ; then
 				printf 'identity: trello %s (config: %s)\n' "$trelloIdentity" "$actingMember"

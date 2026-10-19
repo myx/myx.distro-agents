@@ -66,11 +66,29 @@ def commandNamed(name):
     return None
 
 
-## The window a command applies in alone, or None for one that applies in every window.
+## The window a command applies in alone, or None for one that applies in every window: the window a command of a plugin
+## names under "window", else the one WINDOWS names it in. Only its keys of navigation (NAVIGATION_KEYS) are held by that window:
+## its other keys are buttons, which work whichever window has the keys.
 def commandWindow(command):
+    if command.get("window"):
+        return command["window"]
     for window in WINDOWS:
         if command["name"] in window["commands"]:
             return window["name"]
+    return None
+
+
+## Whether that key of a command is held by the window that does not have the keys: a key of navigation of a command that applies in
+## the other window alone.
+def keyHeld(state, command, key):
+    return commandWindow(command) not in (None, state.focus) and key in NAVIGATION_KEYS
+
+
+## The first key of a command that works now, or None where the window that has the keys holds them all.
+def commandKeyNow(state, command):
+    for key in commandKeys(command):
+        if not keyHeld(state, command, key):
+            return key
     return None
 
 
@@ -88,7 +106,7 @@ def commandInView(state, command):
 def commandOfKey(state, key):
     place = placeOf(state, selectedRow(state))
     for command in COMMANDS:
-        if key not in commandKeys(command) or commandWindow(command) not in (None, state.focus) or not commandInView(state, command):
+        if key not in commandKeys(command) or keyHeld(state, command, key) or not commandInView(state, command):
             continue
         if command.get("only") and (place not in command["on"] or ACTION_HANDLERS.get(command["does"][1]) is None):
             continue
@@ -110,7 +128,7 @@ def commandSaid(command):
 ## the status line, and no handler is called.
 def commandRefusal(state, command):
     said = commandSaid(command)
-    if commandWindow(command) not in (None, state.focus):
+    if commandWindow(command) not in (None, state.focus) and commandKeyNow(state, command) is None:
         return REFUSALS["window"] % said
     does = command["does"]
     row = selectedRow(state)

@@ -1,6 +1,11 @@
 ---
+type: routine
 executors: magic-team
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+requires-session-kind: standalone
+start-context: any
+input-scan-def: none
+review-by: inherit
 ---
 # magic-librarian.conventions-check.routine — the actual procedure
 
@@ -9,6 +14,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -39,6 +45,10 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Doesn't:
   - Invent a convention not demonstrated in real files: every finding cites the file and line it is checked against.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
@@ -67,7 +77,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-Invoked inline: none. Run as its own session: `magic-team.coworking.routine`'s Closure steps.
+Run inline: none. Run as its own session: none of its own.
 
 # Routine's local procedures
 

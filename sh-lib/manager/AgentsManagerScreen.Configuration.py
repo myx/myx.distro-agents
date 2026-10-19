@@ -330,7 +330,7 @@ def projectPlace(state, folder, placing):
     if folder == "-":
         return folder
     found = None
-    for held in state.rows.get("places") or ():
+    for held in state.rows.get(pluginLevel("places")) or ():
         place = held.get("place")
         under = pathUnder(folder, place["path"].rstrip("/") + "/" + PLACES["projects"]) if place and place["kind"] == PLACES["workspace"] else None
         if under and under != "." and (found is None or len(place["path"]) > len(found[0]["path"])):
@@ -366,3 +366,48 @@ def commandsSummary(state, path, row, form):
     return tableSummaryLines(state, ("NAME", "PATH"), [[held["label"], commandPlace(state, held["path"], placing)] for held in rows],
                              ("key", "text"))
 
+
+## ---- the plugin: `Configuration` ----
+
+registerPlugin({
+    "name": "configuration",
+    "root": {"id": "configuration", "label": "Configuration", "go": "~C~onfiguration", "group": "setup"},
+    "rows": {
+        "configuration": (("checker", "Config Checker", "checker", True), ("keys", "Server Keys", "keys", True)),
+    },
+    "summaries": {
+        "configuration": {"lines": "digestSummary"},
+        "configuration/*": {"lines": "subjectSummary", "missingFirst": True},
+        "configuration/checker": {"lines": "checksSummary"},
+        "configuration/keys": {"lines": "serverKeysSummary"},
+    },
+    "reads": {
+        ## The settings and the configuration come from the one read of the settings.
+        "list:configuration": {"from": "list:@settings"},
+        "list:configuration/*": {"from": "list:@settings"},
+        ## The checks of the installation, by the owner's own read-only diagnosis of each part
+        ## of it: a row a check, with its state, why, and the command that mends it. It takes
+        ## up to a minute and some of it asks outside this machine, so it is made on demand
+        ## alone, and as a kind of its own, beside the lists.
+        "list:configuration/checker": {"operation": ["--manager-check-run"], "rows": "checks", "kind": "check", "demand": True,
+                                       "said": "it takes up to a minute"},
+        ## The public keys of this server, those to add to git and those to trust when
+        ## connecting, each with its fingerprint and its key shortened. Read on entering and
+        ## when it is asked for, not on the period.
+        "list:configuration/keys": {"operation": ["--manager-keys-list"], "rows": "keys", "once": True},
+        ## One of those keys whole: the line to paste, and where the deploy key is registered.
+        ## Read when its box opens, by the name of the key, and never before (askKeyLine).
+        "full:key": {"operation": ["--manager-keys-read", "{id}"], "rows": "key-read", "kind": "plan", "once": True},
+        ## The same read for each key of the list whose public file can be read, by its name:
+        ## once when the folder is opened and when it is asked for, never on the period. It
+        ## gives the whole line of a key where its row of the list does not carry it, and
+        ## where the key is to be registered.
+        "each:configuration/keys": {"operation": ["--manager-keys-read", "{id}"], "rows": "key-read", "kind": "plan", "once": True, "needs": "readable"},
+    },
+    "commands": (
+        {"name": "check", "keys": ("r",), "menu": ("view", 1), "label": "Run the ~c~hecks", "status": "Run",
+         "views": ("configuration", "configuration/checker"), "for": "the checker", "does": ("demand",)},
+        {"name": "keyline", "keys": ("f",), "menu": ("view", 3), "label": "~F~ull public line", "status": "Full",
+         "views": ("configuration/keys",), "for": "a server key", "on": ("configuration/keys:record",), "does": ("action", "line")},
+    ),
+})

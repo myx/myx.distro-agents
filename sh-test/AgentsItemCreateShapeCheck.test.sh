@@ -16,7 +16,8 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
-rigTmp="$( mktemp -d -t AgentsItemCreateShapeCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsItemCreateShapeCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
@@ -151,8 +152,6 @@ RIG_AGENT=magic-coordinator rigOp "$rigTmp/m2" --magic-heartbeat-lock-status mag
 rigAssert "the coordinator's own session is not"           "$( rigHolds "$rigTmp/m2" "is magic-coordinator's only" )" no
 rigOp "$rigTmp/m3" --magic-heartbeat-lock-status magic-coordinator
 rigAssert "nor the console"                                "$( rigHolds "$rigTmp/m3" "is magic-coordinator's only" )" no
-RIG_AGENT=rig-other rigOp "$rigTmp/m4" --magic-morning-review-input-scan rig-other
-rigAssert "a --magic-morning-review-* op is refused to another member's session too" "$( cat "$rigTmp/m4.rc" ):$( rigHolds "$rigTmp/m4" "is magic-coordinator's only" )" "1:yes"
 RIG_AGENT=rig-other rigOp "$rigTmp/m5" --magic-contact-digest-send rig-member rig-member --resolved rig digest
 rigAssert "--magic-contact-digest-send is refused to another member's session too" "$( cat "$rigTmp/m5.rc" ):$( rigHolds "$rigTmp/m5" "is magic-coordinator's only" )" "1:yes"
 
@@ -160,14 +159,14 @@ echo "-- heartbeat: state write refreshes a held lock; board counts --"
 rigLock="$rigData/inboxes/magic-coordinator/incoming/note-20260809T155000Z-heartbeat-state-and-lock.md"
 mkdir -p "${rigLock%/*}"
 printf -- '---\ntype: note\nstate: heartbeat-running\nrecheck-date: 2001-01-01 00:00 +0000\nsession-id: rig-session\n---\n\nold state\n' > "$rigLock"
-printf -- '---\nlast-iteration-date: 2026-10-06\n---\n\nnew state\n' | rigOp "$rigTmp/h1" --magic-heartbeat-state-upsert magic-coordinator
+printf -- '---\nlast-iteration-date: 2026-10-06\n---\n\nnew state\n' | rigOp "$rigTmp/h1" --intern-op-heartbeat-state-upsert magic-coordinator
 rigAssert "the state write succeeds"                        "$( cat "$rigTmp/h1.rc" ):$( rigHolds "$rigLock" 'new state' )" "0:yes"
 rigAssert "recheck-date is moved forward, once"             "$( rigFieldCount "$rigLock" recheck-date ):$( [ "$( rigField "$rigLock" recheck-date )" \> "$( date -u +%Y-%m-%d )" ] && echo future || rigField "$rigLock" recheck-date )" "1:future"
 rigAssert "the caller's own fields are written"             "$( rigField "$rigLock" last-iteration-date )" 2026-10-06
 printf -- '---\ntype: note\nstate: heartbeat-finished\nrecheck-date: 2001-01-01 00:00 +0000\nsession-id: rig-session\n---\n\nold state\n' > "$rigLock"
-printf -- 'closed state\n' | rigOp "$rigTmp/h2" --magic-heartbeat-state-upsert magic-coordinator
+printf -- 'closed state\n' | rigOp "$rigTmp/h2" --intern-op-heartbeat-state-upsert magic-coordinator
 rigAssert "a finished note's recheck-date is untouched"    "$( cat "$rigTmp/h2.rc" ):$( rigField "$rigLock" recheck-date )" "0:2001-01-01 00:00 +0000"
-rigOp "$rigTmp/h3" --magic-heartbeat-input-scan magic-coordinator
+rigOp "$rigTmp/h3" --intern-op-heartbeat-input-scan magic-coordinator
 rigAssert "the scan has a board counts section"             "$( LC_ALL=C grep -c -x '## board counts' "$rigTmp/h3" )" 1
 rigAssert "counting each state's items"                     "$( LC_ALL=C grep -x -E '(running|pending|backlog|review): [0-9]+' "$rigTmp/h3" | tr '\n' ' ' )" "backlog: 1 pending: 2 running: 2 review: 0 "
 

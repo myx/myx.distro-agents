@@ -132,21 +132,9 @@ case "$1" in
 			fi
 		fi
 
-		## Every coworking-like session has a magic-coordinator instance in it
-		## (magic-team.coworking.routine's own rule). The spawning session's own member
-		## counts as present: AgentsToolsActingMember, the same identity other spawn-side
-		## code reads. Otherwise it joins after the given members, spawned like them.
-		if AgentsToolsSpawnRoutineIsCoworking "$resolvedRoutineFile" ; then
-			local coordPresent="false" coordCandidate
-			[ "$( AgentsToolsActingMember )" = "magic-coordinator" ] && coordPresent="true"
-			for coordCandidate in "${spawnMembers[@]}" ; do
-				[ "$coordCandidate" = "magic-coordinator" ] && coordPresent="true"
-			done
-			if [ "$coordPresent" != "true" ] ; then
-				spawnMembers+=( "magic-coordinator" )
-				echo "magic-spawn-session: added magic-coordinator: $resolvedRoutineName is coworking-like and the session had no coordinator"
-			fi
-		fi
+		## Who is in the session is the routine's own say, its frontmatter: the coordinator is
+		## there where the routine, or the kind routine it inherits from (a default setting, not
+		## a rule), names it in `executors:`, and nowhere else. Nothing is added here.
 
 		## Every member is asked before the first is started, so a call that names one
 		## wrong member starts nobody and leaves no half of a session behind: that its

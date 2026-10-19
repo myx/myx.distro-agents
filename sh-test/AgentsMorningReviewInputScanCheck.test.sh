@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-## Behavioural check on --magic-morning-review-input-scan and its cut-off advance: the three
+## Behavioural check on --intern-op-morning-review-input-scan and its cut-off advance: the three
 ## sections and nothing else, header lines only (never a body), each section's own cap marked
-## `capped`, the caller's own cut-off (default, then stored, never another caller's), and the
-## advance's guards, and both ops refused to any session but magic-coordinator's (the console
-## passes). running-session-ended is held through the awk directly, with a fixed
+## `capped`, the caller's own cut-off (default, then stored, never another caller's, a future one
+## not trusted), and the scan and the cut-off advance retired as --magic-* operations: the scan is run by
+## the spawner (F6.4) and the cut-off is the routine's own state, moved with --update-routine-state.
+## running-session-ended is held through the awk directly, with a fixed
 ## ended-session list, since the rig has no spawn sandbox. Offline: a temp data store,
 ## skillset root and workspace.
 set -u
@@ -71,7 +72,7 @@ rigLine(){ ## line prefix
 }
 
 echo "-- sections and caps --"
-rigRun --magic-morning-review-input-scan magic-coordinator ; rigRc=$?
+rigRun --intern-op-morning-review-input-scan magic-coordinator ; rigRc=$?
 [ "$( rigHas '## state shape' )" = yes ] || rigRefuse "the scan printed no state shape, so nothing below is measured: $( grep -m1 ERROR "$rigTmp/err" )"
 rigAssert "exit 0, every source read"                 "$rigRc" 0
 rigAssert "exactly three sections"                    "$( LC_ALL=C grep -c '^## ' "$rigTmp/out" )" 3
@@ -103,7 +104,7 @@ rigItem review dispatch-rig-runreviewed "spawn-id: rig-run-reviewed\n"
 rigItem review dispatch-rig-runmissing "spawn-id: rig-run-missing\n"
 mkdir -p "$rigTmp/ws/.local/agents/spawned/rig-run-reviewed"
 printf -- '---\nsession-id: rig-run-reviewed\nspawn-id: rig-run-reviewed\nowner: magic-librarian\n---\n' > "$rigTmp/ws/.local/agents/spawned/rig-run-reviewed/rig-run-reviewed.md"
-rigRun --magic-morning-review-input-scan magic-coordinator ; rigRc=$?
+rigRun --intern-op-morning-review-input-scan magic-coordinator ; rigRc=$?
 rigAssert "the item whose run has a record is not flagged, the one whose run has none is, and no scratch file is left" \
 	"$rigRc:$( rigLine 'review-no-review-by:' ):$( rigHas 'dispatch-rig-runreviewed' ):$( rigHas 'dispatch-rig-runmissing' ):$( ls "$rigTmp/ws/.local/temp" 2> /dev/null | LC_ALL=C grep -c '^mdat-morning-review-runs' )" \
 	"0:review-no-review-by: 2:no:yes:0"
@@ -118,50 +119,34 @@ printf 'rig-session-other\n' > "$rigTmp/ended"
 rigAssert "a running item whose session is not ended is not" \
 	"$( mrShapeEndedFile="$rigTmp/ended" LC_ALL=C awk -v cap=3 -f "$rigAwk" "$rigData/board/running/task-rig-running.md" | LC_ALL=C grep '^running-session-ended:' )" "running-session-ended: 0"
 
-echo "-- cut-off advance --"
-rigRun --magic-morning-review-state-advance magic-coordinator "$rigNext" ; rigRc=$?
-rigAssert "advance succeeds"                          "$rigRc" 0
+echo "-- the cut-off is the routine's own state --"
+## The scan names the update that moves it: ThisSession's --update-routine-state (the librarian's update through it is held by
+## AgentsRoutineStateUpsertCheck), and no --magic-* advance is left.
+rigAssert "the scan's next: line names the state update" "$( rigRun --intern-op-morning-review-input-scan magic-coordinator ; LC_ALL=C grep -c -E -- '^next: [0-9]+ -- at close: --update-routine-state --header:upsert:last_reviewed_ts:[0-9]+$' "$rigTmp/out" )" 1
 rigRecord="$rigData/inboxes/magic-coordinator/incoming/note-20261008T000000Z-morning-review-state.md"
-rigAssert "the record holds the new cut-off"          "$( LC_ALL=C grep -c "^last_reviewed_ts: $rigNext\$" "$rigRecord" 2>/dev/null )" 1
-rigRun --magic-morning-review-input-scan magic-coordinator
+printf -- '---\ntype: note\nfrom: magic-coordinator\nowner: magic-coordinator\nlast_reviewed_ts: %s\n---\n\nrig\n' "$rigNext" > "$rigRecord"
+rigRun --intern-op-morning-review-input-scan magic-coordinator
 rigAssert "the next scan reads the stored cut-off"    "$( LC_ALL=C awk '/^since: / { print $2, $NF ; exit }' "$rigTmp/out" )" "$rigNext stored"
 rigAssert "nothing changed since then"                "$( rigLine 'changed:' )" "changed: 0"
-rigRun --magic-morning-review-input-scan magic-librarian
+rigRun --intern-op-morning-review-input-scan magic-librarian
 rigAssert "another caller keeps its own cut-off"      "$( rigHas 'default, 7 days' )" yes
-rigRun --magic-morning-review-state-advance magic-coordinator "$rigNext" ; rigRc=$?
-rigAssert "an equal cut-off is a no-op"               "$rigRc" 0
-rigRun --magic-morning-review-state-advance magic-coordinator "$(( rigNext - 10 ))" ; rigRc=$?
-rigAssert "a backwards cut-off is refused"            "$rigRc" 1
-rigRun --magic-morning-review-state-advance magic-coordinator "$(( rigNext + 86400 ))" ; rigRc=$?
-rigAssert "a future cut-off is refused"               "$rigRc" 1
-rigAssert "the refused moves left the record"         "$( LC_ALL=C grep -c "^last_reviewed_ts: $rigNext\$" "$rigRecord" )" 1
+printf -- '---\ntype: note\nlast_reviewed_ts: %s\n---\n\nrig\n' "$(( $( date +%s ) + 86400 ))" > "$rigRecord"
+rigRun --intern-op-morning-review-input-scan magic-coordinator ; rigRc=$?
+rigAssert "a cut-off in the future is no cut-off: said, not trusted" "$rigRc:$( rigHas 'cannot be read, so the changed files are not listed' ):$( rigLine 'since:' )" "2:yes:since: unknown"
+rm -f "$rigRecord"
 
 echo "-- callers --"
-rigRun --magic-morning-review-input-scan magic-devops ; rigRc=$?
+rigRun --intern-op-morning-review-input-scan magic-devops ; rigRc=$?
 rigAssert "a non-executor is refused"                 "$rigRc" 1
-rigRun --magic-morning-review-input-scan magic-coordinator task-rig-backlog.md ; rigRc=$?
+rigRun --intern-op-morning-review-input-scan magic-coordinator task-rig-backlog.md ; rigRc=$?
 rigAssert "an item name is not a parameter"           "$rigRc" 1
 
-echo "-- the acting session: both ops are magic-coordinator's only --"
-rigRunAs(){ ## acting member, op args...
-	local rigAs="$1" ; shift
-	( cd "$rigTmp/ws" && env HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigData" MDAT_SPAWN_AGENT="$rigAs" \
-		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err"
-}
-rigRefused(){
-	LC_ALL=C grep -q -F -- "is magic-coordinator's only" "$rigTmp/err" && printf yes || printf no
-}
-rigRunAs magic-coordinator --magic-morning-review-input-scan magic-coordinator ; rigRc=$?
-rigAssert "the coordinator's own session scans"       "$rigRc:$( rigRefused ):$( rigHas '## state shape' )" "0:no:yes"
-rigRunAs magic-coordinator --magic-morning-review-state-advance magic-coordinator "$rigNext" ; rigRc=$?
-rigAssert "the coordinator's own session advances"    "$rigRc:$( rigRefused )" "0:no"
-rigRunAs magic-librarian --magic-morning-review-input-scan magic-librarian ; rigRc=$?
-rigAssert "a routine participant's session is refused the --magic-* scan" "$rigRc:$( rigRefused ):$( rigHas '## state shape' )" "1:yes:no"
-rigRunAs magic-librarian --magic-morning-review-state-advance magic-librarian "$rigNext" ; rigRc=$?
-rigAssert "and the --magic-* advance, writing nothing" "$rigRc:$( rigRefused ):$( [ -f "$rigData/inboxes/magic-librarian/incoming/note-20261008T000000Z-morning-review-state.md" ] && echo written || echo absent )" "1:yes:absent"
-rigRunAs magic-devops --magic-morning-review-input-scan magic-coordinator ; rigRc=$?
-rigAssert "a non-participant's session is refused"    "$rigRc:$( rigRefused )" "1:yes"
+echo "-- the retired --magic-* operations --"
+## F6.4: the scan has no --magic-* stub, and the cut-off moves through the routine's state, so neither name is an operation.
+rigRun --magic-morning-review-input-scan magic-coordinator ; rigRc=$?
+rigAssert "the scan stub is gone"                     "$rigRc:$( LC_ALL=C grep -c -F 'invalid option: --magic-morning-review-input-scan' "$rigTmp/err" )" "1:1"
+rigRun --magic-morning-review-state-advance magic-coordinator "$rigNext" ; rigRc=$?
+rigAssert "the advance is gone"                       "$rigRc:$( LC_ALL=C grep -c -F 'invalid option: --magic-morning-review-state-advance' "$rigTmp/err" )" "1:1"
 
 echo "-- $rigPassCount passed, $rigFailCount failed --"
 [ "$rigFailCount" -eq 0 ]

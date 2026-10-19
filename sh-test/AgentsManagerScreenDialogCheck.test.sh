@@ -229,12 +229,12 @@ cells onMember 39 0 120
 keys k
 get wrongKey
 RIGSCRIPT
-rigAssert "the list active on Launch (Start): what the list takes there, then the keys of every window" "$( rigVal launch.selected ) [$( rigVal onLaunch )]" "launch [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
-rigAssert "on a session: the keys that act on a session, and no Enter, which opens nothing there" "$( rigVal session.selected ) [$( rigVal onSession )]" "s1 [ BSP Up  a Active  k Kill  c Control  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
-rigAssert "the left window active: the list's own keys are gone, those that act on the selected session stay" "$( rigVal left.focus ) [$( rigVal onLeft )]" "view [ w Cut  k Kill  c Control  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "the list active on Launch (Start): what the list takes there, then the keys of every window" "$( rigVal launch.selected ) [$( rigVal onLaunch )]" "launch [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "on a session: the keys that act on a session, and no Enter, which opens nothing there" "$( rigVal session.selected ) [$( rigVal onSession )]" "s1 [ BSP Up  a Active  k Kill  c Control  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "the left window active: the list's own keys are gone, those that act on the selected session stay" "$( rigVal left.focus ) [$( rigVal onLeft )]" "view [ a Active  k Kill  c Control  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "a menu open: the keys of the menu alone"                  "[$( rigVal onMenu )]" "[ ENTER Choose  ESC Close  ←/→ Menus  UP/DN Items]"
 rigAssert "a line too short for all: the keys of every window are the first left out" "[$( rigVal narrow )]" "[ BSP Up  a Active  k Kill  c Control]"
-rigAssert "on a member: the key that starts one, and none of a session's" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal onMember )]" "team m1 [ BSP Up  a Active  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "on a member: the key that starts one, and none of a session's" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal onMember )]" "team m1 [ BSP Up  a Active  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 
 echo "-- the keys every terminal delivers: a plain key, or Esc and then a letter; no function key and no Alt --"
 rigRun <<'RIGSCRIPT'
@@ -315,7 +315,7 @@ turn
 border settingsTitle 1 0 84
 RIGSCRIPT
 rigAssert "a session opened, the selection on the row that goes up: the left window still shows that session" "[$( rigVal outside )] [$( rigVal inside )] $( rigVal in.path ) $( rigVal in.selected )" "[one [wrap]] [one [wrap]] sessions/s1 .."
-rigAssert "the keys that act on the session stand in the status line there, and act on it" "[$( rigVal st )] [$( rigVal onUp.notice )]" "[ ENTER Open  BSP Up  a Active  k Kill  u Read  m Menu  ^X Exit  TAB Window  ? Help] [handled kill on s1]"
+rigAssert "the keys that act on the session stand in the status line there, and act on it" "[$( rigVal st )] [$( rigVal onUp.notice )]" "[ ENTER Open  BSP Up  a Active  k Kill  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut] [handled kill on s1]"
 rigAssert "moving to a child shows the child, and the keys act on the child" "[$( rigVal child )] [$( rigVal onChild.notice )]" "[agent-one [wrap]] [handled kill on a1]"
 rigAssert "Launch (Start) and the roots, entered with the selection on the row that goes up, show themselves" "$( rigVal launch.path ) [$( rigVal launchTitle )] [$( rigVal teamTitle )] [$( rigVal pendingTitle )] [$( rigVal settingsTitle )]" "sessions/launch [Launch (Start) [wrap]] [Team Members [wrap]] [Pending Questions [wrap]] [Settings [wrap]]"
 
@@ -350,11 +350,11 @@ turn
 get off
 cells offStatus 39 0 120
 RIGSCRIPT
-rigAssert "g takes the raw log: the title of the left window says so, and the status line names the keys of the two other modes with what each will show" "$( rigVal on.rawLog ) $( rigVal on.viewMode ) [$( rigVal onTitle )] [$( rigVal onStatus )]" "yes raw [one [raw] [wrap]] [ ENTER Open  BSP Up  a Active  b Summary  l Log  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "g takes the raw log: the title of the left window says so, and the status line names the keys of the two other modes with what each will show" "$( rigVal on.rawLog ) $( rigVal on.viewMode ) [$( rigVal onTitle )] [$( rigVal onStatus )]" "yes raw [one [raw] [wrap]] [ ENTER Open  BSP Up  a Active  b Summary  l Log  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "moving to another session keeps it: that one shows its raw log too" "$( rigVal moved.rawLog ) [$( rigVal movedTitle )]" "yes [two [raw] [wrap]]"
 rigAssert "so do opening a session, moving to an agent, leaving, changing window, a menu" "$( rigVal inside.rawLog ) $( rigVal inside.path ) $( rigVal child.rawLog ) $( rigVal child.selected ) $( rigVal back.rawLog )" "yes sessions/s1 yes a1 yes"
 rigAssert "all or active is kept through the four roots and a tick, and the raw log with it" "$( rigVal roots.filter ) $( rigVal roots.path ) $( rigVal roots.rawLog )" "active sessions yes"
-rigAssert "l takes the log, the feed alone, and the status line names what each key will show now: the two other modes, and all, since only the active are shown" "$( rigVal off.rawLog ) $( rigVal off.viewMode ) [$( rigVal offStatus )]" "no log [ ENTER Open  BSP Up  a All  b Summary  g Raw log  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "l takes the log, the feed alone, and the status line names what each key will show now: the two other modes, and all, since only the active are shown" "$( rigVal off.rawLog ) $( rigVal off.viewMode ) [$( rigVal offStatus )]" "no log [ ENTER Open  BSP Up  a All  b Summary  g Raw log  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 
 echo "-- every style draws the dialogs, Magic in its own marks --"
 rigRun <<'RIGSCRIPT'

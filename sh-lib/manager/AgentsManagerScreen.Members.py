@@ -348,3 +348,52 @@ ACTION_HANDLERS["start"] = askStart
 ACTION_FITS["start"] = memberFits
 ACTION_REFUSALS["start"] = lambda state, row: "%s is not started: %s" % (row["member"]["name"], memberRefusal(row["member"])) if row and row.get("member") else ""
 
+
+## ---- the plugin: `Team Members` ----
+
+registerPlugin({
+    "name": "team",
+    "root": {"id": "team", "label": "Team Members", "go": "~T~eam Members", "group": "team"},
+    ## What a member holds as a folder: MEMBER_FOLDERS.
+    "rows": {
+        "team/*": tuple((folderId, label, kind, True) for folderId, label, kind in MEMBER_FOLDERS),
+    },
+    "summaries": {
+        "team": {"lines": "membersSummary"},
+        "team/*/permissions": {"lines": "grantsSummary"},
+        "team/*/files": {"lines": "filesSummary"},
+        "team/*/sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed")},
+        "team/*/help": {"lines": "helpSummary", "chapters": "help"},
+    },
+    "reads": {
+        ## The members of the team as this workspace knows them, one row each.
+        "list:team": {"operation": ["--manager-team-member-list"], "rows": "members"},
+        ## One member, whole: its information, the sessions it is in, its grants and its settings.
+        "view:team:record": {"operation": ["--manager-team-member-read", "--full", "{id}"], "rows": "member-read", "needs": "member"},
+        ## The folders of a member: its grants and its sessions from the read of the member, the
+        ## files of its skillset folder and one of them whole, and its help as the tooling gives
+        ## a member its help, read when it is opened and when it is asked for.
+        "list:team/*/permissions": {"operation": ["--manager-team-member-read", "--full", "{parent}"], "rows": "member-grants"},
+        "list:team/*/files": {"operation": ["--manager-team-member-files", "{parent}"], "rows": "member-files"},
+        "view:team/*/files:file": {"operation": ["--manager-team-member-files", "{parent}", "{id}"], "needs": "text", "once": True},
+        "list:team/*/sessions": {"operation": ["--manager-team-member-read", "--full", "{parent}"], "rows": "member-sessions"},
+        "view:team/*/sessions:record": {"operation": ["--manager-session-read", "--session-id", "{id}"],
+                                        "rows": "session-read", "needs": "session"},
+        "feed:team/*/sessions:record": {"operation": ["--manager-session-transcript-read", "--session-id", "{id}"],
+                                        "log": ["--log"], "rows": "transcript", "needs": "session"},
+        "list:team/*/help": {"operation": ["--member-help", "{parent}"], "rows": "member-help", "once": True, "also": ("list:help",)},
+        ## The chapters of the help of this tool, which a member's `Member Help` shows around its own
+        ## syntax lines. It is no level of the list: a read of its own, made beside that folder.
+        "list:help": {"operation": ["--manager-help-read"], "rows": "chapters", "once": True},
+    },
+    "commands": (
+        {"name": "start", "keys": ("n",), "menu": ("member", 1), "label": "~S~tart", "status": "Start", "after": "colours",
+         "views": ("team",), "for": "a team member", "on": ("team:record",), "does": ("action", "start"), "calls": ("start",)},
+    ),
+    "integrates": {
+        "markdown": {
+            "on": ("team/*/files:file",),
+            "help": ("team/*/help:help-entry", "team/*:member-help"),
+        },
+    },
+})

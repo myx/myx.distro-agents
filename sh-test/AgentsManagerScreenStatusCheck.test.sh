@@ -82,7 +82,7 @@ rigCalls(){ ## how many times the stand-in was started. The list of the location
 rigSqueeze(){ ## a line with every run of spaces as one
 	LC_ALL=C sed -e 's/  */ /g'
 }
-rigHints=" ENTER Open  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help"
+rigHints=" ENTER Open  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut"
 rigMenus=" ≡ Go View Help"
 
 echo "-- the counters show what the row of counters holds --"
@@ -195,9 +195,9 @@ get pending
 cells pendingBottom 39 0 120
 RIGSCRIPT
 rigAssert "a running session is selected"                            "$( rigVal session.selected )" "11111111-0000-4000-8000-000000000001"
-rigAssert "on a session the status line names the keys that act on it, and after them the keys of every window" "[$( rigVal sessionBottom )]" "[ ENTER Open  BSP Up  a Active  k Kill  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "on a session the status line names the keys that act on it, and after them the keys of every window" "[$( rigVal sessionBottom )]" "[ ENTER Open  BSP Up  a Active  k Kill  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "the keys that act on the session stand in no line of the left pane" "[$( rigVal sessionKeys | LC_ALL=C sed -n 's/^\(keys:\).*/\1/p' )]" "[]"
-rigAssert "on Launch (Start) it names what the list takes there, then the keys of every window"        "$( rigVal launch.selected ) [$( rigVal launchBottom )]" "launch [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "on Launch (Start) it names what the list takes there, then the keys of every window"        "$( rigVal launch.selected ) [$( rigVal launchBottom )]" "launch [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "and on another section"                                   "$( rigVal pending.selected ) [$( rigVal pendingBottom )]" "pending [$rigHints]"
 
 if [ "$rigFailCount" -ne 0 ] ; then

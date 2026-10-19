@@ -586,22 +586,22 @@ case "$1" in
 		return $?
 	;;
 
-	--member-work-session-input-scan)
+	--intern-op-member-work-session-input-scan)
 		shift
 		local memberName="$1"
 		shift || true
 		if [ -z "$memberName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: syntax is <member>" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-member-work-session-input-scan: syntax is <member>" >&2
 			set +e ; return 1
 		fi
 		if [ $# -gt 0 ] ; then
 			case "$1" in
 				--*)
-					echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-team/magic-team.armed.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-member-work-session-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-team/magic-team.armed.md" >&2
 					set +e ; return 1
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-team/magic-team.armed.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-member-work-session-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-team/magic-team.armed.md" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -609,7 +609,7 @@ case "$1" in
 		AgentsToolsAssertBareName "$memberName" "<team-member>" member-work-session-input-scan || { set +e ; return 1 ; }
 		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
 		if [ ! -d "$memberDir" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: no such member skill directory: $memberDir" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-member-work-session-input-scan: no such member skill directory: $memberDir" >&2
 			set +e ; return 1
 		fi
 
@@ -623,7 +623,7 @@ case "$1" in
 			--do-inbox-other \
 			--no-slack --no-email --no-trello \
 			--no-board-related \
-			--context --member-work-session-input-scan
+			--context --intern-op-member-work-session-input-scan
 		return $?
 	;;
 

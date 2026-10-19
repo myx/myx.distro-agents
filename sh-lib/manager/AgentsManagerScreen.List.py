@@ -130,8 +130,8 @@ def parseLevels(readKey, form, text):
         ## the blocks the root `Team Data` holds come with the same read (TEAM_DATA)
         rows = parseBlockRows(text)
         levels = {level: rows}
-        if level != TEAM_DATA["level"]:
-            levels[TEAM_DATA["level"]] = [dict(row) for row in rows if row["id"] in TEAM_DATA["blocks"]]
+        if level != pluginLevel("teamdata"):
+            levels[pluginLevel("teamdata")] = [dict(row) for row in rows if row["id"] in TEAM_DATA["blocks"]]
         return levels
     if form == "places":
         return {level: parsePlaceRows(text)}
@@ -148,9 +148,9 @@ def parseLevels(readKey, form, text):
         return {level: parseFileRows(text)}
     if form == "member-sessions":
         ## a session of the member opens where every session does, in `Sessions (Activity)`
-        rows = parseSessionLevels(text)["sessions"]
+        rows = parseSessionLevels(text)[pluginLevel("sessions")]
         for row in rows:
-            row["jump"] = ["sessions", row["id"]]
+            row["jump"] = pluginPath("sessions") + [row["id"]]
         return {level: rows}
     if form == "member-help":
         rows, whole = parseHelpRows(text)
@@ -255,3 +255,9 @@ def goUp(state):
             cursor["index"] = position
             break
 
+
+## ---- the plugin: the list ----
+
+## What the list offers the others to put in (Plugins.py): `alphabetical`, the levels whose listed rows the user may have by name
+## instead of in the order the operation gave them, by the key of the command "alphabetical" (orderedRows).
+registerPlugin({"name": "list", "registries": {"alphabetical": "level"}})

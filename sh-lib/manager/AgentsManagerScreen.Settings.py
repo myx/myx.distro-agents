@@ -7,8 +7,8 @@
 ## ---- the settings and the configuration: `Settings`, `Configuration` ----
 
 ## The fields of a `line` row of `--manager-config-digest --full`, after its first, as the
-## operation names them. "belongs", the last, is the root the line is of: the id of a
-## section of SECTIONS, taken as it is printed. The screen knows no subject and no
+## operation names them. "belongs", the last, is the root the line is of: the name of a
+## plugin that has a root, taken as it is printed. The screen knows no subject and no
 ## setting by its name: which root a line stands in, whether it is changed and how, is
 ## all in its row.
 DIGEST_FIELDS = ("subject", "group", "key", "state", "value", "label", "description", "change", "kind",
@@ -79,8 +79,8 @@ STYLE_DIALOG = "setting-style"
 ## secret its state is kept, and the value its row carries, which is its masked form (F11.8), for the form of a credential. At
 ## the end of its row a subject shows how many of its lines are missing.
 def parseDigestLevels(readKey, text):
-    levels = dict((sectionId, []) for sectionId, sectionLabel in SECTIONS
-                  if (listReadOf([sectionId]) or ("",))[0] == readKey)
+    names = dict((name, pluginLevel(name)) for name, base in PLUGIN_BASES.items() if base and (listReadOf(list(base)) or ("",))[0] == readKey)
+    levels = dict((level, []) for level in names.values())
     labels = {}
     subjectFields = {}
     held = {}
@@ -96,7 +96,7 @@ def parseDigestLevels(readKey, text):
             subjectFields[fields[1]] = fields
         elif fields[0] == "line" and len(fields) > len(DIGEST_FIELDS) and fields[1] in labels:
             setting = dict(zip(DIGEST_FIELDS, fields[1:]))
-            root, name = setting["belongs"], setting["subject"]
+            root, name = names.get(setting["belongs"]), setting["subject"]
             if root not in levels:
                 continue
             if (root, name) not in held:
@@ -537,3 +537,31 @@ def digestSummary(state, path, row, form):
         return ["No subjects."]
     return tableSummaryLines(state, ("SUBJECT", "LINES", "MISSING", "WHAT"), rows, ("key", "text", "text", "text"), looks=looks)
 
+
+## ---- the plugin: `Settings` ----
+
+registerPlugin({
+    "name": "settings",
+    "root": {"id": "settings", "label": "Settings", "go": "S~e~ttings", "group": "setup"},
+    "summaries": {
+        "settings": {"lines": "digestSummary"},
+        "settings/*": {"lines": "subjectSummary"},
+    },
+    "reads": {
+        ## The settings and the configuration of the workspace as they are, by subject: every
+        ## line with its description, whether and how it is changed, and, as its last field,
+        ## which of the two roots it is of (DIGEST_FIELDS). One read fills both roots, and under
+        ## each the level of every subject that has a line there (parseDigestLevels).
+        "list:settings": {"operation": ["--manager-config-digest", "--full"], "rows": "digest"},
+        "list:settings/*": {"from": "list:settings"},
+        ## One credential whole, read when its form is asked for it by its key and never before (revealCredential): by the
+        ## setting reader as every program reads a setting, from the scope {level} by the key {id}.
+        "full:credential": {"operation": ["--agents-config-option", "{level}", "--select", "{id}"], "rows": "credential-read", "kind": "plan", "demand": True},
+    },
+    "commands": (
+        {"name": "credential", "keys": ("ENTER",), "menu": ("view", 3), "label": "Open the cr~e~dential", "status": "Open", "window": "list",
+         "views": ("settings/*", "@configuration/*"), "for": "a credential", "on": ("settings/*:record", "@configuration/*:record"), "only": True, "tells": True, "enters": True, "does": ("action", "credential")},
+        {"name": "setting", "keys": ("ENTER",), "menu": ("view", 3), "label": "~C~hange the setting", "status": "Change", "window": "list",
+         "views": ("settings/*", "@configuration/*"), "for": "a setting", "on": ("settings/*:record", "@configuration/*:record"), "only": True, "enters": True, "says": "change", "does": ("action", "setting"), "calls": ("set",)},
+    ),
+})

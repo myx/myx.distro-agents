@@ -52,7 +52,8 @@ rigRefuse(){
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 ## A scan or an iteration of the main loop starts the control thread of a session of its rig that is not finished: what was started is ended before the tree is removed.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
-rigTmp="$( mktemp -d -t AgentsMemberWorkspaceCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsMemberWorkspaceCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## A loop in the code under test must end the check rather than hang it: nothing here legitimately runs long.
 rigProcNote $$
@@ -98,7 +99,7 @@ rigView(){ ## workspace -- its member set view, which holds its own members only
 	printf '%s\n' "$rigWork/$1/.local/agents/members"
 }
 rigTeamRoutine(){ ## the team's own directory -- the one coworking routine in it, which a session names by default
-	printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\ninvitees: magic-team\ndefault-for-session-kind: coworking\n---\n# rig coworking routine fixture\n' > "$1/magic-team.coworking.routine.md"
+	printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\ninvitees: magic-team\nrequires-session-kind: coworking\n---\n# rig coworking routine fixture\n' > "$1/magic-team.coworking.routine.md"
 }
 rigMemberAt(){ ## workspace, member -- that member set up in that workspace: its directory there, linked into the view; the team's own folder with its routine, since an invited member's session reads the team's files from its own workspace's view
 	rigMemberFiles "$( rigMemberHome "$1" "$2" )" "$2" "$1"
@@ -656,9 +657,9 @@ rigIndexOff
 rigRunIn ws-here --client-comms-jira-board-list client-ndm
 rigAssert "control: with no index the client is not invited, and is not set up here: refused, naming this workspace's view, no call made" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "no such member skill directory: $( rigView ws-here )/client-ndm" )" "1 0 1"
 rigIndexOn
-rigRunIn ws-here --client-sweep-input-scan keeper-nowhere
-rigAssert "a --client-* operation names the same refusal for a known member in no tracked workspace" "$rigRc $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --client-sweep-input-scan: member 'keeper-nowhere' is in the team members index but is present in no tracked workspace -- nothing was done" )" "1 1"
-rigRunIn ws-here --client-sweep-input-scan client-ndm
+rigRunIn ws-here --intern-op-client-sweep-input-scan keeper-nowhere
+rigAssert "a --client-* operation names the same refusal for a known member in no tracked workspace" "$rigRc $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --intern-op-client-sweep-input-scan: member 'keeper-nowhere' is in the team members index but is present in no tracked workspace -- nothing was done" )" "1 1"
+rigRunIn ws-here --intern-op-client-sweep-input-scan client-ndm
 rigAssert "accepted sibling: a client set up in another workspace is not refused there, its own operation answers" "$( rigN "$rigTmp/err" "present in no tracked workspace" ) $( rigN "$rigTmp/err" "is not present on this machine" )" "0 0"
 rm -f "$( rigView ws-there )/client-ndm"
 rigRunIn ws-here --client-comms-slack-send-message client-ndm CNDM00001 RIG-BODY
@@ -1062,7 +1063,7 @@ rigRootIn(){ ## workspace, args... -- --intern-root-harness from that workspace
 	( cd "$rigWork/$1" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
 		bash "$rigTool" --intern-root-harness "${@:2}" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
-printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\n---\n# rig heartbeat routine fixture\n' > "$( rigMemberHome ws-here magic-coordinator )/magic-coordinator.heartbeat.routine.md"
+printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig heartbeat routine fixture\n' > "$( rigMemberHome ws-here magic-coordinator )/magic-coordinator.heartbeat.routine.md"
 rigRootIn ws-here --routine heartbeat --non-interactive --wait ; rigSettle HERE
 rigAssert "the root harness, whose caller is the coordinator set up in the current workspace: launched there" "$rigRc $( rigLaunched ) $( rigRoots HERE )" "0 HERE=ws-here magic-coordinator=ws-here/.local/agents/members"
 rigSpawnedBefore="$( rigSpawnedCount ws-there )" ; rigBoardBeforeThere="$( rigBoardItems ws-there )" ; rigBoardBeforeHere="$( rigBoardItems ws-here )"
@@ -1077,7 +1078,7 @@ rigLoopIn(){ ## workspace -- --intern-main-loop --one from that workspace
 		bash "$rigTool" --intern-main-loop --one ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigWorld
-printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\n---\n# rig heartbeat routine fixture\n' > "$( rigMemberHome ws-here magic-coordinator )/magic-coordinator.heartbeat.routine.md"
+printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig heartbeat routine fixture\n' > "$( rigMemberHome ws-here magic-coordinator )/magic-coordinator.heartbeat.routine.md"
 printf 'SPAWN_CLI_SERVICE=rig-cli\n' >> "$rigWork/ws-there/.local/.agents/magic-team.agent.env" ; printf 'SPAWN_CLI_SERVICE=rig-cli\n' >> "$rigWork/ws-here/.local/.agents/magic-team.agent.env"
 rigLoopIn ws-here ; rigSettle HERE
 rigAssert "the main loop in the coordinator's own workspace: one pass, launched there, as before"  "$rigRc $( rigLaunched ) $( rigN "$rigTmp/err" 'pass succeeded, exit 0, launched true' )" "0 HERE=ws-here 1"

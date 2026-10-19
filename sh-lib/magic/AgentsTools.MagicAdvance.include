@@ -17,87 +17,9 @@
 ## Where an inbox item lives (F4.3).
 type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 
-## Runs the board's own resync primitive. Caller declares advanceSyncOut.
-AgentsToolsAdvanceCloneSync(){
-	local repoRoot="$1" originUrl="$2" lockBranch="$3"
-	advanceSyncOut=""
-	if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
-		advanceSyncOut="myx.common git/cloneSync is not reachable (MYXROOT=${MYXROOT:-<unset>})"
-		return 1
-	fi
-	local syncRc=0
-	set +e
-	advanceSyncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
-	syncRc=$?
-	set -e
-	return "$syncRc"
-}
-
-## Refuses a lock whose local copy is in a state the checkout cannot vouch
-## for -- an unresolved merge, or an edit that was never committed. Runs both
-## before and after the resync: the resync itself can leave either state.
-AgentsToolsAdvanceLockStateCheck(){
-	local repoRoot="$1" lockRelPath="$2" opName="$3" phase="$4"
-	local checkOut="" checkRc=0
-
-	set +e
-	checkOut="$( git -C "$repoRoot" ls-files -u -- "$lockRelPath" 2>&1 )"
-	checkRc=$?
-	set -e
-	if [ "$checkRc" -ne 0 ] ; then
-		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_UNCHECKABLE -- could not read the index state of $lockRelPath $phase: $checkOut" >&2
-		return 1
-	fi
-	if [ -n "$checkOut" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_CONFLICT -- $lockRelPath has unmerged index entries $phase; the checkout carries an unresolved merge and the lock must not be taken over it" >&2
-		return 1
-	fi
-
-	if [ -f "$repoRoot/$lockRelPath" ] && LC_ALL=C grep -Eq '^(<<<<<<< |>>>>>>> )' "$repoRoot/$lockRelPath" ; then
-		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_CONFLICT -- $lockRelPath carries merge conflict markers $phase; the lock must not be taken over it" >&2
-		return 1
-	fi
-
-	set +e
-	checkOut="$( git -C "$repoRoot" status --porcelain -- "$lockRelPath" 2>&1 )"
-	checkRc=$?
-	set -e
-	if [ "$checkRc" -ne 0 ] ; then
-		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_UNCHECKABLE -- could not read the working-tree state of $lockRelPath $phase: $checkOut" >&2
-		return 1
-	fi
-	if [ -n "$checkOut" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_CONFLICT -- $lockRelPath differs $phase from the commit it was checked out from ($checkOut); the lock must not be taken over an uncommitted local copy" >&2
-		return 1
-	fi
-	return 0
-}
-
-## Refuses a lock whose local copy is not the one published on the branch head.
-AgentsToolsAdvanceLockHeadCheck(){
-	local repoRoot="$1" lockRelPath="$2" lockBranch="$3" opName="$4"
-	local fetchOut="" fetchRc=0 headBlob="" remoteBlob=""
-
-	## FETCH_HEAD, not origin/<branch>: an instrument that does not depend on
-	## the resync having updated the remote-tracking ref.
-	set +e
-	fetchOut="$( git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )"
-	fetchRc=$?
-	set -e
-	if [ "$fetchRc" -ne 0 ] ; then
-		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_UNCHECKABLE -- could not fetch origin/$lockBranch to compare the lock against the actual head: $fetchOut" >&2
-		return 1
-	fi
-	set +e
-	headBlob="$( git -C "$repoRoot" rev-parse --verify --quiet "HEAD:$lockRelPath" 2>/dev/null )"
-	remoteBlob="$( git -C "$repoRoot" rev-parse --verify --quiet "FETCH_HEAD:$lockRelPath" 2>/dev/null )"
-	set -e
-	if [ "$headBlob" != "$remoteBlob" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD $opName: LOCK_STALE -- $lockRelPath is ${headBlob:-absent} locally and ${remoteBlob:-absent} on origin/$lockBranch; the local copy is not the actual head's and the lock must not be taken over it" >&2
-		return 1
-	fi
-	return 0
-}
+## The resync, the conflict check and the head check the lock paths run, shared by every routine lock
+## (AgentsTools.RoutineLock.include): the advance lock's own protocol, made general (F6.2).
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include"
 
 ## The acting half of the advance pass: --magic-advance-lock-acquire runs it once the lock is taken, and the scan only reads.
 ## Closes what a dead spawn left open, silently on stdout, so the reads after it see the moved items: a started sandbox record whose session
@@ -259,7 +181,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 
 type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpItem.include"
 
-## The report of --magic-advance-input-scan, a pure read, kept for its session by AgentsToolsInputScanCached.
+## The report of --intern-op-advance-input-scan, a pure read, kept for its session by AgentsToolsInputScanCached.
 AgentsToolsAdvanceInputScanReport(){ ## calling member
 	local callingMember="$1"
 	printf '%s\n\n' "## state-and-lock (routine-advance)"
@@ -269,7 +191,7 @@ AgentsToolsAdvanceInputScanReport(){ ## calling member
 	## backlog+inquiries+notes, advance does not": no backlog (promotion is
 	## grooming's), and of the own inbox only notes -- the pending-slack-reaction and
 	## pending-trello-update records check-pending-comms-actions reads. Inquiries,
-	## reflections and the client-* inboxes are read by --magic-grooming-input-scan.
+	## reflections and the client-* inboxes are read by --intern-op-grooming-input-scan.
 	printf '\n%s\n\n' "## board digest"
 	DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 		--state pending --state running --state review --state blocked --state parked \
@@ -280,7 +202,7 @@ AgentsToolsAdvanceInputScanReport(){ ## calling member
 		--no-slack --no-email --no-trello \
 		--no-inbox-other \
 		--no-board-related \
-		--context --magic-advance-input-scan
+		--context --intern-op-advance-input-scan
 	local advanceScanRc=$?
 	## The review items this routine reviews on this run (AgentsTools.ReviewFlow.include).
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
@@ -300,29 +222,29 @@ AgentsToolsAdvanceInputScanReport(){ ## calling member
 
 case "$1" in
 
-	--magic-advance-input-scan)
+	--intern-op-advance-input-scan)
 		shift
 		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-input-scan: syntax is <team-member>" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-advance-input-scan: syntax is <team-member>" >&2
 			set +e ; return 1
 		fi
 		if [ $# -gt 0 ] ; then
 			case "$1" in
 				--*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-advance-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-coordinator/magic-coordinator.advance.routine.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-advance-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-coordinator/magic-coordinator.advance.routine.md" >&2
 					set +e ; return 1
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-advance-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-coordinator/magic-coordinator.advance.routine.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-advance-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-coordinator/magic-coordinator.advance.routine.md" >&2
 					set +e ; return 1
 				;;
 			esac
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-input-scan: MDAT_DATA_ROOT is not set" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-advance-input-scan: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"

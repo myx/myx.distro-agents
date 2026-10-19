@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-## Behavioural check on --magic-spawn-session's coordinator rule: a coworking-like routine
-## (frontmatter `session: coworking`) gets magic-coordinator added as a member when neither
-## the spawning session's own member (MDAT_SPAWN_AGENT) nor the given members is it; a
-## spawner that is magic-coordinator gets none added; a routine without the key gets none
-## added. Any other member's session is refused: the op is magic-coordinator's only, the
+## Behavioural check on --magic-spawn-session's coordinator rule, reconciled for F6.1: the coordinator comes only from
+## frontmatter (the coworking kind routine's `executors: magic-coordinator` is a default a routine may override), and
+## the spawner's hardcoded add of it is gone. A coworking routine with its own members gets no coordinator added,
+## whoever spawns it; a spawner that is magic-coordinator gets none added; a standalone routine gets none added. Any other member's session is refused: the op is magic-coordinator's only, the
 ## console passes. Offline: same fake console/curl rig as AgentsMagicSpawnSessionCheck.test.sh.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -48,11 +47,12 @@ for rigMember in rig-member-a rig-member-b magic-coordinator ; do
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/$rigMember/$rigMember.basic.md"
 	printf '# rig armed\n' > "$rigSkills/$rigMember/$rigMember.armed.md"
 done
-## A coworking-like routine run by any member -- the brainstorm/discuss shape.
-printf -- '---\nexecutors: magic-team\nmaintainers: magic-coordinator\nsession: coworking\n---\n# rig coworking-like routine fixture\n' \
+## A coworking routine run by any member -- the brainstorm/discuss shape -- with the old `session: coworking` kept
+## beside the new key, so a spawner that still reads it to add the coordinator is caught.
+printf -- '---\nexecutors: magic-team\nmaintainers: magic-coordinator\nrequires-session-kind: coworking\nsession: coworking\n---\n# rig coworking-like routine fixture\n' \
 	> "$rigSkills/magic-team/magic-team.rigcowork.routine.md"
-## The same, without the key: not coworking-like.
-printf -- '---\nexecutors: magic-team\nmaintainers: magic-coordinator\n---\n# rig plain routine fixture\n' \
+## The same, a standalone one.
+printf -- '---\nexecutors: magic-team\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig plain routine fixture\n' \
 	> "$rigSkills/magic-team/magic-team.rigplain.routine.md"
 
 rigRun(){ ## spawner member (may be empty), stdin content, then --magic-spawn-session args...
@@ -96,16 +96,16 @@ rigAssert "is refused"                                   "$( printf '%s\n' "$rig
 rigAssert "nothing was spawned"                          "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ):$( ls "$rigWs/.local/agents/spawned" 2>/dev/null | wc -l | tr -d ' ' )" "0:0"
 rigReset
 
-echo "-- coworking-like routine, spawned from the console, no coordinator given: added --"
+echo "-- coworking routine, spawned from the console, no coordinator given: none added --"
 rigOut="$( rigRun "" "RIG-TASK-TEXT" --routine rigcowork rig-member-a )"
 rigAssert "lands"                                        "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 1
-rigAssert "the coordinator joins after the given member" "$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=rig-member-a magic-coordinator' )" 1
-rigAssert "one line says it was added"                   "$( printf '%s\n' "$rigOut" | grep -c 'added magic-coordinator' )" 1
-rigWaitFor "$rigTmp/brief.magic-coordinator" || rigRefuse "magic-coordinator's own console never received a context: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
-rigAssert "the coordinator's brief names the routine"    "$( grep -c 'magic-team.rigcowork.routine.md' "$rigTmp/brief.magic-coordinator" | awk '{ print ( $1 > 0 ) ? "yes" : "no" ; }' )" yes
+rigAssert "only the given member is spawned"             "$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=rig-member-a' )" 1
+rigAssert "no added line"                                "$( printf '%s\n' "$rigOut" | grep -c 'added magic-coordinator' )" 0
+rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console never received a context: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
+rigAssert "the member's brief names the routine, and no coordinator was started" "$( grep -c 'magic-team.rigcowork.routine.md' "$rigTmp/brief.rig-member-a" | awk '{ print ( $1 > 0 ) ? "yes" : "no" ; }' ):$( [ -e "$rigTmp/brief.magic-coordinator" ] && echo started || echo none )" "yes:none"
 rigReset
 
-echo "-- coworking-like routine, spawned by magic-coordinator itself: not added --"
+echo "-- coworking routine, spawned by magic-coordinator itself: not added --"
 rigOut="$( rigRun magic-coordinator "RIG-TASK-TEXT" --routine rigcowork rig-member-a )"
 rigAssert "lands"                                        "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 1
 rigAssert "only the given member is spawned"             "$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=rig-member-a' )" 1
@@ -113,7 +113,7 @@ rigAssert "no added line"                                "$( printf '%s\n' "$rig
 rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console never received a context"
 rigReset
 
-echo "-- not coworking-like routine, spawned from the console: not added --"
+echo "-- standalone routine, spawned from the console: not added --"
 rigOut="$( rigRun "" "RIG-TASK-TEXT" --routine rigplain rig-member-a )"
 rigAssert "lands"                                        "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 1
 rigAssert "only the given member is spawned"             "$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=rig-member-a' )" 1

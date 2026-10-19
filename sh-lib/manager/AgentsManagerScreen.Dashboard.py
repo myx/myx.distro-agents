@@ -163,11 +163,11 @@ def blockGrid(blocks, width, place=None):
 ## same width, in the same style, with the same locations known. Panels have no cut mode:
 ## they are set out to the pane as it stands on the terminal, whatever `w` is, and the
 ## view says it shows them (panelsShown).
-def blocksView(state, only=None, level="dashboard"):
-    rows = state.rows.get(level)
+def blocksView(state, only=None, level=None):
+    rows = state.rows.get(level or pluginLevel("dashboard"))
     if rows is None:
         return None
-    places = state.rows.get("places")
+    places = state.rows.get(pluginLevel("places"))
     stamp = (only, state.paneWidth, STYLE["name"], MARKS["plain"])
     kept = state.view.get("blocksFor")
     if kept is not None and kept[0] is rows and kept[1] is places and kept[2] == stamp:
@@ -192,3 +192,18 @@ def panelsShown(state):
 def dashboardSummary(state, path, row, form):
     return blocksView(state)
 
+
+## ---- the plugin: `Dashboard (Monitor)` ----
+
+registerPlugin({
+    "name": "dashboard",
+    "root": {"id": "dashboard", "label": "Dashboard (Monitor)", "go": "~D~ashboard (Monitor)", "group": "team"},
+    "summaries": {
+        "dashboard": {"lines": "dashboardSummary"},
+    },
+    "reads": {
+        ## The blocks of the dashboard, each with its figures, all from the one operation. It is
+        ## read on the period only while its root is selected or opened, and never else.
+        "list:dashboard": {"operation": ["--manager-dashboard-read"], "rows": "blocks", "peek": True},
+    },
+})

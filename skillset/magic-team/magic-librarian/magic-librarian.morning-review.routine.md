@@ -1,8 +1,12 @@
 ---
-executors: magic-coordinator, magic-librarian
+type: routine
+executors: magic-librarian
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
-session: coworking
 reports-to: none
+requires-session-kind: standalone
+routine-lock-document: inbox:magic-librarian:note-20261008T000000Z-morning-review-state.md
+input-scan-def: morning-review
+review-by: inherit
 ---
 # magic-librarian.morning-review.routine — the actual procedure
 
@@ -11,6 +15,7 @@ reports-to: none
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -26,37 +31,39 @@ reports-to: none
 
 # Summary
 
-`magic-librarian.morning-review.routine` is the once-per-workday joint `magic-coordinator` and `magic-librarian` checkpoint for board state-model drift and cross-file consistency. People call it the board-review session: a literal review of the board, not the `review` board state or `magic-team.handback-review.routine`.
+`magic-librarian.morning-review.routine` is the once-per-workday `magic-librarian` checkpoint for board state-model drift and cross-file consistency. People call it the board-review session: a literal review of the board, not the `review` board state or `magic-team.handback-review.routine`.
 
 ## Goals
 
 - Catch structural drift: does the board's state model still match what it represents, and do claims in one file still hold against another file's current content.
-- Give the board a second pair of eyes once a day, `magic-coordinator` leading.
+- Give the board a second pair of eyes once a day, `magic-librarian` alone.
 
 ## Scope
 
 - Does:
   - Check state-model drift and cross-file consistency.
-  - Run as a coworking session, started by `magic-coordinator.daily.routine`'s **spawn-morning-review**.
+  - Run as a standalone session of `magic-librarian`, started by `magic-coordinator.daily.routine`'s **spawn-morning-review**.
 - Doesn't:
   - The broad skillset audit — `magic-librarian`'s `team-self-sufficiency-audit`.
   - Board writes by `magic-librarian`, or garbage collection.
   - Rechecking blocked and parked items — `magic-coordinator.advance.routine` and `magic-team.grooming.routine`.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **session-start**: Execute `magic-team.coworking.routine`'s Steps, with `magic-coordinator` and `magic-librarian` as participants.
-2. **read-board-shape**: `magic-coordinator` reads `--magic-morning-review-input-scan`, and shares the result with `magic-librarian`.
-3. **check-state-shape-drift**: Check the state model itself, not only content, from the scan's state shape — for example `board-blocked` and `board-parked` items collapsed into `board-running` or `board-archived`, losing the difference between "stalled on something external" and "deliberately deferred".
+1. **read-board-shape**: `magic-librarian` reads this run's input scan result (`input/input-scan.md`).
+2. **check-state-shape-drift**: Check the state model itself, not only content, from the scan's state shape — for example `board-blocked` and `board-parked` items collapsed into `board-running` or `board-archived`, losing the difference between "stalled on something external" and "deliberately deferred".
    - step: check the skillset files the scan lists as changed for accreted dated narration, per `magic-librarian/magic-librarian.armed.md`'s "Skillset content hygiene"; a rewrite is proposed for the skillset change rule.
-4. **check-cross-file-consistency**: Check status claims in one file against the current content of another, starting from the skillset files the scan lists as changed.
+3. **check-cross-file-consistency**: Check status claims in one file against the current content of another, starting from the skillset files the scan lists as changed.
 
 # Closure steps
 
-1. **advance-cutoff**: `magic-coordinator` runs `--magic-morning-review-state-advance` with the scan's `next:` value.
-2. **close-session**: Execute `magic-team.coworking.routine`'s Closure steps.
+1. **advance-cutoff**: `magic-librarian` updates the routine's state with the new cut-off: `--update-routine-state --header:upsert:last_reviewed_ts:<the scan's next: value>`.
 
 # Routine's local procedures
 
@@ -70,7 +77,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- This routine extends `magic-team.coworking.routine`; on a conflict, this file wins.
+- This routine extends `magic-team.standalone.routine`; on a conflict, this file wins.
 - Only `magic-coordinator` writes the board (`magic-team/reference/board-model.md`).
 - A state-model drift outranks ordinary staleness: fix the model gap, not only the one instance, since one gap likely misfiled several items.
 - A cross-file inconsistency where it is unclear which file is right is surfaced and resolved explicitly between the two executors, never by silently picking a winner. No quorum there is the no-quorum document, carried up by "The ladder: one rung at a time".
@@ -82,8 +89,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--magic-morning-review-input-scan <team-member>`
-- `--magic-morning-review-state-advance <team-member> <ts>`
+- `--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-upsert-member-inquiry <team-member> <item-filename>`
 
 # Maintainer Notes
@@ -104,7 +110,7 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Reference
 
 - `magic-coordinator.daily.routine` — starts this routine at **spawn-morning-review**.
-- `magic-team.coworking.routine` — the routine this one extends.
+- `magic-team.standalone.routine` — the routine this one extends.
 - `magic-team/reference/board-model.md` — the state model checked here.
 
 ### Conventions

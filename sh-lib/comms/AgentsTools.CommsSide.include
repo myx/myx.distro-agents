@@ -42,7 +42,7 @@ AgentsToolsCommsOwnSideLine(){ ## member, the system in a word, the operation as
 	case "$3" in
 		member-comms-*) sideTwin="--client-${3#member-}" ;;
 		magic-comms-*) sideTwin="--client-${3#magic-}" ;;
-		--client-*) sideTwin="$3" ;;
+		--client-*|--intern-op-client-sweep-input-scan) sideTwin="$3" ;;
 	esac
 	case "${MDAT_COMMS_OP:-}:$sideTwin" in
 		--magic-comms-*:--client-*) sideTwin="--magic-client-operation-run magic-coordinator $sideTwin $1" ;;

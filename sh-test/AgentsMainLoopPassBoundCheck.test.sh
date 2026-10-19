@@ -54,7 +54,7 @@ rigScenario(){ ## name, pass timeout seconds, first-pass seconds
 	## always names it), so spawn-prepare-brief needs an armed.md, a resolvable routine
 	## file whose name carries "heartbeat", and the package's real brief template to fill.
 	printf '# rig armed\n' > "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.armed.md"
-	printf -- '---\nexecutors: magic-coordinator (light)\nmaintainers: rig\n---\n# rig heartbeat routine fixture\n' \
+	printf -- '---\nexecutors: magic-coordinator (light)\nmaintainers: rig\nrequires-session-kind: standalone\n---\n# rig heartbeat routine fixture\n' \
 		> "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.heartbeat.routine.md"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSLACK_BOT_TOKEN=rig-not-a-token\nSPAWN_CLI_SERVICE=rig-cli\n' > "$rigDir/ws/.local/.agents/magic-team.agent.env"
 	printf 'MAIN_LOOP_RESTART_DELAY_SECONDS=2\nMAIN_LOOP_PASS_TIMEOUT_SECONDS=%s\n' "$2" > "$rigDir/ws/.local/.agents/magic-coordinator.agent.env"

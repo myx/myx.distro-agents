@@ -1,6 +1,11 @@
 ---
+type: routine
 executors: magic-librarian
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+requires-session-kind: standalone
+start-context: any
+input-scan-def: none
+review-by: inherit
 ---
 # magic-team.process-reflections.routine — the actual procedure
 
@@ -9,6 +14,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -39,16 +45,20 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - A general inbox pass (`magic-team.process-inbox.routine`).
   - Land a skillset change outside the change rule.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **process-own-inbox**: run `magic-team.process-inbox.routine magic-librarian`, collecting the `reflection-*` items and the lessons other members passed as `inquiry-*`.
+1. **process-own-inbox**: run `magic-team.process-inbox.routine magic-librarian` inline (`--routine-run-inline magic-team.process-inbox.routine`), collecting the `reflection-*` items and the lessons other members passed as `inquiry-*`.
 2. **assess-each-lesson**: per lesson, check the current source files, never the reflection's own claim about them, steps:
    - already captured in a skillset file or standing rule: a retirement candidate.
    - not yet captured, and clear: draft the exact change — file, section, wording, labelled `(draft)` — as a `note-*` in own inbox. Never a live edit.
    - still unresolved: file it as an `inquiry-*` to `magic-coordinator`.
-   - a conventions question: run `magic-librarian.conventions-check.routine` on it.
+   - a conventions question: run `magic-librarian.conventions-check.routine` on it, inline (`--routine-run-inline magic-librarian.conventions-check.routine`).
 3. **merge-across-the-batch**: read the open set together, steps:
    - fold lessons describing one underlying lesson into one replacement item or one consolidated draft.
    - sort the rest: ready now, still open, stale or superseded.
@@ -61,7 +71,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-Run inline: none. Run as its own session: run `magic-team.coworking.routine`'s **close-session** group.
+Run inline: none. Run as its own session: none of its own.
 
 # Routine's local procedures
 
@@ -90,6 +100,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 - `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
 - `--librarian-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
+- `--routine-run-inline <routine>`
 
 # Maintainer Notes
 

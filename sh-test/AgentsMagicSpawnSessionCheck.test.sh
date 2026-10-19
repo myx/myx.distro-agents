@@ -64,16 +64,16 @@ printf '# rig armed\n' > "$rigSkills/rig-member-a/rig-member-a.armed.md"
 printf '# rig armed\n' > "$rigSkills/rig-member-b/rig-member-b.armed.md"
 ## The default routine: real executors/maintainers, so every scenario that resolves it
 ## (explicit members included) passes its own contract check.
-printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator, magic-librarian\ninvitees: magic-team\ndefault-for-session-kind: coworking\n---\n# rig coworking routine fixture\n' \
+printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator, magic-librarian\ninvitees: magic-team\nrequires-session-kind: coworking\n---\n# rig coworking routine fixture\n' \
 	> "$rigSkills/magic-team/magic-team.coworking.routine.md"
 ## A routine whose own executors is a single real member -- the no-positional-members roster case.
-printf -- '---\nexecutors: rig-member-a\nmaintainers: rig-member-a\n---\n# rig solo routine fixture\n' \
+printf -- '---\nexecutors: rig-member-a\nmaintainers: rig-member-a\nrequires-session-kind: standalone\n---\n# rig solo routine fixture\n' \
 	> "$rigSkills/rig-member-a/rig-member-a.solo.routine.md"
 ## A routine whose own executors is the "any member" shorthand -- refused, not spawned.
-printf -- '---\nexecutors: magic-team\nmaintainers: magic-coordinator\n---\n# rig wildcard routine fixture\n' \
+printf -- '---\nexecutors: magic-team\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig wildcard routine fixture\n' \
 	> "$rigSkills/rig-member-a/rig-member-a.wildcard.routine.md"
 ## A routine whose own executors is prose -- refused the same way.
-printf -- '---\nexecutors: the coordinator and friends\nmaintainers: magic-coordinator\n---\n# rig prose routine fixture\n' \
+printf -- '---\nexecutors: the coordinator and friends\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig prose routine fixture\n' \
 	> "$rigSkills/rig-member-a/rig-member-a.prose.routine.md"
 
 rigRun(){ ## stdin content, then --magic-spawn-session args...
@@ -135,7 +135,7 @@ rm -f "$rigTmp/brief.rig-member-a"
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
 
 echo "-- no positional members, executors a comma list with inner whitespace: trimmed per item, no fork --"
-printf -- '---\nexecutors: rig-member-a,  rig-member-b\nmaintainers: rig-member-a\n---\n# rig multi-executor routine fixture with inner whitespace\n' \
+printf -- '---\nexecutors: rig-member-a,  rig-member-b\nmaintainers: rig-member-a\nrequires-session-kind: standalone\n---\n# rig multi-executor routine fixture with inner whitespace\n' \
 	> "$rigSkills/rig-member-a/rig-member-a.multi.routine.md"
 rigOut="$( rigRun "RIG-TASK-TEXT" --routine multi )"
 rigAssert "lands"                                        "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 1
@@ -188,15 +188,12 @@ rigOut="$( rigRun "RIG-TASK-TEXT" --routine )"
 rigAssert "is refused"                                   "$( printf '%s\n' "$rigOut" | grep -c 'routine requires <selector>' )" 1
 rigAssert "nothing was spawned"                          "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 0
 
-echo "-- --routine-default, more than one default-for-session-kind: coworking routine --"
-printf -- '---\nexecutors: rig-member-a\nmaintainers: rig-member-a\ndefault-for-session-kind: coworking\n---\n# rig second coworking routine fixture\n' \
-	> "$rigSkills/rig-member-a/rig-member-a.coworking.routine.md"
+echo "-- --routine-default, the coworking kind routine held by two members --"
+cp "$rigSkills/magic-team/magic-team.coworking.routine.md" "$rigSkills/rig-member-a/magic-team.coworking.routine.md"
 rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default )"
-rigAssert "is refused"                                   "$( printf '%s\n' "$rigOut" | grep -c 'default-for-session-kind: coworking: 2 routine file' )" 1
-rigAssert "never falls through to the resolver's own ambiguous-match wording" \
-	"$( printf '%s\n' "$rigOut" | grep -c 'matches more than one routine file' )" 0
+rigAssert "is refused, as the resolver refuses a name held twice" "$( printf '%s\n' "$rigOut" | grep -c 'matches more than one routine file' )" 1
 rigAssert "nothing was spawned"                          "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 0
-rm -f "$rigSkills/rig-member-a/rig-member-a.coworking.routine.md"
+rm -f "$rigSkills/rig-member-a/magic-team.coworking.routine.md"
 
 echo "-- --description: passed unchanged to every spawn of the call, kept on each spawn's own record --"
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"

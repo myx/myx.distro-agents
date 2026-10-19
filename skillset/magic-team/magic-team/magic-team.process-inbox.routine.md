@@ -1,6 +1,11 @@
 ---
+type: routine
 executors: magic-team
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+requires-session-kind: standalone
+start-context: any
+input-scan-def: member-work-session
+review-by: inherit
 ---
 # magic-team.process-inbox.routine — the actual procedure
 
@@ -9,6 +14,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -39,11 +45,15 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Board writes by any member but `magic-coordinator`.
   - Non-acting owners' content in `magic-coordinator`'s inbox: `magic-coordinator.external-inbox-handle-loop.routine` works it.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **read-and-classify**: read the inbox with `--member-work-session-input-scan <team-member>`, and each body with `--member-inbox-item-read` where it was truncated. Classify each item by what it says: a status or block report, a request or question, a hand-off, a reflection, anything else.
+1. **read-and-classify**: read the inbox from this run's input scan result (`input/input-scan.md`), and each body with `--member-inbox-item-read` where it was truncated. Classify each item by what it says: a status or block report, a request or question, a hand-off, a reflection, anything else.
 2. **act-lightweight**: per item, steps:
    - reply, route it on with `post-inquiry`, or resolve it inline when it is simple, obvious and within this member's own duties. Failing that bar, route it.
    - a needed board change: `magic-coordinator` makes it; any other member routes it to `magic-coordinator`, however small.
@@ -53,7 +63,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-Run inline: none. Run as its own session: run `magic-team.coworking.routine`'s **close-session** group.
+Run inline: none. Run as its own session: none of its own.
 
 # Routine's local procedures
 
@@ -67,7 +77,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - The executing member is permitted and obliged to execute every step exactly as written, in order.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- **Execution mode follows identity.** `<team-member>` is the executor's own name: run inline, in the same session. Otherwise the executor spawns `<team-member>` to run it; no member works another member's inbox under its own identity.
+- **Execution mode follows identity.** `<team-member>` is the executor's own name: run inline, in the same session (`--routine-run-inline magic-team.process-inbox.routine`). Otherwise the executor spawns `<team-member>` to run it; no member works another member's inbox under its own identity.
 - **Not automatic.** A session processes its member's inbox only when its routine's Steps call `magic-team.process-inbox.routine <team-member>` explicitly.
 - Who delivers into an inbox: `magic-team.armed.md`'s "Board & Inbox board-items entity model"; another member's inbox only through `post-inquiry`. Only the inbox's owner processes it.
 - **reflection-promotion**: a reflection about running an activity stays in its member's own inbox, compacted with the others, until it becomes a proposal, is discussed at `magic-coordinator.retro.routine`, or is dropped. Where it needs `magic-coordinator`'s action, its member files an `inquiry-*` to `magic-coordinator` with `post-inquiry`. A reflection never moves into another member's inbox.
@@ -79,7 +89,6 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-work-session-input-scan <team-member>`
 - `--member-inbox-item-read <member> <item-filename> [--start-line <N> --end-line <N>]`
 - `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
 - `--member-comms-slack-send-message <team-member> <target> [text...]`

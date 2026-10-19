@@ -58,10 +58,12 @@ REST_SECONDS = 1.0 / 3
 
 ## The parts of the screen, in the order they are loaded: each is executed here, in the namespace of this file, so the
 ## screen stays one module whatever its files are -- a declaration names a function by its name (globals()[name]), and a
-## test replaces a function of the screen by assigning it to the module. The declarations come first, then the engine and
-## the kinds of view, then the root sections of the list, then what every one of them uses.
+## test replaces a function of the screen by assigning it to the module. The declarations come first, with the plugin
+## mechanism (Plugins), then the engine and the kinds of view, then the app features, the roots of the list, each of which
+## registers itself as a plugin, then what every one of them uses.
 PARTS = (
     "AgentsManagerScreen.Looks.py",
+    "AgentsManagerScreen.Plugins.py",
     "AgentsManagerScreen.Roots.py",
     "AgentsManagerScreen.Styles.py",
     "AgentsManagerScreen.Windows.py",
@@ -104,6 +106,8 @@ def loadParts():
 
 
 loadParts()
+## every app feature has registered itself: the registries are whole, and the keys of the views are asked not to clash
+pluginsReady()
 
 
 ## The screen until it is left, by its key or by anything that ends it: it leaves nothing of

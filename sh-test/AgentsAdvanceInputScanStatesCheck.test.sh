@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on --magic-advance-input-scan, run rather than read, against a
+## Behavioural check on --intern-op-advance-input-scan, run rather than read, against a
 ## scenario board built here. Holds: one item placed in each active board state comes
 ## back as its own `## <state>/<item-filename>` row, except backlog, which is grooming's
 ## (the owner's "grooming reads backlog+inquiries+notes, advance does not"). Offline by construction.
@@ -71,7 +71,7 @@ for rigState in backlog pending running blocked parked ; do
 done
 
 rigOut="$( cd "$rigTmp/ws" && env -u MDAT_SKILLSET_ROOT HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigTmp/data" \
-	bash "$rigTool" --magic-advance-input-scan magic-coordinator 2>/dev/null )" || rigRefuse "--magic-advance-input-scan magic-coordinator failed"
+	bash "$rigTool" --intern-op-advance-input-scan magic-coordinator 2>/dev/null )" || rigRefuse "--intern-op-advance-input-scan magic-coordinator failed"
 
 ## The subject has to be reachable before anything is asserted about it.
 printf '%s\n' "$rigOut" | grep -q '^## running/task-rig-running\.md$' || rigRefuse "the running item, which every revision scans, came back missing, so no state below would be measured"
@@ -125,9 +125,9 @@ rigRunBody(){ ## DistroAgentsTools.fn.sh arguments...
 		${rigExtraEnv[@]+"${rigExtraEnv[@]}"} bash "$rigTool" "$@" )
 }
 rigFd4=""
-rigScan(){ ## result file -- one --magic-advance-input-scan pass
-	rigRun "$1" --magic-advance-input-scan magic-coordinator
-	[ "$( cat "$1.rc" )" = 0 ] || rigRefuse "--magic-advance-input-scan failed in the rig: $( tail -2 "$1.err" )"
+rigScan(){ ## result file -- one --intern-op-advance-input-scan pass
+	rigRun "$1" --intern-op-advance-input-scan magic-coordinator
+	[ "$( cat "$1.rc" )" = 0 ] || rigRefuse "--intern-op-advance-input-scan failed in the rig: $( tail -2 "$1.err" )"
 }
 rigPass(){ ## result file -- one advance pass: the routine takes its lock, free, and its housekeeping runs there (<result>.lock), then its scan reads (<result>)
 	rm -f "$rigD/inboxes/magic-coordinator/incoming/note-20260809T154715Z-advance-state-and-lock.md"
@@ -462,7 +462,7 @@ rigPostSetup(){ ## rig name, thread record yes|no -- one rig with a dead local d
 	[ "$2" != yes ] || { mkdir -p "$rigW/.local/agents/sessions/rig-advance" && printf 'CRIG00001:1.000001\n' > "$rigW/.local/agents/sessions/rig-advance/event-track.thread" ; }
 	## A thread file in the sandbox, as spawns shared it before, is read by nothing: never 9.000009.
 	printf 'CRIG00001:9.000009\n' > "$rigTmp/$1/sandbox/event-track.thread"
-	rigExtraEnv=( PATH="$rigTmp/bin:$PATH" TMPDIR="$rigW/.local/temp" RIG_SCENARIO="$rigTmp/$1/scenario" RIG_WS="$rigW" RIG_MODE=ok RIG_SENTINEL="rig-token-$$" RIG_SENTINEL_B64=none MDAT_SPAWN_SANDBOX_ROOT="$rigTmp/$1/sandbox" MDAT_SPAWN_SESSION_ID=rig-advance )
+	rigExtraEnv=( PATH="$rigTmp/bin:$PATH" RIG_SCENARIO="$rigTmp/$1/scenario" RIG_WS="$rigW" RIG_MODE=ok RIG_SENTINEL="rig-token-$$" RIG_SENTINEL_B64=none MDAT_SPAWN_SANDBOX_ROOT="$rigTmp/$1/sandbox" MDAT_SPAWN_SESSION_ID=rig-advance )
 	rigSandbox rig-d1 "$rigHost" spawn-started ; rigDispatch rig-d1 dispatch-started ; rigAgeMin "$rigW/.local/agents/spawned/rig-d1" 120
 	rigSandbox rig-r1 "$rigHost" spawn-succeeded "exit-code: 0" ; rigItem review task-rig-r1.md task none rig-r1 none
 }
@@ -845,7 +845,7 @@ rigMcpOpen m3
 rigCall=40
 for rigMerge in true false ; do
 	rigCall=$(( rigCall + 1 ))
-	rigMcpCall "$rigCall" execute "{\"command\":\"DistroAgentsTools --magic-advance-input-scan magic-coordinator --bad 2> /dev/null ; echo rc=\$?\",\"merge_stderr\":$rigMerge}"
+	rigMcpCall "$rigCall" execute "{\"command\":\"DistroAgentsTools --intern-op-advance-input-scan magic-coordinator --bad 2> /dev/null ; echo rc=\$?\",\"merge_stderr\":$rigMerge}"
 	rigCheck "a failing op, merge_stderr $rigMerge: it exits 1"           "$( rigMcpText "$rigCall" | LC_ALL=C grep -c 'rc=1$' || : )" 1
 	rigCall=$(( rigCall + 1 ))
 	rigMcpCall "$rigCall" execute "{\"command\":\"MDAT_DATA_ROOT=$rigD DistroAgentsTools --intern-team-data-final-gc-deletion magic-coordinator 2> /dev/null ; echo rc=\$?\",\"merge_stderr\":$rigMerge}"

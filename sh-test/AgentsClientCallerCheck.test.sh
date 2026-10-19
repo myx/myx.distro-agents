@@ -185,7 +185,7 @@ rigRest=(
 	'--client-comms-trello-post-comment client-ndm 5f0000000000000000000c01 Rig-comment.'
 	'--client-comms-jira-issue-delete client-ndm RIG-1'
 	'--client-comms-confluence-page-delete client-ndm 12345'
-	'--client-sweep-input-scan client-ndm'
+	'--intern-op-client-sweep-input-scan client-ndm'
 )
 rigAllowed(){ ## who is calling, in words -- every family's operation from the session rigPre says: it runs, and reaches the other organisation with the client's own settings
 	local allowedOp allowedCmd
@@ -306,7 +306,7 @@ rigAssert "the client's own session is refused too: its own way is the --client-
 
 echo "-- 8. what the operation refuses itself, each in one plain line --"
 rigPre=( MDAT_SPAWN_AGENT=magic-coordinator )
-for rigOp in '--member-comms-slack-read client-ndm magic-team' '--magic-sweep-input-scan client-ndm' '--intern-op-slack-call client-ndm --api auth.test' '--agents-config-option client-ndm --select TRELLO_KEY' 'client-comms-trello-whoami client-ndm' '--client- client-ndm' ; do
+for rigOp in '--member-comms-slack-read client-ndm magic-team' '--intern-op-sweep-input-scan client-ndm' '--intern-op-slack-call client-ndm --api auth.test' '--agents-config-option client-ndm --select TRELLO_KEY' 'client-comms-trello-whoami client-ndm' '--client- client-ndm' ; do
 	rigName="${rigOp%% *}"
 	rigRun --magic-client-operation-run magic-coordinator $rigOp
 	rigAssert "an operation that is no --client-* one is refused, and nothing is run: $rigName" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigErrors ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --magic-client-operation-run: runs a --client-* operation, and $rigName is not one -- nothing was done" ) $( rigLines "$rigTmp/out" )" "1 0 1 1 0"

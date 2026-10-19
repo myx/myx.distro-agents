@@ -196,7 +196,6 @@ Tools and channels:
 - Every comms action goes through its tooling operation, never a session's own personal connector for that platform.
 - **The skillset reader is the one way any skillset file is read** — never `Read`, `cat` or a path. Names are deterministic, `<name>/<name>.<type>.md`; anything else comes from the reader's `list`. Never discover by listing the filesystem.
 - The board and inbox store has no path a member can know. Every operation takes a member and a bare filename.
-- On becoming armed, a member runs `--member-work-session-input-scan <own-name>` before anything else.
 - **Every state-changing action is announced in the session thread**: one short post per action, one summary at the close. No reply is waited for. Sends default to the session thread; a session with none posts a new `magic-team` thread and carries on.
 - A permission claim names the mechanism it is scoped to. Nothing denies a prescribed tooling call; a claimed block is checked before it is relayed.
 - A member addressing the session that spawned it uses `session-parent`, never that session's raw channel id. One addressing the session it works in now uses `session-current` the same way.
@@ -437,7 +436,6 @@ The team's shared tooling floor. Behaviour is read with `--member-help <own-name
 
 - `--member-help <team-member>`
 - `--help`
-- `--member-work-session-input-scan <team-member>`
 - `--member-comms-slack-send-message <team-member> <target> ...`
 - `--member-comms-slack-read`
 - `--member-comms-slack-react`

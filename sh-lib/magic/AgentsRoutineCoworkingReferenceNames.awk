@@ -12,7 +12,7 @@
 ## normal (dedupe with `sort -u`, not this script's job); the caller unions
 ## this against the originally-given item-name set, normalising a bare name to
 ## the `<name>.md` form --item compares against, to build
-## --routine-coworking-session-input-scan's phase-2 --item list. See
+## --intern-op-routine-coworking-session-input-scan's phase-2 --item list. See
 ## AgentsTools.RoutineCoworking.include's own header.
 ##
 /^blocks: |^blocked-by: / {

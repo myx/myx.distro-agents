@@ -1,7 +1,11 @@
 ---
+type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-devops, human-owner
 invitees: human-owner
+requires-session-kind: standalone
+input-scan-def: none
+review-by: inherit
 ---
 # magic-coordinator.bootstrap.routine — the actual procedure
 
@@ -10,6 +14,7 @@ invitees: human-owner
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -39,6 +44,10 @@ invitees: human-owner
 - Doesn't: change other skill files, or rework team policy.
 - Open: whether app-attribution markers are acceptable when the message reads as Magic Vane — the human-owner's policy call, asked at **checkpoint-ask-user**. Tooling that hard-fails on the marker alone is a recorded mismatch to fix.
 - Open: checking channel membership and joining public team channels, once an operation covers it.
+
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
 
 # Steps
 

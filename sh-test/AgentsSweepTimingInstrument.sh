@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## A timing instrument, not a rig: it asserts nothing and is never part of a test sweep.
-## It times one --magic-sweep-input-scan against a fixture workspace -- the team member,
+## It times one --intern-op-sweep-input-scan against a fixture workspace -- the team member,
 ## client-* members each with three configured conversations, and a roster of direct
 ## conversations -- behind a fake `curl` that answers Slack after a fixed latency.
 ##
@@ -49,7 +49,7 @@ instRc=0
 ( cd "$instTmp/ws" && env -u MDAT_SKILLSET_ROOT PATH="$instTmp/bin:$PATH" HOME="$instTmp/home" MMDAPP="$instTmp/ws" \
 	MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$instTmp/data" \
 	FIX_DIR="$instTmp" FIX_LATENCY="$instLatency" FIX_DMS="$instDms" \
-	bash "$instTool" --magic-sweep-input-scan magic-coordinator ) > "$instTmp/out" 2> "$instTmp/err" || instRc=$?
+	bash "$instTool" --intern-op-sweep-input-scan magic-coordinator ) > "$instTmp/out" 2> "$instTmp/err" || instRc=$?
 instEnd="$( date +%s )"
 instLeft="$( ls -1 "$instTmp/ws/.local/temp" 2>/dev/null | grep -c '^mdat-' )"
 printf 'SWEEP_TIMING: rc=%s seconds=%s calls=%s mdat-left=%s (latency %ss, %s DMs, %s clients)\n' \

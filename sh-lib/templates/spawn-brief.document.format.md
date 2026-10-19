@@ -17,7 +17,7 @@ Not a member/routine contract — this is the fixed text the tooling fills and e
 
 # Summary
 
-The part of every spawn brief that tooling produces the same way each time: the target member, the tool routing, the read-and-obey line naming the member's duty file and the session's routine, the routine's executors and invitees, and the open warnings.
+The part of every spawn brief that tooling produces the same way each time: the target member, the tool routing, the read-and-obey line naming the member's duty file and the session's routine, the routine's session kind and the routine that defines it, the routine's executors and invitees, and the open warnings.
 
 ## Goals
 
@@ -39,7 +39,10 @@ tool-routing: use the tools and MCP this session was given, in the ways your ins
 [own] skillset-reader: Skill {name: <member>, file: <file>}, for example {name: magic-team, file: magic-team.armed.md}
 scratchpad: your own files go in the output/ folder this dispatch's own "## Your sandbox" section names
 read-and-obey: read {{member}}.armed.md and {{routine}}, through the skillset reader, carefully and in full, before acting, and obey them.
+session-kind: {{kind}}, defined by {{kind-routine}}. Read it too, the same way: its Opening steps run before the Opening steps of {{routine}}, its Closure steps after the Closure steps of {{routine}}, and its rules and tooling apply as well. DistroAgentsSession.fn.sh --get-routine-text {{routine}} prints the routine mixed in that order.
 Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}
+[scan] input-scan: input/input-scan.md of your sandbox holds the result of this routine's input scan ({{scan}}), which the spawner ran for you at start. Read it first, by line range, before anything else; do not run the scan again.
+[lock] routine-lock: {{lock}} -- the spawner holds this routine's lock for the session and gives it back when the session ends. Update that document only with --update-routine-state (DistroAgentsSession.fn.sh), as often as you have updates; never lock or unlock it.
 executors: {{executors}}
 invitees: {{invitees}}
 ## open warning-* items
@@ -51,8 +54,11 @@ When done, hand back; then Wait until dismissed.
 
 - rule: `{{member}}` is the target member's bare name.
 - rule: `{{routine}}` is the resolved routine's own filename.
+- rule: `{{kind}}` is the session kind the resolved routine names in `requires-session-kind:`, and `{{kind-routine}}` is the filename of the bundled routine that defines that kind (the routine itself, for a kind routine).
 - rule: `{{executors}}` is the resolved routine's own `executors` frontmatter value.
 - rule: `{{invitees}}` is the resolved routine's own `invitees` frontmatter value, or `none` where that field is absent or empty.
 - rule: `{{open-warnings}}` is one `- <warning-item-filename> [<state>]` line per open `warning-*` board item, across `backlog`, `pending`, `running`, `blocked` and `parked`, or `(none open)` where there is none.
+- rule: `{{scan}}` is the scans the resolved routine's `input-scan-def:` lines name (its own lines, else its kind routine's), joined by `, `; a line tagged `[scan]` is emitted, without its tag, only for a routine that declares one.
+- rule: `{{lock}}` is the resolved routine's `routine-lock-document:` value (its own, else its kind routine's); a line tagged `[lock]` is emitted, without its tag, only for a routine that names one.
 - rule: a line tagged `[own]` or `[native]` is emitted, without its tag, only into a brief for that harness: `native` for a `*-native` client, `own` for the universal harness.
 - rule: every line outside the slots is emitted exactly as written here.

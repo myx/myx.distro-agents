@@ -1,7 +1,11 @@
 ---
+type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
-session: coworking
+requires-session-kind: coworking
+routine-lock-document: inbox:magic-coordinator:note-20260811T120000Z-retro-state-and-lock.md
+input-scan-def: none
+review-by: inherit
 ---
 # magic-coordinator.retro.routine — the actual procedure
 
@@ -10,6 +14,7 @@ session: coworking
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -38,27 +43,29 @@ session: coworking
 - Doesn't: report what is outstanding (`magic-coordinator.daily.routine`), triage the backlog (`magic-team.grooming.routine`), or implement anything.
 - Open: autonomous invocation from the heartbeat's day rhythm. Then **discuss-with-the-user** would not block: findings recorded as provisional and flagged for confirmation when a human is next present.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **acquire-lock**: Acquire the lock (`--magic-retro-lock-acquire`) before anything else. Contention means another retro is live: this pass does not start.
-2. **session-start**: Run `magic-team.coworking.routine`'s **session-start** group: this is a coworking-like session. Write this pass's tracking note (`--magic-retro-state-and-lock-upsert`) and keep it current; refresh the lock during the long pass (`--magic-retro-lock-refresh`).
-3. **invite-participants**: Spawn every participant into this session (`spawn-one-dispatch`) before **gather-recent-history**. Each stays to the close, listening to the others.
-4. **gather-recent-history**: Read recent `board-processed` items, `reflection-*` items included, and the last several dailies' results and repeated blockers. Raw material, not something to re-narrate.
-5. **self-analyse-per-member**: For each participant with enough recent history, steps:
+1. **keep-tracking-note-current**: Write this pass's tracking note (`--update-routine-state`) and keep it current, referencing items by name rather than copying them; refresh the lock during the long pass (`--magic-retro-lock-refresh`).
+2. **invite-participants**: Spawn every participant into this session (`spawn-one-dispatch`) before **gather-recent-history**. Each stays to the close, listening to the others.
+3. **gather-recent-history**: Read recent `board-processed` items, `reflection-*` items included, and the last several dailies' results and repeated blockers. Raw material, not something to re-narrate.
+4. **self-analyse-per-member**: For each participant with enough recent history, steps:
    - Have it analyse itself against its own `.basic.md`/`.armed.md` (do they still match what it is asked to do), its past incidents and reflections, the team rules that apply to it, and its stated goals.
    - Have it speak first-person: what felt slow, what was satisfying, what keeps recurring.
    - Have it formulate one improvement proposal of its own, carried into **assess-methodology-failures**.
    A member with nothing meaningful to reflect on is skipped, not sent away.
-6. **surface-cross-member-patterns**: Name what showed up in more than one member's self-talk.
-7. **assess-methodology-failures**: Where did a routine, convention or way of working fall short this period, and why. Turn findings into concrete proposals, alongside the members' own. An empty result is fine.
-8. **discuss-with-the-user**: Pause for the human-owner to react, add his reading or push back. This routine's maintainers other than him decide which proposals to adopt; that agreement goes to him as one propose-approve step, per "The ladder: one rung at a time". Refresh the lock on entering this step and at each pause.
+5. **surface-cross-member-patterns**: Name what showed up in more than one member's self-talk.
+6. **assess-methodology-failures**: Where did a routine, convention or way of working fall short this period, and why. Turn findings into concrete proposals, alongside the members' own. An empty result is fine.
+7. **discuss-with-the-user**: Pause for the human-owner to react, add his reading or push back. This routine's maintainers other than him decide which proposals to adopt; that agreement goes to him as one propose-approve step, per "The ladder: one rung at a time". Refresh the lock on entering this step and at each pause.
 
 # Closure steps
 
-1. **close-session**: Run `magic-team.coworking.routine`'s **close-session** group. File exactly one concrete, actionable improvement for the next daily as a `note-*` in `magic-coordinator`'s own inbox (`--member-inbox-note-upsert`). Then dismiss every participant (`spawn-one-dispatch`'s **spawn-dismiss**).
-2. **close-state-and-unlock**: Release the lock with `--magic-retro-close-state-and-unlock`, passing the closing status in the same call. Reference items by name.
+1. **file-next-daily-improvement**: File exactly one concrete, actionable improvement for the next daily as a `note-*` in `magic-coordinator`'s own inbox (`--member-inbox-note-upsert`).
 
 # Routine's local procedures
 
@@ -87,10 +94,8 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--magic-retro-lock-acquire <team-member> <owner-label>`
 - `--magic-retro-lock-refresh <team-member>`
-- `--magic-retro-close-state-and-unlock <team-member>`
-- `--magic-retro-state-and-lock-upsert <team-member> [--header:...]...`
+- `--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-inbox-note-upsert <team-member> <item-filename>`
 - `--member-comms-slack-send-message <team-member> <target> [text...]`
 

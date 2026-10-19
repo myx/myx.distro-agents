@@ -1,6 +1,10 @@
 ---
+type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+requires-session-kind: standalone
+input-scan-def: sweep
+review-by: inherit
 ---
 # magic-coordinator.communication-sweep.routine — the actual procedure
 
@@ -9,6 +13,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -49,12 +54,16 @@ Open, pending:
 
 The live-platform set changes only on a human-reported status change, or a check error pointing at availability. Unavailable credentials are escalated at once.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **process-own-inbox**: Run standalone (not inside an advance pass or a daily): run `magic-team.process-inbox.routine magic-coordinator` first. Inside those, the caller already did.
-2. **check**: Run `--magic-sweep-input-scan <team-member>`. Each member's part resumes from that member's own `last_swept_ts`, by the tooling. Read the result this way:
+1. **process-own-inbox**: Run standalone (not inside an advance pass or a daily): run `magic-team.process-inbox.routine magic-coordinator` first, inline (`--routine-run-inline magic-team.process-inbox.routine`). Inside those, the caller already did.
+2. **check**: Read this run's input scan result (`input/input-scan.md`). Each member's part resumes from that member's own `last_swept_ts`, by the tooling. Read the result this way:
    - New messages are found by every participant's own message timestamps, diffed against what was handled — never by "after my own last post". Read the top level, then each open thread in full (`--member-comms-slack-read <team-member> <channel>:<ts> --thread`, `--magic-client-operation-run <team-member> --client-comms-slack-read <channel>:<ts> --thread` on a `client-*` member's source). Open threads are the open board items whose `communication-channel-id` is `slack:<channel>:<ts>`.
    - A thread this member started, was answered in or was tagged in is followed whatever its age.
    - The executor's own new messages form one set, ascending by timestamp. Each member's part is attributed by the member it names, and read in the order it declares. Messages are never ordered across sources.
@@ -121,7 +130,6 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]`
 - `--magic-sweep-state-read <team-member>`
 - `--magic-sweep-state-advance <team-member> <ts>`
 - `--magic-sweep-state-upsert <team-member>`
@@ -135,6 +143,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 - `--member-inbox-note-upsert <team-member> <item-filename>`
 - `--magic-team-roster-upsert <team-member>`
 - `--magic-comms-trello-post-comment <team-member> <card-id> [text...]`
+- `--routine-run-inline <routine>`
 
 # Maintainer Notes
 

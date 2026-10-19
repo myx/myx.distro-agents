@@ -1,0 +1,298 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RoutineRequirements.include -- what a routine requires of its start, and the ONE
+## evaluator that decides it. Sourced, never run. Functions only. A requirement is one fact the
+## tooling decides alone, with no agent judgement: a routine declares it in a flat frontmatter key
+## (`requires-session-kind:`, `tracking-item:`, `start-context:`; a key left out means any, the
+## kind excepted, which is mandatory), and the evaluator answers it at the site that asks: `save`
+## (the validator), `spawn` (the spawn proxy) and `start`. Three checkers with three vocabularies
+## would drift apart; this is the one.
+##
+## Each requirement returns one of four dispositions, tried in this order, the four verbs:
+##   validate  the context supplies it, and the routine proceeds
+##   automate  the tooling supplies it, with no judgement, and records what it did
+##   help      the tooling asks the one party who can supply it
+##   reject    nothing above applies, and the refusal names what was missing and the route
+## Nothing falls through to ok. The disposition belongs to the requirement and the site together.
+##
+
+type AgentsToolsSpawnRoutineKindRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include"
+
+## One frontmatter key of a routine file, its own value (empty where unset), its edges trimmed.
+AgentsToolsRoutineKeyOwn(){ ## routine file path, key
+	local keyLine
+	keyLine="$( LC_ALL=C awk -v headers="$2" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$1" )"
+	keyLine="${keyLine#"$2": }"
+	keyLine="${keyLine#"${keyLine%%[![:space:]]*}"}"
+	printf '%s\n' "${keyLine%"${keyLine##*[![:space:]]}"}"
+}
+
+## One frontmatter key of a routine as its run reads it: the routine's own value, else the value the routine of its
+## kind sets (its default settings are inherited).
+AgentsToolsRoutineKey(){ ## routine file path, key
+	local keyValue keyKindPath
+	keyValue="$( AgentsToolsRoutineKeyOwn "$1" "$2" )"
+	if [ -z "$keyValue" ] ; then
+		keyKindPath="$( AgentsToolsSpawnRoutineKindPath "$1" )"
+		[ -z "$keyKindPath" ] || keyValue="$( AgentsToolsRoutineKeyOwn "$keyKindPath" "$2" )"
+	fi
+	printf '%s\n' "$keyValue"
+}
+
+## Every value of a repeatable frontmatter key of a routine file (`input-scan-def:`, one line for each scan), its own, in
+## order, one a line, its edges trimmed; nothing where the key is not there.
+AgentsToolsRoutineKeyLinesOwn(){ ## routine file path, key
+	LC_ALL=C awk -v want="$2: " '
+		NR == 1 { if ( $0 != "---" ) exit ; next ; }
+		$0 == "---" { exit ; }
+		index( $0, want ) == 1 { value = substr( $0, length( want ) + 1 ) ; sub( /^[ \t]+/, "", value ) ; sub( /[ \t]+$/, "", value ) ; if ( value != "" ) print value ; }
+	' "$1" 2> /dev/null
+}
+
+## Every value of a repeatable key as the run reads it: the routine's own lines, else the lines of the routine of its kind.
+AgentsToolsRoutineKeyLines(){ ## routine file path, key
+	local linesValue linesKindPath
+	linesValue="$( AgentsToolsRoutineKeyLinesOwn "$1" "$2" )"
+	if [ -z "$linesValue" ] ; then
+		linesKindPath="$( AgentsToolsSpawnRoutineKindPath "$1" )"
+		[ -z "$linesKindPath" ] || linesValue="$( AgentsToolsRoutineKeyLinesOwn "$linesKindPath" "$2" )"
+	fi
+	[ -z "$linesValue" ] || printf '%s\n' "$linesValue"
+}
+
+## The body of one root section of a routine file, by its heading text without the `# `.
+AgentsToolsRoutineSectionText(){ ## routine file path, heading text
+	LC_ALL=C awk -v SECTION="$2" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsRoutineHeadings.awk" "$1"
+}
+
+## The tooling list `operations:` is read against, one operation word a line: the operations of the help, and every
+## word the dispatcher routes (a pattern's trailing `*` taken off), so a tooling-internal operation exists too.
+AgentsToolsRoutineOperationWords(){
+	LC_ALL=C sed -n 's/^📘 syntax: [^ ]* \(--[a-z0-9-]*\).*/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md"
+	LC_ALL=C awk '
+		/^\t\t--[a-z0-9]/ && /\)[ \t]*$/ {
+			arm = $0 ; sub( /^[ \t]+/, "", arm ) ; sub( /\)[ \t]*$/, "", arm ) ;
+			n = split( arm, alts, "|" ) ;
+			for ( i = 1 ; i <= n ; i++ ) { word = alts[i] ; sub( /\*$/, "", word ) ; if ( word ~ /^--/ ) { print word ; } }
+		}
+	' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+}
+
+## OVERRIDING A REFUSAL: a refusal of one requirement at a start is overridden by a PERMISSION, never by a flag the acting
+## member passes to itself. It is the grant of the tool `override` for the target `<requirement>:<routine file>`, asked through
+## the chain that grants everything else (RequestPermission), one requirement at a time, and held by the member that makes the
+## start from what it was given: a member gives it only from what it holds, by an explicit pass, never wider or longer than
+## its own, so the check is of the member making the call and the session it works in. `operations` is not overridable at all:
+## the override cannot reach the system whose refusal that row predicts. Prints how it is held and rc 0, or rc 1.
+AgentsToolsRoutineOverride(){ ## the member making the start (may be empty), its session, the requirement, the routine file name
+	[ "$3" != "operations" ] && [ -n "$1" ] || return 1
+	type AgentsToolsPermissionHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	AgentsToolsPermissionHolds "$1" override "$3:$4" "$2"
+}
+
+## What a refusal says of its override, once the start cannot be overridden: the ask that does it.
+AgentsToolsRoutineOverrideAsk(){ ## the requirement, the routine file name
+	[ "$1" != "operations" ] || return 0
+	printf '%s' "; the refusal can be overridden by a permission only: ask for tool override, target $1:$2 (RequestPermission), one requirement at a time"
+}
+
+## THE HELP VERB's ask of the one party who can supply what a start lacks: an inquiry in magic-coordinator's inbox, by the
+## existing hand-off (--member-upsert-member-inquiry), naming the routine and the requirement. Never fails its caller.
+AgentsToolsRoutineStartAsk(){ ## the member the run is, the routine file, the requirement, what is missing (words), the session id, the run id
+	local askFile askName askRc=0
+	mkdir -p "$MMDAPP/.local/temp" || return 0
+	askFile="$( mktemp "$MMDAPP/.local/temp/mdat-start-ask.XXXXXX" )" || return 0
+	askName="inquiry-$( date -u +%Y%m%dT%H%MZ )-start-$3-${2%.routine.md}.md"
+	printf '# Inquiry: %s needs a %s for its start\n\nThe start of `%s` as %s (session %s, run %s) lacks something only you can supply, and went on with a warning:\n\n%s\n\nPlease supply it for that session.\n' "$2" "$3" "$2" "$1" "$5" "$6" "$4" > "$askFile"
+	DistroAgentsTools --member-upsert-member-inquiry magic-coordinator "$askName" --from-file "$askFile" > /dev/null 2>&1 || askRc=$?
+	rm -f "$askFile"
+	[ "$askRc" -eq 0 ] || echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the inquiry to magic-coordinator for $2 could not be filed" >&2 || :
+	return 0
+}
+
+## The closure lines a start-context mode keeps in the Closure steps, one text each.
+AgentsToolsRoutineClosureLines(){ ## mode (inline, spawned or any)
+	case "$1" in
+		inline) printf '%s\n' 'Run inline:' ;;
+		spawned) printf '%s\n' 'Run as its own session:' ;;
+		any) printf '%s\n%s\n' 'Run inline:' 'Run as its own session:' ;;
+	esac
+}
+
+## One requirement of a routine at one site. Prints `<verb><TAB><why>`; rc 1 for reject, else 0.
+## `requires-session-kind`, `tracking-item` and `start-context` are the requirements. The fact
+## a site knows is its fourth word: at `spawn`, `item=attached|none` for tracking-item, and
+## `context=spawned|inline|joined` for start-context (a joined start counts as spawned).
+AgentsToolsRoutineRequirement(){ ## requirement, site (save|spawn|start), routine file path, [fact]
+	local reqName="$1" reqSite="$2" reqFile="$3" reqFact="${4:-}" reqValue reqLine reqMissing=""
+	reqValue="$( AgentsToolsRoutineKeyOwn "$reqFile" "$reqName" )"
+	case "$reqName" in
+
+		requires-session-kind)
+			if AgentsToolsSpawnRoutineKindRoutine "$reqValue" > /dev/null ; then
+				printf 'validate\t%s\n' "the kind is $reqValue"
+				return 0
+			fi
+			printf 'reject\t%s\n' "requires-session-kind: ${reqValue:-<absent>} is not a session kind of the tooling (coworking or standalone); the key is mandatory and nothing is guessed from silence"
+			return 1
+		;;
+
+		tracking-item)
+			case "$reqValue" in
+				''|optional)
+					printf 'validate\t%s\n' "${reqValue:-any}: the routine takes a tracking item or none"
+					return 0
+				;;
+				required)
+					if [ "$reqSite" = "spawn" ] && case " $reqFact " in *" item=none "*) true ;; *) false ;; esac ; then
+						## A run the spawner starts as a session gets its item from the spawner. A run that starts inside a session
+						## that is already running (joined, inline) is no session of the spawner's to give an item to: only the
+						## session's coordinator can be asked for it.
+						case " $reqFact " in
+							*" context=joined "*|*" context=inline "*)
+								printf 'help\t%s\n' "tracking-item: required, and this start inside a running session attaches none: the session's coordinator is asked to create the item for $( basename "$reqFile" )"
+								return 0
+							;;
+						esac
+						printf 'automate\t%s\n' "tracking-item: required, and this start attaches none: the spawner creates the item and records its name on the dispatch"
+						return 0
+					fi
+					printf 'validate\t%s\n' "tracking-item: required"
+					return 0
+				;;
+				forbidden)
+					if [ "$reqSite" = "spawn" ] && case " $reqFact " in *" item=attached "*) true ;; *) false ;; esac ; then
+						printf 'reject\t%s\n' "tracking-item: forbidden, and this start attaches an item (--dispatch-doc:create|reuse): start it with --dispatch-doc:none, as detaching an item would lose the tracking it carries"
+						return 1
+					fi
+					printf 'validate\t%s\n' "tracking-item: forbidden, and no item is attached"
+					return 0
+				;;
+			esac
+			printf 'reject\t%s\n' "tracking-item: $reqValue is not one of required, optional or forbidden"
+			return 1
+		;;
+
+		operations)
+			## One line a finding, `<verb><TAB><why>`; rc 1 where one is a reject. REPORTED, NEVER ENFORCED: this row predicts
+			## another system's refusal, so no site stops a start on it, and it is not overridable.
+			[ -n "$reqValue" ] || { printf 'validate\t%s\n' "operations is left out, which means any" ; return 0 ; }
+			local opsPrefix opsOps opsExecutors opsExecutor opsHolds opsWho opsTooling opsRc=0 opsAnnotated opsFound=""
+			opsOps="$( printf '%s\n' "$reqValue" | LC_ALL=C tr ',' ' ' )"
+			opsExecutors="$( AgentsToolsRoutineKey "$reqFile" executors | LC_ALL=C tr ',' ' ' )"
+			opsTooling="$( AgentsToolsRoutineSectionText "$reqFile" "Routine-specific tooling" )"
+			for opsPrefix in $opsOps ; do
+				case "$opsPrefix" in
+					--?*) ;;
+					*) printf 'reject\t%s\n' "operations: $opsPrefix is no operation prefix; an operation word starts with --" ; opsRc=1 ; continue ;;
+				esac
+				## A prefix no member session may hold: the console's own family. A wall, and said so.
+				case "${opsPrefix%\*}" in
+					--manager|--manager-*)
+						printf 'reject\t%s\n' "operations: $opsPrefix is the console's own family: no member session may hold a --manager-* operation, the coordinator's among them, and no grant changes it; it is run from the console, a person at it or its app (there is no member to ask for it)"
+						opsRc=1 ; continue
+					;;
+				esac
+				## Each prefix exists: an operation of the tooling answers to it.
+				if [ -z "$( AgentsToolsRoutineOperationWords | LC_ALL=C awk -v want="${opsPrefix%\*}" 'index( $0, want ) == 1 { print ; exit ; }' )" ] ; then
+					printf 'reject\t%s\n' "operations: no operation of the tooling answers to the prefix $opsPrefix"
+					opsRc=1 ; continue
+				fi
+				## The declared executors can hold it. An unannotated mismatch is the only fault: an annotation in the
+				## routine's own tooling list that narrows who runs a call of that prefix is the routine saying so itself.
+				opsAnnotated="$( printf '%s\n' "$opsTooling" | LC_ALL=C awk -v want="${opsPrefix%\*}" 'index( $0, "- `" want ) == 1 && $0 ~ / only$/ { print "yes" ; exit ; }' )"
+				[ -z "$opsAnnotated" ] || continue
+				for opsExecutor in $opsExecutors ; do
+					opsHolds="yes"
+					case "${opsPrefix%\*}" in
+						--magic-*) [ "$opsExecutor" = "magic-coordinator" ] || opsHolds="no" ;;
+						--client-*) case "$opsExecutor" in client-*) ;; *) opsHolds="no" ;; esac ;;
+					esac
+					[ "$opsHolds" = "yes" ] || {
+						case "${opsPrefix%\*}" in
+							--magic-*) opsWho="the coordinator's only" ;;
+							*) opsWho="a client member's own" ;;
+						esac
+						printf 'help\t%s\n' "operations: executor $opsExecutor cannot hold $opsPrefix for ${reqFile##*/}: that family is $opsWho; ask for it through the permission ask (RequestPermission naming the operation $opsPrefix, the member $opsExecutor and the routine), or annotate the operation in the routine's tooling list"
+						opsFound="yes"
+					}
+				done
+			done
+			[ -n "$opsFound" ] || [ "$opsRc" -ne 0 ] || printf 'validate\t%s\n' "operations: each prefix exists and the declared executors can hold it"
+			return "$opsRc"
+		;;
+
+		review-by)
+			## `inherit` (the default, written explicitly): the review follows the run's `reports-to`. `none` disables the
+			## review: the dispatch item of the run closes straight to processed. Any other value names the reviewer.
+			case "$reqValue" in
+				''|inherit)
+					printf 'validate\t%s\n' "review-by: ${reqValue:-inherit}, the review follows where the run reports to"
+					return 0
+				;;
+			esac
+			type AgentsToolsRunRouteValid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+			if AgentsToolsRunRouteValid "$reqValue" ; then
+				printf 'validate\t%s\n' "review-by: $reqValue"
+				return 0
+			fi
+			printf 'reject\t%s\n' "review-by: $reqValue is none, inherit, or a reviewer: <session>[:<member>], <member>, <name>.routine, user-<account> or human-owner"
+			return 1
+		;;
+
+		start-context)
+			case "$reqValue" in
+				''|any|inline|spawned) ;;
+				*)
+					printf 'reject\t%s\n' "start-context: $reqValue is not one of inline, spawned or any"
+					return 1
+				;;
+			esac
+			case "$reqSite" in
+				save)
+					## Left out, the key means any and declares no mode, so it asks for no closure line.
+					if [ -z "$reqValue" ] ; then
+						printf 'validate\t%s\n' "start-context is left out, which means any"
+						return 0
+					fi
+					local closureText closureLine
+					closureText="$( AgentsToolsRoutineSectionText "$reqFile" "Closure steps" )"
+					while IFS= read -r closureLine ; do
+						[ -n "$closureLine" ] || continue
+						case "$closureText" in *"$closureLine"*) ;; *) reqMissing="$reqMissing${reqMissing:+ }$closureLine" ;; esac
+					done <<< "$( AgentsToolsRoutineClosureLines "$reqValue" )"
+					if [ -n "$reqMissing" ] ; then
+						printf 'reject\t%s\n' "start-context: $reqValue keeps its closure line in the Closure steps, and \`$reqMissing\` is not there"
+						return 1
+					fi
+					printf 'validate\t%s\n' "start-context: $reqValue, with its closure lines"
+					return 0
+				;;
+				spawn|start)
+					reqLine="${reqFact#context=}"
+					[ "$reqLine" != "joined" ] || reqLine="spawned"
+					case "$reqValue:$reqLine" in
+						inline:spawned)
+							printf 'reject\t%s\n' "start-context: inline -- the routine runs only inside another run, and this start is a run of its own: start it inline (--start-context inline), from the run it is to run in"
+							return 1
+						;;
+						spawned:inline)
+							printf 'reject\t%s\n' "start-context: spawned -- the routine runs only as a run of its own, and this start is inline: start it as its own run (a spawned or joined start)"
+							return 1
+						;;
+					esac
+					printf 'validate\t%s\n' "start-context: ${reqValue:-any}, and this start is $reqLine"
+					return 0
+				;;
+			esac
+			printf 'validate\t%s\n' "start-context: ${reqValue:-any}"
+			return 0
+		;;
+
+	esac
+	printf 'reject\t%s\n' "$reqName is no requirement of a routine"
+	return 1
+}

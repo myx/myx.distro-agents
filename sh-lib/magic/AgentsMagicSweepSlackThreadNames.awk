@@ -5,7 +5,7 @@
 ## least a `communication-channel-id:` line -- the caller must have requested
 ## that header) on stdin, and prints one bare item-filename per line for every
 ## block whose value identifies a live, reply-pending Slack thread. Backs
-## --magic-sweep-input-scan's own phase-1 (discover survivors) / phase-2
+## --intern-op-sweep-input-scan's own phase-1 (discover survivors) / phase-2
 ## (--item-restricted final display) two-call pattern -- see
 ## AgentsTools.MagicSweep.include's own header.
 ##

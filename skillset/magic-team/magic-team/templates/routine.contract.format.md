@@ -1,7 +1,9 @@
 ---
+type: routine
 executors: <team-member-or-magic-team>
 maintainers: <group, e.g. magic-coordinator, magic-librarian, magic-architect>, human-owner
 invitees: <only if this routine has genuine multi-member sessions>
+requires-session-kind: <standalone|coworking>
 ---
 # <owning-member>.<short-name>.routine — the actual procedure
 
@@ -12,6 +14,7 @@ Normative contract: this file's own `# Contract` section, at its end. Where it a
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -42,6 +45,14 @@ Normative contract: this file's own `# Contract` section, at its end. Where it a
   - [...]
 - Doesn't:
   - [...]
+
+# Opening steps
+
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
+
+[The steps that open this routine's run, before `# Steps`, in the same shape as `# Steps`. The Opening steps of the routine of this routine's session kind run before them.]
+
+1. **[opening-step-one-name]**: [Opening step one.]
 
 # Steps
 
@@ -119,19 +130,30 @@ Used to check this file's own definitions against its own goals when it is updat
 
 # Contract
 
-- Frontmatter: `executors:`, `maintainers:`, `invitees:`, `default-for-session-kind:` (optional), `session:` (optional), `allows:` (optional). No key says that a routine takes arguments. `--manager-routine-list` prints, per routine, its `executors:`, its `session:` and the title line below -- nothing more.
+- Frontmatter: `type:`, `executors:`, `maintainers:`, `invitees:`, `requires-session-kind:` (mandatory), `allows:` (optional), the requirement keys `tracking-item:`, `operations:` and `start-context:` (optional), `routine-lock-document:` (optional), `input-scan-def:` (optional), `review-by:` (optional), `skips-inherited:` (optional) and the autorun keys `runs-at:` and `runs-after:` (optional). No key says that a routine takes arguments. `--manager-routine-list` prints, per routine, its `executors:`, whether its `requires-session-kind:` is `coworking`, and the title line below -- nothing more.
+- `type:`
+  - `routine`: a routine is told from any other document by what it says of itself.
+- `requires-session-kind:` (mandatory)
+  - The session kind the routine runs inside, one entry of the list the tooling owns: `standalone` (one member's session) or `coworking` (members working together in one session). Both are sessions with a session thread. `ad-hoc`, a task with a handback, is a start and never a kind.
+  - Absent is invalid, and nothing is guessed from silence: a routine without it is refused by the validator and by the spawner.
+  - Naming a kind makes the routine inherit from the bundled routine that defines the kind (`magic-team.coworking.routine`, `magic-team.standalone.routine`): one level, never a chain, and no routine names another routine as its parent. The Opening steps of the kind's routine run first, then the routine's own; the routine's `# Steps` are its own and never inherited; the routine's own Closure steps run first, then the kind's. The kind's local rules and its tooling block apply too, and a key the routine leaves out takes the kind routine's value (`executors:` of the coworking routine is `magic-coordinator`, a default and not a rule).
+  - `skips-inherited:` (optional) names, comma-separated, steps of the kind's routine that do not run for this routine. The mix-in never re-adds them; the declaration is read by the tooling, and prose in `# Routine's local rules` does not stand in for it.
+- The requirement keys (all optional; a key left out means `any`). A requirement is one fact the tooling decides alone, with no agent judgement; a requirement it cannot decide is a comment and stays in the prose. One evaluator reads the declaration at three sites -- on save, at spawn, at routine start -- and returns, in this order, one of four dispositions, the four verbs: `validate` (the context supplies it, and the routine proceeds), `automate` (the tooling supplies it, with no judgement, and records what it did), `help` (the tooling asks the one party who can supply it) and `reject` (nothing above applies, and the refusal names what was missing and the route). Nothing falls through to ok.
+  - `tracking-item: required | optional | forbidden`: decided from the item the dispatch record names. `validate`: the value is one of the three words. `automate`: at spawn, `required` with none attached creates the item and records its name on the dispatch. `help`: a start inside a session that is already running (joined, inline) cannot be given an item by the spawner, so the session's coordinator is asked to create it, by an inquiry in its inbox naming the routine, and the start goes on with a warning kept on the run's record as `start-warning: tracking-item ...`, counted from the records. `reject`: `forbidden` with an item attached.
+  - `operations: <operation prefixes the steps need>`: decided against what the acting member holds, and REPORTED, NEVER ENFORCED. `validate`: each prefix exists and the declared executors can hold it. `automate`: nothing, as a permission is only ever passed by a holder. `help`: an executor that cannot hold a prefix; the finding names the operation, the member and the routine, and the permission ask that is the route. `reject`: a prefix no member session may hold, such as `--manager-*`, said plainly as a wall; the console runs it. A mismatch the routine's own tooling list narrows by an annotation (`— \`magic-coordinator\` only`) is not a fault. It is not overridable.
+  - `start-context: inline | spawned | any`: `inline` runs only inside another run, `spawned` only as a run of its own, `any` either way; a joined start counts as `spawned`. `validate`: the value is one of the three words, and the Closure steps carry a closure line for each mode it allows, `Run inline:` and `Run as its own session:`. `reject`: at start, a start the routine does not allow, before any step runs, naming the start to use.
+- `routine-lock-document:` (optional)
+  - `inbox:<member>:<note>.md`, a note in the inbox of the executor or of a named member; a routine that runs another inline names that one's lock too, the documents separated by commas. The spawner locks it while it starts the routine, or the start fails; adds the document to the dispatch, with the instruction to update it; and gives it back when the session ends. Participants never lock or unlock: any participant of the locked session updates the locked document with `--update-routine-state` (ThisSession, `DistroAgentsSession.fn.sh`), which knows the session's routine and its locked document and takes no routine name or path; each update is committed, and pushed where a git remote is set, before the tool returns. A routine that locks lists that operation in its tooling block. It does not run in a workspace without team-data setup.
+- `input-scan-def:` (optional)
+  - One repeatable line for each scan: `input-scan-def: <scan> [--option value ...]`, or `input-scan-def: none` alone. `<scan>` is a scan of the tooling (`advance`, `client-sweep`, `grooming`, `heartbeat`, `member-work-session`, `morning-review`, `permission-escalation`, `routine-coworking-session`, `sweep`); the spawner runs its `--intern-op-<scan>-input-scan` operation with the team member of the start and then the options as written. A value which exists only at session time is a macro, `{{<option-name>}}` over the five names of the common option set (`team-member`, `session-id`, `spawn-id`, `select-workspace`, `tooling-origin`). The spawner runs the scans at start, in the order written, with no instruction to an agent, after the routine's lock; saves the results to `input/input-scan.md` of the session sandbox (one scan as it is, several each under `## input scan: <scan>`); and names them in the brief. A routine declares only its own scans; a routine it runs inline brings its own. An explicit `none` runs no scan, where the routine's kind routine declares one. No routine calls its scan: an input scan is an operation of the tooling, not of an agent.
+- `review-by:` (optional)
+  - Whether the run's dispatch item is reviewed. `inherit`, the default and written explicitly, has the review follow where the run reports to (`reports-to:`); `none` disables it, and the item closes straight to processed with `review: none` in its Decisions; any other value names the reviewer, in the forms `--review-by` takes. A reviewer the caller of the spawn names stands, as the more specific.
+- Overriding a refusal. An override is a permission, never a flag the acting member passes to itself: the grant of the tool `override` for the target `<requirement>:<routine file>`, asked through the chain that grants everything else, one requirement at a time. A member gives it only from what it holds, by an explicit pass, never wider or longer than its own. A start it lets through is kept on the run's record (`override:`) and on the dispatch item's `## Decisions`. `operations` is not overridable.
+- `runs-at:` and `runs-after:` (optional)
+  - The autorun keys. `runs-at: <days> <HH:MM>` or `runs-at: none`: days are `workdays`, `weekend`, `daily` or a list such as `mon,thu`, the time in the team schedule's zone. An explicit `none` says the routine never auto-runs, so a reader tells a routine that never auto-runs from one nobody has considered yet. `runs-after: <routine>` is a key of its own and names the one routine this one follows.
 - `allows:` (optional)
   - Permissions the routine gives its participants while a session runs it, ending with that session: comma-separated `<member|executors|participants>:<tool>[:<target>]`, a path target relative to the workspace or absolute, %-escaped as a tracking document's `allows`.
   - Approved by its `maintainers:`. `cred:` and `spend:` entries stand only with `human-owner` among them; without him, any other entry stands only when a maintainer holds it.
-- `session:` (optional)
-  - `coworking` marks a coworking-like routine, per `magic-team.coworking.routine`'s session-type taxonomy: the routines it lists, and any routine that runs several members on one shared task.
-  - `--magic-spawn-session` reads it to add `magic-coordinator` to a session that lacks one.
-- `default-for-session-kind:` (optional)
-  - A single session-kind word naming this routine as the spawner's standing default for that kind, used
-    only when nothing more specific was asked for.
-  - At most one routine file in the whole skillset carries a given value.
-  - `executors:` on the same file already states the default member identity the spawner boots for that
-    session.
 - `# <owning-member>.<short-name>.routine — the actual procedure`
   - The file's own title line, before `# Summary` — every existing routine file carries one.
   - The title is the file's own name minus `.md`: a routine is named by its file, never by an identity of its own.
@@ -142,6 +164,8 @@ Used to check this file's own definitions against its own goals when it is updat
   - `## Scope`
     - What it does.
     - What it deliberately doesn't do.
+- `# Opening steps`
+  - Same shape/discipline as `# Steps`. Runs before `# Steps`, after the Opening steps of the routine of the session kind the routine names.
 - `# Steps`
   - Exact instructions, execute in order, literally as written.
   - A step that can't execute as written: escalate it, and never skip it silently.
@@ -151,7 +175,7 @@ Used to check this file's own definitions against its own goals when it is updat
   - Applied as each routine file is next touched, not as a sweep.
 - `# Closure steps`
   - Same shape/discipline as `# Steps`.
-  - Runs only after `# Steps`, and everything it extended/dispatched/spawned, have finished, ending with a handback to the routine's own parent carrying what was agreed, per "The ladder: one rung at a time".
+  - Runs only after `# Steps`, and everything it extended/dispatched/spawned, have finished, ending with a handback to the routine's own parent carrying what was agreed, per "The ladder: one rung at a time". The Closure steps of the routine of the session kind the routine names follow its own.
   - An already-existing closing tail in `# Steps` relocates here verbatim — no invented content.
   - No closing tail of its own: state that plainly, plus a pointer to whatever actually closes it.
   - Sequencing: `magic-team/reference/skill-folder-model.md`'s own "Routine" entry.

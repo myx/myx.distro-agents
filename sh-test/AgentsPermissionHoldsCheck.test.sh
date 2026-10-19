@@ -342,9 +342,9 @@ echo "-- a routine allows its participants permissions for its run --"
 rigSkillsReal="$MDAT_SKILLSET_ROOT"
 rigSkills="$rigTmp/skills"
 mkdir -p "$rigSkills/magic-tester" "$rigSkills/magic-developer" "$rigWs/.local/agents/spawned/rig-rcow" "$rigWs/.local/agents/spawned/rig-ncow"
-printf -- '---\nexecutors: magic-tester\nmaintainers: magic-tester, human-owner\ninvitees: magic-developer\nallows: magic-tester:Edit:ROUT/**, executors:WebFetch:https%%3A//ex.rig.example/*, participants:Write:PART/**, magic-developer:cred:rig-token\n---\n# rig routine\n' \
+printf -- '---\nexecutors: magic-tester\nmaintainers: magic-tester, human-owner\ninvitees: magic-developer\nallows: magic-tester:Edit:ROUT/**, executors:WebFetch:https%%3A//ex.rig.example/*, participants:Write:PART/**, magic-developer:cred:rig-token\nrequires-session-kind: standalone\n---\n# rig routine\n' \
 	> "$rigSkills/magic-tester/magic-tester.rig-review.routine.md"
-printf -- '---\nexecutors: magic-tester\nmaintainers: magic-developer\nallows: participants:cred:rig-secret, participants:Write:DEV/n/**, participants:Write:ELSE/**\n---\n# rig routine without the human-owner\n' \
+printf -- '---\nexecutors: magic-tester\nmaintainers: magic-developer\nallows: participants:cred:rig-secret, participants:Write:DEV/n/**, participants:Write:ELSE/**\nrequires-session-kind: standalone\n---\n# rig routine without the human-owner\n' \
 	> "$rigSkills/magic-tester/magic-tester.rig-nohuman.routine.md"
 printf -- '---\nsession-id: rig-rcow\nspawn-id: rig-rcow\nowner: magic-tester\nroutine: magic-tester.rig-review.routine.md\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-rcow/rig-rcow.md"
 printf -- '---\nsession-id: rig-rcow\nspawn-id: rig-r2\nparent-spawn-id: rig-rcow\nowner: magic-developer\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-rcow/rig-r2.md"

@@ -109,6 +109,26 @@ def runChild(surface, state):
     readNow(state)
 
 
+## ---- the plugin: `Consoles` ----
+
+registerPlugin({
+    "name": "consoles",
+    "root": {"id": "consoles", "label": "Consoles", "go": "Co~n~soles", "group": "places"},
+    "summaries": {
+        "consoles": {"lines": "startsSummary"},
+    },
+    "reads": {
+        ## What is started from here with the whole terminal, in the order of a menu: the consoles
+        ## of the workspace, each with the folder it starts in and its command, a field a word (STARTS).
+        "list:consoles": {"operation": ["--manager-console-list"], "rows": "starts"},
+    },
+    "commands": (
+        {"name": "run", "keys": ("ENTER",), "menu": ("console", 1), "label": "~S~tart", "status": "Start", "window": "list",
+         "views": ("consoles",), "for": "something to start", "on": ("consoles:record",), "only": True, "says": "start", "does": ("action", "run")},
+    ),
+})
+
+
 ## ---- what a key does ----
 
 ## One key, on the state alone. With a dialog open the key goes to that dialog, and with a

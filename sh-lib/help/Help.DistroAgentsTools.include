@@ -125,7 +125,6 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-post-comment <t
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-post-comment <team-member> <card-id> [text...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-read <team-member> <notification-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-whoami <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-send <channel> [-- <command...>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-start [--override-workspace <path>] [--console DistroSourceConsole.sh|DistroDeployConsole.sh] [--ttl <seconds>]" >&2
@@ -140,7 +139,6 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>..
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]..." >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-acquire <team-member> <owner-label>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-refresh <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-status <team-member>" >&2
@@ -199,7 +197,6 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-blocked <team
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-pending <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-processed <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-running <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-input-scan <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-acquire <team-member> <owner-label>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-refresh <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-status <team-member>" >&2
@@ -215,23 +212,18 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-running <team-mem
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name> [--untrash]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-close-state-and-unlock <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-config-check" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-member> <owner-label>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-refresh <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-status <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-test-report-send <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-morning-review-input-scan <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-morning-review-state-advance <team-member> <ts>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-acquire <team-member> <owner-label>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-refresh <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-status <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-advance <team-member> <ts>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-read <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]" >&2
@@ -342,7 +334,6 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-set-request <magic
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-list --member <member> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-permission-list <team-member> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-revoke <ref> [--session-id <id>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-escalation-input-scan <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle <team-member> <pending-id> --reason <text> [--withdraw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text> [--withdraw]" >&2
@@ -361,7 +352,6 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-review-follow-up <magic-coord
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--file <changed-file>]... [<test>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-retest-drain [--rest [--about <scratch-folder>]]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-retest-result <request-id>..." >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-harden" >&2
@@ -370,7 +360,6 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-verify" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <name>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path> [--name <name>] [--kind workspace|directory] [--ceiling read-only|read-write]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <tracking-document>..." >&2
 		return 0
 	;;
 

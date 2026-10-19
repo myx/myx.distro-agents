@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Every caller keeps its OWN cut-off. One --magic-sweep-input-scan runs against the sweep
+## Every caller keeps its OWN cut-off. One --intern-op-sweep-input-scan runs against the sweep
 ## fixture (a fake Slack) with two client members: the team part must resume from the
 ## calling member's own stored last_swept_ts, client-fix1 from its own, client-fix2 (none
 ## stored) from the default window, and no member's value may show up in another's part.
@@ -15,7 +15,8 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigPackage/sh-test/check-fixtures/sweep-concurrency.curl.stub.sh" ] || rigRefuse "the sweep fixture is missing from the package"
-rigTmp="$( mktemp -d -t AgentsSweepOwnCutoffCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsSweepOwnCutoffCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
@@ -55,7 +56,7 @@ rigSession=""
 rigRun(){ ## out-name, args...
 	local runName="$1" ; shift
 	local runRc=0
-	env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" TMPDIR="$rigDir/ws/.local/temp" \
+	env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" FIX_DIR="$rigDir" FIX_LATENCY=0 FIX_DMS=2 FIX_TS="$rigNow" RIG_TMP="$rigTmp" ${rigSession:+MDAT_SPAWN_AGENT="$rigSession"} \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -81,7 +82,7 @@ rigHas(){ ## text, fixed string
 }
 
 echo "-- a sweep with no cut-off stated: every member resumes from its own --"
-rigRun plain --magic-sweep-input-scan magic-coordinator
+rigRun plain --intern-op-sweep-input-scan magic-coordinator
 [ -s "$rigTmp/plain.out" ] || rigRefuse "the sweep printed no document: $( tail -3 "$rigTmp/plain.err" )"
 rigTeam="$( rigTeamPart plain )" ; rigC1="$( rigPart plain client-fix1 )" ; rigC2="$( rigPart plain client-fix2 )"
 rigAssert "control: both client parts are in the document" "$( [ -n "$rigC1" ] && [ -n "$rigC2" ] && printf yes || printf no )" yes
@@ -95,7 +96,7 @@ rigAssert "no shared cut-off: the team value is in no client part" "$( rigHas "$
 rigAssert "no shared cut-off: client-fix1 value is not in the team part or client-fix2" "$( rigHas "$rigTeam$rigC2" "$rigClientTs" )" no
 
 echo "-- a stated cut-off moves the team part only --"
-rigRun stated --magic-sweep-input-scan magic-coordinator --comms-since-utime "$rigExplicitTs"
+rigRun stated --intern-op-sweep-input-scan magic-coordinator --comms-since-utime "$rigExplicitTs"
 rigTeam="$( rigTeamPart stated )" ; rigC1="$( rigPart stated client-fix1 )"
 rigAssert "team part reads at the stated cut-off"           "$( rigHas "$rigTeam" "cut-off --comms-since-utime $rigExplicitTs" )" yes
 rigAssert "client-fix1 still reads at its own"              "$( rigHas "$rigC1" "cut-off --comms-since-utime $rigClientTs" )" yes
@@ -103,7 +104,7 @@ rigAssert "the stated cut-off reaches no client"            "$( rigHas "$rigC1$(
 
 echo "-- the sweep from magic-coordinator's own session still reads every client: each is swept as that client, through --magic-client-operation-run --"
 rigSession=magic-coordinator
-rigRun session --magic-sweep-input-scan magic-coordinator
+rigRun session --intern-op-sweep-input-scan magic-coordinator
 rigSession=""
 rigC1="$( rigPart session client-fix1 )" ; rigC2="$( rigPart session client-fix2 )"
 rigAssert "both client parts are in the document, and neither says that no scan was made" "$( [ -n "$rigC1" ] && [ -n "$rigC2" ] && printf yes || printf no ) $( rigHas "$rigC1$rigC2" "no scan was made -- this member recorded no coverage of its own" )" "yes no"
@@ -113,7 +114,7 @@ rigAssert "and no session is refused on the way" "$( rigHas "$( cat "$rigTmp/ses
 
 echo "-- a client record that cannot be read is not a fallback --"
 printf 'no frontmatter here\n' > "$rigDir/data/inboxes/client-fix2/incoming/$rigNote"
-rigRun broken --client-sweep-input-scan client-fix2
+rigRun broken --intern-op-client-sweep-input-scan client-fix2
 rigAssert "the scan refuses"                                "$( cat "$rigTmp/broken.rc" )" 1
 rigAssert "and says why"                                    "$( rigHas "$( cat "$rigTmp/broken.err" )" "no frontmatter block" )" yes
 rm -f "$rigDir/data/inboxes/client-fix2/incoming/$rigNote"
@@ -143,7 +144,7 @@ rigRun adv6 --magic-sweep-state-advance client-fix2 "$rigNewClient"
 rigAssert "a missing record is created"                     "$( cat "$rigTmp/adv6.rc" ):$( rigWm client-fix2 )" "0:$rigNewClient"
 
 echo "-- the next pass resumes from the advanced pointers --"
-rigRun next --magic-sweep-input-scan magic-coordinator
+rigRun next --intern-op-sweep-input-scan magic-coordinator
 rigAssert "team resumes from its advanced pointer"          "$( rigHas "$( rigTeamPart next )" "cut-off --comms-since-utime $rigNewTeam" )" yes
 rigAssert "client-fix2 resumes from its advanced pointer"   "$( rigHas "$( rigPart next client-fix2 )" "resumed-from: $rigNewClient (this member's own stored sweep position)" )" yes
 

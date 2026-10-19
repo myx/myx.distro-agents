@@ -543,8 +543,8 @@ rigItem review dispatch-20261008T1200Z-gr2 "" 'review-by: magic-team.grooming.ro
 rigItem review dispatch-20261008T1200Z-adv "" 'review-by: advance.routine
 '
 touch -t 202001010000 "$rigData"/board/review/dispatch-20261008T1200Z-gr1.md "$rigData"/board/review/dispatch-20261008T1200Z-gr2.md
-rigOp "$rigTmp/s1" --magic-grooming-input-scan magic-coordinator
-rigOp "$rigTmp/s2" --magic-advance-input-scan magic-coordinator
+rigOp "$rigTmp/s1" --intern-op-grooming-input-scan magic-coordinator
+rigOp "$rigTmp/s2" --intern-op-advance-input-scan magic-coordinator
 ## The advance housekeeping runs when the routine takes its lock, free here, not in its scan.
 rigAdvanceLock(){ ## result file -- the advance routine takes its lock
 	rm -f "$rigData/inboxes/magic-coordinator/incoming/note-20260809T154715Z-advance-state-and-lock.md"
@@ -1052,7 +1052,7 @@ rigEnv=( MDAT_SPAWN_AGENT=magic-tester MDAT_SPAWN_SESSION_ID=rig-rev-session )
 rigOp "$rigTmp/vs2" --member-review-accept magic-tester dispatch-20261008T1500Z-vs
 rigEnv=()
 rigAssert "that session itself accepts"                    "$( cat "$rigTmp/vs2.rc" ):$( rigLoc dispatch-20261008T1500Z-vs )" 0:processed
-printf -- '---\nexecutors: keeper-myx\nmaintainers: magic-coordinator\n---\n# rig routine\n' > "$rigWs/.local/agents/members/keeper-myx/keeper-myx.rigcheck.routine.md"
+printf -- '---\nexecutors: keeper-myx\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig routine\n' > "$rigWs/.local/agents/members/keeper-myx/keeper-myx.rigcheck.routine.md"
 rigReviewItem dispatch-20261008T1500Z-vr rigcheck.routine
 rigOp "$rigTmp/vr1" --member-review-accept magic-tester dispatch-20261008T1500Z-vr
 rigAssert "a routine reviewer: a non-executor is refused"  "$( cat "$rigTmp/vr1.rc" ):$( rigLoc dispatch-20261008T1500Z-vr )" 1:review

@@ -11,36 +11,31 @@
 
 type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 
-## --routine-default's own resolution, for the coworking session kind: the one routine
-## file, among every *.routine.md under the skillset root's member folders, whose own
-## frontmatter carries the key default-for-session-kind with the value "coworking" (the
-## routine contract template's own optional field -- at most one routine file per value,
-## across the whole skillset). No routine name is hardcoded here; every call re-scans the
-## skillset root's routine files fresh. Prints the resolved file's own basename on success,
-## the same shape AgentsToolsSpawnRoutineResolve expects as a --routine selector. Zero or
-## more than one match is refused, naming the key, the value, and how many routine files
-## carry it.
+## THE SESSION KINDS: the one list the tooling owns, a row for each, `<kind><TAB><the file of its
+## bundled routine>`. A kind is defined by the routine that ships with the tooling and holds its
+## rules, its steps and its default settings; a kind nobody ships is a kind nothing can run, so
+## the list is closed to bundled routines. A routine names one entry of it in
+## `requires-session-kind:`. `ad-hoc` is a start with a handback and no session documents, never
+## a routine's kind.
+AgentsToolsSpawnRoutineKinds(){
+	printf 'coworking\tmagic-team.coworking.routine.md\n'
+	printf 'standalone\tmagic-team.standalone.routine.md\n'
+}
+
+## The file of a kind's bundled routine. rc 1, and nothing printed, for a word that is no kind.
+AgentsToolsSpawnRoutineKindRoutine(){ ## kind
+	AgentsToolsSpawnRoutineKinds | LC_ALL=C awk -F'\t' -v kind="$1" '$1 == kind { print $2 ; found = 1 ; exit } END { exit found ? 0 : 1 ; }'
+}
+
+## --routine-default's own resolution: the routine of the coworking kind, by the list above. Prints
+## its file's own basename on success, the same shape AgentsToolsSpawnRoutineResolve expects as a
+## --routine selector. A kind routine the skillset does not hold, or holds more than once, is
+## refused by the resolver, naming the file.
 AgentsToolsSpawnRoutineDefaultName(){
-	local routineDefaultKind="coworking" routineRoot routineFile routineDefaultValue routineMember routineDir
-	local routineDefaultMatches=()
-	routineRoot="${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}"
-	## Every member's folder, a member of another workspace included (AgentsToolsTeamMemberDirectoryText).
-	while IFS=$'\t' read -r routineMember routineDir ; do
-		[ -n "$routineDir" ] || continue
-		for routineFile in "$routineDir"/*.routine.md ; do
-			[ -f "$routineFile" ] || continue
-			routineDefaultValue="$( LC_ALL=C awk -v headers="default-for-session-kind" \
-				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$routineFile" )"
-			routineDefaultValue="${routineDefaultValue#default-for-session-kind: }"
-			[ "$routineDefaultValue" = "$routineDefaultKind" ] && routineDefaultMatches+=( "$routineFile" )
-		done
-	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
-	if [ "${#routineDefaultMatches[@]}" -eq 1 ] ; then
-		printf '%s\n' "${routineDefaultMatches[0]##*/}"
-		return 0
-	fi
-	echo "⛔ ERROR: --routine-default: default-for-session-kind: $routineDefaultKind: ${#routineDefaultMatches[@]} routine file(s) under $routineRoot carry it, exactly 1 required" >&2
-	return 1
+	local routineDefaultFile
+	routineDefaultFile="$( AgentsToolsSpawnRoutineKindRoutine coworking )" || return 1
+	AgentsToolsSpawnRoutineResolve "$routineDefaultFile" > /dev/null || return 1
+	printf '%s\n' "$routineDefaultFile"
 }
 
 ## Resolves a --routine selector (a full routine filename or part of one) to exactly one
@@ -80,26 +75,75 @@ AgentsToolsSpawnRoutineResolve(){ ## selector
 	esac
 }
 
-## rc 0 when a routine file is coworking-like: its own frontmatter carries `session: coworking`
-## (the routine contract's own optional key, set on every routine magic-team.coworking.routine's
-## session-type taxonomy names). rc 1 otherwise. No routine name is hardcoded here.
-AgentsToolsSpawnRoutineIsCoworking(){ ## routine file path
-	local routineSessionValue
-	routineSessionValue="$( LC_ALL=C awk -v headers="session" \
+## The kind a routine file names: the value of its own `requires-session-kind:`, the one
+## mandatory key of a routine. Empty where the file names none. Nothing is guessed from silence.
+AgentsToolsSpawnRoutineKindOwn(){ ## routine file path
+	local routineKindLine
+	routineKindLine="$( LC_ALL=C awk -v headers="requires-session-kind" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$1" )"
-	[ "${routineSessionValue#session: }" = "coworking" ]
+	printf '%s\n' "${routineKindLine#requires-session-kind: }"
+}
+
+## rc 0 when a routine file is coworking-like: it names the coworking kind. rc 1 otherwise.
+## No routine name is hardcoded here.
+AgentsToolsSpawnRoutineIsCoworking(){ ## routine file path
+	[ "$( AgentsToolsSpawnRoutineKindOwn "$1" )" = "coworking" ]
+}
+
+## The routine a routine file inherits from: the bundled routine of the kind it names, found as
+## any routine is (AgentsToolsSpawnRoutineResolve). Its path; nothing for a file that names no
+## kind of the list, for a kind routine itself (it inherits from nobody), and for a kind routine
+## the skillset does not hold. One level, never a chain: no routine names another as its parent.
+AgentsToolsSpawnRoutineKindPath(){ ## routine file path
+	local kindFile
+	kindFile="$( AgentsToolsSpawnRoutineKindRoutine "$( AgentsToolsSpawnRoutineKindOwn "$1" )" )" || return 0
+	[ "${1##*/}" != "$kindFile" ] || return 0
+	AgentsToolsSpawnRoutineResolve "$kindFile" 2> /dev/null || :
+}
+
+## THE MIX-IN: a routine file's text with the routine of its kind mixed in, by the tooling, so no
+## agent has to perform the ordering. Opening steps: the kind routine's, then the routine's own.
+## Steps: the routine's own. Closure steps: the routine's own, then the kind routine's. Its local
+## rules and its tooling block are the kind routine's too, the routine's own after them. A step
+## the routine lists in `skips-inherited:` is left out of what the kind routine contributes, and
+## a mix-in never re-adds it. A routine that names no kind routine is printed as it is.
+AgentsToolsSpawnRoutineMixText(){ ## routine file path
+	local mixKindPath mixSkips
+	mixKindPath="$( AgentsToolsSpawnRoutineKindPath "$1" )"
+	if [ -z "$mixKindPath" ] ; then
+		cat "$1"
+		return 0
+	fi
+	mixSkips="$( LC_ALL=C awk -v headers="skips-inherited" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$1" )"
+	mixSkips="${mixSkips#skips-inherited: }"
+	ROUTINE_SKIPS="$mixSkips" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsRoutineMix.awk" "$mixKindPath" "$1"
 }
 
 ## Reads executors/maintainers/invitees out of a routine file's own frontmatter, through
 ## AgentsBoardItemFrontmatterPrintSelected.awk, unchanged. One "key: value" line per key,
 ## in that fixed order; an absent or empty value reads as an empty string after the colon.
-AgentsToolsSpawnRoutineFrontmatter(){ ## routine file path
-	LC_ALL=C awk -v headers="executors"$'\034'"maintainers"$'\034'"invitees" \
-		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$1"
+## With a kind routine's path (AgentsToolsSpawnRoutineKindPath) a key the file does not set
+## takes the value that routine sets: its default settings are inherited.
+AgentsToolsSpawnRoutineFrontmatter(){ ## routine file path, [kind routine path]
+	local frontmatterOwn frontmatterKind=""
+	frontmatterOwn="$( LC_ALL=C awk -v headers="executors"$'\034'"maintainers"$'\034'"invitees" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$1" )"
+	[ -z "${2:-}" ] || frontmatterKind="$( LC_ALL=C awk -v headers="executors"$'\034'"maintainers"$'\034'"invitees" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$2" )"
+	## The kind routine's lines travel through the environment, not -v, which would not take a newline.
+	printf '%s\n' "$frontmatterOwn" | FRONTMATTER_KIND="$frontmatterKind" LC_ALL=C awk '
+		BEGIN { kindCount = split( ENVIRON["FRONTMATTER_KIND"], kindLines, "\n" ) ; }
+		{
+			valueAt = index( $0, ": " ) ; key = substr( $0, 1, valueAt - 1 ) ; value = substr( $0, valueAt + 2 ) ;
+			if ( value == "" && NR <= kindCount ) { value = substr( kindLines[NR], index( kindLines[NR], ": " ) + 2 ) ; }
+			printf "%s: %s\n", key, value ;
+		}'
 }
 
 ## The contract a resolved routine file must satisfy before its brief slots are trusted:
-## opens with a frontmatter block, and executors/maintainers are both non-empty. Prints
+## opens with a frontmatter block, names a session kind of the list, and executors/maintainers
+## are both non-empty (a kind routine's defaults counted). Prints
 ## three lines on success -- executors, maintainers, invitees -- with invitees reading the
 ## literal "none" where that field is absent or empty. Prints nothing and returns 1 on
 ## failure, with the reason on stderr.
@@ -110,8 +154,14 @@ AgentsToolsSpawnRoutineContractCheck(){ ## routine file path
 		echo "⛔ ERROR: $routineFile: does not open with a frontmatter block" >&2
 		return 1
 	fi
+	local routineKind
+	routineKind="$( AgentsToolsSpawnRoutineKindOwn "$routineFile" )"
+	if ! AgentsToolsSpawnRoutineKindRoutine "$routineKind" > /dev/null ; then
+		echo "⛔ ERROR: $routineFile: requires-session-kind: ${routineKind:-<absent>} is not a session kind of the tooling (coworking or standalone); the key is mandatory and a routine is never started without it" >&2
+		return 1
+	fi
 	local routineFm routineExecutorsLine routineMaintainersLine routineInviteesLine
-	routineFm="$( AgentsToolsSpawnRoutineFrontmatter "$routineFile" )"
+	routineFm="$( AgentsToolsSpawnRoutineFrontmatter "$routineFile" "$( AgentsToolsSpawnRoutineKindPath "$routineFile" )" )"
 	{
 		IFS= read -r routineExecutorsLine
 		IFS= read -r routineMaintainersLine

@@ -58,7 +58,7 @@ printf '# rig armed\n' > "$rigSkills/keeper-myx/keeper-myx.armed.md"
 ## armed.md (required by --intern-op-spawn-prepare-brief itself), same as keeper-myx above.
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
 printf '# rig armed\n' > "$rigSkills/magic-coordinator/magic-coordinator.armed.md"
-printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator, magic-librarian\ninvitees: magic-team\ndefault-for-session-kind: coworking\n---\n# rig coworking routine fixture\n' \
+printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator, magic-librarian\ninvitees: magic-team\nrequires-session-kind: coworking\n---\n# rig coworking routine fixture\n' \
 	> "$rigSkills/magic-team/magic-team.coworking.routine.md"
 ## A board item for the --from-board source mode.
 printf -- '---\ntype: task\n---\n\nRIG-BOARD-MARKER-TEXT\n' > "$rigData/board/backlog/task-rig-routine.md"
@@ -179,7 +179,7 @@ rigAssert "interactive by default"                        "$( grep -c -x -F 'INT
 rigRoutineLabel="ROUTINE:"
 rigRoutineTail="-- the dispatch's --routine parameter: run it as this pass's payload."
 rigHeartbeatFile="magic-coordinator.heartbeat.routine.md"
-printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\n---\n# rig heartbeat routine fixture\n' > "$rigSkills/magic-coordinator/$rigHeartbeatFile"
+printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig heartbeat routine fixture\n' > "$rigSkills/magic-coordinator/$rigHeartbeatFile"
 rigLineNo(){ ## file, fixed text at the start of a line -- the number of the first such line, or none
 	LC_ALL=C awk -v want="$2" 'index($0, want) == 1 { print NR ; found = 1 ; exit } END { if ( ! found ) print "none" }' "$1"
 }
@@ -200,7 +200,7 @@ rigAssert "the main loop calls it with exactly these arguments"   "$( LC_ALL=C g
 echo "-- --intern-root-harness against a stub proxy: the exact packet and the exact proxy arguments --"
 rigStubRoot="$rigTmp/stub-skills" ; rigStubTwo="$rigTmp/stub-skills-two"
 mkdir -p "$rigStubRoot/magic-coordinator" "$rigStubRoot/magic-team" "$rigStubTwo/magic-coordinator" "$rigStubTwo/magic-team"
-printf -- '---\nexecutors: x\nmaintainers: x\n---\n' | tee "$rigStubRoot/magic-coordinator/$rigHeartbeatFile" "$rigStubRoot/magic-coordinator/magic-coordinator.grooming.routine.md" "$rigStubTwo/magic-coordinator/$rigHeartbeatFile" "$rigStubTwo/magic-team/magic-team.heartbeat-extra.routine.md" > /dev/null
+printf -- '---\nexecutors: x\nmaintainers: x\nrequires-session-kind: standalone\n---\n' | tee "$rigStubRoot/magic-coordinator/$rigHeartbeatFile" "$rigStubRoot/magic-coordinator/magic-coordinator.grooming.routine.md" "$rigStubTwo/magic-coordinator/$rigHeartbeatFile" "$rigStubTwo/magic-team/magic-team.heartbeat-extra.routine.md" > /dev/null
 rigBriefFile="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/dispatches/root-harness-session-start.prompt-packet.verbatim.md"
 rigStubRun(){ ## skill root, arguments...
 	local stubRoot="$1" ; shift

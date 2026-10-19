@@ -1,6 +1,11 @@
 ---
+type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+requires-session-kind: standalone
+start-context: any
+input-scan-def: none
+review-by: inherit
 ---
 # magic-coordinator.external-inbox-handle-loop.routine — the actual procedure
 
@@ -9,6 +14,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -35,6 +41,10 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Does: follow up the items whose `owner` is the human-owner or an external contact. Their content lives in `magic-coordinator`'s inbox, so only `magic-coordinator` runs this. Runs inline in every heartbeat pass, or standalone when a specific owner needs checking sooner.
 - Doesn't: process `magic-coordinator`'s own mail. That is `magic-team.process-inbox.routine magic-coordinator`, run in the advance pass.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
@@ -48,7 +58,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-Run inline: none. Run as its own session: `magic-team.coworking.routine`'s **close-session** group.
+Run inline: none. Run as its own session: none of its own.
 
 # Routine's local procedures
 

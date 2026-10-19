@@ -119,7 +119,7 @@ rigOp "$rigTmp/r2" --member-inbox-item-read rig-member note-20261018T0900Z-open.
 rigAssert "without --include-processed an operation sees only incoming/: a processed item is not found" "$( [ "$( cat "$rigTmp/r2.rc" )" -ne 0 ] && printf non-zero || printf 0 ):$( rigHolds "$rigTmp/r2" RIG-OPEN-NOTE ):$( rigHolds "$rigTmp/r2" 'not found' )" "non-zero:no:yes"
 
 echo "-- 5. the member's scan lists the incoming item, and no processed one --"
-rigOp "$rigTmp/s1" --member-work-session-input-scan rig-member
+rigOp "$rigTmp/s1" --intern-op-member-work-session-input-scan rig-member
 rigAssert "the incoming item is listed"                       "$( rigHolds "$rigTmp/s1" note-20261018T0902Z-in.md )" yes
 rigAssert "no processed item is listed"                       "$( rigHolds "$rigTmp/s1" note-20261018T0900Z-open.md ):$( rigHolds "$rigTmp/s1" note-20261018T0901Z-done.md )" "no:no"
 

@@ -1,6 +1,12 @@
 ---
+type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+requires-session-kind: coworking
+skips-inherited: fold-in-learned-lessons, dismiss-participants
+routine-lock-document: inbox:magic-coordinator:note-20260809T154715Z-advance-state-and-lock.md
+input-scan-def: advance
+review-by: inherit
 ---
 # magic-coordinator.advance.routine — the actual procedure
 
@@ -9,6 +15,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -46,30 +53,32 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Hunt state-model drift (`magic-librarian.morning-review.routine`), review Trello board content, or read Google Drive.
   - Settle an open design question an investigation surfaced. It is flagged for grooming and `magic-architect`.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **advance-acquire-lock**: Acquire the lock (`--magic-advance-lock-acquire`) before anything else. Contention means another pass is live: this pass does not start. A successful take also does the pass's housekeeping itself: it closes dead spawns, moves their items to review, and starts missing control threads.
-2. **advance-process-inbox**: Run `magic-team.process-inbox.routine magic-coordinator`. This is the pass's one inbox processing.
-3. **advance-read-board-state**: Run `--magic-advance-input-scan`. In a team session it replies with a file: read that file by line range, and do not scan again. Keep the pass's tracking note current as the pass proceeds (`--magic-advance-state-and-lock-upsert`), and refresh the lock during a long pass (`--magic-advance-lock-refresh`).
-4. **advance-reconcile-sessions**: Compare the scan's session registries with the board before any other work. Each handler states its outcome, steps:
+1. **advance-process-inbox**: Run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`). This is the pass's one inbox processing.
+2. **advance-read-board-state**: Read this run's input scan result (`input/input-scan.md`) by line range, and do not scan again. The housekeeping of the pass (closing dead spawns, moving their items to review, starting missing control threads) was done when the spawner took the lock. Keep the pass's tracking note current as the pass proceeds (`--update-routine-state`, with `--document note-20260809T154715Z-advance-state-and-lock.md` where the session locked several documents), referencing items by name rather than copying them, and refresh the lock during a long pass (`--magic-advance-lock-refresh`).
+3. **advance-reconcile-sessions**: Compare the scan's session registries with the board before any other work. Each handler states its outcome, steps:
    - **reconcile-read**: Read the spawned-sessions and pending-replies registries, and match each `board-running` item to its session by `session-id`. A pending-replies row's `session-id` is the id of the run that asked, never of the coworking session that run joined.
    - **reconcile-dead-session**: A `board-running` item other than a `dispatch-*` whose session is not live is a failed spawn. Record the registry reading in its `execution-receipt`. It carries `restart-session`: respawn that group at the item's recorded state, outcome `respawned`. Otherwise: move it to `board-blocked` with a `condition` naming the dead session, outcome `flagged-once`.
    - **reconcile-untracked-session**: A live session with no board item is flagged once in `event-track`, naming its session id, member and sandbox. No item is created; whether it becomes tracked work is a judgement. Outcome `flagged-once`.
    - **reconcile-finished-session**: A live session whose tracked work reports finished and which nothing else needs is dismissed (`spawn-one-dispatch`'s **spawn-dismiss**). This covers sessions a heartbeat pass dispatched.
    - **reconcile-lost-reply**: A `board-blocked` item waiting on a reply the registry no longer holds open: read its `communication-channel-id` thread. The addressee's answer is there: apply it and continue the item. None: re-ask the same party in that thread (`AskQuestion`, `wait: false`) and keep the item blocked, outcome `nudged`. A missing record is never consent and never a deny. An open ask never expires by age: the human may be away for weeks. It is closed only when its question is no longer current, is a duplicate, was resolved another way, or its session is complete and closed.
-5. **advance-review-items**: For each `board-review` item whose `review-by` is `magic-coordinator` or `advance.routine`, or is empty and its run reports to `magic-coordinator` (the scan's "review items addressed to advance.routine" section lists the routine's own), steps:
-   - trivial: apply `magic-team.handback-review.routine` to it
+4. **advance-review-items**: For each `board-review` item whose `review-by` is `magic-coordinator` or `advance.routine`, or is empty and its run reports to `magic-coordinator` (the scan's "review items addressed to advance.routine" section lists the routine's own), steps:
+   - trivial: apply `magic-team.handback-review.routine` to it, inline (`--routine-run-inline magic-team.handback-review.routine`)
    - anything else: leave it in `board-review` for the item's own parent, per "The ladder: one rung at a time"
-6. **advance-process-comms**: Run `magic-coordinator.communication-sweep.routine`'s Steps inline, against this pass's board read.
-7. **advance-run-process-board**: Run `check-process-board` (`magic-coordinator.armed.md`) against this pass's read.
-8. **advance-run-execute-board**: Run `check-execute-board` (below) against this pass's read.
+5. **advance-process-comms**: Run `magic-coordinator.communication-sweep.routine`'s Steps inline (`--routine-run-inline magic-coordinator.communication-sweep.routine`), against this pass's board read.
+6. **advance-run-process-board**: Run `check-process-board` (`magic-coordinator.armed.md`) against this pass's read.
+7. **advance-run-execute-board**: Run `check-execute-board` (below) against this pass's read.
 
 # Closure steps
 
 1. **advance-report**: Post one `event-track` record (`--member-comms-slack-send-message`): `check-execute-board`'s outcomes per item and their counts, the items left untouched, and what was started. It never repeats `check-process-board`'s **board-report**.
-2. **advance-close-state-and-unlock**: Release the lock with `--magic-advance-close-state-and-unlock`, passing the closing status in the same call. Reference items by name rather than copying them.
 
 # Routine's local procedures
 
@@ -150,7 +159,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- This routine extends `magic-team.coworking.routine`, with these overrides: the session thread is `event-track`; **fold-in-learned-lessons** does not run; **advance-report** is the closing obligation.
+- This routine extends `magic-team.coworking.routine`, with these overrides: the session thread is `event-track`; **advance-report** is the closing obligation. The inherited steps it does not run are declared in `skips-inherited:`.
 - Keep `event-track` current as things are found, not batched.
 - A `recheck-date` is set with `--recheck-in <minutes>[±<jitter-minutes>]`, never computed by hand.
 
@@ -160,11 +169,8 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--magic-advance-lock-acquire <team-member> <owner-label>`
 - `--magic-advance-lock-refresh <team-member>`
-- `--magic-advance-close-state-and-unlock <team-member>`
-- `--magic-advance-state-and-lock-upsert <team-member> [--header:...]...`
-- `--magic-advance-input-scan <team-member>`
+- `--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`
 - `--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:...]...`
@@ -174,6 +180,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 - `--member-comms-slack-send-message <team-member> <target> [text...]`
 - `--console-list`
 - `--console-send <channel> [-- <command...>]`
+- `--routine-run-inline <routine>`
 
 # Maintainer Notes
 

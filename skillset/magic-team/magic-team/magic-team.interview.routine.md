@@ -1,6 +1,10 @@
 ---
+type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+requires-session-kind: standalone
+input-scan-def: none
+review-by: inherit
 ---
 # magic-team.interview.routine — the actual procedure
 
@@ -9,6 +13,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -43,11 +48,15 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Reach agreement (`magic-team.discuss.routine`).
   - Build anything bigger than its own inline cycles.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator`.
+1. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`).
 2. **open-channel-and-create-item**: on opening or resuming, steps:
    - rule: one topic, one thread. An unrelated topic surfacing mid-interview is forked into its own thread.
    - open or continue the channel: a Slack thread by default; email for slow or unusually complex matters.
@@ -156,6 +165,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 - `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
 - `--member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
+- `--routine-run-inline <routine>`
 
 # Maintainer Notes
 

@@ -28,7 +28,8 @@ rigRefuse(){
 rigRealPython="$( command -v python3 )" || rigRefuse "no python3 on PATH to hand every other script to"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
-rigTmp="$( mktemp -d -t AgentsClientSystemsCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsClientSystemsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## A loop in the code under test must end the check rather than hang it: nothing here legitimately runs long.
 rigProcNote $$
@@ -269,11 +270,11 @@ rigRun --magic-comms-trello-post-comment keeper-here 5f0000000000000000000c01 'R
 rigAssert "control: as a member of our own team it is posted under that member's own account, as before" "$rigRc $( rigCalls )" "0 trello cards/5f0000000000000000000c01/actions/comments rig-trello-key-KHERE"
 
 echo "-- 7. a client's own sweep reads what the client holds, and a scan with no marker reads none of it --"
-rigRun --client-sweep-input-scan client-ndm
+rigRun --intern-op-client-sweep-input-scan client-ndm
 rigAssert "the client's own sweep reads the mailbox and the Trello account the client holds" "$( rigCalls )" "imap-sweep imap-ndm.invalid us@ndm.invalid; trello members/me rig-trello-key-NDM; trello members/me/notifications rig-trello-key-NDM"
 rigAssert "and nothing of our own team or of the other workspace" "$( rigOurs ) $( rigElsewhere )" "0 0"
 rigRun --intern-op-session-context-scan client-ndm --all-types --do-email --do-trello
-rigAssert "a scan of a client with no marker is our own side: no call, and each of the two sources says in the one line that the client holds none here, and names its own sweep" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/out" "no scan was made -- client-ndm has no mail settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --client-sweep-input-scan." ) $( rigN "$rigTmp/out" "no scan was made -- client-ndm has no Trello settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --client-sweep-input-scan." )" "0 0 1 1"
+rigAssert "a scan of a client with no marker is our own side: no call, and each of the two sources says in the one line that the client holds none here, and names its own sweep" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/out" "no scan was made -- client-ndm has no mail settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --intern-op-client-sweep-input-scan." ) $( rigN "$rigTmp/out" "no scan was made -- client-ndm has no Trello settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --intern-op-client-sweep-input-scan." )" "0 0 1 1"
 rigRun --intern-op-session-context-scan keeper-here --all-types --do-email --do-trello
 rigAssert "control: the same scan of a member of our own team reads that member's own" "$( rigCalls )" "imap-sweep imap-keeper.here.invalid us@keeper.here.invalid; trello members/me rig-trello-key-KHERE; trello members/me/notifications rig-trello-key-KHERE"
 rigRun --intern-op-session-context-scan keeper-none --all-types --do-email --do-trello

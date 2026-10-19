@@ -227,7 +227,7 @@ rigAssert "and the left pane names Enter as its key"                 "[$( rigKey
 rigAssert "a routine: its title as its head, then its file, its owner, its executors" "$( rigVal daily.selected ) [$( rigPane d 3 )][$( rigPane d 4 )][$( rigPane d 5 )][$( rigPane d 6 )]" \
 	"magic-coordinator/$rigDaily [ magic-coordinator.daily.routine — the daily meeting][  routine    $rigDaily][  owner      magic-coordinator][  executors  magic-coordinator]"
 rigAssert "the kind of its session, that it starts here, and the name its session takes" "[$( rigPane d 7 )][$( rigPane d 8 )][$( rigPane d 9 )][$( rigPane d 10 )] [$( rigKeysNamed dailyKeys )]" \
-	"[  session    coworking: the spawner adds magic-coordinator to it][  start      startable][  name       daily, unless another is typed][] [keys: ENTER start]"
+	"[  session    coworking: members working together in one session][  start      startable][  name       daily, unless another is typed][] [keys: ENTER start]"
 rigAssert "several executors read with their spaces" "[$( rigPane r 6 )]" "[  executors  magic-coordinator, magic-librarian]"
 rigAssert "one that cannot be started says so, and why" "$( rigVal discuss.selected ) [$( rigPane n 8 )][$( rigPane n 9 )][$( rigPane n 10 )]" \
 	"magic-team/magic-team.discuss.routine.md [  start      not-startable][  why        its executors, magic-team, is any member: the session spawner starts][             it only with members named]"
@@ -570,7 +570,7 @@ wait action 30
 get answered
 RIGSCRIPT
 rigAssert "a routine that is started only with members named says so at the end of its row" "$( rigVal on.selected ) [$( rigVal onRow )]" "magic-team/$rigDiscuss [>magic-team.discuss        members]"
-rigAssert "the left pane says that its members are asked for, and it and the status line name the key" "$( rigPaneHolds o '  start      members: its members are asked for' ) [$( rigKeysNamed onKeys )] [$( rigVal onStatus )]" "1 [keys: ENTER start] [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "the left pane says that its members are asked for, and it and the status line name the key" "$( rigPaneHolds o '  start      members: its members are asked for' ) [$( rigKeysNamed onKeys )] [$( rigVal onStatus )]" "1 [keys: ENTER start] [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "Enter opens the dialog of its members, and starts nothing" "$( rigVal opened.dialog ) [$( rigVal opened.dialogTitle )] $( rigVal opened.calls )" "members:members| [Start the routine with members] 0"
 rigAssert "the members are read by the operation that lists the team, once" "$( rigCalled --manager-team-member-list )" "1"
 rigAssert "the dialog names the routine, and has a box for each member that can be started from here, and for no other" "$( rigBoxHas m '║   routine   magic-team.discuss.routine.md ' ) $( rigBoxHas m '║   [ ] magic-coordinator ' ) $( rigBoxHas m '║   [ ] keeper-myx ' ) $( rigBoxHas m '║   [ ] magic-tester ' ) $( rigBoxHas m 'human-owner' ) $( rigBoxHas m 'keeper-gone' )" "1 1 1 1 0 0"

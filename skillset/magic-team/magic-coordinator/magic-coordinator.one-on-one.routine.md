@@ -1,7 +1,10 @@
 ---
+type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
-session: coworking
+requires-session-kind: coworking
+input-scan-def: advance
+review-by: inherit
 ---
 # magic-coordinator.one-on-one.routine — the actual procedure
 
@@ -10,6 +13,7 @@ session: coworking
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -38,23 +42,23 @@ session: coworking
 - Executed by a `magic-coordinator` instance the root harness spawns for it (`magic-coordinator.root-harness.routine`'s **enforce-root-never-inline**). The root relays the human-owner's turns into this session's thread.
 - Doesn't: hand the human-owner to the member in the root chat, or skip the spawn because the question looks small.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **session-start**: Run `magic-team.coworking.routine`'s **session-start** group: this is a coworking-like session.
-2. **pick-the-member**: Use the member the human-owner named. None named: ask, never guess.
-3. **prep-member-context**: Gather the member's board items (`--member-work-session-input-scan <member>`) and any board item that references it, so the conversation does not start cold. Little or nothing found is fine.
-4. **invite-target-member**: Spawn the member into this session (`spawn-one-dispatch`). It loads its own skill and processes its own inbox at its own session start.
-5. **hold-the-conversation**: Carry the conversation between the human-owner's relayed turns and the member, in the session thread. Waiting is per `magic-team.armed.md`'s **wait-never-quit**. A member silent past a reply is asked; one found dead is reported to the root ("the one-on-one session appears to have died — restart it?"). Genuinely private phrasing goes to the human-owner's DM instead of the thread.
+1. **pick-the-member**: Use the member the human-owner named. None named: ask, never guess.
+2. **prep-member-context**: Gather the member's board items (from the input scan in `input/input-scan.md`) and any board item that references it, so the conversation does not start cold. Little or nothing found is fine.
+3. **invite-target-member**: Spawn the member into this session (`spawn-one-dispatch`). It loads its own skill and processes its own inbox at its own session start.
+4. **hold-the-conversation**: Carry the conversation between the human-owner's relayed turns and the member, in the session thread. Waiting is per `magic-team.armed.md`'s **wait-never-quit**. A member silent past a reply is asked; one found dead is reported to the root ("the one-on-one session appears to have died — restart it?"). Genuinely private phrasing goes to the human-owner's DM instead of the thread.
 
 # Closure steps
 
 1. **return-and-close**: Once the conversation concludes, steps:
    - File anything material as an `inquiry-*` (`post-inquiry`) or a `note-*` in this member's own inbox, so a later session finds it.
-   - Run `magic-team.coworking.routine`'s **close-session** group, its skill-update offer scoped to this member.
-   - Dismiss the target member (`spawn-one-dispatch`'s **spawn-dismiss**).
-   - Report the final status to the root, then wait until it dismisses this instance. The report states what was agreed this session, per "The ladder: one rung at a time".
    Follow-on work is dispatched as its own fresh session, never continued here.
 
 # Routine's local procedures
@@ -70,6 +74,7 @@ All statements apply at the same time, always. These rules override a participan
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
 - This routine extends `magic-team.coworking.routine`; this file wins on conflict.
+- The skill-update offer of the **close-session** group is scoped to this member.
 - A decision outside the member's mandate goes through the chain of command, even though the human-owner is in the conversation.
 - Keep `event-track` current as the routine runs.
 
@@ -79,7 +84,6 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-work-session-input-scan <team-member>`
 - `--member-inbox-note-upsert <team-member> <item-filename>`
 - `--member-comms-slack-send-message <team-member> <target> [text...]`
 

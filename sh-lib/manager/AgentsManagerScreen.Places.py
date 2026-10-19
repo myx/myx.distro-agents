@@ -188,7 +188,7 @@ def placeLines(state, place, width, info=None):
         lines.extend(headingLines("What stands in it") + head + [line for block in blocks for line in block])
     members = sorted(info.get("members") or [], key=lambda member: pathUnder(member["folder"], place["path"]) is None)
     if members:
-        icons = dict((row["member"]["name"], row["member"]["icon"]) for row in state.rows.get("team", ()) if row.get("member"))
+        icons = dict((row["member"]["name"], row["member"]["icon"]) for row in pluginRows(state, "team") if row.get("member"))
         head, blocks = paneTable(("MEMBER", "KIND", "SETUP", "FOLDER"), [
             [member["name"], member["kind"] or "-", member["setup"] or "-", pathUnder(member["folder"], place["path"]) or placedLine(state, member["folder"])[0]]
             for member in members], max(10, width - 1), [icons.get(member["name"], "") for member in members], state.wrap,
@@ -224,7 +224,7 @@ def placesSummary(state, path, row, form):
 ## it. Taken from the rows of the locations when those have changed. Where two share a
 ## path the first in the list has it.
 def placesKnown(state):
-    rows = state.rows.get("places")
+    rows = state.rows.get(pluginLevel("places"))
     if state.placed is None or state.placed[0] is not rows:
         paths = {}
         for row in rows or ():
@@ -273,10 +273,10 @@ def placedShown(state):
     row = selectedRow(state)
     if row is None or (logShown(state, row) and rawShown(state)) or (markdownShown(state, row) and textRawShown(state)):
         return False
-    root = state.path[0] if state.path else row["id"] if row["kind"] == "section" else ""
+    root, below = pluginAt(state.path if state.path else [row["id"]] if row["kind"] == "section" else [])
     if root in PLACED["real"]:
         under = PLACED["real"][root]
-        if under is None or any(word in under for word in state.path[1:] + [row["id"]]):
+        if under is None or any(word in under for word in below + [row["id"]]):
             return False
     return True
 
@@ -308,3 +308,29 @@ def placedParagraphs(state, paragraphs):
         shown.extend(("", path) if paired else "  " + path for path in real)
     return shown
 
+
+## ---- the plugin: `Locations (Places)` ----
+
+registerPlugin({
+    "name": "places",
+    "root": {"id": "places", "label": "Locations (Places)", "go": "Loc~a~tions (Places)", "group": "places"},
+    "summaries": {
+        "places": {"lines": "placesSummary"},
+    },
+    "reads": {
+        ## The locations the tooling knows by a name, one row each. Read whatever is shown, as a
+        ## kind of its own, since a path inside one of them stands by its name in the other
+        ## views (PLACED): once when the screen starts; again, on the period and when a read is
+        ## asked for, only while `Locations (Places)` is the list shown.
+        "list:places": {"operation": ["--manager-place-list"], "rows": "places", "kind": "places", "always": True, "seldom": True},
+        ## One location, whole: its row, what declares it, and what stands in it.
+        "view:places:record": {"operation": ["--manager-place-read", "{id}"], "rows": "place-read", "needs": "place"},
+        ## The commands of a workspace among them, those its editor's palette gets, as the declarations of this
+        ## console's packages give them. Read on entering it and when it is asked for, not on the period.
+        "list:places/*": {"operation": ["--manager-place-command-list", "{level}"], "rows": "place-commands", "once": True},
+    },
+    "commands": (
+        {"name": "placecommand", "keys": ("ENTER",), "menu": ("view", 3), "label": "R~u~n the command", "status": "Run",
+         "views": ("places/*",), "for": "a command of a workspace", "on": ("places/*:place-command",), "only": True, "enters": True, "says": "run", "does": ("action", "placecommand")},
+    ),
+})

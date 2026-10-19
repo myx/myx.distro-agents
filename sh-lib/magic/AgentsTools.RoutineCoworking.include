@@ -11,19 +11,19 @@
 
 case "$1" in
 
-	--routine-coworking-session-input-scan)
+	--intern-op-routine-coworking-session-input-scan)
 		shift
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --routine-coworking-session-input-scan: syntax is <team-member> <tracking-document>... -- <team-member> required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-routine-coworking-session-input-scan: syntax is <team-member> <tracking-document>... -- <team-member> required" >&2
 			set +e ; return 1
 		fi
 		local names=()
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--*)
-					echo "⛔ ERROR: $MDSC_CMD --routine-coworking-session-input-scan: invalid option: $1 -- syntax is <team-member> <tracking-document>... -- an input-scan reads all baseline-relevant items itself, including everything reached via blocks:/blocked-by:. SEE Skill magic-team/magic-team.coworking.routine.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-routine-coworking-session-input-scan: invalid option: $1 -- syntax is <team-member> <tracking-document>... -- an input-scan reads all baseline-relevant items itself, including everything reached via blocks:/blocked-by:. SEE Skill magic-team/magic-team.coworking.routine.md" >&2
 					set +e ; return 1
 				;;
 				*)
@@ -35,8 +35,23 @@ case "$1" in
 				;;
 			esac
 		done
+		## None given: the session's own dispatch (F6.3/F6.4). The spawner runs this scan for the coworking kind and gives it no
+		## document: they are the tracking documents the spawn record of the run it works for names -- the dispatch item it made
+		## (`spawns:`) and the item it was started from (`spawned-by:`) -- which is context, not a value to write in a definition.
+		if [ ${#names[@]} -eq 0 ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] ; then
+			local ownRecord ownName
+			for ownRecord in "$MMDAPP/.local/agents/spawned"/*/"$MDAT_SPAWN_SESSION_ID.md" ; do
+				[ -f "$ownRecord" ] || continue
+				while IFS= read -r ownName ; do
+					[ -n "$ownName" ] || continue
+					case "$ownName" in *.md) ;; *) ownName="$ownName.md" ;; esac
+					names+=( "$ownName" )
+				done <<< "$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && ( index( $0, "spawns: " ) == 1 || index( $0, "spawned-by: " ) == 1 ) { v = $0 ; sub( /^[a-z-]+: /, "", v ) ; print v ; }' "$ownRecord" )"
+				break
+			done
+		fi
 		if [ ${#names[@]} -eq 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --routine-coworking-session-input-scan: syntax is <team-member> <tracking-document>... -- at least one tracking-document required, the dispatch or interview document this session is for -- an input-scan reads all baseline-relevant items itself, including everything reached via blocks:/blocked-by:. SEE Skill magic-team/magic-team.coworking.routine.md" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-routine-coworking-session-input-scan: syntax is <team-member> <tracking-document>... -- at least one tracking-document required, the dispatch or interview document this session is for -- an input-scan reads all baseline-relevant items itself, including everything reached via blocks:/blocked-by:. SEE Skill magic-team/magic-team.coworking.routine.md" >&2
 			set +e ; return 1
 		fi
 
@@ -53,7 +68,7 @@ case "$1" in
 			--no-inbox-inquiry --no-inbox-reflections \
 			--no-inbox-notes --no-inbox-other \
 			--no-board-related \
-			--context --routine-coworking-session-input-scan )" || return 1
+			--context --intern-op-routine-coworking-session-input-scan )" || return 1
 
 		local unionNames=()
 		for n in "${names[@]}" ; do unionNames+=( "$n" ) ; done
@@ -85,7 +100,7 @@ case "$1" in
 			--do-inbox-notes --do-inbox-other \
 			--no-slack --no-email --no-trello \
 			--no-board-related \
-			--context --routine-coworking-session-input-scan
+			--context --intern-op-routine-coworking-session-input-scan
 		return $?
 	;;
 

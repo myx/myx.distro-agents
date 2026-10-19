@@ -10,12 +10,15 @@
 
 case "$1" in
 
-	--client-sweep-input-scan)
+	--intern-op-client-sweep-input-scan)
 		shift
+		## What the `--client-` prefix said at the dispatcher while this scan was one: the side it reads, and who may call it, the client's own session or the console.
+		local -x MDAT_COMMS_SIDE=client MDAT_COMMS_OP="--intern-op-client-sweep-input-scan"
+		AgentsToolsClientCallerCheck "${1:-}" "intern-op-client-sweep-input-scan" || { set +e ; return 1 ; }
 		local clientMember="$1"
 		shift || true
 		if [ -z "$clientMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-client-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$clientMember" "<team-member>" client-sweep-input-scan || { set +e ; return 1 ; }
@@ -24,7 +27,7 @@ case "$1" in
 		case "$clientMember" in
 			client-*)  clientKind="client" ;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: this operation reads one external member's own accounts and labels the whole document as that member's, so it runs only as a client-* member: $clientMember" >&2
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-client-sweep-input-scan: this operation reads one external member's own accounts and labels the whole document as that member's, so it runs only as a client-* member: $clientMember" >&2
 				set +e ; return 1
 			;;
 		esac
@@ -33,7 +36,7 @@ case "$1" in
 			;;
 			*)
 				if [ ! -d "$MDAT_SKILLSET_ROOT/$clientMember" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: no such member skill directory: $MDAT_SKILLSET_ROOT/$clientMember" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-client-sweep-input-scan: no such member skill directory: $MDAT_SKILLSET_ROOT/$clientMember" >&2
 					set +e ; return 1
 				fi
 			;;
@@ -44,22 +47,22 @@ case "$1" in
 			case "$1" in
 				--comms-since-date-time|--comms-since-utime)
 					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: $1: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-client-sweep-input-scan: $1: value required" >&2
 						set +e ; return 1
 					fi
 					if [ ${#commsCutoffArgs[@]} -gt 0 ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: --comms-since-date-time and --comms-since-utime are mutually exclusive, and neither is repeatable -- one cut-off, one spelling" >&2
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-client-sweep-input-scan: --comms-since-date-time and --comms-since-utime are mutually exclusive, and neither is repeatable -- one cut-off, one spelling" >&2
 						set +e ; return 1
 					fi
 					commsCutoffArgs=( "$1" "$2" )
 					shift 2
 				;;
 				--*)
-					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: invalid option: $1 -- syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-team/reference/skill-folder-model.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-client-sweep-input-scan: invalid option: $1 -- syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-team/reference/skill-folder-model.md" >&2
 					set +e ; return 1
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --client-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-team/reference/skill-folder-model.md" >&2
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-client-sweep-input-scan: syntax is <team-member> [--comms-since-date-time <value>|--comms-since-utime <value>] -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-team/reference/skill-folder-model.md" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -121,7 +124,7 @@ case "$1" in
 				--do-inbox-inquiry-active --do-inbox-reflections \
 				--do-inbox-notes --do-inbox-other \
 				--do-all --member-scope-only --do-slack-tags "${commsCutoffArgs[@]}" \
-				--context --client-sweep-input-scan
+				--context --intern-op-client-sweep-input-scan
 		)" || clientSweepStatus=$?
 
 		## 0, 3 and 4 each describe a document that exists and states its own coverage.

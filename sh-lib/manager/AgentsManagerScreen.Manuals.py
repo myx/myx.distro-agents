@@ -153,3 +153,43 @@ def askHelp(state, row):
 
 ACTION_HANDLERS["help"] = askHelp
 
+
+## ---- the plugin: `Manuals (Help)` ----
+
+registerPlugin({
+    "name": "manuals",
+    "root": {"id": "manuals", "label": "Manuals (Help)", "go": "Manuals (~H~elp)", "group": "manuals"},
+    "rows": {
+        "manuals": (("user", "User Manuals", "manuals", True), ("commands", "Tooling Commands", "commands", True),
+                    ("maintainer", "Maintainer Manuals", "manuals", True)),
+    },
+    "summaries": {
+        "manuals": {"lines": "foldersSummary"},
+        "manuals/user": {"lines": "manualsSummary"},
+        "manuals/commands": {"lines": "commandsSummary"},
+        "manuals/maintainer": {"lines": "manualsSummary"},
+    },
+    "reads": {
+        ## The root `Manuals (Help)`. The tooling commands a console user calls by name, as the
+        ## console's completion gathers them, each with the file it resolves to. Read on entering
+        ## and when it is asked for, not on the period.
+        "list:manuals/commands": {"operation": ["--manager-command-list"], "rows": "commands", "once": True},
+        ## The help of one of them, as its own `--help` prints it, read from its help files and
+        ## never by running it: of the command selected alone, once the selection rests on it, and
+        ## not on the period.
+        "view:manuals/commands:help-entry": {"operation": ["--manager-help-read", "{id}"], "once": True},
+        ## The manuals of the projects, the README.md of each (`User Manuals`) and its MAGIC.md
+        ## (`Maintainer Manuals`), in the build order, a project a row; one of them whole is read
+        ## by the name of its project, once the selection rests on it.
+        "list:manuals/user": {"operation": ["--manager-manual-read", "user"], "rows": "manuals", "once": True},
+        "view:manuals/user:help-entry": {"operation": ["--manager-manual-read", "user", "{id}"], "once": True},
+        "list:manuals/maintainer": {"operation": ["--manager-manual-read", "maintainer"], "rows": "manuals", "once": True},
+        "view:manuals/maintainer:help-entry": {"operation": ["--manager-manual-read", "maintainer", "{id}"], "once": True},
+    },
+    "integrates": {
+        ## the lists whose rows the user may have by name instead of in the order the operation gave them, by the key of the command
+        ## "alphabetical": the manuals of the projects, which the operation gives in the build order
+        "list": {"alphabetical": ("manuals/user", "manuals/maintainer")},
+        "markdown": {"help": ("manuals/commands:help-entry", "manuals/user:help-entry", "manuals/maintainer:help-entry")},
+    },
+})

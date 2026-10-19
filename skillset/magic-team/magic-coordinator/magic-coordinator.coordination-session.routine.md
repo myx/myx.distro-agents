@@ -1,7 +1,11 @@
 ---
+type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 invitees: human-owner
+requires-session-kind: standalone
+input-scan-def: none
+review-by: inherit
 ---
 # magic-coordinator.coordination-session.routine — the actual procedure
 
@@ -10,6 +14,7 @@ invitees: human-owner
 - Summary
   - Goals
   - Scope
+- Opening steps
 - Steps
 - Closure steps
 - Routine's local procedures
@@ -41,21 +46,25 @@ invitees: human-owner
   - Select the mode. The spawning routine's mode selection does (`magic-coordinator.root-harness.routine`'s **select-operating-mode**).
   - Cover `armed-mode`, which has no loop.
 
+# Opening steps
+
+None of its own: the Opening steps of the routine it inherits from run first (its session kind's, or `magic-team.inline.routine`'s when it runs inline).
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **sweep-comms**: Run `magic-coordinator.communication-sweep.routine`.
-2. **advance-on-update**: Something new was found: run `magic-coordinator.advance.routine` now.
+1. **sweep-comms**: Run `magic-coordinator.communication-sweep.routine` inline (`--routine-run-inline magic-coordinator.communication-sweep.routine`).
+2. **advance-on-update**: Something new was found: run `magic-coordinator.advance.routine` now, inline (`--routine-run-inline magic-coordinator.advance.routine`).
 3. **drive-session-goal**: Keep driving the session's goal: dispatch, follow through, see real changes land.
 4. **goal-gap-toward-empty**: Ask small, minimal-assumption questions that narrow the gap to the goal. Resuming a tracked interview, this is `magic-team.interview.routine`'s **resume-review**.
 5. **wait-between-cycles**: Wait on the session thread and the sources this session watches (`Wait`, per `magic-team.armed.md`'s **wait-never-quit**). A `TIMEOUT` is a normal result.
 6. **repeat-from-sweep**: The goal gap is empty: go to **conclude-or-ask-input**. Otherwise repeat from **sweep-comms**.
-7. **conclude-or-ask-input**: The goal gap is empty: say so, and ask for new input. On the human-owner's word to close, run **close-session**.
+7. **conclude-or-ask-input**: The goal gap is empty: say so, and ask for new input. On the human-owner's word to close, the session closes: its Closure steps run.
 
 # Closure steps
 
-1. **close-session**: Run `magic-team.coworking.routine`'s **close-session** group, reached only from **conclude-or-ask-input**.
+None of its own: the Closure steps of the routine it inherits from run (its session kind's, or `magic-team.inline.routine`'s when it runs inline), reached only from **conclude-or-ask-input**.
 
 # Routine's local procedures
 
@@ -85,6 +94,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 ## DistroAgentsTools magic-tooling operations
 
 - `--magic-heartbeat-lock-status <team-member>`
+- `--routine-run-inline <routine>`
 
 # Maintainer Notes
 

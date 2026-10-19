@@ -41,7 +41,8 @@ rigRefuse(){
 ## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
 ## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
-rigTmp="$( mktemp -d -t AgentsClientSidesCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsClientSidesCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## A loop in the code under test must end the check rather than hang it: nothing here legitimately runs long.
 rigProcNote $$
@@ -310,7 +311,7 @@ rigFn AgentsToolsSlackSideNote client-ndm
 rigAssert "control: in every other operation it says the side as it did" "$fnOut" " -- this call is on our own organisation's side, where client-ndm has no Slack settings of its own: what it holds is the other organisation's, read in a --client-* operation or for a client:<addressee> address"
 rigRun --magic-comms-slack-read keeper-here magic-team
 rigAssert "control: the coordinator acting as a member that is no client stays in our own Slack" "$rigRc $( rigTokens conversations.history )" "0 rig-user-token-KHERE "
-rigRun --client-sweep-input-scan client-ndm
+rigRun --intern-op-client-sweep-input-scan client-ndm
 rigAssert "the client's own sweep reads its sources there under its own token, and never under our team's" "$( [ "$( rigN "$rigTmp/calls" ' rig-user-token-NDM' )" -gt 0 ] && printf read || printf unread ) $( rigOurs ) $( rigElsewhere )" "read 0 0"
 
 echo "-- 4. a client: address reaches the other organisation from a --member-* operation --"

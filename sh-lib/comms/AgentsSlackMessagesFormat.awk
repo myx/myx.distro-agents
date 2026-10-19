@@ -19,7 +19,7 @@
 # `AgentsToolsSlackCheck` reads in sh-lib/comms/AgentsTools.CommsSlack.include
 # (per-DM fan-out leg, single-conversation path), the escalation-thread
 # read in sh-lib/questions/AgentsTools.MemberEscalation.include, and the Wait thread
-# probe in sh-lib/member/AgentsTools.MemberWait.include. NOT --magic-sweep-input-scan,
+# probe in sh-lib/member/AgentsTools.MemberWait.include. NOT --intern-op-sweep-input-scan,
 # which never invokes this file -- that op feeds AgentsSessionContextCommsItems.awk.
 #
 # Parsing engine (skipws/hex2dec/utf8enc/parseString/parseValue/

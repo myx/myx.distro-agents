@@ -54,7 +54,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 # Terminology: coordination
 
 - `roster-note` — the team roster cache: member, domain and posture rows, plus each member's persona fields. Read with `--magic-team-roster-read`, written with `--magic-team-roster-upsert`. The members' own `SKILL.md` and `.basic.md` stay the source of truth.
-- `heartbeat-state-note` — `magic-coordinator.heartbeat.routine`'s day-rhythm record. Read with `--magic-heartbeat-state-read`, written with `--magic-heartbeat-state-upsert`.
+- `heartbeat-state-note` — `magic-coordinator.heartbeat.routine`'s day-rhythm record. Read with `--magic-heartbeat-state-read`, written with `--update-routine-state`.
 - `sweep-state-note` — one member's comms-sweep position. Read with `--magic-sweep-state-read`, advanced with `--magic-sweep-state-advance`, written with `--magic-sweep-state-upsert`.
 - `resume-review` — on reactivating tracked work, dispatch the sub-pieces already settled and shrink the tracked scope to what is still open.
 - `comms-action record` — a `note-*` this member files in its own inbox, queuing one deferred comms action: `note-pending-slack-reaction-<matter>` or `note-pending-trello-update-<matter>`. One record per action. Another member wanting a Trello update asks for it by `post-inquiry`.
@@ -294,7 +294,6 @@ Every `magic-tooling` operation this member's own procedures and rules use. Beha
 - `--magic-permission-set-request <magic-coordinator> <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...` — one `--entry` may name several tools for one target; after a place's entries the asker may state what that access will be used for, which helps the person decide. With no `--participant`, the set is for the item's own members. A target may name a place, built in (`.skillset-shared`, `.skillset-.local`) or registered; a custom place name may not start with a dot. A permission is decided on the real file, so a link and its target get the same answer.
 - `--magic-permission-list --member <member>`
 - `--magic-permission-revoke <ref>`
-- `--magic-permission-escalation-input-scan <team-member>`
 - `--owner-workspace-list`
 
 # Maintainer Notes

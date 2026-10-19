@@ -723,7 +723,7 @@ rigAssert "and nothing was sent anywhere: no DM to a person" "$( LC_ALL=C awk 'E
 sleep 2
 rigAssert "the asking call waits"                          "$( kill -0 "$rigAskPid" 2>/dev/null && printf waiting || printf returned )" waiting
 RIG_OP_AGENT=magic-coordinator
-rigOp --magic-permission-escalation-input-scan magic-coordinator
+rigOp --intern-op-permission-escalation-input-scan magic-coordinator
 rigAssert "the input scan lists it"                        "$( rigHolds "$rigScenarioDir/op.out" "## permission ask $rigPendingE" )" yes
 rigAssert "with the asking member, the tool and the target" "$( rigScanAsk "$rigPendingE" )" "member: $rigMember|tool: Write|target: $rigTargetE|"
 rigAssert "with its reason and its task"                   "$( rigHolds "$rigScenarioDir/op.out" 'reason: the task report goes there' ):$( rigHolds "$rigScenarioDir/op.out" 'task-ref: dispatch-rig' )" "yes:yes"
@@ -747,7 +747,7 @@ rigAssert "an asking call cut short leaves its ask open"   "$( LC_ALL=C awk -F':
 rigOp --member-escalation-answer magic-coordinator "$rigPendingW" allow-session
 rigTool rig-session Wait "{\"sources\":\"ask:$rigPendingW\",\"timeout\":\"30\"}"
 rigAssert "a later Wait returns the answer to the requester" "$( rigFirstLine "$rigScenarioDir/out" ):$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT: RECEIVED' ):$( rigLineOf 'VERDICT: ' )" "WAIT-RESULT: RECEIVED:yes:VERDICT: allow-session"
-rigOp --magic-permission-escalation-input-scan magic-coordinator
+rigOp --intern-op-permission-escalation-input-scan magic-coordinator
 rigAssert "answered, neither is listed any more"           "$( LC_ALL=C grep -c '^## permission ask ' "$rigScenarioDir/op.out" ):$( rigHolds "$rigScenarioDir/op.out" '(none)' )" "0:yes"
 rigAssert "and no Slack call was made at all"              "$( LC_ALL=C awk 'END { print NR ; }' "$RIG_CURL_LOG" )" 0
 RIG_OP_AGENT=""
