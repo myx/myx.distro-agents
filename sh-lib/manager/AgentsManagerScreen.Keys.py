@@ -75,9 +75,10 @@ def commandWindow(command):
 
 
 ## Whether a command belongs to the view of now, the level the list is at: one that names
-## no view belongs to every view.
+## no view belongs to every view but those it names under "except".
 def commandInView(state, command):
-    return "views" not in command or levelPattern(state.path) in command["views"]
+    pattern = levelPattern(state.path)
+    return ("views" not in command or pattern in command["views"]) and pattern not in command.get("except", ())
 
 
 ## The command a key means now, or None: the first of COMMANDS that has the key, belongs
@@ -192,6 +193,8 @@ def runCommand(state, command, layout, key=None):
     elif does[0] == "filter":
         state.activeOnly = not state.activeOnly
         readNow(state)
+    elif does[0] == "alphabetical":
+        state.alphabetical = not state.alphabetical
     elif does[0] == "menu":
         openMenu(state, 0)
     elif does[0] == "demand":

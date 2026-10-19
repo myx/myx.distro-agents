@@ -157,7 +157,7 @@ rigCase(){ ## name
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\nwall 2026-10-13 02:30 +0000\nsize 120 36\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
+	rigOut="$( { printf 'tools bash %s\nwall 2026-10-13 02:30 +0000\nsize 120 36\nroot dashboard\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -216,7 +216,7 @@ rigAssert "the members: their table alone, numbered, and no line of a summary" "
 rigAssert "the locations: every location as a table with its path, nothing above it" "$( rigLeft P )" "   PLACE     KIND     STATE   PATH                               SESSIONS CEILING /  • ws-one    workspa… present /rig/Workspaces/ws-one             2        read-wr… /    gone-work workspa… absent  /rig/Volumes/gone-work             0        read-wr… /    deep      directo… present /rig/Workspaces/ws-one/source/deep -        read-on…"
 rigAssert "what is to start: each as a table with its command, nothing above it" "$( rigLeft C )" " CONSOLE         GROUP   COMMAND /  Agents Console  Distro  bash DistroAgentsConsole.sh /  Source Console  Distro  bash DistroSourceConsole.sh /  Top             System  top"
 rigAssert "the settings: its subjects in a table, with what each holds" "$( rigLeft G | sed 's/^.*while the workspace runs\. \/ //' )" " SUBJECT    LINES  MISSING  WHAT /  Interface  2      -        how this console looks, saved for the user who runs it"
-rigAssert "the configuration: its subjects, how many lines each misses, and its folders" "$( rigLeft F | sed 's/^.*change it later\. \/ //' ) [$( rigLeft F | sed 's/ \/ .*$//' )]" " SUBJECT          LINES MISSING WHAT /  Slack            3     1       - /  Config Checker   -     -       the read-only checks of the installation, run on /                                 demand /  Server Keys      -     -       the public keys of this server /  Tooling Commands -     -       the commands a console user calls by name [ SUBJECT          LINES MISSING WHAT]"
+rigAssert "the configuration: its subjects, how many lines each misses, and its folders" "$( rigLeft F | sed 's/^.*change it later\. \/ //' ) [$( rigLeft F | sed 's/ \/ .*$//' )]" " SUBJECT        LINES MISSING WHAT /  Slack          3     1       - /  Config Checker -     -       the read-only checks of the installation, run on /                               demand /  Server Keys    -     -       the public keys of this server [ SUBJECT        LINES MISSING WHAT]"
 rigAssert "nothing was entered, and each list was read once: the asks, the members, what is to start, and the digest for both its roots" "[$( rigVal end.path )] $( rigCalls --member-pending-reply-read ) $( rigCalls --manager-team-member-list ) $( rigCalls --manager-console-list ) $( rigCalls --manager-config-digest ) $( rigFolderCalls )" "[] 1 1 1 1 4"
 
 echo "-- until the rows have come the window says that it waits; the read starts when the selection has rested --"
@@ -408,7 +408,7 @@ rigCase pty
 mkdir -p "$rigTmp/ws-rig"
 printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigTools" > "$rigTmp/tools"
 chmod +x "$rigTmp/tools"
-rigOut="$( MANAGER_SCREEN_PTY_TRACE='asks=QUESTION' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 120 36 "Sessions (Activity)" '\x1bOB\p\x1bOB\p\aQUESTION\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
+rigOut="$( MANAGER_SCREEN_PTY_TRACE='asks=QUESTION' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 120 36 "Sessions (Activity)" '\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\aQUESTION\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
 rigAssert "it draws the summary of the asks with no Enter and ends with status 0, the terminal given back" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft ) $( rigVal pty.modeBack ) [$( rigVal pty.trace | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ $//' )]" "yes 0 yes none yes [asks]"
 
 if [ "$rigFailCount" -ne 0 ] ; then

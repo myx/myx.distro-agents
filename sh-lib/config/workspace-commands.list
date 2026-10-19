@@ -1,8 +1,1 @@
-## The workspace commands of myx.distro-agents, declared once: a command a line, its name (its emoji is part of it), how
-## it runs (`output`: unattended, what it writes followed; `terminal`: with the whole terminal), and the command,
-## a TAB between them; `$MMDAPP` in a command is the root of the workspace it runs in. Two products are made of
-## it, neither from the other: the tasks of the editor's palette (AgentsTools.Make.VSCodeTasksFragment.include, by
-## myx.distro-source's SourceTools.Make.VSCodeTasksFromWorkspaceCommands.include) and the console's commands of a
-## workspace (DistroAgentsTools.fn.sh --manager-place-command-list and --manager-place-command-run).
-
-🤖 Start Agents Console	terminal	bash '$MMDAPP/DistroAgentsConsole.sh'
+🧪 Rig Terminal	terminal	sh "$MMDAPP/rig-command.sh" terminal

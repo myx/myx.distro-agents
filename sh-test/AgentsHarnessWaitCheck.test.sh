@@ -877,7 +877,7 @@ rigAssert "default: the state is stored"                       "$( rigNewStateFi
 rigNewIn continue-control --wait-continue --wait-timeout 2
 rigAssert "control: continue with state is a wait"             "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
 rigAssert "control: the mode is continue"                      "$( rigNth "$rigNewOut" 2 )" "WAIT-MODE: continue"
-rigAssert "control: the stored source is the one waited on"    "$( rigHolds "$rigNewOut" "# sources: file:$rigDropA2" )" yes
+rigAssert "control: the stored source is the one waited on"    "$( rigHolds "$rigNewOut" "# sources: replies:$rigNewSession file:$rigDropA2" )" yes
 rigAssert "control: the trace says continue"                   "$( rigHolds "$rigNewErr" "# --member-wait-for-input: mode=continue member=$rigMember session=$rigNewSession" )" yes
 
 rigDropAfter 1 "$rigDropA2" RIG-CONTINUE-ARRIVAL
@@ -900,13 +900,13 @@ for rigRefused in "--wait-source file:$rigDropB2" "--wait-since-utime 1700000000
 done
 rigNewIn continue-after-refusals --wait-continue --wait-timeout 2
 rigAssert "control: the state survived the refusals"           "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
-rigAssert "control: still the stored source"                   "$( rigHolds "$rigNewOut" "# sources: file:$rigDropA2" )" yes
+rigAssert "control: still the stored source"                   "$( rigHolds "$rigNewOut" "# sources: replies:$rigNewSession file:$rigDropA2" )" yes
 
 ## Default resets: the second default's source replaces the first's.
 rigNewIn default-second --wait-default --wait-source "file:$rigDropB2" --wait-timeout 2
-rigAssert "default again: waited on the new source"            "$( rigHolds "$rigNewOut" "# sources: file:$rigDropB2" )" yes
+rigAssert "default again: waited on the new source"            "$( rigHolds "$rigNewOut" "# sources: replies:$rigNewSession file:$rigDropB2" )" yes
 rigNewIn continue-after-reset --wait-continue --wait-timeout 2
-rigAssert "continue after a reset uses the new source"         "$( rigHolds "$rigNewOut" "# sources: file:$rigDropB2" )" yes
+rigAssert "continue after a reset uses the new source"         "$( rigHolds "$rigNewOut" "# sources: replies:$rigNewSession file:$rigDropB2" )" yes
 rigAssert "and nothing of the old one"                         "$( rigHolds "$rigNewOut" "file:$rigDropA2" )" no
 ## State belongs to its session: another session's continue finds nothing.
 rigNew continue-other-session --wait-continue --wait-session-id "rig-sess-other" --wait-timeout 600
@@ -1349,7 +1349,7 @@ rigLossPosts="$rigLossPosts$( rigOwnerPost 1700000001.000400 loss-400 "$rigReact
 rigNewReplies "$rigLossPosts"
 MDAT_SESSION_THREAD="$rigReactChannel:$rigReactThread" MDAT_WAIT_SETTLE_SECONDS=1 rigNewIn loss-default-nosources --wait-default --wait-timeout 10
 rigAssert "default, no sources: RECEIVED"                      "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
-rigAssert "no sources: it waited on the session thread"        "$( rigHolds "$rigNewOut" "# sources: $rigLossConv" )" yes
+rigAssert "no sources: it waited on the session thread, behind the floor" "$( rigHolds "$rigNewOut" "# sources: replies:$rigNewSession $rigLossConv" )" yes
 rigAssert "no sources: the post made between the calls is returned" "$( rigHolds "$rigNewOut" 'loss-400' )" yes
 rigAssert "no sources: what was already returned is not"       "$( rigHolds "$rigNewOut" 'loss-300' )" no
 ## A since newer than the stored floor -- the ts of the caller's own reply -- takes the older floor.
@@ -1437,7 +1437,7 @@ rigCdMarker="$rigNewDir/launch.marker"
 : > "$rigCdMarker"
 MDAT_SESSION_THREAD="$rigReactChannel:$rigCdSession" MDAT_CONVERSATION_THREADS="$rigReactChannel:$rigCdConv" MDAT_WAIT_SETTLE_SECONDS=1 \
 	rigNewIn cd-bare --wait-default --wait-since-utime 1700000001.000101 --wait-timeout 10
-rigAssert "bare: both threads are the sources"                 "$( rigHolds "$rigNewOut" "# sources: slack:$rigReactChannel:$rigCdSession:conversation slack:$rigReactChannel:$rigCdConv:conversation" )" yes
+rigAssert "bare: both threads are the sources, behind the floor" "$( rigHolds "$rigNewOut" "# sources: replies:$rigNewSession slack:$rigReactChannel:$rigCdSession:conversation slack:$rigReactChannel:$rigCdConv:conversation" )" yes
 rigAssert "bare: the session thread post is returned"          "$( rigHolds "$rigNewOut" 'cd-session-post' )" yes
 rigAssert "bare: the conversation thread post is returned"     "$( rigHolds "$rigNewOut" 'cd-conv-post' )" yes
 rigAssert "bare: one block per thread"                         "$( rigOpens "$rigNewOut" '# arrived on: ' )" 2

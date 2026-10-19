@@ -61,7 +61,7 @@ rigOp(){ ## operation and its arguments
 echo "-- a bare default wait, nothing stored yet, watches the session's own thread --"
 rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession" --wait-since-utime 1700000000 --wait-timeout 2 --wait-poll-interval 1
 rigAssert "it times out (nothing posted there)" "$( rigFirstLine "$rigWs/out" | LC_ALL=C sed 's/ (.*//' )" "WAIT-RESULT: TIMEOUT"
-rigAssert "the session thread is the source" "$( rigSourcesLine "$rigWs/out" )" "slack:$rigSessionThread:conversation"
+rigAssert "the session thread is the source, behind the floor" "$( rigSourcesLine "$rigWs/out" )" "replies:$rigSession slack:$rigSessionThread:conversation"
 
 echo "-- --wait-close ends the stored wait --"
 rigOp --member-wait-for-input "$rigMember" --wait-close --wait-session-id "$rigSession"
@@ -70,7 +70,7 @@ rigAssert "it reports CLOSED" "$( rigFirstLine "$rigWs/out" )" "WAIT-RESULT: CLO
 echo "-- a later bare default wait recomputes the session thread as its source again --"
 rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession" --wait-since-utime 1700000000 --wait-timeout 2 --wait-poll-interval 1
 rigAssert "it times out, same as before" "$( rigFirstLine "$rigWs/out" | LC_ALL=C sed 's/ (.*//' )" "WAIT-RESULT: TIMEOUT"
-rigAssert "the session thread is the source again, after the close" "$( rigSourcesLine "$rigWs/out" )" "slack:$rigSessionThread:conversation"
+rigAssert "the session thread is the source again, after the close" "$( rigSourcesLine "$rigWs/out" )" "replies:$rigSession slack:$rigSessionThread:conversation"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ WAIT SESSION THREAD RESET CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

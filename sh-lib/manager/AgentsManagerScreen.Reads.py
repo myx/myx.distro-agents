@@ -344,7 +344,7 @@ def applyResult(state, result):
         state.notice = ""
         state.noticeOf = None
     if key.startswith("list:"):
-        entry = READS.get("list:" + levelPattern(key[len("list:"):].split("/"))) or {}
+        entry = READS.get(key) or READS.get("list:" + levelPattern(key[len("list:"):].split("/"))) or {}
         levels = parseLevels(key, entry.get("rows"), result["text"])
         for gone in state.levelsOf.pop(key, ()):
             state.rows.pop(gone, None)

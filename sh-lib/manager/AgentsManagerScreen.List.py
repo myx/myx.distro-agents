@@ -59,12 +59,20 @@ def levelRowsAt(state, path):
         ## the filter shows what the operation gave when it was last asked for the active
         ## ones, also of an answer read without it: which are active is the operation's to say
         listed = [row for row in listed if row["id"] in state.activeOf[levelKey(path)]]
-    rows.extend(listed)
+    rows.extend(orderedRows(state, path, listed))
     return rows
 
 
 def levelRows(state):
     return levelRowsAt(state, state.path)
+
+
+## The listed rows of a level in the order the user chose: by name where the level is one of ALPHABETICAL
+## and the choice is on, else as the operation gave them.
+def orderedRows(state, path, rows):
+    if state.alphabetical and levelPattern(path) in ALPHABETICAL:
+        return sorted(rows, key=lambda row: row["label"].lower())
+    return rows
 
 
 ## THE SPACERS of the list. A spacer is one blank line between two groups of the rows of the
@@ -147,15 +155,12 @@ def parseLevels(readKey, form, text):
     if form == "member-help":
         rows, whole = parseHelpRows(text)
         return {level: rows, WHOLE_OF + level: whole}
-    if form == "manuals":
-        ## what a user calls stands first, to the first empty line: that is what the
-        ## root shows of itself; every operation after it, as a member's help gives its own;
+    if form == "chapters":
         ## the chapters of the help, rows of their own, kept for a member's `Member Help`
         text, chapters = parseHelpChapters(text)
-        usage = text.partition("\n\n")
-        rows, whole = parseHelpRows(usage[2])
-        return {level: rows, WHOLE_OF + level: [{"lines": [line.expandtabs(4) for line in usage[0].splitlines()]}],
-                CHAPTERS_OF + level: chapters}
+        return {level: [], CHAPTERS_OF + level: chapters}
+    if form == "manuals":
+        return {level: parseManualRows(text)}
     return {level: parseRows(readKey, text)}
 
 

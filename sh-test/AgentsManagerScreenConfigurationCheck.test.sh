@@ -16,7 +16,7 @@
 ## list where that carries it and else from the read of that key, and the shortened key of a row is never on the
 ## screen; a key selected shows what it is for, its type, fingerprint, file, its whole line and where it is to be
 ## registered; its key shows it alone in a box, read anew, broken only where the box is full; a key that cannot
-## be read says so and opens no box; `Tooling Commands` stands after them, its left window a table of the commands as
+## be read says so and opens no box; `Tooling Commands`, which F11.9 moved to `Manuals (Help)`, has its left window a table of the commands as
 ## `--manager-command-list` prints them, by the names a user types, each with where it is located, its project as
 ## workspace:project path, else its folder by the rule of the locations, read once the selection rests on it, and
 ## inside each is a row; a command
@@ -192,8 +192,7 @@ turn
 get in
 cells row2 3 85 119
 cells row3 4 85 119
-cells row4 5 85 119
-cells row5 7 85 119
+cells row4 6 85 119
 keys DOWN
 turn
 show c
@@ -203,7 +202,7 @@ show k
 advance 11
 turn 3
 RIGSCRIPT
-rigAssert "Config Checker, Server Keys and Tooling Commands stand under the row that goes up, each a row that is entered, then the subjects" "$( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )][$( rigCell row5 )]" "5 [ Config Checker ~ ►][ Server Keys ~ ►][ Tooling Commands ~ ►][ Workspace Paths ~ ►]"
+rigAssert "Config Checker and Server Keys stand under the row that goes up, each a row that is entered, then the subjects" "$( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )]" "4 [ Config Checker ~ ►][ Server Keys ~ ►][ Workspace Paths ~ ►]"
 rigAssert "on Config Checker the left window says that the checks were not run, and which key runs them" "[$( rigPane c 2 )][$( rigPane c 3 )][$( rigPane c 4 )]" "[ Config Checker [wrap]][ The checks were not run yet in this run of the screen.][ r runs them. It is the read-only diagnosis of each part of the installation: it]"
 rigAssert "the checks are not run before their folder is entered, whatever time passes; the keys are listed once the selection has rested on their folder" "$( rigCalled --manager-check-run ) $( rigCalled --manager-keys-list ) [$( rigPane k 2 )]" "0 1 [ Server Keys [wrap]]"
 
@@ -433,7 +432,7 @@ turn
 root configuration
 keys ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN
 turn
 show sc
 keys ENTER
@@ -484,7 +483,7 @@ rigAssert "Enter on a heading does nothing: the status line says that the row ha
 rigAssert "a line selected: its window is titled with its group ahead of its label, a missing one is read as it is, and its facts name the group" "[$( rigVal line.selected )] [$( rigVal title )] $( rigPaneHolds u '  group   grok' ) $( rigPaneHolds u '  key     usable' )" "[grok usable] [grok: CLI Usable [wrap]] 1 1"
 rigAssert "a subject with one group shows no heading: its lines alone, as they come" "$( rigVal one.path ) $( rigVal one.rows ) [$( rigTrim o1 )][$( rigTrim o2 )][$( rigTrim o3 )]" "configuration/loop 3 [ Running][ Recheck][]"
 
-echo "-- Tooling Commands: the commands the completion gathers, by the names a user types, each with its file, and the help of each --"
+echo "-- Tooling Commands, in Manuals (Help): the commands the completion gathers, by the names a user types, each with its file, and the help of each --"
 rigCase commands
 ## a location, so that a path inside it shows by its key; the help of one command as --manager-help-read gives it,
 ## the help of another empty: no help file stands beside it
@@ -493,9 +492,10 @@ printf '📘 syntax: DistroAgentsTools.fn.sh --only-in-the-include\n📘 syntax:
 : > "$MANAGER_SCREEN_RIG/rows.--manager-help-read JumpRig.fn.sh"
 rigScript <<'RIGSCRIPT'
 turn
-keys 8
+root manuals
+keys ENTER
 wait list 30
-keys DOWN DOWN DOWN
+keys DOWN DOWN
 wait focus 30
 turn
 get on
@@ -530,7 +530,7 @@ RIGSCRIPT
 rigAssert "on its row the left window is a table of each name and where it is, nothing above it, how many in the frame, once the selection has rested there" "$( rigVal on.selectedLabel ) [$( rigPane t 2 )][$( rigPane t 3 )] $( rigScreenHolds t '4 commands' ) $( rigScreenHolds t ' 4 rows ' )" "Tooling Commands [ Tooling Commands [wrap]][  NAME                     PATH] 0 1"
 rigAssert "PATH is where the command is located, its project as workspace:project path, under the source folder of the workspace, no file name, no sh-scripts, no source (the owner: \"no command name inclided in path - it is where the command located at!\", \"Even sh-scripts is not needed\", \"Just a workspace:project_path\"); a folder in no workspace's source by the place: form, in no location as it is, and a dash where nothing resolves, in the order the operation gives" "$( rigColumnJoined t PATH | head -c 56 ) $( rigColumnJoined t PATH | LC_ALL=C grep -c -F -e '.fn.sh' -e 'sh-scripts' -e 'source/' )" "ws-one:myx/myx.distro-agents/rig/elsewhere-tools-dir:pkg 0"
 rigAssert "it is read by the one operation, with no argument, once" "$( rigCalled --manager-command-list ) $( LC_ALL=C grep -c -e '--manager-command-list' "$MANAGER_SCREEN_RIG/calls" )" "1 1"
-rigAssert "inside, each command is a row of its own, by its name" "$( rigVal in.path ) $( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )]" "configuration/commands 5 [ DistroAgentsTools.fn.sh][ JumpRig.fn.sh][ ScreenTo.fn.sh]"
+rigAssert "inside, each command is a row of its own, by its name" "$( rigVal in.path ) $( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )]" "manuals/commands 5 [ DistroAgentsTools.fn.sh][ JumpRig.fn.sh][ ScreenTo.fn.sh]"
 rigAssert "a command selected: its help is read by the help read with its name, once, and the left window shows it rendered, its title says so" "$( rigVal help.selected ) $( rigCalled '--manager-help-read DistroAgentsTools.fn.sh' ) [$( rigPane h 2 )] $( rigPaneHolds h ' 📘 syntax: DistroAgentsTools.fn.sh --only-in-the-include' ) $( rigPaneHolds h '  Summary:' ) $( rigScreenHolds h '##' ) $( rigScreenHolds h '**' ) $( rigScreenHolds h '`' )" "DistroAgentsTools.fn.sh 1 [ DistroAgentsTools.fn.sh [markdown] [wrap]] 1 1 0 0 0"
 rigAssert "its option heads its text, set in as the help sets it, plain as --help prints it, and a long sentence is broken to the window" "$( rigPaneHolds h '         --rig-option <value>' ) $( rigLookOf h hr '--rig-option <value>' ) $( rigScreenHolds h 'ENDWORD' ) $( rigScreenHolds h 'What the option does, a long sentence that goes on and on, so that it is broken across the width of the left window, and ENDWORD.' )" "1 .................... 1 0"
 rigAssert "g shows it as it is, b renders it again, and w cuts each line instead of breaking it" "$( rigVal raw.textMode ) $( rigPaneHolds r ' ##  Summary:' ) $( rigVal cut.textMode ) $( rigScreenHolds c 'What the option does, a long sentence that goes on and on, so that' ) $( rigScreenHolds c 'ENDWORD' ) $( rigScreenHolds c '[cut]' )" "raw 1 summary 1 0 1"

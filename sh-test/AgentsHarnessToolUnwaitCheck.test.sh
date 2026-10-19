@@ -50,9 +50,9 @@ echo "-- unwait, through the real Wait tool, drops it --"
 rigCall "{\"unwait\":\"file:$rigFile\"}"
 rigAssert "the tool call itself reports DROPPED" "$( LC_ALL=C head -1 "$rigWs/out" )" "WAIT-RESULT: DROPPED"
 
-echo "-- a later continue finds nothing stored to continue --"
+echo "-- a later continue finds the floor alone stored, which no unwait removes --"
 rigCall '{"mode":"continue"}'
-rigAssert "continue now finds no stored wait at all" "$( LC_ALL=C grep -c 'found no stored wait' "$rigWs/out" )" 1
+rigAssert "continue still finds a stored wait, the floor, and waits on it" "$( LC_ALL=C grep -c 'found no stored wait' "$rigWs/out" ):$( LC_ALL=C head -1 "$rigWs/out" | LC_ALL=C sed 's/ (.*//' )" "0:WAIT-RESULT: TIMEOUT"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ HARNESS TOOL UNWAIT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

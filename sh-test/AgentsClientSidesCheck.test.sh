@@ -436,11 +436,13 @@ rigToolAs client-ndm SendMessage '{"to":"magic-team","message":"RIG-BODY"}'
 rigAssert "SendMessage as a client to magic-team: our team's bot, our team's conversation, its member name" "$( rigTokens chat.postMessage )$( rigChannel ) $( rigText ) $( rigTheirs )" 'rig-bot-token-HERE CHERE0001 👥 *_client-ndm_* → @here.\nRIG-BODY 0'
 rigToolAs client-ndm SendMessage '{"to":"client:CNDM00001","message":"RIG-BODY"}'
 rigAssert "SendMessage as a client to a client: address: the client's token, that conversation, its presentation there" "$( rigTokens chat.postMessage )$( rigChannel ) $( rigText ) $( rigOurs )" 'rig-user-token-NDM CNDM00001 🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY 0'
-rigAssert "and the Wait it names for a reply is on the same side" "$( rigN "$rigTmp/out" 'Wait sources=slack:client:CNDM00001:1700000001.000101:conversation' )" 1
+rigAssert "and the post is recorded on the same side, for the plain Wait that follows" "$( LC_ALL=C sed -n '1p' "$rigWork/ws-here/.local/agents/sessions/rig-session-client/last-own-post" 2> /dev/null | LC_ALL=C cut -d' ' -f1 ):$( rigN "$rigTmp/out" 'NEXT: call Wait' )" "client:CNDM00001:1700000001.000101:1"
 rigToolAs client-ndm SendMessage '{"to":"client:magic-team","message":"RIG-BODY"}'
 rigAssert "SendMessage to one of our own names under the marker: not sent, and the hint reaches the tool's result" "$( rigLines "$rigTmp/bodies" ) $( rigN "$rigTmp/out" "'client:magic-team' is refused: for 'magic-team', $rigHintMarked." )" "0 1"
 rigToolAs keeper-here SendMessage '{"to":"client:CNDM00001","message":"RIG-BODY"}'
 rigAssert "SendMessage to a client: address as a member that is no client: not sent, the refusal names why" "$( rigLines "$rigTmp/bodies" ) $( rigN "$rigTmp/out" 'a client: address connects to the other organisation of a client-* member, and keeper-here is not one' )" "0 1"
+## The floor of a Wait reads the posts of the rows above; these rows are about the source they name alone.
+rm -f "$rigWork/ws-here/.local/agents/sessions/rig-session-client/last-own-post"
 rigToolAs client-ndm Wait '{"sources":"slack:client:CNDM00001","timeout":0}'
 rigAssert "Wait as a client on a conversation of the other organisation: read under the client's token, as a whole conversation" "$( LC_ALL=C sed -n '1p' "$rigTmp/out" | LC_ALL=C cut -c1-20 ) $( rigTokens conversations.history )$( rigOurs )" "WAIT-RESULT: TIMEOUT rig-user-token-NDM 0"
 rigToolAs client-ndm Wait '{"sources":"slack:magic-team","timeout":0}'

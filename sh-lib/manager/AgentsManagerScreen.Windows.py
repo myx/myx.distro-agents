@@ -40,7 +40,7 @@ WINDOWS = (
      "commands": ("wrap", "pan", "row")},
     {"name": "list", "title": "listTitle", "place": {"side": "right", "tenths": 3},
      "shows": {"body": "rows", "reads": ("list",)}, "bar": True,
-     "commands": ("launch", "prompt", "answer", "reject", "dismiss", "link", "setting", "run", "open", "up", "filter", "page-left", "climb", "page-right")},
+     "commands": ("launch", "prompt", "answer", "reject", "dismiss", "link", "setting", "run", "open", "up", "alphabetical", "filter", "page-left", "climb", "page-right")},
 )
 ## The window the keys go to when the screen starts.
 WINDOW_FIRST = "list"
@@ -105,11 +105,12 @@ MARKDOWN_ON = ("team/*/files:file",) + tuple(place for storeId, storeLabel in TE
                                              for place in ("teamdata/%s:item" % storeId, "teamdata/%s/*:item" % storeId))
 MARKDOWN_VIEWS = tuple(place.partition(":")[0] for place in MARKDOWN_ON)
 ## The help of the tooling is Markdown too, rendered as `--help` prints it (markdownLines): the
-## places of its texts, an operation of `Manuals (Help)` and of `Member Help`, the root and
-## the folder of a member whose summary is the help (helpSummary), and a command of `Tooling
-## Commands`, whose help the family writes in the same layout, each rendered, and raw in the
-## raw mode, as a Markdown text is.
-MARKDOWN_HELP = ("manuals:help-entry", "team/*/help:help-entry", ":section", "team/*:member-help", "configuration/commands:help-entry")
+## places of its texts, an operation of `Member Help`, the folder of a member whose summary is
+## the help (helpSummary), a command of `Tooling Commands`, whose help the family writes in the
+## same layout, and a manual of a project, the README.md and the MAGIC.md, each rendered, and
+## raw in the raw mode, as a Markdown text is.
+MARKDOWN_HELP = ("team/*/help:help-entry", "team/*:member-help", "manuals/commands:help-entry",
+                 "manuals/user:help-entry", "manuals/maintainer:help-entry")
 MARKDOWN_HELP_VIEWS = tuple(place.partition(":")[0] for place in MARKDOWN_HELP)
 ## The look of each part of a rendered Markdown text, by the name catMarkdown gives it: its
 ## headings by their level, from the third on as the third; its strong and its emphasized
@@ -146,7 +147,7 @@ MENUS = (
 ## and while it is on. "on": the rows it acts on, by their level and
 ## kind; with none it acts wherever its window has the keys. "views": the views it belongs
 ## to, each a level of the list named as "on" names one; with none it belongs to every
-## view. In a view all its commands stand in their menus and have their keys, and a
+## view, but the views "except" names. In a view all its commands stand in their menus and have their keys, and a
 ## command of another view is in no menu there and its key is not its key. One that
 ## belongs to the view and does not apply to what is selected is greyed in its menu, is
 ## not chosen, and says why in one line of the status line when it is tried, by its key
@@ -233,8 +234,10 @@ COMMANDS = (
      "does": ("focus",)},
     {"name": "help", "keys": ("?", "F1"), "menu": ("help", 1), "label": "~K~eys", "status": "Help",
      "does": ("action", "help")},
+    {"name": "alphabetical", "keys": ("a",), "menu": ("view", 1), "label": "Alpha~b~etical or build order", "status": ("Alphabetical", "Build order"), "toggle": "alphabetical",
+     "views": ALPHABETICAL, "does": ("alphabetical",)},
     {"name": "filter", "keys": ("a",), "menu": ("view", 1), "label": "~A~ll or active", "status": ("Active", "All"), "toggle": "activeOnly",
-     "does": ("filter",)},
+     "except": ALPHABETICAL, "does": ("filter",)},
     ## the left window's own: its long lines wrapped at words, or cut and scrolled sideways
     ## ("shown": what the status line names its keys by, a pair of keys as one); and the
     ## split between the windows, a step at a time ("split", towards a wider right window

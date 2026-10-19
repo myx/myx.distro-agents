@@ -62,8 +62,8 @@ cells row10 11 85 119
 cells row11 12 85 119
 cells row12 13 85 119
 RIGSCRIPT
-rigAssert "the root holds the nine sections in their order, the dashboard first, a spacer between its groups" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )][$( rigVal row9 )][$( rigVal row10 )][$( rigVal row11 )][$( rigVal row12 )]" "[>Dashboard (Monitor)             ►][ Sessions (Activity)             ►][ Pending Questions               ►][ Team Members                    ►][][ Locations (Places)              ►][ Consoles                        ►][][ Settings                        ►][ Configuration                   ►][][ Manuals (Help)                  ►]"
-rigAssert "the first one, the dashboard, is selected, and the list has the focus" "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "dashboard 0 list 9"
+rigAssert "the root holds the nine sections in their order, the dashboard first, a spacer between its groups" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )][$( rigVal row9 )][$( rigVal row10 )][$( rigVal row11 )][$( rigVal row12 )]" "[ Dashboard (Monitor)             ►][ Sessions (Activity)             ►][ Pending Questions               ►][ Team Members                    ►][][ Locations (Places)              ►][ Consoles                        ►][][ Settings                        ►][ Configuration                   ►][][>Manuals (Help)                  ►]"
+rigAssert "the screen starts on the last one, Manuals (Help), selected, and the list has the focus" "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "manuals 8 list 9"
 
 echo "-- Enter dives in, the first row and Backspace go up --"
 rigScript <<'RIGSCRIPT'
@@ -113,6 +113,7 @@ rigAssert "Left returns to it"                                       "$( rigVal 
 echo "-- Up and Down stop at the ends --"
 rigScript <<'RIGSCRIPT'
 size 120 40
+root dashboard
 keys UP
 get top
 keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN

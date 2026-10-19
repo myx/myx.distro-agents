@@ -253,6 +253,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-help-read" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-help-read <Name>.fn.sh" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-keys-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-keys-read <key>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-manual-read <user|maintainer> [<project>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-place-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-place-read <place>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-place-command-list <place>" >&2

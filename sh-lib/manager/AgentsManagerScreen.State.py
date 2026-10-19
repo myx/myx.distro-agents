@@ -266,14 +266,16 @@ class ManagerState:
         self.clock = ""
         ## the levels dived into, the root first: empty is the root
         self.path = []
-        ## the selection of each level: level key -> {"key", "index", "top"}
-        self.cursors = {}
+        ## the selection of each level: level key -> {"key", "index", "top"}; the root's is on START_ROOT
+        self.cursors = {levelKey([]): {"key": "section:" + START_ROOT, "index": 0, "top": 0}}
         ## which window is active and has the keys: "list" on the right, "view" on the left
         self.focus = WINDOW_FIRST
         ## the pull-down menu that is open: {"menu", "item"}, its place in MENUS and the place
         ## of the item its bar is on
         self.menu = None
         self.activeOnly = False
+        ## whether the lists of ALPHABETICAL show their rows by name, not in the order of the operation
+        self.alphabetical = False
         ## the rows the last answer of a list gave when it was asked with what its filter
         ## adds: level key -> ids
         self.activeOf = {}

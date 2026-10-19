@@ -69,7 +69,7 @@ rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\nwall 2026-10-13 02:30 +0000\nsize 64 36\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
+	rigOut="$( { printf 'tools bash %s\nwall 2026-10-13 02:30 +0000\nsize 64 36\nroot dashboard\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
 }
 rigPane(){ ## tag -- the lines of the left pane of that screen, without its frame
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n '3,$p' | LC_ALL=C sed -E -e "s/^$1\|(│|║)//" -e 's/(│|║|▲|▼|▒|■).*$//'

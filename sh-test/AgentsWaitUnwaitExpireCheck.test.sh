@@ -97,7 +97,7 @@ rigAssert "the first wait on it receives" "$( rigFirstLine "$rigScenarioDir/out"
 rigAssert "it is in the stored wait" "$( rigHolds "$rigScenarioDir/ws/.local/agents/sessions/$rigSession1/wait/state" "ask:rig-unwait-001" )" "yes"
 rigOp --member-wait-for-input "$rigMember" --unwait "ask:rig-unwait-001" --wait-session-id "$rigSession1"
 rigAssert "--unwait reports DROPPED" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: DROPPED"
-rigAssert "it leaves the stored sources line" "$( rigSourcesLine "$rigScenarioDir/out" )" ""
+rigAssert "it leaves the stored sources line: the floor alone" "$( rigSourcesLine "$rigScenarioDir/out" )" "replies:$rigSession1"
 rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession1" --wait-source "ask:rig-unwait-001" --wait-timeout 5 --wait-poll-interval 1
 rigAssert "naming it again explicitly still works: dropping is not blocking" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
 
@@ -111,7 +111,7 @@ rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$ri
 rigAssert "a later default wait, naming it from carry-forward alone, times out" \
 	"$( rigFirstLine "$rigScenarioDir/out" | LC_ALL=C sed 's/ (.*//' )" "WAIT-RESULT: TIMEOUT"
 rigAssert "the expiry is said, not silent" "$( rigHolds "$rigScenarioDir/out" "WAIT-DROPPED-EXPIRED: ask:rig-expired-001" )" "yes"
-rigAssert "it left the stored sources" "$( rigSourcesLine "$rigScenarioDir/out" )" "file:$rigScenarioDir/ws/quiet.txt"
+rigAssert "it left the stored sources" "$( rigSourcesLine "$rigScenarioDir/out" )" "replies:$rigSession2 file:$rigScenarioDir/ws/quiet.txt"
 rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession2" --wait-source "ask:rig-expired-001" --wait-timeout 5 --wait-poll-interval 1
 rigAssert "naming the expired source again explicitly still works" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
 

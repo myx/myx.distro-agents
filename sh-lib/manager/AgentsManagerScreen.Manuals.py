@@ -1,5 +1,5 @@
 ##
-## AgentsManagerScreen.Manuals.py -- the root Manuals (Help): the help entries and its chapters, and the help of a key.
+## AgentsManagerScreen.Manuals.py -- the root Manuals (Help): its folders, the manuals of the projects, the help entries and chapters, and the help of a key.
 ## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
@@ -70,8 +70,7 @@ def parseHelpChapters(text):
 
 ## The summary of `Member Help`: the text of the help before its first option, the member's
 ## syntax lines, then the chapters after the options, the chapters from the read of the level
-## its form names ("chapters"); None until both have come. And of `Manuals (Help)`: what a
-## user calls, the first part of its read. Each rendered (helpLines).
+## its form names ("chapters"); None until both have come. Rendered (helpLines).
 def helpSummary(state, path, row, form):
     whole = state.rows.get(WHOLE_OF + levelKey(path))
     if not whole:
@@ -83,6 +82,39 @@ def helpSummary(state, path, row, form):
             return None
         lines = chapters[0]["head"] + [""] + [line for line in lines if line.startswith("📘")] + [""] + chapters[0]["foot"]
     return helpLines(state, row, lines)
+
+
+## What `--manager-manual-read` printed, as rows, in the order they come: a project a line, by
+## its name as the build sequence gives it, then after a TAB the file of its manual. Each is an
+## entry of the help: what the left pane shows of it is that manual (MARKDOWN_HELP).
+def parseManualRows(text):
+    rows = []
+    for line in text.split("\n"):
+        name, tab, path = line.partition("\t")
+        if name.strip():
+            rows.append(newRow(name, name, "help-entry"))
+            rows[-1]["path"] = path.strip() or "-"
+    return rows
+
+
+## What `Manuals (Help)` holds, for the left pane while its row or the row that goes up inside
+## it is selected: its folders (FIXED_ROWS) as a table, each with what it holds (FOLDER_WORDS).
+def foldersSummary(state, path, row, form):
+    return tableSummaryLines(state, ("FOLDER", "WHAT"), [[label, FOLDER_WORDS.get(folderId, "-")]
+                                                         for folderId, label, kind, dive in FIXED_ROWS.get(levelKey(path), ())], ("key", "text"))
+
+
+## What `User Manuals` and `Maintainer Manuals` hold, for the left pane while their row or the
+## row that goes up inside them is selected: how many projects have the manual, then every
+## project as the list shows them, in the order the user chose (orderedRows), numbered. None
+## until the read has answered.
+def manualsSummary(state, path, row, form):
+    rows = state.rows.get(levelKey(path))
+    if rows is None:
+        return None
+    if not rows:
+        return [looked("No project has this manual.", BOLD)]
+    return tableSummaryLines(state, ("PROJECT",), [[held["label"]] for held in orderedRows(state, path, rows)], ("key",), numbered=True)
 
 
 ## ---- the help ----

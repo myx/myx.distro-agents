@@ -944,19 +944,35 @@ AgentsHarnessSessionKey(){
 	printf '%s' "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 }
 
-## Records the session's own last post from a send's reported fields, for the Wait floor
-## fallback (AgentsTools.MemberWait.include reads sessions/<id>/last-own-post).
+## Records the session's own posts from a send's reported fields: sessions/<id>/last-own-post, a line
+## for each post and the latest first, `<channel>:<thread> <ts> <addressees> <thread floor>
+## <conversation floor> <siblings> <reactions> <checked>`. Its first two words are what the Wait floor
+## fallback reads of the latest post, and every line is a post whose replies the floor of a plain Wait
+## holds (AgentsTools.MemberWait.include, AgentsWaitProbeReplies, which writes the other words as it
+## looks): the addressees comma-joined, a word not known yet `-`, the siblings and the check time 0.
 AgentsHarnessOwnPostRecord(){ ## send output file
-	local ownSession ownChannel ownTs ownThread
+	local ownSession ownChannel ownTs ownThread ownAddressees ownDir ownTmp ownLock=""
 	ownSession="$( AgentsHarnessSessionKey )"
 	[ -n "$ownSession" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$ownSession" || return 0
 	ownChannel="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' "$1" | head -1 )"
 	ownTs="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' "$1" | head -1 )"
 	ownThread="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' "$1" | head -1 )"
-	AgentsHarnessBareName "$ownChannel" && AgentsHarnessBareName "$ownTs" || return 0
+	## A post on the client side is reported under its client: address, and kept so: its replies are read there.
+	AgentsHarnessBareName "${ownChannel#client:}" && AgentsHarnessBareName "$ownTs" || return 0
 	[ -z "$ownThread" ] || AgentsHarnessBareName "$ownThread" || return 0
-	mkdir -p "$MMDAPP/.local/agents/sessions/$ownSession" 2>/dev/null \
-		&& printf '%s:%s %s\n' "$ownChannel" "${ownThread:-$ownTs}" "$ownTs" > "$MMDAPP/.local/agents/sessions/$ownSession/last-own-post" 2>/dev/null || :
+	ownAddressees="$( LC_ALL=C sed -n -e 's/^SENT_MESSAGE_ADDRESSEES=//p' -e 's/^SENT_MESSAGE_ADDRESSEE_MEMBERS=//p' "$1" | LC_ALL=C tr -s ' ' '\n' | LC_ALL=C awk 'NF { printf "%s%s", ( count++ ? "," : "" ), $1 ; }' )"
+	[ -n "$ownAddressees" ] || ownAddressees="-"
+	ownDir="$MMDAPP/.local/agents/sessions/$ownSession"
+	mkdir -p "$ownDir" 2>/dev/null || return 0
+	## The wait that looks at these posts rewrites their words: the one local lock keeps the two apart.
+	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include" 2> /dev/null || :
+	! AgentsToolsLocalLockTake "own-posts-$ownSession" 5 "the record of the run's own posts" 2> /dev/null || ownLock="$agentsLocalLockPath"
+	ownTmp="$( mktemp "$ownDir/last-own-post.XXXXXX" 2>/dev/null )" || ownTmp=""
+	if [ -n "$ownTmp" ] ; then
+		{ printf '%s:%s %s %s - - 0 - 0\n' "$ownChannel" "${ownThread:-$ownTs}" "$ownTs" "$ownAddressees" ; [ ! -f "$ownDir/last-own-post" ] || cat "$ownDir/last-own-post" ; } >| "$ownTmp" 2>/dev/null \
+			&& mv -f "$ownTmp" "$ownDir/last-own-post" 2>/dev/null || rm -f "$ownTmp"
+	fi
+	[ -z "$ownLock" ] || AgentsToolsLocalLockGive "$ownLock"
 	return 0
 }
 
@@ -2251,17 +2267,14 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 		printf 'NEXT: you are not done -- call Wait with no sources (your session thread) and obey what arrives, until it returns DISMISSED\n'
 		return 0
 	fi
-	local nextChannel nextTs nextThread nextAddressees
+	## A plain Wait holds the replies to the run's own posts (AgentsHarnessOwnPostRecord, the floor of
+	## AgentsTools.MemberWait.include): the caller names no channel, thread or addressee to get one.
+	local nextChannel nextTs nextThread
 	nextChannel="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' "$harnessScratch/send.out" | head -1 )"
 	nextTs="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' "$harnessScratch/send.out" | head -1 )"
 	nextThread="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' "$harnessScratch/send.out" | head -1 )"
-	nextAddressees="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' "$harnessScratch/send.out" | head -1 )"
 	[ -n "$nextChannel" ] && [ -n "$nextTs" ] && [ -n "$nextThread" ] || return 0
-	case "$nextAddressees" in
-		'') printf 'NEXT: to wait for a reply in its thread, call Wait sources=slack:%s:%s:conversation since_utime=%s\n' "$nextChannel" "$nextThread" "$nextTs" ;;
-		*' '*) printf 'NEXT: to wait for a reply in its thread, call Wait sources=slack:%s:%s since_utime=%s addressee="%s"\n' "$nextChannel" "$nextThread" "$nextTs" "$nextAddressees" ;;
-		*) printf 'NEXT: to wait for a reply in its thread, call Wait sources=slack:%s:%s since_utime=%s addressee=%s\n' "$nextChannel" "$nextThread" "$nextTs" "$nextAddressees" ;;
-	esac
+	printf 'NEXT: call Wait\n'
 }
 
 ## The spawned-sessions registry is what enumerates agents: every spawn has a sandbox, created
@@ -5427,7 +5440,7 @@ AgentsHarnessAskWaitNext(){ ## pending reply id
 	[ -n "$1" ] || return 0
 	printf 'WAIT-ID: ask:%s\n' "$1"
 	if AgentsHarnessAskWaitItem add "$1" ; then
-		printf 'NEXT: added to your Wait set -- call Wait mode=continue, or start a new wait with Wait sources=ask:%s\n' "$1"
+		printf 'NEXT: call Wait\n'
 	else
 		printf 'NEXT: to wait for the answer, call Wait sources=ask:%s -- it posts nothing\n' "$1"
 	fi

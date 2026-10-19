@@ -182,8 +182,8 @@ rigRow sendUnknown SendMessage '{"to":"session-current","address_to":"rig-nobody
 rigAssert "a name that is no team member: refused as a question to it is, nothing posted" \
 	"$( rigPosts ):$( rigFirst | LC_ALL=C cut -c1-22 ):$( LC_ALL=C grep -c -F -- "--address-to 'rig-nobody': no such team member -- expected $rigTmp/skills/rig-nobody" "$rigScenarioDir/tool.out" )" "0:ERROR: the send failed:1"
 rigRow sendResult SendMessage "{\"to\":\"session-current\",\"address_to\":\"$rigOther\",\"message\":\"m\"}"
-rigAssert "the result still says where it went and names the Wait that follows" \
-	"$( rigFirst ):$( LC_ALL=C grep -c '^NEXT: to wait for a reply in its thread, call Wait sources=slack:' "$rigScenarioDir/tool.out" )" \
+rigAssert "the result still says where it went and that the Wait follows" \
+	"$( rigFirst ):$( LC_ALL=C grep -c -x 'NEXT: call Wait' "$rigScenarioDir/tool.out" )" \
 	"Sent to $rigCurrent (the thread of this session) as $rigMember. What the operation reported follows::1"
 
 echo "-- a handback that names nobody is addressed to the caller the records name --"

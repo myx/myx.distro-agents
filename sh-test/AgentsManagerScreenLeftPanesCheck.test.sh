@@ -135,6 +135,7 @@ rigOut="$( "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 <<RIGSCRIPT
 tools bash $rigTools
 wall 2026-10-14 18:30 +0000
 size 120 40
+root dashboard
 turn
 wait list 10
 keys 2
@@ -197,6 +198,14 @@ turn
 show keys
 keys DOWN
 wait focus 10
+show cli
+roles clir
+root manuals
+turn
+keys ENTER
+wait list 10
+keys DOWN DOWN
+wait focus 10
 show commands
 style bw
 turn
@@ -206,10 +215,6 @@ turn
 show commandsMagic
 style tv
 turn
-keys DOWN
-wait focus 10
-show cli
-roles clir
 RIGSCRIPT
 )"
 rigPane(){ ## tag -- the lines of the left pane of that screen, without its frame

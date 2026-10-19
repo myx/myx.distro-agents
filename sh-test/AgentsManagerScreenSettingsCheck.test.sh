@@ -171,14 +171,13 @@ border title 1 84 120
 cells row1 2 85 119
 cells row2 3 85 119
 cells row3 4 85 119
-cells row4 5 85 119
-cells row5 7 85 119
-cells row6 8 85 119
-cells row7 9 85 119
-cells row8 10 85 119
-cells row9 11 85 119
-cells row10 12 85 119
-cells row11 13 85 119
+cells row5 6 85 119
+cells row6 7 85 119
+cells row7 8 85 119
+cells row8 9 85 119
+cells row9 10 85 119
+cells row10 11 85 119
+cells row11 12 85 119
 keys LEFT
 turn 3
 get root
@@ -201,9 +200,9 @@ advance 11
 wait list 30
 get twice
 RIGSCRIPT
-rigAssert "a root not entered: the digest is read once the selection has rested on its row, and the left window then holds what the root holds" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "configuration [] 24"
+rigAssert "a root not entered: the digest is read once the selection has rested on its row, and the left window then holds what the root holds" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "configuration [] 22"
 rigAssert "entering it afterwards asks for nothing more: the one read of the digest was made for the row" "$( rigVal asked.path ) [$( rigVal asked.reading )]" "configuration []"
-rigAssert "its three folders and then its subjects are listed under the row that goes up, the subjects in the order of the operation, each a row that is entered" "[$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row2 | sed 's/  *$//' )][$( rigVal row3 | sed 's/  *$//' )][$( rigVal row4 | sed 's/  *$//' )][$( rigVal row8 | sed 's/  *$//' )][$( rigVal row10 | sed 's/  *$//' )][$( rigVal row11 )]" "[Configuration] 10 [>..][ Config Checker                  ►][ Server Keys                     ►][ Tooling Commands                ►][ loop                            ►][ Console Behaviour               ►][]"
+rigAssert "its two folders and then its subjects are listed under the row that goes up, the subjects in the order of the operation, each a row that is entered" "[$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row2 | sed 's/  *$//' )][$( rigVal row3 | sed 's/  *$//' )][$( rigVal row8 | sed 's/  *$//' )][$( rigVal row10 | sed 's/  *$//' )][$( rigVal row11 )]" "[Configuration] 9 [>..][ Config Checker                  ►][ Server Keys                     ►][ loop                            ►][ Console Behaviour               ►][]"
 rigAssert "a subject with missing lines carries their count at the end of its row" "[$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row9 )]" \
 	"[ workspace             1 missing ►][ cli                   3 missing ►][ systems               2 missing ►][ scopes                2 missing ►]"
 rigAssert "on the row that goes up the left pane is the root's table, nothing above it (the owner: \"no summary on top\")" "[$( rigPane u 3 )] $( rigScreenHolds u '61 lines' )" "[  SUBJECT           LINES MISSING WHAT] 0"
@@ -218,7 +217,7 @@ rigCase subjects
 rigScript <<'RIGSCRIPT'
 keys 8
 wait list 30
-keys DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN
 turn
 get w
 show w
@@ -258,7 +257,7 @@ rigSize="120 20"
 rigScript <<'RIGSCRIPT'
 keys 8
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 get top
 show top
@@ -301,7 +300,7 @@ turn
 get back
 keys 8
 turn
-keys DOWN DOWN DOWN DOWN DOWN ENTER
+keys DOWN DOWN DOWN DOWN ENTER
 turn
 # the lines of this subject stand group by group: two headings stand ahead of this line
 keys DOWN DOWN DOWN DOWN DOWN
@@ -329,7 +328,7 @@ rigCase viewing
 rigScript <<'RIGSCRIPT'
 keys 8
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN ENTER
+keys DOWN DOWN DOWN DOWN ENTER
 turn
 # the first row under the row that goes up is the heading of a group: the line is the one after it
 keys DOWN DOWN
@@ -374,7 +373,7 @@ rigScript <<'RIGSCRIPT'
 turn
 keys 8
 wait list 30
-keys DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN
 turn
 get w
 keys DOWN

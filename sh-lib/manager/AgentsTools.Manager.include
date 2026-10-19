@@ -59,6 +59,12 @@ case "$1" in
 		return $?
 	;;
 
+	## The manuals of the projects of this workspace, the README.md and the MAGIC.md of each, in build order.
+	--manager-manual-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerManual.include"
+		return $?
+	;;
+
 	## The questions that wait on an answer: what may be done with one, and doing it.
 	--manager-pending-reply-*)
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerPendingReply.include"

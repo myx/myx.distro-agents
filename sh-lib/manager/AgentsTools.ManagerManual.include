@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerManual.include -- the --manager-manual-* operations: the manuals of the projects
+## of this workspace, which the root `Manuals (Help)` of the console shows. Sourced from the
+## `--manager-manual-*)` arm of AgentsTools.Manager.include; who may call was asked where the family is
+## dispatched.
+##
+## THE BUILD SEQUENCE IS NOT DECIDED HERE. The projects are what ListDistroProjects --select-all gives, in
+## the order it gives them, read from the source as the member scans read them; a project lies in the source
+## folder of the workspace under its name. A user manual is the README.md of a project, a maintainer manual
+## its MAGIC.md, and a project that has no such file is not listed. It reads, and writes nothing.
+##
+
+case "$1" in
+
+	## The projects that have the manual of a kind, in build order, one a line: the project, a TAB, the file.
+	## With a project of that list, that file as it is.
+	--manager-manual-read)
+		local manualOp="$1" manualFile manualSelected manualStatus=0 manualProject manualPath manualFound=""
+		shift
+		case "${1:-}" in
+			user) manualFile="README.md" ;;
+			maintainer) manualFile="MAGIC.md" ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD $manualOp: syntax is user|maintainer [<project>], got: $*" >&2
+				set +e ; return 1
+			;;
+		esac
+		shift
+		if [ $# -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $manualOp: syntax is user|maintainer [<project>], got a second project: $2" >&2
+			set +e ; return 1
+		fi
+		if ! DistroAgentsContext --distro-from-source ; then
+			echo "⛔ ERROR: $MDSC_CMD $manualOp: cannot establish an input spec for workspace $MMDAPP" >&2
+			set +e ; return 1
+		fi
+		Require ListDistroProjects || :
+		manualSelected="$( Distro ListDistroProjects --select-all )" || manualStatus=$?
+		if [ "$manualStatus" != "0" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $manualOp: ListDistroProjects --select-all exited $manualStatus" >&2
+			set +e ; return 1
+		fi
+		while IFS= read -r manualProject ; do
+			[ -n "$manualProject" ] || continue
+			manualPath="${MMDAPP%/}/source/$manualProject/$manualFile"
+			[ -f "$manualPath" ] || continue
+			if [ $# -eq 0 ] ; then
+				printf '%s\t%s\n' "$manualProject" "$manualPath"
+			elif [ "$manualProject" = "$1" ] ; then
+				manualFound="$manualPath"
+			fi
+		done <<< "$manualSelected"
+		[ $# -gt 0 ] || return 0
+		if [ -z "$manualFound" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $manualOp: no project of that name has a $manualFile: $1" >&2
+			set +e ; return 1
+		fi
+		cat "$manualFound" || { set +e ; return 1 ; }
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

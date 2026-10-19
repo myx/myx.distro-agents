@@ -150,7 +150,7 @@ rigCase(){ ## name
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\nwall 2026-10-13 02:30 +0000\nsize 120 36\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
+	rigOut="$( { printf 'tools bash %s\nwall 2026-10-13 02:30 +0000\nsize 120 36\nroot dashboard\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -291,7 +291,7 @@ while : ; do
 done
 RIGCHILD
 rigRow console child Rig Rig_Child terminal "$rigTmp" bash "$rigTmp/child.sh" > "$MANAGER_SCREEN_RIG/rows.--manager-console-list"
-rigOut="$( MANAGER_SCREEN_PTY_SESSION=1 MANAGER_SCREEN_PTY_TRACE='up=CHILD-UP|int=GOT-INT|quit=GOT-QUIT|read=READ-x|ended=Rig Child: ended with status 0' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 120 36 "Sessions (Activity)" '\x1bOB\p\x1bOB\p\x1bOB\p\x1bOB\p\x1bOB\p\aChild\a\r\p\x1bOB\p\r\p\aCHILD-UP\a\x03\p\aGOT-INT\a\x1c\p\aGOT-QUIT\a\x1a\px\r\p\aended with status 0\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
+rigOut="$( MANAGER_SCREEN_PTY_SESSION=1 MANAGER_SCREEN_PTY_TRACE='up=CHILD-UP|int=GOT-INT|quit=GOT-QUIT|read=READ-x|ended=Rig Child: ended with status 0' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 120 36 "Sessions (Activity)" '\x1bOA\p\x1bOA\p\x1bOA\p\aChild\a\r\p\x1bOB\p\r\p\aCHILD-UP\a\x03\p\aGOT-INT\a\x1c\p\aGOT-QUIT\a\x1a\px\r\p\aended with status 0\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
 rigAssert "Ctrl-C and Ctrl-\\ reach the child, which says so and runs on; after Ctrl-Z it still reads its line and ends in order; the screen is back, says how it ended, and ends with status 0 by its own key, having left its screen" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft ) [$( rigVal pty.trace | LC_ALL=C tr ' ' '\n' | LC_ALL=C uniq | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )]" "yes 0 yes none [up int quit read ended]"
 
 if [ "$rigFailCount" -ne 0 ] ; then

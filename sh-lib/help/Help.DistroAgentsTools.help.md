@@ -171,6 +171,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-help-read <Name>.fn.sh
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-read <key>
+📘 syntax: DistroAgentsTools.fn.sh --manager-manual-read <user|maintainer> [<project>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-read <place>
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-command-list <place>
@@ -2967,16 +2968,18 @@
 			file it is saved in. Each of the five reads `-` for a line
 			that cannot be changed.
 			<state> is `set`, `missing`, `secret-set` or `secret-missing`.
-			A credential is printed in one form, in every row and every
-			message: the first quarter of its value, rounded down, not less
-			than 4 and not more than 20 characters, then a `*` for each
-			character after them, even for a long key; a value of fewer
-			than 4 characters is all `*`. Its line reads `secret-set` with
-			that form as its value, or `secret-missing` with the value `-`.
-			A credential is a key the owner setup's catalogue marks secret
-			or one a harness leg reads; every other key shows its value.
-			A value that carries a password inside a URL, under any key,
-			reads `secret-set` and has only that password masked.
+			Nothing of the value of a secret is printed, in no row and in
+			no message: not a part of it, not its length. Its line reads
+			`secret-set` or `secret-missing`, with the value `-`.
+			A key is a secret unless it is known not to be. A key of the
+			owner setup's catalogue is what the catalogue marks it. Any
+			other key is a secret when its name holds the word TOKEN, KEY,
+			SECRET, PASSWORD or COOKIE, and is no secret only when the
+			last word of its name is a plain kind: ALIAS, CONVERSATIONS,
+			DIRECTORY, DOMAIN, EMAIL, HOST, ID, LIMIT, MODE, NAME, PORT, SECONDS,
+			SECURITY, SITE, TIER, USER, USERNAME or WORKSPACE. A key of no
+			known kind is a secret. A value that carries a password inside
+			a URL is a secret whatever its key.
 			`workspace`: group `paths`, the root of the workspace, the
 			origin of the tooling, the root of the team data, the two
 			session stores and the folder of the scopes, each `set` where
@@ -3355,6 +3358,20 @@
 			of a known hosts file: the name of this host, the type and
 			the key. No repository is asked anything. Exit 1, nothing
 			printed, for a name that is no key.
+
+		--manager-manual-read <user|maintainer> [<project>]
+			One of the console's own operations (see Notes). Gives the
+			manuals of the projects of this workspace, which the root
+			`Manuals (Help)` of the console shows: `user` is the README.md
+			of a project, `maintainer` its MAGIC.md. With the kind alone it
+			lists, one a line on stdout, TAB-separated, the projects that
+			have that file: `<project> <file>`, the project as the build
+			sequence names it, in the order `ListDistroProjects
+			--select-all` gives it, then the whole path of the file. With
+			a project of that list it prints that file as it is. Exit 1,
+			nothing printed, for a kind that is neither, a project that is
+			none of the list or has no such file, and a second project. It
+			only reads.
 
 		--manager-place-list
 			One of the console's own operations (see Notes). Lists the
@@ -4052,9 +4069,9 @@
 			the member. A `setting` row is one key of the member's scope
 			in this workspace, with the <state> and the <value>
 			`--manager-config-digest` gives it: `set`, `missing`,
-			`secret-set` or `secret-missing`. Which key is a credential is
-			that operation's rule, and a credential is printed in the
-			one form that operation gives it. For a member set up elsewhere the keys of
+			`secret-set` or `secret-missing`. Which key is a secret is
+			that operation's rule, and nothing of the value of a secret
+			is ever printed. For a member set up elsewhere the keys of
 			each system this workspace holds no setting of for it
 			follow, which are read from the workspace it is set up in:
 			each by its name alone, its <state> `elsewhere` and its
@@ -4432,7 +4449,22 @@
 			rendering holds arrivals only, so with no stored base
 			an answer already there returns at once. Taking the
 			answer into the record is the harness's, not this
-			operation's. File, inbox and board carry no message ids. Another member's inbox
+			operation's. `replies:<session-id>` on the replies to
+			the posts that session made (its record of them,
+			sessions/<id>/last-own-post): every reply in the thread
+			of a post, and for a post at the top of a conversation
+			the messages after it there from the people it
+			addressed or that mention the run, until ten siblings
+			have followed it, and after that a mention of the run
+			alone. Reactions to a post are returned too.
+			A post is looked at when its TTL has passed, 5 seconds
+			and 1 more for every 20 it has been quiet, so a quiet
+			thread is looked at ever more rarely and never dropped
+			by time alone. A --wait-default or --wait-continue with
+			--wait-session-id always carries it, first, and the
+			sources it names are added to it. It is returned once,
+			and what another source of the same wait reads is left
+			to that source. File, inbox and board carry no message ids. Another member's inbox
 			or another state name is an ERROR at second zero.
 			--wait-list-sources prints the source kinds this
 			build carries and waits on nothing.

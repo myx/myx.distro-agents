@@ -17,6 +17,8 @@ SECTIONS = (
     ("configuration", "Configuration"),
     ("manuals", "Manuals (Help)"),
 )
+## The root the selection is on when the screen starts: the manuals, whose help is where a user starts.
+START_ROOT = "manuals"
 ## The groups of the roots, in their order, a spacer between two (spacersAt): the work of
 ## the team, then where it runs and what is started there, then how it is set up, then the
 ## manuals.
@@ -99,8 +101,9 @@ ROW_UP = ".."
 FIXED_ROWS = {
     "sessions": (("launch", "Launch (Start)", "launch", True),),
     "sessions/launch": (("free", "Free prompt", "free", False),),
-    "configuration": (("checker", "Config Checker", "checker", True), ("keys", "Server Keys", "keys", True),
-                      ("commands", "Tooling Commands", "commands", True)),
+    "configuration": (("checker", "Config Checker", "checker", True), ("keys", "Server Keys", "keys", True)),
+    "manuals": (("user", "User Manuals", "manuals", True), ("commands", "Tooling Commands", "commands", True),
+                ("maintainer", "Maintainer Manuals", "manuals", True)),
     "teamdata": (("operations", "Operations", "operations", True),) + tuple((storeId, label, "store", True) for storeId, label in TEAM_DATA_STORES),
     "team/*": tuple((folderId, label, kind, True) for folderId, label, kind in MEMBER_FOLDERS),
     "teamdata/operations": tuple((cleanupId, cleanup["label"], "operation", False) for cleanupId, cleanup in CLEANUPS),
@@ -111,7 +114,13 @@ FOLDER_WORDS = {
     "checker": "the read-only checks of the installation, run on demand",
     "keys": "the public keys of this server",
     "commands": "the commands a console user calls by name",
+    "user": "the README.md of each project, in build order",
+    "maintainer": "the MAGIC.md of each project, in build order",
 }
+## The levels whose listed rows the user may have by name instead of in the order the operation gave
+## them, by the key of the command "alphabetical" (orderedRows): the manuals of the projects, which
+## the operation gives in the build order.
+ALPHABETICAL = ("manuals/user", "manuals/maintainer")
 ## What the left window shows of a folder, a row that opens a level of its own, while that
 ## row is selected, and while the row that goes up is selected inside it: the summary of
 ## what the folder holds, made from its rows in a form of its kind, by the function
@@ -136,7 +145,6 @@ SUMMARIES = {
     "configuration/*": {"lines": "subjectSummary", "missingFirst": True},
     "configuration/checker": {"lines": "checksSummary"},
     "configuration/keys": {"lines": "serverKeysSummary"},
-    "configuration/commands": {"lines": "commandsSummary"},
     "teamdata": {"lines": "teamDataSummary"},
     "teamdata/operations": {"lines": "cleanupsSummary"},
     "teamdata/board": {"lines": "storeSummary"},
@@ -146,8 +154,11 @@ SUMMARIES = {
     "team/*/permissions": {"lines": "grantsSummary"},
     "team/*/files": {"lines": "filesSummary"},
     "team/*/sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed")},
-    "team/*/help": {"lines": "helpSummary", "chapters": "manuals"},
-    "manuals": {"lines": "helpSummary"},
+    "team/*/help": {"lines": "helpSummary", "chapters": "help"},
+    "manuals": {"lines": "foldersSummary"},
+    "manuals/user": {"lines": "manualsSummary"},
+    "manuals/commands": {"lines": "commandsSummary"},
+    "manuals/maintainer": {"lines": "manualsSummary"},
 }
 
 ## What each level of the list and each view of the left pane asks the tooling for: the
@@ -229,14 +240,6 @@ READS = {
     ## gives the whole line of a key where its row of the list does not carry it, and
     ## where the key is to be registered.
     "each:configuration/keys": {"operation": ["--manager-keys-read", "{id}"], "rows": "key-read", "kind": "plan", "once": True, "needs": "readable"},
-    ## The tooling commands a console user calls by name, as the console's completion gathers
-    ## them, each with the file it resolves to. Read on entering and when it is asked for, not
-    ## on the period.
-    "list:configuration/commands": {"operation": ["--manager-command-list"], "rows": "commands", "once": True},
-    ## The help of one of them, as its own `--help` prints it, read from its help files and
-    ## never by running it: of the command selected alone, once the selection rests on it, and
-    ## not on the period.
-    "view:configuration/commands:help-entry": {"operation": ["--manager-help-read", "{id}"], "once": True},
     ## What is started from here with the whole terminal, in the order of a menu: the consoles
     ## of the workspace, each with the folder it starts in and its command, a field a word (STARTS).
     "list:consoles": {"operation": ["--manager-console-list"], "rows": "starts"},
@@ -297,10 +300,25 @@ READS = {
                                     "rows": "session-read", "needs": "session"},
     "feed:team/*/sessions:record": {"operation": ["--manager-session-transcript-read", "--session-id", "{id}"],
                                     "log": ["--log"], "rows": "transcript", "needs": "session"},
-    "list:team/*/help": {"operation": ["--member-help", "{parent}"], "rows": "member-help", "once": True, "also": ("list:manuals",)},
-    ## The root `Manuals (Help)`: what a user calls, the syntax lines it shows of itself,
-    ## and every operation of the help, each an item as in a member's `Member Help`.
-    "list:manuals": {"operation": ["--manager-help-read"], "rows": "manuals", "once": True},
+    "list:team/*/help": {"operation": ["--member-help", "{parent}"], "rows": "member-help", "once": True, "also": ("list:help",)},
+    ## The chapters of the help of this tool, which a member's `Member Help` shows around its own
+    ## syntax lines. It is no level of the list: a read of its own, made beside that folder.
+    "list:help": {"operation": ["--manager-help-read"], "rows": "chapters", "once": True},
+    ## The root `Manuals (Help)`. The tooling commands a console user calls by name, as the
+    ## console's completion gathers them, each with the file it resolves to. Read on entering
+    ## and when it is asked for, not on the period.
+    "list:manuals/commands": {"operation": ["--manager-command-list"], "rows": "commands", "once": True},
+    ## The help of one of them, as its own `--help` prints it, read from its help files and
+    ## never by running it: of the command selected alone, once the selection rests on it, and
+    ## not on the period.
+    "view:manuals/commands:help-entry": {"operation": ["--manager-help-read", "{id}"], "once": True},
+    ## The manuals of the projects, the README.md of each (`User Manuals`) and its MAGIC.md
+    ## (`Maintainer Manuals`), in the build order, a project a row; one of them whole is read
+    ## by the name of its project, once the selection rests on it.
+    "list:manuals/user": {"operation": ["--manager-manual-read", "user"], "rows": "manuals", "once": True},
+    "view:manuals/user:help-entry": {"operation": ["--manager-manual-read", "user", "{id}"], "once": True},
+    "list:manuals/maintainer": {"operation": ["--manager-manual-read", "maintainer"], "rows": "manuals", "once": True},
+    "view:manuals/maintainer:help-entry": {"operation": ["--manager-manual-read", "maintainer", "{id}"], "once": True},
 }
 ## The stores of the team data (TEAM_DATA_STORES): a store, its folders and the items in
 ## it; a folder of it, its items; and one item whole, its text, read once it is selected.

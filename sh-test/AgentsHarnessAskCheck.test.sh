@@ -305,9 +305,9 @@ rigLastLine(){ ## file
 rigStart send-next
 rigServe SendMessage '{"to":"magic-team","message":"Rig status note."}'
 rigAssert "it was sent"                                   "$( rigHolds "$rigScenarioDir/out" 'SENT_MESSAGE_TS=1700000001.000101' )" yes
-rigAssert "a top-level post: wait in its own thread"      "$( rigLastLine "$rigScenarioDir/out" )" "NEXT: to wait for a reply in its thread, call Wait sources=slack:CRIG00001:1700000001.000101:conversation since_utime=1700000001.000101"
+rigAssert "a top-level post: the NEXT: line says only to call Wait" "$( rigLastLine "$rigScenarioDir/out" )" "NEXT: call Wait"
 rigServe SendMessage '{"to":"CRIG00001:1700000001.000101","message":"Rig thread note."}'
-rigAssert "a thread reply: the thread root, our own ts as floor" "$( rigLastLine "$rigScenarioDir/out" )" "NEXT: to wait for a reply in its thread, call Wait sources=slack:CRIG00001:1700000001.000101:conversation since_utime=1700000001.000102"
+rigAssert "a thread reply: the same line"                "$( rigLastLine "$rigScenarioDir/out" )" "NEXT: call Wait"
 : > "$rigScenarioDir/post-refuse"
 rigServe SendMessage '{"to":"magic-team","message":"Rig refused note."}'
 rigAssert "control: a refused send names no next step"    "$( rigHolds "$rigScenarioDir/out" 'NEXT:' )" no
