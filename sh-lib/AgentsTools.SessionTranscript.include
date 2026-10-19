@@ -122,7 +122,7 @@ AgentsTranscriptAppend(){ ## file, text
 		printf '%s\n' "$2" >> "$1" 2>/dev/null || :
 		return 0
 	fi
-	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$agentsTranscriptLib/AgentsTools.LocalLock.include" 2>/dev/null || :
+	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include" 2>/dev/null || :
 	if type AgentsToolsLocalLockTake > /dev/null 2>&1 && AgentsToolsLocalLockTake "transcript.${1##*/}" 10 "transcript ${1##*/}" 2>/dev/null ; then
 		appendLock="$agentsLocalLockPath"
 	fi
@@ -173,7 +173,7 @@ AgentsTranscriptEvent(){ ## session id, kind, body ('' for none), body cap, then
 AgentsTranscriptFeed(){ ## session id, block
 	local feedDir
 	feedDir="$( AgentsTranscriptSessionDir "$1" )" || return 0
-	type AgentsToolsEventTrackFeedOn > /dev/null 2>&1 || . "$agentsTranscriptLib/AgentsTools.EventTrackThread.include" 2> /dev/null || return 0
+	type AgentsToolsEventTrackFeedOn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.EventTrackThread.include" 2> /dev/null || return 0
 	AgentsToolsEventTrackFeedOn "$feedDir" || return 0
 	printf '%s\n' "$2" >> "$feedDir/feed" 2>/dev/null || :
 	return 0
@@ -230,7 +230,7 @@ AgentsTranscriptContextRender(){ ## session id
 	renderTmp="$renderDir/context.render.$$"
 	awk -v from="$(( renderCurN + 1 ))" -f "$renderAwkDir/AgentsHarnessJsonField.awk" -f "$renderAwkDir/AgentsSessionTranscriptFormat.awk" \
 		-f "$renderAwkDir/AgentsHarnessContextTranscript.awk" "$renderLog" > "$renderTmp.rendered" 2>/dev/null || { rm -f "$renderTmp".* ; return 0 ; }
-	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$agentsTranscriptLib/AgentsTools.LocalLock.include" 2>/dev/null || :
+	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include" 2>/dev/null || :
 	if type AgentsToolsLocalLockTake > /dev/null 2>&1 && AgentsToolsLocalLockTake "transcript.${renderPart##*/}" 10 "transcript ${renderPart##*/}" 2>/dev/null ; then
 		renderLock="$agentsLocalLockPath"
 	fi
@@ -335,7 +335,7 @@ AgentsTranscriptMilestone(){ ## session id, reason
 		[ -z "$milestonePart" ] || milestoneParts+=( "$milestonePart" )
 	done <<< "$( AgentsTranscriptParts "$milestoneSession" )"
 	[ "${#milestoneParts[@]}" -gt 0 ] || return 0
-	type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$agentsTranscriptLib/AgentsTools.TeamDataCommit.include" 2>/dev/null || return 0
+	type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include" 2>/dev/null || return 0
 	MDAT_DATA_ROOT="$milestoneRoot" AgentsToolsTeamDataCommitPaths "session transcript ${milestoneSession:0:8}: $milestoneReason" "${milestoneParts[@]}" >&2 || :
 	return 0
 }
@@ -640,8 +640,11 @@ AgentsSessionTokensLine(){ ## item name, or empty; session id
 ## loop (AgentsUniversalHarness.sh, AgentsHarnessReply), and the MCP server's own tools
 ## (AgentsTools.InternMcpRequest.include, AgentsMcpReplyText), so no tool carries either part
 ## itself. A result over agentsReplyLongBytes is kept whole in its session's results/ folder and
-## the reply names it; every reply carries the host's local time. A kept file is a printed value
-## as a reply is: whatever is done to the one is done to the other.
+## the reply names it. The host's local time is every reply's too, as a content part of its own
+## beside the result (AgentsTranscriptReplyDate), added where the reply is encoded: a second text
+## item of an MCP result's content, a separate part of the model loop's tool message. It is never
+## inside a tool's output, so every tool's own output stays exactly as printed. A kept file is a
+## printed value as a reply is: whatever is done to the one is done to the other.
 agentsReplyLongBytes=8192
 
 ## The reference to a result kept in a file. The preview comes first, so the reply opens as the
@@ -706,33 +709,14 @@ AgentsTranscriptReplyLong(){ ## tool name, result text
 }
 
 ## The host's local time as one `current-date:` line, in the form of every spawn record's
-## started-at, `YYYY-MM-DD HH:MM +ZZZZ`. It stands before the result's closing lines
-## (agentsReplyClosing), which stay last (MAGIC.md, `NEXT:` lines). The one-line WAIT-RESULT: or
-## ASK-RESULT: TIMEOUT carries its NEXT: part inline: that line is split there, so the outcome
-## stays first and NEXT: last. With no closing line, the date is the last line.
-AgentsTranscriptReplyDate(){ ## reply text
-	## A reply that is one JSON object stays one: the date is its first member.
-	case "$1" in
-		'{}') printf '{"current-date":"%s"}\n' "$( date '+%Y-%m-%d %H:%M %z' )" ; return 0 ;;
-		'{'*'}') printf '{"current-date":"%s",%s\n' "$( date '+%Y-%m-%d %H:%M %z' )" "${1#\{}" ; return 0 ;;
-	esac
-	printf '%s\n' "$1" | LC_ALL=C awk -v closing="$agentsReplyClosing" -v dateLine="current-date: $( date '+%Y-%m-%d %H:%M %z' )" '
-		{ line[ NR ] = $0 }
-		END {
-			from = NR + 1 ; while ( from > 1 && line[ from - 1 ] ~ closing ) { from-- }
-			inlineAt = ( from > NR && line[ NR ] ~ /^(WAIT|ASK)-RESULT: [A-Z-]+ .* NEXT: / ) ? index( line[ NR ], " NEXT: " ) : 0
-			if ( inlineAt ) {
-				for ( n = 1 ; n < NR ; n++ ) { print line[ n ] }
-				print substr( line[ NR ], 1, inlineAt - 1 ) ; print dateLine ; print substr( line[ NR ], inlineAt + 1 )
-				exit
-			}
-			for ( n = 1 ; n < from ; n++ ) { print line[ n ] }
-			print dateLine
-			for ( n = from ; n <= NR ; n++ ) { print line[ n ] }
-		}'
+## started-at, `YYYY-MM-DD HH:MM +ZZZZ`: the content of the part a reply carries beside its
+## result. The caller makes it a part of its own and puts it after the result; it is never
+## written into the result, so the result's closing lines (agentsReplyClosing) stay last in it.
+AgentsTranscriptReplyDate(){
+	printf 'current-date: %s' "$( date '+%Y-%m-%d %H:%M %z' )"
 }
 
-## The reply to one tool result: kept when long, then dated. Skill and ToolSearch are never
+## The reply to one tool result: kept when long. Skill and ToolSearch are never
 ## kept: an armed file, and the schema of a tool to be called, must reach the model whole.
 ## Neither is a Read of a kept result, which would only be kept again, so Read names the path
 ## it read. An empty result stays empty, for its caller to report as the broken contract it is.
@@ -743,7 +727,5 @@ AgentsTranscriptReplyFinish(){ ## tool name, result text, path a Read read (opti
 		Skill:*|ToolSearch:*|Read:*/.local/agents/sessions/*/results/*) ;;
 		*) finishText="$( AgentsTranscriptReplyLong "$1" "$2" )" ;;
 	esac
-	## A call of a batch is one entry of its reply, which carries the one date (AgentsTools.BatchTools.include).
-	if [ -n "${MDAT_REPLY_IN_BATCH:-}" ] ; then printf '%s\n' "$finishText" ; return 0 ; fi
-	AgentsTranscriptReplyDate "$finishText"
+	printf '%s\n' "$finishText"
 }

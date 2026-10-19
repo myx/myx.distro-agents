@@ -10,8 +10,8 @@
 ## --pretty AgentsSlackMessagesFormat.awk reference in the same file).
 ##
 
-## Where an inbox item lives, split or flat (F4.3).
-type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+## Where an inbox item lives (F4.3).
+type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
 
 case "$1" in
 
@@ -451,8 +451,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		## Where a read finds it (AgentsToolsInboxFolders): split, incoming/, and processed/ with
-		## --include-processed; flat, the root first, its legacy processed/ a read-only fallback.
+		## Where a read finds it (AgentsToolsInboxFolders): incoming/, and processed/ with
+		## --include-processed.
 		local readArgs=( "$itemName" --context --member-inbox-item-read ) readFolder
 		while IFS= read -r readFolder ; do
 			readArgs+=( --lookup-folder "$readFolder" )
@@ -468,8 +468,8 @@ case "$1" in
 
 	##
 	## Member-scoped trash for one item out of the member's OWN inbox, by its name
-	## alone, from either folder of a split inbox (with --exclude-incoming a processed
-	## item only); of a flat one, the inbox root, or its legacy processed/, root first.
+	## alone, from either folder of the inbox (with --exclude-incoming a processed
+	## item only).
 	## Forwards to the same intern-op arm --librarian-inbox-item-trash
 	## calls; the difference is only where --from-inbox: comes from.
 	##
@@ -537,7 +537,7 @@ case "$1" in
 	;;
 
 	## Any member marks its own inbox item handled: `processed-at` stamped, and the item moved
-	## to processed/ of a split inbox (in place at the root of a flat one), through the same
+	## to processed/ of the inbox, through the same
 	## primitive --librarian-inbox-to-processed uses.
 	## Own inbox only -- <team-member> is both the actor and the inbox, and a spawned
 	## session naming another member than itself is refused.

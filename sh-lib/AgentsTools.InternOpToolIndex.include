@@ -68,8 +68,8 @@ AgentsToolsToolIndexSources(){ ## workspace
 ## `holds <tool> <member>`. rc 1 when the members cannot be read.
 AgentsToolsToolIndexData(){ ## workspace
 	local dataWs="${1%/}" dataPackage="${agentsToolIndexHere%/sh-lib}" dataMembers dataMember dataFamily dataFile dataStem dataHelp dataVerdict
-	type AgentsToolsGrantsIndexEnsure > /dev/null 2>&1 || . "$agentsToolIndexHere/AgentsTools.Grants.include" || return 1
-	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$agentsToolIndexHere/AgentsTools.TeamRegistry.include" || return 1
+	type AgentsToolsGrantsIndexEnsure > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include" || return 1
+	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include" || return 1
 	AgentsToolsGrantsSkillsetRoot "$dataWs"
 	dataMembers="$( MDAT_SKILLSET_ROOT="$agentsGrantsSkillsetRoot" AgentsToolsTeamMemberDirectoryText | LC_ALL=C awk -F'\t' 'NF && $1 != "" { print $1 ; }' | LC_ALL=C sort -u )" || return 1
 	while IFS= read -r dataMember ; do
@@ -102,7 +102,7 @@ AgentsToolsToolIndexWrite(){ ## workspace
 	local writeWs="${1%/}" writeFile writeTemp="" writeData=""
 	writeFile="$writeWs/.local/agents/tool-index.md"
 	mkdir -p "$writeWs/.local/agents" "$writeWs/.local/temp" 2> /dev/null || :
-	type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$agentsToolIndexHere/AgentsTools.ToolingTemplate.include" || return 1
+	type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ToolingTemplate.include" || return 1
 	writeData="$( mktemp "$writeWs/.local/temp/mdat-tool-index.XXXXXX" )" || writeData=""
 	[ -n "$writeData" ] && writeTemp="$( mktemp "$writeFile.XXXXXX" )" || writeTemp=""
 	if [ -z "$writeTemp" ] || ! ( AgentsToolsToolIndexData "$writeWs" ) > "$writeData" \
@@ -135,7 +135,7 @@ AgentsToolsToolIndexEnsure(){ ## workspace
 	local ensureFile="${1%/}/.local/agents/tool-index.md"
 	agentsToolIndexFile=""
 	[ -n "${1:-}" ] && [ -d "$1" ] || return 1
-	type AgentsToolsGrantsIndexEnsure > /dev/null 2>&1 || . "$agentsToolIndexHere/AgentsTools.Grants.include" || return 1
+	type AgentsToolsGrantsIndexEnsure > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include" || return 1
 	AgentsToolsGrantsIndexEnsure "$1" || :
 	if AgentsToolsToolIndexFresh "$1" "$ensureFile" ; then
 		agentsToolIndexFile="$ensureFile" ; return 0

@@ -21,7 +21,7 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 rigSkills="$rigTmp/home/.claude/skills"
 rigData="$rigTmp/data"
 mkdir -p "$rigTmp/ws" "$rigSkills/magic-coordinator" "$rigSkills/magic-librarian" \
-	"$rigData/inboxes/magic-coordinator" "$rigData/inboxes/magic-librarian"
+	"$rigData/inboxes/magic-coordinator/incoming" "$rigData/inboxes/magic-librarian/incoming"
 printf '# magic-coordinator\n' > "$rigSkills/magic-coordinator/SKILL.md"
 printf '# magic-librarian\n' > "$rigSkills/magic-librarian/SKILL.md"
 for rigState in backlog pending running review blocked parked processed archived retained ; do
@@ -121,7 +121,7 @@ rigAssert "a running item whose session is not ended is not" \
 echo "-- cut-off advance --"
 rigRun --magic-morning-review-state-advance magic-coordinator "$rigNext" ; rigRc=$?
 rigAssert "advance succeeds"                          "$rigRc" 0
-rigRecord="$rigData/inboxes/magic-coordinator/note-20261008T000000Z-morning-review-state.md"
+rigRecord="$rigData/inboxes/magic-coordinator/incoming/note-20261008T000000Z-morning-review-state.md"
 rigAssert "the record holds the new cut-off"          "$( LC_ALL=C grep -c "^last_reviewed_ts: $rigNext\$" "$rigRecord" 2>/dev/null )" 1
 rigRun --magic-morning-review-input-scan magic-coordinator
 rigAssert "the next scan reads the stored cut-off"    "$( LC_ALL=C awk '/^since: / { print $2, $NF ; exit }' "$rigTmp/out" )" "$rigNext stored"
@@ -159,7 +159,7 @@ rigAssert "the coordinator's own session advances"    "$rigRc:$( rigRefused )" "
 rigRunAs magic-librarian --magic-morning-review-input-scan magic-librarian ; rigRc=$?
 rigAssert "a routine participant's session is refused the --magic-* scan" "$rigRc:$( rigRefused ):$( rigHas '## state shape' )" "1:yes:no"
 rigRunAs magic-librarian --magic-morning-review-state-advance magic-librarian "$rigNext" ; rigRc=$?
-rigAssert "and the --magic-* advance, writing nothing" "$rigRc:$( rigRefused ):$( [ -f "$rigData/inboxes/magic-librarian/note-20261008T000000Z-morning-review-state.md" ] && echo written || echo absent )" "1:yes:absent"
+rigAssert "and the --magic-* advance, writing nothing" "$rigRc:$( rigRefused ):$( [ -f "$rigData/inboxes/magic-librarian/incoming/note-20261008T000000Z-morning-review-state.md" ] && echo written || echo absent )" "1:yes:absent"
 rigRunAs magic-devops --magic-morning-review-input-scan magic-coordinator ; rigRc=$?
 rigAssert "a non-participant's session is refused"    "$rigRc:$( rigRefused )" "1:yes"
 

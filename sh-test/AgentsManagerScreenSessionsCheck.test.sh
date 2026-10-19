@@ -26,6 +26,7 @@
 ## Offline: no operation of the real tooling is called, and no session of this machine is read.
 ## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`; the spacer under
 ## `Launch (Start)` moves each session row of the list one line down.
+## Reconciled for F11.0, the table lines: two spaces between the columns, an empty line between the rows of the sessions' table, and the columns reassessed for the fewest lines.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -241,10 +242,10 @@ rigAssert "one read gave all of it"                                  "$( rigCall
 rigAssert "its name, its state, the line of its control thread, of which these rows say nothing, and when it started" "[$( rigPane s 2 )][$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )][$( rigPane s 6 )]" "[ daily of Monday [wrap]][ daily of Monday][  state    running][  control  -][  started  2026-10-12 16:57 +0300 (9h ago)]"
 rigAssert "its id last, under its agents"                            "[$( rigPane s 13 )][$( rigPane s 14 )]" "[][  session  $rigS1]"
 rigAssert "each agent with its state, in a table under a heading, a column no agent has a word for left out" "[$( rigPane s 8 )][$( rigPane s 9 )][$( rigPane s 10 )][$( rigPane s 11 )][$( rigPane s 12 )]" \
-	"[ Agents][  MEMBER            STATE           SINCE][  magic-coordinator running waiting 2026-10-12 16:57 +0300][  magic-tester      running working 2026-10-12 17:05 +0300][  keeper-myx        finished        until 2026-10-12 18:00 +0300]"
+	"[ Agents][  MEMBER             STATE            SINCE][  magic-coordinator  running waiting  2026-10-12 16:57 +0300][  magic-tester       running working  2026-10-12 17:05 +0300][  keeper-myx         finished         until 2026-10-12 18:00 +0300]"
 rigAssert "a lone run says that it is one, and when it ended"        "[$( rigPane t 3 )][$( rigPane t 4 )][$( rigPane t 7 )]" \
 	"[ one lone run with no name][  state    finished][  ended    2026-10-11 14:51 +0300 (35h ago)]"
-rigAssert "on the row that goes up the pane is every session as a table, nothing above it, how many in the frame" "[$( rigPane u 3 )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^u|' | LC_ALL=C grep -c -F ' 5 rows ' )" "[  SESSION                              STATE     AGE AGENTS TOKENS MEMBERS] 1"
+rigAssert "on the row that goes up the pane is every session as a table, nothing above it, how many in the frame" "[$( rigPane u 3 )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^u|' | LC_ALL=C grep -c -F ' 5 rows ' )" "[  SESSION                      STATE     AGE AGENTS TOKENS MEMBERS] 1"
 
 echo "-- the list read again --"
 rigCase again five.rows five.rows moved.rows
@@ -405,7 +406,7 @@ rigListOf(){ ## a drawing -- of each line of a screen the list alone, after the 
 }
 rigAssert "from the eight fields the pane of a session says - of its control thread, and no row of the list carries a mark" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s|│ control  -  ' -e '^u|│ control  -  ' ) $( rigListOf "$rigDrawnEight" | LC_ALL=C grep -c -e ' x [a-z-]*$' )" "2 0"
 rigAssert "with the three more fields it says what they tell: a thread that lives, one that ended in order, and what each stored" "$( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 's|│ control  alive; stored running, set 2026-10-12 16:58 +0300 (9h ago)  ' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'u|│ control  none; stored finished, set 2026-10-11 14:51 +0300 (35h ago)  ' )" "1 1"
-rigAssert "the list marks the one session whose thread is gone, on each of the three screens that show the sessions, and no other row differs; the table of the sessions in the left pane marks it too" "$( diff <( rigListOf "$rigDrawnEight" ) <( rigListOf "$rigDrawnEleven" ) | LC_ALL=C grep -c '^> ' ) $( diff <( rigListOf "$rigDrawnEight" ) <( rigListOf "$rigDrawnEleven" ) | LC_ALL=C grep -c -F -e '| 22222222-0000-4000-…... x waiting' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'l|│ 22222222-0000-4000-8000-000000000002 x waiting ' )" "3 0 1"
+rigAssert "the list marks the one session whose thread is gone, on each of the three screens that show the sessions, and no other row differs; the table of the sessions in the left pane marks it too" "$( diff <( rigListOf "$rigDrawnEight" ) <( rigListOf "$rigDrawnEleven" ) | LC_ALL=C grep -c '^> ' ) $( diff <( rigListOf "$rigDrawnEight" ) <( rigListOf "$rigDrawnEleven" ) | LC_ALL=C grep -c -F -e '| 22222222-0000-4000-…... x waiting' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -E -e '^l\|│ 22222222-0000-4000-8000-[0-9]* +x waiting ' )" "3 0 1"
 rigAssert "everything else is read by position as before: but for what it says of the control thread, the screen draws and reports cell for cell what it draws from the eight" "$( [ "$( rigLeftOf "$rigDrawnEleven" )" = "$( rigLeftOf "$rigDrawnEight" )" ] && echo same || { echo differs ; diff <( rigLeftOf "$rigDrawnEight" ) <( rigLeftOf "$rigDrawnEleven" ) | head -6 ; } )" "same"
 
 if [ "$rigFailCount" -ne 0 ] ; then

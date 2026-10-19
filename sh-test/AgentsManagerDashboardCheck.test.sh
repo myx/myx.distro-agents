@@ -38,14 +38,13 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 rigRealDate="$( command -v date )" || rigRefuse "no date on PATH"
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-rigTmp="$( rigTempDir AgentsManagerDashboardCheck )" || exit 1
+rigTmp="$( mktemp -d -t AgentsManagerDashboardCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws-here" ; rigBare="$rigTmp/ws-bare" ; rigHome="$rigTmp/home" ; rigHomeBare="$rigTmp/home-bare" ; rigSkills="$rigTmp/skills"
 rigAgents="$rigWs/.local/agents" ; rigData="$rigAgents/team-data-root" ; rigQueue="$rigHome/.agents/magic-team/retest-queue"
 mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigAgents/pending" "$rigAgents/spawned/t-ask" "$rigBare/.local" "$rigHomeBare" "$rigQueue/waiting" "$rigQueue/done" \
-	"$rigData/board/running" "$rigData/board/review" "$rigData/board/blocked" "$rigData/board/odd-state" "$rigData/inboxes/magic-coordinator" \
+	"$rigData/board/running" "$rigData/board/review" "$rigData/board/blocked" "$rigData/board/odd-state" "$rigData/inboxes/magic-coordinator/incoming" \
 	|| rigRefuse "could not create the rig"
 rigHost="$( hostname -s 2> /dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 ## The rig's clock: 2026-10-13 12:00:00 UTC, in seconds since 1970, kept in a file so that a section moves it.
@@ -112,7 +111,7 @@ printf -- '---\nname: human-owner\nstatus: reference-only\n---\n# human-owner\n'
 ## state of no known name; the heartbeat's note. THE MAIN LOOP: the state its last iteration left.
 : > "$rigData/board/running/one.md" ; : > "$rigData/board/running/two.md" ; : > "$rigData/board/running/notes.txt"
 : > "$rigData/board/review/three.md" ; : > "$rigData/board/odd-state/four.md"
-printf -- '---\nstate: heartbeat-running\nrecheck-date: 2026-10-13_12:30_+0000\nlast-iteration-timestamp: 2026-10-13T11:00:00Z\n---\n' > "$rigData/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
+printf -- '---\nstate: heartbeat-running\nrecheck-date: 2026-10-13_12:30_+0000\nlast-iteration-timestamp: 2026-10-13T11:00:00Z\n---\n' > "$rigData/inboxes/magic-coordinator/incoming/note-20260809T155000Z-heartbeat-state-and-lock.md"
 printf 'MAIN_LOOP_LAST_OUTCOME=ok\nMAIN_LOOP_LAST_ITERATION_UTC=2026-10-13T11:59:00Z\nMAIN_LOOP_CONSECUTIVE_FAILURES=0\n' > "$rigAgents/main-loop.state"
 
 ## THE RETESTS that wait, and one that is done.

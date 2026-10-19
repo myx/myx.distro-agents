@@ -16,6 +16,7 @@
 ## indent; a character of two cells at the edge spills nothing; a table is a line a row in both; and the right
 ## border of the left window is a scroll bar while it holds more than it shows, whose halves page.
 ## Offline: no operation of the real tooling is called. The time zone is set here, so the times read the same anywhere.
+## Reconciled for F11.0, the table lines: the table of the agents is two cells wider (two spaces between its columns), so the pane scrolls two cells further.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -302,7 +303,7 @@ turn
 get x2
 RIGSCRIPT
 rigAssert "a table is a line a row, wrapped or cut"                  "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^wrappedTable|' | LC_ALL=C cut -c1-70 | LC_ALL=C grep -c 'magic-tester' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^cutTable|' | LC_ALL=C cut -c1-70 | LC_ALL=C grep -c 'magic-tester' )" "1 1"
-rigAssert "nothing is drawn past the window, at any place sideways: Right goes no further than the widest line, the table of the agents with no column that none of them has a word for" "$( rigVal t.spills ) $( rigVal tc.spills ) $( rigVal x1.spills ) $( rigVal x2.spills ) $( rigVal x1.viewLeft )" "0 0 0 0 3"
+rigAssert "nothing is drawn past the window, at any place sideways: Right goes no further than the widest line, the table of the agents with no column that none of them has a word for" "$( rigVal t.spills ) $( rigVal tc.spills ) $( rigVal x1.spills ) $( rigVal x2.spills ) $( rigVal x1.viewLeft )" "0 0 0 0 5"
 
 echo "-- the right border of the left window is a scroll bar while it holds more than it shows --"
 rigBare <<'RIGSCRIPT'

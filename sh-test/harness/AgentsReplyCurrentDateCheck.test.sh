@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 ## Behavioural check on the server date in every tool reply (F2.3 of the refactorings epic): a labelled field,
 ## `current-date`, in the form `YYYY-MM-DD HH:MM +ZZZZ`, the host's local time with its UTC offset, the form every
-## spawn record's started-at uses. It is added once, in the reply layer that serves every harness and MCP tool, not
-## per operation. A labelled field is not a trailing line: the NEXT: part keeps the end of a result.
-## Held, for replies of several tools, served by the harness (--intern-tool) and by the MCP server's tools/call:
-##   1. each reply carries exactly one current-date field
+## spawn record's started-at uses. The one reply layer adds it as a content part of its own beside the tool's result,
+## never inside a tool's output: in MCP a second text item of `result.content`, in the model loop a separate part of
+## the tool message. No line is inserted before NEXT:, no JSON member is added, and every tool's own output stays
+## exactly as printed.
+## Held, for replies of several tools, served by the harness (--intern-tool), by the MCP server's tools/call and by
+## the harness's own model loop:
+##   1. an MCP reply carries exactly one current-date field, as a text item of its own right after the tool's result
+##      (the second item of the content; a path tool's head part, which goes first, makes it the third)
 ##   2. its value is the host's local time now, with its offset, in that form
 ##   3. the offset follows the host's time zone: TZ=UTC gives +0000, TZ=Asia/Tokyo +0900
-##   4. a reply that ends with a NEXT: part still ends with it, and current-date stands before it
-##   5. the tool's own result is still there beside it
-##   6. in the harness's own model loop, the tool result the model is given carries the field too
-## Red before F2.3: no reply carries the field (1-4 and 6 fail).
+##   4. the tool's own result is the item before it, exactly as the served call prints it, and a NEXT: part stays its last line
+##   5. a served call prints no current-date at all, and a Wait's TIMEOUT is its one line, NEXT: part last
+##   6. in the harness's own model loop, the tool message the model is given holds the result and, as a separate
+##      part beside it, the field
 ## Offline: a Slack-shaped fake curl first on PATH answers the one Wait; the loop's model is a fake curl replaying
 ## one canned round; MMDAPP and HOME are this rig's own.
 set -u
@@ -19,11 +23,12 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigHarness="$rigHere/AgentsUniversalHarness.sh"
 rigTool="${rigHere%/sh-lib}/sh-scripts/DistroAgentsTools.fn.sh"
+rigField="$rigHere/AgentsHarnessJsonField.awk"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigHarness" ] && [ -f "$rigTool" ] || rigRefuse "the harness or the tool is not at the origin this workspace resolves: $MDLT_ORIGIN"
+[ -f "$rigHarness" ] && [ -f "$rigTool" ] && [ -f "$rigField" ] || rigRefuse "the harness, the tool or the JSON reader is not at the origin this workspace resolves: $MDLT_ORIGIN"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsReplyCurrentDateCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -47,7 +52,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigForm='current-date: [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} [+-][0-9]{4}'
-## One served call of a tool, under a time zone: its reply in <name>.out, and the host's time before and after it.
+## One served call of a tool, under a time zone: its output in <name>.out, and the host's time before and after it.
 rigServe(){ ## name, time zone, tool, arguments JSON
 	TZ="$2" date '+%Y-%m-%d %H:%M %z' > "$rigTmp/$1.before"
 	( cd "$rigFix" && printf '%s' "$4" | env -u CLAUDE_CODE_SESSION_ID -u MDAT_DATA_ROOT TZ="$2" PATH="$rigTmp/bin:/usr/bin:/bin" RIG_SCENARIO="$rigTmp" RIG_CURL_LOG="$rigTmp/curl.log" \
@@ -64,16 +69,27 @@ rigMcp(){ ## name, time zone, tool, arguments JSON
 		bash "$rigTool" --intern-mcp-server --run ) 2> "$rigTmp/$1.err" | LC_ALL=C grep '^{"jsonrpc":"2.0","id":2,' > "$rigTmp/$1.out"
 	TZ="$2" date '+%Y-%m-%d %H:%M %z' > "$rigTmp/$1.after"
 }
-rigDates(){ ## name -- how many current-date fields its reply holds
+rigCount(){ ## name -- how many items an MCP reply's content holds
+	LC_ALL=C awk -v path=result.content.__count -v optional=1 -f "$rigField" "$rigTmp/$1.out" 2> /dev/null
+}
+rigItem(){ ## name, item (date: the last, result: the one before it, or a number), member -- that member (type, text) of that item of an MCP reply's content
+	local itemAt="$2"
+	case "$2" in
+		date) itemAt=$(( $( rigCount "$1" ) - 1 )) ;;
+		result) itemAt=$(( $( rigCount "$1" ) - 2 )) ;;
+	esac
+	LC_ALL=C awk -v path="result.content.$itemAt.$3" -v optional=1 -f "$rigField" "$rigTmp/$1.out" 2> /dev/null
+}
+rigDates(){ ## name -- how many current-date fields its output holds
 	LC_ALL=C grep -o -E "$rigForm" "$rigTmp/$1.out" 2> /dev/null | LC_ALL=C grep -c . || :
 }
-rigNow(){ ## name -- whether the field holds the host's time at the call: now, or what it holds
+rigNow(){ ## name -- whether the MCP reply's field holds the host's time at the call: now, or what it holds
 	local nowValue
-	nowValue="$( LC_ALL=C grep -o -E "$rigForm" "$rigTmp/$1.out" 2> /dev/null | head -1 | LC_ALL=C sed 's/^current-date: //' )"
+	nowValue="$( rigItem "$1" date text | LC_ALL=C sed 's/^current-date: //' )"
 	if [ -n "$nowValue" ] && { [ "$nowValue" = "$( cat "$rigTmp/$1.before" )" ] || [ "$nowValue" = "$( cat "$rigTmp/$1.after" )" ] ; } ; then printf now ; else printf '%s' "${nowValue:-none}" ; fi
 }
-rigOffset(){ ## name -- the offset the field carries
-	LC_ALL=C grep -o -E "$rigForm" "$rigTmp/$1.out" 2> /dev/null | head -1 | LC_ALL=C awk '{ print $NF }'
+rigOffset(){ ## name -- the offset the MCP reply's field carries
+	rigItem "$1" date text | LC_ALL=C grep -o -E "$rigForm" | head -1 | LC_ALL=C awk '{ print $NF }'
 }
 
 rigServe glob UTC Glob "{\"pattern\":\"*.txt\",\"path\":\"$rigFix\"}"
@@ -81,36 +97,40 @@ rigServe read Asia/Tokyo Read "{\"file_path\":\"$rigFix/a.txt\"}"
 rigServe wait UTC Wait '{"sources":"slack:session-current","since_utime":"1700000100","timeout":1}'
 rigMcp mglob UTC Glob "{\"pattern\":\"*.txt\",\"path\":\"$rigFix\"}"
 rigMcp mexec Asia/Tokyo execute '{"command":"echo rig-hello"}'
-for rigName in glob read wait mglob mexec ; do
+rigMcp mnext UTC execute '{"command":"printf \"line one\\nNEXT: carry on\\n\""}'
+for rigName in glob read wait mglob mexec mnext ; do
 	[ -s "$rigTmp/$rigName.out" ] || rigRefuse "the $rigName call gave no reply, so nothing below would be measured: $( head -3 "$rigTmp/$rigName.err" | LC_ALL=C tr '\n' ' ' )"
 done
 
-echo "-- 1. each reply carries exactly one current-date field --"
-for rigName in glob read wait mglob mexec ; do
-	rigAssert "$rigName: one current-date"                    "$( rigDates "$rigName" )" 1
+echo "-- 1. an MCP reply carries exactly one current-date field, as a text item of its own right after the result --"
+for rigName in mglob mexec mnext ; do
+	rigAssert "$rigName: the result and the date are text items, the date is the one field" \
+		"$( rigItem "$rigName" result type ):$( rigItem "$rigName" date type ):$( rigItem "$rigName" date text | LC_ALL=C grep -c -E "^$rigForm\$" ):$( rigDates "$rigName" )" "text:text:1:1"
 done
+rigAssert "a path tool's reply: its head part, the result, the date -- an other tool's: the result, the date" "$( rigCount mglob ) $( rigCount mexec ) $( rigCount mnext )" "3 2 2"
 
 echo "-- 2. its value is the host's local time at the call, with its offset --"
-for rigName in glob read wait mglob mexec ; do
+for rigName in mglob mexec mnext ; do
 	rigAssert "$rigName: the time of the call"                "$( rigNow "$rigName" )" now
 done
 
 echo "-- 3. the offset follows the host's time zone --"
-rigAssert "TZ=UTC: +0000, served and through MCP"            "$( rigOffset glob ) $( rigOffset mglob )" "+0000 +0000"
-rigAssert "TZ=Asia/Tokyo: +0900, served and through MCP"     "$( rigOffset read ) $( rigOffset mexec )" "+0900 +0900"
+rigAssert "TZ=UTC: +0000, glob and a NEXT: result"           "$( rigOffset mglob ) $( rigOffset mnext )" "+0000 +0000"
+rigAssert "TZ=Asia/Tokyo: +0900"                             "$( rigOffset mexec )" "+0900"
 
-echo "-- 4. a reply ending with NEXT: still ends with it, current-date before it --"
-rigLastLine="$( LC_ALL=C grep . "$rigTmp/wait.out" | LC_ALL=C tail -n 1 )"
-rigDateLine="$( LC_ALL=C grep -n -E "^$rigForm\$" "$rigTmp/wait.out" | head -1 | cut -d: -f1 )"
-rigAssert "control: the Wait's reply has a NEXT: part"        "$( LC_ALL=C grep -c 'NEXT: ' "$rigTmp/wait.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "has" : "none" }' )" has
-rigAssert "its last line still holds the NEXT: part"          "$( printf '%s\n' "$rigLastLine" | LC_ALL=C grep -q -F 'NEXT: ' && printf last || printf 'not-last: %s' "$rigLastLine" )" last
-rigAssert "and current-date is a line of its own before it"   "$( [ -n "$rigDateLine" ] && [ "$rigDateLine" -lt "$( LC_ALL=C grep -c '' "$rigTmp/wait.out" )" ] && printf before || printf '%s' "${rigDateLine:-none}" )" before
+echo "-- 4. the tool's own result is the first item, as printed, and a NEXT: part stays its last line --"
+rigAssert "Glob: the result item is what the served call prints" "$( rigItem mglob result text )" "$( cat "$rigTmp/glob.out" )"
+rigAssert "execute: the result item is the command's output alone" "$( rigItem mexec result text )" "rig-hello"
+rigAssert "a result ending with NEXT: ends with it, in its own item" "$( rigItem mnext result text | LC_ALL=C grep . | tail -n 1 ):$( rigItem mnext result text | LC_ALL=C grep -c current-date )" "NEXT: carry on:0"
 
-echo "-- 5. the tool's own result is still there --"
-rigAssert "Glob still lists the file, Read still gives its line, execute its output" \
-	"$( LC_ALL=C grep -c -F "$rigFix/a.txt" "$rigTmp/glob.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) }' ) $( LC_ALL=C grep -c -F 'rig line' "$rigTmp/read.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) }' ) $( LC_ALL=C grep -c -F 'rig-hello' "$rigTmp/mexec.out" )" "1 1 1"
+echo "-- 5. a served call prints no current-date, and a Wait's TIMEOUT is its one line --"
+for rigName in glob read wait ; do
+	rigAssert "$rigName: no current-date in its output"       "$( rigDates "$rigName" )" 0
+done
+rigAssert "Glob still lists the file, Read still gives its line" "$( LC_ALL=C grep -c -F "$rigFix/a.txt" "$rigTmp/glob.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) }' ) $( LC_ALL=C grep -c -F 'rig line' "$rigTmp/read.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) }' )" "1 1"
+rigAssert "the Wait's TIMEOUT is one line with its NEXT: part last" "$( LC_ALL=C grep -c . "$rigTmp/wait.out" ):$( LC_ALL=C sed -n 's/^WAIT-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: Wait mode=continue$/the-line/p' "$rigTmp/wait.out" )" "1:the-line"
 
-echo "-- 6. in the harness's own model loop, the model is given the field with the tool's result --"
+echo "-- 6. in the harness's own model loop, the tool message holds the result and, beside it, the field --"
 rigLoopDir="$rigTmp/loop"
 mkdir -p "$rigLoopDir/bin" "$rigTmp/OUT"
 cp "$rigTest/check-fixtures/harness-arm-gate.curl.stub.sh" "$rigLoopDir/bin/curl" && chmod +x "$rigLoopDir/bin/curl" || rigRefuse "the fake curl fixture of the model loop is missing from the package"
@@ -127,8 +147,11 @@ env -i HOME="$rigTmp/home" PATH="$rigLoopDir/bin:/usr/bin:/bin" TZ=UTC MMDAPP="$
 	bash -c 'cd "$MMDAPP" && exec bash "$0" --access-read-root "$MMDAPP" --access-read-root "$MDAT_SKILLSET_ROOT" --access-write-root "$MMDAPP/OUT" --agent magic-tester RIG-TASK' "$rigHarness" \
 	> "$rigLoopDir/out" 2> "$rigLoopDir/err" < /dev/null || :
 [ -s "$rigLoopDir/req.2" ] || rigRefuse "the loop never gave the model the tool's result, so nothing below would be measured: $( tail -3 "$rigLoopDir/err" | LC_ALL=C tr '\n' ' ' )"
-rigAssert "control: the model is given the Glob's result"     "$( LC_ALL=C grep -c -F "$rigFix/a.txt" "$rigLoopDir/req.2" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "given" : "not-given" }' )" given
-rigAssert "and with it one current-date field"                "$( LC_ALL=C grep -o -E "$rigForm" "$rigLoopDir/req.2" | LC_ALL=C grep -c . || : )" 1
+rigToolMsg="$( LC_ALL=C grep -o -E '\{"role":"tool","tool_call_id":"rig-call-1","content":\[[^]]*\]\}' "$rigLoopDir/req.2" | head -1 )"
+rigAssert "control: the model is given the Glob's result"     "$( printf '%s' "$rigToolMsg" | LC_ALL=C grep -c -F "$rigFix/a.txt" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "given" : "not-given" }' )" given
+rigAssert "as the first text part of the tool message, the field as the second and last" \
+	"$( printf '%s' "$rigToolMsg" | LC_ALL=C grep -c -E "^\{\"role\":\"tool\",\"tool_call_id\":\"rig-call-1\",\"content\":\[\{\"type\":\"text\",\"text\":\"[^\"]*a\.txt\"\},\{\"type\":\"text\",\"text\":\"$rigForm\"\}\]\}\$" )" 1
+rigAssert "and it is the only field the model's request holds"  "$( LC_ALL=C grep -o -E "$rigForm" "$rigLoopDir/req.2" | LC_ALL=C grep -c . || : )" 1
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ REPLY CURRENT DATE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

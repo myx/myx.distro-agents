@@ -24,6 +24,7 @@
 ## exactly as the tooling has them. Offline: no operation of the real tooling is called.
 ## Reconciled for F11.0: THE TABLE COLOUR RULE: colours that name no ground of their own for every other row underline
 ## the last line of each row instead, with the lines wrapped.
+## Reconciled for F11.0, the table lines: two spaces between the columns of a table where its pane has the room, an empty line between two rows of a table that is all the left window, none ahead of a heading.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -104,12 +105,19 @@ rigItemLine(){ ## the words of a row of the table of a folder's items, in the co
 	printf ' %-24s %-4s %-16s %-10s %-7s %s' "$@"
 }
 rigBoardLine(){ ## the same of a folder of the Board, which has no TYPE and no SIZE column
-	printf ' %-24s %-16s %-10s %s' "$@"
+	printf ' %-24s  %-16s  %-10s  %s' "$@"
 }
 rigFirst(){ ## tag -- the first line of the left pane of that screen under its title, without the spaces at its end
 	printf '%s\n' "$rigOut" | LC_ALL=C grep -E "^$1\|(│|║)" | head -1 | LC_ALL=C sed -E -e "s/^$1\|(│|║)//" -e 's/(│|║|▲|▼|▒|■).*$//' -e 's/  *$//'
 }
-rigGrantLine(){ ## the cells of its first column, then the words of a row of the table of grants, all four or the first two -- that row as the table draws it
+rigGrantLine(){ ## the cells of its first column, then the words of a row of the table of grants, all four or the first two -- that row as the table draws it, two spaces between the columns
+	local coversCells="$1" ; shift
+	case $# in
+		4) printf ' %-*s  %-6s  %-12s  %s' "$coversCells" "$1" "$2" "$3" "$4" ;;
+		2) printf ' %-*s  %s' "$coversCells" "$1" "$2" ;;
+	esac
+}
+rigGrantTight(){ ## the same in a pane with no room to spare, one space between the columns
 	local coversCells="$1" ; shift
 	case $# in
 		4) printf ' %-*s %-6s %-12s %s' "$coversCells" "$1" "$2" "$3" "$4" ;;
@@ -154,10 +162,10 @@ wait focus 10
 show vault
 RIGSCRIPT
 rigAssert "Team Data holds Operations, then Board, Audit and Vault as folders, then its blocks" "$( rigVal in.rows ) $( rigFolderHolds in ' Operations ' ) $( rigFolderHolds in ' Board ' ) $( rigFolderHolds in ' Audit ' ) $( rigFolderHolds in ' Vault ' ) $( rigHolds in '║ Team Data ' )" "6 1 1 1 1 1"
-rigAssert "Board selected is its folders as a table with how many items each holds, nothing above it, from its read; how many rows, in the frame" "$( rigVal board.selectedLabel ) $( rigHolds board 'Board: 3 items' ) [$( rigFirst board )] $( rigHolds board '│ running 2' ) $( rigHolds board '│ review  1' ) $( rigHolds board ' 2 rows ' ) $( rigWords '[--manager-team-data-read][board]' )" "Board 0 [ FOLDER  ITEMS] 1 1 1 1"
+rigAssert "Board selected is its folders as a table with how many items each holds, nothing above it, from its read; how many rows, in the frame" "$( rigVal board.selectedLabel ) $( rigHolds board 'Board: 3 items' ) [$( rigFirst board )] $( rigHolds board '│ running  2' ) $( rigHolds board '│ review   1' ) $( rigHolds board ' 2 rows ' ) $( rigWords '[--manager-team-data-read][board]' )" "Board 0 [ FOLDER   ITEMS] 1 1 1 1"
 rigAssert "a folder of the Board selected is its items as a table and nothing above it, from the one read of the folder: the name, then what the front matter gives but its type, its date, its owner and its status; no size, which the list shows; one with no front matter has none" \
-	"[$( rigFirst running )] $( rigUnder running "$( rigBoardLine NAME DATE OWNER STATUS )" 3 ) $( rigHolds running 'running: 2 items' ) $( rigHolds running ' TYPE ' ) $( rigHolds running ' SIZE' ) $( rigWords '[--manager-team-data-read][board][running]' )" \
-	"[$( rigBoardLine NAME DATE OWNER STATUS )] [$( rigBoardLine NAME DATE OWNER STATUS )][$( rigBoardLine task-20261001T0900Z-a.md '2026-10-01 09:00' keeper-rig running )][$( rigBoardLine task-b.md - - - )] 0 0 0 1"
+	"[$( rigFirst running )] $( rigUnder running "$( rigBoardLine NAME DATE OWNER STATUS )" 4 ) $( rigHolds running 'running: 2 items' ) $( rigHolds running ' TYPE ' ) $( rigHolds running ' SIZE' ) $( rigWords '[--manager-team-data-read][board][running]' )" \
+	"[$( rigBoardLine NAME DATE OWNER STATUS )] [$( rigBoardLine NAME DATE OWNER STATUS )][$( rigBoardLine task-20261001T0900Z-a.md '2026-10-01 09:00' keeper-rig running )][][$( rigBoardLine task-b.md - - - )] 0 0 0 1"
 rigAssert "a folder of no more items than it shows has no key for every row: e is named nowhere" "$( rigHolds running 'All rows' ) $( rigHolds running 'and 0 more' )" "0 0"
 rigAssert "an item selected shows its text, read by its store, its folder and its name" "$( rigVal item.path ) $( rigHolds item '│The body of task a.' ) $( rigWords '[--manager-team-data-read][board][running][task-20261001T0900Z-a.md]' )" "teamdata/board/running 1 1"
 rigAssert "an item in the store itself is read by - for its folder" "$( rigHolds audit '│A declaration.' ) $( rigWords '[--manager-team-data-read][audit][-][declaration-20260928T0000Z-x.md]' )" "1 1"
@@ -221,7 +229,7 @@ rigAssert "a folder of the Board: every one of its 60 items, the header the firs
 rigShown="$( rigHolds first '│ item-' )"
 rigAssert "a folder of the Audit: every one of its 60 items too, the header the first line, its type kept, no count above it, no last line for more, no e and no count of rows in the title; how many rows, once, in the frame (the owner: \"show all items in table. Full table view - no summary on top.\")" \
 	"[$( rigFirst first )] $( rigVal first.viewLines ) $( rigHolds first '2026-10: 60 items' ) $( rigHolds first 'more' ) $( rigHolds first ' e All rows ' ) $( rigHolds first 'rows]' ) $( rigHolds first ' 60 rows ' )" \
-	"[$( printf ' %-10s %-8s %s' NAME TYPE SIZE )] 61 0 0 0 0 1"
+	"[$( printf ' %-10s  %-8s  %s' NAME TYPE SIZE )] 61 0 0 0 0 1"
 rigAssert "e has no job left: the same rows after it, nothing read again" "$( rigVal all.selected ) $( rigVal all.viewLines ) $( rigHolds all 'First rows' ) $( rigHolds again '│  and' ) $( rigWords '[--manager-team-data-read][audit][2026-10]' )" "2026-10 61 0 0 1"
 rigAssert "inside the folder, an item selected: e is named nowhere" "$( rigHolds inside 'All rows' ) $( rigHolds inside 'First rows' ) $( rigHolds inside 'rows]' )" "0 0 0"
 
@@ -271,8 +279,8 @@ rigAssert "its own summary shows its basic information alone: nothing of its set
 rigAssert "inside it: Permissions, Skillset Files, Sessions and Member Help, each a folder" "$( rigVal in.path ) $( rigVal in.rows ) $( rigFolderHolds in ' Permissions ' ) $( rigFolderHolds in ' Skillset Files ' ) $( rigFolderHolds in ' Sessions ' ) $( rigFolderHolds in ' Member Help ' )" "team/keeper-rig 5 1 1 1 1"
 rigAssert "Permissions selected: no count above its grants, how many rows in the frame, from the read of the member" "$( rigHolds perms '3 grants' ) $( rigHolds perms ' 3 rows ' ) $( rigWords '[--manager-team-member-read][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "0 1 1"
 rigAssert "its grants as the table of the member's own summary, the pane's first line its header, then a heading for each kind and a row for each grant; no hint stands before it" \
-	"[$( rigFirst perms )] $( rigUnder perms "$( rigGrantLine 22 COVERS ACCESS FROM ENDS )" 6 ) $( rigHolds perms 'Enter opens them' )" \
-	"[$( rigGrantLine 22 COVERS ACCESS FROM ENDS | LC_ALL=C sed 's/  *$//' )] [$( rigGrantLine 22 COVERS ACCESS FROM ENDS )][ floor (2)][$( rigGrantLine 22 'ws:source/**/README.md' read floor none )][$( rigGrantLine 22 'ws:.local/temp/**' write floor none )][ standing (1)][$( rigGrantLine 22 'ws:source/x/**' write ws:workspace none )] 0"
+	"[$( rigFirst perms )] $( rigUnder perms "$( rigGrantLine 22 COVERS ACCESS FROM ENDS )" 7 ) $( rigHolds perms 'Enter opens them' )" \
+	"[$( rigGrantLine 22 COVERS ACCESS FROM ENDS | LC_ALL=C sed 's/  *$//' )] [$( rigGrantLine 22 COVERS ACCESS FROM ENDS )][ floor (2)][$( rigGrantLine 22 'ws:source/**/README.md' read floor none )][][$( rigGrantLine 22 'ws:.local/temp/**' write floor none )][ standing (1)][$( rigGrantLine 22 'ws:source/x/**' write ws:workspace none )] 0"
 rigAssert "inside, its grants are a table under a heading for each kind" "$( rigHolds grant ' COVERS ' ) $( rigHolds grant ' ACCESS ' ) $( rigHolds grant ' floor (2)' ) $( rigHolds grant ' standing (1)' ) $( rigVal grant.selectedLabel )" "1 1 1 1 ws:source/**/README.md"
 rigAssert "a selected grant shows whole: the path it covers and the rule of its location" "$( rigHolds grant '│covers    /rig/ws/source/**/README.md' ) $( rigHolds grant '│rule      ws:source/**/README.md' ) $( rigHolds grant '│from      floor' )" "1 1 1"
 rigAssert "a skillset file selected shows whole, read by the member and its path" "$( rigHolds file '│The rig keeper' ) $( rigWords '[--manager-team-member-files][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigWords '[--manager-team-member-files][keeper-rig][SKILL.md]' )" "1 1 1"
@@ -312,13 +320,13 @@ get panned
 show panned
 RIGSCRIPT
 rigAssert "a pane too narrow for every column: the columns after the first, no longer than their longest word, keep it, and the first, the path it covers, gives way, wrapped in its own column, nothing cut" \
-	"$( rigVal fit.viewWidth ) $( rigUnder fit "$( rigGrantLine 16 COVERS ACCESS FROM ENDS )" 4 ) $( rigHolds fit '…' )" \
-	"43 [$( rigGrantLine 16 COVERS ACCESS FROM ENDS )][ floor (2)][$( rigGrantLine 16 'ws:source/**/REA' read floor none )][ DME.md] 0"
+	"$( rigVal fit.viewWidth ) $( rigUnder fit "$( rigGrantTight 16 COVERS ACCESS FROM ENDS )" 4 ) $( rigHolds fit '…' )" \
+	"43 [$( rigGrantTight 16 COVERS ACCESS FROM ENDS )][ floor (2)][$( rigGrantTight 16 'ws:source/**/REA' read floor none )][ DME.md] 0"
 rigAssert "a narrower one leaves out whole each column after it that still does not fit, the last first, of the header too, and the room that frees goes back to the first" \
-	"$( rigVal narrow.viewWidth ) $( rigUnder narrow "$( rigGrantLine 22 COVERS ACCESS )" 3 ) $( rigVal narrow.spills ) $( rigHolds narrow '…' )" \
-	"31 [$( rigGrantLine 22 COVERS ACCESS )][ floor (2)][$( rigGrantLine 22 'ws:source/**/README.md' read )] 0 0"
+	"$( rigVal narrow.viewWidth ) $( rigUnder narrow "$( rigGrantTight 22 COVERS ACCESS )" 3 ) $( rigVal narrow.spills ) $( rigHolds narrow '…' )" \
+	"31 [$( rigGrantTight 22 COVERS ACCESS )][ floor (2)][$( rigGrantTight 22 'ws:source/**/README.md' read )] 0 0"
 rigAssert "with the lines not wrapped the table is whole, its first column uncut, and the pane scrolls sideways to the columns after it" \
-	"$( rigVal cut.wrap ) $( rigHolds cut ' ws:source/**/README.md read' ) $( rigHolds cut "$( printf '%-12s %s' ws:workspace none )" ) $( rigVal panned.viewLeft | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigHolds panned "$( printf '%-12s %s' floor none )" ) $( rigHolds panned "$( printf '%-12s %s' ws:workspace none )" )" \
+	"$( rigVal cut.wrap ) $( rigHolds cut ' ws:source/**/README.md  read' ) $( rigHolds cut "$( printf '%-12s  %s' ws:workspace none )" ) $( rigVal panned.viewLeft | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigHolds panned "$( printf '%-12s  %s' floor none )" ) $( rigHolds panned "$( printf '%-12s  %s' ws:workspace none )" )" \
 	"no 1 0 1 2 1"
 
 echo "-- 2c. Skillset Files selected: every file as a table, its path, its size and whether it is text --"
@@ -339,8 +347,8 @@ get files
 show files
 RIGSCRIPT
 rigAssert "the left pane shows no fewer files than the list: all 19 as a table, nothing above it, a file a row with its size and whether it is text, nothing left out; how many rows in the frame" \
-	"$( rigVal files.selectedLabel ) $( rigHolds files '19 files,' )$( rigHolds files ' 19 rows ' ) $( rigUnder files "$( printf ' %-20s %-5s %s' NAME SIZE CONTENT )" 2 ) $( rigHolds files '│ resources/file-' ) $( rigHolds files 'more' ) $( rigHolds files 'rows]' ) $( rigHolds files "$( printf ' %-20s %-5s %s' resources/file-07.md 1007B binary )" )" \
-	"Skillset Files 01 [$( printf ' %-20s %-5s %s' NAME SIZE CONTENT )][$( printf ' %-20s %-5s %s' resources/file-01.md 1001B text )] 19 0 0 1"
+	"$( rigVal files.selectedLabel ) $( rigHolds files '19 files,' )$( rigHolds files ' 19 rows ' ) $( rigUnder files "$( printf ' %-20s  %-5s  %s' NAME SIZE CONTENT )" 2 ) $( rigHolds files '│ resources/file-' ) $( rigHolds files 'more' ) $( rigHolds files 'rows]' ) $( rigHolds files "$( printf ' %-20s  %-5s  %s' resources/file-07.md 1007B binary )" )" \
+	"Skillset Files 01 [$( printf ' %-20s  %-5s  %s' NAME SIZE CONTENT )][$( printf ' %-20s  %-5s  %s' resources/file-01.md 1001B text )] 19 0 0 1"
 
 echo "-- 2d. at the width the owner's screen has: the key column has its room first, the long ones give way, wrapped, nothing cut --"
 rigCase owner

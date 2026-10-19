@@ -287,11 +287,13 @@ AgentsToolsItemReviewer(){ ## item path
 
 ## ---- THE SEAT, AND WHEN A RUN IS DISMISSED (F6.9) ----
 ## THE SEAT. A member is active once in a session: of its runs there, the one that holds its
-## seat reads the session and posts in it, and any other lives on without either. The seat is a
+## seat reads the session and posts in it, and there is no seatless run. The seat is a
 ## file of the session's own folder, sessions/<session>/seats/<member>, holding the spawn id of
 ## the run that holds it. A run takes it at its first read of the session or post to it (the
 ## served Wait and SendMessage of the harness), and a start by the spawn proxy takes it at once,
-## which refuses to start a second run of a member whose seat a live run holds. The first run to
+## which refuses to start a second run of a member whose seat a live run holds. A run that finds
+## the seat held by a live run at its first read or post is refused outright, naming the holder
+## and <session>:<member>, and ends (AgentsHarnessSeatRefuse). The first run to
 ## take it holds it, and start times play no part. A holder that no longer runs holds nothing:
 ## the next live run of its member takes the seat at its next read or post. A restart, known by
 ## `restarted-from: <spawn-id>` on its record, takes it over from the run it replaces while that

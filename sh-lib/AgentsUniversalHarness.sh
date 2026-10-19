@@ -161,7 +161,7 @@ if [ "${1:-}" = --intern-checklist-place ] ; then
 fi
 ## Read and Skill return whole lines up to this many bytes; a served result stays under the MCP client's own limit.
 ## Both values are stated once, in AgentsHarnessReadCap.include, which also fills them into the descriptions.
-. "$harnessHere/AgentsHarnessReadCap.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessReadCap.include"
 harnessReadCap="$agentsReadCapWire"
 harnessWebAllowDefaults="https://wikipedia.org/ https://freebsd.org/"
 if [ "${1:-}" = --intern-tool ] ; then
@@ -508,7 +508,7 @@ if ! type DistroAgentsTools >/dev/null 2>&1 ; then
 fi
 export -f DistroAgentsTools
 ## The grants index and the session permission index (AgentsTools.Grants.include): functions only.
-. "$harnessHere/AgentsTools.Grants.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include"
 harnessGateIndexed=""
 ## What a named member's file gate admits beside its permission index: what is known only
 ## at run time -- its children's input and output -- and its own member directory.
@@ -539,7 +539,7 @@ if [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
 	## A named member with no root flags given: its file tools are decided by its session
 	## permission index (AgentsHarnessFileGate), never by the roots computed below.
 	[ -z "$harnessGrantMember" ] || harnessGateIndexed=1
-	. "$harnessHere/AgentsHarnessRootsIndex.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessRootsIndex.include"
 	if [ -z "$harnessGrantMember" ] && AgentsHarnessRootsIndexUse "${MMDAPP:-}" "$harnessAgent" "$harnessWriteIndexable" ; then
 		harnessRootsFromIndex=1
 		[ "$harnessWriteIndexable" != 0 ] || harnessWriteFromIndex=1
@@ -2345,7 +2345,7 @@ AgentsHarnessDismissedNext(){
 harnessDismissedEnd=""
 AgentsHarnessDismissedAfter(){ ## tool name
 	local afterFile afterDelay afterSession afterGrace="${MDAT_DISMISSED_END_GRACE:-60}"
-	case "$1" in SubagentHandback|Wait) ;; *) return 0 ;; esac
+	case "$1" in SubagentHandback|Wait|SendMessage) ;; *) return 0 ;; esac
 	afterFile="$( AgentsHarnessDismissedFile )" && [ -f "$afterFile.handback" ] || return 0
 	if [ -z "$harnessToolOnly" ] ; then
 		harnessDismissedEnd=1
@@ -2378,9 +2378,10 @@ AgentsHarnessDismissedAfter(){ ## tool name
 ## ---- THE SEAT AND WHEN A RUN IS DISMISSED (F6.9; AgentsTools.SpawnSandbox.include) ----
 ## A member is active once in a session: of its runs there, the one that holds its seat reads the
 ## session and posts in it. The served Wait and SendMessage of a spawned run take its seat at its
-## first read of the session or post to it; a run without it is given nothing of the session but
-## a DISMISSED addressed to it, and its post there is refused, naming the run that holds it. A
-## run whose seat passed to the run that restarts it is dismissed by the tooling. A dismissal of
+## first read of the session or post to it. There is no seatless run: a run that finds the seat
+## held by a live run is refused outright, at that read or post, naming the holder and
+## <session>:<member>, and ends (AgentsHarnessSeatRefuse). A run whose seat passed to the run that
+## restarts it is dismissed by the tooling. A dismissal of
 ## a run waits while runs that need it still run (AgentsToolsSessionDismissHeld), and is given at
 ## its first Wait once they have ended.
 
@@ -2448,47 +2449,27 @@ AgentsHarnessDismissHeldGive(){
 	return 0
 }
 
-## The rest of a served wait of a run without its seat: it waits on through its stored wait until
-## its bound, given nothing of its session, and a TIMEOUT says so as usual. A DISMISSED addressed
-## to it still arrives, alone; one that waits (AgentsHarnessDismissWaits) is kept, and the wait goes on.
-AgentsHarnessWaitSeatless(){ ## bound in seconds (empty: none), when the wait began (epoch seconds), the stored wait's session key
-	local lessLeft="" lessRc lessBy=""
-	while : ; do
-		lessLeft=""
-		if [ -n "$1" ] ; then
-			lessLeft=$(( $2 + $1 - $( date +%s ) ))
-			[ "$lessLeft" -gt 0 ] || break
-		fi
-		lessRc=0
-		"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-wait-for-input "$harnessAgent" --wait-continue \
-			${3:+--wait-session-id "$3"} ${lessLeft:+--wait-timeout "$lessLeft"} > "$harnessScratch/wait.out" 2> "$harnessScratch/wait.err" || lessRc=$?
-		if [ "$lessRc" != "0" ] ; then
-			printf 'ERROR: the wait could not be performed (rc=%s), so NOTHING is known about those sources. What the operation reported follows:\n' "$lessRc"
-			cat "$harnessScratch/wait.err"
-			return 0
-		fi
-		case "$( head -1 "$harnessScratch/wait.out" )" in
-			"WAIT-RESULT: RECEIVED") ;;
-			"WAIT-RESULT: TIMEOUT") break ;;
-			*) cat "$harnessScratch/wait.out" ; return 0 ;;
-		esac
-		lessBy="$( dismissalMember="$harnessAgent" LC_ALL=C awk -f "$harnessHere/AgentsDismissalMatch.awk" -f "$harnessHere/AgentsHarnessWaitDismissed.awk" "$harnessScratch/wait.out" )" || continue
-		if AgentsHarnessDismissWaits > /dev/null ; then
-			AgentsToolsSessionDismissHold "$MDAT_SPAWN_SESSION_ID" "$lessBy"
-			continue
-		fi
-		printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: %s\n# given alone: this run does not hold its seat in its session\n' "$lessBy"
-		AgentsHarnessDismissedKeep "$lessBy"
-		printf 'NEXT: you are dismissed -- give your handback if you have not, then end your run\n'
-		return 0
-	done
-	printf 'WAIT-RESULT: TIMEOUT (%ss) NEXT: Wait mode=continue\n' "$(( $( date +%s ) - $2 ))"
+## The refusal of a run that finds its member's seat held by a live run of its session, at its
+## first read of the session or post to it: printed, naming the holder and where to ask it
+## (<session>:<member>, as the spawn proxy's refusal at start names it), and the run ended the one
+## way a run is ended -- a dismissed mark whose handback is marked given, so the harness ends it
+## once this call is over (AgentsHarnessDismissedAfter). rc 0.
+AgentsHarnessSeatRefuse(){ ## what was refused (read, sent), the holder's spawn id
+	local refuseSession="" refuseMark=""
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+	refuseSession="$( AgentsToolsSpawnSandboxRecordHeader "$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" session-id )"
+	printf 'ERROR: not %s: run %s holds the seat of %s in session %s, and a member is active once in a session. This run is refused and ends. Send what it should do there with SendMessage to %s:%s.\n' \
+		"$1" "$2" "$harnessAgent" "$refuseSession" "$refuseSession" "$harnessAgent"
+	AgentsHarnessDismissedKeep "tooling (the seat of $harnessAgent in its session is held by run $2, so this run is refused)"
+	refuseMark="$( AgentsHarnessDismissedFile )" && : > "$refuseMark.handback" 2> /dev/null || :
+	printf 'NEXT: end your run now, and call nothing more\n'
+	return 0
 }
 
 ## The served SendMessage (AgentsHarnessToolSendMessage, `reply`): a post to this run's own session
 ## is its run's only where the run holds its member's seat there, taken by this post where nobody
-## holds it (AgentsHarnessSeatTake). Otherwise the refusal is printed, naming the run that holds it,
-## rc 0, and nothing is to be sent; rc 1 where the post may go. Every other send is as it was.
+## holds it (AgentsHarnessSeatTake). Otherwise the run is refused (AgentsHarnessSeatRefuse), rc 0,
+## and nothing is to be sent; rc 1 where the post may go. Every other send is as it was.
 AgentsHarnessSendSeatRefused(){ ## target as given
 	local seatedThread="" seatedHolder=""
 	case "$1" in
@@ -2501,7 +2482,7 @@ AgentsHarnessSendSeatRefused(){ ## target as given
 		;;
 	esac
 	[ -n "$seatedHolder" ] || return 1
-	printf 'ERROR: not sent: run %s holds the seat of %s in this session, and only the run that holds it posts there. Nothing was sent. This run goes on, and posts there once that run has ended.\n' "$seatedHolder" "$harnessAgent"
+	AgentsHarnessSeatRefuse sent "$seatedHolder"
 	return 0
 }
 
@@ -2613,10 +2594,9 @@ AgentsHarnessToolWait(){
 	fi
 	## THE SEAT (F6.9), on the tool's own wait of a spawned run: a dismissal held while others of
 	## its session ran is given once they have ended; a wait that reads its session takes its seat
-	## there, or finds the run that holds it (waitSeatless); a run whose seat passed to the run that
-	## restarts it is dismissed by the tooling.
-	local waitRecord="" waitSeatless="" waitStarted="" waitHeldOthers=""
-	waitStarted="$( date +%s )"
+	## there, or finds the run that holds it (waitSeatHolder), which refuses it (AgentsHarnessSeatRefuse);
+	## a run whose seat passed to the run that restarts it is dismissed by the tooling.
+	local waitRecord="" waitSeatHolder="" waitHeldOthers=""
 	[ "$waitTool" != "true" ] || waitRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" 2> /dev/null )" || waitRecord=""
 	if [ -n "$waitRecord" ] ; then
 		type AgentsToolsSessionSeatTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
@@ -2624,11 +2604,15 @@ AgentsHarnessToolWait(){
 			AgentsHarnessDismissedNext
 			return 0
 		fi
-		! AgentsHarnessWaitReadsSession "$toolSources" "$toolMode" || waitSeatless="$( AgentsHarnessSeatTake )" || :
-		if [ -n "$waitSeatless" ] && AgentsHarnessSeatPassed "$waitSeatless" ; then
-			printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: tooling (the seat of this run in its session passed to %s, the run that restarts it)\n' "$waitSeatless"
-			AgentsHarnessDismissedKeep "tooling (the seat of this run in its session passed to $waitSeatless, the run that restarts it)"
+		! AgentsHarnessWaitReadsSession "$toolSources" "$toolMode" || waitSeatHolder="$( AgentsHarnessSeatTake )" || :
+		if [ -n "$waitSeatHolder" ] && AgentsHarnessSeatPassed "$waitSeatHolder" ; then
+			printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: tooling (the seat of this run in its session passed to %s, the run that restarts it)\n' "$waitSeatHolder"
+			AgentsHarnessDismissedKeep "tooling (the seat of this run in its session passed to $waitSeatHolder, the run that restarts it)"
 			AgentsHarnessDismissedNext
+			return 0
+		fi
+		if [ -n "$waitSeatHolder" ] ; then
+			AgentsHarnessSeatRefuse read "$waitSeatHolder"
 			return 0
 		fi
 	fi
@@ -2774,17 +2758,11 @@ AgentsHarnessToolWait(){
 			AgentsToolsSessionDismissHold "$MDAT_SPAWN_SESSION_ID" "$waitDismissedBy"
 		else
 			printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: %s\n' "$waitDismissedBy"
-			## A run without its seat is given nothing of its session but its dismissal.
-			[ -n "$waitSeatless" ] || tail -n +2 "$harnessScratch/wait.out"
+			tail -n +2 "$harnessScratch/wait.out"
 			AgentsHarnessDismissedKeep "$waitDismissedBy"
 			[ "$waitTool" != "true" ] || printf 'NEXT: you are dismissed -- give your handback if you have not, then end your run\n'
 			return 0
 		fi
-	fi
-	## A run without its seat is given nothing of its session: its wait goes on until its bound.
-	if [ -n "$waitSeatless" ] && [ "$( head -1 "$harnessScratch/wait.out" )" = "WAIT-RESULT: RECEIVED" ] ; then
-		AgentsHarnessWaitSeatless "$toolTimeout" "$waitStarted" "$waitSession"
-		return 0
 	fi
 	## A TIMEOUT on the tool's own stateful wait is ONE line: every quiet result stays in the
 	## model's context, and that it is normal is said once, in the tool description. Only a
@@ -2836,7 +2814,7 @@ AgentsHarnessToolSessionTranscriptAppend(){ ## note
 ## call of its own, with this run's root flags, session and member, so it runs as it would alone: through the
 ## hooks and the reply layer of a served call, and in the model loop through the arm gate first.
 AgentsHarnessToolBatchTools(){ ## raw arguments
-	. "$harnessHere/AgentsTools.BatchTools.include" || { printf 'ERROR: BatchTools: its engine is missing from this package -- nothing was run.\n' ; return 0 ; }
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.BatchTools.include" || { printf 'ERROR: BatchTools: its engine is missing from this package -- nothing was run.\n' ; return 0 ; }
 	AgentsToolsBatchRun AgentsHarnessBatchCall AgentsHarnessBatchServes "$1"
 }
 ## A tool this harness serves: one it declares, the second name of the tools that ask, or an MCP server's own.
@@ -2967,7 +2945,7 @@ AgentsHarnessCheckListMembers(){
 	local membersFile membersName
 	{
 		printf '%s\n' "$checkListMember"
-		( . "$harnessHere/AgentsTools.Registries.include" && AgentsToolsRegistrySpawnedSessionsRows 2> /dev/null ) \
+		( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" && AgentsToolsRegistrySpawnedSessionsRows 2> /dev/null ) \
 			| LC_ALL=C awk -v session="$checkListSession" '$2 == session && $5 != "-" { print $5 ; }'
 		for membersFile in "$checkListFolder"/*.checklist.md ; do
 			[ -f "$membersFile" ] || continue
@@ -3013,7 +2991,7 @@ AgentsHarnessCheckListRead(){ ## member name, `*`, or empty for the caller's own
 ## A value reaching a command line: one bare name, asked of the family's one bare-name gate
 ## (AgentsToolsAssertBareName, AgentsTools.BareName.include, which has no other effect), quietly.
 AgentsHarnessBareName(){ ## candidate
-	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$harnessHere/AgentsTools.BareName.include" 2> /dev/null || return 1
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.BareName.include" 2> /dev/null || return 1
 	AgentsToolsAssertBareName "$1" "a name" AgentsHarnessBareName 2> /dev/null
 }
 
@@ -6018,7 +5996,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 	local skillDir skillPath skillRest skillSeg skillBytes skillPrefix skillLeaf skillSought pluginRoot skillPluginData skillOwnRoot skillCandidate skillOther
 	local skillVendor=()
 	## A member of another workspace is found through the shared registry, never through this workspace's own index.
-	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$harnessHere/AgentsTools.TeamRegistry.include"
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
 	## skill is the native call shape: the name resolved and the skill rendered as the
 	## client does both. A path of its own, apart from name, file and list.
 	if [ -n "$toolSkill" ] ; then
@@ -6096,19 +6074,27 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 		## stay as written.
 		skillArgs="$toolArgs" skillLabel="$toolSkill" skillBaseDir="$skillDir" skillPluginRoot="$pluginRoot" skillPluginData="$skillPluginData" \
 		LC_ALL=C awk -f "$harnessHere/AgentsHarnessSkillArgumentsFill.awk" "$skillPath" > "$harnessScratch/skill.out"
-		## A team member's skill is served as one read: its SKILL.md as above, then its basic and
-		## its armed file merged under it, each a section of its own by its file name
-		## (--intern-merge-md-files, AgentsTools.InternMergeMdFiles.include), with every level
-		## of theirs kept, so nothing a member reads is cut to a reference. A skill whose SKILL.md
-		## front matter declares `status: reference-only` (human-owner) is not merged: its own file
-		## reads the armed one only where deeper context is needed.
-		local skillMember="${skillDir##*/}"
+		## A team member's skill is served as one merged bundle instead of its SKILL.md, which stays
+		## a boot file for a native client and puts nothing in the read: the member's basic and armed
+		## files, then the team's, each a section of its own by its file name (--intern-merge-md-files,
+		## AgentsTools.InternMergeMdFiles.include), with every level of theirs kept, so nothing a member
+		## reads is cut to a reference; then the member's tool index below. The SKILL.md is read first,
+		## and its refusal (an ERROR) is the read. A skill whose SKILL.md front matter declares
+		## `status: reference-only` (human-owner) is served as is, its own file.
+		local skillMember="${skillDir##*/}" skillTeamDir="" skillMixins=()
 		if [ -f "$skillDir/$skillMember.basic.md" ] && [ -f "$skillDir/$skillMember.armed.md" ] \
+			&& [ "$( head -c 6 "$harnessScratch/skill.out" )" != "ERROR:" ] \
 			&& [ "$( LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } /^status:[ \t]*reference-only[ \t\r]*$/ { print "yes" ; exit }' "$skillPath" )" != yes ] ; then
-			type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$harnessHere/AgentsTools.InternMergeMdFiles.include"
-			printf '\n' >> "$harnessScratch/skill.out"
-			AgentsToolsMergeMdFiles --section-limit 6 --mixin "$skillDir/$skillMember.basic.md" "$skillMember.basic.md" \
-				--mixin "$skillDir/$skillMember.armed.md" "$skillMember.armed.md" >> "$harnessScratch/skill.out" 2> "$harnessScratch/skill.merge.err" || {
+			type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternMergeMdFiles.include"
+			skillMixins=( --mixin "$skillDir/$skillMember.basic.md" "$skillMember.basic.md" --mixin "$skillDir/$skillMember.armed.md" "$skillMember.armed.md" )
+			if [ "$skillMember" != magic-team ] ; then
+				[ -z "$skillOwnRoot" ] || skillTeamDir="$skillOwnRoot/magic-team"
+				[ -d "$skillTeamDir" ] || skillTeamDir="$( AgentsToolsTeamMemberDirectory magic-team 2> /dev/null )" || skillTeamDir=""
+				if [ -f "$skillTeamDir/magic-team.basic.md" ] && [ -f "$skillTeamDir/magic-team.armed.md" ] ; then
+					skillMixins+=( --mixin "$skillTeamDir/magic-team.basic.md" "magic-team.basic.md" --mixin "$skillTeamDir/magic-team.armed.md" "magic-team.armed.md" )
+				fi
+			fi
+			AgentsToolsMergeMdFiles --section-limit 6 "${skillMixins[@]}" > "$harnessScratch/skill.out" 2> "$harnessScratch/skill.merge.err" || {
 				printf 'ERROR: Skill: the basic and armed files of %s could not be merged into the read: %s\n' "$skillMember" "$( head -1 "$harnessScratch/skill.merge.err" )" ; return 0
 			}
 		fi
@@ -6120,7 +6106,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 		if [ -n "$skillReader" ] && [ "$skillReader" = "$skillMember" ] && [ -f "$skillDir/$skillMember.basic.md" ] ; then
 			skillIndex="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-tool-index --ensure 2> "$harnessScratch/skill.index.err" | head -1 )" || skillIndex=""
 			if [ -n "$skillIndex" ] && LC_ALL=C grep -q -x -F -- "# $skillMember" "$skillIndex" 2> /dev/null ; then
-				type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$harnessHere/AgentsTools.InternMergeMdFiles.include"
+				type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternMergeMdFiles.include"
 				printf '\n' >> "$harnessScratch/skill.out"
 				AgentsToolsMergeMdFiles --section-limit 6 --mixin --section-include "$skillMember" "$skillIndex" "Tool index" \
 					>> "$harnessScratch/skill.out" 2> "$harnessScratch/skill.merge.err" || {
@@ -6606,7 +6592,7 @@ AgentsHarnessArmGate(){ ## tool name -- prints the redirect when the call must w
 ## The Skill calls of a batch, each with its entry as the batch returned it (text or json), to the arming note.
 AgentsHarnessArmNoteBatch(){ ## batch arguments JSON, batch result
 	local noteAt=0 noteCount noteText
-	type AgentsToolsBatchArg > /dev/null 2>&1 || . "$harnessHere/AgentsTools.BatchTools.include" 2> /dev/null || return 0
+	type AgentsToolsBatchArg > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.BatchTools.include" 2> /dev/null || return 0
 	noteCount="$( AgentsToolsBatchArg "$1" calls.__count )"
 	case "$noteCount" in ''|*[!0123456789]*) return 0 ;; esac
 	while [ "$noteAt" -lt "$noteCount" ] && [ -z "$harnessArmedAt" ] ; do
@@ -6714,17 +6700,20 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 
 ## The reply its caller is given for a result, by the one reply layer (AgentsTranscriptReplyFinish,
 ## AgentsTools.SessionTranscript.include): a long result kept in the session's results/ folder and
-## named, and the host's time on a line of its own. harnessResult stays the result itself, for every
-## check made on it. Nothing is added to a result that goes to the tooling rather than to a caller:
-## a change applied or held for another call (MDAT_CHANGE_APPLY, MDAT_CHANGE_HOLD_ONLY), and the
-## NOT-HELD of a native client's own tool.
+## named. The host's time is not inside it: harnessReplyDate is the part the model loop gives beside
+## it (AgentsWireToolResultRecord), and the served exit prints the reply alone. harnessResult stays
+## the result itself, for every check made on it. Nothing is added to a result that goes to the
+## tooling rather than to a caller: a change applied or held for another call (MDAT_CHANGE_APPLY,
+## MDAT_CHANGE_HOLD_ONLY), and the NOT-HELD of a native client's own tool.
 harnessReply=""
-AgentsHarnessReply(){ ## tool name, result -- sets harnessReply
-	harnessReply="$2"
+harnessReplyDate=""
+AgentsHarnessReply(){ ## tool name, result -- sets harnessReply and harnessReplyDate
+	harnessReply="$2" harnessReplyDate=""
 	[ -z "${MDAT_CHANGE_APPLY:-}" ] && [ -z "${MDAT_CHANGE_HOLD_ONLY:-}" ] || return 0
 	case "$2" in NOT-HELD:*) return 0 ;; esac
 	type AgentsTranscriptReplyFinish > /dev/null 2>&1 || return 0
 	harnessReply="$( AgentsTranscriptReplyFinish "$1" "$2" "$( [ "$1" != Read ] || printf '%s' "${harnessArgV_file_path:-${harnessArgV_path}}" )" )" || harnessReply="$2"
+	[ -z "$2" ] || harnessReplyDate="$( AgentsTranscriptReplyDate )"
 }
 
 ## One file's whole content, as `$( cat file )` gives it -- every trailing newline
@@ -6852,9 +6841,9 @@ if [ ! -f "$harnessMcpFile" ] ; then
 fi
 [ -z "$harnessNeedsMcp" ] || . "$harnessMcpFile"
 ## The local lock primitive Write and Edit take; absent, every write is refused as unlockable.
-[ ! -f "$harnessHere/AgentsTools.LocalLock.include" ] || . "$harnessHere/AgentsTools.LocalLock.include"
+[ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
 ## The session transcript and token hooks; every one returns 0, and is called with || : besides.
-[ ! -f "$harnessHere/AgentsTools.SessionTranscript.include" ] || . "$harnessHere/AgentsTools.SessionTranscript.include"
+[ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionTranscript.include" ] || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionTranscript.include"
 
 ## --intern-tool ends here: the tools, the hooks and, for a tool that reaches an MCP
 ## server, the MCP client are all in scope by now, and everything below this point is the
@@ -6911,9 +6900,9 @@ fi
 
 ## The model path's own functions -- the bearer refresh and the per-round tool-call
 ## reader -- live in an include no served call loads.
-. "$harnessHere/AgentsHarnessModelRound.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessModelRound.include"
 ## The kept model context and its resume, on the model path only.
-. "$harnessHere/AgentsHarnessContext.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessContext.include"
 
 ## A spawned session run by this loop is one whose arming can be observed: said beside its record.
 [ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || : > "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" 2>/dev/null || :
@@ -7286,7 +7275,7 @@ while : ; do
 		## it, so a line rendered from the context is the line the hook writes; every check
 		## below still reads the result itself.
 		AgentsHarnessReply "$harnessFuncName" "$harnessResult"
-		harnessMessages+=( "$( AgentsWireToolResultRecord "$harnessCallId" "$harnessReply" )" )
+		harnessMessages+=( "$( AgentsWireToolResultRecord "$harnessCallId" "$harnessReply" "$harnessReplyDate" )" )
 		AgentsHarnessContextSync tool "$( [ -z "$harnessContextFile" ] || AgentsHarnessContextToolMeta "$harnessFuncName" "$harnessCallId" "$harnessResult" "$harnessTranscriptOutcome" )"
 		AgentsTranscriptToolDone "$harnessFuncName" "$harnessFuncArgsRaw" "$harnessReply" loop "$harnessTranscriptOutcome" || :
 

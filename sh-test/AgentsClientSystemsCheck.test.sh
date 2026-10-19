@@ -28,8 +28,7 @@ rigRefuse(){
 rigRealPython="$( command -v python3 )" || rigRefuse "no python3 on PATH to hand every other script to"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-rigTmp="$( rigTempDir AgentsClientSystemsCheck )" || exit 1
+rigTmp="$( mktemp -d -t AgentsClientSystemsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## A loop in the code under test must end the check rather than hang it: nothing here legitimately runs long.
 rigProcNote $$
@@ -108,12 +107,12 @@ rigWorld(){ ## -- a fresh machine
 	rigSystems NDMTHERE ndm.THERE.invalid | rigScopeOf ws-there client-ndm
 	## the client's own contacts: a mail into the other organisation passes the outbound contact gate
 	## (AgentsToolsContactAssertKnown) only for a listed recipient
-	mkdir -p "$rigWork/ws-here/.local/agents/team-data-root/inboxes/client-ndm"
+	mkdir -p "$rigWork/ws-here/.local/agents/team-data-root/inboxes/client-ndm/incoming"
 	printf '%s\n' \
 		'| slack-id | contact | handle | email | organisation | permission level |' \
 		'| --- | --- | --- | --- | --- | --- |' \
 		'| UNDMPERSON | rig-ndm-person | @rig-ndm-person | person@ndm.invalid | rig | unset |' \
-		> "$rigWork/ws-here/.local/agents/team-data-root/inboxes/client-ndm/note-rig-contacts.md"
+		> "$rigWork/ws-here/.local/agents/team-data-root/inboxes/client-ndm/incoming/note-rig-contacts.md"
 	rigClean
 }
 rigClean(){ ## -- the logs of the calls made so far, emptied

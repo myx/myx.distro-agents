@@ -13,8 +13,7 @@ rigRefuse(){
 }
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 command -v git > /dev/null || rigRefuse "git is not installed"
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-rigTmp="$( rigTempDir AgentsTeamDataCloneAtDispatchCheck )" || exit 1
+rigTmp="$( mktemp -d -t AgentsTeamDataCloneAtDispatchCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 export GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid
@@ -62,7 +61,7 @@ rigScenario first "$rigTmp/remote.git"
 rigOp "$rigDir/r" "$rigDir/store"
 rigAssert "the store is now a clone"                   "$( [ -d "$rigDir/store/.git" ] && printf yes || printf no )" yes
 rigAssert "holding the remote's content"               "$( cat "$rigDir/store/README.md" 2>/dev/null )" seed
-rigAssert "and the op's own write landed in it"        "$( [ -f "$rigDir/store/inboxes/magic-tester/note-rig.md" ] && printf yes || printf no )" yes
+rigAssert "and the op's own write landed in it"        "$( [ -f "$rigDir/store/inboxes/magic-tester/incoming/note-rig.md" ] && printf yes || printf no )" yes
 rigAssert "the clone is said"                          "$( rigHolds "$rigDir/r.err" "no local board existed, cloned $rigTmp/remote.git (main) into $rigDir/store" )" yes
 
 echo "-- two first ops at once clone once --"
@@ -77,7 +76,7 @@ echo "-- a clone that fails warns once, and the op goes on --"
 rigScenario fails "$rigTmp/missing.git"
 rigOp "$rigDir/f" "$rigDir/store"
 rigAssert "one warning"                                "$( LC_ALL=C grep -c 'cloning .* failed, so this write stays local and uncommitted' "$rigDir/f.err" || : )" 1
-rigAssert "the op still wrote its note"                "$( [ -f "$rigDir/store/inboxes/magic-tester/note-rig.md" ] && printf yes || printf no )" yes
+rigAssert "the op still wrote its note"                "$( [ -f "$rigDir/store/inboxes/magic-tester/incoming/note-rig.md" ] && printf yes || printf no )" yes
 
 echo "-- control: an existing clone is not touched --"
 rigScenario existing "$rigTmp/missing.git"

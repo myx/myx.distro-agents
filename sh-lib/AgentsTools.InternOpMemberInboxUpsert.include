@@ -9,14 +9,14 @@
 ## $MDLT_ORIGIN-based path. Not standalone: relies on being dot-sourced for
 ## $1/$@/$MDSC_CMD.
 ##
-## Where the item goes is the inbox's to say (AgentsTools.InboxPlace.include): split, the
-## folder its processed stamp picks, incoming/ or processed/, an item already there found
-## in incoming/, or in processed/ too with --include-processed, and moved when its stamp
-## changes its folder; flat, its root, as before.
+## Where the item goes is the inbox's to say (AgentsTools.InboxPlace.include): the folder
+## its processed stamp picks, incoming/ or processed/, an item already there found in
+## incoming/, or in processed/ too with --include-processed, and moved when its stamp
+## changes its folder.
 ##
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
-type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
 
 case "$1" in
 
@@ -49,8 +49,6 @@ case "$1" in
 			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local inboxDir="$MDAT_DATA_ROOT/inboxes/$memberName" inboxSplit="no"
-		AgentsToolsInboxSplit "$memberName" && inboxSplit="yes"
 		local includeProcessed="no" existingPath=""
 		local target=""
 		local content contentFromFile="false" bodyMode="" bodyModeCount=0
@@ -105,17 +103,13 @@ case "$1" in
 			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
 			set +e ; return 1
 		fi
-		## The item as it is now, where a read finds it. Split, a processed one only with
+		## The item as it is now, where a read finds it, a processed one only with
 		## --include-processed: without it, an item of that name that is processed is refused,
-		## never shadowed by a second one in incoming/. Flat: its root alone, as before.
-		if [ "$inboxSplit" = "yes" ] ; then
-			existingPath="$( AgentsToolsInboxItemFind "$memberName" "$itemName" "$includeProcessed" )" || existingPath=""
-			if [ -z "$existingPath" ] && AgentsToolsInboxItemProcessed "$memberName" "$itemName" ; then
-				echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: $itemName is a processed item of $memberName's inbox, which this call does not see -- give --include-processed to update it; nothing was written" >&2
-				set +e ; return 1
-			fi
-		elif [ -f "$inboxDir/$itemName" ] ; then
-			existingPath="$inboxDir/$itemName"
+		## never shadowed by a second one in incoming/.
+		existingPath="$( AgentsToolsInboxItemFind "$memberName" "$itemName" "$includeProcessed" )" || existingPath=""
+		if [ -z "$existingPath" ] && AgentsToolsInboxItemProcessed "$memberName" "$itemName" ; then
+			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: $itemName is a processed item of $memberName's inbox, which this call does not see -- give --include-processed to update it; nothing was written" >&2
+			set +e ; return 1
 		fi
 		target="${existingPath:-$( AgentsToolsInboxDir "$memberName" )/$itemName}"
 		if [ "$bodyMode" = "patch" ] ; then
@@ -179,15 +173,12 @@ case "$1" in
 				printf '%s\n' "$content" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk"
 			)" || { set +e ; return 1 ; }
 		fi
-		## Split, the folder the item's stamp picks, as written: an item whose stamp changes its
+		## The folder the item's stamp picks, as written: an item whose stamp changes its
 		## folder moves there, nothing of it left where it was.
-		local movedFrom=""
-		if [ "$inboxSplit" = "yes" ] ; then
-			local stampedNow="no"
-			[ "$( printf '%s\n' "$content" | LC_ALL=C awk -v fieldName=processed-at -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterFieldProbe.awk" )" != "HAS" ] || stampedNow="yes"
-			target="$( AgentsToolsInboxDirFor "$memberName" "$stampedNow" )/$itemName"
-			[ -z "$existingPath" ] || [ "$existingPath" = "$target" ] || movedFrom="$existingPath"
-		fi
+		local movedFrom="" stampedNow="no"
+		[ "$( printf '%s\n' "$content" | LC_ALL=C awk -v fieldName=processed-at -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterFieldProbe.awk" )" != "HAS" ] || stampedNow="yes"
+		target="$( AgentsToolsInboxDirFor "$memberName" "$stampedNow" )/$itemName"
+		[ -z "$existingPath" ] || [ "$existingPath" = "$target" ] || movedFrom="$existingPath"
 		mkdir -p "${target%/*}" || {
 			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: can't create inbox directory: ${target%/*}" >&2
 			set +e ; return 1

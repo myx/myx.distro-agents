@@ -63,7 +63,7 @@ chmod +x "$rigTmp/ps-bin/ps"
 PATH="$rigTmp/ps-bin:$PATH"
 export PATH
 [ "$( command -v ps )" = "$rigTmp/ps-bin/ps" ] || rigRefuse "the rig's own ps is not first on PATH, so this check would read the host's process list"
-mkdir -p "$rigTmp/ws" "$rigTmp/ws/.local/agents/members/magic-coordinator" "$rigTmp/data/inboxes/magic-coordinator"
+mkdir -p "$rigTmp/ws" "$rigTmp/ws/.local/agents/members/magic-coordinator" "$rigTmp/data/inboxes/magic-coordinator/incoming"
 printf '# magic-coordinator\n' > "$rigTmp/ws/.local/agents/members/magic-coordinator/SKILL.md"
 for rigState in backlog pending running blocked parked ; do
 	mkdir -p "$rigTmp/data/board/$rigState"
@@ -104,7 +104,7 @@ rigCheck(){ ## what is asserted, got, want
 }
 rigNew(){ ## rig name -- a fresh fake workspace, data root and home of this rig's own; sets rigW rigD rigH
 	rigW="$rigTmp/$1/ws" rigD="$rigTmp/$1/data" rigH="$rigTmp/$1/home"
-	mkdir -p "$rigW/.local/agents/spawned" "$rigD/inboxes/magic-coordinator" "$rigD/board/running" "$rigD/board/review" "$rigD/board/processed" "$rigW/.local/agents/members/magic-coordinator"
+	mkdir -p "$rigW/.local/agents/spawned" "$rigD/inboxes/magic-coordinator/incoming" "$rigD/board/running" "$rigD/board/review" "$rigD/board/processed" "$rigW/.local/agents/members/magic-coordinator"
 	printf '# magic-coordinator\n' > "$rigW/.local/agents/members/magic-coordinator/SKILL.md"
 }
 rigExtraEnv=()
@@ -130,7 +130,7 @@ rigScan(){ ## result file -- one --magic-advance-input-scan pass
 	[ "$( cat "$1.rc" )" = 0 ] || rigRefuse "--magic-advance-input-scan failed in the rig: $( tail -2 "$1.err" )"
 }
 rigPass(){ ## result file -- one advance pass: the routine takes its lock, free, and its housekeeping runs there (<result>.lock), then its scan reads (<result>)
-	rm -f "$rigD/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
+	rm -f "$rigD/inboxes/magic-coordinator/incoming/note-20260809T154715Z-advance-state-and-lock.md"
 	rigRun "$1.lock" --magic-advance-lock-acquire magic-coordinator rig-advance-pass
 	[ "$( cat "$1.lock.rc" )" = 0 ] || rigRefuse "--magic-advance-lock-acquire failed in the rig: $( tail -2 "$1.lock.err" )"
 	rigScan "$1"
@@ -462,7 +462,7 @@ rigPostSetup(){ ## rig name, thread record yes|no -- one rig with a dead local d
 	[ "$2" != yes ] || { mkdir -p "$rigW/.local/agents/sessions/rig-advance" && printf 'CRIG00001:1.000001\n' > "$rigW/.local/agents/sessions/rig-advance/event-track.thread" ; }
 	## A thread file in the sandbox, as spawns shared it before, is read by nothing: never 9.000009.
 	printf 'CRIG00001:9.000009\n' > "$rigTmp/$1/sandbox/event-track.thread"
-	rigExtraEnv=( PATH="$rigTmp/bin:$PATH" RIG_SCENARIO="$rigTmp/$1/scenario" RIG_WS="$rigW" RIG_MODE=ok RIG_SENTINEL="rig-token-$$" RIG_SENTINEL_B64=none MDAT_SPAWN_SANDBOX_ROOT="$rigTmp/$1/sandbox" MDAT_SPAWN_SESSION_ID=rig-advance )
+	rigExtraEnv=( PATH="$rigTmp/bin:$PATH" TMPDIR="$rigW/.local/temp" RIG_SCENARIO="$rigTmp/$1/scenario" RIG_WS="$rigW" RIG_MODE=ok RIG_SENTINEL="rig-token-$$" RIG_SENTINEL_B64=none MDAT_SPAWN_SANDBOX_ROOT="$rigTmp/$1/sandbox" MDAT_SPAWN_SESSION_ID=rig-advance )
 	rigSandbox rig-d1 "$rigHost" spawn-started ; rigDispatch rig-d1 dispatch-started ; rigAgeMin "$rigW/.local/agents/spawned/rig-d1" 120
 	rigSandbox rig-r1 "$rigHost" spawn-succeeded "exit-code: 0" ; rigItem review task-rig-r1.md task none rig-r1 none
 }
@@ -702,8 +702,8 @@ rigMcpCall(){ ## id, tool, arguments object -- sends one tools/call and waits fo
 	printf '{"jsonrpc":"2.0","id":%s,"method":"tools/call","params":{"name":"%s","arguments":%s}}\n' "$1" "$2" "$3" >&7
 	rigMcpAwait "$1"
 }
-rigMcpText(){ ## id -- the text of that reply, newlines still written as \n, its current-date line left out
-	LC_ALL=C grep "\"id\":$1," "$rigMd/replies" | LC_ALL=C sed -n 's/.*"text":"\(.*\)"}\],"isError".*/\1/p' | head -1 | rigReplyBare
+rigMcpText(){ ## id -- the text of that reply, newlines still written as \n, its date item left out
+	LC_ALL=C grep "\"id\":$1," "$rigMd/replies" | rigReplyBare | LC_ALL=C sed -n 's/.*"text":"\(.*\)"}\],"isError".*/\1/p' | head -1
 }
 rigMcpClose(){
 	exec 7>&-
@@ -881,9 +881,9 @@ rigPresent(){ ## path -- present or gone
 rigSp="$rigW/.local/agents/spawned"
 rigSandbox rig-orphan "$rigHost" spawn-succeeded "exit-code: 0"
 rigItem processed dispatch-rig-young.md dispatch dispatch-succeeded none rig-young ; rigDone rig-young 0 yes
-mkdir -p "$rigD/inboxes/rig-member"
-printf -- '---\ntype: note\nowner: rig-member\nspawn-id: rig-inbox\nprocessed-at: 2020-01-01 00:00 +0000\n---\n\nrig inbox item\n' > "$rigD/inboxes/rig-member/note-rig-inbox.md"
-touch -t 202001010000 "$rigD/inboxes/rig-member/note-rig-inbox.md" ; rigDone rig-inbox 0 yes
+mkdir -p "$rigD/inboxes/rig-member/processed"
+printf -- '---\ntype: note\nowner: rig-member\nspawn-id: rig-inbox\nprocessed-at: 2020-01-01 00:00 +0000\n---\n\nrig inbox item\n' > "$rigD/inboxes/rig-member/processed/note-rig-inbox.md"
+touch -t 202001010000 "$rigD/inboxes/rig-member/processed/note-rig-inbox.md" ; rigDone rig-inbox 0 yes
 mkdir -p "$rigD/trash"
 printf -- '---\ntype: dispatch\nowner: rig-member\nspawn-id: rig-trash\n---\n\nrig trash item\n' > "$rigD/trash/dispatch-rig-trash.md"
 touch -t 202001010000 "$rigD/trash/dispatch-rig-trash.md" ; rigDone rig-trash 0 yes
@@ -896,7 +896,7 @@ rigCheck "its sandbox folder is deleted with it"                          "$( ri
 rigCheck "the summary names both removed folders, board and trash"       "$( LC_ALL=C grep -c -F ' 2 sandbox-folders removed.' "$rigTmp/b4.g1" || : )" 1
 rigCheck "control: the orphan folder, no item, is left alone"             "$( rigPresent "$rigSp/rig-orphan/rig-orphan.md" )" present
 rigCheck "control: the young item and its folder are both kept"           "$( rigLoc dispatch-rig-young.md ) $( rigPresent "$rigSp/rig-young/rig-young.md" )" "processed present"
-rigCheck "control: a marked inbox item is deleted and touches no sandbox" "$( [ -f "$rigD/inboxes/rig-member/note-rig-inbox.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-inbox/rig-inbox.md" )" "deleted present"
+rigCheck "control: a marked inbox item is deleted and touches no sandbox" "$( [ -f "$rigD/inboxes/rig-member/processed/note-rig-inbox.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-inbox/rig-inbox.md" )" "deleted present"
 rigCheck "a trash item is deleted and takes its sandbox folder"           "$( [ -f "$rigD/trash/dispatch-rig-trash.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-trash" )" "deleted gone"
 echo "   another board item still links to the folder"
 rigProcessed rig-g2 rig-g2 ; rigDone rig-g2 0 yes

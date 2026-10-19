@@ -53,12 +53,12 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 	## arguments, so an include that ends in a dispatch sees no operation to run.
 	AgentsChangeLoad(){
 		local loadLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-		type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$loadLib/AgentsTools.AskPost.include"
-		type AgentsToolsPermissionShownTarget > /dev/null 2>&1 || . "$loadLib/AgentsTools.InternOpPermission.include"
-		type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$loadLib/AgentsTools.PermissionHolds.include"
-		type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$loadLib/AgentsTools.ItemDecisions.include"
-		type AgentsToolsTaskText > /dev/null 2>&1 || . "$loadLib/AgentsTools.TaskText.include"
-		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$loadLib/AgentsTools.SpawnSandbox.include"
+		type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
+		type AgentsToolsPermissionShownTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpPermission.include"
+		type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PermissionHolds.include"
+		type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+		type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TaskText.include"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
 	}
 
 	## One part of the prompt filled from its own template, by the filler the ask posts use: the

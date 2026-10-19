@@ -17,8 +17,8 @@
 ## line), 1 none.
 ##
 
-## Where an inbox item lives, split or flat (F4.3).
-type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+## Where an inbox item lives (F4.3).
+type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
 
 ## Prints the path of <member>'s own morning-review cut-off record.
 AgentsToolsMorningReviewStatePath(){ ## member

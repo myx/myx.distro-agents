@@ -11,8 +11,8 @@
 ## Contracts in MAGIC.md.
 ##
 
-## Where an inbox item lives, split or flat (F4.3).
-type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+## Where an inbox item lives (F4.3).
+type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
 
 ## The outbound-to-unlisted-people gate: one shared check, called from
 ## each real send op (Slack, email) right before its own network call,

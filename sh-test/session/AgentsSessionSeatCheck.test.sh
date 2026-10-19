@@ -5,19 +5,19 @@
 ## released when its holder ends, and the next live run of that member takes it at its next read or post. A restart,
 ## known by `restarted-from: <spawn-id>` on its record, takes the seat over from the run it replaces. A second start of
 ## the same member by the spawn proxy is refused, naming the run that holds the seat; a run the proxy did not start
-## carries no such field and waits without the seat. A run without the seat stays alive: its Wait delivers nothing from
-## the session and returns TIMEOUT as usual, a DISMISSED addressed to it still arrives, and its SendMessage to the
-## session is not posted and returns a plain refusal naming the run that holds the seat. Seen live on 2026-10-18: two
-## runs each of magic-coordinator and magic-librarian answered in one session, while the others missed messages.
+## carries no such field. There is no seatless run: a run that finds its member's seat held by a live run of the
+## session is refused outright. At its first read or post it gets a refusal naming the holder and <session>:<member>,
+## nothing of the session is read or posted, and it ends. Seen live on 2026-10-18: two runs each of magic-coordinator
+## and magic-librarian answered in one session, while the others missed messages.
 ## Held, through the served calls each run makes (Wait, SendMessage), never through a function of the tooling:
-##   1. two runs of magic-librarian: the first to read reads the post; the second's Wait delivers nothing and times out
-##   2. a founding and a joined magic-coordinator: the founder, reading first, holds the seat; the joined one is silent
+##   1. two runs of magic-librarian: the first to read reads the post; the second's Wait is refused, naming the holder
+##   2. a founding and a joined magic-coordinator: the founder, reading first, holds the seat; the joined one is refused
 ##   3. start times play no part: of two runs, the one started later but reading first holds the seat
 ##   4. a second run's send to the session is not posted, and is refused naming the holder; the holder's is posted
-##   5. the run without the seat lives on, its record stays open, and no model is asked
-##   6. once the holder has ended, the other run reads and posts
+##   5. a refused run ends, and no model is asked
+##   6. once the holder has ended, a run that had not yet read or posted reads and posts
 ##   7. a restart (restarted-from) reads in place of the run it replaces, which lives on and reads nothing
-##   8. a DISMISSED addressed to a run without the seat still arrives
+##   8. a run that waits for a DISMISSED addressed to it, without the seat, is refused, and given neither
 ##   9. control: the seat is per member, another member's run reads beside them
 ##   9b. a run's first post to the session takes the seat, as a read does
 ##   10. the spawn proxy refuses a second start of a member whose seat a live run holds, and starts a restart of it
@@ -130,6 +130,14 @@ rigSends(){ ## run id, member, session, words -- how many posts hold the words, 
 rigSaid(){ ## run id, tool, fixed text -- how many lines of that run's last call of that tool hold it
 	LC_ALL=C grep -c -F -- "$3" "$rigTmp/$1.$2.out" 2> /dev/null || :
 }
+rigRefusal(){ ## run id, tool, holder run id, session, member -- <refusal's start>:<holder named>:<session:member named>
+	printf '%s:%s:%s' "$( rigFirst "$1" "$2" | LC_ALL=C cut -c1-15 )" "$( rigSaid "$1" "$2" "run $3 holds the seat" )" "$( rigSaid "$1" "$2" "$4:$5" )"
+}
+rigGoneSoon(){ ## pid -- gone, or alive after about ten seconds: the tooling ends a refused run a moment after its call
+	local goneTry=0
+	while kill -0 "$1" 2> /dev/null && [ "$goneTry" -lt 20 ] ; do sleep 0.5 ; goneTry=$(( goneTry + 1 )) ; done
+	rigAlive "$1"
+}
 
 ## Reached, or nothing below means anything: a lone run of a member reads the post and posts its answer.
 rigS="rig-seat-a-$rigTag"
@@ -143,39 +151,44 @@ echo "-- 1. two runs of magic-librarian in one session: only the first to read r
 rigRun rigCoord "$rigS" magic-coordinator spawned none ""
 rigRun rigLib1 "$rigS" magic-librarian joined "$rigCoord" ""
 rigRun rigLib2 "$rigS" magic-librarian joined "$rigCoord" ""
+rigRun rigLib3 "$rigS" magic-librarian joined "$rigCoord" ""
+rigRun rigLib4 "$rigS" magic-librarian joined "$rigCoord" ""
 rigAssert "the first librarian run to read takes the seat, and reads the post" "$( rigReads "$rigLib1" magic-librarian "$rigS" )" read
 rigAssert "the second librarian run does not read it"                     "$( rigReads "$rigLib2" magic-librarian "$rigS" )" not-read
-rigAssert "its Wait times out as usual"                                   "$( rigFirst "$rigLib2" Wait | LC_ALL=C cut -c1-20 )" "WAIT-RESULT: TIMEOUT"
+rigAssert "its Wait is the refusal, naming the holder and where to ask it" "$( rigRefusal "$rigLib2" Wait "$rigLib1" "$rigS" magic-librarian )" "ERROR: not read:1:1"
 
 echo "-- 2. a founding and a joined coordinator: the founder holds the seat, the joined one is silent --"
 rigRun rigCoord2 "$rigS" magic-coordinator joined "$rigCoord" ""
+rigRun rigCoord3 "$rigS" magic-coordinator joined "$rigCoord" ""
 rigAssert "the founding coordinator, reading first, reads the post"       "$( rigReads "$rigCoord" magic-coordinator "$rigS" )" read
 rigAssert "the joined coordinator does not"                               "$( rigReads "$rigCoord2" magic-coordinator "$rigS" )" not-read
-rigAssert "its Wait times out as usual"                                   "$( rigFirst "$rigCoord2" Wait | LC_ALL=C cut -c1-20 )" "WAIT-RESULT: TIMEOUT"
+rigAssert "its Wait is the refusal, naming the founder and where to ask it" "$( rigRefusal "$rigCoord2" Wait "$rigCoord" "$rigS" magic-coordinator )" "ERROR: not read:1:1"
 
 echo "-- 3. start times play no part: the run started later, reading first, holds the seat --"
 rigRun rigTesterEarly "$rigS" magic-tester joined "$rigCoord" ""
 rigRun rigTesterLate "$rigS" magic-tester joined "$rigCoord" ""
 rigAssert "the tester run started later reads first, and reads the post"  "$( rigReads "$rigTesterLate" magic-tester "$rigS" )" read
 rigAssert "the one started earlier does not"                              "$( rigReads "$rigTesterEarly" magic-tester "$rigS" )" not-read
+rigAssert "and is refused, naming the holder"                            "$( rigRefusal "$rigTesterEarly" Wait "$rigTesterLate" "$rigS" magic-tester )" "ERROR: not read:1:1"
 
 echo "-- 4. only the seat holder answers in the session --"
-rigAssert "the second librarian run's send is not posted"                 "$( rigSends "$rigLib2" magic-librarian "$rigS" 'The second run would answer here.' )" 0
-rigAssert "and is refused, naming the run that holds the seat"            "$( rigSaid "$rigLib2" SendMessage "$rigLib1" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "named" : "not-named" }' )" named
-rigAssert "the joined coordinator's send is not posted either"            "$( rigSends "$rigCoord2" magic-coordinator "$rigS" 'The second coordinator would answer here.' )" 0
-rigAssert "and is refused, naming the founder"                            "$( rigSaid "$rigCoord2" SendMessage "$rigCoord" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "named" : "not-named" }' )" named
+rigAssert "a second librarian run's send is not posted"                  "$( rigSends "$rigLib3" magic-librarian "$rigS" 'The second run would answer here.' )" 0
+rigAssert "and is refused, naming the run that holds the seat and where to ask it" "$( rigRefusal "$rigLib3" SendMessage "$rigLib1" "$rigS" magic-librarian )" "ERROR: not sent:1:1"
+rigAssert "a joined coordinator's send is not posted either"              "$( rigSends "$rigCoord3" magic-coordinator "$rigS" 'The second coordinator would answer here.' )" 0
+rigAssert "and is refused, naming the founder and where to ask it"        "$( rigRefusal "$rigCoord3" SendMessage "$rigCoord" "$rigS" magic-coordinator )" "ERROR: not sent:1:1"
 rigAssert "control: the seat holder's send is posted"                     "$( rigSends "$rigLib1" magic-librarian "$rigS" 'The first run answers here.' )" 1
 
-echo "-- 5. the run without the seat stays alive: nothing ends it --"
-rigAssert "the second librarian run lives on"                             "$( rigAlive "$rigLib2Pid" )" alive
-rigAssert "the joined coordinator lives on"                               "$( rigAlive "$rigCoord2Pid" )" alive
-rigAssert "neither record is closed"                                      "$( LC_ALL=C grep -h '^status: ' "$rigSpawned/$rigS/$rigLib2.md" "$rigSpawned/$rigS/$rigCoord2.md" | LC_ALL=C tr '\n' '|' )" "status: spawn-started|status: spawn-started|"
+echo "-- 5. a refused run ends --"
+rigAssert "the second librarian run, refused at its read, ends"          "$( rigGoneSoon "$rigLib2Pid" )" gone
+rigAssert "the joined coordinator, refused at its read, ends"            "$( rigGoneSoon "$rigCoord2Pid" )" gone
+rigAssert "the librarian run refused at its send ends"                   "$( rigGoneSoon "$rigLib3Pid" )" gone
+rigAssert "the seat holders live on"                                      "$( rigAlive "$rigLib1Pid" ):$( rigAlive "$rigCoordPid" )" alive:alive
 rigAssert "and no model was asked anything by a served call"              "$( [ -s "$rigTmp/model-calls" ] && printf asked || printf none )" none
 
-echo "-- 6. once the holder has ended, the other run reads and posts --"
+echo "-- 6. once the holder has ended, a run that had not yet read or posted reads and posts --"
 rigEnd "$rigLib1Pid"
-rigAssert "the second librarian run reads the post now"                   "$( rigReads "$rigLib2" magic-librarian "$rigS" )" read
-rigAssert "and its send is posted"                                        "$( rigSends "$rigLib2" magic-librarian "$rigS" 'The second run answers now.' )" 1
+rigAssert "the fourth librarian run reads the post now"                   "$( rigReads "$rigLib4" magic-librarian "$rigS" )" read
+rigAssert "and its send is posted"                                        "$( rigSends "$rigLib4" magic-librarian "$rigS" 'The second run answers now.' )" 1
 
 echo "-- 7. a restart takes the seat over from the run it replaces, which lives on --"
 rigRun rigKeep1 "$rigS" keeper-myx joined "$rigCoord" ""
@@ -186,7 +199,7 @@ rigAssert "its restart reads the post"                                    "$( ri
 rigAssert "the run it replaces reads nothing now"                         "$( rigReads "$rigKeep1" keeper-myx "$rigS" )" not-read
 rigAssert "and lives on"                                                  "$( rigAlive "$rigKeep1Pid" )" alive
 
-echo "-- 8. a DISMISSED addressed to a run without the seat still arrives --"
+echo "-- 8. a run without the seat that waits for a DISMISSED addressed to it is refused, and given neither --"
 rigD="rig-seat-b-$rigTag"
 rigSession "$rigD" ",{\"ts\":\"1700000400.000001\",\"user\":\"URIGBOT01\",\"text\":\"*_magic-coordinator_* @magic-coordinator → *_magic-librarian_* @magic-librarian.\\nDISMISSED\",\"metadata\":{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"magic-coordinator\"}}}"
 rigRun rigCoordD "$rigD" magic-coordinator spawned none ""
@@ -194,8 +207,8 @@ rigRun rigLibD1 "$rigD" magic-librarian joined "$rigCoordD" ""
 rigRun rigLibD2 "$rigD" magic-librarian joined "$rigCoordD" ""
 rigReads "$rigLibD1" magic-librarian "$rigD" > /dev/null
 rigCall "$rigLibD2" magic-librarian "$rigD" Wait "$rigWaitArgs"
-rigAssert "the run without the seat gets its DISMISSED"                   "$( rigFirst "$rigLibD2" Wait )" "WAIT-RESULT: DISMISSED"
-rigAssert "and nothing of the session's other posts"                      "$( rigSaid "$rigLibD2" Wait "$rigPost" )" 0
+rigAssert "the run without the seat is refused"                          "$( rigRefusal "$rigLibD2" Wait "$rigLibD1" "$rigD" magic-librarian )" "ERROR: not read:1:1"
+rigAssert "and given neither the DISMISSED nor the session's other posts" "$( rigSaid "$rigLibD2" Wait "WAIT-RESULT: DISMISSED" ):$( rigSaid "$rigLibD2" Wait "$rigPost" )" 0:0
 
 echo "-- 9. control: the seat is per member --"
 rigAssert "the founding coordinator reads the post beside the restarted keeper" "$( rigReads "$rigCoord" magic-coordinator "$rigS" )" read

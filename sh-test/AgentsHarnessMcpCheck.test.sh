@@ -312,8 +312,8 @@ printf 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"
 rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
 rigRun 0 --mcp-server rigmcp
 rigIntentParam='"description":{"type":"string","description":"Optional. One short sentence: why this call is made, what you expect from it. Recorded as your stated intent in the transcript and the tracking feed; it does not change what the tool does."}'
-rigToolResult(){ ## request file, tool call id -- that call's result content as sent
-	LC_ALL=C grep -o "\"tool_call_id\":\"$2\",\"content\":\"[^\"]*\"" "$1" 2>/dev/null | sed 's/.*"content":"//; s/"$//'
+rigToolResult(){ ## request file, tool call id -- that call's result content as sent, without its date part
+	rigReplyBare < "$1" | LC_ALL=C grep -o "\"tool_call_id\":\"$2\",\"content\":\"[^\"]*\"" 2>/dev/null | sed 's/.*"content":"//; s/"$//'
 }
 rigAssert "the run ends normally"                           "$rigRunStatus" 0
 rigAssert "two rounds were requested"                       "$rigRoundCount" 2
@@ -322,7 +322,7 @@ rigAssert "every built-in declares the optional description" "$( rigToolsOf "$ri
 rigAssert "the server's own tool is declared as it sent it, no description added" \
 	"$( rigToolsOf "$rigScenarioDir/req.1" | LC_ALL=C awk -v want="$rigIntentParam" '{ body = body $0 } END { at = index( body, "\"name\":\"mcp__rigmcp__ping\"" ) ; if ( !at ) { print "absent" ; exit } ; print ( index( substr( body, at ), want ) ? "added" : "as sent" ) }' )" "as sent"
 rigAssert "a built-in called with one answers exactly as without" "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-intent )" "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-bare )"
-rigAssert "and that answer is the file, not a refusal"      "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-bare | rigReplyBare | sed 's|.*/||' )" round
+rigAssert "and that answer is the file, not a refusal"      "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-bare | sed 's|.*/||' )" round
 rigVerdict "the optional description -- declared on every built-in, not on a server's tool, and ignored by the call"
 
 ## The negative control, and the reason a green run above cannot be a vacuous one: the

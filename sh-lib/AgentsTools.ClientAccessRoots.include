@@ -125,7 +125,7 @@ AgentsToolsClientAccessReadGrantRoots(){
 ## The one reader and widener of both: the rows whose grant is <verb>(/...).
 ##   $1 = Edit | Read, $2 = member name (optional)
 AgentsToolsClientAccessGrantRootsOf(){
-	type AgentsToolsTeamGrantRows >/dev/null 2>&1 || . "${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}/AgentsTools.TeamRegistry.include" || return 1
+	type AgentsToolsTeamGrantRows >/dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include" || return 1
 	## Field 4 is taken whole by offset, never by splitting, so a grant carrying
 	## its own colons survives -- the same rule the permissions projection uses.
 	AgentsToolsTeamGrantRows "${MMDAPP:-}" permissions.registry | LC_ALL=C awk -F: -v grantVerb="$1" -v wantMember="${2:-}" '
@@ -184,7 +184,7 @@ AgentsToolsClientAccessWidenGrantRoot(){
 ## default differently.
 ##   $1 = the widened root path to look up.
 AgentsToolsClientAccessRootTag(){
-	type AgentsToolsTeamGrantRows >/dev/null 2>&1 || . "${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}/AgentsTools.TeamRegistry.include" || return 1
+	type AgentsToolsTeamGrantRows >/dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include" || return 1
 	## Field 4 taken whole by offset, same discipline as the main registry --
 	## a colon inside a path must never be read as a field separator.
 	AgentsToolsTeamGrantRows "${MMDAPP:-}" permissions-tags.registry | LC_ALL=C awk -F: -v wantRoot="$1" '
@@ -250,7 +250,7 @@ AgentsToolsClientAccessMemberRoots(){
 		echo "⛔ ERROR: AgentsToolsClientAccessMemberRoots: a workspace and a member are both required" >&2
 		return 1
 	fi
-	type AgentsToolsGrantsIndexEnsure >/dev/null 2>&1 || . "${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}/AgentsTools.Grants.include" || return 1
+	type AgentsToolsGrantsIndexEnsure >/dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include" || return 1
 	if ! AgentsToolsGrantsIndexEnsure "$memberWs" ; then
 		echo "⛔ ERROR: AgentsToolsClientAccessMemberRoots: no grants index could be read or built for $memberWs" >&2
 		return 1

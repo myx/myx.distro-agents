@@ -156,15 +156,24 @@ LOOKS = (
     ## in colours that name no ground of their own for every other row, the lines wrapped
     ("l", "", "white", "blue", False),
 )
+## A cell of a table with a look of its own, a state, is drawn on the ground of its row (THE TABLE
+## COLOUR RULE, below): on a row of the ground of ROW_ALT, that look LOOK_ALT numbers on; on the
+## underlined last line of a row, that look LOOK_LINE numbers on. Each keeps the letter, the look with
+## no colours, the text and the brightness of the look it is of. The first takes the ground of ROW_ALT
+## where the ground of that look is the ground of PLAIN: a ground that is the meaning of a look,
+## the red of a bad state, stays. The second is underlined (LINED_LOOKS).
+LOOK_ALT, LOOK_LINE = len(LOOKS), 2 * len(LOOKS)
+LOOKS = LOOKS + tuple(look if look[3] != LOOKS[PLAIN][3] else look[:3] + (LOOKS[ROW_ALT][3], look[4]) for look in LOOKS) + LOOKS
 ## THE TABLE COLOUR RULE. Each set of colours of a style names a ground for every other row
 ## of a table (ROW_ALT) close to that of a row (ROW), or names none. The other rows differ
 ## from a row only in that ground, never in their text, its colour, its brightness or its
 ## look with no colours: the text carries what the content means, and nothing else. Where the
 ## colours name none (rowsApart), the ground never changes; with the lines of the pane wrapped
 ## each row is underlined across the table instead (ROW_LINE), where the terminal underlines,
-## and with them not wrapped, a row a line, nothing marks the rows.
+## and with them not wrapped, a row a line, nothing marks the rows. A terminal of eight colours
+## has not the shades the two are told apart by: there the colours of every style name none.
 ## The looks a surface underlines, where its terminal has underline.
-LINED_LOOKS = (ROW_LINE,)
+LINED_LOOKS = (ROW_LINE,) + tuple(range(LOOK_LINE, LOOK_LINE + LOOK_ALT))
 ## The letter a look without colours reads back as.
 MONO_LETTERS = {"": ".", "B": "B", "R": "R", "D": "D", "RB": "H", "RD": "d"}
 ## The colours of a style that has its own (STYLES "looks"), for each look of LOOKS by its
@@ -379,9 +388,16 @@ BW_SHADES = {
 for bwName, bwShades in BW_SHADES.items():
     STYLE_LOOKS[bwName] = dict((number, bwShades[look[1]]) for number, look in enumerate(LOOKS))
 ## The underlined last line of a row is a row in every set of colours: only its line is its own.
+## So are the looks of a cell on a row of the ground of ROW_ALT and on that line (LOOK_ALT, LOOK_LINE).
 for ownLooks in STYLE_LOOKS.values():
     if ROW in ownLooks:
         ownLooks[ROW_LINE] = ownLooks[ROW]
+        for number in range(LOOK_ALT):
+            own = ownLooks.get(number)
+            if own is not None:
+                same = own[1] == ownLooks[PLAIN][1] and own[4] == ownLooks[PLAIN][4]
+                ownLooks[LOOK_ALT + number] = own[:1] + (ownLooks[ROW_ALT][1], own[2], own[3], ownLooks[ROW_ALT][4], own[5]) if same else own
+                ownLooks[LOOK_LINE + number] = own
 
 ## The marks of the drawing. plainMarks() changes them for a terminal that is not UTF-8.
 ## A frame is its corner at the top left, its line across, its corner at the top right,
@@ -880,7 +896,7 @@ PLACES = {
 ## pending question.
 PLACED = {
     "real": {"places": None, "consoles": None, "settings": ("workspace",), "configuration": ("workspace",)},
-    "dialogs": ("answer", "reply", "reject", "dismiss", "confirm"),
+    "dialogs": ("answer", "answer-many", "reply", "reject", "dismiss", "confirm"),
 }
 
 ## ---- the declaration of the screen: its styles, its windows, its menus, its commands ----
@@ -1525,6 +1541,14 @@ DIALOGS = {
                             {"name": "answers", "kind": "list", "label": "Answers", "digits": True},
                             {"name": "words", "kind": "input", "label": "Words to go with it, or none"}),
                "buttons": (("answer", "Answer"), ("cancel", "Cancel"))},
+    ## the answer to a question that takes several of its answers (its form `many`): the same, with
+    ## boxes in place of the list, and at least one checked
+    "answer-many": {"title": "Answer", "feeds": "answer", "first": "answers",
+                    "controls": ({"name": "about", "kind": "text"},
+                                 {"name": "answers", "kind": "checks", "label": "Answers",
+                                  "required": "nothing is answered: no answer is checked: check one at least, with Space"},
+                                 {"name": "words", "kind": "input", "label": "Words to go with them, or none"}),
+                    "buttons": (("answer", "Answer"), ("cancel", "Cancel"))},
     ## the answer to a plain question: the words typed are its answer
     "reply": {"title": "Answer", "feeds": "answer",
               "controls": ({"name": "about", "kind": "text"},
@@ -2488,7 +2512,7 @@ def localView(state, row):
         return settingLines(row["line"], state.viewWidth)
     if row.get("lineGroup"):
         tableCount(state, row["lineGroup"]["lines"])
-        return groupLines(row["lineGroup"], state.viewWidth, state.wrap)
+        return groupLines(row["lineGroup"], state.viewWidth, state.wrap, fullPane(state))
     if row.get("check"):
         return checkLines(row["check"], state.viewWidth)
     if row.get("serverKey"):
@@ -2608,17 +2632,25 @@ def looked(text, look):
 TABLE_LOOKS = {"head": ROW_HEAD, "heading": BOLD, "row": ROW, "alt": ROW_ALT, "line": ROW_LINE}
 
 
-## The ground of a look in the colours of the style of now: in its eight colours and in its
-## exact shades, as its own looks name them, else as LOOKS does.
+## Whether the terminal draws the exact shades of the colours of a style: it has 256 colours
+## (curses.COLORS), as looksOf takes them. Where curses is not started, as in the tests, it has.
+def exactShades():
+    return getattr(curses, "COLORS", 256) >= 256
+
+
+## The ground of a look in the colours of the style of now: in its eight colours and, where the
+## terminal draws them, in its exact shades, as its own looks name them, else as LOOKS does.
 def lookGround(number):
     own = STYLE_LOOKS.get(STYLE.get("looks", ""), {}).get(number)
-    return (own[1], own[4]) if own else (LOOKS[number][3], None)
+    return (own[1], own[4] if exactShades() else None) if own else (LOOKS[number][3], None)
 
 
 ## Whether the colours of the style of now name a ground of its own for every other row of a
 ## table (THE TABLE COLOUR RULE).
 def rowsApart():
     return lookGround(ROW_ALT) != lookGround(ROW)
+
+
 ## The kinds of the columns of a table of the left pane: "key", the column a row is known by,
 ## a path, a place, a name, which has its room first; "enum", one of a few known words, a
 ## kind, a status, an access, cut to the start that tells its words apart where room is
@@ -2680,6 +2712,65 @@ def enumLeast(values):
     return length + 1
 
 
+## How many lines a cell takes wrapped at a width, at its words (textwrap); an empty cell takes
+## one. Kept, because reassessWidths tries the widths of a table against every cell of it.
+WRAPPED_LINES = {}
+
+
+def wrappedLines(text, width):
+    if (text, width) not in WRAPPED_LINES:
+        if len(WRAPPED_LINES) > 100000:
+            WRAPPED_LINES.clear()
+        WRAPPED_LINES[(text, width)] = len(textwrap.wrap(text, width)) or 1
+    return WRAPPED_LINES[(text, width)]
+
+
+## The widths of the columns of a table whose lines wrap, brought to the fewest lines the room
+## they share gives: one column takes cells from another (the text columns give first, then
+## the key) while the table takes fewer lines for it, no column below its least nor above its
+## natural width. A row takes as many lines as its tallest cell, so a column wrapped to four
+## lines beside one wrapped to two takes room from it until the row takes two. A move is made
+## only for fewer lines of the table, and of two moves that give as many, the one that wraps
+## fewer cells wins. An enum column is never wrapped and keeps its width. `widths` is changed
+## in place.
+def reassessWidths(widths, words, kinds, natural, least):
+    free = [index for index in range(len(widths)) if kinds[index] != "enum"]
+    if len(free) < 2 or not words:
+        return
+    counts = {}
+
+    def lines(index, cellWidth):
+        if (index, cellWidth) not in counts:
+            counts[(index, cellWidth)] = [wrappedLines(row[index], cellWidth) for row in words]
+        return counts[(index, cellWidth)]
+    held = dict((index, widths[index]) for index in free)
+    cells = dict((index, sum(lines(index, held[index]))) for index in free)
+    total = (sum(max(rowCounts) for rowCounts in zip(*[lines(index, held[index]) for index in free])), sum(cells.values()))
+    order = sorted(free, key=lambda index: ("text", "whole", "key").index(kinds[index]))
+    while total[0] > len(words):
+        best = None
+        for donor in order:
+            for taker in free:
+                if taker == donor:
+                    continue
+                others = [lines(index, held[index]) for index in free if index not in (taker, donor)]
+                rest = [max(rowCounts) for rowCounts in zip(*others)] if others else [1] * len(words)
+                restCells = sum(cells[index] for index in free if index not in (taker, donor))
+                for step in range(1, min(held[donor] - least[donor], max(natural[taker], held[taker]) - held[taker]) + 1):
+                    takerLines, donorLines = lines(taker, held[taker] + step), lines(donor, held[donor] - step)
+                    value = (sum(max(rowCount) for rowCount in zip(rest, takerLines, donorLines)), restCells + sum(takerLines) + sum(donorLines))
+                    if value[0] < total[0] and (best is None or value < best[0]):
+                        best = (value, taker, donor, step)
+        if best is None:
+            break
+        total, taker, donor, step = best
+        held[taker] += step
+        held[donor] -= step
+        cells[taker], cells[donor] = sum(lines(taker, held[taker])), sum(lines(donor, held[donor]))
+    for index in free:
+        widths[index] = held[index]
+
+
 ## A table for the left pane: its header, and its rows, each the lines of one row. With the
 ## lines of the pane wrapped (`wrap`) it spans the pane, that many cells: a key or text cell
 ## is wrapped in its own column at its words (textwrap), a row as tall as its tallest cell;
@@ -2696,23 +2787,40 @@ def enumLeast(values):
 ## ahead of them a column `#`, each row's number from 1; `indent` stands ahead of every line. Rows take turns in the looks of a row (TABLE_LOOKS),
 ## by THE TABLE COLOUR RULE: where the colours set no row apart and the lines are wrapped, the last line of each row is underlined;
 ## `looks`, one for each row, gives a look of its own to each cell that has one (None: the
-## row's), a state in its colour (stateLook). Each line of a
+## row's), a state in its colour (stateLook), on the ground of the row (LOOK_ALT, LOOK_LINE). Each line of a
 ## row carries its header (`stick`), which stays over the rows when it has gone up out of
-## the pane (drawLinesBody).
-def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ", numbered=False, looks=None):
+## the pane (drawLinesBody). The columns, the number and the icon too, stand two cells apart
+## where the room left holds that for every gap, else one. With the lines wrapped, the widths
+## are tried against every cell: the room is moved from one column that wraps to another while
+## the table takes fewer lines for it, so that a row takes the fewest lines the width gives.
+## `pane`, the cells and the lines of the left window, is given by a table that is all of it
+## (the full view): one empty line then stands between every two rows, where no column is
+## left out, the lines not wrapped are no wider than the pane, and the table with them is no
+## taller than the pane. `cut`, given by a table of the list on the right (listTableLines),
+## makes the table fit the pane without wrapping a cell: each of its lines is one line, a
+## column stands only whole or is left out, the last first, and the first is cut at that many
+## cells; `wrap` then says only how THE TABLE COLOUR RULE marks the rows.
+def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ", numbered=False, looks=None, pane=None, cut=None):
     kinds = list(kinds or ["key"] + ["text"] * (len(heads) - 1))
     words = [row for row in rows if not isinstance(row, str)]
     natural = [(lambda most: most if kinds[index] == "whole" else min(TABLE_CAP, most))(max([textWidth(head)] + [textWidth(row[index]) for row in words])) for index, head in enumerate(heads)]
+    if cut is not None:
+        natural[0] = min(natural[0], cut)
+    wrapped = wrap and cut is None
+    fitted = wrapped or cut is not None
     least = [min(natural[index], max(textWidth(head), enumLeast([row[index] for row in words]) if kinds[index] == "enum" else max(
         TABLE_LEAST, min(TABLE_WORD_MOST, max([textWidth(word) for row in words for word in row[index].split()] + [0])))))
         for index, head in enumerate(heads)]
     iconWidth = max([textWidth(icon) for icon in icons or ()] + [0])
     numberWidth = max(1, len(str(len(words)))) if numbered else 0
+    ## the columns ahead of the others, and the cells they take, not counting their gaps
+    ahead = (1 if numbered else 0) + (1 if iconWidth else 0)
+    aheadCells = numberWidth + iconWidth
 
     def fit(count):
         widths = natural[:count]
-        over = (numberWidth + 1 if numbered else 0) + (iconWidth + 1 if iconWidth else 0) + sum(widths) + count - 1 - (width - len(indent))
-        for kind in ("text", "whole", "enum", "key"):
+        over = aheadCells + ahead + sum(widths) + count - 1 - (width - len(indent))
+        for kind in (("text", "whole", "enum", "key") if wrapped else ()):
             while over > 0:
                 giving = [index for index in range(count) if kinds[index] == kind and widths[index] > least[index]]
                 if not giving:
@@ -2722,50 +2830,70 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
         return widths, over
 
     shown = len(heads)
-    widths, over = fit(shown) if wrap else (natural[:], 0)
-    while wrap and over > 0 and shown > 1:
+    widths, over = fit(shown) if fitted else (natural[:], 0)
+    while fitted and over > 0 and shown > 1:
         shown -= 1
         widths, over = fit(shown)
-    if wrap and over < 0 and shown < len(heads):
-        widths[shown - 1] -= over
+    if cut is not None and over > 0:
+        widths[0] = max(1, widths[0] - over)
+    ## two cells between the columns where the room that is left holds that for every gap, else
+    ## one; what is left of the room, where a column was left out, goes to the last
+    gaps = ahead + shown - 1
+    spare = max(0, width - len(indent) - aheadCells - ahead - sum(widths) - (shown - 1))
+    gap = 2 if gaps and spare >= gaps else 1
+    spare -= (gap - 1) * gaps
+    if wrapped and shown < len(heads):
+        widths[shown - 1] += spare
+    if wrapped:
+        reassessWidths(widths, words, kinds, natural, least)
 
-    lead = textWidth(indent) + (numberWidth + 1 if numbered else 0) + (iconWidth + 1 if iconWidth else 0)
+    lead = textWidth(indent) + (numberWidth + gap if numbered else 0) + (iconWidth + gap if iconWidth else 0)
 
-    def rowLines(cells, icon, look, count="", colours=None):
-        parts = [(textwrap.wrap(cells[index], widths[index]) if wrap and kinds[index] != "enum" else [cells[index]]) or [""] for index in range(shown)]
-        lines = [looked(indent + ((count if not number else "").rjust(numberWidth) + " " if numbered else "")
-                        + (cutToCells(icon if not number else "", iconWidth) + " " if iconWidth else "") + " ".join(
+    def rowLines(cells, icon, look, count="", colours=None, shift=0, last=None):
+        parts = [(textwrap.wrap(cells[index], widths[index]) if wrapped and kinds[index] != "enum" else [cells[index]]) or [""] for index in range(shown)]
+        lines = [looked(indent + ((count if not number else "").rjust(numberWidth) + " " * gap if numbered else "")
+                        + (cutToCells(icon if not number else "", iconWidth) + " " * gap if iconWidth else "") + (" " * gap).join(
             cutToCells(part[number] if number < len(part) else "", widths[index]) for index, part in enumerate(parts)), look)
             for number in range(max(len(part) for part in parts))]
-        ## a cell of its own look over the look of its row, as far as its words go
+        ## a cell of its own look over the look of its row, as far as its words go, on the ground
+        ## of that row (`shift`), and underlined on the last line of a row that is (`last`)
         for index in range(shown if colours else 0):
             if colours[index] is None:
                 continue
-            start = lead + sum(widths[:index]) + index
+            start = lead + sum(widths[:index]) + index * gap
             for number, line in enumerate(lines):
                 cells = textWidth(cutToCells(parts[index][number], widths[index]).rstrip()) if number < len(parts[index]) else 0
                 if cells:
-                    line.looks.append((start, cells, colours[index]))
+                    line.looks.append((start, cells, colours[index] + (LOOK_LINE if last is not None and number == len(lines) - 1 else shift)))
+        if last is not None:
+            lines[-1].looks[0] = (0, lines[-1].looks[0][1], last)
         return lines
 
     head = rowLines(list(heads), "", TABLE_LOOKS["head"], "#")
     blocks = []
+    isRow = []
     alternate = False
     counted = 0
     lined = wrap and not rowsApart()
     for index, row in enumerate(rows):
+        isRow.append(not isinstance(row, str))
         if isinstance(row, str):
             blocks.append([looked(indent + row, TABLE_LOOKS["heading"])])
             alternate = False
         else:
             counted += 1
             blocks.append(rowLines(row, icons[index] if icons else "", TABLE_LOOKS["alt" if alternate else "row"], str(counted),
-                                   looks[index] if looks else None))
-            if lined:
-                blocks[-1][-1].looks[0] = (0, blocks[-1][-1].looks[0][1], TABLE_LOOKS["line"])
+                                   looks[index] if looks else None, LOOK_ALT if alternate else 0, TABLE_LOOKS["line"] if lined else None))
             alternate = not alternate
         for line in blocks[-1]:
             line.stick = head[0]
+    ## one empty line between every two rows, in the full view, where the table fits both ways with it
+    between = [number for number in range(len(blocks) - 1) if isRow[number] and isRow[number + 1]]
+    if pane is not None and between and shown == len(heads) and len(head) + sum(len(block) for block in blocks) + len(between) <= pane[1] and (
+            wrap or max(textWidth(line) for line in head + [line for block in blocks for line in block]) <= pane[0]):
+        for number in between:
+            blocks[number].append(Looked(""))
+            blocks[number][-1].stick = head[0]
     return head, blocks
 
 
@@ -2774,9 +2902,16 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
 ## CORNER", "Do not double - one place"): its header and every row of it, nothing above it,
 ## the pane scrolling; how many rows it holds stands in the frame alone (tableCount).
 def tableSummaryLines(state, heads, rows, kinds=None, icons=None, looks=None, numbered=False):
-    head, blocks = paneTable(heads, rows, state.viewWidth - 1, icons=icons, wrap=state.wrap, kinds=kinds, numbered=numbered, looks=looks)
+    head, blocks = paneTable(heads, rows, state.viewWidth - 1, icons=icons, wrap=state.wrap, kinds=kinds, numbered=numbered, looks=looks, pane=fullPane(state))
     tableCount(state, rows)
     return head + [line for block in blocks for line in block]
+
+
+## The cells and the lines of the left window that a table has for itself, where the table is
+## all the window holds (the full view of paneTable): the window less the head that stays above
+## its lines.
+def fullPane(state):
+    return state.paneWidth - 1, state.viewHeight - len(state.view.get("head") or ())
 
 
 ## How many rows the table of the left pane holds, its headings of groups aside, for the
@@ -2916,7 +3051,8 @@ def parseGrantRows(text):
 
 
 ## A member's grants as rows: under a heading for each kind, in the order they come, its
-## grants as one table, its first column cut at that many cells (None: never cut).
+## grants as one table, drawn by listTableLines, its first column cut at that many cells (None:
+## at TABLE_CAP).
 def grantRows(grants, coversCells=GRANT_COVERS_CELLS):
     kinds = []
     for grant in grants:
@@ -2928,10 +3064,7 @@ def grantRows(grants, coversCells=GRANT_COVERS_CELLS):
         row["grant"] = grant
         rows.append(row)
     words = [[column[1](row["grant"]) or "-" for column in GRANT_COLUMNS] for row in rows]
-    table = {"heads": [column[0] for column in GRANT_COLUMNS], "iconWidth": 0,
-             "widths": [max([textWidth(column[0])] + [textWidth(line[index]) for line in words]) for index, column in enumerate(GRANT_COLUMNS)]}
-    if coversCells is not None:
-        table["widths"][0] = min(table["widths"][0], coversCells)
+    table = {"heads": [column[0] for column in GRANT_COLUMNS], "kinds": [column[2] for column in GRANT_COLUMNS], "cut": coversCells or TABLE_CAP}
     for row, line in zip(rows, words):
         row["table"] = table
         row["cells"] = [""] + line
@@ -2946,10 +3079,10 @@ def grantRows(grants, coversCells=GRANT_COVERS_CELLS):
 ## A member's grants for the left pane, lines of that many cells: the table `Permissions`
 ## holds, in its order and under its headings (grantRows), drawn by the table of the left
 ## pane (paneTable): what a grant covers, the key, has its room first.
-def grantTableLines(grants, width, wrap=True):
+def grantTableLines(grants, width, wrap=True, pane=None):
     head, blocks = paneTable([column[0] for column in GRANT_COLUMNS], [
         row["label"] if row["kind"] == "grant-kind" else [column[1](row["grant"]) or "-" for column in GRANT_COLUMNS]
-        for row in grantRows(grants, None)], width, wrap=wrap, kinds=[column[2] for column in GRANT_COLUMNS])
+        for row in grantRows(grants, None)], width, wrap=wrap, kinds=[column[2] for column in GRANT_COLUMNS], pane=pane)
     return head + [line for block in blocks for line in block]
 
 
@@ -2979,7 +3112,7 @@ def grantsSummary(state, path, row, form):
     if not grants:
         return ["No grants."]
     tableCount(state, grants)
-    return grantTableLines(grants, state.viewWidth - 1, state.wrap)
+    return grantTableLines(grants, state.viewWidth - 1, state.wrap, fullPane(state))
 
 
 ## What `--manager-team-member-files` printed: a file a row, by its path in the member's
@@ -5429,6 +5562,8 @@ ACTION_REFUSALS["launch"] = launchRefusal
 ASK_ACT_FIELDS = ("id", "status", "kind", "form", "asker", "addressee", "standsAs", "text", "reject", "dismiss", "link")
 ## What that row says where the question can be dismissed.
 ASK_ACT_YES = "yes"
+## The form of a question that takes several of its answers, as the `question` row of its read says it.
+ASK_FORM_MANY = "many"
 ## What each <outcome> of an `answer` row shows as, beside the answer. One that is not
 ## listed here shows as it is printed.
 ASK_OUTCOMES = {
@@ -5551,7 +5686,7 @@ def askAnswer(state, row):
     fill = {"about": {"lines": askSays(state, row, acts)}}
     if acts["answers"]:
         fill["answers"] = {"options": [answerOption(answer) for answer in acts["answers"]]}
-    openDialog(state, "answer" if acts["answers"] else "reply", fill,
+    openDialog(state, ("answer-many" if question["form"] == ASK_FORM_MANY else "answer") if acts["answers"] else "reply", fill,
                {"id": row["id"], "viewKey": viewKeyOf(state), "kind": question["kind"], "asker": question["asker"],
                 "words": dict((answer["number"] or answer["word"], answer["word"]) for answer in acts["answers"])},
                "Answer the %s of %s" % (question["kind"], question["asker"]))
@@ -5565,17 +5700,21 @@ APPROVING_ANSWERS = ("allow", "allow-once", "allow-session", "allow-task", "allo
 
 
 ## Answer in the dialog of an answer: the operation is called once, with the answer picked,
-## by its number where it has one, and the words typed beside it; or, for a plain
-## question, with the words typed, which are refused there while they are empty.
+## by its number where it has one, and the words typed beside it; or, for a question that
+## takes several, with the numbers of those checked, in their order, as one reply names them;
+## or, for a plain question, with the words typed, which are refused there while they are empty.
 def submitAnswer(state, dialog, button):
     askId = dialog["about"]["id"]
     words = dialogValue(dialog, "words").strip()
+    chosen = dialogValue(dialog, "answers")
+    if dialog["name"] == "answer-many":
+        chosen = " ".join(optionId for optionId, label in dialogControl(dialog, "answers")["options"] if optionId in chosen)
     if dialog["name"] == "reply":
         call = callWords("answer", askId) + [words]
     else:
-        call = callWords("answer", askId) + [dialogValue(dialog, "answers")] + ([CALL_WORDS["answer"], words] if words else [])
+        call = callWords("answer", askId) + [chosen] + ([CALL_WORDS["answer"], words] if words else [])
         ## An approving answer is asked once more, in a confirmation, and only its OK gives it.
-        picked = dialog["about"].get("words", {}).get(dialogValue(dialog, "answers"), dialogValue(dialog, "answers"))
+        picked = dialog["about"].get("words", {}).get(chosen, chosen)
         if dialog["about"].get("kind") in APPROVING_KINDS and picked in APPROVING_ANSWERS:
             openDialog(state, "confirm", {"about": {"lines": [
                 "CONFIRM the answer `%s` to the %s of %s: it is given only once you press OK." % (picked, dialog["about"]["kind"], dialog["about"].get("asker", "")),
@@ -5680,6 +5819,7 @@ ACTION_REFUSALS["reject"] = lambda state, row: askRefusal(state, row, "this %(ki
 ACTION_REFUSALS["dismiss"] = lambda state, row: askRefusal(state, row, "this %(kind)s cannot be dismissed: it is %(status)s")
 ACTION_REFUSALS["link"] = lambda state, row: askRefusal(state, row, "the message of this %(kind)s has no link")
 DIALOG_HANDLERS["answer"] = submitAnswer
+DIALOG_HANDLERS["answer-many"] = submitAnswer
 DIALOG_HANDLERS["reply"] = submitAnswer
 DIALOG_HANDLERS["confirm"] = submitConfirm
 DIALOG_HANDLERS["reject"] = submitAskAct
@@ -5729,7 +5869,7 @@ MEMBER_COLUMNS = (
 ## emoji selector makes wide, take two; a member with none keeps that place empty.
 def memberTableLines(state, members, width, wrap=True):
     head, blocks = paneTable([column[0] for column in MEMBER_COLUMNS], [[column[1](state, member) or "-" for column in MEMBER_COLUMNS] for member in members],
-                             width, [member["icon"] for member in members], wrap, [column[2] for column in MEMBER_COLUMNS], numbered=True)
+                             width, [member["icon"] for member in members], wrap, [column[2] for column in MEMBER_COLUMNS], numbered=True, pane=fullPane(state))
     return head + [line for block in blocks for line in block]
 
 
@@ -5740,23 +5880,6 @@ def memberLeads(rows):
     iconWidth = max([textWidth(row["member"]["icon"]) for row in rows] + [0])
     for row in rows:
         row["lead"] = cutToCells(row["member"]["icon"], iconWidth) + " " if iconWidth else ""
-
-
-## One line of a table in that many cells: the icon, where the table has one, the first
-## column, and each column after it, in its order, while it fits in full. The first that
-## does not, and every one after it, is left out whole, never cut. A header is such a
-## line, of the names of the columns with no icon, so it follows the same choice. Only
-## the first column can be longer than its room: whoever draws the line cuts it there.
-def tableLineText(table, cells, width):
-    iconWidth = table["iconWidth"]
-    widths = table["widths"]
-    shown = 1
-    used = (iconWidth + 1 if iconWidth else 0) + widths[0]
-    while shown < len(widths) and used + 1 + widths[shown] <= width:
-        used += 1 + widths[shown]
-        shown += 1
-    parts = [cutToCells(cells[0], iconWidth)] if iconWidth else []
-    return " ".join(parts + [cutToCells(word, widths[index]) for index, word in enumerate(cells[1:shown + 1])]).rstrip()
 
 
 ## What `--manager-team-member-list` printed, as rows: `member` rows of TAB-separated
@@ -6190,13 +6313,13 @@ def subjectSummary(state, path, row, form):
 ## A group of the lines of a subject for the left pane, while its heading is selected in
 ## the list: its label, how many lines it holds and how many of them are missing, then its
 ## lines as a table (digestTable), the missing ones first.
-def groupLines(group, width, wrap=True):
+def groupLines(group, width, wrap=True, pane=None):
     heads, rows, kinds, looks = digestTable(group["subject"], [line for line in group["lines"] if line["state"] in STATES_MISSING]
                                             + [line for line in group["lines"] if line["state"] not in STATES_MISSING])
     if group["subject"] in GROUP_COLUMNS:
         ## the title names the group: its column would say it again on every row
         heads, rows, kinds, looks = heads[1:], [row[1:] for row in rows], kinds[1:], [look[1:] for look in looks]
-    head, blocks = paneTable(heads, rows, max(10, width - 1), wrap=wrap, kinds=kinds, looks=looks)
+    head, blocks = paneTable(heads, rows, max(10, width - 1), wrap=wrap, kinds=kinds, looks=looks, pane=pane)
     return head + [line for block in blocks for line in block]
 
 
@@ -6552,7 +6675,7 @@ def keyGroupLines(state, path, groups, width):
             rows.append([unspaced(held["label"]) or held["key"], absent(held["type"]) or "-", line])
             looks.append([None, None, look])
     ## the line of a key has its room first: the label gives way before it
-    head, blocks = paneTable(("KEY", "TYPE", "PUBLIC LINE"), rows, max(10, width - 1), wrap=state.wrap, kinds=("text", "enum", "whole"), looks=looks)
+    head, blocks = paneTable(("KEY", "TYPE", "PUBLIC LINE"), rows, max(10, width - 1), wrap=state.wrap, kinds=("text", "enum", "whole"), looks=looks, pane=fullPane(state))
     tableCount(state, rows)
     return head + [line for block in blocks for line in block]
 
@@ -7421,16 +7544,14 @@ PLACE_COLUMNS = (
 
 
 ## The rows of the locations as one table, in the manner of the members' table and by its
-## rule: under a header, the mark of the location the console runs in, in the place an
-## icon has there, then the key of each and a word for each column, an absent one `-`.
+## rule, drawn by listTableLines: under a header, the mark of the location the console runs
+## in, in the place an icon has there, then the key of each and a word for each column, an
+## absent one `-`.
 def placeTable(rows):
     places = [row["place"] for row in rows]
     words = [[column[1](place) or "-" for column in PLACE_COLUMNS] for place in places]
     marks = [MARKS["on"] if place["here"] == PLACES["here"] else "" for place in places]
-    table = {"heads": [column[0] for column in PLACE_COLUMNS],
-             "widths": [max([textWidth(column[0])] + [textWidth(line[index]) for line in words])
-                        for index, column in enumerate(PLACE_COLUMNS)],
-             "iconWidth": max([textWidth(mark) for mark in marks] + [0])}
+    table = {"heads": [column[0] for column in PLACE_COLUMNS], "kinds": None, "cut": TABLE_CAP}
     for row, mark, line in zip(rows, marks, words):
         row["table"] = table
         row["cells"] = [mark] + line
@@ -8963,11 +9084,18 @@ def listTableOf(state):
     return None
 
 
-## The header of a table in exactly that many cells, set in under the cell of the mark of
-## the selection: the names of the columns that fit there.
-def listHeadText(table, width):
-    edge = folderEdge(width) if table.get("marks") else 0
-    return cutToCells(" " + tableLineText(table, [""] + table["heads"], width - 1 - edge), width)
+## The table of the rows of the list shown, drawn by paneTable like every table, in that many
+## cells: its header, and the line of each row of `rows` by its position in them. The icon, where
+## the table has one, is the first cell of a row (its cells), then the first column, and each
+## column after it while it fits in full, the others left out whole; the first column is cut.
+## A row that is no row of the table, a heading of a group or the row that goes up, stands in it as
+## a heading, so the rows after it begin again with a row of the look of a row (THE TABLE COLOUR
+## RULE). Gives the header and the lines, each a Looked line whose first look is that of its ground.
+def listTableLines(state, rows, table, columns):
+    head, blocks = paneTable(table["heads"], [row["cells"][1:] if row.get("table") else row["label"] for row in rows], columns,
+                             icons=[row["cells"][0] if row.get("table") else "" for row in rows], wrap=state.wrap, kinds=table["kinds"],
+                             indent="", cut=table["cut"])
+    return head[0], [block[0] for block in blocks]
 
 
 ## How many lines the rows of the list have: the pane's, less the one a header takes.
@@ -9002,15 +9130,16 @@ def folderEdge(width):
 ## where they leave none. A row whose Enter opens a dialog has
 ## the mark of that after its name: a name too long for its room is cut ahead of that mark,
 ## which is never cut itself. Gives the text, where in it a mark stands, or None, and the mark.
-def listRowParts(row, chosen, width, enters=False, dives=False):
-    cells = row.get("cells")
+## `tableAt` gives, for a table, the header and the lines of its rows in that many cells
+## (listTableLines), `position` the row's place among them.
+def listRowParts(row, chosen, width, enters=False, dives=False, position=0, tableAt=None):
     table = row.get("table")
     edge = folderEdge(width) if dives or (table or {}).get("marks") else 0
     columns = width - edge - 1
-    if table and dives and not table.get("marks") and textWidth(tableLineText(table, cells, width - 1)) + 1 + edge <= width:
+    if table and dives and not table.get("marks") and textWidth(tableAt(width - 1)[1][position].rstrip()) + 1 + edge <= width:
         columns = width - 1
     width -= edge
-    shown = tableLineText(table, cells, columns) if table else " " * row.get("indent", 0) + row.get("lead", "") + row["label"]
+    shown = tableAt(columns)[1][position].rstrip() if table else " " * row.get("indent", 0) + row.get("lead", "") + row["label"]
     head = (MARK_SELECTED if chosen else " ") + shown
     tail = row.get("tail", "")
     if row.get("wide") and width + edge >= LIST_WIDE["from"]:
@@ -9038,9 +9167,14 @@ def listRowParts(row, chosen, width, enters=False, dives=False):
 ## One row of the list, drawn in that many cells: in its own look, or in the look of the
 ## selection; the mark of a folder, or of a dialog, in the palette entry of a folder, but on
 ## the row the selection is on, whose bar is whole. The row that goes up is no folder.
-def putListRow(surface, state, line, column, row, chosen, width):
-    text, markAt, mark = listRowParts(row, chosen, width, rowEnters(state, row), row["dive"] and row.get("kind") != "up")
+def putListRow(surface, state, line, column, row, chosen, width, position=0, tableAt=None):
+    text, markAt, mark = listRowParts(row, chosen, width, rowEnters(state, row), row["dive"] and row.get("kind") != "up", position, tableAt)
     look = row.get("look", PLAIN)
+    if row.get("table"):
+        ## a row of a table is in the look of its ground (THE TABLE COLOUR RULE), and one that stands out
+        ## or is dimmed in that look on that ground (LOOK_ALT, LOOK_LINE)
+        ground = tableAt(width - 1)[1][position].looks[0][2]
+        look = ground if look == PLAIN else look + (LOOK_ALT if ground == TABLE_LOOKS["alt"] else LOOK_LINE if ground == TABLE_LOOKS["line"] else 0)
     if chosen:
         look = REVERSE if state.focus == "list" else BOLD
     surface.put(line, column, text, look)
@@ -9330,8 +9464,14 @@ def drawRowsBody(surface, state, layout, box):
     rows = levelRows(state)
     rowsHeight = listRowsHeight(state, layout)
     table = listTableOf(state)
+    drawn = {}
+
+    def tableAt(columns):
+        if columns not in drawn:
+            drawn[columns] = listTableLines(state, rows, table, columns)
+        return drawn[columns]
     if table:
-        surface.put(top, column, listHeadText(table, room), PLAIN)
+        surface.put(top, column, cutToCells(" " + tableAt(room - 1)[0], room), TABLE_LOOKS["head"])
         top += 1
     cursor = cursorOf(state, rows, rowsHeight)
     spacers = spacersAt(state, rows)
@@ -9344,7 +9484,7 @@ def drawRowsBody(surface, state, layout, box):
             continue
         spaced = False
         if position < len(rows):
-            putListRow(surface, state, top + offset, column, rows[position], position == cursor["index"], room)
+            putListRow(surface, state, top + offset, column, rows[position], position == cursor["index"], room, position, tableAt)
             spot(state, column, top + offset, room, 1, ("row", position))
         elif position == len(rows) and listWaits(state):
             surface.put(top + offset, column, cutToCells(" " + listWaits(state), room), DIM)

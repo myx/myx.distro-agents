@@ -19,43 +19,22 @@
 ##
 
 type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpDataRead.include"
-type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
 
 ## The stores that are browsed, in their order: each a folder of the team data root.
 agentsManagerTeamDataStores="board audit vault inboxes"
 
 ## The `item` rows of one member's inbox, in itemRows of the caller: the items that are not
-## processed, and the processed too where `yes` asks for them. Split, its incoming/ and its
-## processed/. Flat, until its store is moved: its root, a marked item there only with the
-## processed, and its legacy processed/ with them.
+## processed, and the processed too where `yes` asks for them: its incoming/ and its processed/.
 AgentsToolsManagerTeamDataInbox(){ ## member, include processed (yes|no)
-	local inboxRows="" inboxMarked="" inboxFile
-	if AgentsToolsInboxSplit "$1" ; then
-		AgentsToolsManagerTeamDataItems inboxes "$1" "$MDAT_DATA_ROOT/inboxes/$1/incoming"
-		inboxRows="$itemRows"
-		if [ "$2" = "yes" ] ; then
-			AgentsToolsManagerTeamDataItems inboxes "$1" "$MDAT_DATA_ROOT/inboxes/$1/processed"
-			inboxRows="$inboxRows${inboxRows:+${itemRows:+$'\n'}}$itemRows"
-		fi
-		itemRows="$inboxRows"
-		return 0
-	fi
-	AgentsToolsManagerTeamDataItems inboxes "$1" "$MDAT_DATA_ROOT/inboxes/$1"
-	if [ "$2" != "yes" ] && [ -n "$itemRows" ] ; then
-		for inboxFile in "$MDAT_DATA_ROOT/inboxes/$1"/*.md ; do
-			[ -f "$inboxFile" ] || continue
-			inboxMarked="$inboxMarked$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsInboxProcessedAtList.awk" "$inboxFile" | cut -f1 )"$'\n'
-		done
-		itemRows="$( printf '%s\n' "$itemRows" | LC_ALL=C awk -F'\t' -v marked="$inboxMarked" -v at="$MDAT_DATA_ROOT/inboxes/$1/" '
-			BEGIN { count = split( marked, names, "\n" ) ; for ( i = 1 ; i <= count ; i++ ) if ( names[ i ] != "" ) { name = substr( names[ i ], length( at ) + 1 ) ; gsub( /[ \t]/, "_", name ) ; gone[ name ] = 1 } }
-			!( $4 in gone ) { print }' )"
-		return 0
-	fi
-	if [ "$2" = "yes" ] && [ -d "$MDAT_DATA_ROOT/inboxes/$1/processed" ] ; then
-		inboxRows="$itemRows"
+	local inboxRows=""
+	AgentsToolsManagerTeamDataItems inboxes "$1" "$MDAT_DATA_ROOT/inboxes/$1/incoming"
+	inboxRows="$itemRows"
+	if [ "$2" = "yes" ] ; then
 		AgentsToolsManagerTeamDataItems inboxes "$1" "$MDAT_DATA_ROOT/inboxes/$1/processed"
-		itemRows="$inboxRows${inboxRows:+${itemRows:+$'\n'}}$itemRows"
+		inboxRows="$inboxRows${inboxRows:+${itemRows:+$'\n'}}$itemRows"
 	fi
+	itemRows="$inboxRows"
 	return 0
 }
 ## The folders of the board in the order of their states, as the dashboard counts them;

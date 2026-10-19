@@ -78,7 +78,7 @@ AgentsToolsGrantsIndexFresh(){ ## workspace, index file
 	IFS= read -r freshHead < "$freshFile" || return 1
 	AgentsToolsGrantsIndexHeader "$freshWs"
 	[ "$freshHead" = "$agentsGrantsHeader" ] || return 1
-	type AgentsToolsPlacesHomeSkills > /dev/null 2>&1 || . "$agentsGrantsHere/AgentsTools.Places.include" || return 1
+	type AgentsToolsPlacesHomeSkills > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Places.include" || return 1
 	AgentsToolsPlacesHomeSkills || :
 	for freshSrc in \
 		"$freshWs/.local/agents/permissions.registry" "$freshWs/.local/agents/directories.registry" "$freshWs/.local/agents/members.index" \
@@ -146,7 +146,7 @@ AgentsToolsGrantsBuiltinText(){ ## workspace the rows are written for, [tags]
 ## came by.
 AgentsToolsGrantsMemberSkills(){ ## workspace
 	local skillsSource skillsEntry skillsName skillsReal skillsSeen=$'\n'
-	type AgentsToolsPlacesHomeSkills > /dev/null 2>&1 || . "$agentsGrantsHere/AgentsTools.Places.include" || return 0
+	type AgentsToolsPlacesHomeSkills > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Places.include" || return 0
 	AgentsToolsPlacesHomeSkills || return 0
 	skillsSource="$( cd "${1%/}/source" 2> /dev/null && pwd -P )" || skillsSource=""
 	for skillsEntry in "$agentsPlacesHomeSkills"/*/ ; do
@@ -170,9 +170,9 @@ AgentsToolsGrantsMemberSkills(){ ## workspace
 AgentsToolsGrantsIndexText(){ ## workspace
 	local textWs="${1%/}" textStream textReal textRoot
 	[ -n "$textWs" ] || return 1
-	type AgentsToolsPlacesMergedText > /dev/null 2>&1 || . "$agentsGrantsHere/AgentsTools.Places.include" || return 1
-	type AgentsToolsTeamGrantRows > /dev/null 2>&1 || . "$agentsGrantsHere/AgentsTools.TeamRegistry.include" || return 1
-	type AgentsToolsClientAccessRootsMembers > /dev/null 2>&1 || . "$agentsGrantsHere/AgentsTools.ClientAccessRoots.include" || return 1
+	type AgentsToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Places.include" || return 1
+	type AgentsToolsTeamGrantRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include" || return 1
+	type AgentsToolsClientAccessRootsMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include" || return 1
 	AgentsToolsGrantsIndexHeader "$textWs"
 	textStream="$(
 		printf 'head\t%s\n' "$agentsGrantsHeader"
@@ -517,10 +517,10 @@ AgentsToolsGrantsRegistryWrite(){ ## workspace, op name for messages
 	local regFile regTagsFile regLock regWait=0 regOld=""
 	regWs="$( cd "${1%/}" 2> /dev/null && pwd )" || { echo "⛔ ERROR: $regOp: workspace not found: $1" >&2 ; return 1 ; }
 	regName="${regWs##*/}"
-	type AgentsToolsPlacesMergedText > /dev/null 2>&1 || . "$agentsGrantsHere/AgentsTools.Places.include" || return 1
-	type AgentsToolsTeamGrantRows > /dev/null 2>&1 || . "$agentsGrantsHere/AgentsTools.TeamRegistry.include" || return 1
-	type AgentsToolsClientAccessRootsMembers > /dev/null 2>&1 || . "$agentsGrantsHere/AgentsTools.ClientAccessRoots.include" || return 1
-	type AgentsToolsWorkspaceSwitch > /dev/null 2>&1 || . "$agentsGrantsHere/AgentsTools.MemberWorkspace.include" || return 1
+	type AgentsToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Places.include" || return 1
+	type AgentsToolsTeamGrantRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include" || return 1
+	type AgentsToolsClientAccessRootsMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include" || return 1
+	type AgentsToolsWorkspaceSwitch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include" || return 1
 	agentsGrantsPlaces="$( AgentsToolsPlacesMergedText "$regWs" quiet )"
 	agentsGrantsRoots="$( AgentsToolsPlacesWorkspaceRoots "$regWs" )"
 	regText="$( AgentsToolsGrantsDeclaredText "$regWs" "$regOp" )" || regRc=$?

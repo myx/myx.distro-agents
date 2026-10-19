@@ -144,7 +144,7 @@ AgentsToolsClientToolPolicyRetiredDenyEntries(){
 AgentsToolsClientToolPolicyRetiredAllowEntries(){
 	local retiredWs="${1%/}" retiredRoots
 	[ -n "$retiredWs" ] || return 1
-	type AgentsToolsClientAccessReferenceRoots >/dev/null 2>&1 || . "${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}/AgentsTools.ClientAccessRoots.include" || return 1
+	type AgentsToolsClientAccessReferenceRoots >/dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include" || return 1
 	retiredRoots="$( AgentsToolsClientAccessReferenceRoots read "$retiredWs" )" || return 1
 	printf 'Read(/%s/**)\n' "$retiredWs/.claude/skills"
 	printf '%s\n' "$retiredRoots" | LC_ALL=C awk 'NF { print "Read(/" $0 "/**)" ; }'

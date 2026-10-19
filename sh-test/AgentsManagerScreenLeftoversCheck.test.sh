@@ -14,6 +14,7 @@
 ## leaves neither the child nor the screen stopped: the child reads on, ends in order, and the screen is back.
 ## Offline: no operation of the real tooling is called.
 ## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`.
+## Reconciled for F11.0, the table lines: the table of the consoles wraps `Rig Child` in its column where the command wraps in fewer lines for it, so the child's row is waited for by `Child`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -290,7 +291,7 @@ while : ; do
 done
 RIGCHILD
 rigRow console child Rig Rig_Child terminal "$rigTmp" bash "$rigTmp/child.sh" > "$MANAGER_SCREEN_RIG/rows.--manager-console-list"
-rigOut="$( MANAGER_SCREEN_PTY_SESSION=1 MANAGER_SCREEN_PTY_TRACE='up=CHILD-UP|int=GOT-INT|quit=GOT-QUIT|read=READ-x|ended=Rig Child: ended with status 0' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 120 36 "Sessions (Activity)" '\x1bOB\p\x1bOB\p\x1bOB\p\x1bOB\p\x1bOB\p\aRig Child\a\r\p\x1bOB\p\r\p\aCHILD-UP\a\x03\p\aGOT-INT\a\x1c\p\aGOT-QUIT\a\x1a\px\r\p\aended with status 0\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
+rigOut="$( MANAGER_SCREEN_PTY_SESSION=1 MANAGER_SCREEN_PTY_TRACE='up=CHILD-UP|int=GOT-INT|quit=GOT-QUIT|read=READ-x|ended=Rig Child: ended with status 0' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 120 36 "Sessions (Activity)" '\x1bOB\p\x1bOB\p\x1bOB\p\x1bOB\p\x1bOB\p\aChild\a\r\p\x1bOB\p\r\p\aCHILD-UP\a\x03\p\aGOT-INT\a\x1c\p\aGOT-QUIT\a\x1a\px\r\p\aended with status 0\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
 rigAssert "Ctrl-C and Ctrl-\\ reach the child, which says so and runs on; after Ctrl-Z it still reads its line and ends in order; the screen is back, says how it ended, and ends with status 0 by its own key, having left its screen" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft ) [$( rigVal pty.trace | LC_ALL=C tr ' ' '\n' | LC_ALL=C uniq | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )]" "yes 0 yes none [up int quit read ended]"
 
 if [ "$rigFailCount" -ne 0 ] ; then

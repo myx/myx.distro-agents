@@ -9,8 +9,8 @@
 ## $1/$@/$MDSC_CMD.
 ##
 
-## Where an inbox item lives, split or flat (F4.3).
-type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+## Where an inbox item lives (F4.3).
+type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
 
 ## Prints the stored `last_swept_ts` of a sweep-state note read on stdin, and
 ## nothing else. Only the leading `---` frontmatter block is looked at: the body

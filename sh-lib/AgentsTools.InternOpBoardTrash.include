@@ -96,25 +96,14 @@ case "$1" in
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: no such inbox root: $MDAT_DATA_ROOT/inboxes" >&2
 				set +e ; return 1
 			fi
-			## A split inbox (AgentsTools.InboxPlace.include): the item by its name
-			## alone, in incoming/ or in processed/, no state change first; with
-			## --exclude-incoming in processed/ alone. A flat one, until its store is
-			## moved: the inbox ROOT and its legacy processed/ are searched, ROOT
-			## FIRST: a member's own inspection path resolves the same way, so
-			## inverting the order would delete a copy the caller could never
-			## have read. Items are marked processed in place in the root there
-			## (`processed-at`), so processed/ only holds items drained before
-			## that change, read-only until the GC empties it; a basename held in
-			## both is the root copy.
-			type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
-			local inboxRootDir="$MDAT_DATA_ROOT/inboxes/$inboxMember"
+			## The item by its name alone, in incoming/ or in processed/
+			## (AgentsTools.InboxPlace.include), no state change first; with
+			## --exclude-incoming in processed/ alone.
+			type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+			local inboxRootDir="$MDAT_DATA_ROOT/inboxes/$inboxMember/incoming"
 			local inboxProcessedDir="$MDAT_DATA_ROOT/inboxes/$inboxMember/processed"
 			local inboxSourcePath="" inboxCandidateDir="" inboxCandidates=( "$inboxRootDir" "$inboxProcessedDir" )
-			if AgentsToolsInboxSplit "$inboxMember" ; then
-				inboxRootDir="$MDAT_DATA_ROOT/inboxes/$inboxMember/incoming"
-				inboxCandidates=( "$inboxRootDir" "$inboxProcessedDir" )
-				[ -z "$inboxExcludeIncoming" ] || inboxCandidates=( "$inboxProcessedDir" )
-			fi
+			[ -z "$inboxExcludeIncoming" ] || inboxCandidates=( "$inboxProcessedDir" )
 			for inboxCandidateDir in "${inboxCandidates[@]}" ; do
 				inboxDirResolved="$( cd "$inboxCandidateDir" 2>/dev/null && pwd -P )" || inboxDirResolved=""
 				if [ -z "$inboxDirResolved" ] ; then continue ; fi
@@ -148,12 +137,6 @@ case "$1" in
 				else
 					echo "$MDSC_CMD: board-trash: ⛔ ERROR: item not found in $inboxRootDir or $inboxProcessedDir: $inboxItemName" >&2
 				fi
-				set +e ; return 1
-			fi
-			## Flat, --exclude-incoming: a root item counts as processed by its stamp alone.
-			if [ -n "$inboxExcludeIncoming" ] && [ "${inboxSourcePath%/*}" = "$( cd "$inboxRootDir" 2> /dev/null && pwd -P )" ] \
-				&& [ -z "$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsInboxProcessedAtList.awk" "$inboxSourcePath" 2> /dev/null )" ] ; then
-				echo "$MDSC_CMD: board-trash: ⛔ ERROR: $inboxItemName is an incoming item of $inboxMember's inbox, and --exclude-incoming trashes a processed one only -- nothing was trashed" >&2
 				set +e ; return 1
 			fi
 			## An item git never knew is committed first, so the deletion below is recorded

@@ -38,8 +38,7 @@ rigRefuse(){
 . "$rigPackage/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 ## And the control threads the tooling starts in this rig are ended by it, each only while it is still the process that was started.
 . "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-rigTmp="$( rigTempDir AgentsSessionControlScanCheck )" || exit 1
+rigTmp="$( mktemp -d -t AgentsSessionControlScanCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## The ids of this run's sessions carry the name mktemp gave it, so that a copy of this check that runs beside it never counts this one's threads.
 rigTag="${rigTmp##*.}" ; rigTag="$( printf '%s' "$rigTag" | LC_ALL=C tr -c -d 'A-Za-z0-9' )"
@@ -48,7 +47,7 @@ rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigData="$rigTmp/data"
 rigAgents="$rigWs/.local/agents"
 rigSp="$rigAgents/spawned" ; rigStores="$rigAgents/sessions"
 mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigSp" "$rigStores" "$rigHome" "$rigAgents/members/magic-coordinator" \
-	"$rigData/inboxes/magic-coordinator" "$rigData/board/running" "$rigData/board/review" "$rigData/board/processed" "$rigData/audit"
+	"$rigData/inboxes/magic-coordinator/incoming" "$rigData/board/running" "$rigData/board/review" "$rigData/board/processed" "$rigData/audit"
 printf '# magic-coordinator\n' > "$rigAgents/members/magic-coordinator/SKILL.md"
 rigHost="$( hostname -s 2> /dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 printf 'SESSION_CONTROL_TICK_SECONDS=1\n' > "$rigWs/.local/.agents/magic-team.agent.env"
@@ -131,7 +130,7 @@ rigTranscript(){ ## short name of the run, true or false -- its transcript as th
 rigRc=0
 rigScan(){ ## name of its output files -- one take of the lock in the rig workspace: stdout in <name>.out, stderr in <name>.err, the daemon line (descriptor 4) in <name>.fd4
 	rigRc=0
-	rm -f "$rigData/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
+	rm -f "$rigData/inboxes/magic-coordinator/incoming/note-20260809T154715Z-advance-state-and-lock.md"
 	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		bash "$rigTool" "$rigOp" magic-coordinator rig-advance-pass ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" 4> "$rigTmp/$1.fd4" < /dev/null || rigRc=$?
 }

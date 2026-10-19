@@ -25,7 +25,7 @@
 ## Where a server's command, args and env come from: our installer-written index while it
 ## vouches for this workspace, else the same registration composed from our own primary
 ## sources -- one answer either way, and never a file written for an external tool.
-. "$harnessHere/AgentsHarnessMcpConfig.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessMcpConfig.include"
 
 ## The same newline-delimited, TAB-separated shape harnessHooksList carries, so the
 ## per-call lookup stays builtins-only: server, tool, declared name, and the file

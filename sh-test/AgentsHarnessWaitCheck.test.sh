@@ -16,6 +16,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
+. "$rigTest/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
 rigHarness="$rigHere/AgentsUniversalHarness.sh"
 rigInclude="$rigHere/AgentsTools.MemberWait.include"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -151,8 +152,9 @@ rigToolResult(){ ## request-body file, destination file
 	[ -f "$1" ] || { printf 'no-such-request\n' > "$2" ; return 0 ; }
 	## The body is not one line -- the system prompt reaches it carrying its own
 	## newlines -- so this walks the whole file and keeps the FIRST tool result,
-	## rather than answering once per line.
-	LC_ALL=C awk '
+	## rather than answering once per line. The tool message has its result and, beside it, the date:
+	## rigReplyBare gives the result alone, as the message had it before the date part.
+	rigReplyBare < "$1" | LC_ALL=C awk '
 		foundResult == 0 {
 			roleAt = index($0, "\"role\":\"tool\"") ;
 			if ( roleAt > 0 ) {
@@ -168,7 +170,7 @@ rigToolResult(){ ## request-body file, destination file
 			}
 		}
 		END { if ( foundResult == 0 ) { resultText = "no-tool-result-in-this-request" ; } print resultText ; }
-	' "$1" > "$2"
+	' > "$2"
 }
 
 ## The result's OPENING, not a substring of it: the contract is that the marker is
@@ -675,7 +677,7 @@ rigNewStart(){ ## scenario name
 	rigNewSession="rig-sess-$1"
 	rigNewPoll="1"
 	rigNewOrigin=""
-	mkdir -p "$rigNewDir/ws/.local/.agents" "$rigNewDir/ws/.local/temp" "$rigNewDir/data/inboxes/$rigMember" "$rigNewDir/data/board/pending"
+	mkdir -p "$rigNewDir/ws/.local/.agents" "$rigNewDir/ws/.local/temp" "$rigNewDir/data/inboxes/$rigMember/incoming" "$rigNewDir/data/board/pending"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigNewDir/ws/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-TESTER\n' > "$rigNewDir/ws/.local/.agents/$rigMember.agent.env"
 	: > "$rigNewDir/curl.log"
@@ -932,7 +934,7 @@ rigAssert "control: it really waited"                          "$( rigAtLeast "$
 rigNewSession="rig-sess-inbox"
 rigNewIn inbox-default --wait-default --wait-source "inbox:$rigMember" --wait-timeout 2
 rigAssert "the first call times out"                           "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
-printf 'RIG-INBOX-NOTE\n' > "$rigNewDir/data/inboxes/$rigMember/note-rig-arrival.md"
+printf 'RIG-INBOX-NOTE\n' > "$rigNewDir/data/inboxes/$rigMember/incoming/note-rig-arrival.md"
 rigNewIn inbox-continue --wait-continue --wait-timeout 30
 rigAssert "a file added between two calls: RECEIVED"           "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
 rigAssert "it returned at once, not at the bound"              "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
@@ -1495,7 +1497,7 @@ rigAssert "the model is shown TIMEOUT as its opening"          "$( rigPrefix "$r
 rigAssert "as the one line, without the mode header"           "$( rigHolds "$rigScenarioDir/result" 'WAIT-MODE: default' )" no
 rigAssert "the session state landed in the session store"      "$( ls "$rigScenarioDir"/.local/agents/sessions/*/wait/state 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 1
 rigAssert "the round carried on to an answer"                  "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
-rigAssert "a TIMEOUT names the continue call as its next step" "$( rigHolds "$rigScenarioDir/result" 'NEXT: Wait mode=continue' )" yes
+rigAssert "a TIMEOUT names the continue call as its next step" "$( rigHolds "$rigScenarioDir/result" 's) NEXT: Wait mode=continue' )" yes
 rigAssert "and names it once"                                  "$( LC_ALL=C awk '{ hitCount += gsub( /NEXT: /, "&" ) ; } END { print hitCount + 0 ; }' "$rigScenarioDir/result" )" 1
 rigVerdict "the Wait tool declares mode and the id sets, and an explicit default stores its state"
 

@@ -22,7 +22,7 @@
 		echo "⛔ ERROR: AgentsTools.Make.VSCodeSettingsFragment: the body-file mechanism is missing from the package: $fragmentLibDir/AgentsBodyFile.include -- no settings fragment was emitted" >&2
 		return 1
 	fi
-	. "$fragmentLibDir/AgentsBodyFile.include"
+	. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/AgentsBodyFile.include"
 
 	AgentsBodyFileEmit \
 		"$fragmentLibDir/vscode-fragments/vscode-settings.agent-skills-locations.json" \

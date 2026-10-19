@@ -2172,14 +2172,10 @@
 		--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member> [--exclude-incoming]
 			Discards one of `<member>`'s inbox items -- live or already
 			processed -- by its name alone, with no state change first.
-			An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. A store not yet moved to that form, the flat mode until its one-time move, keeps every item at the inbox root as before.
-			A split inbox is searched in both of its folders, and
+			An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders.
+			It is searched in both of its folders, and
 			`--exclude-incoming` trashes a processed item only and
-			refuses an incoming one. A flat one is searched in order: the inbox root, then its legacy
-			`processed/` (items drained before the in-place marker, until
-			the GC empties it); first match wins, so a basename in both
-			leaves the legacy copy untouched -- root-first, so the copy
-			discarded is always one the caller could have read. `--from-
+			refuses an incoming one. `--from-
 			inbox:` is colon-style only. `<member>` must be a bare name;
 			`<item-filename>` a bare name ending `.md`. No type-prefix
 			restriction -- a misfiled board-type document (`task-*`,
@@ -2194,11 +2190,9 @@
 		--librarian-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Marks one item in `<team-member>`'s own inbox processed:
 			stamps `processed-at` into its frontmatter (creating the
-			block when the item has none) and commits it. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. A store not yet moved to that form, the flat mode until its one-time move, keeps every item at the inbox root as before.
-			In a split inbox the item is found in `incoming/`, in
-			`processed/` too with `--include-processed`, and moves to
-			`processed/`; in a flat one it is marked IN PLACE at the
-			root and stays where it is. Active inbox
+			block when the item has none) and commits it. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders.
+			The item is found in `incoming/`, in `processed/` too with
+			`--include-processed`, and moves to `processed/`. Active inbox
 			scans skip it from then on, and the GC deletes it once the
 			stamp is older than the retention (`warning-*`/
 			`reflection-*` one day, everything else seven).
@@ -2212,16 +2206,14 @@
 			stamp (`:remove:` for none). An item already marked keeps
 			its original `processed-at`: a plain re-mark is a no-op
 			success, and an edit applies without moving the stamp.
-			An item that is processed already, in `processed/` of a
-			split inbox or in the legacy `processed/` of a flat one: a
+			An item that is processed already, in `processed/`: a
 			plain re-mark succeeds as a no-op; an edit needs
-			`--include-processed` in a split inbox, and is refused in
-			the legacy folder, which is read-only.
+			`--include-processed`.
 
 		--member-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Marks one of `<team-member>`'s OWN inbox items handled:
-			`processed-at` stamped, and the item moved to `processed/`
-			of a split inbox (in place at the root of a flat one), exactly as
+			`processed-at` stamped, and the item moved to `processed/`,
+			exactly as
 			`--librarian-inbox-to-processed` (a given processed-at wins,
 			a re-mark is a no-op, the original stamp is kept). Any
 			member may call it for its own inbox:
@@ -2233,7 +2225,7 @@
 
 		--member-inbox-note-upsert <member> <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) a note into `<member>`'s own
-			inbox. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. A store not yet moved to that form, the flat mode until its one-time move, keeps every item at the inbox root as before. In a split inbox the item lands in
+			inbox. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. The item lands in
 			the folder its processed stamp picks, `incoming/` or
 			`processed/`, and an item already there is updated where it
 			lies, a processed one only with `--include-processed` (without
@@ -2322,11 +2314,10 @@
 
 		--member-inbox-item-read <member> <item-filename> [--include-processed] [--start-line <N> --end-line <N>]
 			Read-only read of one item in `<member>`'s own inbox, by bare
-			`<item-filename>`. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. A store not yet moved to that form, the flat mode until its one-time move, keeps every item at the inbox root as before. A split inbox is read in
+			`<item-filename>`. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. It is read in
 			`incoming/`, and in `processed/` too with
 			`--include-processed`: without it a processed item is not
-			found. A flat one is searched at the inbox root first (marked or
-			not), then its legacy `processed/`, first match wins.
+			found.
 			`<item-filename>` must carry one of the four type prefixes:
 			`note-`/`inquiry-`/`reflection-`/`warning-`. `--start-line`/`--end-line` must be
 			given as a complete pair.
@@ -2340,9 +2331,7 @@
 			is REFUSED, so a member-scoped call can never become a
 			cross-member one (use `--librarian-inbox-item-trash` for
 			another member's inbox). A spawned session naming another
-			member than itself is refused. A flat inbox resolves as
-			`--member-inbox-item-read` does: root then legacy `processed/`,
-			first match wins, not found in either names both. No
+			member than itself is refused. No
 			type-prefix restriction. An item carrying `archive: true` is
 			discarded like any other -- that header only diverts the
 			heartbeat GC's own retention clock.
@@ -3976,9 +3965,7 @@
 			and none of an inbox's own folders is ever shown: it lists the
 			items that are not processed, and with `--include-processed` the
 			processed ones too, and an item of it is read where a read finds
-			it, by the same rule. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. A store not yet moved to that form, the flat mode until its one-time move, keeps every item at the inbox root as before. In a flat inbox an item
-			carrying `processed-at` counts as processed, and its legacy
-			`processed/` is listed with the processed ones. Exit 1 with one error line, and nothing on
+			it, by the same rule. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. Exit 1 with one error line, and nothing on
 			stdout, for a word that is no store, a name that is not bare,
 			a folder or an item that is not there, and where no team data
 			root is configured.

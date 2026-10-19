@@ -114,11 +114,11 @@ rigPart(){ ## request id, json path under result.content -- the decoded value, e
 	rigWire "$1" | LC_ALL=C awk -v path="result.content.$2" -v optional=1 -f "$rigField" 2>/dev/null || :
 }
 
-## The tool's own result: the last text part, since the head part goes first.
+## The tool's own result: the text part before the last, which is the date part, since the head part goes first.
 rigResult(){ ## request id
 	local partIndex
 	partIndex="$( rigPart "$1" __count )"
-	partIndex=$(( ${partIndex:-0} - 1 ))
+	partIndex=$(( ${partIndex:-0} - 2 ))
 	while [ "$partIndex" -ge 0 ] ; do
 		[ "$( rigPart "$1" "$partIndex.type" )" != text ] || { rigPart "$1" "$partIndex.text" | rigReplyBare ; return 0 ; }
 		partIndex=$(( partIndex - 1 ))

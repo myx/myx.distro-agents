@@ -131,7 +131,10 @@ function ctxRenderTool(headText, tsText, recordText,   toolName, callId, durMs, 
 	if (outcomeText == "") outcomeText = "ok"
 	resultText = ""
 	if (jfParseText(recordText) == 0) {
-		if (("content.__count") in jfLeaf) resultText = jfLeaf["content.0.content"]
+		## The result is the first part where the content is parts, the date being the part beside it.
+		if (("content.0.content.__count") in jfLeaf) resultText = jfLeaf["content.0.content.0.text"]
+		else if (("content.__count") in jfLeaf && jfLeaf["content.0.type"] == "text") resultText = jfLeaf["content.0.text"]
+		else if (("content.__count") in jfLeaf) resultText = jfLeaf["content.0.content"]
 		else resultText = jfLeaf["content"]
 	}
 	argsText = (callId in ctxArgs) ? ctxArgs[callId] : "{}"

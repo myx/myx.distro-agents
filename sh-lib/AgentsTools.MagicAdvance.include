@@ -14,8 +14,8 @@
 ## paths: resync, conflict check, and the unlock order".
 ##
 
-## Where an inbox item lives, split or flat (F4.3).
-type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+## Where an inbox item lives (F4.3).
+type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
 
 ## Runs the board's own resync primitive. Caller declares advanceSyncOut.
 AgentsToolsAdvanceCloneSync(){

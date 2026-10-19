@@ -8,17 +8,15 @@
 ## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
 ## Marks one inbox item handled: stamps `processed-at` into its own frontmatter
-## (creating the block when it has none) and commits the item. In a split inbox
-## (AgentsTools.InboxPlace.include) the item is found in incoming/, or in
-## processed/ too with --include-processed, and the stamped item moves to
-## processed/, nothing of it left in incoming/. In a flat inbox, until its store
-## is moved, it is marked IN PLACE at the root as before, and the legacy
-## processed/ folder is read-only. The GC collects a marked item once the stamp
+## (creating the block when it has none) and commits the item. The item is found
+## in incoming/, or in processed/ too with --include-processed
+## (AgentsTools.InboxPlace.include), and the stamped item moves to processed/,
+## nothing of it left in incoming/. The GC collects a marked item once the stamp
 ## is older than the type retention. Contract: MAGIC.md.
 ##
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
-type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
 
 case "$1" in
 
@@ -169,41 +167,23 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
-		## Split: the item where a read finds it, and the stamped one goes to processed/.
-		local sourcePath="$inboxDirResolved/$itemName" targetPath=""
-		if AgentsToolsInboxSplit "$inboxMember" ; then
-			sourcePath="$( AgentsToolsInboxItemFind "$inboxMember" "$itemName" "$includeProcessed" )" || sourcePath=""
-			if [ -z "$sourcePath" ] ; then
-				## Processed already: a plain mark has nothing to do; an edit sees only
-				## incoming/ without --include-processed, so it finds no item.
-				if AgentsToolsInboxItemProcessed "$inboxMember" "$itemName" && [ -z "$headerOps" ] && [ -z "$bodyMode" ] ; then
-					echo "# $MDSC_CMD: inbox-to-processed: $itemName already processed, nothing to do" >&2
-					return 0
-				elif AgentsToolsInboxItemProcessed "$inboxMember" "$itemName" ; then
-					echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: item not found: $itemName is no incoming item of $inboxMember's inbox -- it is processed already; give --include-processed to edit it" >&2
-				else
-					echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: item not found: $itemName in $inboxMember's inbox" >&2
-				fi
-				set +e ; return 1
+		## The item where a read finds it, and the stamped one goes to processed/.
+		local sourcePath="" targetPath=""
+		sourcePath="$( AgentsToolsInboxItemFind "$inboxMember" "$itemName" "$includeProcessed" )" || sourcePath=""
+		if [ -z "$sourcePath" ] ; then
+			## Processed already: a plain mark has nothing to do; an edit sees only
+			## incoming/ without --include-processed, so it finds no item.
+			if AgentsToolsInboxItemProcessed "$inboxMember" "$itemName" && [ -z "$headerOps" ] && [ -z "$bodyMode" ] ; then
+				echo "# $MDSC_CMD: inbox-to-processed: $itemName already processed, nothing to do" >&2
+				return 0
+			elif AgentsToolsInboxItemProcessed "$inboxMember" "$itemName" ; then
+				echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: item not found: $itemName is no incoming item of $inboxMember's inbox -- it is processed already; give --include-processed to edit it" >&2
+			else
+				echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: item not found: $itemName in $inboxMember's inbox" >&2
 			fi
-			targetPath="$inboxDirResolved/processed/$itemName"
-		elif [ ! -f "$sourcePath" ] ; then
-			## Legacy layout: items drained before the in-place marker sit in
-			## processed/ until the GC collects them. They are already handled, so a
-			## plain re-mark succeeds as a no-op; an edit is refused -- that folder is
-			## read-only now and nothing new is ever written into it.
-			if [ -f "$inboxDirResolved/processed/$itemName" ] ; then
-				if [ -z "$headerOps" ] && [ -z "$bodyMode" ] ; then
-					echo "# $MDSC_CMD: inbox-to-processed: $itemName already processed (legacy processed/), nothing to do" >&2
-					return 0
-				fi
-				echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: $itemName sits in the legacy processed/ folder, which is read-only -- it is already processed and cannot be edited: $inboxDirResolved/processed/$itemName" >&2
-				set +e ; return 1
-			fi
-			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: item not found in inbox root: $sourcePath" >&2
 			set +e ; return 1
 		fi
-		[ -n "$targetPath" ] || targetPath="$sourcePath"
+		targetPath="$inboxDirResolved/processed/$itemName"
 
 		## Already marked: the item keeps its original processed-at (it is the GC's
 		## retention clock), and a plain re-mark is a successful no-op -- no write,

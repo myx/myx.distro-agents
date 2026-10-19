@@ -99,7 +99,7 @@ rigRemind(){ ## output name [TZ]
 		'. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyRemind.include"' \
 		'AgentsToolsPendingReplyRemindRun || exit 1' \
 	| ( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY \
-		TZ="${2:-$rigTz}" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		TZ="${2:-$rigTz}" TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDAT_DATA_ROOT="$rigScenarioDir/data" ${rigEnv[@]+"${rigEnv[@]}"} bash "$rigTool" --intern-mcp-execute ) \
 		> "$rigScenarioDir/$1" 2> "$rigScenarioDir/$1.err"
 	rigRc=$?
@@ -274,7 +274,7 @@ rigLoopScenario(){ ## name
 	rigScenarioDir="$rigDir"
 }
 rigOneRun(){
-	env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" TZ="$rigTz" \
+	env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" TMPDIR="$rigDir" TZ="$rigTz" \
 		MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigDir/home/.claude/skills" \
 		RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
@@ -328,7 +328,7 @@ rigWait(){ ## output name, TZ (empty: the rig's), wait arguments...
 	local waitOut="$1" waitTz="${2:-$rigTz}"
 	shift 2
 	( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u MDAT_WAIT_REMIND \
-		TZ="$waitTz" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		TZ="$waitTz" TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDAT_DATA_ROOT="$rigScenarioDir/data" ${rigEnv[@]+"${rigEnv[@]}"} bash "$rigTool" --member-wait-for-input "$rigMember" "$@" ) \
 		> "$rigScenarioDir/$waitOut" 2> "$rigScenarioDir/$waitOut.err"
 	rigRc=$?
@@ -504,7 +504,7 @@ rigAssert "and nothing is a top-level message"             "$( LC_ALL=C grep -L 
 
 echo "-- the other side: an ask on a client's side is reminded on that side, in its thread --"
 rigStart client-side
-mkdir -p "$rigScenarioDir/skills/magic-team" "$rigScenarioDir/skills/human-owner" "$rigScenarioDir/skills/client-rig" "$rigScenarioDir/data/inboxes/client-rig"
+mkdir -p "$rigScenarioDir/skills/magic-team" "$rigScenarioDir/skills/human-owner" "$rigScenarioDir/skills/client-rig" "$rigScenarioDir/data/inboxes/client-rig/incoming"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigScenarioDir/skills/client-rig/client-rig.basic.md"
 printf '# rig armed\n' > "$rigScenarioDir/skills/client-rig/client-rig.armed.md"
 printf -- '---\nname: client-rig\n---\n\n# client-rig\n' > "$rigScenarioDir/skills/client-rig/SKILL.md"
@@ -513,7 +513,7 @@ printf '%s\n' 'client-rig 🔧 Rig Client rigclient' > "$rigScenarioDir/ws/.loca
 printf '%s\n' '| slack-id | contact | handle | email | organisation | permission level |' '| --- | --- | --- | --- | --- | --- |' \
 	'| CRIGCLNT1 | rig-client-team | @rig-client-team | <unresolved> | rig | unset |' \
 	'| URIGTHEIR | rig-client-person | @rig-client-person | <unresolved> | rig | unset |' \
-	'| DRIGTHEIR | rig-client-person-dm | @rig-client-person | <unresolved> | rig | unset |' > "$rigScenarioDir/data/inboxes/client-rig/note-rig-contacts.md"
+	'| DRIGTHEIR | rig-client-person-dm | @rig-client-person | <unresolved> | rig | unset |' > "$rigScenarioDir/data/inboxes/client-rig/incoming/note-rig-contacts.md"
 rigClientTs="$( rigTsOf $(( 31 * 60 )) )"
 rigRecordRaw ask-client "owner: client-rig\nkind: question\naddress-to: client:URIGTHEIR\nchannel: client:DRIGTHEIR\nquestion-ts: $rigClientTs\nthread-ts: $rigClientTs\naddressees: URIGTHEIR\nask-identity: member\nasked-at: 2026-09-29 12:00 +0300\n" \
 	'# ❓ Question\n\nMay the rig go on, on your side?\n\n**✅ How to answer**\n- reply\n'
@@ -673,7 +673,7 @@ wait "$rigBothPid" 2>/dev/null || :
 rigAssert "at once: one post was tried, and one reminder is on the record" "$( rigTries ):$( rigPosts ):$( rigField ask-both reminders )" 1:1:1
 ## And with the main loop itself: one iteration of it, and a wait, in either order.
 rigLoopWait(){ ## -- a wait on the loop scenario's ask, in the loop's own environment
-	env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" TZ="$rigTz" \
+	env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" TMPDIR="$rigDir" TZ="$rigTz" \
 		MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigDir/home/.claude/skills" RIG_FN="$rigTool" RIG_MEMBER="$rigMember" \
 		bash -c 'cd "$MMDAPP" && exec bash "$RIG_FN" --member-wait-for-input "$RIG_MEMBER" --wait-source ask:ask-loop --wait-timeout 1' > "$rigDir/wait.out" 2> "$rigDir/wait.err"
@@ -698,7 +698,7 @@ rigThreadOf ask-tool
 rigAskPid=""
 set -m
 ( cd "$rigScenarioDir/ws" && printf '%s' '{"pending_id":"ask-tool"}' | env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u MDAT_WAIT_REMIND \
-	TZ="$rigTz" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigScenarioDir/data" \
+	TZ="$rigTz" TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigScenarioDir/data" \
 	MDAT_SPAWN_SESSION_ID=rig-sess MDAT_SPAWN_AGENT="$rigMember" MDAT_HARNESS_WAIT_TIMEOUT=1 bash "$rigHarness" --intern-tool AskQuestion ) > "$rigScenarioDir/tool" 2> "$rigScenarioDir/tool.err" &
 rigAskPid=$!
 set +m

@@ -61,8 +61,7 @@ rigRefuse(){
 ## still that process; a control thread the advance pass of this rig starts is ended the same way, at the end.
 . "$rigHelper" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's helper for control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-rigTmp="$( rigTempDir AgentsSpawnEndNoticeCheck )" || exit 1
+rigTmp="$( mktemp -d -t AgentsSpawnEndNoticeCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
 rigSp="$rigWs/.local/agents/spawned"
@@ -381,7 +380,7 @@ printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: rig-mem
 printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToMember/$rigToMember.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
 	| rigEnv "$rigTmp/s4b" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4b/out" 2>&1
 rigAssert "told once, in the inbox of the member it reports to, and in no conversation" \
-	"$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4b/out" ):$( LC_ALL=C grep -l -F -- "${rigToMember:0:8}" "$rigData/inboxes/rig-member-b"/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' ):$( rigNoteCount "$rigTmp/s4b" "${rigToMember:0:8}" )" "1:1:0"
+	"$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4b/out" ):$( LC_ALL=C grep -l -F -- "${rigToMember:0:8}" "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' ):$( rigNoteCount "$rigTmp/s4b" "${rigToMember:0:8}" )" "1:1:0"
 
 echo "-- 4c. a run that reports to no one is told to no one --"
 rigToNone="rtn4c$$x"
@@ -391,7 +390,7 @@ printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: none\nt
 printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToNone/$rigToNone.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
 	| rigEnv "$rigTmp/s4c" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4c/out" 2>&1
 rigAssert "nothing said, nothing posted, nothing left in an inbox" \
-	"$( LC_ALL=C grep -c -x 'SAID=none' "$rigTmp/s4c/out" ):$( rigNoteCount "$rigTmp/s4c" "${rigToNone:0:8}" ):$( LC_ALL=C grep -l -F -- "${rigToNone:0:8}" "$rigData"/inboxes/*/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "1:0:0"
+	"$( LC_ALL=C grep -c -x 'SAID=none' "$rigTmp/s4c/out" ):$( rigNoteCount "$rigTmp/s4c" "${rigToNone:0:8}" ):$( LC_ALL=C grep -l -F -- "${rigToNone:0:8}" "$rigData"/inboxes/*/incoming/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "1:0:0"
 
 echo "-- 5. a killed run is told as killed, and by whom --"
 ## One call of the console in the rig workspace, as a bare console makes it.
@@ -481,7 +480,7 @@ mkdir -p "$rigSp/$rigHeldRun"
 LC_ALL=C sed -e "s/$rigDead/$rigHeldRun/g" -e "s/^spawns: .*\$/supervisor-process: $rigHeldShell/" "$rigRecord" > "$rigSp/$rigHeldRun/$rigHeldRun.md"
 find "$rigSp/$rigHeldRun" -exec touch -t "$rigStampText" {} +
 rigLock(){ ## result file -- the advance routine takes its lock, free, as the coordinator's session takes it: its housekeeping runs there
-	rm -f "$rigData/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
+	rm -f "$rigData/inboxes/magic-coordinator/incoming/note-20260809T154715Z-advance-state-and-lock.md"
 	rigConsole "$1" --magic-advance-lock-acquire magic-coordinator rig-advance-pass
 }
 rigLock "$rigDir/scan1.out"

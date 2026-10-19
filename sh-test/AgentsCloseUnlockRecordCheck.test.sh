@@ -17,8 +17,7 @@ rigRefuse(){
 }
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 command -v git > /dev/null || rigRefuse "git is not installed"
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-rigTmp="$( rigTempDir AgentsCloseUnlockRecordCheck )" || exit 1
+rigTmp="$( mktemp -d -t AgentsCloseUnlockRecordCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/ws/.local/.agents"
@@ -42,8 +41,8 @@ rigField(){ ## file, field
 rigStore=""
 rigNote=""
 rigUse(){ ## store dir
-	rigStore="$1" ; rigNote="$1/inboxes/magic-coordinator/$rigNoteName"
-	mkdir -p "$1/inboxes/magic-coordinator" "$1/audit"
+	rigStore="$1" ; rigNote="$1/inboxes/magic-coordinator/incoming/$rigNoteName"
+	mkdir -p "$1/inboxes/magic-coordinator/incoming" "$1/audit"
 	for rigState in backlog pending running review blocked parked ; do mkdir -p "$1/board/$rigState" ; done
 }
 rigOp(){ ## result file, op and arguments...
@@ -89,7 +88,7 @@ git -C "$rigStore" init -q && printf 'seed\n' > "$rigStore/README.md" && git -C 
 rigOp "$rigTmp/l0" --magic-grooming-lock-acquire magic-coordinator rig
 rigClose "$rigTmp/l1"
 rigAssert "close: RELEASED, rc 0"                     "$( rigOutcome "$rigTmp/l1" )" "0:1:0"
-rigAssert "close: committed as finished"              "$( git -C "$rigStore" show "HEAD:inboxes/magic-coordinator/$rigNoteName" | LC_ALL=C grep -c -x -e 'state: grooming-finished' -e "last-close-date: $rigToday" )" 2
+rigAssert "close: committed as finished"              "$( git -C "$rigStore" show "HEAD:inboxes/magic-coordinator/incoming/$rigNoteName" | LC_ALL=C grep -c -x -e 'state: grooming-finished' -e "last-close-date: $rigToday" )" 2
 rigOp "$rigTmp/l2" --magic-grooming-lock-acquire magic-coordinator rig
 rigHeadBefore="$( git -C "$rigStore" rev-parse HEAD )"
 printf '#!/bin/sh\nexit 1\n' > "$rigStore/.git/hooks/pre-commit" ; chmod +x "$rigStore/.git/hooks/pre-commit"
@@ -107,7 +106,7 @@ git init -q "$rigSeed" && printf 'seed\n' > "$rigSeed/README.md" && git -C "$rig
 git clone -q "$rigBare" "$rigTmp/remote" 2>/dev/null || rigRefuse "could not clone the bare origin"
 rigUse "$rigTmp/remote"
 printf 'TEAM_DATA_GIT_REMOTE=%s\n' "$rigBare" > "$rigTmp/ws/.local/.agents/magic-team.agent.env"
-rigOriginNote(){ git --git-dir="$rigBare" show "main:inboxes/magic-coordinator/$rigNoteName" 2>/dev/null ; }
+rigOriginNote(){ git --git-dir="$rigBare" show "main:inboxes/magic-coordinator/incoming/$rigNoteName" 2>/dev/null ; }
 rigOther="$rigTmp/other"
 git clone -q "$rigBare" "$rigOther" 2>/dev/null || rigRefuse "could not clone the other host"
 rigOtherPush(){ ## file relative to the store, content
@@ -123,7 +122,7 @@ rigAssert "close: RELEASED, rc 0"                     "$( rigOutcome "$rigTmp/r1
 rigAssert "close: the origin holds the close"         "$( rigOriginNote | LC_ALL=C grep -c -x -e 'state: grooming-finished' -e "last-close-date: $rigToday" )" 2
 
 rigOp "$rigTmp/r2" --magic-grooming-lock-acquire magic-coordinator rig
-rigOtherPush "inboxes/magic-coordinator/$rigNoteName" "$( printf -- '---\ntype: note\nstate: grooming-running\nsession-id: rig\nrecheck-date: 2999-01-01 00:00 +0000\n---\n\nedited on another host' )"
+rigOtherPush "inboxes/magic-coordinator/incoming/$rigNoteName" "$( printf -- '---\ntype: note\nstate: grooming-running\nsession-id: rig\nrecheck-date: 2999-01-01 00:00 +0000\n---\n\nedited on another host' )"
 rigClose "$rigTmp/r3"
 rigAssert "concurrent edit of the note: not released, rc 1, said" "$( rigOutcome "$rigTmp/r3" )" "1:0:1"
 rigAssert "concurrent edit: the note on disk is not finished" "$( rigField "$rigNote" state )" grooming-running

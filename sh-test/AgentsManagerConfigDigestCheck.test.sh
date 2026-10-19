@@ -42,15 +42,14 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-rigTmp="$( rigTempDir AgentsManagerConfigDigestCheck )" || exit 1
+rigTmp="$( mktemp -d -t AgentsManagerConfigDigestCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills"
 rigScopes="$rigWs/.local/.agents" ; rigAgents="$rigWs/.local/agents"
 rigData="$rigAgents/team-data-root"
-rigNote="$rigData/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
-mkdir -p "$rigTmp/bin" "$rigScopes" "$rigAgents" "$rigData/inboxes/magic-coordinator" "$rigHome" "$rigSkills" "$rigTmp/docs"
+rigNote="$rigData/inboxes/magic-coordinator/incoming/note-20260809T155000Z-heartbeat-state-and-lock.md"
+mkdir -p "$rigTmp/bin" "$rigScopes" "$rigAgents" "$rigData/inboxes/magic-coordinator/incoming" "$rigHome" "$rigSkills" "$rigTmp/docs"
 rigTab="$( printf '\t' )"
 rigOrigin="${MDLT_ORIGIN%/}"
 

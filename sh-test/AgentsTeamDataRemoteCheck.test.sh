@@ -21,8 +21,7 @@ rigRefuse(){
 }
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 command -v git > /dev/null || rigRefuse "git is not installed"
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-rigTmp="$( rigTempDir AgentsTeamDataRemoteCheck )" || exit 1
+rigTmp="$( mktemp -d -t AgentsTeamDataRemoteCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 export GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid
@@ -155,13 +154,13 @@ echo "-- a folder with content and a filled remote: the storage step hands it to
 rigRemote filled
 rigScenario plain "$rigTmp/filled.git"
 rigStore="$rigDir/ws/.local/agents/team-data-root"
-mkdir -p "$rigStore/board/running" "$rigStore/inboxes/magic-tester"
+mkdir -p "$rigStore/board/running" "$rigStore/inboxes/magic-tester/incoming"
 printf 'local readme\n' > "$rigStore/README.md"
 printf 'local item\n' > "$rigStore/board/running/note-20261014T0101Z-local.md"
-printf 'local note\n' > "$rigStore/inboxes/magic-tester/note-rig.md"
+printf 'local note\n' > "$rigStore/inboxes/magic-tester/incoming/note-rig.md"
 rigSetup "$rigDir/a"
 rigAssert "the folder is a clone of the remote now"              "$( git -C "$rigStore" rev-parse HEAD 2> /dev/null ):$( git -C "$rigStore" remote get-url origin 2> /dev/null )" "$( rigRemoteHead filled ):$rigTmp/filled.git"
-rigAssert "no file of it was changed"                            "$( cat "$rigStore/README.md" "$rigStore/board/running/note-20261014T0101Z-local.md" "$rigStore/inboxes/magic-tester/note-rig.md" 2> /dev/null | LC_ALL=C tr '\n' '/' )" "local readme/local item/local note/"
+rigAssert "no file of it was changed"                            "$( cat "$rigStore/README.md" "$rigStore/board/running/note-20261014T0101Z-local.md" "$rigStore/inboxes/magic-tester/incoming/note-rig.md" 2> /dev/null | LC_ALL=C tr '\n' '/' )" "local readme/local item/local note/"
 rigAssert "one line says git/cloneSync made it a clone"          "$( rigCount "$rigDir/a.err" "git/cloneSync made $rigStore a clone of TEAM_DATA_GIT_REMOTE" )" 1
 
 echo "-- a folder with content and an empty remote: handed to git/cloneSync, which adopts it --"
@@ -214,7 +213,7 @@ git clone -q "$rigTmp/claims.git" "$rigStore" 2> /dev/null || rigRefuse "could n
 rigClaimDirB="$rigDir" ; rigClaimStoreB="$rigStore"
 rigScenario claima "$rigTmp/claims.git"
 git clone -q "$rigTmp/claims.git" "$rigStore" 2> /dev/null || rigRefuse "could not make the first clone"
-rigClaimNote="inboxes/magic-coordinator/note-20260809T154332Z-grooming-state-and-lock.md"
+rigClaimNote="inboxes/magic-coordinator/incoming/note-20260809T154332Z-grooming-state-and-lock.md"
 rigOp "$rigDir/a" --magic-grooming-lock-acquire magic-coordinator rig-a
 rigAssert "the first takes it, and its claim is on the remote's main" "$( cat "$rigDir/a.rc" ):$( LC_ALL=C grep -c -x ACQUIRED "$rigDir/a" ):$( git -C "$rigTmp/claims.git" show "main:$rigClaimNote" 2> /dev/null | LC_ALL=C grep -c -x 'session-id: rig-a' )" "0:1:1"
 rigDir="$rigClaimDirB" ; rigStore="$rigClaimStoreB"

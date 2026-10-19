@@ -184,7 +184,7 @@ rigItem running dispatch-20261008T1200Z-ib rig-child-ib
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-child-ib )
 rigTool "$rigTmp/h1b" SubagentHandback '{"outcome":"inbox work done","to":"magic-tester"}'
 rigEnv=()
-rigAssert "the handback goes to the inbox"                 "$( LC_ALL=C grep -c '^Sent to the inbox of magic-tester as inquiry-' "$rigTmp/h1b" ):$( ls "$rigData/inboxes/magic-tester"/inquiry-*.md 2> /dev/null | wc -l | tr -d ' ' )" 1:1
+rigAssert "the handback goes to the inbox"                 "$( LC_ALL=C grep -c '^Sent to the inbox of magic-tester as inquiry-' "$rigTmp/h1b" ):$( ls "$rigData/inboxes/magic-tester/incoming"/inquiry-*.md 2> /dev/null | wc -l | tr -d ' ' )" 1:1
 rigAssert "the item moved running -> review"               "$( rigLoc dispatch-20261008T1200Z-ib )" review
 rigAssert "one Decisions handback line"                    "$( rigDecisions "$rigData/board/review/dispatch-20261008T1200Z-ib.md" 'handback: handback: inbox work done' )" 1
 rigRecord rig-child-nf spawn-started "" dispatch-20261008T1200Z-nf rig-child-nf
@@ -386,8 +386,10 @@ rigAssert "it ends with no handback, so back to review"    "$( rigLoc dispatch-2
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID="$rigNewSpawn" )
 rigTool "$rigTmp/v3h" SubagentHandback '{"outcome":"redone","to":"session-parent"}'
 rigEnv=()
+## Only the handback is counted: the end notice of the run it replaces, posted to the same thread
+## once that run is seen ended, may land here too, and is not this step's post.
 rigAssert "its handback to session-parent reaches the thread of the session that started the run it replaces" \
-	"$( LC_ALL=C grep -c 'no recorded parent session' "$rigTmp/v3h" ):$( LC_ALL=C grep -c '"channel": *"CPRS00001"' "$rigTmp/bodies" )" 0:1
+	"$( LC_ALL=C grep -c 'no recorded parent session' "$rigTmp/v3h" ):$( LC_ALL=C grep '"channel": *"CPRS00001"' "$rigTmp/bodies" | LC_ALL=C grep -c -F 'redone' )" 0:1
 
 rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" )"
 echo "-- 9d. return to an ended run that had no parent session, made from inside another session: it has none again --"
@@ -416,8 +418,10 @@ mkdir -p "$rigWs/.local/agents/sessions/rig-sess-9c-$$" && printf '%s\n' CSES9C0
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-help-9c-$$ MDAT_SESSION_ID=rig-sess-9c-$$ MDAT_SESSION_THREAD=CSES9C001:1700000000.000900 )
 rigTool "$rigTmp/q9c" AskQuestion '{"question":"Which way first?","wait":false}'
 rigEnv=()
+## Only the question is counted: the end notice of 9d's restarted run, told to the human-owner
+## once that run is seen ended, may land here too, and is not this step's post.
 rigAssert "a member's question with no target goes to the session's live magic-coordinator, in the session thread" \
-	"$( LC_ALL=C grep -c '^ASK-RESULT: POSTED' "$rigTmp/q9c" ):$( LC_ALL=C grep -c '"channel": *"CSES9C001"' "$rigTmp/bodies" ):$( LC_ALL=C grep -c '"channel": *"URIGOWNER"' "$rigTmp/bodies" )" "1:1:0"
+	"$( LC_ALL=C grep -c '^ASK-RESULT: POSTED' "$rigTmp/q9c" ):$( LC_ALL=C grep '"channel": *"CSES9C001"' "$rigTmp/bodies" | LC_ALL=C grep -c -F 'Which way first?' ):$( LC_ALL=C grep '"channel": *"URIGOWNER"' "$rigTmp/bodies" | LC_ALL=C grep -c -F 'Which way first?' )" "1:1:0"
 rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator MDAT_SPAWN_SESSION_ID=rig-coord-9c-$$ MDAT_SESSION_ID=rig-sess-9c-$$ MDAT_SESSION_THREAD=CSES9C001:1700000000.000900 )
 rigTool "$rigTmp/q9c2" AskQuestion '{"question":"Which way first?","wait":false}'
 rigEnv=()
@@ -543,7 +547,7 @@ rigOp "$rigTmp/s1" --magic-grooming-input-scan magic-coordinator
 rigOp "$rigTmp/s2" --magic-advance-input-scan magic-coordinator
 ## The advance housekeeping runs when the routine takes its lock, free here, not in its scan.
 rigAdvanceLock(){ ## result file -- the advance routine takes its lock
-	rm -f "$rigData/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
+	rm -f "$rigData/inboxes/magic-coordinator/incoming/note-20260809T154715Z-advance-state-and-lock.md"
 	rigOp "$1" --magic-advance-lock-acquire magic-coordinator rig-advance-pass
 	[ "$( cat "$1.rc" )" = 0 ] || rigRefuse "the advance lock was not taken in the rig: $( tail -2 "$1" | LC_ALL=C tr '\n' ' ' )"
 }

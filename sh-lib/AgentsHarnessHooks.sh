@@ -48,7 +48,7 @@ fi
 ## From the installer's .local/agents/harness.hooks.index while it vouches for this
 ## policy (one cksum, no parse), else computed from the policy itself -- the same
 ## records either way (AgentsHarnessHooksLoad.include).
-. "$harnessHere/AgentsHarnessHooksLoad.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessHooksLoad.include"
 if AgentsHarnessHooksRecords "${MMDAPP:-}" ; then
 	AgentsHarnessHooksFromRecords "$agentsHooksRecords"
 else

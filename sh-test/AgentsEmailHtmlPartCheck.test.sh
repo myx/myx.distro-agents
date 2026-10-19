@@ -18,8 +18,7 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-rigTmp="$( rigTempDir AgentsEmailHtmlPartCheck )" || exit 1
+rigTmp="$( mktemp -d -t "AgentsEmailHtmlPartCheck-XXXXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin"
@@ -44,12 +43,12 @@ printf 'EMAIL_USER=rig@example.com\nEMAIL_APP_PASSWORD=rig-app-password\nEMAIL_S
 ## exit. The rig's recipient is listed there, in the contacts document format
 ## (templates/contacts.document.format.md), under the store this rig derives:
 ## no MDAT_DATA_ROOT is carried, so it is $MMDAPP/.local/agents/team-data-root.
-mkdir -p "$rigWs/.local/agents/team-data-root/inboxes/keeper-myx"
+mkdir -p "$rigWs/.local/agents/team-data-root/inboxes/keeper-myx/incoming"
 printf '%s\n' \
 	'| slack-id | contact | handle | email | organisation | permission level |' \
 	'| --- | --- | --- | --- | --- | --- |' \
 	'| <unresolved> | rig-test | @rig-test | test@example.com | rig | unset |' \
-	> "$rigWs/.local/agents/team-data-root/inboxes/keeper-myx/note-rig-contacts.md"
+	> "$rigWs/.local/agents/team-data-root/inboxes/keeper-myx/incoming/note-rig-contacts.md"
 
 rigPassCount=0
 rigFailCount=0

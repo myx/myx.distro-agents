@@ -8,10 +8,9 @@
 ## standard $MDLT_ORIGIN-based path. Not standalone: relies on being
 ## dot-sourced for $1/$@/$MDSC_CMD.
 ##
-## Four locations, one retention table: inbox roots (items marked handled in
-## place by `processed-at`, dated by that stamp -- see
-## AgentsToolsFinalGcScanInboxRoot), the legacy inboxes/*/processed/ (drained,
-## then a no-op), board/processed/ and trash/. The table is keyed on the item's own document
+## Three locations, one retention table: each inbox's processed/ (its items
+## dated by their `processed-at` stamp -- see AgentsToolsFinalGcScanSplitInbox;
+## its incoming/ is never collected), board/processed/ and trash/. The table is keyed on the item's own document
 ## type -- `warning-*` and `reflection-*` at one day, everything else at seven
 ## -- and applies identically wherever the item is found. A folder is a
 ## location to scan, never a threshold of its own. trash/ is simply absent in a
@@ -543,58 +542,30 @@ case "$1" in
 		set -e
 		if [ -n "$gcTrashRemote" ] ; then gcTrashMode="immediate" ; fi
 
-		## Inbox source: a split inbox by AgentsToolsFinalGcScanSplitInbox; a flat
-		## one, until its store is moved, by its ROOT (items marked `processed-at`
-		## in place) and its legacy processed/ (items drained before that marker
-		## existed, until it is empty -- then a no-op), cd+pwd -P resolved and
-		## containment-checked. A member escaping containment (e.g. a symlink) is
-		## skipped with a warning rather than aborting the scan across every other
-		## member -- this op covers many members in one call.
+		## Inbox source: each inbox by AgentsToolsFinalGcScanSplitInbox, cd+pwd -P
+		## resolved and containment-checked. A member escaping containment (e.g. a
+		## symlink) is skipped with a warning rather than aborting the scan across
+		## every other member -- this op covers many members in one call.
 		local inboxBase=""
 		inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
 		if [ -n "$inboxBase" ] ; then
-			local memberDir memberRoot memberProcessed gcStampedSet=""
+			local memberDir memberRoot gcStampedSet=""
 			for memberDir in "$inboxBase"/*/ ; do
 				[ -d "$memberDir" ] || continue
 				memberRoot="$( cd "$memberDir" 2>/dev/null && pwd -P )" || memberRoot=""
 				[ -z "$memberRoot" ] && continue
 				case "$memberRoot" in
 					"$inboxBase"/*)
-						type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
-						if AgentsToolsInboxSplit "${memberRoot##*/}" ; then
-							if ! AgentsToolsFinalGcScanSplitInbox "$memberRoot" "$nowEpoch" "$inboxBase" ; then
-								echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: could not $gcScanFailedWhat $gcScanFailedPath" >&2
-								set +e ; return 1
-							fi
-							continue
-						fi
-						gcDeletedCount=0
-						if ! AgentsToolsFinalGcScanInboxRoot "$memberRoot" "$nowEpoch" ; then
+						if ! AgentsToolsFinalGcScanSplitInbox "$memberRoot" "$nowEpoch" "$inboxBase" ; then
 							echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: could not $gcScanFailedWhat $gcScanFailedPath" >&2
 							set +e ; return 1
 						fi
-						inboxDeletedCount=$(( inboxDeletedCount + gcDeletedCount ))
 					;;
 					*)
 						echo "$MDSC_CMD: team-data-final-gc-deletion: ⚠️ WARNING: skipping $memberRoot -- escapes inbox root $inboxBase" >&2
 						continue
 					;;
 				esac
-				memberProcessed="$( cd "${memberDir}processed" 2>/dev/null && pwd -P )" || memberProcessed=""
-				[ -z "$memberProcessed" ] && continue
-				case "$memberProcessed" in
-					"$inboxBase"/*) ;;
-					*)
-						echo "$MDSC_CMD: team-data-final-gc-deletion: ⚠️ WARNING: skipping $memberProcessed -- escapes inbox root $inboxBase" >&2
-						continue
-					;;
-				esac
-				gcDeletedCount=0
-				if ! AgentsToolsFinalGcScanDir "$memberProcessed" "$nowEpoch" "" inbox ; then
-					echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: could not $gcScanFailedWhat $gcScanFailedPath" >&2
-					set +e ; return 1
-				fi
-				inboxDeletedCount=$(( inboxDeletedCount + gcDeletedCount ))
 			done
 		fi
 

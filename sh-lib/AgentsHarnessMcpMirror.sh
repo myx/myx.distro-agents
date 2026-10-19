@@ -26,9 +26,8 @@ set -e
 ## loud, because an extraction that matched nothing must never read as a floor that
 ## declares no tools.
 
-mirrorHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-mirrorWire="${1:-$mirrorHere/AgentsOpenAiChatWire.sh}"
-mirrorAwk="$mirrorHere/AgentsHarnessMcpMirror.awk"
+mirrorWire="${1:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsOpenAiChatWire.sh}"
+mirrorAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessMcpMirror.awk"
 
 if [ ! -f "$mirrorWire" ] ; then
 	printf '%s\n' "AgentsHarnessMcpMirror: ⛔ ERROR: no wire adapter to read at $mirrorWire" >&2
@@ -55,7 +54,7 @@ mirrorToolsJson="$( LC_ALL=C awk -v q="'" '
 
 ## The read cap stated in the descriptions is the one applied on the path being served:
 ## an MCP client's unless the caller names another (a wire the harness hosts).
-. "$mirrorHere/AgentsHarnessReadCap.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessReadCap.include"
 mirrorToolsJson="$( printf '%s\n' "$mirrorToolsJson" | AgentsReadCapFill "${MDAT_READ_CAP_BYTES:-$agentsReadCapMcp}" )"
 
 if [ -z "$mirrorToolsJson" ] ; then

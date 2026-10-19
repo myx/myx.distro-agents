@@ -231,12 +231,12 @@ rigPart(){ ## request id, json path under result.content -- the decoded value, e
 	LC_ALL=C grep -m1 "^{\"jsonrpc\":\"2.0\",\"id\":$1," "$rigTmp/wire" | LC_ALL=C awk -v path="result.content.$2" -v optional=1 -f "$rigField" 2>/dev/null || :
 }
 
-## The tool's own result: the last text part, since the head part goes first. A protocol-level
-## error has no content part, so its message is returned instead and reads as a refusal.
+## The tool's own result: the text part before the last, which is the date part, since the head part goes first.
+## A protocol-level error has no content part, so its message is returned instead and reads as a refusal.
 rigResult(){ ## request id
 	local partIndex
 	partIndex="$( rigPart "$1" __count )"
-	partIndex=$(( ${partIndex:-0} - 1 ))
+	partIndex=$(( ${partIndex:-0} - 2 ))
 	while [ "$partIndex" -ge 0 ] ; do
 		[ "$( rigPart "$1" "$partIndex.type" )" != text ] || { rigPart "$1" "$partIndex.text" | rigReplyBare ; return 0 ; }
 		partIndex=$(( partIndex - 1 ))

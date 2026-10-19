@@ -71,9 +71,9 @@ AgentsToolsSpawnProxySessionRootPost(){ ## member whose bot token posts it, the 
 	local rootLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 	local rootText="" rootChannel="" rootPayload="" rootResponse="" rootErrFile="" rootError="" rootRc=0 rootTs="" rootIn="" rootJoined="false"
 	local rootOutcome="failed" rootReason="not posted: session-thread root" rootStamp=""
-	. "$rootLib/AgentsTools.CommsSlack.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
 	AgentsToolsResolveSlackBotToken "$rootMember" > /dev/null 2>&1 || return 0
-	type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$rootLib/AgentsTools.ToolingTemplate.include"
+	type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ToolingTemplate.include"
 	rootText="$( STR_SESSION_NAME="$rootName" STR_STARTED_BY="$rootBy" AgentsToolsToolingTemplateFill session-thread.root.format.md AgentsSessionThreadRootFill.awk 2> /dev/null )" || rootText=""
 	if [ -z "$rootText" ] ; then
 		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: its root post could not be filled from sh-lib/templates/session-thread.root.format.md" >&2

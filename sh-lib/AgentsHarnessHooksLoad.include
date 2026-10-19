@@ -65,7 +65,7 @@ agentsHooksRecords=""
 AgentsHarnessHooksRecordsComputed(){
 	agentsHooksRecords=""
 	[ -f "$agentsHooksLoadHere/AgentsTools.ClientToolPolicy.include" ] || return 1
-	type AgentsToolsClientToolPolicyHookRecords >/dev/null 2>&1 || . "$agentsHooksLoadHere/AgentsTools.ClientToolPolicy.include" || return 1
+	type AgentsToolsClientToolPolicyHookRecords >/dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientToolPolicy.include" || return 1
 	agentsHooksRecords="$( AgentsToolsClientToolPolicyHookRecords )" || { agentsHooksRecords="" ; return 1 ; }
 	[ -n "$agentsHooksRecords" ] || return 1
 	agentsHooksRecords="$agentsHooksRecords"$'\n'

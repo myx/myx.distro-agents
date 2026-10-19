@@ -16,8 +16,9 @@
 ##   5. --do-index: a section titled Contents first, at the prefix level, listing the captions nested, to the capped depth
 ##   6. --section-exclude drops the sections whose caption matches; --section-include keeps only those
 ##   7. a plain file argument is refused, naming --mixin, and nothing is printed
-##   8. a consumer: the Skill tool serves a member's basic and armed files as one read, each its own section
-##   8b. a skill whose SKILL.md declares `status: reference-only` is served unmerged, its SKILL.md only
+##   8. a consumer: a default skill load (`skill`, no file) serves one merged bundle instead of the SKILL.md: the member's
+##      basic and armed files, then the team's, each its own section, in that order, and no SKILL.md content
+##   8b. a skill whose SKILL.md declares `status: reference-only` is served as is, its SKILL.md only
 ## Red before F2.1: no such operation (every case fails).
 ## Offline: files of this rig's own temp tree; the Skill read is a served call in a rig workspace.
 set -u
@@ -112,15 +113,20 @@ echo "-- 7. a plain file argument is refused --"
 rigMerge m8 "$rigTmp/md/alpha.md"
 rigAssert "refused, naming --mixin, nothing printed"          "$( [ "$( cat "$rigTmp/m8.rc" )" -ne 0 ] && printf refused || printf accepted ):$( LC_ALL=C grep -c -F -- '--mixin' "$rigTmp/m8.err" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "names" : "silent" }' ):$( [ -s "$rigTmp/m8.out" ] && printf printed || printf empty )" "refused:names:empty"
 
-echo "-- 8. a consumer: the Skill tool serves basic and armed as one read --"
-mkdir -p "$rigTmp/skills/rig-member"
+echo "-- 8. a consumer: a default skill load serves the member's and the team's files as one bundle, no SKILL.md --"
+mkdir -p "$rigTmp/skills/rig-member" "$rigTmp/skills/magic-team"
+printf '# Basic\n\nRIG-TEAM-BASIC-LINE\n' > "$rigTmp/skills/magic-team/magic-team.basic.md"
+printf '# Armed\n\nRIG-TEAM-ARMED-LINE\n' > "$rigTmp/skills/magic-team/magic-team.armed.md"
 printf -- '---\nname: rig-member\ndescription: rig member\n---\n# rig-member\n\nRIG-SKILL-LINE\n' > "$rigTmp/skills/rig-member/SKILL.md"
 printf '# Basic\n\nRIG-BASIC-LINE\n' > "$rigTmp/skills/rig-member/rig-member.basic.md"
 printf '# Armed\n\nRIG-ARMED-LINE\n' > "$rigTmp/skills/rig-member/rig-member.armed.md"
 printf '{"skill":"rig-member"}' | ( cd "$rigTmp/ws" && env -u CLAUDE_CODE_SESSION_ID -u MDAT_DATA_ROOT HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 	MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=rig-member MDAT_SPAWN_SESSION_ID=rig-merge-run bash "$rigHarness" --intern-tool Skill ) > "$rigTmp/skill.out" 2> "$rigTmp/skill.err"
-rigAssert "one read holds the basic and the armed file"       "$( rigHas skill RIG-BASIC-LINE ) $( rigHas skill RIG-ARMED-LINE )" "yes yes"
-rigAssert "each its own section, at one level"                "$( LC_ALL=C grep -E '^#+ (Basic|Armed)$' "$rigTmp/skill.out" | LC_ALL=C sed -E 's/^(#+) .*/\1/' | LC_ALL=C sort -u | LC_ALL=C grep -c . )" 1
+rigAssert "one read holds the member's basic and armed file"  "$( rigHas skill RIG-BASIC-LINE ) $( rigHas skill RIG-ARMED-LINE )" "yes yes"
+rigAssert "and the team's basic and armed file"               "$( rigHas skill RIG-TEAM-BASIC-LINE ) $( rigHas skill RIG-TEAM-ARMED-LINE )" "yes yes"
+rigAssert "each its own section, in that order"              "$( LC_ALL=C grep -E '^# (rig-member|magic-team)\.(basic|armed)\.md$' "$rigTmp/skill.out" | LC_ALL=C tr '\n' ' ' )" "# rig-member.basic.md # rig-member.armed.md # magic-team.basic.md # magic-team.armed.md "
+rigAssert "each file's own sections at one level under it"     "$( LC_ALL=C grep -E '^#+ (Basic|Armed)$' "$rigTmp/skill.out" | LC_ALL=C sed -E 's/^(#+) .*/\1/' | LC_ALL=C sort -u | LC_ALL=C grep -c . )" 1
+rigAssert "no SKILL.md content in the read"                   "$( rigHas skill RIG-SKILL-LINE ) $( rigHas skill 'Base directory for this skill' )" "no no"
 
 echo "-- 8b. a skill whose SKILL.md declares status: reference-only is served unmerged --"
 mkdir -p "$rigTmp/skills/rig-record"
@@ -129,7 +135,7 @@ printf '# Basic\n\nRIG-RECORD-BASIC\n' > "$rigTmp/skills/rig-record/rig-record.b
 printf '# Armed\n\nRIG-RECORD-ARMED\n' > "$rigTmp/skills/rig-record/rig-record.armed.md"
 printf '{"skill":"rig-record"}' | ( cd "$rigTmp/ws" && env -u CLAUDE_CODE_SESSION_ID -u MDAT_DATA_ROOT HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 	MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=rig-member MDAT_SPAWN_SESSION_ID=rig-merge-run bash "$rigHarness" --intern-tool Skill ) > "$rigTmp/record.out" 2> "$rigTmp/record.err"
-rigAssert "its SKILL.md served, neither basic nor armed merged" "$( rigHas record RIG-RECORD-LINE ) $( rigHas record RIG-RECORD-BASIC ) $( rigHas record RIG-RECORD-ARMED )" "yes no no"
+rigAssert "its SKILL.md served, neither basic nor armed merged, nor the team's" "$( rigHas record RIG-RECORD-LINE ) $( rigHas record RIG-RECORD-BASIC ) $( rigHas record RIG-RECORD-ARMED ) $( rigHas record RIG-TEAM-BASIC-LINE )" "yes no no no"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MERGE MD FILES CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

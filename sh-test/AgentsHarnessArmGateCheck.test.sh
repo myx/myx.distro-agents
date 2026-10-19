@@ -19,6 +19,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigHarness" ] || rigRefuse "harness not found: $rigHarness"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || rigRefuse "the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh"
 ## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
 ## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
@@ -82,9 +83,10 @@ rigLoop(){ ## spawn id or empty
 		' > "$rigDir/out" 2> "$rigDir/err"
 	[ "$( cat "$rigDir/round" )" != 0 ] || rigRefuse "the harness made no model request: $( tail -3 "$rigDir/err" )"
 }
-## The newest tool result in the request for round N+1, which answers round N's call.
+## The newest tool result in the request for round N+1, which answers round N's call. The tool message has its
+## result and, beside it, the date: rigReplyBare gives the result alone, as the message had it before the date part.
 rigResult(){ ## round whose call it answers
-	LC_ALL=C awk '
+	rigReplyBare < "$rigDir/req.$(( $1 + 1 ))" 2>/dev/null | LC_ALL=C awk '
 		{
 			restText = $0 ;
 			while ( ( roleAt = index( restText, "\"role\":\"tool\"" ) ) > 0 ) {
@@ -94,7 +96,7 @@ rigResult(){ ## round whose call it answers
 			}
 		}
 		END { print lastText ; }
-	' "$rigDir/req.$(( $1 + 1 ))" 2>/dev/null
+	'
 }
 rigRedirected(){ ## round
 	case "$( rigResult "$1" )" in "ERROR: read your duty file first: Skill name=$rigMember file=$rigMember.armed.md"*) printf yes ;; *) printf no ;; esac
@@ -176,16 +178,19 @@ rigAssert "a cut read does not arm"                    "$( rigRedirected 2 )" ye
 rigAssert "a continuation that skips lines does not arm" "$( rigRedirected 4 )" yes
 rigAssert "filling the skipped lines arms"             "$( cat "$rigDir/ws/OUT/t.txt" 2>/dev/null )" rig
 
-echo "-- what counts as arming: the member's own skill read, with its armed file merged in --"
+echo "-- what counts as arming: the member's own skill read, the bundle with its armed file and the team's merged in --"
 rigScenario merged
 printf -- '---\nname: %s\ndescription: rig member\n---\n# %s\n\nrig skill\n' "$rigMember" "$rigMember" > "$rigTmp/skills/$rigMember/SKILL.md"
+mkdir -p "$rigTmp/skills/magic-team"
+printf '# Basic\n\nrig team basic\n' > "$rigTmp/skills/magic-team/magic-team.basic.md"
+printf '# Armed\n\nrig team armed\n' > "$rigTmp/skills/magic-team/magic-team.armed.md"
 rigCall Skill "{\"skill\":\"$rigMember\",\"limit\":3}"
 rigCall Write "{\"path\":\"$rigTmp/merged/ws/OUT/s.txt\",\"content\":\"rig\"}"
 rigCall Skill "{\"skill\":\"$rigMember\"}"
 rigCall Write "{\"path\":\"$rigTmp/merged/ws/OUT/s.txt\",\"content\":\"rig\"}"
 rigEnd
 rigLoop rig-session-merged
-rm -f "$rigTmp/skills/$rigMember/SKILL.md"
+rm -rf "$rigTmp/skills/$rigMember/SKILL.md" "$rigTmp/skills/magic-team"
 rigAssert "a part of that read does not arm"           "$( rigRedirected 2 )" yes
 rigAssert "the whole read arms"                        "$( cat "$rigDir/ws/OUT/s.txt" 2>/dev/null )" rig
 

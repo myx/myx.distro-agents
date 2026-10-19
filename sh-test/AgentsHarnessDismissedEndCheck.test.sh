@@ -24,6 +24,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigHarness" ] || rigRefuse "the harness is not at the origin this workspace resolves: $rigHarness"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || rigRefuse "the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsHarnessDismissedEndCheck.XXXXXX" )" || exit 1
@@ -265,9 +266,10 @@ rigLoop(){ ## -- the model loop of the spawned session, guarded
 		' > "$rigDir/out" 2> "$rigDir/err" || rigLoopRc=$?
 	[ "$( cat "$rigDir/round" )" != 0 ] || rigRefuse "the harness made no model request: $( tail -3 "$rigDir/err" | LC_ALL=C tr '\n' ' ' )"
 }
-## The tool result in the request for round N+1, which answers round N's call: its first 400 bytes.
+## The tool result in the request for round N+1, which answers round N's call: its first 400 bytes. The tool
+## message has its result and, beside it, the date: rigReplyBare gives the result alone, as the message had it before.
 rigResult(){ ## round whose call it answers
-	LC_ALL=C awk '
+	rigReplyBare < "$rigDir/req.$(( $1 + 1 ))" 2> /dev/null | LC_ALL=C awk '
 		{
 			restText = $0 ;
 			while ( ( roleAt = index( restText, "\"role\":\"tool\"" ) ) > 0 ) {
@@ -277,7 +279,7 @@ rigResult(){ ## round whose call it answers
 			}
 		}
 		END { print lastText ; }
-	' "$rigDir/req.$(( $1 + 1 ))" 2> /dev/null
+	'
 }
 
 echo "-- the harness's own loop: dismissed, then the handback, and the run ends there --"

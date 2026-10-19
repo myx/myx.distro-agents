@@ -282,26 +282,16 @@ wait "$rigOpPid" 2>/dev/null || :
 rigAssert "with nothing arriving it comes back when the round is over, as a wait that found nothing" \
 	"$( rigFirstLine "$rigScenarioDir/op.out" ):$( rigBound )" "WAIT-RESULT: TIMEOUT:2s bound"
 
-## A quiet round's reply, as three lines: its outcome, the host's time (current-date, F2.3 of the
-## refactorings epic) and the call that goes on -- the one-line outcome split at its NEXT: part.
-rigQuiet(){ ## outcome (WAIT-RESULT or ASK-RESULT), the call after NEXT:
-	LC_ALL=C awk -v outcome="$1" -v goesOn="NEXT: $2" '
-		NR == 1 && index( $0, outcome ": TIMEOUT (" ) == 1 && $0 ~ /\([0-9][0-9]*s\)$/ { a = 1 }
-		NR == 2 && $0 ~ /^current-date: [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9] [+-][0-9][0-9][0-9][0-9]$/ { b = 1 }
-		NR == 3 && $0 == goesOn { c = 1 }
-		END { print ( NR == 3 && a && b && c ) ? "the-lines" : "not-the-lines" }' "$rigScenarioDir/out"
-}
-
-echo "-- the Wait tool: an empty round is its outcome, the date and the call that goes on --"
+echo "-- the Wait tool: an empty round is one line, with the call that goes on --"
 rigStart tool-wait
 rigRoundSet 2
 : > "$rigScenarioDir/quiet.txt"
 rigCall 45 Wait "{\"sources\":\"file:$rigScenarioDir/quiet.txt\",\"timeout\":14400}"
-rigAssert "three lines and no more: nothing arrived, the date, and Wait mode=continue goes on" \
-	"$rigKilled:$( rigQuiet WAIT-RESULT 'Wait mode=continue' )" "no:the-lines"
+rigAssert "one line and no more: nothing arrived, and Wait mode=continue goes on" \
+	"$rigKilled:$( LC_ALL=C awk 'END { print NR ; }' "$rigScenarioDir/out" ):$( LC_ALL=C sed -n 's/^WAIT-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: Wait mode=continue$/the-line/p' "$rigScenarioDir/out" )" "no:1:the-line"
 rigCall 45 Wait '{"mode":"continue"}'
-rigAssert "and going on is the same three lines again" \
-	"$rigKilled:$( rigQuiet WAIT-RESULT 'Wait mode=continue' )" "no:the-lines"
+rigAssert "and going on is the same one line again" \
+	"$rigKilled:$( LC_ALL=C awk 'END { print NR ; }' "$rigScenarioDir/out" ):$( LC_ALL=C sed -n 's/^WAIT-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: Wait mode=continue$/the-line/p' "$rigScenarioDir/out" )" "no:1:the-line"
 printf 'RIG-ARRIVAL\n' > "$rigScenarioDir/quiet.txt"
 rigCall 45 Wait '{"mode":"continue"}'
 rigAssert "an arrival is returned as before, whatever the round" "$rigKilled:$( rigFirstLine "$rigScenarioDir/out" ):$( rigHolds "$rigScenarioDir/out" 'RIG-ARRIVAL' )" "no:WAIT-RESULT: RECEIVED:yes"
@@ -312,13 +302,13 @@ rigRoundSet 3
 rigThread 000101 "" ""
 rigCall 45 EscalateDecision "{\"to\":\"human-owner\",\"question\":\"Which check first?\",$rigOptions}"
 rigDecision="$( rigRecordOf decision )"
-rigAssert "three lines and no more: nothing arrived, the date, and the call that goes on waiting for this answer" \
-	"$rigKilled:$( rigQuiet ASK-RESULT "EscalateDecision pending_id=$rigDecision" )" "no:the-lines"
+rigAssert "one line and no more: nothing arrived, and the call that goes on waiting for this answer" \
+	"$rigKilled:$( LC_ALL=C awk 'END { print NR ; }' "$rigScenarioDir/out" ):$( LC_ALL=C sed -n "s/^ASK-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: EscalateDecision pending_id=$rigDecision\$/the-line/p" "$rigScenarioDir/out" )" "no:1:the-line"
 rigAssert "the ask stays open, and in the session's Wait set" \
 	"$( rigField "$rigDecision" status ):$( LC_ALL=C grep -c -F "ask:$rigDecision " "$rigScenarioDir/ws/.local/agents/sessions/$( rigSessionOf )/wait/state" 2>/dev/null )" "reply-pending:1"
 rigCall 45 EscalateDecision "{\"pending_id\":\"$rigDecision\"}"
-rigAssert "going on with that call, still nothing: the same three lines" \
-	"$rigKilled:$( rigQuiet ASK-RESULT "EscalateDecision pending_id=$rigDecision" )" "no:the-lines"
+rigAssert "going on with that call, still nothing: the same one line" \
+	"$rigKilled:$( LC_ALL=C awk 'END { print NR ; }' "$rigScenarioDir/out" ):$( LC_ALL=C sed -n "s/^ASK-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: EscalateDecision pending_id=$rigDecision\$/the-line/p" "$rigScenarioDir/out" )" "no:1:the-line"
 rigThread 000101 "$( rigReactions "$rigBoth" two )" ""
 rigCall 45 EscalateDecision "{\"pending_id\":\"$rigDecision\"}"
 rigAssert "and with the answer there, that call takes it" "$rigKilled:$( rigFirstLine "$rigScenarioDir/out" ):$( rigLineOf 'VERDICT: ' ):$( rigField "$rigDecision" status )" "no:ASK-RESULT: RECEIVED:VERDICT: beta:reply-received"

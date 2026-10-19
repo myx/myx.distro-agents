@@ -137,7 +137,7 @@ if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
 	fi
 fi
 
-. "$hookLib/AgentsTools.Grants.include" || exit 0
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include" || exit 0
 AgentsToolsGrantsSessionEnsure "$hookWs" "$hookMember" "$hookSession" "$hookIn" "$hookOut" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset" 2>/dev/null || exit 0
 hookRc=0
 AgentsToolsGrantsSessionCheck "$hookTool" "$hookReal" "$hookWs/.local/agents/sessions/$hookSession" || hookRc=$?

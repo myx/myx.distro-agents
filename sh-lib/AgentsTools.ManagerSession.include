@@ -925,7 +925,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsManagerSessionScope "$transcriptOp" "$transcriptId" "$transcriptOwn" || { set +e ; return 1 ; }
-		type AgentsTranscriptParts > /dev/null 2>&1 || . "$transcriptLib/AgentsTools.SessionTranscript.include"
+		type AgentsTranscriptParts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionTranscript.include"
 		while IFS="$transcriptTab" read -r runKind runSession runSpawn runMember runRest ; do
 			[ "$runKind" = "run" ] || continue
 			[ "$scopeRun" = "-" ] || [ "$runSpawn" = "$scopeRun" ] || continue
@@ -961,7 +961,7 @@ case "$1" in
 					[ -n "$runLines" ] || continue
 					## Each operation as the line the tracking thread shows for it, by the tracking
 					## post's own renderer and its template; no post is made, and nothing is written.
-					type AgentsEventTrackPostRender > /dev/null 2>&1 || . "$transcriptLib/AgentsTools.InternOpEventTrackPost.include"
+					type AgentsEventTrackPostRender > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpEventTrackPost.include"
 					runRows="$( printf '%s\n' "$runLines" | ETP_ROWS=1 AgentsEventTrackPostRender feed "$runMember" "" "" - \
 						| MDAT_MANAGER_SPAWN="$runSpawn" MDAT_MANAGER_MEMBER="$runMember" LC_ALL=C awk -v transcriptMode=feed -f "$transcriptLib/AgentsSessionTranscriptFormat.awk" -f "$transcriptLib/AgentsManagerSessionTranscript.awk" )"
 					[ -n "$runRows" ] || continue

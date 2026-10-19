@@ -135,7 +135,7 @@ AgentsToolsMemberWorkspaceResolve(){ ## member, operation
 	' "$resolveIndex" )"
 	[ "${resolveRows%%$'\n'*}" = "switch" ] || return 0
 	resolveRows="${resolveRows#*$'\n'}"
-	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "${BASH_SOURCE[0]%/*}/AgentsTools.Places.include"
+	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "${MDLT_ORIGIN:-$( dirname $BASH_SOURCE )/../../..}/myx/myx.distro-agents/sh-lib/AgentsTools.Places.include"
 	resolveTracked="$( AgentsToolsPlacesWorkspaceRoots )"
 	resolveHome="$( LC_ALL=C awk -F'\t' -v who="$resolveMember" '$1 == who { print $2 ; exit ; }' "${HOME:-}/.agents/magic-team/member-homes.registry" 2> /dev/null )" || resolveHome=""
 	for resolveWanted in home source-symlink any ; do
@@ -177,7 +177,7 @@ AgentsToolsWorkspaceByName(){ ## name
 	if [ "${byHere##*/}" = "$byName" ] ; then
 		printf '%s\n' "$byHere" ; return 0
 	fi
-	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "${BASH_SOURCE[0]%/*}/AgentsTools.Places.include"
+	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "${MDLT_ORIGIN:-$( dirname $BASH_SOURCE )/../../..}/myx/myx.distro-agents/sh-lib/AgentsTools.Places.include"
 	while IFS= read -r byRoot ; do
 		[ "${byRoot##*/}" = "$byName" ] || continue
 		byCount=$(( byCount + 1 )) ; byFound="$byFound${byFound:+, }$byRoot"

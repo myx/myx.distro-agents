@@ -12,6 +12,7 @@
 ## why. Offline: a Slack-shaped fake curl is first on
 ## PATH, a ps that lists the rig's own runs only is beside it, and everything runs in a
 ## workspace under this check's temp tree.
+## Extended for F6.10, the answer forms of the console: a question that takes several of its options is answered by their numbers with a comment, as the checked boxes of the console give them.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -246,6 +247,11 @@ rigAssert "yes-no by its word" "$rigOpRc:$( rigField "$rigFile" verdict )" "0:ye
 rigAsk magic-tester rig-tester question human-owner --select one --options "$rigOptions"
 rigOp --manager-pending-reply-answer --id "$rigPend" --answer 1
 rigAssert "one of its options by number" "$rigOpRc:$( rigField "$rigFile" verdict )" "0:keep"
+rigAsk magic-tester rig-tester question human-owner --select many --options "$rigOptions"
+rigOp --manager-pending-reply-read --id "$rigPend"
+rigAssert "one that takes several lists its options with their numbers, as one that takes one does" "$( rigRow answer keep ):$( rigRow answer drop )" "answer|1|keep|settles|keep the file:answer|2|drop|settles|drop it"
+rigOp --manager-pending-reply-answer --id "$rigPend" --answer "1 2" --text "both, then merge"
+rigAssert "several by their numbers, as the checked boxes of the console give them, with the comment that goes with them" "$rigOpRc:$( rigField "$rigFile" verdict ):$( rigField "$rigFile" verdict-text )" "0:keep drop:both, then merge"
 
 echo "-- a verdict that is the human-owner's own is not given from the console --"
 rigAsk magic-tester rig-tester review human-owner

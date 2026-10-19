@@ -41,8 +41,7 @@ rigRefuse(){
 ## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
 ## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-rigTmp="$( rigTempDir AgentsClientSidesCheck )" || exit 1
+rigTmp="$( mktemp -d -t AgentsClientSidesCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## A loop in the code under test must end the check rather than hang it: nothing here legitimately runs long.
 rigProcNote $$
@@ -128,14 +127,14 @@ rigWorld(){ ## -- a fresh machine
 	## each client's own contacts: a send into the other organisation passes the outbound contact gate
 	## (AgentsToolsContactAssertKnown) only for a listed recipient
 	for memberName in client-ndm client-mel ; do
-		mkdir -p "$rigWork/ws-here/.local/agents/team-data-root/inboxes/$memberName"
+		mkdir -p "$rigWork/ws-here/.local/agents/team-data-root/inboxes/$memberName/incoming"
 		printf '%s\n' \
 			'| slack-id | contact | handle | email | organisation | permission level |' \
 			'| --- | --- | --- | --- | --- | --- |' \
 			'| CNDM00001 | rig-ndm-team | @rig-ndm-team | <unresolved> | rig | unset |' \
 			'| UNDMPERSON | rig-ndm-person | @rig-ndm-person | <unresolved> | rig | unset |' \
 			'| DNDMPERSON | rig-ndm-person-dm | @rig-ndm-person | <unresolved> | rig | unset |' \
-			> "$rigWork/ws-here/.local/agents/team-data-root/inboxes/$memberName/note-rig-contacts.md"
+			> "$rigWork/ws-here/.local/agents/team-data-root/inboxes/$memberName/incoming/note-rig-contacts.md"
 	done
 	rigConsole ws-here HERE ; rigConsole ws-there THERE
 	rigClean

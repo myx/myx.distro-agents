@@ -30,9 +30,9 @@ AgentsReviewTools(){
 }
 
 AgentsReviewLoad(){
-	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.ItemDecisions.include"
-	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.SpawnSandbox.include"
-	type AgentsTranscriptEvent > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.SessionTranscript.include"
+	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
+	type AgentsTranscriptEvent > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionTranscript.include"
 	return 0
 }
 
@@ -276,7 +276,7 @@ AgentsReviewRecordCliNow(){ ## record path
 	local nowName nowPaid="" nowCli
 	nowName="$( AgentsReviewRecordPaying "$1" )"
 	if [ -n "$nowName" ] ; then
-		type AgentsToolsWorkspaceByName > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.MemberWorkspace.include"
+		type AgentsToolsWorkspaceByName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
 		nowPaid="$( AgentsToolsWorkspaceByName "$nowName" 2> /dev/null )" || nowPaid=""
 	fi
 	(
@@ -338,7 +338,7 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 	## the native one only for a session that did not run on claude at all.
 	local rsContext="" rsContextWhy=""
 	if [ -z "$rsFrom" ] && [ -z "$rsFresh" ] ; then
-		type AgentsReviewContextResumeEligible > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.HarnessResume.include"
+		type AgentsReviewContextResumeEligible > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.HarnessResume.include"
 		if rsContextWhy="$( AgentsReviewContextResumeEligible "$rsRecord" )" ; then
 			rsContext="$rsContextWhy"
 		else
@@ -481,7 +481,7 @@ AgentsToolsSpawnParentThread(){ ## parent session id, this spawn's own id
 	case "$ptParent" in ''|none|*/*|.|..) return 1 ;; esac
 	[ -n "${MMDAPP:-}" ] || return 1
 	AgentsReviewLoad
-	type AgentsToolsEventTrackThreadIs > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.EventTrackThread.include"
+	type AgentsToolsEventTrackThreadIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.EventTrackThread.include"
 	ptTrack="$( AgentsToolsEventTrackChannel )"
 	for ptRecord in "$MMDAPP/.local/agents/spawned"/*/"$ptParent.md" ; do
 		[ -f "$ptRecord" ] || continue
@@ -536,7 +536,7 @@ AgentsReviewWaitLeft(){ ## spawn id
 	done
 	case "$leftSession" in ''|-|*/*|.|..) leftSession="" ;; esac
 	if [ -n "$leftSession" ] && [ -f "$MMDAPP/.local/agents/sessions/$leftSession/control/dead" ] ; then
-		type AgentsToolsSessionControlDeathQuestion > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.SessionControlDeath.include" 2> /dev/null || :
+		type AgentsToolsSessionControlDeathQuestion > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlDeath.include" 2> /dev/null || :
 		leftHold="$( AgentsToolsSessionControlDeathQuestion "$leftSession" 2> /dev/null )" || leftHold=""
 		case "$leftHold" in
 			open) return 1 ;;
@@ -601,7 +601,7 @@ AgentsReviewShutdown(){ ## sending member
 ## review (AgentsTools.AskPost.include). The slots travel in the caller's environment, as
 ## ASKP_F_<slot>.
 AgentsReviewPromptFill(){ ## want (post|reactions|block), block `<Section>/<heading>` (with block)
-	type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.AskPost.include"
+	type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
 	AgentsToolsAskKindRow review || return 3
 	ASKP_BLOCK="${2:-}" AgentsToolsAskPostFill "$1" "$agentsAskRowTemplate" "$agentsAskRowForm"
 }
@@ -623,8 +623,8 @@ AgentsReviewPromptPost(){ ## who handed back, item file name, its spawn id, outc
 		human-owner|user-?*) ;;
 		*) return 0 ;;
 	esac
-	type AgentsToolsAskPostReact > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.AskPost.include"
-	type AgentsToolsTaskText > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.TaskText.include"
+	type AgentsToolsAskPostReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
+	type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TaskText.include"
 	rpTask="$( AgentsToolsTaskText "$rpPath" )"
 	for rpName in "$( AgentsToolsTaskTextValue "$rpTask" item )" "$( AgentsToolsTaskTextValue "$rpTask" dispatch )" ; do
 		[ -z "$rpName" ] || rpNames="$rpNames${rpNames:+ · }\`$rpName\`"
@@ -642,7 +642,7 @@ AgentsReviewPromptPost(){ ## who handed back, item file name, its spawn id, outc
 			rpThread=""
 			[ ! -f "${rpRecord%/*}/session.thread" ] || IFS= read -r rpThread < "${rpRecord%/*}/session.thread" || :
 		fi
-		type AgentsToolsPermissionSetThreadShown > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.InternOpPermission.include"
+		type AgentsToolsPermissionSetThreadShown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpPermission.include"
 		rpSessionText="$( ASKP_F_session_id="${rpCow:0:8}" ASKP_F_session_thread="$( AgentsToolsPermissionSetThreadShown "$rpWho" "$rpThread" )" \
 			ASKP_F_session_description="$( AgentsToolsTaskTextLine "$( AgentsToolsSpawnSandboxRecordHeader "$rpRecord" description )" )" AgentsReviewPromptFill block "Lines/session" 2> /dev/null )" || rpSessionText=""
 	fi
@@ -703,7 +703,7 @@ AgentsReviewPromptText(){ ## thread verdict output
 ## close is best effort.
 AgentsReviewPromptClose(){ ## record file, pending id, who closes it, why
 	local pcFile="$1" pcId="$2" pcWho="$3" pcWhy="$4" pcOwner pcChannel pcTs pcNote
-	type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.AskPost.include"
+	type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
 	AgentsReviewTools --intern-op-pending-reply-close "$pcId" --if-open --status withdrawn --withdrawn-by "$pcWho" --withdraw-reason "$pcWhy" \
 		--no-decision --context "${MDSC_CMD:-review}" > /dev/null 2>&1 || return 0
 	pcOwner="$( AgentsToolsDecisionsField "$pcFile" owner )"
@@ -745,7 +745,7 @@ AgentsReviewPromptSettle(){ ## who settled it, item file name, what was done, in
 ## take, or a review that is no longer open, whose prompt is then closed.
 AgentsReviewPromptVerdict(){ ## record file, pending id, verdict (accept|return|reject), its text (may be empty), answered by (his account, or his name)
 	local pvFile="$1" pvId="$2" pvVerdict="$3" pvText="${4:-}" pvBy="$5" pvItem pvPath pvState="" pvOut pvRc=0 pvWhy
-	type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.PermissionHolds.include"
+	type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PermissionHolds.include"
 	pvItem="$( AgentsToolsDecisionsField "$pvFile" item )"
 	if ! AgentsToolsPermissionIsHumanOwner "$pvBy" ; then
 		ASKP_F_by="$pvBy" ASKP_F_verdict="$pvVerdict" ASKP_F_item="$pvItem" ASKP_F_reason="only the human-owner gives a verdict by this prompt" AgentsReviewPromptFill block "Returned/not-applied" || :
@@ -818,7 +818,7 @@ AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismis
 			opPath="$( AgentsReviewVerdictPath "$opItem" "review running" )" || return 1
 			opState="$( AgentsReviewStateOfPath "$opPath" )"
 			## In this context, never the reviewer's workspace: the item is on the spawner's board.
-			type AgentsToolsBoardToProcessed > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.MagicBoard.include"
+			type AgentsToolsBoardToProcessed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicBoard.include"
 			opOut="$( AgentsToolsBoardToProcessed "$opWho" "$opItem" --from-state:"$opState" 2>&1 )" || {
 				printf '%s\n' "$opOut" >&2
 				echo "$MDSC_CMD: ⛔ ERROR: the move of ${opItem%.md} to processed failed, so nothing was accepted" >&2

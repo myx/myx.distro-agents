@@ -150,7 +150,8 @@ esac
 rigAssert "request 2 begins with request 1, byte for byte"    "$rigPrefixHeld" yes
 rigAssert "the thinking block is replayed exactly"            "$( rigHolds "$rigScenarioDir/req.2" '{"type":"thinking","thinking":"RIG-THINK-MARKER, then \"quoted\"\n","signature":"RIG-SIGNATURE-MARKER"}' )" yes
 rigAssert "thinking, text and call keep their stream order"   "$( rigHolds "$rigScenarioDir/req.2" '"signature":"RIG-SIGNATURE-MARKER"},{"type":"text","text":"RIG-TEXT-MARKER"},{"type":"tool_use","id":"toolu_RIG","name":"Glob","input":{"pattern": "*", "path": ' )" yes
-rigAssert "the result answers that exact call"                "$( rigHolds "$rigScenarioDir/req.2" '{"type":"tool_result","tool_use_id":"toolu_RIG","content":"' )" yes
+rigAssert "the result answers that exact call"                "$( rigHolds "$rigScenarioDir/req.2" '{"type":"tool_result","tool_use_id":"toolu_RIG","content":[{"type":"text","text":"' )" yes
+rigAssert "and the date is a text part of its own beside the result" "$( rigHolds "$rigScenarioDir/req.2" '"},{"type":"text","text":"current-date: ' )" yes
 rigAssert "the Glob call ran and its result went back"        "$( rigHolds "$rigScenarioDir/req.2" 'req.1' )" yes
 rigAssert "round 1 reports what it wrote to the cache"        "$( rigHolds "$rigScenarioDir/err" 'cached: 0, written: 5000' )" yes
 rigAssert "round 2 reports the cache it read"                 "$( rigHolds "$rigScenarioDir/err" '5360 prompt tokens this round, cached: 5100' )" yes

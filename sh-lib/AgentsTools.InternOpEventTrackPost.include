@@ -38,7 +38,7 @@
 
 agentsEventTrackPostLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 
-. "$agentsEventTrackPostLib/AgentsTools.ToolingTemplate.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ToolingTemplate.include"
 
 ## The template, from this package's own sh-lib/templates/ (AgentsToolsToolingTemplate).
 AgentsEventTrackPostTemplate(){
@@ -60,7 +60,7 @@ AgentsEventTrackPostRender(){ ## kind, member, session id, out dir, lines file, 
 	## Values travel through the environment, not -v, which would decode backslashes in them.
 	## The team's members, so a line's by= opens a block regarding that member only when it names one:
 	## every workspace's, from the member directory (AgentsTools.TeamRegistry.include).
-	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$agentsEventTrackPostLib/AgentsTools.TeamRegistry.include"
+	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
 	## Who a message's Slack account is: the team's own account cache, read only, `<id>=<name>` each.
 	local renderUsers=""
 	[ ! -s "${MMDAPP:-}/.local/.agents/slack-mention-ids.cache" ] \
@@ -149,7 +149,7 @@ case "$1" in
 			;;
 		esac
 
-		. "$agentsEventTrackPostLib/AgentsTools.CommsSlack.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
 		local etpResolved="" etpResolveRc=0 etpChannel="" etpThread=""
 		etpResolved="$( DistroAgentsToolsResolveTarget "$etpTarget" )" || etpResolveRc=$?
 		if [ "$etpResolveRc" != "0" ] ; then

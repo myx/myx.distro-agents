@@ -107,7 +107,7 @@ rigReplies(){ ## later messages
 }
 rigEnv(){ ## command... -- run under the scenario's workspace, with no model key
 	( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY \
-		RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDAT_DATA_ROOT="$rigScenarioDir/data" "$@" )
 }
 rigCollect(){ ## output name, collect arguments...
@@ -157,8 +157,8 @@ rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"Q1 yes","threa
 rigCollect ended --ended
 rigAssert "Q2 is answered"                                "$( rigStatus "$rigQ2" )" reply-received
 rigAssert "with the later reply"                          "$( rigField "$rigQ2" verdict )" "go ahead"
-rigAssert "a note is in the asker's inbox"                "$( ls "$rigScenarioDir/data/inboxes/$rigMember/" 2>/dev/null | LC_ALL=C grep -c -E '^note-[0-9]{8}T[0-9]{6}Z-answer-22222222\.md$' )" 1
-rigAssert "carrying the answer"                           "$( cat "$rigScenarioDir/data/inboxes/$rigMember/"note-*-answer-*.md 2>/dev/null | LC_ALL=C grep -c -F 'go ahead' )" 1
+rigAssert "a note is in the asker's inbox"                "$( ls "$rigScenarioDir/data/inboxes/$rigMember/incoming/" 2>/dev/null | LC_ALL=C grep -c -E '^note-[0-9]{8}T[0-9]{6}Z-answer-22222222\.md$' )" 1
+rigAssert "carrying the answer"                           "$( cat "$rigScenarioDir/data/inboxes/$rigMember/incoming/"note-*-answer-*.md 2>/dev/null | LC_ALL=C grep -c -F 'go ahead' )" 1
 rigAssert "and now the opener is marked"                  "$( rigReacted '1700000001.000101 white_check_mark' )" 1
 
 echo "-- the main loop's pass also reads a stale ask no spawn close ever marked, a typed one included --"
@@ -253,7 +253,7 @@ rigPostedTo(){ ## channel, thread ts (empty for none)
 	[ "$( rigHolds "$rigScenarioDir/post.1" "\"channel\":\"$1\"" )" = yes ] && { [ -z "$2" ] || [ "$( rigHolds "$rigScenarioDir/post.1" "\"thread_ts\":\"$2\"" )" = yes ] ; } && printf yes || printf no
 }
 rigInbox(){ ## member -> how many inquiry items it holds
-	ls "$rigScenarioDir/data/inboxes/$1/" 2>/dev/null | LC_ALL=C grep -c -E '^inquiry-[0-9]{8}T[0-9]{4}Z-' || :
+	ls "$rigScenarioDir/data/inboxes/$1/incoming/" 2>/dev/null | LC_ALL=C grep -c -E '^inquiry-[0-9]{8}T[0-9]{4}Z-' || :
 }
 
 echo "-- a handback with no addressee goes to the parent session's thread --"
@@ -331,8 +331,8 @@ rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
 rigCall SubagentHandback '{"to":"magic-librarian","outcome":"rig done"}'
 rigAssert "a member with none: no post"                   "$( rigPosts )" 0
 rigAssert "one inquiry in its inbox"                      "$( rigInbox magic-librarian )" 1
-rigAssert "of type inquiry"                               "$( cat "$rigScenarioDir/data/inboxes/magic-librarian/"inquiry-*.md 2>/dev/null | LC_ALL=C grep -c -x 'type: inquiry' )" 1
-rigAssert "carrying the handback"                         "$( cat "$rigScenarioDir/data/inboxes/magic-librarian/"inquiry-*.md 2>/dev/null | LC_ALL=C grep -c -F 'rig done' )" 1
+rigAssert "of type inquiry"                               "$( cat "$rigScenarioDir/data/inboxes/magic-librarian/incoming/"inquiry-*.md 2>/dev/null | LC_ALL=C grep -c -x 'type: inquiry' )" 1
+rigAssert "carrying the handback"                         "$( cat "$rigScenarioDir/data/inboxes/magic-librarian/incoming/"inquiry-*.md 2>/dev/null | LC_ALL=C grep -c -F 'rig done' )" 1
 rigAssert "and the first line names the inbox route"      "$( rigFirstIs 'Sent to the inbox of magic-librarian as inquiry-' )" yes
 rigStart hbMemberUnknown
 rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
@@ -432,7 +432,7 @@ rigDecisionLines(){
 	LC_ALL=C awk '/^## Decisions[ \t]*$/ { on = 1 ; next } on && /^##? / { on = 0 } on && /^- / { n++ } END { print n + 0 }' "$rigScenarioDir/data/board/blocked/$rigLiveItem.md"
 }
 rigNotes(){
-	ls "$rigScenarioDir/data/inboxes/$rigMember/" 2>/dev/null | LC_ALL=C grep -c -E '^note-.*-answer-' || :
+	ls "$rigScenarioDir/data/inboxes/$rigMember/incoming/" 2>/dev/null | LC_ALL=C grep -c -E '^note-.*-answer-' || :
 }
 rigLiveSpawn="rig-live-spawn-$$-$RANDOM"
 printf '900001 rig-run --session-id %s\n' "$rigLiveSpawn" > "$rigTmp/ps.list"

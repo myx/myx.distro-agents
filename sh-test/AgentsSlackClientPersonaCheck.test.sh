@@ -42,8 +42,7 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 [ -f "$rigInclude" ] || rigRefuse "the Slack include is not at: $rigInclude"
 [ -f "$rigRegInclude" ] || rigRefuse "the registries include is not at: $rigRegInclude"
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-rigTmp="$( rigTempDir AgentsSlackClientPersonaCheck )" || exit 1
+rigTmp="$( mktemp -d -t AgentsSlackClientPersonaCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigSkills="$rigTmp/skills" ; rigHome="$rigTmp/home"
@@ -126,7 +125,7 @@ rigWorld(){ ## -- a fresh workspace and skillset with the default tokens, member
 	local contactsMember
 	rm -rf "$rigDataRoot"
 	for contactsMember in client-ndm client-mel ; do
-		mkdir -p "$rigDataRoot/inboxes/$contactsMember"
+		mkdir -p "$rigDataRoot/inboxes/$contactsMember/incoming"
 		printf '%s\n' \
 			'| slack-id | contact | handle | email | organisation | permission level |' \
 			'| --- | --- | --- | --- | --- | --- |' \
@@ -136,7 +135,7 @@ rigWorld(){ ## -- a fresh workspace and skillset with the default tokens, member
 			'| URIGKEEPER | rig-keeper | @rig-keeper | <unresolved> | rig | unset |' \
 			'| URIGNDM | rig-client-ndm | @rig-client-ndm | <unresolved> | rig | unset |' \
 			'| URIGACCT | rig-account | @rig-account | <unresolved> | rig | unset |' \
-			> "$rigDataRoot/inboxes/$contactsMember/note-rig-contacts.md"
+			> "$rigDataRoot/inboxes/$contactsMember/incoming/note-rig-contacts.md"
 	done
 	rigBuild
 }

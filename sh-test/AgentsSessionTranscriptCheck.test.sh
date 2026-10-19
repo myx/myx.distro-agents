@@ -197,7 +197,7 @@ rigAssert "the coordinator op runs as magic-coordinator only" "$( printf '%s\n' 
 rigOut="$( MDAT_SPAWN_SESSION_ID= MDAT_SPAWN_AGENT=magic-tester "$rigFn" --magic-append-session-transcript magic-coordinator "$rigSid" --message 'a member as the coordinator' 2>&1 ; echo "rc=$?" )"
 rigAssert "and from no member's session naming it" "$( printf '%s\n' "$rigOut" | tail -1 ):$( rigHas "$rigT" '> a member as the coordinator' )" rc=1:0
 rigOut="$( printf '%s' '{"note":"served note"}' | MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=magic-tester "$rigHarness" --intern-tool SessionTranscriptAppend 2>/dev/null )"
-rigAssert "the SessionTranscriptAppend tool appends through the served harness" "$( printf '%s\n' "$rigOut" | rigReplyBare )" "OK: appended to ${rigT##*/}"
+rigAssert "the SessionTranscriptAppend tool appends through the served harness" "$rigOut" "OK: appended to ${rigT##*/}"
 rigAssert "with the member as speaker" "$( LC_ALL=C grep -A1 'NOTE by=magic-tester' "$rigT" | tail -1 )" '> served note'
 rigOut="$( printf '%s' '{"note":"x"}' | MDAT_SPAWN_SESSION_ID= MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=magic-tester "$rigHarness" --intern-tool SessionTranscriptAppend 2>/dev/null )"
 rigAssert "the tool refuses with ERROR where no session resolves" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c '^ERROR: .*--member-append-session-transcript: no session resolves' )" 1

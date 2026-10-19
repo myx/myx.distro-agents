@@ -16,13 +16,12 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
-rigTmp="$( rigTempDir AgentsHeartbeatDayRhythmCheck )" || exit 1
+rigTmp="$( mktemp -d -t AgentsHeartbeatDayRhythmCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigSkills="$rigTmp/skills"
-rigInbox="$rigData/inboxes/magic-coordinator"
+rigInbox="$rigData/inboxes/magic-coordinator/incoming"
 rigHbNote="$rigInbox/note-20260809T155000Z-heartbeat-state-and-lock.md"
 rigGroomNote="$rigInbox/note-20260809T154332Z-grooming-state-and-lock.md"
 rigDailyNote="$rigInbox/note-20260811T120000Z-daily-state-and-lock.md"

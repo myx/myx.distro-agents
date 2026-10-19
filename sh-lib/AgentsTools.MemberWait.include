@@ -150,6 +150,9 @@ agentsWaitKindEvery="slack:1 file:1 inbox:1 board:1 ask:1"
 ## stored baseline starts from an empty one: an arrival already there returns at once, as a
 ## --wait-since-utime does for a thread. Every other kind takes its first probe as the baseline.
 agentsWaitKindEmptyBaseline="ask"
+## Kinds whose rendering is a list of arrivals from a floor, so only a line the baseline lacks
+## is an arrival: an item taken away (an inbox item marked handled, moved out of incoming/) is none.
+agentsWaitKindArrivalsOnly="inbox"
 ## How far a floor (--wait-since-utime) may lead this host's clock, in seconds. The ts of a
 ## message just posted is another clock's "now", so a floor that close ahead is still a
 ## moment that has passed; one further ahead is not, and is refused before anything is waited on.
@@ -298,19 +301,12 @@ AgentsWaitProbeFile(){
 
 ## The own inbox and one board state are listings of a directory, so they are the file probe over it.
 ## The inbox listing is names only, deliberately: an arrival adds a name and wakes the wait.
-## A split inbox (AgentsTools.InboxPlace.include) is listed in its incoming/ alone, and only the
+## The inbox (AgentsTools.InboxPlace.include) is listed in its incoming/ alone, and only the
 ## items that came at or after the read floor: an item in processed/ wakes nothing, and marking an
 ## item that came before the floor handled, which moves it out of incoming/, changes nothing that is
-## listed -- marking is the waiting member's own act, never new input for it. A flat inbox, until
-## its store is moved, is listed whole as before: marking stamps `processed-at` in place and changes
-## no name, and the GC collecting a marked item removes a name and wakes it once, which is harmless.
+## listed -- marking is the waiting member's own act, never new input for it.
 AgentsWaitProbeInbox(){
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 2
-	type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
-	if ! AgentsToolsInboxSplit "$2" ; then
-		AgentsWaitProbeFile "$1" "$MDAT_DATA_ROOT/inboxes/$2" "$3" "$4"
-		return $?
-	fi
 	local probeDir="$MDAT_DATA_ROOT/inboxes/$2/incoming" probeFloor="${3%%.*}" probeFile probeAt
 	: > "$4" || return 2
 	[ -d "$probeDir" ] || return 0
@@ -1381,6 +1377,11 @@ case "$1" in
 				*)
 					if [ "$waitMode" = "continue" ] ; then
 						[ ! -f "$waitStateDir/base.$floorIndex" ] || cp "$waitStateDir/base.$floorIndex" "$waitDir/base.$floorIndex"
+						## An inbox renders from its floor (AgentsWaitProbeInbox): continued, from when the
+						## stored wait ended, so what came between the two calls is rendered, and is new.
+						case "$checkSource" in
+							inbox:*) [ ! -f "$waitStateDir/base.$floorIndex" ] || waitFloorOf[$floorIndex]="$( date -r "$waitStateDir/base.$floorIndex" +%s 2> /dev/null || printf '%s' "${waitFloorOf[$floorIndex]}" )" ;;
+						esac
 					elif [ "$waitMode" = "default" ] ; then
 						## since_utime is a Slack-source floor (AgentsWaitTsNewer, above); it names no
 						## opinion about a non-Slack source's own stored content baseline, so carrying
@@ -1455,7 +1456,11 @@ case "$1" in
 				## is empty: what stood there was taken -- an answer its asker read moves the floor of
 				## its thread past it -- or taken back, and neither is an arrival.
 				if ! cmp -s "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" \
-					&& { [ -s "$waitDir/now.$roundIndex" ] || case " $agentsWaitKindEmptyBaseline " in *" $roundKind "*) false ;; *) true ;; esac ; } ; then
+					&& { [ -s "$waitDir/now.$roundIndex" ] || case " $agentsWaitKindEmptyBaseline " in *" $roundKind "*) false ;; *) true ;; esac ; } \
+					&& case " $agentsWaitKindArrivalsOnly " in
+						*" $roundKind "*) LC_ALL=C awk 'FILENAME == ARGV[1] { seen[$0] = 1 ; next } !( $0 in seen ) { added = 1 ; exit } END { exit !added }' "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" ;;
+						*) true ;;
+					esac ; then
 					waitOutcome="RECEIVED"
 					waitHits="$waitHits$roundIndex=$roundSource "
 				fi

@@ -45,9 +45,9 @@ AgentsToolsItemResolvePaths(){
 		;;
 		inbox)
 			## An inbox item here is a standing note, a state and lock note of a routine among
-			## them, so it lives where an item with no processed stamp lives: incoming/ of a
-			## split inbox, the root of a flat one (AgentsTools.InboxPlace.include).
-			type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+			## them, so it lives where an item with no processed stamp lives: incoming/
+			## (AgentsTools.InboxPlace.include).
+			type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
 			itemWriteDir="$( AgentsToolsInboxDir "$inboxMember" )"
 			itemLookupFolders=( "$itemWriteDir" )
 			itemLockable="true"

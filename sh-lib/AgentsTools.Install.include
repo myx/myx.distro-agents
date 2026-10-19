@@ -1282,7 +1282,7 @@ case "$1" in
 		local hookRecords hookRecord hookInstallName hookInstallNames="" hookSrcFile hookDstFile hookDstTmp
 		hookRecords="$(
 			harnessHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-			. "$harnessHere/AgentsHarnessHooksLoad.include" || exit 1
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessHooksLoad.include" || exit 1
 			AgentsHarnessHooksIndexWrite "$workspace" || exit 1
 			AgentsHarnessHooksIndexRecords "$workspace/.local/agents/harness.hooks.index" || exit 1
 			printf '%s' "$agentsHooksRecords"
@@ -2215,7 +2215,7 @@ case "$1" in
 				local entryOut
 				entryOut="$(
 					MMDAPP="$workspace" ; harnessHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-					. "$harnessHere/AgentsHarnessMcpConfig.include" || exit 1
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessMcpConfig.include" || exit 1
 					AgentsHarnessMcpResolve "$1"
 					[ "$harnessMcpResCmdRc" = 0 ] || exit 1
 					entryEsc(){ printf '%s' "$1" | LC_ALL=C awk -f "$mcpRoot/include/data/agentMcpJsonEscape.awk" ; }

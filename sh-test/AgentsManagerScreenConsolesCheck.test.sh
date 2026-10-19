@@ -23,6 +23,7 @@
 ## is given back as it was.
 ## Offline: no operation of the real tooling is called, and no console of this machine is started.
 ## Reconciled for F11.0: the left pane has no `keys:` line of its own any more; the status line names Enter as Start.
+## Reconciled for F11.0, the table lines: the table of the consoles has an empty line between its rows, so the left window holds three lines more.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -139,7 +140,7 @@ rigRootLine(){ ## text -- the number of the line of the screen, as first shown, 
 	printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -n -F -- "$1" | head -1 | LC_ALL=C cut -d: -f1
 }
 rigAssert "the root list holds it after the team members and ahead of the settings, as a folder, whatever other roots stand between" "$( [ "$( rigRootLine ' Team Members  ' )" -lt "$( rigRootLine ' Consoles  ' )" ] && [ "$( rigRootLine ' Consoles  ' )" -lt "$( rigRootLine ' Settings  ' )" ] && echo in-that-order ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -F ' Consoles  ' | LC_ALL=C grep -c -F '►' )" "in-that-order 1"
-rigAssert "not entered: its list is read once the selection has rested on its row, and the left window then holds what the folder holds" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "consoles [] 8"
+rigAssert "not entered: its list is read once the selection has rested on its row, and the left window then holds what the folder holds" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "consoles [] 11"
 rigAssert "Enter enters it, and its list is read by the operation with no argument" "$( rigVal in.path ) $( rigCalled --manager-console-list ) $( rigOthers )" "consoles 1 0"
 rigAssert "its window is titled by its name, without the dots"       "[$( rigVal title )]" "[Consoles]"
 rigAssert "the rows stand in the order of the operation, each by its label with its group at the end" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )]" \

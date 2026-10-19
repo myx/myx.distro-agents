@@ -6,7 +6,7 @@
 ## every inbox operation, scan, Wait and the GC ask (MAGIC.md, "Inbox items live in incoming/
 ## and processed/"). In-context helpers with no operation of their own. Sourced for its
 ## functions only:
-##   type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+##   type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
 ##
 ## THE SPLIT INBOX. An inbox holds two folders, `incoming/` and `processed/`, and an item's
 ## processed stamp (`processed-at` in its front matter) decides its folder: no stamp, incoming/;
@@ -14,53 +14,26 @@
 ## folders: an operation names an item, never its folder, and sees incoming/ alone unless it is
 ## given --include-processed.
 ##
-## FLAT MODE, until a store is moved once to the split form: a store in which no inbox has an
-## `incoming/` folder is read and written at the root of each inbox, exactly as before the split,
-## its items marked processed in place and its legacy `processed/` a read-only fallback. The
-## one-time move makes the folders, so a store switches the moment it is moved. The store
-## decides, never one inbox: git keeps no empty folder, so in a moved store one inbox whose
-## items are all processed may have no incoming/ of its own, and it is split all the same.
+## Every store is split since F4.3's one-time move: no inbox is read or written at its root. A
+## folder that is not there yet is made by the first write into it; git keeps no empty folder.
 ##
 
-## Whether that member's inbox is split: rc 0 where it is, 1 where it is flat. The store of the
-## team data decides it (FLAT MODE, above): split where any of its inboxes has an incoming/.
-AgentsToolsInboxSplit(){ ## member
-	local splitAny
-	for splitAny in "$MDAT_DATA_ROOT"/inboxes/*/incoming ; do
-		[ -d "$splitAny" ] && return 0
-	done
-	return 1
-}
-
-## Where an item of that inbox with no processed stamp lives: its incoming/, or, flat, its root.
+## Where an item of that inbox with no processed stamp lives: its incoming/.
 AgentsToolsInboxDir(){ ## member
-	if AgentsToolsInboxSplit "$1" ; then
-		printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming"
-	else
-		printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1"
-	fi
+	printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming"
 }
 
 ## Where an item of that inbox belongs by its stamp: `yes` it carries processed-at, else not.
-## Split: processed/ or incoming/. Flat: the root, either way, marked in place.
+## processed/ or incoming/.
 AgentsToolsInboxDirFor(){ ## member, stamped (yes|no)
-	if AgentsToolsInboxSplit "$1" ; then
-		if [ "$2" = "yes" ] ; then printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/processed" ; else printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming" ; fi
-	else
-		printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1"
-	fi
+	if [ "$2" = "yes" ] ; then printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/processed" ; else printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming" ; fi
 }
 
-## The folders a read of that inbox looks in, one a line, in their order. Split: incoming/,
-## and processed/ after it where `yes` includes the processed. Flat, as before: the root, and
-## its legacy processed/ after it, whatever is asked.
+## The folders a read of that inbox looks in, one a line, in their order: incoming/, and
+## processed/ after it where `yes` includes the processed.
 AgentsToolsInboxFolders(){ ## member, include processed (yes|no)
-	if AgentsToolsInboxSplit "$1" ; then
-		printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming"
-		[ "${2:-no}" != "yes" ] || printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/processed"
-	else
-		printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1" "$MDAT_DATA_ROOT/inboxes/$1/processed"
-	fi
+	printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming"
+	[ "${2:-no}" != "yes" ] || printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/processed"
 }
 
 ## The path of the item of that name in that inbox, where a read finds it: rc 1, and nothing
@@ -73,10 +46,9 @@ AgentsToolsInboxItemFind(){ ## member, item name, include processed (yes|no)
 	return 1
 }
 
-## Whether the item of that name lies in that split inbox's processed/: rc 0 where it does. A
-## flat inbox has no such folder of its own: rc 1.
+## Whether the item of that name lies in that inbox's processed/: rc 0 where it does.
 AgentsToolsInboxItemProcessed(){ ## member, item name
-	AgentsToolsInboxSplit "$1" && [ -f "$MDAT_DATA_ROOT/inboxes/$1/processed/$2" ]
+	[ -f "$MDAT_DATA_ROOT/inboxes/$1/processed/$2" ]
 }
 
 ## The path of a standing note of that inbox, the state and lock notes of the routines among

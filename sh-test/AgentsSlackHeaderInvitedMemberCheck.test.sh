@@ -223,12 +223,12 @@ echo "-- the same client to the other organisation: its persona, and nothing of 
 ## What a send into the other organisation needs, in the workspace it is called from: the
 ## client's own token there and its contact for the conversation.
 printf '%s\n' 'SLACK_USER_TOKEN=rig-user-token-CLIENTHERE' > "$rigWork/ws-here/.local/.agents/client-rig.agent.env"
-mkdir -p "$rigWork/ws-here/.local/agents/team-data-root/inboxes/client-rig"
+mkdir -p "$rigWork/ws-here/.local/agents/team-data-root/inboxes/client-rig/incoming"
 printf '%s\n' \
 	'| slack-id | contact | handle | email | organisation | permission level |' \
 	'| --- | --- | --- | --- | --- | --- |' \
 	'| CCLIENT001 | rig-client-team | @rig-client-team | <unresolved> | rig | unset |' \
-	> "$rigWork/ws-here/.local/agents/team-data-root/inboxes/client-rig/note-rig-contacts.md"
+	> "$rigWork/ws-here/.local/agents/team-data-root/inboxes/client-rig/incoming/note-rig-contacts.md"
 rigRunIn ws-here --client-comms-slack-send-message client-rig CCLIENT001 RIG-BODY
 rigAssert "a --client- send: the mark, names and alias of its persona row, and no member name of ours" \
 	"$rigRc $( rigText ) $( LC_ALL=C grep -c -e 'client-rig' -e '👥' "$rigTmp/bodies" )" '0 🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY 0'
