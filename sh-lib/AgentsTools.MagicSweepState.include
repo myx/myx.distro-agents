@@ -11,11 +11,14 @@
 ## client-* scan from that client's own record.
 ##
 
+## Where an inbox item lives, split or flat (F4.3).
+type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+
 ## Prints the path of <member>'s own sweep-state record. The filename is fixed
 ## and unchanged, so magic-coordinator's existing record resolves where it
 ## always did.
 AgentsToolsMagicSweepStatePath(){ ## member
-	printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/note-20260812T231137Z-sweep-state.md"
+	printf '%s\n' "$( AgentsToolsInboxDir "$1" )/note-20260812T231137Z-sweep-state.md"
 }
 
 ## Prints <member>'s own stored `last_swept_ts`. Three outcomes, told apart by

@@ -264,7 +264,7 @@ rigStarter(){ ## run folder, screen|socket, environment settings... -- one start
 	shift 2
 	[ "$starterKind" = screen ] || starterFile="$rigHere/AgentsSlackSocketMode.py"
 	mkdir -p "$starterDir"
-	env -i HOME="$rigHome" PATH="$rigNoBashPath" RIG_FILED="$starterDir/$starterKind.filed" SOCKET_MODE_LOG_DIR="$starterDir/log" "$@" \
+	env -i HOME="$rigHome" PATH="$rigNoBashPath" MMDAPP="$rigTmp" RIG_FILED="$starterDir/$starterKind.filed" SOCKET_MODE_LOG_DIR="$starterDir/log" "$@" \
 		"$rigPython" -I -B "$rigTmp/starters.py" "$starterKind" "$starterFile" "$rigTmp/stand-tool.sh" > "$starterDir/$starterKind.out" 2>&1
 }
 ## A member's command, where the tooling runs one (--intern-mcp-execute), the tool entered by its path with its bash given.
@@ -315,7 +315,7 @@ rigAssert "each starter starts the tool script with the bash handed to it, a nam
 	"$( cat "$rigTmp/handed/screen.out" ) / $( LC_ALL=C grep -c -x 'RIG-MENTION' "$rigTmp/handed/socket.filed" 2> /dev/null )" "status=0 text=RIG-TOOL --rig-operation one / 1"
 rigStarter "$rigTmp/unhanded" screen
 rigAssert "control: handed none, a starter starts the script by its path as before, which on that PATH finds no bash" "$( cat "$rigTmp/unhanded/screen.out" )" "status=127 text="
-rigAssert "the screen's own start makes its reader that way" "$( LC_ALL=C grep -c -F 'reader = OperationReader(toolsCommandOf(options["--tools"]))' "$rigHere/AgentsManagerScreen.py" )" 1
+rigAssert "the screen's own start makes its reader that way" "$( LC_ALL=C grep -c -F 'reader = OperationReader(toolsCommandOf(options["--tools"]), options["--workspace"])' "$rigHere/AgentsManagerScreen.py" )" 1
 ## The harness entered with its bash given and no tool before it: a call that names `bash`, the Bash tool with a
 ## timeout of its own, which runs its command in a bash of its own.
 mkdir -p "$rigTmp/harness-call"

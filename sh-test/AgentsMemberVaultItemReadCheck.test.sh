@@ -15,7 +15,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsMemberVaultItemReadCheck.XXXXXX" )" || exit 1
+rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsMemberVaultItemReadCheck-XXXXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/ws/.local" "$rigTmp/home" "$rigTmp/skills/magic-tester" "$rigTmp/data/vault" "$rigTmp/data/audit"
 printf 'line one\nline two\nline three\nline four\n' > "$rigTmp/data/vault/verbatim-20260929T1000Z-rig.md"
@@ -93,7 +93,7 @@ rigOp --member-audit-item-read magic-tester transcript-2026-09-29-rig.md
 rigAssert "it is read, rc 0"                         "$rigRc" 0
 rigAssert "with its content"                         "$( rigHolds "$rigTmp/out" 'transcript line' )" yes
 rigOp --member-audit-item-read magic-tester verbatim-20260929T1000Z-audit-only.md
-rigAssert "a non-transcript name is refused"         "$( rigHolds "$rigTmp/err" 'only transcript-* documents are allowed' )" yes
+rigAssert "a name that is no transcript is refused"   "$( rigHolds "$rigTmp/err" 'only transcript-* documents and session-*.log transcripts are allowed' )" yes
 
 echo "-- the stubs check who is asking --"
 rigOp --member-vault-item-read no-such-member verbatim-20260929T1000Z-rig.md

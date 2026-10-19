@@ -14,6 +14,9 @@
 ## paths: resync, conflict check, and the unlock order".
 ##
 
+## Where an inbox item lives, split or flat (F4.3).
+type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+
 ## Runs the board's own resync primitive. Caller declares advanceSyncOut.
 AgentsToolsAdvanceCloneSync(){
 	local repoRoot="$1" originUrl="$2" lockBranch="$3"
@@ -260,7 +263,7 @@ type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 AgentsToolsAdvanceInputScanReport(){ ## calling member
 	local callingMember="$1"
 	printf '%s\n\n' "## state-and-lock (routine-advance)"
-	local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
+	local lockNote="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T154715Z-advance-state-and-lock.md"
 	if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
 	## Scoped to what advance itself acts on, per the owner's "grooming reads
 	## backlog+inquiries+notes, advance does not": no backlog (promotion is
@@ -577,7 +580,7 @@ case "$1" in
 			set +e ; return 1
 		}
 
-		local lockTarget="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
+		local lockTarget="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T154715Z-advance-state-and-lock.md"
 		local originUrl="" repoRoot="" lockRelPath="" lockBranch=""
 		set +e
 		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"

@@ -8481,10 +8481,25 @@ class OperationReader:
     ## The kinds of call that act, and so run on when the screen ends.
     LASTING = ("action",)
 
-    def __init__(self, toolsCommand):
+    def __init__(self, toolsCommand, workspace=""):
         self.toolsCommand = list(toolsCommand)
+        self.workspace = workspace
         self.running = {}
         self.ended = []
+
+    ## Where a call's files are kept: the workspace's own scratch folder, .local/agents/scratch,
+    ## never the system's temp folder. The workspace is the screen's own, else the one MMDAPP
+    ## names; with neither there is no folder, and no call is started.
+    def scratch(self):
+        root = self.workspace or os.environ.get("MMDAPP", "")
+        if not root or not os.path.isdir(root):
+            return None
+        folder = os.path.join(root, ".local", "agents", "scratch")
+        try:
+            os.makedirs(folder, exist_ok=True)
+        except OSError:
+            return None
+        return folder
 
     def busy(self, kind):
         return kind in self.running
@@ -8495,12 +8510,17 @@ class OperationReader:
     def start(self, kind, key, words, inputText=None):
         if kind in self.running:
             return False
-        outputFile = tempfile.TemporaryFile()
-        errorFile = tempfile.TemporaryFile()
+        folder = self.scratch()
+        if folder is None:
+            self.ended.append({"kind": kind, "key": key, "words": list(words), "status": 127, "text": "", "said": "",
+                               "error": "could not be started: no workspace to keep its output in (.local/agents/scratch)"})
+            return True
+        outputFile = tempfile.TemporaryFile(dir=folder)
+        errorFile = tempfile.TemporaryFile(dir=folder)
         inputFile = None
         if inputText is not None:
             ## what was typed goes to the operation on its standard input, never as a word of its command
-            inputFile = tempfile.TemporaryFile()
+            inputFile = tempfile.TemporaryFile(dir=folder)
             inputFile.write(inputText.encode("utf-8", "replace"))
             inputFile.flush()
             inputFile.seek(0)
@@ -10004,7 +10024,7 @@ def main(arguments):
     ## the first; a name that is no style leaves the first.
     setStyle(options["--style"] or os.environ.get(STYLE_VARIABLE, "") or STYLE_FIRST)
     state = ManagerState(options["--workspace"])
-    reader = OperationReader(toolsCommandOf(options["--tools"]))
+    reader = OperationReader(toolsCommandOf(options["--tools"]), options["--workspace"])
     signal.signal(signal.SIGTERM, endOnSignal)
     signal.signal(signal.SIGHUP, endOnSignal)
     ## curses.wrapper gives the terminal back as it was before anything else happens, on

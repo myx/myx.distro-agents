@@ -297,13 +297,33 @@ AgentsWaitProbeFile(){
 }
 
 ## The own inbox and one board state are listings of a directory, so they are the file probe over it.
-## The inbox listing is names only, deliberately: an arrival adds a name and wakes the wait, while
-## marking an item handled stamps `processed-at` in place and changes no name, so it does not --
-## marking is the waiting member's own act, never new input for it. The GC collecting a marked item
-## does remove a name and wakes it once: rare, and a wake with nothing new is harmless.
+## The inbox listing is names only, deliberately: an arrival adds a name and wakes the wait.
+## A split inbox (AgentsTools.InboxPlace.include) is listed in its incoming/ alone, and only the
+## items that came at or after the read floor: an item in processed/ wakes nothing, and marking an
+## item that came before the floor handled, which moves it out of incoming/, changes nothing that is
+## listed -- marking is the waiting member's own act, never new input for it. A flat inbox, until
+## its store is moved, is listed whole as before: marking stamps `processed-at` in place and changes
+## no name, and the GC collecting a marked item removes a name and wakes it once, which is harmless.
 AgentsWaitProbeInbox(){
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 2
-	AgentsWaitProbeFile "$1" "$MDAT_DATA_ROOT/inboxes/$2" "$3" "$4"
+	type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+	if ! AgentsToolsInboxSplit "$2" ; then
+		AgentsWaitProbeFile "$1" "$MDAT_DATA_ROOT/inboxes/$2" "$3" "$4"
+		return $?
+	fi
+	local probeDir="$MDAT_DATA_ROOT/inboxes/$2/incoming" probeFloor="${3%%.*}" probeFile probeAt
+	: > "$4" || return 2
+	[ -d "$probeDir" ] || return 0
+	for probeFile in "$probeDir"/*.md ; do
+		[ -f "$probeFile" ] || continue
+		probeAt="$( date -r "$probeFile" +%s 2> /dev/null )" || continue
+		case "$probeFloor" in
+			''|*[!0-9]*) ;;
+			*) [ "$probeAt" -ge "$probeFloor" ] || continue ;;
+		esac
+		printf '%s\n' "${probeFile##*/}" >> "$4" || return 2
+	done
+	return 0
 }
 AgentsWaitProbeBoard(){
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 2

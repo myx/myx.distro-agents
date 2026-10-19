@@ -11,6 +11,9 @@
 ## Contracts in MAGIC.md.
 ##
 
+## Where an inbox item lives, split or flat (F4.3).
+type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+
 ## The outbound-to-unlisted-people gate: one shared check, called from
 ## each real send op (Slack, email) right before its own network call,
 ## never duplicated per protocol. "Known" is deliberately narrow here --
@@ -76,7 +79,7 @@ AgentsToolsContactAssertKnown(){ ## <team-member> --tool <bare-op-name, no leadi
 	## the op's own internal implementation, not a member-facing read),
 	## first file matching regardless of its own creation timestamp.
 	local assertContactsFile="" assertCandidate
-	for assertCandidate in "$MDAT_DATA_ROOT/inboxes/$assertMember"/note-*-contacts.md ; do
+	for assertCandidate in "$( AgentsToolsInboxDir "$assertMember" )"/note-*-contacts.md ; do
 		[ -f "$assertCandidate" ] || continue
 		assertContactsFile="$assertCandidate" ; break
 	done

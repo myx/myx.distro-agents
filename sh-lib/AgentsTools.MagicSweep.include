@@ -9,6 +9,9 @@
 ## $1/$@/$MDSC_CMD.
 ##
 
+## Where an inbox item lives, split or flat (F4.3).
+type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+
 ## Prints the stored `last_swept_ts` of a sweep-state note read on stdin, and
 ## nothing else. Only the leading `---` frontmatter block is looked at: the body
 ## of this note quotes watermarks in prose, pass after pass, and a whole-file
@@ -273,7 +276,7 @@ case "$1" in
 		## nowhere to record how far its own sources had been swept. The filename
 		## is deliberately unchanged, so magic-coordinator's own existing note
 		## resolves to exactly the same path it always did.
-		local stateDir="$MDAT_DATA_ROOT/inboxes/$callingMember"
+		local stateDir="$( AgentsToolsInboxDir "$callingMember" )"
 		mkdir -p "$stateDir" || {
 			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: can't create inbox directory: $stateDir" >&2
 			set +e ; return 1
@@ -402,7 +405,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicSweepState.include"
-		local stateDir="$MDAT_DATA_ROOT/inboxes/$callingMember" target=""
+		local stateDir="$( AgentsToolsInboxDir "$callingMember" )" target=""
 		target="$( AgentsToolsMagicSweepStatePath "$callingMember" )"
 		mkdir -p "$stateDir" || {
 			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-advance: can't create inbox directory: $stateDir" >&2

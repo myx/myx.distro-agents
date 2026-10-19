@@ -15,6 +15,7 @@
 ## not bare, a folder or an item that is not there, a path the list of a member's files does not give, and a file
 ## that is no text. BOTH ONLY READ: every file of the team data and of the member's folder is as it was. THE CALLER RULE of the family holds for
 ## both. And the help pair of each. Offline; only the rig's own tree is read.
+## Reconciled for F4.3: the team data read takes --include-processed, for the inboxes store it now lists.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -147,7 +148,7 @@ rigAssert "from inside a member's session both are refused, rc 1, nothing on std
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"
 rigHelpMd="$rigHere/help/Help.DistroAgentsTools.help.md"
 rigBad=""
-for rigSyntax in "$rigData <store> [<folder> [<item>]]" "$rigFiles <team-member> [<file>]" ; do
+for rigSyntax in "$rigData <store> [<folder> [<item>]] [--include-processed]" "$rigFiles <team-member> [<file>]" ; do
 	rigLine="📘 syntax: DistroAgentsTools.fn.sh $rigSyntax"
 	[ "$( LC_ALL=C grep -c -x -F -- "echo \"$rigLine\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigLine" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s' "$rigSyntax" )" "$rigHelpMd" || : )" = "1 1 1" ] || rigBad="$rigBad [$rigSyntax]"
 done

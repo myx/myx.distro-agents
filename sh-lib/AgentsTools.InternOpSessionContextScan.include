@@ -8,9 +8,12 @@
 ## standard $MDLT_ORIGIN-based path. Not standalone: relies on being
 ## dot-sourced for $1/$@/$MDSC_CMD.
 ## Its whole argument contract is documented in MAGIC.md, "The internal session-context scan".
+## An inbox is listed where its items live (AgentsTools.InboxPlace.include): a split one in its
+## incoming/, and its processed/ too where the processed are asked for; a flat one at its root.
 ##
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
+type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
 
 case "$1" in
 
@@ -51,7 +54,7 @@ case "$1" in
 		## nothing here writes into another member's inbox.
 		local inboxAlsoMembers=() alsoSeen
 		local doBoardRelatedActive="false" doBoardRelatedAll="false"
-		local itemIncludeInbox="false"
+		local itemIncludeInbox="false" itemIncludeProcessed="no"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--state)
@@ -148,6 +151,7 @@ case "$1" in
 				--no-inbox-other)          noInboxOther="true" ; shift ;;
 				--no-board-related)        noBoardRelated="true" ; shift ;;
 				--item-include-inbox)      itemIncludeInbox="true" ; shift ;;
+				--include-processed)       itemIncludeProcessed="yes" ; shift ;;
 				--comms-since-date-time|--comms-since-utime)
 					if [ -z "${2:-}" ] ; then
 						echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: $1: value required" >&2
@@ -1652,7 +1656,7 @@ case "$1" in
 			local inboxFilterDesc inboxCandidates=() ci inboxEmit=()
 			## Paths of the root items marked `processed-at`, newline-framed so one
 			## `case` pattern tests membership; built once per inbox, not per section.
-			local inboxLF=$'\n' inboxProcessedSet inboxRootItems=()
+			local inboxLF=$'\n' inboxProcessedSet inboxRootItems=() inboxSplitHere="no"
 
 			## The acting member's own inbox first -- byte-for-byte the same sections as
 			## before this option existed -- and then one labelled group per widened
@@ -1671,9 +1675,12 @@ case "$1" in
 						"$inboxMember" "$actingMember" "$inboxMember"
 				fi
 				inboxDir="$MDAT_DATA_ROOT/inboxes/$inboxMember"
+				inboxSplitHere="no"
+				AgentsToolsInboxSplit "$inboxMember" && inboxSplitHere="yes"
 				inboxProcessedSet="$inboxLF"
 				inboxRootItems=()
-				for f in "$inboxDir"/*.md ; do
+				## A split inbox needs no read of a front matter to tell the processed apart: its folder says it.
+				[ "$inboxSplitHere" = "yes" ] || for f in "$inboxDir"/*.md ; do
 					[ -f "$f" ] && inboxRootItems+=( "$f" )
 				done
 				if [ ${#inboxRootItems[@]} -gt 0 ] ; then
@@ -1714,7 +1721,13 @@ case "$1" in
 						;;
 					esac
 
-					if [ "$inboxWithProcessed" = "true" ] ; then
+					if [ "$inboxSplitHere" = "yes" ] && [ "$inboxWithProcessed" = "true" ] ; then
+						inboxScopeLine="inboxes/$inboxMember/ -- its incoming items and its processed items"
+						inboxFilterText="including processed"
+					elif [ "$inboxSplitHere" = "yes" ] ; then
+						inboxScopeLine="inboxes/$inboxMember/ -- its incoming items, none processed"
+						inboxFilterText="excluding processed"
+					elif [ "$inboxWithProcessed" = "true" ] ; then
 						inboxScopeLine="inboxes/$inboxMember/*.md -- top level, processed items included, plus legacy processed/"
 						inboxFilterText="including processed"
 					else
@@ -1731,7 +1744,17 @@ case "$1" in
 
 					inboxScanned=0
 					inboxCandidates=()
-					if [ -d "$inboxDir" ] ; then
+					if [ "$inboxSplitHere" = "yes" ] ; then
+						## Split: incoming/ holds what is not processed, processed/ the rest.
+						for f in "$inboxDir/incoming"/*.md ; do
+							[ -f "$f" ] && inboxCandidates+=( "$f" )
+						done
+						if [ "$inboxWithProcessed" = "true" ] ; then
+							for f in "$inboxDir/processed"/*.md ; do
+								[ -f "$f" ] && inboxCandidates+=( "$f" )
+							done
+						fi
+					elif [ -d "$inboxDir" ] ; then
 						## An item marked handled carries `processed-at` and stays in the
 						## root: active scopes drop it here, before the cap counts anything.
 						for f in "$inboxDir"/*.md ; do
@@ -1863,8 +1886,13 @@ case "$1" in
 		done
 
 		if [ "$itemIncludeInbox" = "true" ] && [ ${#items[@]} -gt 0 ] ; then
-			local namedInboxDir="$MDAT_DATA_ROOT/inboxes/$actingMember"
-			local namedEmit=() namedMissing=() namedFound namedPath ni
+			local namedInboxDir="$MDAT_DATA_ROOT/inboxes/$actingMember" namedFolders=()
+			local namedEmit=() namedMissing=() namedFound namedPath ni namedFolder
+			## Where a read finds it (AgentsToolsInboxFolders): split, incoming/, and processed/ with
+			## --include-processed; flat, the root first, marked or not, the legacy processed/ after it.
+			while IFS= read -r namedFolder ; do
+				namedFolders+=( "$namedFolder" )
+			done < <( AgentsToolsInboxFolders "$actingMember" "$itemIncludeProcessed" )
 			for it in "${items[@]}" ; do
 				namedFound="false"
 				## Already rendered by the board walk above -- named, found,
@@ -1873,8 +1901,8 @@ case "$1" in
 					if [ "${f##*/}" = "$it" ] ; then namedFound="true" ; break ; fi
 				done
 				if [ "$namedFound" = "false" ] ; then
-					## Root first, marked or not; the legacy processed/ is a read-only fallback.
-					for namedPath in "$namedInboxDir/$it" "$namedInboxDir/processed/$it" ; do
+					for namedFolder in "${namedFolders[@]}" ; do
+						namedPath="$namedFolder/$it"
 						if [ -f "$namedPath" ] ; then
 							namedFound="true"
 							local namedSeen="false" namedPrev
@@ -1898,8 +1926,16 @@ case "$1" in
 
 			ni=0
 			while [ "$ni" -lt "${#namedMissing[@]}" ] ; do
-				printf '**NOTE:** named item not found -- %s, searched every board state and inboxes/%s/ including legacy processed/\n\n' \
-					"${namedMissing[$ni]}" "$actingMember"
+				if AgentsToolsInboxSplit "$actingMember" && [ "$itemIncludeProcessed" = "yes" ] ; then
+					printf '**NOTE:** named item not found -- %s, searched every board state and inboxes/%s/, its incoming and its processed items\n\n' \
+						"${namedMissing[$ni]}" "$actingMember"
+				elif AgentsToolsInboxSplit "$actingMember" ; then
+					printf '**NOTE:** named item not found -- %s, searched every board state and inboxes/%s/, its incoming items (not its processed ones: --include-processed)\n\n' \
+						"${namedMissing[$ni]}" "$actingMember"
+				else
+					printf '**NOTE:** named item not found -- %s, searched every board state and inboxes/%s/ including legacy processed/\n\n' \
+						"${namedMissing[$ni]}" "$actingMember"
+				fi
 				ni=$(( ni + 1 ))
 			done
 		fi

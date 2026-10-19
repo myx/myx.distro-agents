@@ -153,7 +153,8 @@ rigAssert "the same record is no-process"              "$( rigRow "$rigTmp/l2" r
 
 echo "-- control: no MMDAPP --"
 rigList "$rigTmp/l3"
-rigAssert "it is a stated ERROR"                       "$( LC_ALL=C grep -c '^ERROR: MMDAPP is not set in this process' "$rigTmp/l3" || : )" 1
+## The harness itself refuses first, where it has no workspace to keep its scratch in.
+rigAssert "it is a stated ERROR"                       "$( LC_ALL=C grep -c -E '^ERROR: (MMDAPP is not set in this process|no workspace to keep the scratch of this call in -- MMDAPP names none)' "$rigTmp/l3" || : )" 1
 rigAssert "and never an empty list"                    "$( LC_ALL=C grep -c '^## spawned sessions' "$rigTmp/l3" || : )" 0
 
 if [ "$rigFailCount" -ne 0 ] ; then

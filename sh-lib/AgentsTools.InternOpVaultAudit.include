@@ -69,30 +69,27 @@ case "$1" in
 	## names, found in its month folder first, then the audit root.
 	--intern-op-audit-item-read)
 		shift
-		local documentName="${1:-}" rangeArgs=() auditRoot yearMonth readArgs folder
+		local documentName="${1:-}" rangeArgs=() readArgs folder
 		shift || true
 		if [ -z "$documentName" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-audit-item-read: syntax is <document-name> [--start-line <N> --end-line <N>]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$documentName" "<document-name>" intern-op-audit-item-read || { set +e ; return 1 ; }
+		## A transcript, and a session's own transcript, the log a spawn record names.
 		case "$documentName" in
-			transcript-*) ;;
+			transcript-*|session-*.log) ;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-audit-item-read: only transcript-* documents are allowed: $documentName" >&2
+				echo "⛔ ERROR: $MDSC_CMD --intern-op-audit-item-read: only transcript-* documents and session-*.log transcripts are allowed: $documentName" >&2
 				set +e ; return 1
 			;;
 		esac
 		AgentsToolsVaultAuditRange --intern-op-audit-item-read "$@" || { set +e ; return 1 ; }
-		auditRoot="$MDAT_DATA_ROOT/audit"
+		## Where it is filed, by the one audit lookup (AgentsToolsAuditFolders).
 		readArgs=( "$documentName" --context --intern-op-audit-item-read )
-		case "$documentName" in
-			transcript-[0123456789][0123456789][0123456789][0123456789]-[0123456789][0123456789]-*)
-				yearMonth="$( printf '%s' "$documentName" | LC_ALL=C sed -E 's/^transcript-([0-9]{4})-([0-9]{2})-.*/\1-\2/' )"
-				readArgs+=( --lookup-folder "$auditRoot/$yearMonth" )
-			;;
-		esac
-		readArgs+=( --lookup-folder "$auditRoot" )
+		while IFS= read -r folder ; do
+			readArgs+=( --lookup-folder "$folder" )
+		done < <( AgentsToolsAuditFolders "$documentName" )
 		AgentsToolsDataRead "${readArgs[@]}" ${rangeArgs[@]+"${rangeArgs[@]}"}
 		return $?
 	;;

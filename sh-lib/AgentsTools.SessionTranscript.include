@@ -281,11 +281,14 @@ AgentsTranscriptContextRender(){ ## session id
 	return 0
 }
 
-## A new transcript's path under the team data root.
+## A new transcript's path under the team data root: its name, and its month folder by the one
+## audit lookup (AgentsToolsAuditMonth, AgentsTools.InternOpDataRead.include) every reader finds it by.
 AgentsTranscriptNewRel(){ ## member, session id
-	local relStamp
-	relStamp="$( date -u +%Y%m%dT%H%M%SZ )"
-	printf 'audit/%s-%s/session-%s-%s-%s.log' "${relStamp:0:4}" "${relStamp:4:2}" "$relStamp" "${1:-unknown}" "${2:0:8}"
+	local relName relMonth
+	type AgentsToolsAuditMonth > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpDataRead.include" 2> /dev/null || return 1
+	relName="session-$( date -u +%Y%m%dT%H%M%SZ )-${1:-unknown}-${2:0:8}.log"
+	relMonth="$( AgentsToolsAuditMonth "$relName" )" || return 1
+	printf 'audit/%s/%s' "$relMonth" "$relName"
 }
 
 ## Opens a session's transcript: the file with its START line, and the pointers every

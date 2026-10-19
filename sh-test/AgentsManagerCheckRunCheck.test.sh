@@ -29,6 +29,7 @@ ln -s "$( PATH=/bin:/usr/bin command -v sleep )" "$rigTmp/rig-sleep"
 cat > "$rigTmp/stand-in" <<RIGSTANDIN
 #!/bin/sh
 printf '%s\n' "\$*" >> "$rigTmp/stand-in.calls"
+ls -1 "$rigWs/.local/agents/scratch" >> "$rigTmp/stand-in.scratch" 2> /dev/null
 case "\$1" in
 	--owner-setup-claude)
 		printf '%s\n' '# DistroAgentsTools --owner-setup-claude --check: read-only diagnosis (nothing applied)' 'CLAUDE_HARNESS_INSTALLED: OK' '' '## workspace ws-rig' 'SPAWN_CLI_SERVICE: WARN' '  warn: set to another CLI, so this workspace does not run claude' '  fix:  /rig/tool --owner-setup-claude --set-as-default --apply' 'AGENTS_CONSOLE_SCRIPT: FAIL' '  warn: differs from the template it would be regenerated from, so it is' '        behind this release' '  path: /rig/ws/DistroAgentsConsole.sh'
@@ -81,6 +82,10 @@ rigRun "$rigOp" --seconds 0
 rigAssert "a bound that is no number above nought is refused" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: --seconds takes a whole number above nought of up to four digits -- nothing was run" )" "1 0 1"
 rigPre=( "MDAT_SPAWN_AGENT=keeper-rig" ) ; rigRun "$rigOp" storage ; rigPre=()
 rigAssert "from inside a member's session it is refused by the one rule of the family" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "DistroAgentsTools: ${rigOp#--}: ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" "1 0 1"
+
+echo "-- 2b. what the checks print is kept in the workspace's own scratch, never the system's temp folder --"
+rigAssert "while the checks ran, their run folder was in the workspace's .local/agents/scratch" "$( LC_ALL=C grep -c '^AgentsManagerCheck\.' "$rigTmp/stand-in.scratch" 2> /dev/null | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "there" : "not-there" }' )" there
+rigAssert "and it is gone after every call" "$( ls -1 "$rigWs/.local/agents/scratch" | LC_ALL=C grep -c '^AgentsManagerCheck\.' )" 0
 
 echo "-- 3. it decides nothing, and the help pair --"
 rigInclude="$rigHere/AgentsTools.ManagerCheck.include"

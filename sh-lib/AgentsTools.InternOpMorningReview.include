@@ -17,9 +17,12 @@
 ## line), 1 none.
 ##
 
+## Where an inbox item lives, split or flat (F4.3).
+type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+
 ## Prints the path of <member>'s own morning-review cut-off record.
 AgentsToolsMorningReviewStatePath(){ ## member
-	printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/note-20261008T000000Z-morning-review-state.md"
+	printf '%s\n' "$( AgentsToolsInboxDir "$1" )/note-20261008T000000Z-morning-review-state.md"
 }
 
 ## Prints <member>'s own stored `last_reviewed_ts`: rc 0 found, rc 3 nothing stored yet,

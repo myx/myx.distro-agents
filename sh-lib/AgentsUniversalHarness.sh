@@ -719,9 +719,19 @@ fi
 ## there. AgentsHarnessDeniedHint below names the real fix on that one refusal: reread the
 ## original tool with a narrower offset/limit.
 
-harnessScratchBase="${TMPDIR:-/tmp}"
+## The run's scratch is the workspace's own, never the system's temp folder (the owner's rule:
+## no /tmp): the spawn's sandbox tmp/ where it has one, else $MMDAPP/.local/agents/scratch, which
+## no member's floor grants (AgentsTools.Grants.include). With no workspace there is no scratch,
+## and no run: a served call says so on stdout, where its caller reads every refusal.
+harnessScratchBase=""
 if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && mkdir -p "$MDAT_SPAWN_SANDBOX_ROOT/tmp" 2>/dev/null ; then
 	harnessScratchBase="$MDAT_SPAWN_SANDBOX_ROOT/tmp"
+elif [ -n "${MMDAPP:-}" ] && [ -d "$MMDAPP" ] && mkdir -p "$MMDAPP/.local/agents/scratch" 2>/dev/null ; then
+	harnessScratchBase="$MMDAPP/.local/agents/scratch"
+else
+	[ -z "$harnessToolOnly" ] || printf 'ERROR: no workspace to keep the scratch of this call in -- MMDAPP names none, so nothing was done\n'
+	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: no workspace to keep the scratch of this run in -- MMDAPP names none, and the system temp folder is never used" >&2
+	exit 1
 fi
 harnessScratch="$( mktemp -d "$harnessScratchBase/AgentsUniversalHarness.XXXXXX" )" || {
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: could not create a scratch directory" >&2
@@ -2224,9 +2234,9 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 		fi
 		## A run that reports to no one ends on its report.
 		if AgentsHarnessReportsNone ; then
-			## Unless it founded its session and others of it still run (F6.9): it ends once they have.
+			## Unless runs that need it still run (F6.9): it ends once they have.
 			if AgentsHarnessDismissWaits > /dev/null ; then
-				printf 'NEXT: your report is given, and others of the session you founded still run -- call Wait with no sources and obey what arrives, until it returns DISMISSED once they have ended\n'
+				printf 'NEXT: your report is given, and runs that need you still run -- call Wait with no sources and obey what arrives, until it returns DISMISSED once they have ended\n'
 				return 0
 			fi
 			printf 'NEXT: your report is given and you report to no one -- end your run now, and call nothing more\n'
@@ -2365,7 +2375,7 @@ AgentsHarnessDismissedAfter(){ ## tool name
 ## first read of the session or post to it; a run without it is given nothing of the session but
 ## a DISMISSED addressed to it, and its post there is refused, naming the run that holds it. A
 ## run whose seat passed to the run that restarts it is dismissed by the tooling. A dismissal of
-## a session's executor waits while another participant of that session runs, and is given at
+## a run waits while runs that need it still run (AgentsToolsSessionDismissHeld), and is given at
 ## its first Wait once they have ended.
 
 ## This run's seat in its session: rc 0, nothing printed, where it holds it or has none to hold
@@ -2592,8 +2602,8 @@ AgentsHarnessToolWait(){
 		case "$waitReviewLeft" in
 			'') ;;
 			expired)
-				## The limit dismisses no run while another participant of its session runs (F6.9): the wait goes on.
-				if [ -n "$waitRecord" ] && AgentsToolsSessionOthersRunning "$waitRecord" > /dev/null ; then
+				## The limit dismisses no run while another participant of its session runs, or a run that needs it (F6.9): the wait goes on.
+				if [ -n "$waitRecord" ] && AgentsToolsSessionLimitHeld "$waitRecord" > /dev/null ; then
 					waitReviewLeft=""
 				else
 					waitDismissedEarlier="$( AgentsReviewWaitExpire "${harnessAgent:-unknown}" "$( AgentsHarnessSessionKey )" 2> /dev/null )" || :
@@ -2727,7 +2737,7 @@ AgentsHarnessToolWait(){
 		return 0
 	fi
 	cat "$harnessScratch/wait.out"
-	[ -z "$waitHeldOthers" ] || printf '# DISMISSED held: this run founded its session, where %s still run: the dismissal is given at its first Wait once they have ended\n' "$waitHeldOthers"
+	[ -z "$waitHeldOthers" ] || printf '# DISMISSED held: runs that need this run still run (%s): the dismissal is given at its first Wait once they have ended\n' "$waitHeldOthers"
 	## One extra last line naming the next call, on the tool's own stateful wait only: an internal
 	## stateless caller (a tool that asks) embeds this output and has no stored wait to continue.
 	[ "$waitTool" = "true" ] || return 0
@@ -3854,7 +3864,7 @@ AgentsHarnessToolSubagentHandback(){
 	## run whose handback is given, so the harness ends it once this call is over
 	## (AgentsHarnessDismissedAfter). Its report moves nothing to review.
 	if [ "$toolRoute" = none ] && [ -f "$harnessScratch/send.delivered" ] ; then
-		## One that founded its session ends once the others of it have ended (F6.9): kept until then.
+		## One that runs still need ends once they have ended (F6.9): kept until then.
 		if AgentsHarnessDismissWaits > /dev/null ; then
 			AgentsToolsSessionDismissHold "$MDAT_SPAWN_SESSION_ID" "tooling (this run reports to no one, and its report is given)" handback-given
 			rm -f "$harnessScratch/send.delivered"
@@ -6001,6 +6011,22 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 		## stay as written.
 		skillArgs="$toolArgs" skillLabel="$toolSkill" skillBaseDir="$skillDir" skillPluginRoot="$pluginRoot" skillPluginData="$skillPluginData" \
 		LC_ALL=C awk -f "$harnessHere/AgentsHarnessSkillArgumentsFill.awk" "$skillPath" > "$harnessScratch/skill.out"
+		## A team member's skill is served as one read: its SKILL.md as above, then its basic and
+		## its armed file merged under it, each a section of its own by its file name
+		## (--intern-merge-md-files, AgentsTools.InternMergeMdFiles.include), with every level
+		## of theirs kept, so nothing a member reads is cut to a reference. A skill whose SKILL.md
+		## front matter declares `status: reference-only` (human-owner) is not merged: its own file
+		## reads the armed one only where deeper context is needed.
+		local skillMember="${skillDir##*/}"
+		if [ -f "$skillDir/$skillMember.basic.md" ] && [ -f "$skillDir/$skillMember.armed.md" ] \
+			&& [ "$( LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } /^status:[ \t]*reference-only[ \t\r]*$/ { print "yes" ; exit }' "$skillPath" )" != yes ] ; then
+			type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$harnessHere/AgentsTools.InternMergeMdFiles.include"
+			printf '\n' >> "$harnessScratch/skill.out"
+			AgentsToolsMergeMdFiles --section-limit 6 --mixin "$skillDir/$skillMember.basic.md" "$skillMember.basic.md" \
+				--mixin "$skillDir/$skillMember.armed.md" "$skillMember.armed.md" >> "$harnessScratch/skill.out" 2> "$harnessScratch/skill.merge.err" || {
+				printf 'ERROR: Skill: the basic and armed files of %s could not be merged into the read: %s\n' "$skillMember" "$( head -1 "$harnessScratch/skill.merge.err" )" ; return 0
+			}
+		fi
 		if [ -n "$toolSection" ] ; then
 			AgentsHarnessSkillSection "$harnessScratch/skill.out" "$toolSection" > "$harnessScratch/skill.section" || :
 			mv -f "$harnessScratch/skill.section" "$harnessScratch/skill.out"

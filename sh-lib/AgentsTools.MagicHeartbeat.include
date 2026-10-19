@@ -9,6 +9,9 @@
 ## dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
+## Where an inbox item lives, split or flat (F4.3).
+type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.RecheckDate.include"
 
 ## One frontmatter field's value from a note, bounded to the block between the
@@ -26,8 +29,8 @@ AgentsToolsHeartbeatNoteField(){ ## <path> <field>
 ## last-iteration-date and today-stage, today's local date and weekday, and
 ## grooming's own note. Dates are local, as the `last-close-date` stamps are.
 AgentsToolsHeartbeatDayRhythm(){
-	local hbNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
-	local groomNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154332Z-grooming-state-and-lock.md"
+	local hbNote="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T155000Z-heartbeat-state-and-lock.md"
+	local groomNote="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T154332Z-grooming-state-and-lock.md"
 	local hbToday hbLast hbStage hbBranch groomToday="none" groomRecheckEpoch
 	hbToday="$( date +%Y-%m-%d )"
 	hbLast="$( AgentsToolsHeartbeatNoteField "$hbNote" last-iteration-date )"
@@ -99,7 +102,7 @@ AgentsToolsHeartbeatInputScanReport(){ ## calling member
 	printf '\n'
 	## THIS IS THE LOCK NOTE, NOT THE `heartbeat-state-note`.
 	printf '%s\n\n' "## state-and-lock (routine-heartbeat)"
-	local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
+	local lockNote="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T155000Z-heartbeat-state-and-lock.md"
 	if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
 	## Questions: what the main loop's last collect found, then every question still open,
 	## with its session, asker and age. Both written by the tooling; this pass only reads.
@@ -436,7 +439,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local stateDir="$MDAT_DATA_ROOT/inboxes/magic-coordinator"
+		local stateDir="$( AgentsToolsInboxDir magic-coordinator )"
 		mkdir -p "$stateDir" || {
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: can't create inbox directory: $stateDir" >&2
 			set +e ; return 1
@@ -662,7 +665,7 @@ case "$1" in
 		}
 		## Same document --magic-heartbeat-lock-acquire/-refresh/-close-unlock
 		## and --magic-heartbeat-state-upsert all write -- must match exactly.
-		local target="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
+		local target="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T155000Z-heartbeat-state-and-lock.md"
 		if [ -f "$target" ] ; then
 			cat "$target"
 		else
@@ -695,7 +698,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-test-report-send: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local reportNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
+		local reportNote="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T155000Z-heartbeat-state-and-lock.md"
 		if [ ! -f "$reportNote" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-test-report-send: $reportNote does not exist -- acquire the lock first (--magic-heartbeat-lock-acquire)" >&2
 			set +e ; return 1

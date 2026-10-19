@@ -432,11 +432,63 @@ AgentsToolsSessionRunExecutor(){ ## spawn record
 	[ "$execRun" = "$( AgentsToolsSpawnSandboxRecordHeader "$1" session-id )" ]
 }
 
-## Whether a dismissal of a run waits: it is its session's executor, and another participant of
-## that session still runs. rc 0 it waits, those participants printed, one a line; rc 1 it does not.
+## Whether an address names a run of member M in session S: M itself, `S:M`, or `S` alone where the
+## run is the executor of S, as a session named without a member means its executor (F6.8).
+AgentsToolsSessionAddressNames(){ ## address, session, member, `executor` where the run is S's executor
+	case "$1" in
+		''|'-') return 1 ;;
+		"$3"|"$2:$3") return 0 ;;
+		"$2") [ "${4:-}" = executor ] ;;
+		*) return 1 ;;
+	esac
+}
+
+## The live runs that need a run: in its own session, or in a session it is the parent of
+## (`parent-session-id:`), a run that names it in its own `reports-to:`, or in the `review-by:` of
+## the item it works (its `spawns:`). Their spawn ids, one a line, rc 0; rc 1 where none does.
+AgentsToolsSessionRunNamedBy(){ ## spawn record
+	local namedSession namedMember namedOwn namedExecutor="" namedCandidate namedId namedFound=1 namedItem namedItemPath
+	namedSession="$( AgentsToolsSpawnSandboxRecordHeader "$1" session-id )"
+	namedMember="$( AgentsToolsSpawnSandboxRecordHeader "$1" owner )"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.BareName.include"
+	AgentsToolsAssertBareName "$namedSession" "the session" AgentsToolsSessionRunNamedBy 2> /dev/null && AgentsToolsAssertBareName "$namedMember" "the member" AgentsToolsSessionRunNamedBy 2> /dev/null || return 1
+	namedOwn="${1##*/}" ; namedOwn="${namedOwn%.md}"
+	! AgentsToolsSessionRunExecutor "$1" || namedExecutor="executor"
+	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include" 2> /dev/null || :
+	for namedCandidate in $( LC_ALL=C grep -l -x -F -e "session-id: $namedSession" -e "parent-session-id: $namedSession" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.md 2> /dev/null ) ; do
+		namedId="${namedCandidate##*/}" ; namedId="${namedId%.md}"
+		[ "$namedId" != "$namedOwn" ] || continue
+		AgentsToolsSessionRecordLive "$namedCandidate" || continue
+		if ! AgentsToolsSessionAddressNames "$( AgentsToolsSpawnSandboxRecordHeader "$namedCandidate" "$agentsRunRouteField" )" "$namedSession" "$namedMember" "$namedExecutor" ; then
+			namedItem="$( AgentsToolsSpawnSandboxRecordHeader "$namedCandidate" spawns )"
+			[ -n "$namedItem" ] && namedItemPath="$( AgentsToolsDecisionsItemPath "$namedItem" 2> /dev/null )" || continue
+			AgentsToolsSessionAddressNames "$( AgentsToolsSpawnSandboxRecordHeader "$namedItemPath" review-by )" "$namedSession" "$namedMember" "$namedExecutor" || continue
+		fi
+		printf '%s\n' "$namedId"
+		namedFound=0
+	done
+	return "$namedFound"
+}
+
+## Whether a dismissal of a run waits: it is its session's executor and another participant of that
+## session still runs, or a live run needs it (AgentsToolsSessionRunNamedBy). rc 0 it waits, those
+## runs printed, one a line; rc 1 it does not.
 AgentsToolsSessionDismissHeld(){ ## spawn record
-	AgentsToolsSessionRunExecutor "$1" || return 1
-	AgentsToolsSessionOthersRunning "$1"
+	local heldOthers="" heldNamed=""
+	! AgentsToolsSessionRunExecutor "$1" || heldOthers="$( AgentsToolsSessionOthersRunning "$1" )" || heldOthers=""
+	heldNamed="$( AgentsToolsSessionRunNamedBy "$1" )" || heldNamed=""
+	[ -n "$heldOthers$heldNamed" ] || return 1
+	printf '%s\n%s\n' "$heldOthers" "$heldNamed" | LC_ALL=C awk 'NF && !seen[$0]++'
+}
+
+## Whether the review-wait limit waits for a run: another participant of its session still runs,
+## or a live run needs it. rc 0 it waits, those runs printed, one a line; rc 1 it does not.
+AgentsToolsSessionLimitHeld(){ ## spawn record
+	local limitOthers="" limitNamed=""
+	limitOthers="$( AgentsToolsSessionOthersRunning "$1" )" || limitOthers=""
+	limitNamed="$( AgentsToolsSessionRunNamedBy "$1" )" || limitNamed=""
+	[ -n "$limitOthers$limitNamed" ] || return 1
+	printf '%s\n%s\n' "$limitOthers" "$limitNamed" | LC_ALL=C awk 'NF && !seen[$0]++'
 }
 
 ## A dismissal kept for a run until it may be given: who dismissed it, then `handback-given`
@@ -773,13 +825,13 @@ AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
 	childMember="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" owner )"
 	[ -n "$childMember" ] || { printf 'ACCEPT-DISMISS: not sent: spawn %s names no owner member to address\n' "$itemSpawn" ; return 0 ; }
 	[ "$childMember" != "$sendBy" ] || { printf 'ACCEPT-DISMISS: not sent: the accepting member %s is the child member itself, and its own Wait ignores a DISMISSED it authored\n' "$sendBy" ; return 0 ; }
-	## An executor is not dismissed while another participant of its session runs (F6.9): its
-	## dismissal is kept, and given at its first Wait once they have ended.
+	## A run is not dismissed while runs that need it still run (F6.9, AgentsToolsSessionDismissHeld):
+	## its dismissal is kept, and given at its first Wait once they have ended.
 	local childOthers=""
 	if childOthers="$( AgentsToolsSessionDismissHeld "$recordPath" )" ; then
 		AgentsToolsSessionDismissHold "$itemSpawn" "$sendBy (the accept of ${itemPath##*/})"
-		printf 'ACCEPT-DISMISS: held: spawn %s founded session %s, where %s still run: its DISMISSED is given at its first Wait once they have ended\n' \
-			"$itemSpawn" "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" session-id )" "$( printf '%s' "$childOthers" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )"
+		printf 'ACCEPT-DISMISS: held: runs that need spawn %s still run (%s): its DISMISSED is given at its first Wait once they have ended\n' \
+			"$itemSpawn" "$( printf '%s' "$childOthers" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )"
 		return 0
 	fi
 	childThread="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" session-thread )"

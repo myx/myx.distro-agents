@@ -28,6 +28,9 @@
 ## is AgentsToolsManagerConfigKeySecret, below.
 ##
 
+## Where an inbox item lives, split or flat (F4.3).
+type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+
 type AgentsToolsOwnerSetupOptionSpec > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OwnerSetupOptionSpec.include"
 type AgentsToolsPlacesListText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Places.include"
 type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CliService.include"
@@ -492,7 +495,7 @@ AgentsToolsManagerConfigSystems(){
 ## is not yet a minute past, which is what the lock operations take for a held lock.
 AgentsToolsManagerConfigLoop(){
 	local loopFile="${MMDAPP%/}/.local/agents/main-loop.state" loopLine loopKey
-	local loopNote="${MDAT_DATA_ROOT:-}/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
+	local loopNote="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T155000Z-heartbeat-state-and-lock.md"
 	local loopState="" loopRecheck="" loopEpoch="" loopRuns="no"
 	## Only a team rig runs the main loop: in any other mode nothing of it is said.
 	case "$( AgentsToolsManagerConfigMode )" in "team-rig "*) ;; *) return 0 ;; esac

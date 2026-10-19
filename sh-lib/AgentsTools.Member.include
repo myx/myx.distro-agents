@@ -10,6 +10,9 @@
 ## --pretty AgentsSlackMessagesFormat.awk reference in the same file).
 ##
 
+## Where an inbox item lives, split or flat (F4.3).
+type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+
 case "$1" in
 
 	## A note and a reflection go into the writer's own inbox only: a spawned session names itself.
@@ -34,8 +37,9 @@ case "$1" in
 		case "${1:-}:${2:-}" in
 			*/*|:*|*:) ;;
 			*)
-				inquiryFile="${MDAT_DATA_ROOT:-}/inboxes/$1/$2"
-				if [ -n "${MDAT_DATA_ROOT:-}" ] && [ -f "$inquiryFile" ] && [ -n "$inquiryFrom" ] ; then
+				inquiryFile=""
+				[ -z "${MDAT_DATA_ROOT:-}" ] || inquiryFile="$( AgentsToolsInboxItemFind "$1" "$2" yes )" || inquiryFile=""
+				if [ -n "$inquiryFile" ] && [ -f "$inquiryFile" ] && [ -n "$inquiryFrom" ] ; then
 					inquiryAuthor="$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, "from: " ) == 1 { print substr( $0, 7 ) ; exit ; }' "$inquiryFile" 2> /dev/null )" || inquiryAuthor=""
 					if [ "$inquiryAuthor" != "$inquiryFrom" ] ; then
 						echo "⛔ ERROR: $MDSC_CMD --member-upsert-member-inquiry: $2 is already in $1's inbox, written by ${inquiryAuthor:-nobody named}, so $inquiryFrom cannot overwrite it -- nothing was done" >&2
@@ -215,18 +219,10 @@ case "$1" in
 		fi
 		## The month folder comes from the name's own date, so a session crossing
 		## a month boundary keeps appending to the one file it started.
+		## By the one audit lookup (AgentsToolsAuditMonth), which every reader of it looks up by.
+		type AgentsToolsAuditMonth > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpDataRead.include"
 		local yearMonth
-		case "$transcriptName" in
-			transcript-[0-9][0-9][0-9][0-9]-[0-9][0-9]-*)
-				yearMonth="$( printf '%s' "$transcriptName" | sed -E 's/^transcript-([0-9]{4})-([0-9]{2})-.*/\1-\2/' )"
-			;;
-			transcript-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T*)
-				yearMonth="$( printf '%s' "$transcriptName" | sed -E 's/^transcript-([0-9]{4})([0-9]{2}).*/\1-\2/' )"
-			;;
-			*)
-				yearMonth="$( date -u +%Y-%m )"
-			;;
-		esac
+		yearMonth="$( AgentsToolsAuditMonth "$transcriptName" )" || yearMonth="$( date -u +%Y-%m )"
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
 			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
@@ -404,7 +400,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: syntax is <member> <item-filename> [--start-line <N> --end-line <N>]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: syntax is <member> <item-filename> [--include-processed] [--start-line <N> --end-line <N>]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<member>" member-inbox-item-read || { set +e ; return 1 ; }
@@ -423,9 +419,13 @@ case "$1" in
 			;;
 		esac
 
-		local startLine="" endLine=""
+		local startLine="" endLine="" includeProcessed="no"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
+				--include-processed)
+					includeProcessed="yes"
+					shift
+				;;
 				--start-line)
 					startLine="$2"
 					shift 2
@@ -451,10 +451,12 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local inboxDir="$MDAT_DATA_ROOT/inboxes/$memberName"
-		## Root first; processed/ is the legacy folder, a read-only fallback until the GC drains it.
-		local readArgs=( "$itemName" --context --member-inbox-item-read \
-			--lookup-folder "$inboxDir" --lookup-folder "$inboxDir/processed" )
+		## Where a read finds it (AgentsToolsInboxFolders): split, incoming/, and processed/ with
+		## --include-processed; flat, the root first, its legacy processed/ a read-only fallback.
+		local readArgs=( "$itemName" --context --member-inbox-item-read ) readFolder
+		while IFS= read -r readFolder ; do
+			readArgs+=( --lookup-folder "$readFolder" )
+		done < <( AgentsToolsInboxFolders "$memberName" "$includeProcessed" )
 
 		if [ -n "$startLine" ] ; then
 			readArgs+=( --start-line "$startLine" --end-line "$endLine" )
@@ -465,8 +467,9 @@ case "$1" in
 	;;
 
 	##
-	## Member-scoped trash for one item out of the member's OWN inbox --
-	## the inbox root, or its legacy processed/ while that still exists, root first.
+	## Member-scoped trash for one item out of the member's OWN inbox, by its name
+	## alone, from either folder of a split inbox (with --exclude-incoming a processed
+	## item only); of a flat one, the inbox root, or its legacy processed/, root first.
 	## Forwards to the same intern-op arm --librarian-inbox-item-trash
 	## calls; the difference is only where --from-inbox: comes from.
 	##
@@ -507,8 +510,12 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-trash: syntax is <member> <item-filename>" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-trash: syntax is <member> <item-filename> [--exclude-incoming]" >&2
 			set +e ; return 1
+		fi
+		local trashOnly=()
+		if [ "${1:-}" = "--exclude-incoming" ] ; then
+			trashOnly=( --exclude-incoming ) ; shift
 		fi
 		if [ $# -gt 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-trash: invalid option: $1" >&2
@@ -525,12 +532,13 @@ case "$1" in
 			;;
 		esac
 		DistroAgentsTools --intern-op-board-trash "$memberName" "--from-inbox:$memberName" "$itemName" \
-			--context --member-inbox-item-trash
+			${trashOnly[@]+"${trashOnly[@]}"} --context --member-inbox-item-trash
 		return $?
 	;;
 
-	## Any member marks its own inbox item handled: `processed-at` stamped in place in its
-	## inbox root, through the same primitive --librarian-inbox-to-processed uses.
+	## Any member marks its own inbox item handled: `processed-at` stamped, and the item moved
+	## to processed/ of a split inbox (in place at the root of a flat one), through the same
+	## primitive --librarian-inbox-to-processed uses.
 	## Own inbox only -- <team-member> is both the actor and the inbox, and a spawned
 	## session naming another member than itself is refused.
 	--member-inbox-to-processed)
@@ -540,13 +548,13 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-inbox-to-processed: syntax is <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-to-processed: syntax is <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local passthrough=()
 		while [ $# -gt 0 ] ; do
 			case "$1" in
-				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin|--include-processed)
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)

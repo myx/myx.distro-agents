@@ -8,6 +8,35 @@
 ##   type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpDataRead.include"
 ##
 
+## THE AUDIT LOOKUP (F5.8): the one mapping of an audit item's name to the folder it is filed in,
+## which its writers file by and all its readers look it up by. A name with a date of its own has
+## a month folder, audit/<YYYY-MM>, from that date: a transcript named by a dashed date
+## (transcript-YYYY-MM-DD-...) or by a compact stamp (transcript-YYYYMMDDT...), and a session's own
+## transcript (session-YYYYMMDDT...log, the one a spawn record names in `transcript:`). Any other
+## name has none. An item is looked for in its month folder first, then in the audit root.
+
+## The month folder of an audit item's name, `YYYY-MM`, printed, rc 0; rc 1, nothing printed, for a
+## name that has none. Digits enumerated, never a bracket range, which is collation-bound.
+AgentsToolsAuditMonth(){ ## item name
+	case "$1" in
+		transcript-[0123456789][0123456789][0123456789][0123456789]-[0123456789][0123456789]-*)
+			printf '%s-%s\n' "${1:11:4}" "${1:16:2}" ;;
+		transcript-[0123456789][0123456789][0123456789][0123456789][0123456789][0123456789][0123456789][0123456789]T*)
+			printf '%s-%s\n' "${1:11:4}" "${1:15:2}" ;;
+		session-[0123456789][0123456789][0123456789][0123456789][0123456789][0123456789][0123456789][0123456789]T*)
+			printf '%s-%s\n' "${1:8:4}" "${1:12:2}" ;;
+		*) return 1 ;;
+	esac
+}
+
+## The folders an audit item is looked for in, one a line, in that order: its month folder, where
+## its name has one, then the audit root.
+AgentsToolsAuditFolders(){ ## item name
+	local foldersMonth
+	! foldersMonth="$( AgentsToolsAuditMonth "$1" )" || printf '%s\n' "$MDAT_DATA_ROOT/audit/$foldersMonth"
+	printf '%s\n' "$MDAT_DATA_ROOT/audit"
+}
+
 ## The document's text on stdout, whole or the given line range. rc 0 found and printed, else 1.
 AgentsToolsDataRead(){ ## <document-name> --lookup-folder <absolute-folder>... [--start-line <N> --end-line <N>] [--context <op>]
 	local opContext="<no --context given>"

@@ -6,6 +6,9 @@
 ## operations (read, search, react, send, edit, delete, file info/fetch).
 ##
 
+## Where an inbox item lives, split or flat (F4.3).
+type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+
 AgentsToolsCommsSlackFileInfoEmitField(){
 	local emitKey="$1" emitPath="$2" emitPayload="$3"
 	local emitNewline=$'\n'
@@ -194,8 +197,8 @@ AgentsToolsCommsSlackMentionUserId(){
 	local cacheFile="$MMDAPP/.local/.agents/slack-mention-ids.cache"
 	local lockGen
 	lockGen="$( LC_ALL=C cat \
-		"$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md" \
-		"$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md" \
+		"$( AgentsToolsInboxDir magic-coordinator )/note-20260809T154715Z-advance-state-and-lock.md" \
+		"$( AgentsToolsInboxDir magic-coordinator )/note-20260809T155000Z-heartbeat-state-and-lock.md" \
 		2>/dev/null | cksum )"
 	if [ "$lockGen" != "$( head -n 1 "$cacheFile" 2>/dev/null )" ] ; then
 		printf '%s\n' "$lockGen" > "$cacheFile" 2>/dev/null || true

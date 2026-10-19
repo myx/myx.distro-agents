@@ -117,13 +117,14 @@ case "$1" in
 			local itemName="$1"
 			shift || true
 			if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-item-trash: syntax is <team-member> <item-filename> --from-inbox:<member>" >&2
+				echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-item-trash: syntax is <team-member> <item-filename> --from-inbox:<member> [--exclude-incoming]" >&2
 				set +e ; return 1
 			fi
-			local fromInboxArg=""
+			local fromInboxArg="" trashOnly=()
 			while [ $# -gt 0 ] ; do
 				case "$1" in
 					--from-inbox:*) fromInboxArg="$1" ; shift ;;
+					--exclude-incoming) trashOnly=( --exclude-incoming ) ; shift ;;
 					*)
 						echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-item-trash: invalid option: $1" >&2
 						set +e ; return 1
@@ -144,7 +145,7 @@ case "$1" in
 				;;
 			esac
 			DistroAgentsTools --intern-op-board-trash "$callingMember" "$fromInboxArg" "$itemName" \
-				--context --librarian-inbox-item-trash
+				${trashOnly[@]+"${trashOnly[@]}"} --context --librarian-inbox-item-trash
 			return $?
 		;;
 
@@ -155,7 +156,7 @@ case "$1" in
 			local itemName="$1"
 			shift || true
 			if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-processed: syntax is <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+				echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-processed: syntax is <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 				set +e ; return 1
 			fi
 			local passthrough=()
@@ -165,7 +166,7 @@ case "$1" in
 						echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-processed: $1 is not valid here -- this op marks an item in <team-member>'s own inbox ROOT processed in place, source and member are the same positional. Use --magic-board-to-*/--magic-grooming-to-* for a board-to-board move." >&2
 						set +e ; return 1
 					;;
-					--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin|--include-processed)
 						passthrough+=( "$1" ) ; shift
 					;;
 					*)

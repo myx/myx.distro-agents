@@ -35,19 +35,20 @@ AgentsToolsItemResolvePaths(){
 			itemLockable="false"
 		;;
 		audit)
+			## Its month folder by the one audit lookup (AgentsToolsAuditMonth), else this month's.
+			type AgentsToolsAuditMonth > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpDataRead.include"
 			local auditYearMonth=""
-			case "$name" in
-				transcript-[0-9][0-9][0-9][0-9]-[0-9][0-9]-*)
-					auditYearMonth="$( printf '%s' "$name" | sed -E 's/^transcript-([0-9]{4})-([0-9]{2})-.*/\1-\2/' )"
-				;;
-			esac
-			[ -z "$auditYearMonth" ] && auditYearMonth="$( date -u +%Y-%m )"
+			auditYearMonth="$( AgentsToolsAuditMonth "$name" )" || auditYearMonth="$( date -u +%Y-%m )"
 			itemWriteDir="$MDAT_DATA_ROOT/audit/$auditYearMonth"
 			itemLookupFolders=( "$itemWriteDir" "$MDAT_DATA_ROOT/audit" )
 			itemLockable="false"
 		;;
 		inbox)
-			itemWriteDir="$MDAT_DATA_ROOT/inboxes/$inboxMember"
+			## An inbox item here is a standing note, a state and lock note of a routine among
+			## them, so it lives where an item with no processed stamp lives: incoming/ of a
+			## split inbox, the root of a flat one (AgentsTools.InboxPlace.include).
+			type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+			itemWriteDir="$( AgentsToolsInboxDir "$inboxMember" )"
 			itemLookupFolders=( "$itemWriteDir" )
 			itemLockable="true"
 		;;
@@ -441,11 +442,15 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 		set +e ; return 1
 	fi
 
-	mkdir -p "$itemWriteDir" || {
-		echo "$MDSC_CMD: item-upsert: ⛔ ERROR: can't create item directory: $itemWriteDir" >&2
+	## Written where it is found, else into the folder it is looked for in first (F5.8).
+	local target="$itemWriteDir/$itemName" targetFolder
+	for targetFolder in "${itemLookupFolders[@]}" ; do
+		[ ! -f "$targetFolder/$itemName" ] || { target="$targetFolder/$itemName" ; break ; }
+	done
+	mkdir -p "${target%/*}" || {
+		echo "$MDSC_CMD: item-upsert: ⛔ ERROR: can't create item directory: ${target%/*}" >&2
 		set +e ; return 1
 	}
-	local target="$itemWriteDir/$itemName"
 	local itemStoreRoot="$MDAT_DATA_ROOT/$category"
 	[ "$category" = "inbox" ] && itemStoreRoot="$MDAT_DATA_ROOT/inboxes"
 

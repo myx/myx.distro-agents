@@ -15,9 +15,11 @@
 ##   5. once the others have ended, the last executor is dismissed at the limit, recorded once
 ##   6. a second run of the executor's own member, without the seat, does not hold the executor back
 ##   7. a lone run is dismissed at the limit, as today
+##   8. a run is held from dismissal while a live run in a child session names it in `reports-to` (on its record) or
+##      in `review-by` (on its item), and its dismissal is given at its first Wait after that run ends
 ## The participants of a session are its spawn records (F6.8: session-id is the team session); the executor is the
 ## run that founded the session (start-context spawned); a participant runs while its own process does.
-## Red before F6.9: whatever reaches a run dismisses it, whoever else runs (1, 2 and 3 fail).
+## Red before F6.9: whatever reaches a run dismisses it, whoever else runs (1, 2, 3 and 8 fail).
 ## Offline: a Slack-shaped fake curl answers the served calls and the accept's sends; every run is a stand-in process
 ## of this rig carrying its own spawn id, which no other process carries; each workspace is this rig's own temp tree.
 set -u
@@ -101,6 +103,23 @@ rigRun(){ ## variable to set, session, member, start-context, parent-spawn-id, r
 	rigRunPids="$rigRunPids $!" ; rigProcNote "$!" ; disown "$!" 2> /dev/null || :
 	eval "$1=\$runId"
 	eval "${1}Item=\$runItem"
+}
+## A run of a child session: its record names its parent session and where it reports, its item in running/ names its
+## reviewer, and its process lives.
+rigChildRun(){ ## variable to set, session, member, parent session, reports-to, review-by
+	local runId runItem
+	rigRunNo=$(( rigRunNo + 1 ))
+	runId="rig-dismiss-run-$rigTag-$rigRunNo-$RANDOM"
+	runItem="dispatch-20261018T1000Z-rig-dismiss-$rigRunNo"
+	mkdir -p "$rigDir/ws/.local/agents/spawned/$2"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\nparent-session-id: %s\nstart-context: spawned\nreports-to: %s\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: spawn-started\nstarted-at: 2026-10-18 10:%02d +0000\nsession-thread: %s\nspawns: %s\n---\n' \
+		"$2" "$runId" "$4" "$5" "$2" "$rigHost" "$3" "$rigRunNo" "$( rigThreadOf "$2" )" "$runItem" > "$rigDir/ws/.local/agents/spawned/$2/$runId.md"
+	printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: %s\nreview-by: %s\n---\n\n# rig dispatch of a child session\n\n## Decisions\n\n' \
+		"$3" "$runId" "$6" > "$rigDir/data/board/running/$runItem.md"
+	perl -e 'sleep 600' -- --session-id "$runId" > /dev/null 2>&1 &
+	eval "${1}Pid=\$!"
+	rigRunPids="$rigRunPids $!" ; rigProcNote "$!" ; disown "$!" 2> /dev/null || :
+	eval "$1=\$runId"
 }
 rigEnd(){ ## pid -- the run ends by itself
 	rigProcSignal KILL "$1"
@@ -203,6 +222,28 @@ rigAssert "the executor is dismissed at the limit, its second run live beside it
 echo "-- 7. a lone run is dismissed at the limit, as today --"
 rigDir="$rigTmp/solo"
 rigAssert "the lone run's dismissal is recorded once"                     "$( rigDismissals "$rigAloneItem" )" 1
+
+echo "-- 8. a run is held while a live run of a child session names it, and dismissed at its first Wait after --"
+rigScene child-reports limit
+rigParentSession="rig-dismiss-parent-$rigTag"
+rigChildSession="rig-dismiss-child-$rigTag"
+rigThread "$rigParentSession" ""
+rigThread "$rigChildSession" ""
+rigRun rigParent "$rigParentSession" keeper-myx spawned none human-owner
+rigChildRun rigChild "$rigChildSession" magic-tester "$rigParentSession" "$rigParentSession:keeper-myx" human-owner
+rigAssert "named in a live child run's reports-to: its Wait at the limit is no dismissal" "$( rigWaits "$rigParent" keeper-myx "$rigParentSession" ):$( rigDismissals "$rigParentItem" )" "waits:0"
+rigEnd "$rigChildPid"
+rigAssert "that run ended: its first Wait after is its dismissal, recorded once" "$( rigWaits "$rigParent" keeper-myx "$rigParentSession" ):$( rigDismissals "$rigParentItem" )" "dismissed:1"
+rigScene child-review limit
+rigParentSession="rig-dismiss-parent-r-$rigTag"
+rigChildSession="rig-dismiss-child-r-$rigTag"
+rigThread "$rigParentSession" ""
+rigThread "$rigChildSession" ""
+rigRun rigParent "$rigParentSession" keeper-myx spawned none human-owner
+rigChildRun rigChild "$rigChildSession" magic-tester "$rigParentSession" human-owner keeper-myx
+rigAssert "named in a live child run's review-by: its Wait at the limit is no dismissal" "$( rigWaits "$rigParent" keeper-myx "$rigParentSession" ):$( rigDismissals "$rigParentItem" )" "waits:0"
+rigEnd "$rigChildPid"
+rigAssert "that run ended: its first Wait after is its dismissal, recorded once" "$( rigWaits "$rigParent" keeper-myx "$rigParentSession" ):$( rigDismissals "$rigParentItem" )" "dismissed:1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SESSION DISMISS LAST CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

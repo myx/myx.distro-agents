@@ -299,6 +299,36 @@ EOF
 	return 0
 }
 
+## Scans one member's split inbox (AgentsTools.InboxPlace.include). Its incoming/ is never
+## collected: nothing there is processed. Its processed/ is, by the stamp of each item, as an
+## inbox root is (AgentsToolsFinalGcScanInboxRoot), and an item there with no stamp by its own
+## age, as the legacy processed/ was drained (AgentsToolsFinalGcScanDir, the stamped ones left
+## out of it through gcStampedSet). Adds to inboxDeletedCount of the caller.
+AgentsToolsFinalGcScanSplitInbox(){ ## the member's inbox, resolved; now; the inbox root, resolved
+	local splitProcessed=""
+	splitProcessed="$( cd "$1/processed" 2>/dev/null && pwd -P )" || splitProcessed=""
+	[ -n "$splitProcessed" ] || return 0
+	case "$splitProcessed" in
+		"$3"/*) ;;
+		*)
+			echo "$MDSC_CMD: team-data-final-gc-deletion: ⚠️ WARNING: skipping $splitProcessed -- escapes inbox root $3" >&2
+			return 0
+		;;
+	esac
+	gcDeletedCount=0
+	AgentsToolsFinalGcScanInboxRoot "$splitProcessed" "$2" || return 1
+	inboxDeletedCount=$(( inboxDeletedCount + gcDeletedCount ))
+	gcDeletedCount=0
+	gcStampedSet="$LF$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsInboxProcessedAtList.awk" "$splitProcessed"/*.md 2> /dev/null | cut -f1 )$LF"
+	if ! AgentsToolsFinalGcScanDir "$splitProcessed" "$2" "" inbox ; then
+		gcStampedSet=""
+		return 1
+	fi
+	gcStampedSet=""
+	inboxDeletedCount=$(( inboxDeletedCount + gcDeletedCount ))
+	return 0
+}
+
 ## Scans one already-resolved directory. Shared by the three folder locations,
 ## unchanged between them: the retention table is keyed on the item, not on
 ## where it sits. Two per-location inputs, and neither is a threshold: $3
@@ -326,6 +356,11 @@ AgentsToolsFinalGcScanDir(){
 	for path in "$scanDir"/*.md ; do
 		[ -f "$path" ] || continue
 		fileBase="${path##*/}"
+		## An item of a split inbox's processed/ that carries its stamp is collected by that stamp
+		## alone (AgentsToolsFinalGcScanSplitInbox), never by its file's age.
+		case "${gcStampedSet:-}" in
+			*"$LF$path$LF"*) continue ;;
+		esac
 		## Counts what the scan FOUND, before any decision about it. trash/'s
 		## summary segment keys on this, not on what was deleted.
 		gcSeenCount=$(( gcSeenCount + 1 ))
@@ -508,7 +543,8 @@ case "$1" in
 		set -e
 		if [ -n "$gcTrashRemote" ] ; then gcTrashMode="immediate" ; fi
 
-		## Inbox source: every member's own inbox ROOT (items marked `processed-at`
+		## Inbox source: a split inbox by AgentsToolsFinalGcScanSplitInbox; a flat
+		## one, until its store is moved, by its ROOT (items marked `processed-at`
 		## in place) and its legacy processed/ (items drained before that marker
 		## existed, until it is empty -- then a no-op), cd+pwd -P resolved and
 		## containment-checked. A member escaping containment (e.g. a symlink) is
@@ -517,13 +553,21 @@ case "$1" in
 		local inboxBase=""
 		inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
 		if [ -n "$inboxBase" ] ; then
-			local memberDir memberRoot memberProcessed
+			local memberDir memberRoot memberProcessed gcStampedSet=""
 			for memberDir in "$inboxBase"/*/ ; do
 				[ -d "$memberDir" ] || continue
 				memberRoot="$( cd "$memberDir" 2>/dev/null && pwd -P )" || memberRoot=""
 				[ -z "$memberRoot" ] && continue
 				case "$memberRoot" in
 					"$inboxBase"/*)
+						type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+						if AgentsToolsInboxSplit "${memberRoot##*/}" ; then
+							if ! AgentsToolsFinalGcScanSplitInbox "$memberRoot" "$nowEpoch" "$inboxBase" ; then
+								echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: could not $gcScanFailedWhat $gcScanFailedPath" >&2
+								set +e ; return 1
+							fi
+							continue
+						fi
 						gcDeletedCount=0
 						if ! AgentsToolsFinalGcScanInboxRoot "$memberRoot" "$nowEpoch" ; then
 							echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: could not $gcScanFailedWhat $gcScanFailedPath" >&2

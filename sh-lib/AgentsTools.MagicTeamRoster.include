@@ -9,6 +9,9 @@
 ## dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
+## Where an inbox item lives, split or flat (F4.3).
+type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+
 case "$1" in
 
 	--magic-team-roster-upsert)
@@ -23,7 +26,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-team-roster-upsert: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local stateDir="$MDAT_DATA_ROOT/inboxes/magic-coordinator"
+		local stateDir="$( AgentsToolsInboxDir magic-coordinator )"
 		mkdir -p "$stateDir" || {
 			echo "⛔ ERROR: $MDSC_CMD --magic-team-roster-upsert: can't create inbox directory: $stateDir" >&2
 			set +e ; return 1
@@ -100,7 +103,7 @@ case "$1" in
 		}
 		## Same fixed literal filename as --magic-team-roster-upsert above --
 		## must match exactly, since this is a read of the SAME document.
-		local target="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260804T0000Z-team-roster.md"
+		local target="$( AgentsToolsInboxDir magic-coordinator )/note-20260804T0000Z-team-roster.md"
 		if [ -f "$target" ] ; then
 			cat "$target"
 		else

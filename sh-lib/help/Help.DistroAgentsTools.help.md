@@ -133,15 +133,15 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-git-repo-history [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--limit <n>] <path>...
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]
-📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>
-📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-member <member>] [--from-file <path>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-member <member>] [--from-file <path>]
-📘 syntax: DistroAgentsTools.fn.sh --member-inbox-reflection-upsert <member> <item-filename> [--from-member <member>] [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member> [--exclude-incoming]
+📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>]
+📘 syntax: DistroAgentsTools.fn.sh --member-inbox-reflection-upsert <member> <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]
-📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-read <member> <item-filename> [--start-line <N> --end-line <N>]
-📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-trash <member> <item-filename>
-📘 syntax: DistroAgentsTools.fn.sh --member-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-read <member> <item-filename> [--include-processed] [--start-line <N> --end-line <N>]
+📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-trash <member> <item-filename> [--exclude-incoming]
+📘 syntax: DistroAgentsTools.fn.sh --member-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-audit-item-read <team-member> <document-name> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --member-vault-item-read <team-member> <item-name> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --member-board-item-read <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
@@ -185,7 +185,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run] [--plan]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-control-start (--session-id <id>|--all)
 📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
-📘 syntax: DistroAgentsTools.fn.sh --manager-team-data-read <store> [<folder> [<item>]]
+📘 syntax: DistroAgentsTools.fn.sh --manager-team-data-read <store> [<folder> [<item>]] [--include-processed]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-files <team-member> [<file>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-read <team-member>
@@ -2169,9 +2169,13 @@
 			per matched file: mtime (`YYYY-MM-DD HH:MM:SS`), two spaces,
 			then the path, sorted newest-first.
 
-		--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>
+		--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member> [--exclude-incoming]
 			Discards one of `<member>`'s inbox items -- live or already
-			processed. Searched in order: the inbox root, then its legacy
+			processed -- by its name alone, with no state change first.
+			An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. A store not yet moved to that form, the flat mode until its one-time move, keeps every item at the inbox root as before.
+			A split inbox is searched in both of its folders, and
+			`--exclude-incoming` trashes a processed item only and
+			refuses an incoming one. A flat one is searched in order: the inbox root, then its legacy
 			`processed/` (items drained before the in-place marker, until
 			the GC empties it); first match wins, so a basename in both
 			leaves the legacy copy untouched -- root-first, so the copy
@@ -2187,11 +2191,14 @@
 			moved to `trash/`, recoverable only by hand -- this op still
 			won't restore it. Treat every call as final.
 
-		--librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			Marks one item in `<team-member>`'s own inbox root
-			processed, IN PLACE: stamps `processed-at` into its
-			frontmatter (creating the block when the item has none)
-			and commits it. The item stays where it is; active inbox
+		--librarian-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Marks one item in `<team-member>`'s own inbox processed:
+			stamps `processed-at` into its frontmatter (creating the
+			block when the item has none) and commits it. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. A store not yet moved to that form, the flat mode until its one-time move, keeps every item at the inbox root as before.
+			In a split inbox the item is found in `incoming/`, in
+			`processed/` too with `--include-processed`, and moves to
+			`processed/`; in a flat one it is marked IN PLACE at the
+			root and stays where it is. Active inbox
 			scans skip it from then on, and the GC deletes it once the
 			stamp is older than the retention (`warning-*`/
 			`reflection-*` one day, everything else seven).
@@ -2205,13 +2212,16 @@
 			stamp (`:remove:` for none). An item already marked keeps
 			its original `processed-at`: a plain re-mark is a no-op
 			success, and an edit applies without moving the stamp.
-			An item in the legacy `processed/` folder is already
-			processed: a plain re-mark succeeds as a no-op, an edit is
-			refused (that folder is read-only).
+			An item that is processed already, in `processed/` of a
+			split inbox or in the legacy `processed/` of a flat one: a
+			plain re-mark succeeds as a no-op; an edit needs
+			`--include-processed` in a split inbox, and is refused in
+			the legacy folder, which is read-only.
 
-		--member-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--member-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Marks one of `<team-member>`'s OWN inbox items handled:
-			`processed-at` stamped in place, exactly as
+			`processed-at` stamped, and the item moved to `processed/`
+			of a split inbox (in place at the root of a flat one), exactly as
 			`--librarian-inbox-to-processed` (a given processed-at wins,
 			a re-mark is a no-op, the original stamp is kept). Any
 			member may call it for its own inbox:
@@ -2221,9 +2231,14 @@
 			name ending `.md`. `--header:*` and the three body-input
 			modes behave as on the `--magic-board-to-*` family.
 
-		--member-inbox-note-upsert <member> <item-filename> [--from-member <member>] [--from-file <path>|--edit-patch-from-stdin]
+		--member-inbox-note-upsert <member> <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) a note into `<member>`'s own
-			inbox. Own inbox only: a spawned session naming another
+			inbox. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. A store not yet moved to that form, the flat mode until its one-time move, keeps every item at the inbox root as before. In a split inbox the item lands in
+			the folder its processed stamp picks, `incoming/` or
+			`processed/`, and an item already there is updated where it
+			lies, a processed one only with `--include-processed` (without
+			it, a processed item of that name is refused, never shadowed);
+			one whose stamp changes moves to its folder. Own inbox only: a spawned session naming another
 			member than itself is refused; a call from no spawned
 			session is taken at the name it gives.
 			`<member>` must exist as a real skill directory;
@@ -2253,19 +2268,19 @@
 			An update of an existing item keeps its name and its
 			headers as they are.
 
-		--member-upsert-member-inquiry <member> <item-filename> [--from-member <member>] [--from-file <path>]
+		--member-upsert-member-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>]
 			Passes an inquiry into a member's own inbox -- the standard
 			hand-off mechanism. `<member>` must exist as a real skill
 			directory; `<item-filename>` a bare filename. Inbox created
 			lazily if missing. Content via stdin by default, or
 			`--from-file <path>`. A new item's required
 			`type`/`from`/`date`/`owner` headers are completed as in
-			`--member-inbox-note-upsert`. From a spawned session,
+			`--member-inbox-note-upsert`, and so is the folder it lands in. From a spawned session,
 			`--from-member` names only that session's own member, and an
 			item already in the inbox is overwritten only when its
 			`from:` is the caller; a new item is always written.
 
-		--member-inbox-reflection-upsert <member> <item-filename> [--from-member <member>] [--from-file <path>|--edit-patch-from-stdin]
+		--member-inbox-reflection-upsert <member> <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) a reflection-type item into a
 			member's own inbox, own inbox only as for
 			`--member-inbox-note-upsert`. Same arguments, lazy inbox creation,
@@ -2305,22 +2320,28 @@
 			(`--message-from-stdin` is an alias of `--from-stdin`).
 			Returns the target path plus added line and byte counts.
 
-		--member-inbox-item-read <member> <item-filename> [--start-line <N> --end-line <N>]
+		--member-inbox-item-read <member> <item-filename> [--include-processed] [--start-line <N> --end-line <N>]
 			Read-only read of one item in `<member>`'s own inbox, by bare
-			`<item-filename>`. Searches the inbox root first (marked or
+			`<item-filename>`. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. A store not yet moved to that form, the flat mode until its one-time move, keeps every item at the inbox root as before. A split inbox is read in
+			`incoming/`, and in `processed/` too with
+			`--include-processed`: without it a processed item is not
+			found. A flat one is searched at the inbox root first (marked or
 			not), then its legacy `processed/`, first match wins.
 			`<item-filename>` must carry one of the four type prefixes:
 			`note-`/`inquiry-`/`reflection-`/`warning-`. `--start-line`/`--end-line` must be
 			given as a complete pair.
 
-		--member-inbox-item-trash <member> <item-filename>
-			Discards one item out of `<member>`'s OWN inbox. No
+		--member-inbox-item-trash <member> <item-filename> [--exclude-incoming]
+			Discards one item out of `<member>`'s OWN inbox, by its name
+			alone, with no state change first, as
+			`--librarian-inbox-item-trash`: a split inbox from either
+			folder, `--exclude-incoming` a processed item only. No
 			`--from-inbox:<member>` here -- one supplied in any position
 			is REFUSED, so a member-scoped call can never become a
 			cross-member one (use `--librarian-inbox-item-trash` for
 			another member's inbox). A spawned session naming another
-			member than itself is refused. Resolution as
-			`--member-inbox-item-read`: root then legacy `processed/`,
+			member than itself is refused. A flat inbox resolves as
+			`--member-inbox-item-read` does: root then legacy `processed/`,
 			first match wins, not found in either names both. No
 			type-prefix restriction. An item carrying `archive: true` is
 			discarded like any other -- that header only diverts the
@@ -3915,12 +3936,12 @@
 			<dispatch-item> is the item the start made. Exit 1 with one
 			error line, and nothing on stdout, where nothing was started.
 
-		--manager-team-data-read <store> [<folder> [<item>]]
+		--manager-team-data-read <store> [<folder> [<item>]] [--include-processed]
 			One of the console's own operations (see Notes). Lists the
 			items of one store of the team data, to browse them, or prints
 			one item. It only reads: no git command is run, no registry is
 			touched, and nothing outside the store is read. <store> is
-			`board`, `audit` or `vault`, a folder of the team data root; a
+			`board`, `audit`, `vault` or `inboxes`, a folder of the team data root; a
 			<folder> is one folder of it, `-` the store itself; an <item>
 			is a file of that folder, by its name; every name is a bare
 			one. With <store> alone it prints the store's row, then a row
@@ -3941,7 +3962,14 @@
 			<owner> and <date> are those fields of the item's front
 			matter, its lines between a first line `---` and the next,
 			where it gives them; nothing after it is read. Nothing deeper than a
-			folder is listed. Exit 1 with one error line, and nothing on
+			folder is listed. The folders of `inboxes` are the members'
+			inboxes, `inboxes <member>` is the list of one member's inbox,
+			and none of an inbox's own folders is ever shown: it lists the
+			items that are not processed, and with `--include-processed` the
+			processed ones too, and an item of it is read where a read finds
+			it, by the same rule. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. A store not yet moved to that form, the flat mode until its one-time move, keeps every item at the inbox root as before. In a flat inbox an item
+			carrying `processed-at` counts as processed, and its legacy
+			`processed/` is listed with the processed ones. Exit 1 with one error line, and nothing on
 			stdout, for a word that is no store, a name that is not bare,
 			a folder or an item that is not there, and where no team data
 			root is configured.

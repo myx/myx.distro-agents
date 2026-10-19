@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InboxPlace.include -- where an item of a member's inbox lives: the one answer
+## every inbox operation, scan, Wait and the GC ask (MAGIC.md, "Inbox items live in incoming/
+## and processed/"). In-context helpers with no operation of their own. Sourced for its
+## functions only:
+##   type AgentsToolsInboxSplit > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InboxPlace.include"
+##
+## THE SPLIT INBOX. An inbox holds two folders, `incoming/` and `processed/`, and an item's
+## processed stamp (`processed-at` in its front matter) decides its folder: no stamp, incoming/;
+## the stamp, processed/. The stamp stays the retention clock of the GC. Readers never see the
+## folders: an operation names an item, never its folder, and sees incoming/ alone unless it is
+## given --include-processed.
+##
+## FLAT MODE, until a store is moved once to the split form: a store in which no inbox has an
+## `incoming/` folder is read and written at the root of each inbox, exactly as before the split,
+## its items marked processed in place and its legacy `processed/` a read-only fallback. The
+## one-time move makes the folders, so a store switches the moment it is moved. The store
+## decides, never one inbox: git keeps no empty folder, so in a moved store one inbox whose
+## items are all processed may have no incoming/ of its own, and it is split all the same.
+##
+
+## Whether that member's inbox is split: rc 0 where it is, 1 where it is flat. The store of the
+## team data decides it (FLAT MODE, above): split where any of its inboxes has an incoming/.
+AgentsToolsInboxSplit(){ ## member
+	local splitAny
+	for splitAny in "$MDAT_DATA_ROOT"/inboxes/*/incoming ; do
+		[ -d "$splitAny" ] && return 0
+	done
+	return 1
+}
+
+## Where an item of that inbox with no processed stamp lives: its incoming/, or, flat, its root.
+AgentsToolsInboxDir(){ ## member
+	if AgentsToolsInboxSplit "$1" ; then
+		printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming"
+	else
+		printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1"
+	fi
+}
+
+## Where an item of that inbox belongs by its stamp: `yes` it carries processed-at, else not.
+## Split: processed/ or incoming/. Flat: the root, either way, marked in place.
+AgentsToolsInboxDirFor(){ ## member, stamped (yes|no)
+	if AgentsToolsInboxSplit "$1" ; then
+		if [ "$2" = "yes" ] ; then printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/processed" ; else printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming" ; fi
+	else
+		printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1"
+	fi
+}
+
+## The folders a read of that inbox looks in, one a line, in their order. Split: incoming/,
+## and processed/ after it where `yes` includes the processed. Flat, as before: the root, and
+## its legacy processed/ after it, whatever is asked.
+AgentsToolsInboxFolders(){ ## member, include processed (yes|no)
+	if AgentsToolsInboxSplit "$1" ; then
+		printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming"
+		[ "${2:-no}" != "yes" ] || printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/processed"
+	else
+		printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1" "$MDAT_DATA_ROOT/inboxes/$1/processed"
+	fi
+}
+
+## The path of the item of that name in that inbox, where a read finds it: rc 1, and nothing
+## printed, where it is in none of the folders the read looks in (AgentsToolsInboxFolders).
+AgentsToolsInboxItemFind(){ ## member, item name, include processed (yes|no)
+	local findFolder
+	while IFS= read -r findFolder ; do
+		[ -f "$findFolder/$2" ] && { printf '%s\n' "$findFolder/$2" ; return 0 ; }
+	done < <( AgentsToolsInboxFolders "$1" "${3:-no}" )
+	return 1
+}
+
+## Whether the item of that name lies in that split inbox's processed/: rc 0 where it does. A
+## flat inbox has no such folder of its own: rc 1.
+AgentsToolsInboxItemProcessed(){ ## member, item name
+	AgentsToolsInboxSplit "$1" && [ -f "$MDAT_DATA_ROOT/inboxes/$1/processed/$2" ]
+}
+
+## The path of a standing note of that inbox, the state and lock notes of the routines among
+## them: an item with no processed stamp, so where those live (AgentsToolsInboxDir), there or
+## not yet.
+AgentsToolsInboxNotePath(){ ## member, note name
+	printf '%s/%s\n' "$( AgentsToolsInboxDir "$1" )" "$2"
+}

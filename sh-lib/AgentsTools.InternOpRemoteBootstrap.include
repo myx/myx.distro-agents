@@ -5,7 +5,9 @@
 ## AgentsTools.InternOpRemoteBootstrap.include -- --intern-op-remote-bootstrap-emit.
 ## Read-only, writes nothing anywhere. Emits on stdout ONE self-contained
 ## POSIX /bin/sh script that an already-provisioned host runs from its own
-## stdin: it makes a random private temp root, materialises the payload and
+## stdin: it makes a random private temp root -- in the scratch folder of the
+## host's own workspace, --remote-workspace, never in the system's temp folder,
+## and refusing where that is no workspace -- materialises the payload and
 ## the task inside it, runs the task there, and removes the root on every
 ## exit path it can observe. Transport is whatever already reaches the host
 ## (DistroSshConnect via ExecuteSequence/ExecuteParallel --execute-stdin, a
@@ -20,7 +22,7 @@ case "$1" in
 		shift
 		local opContext="<no --context given>"
 		local emitLabel="magic-bootstrap"
-		local taskLocalPath="" taskFromStdin="false"
+		local taskLocalPath="" taskFromStdin="false" remoteWorkspace=""
 		local payloadNames=() payloadPaths=()
 		local emitPair emitRelativeName emitLocalPath emitSegment emitSegmentRest
 
@@ -83,6 +85,16 @@ case "$1" in
 					taskFromStdin="true"
 					shift
 				;;
+				--remote-workspace)
+					## Written into the script between single quotes, so a path that could leave them, or
+					## climb out of itself, is refused here rather than run there.
+					case "${2:-}" in
+						/*"'"*|/*$'\n'*|*/../*|*/..|*/./*|*/.) ;;
+						/?*) remoteWorkspace="${2%/}" ; shift 2 ; continue ;;
+					esac
+					echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: --remote-workspace: the absolute path of the workspace on that host required, with no quote, newline or . or .. segment: ${2:-<none>}" >&2
+					set +e ; return 1
+				;;
 				--context)
 					if [ -z "${2:-}" ] ; then
 						echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: --context: value required" >&2
@@ -92,12 +104,16 @@ case "$1" in
 					shift 2
 				;;
 				*)
-					echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: invalid option: $1 -- accepted: --label, --payload-file, --task-file, --task-from-stdin, --context" >&2
+					echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: invalid option: $1 -- accepted: --remote-workspace, --label, --payload-file, --task-file, --task-from-stdin, --context" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 
+		if [ -z "$remoteWorkspace" ] ; then
+			echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: --remote-workspace <absolute path> is required: the temp root is kept in that workspace, never in the system temp folder ($opContext)" >&2
+			set +e ; return 1
+		fi
 		if [ -n "$taskLocalPath" ] && [ "$taskFromStdin" = "true" ] ; then
 			echo "$MDSC_CMD: remote-bootstrap-emit: ⛔ ERROR: use --task-file or --task-from-stdin, never both ($opContext)" >&2
 			set +e ; return 1
@@ -169,7 +185,15 @@ case "$1" in
 			'trap '"'"'BootstrapCleanup ; exit 143'"'"' TERM' \
 			''
 
-		printf 'bootstrapTempRoot="$( mktemp -d "${TMPDIR:-/tmp}/%s.XXXXXXXX" )" || {\n' "$emitLabel"
+		printf "bootstrapWorkspace='%s'\n" "$remoteWorkspace"
+		printf '%s\n' \
+			'## The temp root is the workspace'"'"'s own scratch, never the system temp folder.' \
+			'if [ ! -d "$bootstrapWorkspace/.local" ] ; then' \
+			'	echo "'"$emitLabel"': ⛔ ERROR: no myx.distro workspace to keep the temp root in: $bootstrapWorkspace has no .local" >&2' \
+			'	exit 1' \
+			'fi' \
+			'mkdir -p "$bootstrapWorkspace/.local/agents/scratch" || exit 1'
+		printf 'bootstrapTempRoot="$( mktemp -d "$bootstrapWorkspace/.local/agents/scratch/%s.XXXXXXXX" )" || {\n' "$emitLabel"
 		printf '%s\n' \
 			'	echo "'"$emitLabel"': ⛔ ERROR: cannot create a temporary root" >&2' \
 			'	exit 1' \

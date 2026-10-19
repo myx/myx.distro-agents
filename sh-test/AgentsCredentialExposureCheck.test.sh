@@ -108,10 +108,11 @@ rigCall fail --client-comms-jira-comment-add client-rig RIG-1 --body-adf "$rigAd
 rigAssert "atlassian fail: rc is non-zero" "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 )" non-zero
 rigExposure "atlassian fail" yes
 
-echo "-- the harness scratch is created under \$TMPDIR --"
+echo "-- the harness scratch is created under the workspace's .local/agents/scratch, never \$TMPDIR --"
 ## Its scratch is where a harness call stages what it handles, so it has to be where
-## the scans above look. One text round through a fake model endpoint that lists
-## $TMPDIR while the harness is in flight.
+## the scans above look: the workspace's own scratch folder, never the system's temp
+## folder (the owner's rule: no /tmp). One text round through a fake model endpoint that
+## lists that folder and $TMPDIR while the harness is in flight.
 rigHarnessDir="$rigTmp/harness"
 mkdir -p "$rigHarnessDir/.local/temp" "$rigHarnessDir/tmp" "$rigTmp/hbin"
 cp "$rigTest/check-fixtures/harness-scratch-check.curl.stub.sh" "$rigTmp/hbin/curl" \
@@ -126,8 +127,22 @@ chmod +x "$rigTmp/hbin/curl"
 	MDAT_HARNESS_CONTEXT_TOKENS=0 MDAT_HARNESS_MAX_RESTARTS=1 \
 	bash "$rigHere/AgentsUniversalHarness.sh" --access-root "$rigHarnessDir" RIG-TASK-MARKER ) > "$rigHarnessDir/out" 2> "$rigHarnessDir/err" || :
 [ -s "$rigHarnessDir/rounds.log" ] || rigRefuse "the harness made no model call, so its scratch was never observed: $( grep -m1 -E 'ERROR' "$rigHarnessDir/err" )"
-rigAssert "the harness scratch was under \$TMPDIR while it ran" "$( LC_ALL=C grep -c '^AgentsUniversalHarness\.' "$rigHarnessDir/tmpdir.log" 2>/dev/null )" 1
-rigAssert "and it was removed after" "$( ls -1 "$rigHarnessDir/tmp" | LC_ALL=C grep -c '^AgentsUniversalHarness\.' )" 0
+rigAssert "the harness scratch was under the workspace's .local/agents/scratch while it ran" "$( LC_ALL=C grep -c '^AgentsUniversalHarness\.' "$rigHarnessDir/scratch.log" 2>/dev/null )" 1
+rigAssert "and none of it under \$TMPDIR" "$( LC_ALL=C grep -c '^AgentsUniversalHarness\.' "$rigHarnessDir/tmpdir.log" 2>/dev/null )" 0
+rigAssert "and it was removed after" "$( ls -1 "$rigHarnessDir/.local/agents/scratch" | LC_ALL=C grep -c '^AgentsUniversalHarness\.' )" 0
+## A served call, as the MCP server makes one: its scratch is in the same place, and is gone after it.
+( cd "$rigHarnessDir" && printf '{"pattern":"*","path":"%s"}' "$rigHarnessDir" | env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID HOME="$rigTmp/home" \
+	TMPDIR="$rigHarnessDir/tmp" MMDAPP="$rigHarnessDir" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/AgentsUniversalHarness.sh" --intern-tool Glob \
+	--access-read-root "$rigHarnessDir" --access-write-root "$rigHarnessDir" ) > "$rigHarnessDir/served.out" 2> "$rigHarnessDir/served.err" || :
+rigAssert "a served call ran" "$( LC_ALL=C grep -c -F "$rigHarnessDir/out" "$rigHarnessDir/served.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "ran" : "not-run" }' )" ran
+rigAssert "and left no scratch, in the workspace's scratch folder or \$TMPDIR" \
+	"$( ls -1 "$rigHarnessDir/.local/agents/scratch" "$rigHarnessDir/tmp" 2>/dev/null | LC_ALL=C grep -c '^AgentsUniversalHarness\.' )" 0
+## With no workspace there is no scratch, and no call: never a fall back to the system's temp folder.
+( cd "$rigHarnessDir" && printf '{"pattern":"*","path":"%s"}' "$rigHarnessDir" | env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID -u MMDAPP HOME="$rigTmp/home" \
+	TMPDIR="$rigHarnessDir/tmp" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/AgentsUniversalHarness.sh" --intern-tool Glob \
+	--access-read-root "$rigHarnessDir" --access-write-root "$rigHarnessDir" ) > "$rigHarnessDir/bare.out" 2> "$rigHarnessDir/bare.err" || :
+rigAssert "with no workspace, a served call is refused, saying why" "$( LC_ALL=C grep -c '^ERROR: no workspace to keep the scratch of this call in' "$rigHarnessDir/bare.out" )" 1
+rigAssert "and makes nothing under \$TMPDIR" "$( ls -1 "$rigHarnessDir/tmp" | LC_ALL=C grep -c . )" 0
 
 ## A mktemp with no path template ignores $TMPDIR on Darwin -- bare, and with -t alike --
 ## and writes to the shared per-user temp dir no rig can scan. Keeping every call on an
@@ -147,7 +162,7 @@ rigPackage="${rigHere%/sh-lib}"
 mkdir -p "$rigTmp/plant/sh-lib" "$rigTmp/plant/sh-scripts"
 printf '#!/usr/bin/env bash\nrigPlanted="$( mktemp )"\n' > "$rigTmp/plant/sh-lib/AgentsRigPlantedBare.include"
 printf '#!/usr/bin/env bash\nrigPlanted="$( mktemp -d -t rig-planted-XXXXXX )"\n' > "$rigTmp/plant/sh-scripts/RigPlantedDashT.sh"
-printf '#!/usr/bin/env bash\nrigPlanted="$( mktemp -d "${TMPDIR:-/tmp}/rig.XXXXXX" )"\n' > "$rigTmp/plant/sh-lib/AgentsRigPlantedGood.include"
+printf '#!/usr/bin/env bash\nrigPlanted="$( mktemp -d "$MMDAPP/.local/agents/scratch/rig.XXXXXX" )"\n' > "$rigTmp/plant/sh-lib/AgentsRigPlantedGood.include"
 rigAssert "control: a planted bare mktemp and a planted -t mktemp are both caught, a templated one is not" \
 	"$( rigUntemplatedMktemp "$rigTmp/plant" | cut -d: -f1 | LC_ALL=C sort | tr '\n' ' ' )" "AgentsRigPlantedBare.include RigPlantedDashT.sh "
 rigAssert "no untemplated mktemp in package code" "$( rigUntemplatedMktemp "$rigPackage" | head -n 3 | tr '\n' ' ' )" ""

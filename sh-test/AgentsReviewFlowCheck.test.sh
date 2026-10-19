@@ -498,7 +498,7 @@ rigLive rig-part-9h-$$
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-none-9h-$$ MDAT_SESSION_THREAD=CNON9H001:1700000000.000930 )
 rigTool "$rigTmp/h9h" SubagentHandback '{"outcome":"the routine is done"}'
 rigAssert "its report is posted, and while a member it brought in runs it is not ended: told to wait" \
-	"$( LC_ALL=C grep -c '"channel": *"CNON9H001"' "$rigTmp/bodies" ):$( [ -f "$rigWs/.local/agents/sessions/rig-none-9h-$$/dismissed" ] && printf ended || printf runs ):$( LC_ALL=C grep -c 'others of the session you founded still run' "$rigTmp/h9h" )" "1:runs:1"
+	"$( LC_ALL=C grep -c '"channel": *"CNON9H001"' "$rigTmp/bodies" ):$( [ -f "$rigWs/.local/agents/sessions/rig-none-9h-$$/dismissed" ] && printf ended || printf runs ):$( LC_ALL=C grep -c 'runs that need you still run' "$rigTmp/h9h" )" "1:runs:1"
 LC_ALL=C sed -i.bak "/ rig-part-9h-$$\$/d" "$rigTmp/ps.list" && rm -f "$rigTmp/ps.list.bak"
 rigTool "$rigTmp/w9h" Wait '{"sources":"slack:session-current","timeout":2}'
 rigEnv=()

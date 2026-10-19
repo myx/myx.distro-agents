@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternMergeMdFiles.include -- the --intern-merge-md-files op for
+## DistroAgentsTools.fn.sh's dispatcher, and AgentsToolsMergeMdFiles, the same merge for a
+## consumer in the same process (today the Skill tool of the harness). Sourced from that
+## op's own dispatcher arm, or for its function only:
+##   type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternMergeMdFiles.include"
+## The merge itself is AgentsMergeMdFiles.awk: one process over every file. Its name is the
+## owner's own, and the epic of the refactorings records its approval as an `--intern-` kind.
+##
+
+## Merges markdown files into one document on stdout, each file by a mixin naming the section it
+## becomes: [--do-index] [--section-prefix <N>] [--section-limit <N>]
+## [--mixin [--section-exclude <glob>]... [--section-include <glob>]... <file-name> <result-section-name>]...
+## There is no plain file argument: a word that is no option and no part of a mixin is refused,
+## naming --mixin, and nothing is printed. rc 1 and one error line for anything refused.
+AgentsToolsMergeMdFiles(){
+	local mergeIndex="" mergePrefix=1 mergeLimit=3 mergeSpec="" mergeTab=$'\t' mergeFile mergeName mergeFilters mergeCount=0
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--do-index) mergeIndex=1 ; shift ;;
+			--section-prefix|--section-limit)
+				case "${2:-}" in
+					''|*[!0-9]*|0)
+						echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-merge-md-files: $1 takes a number of 1 or more, got '${2:-}' -- nothing was merged" >&2
+						return 1
+					;;
+				esac
+				if [ "$1" = "--section-prefix" ] ; then mergePrefix="$2" ; else mergeLimit="$2" ; fi
+				shift 2
+			;;
+			--mixin)
+				shift
+				mergeFilters=""
+				while [ "${1:-}" = "--section-exclude" ] || [ "${1:-}" = "--section-include" ] ; do
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-merge-md-files: $1 takes a glob -- nothing was merged" >&2
+						return 1
+					fi
+					mergeFilters="$mergeFilters${1#--section-}$mergeTab$2"$'\n'
+					shift 2
+				done
+				mergeFile="${1:-}" ; mergeName="${2:-}"
+				if [ -z "$mergeFile" ] || [ -z "$mergeName" ] || [ $# -lt 2 ] ; then
+					echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-merge-md-files: --mixin takes <file-name> \"<result-section-name>\", after its own --section-exclude/--section-include -- nothing was merged" >&2
+					return 1
+				fi
+				if [ ! -f "$mergeFile" ] || [ ! -r "$mergeFile" ] ; then
+					echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-merge-md-files: the file of a --mixin is not a readable file: $mergeFile -- nothing was merged" >&2
+					return 1
+				fi
+				case "$mergeFile$mergeName" in
+					*"$mergeTab"*|*$'\n'*)
+						echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-merge-md-files: a --mixin's file name and section name hold no tab and no new line -- nothing was merged" >&2
+						return 1
+					;;
+				esac
+				mergeSpec="${mergeSpec}mixin$mergeTab$mergeFile$mergeTab$mergeName"$'\n'"$mergeFilters"
+				mergeCount=$(( mergeCount + 1 ))
+				shift 2
+			;;
+			*)
+				echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-merge-md-files: '$1' is no option -- every file comes in by --mixin <file-name> \"<result-section-name>\"; there is no plain file argument -- nothing was merged" >&2
+				return 1
+			;;
+		esac
+	done
+	if [ "$mergeCount" -eq 0 ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-merge-md-files: no --mixin given -- every file comes in by --mixin <file-name> \"<result-section-name>\" -- nothing was merged" >&2
+		return 1
+	fi
+	## The spec is a file of this call's own, made and removed inside this subshell, by mktemp.
+	(
+		mkdir -p "$MMDAPP/.local/temp" && mergeSpecFile="$( mktemp "$MMDAPP/.local/temp/mdat-merge-md-files.XXXXXX" )" || exit 1
+		trap 'rm -f "$mergeSpecFile"' EXIT
+		printf '%s' "$mergeSpec" > "$mergeSpecFile" || exit 1
+		LC_ALL=C awk -v specFile="$mergeSpecFile" -v prefix="$mergePrefix" -v limit="$mergeLimit" -v doIndex="$mergeIndex" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMergeMdFiles.awk" < /dev/null
+	)
+}
+
+case "${1:-}" in
+
+	--intern-merge-md-files)
+		shift
+		AgentsToolsMergeMdFiles "$@" || { set +e ; return 1 ; }
+		return 0
+	;;
+
+	*)
+		## sourced for the function alone: nothing to do
+	;;
+
+esac

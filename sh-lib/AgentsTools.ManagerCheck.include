@@ -105,7 +105,12 @@ case "$1" in
 		done
 		[ -n "$runWanted" ] || runWanted=" $agentsManagerCheckDomains"
 		set +e
-		runFolder="$( mktemp -d "${TMPDIR:-/tmp}/AgentsManagerCheck.XXXXXX" )" || {
+		## The workspace's own scratch, never the system's temp folder: with no workspace, nothing is run.
+		if [ -z "${MMDAPP:-}" ] || [ ! -d "$MMDAPP" ] || ! mkdir -p "$MMDAPP/.local/agents/scratch" 2> /dev/null ; then
+			echo "⛔ ERROR: $MDSC_CMD $runOp: no workspace to keep what the checks print in -- MMDAPP names none, and the system temp folder is never used; nothing was run" >&2
+			return 1
+		fi
+		runFolder="$( mktemp -d "$MMDAPP/.local/agents/scratch/AgentsManagerCheck.XXXXXX" )" || {
 			echo "⛔ ERROR: $MDSC_CMD $runOp: no folder for what the checks print could be made -- nothing was run" >&2
 			return 1
 		}
