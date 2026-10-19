@@ -17,8 +17,9 @@
 ## it, its workspace, its home, the kind of its link and its path), the bullets of its basic.md, the sessions it has
 ## a run in with those where a run of it is alive first -- rows of --manager-session-list, verbatim -- its grants,
 ## which are the rows --magic-permission-list prints for it, and its settings by key, which are the lines
-## --manager-config-digest prints of its scope: the family has one rule on which key is a secret, the digest's.
-## A SECRET IS NEVER PRINTED: no value of a secret stands anywhere in what any call here printed, on either stream.
+## --manager-config-digest prints of its scope: the family has one rule on which key is a credential, the digest's.
+## A CREDENTIAL IS PRINTED IN ONE FORM (F11.8): no value of one stands whole anywhere in what any call here printed,
+## on either stream, only its first quarter and a `*` for each character after it.
 ## A member set up elsewhere is found by the operation itself, and its settings of a system this workspace holds
 ## none of are named, by key alone, with the workspace they are read from. A name that is no member, a member whose
 ## workspace cannot be reached, a missing or a second argument are refused in one line, status 1, nothing on stdout.
@@ -83,18 +84,27 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 
-## THE RIG'S SECRETS: values no call may print. They are this rig's own strings and open nothing; a check still
+## THE RIG'S SECRETS: values no call may print whole. They are this rig's own strings and open nothing; a check still
 ## never shows one, so what a call printed is compared with each of them written as a mark (rigShown).
 rigSecretSlack="rig-slack-user-token-KEEPER-7f3a91"
 rigSecretSlackOld="rig-slack-user-token-KEEPER-OLD-11c2"
 rigSecretXai="rig-xai-api-key-KEEPER-91bc04"
-rigSecretOdd="rig-key-of-no-catalogue-KEEPER-5e5e"
+rigPlainOdd="rig-key-of-no-catalogue-KEEPER-5e5e"
 rigSecretUrl="rig-password-in-a-url-KEEPER-6d6d"
 rigSecretFarHere="rig-slack-user-token-FAR-HERE-a1a1"
 rigSecretFarThere="rig-slack-user-token-FAR-THERE-b2b2"
 rigSecretFarJira="rig-jira-api-token-FAR-c3c3"
 rigSecretFarWhere="rig-key-of-no-system-FAR-d4d4"
-rigSecrets="$rigSecretSlack $rigSecretSlackOld $rigSecretXai $rigSecretOdd $rigSecretUrl $rigSecretFarHere $rigSecretFarThere $rigSecretFarJira $rigSecretFarWhere"
+rigSecrets="$rigSecretSlack $rigSecretSlackOld $rigSecretXai $rigSecretUrl $rigSecretFarHere $rigSecretFarThere $rigSecretFarJira $rigSecretFarWhere"
+rigMask(){ ## value -- the F11.8 form: the first quarter, 4 to 20 characters, then a `*` for each character after it
+	local maskValue="$1" maskLength maskShown
+	maskLength="${#maskValue}"
+	maskShown=$(( maskLength / 4 ))
+	[ "$maskShown" -ge 4 ] || maskShown=4
+	[ "$maskShown" -le 20 ] || maskShown=20
+	printf '%s' "${maskValue:0:$maskShown}"
+	[ "$maskLength" -le "$maskShown" ] || printf '%*s' $(( maskLength - maskShown )) '' | LC_ALL=C tr ' ' '*'
+}
 rigShown(){ ## -- stdin with every secret of the rig written as a mark
 	local shownSecret shownScript=""
 	for shownSecret in $rigSecrets ; do shownScript="$shownScript -e s/$shownSecret/<A-SECRET-OF-THE-RIG>/g" ; done
@@ -174,18 +184,18 @@ printf '%s\t%s\trules-symlink\tmyx/pkg/skillset/magic-team/magic-team.basic.md\t
 rigNames="$rigAgents/team-members-names.registry"
 printf '%s\n' 'human-owner :own: - - -' 'magic-coordinator 🐭 Magic Vane dispatchr' 'keeper-rig 🔧 Rig Keeper rigkeep' > "$rigNames"
 
-## The scope of keeper-rig here: a comment, a token no catalogue names, twice (the reader takes the last line), two
-## keys the owner setup's catalogue marks plain, one with a space and one with an `=` in its value, a key that
-## catalogue marks secret, a key with no value, a key of no known kind with a value, a key of a plain kind, and a
-## plain key whose value carries a password inside a URL.
+## The scope of keeper-rig here: a comment, a token the catalogue marks secret, twice (the reader takes the last
+## line), two keys the owner setup's catalogue marks plain, one with a space and one with an `=` in its value, a key
+## that catalogue marks secret, a key with no value, a key that is none of the credentials with a value, a key of a
+## plain kind, and a plain key whose value carries a password inside a URL.
 rigScope "$rigWs" keeper-rig \
 	'# NOTE=a comment, which is no setting' \
 	"SLACK_USER_TOKEN=$rigSecretSlackOld" \
 	'CONFLUENCE_SPACE=RIG SPACE' \
 	"XAI_API_KEY=$rigSecretXai" \
-	'EMPTY_KEY=' \
+	'SLACK_BOT_TOKEN=' \
 	'WEB_ALLOW_PREFIXES=https://docs.rig.invalid/a?b=c https://rig.invalid/' \
-	"ODD_SETTING=$rigSecretOdd" \
+	"ODD_SETTING=$rigPlainOdd" \
 	'JIRA_SITE=jira-here.rig.invalid' \
 	"TEAM_DATA_GIT_REMOTE=https://rig:$rigSecretUrl@git.rig.invalid/team.git" \
 	"SLACK_USER_TOKEN=$rigSecretSlack"
@@ -421,12 +431,12 @@ rigAssert "and the bullets of its basic.md, one that runs over two lines whole; 
 rigAssert "one member shows the sessions it is in, the live ones first: the session where its run is alive stands before the newer one where its run is closed, which the session list prints first" "$( rigRows session | LC_ALL=C awk '{ printf "%s ", $2 }' )/ $( LC_ALL=C awk -F'\t' '$1 == "session" { printf "%s ", $2 }' "$rigTmp/sessions.list" )" "sess-live sess-done / sess-done sess-live sess-other "
 rigAssert "each session is followed by the member's own runs in it and by no other member's, and a session it has no run in is not printed" "$( rigRows run | LC_ALL=C awk '{ printf "%s:%s:%s:%s ", $2, $3, $4, $6 }' ) $( rigRows session | LC_ALL=C awk '$2 == "sess-other" { n++ } END { print n + 0 }' )" "sess-live:run-k1:keeper-rig:running sess-done:run-k2:keeper-rig:no-process  0"
 rigAssert "its grants are the rows the permission list prints for it, its floor among them" "$( rigRows grant | LC_ALL=C awk 'END { print ( NR > 0 ) ? "rows" : "none" }' ) $( rigRows grant | LC_ALL=C awk '$2 == "floor" { n++ } END { print ( n > 0 ) ? "floor" : "no-floor" }' ) $( LC_ALL=C grep -c -e "^grant$rigTab" "$rigTmp/out" )" "rows floor $( LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/grants.keeper-rig" )"
-rigAssert "its settings are the lines the digest of settings prints for its scope, each with the state and the value the digest gives it" "$( rigRows setting | LC_ALL=C awk '{ printf "%s ", $2 }' ) $( LC_ALL=C grep -e "^setting$rigTab" "$rigTmp/out" | rigShown | cksum )" "SLACK_USER_TOKEN CONFLUENCE_SPACE XAI_API_KEY EMPTY_KEY WEB_ALLOW_PREFIXES ODD_SETTING JIRA_SITE TEAM_DATA_GIT_REMOTE  $( rigSettingRows keeper-rig | rigShown | cksum )"
-rigAssert "one member shows the names of its settings and no value: a token's key reads secret-set, and its value stands nowhere in what the call printed, on either stream" "$( rigRowOf setting SLACK_USER_TOKEN ) $( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -c -F -e "$rigSecretSlack" -e "$rigSecretSlackOld" || : )" "setting SLACK_USER_TOKEN secret-set - ws-here 0"
-rigAssert "a key the owner setup's catalogue marks secret reads the same, and so does a key of no known kind: a key is a secret unless it is known not to be" "$( rigRowOf setting XAI_API_KEY | LC_ALL=C awk '{ print $3, $4 }' ) / $( rigRowOf setting ODD_SETTING | LC_ALL=C awk '{ print $3, $4 }' ) $( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -c -F -e "$rigSecretXai" -e "$rigSecretOdd" || : )" "secret-set - / secret-set - 0"
+rigAssert "its settings are the lines the digest of settings prints for its scope, each with the state and the value the digest gives it" "$( rigRows setting | LC_ALL=C awk '{ printf "%s ", $2 }' ) $( LC_ALL=C grep -e "^setting$rigTab" "$rigTmp/out" | rigShown | cksum )" "SLACK_USER_TOKEN CONFLUENCE_SPACE XAI_API_KEY SLACK_BOT_TOKEN WEB_ALLOW_PREFIXES ODD_SETTING JIRA_SITE TEAM_DATA_GIT_REMOTE  $( rigSettingRows keeper-rig | rigShown | cksum )"
+rigAssert "one member shows its settings by key: a token's key reads secret-set with its value in the form of a credential, and the value stands whole nowhere in what the call printed, on either stream" "$( rigRowOf setting SLACK_USER_TOKEN ) $( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -c -F -e "$rigSecretSlack" -e "$rigSecretSlackOld" || : )" "setting SLACK_USER_TOKEN secret-set $( rigMask "$rigSecretSlack" ) ws-here 0"
+rigAssert "a key the owner setup's catalogue marks secret reads the same, and a key that is none of the credentials shows its value" "$( rigRowOf setting XAI_API_KEY | LC_ALL=C awk '{ print $3, $4 }' ) / $( rigRowOf setting ODD_SETTING | LC_ALL=C awk '{ print $3, $4 }' ) $( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -c -F -e "$rigSecretXai" || : )" "secret-set $( rigMask "$rigSecretXai" ) / set $rigPlainOdd 0"
 rigAssert "a key known to be no secret shows its value, a space in it written _ and an = in it kept" "$( rigRowOf setting CONFLUENCE_SPACE | LC_ALL=C awk '{ print $3, $4 }' ) $( rigRowOf setting WEB_ALLOW_PREFIXES | LC_ALL=C awk '{ print $3, $4 }' ) $( rigRowOf setting JIRA_SITE | LC_ALL=C awk '{ print $3, $4 }' )" "set RIG_SPACE set https://docs.rig.invalid/a?b=c_https://rig.invalid/ set jira-here.rig.invalid"
-rigAssert "a plain key whose value carries a password inside a URL is a secret by what it holds: nothing of that value is printed" "$( rigRowOf setting TEAM_DATA_GIT_REMOTE | LC_ALL=C awk '{ print $3, $4 }' ) $( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -c -F -e "$rigSecretUrl" -e 'git.rig.invalid' || : )" "secret-set - 0"
-rigAssert "a secret with no value reads secret-missing, a key written twice is one row, and a comment is no setting" "$( rigRowOf setting EMPTY_KEY | LC_ALL=C awk '{ print $3 }' ) $( rigRows setting | LC_ALL=C awk '$2 == "SLACK_USER_TOKEN" { n++ } END { print n + 0 }' ) $( rigRows setting | LC_ALL=C awk 'END { print NR + 0 }' )" "secret-missing 1 8"
+rigAssert "a plain key whose value carries a password inside a URL is a secret by what it holds: only that password is masked, the rest of the URL stands" "$( rigRowOf setting TEAM_DATA_GIT_REMOTE | LC_ALL=C awk '{ print $3, $4 }' ) $( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -c -F -e "$rigSecretUrl" || : )" "secret-set https://rig:$( rigMask "$rigSecretUrl" )@git.rig.invalid/team.git 0"
+rigAssert "a secret with no value reads secret-missing, a key written twice is one row, and a comment is no setting" "$( rigRowOf setting SLACK_BOT_TOKEN | LC_ALL=C awk '{ print $3 }' ) $( rigRows setting | LC_ALL=C awk '$2 == "SLACK_USER_TOKEN" { n++ } END { print n + 0 }' ) $( rigRows setting | LC_ALL=C awk 'END { print NR + 0 }' )" "secret-missing 1 8"
 rigOthersRead="$( rigOthers )"
 rigScopeBefore="$( rigPrint "$rigWs/.local/.agents/keeper-rig.agent.env" )"
 rigRun "$rigReadOp" keeper-rig
@@ -455,7 +465,7 @@ rigWant="$( {
 } )"
 rigAssert "the call ends 0, with no error and no warning: the operation asks where the member is set up itself, the dispatcher bringing none for this family" "$rigRc $( rigTroubles )" "0 0"
 rigAssert "the whole output, byte for byte: its files are read where it is set up, its home is the machine's, its link is its row of that workspace's registry as it lies, and its sessions are this workspace's" "$( rigShown < "$rigTmp/out" )" "$rigWant"
-rigAssert "its settings of a system this workspace holds none of are named, each by its key alone, as elsewhere, with the name of the workspace they are read from; a system this workspace holds a key of is read here alone, and a key of no system is never read from there" "$( rigRows setting | LC_ALL=C awk '{ printf "%s:%s:%s@%s ", $2, $3, $4, $5 }' ) $( rigRows setting | LC_ALL=C awk '$2 == "WHERE_KEY" { n++ } END { print n + 0 }' )" "SLACK_USER_TOKEN:secret-set:-@ws-here JIRA_SITE:elsewhere:-@ws-far JIRA_API_TOKEN:elsewhere:-@ws-far  0"
+rigAssert "its settings of a system this workspace holds none of are named, each by its key alone, as elsewhere, with the name of the workspace they are read from; a system this workspace holds a key of is read here alone, and a key of no system is never read from there" "$( rigRows setting | LC_ALL=C awk '{ printf "%s:%s:%s@%s ", $2, $3, $4, $5 }' ) $( rigRows setting | LC_ALL=C awk '$2 == "WHERE_KEY" { n++ } END { print n + 0 }' )" "SLACK_USER_TOKEN:secret-set:$( rigMask "$rigSecretFarHere" )@ws-here JIRA_SITE:elsewhere:-@ws-far JIRA_API_TOKEN:elsewhere:-@ws-far  0"
 rigAssert "no value of either workspace's scope stands in what the call printed, on either stream" "$( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -c -F -e "$rigSecretFarHere" -e "$rigSecretFarThere" -e "$rigSecretFarJira" -e "$rigSecretFarWhere" -e 'jira.rig.invalid' || : )" "0"
 rigRun "$rigReadOp" client-rig
 rigAssert "a client's read says whose names its row holds: its persona, in one more line of its information" "$rigRc $( rigRowOf info persona | LC_ALL=C awk '{ print $3 }' ) $( rigRowOf info link-kind | LC_ALL=C awk '{ print $3 }' )" "0 magic-coordinator origin-symlink"
@@ -560,8 +570,8 @@ rigLeaks=0
 for rigSecret in $rigSecrets ; do
 	[ "$( LC_ALL=C grep -c -F -e "$rigSecret" "$rigTmp/all.printed" || : )" = 0 ] || rigLeaks=$(( rigLeaks + 1 ))
 done
-rigAssert "control: every secret of the rig stands in a scope file of a workspace a call here read the settings of" "$( for rigSecret in $rigSecrets ; do cat "$rigWs/.local/.agents"/*.agent.env "$rigFar/.local/.agents"/*.agent.env | LC_ALL=C grep -c -F -e "$rigSecret" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyyyyy"
-rigAssert "no secret of the rig stands anywhere in what the calls of this check printed, on either stream" "$rigLeaks of $( LC_ALL=C awk 'END { print ( NR > 100 ) ? "many-lines" : "too-few-lines" }' "$rigTmp/all.printed" )" "0 of many-lines"
+rigAssert "control: every secret of the rig stands in a scope file of a workspace a call here read the settings of" "$( for rigSecret in $rigSecrets ; do cat "$rigWs/.local/.agents"/*.agent.env "$rigFar/.local/.agents"/*.agent.env | LC_ALL=C grep -c -F -e "$rigSecret" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyyyy"
+rigAssert "no secret of the rig stands whole anywhere in what the calls of this check printed, on either stream" "$rigLeaks of $( LC_ALL=C awk 'END { print ( NR > 100 ) ? "many-lines" : "too-few-lines" }' "$rigTmp/all.printed" )" "0 of many-lines"
 rigAssert "no run of this check issued a request" "$( [ -e "$rigTmp/curl.calls" ] && wc -l < "$rigTmp/curl.calls" | LC_ALL=C tr -d ' ' || echo 0 )" "0"
 
 if [ "$rigFails" -ne 0 ] ; then

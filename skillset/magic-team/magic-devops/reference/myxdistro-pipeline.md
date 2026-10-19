@@ -21,6 +21,9 @@ Read this when working on `myx.distro-*` itself (source/deploy/system/remote/.lo
 - The workspace-root consoles are generated, so a correct template proves nothing about a workspace
 - `BuildSingleIndex.awk` accumulates every provider of a required name, silently
 - Reaching one target, and checking a generated installer
+- Example command syntax on record
+- Reaching a tool is a fact to establish, not an assumption
+- Piping one host's console into another hides the source-side failure
 
 ## A different, larger system — don't conflate with myx.common
 
@@ -274,3 +277,29 @@ in — the same name that is deliberate in one tree may be absent from another.
 - **A single target is reached with `ListSshTargets` or `ExecuteSequence --select-projects <instance>`**, using the FreeBSD instance names from the inventory. The inventory keyword is the only OS marker for an instance.
 - **A parse check is `cat file | sh -n`, plus a deliberately broken control file.** `sh -c 'sh -n; echo $?'` reported a false rc 0.
 - **macOS bash 3.2 rejects the generated installer's `eval "$( cat << BLK` wrapper**, which FreeBSD `sh` and bash 5 accept.
+
+## Example command syntax on record
+
+Real, non-`DistroAgentsTools` `myx.distro-*` shell-script command syntax this skill is responsible for knowing generally — not an exhaustive list, just the concrete example already on record. All live in `myx.distro-deploy/sh-scripts/`:
+
+- `ListSshTargets.fn.sh --select-merged-keywords <kw>`
+- `ExecuteParallel.fn.sh --select-merged-keywords <kw> --execute...`
+- `InstallPrepareScript.fn.sh --project <proj> --print-script`
+- `ExecuteSequence.fn.sh`
+- `ShellTo.fn.sh <host>`
+- `ScreenTo.fn.sh <host>`
+
+## Reaching a tool is a fact to establish, not an assumption
+
+- **`PATH` separates *not installed* from *not exposed*.** The family's directory present on `PATH` with the command still not found means that package is not installed; the directory absent from `PATH` means this console does not expose that family, and another console may. The two take different fixes, and the error text alone distinguishes neither.
+- **A tab-completed name is not proof the command is reachable.** The rc registers completions for every family it knows of, including ones this console's own `PATH` does not carry — completion is an offer, `PATH` is the authority.
+- **`Distro <Name>` and `<Name>.fn.sh` are not the same call.** `Distro` sources `<Name>.fn.sh` into the session once — only when a function of that name is not already defined — then calls that function, so repeat calls are cheaper and the bound definition outlives a later edit to the file; `<Name>.fn.sh` executes the file itself every time. After editing a tool's source, use the direct form or a fresh console.
+- **Bare-name reach ends at the packages.** A command is bare-name reachable exactly when it lives in an installed package's own `sh-scripts/`; a project's own script, a workspace-root console, an `actions/` entry is called by full path whichever console is open. `DeployRouting.fn.sh` does a job nothing else does; `DeploySettings.fn.sh` works alongside `DeployProjectSsh.fn.sh` rather than being replaced by it.
+- **The remote family is for a remote workspace, not for remote targets.** Reaching a deploy target's host is the deploy family's own work — the single-target and fan-out execution tools all reach remote hosts.
+- **An action is a caller distinction, not a quality one.** `actions/` entries exist so a person, or a task-menu binding, can fire a prepared parameter set; this member calls the tool, because doing the work means knowing which tool ran and with which parameters, and an action hides both.
+
+## Piping one host's console into another hides the source-side failure
+
+- `cmd | ssh A ... | ssh B ...` feeds A's stdout into B and leaves A's errors on stderr, so a source that produced **nothing** looks identical to one whose output B silently ignored. Re-running the pipe cannot tell those apart.
+- Capture the producing side to a file first, count and inspect it, then feed that file to the consumer. The extra step turns "it does nothing" into a specific, attributable error.
+- Judge the result by classifying the consumer's replies (`created`/`upsert`/`skipped, exact`/`unknown`), not by reading the tail of the stream.

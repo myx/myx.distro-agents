@@ -15,23 +15,22 @@
 ## reader that prints every line of a scope prints a secret like any value: it is never
 ## called here.
 ##
-## A SECRET IS NEVER PRINTED, in no row and in no message: not its value, not a part of it,
-## not its length. Its line says that it is set, or that it is not. The digest does not even
-## hold one: whether a secret is set is asked through a pipe that keeps none of its text
-## (AgentsToolsManagerConfigHolds).
+## A CREDENTIAL IS PRINTED IN ONE FORM, the first quarter of its value and a `*` for the rest
+## (AgentsToolsCredentialShown, AgentsTools.CredentialDisplay.include): in a row, in a message and
+## in a file. Its line says that it is set, with that form as its value, or that it is not.
+## A password inside a URL under any key is masked alone (AgentsToolsCredentialUrlShown).
 ##
-## WHICH KEY IS A SECRET. The tooling has no one list of them: the catalogue of the owner
-## setup marks each of its own keys secret or plain (AgentsToolsOwnerSetupOptionSpec), a
-## check names a secret call by call (--expect-secret), a harness leg names the credentials
-## it reads, and most keys of a member's scope stand in none of these. So the rule here is
-## the safe one, A KEY IS A SECRET UNLESS IT IS KNOWN NOT TO BE: the one place it is decided
-## is AgentsToolsManagerConfigKeySecret, below.
+## WHICH KEY IS A CREDENTIAL. This plugin enumerates them, in the one place
+## AgentsToolsManagerConfigKeySecret: the keys the catalogue of the owner setup marks secret
+## (AgentsToolsOwnerSetupOptionSpec) and the credentials the harness legs read. Every other key
+## shows its value as it is.
 ##
 
 ## Where an inbox item lives (F4.3).
 type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 
 type AgentsToolsOwnerSetupOptionSpec > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.OwnerSetupOptionSpec.include"
+type AgentsToolsCredentialShown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.CredentialDisplay.include"
 type AgentsToolsPlacesListText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include"
 type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.CliService.include"
 type AgentsToolsScopeKeyNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
@@ -91,7 +90,7 @@ cli|workspace|spawn-settings-workspace|Spawn Settings Workspace|configuration|Th
 cli|*|present|CLI Present|configuration|Whether this vendor CLI is on the machine, with the path of its binary. It is measured at the call.
 cli|*|usable|CLI Usable|configuration|Whether a start on this CLI can work: a harness leg with one of its credentials set, a vendor CLI where its binary is. It is measured at the call.
 cli|*|wait-round|CLI Wait Round|configuration|How long a wait runs on this CLI before it comes back, in seconds: the round of the workspace where one is set, else the CLI's own.
-cli|*|*|{words}|configuration|A credential the harness leg of this CLI reads. Only whether it is set is shown, and the owner setup saves it.
+cli|*|*|{words}|configuration|A credential the harness leg of this CLI reads. If it is set, its first quarter is shown and the rest is masked. The owner setup saves it.
 systems|||Outside Systems||
 systems|*||{name}||
 systems|*|-|No Scope Configured|configuration|No scope of this workspace holds a setting of this system, so no member reaches it from here.
@@ -108,7 +107,7 @@ loop|heartbeat|last-iteration-timestamp|Heartbeat Last Iteration|configuration|W
 loop|heartbeat|running|Heartbeat Running|configuration|Whether the heartbeat runs now: its note says so and its lock is still held.
 scopes|||Scope Settings||
 scopes|*||{name}||
-scopes|*|*|{words}|configuration|A setting of this scope, saved in its own settings file. The owner setup saves it, and a secret among them is shown only as set or not.
+scopes|*|*|{words}|configuration|A setting of this scope, saved in its own settings file. The owner setup saves it, and a credential among them shows its first quarter and masks the rest.
 interface|||Interface Settings||
 interface|style||Screen Style||
 interface|style|MDAT_MANAGER_STYLE|Interface Style|settings|How the manager screen is drawn: its windows, its frames and its colours. A change is the look of the screen at its next start, for this user in this workspace.
@@ -145,35 +144,29 @@ agentsManagerConfigModeTakes="just-agents=Just Agents,rig-client=Remote Rig Clie
 ## The words of a key that stand whole in capitals in a label made of the key's own words.
 agentsManagerConfigLabelCapitals="API CLI ID IMAP SMTP URL UTC XAI"
 
-## The last word of the name of a key whose value is known to be no secret: a place, a name,
-## a number or a switch. Asked only of a key the catalogue does not hold. A kind that is not
-## here is a secret until it is added: one word, on this line.
-agentsManagerConfigPlainWords="ALIAS CONVERSATIONS DIRECTORY DOMAIN EMAIL HOST ID LIMIT MODE NAME PORT SECONDS SECURITY SITE TIER USER USERNAME WORKSPACE"
+## The credentials a harness leg declares for itself, as words, from the file of that leg.
+AgentsToolsManagerConfigLegKeys(){ ## leg file
+	LC_ALL=C sed -n 's/^HARNESS_CREDENTIAL_NAMES=//p' "$1" 2> /dev/null | LC_ALL=C tr -c 'A-Z0-9_' ' ' || :
+}
 
-## Whether a key is a secret: rc 0 when it is, rc 1 when it is known not to be.
-##   a key the catalogue holds is what the catalogue marks it, secret or plain;
-##   any other key whose name holds the word TOKEN, KEY, SECRET, PASSWORD or COOKIE is a secret;
-##   any other key is no secret only when the last word of its name is one of the plain kinds;
-##   and every key left is a secret: a name not met before is never shown.
+## Whether a key is a credential: rc 0 when it is, rc 1 when it is not.
+##   a key the catalogue marks secret is one;
+##   so is a key a harness leg declares among the credentials it reads (read once, then kept);
+##   every other key is none, and shows its value.
 AgentsToolsManagerConfigKeySecret(){ ## key
-	local secretSpec secretWord
+	local secretSpec secretFile secretLegs=""
 	secretSpec="$( AgentsToolsOwnerSetupOptionSpec "$1" )" || secretSpec=""
 	if [ -n "$secretSpec" ] ; then
 		secretSpec="${secretSpec#*|}" ; secretSpec="${secretSpec#*|}"
-		[ "${secretSpec%%|*}" != "plain" ] || return 1
-		return 0
+		[ "${secretSpec%%|*}" != "secret" ] || return 0
 	fi
-	case "_${1}_" in *_TOKEN_*|*_KEY_*|*_SECRET_*|*_PASSWORD_*|*_COOKIE_*) return 0 ;; esac
-	for secretWord in $agentsManagerConfigPlainWords ; do
-		[ "${1##*_}" != "$secretWord" ] || return 1
-	done
-	return 0
-}
-
-## Whether a value that is no secret by its key is one by what it holds: a password inside a
-## URL, `scheme://user:password@host`, as a clone URL or a prefix may carry one. rc 0 when it is.
-AgentsToolsManagerConfigValueSecret(){ ## value
-	case "$1" in *://*:*@*) return 0 ;; esac
+	if [ -z "${agentsManagerConfigLegKeys+x}" ] ; then
+		for secretFile in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/"Agents*Harness.sh ; do
+			secretLegs="$secretLegs $( AgentsToolsManagerConfigLegKeys "$secretFile" )"
+		done
+		agentsManagerConfigLegKeys="$secretLegs "
+	fi
+	case "$agentsManagerConfigLegKeys" in *" $1 "*) return 0 ;; esac
 	return 1
 }
 
@@ -192,10 +185,10 @@ AgentsToolsManagerConfigHolds(){ ## scope, key
 	AgentsToolsManagerConfigValue "$1" "$2" | LC_ALL=C grep -q .
 }
 
-## The same of a spawn setting: asked of the dispatcher's own operation, so it is read from
+## The value of a spawn setting: asked of the dispatcher's own operation, so it is read from
 ## the workspace named to pay where one is (AgentsToolsConfigOptionElsewhere).
-AgentsToolsManagerConfigSpawnHolds(){ ## key
-	DistroAgentsTools --agents-config-option magic-team --select "$1" 2> /dev/null | LC_ALL=C grep -q .
+AgentsToolsManagerConfigSpawnValue(){ ## key
+	DistroAgentsTools --agents-config-option magic-team --select "$1" 2> /dev/null || :
 }
 
 ## The keys the catalogue of the owner setup holds, one a line, in its own order: the labels
@@ -266,23 +259,24 @@ AgentsToolsManagerConfigPathLine(){ ## subject, group, key, path
 	fi
 }
 
-## The line of one key of one scope of this workspace: a secret as set or not, with no
-## value; any other key with its value, and missing where it has none.
+## The line of one key of one scope of this workspace: a credential as set, with its value in
+## the one form of AgentsToolsCredentialShown, or not set; any other key with its value, a
+## password inside a URL masked alone, and missing where it has none.
 AgentsToolsManagerConfigKeyLine(){ ## subject, group, scope, key
-	local keyValue
+	local keyValue keyShown
+	keyValue="$( AgentsToolsManagerConfigValue "$3" "$4" )" || keyValue=""
 	if AgentsToolsManagerConfigKeySecret "$4" ; then
-		if AgentsToolsManagerConfigHolds "$3" "$4" ; then
-			AgentsToolsManagerConfigLine "$1" "$2" "$4" secret-set ""
+		if [ -n "$keyValue" ] ; then
+			AgentsToolsManagerConfigLine "$1" "$2" "$4" secret-set "$( AgentsToolsCredentialShown "$keyValue" )"
 		else
 			AgentsToolsManagerConfigLine "$1" "$2" "$4" secret-missing ""
 		fi
 		return 0
 	fi
-	keyValue="$( AgentsToolsManagerConfigValue "$3" "$4" )" || keyValue=""
 	if [ -z "$keyValue" ] ; then
 		AgentsToolsManagerConfigLine "$1" "$2" "$4" missing ""
-	elif AgentsToolsManagerConfigValueSecret "$keyValue" ; then
-		AgentsToolsManagerConfigLine "$1" "$2" "$4" secret-set ""
+	elif keyShown="$( AgentsToolsCredentialUrlShown "$keyValue" )" ; then
+		AgentsToolsManagerConfigLine "$1" "$2" "$4" secret-set "$keyShown"
 	else
 		AgentsToolsManagerConfigLine "$1" "$2" "$4" set "$keyValue"
 	fi
@@ -358,7 +352,7 @@ AgentsToolsManagerConfigMode(){
 ## Then each CLI the console knows, by the console's own declaration, and each harness leg
 ## beside them: of a vendor CLI whether it is present, by its binary, and of a leg nothing
 ## such, since it lies in sh-lib beside the tooling (the owner: "it is always present it is in
-## sh-lib"); the credentials a leg declares for itself, each set or not, never shown; whether it is
+## sh-lib"); the credentials a leg declares for itself, each set, in the one form of a credential, or not; whether it is
 ## usable, which a leg is with one of its credentials set and a vendor CLI where its binary
 ## is, since it works off the sign-in of the machine; and its wait round.
 AgentsToolsManagerConfigCli(){
@@ -403,11 +397,12 @@ AgentsToolsManagerConfigCli(){
 			;;
 		esac
 		if [ -n "$cliFile" ] ; then
-			cliKeys="$( LC_ALL=C sed -n 's/^HARNESS_CREDENTIAL_NAMES=//p' "$cliFile" 2> /dev/null | LC_ALL=C tr -c 'A-Z0-9_' ' ' )" || cliKeys=""
+			cliKeys="$( AgentsToolsManagerConfigLegKeys "$cliFile" )" || cliKeys=""
 			case "$cliKeys" in *[!\ ]*) ;; *) cliUsable="yes" ;; esac
 			for cliKey in $cliKeys ; do
-				if AgentsToolsManagerConfigSpawnHolds "$cliKey" ; then
-					AgentsToolsManagerConfigLine cli "$cliName" "$cliKey" secret-set ""
+				cliValue="$( AgentsToolsManagerConfigSpawnValue "$cliKey" )"
+				if [ -n "$cliValue" ] ; then
+					AgentsToolsManagerConfigLine cli "$cliName" "$cliKey" secret-set "$( AgentsToolsCredentialShown "$cliValue" )"
 					cliUsable="yes"
 				else
 					AgentsToolsManagerConfigLine cli "$cliName" "$cliKey" secret-missing ""
@@ -443,7 +438,8 @@ AgentsToolsManagerConfigSystems(){
 	while IFS= read -r sysKey ; do
 		[ -n "$sysKey" ] || continue
 		sysSpec="$( AgentsToolsOwnerSetupOptionSpec "$sysKey" )" || sysSpec=""
-		[ -z "$sysSpec" ] || sysCatalogue="$sysCatalogue$sysKey ${sysSpec%%|*}"$'\n'
+		## An entry of scope `-` belongs to no one scope: it is no key the team's scope lacks.
+		[ -z "$sysSpec" ] || [ "${sysSpec%%|*}" = "-" ] || sysCatalogue="$sysCatalogue$sysKey ${sysSpec%%|*}"$'\n'
 	done <<< "$( AgentsToolsManagerConfigCatalogueKeys )"
 	for sysName in $agentsMemberSettingSystems ; do
 		sysGroup="$( printf '%s' "$sysName" | LC_ALL=C tr 'A-Z' 'a-z' )"

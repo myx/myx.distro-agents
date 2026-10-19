@@ -30,10 +30,16 @@
 ##      whole row, its padding line included; else an underline on the bottom line of a row that wraps, the header
 ##      carrying it too; either from the first column of the table to its last, and the header padded from the body
 ##      like the rows, the padding never underlined; and which styles have a close background
+##   9. the pseudographic rule in place of the underline: a style says whether it draws one (Magic does, Turbo Vision and
+##      Basic B/W keep the underline); where it does and the colours name no close background, a light horizontal line
+##      stands on its own line under a row that wraps and under the header where a row wraps, exactly the table's width,
+##      on the padding line where padding is used instead of leaving it blank, and the underline is not drawn with it;
+##      a terminal that is not UTF-8 draws no such character, so the underline stays there
 ## Red before F11.0: the list on the right with a renderer of its own, the one space between columns, the wrapping that is not reassessed, no empty line between rows,
 ## a cell that breaks the ground of its row, an underline with holes under the cells, and the shades on eight colours.
 ## Red before the table separation: the ground that stops short of the padding line, the underline and the padding together
 ## on rows that do not wrap, the underline and the ground that start in the indent, the header neither padded nor underlined.
+## Red before the rule: no style says whether it draws one, and Magic under system colours underlines the rows that wrap.
 ## Offline: the only thing the screen calls here is the stand-in for the dispatcher.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -223,10 +229,12 @@ for style, entry in screen.STYLES:
         else:
             ## the underline of a row that wraps is on its bottom line, in every cell of it; a row of one line has none
             head, blocks = screen.paneTable(("NAME", "STATE"), WRAPPED_STATES, 24, looks=LOOKED)
+            ## in a style that draws the rule (STYLES "rowRule") the rule is a line of its own under the row and nothing is underlined
+            ruledHere = bool(entry.get("rowRule"))
             for number, block in enumerate(blocks):
-                if len(block) != (2 if number % 2 == 0 else 1):
+                if len(block) != ((3 if ruledHere else 2) if number % 2 == 0 else 1):
                     holes.append("%s:%d:shape" % (name, number))
-                elif [look for start, count, look in block[-1].looks if (look in screen.LINED_LOOKS) != (len(block) > 1)]:
+                elif [look for start, count, look in block[-1].looks if (look in screen.LINED_LOOKS) != (len(block) > 1 and not ruledHere)]:
                     holes.append("%s:%d" % (name, number))
             head, blocks = screen.paneTable(("NAME", "STATE"), STATES, 40, looks=LOOKED, wrap=False)
             if [look for block in blocks for start, count, look in block[-1].looks[:1] if look in screen.LINED_LOOKS] or len(set(repr(seen(block[-1].looks[0][2])) for block in blocks)) != 1:
@@ -251,17 +259,30 @@ def lined(line):
     return any(look in screen.LINED_LOOKS for start, count, look in getattr(line, "looks", ()))
 
 
+## a line of nothing but the rule of the style: the light horizontal line
+def ruleOnly(line):
+    return bool(line.strip()) and set(line.strip()) == {screen.styleMark("rule")[1]}
+
+
+## the lines of a row that carry text, the rule not among them
+def texted(block):
+    return [line for line in block if line.strip() and not ruleOnly(line)]
+
+
 def everyLine(table):
     head, blocks = table
     return head + [line for block in blocks for line in block]
 
 
 closed, bgLined, lineApart, wholeRow, wholeHead, edges, lineWrapped, lineHead, lineNone, padHead, padLine = ([] for index in range(11))
+ruleShape, ruleHead, ruleWide, ruleLined, ruleStray = ([] for index in range(5))
 for style, entry in screen.STYLES:
     for scheme, changes in entry["schemes"]:
         name = "%s-%s" % (style, scheme)
         screen.setStyle(name)
         near = screen.rowsApart()
+        ## the rule stands where the style draws one and the colours name no close background
+        ruled = bool(entry.get("rowRule")) and not near
         if near:
             closed.append(name)
         for wrap in (True, False):
@@ -276,10 +297,25 @@ for style, entry in screen.STYLES:
                     edges.append(tag)
                 ## the header is padded from the body as the rows are from each other, and the padding carries no underline
                 pads = [line for line in every if not line.strip()]
-                if len(head) != 2 or head[1].strip():
+                ## where the style draws the rule it stands on the padding line under the header and under each row that wraps (the 2nd and the 4th)
+                ruling = ruled and wrap
+                if len(head) != 2 or bool(head[1].strip()) != ruling:
                     padHead.append(tag)
-                if len(pads) != len(WRAPPING) or any(lined(line) for line in pads):
+                if len(pads) != len(WRAPPING) - (3 if ruling else 0) or any(lined(line) for line in pads):
                     padLine.append(tag)
+                if ruling:
+                    if [number for number, block in enumerate(blocks) if len(texted(block)) > 1] != [1, 3] or any(
+                            [ruleOnly(line) for line in block] != [False] * (len(block) - 1) + [True] for block in (blocks[1], blocks[3])) or any(
+                            ruleOnly(line) for number in (0, 2, 4) for line in blocks[number]):
+                        ruleShape.append(tag)
+                    if [ruleOnly(line) for line in head] != [False, True]:
+                        ruleHead.append(tag)
+                    if any(line.rstrip() != indent + screen.styleMark("rule")[1] * (width - len(indent)) for line in every if ruleOnly(line)):
+                        ruleWide.append(tag)
+                    if any(lined(line) for line in every):
+                        ruleLined.append(tag)
+                elif any(ruleOnly(line) for line in every):
+                    ruleStray.append(tag)
                 if near:
                     ## a close background is the whole technique: nothing is underlined, and every line of a row has its ground, its padding line too
                     if any(lined(line) for line in every):
@@ -293,7 +329,7 @@ for style, entry in screen.STYLES:
                     ## no close background: the ground never changes
                     if any(groundOf(line) != screen.lookGround(screen.ROW) for block in blocks for line in block if line.strip()):
                         lineApart.append(tag)
-                    if wrap:
+                    if wrap and not ruled:
                         ## the underline is on the bottom line of a row that wraps, and the header carries it too
                         for number, block in enumerate(blocks):
                             texts = len([line for line in block if line.strip()])
@@ -303,10 +339,11 @@ for style, entry in screen.STYLES:
                             lineHead.append(tag)
                     elif any(lined(line) for line in every):
                         lineNone.append(tag)
-        ## a table whose rows do not wrap carries no underline, the header included
+        ## a table whose rows do not wrap carries no underline and no rule, the header included
         if not near:
             for indent in (" ", "  "):
-                if any(lined(line) for line in everyLine(screen.paneTable(HEADS, SINGLE, 30, indent=indent, pane=(1000, 1000)))):
+                single = everyLine(screen.paneTable(HEADS, SINGLE, 30, indent=indent, pane=(1000, 1000)))
+                if any(lined(line) or ruleOnly(line) for line in single):
                     lineNone.append("%s%d" % (name, len(indent)))
 say("sepClosed", " ".join(closed))
 say("sepBgLined", " ".join(bgLined))
@@ -319,6 +356,59 @@ say("sepLineNone", " ".join(lineNone))
 say("sepEdges", " ".join(edges))
 say("sepPadHead", " ".join(padHead))
 say("sepPadLine", " ".join(padLine))
+say("ruleShape", " ".join(ruleShape))
+say("ruleHead", " ".join(ruleHead))
+say("ruleWide", " ".join(ruleWide))
+say("ruleLined", " ".join(ruleLined))
+say("ruleStray", " ".join(ruleStray))
+
+## 9. the rule in place of the underline, in the style that draws one: against the same table in a style that underlines
+say("ruleDeclared", " ".join("%s=%s" % (style, bool(entry.get("rowRule"))) for style, entry in screen.STYLES))
+
+
+def shape(table):
+    ## each group (the header, then each row) as its lines: T text, R the rule, . an empty line
+    head, blocks = table
+    return " ".join("".join("R" if ruleOnly(line) else "T" if line.strip() else "." for line in group) for group in [head] + blocks)
+
+
+def expected(table, padded):
+    ## the text lines of an underlined table with the rule under the header and under each row that wraps: on the padding line
+    ## where one stands, else on a line of its own; a row of one line has none
+    head, blocks = table
+    wraps = [len(block) > 1 for block in blocks]
+    return " ".join(
+        ["T" * len(head) + "R"] + ["T" * len(block) + ("R" if wraps[number] else ("." if padded and number < len(blocks) - 1 else "")) for number, block in enumerate(blocks)]) if any(wraps) else None
+
+
+def textOf(table):
+    return [line.rstrip() for line in everyLine(table) if not ruleOnly(line)]
+
+
+screen.setStyle("tv-system")
+UNDER = screen.paneTable(HEADS, WRAPPING, 30)
+screen.setStyle("nu-system")
+TIGHT = screen.paneTable(HEADS, WRAPPING, 30)
+say("ruleTightShape", shape(TIGHT) == expected(UNDER, False))
+say("ruleTightText", textOf(TIGHT) == [line.rstrip() for line in everyLine(UNDER)])
+LINES = len(everyLine(TIGHT))
+## the padding lines the rule takes the place of cost no height: the rule stands on them, so a pane two lines taller than the tight table holds the padding
+say("rulePadded", shape(screen.paneTable(HEADS, WRAPPING, 30, pane=(1000, LINES + 2))) == expected(UNDER, True))
+say("ruleTooTall", shape(screen.paneTable(HEADS, WRAPPING, 30, pane=(1000, LINES + 1))) == shape(TIGHT))
+## a last row that wraps takes its rule on a line of its own, below it, and the pane counts that line
+LAST = [["a", "one"], ["b", "two words that wrap on and on over the lines"]]
+screen.setStyle("tv-system")
+UNDER_LAST = screen.paneTable(HEADS, LAST, 30)
+screen.setStyle("nu-system")
+TIGHT_LAST = screen.paneTable(HEADS, LAST, 30)
+say("ruleLastTight", shape(TIGHT_LAST) == expected(UNDER_LAST, False))
+say("ruleLastPadded", shape(screen.paneTable(HEADS, LAST, 30, pane=(1000, len(everyLine(TIGHT_LAST)) + 1))) == expected(UNDER_LAST, True))
+say("ruleLastTooTall", shape(screen.paneTable(HEADS, LAST, 30, pane=(1000, len(everyLine(TIGHT_LAST))))) == shape(TIGHT_LAST))
+## the lines not wrapped: nothing marks the rows
+say("ruleNowrap", "R" in shape(screen.paneTable(HEADS, WRAPPING, 30, wrap=False)))
+## the rule of a row stands on the ground of its row, the rule under the header on the ground of the header
+say("ruleLook", all(screen.lookGround(line.looks[0][2]) == screen.lookGround(screen.ROW) for block in TIGHT[1] for line in block if ruleOnly(line))
+    and screen.lookGround(TIGHT[0][-1].looks[0][2]) == screen.lookGround(screen.ROW_HEAD))
 eight = []
 screen.curses = type("Eight", (), {"COLORS": 8})
 for style, entry in screen.STYLES:
@@ -327,6 +417,11 @@ for style, entry in screen.STYLES:
         if screen.rowsApart():
             eight.append("%s-%s" % (style, scheme))
 say("eight", " ".join(eight))
+## a terminal that is not UTF-8 draws no such character: the style that draws the rule keeps the underline there
+screen.plainMarks()
+screen.setStyle("nu-system")
+plainTable = everyLine(screen.paneTable(HEADS, WRAPPING, 30))
+say("rulePlain", "%s:%s" % (any("─" in line for line in plainTable), any(lined(line) for line in plainTable)))
 RIGPROBE
 rigProbe="$( cd "$rigTmp" && "$rigPython" -I -B "$rigTmp/probe.py" "$rigScreen" 2>&1 )" || rigProbe="$rigProbe"$'\n'"PROBE-FAILED rc=$?"
 rigGot(){ ## name -- the value of the first `<name>=` line of the probe
@@ -546,8 +641,23 @@ rigAssert "the underline is on the bottom line of a row whose content wraps, nev
 rigAssert "the header carries the underline too, where rows of its table wrap" "[$( rigGot sepLineHead )]" "[]"
 rigAssert "a table whose rows do not wrap carries no underline, the header included, and with the lines not wrapped nothing marks the rows" "[$( rigGot sepLineNone )]" "[]"
 rigAssert "a ground or an underline starts at the first column of the table and ends at its last, on every line, never in the indent ahead of it" "[$( rigGot sepEdges )]" "[]"
-rigAssert "the header is padded from the body, as the rows are from each other" "[$( rigGot sepPadHead )]" "[]"
-rigAssert "a padding line carries no underline, and there is one under the header and between every two rows" "[$( rigGot sepPadLine )]" "[]"
+rigAssert "the header is padded from the body, as the rows are from each other; where the style draws the rule it stands on that padding line" "[$( rigGot sepPadHead )]" "[]"
+rigAssert "a padding line carries no underline, and there is one under the header and between every two rows; the rule takes the place of those under the header and under a row that wraps" "[$( rigGot sepPadLine )]" "[]"
+
+echo "-- 9. the pseudographic rule in place of the underline --"
+rigAssert "each style says whether it draws one: Magic does, Turbo Vision and Basic B/W keep the underline" "$( rigGot ruleDeclared )" "nu=True tv=False bw=False"
+rigAssert "where it draws one and the colours name no close background, the rule stands under each row that wraps and a row of one line has none" "[$( rigGot ruleShape )]" "[]"
+rigAssert "the header carries it too, as its last line" "[$( rigGot ruleHead )]" "[]"
+rigAssert "it is exactly the table's width, from its first column to its last, on a line of nothing else" "[$( rigGot ruleWide )]" "[]"
+rigAssert "the underline is not drawn with it" "[$( rigGot ruleLined )]" "[]"
+rigAssert "in no other style, in a close background, or with the lines not wrapped, a line of the rule alone is drawn" "[$( rigGot ruleStray )]" "[]"
+rigAssert "the table is the same table: the rule under a row that wraps and under the header, on lines of their own, and the lines of text exactly those of the underlined table" "$( rigGot ruleTightShape ):$( rigGot ruleTightText )" "True:True"
+rigAssert "where padding is used the rule is drawn on the padding line instead of leaving it blank, and the pane that holds the padding is no taller than the table with its rules" "$( rigGot rulePadded )" "True"
+rigAssert "a pane one line too short for it has no padding, and the rules stand on lines of their own" "$( rigGot ruleTooTall )" "True"
+rigAssert "a last row that wraps takes its rule on a line of its own below it, with and without padding, and the height counts that line" "$( rigGot ruleLastTight ):$( rigGot ruleLastPadded ):$( rigGot ruleLastTooTall )" "True:True:True"
+rigAssert "with the lines not wrapped nothing marks the rows" "$( rigGot ruleNowrap )" "False"
+rigAssert "the rule of a row is on the ground of that row, the rule under the header on the ground of the header" "$( rigGot ruleLook )" "True"
+rigAssert "a terminal that is not UTF-8 draws no such character, so the style underlines there: no rule, an underline" "$( rigGot rulePlain )" "False:True"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN TABLE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

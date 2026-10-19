@@ -163,7 +163,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - `magic-coordinator.advance.routine` — runs this routine every pass at **advance-process-comms**.
 - `magic-coordinator.armed.md`'s `check-pending-comms-actions` — adds deferred outcome reactions.
-- `magic-team.shared.md`'s "Partner / Client" section — the client sweep this routine wraps.
+- `magic-team/reference/skill-folder-model.md`'s "Partner / Client" section — the client sweep this routine wraps.
 
 ### Conventions
 

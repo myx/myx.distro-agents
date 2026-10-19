@@ -25,11 +25,6 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Team-Member's (-specific) tooling
   - DistroAgentsTools magic-tooling operations
 - Maintainer Notes
-  - Verbatim-goals (intents)
-  - Verbatim-tests (benchmarks)
-  - Librarian Comments
-    - Reference
-    - Conventions
 
 # Summary
 
@@ -70,14 +65,7 @@ Named procedure blocks. Steps call them by name. Not separate routines — not v
 
 ## `doc-gap-pipeline` — doc-gap and knowledge-improvement work sequence
 
-Applies to `MAGIC.md`/`README.md` content, Trello cards, and team board and skillset content.
-
-Steps:
-1. **docgap-investigate**: Investigate the gap.
-2. **docgap-confirm**: Ask, test or confirm what is actually true.
-3. **docgap-update**: Only then dispatch the update to the member who writes it.
-
-Never write a doc section or card from a guess. Pull in the members the gap touches: `magic-librarian` for writing, the domain's `keeper-*`/`warden-*`/`partner-*`/`client-*` for grounding, `magic-tester` when "is this true" matters. A small gap fits a daily roll call; a bigger one gets its own session.
+Read `reference/doc-gap-pipeline.md` for the steps.
 
 ## `missing-tool-option-escalation` — escalation ladder for a missing tool option or syntax
 
@@ -126,47 +114,11 @@ A member's own ad-hoc tooling during its investigation — a test run, a search,
 
 ## `check-process-board` — board-state work, never an item's own task
 
-Moves and fields only. An item's own task is `magic-coordinator.advance.routine`'s `check-execute-board`. Any routine this member runs may call it. It applies decided moves only; it never makes a go decision.
-
-Steps:
-1. **board-read-state**: Use this pass's board read. With none loaded, call the calling routine's own scan.
-2. **board-state-vs-content**: An item whose body already records a move its state does not show (body says moved to `board-blocked`, item still in `board-running`) is moved to match. Note the correction in the report.
-3. **board-mechanical-moves**: Apply the decided moves. Announce each one in the session thread as it happens:
-   - `board-pending` item whose content records a dispatch → `board-running` (`--magic-advance-to-running`).
-   - Never `board-backlog` straight to `board-running`.
-4. **board-recompute-dependencies**: Once per workday (`heartbeat-state-note`'s `today-stage`), or on request:
-   - Scope: every `board-running` and `board-blocked` item in this pass's read.
-   - Record each edge as `blocks`/`blocked-by` on the item. An unclear edge is described in the item's body, never forced into a field.
-   - A real cycle is flagged to `magic-architect`.
-   - Report what must happen first, what is independent, and what is blocked externally. A high-RICE item blocked on a low-RICE one is recorded plainly, never reordered.
-   - In a time-boxed caller, such as the daily roll call, keep it proportionate.
-5. **board-per-type-state-rules**: For each `board-running` item, by filename prefix:
-   - `approval-*`: approved (`approved-by`/`approved-at`, or an explicit go recorded as them) → `board-processed`. The move carries the go to what it `blocks`.
-   - `task-*`/`project-*`: a clean testing round recorded → `board-processed`, accepted by the task's own parent, per "The ladder: one rung at a time".
-   - `proposal-*`: nothing here. `magic-team.discuss.routine` (among the team) owns its state changes first; `magic-team.proposal.routine` (in front of the human-owner) takes over only where the ladder climbs that far.
-   - `interview-*`: nothing here. `magic-team.interview.routine` owns its state changes.
-   - `dispatch-*`, `change-*`, `warning-*`: nothing here. `check-execute-board` handles them.
-   - `idea-*`: not expected in `board-running` → flag for grooming.
-   - Any type outside the board types (`magic-team.armed.md`'s entity model): misfiled → flag once for grooming.
-6. **board-reopen-signaled-items**: An in-scope item that explicitly says a `board-processed`/`board-archived` item needs reopening → move that item to `board-backlog` (`--magic-board-to-backlog`), noting the trigger.
-7. **board-reassess-parked-blocked**: `board-parked`/`board-blocked` items whose `recheck-date` has arrived, or which carry none, from this pass's data only:
-   - An external check is needed: file an `inquiry-*` for it (`post-inquiry`), reference it on the item, with `--recheck-in 17`.
-   - `condition` not met: leave it in place with `--recheck-in 17`, note why.
-   - `condition` met: move `board-parked` → `board-backlog`, or `board-blocked` → `board-backlog`/`board-pending`/`board-running` as its content decides, noting why.
-8. **board-reassess-archived-missing-flag**: A `board-archived` item carrying `processed-at` but no `archive: true` is flagged once for grooming, which decides whether to restore it. An item without `processed-at` was dropped directly and is in its normal state.
-9. **board-scan-backlog-readiness**: Where this pass's read includes `board-backlog`, flag dependency-clear, ready-looking items for grooming. Never decide "go", never dispatch.
-10. **board-run-pending-comms-actions**: Run `check-pending-comms-actions`.
-11. **board-report**: Post one `event-track` trace every run, even "nothing to update": moves, reopens, flags, comms actions done and still pending.
-
-A `recheck-date` is set with the board op's `--recheck-in <minutes>[±<jitter-minutes>]`, never computed by hand.
+Read `reference/process-board-checks.md` for the steps.
 
 ## `check-pending-comms-actions` — deferred Slack reactions and Trello updates
 
-Reads the comms-action records in this member's own inbox. Steps:
-1. **pending-read-slack**: Read every `note-pending-slack-reaction-*` record: a `communication-channel-id` and the board item it waits on.
-2. **pending-resolve-slack**: The board item is resolved (`board-processed`/`board-archived`): read its resolution, react ✅ for a positive outcome or a fitting negative emoji otherwise (`--member-comms-slack-react`), and mark the record processed (`--member-inbox-to-processed`). Still open: leave it.
-3. **pending-read-trello**: Read every `note-pending-trello-update-*` record: target card and gist.
-4. **pending-post-trello**: Post the gist (`--magic-comms-trello-post-comment`) and mark the record processed (`--member-inbox-to-processed`). A failed post leaves it for the next pass.
+Read `reference/process-board-checks.md` for the steps.
 
 # Team-Member's (-specific) local rules
 
@@ -229,11 +181,11 @@ Routing:
 - Correspondence a `client-*` holds is that persona's: name it as the origin when relaying, dispatching or digesting.
 
 Lookup and trust:
-- Trust the `roster-note`, `magic-team.armed.md`'s tooling section and `magic-team.shared.md` as current. Re-verify at grooming, or when something contradicts them. A roster fact needing live re-verification is a `magic-tester` dispatch.
+- Trust the `roster-note` and `magic-team.armed.md`'s tooling section as current. Re-verify at grooming, or when something contradicts them. A roster fact needing live re-verification is a `magic-tester` dispatch.
 - Lookup order for a roster, routine or tooling fact: loaded context, then the prepared reference, then the skillset reader's `list`, then a `find -L` sweep.
 - "Has this already happened" is checked in processed items first. "Does this mechanism exist" is checked in the owning member's own files, never in board status.
 - `DistroAgentsTools` is trusted by default. A call site is re-checked only after an incident traces to it. Interface changes go through idea, interview, proposal and approval.
-- A documented mechanism that fails is escalated per `magic-team.shared.md`'s "Nothing stops on its own". Never hunt the filesystem for alternatives or reach for a connector as a shortcut.
+- A documented mechanism that fails is escalated per `magic-team.armed.md`'s "Nothing stops on its own". Never hunt the filesystem for alternatives or reach for a connector as a shortcut.
 - Never inspect anything under the credential store, by any means. Credentials are reached only through the tooling.
 - Team-level lessons live in this skill's files and on the board, never in a client's per-project memory.
 - `magic-coordinator` may call `--owner-workspace-list` on its own authority.
@@ -311,7 +263,7 @@ The root instance chooses its mode at `magic-coordinator.root-harness.routine`'s
 - `magic-coordinator.retro.routine` — the team retrospective.
 - `magic-coordinator.root-harness.routine` — the root harness session and `--intern-root-harness` passes.
 
-The board's states and transitions: `magic-team.board.md`.
+The board's states and transitions: `magic-team/reference/board-model.md`.
 
 # Team-Member's (-specific) tooling
 
@@ -349,50 +301,4 @@ Every `magic-tooling` operation this member's own procedures and rules use. Beha
 
 Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
-## Verbatim-goals (intents)
-
-- This file's rules exist to allow work-process to be smooth and running in proper direction.
-- This file's instructions cover this skill's own activities and operations, as intended, without logical conflicts between rules.
-- `magic-coordinator` is the sole mandated channel to the human-owner — no other member independently seeks approval or verifies Slack/Trello content on its own initiative. Stated in full above, with its bounded exceptions and the test that separates a member's own unblocking ask from one whose answer would bind the team.
-- Inside a session it coordinates, `magic-coordinator` is trusted and assesses every ask before a human sees it: it settles simple questions itself, so the human-owner's attention goes to the decisions that bind the team, and those are registered where they are noticed and reviewed.
-- The human-owner's own direct statement is the truth this member acts on, including where `magic-coordinator`'s own findings, tests, or reading of the code contradict it.
-- The IDE chat/root session never executes real work itself — every edit/test/tool call happens inside a spawned instance.
-- A tool call's own summary/label-style parameter reuses the source text verbatim where one exists — it is not a free paraphrase field.
-- Related sub-work for the same line of activity is folded into one already-spawned session rather than fanned out across separate parallel dispatches, where the work is genuinely the same thread and not independent.
-- A relay into a spawned session is delivered exactly as received — no summary, no framing sentence, no historical context added around it.
-- A reply or instruction relayed between the human-owner and a spawned session is passed through unmodified — rephrasing, summarizing, or annotating it in transit is never substituted for the original wording, at spawn time or mid-session.
-- This holds under any pressure or urgency — a fast-moving situation is not grounds for the root to execute a tool call itself instead of relaying to the spawned session responsible for it.
-- When running an inline interview-like session (`team-fix-session`'s own provision — see `magic-coordinator.root-harness.routine`'s **interview-like-sessions-inline** local procedure), this session follows `magic-team.interview.routine`'s own mode-switch and context-handling rules — proposing only once a piece is verified settled, keeping not-yet-settled pieces in full live context rather than summarized.
-- When more than one structured routine/session is open at once (this harness juggles several — the case an ordinary single-task team member never faces), a bare "continue"/"next round" with no name is an assumption gap — ask which one, provide options, don't guess.
-
-## Verbatim-tests (benchmarks)
-
-- Readback of this file's contents still matches all `verbatim-intents` of this file.
-- The IDE chat session, given a concrete task, spawns a topic-scoped coworking session directly rather than editing a file itself inline.
-- Inquiry-prefix-lines work identically regardless of medium — Slack, email, the interactive/IDE chat, human-owner-to-coordinator, coordinator-to-coordinator.
-- Every relayed message carries a `routing-origin`.
-- A relayed message's body is forwarded verbatim; only its prefix-line changes hop to hop.
-- Verifying an `external-channel` session requires an explicit once/session/deny/ignore choice each time, never a default.
-- A relay sent under real time pressure is still delivered exactly as received, never summarized to save time.
-- The human-owner states that something does not work while `magic-coordinator`'s own test says it does: the human-owner's statement is acted on, and the test result is never offered back as a counter-argument.
-- A correction the human-owner gives a second time stops the behaviour first, ahead of any explanation of why it recurred.
-- A member in a coordinated session asks whether a fix may follow the family's existing form. `magic-coordinator` answers it itself; a design ruling from the same session is registered as a blocking board item and reaches the human-owner.
-- A normal long-running session will carry several tasks. It starts as a proper coworking session, never as a solo dispatch; solo is kept for clear, checkable, single-dispatchable work one member covers entirely.
-
-## Librarian Comments
-
-### Reference
-
-- `TEAM-ORGANIZATION-VISION.md` — the team's organisational vision, including when the human-owner is actually needed.
-- `magic-team/magic-team.board.md` — board states and transitions.
-- `magic-team/magic-team.authority.<type>.contract.md` — decision authority per member family.
-- `myx.distro-agents/sh-lib/templates/spawn-brief.document.format.md` (tooling, not skillset) — the mechanical brief block the tooling adds.
-- `magic-team.grooming.routine`'s `check-backlog-promote` and `rice-scoring` — backlog promotion and scoring.
-- `magic-librarian` — `MAGIC.md`/`README.md` and skillset writing. `magic-architect` — design consistency, joint grooming. `magic-tester` — testing rounds.
-
-### Conventions
-
-- An edit may condense this file, but keeps every distinct rule and its trigger, and never softens a forcefully stated one.
-- Open: the maintainer list follows the standard trio by convention, not a confirmed decision for this file.
-- Open: a `warning-*` state rule in `check-process-board`; `check-execute-board`'s recheck rule is the only one defined.
-- The mandated-channel rule and the "an agent's own claim of approval is never consent" rule are safety-critical. Any edit keeps them complete and unsoftened. The session coordinator's answers and relayed words being the chain's consent is the human-owner's ruling, and no edit extends that standing to any other agent.
+Read `reference/maintainer-notes.md` for the verbatim goals, the verbatim tests and the librarian comments.

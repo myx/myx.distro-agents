@@ -114,6 +114,9 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 rigRow counters 0 0 0 0 0 0.42 > "$rigF/rows"
 rigRow saved MDAT_MANAGER_STYLE nu-blue user "$rigEnv" > "$rigF/rows.--manager-config-set"
 rigRow saved SESSION_CONTROL_REQUEST_SECONDS 12 workspace "$rigTeamEnv" > "$rigF/rows.--manager-config-set SESSION_CONTROL_REQUEST_SECONDS 12"
+rigRow saved MDLT_CONSOLE_HISTORY bash-default user "$rigEnv" > "$rigF/rows.--manager-config-set MDLT_CONSOLE_HISTORY bash-default"
+## the digest as it reads once the history type is saved as bash-default
+LC_ALL=C sed 's/	workspace-personal	Console_History_Type/	bash-default	Console_History_Type/' "$rigF/rows.--manager-config-digest" > "$rigTmp/changed.digest"
 ## A fresh rig for one case: a copy of the fixtures, no call noted yet.
 rigCase(){ ## name
 	export MANAGER_SCREEN_RIG="$rigTmp/$1"
@@ -309,12 +312,13 @@ cells kStatus 39 0 120
 cells kRow 7 85 119
 RIGSCRIPT
 rigAssert "Enter on a subject opens it: its lines of this root under the row that goes up, by label, nothing at the end of a row" "$( rigVal in.path ) [$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row2 | sed 's/  *$//' )][$( rigVal row3 | sed 's/  *$//' )][$( rigVal row4 )]" "settings/console [Console Behaviour] 3 [>..][ Console History Type...][ Console Title...][]"
-rigAssert "on the row that goes up the left window shows the subject itself: its table, nothing above it" "[$( rigPane f 2 )][$( rigPane f 3 )]" "[ Console Behaviour [wrap]][  SETTING               VALUE                       SOURCE   KEY]"
-rigAssert "a setting: its label as the title, and as its head its label and what it is now, by the label of the choice and as it is saved" "$( rigVal h.selectedLabel ) [$( rigPane h 2 )][$( rigPane h 3 )][$( rigPane h 4 )]" "Console History Type [ Console History Type [wrap]][ Console History Type = Per User In This Workspace (workspace-personal)][]"
+rigAssert "on the row that goes up the left window shows the subject itself: its table, nothing above it" "[$( rigPane f 2 )][$( rigPane f 3 )]" "[ Console Behaviour [wrap]][  SETTING               VALUE               SOURCE   KEY]"
+rigAssert "its VALUE column holds the raw value a setting is saved as, and no description of it" "$( rigScreenHolds f ' workspace-personal ' ) $( rigScreenHolds f 'Per User In This Workspace' ) $( rigScreenHolds f ' rig_title ' )" "1 0 1"
+rigAssert "a setting: its label as the title, and as its head its label and what it is now, by the label of the choice and as it is saved" "$( rigVal h.selectedLabel ) [$( rigPane h 2 )][$( rigPane h 3 )][$( rigPane h 4 )]" "Console History Type [ Console History Type [wrap]][ Console History Type = workspace-personal (Per User In This Workspace)][]"
 rigAssert "then its description, and under it its key, group, state, source and scope" "[$( rigPane h 5 )][$( rigPane h 6 )][$( rigPane h 7 )][$( rigPane h 8 )][$( rigPane h 9 )][$( rigPane h 10 )][$( rigPane h 11 )]" \
 	"[ Where a console keeps the shell history of this user.][][  key       MDLT_CONSOLE_HISTORY][  group     history][  state     set][  source    saved for this user][  scope     this user, in this workspace]"
-rigAssert "what it takes, where it is saved, and that it is changed from here, which the status line names and no line of the pane" "[$( rigPane h 12 )][$( rigPane h 13 )][$( rigPane h 14 )] $( rigPaneHolds h ' keys: ENTER change' ) [$( rigVal hStatus | sed 's/  *$//' )]" \
-	"[  takes     Per User In This Workspace, The File Bash Uses][  saved in  /rig/ws_rig/.local/home/rig/MDLT.settings.env][  change    yes] 0 [ ENTER Change  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "what it takes, where it is saved, and that it is changed from here, which the status line names and no line of the pane" "[$( rigPane h 12 )][$( rigPane h 13 )][$( rigPane h 14 )][$( rigPane h 15 )] $( rigPaneHolds h ' keys: ENTER change' ) [$( rigVal hStatus | sed 's/  *$//' )]" \
+	"[  takes     workspace-personal (Per User In This Workspace), bash-default (The File][            Bash Uses)][  saved in  /rig/ws_rig/.local/home/rig/MDLT.settings.env][  change    yes] 0 [ ENTER Change  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "a setting of a kind the screen does not know shows as it is, with nothing it takes" "[$( rigPane t 3 )] $( rigPaneHolds t '  source    the default' ) $( rigScreenHolds t ' takes ' ) $( rigPaneHolds t '  change    yes' )" "[ Console Title = rig_title] 1 0 1"
 rigAssert "Backspace goes up, onto the subject that was entered"         "$( rigVal back.path ) $( rigVal back.selected )" "settings console"
 rigAssert "a secret of the configuration, titled with its group since the subject has several: only its state, its description, and why it is not changed, in the words of its row" "$( rigVal k.path ) [$( rigPane k 2 )][$( rigPane k 3 )][$( rigPane k 5 )] $( rigPaneHolds k '  change  no: set at deployment: a wizard will change it' ) $( rigScreenHolds k 'sk-must' )" "configuration/cli [ claude: Anthropic API Key [wrap]][ Anthropic API Key = configured][ The key the Claude CLI signs in with.] 1 0"
@@ -388,7 +392,7 @@ rigAssert "the subjects are listed by their labels"                  "[$( rigVal
 rigAssert "the left window is titled by the label, and no caption repeats it" "[$( rigPane c 2 )] $( rigPaneHolds c ' CLI Services: 2 lines, 1 missing.' )" "[ CLI Services [wrap]] 0"
 rigAssert "a line of the CLI view shows by its CLI and its key, its label left out (the owner: \"Make MEMBER KEY VALUE\", the CLI view the same)" "[$( rigPane c 5 | LC_ALL=C tr -s ' ' )] $( rigScreenHolds c 'Spawn Harness Tier' )" "[ workspace SPAWN_HARNESS_TIER missing] 0"
 rigAssert "a line with no label shows by its key there too" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^c|' | LC_ALL=C tr -s ' ' | LC_ALL=C grep -c -F '│ workspace ODD_KEY odd' )" "1"
-rigAssert "the subject of the interface shows its style as it is, by the label of the choice, where it comes from, and its key" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^i|' | LC_ALL=C tr -s ' ' | LC_ALL=C grep -c -F '│ Interface Style Turbo Vision - System default MDAT_MANAGER_STYLE' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^i|' | LC_ALL=C grep -F 'Interface Settings ' | LC_ALL=C grep -c -F '►' )" "1 1"
+rigAssert "the subject of the interface shows its style as it is saved, by its value and not by the label of the choice, where it comes from, and its key" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^i|' | LC_ALL=C tr -s ' ' | LC_ALL=C grep -c -F '│ Interface Style tv-system default MDAT_MANAGER_STYLE' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^i|' | LC_ALL=C grep -F 'Interface Settings ' | LC_ALL=C grep -c -F '►' )" "1 1"
 
 echo "-- Enter on the style: a dialog of its own, the style and its colours; OK takes both at once and saves them as one value --"
 rigCaseLabelled style
@@ -424,6 +428,72 @@ rigAssert "two groups of radio buttons, the styles Magic first and the colours, 
 rigAssert "Space chooses the style the bar is on, Tab goes to the colours and Space chooses there; Esc closes, saves nothing and leaves the style" "[$( rigVal magic.dialog )] [$( rigVal dark.dialog )] [$( rigVal esc.dialog )] $( rigVal esc.style )-$( rigVal esc.colours ) $( rigCalled '--manager-config-set MDAT_MANAGER_STYLE nu-blue' )" "[setting-style:style|nu] [setting-style:colours|dark] [] tv-system 1"
 rigAssert "OK: this screen takes the style and its colours at once, before the operation has answered" "[$( rigVal ok.dialog )] $( rigVal ok.style )-$( rigVal ok.colours ) [$( rigVal ok.notice )] $( rigScreenHolds after ' This screen is drawn in Magic - Dark/Blue now.' )" "[] nu-blue [save asked of the tooling: Interface Style: Magic - Dark/Blue] 1"
 rigAssert "and they are saved by the write operation, once, as one value, by the key of the row" "$( rigCalled '--manager-config-set MDAT_MANAGER_STYLE nu-blue' ) $( LC_ALL=C grep -c -e '--manager-config-set' "$MANAGER_SCREEN_RIG/calls" ) [$( rigVal done.notice )] $( rigVal done.style )-$( rigVal done.colours )" "1 1 [saved: Interface Style: Magic - Dark/Blue] nu-blue"
+
+echo "-- Enter on a choice: the form offers the same choices and saves the raw value, which the table then shows --"
+rigCase choice
+rigScript <<RIGSCRIPT
+turn
+keys 7
+wait list 30
+keys DOWN DOWN ENTER
+turn
+keys DOWN
+turn
+get row
+keys ENTER
+turn
+get dlg
+box cbox
+keys DOWN SPACE
+get chosen
+copy $rigTmp/changed.digest $MANAGER_SCREEN_RIG/rows.--manager-config-digest
+keys ENTER
+get saved
+wait action 30
+keys u
+wait list 30
+turn
+get after
+show after
+keys BACKSPACE
+turn
+show table
+RIGSCRIPT
+rigAssert "Enter on the setting opens its form: the dialog of the choices, on the setting, as before" "[$( rigVal dlg.dialog )] [$( rigVal dlg.dialogTitle )]" "[setting:choice|workspace-personal] [Console History Type]"
+rigAssert "it offers the same choices, each by its label as before: a radio button for each, the saved one chosen" "$( rigBoxHolds cbox '(•) Per User In This Workspace' ) $( rigBoxHolds cbox '( ) The File Bash Uses' )" "1 1"
+rigAssert "Space chooses the second, OK saves it: the write operation is called once, with the key and the raw value, not the label" "[$( rigVal chosen.dialog )] [$( rigVal saved.dialog )] $( rigCalled '--manager-config-set MDLT_CONSOLE_HISTORY bash-default' ) $( LC_ALL=C grep -c -e '--manager-config-set' "$MANAGER_SCREEN_RIG/calls" )" "[setting:choice|bash-default] [] 1 1"
+rigAssert "read back: the table of the subject shows the saved raw value, and the setting's detail shows it first, with its description after it" "$( rigScreenHolds table ' bash-default ' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^table|' | LC_ALL=C grep -F 'MDLT_CONSOLE_HISTORY' | LC_ALL=C grep -c -F 'The File Bash Uses' ) $( rigPaneHolds after ' Console History Type = bash-default (The File Bash Uses)' )" "1 0 1"
+
+echo "-- the raw value, and the place form of a path, in the table and in the detail of a setting --"
+## the functions of the screen over a line of the digest that offers a path as its choices, with a location registered for it
+cat > "$rigTmp/values.py" <<'RIGPY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+screen = importlib.util.module_from_spec(spec) ; spec.loader.exec_module(screen)
+state = screen.ManagerState("")
+state.rows["places"] = [{"place": {"path": "/rig/ws-myx-devops", "key": "ws-myx-devops"}}]
+state.placed = None
+place = lambda text: screen.placedLine(state, text)[0]
+choices = [("", "<default> (own .local)"), ("/rig/ws-myx-devops/source", "ws-myx-devops (source)"), ("/rig/elsewhere/source", "elsewhere (source)")]
+line = {"subject": "console", "group": "origin", "key": "MDLT_CONSOLE_ORIGIN", "state": "set", "value": "/rig/ws-myx-devops/source", "label": "Console Tooling Origin",
+        "description": "", "change": "yes", "kind": "choice", "scope": "workspace", "source": "workspace", "where": "", "choices": choices, "range": None}
+unset = dict(line, key="MDLT_CONSOLE_DETAIL", label="Console Verbosity", value="", choices=[("", "<default> (none)"), ("true", "true (track)")])
+heads, rows, kinds, looks = screen.digestTable("console", [line, unset], False, place)
+print("cells=%s" % "|".join(row[1] for row in rows))
+print("title=%s" % screen.settingLines(line, 100, place)[0])
+print("titleUnset=%s" % screen.settingLines(unset, 100, place)[0])
+takes = [text for text in screen.settingLines(line, 200, place) if "takes" in text]
+print("takes=%s" % " ".join(takes[0].split()))
+print("formChoices=%s" % ",".join(label for value, label in line["choices"]))
+RIGPY
+rigValues="$( cd "$rigTmp" && "$rigPython" -I -B "$rigTmp/values.py" "$rigScreen" 2>&1 )"
+rigValue(){ ## name -- the value of the first `<name>=` line
+	printf '%s\n' "$rigValues" | LC_ALL=C sed -n "s/^$1=//p" | head -1
+}
+rigAssert "a path in the VALUE column is in its place form, and a setting that holds nothing shows nothing there but the dash" "$( rigValue cells )" "ws-myx-devops:source|-"
+rigAssert "the detail writes it value first, its description after it in brackets, in its title line" "[$( rigValue title )] [$( rigValue titleUnset )]" "[Console Tooling Origin = ws-myx-devops:source (ws-myx-devops (source))] [Console Verbosity = <default> (none)]"
+rigAssert "and in its list of the values it takes, each value first; a choice with no value stands by its description" "$( rigValue takes )" "takes <default> (own .local), ws-myx-devops:source (ws-myx-devops (source)), /rig/elsewhere/source (elsewhere (source))"
+rigAssert "the choices the form offers are as they were, by their labels" "$( rigValue formChoices )" "<default> (own .local),ws-myx-devops (source),elsewhere (source)"
 
 echo "-- Enter on a number: its range in the dialog, saved for the workspace; one out of its range is not sent --"
 rigCase number

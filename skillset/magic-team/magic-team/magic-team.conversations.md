@@ -25,9 +25,9 @@ Form and control points for every live exchange: threads, sessions, interviews, 
 2. **one-message-one-speech-act**: One message, one speech act. Split a message when one reaction would leave part of it unaddressed, or when it carries two unrelated matters.
 3. **message-shape-is-correctness**: A message the reader cannot read or answer point by point has failed, even if delivered. Length is its own failure. Long content — code, diffs, plans — goes in a snippet or attachment. Where completeness matters, read back what was stored.
 4. **slack-post-one-ask-plain-language**: A team-channel post carries one ask or one announcement in plain language, roughly 10-20 words. An ID or jargon term carries a short gloss. Detail goes in a thread reply.
-5. **relevant-or-fun-fact-only**: `magic-team.shared.md`'s "Say it only if it is relevant to the reader, or genuinely a fun fact".
-6. **compact-structured-important-first**: `magic-team.shared.md`'s "Compact, structured, simple, important first" and "The output-style floor". Lists use `- ` items; more than two dimensions is a table. Use only constructs the send path documents.
-7. **human-owner-action-to-slack-dm**: `magic-team.shared.md`'s "Anything needing the human-owner to act reaches him on his own direct channel".
+5. **relevant-or-fun-fact-only**: `magic-team.armed.md`'s "Say it only if it is relevant to the reader, or genuinely a fun fact".
+6. **compact-structured-important-first**: `magic-team.armed.md`'s "Compact, structured, simple, important first" and "The output-style floor". Lists use `- ` items; more than two dimensions is a table. Use only constructs the send path documents.
+7. **human-owner-action-to-slack-dm**: `magic-team.armed.md`'s "Anything needing the human-owner to act reaches him on his own direct channel".
 8. **reply-reaches-its-audience**: A reply goes where its audience reads. Asked to present the team to outsiders, answer where they are.
 9. **answer-the-question-asked-first**: Answer the actual question first. A relevant distinction comes after, briefly.
 10. **react-at-each-stage**: React as a message moves: seen (👀), started, done or noted. Reactions add up. A reaction never replaces an owed reply. `Wait`'s `seen`/`note`/`done`/`wait` sets apply these reactions.
@@ -36,7 +36,7 @@ Form and control points for every live exchange: threads, sessions, interviews, 
 13. **wtf-reaction-creates-reflection**: A strong confusion or frustration signal (`WTF?!` or equal) is recorded with `--member-inbox-reflection-upsert`.
 14. **quality-marker-creates-reflection**: `GOOD`/`BAD CONVERSATION`, `INTERVIEW` or `COMMUNICATION` is recorded the same way, covering the iterations that led to it.
 15. **watch-quoted-content-for-hints**: A `> ` quote of this conversation scopes the rest of the message to that point only. Other quotes are references.
-16. **address-messages-clearly**: Every message has an addressee (`magic-team.shared.md`'s "Every message is addressed, tagged, and sent on a real channel").
+16. **address-messages-clearly**: Every message has an addressee (`magic-team.armed.md`'s "Every message is addressed, tagged, and sent on a real channel").
     - A message for the whole conversation says so in its first line.
     - A message needing someone's reply, or not for every participant, names every addressee in the posting tool's `address_to`; the tool renders the real mention itself, never one typed into the body.
     - A reference to an earlier point quotes it.
@@ -49,7 +49,7 @@ Form and control points for every live exchange: threads, sessions, interviews, 
 
 ## Clarification and correction handling
 
-Confirmations go through the chain of command in `magic-team.armed.md`'s "Escalation and chain of command", asked and waited on per `magic-team.shared.md`'s "Nothing stops on its own: log, escalate, resolve".
+Confirmations go through the chain of command in `magic-team.armed.md`'s "Escalation and chain of command", asked and waited on per `magic-team.armed.md`'s "Nothing stops on its own: log, escalate, resolve".
 
 19. **rephrase-and-confirm-before-acting**: Before acting on a correction, read back a one-line understanding, labelled as yours, beside the quoted words. Skip only for trivial, unambiguous corrections.
 20. **readback-on-suspected-assumption-gap**: An unclear message, or one contradicting what was established, gets a short readback and a wait for confirmation. A claimed disagreement is read back as the two readings and where each was read. A group disagreement instead becomes the no-quorum document, per "The ladder: one rung at a time".

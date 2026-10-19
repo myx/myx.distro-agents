@@ -79,5 +79,5 @@ converted-to: <member id and date, once converted>
 - rule: An unknown sender is looked up in the conversation it arrived in, its thread, and that conversation's history (`--member-comms-slack-read`, `--member-comms-slack-search-messages`), then recorded as a new row and record with `permission-level: unset`. What could not be established is written out.
 - rule: When exchanging with a recorded contact, fill any `<unresolved>` identifier the exchange brings, in the same session.
 - rule: A truncated view is not the note; read the whole note before concluding a contact or level is absent.
-- rule: The note is standing state: it stays in the inbox root, rewritten in place under its fixed filename.
+- rule: The note is standing state: it is never marked processed, so it stays in the inbox's `incoming/`, rewritten in place under its fixed filename.
 - rule: It holds identifiers only, never credentials.

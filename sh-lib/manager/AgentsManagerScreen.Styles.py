@@ -43,7 +43,10 @@
 ## bar, its sides, its bottom and its shadow as in every style; "chips", a key of the
 ## status line a chip in a colour of its own (KEY_CHIP); "fields" "bracketed", a field to
 ## type in between brackets with its room filled with dots; "levels", a dialog of what was
-## refused or failed (DIALOGS "level") in the looks of its level (ALERT...). The same
+## refused or failed (DIALOGS "level") in the looks of its level (ALERT...); "rowRule", a table
+## whose colours name no ground for every other row parts a row that wraps, and its header, by
+## a light line of its own under it, as wide as the table, in place of the underline
+## (paneTable); a style that does not name it keeps the underline. The same
 ## windows, menus, commands and keys are drawn in every style: adding a style is adding an
 ## entry here. They stand in the order they are offered in, Magic first; the screen starts
 ## in STYLE_FIRST. Each style is drawn in each of the three colours of COLOURS: "schemes"
@@ -59,7 +62,7 @@
 STYLES = (
     ("nu", {"label": "Magic", "colours": True, "keys": "tv", "names": "symbols",
             "looks": "nu-gray", "marks": "magic", "titles": "left", "shadow": "slim", "buttons": "bars",
-            "edges": "blocks", "barLower": 1, "bodyLower": 1, "menus": "hung", "chips": True, "fields": "bracketed", "levels": True,
+            "edges": "blocks", "barLower": 1, "bodyLower": 1, "menus": "hung", "chips": True, "fields": "bracketed", "levels": True, "rowRule": True,
             "bare": "gray", "schemes": (("system", {"looks": "nu-system"}), ("blue", {"looks": "nu-blue"}), ("gray", {"looks": "nu-gray"}))}),
     ("tv", {"label": "Turbo Vision", "colours": True, "keys": "tv", "names": "classic",
             "marks": "tv", "shadow": "dim", "buttons": "raised", "icons": True,

@@ -5175,7 +5175,7 @@ AgentsHarnessAsk(){
 		;;
 		ERROR:*)
 			[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
-			printf 'ERROR: %s: the question could NOT be posted, so nobody was asked and no answer is pending anywhere. THE QUESTION DOES NOT EXIST: this is not a question that went unanswered, and it will not be answered later. The plain-language floor (%s/magic-team/magic-team.shared.md) is not what stopped it: a question over the floor comes back as CORRECTION, never as this error -- clear what the send reported and ask it again. What the send reported follows:\n%s\n' "$harnessAskName" "${MDAT_SKILLSET_ROOT:-}" "$askSent"
+			printf 'ERROR: %s: the question could NOT be posted, so nobody was asked and no answer is pending anywhere. THE QUESTION DOES NOT EXIST: this is not a question that went unanswered, and it will not be answered later. The plain-language floor (%s/magic-team/magic-team.armed.md) is not what stopped it: a question over the floor comes back as CORRECTION, never as this error -- clear what the send reported and ask it again. What the send reported follows:\n%s\n' "$harnessAskName" "${MDAT_SKILLSET_ROOT:-}" "$askSent"
 			return 0
 		;;
 	esac

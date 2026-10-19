@@ -216,7 +216,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-team/magic-team.board.md` — board states and the grooming/advance split.
+- `magic-team/reference/board-model.md` — board states and the grooming/advance split.
 - `magic-coordinator.advance.routine` — applies the moves this routine decides.
 - `magic-team.handback-review.routine` — settles the `board-review` items addressed to this routine.
 - `magic-coordinator/magic-coordinator.armed.md` — "Dispatch & delegation" fast gate; `check-pending-comms-actions`.

@@ -102,7 +102,7 @@ All statements apply at the same time, always. These rules override a participan
   - Unsure: coworking-like. Ad-hoc is declared, never assumed.
   - `magic-coordinator.advance.routine` and `magic-coordinator.heartbeat.routine` extend this routine with their own overrides, stated in their files.
 - Invoking a structured routine always starts a full session running these Steps and Closure steps. Utility routines keep their own lighter modes (`magic-team.process-inbox.routine`'s inline mode).
-- **Every step is the executor's**, per `magic-team.shared.md`'s actor phrases. **fold-in-learned-lessons**, **collect-reflections-output** and **secure-continuity** are commanded per participant.
+- **Every step is the executor's**, per `reference/skill-folder-model.md`'s actor phrases. **fold-in-learned-lessons**, **collect-reflections-output** and **secure-continuity** are commanded per participant.
 - **An executor can only command members it spawned itself.** A spawned `magic-coordinator` cannot reach members the harness root spawned. Plan so the executor spawns its own participants; where members already exist under the root, the root leads and a seated coordinator participates.
 - An executor that cannot spawn its members applies each participant's `Skill` itself, and says so in the session thread and the report.
 - A member joining mid-session does not replay missed steps. It loads its `Skill`, is announced, and starts from the current state. The executor commands any re-run it judges needed.

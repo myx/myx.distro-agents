@@ -49,7 +49,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - a needed board change: `magic-coordinator` makes it; any other member routes it to `magic-coordinator`, however small.
    - an item of a type other than `note-*`, `inquiry-*` or `reflection-*` is misfiled: report it to `magic-coordinator`.
 3. **reply-on-cross-member-handoff**: a reply, route or hand-off touching another member gets an immediate compact post into the session thread: who, and which item. `magic-coordinator` posts it for a hand-off it decided, even where another member did the write. Unsure whether it is significant: post it.
-4. **mark-handled**: mark each handled item processed with `--member-inbox-to-processed`. An item still wanted stays unmarked; a standing note is never marked.
+4. **mark-handled**: mark each handled item processed with `--member-inbox-to-processed`: it moves to the inbox's `processed/`, out of the scan and of `Wait`. An item still wanted stays unmarked, in `incoming/`; a standing note is never marked.
 
 # Closure steps
 
@@ -83,7 +83,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 - `--member-inbox-item-read <member> <item-filename> [--start-line <N> --end-line <N>]`
 - `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
 - `--member-comms-slack-send-message <team-member> <target> [text...]`
-- `--member-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]...`
+- `--member-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]...`
 
 # Maintainer Notes
 

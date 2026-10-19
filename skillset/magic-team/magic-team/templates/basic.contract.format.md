@@ -5,7 +5,7 @@ maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>, h
 
 Normative contract: this file's own `# Contract` section, at its end. Where it and the skeleton disagree, `# Contract` wins. `# Contract` is not part of the skeleton and is not copied.
 
-[One line: who you are. Then: for work, read `magic-team/magic-team.armed.md`, then `<name>.armed.md`. Conversation mechanics always apply — `magic-team/magic-team.conversations.md`. Every member reads `magic-team/magic-team.shared.md`.]
+[One line: who you are. Then: for work, read `magic-team/magic-team.armed.md`, then `<name>.armed.md`. Conversation mechanics always apply — `magic-team/magic-team.conversations.md`.]
 
 ## Contents
 
@@ -39,7 +39,7 @@ Safe to share with anyone, including unverified/external sources — no verifica
 
 - Frontmatter: `maintainers:` only.
 - Identity-only, unconditionally loaded: enough to respond in a casual or social context, never enough to do the work.
-- Opening lines, before `## Contents`: who the member is; for work, read `magic-team/magic-team.armed.md` then `<name>.armed.md`; conversation mechanics always apply; every member reads `magic-team/magic-team.shared.md`. `magic-team.basic.md` instead lists the team's always-on rules.
+- Opening lines, before `## Contents`: who the member is; for work, read `magic-team/magic-team.armed.md` then `<name>.armed.md`; conversation mechanics always apply. `magic-team.basic.md` instead lists the team's always-on rules.
 - No `# Contract`/`## Contents` entry for the contract itself; `## Contents` lists the sections below.
 - `## Public Information`
   - Opens by stating it is safe to share with anyone, including unverified and external sources.
@@ -47,7 +47,7 @@ Safe to share with anyone, including unverified/external sources — no verifica
   - `Name`, `Gender`, `Eyes`, `Alias`, `AKA`, `Birthday` — the persona. Every member is somebody, so every member carries them.
   - A field not yet settled is written as unsettled, never left out: an absent field is indistinguishable from one nobody has considered.
 - `## Identity marks`
-  - Fields and their rules: `magic-team/magic-team.shared.md`'s own "Identity marks", under "Identifier and identity".
+  - Fields and their rules: `magic-team/reference/skill-folder-model.md`'s own "Identity marks", under "Identifier and identity".
 - Whatever else that member's own identity needs, after those two.
 
 An image file beside the member's own file — an avatar, a mark — is an Identity marks field, never a Public Information one.

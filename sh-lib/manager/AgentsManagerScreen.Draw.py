@@ -542,9 +542,13 @@ def bodyLower():
 ## One line of what the left window holds, by its number, in exactly that many cells, in
 ## the look of what it is (lineLook); and over it what of that line is drawn in a look of
 ## its own (the "looks" of the view). `placing`: the view takes the rule of the locations.
-def putViewLine(surface, state, line, column, position, room, placing=False):
+def putViewLine(surface, state, line, column, position, room, placing=False, marked=None):
     lines = state.view["lines"]
     text = lines[position] if position < len(lines) else ""
+    if marked is not None and marked[0] <= position <= marked[1]:
+        ## a line of the row the row cursor is on: in the look of the selection, the whole line
+        putLooked(surface, state, line, column, text, room, REVERSE if state.focus == "view" else BOLD, (), placing)
+        return
     putLooked(surface, state, line, column, text, room, lineLook(state.view, position),
               state.view["looks"].get(position, ()) if text else (), placing)
 
@@ -598,11 +602,12 @@ def drawLinesBody(surface, state, layout, box):
     ## a table whose header has gone up out of the pane keeps it over its rows, sideways with them (paneTable)
     lines = state.view["lines"]
     stuck = getattr(lines[state.view["top"]], "stick", None) if 0 < state.view["top"] < len(lines) and contentHeight - headHeight > 1 else None
+    marked = rowCursorLines(state)
     for offset in range(contentHeight - headHeight):
         if offset == 0 and stuck is not None:
             putLooked(surface, state, top + headHeight, column, stuck, room, PLAIN, stuck.looks, placing)
             continue
-        putViewLine(surface, state, top + headHeight + offset, column, state.view["top"] + offset, room, placing)
+        putViewLine(surface, state, top + headHeight + offset, column, state.view["top"] + offset, room, placing, marked)
     if contentHeight > headHeight and viewWaits(state):
         surface.put(top + headHeight, column, cutToCells(viewWaits(state), room), DIM)
     return (len(state.view["lines"]), state.view["top"], contentHeight - headHeight)

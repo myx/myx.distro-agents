@@ -39,7 +39,7 @@ mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigWs/.l
 ## family where the three files stand that a console loads first from its origin. This workspace's own .local has
 ## the settings reader alone, which a console needs to read its origin at all.
 rigFamily(){ ## origin -- the three files of the tool family there, empty
-	mkdir -p "$1/myx/myx.distro-agents/sh-lib" "$1/myx/myx.distro-.local/sh-lib" "$1/myx/myx.distro-system/sh-lib"
+	mkdir -p "$1/myx/myx.distro-agents/sh-lib/harness" "$1/myx/myx.distro-.local/sh-lib" "$1/myx/myx.distro-system/sh-lib"
 	: > "$1/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include" ; : > "$1/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ; : > "$1/myx/myx.distro-system/sh-lib/SystemContext.include"
 }
 rigFamily "$rigTmp/ws-src/source" ; rigFamily "$rigTmp/ws-loc/.local" ; mkdir -p "$rigTmp/ws-none/source" "$rigTmp/ws-loc/source"

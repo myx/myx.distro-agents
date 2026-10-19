@@ -100,7 +100,7 @@ All statements apply at the same time, always. These rules override a participan
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
 - This routine extends `magic-team.coworking.routine`, with these overrides: while the pass runs alone it has a tracking thread in `event-track`, never a session thread; the first member it brings in opens the session thread in `magic-team`, addressed to that member; **fold-in-learned-lessons** does not run; the opening and closing groups reduce to posting into the tracking thread and **conclude-event-track-thread**.
-- Post a short progress line into the tracking thread after each step. Something the human-owner must act on goes per `magic-team.shared.md`'s "Anything needing the human-owner to act reaches him on his own direct channel".
+- Post a short progress line into the tracking thread after each step. Something the human-owner must act on goes per `magic-team.armed.md`'s "Anything needing the human-owner to act reaches him on his own direct channel".
 - Between steps, read what spawned sessions sent. Assess each, dispatch any real work through `spawn-one-dispatch`, and record the outcome in the tracking thread.
 - Running unattended, every caution rule applies at full strength: no unilateral epics, the per-platform send rules, no manufactured work.
 - A real pass follows existing instructions and operations, one plain call at a time. A better approach that occurs mid-pass is filed as an idea, never built inline. Testing and investigation sessions are exempt.

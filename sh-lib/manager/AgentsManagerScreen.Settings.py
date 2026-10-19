@@ -195,6 +195,32 @@ def digestWords(subjectName, line):
     return valueWords(subjectName, line) + (", " + SOURCE_WORDS.get(line["source"], line["source"]) if line.get("source") else "")
 
 
+## SETTINGS SHOW VALUES, NOT DESCRIPTIONS. What a setting is saved as, the raw value, is what its table
+## shows in its VALUE column, and a path in its place form; the description of a choice belongs to the
+## detail of the setting, written after the value. The form that changes a setting offers the choices
+## by their descriptions all the same, and saves the raw value, as it did.
+
+## The text a path in a value is shown as: by the rule of the locations (placedLine) where the left
+## window takes it (placedShown), else as it is. Set before a table is laid out, so that it is not
+## broken in the middle of a path.
+def placer(state):
+    return (lambda text: placedLine(state, text)[0]) if placedShown(state) else (lambda text: text)
+
+
+## What a choice reads as in the detail of a setting, its value first and its description after it in
+## brackets; one with no value stands by its description, and one whose description is its value by
+## the value.
+def choiceWords(value, label, place):
+    shown = place(value)
+    return "%s (%s)" % (shown, label) if value and label and label != value else shown or label
+
+
+## What a line reads as in the VALUE column of a table: a line that offers choices by the value it is
+## saved as, any other as valueWords says; a path in its place form.
+def tableValue(subjectName, line, place):
+    return place(line["value"] if line.get("choices") and line["state"] not in STATES_SECRET else valueWords(subjectName, line))
+
+
 ## The subjects of the digest whose lines a table sets out by their group, in a column of its
 ## own that these words head, then each line's key and what it reads as: a row a line, with no
 ## heading row and no column of labels (the owner: "Pointless: SETTING VALUE KEY.... Make
@@ -210,7 +236,7 @@ GROUP_COLUMNS = {"scopes": "MEMBER", "cli": "CLI"}
 ## subject of GROUP_COLUMNS: each line by its group, its key and what it reads as, in the
 ## same order. Gives the heads, the rows, the kinds and the looks, a column no line has a
 ## word for left out.
-def digestTable(subjectName, lines, missingFirst=False):
+def digestTable(subjectName, lines, missingFirst=False, place=lambda text: text):
     ahead = [line for line in lines if line["state"] in STATES_MISSING] if missingFirst else []
     groups = []
     for line in lines:
@@ -224,7 +250,7 @@ def digestTable(subjectName, lines, missingFirst=False):
     if subjectName in GROUP_COLUMNS:
         ordered = [line for group, members in groups for line in members]
         return ([GROUP_COLUMNS[subjectName], "KEY", "VALUE"],
-                [[line["group"] or "-", line["key"] or "-", valueWords(subjectName, line) or "-"] for line in ordered], ["key", "key", "text"],
+                [[line["group"] or "-", line["key"] or "-", tableValue(subjectName, line, place) or "-"] for line in ordered], ["key", "key", "text"],
                 [[None, None, LEVEL_WARN if line["state"] in STATES_MISSING else None] for line in ordered])
     heads = ("SETTING", "VALUE", "SOURCE", "KEY")
     rows = []
@@ -236,7 +262,7 @@ def digestTable(subjectName, lines, missingFirst=False):
         for line in members:
             key = line["key"] if line.get("label") and line["key"] and line["label"] != line["key"] else ""
             rows.append([line.get("label") or line["key"] or ("no scope" if subjectName == "systems" else "-"),
-                         valueWords(subjectName, line), line.get("source") or "",
+                         tableValue(subjectName, line, place), line.get("source") or "",
                          (key + (" in %s" % line["group"] if group is None and line["group"] else "")).strip()])
             looks.append([None, LEVEL_WARN if line["state"] in STATES_MISSING else None, None, None])
     shown = [index for index in range(len(heads)) if index < 2 or any(row[index] for row in rows if not isinstance(row, str))]
@@ -249,7 +275,7 @@ def digestTable(subjectName, lines, missingFirst=False):
 ## many of them missing as its caption, what it holds in words, dim, and its lines as a
 ## table (digestTable), as many as the pane shows, or every row while `e` shows them all.
 def subjectLines(state, subject, missingFirst=False):
-    heads, rows, kinds, looks = digestTable(subject["name"], subject["lines"], missingFirst)
+    heads, rows, kinds, looks = digestTable(subject["name"], subject["lines"], missingFirst, placer(state))
     return tableSummaryLines(state, heads, rows, kinds, looks=looks)
 
 
@@ -262,9 +288,9 @@ def subjectSummary(state, path, row, form):
 ## A group of the lines of a subject for the left pane, while its heading is selected in
 ## the list: its label, how many lines it holds and how many of them are missing, then its
 ## lines as a table (digestTable), the missing ones first.
-def groupLines(group, width, wrap=True, pane=None):
+def groupLines(group, width, wrap=True, pane=None, place=lambda text: text):
     heads, rows, kinds, looks = digestTable(group["subject"], [line for line in group["lines"] if line["state"] in STATES_MISSING]
-                                            + [line for line in group["lines"] if line["state"] not in STATES_MISSING])
+                                            + [line for line in group["lines"] if line["state"] not in STATES_MISSING], False, place)
     if group["subject"] in GROUP_COLUMNS:
         ## the title names the group: its column would say it again on every row
         heads, rows, kinds, looks = heads[1:], [row[1:] for row in rows], kinds[1:], [look[1:] for look in looks]
@@ -276,10 +302,14 @@ def groupLines(group, width, wrap=True, pane=None):
 ## of a secret only its state; the style this screen is drawn in where that is not what
 ## the line says; its description; then its key, its group, its state, where its value
 ## comes from, whom a change is for, what it takes, the file it is saved in, and whether
-## Enter changes it, or why not, in the words of its row.
-def settingLines(line, width):
-    value = valueWords(line["subject"], line)
-    value += " (%s)" % line["value"] if line["choices"] and value != line["value"] else ""
+## Enter changes it, or why not, in the words of its row. A line that offers choices reads as
+## the value it is saved as and its description after it (choiceWords), and takes its values
+## so, each value first.
+def settingLines(line, width, place=lambda text: text):
+    if line["choices"] and line["state"] not in STATES_SECRET:
+        value = choiceWords(line["value"], dict(line["choices"]).get(line["value"], line["value"]), place)
+    else:
+        value = valueWords(line["subject"], line)
     head = Looked("%s = %s" % (line.get("label") or line["key"] or "-", value))
     head.looks = [(0, textWidth(head), BOLD)] + ([(textWidth(head) - textWidth(value), textWidth(value), stateLook(line["state"]))]
                                                  if line["state"] in STATES_MISSING else [])
@@ -297,7 +327,7 @@ def settingLines(line, width):
         ("state", line["state"]),
         ("source", SOURCE_WORDS.get(line["source"], line["source"])),
         ("scope", SCOPE_WORDS.get(line["scope"], line["scope"])),
-        ("takes", ", ".join(label for value, label in line["choices"]) or ("a whole number from %s to %s" % line["range"] if line["range"] else "")),
+        ("takes", ", ".join(choiceWords(value, label, place) for value, label in line["choices"]) or ("a whole number from %s to %s" % line["range"] if line["range"] else "")),
         ("saved in", line["where"]),
         ("change", "no: " + refusal if refusal else "yes"),
     ], width))

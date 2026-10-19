@@ -96,7 +96,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-team.board.md` — the `board-review` state.
+- `reference/board-model.md` — the `board-review` state.
 - `magic-team.armed.md` — **wait-never-quit**.
 - `myx.distro-agents/MAGIC.md` — "Review and ordered endings", the mechanics.
 

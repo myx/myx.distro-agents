@@ -32,11 +32,6 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Team-Member's (-specific) tooling
   - DistroAgentsTools magic-tooling operations
 - Maintainer Notes
-  - Verbatim-goals (intents)
-  - Verbatim-tests (benchmarks)
-  - Librarian Comments
-    - Reference
-    - Conventions
 
 # Summary
 
@@ -109,19 +104,7 @@ Steps:
 
 ## `team-self-sufficiency-audit` — daily check across every `magic-*` skill folder
 
-A normal daily task, not an idle one: it does not wait for an empty todo list.
-
-Steps:
-1. Scope: every `magic-*` skill folder's files.
-2. Check currency: nothing stale or contradicted by current reality.
-3. Check internal consistency:
-   - **Pointer resolution**: for every "see `FILE` for `X`", `X` is actually in `FILE`.
-   - **Terminology drift**: a term defined in a glossary is not replaced later by an undeclared synonym.
-   - **Carve-outs**: a member rule overriding the baseline is the override convention working, not a finding.
-   - **Grant surface**: an operation is granted by the `magic-team/magic-team.armed.md` floor and its prefix grant, the member's own tooling list, or a routine it takes part in. A missing grant is real only once all three were read.
-4. Check self-sufficiency: could a fresh instance with no memory do correct teamwork from these files alone?
-5. Check clarity and compactness.
-6. Report each finding. A fix to a skillset file is proposed for the skillset change rule; a board item is requested from `magic-coordinator` with `post-inquiry`.
+Read `reference/team-self-sufficiency-audit.md` for the steps.
 
 # Team-Member's (-specific) local rules
 
@@ -182,49 +165,19 @@ Two precision checks on any rule captured mid-correction:
 
 ## Text groups
 
-**Instruction layer** — skillset files and package documentation. Instructions mode, English UK, simple language.
+Read `reference/text-groups.md` for the instruction layer and the data layer.
 
-- **`MAGIC.md`**, at repo, namespace and workspace level.
-- **Member and routine definitions, authority contracts, templates** — shaped by their kind's contract under `magic-team/templates/`.
-- **`README.md`** — the unit's own tone and structure. May be stale where `MAGIC.md` is current.
-- **Help entries** — call contract only (`magic-team/magic-team.armed.md`). Audited here, edited by the owning `keeper-*`.
-
-**Data layer** — board, inbox, audit and vault content. Not skillset.
-
-- Board and inbox items — their type's frontmatter and filename shape.
-- Logs, transcripts, processed items — narrative mode.
-- Generated documents — their own format contract; never hand-authored.
-
-Text a member emits is governed by `magic-team/magic-team.shared.md`'s "The output-style floor".
+Text a member emits is governed by `magic-team/magic-team.armed.md`'s "The output-style floor".
 
 **Language level and style.** One reading, never two. Rejected: rhetorical construction, emphasis for effect, a clever formulation where a plain one exists, a sentence needing a second read, a clause whose force depends on tone, and a citation, quotation or narration standing where the rule alone is wanted. US spelling already landed is not rewritten for.
 
 ## Applying the output-style floor
 
-The floor is `magic-team/magic-team.shared.md`'s. This section states which clauses a measurement may apply. A clause is measured only where the measurement cannot fire on correct text.
-
-- **Measured**: clause 3 at the 25-word cap, applied to every sentence, with no correction ever fired on correct text.
-- **Reported, never a correction**: clause 5's sentence count. A count joins consecutive lines into one paragraph, so it misreads a one-fact-per-line post — the very form clauses 2 and 6 ask for.
-- **Reader-judged**, every other clause — by the writer, then by `magic-librarian` at `magic-librarian.conventions-check.routine`. Notably:
-  - clause 3's 20-word instructing cap, since telling instructing from describing needs a reader;
-  - clause 6, since a count cannot tell distinct points from one point developed;
-  - clauses 4, 7, 8 and 11;
-  - clause 12, per its own closing line.
-- Clause 11 weighs most: a shorter sentence that dropped an article or a subject measures better and reads worse.
-- A document write is measured on what changes, never on the whole existing file.
-- A per-site mention of the floor in a skill file is kept only where it states something site-specific — a carried span, an external reader. Every member carries the floor already.
-- A predicate enters as a reporting instrument, and gates a site only once it produces no row against text a reader judges correct; `magic-tester` owns that run. Gating a message site needs a message corpus, which the team does not yet hold.
-- An emitting operation left unwired is recorded as unwired here, never left off the list.
-- Open — reached by no check yet:
-  - a frontmatter field value written through a patch;
-  - skillset text written with `Edit` or `Write` (the hook receives the path, not the content);
-  - per-member evidence, where an operation receives no caller identity;
-  - the relay exemption — untested, not passing;
-  - `--member-comms-google-doc-write` and `--member-comms-google-comment-post` — unwired, no single assembly point for the body.
+Read `reference/output-style-measurement.md` for which clauses a measurement may apply.
 
 ## Member-addressed files
 
-A file addressed to one named member, for that member's own setup or operation, is written in the third person about that member, so it reads correctly whether she follows it or an agent helps her. Its `# Summary` says so in one line.
+Read `reference/member-addressed-files.md` for the rule.
 
 ## Keeper/partner references stay generic in shared files
 
@@ -236,15 +189,7 @@ Completing `keeper-*`/`partner-*` to the full family list is right for a stateme
 
 ## Verbatim-intents and Verbatim-benchmarks convention
 
-The authoritative definition every file's pair is authored and checked against.
-
-- The pair is `## Verbatim-goals (intents)` and `## Verbatim-tests (benchmarks)` under the file's own `# Maintainer Notes`, opening with the one team-wide banner: "Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!"
-- Files that follow a member or routine contract carry it; other shared files carry none (`magic-team/magic-team.armed.md`).
-- **Verbatim-intent**: the file's own single core goal, taken from its stated purpose — not a restated operational rule, and not a mechanism another member owns.
-- **Verbatim-benchmark**: a concrete edge case testing that goal — never a rephrased intent, domain trivia, or a test of a mechanism owned elsewhere.
-- A test is checked against the whole skillset, not its own file: the rule it tests may live in the baseline.
-- A test often quotes a rule word for word. Before changing a rule sentence, search the skillset for it and update every quote in the same pass.
-- Neither is paraphrased once written, except through the skillset change rule.
+Read `reference/maintainer-notes.md` for the convention.
 
 ## Idle-Tasks
 
@@ -259,44 +204,12 @@ Every `magic-tooling` operation this team-member uses. Behaviour is read with `-
 
 - `--librarian-list-team-files [<path>...]`
 - `--librarian-list-team-files-dates [<path>...]`
-- `--librarian-inbox-to-processed <team-member> <item-filename>`
-- `--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>`
+- `--librarian-inbox-to-processed <team-member> <item-filename> [--include-processed]`
+- `--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member> [--exclude-incoming]`
 - `--member-upsert-member-inquiry <team-member> <item-filename>`
 
 # Maintainer Notes
 
 Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
-## Verbatim-goals (intents)
-
-- Content that does not match the implementation is never silently deleted or rewritten away — the discrepancy is surfaced to whoever asked for the check, who decides.
-- A one-line fix produces a one-line diff, never a rewritten file.
-- Every substantive rule, condition, carve-out, or fact that dated language was anchoring survives into the rewrite.
-- A conventions-check finding must cite an actual file/line it's checked against — never an invented convention.
-- A reviewed formulation fails review if a readback of it drops any intent, detail, or benchmark the original had.
-
-## Verbatim-tests (benchmarks)
-
-- A `MAGIC.md` fix for one stale install command produces a one-line diff, not a wholesale rewrite of the file.
-- A proposed rule change that silently drops one of three original benchmarks fails review, even if the wording is otherwise clean.
-- A skillset file lands with a rule built to its point, carrying the reasoning that produced it and phrased for weight. It fails the language level and style convention, whether or not every sentence in it is relevant.
-- A landed instruction-layer document uses US spelling. It stands as written: not a defect, and not grounds for a rewrite.
-- A session prepares a mutation on a project. It reads the touched repo's own `MAGIC.md`, the `util.repository-<namespace>/MAGIC.md` for its namespace root, and the workspace project's own, before trusting anything else in that tree.
-- The audit finds a stale rule in another member's file. It reports it and proposes the fix; the edit lands only through the skillset change rule.
-
-## Librarian Comments
-
-### Reference
-
-- `reference/mcp.md` — MCP / JSON-RPC 2.0, including hand-rolled servers.
-- `reference/messaging.md` — messaging platforms: size limits, silent truncation, composition.
-- `reference/project-inf.md` — `project.inf` install fragments and declared directives the shipped manuals do not carry.
-- `magic-developer/reference/` — per-language modules, the same shape as these.
-- `magic-team/magic-team.shared.md` — the skill-folder model; `magic-team/templates/` — the contracts.
-
-### Conventions
-
-- Future reference modules (HTTP, TLS, SSH, ACM.TPL conventions) are created only when a task needs one.
-- Open: who may change this file's definition (the maintainer list) is a default extended from the routine-change group, not a confirmed decision.
-- A new kind of team log, beyond `board-processed`, is a deliberate decision when a need arises, never a default.
-- Lists of rules, operations and tests stay enumerated, never compressed into prose.
+Read `reference/maintainer-notes.md` for the verbatim goals, the verbatim tests and the librarian comments.

@@ -13,6 +13,20 @@
 ## so curses' copy of the terminal stays the terminal's whatever the terminal makes of it.
 ## Curses never shifts cells sideways or lines up and down to save a write (idcok, idlok),
 ## which would carry what was written apart with them.
+## The keys curses hands over as numbers, by the name the screen gives them.
+CURSES_KEYS = {
+    curses.KEY_UP: "UP", curses.KEY_DOWN: "DOWN", curses.KEY_LEFT: "LEFT", curses.KEY_RIGHT: "RIGHT",
+    curses.KEY_PPAGE: "PGUP", curses.KEY_NPAGE: "PGDN", curses.KEY_HOME: "HOME", curses.KEY_END: "END", curses.KEY_ENTER: "ENTER",
+    curses.KEY_BACKSPACE: "BACKSPACE", curses.KEY_RESIZE: "RESIZE", curses.KEY_BTAB: "BACKTAB",
+    curses.KEY_F1: "F1", curses.KEY_F5: "F5", curses.KEY_F6: "F6", curses.KEY_F9: "F9", curses.KEY_F10: "F10",
+} if curses else {}
+## The console user's own setting of .local, beside MDLT_CONSOLE_SPACERS and no setting of the agents, that
+## leaves the mouse to the terminal where it reads `disable`, so that the terminal's own selection copies
+## text; the mouse is reported to the screen where it names nothing else. Read from the environment of the
+## start, where the start of the screen (`--manager`) puts what the user saved.
+MOUSE_VARIABLE = "MDLT_CONSOLE_MOUSE"
+
+
 class CursesSurface:
     def __init__(self, window):
         self.window = window
@@ -43,12 +57,7 @@ class CursesSurface:
         self.whole = True
         ## where the cursor stands once the frame is sent, or None where it is hidden (cursor)
         self.at = None
-        self.keyNames = {
-            curses.KEY_UP: "UP", curses.KEY_DOWN: "DOWN", curses.KEY_LEFT: "LEFT", curses.KEY_RIGHT: "RIGHT",
-            curses.KEY_PPAGE: "PGUP", curses.KEY_NPAGE: "PGDN", curses.KEY_ENTER: "ENTER",
-            curses.KEY_BACKSPACE: "BACKSPACE", curses.KEY_RESIZE: "RESIZE", curses.KEY_BTAB: "BACKTAB",
-            curses.KEY_F1: "F1", curses.KEY_F5: "F5", curses.KEY_F6: "F6", curses.KEY_F9: "F9", curses.KEY_F10: "F10",
-        }
+        self.keyNames = CURSES_KEYS
         self.charNames = {"\t": "TAB", "\n": "ENTER", "\r": "ENTER", "\x1b": "ESC", "\x7f": "BACKSPACE", "\b": "BACKSPACE",
                           "\x18": "CTRL-x"}
         ## Where the pointer was last, for a turn of the wheel that comes with no place.
@@ -57,11 +66,13 @@ class CursesSurface:
 
     ## The mouse, where the terminal reports one: reported to the screen, its first button
     ## at once, with no wait for a second click, and the wheel; or not reported at all, as
-    ## while the terminal is another's. A terminal that reports none changes nothing.
+    ## while the terminal is another's, and where the console user turned it off
+    ## (MOUSE_VARIABLE). A terminal that reports none changes nothing.
     def mouse(self, reported):
         try:
             curses.mousemask((curses.BUTTON1_PRESSED | curses.BUTTON1_RELEASED | curses.BUTTON1_CLICKED
-                              | curses.BUTTON4_PRESSED | getattr(curses, "BUTTON5_PRESSED", WHEEL_DOWN)) if reported else 0)
+                              | curses.BUTTON4_PRESSED | getattr(curses, "BUTTON5_PRESSED", WHEEL_DOWN))
+                             if reported and os.environ.get(MOUSE_VARIABLE, "") != "disable" else 0)
             curses.mouseinterval(0)
         except (curses.error, AttributeError):
             pass

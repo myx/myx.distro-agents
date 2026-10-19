@@ -70,6 +70,16 @@ case "$1" in
 			[ -z "$managerSpacers" ] || local -x MDLT_CONSOLE_SPACERS="$managerSpacers"
 		fi
 
+		## THE MOUSE OF THIS START: MDLT_CONSOLE_MOUSE, beside the spacers and read the same way,
+		## a console setting of .local, the user's own, and no setting of the agents. `disable`
+		## leaves the mouse to the terminal, whose own selection then copies text; it is on
+		## where nothing is saved.
+		if [ -z "${MDLT_CONSOLE_MOUSE:-}" ] ; then
+			local managerMouse
+			managerMouse="$( set -- --.local-config-option-select-default MDLT_CONSOLE_MOUSE "" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" 2> /dev/null < /dev/null )" || managerMouse=""
+			[ -z "$managerMouse" ] || local -x MDLT_CONSOLE_MOUSE="$managerMouse"
+		fi
+
 		set -- --workspace "$MMDAPP" --tools "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 		[ -z "$managerStyle" ] || set -- "$@" --style "$managerStyle"
 

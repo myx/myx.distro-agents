@@ -5,7 +5,7 @@ that the code and docs do not readily tell you.
 
 - How to install, configure and use the package: [README](README.md) and its [docs/](docs/) pages.
 - Call contracts of public operations: `sh-lib/help/Help.DistroAgentsTools.help.md` (`--help`),
-  `--member-help <member>`, and `--help-setup-<domain>`.
+  `--member-help <member>`, `--help-setup-<domain>`, and the syntax of one operation, `--help-syntax [<op>]`.
 - Internal operations (`--intern-*`) have no help. Their essentials are kept below, in the section of
   the subsystem they belong to.
 - Team-wide rules (git, evidence, controls, wording) are in `magic-team/magic-team.armed.md`, not here.
@@ -79,6 +79,13 @@ that the code and docs do not readily tell you.
 - **An external caller runs a script; an internal caller sources the include in a subshell.** A script
   also sets up the execution context, which is why the MCP daemon execs the tooling. Re-entering the
   whole script makes an internal caller pay for option parsing twice.
+- **An include is spelled `$MDLT_ORIGIN/myx/<package>/sh-lib/<folder>/<file>`**, whole, or after a
+  `${MDLT_ORIGIN:-<default>}` default, `<folder>` being the file's folder under `sh-lib/`. No resolver and no
+  map stand between the spelling and the file: a move of a file is one plain replace of the paths that name it,
+  and `AgentsOriginPathsExistCheck` (`sh-test/common/`) does the checking. It fails on a statement `. <target>` or
+  `source <target>` that names such a file in another form (a path built from a variable, one relative to the
+  script), listing it as `<file>:<line>`, and on any `$MDLT_ORIGIN/myx/...` path the packages spell that names no
+  file. A path that goes on into a variable, a glob or a brace is a pattern, and is not asked about.
 - **`--intern-` is a namespace, and the next segment is the kind.** `--intern-op-*` is operations,
   `--intern-tool` is tools (the harness arm that runs one tool and exits). `--intern-mcp-*` and
   `--intern-main-loop` follow the same shape. A new kind needs the human-owner's approval.
@@ -109,6 +116,16 @@ that the code and docs do not readily tell you.
 - **`--intern-*` is left out of the help.** Out of `Help.DistroAgentsTools.include` syntax lines and out
   of the help.md reference and examples. A public entry that must contrast itself with an internal op
   says so in behavioural terms, without naming the internal op.
+- **`--help-syntax [<op>]` is the syntax lines, filtered** (`Help.DistroAgentsTools.include`). With no word it
+  prints those of every operation; with an operation, that one's; with a word ending in `-`, those of every
+  operation it begins (a family, `--magic-`); a word that names none is refused. Without it the syntax block is the
+  entry points a reader starts from: every other operation's syntax sits behind `--help-syntax`, and the manual
+  behind `--help`. The lines are the manual's own syntax lines, which the include's match one for one.
+- **`--mdat-output-format json`, before the operation word,** wraps one of the operations that implement a
+  harness or an MCP tool (the list `agentsToolOperations` at the top of `DistroAgentsTools.fn.sh`: those the
+  harness's tools run, and the one behind `execute`) as one JSON object,
+  `{"operation":<word>,"status":<rc>,"result":<its output>}`, and ends with that status. Every other operation runs as
+  without it, and a word but `json` is refused. `AgentsBatchToolsCheck` holds the list to the words the harness runs.
 - **A superseded operation name stays as a working shim**: gone from help, kept in the dispatcher,
   until a removal is approved.
 - **A process that loaded the dispatcher before a routing change keeps its old arm table.** A bare-name
@@ -553,10 +570,11 @@ User steps are in [docs/installation.md](docs/installation.md).
   `ListDistroDeclares --select-from-env`.
 - **`$workspace` is `${workspaceArg:-$MMDAPP}`** in the permissions and symlinks ops.
 - **`--make-harness-indices [<name>...]`** (`AgentsTools.Make.include`) is the one operation that makes
-  every index of the tooling. With no name it builds all ten; with names, only those, in their own
-  order; a name that is none of them refuses the call before anything is built. The ten are the stems
+  every index of the tooling. With no name it builds all eleven; with names, only those, in their own
+  order; a name that is none of them refuses the call before anything is built. The eleven are the stems
   `team-members`, `team-members-names`, `spawned-sessions`, `pending-replies`, `members`, `permissions`,
-  `grants`, `mcp.servers`, `harness.roots` and `harness.hooks`. `--make-agents-indices` is this same
+  `grants`, `tool-index` (after `grants`, which it reads who holds a tool from; see "Harness tools"),
+  `mcp.servers`, `harness.roots` and `harness.hooks`. `--make-agents-indices` is this same
   operation's earlier name and still works. The integrations run and the build call it once, with no
   name, so every index is built; no caller names a list. `--manager-team-member-list` and
   `--manager-team-member-read` read the `team-members`/`team-members-names` registries this builds, the
@@ -792,8 +810,16 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `--manager-command-list` (`<Name>.fn.sh`, a TAB, the file it resolves to;
   `AgentsManagerCommandListCheck`) and `--manager-help-read [<Name>.fn.sh]` (the help of that command,
   read, never run; `AgentsManagerHelpReadCheck`).
-- **The manager screen is declared at the top of `sh-lib/manager/AgentsManagerScreen.py`**: its styles, windows,
-  menus, commands, reads, summaries and dialogs; a new root, key or dialog is a declaration. Its roots
+- **The manager screen is the entry `sh-lib/manager/AgentsManagerScreen.py` plus its parts**, the files
+  `AgentsManagerScreen.<Part>.py` beside it. The entry holds the start, the list `PARTS` (the files, in the order
+  they load) and `loadParts()`, which executes each part in the entry's own namespace, so the screen stays one
+  module whatever its files are: a declaration names a function by its name (`globals()[name]`), and a test
+  replaces a function of the screen by assigning it to the module. A part is plain text of the screen and is
+  never run by itself. The declarations come first (`Looks`, `Roots`, `Styles`, `Windows`, `State`), then the
+  engine and the kinds of view, then the root sections of the list, then what every one of them uses. Declared
+  as data are its styles (`STYLES`), windows (`WINDOWS`), menus (`MENUS`), commands with their keys
+  (`COMMANDS`), reads (`READS`), calls (`CALLS`), summaries (`SUMMARIES`) and dialogs (`DIALOGS`); a new root,
+  key or dialog is a declaration. Its roots
   are Dashboard (Monitor), Sessions (Activity), Pending Questions, Team Members, Team Data (where the
   dashboard says it is there), Locations (Places), Consoles, Settings, Configuration and Manuals
   (Help); the number keys follow the list as it stands. Every fact is a row of a `--manager-*` read or
@@ -819,9 +845,13 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **A run in a `Wait` says for how long.** In the summary mode of the left window (`b`), its `waits on`
   line reads `<what> for <age>`, counted from its last milestone, `wait going idle`, which every Wait
   stores as it starts.
-- **One table drawer** draws every table of the left pane (`paneTable`): wrapped, a table spans the pane
-  and wraps its cells; cut, it is as wide as its words. Every row shows, nothing above it,
-  and the count of rows stands once at the bottom right of the window's frame.
+- **One table drawer** draws every table of the left pane (`paneTable`, in `AgentsManagerScreen.ViewTable.py`; the
+  Permissions of a member and the Locations use it too): wrapped, a table spans the pane and wraps its cells;
+  cut, it is as wide as its words. Its columns stand two cells apart where the room left holds that for every
+  gap, else one. Wrapped, the widths are tried against every cell and room moves from one wrapping column to
+  another while the table takes fewer lines for it, so a row takes the fewest lines the width gives. In the full
+  view, where the table fits both ways with it, one empty line stands between every two rows. Every row shows,
+  nothing above it, and the count of rows stands once at the bottom right of the window's frame.
 - **Panels have no cut mode**: a view drawn by `blocksView` (the dashboard, a block of it or of Team
   Data) is always set out wrapped, at the pane's own width; there `w` is greyed and refused, and the
   title says `[wrap]`.
@@ -829,7 +859,10 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   close to a row's own (`ROW_ALT`), or names none. Every other row differs only in that ground, never in
   its text, colour or look: the text carries content meaning alone. Under a set that names none the
   ground never changes. Wrapped, the last line of each row is then underlined across the table where
-  the terminal underlines. Cut, nothing marks the rows.
+  the terminal underlines. Cut, nothing marks the rows. A cell that is a state keeps its colour on its row's
+  ground and, on a row's underlined last line, the underline; a ground that is the meaning of a look (the red of
+  a bad state) stays. A terminal of eight colours has not the shades the two grounds are told apart by: there
+  the colours of every style name none.
 - **Markdown and the help are drawn by `lib/catMarkdown --spans`** of myx.common, once for each text,
   width and mode, never on a tick: the help as `--help` prints it. Where no catMarkdown with `--spans` is
   found, the text shows as it is. The screen holds no renderer of its own.
@@ -845,6 +878,12 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **Team Data** holds Operations (its cleanups and the sync, each run in a big output dialog) and the
   stores Board, Audit and Vault. **A member is a folder**: Permissions, Skillset Files, Sessions and
   Member Help. **Pending Questions** answers (Enter, `y`), rejects (`j`) and dismisses (`d`) an ask.
+- **The answer dialog of a pending question takes its form from the question** (the answers of
+  `--manager-pending-reply-read`, `AgentsToolsManagerPendingAnswers`). A single choice lists its answers, each
+  with what it does, and a comment box goes with the one picked. A plain question, one with no answer form, has
+  no list: it takes the words that are its answer, refused while they are empty. A question of the form `many`
+  opens `answer-many`, its options as boxes, and the answer is the numbers of the boxes checked, in their order,
+  as one reply names them.
 - **`MDAT_<NAME>_HARNESS` points one leg at another file**: a bare filename in `sh-lib`, or an absolute
   path; a relative path with `/` is refused (it would resolve against `$MMDAPP`). It must exist and be
   executable. Install probes and `AgentsToolsSpawnCliPresent` test the default file, not the override.
@@ -1061,13 +1100,16 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   routine and reasoning paths entirely (see "The agents console").
 - **A member holds one seat in a session** (`AgentsTools.SpawnSandbox.include`): the file
   `sessions/<S>/seats/<member>`, naming the run that holds it. A run takes it at its first read of the
-  session or post to it, and a start by the spawn proxy takes it at once. The first run to take it
-  holds it. A second start of a member whose seat a live run holds is refused, naming the holder and
-  `<S>:<member>`. A restart takes the seat over from the run it replaces, by `restarted-from:` on its
-  record, and the replaced run is dismissed by the tooling. A holder that no longer runs holds
-  nothing, and a run's close gives its seat up. A run without the seat gets nothing of the session
-  from `Wait` but a `DISMISSED` addressed to it, and its `SendMessage` there is refused, naming the
-  holder.
+  session or post to it (the served `Wait` and `SendMessage`), and a start by the spawn proxy takes it at
+  once. The first run to take it holds it; start times play no part. A holder that no longer runs holds
+  nothing, and a run's close gives its seat up. A second start of a member whose seat a live run holds is
+  refused by the proxy, naming the holder and `<S>:<member>`. A restart takes the seat over from the run
+  it replaces, by `restarted-from:` on its record, and the replaced run is dismissed by the tooling.
+  **There is no seatless run.** A run that finds its member's seat held by a live run, at its first read
+  of the session or post to it, is refused outright (`AgentsHarnessSeatRefuse`): the call answers with a
+  refusal naming the holder and `<S>:<member>`, nothing of the session is read or posted, and the run ends
+  the one way a run is ended, a dismissed mark with its handback marked, which the harness acts on once
+  the call is over.
 - **No dismissal comes early.** A session's executor, the run that founded it, is not dismissed while
   another participant of its session runs, whatever dismisses it. No run is dismissed while a live run
   names it in `reports-to` or in the `review-by` of its item. A dismissal held so is kept in
@@ -1112,7 +1154,11 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `magic-coordinator`, checked once where the operation is dispatched. `--manager-*` is the console's
   own, nobody's member: refused from inside any member's session, the coordinator's included
   (`AgentsToolsManagerCallerCheck`, asked once where the family is dispatched). Tooling
-  acting for another member calls the `--intern-op-*` form directly.
+  acting for another member calls the `--intern-op-*` form directly. The caller-check layer is one
+  side-effect-free file, `sh-lib/member/AgentsTools.CallerCheck.include`: the acting-member helpers
+  (`AgentsToolsActingMember`, `AgentsToolsActingSession`, `AgentsToolsActingMemberCheck`) and the three checks
+  above. `AgentsContext.UseAgentsTools.include` sources it, and so may any `.fn.sh` that asks them alone;
+  `AgentsCallerCheckSharedCheck` is its test.
 - **`--magic-client-operation-run <team-member> --client-<operation> [<argument>...]`**: `magic-coordinator`'s
   own way to a client's operation. The named team member is the client, dispatched in its own session as
   the named `--client-<operation>` itself would be; `magic-coordinator` never runs a `--client-*` operation
@@ -1423,7 +1469,7 @@ contracts are here.
   `ReportFindings`, `PushNotification`, `Artifact`, `AskQuestion`, `ConfirmReadback`,
   `EscalateDecision`, `RequestPermission`, `ProposeApprove`, `ListMcpResourcesTool`,
   `ReadMcpResourceTool`, `ReadMcpResourceDirTool`, `Skill`, `Agent`, `TaskStop`, `TaskOutput`,
-  `ToolSearch`, `SessionTranscriptAppend`, `CheckList`, `Monitor`. 31 tools. Each has four sites: the
+  `ToolSearch`, `SessionTranscriptAppend`, `CheckList`, `Monitor`, `BatchTools`. 32 tools. Each has four sites: the
   declaration, and in the core the announce arm, the dispatch arm and the function.
 - **The tools literal is one bash single-quoted string.** An English possessive closes it
   (`HARNESS_PARSES` catches this; the site check does not). A missing comma between declarations passes
@@ -1475,18 +1521,37 @@ contracts are here.
   to send. Text goes on stdin; no credential in argv.
 - **`NEXT:` lines.** A result the model must act on ends with one `NEXT:` line naming the call, added after
   the existing lines, in the core only (`Wait` stateful TIMEOUT/RECEIVED/DISMISSED, `SendMessage`
-  posted, `SubagentHandback` from a non-blocked spawn, `AskQuestion` left open with `WAIT-ID:`). The
-  `current-date:` line stands before the closing `NEXT:` line, which stays last. A `Wait` TIMEOUT is
-  three lines: the outcome, `current-date:`, then `NEXT:`.
+  posted, `SubagentHandback` from a non-blocked spawn, `AskQuestion` left open with `WAIT-ID:`). It
+  stays the last line of the result: the date is never a line before it, for it is no part of a tool's
+  output (next bullet). A `Wait` TIMEOUT is its one line, the `NEXT:` part last.
 - **One reply layer serves every tool result** (`AgentsTranscriptReplyFinish`,
   `AgentsTools.SessionTranscript.include`): a served call, the MCP server's own tools, and each result
-  the harness's model loop hands its model. Every reply carries one `current-date: YYYY-MM-DD HH:MM
-  +ZZZZ` line, the host's local time. A result over 8192 bytes is kept whole in
+  the harness's model loop hands its model. Every reply carries the host's local time, `current-date:
+  YYYY-MM-DD HH:MM +ZZZZ`, as a content part of its own beside the result, added where the reply is encoded
+  and never a line or a member inside a tool's output: in MCP the text item right after the result (the
+  second item of `content`; the head part of a path tool, which goes first, makes it the third), in the model
+  loop a separate part of the tool message. A served call (`--intern-tool`) prints no date at all. A result
+  over 8192 bytes is kept whole in
   `.local/agents/sessions/<key>/results/`. The reply then opens with a preview, the whole lines that
   fit in 2 KB or the first 20, never over 7 KB. It names the file, its size in bytes and lines, and a
   by-range `Read` for the rest. The result's closing lines close the reply too. Skill, ToolSearch and a
   Read of a kept file are never kept. With no session, or a file that cannot be written, the result
   comes back whole. `AgentsReplyCurrentDateCheck` and `AgentsReplyLongResultCheck` are the tests.
+- **`BatchTools` is one call that calls several tools and returns their results in call order**, to save
+  rounds (`AgentsTools.BatchTools.include`; the harness makes each call a served call of its own, the MCP
+  server a request of its own). Its arguments are `mode`, `calls` (a list of `{"tool":..,"arguments":{..}}`),
+  `workers` and `format`. The five modes: `sequence-stop-on-error` (the calls after an error are skipped),
+  `sequence-all-through`, `parallel-concurrent` (at most `workers` at once, default 4),
+  `parallel-all-any-match` (returns at the first ok and cancels the rest) and `parallel-all-through` (every
+  call at once). The result is one `BATCH-ENTRY: <n> <tool> <ok|error|skipped|cancelled>` line for each call,
+  in call order, each followed by that call's result, and a last line `BATCH-RESULT: <mode> <ok>/<total>`;
+  with `format: "json"` it is one object, `{"mode":..,"entries":[{"tool":..,"status":..,"result":..}]}`. Each
+  call runs exactly as it would on its own, through the same code of that server, in a process and a group of
+  its own with its own timeout (the batch has none); a cancelled call is ended as `TaskStop` ends a job. A call
+  is any tool the server serves, so batches nest. An unknown mode, `format` or tool, or a `workers` that is no
+  whole number above nought, is refused with nothing run, every call being checked before any starts. An entry keeps the reply
+  layer's rules except the date: over 8192 bytes it is a file reference, and the batch's one reply carries the
+  one date (`MDAT_REPLY_IN_BATCH`). `AgentsBatchToolsCheck` is the test.
 - **`Wait` tool** calls `--member-wait-for-input`, which takes `slack:session-current` and
   `slack:session-parent` itself, the same as the other four built-in aliases and their `:<ts>` form, and
   adds only: `mode` (`default`/`continue`/`close`),
@@ -1517,10 +1582,28 @@ contracts are here.
 - **`Skill skill=`** loads a skill like the native tool: bare name, `anthropic-skills:<name>`
   (`~/.claude/skills/synced`), `<plugin>:<name>` (synced plugins), `<dir>:<name>`. Frontmatter removed,
   `Base directory for this skill:` prepended, `$ARGUMENTS` placeholders filled,
-  `disable-model-invocation: true` refused. A team member's skill is one read: its `SKILL.md`, then its
-  `.basic.md` and `.armed.md` merged under it, a section each by file name (`AgentsToolsMergeMdFiles`,
-  section limit 6), where both files exist. A `SKILL.md` with `status: reference-only` is not merged.
-  A merge that fails is one `ERROR: Skill:` line.
+  `disable-model-invocation: true` refused. **A team member's default load is a bundle, in place of its
+  `SKILL.md`**, which stays the boot file of a native client and puts nothing in the read: the member's
+  `.basic.md` and `.armed.md`, then the team's (`magic-team` reads its own once), each a section of its own by
+  file name (`AgentsToolsMergeMdFiles`, section limit 6, every level kept), where both of a pair exist. A
+  member reading its own skill gets, below them, its section of the tool index as `# Tool index`, rebuilt first
+  where it is missing or stale; with no index the read goes on without it. The `SKILL.md` is read first only for
+  its refusal: an `ERROR` there is the read, served alone, and its `$ARGUMENTS` fill nothing of the bundle. A
+  `SKILL.md` with `status: reference-only` is served as is, its own file. A merge that fails is one
+  `ERROR: Skill:` line.
+- **The tool index** (`--intern-op-tool-index [--ensure]`, no help; `AgentsTools.InternOpToolIndex.include`) is
+  `.local/agents/tool-index.md`, one section per team member, generated and never written by hand, from the
+  template `sh-lib/templates/tool-index.document.format.md` filled by `AgentsToolIndexFill.awk`. Who may use
+  what is read there, never written: for the three families the dispatcher asks a caller check for (`--magic-`,
+  `--client-`, `--manager-`), that check itself, asked for each member and for a call from no member's session;
+  for the tools, the tool rows of the grants index, which carry the floor (`AgentsToolsGrantsBuiltinText`) and
+  what the projects declare in `project.inf`. A family no check is asked for, and a tool no row names, is
+  everyone's, gated per call. The same inputs give the same bytes: no date or time, members and files in byte
+  order, operations in their help's order. It is rebuilt the way the grants index is. With no argument the op
+  writes it, whatever it held, through a temp beside it and a rename; `--ensure` makes the grants index current,
+  rebuilds the tool index only where it is missing, in another format or older than what it is made from, and
+  prints its path (what the `Skill` read asks); a rebuild that fails keeps the old index, read as it stood.
+  `--make-harness-indices tool-index` builds it too.
 - **`Edit`** replaces an exact literal that occurs exactly once, counted with the same `index()` that
   substitutes (never `grep -c`). One call carries one edit, or a list of them in `edits`, each read
   as the top level is and applied in order, each to the text the edit before it left; uniqueness is
@@ -1617,10 +1700,11 @@ contracts are here.
   `- <invoked op>, <member>`. Without `.git` it creates `trash/`, tests `[ -e ]` before `mv`, and
   `touch`es the item so its trash clock starts now. With `.git` it deletes and commits.
 - **`--intern-team-data-final-gc-deletion`** retention is keyed on document type (`warning-*`,
-  `reflection-*`: 1 day; others 7), the same in inbox roots, legacy `inboxes/*/processed/`,
-  `board/processed/` and `trash/`.
-  - In an inbox root only items with `processed-at` are candidates, clocked by that stamp; a bad stamp
-    keeps the item with a warning.
+  `reflection-*`: 1 day; others 7), the same in each inbox's `processed/`, `board/processed/` and
+  `trash/`.
+  - In an inbox only `processed/` is collected, and `incoming/` never, whatever it holds. An item of
+    `processed/` with `processed-at` is clocked by that stamp; a bad stamp keeps the item with a warning.
+    One with no stamp is clocked as elsewhere, below.
   - Elsewhere the clock is the latest commit for the path, else mtime (a checkout resets mtime). One
     `git log --name-only` per directory, never per item.
   - `trash/` is collected at once when `TEAM_DATA_GIT_REMOTE` is set; otherwise it follows the table.
@@ -1639,11 +1723,23 @@ contracts are here.
     sandboxes are never removed; synced copies may return.
 - **The GC and the trash op are separate mechanisms**: one deletes on a clock, the other relocates one
   named item.
-- **Inbox items are marked processed in place.** `--intern-op-inbox-to-processed` stamps `processed-at`
-  as a `default` op, rewrites through a sibling dotfile and a rename, and commits alone. Re-marking is a
-  no-op; an edit keeps the original stamp (it is the GC clock). Readers use
-  `AgentsInboxProcessedAtList.awk`, bounded to a frontmatter block starting on line 1. The legacy
-  `processed/` folder is read-only and drains. A mark does not wake a wait.
+- **Inbox items live in `incoming/` and `processed/`** (`AgentsTools.InboxPlace.include`, the one answer to
+  where an item is: `AgentsToolsInboxDir`, `-DirFor`, `-Folders`, `-ItemFind`, `-ItemProcessed`, `-NotePath`).
+  An inbox is two folders, and an item's `processed-at` stamp decides its folder: no stamp, `incoming/`; the
+  stamp, `processed/`. The stamp stays the GC clock. Every store is split since F4.3's one-time move: no inbox
+  is read or written at its root, and a folder that is not there yet is made by the first write into it, git
+  keeping no empty folder. Readers never see the folders: an operation names an item, never its folder, and
+  sees `incoming/` alone unless it is given `--include-processed`; the trash takes `--exclude-incoming`
+  instead, for a processed item only. The input scan lists `incoming/`, and the processed items only in
+  its wider inbox breadth; `Wait` lists `incoming/` alone: an item in `processed/` wakes nothing, and marking
+  an item handled, which moves it out of `incoming/`, is the waiting member's own act and never an arrival. A standing note, a routine's state and lock among them, carries no
+  stamp and lives in `incoming/`.
+  `--intern-op-inbox-to-processed` finds the item in `incoming/` (in `processed/` too with
+  `--include-processed`), stamps `processed-at` as a `default` op, writes it in `processed/` through a sibling
+  dotfile and a rename and only then takes it out of `incoming/`, so it is never in neither, and commits alone.
+  Re-marking is a no-op; an edit keeps the original stamp. An upsert puts an item where its stamp says, and
+  moves one whose stamp changes its folder. Readers of the stamp use `AgentsInboxProcessedAtList.awk`, bounded
+  to a frontmatter block starting on line 1. `AgentsInboxSplitCheck` is the test.
 - **Published documents** (`--intern-artifact-publish`, `AgentsTools.InternArtifact.include`):
   - The type table is `AgentsToolsArtifactTypes`, one `<code> TAB <name>` row per numbered type;
     a kind matching a code or name (any case) is numbered, anything else is free text with no number.
@@ -1807,7 +1903,7 @@ op's own option arm.
   unacceptable (profile ops).
 - **Bot token**: the member's own `SLACK_BOT_TOKEN`, then `magic-team`'s (`AgentsToolsResolveSlackBotToken`,
   prints `member-bot-token|shared-bot-token <token>`). Never keep the team's token in a member's scope.
-  `magic-team` is an identifier; read `magic-team.shared.md` "Identifier and identity" before renaming.
+  `magic-team` is an identifier; read `magic-team/reference/skill-folder-model.md` "Identifier and identity" before renaming.
 - **Workspace domain** for `X-Request-Detail`: the member's own `SLACK_WORKSPACE_DOMAIN`, then
   `magic-team`'s (`AgentsToolsResolveSlackWorkspaceDomain`). It is persisted by
   `--intern-op-check-configs <scope> --resolve-slack-workspace-into SLACK_WORKSPACE_DOMAIN` (user token

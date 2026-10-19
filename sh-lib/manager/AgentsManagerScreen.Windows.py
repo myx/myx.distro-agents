@@ -37,10 +37,10 @@ META_SECONDS = 1.0
 WINDOWS = (
     {"name": "view", "title": "viewTitle", "place": {"side": "left"},
      "shows": {"body": "lines", "reads": VIEW_PARTS}, "bar": True, "count": "viewCount",
-     "commands": ("wrap", "pan")},
+     "commands": ("wrap", "pan", "row")},
     {"name": "list", "title": "listTitle", "place": {"side": "right", "tenths": 3},
      "shows": {"body": "rows", "reads": ("list",)}, "bar": True,
-     "commands": ("launch", "prompt", "answer", "reject", "dismiss", "link", "setting", "run", "open", "up", "filter", "page-left", "page-right")},
+     "commands": ("launch", "prompt", "answer", "reject", "dismiss", "link", "setting", "run", "open", "up", "filter", "page-left", "climb", "page-right")},
 )
 ## The window the keys go to when the screen starts.
 WINDOW_FIRST = "list"
@@ -160,8 +160,9 @@ MENUS = (
 ## <name>) is the handler of that action (ACTION_HANDLERS) with the selected row, which
 ## asks first where it must and then calls the operations "calls" names in CALLS; while
 ## its handler is not built the command does not apply. ("go", <path>) takes the list to
-## that level. ("move", <rows>, <pages>) moves in the active window; ("move", <rows>, <pages>, <name>)
-## does the command of that name instead where the selection stands on the first row of the list. The others are the
+## that level. ("move", <rows>, <pages>) moves in the active window, MOVE_ALL rows to its top or its bottom;
+## ("move", <rows>, <pages>, <name>) does the command of that name instead where the selection stands on the
+## first row of the list; ("climb",) takes the list up one level and, at the root, does nothing. The others are the
 ## engine's own: "open", "up", "focus", "filter", "read", "menu", "style", "quit",
 ## "demand", which asks for the list shown where that is read on demand alone (READS), or
 ## for the list of the folder selected where that one is, and
@@ -188,6 +189,9 @@ def goKeys(path):
     number = shown.index(tuple(path)) + 1
     return (str(number), "ALT-%d" % number) if number <= 9 else ()
 
+
+## More rows than any pane holds: a move by that many stops at the top or at the bottom (Home, End).
+MOVE_ALL = 1 << 30
 
 COMMANDS = (
     {"name": "read", "keys": ("u", "F5"), "menu": ("view", 1), "label": "~R~ead now", "status": "Read",
@@ -238,6 +242,8 @@ COMMANDS = (
     {"name": "wrap", "keys": ("w",), "menu": ("view", 5), "label": "Wra~p~ or cut long lines", "status": ("Wrap", "Cut"), "toggle": "wrap",
      "does": ("wrap",)},
     {"name": "pan", "keys": ("LEFT", "RIGHT"), "status": "Scroll", "shown": "LEFT/RIGHT", "does": ("pan",)},
+    ## in the left window, on a table that is all of it: Enter puts the row cursor on the top row in view, and then opens the row whole
+    {"name": "row", "keys": ("ENTER",), "does": ("row",)},
     {"name": "split-wider", "keys": ("[",), "menu": ("view", 5), "label": "Wi~d~er list", "does": ("split", 1)},
     {"name": "split-narrower", "keys": ("]",), "menu": ("view", 5), "label": "Narrower lis~t~", "does": ("split", -1)},
     {"name": "style", "keys": ("I", "F9"), "menu": ("view", 3), "label": "Interface ~s~tyle: the next", "does": ("style",)},
@@ -289,10 +295,13 @@ COMMANDS = (
     {"name": "line-up", "keys": ("UP",), "does": ("move", -1, 0)},
     {"name": "line-down", "keys": ("DOWN",), "does": ("move", 1, 0)},
     {"name": "page-up", "keys": ("PGUP",), "does": ("move", 0, -1)},
-    {"name": "page-down", "keys": ("PGDN",), "does": ("move", 0, 1)},
-    ## the list's own Left and Right: Right pages down as PgDn does, Left pages up as PgUp does
-    ## and, on the first row of the list, goes up one level as "up" does
-    {"name": "page-left", "keys": ("LEFT",), "does": ("move", 0, -1, "up")},
+    {"name": "page-down", "keys": ("PGDN", " "), "does": ("move", 0, 1)},
+    {"name": "go-top", "keys": ("HOME",), "does": ("move", -MOVE_ALL, 0)},
+    {"name": "go-bottom", "keys": ("END",), "does": ("move", MOVE_ALL, 0)},
+    ## the list's own Left and Right: Left pages up as PgUp does and, on the first row of the list, climbs
+    ## one level (climb), which at the root does nothing, so that it never leaves the pane; Right pages down as PgDn does
+    {"name": "page-left", "keys": ("LEFT",), "does": ("move", 0, -1, "climb")},
+    {"name": "climb", "keys": (), "does": ("climb",)},
     {"name": "page-right", "keys": ("RIGHT",), "does": ("move", 0, 1)},
 )
 ## What the status line shows in place of the commands while something else has the keys:
@@ -304,7 +313,8 @@ STATUS_KEYS = {
 }
 ## How the name of a key shows in a menu and in the status line, where it is not its own name.
 KEY_WORDS = {"ENTER": "Enter", "TAB": "Tab", "ESC": "Esc", "LEFT": "Left", "RIGHT": "Right",
-             "UP": "Up", "DOWN": "Down", "PGUP": "PgUp", "PGDN": "PgDn", "BACKSPACE": "Backspace"}
+             "UP": "Up", "DOWN": "Down", "PGUP": "PgUp", "PGDN": "PgDn", "HOME": "Home", "END": "End", " ": "Space",
+             "BACKSPACE": "Backspace"}
 ## The names a style gives keys in place of those of KEY_WORDS ("names" of its entry of STYLES).
 ## "classic": capitals, and the arrows of the IBM PC character set the frames come from;
 ## "symbols": a symbol each. Each name of either is one cell on every terminal (TEXT_SYMBOLS).

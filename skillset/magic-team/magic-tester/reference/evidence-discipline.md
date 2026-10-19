@@ -19,6 +19,8 @@ managing blast radius when the run itself has real consequences.
 - A measurement carries its timestamp
 - A guard that fires is evidence; a guard that stays silent carries none
 - A check that leaves a process running signals it only while it is still that process
+- A check compares a tool's own result, not its whole reply
+- A check makes its rig under the workspace, never in the system's temp folder
 - Establish which way a check errs before deciding whether it needs a fallback
 - An oracle settles what opinions divide
 - Test the inputs the design is silent about
@@ -296,11 +298,22 @@ process together with when it began, and signals it later only while its pid is 
 
 ## A check compares a tool's own result, not its whole reply
 
-Every reply of a tool call carries the host's time as a `current-date:` line, and a result over 8 KB
-comes back as a reference to a kept file. A check that compares what a tool gives sources the one
-shared helper for this, `sh-test/check-fixtures/rig-reply.include.sh`, and passes the reply through
-`rigReplyBare`. It gives the tool's own result: the kept file read back where the reply names one,
-else the reply with its `current-date:` line dropped.
+Every reply of a tool call carries the host's time as a content part of its own beside the result (a second
+text item in MCP, a separate part of a tool message in the model loop), never a line of the tool's own
+output, and a result over 8 KB comes back as a reference to a kept file. A check that compares what a tool
+gives sources the one shared helper for this, `sh-test/check-fixtures/rig-reply.include.sh`, and passes the
+reply through `rigReplyBare`. It gives the tool's own result: the kept file read back where the reply names
+one, else the reply with its date part dropped, and, where the result is then the tool message's only part,
+folded back to the string the message had before it.
+
+## A check makes its rig under the workspace, never in the system's temp folder
+
+No file of the package is kept in the system's temp folder (the owner's rule, held for every file of the
+package by `AgentsTempNamesCheck`). A check that needs a folder to live in sources the one shared helper for
+this, `sh-test/check-fixtures/rig-temp.include.sh`, and asks `rigTempDir <name>`: a new, empty folder under
+`$MMDAPP/.local/agents/scratch/sh-test/`, made by `mktemp -d`, beside the harness's own scratch and outside every
+member's floor, so no grant of the workspace reaches a path of a rig. With no workspace it makes nothing, says so
+on stderr and returns 1, for the check to end on before it reports a result.
 
 ## Establish which way a check errs before deciding whether it needs a fallback
 

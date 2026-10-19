@@ -20,12 +20,12 @@
 ## for what no registry holds, each a gap for a later column: the status and the description
 ## of its SKILL.md, and the bullets of its basic.md.
 ##
-## A SECRET IS NEVER PRINTED, in a row or in an error, and none is read here: no code of
-## this include opens a scope or asks the setting reader for a value. Which key is a secret
-## is decided in one place for the whole family, the digest of settings
-## (AgentsToolsManagerConfigKeySecret, AgentsTools.ManagerConfig.include), whose own lines
-## are what a member's settings are printed from. A key held by another workspace's scope
-## is printed by its name alone.
+## A CREDENTIAL IS PRINTED IN ONE FORM ONLY, in a row or in an error (AgentsToolsCredentialShown,
+## F11.8), and none is read here: no code of this include opens a scope or asks the setting
+## reader for a value. Which key is a credential is decided in one place for the whole family,
+## the digest of settings (AgentsToolsManagerConfigKeySecret, AgentsTools.ManagerConfig.include),
+## whose own lines are what a member's settings are printed from. A key held by another
+## workspace's scope is printed by its name alone.
 ##
 
 type AgentsToolsRegistryTeamMembersRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
@@ -207,8 +207,8 @@ AgentsToolsManagerTeamMemberListRows(){ ## the operation as it was called
 
 ## The `setting` rows of one member. The keys of its scope in this workspace are the lines
 ## the digest of settings prints for that scope, each with the state and the value the
-## digest gives it: which key is a secret, and what is shown of it, is that operation's own
-## rule, and nothing of a secret reaches this shell. A line is read by its first six fields:
+## digest gives it: which key is a credential, and what is shown of it, is that operation's own
+## rule, and a credential reaches this shell in its printed form alone. A line is read by its first six fields:
 ## what the digest adds after them, its label, is the digest's own and is not carried here.
 ## For a member set up elsewhere, then the
 ## keys of each system this workspace holds no setting of for it, which the tooling reads

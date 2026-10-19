@@ -338,14 +338,14 @@ echo "-- every operation renders as one line by its own template --"
 ## ---------------------------------------------------------------------------
 rigOps="$rigTmp/ops"
 cat > "$rigOps" <<'RIG_OPS_EOF'
-2030-01-01T00:01:00Z TOOL Read path=/w/source/myx/magic-team.shared.md offset=1 limit=200 -> ok 20480B/202L 12ms
+2030-01-01T00:01:00Z TOOL Read path=/w/source/myx/magic-team.armed.md offset=1 limit=200 -> ok 20480B/202L 12ms
 2030-01-01T00:01:01Z TOOL Grep pattern=review-by path=/w/myx.distro-agents/sh-lib mode=content -> ok 2100B/31L 40ms
 2030-01-01T00:01:02Z TOOL Glob pattern=**/*.routine.md -> ok 3000B/42L 8ms
 2030-01-01T00:01:03Z TOOL Edit path=/w/sh-lib/member/AgentsTools.Member.include -> ok 40B/1L 10ms
 2030-01-01T00:01:04Z TOOL mcp__myx_distro__Write path=/w/lib.tukaani-xz-java/README.md -> ok 86B/1L 551ms
 2030-01-01T00:01:05Z TOOL execute cmd="bash -n sh-lib/member/AgentsTools.Member.include" -> ok 3B/1L 1.2s | "Syntax check"
 2030-01-01T00:01:05Z TOOL Bash cmd="ls -la" -> ok 300B/9L 40ms | "Syntax check"
-2030-01-01T00:01:06Z TOOL Skill name=magic-team file=magic-team.shared.md section="Nothing stops" -> ok 1965B/19L 725ms
+2030-01-01T00:01:06Z TOOL Skill name=magic-team file=magic-team.armed.md section="Nothing stops" -> ok 1965B/19L 725ms
 2030-01-01T00:01:07Z TOOL SendMessage to=magic-coordinator -> ok 120B/2L 300ms
 2030-01-01T00:01:07Z MSG-OUT to=magic-coordinator
 > Done with the README pass, 2 files changed.
@@ -426,14 +426,14 @@ while IFS= read -r rigWant ; do
 	rigOpsCount=$(( rigOpsCount + 1 ))
 	rigAssert "renders: $rigWant" "$( rigCount "$rigPost" "$rigWant" )" 1
 done <<'RIG_WANT_EOF'
-📖 Read `magic-team.shared.md` · lines 1–200 → 20 KB
+📖 Read `magic-team.armed.md` · lines 1–200 → 20 KB
 🔍 Grep `review-by` in `myx.distro-agents/sh-lib` → 31 lines
 📁 Glob `**/*.routine.md` → 42 entries
 ✏️ Edit `AgentsTools.Member.include` → ok
 📝 Write `lib.tukaani-xz-java/README.md` → ok
 💻 Syntax check — execute `bash -n sh-lib/member/AgentsTools.Member.include` → exit 0 · 1.2 s
 💻 Bash `ls -la` → exit 0 · 40 ms
-📚 Skill `magic-team` · `magic-team.shared.md` § Nothing stops → 1.9 KB
+📚 Skill `magic-team` · `magic-team.armed.md` § Nothing stops → 1.9 KB
 ✉️ SendMessage → *magic-coordinator*: "Done with the README pass, 2 files changed."
 📊 ReportFindings → *magic-coordinator*: "Two READMEs"
 ⏳ Wait → RECEIVED from *U0RIGUSER*: "yes, go ahead" · on: reply · 1 m 5 s
@@ -481,7 +481,7 @@ rigAssert "the handback, both dismissals, the model, the restart and the start, 
 	"$( rigCount "$rigPost" 'BOX [bust_in_silhouette] magic-tester (run `abcdef01`) | <!date^1893456123^{date_short_pretty} at {time}|2030-01-01 00:02 UTC>' ):$( LC_ALL=C awk '/^BOX / { on = ( index( $0, "^1893456123^" ) > 0 ) ; next } on { n++ } END { print n + 0 }' "$rigPost" )" 1:6
 rigAssert "the box sets a block apart: no block outside one, no odd child, no divider, no quote bar, no empty line" "$( rigShape "$rigPost.blocks" )" 0:0:0:0:0
 rigAssert "each box's lines are one section, a line break between them" \
-	"$( rigFlat "$rigPost.blocks" | LC_ALL=C grep -c -E '^blocks\.[0-9]+\.child_blocks=\[1$' ):$( rigFlat "$rigPost.blocks" | LC_ALL=C grep -c -F 'blocks.0.child_blocks.0.text.text=📖 Read `magic-team.shared.md` · lines 1–200 → 20 KB\n🔍 Grep `review-by` in `myx.distro-agents/sh-lib` → 31 lines\n' )" 8:1
+	"$( rigFlat "$rigPost.blocks" | LC_ALL=C grep -c -E '^blocks\.[0-9]+\.child_blocks=\[1$' ):$( rigFlat "$rigPost.blocks" | LC_ALL=C grep -c -F 'blocks.0.child_blocks.0.text.text=📖 Read `magic-team.armed.md` · lines 1–200 → 20 KB\n🔍 Grep `review-by` in `myx.distro-agents/sh-lib` → 31 lines\n' )" 8:1
 ## A post's plain-text rendering. Empty lines, then misplaced lines: a header after a non-empty line, or anything but a header after an empty one.
 rigBlankCheck(){ LC_ALL=C awk '{ head = ( $0 ~ /^(👤 |🧵 session |⚙️ system)/ ) } NR == 1 && ! head { bad++ } NR > 1 && head != ( prev == "" ) { bad++ } $0 == "" { blank++ } { prev = $0 } END { print blank + 0 ":" bad + 0 }' "$1" ; }
 rigAssert "as plain text: an empty line before every header but the first, and nowhere else" \
@@ -595,7 +595,7 @@ echo "-- the agent's own description leads the line, and a command reads without
 cat > "$rigTmp/lines.intent" <<'RIG_INTENT_EOF'
 2030-01-01T00:07:00Z TOOL execute cmd="DistroSystemContext --distro-from-source ; Require DistroAgentsTools ; Distro DistroAgentsTools --member-board-item-read magic-tester task-x.md" -> ok 30B/2L 64ms | "Reading the task item"
 2030-01-01T00:07:01Z TOOL execute cmd="DistroSystemContext --distro-from-source ; Require DistroAgentsTools ; Distro DistroAgentsTools --member-help magic-tester" -> ok 30B/2L 60ms
-2030-01-01T00:07:02Z TOOL mcp__myx_distro__Skill name=magic-team file=magic-team.board.md -> ok 5701B/66L 49ms | "Checking the board rules"
+2030-01-01T00:07:02Z TOOL mcp__myx_distro__Skill name=magic-team file=magic-team.armed.md -> ok 5701B/66L 49ms | "Checking the board rules"
 2030-01-01T00:07:03Z TOOL Agent agent=keeper-myx -> ok 200B/5L 3.0s | "Spawn the README keeper"
 2030-01-01T00:07:03Z SPAWN agent=keeper-myx
 > SESSION_ID=7f12abcd-0000-4000-8000-000000000009
@@ -616,7 +616,7 @@ while IFS= read -r rigWant ; do
 done <<'RIG_INTENT_WANT_EOF'
 💻 Reading the task item — execute `DistroAgentsTools --member-board-item-read magic-tester task-x.md` → exit 0 · 64 ms
 💻 execute `DistroAgentsTools --member-help magic-tester` → exit 0 · 60 ms
-📚 Checking the board rules — Skill `magic-team` · `magic-team.board.md` → 5.6 KB
+📚 Checking the board rules — Skill `magic-team` · `magic-team.armed.md` → 5.6 KB
 🚀 Spawn the README keeper — Agent spawn → *keeper-myx* (session 7f12abcd…) · started
 ⛔ Ask the owner — SendMessage `human-owner`: "Blocked on the registry, need your call." → error: ERROR: the send failed (rc=1) and nothing was posted.
 ✉️ SendMessage → *human-owner*: "First real line of the body."

@@ -246,7 +246,7 @@ rigStart send-refused
 : > "$rigScenarioDir/post-refuse"
 rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\"}"
 rigAssert "it ran to completion"                          "$rigKilled" no
-rigAssert "the result opens with ERROR"                   "$( rigFirstLine "$rigScenarioDir/out" )" "ERROR: AskUserQuestion: the question could NOT be posted, so nobody was asked and no answer is pending anywhere. THE QUESTION DOES NOT EXIST: this is not a question that went unanswered, and it will not be answered later. The plain-language floor (${MDAT_SKILLSET_ROOT:-}/magic-team/magic-team.shared.md) is not what stopped it: a question over the floor comes back as CORRECTION, never as this error -- clear what the send reported and ask it again. What the send reported follows:"
+rigAssert "the result opens with ERROR"                   "$( rigFirstLine "$rigScenarioDir/out" )" "ERROR: AskUserQuestion: the question could NOT be posted, so nobody was asked and no answer is pending anywhere. THE QUESTION DOES NOT EXIST: this is not a question that went unanswered, and it will not be answered later. The plain-language floor (${MDAT_SKILLSET_ROOT:-}/magic-team/magic-team.armed.md) is not what stopped it: a question over the floor comes back as CORRECTION, never as this error -- clear what the send reported and ask it again. What the send reported follows:"
 rigAssert "it is not dressed as POSTED"                   "$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT' )" no
 rigAssert "no record was written"                         "$( rigRecords )" 0
 rigAssert "no wait was performed"                         "$( rigCalls conversations.replies )" 0

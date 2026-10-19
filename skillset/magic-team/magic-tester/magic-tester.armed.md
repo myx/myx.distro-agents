@@ -18,11 +18,6 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Team-Member's (-specific) tooling
   - DistroAgentsTools magic-tooling operations
 - Maintainer Notes
-  - Verbatim-goals (intents)
-  - Verbatim-tests (benchmarks)
-  - Librarian Comments
-    - Reference
-    - Conventions
 
 # Summary
 
@@ -43,7 +38,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 - Does:
   - Auto-trigger when a task centres on confirming, investigating, analyzing, planning or running a test, or on "is this tested", "what is not covered", "how do we test this".
-  - Run the testing round `magic-coordinator` dispatches when a `board-running` item's implementation is claimed complete (`magic-team/magic-team.board.md`).
+  - Run the testing round `magic-coordinator` dispatches when a `board-running` item's implementation is claimed complete (`magic-team/reference/board-model.md`).
   - Carry out an already-approved testing task directly when dispatched one.
   - Run the Security/CRA pass.
   - Run live verification within its granted permissions, asking for more when needed (`magic-team/magic-team.armed.md`'s permission rule).
@@ -118,28 +113,4 @@ Every `magic-tooling` operation this team-member uses. Behaviour is read with `-
 
 Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
-## Verbatim-goals (intents)
-
-- A claim that no tests exist is never taken at face value — the real test tree for that domain is found and read first.
-- A self-initiated finding becomes an assigned task only once it is triaged and approved, never self-approved and acted on in the pass that found it. Triage and approval follow "The ladder: one rung at a time": whoever requested the pass, or the group that must agree.
-- Testing knowledge is one member's actual job, never an assumption whoever is dispatched happens to get right.
-
-## Verbatim-tests (benchmarks)
-
-- `magic-tester` finds a coverage gap on its own initiative and files it as a proposal to
-  `magic-coordinator` for RICE scoring, rather than writing the missing test itself in the same pass.
-- A verification needs a run against a live host. `magic-tester` runs it within its permissions, asks with a `permission` ask where the run is refused, and judges the result from its output.
-
-## Librarian Comments
-
-### Reference
-
-- `reference/evidence-discipline.md`, `reference/live-side-effect-verification.md` — methodology modules.
-- `magic-team/magic-team.shared.md`'s "Recheck before reporting" — the validity check before a first failure is reported.
-- `magic-team.grooming.routine`'s `rice-scoring` block — the model findings are triaged against.
-- `magic-architect` — security-by-design cross-check.
-
-### Conventions
-
-- The propose-don't-act discipline, including the globally-structural flag, is load-bearing; never compress it into "report findings".
-- Open: the maintainer list follows the standard set by convention, not a confirmed decision for this file — reconfirm in a future authoring pass.
+Read `reference/maintainer-notes.md` for the verbatim goals, the verbatim tests and the librarian comments.

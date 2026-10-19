@@ -109,10 +109,13 @@ def askHelp(state, row):
     ] + others + [
         "The menus: %s opens the menu bar. %s and then its letter, or Alt with that letter, opens one:" % (menuKey, keyShown("ESC")),
     ] + [(hotLetter(label), hotText(label)) for menuName, label in MENUS] + [
-        "%s, %s, %s and %s move in the active window. In a dialog %s and Shift-%s go from control to"
+        "%s and %s move by a line in the active window, %s, %s and %s by a page, %s and %s to the top and the bottom."
+        " A table that is all of the left window is read like that, with no row highlighted: %s there puts a cursor on a"
+        " row, %s and %s move it, %s opens the row whole, and %s leaves the cursor."
+        " In a dialog %s and Shift-%s go from control to"
         " control, Space toggles a box and chooses a radio button, %s presses the first button or the one the"
         " keys are on, and %s cancels. The mouse does what these keys do."
-        % tuple(keyShown(key) for key in ("UP", "DOWN", "PGUP", "PGDN", "TAB", "TAB", "ENTER", "ESC")),
+        % tuple(keyShown(key) for key in ("UP", "DOWN", "PGUP", "PGDN", " ", "HOME", "END", "ENTER", "UP", "DOWN", "ENTER", "ESC", "TAB", "TAB", "ENTER", "ESC")),
     ], "information", level="")
 
 

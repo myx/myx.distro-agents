@@ -200,7 +200,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - `magic-coordinator.heartbeat.routine` — runs this routine inline, last, every pass. `magic-coordinator.coordination-session.routine` runs it on a new update.
 - `magic-coordinator.armed.md` — `check-process-board`, `check-pending-comms-actions`, `spawn-one-dispatch`.
-- `magic-team.board.md` — board states and the advance/grooming split.
+- `magic-team/reference/board-model.md` — board states and the advance/grooming split.
 
 ### Conventions
 

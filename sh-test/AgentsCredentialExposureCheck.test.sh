@@ -2,7 +2,9 @@
 ## Behavioural check that a credential never reaches argv or disk (2158 properties 3
 ## and 4), across one Slack send and one Atlassian call, each run once succeeding and
 ## once failing. Also checks the per-send Slack log (536): one line per send, holding
-## neither the token nor the body.
+## neither the token nor the body. A credential is printed in one form only (F11.8, its first
+## quarter and a `*` for the rest): so nothing of it past that quarter stands in what a call
+## printed, and the whole value is held out of argv, ps and disk as before.
 ## Offline and contained: a temp workspace with its own credential files holding a
 ## sentinel token, a temp skillset root, a temp HOME, all inside the
 ## workspace, and a fake `curl` first on PATH.
@@ -64,6 +66,7 @@ rigCall(){ ## mode, tool arguments...
 rigExposure(){ ## label, body-carrying: yes|no
 	rigAssert "$1: control, the fake saw the credential on stdin" "$( rigHas "$rigScenario/stdin.log" "$rigSentinel" )" yes
 	rigAssert "$1: the credential is not in curl's argv" "$( rigHas "$rigScenario/argv.log" "$rigSentinel" )" no
+	rigAssert "$1: nothing of the credential past its first quarter is printed" "$( rigHas "$rigScenario/out" "${rigSentinel:$(( ${#rigSentinel} / 4 ))}" )" no
 	rigAssert "$1: the credential is not in ps for curl or its parent" "$( rigHas "$rigScenario/ps.log" "$rigSentinel" )" no
 	if [ "$2" = "yes" ] ; then
 		rigAssert "$1: control, the in-flight scan saw the body's temp file" "$( [ -s "$rigScenario/inflight.log" ] && echo yes || echo no )" yes

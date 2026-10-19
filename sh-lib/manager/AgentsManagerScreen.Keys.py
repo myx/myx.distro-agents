@@ -26,6 +26,10 @@ def handleKey(state, key, layout):
     if state.menu is not None:
         menuKey(state, key, layout)
         return
+    if key == "ESC" and state.focus == "view" and state.view.get("rowCursor") is not None:
+        ## the row cursor of a table is left, back to reading it
+        state.view["rowCursor"] = None
+        return
     if key == "ESC":
         state.metaAt = state.now
         return
@@ -237,8 +241,17 @@ def runCommand(state, command, layout, key=None):
             runCommand(state, commandNamed(does[3]), layout, key)
         elif state.focus == "list":
             moveSelection(state, listRowsHeight(state, layout), does[1], does[2])
+        elif state.view.get("rowCursor") is not None and not does[2] and abs(does[1]) == 1:
+            ## an arrow with the row cursor on moves the cursor
+            rowCursorMove(state, viewScrollHeight(state, layout), does[1])
         else:
             scrollView(state, viewScrollHeight(state, layout), does[1], does[2])
+            rowCursorKeep(state, viewScrollHeight(state, layout))
+    elif does[0] == "row":
+        rowCursorEnter(state)
+    elif does[0] == "climb":
+        ## one level up a press; at the root nothing (goUp), and the keys stay in the list
+        goUp(state)
     elif does[0] == "open":
         diveIn(state, listRowsHeight(state, layout))
     elif does[0] == "up":

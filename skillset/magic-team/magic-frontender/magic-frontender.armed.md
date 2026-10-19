@@ -19,11 +19,6 @@ maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
 - Team-Member's (-specific) tooling
   - DistroAgentsTools magic-tooling operations
 - Maintainer Notes
-  - Verbatim-goals (intents)
-  - Verbatim-tests (benchmarks)
-  - Librarian Comments
-    - Reference
-    - Conventions
 
 # Summary
 
@@ -63,18 +58,7 @@ Named procedure blocks. Steps below call them by name. Not separate routines —
 
 ## `pwa-vision-iteration` — build the running PWA-architecture vision one facet at a time
 
-Steps:
-1. Pick one facet not yet iterated:
-   - offline-first via service worker
-   - installability
-   - caching strategy
-   - auth flow
-   - native-standards-first stack
-   - security posture
-   - performance budget
-2. Think it through with the systems depth listed in Goals, building on the earlier sections of `PWA-VISION.md`.
-3. File the new section, labelled `(draft)`, to `magic-coordinator` with `post-inquiry`. It lands in `PWA-VISION.md` by the skillset change rule.
-   - An architecture-boundary question (one app or several) goes to `magic-architect` with `post-inquiry` instead of being decided here. A disagreement with `magic-architect`'s own call is the no-quorum document, per "The ladder: one rung at a time".
+Read `reference/pwa-vision-iteration.md` for the steps.
 
 # Team-Member's (-specific) local rules
 
@@ -90,31 +74,15 @@ All statements apply at the same time, always. These rules override a magic-team
 
 ## CSS `linear()` as a physics-animation data container
 
-`linear()` normally controls *how smoothly* a transition moves from A to B. Repurposed instead as a pure-CSS way to bake an arbitrary simulated motion (spring, pendulum, bounce, any physics sim) into a native, main-thread-free animation, with no JS driving it at runtime:
-
-1. Run the physics simulation once, offline, sampling the animated property at regular time intervals.
-2. For each animated dimension, find its min/max across all samples.
-3. Declare a `@keyframes` for that dimension spanning `from { property: <min> }` to `to { property: <max> }`.
-4. Normalize every sample to `[0,1]` via `(sample - min) / (max - min)`.
-5. Pack the normalized values as the comma-separated number list inside `linear(...)`, driving that `@keyframes` animation's timing function.
-
-Two simultaneous axes (e.g. x/y) can't share one property's timing function — split them across two different CSS properties (e.g. `translate: x 0` for X, `transform: translateY(y)` for Y) so each gets its own `linear()`.
-
-Real limits: interpolation between samples is linear only (no curvature unless the sample rate is high enough to approximate one); rotation/scale stacked with translation needs a wrapper element to avoid compounding; skipped/irregular sample intervals need explicit progress-percentage stops in the `linear()` list, not just the raw value sequence.
-
-Motion/visual-styling knowledge, not a systems-depth topic — reach for it when a task genuinely needs custom spring/physics-feel easing, not as a default lens on unrelated styling work.
+Read `reference/css-linear-physics-animation.md` when a task needs custom spring or physics-feel easing.
 
 ## Universal CSS resets can break nested-list indentation
 
-A blanket `* { padding: 0 }` (or `margin: 0`) reset zeros every element's box-model spacing, including `ul`/`ol` — whose nested-list indentation comes from the browser's own default `padding-left` on those elements. Zeroing it flattens every nesting depth to the same visual indent, with no depth-based offset.
-
-Prefer Josh Comeau's modern CSS reset shape (joshwcomeau.com/css/custom-css-reset): universal `margin: 0` only, never `padding` — no element gets its padding zeroed specifically, so list indentation survives untouched. A narrower alternative, excluding `ul`/`ol` from the reset explicitly, also works when a more surgical change is preferred.
-
-Watch for this wherever nested lists, or anything else relying on browser-default box-model spacing, sit downstream of a blanket universal reset. A concrete instance lives in the owning `keeper-*`'s domain knowledge.
+Read `reference/css-reset-nested-lists.md` when writing or reviewing a CSS reset.
 
 ## Idle-Tasks
 
-- `pwa-vision-iteration` (local procedure) — weight: 2, min-interval: 24h, scope: one `PWA-VISION.md` facet.
+- `pwa-vision-iteration` (local procedure, `reference/pwa-vision-iteration.md`) — weight: 2, min-interval: 24h, scope: one `PWA-VISION.md` facet.
 - universal research-own-duties activity — weight: 1, min-interval: 24h, scope: frontend engineering.
 
 # Team-Member's (-specific) tooling
@@ -129,25 +97,4 @@ Every `magic-tooling` operation this team-member uses. Behaviour is read with `-
 
 Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
-## Verbatim-goals (intents)
-
-- Frontend is never just UI: every UI decision is a systems decision, carrying networking, security, and performance consequences.
-
-## Verbatim-tests (benchmarks)
-
-- Asked to add a UI feature, `magic-frontender` considers its networking/security/performance consequences, not just its visual/markup implementation.
-- A deep-link added to a landing page opens in the current tab — `target="_blank"` on it is a defect, whatever the page, never a per-page judgment call.
-- A vhost behind a TLS terminator overwrites `X-Forwarded-Proto` with its own listening scheme, so the app publishes `http://` self-URLs; the redirect to `https://` is cross-origin, drops the `Authorization` header, and turns a POST into a bodyless GET — an auth-looking failure that is a protocol bug.
-
-## Librarian Comments
-
-### Reference
-
-- `PWA-VISION.md` — the growing vision `pwa-vision-iteration` builds on.
-- `magic-developer` — language craft for JavaScript.
-- `magic-architect` — owns the "one app or several" architecture-boundary call.
-
-### Conventions
-
-- This member is involved in any browser-facing UI work, markup/styling-only asks included; the systems-depth lens is applied only where the task actually reaches it. Involvement and lens are separate — widening one never widens the other.
-- The no-new-tab and https-only-public-URL rules are stated in full here. Any file restating them states a compact form and points here.
+Read `reference/maintainer-notes.md` for the verbatim goals, the verbatim tests and the librarian comments.

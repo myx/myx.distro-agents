@@ -387,7 +387,7 @@ rigAssert "r on that row runs them, once, and the folder then holds every check 
 rigAssert "Server Keys: its groups in one table, each public key whole and never its short form, the list read once and each key that can be read" "$( rigLeft Y ) $( rigHolds Y short-marker ) $( rigCalls --manager-keys-list ) $( rigCalls '--manager-keys-read deploy' ) $( rigCalls '--manager-keys-read host' )" " KEY         TYPE         PUBLIC LINE /  To add to git /  Deploy key  ssh-ed25519  ssh-ed25519 AAAAC3NzaWHOLEKEY rig@host /  To trust when connecting /  Host key    ssh-ed25519  absent: /rig/keys/host.pub 0 1 1 0"
 rigAssert "a subject of the configuration: its missing line first, a secret by its state alone" "$( rigLeft U ) $( rigHolds U hidden-value )" " SETTING         VALUE           SOURCE  KEY /  missing, first /  Signing secret  not configured  file    signing in hooks /  app /  Channel         C123            file    channel /  Bot token       configured      file    token 0"
 rigAssert "on another row of the configuration the key of the checks says that it is not for it" "[$( rigVal refused.notice )]" "[Run the checks: for the checker, not for what is selected]"
-rigAssert "a subject of the settings: its settings with their values" "$( rigLeft I )" " SETTING  VALUE         SOURCE  KEY /  Style    Turbo Vision  file    style /  Period   10            file    period"
+rigAssert "a subject of the settings: its settings with their values, a choice by the value it is saved as" "$( rigLeft I )" " SETTING  VALUE  SOURCE  KEY /  Style    tv     file    style /  Period   10     file    period"
 
 echo "-- a folder whose read fails says so --"
 rigCase fails

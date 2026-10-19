@@ -153,7 +153,7 @@ AgentsToolsSpawnRoutineContractExecutorsInvitees(){ ## contract-check output (it
 ## member on a line, where the value is a plain comma-separated list of existing members,
 ## each name trimmed. Anything else names no spawnable roster: rc 1, and one line that says
 ## why -- `any-member` for an empty value and for the "any member" shorthand (`magic-team`,
-## `*`, per magic-team.shared.md), `empty-name` for a list with an empty place, and
+## `*`, per magic-team/reference/skill-folder-model.md), `empty-name` for a list with an empty place, and
 ## `no-member<TAB><name>` for the first name no workspace of this machine holds a member of
 ## (AgentsToolsTeamMemberDirectory), prose among them. THE ONE RULE of what a routine starts
 ## by itself: --magic-spawn-session starts by it, and --manager-routine-list prints it.

@@ -7,9 +7,12 @@
 ## ---- the one table of the left pane ----
 
 ## A line of the left pane that carries what of it is drawn in a look of its own, as the
-## "looks" of the view hold them: the cell it starts at, how many cells, the look.
+## "looks" of the view hold them: the cell it starts at, how many cells, the look. A line of a
+## row of a table carries that row, the one object for all its lines: the heads of the table and
+## the cells of the row (paneTable), which the row cursor opens whole (rowCursorEnter).
 class Looked(str):
     looks = ()
+    row = None
 
 
 def looked(text, look, start=0):
@@ -177,7 +180,8 @@ def reassessWidths(widths, words, kinds, natural, least):
 ## for each row, stand in a place of their own ahead of it, never wrapped; `numbered` puts
 ## ahead of them a column `#`, each row's number from 1; `indent` stands ahead of every line. Rows take turns in the looks of a row (TABLE_LOOKS),
 ## by THE TABLE COLOUR RULE: where the colours set no row apart and the lines are wrapped, the last line of each row that wraps is underlined,
-## and the header's with them; the ground and the underline stand on the table alone, from its first column to its last;
+## and the header's with them, or in a style that draws a rule (STYLES "rowRule") a light line of its own stands under each, as wide as the table,
+## on the padding line where one stands there; the ground and the underline stand on the table alone, from its first column to its last;
 ## `looks`, one for each row, gives a look of its own to each cell that has one (None: the
 ## row's), a state in its colour (stateLook), on the ground of the row (LOOK_ALT, LOOK_LINE). Each line of a
 ## row carries its header (`stick`), which stays over the rows when it has gone up out of
@@ -271,6 +275,7 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
     counted = 0
     apart = rowsApart()
     lined = wrapped and not apart
+    ruled = lined and styleDraws("rowRule")
     grounds = []
     for index, row in enumerate(rows):
         isRow.append(not isinstance(row, str))
@@ -282,12 +287,12 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
             counted += 1
             grounds.append(TABLE_LOOKS["alt" if alternate else "row"])
             blocks.append(rowLines(row, icons[index] if icons else "", TABLE_LOOKS["alt" if alternate else "row"], str(counted),
-                                   looks[index] if looks else None, LOOK_ALT if alternate else 0, TABLE_LOOKS["line"] if lined else None))
+                                   looks[index] if looks else None, LOOK_ALT if alternate else 0, TABLE_LOOKS["line"] if lined and not ruled else None))
             alternate = apart and not alternate
         for line in blocks[-1]:
             line.stick = head[0]
     ## the header carries the underline too, where a row of the table does
-    if lined and any(len(block) > 1 for block in blocks):
+    if lined and not ruled and any(len(block) > 1 for block in blocks):
         head[-1].looks[0] = (margin, head[-1].looks[0][1], TABLE_LOOKS["head"] + LOOK_LINE)
 
     def padding(ground):
@@ -298,12 +303,38 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
     ## of the row above it, on the ground of that row and as wide as the table, never underlined
     between = [number for number in range(len(blocks) - 1) if isRow[number] and isRow[number + 1]]
     under = 1 if isRow and isRow[0] else 0
-    if pane is not None and (between or under) and shown == len(heads) and len(head) + sum(len(block) for block in blocks) + len(between) + under <= pane[1] and (
-            wrap or max(textWidth(line) for line in head + [line for block in blocks for line in block]) <= pane[0]):
+    ## where the style draws a rule: it stands under the header where a row wraps and under each row that wraps, on the
+    ## padding line where one stands, else on a line of its own, which the table then takes in its height
+    ruling = [number for number in range(len(blocks)) if ruled and isRow[number] and len(blocks[number]) > 1]
+    extra = len([number for number in ruling if number not in between]) + (1 if ruling and not under else 0)
+    padded = pane is not None and (between or under) and shown == len(heads) and len(head) + sum(len(block) for block in blocks) + len(between) + under + extra <= pane[1] and (
+        wrap or max(textWidth(line) for line in head + [line for block in blocks for line in block]) <= pane[0])
+    if padded:
         for number in between:
             blocks[number].append(padding(grounds[number]))
         if under:
             head.append(padding(TABLE_LOOKS["head"]))
+
+    def rule(ground):
+        line = looked(" " * margin + styleMark("rule")[1] * (textWidth(head[0]) - margin), ground, margin)
+        line.stick = head[0]
+        return line
+    for number in ruling:
+        if padded and number in between:
+            blocks[number][-1] = rule(grounds[number])
+        else:
+            blocks[number].append(rule(grounds[number]))
+    if ruling:
+        if padded and under:
+            head[-1] = rule(TABLE_LOOKS["head"])
+        else:
+            head.append(rule(TABLE_LOOKS["head"]))
+    ## every line of a row, its padding and its rule too, says which row it is of
+    for number, block in enumerate(blocks):
+        if isRow[number]:
+            said = (list(heads), list(rows[number]))
+            for line in block:
+                line.row = said
     return head, blocks
 
 
@@ -335,4 +366,99 @@ def tableCount(state, rows):
 def viewCount(state):
     count = state.view.get("tableRows")
     return "" if count is None else "%d row%s" % (count, "" if count == 1 else "s")
+
+
+## ---- reading a table first: the row cursor ----
+
+## A table that is all of the left window is read like a text with `less`, with no row
+## highlighted (the keys of the paging scroll it). Enter puts a row cursor on the top row in
+## view, the arrows move it a row, Enter on a row opens it whole in the information dialog,
+## and Esc leaves the cursor, back to reading. The cursor is the number of a row of the table
+## in view["rowCursor"], None while it is read; there is no setting for it.
+
+## The rows of the table the left window holds, each as [its first line, its last line, the row
+## it says (Looked.row)], in their order; none where the window holds no table that is all of it.
+def tableRowsOf(state):
+    rows = []
+    if state.view.get("tableRows") is None:
+        return rows
+    for number, line in enumerate(state.view["lines"]):
+        said = getattr(line, "row", None)
+        if said is None:
+            continue
+        if rows and rows[-1][2] is said:
+            rows[-1][1] = number
+        else:
+            rows.append([number, number, said])
+    return rows
+
+
+## The first line of the table in view that is seen: the header stays over the rows (stick) once the pane has
+## gone down, and takes the place of the line at its top.
+def firstSeenLine(state):
+    top = state.view["top"]
+    lines = state.view["lines"]
+    return top + 1 if 0 < top < len(lines) and getattr(lines[top], "stick", None) is not None else top
+
+
+## The row the cursor is on, as the lines it takes, (first, last), or None while the table is read;
+## the cursor is brought within the rows the table has now.
+def rowCursorLines(state):
+    cursor = state.view.get("rowCursor")
+    if cursor is None:
+        return None
+    rows = tableRowsOf(state)
+    if not rows:
+        state.view["rowCursor"] = None
+        return None
+    cursor = state.view["rowCursor"] = max(0, min(cursor, len(rows) - 1))
+    return rows[cursor][0], rows[cursor][1]
+
+
+## Enter in the left window: where it holds a table, the cursor on the top row in view, else
+## the row the cursor is on, opened whole in the information dialog, a line `head: cell` for
+## each column, its first cell its title.
+def rowCursorEnter(state):
+    rows = tableRowsOf(state)
+    if not rows:
+        return
+    if state.view.get("rowCursor") is None:
+        seen = firstSeenLine(state)
+        state.view["rowCursor"] = next((number for number, row in enumerate(rows) if row[1] >= seen), len(rows) - 1)
+        return
+    heads, cells = rows[max(0, min(state.view["rowCursor"], len(rows) - 1))][2]
+    tell(state, str(cells[0]) if cells and str(cells[0]) else "Row",
+         [(str(head), str(cell) or "-") for head, cell in zip(heads, cells)], "information", level="")
+
+
+## An arrow with the cursor on moves it that many rows, and the pane with it as far as the row needs.
+def rowCursorMove(state, height, step):
+    rows = tableRowsOf(state)
+    view = state.view
+    if not rows or view.get("rowCursor") is None:
+        return
+    cursor = view["rowCursor"] = max(0, min(view["rowCursor"] + step, len(rows) - 1))
+    first, last = rows[cursor][0], rows[cursor][1]
+    ## the row comes into view whole, its first line not under the header that stays over the rows
+    if first < firstSeenLine(state):
+        view["top"] = max(0, first - 1)
+    elif last >= view["top"] + height:
+        view["top"] = min(last - height + 1, max(0, first - 1))
+    view["top"] = max(0, min(view["top"], max(0, len(view["lines"]) - height)))
+
+
+## The pane was scrolled by a key of the paging with the cursor on: a row the pane left out of view
+## gives the cursor up to the top row in view where the pane went down, and to the last one where it
+## went up.
+def rowCursorKeep(state, height):
+    rows = tableRowsOf(state)
+    view = state.view
+    if not rows or view.get("rowCursor") is None:
+        return
+    cursor = max(0, min(view["rowCursor"], len(rows) - 1))
+    if rows[cursor][1] < firstSeenLine(state):
+        cursor = next((number for number, row in enumerate(rows) if row[1] >= firstSeenLine(state)), len(rows) - 1)
+    elif rows[cursor][0] >= view["top"] + height:
+        cursor = max([number for number, row in enumerate(rows) if row[0] < view["top"] + height] or [0])
+    view["rowCursor"] = cursor
 

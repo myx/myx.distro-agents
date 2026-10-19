@@ -194,10 +194,10 @@ def localView(state, row):
         state.view["memberFor"] = stamp
         return memberLines(row["member"], state.viewWidth, state.view["info"])
     if row.get("line"):
-        return settingLines(row["line"], state.viewWidth)
+        return settingLines(row["line"], state.viewWidth, placer(state))
     if row.get("lineGroup"):
         tableCount(state, row["lineGroup"]["lines"])
-        return groupLines(row["lineGroup"], state.viewWidth, state.wrap, fullPane(state))
+        return groupLines(row["lineGroup"], state.viewWidth, state.wrap, fullPane(state), placer(state))
     if row.get("check"):
         return checkLines(row["check"], state.viewWidth)
     if row.get("serverKey"):

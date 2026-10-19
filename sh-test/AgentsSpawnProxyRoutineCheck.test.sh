@@ -123,8 +123,8 @@ rigAssert "the launch succeeded"                         "$( printf '%s\n' "$rig
 rigAssert "the brief block opens the context"            "$( head -1 "$rigTmp/brief" )" "SPAWN-PREPARE-BRIEF: keeper-myx"
 rigAssert "the read-and-obey line names the default routine" \
 	"$( grep -c -x -F 'read-and-obey: read keeper-myx.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/brief" )" 1
-rigAssert "names the shared.md sections" \
-	"$( grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.shared.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief" )" 1
+rigAssert "names the armed.md sections" \
+	"$( grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief" )" 1
 rigAssert "one blank line separates the block from the task text" "$( rigBlankGapThenContent "$rigTmp/brief" )" ok
 rigAssert "the task text itself follows"                 "$( grep -c -x -F 'RIG-TASK-TEXT' "$rigTmp/brief" )" 1
 rigAssert "the session record names the resolved routine" "$( cat "$rigWs/.local/agents/spawned"/*/*.md 2>/dev/null | LC_ALL=C grep -c -x -F 'routine: magic-team.coworking.routine.md' )" 1
@@ -170,8 +170,8 @@ rigAssert "the launch succeeded"                         "$( printf '%s\n' "$rig
 rigAssert "the routine brief block opens the context"    "$( head -1 "$rigTmp/brief" )" "SPAWN-PREPARE-BRIEF: magic-coordinator"
 rigAssert "the read-and-obey line names the given routine" \
 	"$( grep -c -x -F 'read-and-obey: read magic-coordinator.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/brief" )" 1
-rigAssert "names the shared.md sections" \
-	"$( grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.shared.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief" )" 1
+rigAssert "names the armed.md sections" \
+	"$( grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief" )" 1
 rigAssert "interactive by default"                        "$( grep -c -x -F 'INTERACTION-MODE: interactive -- keep looping, with a dedicated Slack thread for interaction.' "$rigTmp/brief" )" 1
 
 ## The payload routine goes into the packet by its resolved filename, worded as Step 16 of the heartbeat routine words it.

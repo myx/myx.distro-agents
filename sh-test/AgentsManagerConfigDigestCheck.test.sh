@@ -2,7 +2,7 @@
 ## Behavioural check on --manager-config-digest [<subject>...], the digest of the settings of a workspace as they
 ## are, run rather than read, against a rig workspace built here: its own scope files, its own registered place,
 ## its own team data with a heartbeat note, its own main loop state, and a PATH of its own on which, of the vendor
-## binaries, only the rig's `copilot` stands. EVERY SECRET OF THE RIG IS A FAKE VALUE THIS CHECK KNOWS, each with
+## binaries, only the rig's `copilot` stands. EVERY CREDENTIAL OF THE RIG IS A FAKE VALUE THIS CHECK KNOWS, each with
 ## six letters of its own at its head and at its tail and the mark RIGSECRET between them.
 ## Held: the eight subjects in their one order, each a `subject` row with the count of the `line` rows after it;
 ## the workspace and its paths, a path that is not there read as missing, and each registered place with its path;
@@ -11,12 +11,13 @@
 ## reads as set or not, whether it is usable, and its wait round; the outside systems, each scope that holds one as
 ## configured or not, with what it lacks by key name; the main loop by its state file and the heartbeat by its
 ## note, running only while its lock is held; the scopes that hold a key, a scope with none left out, each key with
-## its value where it is no secret. A SECRET IS NEVER PRINTED: a key the catalogue marks secret, a key with the
-## shape of one that no catalogue names, a key of a kind not met before, a key that holds the word of a secret
-## ahead of a plain last word, and a password inside a URL under a plain key all read secret-set with the value
-## `-`; an empty one reads secret-missing; a line that is a comment is no key, and a line whose name is not a
-## setting's is never listed, a secret pasted with an `=` at its end among them. No fake secret, no head and no tail
-## of one, stands anywhere in what any call of this check printed, on either stream. One subject or some are
+## its value. A CREDENTIAL IS PRINTED IN ONE FORM (F11.8): a key the catalogue marks secret, an outside system's
+## among them, a credential a harness leg reads, and a password inside a URL under any key all read secret-set with
+## the first quarter of the value, 4 to 20 characters, and a `*` for each character after it; a key that is none of
+## those shows its value, whatever its name; an empty one reads secret-missing; a line that is a comment is no key,
+## and a line whose name is not a setting's is never listed, a secret pasted with an `=` at its end among them. No
+## fake credential whole, no six-letter head and no tail of one, stands in what any call of this check printed,
+## on either stream. One subject or some are
 ## printed by name, in the one order, and a name that is none refuses the call before anything is printed. The
 ## call only reads: every file of the rig is as it was. From inside a member's session it is refused. And the help
 ## pair, with the two row forms the output is checked against. A fake `curl` first on PATH would log a request:
@@ -42,7 +43,8 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
-rigTmp="$( mktemp -d -t AgentsManagerConfigDigestCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsManagerConfigDigestCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills"
@@ -73,7 +75,8 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 
-## THE FAKE SECRETS, one a line: six letters of its own, the mark and its number, six more letters of its own.
+## THE FAKE VALUES, one a line. A credential: six letters of its own, the mark and its number, six more letters of
+## its own. Lines 8, 9 and 10 belong to keys that are no credential, and are plain words.
 cat > "$rigTmp/secrets" <<'RIGSECRETS'
 Qz7wHaRIGSECRET01Xk9vTu
 Jr4tBeRIGSECRET02Lm2qYo
@@ -82,15 +85,25 @@ Cm3xDoRIGSECRET04Hy6bSa
 Ep1kFuRIGSECRET05Wd8sRi
 Tr9gGaRIGSECRET06Nf4zQu
 Go2hHeRIGSECRET07Ub7rPo
-Od6jJiRIGSECRET08Pe3mNa
-Sc5yKoRIGSECRET09Zt1cMe
-Aw7fLuRIGSECRET10Kq9lLi
+rig-odd-value-08
+rig-cookie-value-09
+rig-access-id-10
 Ur4vMaRIGSECRET11Bn6pKo
 Sy8eNeRIGSECRET12Mg2wJu
 Vb3nPoRIGSECRET13Dz5hGi
 RIGSECRETS
-rigSecret(){ ## number -- that fake secret
+rigSecret(){ ## number -- that fake value
 	LC_ALL=C sed -n "${1}p" "$rigTmp/secrets"
+}
+LC_ALL=C sed '8,10d' "$rigTmp/secrets" > "$rigTmp/credentials"
+rigMask(){ ## value -- the F11.8 form: the first quarter, 4 to 20 characters, then a `*` for each character after it
+	local maskValue="$1" maskLength maskShown
+	maskLength="${#maskValue}"
+	maskShown=$(( maskLength / 4 ))
+	[ "$maskShown" -ge 4 ] || maskShown=4
+	[ "$maskShown" -le 20 ] || maskShown=20
+	printf '%s' "${maskValue:0:$maskShown}"
+	[ "$maskLength" -le "$maskShown" ] || printf '%*s' $(( maskLength - maskShown )) '' | LC_ALL=C tr ' ' '*'
 }
 : > "$rigTmp/all"
 rigPre=()
@@ -194,29 +207,29 @@ rigAssert "each known CLI has its group, in the console's own order, after the w
 rigAssert "control: those are the CLIs the console knows, by its own declaration" "$( LC_ALL=C sed -n 's/^DAGC_KNOWN_CLIS="\(.*\)"$/\1/p' "$rigHere/manager/AgentsConsoleShellScript.template.sh" )" "copilot copilot-native claude claude-native grok grok-native scaleway"
 rigAssert "a harness leg has no present line: it lies in sh-lib, beside the tooling" "[$( rigLine cli claude present )] [$( rigLine cli scaleway present )] [$( rigLine cli copilot present )] [$( rigLine cli grok present )]" "[] [] [] []"
 rigAssert "of the vendor binaries only copilot is on the path: copilot-native is present, claude-native and grok-native are not" "$( rigLine cli copilot-native present ) / $( rigLine cli claude-native present ) / $( rigLine cli grok-native present )" "set $rigTmp/bin/copilot / missing - / missing -"
-rigAssert "the credentials a leg reads are named, each set or not, and never shown: of claude's two one is set" "$( rigLine cli claude ANTHROPIC_API_KEY ) / $( rigLine cli claude CLAUDE_CODE_OAUTH_TOKEN )" "secret-set - / secret-missing -"
+rigAssert "the credentials a leg reads are named, each set or not, a set one in the form of a credential: of claude's two one is set" "$( rigLine cli claude ANTHROPIC_API_KEY ) / $( rigLine cli claude CLAUDE_CODE_OAUTH_TOKEN )" "secret-set $( rigMask "$( rigSecret 3 )" ) / secret-missing -"
 rigAssert "a leg with one of its credentials set is usable, one with none is not; a vendor CLI is usable where its binary is" "$( rigLine cli claude usable ) / $( rigLine cli copilot usable ) / $( rigLine cli grok usable ) / $( rigLine cli copilot-native usable ) / $( rigLine cli claude-native usable )" "set yes / missing no / missing no / set yes / missing no"
 rigAssert "each CLI has its wait round: the vendor claude's own, the safe one of the others" "$( rigLine cli claude-native wait-round ) / $( rigLine cli claude wait-round ) / $( rigLine cli scaleway wait-round )" "set 2700 / set 270 / set 270"
 
-echo "-- 4. the scopes: a scope with no key is left out, a secret is masked, a plain key shows its value --"
+echo "-- 4. the scopes: a scope with no key is left out, a credential shows in its one form, a plain key shows its value --"
 rigWant="$( {
 	printf 'subject\tscopes\t7\tScope_Settings\n'
-	printf 'line\tscopes\tmagic-team\tSLACK_BOT_TOKEN\tsecret-set\t-\tSlack_Bot_Token\n'
-	printf 'line\tscopes\tmagic-team\tJIRA_API_TOKEN\tsecret-set\t-\tJira_API_Token\n'
+	printf 'line\tscopes\tmagic-team\tSLACK_BOT_TOKEN\tsecret-set\t%s\tSlack_Bot_Token\n' "$( rigMask "$( rigSecret 1 )" )"
+	printf 'line\tscopes\tmagic-team\tJIRA_API_TOKEN\tsecret-set\t%s\tJira_API_Token\n' "$( rigMask "$( rigSecret 2 )" )"
 	printf 'line\tscopes\tmagic-team\tSPAWN_CLI_SERVICE\tset\tclaude\tSpawn_CLI_Service\n'
 	printf 'line\tscopes\tmagic-team\tMDAT_WORKSPACE_MODE\tset\tteam-rig\tMdat_Workspace_Mode\n'
 	printf 'line\tscopes\tmagic-team\tSLACK_CHANNEL_MAGIC_TEAM\tset\tC0RIGTEAM01\tSlack_Channel_Magic_Team\n'
 	printf 'line\tscopes\tmagic-team\tSLACK_CHANNEL_HUMAN_OWNER\tset\tU0RIGOWNER1\tSlack_Channel_Human_Owner\n'
-	printf 'line\tscopes\tmagic-team\tANTHROPIC_API_KEY\tsecret-set\t-\tAnthropic_API_Key\n'
+	printf 'line\tscopes\tmagic-team\tANTHROPIC_API_KEY\tsecret-set\t%s\tAnthropic_API_Key\n' "$( rigMask "$( rigSecret 3 )" )"
 } )"
 rigAssert "the whole subject, byte for byte: the one scope that holds keys, each key in the order of its file, each labelled by the words of its key" "$( rigPart scopes "$rigTmp/out" )" "$rigWant"
 rigAssert "the rig has four scope files and three of them are empty: the digest shows one scope" "$( ls "$rigScopes" | LC_ALL=C grep -c -e '\.agent\.env$' ) $( rigGroups scopes )" "4 magic-team"
-rigAssert "a key the catalogue marks secret is masked: it reads as set, and nothing of its value is printed" "$( rigLine scopes magic-team SLACK_BOT_TOKEN )" "secret-set -"
-rigAssert "a key with the shape of a secret is masked though no catalogue names it, as a key the catalogue marks" "$( . "$rigHere/config/AgentsTools.OwnerSetupOptionSpec.include" ; AgentsToolsOwnerSetupOptionSpec JIRA_API_TOKEN | LC_ALL=C grep -c . ) $( rigLine scopes magic-team JIRA_API_TOKEN )" "0 secret-set -"
+rigAssert "a key the catalogue marks secret reads as set, with its value in the form of a credential" "$( rigLine scopes magic-team SLACK_BOT_TOKEN )" "secret-set $( rigMask "$( rigSecret 1 )" )"
+rigAssert "a credential of an outside system, held by the catalogue with no scope, reads the same" "$( . "$rigHere/config/AgentsTools.OwnerSetupOptionSpec.include" ; AgentsToolsOwnerSetupOptionSpec JIRA_API_TOKEN | LC_ALL=C cut -d'|' -f1,3 ) $( rigLine scopes magic-team JIRA_API_TOKEN )" "-|secret secret-set $( rigMask "$( rigSecret 2 )" )"
 rigAssert "a plain key shows its name and its value" "$( rigLine scopes magic-team SPAWN_CLI_SERVICE )" "set claude"
 rigAssert "a line that is a comment is no key, though it holds an assignment" "$( LC_ALL=C grep -c -e '^# SLACK_APP_TOKEN=' "$rigScopes/magic-team.agent.env" ) $( LC_ALL=C grep -c -e 'SLACK_APP_TOKEN' "$rigTmp/out" || : )" "1 0"
 
-echo "-- 5. which key is a secret: every key but one known not to be --"
+echo "-- 5. which key is a credential: the catalogue's secret keys and the harness legs', and no other --"
 {
 	printf 'WEB_ALLOW_PREFIXES=https://rigbot:%s@docs.rig.example/api/ https://plain.rig.example/\n' "$( rigSecret 11 )"
 	printf 'WEB_DENY_PREFIXES=https://tracker.rig.example/\n'
@@ -246,19 +259,18 @@ rigTreeBefore="$( rigTree )"
 rigRun "$rigOp"
 cp "$rigTmp/out" "$rigTmp/whole"
 rigAssert "the call ends 0, with no error and no warning, and now shows two scopes" "$rigRc $( rigTroubles ) $( rigGroups scopes )" "0 0 magic-coordinator magic-team"
-rigAssert "a key the catalogue marks secret is masked though its name has no shape of one" "$( rigLine scopes magic-team SCALEWAY_DEEPSEEK )" "secret-set -"
-rigAssert "a password, a key and a secret of a member's scope, which no catalogue names, are masked" "$( rigLine scopes magic-coordinator EMAIL_APP_PASSWORD ) / $( rigLine scopes magic-coordinator TRELLO_KEY ) / $( rigLine scopes magic-coordinator GOOGLE_CLIENT_SECRET ) / $( rigLine scopes magic-coordinator SESSION_COOKIE )" "secret-set - / secret-set - / secret-set - / secret-set -"
-rigAssert "a key of a kind not met before is a secret: nothing says it is not" "$( rigLine scopes magic-coordinator ODD_SETTING )" "secret-set -"
-rigAssert "a key that holds the word of a secret is one, though its last word is a plain kind" "$( rigLine scopes magic-coordinator AWS_ACCESS_KEY_ID )" "secret-set -"
-rigAssert "a password inside a URL is masked under a key the catalogue marks plain, and a URL with none is shown" "$( rigLine scopes magic-team WEB_ALLOW_PREFIXES ) / $( rigLine scopes magic-team WEB_DENY_PREFIXES )" "secret-set - / set https://tracker.rig.example/"
+rigAssert "a key the catalogue marks secret is a credential though its name has no shape of one" "$( rigLine scopes magic-team SCALEWAY_DEEPSEEK )" "secret-set $( rigMask "$( rigSecret 12 )" )"
+rigAssert "a password, a key and a secret of a member's scope, which the catalogue holds with no scope, are credentials" "$( rigLine scopes magic-coordinator EMAIL_APP_PASSWORD ) / $( rigLine scopes magic-coordinator TRELLO_KEY ) / $( rigLine scopes magic-coordinator GOOGLE_CLIENT_SECRET )" "secret-set $( rigMask "$( rigSecret 5 )" ) / secret-set $( rigMask "$( rigSecret 6 )" ) / secret-set $( rigMask "$( rigSecret 7 )" )"
+rigAssert "a key that is none of the credentials shows its value, whatever its name: one of a kind not met before, one that holds the word COOKIE, one that holds the word KEY" "$( rigLine scopes magic-coordinator ODD_SETTING ) / $( rigLine scopes magic-coordinator SESSION_COOKIE ) / $( rigLine scopes magic-coordinator AWS_ACCESS_KEY_ID )" "set $( rigSecret 8 ) / set $( rigSecret 9 ) / set $( rigSecret 10 )"
+rigAssert "a password inside a URL is masked alone under a key that is no credential, the URL itself standing, and a URL with none is shown" "$( rigLine scopes magic-team WEB_ALLOW_PREFIXES ) / $( rigLine scopes magic-team WEB_DENY_PREFIXES )" "secret-set https://rigbot:$( rigMask "$( rigSecret 11 )" )@docs.rig.example/api/_https://plain.rig.example/ / set https://tracker.rig.example/"
 rigAssert "a name, a host, a number and an id are no secrets, and show their values" "$( rigLine scopes magic-coordinator EMAIL_USER ) / $( rigLine scopes magic-coordinator EMAIL_IMAP_HOST ) / $( rigLine scopes magic-coordinator EMAIL_SMTP_PORT ) / $( rigLine scopes magic-coordinator GOOGLE_CLIENT_ID )" "set coordinator@rig.example / set imap.rig.example / set 587 / set rig-client-id.apps.rig.example"
 rigAssert "a key written twice is one line, with the value the reader gives: the last" "$( LC_ALL=C grep -c -e '^EMAIL_USER=' "$rigScopes/magic-coordinator.agent.env" ) $( rigLine scopes magic-coordinator EMAIL_USER | LC_ALL=C grep -c . )" "2 1"
 rigAssert "a value's own whitespace reads _, a run of it as one" "$( rigLine scopes magic-coordinator FIRST_NAME )" "set Rig_The_Coordinator"
 rigAssert "a key with no value reads missing, and a secret with none secret-missing: each with the value -" "$( rigLine scopes magic-coordinator EMAIL_SMTP_HOST ) / $( rigLine scopes magic-coordinator SLACK_USER_TOKEN )" "missing - / secret-missing -"
 rigAssert "a line whose name is not a setting's is never listed, whatever stands ahead of its =: a secret pasted with an = at its end, a name in small letters" "$( LC_ALL=C grep -c -e '^lower_key=' -e 'RIGSECRET13.*=$' "$rigScopes/magic-coordinator.agent.env" ) $( LC_ALL=C grep -c -e 'lower_key' -e 'shown-nowhere' "$rigTmp/out" || : ) $( LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "scopes" && $3 == "magic-coordinator" { n++ } END { print n + 0 }' "$rigTmp/out" )" "2 0 13"
 rigAssert "and the scope's count of such lines is noted once on standard error, by scope and never by text" "$( rigWhole "$rigTmp/err" "# DistroAgentsTools $rigOp: the scope 'magic-coordinator' holds 2 line(s) whose name is not a setting's -- capital letters, digits and _ -- so they are not listed" ) $( LC_ALL=C grep -c -F -e 'not listed' "$rigTmp/err" || : )" "1 1"
-rigAssert "the value of every secret line is -, set or not: not a part of it, not its length" "$( LC_ALL=C awk -F'\t' '$1 == "line" && ( $5 == "secret-set" || $5 == "secret-missing" ) { n++ ; if ( $6 != "-" ) bad++ ; } END { print ( n >= 14 ? "many" : "few:" n ) ":" bad + 0 }' "$rigTmp/out" )" "many:0"
-rigAssert "the workspace's own wait round and tier are read: every CLI's round is the one set, and a second leg is usable by its credential" "$( rigLine cli workspace WAIT_ROUND_SECONDS ) / $( rigLine cli workspace SPAWN_HARNESS_TIER ) / $( rigLine cli claude-native wait-round ) / $( rigLine cli grok wait-round ) / $( rigLine cli scaleway SCALEWAY_DEEPSEEK ) $( rigLine cli scaleway SCALEWAY_GEMMA ) $( rigLine cli scaleway usable )" "set 600 / set heavy / set 600 / set 600 / secret-set - secret-missing - set yes"
+rigAssert "the value of a secret-missing line is -, and of every secret-set line a form that hides a part of it with a *" "$( LC_ALL=C awk -F'\t' '$1 == "line" && ( $5 == "secret-set" || $5 == "secret-missing" ) { n++ ; if ( $5 == "secret-missing" && $6 != "-" ) bad++ ; if ( $5 == "secret-set" && $6 !~ /[*]/ ) bad++ ; } END { print ( n >= 14 ? "many" : "few:" n ) ":" bad + 0 }' "$rigTmp/out" )" "many:0"
+rigAssert "the workspace's own wait round and tier are read: every CLI's round is the one set, and a second leg is usable by its credential" "$( rigLine cli workspace WAIT_ROUND_SECONDS ) / $( rigLine cli workspace SPAWN_HARNESS_TIER ) / $( rigLine cli claude-native wait-round ) / $( rigLine cli grok wait-round ) / $( rigLine cli scaleway SCALEWAY_DEEPSEEK ) $( rigLine cli scaleway SCALEWAY_GEMMA ) $( rigLine cli scaleway usable )" "set 600 / set heavy / set 600 / set 600 / secret-set $( rigMask "$( rigSecret 12 )" ) secret-missing - set yes"
 
 echo "-- 6. the outside systems: configured or not, with what is lacking by key name --"
 rigWant="$( {
@@ -374,8 +386,17 @@ rigAssert "its entry gives the form of each of the two rows" "$( rigForm subject
 rigRun "$rigOp"
 rigAssert "and every row printed has exactly the fields its form names, a line of the interface apart, whose own form has two more" "$( for rigKind in subject line ; do LC_ALL=C awk -F'\t' -v wantKind="$rigKind" -v wantFields="$( rigForm "$rigKind" | LC_ALL=C awk '{ print NF }' )" '$1 == wantKind && !( $1 == "line" && $2 == "interface" ) { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s ", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" ; done )" "rows:0 rows:0 "
 rigAssert "the entry names the eight subjects and the four states" "$( for rigWord in workspace cli systems loop scopes interface console control set missing secret-set secret-missing ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyyyyyyyy"
-rigAssert "the entry names every plain kind the rule of a secret takes, each word of the include's own list" "$( rigPlainBad="" ; for rigWord in $( LC_ALL=C sed -n 's/^agentsManagerConfigPlainWords="\(.*\)"$/\1/p' "$rigHere/manager/AgentsTools.ManagerConfig.include" ) ; do rigEntry | LC_ALL=C tr -s ' \t\n,.' ' ' | LC_ALL=C grep -q -e " $rigWord " || rigPlainBad="$rigPlainBad $rigWord" ; done ; printf '%s' "${rigPlainBad:- each named}" ) $( LC_ALL=C sed -n 's/^agentsManagerConfigPlainWords="\(.*\)"$/\1/p' "$rigHere/manager/AgentsTools.ManagerConfig.include" | LC_ALL=C awk '{ print NF }' )" " each named 18"
-rigAssert "the entry says that nothing of a secret is printed, and that the call only reads" "$( rigEntry | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e 'Nothing of the value of a secret is printed' || : ) $( rigEntry | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e 'It only reads' || : )" "1 1"
+cat > "$rigTmp/help-words" <<'RIGWORDS'
+A credential is printed in one form
+the first quarter of its value
+not less than 4 and not more than 20 characters
+a value of fewer than 4 characters is all `*`
+a key the owner setup's catalogue marks secret or one a harness leg reads; every other key shows its value
+reads `secret-set` and has only that password masked
+It only reads
+RIGWORDS
+rigAssert "the entry gives the form of a credential, the keys that are one, the rule of a password in a URL, and says that the call only reads" "$( while IFS= read -r rigWords ; do rigEntry | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e "$rigWords" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done < "$rigTmp/help-words" )" "yyyyyyy"
+rigAssert "and no longer says that a key is a secret unless it is known not to be, nor that nothing of a secret is printed" "$( rigEntry | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e 'unless it is known not to be' -e 'Nothing of the value of a secret is printed' || : )" "0"
 rigAssert "control: the entry was cut up to the next operation's heading" "$( rigEntry | LC_ALL=C grep -c -F -- 'TAB-separated' || : ) $( rigEntry | LC_ALL=C grep -c -F -- '--manager-session-list' || : )" "1 0"
 rigRun --help-syntax
 rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigTmp/err" || : )" "0 1"
@@ -444,11 +465,11 @@ rigRun "$rigOp" scopes --full
 rigAssert "--full stands first: after a name it is taken for a subject, and refused" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: '--full' is none of its subjects -- nothing was printed. Its subjects: workspace, cli, systems, loop, scopes, interface, console, control" )" "1 0 1"
 rigAssert "the entry of the help gives the eight fields a line has more in full, and names the option" "$( rigEntry | LC_ALL=C sed -n -e 's/^[[:space:]]*`\(<description> <.*>\)`$/\1/p' ) $( rigEntry | LC_ALL=C grep -c -F -e '`--full`' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "named" : "not-named" }' )" "<description> <change> <kind> <scope> <source> <values> <where> <belongs> named"
 
-echo "-- 14. no secret of the rig stands anywhere in what was printed --"
-rigAssert "control: each of the thirteen fake secrets stands in a scope file of the rig, whole" "$( while IFS= read -r rigOne ; do LC_ALL=C grep -l -F -e "$rigOne" "$rigScopes"/*.agent.env > /dev/null 2>&1 && printf y || printf n ; done < "$rigTmp/secrets" )" "yyyyyyyyyyyyy"
+echo "-- 14. no credential of the rig stands whole, or by its head or tail, in what was printed --"
+rigAssert "control: each of the ten fake credentials stands in a scope file of the rig, whole" "$( while IFS= read -r rigOne ; do LC_ALL=C grep -l -F -e "$rigOne" "$rigScopes"/*.agent.env > /dev/null 2>&1 && printf y || printf n ; done < "$rigTmp/credentials" )" "yyyyyyyyyy"
 rigAssert "control: what every call printed, on both streams, was kept, and a plain value of the rig stands in it" "$( LC_ALL=C grep -c -F -e 'coordinator@rig.example' "$rigTmp/all" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "kept" : "lost" }' ) $( LC_ALL=C grep -c -e '^subject' "$rigTmp/all" | LC_ALL=C awk '{ print ( $1 > 20 ) ? "many" : "few" }' )" "kept many"
 rigAssert "the mark of the fake secrets stands nowhere in it" "$( LC_ALL=C grep -c -F -e 'RIGSECRET' "$rigTmp/all" || : )" "0"
-rigAssert "no head and no tail of a secret stands in it either: six letters of each, at either end" "$( while IFS= read -r rigOne ; do printf '%s\n%s\n' "$( printf '%s' "$rigOne" | LC_ALL=C cut -c1-6 )" "$( printf '%s' "$rigOne" | LC_ALL=C cut -c18-23 )" ; done < "$rigTmp/secrets" > "$rigTmp/fragments" ; LC_ALL=C awk 'length( $0 ) == 6 { n++ } END { print n + 0 }' "$rigTmp/fragments" ) $( LC_ALL=C grep -c -F -f "$rigTmp/fragments" "$rigTmp/all" || : )" "26 0"
+rigAssert "no six-letter head and no tail of a credential stands in it either: the form shows five letters of a value of 23, and the rest is masked" "$( while IFS= read -r rigOne ; do printf '%s\n%s\n' "$( printf '%s' "$rigOne" | LC_ALL=C cut -c1-6 )" "$( printf '%s' "$rigOne" | LC_ALL=C cut -c18-23 )" ; done < "$rigTmp/credentials" > "$rigTmp/fragments" ; LC_ALL=C awk 'length( $0 ) == 6 { n++ } END { print n + 0 }' "$rigTmp/fragments" ) $( LC_ALL=C grep -c -F -f "$rigTmp/fragments" "$rigTmp/all" || : )" "20 0"
 rigAssert "no run of this check issued a request" "$( [ -e "$rigTmp/curl.calls" ] && wc -l < "$rigTmp/curl.calls" | LC_ALL=C tr -d ' ' || echo 0 )" "0"
 
 if [ "$rigFails" -ne 0 ] ; then

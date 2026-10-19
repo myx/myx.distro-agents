@@ -1,8 +1,8 @@
 #!/usr/bin/awk -f
 ##
 ## AgentsInboxProcessedAtList.awk -- lists which inbox items carry the
-## tool-stamped `processed-at:` field, for the in-place inbox processed marker
-## (contract: MAGIC.md, "Inbox items are marked processed in place"). Read by
+## tool-stamped `processed-at:` field, for the inbox processed marker
+## (contract: MAGIC.md, "Inbox items live in incoming/ and processed/"). Read by
 ## AgentsTools.InternOpInboxToProcessed.include (already-marked check),
 ## AgentsTools.InternOpSessionContextScan.include (active scopes drop marked
 ## items) and AgentsTools.InternTeamDataFinalGcDeletion.include (the

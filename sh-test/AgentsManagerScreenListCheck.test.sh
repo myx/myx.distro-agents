@@ -4,8 +4,8 @@
 ## case feeds keys and reads the screen and the state back as text. Held: the root holds `Sessions (Activity)`,
 ## `Pending Questions`, `Team Members`, `Consoles`, `Settings` and `Configuration` in that order, the first one selected; Enter
 ## dives into a row, the first row below the root goes up, and so does Backspace from any row, back onto the row that was
-## dived into; in the list Right pages down as PageDown does, and Left pages up as PageUp does and on the first row goes up
-## a level, and neither dives; inside `Sessions (Activity)` the first item is `Launch (Start)`, a level of its own; Up and Down stop at the
+## dived into; in the list Right pages down as PageDown does, and Left pages up, on the first row climbs a level and at the root does nothing more,
+## and neither dives; inside `Sessions (Activity)` the first item is `Launch (Start)`, a level of its own; Up and Down stop at the
 ## first and at the last row and never wrap; PageDown and PageUp move the selection by the height of the pane, and
 ## the rows in view with it; Tab moves the focus, and the same keys then scroll the left pane while the selection of
 ## the list stays; `a` switches all and active only while the list has the focus; rows that come again in another
@@ -153,7 +153,7 @@ rigAssert "PageUp moves back by one page"                            "$( rigVal 
 rigAssert "PageDown ends on the last row, with the last page in view" "$( rigVal e.index ) $( rigVal e.top ) [$( rigVal eRow20 )]" "100 82 [>row 100]"
 rigAssert "PageUp ends on the first row"                             "$( rigVal f.index ) $( rigVal f.top ) $( rigVal f.spills )" "0 0 0"
 
-echo "-- Left and Right in the list: Right pages down, Left pages up and on the first row goes up a level --"
+echo "-- Left and Right in the list: Right pages down, Left pages up, on the first row it goes up a level, on the root's first row nothing more --"
 rigScript <<'RIGSCRIPT'
 size 120 23
 root sessions
@@ -179,7 +179,7 @@ get i
 RIGSCRIPT
 lrSteps="[$( rigVal b.index ) $( rigVal b.top )][$( rigVal c.index ) $( rigVal c.top )][$( rigVal d.index ) $( rigVal d.top )][$( rigVal e.index ) $( rigVal e.top )][$( rigVal f.index ) $( rigVal f.top )]"
 lrPaths="[$( rigVal b.path )][$( rigVal c.path )][$( rigVal d.path )][$( rigVal e.path )][$( rigVal f.path )]"
-lrGone="[$( rigVal g.path )] $( rigVal g.selected ) [$( rigVal h.path )] $( rigVal h.selected ) [$( rigVal i.path )] $( rigVal i.selected ) [$( rigVal i.notice )]"
+lrGone="[$( rigVal g.path )] $( rigVal g.selected ) [$( rigVal h.path )] $( rigVal h.selected ) [$( rigVal i.path )] $( rigVal i.selected ) $( rigVal i.focus ) [$( rigVal i.notice )]"
 rigScript <<'RIGSCRIPT'
 size 120 23
 root sessions
@@ -198,7 +198,7 @@ get f
 RIGSCRIPT
 rigAssert "Right pages down, Left in the middle pages up, and Left short of the first row ends on it, all in the level" "$lrSteps $lrPaths" "[19 19][38 38][21 19][2 0][0 0] [pending][pending][pending][pending][pending]"
 rigAssert "each exactly as PageDown and PageUp do"                   "$lrSteps" "[$( rigVal b.index ) $( rigVal b.top )][$( rigVal c.index ) $( rigVal c.top )][$( rigVal d.index ) $( rigVal d.top )][$( rigVal e.index ) $( rigVal e.top )][$( rigVal f.index ) $( rigVal f.top )]"
-rigAssert "Left on the first row goes up a level, onto the row dived into; at the root it pages up, and on its first row says there is no level above" "$lrGone" "[] pending [] dashboard [] dashboard [Up one level: this is the top level]"
+rigAssert "Left on the first row goes up a level, onto the row dived into; at the root it pages up to the first row, and there it does nothing more: no level above, no notice, the keys stay in the list" "$lrGone" "[] pending [] dashboard [] dashboard list []"
 
 echo "-- Right opens nothing, Backspace goes up from any row, Enter goes down --"
 rigScript <<'RIGSCRIPT'

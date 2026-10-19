@@ -87,6 +87,36 @@ AgentsToolsOwnerSetupOptionSpec(){
 		SLACK_BOT_TOKEN)
 			printf '%s\n' 'magic-team|<xoxb-token>|secret|api.slack.com/apps, your app, OAuth and Permissions, Bot User OAuth Token.'
 		;;
+		## The credentials of the outside systems a member's own scope holds, which no owner-setup
+		## domain declares: scope `-`, none of them being the scope of one place (Systems skips an
+		## entry with it). They are here to be marked secret: they print only as F11.8 says.
+		SLACK_APP_TOKEN)
+			printf '%s\n' '-|<xapp-token>|secret|the app-level token of a Slack app, which the Socket Mode connection reads from the scope of the member, then from the team.'
+		;;
+		SLACK_USER_TOKEN)
+			printf '%s\n' '-|<xoxp-token>|secret|the Slack user token of a member: a post made with it acts as that member, otherwise as the bot.'
+		;;
+		JIRA_API_TOKEN)
+			printf '%s\n' '-|<api-token>|secret|the Atlassian API token the Jira calls of a member sign in with, kept in its own scope beside JIRA_SITE and JIRA_USER.'
+		;;
+		CONFLUENCE_API_TOKEN)
+			printf '%s\n' '-|<api-token>|secret|the Atlassian API token the Confluence calls of a member sign in with, kept in its own scope beside CONFLUENCE_SITE and CONFLUENCE_USER.'
+		;;
+		EMAIL_APP_PASSWORD)
+			printf '%s\n' '-|<app-password>|secret|the app password of the mailbox of a member, kept in its own scope beside its other EMAIL_ settings.'
+		;;
+		TRELLO_KEY)
+			printf '%s\n' '-|<api-key>|secret|the Trello API key the Trello calls of a member sign in with, kept in its own scope.'
+		;;
+		TRELLO_TOKEN)
+			printf '%s\n' '-|<token>|secret|the Trello token that goes with TRELLO_KEY, kept in the same scope.'
+		;;
+		GOOGLE_CLIENT_SECRET)
+			printf '%s\n' '-|<client-secret>|secret|the client secret of the Google OAuth client the Google calls of a member use, kept in its own scope beside GOOGLE_CLIENT_ID and GOOGLE_REFRESH_TOKEN.'
+		;;
+		GOOGLE_REFRESH_TOKEN)
+			printf '%s\n' '-|<refresh-token>|secret|the Google refresh token the Google calls of a member exchange for an access token, kept in its own scope.'
+		;;
 		SLACK_WORKSPACE_DOMAIN)
 			printf '%s\n' 'magic-team|<name>.slack.com|plain|the workspace subdomain as it appears in its own Slack URL.'
 		;;

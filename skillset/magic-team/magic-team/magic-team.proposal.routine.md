@@ -36,7 +36,7 @@ session: coworking
 ## Scope
 
 - Does:
-  - The whole life of one proposal to the human-owner, once a proposed form exists. Reached by a request, by a decision that outlives its exchange (`magic-team.shared.md`'s **Propose-approve**), by an escalation that did not settle, or by a `proposal-*` item `magic-team.discuss.routine` hands on.
+  - The whole life of one proposal to the human-owner, once a proposed form exists. Reached by a request, by a decision that outlives its exchange (`magic-team.armed.md`'s **Propose-approve**), by an escalation that did not settle, or by a `proposal-*` item `magic-team.discuss.routine` hands on.
   - The state of that proposal's tracking item, if it has one, from the root post until his closing reaction.
 - Doesn't:
   - Convergence among members (`magic-team.discuss.routine`) or collection (`magic-team.interview.routine`).

@@ -35,11 +35,11 @@ The part of every spawn brief that tooling produces the same way each time: the 
 SPAWN-PREPARE-BRIEF: {{member}}
 tool-routing: use the tools and MCP this session was given, in the ways your instructions prescribe. Read --member-help {{member}} when unsure how a tool works. Follow what a refused call says: the tool to use instead, or the REFUSAL-ID to escalate by. Report a blockage the prescribed way, so the tooling can be polished. Never hack around it. Do not research source code unless it is the task.
 [native] tools: first, in one call: ToolSearch select:mcp__myx_distro__Skill,mcp__myx_distro__Read,mcp__myx_distro__Grep,mcp__myx_distro__Glob,mcp__myx_distro__Edit,mcp__myx_distro__Write,mcp__myx_distro__execute,mcp__myx_distro__Wait,mcp__myx_distro__SendMessage,mcp__myx_distro__SubagentHandback
-[native] skillset-reader: mcp__myx_distro__Skill {name: <member>, file: <file>}, for example {name: magic-team, file: magic-team.shared.md}
-[own] skillset-reader: Skill {name: <member>, file: <file>}, for example {name: magic-team, file: magic-team.shared.md}
+[native] skillset-reader: mcp__myx_distro__Skill {name: <member>, file: <file>}, for example {name: magic-team, file: magic-team.armed.md}
+[own] skillset-reader: Skill {name: <member>, file: <file>}, for example {name: magic-team, file: magic-team.armed.md}
 scratchpad: your own files go in the output/ folder this dispatch's own "## Your sandbox" section names
 read-and-obey: read {{member}}.armed.md and {{routine}}, through the skillset reader, carefully and in full, before acting, and obey them.
-Read these two sections of magic-team/magic-team.shared.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.shared.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}
+Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}
 executors: {{executors}}
 invitees: {{invitees}}
 ## open warning-* items

@@ -145,7 +145,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `# Steps`
   - Exact instructions, execute in order, literally as written.
   - A step that can't execute as written: escalate it, and never skip it silently.
-  - Exact steps as nested lists. Nested lines follow `magic-team/magic-team.shared.md`'s nested-item grammar (`goal:`/`rule:`/`step:`).
+  - Exact steps as nested lists. Nested lines follow `magic-team/reference/skill-folder-model.md`'s nested-item grammar (`goal:`/`rule:`/`step:`).
   - Every root-level step carries a name, in the established shape: `<N>. **name-of-meaning**: …` — names what the step does, never where it sits. Unique within the file.
   - A step is referred to by its name, not its number alone — inside the file and from any other file. A step with no name can only be pointed at by position, and position is the first thing an edit changes.
   - Applied as each routine file is next touched, not as a sweep.
@@ -154,7 +154,7 @@ Used to check this file's own definitions against its own goals when it is updat
   - Runs only after `# Steps`, and everything it extended/dispatched/spawned, have finished, ending with a handback to the routine's own parent carrying what was agreed, per "The ladder: one rung at a time".
   - An already-existing closing tail in `# Steps` relocates here verbatim — no invented content.
   - No closing tail of its own: state that plainly, plus a pointer to whatever actually closes it.
-  - Sequencing: `magic-team/magic-team.shared.md`'s own "Routine" entry.
+  - Sequencing: `magic-team/reference/skill-folder-model.md`'s own "Routine" entry.
 - `# Routine's local procedures`
   - Named procedure blocks, `## <local-procedure-name>`, called by name from `# Steps`.
   - Not separate routines.

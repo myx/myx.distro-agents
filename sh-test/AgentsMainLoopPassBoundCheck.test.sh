@@ -192,8 +192,8 @@ rigAssert "told INTERACTION-MODE: non-interactive" \
 	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'INTERACTION-MODE: non-interactive -- run one loop, then exit.' )" 1
 rigAssert "names heartbeat as the routine to run" \
 	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'read-and-obey: read magic-coordinator.armed.md and magic-coordinator.heartbeat.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' )" 1
-rigAssert "names the shared.md sections" \
-	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.shared.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' )" 1
+rigAssert "names the armed.md sections" \
+	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' )" 1
 rigAssert "ends its block with the handback line" \
 	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'When done, hand back; then Wait until dismissed.' )" 1
 
@@ -204,8 +204,8 @@ rigAssert "told INTERACTION-MODE: non-interactive" \
 	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'INTERACTION-MODE: non-interactive -- run one loop, then exit.' )" 1
 rigAssert "names heartbeat as the routine to run" \
 	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'read-and-obey: read magic-coordinator.armed.md and magic-coordinator.heartbeat.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' )" 1
-rigAssert "names the shared.md sections" \
-	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.shared.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' )" 1
+rigAssert "names the armed.md sections" \
+	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' )" 1
 rigAssert "ends its block with the handback line" \
 	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'When done, hand back; then Wait until dismissed.' )" 1
 

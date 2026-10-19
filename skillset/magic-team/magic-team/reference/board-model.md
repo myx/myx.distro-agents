@@ -1,9 +1,6 @@
----
-maintainers: magic-librarian, magic-coordinator, human-owner
----
-# Board
+# Board states and lifecycle
 
-The team's current-work index: the one live status source for work. Item types and fields: `magic-team.armed.md`'s "Board & Inbox board-items entity model".
+Read this for board states, the item lifecycle, garbage collection and the board dynamics. The board's only writer and the item types are in `magic-team.armed.md`.
 
 ## Contents
 
@@ -15,10 +12,7 @@ The team's current-work index: the one live status source for work. Item types a
 
 ## Who actually reads/writes the board
 
-- **`magic-coordinator` is the board's only writer**: creating an item, moving it, scoring it, updating its fields. A routine it runs (grooming, advance, interview, discuss, proposal) scopes what it does there; no routine and no dispatch gives any other member board-write authority.
-- Every other member reads one item with `--member-board-item-read`, and contributes through its session's tracking document, or an `inquiry-*` to `magic-coordinator`.
 - `magic-librarian` joins once per workday under `magic-coordinator`'s lead, in `magic-librarian.morning-review.routine`.
-- A dispatched member does not check the board: its dispatch carries its work.
 - The board matters at grooming, at the daily meeting, and on request.
 - Inboxes are not part of the board.
 

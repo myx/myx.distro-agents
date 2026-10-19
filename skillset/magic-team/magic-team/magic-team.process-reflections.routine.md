@@ -57,7 +57,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 4. **agree-with-maintainers**: bring the drafts to a `magic-team.coworking.routine` session whose participants are each target file's `maintainers:` other than the human-owner, with `magic-librarian` running `magic-librarian.conventions-check.routine` on them. A draft lands on `quorum-all-agree` of those maintainers; where his name is also on the file's `maintainers:`, that agreement goes up to him as one propose-approve step first. No such session can run now: ask `magic-coordinator` to convene one, with `post-inquiry`. A draft not agreed returns to **assess-each-lesson**.
 5. **apply-approved-edit**: apply each agreed change to the real skillset file, exactly as agreed or as amended in that session.
 6. **reassess-against-new-cases**: re-check landed and pending lessons as new real cases arrive. A case exposing a gap reopens the lesson.
-7. **retire-ingested-files**: mark each lesson whose change has landed, and held against real cases, processed with `--librarian-inbox-to-processed`.
+7. **retire-ingested-files**: mark each lesson whose change has landed, and held against real cases, processed with `--librarian-inbox-to-processed`, which moves it to the inbox's `processed/`.
 
 # Closure steps
 
@@ -89,7 +89,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 - `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
-- `--librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
+- `--librarian-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
 
 # Maintainer Notes
 

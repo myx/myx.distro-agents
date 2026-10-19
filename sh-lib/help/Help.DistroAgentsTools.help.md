@@ -2836,7 +2836,10 @@
 			`MDLT_CONSOLE_SPACERS`, a console setting of `.local` and the
 			user's own, read from the environment and else from the
 			user's settings: `disable` starts the screen with no blank
-			line between the groups of its lists. Needs python3 and a
+			line between the groups of its lists. `MDLT_CONSOLE_MOUSE`,
+			beside it and read the same way: `disable` leaves the mouse
+			to the terminal, whose own selection then copies text; the
+			mouse is on where nothing is saved. Needs python3 and a
 			terminal: where the screen cannot start, it says why in one
 			line. Exit: the screen's own status. Exit 1, nothing started,
 			for any other word.
@@ -2964,18 +2967,16 @@
 			file it is saved in. Each of the five reads `-` for a line
 			that cannot be changed.
 			<state> is `set`, `missing`, `secret-set` or `secret-missing`.
-			Nothing of the value of a secret is printed, in no row and in
-			no message: not a part of it, not its length. Its line reads
-			`secret-set` or `secret-missing`, with the value `-`.
-			A key is a secret unless it is known not to be. A key of the
-			owner setup's catalogue is what the catalogue marks it. Any
-			other key is a secret when its name holds the word TOKEN, KEY,
-			SECRET, PASSWORD or COOKIE, and is no secret only when the
-			last word of its name is a plain kind: ALIAS, CONVERSATIONS,
-			DIRECTORY, DOMAIN, EMAIL, HOST, ID, LIMIT, MODE, NAME, PORT, SECONDS,
-			SECURITY, SITE, TIER, USER, USERNAME or WORKSPACE. A key of no
-			known kind is a secret. A value that carries a password inside
-			a URL is a secret whatever its key.
+			A credential is printed in one form, in every row and every
+			message: the first quarter of its value, rounded down, not less
+			than 4 and not more than 20 characters, then a `*` for each
+			character after them, even for a long key; a value of fewer
+			than 4 characters is all `*`. Its line reads `secret-set` with
+			that form as its value, or `secret-missing` with the value `-`.
+			A credential is a key the owner setup's catalogue marks secret
+			or one a harness leg reads; every other key shows its value.
+			A value that carries a password inside a URL, under any key,
+			reads `secret-set` and has only that password masked.
 			`workspace`: group `paths`, the root of the workspace, the
 			origin of the tooling, the root of the team data, the two
 			session stores and the folder of the scopes, each `set` where
@@ -4051,9 +4052,9 @@
 			the member. A `setting` row is one key of the member's scope
 			in this workspace, with the <state> and the <value>
 			`--manager-config-digest` gives it: `set`, `missing`,
-			`secret-set` or `secret-missing`. Which key is a secret is
-			that operation's rule, and nothing of the value of a secret
-			is ever printed. For a member set up elsewhere the keys of
+			`secret-set` or `secret-missing`. Which key is a credential is
+			that operation's rule, and a credential is printed in the
+			one form that operation gives it. For a member set up elsewhere the keys of
 			each system this workspace holds no setting of for it
 			follow, which are read from the workspace it is set up in:
 			each by its name alone, its <state> `elsewhere` and its

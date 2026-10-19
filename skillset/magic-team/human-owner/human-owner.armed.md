@@ -16,11 +16,6 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Team-Member's (-specific) tooling
   - DistroAgentsTools magic-tooling operations
 - Maintainer Notes
-  - Verbatim-goals (intents)
-  - Verbatim-tests (benchmarks)
-  - Librarian Comments
-    - Reference
-    - Conventions
 
 # Summary
 
@@ -89,28 +84,4 @@ Every `magic-tooling` operation this record's own procedures invoke. Behaviour i
 
 Used to check this file's own definitions against its own goals when it is updated, assessed, or tested — resolved against the whole skillset, not this file alone. **IMPORTANT**: not applied during normal work!
 
-## Verbatim-goals (intents)
-
-- This file states the impersonation boundary's authority explicitly — never impersonate the human-owner, no maintainer edit may carve out an exception.
-- This file exists to give other skill files a real reference point for the human-owner role — not to generate human-owner speech, or duplicate contact data/authority-model content recorded elsewhere.
-- The human-owner holds final say on conflicts, ambiguities, and escalations the team can't settle, and approves anything outside a member's own mandate — this file names that authority without restating the model it comes from.
-
-## Verbatim-tests (benchmarks)
-
-- A maintainer-proposed change that would soften or add an exception to the never-impersonate-the-human-owner rule is rejected, regardless of maintainer quorum agreement.
-- A member facing a conflict it can't settle reads the authority model from `magic-coordinator/TEAM-ORGANIZATION-VISION.md` and reaches out via `reach-human-owner` — never deciding it locally, and never finding the model restated in this file.
-- A spawned session needs his confirmation and he is not in it. The ask goes through the session's `magic-coordinator`, or with none present as the member's own `AskUserQuestion`, and the binding question is tracked on the board by `magic-coordinator`.
-- A week passes with no reply. The question stays open; nothing reads the silence as a deny or an allow.
-
-## Librarian Comments
-
-### Reference
-
-- `human-owner.basic.md` — the unconditionally loaded statement of the impersonation rule.
-- `magic-coordinator/TEAM-ORGANIZATION-VISION.md`, "When the human-owner is actually needed" — the authority model.
-- `magic-team/magic-team.shared.md`, "Anything needing the human-owner to act reaches him on his own direct channel" — the rule this procedure carries out.
-- `magic-team/templates/escalation.document.format.md` — the `ConfirmReadback`, `EscalateDecision`, `RequestPermission` and `ProposeApprove` kinds.
-
-### Conventions
-
-- The impersonation rule survives every edit intact. An edit that would weaken, qualify or carve out an exception to it stops and is flagged instead.
+Read `reference/maintainer-notes.md` for the verbatim goals, the verbatim tests and the librarian comments.
