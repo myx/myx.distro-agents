@@ -143,7 +143,7 @@ rigAssert "it says when, as a Slack date token, unescaped" \
 	"$( [ -n "$rigAtToken" ] && printf yes || printf no ):$( LC_ALL=C grep -c -F '&lt;!date' "$rigDir/posted" 2>/dev/null )" yes:0
 rigAssert "the token's epoch is this run's time, and its fallback the same moment in UTC" \
 	"$( [ "${rigAtEpoch:-0}" -ge "$(( $( date +%s ) - 600 ))" ] && [ "${rigAtEpoch:-0}" -le "$( date +%s )" ] && printf now || printf off ):${rigAtToken#at: }" \
-	"now:$( printf '%s\tdate-time\n' "${rigAtEpoch:-x}" | LC_ALL=C awk -v sldStandalone=token -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackDate.awk" )"
+	"now:$( printf '%s\tdate-time\n' "${rigAtEpoch:-x}" | LC_ALL=C awk -v sldStandalone=token -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackDate.awk" )"
 rigWaitFor 60 rigAtLeast 2 rigStarts
 rigAssert "the next pass proceeds"                     "$( [ "$( rigStarts )" -ge 2 ] && printf yes || printf no )" yes
 rigLoopStop

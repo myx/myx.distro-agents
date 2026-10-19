@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the dialogs of the manager screen (sh-lib/AgentsManagerScreen.py) and on its status line, run
+## Behavioural check on the dialogs of the manager screen (sh-lib/manager/AgentsManagerScreen.py) and on its status line, run
 ## rather than read. The screen's own code runs through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.py), which opens a dialog of the rig's own with a control of every kind.
 ## Held: a dialog is drawn from its declaration, framed, with its title, over the windows, and in the Turbo Vision
@@ -31,7 +31,7 @@
 ## holds stands where it stood.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigDriver="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.driver.py"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1

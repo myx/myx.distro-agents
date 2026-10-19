@@ -428,7 +428,7 @@ rigRun --intern-op-permission-grant-open human-owner --session-id sess-left --re
 LC_ALL=C grep -q '^GRANT: session ' "$rigTmp/out" || rigRefuse "the grant of the authority over sess-left to the coordinator was not written: $( head -2 "$rigTmp/err" | LC_ALL=C tr '\n' ' ' )"
 printf '{"task_id":"run-left"}\n' > "$rigTmp/stop.args"
 ( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
-	RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" MDAT_SPAWN_AGENT=magic-coordinator bash "$rigHere/AgentsUniversalHarness.sh" --intern-tool TaskStop < "$rigTmp/stop.args" ) > "$rigTmp/stop.out" 2>&1
+	RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" MDAT_SPAWN_AGENT=magic-coordinator bash "$rigHere/harness/AgentsUniversalHarness.sh" --intern-tool TaskStop < "$rigTmp/stop.args" ) > "$rigTmp/stop.out" 2>&1
 rigAssert "control: a stop without force ends the run's own process and says that the command is still running, and the run's store keeps it, by its pid and when it began" \
 	"$( LC_ALL=C grep -c '^STOP-RESULT: STILL-RUNNING' "$rigTmp/stop.out" ) $( rigAlive left-run ) $( rigAlive left-tool ) $( LC_ALL=C awk -v wantPid="$( rigPid left-tool )" '$1 == wantPid && NF == 2 { hit++ } END { print NR ":" hit + 0 }' "$rigStores/run-left/stop.left" 2> /dev/null )" "1 0 1 1:1"
 rigRun "$rigOp" --session-id run-left
@@ -609,10 +609,10 @@ rigCode(){ ## file -- its lines that are no comment
 	LC_ALL=C grep -v '^[[:space:]]*#' "$1"
 }
 rigAssert "the processes of a run are asked of the one place a run is recognised, when it is signalled and when what is left of it is read, and the family lists no process a second way: the plan of a kill reads a run by the same walk" \
-	"$( rigCode "$rigHere/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -e 'AgentsToolsRegistryRunProcesses "' -e 'AgentsToolsRegistryRunLeft "' || : ) $( cat "$rigHere"/AgentsTools.Manager*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'ps -' -e 'RunWords' -e 'pgrep' -e 'pkill' || : ) $( rigCode "$rigHere/AgentsTools.Registries.include" | LC_ALL=C grep -c -E '^AgentsToolsRegistryRunProcesses\(\)\{' || : )" "3 0 1"
-rigAssert "no process group is signalled, anywhere in the family" "$( cat "$rigHere"/AgentsTools.Manager*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -E 'kill +(-[A-Za-z0-9]+ +)?(-- +)?"?-[$"]' || : )" "0"
-rigAssert "the polite time is set in one place, two seconds" "$( rigCode "$rigHere/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -x -e 'agentsManagerKillPoliteSeconds=2' || : )" "1"
-rigAssert "the handback retry reads the mark of a kill on the record of its run" "$( rigCode "$rigHere/AgentsTools.InternOpAgentSpawnProxy.include" | LC_ALL=C grep -c -F -e 'AgentsToolsSpawnSandboxRecordHeader "$1" killed-at' || : )" "1"
+	"$( rigCode "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -e 'AgentsToolsRegistryRunProcesses "' -e 'AgentsToolsRegistryRunLeft "' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'ps -' -e 'RunWords' -e 'pgrep' -e 'pkill' || : ) $( rigCode "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" | LC_ALL=C grep -c -E '^AgentsToolsRegistryRunProcesses\(\)\{' || : )" "3 0 1"
+rigAssert "no process group is signalled, anywhere in the family" "$( cat "$rigHere"/*/AgentsTools.Manager*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -E 'kill +(-[A-Za-z0-9]+ +)?(-- +)?"?-[$"]' || : )" "0"
+rigAssert "the polite time is set in one place, two seconds" "$( rigCode "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -x -e 'agentsManagerKillPoliteSeconds=2' || : )" "1"
+rigAssert "the handback retry reads the mark of a kill on the record of its run" "$( rigCode "$rigHere/session/AgentsTools.InternOpAgentSpawnProxy.include" | LC_ALL=C grep -c -F -e 'AgentsToolsSpawnSandboxRecordHeader "$1" killed-at' || : )" "1"
 
 echo "-- 17. the kill of a whole session finishes it: its questions dismissed, its open records closed --"
 ## A question that waits, asked as the tooling opens one: in the thread of its own post, by the team bot.

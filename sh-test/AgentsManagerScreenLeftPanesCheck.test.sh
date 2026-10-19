@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the left panes of the manager screen (sh-lib/AgentsManagerScreen.py) by the owner's rule:
+## Behavioural check on the left panes of the manager screen (sh-lib/manager/AgentsManagerScreen.py) by the owner's rule:
 ## structured, padded, coloured, compact, what matters first, nothing unimportant, and a folder never shows less than the
 ## list on the right. Run rather than read, through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.py) and the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
@@ -17,7 +17,7 @@
 ## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"

@@ -22,7 +22,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -60,7 +60,7 @@ rigOptions="alpha -- the unit checks"$'\n'"beta -- the lint"
 echo "-- the verdict reader, every kind: asked for the words it carries them, the verdict is the same --"
 rigVerdict(){ ## kind, select, the reply's first line, words wanted (1|empty) -> "<verdict>|<author>"
 	printf '1700000001.000200 | URIGOWNER | %s\nand a line under it\n' "$3" | MDAT_VERDICT_WORDS="$4" MDAT_VERDICT_KIND="$1" MDAT_VERDICT_SELECT="$2" MDAT_VERDICT_OPTIONS="$rigOptions" MDAT_VERDICT_AUTHORS=URIGOWNER MDAT_VERDICT_ASKING=URIGSELF1 \
-		LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" 2>&1 | LC_ALL=C tr '\t' '|' | LC_ALL=C cut -d'|' -f1-2
+		LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" 2>&1 | LC_ALL=C tr '\t' '|' | LC_ALL=C cut -d'|' -f1-2
 }
 ## kind | answer form | the reply's first line | its verdict | the verdict as a caller that does not ask for the words gets it
 for rigRow in "permission||allow-once, $rigWords|allow-once|allow-once" "permission||deny, $rigWords|deny|deny" "permission-set||allow-set - $rigWords|allow-set|allow-set" \

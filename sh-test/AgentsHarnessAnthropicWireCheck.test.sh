@@ -9,7 +9,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 [ -f "$rigHarness" ] || { echo "⛔ ERROR: harness not found at the origin this workspace resolves: $rigHarness" >&2 ; exit 1 ; }
 
 rigRefuse(){
@@ -222,7 +222,7 @@ rigClaudeRun(){ ## round 1 input_tokens
 	rigRunStatus=0
 	RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir" MDAT_HARNESS_CONTEXT_TOKENS="" \
 		ANTHROPIC_API_KEY="rig-not-a-credential" \
-		"$rigHere/AgentsClaudeHarness.sh" --access-root "$rigScenarioDir" RIG-TASK-MARKER \
+		"$rigHere/harness/AgentsClaudeHarness.sh" --access-root "$rigScenarioDir" RIG-TASK-MARKER \
 		> "$rigScenarioDir/out" 2> "$rigScenarioDir/err" || rigRunStatus=$?
 	[ "$( cat "$rigScenarioDir/round" )" != 0 ] || rigRefuse "the claude leaf issued no request at all, so this scenario exercised nothing -- its stderr: $( head -5 "$rigScenarioDir/err" )"
 }

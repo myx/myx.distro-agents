@@ -18,7 +18,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigMember="magic-tester"
 
@@ -447,7 +447,7 @@ rigAssert "accepted sibling: with no live run of the holder it goes to the human
 rigSession=""
 
 echo "-- what the RequestPermission description says of both --"
-rigWireLine="$( LC_ALL=C grep -F '{"type":"function","function":{"name":"RequestPermission",' "$rigHere/AgentsOpenAiChatWire.sh" )"
+rigWireLine="$( LC_ALL=C grep -F '{"type":"function","function":{"name":"RequestPermission",' "$rigHere/harness/AgentsOpenAiChatWire.sh" )"
 rigWireSays(){ ## text -> yes when the description holds it
 	case "$rigWireLine" in *"$1"*) printf yes ;; *) printf no ;; esac
 }
@@ -459,7 +459,7 @@ rigAssert "one declaration, on one line, and no apostrophe in it: the tools JSON
 	"$( printf '%s\n' "$rigWireLine" | LC_ALL=C grep -c . ):$( printf '%s\n' "$rigWireLine" | LC_ALL=C grep -c "'" )" "1:0"
 ## The as_bot text of the three other tools that ask says the rule: the bot, whatever as_bot says.
 rigWireOf(){ ## tool name -> its one declaration line
-	LC_ALL=C grep -F "{\"type\":\"function\",\"function\":{\"name\":\"$1\"," "$rigHere/AgentsOpenAiChatWire.sh"
+	LC_ALL=C grep -F "{\"type\":\"function\",\"function\":{\"name\":\"$1\"," "$rigHere/harness/AgentsOpenAiChatWire.sh"
 }
 rigWireAsBot=""
 for rigWireTool in AskQuestion:question ConfirmReadback:readback EscalateDecision:decision ; do
@@ -473,7 +473,7 @@ rigAssert "the as_bot text of AskQuestion, ConfirmReadback and EscalateDecision 
 rigAssert "each of the three is one declaration on one line, with no apostrophe in it" \
 	"$( { rigWireOf AskQuestion ; rigWireOf ConfirmReadback ; rigWireOf EscalateDecision ; } | LC_ALL=C grep -c . ):$( { rigWireOf AskQuestion ; rigWireOf ConfirmReadback ; rigWireOf EscalateDecision ; } | LC_ALL=C grep -c "'" )" "3:0"
 rigAssert "the served list is still rendered from it" \
-	"$( bash "$rigHere/AgentsHarnessMcpMirror.sh" 2>/dev/null | LC_ALL=C grep -c -F '{"name":"RequestPermission","description":"Ask for the access a task needs, starting from a call that was refused' )" 1
+	"$( bash "$rigHere/harness/AgentsHarnessMcpMirror.sh" 2>/dev/null | LC_ALL=C grep -c -F '{"name":"RequestPermission","description":"Ask for the access a task needs, starting from a call that was refused' )" 1
 
 rigUnknown="$( cat "$rigTmp"/*/curl.log 2>/dev/null | LC_ALL=C awk '$0 ~ /^url:/ || $0 == "no-method" { hitCount++ ; } END { print hitCount + 0 ; }' )"
 rigAssert "no request went anywhere but a Slack method" "$rigUnknown" 0

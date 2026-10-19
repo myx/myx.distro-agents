@@ -21,7 +21,7 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigPackage="${rigHere%/sh-lib}"
 rigTest="$rigPackage/sh-test"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigProxy="--intern-op-agent-spawn-proxy"
 
 rigRefuse(){
@@ -208,7 +208,7 @@ rigAssert "--magic-heartbeat-spawn-proxy refuses in the same line, under its own
 rigRun --magic-heartbeat-spawn-proxy keeper-myx --description rig-team-not-member
 rigAssert "control: a member the heartbeat does not start for is refused as before, as an unsupported caller" "$rigRc $( LC_ALL=C grep -c -F -- 'unsupported caller: keeper-myx' "$rigTmp/err" || : ) $( rigSaid "$rigTmp/err" )" "1 1 0"
 rigAssert "the main loop starts one member only, the coordinator, through that operation: it names no other" \
-	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.InternRootHarness.include" | LC_ALL=C grep -c -F -- '--magic-heartbeat-spawn-proxy magic-coordinator ' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.InternMainLoop.include" | LC_ALL=C grep -c -e 'spawn-proxy "' -e 'spawn-member' -e 'magic-spawn-session' || : )" "1 0"
+	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/harness/AgentsTools.InternRootHarness.include" | LC_ALL=C grep -c -F -- '--magic-heartbeat-spawn-proxy magic-coordinator ' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/magic/AgentsTools.InternMainLoop.include" | LC_ALL=C grep -c -e 'spawn-proxy "' -e 'spawn-member' -e 'magic-spawn-session' || : )" "1 0"
 printf -- '---\ntype: dispatch\nowner: magic-team\nstatus: dispatch-started\nreview-since-epoch: 1000\n---\n\n# rig dispatch\n' > "$rigData/board/review/dispatch-20261013T1200Z-team.md"
 rigConsolesBefore="$( rigConsoles )"
 rigRun --member-review-return magic-coordinator dispatch-20261013T1200Z-team --message "redo the rig step"
@@ -246,12 +246,12 @@ rigAssert "a message to the team's conversation, addressed to the team, goes out
 
 echo "-- 7. the rule is one --"
 rigCode(){ ## include name -- its lines that are no comment
-	LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/$1" 2> /dev/null
+	LC_ALL=C grep -v '^[[:space:]]*#' "$( ls -d "$rigHere"/*/"$1" "$rigHere"/../../myx.distro-.local/sh-lib/*/"$1" 2> /dev/null | head -1 )" 2> /dev/null
 }
 rigAssert "one function says what the team is, defined once, in the include of the member directory, beside the one check of a start" \
-	"$( cat "$rigHere"/*.include "$rigHere"/*.sh | LC_ALL=C grep -c -E '^AgentsToolsTeamMemberIsTeam\(\)\{' || : ) $( LC_ALL=C grep -c -E '^AgentsToolsTeamMember(IsTeam|StartCheck)\(\)\{' "$rigHere/AgentsTools.TeamRegistry.include" || : )" "1 2"
+	"$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsTeamMemberIsTeam\(\)\{' || : ) $( LC_ALL=C grep -c -E '^AgentsToolsTeamMember(IsTeam|StartCheck)\(\)\{' "$rigHere/team-data/AgentsTools.TeamRegistry.include" || : )" "1 2"
 rigAssert "the refusal's line is written once, in that check, which asks that function" \
-	"$( cat "$rigHere"/*.include "$rigHere"/*.sh | LC_ALL=C grep -c -F -- 'is the team itself and no member of it, and the team is never started' || : ) $( rigCode AgentsTools.TeamRegistry.include | LC_ALL=C awk '/^AgentsToolsTeamMemberStartCheck\(\)\{/ { inCheck = 1 } inCheck && /AgentsToolsTeamMemberIsTeam "/ { asked++ } inCheck && /^\}/ { inCheck = 0 } END { print asked + 0 }' )" "1 1"
+	"$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -F -- 'is the team itself and no member of it, and the team is never started' || : ) $( rigCode AgentsTools.TeamRegistry.include | LC_ALL=C awk '/^AgentsToolsTeamMemberStartCheck\(\)\{/ { inCheck = 1 } inCheck && /AgentsToolsTeamMemberIsTeam "/ { asked++ } inCheck && /^\}/ { inCheck = 0 } END { print asked + 0 }' )" "1 1"
 rigAssert "no starter asks what the team is, or names it, itself: the proxy, --magic-spawn-session, --manager-spawn-member and the heartbeat's start each ask the one check of a start, once" \
 	"$( for rigFile in InternOpAgentSpawnProxy MagicSpawnSession ManagerSpawn MagicHeartbeat ; do printf '%s:%s ' "$( rigCode "AgentsTools.$rigFile.include" | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberStartCheck "' || : )" "$( rigCode "AgentsTools.$rigFile.include" | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberIsTeam' || : )" ; done )" "1:0 1:0 1:0 1:0 "
 rigAssert "--manager-routine-list and --manager-team-member-list ask that function, once each, and neither names the team" \

@@ -111,7 +111,7 @@
 ## the key; a pass is believed for seven days, and every run removes the ones older than
 ## that, of every test. A run reads none of it and runs what it is told: `--passed` is the
 ## one reader, for whoever decides what is left to run, as the retest queue does
-## (sh-lib/AgentsTools.MemberRetest.include).
+## (sh-lib/member/AgentsTools.MemberRetest.include).
 ##
 
 set -u

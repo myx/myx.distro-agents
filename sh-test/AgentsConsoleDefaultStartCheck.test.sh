@@ -25,7 +25,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigDriver="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.driver.py"
-rigScreenFile="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigScreenFile="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -142,7 +142,7 @@ rigAgentsPty(){ ## Agents arguments...
 			done
 			cd "$MMDAPP" || exit 99
 			rigWords=( "$@" ) ; set --
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.include" || exit 98
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include" || exit 98
 			Agents "${rigWords[@]}"
 		' rig "$@" 2>&1 )"
 	rigRc="$( rigPtyVal rc )"

@@ -26,8 +26,8 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigInclude="$rigHere/AgentsTools.MemberCommsSlack.include"
-rigRegInclude="$rigHere/AgentsTools.Registries.include"
+rigInclude="$rigHere/comms/AgentsTools.MemberCommsSlack.include"
+rigRegInclude="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
 rigPersona="magic-coordinator"
 rigOpName="--make-agents-indices"
 rigBuilderName="1201-agents-indices.sh"
@@ -763,12 +763,12 @@ rigAssert "the client branch names the constant, not a member: no literal member
 rigAssert "the Slack include holds no assignment of it"                    "$( LC_ALL=C grep -c -E 'registryPersonaMember=' "$rigInclude" || : )" 0
 printf 'registryPersonaMember="a"\nregistryPersonaMember="b"\n' > "$rigTmp/sample.include"
 rigAssert "control: a sample with two assignments counts two"              "$( LC_ALL=C grep -c '^registryPersonaMember=' "$rigTmp/sample.include" || : )" 2
-rigAssert "the earlier index include, its file name, its functions and its builder are gone" "$( cat "$rigHere"/*.include | LC_ALL=C grep -c -E 'member-presentation|AgentsToolsMemberIndex|AgentsTools[.]MemberIndex|slackPersonaMember|AgentsToolsCommsSlackPersonaMarks|AgentsToolsCommsSlackMemberDefaults|AgentsToolsCommsSlackPresentationInvalid|AgentsToolsCommsSlackMemberName' || : ) $( [ -e "$rigHere/AgentsTools.MemberIndex.include" ] && printf present || printf absent ) $( [ -e "$rigHere/AgentsToolsCommsSlackMemberName.awk" ] && printf present || printf absent ) $( [ -e "$rigPackage/builders/source-prepare/1000-make-member-index.sh" ] && printf present || printf absent )" "0 absent absent absent"
-rigAssert "control: the same read of all includes does find a function that is there" "$( cat "$rigHere"/*.include | LC_ALL=C grep -c -E 'AgentsToolsCommsSlackMemberPresentation|AgentsToolsRegistryAgentsIndicesBuild' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "found" : "blind" }' )" found
+rigAssert "the earlier index include, its file name, its functions and its builder are gone" "$( cat "$rigHere"/*/*.include | LC_ALL=C grep -c -E 'member-presentation|AgentsToolsMemberIndex|AgentsTools[.]MemberIndex|slackPersonaMember|AgentsToolsCommsSlackPersonaMarks|AgentsToolsCommsSlackMemberDefaults|AgentsToolsCommsSlackPresentationInvalid|AgentsToolsCommsSlackMemberName' || : ) $( [ -e "$rigHere/AgentsTools.MemberIndex.include" ] && printf present || printf absent ) $( [ -e "$rigHere/AgentsToolsCommsSlackMemberName.awk" ] && printf present || printf absent ) $( [ -e "$rigPackage/builders/source-prepare/1000-make-member-index.sh" ] && printf present || printf absent )" "0 absent absent absent"
+rigAssert "control: the same read of all includes does find a function that is there" "$( cat "$rigHere"/*/*.include | LC_ALL=C grep -c -E 'AgentsToolsCommsSlackMemberPresentation|AgentsToolsRegistryAgentsIndicesBuild' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "found" : "blind" }' )" found
 rigAssert "the marks function is defined in the registries include, not the Slack include" "$( LC_ALL=C grep -c '^AgentsToolsCommsSlackMemberMarks(){' "$rigRegInclude" || : ) $( LC_ALL=C grep -c '^AgentsToolsCommsSlackMemberMarks(){' "$rigInclude" || : )" "1 0"
 rigMarksFn="$( rigFnCut "$rigRegInclude" AgentsToolsCommsSlackMemberMarks )"
 rigAssert "the marks function is byte for byte as recorded (cksum, bytes)" "$( printf '%s\n' "$rigMarksFn" | cksum )" "3049307218 255"
-rigAssert "its awk is byte for byte as recorded"                           "$( cksum < "$rigHere/AgentsToolsCommsSlackMemberMarks.awk" )" "175965626 570"
+rigAssert "its awk is byte for byte as recorded"                           "$( cksum < "$rigHere/comms/AgentsToolsCommsSlackMemberMarks.awk" )" "175965626 570"
 rigAssert "control: another function text gives another checksum"          "$( [ "$( printf 'x\n' | cksum )" = "3049307218 255" ] && printf blind || printf notices )" notices
 rigRegistryName(){ ## registry name -- the file name AgentsToolsRegistryFile gives it in the rig workspace
 	( MMDAPP="$rigWs" ; . "$rigRegInclude" && AgentsToolsRegistryFile "$1" )
@@ -779,7 +779,7 @@ rigAssert "control: a name is not used as given, whatever it holds"        "$( r
 echo "-- 19. the two call places of the build --"
 rigBuilder="$rigPackage/builders/source-prepare/$rigBuilderName"
 rigLocalTools="$MDLT_ORIGIN/myx/myx.distro-.local/sh-scripts/DistroLocalTools.fn.sh"
-rigMakeInclude="$rigHere/AgentsTools.Make.include"
+rigMakeInclude="$rigHere/config/AgentsTools.Make.include"
 rigAssert "the builder is in builders/source-prepare of the agents package" "$( [ -f "$rigBuilder" ] && printf present || printf absent ) $( ls "$rigPackage/builders" )" "present source-prepare"
 rigAssert "and nothing of it is under sh-lib"                              "$( [ -e "$rigHere/builders" ] && printf present || printf absent ) $( ls "$rigHere" | LC_ALL=C grep -c -F -- "$rigBuilderName" || : )" "absent 0"
 rigAssert "the builder runs the build once, as the bare agents script name, with no name of a part"  "$( rigN "$rigBuilder" "DistroAgentsTools.fn.sh" ) $( LC_ALL=C grep -c -x -F -- "DistroAgentsTools.fn.sh $rigBuilderCall" "$rigBuilder" || : )" "1 1"

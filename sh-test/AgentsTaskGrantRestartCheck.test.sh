@@ -20,7 +20,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-rigHarness="$rigLib/AgentsUniversalHarness.sh"
+rigHarness="$rigLib/harness/AgentsUniversalHarness.sh"
 rigHook="$rigLib/client-hooks/allow-granted-native-tool.sh"
 rigFixture="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/slack-send-identity-check.curl.stub.sh"
 

@@ -21,9 +21,9 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigTool="${rigHere%/sh-lib}/sh-scripts/DistroAgentsTools.fn.sh"
-rigField="$rigHere/AgentsHarnessJsonField.awk"
+rigField="$rigHere/harness/AgentsHarnessJsonField.awk"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1

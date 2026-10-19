@@ -1,0 +1,353 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberPendingReply.include -- the member-facing ops over the pending-reply
+## records AskQuestion leaves in $MMDAPP/.local/agents/pending: read them, and settle
+## one's own question once it needs no answer. The records themselves are written and
+## closed by AgentsTools.InternOpPendingReply.include; nothing here writes a record except
+## through that close, so its lock and its one-close-only rule hold here too.
+##
+## The records are workspace-local state, not team data: nothing here commits them.
+##
+
+## One header field of a record, empty when absent. The header ends at its second `---`.
+AgentsToolsPendingReplyField(){ ## record file, field name
+	LC_ALL=C awk -v key="$2" '
+		$0 == "---" { dashes++ ; if ( dashes == 2 ) { exit ; } next ; }
+		dashes == 1 && index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit ; }
+	' "$1" 2>/dev/null
+}
+
+## Prints records as the read shows them, in one awk pass over every file given:
+## `PENDING-REPLY: <id>`, the header fields the read names, `question:` with the
+## question's first line, then a blank line. -v owner keeps only that member's records,
+## -v openOnly=1 only waiting ones, and -v countLine=1 ends with `PENDING-REPLIES: <n>`.
+## An open record also says, before its question, whether the run that asked it is alive
+## (`asker-live:`): what was measured for its asking id, given here as the text
+## AgentsToolsPendingReplyAskers printed, and this host's name, by which the ask of another
+## host is told apart and left unmeasured.
+AgentsToolsPendingReplyScan(){ ## owner filter (empty for any), open only (1 or empty), count line (1 or empty), askers measured, record files...
+	local scanOwner="$1" scanOpen="$2" scanCount="$3" scanAskers="$4" scanHost
+	shift 4
+	scanHost="$( hostname -s 2>/dev/null )" || scanHost=""
+	[ -n "$scanHost" ] || scanHost="unknown"
+	printf '%s\n' "$scanAskers" | LC_ALL=C awk -v wantOwner="$scanOwner" -v openOnly="$scanOpen" -v countLine="$scanCount" -v askerHost="$scanHost" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsToolsPendingReplyScan.awk" - "$@" 2>/dev/null
+}
+
+## Whether the runs that asked are alive, for the asking ids on stdin, a line each: measured
+## now, by the one rule a run is recognised by (AgentsToolsRegistryAskersLive,
+## AgentsTools.Registries.include), and stored nowhere. The process list is read once, and
+## only when there is an id to ask about.
+AgentsToolsPendingReplyAskers(){ ## stdin: the asking ids, a line each
+	local askersIds
+	askersIds="$( cat )"
+	[ -n "$askersIds" ] || return 0
+	type AgentsToolsRegistryAskersLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+	printf '%s\n' "$askersIds" | AgentsToolsRegistryAskersLive "$( ps -A -ww -o pid=,args= 2>/dev/null )"
+}
+
+## Where the stores keep more of one ask than its record, for the read of that one record,
+## which prints it whole (AgentsToolsPendingReplyScan.awk, MDAT_PENDING_WHOLE). Sets
+## replyWholeBeside, the names of what lies beside the record, its id taken off;
+## replyWholeRefusal, the refusal record a permission names, in the store of the session that
+## asked, else of whichever session keeps it; and replyWholeChange, the folder of the held
+## change whose own record names this ask, in the store of the session that made it. Each is
+## empty where there is none. Only what a store of this workspace holds: no thread is read.
+AgentsToolsPendingReplyWholeFind(){ ## record file, pending id
+	local wholeEntry wholeName wholeSession wholeRefusal wholeAgents="$MMDAPP/.local/agents"
+	replyWholeBeside="" ; replyWholeRefusal="" ; replyWholeChange=""
+	for wholeEntry in "${1%.md}".* ; do
+		[ -e "$wholeEntry" ] || continue
+		wholeName="${wholeEntry##*/}" ; wholeName="${wholeName#"$2".}"
+		[ "$wholeName" = "md" ] || replyWholeBeside="$replyWholeBeside$wholeName "
+	done
+	replyWholeBeside="${replyWholeBeside% }"
+	wholeSession="$( AgentsToolsPendingReplyField "$1" session-id )"
+	wholeRefusal="$( AgentsToolsPendingReplyField "$1" refusal-id )"
+	case "$wholeRefusal" in
+		''|.|..|*/*) ;;
+		*)
+			for wholeEntry in "$wholeAgents/sessions/${wholeSession:-.}/$wholeRefusal.md" "$wholeAgents/sessions"/*/"$wholeRefusal.md" ; do
+				[ ! -f "$wholeEntry" ] || { replyWholeRefusal="$wholeEntry" ; break ; }
+			done
+		;;
+	esac
+	case "$wholeSession" in
+		''|.|..|*/*) ;;
+		*)
+			[ "$( AgentsToolsPendingReplyField "$1" kind )" != "change" ] || for wholeEntry in "$wholeAgents/sessions/$wholeSession/changes"/*/change ; do
+				[ -f "$wholeEntry" ] && LC_ALL=C grep -q -x -F "ask: $2" "$wholeEntry" || continue
+				replyWholeChange="${wholeEntry%/change}" ; break
+			done
+		;;
+	esac
+	return 0
+}
+
+case "$1" in
+
+	## Reads pending-reply records: one by id, or a list of the member's own, open by
+	## default. Read-only: it changes no record, and reads no thread. A list is also the
+	## reader that passes by: it rebuilds the pending-replies registry first, by the one
+	## rebuild function every other rebuild of it calls, so that file is current after any
+	## list. And each open record says whether the run that asked it is alive, measured in
+	## the same call. One record by its id rebuilds nothing: after the lines a list prints
+	## for it, it prints the whole of what the stores hold of that ask.
+	--member-pending-reply-read)
+		shift
+		MDSC_CMD="$MDSC_CMD --member-pending-reply-read"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local readMember="${1:-}" readId="" readAll="" readAnyOwner="" readFile readRegistry readAskers=""
+		shift || true
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--all) readAll=1 ; shift ;;
+				--any-owner) readAnyOwner=1 ; shift ;;
+				-*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+				*)
+					[ -z "$readId" ] || { echo "$MDSC_CMD: ⛔ ERROR: one pending id at most, got a second: $1" >&2 ; set +e ; return 1 ; }
+					readId="$1" ; shift
+				;;
+			esac
+		done
+		if [ -z "$readMember" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> [<pending-id>] [--all] [--any-owner]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$readMember" "<team-member>" pending-reply-read || { set +e ; return 1 ; }
+		if [ -n "$readId" ] ; then
+			AgentsToolsAssertBareName "$readId" "<pending-id>" pending-reply-read || { set +e ; return 1 ; }
+			## In either store: the asks, and the requests for the authority (AgentsToolsPendingRecordPath).
+			type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+			readFile="$( AgentsToolsPendingRecordPath "$readId" )" || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $readId" >&2 ; set +e ; return 1 ; }
+			[ "$( AgentsToolsPendingReplyField "$readFile" status )" != "reply-pending" ] \
+				|| readAskers="$( AgentsToolsPendingReplyField "$readFile" session-id | AgentsToolsPendingReplyAskers )"
+			AgentsToolsPendingReplyWholeFind "$readFile" "$readId"
+			MDAT_PENDING_WHOLE=1 MDAT_PENDING_BESIDE="$replyWholeBeside" MDAT_PENDING_REFUSAL="$replyWholeRefusal" MDAT_PENDING_CHANGE="$replyWholeChange" \
+				AgentsToolsPendingReplyScan "" "" "" "$readAskers" "$readFile"
+			return 0
+		fi
+		type AgentsToolsRegistryPendingRepliesRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+		readRegistry="$( AgentsToolsRegistryFile pending-replies )"
+		if AgentsToolsRegistryPendingRepliesRebuild ; then
+			## That an open ask has no live asker is found in this same call, from the rows just
+			## written: the asking ids of the asks still open, each measured now. It is never
+			## stored -- no registry holds liveness -- so it is said in what this prints.
+			readAskers="$( LC_ALL=C awk '$2 == "ask" && $5 == "reply-pending" && $3 != "-" && ! askerSeen[$3]++ { print $3 ; }' "$readRegistry" 2> /dev/null | AgentsToolsPendingReplyAskers )"
+		else
+			echo "$MDSC_CMD: ⚠️ WARNING: the pending-replies registry could not be rebuilt at $readRegistry -- the list is read from the records themselves, and no asker of it was measured" >&2
+		fi
+		## The asks, and the requests for the authority of the questions store, listed as one.
+		local readFiles=() readCandidate
+		for readCandidate in "$MMDAPP/.local/agents/pending"/*.md "$MMDAPP/.local/questions"/*.md ; do
+			[ ! -f "$readCandidate" ] || readFiles[${#readFiles[@]}]="$readCandidate"
+		done
+		if [ "${#readFiles[@]}" -eq 0 ] ; then
+			printf 'PENDING-REPLIES: 0\n'
+			return 0
+		fi
+		local readOwnerFilter="$readMember" readOpenFilter="1"
+		[ -z "$readAnyOwner" ] || readOwnerFilter=""
+		[ -z "$readAll" ] || readOpenFilter=""
+		AgentsToolsPendingReplyScan "$readOwnerFilter" "$readOpenFilter" 1 "$readAskers" "${readFiles[@]}"
+		return 0
+	;;
+
+	## Closes one of the member's own open questions as settled, with the reason, when it
+	## no longer needs an answer. Only the member that asked it, and only a plain question:
+	## a readback, decision or permission closes through its own escalation ops. The
+	## --magic-* stub is the coordinator settling another member's question on its behalf.
+	## --withdraw instead discards the asker's own open question, of any kind: the record
+	## closes as withdrawn, with the reason and no verdict, so it answers, grants and decides
+	## nothing; reminders stop with it, and a short note in its thread tells the person it is
+	## no longer needed. Only the member that asked it, on either stub.
+	## The console's arm comes here too (--manager-pending-reply-dismiss, sourced by
+	## AgentsTools.ManagerPendingReply.include): the same withdraw, of any member's question,
+	## by whoever is at the console.
+	--member-pending-reply-settle|--magic-pending-reply-settle|--manager-pending-reply-dismiss)
+		local settleOp="$1"
+		shift
+		MDSC_CMD="$MDSC_CMD $settleOp"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local settleMember="${1:-}" settleId="${2:-}" settleReason="" settleFile settleOwner settleKind settleRc=0 settleWithdraw=""
+		shift 2 2>/dev/null || shift $#
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--reason)
+					[ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --reason requires a value (<text>)" >&2 ; set +e ; return 1 ; }
+					settleReason="$2" ; shift 2
+				;;
+				--withdraw)
+					settleWithdraw=1 ; shift
+				;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		## From the console: the first word is the account at the console, and what is done is
+		## the withdraw. The record says who by `console:<account>`, a reason is not required,
+		## and the note in the thread is the team bot's, whatever identity asked.
+		local settleConsole="" settleBy="" settleSaid=""
+		if [ "$settleOp" = "--manager-pending-reply-dismiss" ] ; then
+			settleConsole="${settleMember:-unknown}" ; settleBy="console:$settleConsole" ; settleMember="magic-coordinator" ; settleWithdraw=1
+			settleSaid="$settleReason"
+			[ -n "$settleReason" ] || settleReason="dismissed from the console, no reason given"
+		fi
+		if [ -z "$settleMember" ] || [ -z "$settleId" ] || [ -z "$settleReason" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> <pending-id> --reason <text> [--withdraw]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$settleMember" "<team-member>" pending-reply-settle || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$settleId" "<pending-id>" pending-reply-settle || { set +e ; return 1 ; }
+		AgentsToolsActingMemberCheck "$settleMember" "${settleOp#--}" || { set +e ; return 1 ; }
+		if [ "$settleOp" = "--magic-pending-reply-settle" ] && [ "$settleMember" != "magic-coordinator" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: only magic-coordinator settles another member's question, not $settleMember -- a member settles its own with --member-pending-reply-settle" >&2
+			set +e ; return 1
+		fi
+		settleFile="$MMDAPP/.local/agents/pending/$settleId.md"
+		[ -f "$settleFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $settleId" >&2 ; set +e ; return 1 ; }
+		settleOwner="$( AgentsToolsPendingReplyField "$settleFile" owner )"
+		if [ -z "$settleConsole" ] && { [ "$settleOp" = "--member-pending-reply-settle" ] || [ -n "$settleWithdraw" ] ; } && [ "$settleOwner" != "$settleMember" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $settleId was asked by ${settleOwner:-nobody}, so $settleMember cannot $( [ -n "$settleWithdraw" ] && printf withdraw || printf settle ) it; it stays as it is" >&2
+			set +e ; return 1
+		fi
+		## What is then done to the question's own post is done in its asker's name, as the
+		## asker's own withdraw does it.
+		[ -z "$settleConsole" ] || settleMember="$settleOwner"
+		[ -n "$settleConsole" ] || settleSaid="$settleReason"
+		if [ -n "$settleWithdraw" ] ; then
+			DistroAgentsTools --intern-op-pending-reply-close "$settleId" --if-open --status withdrawn \
+				--withdrawn-by "${settleBy:-$settleMember}" --withdraw-reason "$settleReason" --context "$MDSC_CMD" || settleRc=$?
+			case "$settleRc" in
+				0) ;;
+				3) return 0 ;;
+				*) set +e ; return 1 ;;
+			esac
+			## Said in the question's own thread, under the identity it was asked with, so the
+			## person knows it needs no answer. Best effort: the record is already closed.
+			local settleChannel settleThread settleNote
+			settleChannel="$( AgentsToolsPendingReplyField "$settleFile" channel )"
+			settleThread="$( AgentsToolsPendingReplyField "$settleFile" thread-ts )"
+			if [ -n "$settleChannel" ] && [ -n "$settleThread" ] ; then
+				## It carries the addressee of the question it withdraws, as the question named it.
+				local settleArgs=( "$settleMember" "$settleChannel:$settleThread" --from-stdin ) settleTo
+				[ -z "$settleConsole" ] && [ "$( AgentsToolsPendingReplyField "$settleFile" ask-identity )" != "bot" ] || settleArgs=( "${settleArgs[@]}" --identity-bot )
+				settleTo="$( AgentsToolsPendingReplyField "$settleFile" address-to )"
+				[ -z "$settleTo" ] || settleArgs=( "${settleArgs[@]}" --address-to "$settleTo" )
+				## Its text is the note template's (sh-lib/templates/tooling-note.post.format.md, `# Ask`, withdrawn).
+				type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+				## From the console it is the line of a dismissal (console-dismissed), which names the account.
+				settleNote="$( ASKP_BLOCK="Ask/$( [ -n "$settleConsole" ] && printf 'console-dismissed' || printf 'withdrawn' )" ASKP_F_by="$settleConsole" ASKP_F_member="$settleMember" ASKP_F_reason="$settleSaid" ASKP_F_address_to="$settleTo" \
+					AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || settleNote=""
+				[ -n "$settleNote" ] || echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note that says so could not be filled from its template (tooling-note.post.format.md, Ask/withdrawn)" >&2
+				printf '%s\n' "$settleNote" | DistroAgentsTools --intern-op-comms-slack-send-message "${settleArgs[@]}" > /dev/null 2>&1 \
+					|| echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note was not posted in its thread" >&2
+			fi
+			## The question's post takes no answer any more: it gets the cancelled mark of its
+			## template, loses the tooling's own answer emoji, and its How to answer part is
+			## edited away. The post is the root of a question with its own thread, else the
+			## live version of one asked inside another thread. Best effort, each step.
+			local settleQts settleLive
+			settleQts="$( AgentsToolsPendingReplyField "$settleFile" question-ts )"
+			settleLive="$( AgentsToolsPendingReplyField "$settleFile" revision-ts )"
+			if [ -n "$settleChannel" ] && [ -n "$settleQts" ] ; then
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+				if [ "$settleThread" != "$settleQts" ] ; then
+					AgentsToolsAskPostClose "$settleFile" "${settleLive:-$settleQts}" cancelled edit
+				elif [ "$( AgentsToolsPendingReplyField "$settleFile" kind )" = "proposal" ] ; then
+					## A proposal's own post is the reply under its root. The root is never touched.
+					[ -z "$settleLive" ] || AgentsToolsAskPostClose "$settleFile" "$settleLive" cancelled edit
+				else
+					## Asked again since: the update under the root invites no click either. The root
+					## itself is edited to its own text, as it was first asked.
+					[ -z "$settleLive" ] || AgentsToolsAskPostReact "$settleMember" "$settleChannel:$settleLive" "$( AgentsToolsPendingReplyField "$settleFile" ask-identity )" remove \
+						$( AgentsToolsAskPostRecordFill reactions "$settleFile" 2>/dev/null )
+					AgentsToolsAskPostClose "$settleFile" "$settleQts" cancelled edit
+				fi
+			fi
+			printf 'WITHDRAWN %s\n' "$settleId"
+			return 0
+		fi
+		settleKind="$( AgentsToolsPendingReplyField "$settleFile" kind )"
+		case "$settleKind" in
+			''|question) ;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: $settleId is a $settleKind, which closes through its own escalation ops, never by settling; it stays as it is" >&2
+				set +e ; return 1
+			;;
+		esac
+		DistroAgentsTools --intern-op-pending-reply-close "$settleId" --if-open --status reply-received --resolved-as settled \
+			--verdict "settled: $settleReason" --answered-by "$settleMember (settled)" --context "$MDSC_CMD" || settleRc=$?
+		case "$settleRc" in
+			0) printf 'SETTLED %s\n' "$settleId" ; return 0 ;;
+			3) return 0 ;;
+			*) set +e ; return 1 ;;
+		esac
+	;;
+
+	## Corrects a closed record's verdict, when it was closed with a wrong or missing answer.
+	## The coordinator's only: a close can't be undone, so the correction is recorded beside
+	## it, with who amended it and why, and the record stays closed.
+	--magic-pending-reply-amend)
+		shift
+		MDSC_CMD="$MDSC_CMD --magic-pending-reply-amend"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local amendMember="${1:-}" amendId="${2:-}" amendVerdict="" amendReason="" amendRc=0
+		shift 2 2>/dev/null || shift $#
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--verdict)
+					[ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --verdict requires a value (<text>)" >&2 ; set +e ; return 1 ; }
+					amendVerdict="$2" ; shift 2
+				;;
+				--reason)
+					[ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --reason requires a value (<text>)" >&2 ; set +e ; return 1 ; }
+					amendReason="$2" ; shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$amendMember" ] || [ -z "$amendId" ] || [ -z "$amendVerdict" ] || [ -z "$amendReason" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <magic-coordinator> <pending-id> --verdict <text> --reason <text>" >&2
+			set +e ; return 1
+		fi
+		if [ "$amendMember" != "magic-coordinator" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: only magic-coordinator amends a closed record, not $amendMember" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$amendId" "<pending-id>" pending-reply-amend || { set +e ; return 1 ; }
+		local amendFile="$MMDAPP/.local/agents/pending/$amendId.md" amendKind
+		[ -f "$amendFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $amendId" >&2 ; set +e ; return 1 ; }
+		## A readback, decision or permission verdict may have written a grant at its close;
+		## amending the record alone would leave the grant disagreeing with it.
+		amendKind="$( AgentsToolsPendingReplyField "$amendFile" kind )"
+		case "$amendKind" in
+			''|question) ;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: $amendId is a $amendKind, whose verdict may have written a grant; it is not amended here -- a grant is corrected through the grant store" >&2
+				set +e ; return 1
+			;;
+		esac
+		DistroAgentsTools --intern-op-pending-reply-close "$amendId" --amend --status reply-received \
+			--verdict "$amendVerdict" --amended-by "$amendMember" --amend-reason "$amendReason" --context "$MDSC_CMD" || amendRc=$?
+		case "$amendRc" in
+			0) printf 'AMENDED %s\n' "$amendId" ; return 0 ;;
+			*) set +e ; return 1 ;;
+		esac
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

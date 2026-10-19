@@ -1,0 +1,968 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Grants.include -- the grants: declared, unrolled, and per session.
+##
+## Three files, each built from the one before, never edited at runtime:
+##   $MMDAPP/.local/agents/permissions.registry   this workspace's declared grants, one row
+##       `member:workspace:kind:grant` each, written by --make-agents-indices from project.inf
+##       (AgentsToolsGrantsRegistryWrite). The rows of the registered workspaces without agents
+##       are written here too, `.` unrolled to their own root. The machine-wide set is every
+##       workspace's own file, through the pointers in $HOME/.agents/magic-team.
+##   $MMDAPP/.local/agents/grants.index   every member's rows, fully unrolled: `*` one row per
+##       member, the floor, ceilings, unresolved names kept as rows that admit nothing
+##       (AgentsGrantsIndexBuild.awk). A grant written `approve:Edit(/glob)` is a write BY
+##       APPROVAL, a read row and an `approve` row: the member reads those files, and its Edit
+##       or Write of one is neither refused nor applied but HELD, shown to the human-owner and
+##       applied when he approves (AgentsTools.InternOpChange.include) -- unless a grant given
+##       for its task, its session or the one call allows it. What the member holds standing,
+##       or by the floor, never comes ahead of the approval.
+##       Built by --make-agents-indices; a reader finding it stale or missing rebuilds it
+##       (AgentsToolsGrantsIndexEnsure).
+##   $MMDAPP/.local/agents/sessions/<id>/permissions.<member>.index   one session's own:
+##       the member's rows joined with the session's grants (AgentsGrantsSessionIndex.awk),
+##       what the harness decides a file tool by, with builtins only: admitted, refused, or
+##       held for approval. A revoked grant (a
+##       marker in its store's revoked/) and a session grant whose session has ended are out.
+##       A session grant given to the member's run on a board item holds for its other runs on
+##       that item in the same coworking session too, the runs a review return or a resume
+##       starts under a new id, until the item is closed or that session ends
+##       (AgentsToolsGrantsItemRuns): a `runs` row of the index, the item and that session
+##       checked at the call. A task grant given to that run holds for those runs too, while
+##       the item it names is open: a `task` row like any other. A run started since the index
+##       was built is found on the way to a refusal (--intern-op-permission-grant-read).
+##
+## The workspace floor, every member's (section 3 of the plan):
+##   every tooling workspace       write .local/temp/**
+##   where agents are installed    read source/**/MAGIC.md, source/**/README.md, source/**/docs/**.md
+##                                 write source/**/MAGIC.md
+##   the session's own sandbox     read input/, write output/ (per session)
+## and, as before, the readable member directories and the reference read roots. All of
+## source/** is no floor's: magic-librarian holds a standing read of it, every other member
+## the namespace grants declared for it. The members this package carries hold their standing
+## grants built in, never declared (AgentsToolsGrantsBuiltinText), so no source/ is needed.
+## magic-librarian's other one is a standing write by approval of the .md files of the team
+## members' skills this machine holds, where they are its to change
+## (AgentsToolsGrantsMemberSkills): it is never asked for the access, and each change of one
+## waits for the human-owner's approval.
+##
+## Dot-sourced; functions only.
+##
+
+agentsGrantsHere="${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}"
+agentsGrantsIndexVersion="myx.distro grants.index 1"
+agentsGrantsSessionVersion="myx.distro session.permissions.index 1"
+agentsGrantsHeader=""
+agentsGrantsIndexFile=""
+agentsGrantsIndexText=""
+
+## The member set root the floor's readable member directories come from.
+AgentsToolsGrantsSkillsetRoot(){ ## workspace -- sets agentsGrantsSkillsetRoot
+	agentsGrantsSkillsetRoot="${MDAT_SKILLSET_ROOT:-${1%/}/.local/agents/members}"
+}
+
+## The index header: its format, and what its floor was read under.
+AgentsToolsGrantsIndexHeader(){ ## workspace -- sets agentsGrantsHeader
+	AgentsToolsGrantsSkillsetRoot "$1"
+	agentsGrantsHeader="$agentsGrantsIndexVersion"$'\t'"MDAT_SKILLSET_ROOT=$agentsGrantsSkillsetRoot"$'\t'"HOME=${HOME:-}"
+}
+
+## Whether the index is current, by builtins only: its header is this run's, and it is newer
+## than everything it is made from -- every workspace's grants and places this machine
+## points at, the member registries and index, the member set root, the machine's skills
+## folder in HOME, and this code.
+AgentsToolsGrantsIndexFresh(){ ## workspace, index file
+	local freshWs="${1%/}" freshFile="$2" freshHead="" freshShared="${HOME:-}/.agents/magic-team" freshSrc freshRoot freshName
+	[ -f "$freshFile" ] || return 1
+	IFS= read -r freshHead < "$freshFile" || return 1
+	AgentsToolsGrantsIndexHeader "$freshWs"
+	[ "$freshHead" = "$agentsGrantsHeader" ] || return 1
+	type AgentsToolsPlacesHomeSkills > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include" || return 1
+	AgentsToolsPlacesHomeSkills || :
+	for freshSrc in \
+		"$freshWs/.local/agents/permissions.registry" "$freshWs/.local/agents/directories.registry" "$freshWs/.local/agents/members.index" \
+		"$freshShared/permissions.registry" "$freshShared/directories.registry" "$freshShared/members.registry" "$freshShared/member-homes.registry" \
+		"$freshShared/known-workspaces.registry" "$freshShared/known-workspaces.registry.imported" "$agentsGrantsSkillsetRoot" "$agentsPlacesHomeSkills" \
+		"$agentsGrantsHere/grants/AgentsTools.Grants.include" "$agentsGrantsHere/grants/AgentsGrantsPattern.awk" "$agentsGrantsHere/grants/AgentsGrantsIndexBuild.awk" \
+		"$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include" \
+	; do
+		[ ! -e "$freshSrc" ] || [ "$freshFile" -nt "$freshSrc" ] || return 1
+	done
+	if [ -f "$freshShared/permissions.registry" ] ; then
+		while IFS= read -r freshRoot ; do
+			case "$freshRoot" in /*) ;; *) continue ;; esac
+			freshSrc="${freshRoot%/}/.local/agents/permissions.registry"
+			[ ! -e "$freshSrc" ] || [ "$freshFile" -nt "$freshSrc" ] || return 1
+		done < "$freshShared/permissions.registry"
+	fi
+	if [ -f "$freshShared/directories.registry" ] ; then
+		while IFS=$'\t' read -r freshName freshRoot ; do
+			case "$freshRoot" in /*) ;; *) continue ;; esac
+			freshSrc="${freshRoot%/}/.local/agents/directories.registry"
+			[ ! -e "$freshSrc" ] || [ "$freshFile" -nt "$freshSrc" ] || return 1
+		done < "$freshShared/directories.registry"
+	fi
+	return 0
+}
+
+## The standing grants of the members this package carries, built in beside magic-librarian's
+## read rather than declared, so a workspace with no source/ holds them as one
+## with myx.distro-agents in source does: magic-architect's WebFetch and WebSearch; magic-tester's
+## read of the test trees and .local/myx in every tooling workspace, and its write of all of
+## every workspace place named *-testbed. myx.distro-agents/project.inf names each one as an
+## inert --magic-team: reference line. Printed as AgentsToolsGrantsDeclaredText prints a declared
+## grant, `row` lines, and with `tags` the `tag` lines too: own for the workspace written for,
+## wildcard for any other, as a `*` or a pattern selector tags its roots. Reads the tooling
+## workspaces from agentsGrantsRoots and the places from agentsGrantsPlaces.
+AgentsToolsGrantsBuiltinText(){ ## workspace the rows are written for, [tags]
+	local builtinWs="${1%/}" builtinName builtinRoot builtinGlob builtinTag
+	builtinName="${builtinWs##*/}"
+	printf 'row\tmagic-architect:%s:tool:%s\n' "$builtinName" WebFetch "$builtinName" WebSearch
+	while IFS= read -r builtinRoot ; do
+		[ -n "$builtinRoot" ] || continue
+		builtinTag=wildcard ; [ "$builtinRoot" != "$builtinWs" ] || builtinTag=own
+		for builtinGlob in 'source/**/sh-test/**' 'source/**/test/**' 'source/**/tests/**' '.local/myx/**' ; do
+			printf 'row\tmagic-tester:%s:builtin:Read(/%s/%s)\n' "$builtinName" "$builtinRoot" "$builtinGlob"
+			[ "${2:-}" != tags ] || printf 'tag\tmagic-tester:%s:%s:%s\n' "$builtinName" "$builtinTag" "$( AgentsToolsClientAccessWidenGrantRoot "Read(/$builtinRoot/$builtinGlob)" )"
+		done
+	done <<< "$agentsGrantsRoots"
+	while IFS= read -r builtinRoot ; do
+		[ -n "$builtinRoot" ] || continue
+		builtinTag=wildcard ; [ "$builtinRoot" != "$builtinWs" ] || builtinTag=own
+		printf 'row\tmagic-tester:%s:builtin:Edit(/%s/**)\n' "$builtinName" "$builtinRoot"
+		[ "${2:-}" != tags ] || printf 'tag\tmagic-tester:%s:%s:%s\n' "$builtinName" "$builtinTag" "$( AgentsToolsClientAccessWidenGrantRoot "Edit(/$builtinRoot/**)" )"
+	done <<< "$( AgentsToolsGrantsPlaceMatch '*-testbed' )"
+}
+
+## The team members' skills that are the machine's own and this workspace's to change, one
+## resolved folder per line, each once: the entries of the machine's skillset in HOME, a
+## built-in place (AgentsToolsPlacesHomeSkills), that hold a member's own <name>.basic.md and
+## are no reference-only identity record, which is nobody's to write. A real folder there is
+## a skill that lives on this machine only. A link there counts where its target really lies
+## under this workspace's source/; one to anywhere else, another workspace's source tree or a
+## folder here that is itself a link out, never does. Resolved here, by the index builder,
+## once: a call is checked against the rows this gives, on its real file, whatever link it
+## came by.
+AgentsToolsGrantsMemberSkills(){ ## workspace
+	local skillsSource skillsEntry skillsName skillsReal skillsSeen=$'\n'
+	type AgentsToolsPlacesHomeSkills > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include" || return 0
+	AgentsToolsPlacesHomeSkills || return 0
+	skillsSource="$( cd "${1%/}/source" 2> /dev/null && pwd -P )" || skillsSource=""
+	for skillsEntry in "$agentsPlacesHomeSkills"/*/ ; do
+		skillsEntry="${skillsEntry%/}"
+		[ -d "$skillsEntry" ] || continue
+		skillsName="${skillsEntry##*/}"
+		[ -f "$skillsEntry/$skillsName.basic.md" ] || continue
+		! LC_ALL=C grep -q '^status: reference-only' "$skillsEntry/SKILL.md" 2> /dev/null || continue
+		skillsReal="$( cd "$skillsEntry" 2> /dev/null && pwd -P )" || continue
+		if [ -L "$skillsEntry" ] ; then
+			[ -n "$skillsSource" ] || continue
+			case "$skillsReal/" in "$skillsSource"/*) ;; *) continue ;; esac
+		fi
+		case "$skillsSeen" in *$'\n'"$skillsReal"$'\n'*) continue ;; esac
+		skillsSeen="$skillsSeen$skillsReal"$'\n'
+		printf '%s\n' "$skillsReal"
+	done
+}
+
+## The whole index on stdout, computed: non-zero, the output then no index, on a failure.
+AgentsToolsGrantsIndexText(){ ## workspace
+	local textWs="${1%/}" textStream textReal textRoot
+	[ -n "$textWs" ] || return 1
+	type AgentsToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include" || return 1
+	type AgentsToolsTeamGrantRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" || return 1
+	type AgentsToolsClientAccessRootsMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientAccessRoots.include" || return 1
+	AgentsToolsGrantsIndexHeader "$textWs"
+	textStream="$(
+		printf 'head\t%s\n' "$agentsGrantsHeader"
+		MDAT_SKILLSET_ROOT="$agentsGrantsSkillsetRoot" AgentsToolsTeamMemberDirectoryText | LC_ALL=C awk -F'\t' 'NF && $1 != "" { print "member\t" $1 ; }'
+		## the places before the grants, which are capped by their ceilings as they are read
+		agentsGrantsPlaces="$( AgentsToolsPlacesMergedText "$textWs" quiet )"
+		agentsGrantsRoots="$( AgentsToolsPlacesWorkspaceRoots "$textWs" )"
+		printf '%s\n' "$agentsGrantsPlaces" | LC_ALL=C awk -F'\t' -v OFS='\t' 'NF >= 4 { print "place", $1, $2, $3, $4 ; }'
+		## The standing write of magic-librarian on the team members' skills this machine holds
+		## (AgentsToolsGrantsMemberSkills): their .md files, and nothing else in them, BY APPROVAL
+		## (`approve:`): each change is held for the human-owner and applied when he approves. Rows
+		## of this workspace's own index only, never of a registry, which every workspace reads.
+		## Their kind is `skillset`, and they come before every other grant: a call on such a file
+		## is decided by its row here, whatever else would admit it too (AgentsToolsGrantsCheckSkillset).
+		while IFS= read -r textRoot ; do
+			[ -n "$textRoot" ] || continue
+			printf 'grant\tmagic-librarian:%s:skillset:approve:Edit(/%s/**.md)\n' "${textWs##*/}" "$textRoot"
+		done <<< "$( AgentsToolsGrantsMemberSkills "$textWs" )"
+		AgentsToolsTeamGrantRows "$textWs" permissions.registry | LC_ALL=C awk '{ print "grant\t" $0 ; }'
+		## The built-in grants of the members this package carries, as every written registry
+		## carries them, here too so a workspace with no source and no registry holds them.
+		AgentsToolsGrantsBuiltinText "$textWs" | LC_ALL=C awk -F'\t' '$1 == "row" { print "grant\t" substr( $0, 5 ) ; }'
+		while IFS= read -r textRoot ; do
+			[ -n "$textRoot" ] || continue
+			printf 'floor\twrite\t%s/.local/temp/**\n' "$textRoot"
+			[ -f "$textRoot/.local/agents/members.registry" ] || continue
+			printf 'floor\tread\t%s/source/**/%s\n' "$textRoot" MAGIC.md "$textRoot" README.md "$textRoot" 'docs/**.md'
+			printf 'floor\twrite\t%s/source/**/MAGIC.md\n' "$textRoot"
+			## The standing read of magic-librarian, as the registry of each such workspace
+			## carries it, here too so it never waits on the next --make-agents-indices there.
+			printf 'grant\tmagic-librarian:%s:builtin:Read(/%s/source/**)\n' "${textRoot##*/}" "$textRoot"
+		done <<< "$agentsGrantsRoots"
+		MDAT_SKILLSET_ROOT="$agentsGrantsSkillsetRoot" AgentsToolsClientAccessRootsMembers readable | LC_ALL=C awk '/^\// { print "floor\tread\t" $0 "/**" ; }'
+		[ -z "${HOME:-}" ] || printf 'floor\tread\t%s/.claude/skills/**\n' "${HOME%/}"
+	)" || return 1
+	## Every literal directory a path starts with, resolved as the harness resolves the path
+	## it checks, in one subshell: the nearest existing one through `cd -P`, the rest kept.
+	## Each pattern opened by its own `(`: bash 3.2 misparses a bare `x)` inside `$( )`.
+	textReal="$(
+		unset CDPATH
+		while IFS= read -r textBase ; do
+			case "$textBase" in (/?*) ;; (*) continue ;; esac
+			textProbe="$textBase" textRest=""
+			while [ "$textProbe" != "/" ] && [ ! -d "$textProbe" ] ; do
+				textRest="/${textProbe##*/}$textRest" ; textProbe="${textProbe%/*}" ; [ -n "$textProbe" ] || textProbe="/"
+			done
+			cd "$textProbe" 2> /dev/null && cd -P . 2> /dev/null || continue
+			[ "${PWD%/}$textRest" = "$textBase" ] || printf 'real\t%s\t%s\n' "$textBase" "${PWD%/}$textRest"
+		done <<< "$( printf '%s\n' "$textStream" | LC_ALL=C awk -v mode=bases -f "$agentsGrantsHere/grants/AgentsGrantsPattern.awk" -f "$agentsGrantsHere/grants/AgentsGrantsIndexBuild.awk" )"
+	)"
+	printf '%s\n%s\n' "$textReal" "$textStream" | LC_ALL=C awk -v self="${textWs##*/}" -f "$agentsGrantsHere/grants/AgentsGrantsPattern.awk" -f "$agentsGrantsHere/grants/AgentsGrantsIndexBuild.awk"
+}
+
+## Rebuilds the index the way the sibling myx.distro-* indices are rebuilt
+## (IndexCacheMissDistro.include): the generator in a tested subshell into a temp file
+## beside it, then mv -f. The temp is this write's own, by mktemp and never by $$, with
+## its mode set on it (AgentsToolsRegistryWrite, AgentsTools.Registries.include). On a
+## failure the old index stays, rc 1.
+AgentsToolsGrantsIndexWrite(){ ## workspace
+	local writeFile="${1%/}/.local/agents/grants.index" writeTemp
+	writeTemp="$( mktemp "$writeFile.XXXXXX" )" || writeTemp=""
+	if [ -z "$writeTemp" ] || ! ( AgentsToolsGrantsIndexText "$1" ) > "$writeTemp" ; then
+		[ -z "$writeTemp" ] || rm -f -- "$writeTemp"
+		echo "⛔ ERROR: grants: the grants index generator failed -- $writeFile left unchanged" >&2
+		return 1
+	fi
+	chmod 644 "$writeTemp" && mv -f -- "$writeTemp" "$writeFile" || { rm -f -- "$writeTemp" ; return 1 ; }
+}
+
+## A current index for a reader: agentsGrantsIndexFile names it, or, where .local/agents
+## cannot be written, agentsGrantsIndexText holds it, computed in memory. A stale or missing
+## one is rebuilt first; one whose rebuild failed is read as it stood. rc 1 with neither.
+AgentsToolsGrantsIndexEnsure(){ ## workspace
+	local ensureWs="${1%/}" ensureDir ensureFile
+	agentsGrantsIndexFile="" ; agentsGrantsIndexText=""
+	[ -n "$ensureWs" ] && [ -d "$ensureWs" ] || return 1
+	ensureDir="$ensureWs/.local/agents" ; ensureFile="$ensureDir/grants.index"
+	if AgentsToolsGrantsIndexFresh "$ensureWs" "$ensureFile" ; then
+		agentsGrantsIndexFile="$ensureFile" ; return 0
+	fi
+	[ -d "$ensureDir" ] || mkdir -p "$ensureDir" 2> /dev/null || :
+	if [ -d "$ensureDir" ] && [ -w "$ensureDir" ] ; then
+		if AgentsToolsGrantsIndexWrite "$ensureWs" || [ -f "$ensureFile" ] ; then
+			agentsGrantsIndexFile="$ensureFile" ; return 0
+		fi
+		return 1
+	fi
+	agentsGrantsIndexText="$( AgentsToolsGrantsIndexText "$ensureWs" )" || { agentsGrantsIndexText="" ; return 1 ; }
+	return 0
+}
+
+## One member's rows of the index, `verb<TAB>glob<TAB>pattern<TAB>from`, read, write and tool
+## rows only, from the current index. Nothing printed when there is none.
+AgentsToolsGrantsMemberRows(){ ## workspace, member
+	local rowsWho rowsVerb rowsGlob rowsPattern rowsFrom rowsRest
+	AgentsToolsGrantsIndexEnsure "$1" || return 0
+	while IFS=$'\t' read -r rowsWho rowsVerb rowsGlob rowsPattern rowsFrom rowsRest ; do
+		[ "$rowsWho" = "$2" ] || continue
+		case "$rowsVerb" in read|write|tool) printf '%s\t%s\t%s\t%s\n' "$rowsVerb" "$rowsGlob" "$rowsPattern" "$rowsFrom" ;; esac
+	done < <( if [ -n "$agentsGrantsIndexFile" ] ; then cat "$agentsGrantsIndexFile" ; else printf '%s\n' "$agentsGrantsIndexText" ; fi )
+}
+
+## The read-only place a path lies in, by the ceiling rows of the current index: the deepest
+## place holding it decides. Prints its name, rc 0; rc 1 when the path may be written.
+AgentsToolsGrantsCeilingPlace(){ ## workspace, resolved path
+	local ceilWho ceilVerb ceilGlob ceilPattern ceilCeiling ceilName
+	AgentsToolsGrantsIndexEnsure "$1" || return 1
+	while IFS=$'\t' read -r ceilWho ceilVerb ceilGlob ceilPattern ceilCeiling ceilName ; do
+		[ "$ceilWho" = "*" ] && [ "$ceilVerb" = ceiling ] || continue
+		[[ $2 == $ceilPattern ]] || continue
+		[ "$ceilCeiling" = read-only ] || return 1
+		printf '%s' "$ceilName"
+		return 0
+	done < <( if [ -n "$agentsGrantsIndexFile" ] ; then cat "$agentsGrantsIndexFile" ; else printf '%s\n' "$agentsGrantsIndexText" ; fi )
+	return 1
+}
+
+## Whether a held grant glob covers a wanted target: the same text, or the target matching
+## the glob's pattern. A wanted target with a .. segment is covered by its own text only.
+AgentsToolsGrantsCovers(){ ## glob, pattern, wanted target
+	[ "$1" != "$3" ] || return 0
+	case "$3" in */../*|*/..|../*|..) return 1 ;; esac
+	[[ $3 == $2 ]]
+}
+
+## Whether a grant of one tool speaks for a call of another: the same tool, or a grant to Edit
+## or Write a path, which reads what it may change -- Read, Grep and Glob, in the same scope and
+## for as long as that grant holds. Never the other way: a grant to read changes nothing. THE
+## ONE PLACE this is decided, for every session, task, planned and routine grant a call is
+## checked against. An Allow once is one call of its own tool, and a standing write row is
+## every file tool already.
+AgentsToolsGrantsToolCovers(){ ## granted tool, called tool
+	[ "$1" != "$2" ] || return 0
+	case "$1:$2" in Edit:Read|Edit:Grep|Edit:Glob|Write:Read|Write:Grep|Write:Glob) return 0 ;; esac
+	return 1
+}
+
+## ---- the declared grants: the permissions registry -----------------------------------------
+
+## A place of the merged list (agentsGrantsPlaces), by the name a grant gives it -- the name
+## as the list writes it, or name@workspace -- of kind workspace only, or of any kind. Sets
+## agentsGrantsPlacePath and agentsGrantsPlaceCeiling; rc 1 when no place is named so.
+AgentsToolsGrantsPlaceFind(){ ## name, workspace|any
+	local findName findKind findCeiling findPath findRoot findRest
+	agentsGrantsPlacePath="" ; agentsGrantsPlaceCeiling=""
+	while IFS=$'\t' read -r findName findKind findCeiling findPath findRoot findRest ; do
+		case "$findPath" in /*) ;; *) continue ;; esac
+		[ "$2" != workspace ] || [ "$findKind" = workspace ] || continue
+		[ "$findName" = "$1" ] || [ "$findName@${findRoot##*/}" = "$1" ] || continue
+		agentsGrantsPlacePath="${findPath%/}" ; agentsGrantsPlaceCeiling="$findCeiling"
+		return 0
+	done <<< "$agentsGrantsPlaces"
+	return 1
+}
+
+## Every place of the merged list (agentsGrantsPlaces) of kind workspace whose name -- the
+## name before any @workspace -- matches a shell pattern: its path on stdout, each once.
+## None matching is no error: rc 0, nothing printed.
+AgentsToolsGrantsPlaceMatch(){ ## pattern
+	local matchName matchKind matchCeiling matchPath matchRest matchSeen=$'\n'
+	while IFS=$'\t' read -r matchName matchKind matchCeiling matchPath matchRest ; do
+		case "$matchPath" in /*) ;; *) continue ;; esac
+		[ "$matchKind" = workspace ] || continue
+		case "${matchName%@*}" in $1) ;; *) continue ;; esac
+		matchPath="${matchPath%/}"
+		case "$matchSeen" in *$'\n'"$matchPath"$'\n'*) continue ;; esac
+		matchSeen="$matchSeen$matchPath"$'\n'
+		printf '%s\n' "$matchPath"
+	done <<< "$agentsGrantsPlaces"
+	return 0
+}
+
+## One declaring workspace's grants, read off its project.inf as it stands, on stdout:
+##   row <TAB> member:workspace:kind:grant      for the permissions registry
+##   tag <TAB> member:workspace:tag:root        for the provenance tags
+## The selectors, `<scope>:<selector>:<verb>:<member>[:<glob>]`:
+##   namespace:<ns|.|*>     that namespace's source in every tooling workspace, `.` the
+##                          declaring project's, `*` every namespace the declaring one selects
+##   workspace:<name|.|*>   a workspace place, `.` the declaring workspace, `*` every one;
+##                          a pattern (`*-testbed`) every workspace place whose name matches
+##   directory:<name>       a registered place of any kind, capped at its ceiling
+##   project:<selector>     the estate's project resolver, in the declaring workspace
+## A name no place carries becomes an `unresolved` row, with a warning; a pattern no place
+## matches gives no row and no warning. Reads the places from
+## agentsGrantsPlaces and the tooling workspaces from agentsGrantsRoots.
+## rc 0 trusted; 2 not trusted, said on stderr, and no row may be dropped on its strength;
+## 3 no project selected there, said as a note, the same.
+AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messages
+	local declWs="${1%/}" declOp="$2" declName declSelected="" declSelectStatus=0 declStatus=0 declTrusted=0
+	local declNamespace="" declWorkspace="" declDirectory="" declProject="" declScope declLines declLine declSel declRest
+	local declVerb declPerm declMember declGlob declRoot declOne declTag declTagRoot declPattern
+	declName="${declWs##*/}"
+	## No source folder: no project there to declare a grant, which is a state, not a fault.
+	if [ ! -d "$declWs/source" ] ; then
+		echo "# $declOp: workspace $declWs has no source folder, so none declares a grant -- nothing is removed" >&2
+		return 3
+	fi
+	## Source, never --distro-path-auto: the grants are read off project.inf as it stands, and
+	## a prepared or output cache that lags source drops real declarations a rewrite would drop.
+	DistroAgentsContext --distro-from-source || {
+		echo "⛔ ERROR: $declOp: cannot establish an input spec for workspace $declWs" >&2
+		return 2
+	}
+	Require ListDistroProjects || :
+	Require ListDistroDeclares || :
+	declSelected="$( Distro ListDistroProjects --select-all )" || declSelectStatus=$?
+	## One cut per scope kind: each has its own vocabulary, and only `project` uses the
+	## estate's four-form resolver (--unroll-filter-and-cut, SystemContext.include).
+	if [ -n "$declSelected" ] ; then
+		declNamespace="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:namespace' )" || declStatus=$?
+		declWorkspace="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:workspace' )" || declStatus=$?
+		declDirectory="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:directory' )" || declStatus=$?
+		declProject="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --unroll-filter-and-cut 'magic-team:permissions:project:' cat )" || declStatus=$?
+	fi
+	if [ "$declSelectStatus" != "0" ] ; then
+		echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: ListDistroProjects --select-all exited $declSelectStatus for workspace $declWs" >&2
+		declTrusted=2
+	elif [ -z "$declSelected" ] ; then
+		## A workspace with no projects yet is a state, not a fault: said, nothing removed.
+		echo "# $declOp: workspace $declWs selects no distro projects, so none declares a grant -- nothing is removed" >&2
+		return 3
+	elif [ "$declStatus" != "0" ] ; then
+		echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: ListDistroDeclares exited $declStatus for workspace $declWs" >&2
+		declTrusted=2
+	fi
+	## `<verb>:<member>[:<glob>]`, cut on the first colon each time so a glob keeps its own.
+	## allow-write and allow-read are one path grant, Edit(...) or Read(...); allow-tool a
+	## member's standing tool permission, its glob being <tool>[:<target>]. Any other verb is
+	## refused, never read as an allow.
+	declParse(){
+		declVerb="${declRest%%:*}" ; declRest="${declRest#*:}"
+		declMember="${declRest%%:*}"
+		case "$declRest" in *:*) declGlob="${declRest#*:}" ;; *) declGlob="" ;; esac
+		[ "$declVerb" = "allow-write" ] && declPerm="Edit" && return 0
+		[ "$declVerb" = "allow-read" ] && declPerm="Read" && return 0
+		[ "$declVerb" = "allow-tool" ] && [ -n "$declGlob" ] && return 0
+		echo "⛔ ERROR: $declOp: unsupported permissions verb in $declLine: $declVerb (allow-write, allow-read, and allow-tool with a <tool>[:<target>], are implemented)" >&2
+		declTrusted=2
+		return 1
+	}
+	declUnresolved(){ ## why
+		echo "⚠️ WARNING: $declOp: ${declLine%% *}: $2 -- kept as an unresolved row that grants nothing: magic-team:permissions:$1:${declLine#* }" >&2
+		printf 'row\t%s:%s:unresolved:%s:%s\n' "$declMember" "$declName" "$1" "${declLine#* }"
+	}
+	for declScope in namespace workspace directory project ; do
+		case "$declScope" in
+			namespace) declLines="$declNamespace" ;;
+			workspace) declLines="$declWorkspace" ;;
+			directory) declLines="$declDirectory" ;;
+			project) declLines="$declProject" ;;
+		esac
+		while IFS= read -r declLine ; do
+			[ -n "$declLine" ] || continue
+			declRest="${declLine#* }"
+			if [ "$declScope" != project ] ; then
+				declSel="${declRest%%:*}" ; declRest="${declRest#*:}"
+			fi
+			declParse || continue
+			## A tool row names no path: one row, whatever the selector.
+			if [ "$declVerb" = "allow-tool" ] ; then
+				printf 'row\t%s:%s:tool:%s\n' "$declMember" "$declName" "$declGlob"
+				continue
+			fi
+			case "$declScope" in
+				namespace)
+					## The declaring project's namespace is the leading segment of its id; `*`
+					## is every namespace the declaring workspace selects. Applied in every
+					## tooling workspace.
+					[ "$declSel" != "." ] || declSel="${declLine%%/*}"
+					while IFS= read -r declOne ; do
+						[ -n "$declOne" ] || continue
+						while IFS= read -r declRoot ; do
+							[ -n "$declRoot" ] || continue
+							printf 'row\t%s:%s:namespace:%s(/%s/source/%s/%s)\n' "$declMember" "$declName" "$declPerm" "$declRoot" "$declOne" "${declGlob:-**}"
+						done <<< "$agentsGrantsRoots"
+					done <<< "$( if [ "$declSel" = "*" ] ; then printf '%s\n' "$declSelected" | LC_ALL=C awk -F/ 'NF { if ( !seenNamespace[$1]++ ) print $1 ; }' ; else printf '%s\n' "$declSel" ; fi )"
+				;;
+				workspace)
+					## `.` the declaring workspace, `*` every tooling workspace, a name a
+					## workspace place, a pattern every workspace place whose name matches.
+					## Tagged for the copilot access fragment: own (the declaring workspace),
+					## explicit (named), wildcard (only swept by `*` or a pattern).
+					declPattern=0
+					case "$declSel" in
+						.|'*') ;;
+						*'*'*|*'?'*|*'['*) declPattern=1 ;;
+					esac
+					while IFS= read -r declRoot ; do
+						[ -n "$declRoot" ] || continue
+						printf 'row\t%s:%s:workspace:%s(/%s/%s)\n' "$declMember" "$declName" "$declPerm" "$declRoot" "$declGlob"
+						if [ "$declRoot" = "$declWs" ] ; then declTag=own
+						elif [ "$declSel" != "*" ] && [ "$declPattern" = 0 ] ; then declTag=explicit
+						else declTag=wildcard
+						fi
+						declTagRoot="$( AgentsToolsClientAccessWidenGrantRoot "$declPerm(/$declRoot/$declGlob)" )"
+						[ -z "$declTagRoot" ] || printf 'tag\t%s:%s:%s:%s\n' "$declMember" "$declName" "$declTag" "$declTagRoot"
+					done <<< "$(
+						case "$declSel" in
+							(.) printf '%s\n' "$declWs" ;;
+							('*') printf '%s\n' "$agentsGrantsRoots" ;;
+							(*) if [ "$declPattern" = 1 ] ; then AgentsToolsGrantsPlaceMatch "$declSel"
+								else AgentsToolsGrantsPlaceFind "$declSel" workspace && printf '%s\n' "$agentsGrantsPlacePath"
+								fi ;;
+						esac
+					)"
+					case "$declSel" in
+						.|'*') ;;
+						*) [ "$declPattern" = 1 ] || AgentsToolsGrantsPlaceFind "$declSel" workspace || declUnresolved workspace "no workspace place is named $declSel" ;;
+					esac
+				;;
+				directory)
+					if ! AgentsToolsGrantsPlaceFind "$declSel" any ; then
+						declUnresolved directory "no place is named $declSel"
+						continue
+					fi
+					if [ "$declPerm" = Edit ] && [ "$agentsGrantsPlaceCeiling" = read-only ] ; then
+						echo "⚠️ WARNING: $declOp: ${declLine%% *}: the write grant of $declMember on $declSel is capped to read: $declSel is a read-only place" >&2
+						declPerm=Read
+					fi
+					printf 'row\t%s:%s:directory:%s(/%s/%s)\n' "$declMember" "$declName" "$declPerm" "$agentsGrantsPlacePath" "${declGlob:-**}"
+				;;
+				project)
+					## already resolved by --unroll-filter-and-cut: field 1 is the matched project
+					printf 'row\t%s:%s:project:%s(/%s/source/%s/%s)\n' "$declMember" "$declName" "$declPerm" "$declWs" "${declLine%% *}" "$declGlob"
+				;;
+			esac
+		done <<< "$declLines"
+	done
+	return "$declTrusted"
+}
+
+## --make-agents-indices's grants step: this workspace's permissions registry and its tags,
+## rewritten whole, from what this workspace declares and what every registered tooling
+## workspace without agents declares (`.` there is that workspace). Plus the member rows --
+## each acting member of this workspace writes its own directory -- magic-librarian's standing
+## read of this workspace's source, and the built-in grants with their tags
+## (AgentsToolsGrantsBuiltinText). A scan that is not trusted keeps the registry as
+## it stood (rc 0, said); another workspace's that is not keeps that workspace's rows.
+## Then the pointer in $HOME/.agents/magic-team. rc 1 on a failure to write.
+AgentsToolsGrantsRegistryWrite(){ ## workspace, op name for messages
+	local regWs regName regOp="$2" regText regRc=0 regRows regTags regRoot regOtherName regOtherText regOtherRc
+	local regFile regTagsFile regLock regWait=0 regOld=""
+	regWs="$( cd "${1%/}" 2> /dev/null && pwd )" || { echo "⛔ ERROR: $regOp: workspace not found: $1" >&2 ; return 1 ; }
+	regName="${regWs##*/}"
+	type AgentsToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include" || return 1
+	type AgentsToolsTeamGrantRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" || return 1
+	type AgentsToolsClientAccessRootsMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientAccessRoots.include" || return 1
+	type AgentsToolsWorkspaceSwitch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include" || return 1
+	agentsGrantsPlaces="$( AgentsToolsPlacesMergedText "$regWs" quiet )"
+	agentsGrantsRoots="$( AgentsToolsPlacesWorkspaceRoots "$regWs" )"
+	regText="$( AgentsToolsGrantsDeclaredText "$regWs" "$regOp" )" || regRc=$?
+	if [ "$regRc" != 0 ] ; then
+		[ "$regRc" = 3 ] || echo "🙋 WARNING: $regOp: declared allow-write was not determined for workspace $regWs, its permissions registry is kept as it stood" >&2
+		return 0
+	fi
+	regFile="$regWs/.local/agents/permissions.registry"
+	regTagsFile="$regWs/.local/agents/permissions-tags.registry"
+	[ ! -f "$regFile" ] || regOld="$( cat "$regFile" )"
+	regRows="$( printf '%s\n' "$regText" | LC_ALL=C sed -n 's/^row	//p' )"
+	regTags="$( printf '%s\n' "$regText" | LC_ALL=C sed -n 's/^tag	//p' )"
+	## Acting members only: nobody is granted write on the identity record.
+	while IFS= read -r regRoot ; do
+		[ -n "$regRoot" ] || continue
+		regRows="$regRows"$'\n'"${regRoot##*/}:$regName:member:Edit(/$regRoot/**)"
+	done <<< "$( MDAT_SKILLSET_ROOT="${MDAT_SKILLSET_ROOT:-$regWs/.local/agents/members}" AgentsToolsClientAccessRootsMembers acting )"
+	regRows="$regRows"$'\n'"magic-librarian:$regName:builtin:Read(/$regWs/source/**)"
+	## The built-in grants of the members this package carries, with their tags: every reader of
+	## the registries, the access roots and the copilot fragment among them, finds them here.
+	regText="$( AgentsToolsGrantsBuiltinText "$regWs" tags )"
+	regRows="$regRows"$'\n'"$( printf '%s\n' "$regText" | LC_ALL=C awk -F'\t' '$1 == "row" { print substr( $0, 5 ) ; }' )"
+	regTags="$regTags"$'\n'"$( printf '%s\n' "$regText" | LC_ALL=C awk -F'\t' '$1 == "tag" { print substr( $0, 5 ) ; }' )"
+	## Registered tooling workspaces without agents: their own declares, `.` their own root.
+	while IFS= read -r regRoot ; do
+		[ -n "$regRoot" ] && [ "$regRoot" != "$regWs" ] && [ -d "$regRoot/source" ] || continue
+		[ ! -f "$regRoot/.local/agents/members.registry" ] || continue
+		regOtherName="${regRoot##*/}" ; regOtherRc=0
+		regOtherText="$( AgentsToolsWorkspaceSwitch "$regRoot" ; AgentsToolsGrantsDeclaredText "$regRoot" "$regOp" )" || regOtherRc=$?
+		if [ "$regOtherRc" = 0 ] ; then
+			regRows="$regRows"$'\n'"$( printf '%s\n' "$regOtherText" | LC_ALL=C sed -n 's/^row	//p' )"
+			regTags="$regTags"$'\n'"$( printf '%s\n' "$regOtherText" | LC_ALL=C sed -n 's/^tag	//p' )"
+		else
+			[ "$regOtherRc" = 3 ] || echo "🙋 WARNING: $regOp: the grants $regRoot declares were not all read, its rows are kept as they stood" >&2
+			regRows="$regRows"$'\n'"$( printf '%s\n' "$regOld" | LC_ALL=C awk -F: -v ws="$regOtherName" 'NF >= 4 && $2 == ws' )"
+		fi
+	done <<< "$agentsGrantsRoots"
+	## Each workspace's rows are its own data, rewritten whole under its lock, and only when
+	## they change; every other workspace's are theirs and never touched.
+	mkdir -p "${regFile%/*}" || { echo "⛔ ERROR: $regOp: cannot create ${regFile%/*}" >&2 ; return 1 ; }
+	regLock="$regFile.lock"
+	until mkdir "$regLock" 2> /dev/null ; do
+		regWait=$(( regWait + 1 ))
+		if [ "$regWait" -ge 10 ] ; then
+			echo "⛔ ERROR: $regOp: permissions registry busy, lock not acquired after $regWait attempts: $regLock -- no grant was reconciled for workspace $regName" >&2
+			return 1
+		fi
+		sleep 1
+	done
+	regRc=0
+	printf '%s\n' "$regRows" | LC_ALL=C awk 'NF && !seenRow[$0]++' > "$regFile.tmp.$$" || regRc=1
+	if [ "$regRc" = 0 ] && ! cmp -s "$regFile.tmp.$$" "$regFile" ; then
+		mv -f "$regFile.tmp.$$" "$regFile" || regRc=1
+	fi
+	rm -f "$regFile.tmp.$$" 2> /dev/null
+	if [ "$regRc" = 0 ] ; then
+		{ printf '%s\n' "# generated by $regOp -- do not hand-edit, this file is fully rewritten on every run" ; printf '%s\n' "$regTags" | LC_ALL=C awk 'NF && !seenTag[$0]++' ; } > "$regTagsFile.tmp.$$" \
+			&& { cmp -s "$regTagsFile.tmp.$$" "$regTagsFile" || mv -f "$regTagsFile.tmp.$$" "$regTagsFile" ; } || regRc=1
+		rm -f "$regTagsFile.tmp.$$" 2> /dev/null
+	fi
+	rmdir "$regLock" 2> /dev/null || :
+	if [ "$regRc" != 0 ] ; then
+		echo "⛔ ERROR: $regOp: permissions registry rewrite failed for workspace $regName" >&2
+		return 1
+	fi
+	AgentsToolsTeamGrantPointerUpsert "$regWs" || {
+		echo "⛔ ERROR: $regOp: could not record $regWs in $( AgentsToolsTeamSharedGrants )" >&2
+		return 1
+	}
+	echo "# $regOp: wrote $regFile ($( printf '%s\n' "$regRows" | LC_ALL=C awk 'NF && !seenRow[$0]++' | LC_ALL=C grep -c . ) rows)" >&2
+	return 0
+}
+
+## ---- the session's own index -------------------------------------------------------------
+
+## The session stores a session's grants are read from, one directory per line, each once:
+## its own, the coworking session's it joined, the parent session's that spawned it, by its
+## spawn record (AgentsToolsPermissionRelatedStores), read with builtins.
+AgentsToolsGrantsSessionStores(){ ## workspace, session id
+	local storesWs="${1%/}" storesRecord storesLine storesFront storesCow="" storesParent="" storesSeen=$'\n' storesOne
+	for storesRecord in "$storesWs/.local/agents/spawned"/*/"$2.md" ; do
+		[ -f "$storesRecord" ] || continue
+		storesFront=""
+		while IFS= read -r storesLine ; do
+			case "$storesFront:$storesLine" in
+				':---') storesFront=1 ;;
+				'1:---'|'1:# '*) break ;;
+				'1:session-id: '*) storesCow="${storesLine#session-id: }" ;;
+				'1:parent-spawn-id: '*) storesParent="${storesLine#parent-spawn-id: }" ;;
+				':'*) break ;;
+			esac
+		done < "$storesRecord"
+		break
+	done
+	for storesOne in "$2" "$storesCow" "$storesParent" ; do
+		case "$storesOne" in ''|*/*|.|..) continue ;; esac
+		case "$storesSeen" in *$'\n'"$storesOne"$'\n'*) continue ;; esac
+		storesSeen="$storesSeen$storesOne"$'\n'
+		printf '%s\n' "$storesWs/.local/agents/sessions/$storesOne"
+	done
+}
+
+## Whether a session store's session has ended, by builtins only: its spawn record
+## (spawned/*/<id>.md) closed with a spawn-* status other than spawn-started. A session with
+## no spawn record (a root session: the human-owner's own, an interactive native console) ends
+## by its client's SessionEnd hook instead (client-hooks/root-session-end.sh): an `ended`
+## marker in its own store, which a resume removes. rc 0 ended, 1 not.
+AgentsToolsGrantsSessionEnded(){ ## session store directory
+	local endedStore="${1%/}" endedRoot endedId endedRecord endedLine endedFront endedSeen=""
+	endedRoot="$endedStore"
+	endedId="${endedRoot##*/}" ; endedRoot="${endedRoot%/*}" ; endedRoot="${endedRoot%/*}/spawned"
+	case "$endedId" in ''|.|..) return 1 ;; esac
+	for endedRecord in "$endedRoot"/*/"$endedId.md" ; do
+		[ -f "$endedRecord" ] || continue
+		endedSeen=1
+		endedFront=""
+		while IFS= read -r endedLine ; do
+			case "$endedFront:$endedLine" in
+				':---') endedFront=1 ;;
+				'1:status: spawn-started') return 1 ;;
+				'1:status: spawn-'*) return 0 ;;
+				'1:---'|'1:# '*|':'*) break ;;
+			esac
+		done < "$endedRecord"
+	done
+	[ -z "$endedSeen" ] && [ -e "$endedStore/ended" ]
+}
+
+## ---- one member's runs on one board item ---------------------------------------------------
+
+## A session grant is given to one run, and a review return or a resume starts that run again
+## under a new id. So it holds for every run of the same member on the same board item in the
+## same coworking session, until the item is closed or that session ends, and never for another
+## member, another item or another session. What one run shares that way, read off the spawn
+## records with one awk (AgentsGrantsItemRuns.awk): agentsGrantsItemRunsItem, the item it works;
+## agentsGrantsItemRunsSession, the store of the coworking session whose end ends it, empty
+## where one of these runs started that session, which then lasts while the item is open; and
+## agentsGrantsItemRunsStores, the stores of the member's other runs there, one directory per
+## line. rc 1, with all three empty, when the run has no record, is another member's, works no
+## item, or is the only one.
+## A task grant given to one run is read from those same stores, and lives as ever while the
+## item it names is open, whatever became of that session.
+AgentsToolsGrantsItemRuns(){ ## workspace, session id, member
+	local runsWs="${1%/}" runsRecord runsFound="" runsKind runsValue runsItem="" runsSession="" runsStores=""
+	agentsGrantsItemRunsItem="" ; agentsGrantsItemRunsSession="" ; agentsGrantsItemRunsStores=""
+	case "$2" in ''|*/*|.|..) return 1 ;; esac
+	[ -n "$runsWs" ] && [ -n "$3" ] || return 1
+	## No record, no awk: a root session has none.
+	for runsRecord in "$runsWs/.local/agents/spawned"/*/"$2.md" ; do
+		[ ! -f "$runsRecord" ] || { runsFound=1 ; break ; }
+	done
+	[ -n "$runsFound" ] || return 1
+	while IFS=$'\t' read -r runsKind runsValue ; do
+		case "$runsKind" in
+			item) runsItem="$runsValue" ;;
+			session) [ "$runsValue" = "-" ] || runsSession="$runsWs/.local/agents/sessions/$runsValue" ;;
+			store) runsStores="$runsStores$runsWs/.local/agents/sessions/$runsValue"$'\n' ;;
+		esac
+	done < <( agentsGrantsItemRunsMember="$3" agentsGrantsItemRunsOwn="$2" LC_ALL=C awk -f "$agentsGrantsHere/grants/AgentsGrantsItemRuns.awk" "$runsWs/.local/agents/spawned"/*/*.md 2> /dev/null )
+	[ -n "$runsItem" ] && [ -n "$runsStores" ] || return 1
+	agentsGrantsItemRunsItem="$runsItem" ; agentsGrantsItemRunsSession="$runsSession" ; agentsGrantsItemRunsStores="${runsStores%$'\n'}"
+	return 0
+}
+
+## Whether what a member's runs on one item share is still live, by builtins only: the item is
+## on the board in an open state, and the coworking session has not ended. Without the team
+## data root the item cannot be read, and nothing is live.
+AgentsToolsGrantsItemRunsLive(){ ## item, coworking session store (may be empty)
+	local liveState
+	[ -n "$1" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+	[ -z "$2" ] || ! AgentsToolsGrantsSessionEnded "$2" || return 1
+	for liveState in ${agentsPermissionOpenStates:-running review blocked pending backlog parked} ; do
+		[ ! -f "$MDAT_DATA_ROOT/board/$liveState/$1.md" ] || return 0
+	done
+	return 1
+}
+
+## The lines AgentsGrantsSessionIndex.awk reads those stores by (ENVIRON
+## agentsGrantsItemRuns), from what AgentsToolsGrantsItemRuns set: one `<store><TAB><item><TAB>
+## <coworking session store, or -><TAB><only, task, or empty>` line each, `only` for a store that
+## is none of the session's own, listed one per line in the first argument. With `task` as the
+## second, what those runs share for the session has ended: such a store is marked `task`, to be
+## read for its task grants alone, and a store of the session's own gets no line.
+AgentsToolsGrantsItemRunsLines(){ ## the session's own stores, one per line; task (optional)
+	local linesStore linesOnly
+	while IFS= read -r linesStore ; do
+		[ -n "$linesStore" ] || continue
+		linesOnly="${2:-only}"
+		case $'\n'"$1"$'\n' in *$'\n'"$linesStore"$'\n'*) [ -z "${2:-}" ] || continue ; linesOnly="" ;; esac
+		printf '%s\t%s\t%s\t%s\n' "$linesStore" "$agentsGrantsItemRunsItem" "${agentsGrantsItemRunsSession:--}" "$linesOnly"
+	done <<< "$agentsGrantsItemRunsStores"
+}
+
+## The header a session index is built under: its format, the member, and the floor it adds.
+AgentsToolsGrantsSessionHeader(){ ## member, sandbox input, sandbox output, origin skillset -- sets agentsGrantsSessionHeader
+	agentsGrantsSessionHeader="$agentsGrantsSessionVersion"$'\t'"$1"$'\t'"$2"$'\t'"$3"$'\t'"$4"
+}
+
+## Whether a session index is current, by builtins only: its header is this one, and it is
+## strictly newer than the grants index and than the `grants` of every store it joined -- a
+## grant opened in the very second it was built is never missed.
+AgentsToolsGrantsSessionFresh(){ ## session index file, header, grants index file
+	local sessionLine="" sessionKind sessionDir
+	[ -f "$1" ] && [ -n "$3" ] && [ "$1" -nt "$3" ] || return 1
+	{
+		IFS= read -r sessionLine || return 1
+		[ "$sessionLine" = "$2" ] || return 1
+		while IFS=$'\t' read -r sessionKind sessionDir ; do
+			[ "$sessionKind" = store ] || break
+			[ ! -e "$sessionDir/grants" ] || [ "$1" -nt "$sessionDir/grants" ] || return 1
+		done
+	} < "$1"
+	return 0
+}
+
+## The session index on stdout, with one awk, from the current grants index, and for a session
+## with a spawn record one more over the spawn records first: the stores of the member's other
+## runs on the same board item are joined too, for the session and task grants those runs share
+## (AgentsToolsGrantsItemRuns). The header, the sandbox folders, the origin and the stores go
+## to the awk in the environment: they are text, and -v decodes a backslash in a value and
+## takes no newline in every awk. The sandbox folders come resolved; this origin's skillset is
+## resolved here, at the rebuild only.
+AgentsToolsGrantsSessionText(){ ## workspace, member, session id, sandbox input, sandbox output, origin skillset
+	local textStore textRest textFiles=() agentsGrantsEnded="" agentsGrantsStores agentsGrantsItemRuns=""
+	local agentsGrantsSessionHeader agentsGrantsSandboxIn="$4" agentsGrantsSandboxOut="$5" agentsGrantsOrigin=""
+	[ -z "$6" ] || agentsGrantsOrigin="$( cd "$6" 2> /dev/null && pwd -P )" || agentsGrantsOrigin=""
+	agentsGrantsStores="$( AgentsToolsGrantsSessionStores "$1" "$3" )"
+	if AgentsToolsGrantsItemRuns "$1" "$3" "$2" ; then
+		agentsGrantsItemRuns="$( AgentsToolsGrantsItemRunsLines "$agentsGrantsStores" )"
+		while IFS=$'\t' read -r textStore textRest ; do
+			case "$textRest" in *$'\t'only) agentsGrantsStores="$agentsGrantsStores"$'\n'"$textStore" ;; esac
+		done <<< "$agentsGrantsItemRuns"
+	fi
+	while IFS= read -r textStore ; do
+		[ -n "$textStore" ] && [ -f "$textStore/grants" ] || continue
+		textFiles+=( "$textStore/grants" )
+		## A store whose session has ended: its session grants are dropped here.
+		! AgentsToolsGrantsSessionEnded "$textStore" || agentsGrantsEnded="$agentsGrantsEnded$textStore"$'\n'
+	done <<< "$agentsGrantsStores"
+	AgentsToolsGrantsSessionHeader "$2" "$4" "$5" "$6"
+	export agentsGrantsEnded agentsGrantsStores agentsGrantsItemRuns
+	export agentsGrantsSessionHeader agentsGrantsSandboxIn agentsGrantsSandboxOut agentsGrantsOrigin
+	if [ -n "$agentsGrantsIndexFile" ] ; then
+		LC_ALL=C awk -v member="$2" \
+			-f "$agentsGrantsHere/grants/AgentsGrantsPattern.awk" -f "$agentsGrantsHere/grants/AgentsGrantsSessionIndex.awk" \
+			"$agentsGrantsIndexFile" ${textFiles[@]+"${textFiles[@]}"}
+	else
+		printf '%s\n' "$agentsGrantsIndexText" | LC_ALL=C awk -v member="$2" \
+			-f "$agentsGrantsHere/grants/AgentsGrantsPattern.awk" -f "$agentsGrantsHere/grants/AgentsGrantsSessionIndex.awk" \
+			- ${textFiles[@]+"${textFiles[@]}"}
+	fi
+}
+
+## A current session index: agentsGrantsSessionFile names it, or agentsGrantsSessionText holds
+## it, in memory, where there is no session or its store cannot be written. Rebuilt
+## (AgentsToolsGrantsSessionText) only when the grants index or a joined store's grants are
+## newer, in the sibling way: into a temp file of its own beside it (mktemp, never $$), then
+## mv -f, the old one kept on a failure.
+## rc 1 with neither.
+AgentsToolsGrantsSessionEnsure(){ ## workspace, member, session id (may be empty), sandbox input, sandbox output, origin skillset
+	local ensureWs="${1%/}" ensureDir ensureFile ensureTemp
+	agentsGrantsSessionFile="" ; agentsGrantsSessionText=""
+	AgentsToolsGrantsIndexEnsure "$ensureWs" || return 1
+	AgentsToolsGrantsSessionHeader "$2" "$4" "$5" "$6"
+	case "$3" in
+		''|*/*|.|..) ensureFile="" ;;
+		*) ensureDir="$ensureWs/.local/agents/sessions/$3" ; ensureFile="$ensureDir/permissions.$2.index" ;;
+	esac
+	if [ -n "$ensureFile" ] && [ -n "$agentsGrantsIndexFile" ] ; then
+		if AgentsToolsGrantsSessionFresh "$ensureFile" "$agentsGrantsSessionHeader" "$agentsGrantsIndexFile" ; then
+			agentsGrantsSessionFile="$ensureFile" ; return 0
+		fi
+		[ -d "$ensureDir" ] || mkdir -p "$ensureDir" 2> /dev/null || :
+		if [ -d "$ensureDir" ] && [ -w "$ensureDir" ] ; then
+			ensureTemp="$( mktemp "$ensureFile.XXXXXX" 2> /dev/null )" || ensureTemp=""
+			if [ -n "$ensureTemp" ] && ( AgentsToolsGrantsSessionText "$ensureWs" "$2" "$3" "$4" "$5" "$6" ) > "$ensureTemp" ; then
+				chmod 644 "$ensureTemp" && mv -f -- "$ensureTemp" "$ensureFile" && { agentsGrantsSessionFile="$ensureFile" ; return 0 ; }
+			fi
+			[ -z "$ensureTemp" ] || rm -f -- "$ensureTemp"
+			echo "⛔ ERROR: grants: the session permission index of $3 could not be built -- $ensureFile left unchanged" >&2
+			[ ! -f "$ensureFile" ] || { agentsGrantsSessionFile="$ensureFile" ; return 0 ; }
+		fi
+	fi
+	agentsGrantsSessionText="$( AgentsToolsGrantsSessionText "$ensureWs" "$2" "$3" "$4" "$5" "$6" )" || { agentsGrantsSessionText="" ; return 1 ; }
+	return 0
+}
+
+## One file-tool call decided by the session index rows on stdin, by builtins only. The
+## ceiling first: a write tool in a read-only place is refused, rc 3, agentsGrantsCheckPlace
+## its name. Then the rows in order: rc 0 admitted, agentsGrantsCheckLayer saying by what; for
+## a floor or standing row agentsGrantsCheckFrom its origin in the grants index, `floor` or
+## <workspace>:<kind>; for an Allow once agentsGrantsCheckOnce its refusal id, for its caller
+## to use up. A once row's expiry, its use, a task row's open item, a session row's end, and a
+## runs row's open item and coworking session are checked only on the row that matches; the
+## expiry with one `date`. A session, runs or task row of Edit or Write admits a read of its
+## path too (AgentsToolsGrantsToolCovers). rc 1 when no row admits the call.
+## An approve row stands ahead of the allow rows. A call one covers is admitted by no floor or
+## standing row after it: only by a session, runs, task or once row, a grant given for that
+## work. With none, rc 4: held for approval, agentsGrantsCheckLayer `approve <standing>` and
+## agentsGrantsCheckFrom the origin of that row, for its caller to keep the change and show
+## it, never to apply it (AgentsHarnessFileGate, AgentsUniversalHarness.sh).
+AgentsToolsGrantsSessionCheckRows(){ ## tool, resolved path, own session store
+	local checkKind checkA checkB checkC checkD checkE checkWrite="" checkCeiling="" checkState checkNow checkTtl checkApprove="" checkApproveFrom=""
+	agentsGrantsCheckLayer="" ; agentsGrantsCheckOnce="" ; agentsGrantsCheckPlace="" ; agentsGrantsCheckFrom=""
+	case " Edit Write Execute " in *" $1 "*) checkWrite=1 ;; esac
+	while IFS=$'\t' read -r checkKind checkA checkB checkC checkD checkE ; do
+		case "$checkKind" in
+			ceiling)
+				[ -n "$checkWrite" ] && [ -z "$checkCeiling" ] || continue
+				[[ $2 == $checkA ]] || continue
+				checkCeiling=1
+				[ "$checkB" = read-only ] || continue
+				agentsGrantsCheckPlace="$checkC"
+				return 3
+			;;
+			approve)
+				[ -z "$checkApprove" ] || continue
+				case "$checkA" in *" $1 "*) ;; *) continue ;; esac
+				[[ $2 == $checkB ]] || continue
+				checkApprove="$checkC" ; checkApproveFrom="$checkD"
+			;;
+			allow)
+				## Never ahead of an approval: only a grant given for the work admits such a call.
+				[ -z "$checkApprove" ] || continue
+				case "$checkA" in *" $1 "*) ;; *) continue ;; esac
+				[[ $2 == $checkB ]] || continue
+				agentsGrantsCheckLayer="$checkC" ; agentsGrantsCheckFrom="$checkD"
+				return 0
+			;;
+			session)
+				AgentsToolsGrantsToolCovers "$checkA" "$1" && [[ $2 == $checkB ]] || continue
+				## Its session may have ended since the rebuild: a joined store's end touches nothing here.
+				[ -z "$checkD" ] || ! AgentsToolsGrantsSessionEnded "$checkD" || continue
+				agentsGrantsCheckLayer="session $checkC"
+				return 0
+			;;
+			runs)
+				AgentsToolsGrantsToolCovers "$checkA" "$1" && [[ $2 == $checkB ]] || continue
+				## Given to another run of the member on the same item: while that item is open and that session runs.
+				[ "$checkE" != "-" ] || checkE=""
+				AgentsToolsGrantsItemRunsLive "$checkD" "$checkE" || continue
+				agentsGrantsCheckLayer="session $checkC"
+				return 0
+			;;
+			task)
+				AgentsToolsGrantsToolCovers "$checkA" "$1" && [[ $2 == $checkB ]] || continue
+				[ -n "${MDAT_DATA_ROOT:-}" ] || continue
+				for checkState in ${agentsPermissionOpenStates:-running review blocked pending backlog parked} ; do
+					[ ! -f "$MDAT_DATA_ROOT/board/$checkState/$checkC.md" ] || { agentsGrantsCheckLayer="task $checkC" ; return 0 ; }
+				done
+			;;
+			once)
+				[ "$checkA" = "$1" ] && [[ $2 == $checkB ]] || continue
+				[ ! -d "$3/consumed/$checkD" ] || continue
+				checkTtl="${MDAT_PERMISSION_ONCE_TTL:-300}"
+				case "$checkTtl" in ''|*[!0123456789]*) checkTtl=300 ;; esac
+				[ "$checkTtl" -gt 0 ] || checkTtl=300
+				checkNow="$( date -u +%s )" || continue
+				case "$checkNow" in ''|*[!0123456789]*) continue ;; esac
+				[ $(( checkNow - checkC )) -le "$checkTtl" ] || continue
+				agentsGrantsCheckLayer="once $checkD" ; agentsGrantsCheckOnce="$checkD"
+				return 0
+			;;
+			end) break ;;
+		esac
+	done
+	[ -z "$checkApprove" ] || { agentsGrantsCheckLayer="approve $checkApprove" ; agentsGrantsCheckFrom="$checkApproveFrom" ; return 4 ; }
+	return 1
+}
+
+## The same decision against the current session index, file or memory.
+AgentsToolsGrantsSessionCheck(){ ## tool, resolved path, own session store
+	if [ -n "$agentsGrantsSessionFile" ] ; then
+		AgentsToolsGrantsSessionCheckRows "$1" "$2" "$3" < "$agentsGrantsSessionFile"
+	else
+		AgentsToolsGrantsSessionCheckRows "$1" "$2" "$3" <<< "$agentsGrantsSessionText"
+	fi
+}
+
+## Whether the call that check decided last was decided by magic-librarian's standing write on
+## a team member's skill file (AgentsToolsGrantsMemberSkills), by the origin of its row: a
+## read it admitted, or an Edit or a Write it holds for approval (rc 4).
+AgentsToolsGrantsCheckSkillset(){
+	case "$agentsGrantsCheckFrom" in ?*:skillset) return 0 ;; esac
+	return 1
+}
+
+## A session store's grants changed: opening, using up or revoking a grant touches the
+## store's `grants`, so every session index joining that store is rebuilt at its next check.
+AgentsToolsGrantsStoreTouch(){ ## session store directory
+	[ -d "$1" ] || return 0
+	touch "$1/grants" 2> /dev/null || :
+}
+
+## --intern-op-permission-list's rows (AgentsGrantsSessionIndex.awk, mode list): the member's
+## floor and standing rows of the grants index, then its live grants in every session store,
+## or in one session's own, coworking and parent stores. Each store's end and used-up once
+## grants are read here, for the awk. So are the session grants that hold for the member's
+## other runs on the same board item, while they are live (AgentsToolsGrantsItemRuns): with a
+## session, those of its other runs, and those runs' task grants, live or not; with none, those
+## of every ended run of the member.
+AgentsToolsGrantsMemberList(){ ## workspace, member, session id (may be empty)
+	local listWs="${1%/}" listStores listStore listUsed listFiles=() listTtl listRest listKind listRun listItem listCow listShared=""
+	local agentsGrantsEnded="" agentsGrantsUsed="" agentsGrantsBoard="${MDAT_DATA_ROOT:+$MDAT_DATA_ROOT/board}" agentsGrantsItemRuns=""
+	local agentsGrantsOpenStates="${agentsPermissionOpenStates:-running review blocked pending backlog parked}"
+	AgentsToolsGrantsIndexEnsure "$listWs" || return 1
+	if [ -n "$3" ] ; then
+		listStores="$( AgentsToolsGrantsSessionStores "$listWs" "$3" )"
+		if AgentsToolsGrantsItemRuns "$listWs" "$3" "$2" ; then
+			AgentsToolsGrantsItemRunsLive "$agentsGrantsItemRunsItem" "$agentsGrantsItemRunsSession" || listShared=task
+			agentsGrantsItemRuns="$( AgentsToolsGrantsItemRunsLines "$listStores" "$listShared" )"
+			while IFS=$'\t' read -r listStore listRest ; do
+				case "$listRest" in *$'\t'only|*$'\t'task) listStores="$listStores"$'\n'"$listStore" ;; esac
+			done <<< "$agentsGrantsItemRuns"
+		fi
+	else
+		listStores="$( for listStore in "$listWs/.local/agents/sessions"/*/grants ; do [ ! -f "$listStore" ] || printf '%s\n' "${listStore%/grants}" ; done )"
+		if [ -d "$listWs/.local/agents/spawned" ] ; then
+			while IFS=$'\t' read -r listKind listRun listItem listCow ; do
+				[ "$listKind" = run ] || continue
+				listStore="$listWs/.local/agents/sessions/$listRun"
+				[ -f "$listStore/grants" ] && AgentsToolsGrantsSessionEnded "$listStore" || continue
+				if [ "$listCow" = "-" ] ; then listCow="" ; else listCow="$listWs/.local/agents/sessions/$listCow" ; fi
+				AgentsToolsGrantsItemRunsLive "$listItem" "$listCow" || continue
+				agentsGrantsItemRuns="$agentsGrantsItemRuns$listStore"$'\t'"$listItem"$'\t'"${listCow:--}"$'\t\n'
+			done < <( agentsGrantsItemRunsMember="$2" agentsGrantsItemRunsOwn="" LC_ALL=C awk -f "$agentsGrantsHere/grants/AgentsGrantsItemRuns.awk" "$listWs/.local/agents/spawned"/*/*.md 2> /dev/null )
+		fi
+	fi
+	while IFS= read -r listStore ; do
+		[ -n "$listStore" ] && [ -f "$listStore/grants" ] || continue
+		listFiles+=( "$listStore/grants" )
+		! AgentsToolsGrantsSessionEnded "$listStore" || agentsGrantsEnded="$agentsGrantsEnded$listStore"$'\n'
+		for listUsed in "$listStore/consumed"/* ; do
+			[ ! -d "$listUsed" ] || agentsGrantsUsed="$agentsGrantsUsed$listUsed"$'\n'
+		done
+	done <<< "$listStores"
+	listTtl="${MDAT_PERMISSION_ONCE_TTL:-300}"
+	case "$listTtl" in ''|*[!0123456789]*) listTtl=300 ;; esac
+	[ "$listTtl" -gt 0 ] || listTtl=300
+	export agentsGrantsEnded agentsGrantsUsed agentsGrantsBoard agentsGrantsOpenStates agentsGrantsItemRuns
+	{ if [ -n "$agentsGrantsIndexFile" ] ; then cat "$agentsGrantsIndexFile" ; else printf '%s\n' "$agentsGrantsIndexText" ; fi ; } \
+		| LC_ALL=C awk -v mode=list -v member="$2" -v now="$( date -u +%s )" -v ttl="$listTtl" \
+			-f "$agentsGrantsHere/grants/AgentsGrantsPattern.awk" -f "$agentsGrantsHere/grants/AgentsGrantsSessionIndex.awk" \
+			- ${listFiles[@]+"${listFiles[@]}"}
+}

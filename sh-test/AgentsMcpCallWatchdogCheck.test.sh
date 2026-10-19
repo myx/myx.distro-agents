@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the signals one request of the myx.distro MCP server sends
-## (sh-lib/AgentsTools.InternMcpRequest.include), each run rather than read: the watchdog of a call that is waited
+## (sh-lib/mcp/AgentsTools.InternMcpRequest.include), each run rather than read: the watchdog of a call that is waited
 ## for, a served harness tool or a script of `execute` (AgentsMcpCallWatch), and the kill action of a background
 ## job. Each ends a process group by its number, `kill -- -<pid>`, and a pid is a number the system gives again:
 ## the watchdog wakes at its bound, up to hours after it was started, and where its handler was ended hard nobody
@@ -10,7 +10,7 @@
 ## stays as the scenario says, with the rig's own process list for the one reading a process is kept by (its pid,
 ## its state, when it began) and the rig's own clock (the 3600 seconds of a served call pass in three, the five
 ## between the polite end and the hard one in three). Held here:
-##   1. THE GROUP OF A KEPT PROCESS (sh-lib/AgentsTools.Registries.include), on stand-in groups of this check's
+##   1. THE GROUP OF A KEPT PROCESS (myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include), on stand-in groups of this check's
 ##      own: AgentsToolsRegistryGroupBegan gives the members of a group only while its leader is still the process
 ##      that was kept, and nothing for the same number begun at another time or kept with no start;
 ##      AgentsToolsRegistryGroupLeft gives, once the leader has ended, the kept members that are still themselves
@@ -48,8 +48,8 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigSource="${MDLT_ORIGIN:=$MMDAPP/.local}"
 rigPackage="$rigSource/myx/myx.distro-agents"
-rigInclude="$rigPackage/sh-lib/AgentsTools.InternMcpRequest.include"
-rigRegistries="$rigPackage/sh-lib/AgentsTools.Registries.include"
+rigInclude="$rigPackage/sh-lib/mcp/AgentsTools.InternMcpRequest.include"
+rigRegistries="$rigPackage/../myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
 rigHelper="$rigPackage/sh-test/check-fixtures/rig-processes.include.sh"
 
 rigRefuse(){
@@ -96,7 +96,7 @@ rigTool="$rigTmp/origin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh
 ## no place, and leaves none of the scenario's marks.
 ## With RIG_CALL=place-hangs it stays for the seconds given first, as a harness that does not answer it, says
 ## that it came to its own end, and then names a place. Asked again, it names the place at once.
-cat > "$rigTmp/origin/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" <<'RIGHARNESS'
+cat > "$rigTmp/origin/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" <<'RIGHARNESS'
 #!/usr/bin/env bash
 [ "${1:-}/${RIG_CALL:-}" != --intern-checklist-place/place-hangs ] || { [ -e "$RIG_DIR/place.pid" ] || { sleep "$RIG_STAYS" & echo "$!" > "$RIG_DIR/place.pid" ; wait "$!" ; : > "$RIG_DIR/place.ended" ; } ; echo "CHECKLIST-PLACE: $RIG_DIR" ; exit 0 ; }
 [ "${1:-}" != --intern-checklist-place ] || { echo "ERROR: the rig keeps no checklist" ; exit 0 ; }
@@ -154,7 +154,7 @@ case "$*" in
 esac
 exec "$RIG_REAL_PS" "$@"
 RIGPS
-chmod +x "$rigTmp/bin/sleep" "$rigTmp/bin/ps" "$rigTmp/origin/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh"
+chmod +x "$rigTmp/bin/sleep" "$rigTmp/bin/ps" "$rigTmp/origin/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh"
 
 rigPasses=0 rigFails=0
 rigAssert(){ ## what is asserted, got, want

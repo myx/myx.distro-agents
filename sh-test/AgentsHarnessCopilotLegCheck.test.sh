@@ -11,7 +11,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigLeaf="$rigHere/AgentsCopilotHarness.sh"
+rigLeaf="$rigHere/harness/AgentsCopilotHarness.sh"
 
 ## Refusing to report is this function's whole job: a rig that could not reach its
 ## subject must never reach its PASS lines, which read exactly like a result.
@@ -311,7 +311,7 @@ rigStart e-hook-denies
 ## the only place our harness takes hooks from.
 mkdir -p "$rigScenarioDir/.local/agents"
 (
-	harnessHere="$rigHere" ; . "$rigHere/AgentsHarnessHooksLoad.include" && AgentsHarnessHooksRecordsComputed \
+	harnessHere="$rigHere" ; . "$rigHere/harness/AgentsHarnessHooksLoad.include" && AgentsHarnessHooksRecordsComputed \
 		&& AgentsHarnessHooksIndexText "$agentsHooksRecords"$'PreToolUse\tall\trig-record\t*\t'"$rigTmp/bin/rigdeny"$'\t\n'
 ) > "$rigScenarioDir/.local/agents/harness.hooks.index" || { echo "⛔ ERROR: the rig's hook index could not be written -- refusing to report a result" >&2 ; exit 1 ; }
 rigWriteStream "$rigScenarioDir/res.1" "$rigScenarioDir/RIG-ARG-MARKER.txt" RIG-WRITTEN-MARKER

@@ -19,9 +19,9 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-rigHarness="$rigLib/AgentsUniversalHarness.sh"
+rigHarness="$rigLib/harness/AgentsUniversalHarness.sh"
 ## The name of the address field, read where it is held, so a rename is one line there.
-rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" )"
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" )"
 rigFixture="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/review-prompt.curl.stub.sh"
 rigTemplate="$rigLib/templates/review-prompt.post.format.md"
 
@@ -210,7 +210,7 @@ rigReacted(){ ## reactions|reactions.removed
 	LC_ALL=C awk -v want="$( rigField question-ts )" '$1 == want { out = out ( out == "" ? "" : " " ) $2 ; } END { print out ; }' "$rigDir/$1" 2> /dev/null
 }
 rigFill(){ ## want -- the template filled straight, the slots from the caller's environment
-	ASKP_WANT="$1" ASKP_FORM=verdict LC_ALL=C awk -f "$rigLib/AgentsToolingTemplateFill.awk" -f "$rigLib/AgentsAskPostFill.awk" "$rigTemplate" 2>&1
+	ASKP_WANT="$1" ASKP_FORM=verdict LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$rigLib/questions/AgentsAskPostFill.awk" "$rigTemplate" 2>&1
 }
 
 echo "-- 0. the template: the post, the post that takes no answer any more, the emoji --"

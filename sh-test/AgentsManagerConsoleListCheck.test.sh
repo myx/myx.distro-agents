@@ -25,7 +25,7 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigDriver="$rigPackage/sh-test/check-fixtures/manager-screen.driver.py"
-rigScreenFile="$rigHere/AgentsManagerScreen.py"
+rigScreenFile="$rigHere/manager/AgentsManagerScreen.py"
 rigOp="--manager-console-list"
 
 rigRefuse(){
@@ -91,9 +91,9 @@ rigStandIns(){ ## workspace -- all four
 rigStandIns "$rigWs"
 
 rigReason="this is the bash shell of the workspace, started by its own name from the list of consoles."
-rigRc="$rigHere/console-agents-bashrc.rc"
+rigRc="$rigHere/manager/console-agents-bashrc.rc"
 rigRowBash(){ ## workspace
-	printf 'console\tbash\tshell\tBash_Shell\tterminal\t%s\t%s\tMMDAPP=%s\tMDLT_ORIGIN=%s\tMDAT_CONSOLE_FALLBACK_REASON=%s\t%s\t--rcfile\t%s\t-i\n' "$1" "$rigEnv" "$1" "$MDLT_ORIGIN" "$rigReason" "$rigBash" "$rigHere/console-agents-bashrc.rc"
+	printf 'console\tbash\tshell\tBash_Shell\tterminal\t%s\t%s\tMMDAPP=%s\tMDLT_ORIGIN=%s\tMDAT_CONSOLE_FALLBACK_REASON=%s\t%s\t--rcfile\t%s\t-i\n' "$1" "$rigEnv" "$1" "$MDLT_ORIGIN" "$rigReason" "$rigBash" "$rigHere/manager/console-agents-bashrc.rc"
 }
 rigRowCli(){ ## workspace, name, label
 	printf 'console\t%s\tagents\t%s\tterminal\t%s\t%s/DistroAgentsConsole.sh\t--cli\t%s\n' "$2" "$3" "$1" "$1" "$2"
@@ -215,9 +215,9 @@ rigAssert "an argument is refused, rc 1, nothing on stdout, in one line with its
 rigRun --manager-console-no-such
 rigAssert "an operation its subject does not have is refused by name, rc 1" "$rigRc $( rigWhole "$rigTmp/err" "DistroAgentsTools: ⛔ ERROR: invalid option: --manager-console-no-such" )" "1 1"
 rigAssert "the family has one arm for the consoles, which sources their include, and that include asks nobody who calls" \
-	"$( LC_ALL=C grep -c -x -e '	--manager-console-\*)' "$rigHere/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerConsole.include"' "$rigHere/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConsole.include" 2> /dev/null | LC_ALL=C grep -c -e 'AgentsToolsManagerCallerCheck' -e 'AgentsToolsActingMember' || : )" "1 1 0"
+	"$( LC_ALL=C grep -c -x -e '	--manager-console-\*)' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConsole.include"' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerConsole.include" 2> /dev/null | LC_ALL=C grep -c -e 'AgentsToolsManagerCallerCheck' -e 'AgentsToolsActingMember' || : )" "1 1 0"
 rigAssert "which CLI is usable is asked of the digest of the settings, and of no second test of its own" \
-	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConsole.include" 2> /dev/null | LC_ALL=C grep -c -F -e '--manager-config-digest cli' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConsole.include" 2> /dev/null | LC_ALL=C grep -c -e 'command -v claude' -e 'command -v copilot' -e 'command -v grok' -e '%-native' || : )" "1 0"
+	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerConsole.include" 2> /dev/null | LC_ALL=C grep -c -F -e '--manager-config-digest cli' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerConsole.include" 2> /dev/null | LC_ALL=C grep -c -e 'command -v claude' -e 'command -v copilot' -e 'command -v grok' -e '%-native' || : )" "1 0"
 
 echo "-- 7. the help pair --"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"

@@ -13,7 +13,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 
-for rigFile in "$rigHere/AgentsUniversalHarness.sh" "$rigTool" ; do
+for rigFile in "$rigHere/harness/AgentsUniversalHarness.sh" "$rigTool" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
@@ -87,7 +87,7 @@ rigAssert "old_text ending in a newline removes it"     "$( rigBytes e-drop )" '
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ WRITE EXACT CHECK FAILED: $rigFails assertion(s)" >&2
-	echo "  fix:  AgentsHarnessArgExact and its two callers in sh-lib/AgentsUniversalHarness.sh --" >&2
+	echo "  fix:  AgentsHarnessArgExact and its two callers in sh-lib/harness/AgentsUniversalHarness.sh --" >&2
 	echo "        never the assertion" >&2
 	exit 1
 fi

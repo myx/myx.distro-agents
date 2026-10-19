@@ -294,7 +294,7 @@ echo "-- what the one who asked is given by its Wait --"
 ## The asking session's own tool calls, served by the harness as a spawned run's are: it asks a
 ## plain question and does not wait; the console answers it, or dismisses it; its Wait on that
 ## question then returns what was done, with the words and who, and never as a bare closing.
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 [ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"
 printf 'SLACK_USER_TOKEN=rig-user-token-TESTER\n' > "$rigWs/.local/.agents/magic-tester.agent.env"
 printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"the question"}],"has_more":false}\n' > "$rigTmp/replies.json"
@@ -341,7 +341,7 @@ rigAssert "its Wait says it was dismissed from the console, by which account and
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER PENDING REPLY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2
 	echo "  warn: a pending question cannot be read, answered, rejected or dismissed from the console as its help entries say" >&2
-	echo "  fix:  repair sh-lib/AgentsTools.ManagerPendingReply.include, the console's part of the answer arm (AgentsTools.MemberEscalation.include) and of the withdraw (AgentsTools.MemberPendingReply.include), and what the asker's Wait says of a record closed that way (AgentsHarnessAskResolve, AgentsHarnessWaitAskResolve) -- never the assertion" >&2
+	echo "  fix:  repair sh-lib/manager/AgentsTools.ManagerPendingReply.include, the console's part of the answer arm (AgentsTools.MemberEscalation.include) and of the withdraw (AgentsTools.MemberPendingReply.include), and what the asker's Wait says of a record closed that way (AgentsHarnessAskResolve, AgentsHarnessWaitAskResolve) -- never the assertion" >&2
 	exit 1
 fi
 printf 'MANAGER_PENDING_REPLY: OK (%d assertions, offline)\n' "$rigPassCount"

@@ -13,7 +13,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
-rigSpawnInclude="$rigHere/AgentsTools.InternOpAgentSpawnProxy.include"
+rigSpawnInclude="$rigHere/session/AgentsTools.InternOpAgentSpawnProxy.include"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1

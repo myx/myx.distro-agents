@@ -95,8 +95,8 @@ rigRecord(){ ## id, age seconds, address-to, extra header lines (each "key: valu
 }
 rigRemind(){ ## output name [TZ]
 	## The reminders are an in-context helper with no operation: run inside the tool's own set-up context.
-	printf '%s\n' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyCollect.include"' \
-		'. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyRemind.include"' \
+	printf '%s\n' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyCollect.include"' \
+		'. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyRemind.include"' \
 		'AgentsToolsPendingReplyRemindRun || exit 1' \
 	| ( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY \
 		TZ="${2:-$rigTz}" TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
@@ -302,7 +302,7 @@ rigAssert "and the iteration goes on to its pass"          "$( [ "$( LC_ALL=C gr
 rigAssert "nothing was posted"                             "$( rigHolds "$rigDir/posted" 'Still waiting' )" no
 
 ## ---- where a reminder goes, and who drives it ----
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 [ -f "$rigHarness" ] || rigRefuse "the harness is not at: $rigHarness"
 rigEnv=()
 ## The ts of a message posted <age> seconds ago, and of the thread it was posted into.

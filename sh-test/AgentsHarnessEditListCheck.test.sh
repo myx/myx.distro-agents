@@ -14,16 +14,16 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
-rigField="$rigHere/AgentsHarnessJsonField.awk"
-rigFormat="$rigHere/AgentsSessionTranscriptFormat.awk"
-rigPost="$rigHere/AgentsTools.InternOpEventTrackPost.include"
+rigField="$rigHere/harness/AgentsHarnessJsonField.awk"
+rigFormat="$rigHere/session/AgentsSessionTranscriptFormat.awk"
+rigPost="$rigHere/session/AgentsTools.InternOpEventTrackPost.include"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 
-for rigFile in "$rigHere/AgentsUniversalHarness.sh" "$rigField" "$rigFormat" "$rigPost" "$rigTool" ; do
+for rigFile in "$rigHere/harness/AgentsUniversalHarness.sh" "$rigField" "$rigFormat" "$rigPost" "$rigTool" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
@@ -242,7 +242,7 @@ rigAssert "control: the single form's line is as it was, whatever its text holds
 
 echo "-- the tracking post line of such a call --"
 cat > "$rigTmp/lines" <<'RIG_LINES_EOF'
-2030-01-01T00:01:03Z TOOL Edit path=/w/sh-lib/AgentsUniversalHarness.sh edits=3 -> ok 40B/1L 10ms
+2030-01-01T00:01:03Z TOOL Edit path=/w/sh-lib/harness/AgentsUniversalHarness.sh edits=3 -> ok 40B/1L 10ms
 2030-01-01T00:01:04Z TOOL mcp__myx_distro__Edit path=/w/sh-lib/One.sh edits=1 -> ok 40B/1L 10ms | "Fix the one line"
 2030-01-01T00:01:05Z TOOL Edit path=/w/sh-lib/Plain.sh -> ok 40B/1L 10ms
 2030-01-01T00:01:06Z TOOL Edit path=/w/sh-lib/Bad.sh edits=2 -> error "ERROR: edit 2 of 2 failed, none was applied: old_string not found in /w/sh-lib/Bad.sh -- nothing was written" 120B/1L 3ms
@@ -268,8 +268,8 @@ rigAssert "a refused list renders as an error naming the edit" "$( rigCount '⛔
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ EDIT LIST CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2
-	echo "  fix:  the list form in AgentsHarnessToolEdit, sh-lib/AgentsUniversalHarness.sh, its declaration in" >&2
-	echo "        sh-lib/AgentsOpenAiChatWire.sh, or the Edit line of the two formatters -- never the assertion" >&2
+	echo "  fix:  the list form in AgentsHarnessToolEdit, sh-lib/harness/AgentsUniversalHarness.sh, its declaration in" >&2
+	echo "        sh-lib/harness/AgentsOpenAiChatWire.sh, or the Edit line of the two formatters -- never the assertion" >&2
 	exit 1
 fi
 printf 'HARNESS_EDIT_LIST: OK (%d assertions, served, offline)\n' "$rigPassCount"

@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpBoardRename.include -- the --intern-op-board-rename op
+## for DistroAgentsTools.fn.sh's dispatcher. Sourced lazily from that exact
+## op's own dispatcher arm via the standard $MDLT_ORIGIN-based path. Not
+## standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
+##
+
+case "$1" in
+
+	--intern-op-board-rename)
+		shift
+		local opContext="<no --context given>"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then
+				opContext="$ctxArg" ; ctxWanted="" ; continue
+			fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
+		local oldName="$1"
+		shift || true
+		local newName="$1"
+		shift || true
+		if [ -z "$oldName" ] || [ -z "$newName" ] ; then
+			echo "$MDSC_CMD: board-rename: ⛔ ERROR: syntax is <old-name> <new-name> [--do-not-track] [--processed-at:<date-time>]" >&2
+			set +e ; return 1
+		fi
+		local doNotTrack="false" processedAtOverride=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--do-not-track)
+					doNotTrack="true"
+					shift
+				;;
+				--processed-at:*)
+					processedAtOverride="${1#--processed-at:}"
+					if [ -z "$processedAtOverride" ] ; then
+						echo "$MDSC_CMD: board-rename: ⛔ ERROR: --processed-at:<date-time>: value required" >&2
+						set +e ; return 1
+					fi
+					shift
+				;;
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: board-rename: ⛔ ERROR: --context: value required" >&2
+						set +e ; return 1
+					fi
+					shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: board-rename: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		## Refused, not ignored: --do-not-track leaves no husk for --processed-at: to stamp.
+		if [ "$doNotTrack" = "true" ] && [ -n "$processedAtOverride" ] ; then
+			echo "$MDSC_CMD: board-rename: ⛔ ERROR: --processed-at: is not valid together with --do-not-track -- it stamps the husk left at board/processed/, and --do-not-track leaves no husk to stamp" >&2
+			set +e ; return 1
+		fi
+
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "$MDSC_CMD: board-rename: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local boardRoot="$MDAT_DATA_ROOT/board"
+		local f touched=0
+		local boardRenameCommitPaths=()
+		export MDAT_RENAME_OLD="$oldName"
+		export MDAT_RENAME_NEW="$newName"
+		for f in "$boardRoot"/*/*.md ; do
+			[ -f "$f" ] || continue
+			[ "${f##*/}" = "$oldName" ] && continue
+			if grep -q -F -- "$oldName" "$f" ; then
+				local tmp
+				## A file of this rename's own, by mktemp and never by $$, which every subshell of one shell shares.
+				mkdir -p "$MMDAPP/.local/temp" && tmp="$( mktemp "$MMDAPP/.local/temp/mdat-intern-op-rename.XXXXXX" )" || { set +e ; return 1 ; }
+				LC_ALL=C awk '
+					BEGIN {
+						old = ENVIRON["MDAT_RENAME_OLD"] ;
+						new = ENVIRON["MDAT_RENAME_NEW"] ;
+						oldLen = length(old) ;
+					}
+					{
+						line = $0 ;
+						out = "" ;
+						while ( oldLen > 0 && (p = index(line, old)) > 0 ) {
+							out = out substr(line, 1, p - 1) new ;
+							line = substr(line, p + oldLen) ;
+						}
+						print out line ;
+					}
+				' "$f" > "$tmp"
+				cat "$tmp" > "$f"
+				rm -f "$tmp"
+				touched=$(( touched + 1 ))
+				boardRenameCommitPaths+=( "$f" )
+			fi
+		done
+		unset MDAT_RENAME_OLD MDAT_RENAME_NEW
+
+		## Fold-in: the item move and the husk commit through
+		## --intern-op-board-upsert-move-edit below, but these cross-reference
+		## rewrites do not -- give them their own commit. .git-gated, never
+		## pushes; the sweep is confined to board/, so team-data only.
+		if [ "${#boardRenameCommitPaths[@]}" -gt 0 ] ; then
+			local repoRoot=""
+			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
+			if [ -n "$repoRoot" ] ; then
+				local ctxForMsg="$opContext"
+				if [ "$ctxForMsg" = "<no --context given>" ] ; then ctxForMsg="--intern-op-board-rename" ; fi
+				local gitOut="" gitRc=0
+				gitOut="$( git -C "$repoRoot" add -- "${boardRenameCommitPaths[@]}" 2>&1 )" || gitRc=$?
+				if [ "$gitRc" -ne 0 ] ; then
+					echo "$MDSC_CMD: board-rename: ⛔ ERROR: git add failed for sweep: $gitOut" >&2
+					set +e ; return 1
+				fi
+				gitOut="$( git -C "$repoRoot" commit -m "* renamed: $oldName -> $newName, $ctxForMsg" -- "${boardRenameCommitPaths[@]}" 2>&1 )" || gitRc=$?
+				if [ "$gitRc" -ne 0 ] ; then
+					echo "$MDSC_CMD: board-rename: ⛔ ERROR: git commit failed for sweep: $gitOut" >&2
+					set +e ; return 1
+				fi
+				echo "# $MDSC_CMD: board-rename: committed sweep ($touched reference file(s))" >&2
+			fi
+		fi
+
+		local state oldFile renamed="false"
+		for state in backlog pending running review blocked parked processed archived retained ; do
+			oldFile="$boardRoot/$state/$oldName"
+			if [ -f "$oldFile" ] ; then
+				## The move op below sees a same-state edit of the new name, so it commits
+				## that path only: the old name's removal is committed here, and only when
+				## git knew the old name -- asked before the `mv` removes it.
+				local oldTracked="false"
+				[ -z "$( git -C "$MDAT_DATA_ROOT" ls-files -- "$oldFile" 2>/dev/null )" ] || oldTracked="true"
+				mv "$oldFile" "$boardRoot/$state/$newName"
+				if ! DistroAgentsTools --intern-op-board-upsert-move-edit "$state" "$newName" --from-state:"$state" --header:upsert:supersedes:"$oldName (renamed)" --context --intern-op-board-rename ; then
+					echo "$MDSC_CMD: board-rename: ⛔ ERROR: renamed $oldFile -> $newName but failed to stamp supersedes" >&2
+					set +e ; return 1
+				fi
+				if [ "$oldTracked" = "true" ] ; then
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+					AgentsToolsTeamDataCommitPaths "renamed: $oldName -> $newName, removal of the old name" "$oldFile"
+				fi
+				renamed="true"
+				break
+			fi
+		done
+
+		## The husk is this op's own move of the old name into board/processed/. Contract: MAGIC.md.
+		if [ "$doNotTrack" = "false" ] ; then
+			local huskProcessedAt="$processedAtOverride"
+			if [ -z "$huskProcessedAt" ] ; then huskProcessedAt="$( date +"%Y-%m-%d %H:%M %z" )" ; fi
+			mkdir -p "$MDAT_DATA_ROOT/board/processed" || {
+				echo "$MDSC_CMD: board-rename: ⛔ ERROR: can't create board state directory: $MDAT_DATA_ROOT/board/processed" >&2
+				set +e ; return 1
+			}
+			if ! printf '%s\n' '---' 'type: note' "superseded-by: $newName (renamed)" '---' "Renamed to \`$newName\`." | DistroAgentsTools --intern-op-board-upsert-move-edit processed "$oldName" --create --upsert-from-stdin --header:upsert:processed-at:"$huskProcessedAt" --context --intern-op-board-rename >/dev/null ; then
+				echo "$MDSC_CMD: board-rename: ⛔ ERROR: failed to leave husk at board/processed/$oldName" >&2
+				set +e ; return 1
+			fi
+		fi
+
+		echo "# $MDSC_CMD: board-rename: $oldName -> $newName ($touched cross-reference file(s), item-renamed=$renamed, husk-left=$( [ "$doNotTrack" = "false" ] && echo true || echo false ))" >&2
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

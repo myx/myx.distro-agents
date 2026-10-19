@@ -19,8 +19,8 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
-rigWire="$rigHere/AgentsOpenAiChatWire.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
+rigWire="$rigHere/harness/AgentsOpenAiChatWire.sh"
 ## The posting member, the member whose session started it, and a third one.
 rigMember="rig-helper"
 rigLead="rig-lead"
@@ -127,7 +127,7 @@ rigFirst(){
 }
 ## The header of a post: the first line of its text, as the member send wrote it.
 rigHeader(){ ## post number (default 1)
-	LC_ALL=C awk -v path=text -v optional=1 -f "$rigHere/AgentsHarnessJsonField.awk" < "$rigScenarioDir/post.${1:-1}" 2>/dev/null | LC_ALL=C sed -n '1p'
+	LC_ALL=C awk -v path=text -v optional=1 -f "$rigHere/harness/AgentsHarnessJsonField.awk" < "$rigScenarioDir/post.${1:-1}" 2>/dev/null | LC_ALL=C sed -n '1p'
 }
 rigPostedTo(){ ## thread as <channel>:<ts> -- the first post went into it
 	LC_ALL=C grep -q -F -- "\"channel\":\"${1%%:*}\"" "$rigScenarioDir/post.1" 2>/dev/null && LC_ALL=C grep -q -F -- "\"thread_ts\":\"${1#*:}\"" "$rigScenarioDir/post.1" 2>/dev/null && printf yes || printf no
@@ -142,7 +142,7 @@ Artifact="url":"https://x/y"'
 [ "$( LC_ALL=C grep -c -F '"name":"SendMessage"' "$rigWire" )" = 1 ] || rigRefuse "the wire adapter declares no SendMessage, so nothing here would be measured"
 
 echo "-- every posting tool declares address_to, and the MCP mirror serves it --"
-rigMirror="$( MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/AgentsHarnessMcpMirror.sh" 2>/dev/null )"
+rigMirror="$( MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/harness/AgentsHarnessMcpMirror.sh" 2>/dev/null )"
 while IFS= read -r rigPair ; do
 	rigAssert "${rigPair%%=*} declares it" \
 		"$( LC_ALL=C grep -F "{\"type\":\"function\",\"function\":{\"name\":\"${rigPair%%=*}\"," "$rigWire" | LC_ALL=C grep -c -F '"address_to":{"type":"string","description":"Optional. ' )" 1
@@ -307,11 +307,11 @@ rigDismissed(){ ## member -- yes when the rendered thread dismisses it
 	for dismissPost in "$rigScenarioDir"/post.* ; do
 		[ -f "$dismissPost" ] || continue
 		dismissNo=$(( dismissNo + 1 ))
-		dismissList="$dismissList${dismissList:+,}{\"ts\":\"1700000009.00000$dismissNo\",\"user\":\"URIGBOT01\",\"text\":$( LC_ALL=C awk -v path=text -v mode=raw -f "$rigHere/AgentsHarnessJsonField.awk" < "$dismissPost" ),\"metadata\":$( LC_ALL=C awk -v path=metadata -v mode=raw -f "$rigHere/AgentsHarnessJsonField.awk" < "$dismissPost" )}"
+		dismissList="$dismissList${dismissList:+,}{\"ts\":\"1700000009.00000$dismissNo\",\"user\":\"URIGBOT01\",\"text\":$( LC_ALL=C awk -v path=text -v mode=raw -f "$rigHere/harness/AgentsHarnessJsonField.awk" < "$dismissPost" ),\"metadata\":$( LC_ALL=C awk -v path=metadata -v mode=raw -f "$rigHere/harness/AgentsHarnessJsonField.awk" < "$dismissPost" )}"
 	done
-	printf '{"ok":true,"messages":[%s]}\n' "$dismissList" | LC_ALL=C awk -f "$rigHere/AgentsSlackMessagesFormat.awk" > "$rigScenarioDir/thread.fmt" 2> "$rigScenarioDir/thread.err" || { printf 'unreadable' ; return 0 ; }
+	printf '{"ok":true,"messages":[%s]}\n' "$dismissList" | LC_ALL=C awk -f "$rigHere/comms/AgentsSlackMessagesFormat.awk" > "$rigScenarioDir/thread.fmt" 2> "$rigScenarioDir/thread.err" || { printf 'unreadable' ; return 0 ; }
 	[ "$( LC_ALL=C grep -c '^[0-9]*\.[0-9]* | ' "$rigScenarioDir/thread.fmt" )" = "$dismissNo" ] || { printf 'misrendered' ; return 0 ; }
-	dismissalMember="$1" LC_ALL=C awk -f "$rigHere/AgentsDismissalMatch.awk" -f "$rigHere/AgentsHarnessWaitDismissed.awk" "$rigScenarioDir/thread.fmt" > /dev/null && printf yes || printf no
+	dismissalMember="$1" LC_ALL=C awk -f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/harness/AgentsHarnessWaitDismissed.awk" "$rigScenarioDir/thread.fmt" > /dev/null && printf yes || printf no
 }
 rigDismissedAll(){ ## -- the three members, in the order: the one named, the caller, the sender
 	printf '%s %s %s' "$( rigDismissed "$rigOther" )" "$( rigDismissed "$rigLead" )" "$( rigDismissed "$rigMember" )"

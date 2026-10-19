@@ -369,7 +369,7 @@ rigIcons(){ ## -- each member of the last output with the last field of its row
 }
 rigAssert "each row ends with the icon the member table of the installer shows that member with, the icon of its prefix group: the human-owner, a magic member, a keeper, a client, a partner, a warden, and a name of no group" "$rigRc $( rigIcons )" "0 human-owner=👤 magic-coordinator=🤖 keeper-rig=🔏 keeper-far=🔏 client-rig=👥 keeper-gone=🔏 keeper-lost=🔏 partner-rig=👫 warden-rig=🔏 scribe-rig=🤖 "
 rigAssert "a member with a mark of its own keeps the mark where it was, and its icon is that table's, which shows no mark" "$( rigRowOf member magic-coordinator | LC_ALL=C awk '{ print $3, $12 }' ) / $( rigRowOf member human-owner | LC_ALL=C awk '{ print $3, $12 }' )" "$( LC_ALL=C awk '$1 == "magic-coordinator" { print $2 }' "$rigNames" ) 🤖 / :own: 👤"
-rigAssert "the icons are those of the one list of them, which the installer's table reads: there is no second list" "$( rigIcons )" "$( . "$rigHere/AgentsTools.TeamRegistry.include" ; rigRows member | while read -r rigIconKind rigIconName rigIconRest ; do printf '%s=%s ' "$rigIconName" "$( AgentsToolsTeamMemberKindIcon "$rigIconName" )" ; done )"
+rigAssert "the icons are those of the one list of them, which the installer's table reads: there is no second list" "$( rigIcons )" "$( . "$rigHere/team-data/AgentsTools.TeamRegistry.include" ; rigRows member | while read -r rigIconKind rigIconName rigIconRest ; do printf '%s=%s ' "$rigIconName" "$( AgentsToolsTeamMemberKindIcon "$rigIconName" )" ; done )"
 rigAssert "every row has thirteen fields: the icon and the skillset folder at the end, and each field before them stands where it stood" "$( LC_ALL=C awk -F'\t' '{ if ( $1 != "member" || NF != 13 ) bad++ ; } END { print NR ":" bad + 0 }' "$rigTmp/out" ) $( rigRowOf member keeper-far | LC_ALL=C awk '{ print $7, $8, $9, $10, $11 }' )" "10:0 keeper ws-far elsewhere active running"
 LC_ALL=C grep -v -e '^partner-rig'"$rigTab" -e '^warden-rig'"$rigTab" -e '^scribe-rig'"$rigTab" "$rigIndex" > "$rigTmp/index.kept" && cat "$rigTmp/index.kept" > "$rigIndex"
 
@@ -516,11 +516,11 @@ rigAssert "from inside a member's session both are refused, rc 1, nothing on std
 rigAssert "and a refused call rebuilt nothing: the registries are the files they were" "$( rigPrint "$rigAgents/team-members.registry" ) $( rigPrint "$rigAgents/spawned-sessions.registry" )" "$rigRegBefore"
 
 echo "-- 9. the place of the two operations --"
-rigInclude="$rigHere/AgentsTools.ManagerTeamMember.include"
+rigInclude="$rigHere/manager/AgentsTools.ManagerTeamMember.include"
 rigCode(){ ## file -- its lines that are no comment
 	LC_ALL=C grep -v '^[[:space:]]*#' "$1" 2> /dev/null
 }
-rigAssert "the family's include has one arm for the subject, which sources the subject's own include" "$( LC_ALL=C grep -c -x -e '	--manager-team-member-\*)' "$rigHere/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerTeamMember.include"' "$rigHere/AgentsTools.Manager.include" || : )" "1 1"
+rigAssert "the family's include has one arm for the subject, which sources the subject's own include" "$( LC_ALL=C grep -c -x -e '	--manager-team-member-\*)' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerTeamMember.include"' "$rigHere/manager/AgentsTools.Manager.include" || : )" "1 1"
 rigAssert "where a member of another workspace is set up is the tooling's own answer for an invited member, asked in one place; its name is the machine's own directory's, read by the list, the read and the files; and the machine's members index is read, a member brought and the resolver called by no code of this include" "$( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'AgentsToolsMemberInvitedWorkspace "' || : ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e '"\$( AgentsToolsTeamMemberDirectoryText )"' || : ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'members\.registry' -e 'awk -F.*HOME' -e 'AgentsToolsMemberSkillsetBring' -e 'AgentsToolsMemberWorkspaceResolve' || : )" "1 3 0"
 rigAssert "the sessions are read through the session list, and the store of the sessions and the process list are read by no code of this include" "$( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'DistroAgentsTools --manager-session-list' || : ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'spawned' -e 'ps -' -e 'RunWords' -e 'MeasureRows' || : )" "1 0"
 rigAssert "the grants are read through the permission list and the settings through the digest, whose rule on secrets is the one of the family: no code of this include opens a scope, asks the setting reader or asks the catalogue" "$( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'DistroAgentsTools --magic-permission-list --member' || : ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'DistroAgentsTools --manager-config-digest scopes' || : ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'agent\.env' -e 'config-option' -e 'LocalTools' -e 'AgentsToolsOwnerSetupOptionSpec' || : )" "1 1 0"
@@ -553,7 +553,7 @@ rigAssert "the entries name the registries read, the three words of where a memb
 rigAssert "control: each entry was cut up to the next operation's heading" "$( rigEntry "$rigListOp" | LC_ALL=C grep -c -F -- "$rigReadOp <team-member>" || : ) $( rigEntry "$rigReadOp <team-member>" | LC_ALL=C grep -c -e '^		--' || : )" "0 0"
 rigRun --help-syntax
 rigAssert "--help-syntax prints both lines, once each" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigListSyntax" "$rigTmp/err" || : ) $( LC_ALL=C grep -c -x -F -- "$rigReadSyntax" "$rigTmp/err" || : )" "0 1 1"
-rigAssert "no member's help lists the family: the member help names no --manager prefix" "$( LC_ALL=C grep -c -e '--manager' "$rigHere/AgentsTools.MemberHelp.include" || : )" "0"
+rigAssert "no member's help lists the family: the member help names no --manager prefix" "$( LC_ALL=C grep -c -e '--manager' "$rigHere/member/AgentsTools.MemberHelp.include" || : )" "0"
 
 echo "-- 11. no secret was printed, and nothing was posted --"
 rigLeaks=0

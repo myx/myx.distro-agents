@@ -7,7 +7,7 @@
 ##   . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh"
 ##
 ## WHY. The control thread of a session is a detached process of the tooling that outlives the call that
-## started it (sh-lib/AgentsTools.SessionControlStart.include), and the check with it. The advance input scan
+## started it (sh-lib/session/AgentsTools.SessionControlStart.include), and the check with it. The advance input scan
 ## and each iteration of the main loop start the thread of every session of their workspace that is not finished
 ## and has none alive; the console's --manager-session-control-start starts one by name. In a rig that is any
 ## session with a run in the rig's process list, or with a record of this host still open. A thread whose rig

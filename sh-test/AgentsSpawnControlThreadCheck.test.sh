@@ -3,7 +3,7 @@
 ## rather than read: through the real spawn proxy and the real start of a session on a stand-in console, with the
 ## real thread. The supervising shell of a start that is not waited for starts the thread of its session, by the
 ## one function every starter of a thread calls (AgentsToolsSessionControlStart,
-## sh-lib/AgentsTools.SessionControlStart.include), once the folder of the session and the record of the run exist.
+## sh-lib/session/AgentsTools.SessionControlStart.include), once the folder of the session and the record of the run exist.
 ## Held:
 ##   1. A LONE RUN, started from a bare console, opens a session and has a control thread: one process, shown by
 ##      the tooling script, its operation and its session, in a process group of its own, the pid file of the
@@ -38,7 +38,7 @@ set -u
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigLib="$rigPackage/sh-lib"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$rigLib/AgentsUniversalHarness.sh"
+rigHarness="$rigLib/harness/AgentsUniversalHarness.sh"
 rigFixture="$rigPackage/sh-test/check-fixtures/slack-send-identity-check.curl.stub.sh"
 rigHelper="$rigPackage/sh-test/check-fixtures/rig-processes.include.sh"
 
@@ -407,7 +407,7 @@ rigAssert "and the list of sessions shows it finished, with no thread" "$( rigLi
 
 echo "-- 9. the spawn does not wait for the thread: where the start stands --"
 rigCode(){ LC_ALL=C grep -n -v '^[[:space:]]*#' "$1" ; } ## file -- its lines that are no comment, numbered
-rigProxy="$rigLib/AgentsTools.InternOpAgentSpawnProxy.include"
+rigProxy="$rigLib/session/AgentsTools.InternOpAgentSpawnProxy.include"
 rigAt(){ rigCode "$rigProxy" | LC_ALL=C grep -F -- "$1" | LC_ALL=C sed -n "${2:-1}p" | LC_ALL=C cut -d: -f1 ; } ## fixed text, which of its lines -- the number of that line
 rigCallAt="$( rigAt 'AgentsToolsSessionControlStart "$sessionId"' )"
 rigAssert "the spawner calls the one function once, with the id of the session" "$( rigCode "$rigProxy" | LC_ALL=C grep -c -F 'AgentsToolsSessionControlStart "' )" "1"

@@ -7,7 +7,7 @@
 ## offline: no host, no network, no credential.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
-rigHarness="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh"
+rigHarness="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh"
 [ -f "$rigHarness" ] || { echo "⛔ ERROR: harness not found at the origin this workspace resolves: $rigHarness" >&2 ; exit 1 ; }
 
 rigExtract(){

@@ -48,8 +48,8 @@ set -e
 ## consumes it proves only that the two agree.
 
 checkHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-checkWire="${1:-$checkHere/AgentsOpenAiChatWire.sh}"
-checkSliceAwk="$checkHere/AgentsHarnessJsonField.awk"
+checkWire="${1:-$checkHere/harness/AgentsOpenAiChatWire.sh}"
+checkSliceAwk="$checkHere/harness/AgentsHarnessJsonField.awk"
 
 if [ ! -f "$checkWire" ] ; then
 	echo "HARNESS_TOOLS_JSON: FAIL"

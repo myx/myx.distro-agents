@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the table lines of F11.0 (the refactorings epic), in the one table renderer of the manager
-## screen (sh-lib/AgentsManagerScreen.py, paneTable), so in every table of its left window. Run rather than read: the
+## screen (sh-lib/manager/AgentsManagerScreen.py, paneTable), so in every table of its left window. Run rather than read: the
 ## renderer is called by the screen module itself, and the real screen is driven through the stand-in terminal of
 ## check-fixtures/manager-screen.driver.py, where it would call the dispatcher it calls the stand-in script
 ## (check-fixtures/manager-screen.tools.stub.sh), which prints the case's fixture.
@@ -37,7 +37,7 @@
 ## Offline: the only thing the screen calls here is the stand-in for the dispatcher.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"

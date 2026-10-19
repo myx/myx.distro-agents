@@ -3432,7 +3432,7 @@
 			commands of one place that is a workspace: the same its
 			editor's palette gets. Each package of this console declares
 			its workspace commands once, in its
-			`sh-lib/workspace-commands.list`, a command a line: its name,
+			`sh-lib/config/workspace-commands.list`, a command a line: its name,
 			its emoji part of it, how it runs, and the command, a TAB
 			between them, `$MMDAPP` in it the root of the workspace. The
 			tasks of the palette are made of the same lines, by

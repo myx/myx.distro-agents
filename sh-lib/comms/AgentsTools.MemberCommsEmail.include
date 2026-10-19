@@ -1,0 +1,517 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberCommsEmail.include -- the raw per-member email comms
+## operations (IMAP check, read and SMTP send), and the in-context helper
+## AgentsToolsCommsEmailMarkSeen, which has no operation of its own (MAGIC.md, section 1).
+## DUAL USE: a name not its own runs nothing, so a caller sources it for the helper:
+##   type AgentsToolsCommsEmailMarkSeen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsEmail.include"
+##
+
+. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsTools.OutputStyle.include"
+## A member's own mailbox is read by the side of the call (AgentsToolsCommsOwnSideCheck).
+type AgentsToolsCommsOwnSideCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSide.include"
+
+AgentsToolsCommsEmailMarkSeen(){ ## <team-member> <uid>
+	local MDSC_CMD='DistroAgentsTools'
+	local memberName="$1"
+	shift || true
+	if [ -z "$memberName" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: <team-member> missing" >&2
+		set +e ; return 1
+	fi
+	AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-mark-seen || { set +e ; return 1 ; }
+	case "$memberName" in
+		routine-*)
+		;;
+		*)
+			if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+				set +e ; return 1
+			fi
+		;;
+	esac
+	AgentsToolsCommsOwnSideCheck "$memberName" mail member-comms-email-mark-seen || { set +e ; return 1 ; }
+	local uid="$1"
+	shift || true
+	if [ -z "$uid" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: <uid> missing" >&2
+		set +e ; return 1
+	fi
+
+	local imapHost imapUser imapPass
+	imapHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_IMAP_HOST )"
+	imapUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"
+	imapPass="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_APP_PASSWORD )"
+	if [ -z "$imapHost" ] || [ -z "$imapUser" ] || [ -z "$imapPass" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in ${memberName}'s own scope in .local/.agents" >&2
+		set +e ; return 1
+	fi
+
+	echo "# $MDSC_CMD --member-comms-email-mark-seen: marking UID=$uid as \\Seen in ${memberName}'s INBOX" >&2
+	## Password on curl's stdin, never argv and never the disk.
+	local netrcLine=""
+	printf -v netrcLine 'machine %s login %s password %s' "$imapHost" "$imapUser" "$imapPass"
+	local storeRc=0
+	curl -sS --connect-timeout 10 --max-time 120 --url "imaps://${imapHost}/INBOX" --netrc-file /dev/fd/0 \
+		--request "UID STORE ${uid} +FLAGS (\Seen)" <<< "$netrcLine" || storeRc=$?
+	if [ "$storeRc" -ne 0 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: IMAP UID STORE +FLAGS (\\Seen) failed for UID=$uid against imaps://${imapHost}/INBOX as $memberName (curl rc=$storeRc) -- the message is NOT marked seen; curl's own error is on the line above" >&2
+		set +e ; return "$storeRc"
+	fi
+	return 0
+}
+
+case "$1" in
+
+		## The member stubs. Each acts under the named member's own credentials, so a spawned
+		## session names only itself (AgentsToolsActingMemberCheck); tooling calls the
+		## --intern-op-comms-email-* implementation below directly. A --member-* operation reaches
+		## our own organisation (MDAT_COMMS_SIDE, AgentsTools.CommsSide.include), for a client-*
+		## member too: what such a member holds for this system is the other organisation's.
+		--member-comms-email-check|--member-comms-email-read|--member-comms-email-mark-seen|--member-comms-email-send)
+			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
+			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
+			## A stub whose implementation is an in-context helper calls it by name.
+			case "$1" in
+				--member-comms-email-mark-seen) AgentsToolsCommsEmailMarkSeen "${@:2}" ; return $? ;;
+			esac
+			DistroAgentsTools "--intern-op-${1#--member-}" "${@:2}"
+			return $?
+		;;
+
+		## The client stubs: the same operations on the side of the other organisation, for a
+		## client-* member alone, under the settings that member itself holds for it. The side is
+		## set, and who may call is asked, where a --client-* operation is dispatched: the client's
+		## own session alone (AgentsToolsClientCallerCheck).
+		--client-comms-email-check|--client-comms-email-read|--client-comms-email-mark-seen|--client-comms-email-send)
+			case "${2:-}" in
+				client-*) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $1: runs only as a client-* member, and ${2:-<no member named>} is not one -- this family reaches an external organisation's own mail under that member's own settings for it" >&2
+					set +e ; return 1
+				;;
+			esac
+			## A stub whose implementation is an in-context helper calls it by name.
+			case "$1" in
+				--client-comms-email-mark-seen) AgentsToolsCommsEmailMarkSeen "${@:2}" ; return $? ;;
+			esac
+			DistroAgentsTools "--intern-op-${1#--client-}" "${@:2}"
+			return $?
+		;;
+
+		--intern-op-comms-email-check)
+			shift
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-check: <team-member> missing" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-check || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+				;;
+				*)
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-email-check: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			AgentsToolsCommsOwnSideCheck "$memberName" mail member-comms-email-check || { set +e ; return 1 ; }
+			local imapHost imapUser imapPass
+			imapHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_IMAP_HOST )"
+			imapUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"
+			imapPass="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_APP_PASSWORD )"
+			if [ -z "$imapHost" ] || [ -z "$imapUser" ] || [ -z "$imapPass" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-check: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in ${memberName}'s own scope in .local/.agents" >&2
+				set +e ; return 1
+			fi
+			## Password on curl's stdin, never argv and never the disk. /dev/fd/0
+			## is one of the three descriptors addressable as a path on all of
+			## Darwin, FreeBSD and Linux.
+			local netrcLine=""
+			printf -v netrcLine 'machine %s login %s password %s' "$imapHost" "$imapUser" "$imapPass"
+			local statusRc=0
+			curl -sS --connect-timeout 10 --max-time 120 --url "imaps://${imapHost}/INBOX" --netrc-file /dev/fd/0 \
+				--request "STATUS INBOX (UNSEEN)" <<< "$netrcLine" || statusRc=$?
+			if [ "$statusRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-check: IMAP STATUS INBOX (UNSEEN) failed against imaps://${imapHost}/INBOX as $memberName (curl rc=$statusRc) -- the unseen count is UNKNOWN, not zero; curl's own error is on the line above" >&2
+				set +e ; return "$statusRc"
+			fi
+			local searchRc=0
+			curl -sS --connect-timeout 10 --max-time 120 --url "imaps://${imapHost}/INBOX" --netrc-file /dev/fd/0 \
+				--request "UID SEARCH UNSEEN" <<< "$netrcLine" || searchRc=$?
+			if [ "$searchRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-check: IMAP UID SEARCH UNSEEN failed against imaps://${imapHost}/INBOX as $memberName (curl rc=$searchRc) -- the unseen UID list is UNKNOWN, not empty; curl's own error is on the line above" >&2
+				set +e ; return "$searchRc"
+			fi
+			return 0
+		;;
+
+		--intern-op-comms-email-read)
+			shift
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: <team-member> missing" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-read || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+				;;
+				*)
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			AgentsToolsCommsOwnSideCheck "$memberName" mail member-comms-email-read || { set +e ; return 1 ; }
+			local uid="$1"
+			shift || true
+			if [ -z "$uid" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: <uid> missing" >&2
+				set +e ; return 1
+			fi
+			local markSeen="false"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--seen)
+						markSeen="true" ; shift
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: invalid option: $1" >&2
+						set +e ; return 1
+					;;
+				esac
+			done
+
+			local imapHost imapUser imapPass
+			imapHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_IMAP_HOST )"
+			imapUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"
+			imapPass="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_APP_PASSWORD )"
+			if [ -z "$imapHost" ] || [ -z "$imapUser" ] || [ -z "$imapPass" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in ${memberName}'s own scope in .local/.agents" >&2
+				set +e ; return 1
+			fi
+
+			echo "# $MDSC_CMD --member-comms-email-read: fetching full message UID=$uid (EXAMINE + BODY.PEEK -- \\Seen not set by this read)" >&2
+			local readRc=0
+			AGENTS_IMAP_HOST="$imapHost" \
+			AGENTS_IMAP_USER="$imapUser" \
+			AGENTS_IMAP_PASS="$imapPass" \
+			AGENTS_IMAP_MAILBOX="INBOX" \
+			AGENTS_IMAP_UID="$uid" \
+				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsImapFetchMessage.py" || readRc=$?
+			if [ "$readRc" -eq 4 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: UID=$uid does not exist in INBOX on imaps://${imapHost} -- nothing was read and nothing was changed; the reason is on the line above" >&2
+				set +e ; return "$readRc"
+			fi
+			if [ "$readRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: fetch failed for UID=$uid against imaps://${imapHost}/INBOX (rc=$readRc) -- no message content was retrieved, this is NOT an empty message; \\Seen not touched; the underlying error is on the line above" >&2
+				set +e ; return "$readRc"
+			fi
+			## Mutation strictly after a successful read, never before: a
+			## failed read must leave the message exactly as it was found.
+			if [ "$markSeen" = "true" ] ; then
+				AgentsToolsCommsEmailMarkSeen "$memberName" "$uid" || {
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: message was read, but --seen failed to mark UID=$uid -- the read output above is still valid" >&2
+					set +e ; return 1
+				}
+			fi
+			return 0
+		;;
+
+		--intern-op-comms-email-send)
+			shift
+			local memberName="$1"
+			shift || true
+			if [ -z "$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: <team-member> missing" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-send || { set +e ; return 1 ; }
+			case "$memberName" in
+				routine-*)
+				;;
+				*)
+					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+						set +e ; return 1
+					fi
+				;;
+			esac
+			AgentsToolsCommsOwnSideCheck "$memberName" mail member-comms-email-send || { set +e ; return 1 ; }
+			local recipients subject bodyLines state="recipients" bodyFromStdin="false" bodyFromFile="false" inReplyTo="" textGroup="" format="markdown"
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					## The floor applies with no argument at all. This names the shape
+					## an explicit exception takes, never which default a caller gets.
+					--text-group)
+						if [ -z "${2:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --text-group value missing -- report, brief or relay, and message is what every send carries without it" >&2
+							set +e ; return 1
+						fi
+						textGroup="$2" ; shift 2
+					;;
+					## The body is read as Markdown by default. markdown is what every
+					## send carries without this flag.
+					--format)
+						if [ -z "${2:-}" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --format value missing -- markdown or text, and markdown is what every send carries without it" >&2
+							set +e ; return 1
+						fi
+						format="$2" ; shift 2
+					;;
+					--)
+						if [ "$state" = "recipients" ] ; then state="subject"
+						elif [ "$state" = "subject" ] ; then state="body"
+						fi
+						shift
+					;;
+					--in-reply-to)
+						if [ -n "$inReplyTo" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --in-reply-to given more than once" >&2
+							set +e ; return 1
+						fi
+						if [ -z "$2" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --in-reply-to value missing" >&2
+							set +e ; return 1
+						fi
+						inReplyTo="$2"
+						shift 2
+					;;
+					--from-stdin)
+						if [ "$state" = "body" ] ; then
+							if [ "$bodyFromFile" = "true" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --from-stdin given alongside --from-file -- use one or the other, not both" >&2
+								set +e ; return 1
+							fi
+							bodyFromStdin="true" ; shift
+						else
+							case "$state" in
+								recipients) recipients="$recipients $1" ;;
+								subject) subject="$subject $1" ;;
+							esac
+							shift
+						fi
+					;;
+					--from-file)
+						if [ "$state" = "body" ] ; then
+							if [ "$bodyFromStdin" = "true" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --from-file given alongside --from-stdin -- use one or the other, not both" >&2
+								set +e ; return 1
+							fi
+							if [ $# -lt 2 ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --from-file value missing" >&2
+								set +e ; return 1
+							fi
+							if [ -z "$2" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --from-file invalid: ${2:-<no value>}" >&2
+								set +e ; return 1
+							fi
+							if [ ! -f "$2" ] ; then
+								echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --from-file: file not found: $2" >&2
+								set +e ; return 1
+							fi
+							bodyLines="$( cat "$2" )"
+							bodyFromFile="true"
+							shift 2
+						else
+							case "$state" in
+								recipients) recipients="$recipients $1" ;;
+								subject) subject="$subject $1" ;;
+							esac
+							shift
+						fi
+					;;
+					*)
+						case "$state" in
+							recipients) recipients="$recipients $1" ;;
+							subject) subject="$subject $1" ;;
+							body)
+								if [ -z "$bodyLines" ] && [ "$bodyFromFile" != "true" ] ; then
+									case "$1" in
+										--*)
+											echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: unrecognized option: $1 (if you need literal text starting with '--', use --from-stdin/--from-file instead of trailing argv)" >&2
+											set +e ; return 1
+										;;
+									esac
+								fi
+								if [ "$bodyFromFile" = "true" ] ; then
+									echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --from-file given alongside trailing body argv -- use one or the other, not both" >&2
+									set +e ; return 1
+								fi
+								bodyLines="$bodyLines"$'\n'"$1"
+							;;
+						esac
+						shift
+					;;
+				esac
+			done
+			recipients="${recipients# }"
+			subject="${subject# }"
+
+			if [ "$bodyFromStdin" = "true" ] ; then
+				if [ -n "$bodyLines" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: --from-stdin given alongside trailing body argv -- use one or the other, not both" >&2
+					set +e ; return 1
+				fi
+				bodyLines="$( cat )"
+			fi
+
+			if [ -z "$recipients" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: at least one <email@address> required" >&2
+				set +e ; return 1
+			fi
+			if [ -z "$subject" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: <subject> missing" >&2
+				set +e ; return 1
+			fi
+			case "$format" in
+				markdown|text) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: unrecognized --format '$format' -- accepted: markdown|text" >&2
+					set +e ; return 1
+				;;
+			esac
+
+			## Email reaches the human-owner and it reaches counterparties, so it
+			## carries the same floor the Slack operations do. The subject is a
+			## sentence a reader reads, so it is measured on its own rather than
+			## folded into the body's own sentence budget. This operation resolves
+			## no Slack identity, so no token source is passed.
+			## The predicates these sites refuse on, and the whole of a graduation:
+			## a name here refuses, a name absent reports beside it. sentence-cap
+			## is absent because it cannot tell a prose paragraph from a block
+			## written one fact per line -- see MAGIC.md.
+			printf '%s' "$subject" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$recipients (subject)" "" "word-cap semicolon paragraph-gate" || { local mailFloorRc=$? ; set +e ; return "$mailFloorRc" ; }
+			printf '%s' "$bodyLines" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$recipients" "" "word-cap semicolon paragraph-gate" || { local mailFloorRc=$? ; set +e ; return "$mailFloorRc" ; }
+
+			## Outbound-to-unlisted-people gate: email has no internal/team
+			## conversation concept the way Slack does, so every recipient
+			## address is checked, with no $presentExternal-style exemption.
+			local gateAddr
+			type AgentsToolsContactAssertKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternContact.include"
+			for gateAddr in $recipients ; do
+				AgentsToolsContactAssertKnown "$memberName" \
+					--tool member-comms-email-send --target "$gateAddr" \
+					--message "$subject"$'\n'"$bodyLines" || { set +e ; return 1 ; }
+			done
+
+			local emailUser emailPass smtpHost smtpPort
+			emailUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"
+			emailPass="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_APP_PASSWORD )"
+			smtpHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_SMTP_HOST )"
+			smtpPort="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_SMTP_PORT )"
+
+			if [ -z "$emailUser" ] || [ -z "$emailPass" ] || [ -z "$smtpHost" ] || [ -z "$smtpPort" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-send: EMAIL_USER/EMAIL_APP_PASSWORD/EMAIL_SMTP_HOST/EMAIL_SMTP_PORT not fully set in ${memberName}'s own scope in .local/.agents" >&2
+				set +e ; return 1
+			fi
+
+			## The message is the one thing here a variable cannot carry: curl's
+			## --upload-file takes a path, and stdin is spent on the password
+			## below. It holds no secret; the password never reaches the disk.
+			##
+			## Its whole life is this subshell, so the trap is the SUBSHELL'S own:
+			## it cannot replace the caller's -- a console session and the MCP
+			## server both keep one -- and it fires on every way out, including a
+			## failure not enumerated here. curl's status leaves as the subshell's.
+			echo "# $MDSC_CMD --member-comms-email-send: sending via smtp://${smtpHost}:${smtpPort} to: $recipients" >&2
+			local rc=0
+			(
+				## A file of this message's own, by mktemp and never by $$: two sends from subshells of
+				## one shell have one $$, so they met on one name and one sent the other's text.
+				mkdir -p "$MMDAPP/.local/temp" && msgFile="$( mktemp "$MMDAPP/.local/temp/mdat-comms-email-message.XXXXXX" )" || exit 1
+				trap 'rm -f "$msgFile"' EXIT
+				chmod 600 "$msgFile" || exit 1
+
+				## HTML part beside the plain part, same body, through
+				## AgentsEmailHtmlBuild.awk -- the Slack path's bare-URL/
+				## bare-address and cheap-markdown rules, re-aimed at HTML.
+				## No credential, no network: safe to run before the
+				## build-only check below, and that is what makes this
+				## callable offline.
+				htmlPartBody=""
+				htmlPartBody="$( printf '%s' "$bodyLines" | LC_ALL=C awk -v format="$format" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsEmailHtmlBuild.awk" )" || exit 1
+				mimeBoundary="mdat-comms-email-boundary-$$-$RANDOM"
+				{
+					printf 'From: %s\n' "$emailUser"
+					printf 'To: %s\n' "$( printf '%s' "$recipients" | tr ' ' ',' )"
+					printf 'Subject: %s\n' "$subject"
+					if [ -n "$inReplyTo" ] ; then
+						printf 'In-Reply-To: %s\n' "$inReplyTo"
+						printf 'References: %s\n' "$inReplyTo"
+					fi
+					printf 'MIME-Version: 1.0\n'
+					printf 'Content-Type: multipart/alternative; boundary="%s"\n' "$mimeBoundary"
+					printf '\n'
+					## Plain part first, exactly as the agent wrote it --
+					## unmodified from today's one-part message.
+					printf -- '--%s\n' "$mimeBoundary"
+					printf 'Content-Type: text/plain; charset=UTF-8\n'
+					printf 'Content-Transfer-Encoding: 8bit\n'
+					printf '\n'
+					printf '%s\n' "$bodyLines"
+					printf '\n'
+					## HTML part second, same body, converted.
+					printf -- '--%s\n' "$mimeBoundary"
+					printf 'Content-Type: text/html; charset=UTF-8\n'
+					printf 'Content-Transfer-Encoding: 8bit\n'
+					printf '\n'
+					printf '<html><body>\n%s\n</body></html>\n' "$htmlPartBody"
+					printf '\n'
+					printf -- '--%s--\n' "$mimeBoundary"
+				} > "$msgFile" || exit 1
+
+				## Build-only escape hatch for an offline test: the message
+				## file above is already complete and correct, so this is the
+				## earliest point a caller can take it without ever reaching
+				## curl or a real credential. A real send never sets this,
+				## and everything below it is unchanged.
+				if [ "${AGENTS_EMAIL_SEND_BUILD_ONLY:-false}" = "true" ] ; then
+					cat "$msgFile"
+					exit 0
+				fi
+
+				## Password on curl's stdin, never argv and never the disk.
+				netrcLine=""
+				printf -v netrcLine 'machine %s login %s password %s' "$smtpHost" "$emailUser" "$emailPass"
+
+				rcptArgs=()
+				for addr in $recipients ; do
+					rcptArgs+=( --mail-rcpt "$addr" )
+				done
+
+				## --max-time 300, not the 120 an API call here gets: this one uploads the whole message.
+				curl -sS --connect-timeout 10 --max-time 300 --url "smtp://${smtpHost}:${smtpPort}" --ssl-reqd \
+					--netrc-file /dev/fd/0 \
+					--mail-from "$emailUser" "${rcptArgs[@]}" \
+					--upload-file "$msgFile" <<< "$netrcLine"
+			) || rc=$?
+
+			if [ "$rc" -eq 0 ] ; then
+				echo "# $MDSC_CMD --member-comms-email-send: sent to $recipients" >&2
+			else
+				echo "⛔ $MDSC_CMD --member-comms-email-send: FAILED (curl exit $rc)" >&2
+			fi
+			return "$rc"
+		;;
+
+		## An email operation this file does not implement -- the retired
+		## --intern-op-comms-email-mark-seen among them -- is reported, never swallowed.
+		--member-comms-email-*|--client-comms-email-*|--intern-op-comms-email-*)
+			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+			set +e ; return 1
+		;;
+
+		## DEFINITIONS-ONLY SOURCE: a caller sourcing this file for its helper. Nothing to dispatch.
+		*)
+			:
+		;;
+esac

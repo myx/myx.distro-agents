@@ -15,7 +15,7 @@ set -u
 rigHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigRealTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/templates/spawn-brief.document.format.md"
 
 rigRefuse(){
@@ -136,16 +136,16 @@ rigAssert "says a plain-text reply ends the run, and to Wait instead" \
 rigAssert "spawned sessions nobody blocks on, that report to someone, are told to wait for DISMISSED" \
 	"$( LC_ALL=C grep -c -F '[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || [ "${MDAT_SPAWN_CALLER_WAITS:-}" = "true" ] || AgentsHarnessReportsNone || harnessSpawnedWaitNote=" You are a spawned session: you never end on your own' "$rigHarness" )" 1
 rigAssert "the Agent tool tells the spawner how to dismiss" \
-	"$( LC_ALL=C grep -c -F 'SendMessage to its session thread with address_to set to its member name and the message DISMISSED, which its Wait returns as DISMISSED. TaskStop is the last-resort force stop.' "$rigHere/AgentsOpenAiChatWire.sh" )" 1
+	"$( LC_ALL=C grep -c -F 'SendMessage to its session thread with address_to set to its member name and the message DISMISSED, which its Wait returns as DISMISSED. TaskStop is the last-resort force stop.' "$rigHere/harness/AgentsOpenAiChatWire.sh" )" 1
 rigAssert "the Wait tool declares the DISMISSED outcome" \
-	"$( LC_ALL=C grep -c -F 'DISMISSED: a message addressed to you whose body is DISMISSED arrived' "$rigHere/AgentsOpenAiChatWire.sh" )" 1
+	"$( LC_ALL=C grep -c -F 'DISMISSED: a message addressed to you whose body is DISMISSED arrived' "$rigHere/harness/AgentsOpenAiChatWire.sh" )" 1
 rigAssert "and the MCP mirror serves it" \
-	"$( MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/AgentsHarnessMcpMirror.sh" 2>/dev/null | LC_ALL=C grep -c -F 'DISMISSED: a message addressed to you whose body is DISMISSED arrived' )" 1
+	"$( MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/harness/AgentsHarnessMcpMirror.sh" 2>/dev/null | LC_ALL=C grep -c -F 'DISMISSED: a message addressed to you whose body is DISMISSED arrived' )" 1
 
 echo "-- Wait: DISMISSED only for a dismissal addressed to the waiting member --"
 rigDismissed(){ ## agent -- prints the dismissing head and rc
 	local rigHead rigRc=0
-	rigHead="$( dismissalMember="$1" LC_ALL=C awk -f "$rigHere/AgentsDismissalMatch.awk" -f "$rigHere/AgentsHarnessWaitDismissed.awk" "$rigTmp/wait.out" )" || rigRc=$?
+	rigHead="$( dismissalMember="$1" LC_ALL=C awk -f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/harness/AgentsHarnessWaitDismissed.awk" "$rigTmp/wait.out" )" || rigRc=$?
 	printf '%s rc=%s' "$rigHead" "$rigRc"
 }
 printf '%s\n' 'WAIT-RESULT: RECEIVED' '1.000001 | U1 | :m: *_magic-coordinator_* @Magic → *_rig-a_* @A; *_rig-c_* @C.' 'DISMISSED' \

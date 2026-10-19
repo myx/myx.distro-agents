@@ -28,11 +28,11 @@ set -u
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigHere="$rigPackage/sh-lib"
 rigFn="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigFn" "$rigHarness" "$rigHere/AgentsTools.Grants.include" "$rigHere/AgentsGrantsSessionIndex.awk" "$rigHere/AgentsTools.InternDirectory.include" ; do
+for rigFile in "$rigFn" "$rigHarness" "$rigHere/grants/AgentsTools.Grants.include" "$rigHere/grants/AgentsGrantsSessionIndex.awk" "$rigHere/common/AgentsTools.InternDirectory.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 rigMyxCommon="$( command -v myx.common 2>/dev/null )"
@@ -95,7 +95,7 @@ rigRun(){ ## op and arguments... -- the tool in ws-main as RIG_AGENT in RIG_SESS
 ## An in-context helper (no operation of its own) as a script for --intern-mcp-execute, which
 ## runs it inside the tool's own set-up context: its include, then the call with these arguments.
 rigHelperScript(){ ## include, function, arguments...
-	printf '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/%s"\n' "$1"
+	printf '. "$MDLT_ORIGIN"/myx/myx.distro-*/sh-lib/*/%s\n' "$1"
 	printf '%s' "$2" ; shift 2
 	[ $# -eq 0 ] || printf ' %q' "$@"
 	printf '\n'

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Differential check on the ONE JSON reader, sh-lib/AgentsHarnessJsonField.awk: every
+## Differential check on the ONE JSON reader, sh-lib/harness/AgentsHarnessJsonField.awk: every
 ## reader it replaced answers every fixture exactly as it did -- stdout, stderr and exit
 ## status byte for byte, and for the MCP request parser every file it writes. Each old
 ## reader is kept ONLY here, as check-fixtures/<name>.legacy.awk; nothing in sh-lib loads
@@ -21,7 +21,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigOld="${rigHere%/sh-lib}/sh-test/check-fixtures"
-rigEngine="$rigHere/AgentsHarnessJsonField.awk"
+rigEngine="$rigHere/harness/AgentsHarnessJsonField.awk"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -81,7 +81,7 @@ rigDriver(){ ## name, document, args...
 	local driverName="$1" driverDoc="$2"
 	shift 2
 	rigRun "$rigTmp/o" "" "$driverDoc" "$@" -f "$rigOld/$driverName.legacy.awk"
-	rigRun "$rigTmp/n" "" "$driverDoc" "$@" -f "$rigEngine" -f "$rigHere/$driverName.awk"
+	rigRun "$rigTmp/n" "" "$driverDoc" "$@" -f "$rigEngine" -f "$rigHere"/*/"$driverName.awk"
 	rigSame "$driverName [$*] $( basename "$driverDoc" )"
 }
 
@@ -92,7 +92,7 @@ rigMcp(){ ## document
 		rm -rf "$rigTmp/mcp.$mcpSide" ; mkdir "$rigTmp/mcp.$mcpSide"
 	done
 	rigRun "$rigTmp/o" "" "$1" -v outDir="$rigTmp/mcp.o" -f "$rigOld/AgentsMcpJsonParseRequest.legacy.awk"
-	rigRun "$rigTmp/n" "" "$1" -v outDir="$rigTmp/mcp.n" -f "$rigEngine" -f "$rigHere/AgentsMcpJsonParseRequest.awk"
+	rigRun "$rigTmp/n" "" "$1" -v outDir="$rigTmp/mcp.n" -f "$rigEngine" -f "$rigHere/mcp/AgentsMcpJsonParseRequest.awk"
 	if [ "$( ls "$rigTmp/mcp.o" )" = "$( ls "$rigTmp/mcp.n" )" ] && diff -r "$rigTmp/mcp.o" "$rigTmp/mcp.n" >/dev/null 2>&1 ; then
 		rigSame "AgentsMcpJsonParseRequest $( basename "$1" )"
 	else

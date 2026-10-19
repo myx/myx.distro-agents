@@ -87,7 +87,7 @@ rigRun(){ ## result file, shell text
 			MDSC_CMD=DistroAgentsTools
 			DistroAgentsTools(){ bash "$RIG_FN" "$@" ; }
 			cd "$MMDAPP" || exit 98
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
 			eval "$RIG_TEXT"
 		' > "$1" 2> "$1.err"
 	printf '%s' "$?" > "$1.rc"

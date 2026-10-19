@@ -23,7 +23,7 @@ rigReroute="$rigHere/client-hooks/deny-native-tool-reroute.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigHook" "$rigReroute" "$rigHere/AgentsTools.Grants.include" "$rigHere/AgentsHarnessHooksLoad.include" ; do
+for rigFile in "$rigHook" "$rigReroute" "$rigHere/grants/AgentsTools.Grants.include" "$rigHere/harness/AgentsHarnessHooksLoad.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
@@ -125,9 +125,9 @@ rigAssert "no spawn identity: no answer"      "$( rigHookRun "" Edit "$rigIn" )"
 rigAssert "and the reroute hook still denies it" "$( rigPayload Edit "$rigIn" | env -i HOME="$rigTmp/home" PATH=/usr/bin:/bin bash "$rigReroute" Edit | LC_ALL=C grep -c '"permissionDecision": "deny"' )" 1
 
 echo "-- 5. our own harness never runs it --"
-rigAssert "the policy states it, class native" "$( env -i PATH=/usr/bin:/bin MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/AgentsTools.ClientToolPolicy.include" ; AgentsToolsClientToolPolicyHookRecords' | LC_ALL=C awk -F'\t' '$5 == "allow-granted-native-tool.sh" { print $1 ":" $2 ":" $4 }' )" "PreToolUse:native:Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob"
+rigAssert "the policy states it, class native" "$( env -i PATH=/usr/bin:/bin MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/client/AgentsTools.ClientToolPolicy.include" ; AgentsToolsClientToolPolicyHookRecords' | LC_ALL=C awk -F'\t' '$5 == "allow-granted-native-tool.sh" { print $1 ":" $2 ":" $4 }' )" "PreToolUse:native:Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob"
 rigAssert "and the harness hook list leaves it out, with no fault" "$( env -i PATH=/usr/bin:/bin MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '
-	. "'"$rigHere"'/AgentsTools.ClientToolPolicy.include" ; . "'"$rigHere"'/AgentsHarnessHooksLoad.include"
+	. "'"$rigHere"'/client/AgentsTools.ClientToolPolicy.include" ; . "'"$rigHere"'/harness/AgentsHarnessHooksLoad.include"
 	harnessHooksList="" harnessHooksFault="" harnessHooksSkipped=0
 	AgentsHarnessHooksFromRecords "$( AgentsToolsClientToolPolicyHookRecords )"
 	printf "%s:%s" "[$harnessHooksFault]" "$( printf "%s" "$harnessHooksList" | LC_ALL=C grep -c allow-granted-native-tool )"

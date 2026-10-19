@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the kill key of the manager screen (sh-lib/AgentsManagerScreen.py), run rather than read.
+## Behavioural check on the kill key of the manager screen (sh-lib/manager/AgentsManagerScreen.py), run rather than read.
 ## The screen's own code runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py),
 ## and where it would call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.stub.sh),
 ## which notes each start, its arguments word for word and what came on its standard input, and prints the fixture
@@ -27,7 +27,7 @@
 ## cells at each side), so its box is four cells wider and two lines taller and what it holds stands where it stood.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"

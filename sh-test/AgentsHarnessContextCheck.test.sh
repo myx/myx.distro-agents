@@ -14,8 +14,8 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
-rigAwk=( -f "$rigHere/AgentsHarnessJsonField.awk" -f "$rigHere/AgentsSessionTranscriptFormat.awk" -f "$rigHere/AgentsHarnessContextTranscript.awk" )
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
+rigAwk=( -f "$rigHere/harness/AgentsHarnessJsonField.awk" -f "$rigHere/session/AgentsSessionTranscriptFormat.awk" -f "$rigHere/harness/AgentsHarnessContextTranscript.awk" )
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -68,7 +68,7 @@ rigNorm(){ ## file
 	LC_ALL=C sed -e "s|$rigS1|DIR|g" -e "s|$rigHook|DIR|g" -e 's| [0-9]*B/| NB/|' -e 's/^[0-9-]*T[0-9:]*Z //' -e '/^START /d' "$1" | LC_ALL=C sed -E -e 's/ ([0-9.]+m?s|[0-9]+m[0-9]{2}s)( \||$)/ DUR\2/'
 }
 
-. "$rigHere/AgentsTools.SessionTranscript.include"
+. "$rigHere/session/AgentsTools.SessionTranscript.include"
 
 rigToolStream(){ ## file, scenario dir
 	{
@@ -140,7 +140,7 @@ rigSys="$( sed -n 2p "$rigCtx" )" ; rigSys="${rigSys#\{\"type\":\"system\",\"tex
 rigReqSys="${rigReq2#*\"system\":\"}" ; rigReqSys="${rigReqSys%%\",\"tools\":*}"
 rigAssert "the system text is the request's, byte for byte" "$( [ "$rigSys" = "$rigReqSys" ] && echo same || echo differ )" same
 rigReqTools="${rigReq2#*\"tools\":}" ; rigReqTools="${rigReqTools%%,\"tool_choice\":*}"
-rigAssert "the tools reference is the cksum of the request's tools" "$( sed -n 3p "$rigCtx" | LC_ALL=C awk -v path=cksum -f "$rigHere/AgentsHarnessJsonField.awk" )" "$( printf '%s' "$rigReqTools" | LC_ALL=C cksum | awk '{ print $1 }' )"
+rigAssert "the tools reference is the cksum of the request's tools" "$( sed -n 3p "$rigCtx" | LC_ALL=C awk -v path=cksum -f "$rigHere/harness/AgentsHarnessJsonField.awk" )" "$( printf '%s' "$rigReqTools" | LC_ALL=C cksum | awk '{ print $1 }' )"
 rigAssert "the thinking block and its signature are kept" "$( rigHas "$rigTmp/x1/rec.2" '{"type":"thinking","thinking":"RIG-THINK-MARKER\n","signature":"RIG-SIGNATURE-MARKER"}' )" 1
 rigAssert "the tool result keeps its tool_use id" "$( rigHas "$rigTmp/x1/rec.3" '"tool_use_id":"toolu_RIG"' )" 1
 rigAssert "the answer is kept as the assistant turn it was" "$( cat "$rigTmp/x1/rec.4" )" '{"role":"assistant","content":[{"type":"text","text":"RIG-FINAL-MARKER"}]}'
@@ -211,8 +211,8 @@ rigPrefix="${rigReq2%]\}}"
 rigNewReq="$( cat "$rigS2/req.1" )"
 rigAssert "so the old request is its prefix, byte for byte" "$( [ "${rigNewReq:0:${#rigPrefix}}" = "$rigPrefix" ] && echo prefix || echo no )" prefix
 rigAssert "the kept context continues: 6 messages, now this session's, the 4 loaded not its own" \
-	"$( LC_ALL=C awk -v mode=validate "${rigAwk[@]}" "$rigCtx" ):$( head -1 "$rigCtx" | LC_ALL=C awk -v path=session -f "$rigHere/AgentsHarnessJsonField.awk" ):$( head -1 "$rigCtx" | LC_ALL=C awk -v path=from -f "$rigHere/AgentsHarnessJsonField.awk" )" "6:$rigSid2:4"
-rigAssert "a later restart would carry the task and the corrections" "$( head -1 "$rigCtx" | LC_ALL=C awk -v path=task -f "$rigHere/AgentsHarnessJsonField.awk" | tr '\n' '|' )" "RIG-TASK-MARKER||RIG-CORRECTIONS|"
+	"$( LC_ALL=C awk -v mode=validate "${rigAwk[@]}" "$rigCtx" ):$( head -1 "$rigCtx" | LC_ALL=C awk -v path=session -f "$rigHere/harness/AgentsHarnessJsonField.awk" ):$( head -1 "$rigCtx" | LC_ALL=C awk -v path=from -f "$rigHere/harness/AgentsHarnessJsonField.awk" )" "6:$rigSid2:4"
+rigAssert "a later restart would carry the task and the corrections" "$( head -1 "$rigCtx" | LC_ALL=C awk -v path=task -f "$rigHere/harness/AgentsHarnessJsonField.awk" | tr '\n' '|' )" "RIG-TASK-MARKER||RIG-CORRECTIONS|"
 
 echo "-- 4. an ineligible resume refuses before any request, and the proxy falls back --"
 rigS3="$rigTmp/s3"
@@ -226,8 +226,8 @@ printf '{"type":"context"\n' > "$rigTmp/broken.jsonl"
 rigRun "$rigS3" "dddd4444-0000-4000-8000-000000000004" MDAT_HARNESS_RESUME_CONTEXT="$rigTmp/broken.jsonl" -- RIG-CORRECTIONS
 rigAssert "a file that does not parse: rc 7, no request" "$rigRunStatus:$rigRounds" 7:0
 
-. "$rigHere/AgentsTools.ReviewFlow.include"
-. "$rigHere/AgentsTools.HarnessResume.include"
+. "$rigHere/board/AgentsTools.ReviewFlow.include"
+. "$rigHere/harness/AgentsTools.HarnessResume.include"
 rigRecords="$rigTmp/records"
 AgentsReviewRecord(){ printf '%s\n' "$3: $4 [$5 $6]" >> "$rigRecords" ; }
 rigFakeWs="$rigTmp/fakews"
@@ -269,7 +269,7 @@ AgentsReviewCliResolved(){ printf 'other-leg' ; }
 rigAssert "nor one whose cli changed" "$( AgentsReviewContextResumeEligible "$rigRec" ; echo " rc=$?" )" "the cli is now other-leg, the old session ran on rig-leg rc=1"
 
 echo "-- 5. event-track: one open post, sent 5 s after its first line or right after an immediate line, against a fake Slack --"
-. "$rigHere/AgentsTools.EventTrackFeed.include"
+. "$rigHere/session/AgentsTools.EventTrackFeed.include"
 rigSlack="$rigTmp/slack"
 : > "$rigSlack"
 ## The post op's own rendering and cutting are AgentsEventTrackPostCheck's: this fake keeps what the feed hands it,

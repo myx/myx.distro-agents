@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.EventTrackFeed.include -- a coworking session's event-track Slack thread as
+## the live feed of every participant: the same lines each one's session transcript gets,
+## posted as they come, each operation one line by its own template
+## (sh-lib/templates/event-track.post.format.md), never a raw line and never a code block.
+## Sourced, never run; functions only.
+##
+## ONE THREAD PER COWORKING SESSION, one feed and one poster per participant. Each
+## participant has its own buffer and its own poster, which posts that participant's lines,
+## and no other's, into the session's thread (its one record: AgentsTools.EventTrackThread.include).
+## So the rules below hold per poster: one open post, the order of its own lines kept, none
+## lost or delayed by another participant's. Two posters never share a post, so two
+## participants' lines never share a box; their posts interleave in the thread as they go.
+##
+## THE FEED: $MMDAPP/.local/agents/sessions/<its own id>/feed, written only while that
+## participant's feed is switched on (sessions/<its own id>/feed.open,
+## AgentsEventTrackFeedOpen, from the spawn proxy). Its writers: every transcript event and tool line (AgentsTranscriptFeed: board
+## moves, Decisions, dismissals, MCP calls served to native clients, endings), a native
+## spawn's stream writer, and a universal-harness session's kept context, rendered live
+## (AgentsHarnessContextFeed: tool calls, rounds with their tokens). Every writer opens it
+## for each write. It is the session's state, a buffer and never a log: the poster takes it
+## whole (renamed to feed.posting, so the next write starts a new feed) and removes what it
+## took once every line in it is read into the poster, which posts it: on disk the feed only
+## ever holds lines not yet posted.
+## THE POSTS: the lines collect into one open post, in the order they happened, whoever they
+## regard: the post's own blocks say that, a box for its subject each time the subject changes.
+## Fixed in code, never configured, the open post goes on whichever comes first:
+##   - 5 seconds after its first line, even when nothing follows: the poster's loop never
+##     sleeps past that moment;
+##   - right after an immediate line joins it: an error, a refusal, or a session event
+##     (start, end, model, restart, handback, dismissed), AgentsEventTrackFeedPlan.awk;
+##   - at the size limit: the post op cuts it between boxes into posts of at most 50
+##     blocks, a box's children counted too, Slack's limit for a message.
+## The feed is polled every 4 seconds, so a line waits at most 4 s to be read, then at most
+## 5 s more (just under 6 on the whole-second clock) before its post goes: under 10 s from
+## the line to the send call.
+## Posts go one at a time, in the order of their lines, each once: none is ever edited. Each
+## goes through --intern-op-event-track-post --kind feed, the tooling's own post path, never
+## a member's message: no addressee, no @here. It sends through --intern-op-slack-call, so the
+## shared Slack call's own rate-limit handling (Retry-After, bounded retries) applies unchanged.
+##
+
+agentsEventTrackFeedTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+agentsEventTrackFeedLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+
+## Opens one participant's feed: from now on its lines are kept for its poster, switched on
+## by its own marker (AgentsTools.EventTrackThread.include). Only with a thread for that
+## poster to post into, the session's, which is recorded by whoever opened it and never
+## here: a participant has no thread record of its own. Called only by what starts a poster.
+AgentsEventTrackFeedOpen(){ ## the participant's own session id, the session's thread
+	[ -n "$2" ] || return 0
+	case "$1" in ''|*/*|.|..|*' '*) return 0 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 0
+	type AgentsToolsEventTrackFeedSwitchOn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackThread.include" 2> /dev/null || return 0
+	AgentsToolsEventTrackFeedSwitchOn "$MMDAPP/.local/agents/sessions/$1"
+	return 0
+}
+
+## One post to the thread, its lines on stdin. Through the tooling's own post op only, which
+## renders it as boxes and cuts it at Slack's limits; never --update.
+AgentsEventTrackFeedSend(){ ## member, thread, session id
+	"$BASH" "$agentsEventTrackFeedTools" --intern-op-event-track-post "$1" "$2" --kind feed ${3:+--session-id "$3"} --from-stdin > /dev/null 2>&1 || :
+}
+
+## The open post's lines and the new ones: every post that ends among them sent, in order and
+## one at a time (AgentsEventTrackFeedPlan.awk); prints the lines the open post keeps. With
+## all 1, the open post goes too.
+AgentsEventTrackFeedPost(){ ## member, thread, lines, session id, all
+	local planLine planBody="" planInPost="" planOpen=""
+	[ -n "$3" ] || return 0
+	while IFS= read -r planLine ; do
+		if [ -n "$planOpen" ] ; then printf '%s\n' "$planLine" ; continue ; fi
+		case "$planLine" in
+			$'\001'*)
+				[ -z "$planInPost" ] || printf '%s\n' "$planBody" | AgentsEventTrackFeedSend "$1" "$2" "${4:-}"
+				planBody="" ; planInPost="yes"
+				[ "$planLine" != $'\001OPEN' ] || planOpen="yes"
+			;;
+			*) planBody="${planBody:+$planBody$'\n'}$planLine" ;;
+		esac
+	done < <( printf '%s\n' "$3" | ETF_ALL="${5:-0}" LC_ALL=C awk -f "$agentsEventTrackFeedLib/session/AgentsEventTrackFeedPlan.awk" )
+	return 0
+}
+
+## Removes the feed the poster took once nothing in it is left unread; rc 0 when it went.
+AgentsEventTrackFeedDrop(){ ## taken feed, bytes read from it
+	local dropSize
+	[ -f "$1" ] || return 1
+	dropSize="$( wc -c < "$1" | tr -d ' ' )"
+	[ "${dropSize:-0}" -le "${2:-0}" ] || return 1
+	rm -f "$1"
+}
+
+## The poster: runs until killed, then posts what is still open. Polls the feed every 4
+## seconds, fixed in code, and never sleeps past the open post's 5 seconds, so that post goes
+## on time with no further line; reads whole lines only. 4, not 5: a line read just after it
+## was written waits a poll, then the 5 s window, which the whole-second clock can stretch to
+## just under 6 -- 4 + 6 keeps every line under 10 s from written to sent. Takes the feed
+## whole, renamed to feed.posting, and removes that at the next poll once every line in it is
+## read and so held here to post: the file on disk only ever holds what is not yet posted.
+AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the session's thread
+	local LC_ALL=C
+	local runFeed runTaken runOffset=0 runSize runNew runOpen="" runWas runSince=0 runPoll=4 runNow runCut runNap
+	[ -n "$3" ] && [ -n "${MMDAPP:-}" ] || return 0
+	runFeed="$MMDAPP/.local/agents/sessions/$1/feed"
+	runTaken="$runFeed.posting"
+	## A hangup ends the poster only where it ends its run. A detached run ignores it (the
+	## spawn proxy's trap '' HUP, which the poster starts under), and its poster goes on with
+	## it: it is ended as its run ends, by the TERM its proxy sends. Where the hangup is not
+	## ignored, the run dies of it, and the poster posts what is open and ends, as on TERM.
+	local runHangup="HUP"
+	case "$( trap -p HUP )" in "trap -- '' "*) runHangup="" ;; esac
+	trap 'AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 > /dev/null ; AgentsEventTrackFeedDrop "$runTaken" "$runOffset" ; exit 0' TERM INT $runHangup
+	while : ; do
+		## The feed taken at the last poll goes once all of it is read. A poll later, never at
+		## once: a write that opened the feed just before it was taken has landed by then.
+		! AgentsEventTrackFeedDrop "$runTaken" "$runOffset" || runOffset=0
+		## One taken at a time, so no line is read twice. Its writers open the feed for each
+		## write, so the next write starts a new one.
+		[ -f "$runTaken" ] || [ ! -s "$runFeed" ] || { mv -f "$runFeed" "$runTaken" 2>/dev/null && runOffset=0 ; }
+		if [ -f "$runTaken" ] ; then
+			runSize="$( wc -c < "$runTaken" | tr -d ' ' )"
+			if [ "${runSize:-0}" -gt "$runOffset" ] ; then
+				## Up to the last newline: a block being written is taken next time.
+				runNew="$( tail -c +"$(( runOffset + 1 ))" "$runTaken" | head -c "$(( runSize - runOffset ))" ; printf X )"
+				runNew="${runNew%X}"
+				runCut="${runNew%$'\n'*}"
+				if [ "$runCut" != "$runNew" ] ; then
+					runOffset=$(( runOffset + ${#runCut} + 1 ))
+					runWas="$runOpen"
+					## Into the open post; an immediate line sends it, and what came before it, at once.
+					runOpen="$( AgentsEventTrackFeedPost "$2" "$3" "${runOpen:+$runOpen$'\n'}$runCut" "$1" 0 )"
+					## The 5 seconds count from the open post's first line: anew once that post went.
+					[ -n "$runWas" ] && [ "${runOpen%%$'\n'*}" = "${runWas%%$'\n'*}" ] || runSince="$( date +%s )"
+				fi
+			fi
+		fi
+		runNow="$( date +%s )"
+		## Fixed, never configured: the open post goes 5 seconds after its first line.
+		if [ -n "$runOpen" ] && [ $(( runNow - runSince )) -ge 5 ] ; then
+			AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 > /dev/null
+			runOpen=""
+		fi
+		## Asleep no longer than the open post has left.
+		runNap="$runPoll"
+		[ -z "$runOpen" ] || [ $(( runSince + 5 - runNow )) -ge "$runNap" ] || runNap=$(( runSince + 5 - runNow ))
+		[ "$runNap" -ge 1 ] || runNap=1
+		sleep "$runNap" &
+		wait $! 2>/dev/null || :
+	done
+}

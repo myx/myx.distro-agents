@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on the main loop starting the dead control threads of the sessions of its workspace at each
-## iteration (--intern-main-loop, sh-lib/AgentsTools.InternMainLoop.include, through the one check of
-## sh-lib/AgentsTools.SessionControlStart.include). The real loop and spawn proxy run, as in
+## iteration (--intern-main-loop, sh-lib/magic/AgentsTools.InternMainLoop.include, through the one check of
+## sh-lib/session/AgentsTools.SessionControlStart.include). The real loop and spawn proxy run, as in
 ## AgentsMainLoopPassBoundCheck; the console, curl, ps and every setting are this rig's own. GUARD: every tooling
 ## call goes through one `env -i` whose child refuses to start unless MMDAPP and MDAT_DATA_ROOT sit under this
 ## rig's mktemp tree, and PATH holds no agent CLI.

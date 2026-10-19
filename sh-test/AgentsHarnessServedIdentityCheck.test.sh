@@ -15,7 +15,7 @@
 ## refused for it, and Read still served, so a bad identity never takes the other tools down.
 ##
 ## Offline, and self-contained in its scratch: MMDAPP, HOME and the skillset are fixtures.
-## Red recipe, run: drop the `harnessToolOnly` identity default in sh-lib/AgentsUniversalHarness.sh,
+## Red recipe, run: drop the `harnessToolOnly` identity default in sh-lib/harness/AgentsUniversalHarness.sh,
 ## or point MDLT_ORIGIN at a tree without it.
 ## The options body is red when its case patterns in AgentsHarnessToolAskUserQuestion lose
 ## their leading parenthesis, which bash 3.2 needs inside a command substitution.
@@ -30,7 +30,7 @@ rigRefuse(){
 }
 
 [ -f "$rigTool" ] || rigRefuse "not found at the origin this workspace resolves: $rigTool"
-[ -f "$rigHere/AgentsUniversalHarness.sh" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHere/AgentsUniversalHarness.sh"
+[ -f "$rigHere/harness/AgentsUniversalHarness.sh" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHere/harness/AgentsUniversalHarness.sh"
 
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsHarnessServedIdentityCheck )" || exit 1
@@ -122,7 +122,7 @@ if [ "$rigFails" -ne 0 ] ; then
 	echo "  warn: a call served over MCP carries no team identity, so AskUserQuestion," >&2
 	echo "        SendMessage, Wait and Agent refuse in every native-client session" >&2
 	echo "  fix:  repair the identity resolution in" >&2
-	echo "        sh-lib/AgentsUniversalHarness.sh's --intern-tool path -- never the assertion" >&2
+	echo "        sh-lib/harness/AgentsUniversalHarness.sh's --intern-tool path -- never the assertion" >&2
 	exit 1
 fi
 echo "HARNESS_SERVED_IDENTITY: OK (root as magic-coordinator, spawned as its member, missing member dropped with other tools served, ask body with options built, offline)"

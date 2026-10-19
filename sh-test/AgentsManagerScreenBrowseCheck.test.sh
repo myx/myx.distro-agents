@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on browsing in the manager screen (sh-lib/AgentsManagerScreen.py): the items of the team data
+## Behavioural check on browsing in the manager screen (sh-lib/manager/AgentsManagerScreen.py): the items of the team data
 ## in `Team Data` (P13), and a team member as a folder (P14), run rather than read. The screen's own code runs
 ## through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py), and where it would
 ## call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.stub.sh), which notes each
@@ -27,7 +27,7 @@
 ## Reconciled for F11.0, the table lines: two spaces between the columns of a table where its pane has the room, an empty line between two rows of a table that is all the left window, none ahead of a heading.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"
@@ -354,7 +354,7 @@ echo "-- 2d. at the width the owner's screen has: the key column has its room fi
 rigCase owner
 {
 	printf '%s\n' "$rigMember"
-	printf 'grant\tfloor\tread\t/rig/ws/source/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py\tws:source/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py\tset-3ef0ea61-ff24-46e7-8299-bb3c5ee6b4fc_by_U75H0DK43\tuntil_session_5680fa0b-cd80-4db6-82cf-1779e5fb10db_ends\n'
+	printf 'grant\tfloor\tread\t/rig/ws/source/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py\tws:source/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py\tset-3ef0ea61-ff24-46e7-8299-bb3c5ee6b4fc_by_U75H0DK43\tuntil_session_5680fa0b-cd80-4db6-82cf-1779e5fb10db_ends\n'
 	printf 'grant\tfloor\twrite\t/rig/ws/.local/temp/**\tws:.local/temp/**\tfloor\tnone\n'
 } > "$MANAGER_SCREEN_RIG/rows.--manager-team-member-read keeper-rig"
 rigScript <<'RIGSCRIPT'
@@ -373,9 +373,9 @@ get wide
 show wide
 roles lw
 RIGSCRIPT
-rigWideLine="$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^wide|' | LC_ALL=C grep -n -F ' ws:source/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py ' | LC_ALL=C sed 's/:.*$//' | head -1 )"
+rigWideLine="$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^wide|' | LC_ALL=C grep -n -F ' ws:source/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py ' | LC_ALL=C sed 's/:.*$//' | head -1 )"
 rigAssert "the path it covers stands whole on the first line of its row; where it comes from and when it ends wrap in their columns, every word of them there; nothing is cut" \
-	"$( rigVal wide.columns ) $( rigHolds wide ' ws:source/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py read' ) $( rigHolds wide 'set-3ef0ea61-' ) $( rigHolds wide 'U75H0DK43' ) $( rigHolds wide '5680fa0b-' ) $( rigHolds wide '…' )" \
+	"$( rigVal wide.columns ) $( rigHolds wide ' ws:source/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py read' ) $( rigHolds wide 'set-3ef0ea61-' ) $( rigHolds wide 'U75H0DK43' ) $( rigHolds wide '5680fa0b-' ) $( rigHolds wide '…' )" \
 	"201 1 1 1 1 0"
 ## F11.0, THE TABLE COLOUR RULE: Turbo Vision in the terminal's own colours, the style here, names no ground of its own
 ## for every other row, so no row takes another look than the one before it, and with the lines wrapped the last line

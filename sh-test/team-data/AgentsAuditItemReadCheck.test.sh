@@ -89,7 +89,7 @@ rigSpawnFinds(){ ## name, line
 rigUpsertFinds(){ ## folder of the item below audit (empty: the root), name
 	local upsertAt="$rigAudit${1:+/$1}/$2" upsertNew="rig upsert of $2"
 	printf '%s\n' "$upsertNew" > "$rigTmp/upsert.in"
-	rigOp --intern-mcp-execute <<< ". \"$rigHere/AgentsTools.InternOpItem.include\" && AgentsToolsItemUpsert magic-tester --from-audit \"$2\" --from-file \"$rigTmp/upsert.in\" --no-push --context rig-audit-read"
+	rigOp --intern-mcp-execute <<< ". \"$rigHere/team-data/AgentsTools.InternOpItem.include\" && AgentsToolsItemUpsert magic-tester --from-audit \"$2\" --from-file \"$rigTmp/upsert.in\" --no-push --context rig-audit-read"
 	if [ "$( rigHolds "$upsertAt" "$upsertNew" )" = yes ] ; then printf in-place
 	elif [ -n "$( LC_ALL=C grep -r -l -F -- "$upsertNew" "$rigAudit" 2> /dev/null )" ] ; then printf elsewhere
 	else printf nowhere
@@ -162,7 +162,7 @@ rigAssert "through the MCP server's execute tool: an error, saying not found and
 	"$( LC_ALL=C sed -n 's/.*"isError":\([a-z]*\).*/\1/p' "$rigTmp/mcp.reply" | head -1 ) $( rigHolds "$rigTmp/mcp.reply" 'not found' ) $( LC_ALL=C grep -c -E '\[exit code: [1-9][0-9]*\]' "$rigTmp/mcp.reply" )" "true yes 1"
 printf '{"command":"bash %s --member-audit-item-read magic-tester %s","cwd":"%s","timeout":60}' "$rigTool" "$rigAbsent" "$rigWs" \
 	| ( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SPAWN_AGENT=magic-tester bash "$rigHere/AgentsUniversalHarness.sh" --intern-tool Bash --access-root "$rigWs" ) \
+		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SPAWN_AGENT=magic-tester bash "$rigHere/harness/AgentsUniversalHarness.sh" --intern-tool Bash --access-root "$rigWs" ) \
 	> "$rigTmp/bash.out" 2> "$rigTmp/bash.err"
 rigAssert "through the served harness's Bash tool: not found, and an exit status that is no success" \
 	"$( rigHolds "$rigTmp/bash.out" 'not found' ) $( LC_ALL=C grep -c -E '^\(exit status [1-9][0-9]*\)$' "$rigTmp/bash.out" )" "yes 1"

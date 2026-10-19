@@ -1,0 +1,233 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+case "$1" in
+	## ONE operation makes every index of the tooling, the registries among them:
+	## --make-harness-indices [<name>...]. --make-agents-indices is its earlier name, kept
+	## for those who call it: this same arm, so the same build under either name, and a
+	## line it prints names the operation as it was called.
+	--make-agents-indices|--make-harness-indices)
+		local makeOp="$1"
+		shift
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+		## What it builds, by name, in the order it is built: the registries by their own one
+		## list (AgentsToolsRegistryList), then the rest, each name the stem of the file it
+		## writes. With no name everything; with names only those, in this order whatever the
+		## order given. A name that is none of them refuses the call before anything is built.
+		local makeRegistryNames="" makeNames makeName makeKnown makeRebuild makeFound makeWanted=" " makeRegistries=""
+		while read -r makeKnown makeRebuild ; do
+			makeRegistryNames="$makeRegistryNames$makeKnown "
+		done <<< "$( AgentsToolsRegistryList )"
+		makeNames="${makeRegistryNames}members permissions grants tool-index mcp.servers harness.roots harness.hooks"
+		for makeName in "$@" ; do
+			makeFound="false"
+			for makeKnown in $makeNames ; do
+				[ "$makeKnown" != "$makeName" ] || makeFound="true"
+			done
+			if [ "$makeFound" != "true" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $makeOp: '$makeName' is none of what it builds -- nothing was built. Its names: ${makeNames// /, }" >&2
+				set +e ; return 1
+			fi
+			makeWanted="$makeWanted$makeName "
+		done
+		[ $# -gt 0 ] || makeWanted=" $makeNames "
+		## The registries wanted, by the one build of them.
+		for makeKnown in $makeRegistryNames ; do
+			case "$makeWanted" in *" $makeKnown "*) makeRegistries="$makeRegistries $makeKnown" ;; esac
+		done
+		if [ -n "$makeRegistries" ] ; then
+			AgentsToolsRegistryAgentsIndicesBuild "$makeOp" $makeRegistries || { set +e ; return 1 ; }
+		fi
+		## The member index, from this workspace's own member registry: its own members
+		## only (AgentsTools.TeamRegistry.include).
+		case "$makeWanted" in *" members "*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+			AgentsToolsTeamMemberIndexWrite "$MMDAPP" || {
+				echo "$MDSC_CMD: ⛔ ERROR: $makeOp: could not write the member index in $MMDAPP/.local/agents" >&2
+				set +e ; return 1
+			}
+			echo "# $MDSC_CMD $makeOp: wrote $MMDAPP/.local/agents/members.index" >&2
+		;; esac
+		## The grants (AgentsTools.Grants.include): the permissions registry from what the
+		## projects declare, then the grants index unrolled from every workspace's registry.
+		## In a subshell, so the source input spec the declares are read under stays there.
+		case "$makeWanted" in *" permissions "*|*" grants "*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+		;; esac
+		case "$makeWanted" in *" permissions "*)
+			( AgentsToolsGrantsRegistryWrite "$MMDAPP" "$MDSC_CMD $makeOp" ) || { set +e ; return 1 ; }
+		;; esac
+		case "$makeWanted" in *" grants "*)
+			AgentsToolsGrantsIndexWrite "$MMDAPP" || {
+				echo "$MDSC_CMD: ⛔ ERROR: $makeOp: could not write $MMDAPP/.local/agents/grants.index" >&2
+				set +e ; return 1
+			}
+			echo "# $MDSC_CMD $makeOp: wrote $MMDAPP/.local/agents/grants.index" >&2
+		;; esac
+		## The tool index, after the grants it reads who holds a tool from
+		## (AgentsTools.InternOpToolIndex.include, the same writer --intern-op-tool-index runs).
+		case "$makeWanted" in *" tool-index "*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.InternOpToolIndex.include"
+			AgentsToolsToolIndexWrite "$MMDAPP" || { set +e ; return 1 ; }
+			echo "# $MDSC_CMD $makeOp: wrote $MMDAPP/.local/agents/tool-index.md" >&2
+		;; esac
+		case "$makeWanted" in *" mcp.servers "*|*" harness.roots "*|*" harness.hooks "*) ;; *) return 0 ;; esac
+		## The harness's own first-class indexes, read at every harness start instead of
+		## recomputing them: the access roots (AgentsHarnessRootsIndex.include), the
+		## PreToolUse hook list (AgentsHarnessHooksLoad.include) and the MCP servers
+		## (AgentsHarnessMcpConfig.include). Each is produced from OUR OWN primary data by the
+		## very code the harness otherwise runs -- never from a file written for an external
+		## tool (.claude/settings.json, mcp.servers.json, .mcp.json, .vscode/mcp.json) --
+		## computed ONCE and used by a harness of this workspace whichever origin it runs
+		## from, and only while what it was produced from is unchanged -- so a missing or
+		## stale one costs time, never a different answer.
+		## The children lists are not this op's: the spawn proxy appends each child and the
+		## main loop repairs them (AgentsTools.ChildrenIndex.include).
+		local indexDir="$MMDAPP/.local/agents" indexHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib" indexRoots="" indexHooks="" indexKind indexText indexFile indexTemp
+		mkdir -p "$indexDir" || { set +e ; return 1 ; }
+		case "$makeWanted" in *" harness.roots "*)
+			indexRoots="$(
+				harnessHere="$indexHere"
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientAccessRoots.include" && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessRootsIndex.include" \
+					&& AgentsHarnessRootsIndexText "$MMDAPP"
+			)" || indexRoots=""
+		;; esac
+		case "$makeWanted" in *" harness.hooks "*)
+			indexHooks="$(
+				harnessHere="$indexHere"
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientToolPolicy.include" && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessHooksLoad.include" \
+					&& AgentsHarnessHooksIndexText
+			)" || indexHooks=""
+		;; esac
+		## The MCP server index too, from the servers our installer registers (never read
+		## back from mcp.servers.json) -- the same writer --install-vscode-integrations runs,
+		## so this op alone, as the source-prepare build runs it, leaves every harness index current.
+		case "$makeWanted" in *" mcp.servers "*)
+			( harnessHere="$indexHere" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessMcpConfig.include" \
+				&& AgentsHarnessMcpIndexWrite "$MMDAPP" ) || {
+				echo "$MDSC_CMD: ⛔ ERROR: $makeOp: could not write $indexDir/mcp.servers.index" >&2
+				set +e ; return 1
+			}
+		;; esac
+		for indexKind in roots hooks ; do
+			case "$makeWanted" in *" harness.$indexKind "*) ;; *) continue ;; esac
+			indexFile="$indexDir/harness.$indexKind.index"
+			case "$indexKind" in
+				roots) indexText="$indexRoots" ;;
+				hooks) indexText="$indexHooks" ;;
+			esac
+			if [ -z "$indexText" ] ; then
+				rm -f "$indexFile"
+				echo "🙋 WARNING: no harness $indexKind index -- nothing it would be produced from read cleanly here, so the harness computes it at every start" >&2
+				continue
+			fi
+			## Built beside the target and renamed over it, so a reader never meets half an index;
+			## the temp file is this write's own, by mktemp and never by $$ (AgentsToolsRegistryWrite).
+			indexTemp="$( mktemp "$indexFile.XXXXXX" )" || indexTemp=""
+			if [ -z "$indexTemp" ] || ! { printf '%s\n' "$indexText" > "$indexTemp" && chmod 644 "$indexTemp" && mv -f "$indexTemp" "$indexFile" ; } ; then
+				[ -z "$indexTemp" ] || rm -f "$indexTemp"
+				echo "$MDSC_CMD: ⛔ ERROR: $makeOp: could not write $indexFile" >&2
+				set +e ; return 1
+			fi
+			echo "🧭 harness $indexKind index written: ${indexFile#$MMDAPP/}" >&2
+		done
+		return 0
+	;;
+
+	--make-workspace-integrations)
+		shift
+
+		if [ -z "$MDLT_ORIGIN" ] || [ "$MDLT_ORIGIN" = "$MMDAPP/.local" ] ; then
+			mkdir -p "$MMDAPP/.agents"
+		fi
+
+		## This workspace's places, its own row included, on every update: the grants and the
+		## member scan below read them (AgentsTools.Places.include).
+		DistroAgentsTools --intern-directory-register || { set +e ; return 1 ; }
+		DistroAgentsTools --make-console-command "$@" || { set +e ; return 1 ; }
+		## The install in two parts, with the ONE build of the indices between them: the part
+		## is named in makeInstallPart, a local of this run, which the install reads in this
+		## same call and no other ever sees. First the part the indices are made from: the MCP
+		## registration, and the member links, which write the member registry.
+		local makeInstallPart="before-indices"
+		DistroAgentsTools --install-workspace-integrations "$@" || { set +e ; return 1 ; }
+		## After the member registry is written: the members of registered workspaces without
+		## agents, and every member's home (AgentsTools.MemberHomes.include).
+		DistroAgentsTools --intern-member-home-register || { set +e ; return 1 ; }
+		## Then every index of the tooling, once and with no name: built here, each describes
+		## the places, the members, their homes and the servers every step above has just
+		## finished registering, and every step below reads what this one built.
+		DistroAgentsTools --make-harness-indices || { set +e ; return 1 ; }
+		## Then the part of the install that reads the indices: the trust, the permissions, the
+		## settings and the copilot access.
+		makeInstallPart="after-indices"
+		DistroAgentsTools --install-workspace-integrations "$@" || { set +e ; return 1 ; }
+		makeInstallPart=""
+		## The restrictions are a manual opt-in (--install-workspace-restrictions). Where the
+		## user installed them, their reroute hook is in place, and they are kept current
+		## here; where not, they are never installed by this op.
+		## Given no "$@": what this op forwards is --quiet and --scope, which
+		## that op does not take, and the workspace it works on is the $MMDAPP
+		## default it resolves for itself.
+		if [ -f "$MMDAPP/.claude/hooks/deny-native-tool-reroute.sh" ] ; then
+			DistroAgentsTools --install-workspace-restrictions || { set +e ; return 1 ; }
+		fi
+		return 0
+	;;
+	--make-console-command)
+		shift
+		set -e
+		# shortcut for: `DistroAgentsTools --make-console-script`
+		## Built beside the target and renamed over it, never written in place. A direct
+		## redirect truncates on open, so a generation that dies partway leaves a
+		## truncated but still-executable console -- and AgentsTools.Owner.include:599
+		## records this redirection measured doing exactly that. The gate in
+		## AgentsTools.Owner.include deliberately does NOT guard against that stub: a
+		## reader cannot make a non-atomic writer safe, and a size or tail-token check
+		## only moves the race. It is fixed here, at the writer, or not at all.
+		## Same directory on purpose, against this family's .local/temp convention:
+		## rename is atomic only within a filesystem, and nothing guarantees .local is
+		## the same one. Same-directory needs no such assumption.
+		local consoleTempFile="$( mktemp "$MMDAPP/DistroAgentsConsole.sh.XXXXXX" )"
+		cat "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsConsoleShellScript.template.sh" \
+		> "$consoleTempFile"
+
+		## What the spawn proxy greps for before it will start anything. Checked on the
+		## candidate, so a stale template leaves the working console in place instead of
+		## destroying it -- a complete-but-wrong console is the same booby trap as a
+		## truncated one.
+		grep -q 'cli-configured' "$consoleTempFile" || {
+			rm -f "$consoleTempFile"
+			echo "$MDSC_CMD: ⛔ ERROR: --make-console-command: the console generated from $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsConsoleShellScript.template.sh carries no --cli-configured arm, so an agent-initiated spawn through it would be refused rather than started. That template is what predates the arm -- point MDLT_CONSOLE_ORIGIN at a tree whose template carries it and run this again. Nothing was installed: the existing console at $MMDAPP/DistroAgentsConsole.sh is unchanged." >&2
+			set +e ; return 1
+		}
+
+		## chmod AFTER the validate and BEFORE the rename, and both halves matter.
+		## mv carries the temp's mode onto the target, so setting it after the rename
+		## would leave a mode-600 console -- which the integrations gate then regenerates
+		## on every apply, forever, presenting as a permissions fault rather than a
+		## generation one. Setting it before the validate would instead leave an
+		## executable stub behind on an aborted run, which is the artefact this removes.
+		chmod 770 "$consoleTempFile"
+		mv "$consoleTempFile" "$MMDAPP/DistroAgentsConsole.sh"
+
+		if [ "$1" != "--quiet" ] ; then
+			local consoles="$( ls $MMDAPP/Distro*Console.sh | sed 's|^|	|g' )"
+			printf \
+				"\nNote: DistroAgentsConsole.sh created, now you can run:\n%s\n\n" \
+				"$consoles" \
+			>&2
+		fi
+
+		return 0
+	;;
+	--make-console-script)
+		shift
+		cat "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsConsoleShellScript.template.sh"
+		return 0
+	;;
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

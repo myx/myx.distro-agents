@@ -26,7 +26,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-rigHarness="$rigLib/AgentsUniversalHarness.sh"
+rigHarness="$rigLib/harness/AgentsUniversalHarness.sh"
 rigHook="$rigLib/client-hooks/allow-granted-native-tool.sh"
 rigFixture="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/slack-send-identity-check.curl.stub.sh"
 
@@ -164,7 +164,7 @@ rigHook(){ ## member, session, tool, path
 ## An in-context helper (no operation of its own), run by --intern-mcp-execute inside the tool's own context.
 rigHelper(){ ## result file, include, function, arguments...
 	local helperOut="$1" helperInclude="$2" helperCall="$3" ; shift 3
-	{ printf '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/%s"\n%s' "$helperInclude" "$helperCall" ; [ $# -eq 0 ] || printf ' %q' "$@" ; printf '\n' ; } > "$rigTmp/helper.in"
+	{ printf '. "$MDLT_ORIGIN"/myx/myx.distro-*/sh-lib/*/%s\n%s' "$helperInclude" "$helperCall" ; [ $# -eq 0 ] || printf ' %q' "$@" ; printf '\n' ; } > "$rigTmp/helper.in"
 	rigRun "$helperOut" bash -c 'exec bash "$0" --intern-mcp-execute < "$1"' "$rigFn" "$rigTmp/helper.in"
 }
 

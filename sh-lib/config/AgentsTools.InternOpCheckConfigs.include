@@ -1,0 +1,284 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpCheckConfigs.include -- --intern-op-check-configs.
+## Sourced lazily via the standard $MDLT_ORIGIN path; relies on being
+## dot-sourced for $1/$@/$MDSC_CMD. Generic config-key status-check
+## primitive (name only, never the value); --required gates exit 1,
+## --optional is informational only. No --help entry: internal plumbing.
+## NOT A SLACK OP: --resolve-slack-workspace-into <KEY> goes through a helper in
+## sh-lib/comms/AgentsTools.CommsSlack.include, sourced from inside that branch alone.
+##
+
+case "$1" in
+
+	--intern-op-check-configs)
+		shift
+		local opContext="<no --context given>"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then
+				opContext="$ctxArg" ; ctxWanted="" ; continue
+			fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
+		## The owner-setup BARE-CALL path prints its own render-missing command
+		## right below this check's own output, so a raw low-level --upsert here
+		## would only repeat it -- but --check renders neither block, so a --check
+		## caller keeps this line as its one real source of per-key guidance.
+		## Scoped to the bare-call variant of those two contexts alone -- never to
+		## their own :check variant, and never to another context entirely.
+		local suppressFixHint=""
+		case "$opContext" in
+			--owner-setup-slack:bare|--owner-setup-storage:bare) suppressFixHint="yes" ;;
+		esac
+		local expectKinds=() ekWanted="" ekArg
+		for ekArg in "$@" ; do
+			if [ -n "$ekWanted" ] ; then
+				expectKinds+=( "$ekArg" ) ; ekWanted="" ; continue
+			fi
+			if [ "$ekArg" = "--expect-id-kind" ] ; then ekWanted="1" ; fi
+		done
+
+		local expectPaths=() epWanted="" epArg
+		for epArg in "$@" ; do
+			if [ -n "$epWanted" ] ; then
+				expectPaths+=( "$epArg" ) ; epWanted="" ; continue
+			fi
+			if [ "$epArg" = "--expect-path-exists" ] ; then epWanted="1" ; fi
+		done
+			local expectSecrets=() esWanted="" esArg
+			for esArg in "$@" ; do
+				if [ -n "$esWanted" ] ; then
+					expectSecrets+=( "$esArg" ) ; esWanted="" ; continue
+				fi
+				if [ "$esArg" = "--expect-secret" ] ; then esWanted="1" ; fi
+			done
+
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "$MDSC_CMD: check-configs: ⛔ ERROR: syntax is <team-member> [--required <KEY>:<hint>]... [--optional <KEY>:<hint>]..." >&2
+			set +e ; return 1
+		fi
+		local requiredMissing=0
+		local checkMode checkSpec checkKey checkHint checkVal
+		local resolveWorkspaceKey=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--required) checkMode="required" ;;
+				--optional) checkMode="optional" ;;
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: check-configs: ⛔ ERROR: --context: value required" >&2
+						set +e ; return 1
+					fi
+					shift 2
+					continue
+				;;
+				--resolve-slack-workspace-into)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: check-configs: ⛔ ERROR: --resolve-slack-workspace-into: value required (<KEY> to persist the resolved workspace under)" >&2
+						set +e ; return 1
+					fi
+					resolveWorkspaceKey="$2"
+					shift 2
+					continue
+				;;
+				--expect-id-kind)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: check-configs: ⛔ ERROR: --expect-id-kind: value required (<KEY>:<user|channel|dm>)" >&2
+						set +e ; return 1
+					fi
+					case "${2#*:}" in
+						user|channel|dm) ;;
+						*)
+							echo "$MDSC_CMD: check-configs: ⛔ ERROR: --expect-id-kind: unknown kind in '$2' -- expected <KEY>:user, <KEY>:channel or <KEY>:dm" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+					continue
+				;;
+				--expect-secret)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: check-configs: ⛔ ERROR: --expect-secret: value required (<KEY>)" >&2
+						set +e ; return 1
+					fi
+					case "$2" in
+						*:*)
+							echo "$MDSC_CMD: check-configs: ⛔ ERROR: --expect-secret: expected a bare <KEY>, got: $2" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+					## Same `continue` requirement as the arms above.
+					continue
+				;;
+				--expect-path-exists)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: check-configs: ⛔ ERROR: --expect-path-exists: value required (<KEY>:<resolved-path>)" >&2
+						set +e ; return 1
+					fi
+					case "$2" in
+						*:*) ;;
+						*)
+							echo "$MDSC_CMD: check-configs: ⛔ ERROR: --expect-path-exists: expected <KEY>:<resolved-path>, got: $2" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+					## Same `continue` requirement as the two arms above.
+					continue
+				;;
+				*)
+					echo "$MDSC_CMD: check-configs: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+			checkSpec="$2"
+			if [ -z "$checkSpec" ] ; then
+				echo "$MDSC_CMD: check-configs: ⛔ ERROR: $1 needs a <KEY>:<hint> argument" >&2
+				set +e ; return 1
+			fi
+			shift 2
+			checkKey="${checkSpec%%:*}"
+			checkHint="${checkSpec#*:}"
+			if [ "$checkHint" = "$checkSpec" ] ; then checkHint="<value>" ; fi
+			checkVal="$( DistroAgentsTools --agents-config-option "$callingMember" --select "$checkKey" )"
+			if [ -n "$checkVal" ] ; then
+				local warnDetail=()
+
+				## --- check 1: declared id kind ---
+				local expectedKind="" ekEntry
+				if [ ${#expectKinds[@]} -gt 0 ] ; then
+					for ekEntry in "${expectKinds[@]}" ; do
+						if [ "${ekEntry%%:*}" = "$checkKey" ] ; then expectedKind="${ekEntry#*:}" ; fi
+					done
+				fi
+				if [ -n "$expectedKind" ] ; then
+					local idPrefix wantPrefix wantLabel gotLabel
+					idPrefix="$( printf '%s' "$checkVal" | cut -c1 )"
+					case "$expectedKind" in
+						user)    wantPrefix="U" ; wantLabel="a user id (U...)" ;;
+						channel) wantPrefix="C" ; wantLabel="a public channel id (C...)" ;;
+						dm)      wantPrefix="D" ; wantLabel="a DM channel id (D...)" ;;
+					esac
+					case "$idPrefix" in
+						U) gotLabel="a user id (U...)" ;;
+						C) gotLabel="a public channel id (C...)" ;;
+						D) gotLabel="a DM channel id (D...)" ;;
+						G) gotLabel="a group/private channel id (G...)" ;;
+						*) gotLabel="an unrecognised id kind" ;;
+					esac
+					if [ "$idPrefix" != "$wantPrefix" ] ; then
+						warnDetail+=( "  warn: declared to hold $wantLabel, but holds $gotLabel" )
+						if [ "$idPrefix" = "D" ] && [ "$expectedKind" = "user" ] ; then
+							warnDetail+=( "  why:  a DM id identifies ONE identity pair, so it cannot be a shared" )
+							warnDetail+=( "        config value at all. The id stored here resolves only for the" )
+							warnDetail+=( "        identity it was opened by; another identity posting under its own" )
+							warnDetail+=( "        SLACK_USER_TOKEN gets channel_not_found, and that identity's real" )
+							warnDetail+=( "        DM with the same person is a DIFFERENT id the first one cannot" )
+							warnDetail+=( "        read. Store the USER id and let each identity open its own DM." )
+						fi
+						[ -n "$suppressFixHint" ] || warnDetail+=( "  fix:  DistroAgentsTools.fn.sh --agents-config-option $callingMember --upsert $checkKey <$expectedKind-id>" )
+					fi
+				fi
+
+				local expectedPath="" epEntry
+				if [ ${#expectPaths[@]} -gt 0 ] ; then
+					for epEntry in "${expectPaths[@]}" ; do
+						if [ "${epEntry%%:*}" = "$checkKey" ] ; then expectedPath="${epEntry#*:}" ; fi
+					done
+				fi
+				if [ -n "$expectedPath" ] && [ ! -d "$expectedPath" ] ; then
+					warnDetail+=( "  warn: configured, but the directory it resolves to does not exist" )
+					warnDetail+=( "  path: $expectedPath" )
+					warnDetail+=( "  note: expected on a fresh workspace -- nothing creates this directory" )
+					warnDetail+=( "        until the first write, so this is not an install failure. Treat" )
+					warnDetail+=( "        it as a real fault only if work was already done here, in which" )
+					warnDetail+=( "        case the configured path is probably wrong." )
+				fi
+
+				if [ ${#warnDetail[@]} -eq 0 ] ; then
+					echo "$checkKey: OK"
+				else
+					echo "$checkKey: WARN"
+					printf '%s\n' "${warnDetail[@]}"
+				fi
+			else
+				## FAIL is a key that had to be set; an unset optional key is a SKIP.
+				if [ "$checkMode" = "required" ] ; then echo "$checkKey: FAIL" ; else echo "$checkKey: SKIP" ; fi
+				local fixHint esEntry
+				fixHint="DistroAgentsTools.fn.sh --agents-config-option $callingMember --upsert $checkKey $checkHint"
+				for esEntry in ${expectSecrets[@]+"${expectSecrets[@]}"} ; do
+					if [ "$esEntry" = "$checkKey" ] ; then
+						fixHint="printf '%s' '$checkHint' | DistroAgentsTools.fn.sh --agents-config-option $callingMember --upsert-from-stdin $checkKey"
+					fi
+				done
+				if [ "$checkMode" = "required" ] ; then
+					if [ -n "$suppressFixHint" ] ; then
+						echo "$MDSC_CMD: check-configs: ⛔ ERROR: $checkKey is not configured" >&2
+					else
+						echo "$MDSC_CMD: check-configs: ⛔ ERROR: $checkKey is not configured -- set it first: $fixHint" >&2
+					fi
+					requiredMissing=1
+				elif [ -z "$suppressFixHint" ] ; then
+					echo "  fix: $fixHint"
+				fi
+			fi
+		done
+
+		if [ -n "$resolveWorkspaceKey" ] ; then
+			## Sourced HERE, not at file top: a check that resolves no workspace never
+			## pulls Slack credential resolvers into its shell. Sourcing dispatches
+			## nothing for a name that file does not own -- see its DUAL USE header.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
+
+			## Scope-pinned: the value is about to be persisted INTO this scope, so the
+			## resolver never falls back to magic-team's token.
+			local wsUrl="" wsRc=0
+			wsUrl="$( AgentsToolsSlackResolveWorkspaceForScope "$callingMember" )" || wsRc=$?
+			case "$wsRc" in
+				0)
+					## An invited member's settings of a system this workspace holds none of are read,
+					## whole, from the workspace it is set up in (AgentsToolsConfigOptionElsewhere). One
+					## setting persisted here would make that system this workspace's from then on, and
+					## leave it here without its token. So where the scope's settings of the key's system
+					## are read from elsewhere, the resolved value is reported and not persisted.
+					type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+					AgentsToolsConfigOptionElsewhere "$callingMember" "$resolveWorkspaceKey" 2> /dev/null || :
+					if [ -n "$agentsConfigOptionElsewhere" ] ; then
+						echo "$resolveWorkspaceKey: OK (resolved $wsUrl, not persisted here: this scope's settings of that system are read from $agentsConfigOptionElsewhere, the workspace $callingMember is set up in)"
+					else
+						DistroAgentsTools --agents-config-option "$callingMember" --upsert "$resolveWorkspaceKey" "$wsUrl" >/dev/null
+						echo "$resolveWorkspaceKey: OK (resolved $wsUrl)"
+					fi
+				;;
+				2)
+					echo "$resolveWorkspaceKey: WARN"
+					echo "  warn: neither SLACK_USER_TOKEN nor SLACK_BOT_TOKEN is configured in $callingMember scope -- there is no token of this scope's own to resolve a workspace with, and previously persisted value, if any, is left untouched"
+				;;
+				3)
+					echo "$resolveWorkspaceKey: WARN"
+					echo "  warn: could not create a private header file for the resolution call -- previously persisted value, if any, is left untouched"
+				;;
+				*)
+					echo "$resolveWorkspaceKey: WARN"
+					echo "  warn: auth.test did not answer this pass -- previously persisted value, if any, is left untouched"
+				;;
+			esac
+		fi
+
+		if [ "$requiredMissing" -ne 0 ] ; then
+			set +e ; return 1
+		fi
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

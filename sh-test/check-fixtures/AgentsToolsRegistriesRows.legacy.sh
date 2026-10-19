@@ -29,7 +29,7 @@ AgentsToolsRegistryLegacyHeader(){ ## frontmatter text, header name
 ## Every `key: value` frontmatter line of one file, through this package's own
 ## frontmatter printer -- no second parser is written here.
 AgentsToolsRegistryLegacyFrontmatter(){ ## file
-	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrint.awk" "$1" 2>/dev/null || :
+	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrint.awk" "$1" 2>/dev/null || :
 }
 ## The state of one session, `<state> <state-at>`, read per row the per-column way from the
 ## file its control thread keeps, sessions/<session-id>/control/state: the word while it is

@@ -7,7 +7,7 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigIsoToEpoch="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsIsoToEpoch.awk"
+rigIsoToEpoch="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsIsoToEpoch.awk"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -59,12 +59,12 @@ rigWithin(){ ## value, before-call epoch, after-call epoch, min minutes, max min
 
 echo "-- AgentsToolsRecheckDate: the lock ops' former inline calculation, unchanged --"
 rigHelper(){ ## spec -- the helper's output, or its rc
-	MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.RecheckDate.include" && AgentsToolsRecheckDate "$1" || echo "rc=$?"' rig "$1"
+	MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include" && AgentsToolsRecheckDate "$1" || echo "rc=$?"' rig "$1"
 }
 rigInline(){ ## minutes -- the calculation the lock ops carried inline before the helper
 	local targetEpoch recheckDay recheckRem
 	targetEpoch=$(( $( date +%s ) + $1 * 60 ))
-	recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
+	recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsEpochToIsoDate.awk" )"
 	recheckRem=$(( targetEpoch % 86400 ))
 	printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))"
 }

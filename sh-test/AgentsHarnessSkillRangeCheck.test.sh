@@ -18,7 +18,7 @@ set -u
 
 export MDLT_ORIGIN="${MDLT_ORIGIN:-$MMDAPP/.local}"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
-rigHarness="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh"
+rigHarness="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -132,7 +132,7 @@ if [ "$rigFails" -ne 0 ] ; then
 	echo "  warn: the Skill tool cannot reach all of a skillset file, or lists names" >&2
 	echo "        its own file argument refuses" >&2
 	echo "  fix:  repair AgentsHarnessToolSkill or its dispatch arm in" >&2
-	echo "        sh-lib/AgentsUniversalHarness.sh -- never the assertion" >&2
+	echo "        sh-lib/harness/AgentsUniversalHarness.sh -- never the assertion" >&2
 	exit 1
 fi
 echo "HARNESS_SKILL_RANGE: OK (line range, relative listing read back, offline)"

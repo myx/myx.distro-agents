@@ -205,7 +205,7 @@ rigAssert "no request left this box"                      "$( LC_ALL=C awk '/^ur
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ESCALATION ONE REPLY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2
 	echo "  warn: one answer gets more than one reply in its question's thread, or a reply that says it as given whatever became of it" >&2
-	echo "  fix:  repair --member-escalation-answer and AgentsToolsEscalationConfirm in sh-lib/AgentsTools.MemberEscalation.include -- never the assertion" >&2
+	echo "  fix:  repair --member-escalation-answer and AgentsToolsEscalationConfirm in sh-lib/questions/AgentsTools.MemberEscalation.include -- never the assertion" >&2
 	exit 1
 fi
 printf 'ESCALATION_ONE_REPLY: OK (%d assertions, offline)\n' "$rigPassCount"

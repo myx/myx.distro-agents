@@ -11,15 +11,15 @@ set -u
 
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
-rigField="$rigHere/AgentsHarnessJsonField.awk"
+rigField="$rigHere/harness/AgentsHarnessJsonField.awk"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigPolicy="$rigHere/AgentsTools.ClientToolPolicy.include"
+rigPolicy="$rigHere/client/AgentsTools.ClientToolPolicy.include"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 
-for rigFile in "$rigHere/AgentsUniversalHarness.sh" "$rigField" "$rigTool" "$rigPolicy" ; do
+for rigFile in "$rigHere/harness/AgentsUniversalHarness.sh" "$rigField" "$rigTool" "$rigPolicy" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
@@ -93,7 +93,7 @@ mkdir -p "$rigTmp/.claude" "$rigTmp/.local/agents"
 printf '#!/bin/sh\ncat >> %s/hook.log ; echo >> %s/hook.log\n' "$rigTmp" "$rigTmp" > "$rigTmp/rig-hook.sh"
 chmod +x "$rigTmp/rig-hook.sh"
 (
-	harnessHere="$rigHere" ; . "$rigHere/AgentsHarnessHooksLoad.include" && AgentsHarnessHooksRecordsComputed \
+	harnessHere="$rigHere" ; . "$rigHere/harness/AgentsHarnessHooksLoad.include" && AgentsHarnessHooksRecordsComputed \
 		&& AgentsHarnessHooksIndexText "$agentsHooksRecords"$'PreToolUse\tall\trig-record\tWrite|Edit\t'"$rigTmp/rig-hook.sh"$'\t\n'
 ) > "$rigTmp/.local/agents/harness.hooks.index" || rigRefuse "the rig's harness hook index could not be written"
 printf '{"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"cat >> %s/settings-hook.log"}]}]}}\n' "$rigTmp" > "$rigTmp/.claude/settings.json"
@@ -494,8 +494,8 @@ done <<< "$rigRerouted"
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ NATIVE CALL CHECK FAILED: $rigFails assertion(s)" >&2
 	echo "  warn: a rerouted tool does not yet answer a call in the native client's names and semantics" >&2
-	echo "  fix:  the tool's arm and body in sh-lib/AgentsUniversalHarness.sh, its declaration in" >&2
-	echo "        sh-lib/AgentsOpenAiChatWire.sh -- or take the tool off the reroute list; never the assertion" >&2
+	echo "  fix:  the tool's arm and body in sh-lib/harness/AgentsUniversalHarness.sh, its declaration in" >&2
+	echo "        sh-lib/harness/AgentsOpenAiChatWire.sh -- or take the tool off the reroute list; never the assertion" >&2
 	exit 1
 fi
 echo "HARNESS_NATIVE_CALL: OK (every rerouted tool answers native names and semantics, served)"

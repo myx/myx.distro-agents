@@ -1,0 +1,639 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Member.include -- the --member-* operation-group body for
+## DistroAgentsTools.fn.sh's single dispatcher, sourced lazily (only when
+## $1 actually matches --member-*) from that file's own `--member-*)` arm,
+## via the absolute $MDLT_ORIGIN-based path already used for every other
+## cross-file source in this family (see --agents-config-option and the
+## --pretty AgentsSlackMessagesFormat.awk reference in the same file).
+##
+
+## Where an inbox item lives (F4.3).
+type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+
+case "$1" in
+
+	## A note and a reflection go into the writer's own inbox only: a spawned session names itself.
+	--member-inbox-note-upsert)
+		shift
+		[ -z "${1:-}" ] || AgentsToolsActingMemberCheck "$1" member-inbox-note-upsert || return 1
+		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-inbox-note-upsert || return 1
+		return 0
+	;;
+
+	## An inquiry into any member's inbox, from the caller: --from-member names the acting
+	## member only, and an item already there is updated only by the member that wrote it.
+	--member-upsert-member-inquiry)
+		shift
+		local inquiryFrom="" inquiryArg inquiryNext="" inquiryFile inquiryAuthor
+		for inquiryArg in "$@" ; do
+			[ -z "$inquiryNext" ] || { inquiryFrom="$inquiryArg" ; inquiryNext="" ; continue ; }
+			[ "$inquiryArg" != "--from-member" ] || inquiryNext=1
+		done
+		[ -z "$inquiryFrom" ] || AgentsToolsActingMemberCheck "$inquiryFrom" member-upsert-member-inquiry || { set +e ; return 1 ; }
+		[ -n "$inquiryFrom" ] || inquiryFrom="$( AgentsToolsActingMember )"
+		case "${1:-}:${2:-}" in
+			*/*|:*|*:) ;;
+			*)
+				inquiryFile=""
+				[ -z "${MDAT_DATA_ROOT:-}" ] || inquiryFile="$( AgentsToolsInboxItemFind "$1" "$2" yes )" || inquiryFile=""
+				if [ -n "$inquiryFile" ] && [ -f "$inquiryFile" ] && [ -n "$inquiryFrom" ] ; then
+					inquiryAuthor="$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, "from: " ) == 1 { print substr( $0, 7 ) ; exit ; }' "$inquiryFile" 2> /dev/null )" || inquiryAuthor=""
+					if [ "$inquiryAuthor" != "$inquiryFrom" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-upsert-member-inquiry: $2 is already in $1's inbox, written by ${inquiryAuthor:-nobody named}, so $inquiryFrom cannot overwrite it -- nothing was done" >&2
+						set +e ; return 1
+					fi
+				fi
+			;;
+		esac
+		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-upsert-member-inquiry || return 1
+		return 0
+	;;
+
+	--member-inbox-reflection-upsert|--member-upsert-inbox-reflection)
+		shift
+		[ -z "${1:-}" ] || AgentsToolsActingMemberCheck "$1" member-inbox-reflection-upsert || return 1
+		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-inbox-reflection-upsert || return 1
+		return 0
+	;;
+
+	## The member's stub: the calling session's own transcript, or a named shared one.
+	## A spawned session appends as its own member only.
+	--member-append-session-transcript)
+		shift
+		[ -z "${1:-}" ] || AgentsToolsActingMemberCheck "$1" member-append-session-transcript || { set +e ; return 1 ; }
+		DistroAgentsTools --intern-op-append-session-transcript "${1:-}" - "${@:2}"
+		return $?
+	;;
+
+	## The coordinator's stub: any session's transcript, named by its id.
+	--magic-append-session-transcript)
+		shift
+		if [ -z "${2:-}" ] || [ "${2:-}" = "-" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-append-session-transcript: syntax is <team-member> <session-id> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--create]" >&2
+			set +e ; return 1
+		fi
+		if [ "$1" != magic-coordinator ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-append-session-transcript: runs only as magic-coordinator, and $1 is not it -- a member appends to its own session with --member-append-session-transcript" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsActingMemberCheck "$1" magic-append-session-transcript || { set +e ; return 1 ; }
+		DistroAgentsTools --intern-op-append-session-transcript "$1" "$2" "${@:3}"
+		return $?
+	;;
+
+	## The implementation. <session-id> is `-` for the calling session's own transcript.
+	--intern-op-append-session-transcript)
+		shift
+		local memberName="$1"
+		shift || true
+		local namedSessionId="${1:-}"
+		shift || true
+		[ "$namedSessionId" != "-" ] || namedSessionId=""
+		[ -z "$namedSessionId" ] || AgentsToolsAssertBareName "$namedSessionId" "<session-id>" intern-op-append-session-transcript || { set +e ; return 1 ; }
+		if [ -z "$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: syntax is <team-member> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-append-session-transcript || { set +e ; return 1 ; }
+		local speakerName timestampUtc messageText transcriptName
+		local messageFromStdin="false" messageFile messageArgProvided="false"
+		local allowCreate="false"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--speaker)
+					speakerName="$2"
+					shift 2
+				;;
+				--timestamp)
+					timestampUtc="$2"
+					shift 2
+				;;
+				--message)
+					messageText="$2"
+					messageArgProvided="true"
+					shift 2
+				;;
+				--message-from-stdin|--from-stdin)
+					messageFromStdin="true"
+					shift
+				;;
+				--message-file|--from-file)
+					messageFile="$2"
+					shift 2
+				;;
+				--transcript-name)
+					transcriptName="$2"
+					shift 2
+				;;
+				--create)
+					allowCreate="true"
+					shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: unrecognized argument: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		## With no --transcript-name: the calling session's own transcript, never another
+		## session's (AgentsTranscriptSessionKey). --create starts it when the session has
+		## none yet. Refused where no session resolves.
+		local sessionMode="false"
+		if [ -n "$namedSessionId" ] && [ -n "$transcriptName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-append-session-transcript: a named session takes no --transcript-name" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$transcriptName" ] ; then
+			sessionMode="true"
+			[ -n "$speakerName" ] || speakerName="$memberName"
+			[ -n "$timestampUtc" ] || timestampUtc="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+		fi
+		if [ -z "$speakerName" ] || [ -z "$timestampUtc" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: required args with --transcript-name: --speaker --timestamp" >&2
+			set +e ; return 1
+		fi
+		local payloadSources=0
+		if [ "$messageArgProvided" = "true" ] ; then
+			payloadSources=$((payloadSources + 1))
+		fi
+		if [ "$messageFromStdin" = "true" ] ; then
+			payloadSources=$((payloadSources + 1))
+		fi
+		if [ -n "$messageFile" ] ; then
+			payloadSources=$((payloadSources + 1))
+		fi
+		if [ "$payloadSources" -ne 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: provide exactly one payload source: --message, --from-stdin, or --from-file" >&2
+			set +e ; return 1
+		fi
+		if [ "$messageFromStdin" = "true" ] ; then
+			messageText="$(cat)"
+		elif [ -n "$messageFile" ] ; then
+			if [ ! -f "$messageFile" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: message file not found: $messageFile" >&2
+				set +e ; return 1
+			fi
+			messageText="$(cat -- "$messageFile")"
+		fi
+		if [ "$sessionMode" = "true" ] ; then
+			if ! printf '%s' "$timestampUtc" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$' ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: --timestamp must be ISO UTC date-time (suffix Z): $timestampUtc" >&2
+				set +e ; return 1
+			fi
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include"
+			local sessionOut="" sessionRc=0 targetSessionId=""
+			targetSessionId="${namedSessionId:-$( AgentsTranscriptSessionKey )}"
+			if [ "$allowCreate" = "true" ] && [ -n "$targetSessionId" ] && ! AgentsTranscriptBase "$targetSessionId" > /dev/null 2>&1 ; then
+				AgentsTranscriptStart "$targetSessionId" "${MDAT_DATA_ROOT:-}" "$( AgentsTranscriptNewRel "$memberName" "$targetSessionId" )" "$memberName"
+			fi
+			sessionOut="$( AgentsTranscriptNote "$targetSessionId" "$speakerName" "$messageText" "$timestampUtc" )" || sessionRc=$?
+			if [ "$sessionRc" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: ${sessionOut#ERROR: }" >&2
+				set +e ; return 1
+			fi
+			echo "$sessionOut"
+			return 0
+		fi
+		AgentsToolsAssertBareName "$transcriptName" "<transcript-file-name>" member-append-session-transcript || { set +e ; return 1 ; }
+		## A session's tooling-written log is that session's alone: it is reached with no
+		## --transcript-name, from inside the session, never named from another.
+		case "$transcriptName" in
+			session-*.log|session-*-part[0-9]*.log)
+				echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: $transcriptName is a session's own log -- only that session writes it, with no --transcript-name" >&2
+				set +e ; return 1
+			;;
+		esac
+		if ! printf '%s' "$timestampUtc" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$' ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: --timestamp must be ISO UTC date-time (suffix Z): $timestampUtc" >&2
+			set +e ; return 1
+		fi
+
+		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
+		if [ ! -d "$memberDir" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: no such member skill directory: $memberDir" >&2
+			set +e ; return 1
+		fi
+		## The month folder comes from the name's own date, so a session crossing
+		## a month boundary keeps appending to the one file it started.
+		## By the one audit lookup (AgentsToolsAuditMonth), which every reader of it looks up by.
+		type AgentsToolsAuditMonth > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpDataRead.include"
+		local yearMonth
+		yearMonth="$( AgentsToolsAuditMonth "$transcriptName" )" || yearMonth="$( date -u +%Y-%m )"
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local transcriptDir="$MDAT_DATA_ROOT/audit/$yearMonth"
+		mkdir -p "$transcriptDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: can't create transcript directory: $transcriptDir" >&2
+			set +e ; return 1
+		}
+		local target="$transcriptDir/$transcriptName"
+		if [ ! -f "$target" ] && [ "$allowCreate" != "true" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: transcript does not exist (pass --create to allow creation): $target" >&2
+			set +e ; return 1
+		fi
+		if [ ! -f "$target" ] ; then
+			: > "$target" || {
+				echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: failed to create transcript: $target" >&2
+				set +e ; return 1
+			}
+		fi
+
+		## One small entry, built in a variable and appended once. $( ) drops the
+		## trailing newlines, which the `\n\n` below puts back -- the blank line
+		## that separates one transcript entry from the next.
+		local entryText
+		entryText="$( printf '%s (%s):\n\n' "$speakerName" "$timestampUtc" ; printf '%s' "$messageText" | LC_ALL=C awk '{ print "> " $0 } END { if (NR == 0) print "> " }' )"
+
+		local addedBytes addedLines
+		addedBytes="$( printf '%s\n\n' "$entryText" | wc -c | tr -d '[:space:]' )"
+		addedLines="$( printf '%s\n\n' "$entryText" | wc -l | tr -d '[:space:]' )"
+		printf '%s\n\n' "$entryText" >> "$target" || {
+			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: failed to append to transcript: $target" >&2
+			set +e ; return 1
+		}
+
+		echo "# $MDSC_CMD --member-append-session-transcript: appended ${target#"$MDAT_DATA_ROOT/audit"/} (+${addedLines} lines, +${addedBytes} bytes)" >&2
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+		AgentsToolsTeamDataCommitPaths "member-append-session-transcript, $transcriptName" "$target"
+		echo "$target"
+		return 0
+	;;
+
+	## One audit document, by bare filename. A stub: it checks who is asking, and
+	## --intern-op-audit-item-read resolves and reads (AgentsTools.InternOpVaultAudit.include).
+	--member-audit-item-read)
+		shift
+		local memberName="${1:-}"
+		shift || true
+		local documentName="${1:-}"
+		shift || true
+		if [ -z "$memberName" ] || [ -z "$documentName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-audit-item-read: syntax is <team-member> <document-name> [--start-line <N> --end-line <N>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-audit-item-read || { set +e ; return 1 ; }
+		if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-audit-item-read: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+			set +e ; return 1
+		fi
+		DistroAgentsTools --intern-op-audit-item-read "$documentName" "$@"
+		return $?
+	;;
+
+	## One vault item, by bare filename. A stub: it checks who is asking, and
+	## --intern-op-vault-item-read resolves and reads (AgentsTools.InternOpVaultAudit.include).
+	--member-vault-item-read)
+		shift
+		local memberName="${1:-}"
+		shift || true
+		local itemName="${1:-}"
+		shift || true
+		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-vault-item-read: syntax is <team-member> <item-name> [--start-line <N> --end-line <N>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-vault-item-read || { set +e ; return 1 ; }
+		if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-vault-item-read: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+			set +e ; return 1
+		fi
+		DistroAgentsTools --intern-op-vault-item-read "$itemName" "$@"
+		return $?
+	;;
+
+	## Read one board item by filename and optional state restrictions, with
+	## optional line range. Path lookup remains inside AgentsToolsDataRead.
+	--member-board-item-read)
+		shift
+		local memberName="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-board-item-read: syntax is <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-board-item-read || { set +e ; return 1 ; }
+		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
+		if [ ! -d "$memberDir" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-board-item-read: no such member skill directory: $memberDir" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$itemName" "<item-name>" member-board-item-read || { set +e ; return 1 ; }
+		case "$itemName" in
+			*-*.md)
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --member-board-item-read: item name must match <type>-<name>.md: $itemName" >&2
+				set +e ; return 1
+			;;
+		esac
+
+		local boardStates=()
+		local startLine="" endLine=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--board-state)
+					case "$2" in
+						backlog|pending|running|review|blocked|parked|processed|archived|retained)
+							boardStates+=( "$2" )
+						;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --member-board-item-read: invalid --board-state: $2" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+				;;
+				--start-line)
+					startLine="$2"
+					shift 2
+				;;
+				--end-line)
+					endLine="$2"
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-board-item-read: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		if [ -n "$startLine" ] || [ -n "$endLine" ] ; then
+			if [ -z "$startLine" ] || [ -z "$endLine" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-board-item-read: --start-line and --end-line must be provided together" >&2
+				set +e ; return 1
+			fi
+		fi
+		if [ ${#boardStates[@]} -eq 0 ] ; then
+			boardStates=( backlog pending running review blocked parked processed archived retained )
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --member-board-item-read: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local readArgs=( "$itemName" --context --member-board-item-read )
+		local boardState
+		for boardState in "${boardStates[@]}" ; do
+			readArgs+=( --lookup-folder "$MDAT_DATA_ROOT/board/$boardState" )
+		done
+
+		if [ -n "$startLine" ] ; then
+			readArgs+=( --start-line "$startLine" --end-line "$endLine" )
+		fi
+		type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpDataRead.include"
+		AgentsToolsDataRead "${readArgs[@]}"
+		return $?
+	;;
+
+	--member-inbox-item-read)
+		shift
+		local memberName="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: syntax is <member> <item-filename> [--include-processed] [--start-line <N> --end-line <N>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<member>" member-inbox-item-read || { set +e ; return 1 ; }
+		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
+		if [ ! -d "$memberDir" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: no such member skill directory: $memberDir" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" member-inbox-item-read || { set +e ; return 1 ; }
+		case "$itemName" in
+			note-*|inquiry-*|reflection-*|warning-*)
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: only note-*/inquiry-*/reflection-*/warning-* items are allowed: $itemName" >&2
+				set +e ; return 1
+			;;
+		esac
+
+		local startLine="" endLine="" includeProcessed="no"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--include-processed)
+					includeProcessed="yes"
+					shift
+				;;
+				--start-line)
+					startLine="$2"
+					shift 2
+				;;
+				--end-line)
+					endLine="$2"
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+
+		if [ -n "$startLine" ] || [ -n "$endLine" ] ; then
+			if [ -z "$startLine" ] || [ -z "$endLine" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: --start-line and --end-line must be provided together" >&2
+				set +e ; return 1
+			fi
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-read: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		## Where a read finds it (AgentsToolsInboxFolders): incoming/, and processed/ with
+		## --include-processed.
+		local readArgs=( "$itemName" --context --member-inbox-item-read ) readFolder
+		while IFS= read -r readFolder ; do
+			readArgs+=( --lookup-folder "$readFolder" )
+		done < <( AgentsToolsInboxFolders "$memberName" "$includeProcessed" )
+
+		if [ -n "$startLine" ] ; then
+			readArgs+=( --start-line "$startLine" --end-line "$endLine" )
+		fi
+		type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpDataRead.include"
+		AgentsToolsDataRead "${readArgs[@]}"
+		return $?
+	;;
+
+	##
+	## Member-scoped trash for one item out of the member's OWN inbox, by its name
+	## alone, from either folder of the inbox (with --exclude-incoming a processed
+	## item only).
+	## Forwards to the same intern-op arm --librarian-inbox-item-trash
+	## calls; the difference is only where --from-inbox: comes from.
+	##
+	## <member> is one positional carrying both the acting member and the
+	## owning inbox, matching --member-inbox-item-read's own convention.
+	## A spawned session naming another member than itself is refused
+	## (AgentsToolsActingMemberCheck); a call from no spawned session, a
+	## human at the console, is taken at the name it gives.
+	##
+	## No type-prefix whitelist, unlike the sibling read op: see the
+	## "DELIBERATELY ABSENT" note in AgentsTools.InternOpBoardTrash.include
+	## for why -- a whitelist would make the misfiled board-type document,
+	## the item whose removal is least in doubt, the one item that cannot
+	## be removed.
+	##
+	--member-inbox-item-trash)
+		shift
+		##
+		## --from-inbox: FAILS CLOSED in every position. This op synthesises
+		## that value from the acting member itself; accepting a
+		## caller-supplied one would turn a member-scoped operation into a
+		## cross-member one silently. Scanned across the whole argument
+		## vector before the positionals are consumed, so a --from-inbox:
+		## standing where <item-filename> belongs is refused for the real
+		## reason rather than as some downstream arity error.
+		##
+		local trashScanArg
+		for trashScanArg in "$@" ; do
+			case "$trashScanArg" in
+				--from-inbox:*)
+					echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-trash: $trashScanArg is not valid here -- this op trashes an item out of <member>'s own inbox, so the source inbox and the acting member are the same one positional. Use --librarian-inbox-item-trash for a cross-member inbox." >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		local memberName="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-trash: syntax is <member> <item-filename> [--exclude-incoming]" >&2
+			set +e ; return 1
+		fi
+		local trashOnly=()
+		if [ "${1:-}" = "--exclude-incoming" ] ; then
+			trashOnly=( --exclude-incoming ) ; shift
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-trash: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$memberName" "<member>" member-inbox-item-trash || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" member-inbox-item-trash || { set +e ; return 1 ; }
+		AgentsToolsActingMemberCheck "$memberName" member-inbox-item-trash || { set +e ; return 1 ; }
+		case "$itemName" in
+			*.md) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --member-inbox-item-trash: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
+				set +e ; return 1
+			;;
+		esac
+		DistroAgentsTools --intern-op-board-trash "$memberName" "--from-inbox:$memberName" "$itemName" \
+			${trashOnly[@]+"${trashOnly[@]}"} --context --member-inbox-item-trash
+		return $?
+	;;
+
+	## Any member marks its own inbox item handled: `processed-at` stamped, and the item moved
+	## to processed/ of the inbox, through the same
+	## primitive --librarian-inbox-to-processed uses.
+	## Own inbox only -- <team-member> is both the actor and the inbox, and a spawned
+	## session naming another member than itself is refused.
+	--member-inbox-to-processed)
+		shift
+		local memberName="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-to-processed: syntax is <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin|--include-processed)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-inbox-to-processed: invalid option: $1 -- this op marks an item in <team-member>'s own inbox processed, nothing else" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-inbox-to-processed || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" member-inbox-to-processed || { set +e ; return 1 ; }
+		if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-to-processed: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+			set +e ; return 1
+		fi
+		if [ -n "${MDAT_SPAWN_AGENT:-}" ] && [ "$MDAT_SPAWN_AGENT" != "$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-to-processed: this session acts as $MDAT_SPAWN_AGENT, and only its own inbox items are its to mark handled -- not $memberName's" >&2
+			set +e ; return 1
+		fi
+		case "$itemName" in
+			*.md) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --member-inbox-to-processed: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
+				set +e ; return 1
+			;;
+		esac
+		DistroAgentsTools --intern-op-inbox-to-processed "$memberName" "$itemName" \
+			--context --member-inbox-to-processed \
+			"${passthrough[@]}"
+		return $?
+	;;
+
+	--member-work-session-input-scan)
+		shift
+		local memberName="$1"
+		shift || true
+		if [ -z "$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: syntax is <member>" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			case "$1" in
+				--*)
+					echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-team/magic-team.armed.md" >&2
+					set +e ; return 1
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-team/magic-team.armed.md" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-work-session-input-scan || { set +e ; return 1 ; }
+		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
+		if [ ! -d "$memberDir" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-work-session-input-scan: no such member skill directory: $memberDir" >&2
+			set +e ; return 1
+		fi
+
+		## Every non-terminal state, owner-filtered, and the member's whole own inbox: the item's own terms.
+		DistroAgentsTools --intern-op-session-context-scan "$memberName" \
+			--state backlog --state pending --state running --state review --state blocked --state parked \
+			--all-types --filter-owner "$memberName" \
+			--do-inbox-reflections \
+			--do-inbox-notes \
+			--do-inbox-inquiry-active \
+			--do-inbox-other \
+			--no-slack --no-email --no-trello \
+			--no-board-related \
+			--context --member-work-session-input-scan
+		return $?
+	;;
+
+	--member-help)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberHelp.include"
+		return $?
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

@@ -1,0 +1,406 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberWorkspace.include -- the workspace a team-member operation runs in.
+## Functions only; sourced at the entry of DistroAgentsTools, before its context is resolved.
+##
+
+## The member set root for work in another workspace: that workspace's own member index
+## view where the root here is this workspace's own view, which holds this workspace's
+## members only (AgentsTools.TeamRegistry.include); a root set anywhere else is kept as it is.
+AgentsToolsWorkspaceSkillsetRoot(){ ## workspace path
+	if [ "${MDAT_SKILLSET_ROOT:-}" = "${MMDAPP%/}/.local/agents/members" ] ; then
+		printf '%s\n' "${1%/}/.local/agents/members"
+	else
+		printf '%s\n' "${MDAT_SKILLSET_ROOT:-}"
+	fi
+}
+
+## Moves this process to another workspace root. The tooling origin stays, and everything
+## derived from the previous root is dropped so it is derived again from the new one.
+AgentsToolsWorkspaceSwitch(){ ## workspace path
+	local switchStale
+	## the member set root, worked out against the previous root before MMDAPP moves
+	MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$1" )"
+	export MMDAPP="$1"
+	## all derived from the previous root, and an index path is matched before MDSC_CACHED
+	unset MDSC_OPTION MDSC_INMODE MDSC_SOURCE MDSC_CACHED MDSC_OUTPUT MDSC_MEMORY
+	## the team data store of the previous root; resolved again from the new one
+	unset MDAT_DATA_ROOT
+	## by prefix, so a new index variable needs no edit here
+	for switchStale in ${!MDSC_ID*} ; do unset "$switchStale" ; done
+	## ...and the input tier derived again now, from the new root, the way the front door
+	## (DistroAgentsTools.fn.sh's tail) derived it for the previous one -- so a reader of
+	## the distro index finds the same tier selected as a direct run in that workspace.
+	## Quiet and non-fatal: a root with no detectable input still switches, and a reader
+	## that needs an index then names the failure itself.
+	if type DistroSystemContext >/dev/null 2>&1 ; then
+		DistroSystemContext --distro-path-auto 2>/dev/null || :
+	fi
+}
+
+## THE THREE WORKSPACES OF A RUN. EXECUTES: the workspace an operation is run from -- its
+## team data and board, its temp, its sessions and sandboxes, its comms settings. PAYS: the
+## same one, unless another is named to pay (SPAWN SETTINGS, below) -- the CLI services and
+## their credentials a member is spawned with. THE MEMBER'S:
+## the workspace the member is set up in, which it brings two things from, its skillset
+## folder and its default access, the standing access that is its own there. So no
+## operation is carried to another workspace as a whole: a member set up only elsewhere on
+## this machine is invited here, and only its skillset source follows it, and those of its
+## own settings this workspace holds none of (SETTINGS FALLBACK, below). A client-* member
+## is invited like any other: which organisation its operation reaches is said by the
+## operation's prefix and its address (AgentsTools.CommsSlack.include), never by a workspace.
+
+## The member's part of one operation: prints `<skillset root><TAB><member's workspace>` for
+## a member set up only in another workspace on this machine, and nothing for one set up
+## here, or unknown to the machine's members index, whose operation reads this workspace's
+## as it always has. rc 1, with one message naming the member, the workspace we run from,
+## what is missing and where it was looked for, only when the member's part cannot be
+## brought: its workspace is not on this machine, or its skillset cannot be read. The
+## invited member works from the member set view of the workspace it is set up in, whole,
+## so that view must hold the team's own folder (magic-team) too: checked here, once, so no
+## later reader of the team's files meets a half view and goes on with an empty result.
+AgentsToolsMemberSkillsetBring(){ ## member, operation
+	local bringWorkspace bringRoot
+	bringWorkspace="$( AgentsToolsMemberWorkspaceResolve "$1" "$2" )" || return 1
+	[ -n "$bringWorkspace" ] || return 0
+	## a root not set yet reads as this workspace's own view, which is what it is then set to
+	bringRoot="$( MDAT_SKILLSET_ROOT="${MDAT_SKILLSET_ROOT:-${MMDAPP%/}/.local/agents/members}" ; AgentsToolsWorkspaceSkillsetRoot "$bringWorkspace" )"
+	if [ ! -d "$bringRoot/$1" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $2: member '$1' cannot be brought into the workspace this operation runs from, ${MMDAPP%/}: its skillset cannot be read -- nothing was done. Looked for its member directory at $bringRoot/$1, in $bringWorkspace, the workspace the machine's members index (${HOME:-}/.agents/magic-team/members.registry) says it is set up in." >&2
+		return 1
+	fi
+	if [ ! -d "$bringRoot/magic-team" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $2: member '$1' cannot be brought into the workspace this operation runs from, ${MMDAPP%/}: the team's own folder cannot be read where its skillset is -- nothing was done. Looked for the team's directory at $bringRoot/magic-team, in $bringWorkspace, the workspace the machine's members index (${HOME:-}/.agents/magic-team/members.registry) says the member is set up in." >&2
+		return 1
+	fi
+	printf '%s\t%s\n' "$bringRoot" "$bringWorkspace"
+}
+
+## rc 0 when the member is invited here: set up only in another workspace on this machine.
+## Silent: what stops an invited member's operation is said where its skillset is brought.
+AgentsToolsMemberInvited(){ ## member
+	local invitedWorkspace
+	invitedWorkspace="$( AgentsToolsMemberWorkspaceResolve "$1" "" 2> /dev/null )" || return 1
+	[ -n "$invitedWorkspace" ]
+}
+
+## The workspace an invited member is set up in, as a path, for a reader of that member's
+## own facts there: its mark and alias, which are its row of that workspace's names registry
+## (AgentsToolsCommsSlackMemberPresentation). Nothing printed, rc 1, for a member that is
+## not invited. Silent, as AgentsToolsMemberInvited is.
+AgentsToolsMemberInvitedWorkspace(){ ## member
+	local invitedWorkspace
+	invitedWorkspace="$( AgentsToolsMemberWorkspaceResolve "$1" "" 2> /dev/null )" || return 1
+	[ -n "$invitedWorkspace" ] || return 1
+	printf '%s\n' "$invitedWorkspace"
+}
+
+## The workspace a member is set up in, from the machine-wide member directory, the
+## member homes and the workspaces this machine knows, all in $HOME/.agents/magic-team
+## (AgentsTools.TeamRegistry.include, AgentsTools.MemberHomes.include, AgentsTools.Places.include).
+## Order: the current workspace when the member is there, else the member's home, else the
+## known workspace where the member is a source link, else the first known workspace that
+## has it. A member registered only from a workspace without agents (source-declared) runs
+## where it was asked. Prints the path to switch to, and nothing when no switch is needed:
+## the member is in the current workspace, is not in the directory (its operation refuses
+## as it always has), or the current workspace is not in it. Refuses, naming the cause, when
+## the member is in no known workspace or the chosen workspace is not on this machine.
+AgentsToolsMemberWorkspaceResolve(){ ## member, operation
+	local resolveMember="$1" resolveOp="$2"
+	local resolveIndex="${HOME:-}/.agents/magic-team/members.registry" resolveTracked resolveHome=""
+	local resolveHere resolveRows resolveWanted resolveRoot resolveKind resolvePath=""
+	case "$resolveMember" in
+		''|magic-team|human-owner) return 0 ;;
+	esac
+	[ -f "$resolveIndex" ] || return 0
+	resolveHere="$( cd "$MMDAPP" 2>/dev/null && pwd )" || resolveHere="${MMDAPP%/}"
+	resolveRows="$( LC_ALL=C awk -F'\t' -v who="$resolveMember" -v here="$resolveHere" '
+		NF < 5 { next ; }
+		$2 == here { tracked = 1 ; }
+		$1 == who {
+			found = 1
+			if ( $3 == "source-declared" ) { next ; }
+			if ( $2 == here ) { present = 1 ; }
+			switchable = 1 ; rows = rows $2 "\t" $3 "\n"
+		}
+		END {
+			if ( ! found ) { print "unknown" ; exit ; }
+			if ( ! tracked ) { print "untracked" ; exit ; }
+			if ( present || ! switchable ) { print "present" ; exit ; }
+			print "switch" ;
+			printf "%s", rows ;
+		}
+	' "$resolveIndex" )"
+	[ "${resolveRows%%$'\n'*}" = "switch" ] || return 0
+	resolveRows="${resolveRows#*$'\n'}"
+	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "${MDLT_ORIGIN:-$( dirname $BASH_SOURCE )/../../../..}/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include"
+	resolveTracked="$( AgentsToolsPlacesWorkspaceRoots )"
+	resolveHome="$( LC_ALL=C awk -F'\t' -v who="$resolveMember" '$1 == who { print $2 ; exit ; }' "${HOME:-}/.agents/magic-team/member-homes.registry" 2> /dev/null )" || resolveHome=""
+	for resolveWanted in home source-symlink any ; do
+		while IFS=$'\t' read -r resolveRoot resolveKind ; do
+			[ -n "$resolveRoot" ] || continue
+			case "$resolveWanted" in
+				home) [ -n "$resolveHome" ] && [ "$resolveRoot" = "$resolveHome" ] || continue ;;
+				source-symlink) [ "$resolveKind" = "source-symlink" ] || continue ;;
+			esac
+			## Only a known workspace is switched to.
+			case $'\n'"$resolveTracked"$'\n' in
+				*$'\n'"$resolveRoot"$'\n'*) resolvePath="$resolveRoot" ; break ;;
+			esac
+		done <<< "$resolveRows"
+		[ -z "$resolvePath" ] || break
+	done
+	if [ -z "$resolvePath" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $resolveOp: member '$resolveMember' is in the team members index but is present in no tracked workspace -- nothing was done. It was asked for from ${MMDAPP%/}, where it is not set up, and its own workspace was looked for among the tracked workspaces of this machine (${HOME:-}/.agents/magic-team), which hold none of: $( printf '%s\n' "$resolveRows" | LC_ALL=C awk -F'\t' 'NF { printf "%s%s", sep, $1 ; sep = ", " ; }' )" >&2
+		return 1
+	fi
+	if [ ! -d "$resolvePath" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $resolveOp: the workspace of member '$resolveMember' is not present on this machine: $resolvePath -- nothing was done. It was asked for from ${MMDAPP%/}, where it is not set up, and the machine's members index says its skillset and its own access are in that workspace, which is missing." >&2
+		return 1
+	fi
+	[ "$( cd "$resolvePath" && pwd -P )" != "$( cd "$MMDAPP" && pwd -P )" ] || return 0
+	printf '%s\n' "$resolvePath"
+}
+
+## A workspace known on this machine, by its name: the root, among those this machine knows
+## (AgentsToolsPlacesWorkspaceRoots, from $HOME/.agents/magic-team), whose last segment is
+## that name; the name of the workspace we run from is that workspace. Prints its path.
+## rc 1 where the name names none, the reason printed in the path's place: no bare name, no
+## known workspace of that name, several of them, or a path not on this machine.
+AgentsToolsWorkspaceByName(){ ## name
+	local byName="$1" byHere="${MMDAPP%/}" byRoot byFound="" byCount=0
+	case "$byName" in
+		''|*/*|.|..) printf 'that is no workspace name, which is the last segment of its path' ; return 1 ;;
+	esac
+	if [ "${byHere##*/}" = "$byName" ] ; then
+		printf '%s\n' "$byHere" ; return 0
+	fi
+	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "${MDLT_ORIGIN:-$( dirname $BASH_SOURCE )/../../../..}/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include"
+	while IFS= read -r byRoot ; do
+		[ "${byRoot##*/}" = "$byName" ] || continue
+		byCount=$(( byCount + 1 )) ; byFound="$byFound${byFound:+, }$byRoot"
+	done <<< "$( AgentsToolsPlacesWorkspaceRoots 2> /dev/null )"
+	case "$byCount" in
+		0) printf 'no workspace this machine knows has that name (%s)' "${HOME:-}/.agents/magic-team" ; return 1 ;;
+		1) ;;
+		*) printf 'several workspaces this machine knows have that name (%s)' "$byFound" ; return 1 ;;
+	esac
+	if [ ! -d "$byFound" ] ; then
+		printf 'the workspace of that name is not present on this machine (%s)' "$byFound" ; return 1
+	fi
+	printf '%s\n' "$byFound"
+}
+
+## Whether a workspace's scope holds any setting whose key begins with a prefix.
+AgentsToolsScopeHoldsKeys(){ ## workspace, scope, key prefix
+	local holdsFile="${1%/}/.local/.agents/$2.agent.env" holdsLine
+	[ -f "$holdsFile" ] && [ -r "$holdsFile" ] || return 1
+	while IFS= read -r holdsLine || [ -n "$holdsLine" ] ; do
+		case "$holdsLine" in "$3"*=*) return 0 ;; esac
+	done < "$holdsFile"
+	return 1
+}
+
+## SPAWN SETTINGS, the workspace that PAYS. The CLI service a member is spawned on, the
+## harness tier asked of it and the credentials that CLI is started with are settings of
+## the magic-team scope, read from the workspace we run from unless another workspace known
+## on this machine is named to pay: for every spawn here, by SPAWN_SETTINGS_WORKSPACE=<name>
+## in this workspace's own magic-team scope; for one member, by the same key in that
+## member's scope here; for one task, by --spawn-settings-workspace <name> on its spawn,
+## which every way of spawning a task carries to it: the Agent tool (settings_workspace),
+## --magic-spawn-session, and a review return's restart, which reads it from the record of
+## the run it replaces. The spawn operation settles the last two
+## (AgentsToolsSpawnSettingsSettle) and exports the path as MDAT_SPAWN_SETTINGS_WORKSPACE
+## for that one spawn (AgentsTools.InternOpAgentSpawnProxy.include).
+## Only these settings move: the board, the team data, the records and the comms stay those
+## of the workspace we run from, and the workspace named is read itself, never the one it
+## may name in turn.
+
+## Whether a key of the magic-team scope is a spawn setting: the CLI service, the harness
+## tier, or a credential a harness leg declares for itself (HARNESS_CREDENTIAL_NAMES, the
+## names the console exports, which are the vendor CLI's own two as well).
+AgentsToolsSpawnSettingKey(){ ## key
+	local keyNames
+	case "$1" in
+		SPAWN_CLI_SERVICE|SPAWN_HARNESS_TIER) return 0 ;;
+		''|SPAWN_*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_]*) return 1 ;;
+	esac
+	keyNames="$( LC_ALL=C sed -n 's/^HARNESS_CREDENTIAL_NAMES=//p' "${BASH_SOURCE[0]%/*}/../harness/"Agents*Harness.sh 2> /dev/null | LC_ALL=C tr -c 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' ' ' )" || keyNames=""
+	case " $keyNames " in
+		*" $1 "*) return 0 ;;
+	esac
+	return 1
+}
+
+## The workspace spawn settings are read from, where it is not the one we run from: the path
+## the spawn operation exported for its spawn, else the workspace this one's own magic-team
+## scope names for every spawn. Prints its path, and nothing where this workspace pays for
+## itself. rc 1, with one message, where the workspace named for every spawn names none.
+AgentsToolsSpawnSettingsWorkspace(){
+	local payFile="${MMDAPP%/}/.local/.agents/magic-team.agent.env" payLine payName="" payPath
+	if [ -n "${MDAT_SPAWN_SETTINGS_WORKSPACE:-}" ] ; then
+		[ "${MDAT_SPAWN_SETTINGS_WORKSPACE%/}" = "${MMDAPP%/}" ] || printf '%s\n' "${MDAT_SPAWN_SETTINGS_WORKSPACE%/}"
+		return 0
+	fi
+	[ -f "$payFile" ] && [ -r "$payFile" ] || return 0
+	while IFS= read -r payLine || [ -n "$payLine" ] ; do
+		case "$payLine" in SPAWN_SETTINGS_WORKSPACE=*) payName="${payLine#*=}" ;; esac
+	done < "$payFile"
+	[ -n "$payName" ] || return 0
+	payPath="$( AgentsToolsWorkspaceByName "$payName" )" || {
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: '$payName' is named to pay for every spawn of ${MMDAPP%/} (SPAWN_SETTINGS_WORKSPACE in its magic-team scope), and $payPath -- no spawn setting was read. Name a workspace this machine knows, or remove the setting so this workspace pays for itself." >&2
+		return 1
+	}
+	[ "$payPath" = "${MMDAPP%/}" ] || printf '%s\n' "$payPath"
+	return 0
+}
+
+## SETTINGS FALLBACK. A setting is read from the workspace we run from. One exception: a
+## member's OWN settings of a system, where this workspace holds none of that system for
+## it, are read from the workspace the member is set up in on this machine. System by
+## system, and each whole: one setting of a system held here, and that system is read here
+## alone, what it lacks here too, so no credential is ever put together from two
+## workspaces. A system is one comms family of the dispatcher (--member-comms-<system>-*),
+## and its settings are the keys that begin with its name. Never borrowed: the team's own
+## settings (the magic-team scope), a key that is no system's, and anything of a member
+## that is set up here. The tooling says so in one line, where the member is invited
+## (AgentsToolsMemberSettingsBorrowedSay).
+agentsMemberSettingSystems="SLACK EMAIL JIRA CONFLUENCE TRELLO GOOGLE"
+
+## The system a key is a setting of, as its key prefix. Nothing for a key that is no system's.
+AgentsToolsMemberSettingSystemOf(){ ## key
+	local ofSystem
+	for ofSystem in $agentsMemberSettingSystems ; do
+		case "$1" in "$ofSystem"_*) printf '%s_' "$ofSystem" ; return 0 ;; esac
+	done
+	return 0
+}
+
+## The names of the settings a workspace's scope holds of a system, each once, joined by
+## ", ": names only, never a value. One key may be left out.
+AgentsToolsScopeKeyNames(){ ## workspace, scope, key prefix, a key to leave out (may be empty)
+	local namesFile="${1%/}/.local/.agents/$2.agent.env" namesLine namesText=""
+	[ -f "$namesFile" ] && [ -r "$namesFile" ] || return 0
+	while IFS= read -r namesLine || [ -n "$namesLine" ] ; do
+		case "$namesLine" in
+			"$3"*=*)
+				[ "${namesLine%%=*}" != "${4:-}" ] || continue
+				case ", $namesText, " in
+					*", ${namesLine%%=*}, "*) ;;
+					*) namesText="$namesText${namesText:+, }${namesLine%%=*}" ;;
+				esac
+			;;
+		esac
+	done < "$namesFile"
+	printf '%s' "$namesText"
+}
+
+## For a line that says a member's own settings are read from the workspace it is set up in:
+## a client-* member's own settings are the other organisation's, read on the client side
+## alone (AgentsTools.CommsSide.include), and such a line is said before the side of the
+## operation is known, so for such a member it says which side reads them. Nothing for any
+## other member.
+AgentsToolsMemberSettingsSideClause(){ ## member
+	case "$1" in
+		client-*) printf ', and only where the operation reaches the other organisation' ;;
+	esac
+}
+
+## The line: which systems of an invited member's own settings are read from the workspace
+## it is set up in, each by its key prefix. On stderr, once, and nothing where none is.
+AgentsToolsMemberSettingsBorrowedSay(){ ## member, operation, the workspace the member is set up in
+	local saySystem sayList=""
+	for saySystem in $agentsMemberSettingSystems ; do
+		! AgentsToolsScopeHoldsKeys "${MMDAPP%/}" "$1" "${saySystem}_" || continue
+		AgentsToolsScopeHoldsKeys "$3" "$1" "${saySystem}_" || continue
+		sayList="$sayList${sayList:+, }${saySystem}_*"
+	done
+	[ -n "$sayList" ] || return 0
+	echo "# $MDSC_CMD $2: member '$1' holds no settings of its own in ${MMDAPP%/} for $sayList -- each is read from ${3%/}, the workspace it is set up in$( AgentsToolsMemberSettingsSideClause "$1" )" >&2
+	return 0
+}
+
+## The workspace named to pay for one spawn of a member, by the spawn itself or by the
+## member's own setting, as a path: what a spawn operation exports as
+## MDAT_SPAWN_SETTINGS_WORKSPACE for that spawn. Nothing printed where neither names one:
+## the workspace's own naming, if it has one, then decides. One function for the spawn
+## and for the brief built ahead of it, so both read the same CLI. rc 1, with one message
+## under the caller's label, where the name names none.
+AgentsToolsSpawnSettingsSettle(){ ## member, the workspace named for this one spawn (may be empty), the caller's label in a message
+	local settleName="$2" settleBy="--spawn-settings-workspace" settlePath
+	if [ -z "$settleName" ] ; then
+		settleBy="SPAWN_SETTINGS_WORKSPACE in the $1 scope"
+		settleName="$( DistroAgentsTools --agents-config-option "$1" --select SPAWN_SETTINGS_WORKSPACE 2> /dev/null )" || settleName=""
+	fi
+	[ -n "$settleName" ] || return 0
+	settlePath="$( AgentsToolsWorkspaceByName "$settleName" )" || {
+		echo "$MDSC_CMD: $3: ⛔ ERROR: '$settleName' is named to pay for this spawn of $1 ($settleBy), and $settlePath -- nothing was started. Name a workspace this machine knows." >&2
+		return 1
+	}
+	printf '%s\n' "$settlePath"
+}
+
+## The line of a write that ends a borrowing. A setting of a system written here for an
+## invited member, whose settings of that system were read from the workspace it is set up
+## in until then, makes the system this workspace's: it is read here alone from then on, and
+## what that workspace holds of it is no longer read. Said once the write is made, on
+## stderr, by key names only, never a value. Nothing where the write left this workspace
+## without the system, or where that workspace holds no other setting of it.
+AgentsToolsMemberSettingsBorrowEndedSay(){ ## member, the key written, the workspace the member is set up in
+	local endedPrefix endedKeys
+	endedPrefix="$( AgentsToolsMemberSettingSystemOf "$2" )"
+	[ -n "$endedPrefix" ] || return 0
+	AgentsToolsScopeHoldsKeys "${MMDAPP%/}" "$1" "$endedPrefix" || return 0
+	endedKeys="$( AgentsToolsScopeKeyNames "$3" "$1" "$endedPrefix" "$2" )"
+	[ -n "$endedKeys" ] || return 0
+	echo "# $MDSC_CMD --agents-config-option: member '$1' now holds $2 in ${MMDAPP%/}, so its ${endedPrefix}* settings are read here alone from now on -- no longer read from ${3%/}, the workspace it is set up in: $endedKeys" >&2
+	return 0
+}
+
+## Its mirror, the line of a delete that begins a borrowing. The last setting of a system
+## this workspace held for an invited member is deleted here, and the workspace the member
+## is set up in holds settings of that system: they are read from there from then on. Said
+## once the delete is made, on stderr, by key names only, never a value. Nothing where this
+## workspace still holds a setting of the system, or where that workspace holds none of it.
+AgentsToolsMemberSettingsBorrowBegunSay(){ ## member, the key deleted, the workspace the member is set up in
+	local begunPrefix begunKeys
+	begunPrefix="$( AgentsToolsMemberSettingSystemOf "$2" )"
+	[ -n "$begunPrefix" ] || return 0
+	! AgentsToolsScopeHoldsKeys "${MMDAPP%/}" "$1" "$begunPrefix" || return 0
+	begunKeys="$( AgentsToolsScopeKeyNames "$3" "$1" "$begunPrefix" "" )"
+	[ -n "$begunKeys" ] || return 0
+	echo "# $MDSC_CMD --agents-config-option: member '$1' holds no ${begunPrefix}* setting in ${MMDAPP%/} now that $2 is deleted, so its ${begunPrefix}* settings are read from ${3%/}, the workspace it is set up in, from now on$( AgentsToolsMemberSettingsSideClause "$1" ): $begunKeys" >&2
+	return 0
+}
+
+## Where one option is read from when it is not this workspace's own scope, in
+## agentsConfigOptionElsewhere (a path, or empty: the option is this workspace's): a spawn
+## setting, from the workspace that pays; a member's own setting of a system this
+## workspace holds none of, from the workspace the member is set up in (both above).
+## rc 1 where the workspace that pays names none.
+agentsConfigOptionElsewhere=""
+AgentsToolsConfigOptionElsewhere(){ ## scope, key
+	local elsewhereSystem elsewhereFound=""
+	agentsConfigOptionElsewhere=""
+	case "$1" in
+		'') return 0 ;;
+		magic-team)
+			[ -n "${MDAT_SPAWN_SETTINGS_WORKSPACE:-}" ] || AgentsToolsScopeHoldsKeys "${MMDAPP%/}" magic-team SPAWN_SETTINGS_WORKSPACE || return 0
+			AgentsToolsSpawnSettingKey "$2" || return 0
+			agentsConfigOptionElsewhere="$( AgentsToolsSpawnSettingsWorkspace )" || return 1
+			return 0
+		;;
+	esac
+	for elsewhereSystem in $agentsMemberSettingSystems ; do
+		case "$2" in "$elsewhereSystem"_*) elsewhereFound="${elsewhereSystem}_" ; break ;; esac
+	done
+	[ -n "$elsewhereFound" ] || return 0
+	! AgentsToolsScopeHoldsKeys "${MMDAPP%/}" "$1" "$elsewhereFound" || return 0
+	## Its failures were said where the operation began, by the bring: here it only answers.
+	agentsConfigOptionElsewhere="$( AgentsToolsMemberWorkspaceResolve "$1" "--agents-config-option" 2> /dev/null )" || agentsConfigOptionElsewhere=""
+	[ -n "$agentsConfigOptionElsewhere" ] || return 0
+	AgentsToolsScopeHoldsKeys "$agentsConfigOptionElsewhere" "$1" "$elsewhereFound" || agentsConfigOptionElsewhere=""
+	return 0
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the one local lock primitive, sh-lib/AgentsTools.LocalLock.include,
+## Behavioural check on the one local lock primitive, sh-lib/magic/AgentsTools.LocalLock.include,
 ## run rather than read. Holds: a free lock is taken and given back; a live holder's lock
 ## is not taken; a dead holder's lock is broken; of several callers breaking the same dead
 ## lock at once exactly one ends up holding it; the old directory form is removed; the
@@ -7,7 +7,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
-rigInclude="$rigHere/AgentsTools.LocalLock.include"
+rigInclude="$rigHere/magic/AgentsTools.LocalLock.include"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1

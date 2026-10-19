@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MagicRetro.include -- routine-retro's own --magic-retro-*
+## operation group for DistroAgentsTools.fn.sh's dispatcher. Sourced lazily
+## from the `--magic-retro-*)` wildcard arm via the standard
+## $MDLT_ORIGIN-based path. Not standalone: relies on being dot-sourced for
+## $1/$@/$MDSC_CMD.
+##
+
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
+
+type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpItem.include"
+
+case "$1" in
+
+	## HEADER ORDER IS LOAD-BEARING.
+	--magic-retro-state-and-lock-upsert)
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-retro-state-and-lock-upsert: syntax is <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--header:*|--upsert-from-stdin|--edit-patch-from-stdin) passthrough+=( "$1" ) ; shift ;;
+				--from-file)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-retro-state-and-lock-upsert: --from-file: value required" >&2
+						set +e ; return 1
+					fi
+					passthrough+=( "$1" "$2" ) ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-retro-state-and-lock-upsert: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 30 )"
+		AgentsToolsItemUpsert "$callingMember" \
+			note-20260811T120000Z-retro-state-and-lock.md \
+			--header:upsert:state:retro-running \
+			"${passthrough[@]}" \
+			--header:upsert:recheck-date:"$recheckDate" \
+			--context --magic-retro-state-and-lock-upsert
+		return $?
+	;;
+
+	--magic-retro-lock-acquire)
+		shift
+		local callingMember="$1" ; shift || true
+		local ownerLabel="$1" ; shift || true
+		if [ -z "$callingMember" ] || [ -z "$ownerLabel" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-retro-lock-acquire: <team-member> <owner-label> required" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-retro-lock-acquire: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 30 )"
+		AgentsToolsItemRead "$callingMember" \
+			note-20260811T120000Z-retro-state-and-lock.md \
+			--acquire-lock "$ownerLabel" \
+			--header:upsert:state:retro-running \
+			--header:upsert:recheck-date:"$recheckDate" \
+			--context --magic-retro-lock-acquire
+		return $?
+	;;
+
+	--magic-retro-lock-refresh)
+		shift
+		local callingMember="$1" ; shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-retro-lock-refresh: <team-member> required" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-retro-lock-refresh: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 30 )"
+		AgentsToolsItemUpsert "$callingMember" \
+			note-20260811T120000Z-retro-state-and-lock.md \
+			--update-lock \
+			--header:upsert:state:retro-running \
+			--header:upsert:recheck-date:"$recheckDate" \
+			--context --magic-retro-lock-refresh
+		return $?
+	;;
+
+	--magic-retro-close-state-and-unlock)
+		shift
+		local callingMember="$1" ; shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-retro-close-state-and-unlock: <team-member> required" >&2
+			set +e ; return 1
+		fi
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--edit-patch-from-stdin) passthrough+=( "$1" ) ; shift ;;
+				--from-file)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --magic-retro-close-state-and-unlock: --from-file: value required" >&2
+						set +e ; return 1
+					fi
+					passthrough+=( "$1" "$2" ) ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --magic-retro-close-state-and-unlock: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		AgentsToolsItemUpsert "$callingMember" \
+			note-20260811T120000Z-retro-state-and-lock.md \
+			"${passthrough[@]}" \
+			--unlock-lock \
+			--header:upsert:state:retro-finished \
+			--context --magic-retro-close-state-and-unlock
+		return $?
+	;;
+
+	--magic-retro-lock-status)
+		shift
+		local callingMember="$1" ; shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-retro-lock-status: <team-member> required" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-retro-lock-status: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsItemRead "$callingMember" \
+			note-20260811T120000Z-retro-state-and-lock.md \
+			--context --magic-retro-lock-status
+		return $?
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 ##
 ## manager-screen.driver.py -- the driver of the manager screen's tests. It loads
-## sh-lib/AgentsManagerScreen.py as a module and stands in for the terminal, so a test
+## sh-lib/manager/AgentsManagerScreen.py as a module and stands in for the terminal, so a test
 ## reads the screen back as text and needs no real terminal. Run with `python3 -I -B`.
 ##
 ##   <driver> <screen file> script

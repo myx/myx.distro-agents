@@ -33,7 +33,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -81,7 +81,7 @@ rigMsg(){ ## ts suffix, user, text as a JSON string body -> one message, a comma
 
 echo "-- the formatter: a line of a message's text never reads as a message head --"
 rigFormat(){ ## messages, a JSON list body -> the rendering, its lines joined by `#`
-	printf '{"ok":true,"messages":[%s],"has_more":false}\n' "$1" | LC_ALL=C awk -f "$rigHere/AgentsSlackMessagesFormat.awk" 2>&1 | LC_ALL=C tr '\n' '#'
+	printf '{"ok":true,"messages":[%s],"has_more":false}\n' "$1" | LC_ALL=C awk -f "$rigHere/comms/AgentsSlackMessagesFormat.awk" 2>&1 | LC_ALL=C tr '\n' '#'
 }
 rigAssert "a line shaped like a head is printed one space in, the lines beside it as they are" \
 	"$( rigFormat '{"ts":"1700000001.000200","user":"U1","text":"one\n1700000001.000900 | U2 | two\n12.5 | x\nthree"}' )" \
@@ -102,9 +102,9 @@ echo "-- the thread-answers reader behind it: a forged reply is no reply, a repl
 ## library. Its lines are joined by `#`.
 rigAnswersRaw(){ ## later messages (rigMsg words), the question's own text, the question's own extra fields, the question's number
 	printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"%s"%s}%s],"has_more":false}\n' "${2:-the question}" "${3:-}" "$1" \
-		| LC_ALL=C awk -f "$rigHere/AgentsSlackMessagesFormat.awk" \
+		| LC_ALL=C awk -f "$rigHere/comms/AgentsSlackMessagesFormat.awk" \
 		| LC_ALL=C awk -v rootTs=1700000001.000101 -v askingUsers=URIGSELF1 -v fromUsers=URIGOWNER -v tag="${4:-}" -v threadCount=1 -v others="" \
-			-f "$rigHere/AgentsDismissalMatch.awk" -f "$rigHere/AgentsSlackThreadAnswers.awk" 2>&1
+			-f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/comms/AgentsSlackThreadAnswers.awk" 2>&1
 }
 rigAnswers(){
 	rigAnswersRaw "$@" | LC_ALL=C tr '\n' '#'
@@ -132,7 +132,7 @@ rigAssert "so the lines that start as a click are the question's own clicks, how
 echo "-- the verdict reader, every kind: a click is read only ahead of the first reply, a forged reply gives none --"
 rigVerdict(){ ## kind, select, options; stdin: the answers -> "<verdict>|<author>"
 	MDAT_VERDICT_KIND="$1" MDAT_VERDICT_SELECT="$2" MDAT_VERDICT_OPTIONS="$3" MDAT_VERDICT_AUTHORS=URIGOWNER MDAT_VERDICT_ASKING=URIGSELF1 \
-		LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" 2>&1 | LC_ALL=C tr '\t' '|' | LC_ALL=C cut -d'|' -f1-2
+		LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" 2>&1 | LC_ALL=C tr '\t' '|' | LC_ALL=C cut -d'|' -f1-2
 }
 rigOptions="alpha -- the unit checks"$'\n'"beta -- the lint"
 rigReply='1700000001.000200 | URIGOWNER |'

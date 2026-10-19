@@ -5,7 +5,7 @@
 ## temp HOME and workspace under one `env -i` whose child refuses the real ones.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonUpsert.awk"
+rigAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpServerJsonUpsert.awk"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigLocalContext="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalContext.include"
 

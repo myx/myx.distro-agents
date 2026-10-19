@@ -71,7 +71,7 @@ rigAfter "session-transcript"
 
 echo "-- writer: output-style refusal log --"
 rigStep
-( MDSC_CMD=rig ; . "$rigHere/AgentsTools.OutputStyle.include" ; printf 'One clause; another clause.\n' | AgentsToolsOutputStyleRefusal magic-tester "" rig-destination "" semicolon ) > "$rigTmp/out" 2>&1
+( MDSC_CMD=rig ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsTools.OutputStyle.include" ; printf 'One clause; another clause.\n' | AgentsToolsOutputStyleRefusal magic-tester "" rig-destination "" semicolon ) > "$rigTmp/out" 2>&1
 rigAssert "output-style: a refusal row was written" "$( ls "$rigStore"/audit/refusal-*-output-style.md > /dev/null 2>&1 && printf yes || printf no )" yes
 rigAfter "output-style refusal"
 
@@ -79,21 +79,21 @@ echo "-- writer: spawn-proxy output log, at the helper its close calls --"
 rigStep
 mkdir -p "$rigStore/audit/2026-09"
 printf 'console output\n' > "$rigStore/audit/2026-09/spawn-proxy-rig.output.log"
-( MDSC_CMD=rig ; . "$rigHere/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataCommitPaths "agent-spawn-proxy output, rig" "$rigStore/audit/2026-09/spawn-proxy-rig.output.log" ) > "$rigTmp/out" 2>&1
+( MDSC_CMD=rig ; . "$rigHere/team-data/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataCommitPaths "agent-spawn-proxy output, rig" "$rigStore/audit/2026-09/spawn-proxy-rig.output.log" ) > "$rigTmp/out" 2>&1
 rigAfter "spawn-proxy output log"
 
 echo "-- the helper refuses a path outside the store --"
 rigStep
 printf 'outside\n' > "$rigTmp/outside.txt"
-( MDSC_CMD=rig ; . "$rigHere/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataCommitPaths "rig" "$rigTmp/outside.txt" ) > "$rigTmp/out" 2>&1
+( MDSC_CMD=rig ; . "$rigHere/team-data/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataCommitPaths "rig" "$rigTmp/outside.txt" ) > "$rigTmp/out" 2>&1
 rigAssert "outside path: no commit"                  "$(( $( rigCommits ) - rigBefore ))" 0
 rigAssert "outside path: a warning names it"          "$( grep -q 'not under the team-data store' "$rigTmp/out" && printf yes || printf no )" yes
 
 echo "-- the dirty-store warning --"
-( MDSC_CMD=rig ; . "$rigHere/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataDirtyWarning "rig clean" ) > "$rigTmp/out" 2>&1
+( MDSC_CMD=rig ; . "$rigHere/team-data/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataDirtyWarning "rig clean" ) > "$rigTmp/out" 2>&1
 rigAssert "clean store: the warning stays silent"     "$( [ -s "$rigTmp/out" ] && printf spoke || printf silent )" silent
 printf 'stray\n' > "$rigStore/audit/stray.md"
-( MDSC_CMD=rig ; . "$rigHere/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataDirtyWarning "rig dirty" ) > "$rigTmp/out" 2>&1
+( MDSC_CMD=rig ; . "$rigHere/team-data/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataDirtyWarning "rig dirty" ) > "$rigTmp/out" 2>&1
 rigAssert "dirty store: the warning names the count"  "$( grep -q 'holds 1 uncommitted path' "$rigTmp/out" && printf yes || printf no )" yes
 rigAssert "dirty store: the warning names the path"   "$( grep -q 'audit/stray.md' "$rigTmp/out" && printf yes || printf no )" yes
 
@@ -139,7 +139,7 @@ printf 'TEAM_DATA_GIT_REMOTE=%s\n' "$rigBare" > "$rigWs/.local/.agents/magic-tea
 git -C "$rigStore" remote add origin "$rigBare"
 rigBranch="$( git -C "$rigStore" rev-parse --abbrev-ref HEAD )"
 git -C "$rigStore" push -q -u origin "$rigBranch" 2>/dev/null || rigRefuse "could not seed the temp bare origin"
-rigPush(){ ( MDSC_CMD=rig ; . "$rigFn" ; . "$rigHere/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataPushIfAhead "rig close" ) > "$rigTmp/out" 2>&1 ; }
+rigPush(){ ( MDSC_CMD=rig ; . "$rigFn" ; . "$rigHere/team-data/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataPushIfAhead "rig close" ) > "$rigTmp/out" 2>&1 ; }
 rigOriginHead(){ git --git-dir="$rigBare" rev-parse "refs/heads/$rigBranch" 2>/dev/null ; }
 
 rigPush

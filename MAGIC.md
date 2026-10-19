@@ -56,7 +56,7 @@ that the code and docs do not readily tell you.
   `AgentsTools.ClientComms.include`. `--member-comms-<service>-*` and `--intern-op-comms-<service>-*`
   share one arm per platform. `--intern-op-atlassian-*` → `AgentsTools.InternOpAtlassianCall.include`.
   `--magic-<routine>-*` → `AgentsTools.Magic<Routine>.include`, one explicit arm per op even where
-  two arms are identical today. `--manager-*` → `sh-lib/AgentsTools.Manager.include`, one further
+  two arms are identical today. `--manager-*` → `sh-lib/manager/AgentsTools.Manager.include`, one further
   include per subject, `AgentsTools.Manager<Subject>.include`: `Session`, `Routine`, `Spawn`, `Config`,
   `TeamMember`, `TeamData`, `PendingReply`, `Dashboard`, `Place`, `Console`, `Check`, `Keys`, `Command`,
   `Help`.
@@ -65,7 +65,7 @@ that the code and docs do not readily tell you.
   (`AgentsTools.CommsSide.include`). A `client-*` member's own settings for an outside system are the
   other organisation's: read on the client side only, with nothing of the team's read in their place.
   The prefix and the address select the side, never a credential the member happens to hold.
-- **All non-member Slack code is in `sh-lib/AgentsTools.CommsSlack.include`**: the shared helpers, the
+- **All non-member Slack code is in `sh-lib/comms/AgentsTools.CommsSlack.include`**: the shared helpers, the
   in-context helper `AgentsToolsSlackCheck`, and `--intern-op-slack-call` and `-check-scopes` (whose
   `--scope-source` may name an `AgentsTools*` helper). The dispatcher holds no Slack code. Any
   include may source that file just for its helpers: its `case` ends in a branch that runs nothing for
@@ -512,7 +512,7 @@ User steps are in [docs/installation.md](docs/installation.md).
 - **A command path holding a `myx.common` directory component is pruned as a duplicate** by the
   myx.common writers. Keep other servers' binaries outside such a component. The `myx.common` entry
   points at `.local/myx/myx.common/`, never `$MYXROOT`.
-- **`sh-lib/AgentsMcpServerJsonUpsert.awk`** upserts one entry by key, reads the whole file itself
+- **`sh-lib/mcp/AgentsMcpServerJsonUpsert.awk`** upserts one entry by key, reads the whole file itself
   (default `RS`, `LC_ALL=C`), prints the new document, and never opens the target. Params through
   `ENVIRON`: `MYX_MCPUPSERT_TOPKEY`, `_ENTRYKEY`, `_COMMAND`, optional `_ARGS` (JSON array) and `_ENV`
   (JSON object). It splices, so other keys survive byte for byte. It prunes nothing. It fails closed:
@@ -663,7 +663,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   write is equally safe by the direct path is not established (the console may supply identity or locking).
 - **Known names** (`DAGC_KNOWN_CLIS`, also the `--cli-auto` ranking): `copilot copilot-native claude
   claude-native grok grok-native scaleway`. `AgentsTools.Owner.include` mirrors it.
-- **A leg is a file.** Any `sh-lib/Agents<Name>Harness.sh` declaring `HARNESS_PROVIDER_NAME=` is leg
+- **A leg is a file.** Any `sh-lib/harness/Agents<Name>Harness.sh` declaring `HARNESS_PROVIDER_NAME=` is leg
   `<name>` (lower-cased): today `claude`, `copilot`, `grok`, `scaleway`. `AgentsUniversalHarness.sh` and
   `AgentsAnthropicStub.sh` are not legs. A new leg is one new file; it joins the auto-scan and the
   non-interactive set at the tail.
@@ -685,7 +685,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   It takes nothing after it, and is refused together with `--non-interactive`.
 - **`DistroAgentsTools.fn.sh --manager [--style <name>]`** is what the console's `--manager` runs, and
   has help. It is no `--manager-*` operation: its own arm of the caller check admits every caller. It
-  runs `sh-lib/AgentsManagerScreen.py` with Python. The style is, in this order: `--style`, the environment's `MDAT_MANAGER_STYLE`, the
+  runs `sh-lib/manager/AgentsManagerScreen.py` with Python. The style is, in this order: `--style`, the environment's `MDAT_MANAGER_STYLE`, the
   user's saved `MDAT_MANAGER_STYLE` (`<workspace>/.local/home/<user>/MDLT.settings.env`), the screen's
   default. It ends with status 1 and one plain line where Python, its `curses` module, or a terminal is
   missing; it ends with status 0 on Ctrl-X (or Alt-X). `AgentsManagerStartStyleCheck` is its test.
@@ -718,22 +718,22 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   both ask. A row's tenth and last field, `<needs>`, reads `members` where the routine is `not-startable`
   for one cause alone -- its executors are any member (`magic-team` or `*`) -- and `-` on every other
   row, such a routine started by `--magic-spawn-session --routine <selector> <team-member>...`. Its code
-  is `sh-lib/AgentsTools.ManagerRoutine.include`; `AgentsManagerRoutineListCheck` is
+  is `sh-lib/manager/AgentsTools.ManagerRoutine.include`; `AgentsManagerRoutineListCheck` is
   its test.
 - **`--manager-spawn-member <team-member>`** starts one member with a prompt, in a new coworking session
   of its own, and does not wait. The prompt comes on stdin or from a file, never as an argument. It
   brings no member itself: the spawn proxy brings it, and asks of it the same check every start asks.
-  Its code is `sh-lib/AgentsTools.ManagerSpawn.include`; `AgentsManagerSpawnMemberCheck` is its test.
+  Its code is `sh-lib/manager/AgentsTools.ManagerSpawn.include`; `AgentsManagerSpawnMemberCheck` is its test.
 - **No start starts an identity record.** A member whose `SKILL.md` says `status: reference-only` is
   never started, by any start: the spawn proxy refuses it before anything is made
   (`AgentsToolsTeamMemberStartCheck`). `--magic-spawn-session` asks this check of every member before
   its first spawn. `--manager-routine-list` says `not-startable` for a routine whose `executors` names
   such a member. `AgentsSpawnReferenceOnlyCheck` is the rule's own test.
 - **`--manager-config-digest [--full] [<subject>...]`** prints the settings as they are, by subject; every
-  row ends with its `<label>`, from the one declaration `sh-lib/AgentsManagerConfigLabels.awk`. Without
+  row ends with its `<label>`, from the one declaration `sh-lib/manager/AgentsManagerConfigLabels.awk`. Without
   `--full` the rows keep their earlier fields, on purpose: a screen of before reads the label as the last
   field. A secret reads only as set or missing; its value is never printed. Its code is
-  `sh-lib/AgentsTools.ManagerConfig.include`; `AgentsManagerConfigDigestCheck` is its test.
+  `sh-lib/manager/AgentsTools.ManagerConfig.include`; `AgentsManagerConfigDigestCheck` is its test.
 - **`--manager-config-set <key> <value>`** saves one setting that can be changed, in its own scope, and
   prints `saved <key> <value> <scope> <where>`: the one operation of `AgentsTools.ManagerConfig.include`
   that writes. A user-scope setting goes through the local tools' `--custom-config-option`.
@@ -760,7 +760,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   or `not-started`. Where it answers `not-needed` it removes the pid file and the lock a dead thread
   left in `control/`, where neither names a thread that lives (`AgentsToolsSessionControlLeftovers`), so
   the session reads `none`. Code is in the arm of `AgentsTools.ManagerSession.include` and in
-  `sh-lib/AgentsTools.SessionControlStart.include`; `AgentsSessionControlStartCheck` is its test.
+  `sh-lib/session/AgentsTools.SessionControlStart.include`; `AgentsSessionControlStartCheck` is its test.
 - **A kill and `TaskStop` find a run's processes by one walk**, `AgentsToolsRegistryRunProcesses`: the
   run's own processes and every process they started, to any depth; never a process group, the run's
   own supervising shell, or a run of another spawn. A process that left the run's tree before the kill
@@ -778,7 +778,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   icon, the one the installer's own member table shows (`AgentsToolsTeamMemberKindIcon`), and, last, its
   folder, its link followed to where its skillset lies; the read adds
   its description, its sessions, its grants and its settings, a secret setting reading only as set or
-  missing. Their code is `sh-lib/AgentsTools.ManagerTeamMember.include`; `AgentsManagerTeamMemberCheck`
+  missing. Their code is `sh-lib/manager/AgentsTools.ManagerTeamMember.include`; `AgentsManagerTeamMemberCheck`
   is their test.
 - **The other `--manager-*` reads**, each in its own include, rows as its help entry gives them, and
   each the screen's alone: `--manager-dashboard-read` (`AgentsManagerDashboardCheck`),
@@ -792,7 +792,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `--manager-command-list` (`<Name>.fn.sh`, a TAB, the file it resolves to;
   `AgentsManagerCommandListCheck`) and `--manager-help-read [<Name>.fn.sh]` (the help of that command,
   read, never run; `AgentsManagerHelpReadCheck`).
-- **The manager screen is declared at the top of `sh-lib/AgentsManagerScreen.py`**: its styles, windows,
+- **The manager screen is declared at the top of `sh-lib/manager/AgentsManagerScreen.py`**: its styles, windows,
   menus, commands, reads, summaries and dialogs; a new root, key or dialog is a declaration. Its roots
   are Dashboard (Monitor), Sessions (Activity), Pending Questions, Team Members, Team Data (where the
   dashboard says it is there), Locations (Places), Consoles, Settings, Configuration and Manuals
@@ -1293,7 +1293,7 @@ contracts are here.
   record kept by the human-owner's decision; its constraints block lists the `AgentsWire*` roster an
   adapter must define (re-derive it from the core's call sites; an omitted function fails at call time).
   A stub must not grow into a selector.
-- **`HARNESS_WIRE` names `sh-lib/Agents<Wire>Wire.sh`** (`OpenAiChat`, `AnthropicMessages`).
+- **`HARNESS_WIRE` names `sh-lib/harness/Agents<Wire>Wire.sh`** (`OpenAiChat`, `AnthropicMessages`).
   `HARNESS_TOKEN_EXCHANGE` names an optional `Agents<Name>Exchange.sh` (none ship); with one, an
   auth-class error body drops the bearer and re-exchanges within the retry bound.
   `HARNESS_EXTRA_HEADERS` are whole lines, checked at startup, sent on the `-H @-` stdin channel.

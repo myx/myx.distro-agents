@@ -11,7 +11,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 [ -f "$rigHarness" ] || { echo "⛔ ERROR: harness not found at the origin this workspace resolves: $rigHarness" >&2 ; exit 1 ; }
 
 ## Refusing to report is this function's whole job: a rig that could not reach its
@@ -210,7 +210,7 @@ rigScalewayRun(){ ## this round's total_tokens
 	rigRunStatus=0
 	RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir" MDAT_HARNESS_CONTEXT_TOKENS="" \
 		SCALEWAY_DEEPSEEK="rig-not-a-credential" SCALEWAY_GEMMA="rig-not-a-credential" \
-		"$rigHere/AgentsScalewayHarness.sh" --access-root "$rigScenarioDir" RIG-TASK-MARKER \
+		"$rigHere/harness/AgentsScalewayHarness.sh" --access-root "$rigScenarioDir" RIG-TASK-MARKER \
 		> "$rigScenarioDir/out" 2> "$rigScenarioDir/err" || rigRunStatus=$?
 	rigRoundCount="$( cat "$rigScenarioDir/round" )"
 	[ "$rigRoundCount" != 0 ] || rigRefuse "the Scaleway leaf issued no request at all, so this scenario exercised nothing"

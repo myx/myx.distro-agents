@@ -83,7 +83,7 @@ rigAccept(){ ## result file, item filename, from state
 ## (--intern-mcp-execute), by <member> from a session acting as RIG_AGENT when set.
 rigAcceptHelper(){ ## result file, item filename, from state, member
 	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
-	printf '%s\n' 'type AgentsToolsBoardToProcessed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicBoard.include"' \
+	printf '%s\n' 'type AgentsToolsBoardToProcessed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicBoard.include"' \
 		'AgentsToolsBoardToProcessed "$RIG_A_WHO" "$RIG_A_ITEM" --from-state:"$RIG_A_STATE"' \
 	| env -i HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FN="$rigFn" RIG_SCENARIO="$rigTmp" ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} \
@@ -127,9 +127,9 @@ rigAssert "the post is a reply in the session thread"      "$( LC_ALL=C grep -c 
 rigText="$( LC_ALL=C sed -n -E 's/^\{"channel":"[^"]*","text":"(([^"\\]|\\.)*)".*/\1/p' "$rigTmp/bodies" | head -1 )"
 rigText="$( printf '%b' "$rigText" )"
 rigAssert "the child's Wait reads the post as its dismissal" \
-	"$( printf '1700000001.000200 | URIGBOT01 | %s\n' "$rigText" | dismissalMember=keeper-myx LC_ALL=C awk -f "$rigLib/AgentsDismissalMatch.awk" -f "$rigLib/AgentsHarnessWaitDismissed.awk" > /dev/null && echo dismissed )" dismissed
+	"$( printf '1700000001.000200 | URIGBOT01 | %s\n' "$rigText" | dismissalMember=keeper-myx LC_ALL=C awk -f "$rigLib/questions/AgentsDismissalMatch.awk" -f "$rigLib/harness/AgentsHarnessWaitDismissed.awk" > /dev/null && echo dismissed )" dismissed
 rigAssert "it dismisses no other member"                   \
-	"$( printf '1700000001.000200 | URIGBOT01 | %s\n' "$rigText" | dismissalMember=magic-tester LC_ALL=C awk -f "$rigLib/AgentsDismissalMatch.awk" -f "$rigLib/AgentsHarnessWaitDismissed.awk" > /dev/null && echo dismissed )" ""
+	"$( printf '1700000001.000200 | URIGBOT01 | %s\n' "$rigText" | dismissalMember=magic-tester LC_ALL=C awk -f "$rigLib/questions/AgentsDismissalMatch.awk" -f "$rigLib/harness/AgentsHarnessWaitDismissed.awk" > /dev/null && echo dismissed )" ""
 
 echo "-- child on another host: liveness unmeasurable here, so the dismissal is sent --"
 rigRecord rig-foreign-c3d4 spawn-started rig-other-host CRIGSESS2:1700000000.000300

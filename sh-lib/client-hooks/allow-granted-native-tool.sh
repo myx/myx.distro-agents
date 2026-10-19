@@ -39,7 +39,7 @@ hookWs="${hookWs%/}"
 [ -n "$hookWs" ] && [ -d "$hookWs" ] || exit 0
 MDLT_ORIGIN="${MDLT_ORIGIN:-$hookWs/.local}"
 hookLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-[ -f "$hookLib/AgentsTools.Grants.include" ] || exit 0
+[ -f "$hookLib/grants/AgentsTools.Grants.include" ] || exit 0
 
 ## The string value of the first "<key>": in the text given, into hookValue; rc 1 when
 ## absent, not a string, or carrying an escape this does not decode.
@@ -137,7 +137,7 @@ if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
 	fi
 fi
 
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include" || exit 0
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" || exit 0
 AgentsToolsGrantsSessionEnsure "$hookWs" "$hookMember" "$hookSession" "$hookIn" "$hookOut" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset" 2>/dev/null || exit 0
 hookRc=0
 AgentsToolsGrantsSessionCheck "$hookTool" "$hookReal" "$hookWs/.local/agents/sessions/$hookSession" || hookRc=$?

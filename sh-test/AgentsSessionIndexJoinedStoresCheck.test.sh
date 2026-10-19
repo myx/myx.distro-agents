@@ -25,7 +25,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-rigHarness="$rigLib/AgentsUniversalHarness.sh"
+rigHarness="$rigLib/harness/AgentsUniversalHarness.sh"
 rigHook="$rigLib/client-hooks/allow-granted-native-tool.sh"
 rigFixture="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/slack-send-identity-check.curl.stub.sh"
 
@@ -299,7 +299,7 @@ rigWaitFor 40 test -f "$rigData/board/review/$rigItemL.md"
 echo "-- 5. the awk reads its stores from the environment, and one store named with -v --"
 printf 'myx.distro grants.index 1\trig\n' > "$rigTmp/awk.index"
 rigAwkStores(){ ## awk arguments... -- the store rows it prints, a `;` after each, then its rc
-	LC_ALL=C awk -v member=keeper-myx -v header=rig-header "$@" -f "$rigLib/AgentsGrantsPattern.awk" -f "$rigLib/AgentsGrantsSessionIndex.awk" "$rigTmp/awk.index" 2> "$rigTmp/awk.err" \
+	LC_ALL=C awk -v member=keeper-myx -v header=rig-header "$@" -f "$rigLib/grants/AgentsGrantsPattern.awk" -f "$rigLib/grants/AgentsGrantsSessionIndex.awk" "$rigTmp/awk.index" 2> "$rigTmp/awk.err" \
 		| LC_ALL=C awk -F'\t' '$1 == "store" { printf "%s;", $2 ; }'
 	printf 'rc=%s' "${PIPESTATUS[0]}"
 }

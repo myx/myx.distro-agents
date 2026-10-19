@@ -1,0 +1,432 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpChange.include -- a change held for the human-owner's approval.
+##
+## A grant can say `approve` for a place (AgentsTools.Grants.include). An Edit or a Write that
+## such a grant covers is neither refused nor applied: it is HELD -- unless a grant given for
+## the member's task, its session, its routine or the one call allows it. What the member
+## holds standing or by the floor, its own directory among it, never comes ahead of the approval.
+## The change is kept, shown to the human-owner as a diff by the team bot in the bot's own
+## conversation with him, and applied when he approves, exactly as it was shown. He approves
+## the result, never the access. One call is one change, and one change is one prompt.
+## The prompt is two posts: a short message that opens a thread, takes the answer and carries
+## the answer emoji, and under it the change itself, the first reply in that thread. Both are
+## posted, or neither: a prompt whose change is not shown under it is taken away again.
+##
+## What is kept, in the store of the session that made the call:
+##   $MMDAPP/.local/agents/sessions/<session>/changes/<change-id>/
+##       change       `<key>: <value>` lines: owner, session-id, tool, file, matched (what each
+##                    edit of an Edit matched then, in order), ask (the id of its prompt's
+##                    record), held-at
+##       call.json    the arguments of the call, as it was made
+##       base         the file as it stood then; absent where there was none
+##       result       the file as the call leaves it
+##       change.diff  the whole change as a unified diff: what the prompt shows, whole or cut
+## Its prompt (sh-lib/templates/change-approve.post.format.md) is recorded as a pending reply
+## of kind `change`, the asking member's own, in that session's Wait: so the verdict comes
+## back where every answer does, the prompt is reminded as every ask is, and the verdict is
+## read and carried out where every typed answer is (AgentsTools.MemberEscalation.include),
+## through AgentsChangeVerdict here.
+##
+## An approve is carried out by the member's own tool: the kept call is made again by the
+## harness (AgentsUniversalHarness.sh --intern-tool, MDAT_CHANGE_APPLY naming the kept change),
+## as the member, in its session. So the change is applied by the code that would have applied
+## it at once, under the grants the member holds at that moment, and only where each edit still
+## matches what it matched when it was shown. A reject, the asker taking it back, and the end of
+## the session that made it drop the change: a verdict is carried out only while that session
+## runs. Nothing kept is deleted here: a closed record is never applied.
+##
+## Sourced by the dispatcher for --intern-op-change-*, and for its functions by the
+## escalation and the pending-reply collect. Needs $1/$@/$MDSC_CMD from dot-sourcing.
+##
+
+if ! type AgentsChangeFill > /dev/null 2>&1 ; then
+
+	## How much of a diff a prompt shows before it is cut: lines, bytes, and the bytes of one line.
+	agentsChangeShowLines=60
+	agentsChangeShowBytes=6000
+	agentsChangeShowLineBytes=2000
+
+	## What the functions below call, loaded where first needed. Sourced from a function of no
+	## arguments, so an include that ends in a dispatch sees no operation to run.
+	AgentsChangeLoad(){
+		local loadLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+		type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		type AgentsToolsPermissionShownTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include"
+		type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+		type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
+		type AgentsToolsTaskText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
+		type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	}
+
+	## One part of the prompt filled from its own template, by the filler the ask posts use: the
+	## template and the answer form are the ones the table of the asks names for a change
+	## (AgentsTools.AskPost.include). The slots travel in the caller's environment, as ASKP_F_<slot>.
+	AgentsChangeFill(){ ## want (post|reactions|block), block `<Section>/<heading>` (with block)
+		type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		AgentsToolsAskKindRow change || return 3
+		ASKP_BLOCK="${2:-}" AgentsToolsAskPostFill "$1" "$agentsAskRowTemplate" "$agentsAskRowForm"
+	}
+
+	## One value of a kept change's own `change` file, or empty.
+	AgentsChangeField(){ ## change file, key
+		local fieldLine
+		[ -f "$1" ] || return 0
+		while IFS= read -r fieldLine ; do
+			case "$fieldLine" in "$2: "*) printf '%s' "${fieldLine#"$2: "}" ; return 0 ;; esac
+		done < "$1"
+	}
+
+	## One slot the prompt of a record was filled with, as kept beside it (`<id>.fields`), or empty.
+	AgentsChangeSlot(){ ## record file, slot
+		local slotName slotValue
+		[ -f "${1%.md}.fields" ] || return 0
+		while IFS=$'\t' read -r slotName slotValue ; do
+			[ "$slotName" = "$2" ] || continue
+			## Never `printf -v` an empty result: bash 3.2 then leaves the buffer of the one before.
+			[ -z "$slotValue" ] || printf -v slotValue '%b' "$slotValue"
+			printf '%s' "$slotValue"
+			return 0
+		done < "${1%.md}.fields"
+	}
+
+	## The folder of the change a record's prompt shows: the one in the store of its session
+	## whose `change` file names that record. Prints it; rc 1 when no such folder is there.
+	AgentsChangeDir(){ ## record file, pending id
+		local dirSession dirMeta
+		type AgentsToolsAskPostField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		dirSession="$( AgentsToolsAskPostField "$1" session-id )"
+		case "$dirSession" in ''|*/*|.|..) return 1 ;; esac
+		for dirMeta in "$MMDAPP/.local/agents/sessions/$dirSession/changes"/*/change ; do
+			[ -f "$dirMeta" ] && [ "$( AgentsChangeField "$dirMeta" ask )" = "$2" ] || continue
+			printf '%s' "${dirMeta%/change}"
+			return 0
+		done
+		return 1
+	}
+
+	## Whether the session that made a held change is gone. Its store says it ended
+	## (AgentsToolsGrantsSessionEnded): a spawn record that is closed, or the marker a session
+	## with no spawn record leaves at its end. Or it is a spawn of this host that no process
+	## runs as (AgentsToolsRegistrySpawnRuns, the one rule for that). A spawn of another host
+	## cannot be seen from here, and is taken as running. A session with no spawn record runs
+	## while it has a store that does not say it ended. A record that names no session has
+	## none to carry a verdict out for.
+	AgentsChangeSessionGone(){ ## record file
+		local goneSession goneRecord goneHost
+		type AgentsToolsAskPostField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		goneSession="$( AgentsToolsAskPostField "$1" session-id )"
+		case "$goneSession" in ''|*/*|.|..) return 0 ;; esac
+		type AgentsToolsGrantsSessionEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+		! AgentsToolsGrantsSessionEnded "$MMDAPP/.local/agents/sessions/$goneSession" || return 0
+		for goneRecord in "$MMDAPP/.local/agents/spawned"/*/"$goneSession.md" ; do
+			[ -f "$goneRecord" ] || continue
+			goneHost="$( AgentsToolsAskPostField "$goneRecord" host )"
+			case "$goneHost" in
+				''|-|"$( hostname -s 2> /dev/null || echo unknown )") ;;
+				*) return 1 ;;
+			esac
+			type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+			! AgentsToolsRegistrySpawnRuns "$goneSession" "$goneRecord" || return 1
+			return 0
+		done
+		[ ! -d "$MMDAPP/.local/agents/sessions/$goneSession" ] || return 1
+		return 0
+	}
+
+	## The prompt of a change that takes no answer any more, closed the way the post of a
+	## discarded permission set is: its own answer emoji taken off, the cancelled mark of its
+	## template put on, its How to answer part edited away (AgentsToolsAskPostClose). Best effort.
+	AgentsChangePostClose(){ ## record file
+		local closeTs
+		type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		closeTs="$( AgentsToolsAskPostField "$1" question-ts )"
+		[ -z "$closeTs" ] || AgentsToolsAskPostClose "$1" "$closeTs" cancelled edit
+		return 0
+	}
+
+	## One held change dropped by the tooling itself, with no verdict: its record withdrawn, with
+	## who and why; its prompt's thread told (`# Notes` of the template); its prompt closed
+	## (AgentsChangePostClose). Nothing goes on an item's Decisions. Each step after the close of
+	## the record is best effort; a record another closer closed first is left as it is.
+	AgentsChangeDrop(){ ## record file, pending id, who drops it, why
+		local dropFile="$1" dropId="$2" dropWho="$3" dropWhy="$4" dropOwner dropChannel dropThread dropNote dropTo dropArgs
+		type AgentsToolsAskPostField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		DistroAgentsTools --intern-op-pending-reply-close "$dropId" --if-open --status withdrawn --withdrawn-by "$dropWho" --withdraw-reason "$dropWhy" \
+			--no-decision --context "${MDSC_CMD:-change}" > /dev/null 2>&1 || return 0
+		dropOwner="$( AgentsToolsAskPostField "$dropFile" owner )"
+		dropChannel="$( AgentsToolsAskPostField "$dropFile" channel )"
+		dropThread="$( AgentsToolsAskPostField "$dropFile" thread-ts )"
+		[ -n "$dropOwner" ] && [ -n "$dropChannel" ] && [ -n "$dropThread" ] || return 0
+		dropNote="$( ASKP_F_reason="$dropWhy" AgentsChangeFill block "Notes/dropped" 2> /dev/null )" || dropNote=""
+		## It carries the addressee of the prompt it follows, as the prompt named it.
+		dropArgs=( "$dropOwner" "$dropChannel:$dropThread" --identity-bot --from-stdin )
+		dropTo="$( AgentsToolsAskPostField "$dropFile" address-to )"
+		[ -z "$dropTo" ] || dropArgs=( "${dropArgs[@]}" --address-to "$dropTo" )
+		[ -z "$dropNote" ] || printf '%s\n' "$dropNote" | DistroAgentsTools --intern-op-comms-slack-send-message "${dropArgs[@]}" > /dev/null 2>&1 \
+			|| echo "⚠️ WARNING: ${MDSC_CMD:-change}: the held change $dropId is dropped, but its thread was not told" >&2
+		AgentsChangePostClose "$dropFile"
+		return 0
+	}
+
+	## THE VERDICT on a held change, carried out. Only the human-owner's counts.
+	##   reject   the change is dropped: nothing is applied.
+	##   approve  the kept call is made again by the member's own tool, as the member, in its
+	##            session (MDAT_CHANGE_APPLY): applied where each edit still matches what it
+	##            matched when it was shown and the member's access still covers the file, and
+	##            not applied, for good, where it does not.
+	## rc 0: carried out, and one line says how, its first word `applied`, `dropped` or
+	## `not-applied`, then ` -- ` and the words for the member; one not applied ends by telling
+	## it to make the change again. rc 1: not carried out now, the change still held, and the
+	## one line printed is why -- an answer that is not his, or a tool that could not run this time.
+	AgentsChangeVerdict(){ ## record file, pending id, verdict (approve|reject), its text (may be empty), answered by (his account, or his name)
+		local cvFile="$1" cvId="$2" cvVerdict="$3" cvBy="$5" cvDir="" cvShown cvOwner cvSession cvTool cvOut="" cvLine
+		AgentsChangeLoad
+		if ! AgentsToolsPermissionIsHumanOwner "$cvBy" ; then
+			printf 'only the human-owner approves or rejects a held change, and this answer is not his\n'
+			return 1
+		fi
+		cvShown="$( AgentsChangeSlot "$cvFile" file )"
+		case "$cvVerdict" in
+			reject)
+				printf 'dropped -- rejected, so nothing is applied to %s\n' "${cvShown:-the file}"
+				return 0
+			;;
+			approve) ;;
+			*)
+				printf '%s is no verdict of a held change\n' "$cvVerdict"
+				return 1
+			;;
+		esac
+		cvDir="$( AgentsChangeDir "$cvFile" "$cvId" )" || cvDir=""
+		cvTool="$( AgentsChangeField "$cvDir/change" tool )"
+		if [ -z "$cvDir" ] || [ ! -f "$cvDir/call.json" ] || [ -z "$cvTool" ] ; then
+			printf 'not-applied -- the kept change is no longer in the store of its session. Make the change again: it is held and shown to him anew.\n'
+			return 0
+		fi
+		cvOwner="$( AgentsToolsAskPostField "$cvFile" owner )"
+		cvSession="$( AgentsToolsAskPostField "$cvFile" session-id )"
+		## The member's own tool, in a process of its own: what this process was handed as a
+		## served call, or as another session's run, is none of that call's.
+		cvOut="$(
+			unset MDAT_CHANGE_HOLD_ONLY MDAT_MCP_RESULT_HEAD_FILE MDAT_MCP_RESULT_IMAGE_FILE MDAT_MCP_WAIT_SERVED_BOUND CLAUDE_CODE_SESSION_ID harnessSessionId harnessAgent
+			[ "${MDAT_SPAWN_SESSION_ID:-}" = "$cvSession" ] || unset MDAT_SPAWN_SANDBOX_ROOT MDAT_SPAWN_SANDBOX_ROOT_REAL
+			export MDAT_CHANGE_APPLY="$cvDir" MDAT_SPAWN_AGENT="$cvOwner" MDAT_SPAWN_SESSION_ID="$cvSession"
+			cd "$MMDAPP" 2> /dev/null || exit 1
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" --intern-tool "$cvTool" < "$cvDir/call.json" 2> /dev/null
+		)" || :
+		cvLine="$( printf '%s\n' "$cvOut" | LC_ALL=C grep -m1 '^STALE: ' )" || cvLine=""
+		if [ -n "$cvLine" ] ; then
+			printf 'not-applied -- %s. Make the change again: it is held and shown to him anew.\n' "${cvLine#STALE: }"
+			return 0
+		fi
+		case "$cvOut" in
+			'OK: '*)
+				printf 'applied -- %s\n' "${cvOut%%$'\n'*}"
+				return 0
+			;;
+		esac
+		cvLine="${cvOut%%$'\n'*}"
+		printf 'the approved change could not be applied this time: %s\n' "${cvLine:-the tool gave no result}"
+		return 1
+	}
+
+fi
+
+case "$1" in
+
+	## One call held: its change kept in the store of its session, shown to the human-owner by
+	## the team bot, and recorded as that session's ask. Called by the harness for a call its
+	## gate answers held for (AgentsHarnessChangeHold), with the file as it stood under the
+	## write lock and the file as the call leaves it. Prints
+	##   HELD <pending-id>       the change is kept, shown and recorded
+	##   SHOWN <lines> <total>   how many lines of its diff the prompt shows, of how many
+	## or `NOCHANGE`, rc 0, where the call leaves the file exactly as it is: nothing to show.
+	## rc 1, said on stderr, where the change could not be kept, shown or recorded: then
+	## nothing is held, and what was kept or posted on the way is taken away again. Shown is
+	## both posts of the prompt: the one that opens the thread, and the change itself under it.
+	--intern-op-change-hold)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-change-hold"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local holdMember="${1:-}" holdSession="" holdTool="" holdFile="" holdBase="" holdResult="" holdCall="" holdMatched=""
+		shift || true
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) holdSession="${2:-}" ; shift 2 ;;
+				--tool) holdTool="${2:-}" ; shift 2 ;;
+				--file) holdFile="${2:-}" ; shift 2 ;;
+				## The file as it stood; none where the call creates it.
+				--base) holdBase="${2:-}" ; shift 2 ;;
+				--result) holdResult="${2:-}" ; shift 2 ;;
+				--call) holdCall="${2:-}" ; shift 2 ;;
+				## What each edit of an Edit matched, in order, space-separated.
+				--matched) holdMatched="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		case "$holdTool" in Edit|Write) ;; *) holdTool="" ;; esac
+		if [ -z "$holdMember" ] || [ -z "$holdSession" ] || [ -z "$holdTool" ] || [ ! -f "$holdResult" ] || [ ! -f "$holdCall" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> --session-id <id> --tool <Edit|Write> --file <path> [--base <file>] --result <file> --call <file> [--matched <counts>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$holdMember" "<team-member>" change-hold || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$holdSession" "--session-id" change-hold || { set +e ; return 1 ; }
+		case "$holdFile" in
+			/*) ;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: --file must be the resolved absolute path of the file: $holdFile" >&2 ; set +e ; return 1 ;;
+		esac
+		[ -z "$holdBase" ] || [ -f "$holdBase" ] || { echo "$MDSC_CMD: ⛔ ERROR: --base names no file: $holdBase" >&2 ; set +e ; return 1 ; }
+		## A call that leaves the file as it is has nothing to show, and nothing to approve.
+		if [ -n "$holdBase" ] && cmp -s "$holdBase" "$holdResult" ; then
+			printf 'NOCHANGE\n'
+			return 0
+		fi
+		AgentsChangeLoad
+		local holdId holdDir holdTotal=0 holdShown=0 holdCounts holdAct="change" holdDiff="" holdCut="" holdPurpose="" holdItem="" holdItemPath="" holdTask="" holdName holdNames="" holdTaskText=""
+		local holdRecord="" holdCandidate holdCow="" holdThread="" holdSessionText="" holdWhere holdByText holdFileShown holdBody holdOut holdChannel holdTs holdAddressees holdAsking holdPending holdFields
+		local holdDetail="" holdDetailOut="" holdDetailTs=""
+		holdId="$( uuidgen 2> /dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )"
+		if [ -z "$holdId" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: no id could be generated, so the change is not held" >&2
+			set +e ; return 1
+		fi
+		holdId="change-$holdId"
+		holdDir="$MMDAPP/.local/agents/sessions/$holdSession/changes/$holdId"
+		mkdir -p "$holdDir" 2> /dev/null && cp "$holdResult" "$holdDir/result" && cp "$holdCall" "$holdDir/call.json" \
+			&& { [ -z "$holdBase" ] || cp "$holdBase" "$holdDir/base" ; } || {
+			rm -rf "$holdDir"
+			echo "$MDSC_CMD: ⛔ ERROR: the change could not be kept in the store of session $holdSession, so it is not held" >&2
+			set +e ; return 1
+		}
+		## The whole change as a unified diff, without its two file header lines: the file is named by the prompt.
+		LC_ALL=C diff -U3 "${holdBase:-/dev/null}" "$holdResult" 2> /dev/null | LC_ALL=C awk 'NR > 2' > "$holdDir/change.diff"
+		holdCounts="$( LC_ALL=C awk -v maxLines="$agentsChangeShowLines" -v maxBytes="$agentsChangeShowBytes" -v maxLine="$agentsChangeShowLineBytes" -v shownFile="$holdDir/shown.$$" '
+			{
+				lineTotal++ ;
+				if ( ! cutHere && shownLines < maxLines && length( $0 ) <= maxLine && shownBytes + length( $0 ) + 1 <= maxBytes ) { print > shownFile ; shownLines++ ; shownBytes += length( $0 ) + 1 ; }
+				else { cutHere = 1 ; }
+			}
+			END { print lineTotal + 0, shownLines + 0 ; }
+		' "$holdDir/change.diff" 2> /dev/null )" || holdCounts=""
+		holdTotal="${holdCounts%% *}" ; holdShown="${holdCounts##* }"
+		[ ! -f "$holdDir/shown.$$" ] || { holdDiff="$( cat "$holdDir/shown.$$" )" ; rm -f "$holdDir/shown.$$" ; }
+		if [ -z "$holdDiff" ] || [ "${holdTotal:-0}" = "0" ] ; then
+			rm -rf "$holdDir"
+			echo "$MDSC_CMD: ⛔ ERROR: the change to $holdFile could not be put as a diff a person can read, so it is not held" >&2
+			set +e ; return 1
+		fi
+		## What the prompt says beside the diff, each from records on disk.
+		[ "$holdTool" != "Write" ] || { holdAct="rewrite" ; [ -n "$holdBase" ] || holdAct="create" ; }
+		holdFileShown="$( AgentsToolsPermissionShownTarget "$holdFile" )"
+		[ "$holdShown" = "$holdTotal" ] || holdCut="$( ASKP_F_hidden="$(( holdTotal - holdShown ))" ASKP_F_total="$holdTotal" \
+			ASKP_F_diff_file="$( AgentsToolsPermissionShownTarget "$holdDir/change.diff" )" AgentsChangeFill block "Lines/cut" 2> /dev/null )" || holdCut=""
+		holdPurpose="$( LC_ALL=C awk -v path=description -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" < "$holdCall" 2> /dev/null )" || holdPurpose=""
+		holdPurpose="$( AgentsToolsTaskTextKept "$holdPurpose" )"
+		holdItem="$( AgentsToolsDecisionsItemFromRef "" "$holdSession" 2> /dev/null )" || holdItem=""
+		if [ -n "$holdItem" ] && holdItemPath="$( AgentsToolsDecisionsItemPath "$holdItem" 2> /dev/null )" ; then
+			holdTask="$( AgentsToolsTaskText "$holdItemPath" )"
+			for holdName in "$( AgentsToolsTaskTextValue "$holdTask" item )" "$( AgentsToolsTaskTextValue "$holdTask" dispatch )" ; do
+				[ -z "$holdName" ] || holdNames="$holdNames${holdNames:+ · }\`$holdName\`"
+			done
+			holdTaskText="$( ASKP_F_task_title="$( AgentsToolsTaskTextValue "$holdTask" title )" ASKP_F_task_names="$holdNames" \
+				ASKP_F_task_text="$( AgentsToolsTaskTextValue "$holdTask" text )" AgentsChangeFill block "Lines/task" 2> /dev/null )" || holdTaskText=""
+		fi
+		## The session that made the call: its short id, its thread, and what its spawn said it is for.
+		for holdCandidate in "$MMDAPP/.local/agents/spawned"/*/"$holdSession.md" ; do
+			[ ! -f "$holdCandidate" ] || { holdRecord="$holdCandidate" ; break ; }
+		done
+		holdCow="$( [ -z "$holdRecord" ] || AgentsToolsSpawnSandboxRecordHeader "$holdRecord" session-id )"
+		if [ -n "$holdCow" ] ; then
+			holdThread="$( AgentsToolsSpawnSandboxRecordHeader "$holdRecord" session-thread )"
+			if [ -z "$holdThread" ] || [ "$holdThread" = "-" ] ; then
+				holdThread=""
+				[ ! -f "${holdRecord%/*}/session.thread" ] || IFS= read -r holdThread < "${holdRecord%/*}/session.thread" || :
+			fi
+			holdSessionText="$( ASKP_F_session_id="${holdCow:0:8}" ASKP_F_session_thread="$( AgentsToolsPermissionSetThreadShown "$holdMember" "$holdThread" )" \
+				ASKP_F_session_description="$( AgentsToolsTaskTextLine "$( AgentsToolsSpawnSandboxRecordHeader "$holdRecord" description )" )" AgentsChangeFill block "Lines/session" 2> /dev/null )" || holdSessionText=""
+		fi
+		holdWhere="$( AgentsToolsPermissionRefusalWhere )"
+		holdByText="$( ASKP_F_member="$holdMember" ASKP_F_host="$( printf '%s\n' "$holdWhere" | LC_ALL=C sed -n 's/^host: //p' )" \
+			ASKP_F_workspace="$( printf '%s\n' "$holdWhere" | LC_ALL=C sed -n 's/^workspace: //p' )" AgentsChangeFill block "Lines/asked-by" 2> /dev/null )" || holdByText=""
+		holdAct="$( AgentsChangeFill block "Acts/$holdAct" 2> /dev/null )" || holdAct=""
+		## The two posts of the prompt, both filled before either is sent: the message that opens
+		## the thread, a few lines, and the change itself, the first reply there (`## detail`).
+		## The first is filled with no diff, said here whatever the environment holds: with one
+		## it would be the one post a prompt was before its change moved to that reply.
+		holdBody="$( ASKP_F_member="$holdMember" ASKP_F_act="$holdAct" ASKP_F_file="$holdFileShown" ASKP_F_purpose="$holdPurpose" ASKP_F_diff="" AgentsChangeFill post 2> /dev/null )" || holdBody=""
+		holdDetail="$( ASKP_F_task="$holdTaskText" ASKP_F_session="$holdSessionText" ASKP_F_asked_by="$holdByText" ASKP_F_fence='```' ASKP_F_diff="$holdDiff" ASKP_F_cut="$holdCut" \
+			AgentsChangeFill block "Skeleton/detail" 2> /dev/null )" || holdDetail=""
+		if [ -z "$holdBody" ] || [ -z "$holdDetail" ] ; then
+			rm -rf "$holdDir"
+			echo "$MDSC_CMD: ⛔ ERROR: the prompt for the change to $holdFile could not be filled from its template, so nothing was shown and the change is not held" >&2
+			set +e ; return 1
+		fi
+		holdOut="$( printf '%s\n' "$holdBody" | DistroAgentsTools --intern-op-comms-slack-send-message "$holdMember" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
+			rm -rf "$holdDir"
+			echo "$MDSC_CMD: ⛔ ERROR: the change to $holdFile could not be shown to the human-owner, so it is not held: $( printf '%s\n' "$holdOut" | LC_ALL=C grep -m1 'ERROR' )" >&2
+			set +e ; return 1
+		}
+		holdChannel="$( printf '%s\n' "$holdOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' | head -1 )"
+		holdTs="$( printf '%s\n' "$holdOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+		holdAddressees="$( printf '%s\n' "$holdOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 )"
+		holdAsking="$( printf '%s\n' "$holdOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" || holdAsking=""
+		holdPending=""
+		if [ -n "$holdChannel" ] && [ -n "$holdTs" ] && [ -n "$holdAddressees" ] ; then
+			## The change itself, under the prompt at once: the first reply in its thread, by the
+			## identity that posted the prompt, to the same addressee. A reply of that identity is
+			## never read as an answer. Not posted, the prompt shows no change, so it takes none.
+			holdDetailOut="$( printf '%s\n' "$holdDetail" | DistroAgentsTools --intern-op-comms-slack-send-message "$holdMember" "$holdChannel:$holdTs" --identity-bot --address-to human-owner --from-stdin 2>&1 )" \
+				&& holdDetailTs="$( printf '%s\n' "$holdDetailOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )" || holdDetailTs=""
+		fi
+		if [ -n "$holdDetailTs" ] ; then
+			## What the first post was filled with is kept beside its record, so it is filled again
+			## once it takes no answer. The reply under it is never filled again, and its diff is
+			## kept whole with the change. The record holds the text of both, as they were shown.
+			holdFields="$( AgentsToolsAskPostFieldsPack member "$holdMember" act "$holdAct" file "$holdFileShown" purpose "$holdPurpose" )"
+			holdPending="$( printf '%s\n\n%s\n' "$holdBody" "$holdDetail" | DistroAgentsTools --intern-op-pending-reply-open "$holdMember" --to "$holdChannel" --session-id "$holdSession" \
+				--kind change --address-to human-owner --blocked-on "reply from human-owner" --channel "$holdChannel" --question-ts "$holdTs" --thread-ts "$holdTs" \
+				--addressees "$holdAddressees" ${holdAsking:+--asking-accounts " $holdAsking"} ${holdItem:+--item "$holdItem"} --ask-identity bot \
+				--fields "$holdFields" --context "$MDSC_CMD" 2> /dev/null )" || holdPending=""
+		fi
+		[ -z "$holdPending" ] || printf 'owner: %s\nsession-id: %s\ntool: %s\nfile: %s\nmatched: %s\nask: %s\nheld-at: %s\n' "$holdMember" "$holdSession" "$holdTool" "$holdFile" \
+			"$holdMatched" "$holdPending" "$( date +"%Y-%m-%d %H:%M %z" )" > "$holdDir/change" || holdPending=""
+		if [ -z "$holdPending" ] ; then
+			## A prompt nobody can answer is taken away again, as the identity that posted it: the
+			## reply under it first, so the prompt leaves no thread behind.
+			[ -z "$holdDetailTs" ] || DistroAgentsTools --member-comms-slack-delete-message "$holdMember" "$holdChannel:$holdDetailTs" --identity-bot > /dev/null 2>&1 \
+				|| echo "⚠️ WARNING: $MDSC_CMD: the reply $holdChannel:$holdDetailTs under the prompt $holdChannel:$holdTs could not be removed" >&2
+			[ -z "$holdChannel" ] || [ -z "$holdTs" ] || DistroAgentsTools --member-comms-slack-delete-message "$holdMember" "$holdChannel:$holdTs" --identity-bot > /dev/null 2>&1 \
+				|| echo "⚠️ WARNING: $MDSC_CMD: the prompt $holdChannel:$holdTs could not be removed, and stands with no change behind it" >&2
+			rm -rf "$holdDir"
+			if [ -n "$holdChannel" ] && [ -n "$holdTs" ] && [ -n "$holdAddressees" ] && [ -z "$holdDetailTs" ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: the prompt for the change to $holdFile was posted, but the change itself could not be shown under it, so the prompt is taken away again and the change is not held: $( printf '%s\n' "$holdDetailOut" | LC_ALL=C grep -m1 'ERROR' )" >&2
+				set +e ; return 1
+			fi
+			echo "$MDSC_CMD: ⛔ ERROR: the change to $holdFile was shown, but its prompt could not be recorded, so its answer could not be read: it is not held" >&2
+			set +e ; return 1
+		fi
+		## Its click answers, the names its template gives (`# Reactions`), placed as the identity
+		## that posted it. They are never an answer themselves: only his own click is.
+		AgentsToolsAskPostReact "$holdMember" "$holdChannel:$holdTs" bot add $( AgentsChangeFill reactions 2> /dev/null )
+		printf 'HELD %s\n' "$holdPending"
+		printf 'SHOWN %s %s\n' "$holdShown" "$holdTotal"
+		return 0
+	;;
+
+	--intern-op-change-*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid operation: $1" >&2
+		set +e ; return 1
+	;;
+
+	## DEFINITIONS-ONLY SOURCE: a caller sourcing this file for its functions. Nothing to dispatch.
+	*)
+		:
+	;;
+
+esac

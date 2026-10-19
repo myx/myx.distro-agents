@@ -11,12 +11,12 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigHarness" "$rigHere/AgentsHarnessArgTable.awk" "$rigHere/AgentsHarnessJsonField.awk" ; do
+for rigFile in "$rigHarness" "$rigHere/harness/AgentsHarnessArgTable.awk" "$rigHere/harness/AgentsHarnessJsonField.awk" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
@@ -34,11 +34,11 @@ eval "$rigLift"
 ## The reference -- the differential side: AgentsHarnessArgValue's body exactly as every
 ## lookup ran it before the table, the field reader once per path.
 rigRef(){ ## raw, path
-	printf '%s\n' "$1" | LC_ALL=C awk -v path="$2" -v optional=1 -f "$rigHere/AgentsHarnessJsonField.awk" 2>/dev/null || :
+	printf '%s\n' "$1" | LC_ALL=C awk -v path="$2" -v optional=1 -f "$rigHere/harness/AgentsHarnessJsonField.awk" 2>/dev/null || :
 }
 rigRefExact(){ ## raw, key, alias
 	local refRaw="$1" refKey="$2" refOut
-	[ -z "$3" ] || printf '%s\n' "$refRaw" | LC_ALL=C awk -v path="$refKey" -v optional=1 -f "$rigHere/AgentsHarnessJsonField.awk" >/dev/null 2>&1 || refKey="$3"
+	[ -z "$3" ] || printf '%s\n' "$refRaw" | LC_ALL=C awk -v path="$refKey" -v optional=1 -f "$rigHere/harness/AgentsHarnessJsonField.awk" >/dev/null 2>&1 || refKey="$3"
 	refOut="$( rigRef "$refRaw" "$refKey" ; printf 'x' )"
 	refOut="${refOut%x}"
 	printf '%sx' "${refOut%$'\n'}"
@@ -145,14 +145,14 @@ rigReplyLift="$( LC_ALL=C awk '
 	inFn { print ; }
 	inFn && /^\}$/ { inFn = 0 ; seen++ ; }
 	END { if ( seen != 1 ) exit 1 ; }
-' "$rigHere/AgentsHarnessMcpClient.sh" )" || rigRefuse "AgentsHarnessMcpReply was not found in AgentsHarnessMcpClient.sh"
-. "$rigHere/AgentsHarnessMcpConfig.include"
+' "$rigHere/harness/AgentsHarnessMcpClient.sh" )" || rigRefuse "AgentsHarnessMcpReply was not found in AgentsHarnessMcpClient.sh"
+. "$rigHere/harness/AgentsHarnessMcpConfig.include"
 eval "$rigReplyLift"
 rigReplyRef(){ ## request id -- the loop as it was
 	local replyWant="$1" replyLine replyId replyFound=""
 	while IFS= read -r replyLine ; do
 		[ -n "$replyLine" ] || continue
-		replyId="$( printf '%s\n' "$replyLine" | LC_ALL=C awk -v path=id -v optional=1 -f "$rigHere/AgentsHarnessJsonField.awk" 2>/dev/null )" || replyId=""
+		replyId="$( printf '%s\n' "$replyLine" | LC_ALL=C awk -v path=id -v optional=1 -f "$rigHere/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || replyId=""
 		[ "$replyId" != "$replyWant" ] || replyFound="$replyLine"
 	done < "$harnessScratch/mcp.out"
 	printf '%s' "$replyFound"
@@ -194,7 +194,7 @@ not json {"id":1}
 
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ ARG TABLE CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2
-	echo "  fix:  AgentsHarnessArgTable.awk or AgentsHarnessArgParse in sh-lib/AgentsUniversalHarness.sh -- never the assertion" >&2
+	echo "  fix:  AgentsHarnessArgTable.awk or AgentsHarnessArgParse in sh-lib/harness/AgentsUniversalHarness.sh -- never the assertion" >&2
 	exit 1
 fi
 printf 'HARNESS_ARG_TABLE: OK (%d documents, %d assertions, every lookup byte-identical to the field reader, offline)\n' "${#rigCorpus[@]}" "$rigPass"

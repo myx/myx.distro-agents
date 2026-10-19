@@ -148,7 +148,7 @@ mv "$rigWs/.local/agents/spawned-sessions.registry" "$rigTmp/sessions.kept"
 rigRun "$rigList"
 rigAssert "where the registry of sessions is not there no count is given, and it is not built: every workspace reads -" "$rigRc $( LC_ALL=C awk -F'\t' '$4 == "workspace" { printf "%s=%s ", $2, $9 }' "$rigTmp/out" ) $( [ -e "$rigWs/.local/agents/spawned-sessions.registry" ] && echo built || echo not-built )" "0 ws-here=- ws-far=- ws-lost=-  not-built"
 mv "$rigTmp/sessions.kept" "$rigWs/.local/agents/spawned-sessions.registry"
-rigAssert "control: the registry of sessions names the session second and the workspace eleventh of its columns, as the tooling's own render of it says" "$( LC_ALL=C sed -n 's/^.*columns: \(tracking-name session-id .* workspace\) live state.$/\1/p' "$rigHere/AgentsTools.Registries.include" | LC_ALL=C awk '{ print $2, $11, NF }' )" "session-id workspace 11"
+rigAssert "control: the registry of sessions names the session second and the workspace eleventh of its columns, as the tooling's own render of it says" "$( LC_ALL=C sed -n 's/^.*columns: \(tracking-name session-id .* workspace\) live state.$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" | LC_ALL=C awk '{ print $2, $11, NF }' )" "session-id workspace 11"
 
 echo "-- 2. the read of one place --"
 rigRun "$rigRead" ws-here
@@ -209,7 +209,7 @@ rigAssert "the list takes no word" "$( rigRefused "⛔ ERROR: DistroAgentsTools 
 echo "-- 4. both only read, and reach no other host --"
 rigAssert "no call so far wrote, made or removed a file or a folder of the rig: its workspaces, their registries, the registry of sessions, the home" "$( rigTree )" "$rigTreeBefore"
 rigAssert "no call started anything that reaches another host" "$( [ -e "$rigTmp/remote.calls" ] && wc -l < "$rigTmp/remote.calls" | LC_ALL=C tr -d ' ' || echo 0 )" "0"
-rigInclude="$rigHere/AgentsTools.ManagerPlace.include"
+rigInclude="$rigHere/manager/AgentsTools.ManagerPlace.include"
 rigAssert "the places are read by their own reader, the merged list, and the include opens no registry of places itself and names no writer of one" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigInclude" | LC_ALL=C grep -c -e 'AgentsToolsPlacesMergedText "' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigInclude" | LC_ALL=C grep -c -e 'directories\.registry' -e 'AgentsToolsPlacesLocalUpdate' -e 'AgentsToolsPlacesSharedUpdate' -e 'AgentsToolsPlacesOwner' || : )" "1 0"
 
 echo "-- 5. the caller rule of the family, and its place in it --"
@@ -222,7 +222,7 @@ for rigOne in "$rigList" "$rigRead docs" ; do
 	[ "$rigRc" = 1 ] && [ ! -s "$rigTmp/out" ] && [ "$( rigWhole "$rigTmp/err" "DistroAgentsTools: $( printf '%s' "${rigOne%% *}" | LC_ALL=C sed -e 's/^--//' ): ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" = 1 ] || rigCallerBad="$rigCallerBad [${rigOne%% *}]"
 done
 rigAssert "from inside a member's session both are refused, rc 1, nothing on stdout, in the one line of the family" "${rigCallerBad:-each refused}" "each refused"
-rigAssert "the family's include has one arm for the places, which sources their include" "$( LC_ALL=C grep -c -x -e '	--manager-place-\*)' "$rigHere/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerPlace.include"' "$rigHere/AgentsTools.Manager.include" || : )" "1 1"
+rigAssert "the family's include has one arm for the places, which sources their include" "$( LC_ALL=C grep -c -x -e '	--manager-place-\*)' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerPlace.include"' "$rigHere/manager/AgentsTools.Manager.include" || : )" "1 1"
 rigRun --manager-place-no-such
 rigAssert "an operation its subject does not have is refused by name, rc 1" "$rigRc $( rigWhole "$rigTmp/err" "DistroAgentsTools: ⛔ ERROR: invalid option: --manager-place-no-such" )" "1 1"
 

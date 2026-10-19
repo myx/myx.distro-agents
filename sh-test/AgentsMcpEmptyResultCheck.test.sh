@@ -21,7 +21,7 @@ for rigEntry in "$rigSource"/myx/* ; do
 	[ "${rigEntry##*/}" = myx.distro-agents ] || ln -s "$rigEntry" "$rigTmp/origin/myx/${rigEntry##*/}"
 done
 cp -R "$rigSource/myx/myx.distro-agents" "$rigTmp/origin/myx/myx.distro-agents"
-rigHarness="$rigTmp/origin/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh"
+rigHarness="$rigTmp/origin/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh"
 cp "$rigHarness" "$rigTmp/harness.intact"
 rigCut="$( LC_ALL=C grep -n '^## --intern-tool ends here' "$rigTmp/harness.intact" | head -1 | cut -d: -f1 )"
 [ -n "$rigCut" ] || { echo "⛔ ERROR: the dispatch marker is not in the harness -- refusing to report a result" >&2 ; exit 1 ; }

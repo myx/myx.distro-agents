@@ -67,7 +67,7 @@ rigOp(){ ## result file, op and arguments...
 }
 ## A bare UTC date some whole days ago, through the package's own portable converter.
 rigDaysAgo(){ ## days
-	printf '%s\n' "$(( $( date +%s ) - $1 * 86400 ))" | LC_ALL=C awk -f "$rigLib/AgentsEpochToIsoDate.awk"
+	printf '%s\n' "$(( $( date +%s ) - $1 * 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsEpochToIsoDate.awk"
 }
 
 echo "-- mark: stamped, and moved from incoming/ to processed/ --"

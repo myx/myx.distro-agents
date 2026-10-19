@@ -40,7 +40,7 @@ harnessHooksSkipped=0
 ## never from a hook's own name. Absent, this refuses to start on the same rule
 ## the access-root mechanism follows: a class that cannot be resolved is not a
 ## class, and guessing it either way is the fault this split exists to remove.
-harnessHooksPolicyFile="$harnessHere/AgentsTools.ClientToolPolicy.include"
+harnessHooksPolicyFile="$harnessHere/client/AgentsTools.ClientToolPolicy.include"
 if [ ! -f "$harnessHooksPolicyFile" ] ; then
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the client tool policy is missing from this package, so no hook class can be resolved: $harnessHooksPolicyFile" >&2
 	exit 1
@@ -152,32 +152,32 @@ AgentsHarnessHooksRefusal(){
 			[ -n "$hookReadPath" ] || hookReadPath="$( AgentsHarnessArgValue "$hookArgsRaw" path )"
 			AgentsHarnessWholeNumber "$hookReadOffset" || hookReadOffset=""
 			AgentsHarnessWholeNumber "$hookReadLimit" || hookReadLimit=""
-			hookInputJson='{"file_path":"'"$( printf '%s' "$hookReadPath" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"'"${hookReadOffset:+,\"offset\":$hookReadOffset}${hookReadLimit:+,\"limit\":$hookReadLimit}"'}'
+			hookInputJson='{"file_path":"'"$( printf '%s' "$hookReadPath" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"'"${hookReadOffset:+,\"offset\":$hookReadOffset}${hookReadLimit:+,\"limit\":$hookReadLimit}"'}'
 		;;
 		Write|Edit)
 			hookReadPath="$( AgentsHarnessArgValue "$hookArgsRaw" file_path )"
 			[ -n "$hookReadPath" ] || hookReadPath="$( AgentsHarnessArgValue "$hookArgsRaw" path )"
-			hookInputJson='{"file_path":"'"$( printf '%s' "$hookReadPath" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}'
+			hookInputJson='{"file_path":"'"$( printf '%s' "$hookReadPath" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}'
 		;;
-		Glob)      hookInputJson='{"pattern":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" pattern )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'","path":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" path )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
-		Grep)      hookInputJson='{"path":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" path )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
-		Bash)      hookInputJson='{"command":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" command )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
+		Glob)      hookInputJson='{"pattern":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" pattern )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","path":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" path )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
+		Grep)      hookInputJson='{"path":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" path )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
+		Bash)      hookInputJson='{"command":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" command )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		## Monitor runs a shell command, so it is shaped in Bash's own spelling: a hook
 		## written to guard `tool_input.command` must decide on this call exactly as it
 		## decides on that one, and a command that escaped the guard by arriving under a
 		## different field name would be a hole in it. The handle rides along, so a hook
 		## can tell a start from a read of one already running.
-		Monitor)   hookInputJson='{"command":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" command )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'","cwd":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" cwd )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'","handle":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" handle )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
-		WebSearch) hookInputJson='{"query":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" query )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
-		WebFetch)  hookInputJson='{"url":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" url )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
-		SendMessage) hookInputJson='{"to":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" to )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'","message":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" message )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
+		Monitor)   hookInputJson='{"command":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" command )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","cwd":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" cwd )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","handle":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" handle )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
+		WebSearch) hookInputJson='{"query":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" query )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
+		WebFetch)  hookInputJson='{"url":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" url )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
+		SendMessage) hookInputJson='{"to":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" to )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","message":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" message )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		## ListAgents takes no arguments, so what a hook decides on is the store it reads.
-		ListAgents) hookInputJson='{"data_root":"'"$( printf '%s' "${MDAT_DATA_ROOT:-}" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
+		ListAgents) hookInputJson='{"data_root":"'"$( printf '%s' "${MDAT_DATA_ROOT:-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		## What a hook decides on for Wait is WHERE this agent is about to listen, so the
 		## sources go in. The bound is not a permission question and is left out. An empty
 		## sources value is the tooling's own default set, not an absence of targets, so a
 		## hook reading this field sees the empty string and can refuse on exactly that.
-		Wait) hookInputJson='{"sources":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" sources )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
+		Wait) hookInputJson='{"sources":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" sources )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		## A tool whose arguments are not shaped here still faces every matcher-less hook,
 		## and an MCP tool's arguments already ARE the object a hook reads fields out of --
 		## so they are passed through verbatim rather than emptied. An empty object here
@@ -197,7 +197,7 @@ AgentsHarnessHooksRefusal(){
 	## The arguments go UNDER `tool_input`, which is where a hook reads them: the estate's
 	## own jq hook asks for `.tool_input.file_path`, and handed a bare object it reads
 	## nothing, matches nothing and exits 0 -- an allow, from a hook written to deny.
-	hookPayload='{"session_id":"'"$( printf '%s' "$harnessSessionId" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'","cwd":"'"$( printf '%s' "$PWD" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'","hook_event_name":"PreToolUse","tool_name":"'"$hookToolName"'","tool_input":'"$hookInputJson"'}'
+	hookPayload='{"session_id":"'"$( printf '%s' "$harnessSessionId" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","cwd":"'"$( printf '%s' "$PWD" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","hook_event_name":"PreToolUse","tool_name":"'"$hookToolName"'","tool_input":'"$hookInputJson"'}'
 
 	while IFS= read -r hookLine ; do
 		[ -n "$hookLine" ] || continue
@@ -242,7 +242,7 @@ AgentsHarnessHooksRefusal(){
 		## claude runs the tool anyway on a non-zero hook. This does not: a hook that
 		## crashed, was killed or was never executable has not approved anything.
 		if [ "$hookRc" != "0" ] ; then
-			printf 'ERROR: blocked before running -- the PreToolUse hook `%s` did not complete (exit status %s)%s. A hook that fails refuses the call here rather than letting it through.\n' "$hookCommand" "$hookRc" "$( [ ! -s "$harnessScratch/hook.err" ] || printf ': %s' "$( LC_ALL=C awk -v progressLineCap=400 -f "$harnessHere/AgentsProgressLineSafe.awk" < "$harnessScratch/hook.err" )" )"
+			printf 'ERROR: blocked before running -- the PreToolUse hook `%s` did not complete (exit status %s)%s. A hook that fails refuses the call here rather than letting it through.\n' "$hookCommand" "$hookRc" "$( [ ! -s "$harnessScratch/hook.err" ] || printf ': %s' "$( LC_ALL=C awk -v progressLineCap=400 -f "$harnessHere/session/AgentsProgressLineSafe.awk" < "$harnessScratch/hook.err" )" )"
 			return 0
 		fi
 

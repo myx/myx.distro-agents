@@ -151,7 +151,7 @@ RIG_PY
 rigSendRows="$( LC_ALL=C awk -F'\t' '$3 != "socket"' "$rigLog" | cksum )"
 env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" SOCKET_MODE_APP_TOKEN="$rigAppToken" \
 	SOCKET_MODE_TOOL_PATH="$rigTmp/bin/rig-file-tool" SOCKET_MODE_LOG_DIR="$rigDir" \
-	"$rigPython" -I "$rigTmp/socket-rig.py" "$rigHere/AgentsSlackSocketMode.py" magic-team "$rigMarker" "$rigAppToken" \
+	"$rigPython" -I "$rigTmp/socket-rig.py" "$rigHere/comms/AgentsSlackSocketMode.py" magic-team "$rigMarker" "$rigAppToken" \
 	> "$rigTmp/socket.out" 2>&1
 rigSocketRc=$?
 rigAssert "the receiver stops on SIGTERM, rc 0, nothing on stderr" "$rigSocketRc:$( cat "$rigTmp/socket.out" )" "0:"
@@ -179,7 +179,7 @@ env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDLT
 rigAssert "socket-status names the monthly Slack log" "$( LC_ALL=C grep -c -F "log=$rigLog" "$rigTmp/status.out" )" 1
 rigAssert "and reads the receiver's last row from it" "$( tail -n 1 "$rigTmp/status.out" )" "$( rigSocketRows | tail -n 1 )"
 rigAssert "no slack-socket.<scope>.log is named or made any more" \
-	"$( { ls "$rigWs/.local/temp" ; cat "$rigHere/AgentsTools.MemberCommsSlackSocket.include" "$rigTmp/status.out" ; } | LC_ALL=C grep -c 'slack-socket\.[^.]*\.log' )" 0
+	"$( { ls "$rigWs/.local/temp" ; cat "$rigHere/comms/AgentsTools.MemberCommsSlackSocket.include" "$rigTmp/status.out" ; } | LC_ALL=C grep -c 'slack-socket\.[^.]*\.log' )" 0
 
 echo "-- the log cannot be appended --"
 rm -f "$rigLog"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the retest queue (--member-retest-queue, --member-retest-drain, --member-retest-result:
-## sh-lib/AgentsTools.MemberRetest.include), run rather than read, on a fixture machine built here: a HOME, whose
+## sh-lib/member/AgentsTools.MemberRetest.include), run rather than read, on a fixture machine built here: a HOME, whose
 ## .agents/magic-team/retest-queue is the machine's one queue, and a workspace whose own tree is a copy of the tooling
 ## as it stands at the origin, with three tiny tests and the test runner in place of the package's tests, and beside
 ## it a scratch copy with two. Held: queueing returns at once with an id and waits for no test; a drain takes
@@ -17,7 +17,7 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
-rigInclude="$rigPackage/sh-lib/AgentsTools.MemberRetest.include"
+rigInclude="$rigPackage/sh-lib/member/AgentsTools.MemberRetest.include"
 rigHelpInclude="$rigPackage/sh-lib/help/Help.DistroAgentsTools.include"
 rigHelpManual="$rigPackage/sh-lib/help/Help.DistroAgentsTools.help.md"
 rigRefuse(){
@@ -58,7 +58,7 @@ cp "$rigPackage/project.inf" "$rigLive/myx/myx.distro-agents/project.inf"
 for rigSibling in myx.distro-.local myx.distro-system ; do rigTake "myx/$rigSibling" "myx/$rigSibling" || rigRefuse "the tooling's $rigSibling could not be copied into the rig" ; done
 rigTake myx/myx.common/os-myx.common/host/tarball/share/myx.common myx/myx.common/os-myx.common/host/tarball/share/myx.common || rigRefuse "myx.common could not be copied into the rig"
 rigTool="$rigLive/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-[ -f "$rigTool" ] && [ -f "$rigLive/myx/myx.distro-agents/sh-lib/AgentsTools.MemberRetest.include" ] || rigRefuse "the rig's copy of the tooling holds no retest queue, so nothing below would be measured"
+[ -f "$rigTool" ] && [ -f "$rigLive/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberRetest.include" ] || rigRefuse "the rig's copy of the tooling holds no retest queue, so nothing below would be measured"
 rigRoot(){ ## copy -- its source root: `live` is the workspace's own tree, any other name a scratch folder of that name
 	if [ "$1" = live ] ; then printf '%s\n' "$rigLive" ; else printf '%s\n' "$rigWs/.local/temp/$1/source" ; fi
 }
@@ -216,13 +216,13 @@ rigAsk "$rigTmp/q6a" --by rig-first --why 'a changed test, by its path in the pa
 rigAssert "a changed file that is a test is the test itself, however its path was given, and no file is kept" "$rigRc [$( LC_ALL=C grep -e '^test: ' -e '^file: ' "$rigQueue/waiting/$rigIdA.request" | LC_ALL=C sort | LC_ALL=C tr '\n' '|' )]" "0 [test: RigOne|test: RigTwo|]"
 rigOp "$rigTmp/d6a" --member-retest-drain
 rigAssert "the batch runs those two tests and no other" "$rigRc [$( rigBegun )] $( rigLine "$rigTmp/d6a" "$rigIdA" | LC_ALL=C cut -d' ' -f1-11 )" "0 [live:RigOne live:RigTwo] RETEST <id> PASS -- asked by rig-first about live: 2 passed"
-rigAsk "$rigTmp/q6b" --by rig-second --why 'a library file was changed' --file sh-lib/AgentsTools.MemberWait.include ; rigIdB="$rigId"
-rigAssert "any other changed file is kept as the file: no test is known to cover it" "$rigRc [$( LC_ALL=C grep -e '^test: ' -e '^file: ' "$rigQueue/waiting/$rigIdB.request" | LC_ALL=C tr '\n' '|' )] $( LC_ALL=C grep -c -F -- 'changed file(s) no test is known to cover' "$rigTmp/q6b.err" )" "0 [file: sh-lib/AgentsTools.MemberWait.include|] 1"
+rigAsk "$rigTmp/q6b" --by rig-second --why 'a library file was changed' --file sh-lib/member/AgentsTools.MemberWait.include ; rigIdB="$rigId"
+rigAssert "any other changed file is kept as the file: no test is known to cover it" "$rigRc [$( LC_ALL=C grep -e '^test: ' -e '^file: ' "$rigQueue/waiting/$rigIdB.request" | LC_ALL=C tr '\n' '|' )] $( LC_ALL=C grep -c -F -- 'changed file(s) no test is known to cover' "$rigTmp/q6b.err" )" "0 [file: sh-lib/member/AgentsTools.MemberWait.include|] 1"
 rigOp "$rigTmp/d6b" --member-retest-drain
 rigAssert "the batch runs for it every test that has not passed on the state the copy is in: the one test left, and neither of the two that just passed on it" "$rigRc [$( rigBegun )]" "0 [live:RigOne live:RigThree live:RigTwo]"
 rigAssert "its line counts every test of the copy: what ran now, and what had passed on this very state before" "$( rigLine "$rigTmp/d6b" "$rigIdB" )" "RETEST <id> PASS -- asked by rig-second about live: 1 passed, 2 passed on this very state before and not run again -- a library file was changed"
 rigOp "$rigTmp/r6" --member-retest-result "$rigIdB"
-rigAssert "and its outcome names each: the test that ran, the two that had passed, and the file" "[$( LC_ALL=C grep -e '^  passed ' -e '^  passed-before ' -e '^  file ' "$rigTmp/r6.out" | LC_ALL=C sed 's/ at [0-9TZ:-]*$/ at <when>/' | LC_ALL=C sort | LC_ALL=C tr '\n' '|' )]" "[  file sh-lib/AgentsTools.MemberWait.include|  passed RigThree|  passed-before RigOne at <when>|  passed-before RigTwo at <when>|]"
+rigAssert "and its outcome names each: the test that ran, the two that had passed, and the file" "[$( LC_ALL=C grep -e '^  passed ' -e '^  passed-before ' -e '^  file ' "$rigTmp/r6.out" | LC_ALL=C sed 's/ at [0-9TZ:-]*$/ at <when>/' | LC_ALL=C sort | LC_ALL=C tr '\n' '|' )]" "[  file sh-lib/member/AgentsTools.MemberWait.include|  passed RigThree|  passed-before RigOne at <when>|  passed-before RigTwo at <when>|]"
 ## A fixture of the tests is no test: it is named by its type and never ends in .test.sh, so it is a changed file
 ## like any other that is no test.
 rigFixtures="$( rigRoot live )/myx/myx.distro-agents/sh-test/check-fixtures"
@@ -244,7 +244,7 @@ rigAssert "the queue is empty, and --rest runs the two tests that have not passe
 rigAssert "it says so in one line" "$( LC_ALL=C grep '^RETEST ' "$rigTmp/d7b.out" | LC_ALL=C tr '\n' '|' )" "RETEST rest PASS -- about live: 2 passed, 1 passed on this very state before and not run again|"
 rigOp "$rigTmp/d7c" --member-retest-drain --rest
 rigAssert "asked again on the same state, it runs nothing: every test has passed on it" "$rigRc $( LC_ALL=C grep -c '^BEGIN ' "$rigTmp/log" ) $( LC_ALL=C grep '^RETEST ' "$rigTmp/d7c.out" | LC_ALL=C tr '\n' '|' )" "0 3 RETEST rest PASS -- about live: 0 passed, 3 passed on this very state before and not run again|"
-printf '## the rig changed a library file\n' >> "$rigLive/myx/myx.distro-agents/sh-lib/AgentsTools.MemberRetest.include"
+printf '## the rig changed a library file\n' >> "$rigLive/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberRetest.include"
 : > "$rigTmp/fail.RigTwo"
 rigOp "$rigTmp/d7d" --member-retest-drain --rest
 rigAssert "once a file of the copy has changed, nothing has passed on the new state: every test is run, as the copy's whole suite, in the machine's line for those" "$rigRc $( LC_ALL=C grep -c '^BEGIN ' "$rigTmp/log" ) $( [ -e "$rigHome/.agents/magic-team/suite-queue" ] && printf line || printf no-line )" "0 6 line"
@@ -256,7 +256,7 @@ rigOp "$rigTmp/d7f" --member-retest-drain --rest --about rig-scratch-a
 rigAssert "--about names the copy the rest is for: the scratch copy's two tests, by its own runner" "$rigRc $( rigBegins RigOne rig-scratch-a ) $( rigBegins RigTwo rig-scratch-a ) $( LC_ALL=C grep '^RETEST ' "$rigTmp/d7f.out" | LC_ALL=C tr '\n' '|' )" "0 1 1 RETEST rest PASS -- about rig-scratch-a: 2 passed, 0 passed on this very state before and not run again|"
 ## what waits comes first: with a request in the queue, --rest runs its batch, and the rest only once nothing waits
 : > "$rigTmp/log" ; : > "$rigTmp/hold.RigOne"
-printf '## the rig changed it again\n' >> "$rigLive/myx/myx.distro-agents/sh-lib/AgentsTools.MemberRetest.include"
+printf '## the rig changed it again\n' >> "$rigLive/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberRetest.include"
 rigAsk "$rigTmp/q7g" --by rig-first --why 'waits when --rest is asked' RigOne ; rigIdA="$rigId"
 rigCall "$rigTmp/d7g" --member-retest-drain --rest ; rigPidD=$rigLast
 rigUntil 'BEGIN live RigOne' "$rigTmp/log" || rigRefuse "the batch's test never began, so nothing below would be measured"

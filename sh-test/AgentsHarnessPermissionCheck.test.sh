@@ -9,7 +9,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigMember="magic-tester"
 
 rigRefuse(){
@@ -923,7 +923,7 @@ rigGateCall(){ ## recipient; prints the exit status
 	local gateRc=0
 	## The gate is an in-context helper with no operation: it runs inside the tool's own set-up context.
 	export RIG_GATE_TARGET="$1"
-	printf '%s\n' 'type AgentsToolsContactAssertKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternContact.include"' \
+	printf '%s\n' 'type AgentsToolsContactAssertKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternContact.include"' \
 		'AgentsToolsContactAssertKnown magic-coordinator --tool member-comms-email-send --target "$RIG_GATE_TARGET" --message "rig message"' \
 		| RIG_OP_SESSION=rig-session rigOp --intern-mcp-execute || gateRc=$?
 	printf '%s' "$gateRc"

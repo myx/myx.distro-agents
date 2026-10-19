@@ -13,7 +13,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 [ -f "$rigHarness" ] || { echo "⛔ ERROR: harness not found at the origin this workspace resolves: $rigHarness" >&2 ; exit 1 ; }
 
 ## Refusing to report is this function's whole job: a rig that could not reach its
@@ -79,7 +79,7 @@ rigStart(){ ## scenario directory name
 ## writer; given an extra env value, the same server with a changed registration.
 rigRegister(){ ## workspace [extra env value]
 	(
-		harnessHere="$rigHere" ; . "$rigHere/AgentsHarnessMcpConfig.include" || exit 1
+		harnessHere="$rigHere" ; . "$rigHere/harness/AgentsHarnessMcpConfig.include" || exit 1
 		AgentsHarnessMcpSpecReset
 		if [ -n "${2:-}" ] ; then
 			AgentsHarnessMcpSpecAdd rigmcp "$rigTmp/bin/rigmcp" 2 RIG_MCP_PROBE rig-not-a-credential RIG_MCP_EXTRA "$2"
@@ -93,7 +93,7 @@ rigRegister(){ ## workspace [extra env value]
 rigHookIndex(){ ## workspace, matcher, absolute script
 	mkdir -p "$1/.local/agents"
 	(
-		harnessHere="$rigHere" ; . "$rigHere/AgentsHarnessHooksLoad.include" && AgentsHarnessHooksRecordsComputed \
+		harnessHere="$rigHere" ; . "$rigHere/harness/AgentsHarnessHooksLoad.include" && AgentsHarnessHooksRecordsComputed \
 			&& AgentsHarnessHooksIndexText "$agentsHooksRecords"$'PreToolUse\tall\trig-record\t'"$2"$'\t'"$3"$'\t\n'
 	) > "$1/.local/agents/harness.hooks.index" || rigRefuse "the rig's hook index could not be written"
 }

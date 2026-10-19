@@ -147,7 +147,7 @@ rigErrors(){ ## how many lines the console wrote to its error output, and how ma
 ## makes: once the text was drawn the keys are written. What the driver says of the run is kept in rigPty.
 rigEntryPty(){ ## the text to wait for, the keys, console args...
 	local ptyWait="$1" ptyKeys="$2" ; shift 2
-	rigPty="$( python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.driver.py" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py" pty 100 30 "$ptyWait" "$ptyKeys" 90 -- \
+	rigPty="$( python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.driver.py" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py" pty 100 30 "$ptyWait" "$ptyKeys" 90 -- \
 		env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" TERM=xterm RIG_TMP="$rigTmp" RIG_CONSOLE="$rigDir/ws/DistroAgentsConsole.sh" \
 		bash -c '
 			case "$RIG_CONSOLE" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: console outside the rig tree" >&2 ; exit 99 ;; esac

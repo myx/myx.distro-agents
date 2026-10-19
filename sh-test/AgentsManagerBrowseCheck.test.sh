@@ -155,7 +155,7 @@ for rigSyntax in "$rigData <store> [<folder> [<item>]] [--include-processed]" "$
 done
 rigAssert "each has its syntax echo, its syntax line and its entry, once each" "${rigBad:-each paired}" "each paired"
 rigAssert "the entry of the team data read gives the form of each of its rows" "$( LC_ALL=C grep -c -x -F -e '			`store <store> <state> <folders> <items>`' -e '			`folder <store> <folder> <items>`' -e '			`item <store> <folder> <name> <bytes> <stamp> <type> <status> <owner> <date>`' -e '			`file <path> <bytes> <text>`' "$rigHelpMd" || : )" "4"
-rigAssert "the family's include has one arm for the team data, which sources its include" "$( LC_ALL=C grep -c -x -e '	--manager-team-data-\*)' "$rigHere/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerTeamData.include"' "$rigHere/AgentsTools.Manager.include" || : )" "1 1"
+rigAssert "the family's include has one arm for the team data, which sources its include" "$( LC_ALL=C grep -c -x -e '	--manager-team-data-\*)' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerTeamData.include"' "$rigHere/manager/AgentsTools.Manager.include" || : )" "1 1"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ MANAGER BROWSE CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

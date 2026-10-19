@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on the advance pass starting the dead control threads of the sessions of its workspace
-## (--magic-advance-lock-acquire, the housekeeping of sh-lib/AgentsTools.MagicAdvance.include, through the one check
-## of sh-lib/AgentsTools.SessionControlStart.include), run rather than read, against a rig workspace and a rig data
+## (--magic-advance-lock-acquire, the housekeeping of sh-lib/magic/AgentsTools.MagicAdvance.include, through the one check
+## of sh-lib/session/AgentsTools.SessionControlStart.include), run rather than read, against a rig workspace and a rig data
 ## root built here, with a process list of the rig's own. A ps first on PATH lists the rig's runs only, stand-in
 ## processes under their own pids, never a real CLI, and counts what is asked of it; a curl beside it only logs,
 ## and nothing may call it. A scan below is one take of the advance routine's lock, freed before each: the

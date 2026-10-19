@@ -73,74 +73,74 @@ echo "-- 1. the guard: every \$\$ of the shell files is on the list, with its re
 ## not read, and neither is a dollar that is escaped (\$).
 rigList(){
 	printf '%s\n' \
-		'sh-lib/AgentsHarnessContext.include|1|$harnessContextFile.$$|the context file of one session, written by its one harness process in its main shell' \
-		'sh-lib/AgentsTools.AskThread.include|3|$tagFile.$$|the counter of one addressee, taken under the ask-thread lock of that addressee' \
-		'sh-lib/AgentsTools.EventTrackThread.include|3|event-track.thread.$$|the thread record of one session store, written under the event-track lock of that store' \
-		'sh-lib/AgentsTools.Grants.include|4|$regFile.tmp.$$|under the lock of the permissions registry' \
-		'sh-lib/AgentsTools.Grants.include|4|$regTagsFile.tmp.$$|under the lock of the permissions registry' \
-		'sh-lib/AgentsTools.Install.include|2|$registryFile.tmp.$$|under the lock of the member registry' \
-		'sh-lib/AgentsTools.Install.include|2|magic-skillset-report.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
-		'sh-lib/AgentsTools.Install.include|1|mdat-member-home-scan.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
-		'sh-lib/AgentsTools.Install.include|1|mdat-claude-permissions-grants.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
-		'sh-lib/AgentsTools.Install.include|1|mdat-claude-permissions-members.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
-		'sh-lib/AgentsTools.Install.include|1|mdat-ws-restrictions-hooks.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
-		'sh-lib/AgentsTools.Install.include|1|mdat-ws-integrations-hooks.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
-		'sh-lib/AgentsTools.Install.include|3|$settingsFile.tmp.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
-		'sh-lib/AgentsTools.Install.include|3|$projectedFile.tmp.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
-		'sh-lib/AgentsTools.Install.include|1|$hookDstFile.tmp.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
-		'sh-lib/AgentsTools.Install.include|1|$fragmentFile.tmp.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
-		'sh-lib/AgentsTools.Install.include|1|$agentFile.tmp.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
-		'sh-lib/AgentsTools.Install.include|1|$HOME/.claude.json.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
-		'sh-lib/AgentsTools.Install.include|1|$mcpFile.tmp.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
-		'sh-lib/AgentsTools.Install.include|1|$distroFile.tmp.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
-		'sh-lib/AgentsTools.InternArtifact.include|1|${artSession:-no session} $$|no file name: the subject of a commit' \
-		'sh-lib/AgentsTools.InternArtifact.include|1|$artRecord-$$|no temp file: the name of a record, where one of that title and minute stands already' \
-		'sh-lib/AgentsTools.InternContact.include|1|no-session-$$|no temp file: stands for the calling shell where a refusal has no session to be logged under' \
-		'sh-lib/AgentsTools.InternMainLoop.include|1|mdat-main-loop-status.$$|the main loop is a process of its own, and this is its one status file for its whole run' \
-		'sh-lib/AgentsTools.InternMainLoop.include|1|spawn-proxy-[0-9TZ]+-$$(|no file name: the pattern of the receipt this loop gave its pass' \
-		'sh-lib/AgentsTools.InternMainLoop.include|3|pending-collect.last.$$|written by the main loop itself, a step after another in its own shell' \
-		'sh-lib/AgentsTools.InternMainLoop.include|3|pending-remind.last.$$|written by the main loop itself, a step after another in its own shell' \
-		'sh-lib/AgentsTools.InternMcpServer.include|6|agent-mcp.$$|the scratch folder of one server process, which hands its own id to every request it serves' \
-		'sh-lib/AgentsTools.InternMcpServer.include|1|pid=$$|no file name: said in a log line' \
-		'sh-lib/AgentsTools.InternMcpServer.include|1|--intern-mcp-request "$$"|no file name: the server names itself to its request' \
-		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|spawn-proxy-$timestamp-$$-${MDAT_SPAWN_SESSION_ID:0:8}|no temp file: a receipt id, made its own by the first eight of the spawn id' \
-		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|dispatch-$timestamp-spawn-proxy-$$-${MDAT_SPAWN_SESSION_ID:0:8}|no temp file: a dispatch item name, made its own by the first eight of the spawn id' \
-		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|2|$sessionThreadRecord.$$.tmp|the thread record of one session, written under the session-thread lock of that session' \
-		'sh-lib/AgentsTools.InternOpChange.include|4|$holdDir/shown.$$|inside the folder of one held change, named by an id made for it' \
-		'sh-lib/AgentsTools.InternOpInboxToProcessed.include|1|.inbox-to-processed.$$|beside the one inbox item it replaces: shared only by two marks of that one item at the same moment' \
-		'sh-lib/AgentsTools.InternOpPendingReply.include|4|$pendingRoot/.$pendingId.md.$$|named by the id made for this one new record' \
-		'sh-lib/AgentsTools.InternOpPendingReply.include|3|$pendingFile.$$|under the lock of that one pending reply' \
-		'sh-lib/AgentsTools.InternOpPendingReply.include|3|$clarFile.$$|under the lock of that one pending reply' \
-		'sh-lib/AgentsTools.InternOpPendingReply.include|3|$revFile.$$|under the lock of that one pending reply' \
-		'sh-lib/AgentsTools.InternOpPermission.include|1|mdat-permission-hook-held.$$.$RANDOM|a client hook is a process of its own for each call, and the mark is one another process makes, so it cannot be made beforehand' \
-		'sh-lib/AgentsTools.LocalLock.include|1|ln -s "$$"|no file name: the holder a lock names' \
-		'sh-lib/AgentsTools.LocalLock.include|1|!= "$$"|no file name: the holder a lock names' \
-		'sh-lib/AgentsTools.ManagerSession.include|3|$1.killed.$$|beside the one spawn record a kill marks: a kill marks a record after another' \
-		'sh-lib/AgentsTools.MemberCommsEmail.include|1|mdat-comms-email-boundary-$$-$RANDOM|no file name: the boundary inside one message' \
-		'sh-lib/AgentsTools.MemberEscalation.include|1|AgentsToolsEscalationClaimStart "$$"|no file name: a process asked about' \
-		'sh-lib/AgentsTools.MemberEscalation.include|3|$noteFile.$$.tmp|the note of one record, written by the holder of the claim on that record alone' \
-		'sh-lib/AgentsTools.MemberEscalation.include|3|${applyFile%.md}.set.$$|beside one record, written by the holder of the claim on that record alone' \
-		'sh-lib/AgentsTools.MemberEscalation.include|3|${addOpen%.md}.set.$$|under the claim on that one record and the lock of its pending reply' \
-		'sh-lib/AgentsTools.MemberEscalation.include|3|$addOpen.$$|under the claim on that one record and the lock of its pending reply' \
-		'sh-lib/AgentsTools.MemberHomes.include|4|$writeFile.tmp.$$|under the lock of the member registry of the machine' \
-		'sh-lib/AgentsTools.MemberHomes.include|4|$homesFile.tmp.$$|under the lock of the member homes registry' \
-		'sh-lib/AgentsTools.MemberRetest.include|1|${queueId:-$$-$RANDOM}|no temp file: the id of a request, and only where the machine has no uuidgen' \
-		'sh-lib/AgentsTools.Owner.include|1|selftest-$$-|no file name: a value written to a setting and read back' \
-		'sh-lib/AgentsTools.PendingReplyCollect.include|3|$2.$$|under the lock of that one pending reply' \
-		'sh-lib/AgentsTools.PendingReplyRemind.include|3|$2.$$|under the lock of that one pending reply' \
-		'sh-lib/AgentsTools.Places.include|3|$updateFile.tmp.$$|under the lock of that places registry' \
-		'sh-lib/AgentsTools.Places.include|3|$sharedFile.tmp.$$|under the lock of the places registry of the machine' \
-		'sh-lib/AgentsTools.Registries.include|2|${3:-$$}|no file name: the asking process, this one where none is given' \
-		'sh-lib/AgentsTools.Registries.include|3|$keepFile.$$.aside|the file of one run, named by its spawn id: a stop or a kill of one run is one call at a time' \
-		'sh-lib/AgentsTools.SessionTranscript.include|1|context.render.$$|inside the store of one session id, rendered by that session alone' \
-		'sh-lib/AgentsTools.SessionTranscript.include|2|$addDir/tokens.$$|inside the store of one session id, added to by its one harness process, a round after another' \
-		'sh-lib/AgentsTools.SpawnSandbox.include|1|.conversation.read.$$|inside the input folder of one sandbox, which one start fills: two fills of one sandbox share that whole folder, whatever this is named' \
-		'sh-lib/AgentsTools.SpawnSandbox.include|1|mdat-session-run-ops.$$.$1|made its own by the process id of the console just started' \
-		'sh-lib/AgentsTools.SpawnSandbox.include|3|$runFile.run.$$|beside one spawn record, written by the launches of that spawn, which come one after another in its own proxy' \
-		'sh-lib/AgentsUniversalHarness.sh|1|.mdat-write.$$|under the write lock of that one target' \
-		'sh-lib/AgentsUniversalHarness.sh|1|.mdat-edit.$$|under the write lock of that one target' \
-		'sh-lib/AgentsUniversalHarness.sh|2|$keepFile.$$.tmp|the dismissal of one session, kept by its one harness process' \
-		'sh-lib/AgentsUniversalHarness.sh|3|$harnessToolSearchFloorFile.$$|inside the scratch folder this harness process made for itself by mktemp'
+		'sh-lib/harness/AgentsHarnessContext.include|1|$harnessContextFile.$$|the context file of one session, written by its one harness process in its main shell' \
+		'sh-lib/questions/AgentsTools.AskThread.include|3|$tagFile.$$|the counter of one addressee, taken under the ask-thread lock of that addressee' \
+		'sh-lib/session/AgentsTools.EventTrackThread.include|3|event-track.thread.$$|the thread record of one session store, written under the event-track lock of that store' \
+		'sh-lib/grants/AgentsTools.Grants.include|4|$regFile.tmp.$$|under the lock of the permissions registry' \
+		'sh-lib/grants/AgentsTools.Grants.include|4|$regTagsFile.tmp.$$|under the lock of the permissions registry' \
+		'sh-lib/config/AgentsTools.Install.include|2|$registryFile.tmp.$$|under the lock of the member registry' \
+		'sh-lib/config/AgentsTools.Install.include|2|magic-skillset-report.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
+		'sh-lib/config/AgentsTools.Install.include|1|mdat-member-home-scan.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
+		'sh-lib/config/AgentsTools.Install.include|1|mdat-claude-permissions-grants.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
+		'sh-lib/config/AgentsTools.Install.include|1|mdat-claude-permissions-members.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
+		'sh-lib/config/AgentsTools.Install.include|1|mdat-ws-restrictions-hooks.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
+		'sh-lib/config/AgentsTools.Install.include|1|mdat-ws-integrations-hooks.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
+		'sh-lib/config/AgentsTools.Install.include|3|$settingsFile.tmp.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
+		'sh-lib/config/AgentsTools.Install.include|3|$projectedFile.tmp.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
+		'sh-lib/config/AgentsTools.Install.include|1|$hookDstFile.tmp.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
+		'sh-lib/config/AgentsTools.Install.include|1|$fragmentFile.tmp.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
+		'sh-lib/config/AgentsTools.Install.include|1|$agentFile.tmp.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
+		'sh-lib/config/AgentsTools.Install.include|1|$HOME/.claude.json.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
+		'sh-lib/config/AgentsTools.Install.include|1|$mcpFile.tmp.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
+		'sh-lib/config/AgentsTools.Install.include|1|$distroFile.tmp.$$|the installer: its operations are called one after another by their one caller, never two in subshells of one shell' \
+		'sh-lib/common/AgentsTools.InternArtifact.include|1|${artSession:-no session} $$|no file name: the subject of a commit' \
+		'sh-lib/common/AgentsTools.InternArtifact.include|1|$artRecord-$$|no temp file: the name of a record, where one of that title and minute stands already' \
+		'sh-lib/common/AgentsTools.InternContact.include|1|no-session-$$|no temp file: stands for the calling shell where a refusal has no session to be logged under' \
+		'sh-lib/magic/AgentsTools.InternMainLoop.include|1|mdat-main-loop-status.$$|the main loop is a process of its own, and this is its one status file for its whole run' \
+		'sh-lib/magic/AgentsTools.InternMainLoop.include|1|spawn-proxy-[0-9TZ]+-$$(|no file name: the pattern of the receipt this loop gave its pass' \
+		'sh-lib/magic/AgentsTools.InternMainLoop.include|3|pending-collect.last.$$|written by the main loop itself, a step after another in its own shell' \
+		'sh-lib/magic/AgentsTools.InternMainLoop.include|3|pending-remind.last.$$|written by the main loop itself, a step after another in its own shell' \
+		'sh-lib/mcp/AgentsTools.InternMcpServer.include|6|agent-mcp.$$|the scratch folder of one server process, which hands its own id to every request it serves' \
+		'sh-lib/mcp/AgentsTools.InternMcpServer.include|1|pid=$$|no file name: said in a log line' \
+		'sh-lib/mcp/AgentsTools.InternMcpServer.include|1|--intern-mcp-request "$$"|no file name: the server names itself to its request' \
+		'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include|1|spawn-proxy-$timestamp-$$-${MDAT_SPAWN_SESSION_ID:0:8}|no temp file: a receipt id, made its own by the first eight of the spawn id' \
+		'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include|1|dispatch-$timestamp-spawn-proxy-$$-${MDAT_SPAWN_SESSION_ID:0:8}|no temp file: a dispatch item name, made its own by the first eight of the spawn id' \
+		'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include|2|$sessionThreadRecord.$$.tmp|the thread record of one session, written under the session-thread lock of that session' \
+		'sh-lib/grants/AgentsTools.InternOpChange.include|4|$holdDir/shown.$$|inside the folder of one held change, named by an id made for it' \
+		'sh-lib/inbox/AgentsTools.InternOpInboxToProcessed.include|1|.inbox-to-processed.$$|beside the one inbox item it replaces: shared only by two marks of that one item at the same moment' \
+		'sh-lib/questions/AgentsTools.InternOpPendingReply.include|4|$pendingRoot/.$pendingId.md.$$|named by the id made for this one new record' \
+		'sh-lib/questions/AgentsTools.InternOpPendingReply.include|3|$pendingFile.$$|under the lock of that one pending reply' \
+		'sh-lib/questions/AgentsTools.InternOpPendingReply.include|3|$clarFile.$$|under the lock of that one pending reply' \
+		'sh-lib/questions/AgentsTools.InternOpPendingReply.include|3|$revFile.$$|under the lock of that one pending reply' \
+		'sh-lib/grants/AgentsTools.InternOpPermission.include|1|mdat-permission-hook-held.$$.$RANDOM|a client hook is a process of its own for each call, and the mark is one another process makes, so it cannot be made beforehand' \
+		'sh-lib/magic/AgentsTools.LocalLock.include|1|ln -s "$$"|no file name: the holder a lock names' \
+		'sh-lib/magic/AgentsTools.LocalLock.include|1|!= "$$"|no file name: the holder a lock names' \
+		'sh-lib/manager/AgentsTools.ManagerSession.include|3|$1.killed.$$|beside the one spawn record a kill marks: a kill marks a record after another' \
+		'sh-lib/comms/AgentsTools.MemberCommsEmail.include|1|mdat-comms-email-boundary-$$-$RANDOM|no file name: the boundary inside one message' \
+		'sh-lib/questions/AgentsTools.MemberEscalation.include|1|AgentsToolsEscalationClaimStart "$$"|no file name: a process asked about' \
+		'sh-lib/questions/AgentsTools.MemberEscalation.include|3|$noteFile.$$.tmp|the note of one record, written by the holder of the claim on that record alone' \
+		'sh-lib/questions/AgentsTools.MemberEscalation.include|3|${applyFile%.md}.set.$$|beside one record, written by the holder of the claim on that record alone' \
+		'sh-lib/questions/AgentsTools.MemberEscalation.include|3|${addOpen%.md}.set.$$|under the claim on that one record and the lock of its pending reply' \
+		'sh-lib/questions/AgentsTools.MemberEscalation.include|3|$addOpen.$$|under the claim on that one record and the lock of its pending reply' \
+		'sh-lib/member/AgentsTools.MemberHomes.include|4|$writeFile.tmp.$$|under the lock of the member registry of the machine' \
+		'sh-lib/member/AgentsTools.MemberHomes.include|4|$homesFile.tmp.$$|under the lock of the member homes registry' \
+		'sh-lib/member/AgentsTools.MemberRetest.include|1|${queueId:-$$-$RANDOM}|no temp file: the id of a request, and only where the machine has no uuidgen' \
+		'sh-lib/config/AgentsTools.Owner.include|1|selftest-$$-|no file name: a value written to a setting and read back' \
+		'sh-lib/questions/AgentsTools.PendingReplyCollect.include|3|$2.$$|under the lock of that one pending reply' \
+		'sh-lib/questions/AgentsTools.PendingReplyRemind.include|3|$2.$$|under the lock of that one pending reply' \
+		'../myx.distro-.local/sh-lib/registry/AgentsTools.Places.include|3|$updateFile.tmp.$$|under the lock of that places registry' \
+		'../myx.distro-.local/sh-lib/registry/AgentsTools.Places.include|3|$sharedFile.tmp.$$|under the lock of the places registry of the machine' \
+		'../myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include|2|${3:-$$}|no file name: the asking process, this one where none is given' \
+		'../myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include|3|$keepFile.$$.aside|the file of one run, named by its spawn id: a stop or a kill of one run is one call at a time' \
+		'sh-lib/session/AgentsTools.SessionTranscript.include|1|context.render.$$|inside the store of one session id, rendered by that session alone' \
+		'sh-lib/session/AgentsTools.SessionTranscript.include|2|$addDir/tokens.$$|inside the store of one session id, added to by its one harness process, a round after another' \
+		'sh-lib/session/AgentsTools.SpawnSandbox.include|1|.conversation.read.$$|inside the input folder of one sandbox, which one start fills: two fills of one sandbox share that whole folder, whatever this is named' \
+		'sh-lib/session/AgentsTools.SpawnSandbox.include|1|mdat-session-run-ops.$$.$1|made its own by the process id of the console just started' \
+		'sh-lib/session/AgentsTools.SpawnSandbox.include|3|$runFile.run.$$|beside one spawn record, written by the launches of that spawn, which come one after another in its own proxy' \
+		'sh-lib/harness/AgentsUniversalHarness.sh|1|.mdat-write.$$|under the write lock of that one target' \
+		'sh-lib/harness/AgentsUniversalHarness.sh|1|.mdat-edit.$$|under the write lock of that one target' \
+		'sh-lib/harness/AgentsUniversalHarness.sh|2|$keepFile.$$.tmp|the dismissal of one session, kept by its one harness process' \
+		'sh-lib/harness/AgentsUniversalHarness.sh|3|$harnessToolSearchFloorFile.$$|inside the scratch folder this harness process made for itself by mktemp'
 }
 ## Reads the list, then the files named after it: prints a line for every $$ the list does not hold, and for every
 ## line of the list that stands another number of times than it says.
@@ -178,9 +178,9 @@ rigGuard(){ ## list file, shell files...
 	' "$@"
 }
 rigList > "$rigTmp/list"
-( cd "$rigPackage" && find sh-lib sh-scripts builders -type f \( -name '*.sh' -o -name '*.include' -o -name '*.rc' \) | LC_ALL=C sort ) > "$rigTmp/shell-files"
+( cd "$rigPackage" && find sh-lib sh-scripts builders ../myx.distro-.local/sh-lib/markdown ../myx.distro-.local/sh-lib/output ../myx.distro-.local/sh-lib/registry ../myx.distro-.local/sh-lib/dashboard -type f \( -name '*.sh' -o -name '*.include' -o -name '*.rc' \) | LC_ALL=C sort ) > "$rigTmp/shell-files"
 rigAssert "control: the shell files of the package are read, the console template and the builders among them" \
-	"$( [ "$( wc -l < "$rigTmp/shell-files" | LC_ALL=C tr -d ' ' )" -ge 100 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/AgentsConsoleShellScript.template.sh' -e 'sh-scripts/DistroAgentsTools.fn.sh' -e 'builders/source-prepare/1201-agents-indices.sh' "$rigTmp/shell-files" || : )" "many 3"
+	"$( [ "$( wc -l < "$rigTmp/shell-files" | LC_ALL=C tr -d ' ' )" -ge 100 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/manager/AgentsConsoleShellScript.template.sh' -e 'sh-scripts/DistroAgentsTools.fn.sh' -e 'builders/source-prepare/1201-agents-indices.sh' "$rigTmp/shell-files" || : )" "many 3"
 rigGuardOut="$( cd "$rigPackage" && rigGuard "$rigTmp/list" $( cat "$rigTmp/shell-files" ) )"
 rigAssert "every \$\$ of the shell files is on the list, and every line of the list stands in the code as often as it says (a new temp name is made by mktemp, or listed with the reason two writers of one shell cannot share it)" "${rigGuardOut:-none}" "none"
 rigAssert "every line of the list gives its reason" "$( LC_ALL=C awk -F'|' 'length( $4 ) < 20 { short++ } END { print NR " lines, " short + 0 " without a reason" }' "$rigTmp/list" )" "$( wc -l < "$rigTmp/list" | LC_ALL=C tr -d ' ' ) lines, 0 without a reason"
@@ -198,7 +198,7 @@ echo "-- 2. each place that could be shared makes its name by mktemp --"
 rigMade=""
 while IFS='|' read -r rigMadeFile rigMadeName ; do
 	[ -n "$rigMadeFile" ] || continue
-	[ "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigLib/$rigMadeFile" | LC_ALL=C grep -c -F -- "$rigMadeName" || : )" = "1" ] || rigMade="$rigMade [$rigMadeFile $rigMadeName]"
+	[ "$( LC_ALL=C grep -v '^[[:space:]]*#' "$( ls -d "$rigLib"/*/"$rigMadeFile" "$rigLib"/../../myx.distro-.local/sh-lib/*/"$rigMadeFile" 2> /dev/null | head -1 )" | LC_ALL=C grep -c -F -- "$rigMadeName" || : )" = "1" ] || rigMade="$rigMade [$rigMadeFile $rigMadeName]"
 done <<< 'AgentsTools.ApprovalCascade.include|mktemp "$MMDAPP/.local/temp/mdat-approval-cascade.XXXXXX"
 AgentsTools.ClientComms.include|mktemp "$MMDAPP/.local/temp/mdat-snapshot.XXXXXX"
 AgentsTools.EventTrackThread.include|mktemp "$MMDAPP/.local/temp/mdat-event-track-post.XXXXXX"
@@ -315,7 +315,7 @@ rigTrack="$rigTmp/track" ; mkdir -p "$rigTrack/ws/.local/agents/sessions"
 		esac
 		return 0
 	}
-	. "$rigLib/AgentsTools.EventTrackThread.include"
+	. "$rigLib/session/AgentsTools.EventTrackThread.include"
 	( rigTrackTs=1111.000001 ; printf '%s\n' "$$" > "$rigTrack/a.shell" ; AgentsToolsEventTrackThreadPost rig-member "$MMDAPP/.local/agents/sessions/rig-session-a" --kind start < /dev/null ; printf '%s %s\n' "$?" "$agentsEventTrackPost" > "$rigTrack/a.result" ) &
 	( rigTrackTs=2222.000002 ; printf '%s\n' "$$" > "$rigTrack/b.shell" ; AgentsToolsEventTrackThreadPost rig-other "$MMDAPP/.local/agents/sessions/rig-session-b" --kind start < /dev/null ; printf '%s %s\n' "$?" "$agentsEventTrackPost" > "$rigTrack/b.result" ) &
 	wait
@@ -331,7 +331,7 @@ rigLock="$rigTmp/lock" ; mkdir -p "$rigLock/ws/.local/agents/locks"
 ( exit 0 ) & rigDeadPid=$! ; wait "$rigDeadPid" 2> /dev/null
 (
 	MMDAPP="$rigLock/ws" ; export MMDAPP
-	. "$rigLib/AgentsTools.LocalLock.include"
+	. "$rigLib/magic/AgentsTools.LocalLock.include"
 	ln -s "$rigDeadPid" "$MMDAPP/.local/agents/locks/rig-broken"
 	AgentsToolsLocalLockTake rig-broken 3 "the rig lock" 2> "$rigLock/broken.err" ; printf '%s %s\n' "$?" "$( [ "$( readlink "$MMDAPP/.local/agents/locks/rig-broken" 2> /dev/null )" = "$$" ] && echo held-by-this-shell )" > "$rigLock/broken.result"
 	## the move lost to another breaker: nothing is moved, whatever the reason

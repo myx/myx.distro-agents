@@ -15,7 +15,7 @@ reply is treated as success.</p>
 <li>The loop compares <code>429\r</code> with <code>429</code>, finds no match, and stops.</li>
 </ol>
 <h2>Locations</h2>
-<p><code>sh-lib/AgentsTools.Member.include</code>, the retry loop:</p>
+<p><code>sh-lib/member/AgentsTools.Member.include</code>, the retry loop:</p>
 <pre><code class="language-sh">status=&quot;$( awk 'NR==1 { print $2 ; }' &quot;$headers&quot; )&quot;
 [ &quot;$status&quot; = 429 ] &amp;&amp; sleep &quot;$retryAfter&quot;</code></pre>
 <h2>Confirmed</h2>

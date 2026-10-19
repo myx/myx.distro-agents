@@ -14,8 +14,8 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigHere/AgentsClaudeWorkspaceRestrictionsUpsert.awk" ] || rigRefuse "the settings merge is missing: $rigHere/AgentsClaudeWorkspaceRestrictionsUpsert.awk"
-[ -f "$rigHere/AgentsClaudeSettingsVerify.awk" ] || rigRefuse "the settings verifier is missing: $rigHere/AgentsClaudeSettingsVerify.awk"
+[ -f "$rigHere/harness/AgentsClaudeWorkspaceRestrictionsUpsert.awk" ] || rigRefuse "the settings merge is missing: $rigHere/harness/AgentsClaudeWorkspaceRestrictionsUpsert.awk"
+[ -f "$rigHere/harness/AgentsClaudeSettingsVerify.awk" ] || rigRefuse "the settings verifier is missing: $rigHere/harness/AgentsClaudeSettingsVerify.awk"
 
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsClaudeSettingsHooksCheck )" || exit 1
@@ -40,11 +40,11 @@ rigMerge(){ ## input settings, output settings
 	MYX_WSRESTRICT_DENY_ADD_JSON='["Bash(rm *)"]' MYX_WSRESTRICT_HOOKS_FILE="$rigTmp/hooks.txt" MYX_WSRESTRICT_RETIRED_HOOKS="" \
 		MYX_WSRESTRICT_RETIRED_DENY="Bash" \
 		MYX_WSRESTRICT_RETIRED_ALLOW="$( printf '%s\n' 'Read(//rig/.claude/skills/**)' 'Read(//rig/.local/temp/team/**)' 'Edit(//rig/.local/temp/team/**)' )" \
-		LC_ALL=C awk -f "$rigHere/AgentsClaudeWorkspaceRestrictionsUpsert.awk" "$1" > "$2"
+		LC_ALL=C awk -f "$rigHere/harness/AgentsClaudeWorkspaceRestrictionsUpsert.awk" "$1" > "$2"
 }
 rigVerify(){ ## event (empty for the default), key, settings
 	MYX_CLAUDEVERIFY_HOOK_EVENT="$1" MYX_CLAUDEVERIFY_HOOK_KEYS="$2" \
-		LC_ALL=C awk -f "$rigHere/AgentsClaudeSettingsVerify.awk" < "$3" 2>&1 | head -1
+		LC_ALL=C awk -f "$rigHere/harness/AgentsClaudeSettingsVerify.awk" < "$3" 2>&1 | head -1
 }
 
 rigMerge "$rigTmp/settings.json" "$rigTmp/merged.json" || rigRefuse "the merge failed on a plain settings file"

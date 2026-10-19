@@ -16,7 +16,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigMember="magic-tester"
 
 rigRefuse(){
@@ -173,7 +173,7 @@ rigCall(){ ## guard seconds, tool, argument object, optional from-read
 
 ## One post filled straight from its template, as the tool fills it.
 rigFill(){ ## want, template, form -- the slots come from the caller's environment
-	ASKP_WANT="$1" ASKP_FORM="$3" LC_ALL=C awk -f "$rigHere/AgentsToolingTemplateFill.awk" -f "$rigHere/AgentsAskPostFill.awk" "$rigHere/templates/$2" 2>&1
+	ASKP_WANT="$1" ASKP_FORM="$3" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$rigHere/questions/AgentsAskPostFill.awk" "$rigHere/templates/$2" 2>&1
 }
 
 rigAsk='"to":"magic-team","address_to":"URIGOWNER"'
@@ -951,7 +951,7 @@ rigCall 60 RequestPermission "{$rigAsk,\"question\":\"May the rig write this fil
 rigAssert "the grant lands in that same thread"        "$( rigHolds "$( rigPostWith '✅ permission granted' )" '"thread_ts":"1700000001.000050"' )" yes
 rigAssert "the record still names that one thread"     "$( cat "$( rigSessionDir )/event-track.thread" 2>/dev/null )" "CRIGTRACK:1700000001.000050"
 rigFeedSwitch(){ ## -> on|off, as every writer of the feed asks
-	( . "$rigHere/AgentsTools.EventTrackThread.include" ; AgentsToolsEventTrackFeedOn "$( rigSessionDir )" && printf on || printf off )
+	( . "$rigHere/session/AgentsTools.EventTrackThread.include" ; AgentsToolsEventTrackFeedOn "$( rigSessionDir )" && printf on || printf off )
 }
 rigAssert "its feed is on by its own marker, and nothing writes the old file" "$( rigFeedSwitch ):$( [ -e "$( rigSessionDir )/event-track" ] && printf old-file || printf none )" "on:none"
 ## A session running since before the rule: one file was both its thread and its feed switch.
@@ -969,7 +969,7 @@ rigCall 60 Write "{\"path\":\"/dev/null/rig-forms/track-two-before\",\"content\"
 rigAssert "two threads from before the rule: the start post's is the session's, and neither file is rewritten" "$( rigHolds "$rigScenarioDir/post.1" '"thread_ts":"1700000001.000060"' ):$( cat "$( rigSessionDir )/event-track" 2>/dev/null ):$( cat "$( rigSessionDir )/event-track.thread" 2>/dev/null )" "yes:CRIGTRACK:1700000001.000060:CRIGTRACK:1700000001.000070"
 ## The first record stands, whoever asks to record a second one: no path opens a second thread.
 rigAssert "a thread recorded for a session that has one changes nothing, and the one it has is given back" \
-	"$( . "$rigHere/AgentsTools.EventTrackThread.include" ; AgentsToolsEventTrackThreadRecord "$( rigSessionDir )" 'CRIGTRACK:1700000001.000999' ):$( cat "$( rigSessionDir )/event-track.thread" 2>/dev/null )" \
+	"$( . "$rigHere/session/AgentsTools.EventTrackThread.include" ; AgentsToolsEventTrackThreadRecord "$( rigSessionDir )" 'CRIGTRACK:1700000001.000999' ):$( cat "$( rigSessionDir )/event-track.thread" 2>/dev/null )" \
 	"CRIGTRACK:1700000001.000060:CRIGTRACK:1700000001.000070"
 ## A session spawned before the rule with no feed has neither file: its start post's thread
 ## is in its spawn record alone, and its first refusal goes there instead of opening another.
@@ -997,10 +997,10 @@ rigAssert "a later grant lands in that same thread"    "$( rigHolds "$( rigPostW
 
 echo "-- records and lines from before still read --"
 rigAssert "a transcript line of the second name renders by its kind" \
-	"$( LC_ALL=C awk -f "$rigHere/AgentsSessionTranscriptFormat.awk" -f /dev/stdin <<< 'BEGIN { print stlAskTool( "AskUserQuestion", "permission" ) " " stlAskTool( "AskUserQuestion", "" ) " " stlAskTool( "EscalateDecision", "" ) " [" stlAskTool( "Read", "" ) "]" ; }' )" \
+	"$( LC_ALL=C awk -f "$rigHere/session/AgentsSessionTranscriptFormat.awk" -f /dev/stdin <<< 'BEGIN { print stlAskTool( "AskUserQuestion", "permission" ) " " stlAskTool( "AskUserQuestion", "" ) " " stlAskTool( "EscalateDecision", "" ) " [" stlAskTool( "Read", "" ) "]" ; }' )" \
 	"RequestPermission AskQuestion EscalateDecision []"
 rigAssert "the verdict reader says RETURNED where a reply names none of the answers" \
-	"$( printf '1700000001.000200 | URIGOWNER | maybe\n' | MDAT_VERDICT_KIND=decision MDAT_VERDICT_OPTIONS=$'alpha\nbeta' MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | cut -f1 )" "RETURNED"
+	"$( printf '1700000001.000200 | URIGOWNER | maybe\n' | MDAT_VERDICT_KIND=decision MDAT_VERDICT_OPTIONS=$'alpha\nbeta' MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | cut -f1 )" "RETURNED"
 ## A read that still answers with the word before it (UNCLASSIFIED), as a tools copy from
 ## before the change prints it: the harness takes it as RETURNED. The read is the real one,
 ## reached through an origin of links whose one own file gives its verdict line the old word.
@@ -1062,7 +1062,7 @@ rigAssert "the record is left open, and the result names the way to wait for the
 	"$( rigRecordField status ):$( LC_ALL=C grep -c -x -F "WAIT-ID: ask:$( rigRecordId )" "$rigScenarioDir/out" ):$( LC_ALL=C grep -c '^NEXT: ' "$rigScenarioDir/out" )" "reply-pending:1:1"
 rigAssert "no result of this check names an outcome UNCLASSIFIED" "$( cat "$rigTmp"/*/out 2>/dev/null | LC_ALL=C grep -c 'UNCLASSIFIED' )" 0
 rigAssert "and the tool description names every outcome it can give" \
-	"$( for rigOutcome in RECEIVED POSTED ALREADY-OPEN DISMISSED TIMEOUT CLOSED CLARIFIED ; do LC_ALL=C grep -q -F "ASK-RESULT: $rigOutcome" "$rigHere/AgentsOpenAiChatWire.sh" || printf 'missing:%s ' "$rigOutcome" ; done ):$( LC_ALL=C grep -c 'UNCLASSIFIED' "$rigHere/AgentsOpenAiChatWire.sh" )" ":0"
+	"$( for rigOutcome in RECEIVED POSTED ALREADY-OPEN DISMISSED TIMEOUT CLOSED CLARIFIED ; do LC_ALL=C grep -q -F "ASK-RESULT: $rigOutcome" "$rigHere/harness/AgentsOpenAiChatWire.sh" || printf 'missing:%s ' "$rigOutcome" ; done ):$( LC_ALL=C grep -c 'UNCLASSIFIED' "$rigHere/harness/AgentsOpenAiChatWire.sh" )" ":0"
 
 echo "-- the plain-language floor: a correction to make, never a refusal or a denial --"
 rigLong='one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twentyone twentytwo twentythree twentyfour twentyfive twentysix.'
@@ -1093,7 +1093,7 @@ rigAssert "a quoted line, a code block and a bare path over the limits do not ho
 rigFloorSend "The owner said this.\\n> a quote\\n\\n$rigLong"
 rigAssert "the sender's own sentence beside a quote is still measured" "$( rigFirstLine "$rigScenarioDir/out" | cut -c1-12 ):$( LC_ALL=C grep -c '^- ' "$rigScenarioDir/out" ):$( rigCalls chat.postMessage )" "CORRECTION: :1:1"
 rigAssert "the descriptions of the sending tools say correction, and none says a message is refused" \
-	"$( LC_ALL=C grep -c -F 'starts with CORRECTION' "$rigHere/AgentsOpenAiChatWire.sh" ):$( LC_ALL=C grep -c -F 'The send is refused' "$rigHere/AgentsOpenAiChatWire.sh" ):$( LC_ALL=C grep -c -F 'a refusal or failure returns ERROR' "$rigHere/AgentsOpenAiChatWire.sh" )" "2:0:0"
+	"$( LC_ALL=C grep -c -F 'starts with CORRECTION' "$rigHere/harness/AgentsOpenAiChatWire.sh" ):$( LC_ALL=C grep -c -F 'The send is refused' "$rigHere/harness/AgentsOpenAiChatWire.sh" ):$( LC_ALL=C grep -c -F 'a refusal or failure returns ERROR' "$rigHere/harness/AgentsOpenAiChatWire.sh" )" "2:0:0"
 
 rigUnknown="$( cat "$rigTmp"/*/curl.log 2>/dev/null | LC_ALL=C awk '$0 ~ /^url:/ || $0 == "no-method" { hitCount++ ; } END { print hitCount + 0 ; }' )"
 rigAssert "no request went anywhere but a Slack method" "$rigUnknown" 0

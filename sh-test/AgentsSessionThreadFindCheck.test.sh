@@ -6,7 +6,7 @@
 ## file lookup kept only as a fallback.
 set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
-rigInclude="$rigHere/AgentsTools.SpawnSandbox.include"
+rigInclude="$rigHere/session/AgentsTools.SpawnSandbox.include"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1" >&2

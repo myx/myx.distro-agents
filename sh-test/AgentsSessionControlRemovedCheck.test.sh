@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the end of a control thread whose session is gone from the disk: --intern-session-control
-## --run --session-id <id> (sh-lib/AgentsTools.InternSessionControl.include), run rather than read, against a rig
+## --run --session-id <id> (sh-lib/session/AgentsTools.InternSessionControl.include), run rather than read, against a rig
 ## workspace built here, with spawn records, session stores and a process list of the rig's own, as
 ## AgentsSessionControlThreadCheck keeps them. A ps first on PATH lists nothing of the host, and a curl beside it
 ## only logs, and nothing may call it. Every session of the rig has one record of this host that is still open

@@ -15,7 +15,7 @@ rigRefuse(){
 rigNamed="$( find -L "$rigPackage/skillset" -type f -name '*.md' -exec grep -o -h -E -- '--(member|magic|intern-op|librarian|client|agents)-[a-z0-9<>*-]*' {} + \
 	| LC_ALL=C grep -v -E -- '[*<>]|-$' | LC_ALL=C sort -u )"
 ## Exact-name arms only, both `a|b)` and `(a|b)`; a glob arm routes but is no op's own arm.
-rigArms="$( grep -h -E -- '^[[:space:]]*\(?--[a-z0-9|-]+\)' "$rigPackage"/sh-lib/*.include "$rigPackage"/sh-scripts/*.sh \
+rigArms="$( grep -h -E -- '^[[:space:]]*\(?--[a-z0-9|-]+\)' "$rigPackage"/sh-lib/*/*.include "$rigPackage"/sh-scripts/*.sh \
 	| sed -E 's/^[[:space:]]*\(?//; s/\).*$//' | tr '|' '\n' | LC_ALL=C sort -u )"
 
 rigFails=0

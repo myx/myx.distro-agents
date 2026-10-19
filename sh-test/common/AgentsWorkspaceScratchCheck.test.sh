@@ -81,7 +81,7 @@ for wait in range(100):
         print("%s|%s|%s" % (done[0]["status"], done[0]["text"].strip(), done[0]["error"]))
         break
     time.sleep(0.05)
-' "$rigHere/AgentsManagerScreen.py" "$1" 2> "$rigTmp/reader.err"
+' "$rigHere/manager/AgentsManagerScreen.py" "$1" 2> "$rigTmp/reader.err"
 }
 rigAssert "with a workspace, a call runs and its output comes back" "$( rigReader "$rigWs" )" "0|RIG-ECHO|"
 rigAssert "its files were kept in the workspace's .local/agents/scratch" "$( [ -d "$rigWs/.local/agents/scratch" ] && printf made || printf none )" made

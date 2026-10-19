@@ -18,12 +18,12 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigHarness" "$rigHere/AgentsHarnessMcpConfig.include" ; do
+for rigFile in "$rigHarness" "$rigHere/harness/AgentsHarnessMcpConfig.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
@@ -44,7 +44,7 @@ rigAssert(){ ## what is asserted, got, want
 }
 
 harnessHere="$rigHere"
-. "$rigHere/AgentsHarnessMcpConfig.include"
+. "$rigHere/harness/AgentsHarnessMcpConfig.include"
 
 ## Everything one resolution published, as one string a comparison can print.
 rigResolved(){
@@ -110,7 +110,7 @@ printf '{"mcpServers":{"foreign":{"command":"/bin/foreign"}}}\n' > "$rigWs/.loca
 harnessMcpLoadedFor=""
 rigAssert "a mcp.servers.json is never read" "$( rigAll )" "$rigComputed"
 unset -f AgentsHarnessMcpServersPrimary
-. "$rigHere/AgentsHarnessMcpConfig.include"
+. "$rigHere/harness/AgentsHarnessMcpConfig.include"
 
 rigEmpty="$rigTmp/empty"
 rigInstall "$rigEmpty" ""
@@ -147,7 +147,7 @@ rigIndexCase(){ ## what, transform (sed program)
 	AgentsHarnessMcpKeys
 	rigAssert "$1: computed instead" "$harnessMcpResKeys" "computed-instead"
 	unset -f AgentsHarnessMcpServersPrimary
-	. "$rigHere/AgentsHarnessMcpConfig.include"
+	. "$rigHere/harness/AgentsHarnessMcpConfig.include"
 	AgentsHarnessMcpIndexWrite "$rigWs"
 }
 rigIndexCase "another workspace's index" 's/workspace=/workspace=\/elsewhere/'

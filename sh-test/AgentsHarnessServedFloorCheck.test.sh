@@ -50,11 +50,11 @@ set -u
 
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
-rigCore="$rigHere/AgentsUniversalHarness.sh"
-rigSlice="$rigHere/AgentsHarnessJsonField.awk"
-rigMirror="$rigHere/AgentsHarnessMcpMirror.sh"
+rigCore="$rigHere/harness/AgentsUniversalHarness.sh"
+rigSlice="$rigHere/harness/AgentsHarnessJsonField.awk"
+rigMirror="$rigHere/harness/AgentsHarnessMcpMirror.sh"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigField="$rigHere/AgentsHarnessJsonField.awk"
+rigField="$rigHere/harness/AgentsHarnessJsonField.awk"
 
 ## Refusing to report is this block's whole job: a run that exercised nothing must never
 ## print a pass, and an empty extraction is a fault here rather than a clean floor.
@@ -212,7 +212,7 @@ rigAskHolds(){ ## served tool name, field -- yes when its served schema declares
 }
 ## The read cap the descriptions state is the one the served path applies, filled from the
 ## one constant (AgentsHarnessReadCap.include), never restated by hand.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessReadCap.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReadCap.include"
 rigAssert "the served Read and Skill state the MCP cap" \
 	"$( LC_ALL=C grep -o -F "Content over the ${agentsReadCapMcp}-byte cap is cut" "$rigTmp/list" | wc -l | tr -d ' ' )" "2"
 rigAssert "no unfilled cap placeholder is served" \
@@ -420,7 +420,7 @@ if [ "$rigFails" -ne 0 ] ; then
 	echo "        server, around the deny hook that covers Bash on the *-native leg --" >&2
 	echo "        or a tool the served set needs was not served at all" >&2
 	echo "  fix:  add it to mcpUnservedToolNames in" >&2
-	echo "        sh-lib/AgentsTools.InternMcpRequest.include, and say there why --" >&2
+	echo "        sh-lib/mcp/AgentsTools.InternMcpRequest.include, and say there why --" >&2
 	echo "        never the assertion" >&2
 	exit 1
 fi

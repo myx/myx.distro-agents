@@ -26,7 +26,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigMember="magic-tester"
 
@@ -100,7 +100,7 @@ rigNotHis="$( rigMessage 000200 URIGBOT1 "$( rigHeaderOf magic-architect ) alpha
 echo "-- the formatter: the place ahead of the text holds its own word only --"
 rigFormat(){ ## messages (rigMessage words) -> the rendering of those messages, its lines joined by `#`
 	printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"the question"}%s],"has_more":false}\n' "$1" \
-		| LC_ALL=C awk -f "$rigHere/AgentsSlackMessagesFormat.awk" 2>&1 | LC_ALL=C sed 1d | LC_ALL=C tr '\n' '#'
+		| LC_ALL=C awk -f "$rigHere/comms/AgentsSlackMessagesFormat.awk" 2>&1 | LC_ALL=C sed 1d | LC_ALL=C tr '\n' '#'
 }
 rigAssert "the sender a send recorded stands ahead of the text" \
 	"$( rigFormat "$( rigMessage 000200 URIGBOT1 'beta' magic-developer )" )" "1700000001.000200 | URIGBOT1 | [sender: magic-developer] beta#"
@@ -113,9 +113,9 @@ rigAssert "control: any other text, a bracket of its own too, is printed as it w
 echo "-- the thread-answers reader: a member name among the accounts that answer is matched by the recorded sender alone --"
 rigAnswers(){ ## the accounts that answer, messages (rigMessage words) -> the answers, lines joined by `#`
 	printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"the question"}%s],"has_more":false}\n' "$2" \
-		| LC_ALL=C awk -f "$rigHere/AgentsSlackMessagesFormat.awk" \
+		| LC_ALL=C awk -f "$rigHere/comms/AgentsSlackMessagesFormat.awk" \
 		| LC_ALL=C awk -v rootTs=1700000001.000101 -v askingUsers=URIGSELF1 -v fromUsers="$1" -v tag="" -v threadCount=1 -v others="" \
-			-f "$rigHere/AgentsDismissalMatch.awk" -f "$rigHere/AgentsSlackThreadAnswers.awk" 2>&1 | LC_ALL=C tr '\n' '#'
+			-f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/comms/AgentsSlackThreadAnswers.awk" 2>&1 | LC_ALL=C tr '\n' '#'
 }
 rigHis="$( rigMessage 000300 URIGBOT1 "$( rigHeaderOf magic-developer ) beta, the lint is quick" magic-developer )"
 rigAssert "the member's own reply, sent by the tooling as it: taken, and printed as posted by that member" \
@@ -126,7 +126,7 @@ rigAssert "with the real reply after them, it alone is the answer" \
 rigAssert "control: an account is told by the account as before, and never by a sender of its name" \
 	"$( rigAnswers URIGOWNER "$( rigMessage 000200 URIGBOT1 'alpha' URIGOWNER )$( rigMessage 000300 URIGOWNER 'beta' )" )" "1700000001.000300 | URIGOWNER | beta#"
 rigAssert "the verdict reader behind it: the member's answer, by the member, with its words" \
-	"$( rigAnswers magic-developer "$rigNotHis$rigHis" | LC_ALL=C tr '#' '\n' | MDAT_VERDICT_WORDS=1 MDAT_VERDICT_KIND=decision MDAT_VERDICT_OPTIONS=$'alpha -- the unit checks\nbeta -- the lint' MDAT_VERDICT_AUTHORS=magic-developer MDAT_VERDICT_ASKING=URIGSELF1 LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | LC_ALL=C tr '\t' '|' )" \
+	"$( rigAnswers magic-developer "$rigNotHis$rigHis" | LC_ALL=C tr '#' '\n' | MDAT_VERDICT_WORDS=1 MDAT_VERDICT_KIND=decision MDAT_VERDICT_OPTIONS=$'alpha -- the unit checks\nbeta -- the lint' MDAT_VERDICT_AUTHORS=magic-developer MDAT_VERDICT_ASKING=URIGSELF1 LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | LC_ALL=C tr '\t' '|' )" \
 	"beta -- the lint is quick|magic-developer|1700000001.000300"
 
 ## One scenario's workspace. The asking member and the coordinator have an account of their

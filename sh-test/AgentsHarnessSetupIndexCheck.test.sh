@@ -23,12 +23,12 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigHarness" "$rigHere/AgentsHarnessRootsIndex.include" "$rigHere/AgentsHarnessHooksLoad.include" "$rigHere/AgentsTools.ClientAccessRoots.include" ; do
+for rigFile in "$rigHarness" "$rigHere/harness/AgentsHarnessRootsIndex.include" "$rigHere/harness/AgentsHarnessHooksLoad.include" "$rigHere/client/AgentsTools.ClientAccessRoots.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
@@ -66,8 +66,8 @@ rigUnit(){
 		set +u
 		export HOME="$rigHome" MDAT_SKILLSET_ROOT="$rigSkills"
 		harnessHere="$rigHere"
-		. "$rigHere/AgentsTools.ClientAccessRoots.include"
-		. "$rigHere/AgentsHarnessRootsIndex.include"
+		. "$rigHere/client/AgentsTools.ClientAccessRoots.include"
+		. "$rigHere/harness/AgentsHarnessRootsIndex.include"
 		"$@"
 	)
 }
@@ -163,7 +163,7 @@ printf '%s' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command
 rigHooks(){ ## prints: computed list, index-written, index list, then one verdict per stale case
 	(
 		MMDAPP="$rigWs" harnessHere="$rigHere"
-		. "$rigHere/AgentsTools.ClientToolPolicy.include" && . "$rigHere/AgentsHarnessHooksLoad.include" || exit 1
+		. "$rigHere/client/AgentsTools.ClientToolPolicy.include" && . "$rigHere/harness/AgentsHarnessHooksLoad.include" || exit 1
 		rigList(){ harnessHooksList="" harnessHooksFault="" harnessHooksSkipped=0 ; AgentsHarnessHooksRecords "$rigWs" && AgentsHarnessHooksFromRecords "$agentsHooksRecords" ; printf '[%s][%s][%s][%s]\n' "$agentsHooksFrom" "$harnessHooksFault" "$harnessHooksSkipped" "${harnessHooksList//$'\n'/\\n}" ; }
 		rm -f "$rigWs/.local/agents/harness.hooks.index"
 		rigList
@@ -214,7 +214,7 @@ rigHarnessRun computed
 	set +u
 	export HOME="$rigHome" MDAT_SKILLSET_ROOT="$rigSkills"
 	harnessHere="$rigHere" MMDAPP="$rigWs"
-	. "$rigHere/AgentsTools.ClientAccessRoots.include" && . "$rigHere/AgentsHarnessRootsIndex.include" && . "$rigHere/AgentsTools.ClientToolPolicy.include" && . "$rigHere/AgentsHarnessHooksLoad.include"
+	. "$rigHere/client/AgentsTools.ClientAccessRoots.include" && . "$rigHere/harness/AgentsHarnessRootsIndex.include" && . "$rigHere/client/AgentsTools.ClientToolPolicy.include" && . "$rigHere/harness/AgentsHarnessHooksLoad.include"
 	AgentsHarnessRootsIndexText "$rigWs" > "$rigWs/.local/agents/harness.roots.index"
 	AgentsHarnessHooksIndexText > "$rigWs/.local/agents/harness.hooks.index"
 )
@@ -247,7 +247,7 @@ rigAssert "and left the children lists alone"                    "$( [ -e "$rigW
 mkdir -p "$rigWs/.local/agents/children" "$rigSpawned/bad"
 printf 'gone/sp9.md\n' > "$rigWs/.local/agents/children/stale-parent"
 printf -- '---\nparent-spawn-id: ../escape\n---\n' > "$rigSpawned/bad/sp4.md"
-( set +u ; . "$rigHere/AgentsTools.ChildrenIndex.include" && AgentsToolsChildrenIndexRepair "$rigWs" ) 2> "$rigTmp/repair.err"
+( set +u ; . "$rigHere/session/AgentsTools.ChildrenIndex.include" && AgentsToolsChildrenIndexRepair "$rigWs" ) 2> "$rigTmp/repair.err"
 rigAssert "the repair marked the children lists complete"        "$( [ -f "$rigWs/.local/agents/children/.indexed" ] && printf yes || printf no )" yes
 rigAssert "and listed rig-parent's two children"                "$( LC_ALL=C sort "$rigWs/.local/agents/children/rig-parent" 2>/dev/null | tr '\n' ' ' )" "a-linked/sp2.md b-child/sp1.md "
 rigAssert "and every list there is, none other"                 "$( ls "$rigWs/.local/agents/children" | tr '\n' ' ' )" "rig-parent someone-else "

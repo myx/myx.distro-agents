@@ -10,7 +10,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigMember="magic-tester"
 
@@ -368,7 +368,7 @@ echo "-- only a reply's first word is an answer: one anywhere else is never take
 ## reply ts, is left out here).
 rigVerdictOf(){ ## kind, options, reply text
 	printf '1700000001.000200 | URIGOWNER | %s\n' "$3" \
-		| MDAT_VERDICT_KIND="$1" MDAT_VERDICT_OPTIONS="$2" MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | tr '\t' '|' | cut -d'|' -f1-2
+		| MDAT_VERDICT_KIND="$1" MDAT_VERDICT_OPTIONS="$2" MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | tr '\t' '|' | cut -d'|' -f1-2
 }
 rigDecisionOptions="- alpha the first way"$'\n'"- beta the second way"
 rigAssert "control: a first-word answer is classified"   "$( rigVerdictOf permission '' 'allow-once' )" "allow-once|URIGOWNER"
@@ -412,7 +412,7 @@ rigAssert "permission set: edit is a reply, carrying the change" "$( rigVerdictO
 rigAssert "permission set: a typed ok grants nothing"     "$( rigVerdictOf permission-set '' 'ok' )" "RETURNED|"
 rigReactionOf(){ ## kind, options, reaction name
 	printf 'reaction on the question: [reactions: %s x1 (URIGOWNER)]\n' "$3" \
-		| MDAT_VERDICT_KIND="$1" MDAT_VERDICT_OPTIONS="$2" MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | tr '\t' '|' | cut -d'|' -f1-2
+		| MDAT_VERDICT_KIND="$1" MDAT_VERDICT_OPTIONS="$2" MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | tr '\t' '|' | cut -d'|' -f1-2
 }
 rigAssert "decision: a +1 reaction takes the recommended one" "$( rigReactionOf decision "$rigRecommendedOptions" '+1::skin-tone-2' )" "beta|URIGOWNER"
 rigAssert "readback: an ok_hand reaction is yes"          "$( rigReactionOf readback '' 'ok_hand' )" "yes|URIGOWNER"
@@ -421,9 +421,9 @@ rigAssert "permission set: the unlock click allows the set" "$( rigReactionOf pe
 rigAssert "permission set: the cross denies"              "$( rigReactionOf permission-set '' 'x' )" "deny|URIGOWNER"
 rigAssert "permission set: a thumbs up or an ok click grants nothing" "$( rigReactionOf permission-set '' '+1' ):$( rigReactionOf permission-set '' 'ok' )" "RETURNED|:RETURNED|"
 rigAssert "permission set: the cross beside the unlock denies" \
-	"$( printf 'reaction on the question: [reactions: unlock x1 (URIGOWNER)]\nreaction on the question: [reactions: x x1 (URIGOWNER)]\n' | MDAT_VERDICT_KIND=permission-set MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | tr '\t' '|' | cut -d'|' -f1-2 )" "deny|URIGOWNER"
+	"$( printf 'reaction on the question: [reactions: unlock x1 (URIGOWNER)]\nreaction on the question: [reactions: x x1 (URIGOWNER)]\n' | MDAT_VERDICT_KIND=permission-set MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | tr '\t' '|' | cut -d'|' -f1-2 )" "deny|URIGOWNER"
 rigAssert "permission set: a click by the account that asked never counts" \
-	"$( printf 'reaction on the question: [reactions: unlock x1 (URIGBOT)]\n' | MDAT_VERDICT_KIND=permission-set MDAT_VERDICT_AUTHORS='URIGOWNER URIGBOT' MDAT_VERDICT_ASKING=URIGBOT LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | tr '\t' '|' | cut -d'|' -f1-2 )" "RETURNED|"
+	"$( printf 'reaction on the question: [reactions: unlock x1 (URIGBOT)]\n' | MDAT_VERDICT_KIND=permission-set MDAT_VERDICT_AUTHORS='URIGOWNER URIGBOT' MDAT_VERDICT_ASKING=URIGBOT LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | tr '\t' '|' | cut -d'|' -f1-2 )" "RETURNED|"
 
 echo "-- a reply opening with a quote of the question: its first unquoted line is the verdict --"
 rigAssert "a fenced quote, then I confirm, is yes"        "$( rigVerdictOf readback '' $'```Did I read your intent right?```\nI confirm, go ahead' )" "yes|URIGOWNER"
@@ -431,8 +431,8 @@ rigAssert "a fence over several lines is skipped"         "$( rigVerdictOf readb
 rigAssert "&gt; quoted lines are skipped"                 "$( rigVerdictOf decision "$rigDecisionOptions" $'&gt; Which way?\n&gt; alpha or beta\n\nbeta' )" "beta|URIGOWNER"
 rigAssert "> quoted lines are skipped"                    "$( rigVerdictOf permission '' $'> May the rig write it?\nallow-once' )" "allow-once|URIGOWNER"
 rigAssert "an unquoted first line still decides alone"    "$( rigVerdictOf readback '' $'hmm\nyes' )" "RETURNED|"
-rigAssert "the plain answer text skips the quote too"     "$( printf '1700000001.000200 | URIGOWNER | %s\n' $'```Did I read it?```\nkeep it, signed off\nmore' | LC_ALL=C awk -f "$rigHere/AgentsPendingReplyAnswerText.awk" )" "keep it, signed off"
-rigAssert "and the clarifications start after it"         "$( printf '1700000001.000200 | URIGOWNER | %s\n' $'```Did I read it?```\nkeep it, signed off\nmore' | LC_ALL=C awk -v answerTs=1700000001.000200 -f "$rigHere/AgentsPendingReplyClarifications.awk" | cut -f3 )" "more"
+rigAssert "the plain answer text skips the quote too"     "$( printf '1700000001.000200 | URIGOWNER | %s\n' $'```Did I read it?```\nkeep it, signed off\nmore' | LC_ALL=C awk -f "$rigHere/questions/AgentsPendingReplyAnswerText.awk" )" "keep it, signed off"
+rigAssert "and the clarifications start after it"         "$( printf '1700000001.000200 | URIGOWNER | %s\n' $'```Did I read it?```\nkeep it, signed off\nmore' | LC_ALL=C awk -v answerTs=1700000001.000200 -f "$rigHere/questions/AgentsPendingReplyClarifications.awk" | cut -f3 )" "more"
 
 rigAssert "no request left this box"                   "$( cat "$rigTmp"/*/curl.log | LC_ALL=C awk '/^url:/ { hitCount++ ; } END { print hitCount + 0 ; }' )" 0
 

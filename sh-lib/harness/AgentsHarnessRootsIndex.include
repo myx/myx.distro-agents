@@ -1,0 +1,257 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsHarnessRootsIndex.include -- the harness's own index of the access roots
+## AgentsTools.ClientAccessRoots.include yields, already resolved. Written by the
+## installer's --make-harness-indices (install and every upgrade), read by
+## AgentsUniversalHarness.sh at every start -- a served --intern-tool call included --
+## which otherwise sources the producer, reads the config store and resolves every root
+## with its own `cd ... && pwd -P` subshell.
+##
+## WHAT IT HOLDS is the member- and origin-independent set: the read set and the write
+## set the harness asks for with no member named and no MDLT_ORIGIN, each root beside
+## what it resolved to at install. ONE index, whichever origin the harness runs from (the
+## source tree or the installed .local): the one root the producer derives from
+## MDLT_ORIGIN, its skillset, is merged in at run time with a member's own two scratch
+## roots, exactly as the producer's `sort -u` places them, and resolved at run time.
+## Everything else the harness adds at run time (a spawn's sandbox, child sessions,
+## --access-*-root flags) is computed at run time as before.
+##
+## WHEN IT IS USED: only while its fingerprint is what this run would produce -- the
+## workspace, HOME and MDAT_SKILLSET_ROOT and the names under it (the member index's view,
+## not newer than the index), and one cksum line each for the producer, this
+## file, AgentsTools.TeamRegistry.include, the member index, the shared grant pointers and
+## every grant file they name, the two place registries (this workspace's and the shared
+## pointers) and the grants index -- our own data only, never a vendor link folder. A harness whose origin
+## carries other code than the writer's has another checksum, so it computes. A stored
+## resolution is used only while its root is still a directory; any other root is
+## resolved at run time. Anything else is computed the slow way, with the same result.
+## An index of another format version (an older or newer writer's) is never used.
+##
+## Format, version 4, free text encoded for `printf '%b'` (backslash doubled, newline as
+## \n, TAB as \t):
+##   myx.distro harness.roots.index 4
+##   print <TAB> <fingerprint>
+##   read <TAB> <root> <TAB> <resolved, or empty where it did not resolve>
+##   wref <TAB> <root> <TAB> <resolved...>       the write reference roots
+##   grant <TAB> <root> <TAB> <resolved...>      the declared grants
+##   end
+
+agentsRootsIndexHere="${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}"
+type AgentsToolsTeamGrantWorkspaces >/dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+agentsRootsIndexHeader="myx.distro harness.roots.index 4"
+
+agentsRootsEnc=""
+agentsRootsDec=""
+AgentsHarnessRootsEnc(){ ## text
+	agentsRootsEnc="${1//\\/\\\\}"
+	agentsRootsEnc="${agentsRootsEnc//$'\n'/\\n}"
+	agentsRootsEnc="${agentsRootsEnc//$'\t'/\\t}"
+}
+AgentsHarnessRootsDec(){ ## encoded -- never `printf -v` an empty result: bash 3.2 keeps the last buffer
+	agentsRootsDec=""
+	[ -z "$1" ] || printf -v agentsRootsDec '%b' "$1"
+}
+
+## Everything the producer's answer depends on, as one string: names and settings by
+## builtins, file contents by one cksum for them all. Non-zero when a file is there but
+## cannot be summed -- the caller then computes.
+agentsRootsPrint=""
+AgentsHarnessRootsFingerprint(){ ## workspace
+	local printWorkspace="$1" printEntry printFiles=() printSums printCrc printSize printRest printCount=0
+	agentsRootsPrint="v4"$'\n'"MMDAPP=$printWorkspace"$'\n'"HOME=${HOME:-}"$'\n'"MDAT_SKILLSET_ROOT=${MDAT_SKILLSET_ROOT:-}"$'\n'
+	## The names in the member set root -- the member index's own members/ view.
+	if [ -n "${MDAT_SKILLSET_ROOT:-}" ] && [ -d "$MDAT_SKILLSET_ROOT" ] ; then
+		for printEntry in "$MDAT_SKILLSET_ROOT"/*/ ; do agentsRootsPrint="${agentsRootsPrint}skillset:$printEntry"$'\n' ; done
+	fi
+	## Our own data only (AgentsTools.TeamRegistry.include): the member index the members/
+	## view is generated from, the shared grant pointers, and each grant file they name --
+	## never a vendor link folder. Named by role, not path: the producer and this file are
+	## the same code in either origin.
+	local printGrantRoot printGrants=()
+	while IFS= read -r printGrantRoot ; do
+		[ -n "$printGrantRoot" ] || continue
+		printGrants+=( "grants:$printGrantRoot/.local/agents/permissions.registry" )
+	done <<< "$( AgentsToolsTeamGrantWorkspaces "$printWorkspace" )"
+	for printEntry in \
+		"producer:$agentsRootsIndexHere/client/AgentsTools.ClientAccessRoots.include" \
+		"index:$agentsRootsIndexHere/harness/AgentsHarnessRootsIndex.include" \
+		"team:$agentsRootsIndexHere/team-data/AgentsTools.TeamRegistry.include" \
+		"members:$printWorkspace/.local/agents/members.index" \
+		"pointers:$( AgentsToolsTeamSharedGrants )" \
+		"places:$printWorkspace/.local/agents/directories.registry" \
+		"places-shared:${HOME:-}/.agents/magic-team/directories.registry" \
+		"grants-index:$printWorkspace/.local/agents/grants.index" \
+		${printGrants[@]+"${printGrants[@]}"} \
+	; do
+		if [ -f "${printEntry#*:}" ] ; then
+			printFiles+=( "${printEntry#*:}" )
+			agentsRootsPrint="${agentsRootsPrint}file:${printEntry%%:*}"$'\n'
+		else
+			agentsRootsPrint="${agentsRootsPrint}file:${printEntry%%:*}:<absent>"$'\n'
+		fi
+	done
+	[ "${#printFiles[@]}" -gt 0 ] || return 0
+	printSums="$( LC_ALL=C cksum "${printFiles[@]}" 2>/dev/null )" || return 1
+	while read -r printCrc printSize printRest ; do
+		agentsRootsPrint="${agentsRootsPrint}sum:$printCrc $printSize"$'\n'
+		printCount=$(( printCount + 1 ))
+	done <<< "$printSums"
+	[ "$printCount" = "${#printFiles[@]}" ] || return 1
+}
+
+## The whole index, on stdout, from the producer sourced here, DistroAgentsTools
+## callable. Non-zero, printing nothing, when the producer fails (the harness then meets
+## that failure itself, and says so) or anything it depends on changed while this ran.
+## The producer runs with MDLT_ORIGIN empty -- DistroAgentsTools keeps the real one -- so
+## the set is the one every origin shares; the file is the caller's to write atomically.
+AgentsHarnessRootsIndexText(){ ## workspace
+	local writeWorkspace="$1" writeRead writeWref writeGrant writePrint writeOut
+	AgentsHarnessRootsFingerprint "$writeWorkspace" || return 1
+	writePrint="$agentsRootsPrint"
+	writeRead="$(
+		writeOrigin="${MDLT_ORIGIN:-}"
+		if [ -n "$writeOrigin" ] ; then
+			if type DistroAgentsTools >/dev/null 2>&1 ; then
+				writeTools="$( declare -f DistroAgentsTools )"
+				eval "AgentsHarnessRootsOriginTools${writeTools#DistroAgentsTools}"
+				DistroAgentsTools(){ MDLT_ORIGIN="$writeOrigin" AgentsHarnessRootsOriginTools "$@" ; }
+			fi
+			## What the producer loads on demand, loaded while MDLT_ORIGIN still names it: every
+			## include is spelled from $MDLT_ORIGIN, so after the blank below it would name no file.
+			type AgentsToolsTeamGrantRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+			type AgentsToolsGrantsIndexEnsure > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+			type AgentsToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include"
+			type AgentsToolsWorkspaceSwitch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+			MDLT_ORIGIN=""
+		fi
+		AgentsToolsClientAccessRoots "$writeWorkspace" "" 2>/dev/null
+	)" || return 1
+	writeWref="$( AgentsToolsClientAccessReferenceRoots write "$writeWorkspace" "" 2>/dev/null )" || return 1
+	writeGrant="$( AgentsToolsClientAccessGrantRoots 2>/dev/null )" || return 1
+	## Every root resolved in this one subshell, each from where it started.
+	writeOut="$(
+		unset CDPATH
+		writeStart="$PWD"
+		AgentsHarnessRootsEnc "$writePrint" ; printf 'print\t%s\n' "$agentsRootsEnc"
+		for writeKind in read wref grant ; do
+			## Each pattern opened by its own `(`: bash 3.2 misparses a bare `x)` inside `$( )`.
+			case "$writeKind" in
+				(read) writeLines="$writeRead" ;;
+				(wref) writeLines="$writeWref" ;;
+				(grant) writeLines="$writeGrant" ;;
+			esac
+			[ -n "$writeLines" ] || continue
+			while IFS= read -r writeRoot ; do
+				## `cd && pwd -P` as the harness resolves, by builtins: PWD after `cd -P .` is what pwd -P prints.
+				cd "$writeStart" 2>/dev/null
+				cd "$writeRoot" 2>/dev/null && cd -P . 2>/dev/null && writeReal="$PWD" || writeReal=""
+				AgentsHarnessRootsEnc "$writeRoot" ; printf '%s\t%s' "$writeKind" "$agentsRootsEnc"
+				AgentsHarnessRootsEnc "$writeReal" ; printf '\t%s\n' "$agentsRootsEnc"
+			done <<< "$writeLines"
+		done
+		printf 'end'
+	)" || return 1
+	## Whatever changed while this ran makes the index describe a set nobody computed.
+	AgentsHarnessRootsFingerprint "$writeWorkspace" && [ "$agentsRootsPrint" = "$writePrint" ] || return 1
+	printf '%s\n%s\n' "$agentsRootsIndexHeader" "$writeOut"
+}
+
+## Fills, from the index, what the harness otherwise computes: harnessAccessRoots (and its
+## resolutions in harnessAccessRootsReal, empty where the harness must resolve), and when
+## the caller passes a write count of 0 harnessWriteAccessRoots/harnessWriteAccessRootsReal
+## too. Non-zero, with nothing touched, when the index does not vouch for this run.
+harnessAccessRootsReal=()
+harnessWriteAccessRootsReal=()
+AgentsHarnessRootsIndexUse(){ ## workspace, member name, write roots already given
+	local useWorkspace="$1" useMember="$2" useWriteGiven="$3" useIndex="$1/.local/agents/harness.roots.index"
+	local useRaw="" useBody useLine useTag useRest useRoot useReal useEnded="" useIdx useMerged useMergedLine
+	local useReadRoots=() useReadReals=() useWrefRoots=() useWrefReals=() useGrantRoots=() useGrantReals=() useExtra=()
+	[ -n "$useWorkspace" ] && [ -f "$useIndex" ] || return 1
+	## Member links re-pointed in a second already gone leave their directory newer than the index.
+	[ -z "${MDAT_SKILLSET_ROOT:-}" ] || [ ! "$MDAT_SKILLSET_ROOT" -nt "$useIndex" ] || return 1
+	IFS= read -r -d '' useRaw < "$useIndex" || :
+	case "$useRaw" in "$agentsRootsIndexHeader"$'\n'"print"$'\t'*) ;; *) return 1 ;; esac
+	useBody="${useRaw#*$'\n'}"
+	useLine="${useBody%%$'\n'*}"
+	AgentsHarnessRootsFingerprint "$useWorkspace" || return 1
+	AgentsHarnessRootsDec "${useLine#*$'\t'}"
+	[ "$agentsRootsDec" = "$agentsRootsPrint" ] || return 1
+	while IFS= read -r useLine ; do
+		useTag="${useLine%%$'\t'*}"
+		useRest="${useLine#*$'\t'}"
+		case "$useTag" in
+			read|wref|grant)
+				AgentsHarnessRootsDec "${useRest%%$'\t'*}" ; useRoot="$agentsRootsDec"
+				AgentsHarnessRootsDec "${useRest#*$'\t'}" ; useReal="$agentsRootsDec"
+				## A stored resolution holds only while its root is still a directory.
+				[ -d "$useRoot" ] || useReal=""
+				case "$useTag" in
+					read) useReadRoots+=( "$useRoot" ) ; useReadReals+=( "$useReal" ) ;;
+					wref) useWrefRoots+=( "$useRoot" ) ; useWrefReals+=( "$useReal" ) ;;
+					grant) useGrantRoots+=( "$useRoot" ) ; useGrantReals+=( "$useReal" ) ;;
+				esac
+			;;
+			end) useEnded=1 ; break ;;
+		esac
+	done <<< "${useBody#*$'\n'}"
+	[ -n "$useEnded" ] || return 1
+	## The write set first, since an empty one is the harness's own refusal to make.
+	local useWriteRoots=() useWriteReals=()
+	if [ "$useWriteGiven" = 0 ] ; then
+		useIdx=0
+		while [ "$useIdx" -lt "${#useWrefRoots[@]}" ] ; do
+			useWriteRoots+=( "${useWrefRoots[$useIdx]}" ) ; useWriteReals+=( "${useWrefReals[$useIdx]}" )
+			useIdx=$(( useIdx + 1 ))
+		done
+		## The member's own two scopes, where the producer prints them: after the team's.
+		if [ -n "$useMember" ] ; then
+			useWriteRoots+=( "$useWorkspace/.local/temp/member/$useMember" "$useWorkspace/.local/temp/task/$useMember" ) ; useWriteReals+=( "" "" )
+		fi
+		useIdx=0
+		while [ "$useIdx" -lt "${#useGrantRoots[@]}" ] ; do
+			useWriteRoots+=( "${useGrantRoots[$useIdx]}" ) ; useWriteReals+=( "${useGrantReals[$useIdx]}" )
+			useIdx=$(( useIdx + 1 ))
+		done
+		[ "${#useWriteRoots[@]}" -gt 0 ] || return 1
+	fi
+	## The read set: this origin's skillset and, with a member named, its two scopes join
+	## the sorted-unique set exactly as the producer's own `sort -u` places them; every
+	## other root keeps its stored resolution, found by walking the two sorted lists together.
+	[ -z "${MDLT_ORIGIN:-}" ] || useExtra+=( "$MDLT_ORIGIN/myx/myx.distro-agents/skillset" )
+	[ -z "$useMember" ] || useExtra+=( "$useWorkspace/.local/temp/member/$useMember" "$useWorkspace/.local/temp/task/$useMember" )
+	harnessAccessRootsReal=()
+	if [ "${#useExtra[@]}" -eq 0 ] ; then
+		useIdx=0
+		while [ "$useIdx" -lt "${#useReadRoots[@]}" ] ; do
+			case "${useReadRoots[$useIdx]}" in
+				/*) harnessAccessRoots+=( "${useReadRoots[$useIdx]}" ) ; harnessAccessRootsReal+=( "${useReadReals[$useIdx]}" ) ;;
+			esac
+			useIdx=$(( useIdx + 1 ))
+		done
+	else
+		useMerged="$( printf '%s\n' ${useReadRoots[@]+"${useReadRoots[@]}"} "${useExtra[@]}" | LC_ALL=C sort -u | LC_ALL=C awk 'NF' )" || return 1
+		useIdx=0
+		while IFS= read -r useMergedLine ; do
+			useReal=""
+			if [ "$useIdx" -lt "${#useReadRoots[@]}" ] && [ "${useReadRoots[$useIdx]}" = "$useMergedLine" ] ; then
+				useReal="${useReadReals[$useIdx]}"
+				useIdx=$(( useIdx + 1 ))
+			fi
+			case "$useMergedLine" in
+				/*) harnessAccessRoots+=( "$useMergedLine" ) ; harnessAccessRootsReal+=( "$useReal" ) ;;
+			esac
+		done <<< "$useMerged"
+	fi
+	if [ "$useWriteGiven" = 0 ] ; then
+		harnessWriteAccessRootsReal=()
+		useIdx=0
+		while [ "$useIdx" -lt "${#useWriteRoots[@]}" ] ; do
+			case "${useWriteRoots[$useIdx]}" in
+				/*) harnessWriteAccessRoots+=( "${useWriteRoots[$useIdx]}" ) ; harnessWriteAccessRootsReal+=( "${useWriteReals[$useIdx]}" ) ;;
+			esac
+			useIdx=$(( useIdx + 1 ))
+		done
+	fi
+	return 0
+}

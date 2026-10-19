@@ -72,7 +72,7 @@ rigOp(){ ## operation and its arguments -- stdin is passed on
 ## which runs it inside the tool's own set-up context: its include, then the call.
 rigHelper(){ ## include, function, arguments...
 	{
-		printf '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/%s"\n' "$1"
+		printf '. "$MDLT_ORIGIN"/myx/myx.distro-*/sh-lib/*/%s\n' "$1"
 		printf '%s' "$2" ; shift 2
 		[ $# -eq 0 ] || printf ' %q' "$@"
 		printf '\n'
@@ -105,13 +105,13 @@ rigHeader(){ ## fixed text
 	local headerFile
 	headerFile="$( rigPostOf "$1" | LC_ALL=C sed -n '1p' )"
 	[ -n "$headerFile" ] || { printf 'not-posted' ; return 0 ; }
-	LC_ALL=C awk -v path=text -v optional=1 -f "$rigHere/AgentsHarnessJsonField.awk" < "$headerFile" 2>/dev/null | LC_ALL=C sed -n '1p'
+	LC_ALL=C awk -v path=text -v optional=1 -f "$rigHere/harness/AgentsHarnessJsonField.awk" < "$headerFile" 2>/dev/null | LC_ALL=C sed -n '1p'
 }
 rigThreadOf(){ ## fixed text
 	local threadFile
 	threadFile="$( rigPostOf "$1" | LC_ALL=C sed -n '1p' )"
 	[ -n "$threadFile" ] || { printf 'not-posted' ; return 0 ; }
-	LC_ALL=C awk -v path=thread_ts -v optional=1 -f "$rigHere/AgentsHarnessJsonField.awk" < "$threadFile" 2>/dev/null
+	LC_ALL=C awk -v path=thread_ts -v optional=1 -f "$rigHere/harness/AgentsHarnessJsonField.awk" < "$threadFile" 2>/dev/null
 }
 ## The header the member send writes, with no row in the names registry: each member by its
 ## member name, said once, with the default icon of its prefix group, which for a member of

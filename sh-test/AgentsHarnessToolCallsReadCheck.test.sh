@@ -12,12 +12,12 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigHarness" "$rigHere/AgentsHarnessModelRound.include" "$rigHere/AgentsOpenAiChatWire.sh" "$rigHere/AgentsAnthropicMessagesWire.sh" "$rigHere/AgentsHarnessArgTable.awk" ; do
+for rigFile in "$rigHarness" "$rigHere/harness/AgentsHarnessModelRound.include" "$rigHere/harness/AgentsOpenAiChatWire.sh" "$rigHere/harness/AgentsAnthropicMessagesWire.sh" "$rigHere/harness/AgentsHarnessArgTable.awk" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
@@ -31,7 +31,7 @@ rigLift="$( LC_ALL=C awk '
 	inFn { print ; }
 	inFn && /^\}$/ { inFn = 0 ; seen++ ; }
 	END { if ( seen != 5 ) exit 1 ; }
-' "$rigHarness" "$rigHere/AgentsHarnessModelRound.include" )" || rigRefuse "the five tool-call reading functions were not all found in $rigHarness and AgentsHarnessModelRound.include"
+' "$rigHarness" "$rigHere/harness/AgentsHarnessModelRound.include" )" || rigRefuse "the five tool-call reading functions were not all found in $rigHarness and AgentsHarnessModelRound.include"
 
 rigPass=0
 rigFail=0
@@ -55,7 +55,7 @@ rigScenario(){ ## wire, stream file, expected call count
 		harnessResponseSynthesized=0 harnessCallIds=() harnessCallNames=() harnessCallArgs=() harnessFileText=""
 		rm -rf "$harnessScratch" ; mkdir -p "$harnessScratch"
 		eval "$rigLift"
-		. "$rigHere/Agents${1}Wire.sh"
+		. "$rigHere/harness/Agents${1}Wire.sh"
 		AgentsWireStreamConsume < "$2" 2>/dev/null
 		AgentsWireSynthesizeResponse
 		rigCount="$( AgentsWireToolCallCount )"
@@ -143,7 +143,7 @@ rigScenario AnthropicMessages "$rigTmp/anthropic.calls" 3
 
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ TOOL CALLS READ CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2
-	echo "  fix:  AgentsHarnessToolCallsRead in sh-lib/AgentsUniversalHarness.sh -- never the assertion" >&2
+	echo "  fix:  AgentsHarnessToolCallsRead in sh-lib/harness/AgentsUniversalHarness.sh -- never the assertion" >&2
 	exit 1
 fi
 printf 'HARNESS_TOOL_CALLS_READ: OK (OpenAiChat and AnthropicMessages, %d assertions, files path byte-identical to the accessors, offline)\n' "$rigPass"

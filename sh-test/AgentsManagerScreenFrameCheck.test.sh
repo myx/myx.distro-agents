@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the frame of the manager screen (sh-lib/AgentsManagerScreen.py), run rather than read. The
+## Behavioural check on the frame of the manager screen (sh-lib/manager/AgentsManagerScreen.py), run rather than read. The
 ## screen's own code draws through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py),
 ## which keeps the cells it is given, so each case reads the screen back as text; the cases at the end start the real
 ## screen, on a pseudo-terminal the driver makes. Held: at 120 and at 80 columns the list on the right takes a quarter
@@ -15,7 +15,7 @@
 ## Offline: the only thing the screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigRefuse(){

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the signals of a console session (sh-lib/AgentsTools.ConsoleSession.include), each run
+## Behavioural check on the signals of a console session (sh-lib/session/AgentsTools.ConsoleSession.include), each run
 ## rather than read: --console-stop ends the console and the holder of a channel, and --console-start ends what
 ## is left of a channel it finds stale. Both know those processes by the pid files of the channel, and a pid is a
 ## number the system gives again: a channel folder stays for as long as nobody stops it, and its files may be of
@@ -26,7 +26,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigFn="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigInclude="$rigPackage/sh-lib/AgentsTools.ConsoleSession.include"
+rigInclude="$rigPackage/sh-lib/session/AgentsTools.ConsoleSession.include"
 rigHelper="$rigPackage/sh-test/check-fixtures/rig-processes.include.sh"
 
 rigRefuse(){

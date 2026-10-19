@@ -34,14 +34,14 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$rigLib/AgentsUniversalHarness.sh"
+rigHarness="$rigLib/harness/AgentsUniversalHarness.sh"
 rigHook="$rigLib/client-hooks/allow-granted-native-tool.sh"
 rigFixture="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/change-approval.curl.stub.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigFn" "$rigHarness" "$rigHook" "$rigFixture" "$rigLib/AgentsTools.Grants.include" ; do
+for rigFile in "$rigFn" "$rigHarness" "$rigHook" "$rigFixture" "$rigLib/grants/AgentsTools.Grants.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
@@ -170,7 +170,7 @@ rigHookEdit(){ ## member, path
 ## the origin of that row, and whether it is the librarian's standing write on a skill file.
 rigCheck(){ ## member, tool, path
 	env -i HOME="$rigRunHome" PATH=/usr/bin:/bin:/usr/sbin:/sbin MMDAPP="$rigMain" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_MEMBER="$1" RIG_TOOL="$2" RIG_PATH="$3" bash -c '
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include" || exit 97
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" || exit 97
 		AgentsToolsGrantsSessionEnsure "$MMDAPP" "$RIG_MEMBER" "s-$RIG_MEMBER" "" "" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset" || exit 96
 		checkRc=0 ; checkSkill=no
 		AgentsToolsGrantsSessionCheck "$RIG_TOOL" "$RIG_PATH" "$MMDAPP/.local/agents/sessions/s-$RIG_MEMBER" || checkRc=$?

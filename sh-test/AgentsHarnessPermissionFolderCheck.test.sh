@@ -19,7 +19,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigMember="magic-tester"
 
@@ -400,7 +400,7 @@ rigAssert "joined by a second call it is a permission set: its post names no fol
 echo "-- the verdict reader, asked directly: the folder click and word count only where the folder is offered --"
 rigRead(){ ## offered (1 or empty), the rendered answers, one a line
 	printf '%s\n' "$2" | MDAT_VERDICT_KIND=permission MDAT_VERDICT_FOLDER="$1" MDAT_VERDICT_AUTHORS=URIGOWNER MDAT_VERDICT_ASKING=URIGSELF1 \
-		LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | LC_ALL=C tr '\t' '|' | LC_ALL=C cut -d'|' -f1-2
+		LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | LC_ALL=C tr '\t' '|' | LC_ALL=C cut -d'|' -f1-2
 }
 rigClick(){ ## reaction names of the owner...
 	local clickName clickOut=""
@@ -416,11 +416,11 @@ rigAssert "two clicks never widen what one gives: the cross, the one and the rep
 rigAssert "not offered: neither the click nor the word is an answer" \
 	"$( rigRead '' "$( rigClick file_folder )" ):$( rigRead '' '1700000001.000200 | URIGOWNER | allow-folder' )" "RETURNED|:RETURNED|"
 rigAssert "the folder click the tooling placed itself is never an answer" \
-	"$( printf 'reaction on the question: [reactions: file_folder x1 (URIGSELF1)]\n' | MDAT_VERDICT_KIND=permission MDAT_VERDICT_FOLDER=1 MDAT_VERDICT_AUTHORS='URIGOWNER URIGSELF1' MDAT_VERDICT_ASKING=URIGSELF1 LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | LC_ALL=C tr '\t' '|' | LC_ALL=C cut -d'|' -f1-2 )" "RETURNED|"
+	"$( printf 'reaction on the question: [reactions: file_folder x1 (URIGSELF1)]\n' | MDAT_VERDICT_KIND=permission MDAT_VERDICT_FOLDER=1 MDAT_VERDICT_AUTHORS='URIGOWNER URIGSELF1' MDAT_VERDICT_ASKING=URIGSELF1 LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | LC_ALL=C tr '\t' '|' | LC_ALL=C cut -d'|' -f1-2 )" "RETURNED|"
 
 echo "-- the filler, asked directly: the answers and the emoji of a post follow what it was filled with --"
 rigFill(){ ## want, template, form -- the slots come from the caller's environment
-	ASKP_WANT="$1" ASKP_FORM="$3" LC_ALL=C awk -f "$rigHere/AgentsToolingTemplateFill.awk" -f "$rigHere/AgentsAskPostFill.awk" "$rigHere/templates/$2" 2>&1
+	ASKP_WANT="$1" ASKP_FORM="$3" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$rigHere/questions/AgentsAskPostFill.awk" "$rigHere/templates/$2" 2>&1
 }
 rigAssert "with a folder the permission post places four emoji, the folder last; with none, the three as before" \
 	"$( ASKP_F_folder='rig-out:reports/**' rigFill reactions request-permission.post.format.md grant | LC_ALL=C tr '\n' ' ' ):$( rigFill reactions request-permission.post.format.md grant | LC_ALL=C tr '\n' ' ' )" \

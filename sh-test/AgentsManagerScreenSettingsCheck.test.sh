@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the roots `Settings` and `Configuration` of the manager screen (sh-lib/AgentsManagerScreen.py),
+## Behavioural check on the roots `Settings` and `Configuration` of the manager screen (sh-lib/manager/AgentsManagerScreen.py),
 ## run rather than read. The screen's own code runs through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a stand-in script
 ## (check-fixtures/manager-screen.tools.stub.sh), which notes each start and prints the fixture: rows in the form
@@ -27,7 +27,7 @@
 ## Reconciled for F11.0, the table lines: an empty line between two rows of a full table (the rows by line number move), two spaces between the columns, and LOOKS holds the looks of a cell on the ground of a row and on an underlined line besides.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"

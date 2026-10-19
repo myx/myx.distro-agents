@@ -18,7 +18,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigMember="magic-coordinator"
 rigOther="magic-tester"
 
@@ -181,11 +181,11 @@ rigCall(){ ## guard seconds, tool, argument object, optional from-read
 
 ## One post filled straight from its template, as the tool fills it.
 rigFill(){ ## want, template, form -- the slots come from the caller's environment
-	ASKP_WANT="$1" ASKP_FORM="$3" LC_ALL=C awk -f "$rigHere/AgentsToolingTemplateFill.awk" -f "$rigHere/AgentsAskPostFill.awk" "$rigHere/templates/$2" 2>&1
+	ASKP_WANT="$1" ASKP_FORM="$3" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$rigHere/questions/AgentsAskPostFill.awk" "$rigHere/templates/$2" 2>&1
 }
 ## The verdict the one reader takes from one rendering of the answers.
 rigVerdict(){ ## the answers, as AgentsSlackThreadAnswers.awk prints them
-	printf '%s\n' "$1" | MDAT_VERDICT_KIND=proposal MDAT_VERDICT_AUTHORS="URIGOWNER" MDAT_VERDICT_ASKING="URIGSELF1" LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | LC_ALL=C tr '\t' '|'
+	printf '%s\n' "$1" | MDAT_VERDICT_KIND=proposal MDAT_VERDICT_AUTHORS="URIGOWNER" MDAT_VERDICT_ASKING="URIGSELF1" LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | LC_ALL=C tr '\t' '|'
 }
 
 rigLink='https://example.invalid/wiki/PRO-007'
@@ -227,10 +227,10 @@ rigAssert "a reply: rejected, with its text"           "$( rigVerdict '170000000
 rigAssert "a plain ok approves nothing"                "$( rigVerdict '1700000001.000300 | URIGOWNER | ok' )" "RETURNED||"
 rigAssert "the word anywhere but first is no verdict"  "$( rigVerdict '1700000001.000300 | URIGOWNER | I have not approved this' )" "RETURNED||"
 rigAssert "the other kinds read as before: approved is no readback answer" \
-	"$( printf '%s\n' '1700000001.000300 | URIGOWNER | approved' | MDAT_VERDICT_KIND=readback MDAT_VERDICT_AUTHORS="URIGOWNER" LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | LC_ALL=C tr '\t' '|' )" "RETURNED||"
+	"$( printf '%s\n' '1700000001.000300 | URIGOWNER | approved' | MDAT_VERDICT_KIND=readback MDAT_VERDICT_AUTHORS="URIGOWNER" LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | LC_ALL=C tr '\t' '|' )" "RETURNED||"
 rigAssert "only the replies after the live proposal reply are read, and every reaction line" \
 	"$( printf '%s\n' 'reaction on the question: [reactions: x x1 (URIGOWNER)]' '1700000001.000150 | URIGOWNER | an old comment' 'its second line' '1700000001.000300 | URIGOWNER | a new comment' 'and more' \
-		| LC_ALL=C awk -v sinceTs=1700000001.000201 -f "$rigHere/AgentsSlackThreadAnswersSince.awk" | LC_ALL=C tr '\n' '|' )" \
+		| LC_ALL=C awk -v sinceTs=1700000001.000201 -f "$rigHere/comms/AgentsSlackThreadAnswersSince.awk" | LC_ALL=C tr '\n' '|' )" \
 	"reaction on the question: [reactions: x x1 (URIGOWNER)]|1700000001.000300 | URIGOWNER | a new comment|and more|"
 ## The two readers over one thread rendering, so the marking of a set-aside reply is the one the
 ## first of them prints: the answers to the question of 1700000001.000101, in a thread it shares
@@ -242,8 +242,8 @@ rigSince(){ ## the rendered thread after its first two messages, a line each
 		printf '%s\n' '1700000001.000101 | URIGSELF1 | [reactions: x x1 (URIGOWNER)] the question' '1700000001.000120 | URIGSELF1 | another question, asked after it'
 		printf '%s\n' "$@"
 	} | LC_ALL=C awk -v rootTs=1700000001.000101 -v fromUsers=URIGOWNER -v askingUsers=URIGSELF1 -v tag="$rigSinceTag" -v threadCount=2 -v others='1700000001.000120/1700000001' \
-			-f "$rigHere/AgentsDismissalMatch.awk" -f "$rigHere/AgentsSlackThreadAnswers.awk" \
-		| LC_ALL=C awk -v sinceTs=1700000002.500000 -f "$rigHere/AgentsSlackThreadAnswersSince.awk" | LC_ALL=C tr '\n' '|'
+			-f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/comms/AgentsSlackThreadAnswers.awk" \
+		| LC_ALL=C awk -v sinceTs=1700000002.500000 -f "$rigHere/comms/AgentsSlackThreadAnswersSince.awk" | LC_ALL=C tr '\n' '|'
 }
 rigOld='1700000002.000100 | URIGOWNER |'
 rigLive='1700000002.500000 | URIGSELF1 | the live proposal reply'
@@ -261,7 +261,7 @@ rigAssert "a set-aside reply above a reply that is read is still ignored whole" 
 	"reaction on the question: [reactions: x x1 (URIGOWNER)]|$rigNew a new numbered comment|its second line|"
 rigAssert "a reply marked on its head line alone, as before, goes the same way with the lines under it" \
 	"$( printf '%s\n' "UNMATCHED-REPLY $rigOld an old comment" 'its second line' "UNMATCHED-REPLY $rigNew a new comment" 'its second line' \
-		| LC_ALL=C awk -v sinceTs=1700000002.500000 -f "$rigHere/AgentsSlackThreadAnswersSince.awk" | LC_ALL=C tr '\n' '|' )" \
+		| LC_ALL=C awk -v sinceTs=1700000002.500000 -f "$rigHere/comms/AgentsSlackThreadAnswersSince.awk" | LC_ALL=C tr '\n' '|' )" \
 	"UNMATCHED-REPLY $rigNew a new comment|its second line|"
 rigSinceTag=""
 ## A line that reads as one of the thread reader's own marks comes from it one space in (ownLine).
@@ -469,7 +469,7 @@ rigAssert "the item's Decisions keep the verdict with the link, and who gave it"
 rigAssert "the tracking item is not shown in the post: the document is what is approved" "$( LC_ALL=C grep -c -F "$rigItem" "$rigScenarioDir/post.1" "$rigScenarioDir/post.2" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/[^ ]*://g' )" "0 0 "
 
 echo "-- declared and served as the other tools that ask --"
-rigWire="$rigHere/AgentsOpenAiChatWire.sh"
+rigWire="$rigHere/harness/AgentsOpenAiChatWire.sh"
 rigDeclared="$( LC_ALL=C grep -F '{"type":"function","function":{"name":"ProposeApprove",' "$rigWire" )"
 rigAssert "the wire declares it once"                  "$( printf '%s\n' "$rigDeclared" | LC_ALL=C grep -c . )" 1
 for rigField in to question proposal document task_ref context address_to as_bot pending_id revise withdraw description ; do
@@ -477,14 +477,14 @@ for rigField in to question proposal document task_ref context address_to as_bot
 done
 rigAssert "and no field of another kind"               "$( printf '%s' "$rigDeclared" | LC_ALL=C grep -c -e '"kind":{' -e '"options":{' -e '"select":{' -e '"readback":{' -e '"refusal_id":{' )" 0
 rigAssert "the tools JSON holds no apostrophe"         "$( LC_ALL=C awk -v q="'" 'index( $0, "harnessToolsJson=" q ) == 1 { on = 1 ; next ; } on && $0 == "]" q { exit ; } on && index( $0, q ) { hits++ ; } END { print hits + 0 ; }' "$rigWire" )" 0
-rigAssert "the served list is rendered from it"        "$( bash "$rigHere/AgentsHarnessMcpMirror.sh" 2>/dev/null | LC_ALL=C grep -c -F '{"name":"ProposeApprove","description":"Put one proposal to the human-owner' )" 1
+rigAssert "the served list is rendered from it"        "$( bash "$rigHere/harness/AgentsHarnessMcpMirror.sh" 2>/dev/null | LC_ALL=C grep -c -F '{"name":"ProposeApprove","description":"Put one proposal to the human-owner' )" 1
 rigAssert "declared, announced, dispatched and defined: the four sites agree" \
 	"$( LC_ALL=C awk -f "$rigTest/AgentsHarnessSelfCheck.test.awk" "$rigWire" "$rigHarness" > /dev/null 2>&1 ; printf '%s' "$?" )" 0
-. "$rigHere/AgentsTools.AskPost.include"
+. "$rigHere/questions/AgentsTools.AskPost.include"
 rigAssert "the table names it, with its kind, template and own parameters" \
 	"$( AgentsToolsAskToolRow mcp__myx_distro__ProposeApprove && printf '%s|%s|%s|%s|%s' "$agentsAskRowName" "$agentsAskRowKind" "$agentsAskRowTemplate" "$agentsAskRowForm" "$agentsAskRowArgs" )" \
 	"ProposeApprove|proposal|propose-approve.post.format.md|approve|question proposal document task_ref"
-rigAssert "it is a tool of the team floor"             "$( LC_ALL=C grep -c -E '^agentsPermissionFloorTools=".* ProposeApprove .*"$' "$rigHere/AgentsTools.PermissionHolds.include" )" 1
+rigAssert "it is a tool of the team floor"             "$( LC_ALL=C grep -c -E '^agentsPermissionFloorTools=".* ProposeApprove .*"$' "$rigHere/grants/AgentsTools.PermissionHolds.include" )" 1
 
 rigUnknown="$( cat "$rigTmp"/*/curl.log 2>/dev/null | LC_ALL=C awk '$0 ~ /^url:/ || $0 == "no-method" { hitCount++ ; } END { print hitCount + 0 ; }' )"
 rigAssert "no request went anywhere but a Slack method" "$rigUnknown" 0

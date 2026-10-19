@@ -173,7 +173,7 @@ rigAssert "counting each state's items"                     "$( LC_ALL=C grep -x
 
 echo "-- sweep item blocks: author and addressees --"
 printf '%s\n' '{"ok":true,"messages":[{"ts":"1.000001","user":"U1","text":":m: *_magic-coordinator_* @Magic → :k: *_rig-member_* <@U9>; <@U7>.\nbody. more"},{"ts":"1.000002","bot_id":"B1","text":"*_magic-team_* @Team → @here.\nbody"},{"ts":"1.000003","user":"U2","text":"hey <@U5> look"},{"ts":"1.000004","user":"U3","text":"<!channel> all"},{"ts":"1.000005","user":"U3","text":"plain"}]}' \
-	| COMMS_USER_HANDLES=$'U5\talice' LC_ALL=C awk -v kind=slack -v source=magic-team -v channel=CRIG -f "$rigLib/AgentsSessionContextCommsItems.awk" > "$rigTmp/s1"
+	| COMMS_USER_HANDLES=$'U5\talice' LC_ALL=C awk -v kind=slack -v source=magic-team -v channel=CRIG -f "$rigLib/session/AgentsSessionContextCommsItems.awk" > "$rigTmp/s1"
 rigLines(){ LC_ALL=C grep -E '^(author|addressees): ' "$rigTmp/s1" | tr '\n' '|' ; }
 rigAssert "header, platform and @here forms"                "$( rigLines )" "author: magic-coordinator|addressees: rig-member, U7|author: magic-team|addressees: @here (unaddressed)|author: U2|addressees: U5 (alice)|author: U3|addressees: @here (unaddressed)|author: U3|addressees: (none stated)|"
 rigAssert "placed right after user:"                        "$( LC_ALL=C awk '/^user: / { u = NR ; } /^author: / { print ( NR == u + 1 ) ? "ok" : "bad" ; exit ; }' "$rigTmp/s1" )" ok

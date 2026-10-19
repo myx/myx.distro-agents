@@ -31,7 +31,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTools="${rigHere%/sh-lib}/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 ## THE ONE PLACE the setting that maps a console account to an owner is named.
 rigOwnerKey="HUMAN_OWNER_CONSOLE_ACCOUNT"
 

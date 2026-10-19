@@ -23,7 +23,7 @@ set -u
 
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 
 ## Refusing to report is this block's whole job: a run that exercised nothing must never
 ## print a pass. That property is what the void control this replaces did not have.
@@ -103,9 +103,9 @@ rigAssert "a root this package's own access-root mechanism yields did reach the 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ ACCESS ROOTS CHECK FAILED: $rigFails assertion(s)" >&2
 	echo "  warn: the no-flag access-root set is no longer taken from" >&2
-	echo "        sh-lib/AgentsTools.ClientAccessRoots.include, which is the one place" >&2
+	echo "        sh-lib/client/AgentsTools.ClientAccessRoots.include, which is the one place" >&2
 	echo "        it is defined -- a launch fragment is a rendered copy downstream of it" >&2
-	echo "  fix:  repair the resolution in sh-lib/AgentsUniversalHarness.sh -- never the" >&2
+	echo "  fix:  repair the resolution in sh-lib/harness/AgentsUniversalHarness.sh -- never the" >&2
 	echo "        assertion, and never by reading a client's own published file" >&2
 	exit 1
 fi

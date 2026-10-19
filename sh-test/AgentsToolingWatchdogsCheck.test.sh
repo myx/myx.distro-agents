@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on three watchdogs of the tooling, each run rather than read: the Bash tool's
-## (sh-lib/AgentsUniversalHarness.sh, AgentsHarnessToolBash), the MCP client's (sh-lib/AgentsHarnessMcpClient.sh,
+## (sh-lib/harness/AgentsUniversalHarness.sh, AgentsHarnessToolBash), the MCP client's (sh-lib/harness/AgentsHarnessMcpClient.sh,
 ## AgentsHarnessMcpRun), both where the host has no `timeout` command, and the one of the handback retry
-## (sh-lib/AgentsTools.InternOpAgentSpawnProxy.include, AgentsToolsSpawnProxyHandbackWarn). Each starts a process,
+## (sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include, AgentsToolsSpawnProxyHandbackWarn). Each starts a process,
 ## and beside it a watchdog that ends that process at its bound, so a command, a call or a retry that hangs does
 ## not hold its caller. Each watchdog knows its process by its pid, and a pid is a number the system gives again:
 ## at the bound it may name another process. The hook's watchdog is AgentsHarnessHookWatchdogCheck's.
@@ -25,14 +25,14 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
-rigMcpClient="$rigHere/AgentsHarnessMcpClient.sh"
-rigSpawnInclude="$rigHere/AgentsTools.InternOpAgentSpawnProxy.include"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
+rigMcpClient="$rigHere/harness/AgentsHarnessMcpClient.sh"
+rigSpawnInclude="$rigHere/session/AgentsTools.InternOpAgentSpawnProxy.include"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigHarness" "$rigMcpClient" "$rigSpawnInclude" "$rigHere/AgentsTools.Registries.include" ; do
+for rigFile in "$rigHarness" "$rigMcpClient" "$rigSpawnInclude" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 rigRealSleep="$( command -v sleep )" || rigRefuse "no sleep on PATH to hand the other waits to"

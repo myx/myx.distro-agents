@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check: the kill of a session from the console goes through the control thread of that session
-## (--manager-session-kill, --intern-session-control, sh-lib/AgentsTools.SessionControlRequest.include). Run rather
+## (--manager-session-kill, --intern-session-control, sh-lib/session/AgentsTools.SessionControlRequest.include). Run rather
 ## than read, in a rig workspace built here: sessions with stand-in runs and REAL control threads, whose own
 ## command lines stand in the rig's process list beside the stand-ins of the runs.
 ## Held:
@@ -465,7 +465,7 @@ echo ""
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SESSION CONTROL KILL REQUEST CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2
 	echo "  warn: a kill of a session does not go through its control thread as it should, or depends on it" >&2
-	echo "  fix:  the request and its outcome (sh-lib/AgentsTools.SessionControlRequest.include), the thread's look at a tick and its call apart (sh-lib/AgentsTools.InternSessionControl.include), the operation (sh-lib/AgentsTools.ManagerSession.include) -- never the assertion" >&2
+	echo "  fix:  the request and its outcome (sh-lib/session/AgentsTools.SessionControlRequest.include), the thread's look at a tick and its call apart (sh-lib/session/AgentsTools.InternSessionControl.include), the operation (sh-lib/manager/AgentsTools.ManagerSession.include) -- never the assertion" >&2
 	exit 1
 fi
 printf 'SESSION_CONTROL_KILL_REQUEST: OK (%d assertions, offline, rig tree only)\n' "$rigPasses"

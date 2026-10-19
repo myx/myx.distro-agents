@@ -20,7 +20,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigMember="magic-tester"
 
@@ -297,9 +297,9 @@ rigEmoji(){ ## which post
 }
 
 ## The one number a stream of single requests is held to, from the model's own home.
-rigLimit="$( MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PermissionHolds.include" ; printf "%s" "${agentsPermissionSingleAsks:-}"' 2>/dev/null )"
+rigLimit="$( MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" ; printf "%s" "${agentsPermissionSingleAsks:-}"' 2>/dev/null )"
 rigAssert "the number of single requests the human-owner answers for one session and one task is one number, held in one place" \
-	"$rigLimit:$( LC_ALL=C grep -c '^agentsPermissionSingleAsks=' "$rigHere"/*.include "$rigHere"/*.sh 2>/dev/null | LC_ALL=C awk -F: '{ total += $NF ; } END { print total + 0 ; }' )" "1:1"
+	"$rigLimit:$( LC_ALL=C grep -c '^agentsPermissionSingleAsks=' "$rigHere"/*/*.include "$rigHere"/*/*.sh 2>/dev/null | LC_ALL=C awk -F: '{ total += $NF ; } END { print total + 0 ; }' )" "1:1"
 
 echo "-- a member asks for what its task needs in one ask: one post, and one click grants all of it --"
 rigStart asked-set task
@@ -460,7 +460,7 @@ rigAssert "the line after the refusal id says it is no verdict, and names the to
 	"$( LC_ALL=C awk 'seenId { print substr( $0, 1, 33 ) ; exit ; } /^REFUSAL-ID: / { seenId = 1 ; }' "$rigHint" ):$( rigHolds "$rigHint" "ask for it with RequestPermission refusal_id=$rigFirst, a reason and a task_ref." )" \
 	"This is a refusal, not a verdict.:yes"
 ## The practice as the declaration carries it: from its first numbered line to the sentence that ends it.
-rigPractice="$( LC_ALL=C awk 'index( $0, "\"name\":\"RequestPermission\"" ) { from = index( $0, "How to ask, in five lines: (1) " ) ; upTo = index( $0, " The details follow." ) ; if ( from && upTo > from ) { text = substr( $0, from + 27, upTo - from - 27 ) ; for ( lineNo = 2 ; lineNo <= 9 ; lineNo++ ) { gsub( " \\(" lineNo "\\) ", "\n(" lineNo ") ", text ) ; } print text ; } exit ; }' "$rigHere/AgentsOpenAiChatWire.sh" )"
+rigPractice="$( LC_ALL=C awk 'index( $0, "\"name\":\"RequestPermission\"" ) { from = index( $0, "How to ask, in five lines: (1) " ) ; upTo = index( $0, " The details follow." ) ; if ( from && upTo > from ) { text = substr( $0, from + 27, upTo - from - 27 ) ; for ( lineNo = 2 ; lineNo <= 9 ; lineNo++ ) { gsub( " \\(" lineNo "\\) ", "\n(" lineNo ") ", text ) ; } print text ; } exit ; }' "$rigHere/harness/AgentsOpenAiChatWire.sh" )"
 rigPracticeLines="$( printf '%s\n' "$rigPractice" | LC_ALL=C grep -c . )"
 rigAssert "the declaration carries the practice, in at most five lines, each numbered" \
 	"$( [ "$rigPracticeLines" -ge 3 ] && [ "$rigPracticeLines" -le 5 ] && printf in-five || printf "$rigPracticeLines" ):$( printf '%s\n' "$rigPractice" | LC_ALL=C grep -c -v '^([1-5]) ' )" "in-five:0"
@@ -482,7 +482,7 @@ rigAssert "the practice says each thing the task is asked by: what the task need
 rigOp --intern-op-permission-refusal-log "$rigMember" --session-id "$rigSession" --tool Read --target /nowhere/rig/hint --reason 'a read the rig made up'
 rigAssert "the refusal record's own operation gives the hint, so a native client's refusal says the same" \
 	"$( rigStarts "$rigScenarioDir/op.out" 'refusal-' ):$( rigStarts "$rigScenarioDir/op.out" 'HINT: This is a refusal, not a verdict.' ):$( rigStarts "$rigScenarioDir/op.out" 'HINT: (1) ' )" "1:1:1"
-rigDeclared="$( LC_ALL=C grep -F '"name":"RequestPermission"' "$rigHere/AgentsOpenAiChatWire.sh" )"
+rigDeclared="$( LC_ALL=C grep -F '"name":"RequestPermission"' "$rigHere/harness/AgentsOpenAiChatWire.sh" )"
 rigAssert "the declaration takes entries, a list, and holds no apostrophe" \
 	"$( rigSaid "$rigDeclared" '"entries":{"type":"array","items":{"type":"string"}' ):$( printf '%s' "$rigDeclared" | LC_ALL=C tr -c -d "'" | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' )" "y:0"
 

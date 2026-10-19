@@ -68,7 +68,7 @@ rigAssert "rc 0, no error, and each of its first lines a syntax line of the help
 rigAssert "the bare call is as it was: rc 1, its default syntax, a member's entry point among it" "$rigBareRc $( LC_ALL=C grep -c -F -e 'fn.sh --member-help <team-member>' -e 'fn.sh --agents-config-option' "$rigTmp/bare" )" "1 2"
 rigAssert "in: an --owner-* operation, and every entry point of the bare call but a member's" "$( LC_ALL=C grep -c -F -e 'fn.sh --owner-workspace-list' "$rigTmp/first" ) $( LC_ALL=C grep -v -F -e 'fn.sh --member-' "$rigTmp/bare" | LC_ALL=C grep -c -v -x -F -f "$rigTmp/first" )" "1 0"
 rigAssert "out: a member's operation and a librarian's, as the owner said, and an internal one" "$( LC_ALL=C grep -c -F -e 'fn.sh --member-' -e 'fn.sh [--member-' "$rigTmp/first" ) $( LC_ALL=C grep -c -F -e 'fn.sh --librarian-' "$rigTmp/first" ) $( LC_ALL=C grep -c -F -e 'fn.sh --intern-' -e 'fn.sh [--intern-' "$rigTmp/first" )" "0 0 0"
-rigLeftOut="$( LC_ALL=C sed -n "s/^[[:space:]]*local helpReadOut='\(.*\)'$/\1/p" "$rigHere/AgentsTools.ManagerHelp.include" )"
+rigLeftOut="$( LC_ALL=C sed -n "s/^[[:space:]]*local helpReadOut='\(.*\)'$/\1/p" "$rigHere/manager/AgentsTools.ManagerHelp.include" )"
 rigAssert "the families it leaves out are named in one line of the read, the owner's three among them, and none of them shows" "$( printf '%s\n' $rigLeftOut | LC_ALL=C grep -c -x -e '--intern-' -e '--member-' -e '--librarian-' ) $( for rigFamily in $rigLeftOut ; do LC_ALL=C grep -F -e "fn.sh $rigFamily" -e "fn.sh [$rigFamily" "$rigTmp/first" ; done | LC_ALL=C grep -c '' )" "3 0"
 
 echo "-- 2. the rule in a help that has every kind: a rig origin, its help with an operation of four families more --"
@@ -141,7 +141,7 @@ rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout
 rigLine="📘 syntax: DistroAgentsTools.fn.sh $rigRead"
 rigAssert "it has its syntax echo, its syntax line and its entry, once each" "$( LC_ALL=C grep -c -x -F -- "echo \"$rigLine\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigLine" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s' "$rigRead" )" "$rigHelpMd" || : )" "1 1 1"
 rigAssert "and so has its form with a command: its syntax echo, its syntax line, and the line that heads the same entry" "$( LC_ALL=C grep -c -x -F -- "echo \"$rigLine <Name>.fn.sh\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigLine <Name>.fn.sh" "$rigHelpMd" || : ) $( LC_ALL=C grep -A1 -x -F -- "$( printf '\t\t%s' "$rigRead" )" "$rigHelpMd" | LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s <Name>.fn.sh' "$rigRead" )" || : )" "1 1 1"
-rigAssert "the family's include has one arm for the help, which sources its include" "$( LC_ALL=C grep -c -x -e '	--manager-help-\*)' "$rigHere/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerHelp.include"' "$rigHere/AgentsTools.Manager.include" || : )" "1 1"
+rigAssert "the family's include has one arm for the help, which sources its include" "$( LC_ALL=C grep -c -x -e '	--manager-help-\*)' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerHelp.include"' "$rigHere/manager/AgentsTools.Manager.include" || : )" "1 1"
 
 echo "-- 5. one tooling command's help: what its own --help prints it from, read, and the command never run --"
 ## A rig project with a command whose help stands beside it, as the family's commands have theirs: its help include

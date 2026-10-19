@@ -47,7 +47,7 @@ set -u
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigLib="$rigPackage/sh-lib"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$rigLib/AgentsUniversalHarness.sh"
+rigHarness="$rigLib/harness/AgentsUniversalHarness.sh"
 rigFixture="$rigPackage/sh-test/check-fixtures/slack-send-identity-check.curl.stub.sh"
 rigHelper="$rigPackage/sh-test/check-fixtures/rig-processes.include.sh"
 rigNote="tooling-note.post.format.md"
@@ -347,7 +347,7 @@ rigNativeRun="$( rigRunId )" ; rigNativeLog="$rigLog"
 ## THE ONE READING ITSELF (AgentsToolsSpawnProxyHandbacks): a line for each handback the transcript of a run holds, with
 ## where it went; the output only where the transcript holds none, or the run has no transcript.
 rigRead(){ ## run, its output file -- what the one reading says of it, its lines side by side
-	rigEnv "$rigTmp" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" ; AgentsToolsSpawnProxyHandbacks "$1" "$2"' rig "$1" "$2" 2> /dev/null | LC_ALL=C tr '\n' ' '
+	rigEnv "$rigTmp" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" ; AgentsToolsSpawnProxyHandbacks "$1" "$2"' rig "$1" "$2" 2> /dev/null | LC_ALL=C tr '\n' ' '
 }
 rigRunOf(){ basename "$( head -1 "$rigTmp/$1/record" 2> /dev/null )" .md ; } ## scenario -- the run of it
 printf '📦 SubagentHandback\n' > "$rigTmp/harness-shaped.log"
@@ -372,12 +372,12 @@ rigAssert "it is no ask: no record of a question is opened, and nothing is place
 rigAssert "and its record is closed, its item in review" "$( rigHeader "$rigRecord" status ):$( rigItemIn "$rigItem" )" "spawn-succeeded:review"
 
 echo "-- 4b. a run that reports to a member is told in that member's own conversation: its inbox, where it has no Slack DM --"
-rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigLib/AgentsTools.SpawnSandbox.include" )"
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigLib/session/AgentsTools.SpawnSandbox.include" )"
 rigToMember="rtm4b$$x"
 mkdir -p "$rigSp/$rigToMember" "$rigTmp/s4b"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: rig-member-b\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-ended-without-close\nsession-thread: CRIGOWN4B:1700000004.000200\n---\n' \
 	"$rigToMember" "$rigToMember" "$rigReportsTo" "$rigToMember" "$rigHost" > "$rigSp/$rigToMember/$rigToMember.md"
-printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToMember/$rigToMember.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
+printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToMember/$rigToMember.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
 	| rigEnv "$rigTmp/s4b" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4b/out" 2>&1
 rigAssert "told once, in the inbox of the member it reports to, and in no conversation" \
 	"$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4b/out" ):$( LC_ALL=C grep -l -F -- "${rigToMember:0:8}" "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' ):$( rigNoteCount "$rigTmp/s4b" "${rigToMember:0:8}" )" "1:1:0"
@@ -387,7 +387,7 @@ rigToNone="rtn4c$$x"
 mkdir -p "$rigSp/$rigToNone" "$rigTmp/s4c"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: none\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-ended-without-close\nsession-thread: CRIGOWN4C:1700000004.000300\n---\n' \
 	"$rigToNone" "$rigToNone" "$rigReportsTo" "$rigToNone" "$rigHost" > "$rigSp/$rigToNone/$rigToNone.md"
-printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToNone/$rigToNone.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
+printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToNone/$rigToNone.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
 	| rigEnv "$rigTmp/s4c" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4c/out" 2>&1
 rigAssert "nothing said, nothing posted, nothing left in an inbox" \
 	"$( LC_ALL=C grep -c -x 'SAID=none' "$rigTmp/s4c/out" ):$( rigNoteCount "$rigTmp/s4c" "${rigToNone:0:8}" ):$( LC_ALL=C grep -l -F -- "${rigToNone:0:8}" "$rigData"/inboxes/*/incoming/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "1:0:0"
@@ -525,7 +525,7 @@ rigWaitFor 90 rigRecordClosed ; rigWaitFor 60 rigHasEnded "$rigShell"
 echo "-- 8. the words are the template's --"
 ## One block filled straight from its template, as the tooling fills it.
 rigBlock(){ ## block `<Section>/<heading>` -- the slots come from the caller's environment
-	ASKP_WANT=block ASKP_BLOCK="$1" ASKP_FORM="" LC_ALL=C awk -f "$rigLib/AgentsToolingTemplateFill.awk" -f "$rigLib/AgentsAskPostFill.awk" "$rigLib/templates/$rigNote" 2>&1
+	ASKP_WANT=block ASKP_BLOCK="$1" ASKP_FORM="" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$rigLib/questions/AgentsAskPostFill.awk" "$rigLib/templates/$rigNote" 2>&1
 }
 rigAssert "the line of a run that ended and handed back in another thread" "$( ASKP_F_member=keeper-rig ASKP_F_run=0a1b2c3d rigBlock Session/run-ended )" \
 	'🏁 keeper-rig ended its run `0a1b2c3d`. Its handback was posted in another thread, not in this one.'
@@ -544,13 +544,13 @@ rigAssert "each line of an end takes those words after its own, and stands as it
 	"$( for rigLine in handback-missing run-ended run-killed run-stopped run-bound ; do ASKP_F_member=k ASKP_F_run=r ASKP_F_by=b ASKP_F_seconds=1 ASKP_F_unrequested=UNREQUESTED rigBlock "Session/$rigLine" | LC_ALL=C grep -c ' UNREQUESTED$' | LC_ALL=C tr '\n' ' ' ; done )" "1 1 1 1 1 "
 ## Each text by words only it has; a comment line is no code.
 rigInCode(){ ## fixed text -> how many code lines of the package hold it
-	cat "$rigLib"/*.sh "$rigLib"/*.include "$rigPackage/sh-scripts"/*.sh 2> /dev/null | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- "$1" || :
+	cat "$rigLib"/*/*.sh "$rigLib"/*/*.include "$rigPackage/sh-scripts"/*.sh 2> /dev/null | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- "$1" || :
 }
 for rigPhrase in 'posted no handback' 'Its handback was posted in another thread' 'was killed from the console' 'with TaskStop' 'was ended by the tooling' 'No session requested this run' ; do
 	rigAssert "no code line holds: $rigPhrase" "$( rigInCode "$rigPhrase" )" 0
 done
 rigAssert "one function tells the end of a run, whoever closes it: the supervising shell in both its closes, and the advance pass" \
-	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigLib/AgentsTools.InternOpAgentSpawnProxy.include" | LC_ALL=C grep -c -F 'AgentsToolsSpawnProxyEndNotice "$sandboxTracking"' ):$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigLib/AgentsTools.MagicAdvance.include" | LC_ALL=C grep -c -F 'AgentsToolsSpawnProxyEndNotice "$recordPath"' ):$( cat "$rigLib"/*.include "$rigLib"/*.sh | LC_ALL=C grep -c -E '^AgentsToolsSpawnProxy(EndNotice|SessionNotice)\(\)\{' )" "2:1:2"
+	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigLib/session/AgentsTools.InternOpAgentSpawnProxy.include" | LC_ALL=C grep -c -F 'AgentsToolsSpawnProxyEndNotice "$sandboxTracking"' ):$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigLib/magic/AgentsTools.MagicAdvance.include" | LC_ALL=C grep -c -F 'AgentsToolsSpawnProxyEndNotice "$recordPath"' ):$( cat "$rigLib"/*/*.include "$rigLib"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsSpawnProxy(EndNotice|SessionNotice)\(\)\{' )" "2:1:2"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SPAWN END NOTICE CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

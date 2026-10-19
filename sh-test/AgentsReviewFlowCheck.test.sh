@@ -17,7 +17,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-rigHarness="$rigLib/AgentsUniversalHarness.sh"
+rigHarness="$rigLib/harness/AgentsUniversalHarness.sh"
 rigFixture="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/slack-send-identity-check.curl.stub.sh"
 
 rigRefuse(){
@@ -232,14 +232,14 @@ echo "-- 3. the close fix: only a running item moves; review, processed and pend
 for rigState in review processed pending ; do
 	rigItem "$rigState" "dispatch-20261008T1200Z-close-$rigState" ""
 	rigRun "$rigTmp/c-$rigState" bash -c '. "$1" ; . "$2" ; AgentsToolsSpawnProxyCloseDispatch "$3" "" 0 rig.log succeeded running review' \
-		rig "$rigFn" "$rigLib/AgentsTools.SpawnSandbox.include" "dispatch-20261008T1200Z-close-$rigState.md"
+		rig "$rigFn" "$rigLib/session/AgentsTools.SpawnSandbox.include" "dispatch-20261008T1200Z-close-$rigState.md"
 	rigAssert "an item in $rigState stays in $rigState"    "$( rigLoc "dispatch-20261008T1200Z-close-$rigState" )" "$rigState"
 done
 rigAssert "the review item gets its Result in place"       "$( LC_ALL=C grep -c '^## Result' "$rigData/board/review/dispatch-20261008T1200Z-close-review.md" )" 1
 rigAssert "the processed item is left untouched"           "$( LC_ALL=C grep -c '^## Result' "$rigData/board/processed/dispatch-20261008T1200Z-close-processed.md" )" 0
 rigItem running dispatch-20261008T1200Z-close-running ""
 rigRun "$rigTmp/c-running" bash -c '. "$1" ; . "$2" ; AgentsToolsSpawnProxyCloseDispatch "$3" "" 0 rig.log succeeded running review' \
-	rig "$rigFn" "$rigLib/AgentsTools.SpawnSandbox.include" dispatch-20261008T1200Z-close-running.md
+	rig "$rigFn" "$rigLib/session/AgentsTools.SpawnSandbox.include" dispatch-20261008T1200Z-close-running.md
 rigAssert "a running one moves to review"                  "$( rigLoc dispatch-20261008T1200Z-close-running )" review
 rigAssert "as ended-without-handback, in Decisions"        "$( rigDecisions "$rigData/board/review/dispatch-20261008T1200Z-close-running.md" 'review: ended-without-handback' )" 1
 
@@ -322,7 +322,7 @@ rigAssert "the item stays in review"                       "$( rigLoc dispatch-2
 rigAssert "one Decisions line, for two Waits"              "$( rigDecisions "$rigData/board/review/dispatch-20261008T1200Z-hb.md" 'dismissed: review-wait-expired' )" 1
 rigAssert "a transcript ENDING line"                       "$( LC_ALL=C grep -c ' ENDING item=dispatch-20261008T1200Z-hb kind=dismissed ' "$rigTmp/tr-rig-child-1.log" )" 1
 LC_ALL=C sed -i.bak '/^REVIEW_WAIT_LIMIT=/d' "$rigWs/.local/.agents/magic-team.agent.env" && rm -f "$rigWs/.local/.agents/magic-team.agent.env.bak"
-rigRun "$rigTmp/w3" bash -c '. "$1" ; . "$2" ; AgentsReviewWaitLeft rig-child-fb' rig "$rigFn" "$rigLib/AgentsTools.ReviewFlow.include"
+rigRun "$rigTmp/w3" bash -c '. "$1" ; . "$2" ; AgentsReviewWaitLeft rig-child-fb' rig "$rigFn" "$rigLib/board/AgentsTools.ReviewFlow.include"
 rigAssert "under the default 3600s limit, time is left"    "$( LC_ALL=C grep -c -E '^3[56][0-9]{2}$' "$rigTmp/w3" )" 1
 
 ## ---------------------------------------------------------------- verdicts
@@ -391,7 +391,7 @@ rigEnv=()
 rigAssert "its handback to session-parent reaches the thread of the session that started the run it replaces" \
 	"$( LC_ALL=C grep -c 'no recorded parent session' "$rigTmp/v3h" ):$( LC_ALL=C grep '"channel": *"CPRS00001"' "$rigTmp/bodies" | LC_ALL=C grep -c -F 'redone' )" 0:1
 
-rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" )"
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" )"
 echo "-- 9d. return to an ended run that had no parent session, made from inside another session: it has none again --"
 rigRecord rig-ended-np spawn-succeeded CENP00001:1700000000.000570 dispatch-20261008T1200Z-np trk-rig-np 'start-context: spawned
 '
@@ -920,7 +920,7 @@ rigAssert "with force the command gets the hard kill: it is gone with the run, a
 ## reads it by the same function): a kept line whose start is no longer the process's own gives nothing.
 rigStandIn
 rigAssert "a kept pid that another process has taken since is none of what is left: the same pid with another start gives nothing, and with its own start gives the pid" \
-	"$( MMDAPP="$rigWs" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" bash -c '. "$1/AgentsTools.Registries.include" 2> /dev/null ; AgentsToolsRegistryRunLeft rig-no-such-run "$2 Mon_Jan__1_00:00:00_2001" - | tr "\n" " " ; printf "/ " ; AgentsToolsRegistryRunLeft rig-no-such-run "$2 $3" - | tr "\n" " "' rig-left "$rigLib" "$rigStandPid" "$rigStandStart" )" "/ $rigStandPid "
+	"$( MMDAPP="$rigWs" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" bash -c '. "$1/AgentsTools.Registries.include" 2> /dev/null ; AgentsToolsRegistryRunLeft rig-no-such-run "$2 Mon_Jan__1_00:00:00_2001" - | tr "\n" " " ; printf "/ " ; AgentsToolsRegistryRunLeft rig-no-such-run "$2 $3" - | tr "\n" " "' rig-left "$rigLib/../../myx.distro-.local/sh-lib/registry" "$rigStandPid" "$rigStandStart" )" "/ $rigStandPid "
 rigProcSignal TERM "$rigStandChild" "$rigStandPid"
 
 ## ---------------------------------------------------------------- a return resumed natively
@@ -928,7 +928,7 @@ rigProcSignal TERM "$rigStandChild" "$rigStandPid"
 ## never a real session): it answers --version and auth, logs each launch's argv, emits two
 ## stream-json lines and a handback mark, and fails a --fork-session launch while
 ## claude-resume-fails exists. The workspace selects claude-native.
-rigTemplate="$rigLib/AgentsConsoleShellScript.template.sh"
+rigTemplate="$rigLib/manager/AgentsConsoleShellScript.template.sh"
 [ -f "$rigTemplate" ] || rigRefuse "console template not found: $rigTemplate"
 printf 'MDLT_CONSOLE_ORIGIN=%s\n' "$MDLT_ORIGIN" > "$rigWs/.local/MDLT.settings.env"
 printf 'SPAWN_CLI_SERVICE=claude-native\n' >> "$rigWs/.local/.agents/magic-team.agent.env"
@@ -991,7 +991,7 @@ cli-setting: $rigCliSetting
 "
 LC_ALL=C sed -i.bak "s/^host: .*/host: rig-other-host/" "$rigSpawned/trk-rs-oh/rig-old-oh.md" && rm -f "$rigSpawned/trk-rs-oh/rig-old-oh.md.bak"
 mkdir -p "$rigTmp/.claude/projects/-rig-ws" && : > "$rigTmp/.claude/projects/-rig-ws/rig-old-oh.jsonl"
-rigRun "$rigTmp/rs-oh" bash -c '. "$1" ; . "$2" ; AgentsReviewResumeEligible "$3"' rig "$rigFn" "$rigLib/AgentsTools.ReviewFlow.include" "$rigSpawned/trk-rs-oh/rig-old-oh.md"
+rigRun "$rigTmp/rs-oh" bash -c '. "$1" ; . "$2" ; AgentsReviewResumeEligible "$3"' rig "$rigFn" "$rigLib/board/AgentsTools.ReviewFlow.include" "$rigSpawned/trk-rs-oh/rig-old-oh.md"
 rigAssert "another host is ineligible"                     "$( cat "$rigTmp/rs-oh.rc" ):$( LC_ALL=C grep -c -F "the old session ran on host rig-other-host, not $rigHost" "$rigTmp/rs-oh" )" 1:1
 ## A live session is never restarted -- a return delivers to it -- so its reason is checked directly.
 rigLive rig-old-lv-$$
@@ -1000,7 +1000,7 @@ cli-setting: $rigCliSetting
 "
 : > "$rigTmp/.claude/projects/-rig-ws/rig-old-lv-$$.jsonl"
 sleep 1
-rigRun "$rigTmp/rs-lv" bash -c '. "$1" ; . "$2" ; AgentsReviewResumeEligible "$3"' rig "$rigFn" "$rigLib/AgentsTools.ReviewFlow.include" "$rigSpawned/trk-rs-lv/rig-old-lv-$$.md"
+rigRun "$rigTmp/rs-lv" bash -c '. "$1" ; . "$2" ; AgentsReviewResumeEligible "$3"' rig "$rigFn" "$rigLib/board/AgentsTools.ReviewFlow.include" "$rigSpawned/trk-rs-lv/rig-old-lv-$$.md"
 rigAssert "a live session is ineligible"                   "$( cat "$rigTmp/rs-lv.rc" ):$( LC_ALL=C grep -c -F 'the old session is still running' "$rigTmp/rs-lv" )" 1:1
 
 echo "-- 19. a resume failing before its first event falls back, once, to a new process --"

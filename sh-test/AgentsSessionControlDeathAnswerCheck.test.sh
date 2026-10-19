@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on what follows the question about a dead run (--intern-session-control,
-## sh-lib/AgentsTools.SessionControlDeath.include), run rather than read, in the rig of AgentsSessionControlDeathCheck:
+## sh-lib/session/AgentsTools.SessionControlDeath.include), run rather than read, in the rig of AgentsSessionControlDeathCheck:
 ## spawn records, session stores, a board, a stand-in console, and a process list and a Slack of the rig's own.
 ## Held:
 ##   1. THE REVIEW LIMIT IS HELD while a question about a death stands open in the session of a run that waits for
@@ -417,7 +417,7 @@ rigQuestion(){ ## session id, run id of the death, pending id, status, resolved 
 }" > "$rigPending/$3.md"
 }
 rigLeft(){ ## run id -- what the review limit gives its Wait: `<rc>:<what it printed>`
-	rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include"' "rigOut=\"\$( AgentsReviewWaitLeft $1 )\" ; echo \"rig-left=\$?:\$rigOut\"" | LC_ALL=C sed -n 's/^rig-left=//p'
+	rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"' "rigOut=\"\$( AgentsReviewWaitLeft $1 )\" ; echo \"rig-left=\$?:\$rigOut\"" | LC_ALL=C sed -n 's/^rig-left=//p'
 }
 rigWaiter w-open h-open 7200 ; rigQuestion h-open x-open rig-q-open reply-pending
 rigAssert "a participant two hours in review, while a question about the death of another run of its session stands open: no limit is given, so its Wait is not bounded and nobody is dismissed" "$( rigLeft w-open )" "1:"
@@ -601,7 +601,7 @@ echo ""
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SESSION CONTROL DEATH ANSWER CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2
 	echo "  warn: the review limit runs while a question about a death is open, or its answer is not read, or not carried out once" >&2
-	echo "  fix:  sh-lib/AgentsTools.SessionControlDeath.include, AgentsReviewWaitLeft of sh-lib/AgentsTools.ReviewFlow.include, and the step of a death in sh-lib/AgentsTools.InternSessionControl.include -- never the assertion" >&2
+	echo "  fix:  sh-lib/session/AgentsTools.SessionControlDeath.include, AgentsReviewWaitLeft of sh-lib/board/AgentsTools.ReviewFlow.include, and the step of a death in sh-lib/session/AgentsTools.InternSessionControl.include -- never the assertion" >&2
 	exit 1
 fi
 printf 'SESSION_CONTROL_DEATH_ANSWER: OK (%d assertions, offline, rig tree only)\n' "$rigPasses"

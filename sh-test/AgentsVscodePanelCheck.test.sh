@@ -15,7 +15,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigPanel="$rigPackage/vscode/magic-team"
-rigField="$rigPackage/sh-lib/AgentsHarnessJsonField.awk"
+rigField="$rigPackage/sh-lib/harness/AgentsHarnessJsonField.awk"
 rigStandIn="$rigPackage/sh-test/check-fixtures/vscode-panel-check.node.stub.sh"
 
 rigRefuse(){

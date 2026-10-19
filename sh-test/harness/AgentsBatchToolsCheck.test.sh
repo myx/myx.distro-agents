@@ -27,7 +27,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigTool="${rigHere%/sh-lib}/sh-scripts/DistroAgentsTools.fn.sh"
 
 rigRefuse(){
@@ -94,7 +94,7 @@ rigFive(){ ## tag
 }
 
 echo "-- 1. it is listed, and says what it saves --"
-rigAssert "the harness's tools list names BatchTools"         "$( LC_ALL=C grep -c -F '"name":"BatchTools"' "$rigHere/AgentsOpenAiChatWire.sh" )" 1
+rigAssert "the harness's tools list names BatchTools"         "$( LC_ALL=C grep -c -F '"name":"BatchTools"' "$rigHere/harness/AgentsOpenAiChatWire.sh" )" 1
 printf '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' | ( cd "$rigFix" && env -u CLAUDE_CODE_SESSION_ID MMDAPP="$rigTmp" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" HOME="$rigTmp/home" bash "$rigTool" --intern-mcp-server --run ) > "$rigTmp/list.wire" 2> /dev/null
 rigAssert "the MCP server's tools list names BatchTools"      "$( LC_ALL=C grep -c -F '"name":"BatchTools"' "$rigTmp/list.wire" )" 1
 rigAssert "its description says it saves rounds and returns one structured result" \

@@ -66,8 +66,8 @@ rigLiteralList(){
 ## THE LIST OF STARTS BY PATH. The same form: the tool script named by its path as a command, left so on purpose.
 rigStartList(){
 	printf '%s\n' \
-		'sh-lib/AgentsConsoleShellScript.template.sh|1|DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }|the name by which a command of the member reaches the tooling: its body runs in whatever shell that command runs in, where BASH may name a shell in sh mode or nothing at all, so it starts the script by its path and its first line finds bash' \
-		'sh-lib/AgentsUniversalHarness.sh|1|DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }|the name by which a command of the member reaches the tooling, exported to the shells its commands run in: its body runs in whatever shell that is, where BASH may name a shell in sh mode or nothing at all, so it starts the script by its path and its first line finds bash'
+		'sh-lib/manager/AgentsConsoleShellScript.template.sh|1|DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }|the name by which a command of the member reaches the tooling: its body runs in whatever shell that command runs in, where BASH may name a shell in sh mode or nothing at all, so it starts the script by its path and its first line finds bash' \
+		'sh-lib/harness/AgentsUniversalHarness.sh|1|DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }|the name by which a command of the member reaches the tooling, exported to the shells its commands run in: its body runs in whatever shell that is, where BASH may name a shell in sh mode or nothing at all, so it starts the script by its path and its first line finds bash'
 }
 ## THE READER OF THE CODE. mode literal: a fixed path to bash, a word that starts with / and ends in /bash and is
 ## not the tail of a longer word or of an expansion ("$rigBin/bash" is no fixed path). mode start: the tool script
@@ -150,7 +150,7 @@ rigSelf="sh-test/${0##*/}"
 echo "-- 1. first lines: no file of the package names bash by a path --"
 ( cd "$rigPackage" && find . -type f ! -path './.git/*' | LC_ALL=C sed 's|^\./||' | LC_ALL=C sort ) > "$rigTmp/all.files"
 rigAssert "control: the files of the package are read, the hooks, the tool script, the console template, the builders and the checks among them" \
-	"$( [ "$( wc -l < "$rigTmp/all.files" | LC_ALL=C tr -d ' ' )" -ge 600 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/client-hooks/deny-memory-md-read.sh' -e 'sh-scripts/DistroAgentsTools.fn.sh' -e 'sh-lib/AgentsConsoleShellScript.template.sh' -e 'builders/source-prepare/1201-agents-indices.sh' -e 'sh-test/AgentsRunTests.sh' -e 'sh-test/check-fixtures/AgentsHarnessHooks.legacy.sh' "$rigTmp/all.files" || : )" "many 6"
+	"$( [ "$( wc -l < "$rigTmp/all.files" | LC_ALL=C tr -d ' ' )" -ge 600 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/client-hooks/deny-memory-md-read.sh' -e 'sh-scripts/DistroAgentsTools.fn.sh' -e 'sh-lib/manager/AgentsConsoleShellScript.template.sh' -e 'builders/source-prepare/1201-agents-indices.sh' -e 'sh-test/AgentsRunTests.sh' -e 'sh-test/check-fixtures/AgentsHarnessHooks.legacy.sh' "$rigTmp/all.files" || : )" "many 6"
 rigAssert "control: every hook a client is given is a file that starts with a first line" "$( cd "$rigPackage" && for rigHook in sh-lib/client-hooks/* ; do IFS= read -r rigHookLine < "$rigHook" ; case "$rigHookLine" in ('#!'*) ;; (*) printf '%s ' "$rigHook" ;; esac ; done )" ""
 rigFirstOut="$( cd "$rigPackage" && rigFirstLines < "$rigTmp/all.files" )"
 rigAssert "no file of the package starts with a line that names bash by a path: a bash script starts #!/usr/bin/env bash" "${rigFirstOut:-none}" "none"
@@ -158,7 +158,7 @@ rigAssert "no file of the package starts with a line that names bash by a path: 
 echo "-- 2. literals: no line of the code holds a fixed path to bash that is not on the list --"
 ( cd "$rigPackage" && find sh-lib sh-scripts sh-test builders vscode -type f ! -name '*.md' ! -name '.DS_Store' | LC_ALL=C grep -v -x -F -e "$rigSelf" | LC_ALL=C sort ) > "$rigTmp/code.files"
 rigAssert "control: the code is read, the harness, the awk files, the checks and their fixtures among it, and no name has a space in it" \
-	"$( [ "$( wc -l < "$rigTmp/code.files" | LC_ALL=C tr -d ' ' )" -ge 500 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/AgentsUniversalHarness.sh' -e 'sh-lib/AgentsClaudeStreamJsonTranscript.awk' -e 'sh-lib/workspace-commands.list' -e 'sh-test/AgentsAdvanceInputScanStatesCheck.test.sh' -e 'sh-test/check-fixtures/AgentsHarnessHooks.legacy.sh' "$rigTmp/code.files" || : ) $( LC_ALL=C grep -c ' ' "$rigTmp/code.files" || : )" "many 5 0"
+	"$( [ "$( wc -l < "$rigTmp/code.files" | LC_ALL=C tr -d ' ' )" -ge 500 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/harness/AgentsUniversalHarness.sh' -e 'sh-lib/harness/AgentsClaudeStreamJsonTranscript.awk' -e 'sh-lib/config/workspace-commands.list' -e 'sh-test/AgentsAdvanceInputScanStatesCheck.test.sh' -e 'sh-test/check-fixtures/AgentsHarnessHooks.legacy.sh' "$rigTmp/code.files" || : ) $( LC_ALL=C grep -c ' ' "$rigTmp/code.files" || : )" "many 5 0"
 rigLiteralList > "$rigTmp/literal.list"
 rigLiteralOut="$( cd "$rigPackage" && rigGuard literal "$rigTmp/literal.list" $( cat "$rigTmp/code.files" ) )"
 rigAssert "every fixed path to bash in the code is on the list, and every line of the list stands in the code as often as it says (the running bash is \"\$BASH\", bash from the PATH is \`bash\`)" "${rigLiteralOut:-none}" "none"
@@ -167,7 +167,7 @@ rigAssert "every line of the list gives its reason" "$( LC_ALL=C awk -F'|' 'leng
 echo "-- 3. starts by path: the tooling starts the tool script with the bash it runs in --"
 ( cd "$rigPackage" && find sh-lib sh-scripts builders -type f ! -name '*.md' ! -name '.DS_Store' | LC_ALL=C sort ) > "$rigTmp/tooling.files"
 rigAssert "control: the files of the tooling are read, the harness, the spawn proxy, the hooks and the console template among them" \
-	"$( [ "$( wc -l < "$rigTmp/tooling.files" | LC_ALL=C tr -d ' ' )" -ge 150 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/AgentsUniversalHarness.sh' -e 'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include' -e 'sh-lib/client-hooks/allow-granted-native-tool.sh' -e 'sh-lib/AgentsConsoleShellScript.template.sh' "$rigTmp/tooling.files" || : )" "many 4"
+	"$( [ "$( wc -l < "$rigTmp/tooling.files" | LC_ALL=C tr -d ' ' )" -ge 150 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/harness/AgentsUniversalHarness.sh' -e 'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include' -e 'sh-lib/client-hooks/allow-granted-native-tool.sh' -e 'sh-lib/manager/AgentsConsoleShellScript.template.sh' "$rigTmp/tooling.files" || : )" "many 4"
 rigStartList > "$rigTmp/start.list"
 rigGuardNames="$( cd "$rigPackage" && rigToolNames $( cat "$rigTmp/tooling.files" ) )"
 rigAssert "control: the variables that hold the path of the tool script are read out of the tooling, those of the harness, of the hooks and of the console among them" \
@@ -176,7 +176,7 @@ rigStartOut="$( cd "$rigPackage" && rigGuard start "$rigTmp/start.list" $( cat "
 rigAssert "every start of the tool script, by its path or through a variable that holds it, is \"\$BASH\" <script>, or is on the list, and every line of the list stands in the code as often as it says" "${rigStartOut:-none}" "none"
 rigAssert "every line of that list gives its reason" "$( LC_ALL=C awk -F'|' 'length( $4 ) < 40 { bad++ ; } END { print NR + 0 " lines, " bad + 0 " without a reason" ; }' "$rigTmp/start.list" )" "2 lines, 0 without a reason"
 rigAssert "control: the tooling does start the tool script that way, many times, the harness among the files that do" \
-	"$( cd "$rigPackage" && cat $( cat "$rigTmp/tooling.files" ) | LC_ALL=C grep -c -F '"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --' | LC_ALL=C awk '{ print ( $1 >= 30 ) ? "many" : $1 ; }' ) $( LC_ALL=C grep -c -F '"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --' "$rigPackage/sh-lib/AgentsUniversalHarness.sh" | LC_ALL=C awk '{ print ( $1 >= 10 ) ? "many" : $1 ; }' )" "many many"
+	"$( cd "$rigPackage" && cat $( cat "$rigTmp/tooling.files" ) | LC_ALL=C grep -c -F '"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --' | LC_ALL=C awk '{ print ( $1 >= 30 ) ? "many" : $1 ; }' ) $( LC_ALL=C grep -c -F '"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --' "$rigPackage/sh-lib/harness/AgentsUniversalHarness.sh" | LC_ALL=C awk '{ print ( $1 >= 10 ) ? "many" : $1 ; }' )" "many many"
 
 echo "-- 4. the readers find what they must, and nothing else --"
 ## CONTROL LINES: each reader finds a new fault, in each shape, takes a listed one, and reads no comment and no other text

@@ -8,7 +8,7 @@
 
 Team documents are written in Markdown. The email converter covers only
 paragraphs, emphasis, code and links, so a heading or a table arrives as raw
-text. See [the email converter](sh-lib/AgentsEmailHtmlBuild.awk) for what it
+text. See [the email converter](sh-lib/comms/AgentsEmailHtmlBuild.awk) for what it
 already does.
 
 > Every document a reader opens should look like a document,

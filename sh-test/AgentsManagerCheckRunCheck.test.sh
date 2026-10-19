@@ -89,7 +89,7 @@ rigAssert "while the checks ran, their run folder was in the workspace's .local/
 rigAssert "and it is gone after every call" "$( ls -1 "$rigWs/.local/agents/scratch" | LC_ALL=C grep -c '^AgentsManagerCheck\.' )" 0
 
 echo "-- 3. it decides nothing, and the help pair --"
-rigInclude="$rigHere/AgentsTools.ManagerCheck.include"
+rigInclude="$rigHere/manager/AgentsTools.ManagerCheck.include"
 rigAssert "the include makes no check of its own: it names the owner's operation with --check, and prints no state but skipped" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigInclude" | LC_ALL=C grep -c -F -e '"--owner-setup-$runName" --check' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigInclude" | LC_ALL=C grep -c -E -e '(ok|warn|fail)\\t' || : ) $( LC_ALL=C grep -c -E -e '(curl|ssh |slack-call)' "$rigInclude" || : )" "1 0 0"
 rigHelpMd="$rigHere/help/Help.DistroAgentsTools.help.md"
 rigSyntax="📘 syntax: DistroAgentsTools.fn.sh $rigOp [--local] [--seconds <n>] [<domain>...]"

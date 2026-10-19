@@ -65,18 +65,18 @@ rigHookRun(){ ## mode, payload, extra env assignments... -- the hook as a client
 	rigHookRc=$?
 }
 rigEnded(){ ## session id -- ended or open, by AgentsToolsGrantsSessionEnded
-	env -i PATH="$rigPath" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1/AgentsTools.Grants.include" && AgentsToolsGrantsSessionEnded "$2"' rig "$rigHere" "$rigSessions/$1" \
+	env -i PATH="$rigPath" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1/AgentsTools.Grants.include" && AgentsToolsGrantsSessionEnded "$2"' rig "$rigHere/grants" "$rigSessions/$1" \
 		&& printf ended || printf open
 }
 rigScan(){ ## session id -- what a session grant scan of its store finds for keeper-rig, Read /rig/target
 	env -i PATH="$rigPath" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '
 		AgentsToolsPermissionEscape(){ printf "%s" "$1" ; }
-		. "$1/AgentsTools.PermissionHolds.include" && AgentsToolsPermissionGrantScan "$2" keeper-rig Read /rig/target hold || printf none' rig "$rigHere" "$rigSessions/$1"
+		. "$1/AgentsTools.PermissionHolds.include" && AgentsToolsPermissionGrantScan "$2" keeper-rig Read /rig/target hold || printf none' rig "$rigHere/grants" "$rigSessions/$1"
 }
 rigRunning(){ ## session id -- listed or absent among the sessions AgentsToolsPendingReplySessionsRunning lists
 	local runningList
 	runningList="$( env -i PATH="$rigPath" HOME="$rigTmp/home" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
-		bash -c '. "$1/AgentsTools.PendingReplyCollect.include" && AgentsToolsPendingReplySessionsRunning' rig "$rigHere" 2> /dev/null )"
+		bash -c '. "$1/AgentsTools.PendingReplyCollect.include" && AgentsToolsPendingReplySessionsRunning' rig "$rigHere/questions" 2> /dev/null )"
 	case "$runningList" in
 		*" $1 "*) printf listed ;;
 		*) printf absent ;;

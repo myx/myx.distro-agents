@@ -10,7 +10,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 
 rigRefuse(){
@@ -122,7 +122,7 @@ rigOp(){
 ## An in-context helper (no operation of its own) as a script for --intern-mcp-execute, which
 ## runs it inside the tool's own set-up context: its include, then the call with these arguments.
 rigHelperScript(){ ## include, function, arguments...
-	printf '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/%s"\n' "$1"
+	printf '. "$MDLT_ORIGIN"/myx/myx.distro-*/sh-lib/*/%s\n' "$1"
 	printf '%s' "$2" ; shift 2
 	[ $# -eq 0 ] || printf ' %q' "$@"
 	printf '\n'
@@ -380,7 +380,7 @@ rigHarnessWrite(){ ## acting member (empty: none), path
 		MDAT_SPAWN_SESSION_ID=rig-harness RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" ${1:+MDAT_SPAWN_AGENT="$1"} \
 		bash "$rigHarness" --intern-tool Write 2>/dev/null ) | LC_ALL=C awk 'NR == 1 { print $1 ; }'
 }
-. "$rigHere/AgentsTools.ClientAccessRoots.include"
+. "$rigHere/client/AgentsTools.ClientAccessRoots.include"
 rigAssert "the developer's own row is its write root"      "$( MMDAPP="$rigWs" AgentsToolsClientAccessGrantRoots magic-developer | LC_ALL=C grep -c -x -F "$rigWs/DEV" )" 1
 rigAssert "and not the tester's"                           "$( MMDAPP="$rigWs" AgentsToolsClientAccessGrantRoots magic-tester | LC_ALL=C grep -c -x -F "$rigWs/DEV" )" 0
 rigAssert "the developer's harness writes its domain"     "$( rigHarnessWrite magic-developer "$rigWs/DEV/h.txt" )" "OK:"

@@ -14,7 +14,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
-[ -f "$rigHere/AgentsTools.BoardStates.include" ] || rigRefuse "the one list is not there: $rigHere/AgentsTools.BoardStates.include"
+[ -f "$rigHere/board/AgentsTools.BoardStates.include" ] || rigRefuse "the one list is not there: $rigHere/board/AgentsTools.BoardStates.include"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsBoardStatesCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -49,9 +49,9 @@ rigOp(){ ## result file, op and its arguments...
 	printf '%s' "$?" > "$rigResult.rc"
 }
 rigStates(){ ## store: the state folders it has, in the order of the one list
-	( . "$rigHere/AgentsTools.BoardStates.include" ; for s in $agentsBoardStates ; do [ ! -d "$1/board/$s" ] || printf '%s ' "$s" ; done )
+	( . "$rigHere/board/AgentsTools.BoardStates.include" ; for s in $agentsBoardStates ; do [ ! -d "$1/board/$s" ] || printf '%s ' "$s" ; done )
 }
-rigAll="$( . "$rigHere/AgentsTools.BoardStates.include" ; printf '%s ' $agentsBoardStates )"
+rigAll="$( . "$rigHere/board/AgentsTools.BoardStates.include" ; printf '%s ' $agentsBoardStates )"
 rigItem="note-20261014T0101Z-rig.md"
 
 echo "-- the one list --"
@@ -114,7 +114,7 @@ rigAssert "none of the reads made a board"                   "$( [ -e "$rigStore
 echo "-- a state added to the one list has its folder with no further code --"
 rigScenario added
 (
-	. "$rigHere/AgentsTools.BoardStates.include"
+	. "$rigHere/board/AgentsTools.BoardStates.include"
 	agentsBoardStates="$agentsBoardStates rig-new-state"
 	MDAT_DATA_ROOT="$rigStore" AgentsToolsBoardReady
 )

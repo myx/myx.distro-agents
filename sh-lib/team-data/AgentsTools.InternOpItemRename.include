@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpItemRename.include -- the --intern-op-item-rename op
+## for DistroAgentsTools.fn.sh's dispatcher. Sourced lazily from that exact
+## op's own dispatcher arm via the standard $MDLT_ORIGIN-based path. Not
+## standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
+##
+
+case "$1" in
+
+	--intern-op-item-rename)
+		shift
+		local opContext="<no --context given>"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then
+				opContext="$ctxArg" ; ctxWanted="" ; continue
+			fi
+			if [ "$ctxArg" = "--context" ] ; then ctxWanted="1" ; fi
+		done
+		local sourceArg="$1"
+		shift || true
+		local newName="$1"
+		shift || true
+		if [ -z "$sourceArg" ] || [ -z "$newName" ] ; then
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: syntax is <absolute-source-path> <new-bare-name> [--context <caller-op>]" >&2
+			set +e ; return 1
+		fi
+		if [ "$1" = "--context" ] ; then
+			if [ -z "${2:-}" ] ; then
+				echo "$MDSC_CMD: item-rename: ⛔ ERROR: --context: value required" >&2
+				set +e ; return 1
+			fi
+			shift 2
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+
+		case "$sourceArg" in
+			/*) ;;
+			*)
+				echo "$MDSC_CMD: item-rename: ⛔ ERROR: <absolute-source-path> must be absolute: $sourceArg" >&2
+				set +e ; return 1
+			;;
+		esac
+
+		AgentsToolsAssertBareName "$newName" "<new-bare-name>" item-rename || { set +e ; return 1 ; }
+
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+
+		if [ ! -f "$sourceArg" ] ; then
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: source item not found: $sourceArg" >&2
+			set +e ; return 1
+		fi
+
+		## Path resolution by `cd` + `pwd -P`, never `realpath` (not POSIX) or
+		## `readlink -f` (absent on macOS before Monterey).
+		local oldName sourceDirArg sourceDir
+		oldName="${sourceArg##*/}"
+		sourceDirArg="${sourceArg%/*}"
+		sourceDir="" ; sourceDir="$( cd "$sourceDirArg" 2>/dev/null && pwd -P )" || sourceDir=""
+		if [ -z "$sourceDir" ] ; then
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: cannot resolve source directory: $sourceDirArg" >&2
+			set +e ; return 1
+		fi
+
+		local oldExt="${oldName##*.}" newExt="${newName##*.}"
+		if [ "$oldName" = "$oldExt" ] || [ "$newName" = "$newExt" ] ; then
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: both names must carry a file extension: $oldName -> $newName" >&2
+			set +e ; return 1
+		fi
+		if [ "$oldExt" != "$newExt" ] ; then
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: rename must preserve the file extension (.$oldExt): $oldName -> $newName" >&2
+			set +e ; return 1
+		fi
+
+		if [ "$oldName" = "$newName" ] ; then
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: <new-bare-name> is identical to the current name, nothing to do: $oldName" >&2
+			set +e ; return 1
+		fi
+
+		local storeRoot="" storeName="" root candidate
+		for candidate in board inboxes audit ; do
+			root="" ; root="$( cd "$MDAT_DATA_ROOT/$candidate" 2>/dev/null && pwd -P )" || root=""
+			[ -n "$root" ] || continue
+			case "$sourceDir/" in
+				"$root"/*) storeRoot="$root" ; storeName="$candidate" ; break ;;
+			esac
+		done
+		if [ -z "$storeRoot" ] ; then
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: source is outside every known store (board/, inboxes/, audit/ under $MDAT_DATA_ROOT): $sourceDir" >&2
+			set +e ; return 1
+		fi
+
+		local sourcePath="$sourceDir/$oldName"
+		local targetPath="$sourceDir/$newName"
+		if [ -e "$targetPath" ] ; then
+			echo "$MDSC_CMD: item-rename: ⛔ ERROR: target already exists, refusing to overwrite: $targetPath" >&2
+			set +e ; return 1
+		fi
+
+		local sweepOldStem="${oldName%.*}"
+		export MDAT_RENAME_OLD="$oldName"
+		export MDAT_RENAME_NEW="$newName"
+		export MDAT_RENAME_OLD_STEM="$sweepOldStem"
+		export MDAT_RENAME_NEW_STEM="${newName%.*}"
+
+		local touched=0 f tmp sweepTarget
+		local renameCommitPaths=()
+
+		for sweepTarget in "$MDAT_DATA_ROOT/board" "$MDAT_DATA_ROOT/inboxes" "$MDAT_DATA_ROOT/audit" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset" ; do
+			[ -d "$sweepTarget" ] || continue
+			while IFS= read -r f ; do
+				[ -f "$f" ] || continue
+				## The item's own file is skipped: its name is about to change
+				## by rename, not by substitution.
+				[ "$f" = "$sourcePath" ] && continue
+				grep -q -F -- "$sweepOldStem" "$f" || continue
+				## A file of this sweep's own, by mktemp and never by $$, which every subshell of one shell shares.
+				mkdir -p "$MMDAPP/.local/temp" && tmp="$( mktemp "$MMDAPP/.local/temp/mdat-intern-op-item-rename.XXXXXX" )" || { unset MDAT_RENAME_OLD MDAT_RENAME_NEW MDAT_RENAME_OLD_STEM MDAT_RENAME_NEW_STEM ; set +e ; return 1 ; }
+				if ! LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsItemRenameSweep.awk" "$f" > "$tmp" ; then
+					rm -f "$tmp"
+					unset MDAT_RENAME_OLD MDAT_RENAME_NEW MDAT_RENAME_OLD_STEM MDAT_RENAME_NEW_STEM
+					echo "$MDSC_CMD: item-rename: ⛔ ERROR: reference sweep failed on: $f (nothing renamed)" >&2
+					set +e ; return 1
+				fi
+				if cmp -s "$tmp" "$f" ; then
+					rm -f "$tmp"
+					continue
+				fi
+				cat "$tmp" > "$f"
+				rm -f "$tmp"
+				touched=$(( touched + 1 ))
+				## Only team-data rewrites are committed; skillset/ is in the
+				## source tree (a different repo) and is never staged from an op.
+				case "$sweepTarget" in
+					"$MDAT_DATA_ROOT"/*) renameCommitPaths+=( "$f" ) ;;
+				esac
+			done < <( find "$sweepTarget" -type f )
+		done
+		unset MDAT_RENAME_OLD MDAT_RENAME_NEW MDAT_RENAME_OLD_STEM MDAT_RENAME_NEW_STEM
+
+		## Commit gate: .git presence in the team-data root, presence only --
+		## this op never pushes. Mirrors --intern-op-board-upsert-move-edit's
+		## both-ends move commit. Source tracked-state is read before the mv
+		## removes it.
+		local repoRoot="" sourceTracked="false"
+		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
+		if [ -n "$repoRoot" ] ; then
+			[ -z "$( git -C "$repoRoot" ls-files -- "$sourcePath" 2>/dev/null )" ] || sourceTracked="true"
+		fi
+
+		mv -- "$sourcePath" "$targetPath"
+		echo "# $MDSC_CMD: item-rename: $storeName/: $oldName -> $newName ($touched reference file(s) rewritten)" >&2
+
+		## The move (old removed, new added) plus the team-data reference
+		## rewrites, one commit. skillset/ paths are excluded above.
+		if [ -n "$repoRoot" ] ; then
+			local ctxForMsg="$opContext"
+			if [ "$ctxForMsg" = "<no --context given>" ] ; then ctxForMsg="--intern-op-item-rename" ; fi
+			local commitPaths=( "$targetPath" )
+			[ "$sourceTracked" = "true" ] && commitPaths+=( "$sourcePath" )
+			[ "${#renameCommitPaths[@]}" -gt 0 ] && commitPaths+=( "${renameCommitPaths[@]}" )
+			local gitOut="" gitRc=0
+			gitOut="$( git -C "$repoRoot" add -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "$MDSC_CMD: item-rename: ⛔ ERROR: git add failed for ${commitPaths[*]}: $gitOut" >&2
+				set +e ; return 1
+			fi
+			gitOut="$( git -C "$repoRoot" commit -m "* renamed: $oldName -> $newName, $ctxForMsg" -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "$MDSC_CMD: item-rename: ⛔ ERROR: git commit failed for ${commitPaths[*]}: $gitOut" >&2
+				set +e ; return 1
+			fi
+			echo "# $MDSC_CMD: item-rename: committed ${targetPath#"$MDAT_DATA_ROOT"/} (+$touched reference file(s))" >&2
+		fi
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

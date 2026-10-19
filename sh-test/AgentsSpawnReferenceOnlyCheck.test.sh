@@ -23,7 +23,7 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigPackage="${rigHere%/sh-lib}"
 rigTest="$rigPackage/sh-test"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigProxy="--intern-op-agent-spawn-proxy"
 
 rigRefuse(){
@@ -231,11 +231,11 @@ rigAssert "and for one whose executors name it beside an acting member; a routin
 
 echo "-- 5. the check is one --"
 rigCode(){ ## include name -- its lines that are no comment
-	LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/$1" 2> /dev/null
+	LC_ALL=C grep -v '^[[:space:]]*#' "$( ls -d "$rigHere"/*/"$1" "$rigHere"/../../myx.distro-.local/sh-lib/*/"$1" 2> /dev/null | head -1 )" 2> /dev/null
 }
 rigAssert "one function says what a reference-only member is and one refuses a start, each defined once, in the include of the member directory" \
-	"$( cat "$rigHere"/*.include "$rigHere"/*.sh | LC_ALL=C grep -c -E '^AgentsToolsTeamMemberReferenceOnly\(\)\{' || : ) $( cat "$rigHere"/*.include "$rigHere"/*.sh | LC_ALL=C grep -c -E '^AgentsToolsTeamMemberStartCheck\(\)\{' || : ) $( LC_ALL=C grep -c -E '^AgentsToolsTeamMember(ReferenceOnly|StartCheck)\(\)\{' "$rigHere/AgentsTools.TeamRegistry.include" || : )" "1 1 2"
-rigAssert "the refusal's line is written once, in that function" "$( cat "$rigHere"/*.include "$rigHere"/*.sh | LC_ALL=C grep -c -F -- 'an identity record is never started' || : )" "1"
+	"$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsTeamMemberReferenceOnly\(\)\{' || : ) $( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsTeamMemberStartCheck\(\)\{' || : ) $( LC_ALL=C grep -c -E '^AgentsToolsTeamMember(ReferenceOnly|StartCheck)\(\)\{' "$rigHere/team-data/AgentsTools.TeamRegistry.include" || : )" "1 1 2"
+rigAssert "the refusal's line is written once, in that function" "$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -F -- 'an identity record is never started' || : )" "1"
 rigAssert "the spawn proxy asks it once, of the member it is about to start, before it reads its brief or makes anything" \
 	"$( rigCode AgentsTools.InternOpAgentSpawnProxy.include | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberStartCheck "\$callerName"' || : ) $( rigCode AgentsTools.InternOpAgentSpawnProxy.include | LC_ALL=C awk '/^\t--intern-op-agent-spawn-proxy\)/ { arm = 1 } ! arm { next } /AgentsToolsTeamMemberStartCheck "/ && ! asked { asked = NR } /spawnContext="\$\( cat \)"/ && ! read { read = NR } /mkdir -p/ && ! made { made = NR } END { print ( asked && read && made && asked < read && asked < made ) ? "first" : "not first: asked " asked ", brief " read ", made " made }' )" "1 first"
 rigAssert "--manager-spawn-member and --magic-spawn-session ask the same function, once each, and neither reads a SKILL.md itself" \

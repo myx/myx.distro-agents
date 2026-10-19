@@ -20,9 +20,9 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
-rigSlackInclude="$rigHere/AgentsTools.CommsSlack.include"
-rigSpawnInclude="$rigHere/AgentsTools.InternOpAgentSpawnProxy.include"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
+rigSlackInclude="$rigHere/comms/AgentsTools.CommsSlack.include"
+rigSpawnInclude="$rigHere/session/AgentsTools.InternOpAgentSpawnProxy.include"
 ## The hint of a one-way address, in its three forms: in a --client- Slack operation it names that operation's --member-
 ## twin, under a client: marker it says the marker goes, and anywhere else it names the --member- family.
 rigHint="this addressee alias is only usable in"
@@ -497,10 +497,10 @@ rigAssert "its record is kept here and says the three workspaces of the run as a
 
 echo "-- 9. static: the side is said in one place, and the settings are read by it --"
 rigAssert "the side is set where a --client-* operation is dispatched, once" "$( LC_ALL=C grep -c -F -e '--client-*) local -x MDAT_COMMS_SIDE=client MDAT_COMMS_OP="$1" ;;' "$rigTool" || : )" 1
-rigAssert "a --member- Slack operation says our own side itself, once, whatever it was called under" "$( LC_ALL=C grep -c -F -e 'local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""' "$rigHere/AgentsTools.MemberCommsSlack.include" || : )" 1
-rigAssert "the two questions every reader of a member's own Slack settings asks are defined once, in the Slack include" "$( LC_ALL=C grep -c -E '^AgentsToolsSlack(OwnSettingsApply|ClientSide)\(\)\{' "$rigSlackInclude" || : ) $( cat "$rigHere"/*.include "$rigHere"/*.sh | LC_ALL=C grep -c -E '^AgentsToolsSlack(OwnSettingsApply|ClientSide)\(\)\{' || : )" "2 2"
-rigAssert "every file of the package that reads a member's own Slack user token by the member's name asks the first of them" "$( for rigFile in "$rigHere"/*.include ; do LC_ALL=C grep -q -E -e '--agents-config-option "\$[A-Za-z]*" --select SLACK_USER_TOKEN' "$rigFile" || continue ; LC_ALL=C grep -q 'AgentsToolsSlackOwnSettingsApply' "$rigFile" || printf '%s ' "${rigFile##*/}" ; done )" ""
-rigAssert "control: the same search does find files that read it" "$( for rigFile in "$rigHere"/*.include ; do LC_ALL=C grep -q -E -e '--agents-config-option "\$[A-Za-z]*" --select SLACK_USER_TOKEN' "$rigFile" && printf 'x' ; done | LC_ALL=C awk '{ print ( length( $0 ) >= 5 ) ? "found" : "blind" }' )" found
+rigAssert "a --member- Slack operation says our own side itself, once, whatever it was called under" "$( LC_ALL=C grep -c -F -e 'local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""' "$rigHere/comms/AgentsTools.MemberCommsSlack.include" || : )" 1
+rigAssert "the two questions every reader of a member's own Slack settings asks are defined once, in the Slack include" "$( LC_ALL=C grep -c -E '^AgentsToolsSlack(OwnSettingsApply|ClientSide)\(\)\{' "$rigSlackInclude" || : ) $( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsSlack(OwnSettingsApply|ClientSide)\(\)\{' || : )" "2 2"
+rigAssert "every file of the package that reads a member's own Slack user token by the member's name asks the first of them" "$( for rigFile in "$rigHere"/*/*.include ; do LC_ALL=C grep -q -E -e '--agents-config-option "\$[A-Za-z]*" --select SLACK_USER_TOKEN' "$rigFile" || continue ; LC_ALL=C grep -q 'AgentsToolsSlackOwnSettingsApply' "$rigFile" || printf '%s ' "${rigFile##*/}" ; done )" ""
+rigAssert "control: the same search does find files that read it" "$( for rigFile in "$rigHere"/*/*.include ; do LC_ALL=C grep -q -E -e '--agents-config-option "\$[A-Za-z]*" --select SLACK_USER_TOKEN' "$rigFile" && printf 'x' ; done | LC_ALL=C awk '{ print ( length( $0 ) >= 5 ) ? "found" : "blind" }' )" found
 rigAssert "the spawn proxy has no arm of its own for a client-* member" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigSpawnInclude" | LC_ALL=C grep -c -F -e 'client-*)' || : )" 0
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ CLIENT SIDES CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

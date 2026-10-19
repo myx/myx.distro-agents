@@ -11,7 +11,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -76,8 +76,8 @@ cat > "$rigWs/DistroAgentsConsole.sh" <<'RIGCONSOLE'
 cat > "$RIG_SCENARIO/brief.part"
 printf '%s\n' "${MDAT_CONVERSATION_THREADS:-}" > "$RIG_SCENARIO/env"
 cp "$MDAT_SPAWN_SANDBOX_ROOT/input/conversation.md" "$RIG_SCENARIO/conversation.md" 2>/dev/null || : > "$RIG_SCENARIO/conversation.md"
-( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" ; AgentsToolsWaitDefaultSources ) > "$RIG_SCENARIO/wait-default" 2>&1
-( unset MDAT_CONVERSATION_THREADS ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" ; AgentsToolsConversationThreadsFind ) > "$RIG_SCENARIO/record-threads" 2>&1
+( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" ; AgentsToolsWaitDefaultSources ) > "$RIG_SCENARIO/wait-default" 2>&1
+( unset MDAT_CONVERSATION_THREADS ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" ; AgentsToolsConversationThreadsFind ) > "$RIG_SCENARIO/record-threads" 2>&1
 printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"
 mv "$RIG_SCENARIO/brief.part" "$RIG_SCENARIO/brief"
 RIGCONSOLE
@@ -182,7 +182,7 @@ echo "-- the harness Agent tool passes conversation --"
 rigOut="$( rigAgent '{"agent":"keeper-myx","prompt":"RIG-AGENT-TASK","conversation":"DRIGCONV:100.000001"}' )"
 rigAssert "the Agent spawn's brief names the thread"      "$( grep -c -x 'conversation_thread_ts: DRIGCONV:100.000001' "$rigTmp/brief" 2>/dev/null )" 1
 rigAssert "the Agent tool declares conversation" \
-	"$( LC_ALL=C grep -c -F '"conversation":{"type":"string","description":"Optional. The conversation threads the helper continues' "$rigHere/AgentsOpenAiChatWire.sh" )" 1
+	"$( LC_ALL=C grep -c -F '"conversation":{"type":"string","description":"Optional. The conversation threads the helper continues' "$rigHere/harness/AgentsOpenAiChatWire.sh" )" 1
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SPAWN CONVERSATION CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

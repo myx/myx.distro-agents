@@ -10,14 +10,14 @@ set -u
 
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
-rigField="$rigHere/AgentsHarnessJsonField.awk"
+rigField="$rigHere/harness/AgentsHarnessJsonField.awk"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 
-for rigFile in "$rigHere/AgentsUniversalHarness.sh" "$rigField" "$rigTool" ; do
+for rigFile in "$rigHere/harness/AgentsUniversalHarness.sh" "$rigField" "$rigTool" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
@@ -228,8 +228,8 @@ if [ "$rigFails" -ne 0 ] ; then
 	echo "  warn: Read as the MCP server serves it does not yet number, page, cap, or" >&2
 	echo "        decode images, PDFs and notebooks the way it was decided" >&2
 	echo "  fix:  AgentsHarnessToolRead and AgentsHarnessReadRange in" >&2
-	echo "        sh-lib/AgentsUniversalHarness.sh, and the content parts in" >&2
-	echo "        sh-lib/AgentsTools.InternMcpRequest.include -- never the assertion" >&2
+	echo "        sh-lib/harness/AgentsUniversalHarness.sh, and the content parts in" >&2
+	echo "        sh-lib/mcp/AgentsTools.InternMcpRequest.include -- never the assertion" >&2
 	exit 1
 fi
 echo "HARNESS_READ_NATIVE: OK (served Read: numbering, ranges, cap, head part, raw Skill, image, PDF pages, notebook cells)"

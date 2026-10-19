@@ -111,7 +111,7 @@ printf '# rig armed\n' > "$rigTmp/skills/rig-member/rig-member.basic.md"
 rigHarnessTool(){ ## tool, argument object
 	( cd "$rigWs" && printf '%s' "$2" | env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=rig-member MDAT_SPAWN_SANDBOX_ROOT="$rigTmp/sandbox" \
-		bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$1" ) \
+		bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" --intern-tool "$1" ) \
 		> "$rigTmp/harness.out" 2> "$rigTmp/harness.err"
 }
 rigHarnessTool Write "{\"path\":\"$rigTmp/sandbox/output/x.txt\",\"content\":\"x\"}"
@@ -134,7 +134,7 @@ echo "-- and falls back to the workspace's .local/agents/scratch when no spawn s
 rm -f "$rigTmp/mktemp.argv"
 ( cd "$rigWs" && printf '{}' | env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 	MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=rig-member \
-	bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool Read ) \
+	bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" --intern-tool Read ) \
 	> "$rigTmp/fallback.out" 2> "$rigTmp/fallback.err"
 rigAssert "mktemp falls back to the workspace's .local/agents/scratch with no sandbox root, and makes nothing outside the workspace" "$( LC_ALL=C grep -c -F "$rigWs/.local/agents/scratch/AgentsUniversalHarness" "$rigTmp/mktemp.argv" || : ) $( LC_ALL=C grep '^/' "$rigTmp/mktemp.argv" | LC_ALL=C grep -c -v -F "$rigWs/" || : )" "1 0"
 
@@ -149,7 +149,7 @@ printf -- '---\nparent-spawn-id: rig-parent-key-extra\n---\n' > "$rigWs/.local/a
 rigParentTool(){ ## caller-session-key, tool, argument object
 	( cd "$rigWs" && printf '%s' "$3" | env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=rig-member CLAUDE_CODE_SESSION_ID="$1" \
-		bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$2" ) \
+		bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" --intern-tool "$2" ) \
 		> "$rigTmp/parent.out" 2> "$rigTmp/parent.err"
 }
 rigDenyCount(){ LC_ALL=C grep -c 'not in the allowed' "$rigTmp/parent.out" || : ; }

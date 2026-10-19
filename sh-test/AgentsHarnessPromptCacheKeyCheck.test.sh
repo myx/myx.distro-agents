@@ -16,7 +16,7 @@ rigRefuse(){
 }
 
 for rigLeafName in Grok Scaleway Copilot ; do
-	[ -f "$rigHere/Agents${rigLeafName}Harness.sh" ] || rigRefuse "the $rigLeafName leaf is not at the origin this workspace resolves"
+	[ -f "$rigHere/harness/Agents${rigLeafName}Harness.sh" ] || rigRefuse "the $rigLeafName leaf is not at the origin this workspace resolves"
 done
 
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
@@ -72,7 +72,7 @@ rigRun(){ ## leaf name, then the leaf arguments this scenario adds
 	rigRunStatus=0
 	RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir" \
 		env -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT \
-		"$rigHere/Agents${runLeaf}Harness.sh" --access-write-root "$rigScenarioDir" "$@" RIG-TASK-MARKER \
+		"$rigHere/harness/Agents${runLeaf}Harness.sh" --access-write-root "$rigScenarioDir" "$@" RIG-TASK-MARKER \
 		> "$rigScenarioDir/out" 2> "$rigScenarioDir/err" || rigRunStatus=$?
 	[ "$( cat "$rigScenarioDir/round" )" != 0 ] || rigRefuse "the $runLeaf leaf issued no request at all, so this scenario exercised nothing -- its stderr: $( head -5 "$rigScenarioDir/err" )"
 }

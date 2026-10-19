@@ -30,7 +30,7 @@ rigOut="$( cd "$rigTmp/ws" && env -u MDAT_SKILLSET_ROOT HOME="$rigTmp/home" MMDA
 
 ## One row per printed syntax line: PASS or FAIL, then the line. An entry is a run of
 ## syntax lines and the text under them, and its printed text must equal the manual's.
-rigRows="$( printf '%s\n' "$rigOut" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMemberHelpEntryTextCompare.awk" "$rigManual" - )"
+rigRows="$( printf '%s\n' "$rigOut" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsMemberHelpEntryTextCompare.awk" "$rigManual" - )"
 
 ## The two entries this check was written for have to be among those measured, each
 ## with both of its syntax lines.

@@ -17,7 +17,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 
 rigRefuse(){
@@ -267,15 +267,15 @@ rigAssert "a run whose own record names no bare session id: not offered, and a c
 rigAssert "the server asks once for its life: a second request is answered the same" "$( rigServed root )" "offered served"
 
 echo "-- 11. the declaration: the native item shape, todos optional, and what it is --"
-rigFloor="$( bash "$rigHere/AgentsHarnessMcpMirror.sh" "" "Bash Monitor" 2> /dev/null )" || rigFloor=""
+rigFloor="$( bash "$rigHere/harness/AgentsHarnessMcpMirror.sh" "" "Bash Monitor" 2> /dev/null )" || rigFloor=""
 rigFloor='{"t":'"$rigFloor"'}'
 rigSchema="" rigText="" rigIndex=0
 while : ; do
-	rigName="$( printf '%s\n' "$rigFloor" | LC_ALL=C awk -v path="t.$rigIndex.name" -v optional=1 -f "$rigHere/AgentsHarnessJsonField.awk" 2> /dev/null )" || rigName=""
+	rigName="$( printf '%s\n' "$rigFloor" | LC_ALL=C awk -v path="t.$rigIndex.name" -v optional=1 -f "$rigHere/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || rigName=""
 	[ -n "$rigName" ] || break
 	if [ "$rigName" = "CheckList" ] ; then
-		rigSchema="$( printf '%s\n' "$rigFloor" | LC_ALL=C awk -v path="t.$rigIndex.inputSchema" -v mode=raw -f "$rigHere/AgentsHarnessJsonField.awk" 2> /dev/null )"
-		rigText="$( printf '%s\n' "$rigFloor" | LC_ALL=C awk -v path="t.$rigIndex.description" -v optional=1 -f "$rigHere/AgentsHarnessJsonField.awk" 2> /dev/null )"
+		rigSchema="$( printf '%s\n' "$rigFloor" | LC_ALL=C awk -v path="t.$rigIndex.inputSchema" -v mode=raw -f "$rigHere/harness/AgentsHarnessJsonField.awk" 2> /dev/null )"
+		rigText="$( printf '%s\n' "$rigFloor" | LC_ALL=C awk -v path="t.$rigIndex.description" -v optional=1 -f "$rigHere/harness/AgentsHarnessJsonField.awk" 2> /dev/null )"
 		break
 	fi
 	rigIndex=$(( rigIndex + 1 ))
@@ -306,8 +306,8 @@ if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ CHECKLIST CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2
 	echo "  warn: CheckList does not keep, replace, refuse, read or offer the checklists of a session" >&2
 	echo "        as it is meant to, or one session's list reaches another" >&2
-	echo "  fix:  repair AgentsHarnessToolCheckList in sh-lib/AgentsUniversalHarness.sh, or the floor in" >&2
-	echo "        sh-lib/AgentsTools.InternMcpRequest.include -- never the assertion" >&2
+	echo "  fix:  repair AgentsHarnessToolCheckList in sh-lib/harness/AgentsUniversalHarness.sh, or the floor in" >&2
+	echo "        sh-lib/mcp/AgentsTools.InternMcpRequest.include -- never the assertion" >&2
 	exit 1
 fi
 printf 'HARNESS_CHECKLIST: OK (%d assertions, offline)\n' "$rigPasses"

@@ -15,13 +15,13 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigHarness" "$rigHere/AgentsOpenAiChatWire.sh" "$rigHere/AgentsAnthropicMessagesWire.sh" \
-	"$rigHere/AgentsOpenAiChatStream.awk" "$rigHere/AgentsAnthropicMessagesStream.awk" \
+for rigFile in "$rigHarness" "$rigHere/harness/AgentsOpenAiChatWire.sh" "$rigHere/harness/AgentsAnthropicMessagesWire.sh" \
+	"$rigHere/harness/AgentsOpenAiChatStream.awk" "$rigHere/harness/AgentsAnthropicMessagesStream.awk" \
 	"$rigTest/check-fixtures/AgentsHarnessJsonField.legacy.awk" \
 	"$rigTest/check-fixtures/openai-chat-stream-consume.legacy.sh" \
 	"$rigTest/check-fixtures/anthropic-messages-stream-consume.legacy.sh" ; do
@@ -61,7 +61,7 @@ rigConsume(){ ## OpenAiChat|AnthropicMessages, legacy|current, stream file, out 
 				*) . "$rigTest/check-fixtures/anthropic-messages-stream-consume.legacy.sh" ;;
 			esac
 		else
-			. "$rigHere/Agents${1}Wire.sh"
+			. "$rigHere/harness/Agents${1}Wire.sh"
 		fi
 		set +e
 		AgentsWireStreamConsume < "$3" 2> "$4/err"

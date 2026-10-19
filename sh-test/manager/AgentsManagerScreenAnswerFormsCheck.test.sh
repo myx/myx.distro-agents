@@ -3,7 +3,7 @@
 ## forms, the Slack question is the reference"). In Slack a person picks an answer, and may also write in the thread,
 ## which the bot reads as a comment on that answer; the question has the forms yes-no, one, many and a plain text. The
 ## console does the same: a selector, plus a small text box whose text goes with the chosen answer as its comment, and
-## a plain question takes the text alone. Run rather than read: the screen's own code (sh-lib/AgentsManagerScreen.py)
+## a plain question takes the text alone. Run rather than read: the screen's own code (sh-lib/manager/AgentsManagerScreen.py)
 ## runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py), and where it would call
 ## the dispatcher it calls the stand-in script (check-fixtures/manager-screen.tools.stub.sh), which notes each start and
 ## prints the case's fixture.
@@ -20,7 +20,7 @@
 ## Offline: no operation of the real tooling is called, and no ask is read from this machine.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"

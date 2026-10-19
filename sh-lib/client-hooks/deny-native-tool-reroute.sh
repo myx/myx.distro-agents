@@ -80,11 +80,11 @@ TodoWrite)
 	hookWs="${hookWs%/}"
 	[ -n "$hookWs" ] && [ -d "$hookWs/.local" ] || exit 0
 	hookOrigin="${MDLT_ORIGIN:-$hookWs/.local}"
-	[ -f "$hookOrigin/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" ] || exit 0
-	hookSession="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=session_id -v optional=1 -f "$hookOrigin/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2> /dev/null )" || hookSession=""
+	[ -f "$hookOrigin/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" ] || exit 0
+	hookSession="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=session_id -v optional=1 -f "$hookOrigin/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || hookSession=""
 	[ -n "$hookSession" ] || exit 0
 	hookAnswer="$( MMDAPP="$hookWs" MDLT_ORIGIN="$hookOrigin" CLAUDE_CODE_SESSION_ID="$hookSession" \
-		"${BASH:-bash}" "$hookOrigin/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-checklist-place < /dev/null 2> /dev/null )" || hookAnswer=""
+		"${BASH:-bash}" "$hookOrigin/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" --intern-checklist-place < /dev/null 2> /dev/null )" || hookAnswer=""
 	case "$hookAnswer" in
 		'CHECKLIST-PLACE: '*) ;;
 		*) exit 0 ;;

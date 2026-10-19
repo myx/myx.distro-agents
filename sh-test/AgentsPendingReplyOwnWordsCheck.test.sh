@@ -27,7 +27,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigToolFile="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigMember="magic-tester"
 
 rigRefuse(){
@@ -68,7 +68,7 @@ rigHeader=':mouse: *_magic-coordinator_* @dispatchr → <@URIGSELF1>.'
 rigReply='1700000001.000200 | URIGOWNER |'
 rigLater='1700000001.000300 | URIGOWNER |'
 rigOwnWords(){ ## stdin: rendered answers -> the same with each reply's send header taken off
-	LC_ALL=C awk -f "$rigHere/AgentsDismissalMatch.awk" -f "$rigHere/AgentsPendingReplyOwnWords.awk"
+	LC_ALL=C awk -f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/questions/AgentsPendingReplyOwnWords.awk"
 }
 
 echo "-- the filter alone: a member's send header is taken off, every other line is left as it is --"
@@ -86,12 +86,12 @@ rigAssert "a line that is no reply is left as it is" \
 
 echo "-- ahead of the two readers: the answer is the answer, a clarification is never the header --"
 rigAnswerOf(){ ## rendered lines... -> the answer text
-	printf '%s\n' "$@" | rigOwnWords | LC_ALL=C awk -f "$rigHere/AgentsPendingReplyAnswerText.awk" 2>&1
+	printf '%s\n' "$@" | rigOwnWords | LC_ALL=C awk -f "$rigHere/questions/AgentsPendingReplyAnswerText.awk" 2>&1
 }
 rigClarifyOf(){ ## the answer's ts, rendered lines... -> the clarifications, each "<ts>|<user>|<text>", joined by `#`
 	local clarifyTs="$1"
 	shift
-	printf '%s\n' "$@" | rigOwnWords | LC_ALL=C awk -v answerTs="$clarifyTs" -f "$rigHere/AgentsPendingReplyClarifications.awk" 2>&1 | LC_ALL=C tr '\t\n' '|#'
+	printf '%s\n' "$@" | rigOwnWords | LC_ALL=C awk -v answerTs="$clarifyTs" -f "$rigHere/questions/AgentsPendingReplyClarifications.awk" 2>&1 | LC_ALL=C tr '\t\n' '|#'
 }
 rigAssert "the answer of a member's reply, its header on a line of its own" "$( rigAnswerOf "$rigReply $rigHeader" 'yes, keep it' 'but rename it first' )" "yes, keep it"
 rigAssert "the answer of a member's reply, its header on the answer's line" "$( rigAnswerOf "$rigReply $rigHeader yes, keep it" 'but rename it first' )" "yes, keep it"

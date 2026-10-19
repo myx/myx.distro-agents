@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the look of the manager screen (sh-lib/AgentsManagerScreen.py) and on what draws it from its
+## Behavioural check on the look of the manager screen (sh-lib/manager/AgentsManagerScreen.py) and on what draws it from its
 ## declaration, run rather than read. The screen's own code draws through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.py), which keeps the cells it is given and the look of each, so each case
 ## reads the screen back; the cases at the end start the real screen on a pseudo-terminal the driver makes. Held, in the
@@ -27,7 +27,7 @@
 ## click on the first session lands a line lower in Turbo Vision and B/W.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigRefuse(){

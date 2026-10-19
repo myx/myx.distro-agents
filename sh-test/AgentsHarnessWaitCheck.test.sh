@@ -17,8 +17,8 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 . "$rigTest/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
-rigInclude="$rigHere/AgentsTools.MemberWait.include"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
+rigInclude="$rigHere/member/AgentsTools.MemberWait.include"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigMember="magic-tester"
 
@@ -597,7 +597,7 @@ rigVerdict "--wait-include-own on a source where it has no effect -- refused, wi
 ##    the primary and its control -- and the other member's post counts in both,
 ##    which is what proves this is a filter and not a wipe.
 ## ---------------------------------------------------------------------------
-rigAnswersAwk="$rigHere/AgentsSlackThreadAnswers.awk"
+rigAnswersAwk="$rigHere/comms/AgentsSlackThreadAnswers.awk"
 rigRenderFile="$rigTmp/render.conversation.txt"
 cat > "$rigRenderFile" <<RIG_RENDER
 1700000002.000001 | U100 | [sender: $rigMember] RIG-OWN-POST
@@ -606,13 +606,13 @@ RIG_RENDER
 
 rigAnswersDefault="$rigTmp/answers.default.out"
 LC_ALL=C awk -v rootTs=1700000001.000000 -v fromUsers="" -v tag="" -v threadCount=0 -v others="" -v mode="conversation" -v callerName="$rigMember" -v includeOwn=0 \
-	-f "$rigHere/AgentsDismissalMatch.awk" -f "$rigAnswersAwk" < "$rigRenderFile" > "$rigAnswersDefault" 2>/dev/null
+	-f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigAnswersAwk" < "$rigRenderFile" > "$rigAnswersDefault" 2>/dev/null
 rigAssert "default: the caller's own post is excluded"    "$( rigHolds "$rigAnswersDefault" 'RIG-OWN-POST' )" no
 rigAssert "default: the other member's post still counts" "$( rigHolds "$rigAnswersDefault" 'RIG-OTHER-POST' )" yes
 
 rigAnswersIncluded="$rigTmp/answers.included.out"
 LC_ALL=C awk -v rootTs=1700000001.000000 -v fromUsers="" -v tag="" -v threadCount=0 -v others="" -v mode="conversation" -v callerName="$rigMember" -v includeOwn=1 \
-	-f "$rigHere/AgentsDismissalMatch.awk" -f "$rigAnswersAwk" < "$rigRenderFile" > "$rigAnswersIncluded" 2>/dev/null
+	-f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigAnswersAwk" < "$rigRenderFile" > "$rigAnswersIncluded" 2>/dev/null
 rigAssert "control: includeOwn=1 brings the own post back" "$( rigHolds "$rigAnswersIncluded" 'RIG-OWN-POST' )" yes
 rigAssert "control: the other member's post still counts"  "$( rigHolds "$rigAnswersIncluded" 'RIG-OTHER-POST' )" yes
 rigVerdict "AgentsSlackThreadAnswers.awk -- the own-post skip is real, and includeOwn=1 lifts exactly it"
@@ -632,7 +632,7 @@ DISMISSED
 RIG_RENDER
 rigAnswersDismiss="$rigTmp/answers.dismiss.out"
 LC_ALL=C awk -v rootTs=1700000001.000000 -v fromUsers="" -v tag="" -v threadCount=0 -v others="" -v mode="conversation" -v callerName="$rigMember" -v includeOwn=0 \
-	-f "$rigHere/AgentsDismissalMatch.awk" -f "$rigAnswersAwk" < "$rigRenderDismiss" > "$rigAnswersDismiss" 2>/dev/null
+	-f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigAnswersAwk" < "$rigRenderDismiss" > "$rigAnswersDismiss" 2>/dev/null
 rigAssert "same-bot spawner DISMISSED tagged to the caller is kept" "$( rigHolds "$rigAnswersDismiss" '1700000002.000001' )" yes
 rigAssert "...with its body line"                                  "$( LC_ALL=C grep -c -x 'DISMISSED' "$rigAnswersDismiss" )" 1
 rigAssert "the caller's own DISMISSED-looking post is dropped"     "$( rigHolds "$rigAnswersDismiss" '1700000003.000001' )" no
@@ -1242,7 +1242,7 @@ rigVerdict "many threads in one wait -- two plain threads, a plain thread beside
 ##      operation itself reports. The control is "slack:1", which probes every round.
 ## ---------------------------------------------------------------------------
 rigMakeOrigin(){ ## directory, kind-every value
-	local originDir="$1" originEvery="$2" originEntry originName originInclude="myx/myx.distro-agents/sh-lib/AgentsTools.MemberWait.include"
+	local originDir="$1" originEvery="$2" originEntry originName originInclude="myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWait.include"
 	grep -q '^agentsWaitKindEvery="' "$MDLT_ORIGIN/$originInclude" || rigRefuse "the include no longer assigns agentsWaitKindEvery on a line of its own, so the divider rows would test nothing"
 	mkdir -p "$originDir/myx/myx.distro-agents/sh-lib"
 	for originEntry in "$MDLT_ORIGIN"/* ; do
@@ -1259,7 +1259,12 @@ rigMakeOrigin(){ ## directory, kind-every value
 	done
 	for originEntry in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"/* ; do
 		originName="${originEntry##*/}"
-		[ "$originName" = "AgentsTools.MemberWait.include" ] || ln -s "$originEntry" "$originDir/myx/myx.distro-agents/sh-lib/$originName"
+		[ "$originName" = "member" ] || ln -s "$originEntry" "$originDir/myx/myx.distro-agents/sh-lib/$originName"
+	done
+	mkdir -p "$originDir/myx/myx.distro-agents/sh-lib/member"
+	for originEntry in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member"/* ; do
+		originName="${originEntry##*/}"
+		[ "$originName" = "AgentsTools.MemberWait.include" ] || ln -s "$originEntry" "$originDir/myx/myx.distro-agents/sh-lib/member/$originName"
 	done
 	LC_ALL=C sed "s/^agentsWaitKindEvery=\".*\"/agentsWaitKindEvery=\"$originEvery\"/" "$MDLT_ORIGIN/$originInclude" > "$originDir/$originInclude"
 	[ "$( rigHolds "$originDir/$originInclude" "agentsWaitKindEvery=\"$originEvery\"" )" = yes ] || rigRefuse "the scratch include does not carry the divider $originEvery, so the divider rows would test nothing"

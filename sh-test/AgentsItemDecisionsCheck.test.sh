@@ -10,7 +10,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh"
+rigHarness="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh"
 rigMember="magic-tester"
 
 rigRefuse(){
@@ -68,7 +68,7 @@ rigField(){ ## file, field
 rigSection(){ ## item file -> its Decisions lines, in file order
 	LC_ALL=C awk '/^## Decisions[ \t]*$/ { on = 1 ; next } on && /^##? / { on = 0 } on && /^- / { print }' "$1"
 }
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 
 echo "-- helper: create, then append --"
 rigOp rec1 --member-decision-record "$rigMember" "$rigTask.md" --kind clarification --text "The rig scope is the decisions helper only." --source 1700000009.000001
@@ -146,7 +146,7 @@ echo "-- shown first: conversation.md and a named-item scan --"
 ( cd "$rigTmp/ws" && env HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigTmp/data" bash -c '
 	DistroAgentsTools(){ return 1 ; }
 	MDSC_CMD=rig
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 	AgentsToolsSpawnConversationHistory "$MMDAPP/.local/agents/spawned/rig-spawn-1/input/conversation.md" magic-tester "CRIG00001:1700000002.000101" "$1"
 ' rig "$rigBoard/blocked/$rigTask.md" ) 2> /dev/null
 rigConv="$rigTmp/ws/.local/agents/spawned/rig-spawn-1/input/conversation.md"

@@ -235,7 +235,7 @@ rigAssert "human-owner, whose SKILL.md says status: reference-only: rc 1, nothin
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-ref
 rigAssert "any member whose SKILL.md says so is refused the same, by that line and not by its name" "$rigRc $( rigRefusedLine keeper-ref ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
 rigAssert "the refusal is the one check every start makes, asked here once: the operation reads no SKILL.md itself and writes no line of its own for it (AgentsSpawnReferenceOnlyCheck holds the check)" \
-	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberStartCheck "' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'reference-only' -e 'SKILL\.md' -e 'identity record' || : )" "1 0"
+	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberStartCheck "' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'reference-only' -e 'SKILL\.md' -e 'identity record' || : )" "1 0"
 printf -- '---\nname: keeper-ref\nstatus: active\n---\n\n# keeper-ref\n' > "$rigSkills/keeper-ref/SKILL.md"
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-ref
 rigAssert "control: the same member with status: active is started" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $3 }' "$rigTmp/out" )" "0 spawn keeper-ref"
@@ -271,9 +271,9 @@ rigRun "$rigTmp/prompt.two" "$rigOp" keeper-lost
 rigAssert "a member the machine's index knows in no workspace the machine knows is refused by the spawn proxy, in the words of the one resolution, and nothing is started" \
 	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "⛔ ERROR: DistroAgentsTools --intern-op-agent-spawn-proxy: member 'keeper-lost' is in the team members index but is present in no tracked workspace -- nothing was done." "$rigTmp/err" || : ) $( rigErrors ) [$( rigMade )]" "1 0 1 1 [$rigMadeBefore]"
 rigAssert "the operation brings no member itself, a rule AgentsMemberWorkspaceCheck holds for the whole package: the bring is not named in its include at all, and it resolves no workspace" \
-	"$( LC_ALL=C grep -c -e 'AgentsToolsMemberSkillsetBring "' "$rigHere/AgentsTools.ManagerSpawn.include" 2> /dev/null || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'AgentsToolsMemberSkillsetBring' -e 'AgentsToolsMemberWorkspaceResolve' -e 'AgentsToolsMemberInvited' -e 'members\.registry' || : )" "0 0"
+	"$( LC_ALL=C grep -c -e 'AgentsToolsMemberSkillsetBring "' "$rigHere/manager/AgentsTools.ManagerSpawn.include" 2> /dev/null || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'AgentsToolsMemberSkillsetBring' -e 'AgentsToolsMemberWorkspaceResolve' -e 'AgentsToolsMemberInvited' -e 'members\.registry' || : )" "0 0"
 rigAssert "it finds a member read only, by the two functions of the machine's directory of members, once each: the folder of one, and whether a name is in it" \
-	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberDirectory "' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberDirectoryText ' || : ) $( cat "$rigHere"/*.include | LC_ALL=C grep -c -E '^AgentsToolsTeamMemberDirectory(Text)?\(\)\{' || : )" "1 1 2"
+	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberDirectory "' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberDirectoryText ' || : ) $( cat "$rigHere"/*/*.include | LC_ALL=C grep -c -E '^AgentsToolsTeamMemberDirectory(Text)?\(\)\{' || : )" "1 1 2"
 
 echo "-- 8. a failed start says so, and prints no row --"
 chmod -x "$rigWs/DistroAgentsConsole.sh"
@@ -305,9 +305,9 @@ rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout
 rigRun /dev/null --manager-spawn-no-such
 rigAssert "an operation its subject does not have is refused by name, rc 1" "$rigRc $( rigWhole "$rigTmp/err" "DistroAgentsTools: ⛔ ERROR: invalid option: --manager-spawn-no-such" )" "1 1"
 rigAssert "the family has one arm for the starts, which sources their include, and that include asks nobody who calls" \
-	"$( LC_ALL=C grep -c -x -e '	--manager-spawn-\*)' "$rigHere/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerSpawn.include"' "$rigHere/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'AgentsToolsManagerCallerCheck' -e 'AgentsToolsActingMember' || : )" "1 1 0"
+	"$( LC_ALL=C grep -c -x -e '	--manager-spawn-\*)' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSpawn.include"' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'AgentsToolsManagerCallerCheck' -e 'AgentsToolsActingMember' || : )" "1 1 0"
 rigAssert "it starts through the spawn proxy, in one call, and by no way of its own: it names no console and starts no process itself" \
-	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'DistroAgentsTools --intern-op-agent-spawn-proxy ' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'DistroAgentsConsole' -e 'uuidgen' -e '[)] *&$' || : )" "1 0"
+	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'DistroAgentsTools --intern-op-agent-spawn-proxy ' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSpawn.include" 2> /dev/null | LC_ALL=C grep -c -e 'DistroAgentsConsole' -e 'uuidgen' -e '[)] *&$' || : )" "1 0"
 
 echo "-- 11. a member started from a bare console outlives its starter --"
 rm -f "$rigSc/release"

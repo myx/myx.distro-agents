@@ -12,10 +12,10 @@
 ## event-track is configured. HOME, the workspace, the team data and the member set are
 ## all this check's own, so no live grant row, team store or skillset is read or written.
 ##
-## Red recipe, run: make AgentsHarnessReadGate in sh-lib/AgentsUniversalHarness.sh print
+## Red recipe, run: make AgentsHarnessReadGate in sh-lib/harness/AgentsUniversalHarness.sh print
 ## the bare ERROR line and return 1, skipping AgentsHarnessGranted and AgentsHarnessRefusal:
 ## the refused read then names no REFUSAL-ID and no grant opens it. Drop `|| $1 == "*"`
-## from AgentsToolsClientAccessGrantRootsOf (sh-lib/AgentsTools.ClientAccessRoots.include):
+## from AgentsToolsClientAccessGrantRootsOf (sh-lib/client/AgentsTools.ClientAccessRoots.include):
 ## a `*` row then reaches no named member. Pass the harness no grant member for
 ## AgentsToolsClientAccessRoots: the developer's own row then opens reads for the tester.
 ## Each fails this check; the unchanged tree before `*` rows were honoured failed 8.
@@ -23,7 +23,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 
 ## Refusing to report is this block's whole job: a run that exercised nothing must never
@@ -264,8 +264,8 @@ if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ READ GATE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2
 	echo "  warn: a read outside the acting member's own read set is not refused, recorded" >&2
 	echo "        and grantable the way a Write is, or another member's grant opens it" >&2
-	echo "  fix:  repair the read gate in sh-lib/AgentsUniversalHarness.sh, or the per-member" >&2
-	echo "        read set in sh-lib/AgentsTools.ClientAccessRoots.include -- never the assertion" >&2
+	echo "  fix:  repair the read gate in sh-lib/harness/AgentsUniversalHarness.sh, or the per-member" >&2
+	echo "        read set in sh-lib/client/AgentsTools.ClientAccessRoots.include -- never the assertion" >&2
 	exit 1
 fi
 printf 'HARNESS_READ_GATE: OK (%d assertions, offline)\n' "$rigPassCount"

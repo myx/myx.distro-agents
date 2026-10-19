@@ -23,7 +23,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -51,7 +51,7 @@ echo "-- the reader alone, every kind: the first line answers alone or with his 
 rigOptions=$'alpha: the first\nbeta (recommended): the second one\ngamma the third'
 rigVerdict(){ ## kind, answer form, the reply as it is rendered under its head -> the verdict, with the words on its line
 	printf '1700000001.000200 | URIGOWNER | %s\nand a line under it\n' "$3" | MDAT_VERDICT_WORDS=1 MDAT_VERDICT_KIND="$1" MDAT_VERDICT_SELECT="$2" MDAT_VERDICT_OPTIONS="$rigOptions" MDAT_VERDICT_AUTHORS=URIGOWNER MDAT_VERDICT_ASKING=URIGSELF1 \
-		LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" 2>&1 | LC_ALL=C cut -f1
+		LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" 2>&1 | LC_ALL=C cut -f1
 }
 ## kind | answer form | the reply's first line | what it is read as
 while IFS='|' read -r rigKind rigForm rigLine rigWant ; do
@@ -147,10 +147,10 @@ rigAssert "a quote of the question ahead of the answer is skipped, and the line 
 	"$( rigVerdict permission "" $'&gt; may I?\nallow-once, this once' ):$( rigVerdict permission "" $'&gt; may I?\nallow-once this once' )" \
 	"allow-once -- this once:RETURNED"
 rigAssert "a caller that does not ask for the words gets the verdict alone, a correction with its words as before" \
-	"$( printf '1700000001.000200 | URIGOWNER | allow-once, but only this file\n' | MDAT_VERDICT_KIND=permission MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | LC_ALL=C cut -f1 ):$( printf '1700000001.000200 | URIGOWNER | correct: the path is /b\n' | MDAT_VERDICT_KIND=readback MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | LC_ALL=C cut -f1 )" \
+	"$( printf '1700000001.000200 | URIGOWNER | allow-once, but only this file\n' | MDAT_VERDICT_KIND=permission MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | LC_ALL=C cut -f1 ):$( printf '1700000001.000200 | URIGOWNER | correct: the path is /b\n' | MDAT_VERDICT_KIND=readback MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | LC_ALL=C cut -f1 )" \
 	"allow-once:correct -- the path is /b"
 rigAssert "a reply that is none does not end the reading: the next one that answers is the verdict" \
-	"$( printf '1700000001.000200 | URIGOWNER | allow-once please\n1700000001.000300 | URIGOWNER | allow-once\n' | MDAT_VERDICT_KIND=permission MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | LC_ALL=C tr '\t' '|' )" \
+	"$( printf '1700000001.000200 | URIGOWNER | allow-once please\n1700000001.000300 | URIGOWNER | allow-once\n' | MDAT_VERDICT_KIND=permission MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" | LC_ALL=C tr '\t' '|' )" \
 	"allow-once|URIGOWNER|1700000001.000300"
 
 echo "-- the tools: his words come with the verdict, and a reply that is none comes back whole --"

@@ -158,7 +158,7 @@ rigHk(){ ## file -- its housekeeping: lines, sorted
 ## bullet, Slack's control characters escaped. They are read back from the JSON posted, by the
 ## package's own reader, with the escapes decoded.
 rigBoxLines(){ ## scenario dir -- the lines of the box posted to the fake Slack
-	LC_ALL=C awk -v path=blocks.0.child_blocks.0.text.text -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" "$1/bodies.log" 2> /dev/null \
+	LC_ALL=C awk -v path=blocks.0.child_blocks.0.text.text -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" "$1/bodies.log" 2> /dev/null \
 		| LC_ALL=C sed -e 's/&gt;/>/g' -e 's/&lt;/</g' -e 's/&amp;/\&/g'
 }
 rigLines(){ ## scenario dir -- the housekeeping: lines of the box posted to the fake Slack, sorted
@@ -537,7 +537,7 @@ rigCheck "control, fd 4 closed: apart from the daemon lines stderr is the same" 
 rigCheck "control, fd 4 closed: the daemon lines are on stderr, the set fd 4 got" "$( rigHk "$rigTmp/b9c.g1.err" | cmp -s - <( rigHk "$rigTmp/b9.fd4" ) && printf same || printf different )" same
 
 echo "   AgentsToolsDaemonLine itself"
-rigDl="$( LC_ALL=C grep -l '^AgentsToolsDaemonLine()' "$MDLT_ORIGIN"/myx/myx.distro-agents/sh-lib/AgentsTools.*.include 2> /dev/null | head -1 )"
+rigDl="$( LC_ALL=C grep -l '^AgentsToolsDaemonLine()' "$MDLT_ORIGIN"/myx/myx.distro-agents/sh-lib/*/AgentsTools.*.include 2> /dev/null | head -1 )"
 rigCheck "the function is defined in an include of this package"          "$( [ -n "$rigDl" ] && printf yes || printf no )" yes
 if [ -n "$rigDl" ] ; then
 	bash -c 'MDSC_CMD=rig ; . "$1" ; AgentsToolsDaemonLine "housekeeping: probe"' rig "$rigDl" 4>&- 2> "$rigTmp/dl.err.closed" > "$rigTmp/dl.out.closed"
@@ -550,7 +550,7 @@ if [ -n "$rigDl" ] ; then
 fi
 
 echo "   the wrapper keeps fd 4 on the caller's stderr"
-rigMcp="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternMcpRequest.include"
+rigMcp="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsTools.InternMcpRequest.include"
 rigSites(){ ## file, fixed text that marks a launch site -- "sites in-order": 4>&2 must come before the line's first stderr redirection, 2>&<fd> or 2>>
 	LC_ALL=C awk -v mark="$2" '
 		index($0, mark) {
@@ -570,7 +570,7 @@ rigCheck "control, order reversed: diag lands in the result file, so the rig can
 rigCheck "control, order reversed: the outer stderr is empty"             "$( LC_ALL=C awk 'END { print NR }' "$rigDir4/outer2" )" 0
 
 echo "   a spawned child never inherits fd 4"
-rigSpawnInc="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpAgentSpawnProxy.include"
+rigSpawnInc="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include"
 rigCheck "the 4 console launch sites that redirect their own output each close fd 4 with 4>&-" "$( LC_ALL=C awk '
 	index($0, "DistroAgentsConsole.sh\" \"${spawnCliArgs[@]}\" --non-interactive") && index($0, "\"$spawnContext\" >") > 0 { sites++ ; if ( index($0, "4>&-") > 0 ) { closed++ } }
 	END { printf "%d %d", sites, closed }' "$rigSpawnInc" )" "4 4"
@@ -652,7 +652,7 @@ rigAsyncEnded(){ ## -- waits, up to a minute, for that record to leave spawn-sta
 }
 ## Whether the one rule takes that spawn for running: asked as the review flow and the accept dismissal ask it.
 rigAsyncRuns(){
-	( PATH="$rigTmp/ps-bin:$PATH" ; MMDAPP="$rigW" ; . "${rigTool%/sh-scripts/*}/sh-lib/AgentsTools.Registries.include" ; rigAsyncId="${rigAsyncRecord##*/}" ; AgentsToolsRegistrySpawnRuns "${rigAsyncId%.md}" "$rigAsyncRecord" && printf running || printf not-running )
+	( PATH="$rigTmp/ps-bin:$PATH" ; MMDAPP="$rigW" ; . "${rigTool%/sh-scripts/*}/../myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" ; rigAsyncId="${rigAsyncRecord##*/}" ; AgentsToolsRegistrySpawnRuns "${rigAsyncId%.md}" "$rigAsyncRecord" && printf running || printf not-running )
 }
 rigAsync exit7 'echo first-on-stdout ; echo second-on-stderr >&2 ; echo third-on-stdout ; exit 7'
 rigAsyncEnded
@@ -777,7 +777,7 @@ mkdir "$rigO2/myx/myx.distro-agents"
 rigTool2="$rigO2/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigArms="$rigTmp/s2arms.txt"
 cat > "$rigArms" <<'RIGARMS'
-		--rig-daemon) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" ; AgentsToolsDaemonLine "housekeeping: rig-daemon" ; echo "daemon-op-stdout" ; return 0 ;;
+		--rig-daemon) . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" ; AgentsToolsDaemonLine "housekeeping: rig-daemon" ; echo "daemon-op-stdout" ; return 0 ;;
 RIGARMS
 rigDisp="$rigTool2"
 LC_ALL=C awk -v armsFile="$rigArms" '{ print } !done && $0 == "\tcase \"$1\" in" { while ( ( getline armLine < armsFile ) > 0 ) { print armLine } ; done = 1 }' "$rigDisp" > "$rigDisp.new" && mv "$rigDisp.new" "$rigDisp" && chmod +x "$rigDisp"
@@ -808,7 +808,7 @@ rigCheck "fd 4 closed: and never on stdout"                               "$( ri
 rigCheck "fd 4 closed: stdout is the op's own line and nothing else"      "$( LC_ALL=C grep -c . "$rigTmp/s2l.out" || : )" 1
 echo "   the daemon line function alone, under /bin/sh, bash 3.2, bash --posix and dash (fd 4 closed, a file, read-only)"
 rigDlFn="$rigTmp/daemonline.fn.sh"
-LC_ALL=C awk '/^AgentsToolsDaemonLine\(\)/ { on = 1 } on { print } on && /^}/ { exit }' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" > "$rigDlFn"
+LC_ALL=C awk '/^AgentsToolsDaemonLine\(\)/ { on = 1 } on { print } on && /^}/ { exit }' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" > "$rigDlFn"
 rigCheck "control: the function text was cut out of the include"          "$( LC_ALL=C grep -c '^AgentsToolsDaemonLine()' "$rigDlFn" || : )" 1
 printf 'unchanged\n' > "$rigTmp/dl.ro"
 rigDlRun(){ ## label, fd 4 mode (closed|file|ro), shell and its options... -- <label>.out .err .status; the shell's own status line says it lived on

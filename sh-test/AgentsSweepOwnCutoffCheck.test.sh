@@ -120,7 +120,7 @@ rm -f "$rigDir/data/inboxes/client-fix2/incoming/$rigNote"
 
 echo "-- --magic-sweep-state-advance --"
 rigState(){ cat "$rigDir/data/inboxes/$1/incoming/$rigNote" 2>/dev/null ; }
-rigWm(){ LC_ALL=C awk -f "$rigPackage/sh-lib/AgentsMagicSweepStateWatermark.awk" < "$rigDir/data/inboxes/$1/incoming/$rigNote" 2>/dev/null ; }
+rigWm(){ LC_ALL=C awk -f "$rigPackage/sh-lib/magic/AgentsMagicSweepStateWatermark.awk" < "$rigDir/data/inboxes/$1/incoming/$rigNote" 2>/dev/null ; }
 rigNewTeam="$(( rigNow - 500 )).000001"
 printf -- '---\nlast_swept_ts: %s\nsource-UA-DB-last-swept-ts: 1.0\n---\n\n# sweep-state-note\n\nteam body line\n' "$rigTeamTs" > "$rigDir/data/inboxes/magic-coordinator/incoming/$rigNote"
 rigRun adv1 --magic-sweep-state-advance magic-coordinator "$rigNewTeam"

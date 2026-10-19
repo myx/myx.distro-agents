@@ -2,7 +2,7 @@
 ## Behavioural check on the console app's step of the authority to resolve and dismiss (F6.10 of the refactorings
 ## epic): a request made without the authority, a permission addressed to its holder, shows in `Pending Questions`;
 ## approving it there with the existing answer key opens one confirmation dialog, and only its OK acts. Run rather
-## than read: the screen's own code (sh-lib/AgentsManagerScreen.py) runs through the stand-in terminal of the driver
+## than read: the screen's own code (sh-lib/manager/AgentsManagerScreen.py) runs through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls the stand-in script
 ## (check-fixtures/manager-screen.tools.stub.sh), which notes each start and prints the case's fixture.
 ## Held:
@@ -16,7 +16,7 @@
 ## Offline: no operation of the real tooling is called, and no ask is read from this machine.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"

@@ -83,8 +83,8 @@ END {
 	}
 }
 RIG_VIEW_EOF
-rigFlat(){ LC_ALL=C awk -v view=flat -f "$rigLib/AgentsHarnessJsonField.awk" -f "$rigTmp/view.awk" < "$1" ; }
-rigBoxes(){ LC_ALL=C awk -f "$rigLib/AgentsHarnessJsonField.awk" -f "$rigTmp/view.awk" < "$1" ; }
+rigFlat(){ LC_ALL=C awk -v view=flat -f "$rigLib/harness/AgentsHarnessJsonField.awk" -f "$rigTmp/view.awk" < "$1" ; }
+rigBoxes(){ LC_ALL=C awk -f "$rigLib/harness/AgentsHarnessJsonField.awk" -f "$rigTmp/view.awk" < "$1" ; }
 ## A date token as its form alone, <date FORMAT>: the moment of a kind's own line is now.
 rigMask(){ LC_ALL=C sed -E 's/<!date\^[0-9]+\^([^|]*)\|[^>]*>/<date \1>/g' ; }
 ## What the box replaces, counted over the blocks made: a block that is no box, a child that
@@ -130,7 +130,7 @@ echo "-- every kind renders from the template, as a block of its subject --"
 set -- --rig-none
 MDSC_CMD=rig
 unset MDAT_SKILLSET_ROOT
-. "$rigLib/AgentsTools.InternOpEventTrackPost.include"
+. "$rigLib/session/AgentsTools.InternOpEventTrackPost.include"
 ## The render's own workspace, in the rig tree: a Slack account cache of its own, and no
 ## session directory unless a check below makes one.
 rigRenderWs="$rigTmp/render-ws"
@@ -268,7 +268,7 @@ rigAssert "one date in a subtitle, never a range" \
 rigKindAt="$( rigSubtitle "$rigTmp/flat.start" | LC_ALL=C sed -n 's/.*<!date^\([0-9]*\)^.*/\1/p' )"
 rigAssert "a kind's own line is of the moment the post is made: that is its box's date" \
 	"$( [ -n "$rigKindAt" ] && [ "$rigKindAt" -ge "$rigKindsFrom" ] && [ "$rigKindAt" -le "$rigKindsTo" ] && printf now || printf 'not now: %s' "$rigKindAt" )" now
-. "$rigLib/AgentsTools.SlackDate.include"
+. "$rigLib/comms/AgentsTools.SlackDate.include"
 rigAssert "the date is the shared helper's: its moment and its UTC fallback, in the subject's own format" \
 	"$( rigSubtitle "$rigTmp/flat.member" | LC_ALL=C sed 's/\^{[^|]*|/^|/' )" "$( AgentsToolsSlackDateToken 1893456540 date-time | LC_ALL=C sed 's/\^{[^|]*|/^|/' )"
 rigAssert "both date formats are the template's own lines, to change there" \
@@ -341,9 +341,9 @@ cat > "$rigOps" <<'RIG_OPS_EOF'
 2030-01-01T00:01:00Z TOOL Read path=/w/source/myx/magic-team.shared.md offset=1 limit=200 -> ok 20480B/202L 12ms
 2030-01-01T00:01:01Z TOOL Grep pattern=review-by path=/w/myx.distro-agents/sh-lib mode=content -> ok 2100B/31L 40ms
 2030-01-01T00:01:02Z TOOL Glob pattern=**/*.routine.md -> ok 3000B/42L 8ms
-2030-01-01T00:01:03Z TOOL Edit path=/w/sh-lib/AgentsTools.Member.include -> ok 40B/1L 10ms
+2030-01-01T00:01:03Z TOOL Edit path=/w/sh-lib/member/AgentsTools.Member.include -> ok 40B/1L 10ms
 2030-01-01T00:01:04Z TOOL mcp__myx_distro__Write path=/w/lib.tukaani-xz-java/README.md -> ok 86B/1L 551ms
-2030-01-01T00:01:05Z TOOL execute cmd="bash -n sh-lib/AgentsTools.Member.include" -> ok 3B/1L 1.2s | "Syntax check"
+2030-01-01T00:01:05Z TOOL execute cmd="bash -n sh-lib/member/AgentsTools.Member.include" -> ok 3B/1L 1.2s | "Syntax check"
 2030-01-01T00:01:05Z TOOL Bash cmd="ls -la" -> ok 300B/9L 40ms | "Syntax check"
 2030-01-01T00:01:06Z TOOL Skill name=magic-team file=magic-team.shared.md section="Nothing stops" -> ok 1965B/19L 725ms
 2030-01-01T00:01:07Z TOOL SendMessage to=magic-coordinator -> ok 120B/2L 300ms
@@ -431,7 +431,7 @@ done <<'RIG_WANT_EOF'
 📁 Glob `**/*.routine.md` → 42 entries
 ✏️ Edit `AgentsTools.Member.include` → ok
 📝 Write `lib.tukaani-xz-java/README.md` → ok
-💻 Syntax check — execute `bash -n sh-lib/AgentsTools.Member.include` → exit 0 · 1.2 s
+💻 Syntax check — execute `bash -n sh-lib/member/AgentsTools.Member.include` → exit 0 · 1.2 s
 💻 Bash `ls -la` → exit 0 · 40 ms
 📚 Skill `magic-team` · `magic-team.shared.md` § Nothing stops → 1.9 KB
 ✉️ SendMessage → *magic-coordinator*: "Done with the README pass, 2 files changed."
@@ -630,13 +630,13 @@ echo "-- every tool's own description leads its line, ahead of the model's text 
 ## Each line is made by the transcript's own formatter from a served call carrying a
 ## description, the model's text before it given too: for every tool on the floor, and the
 ## server's own execute, the description is what leads. Names from the mirror.
-rigFloorNames="$( bash "$rigLib/AgentsHarnessMcpMirror.sh" 2>/dev/null | LC_ALL=C grep -o '{"name":"[A-Za-z]*"' | sed 's/.*"name":"//; s/"$//' ) execute"
+rigFloorNames="$( bash "$rigLib/harness/AgentsHarnessMcpMirror.sh" 2>/dev/null | LC_ALL=C grep -o '{"name":"[A-Za-z]*"' | sed 's/.*"name":"//; s/"$//' ) execute"
 : > "$rigTmp/lines.every"
 rigEveryTotal=0
 for rigName in $rigFloorNames ; do
 	rigEveryTotal=$(( rigEveryTotal + 1 ))
 	printf '%s' '{"description":"Intent for '"$rigName"'"}' | STL_TS="2030-01-01T00:10:00Z" STL_TOOL="mcp__myx_distro__$rigName" STL_OUTCOME=ok STL_BYTES=10 STL_LINES=1 STL_COMMENT='RIG model text' \
-		LC_ALL=C awk -v stlStandalone=tool -f "$rigLib/AgentsSessionTranscriptFormat.awk" >> "$rigTmp/lines.every"
+		LC_ALL=C awk -v stlStandalone=tool -f "$rigLib/session/AgentsSessionTranscriptFormat.awk" >> "$rigTmp/lines.every"
 done
 rigRender feed "$rigTmp/k-every" "$rigTmp/lines.every"
 rigEveryLed=0
@@ -653,7 +653,7 @@ rigAssert "a read line, exactly: the description, then the tool" "$( cat "$rigTm
 for rigName in TodoWrite mcp__myx_distro__CheckList ; do
 	printf '%s' '{"todos":[{"content":"Run it","status":"pending","activeForm":"Running it"},{"content":"Check '"$rigName"'","status":"in_progress","activeForm":"Checking '"$rigName"'"}]}' \
 		| STL_TS="2030-01-01T00:11:00Z" STL_TOOL="$rigName" STL_OUTCOME=ok STL_BYTES=10 STL_LINES=1 STL_COMMENT='RIG model text' \
-		LC_ALL=C awk -v stlStandalone=tool -f "$rigLib/AgentsSessionTranscriptFormat.awk" >> "$rigTmp/lines.todo"
+		LC_ALL=C awk -v stlStandalone=tool -f "$rigLib/session/AgentsSessionTranscriptFormat.awk" >> "$rigTmp/lines.todo"
 done
 rigRender feed "$rigTmp/k-todo" "$rigTmp/lines.todo"
 rigAssert "a TodoWrite line leads with its item in progress" "$( cat "$rigTmp/k-todo"/?????? | LC_ALL=C grep -c -F -- 'Checking TodoWrite — ' )" 1
@@ -849,16 +849,16 @@ rigAssert "MDAT_EVENT_TRACK_CHUNK_BYTES changes nothing: still one post, and one
 rigAssert "neither knob is read anywhere in sh-lib" \
 	"$( LC_ALL=C grep -r -l -e 'MDAT_EVENT_TRACK_CHUNK_BYTES' -e 'MDAT_EVENT_TRACK_POLL_SECONDS' -e 'ETP_CAP' "$rigLib" | LC_ALL=C awk 'END { print NR }' )" 0
 rigAssert "the feed polls every 4 s: with the 5 s window, under 10 s from a line to its send" \
-	"$( LC_ALL=C grep -c -e '^	local runFeed .* runPoll=4 ' "$rigLib/AgentsTools.EventTrackFeed.include" )" 1
+	"$( LC_ALL=C grep -c -e '^	local runFeed .* runPoll=4 ' "$rigLib/session/AgentsTools.EventTrackFeed.include" )" 1
 
 ## ---------------------------------------------------------------------------
 echo "-- the feed ends a post right after an immediate line, and sends its posts in order --"
 ## ---------------------------------------------------------------------------
-. "$rigLib/AgentsTools.EventTrackFeed.include"
+. "$rigLib/session/AgentsTools.EventTrackFeed.include"
 rigPlan(){ ## all (1|0), lines... -- the planner's posts and open post, marks as #POST and #OPEN, lines as their third word
 	local planAll="$1"
 	shift
-	printf '2030-01-01T00:00:00Z %s\n' "$@" | ETF_ALL="$planAll" LC_ALL=C awk -f "$rigLib/AgentsEventTrackFeedPlan.awk" \
+	printf '2030-01-01T00:00:00Z %s\n' "$@" | ETF_ALL="$planAll" LC_ALL=C awk -f "$rigLib/session/AgentsEventTrackFeedPlan.awk" \
 		| LC_ALL=C tr '\001' '#' | LC_ALL=C awk '/^#/ { printf "%s ", $0 ; next } { printf "%s ", $2 }'
 }
 rigAssert "ordinary lines stay in the open post" "$( rigPlan 0 'TOOL Read path=/x -> ok' 'ROUND n=1' 'VERDICT item=x' )" '#OPEN TOOL ROUND VERDICT '
@@ -891,7 +891,7 @@ rigAssert "one at a time: each send ends before the next begins" "$( LC_ALL=C aw
 rigAssert "strict order: what was sent, then what stays open, is every line given, in order, once" \
 	"$( { LC_ALL=C grep -v -e '^BEGIN ' -e '^END$' "$rigSends" ; printf '%s\n' "$rigOpen" ; } | cksum )" "$( printf '%s\n' "$rigFeedIn" | cksum )"
 ## The real send, its op a fake: what the feed hands the post op.
-. "$rigLib/AgentsTools.EventTrackFeed.include"
+. "$rigLib/session/AgentsTools.EventTrackFeed.include"
 cat > "$rigTmp/fake-tools" <<'RIG_FAKE_EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$RIG_ARGS"
@@ -1036,7 +1036,7 @@ rigOp /dev/null --intern-op-event-track-post magic-tester CRIGTRACK:1699999999.0
 rigAssert "--update is refused as an unknown option, and no Slack call is made" \
 	"$rigOpRc:$( LC_ALL=C grep -c -F 'invalid option: --update' "$rigTmp/op.err" ):$( [ -s "$rigTmp/scenario/calls" ] && printf called || printf none )" 1:1:none
 rigAssert "no tracking-post path in sh-lib calls chat.update or passes --update" \
-	"$( LC_ALL=C grep -l -e 'chat\.update' -e 'event-track-post.*--update' "$rigLib"/AgentsTools.InternOpEventTrackPost.include "$rigLib"/AgentsTools.InternOpAgentSpawnProxy.include "$rigLib"/AgentsTools.EventTrackFeed.include | LC_ALL=C awk 'END { print NR }' )" 0
+	"$( LC_ALL=C grep -l -e 'chat\.update' -e 'event-track-post.*--update' "$rigLib"/session/AgentsTools.InternOpEventTrackPost.include "$rigLib"/session/AgentsTools.InternOpAgentSpawnProxy.include "$rigLib"/session/AgentsTools.EventTrackFeed.include | LC_ALL=C awk 'END { print NR }' )" 0
 
 echo "-- a refused post fails, said and logged --"
 rigReset
@@ -1241,7 +1241,7 @@ env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
 		case "$( command -v curl )" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: curl is not the rig fake" >&2 ; exit 99 ;; esac
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || { echo "RIG-GUARD: the process helper of the rig is missing from the package" >&2 ; exit 99 ; }
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.EventTrackFeed.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackFeed.include"
 		AgentsEventTrackFeedOpen "$RIG_A" "$RIG_THREAD" ; AgentsEventTrackFeedOpen "$RIG_B" "$RIG_THREAD"
 		AgentsEventTrackFeedRun "$RIG_A" magic-coordinator "$RIG_THREAD" & feedA=$!
 		AgentsEventTrackFeedRun "$RIG_B" magic-tester "$RIG_THREAD" & feedB=$!
@@ -1305,7 +1305,7 @@ rigAssert "its grant too, where the refusal is" \
 ## file left there names another thread: nothing reads it.
 printf 'CRIGTRACK:1700000001.000999\n' > "$rigStore/spawned/$rigCow/event-track.thread"
 printf '%s\n' "export MDAT_SPAWN_SESSION_ID='$rigJoiner' MDAT_SPAWN_SANDBOX_ROOT='$rigStore/spawned/$rigCow'" \
-	'. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"' \
+	'. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"' \
 	"AgentsToolsHousekeepingReport magic-tester 'housekeeping: rig-cow closed one record'" > "$rigTmp/housekeeping.script"
 rigOp "$rigTmp/housekeeping.script" --intern-mcp-execute
 rigAssert "the joiner's housekeeping report lands in the session's thread, found by its own id, never where a file of the shared sandbox points" \
@@ -1351,7 +1351,7 @@ rigAssert "with no description and no task text there is no such line, and no em
 	'BOX [bust_in_silhouette] magic-tester (run `abcdef01`) | <date {date_short_pretty} at {time}>|▶️ run start|cli: rig-cli|:0'
 ## The one reader of a task in words (AgentsTools.TaskText.include), which the permission set
 ## post uses too: the tracked item's title and first paragraph, else the dispatch's own brief.
-. "$rigLib/AgentsTools.TaskText.include"
+. "$rigLib/session/AgentsTools.TaskText.include"
 mkdir -p "$rigTmp/data/board/running" "$rigTmp/data/board/backlog"
 printf -- '---\nstatus: task\nowner: magic-tester\n---\n\n# Fix the vars loader\n\nThe loader drops a variable whose value holds an equals sign. It must keep the whole value! Add a check for it. Then run the suite? A fifth sentence that must not show.\n\n## Notes\n\nnot the first paragraph\n' \
 	> "$rigTmp/data/board/backlog/task-rig-start.md"

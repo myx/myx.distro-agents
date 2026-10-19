@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the death of a run, as the control thread of its session judges it, tells it and asks about
-## it (--intern-session-control, sh-lib/AgentsTools.SessionControlDeath.include), run rather than read, against a rig
+## it (--intern-session-control, sh-lib/session/AgentsTools.SessionControlDeath.include), run rather than read, against a rig
 ## workspace built here: spawn records, session stores, a board, and a process list and a Slack of the rig's own.
 ## Held:
 ##   1. WHAT A DEATH IS. The process of a run gone, its supervising shell gone, its record still open, and no word
@@ -566,28 +566,28 @@ echo "-- 7. who speaks: the thread while it lives, and a death it told is told b
 rigInside(){ ## lines of a script, run inside the tooling's own context in the rig workspace
 	printf '%s\n' "$@" | rigCall --intern-mcp-execute 2> "$rigTmp/inside.err"
 }
-rigHeld="$( rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlDeath.include"' 'AgentsToolsSessionControlDeathHeld s-hang d-hang ; echo "rig-held=$?"' 'AgentsToolsSessionControlDeathHeld d-plain d-plain ; echo "rig-settled=$?"' | LC_ALL=C grep '^rig-' | LC_ALL=C tr '\n' ' ' )"
+rigHeld="$( rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlDeath.include"' 'AgentsToolsSessionControlDeathHeld s-hang d-hang ; echo "rig-held=$?"' 'AgentsToolsSessionControlDeathHeld d-plain d-plain ; echo "rig-settled=$?"' | LC_ALL=C grep '^rig-' | LC_ALL=C tr '\n' ' ' )"
 rigThreadEnd "$rigHang"
-rigHeldAfter="$( rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlDeath.include"' 'AgentsToolsSessionControlDeathHeld s-hang d-hang ; echo "rig-held=$?"' | LC_ALL=C grep '^rig-' | LC_ALL=C tr '\n' ' ' )"
+rigHeldAfter="$( rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlDeath.include"' 'AgentsToolsSessionControlDeathHeld s-hang d-hang ; echo "rig-held=$?"' | LC_ALL=C grep '^rig-' | LC_ALL=C tr '\n' ' ' )"
 rigAssert "a death the thread keeps and has not settled is held by it while it lives, for the advance pass to leave alone; a settled one is not, and none is once the thread has ended" \
 	"$rigHeld$rigHeldAfter" "rig-held=0 rig-settled=1 rig-held=1 "
 rigBodies="$( wc -l < "$rigSlack/bodies" | LC_ALL=C tr -d ' ' )"
-rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"' "AgentsToolsSpawnProxyEndNotice '$rigSp/d-hang/d-hang.md' ; AgentsToolsSpawnProxyEndNotice '$rigSp/d-ho/d-ho.md' missing" > /dev/null
+rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"' "AgentsToolsSpawnProxyEndNotice '$rigSp/d-hang/d-hang.md' ; AgentsToolsSpawnProxyEndNotice '$rigSp/d-ho/d-ho.md' missing" > /dev/null
 rigAssert "a death the thread told is told by no other closer: the record keeps that it was told, and the one function that tells an end says nothing more of that run" \
 	"$( [ -n "$( rigHeader d-hang death-told )" ] && [ -n "$( rigHeader d-ho death-told )" ] && echo marked ):$(( $( wc -l < "$rigSlack/bodies" | LC_ALL=C tr -d ' ' ) - rigBodies ))" "marked:0"
 rigRec d-other d-other keeper-rig spawn-ended-without-close "${rigClosed}${rigAsked}supervisor-process: $rigGoneShell
 "
-rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"' "AgentsToolsSpawnProxyEndNotice '$rigSp/d-other/d-other.md' missing" > /dev/null
+rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"' "AgentsToolsSpawnProxyEndNotice '$rigSp/d-other/d-other.md' missing" > /dev/null
 rigAssert "control: a run no thread told is told by that function as before, as one that posted no handback" \
 	"$( rigPosts 'posted no handback' '`d-other`' | LC_ALL=C tr '\n' ';' )" "${rigReqThread%%:*} ${rigReqThread#*:} magic-coordinator;"
 rigAssert "no text the thread posts is written in its code: each is a block of the note template" \
-	"$( LC_ALL=C grep -c -e 'died:' -e 'What should be done' -e 'resume:' "$rigPackage/sh-lib/AgentsTools.SessionControlDeath.include" "$rigPackage/sh-lib/AgentsTools.InternSessionControl.include" 2> /dev/null | LC_ALL=C awk -F: '{ textCount += $NF } END { print textCount + 0 }' ):$( LC_ALL=C grep -c -x -e '## run-died' -e '## question' -e '## options' -e '## context' "$rigPackage/sh-lib/templates/tooling-note.post.format.md" )" "0:4"
+	"$( LC_ALL=C grep -c -e 'died:' -e 'What should be done' -e 'resume:' "$rigPackage/sh-lib/session/AgentsTools.SessionControlDeath.include" "$rigPackage/sh-lib/session/AgentsTools.InternSessionControl.include" 2> /dev/null | LC_ALL=C awk -F: '{ textCount += $NF } END { print textCount + 0 }' ):$( LC_ALL=C grep -c -x -e '## run-died' -e '## question' -e '## options' -e '## context' "$rigPackage/sh-lib/templates/tooling-note.post.format.md" )" "0:4"
 
 echo ""
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SESSION CONTROL DEATH CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2
 	echo "  warn: the control thread of a session does not tell a death from an ordinary end, or does not tell it and ask about it once" >&2
-	echo "  fix:  sh-lib/AgentsTools.SessionControlDeath.include and the tick of sh-lib/AgentsTools.InternSessionControl.include -- never the assertion" >&2
+	echo "  fix:  sh-lib/session/AgentsTools.SessionControlDeath.include and the tick of sh-lib/session/AgentsTools.InternSessionControl.include -- never the assertion" >&2
 	exit 1
 fi
 printf 'SESSION_CONTROL_DEATH: OK (%d assertions, offline, rig tree only)\n' "$rigPasses"

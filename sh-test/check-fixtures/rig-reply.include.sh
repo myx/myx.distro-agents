@@ -7,7 +7,7 @@
 ##
 ## WHY. Every reply -- of the MCP server's own tools and of the harness tools it serves, and every tool
 ## result the harness's model loop hands its model -- passes through the one reply layer
-## (sh-lib/AgentsTools.SessionTranscript.include; F2.3 and F2.4 of the refactorings epic). It adds the
+## (sh-lib/session/AgentsTools.SessionTranscript.include; F2.3 and F2.4 of the refactorings epic). It adds the
 ## host's time as a content part of its own beside the result: a second text item of an MCP result's
 ## content, a separate part of the model loop's tool message. The part is the time of the call, so no
 ## expectation can hold it, and it is never inside a tool's output, which a served call prints as it is.

@@ -7,7 +7,7 @@
 ## identity and, on a file source with a one-second bound, reaches nothing off this box.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
-rigHarness="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh"
+rigHarness="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh"
 rigMember="magic-tester"
 
 rigRefuse(){

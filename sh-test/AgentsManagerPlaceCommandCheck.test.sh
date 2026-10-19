@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the workspace commands, declared once by each package in its sh-lib/workspace-commands.list
+## Behavioural check on the workspace commands, declared once by each package in its sh-lib/config/workspace-commands.list
 ## (a command a line: its name, its emoji part of it; how it runs, `output` or `terminal`; the command, `$MMDAPP` the
 ## root of the workspace; a TAB between them), and on their two products, neither made from the other: the tasks
 ## the editor's palette gets (each package's *Tools.Make.VSCodeTasksFragment.include, by the one emitter of
@@ -147,7 +147,7 @@ for rigPair in source:SourceTools deploy:DeployTools remote:RemoteTools agents:A
 		"$( cmp -s "$rigTmp/golden.${rigPair%%:*}" "$rigTmp/tasks.${rigPair%%:*}" && echo same || echo differs ) $( wc -c < "$rigTmp/tasks.err" | LC_ALL=C tr -d ' ' )" "same 0"
 done
 rigAssert "each package declares its commands once, in its own list: how many, and those that run with the whole terminal, the consoles" \
-	"$( for rigPkg in source deploy remote agents ; do LC_ALL=C awk -F'\t' -v pkg="$rigPkg" '/^#/ || !NF { next } { all++ ; if ( NF != 3 || ( $2 != "output" && $2 != "terminal" ) ) bad++ ; if ( $2 == "terminal" ) term = term "," $1 } END { printf "%s=%d/%d%s ", pkg, all, bad + 0, term }' "$MDLT_ORIGIN/myx/myx.distro-$rigPkg/sh-lib/workspace-commands.list" 2> /dev/null || printf '%s=none ' "$rigPkg" ; done )" \
+	"$( for rigPkg in source deploy remote agents ; do LC_ALL=C awk -F'\t' -v pkg="$rigPkg" '/^#/ || !NF { next } { all++ ; if ( NF != 3 || ( $2 != "output" && $2 != "terminal" ) ) bad++ ; if ( $2 == "terminal" ) term = term "," $1 } END { printf "%s=%d/%d%s ", pkg, all, bad + 0, term }' "$MDLT_ORIGIN/myx/myx.distro-$rigPkg/sh-lib/config/workspace-commands.list" 2> /dev/null || printf '%s=none ' "$rigPkg" ; done )" \
 	"source=5/0,🖥️ Start Source Console deploy=2/0,🖥️ Start Deploy Console remote=1/0,🖥️ Start Remote Console agents=1/0,🤖 Start Agents Console "
 rigAssert "no fragment writes a task of its own: each is made from its package's list by the one emitter" \
 	"$( for rigPair in source:SourceTools deploy:DeployTools remote:RemoteTools agents:AgentsTools ; do rigFile="$MDLT_ORIGIN/myx/myx.distro-${rigPair%%:*}/sh-lib/${rigPair#*:}.Make.VSCodeTasksFragment.include" ; printf '%s:%s ' "$( LC_ALL=C grep -c -e '"label"' -e '"command"' "$rigFile" || : )" "$( LC_ALL=C grep -c -F -e 'SourceTools.Make.VSCodeTasksFromWorkspaceCommands.include' "$rigFile" || : )" ; done )" "0:1 0:1 0:1 0:1 "
@@ -168,10 +168,10 @@ done
 	printf '## the rig'"'"'s own commands of myx.distro-source\n\n'
 	printf '🧪 Rig Output\toutput\tsh "$MMDAPP/rig-command.sh" output "two words"\n'
 	printf '🧪 Rig "Quoted" \\ Back\toutput\tsh '"'"'${MMDAPP}/rig-command.sh'"'"' "a \\"b\\""\n'
-} > "$rigOrigin/myx/myx.distro-source/sh-lib/workspace-commands.list"
-printf '🧪 Rig Deploy\toutput\tsh "$MMDAPP/rig-command.sh" deploy\n' > "$rigOrigin/myx/myx.distro-deploy/sh-lib/workspace-commands.list"
-printf '🧪 Rig Remote\toutput\tsh "$MMDAPP/rig-command.sh" remote\n' > "$rigOrigin/myx/myx.distro-remote/sh-lib/workspace-commands.list"
-printf '🧪 Rig Terminal\tterminal\tsh "$MMDAPP/rig-command.sh" terminal\n' > "$rigOrigin/myx/myx.distro-agents/sh-lib/workspace-commands.list"
+} > "$rigOrigin/myx/myx.distro-source/sh-lib/config/workspace-commands.list"
+printf '🧪 Rig Deploy\toutput\tsh "$MMDAPP/rig-command.sh" deploy\n' > "$rigOrigin/myx/myx.distro-deploy/sh-lib/config/workspace-commands.list"
+printf '🧪 Rig Remote\toutput\tsh "$MMDAPP/rig-command.sh" remote\n' > "$rigOrigin/myx/myx.distro-remote/sh-lib/config/workspace-commands.list"
+printf '🧪 Rig Terminal\tterminal\tsh "$MMDAPP/rig-command.sh" terminal\n' > "$rigOrigin/myx/myx.distro-agents/sh-lib/config/workspace-commands.list"
 rigTool="$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 
 rigTasks "$rigOrigin" source SourceTools > "$rigTmp/tasks.rig" 2> /dev/null

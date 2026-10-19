@@ -3,7 +3,7 @@
 ## `Launch / Spawn` is renamed `Launch (Start)`, `Consoles (Tools)` is renamed `Consoles`, the obsolete pane line
 ## `keys: k kill  c control` is gone (the status line already shows those keys), and a big window showing command
 ## output has bigger margins: at least one more line top and bottom and two more characters each side than before.
-## Run rather than read: the screen's own code (sh-lib/AgentsManagerScreen.py) draws through the stand-in terminal of
+## Run rather than read: the screen's own code (sh-lib/manager/AgentsManagerScreen.py) draws through the stand-in terminal of
 ## the driver (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls the stand-in
 ## script (check-fixtures/manager-screen.tools.stub.sh), which prints the case's fixture.
 ## Held:
@@ -31,7 +31,7 @@
 ## Offline: the only thing the screen calls here is the stand-in for the dispatcher.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"

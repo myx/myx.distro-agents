@@ -12,12 +12,12 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigHarness" "$rigHere/AgentsHarnessHooks.sh" "$rigHere/AgentsHarnessHookDecision.awk" \
+for rigFile in "$rigHarness" "$rigHere/harness/AgentsHarnessHooks.sh" "$rigHere/harness/AgentsHarnessHookDecision.awk" \
 	"$rigTest/check-fixtures/AgentsHarnessHooks.legacy.sh" "$rigTest/check-fixtures/AgentsHarnessJsonField.legacy.awk" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
@@ -65,7 +65,7 @@ rigRefusal(){ ## legacy|current, tool name, raw args, pre-parse (1/0), out dir, 
 		if [ "$1" = legacy ] ; then
 			. "$rigTest/check-fixtures/AgentsHarnessHooks.legacy.sh" 2> "$5/source.err"
 		else
-			. "$rigHere/AgentsHarnessHooks.sh" 2> "$5/source.err"
+			. "$rigHere/harness/AgentsHarnessHooks.sh" 2> "$5/source.err"
 			## The current harness never reads settings.json -- its hooks are our own policy's --
 			## so the rig's one hook is handed to the refusal as the same list line the legacy
 			## loader made of that settings.json. What is compared is the refusal, not the load.

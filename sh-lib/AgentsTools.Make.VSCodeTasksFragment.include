@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-# ^^^ for syntax checking in the editor only
-
-## The tasks of myx.distro-agents: its workspace commands as it declares them, in sh-lib/workspace-commands.list.
-. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-source/sh-lib/SourceTools.Make.VSCodeTasksFromWorkspaceCommands.include" \
-	"${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/workspace-commands.list"

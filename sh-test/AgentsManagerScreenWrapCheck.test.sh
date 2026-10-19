@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on `w`, the lines of the left window wrapped or cut, in the manager screen
-## (sh-lib/AgentsManagerScreen.py), run rather than read, in each kind of view of the left window: a summary with a table
+## (sh-lib/manager/AgentsManagerScreen.py), run rather than read, in each kind of view of the left window: a summary with a table
 ## of its own (a store of the team data), a table of the left pane (a folder's items, a member's grants, the members), a
 ## Markdown text rendered, the same text raw, and a member's help. The screen's own code runs through the stand-in
 ## terminal of the driver (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a
@@ -10,7 +10,7 @@
 ## and the pane scrolls sideways. Offline: no operation of the real tooling is called.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"
@@ -57,7 +57,7 @@ rigMember="member	keeper-rig	-	Rig	Keeper	-	keeper	/rig/ws	here	active	no-proces
 printf '%s\nmember\thuman-owner-with-a-very-long-name-that-runs-ENDMEMBER\t-\t-\t-\t-\thuman\t/rig/ws\there\treference-only\tno-process\t-\n' "$rigMember" > "rows.--manager-team-member-list"
 {
 	printf '%s\ninfo\tdescription\tA_rig_keeper\n' "$rigMember"
-	printf 'grant\tfloor\tread\t/rig/ws/source/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py\tws:source/myx/myx.distro-agents/sh-lib/AgentsManagerScreen-ENDCOVERS.py\tset-3ef0ea61-ff24-46e7-8299-bb3c5ee6b4fc_by_U75H0DK43\tuntil_session_5680fa0b_ends\n'
+	printf 'grant\tfloor\tread\t/rig/ws/source/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py\tws:source/myx/myx.distro-agents/sh-lib/AgentsManagerScreen-ENDCOVERS.py\tset-3ef0ea61-ff24-46e7-8299-bb3c5ee6b4fc_by_U75H0DK43\tuntil_session_5680fa0b_ends\n'
 } > "rows.--manager-team-member-read keeper-rig"
 printf 'file\tSKILL.md\t1889\tyes\n' > "rows.--manager-team-member-files keeper-rig"
 printf '📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member> [--a-long-option-of-its-own <value>] [--another-long-option-ENDHELP]\n\n\t\t--member-help <team-member>\n\t\t\tRead-only. Prints its help.\n\n' > "rows.--member-help keeper-rig"

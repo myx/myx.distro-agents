@@ -32,7 +32,7 @@ rigAllow="$rigHere/client-hooks/allow-granted-native-tool.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigReroute" "$rigAllow" "$rigHere/AgentsTools.Grants.include" "$rigHere/AgentsTools.ClientToolPolicy.include" ; do
+for rigFile in "$rigReroute" "$rigAllow" "$rigHere/grants/AgentsTools.Grants.include" "$rigHere/client/AgentsTools.ClientToolPolicy.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
@@ -137,7 +137,7 @@ rigAssert "the channels with no bot token"     "$( rigBoth )" "none|none"
 rigSlack "SLACK_CHANNEL_MAGIC_TEAM=Crigteam" "SLACK_CHANNEL_HUMAN_OWNER=Urigowner" "SLACK_BOT_TOKEN="
 rigAssert "the channels with an empty bot token" "$( rigBoth )" "none|none"
 rigSlack "SLACK_BOT_TOKEN=rig-not-a-token"
-rigOthers="$( env -i PATH=/usr/bin:/bin MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/AgentsTools.ClientToolPolicy.include" ; AgentsToolsClientToolPolicyRerouteToolNames' )" \
+rigOthers="$( env -i PATH=/usr/bin:/bin MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/client/AgentsTools.ClientToolPolicy.include" ; AgentsToolsClientToolPolicyRerouteToolNames' )" \
 	|| rigRefuse "the reroute tool names could not be read"
 rigOtherAll=0 rigOtherDeny=0
 while IFS= read -r rigOne ; do

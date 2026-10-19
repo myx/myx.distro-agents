@@ -51,7 +51,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-rigHarness="$rigLib/AgentsUniversalHarness.sh"
+rigHarness="$rigLib/harness/AgentsUniversalHarness.sh"
 rigFixture="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/change-approval.curl.stub.sh"
 rigTemplate="$rigLib/templates/change-approve.post.format.md"
 
@@ -264,11 +264,11 @@ rigPack(){ ## slot, value, ...
 }
 ## What a reminder of a prompt quotes of it (AgentsTools.PendingReplyRemind.include).
 rigRemindQuote(){ ## record n (default: the newest)
-	rigRun "$rigDir/remind-quote" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyRemind.include" && AgentsToolsPendingReplyRemindQuestion "$1"' rig-remind "$( rigRecord "${1:-}" )"
+	rigRun "$rigDir/remind-quote" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyRemind.include" && AgentsToolsPendingReplyRemindQuestion "$1"' rig-remind "$( rigRecord "${1:-}" )"
 	cat "$rigDir/remind-quote"
 }
 rigFill(){ ## want -- the template filled straight, the slots from the caller's environment
-	ASKP_WANT="$1" ASKP_FORM=approve LC_ALL=C awk -f "$rigLib/AgentsToolingTemplateFill.awk" -f "$rigLib/AgentsAskPostFill.awk" "$rigTemplate" 2>&1
+	ASKP_WANT="$1" ASKP_FORM=approve LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$rigLib/questions/AgentsAskPostFill.awk" "$rigTemplate" 2>&1
 }
 rigWaitSet(){ ## record n -- 1 while that prompt is in the Wait set of the session
 	LC_ALL=C sed -n 's/^sources: //p' "$rigWs/.local/agents/sessions/$rigSpawn/wait/state" 2> /dev/null | LC_ALL=C grep -c -F "ask:$( rigId "${1:-}" )"
@@ -778,8 +778,8 @@ rigAssert "what he writes there after still arrives, kept with the answer" \
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ CHANGE APPROVAL CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2
-	echo "  fix:  the gate and the write tools of sh-lib/AgentsUniversalHarness.sh, sh-lib/AgentsTools.InternOpChange.include," >&2
-	echo "        the approve rows of sh-lib/AgentsTools.Grants.include and its awk programs, or the template -- never the assertion" >&2
+	echo "  fix:  the gate and the write tools of sh-lib/harness/AgentsUniversalHarness.sh, sh-lib/grants/AgentsTools.InternOpChange.include," >&2
+	echo "        the approve rows of sh-lib/grants/AgentsTools.Grants.include and its awk programs, or the template -- never the assertion" >&2
 	exit 1
 fi
 printf 'CHANGE_APPROVAL: OK (%d assertions, offline, rig tree only)\n' "$rigPassCount"

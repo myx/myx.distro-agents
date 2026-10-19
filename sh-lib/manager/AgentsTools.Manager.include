@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Manager.include -- the --manager-* family: the operations of the console and
+## the tooling itself, which a manager screen, and later a portal, reads and acts through.
+## Sourced from the `--manager-*)` arm of DistroAgentsTools.fn.sh's dispatcher.
+##
+## Not member-facing. Anyone who can open the console on the machine is its operator, a
+## person or a script; a call from inside a member's session is refused where the family is
+## dispatched (AgentsToolsManagerCallerCheck), once for every operation, so no arm here asks
+## who calls. The dispatcher takes the second word of no operation of the family for a
+## member to bring (its one list of such operations): an operation that names a member
+## resolves it itself.
+##
+## One include per subject, each sourced by its arm below. Another subject is one more arm
+## here and its include beside this one; another operation of a subject is one more arm in
+## that subject's include, with its help pair. What an operation prints is plain text a
+## program reads: its exact form stands in the operation's help entry.
+##
+
+case "$1" in
+
+	## What the owner's own check of the setup says, domain by domain, as rows.
+	--manager-check-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerCheck.include"
+		return $?
+	;;
+
+	## The tooling commands a console user calls by name, as the console's completion gathers them.
+	--manager-command-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerCommand.include"
+		return $?
+	;;
+
+	## The settings of this workspace, as they are, and the interface settings of the user
+	## who runs the console, which one operation saves.
+	--manager-config-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConfig.include"
+		return $?
+	;;
+
+	## The consoles that can be started from this workspace: its bash shell, the agent CLIs by
+	## name, the other Distro consoles.
+	--manager-console-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConsole.include"
+		return $?
+	;;
+
+	## The most vital figures of this workspace and of its machine, in blocks a screen draws.
+	--manager-dashboard-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/dashboard/AgentsTools.ManagerDashboard.include"
+		return $?
+	;;
+
+	## The help of this tool as it is written: what the bare call prints, and every operation's.
+	--manager-help-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerHelp.include"
+		return $?
+	;;
+
+	## The questions that wait on an answer: what may be done with one, and doing it.
+	--manager-pending-reply-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerPendingReply.include"
+		return $?
+	;;
+
+	## The public keys this server shows to others: those to add to git, those to trust.
+	--manager-keys-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerKeys.include"
+		return $?
+	;;
+
+	## The places of this machine: the workspaces and the directories the tooling knows by name.
+	--manager-place-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerPlace.include"
+		return $?
+	;;
+
+	## The routines the members carry, and which of them the session spawner starts by itself.
+	--manager-routine-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerRoutine.include"
+		return $?
+	;;
+
+	## The coworking sessions of this workspace and their runs.
+	--manager-session-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include"
+		return $?
+	;;
+
+	## What is started by hand from the console: one member, with a prompt.
+	--manager-spawn-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSpawn.include"
+		return $?
+	;;
+
+	## The items of the team data, its board, its audit and its vault, to browse them.
+	--manager-team-data-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerTeamData.include"
+		return $?
+	;;
+
+	## The members of the team, as this workspace knows them.
+	--manager-team-member-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerTeamMember.include"
+		return $?
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

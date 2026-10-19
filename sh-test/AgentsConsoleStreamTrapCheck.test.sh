@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the one signal the generated console sends (sh-lib/AgentsConsoleShellScript.template.sh,
+## Behavioural check on the one signal the generated console sends (sh-lib/manager/AgentsConsoleShellScript.template.sh,
 ## DagcRunClaudeStreaming): it starts the vendor CLI in the background, waits for it, and forwards a TERM or an INT
 ## that comes to the console to that CLI, by a trap that names the CLI's pid. The trap stays for as long as the
 ## script lives, and the script lives on once the CLI has been waited for: it then waits for its formatter. A pid
@@ -21,7 +21,7 @@
 ## outside it; nothing is requested.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsoleShellScript.template.sh"
+rigTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsConsoleShellScript.template.sh"
 rigHelper="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh"
 
 rigRefuse(){

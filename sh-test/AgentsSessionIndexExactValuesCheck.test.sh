@@ -23,7 +23,7 @@ rigHook="$rigLib/client-hooks/allow-granted-native-tool.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigHook" "$rigLib/AgentsTools.Grants.include" "$rigLib/AgentsGrantsPattern.awk" "$rigLib/AgentsGrantsSessionIndex.awk" ; do
+for rigFile in "$rigHook" "$rigLib/grants/AgentsTools.Grants.include" "$rigLib/grants/AgentsGrantsPattern.awk" "$rigLib/grants/AgentsGrantsSessionIndex.awk" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
@@ -95,7 +95,7 @@ rigFnIndex="$rigSessions/s-fn/permissions.rig-member.index"
 ## AgentsToolsGrantsSessionEnsure and the check, as the harness gate and the hook call them.
 rigFnSays(){ ## tool, path -- rc of the check and what admitted it
 	env -i HOME="$rigTmp/home" PATH=/usr/bin:/bin:/usr/sbin:/sbin MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_ORIGIN="$rigOrigin" RIG_TOOL="$1" RIG_PATH="$2" bash -c '
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include" || exit 97
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" || exit 97
 		AgentsToolsGrantsSessionEnsure "$MMDAPP" rig-member s-fn "" "" "$RIG_ORIGIN" || exit 96
 		checkRc=0
 		AgentsToolsGrantsSessionCheck "$RIG_TOOL" "$RIG_PATH" "$MMDAPP/.local/agents/sessions/s-fn" || checkRc=$?
@@ -114,7 +114,7 @@ echo "-- 3. the awk reads each value from the environment, and from -v where it 
 printf 'myx.distro grants.index 1\trig\n' > "$rigTmp/awk.index"
 ## The header line and the floor rows the awk prints: `<header>;` then `<tools>|<pattern>;` for each allow row.
 rigAwkSays(){ ## awk arguments...
-	LC_ALL=C awk -v member=rig-member "$@" -f "$rigLib/AgentsGrantsPattern.awk" -f "$rigLib/AgentsGrantsSessionIndex.awk" "$rigTmp/awk.index" 2> "$rigTmp/awk.err" \
+	LC_ALL=C awk -v member=rig-member "$@" -f "$rigLib/grants/AgentsGrantsPattern.awk" -f "$rigLib/grants/AgentsGrantsSessionIndex.awk" "$rigTmp/awk.index" 2> "$rigTmp/awk.err" \
 		| LC_ALL=C awk -F'\t' 'NR == 1 { printf "%s;", $0 ; next ; } $1 == "store" { printf "store %s;", $2 ; } $1 == "allow" { printf "%s|%s;", $2, $3 ; }'
 }
 rigAssert "from the environment, a backslash kept as it is" \

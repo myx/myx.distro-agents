@@ -58,7 +58,7 @@ rigSession(){ ## session id, tokens line, model, item
 	[ -z "$4" ] || printf '%s\n' "$4" > "$rigWs/.local/agents/sessions/$1/dispatch-item"
 }
 
-. "$rigHere/AgentsTools.SessionTranscript.include"
+. "$rigHere/session/AgentsTools.SessionTranscript.include"
 
 echo "-- the tokens header value --"
 rigSession s-plain "10 20 30 40" claude-opus-5-5 ""
@@ -102,7 +102,7 @@ rigClose="$(
 	set +u
 	DistroAgentsTools(){ if [ "$1" = --intern-op-event-track-post ] ; then printf '%s\n' "$@" > "$rigTmp/close.args" ; cat > /dev/null ; fi ; return 0 ; }
 	set -- --rig-none
-	. "$rigHere/AgentsTools.InternOpAgentSpawnProxy.include" 2>/dev/null
+	. "$rigHere/session/AgentsTools.InternOpAgentSpawnProxy.include" 2>/dev/null
 	MDAT_SPAWN_SESSION_ID=s-a AgentsToolsSpawnProxyEventTrackClose "C1:1.2" magic-tester succeeded 0 "" "" 0 0
 	cat "$rigTmp/close.args"
 )"
@@ -115,7 +115,7 @@ rigScan="$( "$rigFn" --intern-op-session-context-scan magic-tester --state backl
 rigAssert "a scanned item carries its totals" "$( printf '%s\n' "$rigScan" | LC_ALL=C awk '/^## backlog\/task-20261008T1000Z-rig.md$/ { on = 1 } on && /^tokens-total: / { print ; exit }' )" \
 	'tokens-total: in=1111 cache-read=222 cache-write=333 out=1444 (incl. 3 sub-sessions)'
 rigAssert "an item with none carries no line" "$( printf '%s\n' "$rigScan" | LC_ALL=C awk '/^## backlog\/task-20261008T1003Z-other.md$/ { on = 1 ; next } /^## / { on = 0 } on && /^tokens-total: / { print "line" }' )" ""
-rigBeat="$( set +u ; MDSC_CMD=rig ; set -- --rig-none ; . "$rigHere/AgentsTools.MagicHeartbeat.include" 2>/dev/null ; AgentsToolsHeartbeatBoardActiveItems )"
+rigBeat="$( set +u ; MDSC_CMD=rig ; set -- --rig-none ; . "$rigHere/magic/AgentsTools.MagicHeartbeat.include" 2>/dev/null ; AgentsToolsHeartbeatBoardActiveItems )"
 rigAssert "a heartbeat active-item line carries its totals" "$( printf '%s\n' "$rigBeat" | LC_ALL=C grep '^running/dispatch-20261008T1000Z-rig-a.md' )" \
 	'running/dispatch-20261008T1000Z-rig-a.md -- tokens: in=1100 cache-read=200 cache-write=300 out=1400 (incl. 1 sub-session)'
 rigProc="$( "$rigFn" --magic-board-to-processed magic-tester task-20261008T1000Z-rig.md --from-state:backlog 2>/dev/null )"
@@ -133,7 +133,7 @@ RIG_STREAM_EOF
 	printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\n'
 	printf '[ -z "$MDAT_SPAWN_LAUNCH_MARKER" ] || printf "claude-native\\n" > "$MDAT_SPAWN_LAUNCH_MARKER"\n'
 	printf 'L="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"\n'
-	printf 'LC_ALL=C awk -f "$L/AgentsProgressLineSafe.awk" -f "$L/AgentsSessionTranscriptFormat.awk" -f "$L/AgentsClaudeStreamJsonTranscript.awk" -f "$L/AgentsClaudeStreamJsonFormat.awk" < "$RIG_STREAM"\n'
+	printf 'LC_ALL=C awk -f "$L/session/AgentsProgressLineSafe.awk" -f "$L/session/AgentsSessionTranscriptFormat.awk" -f "$L/harness/AgentsClaudeStreamJsonTranscript.awk" -f "$L/harness/AgentsClaudeStreamJsonFormat.awk" < "$RIG_STREAM"\n'
 } > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
 rigBefore="$( rigCommits )"

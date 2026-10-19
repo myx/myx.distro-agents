@@ -27,7 +27,7 @@ set -u
 
 export MDLT_ORIGIN="${MDLT_ORIGIN:-$MMDAPP/.local}"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
-rigHarness="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh"
+rigHarness="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -227,7 +227,7 @@ rigConsole(){
 			HARNESS_CREDENTIAL_NAMES HARNESS_MODEL_LIGHT HARNESS_MODEL_MAIN HARNESS_TOKEN_MAIN \
 			SCALEWAY_DEEPSEEK SCALEWAY_GEMMA
 		HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDAT_SKILLSET_ROOT="$rigWsSkills" \
-			bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsoleShellScript.template.sh" \
+			bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsConsoleShellScript.template.sh" \
 			--cli scaleway --non-interactive RIG-PROMPT 2>&1 < /dev/null
 	)" || :
 	[ -n "$rigOut" ] || rigRefuse "no output from the console, so its root resolution was never exercised"
@@ -260,9 +260,9 @@ if [ "$rigFails" -ne 0 ] ; then
 	echo "  warn: a team skill file is not readable through the MCP-served tools, or an" >&2
 	echo "        access-root set that could not be computed was used silently, or a skill" >&2
 	echo "        is not loaded by skill and args as the native Skill tool loads it" >&2
-	echo "  fix:  repair sh-lib/AgentsTools.ClientAccessRoots.include or the Read/Skill" >&2
-	echo "        tools in sh-lib/AgentsUniversalHarness.sh, or the root capture in" >&2
-	echo "        sh-lib/AgentsConsoleShellScript.template.sh -- never the assertion" >&2
+	echo "  fix:  repair sh-lib/client/AgentsTools.ClientAccessRoots.include or the Read/Skill" >&2
+	echo "        tools in sh-lib/harness/AgentsUniversalHarness.sh, or the root capture in" >&2
+	echo "        sh-lib/manager/AgentsConsoleShellScript.template.sh -- never the assertion" >&2
 	exit 1
 fi
 echo "HARNESS_SKILL_READ: OK (skills by path, by name and by skill with args in every name form, outside refused, failure named by harness and console, offline)"

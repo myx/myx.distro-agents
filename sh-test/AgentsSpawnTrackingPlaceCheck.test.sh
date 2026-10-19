@@ -186,7 +186,7 @@ rigAssert "its handback goes there too: the thread settled for session-parent is
 ## thread as its own from now on: what a bare Wait of it watches, and what session-current names.
 rigAssert "the session that brought it in now has that thread as its own: a bare Wait of it watches it, and nothing else" \
 	"$( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_THREAD -u MDAT_CONVERSATION_THREADS -u MDAT_SPAWN_SANDBOX_ROOT MDAT_SPAWN_SESSION_ID="$rigPass" MDAT_SESSION_ID="$rigPass" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" ; AgentsToolsWaitDefaultSources ; printf ":" ; AgentsToolsSessionCurrentThreadFind' 2> /dev/null | LC_ALL=C tr -d '\n' )" \
+		bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" ; AgentsToolsWaitDefaultSources ; printf ":" ; AgentsToolsSessionCurrentThreadFind' 2> /dev/null | LC_ALL=C tr -d '\n' )" \
 	"slack:$rigThread:conversation:$rigThread"
 rigAssert "it says in that thread that it joined, and its own start post is a reply in the session's tracking thread" \
 	"$( rigPostHolds "$( rigPostNo "$rigTeam" message )" 'magic-tester joined: check it against the samples' ):$( rigPosts "$rigTrackChannel" "${rigPassTrack#*:}" start ):$( rigPosts "$rigTrackChannel" top any )" "yes:1:0"

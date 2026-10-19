@@ -202,7 +202,7 @@ echo "-- 1f. when a process began is read by the tooling's own reading, and by n
 rigCode(){ LC_ALL=C grep -v '^[[:space:]]*#' "$1" ; } ## file -- its lines that are no comment
 rigAssert "the helper reads it through AgentsToolsRegistryProcessesBegan of the tooling, and names no start column of ps itself" \
 	"$( rigCode "$rigHelper" | LC_ALL=C grep -c -F 'AgentsToolsRegistryProcessesBegan' ) $( rigCode "$rigHelper" | LC_ALL=C grep -c -e 'lstart' -e 'etime' -e 'start_time' )" "2 0"
-rigAssert "that reading stands in the tooling" "$( LC_ALL=C grep -c '^AgentsToolsRegistryProcessesBegan(){' "$rigPackage/sh-lib/AgentsTools.Registries.include" )" 1
+rigAssert "that reading stands in the tooling" "$( LC_ALL=C grep -c '^AgentsToolsRegistryProcessesBegan(){' "$rigPackage/../myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" )" 1
 rigAssert "and nothing of the tooling is defined in the check that sourced the helper" "$( type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 && echo defined || echo not-defined )" "not-defined"
 
 echo "-- 2. the guard: every signal of sh-test outside the helper is on the list, with its reason --"
@@ -225,7 +225,7 @@ rigReasons(){
 		'@own-path|a sweep by pattern that only the processes of this rig can match: the pattern is the path of a file in the temp folder this run made for itself, by mktemp, which only the wait this rig started, and the reader of this very sweep, carry on their command lines; reached only when that wait did not come back' \
 		'@handed-on|no signal of the check: a stand-in for the `kill -0` of the tooling under test, which hands every other call of the tooling on as it came' \
 		'@text|no signal: the word is text, a row the kill operation of the manager prints, the form of such a row, or a pattern the check reads the code of the tooling with' \
-		'@kept-copy|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the kept copy of the previous hooks file, which its diff check holds as it was; its watchdog signals the pid of a hook sixty seconds later by the number alone, which the present sh-lib/AgentsHarnessHooks.sh no longer does (AgentsHarnessHookWatchdogCheck)'
+		'@kept-copy|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the kept copy of the previous hooks file, which its diff check holds as it was; its watchdog signals the pid of a hook sixty seconds later by the number alone, which the present sh-lib/harness/AgentsHarnessHooks.sh no longer does (AgentsHarnessHookWatchdogCheck)'
 }
 ## THE LIST. One line a signal: file, under sh-test|how many times it stands there|the text of the signal|its reason,
 ## by name (@...) or written out. The longest text of a file is taken first.
@@ -329,62 +329,62 @@ rigList(){
 }
 rigToolingList(){
 	printf '%s\n' \
-		'sh-lib/AgentsConsoleShellScript.template.sh|1|[ -n "$claudePid" ] && kill -TERM "$claudePid"|@waited-on' \
-		'sh-lib/AgentsHarnessHooks.sh|1|= "$hookRunBegan" ] && kill -TERM "$hookRunPid"|@still-itself' \
-		'sh-lib/AgentsHarnessHooks.sh|1|kill -TERM "$hookWatchPid"|@own-watch' \
-		'sh-lib/AgentsHarnessMcpClient.sh|1|= "$runBegan" ] && kill -TERM "$runPid"|@still-itself' \
-		'sh-lib/AgentsHarnessMcpClient.sh|1|kill -TERM "$runWatchPid"|@own-watch' \
-		'sh-lib/AgentsManagerScreen.py|1|kill asked of the tooling: the %s %s|@text' \
-		'sh-lib/AgentsManagerScreen.py|1|call["process"].terminate()|@uncollected' \
-		'sh-lib/AgentsManagerScreen.py|1|call["process"].kill()|@uncollected' \
-		'sh-lib/AgentsManagerScreen.py|1|os.killpg(process.pid, signal.SIGCONT)|@uncollected' \
-		'sh-lib/AgentsManagerScreen.py|1|os.killpg(call["process"].pid, number)|@uncollected' \
-		'sh-lib/AgentsTools.ConsoleSession.include|1|= "$signalLine" ] && kill "-$1" "$signalPid"|@file-start' \
-		'sh-lib/AgentsTools.InternMainLoop.include|1|kill -TERM -- "-$mainLoopSpawnPid" 2>/dev/null'"'"' INT TERM|@waited-on' \
-		'sh-lib/AgentsTools.InternMainLoop.include|1|kill -TERM -- "-$mainLoopSpawnPid"|@probed' \
-		'sh-lib/AgentsTools.InternMainLoop.include|1|kill -KILL -- "-$mainLoopSpawnPid"|@probed' \
-		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill "$beatSleep"|@live-sleep' \
-		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill -TERM -- "-$3"|@probed' \
-		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill "$!"|@live-sleep' \
-		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill -TERM -- "-$( AgentsMcpJobPid "$3" )"|the deadline of a job runs inside that job'"'"'s own process group, so the group it signals cannot have been given to another while it waits' \
-		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill -KILL -- "-$( AgentsMcpJobPid "$3" )"|the deadline of a job runs inside that job'"'"'s own process group, so the group it signals cannot have been given to another while it waits' \
-		'sh-lib/AgentsTools.InternMcpRequest.include|1|AgentsToolsRegistryGroupBegan "$watchBegan" 2> /dev/null )" && { : > "$3" ; kill -TERM -- "-$2"|@own-group' \
-		'sh-lib/AgentsTools.InternMcpRequest.include|1|= "$watchBegan" ] ; then kill -KILL -- "-$2"|@own-group' \
-		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill -KILL $watchLeft|the hard end of a call whose leader the polite one has ended: the group of that number is no longer signalled, and this goes, at once, to what AgentsToolsRegistryGroupLeft gave at that moment, the members kept while the leader lived that are still the processes they were and what those started since' \
-		'sh-lib/AgentsTools.InternMcpRequest.include|2|kill -TERM -- "-$mcpWatchPid"|@own-watch' \
-		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill -TERM -- "-$mcpCheckListWatchPid"|@own-watch' \
-		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill -TERM "$mcpBeatPid"|the heartbeat of the call that has just returned: it ends only as that call ends, or on the stop file written in the statement before' \
-		'sh-lib/AgentsTools.InternMcpRequest.include|1|= "$mcpJobKept" ] && kill -TERM -- "-$mcpJobPid"|the kill action of a job: the group of the pid its file names, only while that pid is still the process that began when the file says, kept there with the pid by one rename as the job started (AgentsToolsRegistryProcessesBegan); the line of the list holds that comparison with the signal, and a file that holds no start is not signalled by the number alone' \
-		'sh-lib/AgentsTools.InternMcpRequest.include|2|kill "$mcpWatchPid"|@own-watch' \
-		'sh-lib/AgentsTools.BatchTools.include|1|kill -TERM $cancelTree|a call of a batch and what it started, read from the process list at that very moment from its leader down, the leader an uncollected child of this shell, and signalled at once' \
-		'sh-lib/AgentsTools.BatchTools.include|1|kill -KILL $cancelStill|two seconds on, only to those of that call that are still the processes they were when read, by the one reading a process is kept by (AgentsToolsRegistryProcessesBegan)' \
-		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|= "$warnRetryBegan" ] && kill -TERM "$warnRetryPid"|@still-itself' \
-		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|= "$warnRetryBegan" ] && kill -KILL "$warnRetryPid"|@still-itself' \
-		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill "$warnWatchSleep"|@live-sleep' \
-		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill "$warnWatchPid"|@own-watch' \
-		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|= "$1" ] && kill "-${2:-TERM}" "${1%% *}"|a helper of a run, the reader of its log, the poster of its feed or the poller of its launch, kept with when it began as it was started and signalled only while its pid is still that process, by the one reading a process is kept by (AgentsToolsRegistryProcessesBegan): the line of the list holds that comparison with the signal' \
-		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -TERM "$spawnPid" 2>/dev/null ; AgentsToolsSpawnProxyHelperEnd "$tailBegan"|@waited-on' \
-		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -TERM "$spawnPid"|@probed' \
-		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -KILL "$spawnPid"|@probed' \
-		'sh-lib/AgentsTools.ManagerCheck.include|1|kill -TERM $endFound|the polite end of a check past its bound, at once, to what AgentsToolsRegistryGroupLeft gave at that moment: the check while it is still the process that began when it was started, and every process it started that stayed in its group, each by its own pid, never the group by its number' \
-		'sh-lib/AgentsTools.ManagerCheck.include|1|kill -KILL $endLeft|the hard end of a check past its bound, two seconds after the polite one, at once, to what AgentsToolsRegistryGroupLeft gave at that moment: of the processes signalled, those that are still the processes they were, each kept with when it began, and what those started since, each by its own pid' \
-		'sh-lib/AgentsTools.ManagerSession.include|1|kill -TERM "$hostPid"|@probed' \
-		'sh-lib/AgentsTools.ManagerSession.include|1|kill -TERM "$killPid"|@walk-now' \
-		'sh-lib/AgentsTools.ManagerSession.include|1|kill -KILL "$killPid"|@walk-now' \
-		'sh-lib/AgentsTools.MemberCommsSlackPresence.include|1|pkill -TERM -f "$presenceMatch"|a sweep by the command line of the tooling'"'"'s own presence holder for one key, its script and that key: no pid is kept, and whatever else carries both on its command line is reached too' \
-		'sh-lib/AgentsTools.MemberCommsSlackPresence.include|1|pkill -USR1 -f "$presenceMatch"|a sweep by the command line of the tooling'"'"'s own presence holder for one key, its script and that key: no pid is kept, and whatever else carries both on its command line is reached too' \
-		'sh-lib/AgentsTools.MemberCommsSlackSocket.include|1|pkill -TERM -f "$socketMatch"|a sweep by the command line of the tooling'"'"'s own socket receiver for one app: no pid is kept, and whatever else carries that on its command line is reached too' \
-		'sh-lib/AgentsTools.SessionControlDeath.include|1|kill -TERM -- "-$postPid"|@probed' \
-		'sh-lib/AgentsTools.SessionControlDeath.include|1|kill -KILL -- "-$postPid"|@probed' \
-		'sh-lib/AgentsTools.SessionControlRequest.include|1|= "$wakeLine" ] && kill -USR1 "$wakePid"|the wake of a control thread, which holds USR1 and ends nothing on it: the pid its pid file names, kept there with when it began by one rename, and signalled only while that pid is still the process that began then (AgentsToolsRegistryProcessesBegan): the line of the list holds that comparison with the signal; before it the command line of that process is read as the thread of that session, never a call of one tick, and its file of what it takes names the kind, which a thread empties before its shell is replaced' \
-		'sh-lib/AgentsTools.SessionControlRequest.include|1|kill -TERM -- "-$carryPid"|@probed' \
-		'sh-lib/AgentsTools.SessionControlRequest.include|1|kill -KILL -- "-$carryPid"|@probed' \
-		'sh-lib/AgentsUniversalHarness.sh|1|kill -TERM "$reapPid"|the one cleanup of the harness: a pid record stands in its scratch only while the process it names is in flight, and is removed as that process is waited for' \
-		'sh-lib/AgentsUniversalHarness.sh|1|= "$harnessRunBegan" ] && kill -TERM "$harnessRunPid"|@still-itself' \
-		'sh-lib/AgentsUniversalHarness.sh|1|kill -TERM "$harnessWatchPid"|@own-watch' \
-		'sh-lib/AgentsUniversalHarness.sh|1|kill -TERM "$afterPid"|after a wait, to the processes read at that moment by the one rule a run is recognised by: no pid is kept across the wait' \
-		'sh-lib/AgentsUniversalHarness.sh|1|kill -TERM "$stopPid"|@walk-now' \
-		'sh-lib/AgentsUniversalHarness.sh|1|kill -KILL "$stopPid"|@walk-now'
+		'sh-lib/manager/AgentsConsoleShellScript.template.sh|1|[ -n "$claudePid" ] && kill -TERM "$claudePid"|@waited-on' \
+		'sh-lib/harness/AgentsHarnessHooks.sh|1|= "$hookRunBegan" ] && kill -TERM "$hookRunPid"|@still-itself' \
+		'sh-lib/harness/AgentsHarnessHooks.sh|1|kill -TERM "$hookWatchPid"|@own-watch' \
+		'sh-lib/harness/AgentsHarnessMcpClient.sh|1|= "$runBegan" ] && kill -TERM "$runPid"|@still-itself' \
+		'sh-lib/harness/AgentsHarnessMcpClient.sh|1|kill -TERM "$runWatchPid"|@own-watch' \
+		'sh-lib/manager/AgentsManagerScreen.Sessions.py|1|kill asked of the tooling: the %s %s|@text' \
+		'sh-lib/manager/AgentsManagerScreen.Reads.py|1|call["process"].terminate()|@uncollected' \
+		'sh-lib/manager/AgentsManagerScreen.Reads.py|1|call["process"].kill()|@uncollected' \
+		'sh-lib/manager/AgentsManagerScreen.Terminal.py|1|os.killpg(process.pid, signal.SIGCONT)|@uncollected' \
+		'sh-lib/manager/AgentsManagerScreen.Reads.py|1|os.killpg(call["process"].pid, number)|@uncollected' \
+		'sh-lib/session/AgentsTools.ConsoleSession.include|1|= "$signalLine" ] && kill "-$1" "$signalPid"|@file-start' \
+		'sh-lib/magic/AgentsTools.InternMainLoop.include|1|kill -TERM -- "-$mainLoopSpawnPid" 2>/dev/null'"'"' INT TERM|@waited-on' \
+		'sh-lib/magic/AgentsTools.InternMainLoop.include|1|kill -TERM -- "-$mainLoopSpawnPid"|@probed' \
+		'sh-lib/magic/AgentsTools.InternMainLoop.include|1|kill -KILL -- "-$mainLoopSpawnPid"|@probed' \
+		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill "$beatSleep"|@live-sleep' \
+		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill -TERM -- "-$3"|@probed' \
+		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill "$!"|@live-sleep' \
+		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill -TERM -- "-$( AgentsMcpJobPid "$3" )"|the deadline of a job runs inside that job'"'"'s own process group, so the group it signals cannot have been given to another while it waits' \
+		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill -KILL -- "-$( AgentsMcpJobPid "$3" )"|the deadline of a job runs inside that job'"'"'s own process group, so the group it signals cannot have been given to another while it waits' \
+		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|AgentsToolsRegistryGroupBegan "$watchBegan" 2> /dev/null )" && { : > "$3" ; kill -TERM -- "-$2"|@own-group' \
+		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|= "$watchBegan" ] ; then kill -KILL -- "-$2"|@own-group' \
+		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill -KILL $watchLeft|the hard end of a call whose leader the polite one has ended: the group of that number is no longer signalled, and this goes, at once, to what AgentsToolsRegistryGroupLeft gave at that moment, the members kept while the leader lived that are still the processes they were and what those started since' \
+		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|2|kill -TERM -- "-$mcpWatchPid"|@own-watch' \
+		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill -TERM -- "-$mcpCheckListWatchPid"|@own-watch' \
+		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|kill -TERM "$mcpBeatPid"|the heartbeat of the call that has just returned: it ends only as that call ends, or on the stop file written in the statement before' \
+		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|1|= "$mcpJobKept" ] && kill -TERM -- "-$mcpJobPid"|the kill action of a job: the group of the pid its file names, only while that pid is still the process that began when the file says, kept there with the pid by one rename as the job started (AgentsToolsRegistryProcessesBegan); the line of the list holds that comparison with the signal, and a file that holds no start is not signalled by the number alone' \
+		'sh-lib/mcp/AgentsTools.InternMcpRequest.include|2|kill "$mcpWatchPid"|@own-watch' \
+		'sh-lib/harness/AgentsTools.BatchTools.include|1|kill -TERM $cancelTree|a call of a batch and what it started, read from the process list at that very moment from its leader down, the leader an uncollected child of this shell, and signalled at once' \
+		'sh-lib/harness/AgentsTools.BatchTools.include|1|kill -KILL $cancelStill|two seconds on, only to those of that call that are still the processes they were when read, by the one reading a process is kept by (AgentsToolsRegistryProcessesBegan)' \
+		'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include|1|= "$warnRetryBegan" ] && kill -TERM "$warnRetryPid"|@still-itself' \
+		'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include|1|= "$warnRetryBegan" ] && kill -KILL "$warnRetryPid"|@still-itself' \
+		'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include|1|kill "$warnWatchSleep"|@live-sleep' \
+		'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include|1|kill "$warnWatchPid"|@own-watch' \
+		'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include|1|= "$1" ] && kill "-${2:-TERM}" "${1%% *}"|a helper of a run, the reader of its log, the poster of its feed or the poller of its launch, kept with when it began as it was started and signalled only while its pid is still that process, by the one reading a process is kept by (AgentsToolsRegistryProcessesBegan): the line of the list holds that comparison with the signal' \
+		'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -TERM "$spawnPid" 2>/dev/null ; AgentsToolsSpawnProxyHelperEnd "$tailBegan"|@waited-on' \
+		'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -TERM "$spawnPid"|@probed' \
+		'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -KILL "$spawnPid"|@probed' \
+		'sh-lib/manager/AgentsTools.ManagerCheck.include|1|kill -TERM $endFound|the polite end of a check past its bound, at once, to what AgentsToolsRegistryGroupLeft gave at that moment: the check while it is still the process that began when it was started, and every process it started that stayed in its group, each by its own pid, never the group by its number' \
+		'sh-lib/manager/AgentsTools.ManagerCheck.include|1|kill -KILL $endLeft|the hard end of a check past its bound, two seconds after the polite one, at once, to what AgentsToolsRegistryGroupLeft gave at that moment: of the processes signalled, those that are still the processes they were, each kept with when it began, and what those started since, each by its own pid' \
+		'sh-lib/manager/AgentsTools.ManagerSession.include|1|kill -TERM "$hostPid"|@probed' \
+		'sh-lib/manager/AgentsTools.ManagerSession.include|1|kill -TERM "$killPid"|@walk-now' \
+		'sh-lib/manager/AgentsTools.ManagerSession.include|1|kill -KILL "$killPid"|@walk-now' \
+		'sh-lib/comms/AgentsTools.MemberCommsSlackPresence.include|1|pkill -TERM -f "$presenceMatch"|a sweep by the command line of the tooling'"'"'s own presence holder for one key, its script and that key: no pid is kept, and whatever else carries both on its command line is reached too' \
+		'sh-lib/comms/AgentsTools.MemberCommsSlackPresence.include|1|pkill -USR1 -f "$presenceMatch"|a sweep by the command line of the tooling'"'"'s own presence holder for one key, its script and that key: no pid is kept, and whatever else carries both on its command line is reached too' \
+		'sh-lib/comms/AgentsTools.MemberCommsSlackSocket.include|1|pkill -TERM -f "$socketMatch"|a sweep by the command line of the tooling'"'"'s own socket receiver for one app: no pid is kept, and whatever else carries that on its command line is reached too' \
+		'sh-lib/session/AgentsTools.SessionControlDeath.include|1|kill -TERM -- "-$postPid"|@probed' \
+		'sh-lib/session/AgentsTools.SessionControlDeath.include|1|kill -KILL -- "-$postPid"|@probed' \
+		'sh-lib/session/AgentsTools.SessionControlRequest.include|1|= "$wakeLine" ] && kill -USR1 "$wakePid"|the wake of a control thread, which holds USR1 and ends nothing on it: the pid its pid file names, kept there with when it began by one rename, and signalled only while that pid is still the process that began then (AgentsToolsRegistryProcessesBegan): the line of the list holds that comparison with the signal; before it the command line of that process is read as the thread of that session, never a call of one tick, and its file of what it takes names the kind, which a thread empties before its shell is replaced' \
+		'sh-lib/session/AgentsTools.SessionControlRequest.include|1|kill -TERM -- "-$carryPid"|@probed' \
+		'sh-lib/session/AgentsTools.SessionControlRequest.include|1|kill -KILL -- "-$carryPid"|@probed' \
+		'sh-lib/harness/AgentsUniversalHarness.sh|1|kill -TERM "$reapPid"|the one cleanup of the harness: a pid record stands in its scratch only while the process it names is in flight, and is removed as that process is waited for' \
+		'sh-lib/harness/AgentsUniversalHarness.sh|1|= "$harnessRunBegan" ] && kill -TERM "$harnessRunPid"|@still-itself' \
+		'sh-lib/harness/AgentsUniversalHarness.sh|1|kill -TERM "$harnessWatchPid"|@own-watch' \
+		'sh-lib/harness/AgentsUniversalHarness.sh|1|kill -TERM "$afterPid"|after a wait, to the processes read at that moment by the one rule a run is recognised by: no pid is kept across the wait' \
+		'sh-lib/harness/AgentsUniversalHarness.sh|1|kill -TERM "$stopPid"|@walk-now' \
+		'sh-lib/harness/AgentsUniversalHarness.sh|1|kill -KILL "$stopPid"|@walk-now'
 }
 ## THE READER. A signal is the word of a command that sends one, where it stands as a command: first of its line,
 ## after what ends or opens a command, or after a word that takes a command; or a call of that name in perl or
@@ -489,9 +489,9 @@ printf '%s\n' 'Self.test.sh|0|nothing of this check is listed|whatever it signal
 rigAssert "this check itself sends no signal outside the helper" "$( cd "$rigTmp" && rigGuard "$rigTmp/self.list" Self.test.sh )$( LC_ALL=C grep -c 'rigProcSignal' "$rigTmp/Self.test.sh" | LC_ALL=C awk '{ print ( $1 > 5 ) ? "" : " and too few through the helper: " $1 ; }' )" ""
 
 echo "-- 3. the same guard over the tooling: every signal of sh-lib, sh-scripts and builders is on its own list --"
-( cd "$rigPackage" && find sh-lib sh-scripts builders -type f ! -name '*.md' | LC_ALL=C sort ) > "$rigTmp/tooling.files"
+( cd "$rigPackage" && find sh-lib sh-scripts builders ../myx.distro-.local/sh-lib/markdown ../myx.distro-.local/sh-lib/output ../myx.distro-.local/sh-lib/registry ../myx.distro-.local/sh-lib/dashboard -type f ! -name '*.md' | LC_ALL=C sort ) > "$rigTmp/tooling.files"
 rigAssert "control: the files of the tooling are read, the harness, the spawn proxy, the console template and the builders among them, and none has a space in its name" \
-	"$( [ "$( wc -l < "$rigTmp/tooling.files" | LC_ALL=C tr -d ' ' )" -ge 150 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/AgentsUniversalHarness.sh' -e 'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include' -e 'sh-lib/AgentsConsoleShellScript.template.sh' -e 'sh-scripts/DistroAgentsTools.fn.sh' -e 'builders/source-prepare/1201-agents-indices.sh' "$rigTmp/tooling.files" || : ) $( LC_ALL=C grep -c ' ' "$rigTmp/tooling.files" || : )" "many 5 0"
+	"$( [ "$( wc -l < "$rigTmp/tooling.files" | LC_ALL=C tr -d ' ' )" -ge 150 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/harness/AgentsUniversalHarness.sh' -e 'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include' -e 'sh-lib/manager/AgentsConsoleShellScript.template.sh' -e 'sh-scripts/DistroAgentsTools.fn.sh' -e 'builders/source-prepare/1201-agents-indices.sh' "$rigTmp/tooling.files" || : ) $( LC_ALL=C grep -c ' ' "$rigTmp/tooling.files" || : )" "many 5 0"
 rigToolingOut="$( cd "$rigPackage" && rigGuard "$rigTmp/tooling.list" $( cat "$rigTmp/tooling.files" ) )"
 rigAssert "every signal of the tooling is on its list, and every line of the list stands in the code as often as it says (a signal sent after a wait keeps its process by when it began, or is listed with where its target comes from)" "${rigToolingOut:-none}" "none"
 rigAssert "every line of that list gives its reason: one of the named ones, or one written out" \

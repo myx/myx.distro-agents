@@ -62,7 +62,7 @@ hookStore="$hookWs/.local/agents/sessions/$hookSession"
 MDLT_ORIGIN="${MDLT_ORIGIN:-$hookWs/.local}"
 hookLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 hookTouch(){
-	if . "$hookLib/AgentsTools.Grants.include" 2> /dev/null ; then
+	if . "$hookLib/grants/AgentsTools.Grants.include" 2> /dev/null ; then
 		AgentsToolsGrantsStoreTouch "$hookStore"
 	fi
 }
@@ -95,7 +95,7 @@ set -m
 	trap '' HUP INT
 	export MMDAPP="$hookWs" MDLT_ORIGIN
 	[ ! -x "$hookTools" ] || "$BASH" "$hookTools" --intern-op-pending-reply-collect --session-id "$hookSession" --mark-ended --context SessionEnd
-	if . "$hookLib/AgentsTools.SessionTranscript.include" && AgentsTranscriptBase "$hookSession" > /dev/null ; then
+	if . "$hookLib/session/AgentsTools.SessionTranscript.include" && AgentsTranscriptBase "$hookSession" > /dev/null ; then
 		AgentsTranscriptSpawnEnd "$hookSession" "session-end:$hookReason" -
 	fi
 ) < /dev/null > /dev/null 2>&1 &

@@ -17,8 +17,8 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-rigHarness="$rigLib/AgentsUniversalHarness.sh"
-rigSandboxLib="$rigLib/AgentsTools.SpawnSandbox.include"
+rigHarness="$rigLib/harness/AgentsUniversalHarness.sh"
+rigSandboxLib="$rigLib/session/AgentsTools.SpawnSandbox.include"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1

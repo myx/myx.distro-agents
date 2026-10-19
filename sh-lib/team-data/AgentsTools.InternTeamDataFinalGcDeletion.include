@@ -1,0 +1,659 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternTeamDataFinalGcDeletion.include -- the
+## --intern-team-data-final-gc-deletion op for DistroAgentsTools.fn.sh's
+## dispatcher. Sourced lazily from that exact op's own dispatcher arm via the
+## standard $MDLT_ORIGIN-based path. Not standalone: relies on being
+## dot-sourced for $1/$@/$MDSC_CMD.
+##
+## Three locations, one retention table: each inbox's processed/ (its items
+## dated by their `processed-at` stamp -- see AgentsToolsFinalGcScanSplitInbox;
+## its incoming/ is never collected), board/processed/ and trash/. The table is keyed on the item's own document
+## type -- `warning-*` and `reflection-*` at one day, everything else at seven
+## -- and applies identically wherever the item is found. A folder is a
+## location to scan, never a threshold of its own. trash/ is simply absent in a
+## root that has never trashed anything, which is ordinary and never an error.
+##
+## The clock is the file's own mtime, or, where git already holds a commit for
+## that path, that commit's date. A checkout does not preserve mtime and this
+## root is resynced by routine lock traffic, so an mtime-only clock restarts an
+## old item's retention on every resync.
+##
+## An item git does not know is deleted but never handed to git -- a pathspec
+## matching nothing is an error, and an item passed to one is destroyed on a
+## path that then reports failure. Two different questions, so two sets: what
+## `git add` may be given is what the index holds, and what a commit's pathspec
+## may be given is what HEAD holds, plus whatever this run's own `git add` has
+## just put there. An item staged and never committed is in the first and not
+## the second.
+##
+## Two diversions apply to board/processed/ only, and each SUBSTITUTES FOR the
+## deletion rather than preempting the clock. Both are decided in the scan
+## loop, which is where they are documented. Longer reasoning -- why the git
+## clock and the index probe are batched per directory, and what the trash gate
+## is really asking -- lives in MAGIC.md under this operation's own heading.
+##
+## No --help entry: internal plumbing, called from
+## --magic-advance-close-state-and-unlock and directly by magic-tester for
+## scratch-fixture verification.
+##
+
+## Latest committed date per file of one directory, keyed by basename, in one
+## history walk rather than one per file. Newline/tab-delimited with a leading
+## and a trailing newline, so one `*"$LF<name>$TAB"*` case pattern reads it
+## back with no fork per candidate.
+## Sets (overwrites each call): gcGitTimes -- `local` in the caller, dynamic-scoped here.
+AgentsToolsFinalGcGitTimes(){
+	local scanDir="$1"
+	gcGitTimes="$LF"
+	[ -n "$gcRepoRoot" ] || return 0
+	## git log walks newest-first, so a path's first appearance is its latest commit.
+	gcGitTimes="$LF$( git -C "$scanDir" log --format='@@%ct@@' --name-only -- . 2>/dev/null | LC_ALL=C awk -v tab="$TAB" '
+		/^@@[0-9]+@@$/ { commitTime = substr($0, 3, length($0) - 4) ; next ; }
+		$0 == "" { next ; }
+		{
+			name = $0 ;
+			sub(/^.*\//, "", name) ;
+			if (name in seen) { next ; }
+			seen[name] = 1 ;
+			print name tab commitTime ;
+		}
+	' )$LF"
+	return 0
+}
+
+## What one directory holds in git's index, and what it holds in HEAD, as bare
+## newline-delimited name sets read back by the same case pattern. Batched
+## `git ls-files`/`git ls-tree` rather than a `--error-unmatch` per candidate:
+## one fork for a whole directory instead of one per item.
+## Sets (overwrites each call): gcIndexNames, gcHeadNames.
+## `top` as $2 keeps only the directory's own top-level entries: an inbox root
+## holds the legacy processed/ beneath it, whose basenames must not be read as
+## the root's (`git ls-files` recurses; `git ls-tree` does not).
+AgentsToolsFinalGcGitNames(){
+	local scanDir="$1" scanDepth="${2:-}"
+	gcIndexNames="$LF" ; gcHeadNames="$LF"
+	[ -n "$gcRepoRoot" ] || return 0
+	gcIndexNames="$LF$( git -C "$scanDir" ls-files -- . 2>/dev/null | LC_ALL=C awk -v topOnly="$scanDepth" '
+		{
+			name = $0 ;
+			if (topOnly == "top" && index(name, "/") > 0) { next ; } ;
+			sub(/^.*\//, "", name) ;
+			print name ;
+		}
+	' )$LF"
+	gcHeadNames="$LF$( git -C "$scanDir" ls-tree --name-only HEAD -- . 2>/dev/null | LC_ALL=C awk '
+		{
+			name = $0 ;
+			sub(/^.*\//, "", name) ;
+			print name ;
+		}
+	' )$LF"
+	return 0
+}
+
+## Mtimes for one directory in a single stat(1) call. The flavour is probed
+## once per run into gcStatMode rather than tried in sequence per call: GNU
+## stat(1) fed the BSD form still prints a line for every readable operand
+## before failing, so a `bsd || gnu` capture would concatenate both outputs.
+## Sets (overwrites each call): gcMtimes -- same encoding as gcGitTimes.
+AgentsToolsFinalGcMtimes(){
+	local scanDir="$1"
+	local statOut=""
+	gcMtimes="$LF"
+	case "$gcStatMode" in
+		bsd) statOut="$( stat -f '%m %N' "$scanDir"/*.md 2>/dev/null )" || statOut="" ;;
+		gnu) statOut="$( stat -c '%Y %n' "$scanDir"/*.md 2>/dev/null )" || statOut="" ;;
+	esac
+	[ -n "$statOut" ] || return 0
+	gcMtimes="$LF$( printf '%s\n' "$statOut" | LC_ALL=C awk -v tab="$TAB" '
+		NF >= 2 {
+			epoch = $1 ;
+			name = substr($0, index($0, " ") + 1) ;
+			sub(/^.*\//, "", name) ;
+			print name tab epoch ;
+		}
+	' )$LF"
+	return 0
+}
+
+## Reads the one frontmatter field this op diverts on, from one item. Bounded
+## to the block between the first two `---` lines, because a body line reading
+## `archive: true` must not spoof the guard. Pure shell, no fork, which is why
+## AgentsBoardItemFrontmatterFieldProbe.awk is not used here. Presence-only: a
+## marked item erring toward retention is the safe direction for an operation
+## whose default outcome is deletion.
+## Sets (overwrites each call): gcItemArchived.
+AgentsToolsFinalGcReadArchiveFlag(){
+	local path="$1"
+	local fmLine fmDepth=0
+	gcItemArchived="false"
+	while IFS= read -r fmLine ; do
+		if [ "$fmLine" = "---" ] ; then
+			fmDepth=$(( fmDepth + 1 ))
+			if [ "$fmDepth" -ge 2 ] ; then break ; fi
+			continue
+		fi
+		if [ "$fmDepth" -ne 1 ] ; then continue ; fi
+		case "$fmLine" in
+			"archive: "*) gcItemArchived="true" ;;
+		esac
+	done < "$path"
+	return 0
+}
+
+## Diverts one board/processed/ item to board/<to-state>/ through the package's
+## own board-move primitive; this op does not hand-roll a move. One helper for
+## both destinations -- archived/ and retained/ differ in which question sent
+## the item there, never in how it travels.
+## THE PRIMITIVE COMMITS BOTH ENDS ITSELF, so neither end is recorded here: by
+## the time this returns the source is gone from the index and the destination
+## is in HEAD, so handing either to this op's own `git add` would be a pathspec
+## matching nothing -- the failure that destroys an item and then reports it.
+## The destination directory is created if missing: the primitive errors out on
+## a missing one, and an automatic diversion cannot be allowed to fail for that.
+## Sets: nothing on success; on failure gcScanFailedPath and gcScanFailedWhat.
+AgentsToolsFinalGcDivertBoardItem(){
+	local itemName="$1" toState="$2"
+	mkdir -p "$MDAT_DATA_ROOT/board/$toState" || {
+		gcScanFailedPath="$MDAT_DATA_ROOT/board/$toState"
+		gcScanFailedWhat="create the board/$toState directory the move needs for"
+		return 1
+	}
+	if ! DistroAgentsTools --intern-op-board-upsert-move-edit "$toState" "$itemName" \
+		--from-state:processed \
+		--context --intern-team-data-final-gc-deletion
+	then
+		gcScanFailedPath="$MDAT_DATA_ROOT/board/processed/$itemName"
+		gcScanFailedWhat="divert to board/$toState"
+		return 1
+	fi
+	return 0
+}
+
+## Every bare item name a LIVE board-item points at through its own
+## `blocked-by`/`spawned-by` frontmatter. One awk pass over all live states at
+## once, `.md`-normalised there (both fields carry bare names, with or without
+## the extension) and `sort -u`'d.
+## Live is board/{backlog,pending,running,review,blocked,parked,archived}. processed/
+## and retained/ are excluded BY SPECIFICATION, not by omission: a pointer from
+## a concluded or already-diverted item never qualifies, which is what stops two
+## concluded items retaining each other forever. Built once per run, before the
+## board scan -- an item still in processed/ is not live, so its own pointers do
+## not count until a later pass sees it somewhere live.
+## Sets gcDependedNames: newline-delimited, ALWAYS with a leading and a trailing
+## newline, so one `*"$LF<name>$LF"*` case pattern tests membership fork-free.
+AgentsToolsFinalGcDependedNames(){
+	local boardRoot="$1"
+	local depState depFile depFiles=()
+	gcDependedNames="$LF$LF"
+	for depState in backlog pending running review blocked parked archived ; do
+		for depFile in "$boardRoot/$depState"/*.md ; do
+			[ -f "$depFile" ] && depFiles+=( "$depFile" )
+		done
+	done
+	if [ "${#depFiles[@]}" -eq 0 ] ; then return 0 ; fi
+	gcDependedNames="$LF$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsToolsFinalGcDependedNames.awk" "${depFiles[@]}" | sort -u )$LF"
+	return 0
+}
+
+## Reads one clock map back for one basename.
+## Sets gcLookupEpoch to that name's value, or to the empty string when absent.
+AgentsToolsFinalGcLookup(){
+	local mapValue="$1" fileBase="$2"
+	gcLookupEpoch=""
+	case "$mapValue" in
+		*"$LF$fileBase$TAB"*)
+			gcLookupEpoch="${mapValue#*"$LF$fileBase$TAB"}"
+			gcLookupEpoch="${gcLookupEpoch%%"$LF"*}"
+		;;
+	esac
+	return 0
+}
+
+## Scans one member's inbox ROOT for items marked handled in place. Only an item
+## carrying `processed-at` is a candidate: an item without it is unhandled or a
+## standing note and is NEVER collected, whatever its age. The clock is the
+## stamp's own value -- the moment the item was handled -- not git or mtime:
+## the item has sat in the root since it arrived, so its file dates say when it
+## was written, not when it was handled. A stamp that does not parse as a date
+## keeps the item (deleting on absence of evidence), with a warning, since such
+## an item would otherwise be kept forever unnoticed. Same retention table as
+## every other location; no diversions (an inbox item has no board state).
+## Sets (accumulates into): as AgentsToolsFinalGcScanDir.
+AgentsToolsFinalGcScanInboxRoot(){
+	local scanDir="$1" nowEpoch="$2"
+	local path fileBase stampValue normValue thresholdDays ageSeconds clockEpoch inIndex inHead
+	local rootItems=() stampPaths=() stampValues=() epochList="" si
+	for path in "$scanDir"/*.md ; do
+		if [ -f "$path" ] ; then rootItems+=( "$path" ) ; fi
+	done
+	[ "${#rootItems[@]}" -gt 0 ] || return 0
+	local stampLine
+	while IFS= read -r stampLine ; do
+		[ -n "$stampLine" ] || continue
+		path="${stampLine%%"$TAB"*}"
+		stampValue="${stampLine#*"$TAB"}"
+		## The tool's own stamp format (`date +"%Y-%m-%d %H:%M %z"`) normalised to
+		## ISO-8601; any other ISO-8601 value (a caller's override) passes as is.
+		case "$stampValue" in
+			[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]" "[0-2][0-9]:[0-5][0-9]" "[+-][0-9][0-9][0-9][0-9])
+				normValue="${stampValue%% *}T${stampValue#* }"
+				normValue="${normValue%% *}:00${stampValue##* }"
+			;;
+			[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]*)
+				normValue="$stampValue"
+			;;
+			*)
+				echo "$MDSC_CMD: team-data-final-gc-deletion: ⚠️ WARNING: kept $path -- its processed-at is not a date this op can read: '$stampValue'" >&2
+				continue
+			;;
+		esac
+		stampPaths+=( "$path" )
+		stampValues+=( "$normValue" )
+	done <<EOF
+$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxProcessedAtList.awk" "${rootItems[@]}" )
+EOF
+	[ "${#stampPaths[@]}" -gt 0 ] || return 0
+	## One conversion for the whole root; every value was shape-checked above.
+	epochList="$( printf '%s\n' "${stampValues[@]}" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsIsoToEpoch.awk" )" || {
+		echo "$MDSC_CMD: team-data-final-gc-deletion: ⚠️ WARNING: kept every marked item in $scanDir -- its processed-at dates could not be converted" >&2
+		return 0
+	}
+	AgentsToolsFinalGcGitNames "$scanDir" top
+	si=0
+	while IFS= read -r clockEpoch ; do
+		path="${stampPaths[$si]}"
+		si=$(( si + 1 ))
+		if [ -z "$clockEpoch" ] || [ -z "$path" ] ; then continue ; fi
+		fileBase="${path##*/}"
+		gcSeenCount=$(( gcSeenCount + 1 ))
+		case "$fileBase" in
+			warning-*|reflection-*) thresholdDays=1 ;;
+			*)                      thresholdDays=7 ;;
+		esac
+		ageSeconds=$(( nowEpoch - clockEpoch ))
+		if [ "$ageSeconds" -lt "$(( thresholdDays * 86400 ))" ] ; then continue ; fi
+		inIndex="false" ; inHead="false"
+		case "$gcIndexNames" in
+			*"$LF$fileBase$LF"*) inIndex="true" ;;
+		esac
+		case "$gcHeadNames" in
+			*"$LF$fileBase$LF"*) inHead="true" ;;
+		esac
+		if ! rm -f -- "$path" ; then
+			gcScanFailedPath="$path"
+			gcScanFailedWhat="delete"
+			return 1
+		fi
+		gcDeletedCount=$(( gcDeletedCount + 1 ))
+		gcDeletedPaths+=( "$path" )
+		if [ "$inIndex" = "true" ] ; then gcAddPaths+=( "$path" ) ; fi
+		if [ "$inHead" = "true" ] ; then gcCommitPaths+=( "$path" ) ; fi
+	done <<EOF
+$epochList
+EOF
+	return 0
+}
+
+## Scans one member's split inbox (AgentsTools.InboxPlace.include). Its incoming/ is never
+## collected: nothing there is processed. Its processed/ is, by the stamp of each item, as an
+## inbox root is (AgentsToolsFinalGcScanInboxRoot), and an item there with no stamp by its own
+## age, as the legacy processed/ was drained (AgentsToolsFinalGcScanDir, the stamped ones left
+## out of it through gcStampedSet). Adds to inboxDeletedCount of the caller.
+AgentsToolsFinalGcScanSplitInbox(){ ## the member's inbox, resolved; now; the inbox root, resolved
+	local splitProcessed=""
+	splitProcessed="$( cd "$1/processed" 2>/dev/null && pwd -P )" || splitProcessed=""
+	[ -n "$splitProcessed" ] || return 0
+	case "$splitProcessed" in
+		"$3"/*) ;;
+		*)
+			echo "$MDSC_CMD: team-data-final-gc-deletion: ⚠️ WARNING: skipping $splitProcessed -- escapes inbox root $3" >&2
+			return 0
+		;;
+	esac
+	gcDeletedCount=0
+	AgentsToolsFinalGcScanInboxRoot "$splitProcessed" "$2" || return 1
+	inboxDeletedCount=$(( inboxDeletedCount + gcDeletedCount ))
+	gcDeletedCount=0
+	gcStampedSet="$LF$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxProcessedAtList.awk" "$splitProcessed"/*.md 2> /dev/null | cut -f1 )$LF"
+	if ! AgentsToolsFinalGcScanDir "$splitProcessed" "$2" "" inbox ; then
+		gcStampedSet=""
+		return 1
+	fi
+	gcStampedSet=""
+	inboxDeletedCount=$(( inboxDeletedCount + gcDeletedCount ))
+	return 0
+}
+
+## Scans one already-resolved directory. Shared by the three folder locations,
+## unchanged between them: the retention table is keyed on the item, not on
+## where it sits. Two per-location inputs, and neither is a threshold: $3
+## `immediate` collects every item found regardless of age, which is what trash/
+## passes under a configured TEAM_DATA_GIT_REMOTE; $4 names the population,
+## which selects only where an `archive: true` item may be diverted to.
+## Sets (accumulates into, never resets): gcSeenCount, gcDeletedCount,
+## gcDeletedPaths[], gcAddPaths[], gcCommitPaths[], gcArchivedCount,
+## gcRetainedCount, gcSandboxCount, gcSandboxLog (all `local` in the caller, dynamic-scoped here). Never
+## prints. A failed `rm -f` and a failed diversion are the two real failures --
+## returns 1 with gcScanFailedPath/gcScanFailedWhat set. An item whose date
+## cannot be established is neither: it is kept.
+AgentsToolsFinalGcScanDir(){
+	local scanDir="$1" nowEpoch="$2" mode="$3" population="$4"
+	local path fileBase thresholdDays ageSeconds thresholdSeconds
+	local clockEpoch inIndex inHead
+	local gcSandboxFolders gcSandboxRemovable gcSandboxOpen gcFolderName
+	AgentsToolsFinalGcGitNames "$scanDir"
+	if [ "$mode" = "immediate" ] ; then
+		gcGitTimes="$LF" ; gcMtimes="$LF"
+	else
+		AgentsToolsFinalGcGitTimes "$scanDir"
+		AgentsToolsFinalGcMtimes "$scanDir"
+	fi
+	for path in "$scanDir"/*.md ; do
+		[ -f "$path" ] || continue
+		fileBase="${path##*/}"
+		## An item of a split inbox's processed/ that carries its stamp is collected by that stamp
+		## alone (AgentsToolsFinalGcScanSplitInbox), never by its file's age.
+		case "${gcStampedSet:-}" in
+			*"$LF$path$LF"*) continue ;;
+		esac
+		## Counts what the scan FOUND, before any decision about it. trash/'s
+		## summary segment keys on this, not on what was deleted.
+		gcSeenCount=$(( gcSeenCount + 1 ))
+
+		## Both asked before the `rm`, and answered by git's own bookkeeping
+		## rather than by the clock: an item staged and never committed has no
+		## commit date, yet the index still has to be told it is gone.
+		inIndex="false" ; inHead="false"
+		case "$gcIndexNames" in
+			*"$LF$fileBase$LF"*) inIndex="true" ;;
+		esac
+		case "$gcHeadNames" in
+			*"$LF$fileBase$LF"*) inHead="true" ;;
+		esac
+
+		if [ "$mode" != "immediate" ] ; then
+			AgentsToolsFinalGcLookup "$gcGitTimes" "$fileBase"
+			clockEpoch="$gcLookupEpoch"
+			if [ -z "$clockEpoch" ] ; then
+				AgentsToolsFinalGcLookup "$gcMtimes" "$fileBase"
+				clockEpoch="$gcLookupEpoch"
+			fi
+			## No readable date at all: kept. Ageing out a file whose own date
+			## could not be established would delete on absence of evidence.
+			[ -n "$clockEpoch" ] || continue
+			case "$fileBase" in
+				warning-*|reflection-*) thresholdDays=1 ;;
+				*)                      thresholdDays=7 ;;
+			esac
+			ageSeconds=$(( nowEpoch - clockEpoch ))
+			thresholdSeconds=$(( thresholdDays * 86400 ))
+			[ "$ageSeconds" -lt "$thresholdSeconds" ] && continue
+		fi
+
+		## From here the item is due, and a diversion SUBSTITUTES FOR the deletion
+		## about to happen: neither marker is a second clock, so an item not yet
+		## due sits in processed/ like any other and is diverted only at the moment
+		## it would otherwise be destroyed. Asking here rather than per candidate
+		## also confines the frontmatter read to the few items a pass acts on.
+		## Board population only: an inbox log entry ages out on the ordinary
+		## table whatever its frontmatter says and carries no typed relation field
+		## for anything to point at, and a marker read off something already
+		## trashed would make it immortal.
+		if [ "$population" = "board" ] ; then
+			## 1. `archive: true` -- checked first and always wins.
+			AgentsToolsFinalGcReadArchiveFlag "$path"
+			if [ "$gcItemArchived" = "true" ] ; then
+				AgentsToolsFinalGcDivertBoardItem "$fileBase" archived || return 1
+				gcArchivedCount=$(( gcArchivedCount + 1 ))
+				continue
+			fi
+			## 2. Failing that, still pointed at by a live board-item.
+			case "$gcDependedNames" in
+				*"$LF$fileBase$LF"*)
+					AgentsToolsFinalGcDivertBoardItem "$fileBase" retained || return 1
+					gcRetainedCount=$(( gcRetainedCount + 1 ))
+					continue
+				;;
+			esac
+		fi
+		## Board and trash alike (a dispatch deleted to trash/ still owns its sandbox): the item's spawn sandbox folders go with it,
+		## before it. An open one keeps the item for a later pass, a failed removal keeps it too.
+		if [ "$population" = "board" ] || [ "$population" = "trash" ] ; then
+			gcSandboxRemovable="" ; gcSandboxOpen="false"
+			for gcFolderName in $( AgentsToolsSpawnSandboxFoldersOfItem "$path" ) ; do
+				case "$( AgentsToolsSpawnSandboxFolderState "$gcFolderName" "${fileBase%.md}" )" in
+					open) gcSandboxOpen="true" ;;
+					removable) gcSandboxRemovable="$gcSandboxRemovable $gcFolderName" ;;
+				esac
+			done
+			[ "$gcSandboxOpen" = "false" ] || continue
+			for gcFolderName in $gcSandboxRemovable ; do
+				chmod -R u+w "$MMDAPP/.local/agents/spawned/$gcFolderName" 2> /dev/null || :
+				if ! rm -rf -- "$MMDAPP/.local/agents/spawned/$gcFolderName" ; then
+					gcScanFailedPath="$MMDAPP/.local/agents/spawned/$gcFolderName"
+					gcScanFailedWhat="delete"
+					return 1
+				fi
+				gcSandboxCount=$(( gcSandboxCount + 1 ))
+				gcSandboxLog="${gcSandboxLog}housekeeping: removed sandbox $gcFolderName"$'\n'
+			done
+		fi
+
+		if ! rm -f -- "$path" ; then
+			## Explicit rc check, not left to `set -e` -- an untested `rm -f`
+			## failing here would abort the whole op mid-scan, before the
+			## summary line ever prints, leaking a raw OS error instead of this
+			## codebase's own wrapped ⛔ ERROR: message.
+			gcScanFailedPath="$path"
+			gcScanFailedWhat="delete"
+			return 1
+		fi
+		gcDeletedCount=$(( gcDeletedCount + 1 ))
+		gcDeletedPaths+=( "$path" )
+		if [ "$inIndex" = "true" ] ; then
+			gcAddPaths+=( "$path" )
+		fi
+		if [ "$inHead" = "true" ] ; then
+			gcCommitPaths+=( "$path" )
+		fi
+	done
+	return 0
+}
+
+case "$1" in
+
+	--intern-team-data-final-gc-deletion)
+		shift
+		## --context <caller-op>, pre-scanned before any validation so a message
+		## here can name the invoking operation.
+		local opContext="<no --context given>"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then opContext="$ctxArg" ; ctxWanted="" ; continue ; fi
+			[ "$ctxArg" = "--context" ] && ctxWanted="1"
+		done
+
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: syntax is <team-member> [--context <caller-op>]" >&2
+			set +e ; return 1
+		fi
+		if [ "$1" = "--context" ] ; then
+			if [ -z "${2:-}" ] ; then
+				echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: --context: value required" >&2
+				set +e ; return 1
+			fi
+			shift 2
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: invalid option: $1" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$callingMember" "<team-member>" team-data-final-gc-deletion || { set +e ; return 1 ; }
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+
+		## The maps below are read back through `case` patterns matching a whole
+		## record, so a newline and a tab have to sit inside a pattern. $'\n'/$'\t'
+		## rather than literal control characters, which any reindent or
+		## autoformatter pass silently corrupts.
+		local LF=$'\n'
+		local TAB=$'\t'
+		local nowEpoch ; nowEpoch="$( date +%s )"
+		local gcDeletedPaths=() gcAddPaths=() gcCommitPaths=() gcDeletedCount=0
+		local gcScanFailedPath="" gcScanFailedWhat=""
+		local gcGitTimes="$LF" gcMtimes="$LF" gcLookupEpoch=""
+		local gcIndexNames="$LF" gcHeadNames="$LF" gcItemArchived="false"
+		local gcArchivedCount=0 gcRetainedCount=0 gcSandboxCount=0 gcSandboxLog=""
+		local gcSeenCount=0 trashSeenCount=0
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+		local gcDependedNames="$LF$LF"
+		local inboxDeletedCount=0 boardDeletedCount=0 trashDeletedCount=0
+
+		## Probed against `/` rather than the data root, so a root that does not
+		## exist reports as an empty scan and not as a broken stat(1).
+		local gcStatMode=""
+		if stat -f '%m' / >/dev/null 2>&1 ; then
+			gcStatMode="bsd"
+		elif stat -c '%Y' / >/dev/null 2>&1 ; then
+			gcStatMode="gnu"
+		else
+			echo "$MDSC_CMD: team-data-final-gc-deletion: ⚠️ WARNING: stat(1) understands neither the BSD nor the GNU format flag -- an item git has no commit for cannot be dated and is kept" >&2
+		fi
+
+		local gcRepoRoot=""
+		gcRepoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || gcRepoRoot=""
+
+		## trash/'s own retention gate, deliberately not the `.git` test the commit
+		## below uses: what a trashed copy raises is whether its bytes are already
+		## reachable elsewhere, which a remote answers and a local `.git` does not.
+		## With a remote the trashed copy goes on this pass; without one it is the
+		## only copy left and takes the ordinary retention.
+		local gcTrashMode="" gcTrashRemote=""
+		set +e
+		gcTrashRemote="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
+		set -e
+		if [ -n "$gcTrashRemote" ] ; then gcTrashMode="immediate" ; fi
+
+		## Inbox source: each inbox by AgentsToolsFinalGcScanSplitInbox, cd+pwd -P
+		## resolved and containment-checked. A member escaping containment (e.g. a
+		## symlink) is skipped with a warning rather than aborting the scan across
+		## every other member -- this op covers many members in one call.
+		local inboxBase=""
+		inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
+		if [ -n "$inboxBase" ] ; then
+			local memberDir memberRoot gcStampedSet=""
+			for memberDir in "$inboxBase"/*/ ; do
+				[ -d "$memberDir" ] || continue
+				memberRoot="$( cd "$memberDir" 2>/dev/null && pwd -P )" || memberRoot=""
+				[ -z "$memberRoot" ] && continue
+				case "$memberRoot" in
+					"$inboxBase"/*)
+						if ! AgentsToolsFinalGcScanSplitInbox "$memberRoot" "$nowEpoch" "$inboxBase" ; then
+							echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: could not $gcScanFailedWhat $gcScanFailedPath" >&2
+							set +e ; return 1
+						fi
+					;;
+					*)
+						echo "$MDSC_CMD: team-data-final-gc-deletion: ⚠️ WARNING: skipping $memberRoot -- escapes inbox root $inboxBase" >&2
+						continue
+					;;
+				esac
+			done
+		fi
+
+		## Board source: one fixed folder, no per-member fan-out.
+		local boardProcessed=""
+		boardProcessed="$( cd "$MDAT_DATA_ROOT/board/processed" 2>/dev/null && pwd -P )" || boardProcessed=""
+		if [ -n "$boardProcessed" ] ; then
+			## Built once, before the scan: this op only moves items OUT of
+			## board/processed/, so no candidate's answer changes under it.
+			AgentsToolsFinalGcDependedNames "$MDAT_DATA_ROOT/board"
+			gcDeletedCount=0 ; gcSeenCount=0
+			if ! AgentsToolsFinalGcScanDir "$boardProcessed" "$nowEpoch" "" board ; then
+				echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: could not $gcScanFailedWhat $gcScanFailedPath" >&2
+				set +e ; return 1
+			fi
+			boardDeletedCount=$(( boardDeletedCount + gcDeletedCount ))
+		fi
+
+		## Trash source: "(if present)" -- a root that has never trashed
+		## anything simply has no trash/, and that is not a condition to report.
+		local trashDir=""
+		trashDir="$( cd "$MDAT_DATA_ROOT/trash" 2>/dev/null && pwd -P )" || trashDir=""
+		if [ -n "$trashDir" ] ; then
+			gcDeletedCount=0 ; gcSeenCount=0
+			if ! AgentsToolsFinalGcScanDir "$trashDir" "$nowEpoch" "$gcTrashMode" trash ; then
+				echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: could not $gcScanFailedWhat $gcScanFailedPath" >&2
+				set +e ; return 1
+			fi
+			trashDeletedCount=$(( trashDeletedCount + gcDeletedCount ))
+			trashSeenCount=$(( trashSeenCount + gcSeenCount ))
+		fi
+
+		## The deletion sentence counts deletions and nothing else. Its trash
+		## segment is carried only when trash/ HELD something at scan time -- the
+		## test is what the scan FOUND, never how much of it was deleted, so a
+		## trash/ whose items were all too young still says `0 trash-items`.
+		local gcSummary=""
+		if [ "$trashSeenCount" -gt 0 ] ; then
+			gcSummary="team-data-final-gc: $inboxDeletedCount inbox-items, $boardDeletedCount board-items, $trashDeletedCount trash-items deleted."
+		else
+			gcSummary="team-data-final-gc: $inboxDeletedCount inbox-items, $boardDeletedCount board-items deleted."
+		fi
+		## A diversion is not a deletion, so it never enters those counts. It
+		## gets its own sentence, appended only when one happened, so an
+		## ordinary pass's line is exactly the deletion sentence.
+		if [ "$gcArchivedCount" -gt 0 ] ; then
+			gcSummary="$gcSummary $gcArchivedCount board-items archived."
+		fi
+		if [ "$gcRetainedCount" -gt 0 ] ; then
+			gcSummary="$gcSummary $gcRetainedCount board-items retained."
+		fi
+		if [ "$gcSandboxCount" -gt 0 ] ; then
+			gcSummary="$gcSummary $gcSandboxCount sandbox-folders removed."
+		fi
+		echo "$gcSummary"
+		AgentsToolsHousekeepingReport "$callingMember" "${gcSandboxLog%$'\n'}"
+
+		local gitOut="" gitRc=0
+		## Staged first, so an item the index held but HEAD never did leaves no
+		## phantom entry behind; committed second, over the narrower HEAD set,
+		## because that is the only set a commit's own pathspec can match.
+		if [ -n "$gcRepoRoot" ] && [ "${#gcAddPaths[@]}" -gt 0 ] ; then
+			gitOut="$( git -C "$gcRepoRoot" add -- "${gcAddPaths[@]}" 2>&1 )" || gitRc=$?
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: git add failed for deleted paths: $gitOut" >&2
+				set +e ; return 1
+			fi
+		fi
+		if [ -n "$gcRepoRoot" ] && [ "${#gcCommitPaths[@]}" -gt 0 ] ; then
+			gitOut="$( git -C "$gcRepoRoot" commit -m "- team-data-final-gc-deletion" -- "${gcCommitPaths[@]}" 2>&1 )" || gitRc=$?
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: git commit failed for deleted paths: $gitOut" >&2
+				set +e ; return 1
+			fi
+		fi
+
+		## 2 means this pass deleted nothing, and a diversion is not a deletion:
+		## a divert-only pass answers 2, with the summary line saying what it
+		## archived. --magic-advance-close-state-and-unlock treats 0 and 2 alike
+		## and only anything else as a failure.
+		if [ "$(( inboxDeletedCount + boardDeletedCount + trashDeletedCount ))" -eq 0 ] ; then
+			set +e ; return 2
+		fi
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

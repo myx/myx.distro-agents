@@ -13,7 +13,7 @@ rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigHere/AgentsConsoleShellScript.template.sh" ] || rigRefuse "console template not found: $rigHere/AgentsConsoleShellScript.template.sh"
+[ -f "$rigHere/manager/AgentsConsoleShellScript.template.sh" ] || rigRefuse "console template not found: $rigHere/manager/AgentsConsoleShellScript.template.sh"
 [ -x "$rigTools" ] || rigRefuse "team tooling not found: $rigTools"
 
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
@@ -67,11 +67,11 @@ rigRun(){ ## output file, command...
 
 echo "-- a console run with --non-interactive marks its CLI unattended --"
 : > "$rigTmp/claude.log"
-rigRun "$rigTmp/c1.out" bash "$rigHere/AgentsConsoleShellScript.template.sh" --cli claude-native --non-interactive RIG-PROMPT < /dev/null
+rigRun "$rigTmp/c1.out" bash "$rigHere/manager/AgentsConsoleShellScript.template.sh" --cli claude-native --non-interactive RIG-PROMPT < /dev/null
 rigAssert "the CLI started"                            "$( LC_ALL=C awk 'END { print NR ; }' "$rigTmp/claude.log" )" 1
 rigAssert "and saw the unattended marker"              "$( sed -n 's/^unattended=\[\([^]]*\)\].*/\1/p' "$rigTmp/claude.log" )" true
 : > "$rigTmp/claude.log"
-rigRun "$rigTmp/c2.out" bash "$rigHere/AgentsConsoleShellScript.template.sh" --cli claude-native < /dev/null
+rigRun "$rigTmp/c2.out" bash "$rigHere/manager/AgentsConsoleShellScript.template.sh" --cli claude-native < /dev/null
 rigAssert "control: an interactive console's CLI started" "$( LC_ALL=C awk 'END { print NR ; }' "$rigTmp/claude.log" )" 1
 rigAssert "and saw no unattended marker"               "$( sed -n 's/^unattended=\[\([^]]*\)\].*/\1/p' "$rigTmp/claude.log" )" ""
 
@@ -90,14 +90,14 @@ echo "-- the Agent tool spawns through the same proxy --"
 ## Spawned by another member than the one it spawns: a member runs once in a session (F6.9), so a
 ## session that runs as magic-tester starts no second magic-tester in it.
 rigRun "$rigTmp/a.out" env MDAT_SPAWN_AGENT=magic-coordinator HARNESS_PROVIDER_NAME=rig HARNESS_SELF_NAME=rig \
-	bash "$rigHere/AgentsUniversalHarness.sh" --intern-tool Agent < <( printf '{"agent":"magic-tester","prompt":"rig context"}' )
+	bash "$rigHere/harness/AgentsUniversalHarness.sh" --intern-tool Agent < <( printf '{"agent":"magic-tester","prompt":"rig context"}' )
 sleep 2
 rigAssert "a nested spawn reaches the console non-interactively" "$( LC_ALL=C grep -c -- '--non-interactive' "$rigTmp/console.log" )" 1
 rigAssert "under a session id of its own"              "$( [ -n "$( sed -n 's/.*spawn=\[\([^]]*\)\].*/\1/p' "$rigTmp/console.log" )" ] && printf fresh || printf missing )" fresh
 
 echo "-- the heartbeat spawns through that proxy (call site only: PARTIAL) --"
 ## Text matching proves the call site exists and nothing more; the edited copy is its control.
-rigHeartbeat="$rigHere/AgentsTools.MagicHeartbeat.include"
+rigHeartbeat="$rigHere/magic/AgentsTools.MagicHeartbeat.include"
 rigAssert "the heartbeat calls the spawn proxy"        "$( LC_ALL=C grep -c -- '--intern-op-agent-spawn-proxy' "$rigHeartbeat" )" 1
 sed 's/--intern-op-agent-spawn-proxy/--rig-removed/' "$rigHeartbeat" > "$rigTmp/heartbeat.edited"
 rigAssert "control: the same check on a copy without the call finds none" "$( LC_ALL=C grep -c -- '--intern-op-agent-spawn-proxy' "$rigTmp/heartbeat.edited" )" 0
@@ -108,7 +108,7 @@ mkdir -p "$rigTmp/ws/.local/agents/sessions/rig"
 rigStoreWrite(){ ## entrypoint or empty, unattended marker or empty, spawn id or empty, result file
 	rm -f "$rigTmp/ws/.local/agents/sessions/rig/probe"
 	rigRun "$4" env -u CLAUDE_CODE_ENTRYPOINT ${1:+CLAUDE_CODE_ENTRYPOINT="$1"} ${2:+MDAT_SESSION_UNATTENDED="$2"} ${3:+MDAT_SPAWN_SESSION_ID="$3"} \
-		HARNESS_PROVIDER_NAME=rig HARNESS_SELF_NAME=rig bash "$rigHere/AgentsUniversalHarness.sh" --intern-tool Write \
+		HARNESS_PROVIDER_NAME=rig HARNESS_SELF_NAME=rig bash "$rigHere/harness/AgentsUniversalHarness.sh" --intern-tool Write \
 		--access-read-root "$rigTmp/ws/.local/agents/sessions" --access-write-root "$rigTmp/ws/.local/agents/sessions" \
 		< <( printf '{"path":"%s","content":"rig\\n"}' "$rigTmp/ws/.local/agents/sessions/rig/probe" )
 }

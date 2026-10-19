@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the two status lines of the manager screen (sh-lib/AgentsManagerScreen.py), run rather than
+## Behavioural check on the two status lines of the manager screen (sh-lib/manager/AgentsManagerScreen.py), run rather than
 ## read. The screen's own code runs through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a stand-in script
 ## (check-fixtures/manager-screen.tools.stub.sh), which prints rows in the form `--manager-session-list` prints,
@@ -16,7 +16,7 @@
 ## Reconciled for F11.0: the left pane has no `keys:` line any more; the status line alone names the keys of the row.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigTools="$rigFixtures/manager-screen.tools.stub.sh"

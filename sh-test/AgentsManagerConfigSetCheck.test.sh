@@ -40,7 +40,7 @@ mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigWs/.l
 ## the settings reader alone, which a console needs to read its origin at all.
 rigFamily(){ ## origin -- the three files of the tool family there, empty
 	mkdir -p "$1/myx/myx.distro-agents/sh-lib" "$1/myx/myx.distro-.local/sh-lib" "$1/myx/myx.distro-system/sh-lib"
-	: > "$1/myx/myx.distro-agents/sh-lib/AgentsContext.include" ; : > "$1/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ; : > "$1/myx/myx.distro-system/sh-lib/SystemContext.include"
+	: > "$1/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include" ; : > "$1/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ; : > "$1/myx/myx.distro-system/sh-lib/SystemContext.include"
 }
 rigFamily "$rigTmp/ws-src/source" ; rigFamily "$rigTmp/ws-loc/.local" ; mkdir -p "$rigTmp/ws-none/source" "$rigTmp/ws-loc/source"
 mkdir -p "$rigWs/.local/myx/myx.distro-.local/sh-lib" && cp "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" "$rigWs/.local/myx/myx.distro-.local/sh-lib/"
@@ -174,7 +174,7 @@ for rigOne in "$rigTmp/ws-none/source" "$rigTmp/ws-gone/source" "$rigTmp/ws-loc/
 done
 rigAssert "a value that is not offered is refused, in one line that lists those that are, and the file is as it was: a workspace with no tool family, a place that is not there, the source of one that has it in .local alone, any path, a bare word" "${rigBad:- each refused}" " each refused"
 rigStart(){ ## -- the origin the context of the agents console takes at a console's start in the rig workspace, then how many warnings it gave
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" USER="$rigUser" RIG_INCLUDE="$rigHere/AgentsContext.SetInputSpec.include" bash -c 'rigTake(){ . "$RIG_INCLUDE" --init-variables ; } ; rigTake ; printf "%s" "$MDLT_ORIGIN"' 2> "$rigTmp/start.err" ; printf ' %s' "$( LC_ALL=C grep -c -e 'WARNING' "$rigTmp/start.err" || : )" )
+	( cd "$rigWs" && env -i HOME="$rigHome" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" USER="$rigUser" RIG_INCLUDE="$rigHere/harness/AgentsContext.SetInputSpec.include" bash -c 'rigTake(){ . "$RIG_INCLUDE" --init-variables ; } ; rigTake ; printf "%s" "$MDLT_ORIGIN"' 2> "$rigTmp/start.err" ; printf ' %s' "$( LC_ALL=C grep -c -e 'WARNING' "$rigTmp/start.err" || : )" )
 }
 rigAssert "a console started with the key taken out runs from the workspace's own installed copy, with no warning" "$( rigStart )" "$rigWs/.local 0"
 printf 'MDLT_CONSOLE_HISTORY=workspace-shared\nMDLT_CONSOLE_ORIGIN=/rig/elsewhere\n' > "$rigShared"
@@ -182,7 +182,7 @@ rigRun "$rigRead" --full console
 rigAssert "an origin set by hand that is none of those offered is shown as it is, and stands last among what the line lists, marked so" "$( LC_ALL=C awk -F'\t' '$4 == "MDLT_CONSOLE_ORIGIN" { print $6, $12, $13 }' "$rigTmp/out" )" "/rig/elsewhere workspace =<default>_(own_.local),$rigTmp/ws-src/source=ws-src_(source),$rigTmp/ws-loc/.local=ws-loc_(.local),/rig/elsewhere=/rig/elsewhere_(set_by_hand)"
 printf 'MDLT_CONSOLE_ORIGIN=.local\nMDLT_CONSOLE_HISTORY=workspace-shared\n' > "$rigShared"
 rigConsole(){ ## words for env... -- what MDSC_DETAIL is once the rc of the agents console has run in the rig workspace, `none` where it is empty
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" USER="$rigUser" RIG_RC="$rigHere/console-agents-bashrc.rc" "$@" bash -c '. "$RIG_RC" > /dev/null 2>&1 ; printf "%s" "${MDSC_DETAIL:-none}"' 2> /dev/null )
+	( cd "$rigWs" && env -i HOME="$rigHome" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" USER="$rigUser" RIG_RC="$rigHere/manager/console-agents-bashrc.rc" "$@" bash -c '. "$RIG_RC" > /dev/null 2>&1 ; printf "%s" "${MDSC_DETAIL:-none}"' 2> /dev/null )
 }
 rigSeen="$( rigConsole )"
 for rigOne in true full ; do
@@ -203,7 +203,7 @@ rigAssert "an empty value takes the key out by the operation that removes one, i
 rigAssert "no key with nothing after it was written by any call: not in the user's file, not in the workspace's, not in the settings of the team" "$( LC_ALL=C grep -c -e '=$' "$rigOwn" "$rigShared" "$rigTeam" | LC_ALL=C awk -F: '{ n += $2 } END { print n + 0 }' )" "0"
 rigRun "$rigWrite" MDLT_CONSOLE_DETAIL debug
 rigAssert "a word that is none of its three is refused" "$( rigRefused "⛔ ERROR: DistroAgentsTools $rigWrite: the value given is none of the values of MDLT_CONSOLE_DETAIL -- nothing was saved. Its values: true, full" )" "1 0 1 1"
-rigAssert "the rc of the agents console reads the key after its context is made, in the user's own scope, and exports what is chosen" "$( LC_ALL=C grep -c -F -e 'ReadConfig --custom-config-option --select MDLT_CONSOLE_DETAIL' "$rigHere/console-agents-bashrc.rc" ) $( LC_ALL=C awk '/^DistroAgentsContext --distro-from-source/ { context = NR } /MDLT_CONSOLE_DETAIL 2>/ { key = NR } END { print ( context && key > context ) ? "after" : "not-after" }' "$rigHere/console-agents-bashrc.rc" )" "1 after"
+rigAssert "the rc of the agents console reads the key after its context is made, in the user's own scope, and exports what is chosen" "$( LC_ALL=C grep -c -F -e 'ReadConfig --custom-config-option --select MDLT_CONSOLE_DETAIL' "$rigHere/manager/console-agents-bashrc.rc" ) $( LC_ALL=C awk '/^DistroAgentsContext --distro-from-source/ { context = NR } /MDLT_CONSOLE_DETAIL 2>/ { key = NR } END { print ( context && key > context ) ? "after" : "not-after" }' "$rigHere/manager/console-agents-bashrc.rc" )" "1 after"
 
 echo "-- 4. what is refused --"
 rigOwnBefore="$( rigSum "$rigOwn" )" ; rigTeamBefore="$( rigSum "$rigTeam" )"

@@ -126,20 +126,20 @@ chmod +x "$rigTmp/hbin/curl"
 	HARNESS_WIRE="OpenAiChat" HARNESS_CREDENTIAL_NAMES="none -- this check never reads one" \
 	HARNESS_MODEL_LIGHT="rig-light" HARNESS_MODEL_MAIN="rig-main" HARNESS_TOKEN_LIGHT="rig-not-a-credential" HARNESS_TOKEN_MAIN="rig-not-a-credential" \
 	MDAT_HARNESS_CONTEXT_TOKENS=0 MDAT_HARNESS_MAX_RESTARTS=1 \
-	bash "$rigHere/AgentsUniversalHarness.sh" --access-root "$rigHarnessDir" RIG-TASK-MARKER ) > "$rigHarnessDir/out" 2> "$rigHarnessDir/err" || :
+	bash "$rigHere/harness/AgentsUniversalHarness.sh" --access-root "$rigHarnessDir" RIG-TASK-MARKER ) > "$rigHarnessDir/out" 2> "$rigHarnessDir/err" || :
 [ -s "$rigHarnessDir/rounds.log" ] || rigRefuse "the harness made no model call, so its scratch was never observed: $( grep -m1 -E 'ERROR' "$rigHarnessDir/err" )"
 rigAssert "the harness scratch was under the workspace's .local/agents/scratch while it ran" "$( LC_ALL=C grep -c '^AgentsUniversalHarness\.' "$rigHarnessDir/scratch.log" 2>/dev/null )" 1
 rigAssert "and it was removed after" "$( ls -1 "$rigHarnessDir/.local/agents/scratch" | LC_ALL=C grep -c '^AgentsUniversalHarness\.' )" 0
 ## A served call, as the MCP server makes one: its scratch is in the same place, and is gone after it.
 ( cd "$rigHarnessDir" && printf '{"pattern":"*","path":"%s"}' "$rigHarnessDir" | env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID HOME="$rigTmp/home" \
-	MMDAPP="$rigHarnessDir" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/AgentsUniversalHarness.sh" --intern-tool Glob \
+	MMDAPP="$rigHarnessDir" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/harness/AgentsUniversalHarness.sh" --intern-tool Glob \
 	--access-read-root "$rigHarnessDir" --access-write-root "$rigHarnessDir" ) > "$rigHarnessDir/served.out" 2> "$rigHarnessDir/served.err" || :
 rigAssert "a served call ran" "$( LC_ALL=C grep -c -F "$rigHarnessDir/out" "$rigHarnessDir/served.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "ran" : "not-run" }' )" ran
 rigAssert "and left no scratch in the workspace's scratch folder" \
 	"$( ls -1 "$rigHarnessDir/.local/agents/scratch" 2>/dev/null | LC_ALL=C grep -c '^AgentsUniversalHarness\.' )" 0
 ## With no workspace there is no scratch, and no call: never a fall back to the system's temp folder.
 ( cd "$rigHarnessDir" && printf '{"pattern":"*","path":"%s"}' "$rigHarnessDir" | env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID -u MMDAPP HOME="$rigTmp/home" \
-	MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/AgentsUniversalHarness.sh" --intern-tool Glob \
+	MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/harness/AgentsUniversalHarness.sh" --intern-tool Glob \
 	--access-read-root "$rigHarnessDir" --access-write-root "$rigHarnessDir" ) > "$rigHarnessDir/bare.out" 2> "$rigHarnessDir/bare.err" || :
 rigAssert "with no workspace, a served call is refused, saying why" "$( LC_ALL=C grep -c '^ERROR: no workspace to keep the scratch of this call in' "$rigHarnessDir/bare.out" )" 1
 rigAssert "and runs nothing: its one line is that refusal" "$( LC_ALL=C grep -c . "$rigHarnessDir/bare.out" )" 1

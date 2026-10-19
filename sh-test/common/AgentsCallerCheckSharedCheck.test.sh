@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on the caller-check layer lifted into a shared include (F1.2 of the refactorings epic): the three
 ## checks AgentsToolsMagicCallerCheck, AgentsToolsClientCallerCheck and AgentsToolsManagerCallerCheck move verbatim
-## from `sh-lib/AgentsContext.UseAgentsTools.include` (an entry-point include: it turns on `set -e`, runs `local`, and
-## may clone the team data) into a side-effect-free `sh-lib/AgentsTools.CallerCheck.include`, which UseAgentsTools
+## from `sh-lib/harness/AgentsContext.UseAgentsTools.include` (an entry-point include: it turns on `set -e`, runs `local`, and
+## may clone the team data) into a side-effect-free `sh-lib/member/AgentsTools.CallerCheck.include`, which UseAgentsTools
 ## sources. A stand-in .fn.sh of this rig sources that include alone, and asks each check what the dispatcher asks
 ## for a --magic-*, a --client-* and a --manager-* operation.
 ## Held:
@@ -18,7 +18,7 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
-rigInclude="$rigPackage/sh-lib/AgentsTools.CallerCheck.include"
+rigInclude="$rigPackage/sh-lib/member/AgentsTools.CallerCheck.include"
 rigFn="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1

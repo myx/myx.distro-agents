@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.TaskText.include -- what a session or a request is about, in words, from the
+## records on disk: the one piece of code for every post that says it (the event-track start
+## post, the permission set post). Function-only. Nothing is looked up over the network.
+##
+## The task of a board item:
+##   - an item that tracks another (`tracks:`, a dispatch made for a task): the tracked item's
+##     title and its first paragraph, with both names;
+##   - a dispatch that tracks none: its own heading, and the first paragraph of its brief,
+##     after the block the tooling writes ahead of the spawner's words;
+##   - any other item: its own title and its first paragraph.
+## A title is one line, cut as a message is. A text is a few sentences, cut at a sentence end.
+## Both are redacted. AgentsTaskText.awk reads them and holds the limits. A value that is not
+## there is not printed: no name ever stands with nothing beside it.
+##
+
+if ! type AgentsToolsTaskText > /dev/null 2>&1 ; then
+
+	## One value read off an item file, or nothing.
+	AgentsToolsTaskTextRead(){ ## want (title|text|brief|header), item file, header name (with header)
+		[ -f "${2:-}" ] || return 0
+		TASKTEXT_WANT="$1" TASKTEXT_FIELD="${3:-}" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTaskText.awk" "$2" 2>/dev/null || :
+	}
+
+	## A value somebody gave -- a description, a comment, a purpose -- as a post shows it: one
+	## line, redacted, cut as a message is. Nothing for an empty value.
+	AgentsToolsTaskTextLine(){ ## value
+		[ -n "${1:-}" ] || return 0
+		TASKTEXT_WANT=line TASKTEXT_VALUE="$1" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTaskText.awk" < /dev/null 2>/dev/null || :
+	}
+
+	## The same value as a record keeps it: one line, redacted, bounded, so a header field holds
+	## it and a later reader can show it. Nothing for an empty value.
+	AgentsToolsTaskTextKept(){ ## value
+		[ -n "${1:-}" ] || return 0
+		TASKTEXT_WANT=kept TASKTEXT_VALUE="$1" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionTranscriptFormat.awk" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTaskText.awk" < /dev/null 2>/dev/null || :
+	}
+
+	## The task of a board item, as `<name><TAB><value>` lines, a line only where it has a value:
+	##   title     the task in words
+	##   item      the name of the item the task is: the tracked one, or the item itself where
+	##             it is no dispatch
+	##   dispatch  the dispatch's name, where the item is one
+	##   text      the longer text, a few sentences
+	AgentsToolsTaskText(){ ## item file, on the board
+		local taskFile="${1:-}" taskName taskTracks taskTracked="" taskCandidate taskIsDispatch="" taskTitle taskText
+		[ -f "$taskFile" ] || return 0
+		taskName="${taskFile##*/}" ; taskName="${taskName%.md}"
+		case "$taskName" in dispatch-*) taskIsDispatch=1 ;; esac
+		taskTracks="$( AgentsToolsTaskTextRead header "$taskFile" tracks )"
+		taskTracks="${taskTracks##*/}" ; taskTracks="${taskTracks%.md}"
+		case "$taskTracks" in ''|.|..|*[!A-Za-z0-9._+-]*) taskTracks="" ;; esac
+		## The tracked item, in whichever state of the board it is now.
+		if [ -n "$taskTracks" ] ; then
+			for taskCandidate in "${taskFile%/*/*}"/*/"$taskTracks.md" ; do
+				[ -f "$taskCandidate" ] || continue
+				taskTracked="$taskCandidate" ; break
+			done
+		fi
+		if [ -n "$taskTracked" ] ; then
+			taskTitle="$( AgentsToolsTaskTextRead title "$taskTracked" )"
+			taskText="$( AgentsToolsTaskTextRead text "$taskTracked" )"
+		elif [ -n "$taskIsDispatch" ] ; then
+			taskTitle="$( AgentsToolsTaskTextRead title "$taskFile" )"
+			taskText="$( AgentsToolsTaskTextRead brief "$taskFile" )"
+		else
+			taskTitle="$( AgentsToolsTaskTextRead title "$taskFile" )"
+			taskText="$( AgentsToolsTaskTextRead text "$taskFile" )"
+		fi
+		[ -z "$taskTitle" ] || printf 'title\t%s\n' "$taskTitle"
+		if [ -n "$taskTracked" ] ; then
+			printf 'item\t%s\n' "$taskTracks"
+		elif [ -z "$taskIsDispatch" ] ; then
+			printf 'item\t%s\n' "$taskName"
+		fi
+		[ -z "$taskIsDispatch" ] || printf 'dispatch\t%s\n' "$taskName"
+		[ -z "$taskText" ] || printf 'text\t%s\n' "$taskText"
+	}
+
+	## One value of what AgentsToolsTaskText printed.
+	AgentsToolsTaskTextValue(){ ## the printed lines, name
+		local valueLine
+		while IFS= read -r valueLine ; do
+			case "$valueLine" in
+				"$2"$'\t'*) printf '%s' "${valueLine#*$'\t'}" ; return 0 ;;
+			esac
+		done <<< "$1"
+	}
+
+fi

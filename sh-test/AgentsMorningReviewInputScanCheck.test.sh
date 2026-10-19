@@ -9,7 +9,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMorningReviewStateShape.awk"
+rigAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsMorningReviewStateShape.awk"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1

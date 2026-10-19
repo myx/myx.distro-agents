@@ -20,7 +20,7 @@ reply is treated as success.
 
 ## Locations
 
-`sh-lib/AgentsTools.Member.include`, the retry loop:
+`sh-lib/member/AgentsTools.Member.include`, the retry loop:
 
 ```sh
 status="$( awk 'NR==1 { print $2 ; }' "$headers" )"

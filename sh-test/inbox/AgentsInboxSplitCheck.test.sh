@@ -83,7 +83,7 @@ rigOp(){ ## result file, op and arguments... -- one team op, guarded; rc into <r
 	printf '%s' "$?" > "$opOut.rc"
 }
 rigDaysAgo(){ ## days -- that many days ago, as a processed stamp
-	printf '%s\n' "$(( $( date +%s ) - $1 * 86400 ))" | LC_ALL=C awk -f "$rigLib/AgentsEpochToIsoDate.awk"
+	printf '%s\n' "$(( $( date +%s ) - $1 * 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsEpochToIsoDate.awk"
 }
 rigStampAgo(){ ## days -- a touch -t stamp
 	local stampEpoch=$(( $( date +%s ) - $1 * 86400 ))

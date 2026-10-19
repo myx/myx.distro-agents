@@ -27,7 +27,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 
-rigHarness="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh"
+rigHarness="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh"
 
 ## Refusing to report is this block's whole job: a run that exercised nothing must
 ## never print a pass.
@@ -355,7 +355,7 @@ if [ "$rigFails" -ne 0 ] ; then
 	echo "        or it narrows them when no write root was given at all -- one leaves" >&2
 	echo "        a granted root writable that must not be, the other takes writes from" >&2
 	echo "        every caller that never asked for a narrower set" >&2
-	echo "  fix:  repair the write-set derivation in sh-lib/AgentsUniversalHarness.sh --" >&2
+	echo "  fix:  repair the write-set derivation in sh-lib/harness/AgentsUniversalHarness.sh --" >&2
 	echo "        never the assertion, and never by widening a caller's grant to suit it" >&2
 	exit 1
 fi

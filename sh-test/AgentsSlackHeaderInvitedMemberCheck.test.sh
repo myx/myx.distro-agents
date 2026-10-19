@@ -157,7 +157,7 @@ rigAssert "and this workspace's registry gets no row for it" "$( LC_ALL=C grep -
 echo "-- a member with no mark of its own has the default icon of its prefix group, and one with its own keeps it --"
 ## The one list of them, asked directly: what the installer's member table shows.
 rigKindIcon(){ ## member
-	( env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1" ; AgentsToolsTeamMemberKindIcon "$2"' rig-icon "$rigHere/AgentsTools.TeamRegistry.include" "$1" ) 2> /dev/null
+	( env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1" ; AgentsToolsTeamMemberKindIcon "$2"' rig-icon "$rigHere/team-data/AgentsTools.TeamRegistry.include" "$1" ) 2> /dev/null
 }
 rigAssert "control: the list gives each prefix group its icon, whatever member of it is asked" \
 	"$( rigKindIcon client-x ) $( rigKindIcon client-y ) $( rigKindIcon partner-x ) $( rigKindIcon keeper-x ) $( rigKindIcon keeper-y ) $( rigKindIcon warden-x ) $( rigKindIcon human-owner ) $( rigKindIcon magic-x ) $( rigKindIcon magic-y )" "👥 👥 👫 🔏 🔏 🔏 👤 🤖 🤖"
@@ -194,9 +194,9 @@ rigAssert "addressed: a member with no mark by its group's icon and its member n
 rigSend keeper-here --address-to human-owner RIG-BODY
 rigAssert "the human-owner's own mark is kept" "$( rigHeader | LC_ALL=C sed 's/ <@[A-Z0-9]*>\.$/ <@ID>./' )" '🔧 *_keeper-here_* @herakeep → :rig-owner: *_human-owner_* <@ID>.'
 rigAssert "no member is named by the rule: the list holds prefixes, and of single names only the human-owner the member table already had" \
-	"$( LC_ALL=C sed -n '/^AgentsToolsTeamMemberKindIcon()/,/^}/p' "$rigHere/AgentsTools.TeamRegistry.include" | LC_ALL=C grep -c ') *printf' ):$( LC_ALL=C sed -n '/^AgentsToolsTeamMemberKindIcon()/,/^}/p' "$rigHere/AgentsTools.TeamRegistry.include" | LC_ALL=C grep ') *printf' | LC_ALL=C grep -v -e '^[[:space:]]*[a-z|*-]*-\*)' -e '^[[:space:]]*\*)' -e '^[[:space:]]*human-owner)' | wc -l | tr -d ' ' ):$( LC_ALL=C sed -n '/^AgentsToolsCommsSlackMemberTeamPresentation()/,/^}/p' "$rigHere/AgentsTools.MemberCommsSlack.include" | LC_ALL=C grep -c -e 'client-[a-z]' -e 'keeper-[a-z]' -e 'magic-[a-z]' -e 'partner-[a-z]' )" "6:0:0"
+	"$( LC_ALL=C sed -n '/^AgentsToolsTeamMemberKindIcon()/,/^}/p' "$rigHere/team-data/AgentsTools.TeamRegistry.include" | LC_ALL=C grep -c ') *printf' ):$( LC_ALL=C sed -n '/^AgentsToolsTeamMemberKindIcon()/,/^}/p' "$rigHere/team-data/AgentsTools.TeamRegistry.include" | LC_ALL=C grep ') *printf' | LC_ALL=C grep -v -e '^[[:space:]]*[a-z|*-]*-\*)' -e '^[[:space:]]*\*)' -e '^[[:space:]]*human-owner)' | wc -l | tr -d ' ' ):$( LC_ALL=C sed -n '/^AgentsToolsCommsSlackMemberTeamPresentation()/,/^}/p' "$rigHere/comms/AgentsTools.MemberCommsSlack.include" | LC_ALL=C grep -c -e 'client-[a-z]' -e 'keeper-[a-z]' -e 'magic-[a-z]' -e 'partner-[a-z]' )" "6:0:0"
 rigAssert "the installer's table and the author line take the icon from the one list: neither file holds an icon of a kind" \
-	"$( LC_ALL=C grep -c -e '👥' -e '👫' -e '🔏' -e '👤' "$rigHere/AgentsTools.Install.include" ):$( LC_ALL=C grep -c -e '👥' -e '👫' -e '🔏' -e '👤' "$rigHere/AgentsTools.MemberCommsSlack.include" ):$( LC_ALL=C grep -c 'AgentsToolsTeamMemberKindIcon "' "$rigHere/AgentsTools.Install.include" ):$( LC_ALL=C grep -c 'AgentsToolsTeamMemberKindIcon "' "$rigHere/AgentsTools.MemberCommsSlack.include" )" "0:0:1:1"
+	"$( LC_ALL=C grep -c -e '👥' -e '👫' -e '🔏' -e '👤' "$rigHere/config/AgentsTools.Install.include" ):$( LC_ALL=C grep -c -e '👥' -e '👫' -e '🔏' -e '👤' "$rigHere/comms/AgentsTools.MemberCommsSlack.include" ):$( LC_ALL=C grep -c 'AgentsToolsTeamMemberKindIcon "' "$rigHere/config/AgentsTools.Install.include" ):$( LC_ALL=C grep -c 'AgentsToolsTeamMemberKindIcon "' "$rigHere/comms/AgentsTools.MemberCommsSlack.include" )" "0:0:1:1"
 rm -f "$( rigNames ws-there )"
 rigSend keeper-there RIG-BODY
 rigAssert "with no registry at all in the workspace it is set up in: its group's icon, its member name, and the one line" "$rigRc $( rigText ) $( rigNoRowLines keeper-there )" '0 🔏 *_keeper-there_* → @here.\nRIG-BODY 1'
@@ -252,7 +252,7 @@ echo "-- reading takes what posting writes: a message addressed to the client in
 ## for each one sent. The dismissal reader is the one a Wait asks (AgentsHarnessWaitDismissed.awk).
 rigDismisses(){ ## member, the text of a message as sent -- yes when that message dismisses that member
 	printf '1700000001.000100 | URIGBOT01 | %s\n' "$2" | LC_ALL=C awk '{ gsub( /\\n/, "\n" ) ; print ; }' \
-		| dismissalMember="$1" LC_ALL=C awk -f "$rigHere/AgentsDismissalMatch.awk" -f "$rigHere/AgentsHarnessWaitDismissed.awk" > /dev/null 2>&1 && printf yes || printf no
+		| dismissalMember="$1" LC_ALL=C awk -f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigHere/harness/AgentsHarnessWaitDismissed.awk" > /dev/null 2>&1 && printf yes || printf no
 }
 rigSend keeper-here --address-to client-rig DISMISSED
 rigToClient="$( rigText )"
@@ -267,7 +267,7 @@ rigSend client-rig --address-to keeper-here RIG-BODY
 ## memberSendHeaderLength is what every reader of a reply takes a send header off by.
 printf '%s\n' '{ gsub( /\\n/, "\n" ) ; split( $0, lineOf, "\n" ) ; print ( memberSendHeaderLength( lineOf[1] ) == length( lineOf[1] ) ? "header" : "no-header" ) ; }' > "$rigTmp/header.awk"
 rigAssert "the client's own in-team author line is a send header to every reader: its length is its whole first line" \
-	"$( rigText ):$( rigText | LC_ALL=C awk -f "$rigHere/AgentsDismissalMatch.awk" -f "$rigTmp/header.awk" 2> /dev/null )" '🐭 *_client-rig_* → 🔧 *_keeper-here_* @herakeep.\nRIG-BODY:header'
+	"$( rigText ):$( rigText | LC_ALL=C awk -f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigTmp/header.awk" 2> /dev/null )" '🐭 *_client-rig_* → 🔧 *_keeper-here_* @herakeep.\nRIG-BODY:header'
 
 echo "-- a name is said once: a member whose alias is its own name, as sender and as addressee --"
 rigSend magic-plain --address-to keeper-here --address-to partner-plain RIG-BODY
@@ -275,9 +275,9 @@ rigAssert "its name stands once, with no @name beside it, and a member whose ali
 	"$rigRc $( rigText )" '0 🤖 *_magic-plain_* → 🔧 *_keeper-here_* @herakeep; 👫 *_partner-plain_*.\nRIG-BODY'
 rigAssert "nowhere in the post does the name follow itself" "$( LC_ALL=C grep -c -e '@magic-plain' -e '@partner-plain' "$rigTmp/bodies" )" 0
 rigAssert "the line the reader takes off a reply is the whole first line: a header" \
-	"$( rigText | LC_ALL=C awk -f "$rigHere/AgentsDismissalMatch.awk" -f "$rigTmp/header.awk" 2> /dev/null )" header
+	"$( rigText | LC_ALL=C awk -f "$rigHere/questions/AgentsDismissalMatch.awk" -f "$rigTmp/header.awk" 2> /dev/null )" header
 rigAssert "the one rule is asked in two places of the send, the sender and the addressee, and the send writes no alias of its own" \
-	"$( LC_ALL=C grep -c 'AgentsToolsCommsSlackAliasShown "' "$rigHere/AgentsTools.MemberCommsSlack.include" ):$( LC_ALL=C grep -c -e '@\$fromAlias' -e '@\$addrAlias' "$rigHere/AgentsTools.MemberCommsSlack.include" )" "2:0"
+	"$( LC_ALL=C grep -c 'AgentsToolsCommsSlackAliasShown "' "$rigHere/comms/AgentsTools.MemberCommsSlack.include" ):$( LC_ALL=C grep -c -e '@\$fromAlias' -e '@\$addrAlias' "$rigHere/comms/AgentsTools.MemberCommsSlack.include" )" "2:0"
 rigSend keeper-here --address-to magic-plain DISMISSED
 rigToPlain="$( rigText )"
 rigAssert "addressed to it, a dismissal reaches it by its name said once, and nobody else" \
@@ -289,7 +289,7 @@ rigAssert "sent by it, a dismissal reaches the member it names and never its own
 rigAssert "what a person types to name such a member is its member name" "$( rigDismisses magic-plain 'DISMISSED magic-plain' ):$( rigDismisses magic-plain 'DISMISSED @magic-plain' )" "yes:no"
 ## The verdict reader takes a member's reply by its first word after the header (AgentsEscalationVerdict.awk).
 rigVerdictOf(){ ## reply text -- the verdict the reader takes from it
-	printf '1700000001.000200 | URIGOWNER | %s\n' "$1" | MDAT_VERDICT_KIND=permission MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" 2> /dev/null | LC_ALL=C cut -f1
+	printf '1700000001.000200 | URIGOWNER | %s\n' "$1" | MDAT_VERDICT_KIND=permission MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/questions/AgentsEscalationVerdict.awk" 2> /dev/null | LC_ALL=C cut -f1
 }
 rigAssert "the verdict reader takes the answer after a header that says the name once: with a sign, with a shortcode, with no mark" \
 	"$( rigVerdictOf '🤖 *_magic-plain_* → 👤 *_human-owner_* <@URIGOWNER>. allow-once' ):$( rigVerdictOf ':robot_face: *_magic-plain_* → @here. deny' ):$( rigVerdictOf '*_magic-plain_* → @here. deny' )" "allow-once:deny:deny"
@@ -302,7 +302,7 @@ rigAssert "no request left this box: every call went to the fake curl" "$( LC_AL
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SLACK HEADER INVITED MEMBER CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2
 	echo "  warn: a member is shown with no icon or not with its own mark, an invited member under another member's alias, a client inside our team under its persona's alias, or a name said twice or not read where it is said once" >&2
-	echo "  fix:  repair AgentsToolsCommsSlackMemberTeamPresentation, AgentsToolsCommsSlackMemberPresentation and AgentsToolsCommsSlackAliasShown in sh-lib/AgentsTools.MemberCommsSlack.include, or the readers of the line (AgentsDismissalMatch.awk, AgentsEscalationVerdict.awk) -- never the assertion" >&2
+	echo "  fix:  repair AgentsToolsCommsSlackMemberTeamPresentation, AgentsToolsCommsSlackMemberPresentation and AgentsToolsCommsSlackAliasShown in sh-lib/comms/AgentsTools.MemberCommsSlack.include, or the readers of the line (AgentsDismissalMatch.awk, AgentsEscalationVerdict.awk) -- never the assertion" >&2
 	exit 1
 fi
 printf 'SLACK_HEADER_INVITED_MEMBER: OK (%d assertions, offline)\n' "$rigPasses"

@@ -66,7 +66,7 @@ AgentsWireThinkingFeed(){ ## raw reasoning delta
 			;;
 		esac
 		if [ -n "$feedSeg" ] ; then
-			feedSafe="$( printf '%s' "$feedSeg" | LC_ALL=C awk -v progressLineCap=1000000 -f "$harnessHere/AgentsProgressLineSafe.awk" )"
+			feedSafe="$( printf '%s' "$feedSeg" | LC_ALL=C awk -v progressLineCap=1000000 -f "$harnessHere/session/AgentsProgressLineSafe.awk" )"
 			thinkingBuf="$thinkingBuf$feedSafe"
 			case "$thinkingBuf" in
 				*\ *)

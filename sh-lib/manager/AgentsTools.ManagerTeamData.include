@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerTeamData.include -- the --manager-team-data-* operations: the console's
+## own view of the items of the team data, its board, its audit, its vault and its inboxes, to
+## browse them. An inbox is listed where its items live (AgentsTools.InboxPlace.include): its
+## items that are not processed, and with --include-processed the processed ones too; a folder
+## of the inboxes is a member's inbox, never one of its own folders, which no reader sees.
+## Sourced from the `--manager-team-data-*)` arm of AgentsTools.Manager.include; who may call
+## was asked where the family is dispatched.
+##
+## IT ONLY READS. A store is a folder of the team data root (MDAT_DATA_ROOT, as the context
+## resolved it), a folder of a store is one level under it, and an item is a file of either,
+## by its name: nothing deeper is listed, nothing outside a store is ever read, and every
+## name given is a bare one. The text of an item is read by the one reader of the team
+## data's documents (AgentsToolsDataRead), which the member reads of an item use too; no git
+## command is run and no registry is touched.
+##
+
+type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpDataRead.include"
+type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+
+## The stores that are browsed, in their order: each a folder of the team data root.
+agentsManagerTeamDataStores="board audit vault inboxes"
+
+## The `item` rows of one member's inbox, in itemRows of the caller: the items that are not
+## processed, and the processed too where `yes` asks for them: its incoming/ and its processed/.
+AgentsToolsManagerTeamDataInbox(){ ## member, include processed (yes|no)
+	local inboxRows=""
+	AgentsToolsManagerTeamDataItems inboxes "$1" "$MDAT_DATA_ROOT/inboxes/$1/incoming"
+	inboxRows="$itemRows"
+	if [ "$2" = "yes" ] ; then
+		AgentsToolsManagerTeamDataItems inboxes "$1" "$MDAT_DATA_ROOT/inboxes/$1/processed"
+		inboxRows="$inboxRows${inboxRows:+${itemRows:+$'\n'}}$itemRows"
+	fi
+	itemRows="$inboxRows"
+	return 0
+}
+## The folders of the board in the order of their states, as the dashboard counts them;
+## a folder of the board that is none of them comes after them, by its name.
+agentsManagerTeamDataBoardStates="running review blocked pending backlog parked retained processed archived"
+
+## One field of a row: its whitespace reads `_`, and an empty one `-`, as in a registry.
+AgentsToolsManagerTeamDataField(){ ## text
+	local fieldText="${1//[[:space:]]/_}"
+	printf '%s' "${fieldText:--}"
+}
+
+## The `item` rows of one folder, in itemRows of the caller: each file of it that is no dot
+## file, with its size and the stamp of its name, `<YYYYMMDD>T<HHMM>`, where it has one,
+## then the type, status, owner and date its front matter gives, its lines between a first
+## line `---` and the next, the first of each, read no further than that;
+## those with a stamp first, the newest first, then the others by their names.
+AgentsToolsManagerTeamDataItems(){ ## store, folder (`-`: the store itself), the folder's path
+	local itemFile itemFiles=()
+	itemRows=""
+	for itemFile in "$3"/* ; do
+		[ -f "$itemFile" ] && itemFiles+=( "$itemFile" )
+	done
+	[ "${#itemFiles[@]}" -gt 0 ] || return 0
+	## one count of the bytes of them all, and in the same pass the front matter of each; a
+	## name's own whitespace reads `_`, and so does a value's, an absent one `-`
+	itemRows="$( { wc -c -- "${itemFiles[@]}" 2> /dev/null || : ; } | LC_ALL=C awk -v OFS='\t' -v store="$1" -v folder="$2" -v at="${3%/}/" '
+		function field( value ) { gsub( /[ \t]+/, "_", value ) ; return value == "" ? "-" : value }
+		function front( path,    line, count, key ) {
+			split( "", fronts ) ; count = 0
+			while ( ( getline line < path ) > 0 ) {
+				count++
+				if ( count == 1 ) { if ( line != "---" ) break ; continue }
+				if ( line == "---" || count > 200 ) break
+				if ( match( line, /^(type|status|owner|date):/ ) ) {
+					key = substr( line, 1, RLENGTH - 1 ) ; line = substr( line, RLENGTH + 1 ) ; sub( /^[ \t]+/, "", line ) ; sub( /[ \t\r]+$/, "", line )
+					if ( !( key in fronts ) ) fronts[ key ] = line
+				}
+			}
+			close( path )
+		}
+		{ bytes = $1 ; name = $0 ; sub( /^[ \t]*[0-9]+[ \t]/, "", name ) ; if ( index( name, at ) != 1 ) next ; front( name ) ; name = substr( name, length( at ) + 1 )
+		  gsub( /[ \t]/, "_", name ) ; stamp = "-" ; if ( match( name, /[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9]/ ) ) stamp = substr( name, RSTART, RLENGTH )
+		  print stamp, "item", store, folder, name, bytes, stamp, field( fronts[ "type" ] ), field( fronts[ "status" ] ), field( fronts[ "owner" ] ), field( fronts[ "date" ] ) }' | LC_ALL=C sort -t "$( printf '\t' )" -k1,1r -k5,5 | LC_ALL=C awk -F'\t' '
+		$1 == "-" { rest = rest substr( $0, 3 ) "\n" ; next } { print substr( $0, index( $0, "\t" ) + 1 ) } END { printf "%s", rest }' )"
+	return 0
+}
+
+case "$1" in
+
+	## The items of one store of the team data: its folders and its items, or the items of
+	## one of its folders, or one item's text. Its form is the help entry's.
+	--manager-team-data-read)
+		local readOp="$1" readStore readFolder="" readItem="" readRoot readPath readDir readName readCount readFolders="" readListed=" " itemRows=""
+		shift
+		## --include-processed: an inbox's processed items too, wherever it stands among the words.
+		local readProcessed="no" readWord readWords=()
+		for readWord in "$@" ; do
+			if [ "$readWord" = "--include-processed" ] ; then readProcessed="yes" ; else readWords+=( "$readWord" ) ; fi
+		done
+		set -- ${readWords[@]+"${readWords[@]}"}
+		if [ $# -lt 1 ] || [ $# -gt 3 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is $readOp <store> [<folder> [<item>]] [--include-processed], got $# argument(s) -- nothing is shown" >&2
+			set +e ; return 1
+		fi
+		readStore="$1" ; readFolder="${2:-}" ; readItem="${3:-}"
+		case " $agentsManagerTeamDataStores " in
+			*" $readStore "*) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD $readOp: <store> is one of: $agentsManagerTeamDataStores -- nothing is shown" >&2
+				set +e ; return 1
+			;;
+		esac
+		if [ -n "$readFolder" ] && [ "$readFolder" != "-" ] ; then
+			AgentsToolsAssertBareName "$readFolder" "<folder>" "${readOp#--}" || { set +e ; return 1 ; }
+		fi
+		if [ -n "$readItem" ] ; then
+			AgentsToolsAssertBareName "$readItem" "<item>" "${readOp#--}" || { set +e ; return 1 ; }
+		fi
+		readRoot="${MDAT_DATA_ROOT:-}"
+		if [ -z "$readRoot" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $readOp: no team data root is configured for this workspace -- nothing is shown" >&2
+			set +e ; return 1
+		fi
+		readPath="${readRoot%/}/$readStore"
+		[ -z "$readFolder" ] || [ "$readFolder" = "-" ] || readPath="$readPath/$readFolder"
+
+		## A member's inbox: its items, or one of them by its name, where a read finds it.
+		if [ "$readStore" = "inboxes" ] && [ -n "$readFolder" ] && [ "$readFolder" != "-" ] ; then
+			if [ ! -d "$readPath" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $readOp: the inboxes of the team data have no inbox of '$readFolder' -- nothing is shown" >&2
+				set +e ; return 1
+			fi
+			if [ -n "$readItem" ] ; then
+				local readLookup=() readFrom
+				while IFS= read -r readFrom ; do
+					readLookup+=( --lookup-folder "$readFrom" )
+				done < <( AgentsToolsInboxFolders "$readFolder" "$readProcessed" )
+				AgentsToolsDataRead "$readItem" --context "$readOp" "${readLookup[@]}" || { set +e ; return 1 ; }
+				return 0
+			fi
+			AgentsToolsManagerTeamDataInbox "$readFolder" "$readProcessed"
+			[ -z "$itemRows" ] || printf '%s\n' "$itemRows"
+			return 0
+		fi
+
+		## One item: its text as it lies, by the one reader, from that folder alone.
+		if [ -n "$readItem" ] ; then
+			AgentsToolsDataRead "$readItem" --context "$readOp" --lookup-folder "$readPath" || { set +e ; return 1 ; }
+			return 0
+		fi
+
+		## The items of one folder.
+		if [ -n "$readFolder" ] ; then
+			if [ ! -d "$readPath" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $readOp: the $readStore of the team data has no folder '$readFolder' -- nothing is shown" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsManagerTeamDataItems "$readStore" "$readFolder" "$readPath"
+			[ -z "$itemRows" ] || printf '%s\n' "$itemRows"
+			return 0
+		fi
+
+		## The store: whether it is there, then its folders, each with how many items it holds,
+		## then the items that lie in the store itself.
+		if [ ! -d "$readPath" ] ; then
+			printf 'store\t%s\tabsent\t0\t0\n' "$readStore"
+			return 0
+		fi
+		for readDir in "$readPath"/*/ ; do
+			[ -d "$readDir" ] || continue
+			readName="${readDir%/}" ; readName="${readName##*/}"
+			readFolders="$readFolders$readName"$'\n'
+		done
+		if [ "$readStore" = "board" ] ; then
+			local readStates=""
+			for readName in $agentsManagerTeamDataBoardStates ; do
+				case $'\n'"$readFolders" in
+					*$'\n'"$readName"$'\n'*) readStates="$readStates$readName"$'\n' ;;
+				esac
+			done
+			readFolders="$readStates$( printf '%s' "$readFolders" | LC_ALL=C sort | { LC_ALL=C grep -v -x -F -e "${agentsManagerTeamDataBoardStates// /$'\n'}" || : ; } )"
+		elif [ "$readStore" = "audit" ] ; then
+			readFolders="$( printf '%s' "$readFolders" | LC_ALL=C sort -r )"
+		else
+			readFolders="$( printf '%s' "$readFolders" | LC_ALL=C sort )"
+		fi
+		AgentsToolsManagerTeamDataItems "$readStore" - "$readPath"
+		printf 'store\t%s\tpresent\t%s\t%s\n' "$readStore" "$( printf '%s' "$readFolders" | LC_ALL=C grep -c . || : )" "$( printf '%s' "$itemRows" | LC_ALL=C grep -c . || : )"
+		while IFS= read -r readName ; do
+			[ -n "$readName" ] || continue
+			readCount=0
+			if [ "$readStore" = "inboxes" ] ; then
+				## an inbox counts the items its list shows; in a subshell, which keeps the rows of the store's own
+				readCount="$( AgentsToolsManagerTeamDataInbox "$readName" "$readProcessed" ; printf '%s' "$itemRows" | LC_ALL=C grep -c . || : )"
+			else
+				for readDir in "$readPath/$readName"/* ; do
+					[ -f "$readDir" ] && readCount=$(( readCount + 1 ))
+				done
+			fi
+			printf 'folder\t%s\t%s\t%s\n' "$readStore" "$( AgentsToolsManagerTeamDataField "$readName" )" "$readCount"
+		done <<< "$readFolders"
+		[ -z "$itemRows" ] || printf '%s\n' "$itemRows"
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

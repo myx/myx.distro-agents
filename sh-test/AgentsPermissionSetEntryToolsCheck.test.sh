@@ -173,7 +173,7 @@ rigLine(){ ## file, line -> how many lines of the file are that text
 	LC_ALL=C awk -v wantLine="$2" '$0 == wantLine { hitCount++ ; } END { print hitCount + 0 ; }' "$1" 2>/dev/null
 }
 ## The names the model's own list holds, as a correction says them.
-rigKnown="$( MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PermissionHolds.include" ; printf "%s" "$agentsPermissionEntryTools"' 2>/dev/null | LC_ALL=C sed 's/^ *//;s/ *$//;s/  */, /g' )"
+rigKnown="$( MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" ; printf "%s" "$agentsPermissionEntryTools"' 2>/dev/null | LC_ALL=C sed 's/^ *//;s/ *$//;s/  */, /g' )"
 ## The names of those given that the model's own list lacks.
 rigLacking(){ ## names...
 	local lackName

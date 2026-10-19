@@ -23,7 +23,7 @@ rigMember="magic-tester"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigHere/AgentsUniversalHarness.sh" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHere/AgentsUniversalHarness.sh"
+[ -f "$rigHere/harness/AgentsUniversalHarness.sh" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHere/harness/AgentsUniversalHarness.sh"
 for rigNeed in "$rigMember" magic-coordinator keeper-myx ; do
 	[ -r "${MDAT_SKILLSET_ROOT:-}/$rigNeed/$rigNeed.basic.md" ] || rigRefuse "MDAT_SKILLSET_ROOT does not hold $rigNeed"
 done
@@ -55,7 +55,7 @@ rigAssert(){ ## what is asserted, got, want
 echo "-- each text is a block of a template: filled, it gives its words --"
 ## One block filled straight from its template, as the tooling fills it.
 rigBlock(){ ## template, block `<Section>/<heading>` -- the slots come from the caller's environment
-	ASKP_WANT=block ASKP_BLOCK="$2" ASKP_FORM="" LC_ALL=C awk -f "$rigHere/AgentsToolingTemplateFill.awk" -f "$rigHere/AgentsAskPostFill.awk" "$rigHere/templates/$1" 2>&1
+	ASKP_WANT=block ASKP_BLOCK="$2" ASKP_FORM="" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$rigHere/questions/AgentsAskPostFill.awk" "$rigHere/templates/$1" 2>&1
 }
 rigNote="tooling-note.post.format.md"
 rigReport="report.post.format.md"
@@ -126,7 +126,7 @@ rigAssert "a value is placed as it is: a slot mark, a group mark, an ampersand a
 echo "-- no line of code holds one of these texts --"
 ## Each text by words only it has; a comment line is no code.
 rigInCode(){ ## fixed text -> how many code lines of the package hold it
-	cat "$rigHere"/*.sh "$rigHere"/*.include "$rigPackage/sh-scripts"/*.sh 2>/dev/null | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- "$1" || :
+	cat "$rigHere"/*/*.sh "$rigHere"/*/*.include "$rigPackage/sh-scripts"/*.sh 2>/dev/null | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- "$1" || :
 }
 for rigPhrase in ' joined%s' 'posted no handback' 'left questions of its own open' 'Answered by $' 'Readback by $' 'Withdrawn by $' 'is now yours to answer' 'The answer in this thread is the verdict' 'Still waiting for your answer' \
 	"'Handback\\n" "'Findings: %s" 'Task as given:' 'What was established' 'Unfinished, and what was not checked' 'Confidence, and what was not checked' 'Action required:' 'What you need to do' 'Answers collected, and questions still open' ; do
@@ -170,7 +170,7 @@ rigStart(){ ## scenario directory name, origin (the package as it is, or the mar
 rigTool(){ ## tool, argument object
 	( cd "$rigScenarioDir/ws" && printf '%s' "$2" | env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID \
 		MDLT_ORIGIN="$rigScenarioOrigin" MDLT_OPTION="--run-from-path $rigScenarioOrigin" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" \
-		bash "$rigScenarioOrigin/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$1" --access-read-root "$rigScenarioDir/ws" --access-write-root "$rigScenarioDir/ws/IN" ) \
+		bash "$rigScenarioOrigin/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" --intern-tool "$1" --access-read-root "$rigScenarioDir/ws" --access-write-root "$rigScenarioDir/ws/IN" ) \
 		> "$rigScenarioDir/out" 2> "$rigScenarioDir/err"
 }
 ## One team operation from the scenario's origin: as a member's session where RIG_OP_AGENT names one, else as the console.
@@ -225,14 +225,14 @@ printf -- '---\ntype: task\nowner: %s\n---\n\n# Rework the rig widget\n\nThe wid
 printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: rig-report-session\ntracks: task-20261012T0000Z-rig-widget\n---\n\n# rig dispatch\n' "$rigMember" > "$rigScenarioDir/data/board/running/dispatch-20261012T0100Z-rig-widget.md"
 ## Its run reports to magic-coordinator, as a start writes it now: the item, which names no
 ## reviewer, is reviewed there, so no review prompt is posted among the posts counted below.
-rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/AgentsTools.SpawnSandbox.include" )"
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/session/AgentsTools.SpawnSandbox.include" )"
 [ -n "$rigReportsTo" ] || rigRefuse "the package names no field for where a run reports to (agentsRunRouteField)"
 printf -- '---\nsession-id: rig-report-session\nspawn-id: rig-report-session\nparent-spawn-id: none\n%s: magic-coordinator\nowner: %s\nstatus: spawn-started\nspawns: dispatch-20261012T0100Z-rig-widget\n---\n' "$rigReportsTo" "$rigMember" > "$rigScenarioDir/ws/.local/agents/spawned/rig-report-session/rig-report-session.md"
 rigTaskTool(){ ## tool, argument object -- one served call of that session
 	( cd "$rigScenarioDir/ws" && printf '%s' "$2" | env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT \
 		MDLT_ORIGIN="$rigScenarioOrigin" MDLT_OPTION="--run-from-path $rigScenarioOrigin" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" \
 		MDAT_DATA_ROOT="$rigScenarioDir/data" MDAT_SPAWN_SESSION_ID=rig-report-session \
-		bash "$rigScenarioOrigin/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$1" --access-read-root "$rigScenarioDir/ws" --access-write-root "$rigScenarioDir/ws/IN" ) \
+		bash "$rigScenarioOrigin/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" --intern-tool "$1" --access-read-root "$rigScenarioDir/ws" --access-write-root "$rigScenarioDir/ws/IN" ) \
 		> "$rigScenarioDir/out" 2> "$rigScenarioDir/err"
 }
 rigTaskLine='Rework the rig widget · `task-20261012T0000Z-rig-widget` · `dispatch-20261012T0100Z-rig-widget`'
@@ -309,8 +309,8 @@ rigAssert "and it shows no request id"                    "$( rigSaid '11111111-
 rigStart reminder "$rigOrigin"
 rigRecord 11111111-0000-0000-0000-000000000004 question human-owner "" $(( 31 * 60 ))
 ## The reminders are an in-context helper with no operation: run inside the tool's own set-up context.
-printf '%s\n' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyCollect.include"' \
-	'. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyRemind.include"' \
+printf '%s\n' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyCollect.include"' \
+	'. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyRemind.include"' \
 	'AgentsToolsPendingReplyRemindRun || exit 1' \
 	| ( cd "$rigScenarioDir/ws" && env -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_ID \
 		MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_DATA_ROOT="$rigScenarioDir/data" \

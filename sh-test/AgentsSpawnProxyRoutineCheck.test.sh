@@ -195,7 +195,7 @@ rigBriefNo="$( rigLineNo "$rigTmp/brief" 'SPAWN-REQUEST' )"
 rigAssert "the routine line comes right under the mode line"       "$( [ "$rigModeNo" != none ] && [ "$rigRoutineNo" = "$(( rigModeNo + 1 ))" ] && echo adjacent || echo "mode=$rigModeNo routine=$rigRoutineNo" )" adjacent
 rigAssert "and the brief follows it: SPAWN-REQUEST after both"     "$( [ "$rigBriefNo" != none ] && [ "$rigBriefNo" -gt "$rigRoutineNo" ] && echo after || echo "brief=$rigBriefNo" )" after
 rigAssert "the routine's own brief block still opens the packet"  "$( head -1 "$rigTmp/brief" )" "SPAWN-PREPARE-BRIEF: magic-coordinator"
-rigAssert "the main loop calls it with exactly these arguments"   "$( LC_ALL=C grep -c -F 'DistroAgentsTools --intern-root-harness --routine heartbeat --non-interactive --wait' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternMainLoop.include" )" 1
+rigAssert "the main loop calls it with exactly these arguments"   "$( LC_ALL=C grep -c -F 'DistroAgentsTools --intern-root-harness --routine heartbeat --non-interactive --wait' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.InternMainLoop.include" )" 1
 
 echo "-- --intern-root-harness against a stub proxy: the exact packet and the exact proxy arguments --"
 rigStubRoot="$rigTmp/stub-skills" ; rigStubTwo="$rigTmp/stub-skills-two"
@@ -208,7 +208,7 @@ rigStubRun(){ ## skill root, arguments...
 	env -i HOME="$rigTmp" PATH="$PATH" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$stubRoot" RIG_ARGS="$rigTmp/stub.args" RIG_STDIN="$rigTmp/stub.stdin" \
 		bash -c '
 			DistroAgentsTools(){ printf "%s\n" "$*" > "$RIG_ARGS" ; cat > "$RIG_STDIN" ; }
-			rigInclude(){ local MDSC_CMD=DistroAgentsTools ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternRootHarness.include" ; }
+			rigInclude(){ local MDSC_CMD=DistroAgentsTools ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternRootHarness.include" ; }
 			rigInclude "$@"
 		' rig "$@" > "$rigTmp/stub.out" 2>&1 < /dev/null
 	rigStubRc=$?
@@ -263,7 +263,7 @@ for rigEntry in "$MDLT_ORIGIN"/* ; do [ "${rigEntry##*/}" = myx ] || ln -s "$rig
 for rigEntry in "$MDLT_ORIGIN"/myx/* ; do [ "${rigEntry##*/}" = myx.distro-agents ] || ln -s "$rigEntry" "$rigOld/myx/${rigEntry##*/}" ; done
 mkdir "$rigOld/myx/myx.distro-agents"
 ( cd "$MDLT_ORIGIN/myx/myx.distro-agents" && tar cf - --exclude=.git . ) | ( cd "$rigOld/myx/myx.distro-agents" && tar xf - )
-rigOldInc="$rigOld/myx/myx.distro-agents/sh-lib/AgentsTools.InternRootHarness.include"
+rigOldInc="$rigOld/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternRootHarness.include"
 LC_ALL=C grep -v -F "$rigRoutineLabel \${rootHarnessRoutineFile##*/}" "$rigOldInc" > "$rigOldInc.new" && mv "$rigOldInc.new" "$rigOldInc"
 rigAssert "control: the copy really lacks the edit"       "$( LC_ALL=C grep -c -F "$rigRoutineLabel \${rootHarnessRoutineFile##*/}" "$rigOldInc" || : )" 0
 rigRealOrigin="$MDLT_ORIGIN"

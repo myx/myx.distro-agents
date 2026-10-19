@@ -19,7 +19,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigMember="magic-tester"
 
@@ -268,13 +268,13 @@ rigAssert "a document that cannot be shared is not announced" "$( rigFirstIs 'ER
 rm -f "$rigScenarioDir/google/fail-share"
 rigAssert "no permission was ever for anyone with the link, nor asked to notify" "$( LC_ALL=C grep -c -e '"anyone"' -e 'sendNotificationEmail' "$rigScenarioDir/google/permissions" )" 0
 ## permission-domain on a folder the tooling did not make, the way a one-off applies it.
-printf '%s' 'rigShare(){ local googleClientId="" googleClientSecret="" googleRefreshToken="" googleFileId=root-1 ; set -- ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsGoogle.include" ; AgentsToolsGoogleResolveMember rig-share magic-tester && AgentsToolsGoogleCall permission-domain ; } ; rigShare' \
+printf '%s' 'rigShare(){ local googleClientId="" googleClientSecret="" googleRefreshToken="" googleFileId=root-1 ; set -- ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsGoogle.include" ; AgentsToolsGoogleResolveMember rig-share magic-tester && AgentsToolsGoogleCall permission-domain ; } ; rigShare' \
 	| ( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID RIG_SCENARIO="$rigScenarioDir" \
 		PYTHONPATH="$rigScenarioDir/py" PYTHONDONTWRITEBYTECODE=1 MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigScenarioDir/data" MDAT_SKILLSET_ROOT="$MDAT_SKILLSET_ROOT" \
 		bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute ) > "$rigScenarioDir/share.out" 2> "$rigScenarioDir/share.err"
 rigAssert "permission-domain on an existing folder"         "$( LC_ALL=C tr '\n' ' ' < "$rigScenarioDir/share.out" )$( rigSharedTo root-1 )" "PERMISSION_ID=perm-root-1 PERMISSION_DOMAIN=second-org.example second-org.example"
 ## file-trash as tooling calls it in context, here the way the myx.distro MCP execute runs a script.
-printf '%s' 'rigTrash(){ local googleClientId="" googleClientSecret="" googleRefreshToken="" googleFileId=file-2 ; set -- ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsGoogle.include" ; AgentsToolsGoogleResolveMember rig-trash magic-tester && AgentsToolsGoogleCall file-trash ; } ; rigTrash' \
+printf '%s' 'rigTrash(){ local googleClientId="" googleClientSecret="" googleRefreshToken="" googleFileId=file-2 ; set -- ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsGoogle.include" ; AgentsToolsGoogleResolveMember rig-trash magic-tester && AgentsToolsGoogleCall file-trash ; } ; rigTrash' \
 	| ( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID RIG_SCENARIO="$rigScenarioDir" \
 		PYTHONPATH="$rigScenarioDir/py" PYTHONDONTWRITEBYTECODE=1 MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigScenarioDir/data" MDAT_SKILLSET_ROOT="$MDAT_SKILLSET_ROOT" \
 		bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute ) > "$rigScenarioDir/trash.out" 2> "$rigScenarioDir/trash.err"

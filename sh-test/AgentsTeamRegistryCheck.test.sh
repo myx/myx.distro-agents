@@ -30,7 +30,7 @@ rigLocalContext="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalContext.include"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigFn" "$rigLocalContext" "$rigHere/AgentsTools.TeamRegistry.include" ; do
+for rigFile in "$rigFn" "$rigLocalContext" "$rigHere/team-data/AgentsTools.TeamRegistry.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
@@ -103,7 +103,7 @@ rigAssert "the other workspace's member has no link and no folder in the view" \
 rigAssert "MDAT_SKILLSET_ROOT defaults to that view (a member op names it)" \
 	"$( rigRun --member-audit-item-read no-such-rig-member rig-item 2>&1 | LC_ALL=C grep -c "$rigWs/.local/agents/members/no-such-rig-member" )" 1
 rigDirectory(){ ## member -- AgentsToolsTeamMemberDirectory in the rig workspace, rig HOME
-	env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigWs" MDAT_SKILLSET_ROOT="$rigWs/.local/agents/members" bash -c '. "'"$rigHere"'/AgentsTools.TeamRegistry.include" ; AgentsToolsTeamMemberDirectory "$1" ; printf "rc=%s" "$?"' rig "$1"
+	env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigWs" MDAT_SKILLSET_ROOT="$rigWs/.local/agents/members" bash -c '. "'"$rigHere"'/team-data/AgentsTools.TeamRegistry.include" ; AgentsToolsTeamMemberDirectory "$1" ; printf "rc=%s" "$?"' rig "$1"
 }
 rigAssert "a member of another workspace is still found, through the shared registry, its source link preferred" \
 	"$( rigDirectory keeper-rig | LC_ALL=C tr '\n' ' ' )" "$rigOther/source/ns/skillset/keeper-rig rc=0"
@@ -118,7 +118,7 @@ ln -s "$rigTmp/copy/magic-coordinator" "$rigWs/.local/agents/members/magic-coord
 printf 'keeper-rig\t%s\t%s\tsource-symlink\n' "$rigOther/source/ns/skillset/keeper-rig" "$rigOther" >> "$rigIndex"
 rigAssert "control: the planted foreign link and row are there before the rewrite" \
 	"$( readlink "$rigWs/.local/agents/members/keeper-rig" ) $( LC_ALL=C grep -c '^keeper-rig' "$rigIndex" )" "$rigOther/source/ns/skillset/keeper-rig 1"
-( . "$rigHere/AgentsTools.TeamRegistry.include" ; HOME="$rigHome" AgentsToolsTeamMemberIndexWrite "$rigWs" )
+( . "$rigHere/team-data/AgentsTools.TeamRegistry.include" ; HOME="$rigHome" AgentsToolsTeamMemberIndexWrite "$rigWs" )
 rigAssert "the rewrite removed the foreign link and the foreign row" \
 	"$( [ -L "$rigWs/.local/agents/members/keeper-rig" ] && printf link || printf none ) $( LC_ALL=C grep -c '^keeper-rig' "$rigIndex" )" "none 0"
 rigAssert "and re-pointed an own member's link from another workspace's copy to its own" \
@@ -130,7 +130,7 @@ ln -s "$rigTmp/copy/magic-coordinator" "$rigHome/.claude/skills/magic-coordinato
 ln -s "$rigTmp/copy/magic-coordinator" "$rigWs/.claude/skills/magic-coordinator"
 printf 'magic-coordinator:ws-here:source-symlink:poison\n' > "$rigHome/.claude/skills/.linked.magic-team.members.txt"
 rigMembers(){ ## purpose
-	env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigWs/.local/agents/members" bash -c '. "'"$rigHere"'/AgentsTools.ClientAccessRoots.include" ; AgentsToolsClientAccessRootsMembers '"$1"
+	env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigWs/.local/agents/members" bash -c '. "'"$rigHere"'/client/AgentsTools.ClientAccessRoots.include" ; AgentsToolsClientAccessRootsMembers '"$1"
 }
 rigAssert "acting members: the index's directories, a re-pointed home link ignored" \
 	"$( rigMembers acting | LC_ALL=C grep -c "$rigTmp/copy" )" 0
@@ -138,7 +138,7 @@ rigAssert "readable members are this workspace's own: the other workspace's memb
 	"$( rigMembers readable | LC_ALL=C grep -c "keeper-rig" )" 0
 rigAssert "control: readable members hold this workspace's own" \
 	"$( rigMembers readable | LC_ALL=C grep -c "$rigBundle/magic-coordinator" )" 1
-( . "$rigHere/AgentsTools.TeamRegistry.include" ; HOME="$rigHome" AgentsToolsTeamMemberIndexWrite "$rigWs" )
+( . "$rigHere/team-data/AgentsTools.TeamRegistry.include" ; HOME="$rigHome" AgentsToolsTeamMemberIndexWrite "$rigWs" )
 rigAssert "a rebuilt index still ignores the vendor folders" \
 	"$( LC_ALL=C awk -F'\t' '$1 == "magic-coordinator" { print $2 }' "$rigIndex" )" "$rigBundle/magic-coordinator"
 
@@ -150,19 +150,19 @@ rigAssert "the upsert writes this workspace's own registry: its own row, then th
 rigAssert "and the machine-wide pointers name both, under this workspace's root" "$( LC_ALL=C awk -F'\t' -v r="$rigWs" '$2 == r' "$rigHome/.agents/magic-team/directories.registry" 2>/dev/null | LC_ALL=C grep -c . )" 2
 rigAssert "and no list is written beside the vendor links" "$( [ -e "$rigHome/.claude/skills/.human-owner.workspaces.md" ] && printf yes || printf no )" no
 rigAssert "the resolver switches to the workspace publishing the member's source" \
-	"$( env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigWs" bash -c '. "'"$rigHere"'/AgentsTools.MemberWorkspace.include" ; AgentsToolsMemberWorkspaceResolve keeper-rig --rig' 2>&1 )" "$rigOther"
+	"$( env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigWs" bash -c '. "'"$rigHere"'/member/AgentsTools.MemberWorkspace.include" ; AgentsToolsMemberWorkspaceResolve keeper-rig --rig' 2>&1 )" "$rigOther"
 rigAssert "and stays for a member present here" \
-	"$( env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigWs" bash -c '. "'"$rigHere"'/AgentsTools.MemberWorkspace.include" ; AgentsToolsMemberWorkspaceResolve magic-coordinator --rig' 2>&1 )" ""
+	"$( env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigWs" bash -c '. "'"$rigHere"'/member/AgentsTools.MemberWorkspace.include" ; AgentsToolsMemberWorkspaceResolve magic-coordinator --rig' 2>&1 )" ""
 mkdir -p "$rigWs/.local/agents" "$rigOther/.local/agents" "$rigTmp/g1/deep" "$rigTmp/g2"
 printf 'a:ws-here:workspace:Edit(/%s/g1/deep/**)\n' "$rigTmp" > "$rigWs/.local/agents/permissions.registry"
 printf 'b:ws-other:workspace:Edit(/%s/g2/*.md)\n' "$rigTmp" > "$rigOther/.local/agents/permissions.registry"
 printf '# header\nb:ws-other:wildcard:%s/g2\n' "$rigTmp" > "$rigOther/.local/agents/permissions-tags.registry"
 printf 'a:ws-here:poison:Edit(/poison/**)\n' > "$rigHome/.claude/skills/.linked.magic-team.permissions.txt"
 rigGrants(){
-	env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/AgentsTools.ClientAccessRoots.include" ; AgentsToolsClientAccessGrantRoots | tr "\n" " " ; AgentsToolsClientAccessRootTag "'"$rigTmp"'/g2"'
+	env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/client/AgentsTools.ClientAccessRoots.include" ; AgentsToolsClientAccessGrantRoots | tr "\n" " " ; AgentsToolsClientAccessRootTag "'"$rigTmp"'/g2"'
 }
 rigAssert "grants without a pointer: this workspace's own only" "$( rigGrants )" "$rigTmp/g1/deep "
-( . "$rigHere/AgentsTools.TeamRegistry.include" ; HOME="$rigHome" AgentsToolsTeamGrantPointerUpsert "$rigOther" ; HOME="$rigHome" AgentsToolsTeamGrantPointerUpsert "$rigOther" )
+( . "$rigHere/team-data/AgentsTools.TeamRegistry.include" ; HOME="$rigHome" AgentsToolsTeamGrantPointerUpsert "$rigOther" ; HOME="$rigHome" AgentsToolsTeamGrantPointerUpsert "$rigOther" )
 rigAssert "the pointer is recorded once, and holds only the root" "$( cat "$rigHome/.agents/magic-team/permissions.registry" )" "$rigOther"
 rigAssert "with it, the union of both workspaces' own grants, and the other's tag" "$( rigGrants )" "$rigTmp/g1/deep $rigTmp/g2 wildcard"
 
@@ -260,7 +260,7 @@ rigGrantRows(){ ## file, member -- that member rows, the member cut and Edit or 
 	LC_ALL=C awk -F: -v wantMember="$2" '$1 == wantMember { sub( /^[^:]*:/, "" ) ; sub( /:(Read|Edit)\(/, ":GRANT(" ) ; print ; }' "$1" 2>/dev/null | LC_ALL=C sort
 }
 rigGrantRoots(){ ## producer and arguments -- one access-root producer in gws-one under the grants HOME
-	env -i HOME="$rigGHome" PATH=/usr/bin:/bin MMDAPP="$rigG1" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/AgentsTools.ClientAccessRoots.include" ; "$@"' rig "$@"
+	env -i HOME="$rigGHome" PATH=/usr/bin:/bin MMDAPP="$rigG1" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/client/AgentsTools.ClientAccessRoots.include" ; "$@"' rig "$@"
 }
 rigCount(){ ## fixed text, file -- how many times it occurs
 	LC_ALL=C grep -o -F -e "$1" "$2" 2>/dev/null | LC_ALL=C grep -c .

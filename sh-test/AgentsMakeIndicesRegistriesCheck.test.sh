@@ -26,8 +26,8 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigRegInclude="$rigHere/AgentsTools.Registries.include"
-rigMakeInclude="$rigHere/AgentsTools.Make.include"
+rigRegInclude="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+rigMakeInclude="$rigHere/config/AgentsTools.Make.include"
 rigBuilders="$rigPackage/builders/source-prepare"
 rigOne="--make-harness-indices"
 rigEarlier="--make-agents-indices"
@@ -296,8 +296,8 @@ rigAssert "in this order: the places, the console command, the install's first p
 	"$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C sed -n 's/^.*DistroAgentsTools \(--[a-z-]*\).*$/\1/p' | LC_ALL=C tr '\n' ' ' )" \
 	"--intern-directory-register --make-console-command --install-workspace-integrations --intern-member-home-register $rigOne --install-workspace-integrations --install-workspace-restrictions "
 rigAssert "no caller inside the package names a list where it means the build: no call of either name is followed by two names" \
-	"$( cat "$rigHere"/*.include "$rigHere"/*.sh "$rigPackage"/sh-scripts/*.sh "$rigBuilders"/*.sh | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -E -- 'DistroAgentsTools(\.fn\.sh)? --make-(harness|agents)-indices[[:space:]]+[^|&;[:space:]]+[[:space:]]+[^|&;[:space:]]' || : )" "0"
-rigAssert "the install step that makes the roots asks for the one index that holds them, by its one name: in the copilot access step of the install include, once, after it has made a root" "$( LC_ALL=C awk '/^\t--install-copilot-access-fragment\)/ { on = 1 } on { print } on && /^\t;;/ { exit }' "$rigHere/AgentsTools.Install.include" | LC_ALL=C grep -c -F -- 'DistroAgentsTools --make-harness-indices harness.roots' || : ) $( LC_ALL=C grep -c -F -- 'DistroAgentsTools --make-harness-indices harness.roots' "$rigHere/AgentsTools.Install.include" || : ) $( LC_ALL=C grep -c -F -- 'if [ "$createdCount" -gt 0 ] && [ "$workspace" = "$( cd "$MMDAPP" && pwd )" ] ; then' "$rigHere/AgentsTools.Install.include" || : )" "1 1 1"
+	"$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh "$rigPackage"/sh-scripts/*.sh "$rigBuilders"/*.sh | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -E -- 'DistroAgentsTools(\.fn\.sh)? --make-(harness|agents)-indices[[:space:]]+[^|&;[:space:]]+[[:space:]]+[^|&;[:space:]]' || : )" "0"
+rigAssert "the install step that makes the roots asks for the one index that holds them, by its one name: in the copilot access step of the install include, once, after it has made a root" "$( LC_ALL=C awk '/^\t--install-copilot-access-fragment\)/ { on = 1 } on { print } on && /^\t;;/ { exit }' "$rigHere/config/AgentsTools.Install.include" | LC_ALL=C grep -c -F -- 'DistroAgentsTools --make-harness-indices harness.roots' || : ) $( LC_ALL=C grep -c -F -- 'DistroAgentsTools --make-harness-indices harness.roots' "$rigHere/config/AgentsTools.Install.include" || : ) $( LC_ALL=C grep -c -F -- 'if [ "$createdCount" -gt 0 ] && [ "$workspace" = "$( cd "$MMDAPP" && pwd )" ] ; then' "$rigHere/config/AgentsTools.Install.include" || : )" "1 1 1"
 rigAssert "control: the same reader does find a call that names a list, and takes one name for no list" "$( printf '\t\tDistroAgentsTools --make-harness-indices grants members || x\nDistroAgentsTools.fn.sh --make-agents-indices team-members\n\t\tDistroAgentsTools --make-harness-indices harness.roots || x\n\t\tDistroAgentsTools --make-harness-indices || x\n' | LC_ALL=C grep -c -E -- 'DistroAgentsTools(\.fn\.sh)? --make-(harness|agents)-indices[[:space:]]+[^|&;[:space:]]+[[:space:]]+[^|&;[:space:]]' || : )" "1"
 rigAssert "the source-prepare build has one builder that makes the indices: its call is the bare script name and the operation, with no name" \
 	"$( ls "$rigBuilders" | LC_ALL=C tr '\n' ' ' )$( LC_ALL=C grep -c -x -F -- "DistroAgentsTools.fn.sh $rigOne" "$rigBuilders/1201-agents-indices.sh" || : ) $( cat "$rigBuilders"/*.sh | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- 'DistroAgentsTools' || : )" "1201-agents-indices.sh 1202-harness-indices.sh 1 1"
@@ -407,7 +407,7 @@ while [ "$rigAtOnceRound" -lt 3 ] ; do
 	rigAtOncePids="$rigAtOncePids $!"
 	for rigAtOnceNo in 1 2 ; do
 		( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
-			bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild' ) \
+			bash -c '. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild' ) \
 			> "$rigTmp/at-once.$rigAtOnceRound.$rigAtOnceNo.out" 2> "$rigTmp/at-once.$rigAtOnceRound.$rigAtOnceNo.err" < /dev/null &
 		rigAtOncePids="$rigAtOncePids $!"
 	done
@@ -451,7 +451,7 @@ rigAssert "neither is a false failure: both end 0" "$( cat "$rigWriter/slow.rc" 
 rigAssert "the file in place is whole: the rows of the rebuild that renamed last, and no line of any other shape" "$( rigLines "$rigWriterFile" ) $( LC_ALL=C grep -c -E -- '^short-row-[0-9]+ a b c d e f$' "$rigWriterFile" || : ) $( LC_ALL=C grep -c -v -E -- '^short-row-[0-9]+ a b c d e f$' "$rigWriterFile" || : )" "3 3 0"
 rigAssert "and no temp file is left beside it" "$( ls "$rigWriter/ws/.local/agents" | LC_ALL=C tr '\n' ' ' )" "probe.registry "
 rigWriterBody(){ ## include file, function -- that function's lines
-	LC_ALL=C awk -v head="$2(){" 'index( $0, head ) == 1 { on = 1 } on { print } on && /^}/ { exit }' "$rigHere/$1"
+	LC_ALL=C awk -v head="$2(){" 'index( $0, head ) == 1 { on = 1 } on { print } on && /^}/ { exit }' "$( ls -d "$rigHere"/*/"$1" "$rigHere"/../../myx.distro-.local/sh-lib/*/"$1" 2> /dev/null | head -1 )"
 }
 rigWriterBad=""
 for rigWriterAt in "AgentsTools.Registries.include AgentsToolsRegistryWrite" "AgentsTools.TeamRegistry.include AgentsToolsTeamMemberIndexWrite" "AgentsTools.Grants.include AgentsToolsGrantsIndexWrite" "AgentsTools.Grants.include AgentsToolsGrantsSessionEnsure" "AgentsHarnessHooksLoad.include AgentsHarnessHooksIndexWrite" "AgentsHarnessMcpConfig.include AgentsHarnessMcpIndexWrite" ; do

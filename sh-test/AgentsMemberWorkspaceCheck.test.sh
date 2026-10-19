@@ -34,9 +34,9 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
-rigResolveInclude="$rigHere/AgentsTools.MemberWorkspace.include"
-rigSpawnInclude="$rigHere/AgentsTools.InternOpAgentSpawnProxy.include"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
+rigResolveInclude="$rigHere/member/AgentsTools.MemberWorkspace.include"
+rigSpawnInclude="$rigHere/session/AgentsTools.InternOpAgentSpawnProxy.include"
 rigRealTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/templates/spawn-brief.document.format.md"
 rigResolveFn="AgentsToolsMemberWorkspaceResolve"
 rigSwitchFn="AgentsToolsWorkspaceSwitch"
@@ -1157,7 +1157,7 @@ rigPayClear(){ ## -- what the console left of its last starts
 }
 rigPayWorld
 printf 'SPAWN_CLI_SERVICE=rig-cli-third-native\n' >> "$rigWork/ws-third/.local/.agents/magic-team.agent.env"
-rigAssert "the Agent tool declares the field beside cli_service, once, on the wire, and so in its MCP mirror, which is made from that declaration" "$( LC_ALL=C grep -o '"cli_service":{[^}]*},"settings_workspace":{"type":"string"' "$rigHere/AgentsOpenAiChatWire.sh" | LC_ALL=C grep -c . || : ) $( MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/AgentsHarnessMcpMirror.sh" 2> /dev/null | LC_ALL=C grep -o '"settings_workspace":{"type":"string"' | LC_ALL=C grep -c . || : )" "1 1"
+rigAssert "the Agent tool declares the field beside cli_service, once, on the wire, and so in its MCP mirror, which is made from that declaration" "$( LC_ALL=C grep -o '"cli_service":{[^}]*},"settings_workspace":{"type":"string"' "$rigHere/harness/AgentsOpenAiChatWire.sh" | LC_ALL=C grep -c . || : ) $( MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/harness/AgentsHarnessMcpMirror.sh" 2> /dev/null | LC_ALL=C grep -o '"settings_workspace":{"type":"string"' | LC_ALL=C grep -c . || : )" "1 1"
 rigPayClear
 rigToolIn ws-here "$( rigView ws-here )" keeper-here Agent '{"agent":"keeper-both","prompt":"RIG-TASK-TEXT","settings_workspace":"ws-there","cli_service":"rig-service"}' ; rigSettle HERE
 rigAssert "the Agent tool, settings_workspace and cli_service: the helper is started with the spawn settings of the workspace named, on the service named" "$( rigPaid ) [$( rigArgs )]" "there/there/there/here [--cli rig-service --non-interactive]"
@@ -1236,7 +1236,7 @@ rigPayClear
 rigConsole ws-here HERE
 
 echo "-- 12. static: where a member's workspace is looked up, and not --"
-rigDispatchEntry="$( LC_ALL=C awk '/^DistroAgentsTools\(\)\{/ { on = 1 } on { print } on && /^\t\. "\$MDLT_ORIGIN\/myx\/myx.distro-agents\/sh-lib\/AgentsContext.UseAgentsTools.include"/ { exit }' "$rigTool" )"
+rigDispatchEntry="$( LC_ALL=C awk '/^DistroAgentsTools\(\)\{/ { on = 1 } on { print } on && /^\t\. "\$MDLT_ORIGIN\/myx\/myx.distro-agents\/sh-lib\/harness\/AgentsContext.UseAgentsTools.include"/ { exit }' "$rigTool" )"
 rigAssert "control: the dispatcher's entry was cut out, up to the context include"  "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c 'AgentsContext.UseAgentsTools.include' || : )" 1
 rigAssert "the entry brings once, before the context include, for every member alike: it resolves no workspace itself and has no arm of its own for a client-* member" "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c "$rigBringFn \"\$2\" \"\$1\"" || : ) $( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c "$rigResolveFn \"" || : ) $( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c -F -e 'client-*)' || : )" "1 0 0"
 rigExclusion="$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -F -e '|*:|*:-*) ;;' | LC_ALL=C sed -e 's/^[[:space:]]*//' -e 's/) ;;$//' )"
@@ -1247,8 +1247,8 @@ rigAssert "the entry's one exclusion line: the spawn proxy, the markdown merge, 
 rigAssert "control: a sample entry without the wrapping operations is told apart" "$( printf -- '--intern-op-agent-spawn-proxy:*|--intern-mcp-execute:*|*:|*:-*\n' )" "$( printf '%s' "$rigExclusion" | LC_ALL=C sed 's/--intern-merge-md-files:[*]|//; s/--magic-heartbeat-spawn-proxy:[*]|--magic-spawn-session:[*]|//; s/--intern-op-decisions-append:[*]|//; s/--intern-op-review-[*]:[*]|//; s/--intern-directory-[*]:[*]|--member-directory-[*]:[*]|--member-namespace-list:[*]|--owner-workspace-[*]:[*]|--make-[*]:[*]|--manager-[*]:[*]|//' )"
 rigAssert "an invited member's call is re-run whole in a subshell under its member set root, and only where that is not the root it already reads" "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c -F -e '( export MDAT_SKILLSET_ROOT="$memberBrought" ; DistroAgentsTools "$@" )' || : ) $( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c -F -e '[ "$memberBrought" != "${MDAT_SKILLSET_ROOT:-}" ]' || : )" "1 1"
 rigAssert "no call is carried to another workspace: the entry switches to none"  "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c "$rigSwitchFn " || : )" 0
-rigAssert "the resolver is called in its own file and nowhere else: by the bring, and beside it by what answers whether a member is invited, which workspace it is set up in, and where its own settings are read from" "$( LC_ALL=C grep -l "$rigResolveFn \"" "$rigHere"/*.include "$rigHere"/*.sh "$rigPackage/sh-scripts"/*.sh 2> /dev/null | LC_ALL=C sed 's|.*/||' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "AgentsTools.MemberWorkspace.include "
-rigAssert "the bring is called from the dispatcher entry and the spawn proxy, and nowhere else" "$( LC_ALL=C grep -l "$rigBringFn \"" "$rigHere"/*.include "$rigHere"/*.sh "$rigPackage/sh-scripts"/*.sh 2> /dev/null | LC_ALL=C sed 's|.*/||' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "AgentsTools.InternOpAgentSpawnProxy.include DistroAgentsTools.fn.sh "
+rigAssert "the resolver is called in its own file and nowhere else: by the bring, and beside it by what answers whether a member is invited, which workspace it is set up in, and where its own settings are read from" "$( LC_ALL=C grep -l "$rigResolveFn \"" "$rigHere"/*/*.include "$rigHere"/*/*.sh "$rigPackage/sh-scripts"/*.sh 2> /dev/null | LC_ALL=C sed 's|.*/||' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "AgentsTools.MemberWorkspace.include "
+rigAssert "the bring is called from the dispatcher entry and the spawn proxy, and nowhere else" "$( LC_ALL=C grep -l "$rigBringFn \"" "$rigHere"/*/*.include "$rigHere"/*/*.sh "$rigPackage/sh-scripts"/*.sh 2> /dev/null | LC_ALL=C sed 's|.*/||' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "AgentsTools.InternOpAgentSpawnProxy.include DistroAgentsTools.fn.sh "
 rigAssert "the spawn proxy launches the console of the workspace it runs in, with MMDAPP set to it, and names no other workspace to start a spawn in" "$( [ "$( LC_ALL=C grep -c 'MMDAPP="\$MMDAPP".*"\$MMDAPP/DistroAgentsConsole.sh"' "$rigSpawnInclude" || : )" -gt 0 ] && printf launches-here || printf blind ) $( LC_ALL=C grep -c 'spawnWorkspace' "$rigSpawnInclude" || : )" "launches-here 0"
 rigAssert "which is the workspace it was called from for every member, a client-* member too: MMDAPP is never set in the file, only handed to what it starts" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigSpawnInclude" | LC_ALL=C grep -v 'env MMDAPP=' | LC_ALL=C grep -c -E '(^|[^A-Za-z_"$])MMDAPP=' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigSpawnInclude" | LC_ALL=C grep -c -F -e 'client-*)' || : )" "0 0"
 rigAssert "the --intern-mcp-execute workspace arm uses the shared switch function, and the include defines it once" "$( LC_ALL=C grep -c "$rigSwitchFn \"\$2\"" "$rigTool" || : ) $( LC_ALL=C grep -c "^$rigSwitchFn(){" "$rigResolveInclude" || : )" "1 1"

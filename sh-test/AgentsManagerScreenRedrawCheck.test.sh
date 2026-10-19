@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on what stays on a real terminal after the manager screen (sh-lib/AgentsManagerScreen.py) drew on
+## Behavioural check on what stays on a real terminal after the manager screen (sh-lib/manager/AgentsManagerScreen.py) drew on
 ## it, run rather than read. The real screen runs on a pseudo-terminal in front of a terminal that keeps its cells and
 ## answers where its cursor is (check-fixtures/manager-screen.vt.stub.py), and after each step every cell of that
 ## terminal is compared with what the screen drew last: nothing of an earlier frame may stand anywhere, no mark of the
@@ -23,7 +23,7 @@
 ## Offline: the only thing the real screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
-rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
 rigDriver="$rigFixtures/manager-screen.driver.py"
 rigVt="$rigFixtures/manager-screen.vt.stub.py"

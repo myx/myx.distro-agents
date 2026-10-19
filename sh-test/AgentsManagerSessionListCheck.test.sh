@@ -352,7 +352,7 @@ rigRun "$rigOp" --active
 rigPre=()
 rigAssert "a client's own session that no spawn started acts as no member, so it is the console's, as it is for every --magic-* operation" "$rigRc $( rigRows counters | LC_ALL=C awk '{ print NF }' )" "0 8"
 rigAssert "the rule is asked where the family is dispatched, once, defined once, and asked in no include of the family" \
-	"$( LC_ALL=C grep -c -F -e '--manager-*) AgentsToolsManagerCallerCheck "${1#--}" || { set +e ; return 1 ; } ;;' "$rigTool" || : ) $( cat "$rigHere"/*.include "$rigHere"/*.sh "$rigTool" | LC_ALL=C grep -c -E '^[[:space:]]*AgentsToolsManagerCallerCheck\(\)\{' || : ) $( cat "$rigHere"/AgentsTools.Manager*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'AgentsToolsManagerCallerCheck' -e 'AgentsToolsActingMember' || : )" "1 1 0"
+	"$( LC_ALL=C grep -c -F -e '--manager-*) AgentsToolsManagerCallerCheck "${1#--}" || { set +e ; return 1 ; } ;;' "$rigTool" || : ) $( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh "$rigTool" | LC_ALL=C grep -c -E '^[[:space:]]*AgentsToolsManagerCallerCheck\(\)\{' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'AgentsToolsManagerCallerCheck' -e 'AgentsToolsActingMember' || : )" "1 1 0"
 
 echo "-- 7. the place of the family --"
 rigRun --manager-no-such-operation
@@ -374,9 +374,9 @@ rigRun --member-help keeper-far
 rigAssert "control: the same index does make the dispatcher take that word for a member, in an operation that names one" "$rigRc $( LC_ALL=C grep -c -F -- "member 'keeper-far' is in the team members index but is present in no tracked workspace" "$rigTmp/err" || : )" "1 1"
 rm -rf "$rigHome/.agents"
 rigAssert "the dispatcher has one arm for the family, which sources the family's include, and that one sources the include of the sessions" \
-	"$( LC_ALL=C grep -c -x -e '		--manager-\*)' "$rigTool" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Manager.include"' "$rigTool" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerSession.include"' "$rigHere/AgentsTools.Manager.include" || : )" "1 1 1"
+	"$( LC_ALL=C grep -c -x -e '		--manager-\*)' "$rigTool" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.Manager.include"' "$rigTool" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include"' "$rigHere/manager/AgentsTools.Manager.include" || : )" "1 1 1"
 rigAssert "the list reads its rows from the one place a row's live and state are derived, and lists no run a second way" \
-	"$( LC_ALL=C awk '/^AgentsToolsManagerSessionRows\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'AgentsToolsRegistryMeasureRows "' || : ) $( cat "$rigHere"/AgentsTools.Manager*.include "$rigHere/AgentsManagerSessionRows.awk" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'ps -' -e 'spawned"/\*' -e 'RunWords' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.Registries.include" | LC_ALL=C grep -c -e 'rowLive="other-host"' || : )" "1 0 1"
+	"$( LC_ALL=C awk '/^AgentsToolsManagerSessionRows\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'AgentsToolsRegistryMeasureRows "' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include "$rigHere/manager/AgentsManagerSessionRows.awk" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'ps -' -e 'spawned"/\*' -e 'RunWords' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" | LC_ALL=C grep -c -e 'rowLive="other-host"' || : )" "1 0 1"
 
 echo "-- 8. the help pair --"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"
@@ -398,7 +398,7 @@ rigAssert "control: the entry was cut up to the next operation's heading" "$( ri
 rigAssert "the notes of the help say whose the family is, once" "$( LC_ALL=C grep -c -F -- 'The `--manager-*` operations are the console'"'"'s own' "$rigHelpMd" || : )" "1"
 rigRun --help-syntax
 rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigTmp/err" || : )" "0 1"
-rigAssert "no member's help lists the family: the member help names no --manager prefix" "$( LC_ALL=C grep -c -e '--manager' "$rigHere/AgentsTools.MemberHelp.include" || : )" "0"
+rigAssert "no member's help lists the family: the member help names no --manager prefix" "$( LC_ALL=C grep -c -e '--manager' "$rigHere/member/AgentsTools.MemberHelp.include" || : )" "0"
 
 echo "-- 9. the state a control thread stored for a session, and whether that thread lives --"
 ## A stand-in of a control thread: a process of this rig's own that only waits, noted with when it began.
@@ -464,7 +464,7 @@ rigRun "$rigOp"
 rigAssert "a thread that ended since the last call reads gone at the next, by its pid file and by its lock alone, with the stored state as it was" "$( rigRowOf session ctl-alive | LC_ALL=C awk '{ print $9, $10, $11 }' ) / $( rigRowOf session ctl-lock | LC_ALL=C awk '{ print $9, $11 }' )" "running 2026-10-13_10:21_+0300 gone / running gone"
 rigRun "$rigOp" --active
 rigAssert "--active keeps the sessions it keeps with the same three fields at the end of each row: the five that run, and those that wait or were left unclosed, the one with a stale state among them" "$rigRc $( rigRowOf session ctl-killed | LC_ALL=C awk '{ print $9, $10, $11 }' ) $( rigRowOf session ctl-stale | LC_ALL=C awk '{ print $4, $9, $11 }' ) $( rigRows session | LC_ALL=C awk '$4 == "running" { running++ } $4 != "running" && $4 != "waiting" && $4 != "unclosed" { bad++ } NF != 12 { bad++ } END { print running + 0 ":" bad + 0 }' ) $( rigRows session | LC_ALL=C awk '$2 == "ctl-never" || $2 == "ctl-ended" { n++ } END { print n + 0 }' )" "0 running 2026-10-13_10:22_+0300 gone unclosed running gone 5:0 0"
-rigAssert "the one function that says whether a control thread lives reads the process list through the registry's own reading of when a process began, and no process list of its own" "$( LC_ALL=C awk '/^AgentsToolsManagerSessionControls\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'AgentsToolsRegistryProcessesBegan' || : ) $( LC_ALL=C awk '/^AgentsToolsManagerSessionControls\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'ps -' -e 'pgrep' || : )" "1 0"
+rigAssert "the one function that says whether a control thread lives reads the process list through the registry's own reading of when a process began, and no process list of its own" "$( LC_ALL=C awk '/^AgentsToolsManagerSessionControls\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'AgentsToolsRegistryProcessesBegan' || : ) $( LC_ALL=C awk '/^AgentsToolsManagerSessionControls\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'ps -' -e 'pgrep' || : )" "1 0"
 rigLive sess-run sess-run2 run-c run-d run-e
 
 echo "-- 10. the tokens of a session, as one number at the end of its row --"

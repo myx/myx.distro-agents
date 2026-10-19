@@ -26,7 +26,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -88,7 +88,7 @@ for rigFile in "$rigPackage"/sh-scripts/DistroAgents*.fn.sh "$rigPackage"/sh-scr
 	[ -f "$rigFile" ] || continue
 	LC_ALL=C grep -q -F -- "${rigFile##*/}" "$rigTmp/index.1" || rigMissing="$rigMissing ${rigFile##*/}"
 done
-for rigName in $( LC_ALL=C grep -o '"name":"[A-Za-z]*"' "$rigHere/AgentsOpenAiChatWire.sh" | LC_ALL=C sed 's/"name":"\(.*\)"/\1/' | LC_ALL=C sort -u ) execute Monitor ; do
+for rigName in $( LC_ALL=C grep -o '"name":"[A-Za-z]*"' "$rigHere/harness/AgentsOpenAiChatWire.sh" | LC_ALL=C sed 's/"name":"\(.*\)"/\1/' | LC_ALL=C sort -u ) execute Monitor ; do
 	LC_ALL=C grep -q -w -- "$rigName" "$rigTmp/index.1" || rigMissing="$rigMissing $rigName"
 done
 rigAssert "every tool file and every harness and MCP tool is named" "[${rigMissing# }]" "[]"

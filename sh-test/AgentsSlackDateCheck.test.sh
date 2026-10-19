@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on Slack's date format wherever the tooling itself writes a date or a
 ## time into text it sends to Slack, and where it reads such text back: the one helper
-## (sh-lib/AgentsSlackDate.awk, AgentsToolsSlackDateToken in AgentsTools.SlackDate.include)
+## (sh-lib/comms/AgentsSlackDate.awk, AgentsToolsSlackDateToken in AgentsTools.SlackDate.include)
 ## gives `<!date^<epoch>^<token string>|<the same moment as UTC text>>` for every moment form
 ## this tree carries, in each style, and nothing for what it cannot read; a range is two
 ## tokens; a renderer that escapes its values sends the helper's own token unescaped and no
@@ -20,7 +20,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigDate="$rigLib/AgentsSlackDate.awk"
+rigDate="$rigLib/comms/AgentsSlackDate.awk"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -112,7 +112,7 @@ rigAssert "a token string of the caller's own, with a style's fallback" \
 
 echo "-- the shell wrapper is the same helper --"
 set -- --rig-none
-. "$rigLib/AgentsTools.SlackDate.include"
+. "$rigLib/comms/AgentsTools.SlackDate.include"
 rigAssert "AgentsToolsSlackDateToken prints the helper's token" "$( AgentsToolsSlackDateToken '2026-10-09 09:02 +0300' date-time )" "$( rigToken '2026-10-09 09:02 +0300' date-time )"
 rigKept="$( AgentsToolsSlackDateToken 'not a moment' date-time )" || rigKept="kept as it was"
 rigAssert "it returns 1 and prints nothing for what it cannot read, so a caller keeps its text" "$rigKept" "kept as it was"
@@ -144,7 +144,7 @@ rigAssert "a cut past a token keeps it, a cut before one is where it was asked" 
 ## ---------------------------------------------------------------------------
 echo "-- the member send's blocks: the same moment as a date element --"
 ## ---------------------------------------------------------------------------
-rigBlocks(){ printf '%s\n' "$@" | LC_ALL=C awk -f "$rigLib/AgentsSlackBlocksBuild.awk" ; }
+rigBlocks(){ printf '%s\n' "$@" | LC_ALL=C awk -f "$rigLib/comms/AgentsSlackBlocksBuild.awk" ; }
 rigBlocks "asked $rigOwn, reminder 1" > "$rigTmp/blocks.one"
 rigAssert "a token in a paragraph is a date element between its text" \
 	"$( cat "$rigTmp/blocks.one" )" \
@@ -152,7 +152,7 @@ rigAssert "a token in a paragraph is a date element between its text" \
 rigBlocks "- from <!date^1893456060^{time_secs}|00:01:00 UTC>–<!date^1893456074^{time_secs}|00:01:14 UTC>" > "$rigTmp/blocks.range"
 rigAssert "a range in a list item is two date elements" \
 	"$( LC_ALL=C grep -o '"type":"date"' "$rigTmp/blocks.range" | LC_ALL=C awk 'END { print NR }' ):$( rigHolds "$rigTmp/blocks.range" '{"type":"date","timestamp":1893456074,"format":"{time_secs}","fallback":"00:01:14 UTC"}' )" 2:yes
-{ printf '%s\n' "in code \`$rigOwn\` it stays" '```' "$rigOwn" '```' ; } | LC_ALL=C awk -f "$rigLib/AgentsSlackBlocksBuild.awk" > "$rigTmp/blocks.code"
+{ printf '%s\n' "in code \`$rigOwn\` it stays" '```' "$rigOwn" '```' ; } | LC_ALL=C awk -f "$rigLib/comms/AgentsSlackBlocksBuild.awk" > "$rigTmp/blocks.code"
 ## Each wanted element in a variable first: bash 3.2 brace-expands a double-quoted `{a,b}` written inside "$( )".
 rigCodeSpan='{"type":"text","text":"'"$rigOwn"'","style":{"code":true}}'
 rigCodeBlock='{"type":"rich_text_preformatted","elements":[{"type":"text","text":"'"$rigOwn"'"}]}'
@@ -162,7 +162,7 @@ rigBlocks 'a <!date^x^{time}|no> b <!here>' > "$rigTmp/blocks.not"
 rigAssert "a text that only starts like a token stays text" "$( LC_ALL=C grep -c -F '"type":"date"' "$rigTmp/blocks.not" ):$( rigHolds "$rigTmp/blocks.not" 'a <!date^x^{time}|no> b <!here>' )" 0:yes
 if command -v python3 > /dev/null 2>&1 ; then
 	rigAssert "the blocks pass the send's own validator, and their text version says the fallback" \
-		"$( python3 "$rigLib/AgentsBlockKitValidate.py" < "$rigTmp/blocks.one" ; printf 'rc=%s' "$?" ):$( python3 "$rigLib/AgentsSlackBlocksTextVersion.py" < "$rigTmp/blocks.one" )" \
+		"$( python3 "$rigLib/comms/AgentsBlockKitValidate.py" < "$rigTmp/blocks.one" ; printf 'rc=%s' "$?" ):$( python3 "$rigLib/comms/AgentsSlackBlocksTextVersion.py" < "$rigTmp/blocks.one" )" \
 		"rc=0:asked 2026-10-09 06:02 UTC, reminder 1"
 fi
 
@@ -178,19 +178,19 @@ rigAssert "as a command" "$( printf '%s\n' "x $rigOwn y" | LC_ALL=C awk -v sldSt
 cat > "$rigTmp/thread.json" <<RIG_THREAD_EOF
 {"ok":true,"messages":[{"ts":"1791525800.000100","user":"U0BOT","text":":wrench: *_magic-coordinator_* @magic → *_magic-tester_* <@U0TESTER>.\n⏰ Still waiting for your answer (asked $rigOwn, reminder 1):","metadata":{"event_payload":{"sender":"magic-coordinator"}}},{"ts":"1791525810.000100","user":"U0OWNER","text":"yes, since $rigOwn | fine"},{"ts":"1791525820.000100","user":"U0BOT","text":"*_magic-coordinator_* @magic → *_magic-tester_* <@U0TESTER>. DISMISSED","metadata":{"event_payload":{"sender":"magic-coordinator"}}},{"ts":"1791525830.000100","user":"U0OWNER","text":"<@U0TESTER> see <!date^1791525750^{time}|06:02 UTC>"}]}
 RIG_THREAD_EOF
-LC_ALL=C awk -f "$rigLib/AgentsSlackMessagesFormat.awk" < "$rigTmp/thread.json" > "$rigTmp/thread.fmt" 2> "$rigTmp/thread.err" ; rigRc=$?
+LC_ALL=C awk -f "$rigLib/comms/AgentsSlackMessagesFormat.awk" < "$rigTmp/thread.json" > "$rigTmp/thread.fmt" 2> "$rigTmp/thread.err" ; rigRc=$?
 rigAssert "the formatter: four messages, no raw control string, each token its fallback" \
 	"$rigRc:$( LC_ALL=C grep -c '^[0-9]*\.[0-9]* | ' "$rigTmp/thread.fmt" ):$( LC_ALL=C grep -c -F '!date^' "$rigTmp/thread.fmt" ):$( LC_ALL=C grep -c -F '2026-10-09 06:02 UTC' "$rigTmp/thread.fmt" )" 0:4:0:2
 rigAssert "the reminder reads as it was written, the time in UTC" \
 	"$( rigHolds "$rigTmp/thread.fmt" '⏰ Still waiting for your answer (asked 2026-10-09 06:02 UTC, reminder 1):' )" yes
 rigAssert "a Wait's answers: the reply after the tooling's own post, its time as the fallback" \
-	"$( LC_ALL=C awk -v rootTs=1791525800.000100 -v fromUsers=U0OWNER -f "$rigLib/AgentsDismissalMatch.awk" -f "$rigLib/AgentsSlackThreadAnswers.awk" < "$rigTmp/thread.fmt" | LC_ALL=C tr '\n' '#' )" \
+	"$( LC_ALL=C awk -v rootTs=1791525800.000100 -v fromUsers=U0OWNER -f "$rigLib/questions/AgentsDismissalMatch.awk" -f "$rigLib/comms/AgentsSlackThreadAnswers.awk" < "$rigTmp/thread.fmt" | LC_ALL=C tr '\n' '#' )" \
 	'1791525810.000100 | U0OWNER | yes, since 2026-10-09 06:02 UTC | fine#1791525830.000100 | U0OWNER | <@U0TESTER> see 06:02 UTC#'
-rigDismissedBy="$( dismissalMember=magic-tester LC_ALL=C awk -f "$rigLib/AgentsDismissalMatch.awk" -f "$rigLib/AgentsHarnessWaitDismissed.awk" "$rigTmp/thread.fmt" )" ; rigRc=$?
+rigDismissedBy="$( dismissalMember=magic-tester LC_ALL=C awk -f "$rigLib/questions/AgentsDismissalMatch.awk" -f "$rigLib/harness/AgentsHarnessWaitDismissed.awk" "$rigTmp/thread.fmt" )" ; rigRc=$?
 rigAssert "the dismissal reader finds the DISMISSED among messages that carry tokens" "$rigDismissedBy:rc=$rigRc" '1791525820.000100 | U0BOT:rc=0'
-rigDismissedBy="$( LC_ALL=C grep -v -F 'DISMISSED' "$rigTmp/thread.fmt" | dismissalMember=magic-tester LC_ALL=C awk -f "$rigLib/AgentsDismissalMatch.awk" -f "$rigLib/AgentsHarnessWaitDismissed.awk" )" ; rigRc=$?
+rigDismissedBy="$( LC_ALL=C grep -v -F 'DISMISSED' "$rigTmp/thread.fmt" | dismissalMember=magic-tester LC_ALL=C awk -f "$rigLib/questions/AgentsDismissalMatch.awk" -f "$rigLib/harness/AgentsHarnessWaitDismissed.awk" )" ; rigRc=$?
 rigAssert "and none where there is none: a reminder with a token dismisses no one" "$rigDismissedBy:rc=$rigRc" ':rc=1'
-COMMS_USER_HANDLES=$'U0TESTER\ttester' LC_ALL=C awk -v kind=slack -v source=rig -v channel=CRIG -f "$rigLib/AgentsSessionContextCommsItems.awk" < "$rigTmp/thread.json" > "$rigTmp/thread.items" 2>> "$rigTmp/thread.err" ; rigRc=$?
+COMMS_USER_HANDLES=$'U0TESTER\ttester' LC_ALL=C awk -v kind=slack -v source=rig -v channel=CRIG -f "$rigLib/session/AgentsSessionContextCommsItems.awk" < "$rigTmp/thread.json" > "$rigTmp/thread.items" 2>> "$rigTmp/thread.err" ; rigRc=$?
 rigAssert "the session-context scan: no raw control string, the text with its fallback" \
 	"$rigRc:$( LC_ALL=C grep -c -F '!date^' "$rigTmp/thread.items" ):$( LC_ALL=C grep -c -x -F 'text: yes, since 2026-10-09 06:02 UTC | fine' "$rigTmp/thread.items" )" 0:0:1
 rigAssert "it still reads who a message with a token is from and for: the send header, and a mention" \
@@ -198,7 +198,7 @@ rigAssert "it still reads who a message with a token is from and for: the send h
 	'author: magic-coordinator|addressees: magic-tester|:addressees: U0TESTER (tester)'
 printf '%s\n' "{\"ok\":true,\"messages\":{\"total\":1,\"paging\":{\"count\":20,\"total\":1,\"page\":1,\"pages\":1},\"matches\":[{\"ts\":\"1791525810.000100\",\"user\":\"U0OWNER\",\"text\":\"yes, since $rigOwn\",\"permalink\":\"https://rig.slack.com/archives/CRIG/p1791525810000100\"}]}}" > "$rigTmp/search.json"
 rigAssert "a search's lines: the fallback" \
-	"$( LC_ALL=C awk -v cutoff=5 -f "$rigLib/AgentsSlackSearchMatches.awk" < "$rigTmp/search.json" )" '1791525810.000100 | U0OWNER | yes, since 2026-10-09 06:02 UTC'
+	"$( LC_ALL=C awk -v cutoff=5 -f "$rigLib/comms/AgentsSlackSearchMatches.awk" < "$rigTmp/search.json" )" '1791525810.000100 | U0OWNER | yes, since 2026-10-09 06:02 UTC'
 ## The three readers carry the rule as a copy, each running with no other file loaded: on one
 ## text, each must say what the helper says.
 rigReaderText="mixed ${rigOwn}–${rigOwn} and <!date^5^{date}^https://example.invalid/x|five> and <!date^x^y|z> end"
@@ -206,7 +206,7 @@ rigWant="$( rigCall fallbacks "$rigReaderText" )"
 printf '{"ok":true,"messages":[{"ts":"1.000001","user":"U1","text":"%s"}]}\n' "$rigReaderText" > "$rigTmp/one.json"
 printf '{"ok":true,"messages":{"total":1,"paging":{"count":20,"total":1,"page":1,"pages":1},"matches":[{"ts":"9.000001","user":"U1","text":"%s","permalink":"https://rig.slack.com/archives/C1/p9000001"}]}}\n' "$rigReaderText" > "$rigTmp/one.search.json"
 rigAssert "the readers' copies say what the helper says: the formatter, the session-context scan, the search" \
-	"$( LC_ALL=C awk -f "$rigLib/AgentsSlackMessagesFormat.awk" < "$rigTmp/one.json" )|$( LC_ALL=C awk -v kind=slack -v source=rig -v channel=C1 -f "$rigLib/AgentsSessionContextCommsItems.awk" < "$rigTmp/one.json" | LC_ALL=C grep '^text: ' )|$( LC_ALL=C awk -v cutoff=5 -f "$rigLib/AgentsSlackSearchMatches.awk" < "$rigTmp/one.search.json" )" \
+	"$( LC_ALL=C awk -f "$rigLib/comms/AgentsSlackMessagesFormat.awk" < "$rigTmp/one.json" )|$( LC_ALL=C awk -v kind=slack -v source=rig -v channel=C1 -f "$rigLib/session/AgentsSessionContextCommsItems.awk" < "$rigTmp/one.json" | LC_ALL=C grep '^text: ' )|$( LC_ALL=C awk -v cutoff=5 -f "$rigLib/comms/AgentsSlackSearchMatches.awk" < "$rigTmp/one.search.json" )" \
 	"1.000001 | U1 | $rigWant|text: $rigWant|9.000001 | U1 | $rigWant"
 
 ## ---------------------------------------------------------------------------
@@ -216,7 +216,7 @@ mkdir -p "$rigTmp/skills/magic-tester"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigTmp/skills/magic-tester/magic-tester.basic.md"
 MDSC_CMD=rig
 unset MDAT_SKILLSET_ROOT
-. "$rigLib/AgentsTools.InternOpEventTrackPost.include"
+. "$rigLib/session/AgentsTools.InternOpEventTrackPost.include"
 rigRenderWs="$rigTmp/render-ws"
 mkdir -p "$rigRenderWs/.local/.agents"
 rigRender(){ ## kind, out dir, lines file, name=value...

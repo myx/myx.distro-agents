@@ -18,7 +18,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigMember="magic-tester"
 
@@ -192,7 +192,7 @@ rigOp(){ ## operation and its arguments
 }
 
 rigOptions='"options":"alpha -- the unit checks\nbeta -- the lint\ngamma -- the smoke run"'
-rigInclude="$rigHere/AgentsTools.CliService.include"
+rigInclude="$rigHere/harness/AgentsTools.CliService.include"
 [ -f "$rigInclude" ] || rigRefuse "the include that holds each CLI service's round is missing from the package: $rigInclude"
 ## The session of a scenario, and the service its launcher is said to have started it on (none: no launch marker).
 rigSessionOf(){ printf 'rig-waitround-%s' "$rigScenarioName" ; }

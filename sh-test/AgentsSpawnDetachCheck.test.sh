@@ -338,7 +338,7 @@ rigDir="$rigTmp/poster-hup"
 mkdir -p "$rigDir" "$rigWs/.local/agents/sessions/rig-poster-hup"
 ( cd "$rigWs" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID RIG_SCENARIO="$rigDir" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	perl -e '$SIG{HUP} = "DEFAULT" ; exec @ARGV' bash -c '
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.EventTrackFeed.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackFeed.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || { echo "RIG-GUARD: the process helper of the rig is missing from the package" >&2 ; exit 99 ; }
 		rigFeed="$MMDAPP/.local/agents/sessions/rig-poster-hup/feed"
 		AgentsEventTrackFeedRun rig-poster-hup keeper-myx CRIGTRACK:9.9 &

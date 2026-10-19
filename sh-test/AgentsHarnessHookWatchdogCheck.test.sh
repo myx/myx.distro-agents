@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the watchdog of a PreToolUse hook (sh-lib/AgentsHarnessHooks.sh, AgentsHarnessHooksRefusal),
+## Behavioural check on the watchdog of a PreToolUse hook (sh-lib/harness/AgentsHarnessHooks.sh, AgentsHarnessHooksRefusal),
 ## run rather than read. Where the host has no `timeout` command the harness starts the hook, and beside it a
 ## watchdog that ends the hook after sixty seconds, so a hook that does not come back refuses its call instead of
 ## holding the harness. The watchdog knows the hook by its pid, and a pid is a number the system gives again: sixty
@@ -19,12 +19,12 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
-rigHarness="$rigHere/AgentsUniversalHarness.sh"
+rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigHarness" "$rigHere/AgentsHarnessHooks.sh" "$rigHere/AgentsTools.Registries.include" ; do
+for rigFile in "$rigHarness" "$rigHere/harness/AgentsHarnessHooks.sh" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 rigRealSleep="$( command -v sleep )" || rigRefuse "no sleep on PATH to hand the other waits to"
@@ -99,7 +99,7 @@ rigCall(){ ## scenario, seconds the hook stays, what the rig's process list says
 		harnessArgRaw="" harnessArgParsed=0 harnessArgPaths=() harnessArgEncs=() harnessArgFound=""
 		export RIG_HOOK_DIR="$rigDir" RIG_HOOK_STAYS="$2" RIG_PS="$3" RIG_WATCH_SECONDS=2 RIG_REAL_SLEEP="$rigRealSleep" RIG_REAL_PS="$rigRealPs"
 		eval "$rigLift"
-		. "$rigHere/AgentsHarnessHooks.sh" 2> "$rigDir/source.err"
+		. "$rigHere/harness/AgentsHarnessHooks.sh" 2> "$rigDir/source.err"
 		## The harness's hooks are its own policy's; the rig's one hook is handed to the refusal as a line of that list.
 		harnessHooksList="	"': > "$RIG_HOOK_DIR/hook.began" ; sleep "$RIG_HOOK_STAYS" ; : > "$RIG_HOOK_DIR/hook.ended"'$'\n'
 		AgentsHarnessArgParse '{"file_path":"/rig/file"}'
@@ -139,7 +139,7 @@ rigAssert "it ran to its end and its silence lets the call go on" "$( rigHook ) 
 echo "-- the watchdog keeps a process by the one reading the tooling keeps a process by --"
 rigCode(){ LC_ALL=C grep -v '^[[:space:]]*#' "$1" ; } ## file -- its lines that are no comment
 rigAssert "the hooks file signals the hook's pid in one place, and reads when it began through AgentsToolsRegistryProcessesBegan, as it starts and before it signals" \
-	"$( rigCode "$rigHere/AgentsHarnessHooks.sh" | LC_ALL=C grep -c -F 'kill -TERM "$hookRunPid"' ) $( rigCode "$rigHere/AgentsHarnessHooks.sh" | LC_ALL=C grep -c -F '"$hookRunPid" | AgentsToolsRegistryProcessesBegan' ) $( rigCode "$rigHere/AgentsHarnessHooks.sh" | LC_ALL=C grep -c -F 'sleep 60 ; kill' )" "1 2 0"
+	"$( rigCode "$rigHere/harness/AgentsHarnessHooks.sh" | LC_ALL=C grep -c -F 'kill -TERM "$hookRunPid"' ) $( rigCode "$rigHere/harness/AgentsHarnessHooks.sh" | LC_ALL=C grep -c -F '"$hookRunPid" | AgentsToolsRegistryProcessesBegan' ) $( rigCode "$rigHere/harness/AgentsHarnessHooks.sh" | LC_ALL=C grep -c -F 'sleep 60 ; kill' )" "1 2 0"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ HARNESS HOOK WATCHDOG CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InboxPlace.include -- where an item of a member's inbox lives: the one answer
+## every inbox operation, scan, Wait and the GC ask (MAGIC.md, "Inbox items live in incoming/
+## and processed/"). In-context helpers with no operation of their own. Sourced for its
+## functions only:
+##   type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+##
+## THE SPLIT INBOX. An inbox holds two folders, `incoming/` and `processed/`, and an item's
+## processed stamp (`processed-at` in its front matter) decides its folder: no stamp, incoming/;
+## the stamp, processed/. The stamp stays the retention clock of the GC. Readers never see the
+## folders: an operation names an item, never its folder, and sees incoming/ alone unless it is
+## given --include-processed.
+##
+## Every store is split since F4.3's one-time move: no inbox is read or written at its root. A
+## folder that is not there yet is made by the first write into it; git keeps no empty folder.
+##
+
+## Where an item of that inbox with no processed stamp lives: its incoming/.
+AgentsToolsInboxDir(){ ## member
+	printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming"
+}
+
+## Where an item of that inbox belongs by its stamp: `yes` it carries processed-at, else not.
+## processed/ or incoming/.
+AgentsToolsInboxDirFor(){ ## member, stamped (yes|no)
+	if [ "$2" = "yes" ] ; then printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/processed" ; else printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming" ; fi
+}
+
+## The folders a read of that inbox looks in, one a line, in their order: incoming/, and
+## processed/ after it where `yes` includes the processed.
+AgentsToolsInboxFolders(){ ## member, include processed (yes|no)
+	printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/incoming"
+	[ "${2:-no}" != "yes" ] || printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/processed"
+}
+
+## The path of the item of that name in that inbox, where a read finds it: rc 1, and nothing
+## printed, where it is in none of the folders the read looks in (AgentsToolsInboxFolders).
+AgentsToolsInboxItemFind(){ ## member, item name, include processed (yes|no)
+	local findFolder
+	while IFS= read -r findFolder ; do
+		[ -f "$findFolder/$2" ] && { printf '%s\n' "$findFolder/$2" ; return 0 ; }
+	done < <( AgentsToolsInboxFolders "$1" "${3:-no}" )
+	return 1
+}
+
+## Whether the item of that name lies in that inbox's processed/: rc 0 where it does.
+AgentsToolsInboxItemProcessed(){ ## member, item name
+	[ -f "$MDAT_DATA_ROOT/inboxes/$1/processed/$2" ]
+}
+
+## The path of a standing note of that inbox, the state and lock notes of the routines among
+## them: an item with no processed stamp, so where those live (AgentsToolsInboxDir), there or
+## not yet.
+AgentsToolsInboxNotePath(){ ## member, note name
+	printf '%s/%s\n' "$( AgentsToolsInboxDir "$1" )" "$2"
+}
