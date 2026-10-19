@@ -23,6 +23,9 @@
 ## question takes it, with the path as it is under its paragraph, and a message box does not; with no location
 ## known every path stands as it is.
 ## Offline: no operation of the real tooling is called.
+## Reconciled for F11.0: a spacer stands between the groups of the roots; every dialog has bigger margins inside its
+## frame (two empty lines under its top, one more under its buttons, three blank cells at each side), so its box is
+## four cells wider and two lines taller and what it holds stands where it stood.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -184,7 +187,7 @@ get out
 show s
 EOF
 rigAssert "the list of the locations is read when the screen starts, with no argument, though another root is shown" "$( rigVal start.selected ) $( rigCalled --manager-place-list )" "dashboard 1"
-rigAssert "the root list holds it after the team members, as a folder" "[$( rigListLine root 'Team Members' )] [$( rigListLine root 'Locations (Places)' )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^root|' | LC_ALL=C grep -A1 -F 'Team Members' | LC_ALL=C grep -F 'Locations (Places)' | LC_ALL=C grep -c -F '►' )" "[ Team Members ►] [ Locations (Places) ►] 1"
+rigAssert "the root list holds it after the team members and the spacer under their group, as a folder" "[$( rigListLine root 'Team Members' )] [$( rigListLine root 'Locations (Places)' )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^root|' | LC_ALL=C grep -A2 -F 'Team Members' | LC_ALL=C grep -F 'Locations (Places)' | LC_ALL=C grep -c -F '►' )" "[ Team Members ►] [ Locations (Places) ►] 1"
 rigAssert "9 goes there: the row that goes up and a row a location, in the order of the operation, and a line that is no row of one is left out" "[$( rigVal in.path )] $( rigVal in.rows ) $( rigHolds t 'another name' ) $( rigHolds t 'short' )" "[places] 6 0 0"
 rigAssert "the table has a header: the key, the kind, the ceiling, the state, the sessions, and no column of a host" "[$( rigListLine t 'PLACE' )] $( rigHolds t 'HOST' )" "[ PLACE KIND CEILING STATE SESSIONS] 0"
 rigAssert "a location is a row of it, by its key; the one the console runs in has the mark ahead of it" "[$( rigListLine t '.skillset-shared' )] [$( rigListLine t '• ws-one ' )] [$( rigListLine t 'gone-work' )]" "[ .skillset-shared directory read-write present -] [ • ws-one workspace read-write present 196 ►] [ gone-work workspace read-write absent 0]"
@@ -285,8 +288,8 @@ EOF
 rigBox(){ ## tag, text -- how many lines of that box hold the text
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
 }
-rigAssert "a fact of the dialog shows by the name of the location, and the path as it is stands under it" "$( rigVal a.dialog | LC_ALL=C cut -d'|' -f1 ) $( rigBox a '║ file      deep:a.txt ' ) $( rigBox a '║           /rig/Workspaces/ws-one/source/deep/a.txt ' )" "answer:answers 1 1"
-rigAssert "so does a paragraph: the path as it is under it, without what ends the sentence, and a path of no location is left alone" "$( rigBox a '║ may it write ws-one:x.sh, and (/rig/Workspaces/ws-one-other/b)? ' ) $( rigBox a '║   /rig/Workspaces/ws-one/x.sh  ' ) $( rigBox a '║ asked by  someone ' )" "1 1 1"
+rigAssert "a fact of the dialog shows by the name of the location, and the path as it is stands under it" "$( rigVal a.dialog | LC_ALL=C cut -d'|' -f1 ) $( rigBox a '║   file      deep:a.txt ' ) $( rigBox a '║             /rig/Workspaces/ws-one/source/deep/a.txt ' )" "answer:answers 1 1"
+rigAssert "so does a paragraph: the path as it is under it, without what ends the sentence, and a path of no location is left alone" "$( rigBox a '║   may it write ws-one:x.sh, and (/rig/Workspaces/ws-one-other/b)? ' ) $( rigBox a '║     /rig/Workspaces/ws-one/x.sh  ' ) $( rigBox a '║   asked by  someone ' )" "1 1 1"
 rigAssert "a message box shows what it was given, as it is" "$( rigBox m 'it failed at /rig/Workspaces/ws-one/x.sh' ) $( rigBox m 'ws-one/x.sh' )" "1 1"
 
 echo "-- when it is read: once at the start; again, on the period and when a read is asked for, only while it is the list shown"

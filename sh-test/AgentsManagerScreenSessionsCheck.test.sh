@@ -4,7 +4,7 @@
 ## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a stand-in script
 ## (check-fixtures/manager-screen.tools.stub.sh), which notes each start and prints the case's fixture: rows in the
 ## form `--manager-session-list` prints, TAB between the fields, a `session` row, its `run` rows, and one last
-## `counters` row. Held: `Launch / Spawn` is the first row under the row that goes up, also when there is no
+## `counters` row. Held: `Launch (Start)` is the first row under the row that goes up, also when there is no
 ## session; then comes every session the operation gives, in its order, the newest first, each by its name with the
 ## spaces the registry wrote as `_`, or by its id where it has none, with its state at the end of its row; a session
 ## that is one lone run with no name shows plainer: dimmed, by the member that ran and the head of its id; `a` asks
@@ -24,6 +24,8 @@
 ## for cell as from rows without them. AgentsManagerScreenControlCheck holds what is shown of the control thread.
 ## The reads of one selected session or agent are taken out of the table here: AgentsManagerScreenPaneCheck holds them.
 ## Offline: no operation of the real tooling is called, and no session of this machine is read.
+## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`; the spacer under
+## `Launch (Start)` moves each session row of the list one line down.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -121,23 +123,23 @@ get a
 border title 1 84 120
 cells row1 2 85 119
 cells row2 3 85 119
-cells row3 4 85 119
-cells row4 5 85 119
-cells row5 6 85 119
-cells row6 7 85 119
-cells row7 8 85 119
-cells row8 9 85 119
+cells row3 5 85 119
+cells row4 6 85 119
+cells row5 7 85 119
+cells row6 8 85 119
+cells row7 9 85 119
+cells row8 10 85 119
 looks k
 RIGSCRIPT
 rigAssert "the operation is --manager-session-list"                  "[$( rigCall 1 )]" "[--manager-session-list]"
-rigAssert "Launch / Spawn is the first row under the row that goes up" "[$( rigVal row1 )][$( rigVal row2 )] $( rigVal a.rows )" "[>..][ Launch / Spawn                  ►] 7"
+rigAssert "Launch (Start) is the first row under the row that goes up" "[$( rigVal row1 )][$( rigVal row2 )] $( rigVal a.rows )" "[>..][ Launch (Start)                  ►] 7"
 rigAssert "a session with a name shows its name, with its spaces, and its state" "[$( rigVal row3 )]" "[ daily of Monday         running ►]"
 rigAssert "one without a name shows the id of its session"           "[$( rigVal row4 )]" "[ 22222222-0000-4000-800… waiting ►]"
 rigAssert "one lone run with no name shows plainer: the member that ran and the head of its id" "[$( rigVal row5 )]" "[ magic-devops 33333333  finished ►]"
 rigAssert "a session of another host carries its own state"          "[$( rigVal row6 )]" "[ far away        unknown-foreign ►]"
 rigAssert "and one whose record is still open"                       "[$( rigVal row7 )][$( rigVal row8 )]" "[ keeper-ae3 55555555    unclosed ►][]"
 rigAssert "a running session stands out, a lone run is dimmed, the others are plain" \
-	"$( rigLooks k 5 86 86 )$( rigLooks k 6 86 86 )$( rigLooks k 7 86 86 )$( rigLooks k 8 86 86 )$( rigLooks k 9 86 86 )" "B.D.D"
+	"$( rigLooks k 6 86 86 )$( rigLooks k 7 86 86 )$( rigLooks k 8 86 86 )$( rigLooks k 9 86 86 )$( rigLooks k 10 86 86 )" "B.D.D"
 rigAssert "the title says that all are shown"                        "[$( rigVal title )]" "[Sessions (Activity)  [all]]"
 
 echo "-- no session at all --"
@@ -152,7 +154,7 @@ cells row2 3 85 119
 cells row3 4 85 119
 cells line1 2 1 83
 RIGSCRIPT
-rigAssert "the level shows the row that goes up, then Launch / Spawn, and nothing more" "$( rigVal a.rows ) [$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )]" "2 [>..][ Launch / Spawn                  ►][]"
+rigAssert "the level shows the row that goes up, then Launch (Start), and nothing more" "$( rigVal a.rows ) [$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )]" "2 [>..][ Launch (Start)                  ►][]"
 rigAssert "and the left pane says that there is none"                "[$( rigVal line1 )]" "[No sessions.]"
 
 echo "-- a: all or active --"
@@ -166,8 +168,8 @@ keys a
 wait sessions 30
 get active
 border activeTitle 1 84 120
-cells activeRow3 4 85 119
-cells activeRow4 5 85 119
+cells activeRow3 5 85 119
+cells activeRow4 6 85 119
 keys a
 wait sessions 30
 get all
@@ -258,8 +260,8 @@ get named
 advance 11
 wait sessions 30
 get after
-cells row3 4 85 119
-cells row4 5 85 119
+cells row3 5 85 119
+cells row4 6 85 119
 keys DOWN DOWN DOWN
 get end
 RIGSCRIPT
@@ -294,8 +296,8 @@ get up
 wait sessions 30
 get list
 border listTitle 1 84 120
-cells listRow3 4 85 119
-cells listRow4 5 85 119
+cells listRow3 5 85 119
+cells listRow4 6 85 119
 RIGSCRIPT
 rigAssert "a session that is not active is entered, one of its agents selected" "$( rigVal in.path ) $( rigVal in.rows ) $( rigVal in.selected )" "sessions/$rigS2 3 b1b1b1b1-0000-4000-8000-0000000000b1"
 rigAssert "a switches to the active ones, and the person is still in that session, on that agent" "$( rigVal pressed.filter ) $( rigVal after.path ) $( rigVal after.rows ) $( rigVal after.selected )" "active sessions/$rigS2 3 b1b1b1b1-0000-4000-8000-0000000000b1"

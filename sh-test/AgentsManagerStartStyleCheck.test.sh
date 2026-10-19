@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the interface style a start of the manager screen is given, run rather than read:
-## --intern-manager [--style <name>], which is what the console's --manager runs. NO SCREEN IS STARTED: a `python3`
+## --manager [--style <name>], which is what the console's --manager runs. NO SCREEN IS STARTED: a `python3`
 ## of the rig stands first on the rig's PATH, and writes down the arguments it was started with and the variable of
 ## the environment as it saw it. Against a rig workspace built here with its own user settings: every call runs
 ## with MMDAPP at the rig, so what the user who runs this check saved in the real workspace is never read.
@@ -13,13 +13,15 @@
 ## and one in the workspace's own settings file are not taken. The start only reads: no file of the rig is
 ## written. What the screen ends with is what the start ends with. A word the start does not take, and --style
 ## with no name, are refused before anything is started. Offline; only the rig's own tree is read.
+## And the spacers of its lists (F11.0): MDLT_CONSOLE_SPACERS, a console setting of .local and the user's own, reaches
+## the screen in its environment: the one the environment names, else the one the user saved, else none at all.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigScreen="$rigHere/AgentsManagerScreen.py"
-rigOp="--intern-manager"
+rigOp="--manager"
 rigKey="MDAT_MANAGER_STYLE"
 
 rigRefuse(){
@@ -45,7 +47,7 @@ rigReal="${MMDAPP%/}/.local/home/$rigUser/MDLT.settings.env"
 
 ## THE RIG'S OWN PATH: its bin, then the system's own folders. Its python3 is no Python: it writes down how it
 ## was started and ends with the status in RIG_SCREEN_RC, 0 where none is given.
-printf '#!/bin/sh\n{ printf "start" ; for rigArg in "$@" ; do printf "\\t%%s" "$rigArg" ; done ; printf "\\n" ; printf "environment\\t%%s\\n" "${%s-none}" ; } >> "%s/starts"\nexit "${RIG_SCREEN_RC:-0}"\n' "$rigKey" "$rigTmp" > "$rigTmp/bin/python3"
+printf '#!/bin/sh\n{ printf "start" ; for rigArg in "$@" ; do printf "\\t%%s" "$rigArg" ; done ; printf "\\n" ; printf "environment\\t%%s\\n" "${%s-none}" ; printf "spacers\\t%%s\\n" "${MDLT_CONSOLE_SPACERS-none}" ; } >> "%s/starts"\nexit "${RIG_SCREEN_RC:-0}"\n' "$rigKey" "$rigTmp" > "$rigTmp/bin/python3"
 chmod +x "$rigTmp/bin/python3"
 rigPath="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 [ "$( PATH="$rigPath" command -v python3 )" = "$rigTmp/bin/python3" ] || rigRefuse "the rig's own python3 is not first on the rig's PATH"
@@ -159,6 +161,22 @@ rigStart --look tv
 rigAssert "and an option the start does not have" "$( rigRefusedStart )" "1 0 1"
 rigStart tv
 rigAssert "and a bare word" "$( rigRefusedStart )" "1 0 1"
+
+echo "-- 6b. the spacers of the screen's lists: the console user's MDLT_CONSOLE_SPACERS of .local --"
+rigSpacers(){ ## -- MDLT_CONSOLE_SPACERS as the screen saw it in the last start, `none` where it was not set
+	LC_ALL=C awk -F'\t' '$1 == "spacers" { print $2 }' "$rigTmp/starts"
+}
+rigSave
+rigStart
+rigAssert "with nothing saved and nothing in the environment the screen is given no such setting: its spacers are on" "$rigRc $( rigHanded ) $( rigSpacers )" "0 nothing none"
+mkdir -p "${rigOwn%/*}" && printf 'MDLT_CONSOLE_HISTORY=workspace-shared\nMDLT_CONSOLE_SPACERS=disable\n' > "$rigOwn"
+rigTreeBefore="$( rigTree )"
+rigStart
+rigAssert "the user's saved disable reaches the screen in its environment, read by the reader of .local, and no option is handed on for it" "$rigRc $( rigHanded ) $( rigSpacers )" "0 nothing disable"
+rigPre=( "MDLT_CONSOLE_SPACERS=rig-own" ) ; rigStart ; rigPre=()
+rigAssert "the one the environment names comes first, and is left as it is" "$rigRc $( rigSpacers )" "0 rig-own"
+rigAssert "reading it wrote no file of the rig" "$( rigTree )" "$rigTreeBefore"
+rigSave
 
 echo "-- 7. the real workspace was never reached --"
 rigAssert "what the user who runs this check saved in the real workspace is as it was" "$( rigSum "$rigReal" )" "$rigRealBefore"

@@ -5,7 +5,7 @@
 ## (check-fixtures/manager-screen.driver.py) and the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
 ## Held, view by view: Sessions (a bold caption; every session of the list in one table of the left pane, its state in the
 ## colour of what is well, to look at, or over; `e` and the title where the pane holds fewer); a session (its agents as a
-## table under a heading, no thread ids, its id last); Launch / Spawn (every routine, its start in its colour); Pending
+## table under a heading, no thread ids, its id last); Launch (Start) (every routine, its start in its colour); Pending
 ## (every ask as a table, a gone asker in red); an ask (its question ahead of its facts, no Slack ids, no hint); Team Data
 ## (Items, Git, Board, Main loop as headings, no hint); Operations (a table); Locations (every location with its path); a
 ## location (what stands in it under its path, what lies outside whole; its members as one table, an unregistered one in
@@ -14,6 +14,7 @@
 ## (every check, the worst first, in its colour); Server Keys (a public line whole); Tooling Commands (a table, a command
 ## a row, its name and its path). Offline:
 ## no operation of the real tooling is called.
+## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -255,7 +256,7 @@ rigLineOf(){ ## tag, text -- the number of the line of the left pane that holds 
 	rigPane "$1" | LC_ALL=C grep -n -F -- "$2" | head -1 | LC_ALL=C sed 's/:.*//' | LC_ALL=C awk '{ print $1 + 0 } END { if ( NR == 0 ) print 0 }'
 }
 
-echo "-- Sessions, Launch / Spawn, a session --"
+echo "-- Sessions, Launch (Start), a session --"
 rigAssert "Sessions: one table of every session, finished ones too, in the order of the list, and nothing above it" \
 	"$( rigHas sessions '43 sessions' ) $( rigHas sessions '1 running, 1 unclosed, 41 finished' ) $( rigFirstHas sessions 'SESSION' ) $( rigHas sessions 'alpha work' ) $( rigHas sessions 'gamma work' ) $( [ "$( rigLineOf sessions 'alpha work' )" -lt "$( rigLineOf sessions 'gamma work' )" ] && echo ordered )" \
 	"0 0 1 1 1 ordered"
@@ -263,7 +264,7 @@ rigAssert "Sessions: a running state in the look of what is well, a gone control
 	"$( rigRole sessions 'alpha work' k ) $( rigRole sessions 'beta work' X ) $( rigRole sessions 'gamma work' D )" "1 1 1"
 rigAssert "Sessions: more rows than the pane holds: no 'and N more', the title no count of rows, the status line no e; the count of its rows once, at the bottom right of the frame" \
 	"$( rigHas sessions 'more' ) $( rigTitle sessions | LC_ALL=C grep -c -E 'rows\]' ) $( rigStatus sessions | LC_ALL=C grep -c -E ' e (All|First) rows' ) $( rigCountAt sessions '43 rows' )" "0 0 0 bottom:1"
-rigAssert "Launch / Spawn: every routine as a table, its start in its colour" \
+rigAssert "Launch (Start): every routine as a table, its start in its colour" \
 	"$( rigHas launch 'ROUTINE' ) $( rigHas launch 'alpha-gap' ) $( rigHas launch 'beta-gap' ) $( rigRole launch 'alpha-gap' k ) $( rigRole launch 'beta-gap' X )" "1 1 1 1 1"
 rigAssert "a session: its agents as a table under a heading, its state in its colour; no thread ids; its id last" \
 	"$( rigHeading session 'Agents' ) $( rigRole session 'MEMBER' u ) $( rigRole session 'state ' k ) $( rigHas session '1790000000' ) $( rigHas session 'threads' ) $( [ "$( rigLineOf session 'S-alpha' )" -gt "$( rigLineOf session 'Work on alpha' )" ] && echo last )" \

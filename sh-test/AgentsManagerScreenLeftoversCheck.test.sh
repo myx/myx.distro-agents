@@ -7,12 +7,13 @@
 ## mode of a thing that has a log, in every style, and the choice is kept as the selection moves; the status line
 ## names the key of the help, last of the keys that work in every window; a kill whose plan could not be read is
 ## not asked for: its dialog says so, takes no word and has Cancel alone, and no kill reaches the tooling.
-## The number keys of the roots follow the order of the root list, top to bottom, `Launch / Spawn` after them, and the
+## The number keys of the roots follow the order of the root list, top to bottom, `Launch (Start)` after them, and the
 ## menu Go names them so.
 ## And, with the real screen on a pseudo-terminal that is its controlling terminal: while a child has the whole
 ## terminal, an interrupt and a quit typed there reach the child and never end the screen, and a stop typed there
 ## leaves neither the child nor the screen stopped: the child reads on, ends in order, and the screen is back.
 ## Offline: no operation of the real tooling is called.
+## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -267,8 +268,8 @@ keys m
 turn
 show go
 RIGSCRIPT
-rigAssert "1 to 9 go to the roots in the order of the list, the ninth Manuals (Help); Launch / Spawn after them has none past nine; Alt with a number does the same" "$( rigVal k1.path ) $( rigVal k2.path ) $( rigVal k3.path ) $( rigVal k4.path ) $( rigVal k5.path ) $( rigVal k6.path ) $( rigVal k7.path ) $( rigVal k8.path ) $( rigVal k9.path ) $( rigVal a4.path )" "dashboard sessions pending team places consoles settings configuration manuals team"
-rigAssert "the menu Go names them so, top to bottom" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Dashboard (Monitor)  *1 ' -e 'Sessions (Activity)  *2 ' -e 'Pending Questions  *3 ' -e 'Team Members  *4 ' -e 'Locations (Places)  *5 ' -e 'Consoles (Tools)  *6 ' -e 'Settings  *7 ' -e 'Configuration  *8 ' -e 'Manuals (Help)  *9 ' | LC_ALL=C sed 's/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Dashboard (Monitor) 1|Sessions (Activity) 2|Pending Questions 3|Team Members 4|Locations (Places) 5|Consoles (Tools) 6|Settings 7|Configuration 8|Manuals (Help) 9|"
+rigAssert "1 to 9 go to the roots in the order of the list, the ninth Manuals (Help); Launch (Start) after them has none past nine; Alt with a number does the same" "$( rigVal k1.path ) $( rigVal k2.path ) $( rigVal k3.path ) $( rigVal k4.path ) $( rigVal k5.path ) $( rigVal k6.path ) $( rigVal k7.path ) $( rigVal k8.path ) $( rigVal k9.path ) $( rigVal a4.path )" "dashboard sessions pending team places consoles settings configuration manuals team"
+rigAssert "the menu Go names them so, top to bottom" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Dashboard (Monitor)  *1 ' -e 'Sessions (Activity)  *2 ' -e 'Pending Questions  *3 ' -e 'Team Members  *4 ' -e 'Locations (Places)  *5 ' -e 'Consoles  *6 ' -e 'Settings  *7 ' -e 'Configuration  *8 ' -e 'Manuals (Help)  *9 ' | LC_ALL=C sed 's/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Dashboard (Monitor) 1|Sessions (Activity) 2|Pending Questions 3|Team Members 4|Locations (Places) 5|Consoles 6|Settings 7|Configuration 8|Manuals (Help) 9|"
 
 echo "-- the real screen on a pseudo-terminal it controls: an interrupt, a quit and a stop typed while a child has the terminal are the child's alone --"
 rigCase child

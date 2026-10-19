@@ -28,6 +28,10 @@
 ## operation printed is shown, the list of the sessions is read again and holds the new session; and an error of
 ## the start is shown.
 ## Offline: no operation of the real tooling is called, no CLI is started, and no member of this machine is read.
+## Reconciled for F11.0: the left pane has no `keys:` line any more, so the keys of a row are read from the status
+## line (rigKeysNamed); the spacer under `Launch (Start)` moves each session row of the list one line down; every
+## dialog has bigger margins inside its frame (two empty lines under its top, one more under its buttons, three blank
+## cells at each side), so its box is four cells wider and two lines taller and what it holds stands where it stood.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -143,6 +147,17 @@ rigScript(){ ## the commands of the driver on standard input, after the ones tha
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
+}
+rigKeysNamed(){ ## cells name -- the row's own keys as the status line names them, in the words the pane's `keys:` line
+	## had before F11.0 removed it; `PANE-KEYS-LINE` where the pane still has a line of its own
+	local namedSaid namedWords="" namedPair namedKey namedWord
+	if rigVal "$1" | LC_ALL=C grep -q '^keys:' ; then printf 'PANE-KEYS-LINE' ; return 0 ; fi
+	namedSaid="$( rigVal "${1}Status" ) "
+	for namedPair in n:Start ; do
+		namedKey="${namedPair%%:*}" ; namedWord="${namedPair#*:}"
+		case "$namedSaid" in *" $namedKey $namedWord "*) namedWords="${namedWords:+$namedWords  }$namedKey $( printf '%s' "$namedWord" | LC_ALL=C tr 'A-Z' 'a-z' )" ;; esac
+	done
+	[ -z "$namedWords" ] || printf 'keys: %s' "$namedWords"
 }
 rigPane(){ ## tag, line counted from 1 -- the left pane's part of that line of the screen, without the spaces at its end
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/▲.*$//' -e 's/▼.*$//' -e 's/▒.*$//' -e 's/■.*$//' -e 's/  *$//'
@@ -293,6 +308,7 @@ wait view 30
 get m
 show m
 cells keysLine 37 1 83
+cells keysLineStatus 39 0 120
 RIGSCRIPT
 rigAssert "the selection comes onto a member: nothing of it is read yet" "$( rigVal moved.selected ) [$( rigVal moved.reading )] $( rigVal moved.restLeft ) [$( rigVal resting.reading )]" "keeper-myx [] 0.33 []"
 rigAssert "until then the pane shows what the list holds of it, and says that the rest is not read" "[$( rigPane early 3 )][$( rigPane early 5 )][$( rigPane early 11 )]" "[ 📐 Sage Bourne, alias cronjob][ kind      keeper][ Team-member information: not read yet]"
@@ -304,7 +320,7 @@ rigAssert "its information, the bullets of its basic.md, under Team-member infor
 rigAssert "and nothing more: no sessions, no paths, no settings and no grants, though the read gave them all" \
 	"[$( rigPane m 16 )] $( rigScreenHolds m 'sessions it is in' ) $( rigScreenHolds m '/rig/home_of/ws-rig' ) $( rigScreenHolds m 'SLACK_USER_TOKEN' ) $( rigScreenHolds m 'its grants' ) $( rigScreenHolds m 'COVERS' ) $( rigPaneHolds m ' its information:' )" "[] 0 0 0 0 0 0"
 rigAssert "nothing of the value of a secret is on the screen, though its row carried one" "$( rigScreenHolds m 'xoxb' ) $( rigScreenHolds m 'must-never-show' ) $( LC_ALL=C grep -c -F 'xoxb-must-never-show' "$MANAGER_SCREEN_RIG/rows.--manager-team-member-read keeper-myx" )" "0 0 1"
-rigAssert "the left pane names the key that starts it, and nothing spills" "[$( rigVal keysLine )] $( rigVal m.spills )" "[keys: n start] 0"
+rigAssert "the left pane names the key that starts it, and nothing spills" "[$( rigKeysNamed keysLine )] $( rigVal m.spills )" "[keys: n start] 0"
 
 echo "-- the pane of a member scrolls, and a member set up elsewhere says so --"
 rigCase scroll
@@ -327,13 +343,14 @@ keys TAB DOWN
 wait view 30
 show far
 cells farKeys 17 1 83
+cells farKeysStatus 19 0 120
 RIGSCRIPT
 rigSize=""
 rigAssert "the pane starts at the top of the member, its basic information alone" "$( rigVal top.viewTop ) $( rigVal top.viewLines ) $( rigVal top.follow )" "0 13 no"
 rigAssert "with the focus on it, PageDown keeps it at its top: its basic information is all it holds" "$( rigVal paged.focus ) $( rigVal paged.viewTop ) $( rigPaneHolds paged ' Team-member information:' )" "view 0 1"
 rigAssert "and at its end nothing of its settings or its grants: no setting read in another workspace, no row of a grant" \
 	"$( rigPaneHolds end '     JIRA_HOST         read in the workspace it is set up in' ) $( rigPaneHolds end "$( printf '  %-20s %-6s %-30s %s' 'ws-rig:source/myx/**' write ws-rig:namespace none )" ) $( rigPaneHolds end "$( printf '  %-20s %-6s %-30s %s' '/rig/other/**' read 'pass-0007 by magic-coordinator' '2026-10-14 10:00 +0000' )" ) $( rigVal end.spills )" "0 0 0 0"
-rigAssert "a member set up in another workspace says so, and can be started" "$( rigPaneHolds far ' workspace ws-far, set up in another workspace of this machine' ) $( rigPaneHolds far ' for       The keeper of the far workspace.' ) [$( rigVal farKeys )]" "1 1 [keys: n start]"
+rigAssert "a member set up in another workspace says so, and can be started" "$( rigPaneHolds far ' workspace ws-far, set up in another workspace of this machine' ) $( rigPaneHolds far ' for       The keeper of the far workspace.' ) [$( rigKeysNamed farKeys )]" "1 1 [keys: n start]"
 
 echo "-- n, a prompt and a name start that member --"
 rigCase start
@@ -367,13 +384,13 @@ wait sessions 30
 turn
 keys BACKSPACE UP UP ENTER
 get up
-cells upRow3 4 85 119
-cells upRow4 5 85 119
+cells upRow3 5 85 119
+cells upRow4 6 85 119
 RIGSCRIPT
-rigAssert "n opens the dialog of a prompt, its list on that member, the keys on the prompt" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas d '║ > keeper-myx ' ) $( rigBoxHas d '║   magic-coordinator: a new coworking session, by the default routine ' )" "[prompt:prompt|] [Start the member keeper-myx] 1 1"
-rigAssert "and says where the prompt goes, and that no secret belongs in it" "$( rigBoxHas d '║ The prompt is the brief of a new session. It goes to the operation ' ) $( rigBoxHas d '║ No secret belongs in it: a brief shows on the command line of the ' ) $( rigBoxHas d ' »Start« ▅   Cancel  ▅' )" "1 1 1"
+rigAssert "n opens the dialog of a prompt, its list on that member, the keys on the prompt" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas d '║   > keeper-myx ' ) $( rigBoxHas d '║     magic-coordinator: a new coworking session, by the default routine ' )" "[prompt:prompt|] [Start the member keeper-myx] 1 1"
+rigAssert "and says where the prompt goes, and that no secret belongs in it" "$( rigBoxHas d '║   The prompt is the brief of a new session. It goes to the operation ' ) $( rigBoxHas d '║   No secret belongs in it: a brief shows on the command line of the ' ) $( rigBoxHas d ' »Start« ▅   Cancel  ▅' )" "1 1 1"
 
-rigAssert "the prompt is typed, and Tab goes on to the name of the session" "[$( rigVal typed.dialog )] [$( rigVal name.dialog )] $( rigBoxHas n '║ fix the index, please ' )" "[prompt:prompt|fix the index, please] [prompt:name|] 1"
+rigAssert "the prompt is typed, and Tab goes on to the name of the session" "[$( rigVal typed.dialog )] [$( rigVal name.dialog )] $( rigBoxHas n '║   fix the index, please ' )" "[prompt:prompt|fix the index, please] [prompt:name|] 1"
 
 rigAssert "until the name is entered nothing is started"             "[$( rigVal waiting.dialog )] $( rigVal waiting.calls ) [$( rigVal waiting.reading )]" "[prompt:name|] 0 []"
 rigAssert "Enter starts it, beside the screen"                       "[$( rigVal started.dialog )] $( rigVal started.reading ) [$( rigVal startedLine )]" "[] action:start:keeper-myx [start asked of the tooling: the member keeper-myx, named the index]"

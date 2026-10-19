@@ -22,6 +22,8 @@
 ## member's syntax lines, then the chapters after the options, the chapters by --manager-help-read, rendered, and none
 ## of the blocks of its operations, and inside an item for each operation, its block alone, one with no block saying so. The operations are called
 ## exactly as the tooling has them. Offline: no operation of the real tooling is called.
+## Reconciled for F11.0: THE TABLE COLOUR RULE: colours that name no ground of their own for every other row underline
+## the last line of each row instead, with the lines wrapped.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -366,9 +368,12 @@ rigWideLine="$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^wide|' | LC_ALL=C grep
 rigAssert "the path it covers stands whole on the first line of its row; where it comes from and when it ends wrap in their columns, every word of them there; nothing is cut" \
 	"$( rigVal wide.columns ) $( rigHolds wide ' ws:source/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py read' ) $( rigHolds wide 'set-3ef0ea61-' ) $( rigHolds wide 'U75H0DK43' ) $( rigHolds wide '5680fa0b-' ) $( rigHolds wide '…' )" \
 	"201 1 1 1 1 0"
-rigAssert "the header stands out, and the rows take turns in two looks, every line of a row in its own" \
-	"$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^lw|//p' | LC_ALL=C sed -n "$(( rigWideLine - 2 ))p;$(( rigWideLine ))p;$(( rigWideLine + 1 ))p" | LC_ALL=C cut -c3 | LC_ALL=C tr -d '\n' ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^lw|//p' | LC_ALL=C grep -c '^.j' )" \
-	"ucc 1"
+## F11.0, THE TABLE COLOUR RULE: Turbo Vision in the terminal's own colours, the style here, names no ground of its own
+## for every other row, so no row takes another look than the one before it, and with the lines wrapped the last line
+## of each row is underlined across the table instead (l, ROW_LINE), the lines above it in the look of a row.
+rigAssert "the header stands out, and with colours that set no row apart each row ends in its underlined line, the lines above it in the look of a row" \
+	"$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^lw|//p' | LC_ALL=C sed -n "$(( rigWideLine - 2 ))p;$(( rigWideLine ))p;$(( rigWideLine + 1 ))p" | LC_ALL=C cut -c3 | LC_ALL=C tr -d '\n' ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^lw|//p' | LC_ALL=C grep -c '^.j' ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^lw|//p' | LC_ALL=C grep -c '^.l' )" \
+	"ucl 0 2"
 
 echo "-- 3. Member Help --"
 rigCase help

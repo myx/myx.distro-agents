@@ -11,6 +11,9 @@
 ## button is let go, a double click and the wheel, and nothing else. The real screen comes up and is ended by a click on the menu bar and the hot
 ## letter of Exit on a terminal that reports the mouse, and comes up all the same on one that reports none.
 ## Offline: the only thing the real screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
+## Reconciled for F11.0: the spacer under `Launch (Start)` moves each session row of the list one line down; every
+## dialog has bigger margins inside its frame (two empty lines under its top, one more under its buttons, three blank
+## cells at each side), so its box is four cells wider and two lines taller and what it holds stands where it stood.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -59,7 +62,7 @@ echo "-- the panes: a click gives the keys, selects a row, opens it; the wheel; 
 rigRun <<'RIGSCRIPT'
 mouse click 10 10
 get view
-mouse click 90 4
+mouse click 90 5
 get row
 mouse click 90 3
 get other
@@ -146,7 +149,7 @@ get ok
 rigdialog What the rig asks.
 turn
 get before
-mouse click 35 5
+mouse click 33 4
 get closed
 RIGSCRIPT
 rigAssert "a click on a box toggles it, and the keys are on the boxes" "$( rigVal who.dialog )" "rig:who|b,a"
@@ -155,11 +158,11 @@ rigAssert "a click on a field gives it the keys"                      "$( rigVal
 rigAssert "a click outside the dialog does nothing: no window, no row, no menu" "$( rigVal outside.dialog ) $( rigVal outside.focus ) $( rigVal outside.selected ) [$( rigVal outside.menu )]" "rig:name|typed list .. []"
 rigAssert "a click on Cancel closes the dialog and calls nothing"     "[$( rigVal cancel.dialog )] [$( rigVal cancel.notice )]" "[] []"
 rigAssert "a click on OK presses it: its handler has what was clicked" "[$( rigVal ok.dialog )] [$( rigVal ok.notice )]" "[] [pressed ok: name=typed notes= who= how=y pick=p1]"
-rigAssert "in Turbo Vision a click on the box that closes it, at the left of its top border, does what Esc does" "$( rigVal before.dialogBox ) [$( rigVal closed.dialog )] $( [ "$( rigVal before.notice )" = "$( rigVal closed.notice )" ] && echo nothing-more-said || echo said )" "32,5,56,30 [] nothing-more-said"
+rigAssert "in Turbo Vision a click on the box that closes it, at the left of its top border, does what Esc does" "$( rigVal before.dialogBox ) [$( rigVal closed.dialog )] $( [ "$( rigVal before.notice )" = "$( rigVal closed.notice )" ] && echo nothing-more-said || echo said )" "30,4,60,32 [] nothing-more-said"
 
 echo "-- the status line: a click on a key does what the key does --"
 rigRun <<'RIGSCRIPT'
-mouse click 90 4
+mouse click 90 5
 turn
 cells st 39 0 120
 mouse click 12 39

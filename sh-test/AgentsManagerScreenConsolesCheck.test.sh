@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-## Behavioural check on the root `Consoles (Tools)` of the manager screen (sh-lib/AgentsManagerScreen.py), run rather
+## Behavioural check on the root `Consoles` of the manager screen (sh-lib/AgentsManagerScreen.py), run rather
 ## than read. The screen's own code runs through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a stand-in script
 ## (check-fixtures/manager-screen.tools.stub.sh), which notes each start and prints the fixture: rows in the form
 ## `--manager-console-list` prints, `console <key> <group> <label> <terminal> <directory> <word>...`.
-## Held: the root list holds `Consoles (Tools)` as a folder, ahead of the settings, and `6` and the `Go` menu go
+## Held: the root list holds `Consoles` as a folder, ahead of the settings, and `6` and the `Go` menu go
 ## there; its list is read only while it is shown, by `--manager-console-list` with no argument; its rows stand in
 ## the order of the operation, each by its label with its group at the end of its line, and a line that is no row
 ## of a console is left out; the left window shows what the folder holds, group by group, and of the selected row
@@ -22,6 +22,7 @@
 ## has then, the mouse reported again, the status line saying how the child ended; and at its own end the terminal
 ## is given back as it was.
 ## Offline: no operation of the real tooling is called, and no console of this machine is started.
+## Reconciled for F11.0: the left pane has no `keys:` line of its own any more; the status line names Enter as Start.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -96,7 +97,7 @@ rigOthers(){ ## how many starts were neither the list of the sessions nor the li
 	LC_ALL=C grep -c -v -x -e '--manager-session-list' -e '--manager-console-list' -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" || :
 }
 
-echo "-- Consoles (Tools) is a root, a folder, and lists what the operation gives --"
+echo "-- Consoles is a root, a folder, and lists what the operation gives --"
 rigCase list
 rigScript <<'RIGSCRIPT'
 turn
@@ -136,18 +137,18 @@ RIGSCRIPT
 rigRootLine(){ ## text -- the number of the line of the screen, as first shown, that holds the text
 	printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -n -F -- "$1" | head -1 | LC_ALL=C cut -d: -f1
 }
-rigAssert "the root list holds it after the team members and ahead of the settings, as a folder, whatever other roots stand between" "$( [ "$( rigRootLine ' Team Members  ' )" -lt "$( rigRootLine ' Consoles (Tools)  ' )" ] && [ "$( rigRootLine ' Consoles (Tools)  ' )" -lt "$( rigRootLine ' Settings  ' )" ] && echo in-that-order ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -F ' Consoles (Tools)  ' | LC_ALL=C grep -c -F '►' )" "in-that-order 1"
+rigAssert "the root list holds it after the team members and ahead of the settings, as a folder, whatever other roots stand between" "$( [ "$( rigRootLine ' Team Members  ' )" -lt "$( rigRootLine ' Consoles  ' )" ] && [ "$( rigRootLine ' Consoles  ' )" -lt "$( rigRootLine ' Settings  ' )" ] && echo in-that-order ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -F ' Consoles  ' | LC_ALL=C grep -c -F '►' )" "in-that-order 1"
 rigAssert "not entered: its list is read once the selection has rested on its row, and the left window then holds what the folder holds" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "consoles [] 8"
 rigAssert "Enter enters it, and its list is read by the operation with no argument" "$( rigVal in.path ) $( rigCalled --manager-console-list ) $( rigOthers )" "consoles 1 0"
-rigAssert "its window is titled by its name, without the dots"       "[$( rigVal title )]" "[Consoles (Tools)]"
+rigAssert "its window is titled by its name, without the dots"       "[$( rigVal title )]" "[Consoles]"
 rigAssert "the rows stand in the order of the operation, each by its label with its group at the end" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )]" \
 	"[>..][ Bash Shell                  shell][ Claude Native Console      agents][ Source Console             distro][ Plain Tool                 distro]"
 rigAssert "a line that is no row of a console, and one too short to hold a command, is left out" "$( rigVal in.rows ) [$( rigVal row6 )]" "5 []"
 rigAssert "on the row that goes up the left window shows the folder itself: every one as a table, nothing above it, and no sentence of what Enter does" "[$( rigPane u 2 )][$( rigPane u 3 | LC_ALL=C sed 's/  */ /g' )]" \
-	"[ Consoles (Tools) [wrap]][ CONSOLE GROUP COMMAND]"
+	"[ Consoles [wrap]][ CONSOLE GROUP COMMAND]"
 rigAssert "the menu Console is in the bar in this view"              "[$( rigVal bar )] [$( rigVal upStatus )]" "[ ≡  Go  Console  View  Help] [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "Left goes back to the root, onto its row, and 6 goes there from anywhere" "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigVal six.path )]" "[] consoles [consoles]"
-rigAssert "the Go menu holds it with its key"                        "$( rigScreenHolds g '│ Consoles (Tools)         6 │' )" 1
+rigAssert "the Go menu holds it with its key"                        "$( rigScreenHolds g '│ Consoles                 6 │' )" 1
 
 echo "-- the left window shows the selected console --"
 rigCase shown
@@ -173,8 +174,8 @@ rigAssert "its title is its label, and under it its label as its head, its key a
 rigAssert "the folder it is started in, as it is written"            "[$( rigPane c 6 )]" "[  directory  /rig/ws rig]"
 rigAssert "its command as it will be run, word by word: a word with a blank stands between quotes" "[$( rigPane c 7 )][$( rigPane c 8 )][$( rigPane c 9 )]" \
 	"[  command    /usr/bin/env 'MMDAPP=/rig/ws rig' 'REASON=the shell of the workspace,][             by its own name.' /rig/sh_x --rcfile '/rig/ws rig/rc_file' -i][  terminal   yes, on its input and its output]"
-rigAssert "no sentence of what Enter does: its key stands under the item and in the status line" "[$( rigPane c 10 )][$( rigPane c 11 )] [$( rigVal cKeys )] [$( rigVal cStatus )]" \
-	"[][] [keys: ENTER start] [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "no sentence of what Enter does: its key stands in the status line, and the pane has no keys line of its own" "[$( rigPane c 10 )][$( rigPane c 11 )] [$( rigVal cKeys )] [$( rigVal cStatus )]" \
+	"[][] [] [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "nothing was read for it but the list, and nothing spills" "$( rigCalled --manager-console-list ) $( rigOthers ) $( rigVal c.spills )" "1 0 0"
 rigAssert "the menu Console holds the start, with its key"           "$( rigScreenHolds m '│ Start  ENTER │' )" 1
 rigAssert "one that needs no terminal says so, and its words stand as they are" "[$( rigPane p 7 )][$( rigPane p 8 )]" "[  command    /rig/tool_x - _][  terminal   no]"
@@ -302,7 +303,7 @@ rigPtyCase(){ ## name, how the stand-in ends
 	rigRow console standin alpha_bravo_charlie_delta_echo_foxtrot_golf_hotel_india_juliet_kilo_lima_mike_november_oscar_papa_quebec_romeo Rig_Standin terminal "$rigTmp/ws rig" "$rigPython" -I -B "$rigTmp/standin.py" "$2" "$MANAGER_SCREEN_RIG/facts" "a word" _ - > "$MANAGER_SCREEN_RIG/rows.--manager-console-list"
 }
 rigPty(){ ## the keys -- what the driver says of the run is kept in rigOut
-	rigOut="$( MANAGER_SCREEN_PTY_TRACE="$rigTrace" "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 100 30 "Consoles (Tools)" "$1" 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws rig" --tools "$rigTmp/tools" 2>&1 )"
+	rigOut="$( MANAGER_SCREEN_PTY_TRACE="$rigTrace" "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 100 30 "Consoles" "$1" 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws rig" --tools "$rigTmp/tools" 2>&1 )"
 }
 rigFact(){ ## name -- what the stand-in console noted under it
 	LC_ALL=C sed -n "s/^$1=//p" "$MANAGER_SCREEN_RIG/facts" 2> /dev/null | head -1

@@ -28,6 +28,9 @@
 ## read again after it, its success stands in the status line and its refusal whole in a box. Until that row was
 ## read the keys open nothing.
 ## Offline: no operation of the real tooling is called, and no ask is read from this machine.
+## Reconciled for F11.0: the left pane has no `keys:` line any more; every dialog has bigger margins inside its frame
+## (two empty lines under its top, one more under its buttons, three blank cells at each side), so its box is four
+## cells wider and two lines taller and what it holds stands where it stood.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -589,7 +592,7 @@ turn
 cells sView 39 0 120
 RIGSCRIPT
 rigAssert "a plain question: Enter answers, d dismisses, o shows the link, and it takes no reject" "[$( rigVal s3 )]" "[ ENTER Answer  d Dismiss  o Link  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
-rigAssert "the left window names the same keys under it"              "[$( rigVal k3 )]" "[keys: ENTER answer  d dismiss  o link]"
+rigAssert "the left window names no keys of its own: the status line alone names them" "[$( rigVal k3 | LC_ALL=C sed -n 's/^\(keys:\).*/\1/p' )]" "[]"
 rigAssert "a permission with no link: it takes a reject, and no key shows a link" "[$( rigVal s2 )]" "[ ENTER Answer  j Reject  d Dismiss  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "a decision: no reject of its own"                          "[$( rigVal s1 )]" "[ ENTER Answer  d Dismiss  o Link  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "the menu Question holds the four, with their keys"         "$( rigVal menu.menu ) $( rigBoxHolds qm '│ Answer         ENTER │' ) $( rigBoxHolds qm '│ Reject             j │' ) $( rigBoxHolds qm '│ Dismiss            d │' ) $( rigBoxHolds qm '│ Show the link      o │' )" "question:answer 1 1 1 1"
@@ -626,9 +629,9 @@ get done
 said doneSaid
 RIGSCRIPT
 rigAssert "the dialog opens on its answers, titled by the kind and who asked" "[$( rigVal dlg.dialog )] [$( rigVal dlg.dialogTitle )]" "[answer:answers|1] [Answer the decision of keeper-myx]"
-rigAssert "it says who asked, of whom, as whom the answer stands, and the question" "$( rigBoxHolds abox '║ asked by  keeper-myx' ) $( rigBoxHolds abox '║ asked of  magic-coordinator' ) $( rigBoxHolds abox '║ answer as magic-coordinator' ) $( rigBoxHolds abox 'here after a second round of asking. What next?' )" "1 1 1 1"
-rigAssert "its answers stand with their numbers, and with what each does, as the rows say" "$( rigBoxHolds abox '║ > 1. keep: keep the file  --  settles it' ) $( rigBoxHolds abox '║   2. drop: drop it  --  goes up the chain, it stays open' )" "1 1"
-rigAssert "a field for words, and the buttons Answer and Cancel"      "$( rigBoxHolds abox '║ Words to go with it, or none' ) $( rigBoxHolds abox ' »Answer« ▅   Cancel  ▅' )" "1 1"
+rigAssert "it says who asked, of whom, as whom the answer stands, and the question" "$( rigBoxHolds abox '║   asked by  keeper-myx' ) $( rigBoxHolds abox '║   asked of  magic-coordinator' ) $( rigBoxHolds abox '║   answer as magic-coordinator' ) $( rigBoxHolds abox 'here after a second round of asking. What next?' )" "1 1 1 1"
+rigAssert "its answers stand with their numbers, and with what each does, as the rows say" "$( rigBoxHolds abox '║   > 1. keep: keep the file  --  settles it' ) $( rigBoxHolds abox '║     2. drop: drop it  --  goes up the chain, it stays open' )" "1 1"
+rigAssert "a field for words, and the buttons Answer and Cancel"      "$( rigBoxHolds abox '║   Words to go with it, or none' ) $( rigBoxHolds abox ' »Answer« ▅   Cancel  ▅' )" "1 1"
 rigAssert "the status line names the keys of the dialog, the digits among them" "[$( rigVal sDlg )]" "[ UP/DN Pick  1-2 Choose  ENTER Answer  TAB Next  ESC Cancel]"
 rigAssert "a digit chooses the answer of that number"                 "[$( rigVal two.dialog )]" "[answer:answers|2]"
 rigAssert "words are typed into the field"                            "[$( rigVal typed.dialog )]" "[answer:words|be sure]"
@@ -661,7 +664,7 @@ keys o
 turn
 get link
 RIGSCRIPT
-rigAssert "the dialog of a plain question has the field of its answer, and no list" "[$( rigVal plain.dialog )] [$( rigVal plain.dialogTitle )] $( rigBoxHolds pbox '║ The answer' ) $( rigBoxHolds pbox 'Answers' ) $( rigBoxHolds pbox '║ Which of the two runs is the one to keep?' )" "[reply:words|] [Answer the question of magic-tester] 1 0 1"
+rigAssert "the dialog of a plain question has the field of its answer, and no list" "[$( rigVal plain.dialog )] [$( rigVal plain.dialogTitle )] $( rigBoxHolds pbox '║   The answer' ) $( rigBoxHolds pbox 'Answers' ) $( rigBoxHolds pbox '║   Which of the two runs is the one to keep?' )" "[reply:words|] [Answer the question of magic-tester] 1 0 1"
 rigAssert "an empty answer is refused inside the dialog, which stays open" "[$( rigVal empty.dialog )] [$( rigVal empty.dialogSays )]" "[reply:words|] [nothing is answered: the answer is empty]"
 rigAssert "the words typed are the answer: one call, with them after --answer" "[$( rigVal pdone.notice )] $( rigActCalls )" "[answered: use it, as magic-coordinator] [--manager-pending-reply-answer][--id][$rigAsk3][--answer][use it]"
 rigAssert "o shows the link of the message of the question in a box" "[$( rigVal link.dialog )] [$( rigVal link.dialogTitle )] [$( rigVal link.dialogHolds )]" "[information:ok|] [Link of the question of magic-tester] [The message of the question, where it was posted: /  https://rig.slack.example/archives/C0RIGCHAN01/p1791840000000400]"
@@ -703,9 +706,9 @@ keys j
 get norej
 RIGSCRIPT
 rigAssert "o on a question whose row gives no link says so in the status line"  "[$( rigVal nolink.dialog )] [$( rigVal nolink.notice )]" "[] [Show the link: the message of this permission has no link]"
-rigAssert "j asks for the confirmation, naming the answer a reject gives" "[$( rigVal rej.dialog )] [$( rigVal rej.dialogTitle )] $( rigBoxHolds rbox '║ REJECT the permission of magic-librarian: it is answered' ) $( rigBoxHolds rbox ' »Reject« ▅   Cancel  ▅' )" "[reject:words|] [Reject the permission of magic-librarian] 1 1"
+rigAssert "j asks for the confirmation, naming the answer a reject gives" "[$( rigVal rej.dialog )] [$( rigVal rej.dialogTitle )] $( rigBoxHolds rbox '║   REJECT the permission of magic-librarian: it is answered' ) $( rigBoxHolds rbox ' »Reject« ▅   Cancel  ▅' )" "[reject:words|] [Reject the permission of magic-librarian] 1 1"
 rigAssert "Enter rejects: its success in the status line; the reject is one call with --reject, the dismissal after it one call with its reason" "[$( rigVal rdone.notice )] $( rigActCalls )" "[rejected: deny, as magic-coordinator] [--manager-pending-reply-answer][--id][$rigAsk2][--reject] [--manager-pending-reply-dismiss][--id][$rigAsk2][--reason][no need]"
-rigAssert "d asks for the confirmation of the dismissal, with a field for its reason" "[$( rigVal dis.dialog )] [$( rigVal dis.dialogTitle )] $( rigBoxHolds dbox '║ Reason, or none' ) $( rigBoxHolds dbox ' »Dismiss« ▅   Cancel  ▅' )" "[dismiss:words|] [Dismiss the permission of magic-librarian] 1 1"
+rigAssert "d asks for the confirmation of the dismissal, with a field for its reason" "[$( rigVal dis.dialog )] [$( rigVal dis.dialogTitle )] $( rigBoxHolds dbox '║   Reason, or none' ) $( rigBoxHolds dbox ' »Dismiss« ▅   Cancel  ▅' )" "[dismiss:words|] [Dismiss the permission of magic-librarian] 1 1"
 rigAssert "the operation refuses: what it wrote stands whole in a box" "[$( rigVal dfail.dialogTitle )] [$( rigVal dfail.dialogHolds )]" "[The dismissal failed] [operation: --manager-pending-reply-dismiss --id $rigAsk2 --reason no need / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
 rigAssert "j on a question that takes no reject opens no confirmation: the status line says why" "[$( rigVal norej.dialog )] [$( rigVal norej.notice )]" "[] [Reject: this decision has no negative answer of its own: answer it, or dismiss it]"
 

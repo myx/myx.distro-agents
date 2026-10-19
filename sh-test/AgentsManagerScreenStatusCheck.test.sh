@@ -13,6 +13,7 @@
 ## line names the same general keys whatever is selected. The reads of one selected session are taken out of the
 ## table here: AgentsManagerScreenPaneCheck holds them.
 ## Offline: no operation of the real tooling is called. The time zone is set here, so the clock reads the same anywhere.
+## Reconciled for F11.0: the left pane has no `keys:` line any more; the status line alone names the keys of the row.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -194,8 +195,8 @@ cells pendingBottom 39 0 120
 RIGSCRIPT
 rigAssert "a running session is selected"                            "$( rigVal session.selected )" "11111111-0000-4000-8000-000000000001"
 rigAssert "on a session the status line names the keys that act on it, and after them the keys of every window" "[$( rigVal sessionBottom )]" "[ ENTER Open  BSP Up  a Active  k Kill  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
-rigAssert "the keys that act on the session stand in the left pane too" "[$( rigVal sessionKeys )]" "[keys: k kill]"
-rigAssert "on Launch / Spawn it names what the list takes there, then the keys of every window"        "$( rigVal launch.selected ) [$( rigVal launchBottom )]" "launch [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "the keys that act on the session stand in no line of the left pane" "[$( rigVal sessionKeys | LC_ALL=C sed -n 's/^\(keys:\).*/\1/p' )]" "[]"
+rigAssert "on Launch (Start) it names what the list takes there, then the keys of every window"        "$( rigVal launch.selected ) [$( rigVal launchBottom )]" "launch [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "and on another section"                                   "$( rigVal pending.selected ) [$( rigVal pendingBottom )]" "pending [$rigHints]"
 
 if [ "$rigFailCount" -ne 0 ] ; then

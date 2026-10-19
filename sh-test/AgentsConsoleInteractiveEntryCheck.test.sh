@@ -4,7 +4,7 @@
 ## "Start Agents Console" task runs. With a harness leg (claude, copilot, scaleway) as
 ## the CLI service, however it was chosen, by SPAWN_CLI_SERVICE, by --cli or by the PATH
 ## scan, the console starts the manager screen: it runs `DistroAgentsTools.fn.sh
-## --intern-manager` with no option of its own, and runs no root harness, no vendor
+## --manager` with no option of its own, and runs no root harness, no vendor
 ## binary, no claude-native and no bash console; on a pseudo-terminal the screen comes
 ## up and the quit key ends it; with no terminal, or where the python3 first on PATH
 ## cannot load curses, one error line says so, nothing else starts in its place, and the
@@ -23,7 +23,7 @@
 ## SPAWN_CLI_SERVICE through the real config reader. The origin it resolves is a rig
 ## copy of the real tree (symlinks) whose DistroAgentsTools.fn.sh is a stub: it logs a
 ## call of --intern-root-harness and hands every other operation to the real one, so no
-## Slack and no spawn happens; a call of --intern-manager it logs too, and then hands on,
+## Slack and no spawn happens; a call of --manager it logs too, and then hands on,
 ## so the real entry of the screen is what answers. RIG_CONSOLE may name another console file to judge
 ## instead, for a red run. Every run goes through one `env -i` whose child refuses to
 ## start outside the rig tree, and a CLI named claude or copilot in its PATH is a stub
@@ -79,7 +79,7 @@ for rigPkg in "$MDLT_ORIGIN"/myx/myx.distro-agents/sh-scripts/* ; do
 	[ "${rigPkg##*/}" != "DistroAgentsTools.fn.sh" ] || continue
 	ln -s "$rigPkg" "$rigOrigin/myx/myx.distro-agents/sh-scripts/${rigPkg##*/}"
 done
-printf '#!/bin/sh\ncase "$1" in\n\t--intern-root-harness) printf "called %%s\\n" "$*" >> "$MMDAPP/../root.log" ; printf "workspace %%s\\n" "$MMDAPP" >> "$MMDAPP/../root.log" ; exit 0 ;;\n\t--intern-manager) printf "called %%s\\n" "$*" >> "$MMDAPP/../manager.log" ;;\nesac\nexec "%s" "$@"\n' "$rigFn" \
+printf '#!/bin/sh\ncase "$1" in\n\t--intern-root-harness) printf "called %%s\\n" "$*" >> "$MMDAPP/../root.log" ; printf "workspace %%s\\n" "$MMDAPP" >> "$MMDAPP/../root.log" ; exit 0 ;;\n\t--manager) printf "called %%s\\n" "$*" >> "$MMDAPP/../manager.log" ;;\nesac\nexec "%s" "$@"\n' "$rigFn" \
 	> "$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 chmod +x "$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 
@@ -165,7 +165,7 @@ echo "-- the editor task entry, claude (our harness leg) configured, the command
 rigScenario entry-claude claude rig-key-1 claude
 rigEntry
 rigAssert "the entry of the manager screen is called, once" "$( rigManagerCalls )" 1
-rigAssert "with no option of ours"                          "$( rigManagerCall )" "--intern-manager"
+rigAssert "with no option of ours"                          "$( rigManagerCall )" "--manager"
 rigAssert "the root harness is not called"                  "$( rigRootCalls )" 0
 rigAssert "no bash console opens"                           "$( rigBashConsole )" no
 rigAssert "no vendor binary is started"                     "$( rigStarted claude )" 0
@@ -208,7 +208,7 @@ rigAssert "no bash console opens"                           "$( rigBashConsole )
 echo "-- nothing configured, the command claude in PATH (the scan takes a leg): the screen starts for it too --"
 rigScenario scan-claude "" "" claude
 rigEntry
-rigAssert "the entry of the manager screen is called, once" "$( rigManagerCalls ) $( rigManagerCall )" "1 --intern-manager"
+rigAssert "the entry of the manager screen is called, once" "$( rigManagerCalls ) $( rigManagerCall )" "1 --manager"
 rigAssert "no bash console opens"                           "$( rigBashConsole )" no
 rigAssert "the root harness is not called"                  "$( rigRootCalls )" 0
 rigAssert "no vendor binary is started"                     "$( rigStarted claude )" 0
@@ -218,13 +218,13 @@ rigAssert "with no terminal it ends with status 1, on the one line of the screen
 echo "-- an explicit --cli naming the leg, the setting naming the vendor CLI: the screen starts, as for any leg --"
 rigScenario explicit-leg claude-native "" claude
 rigEntry --cli-auto --cli claude
-rigAssert "the entry of the manager screen is called, once" "$( rigManagerCalls ) $( rigManagerCall )" "1 --intern-manager"
+rigAssert "the entry of the manager screen is called, once" "$( rigManagerCalls ) $( rigManagerCall )" "1 --manager"
 rigAssert "no bash console opens"                           "$( rigBashConsole )" no
 rigAssert "the root harness is not called"                  "$( rigRootCalls )" 0
 rigAssert "no vendor binary is started"                     "$( rigStarted claude )" 0
 echo "-- a word after the flags is not handed on: the screen takes none --"
 rigEntry --cli claude RIG-WORD
-rigAssert "the entry is called once more, with no option and no word" "$( rigManagerCalls ) $( LC_ALL=C sed -n 's/^called //p' "$rigDir/manager.log" | LC_ALL=C tail -1 )" "2 --intern-manager"
+rigAssert "the entry is called once more, with no option and no word" "$( rigManagerCalls ) $( LC_ALL=C sed -n 's/^called //p' "$rigDir/manager.log" | LC_ALL=C tail -1 )" "2 --manager"
 rigAssert "and still no vendor binary and no root harness"  "$( rigStarted claude ) $( rigRootCalls )" "0 0"
 echo "-- sibling: --cli names the vendor CLI --"
 rigEntry --cli-auto --cli claude-native
@@ -248,7 +248,7 @@ echo "-- --manager on a native setup (claude-native configured, the command clau
 rigScenario manager-native claude-native rig-key-1 claude
 rigEntry --manager
 rigAssert "the entry of the manager screen is called, once"   "$( rigManagerCalls )" 1
-rigAssert "with no option of ours"                            "$( rigManagerCall )" "--intern-manager"
+rigAssert "with no option of ours"                            "$( rigManagerCall )" "--manager"
 rigAssert "the vendor claude is not started"                  "$( rigStarted claude )" 0
 rigAssert "the root harness is not called"                    "$( rigRootCalls )" 0
 rigAssert "no bash console opens"                             "$( rigBashConsole )" no
@@ -266,7 +266,7 @@ rigAssert "the entry was called once more, and still no vendor binary" "$( rigMa
 echo "-- --manager with a harness leg configured, as Agents --start-console gives it (--cli-auto first) --"
 rigScenario manager-leg claude "" claude
 rigEntry --cli-auto --manager
-rigAssert "the entry of the manager screen is called, once"   "$( rigManagerCalls ) $( rigManagerCall )" "1 --intern-manager"
+rigAssert "the entry of the manager screen is called, once"   "$( rigManagerCalls ) $( rigManagerCall )" "1 --manager"
 rigAssert "the root harness is not called"                    "$( rigRootCalls )" 0
 rigAssert "no vendor binary is started"                       "$( rigStarted claude )" 0
 echo "-- sibling: the same entry without --manager starts the screen as well, since its service is a leg (the first entry above) --"

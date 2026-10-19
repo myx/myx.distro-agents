@@ -20,6 +20,7 @@
 ## they were not run, and which key runs them, and that key runs them from the row of the folder, after which the
 ## folder says how they ended and when. A folder whose read fails says so in the left window.
 ## Offline: no operation of the real tooling is called.
+## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -290,7 +291,7 @@ turn
 show back
 RIGSCRIPT
 rigAssert "the members are being read, as a read of the focus" "[$( rigVal team.selected )] [$( rigVal team.reading | tr ',' '\n' | LC_ALL=C grep -F team )]" "[team] [list:team]"
-rigAssert "two folders on, while that read runs: the folder there waits by its own name, its read held back, and nothing of the members shows" "[$( rigVal other.selected )] [$( rigLeft other )] [$( rigVal other.reading | tr ',' '\n' | LC_ALL=C grep -c -F consoles )]" "[consoles] [Populating Consoles (Tools)...] [0]"
+rigAssert "two folders on, while that read runs: the folder there waits by its own name, its read held back, and nothing of the members shows" "[$( rigVal other.selected )] [$( rigLeft other )] [$( rigVal other.reading | tr ',' '\n' | LC_ALL=C grep -c -F consoles )]" "[consoles] [Populating Consoles...] [0]"
 rigAssert "when it has ended the folder there is read and shown, and still nothing of the members" "$( rigHolds later 'DistroAgentsConsole.sh' ) $( rigHolds later '4 members' ) $( rigCalls --manager-console-list )" "1 0 1"
 rigAssert "back on the members: what that read gave stands there at once, and it was made once" "$( rigHolds back ' 1 magic-coordinator running' ) $( rigCalls --manager-team-member-list )" "1 1"
 
@@ -342,7 +343,7 @@ get aged
 RIGSCRIPT
 rigAssert "entered: its rows are there and no second read was made; the period passed: one more" "[$( rigVal in.path )] $( rigVal in.rows ) $( LC_ALL=C grep -c -F -- --member-pending-reply-read "$MANAGER_SCREEN_RIG/calls.in" ) $( rigCalls --member-pending-reply-read )" "[pending] 4 1 2"
 
-echo "-- inside the sessions and the configuration: Launch / Spawn, Server Keys, a subject; the checker is not run by the focus --"
+echo "-- inside the sessions and the configuration: Launch (Start), Server Keys, a subject; the checker is not run by the focus --"
 rigCase inner
 rigScript <<'RIGSCRIPT'
 turn
@@ -378,7 +379,7 @@ keys BACKSPACE UP ENTER DOWN
 wait focus 5
 show I
 RIGSCRIPT
-rigAssert "Launch / Spawn: every routine as a table, its start in a word, nothing above it" "$( rigLeft L )" " ROUTINE START         OWNER             TITLE         SESSION /  daily   startable     magic-coordinator Daily meeting work /  retro   members       magic-coordinator Retro         work /  sweep   broken        keeper-myx        Sweep         work /  audit   not-startable keeper-myx        Audit         work"
+rigAssert "Launch (Start): every routine as a table, its start in a word, nothing above it" "$( rigLeft L )" " ROUTINE START         OWNER             TITLE         SESSION /  daily   startable     magic-coordinator Daily meeting work /  retro   members       magic-coordinator Retro         work /  sweep   broken        keeper-myx        Sweep         work /  audit   not-startable keeper-myx        Audit         work"
 rigAssert "the checker on its row, rested, the period passed and a read asked for: it was not run; the folder says so and names the key, which the status line offers" "[$( rigVal k0.selected )] [$( rigLeft K0 | sed 's/ \/ .*$//' )] $( rigHolds K0 'r runs them.' ) [$( rigVal k0s | LC_ALL=C grep -c -F 'r Run' )]" "[checker] [The checks were not run yet in this run of the screen.] 1 [1]"
 rigAssert "r on that row runs them, once, and the folder then holds every check as a table, the worst first, nothing above it" "[$( rigVal asked.notice )] $( rigCalls --manager-check-run ) [$( rigLeft K1 )]" "[Run the checks: asked of the tooling, it takes up to a minute] 1 [ CHECK STATE DOMAIN  REASON /  Token fail  slack   the token is missing /  Bash  ok    install fine]"
 rigAssert "Server Keys: its groups in one table, each public key whole and never its short form, the list read once and each key that can be read" "$( rigLeft Y ) $( rigHolds Y short-marker ) $( rigCalls --manager-keys-list ) $( rigCalls '--manager-keys-read deploy' ) $( rigCalls '--manager-keys-read host' )" " KEY        TYPE        PUBLIC LINE /  To add to git /  Deploy key ssh-ed25519 ssh-ed25519 AAAAC3NzaWHOLEKEY rig@host /  To trust when connecting /  Host key   ssh-ed25519 absent: /rig/keys/host.pub 0 1 1 0"
@@ -398,7 +399,7 @@ keys ESC
 turn
 show said
 RIGSCRIPT
-rigAssert "a box says it once, and the left window says it while the folder is selected" "[$( rigVal box.dialogTitle )] [$( rigLeft said )]" "[A read failed] [Consoles (Tools) could not be read: rig-tools: ⛔ ERROR: the rig said fail]"
+rigAssert "a box says it once, and the left window says it while the folder is selected" "[$( rigVal box.dialogTitle )] [$( rigLeft said )]" "[A read failed] [Consoles could not be read: rig-tools: ⛔ ERROR: the rig said fail]"
 
 echo "-- the real screen on a pseudo-terminal: it starts, a folder that has the focus is shown from its rows, and Ctrl-X ends it --"
 rigCase pty

@@ -25,6 +25,9 @@
 ## pseudo-terminal, starts,
 ## shows the folders and ends on Ctrl-X with the terminal given back.
 ## Offline: no operation of the real tooling is called, no check is run and no key of this machine is read.
+## Reconciled for F11.0: a spacer stands between the folders of Configuration and its subjects; every dialog has
+## bigger margins inside its frame (two empty lines under its top, one more under its buttons, three blank cells at
+## each side), so its box is four cells wider and two lines taller and what it holds stands where it stood.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -188,7 +191,7 @@ get in
 cells row2 3 85 119
 cells row3 4 85 119
 cells row4 5 85 119
-cells row5 6 85 119
+cells row5 7 85 119
 keys DOWN
 turn
 show c
@@ -345,7 +348,7 @@ rigAssert "where it is to be registered; no sentence names the key that shows it
 rigAssert "it is whole in Basic B/W and in Magic too"                "$( rigJoined dbw | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123mdci@rig-host' ) $( rigJoined dmagic | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123mdci@rig-host' )" "1 1"
 rigAssert "the shortened key of a row is nowhere on the screen, and no line of the left window is cut" "$( rigScreenHolds u 'SHORT-never' ) $( rigScreenHolds g 'SHORT-never' ) $( rigScreenHolds d 'SHORT-never' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -e '^u|' -e '^d|' | LC_ALL=C sed -e 's/│║.*$//' | LC_ALL=C grep -c -F '…' )" "0 0 0 0"
 rigAssert "f opens the box of that key alone, which says that its line is being read" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] [$( rigVal asked.dialogHolds )]" "[keyline:ok|] [Deploy Key] [Its public line is being read.]"
-rigAssert "it is read anew for the box, by the name of the key, and stands whole there, broken only where the box is full" "$( rigCalled '--manager-keys-read deploy' ) $( rigBoxHolds b '║  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJ ║' ) $( rigBoxHolds b '║ KLMNOPQRSTUVWXYZ0123 mdci@rig-host' ) $( rigBoxHolds b ' »OK« ▅' )" "2 1 1 1"
+rigAssert "it is read anew for the box, by the name of the key, and stands whole there, broken only where the box is full" "$( rigCalled '--manager-keys-read deploy' ) $( rigBoxHolds b '║    ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJ   ║' ) $( rigBoxHolds b '║   KLMNOPQRSTUVWXYZ0123 mdci@rig-host' ) $( rigBoxHolds b ' »OK« ▅' )" "2 1 1 1"
 rigAssert "with its group, its type and its fingerprint, and where it is to be registered" "$( rigBoxHolds b 'group     Keys To Add To Git' ) $( rigBoxHolds b 'type      ssh-ed25519' ) $( rigBoxHolds b 'fingerprint SHA256:abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ' ) $( rigBoxHolds b '  myx/myx.common  git@github.com:myx/myx.common.git' ) $( rigBoxHolds b '  myx/myx.distro-agents  git@github.com:myx/myx.distro-agents.git' )" "1 1 1 1 1"
 rigAssert "Enter closes the box"                                     "[$( rigVal closed.dialog )]" "[]"
 rigAssert "a key that cannot be read says so, and f opens no box and reads nothing" "$( rigPaneHolds a ' No public key can be read at its file.' ) $( rigPaneHolds a '  state  absent' ) [$( rigVal absent.dialog )] [$( rigVal absent.notice )] $( LC_ALL=C grep -c -e '--manager-keys-read' "$MANAGER_SCREEN_RIG/calls" )" "1 1 [] [Full public line: no public key can be read there] 4"

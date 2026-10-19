@@ -2,7 +2,7 @@
 ##
 ## AgentsManagerScreen.py -- the manager screen of the agents console: what
 ## `DistroAgentsConsole.sh --manager` shows, started by `DistroAgentsTools.fn.sh
-## --intern-manager`. It looks as a Turbo Vision program does: a menu bar, a desktop with
+## --manager`. It looks as a Turbo Vision program does: a menu bar, a desktop with
 ## two windows tiled on it, the list on the right and what is selected there on the left,
 ## a status line, and dialogs over them. What it is made of is declared as data, its
 ## windows (WINDOWS), its menus (MENUS), its commands with their keys (COMMANDS) and its
@@ -13,7 +13,7 @@
 ## CALLS, OperationReader), so that another front end can use the same operations.
 ## It reads no file of a session and no registry itself, and it signals no process
 ## and starts no CLI itself: a kill, a start and the start of a control thread are
-## operations too. The one thing it starts itself is what `Consoles (Tools)` lists: a
+## operations too. The one thing it starts itself is what `Consoles` lists: a
 ## console, as a child that is given the whole terminal, from the words an operation
 ## printed for it, and the screen takes the terminal back when that child ends.
 ##
@@ -72,7 +72,7 @@ TITLE_ON, TITLE, SHADE, BOX_SHADE = 26, 27, 28, 29
 EDGE_ON, EDGE_ON_SHADE, EDGE, EDGE_SHADE, TRACK, THUMB, KEY_CHIP = 30, 31, 32, 33, 34, 35, 36
 BOX_BUTTON_DEF, ALERT, ALERT_FRAME, ALERT_HEAD, ALERT_SHADE = 37, 38, 39, 40, 41
 BOX_EDGE = 42
-ROW, ROW_ALT, ROW_HEAD = 43, 44, 45
+ROW, ROW_ALT, ROW_HEAD, ROW_LINE = 43, 44, 45, 46
 LOOKS = (
     ## the text of a window; what stands out in it; the row the selection is on; what is of less weight
     (".", "", "white", "blue", False),
@@ -146,13 +146,25 @@ LOOKS = (
     ## the thin line at the foot of a dialog, where a style draws edges of blocks: in the colour
     ## of the ground of its title tab, on the dialog's own
     ("L", "RB", "white", "white", True),
-    ## a row of a table of the left pane (paneTable), and every other row, which a style sets apart
-    ## by its ground where it has the shades for it, and by dimmer text where it has not
+    ## a row of a table of the left pane (paneTable), and every other row (THE TABLE COLOUR RULE,
+    ## below): the same text, always, and a ground of its own where the colours name one
     ("c", "", "white", "blue", False),
-    ("j", "D", "cyan", "blue", False),
+    ("j", "", "white", "blue", False),
     ## the header of such a table, the names of its columns, a little apart from its rows
     ("u", "B", "yellow", "blue", True),
+    ## the last line of a row of such a table, underlined where the terminal has it (LINED_LOOKS),
+    ## in colours that name no ground of their own for every other row, the lines wrapped
+    ("l", "", "white", "blue", False),
 )
+## THE TABLE COLOUR RULE. Each set of colours of a style names a ground for every other row
+## of a table (ROW_ALT) close to that of a row (ROW), or names none. The other rows differ
+## from a row only in that ground, never in their text, its colour, its brightness or its
+## look with no colours: the text carries what the content means, and nothing else. Where the
+## colours name none (rowsApart), the ground never changes; with the lines of the pane wrapped
+## each row is underlined across the table instead (ROW_LINE), where the terminal underlines,
+## and with them not wrapped, a row a line, nothing marks the rows.
+## The looks a surface underlines, where its terminal has underline.
+LINED_LOOKS = (ROW_LINE,)
 ## The letter a look without colours reads back as.
 MONO_LETTERS = {"": ".", "B": "B", "R": "R", "D": "D", "RB": "H", "RD": "d"}
 ## The colours of a style that has its own (STYLES "looks"), for each look of LOOKS by its
@@ -216,7 +228,7 @@ STYLE_LOOKS = {
         ALERT_SHADE: ("red", "black", False, 124, 16, False),
         BOX_EDGE: ("white", "cyan", False, 231, 87, False),
         ROW: ("white", "blue", False, 231, 63, False),
-        ROW_ALT: ("cyan", "blue", False, 231, 62, False),
+        ROW_ALT: ("white", "blue", False, 231, 62, False),
         ROW_HEAD: ("yellow", "blue", True, 228, 61, True),
     },
     ## Magic in its grey colours (nu-gray), those of the picture on grey (the Disk Doctor): the
@@ -269,7 +281,7 @@ STYLE_LOOKS = {
         ALERT_SHADE: ("red", "black", False, 124, 16, False),
         BOX_EDGE: ("white", "blue", False, 231, 63, False),
         ROW: ("white", "blue", True, 231, 19, False),
-        ROW_ALT: ("cyan", "blue", False, 231, 18, False),
+        ROW_ALT: ("white", "blue", True, 231, 18, False),
         ROW_HEAD: ("yellow", "blue", True, 228, 17, True),
     },
 }
@@ -314,7 +326,7 @@ STYLE_LOOKS["tv-blue"] = {
     SHADE: ("black", "blue", False, 16, 19, False),
     BOX_SHADE: ("white", "black", False, 248, 16, False),
     ROW: ("yellow", "blue", True, 227, 19, False),
-    ROW_ALT: ("white", "blue", False, 227, 18, False),
+    ROW_ALT: ("yellow", "blue", True, 227, 18, False),
     ROW_HEAD: ("white", "blue", True, 231, 17, False),
 }
 ## "tv-gray", as its demo: grey windows with black text and a white frame on the dithered
@@ -351,7 +363,7 @@ STYLE_LOOKS["tv-gray"] = {
     SHADE: ("black", "white", False, 16, 248, False),
     BOX_SHADE: ("white", "black", False, 248, 16, False),
     ROW: ("black", "white", False, 16, 248, False),
-    ROW_ALT: ("black", "white", True, 16, 250, False),
+    ROW_ALT: ("black", "white", False, 16, 250, False),
     ROW_HEAD: ("blue", "white", False, 19, 246, True),
 }
 ## Basic B/W in colours of its own, each look by how it is drawn with no colours (the second
@@ -366,6 +378,10 @@ BW_SHADES = {
 }
 for bwName, bwShades in BW_SHADES.items():
     STYLE_LOOKS[bwName] = dict((number, bwShades[look[1]]) for number, look in enumerate(LOOKS))
+## The underlined last line of a row is a row in every set of colours: only its line is its own.
+for ownLooks in STYLE_LOOKS.values():
+    if ROW in ownLooks:
+        ownLooks[ROW_LINE] = ownLooks[ROW]
 
 ## The marks of the drawing. plainMarks() changes them for a terminal that is not UTF-8.
 ## A frame is its corner at the top left, its line across, its corner at the top right,
@@ -454,11 +470,21 @@ SECTIONS = (
     ("team", "Team Members"),
     ("teamdata", "Team Data"),
     ("places", "Locations (Places)"),
-    ("consoles", "Consoles (Tools)"),
+    ("consoles", "Consoles"),
     ("settings", "Settings"),
     ("configuration", "Configuration"),
     ("manuals", "Manuals (Help)"),
 )
+## The groups of the roots, in their order, a spacer between two (spacersAt): the work of
+## the team, then where it runs and what is started there, then how it is set up, then the
+## manuals.
+SECTION_GROUPS = (("dashboard", "sessions", "pending", "team", "teamdata"), ("places", "consoles"),
+                  ("settings", "configuration"), ("manuals",))
+## The console user's own setting of .local, beside MDLT_CONSOLE_HISTORY and no setting of
+## the agents, that turns every spacer of the list off where it reads `disable`; the
+## spacers are there where it names nothing else. Read from the environment of the start,
+## where the start of the screen (`--manager`) puts what the user saved.
+SPACERS_VARIABLE = "MDLT_CONSOLE_SPACERS"
 ## The roots that stand in the list only where what they show is there: by the id of the
 ## root, the function that says so from what was read ("shown"), and why its item of the
 ## `Go` menu does nothing where it is not ("says"). Where one is not there the roots after
@@ -529,7 +555,7 @@ ROW_UP = ".."
 ## The rows a level always holds, ahead of the rows its operation gives:
 ## id, what it shows as, kind, whether Enter dives into it.
 FIXED_ROWS = {
-    "sessions": (("launch", "Launch / Spawn", "launch", True),),
+    "sessions": (("launch", "Launch (Start)", "launch", True),),
     "sessions/launch": (("free", "Free prompt", "free", False),),
     "configuration": (("checker", "Config Checker", "checker", True), ("keys", "Server Keys", "keys", True),
                       ("commands", "Tooling Commands", "commands", True)),
@@ -790,7 +816,7 @@ KILL_SAYS = {
     "unreadable": "So it is not asked for: nothing is killed, dismissed or closed. Cancel and Esc close this. The key of the kill asks again, and reads its plan anew.",
 }
 
-## What the root `Consoles (Tools)` holds: the things that are started with the whole
+## What the root `Consoles` holds: the things that are started with the whole
 ## terminal, each sort by the name of the row its operation prints for one. "fields": the
 ## names of the fields of such a row after the first, written as the family writes them,
 ## `_` for a blank and `-` for absent. The fields after those are exact, as they are
@@ -1341,7 +1367,7 @@ COMMANDS = (
      "does": ("go", ("teamdata",))},
     {"name": "places", "keys": goKeys(("places",)), "menu": ("go", 1), "label": "Loc~a~tions (Places)",
      "does": ("go", ("places",))},
-    {"name": "consoles", "keys": goKeys(("consoles",)), "menu": ("go", 1), "label": "Co~n~soles (Tools)",
+    {"name": "consoles", "keys": goKeys(("consoles",)), "menu": ("go", 1), "label": "Co~n~soles",
      "does": ("go", ("consoles",))},
     {"name": "settings", "keys": goKeys(("settings",)), "menu": ("go", 1), "label": "S~e~ttings",
      "does": ("go", ("settings",))},
@@ -1349,7 +1375,7 @@ COMMANDS = (
      "does": ("go", ("configuration",))},
     {"name": "manuals", "keys": goKeys(("manuals",)), "menu": ("go", 1), "label": "Manuals (~H~elp)",
      "does": ("go", ("manuals",))},
-    {"name": "spawn", "keys": goKeys(("sessions", "launch")), "menu": ("go", 2), "label": "~L~aunch / Spawn",
+    {"name": "spawn", "keys": goKeys(("sessions", "launch")), "menu": ("go", 2), "label": "~L~aunch (Start)",
      "does": ("go", ("sessions", "launch"))},
     {"name": "line-up", "keys": ("UP",), "does": ("move", -1, 0)},
     {"name": "line-down", "keys": ("DOWN",), "does": ("move", 1, 0)},
@@ -1483,7 +1509,7 @@ DIALOGS = {
                              {"name": "task", "kind": "input", "label": "What the session is to work on"},
                              {"name": "name", "kind": "input", "label": "Name of the session, or none"}),
                 "buttons": (("start", "Start"), ("cancel", "Cancel"))},
-    ## a prompt and who runs it: the free prompt of `Launch / Spawn`, and the start of one
+    ## a prompt and who runs it: the free prompt of `Launch (Start)`, and the start of one
     ## member; the keys are on the prompt first
     "prompt": {"title": "Free prompt", "feeds": ("prompt", "start"), "reads": ("list:team",), "first": "prompt",
                "controls": ({"name": "about", "kind": "text"},
@@ -1574,9 +1600,17 @@ DIALOG_FILLS = {}
 DIALOG_ESCAPES = {}
 ## The width a dialog takes at most, and how many lines of a list of options and of a
 ## field of several lines it shows, where the terminal has them.
-DIALOG_COLUMNS = 78
+DIALOG_COLUMNS = 82
 DIALOG_OPTIONS = 8
 DIALOG_AREA = 4
+## The margins inside the frame of every dialog, a modal one, a popup and the big window of
+## an operation's output alike, where the terminal has the room: the cells at each side of
+## what it holds, its frame and three blank ones; the empty lines under its top; the empty
+## lines under the shadow of its buttons, where buttons cast none the line of their shadow
+## one more.
+DIALOG_SIDE = 4
+DIALOG_LEAD = 2
+DIALOG_TAIL = 1
 
 ## The handler of each action: handler(state, row) gives the text for the bottom line, or
 ## None. Where it must ask first it opens a dialog with openDialog(). It is called only on
@@ -1592,10 +1626,10 @@ ACTION_HANDLERS = {
     "resume": None,
     "stop": None,
     "restart": None,
-    ## Enter on a routine of `Launch / Spawn`, and on its free prompt: askLaunch and askPrompt, set where they are defined
+    ## Enter on a routine of `Launch (Start)`, and on its free prompt: askLaunch and askPrompt, set where they are defined
     "launch": None,
     "prompt": None,
-    ## Enter and Right on a routine of `Launch / Spawn` that cannot be started: askUnstarted, set where it is defined
+    ## Enter and Right on a routine of `Launch (Start)` that cannot be started: askUnstarted, set where it is defined
     "unstarted": None,
     ## starts the selected team member with a prompt: askStart, set where it is defined
     "start": None,
@@ -1609,7 +1643,7 @@ ACTION_HANDLERS = {
     "link": None,
     ## Enter on a setting, inside a subject: the dialog of its kind: askSetting, set where it is defined
     "setting": None,
-    ## Enter on a row of `Consoles (Tools)`: it is started with the whole terminal: askRun, set where it is defined
+    ## Enter on a row of `Consoles`: it is started with the whole terminal: askRun, set where it is defined
     "run": None,
     ## the whole public line of the selected key of the server, in a box: askKeyLine, set where it is defined
     "line": None,
@@ -2067,6 +2101,30 @@ def levelRows(state):
     return levelRowsAt(state, state.path)
 
 
+## THE SPACERS of the list. A spacer is one blank line between two groups of the rows of the
+## level shown: drawn, and no row, so the selection, the number keys and every count of rows
+## pass it by. At the root one stands between two groups of SECTION_GROUPS; inside a folder,
+## as one rule, between the rows it always holds ahead of its listed ones (FIXED_ROWS, its
+## commands) and the rows its operation gave (its children), so a folder with only one of
+## the two has none. None is drawn above the first row shown. Gives the places among the
+## rows that have a spacer above them: none where the console user turned the spacers off.
+def spacersAt(state, rows):
+    if os.environ.get(SPACERS_VARIABLE, "") == "disable":
+        return frozenset()
+    if not state.path:
+        groupOf = dict((sectionId, number) for number, group in enumerate(SECTION_GROUPS) for sectionId in group)
+        return frozenset(position for position in range(1, len(rows))
+                         if groupOf.get(rows[position]["id"]) != groupOf.get(rows[position - 1]["id"]))
+    fixed = len(FIXED_ROWS.get(levelPattern(state.path), ()))
+    return frozenset((1 + fixed,)) if fixed and len(rows) > 1 + fixed else frozenset()
+
+
+## How many lines the rows from one place to another take, both shown, the spacers between
+## them with them.
+def rowLinesBetween(spacers, first, last):
+    return last - first + 1 + sum(1 for position in spacers if first < position <= last)
+
+
 ## The one place where what a list operation printed becomes rows, by level: the entry of
 ## the read names the form under "rows". "sessions": the sessions, and a level for each
 ## with its runs. "pending": the asks. "routines": the routines to start by hand.
@@ -2150,7 +2208,7 @@ def parseRows(readKey, text):
 
 ## The selection of the level shown, brought in line with its rows as they are now. It
 ## stays on the same item, found by its key; where that item is gone it takes the row at
-## the same place. The rows in view follow it.
+## the same place. The rows in view follow it, in the lines they take with their spacers.
 def cursorOf(state, rows, height):
     cursor = state.cursors.setdefault(levelKey(state.path), {"key": None, "index": 0, "top": 0})
     index = cursor["index"]
@@ -2164,9 +2222,17 @@ def cursorOf(state, rows, height):
     top = cursor["top"]
     if index < top:
         top = index
-    if height > 0 and index >= top + height:
-        top = index - height + 1
-    cursor["top"] = max(0, min(top, max(0, len(rows) - max(height, 1))))
+    spacers = spacersAt(state, rows)
+    if height > 0 and rowLinesBetween(spacers, top, index) > height:
+        top = max(top, index - height + 1)
+        while top < index and rowLinesBetween(spacers, top, index) > height:
+            top += 1
+    ## the first row shown is never lower than the one that fills the window to the last row
+    fit = max(height, 1)
+    least = max(0, len(rows) - fit)
+    while least < len(rows) - 1 and rowLinesBetween(spacers, least, len(rows) - 1) > fit:
+        least += 1
+    cursor["top"] = max(0, min(top, least))
     return cursor
 
 
@@ -2225,7 +2291,7 @@ def goUp(state):
 ## but while the selection stands on the row that goes up, or on nothing, inside a
 ## container, it is the level above, with the row of that container: the left window then
 ## shows the container itself, as its own row showed it one level up, and the commands
-## that act on it apply. One rule for every level: a section at the root, `Launch / Spawn`,
+## that act on it apply. One rule for every level: a section at the root, `Launch (Start)`,
 ## a session.
 def shownPath(state):
     if not state.path:
@@ -2372,7 +2438,7 @@ def panOf(state, room):
 ## What the left pane shows with no read of its own, from what a list read already holds:
 ## the summary of a session and of an agent; of a folder, a row that opens a level, what
 ## it holds, by its declaration (folderSummary); the selected ask; the selected routine of
-## `Launch / Spawn` and its free prompt; the selected team member; a line of a subject of
+## `Launch (Start)` and its free prompt; the selected team member; a line of a subject of
 ## the digest; a check; a server key and a group of them; the selected thing to start; the
 ## one block of the selected row of the dashboard; the selected location. None: the pane
 ## has no such content, and shows what its own read gives.
@@ -2479,31 +2545,9 @@ def placeOf(state, row):
     return levelPattern(state.path) + ":" + row["kind"] if row is not None else ""
 
 
-## The keys that act on the selected row, as the left window names them under the item:
-## the actions COMMANDS gives its level and kind, in their order, and ahead of them the
-## key that starts something there and is another command's elsewhere, each once its
-## handler is built and while it acts on the row as it is now.
-@onShownLevel
-def itemKeysText(state):
-    row = selectedRow(state)
-    if row is None:
-        return ""
-    place = placeOf(state, row)
-    keys = []
-    for command in COMMANDS:
-        if command["does"][0] != "action" or place not in command.get("on", ()):
-            continue
-        if command.get("tells") or not actionShown(state, row, command["does"][1]):
-            continue
-        if command.get("only"):
-            keys.insert(0, "%s %s" % (keyShown(commandKeys(command)[0]), command.get("says", "start")))
-        else:
-            keys.append("%s %s" % (commandKeys(command)[0], command["does"][1]))
-    return "keys: " + "  ".join(keys) if keys else ""
-
-
-## Whether the left pane names the key of an action under that row: its handler is built,
-## and the action acts on the row as it is now.
+## Whether an action acts on that row: its handler is built, and the action acts on the
+## row as it is now. The keys that act on the selected row are the status line's to name:
+## the left pane names none of its own.
 def actionShown(state, row, actionName):
     if ACTION_HANDLERS.get(actionName) is None:
         return False
@@ -2511,10 +2555,9 @@ def actionShown(state, row, actionName):
     return fits is None or bool(fits(state, row))
 
 
-## How many lines of the left pane its content has: one less where the keys of the item
-## stand under it.
+## How many lines of the left pane its content has: all of them.
 def viewContentHeight(state, layout):
-    return layout["viewHeight"] - (1 if itemKeysText(state) else 0)
+    return layout["viewHeight"]
 
 
 ## How many of those lines scroll: what the head of the pane leaves.
@@ -2551,8 +2594,21 @@ def looked(text, look):
 
 
 ## The looks of a table of the left pane: its header, the heading of a group of its rows,
-## a row, and every other row.
-TABLE_LOOKS = {"head": ROW_HEAD, "heading": BOLD, "row": ROW, "alt": ROW_ALT}
+## a row, every other row, and the last line of a row where the rows are underlined.
+TABLE_LOOKS = {"head": ROW_HEAD, "heading": BOLD, "row": ROW, "alt": ROW_ALT, "line": ROW_LINE}
+
+
+## The ground of a look in the colours of the style of now: in its eight colours and in its
+## exact shades, as its own looks name them, else as LOOKS does.
+def lookGround(number):
+    own = STYLE_LOOKS.get(STYLE.get("looks", ""), {}).get(number)
+    return (own[1], own[4]) if own else (LOOKS[number][3], None)
+
+
+## Whether the colours of the style of now name a ground of its own for every other row of a
+## table (THE TABLE COLOUR RULE).
+def rowsApart():
+    return lookGround(ROW_ALT) != lookGround(ROW)
 ## The kinds of the columns of a table of the left pane: "key", the column a row is known by,
 ## a path, a place, a name, which has its room first; "enum", one of a few known words, a
 ## kind, a status, an access, cut to the start that tells its words apart where room is
@@ -2627,7 +2683,8 @@ def enumLeast(values):
 ## TABLE_CAP. `kinds`: the kind of each column (the first a key, the others text, where not
 ## given). A row is a list of words, or a text alone for the heading of a group; `icons`, one
 ## for each row, stand in a place of their own ahead of it, never wrapped; `numbered` puts
-## ahead of them a column `#`, each row's number from 1; `indent` stands ahead of every line. Rows take turns in the looks of a row (TABLE_LOOKS);
+## ahead of them a column `#`, each row's number from 1; `indent` stands ahead of every line. Rows take turns in the looks of a row (TABLE_LOOKS),
+## by THE TABLE COLOUR RULE: where the colours set no row apart and the lines are wrapped, the last line of each row is underlined;
 ## `looks`, one for each row, gives a look of its own to each cell that has one (None: the
 ## row's), a state in its colour (stateLook). Each line of a
 ## row carries its header (`stick`), which stays over the rows when it has gone up out of
@@ -2685,6 +2742,7 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
     blocks = []
     alternate = False
     counted = 0
+    lined = wrap and not rowsApart()
     for index, row in enumerate(rows):
         if isinstance(row, str):
             blocks.append([looked(indent + row, TABLE_LOOKS["heading"])])
@@ -2693,6 +2751,8 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
             counted += 1
             blocks.append(rowLines(row, icons[index] if icons else "", TABLE_LOOKS["alt" if alternate else "row"], str(counted),
                                    looks[index] if looks else None))
+            if lined:
+                blocks[-1][-1].looks[0] = (0, blocks[-1][-1].looks[0][1], TABLE_LOOKS["line"])
             alternate = not alternate
         for line in blocks[-1]:
             line.stick = head[0]
@@ -3492,9 +3552,12 @@ def dispatchLines(dispatch, width):
 
 ## The selected agent of a session for the left pane, from its row, as facts, its state
 ## and its process in their colours; once the read of that one run has come (info), also
-## what it waits on while it is alive, its open asks, its model and its token counts, its
-## last milestone and its marks. Its session is the folder it stands in, and not said again.
-## Within a limit of lines the last ones go.
+## what it waits on while it is alive, and while it sits in a Wait for how long, its open
+## asks, its model and its token counts, its last milestone and its marks. A run in a Wait
+## (its activity `waiting`) has that Wait's start as its last milestone, `wait going idle`,
+## which every Wait stores as it starts: its wait is counted from there, in the form of an
+## age. Its session is the folder it stands in, and not said again. Within a limit of lines
+## the last ones go.
 def runLines(run, width, info=None, limit=0):
     told = info["bySpawn"].get(run["spawn"]) if info else None
     store = told["store"] if told and told["store"] else {}
@@ -3502,13 +3565,16 @@ def runLines(run, width, info=None, limit=0):
     run = told or run
     asks = [one for one in store.get("asks", "-").split(",") if one and one != "-"]
     milestoneAge = ageText(isoEpoch(store.get("milestoneAt", "")), nowEpoch())
+    waits = store.get("waits", "") if run["live"] == "running" else ""
+    if waits and run.get("activity") == "waiting" and milestoneAge:
+        waits += " for " + milestoneAge
     lines = factLines([
         ("state", runStateText(run), stateLook(runStateText(run))),
         ("status", unspaced(run["status"])),
         ("process", unspaced(run["live"])),
         ("started", registryDate(run["started"])),
         ("ended", registryDate(run["resolved"])),
-        ("waits on", store.get("waits", "") if run["live"] == "running" else ""),
+        ("waits on", waits),
         ("asks", "%d open: %s" % (len(asks), ", ".join(asks)) if asks else ""),
         ("model", ", ".join(word for word in (unspaced(store.get("model", "-")), "cli " + headers["cli"] if headers.get("cli") else "") if word)),
         ("tokens", "in %s, cache read %s, cache write %s, out %s" % tuple(
@@ -3976,7 +4042,7 @@ def sessionsSummary(state, path, row, form):
         ("key", "enum", "text", "text", "text", "text"), looks=[[None, stateLook(one["tail"])] + [None] * 4 for one in held])
 
 
-## ---- the routines to start by hand: `Launch / Spawn` ----
+## ---- the routines to start by hand: `Launch (Start)` ----
 
 ROUTINE_SUFFIX = ".routine.md"
 
@@ -4058,7 +4124,7 @@ def freePromptLines(width):
     return lines
 
 
-## What `Launch / Spawn` holds, for the left pane while the row that goes up is selected
+## What `Launch (Start)` holds, for the left pane while the row that goes up is selected
 ## there, or its own row in the list of the sessions: as its caption how many routines, how
 ## many of them are started here, how many once members are named, and how many are not;
 ## then every routine of the list, in its order, as a table (tableSummaryLines): its name,
@@ -4331,12 +4397,13 @@ def areaLines(text, width):
 ## Where a dialog stands on a terminal of that size, and each of its parts in it: its box,
 ## in the middle of the desktop, as wide as what it holds asks for, between forty cells
 ## and DIALOG_COLUMNS, and never wider than the terminal less two cells at each side; how
-## wide its inside is; each control with the line of its label, its first line and how
-## many lines it has; the lines of what it refuses and the line of its buttons, the last
-## inside its frame, but for an empty line under it where the buttons cast no shadow, as the
-## line of their shadow is in another style; and an empty line under its top in every style.
-## Where the terminal has not the lines for all of it, the empty lines under its top and
-## under its buttons give way first, then the empty lines between the controls, then a text
+## wide its inside is, within its margins at each side (DIALOG_SIDE); each control with the
+## line of its label, its first line and how many lines it has; the lines of what it refuses
+## and the line of its buttons, under them the line of their shadow in a style where they
+## cast one, and the empty lines under them (DIALOG_TAIL); and the empty lines under its top
+## (DIALOG_LEAD), the big dialog too. Where the terminal has not the lines for all of it, the
+## empty lines under its top and under its buttons give way first, then the empty lines
+## between the controls, then a text
 ## gives its lines, down to one, then a list of options, and last a field of several lines:
 ## what is cut there scrolls. "long" says that
 ## a text holds more than it shows, and "page" how many lines of it show.
@@ -4350,11 +4417,11 @@ def dialogPlan(dialog, columns, lines):
             wanted = max(wanted, 11 + textWidth(paragraph[1]) if isinstance(paragraph, tuple) else textWidth(paragraph))
         for optionId, label in control["options"]:
             wanted = max(wanted, textWidth(label) + 4)
-    width = min(columns - 4, max(40, min(wanted + 4, DIALOG_COLUMNS)))
+    width = min(columns - 4, max(40, min(wanted + 2 * DIALOG_SIDE, DIALOG_COLUMNS)))
     big = DIALOGS.get(dialog["name"], {}).get("big")
     if big:
         width = columns - 4
-    inner = width - 4
+    inner = width - 2 * DIALOG_SIDE
     room = lines - 4
     parts = []
     for index, control in enumerate(dialog["controls"]):
@@ -4365,13 +4432,13 @@ def dialogPlan(dialog, columns, lines):
     says = wrapToCells(dialog["says"], inner)[:2] if dialog["says"] else []
     ## the line of the buttons, and in a style with raised buttons the line of their shadow
     foot = 2 if STYLE.get("buttons") in ("raised", "bars") else 1
+    ## the empty lines under its top, and those under its buttons
+    lead, tail = DIALOG_LEAD, DIALOG_TAIL + 2 - foot
     if big:
         ## the big dialog: its first text takes the room the rest of it leaves, the empty lines
-        ## between its parts kept and those under its top and its buttons given way
-        parts[0]["height"] = max(1, room - sum(part["label"] + part["height"] for part in parts[1:]) - parts[0]["label"] - len(parts) - len(says) - foot)
+        ## between its parts, under its top and under its buttons kept
+        parts[0]["height"] = max(1, room - sum(part["label"] + part["height"] for part in parts[1:]) - parts[0]["label"] - len(parts) - len(says) - foot - lead - tail)
     gap = 1
-    ## the empty line under its top, and that under buttons that cast no shadow
-    lead, tail = 1, 2 - foot
     over = lead + sum(part["label"] + part["height"] for part in parts) + gap * len(parts) + len(says) + foot + tail - room
     if over > 0:
         over -= lead + tail
@@ -4444,7 +4511,7 @@ def drawDialog(surface, state, columns, lines):
         if top + height <= lines - 2:
             surface.put(top + height, left + 2, " " * width, SHADOW)
     what, focusIndex, focused = dialogFocus(dialog)
-    column = left + 2
+    column = left + DIALOG_SIDE
     last = plan["buttonsLine"]
     spot(state, left, top, width, height, ("dialog",))
     for part in plan["parts"]:
@@ -4957,7 +5024,7 @@ def killAnswer(text):
 
 
 ## The session `c` acts on at that row, or None where the row is no session: the control
-## thread is a session's, so an agent of one, a section and `Launch / Spawn` have none.
+## thread is a session's, so an agent of one, a section and `Launch (Start)` have none.
 def controlTargetOf(state, row):
     if row is None or levelPattern(state.path) != "sessions" or not row.get("session"):
         return None
@@ -5019,7 +5086,7 @@ def controlAnswer(text, width):
     return lines, "control: " + ("; ".join(said) if said else "the operation named no session")
 
 
-## Enter on a routine of `Launch / Spawn`. One the session spawner would not start gets
+## Enter on a routine of `Launch (Start)`. One the session spawner would not start gets
 ## the information box: the routine, who executes it, and why it is not started; nothing
 ## is asked. One that is started only with members named gets the dialog of its members.
 ## For another its dialog opens: what the session is to work on, and the name the session
@@ -5175,7 +5242,7 @@ def fillPrompt(state, dialog):
     dialogControl(dialog, "who")["options"].extend(options)
 
 
-## Enter on the free prompt of `Launch / Spawn`: its dialog opens, who runs it, the prompt,
+## Enter on the free prompt of `Launch (Start)`: its dialog opens, who runs it, the prompt,
 ## and the name of the session.
 def askPrompt(state, row):
     return openPrompt(state, "", "Free prompt")
@@ -6553,7 +6620,7 @@ def commandsSummary(state, path, row, form):
                              ("key", "text"))
 
 
-## ---- what is started with the whole terminal: `Consoles (Tools)` ----
+## ---- what is started with the whole terminal: `Consoles` ----
 
 ## What `--manager-console-list` printed, as rows, in the order they come, which is the
 ## order of a menu: group after group. A row of a sort STARTS names: its fields by their
@@ -6597,7 +6664,7 @@ def startLines(start, width):
     ], width)
 
 
-## What `Consoles (Tools)` holds, for the left pane while the section itself or the row
+## What `Consoles` holds, for the left pane while the section itself or the row
 ## that goes up is selected: how many there are to start, group by group in the order of
 ## the operation, as its caption; then every one of them, in that order, as a table
 ## (tableSummaryLines): its label, its group and its command. None until its read has answered.
@@ -6612,7 +6679,7 @@ def startsSummary(state, path, row, form):
         [held["label"], held["tail"] or "-", commandText(held["start"]["words"])] for held in starts], ("key", "enum", "text"))
 
 
-## Enter on a row of `Consoles (Tools)`: what the row names is started with the whole
+## Enter on a row of `Consoles`: what the row names is started with the whole
 ## terminal at the end of this turn of the screen (runChild), from its words as the
 ## operation printed them and in its folder.
 def askRun(state, row):
@@ -9119,8 +9186,7 @@ def putLooked(surface, state, line, column, text, room, look, spans, placing):
 
 
 ## The body of a window that shows lines: what is selected in the list. Its head, which
-## does not scroll; under it its lines; and at its foot the keys of the item, or, while a
-## line is typed in, what that line says of itself.
+## does not scroll; under it its lines.
 def drawLinesBody(surface, state, layout, box):
     column = box[0] + 1
     top = box[1] + 1
@@ -9142,13 +9208,12 @@ def drawLinesBody(surface, state, layout, box):
         putViewLine(surface, state, top + headHeight + offset, column, state.view["top"] + offset, room, placing)
     if contentHeight > headHeight and viewWaits(state):
         surface.put(top + headHeight, column, cutToCells(viewWaits(state), room), DIM)
-    if contentHeight < layout["viewHeight"]:
-        surface.put(top + contentHeight, column, cutToCells(itemKeysText(state), room), BOLD)
     return (len(state.view["lines"]), state.view["top"], contentHeight - headHeight)
 
 
 ## The body of a window that shows rows: the level of the list, its selection in the look
-## of the bar while the window is active. Gives what its scroll bar goes by.
+## of the bar while the window is active, a blank line at each of its spacers below the
+## first row shown (spacersAt). Gives what its scroll bar goes by, in lines.
 def drawRowsBody(surface, state, layout, box):
     column = box[0] + 1
     top = box[1] + 1
@@ -9160,8 +9225,15 @@ def drawRowsBody(surface, state, layout, box):
         surface.put(top, column, listHeadText(table, room), PLAIN)
         top += 1
     cursor = cursorOf(state, rows, rowsHeight)
+    spacers = spacersAt(state, rows)
+    position = cursor["top"]
+    spaced = True
     for offset in range(rowsHeight):
-        position = cursor["top"] + offset
+        if position < len(rows) and position in spacers and not spaced:
+            surface.put(top + offset, column, " " * room, PLAIN)
+            spaced = True
+            continue
+        spaced = False
         if position < len(rows):
             putListRow(surface, state, top + offset, column, rows[position], position == cursor["index"], room)
             spot(state, column, top + offset, room, 1, ("row", position))
@@ -9169,7 +9241,10 @@ def drawRowsBody(surface, state, layout, box):
             surface.put(top + offset, column, cutToCells(" " + listWaits(state), room), DIM)
         else:
             surface.put(top + offset, column, " " * room, PLAIN)
-    return (len(rows), cursor["top"], rowsHeight)
+        position += 1
+    if not rows:
+        return (0, 0, rowsHeight)
+    return (rowLinesBetween(spacers, 0, len(rows) - 1), rowLinesBetween(spacers, 0, cursor["top"]) - 1, rowsHeight)
 
 
 ## The bodies the engine draws, by the name a window of WINDOWS gives under "shows".
@@ -9533,11 +9608,17 @@ class CursesSurface:
     ## given for each set a style can name (STYLE_LOOKS), under its name, and under None those
     ## of LOOKS: on a terminal of 256 colours a set takes its exact shades, else its eight. A
     ## set the terminal has not the pairs of colours for is left out: its style draws without.
+    ## A look of LINED_LOOKS is underlined besides, in each, where the terminal has underline.
     def looksOf(self):
         flags = {"B": curses.A_BOLD, "R": curses.A_REVERSE, "D": curses.A_DIM}
+        try:
+            underline = curses.A_UNDERLINE if curses.termattrs() & curses.A_UNDERLINE else 0
+        except (curses.error, AttributeError):
+            underline = 0
+        lined = lambda number: underline if number in LINED_LOOKS else 0
         plain = []
-        for letter, mono, text, ground, bright in LOOKS:
-            attribute = curses.A_NORMAL
+        for number, (letter, mono, text, ground, bright) in enumerate(LOOKS):
+            attribute = curses.A_NORMAL | lined(number)
             for flag in mono:
                 attribute |= flags[flag]
             plain.append(attribute)
@@ -9556,7 +9637,7 @@ class CursesSurface:
 
             def named(name):
                 return getattr(curses, "COLOR_" + name.upper())
-            coloured = {None: [pairOf(named(text), named(ground), bright) for letter, mono, text, ground, bright in LOOKS]}
+            coloured = {None: [pairOf(named(text), named(ground), bright) | lined(number) for number, (letter, mono, text, ground, bright) in enumerate(LOOKS)]}
         except (curses.error, AttributeError):
             return plain, None
         fine = curses.COLORS >= 256
@@ -9565,7 +9646,7 @@ class CursesSurface:
                 looks = []
                 for number, (letter, mono, text, ground, bright) in enumerate(LOOKS):
                     text, ground, bright, fineText, fineGround, bold = own.get(number, (text, ground, bright, None, None, False))
-                    looks.append(pairOf(fineText, fineGround, bold) if fine and fineText is not None else pairOf(named(text), named(ground), bright))
+                    looks.append((pairOf(fineText, fineGround, bold) if fine and fineText is not None else pairOf(named(text), named(ground), bright)) | lined(number))
                 coloured[name] = looks
             except (curses.error, AttributeError):
                 pass

@@ -13,6 +13,7 @@
 ## turning, its result said in a line of its own, by a status or by a signal, with OK alone after it; Esc while it
 ## runs asks whether to stop it, and Stop it ends it by SIGTERM; the text follows its end until it is scrolled up.
 ## The operations are called exactly as the tooling has them. Offline: no operation of the real tooling is called.
+## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -178,7 +179,7 @@ get in
 show in
 RIGSCRIPT
 rigAssert "where the dashboard says the team data is there, Team Data is the fifth of ten roots, after Team Members" "$( rigVal root.rows ) $( rigVal on.index ) $( rigVal on.selectedLabel )" "10 4 Team Data"
-rigAssert "and the numbers follow: 5 is Team Data, the roots after it one more, and Launch / Spawn has none past nine" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Team Data  *[0-9]* │' -e 'Locations (Places)  *[0-9]* │' -e 'Configuration  *[0-9]* │' -e 'Launch / Spawn  *[0-9]* │' | LC_ALL=C sed 's/ *│$//;s/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Team Data 5|Locations (Places) 6|Configuration 9|Launch / Spawn|"
+rigAssert "and the numbers follow: 5 is Team Data, the roots after it one more, and Launch (Start) has none past nine" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Team Data  *[0-9]* │' -e 'Locations (Places)  *[0-9]* │' -e 'Configuration  *[0-9]* │' -e 'Launch (Start)  *[0-9]* │' | LC_ALL=C sed 's/ *│$//;s/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Team Data 5|Locations (Places) 6|Configuration 9|Launch (Start)|"
 rigAssert "selected, its summary says as its caption that the team data is there and its size, then where it is and the mode of the workspace" "$( rigHolds on '│Team data: there, 77.5M.' ) $( rigHolds on '│ root    /rig/ws/team-data' ) $( rigHolds on '│ mode    Team Rig, saved for the workspace; a full team rig' )" "1 1 1"
 rigAssert "its git state, nicely, as facts under a heading: where it stands and what it tracks, ahead and behind, what is not committed, each in the look of its level, and its last commit" "$( rigHolds on '│Git ' ) $( rigHolds on '│ branch       main, tracking origin/main' ) $( rigHolds on '│ ahead        2' ) $( rigHolds on '│ behind       1' ) $( rigHolds on '│ uncommitted  3' ) $( rigHolds on '│ last commit  2h 5m ago: the last change' )" "1 1 1 1 1 1"
 rigAssert "then the remote and the branch of the team data, its board by state as a table, and the main loop as a table, judged on a full team rig" "$( rigHolds on '│ remote  git@rig.invalid:team-data.git' ) $( rigHolds on "│ branch  not set: the tooling's own" ) $( rigHolds on '│  running 43' ) $( rigHolds on '│Main loop and heartbeat ' ) $( rigHolds on 'Main Loop Last Outcome         failed  (bad)' )" "1 1 1 1 1"

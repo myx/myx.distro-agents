@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-## Behavioural check on `Launch / Spawn` of the manager screen (sh-lib/AgentsManagerScreen.py), run rather than read.
+## Behavioural check on `Launch (Start)` of the manager screen (sh-lib/AgentsManagerScreen.py), run rather than read.
 ## The screen's own code runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py),
 ## and where it would call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.stub.sh),
 ## which notes each start, its arguments word for word and what came on its standard input, and prints the fixture
 ## kept for that operation: rows in the form `--manager-routine-list` prints, and the three lines
-## `--magic-spawn-session` prints. Held: entering `Launch / Spawn` asks `--manager-routine-list` once; its first row
+## `--magic-spawn-session` prints. Held: entering `Launch (Start)` asks `--manager-routine-list` once; its first row
 ## under the row that goes up is `Free prompt`, then comes every routine in the order of the operation, each by its
 ## selector without `.routine.md`; one that is not startable shows plainer, dimmed, with what the operation says of
 ## it at the end of its row; the left pane shows the selected routine, its owner, its title, its executors, the kind
@@ -20,6 +20,12 @@
 ## session id and the members, is shown, and the list is read again and holds the new session; and an error of the
 ## start is shown, with no new session in the list.
 ## Offline: no operation of the real tooling is called, no CLI is started, and no session of this machine is read.
+## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`; the spacer under
+## `Launch (Start)` moves each session row of the list one line down, and the spacer under `Free prompt` each routine;
+## the left pane has no `keys:` line any more, so the keys of a row are read from the status line (rigKeysNamed);
+## every dialog has bigger margins inside its frame (two empty lines under its top, one more under its buttons, three
+## blank cells at each side), so its box is four cells wider and two lines taller and what it holds stands where it
+## stood.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -100,6 +106,17 @@ rigScript(){ ## the commands of the driver on standard input, after the ones tha
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
 }
+rigKeysNamed(){ ## cells name -- the row's own keys as the status line names them, in the words the pane's `keys:` line
+	## had before F11.0 removed it; `PANE-KEYS-LINE` where the pane still has a line of its own
+	local namedSaid namedWords="" namedPair namedKey namedWord
+	if rigVal "$1" | LC_ALL=C grep -q '^keys:' ; then printf 'PANE-KEYS-LINE' ; return 0 ; fi
+	namedSaid="$( rigVal "${1}Status" ) "
+	for namedPair in ENTER:Start ; do
+		namedKey="${namedPair%%:*}" ; namedWord="${namedPair#*:}"
+		case "$namedSaid" in *" $namedKey $namedWord "*) namedWords="${namedWords:+$namedWords  }$namedKey $( printf '%s' "$namedWord" | LC_ALL=C tr 'A-Z' 'a-z' )" ;; esac
+	done
+	[ -z "$namedWords" ] || printf 'keys: %s' "$namedWords"
+}
 rigPane(){ ## tag, line counted from 1 -- the left pane's part of that line of the screen, without the spaces at its end
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/  *$//'
 }
@@ -137,7 +154,7 @@ rigInput(){ ## what the operation that starts a session got on its standard inpu
 	else cat "$inputFile" ; fi
 }
 
-echo "-- Launch / Spawn lists the free prompt, then every routine --"
+echo "-- Launch (Start) lists the free prompt, then every routine --"
 rigCase list
 rigScript <<'RIGSCRIPT'
 keys ENTER
@@ -154,20 +171,20 @@ show u
 border title 1 84 120
 cells row1 2 85 119
 cells row2 3 85 119
-cells row3 4 85 119
-cells row4 5 85 119
-cells row5 6 85 119
-cells row6 7 85 119
-cells row7 8 85 119
-cells row8 9 85 119
+cells row3 5 85 119
+cells row4 6 85 119
+cells row5 7 85 119
+cells row6 8 85 119
+cells row7 9 85 119
+cells row8 10 85 119
 looks k
 RIGSCRIPT
 rigAssert "until it is entered the routines are not read"            "$( rigVal on.selected ) $( rigCalled --manager-routine-list )" "launch 1"
 rigAssert "entering it asks the operation that lists the routines, once" "$( rigVal asked.path ) $( rigVal asked.reading ) $( rigCalled --manager-routine-list ) $( rigOthers )" "sessions/launch list:sessions/launch 1 0"
-rigAssert "the first row under the row that goes up is the free prompt" "[$( rigVal title )] [$( rigVal row1 )][$( rigVal row2 )] $( rigVal in.rows )" "[Launch / Spawn] [>..][ Free prompt] 7"
+rigAssert "the first row under the row that goes up is the free prompt" "[$( rigVal title )] [$( rigVal row1 )][$( rigVal row2 )] $( rigVal in.rows )" "[Launch (Start)] [>..][ Free prompt] 7"
 rigAssert "then every routine, in the order of the operation, by its selector without .routine.md" "[$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )]" "[ keeper-myx.spec-conformance][ magic-coordinator.daily][ magic-coordinator.retro]"
 rigAssert "one that cannot be started carries what the operation says of it" "[$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )]" "[ magic-team.discuss  not-startable][ odd                        broken][]"
-rigAssert "and shows plainer than the ones that can"                 "$( rigLooks k 5 86 86 )$( rigLooks k 6 86 86 )$( rigLooks k 7 86 86 )$( rigLooks k 8 86 86 )$( rigLooks k 9 86 86 )" "...DD"
+rigAssert "and shows plainer than the ones that can"                 "$( rigLooks k 6 86 86 )$( rigLooks k 7 86 86 )$( rigLooks k 8 86 86 )$( rigLooks k 9 86 86 )$( rigLooks k 10 86 86 )" "...DD"
 rigAssert "on the row that goes up the left pane is the level's table, nothing above it" "[$( rigPane u 3 )]" "[  ROUTINE          START         OWNER             TITLE                  SESSION]"
 
 echo "-- the left pane shows the selected routine, and the keys that act on it --"
@@ -182,11 +199,13 @@ turn
 get free
 show f
 cells freeKeys 37 1 83
+cells freeKeysStatus 39 0 120
 keys DOWN DOWN
 turn
 get daily
 show d
 cells dailyKeys 37 1 83
+cells dailyKeysStatus 39 0 120
 keys DOWN
 turn
 show r
@@ -203,10 +222,10 @@ cells oddKeys 37 1 83
 RIGSCRIPT
 rigAssert "the free prompt says what a prompt typed there starts"      "$( rigVal free.selected ) [$( rigPane f 3 )][$( rigPane f 4 )][$( rigPane f 5 )]" \
 	"free [ A prompt typed here starts a new coworking session, opened by the coordinator,][ with that prompt as its brief.][ Enter opens its dialog: who runs it, the prompt, the name of the session. An empty]"
-rigAssert "and the left pane names Enter as its key"                 "[$( rigVal freeKeys )]" "[keys: ENTER start]"
+rigAssert "and the left pane names Enter as its key"                 "[$( rigKeysNamed freeKeys )]" "[keys: ENTER start]"
 rigAssert "a routine: its title as its head, then its file, its owner, its executors" "$( rigVal daily.selected ) [$( rigPane d 3 )][$( rigPane d 4 )][$( rigPane d 5 )][$( rigPane d 6 )]" \
 	"magic-coordinator/$rigDaily [ magic-coordinator.daily.routine — the daily meeting][  routine    $rigDaily][  owner      magic-coordinator][  executors  magic-coordinator]"
-rigAssert "the kind of its session, that it starts here, and the name its session takes" "[$( rigPane d 7 )][$( rigPane d 8 )][$( rigPane d 9 )][$( rigPane d 10 )] [$( rigVal dailyKeys )]" \
+rigAssert "the kind of its session, that it starts here, and the name its session takes" "[$( rigPane d 7 )][$( rigPane d 8 )][$( rigPane d 9 )][$( rigPane d 10 )] [$( rigKeysNamed dailyKeys )]" \
 	"[  session    coworking: the spawner adds magic-coordinator to it][  start      startable][  name       daily, unless another is typed][] [keys: ENTER start]"
 rigAssert "several executors read with their spaces" "[$( rigPane r 6 )]" "[  executors  magic-coordinator, magic-librarian]"
 rigAssert "one that cannot be started says so, and why" "$( rigVal discuss.selected ) [$( rigPane n 8 )][$( rigPane n 9 )][$( rigPane n 10 )]" \
@@ -242,12 +261,12 @@ wait sessions 30
 turn
 keys BACKSPACE
 get up
-cells upRow3 4 85 119
-cells upRow4 5 85 119
+cells upRow3 5 85 119
+cells upRow4 6 85 119
 RIGSCRIPT
-rigAssert "Enter on a routine opens its dialog, the keys on what the session is to work on, and in it the name of its session: the selector without its owner and .routine.md" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas d '║ daily ' )" "[routine:task|] [Start the routine] 1"
-rigAssert "the dialog says what will be started, and as whom"        "$( rigBoxHas d "║ routine   $rigDaily " ) $( rigBoxHas d '║ executors magic-coordinator: it runs as its executors, whoever is ' )" "1 1"
-rigAssert "its fields are what the session is to work on and its name, over Start and Cancel" "$( rigBoxHas d '║ What the session is to work on ' ) $( rigBoxHas d '║ Name of the session, or none ' ) $( rigBoxHas d ' »Start« ▅   Cancel  ▅' ) $( rigBoxHas d 'With no name the session shows by its id.' )" "1 1 1 1"
+rigAssert "Enter on a routine opens its dialog, the keys on what the session is to work on, and in it the name of its session: the selector without its owner and .routine.md" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas d '║   daily ' )" "[routine:task|] [Start the routine] 1"
+rigAssert "the dialog says what will be started, and as whom"        "$( rigBoxHas d "║   routine   $rigDaily " ) $( rigBoxHas d '║   executors magic-coordinator: it runs as its executors, whoever is ' )" "1 1"
+rigAssert "its fields are what the session is to work on and its name, over Start and Cancel" "$( rigBoxHas d '║   What the session is to work on ' ) $( rigBoxHas d '║   Name of the session, or none ' ) $( rigBoxHas d ' »Start« ▅   Cancel  ▅' ) $( rigBoxHas d 'With no name the session shows by its id.' )" "1 1 1 1"
 rigAssert "until Enter is pressed again nothing is started"          "[$( rigVal waiting.dialog )] $( rigVal waiting.calls ) [$( rigVal waiting.reading )]" "[routine:task|] 0 []"
 rigAssert "Enter again starts it, beside the screen"                 "[$( rigVal started.dialog )] $( rigVal started.reading ) [$( rigVal startedLine )]" "[] action:launch:$rigDaily [start asked of the tooling: $rigDaily, named daily]"
 rigAssert "the operation is called once, with that routine and the name daily" "$( rigStarts ) [$( rigStartWords 1 )]" "1 [[--magic-spawn-session][--routine][$rigDaily][--session-name-or-comment][daily]]"
@@ -306,8 +325,8 @@ get closed
 keys RIGHT
 get right
 keys ESC
-mouse click 100 7
-mouse click 100 7
+mouse click 100 8
+mouse click 100 8
 get click
 keys ESC
 keys ALT-s ENTER
@@ -326,7 +345,7 @@ RIGSCRIPT
 rigAssert "Esc closes the line: nothing is started, and the bottom line is empty" "[$( rigVal esc.dialog )] [$( rigVal escLine )] $( rigVal esc.selected )" "[] [] magic-coordinator/$rigDaily"
 rigAssert "Enter on a routine that cannot be started opens the information box: the routine, who executes it, and why" "$( rigVal discuss.selected ) [$( rigVal discuss.dialog )] [$( rigVal discuss.dialogTitle )] [$( rigVal discuss.dialogHolds )]" \
 	"magic-team/magic-team.discuss.routine.md [information:ok|] [The routine is not started] [magic-team.discuss cannot be started from here. / routine: magic-team.discuss.routine.md / owner: magic-team / executors: magic-team / start: not-startable / why: its executors, magic-team, is any member: the session spawner starts it only with members named]"
-rigAssert "the box sets its facts out, the reason broken to the box with its underscores as spaces, over one button" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^discussBox|' | LC_ALL=C grep -c -F -e '║ routine   magic-team.discuss.routine.md ' -e '║ executors magic-team ' -e '║ why       its executors, magic-team, is any member: the session ' -e '║           starts it only with members named ' -e ' »OK« ▅' )" "5"
+rigAssert "the box sets its facts out, the reason broken to the box with its underscores as spaces, over one button" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^discussBox|' | LC_ALL=C grep -c -F -e '║   routine   magic-team.discuss.routine.md ' -e '║   executors magic-team ' -e '║   why       its executors, magic-team, is any member: the session ' -e '║             starts it only with members named ' -e ' »OK« ▅' )" "5"
 rigAssert "the box says it and the status line does not; Enter closes it" "[$( rigVal discuss.notice )] [$( rigVal closed.dialog )] [$( rigVal closed.notice )]" "[] [] []"
 rigAssert "Right on it opens no box and dives nowhere: it pages down, as in every list" "$( rigVal right.path ) [$( rigVal right.dialog )] $( [ "$( rigVal right.index )" -gt "$( rigVal closed.index )" ] && echo down )" "sessions/launch [] down"
 rigAssert "a click on it while it is selected, the click that opens, too" "$( rigVal click.selected ) [$( rigVal click.dialog )] [$( rigVal click.dialogTitle )]" "magic-team/magic-team.discuss.routine.md [information:ok|] [The routine is not started]"
@@ -358,9 +377,9 @@ get esc
 turn 3
 get end
 RIGSCRIPT
-rigAssert "Enter on the free prompt opens its dialog, the keys on the prompt: who runs it, the prompt, the name" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas d '║ Who runs it ' ) $( rigBoxHas d '║ > magic-coordinator: a new coworking session, by the default routine ' ) $( rigBoxHas d '║ Prompt ' ) $( rigBoxHas d '║ Name of the session, or none ' ) $( rigBoxHas d ' »Start« ▅   Cancel  ▅' )" "[prompt:prompt|] [Free prompt] 1 1 1 1 1"
+rigAssert "Enter on the free prompt opens its dialog, the keys on the prompt: who runs it, the prompt, the name" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas d '║   Who runs it ' ) $( rigBoxHas d '║   > magic-coordinator: a new coworking session, by the default routine ' ) $( rigBoxHas d '║   Prompt ' ) $( rigBoxHas d '║   Name of the session, or none ' ) $( rigBoxHas d ' »Start« ▅   Cancel  ▅' )" "[prompt:prompt|] [Free prompt] 1 1 1 1 1"
 
-rigAssert "Start with no prompt starts nothing: the dialog says so in a line of its own, and the keys are back on the prompt" "[$( rigVal empty.dialog )] [$( rigVal empty.dialogSays )] $( rigBoxHas e '║ nothing is started: the prompt is empty ' )" "[prompt:prompt|] [nothing is started: the prompt is empty] 1"
+rigAssert "Start with no prompt starts nothing: the dialog says so in a line of its own, and the keys are back on the prompt" "[$( rigVal empty.dialog )] [$( rigVal empty.dialogSays )] $( rigBoxHas e '║   nothing is started: the prompt is empty ' )" "[prompt:prompt|] [nothing is started: the prompt is empty] 1"
 rigAssert "spaces alone are no prompt, and Esc starts nothing"       "[$( rigVal spaces.dialog )] [$( rigVal spaces.dialogSays )] [$( rigVal esc.dialog )] [$( rigVal esc.notice )]" "[prompt:prompt|  ] [nothing is started: the prompt is empty] [] []"
 
 echo "-- a required input: while the prompt is empty nothing presses Start, by no way, and nothing is to be undone --"
@@ -433,7 +452,7 @@ show a
 said answeredLine
 RIGSCRIPT
 rigAssert "the line is typed"                                        "[$( rigVal typed.dialog )]" "[prompt:prompt|Magic, start retro please]"
-rigAssert "Tab goes on to the name of the session, the prompt standing above it" "[$( rigVal name.dialog )] $( rigBoxHas n '║ Magic, start retro please ' )" "[prompt:name|] 1"
+rigAssert "Tab goes on to the name of the session, the prompt standing above it" "[$( rigVal name.dialog )] $( rigBoxHas n '║   Magic, start retro please ' )" "[prompt:name|] 1"
 
 rigAssert "until the name is entered nothing is started"             "[$( rigVal waiting.dialog )] $( rigVal waiting.calls ) [$( rigVal waiting.reading )]" "[prompt:name|] 0 []"
 rigAssert "Enter with no name starts it"                             "$( rigVal started.reading ) [$( rigVal started.notice )]" "action:prompt:free [start asked of the tooling: a free prompt, with no name]"
@@ -529,8 +548,9 @@ keys DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 get on
 show o
-cells onRow 8 85 119
+cells onRow 9 85 119
 cells onKeys 37 1 83
+cells onKeysStatus 39 0 120
 cells onStatus 39 0 120
 keys ENTER
 get opened
@@ -549,11 +569,11 @@ wait action 30
 get answered
 RIGSCRIPT
 rigAssert "a routine that is started only with members named says so at the end of its row" "$( rigVal on.selected ) [$( rigVal onRow )]" "magic-team/$rigDiscuss [>magic-team.discuss        members]"
-rigAssert "the left pane says that its members are asked for, and it and the status line name the key" "$( rigPaneHolds o '  start      members: its members are asked for' ) [$( rigVal onKeys )] [$( rigVal onStatus )]" "1 [keys: ENTER start] [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "the left pane says that its members are asked for, and it and the status line name the key" "$( rigPaneHolds o '  start      members: its members are asked for' ) [$( rigKeysNamed onKeys )] [$( rigVal onStatus )]" "1 [keys: ENTER start] [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "Enter opens the dialog of its members, and starts nothing" "$( rigVal opened.dialog ) [$( rigVal opened.dialogTitle )] $( rigVal opened.calls )" "members:members| [Start the routine with members] 0"
 rigAssert "the members are read by the operation that lists the team, once" "$( rigCalled --manager-team-member-list )" "1"
-rigAssert "the dialog names the routine, and has a box for each member that can be started from here, and for no other" "$( rigBoxHas m '║ routine   magic-team.discuss.routine.md ' ) $( rigBoxHas m '║ [ ] magic-coordinator ' ) $( rigBoxHas m '║ [ ] keeper-myx ' ) $( rigBoxHas m '║ [ ] magic-tester ' ) $( rigBoxHas m 'human-owner' ) $( rigBoxHas m 'keeper-gone' )" "1 1 1 1 0 0"
-rigAssert "under them the field for what the session is to work on, and OK and Cancel" "$( rigBoxHas m '║ What the session is to work on ' ) $( rigBoxHas m ' »OK« ▅   Cancel  ▅' ) [$( rigVal mStatus )]" "1 1 [ Space Toggle  UP/DN Move  TAB Next  ESC Cancel]"
+rigAssert "the dialog names the routine, and has a box for each member that can be started from here, and for no other" "$( rigBoxHas m '║   routine   magic-team.discuss.routine.md ' ) $( rigBoxHas m '║   [ ] magic-coordinator ' ) $( rigBoxHas m '║   [ ] keeper-myx ' ) $( rigBoxHas m '║   [ ] magic-tester ' ) $( rigBoxHas m 'human-owner' ) $( rigBoxHas m 'keeper-gone' )" "1 1 1 1 0 0"
+rigAssert "under them the field for what the session is to work on, and OK and Cancel" "$( rigBoxHas m '║   What the session is to work on ' ) $( rigBoxHas m ' »OK« ▅   Cancel  ▅' ) [$( rigVal mStatus )]" "1 1 [ Space Toggle  UP/DN Move  TAB Next  ESC Cancel]"
 rigAssert "OK with no member checked is refused inside the dialog, and starts nothing" "$( rigVal none.dialog ) [$( rigVal none.dialogSays )] $( rigVal none.calls )" "members:members| [no member is checked: check one at least, with Space] 0"
 rigAssert "Space checks a member, and Tab goes on to the field"      "$( rigVal typed.dialog )" "members:task|the plan for Monday"
 rigAssert "OK starts it: the dialog closes, and the status line says with whom" "[$( rigVal started.dialog )] [$( rigVal started.notice )]" "[] [start asked of the tooling: $rigDiscuss, with magic-coordinator, magic-tester]"
@@ -599,7 +619,7 @@ keys TAB$( rigType 'look at the index' ) TAB$( rigType 'index' ) ENTER
 get started
 wait action 30
 RIGSCRIPT
-rigAssert "the list of who runs a free prompt: the default first, then each member that can be started from here" "$( rigBoxHas w '║ > magic-coordinator: a new coworking session, by the default routine ' ) $( rigBoxHas w '║   magic-coordinator ' ) $( rigBoxHas w '║   keeper-myx ' ) $( rigBoxHas w '║   magic-tester ' ) $( rigBoxHas w 'human-owner' )" "1 1 1 1 0"
+rigAssert "the list of who runs a free prompt: the default first, then each member that can be started from here" "$( rigBoxHas w '║   > magic-coordinator: a new coworking session, by the default routine ' ) $( rigBoxHas w '║     magic-coordinator ' ) $( rigBoxHas w '║     keeper-myx ' ) $( rigBoxHas w '║     magic-tester ' ) $( rigBoxHas w 'human-owner' )" "1 1 1 1 0"
 rigAssert "a member picked there is started alone with the prompt, by the operation that starts a member, and no session is spawned by the default routine" "$( rigVal who.dialog ) [$( rigVal started.notice )] [$( LC_ALL=C grep -F -- '[--manager-spawn-member]' "$MANAGER_SCREEN_RIG/words" )] $( rigStarts )" "prompt:who|keeper-myx [start asked of the tooling: the member keeper-myx, named index] [[--manager-spawn-member][keeper-myx][--session-name-or-comment][index]] 0"
 rigAssert "with the prompt on its standard input"                    "$( printf '%s\n' 'look at the index' | cmp -s - "$MANAGER_SCREEN_RIG/stdin.--manager-spawn-member" && echo same )" "same"
 

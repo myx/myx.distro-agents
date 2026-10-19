@@ -19,6 +19,8 @@
 ## that is made whatever is shown, are held by AgentsManagerScreenSessionsCheck, AgentsManagerScreenStatusCheck and
 ## AgentsManagerScreenPendingCheck.
 ## Offline: no operation of the real tooling is called.
+## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`; the spacer under
+## `Launch (Start)` moves each session row of the list one line down.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -86,17 +88,17 @@ get a
 border title 1 84 120
 cells row1 2 85 119
 cells row2 3 85 119
-cells row3 4 85 119
-cells row4 5 85 119
-cells row5 6 85 119
-cells row6 7 85 119
+cells row3 5 85 119
+cells row4 6 85 119
+cells row5 7 85 119
+cells row6 8 85 119
 RIGSCRIPT
 rigAssert "the root asks the tooling for nothing"                    "[$( rigVal root.reading )]" "[]"
 rigAssert "the level asks at once, and the call runs beside the screen" "$( rigVal asked.path ) $( rigVal asked.reading )" "sessions list:sessions"
 rigAssert "the operation is --manager-session-list, started once"    "$( rigCalls ) [$( rigCall 1 )]" "1 [--manager-session-list]"
-rigAssert "what it printed is rows under Launch / Spawn, a record a line, its fields split at each TAB" \
+rigAssert "what it printed is rows under Launch (Start), a record a line, its fields split at each TAB" \
 	"[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )]" \
-	"[>..][ Launch / Spawn                  ►][ s1  alpha  running][ s2  beta  finished][ s3  gamma  finished][]"
+	"[>..][ Launch (Start)                  ►][ s1  alpha  running][ s2  beta  finished][ s3  gamma  finished][]"
 rigAssert "nothing is read any more, and nothing is marked"          "$( rigVal a.rows ) [$( rigVal a.reading )] [$( rigVal a.failed )] [$( rigVal title )]" "5 [] [] [Sessions (Activity)  [all]]"
 
 echo "-- a: the active ones are asked for, at once --"
@@ -133,7 +135,7 @@ get again
 RIGSCRIPT
 rigSecondsTaken=$(( SECONDS - rigSecondsBefore ))
 rigAssert "the call was started, and runs"                           "$( rigCalls ) $( rigVal started.reading ) $( rigVal started.index )" "1 list:sessions 0"
-rigAssert "Down moves the selection at once, while it runs"          "$( rigVal moved.index ) $( rigVal moved.selected ) $( rigVal moved.reading ) [$( rigVal row2 )]" "1 launch list:sessions [>Launch / Spawn                  ►]"
+rigAssert "Down moves the selection at once, while it runs"          "$( rigVal moved.index ) $( rigVal moved.selected ) $( rigVal moved.reading ) [$( rigVal row2 )]" "1 launch list:sessions [>Launch (Start)                  ►]"
 rigAssert "the title carries the mark of a read, over what is known so far" "[$( rigVal title )]" "[~ Sessions (Activity)  [all]]"
 rigAssert "every other key goes on working too"                      "$( rigVal again.index ) $( rigVal again.focus ) $( rigVal again.reading )" "0 list list:sessions"
 rigAssert "none of that waited for the five seconds of the call"     "$( [ "$rigSecondsTaken" -lt 4 ] && printf yes || printf 'no (%s seconds)' "$rigSecondsTaken" )" yes
@@ -150,8 +152,8 @@ advance 11
 wait list 30
 get bad
 border badTitle 1 84 120
-cells badRow3 4 85 119
-cells badRow5 6 85 119
+cells badRow3 5 85 119
+cells badRow5 7 85 119
 keys ESC
 advance 11
 wait list 30
@@ -251,7 +253,7 @@ get up
 cells upLine1 2 1 83
 RIGSCRIPT
 rigAssert "the operation of that view is asked with the id of the row" "$( rigVal asked.reading ) $( rigCalls ) [$( rigCall 1 )]" "view:sessions|launch:launch 1 [--rig-view launch]"
-rigAssert "the pane shows what it printed"                           "$( rigVal a.viewLines ) [$( rigVal line1 )][$( rigVal line2 )] [$( rigVal title )]" "2 [the first line of the item][its second line] [Launch / Spawn [wrap]]"
+rigAssert "the pane shows what it printed"                           "$( rigVal a.viewLines ) [$( rigVal line1 )][$( rigVal line2 )] [$( rigVal title )]" "2 [the first line of the item][its second line] [Launch (Start) [wrap]]"
 rigAssert "moving the selection replaces the pane"                   "$( rigVal up.selected ) $( rigVal up.viewLines ) [$( rigVal upLine1 )]" ".. 0 []"
 rigCase late "sleep 2"
 printf 'a line of the item that was left\n' > "$MANAGER_SCREEN_RIG/rows"

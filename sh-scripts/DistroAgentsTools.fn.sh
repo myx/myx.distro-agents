@@ -56,9 +56,12 @@ DistroAgentsTools(){
 	## A --manager-* op is the console's own, and no member's session's, magic-coordinator's
 	## among them (AgentsToolsManagerCallerCheck): one rule for the whole family, asked here
 	## and in no arm of it.
+	## The bare --manager is no --manager-* op: it starts the console app, and admits every
+	## caller, exactly as the start of the screen always did. Its own rule, asked here.
 	case "$1" in
 		--magic-*) AgentsToolsMagicCallerCheck "${1#--}" || { set +e ; return 1 ; } ;;
 		--client-*) AgentsToolsClientCallerCheck "${2:-}" "${1#--}" || { set +e ; return 1 ; } ;;
+		--manager) ;;
 		--manager-*) AgentsToolsManagerCallerCheck "${1#--}" || { set +e ; return 1 ; } ;;
 	esac
 
@@ -296,6 +299,13 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## The manager screen of the agents console, the console app, in this terminal: what the
+		## console's --manager runs.
+		--manager)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternManager.include"
+			return $?
+		;;
+
 		## The console's own operations, which a manager screen reads and acts through: never a member's.
 		--manager-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Manager.include"
@@ -444,12 +454,6 @@ DistroAgentsTools(){
 		## instance, interactive or not, with an optional payload routine to run meanwhile.
 		--intern-root-harness)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternRootHarness.include"
-			return $?
-		;;
-
-		## The manager screen of the agents console, in this terminal: what the console's --manager runs.
-		--intern-manager)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternManager.include"
 			return $?
 		;;
 

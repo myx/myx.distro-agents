@@ -23,6 +23,8 @@
 ## The menus follow the view, the level the list is at: a menu with no command of the view is not in the bar, the commands
 ## of a view all stand in its menus, and one that does not apply to the row selected is greyed and, tried, says why.
 ## Offline: the only thing the screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
+## Reconciled for F11.0: the spacer under `Launch (Start)` moves each session row of the list one line down, so the
+## click on the first session lands a line lower in Turbo Vision and B/W.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -293,7 +295,7 @@ style $rigStyle
 turn
 get c
 cells cFirstRow 2 85 119
-mouse click 100 4
+mouse click 100 5
 get cClick
 RIGSCRIPT
 	rigAssert "in $rigStyle the first row stands right under the top, as before" "$( rigVal cFirstRow | LC_ALL=C grep -c -F '..' ) $( rigVal c.viewHeight ) $( rigVal c.listHeight ) $( rigVal cClick.index )" "1 $rigTvHeights 2"
@@ -338,7 +340,7 @@ RIGSCRIPT
 rigAssert "a menu with no command of the view is not in the bar: at the root the system mark, Go, View and Help alone, and each view with its own beside them" "[$( rigVal barRoot | rigSqueeze )] [$( rigVal barSessions | rigSqueeze )] [$( rigVal barLaunch | rigSqueeze )] [$( rigVal barPending | rigSqueeze )] [$( rigVal barTeam | rigSqueeze )] [$( rigVal barSettings | rigSqueeze )]" "[ ≡ Go View Help] [ ≡ Go Session View Help] [ ≡ Go Session View Help] [ ≡ Go View Question Help] [ ≡ Go Member View Help] [ ≡ Go View Help]"
 rigAssert "Alt with the letter of a menu that is not in the bar opens nothing" "[$( rigVal noMenuS.menu )] [$( rigVal noMenuQ.menu )]" "[] []"
 rigAssert "in a view every command of it stands in its menu, and none of another view: the sessions" "$( rigHas ss '│ Kill ' ) $( rigHas ss '│ Control thread' ) $( rigHas ss '│ Pause' ) $( rigHas ss '│ Restart' ) $( rigHas ss 'Start the routine' ) $( rigHas ss 'Free prompt' )" "1 1 1 1 0 0"
-rigAssert "and Launch / Spawn, whose menu of the same name holds its two alone" "$( rigHas sl '│ Start the routine' ) $( rigHas sl '│ Free prompt' ) $( rigHas sl '│ Kill ' ) $( rigHas sl '│ Pause' )" "1 1 0 0"
+rigAssert "and Launch (Start), whose menu of the same name holds its two alone" "$( rigHas sl '│ Start the routine' ) $( rigHas sl '│ Free prompt' ) $( rigHas sl '│ Kill ' ) $( rigHas sl '│ Pause' )" "1 1 0 0"
 rigAssert "one that does not apply to the row selected is greyed" "$( rigRole ssr 6 9 14 )" "xxxxxx"
 rigAssert "clicked, it is not chosen: the menu stays, and the status line says why" "$( rigVal clicked.menu ) [$( rigVal clicked.notice )] [$( rigVal clicked.dialog )]" "session:pause [Pause is not built yet] []"
 rigAssert "tried by its key, it says why in the status line, and no box opens" "[$( rigVal byKey.notice )] [$( rigVal byKey.dialog )]" "[Kill: not for what is selected, as it is now] []"

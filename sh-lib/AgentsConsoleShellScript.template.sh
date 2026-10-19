@@ -289,7 +289,7 @@ while true ; do
 done
 ## --manager starts the manager screen in place of any agent CLI, whatever CLI service is
 ## configured: nothing of a CLI is selected or started for it, so it is taken here, ahead of
-## the selection. It runs the tooling's own --intern-manager, which says why where the screen
+## the selection. It runs the tooling's own --manager, which says why where the screen
 ## cannot start (no terminal, a Python with no curses module). It is no spawn and takes
 ## nothing after it: with --non-interactive, in either order, it is refused.
 if [ "$DAGC_MANAGER" = "true" ] || { [ "$1" = "--non-interactive" ] && [ "${2:-}" = "--manager" ] ; } ; then
@@ -303,10 +303,10 @@ if [ "$DAGC_MANAGER" = "true" ] || { [ "$1" = "--non-interactive" ] && [ "${2:-}
 	fi
 	DAGC_MANAGER_TOOLS="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	if [ ! -x "$DAGC_MANAGER_TOOLS" ] ; then
-		echo "⛔ ERROR: DistroAgentsConsole: --manager runs --intern-manager, which needs $DAGC_MANAGER_TOOLS to be executable. Nothing was started." >&2
+		echo "⛔ ERROR: DistroAgentsConsole: --manager runs the tooling's own --manager, which needs $DAGC_MANAGER_TOOLS to be executable. Nothing was started." >&2
 		exit 1
 	fi
-	exec "$BASH" "$DAGC_MANAGER_TOOLS" --intern-manager
+	exec "$BASH" "$DAGC_MANAGER_TOOLS" --manager
 fi
 ## THE DEFAULT OF AN INTERACTIVE START is the manager screen as well, in every setup, one whose
 ## CLI service is a vendor CLI among them: a start that is no spawn (no --non-interactive),
@@ -323,10 +323,10 @@ fi
 if [ "$1" != "--non-interactive" ] && [ "$DAGC_CLI_GIVEN" != "true" ] && [ -t 0 ] && [ -t 1 ] ; then
 	DAGC_MANAGER_TOOLS="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	if [ ! -x "$DAGC_MANAGER_TOOLS" ] ; then
-		echo "⛔ ERROR: DistroAgentsConsole: a start on a terminal that names no CLI (no --cli) is the manager screen, which runs --intern-manager and needs $DAGC_MANAGER_TOOLS to be executable. Nothing was started. A vendor CLI's own console is started by its name: --cli <name>." >&2
+		echo "⛔ ERROR: DistroAgentsConsole: a start on a terminal that names no CLI (no --cli) is the manager screen, which runs the tooling's own --manager and needs $DAGC_MANAGER_TOOLS to be executable. Nothing was started. A vendor CLI's own console is started by its name: --cli <name>." >&2
 		exit 1
 	fi
-	exec "$BASH" "$DAGC_MANAGER_TOOLS" --intern-manager
+	exec "$BASH" "$DAGC_MANAGER_TOOLS" --manager
 fi
 # --cli-auto takes magic-team's own SPAWN_CLI_SERVICE where it is set, else the first installed known CLI.
 # --cli-configured takes the same setting and stops there: an unset setting means no external CLI was chosen,
@@ -396,7 +396,7 @@ esac
 ## by --cli or by the PATH scan. A leg has no interactive shape of its own, and every
 ## session is interactive through Slack, so the console keeps no interactive root session:
 ## the root session is one more session, started from the screen as any other. The screen
-## is run exactly as --manager runs it, by the tooling's own --intern-manager, which says
+## is run exactly as --manager runs it, by the tooling's own --manager, which says
 ## why in one line and ends with status 1 where it cannot start (no terminal, a Python
 ## with no curses module): no root harness, no vendor binary and no bash console is
 ## started in its place. Words after the flags are not handed on: the screen takes none,
@@ -407,10 +407,10 @@ esac
 if [ "$1" != "--non-interactive" ] && DagcCliIsLeg "$DAGC_CLI" ; then
 	DAGC_MANAGER_TOOLS="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	if [ ! -x "$DAGC_MANAGER_TOOLS" ] ; then
-		echo "⛔ ERROR: DistroAgentsConsole: '$DAGC_CLI' is a harness leg (chosen by $DAGC_CLI_BY), and an interactive start of a leg is the manager screen, which runs --intern-manager and needs $DAGC_MANAGER_TOOLS to be executable. Nothing was started." >&2
+		echo "⛔ ERROR: DistroAgentsConsole: '$DAGC_CLI' is a harness leg (chosen by $DAGC_CLI_BY), and an interactive start of a leg is the manager screen, which runs the tooling's own --manager and needs $DAGC_MANAGER_TOOLS to be executable. Nothing was started." >&2
 		exit 1
 	fi
-	exec "$BASH" "$DAGC_MANAGER_TOOLS" --intern-manager
+	exec "$BASH" "$DAGC_MANAGER_TOOLS" --manager
 fi
 if [ "$1" == "--non-interactive" ] ; then
 	## The leg test comes first, and is not covered by the set above: that set

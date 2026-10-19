@@ -12,6 +12,8 @@
 ## state, the figures one under another, where a row has 34 cells, and not in a narrower list; a row without that
 ## field has no column. (The cut rule of the top line is held by AgentsManagerScreenChromeCheck.)
 ## Offline: no operation of the real tooling is called. The time zone is set here, so the times read the same anywhere.
+## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`; the spacer under
+## `Launch (Start)` moves each session row of the list one line down.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
@@ -96,10 +98,10 @@ roles wr
 wait sessions 30
 get r
 show rs
-cells rList3 4 85 119
+cells rList3 5 85 119
 RIGSCRIPT
 rigAssert "the sessions are being read, and none has come yet"       "$( rigVal w.path ) $( rigVal w.reading ) $( rigVal w.rows )" "sessions list:sessions 2"
-rigAssert "the list says what it waits for, under its fixed rows"     "[$( rigVal wList1 )][$( rigVal wList2 )][$( rigVal wList3 )]" "[>..][ Launch / Spawn                  ►][ Populating Sessions (Activity)...]"
+rigAssert "the list says what it waits for, under its fixed rows"     "[$( rigVal wList1 )][$( rigVal wList2 )][$( rigVal wList3 )]" "[>..][ Launch (Start)                  ►][ Populating Sessions (Activity)...]"
 rigAssert "and the left window, which shows the folder itself, on its first line" "[$( rigVal wView )]" "[Populating Sessions (Activity)...]"
 rigAssert "both in the pale look"                                    "[$( rigLook wr 2 1 83 )][$( rigLook wr 4 85 119 )]" "[D][D]"
 rigAssert "once the rows have come neither says it"                  "$( rigVal r.rows ) $( rigHolds rs 'Populating' ) [$( rigVal rList3 | LC_ALL=C cut -c1-16 )]" "6 0 [ daily of Monday]"
@@ -184,14 +186,14 @@ rigScript <<'RIGSCRIPT'
 keys 2
 wait sessions 30
 get k
-cells k1 4 85 119
-cells k2 5 85 119
-cells k3 6 85 119
-cells k4 7 85 119
+cells k1 5 85 119
+cells k2 6 85 119
+cells k3 7 85 119
+cells k4 8 85 119
 size 100 40
 turn
 get n
-cells n1 4 71 99
+cells n1 5 71 99
 RIGSCRIPT
 rigAssert "at 120 columns a row of the list has 34 cells"             "$( rigVal k.listWidth ) $( rigVal k.rows ) $( rigVal k.spills )" "36 6 0"
 rigAssert "a session shows the total of its tokens, short, after its state" "[$( rigVal k1 )]" "[ daily of Monday  running  57.1M ►]"

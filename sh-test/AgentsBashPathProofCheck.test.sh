@@ -213,11 +213,11 @@ printf '%s\n' "$rigNoSuch" 'printf "RIG-TOOL %s\n" "$*"' > "$rigOrigin/myx/myx.d
 chmod +x "$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 cp -p "$rigGen/ws/DistroAgentsConsole.sh" "$rigWs/DistroAgentsConsole.sh" || rigRefuse "could not place the generated console in the rig's workspace"
 printf 'MDLT_CONSOLE_ORIGIN=%s\n' "$rigOrigin" > "$rigWs/.local/MDLT.settings.env"
-rigStarted "tool" "" "$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-manager
+rigStarted "tool" "" "$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --manager
 rigAssert "control: the rig's tool script cannot be started by its path: status 126 or 127" "$( case "$( cat "$rigTmp/tool.rc" )" in (126|127) echo not-startable ;; (*) cat "$rigTmp/tool.rc" ;; esac )" "not-startable"
 rigStarted "console" "" "$rigWs/DistroAgentsConsole.sh" --manager
 rigAssert "the console, started by its path, finds bash by the PATH: the stand-in is asked once, for the console" "$( cat "$rigTmp/console.asked" )" "$rigWs/DistroAgentsConsole.sh --manager"
-rigAssert "and it starts the tool script with the bash it runs in: the tool ran, status 0" "$( cat "$rigTmp/console.rc" ) [$( cat "$rigTmp/console.out" )] $( LC_ALL=C grep -c -i -e 'bad interpreter' -e 'not found' -e 'No such file' "$rigTmp/console.err" )" "0 [RIG-TOOL --intern-manager] 0"
+rigAssert "and it starts the tool script with the bash it runs in: the tool ran, status 0" "$( cat "$rigTmp/console.rc" ) [$( cat "$rigTmp/console.out" )] $( LC_ALL=C grep -c -i -e 'bad interpreter' -e 'not found' -e 'No such file' "$rigTmp/console.err" )" "0 [RIG-TOOL --manager] 0"
 
 echo "-- 5. a PATH that holds no bash at all: the tooling, entered with its bash given, hands that bash on --"
 ## What a client hands down where bash is kept outside its PATH (FreeBSD: /usr/local/bin): every tool of the system

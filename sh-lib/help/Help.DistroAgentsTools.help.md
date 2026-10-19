@@ -2804,6 +2804,24 @@
 			Prints the agents console script body (used by
 			`--make-console-command`) and exits.
 
+		--manager [--style <name>]
+			Starts the manager screen of the agents console, the console
+			app, in this terminal: what `DistroAgentsConsole.sh --manager`
+			runs, and what a console started on a terminal with no --cli
+			opens. It is none of the console's own `--manager-*`
+			operations below, which are the shell console user's fallback
+			and what the screen reads and acts through. `--style <name>`
+			is the interface style of this start alone; with none, the
+			style the environment names (MDAT_MANAGER_STYLE), else the one
+			the user saved (--manager-config-set), else the screen's own.
+			`MDLT_CONSOLE_SPACERS`, a console setting of `.local` and the
+			user's own, read from the environment and else from the
+			user's settings: `disable` starts the screen with no blank
+			line between the groups of its lists. Needs python3 and a
+			terminal: where the screen cannot start, it says why in one
+			line. Exit: the screen's own status. Exit 1, nothing started,
+			for any other word.
+
 		--manager-check-run [--local] [--seconds <n>] [<domain>...]
 			One of the console's own operations (see Notes). Shows what
 			the check of the setup says: it runs the owner's read-only

@@ -16,7 +16,7 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 [ -f "$rigAwk" ] || rigRefuse "the state-shape awk is missing: $rigAwk"
-rigTmp="$( mktemp -d -t "AgentsMorningReviewInputScanCheck-XXXXXXXX" )" || exit 1
+rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsMorningReviewInputScanCheck-XXXXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigSkills="$rigTmp/home/.claude/skills"
 rigData="$rigTmp/data"
