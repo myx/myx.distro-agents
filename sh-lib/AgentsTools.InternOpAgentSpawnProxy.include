@@ -671,6 +671,16 @@ case "$1" in
 		## --parent-none, the restart's too: the run it replaces had no parent session and named no
 		## address, and so has this one, whoever restarts it.
 		local parentSessionSaid="" startContextSaid="" reportsToSaid="" parentNoneSaid=""
+		## --review-by: the reviewers of the dispatch item this spawn creates, said by its caller. With
+		## none said the item names none, and its review falls to where the run reports to
+		## (AgentsToolsItemReviewer); `none` there means no review.
+		local reviewBySaid=""
+		## --parent-member, the restart's too: the member that brought in the run it replaces, its
+		## initiator, which stays this run's whoever restarts it.
+		local parentMemberSaid=""
+		## --restarted-from, the restart's own: the spawn id of the run it replaces, kept on its record
+		## (`restarted-from:`), by which it takes over that run's seat in the session (F6.9).
+		local restartedFromSaid=""
 		## --description: the spawner's own words for what this spawn is for. Kept on the records
 		## of the spawn it came from, and shown on the first line of its start post.
 		local spawnDescription=""
@@ -875,6 +885,32 @@ case "$1" in
 					parentSessionSaid="$2"
 					shift 2
 				;;
+				--review-by)
+					if ! AgentsToolsRunRouteValid "${2:-}" ; then
+						echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --review-by requires a reviewer: <session>[:<member>], <member>, <name>.routine, user-<account>, human-owner or none, got: ${2:-}" >&2
+						set +e ; return 1
+					fi
+					reviewBySaid="$2"
+					shift 2
+				;;
+				--parent-member)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --parent-member requires <team-member>" >&2
+						set +e ; return 1
+					fi
+					AgentsToolsAssertBareName "$2" "--parent-member" agent-spawn-proxy || { set +e ; return 1 ; }
+					parentMemberSaid="$2"
+					shift 2
+				;;
+				--restarted-from)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --restarted-from requires <spawn-id>" >&2
+						set +e ; return 1
+					fi
+					AgentsToolsAssertBareName "$2" "--restarted-from" agent-spawn-proxy || { set +e ; return 1 ; }
+					restartedFromSaid="$2"
+					shift 2
+				;;
 				--parent-none)
 					parentNoneSaid="true"
 					shift
@@ -915,7 +951,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$callerName" ] ; then
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--session-id <session-id>|--session-new] [--conversation <channel>:<thread-ts>]... [--routine <selector>|--routine-default] [--calling-member <team-member>] [--parent-session <session-id>|--parent-none] [--start-context spawned|inline|joined] [--reports-to <address>] [--wait]" >&2
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--session-id <session-id>|--session-new] [--conversation <channel>:<thread-ts>]... [--routine <selector>|--routine-default] [--calling-member <team-member>] [--parent-session <session-id>|--parent-none] [--parent-member <team-member>] [--restarted-from <spawn-id>] [--start-context spawned|inline|joined] [--reports-to <address>] [--review-by <reviewer>] [--wait]" >&2
 			set +e ; return 1
 		fi
 		if [ -n "$routineSelector" ] && [ "$routineDefault" = "true" ] ; then
@@ -1057,7 +1093,7 @@ case "$1" in
 		## caller's own hand-carried text. Refusing here (a bad selector, a routine
 		## file that fails its own contract) refuses the whole spawn, the same as any
 		## other malformed input this far in.
-		local routineRecorded=""
+		local routineRecorded="" routineReportsTo=""
 		if [ -n "$routineSelector" ] || [ "$routineDefault" = "true" ] ; then
 			local routineBriefArgs=( --intern-op-spawn-prepare-brief "$callerName" )
 			if [ "$routineDefault" = "true" ] ; then
@@ -1078,6 +1114,8 @@ case "$1" in
 				[ "$routineDefault" != "true" ] || routineRecordSelector="$( AgentsToolsSpawnRoutineDefaultName )" || exit 1
 				AgentsToolsSpawnRoutineResolve "$routineRecordSelector"
 			)" 2>/dev/null || routineRecorded=""
+			## A routine whose runs report to no one says so in its own frontmatter (`reports-to: none`).
+			[ ! -f "$routineRecorded" ] || [ "$( AgentsToolsSpawnSandboxRecordHeader "$routineRecorded" "$agentsRunRouteField" )" != none ] || routineReportsTo="none"
 			routineRecorded="${routineRecorded##*/}"
 		fi
 		## A board-tracked spawn reads its item's Decisions before anything else: they bind it.
@@ -1215,7 +1253,7 @@ case "$1" in
 		## The member that makes this spawn call: the calling session's own, else the one its
 		## caller said the call is made as (--calling-member). Kept on the spawn's record
 		## (`parent-member:`), and who the lines this spawn posts for its caller are addressed to.
-		local spawnCallMember="${spawnerMember:-$callingMemberSaid}"
+		local spawnCallMember="${parentMemberSaid:-${spawnerMember:-$callingMemberSaid}}"
 
 		## The session the agent will actually run under, minted HERE so the same
 		## value reaches both the CLI and the dispatch record below -- that shared
@@ -1297,6 +1335,8 @@ case "$1" in
 		AgentsToolsAssertBareName "$parentSession" "the parent session" agent-spawn-proxy 2> /dev/null || parentSession=""
 		if [ -n "$reportsToSaid" ] ; then
 			reportsTo="$reportsToSaid"
+		elif [ -n "$routineReportsTo" ] ; then
+			reportsTo="$routineReportsTo"
 		elif [ -z "$parentSession" ] && [ -z "$parentSessionSaid" ] && [ -z "$parentNoneSaid" ] ; then
 			reportsTo="$spawnCallMember"
 			if [ -z "$reportsTo" ] ; then
@@ -1306,6 +1346,20 @@ case "$1" in
 			fi
 		fi
 		AgentsToolsRunRouteValid "$reportsTo" || reportsTo=""
+		## ONE SEAT FOR A MEMBER IN A SESSION (F6.9): a member whose seat in this session a live run
+		## holds (AgentsToolsSessionSeatHolder) is not started there a second time, and is asked
+		## there instead; nor is the member a native client session runs as, in that session. A
+		## restart of the run that holds the seat (--restarted-from) takes it over.
+		local seatHolder=""
+		if [ "$startContext" != "spawned" ] && seatHolder="$( AgentsToolsSessionSeatHolder "$sessionId" "$callerName" )" && [ "$seatHolder" != "$restartedFromSaid" ] ; then
+			echo "$MDSC_CMD: agent-spawn-proxy: 🙋 WARNING: $callerName already runs in session $sessionId: run $seatHolder holds its seat there, so a second run of it is not started -- send it what it should do there instead, with SendMessage to $sessionId:$callerName; nothing was started" >&2
+			set +e ; return 1
+		fi
+		if [ "$sessionOfCaller" = "true" ] && [ "$callerName" = "$spawnCallMember" ] && [ -z "$restartedFromSaid" ] \
+			&& [ -z "$( ls "$MMDAPP"/.local/agents/spawned/*/"$sessionId.md" 2> /dev/null )" ] ; then
+			echo "$MDSC_CMD: agent-spawn-proxy: 🙋 WARNING: $callerName already runs in session $sessionId: the client session itself runs as it, so a second run of it is not started there; nothing was started" >&2
+			set +e ; return 1
+		fi
 
 		## The session transcript (AgentsTools.SessionTranscript.include), named now so the
 		## dispatch item and the tracking file below carry its `transcript:` from the start.
@@ -1365,10 +1419,9 @@ case "$1" in
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
 				set +e ; return 1
 			}
-			## review-by, bare session-id form only: parentSessionId is who asked for this
-			## spawn, not who it runs as. Empty means this op cannot name a requester -- no
-			## header is written rather than guessing one (open question, not yet answered:
-			## how a caller with no parent session passes one).
+			## review-by only where the caller said one (--review-by): an item that names none is
+			## reviewed by whoever its run reports to (AgentsToolsItemReviewer), and by nobody
+			## where that is `none`.
 			printf '%s\n' "$dispatchBriefBody" | DistroAgentsTools --intern-op-board-upsert-move-edit running "$dispatchItemName" \
 				--create \
 				--context "$opContext" \
@@ -1382,7 +1435,7 @@ case "$1" in
 				--header:upsert:member-workspace:"$memberWorkspaceName" \
 				${transcriptRel:+--header:upsert:transcript:"$transcriptRel"} \
 				${trackedItemName:+--header:upsert:tracks:"${trackedItemName%.md}"} \
-				${parentSessionId:+--header:upsert:review-by:"$parentSessionId"} \
+				${reviewBySaid:+--header:upsert:review-by:"$reviewBySaid"} \
 				${spawnDescriptionKept:+--header:upsert:description:"$spawnDescriptionKept"} \
 				${sessionCommentKept:+--header:upsert:session-comment:"$sessionCommentKept"} \
 				--log-verb:created || {
@@ -1747,6 +1800,8 @@ case "$1" in
 			## session is for when it names nobody (AgentsToolsSessionParentMember). The calling
 			## session may have no record of its own to read it from.
 			[ -z "$spawnCallMember" ] || printf 'parent-member: %s\n' "$spawnCallMember"
+			## The run this one restarts, where it is a restart: whose seat it takes over (F6.9).
+			[ -z "$restartedFromSaid" ] || printf 'restarted-from: %s\n' "$restartedFromSaid"
 			[ -z "$parentThread" ] || printf 'parent-thread: %s\n' "$parentThread"
 			printf 'tracking-name: %s\n' "$sandboxName"
 			## The machine this spawn ran on, because a sandbox tree is synced between
@@ -1795,6 +1850,9 @@ case "$1" in
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't write the session tracking file: $sandboxTracking" >&2
 			set +e ; return 1
 		}
+		## Its member's seat in the session, taken at its start (F6.9): where a live run took it
+		## since the check above, this run starts without it, and takes it once that one has ended.
+		AgentsToolsSessionSeatTake "$sessionId" "$callerName" "$sandboxTracking" > /dev/null 2>&1 || :
 		## A one-line pointer file, plain text, for a reader that wants the session thread
 		## and nothing else -- no frontmatter to parse. In the sandbox root, same as the
 		## tracking file above and for the same reason. The event-track thread has no pointer
@@ -1849,7 +1907,10 @@ case "$1" in
 		## session waits with Wait and ends only on a DISMISSED -- unless its caller blocks on
 		## it (--wait), which cannot send one: that caller's wait is the dismissal up front.
 		local stayingText
-		if [ "$waitMode" = "true" ] ; then
+		if [ "$reportsTo" = "none" ] ; then
+			## A run that reports to no one: nobody dismisses it, reviews it or sends it corrections.
+			stayingText="You report to no one: nobody will dismiss you, review your work or send you corrections. When your work is done, give your report, as a SubagentHandback or saved where your task says, then end your run. Until then, never end it to wait: waiting for an answer, a reply, another session or an event is done with the Wait tool (mcp__myx_distro__Wait over MCP); after a TIMEOUT wait again, and keep obeying what arrives between waits."
+		elif [ "$waitMode" = "true" ] ; then
 			stayingText="Whoever started you is blocked until this run ends, so it cannot dismiss you: when your work is done, hand back with SubagentHandback and end your run. Until then, never end it to wait: waiting for an answer, a reply, another session or an event is done with the Wait tool (mcp__myx_distro__Wait over MCP); after a TIMEOUT wait again, and keep obeying what arrives between waits."
 		else
 			stayingText="You never end on your own, not even when your work is done. When it is done, report that to whoever started you, with SubagentHandback, saying you are done and waiting for further instructions, then keep waiting. Waiting for an answer, a reply, another session or an event is not the end of the work either. Wait with the Wait tool (mcp__myx_distro__Wait over MCP), on your session thread by default; after a TIMEOUT wait again, and keep obeying what arrives between waits. End your run only when a Wait returns DISMISSED: whoever started you dismisses you by a message addressed to you whose body is DISMISSED."
@@ -2159,7 +2220,7 @@ case "$1" in
 					"started "*|"alive "*) ;;
 					*)
 						controlSaid="${controlSaid#failed - }"
-						echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the control thread of session $sessionId could not be started: ${controlSaid:-the start said nothing} -- the run goes on without one, and a later start, by a member that joins, the advance scan, the main loop or the console, makes it again" >&2
+						echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the control thread of session $sessionId could not be started: ${controlSaid:-the start said nothing} -- the run goes on without one, and a later start, by a member that joins, the advance lock take, the main loop or the console, makes it again" >&2
 					;;
 				esac
 			fi

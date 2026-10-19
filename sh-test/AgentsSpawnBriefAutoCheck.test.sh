@@ -132,8 +132,8 @@ echo "-- the harness system text --"
 rigAssert "says a plain-text reply ends the run, and to Wait instead" \
 	"$( LC_ALL=C grep -c -F 'A plain-text reply with no tool call ends your run, so never give one while the work is still open' "$rigHarness" )$( LC_ALL=C grep -c -F 'Wait for it with the Wait tool (mcp__myx_distro__Wait over MCP)' "$rigHarness" )" 11
 
-rigAssert "spawned sessions nobody blocks on are told to wait for DISMISSED" \
-	"$( LC_ALL=C grep -c -F '[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || [ "${MDAT_SPAWN_CALLER_WAITS:-}" = "true" ] || harnessSpawnedWaitNote=" You are a spawned session: you never end on your own' "$rigHarness" )" 1
+rigAssert "spawned sessions nobody blocks on, that report to someone, are told to wait for DISMISSED" \
+	"$( LC_ALL=C grep -c -F '[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || [ "${MDAT_SPAWN_CALLER_WAITS:-}" = "true" ] || AgentsHarnessReportsNone || harnessSpawnedWaitNote=" You are a spawned session: you never end on your own' "$rigHarness" )" 1
 rigAssert "the Agent tool tells the spawner how to dismiss" \
 	"$( LC_ALL=C grep -c -F 'SendMessage to its session thread with address_to set to its member name and the message DISMISSED, which its Wait returns as DISMISSED. TaskStop is the last-resort force stop.' "$rigHere/AgentsOpenAiChatWire.sh" )" 1
 rigAssert "the Wait tool declares the DISMISSED outcome" \
@@ -144,7 +144,7 @@ rigAssert "and the MCP mirror serves it" \
 echo "-- Wait: DISMISSED only for a dismissal addressed to the waiting member --"
 rigDismissed(){ ## agent -- prints the dismissing head and rc
 	local rigHead rigRc=0
-	rigHead="$( LC_ALL=C awk -v agent="$1" -f "$rigHere/AgentsDismissalMatch.awk" -f "$rigHere/AgentsHarnessWaitDismissed.awk" "$rigTmp/wait.out" )" || rigRc=$?
+	rigHead="$( dismissalMember="$1" LC_ALL=C awk -f "$rigHere/AgentsDismissalMatch.awk" -f "$rigHere/AgentsHarnessWaitDismissed.awk" "$rigTmp/wait.out" )" || rigRc=$?
 	printf '%s rc=%s' "$rigHead" "$rigRc"
 }
 printf '%s\n' 'WAIT-RESULT: RECEIVED' '1.000001 | U1 | :m: *_magic-coordinator_* @Magic → *_rig-a_* @A; *_rig-c_* @C.' 'DISMISSED' \

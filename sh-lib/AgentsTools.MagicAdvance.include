@@ -96,6 +96,7 @@ AgentsToolsAdvanceLockHeadCheck(){
 	return 0
 }
 
+## The acting half of the advance pass: --magic-advance-lock-acquire runs it once the lock is taken, and the scan only reads.
 ## Closes what a dead spawn left open, silently on stdout, so the reads after it see the moved items: a started sandbox record whose session
 ## is dead (a local one by process list, any other by age), the dispatch item it links, a running dispatch item whose own record already ended,
 ## and a review item whose reviewer session has ended. And starts the control thread of each session that needs one and has none alive.
@@ -137,7 +138,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )" = spawn-started ] || continue
 		AgentsToolsSpawnProxyCloseSandbox "$recordPath" "$endedOutcome" unknown
 		if [ "$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )" != "spawn-$endedOutcome" ] ; then
-			echo "⚠️ WARNING: $MDSC_CMD --magic-advance-input-scan: could not close the record of spawn $rowSpawn in $rowTracking" >&2
+			AgentsToolsDaemonLine "⚠️ WARNING: $MDSC_CMD --magic-advance-lock-acquire: could not close the record of spawn $rowSpawn in $rowTracking"
 			continue
 		fi
 		housekeepingLog="${housekeepingLog}housekeeping: closed record $rowTracking $rowSpawn"$'\n'
@@ -229,24 +230,24 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 			;;
 		esac
 		if DistroAgentsTools --intern-op-board-upsert-move-edit review "$itemName" --from-state:review \
-			--header:upsert:review-by:magic-coordinator --context --magic-advance-input-scan > /dev/null 2>&1 ; then
+			--header:upsert:review-by:magic-coordinator --context --magic-advance-lock-acquire > /dev/null 2>&1 ; then
 			housekeepingLog="${housekeepingLog}housekeeping: $itemName review-by -> magic-coordinator"$'\n'
 		fi
 	done
 	## The on-demand check of the health of the sessions: the control thread of each session that is not finished and has none alive is started,
 	## detached and never waited for (AgentsToolsSessionControlCheck, AgentsTools.SessionControlStart.include). By the rows measured above, once
 	## the dead records are closed: nothing is measured for it. One line of the report says what was started, and only when a thread was;
-	## a thread that could not be started is one warning, and the scan goes on.
+	## a thread that could not be started is one warning on the daemon line, and the pass goes on.
 	type AgentsToolsSessionControlCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlStart.include" 2> /dev/null || :
 	controlLines="$( printf '%s\n' "$measureText" | AgentsToolsSessionControlCheck 2> /dev/null )" || controlLines=""
 	while read -r controlSession controlWord controlPid controlWhy ; do
 		case "$controlWord" in
 			started) controlStarted="$controlStarted $controlSession" ; controlCount=$(( controlCount + 1 )) ;;
-			failed) echo "⚠️ WARNING: $MDSC_CMD --magic-advance-input-scan: the control thread of session $controlSession could not be started: $controlWhy" >&2 ;;
+			failed) AgentsToolsDaemonLine "⚠️ WARNING: $MDSC_CMD --magic-advance-lock-acquire: the control thread of session $controlSession could not be started: $controlWhy" ;;
 		esac
 	done <<< "$controlLines"
 	[ "$controlCount" -eq 0 ] || housekeepingLog="${housekeepingLog}housekeeping: started the control thread of $controlCount session(s):$controlStarted"$'\n'
-	## What was done never enters the scan's output; it goes to the event-track thread of this spawn's coworking session.
+	## What was done never enters the lock's output; it goes to the event-track thread of this spawn's coworking session.
 	AgentsToolsHousekeepingReport "$2" "${housekeepingLog%$'\n'}"
 	return 0
 }
@@ -254,6 +255,45 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.RecheckDate.include"
 
 type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpItem.include"
+
+## The report of --magic-advance-input-scan, a pure read, kept for its session by AgentsToolsInputScanCached.
+AgentsToolsAdvanceInputScanReport(){ ## calling member
+	local callingMember="$1"
+	printf '%s\n\n' "## state-and-lock (routine-advance)"
+	local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
+	if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
+	## Scoped to what advance itself acts on, per the owner's "grooming reads
+	## backlog+inquiries+notes, advance does not": no backlog (promotion is
+	## grooming's), and of the own inbox only notes -- the pending-slack-reaction and
+	## pending-trello-update records check-pending-comms-actions reads. Inquiries,
+	## reflections and the client-* inboxes are read by --magic-grooming-input-scan.
+	printf '\n%s\n\n' "## board digest"
+	DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
+		--state pending --state running --state review --state blocked --state parked \
+		--all-types \
+		--no-inbox-inquiry \
+		--no-inbox-reflections \
+		--do-inbox-notes \
+		--no-slack --no-email --no-trello \
+		--no-inbox-other \
+		--no-board-related \
+		--context --magic-advance-input-scan
+	local advanceScanRc=$?
+	## The review items this routine reviews on this run (AgentsTools.ReviewFlow.include).
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include"
+	printf '\n%s\n\n' "## review items addressed to advance.routine"
+	AgentsReviewItemsForRoutine advance
+	## All three registries ride in this scan's output because the pass that reads
+	## the board also needs to know who can be spawned, what is actually running
+	## and what is waiting on an answer. The rescan is what keeps each one a cache
+	## rather than a record anyone maintains by hand. The instruction to poll these
+	## and compare them with the board's own running items lives in
+	## magic-coordinator.advance.routine, not here -- this emits the facts that
+	## instruction is carried out against.
+	printf '\n'
+	AgentsToolsRegistryRenderAll || :
+	return $advanceScanRc
+}
 
 case "$1" in
 
@@ -284,41 +324,11 @@ case "$1" in
 		}
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
-		AgentsToolsAdvanceSpawnHousekeeping 24 "$callingMember"
-		printf '%s\n\n' "## state-and-lock (routine-advance)"
-		local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
-		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
-		## Scoped to what advance itself acts on, per the owner's "grooming reads
-		## backlog+inquiries+notes, advance does not": no backlog (promotion is
-		## grooming's), and of the own inbox only notes -- the pending-slack-reaction and
-		## pending-trello-update records check-pending-comms-actions reads. Inquiries,
-		## reflections and the client-* inboxes are read by --magic-grooming-input-scan.
-		printf '\n%s\n\n' "## board digest"
-		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
-			--state pending --state running --state review --state blocked --state parked \
-			--all-types \
-			--no-inbox-inquiry \
-			--no-inbox-reflections \
-			--do-inbox-notes \
-			--no-slack --no-email --no-trello \
-			--no-inbox-other \
-			--no-board-related \
-			--context --magic-advance-input-scan
-		local advanceScanRc=$?
-		## The review items this routine reviews on this run (AgentsTools.ReviewFlow.include).
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include"
-		printf '\n%s\n\n' "## review items addressed to advance.routine"
-		AgentsReviewItemsForRoutine advance
-		## All three registries ride in this scan's output because the pass that reads
-		## the board also needs to know who can be spawned, what is actually running
-		## and what is waiting on an answer. The rescan is what keeps each one a cache
-		## rather than a record anyone maintains by hand. The instruction to poll these
-		## and compare them with the board's own running items lives in
-		## magic-coordinator.advance.routine, not here -- this emits the facts that
-		## instruction is carried out against.
-		printf '\n'
-		AgentsToolsRegistryRenderAll || :
-		return $advanceScanRc
+		## A pure read: what a dead spawn left open is closed when the routine takes its lock (AgentsToolsAdvanceSpawnHousekeeping).
+		## In a team session the report is a file of its folder, served again for five minutes (AgentsTools.InputScanCache.include).
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InputScanCache.include"
+		AgentsToolsInputScanCached magic-advance-input-scan AgentsToolsAdvanceInputScanReport "$callingMember"
+		return $?
 	;;
 
 	--magic-advance-to-running)
@@ -634,6 +644,11 @@ case "$1" in
 				set +e ; return 1
 			fi
 		fi
+		## The pass's housekeeping, each time the routine takes its lock and only then, by the tooling itself: its lines go to the
+		## daemon line and the event-track thread (AgentsToolsHousekeepingReport), none to the output the agent reads.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
+		AgentsToolsAdvanceSpawnHousekeeping 24 "$callingMember" > /dev/null
 		return 0
 	;;
 

@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.BareName.include -- the bare-name gate, AgentsToolsAssertBareName, and nothing
+## else: sourcing it has no other effect, so any shell may load it -- an operation, through
+## AgentsContext.UseAgentsTools.include, and a harness-served tool, through what it calls
+## (AgentsTools.SpawnSandbox.include). Sourced, never run. Functions only.
+##
+
+if ! type AgentsToolsAssertBareName >/dev/null 2>&1 ; then
+	## The bare-name gate for the whole family: one path segment of letters, digits, '.', '_', '-'.
+	## Reports and returns 1, never exits. Never a [a-z] range -- bracket ranges are collation-dependent.
+	AgentsToolsAssertBareName(){
+		local nameValue="$1"
+		local nameLabel="$2"
+		local nameContext="$3"
+		case "$nameValue" in
+			''|.|..|-*|*/*)
+				echo "$MDSC_CMD: $nameContext: ❗ ASSERT: $nameLabel must be a bare name -- one path segment of letters, digits, '.', '_' or '-', not '.'/'..', no leading '-', no '/': $nameValue" >&2
+				return 1
+			;;
+		esac
+		local nameRest="$nameValue" nameChar
+		while [ -n "$nameRest" ] ; do
+			nameChar="${nameRest%"${nameRest#?}"}"
+			nameRest="${nameRest#?}"
+			case "$nameChar" in
+				a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
+				A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
+				0|1|2|3|4|5|6|7|8|9) ;;
+				-|_|.) ;;
+				*)
+					echo "$MDSC_CMD: $nameContext: ❗ ASSERT: $nameLabel contains a character outside the allowed set (letters, digits, '.', '_', '-'): $nameValue" >&2
+					return 1
+				;;
+			esac
+		done
+		return 0
+	}
+fi

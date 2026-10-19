@@ -10,6 +10,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
 rigField="$rigHere/AgentsHarnessJsonField.awk"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigPolicy="$rigHere/AgentsTools.ClientToolPolicy.include"
@@ -236,7 +237,7 @@ rigResult(){ ## request id
 	partIndex="$( rigPart "$1" __count )"
 	partIndex=$(( ${partIndex:-0} - 1 ))
 	while [ "$partIndex" -ge 0 ] ; do
-		[ "$( rigPart "$1" "$partIndex.type" )" != text ] || { rigPart "$1" "$partIndex.text" ; return 0 ; }
+		[ "$( rigPart "$1" "$partIndex.type" )" != text ] || { rigPart "$1" "$partIndex.text" | rigReplyBare ; return 0 ; }
 		partIndex=$(( partIndex - 1 ))
 	done
 	printf 'ERROR: %s' "$( LC_ALL=C grep -m1 "^{\"jsonrpc\":\"2.0\",\"id\":$1," "$rigTmp/wire" | LC_ALL=C awk -v path="error.message" -v optional=1 -f "$rigField" 2>/dev/null )"

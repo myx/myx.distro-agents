@@ -117,7 +117,7 @@ case "$1" in
 		printf 'counts: %s\n\n' "$mrCounts"
 		## Sessions the spawned-sessions registry knows and holds none live (as advance reads them).
 		local mrEndedFile="" mrRegistryText=""
-		mrEndedFile="$( mktemp "${TMPDIR:-/tmp}/mdat-morning-review-ended.XXXXXX" )" || mrEndedFile=""
+		mkdir -p "$MMDAPP/.local/temp" 2> /dev/null && mrEndedFile="$( mktemp "$MMDAPP/.local/temp/mdat-morning-review-ended.XXXXXX" )" || mrEndedFile=""
 		if [ -n "$mrEndedFile" ] && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2>/dev/null ; then
 			mrRegistryText="$( AgentsToolsRegistryRenderSpawnedSessions agents 2>/dev/null )" || mrRegistryText=""
 			case "$mrRegistryText" in
@@ -135,7 +135,14 @@ case "$1" in
 		else
 			mrPartial="$mrPartial**NOTE:** partial -- the spawned-sessions registry could not be read, so running-session-ended is not checked"$'\n'
 		fi
-		if LC_ALL=C awk -v cap="$mrSampleCap" -v width=100 -v endedFile="$mrEndedFile" \
+		## The runs with a spawn record here: an item in review that names no reviewer falls to where its run reports to.
+		local mrRunsFile="" mrRunRecord
+		mkdir -p "$MMDAPP/.local/temp" 2> /dev/null && mrRunsFile="$( mktemp "$MMDAPP/.local/temp/mdat-morning-review-runs.XXXXXX" )" || mrRunsFile=""
+		[ -z "$mrRunsFile" ] || for mrRunRecord in "$MMDAPP"/.local/agents/spawned/*/*.md ; do
+			[ -f "$mrRunRecord" ] || continue
+			mrRunRecord="${mrRunRecord##*/}" ; printf '%s\n' "${mrRunRecord%.md}"
+		done > "$mrRunsFile"
+		if mrShapeEndedFile="$mrEndedFile" mrShapeRunsFile="$mrRunsFile" LC_ALL=C awk -v cap="$mrSampleCap" -v width=100 \
 			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMorningReviewStateShape.awk" \
 			"${mrShapeFiles[@]+"${mrShapeFiles[@]}"}" ; then
 			mrSourcesRead=$(( mrSourcesRead + 1 ))
@@ -143,6 +150,7 @@ case "$1" in
 			mrPartial="$mrPartial**NOTE:** partial -- the state-shape sample could not be computed"$'\n'
 		fi
 		[ -z "$mrEndedFile" ] || rm -f -- "$mrEndedFile"
+		[ -z "$mrRunsFile" ] || rm -f -- "$mrRunsFile"
 
 		## Skillset files changed since the cut-off: names only, newest first.
 		printf '\n## skillset files changed since cutoff\n\n'

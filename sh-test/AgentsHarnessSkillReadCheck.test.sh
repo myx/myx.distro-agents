@@ -26,6 +26,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 
 export MDLT_ORIGIN="${MDLT_ORIGIN:-$MMDAPP/.local}"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
 rigHarness="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh"
 
 rigRefuse(){
@@ -144,7 +145,7 @@ rigSkill(){ ## argument object
 	rigOut="$( cd "$rigTmp/cwd" && printf '%s' "$1" | HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDAT_SKILLSET_ROOT="$rigWsSkills" \
 		"$rigHarness" --intern-tool Skill 2>/dev/null )" || :
 	[ -n "$rigOut" ] || rigRefuse "no output from Skill $1, so the tool was never exercised"
-	printf '%s' "$rigOut"
+	printf '%s\n' "$rigOut" | rigReplyBare
 }
 
 echo "-- Skill by skill, every name form --"

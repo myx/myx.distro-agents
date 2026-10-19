@@ -2,8 +2,9 @@
 ##
 ## AgentsHarnessWaitDismissed.awk -- finds a dismissal among the messages a Wait
 ## returned, for AgentsUniversalHarness.sh's AgentsHarnessToolWait. Input: the wait's
-## own stdout. `-v agent=<member>`: the member waiting. Needs AgentsDismissalMatch.awk
-## loaded first: `awk -v agent=<member> -f AgentsDismissalMatch.awk -f <this>`.
+## own stdout. `dismissalMember=<member>` in the environment: the member waiting, a name,
+## so through ENVIRON and never -v. Needs AgentsDismissalMatch.awk loaded first:
+## `dismissalMember=<member> awk -f AgentsDismissalMatch.awk -f <this>`.
 ##
 ## A message is one `<ts> | <user> |...` line plus the lines under it (a Slack text
 ## keeps its newlines), up to the next message, a `WAIT-` line, or one of the lines the wait
@@ -17,6 +18,7 @@
 ## Prints the dismissing message's `<ts> | <user>` and exits 0; exits 1 when none.
 ## Every closing `}` is preceded by a `;` (reference/shell.md's awk axiom).
 ##
+BEGIN { agent = ENVIRON["dismissalMember"] ; } ;
 function flush() {
 	if (cur != "" && dismissalOf(cur, agent)) { print head ; found = 1 ; exit 0 ; } ;
 	cur = "" ;

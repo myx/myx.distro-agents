@@ -8,7 +8,8 @@
 ##   - a string or a numeric token: notifications/progress frames carrying that token,
 ##     progress strictly increasing, each one whole JSON-RPC line, none after the result,
 ##     and the Wait returns by MDAT_MCP_WAIT_BOUND_PROGRESS instead;
-##   - the TIMEOUT result is the one line `WAIT-RESULT: TIMEOUT (<s>s) NEXT: Wait mode=continue`.
+##   - the TIMEOUT result is three lines: `WAIT-RESULT: TIMEOUT (<s>s)`, the reply layer's `current-date:`
+##     line, and `NEXT: Wait mode=continue` (F2.3 of the refactorings epic splits the one line there).
 ## Which bound a Wait returned by is read off the whole seconds that line names. A wait runs its
 ## bound, then the rest of the clock second it began in and the work of its last round, so the
 ## seconds it reports are the bound or a little more, the more the busier the host: read as
@@ -60,8 +61,8 @@ rigServe(){ ## scenario name, _meta JSON or empty
 rigFrames(){ ## scenario name -- how many progress frames
 	LC_ALL=C grep -c '"method":"notifications/progress"' "$rigTmp/$1.wire" | tr -d ' '
 }
-rigTimeoutLine(){ ## scenario name -- the result text, with its seconds masked
-	LC_ALL=C grep '"id":2,' "$rigTmp/$1.wire" | LC_ALL=C sed -n 's/.*"text":"\(WAIT-RESULT: TIMEOUT ([0-9]*s) NEXT: Wait mode=continue\)\(\\n\)*".*/\1/p' | LC_ALL=C sed 's/([0-9]*s)/(Ns)/'
+rigTimeoutLine(){ ## scenario name -- the result text, its three lines joined by ` | `, its seconds and its date masked
+	LC_ALL=C grep '"id":2,' "$rigTmp/$1.wire" | LC_ALL=C sed -n 's/.*"text":"\(WAIT-RESULT: TIMEOUT ([0-9]*s)\)\\ncurrent-date: [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9] [+-][0-9][0-9][0-9][0-9]\\n\(NEXT: Wait mode=continue\)\(\\n\)*".*/\1 | current-date | \2/p' | LC_ALL=C sed 's/([0-9]*s)/(Ns)/'
 }
 rigWaited(){ ## scenario name -- the seconds the TIMEOUT line names
 	LC_ALL=C grep '"id":2,' "$rigTmp/$1.wire" | LC_ALL=C sed -n 's/.*WAIT-RESULT: TIMEOUT (\([0-9]*\)s).*/\1/p'
@@ -98,7 +99,7 @@ rigWireShape(){ ## scenario name
 echo "-- no progressToken: no frame, the safe bound --"
 rigServe none ""
 rigAssert "no progress frame is sent"                         "$( rigFrames none )" 0
-rigAssert "the TIMEOUT result is one line"                    "$( rigTimeoutLine none )" "WAIT-RESULT: TIMEOUT (Ns) NEXT: Wait mode=continue"
+rigAssert "the TIMEOUT result: its outcome, the date, the call" "$( rigTimeoutLine none )" "WAIT-RESULT: TIMEOUT (Ns) | current-date | NEXT: Wait mode=continue"
 rigAssert "it returned by MDAT_MCP_WAIT_BOUND (2s)"           "$( rigBoundOf none )" safe
 rigAssert "and says nothing of a successful wait in prose"    "$( LC_ALL=C grep -c 'COMPLETE, SUCCESSFUL' "$rigTmp/none.wire" | tr -d ' ' )" 0
 

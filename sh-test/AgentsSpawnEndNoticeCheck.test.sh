@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on how the end of a run is told to whoever requested it, run rather than read: through the
-## real spawn proxy on a stand-in console, the real kill of the console, a served TaskStop, the real advance input
-## scan and the real return of a review. One message of the tooling for an end, a fact and no question, its words a
+## real spawn proxy on a stand-in console, the real kill of the console, a served TaskStop, the real advance lock
+## take and the real return of a review. One message of the tooling for an end, a fact and no question, its words a
 ## block of the note template (sh-lib/templates/tooling-note.post.format.md, `# Session`), posted by the one
 ## function the note of a session is posted by, after the record and the item of the run are closed.
 ## Held:
@@ -26,8 +26,8 @@
 ##      back in that thread. Ended by a member's TaskStop: by that member. Ended by the tooling at the bound of a
 ##      start its caller waits on: by the tooling, with the bound. The control is 2: a run that ended by itself.
 ##   6. A DEAD RUN THE ADVANCE PASS CLOSES as ended without close is told in the thread of the session that
-##      requested it, once: a second scan posts nothing more. The scan prints nothing of it. Not one whose
-##      supervising shell still lives: that shell tells it at its own close.
+##      requested it, once: a second take of the lock posts nothing more. The take prints nothing of it. Not one
+##      whose supervising shell still lives: that shell tells it at its own close.
 ##   7. A RETURN STARTS AN ENDED RUN AGAIN, in the same session, sandbox and item: one that ended with no handback
 ##      and was closed by its supervising shell, and one the advance pass closed.
 ##   8. THE WORDS ARE THE TEMPLATE'S: each block filled gives its words, and no line of code holds them.
@@ -58,7 +58,7 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 [ -f "$rigFixture" ] || rigRefuse "the fake curl fixture is missing: $rigFixture"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is
-## still that process; a control thread the advance scan of this rig starts is ended the same way, at the end.
+## still that process; a control thread the advance pass of this rig starts is ended the same way, at the end.
 . "$rigHelper" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's helper for control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigTmp="$( mktemp -d -t AgentsSpawnEndNoticeCheck )" || exit 1
@@ -243,7 +243,7 @@ mkdir -p "$rigSp/$rigParent"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-b\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\nsession-thread: %s\n---\n\n# Spawn session: %s\n' \
 	"$rigParent" "$rigParent" "$rigParent" "$rigHost" "$rigParentThread" "$rigParent" > "$rigSp/$rigParent/$rigParent.md"
 ## It runs: a stand-in process of this rig stands in the rig's process list as its run, by its own session word,
-## so that the session lives for whoever measures it, the advance scan among them.
+## so that the session lives for whoever measures it, the advance pass among them.
 sleep 900 > /dev/null 2>&1 < /dev/null &
 rigProcNote "$!" ; rigKept="$rigKept $!"
 printf '%s rig-cli --session-id %s the brief\n' "$!" "$rigParent" >> "$rigTmp/ps.list"
@@ -382,6 +382,16 @@ printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnS
 rigAssert "told once, in the inbox of the member it reports to, and in no conversation" \
 	"$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4b/out" ):$( LC_ALL=C grep -l -F -- "${rigToMember:0:8}" "$rigData/inboxes/rig-member-b"/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' ):$( rigNoteCount "$rigTmp/s4b" "${rigToMember:0:8}" )" "1:1:0"
 
+echo "-- 4c. a run that reports to no one is told to no one --"
+rigToNone="rtn4c$$x"
+mkdir -p "$rigSp/$rigToNone" "$rigTmp/s4c"
+printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: none\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-ended-without-close\nsession-thread: CRIGOWN4C:1700000004.000300\n---\n' \
+	"$rigToNone" "$rigToNone" "$rigReportsTo" "$rigToNone" "$rigHost" > "$rigSp/$rigToNone/$rigToNone.md"
+printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToNone/$rigToNone.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
+	| rigEnv "$rigTmp/s4c" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4c/out" 2>&1
+rigAssert "nothing said, nothing posted, nothing left in an inbox" \
+	"$( LC_ALL=C grep -c -x 'SAID=none' "$rigTmp/s4c/out" ):$( rigNoteCount "$rigTmp/s4c" "${rigToNone:0:8}" ):$( LC_ALL=C grep -l -F -- "${rigToNone:0:8}" "$rigData"/inboxes/*/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "1:0:0"
+
 echo "-- 5. a killed run is told as killed, and by whom --"
 ## One call of the console in the rig workspace, as a bare console makes it.
 rigConsole(){ ## result file, tool arguments...
@@ -458,17 +468,18 @@ disown "$!" 2> /dev/null || :
 mkdir -p "$rigSp/$rigHeldRun"
 LC_ALL=C sed -e "s/$rigDead/$rigHeldRun/g" -e "s/^spawns: .*\$/supervisor-process: $rigHeldShell/" "$rigRecord" > "$rigSp/$rigHeldRun/$rigHeldRun.md"
 find "$rigSp/$rigHeldRun" -exec touch -t "$rigStampText" {} +
-rigScan(){ ## result file -- one advance input scan, as the coordinator's session runs it
-	rigConsole "$1" --magic-advance-input-scan magic-coordinator
+rigLock(){ ## result file -- the advance routine takes its lock, free, as the coordinator's session takes it: its housekeeping runs there
+	rm -f "$rigData/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
+	rigConsole "$1" --magic-advance-lock-acquire magic-coordinator rig-advance-pass
 }
-rigScan "$rigDir/scan1.out"
-rigAssert "the scan closes its record as ended without close and takes its item to review" "$( rigHeader "$rigRecord" status ):$( rigItemIn "$rigDeadItem" )" "spawn-ended-without-close:review"
+rigLock "$rigDir/scan1.out"
+rigAssert "taking the lock closes its record as ended without close and takes its item to review" "$( rigHeader "$rigRecord" status ):$( rigItemIn "$rigDeadItem" )" "spawn-ended-without-close:review"
 rigAssert "one note stands in the thread of the session that requested it, addressed to the member that brought it in" "$( rigNotes "$rigDir" "$rigMissing" )" "${rigParentThread%%:*} ${rigParentThread#*:} $rigToB"
-rigAssert "the scan prints nothing of it" "$( LC_ALL=C grep -c -F -e 'posted no handback' -e 'ended its run' "$rigDir/scan1.out" )" "0"
-rigAssert "a dead run whose supervising shell still lives is closed by the scan and not told by it: that shell tells it at its own close" \
+rigAssert "the take of the lock prints nothing of it" "$( LC_ALL=C grep -c -F -e 'posted no handback' -e 'ended its run' "$rigDir/scan1.out" )" "0"
+rigAssert "a dead run whose supervising shell still lives is closed by the pass and not told by it: that shell tells it at its own close" \
 	"$( rigIsStill "$rigHeldShell" && printf shell-alive ):$( rigHeader "$rigSp/$rigHeldRun/$rigHeldRun.md" status ):$( LC_ALL=C grep -c -F "${rigHeldRun:0:8}" "$rigDir/bodies" 2> /dev/null )" "shell-alive:spawn-ended-without-close:0"
-rigScan "$rigDir/scan2.out"
-rigAssert "a second scan posts nothing more for that run" "$( rigNoteCount "$rigDir" "$rigMissing" )" "1"
+rigLock "$rigDir/scan2.out"
+rigAssert "a second take of the lock posts nothing more for that run" "$( rigNoteCount "$rigDir" "$rigMissing" )" "1"
 
 echo "-- 7. a return starts an ended run again, in the same session, sandbox and item --"
 ## The reviewer, the member of the session that requested the run, returns the item with corrections. The run that

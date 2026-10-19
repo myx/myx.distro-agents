@@ -126,9 +126,9 @@ rigAssert "the post is a reply in the session thread"      "$( LC_ALL=C grep -c 
 rigText="$( LC_ALL=C sed -n -E 's/^\{"channel":"[^"]*","text":"(([^"\\]|\\.)*)".*/\1/p' "$rigTmp/bodies" | head -1 )"
 rigText="$( printf '%b' "$rigText" )"
 rigAssert "the child's Wait reads the post as its dismissal" \
-	"$( printf '1700000001.000200 | URIGBOT01 | %s\n' "$rigText" | LC_ALL=C awk -v agent=keeper-myx -f "$rigLib/AgentsDismissalMatch.awk" -f "$rigLib/AgentsHarnessWaitDismissed.awk" > /dev/null && echo dismissed )" dismissed
+	"$( printf '1700000001.000200 | URIGBOT01 | %s\n' "$rigText" | dismissalMember=keeper-myx LC_ALL=C awk -f "$rigLib/AgentsDismissalMatch.awk" -f "$rigLib/AgentsHarnessWaitDismissed.awk" > /dev/null && echo dismissed )" dismissed
 rigAssert "it dismisses no other member"                   \
-	"$( printf '1700000001.000200 | URIGBOT01 | %s\n' "$rigText" | LC_ALL=C awk -v agent=magic-tester -f "$rigLib/AgentsDismissalMatch.awk" -f "$rigLib/AgentsHarnessWaitDismissed.awk" > /dev/null && echo dismissed )" ""
+	"$( printf '1700000001.000200 | URIGBOT01 | %s\n' "$rigText" | dismissalMember=magic-tester LC_ALL=C awk -f "$rigLib/AgentsDismissalMatch.awk" -f "$rigLib/AgentsHarnessWaitDismissed.awk" > /dev/null && echo dismissed )" ""
 
 echo "-- child on another host: liveness unmeasurable here, so the dismissal is sent --"
 rigRecord rig-foreign-c3d4 spawn-started rig-other-host CRIGSESS2:1700000000.000300

@@ -185,9 +185,9 @@ rigAssert "the reminder reads as it was written, the time in UTC" \
 rigAssert "a Wait's answers: the reply after the tooling's own post, its time as the fallback" \
 	"$( LC_ALL=C awk -v rootTs=1791525800.000100 -v fromUsers=U0OWNER -f "$rigLib/AgentsDismissalMatch.awk" -f "$rigLib/AgentsSlackThreadAnswers.awk" < "$rigTmp/thread.fmt" | LC_ALL=C tr '\n' '#' )" \
 	'1791525810.000100 | U0OWNER | yes, since 2026-10-09 06:02 UTC | fine#1791525830.000100 | U0OWNER | <@U0TESTER> see 06:02 UTC#'
-rigDismissedBy="$( LC_ALL=C awk -v agent=magic-tester -f "$rigLib/AgentsDismissalMatch.awk" -f "$rigLib/AgentsHarnessWaitDismissed.awk" "$rigTmp/thread.fmt" )" ; rigRc=$?
+rigDismissedBy="$( dismissalMember=magic-tester LC_ALL=C awk -f "$rigLib/AgentsDismissalMatch.awk" -f "$rigLib/AgentsHarnessWaitDismissed.awk" "$rigTmp/thread.fmt" )" ; rigRc=$?
 rigAssert "the dismissal reader finds the DISMISSED among messages that carry tokens" "$rigDismissedBy:rc=$rigRc" '1791525820.000100 | U0BOT:rc=0'
-rigDismissedBy="$( LC_ALL=C grep -v -F 'DISMISSED' "$rigTmp/thread.fmt" | LC_ALL=C awk -v agent=magic-tester -f "$rigLib/AgentsDismissalMatch.awk" -f "$rigLib/AgentsHarnessWaitDismissed.awk" )" ; rigRc=$?
+rigDismissedBy="$( LC_ALL=C grep -v -F 'DISMISSED' "$rigTmp/thread.fmt" | dismissalMember=magic-tester LC_ALL=C awk -f "$rigLib/AgentsDismissalMatch.awk" -f "$rigLib/AgentsHarnessWaitDismissed.awk" )" ; rigRc=$?
 rigAssert "and none where there is none: a reminder with a token dismisses no one" "$rigDismissedBy:rc=$rigRc" ':rc=1'
 COMMS_USER_HANDLES=$'U0TESTER\ttester' LC_ALL=C awk -v kind=slack -v source=rig -v channel=CRIG -f "$rigLib/AgentsSessionContextCommsItems.awk" < "$rigTmp/thread.json" > "$rigTmp/thread.items" 2>> "$rigTmp/thread.err" ; rigRc=$?
 rigAssert "the session-context scan: no raw control string, the text with its fallback" \

@@ -3,9 +3,10 @@
 ## scenario board built here. Holds: one item placed in each active board state comes
 ## back as its own `## <state>/<item-filename>` row, except backlog, which is grooming's
 ## (the owner's "grooming reads backlog+inquiries+notes, advance does not"). Offline by construction.
-## Also holds the scan's bookkeeping rows, each against a fake data root and a fake workspace
+## Also holds the advance pass's bookkeeping rows, each against a fake data root and a fake workspace
 ## of this rig's own, each with a control that holds on today's behaviour and a second pass
-## that must change nothing: the reviewer rewrite on board/review items, dead and live dispatches,
+## that must change nothing. A pass is the routine taking its lock, where the housekeeping runs, then
+## its scan, which only reads (rigPass): the reviewer rewrite on board/review items, dead and live dispatches,
 ## unclosed and live registry rows, nothing about it on stdout or stderr, one report post to the
 ## event-track thread (a fake curl first on PATH), and the processed-item GC taking its sandbox folder.
 ## A live session is a line of this rig's own process list: a ps first on PATH lists the rig's runs only,
@@ -13,6 +14,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
 
 ## Refusing to report is this function's whole job: a rig that could not reach its
 ## subject must never reach its PASS lines, which read exactly like a result.
@@ -22,7 +24,7 @@ rigRefuse(){
 
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 
-## A scan or an iteration of the main loop starts the control thread of a session of its rig that is not finished: what was started is ended before the tree is removed.
+## A take of the advance lock or an iteration of the main loop starts the control thread of a session of its rig that is not finished: what was started is ended before the tree is removed.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigTmp="$( mktemp -d -t "AgentsAdvanceInputScanStatesCheck-XXXXXXXX" )" || exit 1
 trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
@@ -126,12 +128,19 @@ rigScan(){ ## result file -- one --magic-advance-input-scan pass
 	rigRun "$1" --magic-advance-input-scan magic-coordinator
 	[ "$( cat "$1.rc" )" = 0 ] || rigRefuse "--magic-advance-input-scan failed in the rig: $( tail -2 "$1.err" )"
 }
+rigPass(){ ## result file -- one advance pass: the routine takes its lock, free, and its housekeeping runs there (<result>.lock), then its scan reads (<result>)
+	rm -f "$rigD/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
+	rigRun "$1.lock" --magic-advance-lock-acquire magic-coordinator rig-advance-pass
+	[ "$( cat "$1.lock.rc" )" = 0 ] || rigRefuse "--magic-advance-lock-acquire failed in the rig: $( tail -2 "$1.lock.err" )"
+	rigScan "$1"
+}
 rigSnap(){ ## rig name -- every file of that rig's workspace and data root with its checksum, one line each
 	## But the folder control/ of a session: it is its control thread's own, which a scan starts and which writes on between two scans (AgentsSessionControlScanCheck holds what a scan does there).
 	## And, of the sessions registry, the two columns that store what that thread wrote there: session-state and session-state-at, the fifteenth and the sixteenth of a row. A thread a scan started writes the state
 	## of its session a moment after that scan, and whether that lands before the scan's own last rebuild of the registry is the load's, not the scan's. Every other column of every row stays in the snapshot,
 	## and every other file: what a second pass itself adds, drops or changes is still found (the two control rows after the first "a second pass changes nothing").
-	( cd "$rigTmp/$1" && find ws data -type f ! -path '*/control/*' | LC_ALL=C sort | while IFS= read -r snapFile ; do
+	## And the advance lock note, which each pass takes afresh: the lock's own record, not what the pass does.
+	( cd "$rigTmp/$1" && find ws data -type f ! -path '*/control/*' ! -name 'note-20260809T154715Z-advance-state-and-lock.md' | LC_ALL=C sort | while IFS= read -r snapFile ; do
 		case "$snapFile" in
 			*/spawned-sessions.registry) printf '%s %s\n' "$snapFile" "$( LC_ALL=C awk 'NF >= 16 { $15 = "" ; $16 = "" } { print }' "$snapFile" | cksum )" ;;
 			*) printf '%s %s\n' "$snapFile" "$( cksum < "$snapFile" )" ;;
@@ -260,8 +269,8 @@ rigUnchanged(){ ## item filename -- the checksum line of that item before and af
 }
 rigRevSnap > "$rigTmp/b1.rev0"
 LC_ALL=C grep -v '^review-by: ' "$rigD/board/review/task-rig-rv-ended.md" > "$rigTmp/b1.ended.before"
-rigScan "$rigTmp/b1.s1" ; rigSnap b1 > "$rigTmp/b1.snap1"
-rigScan "$rigTmp/b1.s2" ; rigSnap b1 > "$rigTmp/b1.snap2"
+rigPass "$rigTmp/b1.s1" ; rigSnap b1 > "$rigTmp/b1.snap1"
+rigPass "$rigTmp/b1.s2" ; rigSnap b1 > "$rigTmp/b1.snap2"
 rigRb(){ ## item filename, expected review-by -- the review-by that item holds after the scan
 	rigCheck "$1: review-by" "$( rigHeader "$rigD/board/review/$1" review-by )" "$2"
 }
@@ -309,7 +318,7 @@ rigRun "$rigTmp/b1.mv" --magic-board-to-processed magic-coordinator dispatch-rig
 rigCheck "the coordinator's own move review -> processed succeeds"      "$( cat "$rigTmp/b1.mv.rc" )" 0
 rigCheck "the item is now in board/processed"                           "$( rigLoc dispatch-rig-rv-triv.md )" processed
 rigNew b1e
-rigScan "$rigTmp/b1e.s1"
+rigPass "$rigTmp/b1e.s1"
 rigCheck "an empty board prints no such section either"                 "$( rigHeadings "$rigTmp/b1e.s1" )" 0
 
 echo "-- dead dispatches: a dead session is closed, a live or recent one is not, twice --"
@@ -342,11 +351,11 @@ rigSandbox rig-ldeadrb "$rigHost" spawn-started ; rigItem running dispatch-rig-l
 for rigId in rig-lfresh rig-live rig-falive rig-nospawn rig-lask rig-crec ; do
 	printf '%s %s\n' "$rigId" "$( rigSum "$( rigDir "$rigId" )/$rigId.md" )"
 done > "$rigTmp/b2.sums0"
-rigScan "$rigTmp/b2.s1" ; rigSnap b2 > "$rigTmp/b2.snap1"
+rigPass "$rigTmp/b2.s1" ; rigSnap b2 > "$rigTmp/b2.snap1"
 for rigId in rig-lfresh rig-live rig-falive rig-nospawn rig-lask rig-crec ; do
 	printf '%s %s\n' "$rigId" "$( rigSum "$( rigDir "$rigId" )/$rigId.md" )"
 done > "$rigTmp/b2.sums1"
-rigScan "$rigTmp/b2.s2" ; rigSnap b2 > "$rigTmp/b2.snap2"
+rigPass "$rigTmp/b2.s2" ; rigSnap b2 > "$rigTmp/b2.snap2"
 rigRec(){ ## session id -- that session's record file
 	printf '%s\n' "$( rigDir "$1" )/$1.md"
 }
@@ -395,10 +404,10 @@ rigCheck "dead, sessions/<id>/ stale (48 h): closed"                      "$( ri
 rigCheck "control: dead, sessions/<id>/ written 5 minutes ago: open"      "$( rigHeader "$( rigRec rig-sessnew )" status )" spawn-started
 rigCheck "control: and its item stays in running"                         "$( rigLoc dispatch-rig-sessnew.md )" running
 echo "   nothing on stdout or stderr"
-rigCheck "an acting scan prints no housekeeping text on stdout"           "$( LC_ALL=C grep -c -i -E 'housekeeping|^closed |closed the record' "$rigTmp/b2.s1" || : )" 0
-rigCheck "with fd 4 closed, the acting scan's housekeeping lines are on stderr (the daemon line)" "$( [ "$( rigHk "$rigTmp/b2.s1.err" | LC_ALL=C awk 'END { print NR }' )" -ge 5 ] && printf yes || printf no )" yes
-rigCheck "control: apart from those lines, its stderr is byte-identical to a scan with nothing to do" "$( rigSameNoHk "$rigTmp/b2.s1.err" "$rigTmp/b1e.s1.err" )" same
-rigCheck "and the second scan puts no housekeeping line on stderr"        "$( LC_ALL=C grep -c '^housekeeping: ' "$rigTmp/b2.s2.err" || : )" 0
+rigCheck "an acting pass prints no housekeeping text on stdout, its lock's nor its scan's" "$( cat "$rigTmp/b2.s1.lock" "$rigTmp/b2.s1" | LC_ALL=C grep -c -i -E 'housekeeping|^closed |closed the record' || : )" 0
+rigCheck "with fd 4 closed, the acting pass's housekeeping lines are on its lock's stderr (the daemon line)" "$( [ "$( rigHk "$rigTmp/b2.s1.lock.err" | LC_ALL=C awk 'END { print NR }' )" -ge 5 ] && printf yes || printf no )" yes
+rigCheck "control: apart from those lines, its stderr is byte-identical to a pass with nothing to do" "$( rigSameNoHk "$rigTmp/b2.s1.lock.err" "$rigTmp/b1e.s1.lock.err" )" same
+rigCheck "and the second pass puts no housekeeping line on stderr"        "$( cat "$rigTmp/b2.s2.lock.err" "$rigTmp/b2.s2.err" | LC_ALL=C grep -c '^housekeeping: ' || : )" 0
 echo "   a close and the reviewer rewrite in the same scan"
 rigCheck "the dead dispatch is moved to board/review"                     "$( rigLoc dispatch-rig-ldeadrb.md )" review
 rigCheck "its review-by, naming the session just closed, is rewritten in that same scan" "$( rigHeader "$( rigItemFile dispatch-rig-ldeadrb.md )" review-by )" magic-coordinator
@@ -425,13 +434,13 @@ rigSandbox rig-nwlive "$rigHost" spawn-started "run-process: 9000001 Mon_Oct_12_
 rigSandbox rig-nwdead "$rigHost" spawn-started "run-process: 9000002 Mon_Oct_12_07:00:00_2026" ; rigDispatch rig-nwdead dispatch-started ; rigAge "$( rigDir rig-nwdead )" 48
 rigSandbox rig-nwreused "$rigHost" spawn-started "run-process: 9000003 Mon_Oct_12_07:00:00_2026" ; rigDispatch rig-nwreused dispatch-started ; rigAge "$( rigDir rig-nwreused )" 48
 rigSandbox rig-nwword "$rigHost" spawn-started ; rigDispatch rig-nwword dispatch-started ; rigAge "$( rigDir rig-nwword )" 48
-rigScan "$rigTmp/b2n.s1"
+rigPass "$rigTmp/b2n.s1"
 rigCheck "a live run with no session word reads running, by the process its record names" "$( rigRegRow "$rigTmp/b2n.s1" rig-nwlive )" "spawn-started running"
 rigCheck "and is not closed, though its files are 48 h old: record and item as they were" "$( rigHeader "$( rigRec rig-nwlive )" status ):$( rigLoc dispatch-rig-nwlive.md )" "spawn-started:running"
 rigCheck "a dead one is closed: its record, and its item to review" "$( rigHeader "$( rigRec rig-nwdead )" status ):$( rigLoc dispatch-rig-nwdead.md )" "spawn-ended-without-close:review"
 rigCheck "a pid taken again by another process is not taken for the run: closed too" "$( rigHeader "$( rigRec rig-nwreused )" status ):$( rigLoc dispatch-rig-nwreused.md )" "spawn-ended-without-close:review"
 rigCheck "control: a record that names no process is judged by the session word, as before: none, so closed" "$( rigHeader "$( rigRec rig-nwword )" status ):$( rigLoc dispatch-rig-nwword.md )" "spawn-ended-without-close:review"
-rigScan "$rigTmp/b2n.s2"
+rigPass "$rigTmp/b2n.s2"
 rigCheck "a second pass leaves the live one as it is" "$( rigHeader "$( rigRec rig-nwlive )" status ):$( rigLoc dispatch-rig-nwlive.md )" "spawn-started:running"
 
 echo "-- the report: one post to the advance spawn's event-track thread per acting pass, none otherwise --"
@@ -442,7 +451,7 @@ rigPosts(){ ## scenario dir -- how many chat.postMessage calls reached the fake 
 	[ -f "$1/argv.log" ] || { printf 0 ; return 0 ; }
 	LC_ALL=C grep -c 'chat.postMessage' "$1/argv.log" || :
 }
-## The scan runs as the spawn rig-advance: its housekeeping goes into its session's event-track
+## The pass runs as the spawn rig-advance: its housekeeping goes into its session's event-track
 ## thread, found through that session's one record by the spawn's own id
 ## (AgentsTools.EventTrackThread.include), never through a file of its sandbox.
 rigPostSetup(){ ## rig name, thread record yes|no -- one rig with a dead local dispatch, a fake curl first on PATH and a spawn sandbox root
@@ -458,7 +467,7 @@ rigPostSetup(){ ## rig name, thread record yes|no -- one rig with a dead local d
 }
 rigPostSetup b5 yes
 rigCheck "control: the fake curl is first on PATH"                        "$( PATH="$rigTmp/bin:$PATH" command -v curl )" "$rigTmp/bin/curl"
-rigScan "$rigTmp/b5.s1"
+rigPass "$rigTmp/b5.s1"
 rigCheck "the acting pass closed the dead dispatch"                       "$( rigLoc dispatch-rig-d1.md )" review
 rigCheck "exactly one post reached the thread"                            "$( rigPosts "$rigTmp/b5/scenario" )" 1
 rigPostText(){ ## scenario dir -- the lines of the posted box, Slack's escapes decoded
@@ -469,16 +478,16 @@ rigCheck "one line per action, each opening with 'housekeeping: ' (the record, t
 rigCheck "the review-by action is one of those lines"                     "$( rigPostText "$rigTmp/b5/scenario" | LC_ALL=C grep -c 'housekeeping: task-rig-r1.md review-by -> magic-coordinator' || : )" 1
 rigCheck "the post went to the thread its session's record names"        "$( LC_ALL=C grep -c '1.000001' "$rigTmp/b5/scenario/bodies.log" 2> /dev/null || : )" 1
 rigCheck "and never to one a file of the sandbox names"                   "$( LC_ALL=C grep -c '9.000009' "$rigTmp/b5/scenario/bodies.log" 2> /dev/null || : )" 0
-rigCheck "stdout carries none of the post's text"                         "$( LC_ALL=C grep -c -i -E 'housekeeping|closed the record' "$rigTmp/b5.s1" || : )" 0
-rigCheck "with fd 4 closed, stderr carries the post's lines (the daemon line), the same set" "$( rigHk "$rigTmp/b5.s1.err" | cmp -s - <( rigLines "$rigTmp/b5/scenario" ) && printf same || printf different )" same
-rigScan "$rigTmp/b5.s2"
+rigCheck "stdout carries none of the post's text"                         "$( cat "$rigTmp/b5.s1.lock" "$rigTmp/b5.s1" | LC_ALL=C grep -c -i -E 'housekeeping|closed the record' || : )" 0
+rigCheck "with fd 4 closed, stderr carries the post's lines (the daemon line), the same set" "$( rigHk "$rigTmp/b5.s1.lock.err" | cmp -s - <( rigLines "$rigTmp/b5/scenario" ) && printf same || printf different )" same
+rigPass "$rigTmp/b5.s2"
 rigCheck "the second pass posts nothing more"                             "$( rigPosts "$rigTmp/b5/scenario" )" 1
 rigPostSetup b6 no
-rigScan "$rigTmp/b6.s1"
-rigCheck "no thread record: the scan still succeeds and closes the dispatch" "$( rigLoc dispatch-rig-d1.md )" review
+rigPass "$rigTmp/b6.s1"
+rigCheck "no thread record: the pass still succeeds and closes the dispatch" "$( rigLoc dispatch-rig-d1.md )" review
 rigCheck "no thread record: nothing is posted, the sandbox file notwithstanding"                              "$( rigPosts "$rigTmp/b6/scenario" )" 0
-rigCheck "no thread file: apart from the daemon lines stderr is that of a scan with nothing to do, so no error" "$( rigSameNoHk "$rigTmp/b6.s1.err" "$rigTmp/b1e.s1.err" )" same
-rigCheck "no thread file: the daemon lines are still on stderr"          "$( rigHk "$rigTmp/b6.s1.err" | LC_ALL=C awk 'END { print NR }' )" 3
+rigCheck "no thread file: apart from the daemon lines stderr is that of a pass with nothing to do, so no error" "$( rigSameNoHk "$rigTmp/b6.s1.lock.err" "$rigTmp/b1e.s1.lock.err" )" same
+rigCheck "no thread file: the daemon lines are still on stderr"          "$( rigHk "$rigTmp/b6.s1.lock.err" | LC_ALL=C awk 'END { print NR }' )" 3
 rigExtraEnv=()
 
 echo "-- the daemon line: file descriptor 4 carries each report line, and never the agent's output --"
@@ -487,23 +496,23 @@ rigLines(){ ## scenario dir -- the housekeeping: lines of the posted box, sorted
 }
 rigPostSetup b7 yes
 rigFd4="$rigTmp/b7.fd4" ; : > "$rigFd4"
-rigScan "$rigTmp/b7.s1"
-rigCheck "the acting scan wrote 3 lines on fd 4"                          "$( LC_ALL=C awk 'END { print NR }' "$rigFd4" )" 3
+rigPass "$rigTmp/b7.s1"
+rigCheck "the acting pass wrote 3 lines on fd 4"                          "$( LC_ALL=C awk 'END { print NR }' "$rigFd4" )" 3
 rigCheck "they are the same lines the event-track stub got"               "$( LC_ALL=C sort "$rigFd4" | cmp -s - <( rigLines "$rigTmp/b7/scenario" ) && printf same || printf different )" same
 rigCheck "control: the stub did get a post"                               "$( rigPosts "$rigTmp/b7/scenario" )" 1
-rigCheck "stdout carries none of them"                                    "$( LC_ALL=C grep -c 'housekeeping: ' "$rigTmp/b7.s1" || : )" 0
-rigCheck "stderr carries none of them"                                    "$( LC_ALL=C grep -c 'housekeeping: ' "$rigTmp/b7.s1.err" || : )" 0
+rigCheck "stdout carries none of them"                                    "$( cat "$rigTmp/b7.s1.lock" "$rigTmp/b7.s1" | LC_ALL=C grep -c 'housekeeping: ' || : )" 0
+rigCheck "stderr carries none of them"                                    "$( cat "$rigTmp/b7.s1.lock.err" "$rigTmp/b7.s1.err" | LC_ALL=C grep -c 'housekeeping: ' || : )" 0
 rigFd4Sum="$( rigSum "$rigFd4" )"
-rigScan "$rigTmp/b7.s2"
+rigPass "$rigTmp/b7.s2"
 rigCheck "second pass: nothing more on fd 4"                              "$( rigSum "$rigFd4" )" "$rigFd4Sum"
 rigCheck "second pass: no second post"                                    "$( rigPosts "$rigTmp/b7/scenario" )" 1
 rigFd4=""
 rigPostSetup b8 yes
-rigScan "$rigTmp/b8.s1"
+rigPass "$rigTmp/b8.s1"
 rigCheck "control, fd 4 closed: the call still succeeds and posts once"   "$( rigPosts "$rigTmp/b8/scenario" )" 1
-rigCheck "control, fd 4 closed: nothing on stdout"                        "$( LC_ALL=C grep -c 'housekeeping: ' "$rigTmp/b8.s1" || : )" 0
-rigCheck "control, fd 4 closed: the lines go to stderr instead, the same set the stub got" "$( rigHk "$rigTmp/b8.s1.err" | cmp -s - <( rigLines "$rigTmp/b8/scenario" ) && printf same || printf different )" same
-rigCheck "control, fd 4 closed: apart from those lines stderr is that of a scan with nothing to do" "$( rigSameNoHk "$rigTmp/b8.s1.err" "$rigTmp/b1e.s1.err" )" same
+rigCheck "control, fd 4 closed: nothing on stdout"                        "$( cat "$rigTmp/b8.s1.lock" "$rigTmp/b8.s1" | LC_ALL=C grep -c 'housekeeping: ' || : )" 0
+rigCheck "control, fd 4 closed: the lines go to stderr instead, the same set the stub got" "$( rigHk "$rigTmp/b8.s1.lock.err" | cmp -s - <( rigLines "$rigTmp/b8/scenario" ) && printf same || printf different )" same
+rigCheck "control, fd 4 closed: apart from those lines stderr is that of a pass with nothing to do" "$( rigSameNoHk "$rigTmp/b8.s1.lock.err" "$rigTmp/b1e.s1.lock.err" )" same
 rigExtraEnv=()
 echo "   the final GC reports to fd 4 too"
 rigNew b9
@@ -667,10 +676,10 @@ rigCheck "and it is no longer running"                                    "$( ri
 echo "   a Slack that is not set up never fails the scan"
 rigPostSetup b11 yes
 rigExtraEnv+=( RIG_MODE=fail )
-rigScan "$rigTmp/b11.s1"
-rigCheck "the post is refused by the fake Slack and the scan still succeeds, closing the dispatch" "$( rigLoc dispatch-rig-d1.md )" review
-rigCheck "the daemon lines are still on stderr"                           "$( rigHk "$rigTmp/b11.s1.err" | LC_ALL=C awk 'END { print NR }' )" 3
-rigCheck "and no error line besides the known context noise"              "$( rigNoHk "$rigTmp/b11.s1.err" | cmp -s - <( rigNoHk "$rigTmp/b1e.s1.err" ) && printf same || printf different )" same
+rigPass "$rigTmp/b11.s1"
+rigCheck "the post is refused by the fake Slack and the pass still succeeds, closing the dispatch" "$( rigLoc dispatch-rig-d1.md )" review
+rigCheck "the daemon lines are still on stderr"                           "$( rigHk "$rigTmp/b11.s1.lock.err" | LC_ALL=C awk 'END { print NR }' )" 3
+rigCheck "and no error line besides the known context noise"              "$( rigNoHk "$rigTmp/b11.s1.lock.err" | cmp -s - <( rigNoHk "$rigTmp/b1e.s1.lock.err" ) && printf same || printf different )" same
 rigExtraEnv=()
 
 echo "-- execute: merge_stderr puts a script's stderr in the result, or leaves it on the daemon side --"
@@ -692,8 +701,8 @@ rigMcpCall(){ ## id, tool, arguments object -- sends one tools/call and waits fo
 	printf '{"jsonrpc":"2.0","id":%s,"method":"tools/call","params":{"name":"%s","arguments":%s}}\n' "$1" "$2" "$3" >&7
 	rigMcpAwait "$1"
 }
-rigMcpText(){ ## id -- the text of that reply, newlines still written as \n
-	LC_ALL=C grep "\"id\":$1," "$rigMd/replies" | LC_ALL=C sed -n 's/.*"text":"\(.*\)"}\],"isError".*/\1/p' | head -1
+rigMcpText(){ ## id -- the text of that reply, newlines still written as \n, its current-date line left out
+	LC_ALL=C grep "\"id\":$1," "$rigMd/replies" | LC_ALL=C sed -n 's/.*"text":"\(.*\)"}\],"isError".*/\1/p' | head -1 | rigReplyBare
 }
 rigMcpClose(){
 	exec 7>&-

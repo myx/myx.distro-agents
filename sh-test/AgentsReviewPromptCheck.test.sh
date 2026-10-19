@@ -20,6 +20,8 @@ set -u
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 rigHarness="$rigLib/AgentsUniversalHarness.sh"
+## The name of the address field, read where it is held, so a rename is one line there.
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" )"
 rigFixture="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/review-prompt.curl.stub.sh"
 rigTemplate="$rigLib/templates/review-prompt.post.format.md"
 
@@ -133,14 +135,15 @@ rigTool(){ ## result file, tool name, arguments JSON -- one served harness tool 
 }
 ## The scenario's work: a task, the dispatch that tracks it in running with its reviewer, the
 ## spawn record of the session that works it, and a stand-in process, so that session is live.
-rigWork(){ ## review-by value (empty: none)
+rigWork(){ ## review-by value (empty: none), the address its run reports to (empty: none recorded)
 	printf -- '---\ntype: task\nowner: keeper-myx\n---\n\n# Rework the rig widget\n\nThe widget drops its last line. Make it keep it.\n' > "$rigData/board/running/task-20261012T0000Z-$rigName.md"
 	printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: %s\ntracks: task-20261012T0000Z-%s\n%s---\n\n# rig dispatch\n' \
 		"$rigSpawn" "$rigName" "${1:+review-by: $1
 }" > "$rigData/board/running/$rigItem.md"
 	mkdir -p "$rigWs/.local/agents/spawned/$rigSpawn" "$rigWs/.local/agents/sessions/$rigSpawn"
-	printf -- '---\nsession-id: 5e55104a-rig-%s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-started\nsession-thread: CSES00001:1700000000.000100\nspawns: %s\ndescription: rework the rig widget\n---\n' \
-		"$rigName" "$rigSpawn" "$rigSpawn" "$rigHost" "$rigItem" > "$rigWs/.local/agents/spawned/$rigSpawn/$rigSpawn.md"
+	printf -- '---\nsession-id: 5e55104a-rig-%s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-started\nsession-thread: CSES00001:1700000000.000100\nspawns: %s\ndescription: rework the rig widget\n%s---\n' \
+		"$rigName" "$rigSpawn" "$rigSpawn" "$rigHost" "$rigItem" "${2:+$rigReportsTo: $2
+}" > "$rigWs/.local/agents/spawned/$rigSpawn/$rigSpawn.md"
 	: > "$rigDir/transcript.log"
 	printf '%s\n' "$rigDir/transcript.log" > "$rigWs/.local/agents/sessions/$rigSpawn/transcript"
 	bash -c 'sleep 600 ; :' "$rigSpawn" > /dev/null 2>&1 < /dev/null &
@@ -248,12 +251,25 @@ rigAssert "the handback is on the item's Decisions as before" "$( rigDecisions '
 rigHandback "handed back again"
 rigAssert "a handback on an item already in review asks nothing more" "$( rigLoc ):$( rigPosts ):$( rigRecordCount )" "review:2:1"
 
-echo "-- 2. a reviewer that is a session, a routine or a member, or none named: no prompt --"
+echo "-- 2. a reviewer that is a session, a routine or a member, or none named while its run reports to a member: no prompt --"
 for rigReviewer in rig-par-session grooming.routine magic-tester '' ; do
 	rigStart "none-${rigReviewer:-empty}"
-	rigWork "$rigReviewer"
+	rigWork "$rigReviewer" magic-tester
 	rigHandback "rig work done"
-	rigAssert "review-by ${rigReviewer:-(none)}: into review, nothing posted, nothing recorded" "$( rigLoc ):$( rigPosts ):$( rigRecordCount )" "review:0:0"
+	rigAssert "review-by ${rigReviewer:-(none, its run reports to a member)}: into review, nothing posted, nothing recorded" "$( rigLoc ):$( rigPosts ):$( rigRecordCount )" "review:0:0"
+done
+echo "-- 2b. none named, and its run reports to the human-owner, or to a person at a console: he is asked; none at all: no review --"
+for rigReports in human-owner user-rig ; do
+	rigStart "reports-$rigReports"
+	rigWork "" "$rigReports"
+	rigHandback "rig work done"
+	rigAssert "no review-by, its run reporting to $rigReports: into review, and the prompt posted once" "$( rigLoc ):$( rigPosts ):$( rigRecordCount )" "review:1:1"
+done
+for rigNone in "none:" ":none" ; do
+	rigStart "review-none-${rigNone%%:*}-${rigNone#*:}"
+	rigWork "${rigNone%%:*}" "${rigNone#*:}"
+	rigHandback "rig work done"
+	rigAssert "review-by ${rigNone%%:*}, its run reporting to ${rigNone#*:}: no review, so nothing moves, nothing is posted" "$( rigLoc ):$( rigPosts ):$( rigRecordCount )" "running:0:0"
 done
 
 echo "-- 3. accept by click: only his own click, and then the review flow's own accept --"

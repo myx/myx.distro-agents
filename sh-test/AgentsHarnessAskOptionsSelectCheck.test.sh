@@ -10,6 +10,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigHarness="$rigHere/AgentsUniversalHarness.sh"
 rigMember="magic-tester"
@@ -119,7 +120,7 @@ echo "-- options with no select: a correction, and nothing posted --"
 rigStart no-select
 rigCall 60 AskQuestion "{$rigAsk,\"question\":\"Which check first?\",$rigOptions}"
 rigAssert "it ended on its own"                          "$rigKilled" no
-rigAssert "the result is the correction, whole, as its one line" "$( cat "$rigScenarioDir/out" )" "$rigCorrection"
+rigAssert "the result is the correction, whole, as its one line" "$( rigReplyBare < "$rigScenarioDir/out" )" "$rigCorrection"
 rigAssert "its first word is CORRECTION, as the other corrections of the ask tools" "$( rigFirstWord "$rigScenarioDir/out" )" "CORRECTION:"
 rigAssert "nothing was posted"                           "$( rigCalls chat.postMessage )" 0
 rigAssert "no emoji was placed"                          "$( rigCalls reactions.add )" 0

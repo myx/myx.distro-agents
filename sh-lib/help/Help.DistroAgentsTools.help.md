@@ -3828,7 +3828,7 @@
 			one of them names a thread that lives: the session then reads
 			as one that has no thread. `--all` is the check now: it
 			reads every session of the workspace and starts the thread of
-			each that needs one and has none alive. The advance input scan
+			each that needs one and has none alive. The advance lock take
 			and each iteration of the main loop make that same check. So
 			that a thread which ends at once is not started over and over,
 			the check leaves a session alone for five minutes after the
@@ -5216,6 +5216,15 @@
 			`<team-member>` is the only argument -- no --state/--header
 			override.
 
+			In a team session (MDAT_SESSION_ID set) the report is
+			written to `.local/agents/sessions/<session>/magic-heartbeat-input-scan.md`
+			and the reply is its reference: a preview, the file's path,
+			its size in bytes and lines, and how to read the rest by
+			line range. For five minutes after that file was written, a
+			further call in the same session, from any run of it, replies
+			with the same file and reads no source. With no team session
+			the report is printed whole.
+
 		--magic-heartbeat-config-check
 			Read-only, no arguments -- routine-heartbeat's step-0
 			config gate. Checks magic-coordinator's own config for
@@ -5309,46 +5318,19 @@
 			board digest come three sections: `## team members`, `##
 			spawned sessions` and `## pending replies`.
 
-			Not read-only. Before anything is read it closes what a dead
-			spawn left open, so the output already shows the result:
-			a spawn record still started whose session is gone (this
-			host: no live process, no open ask and nothing under its
-			sandbox changed in the last 15 minutes; any other host: no
-			open ask and nothing changed in 24 hours; a change is any
-			file under its sandbox or under
-			`.local/agents/sessions/<id>/`, which is where a waiting
-			session keeps its Wait state) is closed with the
-			ended-without-close outcome; the dispatch item it links is
-			closed with that outcome too (a created dispatch item
-			moves to board-review, a reused item stays where it is); a
-			running dispatch item whose record already ended is closed
-			with that record's own outcome and moves to board-review,
-			and one with no record that has not changed in 24 hours is
-			closed with the ended-without-close outcome and moves to
-			board-review. Nothing about this is written
-			into the scan's output: the actions go as one post into the
-			event-track thread of the calling spawn's coworking
-			session, when it has one. A
-			second scan changes nothing more.
+			Read-only: it changes nothing. What a dead spawn left open,
+			the review items of reviewer sessions that ended, and the
+			control threads that are missing are seen to when the
+			routine takes its lock (--magic-advance-lock-acquire).
 
-			And it starts the control thread of each session of this
-			workspace that is not finished and has none alive: a run of
-			it is alive on this host, or the record of a run of this
-			host is still open. It is the check
-			`--manager-session-control-start --all` makes, which each
-			iteration of the main loop makes too. A thread is the
-			tooling's own process and no agent, started detached and
-			never waited for. What was started is one more line of that
-			same post, and no line of the scan's output; a thread that
-			could not be started is one warning on stderr, and the scan
-			goes on.
-
-			It also hands a board-review item whose `review-by` names a
-			session that has ended (no live row for it, or no row and
-			the item unchanged for 24 hours) to `magic-coordinator`
-			by rewriting `review-by`. A member name, `human-owner`, a
-			live session and a missing `review-by` stay as they are.
-			Accepting or returning an item stays the caller's own call.
+			In a team session (MDAT_SESSION_ID set) the report is
+			written to `.local/agents/sessions/<session>/magic-advance-input-scan.md`
+			and the reply is its reference: a preview, the file's path,
+			its size in bytes and lines, and how to read the rest by
+			line range. For five minutes after that file was written, a
+			further call in the same session, from any run of it, replies
+			with the same file and reads no source. With no team session
+			the report is printed whole.
 
 			Inbox scope is `<team-member>`'s own inbox, notes only: the
 			pending-slack-reaction and pending-trello-update records the
@@ -5509,6 +5491,48 @@
 			branch head. `LOCK_UNCHECKABLE` -- the resync or fetch could
 			not answer, so ownership is unknown. All three mean do not
 			start, and nothing has been written.
+
+			--magic-advance-lock-acquire only, after a successful take:
+			the routine's housekeeping runs, by the tooling itself, so
+			the scan that follows already shows the result. It closes
+			what a dead spawn left open: a spawn record still started
+			whose session is gone (this host: no live process, no open
+			ask and nothing under its sandbox changed in the last 15
+			minutes; any other host: no open ask and nothing changed in
+			24 hours; a change is any file under its sandbox or under
+			`.local/agents/sessions/<id>/`, which is where a waiting
+			session keeps its Wait state) is closed with the
+			ended-without-close outcome; the dispatch item it links is
+			closed with that outcome too (a created dispatch item
+			moves to board-review, a reused item stays where it is); a
+			running dispatch item whose record already ended is closed
+			with that record's own outcome and moves to board-review,
+			and one with no record that has not changed in 24 hours is
+			closed with the ended-without-close outcome and moves to
+			board-review. Nothing about this is written into the take's
+			output: each action is one line of the daemon line, and
+			they go as one post into the event-track thread of the
+			calling spawn's coworking session, when it has one. A
+			second take changes nothing more.
+
+			And it starts the control thread of each session of this
+			workspace that is not finished and has none alive: a run of
+			it is alive on this host, or the record of a run of this
+			host is still open. It is the check
+			`--manager-session-control-start --all` makes, which each
+			iteration of the main loop makes too. A thread is the
+			tooling's own process and no agent, started detached and
+			never waited for. What was started is one more line of that
+			same post, and no line of the take's output; a thread that
+			could not be started is one warning on the daemon line, and
+			the take goes on.
+
+			It also hands a board-review item whose `review-by` names a
+			session that has ended (no live row for it, or no row and
+			the item unchanged for 24 hours) to `magic-coordinator`
+			by rewriting `review-by`. A member name, `human-owner`, a
+			live session and a missing `review-by` stay as they are.
+			Accepting or returning an item stays the caller's own call.
 
 		--magic-advance-lock-refresh <team-member>
 		--magic-grooming-lock-refresh <team-member>

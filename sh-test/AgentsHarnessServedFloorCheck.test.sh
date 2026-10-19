@@ -49,6 +49,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
 rigCore="$rigHere/AgentsUniversalHarness.sh"
 rigSlice="$rigHere/AgentsHarnessJsonField.awk"
 rigMirror="$rigHere/AgentsHarnessMcpMirror.sh"
@@ -391,6 +392,7 @@ rigPollText="" ; rigPollAt=22
 while [ -n "$( rigPollAnswer "$rigPollAt" )" ] ; do
 	rigPollPart="$( rigPollAnswer "$rigPollAt" | LC_ALL=C awk -v path=result.content.0.text -v optional=1 -v sentinel=1 -f "$rigField" 2>/dev/null )"
 	rigPollPart="${rigPollPart%X}"
+	rigPollPart="$( printf '%s' "$rigPollPart" | rigReplyBare )"
 	rigPollPart="${rigPollPart%$'\n'\[job *}"
 	[ "$rigPollPart" != "(no new output)" ] || rigPollPart=""
 	rigPollText="$rigPollText$rigPollPart"

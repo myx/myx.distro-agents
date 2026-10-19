@@ -6,14 +6,18 @@
 #
 #   -v cap=<n>         samples printed per rule (default 3)
 #   -v width=<n>       a header value is cut to this many characters (default 100)
-#   -v endedFile=<p>   optional: one session-id per line, sessions the
+#   ENVIRON mrShapeEndedFile=<p>  optional: one session-id per line, sessions the
 #                      spawned-sessions registry knows and holds none live
+#   ENVIRON mrShapeRunsFile=<p>  optional: one spawn id per line, the runs with a
+#                      spawn record here, whose item is reviewed by where its run
+#                      reports to (a path, so through ENVIRON, never -v)
 #
 # Rules, one line each `<rule>: <n>`, then `(capped, <cap> shown)` when n > cap:
 #   blocked-no-blocker         blocked, no `condition` and no `blocked-by`
 #   parked-no-recheck-date     parked, no `recheck-date`
 #   running-session-ended      running, `session-id` names an ended session
-#   review-no-review-by        review, no `review-by`
+#   review-no-review-by        review, no `review-by`, and no run of its own here
+#                              that it would fall to (its spawn-id names no record)
 #   processed-no-processed-at  processed, no `processed-at`
 # A file with no frontmatter carries none of these headers and counts as such.
 BEGIN {
@@ -21,9 +25,15 @@ BEGIN {
 	if (width == "") width = 100
 	nRules = split("blocked-no-blocker parked-no-recheck-date running-session-ended review-no-review-by processed-no-processed-at", rules, " ")
 	nKeys = split("type status condition blocked-by recheck-date review-by session-id processed-at", keys, " ")
+	endedFile = ENVIRON["mrShapeEndedFile"]
 	if (endedFile != "") {
 		while ((getline line < endedFile) > 0) { if (line != "") ended[line] = 1 }
 		close(endedFile)
+	}
+	runsFile = ENVIRON["mrShapeRunsFile"]
+	if (runsFile != "") {
+		while ((getline line < runsFile) > 0) { if (line != "") runs[line] = 1 }
+		close(runsFile)
 	}
 	for (a = 1; a < ARGC; a++) {
 		path = ARGV[a]
@@ -46,7 +56,7 @@ BEGIN {
 		if (state == "blocked" && !("condition" in h) && !("blocked-by" in h)) rule = "blocked-no-blocker"
 		else if (state == "parked" && !("recheck-date" in h)) rule = "parked-no-recheck-date"
 		else if (state == "running" && ("session-id" in h) && (h["session-id"] in ended)) rule = "running-session-ended"
-		else if (state == "review" && !("review-by" in h)) rule = "review-no-review-by"
+		else if (state == "review" && !("review-by" in h) && !(("spawn-id" in h) && (h["spawn-id"] in runs))) rule = "review-no-review-by"
 		else if (state == "processed" && !("processed-at" in h)) rule = "processed-no-processed-at"
 		if (rule == "") continue
 		count[rule]++

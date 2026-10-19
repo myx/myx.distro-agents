@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InputScanCache.include -- the per-session cache of an input scan's report.
+## Sourced, never run; functions only, so nothing happens when it loads.
+##
+## A scan called in a team session (MDAT_SESSION_ID) writes its report to one file of that
+## session's folder, .local/agents/sessions/<session>/<operation>.md, and replies with the
+## reference to it (AgentsTranscriptReplyRef, AgentsTools.SessionTranscript.include). For five
+## minutes after that file was written, a further call of the same scan in the same session,
+## from any run of it, replies with the same file and reads no source: a change in a source does
+## not refresh it. The age is the file's modification time. With no team session, or one whose
+## id is no folder name, the report is printed whole, as before. A scan that fails is not kept:
+## its report is printed whole, and its status is returned.
+##
+
+## The report of one scan, kept or served from what was kept. The command prints the report.
+AgentsToolsInputScanCached(){ ## operation, command...
+	local cacheOp="$1" cacheSession="${MDAT_SESSION_ID:-}" cacheDir cacheFile cacheAt cacheNew="" cacheRc=0
+	shift
+	case "$cacheSession" in
+		''|*/*|.|..|*' '*) "$@" ; return $? ;;
+	esac
+	[ -n "${MMDAPP:-}" ] || { "$@" ; return $? ; }
+	type AgentsTranscriptReplyRef > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionTranscript.include"
+	cacheDir="$MMDAPP/.local/agents/sessions/$cacheSession"
+	cacheFile="$cacheDir/$cacheOp.md"
+	if [ -f "$cacheFile" ] ; then
+		cacheAt="$( stat -c %Y "$cacheFile" 2> /dev/null || stat -f %m "$cacheFile" 2> /dev/null )" || cacheAt=""
+		case "$cacheAt" in
+			''|*[!0123456789]*) ;;
+			*) [ $(( $( date +%s ) - cacheAt )) -ge 300 ] || { AgentsTranscriptReplyRef "$cacheFile" && return 0 ; } ;;
+		esac
+	fi
+	## Written aside and put in place by one rename, so another run of the session never reads half a report.
+	mkdir -p "$cacheDir" 2> /dev/null && cacheNew="$( mktemp "$cacheFile.XXXXXX" 2> /dev/null )" || { "$@" ; return $? ; }
+	"$@" > "$cacheNew" || cacheRc=$?
+	if [ "$cacheRc" -ne 0 ] || ! mv -f "$cacheNew" "$cacheFile" 2> /dev/null ; then
+		cat "$cacheNew" ; rm -f "$cacheNew"
+		return "$cacheRc"
+	fi
+	AgentsTranscriptReplyRef "$cacheFile" || cat "$cacheFile"
+	return 0
+}

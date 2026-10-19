@@ -112,9 +112,12 @@ rigTool(){ ## result file, tool name, arguments JSON -- one served harness tool 
 	printf '%s\n' "$3" > "$rigTmp/tool.args"
 	rigRun "$1" bash -c 'exec bash "$0" --intern-tool "$1" < "$2"' "$rigHarness" "$2" "$rigTmp/tool.args"
 }
-rigItem(){ ## state, item stem, spawn-id or empty, extra frontmatter lines (may be empty)
-	printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\n%s%s---\n\n# rig dispatch\n' "${3:+spawn-id: $3
-}" "${4:-}" > "$rigData/board/$1/$2.md"
+rigItem(){ ## state, item stem, spawn-id or empty, extra frontmatter lines (may be empty) -- reviewed by magic-coordinator where those lines name no reviewer
+	local itemReviewer="review-by: magic-coordinator
+"
+	case "${4:-}" in *review-by:*) itemReviewer="" ;; esac
+	printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\n%s%s%s---\n\n# rig dispatch\n' "${3:+spawn-id: $3
+}" "$itemReviewer" "${4:-}" > "$rigData/board/$1/$2.md"
 }
 rigRecord(){ ## spawn-id, status, session-thread or empty, item stem or empty, folder (default: spawn-id), extra lines
 	local recFolder="${5:-$1}"
@@ -154,6 +157,8 @@ rigWaitFor(){ ## seconds, test command...
 ## ---------------------------------------------------------------- into review
 echo "-- 1. a served SubagentHandback: running -> review, Decisions handback, transcript REVIEW --"
 rigRecord rig-par-1 spawn-started CPAR00001:1700000000.000100 "" rig-par-1
+## The parent runs: the session it founded has its executor there to take the handback.
+rigLive rig-par-1
 rigRecord rig-child-1 spawn-started "" dispatch-20261008T1200Z-hb rig-child-1 'parent-spawn-id: rig-par-1
 parent-session-id: rig-par-1
 '
@@ -286,6 +291,7 @@ rigAssert "a child in a session of its own, its parent's session with no thread:
 	"$( [ -e "$rigWs/.local/agents/sessions/rig-par-nothread-b/session.thread" ] && printf opened || printf none ):$( LC_ALL=C grep -h -c -x 'parent-thread: CCOORD001:1700000000.000200' "$rigSpawned"/*/"${rigSpawn5b:-none}.md" 2> /dev/null )" "none:1"
 ## The child's handback to session-parent now has somewhere to go.
 rigItem running dispatch-20261008T1200Z-fb rig-child-fb
+rigLive rig-par-nothread
 rigRecord rig-child-fb spawn-started "" dispatch-20261008T1200Z-fb rig-child-fb 'parent-thread: CCOORD001:1700000000.000200
 parent-session-id: rig-par-nothread
 '
@@ -355,6 +361,7 @@ echo "-- 9. return to an ended session: the same session restarted, with correct
 ## The run it replaces was brought into its caller's own session, rig-par-rst, whose thread is recorded for it.
 rigRecord rig-ended-ret spawn-succeeded CEND00001:1700000000.000500 dispatch-20261008T1200Z-rst trk-rig-rst 'start-context: inline
 parent-session-id: rig-par-rst
+parent-member: magic-tester
 '
 mkdir -p "$rigWs/.local/agents/sessions/rig-par-rst" && printf '%s\n' CPRS00001:1700000000.000550 > "$rigWs/.local/agents/sessions/rig-par-rst/session.thread"
 rigItem review dispatch-20261008T1200Z-rst rig-ended-ret
@@ -365,6 +372,7 @@ rigNewRecord="$( for rigCandidate in "$rigSpawned/trk-rig-rst"/*.md ; do [ "${ri
 rigAssert "a new spawn joined the same sandbox"            "$( [ -n "$rigNewRecord" ] && LC_ALL=C grep -c -x 'spawned-by: dispatch-20261008T1200Z-rst' "$rigNewRecord" )" 1
 rigAssert "it carries the start context and the parent session of the run it replaces" \
 	"$( LC_ALL=C sed -n -e 's/^start-context: //p' -e 's/^parent-session-id: //p' "$rigNewRecord" | tr '\n' ' ' )" "inline rig-par-rst "
+rigAssert "it names the run it replaces, whose seat in the session it takes over" "$( LC_ALL=C sed -n 's/^restarted-from: //p' "$rigNewRecord" )" rig-ended-ret
 rigNewSpawn="${rigNewRecord##*/}" ; rigNewSpawn="${rigNewSpawn%.md}"
 rigWaitFor 20 test -s "$rigTmp/console-in.$rigNewSpawn"
 rigAssert "its brief carries the corrections"              "$( LC_ALL=C grep -c -x 'redo the rig step' "$rigTmp/console-in.$rigNewSpawn" )" 1
@@ -414,6 +422,88 @@ rigEnv=()
 rigAssert "the coordinator's own question with no recorded address: up to the human-owner, never back to itself" \
 	"$( LC_ALL=C grep -c '^ASK-RESULT: POSTED' "$rigTmp/q9c2" ):$( LC_ALL=C grep -c '"channel": *"URIGOWNER"' "$rigTmp/bodies" ):$( LC_ALL=C grep -c '"channel": *"CSES9C001"' "$rigTmp/bodies" )" "1:1:0"
 
+echo "-- 9e. where no address is recorded: the initiator, where it runs in the session; else its executor; else a live magic-coordinator; else the human-owner --"
+rigRun9e(){ ## spawn-id, member, session-id, status, more lines
+	mkdir -p "$rigSpawned/$1"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: %s\nsession-thread: CSES9E001:1700000000.000910\n%s---\n' "$3" "$1" "$1" "$rigHost" "$2" "$4" "${5:-}" > "$rigSpawned/$1/$1.md"
+}
+rigAsk9e(){ ## result file -- the child's question with no target, wait:false
+	rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-kid-9e-$$ MDAT_SESSION_ID=rig-sess-9e-$$ MDAT_SESSION_THREAD=CSES9E001:1700000000.000910 )
+	rigTool "$1" AskQuestion "{\"question\":\"Which way first, for ${1##*/}?\",\"wait\":false}"
+	rigEnv=()
+}
+rigAskedOf9e(){ ## result file -- where it was asked and of whom: the session thread and its addressee, or the human-owner
+	if LC_ALL=C grep -q '"channel": *"URIGOWNER"' "$rigTmp/bodies" ; then printf 'human-owner' ; return 0 ; fi
+	LC_ALL=C grep -q '"channel": *"CSES9E001"' "$rigTmp/bodies" || { printf 'nowhere' ; return 0 ; }
+	for rigWho in magic-tester magic-architect magic-coordinator ; do LC_ALL=C grep -q -F -- "_${rigWho}_" "$rigTmp/bodies" && { printf 'session:%s' "$rigWho" ; return 0 ; } ; done
+	printf 'session:nobody'
+}
+## The session: founded by magic-architect, its executor; the child brought in by magic-tester, its initiator.
+for rigWho in magic-architect human-owner ; do
+	[ -d "$rigWs/.local/agents/members/$rigWho" ] || { mkdir -p "$rigWs/.local/agents/members/$rigWho" && printf -- '---\nname: %s\n---\n' "$rigWho" > "$rigWs/.local/agents/members/$rigWho/SKILL.md" ; }
+done
+rigRun9e rig-sess-9e-$$ magic-architect rig-sess-9e-$$ spawn-started
+rigRun9e rig-init-9e-$$ magic-tester rig-sess-9e-$$ spawn-started
+rigRun9e rig-kid-9e-$$ keeper-myx rig-sess-9e-$$ spawn-started 'parent-session-id: rig-sess-9e-'"$$"'
+parent-member: magic-tester
+'
+mkdir -p "$rigWs/.local/agents/sessions/rig-sess-9e-$$" && printf '%s\n' CSES9E001:1700000000.000910 > "$rigWs/.local/agents/sessions/rig-sess-9e-$$/session.thread"
+rigLive rig-sess-9e-$$ ; rigLive rig-init-9e-$$
+rigAsk9e "$rigTmp/q9e1"
+rigAssert "the initiator runs there: asked in the session thread, of it" "$( rigAskedOf9e )" "session:magic-tester"
+## The initiator's run has ended, the executor's still runs.
+LC_ALL=C sed -i.bak "/ rig-init-9e-$$\$/d" "$rigTmp/ps.list" && rm -f "$rigTmp/ps.list.bak"
+rigAsk9e "$rigTmp/q9e2"
+rigAssert "the initiator is gone: its session's executor takes it" "$( rigAskedOf9e )" "session:magic-architect"
+## Neither runs; a magic-coordinator does, in that session.
+LC_ALL=C sed -i.bak "/ rig-sess-9e-$$\$/d" "$rigTmp/ps.list" && rm -f "$rigTmp/ps.list.bak"
+rigRun9e rig-coord-9e-$$ magic-coordinator rig-sess-9e-$$ spawn-started ; rigLive rig-coord-9e-$$
+rigAsk9e "$rigTmp/q9e3"
+rigAssert "neither runs: the live magic-coordinator of the session takes it" "$( rigAskedOf9e )" "session:magic-coordinator"
+## Nobody runs there.
+LC_ALL=C sed -i.bak "/ rig-coord-9e-$$\$/d" "$rigTmp/ps.list" && rm -f "$rigTmp/ps.list.bak"
+rigAsk9e "$rigTmp/q9e4"
+rigAssert "nobody runs there: the human-owner" "$( rigAskedOf9e )" "human-owner"
+
+echo "-- 9f. a run that reports to no one: its handback is its report, in its own thread, moves nothing to review, and ends it --"
+rigRecord rig-none-9f-$$ spawn-started CNON9F001:1700000000.000920 dispatch-20261008T1200Z-9f "" "$rigReportsTo: none
+"
+## Its item names no reviewer.
+printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: rig-none-9f-%s\n---\n\n# rig dispatch\n' "$$" > "$rigData/board/running/dispatch-20261008T1200Z-9f.md"
+rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-none-9f-$$ MDAT_SESSION_THREAD=CNON9F001:1700000000.000920 )
+rigTool "$rigTmp/h9f" SubagentHandback '{"outcome":"the daily is done"}'
+rigEnv=()
+rigAssert "posted in its own session thread, as its report" "$( LC_ALL=C grep -c '"channel": *"CNON9F001"' "$rigTmp/bodies" ):$( LC_ALL=C grep -c '"channel": *"URIGOWNER"' "$rigTmp/bodies" )" "1:0"
+rigAssert "its item stays where it was: nothing moved to review" "$( rigLoc dispatch-20261008T1200Z-9f )" running
+rigAssert "and the run is ended on it: marked as one whose report is given" \
+	"$( [ -f "$rigWs/.local/agents/sessions/rig-none-9f-$$/dismissed" ] && [ -f "$rigWs/.local/agents/sessions/rig-none-9f-$$/dismissed.handback" ] && printf ended ):$( LC_ALL=C grep -c 'end your run now' "$rigTmp/h9f" )" "ended:1"
+
+echo "-- 9g. the item of a run that reports to no one, and names no reviewer, closes straight to processed --"
+rigRun "$rigTmp/p9g" bash -c 'printf "rig brief" | bash "$0" --intern-op-agent-spawn-proxy keeper-myx --dispatch-doc:create --wait --reports-to none' "$rigFn"
+rigItem9g="$( LC_ALL=C sed -n 's/^DISPATCH_ITEM=//p' "$rigTmp/p9g" | head -1 )" ; rigItem9g="${rigItem9g%.md}"
+rigAssert "processed, never in review, with no review in its Decisions" \
+	"$( rigLoc "$rigItem9g" ):$( rigDecisions "$rigData/board/processed/$rigItem9g.md" 'review: none' )" "processed:1"
+rigRun "$rigTmp/p9g2" bash -c 'printf "rig brief" | bash "$0" --intern-op-agent-spawn-proxy keeper-myx --dispatch-doc:create --wait --reports-to none --review-by magic-coordinator' "$rigFn"
+rigItem9g2="$( LC_ALL=C sed -n 's/^DISPATCH_ITEM=//p' "$rigTmp/p9g2" | head -1 )" ; rigItem9g2="${rigItem9g2%.md}"
+rigAssert "control: one that names a reviewer goes to review as before" "$( rigLoc "$rigItem9g2" )" review
+
+echo "-- 9h. a run that reports to no one and founded its session ends on its report only once the others of that session have ended --"
+rigRecord rig-none-9h-$$ spawn-started CNON9H001:1700000000.000930 "" "" "$rigReportsTo: none
+"
+mkdir -p "$rigSpawned/rig-part-9h-$$"
+printf -- '---\nsession-id: rig-none-9h-%s\nspawn-id: rig-part-9h-%s\nparent-spawn-id: rig-none-9h-%s\nstart-context: joined\ntracking-name: rig-part-9h-%s\nhost: %s\nowner: magic-tester\nstatus: spawn-started\n---\n' \
+	"$$" "$$" "$$" "$$" "$rigHost" > "$rigSpawned/rig-part-9h-$$/rig-part-9h-$$.md"
+rigLive rig-part-9h-$$
+rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-none-9h-$$ MDAT_SESSION_THREAD=CNON9H001:1700000000.000930 )
+rigTool "$rigTmp/h9h" SubagentHandback '{"outcome":"the routine is done"}'
+rigAssert "its report is posted, and while a member it brought in runs it is not ended: told to wait" \
+	"$( LC_ALL=C grep -c '"channel": *"CNON9H001"' "$rigTmp/bodies" ):$( [ -f "$rigWs/.local/agents/sessions/rig-none-9h-$$/dismissed" ] && printf ended || printf runs ):$( LC_ALL=C grep -c 'others of the session you founded still run' "$rigTmp/h9h" )" "1:runs:1"
+LC_ALL=C sed -i.bak "/ rig-part-9h-$$\$/d" "$rigTmp/ps.list" && rm -f "$rigTmp/ps.list.bak"
+rigTool "$rigTmp/w9h" Wait '{"sources":"slack:session-current","timeout":2}'
+rigEnv=()
+rigAssert "once that member has ended, its next Wait is its dismissal, its report given" \
+	"$( LC_ALL=C grep -c -x 'WAIT-RESULT: DISMISSED' "$rigTmp/w9h" ):$( [ -f "$rigWs/.local/agents/sessions/rig-none-9h-$$/dismissed.handback" ] && printf given )" "1:given"
+
 echo "-- 10. reject: -> pending, the child dismissed, corrections in Decisions for the fresh spawn --"
 rigLive rig-live-rej-$$
 rigRecord rig-live-rej-$$ spawn-started CREJ00001:1700000000.000600 dispatch-20261008T1200Z-rej
@@ -449,6 +539,13 @@ rigItem review dispatch-20261008T1200Z-adv "" 'review-by: advance.routine
 touch -t 202001010000 "$rigData"/board/review/dispatch-20261008T1200Z-gr1.md "$rigData"/board/review/dispatch-20261008T1200Z-gr2.md
 rigOp "$rigTmp/s1" --magic-grooming-input-scan magic-coordinator
 rigOp "$rigTmp/s2" --magic-advance-input-scan magic-coordinator
+## The advance housekeeping runs when the routine takes its lock, free here, not in its scan.
+rigAdvanceLock(){ ## result file -- the advance routine takes its lock
+	rm -f "$rigData/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
+	rigOp "$1" --magic-advance-lock-acquire magic-coordinator rig-advance-pass
+	[ "$( cat "$1.rc" )" = 0 ] || rigRefuse "the advance lock was not taken in the rig: $( tail -2 "$1" | LC_ALL=C tr '\n' ' ' )"
+}
+rigAdvanceLock "$rigTmp/s2l"
 rigSection(){ LC_ALL=C awk -v want="$2" '$0 == want { on = 1 ; next ; } on && /^## / { exit ; } on' "$1" ; }
 rigAssert "grooming lists both of its items"               "$( rigSection "$rigTmp/s1" '## review items addressed to grooming.routine' | LC_ALL=C grep -c -E '^- dispatch-20261008T1200Z-gr[12] ' )" 2
 rigAssert "and not advance's"                              "$( rigSection "$rigTmp/s1" '## review items addressed to grooming.routine' | LC_ALL=C grep -c 'dispatch-20261008T1200Z-adv' )" 0
@@ -468,7 +565,7 @@ rigItem review dispatch-20261008T1200Z-re1 "" "review-by: $rigRootEnded
 rigItem review dispatch-20261008T1200Z-ns1 "" "review-by: rig-no-store-$$
 "
 touch -t 202001010000 "$rigData"/board/review/dispatch-20261008T1200Z-rl1.md "$rigData"/board/review/dispatch-20261008T1200Z-ns1.md
-rigOp "$rigTmp/s12b" --magic-advance-input-scan magic-coordinator
+rigAdvanceLock "$rigTmp/s12b"
 rigAssert "a root session still open keeps its review, however old the item" "$( LC_ALL=C grep -c -x "review-by: $rigRootLive" "$rigData/board/review/dispatch-20261008T1200Z-rl1.md" )" 1
 rigAssert "a root session its SessionEnd hook ended hands its review on at once" "$( LC_ALL=C grep -c -x 'review-by: magic-coordinator' "$rigData/board/review/dispatch-20261008T1200Z-re1.md" )" 1
 rigAssert "control: an id with no store at all still goes by age" "$( LC_ALL=C grep -c -x 'review-by: magic-coordinator' "$rigData/board/review/dispatch-20261008T1200Z-ns1.md" )" 1

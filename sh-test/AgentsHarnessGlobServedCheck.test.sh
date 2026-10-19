@@ -9,6 +9,7 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
 rigField="$rigHere/AgentsHarnessJsonField.awk"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 
@@ -81,13 +82,13 @@ rigPart(){ ## request id, json path under result.content -- the decoded value, e
 	rigWire "$1" | LC_ALL=C awk -v path="result.content.$2" -v optional=1 -f "$rigField" 2>/dev/null || :
 }
 
-## The tool's own result: the last text part, since the head part goes first.
+## The tool's own result: the last text part, since the head part goes first, its current-date line left out.
 rigResult(){ ## request id
 	local partIndex
 	partIndex="$( rigPart "$1" __count )"
 	partIndex=$(( ${partIndex:-0} - 1 ))
 	while [ "$partIndex" -ge 0 ] ; do
-		[ "$( rigPart "$1" "$partIndex.type" )" != text ] || { rigPart "$1" "$partIndex.text" ; return 0 ; }
+		[ "$( rigPart "$1" "$partIndex.type" )" != text ] || { rigPart "$1" "$partIndex.text" | rigReplyBare ; return 0 ; }
 		partIndex=$(( partIndex - 1 ))
 	done
 }

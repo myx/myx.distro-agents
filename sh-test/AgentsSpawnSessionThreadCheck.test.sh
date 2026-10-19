@@ -247,6 +247,13 @@ rigOut="$( rigSpawn magic-tester --parent-none --parent-session rig-team-session
 rigAssert "no parent and a parent, said together, are refused, and nothing is spawned" \
 	"$( printf '%s\n' "$rigOut" | grep -c 'ERROR: use only one of --parent-session <session-id> | --parent-none' ):$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=' )" "1:0"
 rigCaller=()
+## A run that reports to no one: recorded so, and told in its brief that it ends when its work is done.
+rigOut="$( rigSpawn keeper-myx --reports-to none )"
+rigAssert "reports to no one: recorded, and its brief says it ends on its report, not on a dismissal" \
+	"$( rigNewest "$rigReportsTo" ):$( grep -c 'You report to no one' "$rigTmp/brief" ):$( grep -c 'You never end on your own' "$rigTmp/brief" )" "none:1:0"
+rigOut="$( rigSpawn keeper-myx --review-by 'rig:one:two' )"
+rigAssert "a reviewer that is none of its forms is refused, and nothing is spawned" \
+	"$( printf '%s\n' "$rigOut" | grep -c 'ERROR: --review-by requires a reviewer' ):$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=' )" "1:0"
 rigOut="$( rigSpawn keeper-myx --reports-to 'rig:one:two' )"
 rigAssert "an address that is none of its forms is refused, and nothing is spawned" \
 	"$( printf '%s\n' "$rigOut" | grep -c 'ERROR: --reports-to requires' ):$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=' )" "1:0"

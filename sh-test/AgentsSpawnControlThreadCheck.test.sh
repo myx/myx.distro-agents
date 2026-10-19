@@ -228,7 +228,7 @@ rigStart(){ ## scenario, NAME=value words and options of the proxy...
 	done
 	rigDir="$rigTmp/$startName"
 	mkdir -p "$rigDir"
-	( cd "$rigWs" && rigEnv "$rigDir" ${startWords[@]+"${startWords[@]}"} bash "$rigTool" --intern-op-agent-spawn-proxy rig-member-a --dispatch-doc:create \
+	( cd "$rigWs" && rigEnv "$rigDir" ${startWords[@]+"${startWords[@]}"} bash "$rigTool" --intern-op-agent-spawn-proxy "${rigStartMember:-rig-member-a}" --dispatch-doc:create \
 		${startOptions[@]+"${startOptions[@]}"} --context rig-control-thread <<< "RIG-BRIEF" > "$rigDir/proxy.out" 2> "$rigDir/proxy.err" )
 	rigRunStarted "$startName"
 }
@@ -259,7 +259,11 @@ rigAssert "and the log of the run holds no warning of it" "$( rigWarned "$rigLog
 echo "-- 2. a member that joins a session whose thread lives starts nothing --"
 rigAsLone=( "MDAT_SPAWN_SESSION_ID=$rigLone" "MDAT_SPAWN_AGENT=rig-member-a" "MDAT_SESSION_ID=$rigLone" )
 rigPidPrint="$( ls -i "$rigStores/$rigLone/control/pid" | LC_ALL=C awk '{ print $1 }' ):$( cat "$rigStores/$rigLone/control/pid" )"
+## A member that joins is another member than the one whose run holds the session: a member runs
+## once in a session (F6.9), and a second start of the same one there is refused.
+rigStartMember=rig-member-c
 rigStart join-live "${rigAsLone[@]}"
+rigStartMember=""
 rigAssert "control: the member joined that session, as a run of its own" "$( rigHeader "$rigRecord" session-id ):$( [ "$rigRun" != "$rigLone" ] && echo another-run )" "$rigLone:another-run"
 rigAssert "nothing was started: the pid file is as it was, one thread shows, and the log holds its one start" \
 	"$( ls -i "$rigStores/$rigLone/control/pid" | LC_ALL=C awk '{ print $1 }' ):$( cat "$rigStores/$rigLone/control/pid" ) $( rigThreads "$rigLone" ) $( rigMade "$rigLone" )" "$rigPidPrint 1 1"
@@ -270,7 +274,9 @@ rigProcNoteFrom "$rigStores/$rigLone/control/pid"
 rigProcSignalWithChildren KILL "$rigLoneThread" ; rigWaitFor 10 rigEnded "$rigLoneThread"
 rigAssert "control: the thread was ended the hard way: no process shows as it, and its pid file and its lock stand, naming a process that is gone" \
 	"$( rigThreads "$rigLone" ):$( rigHolder "$rigLone" ):$( [ -f "$rigStores/$rigLone/control/pid" ] && echo pid ):$( [ -L "$rigStores/$rigLone/control/lock" ] && echo lock )" "0::pid:lock"
+rigStartMember=rig-member-b
 rigStart join-gone "${rigAsLone[@]}"
+rigStartMember=""
 rigWaitFor 20 rigHeld "$rigLone"
 rigAgain="$( rigHolder "$rigLone" )"
 rigAssert "the member starts, and the thread of its session with it: another process holds the session, one thread shows, and the log holds the second start" \
@@ -296,7 +302,10 @@ rigAssert "one line of the run's log warns that the thread of that session could
 	"$( rigWarned "$rigLog" ):$( LC_ALL=C grep -c -F -- "⚠️ WARNING: the control thread of session $rigParent could not be started: the log of the thread could not be written: $rigStores/$rigParent/control/log" "$rigLog" ):$( rigThreads "$rigParent" )" "1:1:0"
 rigAssert "and neither the stdout nor the stderr of the spawn says anything of it" "$( LC_ALL=C grep -c -i -F 'control thread' "$rigDir/proxy.out" "$rigDir/proxy.err" | LC_ALL=C awk -F: '{ total += $NF } END { print total + 0 }' )" "0"
 rm -f "$rigStores/$rigParent/control"
+## Another member than the run started just before in that session, which still runs there.
+rigStartMember=rig-member-c
 rigStart writable "${rigAsParent[@]}"
+rigStartMember=""
 rigWaitFor 20 rigHeld "$rigParent"
 rigAssert "once it can be started, the next member that joins starts it: one thread holds that session, by one start, and no warning" \
 	"$( [ -n "$( rigHolder "$rigParent" )" ] && echo held ):$( rigThreads "$rigParent" ):$( rigMade "$rigParent" ):$( rigWarned "$rigLog" )" "held:1:1:0"
@@ -313,7 +322,9 @@ sleep 2
 rigAssert "control: the start its caller waits on opened a session of its own, and its run is under way" "$( rigHeader "$rigWaitedRecord" session-id ):$( rigHeader "$rigWaitedRecord" status )" "$rigWaited:spawn-started"
 rigAssert "no control thread is started for it: no process, and no control folder in the folder of its session" \
 	"$( rigThreads "$rigWaited" ):$( [ -e "$rigStores/$rigWaited/control" ] && echo folder || echo none )" "0:none"
+rigStartMember=rig-member-c
 rigStart waited-join "MDAT_SPAWN_SESSION_ID=$rigWaited" "MDAT_SPAWN_AGENT=rig-member-a" "MDAT_SESSION_ID=$rigWaited"
+rigStartMember=""
 sleep 2
 rigAssert "nor by a member that joins that session without a wait: it starts, with no thread, no control folder and no warning" \
 	"$( rigHeader "$rigRecord" session-id ):$( rigThreads "$rigWaited" ):$( [ -e "$rigStores/$rigWaited/control" ] && echo folder || echo none ):$( rigWarned "$rigLog" )" "$rigWaited:0:none:0"

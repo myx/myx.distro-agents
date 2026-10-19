@@ -8,37 +8,8 @@
 ## No Python run by this tooling leaves bytecode in the source tree (no sh-lib/__pycache__).
 export PYTHONDONTWRITEBYTECODE=1
 
-if ! type AgentsToolsAssertBareName >/dev/null 2>&1 ; then
-	## The bare-name gate for the whole family: one path segment of letters, digits, '.', '_', '-'.
-	## Reports and returns 1, never exits. Never a [a-z] range -- bracket ranges are collation-dependent.
-	AgentsToolsAssertBareName(){
-		local nameValue="$1"
-		local nameLabel="$2"
-		local nameContext="$3"
-		case "$nameValue" in
-			''|.|..|-*|*/*)
-				echo "$MDSC_CMD: $nameContext: ❗ ASSERT: $nameLabel must be a bare name -- one path segment of letters, digits, '.', '_' or '-', not '.'/'..', no leading '-', no '/': $nameValue" >&2
-				return 1
-			;;
-		esac
-		local nameRest="$nameValue" nameChar
-		while [ -n "$nameRest" ] ; do
-			nameChar="${nameRest%"${nameRest#?}"}"
-			nameRest="${nameRest#?}"
-			case "$nameChar" in
-				a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
-				A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
-				0|1|2|3|4|5|6|7|8|9) ;;
-				-|_|.) ;;
-				*)
-					echo "$MDSC_CMD: $nameContext: ❗ ASSERT: $nameLabel contains a character outside the allowed set (letters, digits, '.', '_', '-'): $nameValue" >&2
-					return 1
-				;;
-			esac
-		done
-		return 0
-	}
-fi
+## The bare-name gate, in an include of its own that has no other effect.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.BareName.include"
 
 if ! type AgentsToolsActingMember >/dev/null 2>&1 ; then
 	## The member a session the tooling spawned acts as: MDAT_SPAWN_AGENT, else the harness's

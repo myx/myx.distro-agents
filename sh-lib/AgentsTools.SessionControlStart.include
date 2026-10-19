@@ -7,7 +7,7 @@
 ## started again where it has died. Sourced, never run. Functions only.
 ##
 ## ONE FUNCTION STARTS A THREAD, AgentsToolsSessionControlStart, whoever asks: the console
-## (--manager-session-control-start), the advance input scan, the main loop, and the spawner
+## (--manager-session-control-start), the advance lock take, the main loop, and the spawner
 ## when it opens a session. It takes the id of the session and nothing of its caller. The
 ## thread is started detached, as the spawner starts a run that is not waited for
 ## (AgentsTools.InternOpAgentSpawnProxy.include): a process group of its own, a hangup
@@ -26,7 +26,7 @@
 ## (AgentsToolsSessionControlWaited).
 ##
 ## THE CHECK NOW, AgentsToolsSessionControlCheck, is the same for the console's `--all`, the
-## advance input scan and each iteration of the main loop: of the measured rows it is
+## advance lock take and each iteration of the main loop: of the measured rows it is
 ## given, each session that needs a thread and has none alive gets one. It is cheap, and
 ## may be called often: it reads the rows its caller measured, the pid file of each session
 ## that needs a thread, the process list for those pids in one call, and it starts nothing

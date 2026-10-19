@@ -90,6 +90,45 @@ AgentsToolsHeartbeatBoardActiveItems(){
 
 type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpItem.include"
 
+## The report of --magic-heartbeat-input-scan, a pure read, kept for its session by AgentsToolsInputScanCached.
+AgentsToolsHeartbeatInputScanReport(){ ## calling member
+	local callingMember="$1"
+	## The pass's branch, computed here so no member compares dates or weekdays.
+	printf '%s\n\n' "## day-rhythm (routine-heartbeat)"
+	AgentsToolsHeartbeatDayRhythm
+	printf '\n'
+	## THIS IS THE LOCK NOTE, NOT THE `heartbeat-state-note`.
+	printf '%s\n\n' "## state-and-lock (routine-heartbeat)"
+	local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
+	if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
+	## Questions: what the main loop's last collect found, then every question still open,
+	## with its session, asker and age. Both written by the tooling; this pass only reads.
+	printf '\n%s\n\n' "## questions (pending replies)"
+	if [ -s "$MMDAPP/.local/agents/pending-collect.last" ] ; then
+		printf 'Last collect by the main loop:\n'
+		cat "$MMDAPP/.local/agents/pending-collect.last"
+		printf '\n'
+	fi
+	printf 'Every question still open:\n\n'
+	DistroAgentsTools --member-pending-reply-read "$callingMember" --any-owner 2>/dev/null || echo "(the open questions could not be read)"
+	## Spawned sessions as the tooling measured them at their close, and alive now or
+	## not: a note that says a session is alive is read beside this, never instead of it.
+	printf '\n'
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+	AgentsToolsRegistryRenderSpawnedSessions || echo "(the spawned-sessions registry could not be read)"
+	## Live counts, read at scan time and never stored: one line per board state,
+	## `<state>: <n>` items (*.md files directly in that state's folder), so a report
+	## needs no count of its own.
+	printf '\n%s\n\n' "## board counts"
+	AgentsToolsHeartbeatBoardCounts
+	## Names only, never a `## <state>/` row: board content is advance's scan.
+	printf '\n%s\n\n' "## board active items"
+	AgentsToolsHeartbeatBoardActiveItems
+	## No `## board digest`: its only content was the inbox reflections, which no
+	## heartbeat step reads (the human-owner's ruling, 2026-10-07).
+	return 0
+}
+
 case "$1" in
 
 	--magic-heartbeat-input-scan)
@@ -117,40 +156,10 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-input-scan: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		## The pass's branch, computed here so no member compares dates or weekdays.
-		printf '%s\n\n' "## day-rhythm (routine-heartbeat)"
-		AgentsToolsHeartbeatDayRhythm
-		printf '\n'
-		## THIS IS THE LOCK NOTE, NOT THE `heartbeat-state-note`.
-		printf '%s\n\n' "## state-and-lock (routine-heartbeat)"
-		local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
-		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
-		## Questions: what the main loop's last collect found, then every question still open,
-		## with its session, asker and age. Both written by the tooling; this pass only reads.
-		printf '\n%s\n\n' "## questions (pending replies)"
-		if [ -s "$MMDAPP/.local/agents/pending-collect.last" ] ; then
-			printf 'Last collect by the main loop:\n'
-			cat "$MMDAPP/.local/agents/pending-collect.last"
-			printf '\n'
-		fi
-		printf 'Every question still open:\n\n'
-		DistroAgentsTools --member-pending-reply-read "$callingMember" --any-owner 2>/dev/null || echo "(the open questions could not be read)"
-		## Spawned sessions as the tooling measured them at their close, and alive now or
-		## not: a note that says a session is alive is read beside this, never instead of it.
-		printf '\n'
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
-		AgentsToolsRegistryRenderSpawnedSessions || echo "(the spawned-sessions registry could not be read)"
-		## Live counts, read at scan time and never stored: one line per board state,
-		## `<state>: <n>` items (*.md files directly in that state's folder), so a report
-		## needs no count of its own.
-		printf '\n%s\n\n' "## board counts"
-		AgentsToolsHeartbeatBoardCounts
-		## Names only, never a `## <state>/` row: board content is advance's scan.
-		printf '\n%s\n\n' "## board active items"
-		AgentsToolsHeartbeatBoardActiveItems
-		## No `## board digest`: its only content was the inbox reflections, which no
-		## heartbeat step reads (the human-owner's ruling, 2026-10-07).
-		return 0
+		## In a team session the report is a file of its folder, served again for five minutes (AgentsTools.InputScanCache.include).
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InputScanCache.include"
+		AgentsToolsInputScanCached magic-heartbeat-input-scan AgentsToolsHeartbeatInputScanReport "$callingMember"
+		return $?
 	;;
 
 	--magic-heartbeat-spawn-proxy)

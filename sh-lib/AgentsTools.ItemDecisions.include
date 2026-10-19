@@ -263,14 +263,17 @@ AgentsToolsRoutineIsExecutor(){ ## routine name, member
 	return 1
 }
 
-## Whether <member>, calling from this process, is the reviewer an item's `review-by` names:
-## empty or magic-coordinator: magic-coordinator; human-owner: the human, from no spawned
-## session; <name>.routine: an executor of that routine (magic-team or `*`: any member);
-## <session>[:<member>]: that session itself, the member it names, or the member of its
-## spawn record; a member name: that member. rc 0 the reviewer, rc 1 not.
+## Whether <member>, calling from this process, is the reviewer of an item: its `review-by`,
+## else whoever the run of its spawn-id reports to (AgentsToolsItemReviewer). Empty (no
+## review-by and no run of its own) or magic-coordinator: magic-coordinator; none: nobody;
+## human-owner, and user-<account> for now: the human, from no spawned session; <name>.routine:
+## an executor of that routine (magic-team or `*`: any member); <session>[:<member>]: that
+## session itself, the member it names, or the member of its spawn record; a member name: that
+## member. rc 0 the reviewer, rc 1 not.
 AgentsToolsItemIsReviewer(){ ## item path, member
 	local irBy irSession="" irMember="" irDir
-	irBy="$( AgentsToolsDecisionsField "$1" review-by )"
+	type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
+	irBy="$( AgentsToolsItemReviewer "$1" )"
 	## A member or routine of any workspace (AgentsTools.TeamRegistry.include), not this one's own index alone.
 	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
 	case "$irBy" in
@@ -278,7 +281,8 @@ AgentsToolsItemIsReviewer(){ ## item path, member
 			[ "$2" = magic-coordinator ] && return 0
 			return 1
 		;;
-		human-owner)
+		none) return 1 ;;
+		human-owner|user-?*)
 			[ -z "$( AgentsToolsActingMember )" ] && return 0
 			return 1
 		;;

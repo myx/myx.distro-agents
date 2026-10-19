@@ -87,7 +87,9 @@ rigAssert "under a session id of its own"              "$( [ -n "$rigSpawnId" ] 
 
 echo "-- the Agent tool spawns through the same proxy --"
 : > "$rigTmp/console.log"
-rigRun "$rigTmp/a.out" env MDAT_SPAWN_AGENT=magic-tester HARNESS_PROVIDER_NAME=rig HARNESS_SELF_NAME=rig \
+## Spawned by another member than the one it spawns: a member runs once in a session (F6.9), so a
+## session that runs as magic-tester starts no second magic-tester in it.
+rigRun "$rigTmp/a.out" env MDAT_SPAWN_AGENT=magic-coordinator HARNESS_PROVIDER_NAME=rig HARNESS_SELF_NAME=rig \
 	bash "$rigHere/AgentsUniversalHarness.sh" --intern-tool Agent < <( printf '{"agent":"magic-tester","prompt":"rig context"}' )
 sleep 2
 rigAssert "a nested spawn reaches the console non-interactively" "$( LC_ALL=C grep -c -- '--non-interactive' "$rigTmp/console.log" )" 1

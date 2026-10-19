@@ -34,7 +34,10 @@ done
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigTmp="$( mktemp -d -t "AgentsSpawnTrackingPlaceCheck-XXXXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'chmod -R u+w -- "$rigTmp" 2>/dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
+## The stand-ins it keeps are ended through the one way a check signals what it kept.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
+rigLivePids=""
+trap 'rigProcSignalWithChildren TERM $rigLivePids ; chmod -R u+w -- "$rigTmp" 2>/dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigTmp/data"
 cp "$rigTest/check-fixtures/spawn-tracking-place.curl.stub.sh" "$rigTmp/bin/curl" \
@@ -151,7 +154,24 @@ rigAssert "its brief says so, how it gets one, and that its tracking thread take
 rigAssert "its run ended with no handback: it was asked for one once, and the box that says so is a reply in its tracking thread" \
 	"$( LC_ALL=C grep -c -x resumed "$rigTmp/console.log" ):$( rigPosts "$rigTrackChannel" "${rigPassTrack#*:}" handback )" "1:1"
 
+## A session's own run still runs while the members it brings in work, as a coordinator's does:
+## its record says it started, and a stand-in whose own --session-id is its id is alive by the
+## one rule a run is alive by, until the rig ends. What is meant for that session goes to a
+## member that runs there (AgentsToolsRunRouteAvailable).
+rigLive(){ ## spawn id
+	local liveRecord liveTemp
+	for liveRecord in "$rigWs/.local/agents/spawned"/*/"$1.md" ; do
+		[ -f "$liveRecord" ] || continue
+		liveTemp="$( mktemp "$liveRecord.XXXXXX" )" || rigRefuse "no temp beside the record of $1"
+		LC_ALL=C awk '$0 == "---" { dashes++ } dashes == 1 && index( $0, "status: " ) == 1 { $0 = "status: spawn-started" } { print }' "$liveRecord" > "$liveTemp" && mv -f "$liveTemp" "$liveRecord"
+	done
+	bash -c 'sleep 1800 ; :' rig-run --session-id "$1" > /dev/null 2>&1 < /dev/null &
+	rigLivePids="$rigLivePids $!" ; rigProcNote "$!"
+	disown "$!" 2> /dev/null || :
+}
+
 echo "-- the first member it brings in opens the session thread in magic-team --"
+rigLive "$rigPass"
 touch "$rigTmp/console.question"
 rigCaller=( MDAT_SPAWN_SESSION_ID="$rigPass" MDAT_SESSION_ID="$rigPass" MDAT_SPAWN_AGENT=magic-coordinator )
 rigSpawn magic-tester --description "check it against the samples"
@@ -211,6 +231,7 @@ printf -- '---\nsession-id: rig-old-pass\nspawn-id: rig-old-pass\nparent-spawn-i
 	"$( hostname -s 2> /dev/null || echo unknown )" "$rigOldTrack" "$rigOldTrack" > "$rigWs/.local/agents/spawned/rig-old-pass/rig-old-pass.md"
 printf '%s\n' "$rigOldTrack" > "$rigWs/.local/agents/sessions/rig-old-pass/event-track.thread"
 rigCaller=( MDAT_SPAWN_SESSION_ID=rig-old-pass MDAT_SESSION_ID=rig-old-pass MDAT_SESSION_THREAD="$rigOldTrack" MDAT_SPAWN_AGENT=magic-coordinator )
+rigLive rig-old-pass
 rigSpawn magic-tester --description "look at the logs"
 rigOldThread="$( cat "$rigWs/.local/agents/sessions/rig-old-pass/session.thread" 2> /dev/null )"
 rigAssert "a member it brings in is given a session thread in magic-team, opened and recorded as that session's, never the tracking thread" \

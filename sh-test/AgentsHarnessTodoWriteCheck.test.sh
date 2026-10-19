@@ -16,6 +16,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
 rigHarness="$rigHere/AgentsUniversalHarness.sh"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 
@@ -84,7 +85,7 @@ rigEnv(){ ## caller -- runs the rest of the line in that caller's environment
 	)
 }
 rigCall(){ ## caller, arguments JSON -- one served CheckList call, its result on stdout
-	printf '%s' "$2" | rigEnv "$1" "$BASH" "$rigHarness" --intern-tool CheckList 2>> "$rigTmp/stderr"
+	printf '%s' "$2" | rigEnv "$1" "$BASH" "$rigHarness" --intern-tool CheckList 2>> "$rigTmp/stderr" | rigReplyBare
 }
 rigFirst(){ ## text
 	printf '%s\n' "$1" | LC_ALL=C awk 'NR == 1 { print ; }'

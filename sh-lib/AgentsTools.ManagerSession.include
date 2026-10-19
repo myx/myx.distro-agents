@@ -23,7 +23,7 @@
 ## beside the state that is derived here at each call; and whether that thread lives, which
 ## no registry holds: it is measured at each call (AgentsToolsManagerSessionControls).
 ## One starts: the control thread of a session where it does not live, by the one function
-## every starter of a thread calls, and with --all the check the advance input scan and the
+## every starter of a thread calls, and with --all the check the advance lock take and the
 ## main loop make too (AgentsTools.SessionControlStart.include).
 ##
 
@@ -1038,7 +1038,7 @@ case "$1" in
 
 	## The control thread of one session started where it does not live, or, with --all, of
 	## every session of this workspace that needs one and has none alive: the check now of the
-	## manager, the one the advance input scan and the main loop make too
+	## manager, the one the advance lock take and the main loop make too
 	## (AgentsTools.SessionControlStart.include). One row a session, TAB-separated, their form
 	## the help entry's. A thread is started detached and is asked only whether it took the
 	## lock of its session, within a bound; no process is ended, and no agent is involved.

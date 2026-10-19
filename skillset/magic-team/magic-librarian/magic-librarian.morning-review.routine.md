@@ -2,6 +2,7 @@
 executors: magic-coordinator, magic-librarian
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 session: coworking
+reports-to: none
 ---
 # magic-librarian.morning-review.routine — the actual procedure
 

@@ -1494,7 +1494,7 @@ rigAssert "the model is shown TIMEOUT as its opening"          "$( rigPrefix "$r
 rigAssert "as the one line, without the mode header"           "$( rigHolds "$rigScenarioDir/result" 'WAIT-MODE: default' )" no
 rigAssert "the session state landed in the session store"      "$( ls "$rigScenarioDir"/.local/agents/sessions/*/wait/state 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 1
 rigAssert "the round carried on to an answer"                  "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
-rigAssert "a TIMEOUT names the continue call as its next step" "$( rigHolds "$rigScenarioDir/result" 's) NEXT: Wait mode=continue' )" yes
+rigAssert "a TIMEOUT names the continue call as its next step" "$( rigHolds "$rigScenarioDir/result" 'NEXT: Wait mode=continue' )" yes
 rigAssert "and names it once"                                  "$( LC_ALL=C awk '{ hitCount += gsub( /NEXT: /, "&" ) ; } END { print hitCount + 0 ; }' "$rigScenarioDir/result" )" 1
 rigVerdict "the Wait tool declares mode and the id sets, and an explicit default stores its state"
 

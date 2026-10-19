@@ -3,6 +3,7 @@ executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 invitees: magic-librarian, magic-architect
 session: coworking
+reports-to: none
 ---
 # magic-team.grooming.routine — the actual procedure
 

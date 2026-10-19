@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-## Behavioural check on the advance input scan starting the dead control threads of the sessions of its workspace
-## (--magic-advance-input-scan, the housekeeping of sh-lib/AgentsTools.MagicAdvance.include, through the one check
+## Behavioural check on the advance pass starting the dead control threads of the sessions of its workspace
+## (--magic-advance-lock-acquire, the housekeeping of sh-lib/AgentsTools.MagicAdvance.include, through the one check
 ## of sh-lib/AgentsTools.SessionControlStart.include), run rather than read, against a rig workspace and a rig data
 ## root built here, with a process list of the rig's own. A ps first on PATH lists the rig's runs only, stand-in
 ## processes under their own pids, never a real CLI, and counts what is asked of it; a curl beside it only logs,
-## and nothing may call it.
+## and nothing may call it. A scan below is one take of the advance routine's lock, freed before each: the
+## housekeeping runs there, and the input scan only reads.
 ## Held:
 ##   1. THE COST. A scan with no thread to start asks for the whole process list as often as it did before the
 ##      check was in it, and asks once whether the threads its sessions name are still themselves.
@@ -27,7 +28,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigOp="--magic-advance-input-scan"
+rigOp="--magic-advance-lock-acquire"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -127,10 +128,11 @@ rigTranscript(){ ## short name of the run, true or false -- its transcript as th
 	printf '%s\n' "$rigData/audit/session-$( rigId "$1" ).log" > "$rigStores/$( rigId "$1" )/transcript"
 }
 rigRc=0
-rigScan(){ ## name of its output files -- one scan in the rig workspace: stdout in <name>.out, stderr in <name>.err, the daemon line (descriptor 4) in <name>.fd4
+rigScan(){ ## name of its output files -- one take of the lock in the rig workspace: stdout in <name>.out, stderr in <name>.err, the daemon line (descriptor 4) in <name>.fd4
 	rigRc=0
+	rm -f "$rigData/inboxes/magic-coordinator/note-20260809T154715Z-advance-state-and-lock.md"
 	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		bash "$rigTool" "$rigOp" magic-coordinator ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" 4> "$rigTmp/$1.fd4" < /dev/null || rigRc=$?
+		bash "$rigTool" "$rigOp" magic-coordinator rig-advance-pass ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" 4> "$rigTmp/$1.fd4" < /dev/null || rigRc=$?
 }
 rigHk(){ ## name of a scan -- the housekeeping lines of its report
 	LC_ALL=C grep '^housekeeping: ' "$rigTmp/$1.fd4" 2> /dev/null || :
@@ -188,9 +190,9 @@ mkdir -p "$rigStores/$( rigId z )/control" ; rigProcBegan "$rigZ" > "$rigStores/
 rigRec y y y "$rigHost" spawn-succeeded "$rigClosed"
 rigScan cost
 [ "$rigRc" = 0 ] || rigRefuse "the scan failed in the rig, so nothing below would be measured: $( tail -3 "$rigTmp/cost.err" | LC_ALL=C tr '\n' ' ' | cut -c1-500 )"
-LC_ALL=C grep -q -F -- "$( rigId z )" "$rigTmp/cost.out" || rigRefuse "the scan did not list the rig's session, so nothing below would be measured"
-rigAssert "control: a scan asks for the whole process list three times, once for each time it measures the rows of the sessions" "$( rigCount "$rigTmp/ps.lists" )" "3"
-rigAssert "the check adds no listing to that, and asks once whether the threads its sessions name are still themselves" "$( rigCount "$rigTmp/ps.lists" ):$( rigCount "$rigTmp/ps.asks" )" "3:1"
+LC_ALL=C grep -q -x -F -- 'ACQUIRED' "$rigTmp/cost.out" || rigRefuse "the lock was not taken in the rig, so nothing below would be measured"
+rigAssert "control: a take asks for the whole process list twice, once for each time its housekeeping measures the rows of the sessions" "$( rigCount "$rigTmp/ps.lists" )" "2"
+rigAssert "the check adds no listing to that, and asks once whether the threads its sessions name are still themselves" "$( rigCount "$rigTmp/ps.lists" ):$( rigCount "$rigTmp/ps.asks" )" "2:1"
 rigAssert "a session whose thread lives is left alone, and nothing is reported or warned" "$( rigMade z ):$( rigHk cost | LC_ALL=C grep -c . ):$( rigTroubles cost ):$( rigSays cost 'control thread' )" "0:0:0:0:0:0"
 rm -rf "$rigStores/$( rigId z )" "$rigSp/$( rigId z )" "$rigSp/$( rigId y )"
 LC_ALL=C grep -v -F -- " --session-id $( rigId z ) " "$rigTmp/ps.list" > "$rigTmp/ps.list.new" ; mv -f "$rigTmp/ps.list.new" "$rigTmp/ps.list"
@@ -238,10 +240,10 @@ echo "-- 5. a thread that cannot be started is one warning, and the scan goes on
 rigRec i i i "$rigHost" spawn-started '' ; rigStand i
 mkdir -p "$rigStores/$( rigId i )/control" ; chmod a-w "$rigStores/$( rigId i )/control"
 rigScan warned
-rigAssert "the folder control/ of a session cannot be written: the scan prints one warning and ends with status 0" \
-	"$rigRc:$( rigTroubles warned ):$( LC_ALL=C grep -c -x -F -- "⚠️ WARNING: DistroAgentsTools $rigOp: the control thread of session $( rigId i ) could not be started: the log of the thread could not be written: $rigStores/$( rigId i )/control/log" "$rigTmp/warned.err" )" "0:1:1"
-rigAssert "no process was started for it, the report holds no line of it, and the output of the scan is whole: it ends with its registries" \
-	"$( rigThreads i ):$( rigHk warned | LC_ALL=C grep -c -F -e 'control thread' ):$( LC_ALL=C grep -c -x -F -e '## spawned sessions' -e '## pending replies' "$rigTmp/warned.out" )" "0:0:2"
+rigAssert "the folder control/ of a session cannot be written: one warning on the daemon line, none on stderr, and the take ends with status 0" \
+	"$rigRc:$( rigTroubles warned ):$( LC_ALL=C grep -c -x -F -- "⚠️ WARNING: DistroAgentsTools $rigOp: the control thread of session $( rigId i ) could not be started: the log of the thread could not be written: $rigStores/$( rigId i )/control/log" "$rigTmp/warned.fd4" )" "0:0:1"
+rigAssert "no process was started for it, the report holds no line of it, and the take is whole: it says the lock was taken" \
+	"$( rigThreads i ):$( rigHk warned | LC_ALL=C grep -c -F -e 'control thread' ):$( LC_ALL=C grep -c -x -F -e 'ACQUIRED' "$rigTmp/warned.out" )" "0:0:1"
 chmod u+w "$rigStores/$( rigId i )/control" ; rm -rf "$rigStores/$( rigId i )" "$rigSp/$( rigId i )"
 
 echo "-- 6. no storm: a session whose thread ends at once --"

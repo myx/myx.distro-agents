@@ -57,6 +57,16 @@ AgentsMcpSendError(){
 	return 0
 }
 
+## The text of this server's own tool result -- execute, Monitor, a job's poll or kill -- as a JSON
+## string, finished first by the one reply layer (AgentsTranscriptReplyFinish, the session transcript
+## include tools/call sources): a long result is kept in the session's folder before it is encoded, so
+## the JSON carries only the reference. A harness tool is finished by the harness and never here.
+AgentsMcpReplyText(){ ## tool name, result
+	local replyText="$2"
+	! type AgentsTranscriptReplyFinish > /dev/null 2>&1 || replyText="$( AgentsTranscriptReplyFinish "$1" "$2" )" || replyText="$2"
+	printf '%s' "$replyText" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk"
+}
+
 ## A notification carries no id and is never answered, so it has a sender of its own.
 AgentsMcpSendNotification(){
 	if ! AgentsMcpWireLockAcquire ; then
@@ -559,7 +569,7 @@ case "$1" in
 									else
 										mcpOutput="[job $mcpJob: already finished, nothing to kill]"
 									fi
-									AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":%s}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" "$mcpIsError" )"
+									AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":%s}' "$( AgentsMcpReplyText "$mcpToolName" "$mcpOutput" )" "$mcpIsError" )"
 								else
 									## Only what is NEW since the last poll, so polling a long build does
 									## not re-deliver everything each time.
@@ -600,7 +610,7 @@ case "$1" in
 										mcpOutput="$mcpOutput"$'\n'"[job $mcpJob$mcpJobLabel: stopped before it could finish -- killed, or died without recording an exit code]"
 									fi
 									[ -n "$mcpOutput" ] || mcpOutput='(no new output)'
-									AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":false}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" )"
+									AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":false}' "$( AgentsMcpReplyText "$mcpToolName" "$mcpOutput" )" )"
 								fi
 							fi
 						;;
@@ -671,7 +681,7 @@ case "$1" in
 
 					mcpOutput="[job $mcpJobId started, pid $mcpJobPid]"$'\n'"[poll it:  $mcpToolName with job=$mcpJobId]"$'\n'"[stop it:  $mcpToolName with job=$mcpJobId action=kill]"$'\n'"[log file: $mcpJobsDir/$mcpJobId/out]"
 					[ -z "$mcpWatchSeconds" ] || mcpOutput="$mcpOutput"$'\n'"[stderr file: $mcpErrFile]"$'\n'"[watching: $( cat "$mcpJobsDir/$mcpJobId/description" ) -- killed after ${mcpTimeoutMs}ms. Events do not arrive by themselves: poll with job=$mcpJobId]"
-					AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":false}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" )"
+					AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":false}' "$( AgentsMcpReplyText "$mcpToolName" "$mcpOutput" )" )"
 
 				else
 					## Seconds. A non-numeric or absent value takes the default rather than
@@ -733,7 +743,7 @@ case "$1" in
 					fi
 					[ -n "$mcpOutput" ] || mcpOutput='(no output)'
 
-					AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":%s}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" "$mcpIsError" )"
+					AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":%s}' "$( AgentsMcpReplyText "$mcpToolName" "$mcpOutput" )" "$mcpIsError" )"
 				fi
 				## After the response: the tool line of every call but a harness tool, whose
 				## served harness writes its own -- execute, Monitor, and every refusal here.

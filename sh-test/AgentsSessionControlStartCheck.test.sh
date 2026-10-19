@@ -477,18 +477,18 @@ rigAssert "the operation has its syntax echo, its syntax line and its entry, onc
 rigForm="$( rigEntry | LC_ALL=C sed -n -e 's/^[[:space:]]*`\(control <.*>\)`$/\1/p' )"
 rigAssert "its entry gives the form of a row" "$rigForm" "control <session-id> <outcome> <pid> <reason>"
 rigAssert "and every row this check was given has exactly the fields its form names, the first of them control" "$( cat "$rigTmp"/out.kept.* 2> /dev/null | LC_ALL=C awk -F'\t' -v wantFields="$( printf '%s\n' "$rigForm" | LC_ALL=C awk '{ print NF }' )" '{ rows++ ; if ( $1 != "control" || NF != wantFields ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' )" "rows:0"
-rigAssert "the entry names each outcome, the log of a thread, and the two other callers of the check" "$( for rigWord in started alive not-needed not-started control/log --all --session-id ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done ) $( rigEntry | LC_ALL=C tr '\n\t' '  ' | LC_ALL=C tr -s ' ' | LC_ALL=C grep -c -F -e 'The advance input scan and each iteration of the main loop make that same check.' )" "yyyyyyy 1"
+rigAssert "the entry names each outcome, the log of a thread, and the two other callers of the check" "$( for rigWord in started alive not-needed not-started control/log --all --session-id ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done ) $( rigEntry | LC_ALL=C tr '\n\t' '  ' | LC_ALL=C tr -s ' ' | LC_ALL=C grep -c -F -e 'The advance lock take and each iteration of the main loop make that same check.' )" "yyyyyyy 1"
 rigRun --help-syntax
 rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntaxLine" "$rigTmp/err" || : )" "0 1"
 rigCode(){ ## file -- its lines that are no comment
 	LC_ALL=C grep -v '^[[:space:]]*#' "$1"
 }
-rigAssert "one function starts a thread, and the console, the advance scan and the main loop reach it through the one check" \
+rigAssert "one function starts a thread, and the console, the advance lock take and the main loop reach it through the one check" \
 	"$( cat "$rigHere"/*.include "$rigHere"/*.sh | LC_ALL=C grep -c -E '^AgentsToolsSessionControlStart\(\)\{' || : ) $( cat "$rigHere"/*.include "$rigHere"/*.sh | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -e '--intern-session-control --run --session-id "$startSession"' || : ) $( rigCode "$rigHere/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -e 'AgentsToolsSessionControlCheckWorkspace' -e 'AgentsToolsSessionControlStart "' || : ) $( rigCode "$rigHere/AgentsTools.MagicAdvance.include" | LC_ALL=C grep -c -e '| AgentsToolsSessionControlCheck ' || : ) $( rigCode "$rigHere/AgentsTools.InternMainLoop.include" | LC_ALL=C grep -c -e 'AgentsToolsSessionControlCheckWorkspace' || : )" "1 1 2 1 1"
 
 echo "-- 10. the guard: every check of sh-test that names an operation which starts control threads ends them --"
 ## THE OPERATIONS that start the control thread of a session of the workspace they are called for: the advance
-## input scan and the main loop, for every session that is not finished, and the console's start. A check that
+## lock take and the main loop, for every session that is not finished, and the console's start. A check that
 ## names one of them, outside a comment, sources the fixture (sh-test/check-fixtures/rig-control-threads.include.sh)
 ## and ends the threads of its rig in its EXIT trap, before its tree is removed: a thread whose rig is gone never
 ## ends by itself. A new check that names one and does not end them fails here. And the spawner, by each of its
@@ -496,7 +496,7 @@ echo "-- 10. the guard: every check of sh-test that names an operation which sta
 ## that names the spawn proxy, the heartbeat's own, the start of a session or the console's start of a member ends
 ## them too, whether its own starts wait or not: the guard reads names. So does one that names the return of a
 ## review, which starts an ended run again, or the harness's own tool that brings a member in.
-rigGuardOps='--magic-advance-input-scan|--intern-main-loop|--manager-session-control-start|--intern-op-agent-spawn-proxy|--magic-heartbeat-spawn-proxy|--magic-spawn-session|--manager-spawn-member|--member-review-return|--intern-op-review-return|--intern-tool +"?Agent'
+rigGuardOps='--magic-advance-lock-acquire|--intern-main-loop|--manager-session-control-start|--intern-op-agent-spawn-proxy|--magic-heartbeat-spawn-proxy|--magic-spawn-session|--manager-spawn-member|--member-review-return|--intern-op-review-return|--intern-tool +"?Agent'
 rigGuard(){ ## folder of checks -- `NOT ENDED: <file>` for each check that names one of the operations and does not end the threads of its rig, then how many name one
 	local guardFile guardNamed=0
 	for guardFile in "$1"/*.test.sh "$1"/*/*.test.sh ; do
@@ -512,19 +512,19 @@ rigGuard(){ ## folder of checks -- `NOT ENDED: <file>` for each check that names
 rigGuarded="$( rigGuard "$rigPackage/sh-test" )"
 rigAssert "every check of the package that names one of those operations sources the fixture and ends the threads of its rig in its EXIT trap" \
 	"$( printf '%s\n' "$rigGuarded" | LC_ALL=C grep -c '^NOT ENDED: ' ):$( printf '%s\n' "$rigGuarded" | LC_ALL=C grep '^NOT ENDED: ' | LC_ALL=C tr '\n' ' ' )" "0:"
-rigAssert "control: the guard read the checks, and found those that name one: ten or more, this one, the scan's, the main loop's and three of the spawner's among them" \
+rigAssert "control: the guard read the checks, and found those that name one: ten or more, this one, the advance lock's, the main loop's and three of the spawner's among them" \
 	"$( printf '%s\n' "$rigGuarded" | LC_ALL=C sed -n 's/^named: //p' | LC_ALL=C awk '{ print ( $1 >= 10 ) ? "ten-or-more" : $1 }' ):$( for rigName in AgentsSessionControlStartCheck AgentsSessionControlScanCheck AgentsSessionControlMainLoopCheck AgentsAdvanceInputScanStatesCheck AgentsMainLoopPassBoundCheck AgentsSpawnDetachCheck AgentsMagicSpawnSessionCheck AgentsManagerSpawnMemberCheck ; do LC_ALL=C grep -v '^[[:space:]]*#' "$rigPackage/sh-test/$rigName.test.sh" | LC_ALL=C grep -q -E -e "$rigGuardOps" && printf y || printf n ; done )" "ten-or-more:yyyyyyyy"
-## Made to fail: a check that calls the scan and ends nothing, one that sources the fixture and never calls it,
+## Made to fail: a check that takes the advance lock and ends nothing, one that sources the fixture and never calls it,
 ## and beside them one that does both, one that names the operation in a comment alone, and one that names none;
-## and one in a subfolder, where the runner finds tests too, that calls the scan and ends nothing.
+## and one in a subfolder, where the runner finds tests too, that takes the advance lock and ends nothing.
 mkdir -p "$rigTmp/probe/sub"
-printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-advance-input-scan magic-coordinator' > "$rigTmp/probe/Bare.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-advance-lock-acquire magic-coordinator rig-pass' > "$rigTmp/probe/Bare.test.sh"
 printf '%s\n' '#!/usr/bin/env bash' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1' 'rigTmp="$( mktemp -d )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --intern-main-loop --one' > "$rigTmp/probe/Sourced.test.sh"
 printf '%s\n' '#!/usr/bin/env bash' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1' 'rigTmp="$( mktemp -d )"' "trap 'rigControlThreadsEnd \"\$rigTmp\" ; rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --manager-session-control-start --all' > "$rigTmp/probe/Ended.test.sh"
-printf '%s\n' '#!/usr/bin/env bash' '## this check never calls --magic-advance-input-scan' 'echo nothing' > "$rigTmp/probe/Comment.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' '## this check never calls --magic-advance-lock-acquire' 'echo nothing' > "$rigTmp/probe/Comment.test.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'echo nothing' > "$rigTmp/probe/None.test.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-spawn-session rig-member < /dev/null' > "$rigTmp/probe/Spawned.test.sh"
-printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-advance-input-scan magic-coordinator' > "$rigTmp/probe/sub/Nested.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-advance-lock-acquire magic-coordinator rig-pass' > "$rigTmp/probe/sub/Nested.test.sh"
 rigAssert "the guard fails a check that names one of the operations and does not end the threads of its rig, one that only sources the fixture, one that starts a session through the spawner and ends nothing, and one in a subfolder that ends nothing; not one that ends them, nor one that names the operation in a comment alone" \
 	"$( rigGuard "$rigTmp/probe" | LC_ALL=C tr '\n' ' ' )" "NOT ENDED: Bare.test.sh NOT ENDED: Sourced.test.sh NOT ENDED: Spawned.test.sh NOT ENDED: Nested.test.sh named: 5 "
 

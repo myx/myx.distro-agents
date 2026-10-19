@@ -83,7 +83,8 @@ case "$1" in
 			;;
 			--member-review-*)
 				if reviewPath="$( AgentsToolsDecisionsItemPath "$reviewItem" )" && ! AgentsToolsItemIsReviewer "$reviewPath" "$reviewWho" ; then
-					reviewPath="$( AgentsToolsDecisionsField "$reviewPath" review-by )"
+					type AgentsToolsItemReviewer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
+					reviewPath="$( AgentsToolsItemReviewer "$reviewPath" )"
 					echo "$MDSC_CMD: ⛔ ERROR: ${reviewItem%.md} is reviewed by ${reviewPath:-magic-coordinator}, and $reviewWho is not that reviewer here, so it gives no verdict on it (magic-coordinator, reviewer of last resort: --magic-review-$reviewVerb)" >&2
 					set +e ; return 1
 				fi

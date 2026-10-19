@@ -284,7 +284,7 @@ Not types: `talk-*` (use `interview-*`), `approve-*` (use `approval-*`), `epic-*
 - `session-id` — the active coworking session.
 - `participants` — who worked on it, added as they join.
 - `restart-session` — members to spawn as a coworking session instead of running inline.
-- `review-by` — the reviewer of a `board-review` item.
+- `review-by` — the reviewer of a `board-review` item. Unset, it is the run's `reports-to`. `none` means no review: the item closes straight to `board-processed`.
 - `allows` — the approved permission set the tracked session carries: `session|task:<tool>:<target>:<granted-by>:<YYYYMMDD'T'HHmm'Z'>`, target %-escaped, `granted-by` a holder and not the session's own member. Written by tooling when the set is approved (`--magic-permission-set-request`).
 - `tracks` — on a `dispatch-*`, the item its session's work is tracked in.
 - `archive: true` — keep this processed item permanently.

@@ -164,7 +164,8 @@ rigAssert "the per-call hooks wrote the control transcript" "$( rigHas "$rigTH" 
 rigAssert "the rendered transcript holds the same lines as the per-call hooks wrote" \
 	"$( rigNorm "$rigT1" | tr '\n' '|' )" "$( rigNorm "$rigTH" | tr '\n' '|' )"
 rigAssert "the ROUND line, with its tokens" "$( rigHas "$rigT1" 'ROUND n=1 in=100 cache-read=0 cache-write=5000 out=40' )" 1
-rigAssert "the TOOL line, key args, outcome, size and the round's text" "$( LC_ALL=C grep -c "TOOL Glob pattern=\"\*.txt\" path=$rigS1 -> ok [0-9]*B/1L [0-9.]*m*s | \"Listing the rig.\"" "$rigT1" )" 1
+## Its size is the reply's: the Glob's one line, and the reply layer's current-date line (F2.3).
+rigAssert "the TOOL line, key args, outcome, size and the round's text" "$( LC_ALL=C grep -c "TOOL Glob pattern=\"\*.txt\" path=$rigS1 -> ok [0-9]*B/2L [0-9.]*m*s | \"Listing the rig.\"" "$rigT1" )" 1
 rigAssert "no thinking and no file content" "$( LC_ALL=C grep -c -e RIG-THINK -e RIG-SIGNATURE "$rigT1" )" 0
 rigAssert "lines are in time order" "$( LC_ALL=C cut -c1-20 "$rigT1" | LC_ALL=C grep -v '^>' | LC_ALL=C sort -c 2>&1 && echo sorted )" sorted
 rigAssert "the final milestone committed it" "$( git -C "$rigStore" status --porcelain -- audit/2026-10/session-ctx.log )" ""

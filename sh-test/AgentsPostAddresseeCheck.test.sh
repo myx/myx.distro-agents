@@ -31,7 +31,14 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsPostAddresseeCheck.XXXXXX" )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+## The parent's run, alive by the one rule a run is alive by: a stand-in whose own --session-id is
+## the parent's id, ended with the rig, through the one way a check signals what it kept
+## (sh-test/check-fixtures/rig-processes.include.sh). A route to a session goes to a member that runs there.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
+bash -c 'sleep 1800 ; :' rig-run --session-id rig-parent-id > /dev/null 2>&1 < /dev/null &
+rigParentPid=$! ; rigProcNote "$rigParentPid"
+disown "$rigParentPid" 2> /dev/null || :
+trap 'rigProcSignalWithChildren TERM "$rigParentPid" ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin" "$rigTmp/tmp" "$rigTmp/skills"
 for rigName in "$rigMember" "$rigLead" "$rigOther" human-owner ; do
 	mkdir -p "$rigTmp/skills/$rigName"
@@ -66,6 +73,8 @@ rigFrom="🤖 *_${rigMember}_* → "
 rigToOther="${rigFrom}🤖 *_${rigOther}_*."
 rigToLead="${rigFrom}🤖 *_${rigLead}_*."
 rigToNobody="${rigFrom}@here."
+## Where no member is there to take it -- none named, or none runs in that session -- the human-owner takes it.
+rigToOwner="${rigFrom}👤 *_human-owner_* <@URIGOWNER>."
 
 rigScenarioDir=""
 rigStart(){ ## scenario directory name
@@ -91,7 +100,7 @@ rigRecords(){ ## parent id in the child's record (none for no parent), owner in 
 		mkdir -p "$rigScenarioDir/ws/.local/agents/sessions/rig-parent-id" && printf '%s\n' "$rigParent" > "$rigScenarioDir/ws/.local/agents/sessions/rig-parent-id/session.thread"
 		return 0
 	fi
-	printf -- '---\nspawn-id: rig-parent-id\nparent-spawn-id: none\n%ssession-thread: %s\n---\n\nowner: rig-body-line\n' "${2:+owner: $2
+	printf -- '---\nsession-id: rig-parent-id\nspawn-id: rig-parent-id\nparent-spawn-id: none\nstatus: spawn-started\n%ssession-thread: %s\n---\n\nowner: rig-body-line\n' "${2:+owner: $2
 }" "$rigParent" > "$spawnDir/parent-folder/rig-parent-id.md"
 }
 ## One scenario with the usual records: a caller the records name.
@@ -195,11 +204,11 @@ rigAssert "no parent session recorded"                               "$( rigPost
 rigStart backNoRecord
 rigRecords rig-parent-id no-record
 rigCall SubagentHandback '{"outcome":"x"}'
-rigAssert "a parent with no record of its own, a session never spawned" "$( rigPosts )$( rigPostedTo "$rigParent" ):$( rigHeader )" "1yes:$rigToNobody"
+rigAssert "a parent with no record of its own, a session never spawned, and no member named: nobody is there to take it, so the human-owner" "$( rigPosts )$( rigPostedTo "$rigParent" ):$( rigHeader )" "1no:$rigToOwner"
 rigStart backNoOwner
 rigRecords rig-parent-id ""
 rigCall SubagentHandback '{"outcome":"x"}'
-rigAssert "a parent record that names no member, a body line never read as one" "$( rigPosts ):$( rigHeader )" "1:$rigToNobody"
+rigAssert "a parent record that names no member, a body line never read as one: nobody is there, so the human-owner" "$( rigPosts ):$( rigHeader )" "1:$rigToOwner"
 rigStart backSelf
 rigRecords rig-parent-id "$rigMember"
 rigCall SubagentHandback '{"outcome":"x"}'
@@ -211,11 +220,11 @@ rigAssert "a caller that is no team member here: nobody named, never a failed ha
 rigStart backOdd
 rigRecords rig-parent-id '../rig-lead'
 rigCall SubagentHandback '{"outcome":"x"}'
-rigAssert "a caller that is no bare name: nobody named, never a failed handback" "$( rigPosts ):$( rigHeader )" "1:$rigToNobody"
+rigAssert "a caller that is no bare name: no member to take it, so the human-owner, never a failed handback" "$( rigPosts ):$( rigHeader )" "1:$rigToOwner"
 rigStart backDots
 rigRecords rig-parent-id '..'
 rigCall SubagentHandback '{"outcome":"x"}'
-rigAssert "nor one that names a folder and no member"                "$( rigPosts ):$( rigHeader )" "1:$rigToNobody"
+rigAssert "nor one that names a folder and no member: the human-owner"                "$( rigPosts ):$( rigHeader )" "1:$rigToOwner"
 
 echo "-- the member that made the spawn call, as the session's own spawn record names it --"
 rigStart calledNative
@@ -227,7 +236,7 @@ rigAssert "the same in the session's own thread"                     "$( rigPost
 rigStart calledWins
 rigRecords rig-parent-id "$rigOther" "$rigLead"
 rigCall SubagentHandback '{"outcome":"x"}'
-rigAssert "what the spawn recorded comes first, ahead of the parent session's own record" "$( rigPosts ):$( rigHeader )" "1:$rigToLead"
+rigAssert "the member the spawn recorded comes first where it runs in that session; it does not, so the session's executor takes it" "$( rigPosts ):$( rigHeader )" "1:$rigToOther"
 rigStart calledNamed
 rigRecords rig-parent-id no-record "$rigLead"
 rigCall SubagentHandback "{\"address_to\":\"$rigOther\",\"outcome\":\"x\"}"
@@ -235,7 +244,7 @@ rigAssert "an address_to given still wins"                           "$( rigPost
 rigStart calledSelf
 rigRecords rig-parent-id "$rigLead" "$rigMember"
 rigCall SubagentHandback '{"outcome":"x"}'
-rigAssert "a record that names the member itself: nobody named, never itself" "$( rigPosts ):$( rigHeader )" "1:$rigToNobody"
+rigAssert "a record that names the member itself: never itself, so the session's executor" "$( rigPosts ):$( rigHeader )" "1:$rigToLead"
 rigStart calledGone
 rigRecords rig-parent-id no-record rig-gone
 rigCall SubagentHandback '{"outcome":"x"}'
@@ -243,7 +252,7 @@ rigAssert "a record that names no team member here: nobody named, never a failed
 rigStart calledBody
 rigRecords rig-parent-id no-record ""
 rigCall SubagentHandback '{"outcome":"x"}'
-rigAssert "a record written before that line, its parent with no record: as before, a body line never read as one" "$( rigPosts ):$( rigHeader )" "1:$rigToNobody"
+rigAssert "a record written before that line, its parent with no record: no member named, so the human-owner; a body line never read as one" "$( rigPosts ):$( rigHeader )" "1:$rigToOwner"
 
 echo "-- a word is an account or a conversation only by the whole shape of a Slack id --"
 rigRow shapeAccount SendMessage '{"to":"session-current","address_to":"URIGSOME1","message":"m"}'
@@ -302,7 +311,7 @@ rigDismissed(){ ## member -- yes when the rendered thread dismisses it
 	done
 	printf '{"ok":true,"messages":[%s]}\n' "$dismissList" | LC_ALL=C awk -f "$rigHere/AgentsSlackMessagesFormat.awk" > "$rigScenarioDir/thread.fmt" 2> "$rigScenarioDir/thread.err" || { printf 'unreadable' ; return 0 ; }
 	[ "$( LC_ALL=C grep -c '^[0-9]*\.[0-9]* | ' "$rigScenarioDir/thread.fmt" )" = "$dismissNo" ] || { printf 'misrendered' ; return 0 ; }
-	LC_ALL=C awk -v agent="$1" -f "$rigHere/AgentsDismissalMatch.awk" -f "$rigHere/AgentsHarnessWaitDismissed.awk" "$rigScenarioDir/thread.fmt" > /dev/null && printf yes || printf no
+	dismissalMember="$1" LC_ALL=C awk -f "$rigHere/AgentsDismissalMatch.awk" -f "$rigHere/AgentsHarnessWaitDismissed.awk" "$rigScenarioDir/thread.fmt" > /dev/null && printf yes || printf no
 }
 rigDismissedAll(){ ## -- the three members, in the order: the one named, the caller, the sender
 	printf '%s %s %s' "$( rigDismissed "$rigOther" )" "$( rigDismissed "$rigLead" )" "$( rigDismissed "$rigMember" )"

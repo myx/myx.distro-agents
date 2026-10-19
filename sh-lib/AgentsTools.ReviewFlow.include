@@ -323,7 +323,7 @@ AgentsReviewResumeEligible(){ ## record path (may be empty)
 ## (AgentsToolsSessionControlDeathAct, AgentsTools.SessionControlDeath.include).
 AgentsReviewRestart(){ ## item name, record path (may be empty), corrections text, who
 	local rsItem="${1%.md}.md" rsRecord="$2" rsText="${3:-}" rsWho="${4:-unknown}" rsMember="" rsTracking="" rsSession="" rsThread="" rsPath rsOut rsRc=0
-	local rsFrom="" rsWhy="" rsPaying="" rsAsked="" rsParent="" rsStart="" rsReports=""
+	local rsFrom="" rsWhy="" rsPaying="" rsAsked="" rsParent="" rsStart="" rsReports="" rsInitiator="" rsReplaced=""
 	rsPath="$( AgentsToolsDecisionsItemPath "$rsItem" )" || return 1
 	## Taken here and taken out of the environment: the run that is started must not inherit it.
 	local rsFresh="${MDAT_REVIEW_RESTART_FRESH:-}"
@@ -357,6 +357,8 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 		rsAsked="$( AgentsReviewRecordCliAsked "$rsRecord" )"
 		rsParent="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" parent-session-id )"
 		rsStart="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" start-context )"
+		## Its initiator, the member that brought it in: the one it reports to where it names nobody.
+		rsInitiator="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" parent-member )"
 		## Where it reported to, as its record names it: what it had, and no more.
 		rsReports="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" "$agentsRunRouteField" )"
 	fi
@@ -376,6 +378,12 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 		set -- "$@" --parent-none
 	fi
 	[ -z "$rsReports" ] || set -- "$@" --reports-to "$rsReports"
+	[ -z "$rsInitiator" ] || set -- "$@" --parent-member "$rsInitiator"
+	## The run it replaces, by its spawn id: the restart takes over that run's seat in the session (F6.9).
+	if [ -n "$rsRecord" ] && [ -f "$rsRecord" ] ; then
+		rsReplaced="${rsRecord##*/}" ; rsReplaced="${rsReplaced%.md}"
+		set -- "$@" --restarted-from "$rsReplaced"
+	fi
 	## Joined only where the session has a thread to join by; the proxy refuses a join it cannot make.
 	## A resumed session keeps the thread it remembers, so it resumes only when joined there.
 	## Joined, it goes on with the participation of the run it replaces, so it keeps its start-context too.
@@ -609,7 +617,12 @@ AgentsReviewPromptPost(){ ## who handed back, item file name, its spawn id, outc
 	local rpWho="$1" rpItem="${2%.md}" rpSpawn="${3:-}" rpOutcome="${4:-}" rpPath rpRecord="" rpCandidate rpTask rpName rpNames="" rpTaskText rpCow rpThread rpSessionText=""
 	local rpBody rpOut rpChannel rpTs rpAddressees rpAsking rpId
 	rpPath="$( AgentsToolsDecisionsItemPath "$rpItem" )" || return 0
-	[ "$( AgentsToolsDecisionsField "$rpPath" review-by )" = "human-owner" ] || return 0
+	## Who reviews it: its review-by, else where its run reports to (AgentsToolsItemReviewer). A
+	## person at a console (`user-<account>`) is asked as the human-owner is, for now.
+	case "$( AgentsToolsItemReviewer "$rpPath" )" in
+		human-owner|user-?*) ;;
+		*) return 0 ;;
+	esac
 	type AgentsToolsAskPostReact > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.AskPost.include"
 	type AgentsToolsTaskText > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.TaskText.include"
 	rpTask="$( AgentsToolsTaskText "$rpPath" )"
@@ -784,6 +797,12 @@ AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismis
 			opSession="${opSession:-${MDAT_SPAWN_SESSION_ID:-}}"
 			[ -n "$opSession" ] || { echo "$MDSC_CMD: ⛔ ERROR: --session-id <spawn-id> is required, and this process has none" >&2 ; return 1 ; }
 			opItem="$( AgentsReviewItemOfSession "$opSession" )" || { printf 'REVIEW: nothing to move: session %s works no board item\n' "$opSession" ; return 0 ; }
+			## An item nobody reviews (its review-by, else where its run reports to, is `none`) does not
+			## enter review on a handback: that handback is its run's report.
+			if opPath="$( AgentsToolsDecisionsItemPath "$opItem" )" && [ "$( AgentsToolsItemReviewer "$opPath" )" = none ] ; then
+				printf 'REVIEW: nothing to move: nobody reviews %s, so the handback is its report\n' "${opItem%.md}"
+				return 0
+			fi
 			opOut="$( AgentsReviewToReview "$opWho" "$opItem" handback handback "$opSession" "${opText:-}" )" || :
 			[ -z "$opOut" ] || printf '%s\n' "$opOut"
 			## Moved into review now: a reviewer that is a person is asked, once, by a review prompt.

@@ -43,7 +43,7 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 . "$rigPackage/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 . "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's helper for control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
-rigTmp="$( mktemp -d -t AgentsSessionControlDeathAnswerCheck )" || exit 1
+rigTmp="$( mktemp -d -t "AgentsSessionControlDeathAnswerCheck-XXXXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data" ; rigSlack="$rigTmp/slack"
 rigSp="$rigWs/.local/agents/spawned" ; rigStores="$rigWs/.local/agents/sessions" ; rigPending="$rigWs/.local/agents/pending"
@@ -75,7 +75,26 @@ rigCleanup(){
 	done
 	rigProcSignalWithChildren KILL $rigStarted
 }
-trap 'rigCleanup ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+## The rig's tree is removed whole. A send that was let go above may still finish a moment later, and its log
+## (comms-slack-send.<month>.log) makes the folders of the tree again: so the tree is removed until it has stayed
+## gone for three seconds, within twenty.
+rigRemoveTree(){
+	local removeLeft=20 removeGone=0
+	while [ "$removeLeft" -gt 0 ] ; do
+		removeLeft=$(( removeLeft - 1 ))
+		if [ -e "$rigTmp" ] ; then
+			removeGone=0
+			chmod -R u+rwX -- "$rigTmp" 2> /dev/null
+			rm -rf -- "$rigTmp" 2> /dev/null
+		else
+			removeGone=$(( removeGone + 1 ))
+			[ "$removeGone" -lt 3 ] || return 0
+		fi
+		sleep 1
+	done
+	[ ! -e "$rigTmp" ] || echo "⛔ ERROR: the rig's tree could not be removed: $rigTmp" >&2
+}
+trap 'rigCleanup ; rigRemoveTree' EXIT
 trap 'exit 1' INT TERM
 
 ## THE RIG'S OWN PROCESS LIST, as AgentsSessionControlStateCheck keeps it: the whole-host listing is the rig's own

@@ -252,7 +252,7 @@ echo "-- reading takes what posting writes: a message addressed to the client in
 ## for each one sent. The dismissal reader is the one a Wait asks (AgentsHarnessWaitDismissed.awk).
 rigDismisses(){ ## member, the text of a message as sent -- yes when that message dismisses that member
 	printf '1700000001.000100 | URIGBOT01 | %s\n' "$2" | LC_ALL=C awk '{ gsub( /\\n/, "\n" ) ; print ; }' \
-		| LC_ALL=C awk -v agent="$1" -f "$rigHere/AgentsDismissalMatch.awk" -f "$rigHere/AgentsHarnessWaitDismissed.awk" > /dev/null 2>&1 && printf yes || printf no
+		| dismissalMember="$1" LC_ALL=C awk -f "$rigHere/AgentsDismissalMatch.awk" -f "$rigHere/AgentsHarnessWaitDismissed.awk" > /dev/null 2>&1 && printf yes || printf no
 }
 rigSend keeper-here --address-to client-rig DISMISSED
 rigToClient="$( rigText )"

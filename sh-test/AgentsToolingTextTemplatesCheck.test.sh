@@ -223,7 +223,11 @@ rigStart reports-task "$MDLT_ORIGIN"
 mkdir -p "$rigScenarioDir/data/board/running" "$rigScenarioDir/ws/.local/agents/spawned/rig-report-session"
 printf -- '---\ntype: task\nowner: %s\n---\n\n# Rework the rig widget\n\nThe widget drops its last line. Make it keep it.\n' "$rigMember" > "$rigScenarioDir/data/board/running/task-20261012T0000Z-rig-widget.md"
 printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: rig-report-session\ntracks: task-20261012T0000Z-rig-widget\n---\n\n# rig dispatch\n' "$rigMember" > "$rigScenarioDir/data/board/running/dispatch-20261012T0100Z-rig-widget.md"
-printf -- '---\nsession-id: rig-report-session\nspawn-id: rig-report-session\nparent-spawn-id: none\nowner: %s\nstatus: spawn-started\nspawns: dispatch-20261012T0100Z-rig-widget\n---\n' "$rigMember" > "$rigScenarioDir/ws/.local/agents/spawned/rig-report-session/rig-report-session.md"
+## Its run reports to magic-coordinator, as a start writes it now: the item, which names no
+## reviewer, is reviewed there, so no review prompt is posted among the posts counted below.
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/AgentsTools.SpawnSandbox.include" )"
+[ -n "$rigReportsTo" ] || rigRefuse "the package names no field for where a run reports to (agentsRunRouteField)"
+printf -- '---\nsession-id: rig-report-session\nspawn-id: rig-report-session\nparent-spawn-id: none\n%s: magic-coordinator\nowner: %s\nstatus: spawn-started\nspawns: dispatch-20261012T0100Z-rig-widget\n---\n' "$rigReportsTo" "$rigMember" > "$rigScenarioDir/ws/.local/agents/spawned/rig-report-session/rig-report-session.md"
 rigTaskTool(){ ## tool, argument object -- one served call of that session
 	( cd "$rigScenarioDir/ws" && printf '%s' "$2" | env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT \
 		MDLT_ORIGIN="$rigScenarioOrigin" MDLT_OPTION="--run-from-path $rigScenarioOrigin" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" \

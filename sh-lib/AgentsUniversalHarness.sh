@@ -645,6 +645,21 @@ if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
 	harnessRuntimeWriteRoots="${harnessRuntimeWriteRoots}$harnessSandboxOutReal"$'\n'
 fi
 
+## A result too long for its reply is kept in the session's own results/ folder (AgentsTranscriptReplyLong,
+## AgentsTools.SessionTranscript.include), and the reply says to read the rest there: the session reads
+## that one folder and writes nothing in it. Named, never made here: the first result kept makes it.
+harnessResultsKey="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+case "$harnessResultsKey" in
+	''|*/*|.|..|*' '*) ;;
+	*)
+		if [ -n "${MMDAPP:-}" ] ; then
+			harnessResultsReal="$( AgentsHarnessResolveDir "$MMDAPP/.local/agents/sessions" )/$harnessResultsKey/results"
+			harnessRoots="${harnessRoots}$harnessResultsReal"$'\n'
+			harnessRuntimeRoots="${harnessRuntimeRoots}$harnessResultsReal"$'\n'
+		fi
+	;;
+esac
+
 ## A parent session reads its children's output and writes their input, by parent-spawn-id.
 harnessParentKey="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 ## Where every spawn since the install has listed itself in its parent's own
@@ -2101,6 +2116,8 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to send under, and one is never guessed here. Nothing was sent. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
 	fi
+	## The served SendMessage posts in its session only with its seat there (F6.9, AgentsHarnessSendSeatRefused).
+	[ "$toolNext" != "reply" ] || ! AgentsHarnessSendSeatRefused "$toolTarget" || return 0
 	## No target named: default to this session's own coworking thread, where one
 	## exists. An ad-hoc/solo spawn holding none keeps today's explicit-target
 	## requirement exactly -- the error just below fires precisely as it always has.
@@ -2203,6 +2220,16 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 		## A session that was dismissed is done with this handback: told to wait here, it did.
 		if AgentsHarnessDismissedBy > /dev/null ; then
 			printf 'NEXT: you are dismissed and your handback is given -- end your run now, and call nothing more\n'
+			return 0
+		fi
+		## A run that reports to no one ends on its report.
+		if AgentsHarnessReportsNone ; then
+			## Unless it founded its session and others of it still run (F6.9): it ends once they have.
+			if AgentsHarnessDismissWaits > /dev/null ; then
+				printf 'NEXT: your report is given, and others of the session you founded still run -- call Wait with no sources and obey what arrives, until it returns DISMISSED once they have ended\n'
+				return 0
+			fi
+			printf 'NEXT: your report is given and you report to no one -- end your run now, and call nothing more\n'
 			return 0
 		fi
 		printf 'NEXT: you are not done -- call Wait with no sources (your session thread) and obey what arrives, until it returns DISMISSED\n'
@@ -2332,6 +2359,136 @@ AgentsHarnessDismissedAfter(){ ## tool name
 	return 0
 }
 
+## ---- THE SEAT AND WHEN A RUN IS DISMISSED (F6.9; AgentsTools.SpawnSandbox.include) ----
+## A member is active once in a session: of its runs there, the one that holds its seat reads the
+## session and posts in it. The served Wait and SendMessage of a spawned run take its seat at its
+## first read of the session or post to it; a run without it is given nothing of the session but
+## a DISMISSED addressed to it, and its post there is refused, naming the run that holds it. A
+## run whose seat passed to the run that restarts it is dismissed by the tooling. A dismissal of
+## a session's executor waits while another participant of that session runs, and is given at
+## its first Wait once they have ended.
+
+## This run's seat in its session: rc 0, nothing printed, where it holds it or has none to hold
+## (no spawn record of its own, a record that names no session, or a seat that cannot be read
+## now); rc 1, the holder's spawn id printed, where another live run of its member holds it.
+AgentsHarnessSeatTake(){
+	local seatRecord="" seatSession="" seatHolder="" seatRc=0
+	seatRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$seatRecord" ] || return 0
+	type AgentsToolsSessionSeatTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 0
+	seatSession="$( AgentsToolsSpawnSandboxRecordHeader "$seatRecord" session-id )"
+	[ -n "$seatSession" ] || return 0
+	seatHolder="$( AgentsToolsSessionSeatTake "$seatSession" "$harnessAgent" "$seatRecord" )" || seatRc=$?
+	[ "$seatRc" = "1" ] && [ -n "$seatHolder" ] || return 0
+	printf '%s' "$seatHolder"
+	return 1
+}
+
+## Whether the run that holds this run's seat is its restart: its record names this run as the
+## one it restarts (`restarted-from:`). rc 0 it is.
+AgentsHarnessSeatPassed(){ ## the holder's spawn id
+	local passedRecord=""
+	passedRecord="$( AgentsToolsSessionRunRecord "$1" )" || return 1
+	[ "$( AgentsToolsSpawnSandboxRecordHeader "$passedRecord" restarted-from )" = "${MDAT_SPAWN_SESSION_ID:-}" ]
+}
+
+## Whether a served wait reads this run's session: with its default sources (its session thread
+## and the threads it continues), with slack:session-current, or continuing its stored wait.
+AgentsHarnessWaitReadsSession(){ ## sources, mode
+	case "$2" in
+		continue) return 0 ;;
+		close) return 1 ;;
+	esac
+	[ -n "$1" ] || return 0
+	case " $1 " in
+		*" slack:$harnessCurrentName "*) return 0 ;;
+	esac
+	return 1
+}
+
+## Whether a dismissal of this run waits (AgentsToolsSessionDismissHeld): rc 0 it does, the
+## participants of its session that still run printed on one line.
+AgentsHarnessDismissWaits(){
+	local waitsRecord="" waitsOthers=""
+	waitsRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$waitsRecord" ] || return 1
+	type AgentsToolsSessionDismissHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 1
+	waitsOthers="$( AgentsToolsSessionDismissHeld "$waitsRecord" )" || return 1
+	printf '%s' "$waitsOthers" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//'
+}
+
+## A dismissal held while others of this run's session ran (AgentsToolsSessionDismissHold), given
+## once it may be: kept as this run's dismissal, and printed as the Wait result it is, rc 0. rc 1
+## where none is held, or where it still waits.
+AgentsHarnessDismissHeldGive(){
+	local giveFile giveBy="" giveHandback=""
+	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$MDAT_SPAWN_SESSION_ID" || return 1
+	giveFile="$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/dismiss-held"
+	[ -f "$giveFile" ] || return 1
+	! AgentsHarnessDismissWaits > /dev/null || return 1
+	{ IFS= read -r giveBy ; IFS= read -r giveHandback ; } < "$giveFile" || :
+	AgentsHarnessDismissedKeep "${giveBy:-unknown}"
+	[ "$giveHandback" != "handback-given" ] || : > "$( AgentsHarnessDismissedFile ).handback" 2> /dev/null || :
+	rm -f "$giveFile"
+	printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: %s\n# held while other runs of this session ran, and given now that they have ended\n' "${giveBy:-unknown}"
+	return 0
+}
+
+## The rest of a served wait of a run without its seat: it waits on through its stored wait until
+## its bound, given nothing of its session, and a TIMEOUT says so as usual. A DISMISSED addressed
+## to it still arrives, alone; one that waits (AgentsHarnessDismissWaits) is kept, and the wait goes on.
+AgentsHarnessWaitSeatless(){ ## bound in seconds (empty: none), when the wait began (epoch seconds), the stored wait's session key
+	local lessLeft="" lessRc lessBy=""
+	while : ; do
+		lessLeft=""
+		if [ -n "$1" ] ; then
+			lessLeft=$(( $2 + $1 - $( date +%s ) ))
+			[ "$lessLeft" -gt 0 ] || break
+		fi
+		lessRc=0
+		"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-wait-for-input "$harnessAgent" --wait-continue \
+			${3:+--wait-session-id "$3"} ${lessLeft:+--wait-timeout "$lessLeft"} > "$harnessScratch/wait.out" 2> "$harnessScratch/wait.err" || lessRc=$?
+		if [ "$lessRc" != "0" ] ; then
+			printf 'ERROR: the wait could not be performed (rc=%s), so NOTHING is known about those sources. What the operation reported follows:\n' "$lessRc"
+			cat "$harnessScratch/wait.err"
+			return 0
+		fi
+		case "$( head -1 "$harnessScratch/wait.out" )" in
+			"WAIT-RESULT: RECEIVED") ;;
+			"WAIT-RESULT: TIMEOUT") break ;;
+			*) cat "$harnessScratch/wait.out" ; return 0 ;;
+		esac
+		lessBy="$( dismissalMember="$harnessAgent" LC_ALL=C awk -f "$harnessHere/AgentsDismissalMatch.awk" -f "$harnessHere/AgentsHarnessWaitDismissed.awk" "$harnessScratch/wait.out" )" || continue
+		if AgentsHarnessDismissWaits > /dev/null ; then
+			AgentsToolsSessionDismissHold "$MDAT_SPAWN_SESSION_ID" "$lessBy"
+			continue
+		fi
+		printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: %s\n# given alone: this run does not hold its seat in its session\n' "$lessBy"
+		AgentsHarnessDismissedKeep "$lessBy"
+		printf 'NEXT: you are dismissed -- give your handback if you have not, then end your run\n'
+		return 0
+	done
+	printf 'WAIT-RESULT: TIMEOUT (%ss) NEXT: Wait mode=continue\n' "$(( $( date +%s ) - $2 ))"
+}
+
+## The served SendMessage (AgentsHarnessToolSendMessage, `reply`): a post to this run's own session
+## is its run's only where the run holds its member's seat there, taken by this post where nobody
+## holds it (AgentsHarnessSeatTake). Otherwise the refusal is printed, naming the run that holds it,
+## rc 0, and nothing is to be sent; rc 1 where the post may go. Every other send is as it was.
+AgentsHarnessSendSeatRefused(){ ## target as given
+	local seatedThread="" seatedHolder=""
+	case "$1" in
+		''|"$harnessCurrentName"|"$harnessCurrentName":*)
+			seatedHolder="$( AgentsHarnessSeatTake )" || :
+		;;
+		*)
+			seatedThread="$( AgentsHarnessSessionThread "$harnessCurrentName" 2> /dev/null )" || seatedThread=""
+			[ -z "$seatedThread" ] || [ "$1" != "${seatedThread%% *}" ] || seatedHolder="$( AgentsHarnessSeatTake )" || :
+		;;
+	esac
+	[ -n "$seatedHolder" ] || return 1
+	printf 'ERROR: not sent: run %s holds the seat of %s in this session, and only the run that holds it posts there. Nothing was sent. This run goes on, and posts there once that run has ended.\n' "$seatedHolder" "$harnessAgent"
+	return 0
+}
+
 ## The wait happens HERE, in this process, inside one tool call: the model spends
 ## nothing while nothing is happening and its context does not grow, which is the
 ## whole reason this is a tool and not a loop of reads. Through the team's own
@@ -2386,6 +2543,27 @@ AgentsHarnessToolWait(){
 		[ "$waitTool" != "true" ] || AgentsHarnessDismissedNext
 		return 0
 	fi
+	## THE SEAT (F6.9), on the tool's own wait of a spawned run: a dismissal held while others of
+	## its session ran is given once they have ended; a wait that reads its session takes its seat
+	## there, or finds the run that holds it (waitSeatless); a run whose seat passed to the run that
+	## restarts it is dismissed by the tooling.
+	local waitRecord="" waitSeatless="" waitStarted="" waitHeldOthers=""
+	waitStarted="$( date +%s )"
+	[ "$waitTool" != "true" ] || waitRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" 2> /dev/null )" || waitRecord=""
+	if [ -n "$waitRecord" ] ; then
+		type AgentsToolsSessionSeatTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		if AgentsHarnessDismissHeldGive ; then
+			AgentsHarnessDismissedNext
+			return 0
+		fi
+		! AgentsHarnessWaitReadsSession "$toolSources" "$toolMode" || waitSeatless="$( AgentsHarnessSeatTake )" || :
+		if [ -n "$waitSeatless" ] && AgentsHarnessSeatPassed "$waitSeatless" ; then
+			printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: tooling (the seat of this run in its session passed to %s, the run that restarts it)\n' "$waitSeatless"
+			AgentsHarnessDismissedKeep "tooling (the seat of this run in its session passed to $waitSeatless, the run that restarts it)"
+			AgentsHarnessDismissedNext
+			return 0
+		fi
+	fi
 	## The RETURN bound. A caller's own timeout is honoured, validated the way Bash validates
 	## its own. With none, this harness waits until something arrives (empty is no bound),
 	## and a served call returns by harnessServedWaitBound, safely under the client cutoff.
@@ -2414,12 +2592,17 @@ AgentsHarnessToolWait(){
 		case "$waitReviewLeft" in
 			'') ;;
 			expired)
-				waitDismissedEarlier="$( AgentsReviewWaitExpire "${harnessAgent:-unknown}" "$( AgentsHarnessSessionKey )" 2> /dev/null )" || :
-				[ -z "$waitDismissedEarlier" ] || printf '%s\n' "$waitDismissedEarlier"
-				waitDismissedEarlier="$( printf '%s\n' "$waitDismissedEarlier" | LC_ALL=C sed -n 's/^WAIT-DISMISSED-BY: //p' | head -1 )"
-				[ -z "$waitDismissedEarlier" ] || AgentsHarnessDismissedKeep "$waitDismissedEarlier"
-				printf 'NEXT: you are dismissed -- end your run\n'
-				return 0
+				## The limit dismisses no run while another participant of its session runs (F6.9): the wait goes on.
+				if [ -n "$waitRecord" ] && AgentsToolsSessionOthersRunning "$waitRecord" > /dev/null ; then
+					waitReviewLeft=""
+				else
+					waitDismissedEarlier="$( AgentsReviewWaitExpire "${harnessAgent:-unknown}" "$( AgentsHarnessSessionKey )" 2> /dev/null )" || :
+					[ -z "$waitDismissedEarlier" ] || printf '%s\n' "$waitDismissedEarlier"
+					waitDismissedEarlier="$( printf '%s\n' "$waitDismissedEarlier" | LC_ALL=C sed -n 's/^WAIT-DISMISSED-BY: //p' | head -1 )"
+					[ -z "$waitDismissedEarlier" ] || AgentsHarnessDismissedKeep "$waitDismissedEarlier"
+					printf 'NEXT: you are dismissed -- end your run\n'
+					return 0
+				fi
 			;;
 			*) [ -n "$toolTimeout" ] && [ "$toolTimeout" -le "$waitReviewLeft" ] || toolTimeout="$waitReviewLeft" ;;
 		esac
@@ -2516,11 +2699,23 @@ AgentsHarnessToolWait(){
 	## wait returned still follows, so nothing it saw is hidden behind the outcome.
 	local waitDismissedBy=""
 	if [ "$( head -1 "$harnessScratch/wait.out" )" = "WAIT-RESULT: RECEIVED" ] \
-		&& waitDismissedBy="$( LC_ALL=C awk -v agent="$harnessAgent" -f "$harnessHere/AgentsDismissalMatch.awk" -f "$harnessHere/AgentsHarnessWaitDismissed.awk" "$harnessScratch/wait.out" )" ; then
-		printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: %s\n' "$waitDismissedBy"
-		tail -n +2 "$harnessScratch/wait.out"
-		AgentsHarnessDismissedKeep "$waitDismissedBy"
-		[ "$waitTool" != "true" ] || printf 'NEXT: you are dismissed -- give your handback if you have not, then end your run\n'
+		&& waitDismissedBy="$( dismissalMember="$harnessAgent" LC_ALL=C awk -f "$harnessHere/AgentsDismissalMatch.awk" -f "$harnessHere/AgentsHarnessWaitDismissed.awk" "$harnessScratch/wait.out" )" ; then
+		## An executor is not dismissed while another participant of its session runs (F6.9): its
+		## dismissal is kept, given at its first wait once they have ended, and this wait is what it got.
+		if [ -n "$waitRecord" ] && waitHeldOthers="$( AgentsHarnessDismissWaits )" ; then
+			AgentsToolsSessionDismissHold "$MDAT_SPAWN_SESSION_ID" "$waitDismissedBy"
+		else
+			printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: %s\n' "$waitDismissedBy"
+			## A run without its seat is given nothing of its session but its dismissal.
+			[ -n "$waitSeatless" ] || tail -n +2 "$harnessScratch/wait.out"
+			AgentsHarnessDismissedKeep "$waitDismissedBy"
+			[ "$waitTool" != "true" ] || printf 'NEXT: you are dismissed -- give your handback if you have not, then end your run\n'
+			return 0
+		fi
+	fi
+	## A run without its seat is given nothing of its session: its wait goes on until its bound.
+	if [ -n "$waitSeatless" ] && [ "$( head -1 "$harnessScratch/wait.out" )" = "WAIT-RESULT: RECEIVED" ] ; then
+		AgentsHarnessWaitSeatless "$toolTimeout" "$waitStarted" "$waitSession"
 		return 0
 	fi
 	## A TIMEOUT on the tool's own stateful wait is ONE line: every quiet result stays in the
@@ -2532,6 +2727,7 @@ AgentsHarnessToolWait(){
 		return 0
 	fi
 	cat "$harnessScratch/wait.out"
+	[ -z "$waitHeldOthers" ] || printf '# DISMISSED held: this run founded its session, where %s still run: the dismissal is given at its first Wait once they have ended\n' "$waitHeldOthers"
 	## One extra last line naming the next call, on the tool's own stateful wait only: an internal
 	## stateless caller (a tool that asks) embeds this output and has no stored wait to continue.
 	[ "$waitTool" = "true" ] || return 0
@@ -2723,23 +2919,11 @@ AgentsHarnessCheckListRead(){ ## member name, `*`, or empty for the caller's own
 ## AgentsHarnessTool*: that family is the static tool class AgentsHarnessSelfCheck.test.awk
 ## matches site by site, and a helper with no tool behind it is an orphan there.
 
-## A value reaching a command line, gated by explicit character enumeration rather than
-## a bracket range -- [a-z] is collation-dependent and has matched `A` on this estate.
+## A value reaching a command line: one bare name, asked of the family's one bare-name gate
+## (AgentsToolsAssertBareName, AgentsTools.BareName.include, which has no other effect), quietly.
 AgentsHarnessBareName(){ ## candidate
-	local nameRest="$1" nameChar
-	[ -n "$nameRest" ] || return 1
-	while [ -n "$nameRest" ] ; do
-		nameChar="${nameRest%"${nameRest#?}"}"
-		nameRest="${nameRest#?}"
-		case "$nameChar" in
-			a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
-			A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
-			0|1|2|3|4|5|6|7|8|9) ;;
-			-|_|.) ;;
-			*) return 1 ;;
-		esac
-	done
-	return 0
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$harnessHere/AgentsTools.BareName.include" 2> /dev/null || return 1
+	AgentsToolsAssertBareName "$1" "a name" AgentsHarnessBareName 2> /dev/null
 }
 
 ## Where the spawn proxy records a session: one dispatch item per spawn, in whichever
@@ -3586,6 +3770,24 @@ AgentsHarnessFormalSend(){ ## tool name, target, as_bot, body text, optional nex
 	AgentsHarnessToolSendMessage "$formalTo" "$formalBody" "$formalAsBot" "${6:-}" "" "" "${5:-}"
 }
 
+## Where this run reports to (AgentsToolsRunRoute), from its own spawn record: printed, rc 0.
+## Nothing, rc 1, for a session with no spawn record of its own.
+AgentsHarnessReportsTo(){
+	local reportsRecord=""
+	reportsRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$reportsRecord" ] || return 1
+	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 1
+	AgentsToolsRunRoute "$reportsRecord" 2> /dev/null
+}
+
+## Whether this run reports to no one, as its own spawn record says it (`none` is only ever written
+## there): rc 0 it does. Asks the record alone, no reading of who is alive, so it is cheap to ask.
+AgentsHarnessReportsNone(){
+	local noneRecord=""
+	noneRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$noneRecord" ] || return 1
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 1
+	[ "$( AgentsToolsSpawnSandboxRecordHeader "$noneRecord" "$agentsRunRouteField" )" = none ]
+}
+
 ## Who a handback is for where its call names nobody: the caller, the member that made the
 ## spawn call this session was started by, as the spawn records name it (AgentsToolsSessionParentMember). Prints
 ## nothing where no record names it, where it is this member itself, or where the member
@@ -3612,13 +3814,16 @@ AgentsHarnessToolSubagentHandback(){
 	fi
 	## A handback to the parent goes where this run reports to (AgentsToolsRunRoute): a session's
 	## thread, which session-parent resolves; a member's own conversation, addressed to it; for
-	## a person, the human-owner's conversation, addressed to him. A session with no spawn record
-	## of its own has no address, and session-parent stays as the one address resolver says it.
-	local toolRouteRecord="" toolRoute=""
-	if [ "$toolTo" = "$harnessParentName" ] && toolRouteRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$toolRouteRecord" ] ; then
-		type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
-		toolRoute="$( AgentsToolsRunRoute "$toolRouteRecord" 2> /dev/null )" || toolRoute=""
+	## a person, the human-owner's conversation, addressed to him; for a run that reports to no
+	## one, its own session thread, as its report. A session with no spawn record of its own has
+	## no address, and session-parent stays as the one address resolver says it.
+	local toolRoute=""
+	## Loaded here, in this shell: the reading below runs in a subshell of its own.
+	type AgentsToolsRunRouteKind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+	toolRoute="$( AgentsHarnessReportsTo )" || toolRoute=""
+	if [ "$toolTo" = "$harnessParentName" ] && [ -n "$toolRoute" ] ; then
 		case "$( AgentsToolsRunRouteKind "$toolRoute" 2> /dev/null )" in
+			none) toolTo="$harnessCurrentName" ;;
 			member) toolTo="$toolRoute" ; [ -n "$toolAddressTo" ] || toolAddressTo="$toolRoute" ;;
 			person) toolTo="human-owner" ; [ -n "$toolAddressTo" ] || toolAddressTo="human-owner" ;;
 		esac
@@ -3645,6 +3850,21 @@ AgentsHarnessToolSubagentHandback(){
 	## carried, and the answers collected are the tooling's.
 	harnessSendProse="$( AgentsHarnessSendProse "$toolOutcome" "$toolFindings" "$toolUnfinished" )" \
 	AgentsHarnessFormalSend SubagentHandback "$toolTo" "$toolAsBot" "$toolBody" handback "$toolAddressTo"
+	## A run that reports to no one ends on its report, whatever it reports: marked as a dismissed
+	## run whose handback is given, so the harness ends it once this call is over
+	## (AgentsHarnessDismissedAfter). Its report moves nothing to review.
+	if [ "$toolRoute" = none ] && [ -f "$harnessScratch/send.delivered" ] ; then
+		## One that founded its session ends once the others of it have ended (F6.9): kept until then.
+		if AgentsHarnessDismissWaits > /dev/null ; then
+			AgentsToolsSessionDismissHold "$MDAT_SPAWN_SESSION_ID" "tooling (this run reports to no one, and its report is given)" handback-given
+			rm -f "$harnessScratch/send.delivered"
+			return 0
+		fi
+		AgentsHarnessDismissedKeep "tooling (this run reports to no one, and its report is given)"
+		: > "$( AgentsHarnessDismissedFile ).handback" 2> /dev/null || :
+		rm -f "$harnessScratch/send.delivered"
+		return 0
+	fi
 	## A delivered handback of a session that was dismissed is the one its run ends on: marked
 	## here, read by AgentsHarnessDismissedAfter once this call is over.
 	if [ -f "$harnessScratch/send.delivered" ] && AgentsHarnessDismissedBy > /dev/null ; then
@@ -4470,6 +4690,8 @@ AgentsHarnessAsk(){
 		if askRouteRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$askRouteRecord" ] ; then
 			type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
 			askRouteTo="$( AgentsToolsRunRoute "$askRouteRecord" 2> /dev/null )" || askRouteTo=""
+			## A run that reports to no one asks where it would report to if it named nobody.
+			[ "$askRouteTo" != none ] || askRouteTo="$( AgentsToolsRunRoute "$askRouteRecord" default 2> /dev/null )" || askRouteTo=""
 			case "$( AgentsToolsRunRouteKind "$askRouteTo" 2> /dev/null )" in
 				session) toolTo="$harnessParentName" ; toolAddressTo="$( AgentsToolsRunRouteMember "$askRouteTo" 2> /dev/null )" || toolAddressTo="" ;;
 				member) toolTo="$askRouteTo" ; toolAddressTo="$askRouteTo" ;;
@@ -6326,6 +6548,21 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 	AgentsHarnessDismissedAfter "$harnessFuncName"
 }
 
+## The reply its caller is given for a result, by the one reply layer (AgentsTranscriptReplyFinish,
+## AgentsTools.SessionTranscript.include): a long result kept in the session's results/ folder and
+## named, and the host's time on a line of its own. harnessResult stays the result itself, for every
+## check made on it. Nothing is added to a result that goes to the tooling rather than to a caller:
+## a change applied or held for another call (MDAT_CHANGE_APPLY, MDAT_CHANGE_HOLD_ONLY), and the
+## NOT-HELD of a native client's own tool.
+harnessReply=""
+AgentsHarnessReply(){ ## tool name, result -- sets harnessReply
+	harnessReply="$2"
+	[ -z "${MDAT_CHANGE_APPLY:-}" ] && [ -z "${MDAT_CHANGE_HOLD_ONLY:-}" ] || return 0
+	case "$2" in NOT-HELD:*) return 0 ;; esac
+	type AgentsTranscriptReplyFinish > /dev/null 2>&1 || return 0
+	harnessReply="$( AgentsTranscriptReplyFinish "$1" "$2" "$( [ "$1" != Read ] || printf '%s' "${harnessArgV_file_path:-${harnessArgV_path}}" )" )" || harnessReply="$2"
+}
+
 ## One file's whole content, as `$( cat file )` gives it -- every trailing newline
 ## dropped, empty when it is absent -- into harnessFileText, with builtins only.
 harnessFileText=""
@@ -6496,7 +6733,8 @@ if [ -n "$harnessToolOnly" ] ; then
 			( harnessTool='' harnessValue='' harnessDim='' harnessOff='' harnessTitleActive='' ; AgentsHarnessAnnounceTool "$harnessToolOnlyName" "$harnessToolOnlyArgs" 2>&1 >/dev/null ; printf '      result %s\n' "$harnessHeadSummary" ) > "$harnessHeadFile" || :
 		;;
 	esac
-	printf '%s\n' "$harnessResult"
+	AgentsHarnessReply "$harnessToolOnlyName" "$harnessResult"
+	printf '%s\n' "$harnessReply"
 	## A refused or unknown tool leaves a caller's status check dead otherwise.
 	case "$harnessResult" in
 		ERROR:*)
@@ -6526,7 +6764,8 @@ Everything else above you may read, list, search and run commands in, but not wr
 ## A spawned session never ends on its own, its work done or not: its spawner dismisses it.
 ## Not one whose caller blocks on it (MDAT_SPAWN_CALLER_WAITS): that caller cannot send DISMISSED.
 harnessSpawnedWaitNote=""
-[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || [ "${MDAT_SPAWN_CALLER_WAITS:-}" = "true" ] || harnessSpawnedWaitNote=" You are a spawned session: you never end on your own, not even when your work is done. When it is done, report that to whoever started you with SubagentHandback, saying you are done and waiting for further instructions, then keep waiting with Wait on your session thread and keep obeying what arrives there. End your run only when a Wait returns DISMISSED."
+## Nor one that reports to no one, which ends on its report (AgentsHarnessReportsNone).
+[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || [ "${MDAT_SPAWN_CALLER_WAITS:-}" = "true" ] || AgentsHarnessReportsNone || harnessSpawnedWaitNote=" You are a spawned session: you never end on your own, not even when your work is done. When it is done, report that to whoever started you with SubagentHandback, saying you are done and waiting for further instructions, then keep waiting with Wait on your session thread and keep obeying what arrives there. End your run only when a Wait returns DISMISSED."
 harnessSystemTail=" (no sandboxing beyond the paths below). You may only read, write, list, search or run commands with a working directory under one of these access roots:
 $harnessRoots
 $harnessWriteNote
@@ -6878,10 +7117,14 @@ while : ; do
 		[ -n "$harnessResult" ] || AgentsHarnessRunTool "$harnessFuncName" "$harnessFuncArgsRaw"
 		AgentsHarnessArmNote "$harnessFuncName" "$harnessFuncArgsRaw" "$harnessResult"
 		## The result joins the array, and the kept context, before the milestone its
-		## transcript hook may commit, so that commit carries this call.
-		harnessMessages+=( "$( AgentsWireToolResultRecord "$harnessCallId" "$harnessResult" )" )
+		## transcript hook may commit, so that commit carries this call. The model is given
+		## the reply (AgentsHarnessReply), and the kept context and the transcript line record
+		## it, so a line rendered from the context is the line the hook writes; every check
+		## below still reads the result itself.
+		AgentsHarnessReply "$harnessFuncName" "$harnessResult"
+		harnessMessages+=( "$( AgentsWireToolResultRecord "$harnessCallId" "$harnessReply" )" )
 		AgentsHarnessContextSync tool "$( [ -z "$harnessContextFile" ] || AgentsHarnessContextToolMeta "$harnessFuncName" "$harnessCallId" "$harnessResult" "$harnessTranscriptOutcome" )"
-		AgentsTranscriptToolDone "$harnessFuncName" "$harnessFuncArgsRaw" "$harnessResult" loop "$harnessTranscriptOutcome" || :
+		AgentsTranscriptToolDone "$harnessFuncName" "$harnessFuncArgsRaw" "$harnessReply" loop "$harnessTranscriptOutcome" || :
 
 		## The announce line states an intent and reads the same whether the call ran or
 		## was refused, so a refusal is marked explicitly for a transcript reader.

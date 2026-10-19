@@ -11,6 +11,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigHarness="$rigHere/AgentsUniversalHarness.sh"
 [ -f "$rigHarness" ] || { echo "⛔ ERROR: harness not found at the origin this workspace resolves: $rigHarness" >&2 ; exit 1 ; }
@@ -320,7 +321,7 @@ rigAssert "every built-in declares the optional description" "$( rigToolsOf "$ri
 rigAssert "the server's own tool is declared as it sent it, no description added" \
 	"$( rigToolsOf "$rigScenarioDir/req.1" | LC_ALL=C awk -v want="$rigIntentParam" '{ body = body $0 } END { at = index( body, "\"name\":\"mcp__rigmcp__ping\"" ) ; if ( !at ) { print "absent" ; exit } ; print ( index( substr( body, at ), want ) ? "added" : "as sent" ) }' )" "as sent"
 rigAssert "a built-in called with one answers exactly as without" "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-intent )" "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-bare )"
-rigAssert "and that answer is the file, not a refusal"      "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-bare | sed 's|.*/||' )" round
+rigAssert "and that answer is the file, not a refusal"      "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-bare | rigReplyBare | sed 's|.*/||' )" round
 rigVerdict "the optional description -- declared on every built-in, not on a server's tool, and ignored by the call"
 
 ## The negative control, and the reason a green run above cannot be a vacuous one: the

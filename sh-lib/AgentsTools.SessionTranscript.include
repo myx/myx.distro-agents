@@ -631,3 +631,109 @@ AgentsSessionTokensLine(){ ## item name, or empty; session id
 	[ -z "$lineValue" ] || printf 'tokens: %s\n' "$lineValue"
 	return 0
 }
+
+## The reply layer (F2.3 and F2.4 of the refactorings epic). Every tool result passes through
+## AgentsTranscriptReplyFinish on its way to its caller: the harness's served exit and its model
+## loop (AgentsUniversalHarness.sh, AgentsHarnessReply), and the MCP server's own tools
+## (AgentsTools.InternMcpRequest.include, AgentsMcpReplyText), so no tool carries either part
+## itself. A result over agentsReplyLongBytes is kept whole in its session's results/ folder and
+## the reply names it; every reply carries the host's local time. A kept file is a printed value
+## as a reply is: whatever is done to the one is done to the other.
+agentsReplyLongBytes=8192
+
+## The reference to a result kept in a file. The preview comes first, so the reply opens as the
+## result does (WAIT-RESULT:, ERROR:, OK: ...), then the file, its size and how to read the rest.
+## The preview is the whole lines that fit in 2 KB, or the first 20, whichever is more, and never
+## over 7 KB, so the reply stays under the threshold. Writes nothing: a caller with a file of its
+## own, such as an input-scan cache, names it here as it is.
+AgentsTranscriptReplyRef(){ ## file
+	local refBytes refLines
+	[ -f "$1" ] || return 1
+	refBytes="$( LC_ALL=C wc -c < "$1" | tr -d ' ' )"
+	refLines="$( LC_ALL=C wc -l < "$1" | tr -d ' ' )"
+	LC_ALL=C awk -v refPath="$1" -v refBytes="$refBytes" -v refLines="$refLines" '
+		{ total += length( $0 ) + 1 ; if ( NR > 20 && total > 7168 ) { exit } ; if ( total <= 2048 ) { fit = NR } ; if ( total <= 7168 ) { cap = NR } ; kept[ NR ] = $0 ; seen = NR ; }
+		END {
+			shown = ( fit > 20 ) ? fit : 20 ; if ( shown > seen ) { shown = seen } ; if ( shown > cap ) { shown = cap } ;
+			for ( n = 1 ; n <= shown ; n++ ) { print kept[ n ] ; }
+			if ( shown == 0 && seen > 0 ) {
+				print substr( kept[ 1 ], 1, 2048 )
+				printf "... KEPT: the whole result, %d bytes in %d lines, is in %s -- its line 1 is too long to show, and its first 2048 bytes are shown above ...\n", refBytes, refLines, refPath
+				printf "... read it by line range: Read file_path=%s offset=1 limit=%d ...\n", refPath, refLines
+			} else if ( shown >= refLines ) {
+				printf "... KEPT: the whole result, %d bytes in %d lines, is in %s -- all of it is shown above ...\n", refBytes, refLines, refPath
+			} else {
+				printf "... KEPT: the whole result, %d bytes in %d lines, is in %s -- lines 1 to %d are shown above ...\n", refBytes, refLines, refPath, shown
+				printf "... read the rest, lines %d to %d, by line range: Read file_path=%s offset=%d limit=%d ...\n", shown + 1, refLines, refPath, shown + 1, refLines - shown
+			}
+		}' "$1"
+}
+
+## The lines a result closes with, which name the call that comes next: its NEXT: lines, and the
+## exact call a tool that asks names last, `<tool> pending_id=<id>`. They stay a reply's last lines.
+agentsReplyClosing='^NEXT: |^[A-Za-z_]+ pending_id=[^ ]+$'
+
+## A result over agentsReplyLongBytes is kept whole in the session's results/ folder, and the
+## reference to it is printed in its place. Any other result is printed as it is. The result's
+## closing lines close the reply too, or else its own last line where that is short: that is
+## where a result says how it ended (a job's status, Read's footer). With no session to keep it
+## in, or a file that cannot be written, the result is printed whole: no result is lost to its reply.
+AgentsTranscriptReplyLong(){ ## tool name, result text
+	local LC_ALL=C longDir longTool longFile=""
+	[ "${#2}" -gt "$agentsReplyLongBytes" ] || { printf '%s\n' "$2" ; return 0 ; }
+	if ! longDir="$( AgentsTranscriptSessionDir "$( AgentsTranscriptSessionKey )" )" || ! mkdir -p "$longDir/results" 2>/dev/null ; then
+		printf '%s\n' "$2" ; return 0
+	fi
+	longTool="$( AgentsTranscriptBaseTool "$1" | tr -c 'A-Za-z0-9_.-' '_' )"
+	longFile="$( mktemp "$longDir/results/$( date -u +%Y%m%dT%H%M%SZ )-${longTool:-tool}.XXXXXX" 2>/dev/null )" || longFile=""
+	if [ -z "$longFile" ] || ! printf '%s\n' "$2" > "$longFile" 2>/dev/null || ! AgentsTranscriptReplyRef "$longFile" ; then
+		[ -z "$longFile" ] || rm -f "$longFile"
+		printf '%s\n' "$2" ; return 0
+	fi
+	case "$2" in
+		*$'\n'*)
+			tail -n 5 "$longFile" | LC_ALL=C awk -v closing="$agentsReplyClosing" '{ line[ NR ] = $0 } END {
+				from = NR + 1 ; while ( from > 1 && line[ from - 1 ] ~ closing ) { from-- }
+				if ( from > NR && length( line[ NR ] ) <= 512 ) { from = NR }
+				for ( n = from ; n <= NR ; n++ ) { print line[ n ] }
+			}'
+		;;
+	esac
+	return 0
+}
+
+## The host's local time as one `current-date:` line, in the form of every spawn record's
+## started-at, `YYYY-MM-DD HH:MM +ZZZZ`. It stands before the result's closing lines
+## (agentsReplyClosing), which stay last (MAGIC.md, `NEXT:` lines). The one-line WAIT-RESULT: or
+## ASK-RESULT: TIMEOUT carries its NEXT: part inline: that line is split there, so the outcome
+## stays first and NEXT: last. With no closing line, the date is the last line.
+AgentsTranscriptReplyDate(){ ## reply text
+	printf '%s\n' "$1" | LC_ALL=C awk -v closing="$agentsReplyClosing" -v dateLine="current-date: $( date '+%Y-%m-%d %H:%M %z' )" '
+		{ line[ NR ] = $0 }
+		END {
+			from = NR + 1 ; while ( from > 1 && line[ from - 1 ] ~ closing ) { from-- }
+			inlineAt = ( from > NR && line[ NR ] ~ /^(WAIT|ASK)-RESULT: [A-Z-]+ .* NEXT: / ) ? index( line[ NR ], " NEXT: " ) : 0
+			if ( inlineAt ) {
+				for ( n = 1 ; n < NR ; n++ ) { print line[ n ] }
+				print substr( line[ NR ], 1, inlineAt - 1 ) ; print dateLine ; print substr( line[ NR ], inlineAt + 1 )
+				exit
+			}
+			for ( n = 1 ; n < from ; n++ ) { print line[ n ] }
+			print dateLine
+			for ( n = from ; n <= NR ; n++ ) { print line[ n ] }
+		}'
+}
+
+## The reply to one tool result: kept when long, then dated. Skill and ToolSearch are never
+## kept: an armed file, and the schema of a tool to be called, must reach the model whole.
+## Neither is a Read of a kept result, which would only be kept again, so Read names the path
+## it read. An empty result stays empty, for its caller to report as the broken contract it is.
+AgentsTranscriptReplyFinish(){ ## tool name, result text, path a Read read (optional)
+	local finishText="$2"
+	[ -n "$2" ] || return 0
+	case "$( AgentsTranscriptBaseTool "$1" ):${3:-}" in
+		Skill:*|ToolSearch:*|Read:*/.local/agents/sessions/*/results/*) ;;
+		*) finishText="$( AgentsTranscriptReplyLong "$1" "$2" )" ;;
+	esac
+	AgentsTranscriptReplyDate "$finishText"
+}

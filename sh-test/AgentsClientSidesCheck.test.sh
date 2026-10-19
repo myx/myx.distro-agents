@@ -401,7 +401,7 @@ echo "-- 5b. the two session addresses are our own organisation's: a client's --
 ## the session that started it, recorded for that session, a native one with no record of its own.
 mkdir -p "$rigWork/ws-here/.local/agents/spawned/rig-session-client" "$rigWork/ws-here/.local/agents/sessions/rig-session-parent"
 printf '%s\n' CHERE0001:1700000007.000700 > "$rigWork/ws-here/.local/agents/sessions/rig-session-parent/session.thread"
-printf -- '---\nspawn-id: rig-session-client\nowner: client-ndm\nparent-spawn-id: rig-session-parent\nparent-session-id: rig-session-parent\nparent-thread: CHERE0001:1700000007.000700\n---\n' > "$rigWork/ws-here/.local/agents/spawned/rig-session-client/rig-session-client.md"
+printf -- '---\nspawn-id: rig-session-client\nowner: client-ndm\nparent-spawn-id: rig-session-parent\nparent-session-id: rig-session-parent\nparent-member: magic-coordinator\nparent-thread: CHERE0001:1700000007.000700\n---\n' > "$rigWork/ws-here/.local/agents/spawned/rig-session-client/rig-session-client.md"
 rigPre=( MDAT_SPAWN_SESSION_ID=rig-session-client MDAT_SPAWN_AGENT=client-ndm MDAT_SESSION_THREAD=CHERE0001:1700000009.000100 )
 rigRun --member-comms-slack-send-message client-ndm session-current RIG-BODY
 rigAssert "session-current in a client's --member- send: its session thread in our own Slack, by our team's bot" "$rigRc $( rigTokens chat.postMessage )$( rigChannel ) $( rigN "$rigTmp/bodies" '"thread_ts":"1700000009.000100"' ) $( rigTheirs )" "0 rig-bot-token-HERE CHERE0001 1 0"

@@ -37,6 +37,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Choose a verdict, or a combination, and run its operations.
 - Doesn't:
   - Move the item or dismiss the child by hand: the operations do that, and record it.
+  - Review a handback from a run with `reports-to: none` whose item names no `review-by`: that handback is a report only, and moves nothing to review.
 
 # Steps
 

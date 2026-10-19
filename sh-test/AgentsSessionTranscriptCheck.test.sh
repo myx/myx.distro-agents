@@ -14,6 +14,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
 rigHarness="$rigHere/AgentsUniversalHarness.sh"
 rigFormat="$rigHere/AgentsSessionTranscriptFormat.awk"
 
@@ -195,7 +196,7 @@ rigAssert "the coordinator op runs as magic-coordinator only" "$( printf '%s\n' 
 rigOut="$( MDAT_SPAWN_SESSION_ID= MDAT_SPAWN_AGENT=magic-tester "$rigFn" --magic-append-session-transcript magic-coordinator "$rigSid" --message 'a member as the coordinator' 2>&1 ; echo "rc=$?" )"
 rigAssert "and from no member's session naming it" "$( printf '%s\n' "$rigOut" | tail -1 ):$( rigHas "$rigT" '> a member as the coordinator' )" rc=1:0
 rigOut="$( printf '%s' '{"note":"served note"}' | MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=magic-tester "$rigHarness" --intern-tool SessionTranscriptAppend 2>/dev/null )"
-rigAssert "the SessionTranscriptAppend tool appends through the served harness" "$rigOut" "OK: appended to ${rigT##*/}"
+rigAssert "the SessionTranscriptAppend tool appends through the served harness" "$( printf '%s\n' "$rigOut" | rigReplyBare )" "OK: appended to ${rigT##*/}"
 rigAssert "with the member as speaker" "$( LC_ALL=C grep -A1 'NOTE by=magic-tester' "$rigT" | tail -1 )" '> served note'
 rigOut="$( printf '%s' '{"note":"x"}' | MDAT_SPAWN_SESSION_ID= MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=magic-tester "$rigHarness" --intern-tool SessionTranscriptAppend 2>/dev/null )"
 rigAssert "the tool refuses with ERROR where no session resolves" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c '^ERROR: .*--member-append-session-transcript: no session resolves' )" 1
@@ -237,7 +238,7 @@ rigServe "$rigTmp/wire3" "$rigTmp/err3" \
 	'{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute","arguments":{"command":"echo rig-intent","description":"Say the rig intent"}}}' \
 	'{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"Glob","arguments":{"pattern":"rig-intent-*.txt","path":"'"$rigWs"'","description":"Look for the rig intent files"}}}'
 LC_ALL=C grep -q '"id":3,' "$rigTmp/wire3" && LC_ALL=C grep -q '"id":2,' "$rigTmp/wire3" || { sed 's/^/    /' "$rigTmp/err3" >&2 ; rigRefuse "the rig server did not answer every description call" ; }
-rigAssert "execute with a description runs as without: its output comes back" "$( LC_ALL=C grep '"id":2,' "$rigTmp/wire3" | LC_ALL=C grep -c -F '"text":"rig-intent"}],"isError":false' )" 1
+rigAssert "execute with a description runs as without: its output comes back" "$( LC_ALL=C grep '"id":2,' "$rigTmp/wire3" | rigReplyBare | LC_ALL=C grep -c -F '"text":"rig-intent"}],"isError":false' )" 1
 rigAssert "execute's line carries its description" "$( LC_ALL=C grep ' TOOL execute cmd=' "$rigT" | LC_ALL=C grep -c 'cmd="echo rig-intent" -> ok .* | "Say the rig intent"$' )" 1
 rigAssert "a served tool's line carries its description" "$( LC_ALL=C grep -F ' TOOL Glob pattern="rig-intent-*.txt" ' "$rigT" | LC_ALL=C grep -c ' | "Look for the rig intent files"$' )" 1
 rigAssert "the daemon log lines carry them too" "$( LC_ALL=C grep -c -e '^aaaa1111 .* | "Say the rig intent"$' -e '^aaaa1111 .* | "Look for the rig intent files"$' "$rigTmp/err3" )" 2
@@ -351,7 +352,7 @@ rigLoopT2="$rigStore/audit/2026-10/session-loop-intent.log"
 rigAssert "the loop: a call without one carries the model's text" "$( LC_ALL=C grep -F " TOOL Read path=$rigLoop2/read.txt -> ok" "$rigLoopT2" | LC_ALL=C grep -c ' | "Model text before the calls."$' )" 1
 rigAssert "the loop: a call with one carries its description instead" "$( LC_ALL=C grep -F " TOOL Glob pattern=read.txt path=$rigLoop2 -> ok" "$rigLoopT2" | LC_ALL=C grep -c ' | "Look for the rig file"$' )" 1
 rigAssert "the loop: the call with one ran as without, its result back to the model" \
-	"$( LC_ALL=C grep -o '"tool_call_id":"c2","content":"[^"]*"' "$rigLoop2/req.2" )" "\"tool_call_id\":\"c2\",\"content\":\"$rigLoop2/read.txt\""
+	"$( rigReplyBare < "$rigLoop2/req.2" | LC_ALL=C grep -o '"tool_call_id":"c2","content":"[^"]*"' )" "\"tool_call_id\":\"c2\",\"content\":\"$rigLoop2/read.txt\""
 ## Every built-in this rig session is offered: CheckList is not, the session has no team identity.
 rigAssert "the request declared the description to the model" "$( LC_ALL=C grep -o -F '"description":{"type":"string","description":"Optional. One short sentence: why this call is made' "$rigLoop2/req.1" | LC_ALL=C wc -l | tr -d ' ' )" 30
 

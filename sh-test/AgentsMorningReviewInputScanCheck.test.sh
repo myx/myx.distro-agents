@@ -16,7 +16,7 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 [ -f "$rigAwk" ] || rigRefuse "the state-shape awk is missing: $rigAwk"
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsMorningReviewInputScanCheck.XXXXXX" )" || exit 1
+rigTmp="$( mktemp -d -t "AgentsMorningReviewInputScanCheck-XXXXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigSkills="$rigTmp/home/.claude/skills"
 rigData="$rigTmp/data"
@@ -95,13 +95,28 @@ rigAssert "a file older than the cut-off is not listed" "$( rigHas 'rig-old.md' 
 rigAssert "output under 6 KB"                         "$( [ "$( wc -c < "$rigTmp/out" )" -lt 6144 ] && echo yes || echo no )" yes
 rigNext="$( LC_ALL=C awk '/^next: / { print $2 ; exit }' "$rigTmp/out" )"
 
+echo "-- an item in review that names no reviewer, whose run has a record here --"
+## Its review falls to where that run reports to, so it is no shape fault; one whose spawn-id
+## names no record still is. The list of runs the scan builds is a scratch file of the workspace,
+## gone once the scan is done.
+rigItem review dispatch-rig-runreviewed "spawn-id: rig-run-reviewed\n"
+rigItem review dispatch-rig-runmissing "spawn-id: rig-run-missing\n"
+mkdir -p "$rigTmp/ws/.local/agents/spawned/rig-run-reviewed"
+printf -- '---\nsession-id: rig-run-reviewed\nspawn-id: rig-run-reviewed\nowner: magic-librarian\n---\n' > "$rigTmp/ws/.local/agents/spawned/rig-run-reviewed/rig-run-reviewed.md"
+rigRun --magic-morning-review-input-scan magic-coordinator ; rigRc=$?
+rigAssert "the item whose run has a record is not flagged, the one whose run has none is, and no scratch file is left" \
+	"$rigRc:$( rigLine 'review-no-review-by:' ):$( rigHas 'dispatch-rig-runreviewed' ):$( rigHas 'dispatch-rig-runmissing' ):$( ls "$rigTmp/ws/.local/temp" 2> /dev/null | LC_ALL=C grep -c '^mdat-morning-review-runs' )" \
+	"0:review-no-review-by: 2:no:yes:0"
+rm -f "$rigData/board/review/dispatch-rig-runreviewed.md" "$rigData/board/review/dispatch-rig-runmissing.md"
+rm -rf "$rigTmp/ws/.local/agents/spawned/rig-run-reviewed"
+
 echo "-- running-session-ended, through the awk --"
 printf 'rig-session-ended\n' > "$rigTmp/ended"
 rigAssert "a running item whose session ended is flagged" \
-	"$( LC_ALL=C awk -v cap=3 -v endedFile="$rigTmp/ended" -f "$rigAwk" "$rigData/board/running/task-rig-running.md" | LC_ALL=C grep '^running-session-ended:' )" "running-session-ended: 1"
+	"$( mrShapeEndedFile="$rigTmp/ended" LC_ALL=C awk -v cap=3 -f "$rigAwk" "$rigData/board/running/task-rig-running.md" | LC_ALL=C grep '^running-session-ended:' )" "running-session-ended: 1"
 printf 'rig-session-other\n' > "$rigTmp/ended"
 rigAssert "a running item whose session is not ended is not" \
-	"$( LC_ALL=C awk -v cap=3 -v endedFile="$rigTmp/ended" -f "$rigAwk" "$rigData/board/running/task-rig-running.md" | LC_ALL=C grep '^running-session-ended:' )" "running-session-ended: 0"
+	"$( mrShapeEndedFile="$rigTmp/ended" LC_ALL=C awk -v cap=3 -f "$rigAwk" "$rigData/board/running/task-rig-running.md" | LC_ALL=C grep '^running-session-ended:' )" "running-session-ended: 0"
 
 echo "-- cut-off advance --"
 rigRun --magic-morning-review-state-advance magic-coordinator "$rigNext" ; rigRc=$?

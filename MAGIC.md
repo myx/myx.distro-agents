@@ -43,7 +43,7 @@ that the code and docs do not readily tell you.
   every sibling `Distro*Tools`. New operations go inline in that `case`. Never a separate
   `DistroAgentsTools<OpName>` function per operation.
 - **A helper shared by one family lives in that family's include**, not at file scope.
-  `AgentsToolsAssertBareName` (in `AgentsContext.UseAgentsTools.include`) is the bar for "general";
+  `AgentsToolsAssertBareName` (in `AgentsTools.BareName.include`) is the bar for "general";
   it is not licence to add more file-scope helpers.
 - **One arm per group of operations.** A family arm sources one include, or several when one gets too
   big. Size is the only reason to split. A family arm works only because every stub of that family
@@ -899,8 +899,12 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   or a record under 10 minutes old.
 - **The session record** `<sandbox>/<spawn-id>.md` sits outside `input/` and `output/`, so the session
   cannot forge it. Its frontmatter rebuilds the spawned-sessions registry. Fields: `session-id`,
-  `spawn-id`, `parent-spawn-id` (the run that made the spawn call; a native caller's client session
-  id stands as its spawn id), `tracking-name`, `host`, `workspace` (basename, never a path, the
+  `spawn-id`, `parent-spawn-id` (the parent run, the one that made the spawn call; a native caller's
+  client session id stands as its spawn id), `parent-session-id` (the parent session, the one that
+  started this one, where there is one), `start-context` (`spawned`, `inline` or `joined`; `inline`
+  is a member brought into its caller's own session), `reports-to` (optional: `<session>[:<member>]`,
+  a member, `user-<account>`, `human-owner` or `none`; see "Where a run reports to", below),
+  `tracking-name`, `host`, `workspace` (basename, never a path, the
   one this record is kept in), `executing-workspace`, `paying-workspace`, `member-workspace` (the three
   workspaces of this run, always: which executes it, which pays for it, which is the member's),
   `owner`, `parent-member` (the member whose own call made this spawn), `status`, `started-at`,
@@ -915,6 +919,15 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   (`<channel>:<ts>`). A coworking session shares one sandbox named by the session id. The start post
   names `paying-workspace` and `member-workspace` only where either differs from the workspace the
   session runs from.
+- **Where a run reports to** (`AgentsToolsRunRoute`, `AgentsTools.SpawnSandbox.include`): its record's
+  `reports-to`. Its handback goes there. So do its asks and escalations that name no target, and the
+  notices of its end and its death. Unset, it is the initiator: the member that brought the run in
+  (`parent-member`), in the session `parent-session-id` names, where that member has a live run
+  there. Else that session's executor, where it is live. Else a live `magic-coordinator` run, in that
+  session or in this run's own, never this run itself. Else the human-owner. A member is named, never
+  a run, so any live run of it takes the matter. `reports-to: none` is a run that reports to no one.
+  It may send a handback as its final report, then it closes without waiting for dismissal. Its end
+  is told to no one, and an ask of its own with no target goes where an unset `reports-to` would.
 - **Children lists.** The spawn op appends the child's record path to `.local/agents/children/<parent>`.
   The main loop rebuilds all lists each iteration (`AgentsTools.ChildrenIndex.include`) and marks
   `children/.indexed`. Without the mark, a harness scans every record. Not under `sessions/`: a file
@@ -969,8 +982,9 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   events of the run's transcript first, the announce line in its output only where the transcript holds
   none. A native CLI's handbacks count now.
 - **The end of a run is told** (`AgentsToolsSpawnProxyEndNotice`, `AgentsTools.SpawnSandbox.include`;
-  `AgentsToolsSpawnProxySessionNotice` stands there too): posted to the thread of the session that
-  requested the run, addressed to its `parent-member`, unless that thread already shows the member's own
+  `AgentsToolsSpawnProxySessionNotice` stands there too): posted by the route (see "Where a run
+  reports to"), in the thread of the session the run reports to, addressed to its member there,
+  unless that thread already shows the member's own
   handback. One of six lines: `handback-missing`, `run-ended`, `run-killed` (by `killed-by`),
   `run-stopped` (by whoever ran `TaskStop`), `run-bound` (ended by the tooling's own bound), or
   `run-died` (told by the control thread of the session, where its process is gone and nothing closed
@@ -1363,7 +1377,8 @@ contracts are here.
 - **Addressing.** `SendMessage`, `SubagentHandback`, `PushNotification`, `ReportFindings`, `Artifact`,
   `AskQuestion`, `ConfirmReadback`, `EscalateDecision` and `RequestPermission` share one `to` resolver:
   named conversations, a bare id, `<channel>:<ts>`,
-  `session-parent` (the parent sandbox's `session.thread`; no parent is an error, never another thread),
+  `session-parent` (the thread of the session the run reports to, by the route, see "Where a run reports
+  to", section 11; none is an error, never another thread),
   `session-current` (the session thread of the coworking session the member works in now; both names
   resolve in the one resolver, for every operation that takes them, not only these),
   `client:<conversation-id>`, `client:<channel>:<ts>` or `client:<user-id>` (a `client-*` member's own
@@ -1386,8 +1401,8 @@ contracts are here.
   at the CLI). The tool tags the real mention itself (see "Send header"); nothing is typed into the body.
   A thread post with none is headed `@here`, read as for nobody. `SendMessage` to a session thread with
   `address_to` naming a member and the body `DISMISSED` dismisses it; with no `address_to` it dismisses
-  no one. A `SubagentHandback` naming nobody is addressed to the member whose session started it, its
-  record's own `parent-member`.
+  no one. A `SubagentHandback` naming nobody is addressed to the member the run reports to, by the
+  route (`AgentsToolsSessionParentMember`; see "Where a run reports to", section 11).
 - **The five ask tools** (`AskQuestion`, `ConfirmReadback`, `EscalateDecision`, `RequestPermission`,
   `ProposeApprove`) each render by their own template (`sh-lib/templates/<tool-kebab-name>.post.format.md`).
   `select` gives the answer form: `text` (the default, no `select` given), `yes-no`, `one` or `many` --
@@ -1508,10 +1523,13 @@ contracts are here.
   `groomed-from`. `--magic-grooming-to-backlog` clears `approved-by`/`approved-at`. `processed-at`, not
   `groomed-at`, answers how long an item has been processed.
 - **`board-review` is entered only by the spawn proxy** (`AgentsToolsSpawnProxyCloseDispatch` create mode
-  passes `review`, with `review-by` from `parentSessionId` when non-empty). Entering it, where `review-by`
-  names `human-owner`, posts him one review prompt, kind `review`: 👍 accepts, ↩️ returns, ❌ rejects, and
+  passes `review`, with `review-by` only from an explicit `--review-by`). An item's reviewer is its
+  `review-by`. Unset, it is its run's `reports-to` (`AgentsToolsItemReviewer`). A reviewer of `none`,
+  given or by default, means no review: the item closes straight to `processed`, with `review: none`
+  in its Decisions. Entering review, where the reviewer is `human-owner` or `user-<account>`, posts
+  that person one review prompt, kind `review`: 👍 accepts, ↩️ returns, ❌ rejects, and
   a reply starting `accept`, `return` or `reject` does the same. A review settled another way closes the
-  open prompt; every other `review-by` still posts none. A reviewer's accept moves review → processed;
+  open prompt; every other reviewer gets none. A reviewer's accept moves review → processed;
   return moves it to running, the same session, with comments; reject moves it to pending, for a fresh
   session. A dead run's own control thread asks its item's `review-by` a decision instead, kind
   `decision`, options `resume`, `fresh`, `close` and `kill`; where no reviewer is set there is no
@@ -1698,8 +1716,8 @@ op's own option arm.
 - **`session-current` and `session-parent` resolve in the same function**, each one thread, no `:<ts>`
   of its own -- a `:<ts>` suffix on either is refused, rc 3, naming itself and that it takes none.
   `session-current` names the session thread of the coworking session the member works in
-  (`AgentsToolsSessionCurrentThreadFind`); `session-parent` names the thread of the session that started
-  it (`AgentsToolsSessionParentThreadFind`) and also resolves a parent session id. A name that resolves
+  (`AgentsToolsSessionCurrentThreadFind`); `session-parent` names the thread of the session the run
+  reports to, by the route (`AgentsToolsSessionParentThreadFind`), and also resolves a parent session id. A name that resolves
   to no recorded `<channel>:<ts>` is refused the same way, rc 3, with the one line naming why and that
   `<channel>:<ts>` is the way around it. On success both print `CHANNEL=` and `THREAD_TS=`;
   `session-parent` adds a third line, `PARENT_SESSION_ID=`, when it has one.

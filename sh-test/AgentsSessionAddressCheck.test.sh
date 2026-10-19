@@ -36,7 +36,14 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 [ -r "${MDAT_SKILLSET_ROOT:-}/$rigMember/$rigMember.basic.md" ] || rigRefuse "MDAT_SKILLSET_ROOT does not hold $rigMember, so the tool would have no identity to send under"
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsSessionAddressCheck.XXXXXX" )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+## The parent's run, alive by the one rule a run is alive by: a stand-in whose own --session-id is
+## the parent's id, ended with the rig, through the one way a check signals what it kept
+## (sh-test/check-fixtures/rig-processes.include.sh). A route to a session goes to a member that runs there.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
+bash -c 'sleep 1800 ; :' rig-run --session-id rig-parent-id > /dev/null 2>&1 < /dev/null &
+rigParentPid=$! ; rigProcNote "$rigParentPid"
+disown "$rigParentPid" 2> /dev/null || :
+trap 'rigProcSignalWithChildren TERM "$rigParentPid" ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin" "$rigTmp/tmp"
 cp "$rigTest/check-fixtures/harness-ask-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 ## A model call anywhere would reach one of these first, and it only logs.
@@ -92,7 +99,7 @@ rigRecords(){ ## parent id for the child record (none for no parent), the parent
 	[ "$1" = none ] || childLines="parent-session-id: $1"$'\n'
 	printf -- '---\nspawn-id: rig-child-id\nparent-spawn-id: %s\n%s%s---\n' "$1" "${3:+parent-thread: $3
 }" "$childLines" > "$spawnDir/child-folder/rig-child-id.md"
-	printf -- '---\nspawn-id: rig-parent-id\nparent-spawn-id: none\n%s---\n' "${2:+session-thread: $2
+	printf -- '---\nsession-id: rig-parent-id\nspawn-id: rig-parent-id\nparent-spawn-id: none\nowner: magic-coordinator\nstatus: spawn-started\n%s---\n' "${2:+session-thread: $2
 }" > "$spawnDir/parent-folder/rig-parent-id.md"
 	printf -- '---\nspawn-id: rig-parent-id-extra\nparent-spawn-id: none\nsession-thread: CWRONG01:1.1\n---\n' > "$spawnDir/prefix-folder/rig-parent-id-extra.md"
 }
@@ -192,19 +199,20 @@ rigAssert "no record at all: refused"                             "$( rigResolve
 
 echo "-- the resolver: the parent session the start recorded (parent-session-id) names the parent --"
 rigScene resolveStartParent
-rigChild(){ ## parent-spawn-id, start-context, parent-session-id, the address it reports to (may be empty) -- the child's record, as a start writes it now
-	printf -- '---\nspawn-id: rig-child-id\nparent-spawn-id: %s\nstart-context: %s\nparent-session-id: %s\n%s---\n' "$1" "$2" "$3" "${4:+$rigReportsTo: $4
+rigChild(){ ## parent-spawn-id, start-context, parent-session-id, the address it reports to (may be empty), the member that brought it in (may be empty) -- the child's record, as a start writes it now
+	printf -- '---\nspawn-id: rig-child-id\nparent-spawn-id: %s\nstart-context: %s\nparent-session-id: %s\n%s%s---\n' "$1" "$2" "$3" "${4:+$rigReportsTo: $4
+}" "${5:+parent-member: $5
 }" > "$rigScenarioDir/ws/.local/agents/spawned/child-folder/rig-child-id.md"
 }
 rigChild none joined rig-parent-id
 rigAssert "a start whose caller had no run id: the recorded parent session still names the parent" "$( rigResolve "$rigCurrent" session-parent )" "rc=0 CHANNEL=CPARENT1|THREAD_TS=1700000001.000101|PARENT_SESSION_ID=rig-parent-id"
 rigChild rig-run-elsewhere spawned rig-parent-id
 rigAssert "the recorded parent session wins over the run id beside it" "$( rigResolve "" session-parent )" "rc=0 CHANNEL=CPARENT1|THREAD_TS=1700000001.000101|PARENT_SESSION_ID=rig-parent-id"
-rigChild none inline rig-native-id
+rigChild none inline rig-native-id "" magic-tester
 rigSessionRecord rig-native-id "$rigNativeThread"
 rigAssert "a parent that is a native session, with no record of its own: the thread recorded for that session" "$( rigResolve "" session-parent )" "rc=0 CHANNEL=CNATIVE1|THREAD_TS=1700000005.000505|PARENT_SESSION_ID=rig-native-id"
-rigChild none joined rig-silent-id
-rigAssert "a recorded parent session with no thread: refused, that session named" "$( rigResolve "$rigCurrent" session-parent )" "rc=3 the parent session rig-silent-id has no recorded thread, so session-parent names nowhere. $rigPass"
+rigChild none joined rig-silent-id "" magic-tester
+rigAssert "a recorded parent session with no thread: the thread of a magic-coordinator that runs, as for every parent with none" "$( rigResolve "$rigCurrent" session-parent )" "rc=0 CHANNEL=CPARENT1|THREAD_TS=1700000001.000101|PARENT_SESSION_ID=rig-silent-id"
 echo "-- the resolver: an address the run reports to names the parent session it is in --"
 rigChild none joined rig-silent-id rig-parent-id:magic-tester
 rigAssert "reports-to a session: that session's thread, whatever the parent session says" "$( rigResolve "$rigCurrent" session-parent )" "rc=0 CHANNEL=CPARENT1|THREAD_TS=1700000001.000101|PARENT_SESSION_ID=rig-parent-id"

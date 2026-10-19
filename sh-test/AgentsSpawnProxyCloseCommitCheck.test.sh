@@ -113,9 +113,11 @@ rigAssert "the reuse close reports no error"           "$( LC_ALL=C grep -c '^TR
 rigAssert "the reused item stays in its own state"      "$( rigItemBoardState task-rig-reuse.md )" blocked
 rigAssert "and the store is clean"                     "$( rigClean )" clean
 
-echo "-- review-by: bare session-id when the parent session is set --"
+echo "-- review-by: none written by default, even with a parent session; written where the caller says one --"
 RIG_PARENT_SESSION="rig-parent-session-uuid-1234" rigProxy fail "$rigTmp/pb" --wait
-rigAssert "review-by carries the parent session id"    "$( LC_ALL=C grep -c -x -F 'review-by: rig-parent-session-uuid-1234' "$rigStore/board/review/$( rigDispatchItem "$rigTmp/pb" )" )" 1
+rigAssert "with a parent session and no --review-by, no review-by: its review falls to where the run reports to"    "$( LC_ALL=C grep -c '^review-by:' "$rigStore/board/review/$( rigDispatchItem "$rigTmp/pb" )" )" 0
+RIG_PARENT_SESSION="rig-parent-session-uuid-1234" rigProxy fail "$rigTmp/pr" --wait --review-by magic-architect
+rigAssert "--review-by is written as said"    "$( LC_ALL=C grep -c -x -F 'review-by: magic-architect' "$rigStore/board/review/$( rigDispatchItem "$rigTmp/pr" )" )" 1
 
 echo "-- review-by: absent when the parent session is empty --"
 unset RIG_PARENT_SESSION
