@@ -1,5 +1,5 @@
 ---
-maintainers: [magic-coordinator, magic-librarian, magic-architect, human-owner]
+maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # no-quorum document — the agreed-and-dissent format
 

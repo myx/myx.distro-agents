@@ -4,6 +4,7 @@ executors: magic-team
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 allows: magic-librarian:skillset-upsert
 requires-session-kind: standalone
+routine-lock-document: inbox:{{team-member}}:note-20261020T000000Z-work-duty-state-and-lock.md
 input-scan-def: work-duty --session-id {{session-id}}
 reports-to: none
 review-by: none

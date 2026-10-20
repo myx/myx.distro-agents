@@ -125,6 +125,11 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$readMember" "<team-member>" pending-reply-read || { set +e ; return 1 ; }
+		## The count is what the console reads on its period, whatever it shows: it also looks at the requests the console itself made (AgentsToolsAuthorityRequestsPollOwn).
+		if [ -n "$readCount" ] && [ -z "$readId" ] ; then
+			type AgentsToolsAuthorityRequestsPollOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include" 2> /dev/null
+			AgentsToolsAuthorityRequestsPollOwn > /dev/null 2>&1 || :
+		fi
 		if [ -n "$readId" ] ; then
 			[ -z "$readCount" ] || { echo "$MDSC_CMD: ⛔ ERROR: --count counts the list, and takes no <pending-id>" >&2 ; set +e ; return 1 ; }
 			AgentsToolsAssertBareName "$readId" "<pending-id>" pending-reply-read || { set +e ; return 1 ; }

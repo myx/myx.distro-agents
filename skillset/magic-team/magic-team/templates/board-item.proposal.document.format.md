@@ -1,5 +1,5 @@
 ---
-maintainers: [magic-librarian, magic-coordinator, human-owner]
+maintainers: magic-librarian, magic-coordinator, human-owner
 ---
 # board-item.proposal document — the shape of one proposal
 

@@ -485,9 +485,10 @@ AgentsToolsAuthorityRequestWait(){ ## request id, bound in seconds (empty: none)
 	return "$waitRc"
 }
 AgentsToolsAuthorityRequestWaitLoop(){ ## request id, bound in seconds (empty: none)
-	local waitFile waitBegan
+	local waitFile waitBegan waitReadAt=0 waitNow waitChecks=0 waitErrors=0 waitProgressAt waitProgressEvery="${MDAT_AUTHORITY_WAIT_PROGRESS_SECONDS:-300}"
+	case "$waitProgressEvery" in ''|*[!0-9]*) waitProgressEvery=300 ;; esac
 	waitFile="$( AgentsToolsQuestionsStore )/$1.md"
-	waitBegan="$( date +%s )"
+	waitBegan="$( date +%s )" ; waitProgressAt="$waitBegan"
 	while : ; do
 		case "$( AgentsToolsAuthorityField "$waitFile" status )" in
 			reply-received)
@@ -510,8 +511,51 @@ AgentsToolsAuthorityRequestWaitLoop(){ ## request id, bound in seconds (empty: n
 			AgentsToolsAuthorityFieldSet "$waitFile" status withdrawn withdrawn-by "tooling (no answer within ${2}s)" withdrawn-at "$( date +"%Y-%m-%d %H:%M %z" )" || :
 			return 124
 		fi
+		## THE WAITER READS ITS OWN REQUEST, as a member's Wait reads its ask, and at Wait's pace (its TTL for a post: AgentsToolsAuthorityWaitTtl): the reply or the click of
+		## whoever may answer is looked for in the request's thread with the sweep's own reader and settle (AgentsToolsAuthorityRequestRead), so a request is answered with
+		## no main loop or daemon running.
+		waitNow="$( date +%s )"
+		if [ $(( waitNow - waitReadAt )) -ge "$( AgentsToolsAuthorityWaitTtl "$waitFile" "$waitBegan" )" ] ; then
+			waitReadAt="$waitNow"
+			agentsAuthorityReadOutcome=""
+			AgentsToolsAuthorityRequestRead "$waitFile" >&2 || :
+			waitChecks=$(( waitChecks + 1 ))
+			[ "${agentsAuthorityReadOutcome:-}" != unreadable ] || waitErrors=$(( waitErrors + 1 ))
+			continue
+		fi
+		## It says now and then that it is alive: how long it has waited, and how many looks it has made, how many of them failed.
+		if [ "$waitProgressEvery" -gt 0 ] && [ $(( waitNow - waitProgressAt )) -ge "$waitProgressEvery" ] ; then
+			waitProgressAt="$waitNow"
+			printf 'waiting %s, %d checks, %d errors (request %s)\n' "$( AgentsToolsAuthoritySpan $(( waitNow - waitBegan )) )" "$waitChecks" "$waitErrors" "$1" >&2
+		fi
 		sleep 1
 	done
+}
+
+## The pace of the waiter, Wait's own TTL for a post: 5 seconds and 1 more for every 20 it has been quiet, from the newest thing seen of it (its ask, or the last
+## reply that was told what to reply, or the start of this wait where that is later), with no cap, so a request nobody answers is looked at ever more rarely and never
+## dropped.
+AgentsToolsAuthorityWaitTtl(){ ## request record, the time this wait began
+	local ttlNow ttlActivity ttlQuiet ttlOther
+	ttlNow="$( date +%s )" ; ttlActivity="$( AgentsToolsAuthorityField "$1" question-ts )" ; ttlActivity="${ttlActivity%%.*}"
+	case "$ttlActivity" in ''|*[!0-9]*) ;; *) [ "$ttlActivity" -ge "${2:-0}" ] || ttlActivity="${2:-0}" ;; esac
+	for ttlOther in "$( AgentsToolsAuthorityField "$1" told-unclear )" "$( AgentsToolsAuthorityField "$1" told-unthreaded )" ; do
+		ttlOther="${ttlOther%%.*}"
+		case "$ttlOther" in ''|*[!0-9]*) continue ;; esac
+		[ -n "$ttlActivity" ] && [ "$ttlOther" -le "$ttlActivity" ] || ttlActivity="$ttlOther"
+	done
+	case "$ttlActivity" in ''|*[!0-9]*) ttlActivity="$ttlNow" ;; esac
+	ttlQuiet=$(( ttlNow - ttlActivity )) ; [ "$ttlQuiet" -ge 0 ] || ttlQuiet=0
+	printf '%d\n' $(( ${MDAT_AUTHORITY_WAIT_READ_SECONDS:-5} + ttlQuiet / 20 ))
+}
+
+## A span of seconds in words: 40s, 12m, 5h, 5h 35m.
+AgentsToolsAuthoritySpan(){ ## seconds
+	if [ "$1" -lt 60 ] ; then printf '%ds\n' "$1"
+	elif [ "$1" -lt 3600 ] ; then printf '%dm\n' $(( $1 / 60 ))
+	elif [ $(( $1 % 3600 / 60 )) -eq 0 ] ; then printf '%dh\n' $(( $1 / 3600 ))
+	else printf '%dh %dm\n' $(( $1 / 3600 )) $(( $1 % 3600 / 60 ))
+	fi
 }
 
 ## THE GATE, asked by every operation that acts on another run's question or on a run: whether
@@ -520,7 +564,7 @@ AgentsToolsAuthorityRequestWaitLoop(){ ## request id, bound in seconds (empty: n
 ## `denied` or `timeout`. The escalation words are agentsAuthorityMode and agentsAuthorityTimeout
 ## (AgentsToolsAuthorityFlags); AgentsToolsAuthorityExit says what the operation returns.
 AgentsToolsAuthorityGate(){ ## what (words), original (pending id or spawn id), run record acted on (or empty), original question record (or empty), how options are named (console|tool), action words...
-	local gateWhat="$1" gateOriginal="$2" gateRecord="$3" gateQuestion="$4" gateNamed="$5" gateHolder gateSession="" gateTo gateOpened gateId gateRc=0 gateConfirm=""
+	local gateWhat="$1" gateOriginal="$2" gateRecord="$3" gateQuestion="$4" gateNamed="$5" gateHolder gateSession="" gateTo gateOpened gateId gateRc=0 gateConfirm="" gateExisting gateAge
 	shift 5
 	agentsAuthorityOutcome="act" agentsAuthorityChosenNow=""
 	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
@@ -541,15 +585,37 @@ AgentsToolsAuthorityGate(){ ## what (words), original (pending id or spawn id), 
 		return 3
 	fi
 	if [ -n "$gateConfirm" ] ; then gateTo="human-owner" ; else gateTo="$( AgentsToolsAuthorityTarget "$gateHolder" )" ; fi
-	gateOpened="$( AgentsToolsAuthorityRequestOpen "${agentsAuthorityMode:-enqueue}" "$gateConfirm" "$gateTo" "$gateSession" "$gateOriginal" "$gateWhat" "$gateQuestion" "$@" )" || {
-		agentsAuthorityOutcome="refused" ; return 1
-	}
-	printf '%s\n' "$gateOpened"
-	if [ "${agentsAuthorityMode:-}" != wait ] ; then
-		agentsAuthorityOutcome="pending"
-		return 0
+	## A call asks once. Asked again for the same action on the same original, it JOINS the request it made: that request is waited on by both, and its answer settles
+	## both, whether the first was waited for or left to the sweep (an enqueued one becomes a waited one: whoever waits on it acts). Said plainly, never silent.
+	gateExisting="$( AgentsToolsAuthorityOpenRequestFor "$gateOriginal" "$gateWhat" )"
+	if [ -n "$gateExisting" ] ; then
+		gateId="$gateExisting"
+		if [ "${agentsAuthorityMode:-}" != wait ] ; then
+			printf 'already asked as %s, pending: it acts when it is answered (the next sweep, or a wait on it: the same call with --escalate-wait)\n' "$gateId"
+			agentsAuthorityOutcome="pending"
+			return 0
+		fi
+		printf 'already asked as %s, waiting\n' "$gateId"
+		AgentsToolsAuthorityFieldSet "$( AgentsToolsQuestionsStore )/$gateId.md" request-mode wait || :
+	else
+		gateOpened="$( AgentsToolsAuthorityRequestOpen "${agentsAuthorityMode:-enqueue}" "$gateConfirm" "$gateTo" "$gateSession" "$gateOriginal" "$gateWhat" "$gateQuestion" "$@" )" || {
+			agentsAuthorityOutcome="refused" ; return 1
+		}
+		printf '%s\n' "$gateOpened"
+		if [ "${agentsAuthorityMode:-}" != wait ] ; then
+			## An enqueued request is acted on by the sweep of the main loop: where none has run on this host, that is said, and how else it is acted on.
+			gateAge="$( AgentsToolsAuthoritySweepAge )"
+			case "$gateAge" in never|[0-9]*)
+				if [ "$gateAge" = never ] || [ "$gateAge" -gt "${MDAT_AUTHORITY_SWEEP_STALE_SECONDS:-900}" ] ; then
+					printf 'NOTE: no main loop has swept the requests on this host (%s), so %s is acted on by the next sweep, or by a wait on it: the same call with --escalate-wait finds it and waits\n' \
+						"$( [ "$gateAge" = never ] && printf 'never' || printf 'last %s ago' "$( AgentsToolsAuthoritySpan "$gateAge" )" )" "${gateOpened#PENDING }"
+				fi
+			;; esac
+			agentsAuthorityOutcome="pending"
+			return 0
+		fi
+		gateId="${gateOpened#PENDING }" ; gateId="${gateId%% *}"
 	fi
-	gateId="${gateOpened#PENDING }" ; gateId="${gateId%% *}"
 	AgentsToolsAuthorityRequestWait "$gateId" "${agentsAuthorityTimeout:-}" || gateRc=$?
 	case "$gateRc" in
 		0)
@@ -607,29 +673,126 @@ AgentsToolsAuthorityRequestAnswer(){ ## request record, verdict
 	AgentsToolsAuthorityRequestSettle "$1" "$2" "$agentsAuthorityCallerId"
 }
 
+## The thread of one open request read, and the request settled by what stands there: the one step of the sweep, and of the waiter of that request. A request
+## text-answered or answered by word or emoji is settled (AgentsToolsAuthorityRequestSettle); a reply that names no answer, and a message the owner wrote in the
+## direct conversation outside the thread, answer nothing, and the person is told once what to reply (AgentsToolsAuthorityRequestTell). One line for what was done.
+AgentsToolsAuthorityRequestRead(){ ## request record
+	local readFile="$1" readOut readVerdict readAuthor readText readStamp
+	[ "$( AgentsToolsAuthorityField "$readFile" status )" = reply-pending ] || return 0
+	[ -n "$( AgentsToolsAuthorityField "$readFile" request-of )" ] || return 0
+	type AgentsToolsEscalationThreadVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only 2> /dev/null || return 0
+	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+	readOut="$( AgentsToolsEscalationThreadVerdict "$( AgentsToolsAuthorityField "$readFile" owner )" "$readFile" "$( basename "$readFile" .md )" \
+		"$( AgentsToolsAuthorityField "$readFile" channel )" "$( AgentsToolsAuthorityField "$readFile" question-ts )" "$( AgentsToolsAuthorityField "$readFile" thread-ts )" \
+		"$( AgentsToolsAuthorityField "$readFile" addressees )" true 2> /dev/null )" || readOut=""
+	readVerdict="$( printf '%s\n' "$readOut" | head -1 )"
+	agentsAuthorityReadOutcome="read" ; case "${readVerdict%%$'\t'*}" in ''|UNREADABLE) agentsAuthorityReadOutcome="unreadable" ;; esac
+	if [ "${readVerdict%%$'\t'*}" = RETURNED ] && [ "$( AgentsToolsAuthorityField "$readFile" kind )" = question ] ; then
+		readText="$( printf '%s\n' "$readOut" | LC_ALL=C awk -F'\t' '$1 == "CLARIFY" && $4 != "" { text = $0 ; sub( /^[^\t]*\t[^\t]*\t[^\t]*\t/, "", text ) ; print text "\t" $3 ; exit }' )"
+		[ -z "$readText" ] || readVerdict="$readText"
+	fi
+	case "${readVerdict%%$'\t'*}" in
+		''|UNREADABLE) return 0 ;;
+		OPEN)
+			## Nothing in the thread. A message the owner wrote in the direct conversation, outside the thread, is read by no one: said once, with what to reply.
+			readStamp="$( AgentsToolsAuthorityRequestUnthreaded "$readFile" )"
+			[ -z "$readStamp" ] || AgentsToolsAuthorityRequestTell "$readFile" unthreaded "$readStamp"
+			return 0
+		;;
+		RETURNED)
+			## A reply that names no answer: nothing is granted, the request stays open, and the person is told once what to reply.
+			readStamp="$( AgentsToolsEscalationFloor "$readOut" )"
+			[ -z "$readStamp" ] || AgentsToolsAuthorityRequestTell "$readFile" unclear "$readStamp"
+			return 0
+		;;
+	esac
+	readAuthor="${readVerdict#*$'\t'}"
+	AgentsToolsAuthorityRequestSettle "$readFile" "${readVerdict%%$'\t'*}" "${readAuthor:-the owners role}"
+}
+
+## The newest message an accepted author wrote in the same direct conversation after the ask, outside its thread (a conversation's history holds no reply of a
+## thread): its ts. Nothing for a request asked in a channel, or when none was written.
+AgentsToolsAuthorityRequestUnthreaded(){ ## request record
+	local unFile="$1" unChannel unTs unWork
+	unChannel="$( AgentsToolsAuthorityField "$unFile" channel )" ; unTs="$( AgentsToolsAuthorityField "$unFile" question-ts )"
+	case "$unChannel" in D*) ;; *) return 0 ;; esac
+	[ -n "$unTs" ] && [ -n "$( AgentsToolsAuthorityField "$unFile" addressees )" ] || return 0
+	unWork="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-read "$( AgentsToolsAuthorityField "$unFile" owner )" \
+		"$unChannel" --oldest "$unTs" --identity-bot 2> /dev/null )" || return 0
+	printf '%s\n' "$unWork" \
+		| LC_ALL=C awk -v authors=" $( AgentsToolsAuthorityField "$unFile" addressees ) " -v after="$unTs" '
+			/^[0-9]+\.[0-9]+ \| / { split( $0, part, " \\| " ) ; if ( index( authors, " " part[2] " " ) > 0 && part[1] != after && part[1] > after ) { newest = part[1] ; } }
+			END { print newest ; }'
+}
+
+## Tells the person, once for what it answers, what to reply to a request that was not answered: a post in the request's thread by the team bot, from the block
+## of the request's template (request-permission.post.format.md, `# Authority`), and the stamp kept on the record. kind: unclear (a reply that names no answer) or
+## unthreaded (a message outside the thread). One line, TOLD.
+AgentsToolsAuthorityRequestTell(){ ## request record, kind, stamp (the ts it is told for)
+	local tellFile="$1" tellText tellTo tellId
+	[ "$( AgentsToolsAuthorityField "$tellFile" "told-$2" )" != "$3" ] || return 0
+	type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include" 2> /dev/null || return 0
+	tellText="$( ASKP_BLOCK="Authority/$2" AgentsToolsAskPostFill block request-permission.post.format.md "" 2> /dev/null )" || tellText=""
+	[ -n "$tellText" ] || return 0
+	tellId="$( basename "$tellFile" .md )" ; tellTo="$( AgentsToolsAuthorityField "$tellFile" address-to )"
+	AgentsToolsAuthorityFieldSet "$tellFile" "told-$2" "$3" || :
+	printf '%s\n' "$tellText" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-send-message "$( AgentsToolsAuthorityField "$tellFile" owner )" \
+		"$( AgentsToolsAuthorityField "$tellFile" channel ):$( AgentsToolsAuthorityField "$tellFile" thread-ts )" --from-stdin --identity-bot ${tellTo:+--address-to "$tellTo"} > /dev/null 2>&1 || :
+	printf 'TOLD %s: %s -- %s\n' "$tellId" "$2" "$( printf '%s' "$tellText" | head -1 )"
+}
+
 ## The sweep of the questions store: every open request whose answer stands in its thread is
-## settled (AgentsToolsAuthorityRequestSettle). A text request takes no answer word, so its
+## settled (AgentsToolsAuthorityRequestRead). A text request takes no answer word, so its
 ## thread reads as returned: its first reply there, as written, is its answer. One line for
-## each that was.
+## each that was. The time of the sweep is kept, so that a call that leaves a request for the
+## sweep can say whether one runs on this host (AgentsToolsAuthoritySweepAge).
 AgentsToolsAuthorityRequestsSweep(){
-	local sweepFile sweepOut sweepVerdict sweepAuthor sweepText
+	local sweepFile
 	type AgentsToolsEscalationThreadVerdict > /dev/null 2>&1 || return 0
+	mkdir -p "${MMDAPP:-/nonexistent}/.local/temp" 2> /dev/null && date +%s > "${MMDAPP}/.local/temp/mdat-authority-sweep-at" 2> /dev/null || :
 	for sweepFile in "$( AgentsToolsQuestionsStore )"/*.md ; do
 		[ -f "$sweepFile" ] || continue
-		[ "$( AgentsToolsAuthorityField "$sweepFile" status )" = reply-pending ] || continue
-		[ -n "$( AgentsToolsAuthorityField "$sweepFile" request-of )" ] || continue
-		sweepOut="$( AgentsToolsEscalationThreadVerdict "$( AgentsToolsAuthorityField "$sweepFile" owner )" "$sweepFile" "$( basename "$sweepFile" .md )" \
-			"$( AgentsToolsAuthorityField "$sweepFile" channel )" "$( AgentsToolsAuthorityField "$sweepFile" question-ts )" "$( AgentsToolsAuthorityField "$sweepFile" thread-ts )" \
-			"$( AgentsToolsAuthorityField "$sweepFile" addressees )" true 2> /dev/null )" || sweepOut=""
-		sweepVerdict="$( printf '%s\n' "$sweepOut" | head -1 )"
-		if [ "${sweepVerdict%%$'\t'*}" = RETURNED ] && [ "$( AgentsToolsAuthorityField "$sweepFile" kind )" = question ] ; then
-			sweepText="$( printf '%s\n' "$sweepOut" | LC_ALL=C awk -F'\t' '$1 == "CLARIFY" && $4 != "" { text = $0 ; sub( /^[^\t]*\t[^\t]*\t[^\t]*\t/, "", text ) ; print text "\t" $3 ; exit }' )"
-			[ -z "$sweepText" ] || sweepVerdict="$sweepText"
-		fi
-		case "${sweepVerdict%%$'\t'*}" in
-			''|OPEN|RETURNED|UNREADABLE) continue ;;
-		esac
-		sweepAuthor="${sweepVerdict#*$'\t'}"
-		AgentsToolsAuthorityRequestSettle "$sweepFile" "${sweepVerdict%%$'\t'*}" "${sweepAuthor:-the owners role}" || :
+		AgentsToolsAuthorityRequestRead "$sweepFile" || :
+	done
+}
+
+## THE CONSOLE POLLS ITS OWN REQUESTS, and only those: while it is open, the requests this caller itself made (enqueued or waited), no one's else, among them
+## the team's process flow. Each is looked at as the wait looks at it (AgentsToolsAuthorityRequestRead, at Wait's TTL for a post, kept as `checked-at` on the record), and
+## an answer found acts through the same tooling call (the settle of an enqueued request acts; a waited one is acted on by its waiter). One line for each that was settled.
+AgentsToolsAuthorityRequestsPollOwn(){
+	local pollFile pollNow pollChecked
+	AgentsToolsAuthorityCaller
+	## Only the person at the console polls: a member that reads its count polls nothing, since the process flow of the team is not the console's.
+	[ "${agentsAuthorityCallerKind:-}" != member ] || return 0
+	for pollFile in "$( AgentsToolsQuestionsStore )"/*.md ; do
+		[ -f "$pollFile" ] || continue
+		[ "$( AgentsToolsAuthorityField "$pollFile" status )" = reply-pending ] || continue
+		[ -n "$( AgentsToolsAuthorityField "$pollFile" request-of )" ] || continue
+		[ "$( AgentsToolsAuthorityField "$pollFile" requester )" = "$agentsAuthorityCallerId" ] || continue
+		pollNow="$( date +%s )"
+		pollChecked="$( AgentsToolsAuthorityField "$pollFile" checked-at )" ; case "$pollChecked" in ''|*[!0-9]*) pollChecked=0 ;; esac
+		[ $(( pollNow - pollChecked )) -ge "$( AgentsToolsAuthorityWaitTtl "$pollFile" 0 )" ] || continue
+		AgentsToolsAuthorityFieldSet "$pollFile" checked-at "$pollNow" || :
+		AgentsToolsAuthorityRequestRead "$pollFile" || :
+	done
+}
+
+## How long ago the sweep last ran on this host, in seconds, or `never`: a sweep is the main loop's pass.
+AgentsToolsAuthoritySweepAge(){
+	local sweepAt
+	sweepAt="$( cat "${MMDAPP:-/nonexistent}/.local/temp/mdat-authority-sweep-at" 2> /dev/null )" || sweepAt=""
+	case "$sweepAt" in ''|*[!0-9]*) printf 'never\n' ;; *) printf '%d\n' $(( $( date +%s ) - sweepAt )) ;; esac
+}
+
+## The open request this caller made for that very action on that original, if any: its id. A call asks once; asked again it finds the request it made.
+AgentsToolsAuthorityOpenRequestFor(){ ## original, what (words)
+	local openedFile
+	for openedFile in "$( AgentsToolsQuestionsStore )"/*.md ; do
+		[ -f "$openedFile" ] || continue
+		[ "$( AgentsToolsAuthorityField "$openedFile" status )" = reply-pending ] || continue
+		[ "$( AgentsToolsAuthorityField "$openedFile" request-of )" = "$1" ] || continue
+		[ "$( AgentsToolsAuthorityField "$openedFile" request-what )" = "$2" ] || continue
+		[ "$( AgentsToolsAuthorityField "$openedFile" requester )" = "${agentsAuthorityCallerId:-}" ] || continue
+		basename "$openedFile" .md ; return 0
 	done
 }

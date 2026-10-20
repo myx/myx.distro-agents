@@ -617,8 +617,13 @@ magic-team MDAT_WORKSPACE_MODE"
 			fi
 		done
 		## Read only where the scope file already exists: a --select creates the file it reads, and a check writes nothing.
-		autoNow=""
-		[ ! -f "${MMDAPP%/}/.local/.agents/magic-team.agent.env" ] || autoNow="$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2> /dev/null )" || autoNow=""
+		## What a spawn resolves is `now` (the reader every spawn uses, a tier preset standing ahead of the scope where there is one); what the team scope itself holds is
+		## `autoOwn`. They differ where a tier preset (SPAWN_TIER_*) names its own CLI service, and then the setting this operation writes is not what a spawn runs on.
+		autoNow="" autoOwn=""
+		if [ -f "${MMDAPP%/}/.local/.agents/magic-team.agent.env" ] ; then
+			autoNow="$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2> /dev/null )" || autoNow=""
+			autoOwn="$( LC_ALL=C sed -n 's/^SPAWN_CLI_SERVICE=//p' "${MMDAPP%/}/.local/.agents/magic-team.agent.env" 2> /dev/null | tail -n 1 )"
+		fi
 		if [ -z "$autoPick" ] ; then
 			if [ "$autoOperation" = "--check" ] ; then
 				echo "SPAWN_CLI_AUTO: FAIL"
@@ -634,14 +639,21 @@ magic-team MDAT_WORKSPACE_MODE"
 			echo "SPAWN_CLI_AUTO: OK"
 			echo "  pick: $autoPick, the first of $agentsCliServiceAutoOrder that works"
 			echo "  now:  SPAWN_CLI_SERVICE is ${autoNow:-not set}"
+			[ -z "$autoOwn" ] || [ "$autoOwn" = "$autoNow" ] || echo "  note: the team scope itself holds $autoOwn; a tier preset (SPAWN_TIER_*) stands ahead of it, so a spawn resolves $autoNow"
 			echo "  fix:  $autoToolPath --owner-setup-cli-auto --apply"
 			return 0
 		fi
 		echo "# $MDSC_CMD --owner-setup-cli-auto --apply: $autoPick is the first of $agentsCliServiceAutoOrder that works; carrying out --owner-setup-$autoPick --set-as-default --apply (SPAWN_CLI_SERVICE is ${autoNow:-not set} now)"
-		( DistroAgentsTools "--owner-setup-$autoPick" --set-as-default --apply ) || {
-			echo "⛔ ERROR: $MDSC_CMD --owner-setup-cli-auto --apply: --owner-setup-$autoPick --set-as-default --apply did not end well, what it says is above" >&2
-			set +e ; return 1
-		}
+		autoRc=0
+		( DistroAgentsTools "--owner-setup-$autoPick" --set-as-default --apply ) || autoRc=$?
+		[ "$autoRc" = 0 ] || echo "⛔ ERROR: $MDSC_CMD --owner-setup-cli-auto --apply: --owner-setup-$autoPick --set-as-default --apply did not end well, what it says is above" >&2
+		## Written is not in effect: asked again as a spawn asks it, and said plainly where a tier preset stands ahead of the setting just written.
+		autoNow="$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2> /dev/null )" || autoNow=""
+		if [ "$autoNow" != "$autoPick" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-setup-cli-auto --apply: SPAWN_CLI_SERVICE is $autoPick in the team scope, but a spawn still resolves ${autoNow:-nothing}: a tier preset (SPAWN_TIER_*) stands ahead of it, and it was not touched -- change the preset to change the CLI of the spawns" >&2
+			autoRc=1
+		fi
+		[ "$autoRc" = 0 ] || { set +e ; return 1 ; }
 		return 0
 	;;
 

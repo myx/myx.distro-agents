@@ -3,6 +3,7 @@ type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: coworking
+runs-at: none
 routine-lock-document: inbox:magic-coordinator:note-20260811T120000Z-retro-state-and-lock.md
 input-scan-def: none
 review-by: inherit
@@ -41,7 +42,7 @@ review-by: inherit
 
 - Does: reflection and methodology, drawing on recent work history. Runs when the human-owner asks for a "retro" or "retrospective".
 - Doesn't: report what is outstanding (`magic-coordinator.daily.routine`), triage the backlog (`magic-team.grooming.routine`), or implement anything.
-- Open: autonomous invocation from the heartbeat's day rhythm. Then **discuss-with-the-user** would not block: findings recorded as provisional and flagged for confirmation when a human is next present.
+- Open: autonomous invocation from the schedule (`runs-at:` is `none` today, so the retro stays manual until designed). Then **discuss-with-the-user** would not block: findings recorded as provisional and flagged for confirmation when a human is next present.
 
 # Opening steps
 

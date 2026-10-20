@@ -5,6 +5,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 allows: magic-librarian:skillset-upsert
 reports-to: none
 requires-session-kind: standalone
+runs-at: workdays 09:00
 routine-lock-document: inbox:magic-librarian:note-20261008T000000Z-morning-review-state.md
 input-scan-def: morning-review
 review-by: inherit
@@ -43,7 +44,7 @@ review-by: inherit
 
 - Does:
   - Check state-model drift and cross-file consistency.
-  - Run as a standalone session of `magic-librarian`, started by `magic-coordinator.daily.routine`'s **spawn-morning-review**.
+  - Run as a standalone session of `magic-librarian`, started by its autorun (`runs-at:`), the first of the day's chain: the grooming follows it, then the daily.
 - Doesn't:
   - The broad skillset audit — `magic-librarian`'s `team-self-sufficiency-audit`.
   - Board writes by `magic-librarian`, or garbage collection.
@@ -113,7 +114,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-coordinator.daily.routine` — starts this routine at **spawn-morning-review**.
+- `magic-team.grooming.routine` — runs after this routine (`runs-after:`), on each workday.
 - `magic-team/reference/board-model.md` — the state model checked here.
 
 ### Conventions

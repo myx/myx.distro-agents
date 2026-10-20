@@ -45,10 +45,11 @@ AgentsToolsItemResolvePaths(){
 		;;
 		inbox)
 			## An inbox item here is a standing note, a state and lock note of a routine among
-			## them, so it lives where an item with no processed stamp lives: incoming/
-			## (AgentsTools.InboxPlace.include).
+			## them, so it lives where AgentsToolsInboxNotePath says (AgentsTools.InboxPlace.include):
+			## incoming/, or processed/ for the lock note of a member other than magic-coordinator.
 			type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
-			itemWriteDir="$( AgentsToolsInboxDir "$inboxMember" )"
+			itemWriteDir="$( AgentsToolsInboxNotePath "$inboxMember" "${name:-}" )"
+			itemWriteDir="${itemWriteDir%/*}"
 			itemLookupFolders=( "$itemWriteDir" )
 			itemLockable="true"
 		;;

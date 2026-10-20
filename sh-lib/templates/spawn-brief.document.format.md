@@ -1,5 +1,5 @@
 ---
-maintainers: [magic-coordinator, magic-librarian, magic-architect, keeper-myx, human-owner]
+maintainers: magic-coordinator, magic-librarian, magic-architect, keeper-myx, human-owner
 ---
 # spawn brief — the mechanical part of a `spawn-prepare-brief`
 

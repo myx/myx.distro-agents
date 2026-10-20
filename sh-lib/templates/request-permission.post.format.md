@@ -1,5 +1,5 @@
 ---
-maintainers: [magic-coordinator, magic-librarian, magic-architect, keeper-myx, human-owner]
+maintainers: magic-coordinator, magic-librarian, magic-architect, keeper-myx, human-owner
 ---
 # request-permission post — the post of a `RequestPermission`
 
@@ -35,6 +35,8 @@ Not a member/routine contract — this is the fixed text of the permission reque
 - Authority
   - reason
   - task
+  - unclear
+  - unthreaded
 - Marks
   - revised
   - superseded
@@ -246,6 +248,18 @@ The words of a request for the authority over a session or a run (F6.10): the po
 
 ```
 {{requester}} ran `{{operation}}`, which needs that authority.
+```
+
+## unclear
+
+```
+Your reply names none of the answers, so nothing is granted and this request stays open. Reply in this thread with `allow-once`, `allow-session` or `deny`, or click one of the emoji under the request.
+```
+
+## unthreaded
+
+```
+A message you wrote in this conversation outside this thread answers nothing: an answer is read in the thread of the request. Reply to the request in its thread with `allow-once`, `allow-session` or `deny`, or click one of the emoji under it.
 ```
 
 # Marks

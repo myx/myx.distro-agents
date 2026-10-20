@@ -55,6 +55,14 @@ case "$rigMethod" in
 			printf '{"ok":false,"error":"rig_no_replies"}\n'
 		fi
 	;;
+	conversations.history)
+		## The messages of a conversation, from history.json where a scenario has one.
+		if [ -f "$RIG_SCENARIO/history.json" ] ; then
+			cat "$RIG_SCENARIO/history.json"
+		else
+			printf '{"ok":true,"messages":[],"has_more":false}\n'
+		fi
+	;;
 	reactions.add)
 		## Each reaction asked for, as "<ts> <name>"; a scenario can have every one refused.
 		printf '%s %s\n' "$rigReactTs" "$rigReactName" >> "$RIG_SCENARIO/reactions"

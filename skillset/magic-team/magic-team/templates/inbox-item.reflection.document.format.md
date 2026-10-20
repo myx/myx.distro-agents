@@ -1,5 +1,5 @@
 ---
-maintainers: [magic-librarian, magic-coordinator, human-owner]
+maintainers: magic-librarian, magic-coordinator, human-owner
 ---
 # inbox-item.reflection document — the shape of one reflection
 

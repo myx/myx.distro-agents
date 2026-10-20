@@ -1,5 +1,5 @@
 ---
-maintainers: [magic-coordinator, magic-librarian, magic-architect, keeper-myx, human-owner]
+maintainers: magic-coordinator, magic-librarian, magic-architect, keeper-myx, human-owner
 ---
 # event-track post — the tooling's own tracking posts
 

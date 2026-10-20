@@ -54,7 +54,10 @@ AgentsToolsScheduleSpawnReport(){
 		[ -f "$reportFile" ] || continue
 		reportKey="${reportFile##*/}" ; reportKey="${reportKey%.rc}"
 		IFS= read -r reportRc < "$reportFile" || reportRc=1
-		[ "$reportRc" = 0 ] || printf 'schedule: the start of %s failed: %s\n' "$reportKey" "$( LC_ALL=C grep -m 1 'ERROR' "$reportStore/$reportKey.out" 2> /dev/null | LC_ALL=C cut -c1-200 )"
+		## A start the routine's lock refused, because the routine is running already (on this host or another), is no failure: it is said nothing of.
+		if [ "$reportRc" != 0 ] && ! LC_ALL=C grep -q -F 'the routine is already running: its locking document' "$reportStore/$reportKey.out" 2> /dev/null ; then
+			printf 'schedule: the start of %s failed: %s\n' "$reportKey" "$( LC_ALL=C grep -m 1 'ERROR' "$reportStore/$reportKey.out" 2> /dev/null | LC_ALL=C cut -c1-200 )"
+		fi
 		rm -f "$reportFile" "$reportStore/$reportKey.out"
 	done
 	return 0
@@ -289,11 +292,79 @@ AgentsToolsScheduleLearning(){
 	return 0
 }
 
-## The three steps, in order. One line for each thing done.
+## --- the advance pass ---
+
+## BOUNDED, since a busy board would otherwise start a heavy coworking pass after every write: only while the flags open the coordinator's duty (worktime, emergency or overtime), and
+## no sooner than MDAT_SCHEDULE_ADVANCE_MINUTES (30 when not set; 0 for no wait) after the last pass ended; what is new waits for the next allowed start.
+## Whether there is something new for an advance pass (F7.12: the heartbeat ran it inline at every iteration, and spawned an agent each time whether or not anything
+## waited). By script, with no agent. The baseline is the end of the last pass, which is what its lock note records: the note (magic-coordinator's standing
+## advance-state-and-lock note) written at the close of a pass, so its modification time is the end of that pass. New is: an item of the board's active states, or of
+## magic-coordinator's incoming/ (the standing state-and-lock notes and the spawner's dispatch-* tracking items aside), written since then; or an item whose recheck-date fell due since then. rc 0 where there is;
+## rc 1 where there is not, where a pass is running (the lock is held and not stale), and where the note is not there (a workspace not set up for the loop).
+AgentsToolsScheduleAdvanceDemand(){
+	local advNote advState advRecheck advRecheckEpoch advBase advNow advFiles=() advState2 advFile advRows advEpoch advFlags advMinutes
+	advNote="$( AgentsToolsInboxNotePath magic-coordinator note-20260809T154715Z-advance-state-and-lock.md )"
+	[ -f "$advNote" ] || return 1
+	advNow="$( date +%s )"
+	## The flags: the coordinator's duty hours.
+	advFlags="$( AgentsToolsScheduleCurrentFlags --current-flags 2> /dev/null )" || advFlags=""
+	case "$advFlags" in *"worktime: yes"*|*"emergency: yes"*|*"overtime: yes"*) ;; *) return 1 ;; esac
+	## No sooner than the minimum after the last pass ended: the modification time of its lock note.
+	advBase="$( stat -f '%m' "$advNote" 2> /dev/null )" || advBase=""
+	case "$advBase" in ''|*[!0123456789]*) advBase="$( stat -c '%Y' "$advNote" 2> /dev/null )" || advBase="" ;; esac
+	case "$advBase" in ''|*[!0123456789]*) return 1 ;; esac
+	advMinutes="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_ADVANCE_MINUTES )"
+	case "$advMinutes" in ''|*[!0123456789]*) advMinutes=30 ;; esac
+	[ "$(( advNow - advBase ))" -ge "$(( advMinutes * 60 ))" ] || return 1
+	advState="$( LC_ALL=C sed -n 's/^state: //p' "$advNote" | head -n 1 )"
+	case "$advState" in
+		*-running)
+			advRecheck="$( LC_ALL=C sed -n 's/^recheck-date: //p' "$advNote" | head -n 1 )"
+			advRecheckEpoch="$( printf '%s\n' "$advRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || advRecheckEpoch=""
+			case "$advRecheckEpoch" in ''|*[!0123456789]*) return 1 ;; esac
+			[ "$advRecheckEpoch" -le "$advNow" ] || return 1
+		;;
+	esac
+	for advState2 in backlog pending running review blocked parked ; do
+		for advFile in "$MDAT_DATA_ROOT/board/$advState2"/*.md ; do
+			## The tracking item of a session the spawner starts and closes (dispatch-*) is written by the tooling at every start and end, advance's own among them: it is no news.
+			[ -f "$advFile" ] || continue
+			case "${advFile##*/}" in dispatch-*) continue ;; esac
+			advFiles+=( "$advFile" )
+		done
+	done
+	for advFile in "$( AgentsToolsInboxDir magic-coordinator )"/*.md ; do
+		[ -f "$advFile" ] || continue
+		case "${advFile##*/}" in note-*-state-and-lock.md) continue ;; esac
+		advFiles+=( "$advFile" )
+	done
+	[ "${#advFiles[@]}" -gt 0 ] || return 1
+	[ -z "$( find "${advFiles[@]}" -newer "$advNote" 2> /dev/null | head -n 1 )" ] || return 0
+	## A recheck-date that fell due since the last pass: the dates of the items, converted at once.
+	advRows="$( LC_ALL=C awk 'FNR == 1 { fm = ( $0 == "---" ) ; next } fm && $0 == "---" { fm = 0 ; next } fm && index( $0, "recheck-date: " ) == 1 { print substr( $0, 15 ) }' "${advFiles[@]}" 2> /dev/null | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )"
+	while IFS= read -r advEpoch ; do
+		case "$advEpoch" in ''|*[!0123456789]*) continue ;; esac
+		[ "$advEpoch" -gt "$advBase" ] && [ "$advEpoch" -le "$advNow" ] && return 0
+	done <<< "$advRows"
+	return 1
+}
+
+## The advance pass as a session of its own, when something is new for it; the spawner's lock refuses a second one while it runs, and the report of
+## the starts says nothing of that refusal. One line when a pass was started.
+AgentsToolsScheduleAdvance(){
+	AgentsToolsScheduleAdvanceDemand || return 0
+	if AgentsToolsScheduleSpawn "advance" --routine magic-coordinator.advance ; then
+		printf 'advance: started a pass\n'
+	fi
+	return 0
+}
+
+## The steps, in order. One line for each thing done.
 AgentsToolsScheduleLoop(){
 	AgentsToolsScheduleSpawnReport
 	AgentsToolsScheduleAutorun
 	AgentsToolsScheduleWorkDuty
+	AgentsToolsScheduleAdvance
 	AgentsToolsScheduleLearning
 	return 0
 }

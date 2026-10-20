@@ -52,8 +52,23 @@ AgentsToolsInboxItemProcessed(){ ## member, item name
 }
 
 ## The path of a standing note of that inbox, the state and lock notes of the routines among
-## them: an item with no processed stamp, so where those live (AgentsToolsInboxDir), there or
-## not yet.
+## them, there or not yet. A member's inbox has standing notes in both folders, for different things:
+## those of magic-coordinator are its work, an item with no processed stamp in incoming/
+## (AgentsToolsInboxDir); the state and lock note of a routine of any other member is no work of
+## that member, so it lives in processed/ with a stamp, out of the demand the schedule reads in
+## incoming/, out of the scans and out of Wait (AgentsToolsInboxNoteProcessed says which).
 AgentsToolsInboxNotePath(){ ## member, note name
-	printf '%s/%s\n' "$( AgentsToolsInboxDir "$1" )" "$2"
+	if AgentsToolsInboxNoteProcessed "$1" "$2" ; then
+		printf '%s/%s\n' "$( AgentsToolsInboxDirFor "$1" yes )" "$2"
+	else
+		printf '%s/%s\n' "$( AgentsToolsInboxDir "$1" )" "$2"
+	fi
+}
+
+## Whether a standing note lives in processed/: rc 0 for the state and lock note of a routine (`note-<stamp>-<word>-state-and-lock.md`) in the inbox
+## of a member other than magic-coordinator.
+AgentsToolsInboxNoteProcessed(){ ## member, note name
+	[ "$1" != "magic-coordinator" ] || return 1
+	case "$2" in note-*-state-and-lock.md) return 0 ;; esac
+	return 1
 }

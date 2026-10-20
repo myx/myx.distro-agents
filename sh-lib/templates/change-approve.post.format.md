@@ -1,5 +1,5 @@
 ---
-maintainers: [magic-coordinator, magic-librarian, magic-architect, keeper-myx, human-owner]
+maintainers: magic-coordinator, magic-librarian, magic-architect, keeper-myx, human-owner
 ---
 # change-approve post — the two posts that show a held change to the human-owner
 

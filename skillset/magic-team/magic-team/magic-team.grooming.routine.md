@@ -5,6 +5,8 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 invitees: magic-librarian, magic-architect
 reports-to: none
 requires-session-kind: coworking
+runs-at: workdays 09:00
+runs-after: magic-librarian.morning-review
 routine-lock-document: inbox:magic-coordinator:note-20260809T154332Z-grooming-state-and-lock.md
 input-scan-def: grooming
 review-by: inherit
@@ -46,7 +48,7 @@ review-by: inherit
 
 - Does:
   - Per-item triage of the board and of `magic-coordinator`'s inbox, bounded RICE scoring, active pursuit of `board-blocked` items, rechecks of parked and retained items.
-  - Runs once per workday (`magic-coordinator.heartbeat.routine`'s first iteration of the day) or on request.
+  - Runs once per workday, by its autorun (`runs-at:` with `runs-after:`: after `magic-librarian.morning-review.routine` completed that day), or on request.
 - Doesn't:
   - Daily status reporting (`magic-coordinator.daily.routine`).
   - Start work: nothing it writes lands in `board-running` except an `approval-*`.
@@ -174,7 +176,7 @@ All statements apply at the same time, always. These rules override a participan
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
 - `magic-coordinator`, `magic-librarian` and `magic-architect` make every judgement call jointly; `magic-coordinator` alone executes the steps and writes the board. Another member may request a pass, never run one.
 - The group never lets one view win by default. Unresolved: escalate. Running unattended: leave the item where it is and flag the disagreement for the next pass.
-- Running unattended (the heartbeat's first iteration of the day): **review-with-the-user** does not block. Its findings are recorded as provisional and confirmed when the human-owner is next present. Silence is never approval.
+- Running unattended (its autorun): **review-with-the-user** does not block. Its findings are recorded as provisional and confirmed when the human-owner is next present. Silence is never approval.
 - Grooming never spawns a session. Work needing one lands in `board-pending`, for `magic-coordinator.advance.routine` to start.
 - Triage decides an item's state; **rescore-backlog-rice** decides its numbers. Never fold one into the other.
 - A pass-level "deferred" or "reviewed later" without per-item outcomes is invalid.

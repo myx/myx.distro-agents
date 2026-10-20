@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ExternalOwnerItems.include -- the items that belong to an owner who is no acting member, the human-owner or an external contact, which
+## have no inbox of their own: their content lives in magic-coordinator's inbox, and the board keeps the items they own (F7.12: what the heartbeat's
+## external-inbox step looked at, now a section of the coordinator's work-duty scan, found by script, with no agent). Sourced, never run. Functions only.
+##
+## WHERE THEY ARE: the coordinator's incoming/, and the board's active states (backlog, pending, running, review, blocked, parked). An item belongs to
+## an owner who is no acting member when its `owner:` names none: not a member of the roster, or the human-owner, which is an identity record.
+## WHAT IS DUE: an item whose `recheck-date:` has passed, or one that changed since the coordinator's duty last started (the marker the schedule keeps,
+## $MMDAPP/.local/agents/schedule/duty/magic-coordinator, written at each start of a duty). An item that waits untouched for its owner is not due again
+## and again: the duty that looked at it is the last start.
+##
+
+type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+
+## The rows of the external owners' items, one a line: `<folder>/<item file> TAB <owner> TAB <recheck-date> TAB <why>`, `why` being `recheck-passed`,
+## `changed` or, for `all`, `-`. `due` (the default) keeps the items that are due; `all` every one.
+AgentsToolsExternalOwnerRows(){ ## due|all
+	local extWhich="${1:-due}" extMarker="${MMDAPP%/}/.local/agents/schedule/duty/magic-coordinator" extMembers extFiles extState extFile extRow extOwner extRecheck extEpoch extNow extWhy extChanged=""
+	extMembers="$( AgentsToolsTeamMemberDirectoryText 2> /dev/null | LC_ALL=C awk -F'\t' '$1 != "human-owner" { print $1 }' )"
+	extFiles=()
+	for extFile in "$( AgentsToolsInboxDir magic-coordinator )"/*.md ; do [ -f "$extFile" ] && extFiles+=( "$extFile" ) ; done
+	for extState in backlog pending running review blocked parked ; do
+		for extFile in "$MDAT_DATA_ROOT/board/$extState"/*.md ; do [ -f "$extFile" ] && extFiles+=( "$extFile" ) ; done
+	done
+	[ "${#extFiles[@]}" -gt 0 ] || return 0
+	if [ -f "$extMarker" ] ; then
+		extChanged="$( find "${extFiles[@]}" -newer "$extMarker" 2> /dev/null )"
+	else
+		extChanged="$( printf '%s\n' "${extFiles[@]}" )"
+	fi
+	extNow="$( date +%s )"
+	while IFS=$'\t' read -r extFile extOwner extRecheck ; do
+		[ -n "$extFile" ] || continue
+		extWhy="-"
+		if [ "$extWhich" = "due" ] ; then
+			extWhy=""
+			if [ -n "$extRecheck" ] ; then
+				extEpoch="$( printf '%s\n' "$extRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || extEpoch=""
+				case "$extEpoch" in ''|*[!0123456789]*) ;; *) [ "$extEpoch" -gt "$extNow" ] || extWhy="recheck-passed" ;; esac
+			fi
+			[ -n "$extWhy" ] || case $'\n'"$extChanged"$'\n' in *$'\n'"$extFile"$'\n'*) extWhy="changed" ;; esac
+			[ -n "$extWhy" ] || continue
+		fi
+		extRow="${extFile#"$MDAT_DATA_ROOT"/}"
+		case "$extRow" in inboxes/magic-coordinator/incoming/*) extRow="incoming/${extRow##*/}" ;; board/*) extRow="${extRow#board/}" ;; esac
+		printf '%s\t%s\t%s\t%s\n' "$extRow" "$extOwner" "${extRecheck:--}" "$extWhy"
+	done <<< "$( EXT_MEMBERS="$extMembers" LC_ALL=C awk '
+		BEGIN { n = split( ENVIRON["EXT_MEMBERS"], list, "\n" ) ; for ( i = 1 ; i <= n ; i++ ) known[list[i]] = 1 ; }
+		FNR == 1 { fm = ( $0 == "---" ) ? 1 : 0 ; owner = "" ; recheck = "" ; done = 0 ; next ; }
+		fm == 1 && !done {
+			if ( $0 == "---" ) { done = 1 ; if ( owner != "" && !( owner in known ) ) print FILENAME "\t" owner "\t" recheck ; next ; }
+			if ( index( $0, "owner: " ) == 1 ) owner = substr( $0, 8 ) ;
+			else if ( index( $0, "recheck-date: " ) == 1 ) recheck = substr( $0, 15 ) ;
+		}
+	' "${extFiles[@]}" )"
+	return 0
+}
+
+## The section of the coordinator's work-duty scan: the items due, one a line, or `(none)`.
+AgentsToolsExternalOwnerSection(){
+	local sectionRows
+	sectionRows="$( AgentsToolsExternalOwnerRows due )"
+	printf '## External owners: items of the human-owner or an external contact that are due\n\n'
+	if [ -z "$sectionRows" ] ; then
+		printf '(none)\n'
+		return 0
+	fi
+	printf 'item, owner, recheck-date, why it is due:\n\n'
+	printf '%s\n' "$sectionRows"
+}

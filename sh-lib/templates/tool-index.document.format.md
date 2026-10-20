@@ -1,5 +1,5 @@
 ---
-maintainers: [magic-coordinator, magic-librarian, magic-architect, keeper-myx, human-owner]
+maintainers: magic-coordinator, magic-librarian, magic-architect, keeper-myx, human-owner
 ---
 # tool index — the fixed text of `.local/agents/tool-index.md`
 

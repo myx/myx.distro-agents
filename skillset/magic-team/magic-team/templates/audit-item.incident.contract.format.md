@@ -1,5 +1,5 @@
 ---
-maintainers: [magic-librarian, magic-coordinator, human-owner]
+maintainers: magic-librarian, magic-coordinator, human-owner
 ---
 # audit-item.incident — frontmatter contract
 

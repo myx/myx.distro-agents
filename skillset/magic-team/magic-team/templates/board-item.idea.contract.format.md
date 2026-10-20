@@ -1,5 +1,5 @@
 ---
-maintainers: [magic-librarian, magic-coordinator, human-owner]
+maintainers: magic-librarian, magic-coordinator, human-owner
 ---
 # board-item.idea — frontmatter contract
 

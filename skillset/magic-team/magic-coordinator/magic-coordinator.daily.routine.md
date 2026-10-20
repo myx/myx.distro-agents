@@ -5,6 +5,8 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 invitees: magic-team
 reports-to: none
 requires-session-kind: coworking
+runs-at: workdays 10:00
+runs-after: magic-team.grooming
 routine-lock-document: inbox:magic-coordinator:note-20260811T120000Z-daily-state-and-lock.md
 input-scan-def: advance
 review-by: inherit
@@ -46,7 +48,7 @@ review-by: inherit
 - Does:
   - The standup, dependency-ordered assignment, and the supervised work session.
   - Mechanical board moves (`check-process-board`), simple interview posts, and simple grooming-shaped decisions needing no spawn.
-  - Runs when the human-owner or a member asks for a daily meeting or standup, or when `magic-coordinator.heartbeat.routine` dispatches it.
+  - Runs when the human-owner or a member asks for a daily meeting or standup, or by its autorun (`runs-at:` with `runs-after:`: after `magic-team.grooming.routine` completed that day).
 - Doesn't:
   - Dispatch board work in its Steps. The one dispatch point is the closure's **run-advance-dispatch**; the work-session participants are this session's own members, not board dispatches.
   - Re-triage the backlog where investigation or design is needed. That is grooming's.
@@ -62,16 +64,15 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **spawn-morning-review**: Only when the **Routine lock** section of this brief says `first-today: yes`. Spawn `magic-librarian` with `magic-librarian.morning-review.routine` through `spawn-one-dispatch`, and wait for its report, per `magic-team.armed.md`'s **wait-never-quit**. Refresh the lock while waiting (`--magic-daily-lock-refresh`). On a `TIMEOUT`, ask the session for its status and wait again. Once it reports done, dismiss it (`spawn-one-dispatch`'s **spawn-dismiss**). A session found dead is flagged once in `magic-team` and in the close-out, and the daily continues without it.
-2. **reload-active-duty-context**: Re-read this member's armed file and this routine with the skillset reader, so anything the morning review changed is in force. Skip if this session already loaded them after the morning review.
-3. **keep-tracking-note-current**: Write this pass's tracking note (`--update-routine-state`) and keep it current, referencing items by name rather than copying them. Refresh the lock during the long pass (`--magic-daily-lock-refresh`).
-4. **librarian-confirms-roster**: Invite `magic-librarian` to confirm that the `roster-note` and `magic-team.armed.md`'s tooling section are current. Rewrite a drifted `roster-note` (`--magic-team-roster-upsert`).
-5. **sweep-comms-read**: Run `magic-coordinator.communication-sweep.routine`'s **check** step inline (`--routine-run-inline magic-coordinator.communication-sweep.routine`). Fold what is relevant into the roll call. Acting on it is the closure's advance pass, not this step.
-6. **roll-call**: For each permanent member except `magic-coordinator`, in a random order: read its board items (from the input scan in `input/input-scan.md`, board section only) and narrate what happened since last time, what is planned next and what blocks it. Every invitee gets a turn; `partner-*` members usually report nothing. Anything needing real discussion goes to **questions-then-conclude** or the backlog, never resolved here. The roll call must change the plan, not only record it.
-7. **run-check-process-board**: Run `check-process-board` against this run's input scan result (`input/input-scan.md`), read by line range, for the dependency order the assignment follows. This read does no housekeeping: that runs only when the advance routine takes its lock.
-8. **update-todos**: Record the day's working list (`CheckList`) for the members getting a work session, in dependency order. The improvement the last retro filed for this daily (a `note-*` in `magic-coordinator`'s inbox) goes on it. Idle-task assignment is held until the human-owner lifts the hold: no idle task is assigned here meanwhile. Once lifted, a member with no assigned work gets one idle-run routine named explicitly, per `magic-team.armed.md`'s "Duties".
-9. **questions-then-conclude**: Let the human-owner, or a member, ask anything before the standup closes. Running unattended, post the open questions to `magic-team` and continue. A question that must persist becomes an `inquiry-*` (`post-inquiry`) for the next daily. Nobody is present to work it out together — the "no parent present" branch of "The ladder: one rung at a time" applies.
-10. **fan-out-work-sessions**: Spawn each permanent member with work today, except `partner-*` members, into this session as a participant (`spawn-one-dispatch`, joining this session's id). Each works its assigned items for about 20-30 minutes and reports into the session thread.
+1. **reload-active-duty-context**: Re-read this member's armed file and this routine with the skillset reader, so anything the morning review changed is in force. Skip if this session already loaded them after the morning review.
+2. **keep-tracking-note-current**: Write this pass's tracking note (`--update-routine-state`) and keep it current, referencing items by name rather than copying them. Refresh the lock during the long pass (`--magic-daily-lock-refresh`).
+3. **librarian-confirms-roster**: Invite `magic-librarian` to confirm that the `roster-note` and `magic-team.armed.md`'s tooling section are current. Rewrite a drifted `roster-note` (`--magic-team-roster-upsert`).
+4. **sweep-comms-read**: Run `magic-coordinator.communication-sweep.routine`'s **check** step inline (`--routine-run-inline magic-coordinator.communication-sweep.routine`). Fold what is relevant into the roll call. Acting on it is the closure's advance pass, not this step.
+5. **roll-call**: For each permanent member except `magic-coordinator`, in a random order: read its board items (from the input scan in `input/input-scan.md`, board section only) and narrate what happened since last time, what is planned next and what blocks it. Every invitee gets a turn; `partner-*` members usually report nothing. Anything needing real discussion goes to **questions-then-conclude** or the backlog, never resolved here. The roll call must change the plan, not only record it.
+6. **run-check-process-board**: Run `check-process-board` against this run's input scan result (`input/input-scan.md`), read by line range, for the dependency order the assignment follows. This read does no housekeeping: that runs only when the advance routine takes its lock.
+7. **update-todos**: Record the day's working list (`CheckList`) for the members getting a work session, in dependency order. The improvement the last retro filed for this daily (a `note-*` in `magic-coordinator`'s inbox) goes on it. Idle-task assignment is held until the human-owner lifts the hold: no idle task is assigned here meanwhile. Once lifted, a member with no assigned work gets one idle-run routine named explicitly, per `magic-team.armed.md`'s "Duties".
+8. **questions-then-conclude**: Let the human-owner, or a member, ask anything before the standup closes. Running unattended, post the open questions to `magic-team` and continue. A question that must persist becomes an `inquiry-*` (`post-inquiry`) for the next daily. Nobody is present to work it out together — the "no parent present" branch of "The ladder: one rung at a time" applies.
+9. **fan-out-work-sessions**: Spawn each permanent member with work today, except `partner-*` members, into this session as a participant (`spawn-one-dispatch`, joining this session's id). Each works its assigned items for about 20-30 minutes and reports into the session thread.
     - Name the item and, for an idle-run routine, the exact routine file in each brief. Ask each participant to compact its own `reflection-*` items before it closes.
     - Supervise: wait on the session thread (wait-never-quit), answer and redirect as reports arrive, and refresh the lock at each check-in. Post milestones and new blockers to `magic-team` as they happen.
     - A participant reporting it is stuck: move its item to `board-blocked` (`--magic-board-to-blocked`), recording why and any `blocked-by`.
@@ -139,7 +140,6 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-librarian.morning-review.routine` — spawned at **spawn-morning-review**.
 - `magic-coordinator.advance.routine` — run at **run-advance-dispatch**.
 - `magic-coordinator.communication-sweep.routine` — its **check** step at **sweep-comms-read**.
 

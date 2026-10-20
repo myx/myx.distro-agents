@@ -1460,6 +1460,12 @@ case "$1" in
 		local routineLockDoc="" routineLockTaken="no" routineLockShort="" agentsRoutineLockTaken="no"
 		if [ -n "$routineFilePath" ] && [ -f "$routineFilePath" ] ; then
 			routineLockDoc="$( AgentsToolsRoutineKey "$routineFilePath" routine-lock-document )"
+			## A routine that locks a document works on the team data (the board, the inboxes): a workspace that keeps none (F13.1)
+			## has nothing for it to work on, and refuses its start at once with the gate's own line, work-duty among them. Standalone
+			## routines that lock nothing, and spawns of no routine, run there.
+			if [ -n "$routineLockDoc" ] && [ "$teamDataKept" != "yes" ] ; then
+				AgentsToolsTeamDataGateRefuse "--intern-op-agent-spawn-proxy $routineRecorded" || { set +e ; return 1 ; }
+			fi
 			if [ -n "$routineLockDoc" ] ; then
 				type AgentsToolsRoutineLockAcquire > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include"
 				## The lock is named per member (F4.2): the macro of the member of the start is filled here, once, and the filled

@@ -257,6 +257,73 @@ RIGSCRIPT
 rigAssert "Cancel asks first: its buttons are Cancel it and Go on" "$( rigVal asked.dialog ) $( rigVal asked.dialogSays | LC_ALL=C grep -c -F 'withdraws the request' )" "output:stop| 1"
 rigAssert "Cancel it sends SIGTERM: the call ends 130 having withdrawn the request" "$( rigVal ended.dialog ) $( rigVal ended.dialogHolds | LC_ALL=C grep -c -F 'WITHDRAWN 9f9f' ) $( rigVal ended.dialogHolds | LC_ALL=C grep -c -F 'Ended with status 130' )" "output:ok| 1 1"
 
+echo "-- 8. the console never serialises behind a waiting or an enqueued call: Request and wait, Enqueue, and the next request runs and asks at once --"
+rigCaseWait again
+rigScriptActs <<RIGSCRIPT
+size 120 40
+turn
+keys 2
+wait list 30
+keys DOWN
+wait acts 30
+wait view 30
+turn
+keys ENTER
+turn
+keys ENTER
+turn
+keys ENTER
+wait action 30
+turn
+keys ENTER
+turn
+wait follow 2
+keys TAB
+turn
+keys ENTER
+wait follow 30
+turn
+get first
+keys ENTER
+turn
+keys ENTER
+turn
+keys ENTER
+turn
+keys ENTER
+wait action 30
+turn
+keys ENTER
+turn
+wait follow 2
+keys TAB
+turn
+keys ENTER
+wait follow 30
+turn
+get second
+keys ENTER
+turn
+keys ENTER
+turn
+keys ENTER
+turn
+keys ENTER
+wait action 30
+turn
+keys ENTER
+turn
+wait follow 2
+keys TAB
+turn
+keys ENTER
+wait follow 30
+turn
+get third
+RIGSCRIPT
+rigWaitStarts="$( rigActCalls | LC_ALL=C grep -o -F -e '[--escalate-wait][--escalate-stop]' | LC_ALL=C grep -c . )"
+rigAssert "three requests in a row, each left pending by Enqueue: each ran and asked at once (three starts of the waiting call), and each dialog ended" "$rigWaitStarts $( rigVal first.dialog ) $( rigVal second.dialog ) $( rigVal third.dialog )" "3 output:ok| output:ok| output:ok|"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN AUTHORITY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

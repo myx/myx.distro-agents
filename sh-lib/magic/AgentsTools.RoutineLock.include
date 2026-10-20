@@ -142,7 +142,7 @@ AgentsToolsRoutineLockShape(){ ## one routine-lock-document value
 AgentsToolsRoutineLockPath(){ ## value
 	local pathParsed
 	pathParsed="$( AgentsToolsRoutineLockParse "$1" )" || return 1
-	printf '%s/%s\n' "$( AgentsToolsInboxDir "${pathParsed%%$'\t'*}" )" "${pathParsed#*$'\t'}"
+	AgentsToolsInboxNotePath "${pathParsed%%$'\t'*}" "${pathParsed#*$'\t'}"
 }
 
 ## A frontmatter field of a note, its first value.
@@ -157,7 +157,7 @@ AgentsToolsRoutineLockField(){ ## note path, field
 ## The lock is `state: <routine>-running`, `session-id: <this session>`, `recheck-date:` ahead; a state ending in
 ## `-finished`, or a recheck-date that has passed, is free.
 AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the session id, the routine's short name
-	local lockValue="$1" lockSession="$2" lockShort="$3" lockPath lockParsed lockMember lockNote lockOwn lockOut
+	local lockValue="$1" lockSession="$2" lockShort="$3" lockPath lockParsed lockMember lockNote lockOwn lockOut lockStamp
 	local itemState itemRecheck itemSession itemHeld itemRecheckEpoch
 	agentsRoutineLockTakenOne="no"
 	lockParsed="$( AgentsToolsRoutineLockParse "$lockValue" )" || {
@@ -177,7 +177,10 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the locking document $lockNote of $lockMember does not exist, so the routine cannot be locked: $lockPath" >&2
 			return 1
 		fi
-		mkdir -p "${lockPath%/*}" && printf -- '---\ntype: note\nfrom: %s\nowner: %s\n---\n\n# %s\n\nThe state of the %s routine, locked by the spawner while it runs.\n' "$lockMember" "$lockMember" "${lockNote%.md}" "$lockShort" > "$lockPath" || {
+		## In processed/ (the lock note of a member other than magic-coordinator) it carries the stamp of that folder.
+		lockStamp=""
+		! AgentsToolsInboxNoteProcessed "$lockMember" "$lockNote" || lockStamp="processed-at: $( date +"%Y-%m-%d %H:%M %z" )"$'\n'
+		mkdir -p "${lockPath%/*}" && printf -- '---\ntype: note\nfrom: %s\nowner: %s\n%s---\n\n# %s\n\nThe state of the %s routine, locked by the spawner while it runs.\n' "$lockMember" "$lockMember" "$lockStamp" "${lockNote%.md}" "$lockShort" > "$lockPath" || {
 			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the locking document $lockNote of $lockMember does not exist and could not be made: $lockPath" >&2
 			return 1
 		}
@@ -364,13 +367,44 @@ AgentsToolsRoutineSessionLockValue(){ ## the calling run's spawn id
 	return 1
 }
 
+## THE LOCK OF A LIVE SESSION, KEPT HELD (no agent): a run that works for hours writes nothing to its locking document, and a lock reads as held for
+## AgentsToolsRoutineLockMinutes after its last write. The wait of the run (AgentsTools.MemberWait.include) calls this at each round, and the lock
+## documents of the session that are held by it, `<word>-running`, whose last write is older than half the hold have their recheck-date put ahead again:
+## one commit, with its push where a remote is set, in half a hold, for each live run. A document another session holds, or one that is finished, is left.
+## Never fails its caller.
+AgentsToolsRoutineLockRefreshOwn(){ ## the calling run's spawn id
+	local refreshRow refreshSession refreshValue refreshOne refreshPath refreshParsed refreshState refreshRecheck refreshEpoch refreshHalf refreshShort
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" || return 0
+	refreshRow="$( AgentsToolsRoutineSessionLockValue "$1" )" || return 0
+	refreshSession="${refreshRow%%$'\t'*}" ; refreshValue="${refreshRow#*$'\t'}"
+	refreshHalf=$(( $( AgentsToolsRoutineLockMinutes ) * 30 ))
+	for refreshOne in $( printf '%s' "$refreshValue" | LC_ALL=C tr ',' ' ' ) ; do
+		refreshPath="$( AgentsToolsRoutineLockPath "$refreshOne" )" || continue
+		[ -f "$refreshPath" ] || continue
+		refreshState="$( AgentsToolsRoutineLockField "$refreshPath" state )"
+		case "$refreshState" in *-running) ;; *) continue ;; esac
+		[ "$( AgentsToolsRoutineLockField "$refreshPath" session-id )" = "$refreshSession" ] || continue
+		refreshRecheck="$( AgentsToolsRoutineLockField "$refreshPath" recheck-date )"
+		refreshEpoch="$( printf '%s\n' "$refreshRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || refreshEpoch=""
+		[ -n "$refreshEpoch" ] || continue
+		[ "$(( refreshEpoch - $( date +%s ) ))" -lt "$refreshHalf" ] || continue
+		refreshParsed="$( AgentsToolsRoutineLockParse "$refreshOne" )" || continue
+		refreshShort="${refreshState%-running}"
+		AgentsToolsItemUpsert "${refreshParsed%%$'\t'*}" --from-inbox "${refreshParsed%%$'\t'*}" "${refreshParsed#*$'\t'}" \
+			--header:upsert:recheck-date:"$( AgentsToolsRecheckDate "$( AgentsToolsRoutineLockMinutes )" )" \
+			--commit-message "* $refreshShort.routine: spawner lock refreshed" \
+			--context --intern-op-wait-for-input > /dev/null 2>&1 || :
+	done
+	return 0
+}
+
 ## THE WRITE OF A LOCKED DOCUMENT: the whole record `content` replaces the document's own fields and its body, and the
 ## lock-owned fields (type, from, date, owner, state, recheck-date, session-id) are carried over from the document as it
 ## stands, whatever the content says for them. While the state is `<word>-running` the write refreshes the recheck-date, as
 ## the spawner's own take set it. Committed, and pushed where a remote is set, before it returns.
 AgentsToolsRoutineStateWrite(){ ## the inbox member, the note, the operation (for the messages), the content
 	local writeMember="$1" writeNote="$2" writeOp="$3" stateContent="$4" writeTarget lockFields callerFields callerBody writeWord
-	writeTarget="$( AgentsToolsInboxDir "$writeMember" )/$writeNote"
+	writeTarget="$( AgentsToolsInboxNotePath "$writeMember" "$writeNote" )"
 	if [ ! -f "$writeTarget" ] ; then
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $writeOp: $writeTarget does not exist -- the document is locked by the spawner of the routine, which has not started" >&2
 		return 1

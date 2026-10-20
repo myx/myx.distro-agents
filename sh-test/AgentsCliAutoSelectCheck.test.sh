@@ -104,6 +104,21 @@ rigScene absent ok
 rigOut="$( rigRun --owner-setup-cli-auto --apply )"
 rigAssert "only copilot works: the setup of copilot-native is carried out, and it is stored"  "$( rigHolds "$rigOut" 'carrying out --owner-setup-copilot-native --set-as-default --apply' ):$( rigStored )" yes:copilot-native
 
+echo "-- 3b. written is not in effect: a tier preset stands ahead --"
+rigScene in ok
+printf 'SPAWN_CLI_SERVICE=scaleway\nSPAWN_TIER_NORMAL=default\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'PRESET_CLI_SERVICE=grok\nXAI_API_KEY=xai-rigkey\n' > "$rigWs/.local/.agents/preset-default.agent.env"
+rigOut="$( rigRun --owner-setup-cli-auto --check )"
+rigAssert "the check shows what a spawn resolves, and says the team scope holds another and a tier preset stands ahead"  "$( rigHolds "$rigOut" 'now:  SPAWN_CLI_SERVICE is grok' ):$( rigHolds "$rigOut" 'the team scope itself holds scaleway; a tier preset' )" yes:yes
+rigOut="$( rigRun --owner-setup-cli-auto --apply )"
+rigAssert "--apply stores the pick, and says it is not in effect: rc 1, the preset named as the reason, untouched"  "$( rigStored ):$( rigHolds "$rigOut" 'a spawn still resolves grok' ):$( rigHolds "$rigOut" 'rc=1' ):$( LC_ALL=C grep -c '^PRESET_CLI_SERVICE=grok$' "$rigWs/.local/.agents/preset-default.agent.env" )" "claude-native:yes:yes:1"
+rigScene in ok
+printf 'SPAWN_CLI_SERVICE=scaleway\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+rigOut="$( rigRun --owner-setup-cli-auto --check )"
+rigAssert "no preset: no such note, the two agree"  "$( rigHolds "$rigOut" 'a tier preset' )" no
+rigOut="$( rigRun --owner-setup-cli-auto --apply )"
+rigAssert "and --apply says nothing of a preset: what it stored is what a spawn resolves"  "$( rigHolds "$rigOut" 'still resolves' ):$( rigStored )" no:claude-native
+
 echo "-- 4. nothing else is taken --"
 rigScene in ok
 rigAssert "another sub-operation is refused, and nothing is stored"        "$( rigRun --owner-setup-cli-auto --print-apply-command | LC_ALL=C grep -c 'takes --check or --apply' ):$( rigStored )" 1:

@@ -28,7 +28,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w -- "$rigTmp" 2>/dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
 rigCoordInbox="$rigData/inboxes/magic-coordinator/incoming"
-rigKeeperInbox="$rigData/inboxes/rig-keeper/incoming"
+## The lock note of a member other than magic-coordinator lives in its processed/, out of its work (AgentsToolsInboxNotePath).
+rigKeeperInbox="$rigData/inboxes/rig-keeper/processed"
 mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team" "$rigSkills/magic-coordinator" "$rigSkills/rig-keeper" "$rigData/board" "$rigCoordInbox"
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
@@ -39,7 +40,7 @@ rigAdvance="note-20260809T154715Z-advance-state-and-lock.md"
 printf '%s\n' '#!/usr/bin/env bash' \
 	'## --cli-configured stand-in: writes MDAT_SPAWN_LAUNCH_MARKER and records the context.' \
 	'cat > "$RIG_SCENARIO/brief.$MDAT_SPAWN_AGENT"' \
-	'cp "$RIG_DATA/inboxes/$MDAT_SPAWN_AGENT/incoming/note-20260809T154715Z-advance-state-and-lock.md" "$RIG_SCENARIO/seen.$MDAT_SPAWN_AGENT" 2> /dev/null || :' \
+	'cp "$RIG_DATA/inboxes/$MDAT_SPAWN_AGENT/incoming/note-20260809T154715Z-advance-state-and-lock.md" "$RIG_SCENARIO/seen.$MDAT_SPAWN_AGENT" 2> /dev/null || cp "$RIG_DATA/inboxes/$MDAT_SPAWN_AGENT/processed/note-20260809T154715Z-advance-state-and-lock.md" "$RIG_SCENARIO/seen.$MDAT_SPAWN_AGENT" 2> /dev/null || :' \
 	'printf "📦 SubagentHandback\n"' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"

@@ -33,7 +33,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigRelease(){ : > "$rigTmp/release.all" ; wait 2> /dev/null ; }
 trap 'rigRelease ; chmod -R u+w -- "$rigTmp" 2>/dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team" "$rigData/board" "$rigData/inboxes/keeper-rig/incoming" "$rigData/inboxes/keeper-other/incoming"
+## The state and lock note of a member other than magic-coordinator lives in the member's processed/, out of its work (AgentsToolsInboxNotePath).
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team" "$rigData/board" "$rigData/inboxes/keeper-rig/processed" "$rigData/inboxes/keeper-other/processed"
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
@@ -56,7 +57,7 @@ printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n
 ## Each member's lock note, as the advance's own is written, and a routine that names it.
 rigLocking(){ ## member, short name
 	local lockNote="note-20261019T0000Z-$2-state-and-lock.md"
-	printf -- '---\ntype: note\nfrom: %s\nowner: %s\nstate: idle\n---\n\nThe state of %s.\n' "$1" "$1" "$2" > "$rigData/inboxes/$1/incoming/$lockNote"
+	printf -- '---\ntype: note\nfrom: %s\nowner: %s\nstate: idle\n---\n\nThe state of %s.\n' "$1" "$1" "$2" > "$rigData/inboxes/$1/processed/$lockNote"
 	printf -- '---\ntype: routine\nexecutors: %s\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\nroutine-lock-document: inbox:%s:%s\n---\n# magic-team.%s.routine — the actual procedure\n\n# Summary\n\nA rig routine that locks its note.\n\n# Opening steps\n\n1. **open**: open.\n\n# Steps\n\n1. **work**: work.\n\n# Closure steps\n\n1. **close**: close.\n\n' "$1" "$1" "$lockNote" "$2" > "$rigSkills/magic-team/magic-team.$2.routine.md"
 	printf "# Routine's local procedures\n\nNone.\n\n# Routine's local rules\n\nNone.\n\n# Routine-specific tooling\n\nNone.\n\n# Maintainer Notes\n\nNone.\n" >> "$rigSkills/magic-team/magic-team.$2.routine.md"
 }
@@ -64,7 +65,7 @@ rigLocking keeper-rig riglock
 rigLocking keeper-other rigbetalock
 ## A routine whose locking document does not exist before its first start (its own state, a note of no standing name).
 rigLocking keeper-rig rigfresh
-rm -f "$rigData/inboxes/keeper-rig/incoming/note-20261019T0000Z-rigfresh-state-and-lock.md"
+rm -f "$rigData/inboxes/keeper-rig/processed/note-20261019T0000Z-rigfresh-state-and-lock.md"
 
 rigPassCount=0
 rigFailCount=0
@@ -123,7 +124,7 @@ rigWaitBriefs keeper-rig 2
 rigAssert "a new start runs: the lock was given back when the run finished" "$( rigBriefs keeper-rig )" "2"
 
 echo "-- 5. a locking document that does not exist yet is made by the first start, and locked --"
-rigFreshNote="$rigData/inboxes/keeper-rig/incoming/note-20261019T0000Z-rigfresh-state-and-lock.md"
+rigFreshNote="$rigData/inboxes/keeper-rig/processed/note-20261019T0000Z-rigfresh-state-and-lock.md"
 rigAssert "control: no document before the start" "$( [ -f "$rigFreshNote" ] && echo there || echo none )" "none"
 rigSpawn fresh keeper-rig rigfresh &
 rigFreshJob=$!

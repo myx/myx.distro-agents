@@ -1,5 +1,5 @@
 ---
-maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>, human-owner]
+maintainers: <group, e.g. magic-coordinator magic-librarian magic-architect>, human-owner
 ---
 # <name>.armed.md — example skeleton (`keeper-*`/`warden-*`)
 

@@ -186,7 +186,7 @@ AgentsToolsAdvanceInputScanReport(){ ## calling member
 	local callingMember="$1"
 	printf '%s\n\n' "## state-and-lock (routine-advance)"
 	## The lock note of the member the scan is for: the advance lock is named per member (F4.2), in the inbox of the member of the start.
-	local lockNote="$( AgentsToolsInboxDir "$callingMember" )/note-20260809T154715Z-advance-state-and-lock.md"
+	local lockNote="$( AgentsToolsInboxNotePath "$callingMember" note-20260809T154715Z-advance-state-and-lock.md )"
 	if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
 	## Scoped to what advance itself acts on, per the owner's "grooming reads
 	## backlog+inquiries+notes, advance does not": no backlog (promotion is
@@ -503,7 +503,7 @@ case "$1" in
 			set +e ; return 1
 		}
 
-		local lockTarget="$( AgentsToolsInboxDir "$callingMember" )/note-20260809T154715Z-advance-state-and-lock.md"
+		local lockTarget="$( AgentsToolsInboxNotePath "$callingMember" note-20260809T154715Z-advance-state-and-lock.md )"
 		local originUrl="" repoRoot="" lockRelPath="" lockBranch=""
 		set +e
 		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"

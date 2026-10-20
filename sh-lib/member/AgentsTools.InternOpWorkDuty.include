@@ -10,6 +10,7 @@
 ## It collects what is for the member to work on at the start of its duty:
 ##   - the inbox items not yet processed -- the member's incoming/ alone (F4.3), invitations and sub-tasks for handling and joining
 ##     among them, being items of their own types;
+##   - for magic-coordinator alone, the items of the human-owner and the external contacts that are due and the open permission asks (F7.12);
 ##   - the Slack that is tagged to the member -- a mention of it in the team channel or in its session thread, and any DM -- and the
 ##     team channel besides, over a collect window.
 ## THE COLLECT IS A WAIT, NOT A SLEEP, and the same one the session chat file is read by (AgentsTools.MemberWait.include,
@@ -74,6 +75,16 @@ case "$1" in
 			cat "$workWork/inbox.err" 2> /dev/null
 		else
 			cat "$workWork/inbox.out"
+		fi
+
+		## What only magic-coordinator's duty carries (F7.12, the heartbeat retired): the items of the human-owner and the external contacts that are due, and
+		## the permission asks, each found by script. The wait of the duty watches this scan, so a new ask or a due item wakes it, and none starts a session.
+		if [ "$workMember" = "magic-coordinator" ] ; then
+			type AgentsToolsExternalOwnerSection > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ExternalOwnerItems.include"
+			printf '\n'
+			AgentsToolsExternalOwnerSection
+			printf '\n'
+			DistroAgentsTools --intern-op-permission-escalation-input-scan "$workMember" 2> /dev/null || printf '## permission asks addressed to permission-escalation.routine\n\n(the permission asks could not be read)\n'
 		fi
 
 		## Slack: the tags immediately, the team channel over the window.
