@@ -27,7 +27,7 @@
 ## main loop make too (AgentsTools.SessionControlStart.include).
 ##
 
-type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 
 ## Whether a live run sits inside a Wait call, by its own store, .local/agents/sessions/<spawn
 ## id>: `waiting` when the last line of its milestones is `wait going idle`, which a Wait
@@ -311,7 +311,7 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 			## listed by the shell, a name each, and no file of it is opened.
 			scopePicked="$( { printf '%s\n' "$scopeStore"/*/ ; printf '%s\n' "$scopeStore"/*/*.md ; } \
 				| MDAT_MANAGER_ID="$scopeId" MDAT_MANAGER_STORE="$scopeStore/" LC_ALL=C awk -v scopeMode=runs -v ownOnly="${scopeOwn:+1}" \
-					-f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsRegistryHeaderRows.awk" -f "$scopeLib/manager/AgentsManagerSessionScope.awk" "$scopeFile" - 2>/dev/null )" || scopePicked=""
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" -f "$scopeLib/manager/AgentsManagerSessionScope.awk" "$scopeFile" - 2>/dev/null )" || scopePicked=""
 			scopeAge=${scopePicked%%"$scopeNl"*}
 			case "$scopePicked" in *"$scopeNl"*) scopePicked=${scopePicked#*"$scopeNl"} ;; *) scopePicked="" ;; esac
 			## Rebuilt once in a call: where it does not hold the store as it is now, or no row of the id.
@@ -331,7 +331,7 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 		done <<< "$scopeRows"
 		if [ ! -f "$scopePending" ] || [ "$( printf '%s\n' "$MMDAPP/.local/agents/pending"/*.md \
 				| MDAT_MANAGER_IDS="$scopeIds" MDAT_MANAGER_STORE="$MMDAPP/.local/agents/pending/" LC_ALL=C awk -v scopeMode=asks \
-					-f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsRegistryHeaderRows.awk" -f "$scopeLib/manager/AgentsManagerSessionScope.awk" "$scopePending" - 2>/dev/null )" != "fresh" ] ; then
+					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" -f "$scopeLib/manager/AgentsManagerSessionScope.awk" "$scopePending" - 2>/dev/null )" != "fresh" ] ; then
 			AgentsToolsRegistryPendingRepliesRebuild || scopeFresh="failed"
 		fi
 	fi
@@ -355,7 +355,7 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 	scopeReread="$( {
 			[ -z "$scopeState" ] || [ ! -f "$scopeState" ] || AgentsToolsRegistryRowsEntry T "$scopeState"
 			AgentsToolsManagerSessionRecordEntries "$scopeStore" entries <<< "$scopeRows"
-		} | LC_ALL=C awk -v registryRows=spawned -v registryColumns=16 -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsRegistryHeaderRows.awk" )"
+		} | LC_ALL=C awk -v registryRows=spawned -v registryColumns=16 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" )"
 	scopeRows="$( AgentsToolsManagerSessionRecordEntries "$scopeStore" kept <<< "$scopeRows" )$scopeNl$scopeReread"
 	## The one measuring of a row takes a registry file: the rows of this session alone, in a
 	## file of this call's own, so that no other session is measured for it.
@@ -557,7 +557,7 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 	killUser="${4:-}"
 	[ -n "$killUser" ] || killUser="$( AgentsToolsManagerConsoleUser )"
 	killStamp="$( date +"%Y-%m-%d %H:%M %z" )"
-	type AgentsToolsRegistryRunLeftKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+	type AgentsToolsRegistryRunLeftKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	type AgentsReviewEndChild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
 	## The `run` rows of the session, as the list prints them: the one run chosen, or each.
 	while IFS="$killTab" read -r killKind killSession killSpawn killMember killStatus killLive killRest ; do
@@ -982,6 +982,50 @@ case "$1" in
 		return 0
 	;;
 
+	## One member's checklist in one coworking session: the file <member>.checklist.md that the CheckList tool keeps in the place of the session, the sandbox
+	## root of the spawn that founded it where a spawn founded it, else the folder sessions/<id>. Its lines as they stand, one an item, `- [x]` done and
+	## `- [ ]` not yet, the item in progress followed by its activeForm: Markdown, which a screen renders. Nothing is printed for a member that kept none.
+	## It reads that one file, and writes nothing.
+	--manager-session-checklist-read)
+		local checklistOp="$1" checklistId="" checklistMember="" checklistRecord="" checklistFolder=""
+		local checklistSyntax="--session-id <id> <member>"
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					if [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $checklistOp: --session-id needs an id -- syntax is $checklistSyntax" >&2
+						set +e ; return 1
+					fi
+					checklistId="$2" ; shift 2
+				;;
+				-*)
+					echo "⛔ ERROR: $MDSC_CMD $checklistOp: syntax is $checklistSyntax, got: $1" >&2
+					set +e ; return 1
+				;;
+				*)
+					if [ -n "$checklistMember" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $checklistOp: syntax is $checklistSyntax, got a second member: $1" >&2
+						set +e ; return 1
+					fi
+					checklistMember="$1" ; shift
+				;;
+			esac
+		done
+		if [ -z "$checklistId" ] || [ -z "$checklistMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $checklistOp: syntax is $checklistSyntax, got no $( [ -n "$checklistId" ] && echo member || echo --session-id )" >&2
+			set +e ; return 1
+		fi
+		type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+		AgentsToolsAssertBareName "$checklistId" "the session id" "$checklistOp" || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$checklistMember" "the member" "$checklistOp" || { set +e ; return 1 ; }
+		## The sandbox root of a spawn is the folder of its own name, its record the file of that name in it: the session a spawn founded has its place there.
+		checklistRecord="$MMDAPP/.local/agents/spawned/$checklistId/$checklistId.md"
+		if [ -f "$checklistRecord" ] ; then checklistFolder="${checklistRecord%/*}" ; else checklistFolder="$MMDAPP/.local/agents/sessions/$checklistId" ; fi
+		[ ! -f "$checklistFolder/$checklistMember.checklist.md" ] || cat "$checklistFolder/$checklistMember.checklist.md"
+		return 0
+	;;
+
 	## One run, or every live run of one session, ended the hard way, and one row a run saying
 	## what happened to it: TAB-separated rows a screen reads, their form the help entry's. It
 	## asks for no confirmation: that is the screen's.
@@ -1052,6 +1096,38 @@ case "$1" in
 			killEnded="$( printf '%s\n' "$killRows" | LC_ALL=C awk -F'\t' '$1 == "kill" && ( $5 == "ended" || $5 == "killed" ) { rowsEnded++ } END { print rowsEnded + 0 }' )"
 		fi
 		AgentsToolsManagerSessionFinish "$killOp" "$killId" "$killOwn" "$killPlan" "$killEnded" || { set +e ; return 1 ; }
+		return 0
+	;;
+
+	## The effort a running session asks of its model, changed while it runs (F10.7): written for the harness to read at its next
+	## round, sessions/<id>/effort in the store of a run or of a coworking session (AgentsHarnessCacheWatch,
+	## AgentsUniversalHarness.sh). One row, TAB-separated, its form the help entry's. Nothing is signalled: the run reads it itself.
+	## A change discards the input token cache of the run that reads it, and that run says so when it does.
+	--manager-session-effort)
+		local effortOp="$1" effortId effortValue effortDir effortTmp
+		shift
+		if [ $# -ne 2 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $effortOp: syntax is <session-id> <low|normal|high>, got $# argument(s)" >&2
+			set +e ; return 1
+		fi
+		effortId="$1" ; effortValue="$2"
+		AgentsToolsAssertBareName "$effortId" "the session id" "$effortOp" || { set +e ; return 1 ; }
+		case "$effortValue" in
+			low|normal|high) ;;
+			*) echo "⛔ ERROR: $MDSC_CMD $effortOp: the effort is low, normal or high -- nothing was saved" >&2 ; set +e ; return 1 ;;
+		esac
+		effortDir="$MMDAPP/.local/agents/sessions/$effortId"
+		if [ ! -d "$effortDir" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $effortOp: no store of a session or of a run is named by that id in this workspace -- nothing was saved" >&2
+			set +e ; return 1
+		fi
+		effortTmp="$( mktemp "$effortDir/.effort.XXXXXX" 2> /dev/null )" || effortTmp=""
+		{ [ -n "$effortTmp" ] && printf '%s\n' "$effortValue" > "$effortTmp" && mv -f "$effortTmp" "$effortDir/effort" ; } || {
+			[ -z "$effortTmp" ] || rm -f "$effortTmp" 2> /dev/null
+			echo "⛔ ERROR: $MDSC_CMD $effortOp: the effort could not be saved in $effortDir -- nothing was saved" >&2
+			set +e ; return 1
+		}
+		printf 'effort\t%s\t%s\t%s\n' "$effortId" "$effortValue" "${effortDir//[[:space:]]/_}/effort"
 		return 0
 	;;
 

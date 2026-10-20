@@ -24,7 +24,7 @@ document-contract: board-item.proposal
 type: proposal
 from: <member>
 date: <date-time>
-owner: <optional -- member, the current assignee>
+owner: <member, the current assignee>
 ---
 # Proposal: <matter, one line>
 

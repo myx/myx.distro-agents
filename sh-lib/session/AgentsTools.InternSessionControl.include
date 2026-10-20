@@ -288,7 +288,7 @@ AgentsToolsSessionControlRows(){ ## session id
 			AgentsToolsRegistryRowsEntry D "${rowsTracking##*/}"
 			AgentsToolsRegistryRowsEntry S "$rowsFile"
 		done <<< "$controlRowsNames" \
-			| LC_ALL=C awk -v registryRows=spawned -v registryColumns=14 -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsRegistryHeaderRows.awk" > "$controlRowsFile"
+			| LC_ALL=C awk -v registryRows=spawned -v registryColumns=14 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" > "$controlRowsFile"
 	} 2> /dev/null || return 1
 	AgentsToolsRegistryMeasureRows "$controlRowsFile" "$controlHost" "$1"
 	controlRows="$measuredDated"
@@ -960,7 +960,7 @@ case "$1" in
 			[ -z "${!controlDrop+set}" ] || local -x "$controlDrop="
 		done
 
-		type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+		type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 		type AgentsToolsSessionControlDeathPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlDeath.include"
 		type AgentsToolsSessionControlRequestStep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlRequest.include"
 

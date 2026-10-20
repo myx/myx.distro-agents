@@ -341,7 +341,7 @@ AgentsToolsPermissionFolderEntry(){ ## tool, natural target, session id
 	[ -d "$folderOf" ] || folderOf="${folderOf%/*}"
 	folderOf="${folderOf%/}"
 	[ -n "$folderOf" ] && [ "$folderOf" != "${HOME%/}" ] || return 1
-	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include" || return 1
+	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include" || return 1
 	while IFS= read -r folderRoot ; do
 		[ -n "$folderRoot" ] || continue
 		[ "$folderRoot" != "$folderOf" ] && [ "$( AgentsToolsPermissionResolvePath "$folderRoot" )" != "$folderOf" ] || return 1
@@ -369,7 +369,7 @@ AgentsToolsPermissionProjectEntry(){ ## tool, natural target, session id
 	case "$projectFolder/" in
 		*//*|*/./*) return 1 ;;
 	esac
-	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include" || return 1
+	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include" || return 1
 	## The source tree that holds the folder: of a workspace root as it is listed, or as it
 	## resolves; the deepest one, where a workspace lies inside the tree of another.
 	while IFS= read -r projectRoot ; do
@@ -543,7 +543,7 @@ AgentsToolsPermissionHoldersPrint(){ ## <tool> <target> [--session-id <id>] [--t
 AgentsToolsPermissionSessionRunning(){ ## session id (a spawn's own, or the coworking session's)
 	local runCow
 	type AgentsToolsPermissionShareStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
-	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	runCow="$( AgentsToolsPermissionShareStore "${1:-}" )"
 	[ -n "$runCow" ] || return 0
 	AgentsToolsRegistryRenderSpawnedSessions agents "$runCow" 2> /dev/null | LC_ALL=C awk -v cow="$runCow" '
@@ -2189,7 +2189,7 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$escBy" "<team-member>" permission-escalation-input-scan || { set +e ; return 1 ; }
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
-		type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include"
+		type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
 		while IFS= read -r escRoot ; do
 			[ -n "$escRoot" ] && [ -d "$escRoot" ] || continue
 			escRows="$escRows$( AgentsPendingAsksForRoutine permission-escalation "$escRoot" | LC_ALL=C awk -F'\t' -v OFS='\t' -v root="$escRoot" '$3 == "permission" { print $1, root, $2, $5 ; }' )"$'\n'

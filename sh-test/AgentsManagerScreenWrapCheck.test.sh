@@ -8,6 +8,7 @@
 ## Held, in each: wrapped, the title says [wrap], no line of the pane is cut with the mark of a cut text, and the word at
 ## the end of the longest line of the fixture is there to be read (with `e`, every row of a table); cut, the title says [cut], that word is out of view,
 ## and the pane scrolls sideways. Offline: no operation of the real tooling is called.
+## Reconciled for F11.5: Team Members and Team Data are put at with `at @team` and `at @teamdata`, and the case goes one row further down.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -87,7 +88,8 @@ rigToggle(){ ## tag
 rigScript <<RIGSCRIPT
 turn
 wait list 10
-keys 5
+at @teamdata
+turn
 wait list 10
 keys DOWN DOWN
 wait focus 10
@@ -105,7 +107,8 @@ $( rigToggle markdown )
 keys g
 $( rigToggle raw )
 keys b
-keys 4
+at @team
+turn
 wait list 10
 $( rigToggle members )
 keys DOWN
@@ -115,7 +118,7 @@ wait list 10
 keys DOWN
 wait focus 10
 $( rigToggle grants )
-keys DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN
 wait focus 10
 $( rigToggle help )
 RIGSCRIPT
@@ -131,7 +134,8 @@ echo "-- the header of a table stays over its rows: scrolled down, and scrolled 
 rigScript <<RIGSCRIPT
 turn
 wait list 10
-keys 5
+at @teamdata
+turn
 wait list 10
 keys DOWN DOWN DOWN
 wait focus 10

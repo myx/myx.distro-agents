@@ -41,6 +41,7 @@
 ## on rows that do not wrap, the underline and the ground that start in the indent, the header neither padded nor underlined.
 ## Red before the rule: no style says whether it draws one, and Magic under system colours underlines the rows that wrap.
 ## Offline: the only thing the screen calls here is the stand-in for the dispatcher.
+## Reconciled for F11.5: the sessions table is that of Active Sessions of Activity.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -148,7 +149,7 @@ say("between.nowrapFits", full(40, 7, wrap=False))
 say("between.nowrapWide", full(8, 7, wrap=False))
 say("between.dropped", full(9, 7, heads=("NAME", "KIND", "REMARK"), rows=[["alpha", "one", "a long remark"], ["beta", "two", "another"], ["gamma", "six", "a third"]]))
 say("between.members", "".join("[%s]" % line.rstrip() for line in screen.memberTableLines(
-    pane(60, 7), [{"name": name, "icon": "", "live": "-", "status": "active", "kind": "keeper", "folder": ""} for name in ("alpha", "beta", "gamma")], 59, True)).count("[]"))
+    pane(60, 7), [{"name": name, "icon": "", "live": "-", "status": "active", "kind": "keeper", "folder": ""} for name in ("alpha", "beta", "gamma")])).count("[]"))
 say("between.inside", "".join("[%s]" % line.rstrip() for line in screen.summaryTable(("NAME", "KIND"), BIG, 40)).count("[]"))
 ## a heading of a group stands against its rows: the empty line is between two rows only
 say("between.headings", "".join("[%s]" % line.rstrip() for line in screen.tableSummaryLines(pane(40, 20), ("NAME", "KIND"), ["group one", ["a", "1"], ["b", "2"], "group two", ["c", "3"], ["d", "4"]])))
@@ -493,7 +494,7 @@ rigCase(){ ## name -- a fresh rig: a copy of the fixtures, no call noted yet
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\nwall 2026-10-13 02:30 +0000\nsize %s\nroot sessions\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:magic-team/activity/active-sessions:record none\nwall 2026-10-13 02:30 +0000\nsize %s\nroot active-sessions\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigPane(){ ## tag -- the lines of the left pane of that screen, the spaces at their ends cut, each between brackets
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/^│//' -e 's/^║//' -e 's/│.*$//' -e 's/║.*$//' -e 's/▲.*$//' -e 's/▼.*$//' -e 's/▒.*$//' -e 's/■.*$//' -e 's/  *$//'

@@ -22,7 +22,8 @@ AgentsToolsPendingReplyField(){ ## record file, field name
 ## Prints records as the read shows them, in one awk pass over every file given:
 ## `PENDING-REPLY: <id>`, the header fields the read names, `question:` with the
 ## question's first line, then a blank line. -v owner keeps only that member's records,
-## -v openOnly=1 only waiting ones, and -v countLine=1 ends with `PENDING-REPLIES: <n>`.
+## -v openOnly=1 only waiting ones, -v countLine=1 ends with `PENDING-REPLIES: <n>`, and -v countLine=only
+## renders no record and prints only <n>.
 ## An open record also says, before its question, whether the run that asked it is alive
 ## (`asker-live:`): what was measured for its asking id, given here as the text
 ## AgentsToolsPendingReplyAskers printed, and this host's name, by which the ask of another
@@ -44,7 +45,7 @@ AgentsToolsPendingReplyAskers(){ ## stdin: the asking ids, a line each
 	local askersIds
 	askersIds="$( cat )"
 	[ -n "$askersIds" ] || return 0
-	type AgentsToolsRegistryAskersLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+	type AgentsToolsRegistryAskersLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	printf '%s\n' "$askersIds" | AgentsToolsRegistryAskersLive "$( ps -A -ww -o pid=,args= 2>/dev/null )"
 }
 
@@ -94,17 +95,21 @@ case "$1" in
 	## rebuild function every other rebuild of it calls, so that file is current after any
 	## list. And each open record says whether the run that asked it is alive, measured in
 	## the same call. One record by its id rebuilds nothing: after the lines a list prints
-	## for it, it prints the whole of what the stores hold of that ask.
+	## for it, it prints the whole of what the stores hold of that ask. With --count it prints only
+	## the number of the records that list would show, by the same store and the same test of what is
+	## open, and renders nothing: no registry is rebuilt and no asker measured. The console asks it
+	## whatever it shows, for the number beside Pending Questions.
 	--member-pending-reply-read)
 		shift
 		MDSC_CMD="$MDSC_CMD --member-pending-reply-read"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
-		local readMember="${1:-}" readId="" readAll="" readAnyOwner="" readFile readRegistry readAskers=""
+		local readMember="${1:-}" readId="" readAll="" readAnyOwner="" readCount="" readFile readRegistry readAskers=""
 		shift || true
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--all) readAll=1 ; shift ;;
 				--any-owner) readAnyOwner=1 ; shift ;;
+				--count) readCount=1 ; shift ;;
 				-*)
 					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 					set +e ; return 1
@@ -121,6 +126,7 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$readMember" "<team-member>" pending-reply-read || { set +e ; return 1 ; }
 		if [ -n "$readId" ] ; then
+			[ -z "$readCount" ] || { echo "$MDSC_CMD: ⛔ ERROR: --count counts the list, and takes no <pending-id>" >&2 ; set +e ; return 1 ; }
 			AgentsToolsAssertBareName "$readId" "<pending-id>" pending-reply-read || { set +e ; return 1 ; }
 			## In either store: the asks, and the requests for the authority (AgentsToolsPendingRecordPath).
 			type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
@@ -132,15 +138,17 @@ case "$1" in
 				AgentsToolsPendingReplyScan "" "" "" "$readAskers" "$readFile"
 			return 0
 		fi
-		type AgentsToolsRegistryPendingRepliesRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
-		readRegistry="$( AgentsToolsRegistryFile pending-replies )"
-		if AgentsToolsRegistryPendingRepliesRebuild ; then
-			## That an open ask has no live asker is found in this same call, from the rows just
-			## written: the asking ids of the asks still open, each measured now. It is never
-			## stored -- no registry holds liveness -- so it is said in what this prints.
-			readAskers="$( LC_ALL=C awk '$2 == "ask" && $5 == "reply-pending" && $3 != "-" && ! askerSeen[$3]++ { print $3 ; }' "$readRegistry" 2> /dev/null | AgentsToolsPendingReplyAskers )"
-		else
-			echo "$MDSC_CMD: ⚠️ WARNING: the pending-replies registry could not be rebuilt at $readRegistry -- the list is read from the records themselves, and no asker of it was measured" >&2
+		if [ -z "$readCount" ] ; then
+			type AgentsToolsRegistryPendingRepliesRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+			readRegistry="$( AgentsToolsRegistryFile pending-replies )"
+			if AgentsToolsRegistryPendingRepliesRebuild ; then
+				## That an open ask has no live asker is found in this same call, from the rows just
+				## written: the asking ids of the asks still open, each measured now. It is never
+				## stored -- no registry holds liveness -- so it is said in what this prints.
+				readAskers="$( LC_ALL=C awk '$2 == "ask" && $5 == "reply-pending" && $3 != "-" && ! askerSeen[$3]++ { print $3 ; }' "$readRegistry" 2> /dev/null | AgentsToolsPendingReplyAskers )"
+			else
+				echo "$MDSC_CMD: ⚠️ WARNING: the pending-replies registry could not be rebuilt at $readRegistry -- the list is read from the records themselves, and no asker of it was measured" >&2
+			fi
 		fi
 		## The asks, and the requests for the authority of the questions store, listed as one.
 		local readFiles=() readCandidate
@@ -148,13 +156,14 @@ case "$1" in
 			[ ! -f "$readCandidate" ] || readFiles[${#readFiles[@]}]="$readCandidate"
 		done
 		if [ "${#readFiles[@]}" -eq 0 ] ; then
-			printf 'PENDING-REPLIES: 0\n'
+			if [ -n "$readCount" ] ; then printf '0\n' ; else printf 'PENDING-REPLIES: 0\n' ; fi
 			return 0
 		fi
-		local readOwnerFilter="$readMember" readOpenFilter="1"
+		local readOwnerFilter="$readMember" readOpenFilter="1" readCountLine=1
 		[ -z "$readAnyOwner" ] || readOwnerFilter=""
 		[ -z "$readAll" ] || readOpenFilter=""
-		AgentsToolsPendingReplyScan "$readOwnerFilter" "$readOpenFilter" 1 "$readAskers" "${readFiles[@]}"
+		[ -z "$readCount" ] || readCountLine=only
+		AgentsToolsPendingReplyScan "$readOwnerFilter" "$readOpenFilter" "$readCountLine" "$readAskers" "${readFiles[@]}"
 		return 0
 	;;
 
@@ -262,7 +271,11 @@ case "$1" in
 				if [ "$settleThread" != "$settleQts" ] ; then
 					AgentsToolsAskPostClose "$settleFile" "${settleLive:-$settleQts}" cancelled edit
 				elif [ "$( AgentsToolsPendingReplyField "$settleFile" kind )" = "proposal" ] ; then
-					## A proposal's own post is the reply under its root. The root is never touched.
+					## A proposal's own post is the reply under its root: it gets the cancelled mark and is edited. The root is
+					## never marked or edited, but the tooling's own two answer emoji (F9.4) are taken off it, as the identity that
+					## placed them; the click of anyone else stays.
+					AgentsToolsAskPostReact "$settleMember" "$settleChannel:$settleQts" "$( AgentsToolsPendingReplyField "$settleFile" ask-identity )" remove \
+						$( AgentsToolsAskPostRecordFill reactions "$settleFile" 2>/dev/null )
 					[ -z "$settleLive" ] || AgentsToolsAskPostClose "$settleFile" "$settleLive" cancelled edit
 				else
 					## Asked again since: the update under the root invites no click either. The root

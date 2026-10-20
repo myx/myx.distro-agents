@@ -1,0 +1,647 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionComms.include -- the communications reader and writer of a workspace (F9.3 of the refactorings epic): one
+## process of the tooling on a host that keeps the session chat files (AgentsTools.SessionChat.include) up to date with Slack, and
+## Slack up to date with them. Sourced, never run. Functions only; the operation that runs it is --intern-session-comms
+## (AgentsTools.InternSessionComms.include).
+##
+## WHAT IT DOES, for each session that has a thread and a control thread that lives (--intern-session-control: a session whose
+## thread lives is one that is not finished), and for each session that has something left to deliver:
+##   - READS the session thread from the newest ts the chat file holds for it (`oldest` of conversations.replies, as the team bot),
+##     and brings what is new into the file (AgentsToolsSessionChatImport): a message once, held already if the run's own send
+##     stamped it. It reads as the member whose record opened the session, since the account of a call is a member's.
+##   - WRITES what could not be written to Slack when it was sent. The send operation records a message before it posts it; where
+##     the post failed it leaves the post in the outbox of the session, sessions/<session>/chat.outbox/<block number>.<state>:
+##       retry     Slack was not reached (curl could not connect, or could not resolve): the writer posts it again, as the same
+##                 member under the same identity, once Slack answers, and stamps the block. Line 1 `member<TAB>identity<TAB>method`,
+##                 line 2 why, the rest the payload exactly as it was to go; no token.
+##       unknown   curl failed after the request may have reached Slack: never posted again (it may be there twice), and the
+##                 conversation of its block in the index reads `unknown`.
+##       refused   Slack answered and said no: never posted again, `refused` in the index.
+##     A post that waits in the outbox holds back the floor of every other reader (AgentsSessionChatRead.awk); `refused` and
+##     `unknown` release it.
+##   - TAKES what the console leaves for a session: sessions/<session>/chat.inbox/<name>.msg, written by AgentsToolsSessionCommsInject
+##     (`<from> -> <to>:` and the body) and sent through the one send operation, so it is recorded (origin `console`), posted to the
+##     session thread and stamped like any message. One it cannot send is kept as <name>.msg.refused, with the reason on its first line.
+##
+## ONE READER A HOST. Its files are in $MMDAPP/.local/agents/comms/, outside every session's folder, so that what it keeps on a
+## look that finds nothing is no activity of a session (the advance pass takes a file changed in a session's folder within fifteen
+## minutes for that):
+##   lock    a symlink whose target is `<pid> <start>`, held for the life of the process, as the control thread's (a second start is
+##           refused at once; a holder that is gone, or whose number another process has, is taken over by a rename only one can make)
+##   log     what it did, a line an event, never a line a tick; bounded to 128 KiB, cut back to its last 64
+##   calls   the epochs of its reads in the last minute: the budget, twenty a minute (the Slack tier of conversations.replies is
+##           about fifty a minute for the app, shared by every host and session of it)
+##   pause   the epoch before which it posts nothing: Slack's Retry-After, waited out
+##   looked/<session>   `<epoch of its last read> <the gap to the next>`: what a wait reads (AgentsToolsSessionChatReaderLooked) to
+##           stand down while the reader is current
+## The cadence of a session is five seconds while a wait is blocked on it (its marker, session.chat.waiting, touched in the last
+## fifteen) or its chat file changed in the last minute, else 30 seconds, doubling, to 300. The reads of all the sessions are held
+## to the budget, the most overdue first.
+##
+## IT IS STARTED beside the control thread, by the spawner when it opens a session that has a thread, and by the console's inject;
+## never where MDAT_COMMS_READER is `off` (the runner of the checks sets it). It ends on TERM, in order; by itself when no session
+## has had anything for it to do for ten minutes (MDAT_COMMS_IDLE_SECONDS); and when its folder is gone. It is NOT put back where
+## its shell dies: a wait reads the thread itself where the reader's last look is old, so the file never depends on it alone, and
+## the next spawn starts it again.
+##
+
+type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+type AgentsToolsSessionControlLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include"
+
+## The reads a minute the whole reader is held to; the gaps of the cadence, in seconds.
+agentsSessionCommsReadsPerMinute=20
+agentsSessionCommsActiveGap=5
+agentsSessionCommsQuietGap=30
+agentsSessionCommsQuietMax=300
+
+## The folder of the reader's files. rc 1 for no workspace.
+AgentsToolsSessionCommsDir(){
+	[ -n "${MMDAPP:-}" ] || return 1
+	printf '%s' "$MMDAPP/.local/agents/comms"
+}
+
+## One line of the log, with its moment. A call of `--one` says it to its caller too, on standard error.
+AgentsToolsSessionCommsSay(){ ## text
+	local sayDir
+	sayDir="$( AgentsToolsSessionCommsDir )" || return 0
+	{ mkdir -p "$sayDir" && printf '%s %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$1" >> "$sayDir/log" ; } 2> /dev/null || :
+	[ "${commsMode:-}" != "--one" ] || echo "# $MDSC_CMD --intern-session-comms: $1" >&2
+	return 0
+}
+
+## The same, said once for a situation, and not again while it lasts (commsSaid holds the situations said).
+AgentsToolsSessionCommsOnce(){ ## situation, text
+	case "|${commsSaid:-}|" in *"|$1|"*) return 0 ;; esac
+	[ "${#commsSaid}" -lt 2000 ] || commsSaid=""
+	commsSaid="${commsSaid:+$commsSaid|}$1"
+	AgentsToolsSessionCommsSay "$2"
+}
+AgentsToolsSessionCommsOnceClear(){ ## situation -- it ended: the next time it comes is said again
+	local clearList="|${commsSaid:-}|"
+	clearList="${clearList//|$1|/|}"
+	clearList="${clearList#|}" ; clearList="${clearList%|}"
+	commsSaid="$clearList"
+	return 0
+}
+
+## The log is bounded so the process never fills a disk with it: over 128 KiB it is cut back to its last 64, from the first whole
+## line, by one rename, and its own descriptors are pointed at the new file.
+AgentsToolsSessionCommsLogBound(){
+	local boundDir boundSize
+	boundDir="$( AgentsToolsSessionCommsDir )" || return 0
+	boundSize="$( { LC_ALL=C wc -c < "$boundDir/log" ; } 2> /dev/null )" || return 0
+	boundSize="${boundSize//[!0123456789]/}"
+	[ -n "$boundSize" ] && [ "$boundSize" -gt 131072 ] || return 0
+	{ LC_ALL=C tail -c 65536 "$boundDir/log" | LC_ALL=C sed 1d > "$boundDir/log.aside" && mv -f "$boundDir/log.aside" "$boundDir/log" ; } 2> /dev/null \
+		|| { rm -f "$boundDir/log.aside" 2> /dev/null ; return 0 ; }
+	[ "${commsMode:-}" != "--run" ] || exec < /dev/null >> "$boundDir/log" 2>&1
+	AgentsToolsSessionCommsSay "the log had grown over 128 KiB and holds its last 64 KiB now"
+	return 0
+}
+
+## Whether the process a lock names, `<pid> <start>`, is still that process. rc 0 it is. rc 1 it is not: no process has the number,
+## or the one that has it began at another time, or it has ended and is only not collected yet. rc 2 it cannot be told: such a lock
+## is left alone.
+AgentsToolsSessionCommsHolderLives(){ ## `<pid> <start>`
+	local holderPid="${1%% *}" holderStart="${1#* }" holderNow
+	case "$holderPid" in ''|*[!0123456789]*) return 1 ;; esac
+	[ "$holderStart" != "$1" ] && [ -n "$holderStart" ] || return 1
+	holderNow="$( printf '%s\n' "$holderPid" | AgentsToolsRegistryProcessesBegan )" || holderNow=""
+	[ "$holderNow" != "$1" ] || return 0
+	[ -z "$holderNow" ] || return 1
+	kill -0 "$holderPid" 2> /dev/null || return 1
+	case "$( LC_ALL=C ps -o stat= -p "$holderPid" 2> /dev/null )" in *Z*) return 1 ;; esac
+	return 2
+}
+
+## The pid of the reader of this workspace on this host, while one holds the lock; rc 1, nothing printed, for none.
+AgentsToolsSessionCommsLive(){
+	local liveDir liveLine="" liveRc
+	liveDir="$( AgentsToolsSessionCommsDir )" || return 1
+	[ -L "$liveDir/lock" ] || return 1
+	liveLine="$( readlink "$liveDir/lock" 2> /dev/null )" || return 1
+	AgentsToolsSessionCommsHolderLives "$liveLine" ; liveRc=$?
+	[ "$liveRc" != 1 ] || return 1
+	printf '%s\n' "${liveLine%% *}"
+}
+
+## Takes the lock for this process (commsLock, commsMe). rc 0 held, and commsTookOver names the holder it was taken from, where
+## it was. rc 1 another process holds it: commsHolder names it. rc 2 the lock could not be made.
+AgentsToolsSessionCommsLockTake(){
+	local takeTries=0 takeHolder takeStale takeMoved takeTold
+	commsHolder="" ; commsTookOver=""
+	while [ "$takeTries" -lt 5 ] ; do
+		takeTries=$(( takeTries + 1 ))
+		## Checked first: `ln -s` onto a directory creates the link inside it and succeeds.
+		[ ! -d "$commsLock" ] || [ -L "$commsLock" ] || return 2
+		ln -s "$commsMe" "$commsLock" 2> /dev/null && return 0
+		takeHolder="$( readlink "$commsLock" 2> /dev/null )" || takeHolder=""
+		[ -n "$takeHolder" ] || continue
+		[ "$takeHolder" != "$commsMe" ] || return 0
+		AgentsToolsSessionCommsHolderLives "$takeHolder" ; takeTold=$?
+		[ "$takeTold" = 1 ] || { commsHolder="$takeHolder" ; return 1 ; }
+		## Claimed by rename, so of two breakers only one moves it; a fresh lock moved by mistake is put back for its holder.
+		takeStale="$( mktemp "$commsLock.stale.XXXXXX" 2> /dev/null )" || continue
+		if mv -f "$commsLock" "$takeStale" 2> /dev/null ; then
+			takeMoved="$( readlink "$takeStale" 2> /dev/null )" || takeMoved=""
+			rm -f "$takeStale"
+			if [ "$takeMoved" = "$takeHolder" ] ; then
+				commsTookOver="$takeHolder"
+				continue
+			fi
+			[ -z "$takeMoved" ] || ln -s "$takeMoved" "$commsLock" 2> /dev/null || :
+		else
+			rm -f "$takeStale"
+		fi
+	done
+	return 2
+}
+AgentsToolsSessionCommsLockGive(){
+	[ "$( readlink "$commsLock" 2> /dev/null )" != "$commsMe" ] || rm -f "$commsLock" 2> /dev/null
+	return 0
+}
+
+## STARTS THE READER, detached, and does not wait for it. Prints one line, what it did:
+##   alive <pid>          one lives: nothing was started. rc 0.
+##   started <pid>        a process was started to be the reader, which it becomes once it holds the lock, within a second or so.
+##   off                  MDAT_COMMS_READER is `off`: nothing was started. rc 0.
+##   failed - <reason>    no process was started. rc 1.
+## The process is the tooling script with the operation as its arguments, which is what makes it no run of any session and shows
+## it in the process list. Its own process group, a hangup ignored, the descriptors 3 to 63 closed, its input /dev/null, its output
+## and its errors appended to comms/log. The names that carry a member's session are taken out of its environment. One line of the
+## log is this function's: the start it made, with the process and when it began.
+AgentsToolsSessionCommsStart(){
+	local startDir startLive startTool startMonitor startPid="" startBegan startDrop
+	if [ "${MDAT_COMMS_READER:-}" = "off" ] ; then
+		printf 'off\n'
+		return 0
+	fi
+	startDir="$( AgentsToolsSessionCommsDir )" || { printf 'failed - %s\n' "no workspace is selected" ; return 1 ; }
+	startLive="$( AgentsToolsSessionCommsLive )" && { printf 'alive %s\n' "$startLive" ; return 0 ; }
+	if ! mkdir -p "$startDir" 2> /dev/null || ! { printf '' >> "$startDir/log" ; } 2> /dev/null ; then
+		printf 'failed - %s\n' "the log of the reader could not be written: $startDir/log"
+		return 1
+	fi
+	startTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	if [ ! -f "$startTool" ] ; then
+		printf 'failed - %s\n' "the tooling script is not at $startTool"
+		return 1
+	fi
+	startMonitor="$BASH_SUBSHELL:$-"
+	set -m
+	(
+		trap '' HUP
+		set +e
+		for startDrop in ${!MDAT_SPAWN_@} MDAT_SESSION_ID MDAT_SESSION_THREAD MDAT_CONVERSATION_THREADS harnessSessionId harnessAgent CLAUDE_CODE_SESSION_ID ; do
+			unset "$startDrop"
+		done
+		for (( startDrop = 3 ; startDrop < 64 ; startDrop++ )) ; do
+			eval "exec $startDrop>&-"
+		done
+		exec "$BASH" "$startTool" --intern-session-comms --run
+	) < /dev/null >> "$startDir/log" 2>&1 &
+	startPid="$!"
+	case "$startMonitor" in 0:*m*) ;; *) set +m ;; esac
+	case "$startPid" in
+		''|*[!0123456789]*)
+			printf 'failed - %s\n' "the process of the reader could not be started"
+			return 1
+		;;
+	esac
+	disown "$startPid" 2> /dev/null || :
+	startBegan="$( printf '%s\n' "$startPid" | AgentsToolsRegistryProcessesBegan )" || startBegan=""
+	{
+		if [ -n "$startBegan" ] ; then
+			printf '%s a start of the communications reader is made: pid %s, begun %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$startPid" "${startBegan#* }"
+		else
+			printf '%s a start of the communications reader is made: pid %s, which has ended already\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$startPid"
+		fi >> "$startDir/log"
+	} 2> /dev/null || :
+	printf 'started %s\n' "$startPid"
+	return 0
+}
+
+## The sessions to look after: `<session> <channel>:<thread>` for each whose control thread lives and that has a thread.
+AgentsToolsSessionCommsSessions(){
+	local sessionsDir="$MMDAPP/.local/agents/sessions" sessionPidFile sessionId sessionThread liveId livePid
+	for sessionPidFile in "$sessionsDir"/*/control/pid ; do
+		[ -f "$sessionPidFile" ] || continue
+		sessionId="${sessionPidFile%/control/pid}" ; sessionId="${sessionId##*/}"
+		printf '%s\n' "$sessionId"
+	done | AgentsToolsSessionControlLive | while read -r liveId livePid ; do
+		sessionThread=""
+		{ IFS= read -r sessionThread < "$sessionsDir/$liveId/session.thread" ; } 2> /dev/null || :
+		[ -z "$sessionThread" ] || printf '%s %s\n' "$liveId" "$sessionThread"
+	done
+	return 0
+}
+
+## The sessions that have something left to deliver, live or not: a post waiting in the outbox, a message left by the console.
+## Prints the session ids, once each.
+AgentsToolsSessionCommsWork(){
+	local sessionsDir="$MMDAPP/.local/agents/sessions" workFile workSeen="" workId
+	for workFile in "$sessionsDir"/*/chat.outbox/*.retry "$sessionsDir"/*/chat.inbox/*.msg ; do
+		[ -e "$workFile" ] || continue
+		workId="${workFile#"$sessionsDir"/}" ; workId="${workId%%/*}"
+		case " $workSeen " in *" $workId "*) continue ;; esac
+		workSeen="$workSeen $workId"
+		printf '%s\n' "$workId"
+	done
+	return 0
+}
+
+## What a pass is over: `<session> <channel>:<thread>` for the sessions to read and write, `<session> -` for those that have a post or
+## a message of the console left to deliver and are not live (their writer's pass only).
+AgentsToolsSessionCommsPlan(){
+	local planLive planId planRest
+	planLive="$( AgentsToolsSessionCommsSessions )"
+	[ -z "$planLive" ] || printf '%s\n' "$planLive"
+	AgentsToolsSessionCommsWork | while read -r planId planRest ; do
+		[ -n "$planId" ] || continue
+		case "
+$planLive
+" in *"
+$planId "*) continue ;; esac
+		printf '%s -\n' "$planId"
+	done
+	return 0
+}
+
+## The sessions of a pass in the order they are reached: the one the reader looked at longest ago first, one it never read before
+## all, so that the budget goes round the sessions and the same ones do not take it. Reads `<session> <thread>` lines on the
+## standard input and prints them.
+AgentsToolsSessionCommsOrder(){
+	local orderDir orderLine orderSession orderThread orderAt
+	orderDir="$( AgentsToolsSessionCommsDir )" || { cat ; return 0 ; }
+	while read -r orderSession orderThread ; do
+		[ -n "$orderSession" ] || continue
+		orderAt=0 ; orderLine=""
+		{ IFS= read -r orderLine < "$orderDir/looked/$orderSession" ; } 2> /dev/null && orderAt="${orderLine%% *}"
+		case "$orderAt" in ''|*[!0123456789]*) orderAt=0 ;; esac
+		printf '%s %s %s\n' "$orderAt" "$orderSession" "$orderThread"
+	done | LC_ALL=C sort -n | LC_ALL=C cut -d ' ' -f 2-
+	return 0
+}
+
+## Whether a wait is blocked on the session (its marker touched in the last 15 seconds), or its chat file changed in the last
+## minute. rc 0 it is.
+AgentsToolsSessionCommsActive(){ ## session, now
+	local activeDir activeAt
+	activeDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
+	activeAt="$( AgentsToolsSessionControlWritten "$activeDir/$agentsSessionChatName.waiting" )"
+	case "$activeAt" in ''|*[!0123456789]*) ;; *) [ $(( $2 - activeAt )) -gt 15 ] || return 0 ;; esac
+	activeAt="$( AgentsToolsSessionControlWritten "$activeDir/$agentsSessionChatName" )"
+	case "$activeAt" in ''|*[!0123456789]*) ;; *) [ $(( $2 - activeAt )) -gt 60 ] || return 0 ;; esac
+	return 1
+}
+
+## Whether a read of the session is due: never read, or its gap has passed, or it is active and five seconds have. rc 0 it is.
+AgentsToolsSessionCommsDue(){ ## session, now
+	local dueDir dueLine="" dueLast=0 dueGap="$agentsSessionCommsActiveGap"
+	dueDir="$( AgentsToolsSessionCommsDir )" || return 1
+	{ IFS= read -r dueLine < "$dueDir/looked/$1" ; } 2> /dev/null || return 0
+	read -r dueLast dueGap <<< "$dueLine" || :
+	case "$dueLast" in ''|*[!0123456789]*) return 0 ;; esac
+	case "$dueGap" in ''|*[!0123456789]*) dueGap="$agentsSessionCommsActiveGap" ;; esac
+	[ $(( $2 - dueLast )) -lt "$dueGap" ] || return 0
+	[ $(( $2 - dueLast )) -ge "$agentsSessionCommsActiveGap" ] || return 1
+	AgentsToolsSessionCommsActive "$1" "$2"
+}
+
+## Keeps the moment of a read of the session and the gap to the next: five seconds where it is active, else the quiet gap
+## doubled from the last, 30 to 300.
+AgentsToolsSessionCommsLookedSet(){ ## session, now
+	local setDir setLine="" setLast setGap="" setNext
+	setDir="$( AgentsToolsSessionCommsDir )" || return 0
+	{ IFS= read -r setLine < "$setDir/looked/$1" ; } 2> /dev/null || :
+	read -r setLast setGap <<< "$setLine" || :
+	case "$setGap" in ''|*[!0123456789]*) setGap="$agentsSessionCommsActiveGap" ;; esac
+	if AgentsToolsSessionCommsActive "$1" "$2" ; then
+		setNext="$agentsSessionCommsActiveGap"
+	else
+		setNext=$(( setGap * 2 ))
+		[ "$setNext" -ge "$agentsSessionCommsQuietGap" ] || setNext="$agentsSessionCommsQuietGap"
+		[ "$setNext" -le "$agentsSessionCommsQuietMax" ] || setNext="$agentsSessionCommsQuietMax"
+	fi
+	{ mkdir -p "$setDir/looked" && printf '%s %s\n' "$2" "$setNext" > "$setDir/looked/$1.aside" && mv -f "$setDir/looked/$1.aside" "$setDir/looked/$1" ; } 2> /dev/null \
+		|| rm -f "$setDir/looked/$1.aside" 2> /dev/null
+	return 0
+}
+
+## The budget: rc 0 where a read may be made at this moment, and counted; rc 1 where the last minute holds as many as the budget.
+AgentsToolsSessionCommsBudgetTake(){ ## now
+	local budgetDir budgetKept budgetCount=0
+	budgetDir="$( AgentsToolsSessionCommsDir )" || return 1
+	mkdir -p "$budgetDir" 2> /dev/null || return 1
+	budgetKept="$( { [ ! -f "$budgetDir/calls" ] || cat "$budgetDir/calls" ; } 2> /dev/null | LC_ALL=C awk -v from="$(( $1 - 60 ))" '$1 ~ /^[0-9]+$/ && ( $1 + 0 ) > from { print $1 ; }' )"
+	[ -z "$budgetKept" ] || budgetCount="$( printf '%s\n' "$budgetKept" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )"
+	if [ "$budgetCount" -ge "$agentsSessionCommsReadsPerMinute" ] ; then
+		{ printf '%s\n' "$budgetKept" > "$budgetDir/calls.aside" && mv -f "$budgetDir/calls.aside" "$budgetDir/calls" ; } 2> /dev/null || rm -f "$budgetDir/calls.aside" 2> /dev/null
+		return 1
+	fi
+	{ { [ -z "$budgetKept" ] || printf '%s\n' "$budgetKept" ; printf '%s\n' "$1" ; } > "$budgetDir/calls.aside" && mv -f "$budgetDir/calls.aside" "$budgetDir/calls" ; } 2> /dev/null \
+		|| rm -f "$budgetDir/calls.aside" 2> /dev/null
+	return 0
+}
+
+## The pause Slack asked for: rc 0 where posting is paused at this moment.
+AgentsToolsSessionCommsPaused(){ ## now
+	local pauseDir pauseUntil=""
+	pauseDir="$( AgentsToolsSessionCommsDir )" || return 1
+	{ IFS= read -r pauseUntil < "$pauseDir/pause" ; } 2> /dev/null || return 1
+	case "$pauseUntil" in ''|*[!0123456789]*) return 1 ;; esac
+	[ "$1" -lt "$pauseUntil" ]
+}
+AgentsToolsSessionCommsPauseSet(){ ## epoch
+	local pauseDir
+	pauseDir="$( AgentsToolsSessionCommsDir )" || return 0
+	{ mkdir -p "$pauseDir" && printf '%s\n' "$1" > "$pauseDir/pause.aside" && mv -f "$pauseDir/pause.aside" "$pauseDir/pause" ; } 2> /dev/null || rm -f "$pauseDir/pause.aside" 2> /dev/null
+	return 0
+}
+
+## The member a session is read as: the owner of the record of the run that opened it (its own id is the session's), else of any
+## record that carries the id as its session-id. Nothing for none.
+AgentsToolsSessionCommsMember(){ ## session
+	local memberRecord="" memberFile
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 0
+	for memberFile in "$MMDAPP/.local/agents/spawned"/*/"$1.md" ; do
+		[ -f "$memberFile" ] || continue
+		memberRecord="$memberFile"
+		break
+	done
+	if [ -z "$memberRecord" ] && [ -d "$MMDAPP/.local/agents/spawned" ] ; then
+		memberRecord="$( printf '%s\0' "$MMDAPP/.local/agents/spawned"/*/*.md | LC_ALL=C xargs -0 grep -l -x -F -- "session-id: $1" 2> /dev/null | LC_ALL=C sed -n '1p' )" || memberRecord=""
+	fi
+	[ -n "$memberRecord" ] || return 0
+	AgentsToolsSpawnSandboxRecordHeader "$memberRecord" owner
+}
+
+## Reads the thread of a session from the newest ts the chat file holds for it, and brings what is new into the file. Sets
+## commsReadAdded to the number of blocks that came in. rc 1 where the read failed (the first error line is in commsReadError).
+## Not to be called in a command substitution: what it sets is its caller's.
+AgentsToolsSessionCommsRead(){ ## session, conversation:thread, member
+	local readSession="$1" readThread="$2" readMember="$3" readDir readWork readOldest readBefore readAfter readRc=0
+	commsReadError="" ; commsReadAdded=0
+	readDir="$( AgentsToolsSessionChatDir "$readSession" )" || return 1
+	readWork="$( mktemp -d "$( AgentsToolsSessionCommsDir )/read.XXXXXX" 2> /dev/null )" || return 1
+	## The newest ts of the thread in the file, compared as text: Slack's are ten digits, a dot and six.
+	readOldest="$( LC_ALL=C awk -F'\t' -v where="$readThread" '$3 == where && $2 ~ /^[0-9]+\.[0-9]+$/ && ( $2 "" ) > ( newest "" ) { newest = $2 ; } END { print newest ; }' "$readDir/$agentsSessionChatName.index" 2> /dev/null )" || readOldest=""
+	readBefore="$( { LC_ALL=C wc -l < "$readDir/$agentsSessionChatName.index" ; } 2> /dev/null | LC_ALL=C tr -d ' ' )"
+	case "$readBefore" in ''|*[!0123456789]*) readBefore=0 ;; esac
+	DistroAgentsTools --intern-op-comms-slack-read "$readMember" "$readThread" --thread --identity-bot ${readOldest:+--oldest "$readOldest"} > "$readWork/read" 2> "$readWork/err" || readRc=$?
+	if [ "$readRc" != 0 ] ; then
+		commsReadError="$( LC_ALL=C grep -m1 -e 'ERROR' "$readWork/err" 2> /dev/null | LC_ALL=C tr -s '\t\r ' ' ' | LC_ALL=C cut -c1-300 )"
+		rm -rf "$readWork"
+		return 1
+	fi
+	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackMessagesFormat.awk" < "$readWork/read" > "$readWork/render" 2> /dev/null || :
+	## What is there before the run began is history for the floor: the launch of the founder of the session is the boundary.
+	( export MDAT_SPAWN_LAUNCH_MARKER="$readDir/launch" ; AgentsToolsSessionChatImport "$readSession" "$readThread" "$readWork/render" slack - )
+	readAfter="$( { LC_ALL=C wc -l < "$readDir/$agentsSessionChatName.index" ; } 2> /dev/null | LC_ALL=C tr -d ' ' )"
+	case "$readAfter" in ''|*[!0123456789]*) readAfter="$readBefore" ;; esac
+	rm -rf "$readWork"
+	commsReadAdded="$(( readAfter - readBefore ))"
+	return 0
+}
+
+## The post of a block that failed, kept in the outbox of its session for the writer, or the verdict on it kept there. Called by the
+## send operation (AgentsTools.MemberCommsSlack.include) in a process of its own. The file is written aside and put in place by one
+## rename. For `unknown` and `refused` the conversation of the block in the index is that word, which releases the floors that
+## wait for it. rc 1 where it could not be kept.
+AgentsToolsSessionCommsOutboxKeep(){ ## session, block number, state (retry|unknown|refused), member, identity, method, payload, why (may be empty)
+	local keepDir keepWhy
+	case "$3" in retry|unknown|refused) ;; *) return 1 ;; esac
+	case "$2" in ''|*[!0123456789]*) return 1 ;; esac
+	keepDir="$( AgentsToolsSessionChatDir "$1" )/chat.outbox" || return 1
+	mkdir -p "$keepDir" 2> /dev/null || return 1
+	keepWhy="$( printf '%s' "${8:--}" | LC_ALL=C tr '\r\n\t' '   ' | LC_ALL=C cut -c1-300 )"
+	{ printf '%s\t%s\t%s\n%s\n%s\n' "$4" "$5" "$6" "${keepWhy:--}" "$7" > "$keepDir/$2.$3.aside" && mv -f "$keepDir/$2.$3.aside" "$keepDir/$2.$3" ; } 2> /dev/null \
+		|| { rm -f "$keepDir/$2.$3.aside" 2> /dev/null ; return 1 ; }
+	[ "$3" = "retry" ] || AgentsToolsSessionChatStamp "$1" "$2" - "$3"
+	return 0
+}
+
+## A post of the outbox the writer gives up: `unknown` or `refused`, with the reason on the second line of its file.
+AgentsToolsSessionCommsOutboxMark(){ ## session, outbox file `<n>.retry`, state (unknown|refused), reason
+	local markDir="${2%/*}" markNo="${2##*/}" markWhy
+	markNo="${markNo%%.*}"
+	markWhy="$( printf '%s' "$4" | LC_ALL=C tr '\r\n\t' '   ' | LC_ALL=C cut -c1-300 )"
+	{ MARK_WHY="$markWhy" LC_ALL=C awk 'NR == 2 { print ENVIRON["MARK_WHY"] ; next ; } { print ; }' "$2" > "$markDir/$markNo.$3.aside" && mv -f "$markDir/$markNo.$3.aside" "$markDir/$markNo.$3" && rm -f "$2" ; } 2> /dev/null \
+		|| { rm -f "$markDir/$markNo.$3.aside" 2> /dev/null ; return 1 ; }
+	AgentsToolsSessionChatStamp "$1" "$markNo" - "$3"
+	return 0
+}
+
+## ONE POST OF THE OUTBOX, one attempt, as the send operation would have made it (AgentsTools.MemberCommsSlack.include): the token
+## of the member and the identity it was sent under, resolved now and never kept; the payload as it was to go. rc 0 posted, and the
+## block stamped; rc 1 left for a later pass (Slack not reached, a rate limit and its Retry-After kept, no token, an answer that is
+## no Slack's); rc 2 given up and marked: `unknown` where curl failed after the request may have reached Slack, `refused` where
+## Slack answered and said no.
+AgentsToolsSessionCommsPost(){ ## session, outbox file `<n>.retry`
+	local postSession="$1" postFile="$2" postNo postMeta="" postMember postIdentity postApi postPayload postToken="" postLine postWork postRc=0 postResponse postStatus postWait postTs postChannel postThread postError postNow
+	postNo="${postFile##*/}" ; postNo="${postNo%%.*}"
+	{ IFS= read -r postMeta < "$postFile" ; } 2> /dev/null || return 1
+	IFS=$'\t' read -r postMember postIdentity postApi <<< "$postMeta" || :
+	if [ -z "$postMember" ] || [ "$postApi" != "chat.postMessage" ] ; then
+		AgentsToolsSessionCommsOutboxMark "$postSession" "$postFile" refused "the outbox file names no member, or a method the writer does not post"
+		return 2
+	fi
+	postPayload="$( tail -n +3 "$postFile" 2> /dev/null )"
+	type AgentsToolsResolveSlackBotToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include" 2> /dev/null || return 1
+	if [ "$postIdentity" = "user" ] ; then
+		postToken="$( AgentsToolsSlackOwnSettingsApply "$postMember" && DistroAgentsTools --agents-config-option "$postMember" --select SLACK_USER_TOKEN 2> /dev/null )" || postToken=""
+	else
+		postLine="$( AgentsToolsResolveSlackBotToken "$postMember" )" || postLine=""
+		postToken="${postLine#* }"
+	fi
+	if [ -z "$postToken" ] ; then
+		AgentsToolsSessionCommsOnce "token:$postSession:$postNo" "session $postSession: the post of block $postNo waits for a Slack token of $postMember under the $postIdentity identity, and none is configured"
+		return 1
+	fi
+	postWork="$( mktemp -d "$( AgentsToolsSessionCommsDir )/post.XXXXXX" 2> /dev/null )" || return 1
+	printf '%s' "$postPayload" > "$postWork/body" || { rm -rf "$postWork" ; return 1 ; }
+	postResponse="$( curl -sS --connect-timeout 10 --max-time 120 -D "$postWork/headers" -X POST "https://slack.com/api/$postApi" \
+		-H @- \
+		-H "Content-type: application/json" \
+		--data-binary "@$postWork/body" <<< "Authorization: Bearer $postToken" 2>&1 )" || postRc=$?
+	postStatus="$( LC_ALL=C awk '/^HTTP\// { s = $2 ; sub(/\r$/, "", s) ; } END { print s ; }' "$postWork/headers" 2> /dev/null )"
+	postWait="$( LC_ALL=C awk 'tolower($1) == "retry-after:" { v = $2 ; sub(/\r$/, "", v) ; } END { print v ; }' "$postWork/headers" 2> /dev/null )"
+	rm -rf "$postWork"
+	postNow="$( date +%s )"
+	if [ "$postRc" != 0 ] ; then
+		case "$postRc" in
+			## curl could not resolve or connect: nothing reached Slack.
+			6|7)
+				AgentsToolsSessionCommsOnce "unreached" "Slack is not reached (curl exited $postRc): the posts that wait are tried again at the next pass"
+				return 1
+			;;
+		esac
+		AgentsToolsSessionCommsOutboxMark "$postSession" "$postFile" unknown "curl exited $postRc after the request may have reached Slack, so it is not posted again"
+		AgentsToolsSessionCommsSay "session $postSession: the post of block $postNo is unknown: curl exited $postRc after the request may have reached Slack; it is not posted again"
+		return 2
+	fi
+	if [ "$postStatus" = "429" ] || printf '%s' "$postResponse" | LC_ALL=C grep -q -e '"error":"ratelimited"' -e '"error":"rate_limited"' ; then
+		case "$postWait" in ''|*[!0123456789]*) postWait=30 ;; esac
+		AgentsToolsSessionCommsPauseSet "$(( postNow + postWait ))"
+		AgentsToolsSessionCommsSay "Slack asked for ${postWait}s before the next post (Retry-After): the posts that wait are held until then"
+		return 1
+	fi
+	if printf '%s' "$postResponse" | LC_ALL=C grep -q '"ok":true' ; then
+		postChannel="$( printf '%s\n' "$postResponse" | LC_ALL=C awk -v path=channel -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || postChannel=""
+		postTs="$( printf '%s\n' "$postResponse" | LC_ALL=C awk -v path=message.ts -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || postTs=""
+		postThread="$( printf '%s\n' "$postResponse" | LC_ALL=C awk -v path=message.thread_ts -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" )" || postThread=""
+		[ -n "$postThread" ] || postThread="$postTs"
+		rm -f "$postFile"
+		if [ -n "$postChannel" ] && [ -n "$postTs" ] ; then
+			AgentsToolsSessionChatStamp "$postSession" "$postNo" "$postTs" "$postChannel:$postThread"
+			AgentsToolsSessionCommsSay "session $postSession: block $postNo, which could not be posted when it was sent, is posted: $postChannel:$postTs"
+			AgentsToolsSessionCommsOnceClear "unreached"
+		else
+			AgentsToolsSessionChatStamp "$postSession" "$postNo" - unknown
+			AgentsToolsSessionCommsSay "session $postSession: block $postNo was posted, but the answer carries no readable channel with a ts, so it is not stamped"
+		fi
+		return 0
+	fi
+	if printf '%s' "$postResponse" | LC_ALL=C grep -q '"ok":false' ; then
+		postError="$( printf '%s' "$postResponse" | LC_ALL=C sed -n 's/.*"error":"\([a-z_]*\)".*/\1/p' | head -n 1 )"
+		AgentsToolsSessionCommsOutboxMark "$postSession" "$postFile" refused "Slack answered and refused it (${postError:-no error code})"
+		AgentsToolsSessionCommsSay "session $postSession: the post of block $postNo is refused by Slack (${postError:-no error code}); it is not posted again"
+		return 2
+	fi
+	AgentsToolsSessionCommsOnce "answer:$postSession:$postNo" "session $postSession: the answer to the post of block $postNo is no Slack response: $( printf '%s' "$postResponse" | LC_ALL=C tr -s '\r\n\t ' ' ' | LC_ALL=C cut -c1-200 )"
+	return 1
+}
+
+## What the console left for a session, taken: the message is claimed by a rename, sent through the one send operation as its
+## sender, under MDAT_CHAT_ORIGIN=console, into the session thread, which records it, posts it and stamps it. A message the
+## operation did not record is kept aside as <name>.refused with the reason on its first line.
+AgentsToolsSessionCommsTake(){ ## session, the file left in chat.inbox
+	local takeSession="$1" takeFile="$2" takeDir takeHead="" takeFrom takeTo takeThread="" takeAddr=() takeOne takeBefore takeAfter takeWhy
+	takeDir="$( AgentsToolsSessionChatDir "$takeSession" )" || return 0
+	mv "$takeFile" "$takeFile.taken" 2> /dev/null || return 0
+	{ IFS= read -r takeHead < "$takeFile.taken" ; } 2> /dev/null || takeHead=""
+	case "$takeHead" in
+		*" -> "*:) ;;
+		*)
+			{ printf '# %s\n' "its first line is no <from> -> <to>:" ; cat "$takeFile.taken" ; } > "$takeFile.refused" 2> /dev/null && rm -f "$takeFile.taken"
+			AgentsToolsSessionCommsSay "session $takeSession: a message of the console was kept aside: its first line is no <from> -> <to>:"
+			return 0
+		;;
+	esac
+	takeFrom="${takeHead%% -> *}" ; takeTo="${takeHead#* -> }" ; takeTo="${takeTo%:}"
+	takeThread="$( MDAT_SESSION_THREAD="" AgentsToolsSessionChatThread "$takeSession" )" || takeThread=""
+	for takeOne in ${takeTo//,/ } ; do
+		[ "$takeOne" = "all" ] || takeAddr+=( --address-to "$takeOne" )
+	done
+	takeBefore="$( { LC_ALL=C wc -l < "$takeDir/$agentsSessionChatName.index" ; } 2> /dev/null | LC_ALL=C tr -d ' ' )"
+	case "$takeBefore" in ''|*[!0123456789]*) takeBefore=0 ;; esac
+	if [ -n "$takeThread" ] ; then
+		tail -n +2 "$takeFile.taken" | ( export MDAT_SESSION_ID="$takeSession" MDAT_SESSION_THREAD="$takeThread" MDAT_CHAT_ORIGIN=console ; DistroAgentsTools --intern-op-comms-slack-send-message "$takeFrom" "$takeThread" ${takeAddr[@]+"${takeAddr[@]}"} --from-stdin ) > "$takeFile.out" 2>&1 || :
+	else
+		printf 'ERROR: the session has no thread to send into\n' > "$takeFile.out"
+	fi
+	takeAfter="$( { LC_ALL=C wc -l < "$takeDir/$agentsSessionChatName.index" ; } 2> /dev/null | LC_ALL=C tr -d ' ' )"
+	case "$takeAfter" in ''|*[!0123456789]*) takeAfter=0 ;; esac
+	if [ "$takeAfter" -gt "$takeBefore" ] ; then
+		rm -f "$takeFile.taken" "$takeFile.out"
+		AgentsToolsSessionCommsSay "session $takeSession: a message of the console, from $takeFrom to $takeTo, is sent into the session thread"
+		return 0
+	fi
+	takeWhy="$( LC_ALL=C grep -m1 -e 'ERROR' "$takeFile.out" 2> /dev/null | LC_ALL=C tr -s '\t\r ' ' ' | LC_ALL=C cut -c1-300 )"
+	{ printf '# %s\n' "${takeWhy:-it was not sent, and the send operation said nothing}" ; cat "$takeFile.taken" ; } > "$takeFile.refused" 2> /dev/null && rm -f "$takeFile.taken" "$takeFile.out"
+	AgentsToolsSessionCommsSay "session $takeSession: a message of the console was kept aside: ${takeWhy:-it was not sent}"
+	return 0
+}
+
+## THE WRITER'S PASS over one session: the posts that wait, the oldest first, none overtaking one that must wait; then what the
+## console left. Nothing is read from the network here but through the posts themselves.
+AgentsToolsSessionCommsDeliver(){ ## session
+	local delSession="$1" delDir delFile delName delRc delAny
+	delDir="$( AgentsToolsSessionChatDir "$delSession" )" || return 0
+	## Whether there is anything to do is told by the shell's own expansion: a pass over many sessions starts no process for those with nothing.
+	delAny=""
+	for delFile in "$delDir"/chat.outbox/*.retry ; do
+		[ ! -e "$delFile" ] || delAny="yes"
+		break
+	done
+	if [ -n "$delAny" ] ; then
+		for delName in $( ls "$delDir/chat.outbox" 2> /dev/null | LC_ALL=C grep '^[0-9][0-9]*\.retry$' | LC_ALL=C sort -n ) ; do
+			AgentsToolsSessionCommsPaused "$( date +%s )" && break
+			[ -e "$delDir/chat.outbox/$delName" ] || continue
+			AgentsToolsSessionCommsPost "$delSession" "$delDir/chat.outbox/$delName" ; delRc=$?
+			[ "$delRc" != 1 ] || break
+		done
+	fi
+	delAny=""
+	for delFile in "$delDir"/chat.inbox/*.msg ; do
+		[ ! -e "$delFile" ] || delAny="yes"
+		break
+	done
+	if [ -n "$delAny" ] ; then
+		for delName in $( ls "$delDir/chat.inbox" 2> /dev/null | LC_ALL=C grep '\.msg$' | LC_ALL=C sort ) ; do
+			AgentsToolsSessionCommsTake "$delSession" "$delDir/chat.inbox/$delName"
+		done
+	fi
+	return 0
+}
+
+## ONE SESSION, one pass: the writer's, then a read where one is due (or `force`), within the budget. The read is kept in
+## comms/looked/<session>, which a wait reads to stand down.
+AgentsToolsSessionCommsTick(){ ## session, conversation:thread (may be empty: the writer's pass only), `force` (optional)
+	local tickSession="$1" tickThread="$2" tickNow tickMember
+	AgentsToolsSessionCommsDeliver "$tickSession"
+	[ -n "$tickThread" ] || return 0
+	tickNow="$( date +%s )"
+	[ "${3:-}" = "force" ] || AgentsToolsSessionCommsDue "$tickSession" "$tickNow" || return 0
+	if ! AgentsToolsSessionCommsBudgetTake "$tickNow" ; then
+		AgentsToolsSessionCommsOnce "budget" "the reads of the last minute are at the budget of $agentsSessionCommsReadsPerMinute: a session waits for the minute to pass"
+		return 0
+	fi
+	AgentsToolsSessionCommsOnceClear "budget"
+	tickMember="$( AgentsToolsSessionCommsMember "$tickSession" )"
+	if [ -z "$tickMember" ] ; then
+		AgentsToolsSessionCommsOnce "member:$tickSession" "session $tickSession: no record names the member that opened it, so its thread is not read"
+		AgentsToolsSessionCommsLookedSet "$tickSession" "$tickNow"
+		return 0
+	fi
+	if AgentsToolsSessionCommsRead "$tickSession" "$tickThread" "$tickMember" ; then
+		AgentsToolsSessionCommsOnceClear "read:$tickSession"
+		[ "$commsReadAdded" = 0 ] || AgentsToolsSessionCommsSay "session $tickSession: $commsReadAdded message(s) came into the chat file from its thread"
+	else
+		AgentsToolsSessionCommsOnce "read:$tickSession" "session $tickSession: its thread could not be read: ${commsReadError:-the read said nothing}"
+	fi
+	AgentsToolsSessionCommsLookedSet "$tickSession" "$( date +%s )"
+	return 0
+}
+
+## What the console leaves for a session (F11.6 sends through it): the message and who it is from and for, in the inbox of the
+## session, where the writer takes it. The body is read from the standard input. Prints the name it was left under. rc 1 where it
+## could not be left: no such session, or a name that is no name.
+AgentsToolsSessionCommsInject(){ ## session, from, to (comma-joined; empty for all)
+	local injectDir injectName injectFrom injectTo
+	injectDir="$( AgentsToolsSessionChatDir "$1" )" || { echo "⛔ ERROR: $MDSC_CMD --intern-session-comms --inject: '$1' is no session of this workspace" >&2 ; return 1 ; }
+	if [ ! -d "$injectDir" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --intern-session-comms --inject: session $1 has no folder in this workspace, so nothing was left for it" >&2
+		return 1
+	fi
+	case "$2" in
+		''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*)
+			echo "⛔ ERROR: $MDSC_CMD --intern-session-comms --inject: --from names a member by its name, got '$2'" >&2
+			return 1
+		;;
+	esac
+	injectFrom="$2"
+	injectTo="$( printf '%s' "${3:-all}" | LC_ALL=C tr '\r\n\t' '   ' | LC_ALL=C sed 's/ -> / - /g' )"
+	[ -n "$injectTo" ] || injectTo="all"
+	mkdir -p "$injectDir/chat.inbox" 2> /dev/null || { echo "⛔ ERROR: $MDSC_CMD --intern-session-comms --inject: $injectDir/chat.inbox could not be made" >&2 ; return 1 ; }
+	## Named by its time, then a name of mktemp's, so that two left in one second are two; it is a message only once it ends in .msg.
+	injectName="$( mktemp "$injectDir/chat.inbox/$( date -u +%Y%m%dT%H%M%SZ ).XXXXXX" 2> /dev/null )" || injectName=""
+	{ [ -n "$injectName" ] && { printf '%s -> %s:\n' "$injectFrom" "$injectTo" ; cat ; } > "$injectName" && mv -f "$injectName" "$injectName.msg" ; } 2> /dev/null \
+		|| { rm -f "$injectName" 2> /dev/null ; echo "⛔ ERROR: $MDSC_CMD --intern-session-comms --inject: the message could not be written to $injectDir/chat.inbox" >&2 ; return 1 ; }
+	printf '%s\n' "${injectName##*/}.msg"
+	return 0
+}

@@ -55,7 +55,7 @@ rigAssert(){ ## what is asserted, got, want
 echo "-- each text is a block of a template: filled, it gives its words --"
 ## One block filled straight from its template, as the tooling fills it.
 rigBlock(){ ## template, block `<Section>/<heading>` -- the slots come from the caller's environment
-	ASKP_WANT=block ASKP_BLOCK="$2" ASKP_FORM="" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$rigHere/questions/AgentsAskPostFill.awk" "$rigHere/templates/$1" 2>&1
+	ASKP_WANT=block ASKP_BLOCK="$2" ASKP_FORM="" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolingTemplateFill.awk" -f "$rigHere/questions/AgentsAskPostFill.awk" "$rigHere/templates/$1" 2>&1
 }
 rigNote="tooling-note.post.format.md"
 rigReport="report.post.format.md"

@@ -137,10 +137,10 @@ rigList(){
 		'sh-lib/config/AgentsTools.Owner.include|1|selftest-$$-|no file name: a value written to a setting and read back' \
 		'sh-lib/questions/AgentsTools.PendingReplyCollect.include|3|$2.$$|under the lock of that one pending reply' \
 		'sh-lib/questions/AgentsTools.PendingReplyRemind.include|3|$2.$$|under the lock of that one pending reply' \
-		'../myx.distro-.local/sh-lib/registry/AgentsTools.Places.include|3|$updateFile.tmp.$$|under the lock of that places registry' \
-		'../myx.distro-.local/sh-lib/registry/AgentsTools.Places.include|3|$sharedFile.tmp.$$|under the lock of the places registry of the machine' \
-		'../myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include|2|${3:-$$}|no file name: the asking process, this one where none is given' \
-		'../myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include|3|$keepFile.$$.aside|the file of one run, named by its spawn id: a stop or a kill of one run is one call at a time' \
+		'sh-lib/team-data/AgentsTools.Places.include|3|$updateFile.tmp.$$|under the lock of that places registry' \
+		'sh-lib/team-data/AgentsTools.Places.include|3|$sharedFile.tmp.$$|under the lock of the places registry of the machine' \
+		'sh-lib/team-data/AgentsTools.Registries.include|2|${3:-$$}|no file name: the asking process, this one where none is given' \
+		'sh-lib/team-data/AgentsTools.Registries.include|3|$keepFile.$$.aside|the file of one run, named by its spawn id: a stop or a kill of one run is one call at a time' \
 		'sh-lib/session/AgentsTools.SessionTranscript.include|1|context.render.$$|inside the store of one session id, rendered by that session alone' \
 		'sh-lib/session/AgentsTools.SessionTranscript.include|2|$addDir/tokens.$$|inside the store of one session id, added to by its one harness process, a round after another' \
 		'sh-lib/session/AgentsTools.SpawnSandbox.include|1|.conversation.read.$$|inside the input folder of one sandbox, which one start fills: two fills of one sandbox share that whole folder, whatever this is named' \
@@ -187,7 +187,7 @@ rigGuard(){ ## list file, shell files...
 	' "$@"
 }
 rigList > "$rigTmp/list"
-( cd "$rigPackage" && find sh-lib sh-scripts builders ../myx.distro-.local/sh-lib/markdown ../myx.distro-.local/sh-lib/output ../myx.distro-.local/sh-lib/registry ../myx.distro-.local/sh-lib/dashboard -type f \( -name '*.sh' -o -name '*.include' -o -name '*.rc' \) | LC_ALL=C sort ) > "$rigTmp/shell-files"
+( cd "$rigPackage" && find sh-lib sh-scripts builders ../myx.distro-.local/sh-lib/markdown ../myx.distro-.local/sh-lib/output -type f \( -name '*.sh' -o -name '*.include' -o -name '*.rc' \) | LC_ALL=C sort ) > "$rigTmp/shell-files"
 rigAssert "control: the shell files of the package are read, the console template and the builders among them" \
 	"$( [ "$( wc -l < "$rigTmp/shell-files" | LC_ALL=C tr -d ' ' )" -ge 100 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/manager/AgentsConsoleShellScript.template.sh' -e 'sh-scripts/DistroAgentsTools.fn.sh' -e 'builders/source-prepare/1201-agents-indices.sh' "$rigTmp/shell-files" || : )" "many 3"
 rigGuardOut="$( cd "$rigPackage" && rigGuard "$rigTmp/list" $( cat "$rigTmp/shell-files" ) )"
@@ -369,7 +369,9 @@ rigNoTmpList(){
 		"myx.distro-agents/sh-test/AgentsHarnessPermissionCheck.test.sh|2|rm -rf $rigNoTmpRoot/rig  x|data: the text of a command the permission hook records, never run" \
 		"myx.distro-agents/sh-test/AgentsHarnessPermissionCheck.test.sh|1|rm -rf $rigNoTmpRoot/rig x|data: the text of a command the permission hook records, never run" \
 		"myx.distro-agents/sh-test/AgentsWireStreamDiffCheck.test.sh|1|\"input_json_delta\",\"partial_json\"|data: a path inside a streamed tool call of a fixture, never a place written" \
-		"myx.distro-agents/sh-test/AgentsRunRuleReadersCheck.test.sh|1|rig-sw-ended-\$\$$rigNoTmpRoot|data: the tmp folder inside a spawn sandbox of the rig, a path of the rig and never the system's"
+		"myx.distro-agents/sh-test/AgentsRunRuleReadersCheck.test.sh|1|rig-sw-ended-\$\$$rigNoTmpRoot|data: the tmp folder inside a spawn sandbox of the rig, a path of the rig and never the system's" \
+		"myx.distro-.local/sh-lib/python/LocalTools.EmbeddedPython.include|1|$rigNoTmpVar=\"\$embeddedBase/tmp\"|data: the temp-dir variable handed to uv's own process, set to the tmp folder of .local/embedded-python so that uv never writes in the system's" \
+		"myx.distro-agents/sh-lib/config/AgentsTools.InstallKnowledgeStore.include|1|$rigNoTmpVar=\"\$storeDir/tmp\"|data: the temp-dir variable handed to the process of pip and of the Python that makes the environment, set to the tmp folder of .local/knowledge-store so that they never write in the system's"
 }
 ## Rule 1: the root temp folder as a path of its own -- at the start, or after anything that ends no other path (not a
 ## letter, digit, `_`, `.`, `}` or `)`), and not followed by a letter, digit or `_` -- or under /private or /var; or

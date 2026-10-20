@@ -652,7 +652,7 @@ rigAsyncEnded(){ ## -- waits, up to a minute, for that record to leave spawn-sta
 }
 ## Whether the one rule takes that spawn for running: asked as the review flow and the accept dismissal ask it.
 rigAsyncRuns(){
-	( PATH="$rigTmp/ps-bin:$PATH" ; MMDAPP="$rigW" ; . "${rigTool%/sh-scripts/*}/../myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" ; rigAsyncId="${rigAsyncRecord##*/}" ; AgentsToolsRegistrySpawnRuns "${rigAsyncId%.md}" "$rigAsyncRecord" && printf running || printf not-running )
+	( PATH="$rigTmp/ps-bin:$PATH" ; MMDAPP="$rigW" ; . "${rigTool%/sh-scripts/*}/../myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; rigAsyncId="${rigAsyncRecord##*/}" ; AgentsToolsRegistrySpawnRuns "${rigAsyncId%.md}" "$rigAsyncRecord" && printf running || printf not-running )
 }
 rigAsync exit7 'echo first-on-stdout ; echo second-on-stderr >&2 ; echo third-on-stdout ; exit 7'
 rigAsyncEnded

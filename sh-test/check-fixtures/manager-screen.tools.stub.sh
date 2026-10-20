@@ -17,9 +17,10 @@
 ##   script <file> becomes the bash script $MANAGER_SCREEN_RIG/<file> (exec): what it writes, on either
 ##                 stream and when, how it ends, by a status or by a signal, are the script's own; such a
 ##                 start appends nothing to $MANAGER_SCREEN_RIG/ended
-## Two operations the screen calls of its own accord, whatever a test is about, the list of the
-## locations at every start (`--manager-place-list`) and the blocks of the dashboard while the root
-## stands on its first row (`--manager-dashboard-read`): a start of either is noted like any other,
+## Three operations the screen calls of its own accord, whatever a test is about, the list of the
+## locations at every start (`--manager-place-list`), the blocks of the dashboard while the root
+## stands on its first row (`--manager-dashboard-read`) and the count of the asks, whatever is shown
+## (`--member-pending-reply-read ... --count`): a start of any is noted like any other,
 ## but is not counted among the starts that mode.<n> and rows.<n> number, and it is answered only by
 ## what the rig says of it by its own name (mode.<its first argument>, rows.<its arguments>,
 ## rows.<its first argument>), with no row where the rig says nothing: the catch-all `mode` and
@@ -29,7 +30,8 @@ set -u
 printf '%s\n' "$*" >> "$MANAGER_SCREEN_RIG/calls"
 rigOwn=""
 case "${1:-}" in --manager-place-list|--manager-dashboard-read) rigOwn="yes" ;; esac
-rigStart="$( LC_ALL=C grep -c -v -e '^--manager-place-list' -e '^--manager-dashboard-read' "$MANAGER_SCREEN_RIG/calls" )"
+case "$*" in "--member-pending-reply-read "*" --count") rigOwn="yes" ;; esac
+rigStart="$( LC_ALL=C grep -c -v -e '^--manager-place-list' -e '^--manager-dashboard-read' -e '^--member-pending-reply-read .* --count$' "$MANAGER_SCREEN_RIG/calls" )"
 [ -z "$rigOwn" ] || rigStart="own"
 rigWords=""
 for rigWord in "$@" ; do rigWords="$rigWords[$rigWord]" ; done

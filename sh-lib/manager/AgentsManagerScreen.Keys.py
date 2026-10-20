@@ -26,9 +26,17 @@ def handleKey(state, key, layout):
     if state.menu is not None:
         menuKey(state, key, layout)
         return
+    if state.focus == "view" and state.view["table"].get("filterOpen") and filterKey(state, key):
+        ## the line of the filter of a table is open: what is typed is its
+        return
     if key == "ESC" and state.focus == "view" and state.view.get("rowCursor") is not None:
         ## the row cursor of a table is left, back to reading it
         state.view["rowCursor"] = None
+        return
+    if key == "ESC" and state.focus == "view" and state.view["table"].get("filter"):
+        ## with no cursor and no line open, Esc clears the filter that narrows the table
+        state.view["table"]["filter"] = ""
+        state.view["top"] = 0
         return
     if key == "ESC":
         state.metaAt = state.now
@@ -148,8 +156,8 @@ def commandRefusal(state, command):
                 return ""
             words = ACTION_REFUSALS[does[1]](state, row) if does[1] in ACTION_REFUSALS else ""
             return "%s: %s" % (said, words) if words else REFUSALS["fits"] % said
-    if does[0] == "go" and not sectionShown(state, does[1][0]):
-        return REFUSALS["absent"] % (said, SECTIONS_WHEN[does[1][0]]["says"])
+    if does[0] == "go" and pathHidden(state, does[1]):
+        return REFUSALS["absent"] % (said, pathHidden(state, does[1]))
     if does[0] == "mode":
         ## a mode is of a thing that has a log, or of a text that is Markdown (rendered or
         ## raw): on any other the keys of the modes do nothing
@@ -167,6 +175,9 @@ def commandRefusal(state, command):
     if does[0] == "pan":
         ## wrapped lines hold nothing to the side
         return REFUSALS["wrapped"] % said if state.wrap or panelsShown(state) else ""
+    if does[0] in ("tablesort", "tablefilter"):
+        ## the keys of a table act on a table that is all of the left window
+        return "" if tableShown(state) else REFUSALS["table"] % said
     if does[0] == "up":
         return "" if state.path else REFUSALS["up"] % said
     if does[0] == "open":
@@ -250,6 +261,10 @@ def runCommand(state, command, layout, key=None):
     elif does[0] == "wrap":
         state.wrap = not state.wrap
         state.view["left"] = 0
+    elif does[0] == "tablesort":
+        tableSort(state)
+    elif does[0] == "tablefilter":
+        tableFilterOpen(state)
     elif does[0] == "pan":
         ## the pane is brought within what it holds when it is drawn (panOf)
         state.view["left"] = max(0, state.view.get("left", 0) + (1 if key == "RIGHT" else -1) * PAN_STEP)

@@ -7,7 +7,7 @@ The one copy of this policy. Each `warden-*` and `magic-coordinator` cite it. No
 
 ## Relationship shape
 
-Same as `keeper-*` (`magic-team.authority.keeper.contract.md`): internal domain-knowledge stewardship, not an external relationship.
+Same as `keeper-*` (`magic-team/contracts/magic-team.authority.keeper.contract.md`): internal domain-knowledge stewardship, not an external relationship.
 
 ## The policy
 

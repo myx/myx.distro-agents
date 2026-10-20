@@ -24,7 +24,7 @@ document-contract: board-item.task
 type: task
 from: <member>
 date: <date-time>
-owner: <optional -- member, the current assignee>
+owner: <member, the current assignee>
 ---
 # Task: <matter, one line>
 

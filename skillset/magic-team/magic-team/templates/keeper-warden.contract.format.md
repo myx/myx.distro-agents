@@ -87,7 +87,7 @@ All statements apply at the same time, always. These rules override a magic-team
 
 - This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - [Only where this member lists the console operations below:] Console sessions batch several commands in this member's workspace; a single call goes direct.
-- Decision authority: this member relays between `magic-coordinator` and the task, never deciding design or approach unless explicitly granted — `magic-team/magic-team.authority.keeper.contract.md` (or `.warden.`).
+- Decision authority: this member relays between `magic-coordinator` and the task, never deciding design or approach unless explicitly granted — `magic-team/contracts/magic-team.authority.keeper.contract.md` (or `.warden.`).
 - [...]
 
 # Domain knowledge: <topic>
@@ -138,7 +138,7 @@ Used to check this file's own definitions against its own goals when it is updat
 # Contract
 
 Relationship shape — internal domain-knowledge stewardship, not restated here: see
-`magic-team.authority.keeper.contract.md`/`magic-team.authority.warden.contract.md`'s own "Relationship
+`magic-team/contracts/magic-team.authority.keeper.contract.md`/`magic-team/contracts/magic-team.authority.warden.contract.md`'s own "Relationship
 shape".
 
 - Frontmatter: `maintainers:` only.
@@ -176,7 +176,7 @@ shape".
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
     - Only where this member lists the console operations: "Console sessions batch several commands in this member's workspace; a single call goes direct." `magic-team.armed.md`'s "Execution mechanisms" governs.
-    - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team.authority.<type>.contract.md` (`keeper` or `warden`), never restated in full.
+    - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team/contracts/magic-team.authority.<type>.contract.md` (`keeper` or `warden`), never restated in full.
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.

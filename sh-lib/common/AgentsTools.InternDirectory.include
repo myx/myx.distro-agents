@@ -7,7 +7,7 @@
 ## read-only views of the places and of the namespaces and projects, by name.
 ##
 
-. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
 
 case "$1" in
 	## This workspace's places, from its directives, its own row included, into its own

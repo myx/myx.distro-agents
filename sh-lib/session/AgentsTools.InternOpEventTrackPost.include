@@ -38,7 +38,7 @@
 
 agentsEventTrackPostLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 
-. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsTools.ToolingTemplate.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
 
 ## The template, from this package's own sh-lib/templates/ (AgentsToolsToolingTemplate).
 AgentsEventTrackPostTemplate(){
@@ -80,7 +80,7 @@ AgentsEventTrackPostRender(){ ## kind, member, session id, out dir, lines file, 
 		ETP_DIR="$renderDir" ETP_MEMBERS=" $( [ -z "${MDAT_SKILLSET_ROOT:-}" ] || AgentsToolsTeamMemberDirectoryText 2>/dev/null | cut -f1 | tr '\n' ' ' )" \
 		ETP_USERS="$renderUsers" ETP_WAIT_STATE="$renderWaitState" ETP_NOW="$( date +%s )" \
 		LC_ALL=C awk -f "$agentsEventTrackPostLib/session/AgentsSessionTranscriptFormat.awk" -f "$agentsEventTrackPostLib/comms/AgentsSlackDate.awk" \
-		-f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$agentsEventTrackPostLib/session/AgentsEventTrackPostFill.awk" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolingTemplateFill.awk" -f "$agentsEventTrackPostLib/session/AgentsEventTrackPostFill.awk" \
 		"$( AgentsEventTrackPostTemplate )" "$renderLines"
 }
 

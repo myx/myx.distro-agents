@@ -42,7 +42,7 @@
 ## made at once: it is one start for one act.
 ##
 
-type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 
 ## For how long the check now leaves a session alone after the last line of the log of its
 ## thread, in seconds; and for how long the console asks whether a thread it started took

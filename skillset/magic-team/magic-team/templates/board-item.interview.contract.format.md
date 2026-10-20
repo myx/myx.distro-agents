@@ -3,7 +3,7 @@ maintainers: [magic-librarian, magic-coordinator, human-owner]
 ---
 # board-item.interview — frontmatter contract
 
-Normative contract: this file's own `# Contract` section, at its end. The document shape is `board-item.interview.document.format.md`. Read by the document validator, `--intern-doc-validate board-item.interview <file>` (settled; not built yet).
+Normative contract: this file's own `# Contract` section, at its end. The document shape is `board-item.interview.document.format.md`. Read by the document validator, `--intern-doc-validate board-item.interview <file>`.
 
 ## Contents
 
@@ -36,7 +36,7 @@ Work whose core is talking it through with the human-owner.
 | `type` | required | either | `literal interview` | The filename's type word, never a genre. Filled by board create where missing. |
 | `from` | required | either | `member` | The author. Filled by board create where missing; a member sets another value only on another member's behalf. |
 | `date` | required | either | `date-time` | Creation. Filled by board create where missing. |
-| `owner` | optional | member | `owner-name` | The current assignee. The `--magic-grooming-*` operations require it; the other board writers do not. A non-acting owner, the human-owner or an external contact, has its inbox content in `magic-coordinator`'s inbox. |
+| `owner` | required | either | `owner-name` | The current assignee. Filled by board create with the acting member where none is given; a create that has neither is refused. A non-acting owner, the human-owner or an external contact, has its inbox content in `magic-coordinator`'s inbox. |
 | `author` | optional | member | `member` | The creating author, where it differs from `from`. |
 | `blocks` | optional | member | `item-names` | Items this item gates. |
 | `blocked-by` | optional | member | `item-names` | Items gating this one. |

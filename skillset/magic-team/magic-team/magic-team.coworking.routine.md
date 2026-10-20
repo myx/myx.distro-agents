@@ -58,6 +58,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **fold-in-learned-lessons**: `magic-librarian`, when a participant, runs `magic-team.process-reflections.routine` inline (`--routine-run-inline magic-team.process-reflections.routine`) for this session's project or workspace. All other participants: each passes its own recent lessons to `magic-librarian` with `post-inquiry`, and may file a new `reflection-*`.
    - **collect-reflections-output**: all participants: each runs `magic-team.process-inbox.routine <own-name>` inline (`--routine-run-inline magic-team.process-inbox.routine`), picking up what **fold-in-learned-lessons** filed.
 
+2. **opening-checkpoint**: the last Opening step, only where this routine's `allows:` names `--executor-checkpoint-push` (a single-participant routine): run `DistroAgentsSession.fn.sh --executor-checkpoint-push opening`. A routine that does not name it does not run this step, and that is no skipped step.
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
@@ -101,15 +103,13 @@ None.
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while this routine is active.
 
-- The executor is permitted and obliged to execute every step exactly as written, in order. The executor is one of the running routine's own `executors:`: `magic-coordinator` for this routine itself, either named executor for `magic-librarian.morning-review.routine`, any member for a `magic-team` one.
+- The executor is permitted and obliged to execute every step exactly as written, in order. The executor is one of the running routine's own `executors:`: `magic-coordinator` for this routine itself, any member for a `magic-team` one.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- **Every coworking-like session has a `magic-coordinator` instance in it**, whoever its executor is.
 - **session-start and close-session are open to every session.** Any member, and any ad-hoc, solo or IDE-chat session, runs both groups under its own identity, in simplified form where a step is type-gated. `executors:` governs a full coworking session only.
 - **Session-type taxonomy** — every session is one of two types:
-  - **Coworking-like**: a structured routine extending this one (`magic-coordinator.daily.routine`, `magic-coordinator.retro.routine`, `magic-team.grooming.routine`, `magic-coordinator.one-on-one.routine`, `magic-librarian.morning-review.routine`, this routine), or several members on one shared task.
+  - **Coworking-like**: a routine whose `requires-session-kind:` is `coworking`, or several members on one shared task.
   - **Ad-hoc / solo**: a single-member dispatch on its own item, an IDE chat, any other one-off activity.
   - Unsure: coworking-like. Ad-hoc is declared, never assumed.
-  - `magic-coordinator.advance.routine` and `magic-coordinator.heartbeat.routine` extend this routine with their own overrides, stated in their files.
 - Invoking a structured routine always starts a full session running these Opening steps, Steps and Closure steps. Utility routines keep their own lighter modes (`magic-team.process-inbox.routine`'s inline mode).
 - **Every step is the executor's**, per `reference/skill-folder-model.md`'s actor phrases. **fold-in-learned-lessons**, **collect-reflections-output** and **secure-continuity** are commanded per participant.
 - **An executor can only command members it spawned itself.** A spawned `magic-coordinator` cannot reach members the harness root spawned. Plan so the executor spawns its own participants; where members already exist under the root, the root leads and a seated coordinator participates.
@@ -132,15 +132,19 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
+BatchTools: several tool calls in one round, much quicker for calls that do not depend on each other.
+
 ## DistroAgentsTools magic-tooling operations
 
 - `--member-comms-slack-send-message <team-member> <target> [text...]`
 - `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name>`
 - `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
-- `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
-- `--member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
-- `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
+- `--member-inbox-note-upsert <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-inbox-reflection-upsert <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-upsert-member-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
 - `--routine-run-inline <routine>`
+- `--get-session-thread [--own]`
+- `--executor-checkpoint-push [<name>]`
 
 # Maintainer Notes
 

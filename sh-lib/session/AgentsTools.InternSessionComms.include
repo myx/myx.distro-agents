@@ -1,0 +1,244 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternSessionComms.include -- the communications reader and writer of a workspace (F9.3): a shell process of the
+## tooling that keeps the session chat files up to date with Slack and Slack up to date with them, and no agent. Sourced from
+## DistroAgentsTools.fn.sh's `--intern-session-comms` arm; needs $1/$@/$MDSC_CMD from dot-sourcing. What it does, what it keeps and
+## where, and when it ends: AgentsTools.SessionComms.include. A sibling of --intern-session-control: a usage blurb on no mode, the
+## same set +e/set -e discipline, `--run` stays and `--one` makes one pass and ends.
+##
+## ONE A WORKSPACE ON A HOST. Its lock is $MMDAPP/.local/agents/comms/lock, a symlink to `<pid> <start>` held for the life of the
+## process: a second start is refused at once, and a holder that is gone is taken over. Nothing but TERM ends it, but for its two
+## own ends -- no session has had anything for it to do for MDAT_COMMS_IDLE_SECONDS (ten minutes), and its folder gone -- and a
+## hangup, an interrupt or a quit from a terminal, a stop from one, an alarm, are ignored, by it and by what it starts. A broken pipe
+## and the two user signals are taken and end nothing. Its input is /dev/null, its output and its errors its own log, the
+## descriptors 3 to 9 it was handed are closed, and its working folder is `/`, so nothing of whatever started it can end it.
+## It runs as no member: nothing of a member's session reaches it.
+##
+
+case "$1" in
+
+	--intern-session-comms)
+		shift
+
+		## Never run without a mode: an accidental invocation would stay.
+		local commsMode=''
+		case "${1:-}" in
+			--run) commsMode='--run' ;;
+			--one) commsMode='--one' ;;
+			--start) commsMode='--start' ;;
+			--inject) commsMode='--inject' ;;
+		esac
+		if [ -z "$commsMode" ] ; then
+			printf '%s\n' "$MDSC_CMD --intern-session-comms -- the communications reader and writer of this workspace: a shell process of the tooling that keeps the session chat files up to date with Slack and Slack with them. No agent." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-session-comms --run" >&2
+			printf '%s\n' "      The reader: takes the lock of the workspace, and every second looks after the live sessions: reads each thread from the newest ts the chat file holds (every 5 seconds while a wait is blocked on it or it spoke in the last minute, else 30 seconds doubling to 300; at most 20 reads a minute), posts what could not be posted when it was sent, and sends what the console left. Ends on TERM, and by itself when nothing has been for it to do for MDAT_COMMS_IDLE_SECONDS (600)." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-session-comms --one [--session-id <id>]" >&2
+			printf '%s\n' "      One pass over the live sessions, or over the one named, whatever its cadence and its control thread, under the same lock, then the end: for a test, and for a check by hand." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-session-comms --start" >&2
+			printf '%s\n' "      Starts the reader detached where none lives, and says alive <pid>, started <pid>, off (MDAT_COMMS_READER=off) or failed - <why>." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-session-comms --inject --session-id <id> --from <member> [--to <member>]... < message" >&2
+			printf '%s\n' "      Leaves a message for the session in its inbox (the console's way in), and starts the reader where none lives. The reader sends it as <from> into the session thread, through the one send operation." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "Its files are in .local/agents/comms/: lock, log, calls, pause, looked/<session>." >&2
+			set +e ; return 1
+		fi
+		shift
+
+		local commsSession="" commsFrom="" commsTo=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					if [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: --session-id needs an id" >&2
+						set +e ; return 1
+					fi
+					commsSession="$2" ; shift 2
+				;;
+				--from)
+					if [ "$commsMode" != "--inject" ] || [ $# -lt 2 ] || [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: --from is --inject's, and needs a member" >&2
+						set +e ; return 1
+					fi
+					commsFrom="$2" ; shift 2
+				;;
+				--to)
+					if [ "$commsMode" != "--inject" ] || [ $# -lt 2 ] || [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: --to is --inject's, and needs a member" >&2
+						set +e ; return 1
+					fi
+					commsTo="$commsTo${commsTo:+,}$2" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		case "$commsSession" in
+			.|..|*/*|*[[:space:]]*)
+				echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: '$commsSession' is no id of a session: one name, with no '/' and no space" >&2
+				set +e ; return 1
+			;;
+		esac
+
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" || { set +e ; return 1 ; }
+		set +e +u
+
+		local commsRc=0 commsSaidStart=""
+		if [ "$commsMode" = "--start" ] ; then
+			AgentsToolsSessionCommsStart ; commsRc=$?
+			return "$commsRc"
+		fi
+		if [ "$commsMode" = "--inject" ] ; then
+			if [ -z "$commsSession" ] || [ -z "$commsFrom" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-session-comms --inject: syntax is --session-id <id> --from <member> [--to <member>]..., with the message on the standard input" >&2
+				return 1
+			fi
+			AgentsToolsSessionCommsInject "$commsSession" "$commsFrom" "$commsTo" ; commsRc=$?
+			[ "$commsRc" = 0 ] || return "$commsRc"
+			commsSaidStart="$( AgentsToolsSessionCommsStart )" || :
+			echo "# $MDSC_CMD --intern-session-comms --inject: the reader: ${commsSaidStart:-no answer}" >&2
+			return 0
+		fi
+
+		## NOTHING BUT TERM ENDS THE PROCESS, from its first moment: what a terminal sends, to it and to what it starts, is ignored;
+		## a broken pipe and the two user signals are taken, and end nothing. A call of `--one` is a call like any other.
+		local commsEnd="" commsWoken=""
+		if [ "$commsMode" = "--run" ] ; then
+			trap '' HUP INT QUIT TSTP TTIN TTOU ALRM VTALRM PROF
+			trap 'commsWoken="yes"' PIPE USR1 USR2
+			trap 'commsEnd="TERM"' TERM
+		fi
+
+		## IT RUNS AS NO MEMBER: each name that carries a member's session is emptied here, for this operation and what it starts.
+		local commsDrop
+		for commsDrop in ${!MDAT_SPAWN_@} MDAT_SESSION_ID MDAT_SESSION_THREAD MDAT_CONVERSATION_THREADS harnessSessionId harnessAgent CLAUDE_CODE_SESSION_ID ; do
+			[ -z "${!commsDrop+set}" ] || local -x "$commsDrop="
+		done
+
+		## This process, with when it began: the pid of the shell that runs these lines, also where that is a subshell.
+		local commsPid commsMe commsLine commsDir="" commsLock="" commsHolder="" commsTookOver="" commsSaid="" commsReadError="" commsReadAdded=0
+		commsPid="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || commsPid=""
+		case "$commsPid" in ''|*[!0123456789]*) commsPid="" ;; esac
+		commsMe=""
+		[ -z "$commsPid" ] || commsMe="$( printf '%s\n' "$commsPid" | AgentsToolsRegistryProcessesBegan )" || commsMe=""
+		if [ -z "$commsMe" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: could not read which process this is and when it began, so its lock would name nobody -- nothing was started" >&2
+			return 1
+		fi
+		## IT IS NO RUN OF A SESSION. By the one rule a run is recognised by, a command line of the tooling is none, whatever it carries.
+		commsLine="$( LC_ALL=C ps -ww -o args= -p "$commsPid" 2> /dev/null )" || commsLine=""
+		if [ -n "$( printf '%s %s\n' "$commsPid" "$commsLine" | AgentsToolsRegistryRunWords )" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: the command line of this process would read as a run of a session: start it with the tooling script as the command itself, or as the first word after its interpreter -- nothing was started" >&2
+			return 1
+		fi
+		if [ "$commsMode" = "--run" ] ; then
+			case " $commsLine " in
+				*" --intern-session-comms --run "*) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: --run is a process of its own, shown in the process list by this operation: start it as the tooling script with these arguments, not inside another operation's process -- nothing was started" >&2
+					return 1
+				;;
+			esac
+		fi
+
+		commsDir="$( AgentsToolsSessionCommsDir )" || { echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: no workspace is selected -- nothing was started" >&2 ; return 1 ; }
+		commsLock="$commsDir/lock"
+		mkdir -p "$commsDir" 2> /dev/null || { echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: could not make $commsDir -- nothing was started" >&2 ; return 1 ; }
+		AgentsToolsSessionCommsLockTake ; commsRc=$?
+		case "$commsRc" in
+			0) ;;
+			1)
+				echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: the communications reader already runs as pid ${commsHolder%% *}, begun ${commsHolder#* } -- a second one is not started" >&2
+				AgentsToolsSessionCommsSay "a start was refused: the reader already runs as pid ${commsHolder%% *}"
+				return 1
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --intern-session-comms: could not take the lock at $commsLock -- nothing was started" >&2
+				return 1
+			;;
+		esac
+		## What a process that was ended the hard way left half made is nobody's now.
+		rm -rf "$commsDir"/read.* "$commsDir"/post.* "$commsDir"/*.aside 2> /dev/null
+		if [ "$commsMode" = "--run" ] ; then
+			## From here on its input is /dev/null and its output and its errors are its own log; the descriptors 3 to 9 it was handed are
+			## closed; and its working folder is one that does not vanish.
+			exec < /dev/null >> "$commsDir/log" 2>&1
+			exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-
+			case "$MMDAPP:$MDLT_ORIGIN" in /*:/*) cd / 2> /dev/null ;; esac
+		fi
+		if [ -n "$commsTookOver" ] ; then
+			AgentsToolsSessionCommsSay "took over the lock of pid ${commsTookOver%% *}, which is gone or is another process now"
+		fi
+		[ "$commsMode" != "--run" ] || AgentsToolsSessionCommsSay "the communications reader runs as pid $commsPid: it looks after the sessions of $MMDAPP, and TERM ends it in order"
+
+		local commsList="" commsListAt=-100 commsIdleFrom="$SECONDS" commsIdleLimit commsLoops=0 commsAny commsOne commsThread commsForce="" commsFrom2 commsLeave=""
+		commsIdleLimit="${MDAT_COMMS_IDLE_SECONDS:-600}"
+		case "$commsIdleLimit" in ''|*[!0123456789]*|0) commsIdleLimit=600 ;; esac
+		if [ "$commsMode" = "--one" ] ; then
+			commsForce="force"
+			if [ -n "$commsSession" ] ; then
+				commsThread="$( MDAT_SESSION_THREAD="" AgentsToolsSessionChatThread "$commsSession" )" || commsThread=""
+				commsList="$commsSession ${commsThread:--}"
+			else
+				commsList="$( AgentsToolsSessionCommsPlan )"
+			fi
+		fi
+
+		while : ; do
+			commsWoken=""
+			if [ "$commsMode" = "--run" ] && [ $(( SECONDS - commsListAt )) -ge 10 ] ; then
+				commsList="$( AgentsToolsSessionCommsPlan )"
+				commsListAt="$SECONDS"
+			fi
+			commsAny=""
+			while read -r commsOne commsThread ; do
+				[ -n "$commsOne" ] || continue
+				commsAny="yes"
+				[ "$commsThread" != "-" ] || commsThread=""
+				AgentsToolsSessionCommsTick "$commsOne" "$commsThread" $commsForce
+				[ -z "$commsEnd" ] || break
+			done <<< "$( printf '%s\n' "$commsList" | AgentsToolsSessionCommsOrder )"
+			[ -z "$commsAny" ] || commsIdleFrom="$SECONDS"
+			commsLoops=$(( commsLoops + 1 ))
+			[ "$(( commsLoops % 60 ))" != 0 ] || AgentsToolsSessionCommsLogBound
+			[ "$commsMode" != "--one" ] || break
+			[ -z "$commsEnd" ] || break
+			## The ends of its own: nothing to do for the time set; its folder, or its lock, gone.
+			if [ "$(( SECONDS - commsIdleFrom ))" -ge "$commsIdleLimit" ] ; then
+				commsLeave="no live session had anything for it to do for ${commsIdleLimit}s"
+				break
+			fi
+			if [ ! -d "$commsDir" ] || [ "$( readlink "$commsLock" 2> /dev/null )" != "$commsMe" ] ; then
+				commsLeave="its folder or its lock is gone"
+				commsLock=""
+				break
+			fi
+			## The wait between two passes is waited for and never slept through: TERM ends it at once, and so does a signal that asks
+			## for a pass. A sleep that cannot be made would spin, so the second is waited out by the shell itself.
+			commsFrom2="$SECONDS"
+			sleep 1 &
+			{ wait "$!" ; } 2> /dev/null || :
+			while [ "$SECONDS" = "$commsFrom2" ] && [ -z "$commsEnd" ] && [ -z "$commsWoken" ] ; do : ; done
+		done
+
+		if [ "$commsMode" = "--run" ] ; then
+			[ -n "$commsLeave" ] || commsLeave="it was ended by $commsEnd"
+			[ ! -d "$commsDir" ] || AgentsToolsSessionCommsSay "the communications reader, pid $commsPid, ends: $commsLeave"
+		fi
+		[ -z "$commsLock" ] || AgentsToolsSessionCommsLockGive
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+
+esac

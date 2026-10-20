@@ -27,6 +27,7 @@
 ## frame (two empty lines under its top, one more under its buttons, three blank cells at each side), so its box is
 ## four cells wider and two lines taller and what it holds stands where it stood.
 ## Reconciled for F11.0, the table lines: two spaces between the columns of the tables of the left window and of the list, whose rows are in the look of their ground (here underlined: l).
+## Reconciled for F11.5: Locations (Places) is the fourth root, key 4, and the list a case gives a generic list is that of `Launch (Start)` under Activity (`at @activity launch`).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -163,7 +164,7 @@ turn
 wait places 5
 get start
 show root
-keys 5
+keys 4
 turn
 wait places 5
 turn
@@ -189,7 +190,7 @@ get out
 show s
 EOF
 rigAssert "the list of the locations is read when the screen starts, with no argument, though another root is shown" "$( rigVal start.selected ) $( rigCalled --manager-place-list )" "dashboard 1"
-rigAssert "the root list holds it after the team members and the spacer under their group, as a folder" "[$( rigListLine root 'Team Members' )] [$( rigListLine root 'Locations (Places)' )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^root|' | LC_ALL=C grep -A2 -F 'Team Members' | LC_ALL=C grep -F 'Locations (Places)' | LC_ALL=C grep -c -F '►' )" "[ Team Members ►] [ Locations (Places) ►] 1"
+rigAssert "the root list holds it after Magic-Team (Agents) and the spacer under its group, as a folder" "[$( rigListLine root 'Magic-Team (Agents)' )] [$( rigListLine root 'Locations (Places)' )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^root|' | LC_ALL=C grep -A2 -F 'Magic-Team (Agents)' | LC_ALL=C grep -F 'Locations (Places)' | LC_ALL=C grep -c -F '►' )" "[ Magic-Team (Agents) ►] [ Locations (Places) ►] 1"
 rigAssert "9 goes there: the row that goes up and a row a location, in the order of the operation, and a line that is no row of one is left out" "[$( rigVal in.path )] $( rigVal in.rows ) $( rigHolds t 'another name' ) $( rigHolds t 'short' )" "[places] 6 0 0"
 rigAssert "the table has a header: the key, the kind, the ceiling, the state, the sessions, and no column of a host" "[$( rigListLine t 'PLACE' )] $( rigHolds t 'HOST' )" "[ PLACE KIND CEILING STATE SESSIONS] 0"
 rigAssert "a location is a row of it, by its key; the one the console runs in has the mark ahead of it" "[$( rigListLine t '.skillset-shared' )] [$( rigListLine t '• ws-one ' )] [$( rigListLine t 'gone-work' )]" "[ .skillset-shared directory read-write present -] [ • ws-one workspace read-write present 196 ►] [ gone-work workspace read-write absent 0]"
@@ -209,7 +210,7 @@ rigCase narrow
 rigScript <<'EOF'
 turn
 wait places 5
-keys 5
+keys 4
 turn
 show n
 get n
@@ -235,18 +236,20 @@ turn
 show dash
 roles dashr
 wait sessions 5
-table list:sessions none
-rows sessions s1=one
+table list:magic-team/activity/launch none
+rows magic-team/activity/launch s1=one
 rows settings workspace=Workspace_Paths other=Other_Subject
 rows consoles c1=A_Console
-keys 2 DOWN DOWN
+at @activity launch
+turn
+keys DOWN DOWN
 turn
 viewline $rigSaid
 turn
 show v
 roles vr
 get v
-keys 7 DOWN
+keys 6 DOWN
 turn
 viewline $rigSaid
 turn
@@ -258,7 +261,7 @@ viewline $rigSaid
 turn
 get other
 show q
-keys 6 DOWN
+keys 5 DOWN
 turn
 viewline $rigSaid
 turn
@@ -306,7 +309,7 @@ advance 11
 turn
 wait places 5
 get root
-keys 5
+keys 4
 turn
 wait places 5
 get shown
@@ -331,7 +334,7 @@ rigAssert "it was read: once at the start, at once when its list is shown after 
 rigScript <<'EOF'
 turn
 wait places 5
-keys 5
+keys 4
 turn
 wait places 5
 keys u
@@ -347,7 +350,7 @@ rigSize="200 40" rigScript <<'EOF'
 workspace /rig/Workspaces/ws-one
 turn
 wait places 5
-keys 5
+keys 4
 turn
 wait places 5
 keys DOWN DOWN
@@ -415,13 +418,15 @@ rigCase none
 rigSize="240 40" rigScript <<EOF
 turn
 wait places 5
-keys 5
+keys 4
 turn
 show e
 wait sessions 5
-table list:sessions none
-rows sessions s1=one
-keys 2 DOWN DOWN
+table list:magic-team/activity/launch none
+rows magic-team/activity/launch s1=one
+at @activity launch
+turn
+keys DOWN DOWN
 turn
 viewline $rigSaid
 turn

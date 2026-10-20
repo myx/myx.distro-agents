@@ -156,7 +156,7 @@ function fileExists( file,    line, got ) {
 }
 
 ## A grants line's UTC stamp, YYYYMMDDTHHMMZ or YYYYMMDDTHHMMSSZ, as epoch seconds, or empty:
-## AgentsIsoToEpoch.awk's own arithmetic, so an Allow once lapses here as it does there.
+## LocalIsoToEpoch.awk's own arithmetic, so an Allow once lapses here as it does there.
 function stampEpoch( s,    y, mo, d, h, mi, sec, era, yoe, doy, doe ) {
 	if ( s !~ /^[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9]([0-9][0-9])?Z$/ ) return ""
 	y = substr( s, 1, 4 ) + 0 ; mo = substr( s, 5, 2 ) + 0 ; d = substr( s, 7, 2 ) + 0

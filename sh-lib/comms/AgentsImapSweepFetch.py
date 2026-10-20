@@ -16,6 +16,8 @@
 ##   AGENTS_IMAP_SINCE     optional dd-Mon-yyyy; adds SINCE to the search
 ##   AGENTS_IMAP_MAX       how many of the found UIDs to fetch, in search order
 ##   AGENTS_IMAP_OUT_DIR   where <uid>.eml (raw bytes) and <uid>.rc land
+##   AGENTS_IMAP_AFTER_UID optional: only the UIDs above it are fetched; the search answer still names every one found
+##   AGENTS_IMAP_SKIP_UIDS optional, space-separated: UIDs that are not fetched (the collection holds them already)
 ##
 ## stdout: the search answer as one "* SEARCH <uid>..." line, the shape the
 ## scan already reads. Per fetched UID, <uid>.rc holds 0 (fetched), 3 (the
@@ -45,6 +47,9 @@ mailbox = os.environ.get("AGENTS_IMAP_MAILBOX", "").strip() or "INBOX"
 since = os.environ.get("AGENTS_IMAP_SINCE", "").strip()
 maxText = os.environ.get("AGENTS_IMAP_MAX", "").strip()
 outDir = os.environ.get("AGENTS_IMAP_OUT_DIR", "").strip()
+afterText = os.environ.get("AGENTS_IMAP_AFTER_UID", "").strip()
+skipUids = set(u for u in os.environ.get("AGENTS_IMAP_SKIP_UIDS", "").split() if u.isdigit())
+afterUid = int(afterText) if afterText.isdigit() else 0
 
 if not host or not user or not password:
     fail(2, "AgentsImapSweepFetch: IMAP host/user/password not supplied in the environment")
@@ -89,7 +94,7 @@ try:
     sys.stdout.write("* SEARCH%s\n" % "".join(" " + u for u in uids))
     sys.stdout.flush()
 
-    for uid in uids[:maxFetch]:
+    for uid in [u for u in uids if int(u) > afterUid and u not in skipUids][:maxFetch]:
         try:
             status, parts = connection.uid("FETCH", uid, "(BODY.PEEK[])")
         except (imaplib.IMAP4.abort, OSError) as error:

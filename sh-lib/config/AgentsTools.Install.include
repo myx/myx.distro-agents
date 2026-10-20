@@ -1040,7 +1040,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
-		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberHomes.include"
 		local homesHere homesRoot homesStatus=0 homesScanErr homesRows
 		local scanMemberNames scanMemberSources scanDiscoveryTrusted scanDiscoveryError

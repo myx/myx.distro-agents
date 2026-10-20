@@ -3,7 +3,7 @@ maintainers: [magic-librarian, magic-coordinator, human-owner]
 ---
 # audit-item.declaration — frontmatter contract
 
-Normative contract: this file's own `# Contract` section, at its end. The document shape is `audit-item.declaration.document.format.md`. Read by the document validator, `--intern-doc-validate audit-item.declaration <file>` (settled; not built yet).
+Normative contract: this file's own `# Contract` section, at its end. The document shape is `audit-item.declaration.document.format.md`. Read by the document validator, `--intern-doc-validate audit-item.declaration <file>`.
 
 ## Contents
 

@@ -244,7 +244,7 @@ AgentsHarnessHooksRefusal(){
 				printf '%s' "$hookPayload" | CLAUDE_PROJECT_DIR="$MMDAPP" "$BASH" -c "$hookCommand" > "$harnessScratch/hook.out" 2>"$harnessScratch/hook.err" &
 				hookRunPid=$!
 				(
-					type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null
+					type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
 					hookRunBegan="$( printf '%s\n' "$hookRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
 					sleep 60
 					[ -n "$hookRunBegan" ] && [ "$( printf '%s\n' "$hookRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$hookRunBegan" ] && kill -TERM "$hookRunPid" 2>/dev/null

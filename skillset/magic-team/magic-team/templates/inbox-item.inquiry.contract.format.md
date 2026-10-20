@@ -3,7 +3,7 @@ maintainers: [magic-librarian, magic-coordinator, human-owner]
 ---
 # inbox-item.inquiry — frontmatter contract
 
-Normative contract: this file's own `# Contract` section, at its end. The document shape is `inbox-item.inquiry.document.format.md`. Read by the document validator, `--intern-doc-validate inbox-item.inquiry <file>` (settled; not built yet).
+Normative contract: this file's own `# Contract` section, at its end. The document shape is `inbox-item.inquiry.document.format.md`. Read by the document validator, `--intern-doc-validate inbox-item.inquiry <file>`.
 
 ## Contents
 
@@ -65,4 +65,4 @@ A question or hand-off that needs an answer. The one member-to-member document: 
 - [store] An item is handled by marking it processed with `--member-inbox-to-processed`; an item still wanted stays unmarked.
 - [store] A member never writes a key whose writer is `tooling`.
 - [store] Posted with `--member-upsert-member-inquiry <target-member> <item-filename>`, adding `--from-member` only when writing on another member's behalf.
-- `communication-channel-id` is given when the inquiry traces back to one external message.
+- [judged] `communication-channel-id` is given when the inquiry traces back to one external message.

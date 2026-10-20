@@ -173,7 +173,7 @@ rigCall(){ ## guard seconds, tool, argument object, optional from-read
 
 ## One post filled straight from its template, as the tool fills it.
 rigFill(){ ## want, template, form -- the slots come from the caller's environment
-	ASKP_WANT="$1" ASKP_FORM="$3" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$rigHere/questions/AgentsAskPostFill.awk" "$rigHere/templates/$2" 2>&1
+	ASKP_WANT="$1" ASKP_FORM="$3" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolingTemplateFill.awk" -f "$rigHere/questions/AgentsAskPostFill.awk" "$rigHere/templates/$2" 2>&1
 }
 
 rigAsk='"to":"magic-team","address_to":"URIGOWNER"'

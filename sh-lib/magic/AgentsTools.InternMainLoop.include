@@ -293,7 +293,7 @@ case "$1" in
 			local mainLoopControl="" mainLoopControlSession mainLoopControlWord mainLoopControlPid mainLoopControlWhy mainLoopControlStarted="" mainLoopControlCount=0
 			if mainLoopControl="$(
 				set +e
-				. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" || exit 1
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" || exit 1
 				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include" || exit 1
 				AgentsToolsSessionControlCheckWorkspace 2> /dev/null
 			)" ; then
@@ -307,6 +307,19 @@ case "$1" in
 			else
 				echo "# $MDSC_CMD --intern-main-loop: the control threads of the sessions could not be checked -- the iteration goes on" >&2
 			fi
+			## The collection of the sources an input scan reads (F4.2): a full team rig keeps the one background thread that updates them,
+			## checked here as a control thread is. It is wanted by this very iteration, started where none lives and a source of the
+			## members a scan reads is configured, and looked at no more than once in five minutes. One word, logged when something was
+			## done; never fatal.
+			local mainLoopCollect=""
+			mainLoopCollect="$(
+				set +e
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.CollectThread.include" 2> /dev/null || exit 1
+				AgentsToolsCollectThreadCheck main-loop 2> /dev/null
+			)" || mainLoopCollect="failed - the check could not run"
+			case "$mainLoopCollect" in
+				started*|failed*) echo "# $MDSC_CMD --intern-main-loop: the source collector: $mainLoopCollect" >&2 ;;
+			esac
 			## The spawn runs --wait, so without these lines the caller is silent for a whole iteration.
 			echo "# $MDSC_CMD --intern-main-loop: heartbeat iteration starting" >&2
 			## Named here so the choice is visible from the output itself, not only

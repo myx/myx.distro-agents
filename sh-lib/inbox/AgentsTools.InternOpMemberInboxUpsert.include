@@ -15,7 +15,7 @@
 ## changes its folder.
 ##
 
-. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsTools.OutputStyle.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
 type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
 
 case "$1" in
@@ -35,7 +35,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
-			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: syntax is <member> <item-filename> [--from-member <member>] [--include-processed] -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
+			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: syntax is <member> <item-filename> [--from-member <member>] [--include-processed] [--no-commit] -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<member>" member-inbox-upsert || { set +e ; return 1 ; }
@@ -49,11 +49,11 @@ case "$1" in
 			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local includeProcessed="no" existingPath=""
+		local includeProcessed="no" existingPath="" noCommit="no"
 		local target=""
 		local content contentFromFile="false" bodyMode="" bodyModeCount=0
 		## Who is writing: the `from` a new item is stamped with when its content names none.
-		## A spawned session's own member when not given; nothing is guessed beyond that.
+		## A spawned session's own member when not given, else user-<account> for a person at a console.
 		local fromMember="${MDAT_SPAWN_AGENT:-}"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -93,6 +93,12 @@ case "$1" in
 					includeProcessed="yes"
 					shift
 				;;
+				## The write only: the caller that writes many items in one pass commits them once, at its end
+				## (AgentsToolsTeamDataCommitPaths), where a commit per item would be a commit per note.
+				--no-commit)
+					noCommit="yes"
+					shift
+				;;
 				*)
 					echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: unrecognized argument: $1" >&2
 					set +e ; return 1
@@ -129,25 +135,18 @@ case "$1" in
 			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: empty content -- refusing to write an empty inbox item" >&2
 			set +e ; return 1
 		fi
-		## A new item's name is checked against the naming Rule: said, never refused, and
-		## never rewritten. An item that already exists is updated under the name it has.
-		if [ -z "$existingPath" ] ; then
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.ItemNameShape.include"
-			AgentsToolsItemNameShapeCheck "$itemName" member-inbox-upsert "new item"
-			## An inbox holds inbox types, and a board type here is misfiled.
-			case "$( AgentsToolsItemNameType "$itemName" )" in
-				note|inquiry|reflection) ;;
-				*) echo "$MDSC_CMD: member-inbox-upsert: ⚠️ WARNING: $itemName is not an inbox type (note-*, inquiry-*, reflection-*) -- a board type filed in an inbox is misfiled; written anyway" >&2 ;;
-			esac
-		fi
+		## A new item's name is checked against the naming Rule, and its type against the store, by the write
+		## gate below (AgentsToolsDocValidateGate): said, never refused, never rewritten. An item that already
+		## exists is updated under the name it has.
+		type AgentsToolsDocValidateGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidate.include"
 		## created vs updated is decided before the write, while the target's
 		## prior presence still tells the two apart.
 		local existedBefore="false"
 		if [ -n "$existingPath" ] ; then existedBefore="true" ; fi
 
-		## A new item's required headers -- type, from, date, owner -- stamped only where the
+		## A new item's required headers -- type, from, date, owner, document-contract -- stamped only where the
 		## content names none of them: type from the name's prefix, from the writing member
-		## when known, date now, owner the member whose inbox this is. Never on an update:
+		## when known, date now, owner the member whose inbox this is, and the contract the type names. Never on an update:
 		## those are creation facts, and the one updating is not the one who created it.
 		## A body opening a frontmatter block it never closes is written as given, as before:
 		## there is no frontmatter to complete, and the header awk would refuse it.
@@ -157,12 +156,21 @@ case "$1" in
 		fi
 		if [ "$existedBefore" = "false" ] && [ "$openFrontmatter" = "false" ] ; then
 			[ -n "$fromMember" ] && AgentsToolsAssertBareName "$fromMember" "MDAT_SPAWN_AGENT" member-inbox-upsert 2>/dev/null || fromMember=""
+			## A person at a console, with no session spawned, is user-<account> (the team member default of the common
+			## option set, F2.2); with not even an account, the item has no writer and the gate refuses it.
+			if [ -z "$fromMember" ] && [ -z "${MDAT_SPAWN_AGENT:-}" ] && [ -n "${USER:-}" ] ; then
+				fromMember="user-$USER"
+				AgentsToolsAssertBareName "$fromMember" "user-\$USER" member-inbox-upsert 2>/dev/null || fromMember=""
+			fi
 			local createDefaults="" createType
 			createType="$( AgentsToolsItemNameType "$itemName" )"
 			[ -z "$createType" ] || createDefaults="default"$'\t'"type"$'\t'"$createType"$'\n'
 			[ -z "$fromMember" ] || createDefaults="${createDefaults}default"$'\t'"from"$'\t'"$fromMember"$'\n'
 			createDefaults="${createDefaults}default"$'\t'"date"$'\t'"$( date +"%Y-%m-%d %H:%M %z" )"$'\n'
 			createDefaults="${createDefaults}default"$'\t'"owner"$'\t'"$memberName"$'\n'
+			if [ -n "$createType" ] && AgentsToolsDocValidateContractFile "inbox-item.$createType" > /dev/null ; then
+				createDefaults="${createDefaults}default"$'\t'"document-contract"$'\t'"inbox-item.$createType"$'\n'
+			fi
 			## Same ops file discipline as --intern-op-board-upsert-move-edit: a real path the
 			## awk reads, made and removed inside this one subshell, and this call's own: by mktemp,
 			## never by $$, which every subshell of one shell shares.
@@ -179,6 +187,12 @@ case "$1" in
 		[ "$( printf '%s\n' "$content" | LC_ALL=C awk -v fieldName=processed-at -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterFieldProbe.awk" )" != "HAS" ] || stampedNow="yes"
 		target="$( AgentsToolsInboxDirFor "$memberName" "$stampedNow" )/$itemName"
 		[ -z "$existingPath" ] || [ "$existingPath" = "$target" ] || movedFrom="$existingPath"
+		## THE WRITE GATE (AgentsTools.DocValidate.include): the item as it would be, against the item as it is. A fault of
+		## its contract that this write introduces, and whose rule refuses, refuses the write and nothing is written; one
+		## whose rule reports is said and the write goes on.
+		local gateMode="change" gateLabel="$itemName"
+		[ -n "$existingPath" ] || { gateMode="create" ; gateLabel="new item" ; }
+		printf '%s\n' "$content" | AgentsToolsDocValidateGate member-inbox-upsert "$gateLabel" inbox "$itemName" "$existingPath" "$gateMode" || { set +e ; return 1 ; }
 		mkdir -p "${target%/*}" || {
 			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: can't create inbox directory: ${target%/*}" >&2
 			set +e ; return 1
@@ -191,7 +205,7 @@ case "$1" in
 		## this op never pushes. Mirrors --intern-op-board-upsert-move-edit.
 		local repoRoot=""
 		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
-		if [ -n "$repoRoot" ] ; then
+		if [ -n "$repoRoot" ] && [ "$noCommit" = "no" ] ; then
 			local msgPrefix="+" msgAction="created"
 			if [ "$existedBefore" = "true" ] ; then msgPrefix="*" ; msgAction="updated" ; fi
 			local ctxForMsg="$opContext"

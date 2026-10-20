@@ -135,7 +135,7 @@ rigStart own-wait
 rigReplies "$rigAnswer"
 rigAsk rig-session-d 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\"}"
 rigAssert "control: the ask's own wait takes the answer" "$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT: RECEIVED' )" yes
-rigAssert "control: and the answered item stays in the Wait set" "$( rigWaitSet "$rigScenarioDir" rig-session-d )" "replies:rig-session-d ask:$( ls "$rigScenarioDir/ws/.local/agents/pending" 2>/dev/null | LC_ALL=C sed -n 's/\.md$//p' | head -1 ) "
+rigAssert "control: and the answered item stays in the Wait set" "$( rigWaitSet "$rigScenarioDir" rig-session-d )" "replies:rig-session-d chat:rig-session-d ask:$( ls "$rigScenarioDir/ws/.local/agents/pending" 2>/dev/null | LC_ALL=C sed -n 's/\.md$//p' | head -1 ) "
 rigStart posted-wait
 rigReplies ""
 rigAsk rig-session-d 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"wait\":false}"
@@ -156,7 +156,7 @@ rigAssert "it carries the answer text"                 "$( rigHolds "$rigScenari
 rigAssert "and takes it as the asking call would"      "$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT: RECEIVED' )" yes
 rigAssert "the record closed as received"              "$( rigRecordStatus )" reply-received
 rigAssert "the record is the one the ask's own wait leaves" "$( rigRecordShape "$rigScenarioDir" )" "$( rigRecordShape "$rigTmp/own-wait" )"
-rigAssert "the answered item stays in the Wait set"    "$( rigWaitSet "$rigScenarioDir" rig-session-d )" "replies:rig-session-d ask:$rigRewaitId "
+rigAssert "the answered item stays in the Wait set"    "$( rigWaitSet "$rigScenarioDir" rig-session-d )" "replies:rig-session-d chat:rig-session-d ask:$rigRewaitId "
 rigAssert "its thread watched from the answer"         "$( LC_ALL=C awk -F': ' '$1 == "follow-floor" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigRewaitId.md" )" "1700000001.000200"
 rigAsk rig-session-d 30 "{\"pending_id\":\"$rigRewaitId\"}"
 rigAssert "control: the pending_id re-wait sees it closed" "$( rigHolds "$rigScenarioDir/out" 'is closed' )" yes
@@ -180,7 +180,7 @@ rigAssert "the first reply is RETURNED"                "$( rigVerdictLine )" "VE
 rigRewaitId="$( LC_ALL=C sed -n 's/^WAIT-ID: ask://p' "$rigScenarioDir/out" | tail -1 )"
 rigAssert "it names its wait item"                     "$( [ -n "$rigRewaitId" ] && printf yes || printf no )" yes
 rigAssert "the compatible re-wait line is still last"  "$( LC_ALL=C awk 'END { print ; }' "$rigScenarioDir/out" )" "AskUserQuestion pending_id=$rigRewaitId"
-rigAssert "the item stays in the Wait set"             "$( rigWaitSet "$rigScenarioDir" rig-session-e )" "replies:rig-session-e ask:$rigRewaitId "
+rigAssert "the item stays in the Wait set"             "$( rigWaitSet "$rigScenarioDir" rig-session-e )" "replies:rig-session-e chat:rig-session-e ask:$rigRewaitId "
 rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"let me think","thread_ts":"1700000001.000101"},{"ts":"1700000001.000300","user":"URIGOWNER","text":"deny","thread_ts":"1700000001.000101"}'
 rigPostsBefore="$( rigCalls chat.postMessage )"
 rigAsk rig-session-e 30 "{\"sources\":\"ask:$rigRewaitId\"}" Wait
@@ -247,7 +247,7 @@ rigAssert "on the record too"                         "$( rigRecordStatus )/$( r
 rigAssert "the readback is posted in the thread"      "$( rigHolds "$rigScenarioDir/post.2" '"thread_ts":"1700000001.000101"' )$( rigHolds "$rigScenarioDir/post.2" 'Readback by magic-tester' )" yesyes
 rigAssert "its ts is the follow floor"                "$( rigRecordField "$rigRewaitId" follow-floor )" "1700000001.000102"
 rigAssert "the reply read back is kept"               "$( rigRecordHolds "$rigRewaitId" '- 1700000001.000200 URIGOWNER: hmm, the first one I guess' )" yes
-rigAssert "the item stays in the Wait set"            "$( rigWaitSet "$rigScenarioDir" rig-session-g )" "replies:rig-session-g ask:$rigRewaitId "
+rigAssert "the item stays in the Wait set"            "$( rigWaitSet "$rigScenarioDir" rig-session-g )" "replies:rig-session-g chat:rig-session-g ask:$rigRewaitId "
 rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"hmm, the first one I guess","thread_ts":"1700000001.000101"},{"ts":"1700000001.000102","user":"URIGSELF1","text":"readback","thread_ts":"1700000001.000101"},{"ts":"1700000001.000400","user":"URIGOWNER","text":"no, I meant deny","thread_ts":"1700000001.000101"}'
 rigAsk rig-session-g 30 "{\"sources\":\"ask:$rigRewaitId\"}" Wait
 rigAssert "the objection arrives on Wait"             "$( LC_ALL=C head -1 "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"

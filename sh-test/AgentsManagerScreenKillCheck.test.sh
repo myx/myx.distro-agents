@@ -25,6 +25,7 @@
 ## line (rigKeysNamed); the spacer under `Launch (Start)` moves each session row of the list one line down; every
 ## dialog has bigger margins inside its frame (two empty lines under its top, one more under its buttons, three blank
 ## cells at each side), so its box is four cells wider and two lines taller and what it holds stands where it stood.
+## Reconciled for F11.5: a kill is asked from Active Sessions of Activity, where the first session is one row below `..`; a session that is finished stands in Closed Sessions (`at @activity closed-sessions`).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -128,7 +129,7 @@ rigCase(){ ## name
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size, with the reads of one item taken out of the table; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\ntable view:sessions/*:record none\ntable feed:sessions/*:record none\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:magic-team/activity/active-sessions:record none\ntable view:magic-team/activity/active-sessions/*:record none\ntable view:magic-team/activity/active-sessions/*/*:transcript none\ntable feed:magic-team/activity/active-sessions/*/*:transcript none\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot active-sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -172,7 +173,7 @@ rigBoxHas(){ printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -
 rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
-keys DOWN DOWN
+keys DOWN
 turn
 get on
 cells onKeys 37 1 83
@@ -215,7 +216,7 @@ rigCase session
 rigScript <<RIGSCRIPT
 keys ENTER
 wait sessions 30
-keys DOWN DOWN
+keys DOWN
 copy $rigTmp/session/after.rows $rigTmp/session/rows
 keys k
 wait plan 30
@@ -234,8 +235,16 @@ wait sessions 30
 turn
 get after
 show z
-cells afterRow 5 85 119
+cells afterRow 3 85 119
 cells afterKeys 37 1 83
+at @activity closed-sessions
+turn
+keys DOWN
+turn
+get closed
+show cz
+cells closedRow 3 85 119
+cells closedKeys 37 1 83
 RIGSCRIPT
 rigAssert "Enter on the word does nothing at once: the plan is read once more, and the dialog says so" "[$( rigVal pressed.dialog )] [$( rigVal pressed.dialogSays )] $( rigVal pressed.calls )" "[kill:word|yes] [its plan is read once more: it is done if nothing of it has changed] 0"
 rigAssert "until Enter nothing is called"                            "[$( rigVal typed.dialog )] [$( rigVal typed.reading )]" "[kill:word|yes] []"
@@ -247,16 +256,15 @@ rigAssert "the left pane shows the answer for each run: ended, killed, was not r
 	"[ the kill, answered 02:30:00:][   magic-coordinator  ended][   magic-tester       killed: it took KILL][   keeper-myx         was not running]"
 rigAssert "and one that was not signalled, with why"                 "[$( rigPane a 7 )][$( rigPane a 8 )] $( rigVal answered.answer )" "[   magic-developer    not signalled: it has no id of its own][] 5"
 rigAssert "then the list is read again"                              "$( rigCalled --manager-session-list )" 2
-rigAssert "and shows the session as it is now, still selected, under the answer" "$( rigVal after.selected ) [$( rigVal afterRow )] [$( rigPane z 3 )][$( rigPane z 10 )]" \
-	"$rigS1 [>daily of Monday        finished ►] [ the kill, answered 02:30:00:][  state    finished]"
-rigAssert "it has nothing to kill any more: the pane names no kill key" "[$( rigVal afterKeys )]" "[]"
+rigAssert "and shows the session as it is now: finished, it is no longer among the Active Sessions, the answer of the kill staying with the item it was asked on" "$( rigVal after.selected ) $( rigVal after.rows ) [$( rigVal afterRow )] $( rigPaneHolds z 'the kill, answered' ) $( rigPaneHolds z 'No sessions.' )" ".. 1 [] 0 1"
+rigAssert "it stands among the Closed Sessions, finished, and has nothing to kill any more: the pane names no kill key" "$( rigVal closed.selected ) [$( rigVal closedRow )] [$( rigPane cz 4 )] [$( rigVal closedKeys )]" "$rigS1 [>daily of Monday        finished ►] [  state    finished] []"
 
 echo "-- on an agent the kill takes the agent's own id, with --run --"
 rigCase agent
 rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
-keys DOWN DOWN ENTER DOWN DOWN
+keys DOWN ENTER DOWN DOWN
 turn
 get on
 cells onKeys 37 1 83
@@ -274,7 +282,7 @@ get answered
 show a
 said answeredLine
 RIGSCRIPT
-rigAssert "an agent that joined the session is selected"             "$( rigVal on.path ) $( rigVal on.selected ) [$( rigKeysNamed onKeys )]" "sessions/$rigS1 $rigR2 [keys: k kill]"
+rigAssert "an agent that joined the session is selected"             "$( rigVal on.path ) $( rigVal on.selected ) [$( rigKeysNamed onKeys )]" "magic-team/activity/active-sessions/$rigS1 $rigR2 [keys: k kill]"
 rigAssert "the dialog asks for the word, naming the agent"          "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )]" "[kill:word|] [Kill the agent magic-tester]"
 rigAssert "it says: that agent alone, by its own id, and of which session" "$( rigBoxHas b '║   KILL the agent magic-tester alone ' ) $( rigBoxHas b "║   run $rigR2, running working " ) $( rigBoxHas b "║   of the session daily of Monday ($rigS1) " )" "1 1 1"
 
@@ -289,7 +297,7 @@ rigCase founder
 rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
-keys DOWN DOWN ENTER DOWN
+keys DOWN ENTER DOWN
 turn
 get on
 keys k
@@ -303,7 +311,7 @@ wait action 30
 get answered
 said answeredLine
 RIGSCRIPT
-rigAssert "the founder is selected: its id is the id of its session" "$( rigVal on.path ) $( rigVal on.selected )" "sessions/$rigS1 $rigS1"
+rigAssert "the founder is selected: its id is the id of its session" "$( rigVal on.path ) $( rigVal on.selected )" "magic-team/activity/active-sessions/$rigS1 $rigS1"
 rigAssert "the dialog says that it alone is ended, not the session"  "[$( rigVal asked.dialog )] $( rigBoxHas b '║   KILL the agent magic-coordinator alone ' ) $( rigBoxHas b "║   run $rigS1, running waiting " ) $( rigBoxHas b '║   It is the founder: its id is its session' )" "[kill:word|] 1 1 1"
 
 rigAssert "the operation is called once, with that id and --run"     "$( rigKills ) [$( rigKillWords )]" "1 [[--manager-session-kill][--session-id][$rigS1][--run]]"
@@ -315,7 +323,7 @@ rigCase wrong
 rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
-keys DOWN DOWN
+keys DOWN
 keys k y e ENTER
 get part
 keys ESC
@@ -349,7 +357,7 @@ rigAssert "the operation was never called"                           "$( rigKill
 
 echo "-- a row that cannot be killed says so, and nothing is asked --"
 rigCase cannot
-rigScript <<'RIGSCRIPT'
+rigScript <<RIGSCRIPT
 keys k
 get section
 turn
@@ -358,17 +366,23 @@ wait sessions 30
 keys k
 get up
 turn
-keys DOWN k
+root launch
+turn
+keys k
 get launch
 turn
-keys DOWN DOWN
+at @activity closed-sessions
+turn
+keys DOWN
 turn
 get lone
 cells loneKeys 37 1 83
 keys k
 get ended
 turn
-keys UP ENTER DOWN DOWN DOWN
+at @activity active-sessions $rigS1
+turn
+keys DOWN DOWN DOWN
 turn
 get keeper
 cells keeperKeys 37 1 83
@@ -413,7 +427,7 @@ rigStaleKill dismissed closed finished > "$MANAGER_SCREEN_RIG/rows.--manager-ses
 rigScript <<RIGSCRIPT
 keys ENTER
 wait sessions 30
-keys DOWN DOWN
+keys DOWN
 turn
 get on
 cells onKeys 37 1 83
@@ -440,6 +454,12 @@ wait sessions 30
 turn
 get after
 cells afterKeys 37 1 83
+at @activity closed-sessions
+turn
+keys DOWN
+turn
+get closed
+cells closedKeys 37 1 83
 RIGSCRIPT
 rigAssert "a session that waits with no agent alive is selected, and the left pane names the kill key for it" "$( rigVal on.selected ) [$( rigKeysNamed onKeys )]" "$rigS3 [keys: k kill]"
 rigAssert "k asks, and its title, its button and its word say Close: nothing of it lives" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas b '║   Type yes to close ' ) $( rigBoxHas b ' »Close« ▅   Cancel  ▅' ) $( rigBoxHas b ' »Kill« ▅' )" "[close:word|] [Close the session] 1 1 0"
@@ -452,7 +472,7 @@ rigAssert "the word whole and Enter: the kill of that session is asked, once, by
 rigAssert "the status line gives the row that sums it: ended, dismissed, closed, and the state" "[$( rigVal answeredLine )]" "[kill: 0 ended, 1 dismissed, 1 closed: the session reads finished]"
 rigAssert "the left pane sets out each row of the answer"           "[$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )][$( rigPane a 6 )][$( rigPane a 7 )][$( rigPane a 8 )]" \
 	"[ the kill, answered 02:30:00:][   keeper-myx         was not running][   magic-coordinator  was not running][   question $rigQ1 of magic-coordinator: dismissed][   record of keeper-myx: closed][   the session reads finished]"
-rigAssert "then the list is read again, and the session, finished, takes no kill any more" "$( rigCalled --manager-session-list ) $( rigVal after.selected ) [$( rigVal afterKeys )]" "2 $rigS3 []"
+rigAssert "then the list is read again, and the session, finished, leaves the Active Sessions, and takes no kill any more among the Closed Sessions" "$( rigCalled --manager-session-list ) $( rigVal after.selected ) $( rigVal closed.selected ) [$( rigVal closedKeys )]" "2 .. $rigS3 []"
 
 echo "-- the plan is read when the confirmation opens and once more when it is confirmed: one that changed meanwhile is not acted on --"
 rigCase changed
@@ -467,7 +487,7 @@ rigCase changed
 rigScript <<RIGSCRIPT
 keys ENTER
 wait sessions 30
-keys DOWN DOWN
+keys DOWN
 keys k y e s ENTER
 get early
 wait plan 30
@@ -504,7 +524,7 @@ echo fail > "$MANAGER_SCREEN_RIG/mode.$rigKillSession"
 rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
-keys DOWN DOWN
+keys DOWN
 keys k
 wait plan 30
 keys y e s ENTER
@@ -526,7 +546,7 @@ echo fail-rows > "$MANAGER_SCREEN_RIG/mode.$rigKillSession"
 rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
-keys DOWN DOWN
+keys DOWN
 keys k
 wait plan 30
 keys y e s ENTER
@@ -546,18 +566,22 @@ echo "sleep 1" > "$MANAGER_SCREEN_RIG/mode.--manager-session-kill"
 rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
-keys DOWN DOWN
+keys DOWN
 keys k
 wait plan 30
 keys y e s ENTER
 wait plan 30
+at @activity closed-sessions
+turn
 keys DOWN
 get moved
 wait action 30
 get answered
 show m
 said answeredLine
-keys UP
+at @activity active-sessions
+turn
+keys DOWN
 turn
 get back
 show b
@@ -571,7 +595,7 @@ rigCase focus
 rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
-keys DOWN DOWN TAB
+keys DOWN TAB
 keys k
 get asked
 wait plan 30
@@ -595,7 +619,7 @@ echo "sleep 2" > "$MANAGER_SCREEN_RIG/mode.--manager-session-kill"
 rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
-keys DOWN DOWN
+keys DOWN
 keys k
 wait plan 30
 keys y e s ENTER
@@ -610,7 +634,7 @@ rigScript <<'RIGSCRIPT'
 keys ENTER
 get asked
 RIGSCRIPT
-rigAssert "a read that runs when the screen ends is ended with it"   "$( rigVal asked.reading | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -x 'list:sessions' ) $( rigEnded --manager-session-list 20 )" "list:sessions 0"
+rigAssert "a read that runs when the screen ends is ended with it"   "$( rigVal asked.reading | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -x 'list:magic-team/activity' ) $( rigEnded --manager-session-list 20 )" "list:magic-team/activity 0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN KILL CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -14,6 +14,8 @@
 ## table here: AgentsManagerScreenPaneCheck holds them.
 ## Offline: no operation of the real tooling is called. The time zone is set here, so the clock reads the same anywhere.
 ## Reconciled for F11.0: the left pane has no `keys:` line any more; the status line alone names the keys of the row.
+## Reconciled for F11.5: the sessions stand in `Activity`, under `Magic-Team (Agents)`: the root of the counters is that one, and the keys of a session are those of a row of Active Sessions.
+## Reconciled for F11.5, the lists of Activity: the key `a` (all or only the active) is not offered there, as it has nothing to take: not in the status line, and not in the menu View.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -71,7 +73,7 @@ rigCase(){ ## name, what the stand-in does at every start, then what it does at 
 	done
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the workspace and the time; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\nworkspace /somewhere/ws-rig\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:magic-team/activity/active-sessions:record none\nworkspace /somewhere/ws-rig\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot active-sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -88,6 +90,7 @@ rigMenus=" ≡ Go View Help"
 echo "-- the counters show what the row of counters holds --"
 rigCase counters rows
 rigScript <<'RIGSCRIPT'
+root magic-team
 turn
 get first
 cells firstTop 0 0 120
@@ -102,9 +105,9 @@ border foot 38 0 84
 border load 38 84 120
 looks k
 RIGSCRIPT
-rigAssert "before the first read no counter and no load average is shown" "[$( rigVal firstTop | rigSqueeze )] [$( rigVal firstFoot )] [$( rigVal firstLoad )] [$( rigVal firstBottom )]" "[$rigMenus ws-rig 02:30:00] [] [] [$rigHints]"
-rigAssert "the row of counters is read at the root, with nothing of the sessions shown" "[$( rigVal first.path )] $( rigVal first.reading | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -x 'list:sessions' ) $( rigCalls ) [$( LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C sed -n '1p' )]" "[] list:sessions 1 [--manager-session-list]"
-rigAssert "the bottom border of the left window holds how many rows its table holds and no counter, its five counters having left it for the dashboard: the screen holds them as the row gave them; and the status line names the general keys" "[$( rigVal foot )] [$( rigVal bottom )] $( rigVal a.counters )" "[1 row] [$rigHints] load=0.42,paused=0,pending=3,running=2,waiting=2,working=1"
+rigAssert "before the first read no counter and no load average is shown: the border of the left window counts the rows of the table of the folders of Magic-Team (Agents) and nothing else" "[$( rigVal firstTop | rigSqueeze )] [$( rigVal firstFoot )] [$( rigVal firstLoad )] [$( rigVal firstBottom )]" "[$rigMenus ws-rig 02:30:00] [3 rows] [] [$rigHints  t Sort]"
+rigAssert "the row of counters is read at the root, with nothing of the sessions shown" "[$( rigVal first.path )] $( rigVal first.reading | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -x 'list:magic-team/activity' ) $( rigCalls ) [$( LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C sed -n '1p' )]" "[] list:magic-team/activity 1 [--manager-session-list]"
+rigAssert "the bottom border of the left window holds how many rows its table holds and no counter, its five counters having left it for the dashboard: the screen holds them as the row gave them; and the status line names the general keys" "[$( rigVal foot )] [$( rigVal bottom )] $( rigVal a.counters )" "[3 rows] [$rigHints  t Sort] load=0.42,paused=0,pending=3,running=2,waiting=2,working=1"
 rigAssert "the counter of paused sessions shows 0"                   "$( rigVal a.counters | LC_ALL=C tr ',' '\n' | LC_ALL=C grep '^paused=' )" "paused=0"
 rigAssert "the menu bar shows the workspace and the clock, and the bottom border of the list is plain: the load average left it for the dashboard" "[$( rigVal top | rigSqueeze )] [$( rigVal load )]" "[$rigMenus ws-rig 02:30:00] []"
 rigAssert "both lines stand across the whole width"                  "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^k|//p' | LC_ALL=C sed -n '1p;40p' | LC_ALL=C tr -d 'RH|\n' | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' )" 0
@@ -166,11 +169,11 @@ border mendedFoot 38 0 84
 border mendedLoad 38 84 120
 said mendedLine
 RIGSCRIPT
-rigAssert "the read failed"                                          "[$( rigVal bad.failed )]" "[list:sessions]"
+rigAssert "the read failed"                                          "[$( rigVal bad.failed )]" "[list:magic-team/activity]"
 rigAssert "the clock still moves"                                    "[$( rigVal badTop | rigSqueeze | LC_ALL=C sed -e 's/^.* //' )]" "[02:31:00]"
 rigAssert "the counters stay as they were, marked as old, in the screen's state; the borders hold no counter" "$( rigVal bad.counters ) [$( rigVal badFoot )] [$( rigVal badLoad )]" "load=0.42,paused=0,pending=3,running=2,waiting=2,working=1 [1 row] []"
 rigAssert "what the read wrote is shown in a box"                      "[$( rigVal bad.dialogTitle )] [$( rigVal bad.dialogHolds )]" "[A read failed] [operation: --manager-session-list / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
-rigAssert "a second failure changes nothing"                         "[$( rigVal worse.failed )] $( rigVal worse.counters )" "[list:sessions] load=0.42,paused=0,pending=3,running=2,waiting=2,working=1"
+rigAssert "a second failure changes nothing"                         "[$( rigVal worse.failed )] $( rigVal worse.counters )" "[list:magic-team/activity] load=0.42,paused=0,pending=3,running=2,waiting=2,working=1"
 rigAssert "a good read takes the marks and the error line away, and brings the new counters" "[$( rigVal mended.failed )] $( rigVal mended.counters ) [$( rigVal mendedLoad )] [$( rigVal mendedFoot )] [$( rigVal mendedLine )]" \
 	"[] load=1.25,paused=0,pending=4,running=3,waiting=2,working=2 [] [1 row] []"
 
@@ -180,22 +183,22 @@ rigScript <<'RIGSCRIPT'
 handler kill
 keys ENTER
 wait sessions 30
-keys DOWN DOWN
+keys DOWN
 turn
 get session
 cells sessionBottom 39 0 120
 cells sessionKeys 37 1 83
-keys UP
+root launch
 turn
 get launch
 cells launchBottom 39 0 120
-keys BACKSPACE DOWN
+root pending
 turn
 get pending
 cells pendingBottom 39 0 120
 RIGSCRIPT
 rigAssert "a running session is selected"                            "$( rigVal session.selected )" "11111111-0000-4000-8000-000000000001"
-rigAssert "on a session the status line names the keys that act on it, and after them the keys of every window" "[$( rigVal sessionBottom )]" "[ ENTER Open  BSP Up  a Active  k Kill  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "on a session the status line names the keys that act on it, and after them the keys of every window" "[$( rigVal sessionBottom )]" "[ ENTER Open  BSP Up  k Kill  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "the keys that act on the session stand in no line of the left pane" "[$( rigVal sessionKeys | LC_ALL=C sed -n 's/^\(keys:\).*/\1/p' )]" "[]"
 rigAssert "on Launch (Start) it names what the list takes there, then the keys of every window"        "$( rigVal launch.selected ) [$( rigVal launchBottom )]" "launch [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "and on another section"                                   "$( rigVal pending.selected ) [$( rigVal pendingBottom )]" "pending [$rigHints]"

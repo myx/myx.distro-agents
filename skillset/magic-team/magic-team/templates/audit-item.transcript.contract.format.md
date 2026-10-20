@@ -3,7 +3,7 @@ maintainers: [magic-librarian, magic-coordinator, human-owner]
 ---
 # audit-item.transcript — frontmatter contract
 
-Normative contract: this file's own `# Contract` section, at its end. The document shape is `audit-item.transcript.document.format.md`. Read by the document validator, `--intern-doc-validate audit-item.transcript <file>` (settled; not built yet).
+Normative contract: this file's own `# Contract` section, at its end. The document shape is `audit-item.transcript.document.format.md`. Read by the document validator, `--intern-doc-validate audit-item.transcript <file>`.
 
 ## Contents
 
@@ -57,4 +57,4 @@ A verbatim record of an exchange, with UTC stamps. Append-only, through `--membe
 - `type` equals the type word in the filename (`transcript`).
 - [store] Append-only: nothing already written is rewritten.
 - `references` never names a board item: no name in it starts with `project-`, `task-`, `change-`, `idea-`, `proposal-`, `interview-`, `approval-`, `dispatch-` or `warning-`.
-- A session's own log, `session-*.log`, is not a document of this kind: it has no frontmatter and no contract here.
+- [judged] A session's own log, `session-*.log`, is not a document of this kind: it has no frontmatter and no contract here.

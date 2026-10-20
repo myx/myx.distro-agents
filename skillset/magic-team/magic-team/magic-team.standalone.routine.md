@@ -56,6 +56,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **fold-in-learned-lessons**: `magic-librarian`, when this session is its own, runs `magic-team.process-reflections.routine` inline (`--routine-run-inline magic-team.process-reflections.routine`) for this session's project or workspace. Any other member passes its own recent lessons to `magic-librarian` with `post-inquiry`, and may file a new `reflection-*`.
    - **collect-reflections-output**: the member runs `magic-team.process-inbox.routine <own-name>` inline (`--routine-run-inline magic-team.process-inbox.routine`), picking up what **fold-in-learned-lessons** filed.
 
+2. **opening-checkpoint**: the last Opening step, only where this routine's `allows:` names `--executor-checkpoint-push` (a single-participant routine): run `DistroAgentsSession.fn.sh --executor-checkpoint-push opening`. A routine that does not name it does not run this step, and that is no skipped step.
+
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
@@ -97,15 +99,19 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
+BatchTools: several tool calls in one round, much quicker for calls that do not depend on each other.
+
 ## DistroAgentsTools magic-tooling operations
 
 - `--member-comms-slack-send-message <team-member> <target> [text...]`
 - `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name>`
 - `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
-- `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
-- `--member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
-- `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
+- `--member-inbox-note-upsert <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-inbox-reflection-upsert <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-upsert-member-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
 - `--routine-run-inline <routine>`
+- `--get-session-thread [--own]`
+- `--executor-checkpoint-push [<name>]`
 
 # Maintainer Notes
 

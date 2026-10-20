@@ -289,7 +289,7 @@ rigRun --manager-session-list
 rigAssert "with its thread in the process list, the list of sessions shows no run of that session as running" \
 	"$rigRc:$( LC_ALL=C awk -F'\t' '$1 == "session" && $2 == "sess-quiet" { print $4 } $1 == "run" && $2 == "sess-quiet" { print $6 }' "$rigTmp/out" | LC_ALL=C tr '\n' ' ' )" "0:unclosed no-process "
 rigAssert "the one rule of a live run reads nothing from the thread's command line" \
-	"$( printf '%s %s\n' "$rigQ" "$rigQLine" | ( PATH="$rigProcPath" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" ; AgentsToolsRegistryRunWords ) | LC_ALL=C grep -c . )" "0"
+	"$( printf '%s %s\n' "$rigQ" "$rigQLine" | ( PATH="$rigProcPath" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; AgentsToolsRegistryRunWords ) | LC_ALL=C grep -c . )" "0"
 sleep 3
 rigAssert "and the thread, which reads that same list at every tick, sets no state for a session that has no run: it stays, and says so once" \
 	"$( rigLives "$rigQ" ):[$( rigState sess-quiet )]:$( rigLogHas sess-quiet 'no run of it is alive on this host and 1 record(s) are still open' )" "1:[]:1"
@@ -303,7 +303,7 @@ rigAssert "control: that thread ended in order" "$rigGot:$( rigControl sess-quie
 ## An option of the interpreter before the script: by the rule such a line is a run of the id it carries.
 rigRec sess-norc sess-norc sess-norc sess-norc "$rigHost" spawn-started ''
 rigAssert "control: a command line with an option of the interpreter before the script reads as a run, by the rule" \
-	"$( printf '4242 bash --norc %s %s --run --session-id sess-norc\n' "$rigTool" "$rigOp" | ( PATH="$rigProcPath" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" ; AgentsToolsRegistryRunWords ) )" "sess-norc"
+	"$( printf '4242 bash --norc %s %s --run --session-id sess-norc\n' "$rigTool" "$rigOp" | ( PATH="$rigProcPath" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; AgentsToolsRegistryRunWords ) )" "sess-norc"
 rigTreeBefore="$( rigTree )"
 rigRc=0
 ( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \

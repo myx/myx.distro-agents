@@ -309,11 +309,21 @@ def placedParagraphs(state, paragraphs):
     return shown
 
 
+## What the left pane shows of the location selected, and of a command of a workspace.
+def placesFocus(state, row):
+    return placeLines(state, row["place"], state.viewWidth, state.view["info"]) if row.get("place") else None
+
+
+def placeCommandsFocus(state, row):
+    return placeCommandLines(row["placeCommand"], state.viewWidth) if row.get("placeCommand") else None
+
+
 ## ---- the plugin: `Locations (Places)` ----
 
 registerPlugin({
     "name": "places",
     "root": {"id": "places", "label": "Locations (Places)", "go": "Loc~a~tions (Places)", "group": "places"},
+    "focus": {"places": "placesFocus", "places/*": "placeCommandsFocus"},
     "summaries": {
         "places": {"lines": "placesSummary"},
     },

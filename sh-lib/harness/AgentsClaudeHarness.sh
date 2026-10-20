@@ -57,8 +57,10 @@ HARNESS_CREDENTIAL_NAMES="ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN"
 ## carries normal and heavy, heavy differing only by the core's own
 ## reasoning_effort. Which model belongs on which tier is the human-owner's call,
 ## and this is a proposal, not a decision taken here.
-HARNESS_MODEL_LIGHT="claude-haiku-4-5"
-HARNESS_MODEL_MAIN="claude-opus-5"
+## A model an exported HARNESS_MODEL_LIGHT or HARNESS_MODEL_MAIN names stands ahead of the leg's own: the console
+## exports the model name of the preset a spawn runs on (F10.2), and nothing else does. The default is the leg's.
+HARNESS_MODEL_LIGHT="${HARNESS_MODEL_LIGHT:-claude-haiku-4-5}"
+HARNESS_MODEL_MAIN="${HARNESS_MODEL_MAIN:-claude-opus-5}"
 
 ## Each model's own limits, per tier, as GET /v1/models/<id> returns them on
 ## 2026-09-28: max_input_tokens is the context window, max_tokens the output maximum.

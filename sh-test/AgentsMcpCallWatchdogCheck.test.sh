@@ -10,7 +10,7 @@
 ## stays as the scenario says, with the rig's own process list for the one reading a process is kept by (its pid,
 ## its state, when it began) and the rig's own clock (the 3600 seconds of a served call pass in three, the five
 ## between the polite end and the hard one in three). Held here:
-##   1. THE GROUP OF A KEPT PROCESS (myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include), on stand-in groups of this check's
+##   1. THE GROUP OF A KEPT PROCESS (myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include), on stand-in groups of this check's
 ##      own: AgentsToolsRegistryGroupBegan gives the members of a group only while its leader is still the process
 ##      that was kept, and nothing for the same number begun at another time or kept with no start;
 ##      AgentsToolsRegistryGroupLeft gives, once the leader has ended, the kept members that are still themselves
@@ -49,7 +49,7 @@ set -u
 rigSource="${MDLT_ORIGIN:=$MMDAPP/.local}"
 rigPackage="$rigSource/myx/myx.distro-agents"
 rigInclude="$rigPackage/sh-lib/mcp/AgentsTools.InternMcpRequest.include"
-rigRegistries="$rigPackage/../myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+rigRegistries="$rigPackage/sh-lib/team-data/AgentsTools.Registries.include"
 rigHelper="$rigPackage/sh-test/check-fixtures/rig-processes.include.sh"
 
 rigRefuse(){

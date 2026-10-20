@@ -526,7 +526,7 @@ rigWaitFor 90 rigRecordClosed ; rigWaitFor 60 rigHasEnded "$rigShell"
 echo "-- 8. the words are the template's --"
 ## One block filled straight from its template, as the tooling fills it.
 rigBlock(){ ## block `<Section>/<heading>` -- the slots come from the caller's environment
-	ASKP_WANT=block ASKP_BLOCK="$1" ASKP_FORM="" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$rigLib/questions/AgentsAskPostFill.awk" "$rigLib/templates/$rigNote" 2>&1
+	ASKP_WANT=block ASKP_BLOCK="$1" ASKP_FORM="" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolingTemplateFill.awk" -f "$rigLib/questions/AgentsAskPostFill.awk" "$rigLib/templates/$rigNote" 2>&1
 }
 rigAssert "the line of a run that ended and handed back in another thread" "$( ASKP_F_member=keeper-rig ASKP_F_run=0a1b2c3d rigBlock Session/run-ended )" \
 	'🏁 keeper-rig ended its run `0a1b2c3d`. Its handback was posted in another thread, not in this one.'

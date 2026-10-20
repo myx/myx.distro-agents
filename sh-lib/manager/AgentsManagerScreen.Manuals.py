@@ -101,7 +101,7 @@ def parseManualRows(text):
 ## it is selected: its folders (FIXED_ROWS) as a table, each with what it holds (FOLDER_WORDS).
 def foldersSummary(state, path, row, form):
     return tableSummaryLines(state, ("FOLDER", "WHAT"), [[label, FOLDER_WORDS.get(folderId, "-")]
-                                                         for folderId, label, kind, dive in FIXED_ROWS.get(levelKey(path), ())], ("key", "text"))
+                                                         for folderId, label, kind, dive in fixedRowsShown(state, path)], ("key", "text"))
 
 
 ## What `User Manuals` and `Maintainer Manuals` hold, for the left pane while their row or the

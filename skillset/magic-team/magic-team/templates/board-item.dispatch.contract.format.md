@@ -3,7 +3,7 @@ maintainers: [magic-librarian, magic-coordinator, human-owner]
 ---
 # board-item.dispatch — frontmatter contract
 
-Normative contract: this file's own `# Contract` section, at its end. The document shape is `board-item.dispatch.document.format.md`. Read by the document validator, `--intern-doc-validate board-item.dispatch <file>` (settled; not built yet).
+Normative contract: this file's own `# Contract` section, at its end. The document shape is `board-item.dispatch.document.format.md`. Read by the document validator, `--intern-doc-validate board-item.dispatch <file>`.
 
 ## Contents
 
@@ -36,7 +36,7 @@ The brief given to one spawned session, carried exactly, with a dated log of its
 | `type` | required | tooling | `literal dispatch` | The filename's type word, never a genre. Filled by board create where missing. |
 | `from` | required | tooling | `member` | The author. Filled by board create where missing; a member sets another value only on another member's behalf. |
 | `date` | required | tooling | `date-time` | Creation. Filled by board create where missing. |
-| `owner` | optional | tooling | `owner-name` | The member the session is run as: the caller named in the spawn request. |
+| `owner` | required | tooling | `owner-name` | The member the session is run as: the caller named in the spawn request. |
 | `author` | optional | member | `member` | The creating author, where it differs from `from`. |
 | `blocks` | optional | member | `item-names` | Items this item gates. |
 | `blocked-by` | optional | member | `item-names` | Items gating this one. |

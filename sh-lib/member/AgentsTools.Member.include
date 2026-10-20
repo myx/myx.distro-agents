@@ -237,8 +237,9 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: transcript does not exist (pass --create to allow creation): $target" >&2
 			set +e ; return 1
 		fi
+		## A new transcript opens with the frontmatter that names its contract (audit-item.transcript), as `type` is named.
 		if [ ! -f "$target" ] ; then
-			: > "$target" || {
+			printf '%s\n' '---' 'document-contract: audit-item.transcript' 'type: transcript' '---' '' > "$target" || {
 				echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: failed to create transcript: $target" >&2
 				set +e ; return 1
 			}

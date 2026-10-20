@@ -231,14 +231,14 @@ rigAssert "a second request moves nothing out of review"   "$( LC_ALL=C grep -c 
 echo "-- 3. the close fix: only a running item moves; review, processed and pending stay --"
 for rigState in review processed pending ; do
 	rigItem "$rigState" "dispatch-20261008T1200Z-close-$rigState" ""
-	rigRun "$rigTmp/c-$rigState" bash -c '. "$1" ; . "$2" ; AgentsToolsSpawnProxyCloseDispatch "$3" "" 0 rig.log succeeded running review' \
+	rigRun "$rigTmp/c-$rigState" bash -c '. "$1" ; . "$2" ; . "${2%/session/*}/member/AgentsTools.BareName.include" ; AgentsToolsSpawnProxyCloseDispatch "$3" "" 0 rig.log succeeded running review' \
 		rig "$rigFn" "$rigLib/session/AgentsTools.SpawnSandbox.include" "dispatch-20261008T1200Z-close-$rigState.md"
 	rigAssert "an item in $rigState stays in $rigState"    "$( rigLoc "dispatch-20261008T1200Z-close-$rigState" )" "$rigState"
 done
 rigAssert "the review item gets its Result in place"       "$( LC_ALL=C grep -c '^## Result' "$rigData/board/review/dispatch-20261008T1200Z-close-review.md" )" 1
 rigAssert "the processed item is left untouched"           "$( LC_ALL=C grep -c '^## Result' "$rigData/board/processed/dispatch-20261008T1200Z-close-processed.md" )" 0
 rigItem running dispatch-20261008T1200Z-close-running ""
-rigRun "$rigTmp/c-running" bash -c '. "$1" ; . "$2" ; AgentsToolsSpawnProxyCloseDispatch "$3" "" 0 rig.log succeeded running review' \
+rigRun "$rigTmp/c-running" bash -c '. "$1" ; . "$2" ; . "${2%/session/*}/member/AgentsTools.BareName.include" ; AgentsToolsSpawnProxyCloseDispatch "$3" "" 0 rig.log succeeded running review' \
 	rig "$rigFn" "$rigLib/session/AgentsTools.SpawnSandbox.include" dispatch-20261008T1200Z-close-running.md
 rigAssert "a running one moves to review"                  "$( rigLoc dispatch-20261008T1200Z-close-running )" review
 rigAssert "as ended-without-handback, in Decisions"        "$( rigDecisions "$rigData/board/review/dispatch-20261008T1200Z-close-running.md" 'review: ended-without-handback' )" 1
@@ -920,7 +920,7 @@ rigAssert "with force the command gets the hard kill: it is gone with the run, a
 ## reads it by the same function): a kept line whose start is no longer the process's own gives nothing.
 rigStandIn
 rigAssert "a kept pid that another process has taken since is none of what is left: the same pid with another start gives nothing, and with its own start gives the pid" \
-	"$( MMDAPP="$rigWs" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" bash -c '. "$1/AgentsTools.Registries.include" 2> /dev/null ; AgentsToolsRegistryRunLeft rig-no-such-run "$2 Mon_Jan__1_00:00:00_2001" - | tr "\n" " " ; printf "/ " ; AgentsToolsRegistryRunLeft rig-no-such-run "$2 $3" - | tr "\n" " "' rig-left "$rigLib/../../myx.distro-.local/sh-lib/registry" "$rigStandPid" "$rigStandStart" )" "/ $rigStandPid "
+	"$( MMDAPP="$rigWs" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" bash -c '. "$1/AgentsTools.Registries.include" 2> /dev/null ; AgentsToolsRegistryRunLeft rig-no-such-run "$2 Mon_Jan__1_00:00:00_2001" - | tr "\n" " " ; printf "/ " ; AgentsToolsRegistryRunLeft rig-no-such-run "$2 $3" - | tr "\n" " "' rig-left "$rigLib/team-data" "$rigStandPid" "$rigStandStart" )" "/ $rigStandPid "
 rigProcSignal TERM "$rigStandChild" "$rigStandPid"
 
 ## ---------------------------------------------------------------- a return resumed natively

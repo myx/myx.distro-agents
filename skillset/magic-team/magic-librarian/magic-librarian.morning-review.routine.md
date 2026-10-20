@@ -77,10 +77,9 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- This routine extends `magic-team.standalone.routine`; on a conflict, this file wins.
 - Only `magic-coordinator` writes the board (`magic-team/reference/board-model.md`).
 - A state-model drift outranks ordinary staleness: fix the model gap, not only the one instance, since one gap likely misfiled several items.
-- A cross-file inconsistency where it is unclear which file is right is surfaced and resolved explicitly between the two executors, never by silently picking a winner. No quorum there is the no-quorum document, carried up by "The ladder: one rung at a time".
+- A cross-file inconsistency where it is unclear which file is right is surfaced and resolved explicitly, never by silently picking a winner. No quorum there is the no-quorum document, carried up by "The ladder: one rung at a time".
 - A finding that is not about the board goes to `magic-librarian`'s own daily audit with `post-inquiry`.
 
 # Routine-specific tooling
@@ -110,7 +109,6 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Reference
 
 - `magic-coordinator.daily.routine` — starts this routine at **spawn-morning-review**.
-- `magic-team.standalone.routine` — the routine this one extends.
 - `magic-team/reference/board-model.md` — the state model checked here.
 
 ### Conventions

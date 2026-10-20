@@ -155,6 +155,14 @@ class TextSurface:
 ##   root <id>                     the list is at its root, its selection on the row of that root, named by its id in
 ##                                 the screen's SECTIONS: what a script counts from there does not move when the root
 ##                                 list gets another row. No turn: the next key or turn draws it
+##                                 A root that stands under another (a plugin mounted on one) is named by its id too, and so is
+##                                 a folder that a feature always holds (`active-sessions` of `Activity`): the list is then at
+##                                 the level that holds it, its selection on that row
+##   at <step...>                  the list is at that level, whatever it holds: the steps of its path, a step `@<plugin>` for
+##                                 the whole path of the root of that plugin. No turn: the next key or turn draws it
+##   sessions <id>=<name>...       the list of the sessions, as if its operation had printed it: each a session that runs, with one agent; a name
+##                                 that ends in `!` is a session that is finished
+##   rowids <tag>                  the ids of the rows of the level the list is at, as `<tag>=<id> <id> ...`
 ##   keys <key...>                 each key is one turn of the screen
 ##   turn [<count>]                turns with no key
 ##   wait <kind> <seconds>         turns, in real time, until no call of that kind runs; the selection is taken as
@@ -352,13 +360,47 @@ def scriptRun(module):
                 module.READS[words[0]] = entry
         elif command == "root":
             known = [sectionId for sectionId, sectionLabel in module.SECTIONS]
-            if rest not in known:
+            ## the level that holds a row of that id among the rows its plugin always holds: a root that stands under another, or a
+            ## folder such as `active-sessions` of `Activity`
+            holders = [level.split("/") for level, fixed in module.FIXED_ROWS.items()
+                       if "*" not in level.split("/") and any(row[0] == rest for row in fixed)]
+            if rest not in known and not holders:
                 sys.stderr.write("manager-screen.driver.py: no root of that id: %s (the roots: %s)\n" % (rest, " ".join(known)))
                 if reader[0] is not None:
                     reader[0].stop()
                 return 2
-            state.path = []
-            state.cursors[""] = {"key": "section:" + rest, "index": known.index(rest), "top": 0}
+            if rest in known:
+                state.path = []
+                state.cursors[""] = {"key": "section:" + rest, "index": known.index(rest), "top": 0}
+            else:
+                state.path = list(holders[0])
+                held = module.levelRowsAt(state, state.path)
+                shown = [row["id"] for row in held]
+                if rest not in shown:
+                    sys.stderr.write("manager-screen.driver.py: the row of that id is not in the list now: %s (%s)\n" % (rest, " ".join(shown)))
+                    if reader[0] is not None:
+                        reader[0].stop()
+                    return 2
+                state.cursors[module.levelKey(state.path)] = {"key": module.rowKey(held[shown.index(rest)]), "index": shown.index(rest), "top": 0}
+        elif command == "at":
+            ## the list is at that level: its steps, the first of them `@<plugin>` for the root of that plugin, wherever it stands
+            steps = [word for step in words for word in (module.pluginPath(step[1:]) if step.startswith("@") else [step])]
+            state.path = steps
+        elif command == "sessions":
+            ## the list of the sessions as if its operation had printed it: each `<id>=<name>` a session that runs, with one agent that works;
+            ## a name that ends in `!` is a session that is finished, with one agent that has ended
+            text = ""
+            for word in words:
+                sessionId, equals, name = word.partition("=")
+                done = name.endswith("!")
+                name = name.rstrip("!")
+                text += "session\t%s\t%s\t%s\t2026-10-12_16:57_+0000\t-\t1\t%s=1\n" % (sessionId, name, "finished" if done else "running", "finished" if done else "running")
+                text += "run\t%s\t%s\tmagic-coordinator\tspawn-started\t%s\t%s\t2026-10-12_16:57_+0000\t-\trig-host\tws-rig\t%s\n" % (
+                    sessionId, sessionId, "no-process" if done else "running", "finished" if done else "running", "-" if done else "working")
+            state.rows.update(module.parseSessionLevels(text))
+        elif command == "rowids":
+            ## the ids of the rows of the level the list is at, the row that goes up among them, as `<tag>=<id> <id> ...`
+            print("%s=%s" % (words[0], " ".join(row["id"] for row in module.levelRows(state))))
         elif command == "keys":
             for key in words:
                 turn(" " if key == "SPACE" else key)

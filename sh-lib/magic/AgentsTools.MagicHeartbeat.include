@@ -47,7 +47,7 @@ AgentsToolsHeartbeatDayRhythm(){
 		;;
 		grooming-running)
 			## Held means what the lock ops' own stale check means: recheck-date not yet a minute past.
-			groomRecheckEpoch="$( AgentsToolsHeartbeatNoteField "$groomNote" recheck-date | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsIsoToEpoch.awk" 2>/dev/null )"
+			groomRecheckEpoch="$( AgentsToolsHeartbeatNoteField "$groomNote" recheck-date | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2>/dev/null )"
 			if [ -n "$groomRecheckEpoch" ] && [ "$(( $( date +%s ) - groomRecheckEpoch ))" -lt 60 ] ; then
 				groomToday="running"
 			fi
@@ -117,7 +117,7 @@ AgentsToolsHeartbeatInputScanReport(){ ## calling member
 	## Spawned sessions as the tooling measured them at their close, and alive now or
 	## not: a note that says a session is alive is read beside this, never instead of it.
 	printf '\n'
-	. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	AgentsToolsRegistryRenderSpawnedSessions || echo "(the spawned-sessions registry could not be read)"
 	## Live counts, read at scan time and never stored: one line per board state,
 	## `<state>: <n>` items (*.md files directly in that state's folder), so a report
@@ -495,7 +495,7 @@ case "$1" in
 			## here would stop the loop that would otherwise carry the fix. This
 			## note's own active-project field runs well past the word cap, and it
 			## is rewritten every pass, so no count of it stays true.
-			. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsTools.OutputStyle.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
 			printf '%s' "$content" | AgentsToolsOutputStyleRefusal "$callingMember" "" "heartbeat state" "" none || :
 		fi
 		## An empty write erases the day-rhythm state, which then reads back
@@ -707,7 +707,7 @@ case "$1" in
 		reportNowEpoch="$( date +%s )"
 		reportLastSent="$( AgentsToolsHeartbeatNoteField "$reportNote" last-test-email-sent )"
 		if [ -n "$reportLastSent" ] ; then
-			reportLastEpoch="$( printf '%s\n' "$reportLastSent" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsIsoToEpoch.awk" 2>/dev/null )" || reportLastEpoch=""
+			reportLastEpoch="$( printf '%s\n' "$reportLastSent" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2>/dev/null )" || reportLastEpoch=""
 		fi
 		if [ -n "$reportLastEpoch" ] && [ "$(( reportNowEpoch - reportLastEpoch ))" -lt 3600 ] ; then
 			echo "NOT_DUE:last-test-email-sent=$reportLastSent:due-in=$(( 3600 - ( reportNowEpoch - reportLastEpoch ) ))s"

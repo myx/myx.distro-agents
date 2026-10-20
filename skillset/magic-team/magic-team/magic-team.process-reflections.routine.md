@@ -97,8 +97,8 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
-- `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
+- `--member-inbox-note-upsert <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-upsert-member-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
 - `--librarian-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
 - `--routine-run-inline <routine>`
 

@@ -269,7 +269,9 @@ rigWorld
 rigSumThere="$( rigTreeSum ws-there )"
 for rigPass in first second ; do
 	rigRun --intern-op-client-sweep-input-scan client-ndm
-	rigAssert "the $rigPass sweep reads Slack as the account of the borrowed token, the mailbox and the Trello account the client holds where it is set up" "$( rigN "$rigTmp/out" 'identity: slack URIGNDMTHERE (config: client-ndm)' ) $( rigN "$rigTmp/out" 'holds no Slack credentials of its own' ) $( rigN "$rigTmp/calls" 'imap-sweep imap-ndmthere.invalid us@ndmthere.invalid' ) $( rigN "$rigTmp/calls" 'trello members/me/notifications rig-trello-key-NDMTHERE' ) $( rigTeams )" "1 0 1 1 0"
+	## The Trello notifications are collected (F4.2) and the second sweep, inside the TTL of that source, is served from the notes
+	## the first brought: it asks Trello no more. The mailbox answered nothing in this rig, so it is asked again.
+	rigAssert "the $rigPass sweep reads Slack as the account of the borrowed token, the mailbox and the Trello account the client holds where it is set up (Trello once: the second is served from its notes)" "$( rigN "$rigTmp/out" 'identity: slack URIGNDMTHERE (config: client-ndm)' ) $( rigN "$rigTmp/out" 'holds no Slack credentials of its own' ) $( rigN "$rigTmp/calls" 'imap-sweep imap-ndmthere.invalid us@ndmthere.invalid' ) $( rigN "$rigTmp/calls" 'trello members/me/notifications rig-trello-key-NDMTHERE' ) $( rigTeams )" "1 0 1 $( [ "$rigPass" = first ] && printf 1 || printf 0 ) 0"
 	rigAssert "its check of the settings resolves the Slack workspace and says it is not persisted here, where the system is read from the other workspace" "$( rigN "$rigTmp/out" "SLACK_WORKSPACE_DOMAIN: OK (resolved rig.invalid, not persisted here: this scope's settings of that system are read from $rigWork/ws-there, the workspace client-ndm is set up in)" )" 1
 	rigAssert "so nothing of those systems is written into this workspace's scope of the client, which one setting would cut off from the rest" "$( rigHeldHere )" 0
 done

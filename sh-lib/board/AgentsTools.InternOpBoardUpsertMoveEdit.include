@@ -10,7 +10,7 @@
 ## $1/$@/$MDSC_CMD.
 ##
 
-. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsTools.OutputStyle.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
 
 case "$1" in
@@ -186,12 +186,12 @@ case "$1" in
 			set +e ; return 1
 		fi
 		## A new item's name is <type>-<YYYYMMDD'T'HHmm'Z' or HHmmSS'Z'>[-<slug>].md. Only creation
-		## is checked, and a rename's husk keeps the name it supersedes.
+		## is checked, and a rename's husk keeps the name it supersedes. The check, and the contract of the
+		## item's type, are the write gate's (AgentsToolsDocValidateGate), asked below before anything is written.
 		local shapeRequired="false"
+		type AgentsToolsDocValidateGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidate.include"
 		if [ "$isCreate" = "true" ] && [ "$opContext" != "--intern-op-board-rename" ] ; then
 			shapeRequired="true"
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.ItemNameShape.include"
-			AgentsToolsItemNameShapeCheck "$itemName" board-upsert-move-edit --create
 		fi
 
 		if [ "$bodyModeCount" -gt 1 ] ; then
@@ -278,17 +278,32 @@ case "$1" in
 		fi
 
 		## Creation headers, stamped only where neither the body nor a --header: names them:
-		## type from the name's prefix, date now, from the acting member when one is named.
-		## Ahead of the caller's ops, so they lead a new frontmatter and never win over one.
+		## type from the name's prefix, date now, from and owner the acting member (the one named, else the
+		## spawned session's own member, else user-<account>), and the contract the type names (`document-contract`). Ahead of the
+		## caller's ops, so they lead a new frontmatter and never win over one.
 		## A body opening a frontmatter block it never closes gets no defaults: there is
 		## nowhere to put them, and a create that wrote before must not start refusing.
 		if [ "$shapeRequired" = "true" ] && [ -n "$body" ] \
 			&& ! { [ "${body%%$'\n'*}" = "---" ] && [ "$( printf '%s\n' "$body" | LC_ALL=C awk -v fieldName=type -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterFieldProbe.awk" )" = "NONE" ] ; } ; then
-			local createDefaults="" createType
+			local createDefaults="" createType createActing="$actingMember"
+			if [ -z "$createActing" ] && [ -n "${MDAT_SPAWN_AGENT:-}" ] ; then
+				createActing="$MDAT_SPAWN_AGENT"
+				AgentsToolsAssertBareName "$createActing" "MDAT_SPAWN_AGENT" board-upsert-move-edit 2>/dev/null || createActing=""
+			fi
+			## A person at a console, with no session spawned, is user-<account> (the team member default of the common
+			## option set, F2.2); with not even an account, the create has no acting member and the gate refuses it.
+			if [ -z "$createActing" ] && [ -z "${MDAT_SPAWN_AGENT:-}" ] && [ -n "${USER:-}" ] ; then
+				createActing="user-$USER"
+				AgentsToolsAssertBareName "$createActing" "user-\$USER" board-upsert-move-edit 2>/dev/null || createActing=""
+			fi
 			createType="$( AgentsToolsItemNameType "$itemName" )"
 			[ -z "$createType" ] || createDefaults="default"$'\t'"type"$'\t'"$createType"$'\n'
-			[ -z "$actingMember" ] || createDefaults="${createDefaults}default"$'\t'"from"$'\t'"$actingMember"$'\n'
+			[ -z "$createActing" ] || createDefaults="${createDefaults}default"$'\t'"from"$'\t'"$createActing"$'\n'
 			createDefaults="${createDefaults}default"$'\t'"date"$'\t'"$( date +"%Y-%m-%d %H:%M %z" )"$'\n'
+			[ -z "$createActing" ] || createDefaults="${createDefaults}default"$'\t'"owner"$'\t'"$createActing"$'\n'
+			if [ -n "$createType" ] && AgentsToolsDocValidateContractFile "board-item.$createType" > /dev/null ; then
+				createDefaults="${createDefaults}default"$'\t'"document-contract"$'\t'"board-item.$createType"$'\n'
+			fi
 			headerOps="$createDefaults$headerOps"
 		fi
 
@@ -311,6 +326,16 @@ case "$1" in
 		if [ -z "$body" ] ; then
 			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: empty result -- refusing to write an empty board item" >&2
 			set +e ; return 1
+		fi
+
+		## THE WRITE GATE (AgentsTools.DocValidate.include): the item as it would be, against the item as it is. A fault
+		## of its contract that this write introduces, and whose rule refuses, refuses the write and nothing is written;
+		## one whose rule reports is said and the write goes on. A rename's husk is the rename's own.
+		if [ "$opContext" != "--intern-op-board-rename" ] ; then
+			local gateBefore="" gateMode="change" gateLabel="$itemName"
+			[ "$isCreate" = "true" ] || gateBefore="$sourcePath"
+			[ "$isCreate" != "true" ] || { gateMode="create" ; gateLabel="--create" ; }
+			printf '%s\n' "$body" | AgentsToolsDocValidateGate board-upsert-move-edit "$gateLabel" board "$itemName" "$gateBefore" "$gateMode" || { set +e ; return 1 ; }
 		fi
 
 		printf '%s\n' "$body" > "$targetPath"

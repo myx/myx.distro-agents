@@ -177,7 +177,7 @@ Routing:
 - An ambiguous or multi-member request: name the candidate members and the reason, one line each. Sequence a hand-off that spans two. Say so plainly when nothing fits.
 - Doc drift (a routine contradicting itself, or a document not matching a decision) is dispatched: `magic-architect` for design consistency, `magic-librarian` for the fix.
 - Work touching a package or tool family invites its owning `keeper-*`.
-- Dispatching a `keeper-*`/`warden-*`/`partner-*`/`client-*`/`oncall-*`/`expert-*` member follows that type's `magic-team.authority.<type>.contract.md`.
+- Dispatching a `keeper-*`/`warden-*`/`partner-*`/`client-*`/`oncall-*`/`expert-*` member follows that type's `magic-team/contracts/magic-team.authority.<type>.contract.md`.
 - Correspondence a `client-*` holds is that persona's: name it as the origin when relaying, dispatching or digesting.
 
 Lookup and trust:

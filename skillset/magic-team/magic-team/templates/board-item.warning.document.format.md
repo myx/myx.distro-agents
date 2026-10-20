@@ -24,7 +24,7 @@ document-contract: board-item.warning
 type: warning
 from: <member>
 date: <date-time>
-owner: <optional -- member, the current assignee>
+owner: <member, the current assignee>
 ---
 # Warning: <matter, one line>
 

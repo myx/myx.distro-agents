@@ -135,7 +135,7 @@ AgentsToolsMemberWorkspaceResolve(){ ## member, operation
 	' "$resolveIndex" )"
 	[ "${resolveRows%%$'\n'*}" = "switch" ] || return 0
 	resolveRows="${resolveRows#*$'\n'}"
-	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "${MDLT_ORIGIN:-$( dirname $BASH_SOURCE )/../../../..}/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include"
+	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "${MDLT_ORIGIN:-$( dirname $BASH_SOURCE )/../../../..}/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
 	resolveTracked="$( AgentsToolsPlacesWorkspaceRoots )"
 	resolveHome="$( LC_ALL=C awk -F'\t' -v who="$resolveMember" '$1 == who { print $2 ; exit ; }' "${HOME:-}/.agents/magic-team/member-homes.registry" 2> /dev/null )" || resolveHome=""
 	for resolveWanted in home source-symlink any ; do
@@ -177,7 +177,7 @@ AgentsToolsWorkspaceByName(){ ## name
 	if [ "${byHere##*/}" = "$byName" ] ; then
 		printf '%s\n' "$byHere" ; return 0
 	fi
-	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "${MDLT_ORIGIN:-$( dirname $BASH_SOURCE )/../../../..}/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include"
+	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "${MDLT_ORIGIN:-$( dirname $BASH_SOURCE )/../../../..}/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
 	while IFS= read -r byRoot ; do
 		[ "${byRoot##*/}" = "$byName" ] || continue
 		byCount=$(( byCount + 1 )) ; byFound="$byFound${byFound:+, }$byRoot"
@@ -219,12 +219,12 @@ AgentsToolsScopeHoldsKeys(){ ## workspace, scope, key prefix
 ## may name in turn.
 
 ## Whether a key of the magic-team scope is a spawn setting: the CLI service, the harness
-## tier, or a credential a harness leg declares for itself (HARNESS_CREDENTIAL_NAMES, the
+## tier, the model of the light or main tier (F10.2), or a credential a harness leg declares for itself (HARNESS_CREDENTIAL_NAMES, the
 ## names the console exports, which are the vendor CLI's own two as well).
 AgentsToolsSpawnSettingKey(){ ## key
 	local keyNames
 	case "$1" in
-		SPAWN_CLI_SERVICE|SPAWN_HARNESS_TIER) return 0 ;;
+		SPAWN_CLI_SERVICE|SPAWN_HARNESS_TIER|HARNESS_MODEL_LIGHT|HARNESS_MODEL_MAIN) return 0 ;;
 		''|SPAWN_*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_]*) return 1 ;;
 	esac
 	keyNames="$( LC_ALL=C sed -n 's/^HARNESS_CREDENTIAL_NAMES=//p' "${BASH_SOURCE[0]%/*}/../harness/"Agents*Harness.sh 2> /dev/null | LC_ALL=C tr -c 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' ' ' )" || keyNames=""

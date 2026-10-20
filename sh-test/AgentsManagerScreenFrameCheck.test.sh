@@ -13,6 +13,7 @@
 ## its one error line is written, and the status is not 0; and where Python has no curses module, or there is no
 ## terminal, the screen says so in one line, starts nothing and ends with a status that is not 0.
 ## Offline: the only thing the screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
+## Reconciled for F11.5: the sessions are no root: the cases that needed a list start at Pending Questions (`root pending`), and the list of a folder is entered with Enter from its first row.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -72,7 +73,7 @@ rigPty(){ ## columns, lines, the text to wait for, keys, the command... -- what 
 echo "-- at 120 columns by 40 lines --"
 rigScript <<'RIGSCRIPT'
 size 120 40
-root sessions
+root pending
 workspace /somewhere/ws-rig
 clock 12:34:56
 turn
@@ -103,7 +104,7 @@ rigAssert "nothing was drawn past the end of a line"                 "$( rigVal 
 echo "-- at 80 columns by 24 lines --"
 rigScript <<'RIGSCRIPT'
 size 80 24
-root sessions
+root pending
 turn
 get a
 show a
@@ -115,7 +116,7 @@ rigAssert "every line is drawn, at the full width"                   "$( rigLine
 echo "-- a terminal that is too small --"
 rigScript <<'RIGSCRIPT'
 size 20 5
-root sessions
+root pending
 turn
 show a
 get a
@@ -130,14 +131,14 @@ RIGSCRIPT
 rigAssert "one line says that the terminal is too small"             "[$( rigLine a 1 )]" "[Too small: 20x5 (ne…]"
 rigAssert "and the other lines are empty"                            "[$( rigLine a 2 )$( rigLine a 3 )$( rigLine a 4 )$( rigLine a 5 )]" "[$( rigRepeat ' ' 80 )]"
 rigAssert "the screen does not fail, and goes on drawing"            "$( rigVal a.layout ) $( rigVal b.frames ) $( rigVal b.quit ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c DRIVER-FAILED )" "none 3 no 0"
-rigAssert "a key moves nothing while nothing can be seen"            "$( rigVal b.selected )" sessions
+rigAssert "a key moves nothing while nothing can be seen"            "$( rigVal b.selected )" pending
 rigAssert "resized, the frame is drawn again"                        "$( rigVal c.layout ) $( rigVal c.listWidth )" "ok 24"
 rigAssert "too small again, the quit key still ends it"              "$( rigVal q.layout ) $( rigVal q.quit )" "none yes"
 
 echo "-- a change of size --"
 rigScript <<'RIGSCRIPT'
 size 120 40
-root sessions
+root pending
 workspace /somewhere/ws-rig
 clock 12:34:56
 view 60
@@ -161,9 +162,9 @@ rigAssert "and that screen has its 40 lines"                         "$( rigLine
 echo "-- a line with a character that takes two cells --"
 rigScript <<RIGSCRIPT
 size 120 40
-root sessions
+root pending
 rows pending a=🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀 b=$( rigRepeat y 34 )🚀zz
-keys DOWN ENTER DOWN
+keys ENTER DOWN
 viewline $( rigRepeat x 80 )🚀 and more text that does not fit the pane
 viewline $( rigRepeat x 40 )🚀$( rigRepeat y 100 )
 viewline short 🚀 line
@@ -185,7 +186,7 @@ rigAssert "nothing was drawn past the end of a line or into the other pane" "$( 
 echo "-- a terminal that is not UTF-8 --"
 rigScript <<'RIGSCRIPT'
 size 60 12
-root sessions
+root pending
 plain
 turn
 cells sep 3 39 40

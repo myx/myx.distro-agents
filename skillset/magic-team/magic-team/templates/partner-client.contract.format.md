@@ -48,7 +48,7 @@ Normative contract: this file's own `# Contract` section, at its end. Where it a
 ### External representation
 
 - `partner-*`: holds the subject [named external party]'s counterpart works in — our interface to that counterpart, never a stand-in for them and never their representative among us.
-- `client-*`: our own avatar inside [named external party]'s own systems — `magic-team/magic-team.authority.client.contract.md`'s "Relationship shape". Its contacts note lives in its own inbox. What an incoming contact gets is `magic-team/magic-team.conversations.md`'s **non-owner-contact-tiers-and-escalation**.
+- `client-*`: our own avatar inside [named external party]'s own systems — `magic-team/contracts/magic-team.authority.client.contract.md`'s "Relationship shape". Its contacts note lives in its own inbox. What an incoming contact gets is `magic-team/magic-team.conversations.md`'s **non-owner-contact-tiers-and-escalation**.
 - Communication with the external entity: a `client-*` acts directly; a `partner-*` goes through the `client-*` for that organisation, else through `magic-coordinator`.
 - Generic role operations run through the shared `magic-tooling` baseline; any external-system tooling specific to this partner/client (their own Jira/Slack/Google, etc.) is documented in this file's own `Team-Member's (-specific) tooling` section below.
 
@@ -127,8 +127,8 @@ Used to check this file's own definitions against its own goals when it is updat
 # Contract
 
 Relationship shape — the asymmetric external-organisation relationship (`client-*` faces one direction,
-`partner-*` the opposite), not restated here: see `magic-team.authority.partner.contract.md`/
-`magic-team.authority.client.contract.md`'s own "Relationship shape".
+`partner-*` the opposite), not restated here: see `magic-team/contracts/magic-team.authority.partner.contract.md`/
+`magic-team/contracts/magic-team.authority.client.contract.md`'s own "Relationship shape".
 
 - Frontmatter: `maintainers:` only.
 - `# Summary`
@@ -140,8 +140,8 @@ Relationship shape — the asymmetric external-organisation relationship (`clien
     - What it deliberately doesn't do.
     - Invocation conditions and auto-trigger behavior stated here.
     - `### External representation` — present even if N/A.
-      - Which direction this member faces: see `magic-team.authority.partner.contract.md`/
-        `magic-team.authority.client.contract.md`'s own "Relationship shape".
+      - Which direction this member faces: see `magic-team/contracts/magic-team.authority.partner.contract.md`/
+        `magic-team/contracts/magic-team.authority.client.contract.md`'s own "Relationship shape".
       - Communication with the external entity: a `client-*` acts directly; a `partner-*` goes through the `client-*` for that organisation, else through `magic-coordinator`.
       - Generic role operations run through the shared `magic-tooling` baseline. Any external-system tooling specific to this particular partner or client — their own issue tracker, messaging or document systems — is this member's own addition. It is documented in its own `Team-Member's (-specific) tooling` section.
 - `# Terminology: <topic>`
@@ -157,7 +157,7 @@ Relationship shape — the asymmetric external-organisation relationship (`clien
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
     - `partner-*` only: "Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement." Not part of the `client-*` shape — a `client-*` member is a representative, normally with no workspace or console of its own, so it gets no console grant by default. A specific client that genuinely needs one states it explicitly in its own file, which is what the `magic-team.armed.md` console rules require anyway.
-    - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team.authority.<type>.contract.md` (`partner` or `client`), never restated in full.
+    - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team/contracts/magic-team.authority.<type>.contract.md` (`partner` or `client`), never restated in full.
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`
   - This member's own reference material, or `: none`.

@@ -16,6 +16,7 @@
 ## not on a tick: a line put into the window stays through turns and goes with a new size, which sets it out again,
 ## narrower. A text that is no Markdown shows as it is; a text longer than the bound is rendered that far and the rest
 ## follows as it is, under a line that says so. Offline: no operation of the real tooling is called.
+## Reconciled for F11.5: Team Members and Team Data are put at with `at @team` and `at @teamdata`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -124,7 +125,8 @@ rigCase files
 rigScript <<'RIGSCRIPT'
 turn
 wait list 10
-keys 4
+at @team
+turn
 wait list 10
 keys DOWN ENTER
 wait list 10
@@ -216,7 +218,8 @@ rigCase item
 rigScript <<'RIGSCRIPT'
 turn
 wait list 10
-keys 5
+at @teamdata
+turn
 wait list 10
 keys DOWN DOWN
 wait focus 10
@@ -241,7 +244,8 @@ rigScript <<'RIGSCRIPT'
 turn
 wait list 10
 mode raw
-keys 5
+at @teamdata
+turn
 wait list 10
 keys DOWN DOWN
 wait focus 10

@@ -24,7 +24,7 @@ document-contract: board-item.project
 type: project
 from: <member>
 date: <date-time>
-owner: <optional -- member, the current assignee>
+owner: <member, the current assignee>
 ---
 # Project: <matter, one line>
 

@@ -51,7 +51,12 @@
 # A PROPOSAL (ProposeApprove) is answered by the human-owner's own click on its root:
 # white_check_mark is approved and x is rejected, rejected first when both are held. The
 # reader is given the reactions of the root alone, never those under the proposal reply
-# (AgentsSlackThreadAnswersSince.awk). By reply, approved or approve is approved, and rejected
+# (AgentsSlackThreadAnswersSince.awk). The tooling places its own two on that root (F9.4: x and
+# white_check_mark, as RequestPermission places its own), by the identity that posted it; that
+# identity is an asking account (MDAT_VERDICT_ASKING), so neither of the two ever counts, and
+# the human-owner's own click beside them is the verdict: his check mark approves, his cross
+# rejects. The tooling takes its two off once a verdict is read, so what stands is his alone.
+# By reply, approved or approve is approved, and rejected
 # or reject is rejected, in either shape; his words on that line are carried, as "approved --
 # <text>" or "rejected -- <text>". No plain affirmation approves: that kind takes only its own
 # words and marks.

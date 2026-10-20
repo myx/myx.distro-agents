@@ -6,7 +6,7 @@
 ## their answer confirmed there once -- from a member with no Slack account of its own and
 ## from one with an account alike, whatever as_bot says; a question addressed to the owner in
 ## another conversation is asked there as before; a proposal stays the coordinator's own two
-## posts, with no emoji of the tooling; the collector reads a plain question the bot asked as the bot, and its resolved
+## posts, with the tooling's own two emoji (F9.4) on the root, placed under that account; the collector reads a plain question the bot asked as the bot, and its resolved
 ## marks go on under the bot's token at the first call; a permission whose addressee does not
 ## hold the refused call goes to the holder running in the session, and that member's answer
 ## reaches the asker; what the RequestPermission description says of both; and what the as_bot
@@ -346,7 +346,7 @@ rigAssert "and by a member with an account of its own: its own post there, its o
 	"$( rigPostedAs 1 ):$( rigHolds "$rigScenarioDir/post.1" '"channel":"CRIG00001"' ):$( rigCallsAs chat.postMessage "$rigBotToken" ):$( rigRecordField ask-identity ):$( rigPlacedAs "$rigOwnToken" 000101 | cut -d' ' -f1-2 ):$( rigUsedAs reactions.add "$rigBotToken" ):$( rigUsedAs conversations.replies "$rigBotToken" ):$( rigVerdictLine )" \
 	"$rigOwnToken:yes:0:member:+1 x:no:no:VERDICT: yes"
 
-echo "-- a proposal stays the coordinator's own: two posts under its account, and no emoji of the tooling --"
+echo "-- a proposal stays the coordinator's own: two posts under its account, and the tooling's two emoji on the root under that account --"
 rigStart proposal
 rigAs="magic-coordinator"
 rigThread 000101 "$( rigReactions '"URIGOWNER"' white_check_mark )" ""
@@ -355,8 +355,8 @@ rigAs="$rigMember"
 rigAssert "its root and its proposal reply go out under the coordinator's own token, to the owner, and its record says the member asked" \
 	"$( rigPostedAs 1 ):$( rigPostedAs 2 ):$( rigCallsAs chat.postMessage "$rigBotToken" ):$( rigHolds "$rigScenarioDir/post.1" '"channel":"URIGOWNER"' ):$( rigRecordField ask-identity ):$( rigRecordField kind )" \
 	"$rigCoordinatorToken:$rigCoordinatorToken:0:yes:member:proposal"
-rigAssert "the owner's own check mark on the root is the verdict, and the tooling placed no emoji anywhere, under any token" \
-	"$rigKilled:$( rigVerdictLine ):$( rigCalls reactions.add )" "no:VERDICT: approved:0"
+rigAssert "the owner's own check mark on the root is the verdict, and the tooling placed its two on the root, the cross first, under the coordinator's own token and under no other" \
+	"$rigKilled:$( rigVerdictLine ):$( rigCalls reactions.add ):$( rigPlacedAs "$rigCoordinatorToken" 000101 ):$( rigUsedAs reactions.add "$rigBotToken" )" "no:VERDICT: approved:2:x white_check_mark:no"
 
 echo "-- a plain question the bot asked: the collector reads it as the bot, and marks it as the bot at the first call --"
 rigCollectMarks(){ ## token -> "<eyes on the reply>:<check mark on the question>" as placed under it

@@ -17,6 +17,7 @@
 ##      the terminal is another's, whatever the setting says
 ## Red before F11.0's paging and mouse lines: Space, Home and End are no key of the screen, and the mouse is always reported.
 ## Offline: the only thing the screen calls here is the stand-in for the dispatcher.
+## Reconciled for F11.5: the list of the sessions is Active Sessions of Activity, and Team Members is put at with `at @team`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -141,7 +142,7 @@ rigCase(){ ## name members files -- a rig of its own: that many team members and
 	echo rows > "mode" )
 }
 rigScript(){ ## size -- the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\nwall 2026-10-13 02:30 +0000\nsize %s\n' "$rigTools" "$1" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:magic-team/activity/active-sessions:record none\nwall 2026-10-13 02:30 +0000\nsize %s\n' "$rigTools" "$1" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -152,7 +153,8 @@ rigCase text 3 8
 rigScript "120 36" <<'RIGSCRIPT'
 turn
 wait list 10
-keys 4
+at @team
+turn
 wait list 10
 keys DOWN ENTER
 wait list 10
@@ -195,7 +197,7 @@ rigAssert "the mode of the text is as it was after all of them" "$( rigVal home.
 echo "-- 2b. the left window: the table view, a table of more rows than the window holds --"
 rigCase table 80 3
 rigScript "120 30" <<'RIGSCRIPT'
-root sessions
+root active-sessions
 turn
 wait sessions 30
 root team
@@ -228,7 +230,8 @@ rigCase list 3 100
 rigScript "120 36" <<'RIGSCRIPT'
 turn
 wait list 10
-keys 4
+at @team
+turn
 wait list 10
 keys DOWN ENTER
 wait list 10
@@ -262,7 +265,8 @@ rigCase climb 3 100
 rigScript "120 36" <<'RIGSCRIPT'
 turn
 wait list 10
-keys 4
+at @team
+turn
 wait list 10
 keys DOWN ENTER
 wait list 10
@@ -274,6 +278,8 @@ keys PGDN DOWN
 get deep
 keys LEFT
 get paged
+keys HOME LEFT
+get up0
 keys HOME LEFT
 get up1
 keys HOME LEFT
@@ -290,9 +296,9 @@ RIGSCRIPT
 rigDepth(){ ## path -- how many levels it has
 	[ -n "$1" ] && printf '%s\n' "$1" | LC_ALL=C awk -F/ '{ print NF }' || echo 0
 }
-rigAssert "control: the list stands three levels down, on a row in the middle of its page, not on its first row" "$( rigDepth "$( rigVal deep.path )" ) $( [ "$( rigVal deep.index )" -gt 1 ] && echo middle || echo "first: $( rigVal deep.index )" ) $( rigVal deep.focus )" "3 middle list"
-rigAssert "Left from the middle of the list pages it up, as PgUp does, and climbs nowhere" "$( rigDepth "$( rigVal paged.path )" ) $( [ "$( rigVal paged.index )" -lt "$( rigVal deep.index )" ] && echo up || echo "not up: $( rigVal paged.index ) of $( rigVal deep.index )" ) $( rigVal paged.focus )" "3 up list"
-rigAssert "on the first row of a list it climbs a level a press, onto the row it came from, and the list keeps the keys" "$( rigDepth "$( rigVal up1.path )" ) $( rigDepth "$( rigVal up2.path )" ) $( rigDepth "$( rigVal up3.path )" ) $( rigVal up1.focus ) $( rigVal up3.focus ) $( rigVal up3.selected ) $( rigVal up2.selected ) $( rigVal up1.selected )" "2 1 0 list list $( rigVal up2.path | LC_ALL=C awk -F/ '{ print $NF }' ) $( rigVal up1.path | LC_ALL=C awk -F/ '{ print $NF }' ) $( rigVal deep.path | LC_ALL=C awk -F/ '{ print $NF }' )"
+rigAssert "control: the list stands four levels down (Magic-Team, Team Members, the member, its folder), on a row in the middle of its page, not on its first row" "$( rigDepth "$( rigVal deep.path )" ) $( [ "$( rigVal deep.index )" -gt 1 ] && echo middle || echo "first: $( rigVal deep.index )" ) $( rigVal deep.focus )" "4 middle list"
+rigAssert "Left from the middle of the list pages it up, as PgUp does, and climbs nowhere" "$( rigDepth "$( rigVal paged.path )" ) $( [ "$( rigVal paged.index )" -lt "$( rigVal deep.index )" ] && echo up || echo "not up: $( rigVal paged.index ) of $( rigVal deep.index )" ) $( rigVal paged.focus )" "4 up list"
+rigAssert "on the first row of a list it climbs a level a press, onto the row it came from, and the list keeps the keys" "$( rigDepth "$( rigVal up1.path )" ) $( rigDepth "$( rigVal up2.path )" ) $( rigDepth "$( rigVal up3.path )" ) $( rigVal up1.focus ) $( rigVal up3.focus ) $( rigVal up3.selected ) $( rigVal up2.selected ) $( rigVal up1.selected )" "2 1 0 list list $( rigVal up2.path | LC_ALL=C awk -F/ '{ print $NF }' ) $( rigVal up1.path | LC_ALL=C awk -F/ '{ print $NF }' ) $( rigVal up0.path | LC_ALL=C awk -F/ '{ print $NF }' )"
 rigAssert "at the root, off its first row, Left pages up to it" "[$( rigVal root1.path )] $( rigVal root1.index ) $( rigVal root2.index )" "[] 0 0"
 rigAssert "and on the root's first row it does nothing more: the level, the selection, the keys and the status line are as they were, and it never dives out of the pane" \
 	"$( rigVal root5.path )|$( rigVal root5.index )|$( rigVal root5.selected )|$( rigVal root5.focus )|$( rigVal root5.notice )" "|0|$( rigVal root1.selected )|list|"

@@ -18,6 +18,7 @@
 ## Red before: a question of the form many has the list of one answer, so it can be answered with one only (1 and 2
 ## fail, and the rest holds).
 ## Offline: no operation of the real tooling is called, and no ask is read from this machine.
+## Reconciled for F11.5: Pending Questions is the second root, key 2, and the list of the sessions is Active Sessions of Activity (`root active-sessions`).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -78,7 +79,7 @@ rigCase(){ ## name -- a fresh rig: the fixture the stand-in prints, no call note
 	printf 'answered\t%s\t%s\tmagic-coordinator\tconsole:rig\t%s\n' "$1" "$1" "-" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-answer"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in and the time of day; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:sessions none\nwall 2026-10-13 02:30 +0300\nroot sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:magic-team/activity none\nwall 2026-10-13 02:30 +0300\nroot active-sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -98,7 +99,7 @@ rigCase many
 rigScript <<'RIGSCRIPT'
 size 120 40
 turn
-keys 3
+keys 2
 wait list 30
 keys DOWN DOWN
 wait acts 30
@@ -127,7 +128,7 @@ rigCase manynone
 rigScript <<'RIGSCRIPT'
 size 120 40
 turn
-keys 3
+keys 2
 wait list 30
 keys DOWN DOWN
 wait acts 30
@@ -145,7 +146,7 @@ rigCase yesno
 rigScript <<'RIGSCRIPT'
 size 120 40
 turn
-keys 3
+keys 2
 wait list 30
 keys DOWN DOWN DOWN DOWN
 wait acts 30
@@ -166,7 +167,7 @@ rigCase one
 rigScript <<'RIGSCRIPT'
 size 120 40
 turn
-keys 3
+keys 2
 wait list 30
 keys DOWN DOWN DOWN
 wait acts 30
@@ -176,6 +177,7 @@ keys ENTER
 turn
 get dlg
 keys 2
+turn
 keys ENTER
 get asked
 RIGSCRIPT
@@ -186,7 +188,7 @@ rigCase plain
 rigScript <<'RIGSCRIPT'
 size 120 40
 turn
-keys 3
+keys 2
 wait list 30
 keys DOWN
 wait acts 30
@@ -206,7 +208,7 @@ rigCase plainnone
 rigScript <<'RIGSCRIPT'
 size 120 40
 turn
-keys 3
+keys 2
 wait list 30
 keys DOWN
 wait acts 30

@@ -59,7 +59,7 @@ that the code and docs do not readily tell you.
   two arms are identical today. `--manager-*` → `sh-lib/manager/AgentsTools.Manager.include`, one further
   include per subject, `AgentsTools.Manager<Subject>.include`: `Session`, `Routine`, `Spawn`, `Config`,
   `TeamMember`, `TeamData`, `PendingReply`, `Dashboard`, `Place`, `Console`, `Check`, `Keys`, `Command`,
-  `Help`.
+  `Help`, `Manual`.
 - **One team, two organisations.** A call reaches our own organisation unless it is on the client
   side: a `--client-*` operation, or a `client:` address, of a `client-*` member
   (`AgentsTools.CommsSide.include`). A `client-*` member's own settings for an outside system are the
@@ -234,7 +234,9 @@ that the code and docs do not readily tell you.
 - **`myx.common lib/catMarkdown` is the one Markdown renderer.** An `_` inside a word and in code stays,
   and its plain output keeps the backticks of code. Its `--spans` output (`--width <cells>` or
   `--no-wrap`, `--ascii`) gives each line as its text, a TAB and its spans, for a program that draws the
-  text itself: the manager screen draws only that.
+  text itself: the manager screen draws only that. A table in the text is laid out by that one renderer to
+  the width given, or the terminal's: columns fitted, cells wrapped, the header marked, only a row that
+  wraps ruled. With no width the output is as it was. It is plain POSIX awk.
 
 ## 4. Writing code here
 
@@ -251,7 +253,7 @@ that the code and docs do not readily tell you.
   [--section-exclude <glob>]... [--section-include <glob>]... <file-name> "<result-section-name>"]...`
   has no help; its contract is here.** Its name is the human-owner's own, approved as an `--intern-`
   kind in the refactorings epic. It merges markdown files into one document on stdout, in one awk
-  process (`AgentsMergeMdFiles.awk`). `AgentsToolsMergeMdFiles` is the same merge for a caller in the
+  process (`LocalMergeMdFiles.awk`). `AgentsToolsMergeMdFiles` is the same merge for a caller in the
   same process. Every file comes in by a `--mixin`, which names the section it becomes. A plain file
   argument is refused. A mixin's section is at level `--section-prefix` (default 1, `#`), and
   `--section-limit` levels (default 3) are kept from there. A file's own heading levels are reworked
@@ -750,12 +752,24 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **`--manager-config-digest [--full] [<subject>...]`** prints the settings as they are, by subject; every
   row ends with its `<label>`, from the one declaration `sh-lib/manager/AgentsManagerConfigLabels.awk`. Without
   `--full` the rows keep their earlier fields, on purpose: a screen of before reads the label as the last
-  field. A secret reads only as set or missing; its value is never printed. Its code is
-  `sh-lib/manager/AgentsTools.ManagerConfig.include`; `AgentsManagerConfigDigestCheck` is its test.
+  field. A credential reads `secret-set` or `secret-missing` and is printed in one form only (**A credential
+  is printed in one form**, below). Its code is `sh-lib/manager/AgentsTools.ManagerConfig.include`;
+  `AgentsManagerConfigDigestCheck` is its test.
 - **`--manager-config-set <key> <value>`** saves one setting that can be changed, in its own scope, and
   prints `saved <key> <value> <scope> <where>`: the one operation of `AgentsTools.ManagerConfig.include`
   that writes. A user-scope setting goes through the local tools' `--custom-config-option`.
   `AgentsManagerConfigSetCheck` is its test.
+- **A credential is printed in one form, and `sh-lib/config/AgentsTools.CredentialDisplay.include` is the
+  only place that defines it**: the first quarter of the value, rounded down, not less than 4 and not
+  more than 20 characters, then a `*` for every character after them, even for a long key; a value of
+  fewer than 4 characters is all `*`. A password inside a URL (`scheme://user:password@host`) is masked
+  alone, the rest of the URL as it stands. Whatever prints a credential, in a row, a message or a file,
+  asks that file for the form and makes none of its own; which key is a credential is each console
+  plugin's to enumerate (`AgentsToolsManagerConfigKeySecret`). The URL mask is in full only:
+  `--manager-config-digest --full` and `--manager-team-member-read --full`, which the screen's reads pass;
+  a read without `--full` shows a URL whole under a key that is no credential. The mask is no security
+  boundary: a shell read of the value (`--agents-config-option <scope> --select <key>`) shows it.
+  `AgentsCredentialExposureCheck` is the guard.
 - **`--manager-session-kill --session-id <id> [--run]`** ends runs the hard way: no closure of a
   routine runs, and no agent is asked anything. A session's id ends every live run of it; `--run` ends
   the founder alone. The ending is recorded first, under the name the console's user has in the
@@ -790,14 +804,14 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   from a run's own processes never finds it. `AgentsSessionControlStopKillCheck` is the test. A
   `--manager-session-kill` asking the thread to carry out a kill is the thread acting, by request, never
   a signal sent to it.
-- **`--manager-team-member-list` and `--manager-team-member-read <team-member>`**: the list has one row
+- **`--manager-team-member-list` and `--manager-team-member-read [--full] <team-member>`**: the list has one row
   per member -- its mark, names, alias, kind, workspace, where it is set up, its status, and whether a
   run of it is alive, a member set up only in another workspace of this machine included, then its
   icon, the one the installer's own member table shows (`AgentsToolsTeamMemberKindIcon`), and, last, its
   folder, its link followed to where its skillset lies; the read adds
-  its description, its sessions, its grants and its settings, a secret setting reading only as set or
-  missing. Their code is `sh-lib/manager/AgentsTools.ManagerTeamMember.include`; `AgentsManagerTeamMemberCheck`
-  is their test.
+  its description, its sessions, its grants and its settings, a credential setting in the form of a
+  credential. Their code is `sh-lib/manager/AgentsTools.ManagerTeamMember.include`;
+  `AgentsManagerTeamMemberCheck` is their test.
 - **The other `--manager-*` reads**, each in its own include, rows as its help entry gives them, and
   each the screen's alone: `--manager-dashboard-read` (`AgentsManagerDashboardCheck`),
   `--manager-team-data-read <store> [<folder> [<item>]]` (`AgentsManagerBrowseCheck`),
@@ -806,10 +820,16 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `--manager-place-read <place>` (`AgentsManagerPlaceCheck`), `--manager-place-command-list` and
   `--manager-place-command-run` (`AgentsManagerPlaceCommandCheck`), `--manager-console-list`
   (`AgentsManagerConsoleListCheck`), `--manager-check-run` (`AgentsManagerCheckRunCheck`),
-  `--manager-keys-list` and `--manager-keys-read <key>` (`AgentsManagerKeysCheck`),
-  `--manager-command-list` (`<Name>.fn.sh`, a TAB, the file it resolves to;
-  `AgentsManagerCommandListCheck`) and `--manager-help-read [<Name>.fn.sh]` (the help of that command,
-  read, never run; `AgentsManagerHelpReadCheck`).
+  `--manager-keys-list` and `--manager-keys-read <key>` (`AgentsManagerKeysCheck`; the deploy key of the
+  account is looked for under the current user's HOME, `deploy-keys/<account>`, `.ssh/id_ed25519` and
+  `.mdci-source-repos.txt`, with no `MDCI_HOME` and no fixed `/usr/local/mdci`; on mdci HOME is
+  `/usr/local/mdci`), `--manager-command-list` (`<Name>.fn.sh`, a TAB, the file it resolves to;
+  `AgentsManagerCommandListCheck`), `--manager-help-read [<Name>.fn.sh]` (the help of that command,
+  read, never run; with no argument it feeds Member Help's chapters alone, the read `list:help`, and no
+  root lists its operations; `AgentsManagerHelpReadCheck`) and `--manager-manual-read <user|maintainer>
+  [<project>]` (`AgentsManagerManualReadCheck`): the projects that have a README.md (`user`) or a
+  MAGIC.md (`maintainer`), in the order `ListDistroProjects --select-all` gives, one `<project> TAB
+  <file>` a row; with a project, that file.
 - **The manager screen is the entry `sh-lib/manager/AgentsManagerScreen.py` plus its parts**, the files
   `AgentsManagerScreen.<Part>.py` beside it. The entry holds the start, the list `PARTS` (the files, in the order
   they load) and `loadParts()`, which executes each part in the entry's own namespace, so the screen stays one
@@ -821,9 +841,13 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   (`COMMANDS`), reads (`READS`), calls (`CALLS`), summaries (`SUMMARIES`) and dialogs (`DIALOGS`); a new root,
   key or dialog is a declaration. Its roots
   are Dashboard (Monitor), Sessions (Activity), Pending Questions, Team Members, Team Data (where the
-  dashboard says it is there), Locations (Places), Consoles, Settings, Configuration and Manuals
-  (Help); the number keys follow the list as it stands. Every fact is a row of a `--manager-*` read or
-  another operation, every action one.
+  dashboard says it is there), Locations (Places), Consoles, Settings, Configuration (Config Checker and
+  Server Keys) and Manuals (Help); the number keys follow the list as it stands. The screen starts on
+  Manuals (Help) (`START_ROOT`), which holds User Manuals (the README.md of each project), Tooling
+  Commands (moved from Configuration) and Maintainer Manuals (the MAGIC.md of each), the projects in the
+  build order; in the two manual lists the key `a` shows them by name and back in the build order
+  (`ALPHABETICAL`; the active filter has no `a` there, `COMMANDS` "except"). Every fact is a row of a
+  `--manager-*` read or another operation, every action one.
 - **Spacers** part the groups of rows of a list: one blank line each, which the cursor, the number keys
   and every count of rows pass by. At the root they part Dashboard to Team Data, Locations and
   Consoles, Settings and Configuration, and Manuals (`SECTION_GROUPS`). Inside a folder one stands
@@ -831,6 +855,10 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   stands above the first row shown. `MDLT_CONSOLE_SPACERS=disable` turns them all off, and they are on
   by default. It is a console setting of `.local`, the user's own, beside `MDLT_CONSOLE_HISTORY`, and
   no agents setting: `--manager` hands the saved one to the screen where the environment names none.
+- **The mouse** is reported to the screen unless `MDLT_CONSOLE_MOUSE=disable` leaves it to the terminal,
+  whose own selection then copies text. It is read as the spacers are: a console setting of `.local`, the
+  user's own, beside `MDLT_CONSOLE_SPACERS` and no agents setting, which `--manager` hands to the screen
+  where the environment names none (`MOUSE_VARIABLE`, `AgentsManagerScreen.Terminal.py`).
 - **Its reads**: a folder is read while its row is selected, after a rest of a third of a second; a read
   may be `once`, on `demand` alone (its command asks for it), read `also` beside another list, and take
   `{parent}`, the id of the level above. The dashboard is read only while its root is selected or
@@ -842,6 +870,12 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   (`--manager-spawn-member`, the prompt on standard input). An action the screen began is not ended with
   the screen. Pending Questions is read by `--member-pending-reply-read magic-coordinator --any-owner`.
   No pane shows a `keys:` line: the status line shows the keys.
+- **Paging.** In the content pane Space, PgDn, PgUp, Home and End page and jump. In the list, PgUp and
+  PgDn page; Left pages up as PgUp does and, on the list's first row, climbs one level, and at the root
+  does nothing, so it never leaves the pane; Right pages down (`COMMANDS` `page-left`, `climb`,
+  `page-right`). A table that is all of the left window is read with no row highlighted: Enter puts a row
+  cursor on a row, Up and Down move it, Enter on a row opens it whole in the information dialog, and Esc
+  leaves the cursor, back to reading (`rowCursorEnter`, `AgentsManagerScreen.ViewTable.py`).
 - **A run in a `Wait` says for how long.** In the summary mode of the left window (`b`), its `waits on`
   line reads `<what> for <age>`, counted from its last milestone, `wait going idle`, which every Wait
   stores as it starts.
@@ -859,10 +893,16 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   close to a row's own (`ROW_ALT`), or names none. Every other row differs only in that ground, never in
   its text, colour or look: the text carries content meaning alone. Under a set that names none the
   ground never changes. Wrapped, the last line of each row is then underlined across the table where
-  the terminal underlines. Cut, nothing marks the rows. A cell that is a state keeps its colour on its row's
+  the terminal underlines; in a style that draws a rule (`STYLES` "rowRule", the Magic styles, on a UTF-8
+  terminal) a light line of its own stands instead under the header and under each row that wraps, as wide
+  as the table. Cut, nothing marks the rows. A cell that is a state keeps its colour on its row's
   ground and, on a row's underlined last line, the underline; a ground that is the meaning of a look (the red of
   a bad state) stays. A terminal of eight colours has not the shades the two grounds are told apart by: there
   the colours of every style name none.
+- **Settings show values, not descriptions.** What a setting is saved as, the raw value, is what its table
+  shows in the VALUE column, a path in its place form; the description of a choice belongs to the detail
+  of the setting, after the value. The form that changes a setting offers the choices by their
+  descriptions and saves the raw value (`AgentsManagerScreen.Settings.py`).
 - **Markdown and the help are drawn by `lib/catMarkdown --spans`** of myx.common, once for each text,
   width and mode, never on a tick: the help as `--help` prints it. Where no catMarkdown with `--spans` is
   found, the text shows as it is. The screen holds no renderer of its own.
@@ -884,6 +924,14 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   no list: it takes the words that are its answer, refused while they are empty. A question of the form `many`
   opens `answer-many`, its options as boxes, and the answer is the numbers of the boxes checked, in their order,
   as one reply names them.
+- **The form of a credential** (`AgentsManagerScreen.Settings.py`): Enter on a line whose state is that of
+  a secret (the command `credential`, ahead of `setting`) opens the dialog `setting-credential`, a short
+  text holding the value in the form of a credential. Its button Reveal, which Ctrl-R presses, reads the
+  value whole by `--agents-config-option <scope> --select <key>` (the pseudo-read `full:credential`, on
+  `demand`; the scope from `CREDENTIAL_SCOPE`) and puts it in the field for as long as the form is open.
+  A line not changed from here has Close and Reveal, a changeable one OK, Reveal and Cancel; the value
+  whole is held nowhere else. Ctrl-R is the dialog's one key beside those of its controls
+  (`DIALOG_KEYS`: the dialog's name, the word the status line gives the key, and what it does).
 - **`MDAT_<NAME>_HARNESS` points one leg at another file**: a bare filename in `sh-lib`, or an absolute
   path; a relative path with `/` is refused (it would resolve against `$MMDAPP`). It must exist and be
   executable. Install probes and `AgentsToolsSpawnCliPresent` test the default file, not the override.
@@ -1083,10 +1131,16 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   failure from a silent no-op.
 - **Routine resolution** (`AgentsTools.SpawnRoutine.include`, function-only): a selector matches by
   substring against `*.routine.md` filenames under member folders; zero or several matches are refused
-  with candidates named. `--routine-default` picks the one routine whose `default-for-session-kind:` is
-  `coworking`. A routine needs a frontmatter block and non-empty `executors`/`maintainers`; missing
-  `invitees` reads `none`. `--intern-op-spawn-prepare-brief` needs exactly one of the two options; the
-  spawn proxy takes neither or one.
+  with candidates named. `--routine-default` picks the routine of the `coworking` kind. The kinds are one
+  list the tooling owns (`AgentsToolsSpawnRoutineKinds`): `coworking` and `standalone`, each defined by a
+  bundled routine (`magic-team.coworking.routine`, `magic-team.standalone.routine`) that holds its rules,
+  steps and default settings, `executors:` among them. A kind nobody ships is a kind nothing can run, so
+  no routine claims a kind (`default-for-session-kind:` is gone); a routine names its own in
+  `requires-session-kind:`, mandatory, and is never started without it. A routine run inline inherits from
+  `magic-team.inline.routine` in place of its kind's. A routine needs a frontmatter block and non-empty
+  `executors`/`maintainers`, the kind routine's defaults counted; missing `invitees` reads `none`.
+  `--intern-op-spawn-prepare-brief` needs exactly one of the two options; the spawn proxy takes neither or
+  one.
 - **What every spawn gets.** The harness `Agent` tool prepends the spawn-prepare-brief block itself
   (unless the prompt already starts `SPAWN-PREPARE-BRIEF: `); if it cannot be built, the spawn still
   starts with a `NOTE:`. The proxy appends `## Staying on the task`: a spawn hands back, keeps
@@ -1535,8 +1589,11 @@ contracts are here.
   `.local/agents/sessions/<key>/results/`. The reply then opens with a preview, the whole lines that
   fit in 2 KB or the first 20, never over 7 KB. It names the file, its size in bytes and lines, and a
   by-range `Read` for the rest. The result's closing lines close the reply too. Skill, ToolSearch and a
-  Read of a kept file are never kept. With no session, or a file that cannot be written, the result
-  comes back whole. `AgentsReplyCurrentDateCheck` and `AgentsReplyLongResultCheck` are the tests.
+  Read of a kept file are never kept, nor is a Read given `offset` or `limit`: it returns its lines whole
+  within Read's own byte cap, which cuts at a whole line and names the offset to continue. A Read with
+  neither is kept like any result, and its hint names the original file and the next offset to read by
+  range, not the kept copy. With no session, or a file that cannot be written, the result comes back
+  whole. `AgentsReplyCurrentDateCheck` and `AgentsReplyLongResultCheck` are the tests.
 - **`BatchTools` is one call that calls several tools and returns their results in call order**, to save
   rounds (`AgentsTools.BatchTools.include`; the harness makes each call a served call of its own, the MCP
   server a request of its own). Its arguments are `mode`, `calls` (a list of `{"tool":..,"arguments":{..}}`),
@@ -1561,7 +1618,19 @@ contracts are here.
   plain as `DISMISSED <member>` with no header -- recognised by that tag, never by the Slack account,
   since several members post under one team bot; never a dismissal of its own author). Session id from
   `AgentsHarnessSessionKey`. A call with six or fewer
-  arguments stays stateless. A send records `sessions/<id>/last-own-post` for the floor fallback.
+  arguments stays stateless. A send records every post in `sessions/<id>/last-own-post`, one line each,
+  latest first, its first line what it was before.
+- **A session's `Wait` always carries `replies:<session>` first, the floor** (`--wait-default` or
+  `--wait-continue` with `--wait-session-id`; `AgentsWaitProbeReplies`, `AgentsTools.MemberWait.include`):
+  the replies to the run's own posts, whatever tool posted them, read from `last-own-post`. The sources
+  the caller names are added to it, never put in its place, and a post whose thread or conversation another
+  source of the same wait reads is left to that source, so a message is returned once. Three limits keep
+  the watch bounded: a post is looked at when its TTL has passed, 5 seconds and 1 more for every 20 it has
+  been quiet, so a quiet thread is looked at ever more rarely and never dropped by time alone; for a post
+  at the top of a conversation the messages after it are watched only until ten have followed it, and
+  after that for a mention of the run alone; reactions to a post and mentions of the run are always
+  watched. A bare conversation source (`slack:<id>`) returns its arrivals: its read is already formatted,
+  and the JSON formatter is applied to a thread's read only.
 - **A dismissal ends the run.** The session keeps its own dismissed mark, so every later `Wait` on it
   returns `DISMISSED` at once with no further read. The tooling ends the session once its handback is
   given, or at once if it had already handed back.
@@ -1751,7 +1820,7 @@ contracts are here.
     Inside, the structure is the tooling's: one Confluence
     index page `<CODE> index` (`Documents index` untyped) per type, the document its child and
     listed on it; one Drive folder `<CODE>` (`Documents`) per type. Found by title, made on first use.
-  - Markdown goes through `AgentsMarkdownHtmlDocument.awk`; HTML references are rewritten by
+  - Markdown goes through `LocalMarkdownHtmlDocument.awk`; HTML references are rewritten by
     `AgentsArtifactHtml.py` (Confluence: XHTML, given files as attachments; Google: images inline as
     `data:` URIs, other files uploaded beside the document as `<number or title> - <name>`); any other
     file is published as it is. Every refusal comes before the first write.
@@ -1771,19 +1840,36 @@ contracts are here.
 
 ## 17. Routines: locks, scans, day rhythm
 
-- **A routine locks its own fixed note**, named in its stub, never by caller argument. The lock check is
-  its own op, before the input scan.
-- **`--magic-<routine>-state-and-lock-upsert` puts `state` before the caller's headers and
-  `recheck-date` after.** Repeat upserts are last-wins, so a close can set the state but a caller cannot
-  pin the lock open. Keep the order.
-- **`-close-state-and-unlock`** writes closing content, finished state and unlock in one
-  `AgentsToolsItemUpsert` call. Unlock order: GC, lock write, one push, resync.
-- **Advance lock paths** run `myx.common git/cloneSync --no-push` when a remote is set. Acquire: state
-  check, resync, state check, head comparison against `FETCH_HEAD:<path>` (never `origin/<branch>`), then
-  write. `LOCK_CONFLICT` (merge, marker, local edit), `LOCK_STALE` (local commit is not head),
-  `LOCK_UNCHECKABLE` (could not answer, or no named branch) all refuse. A push or resync failure at unlock
-  warns and still closes. The other routine groups still use the plain stubs.
-- **Heartbeat state and lock share one note.** `--magic-heartbeat-state-upsert` takes a whole-record body
+- **A routine locks its own fixed note**, named in its `routine-lock-document:` (`inbox:<member>:<note>.md`,
+  a comma-separated list where it runs another routine inline), never by caller argument. The spawner takes
+  it while it starts the routine, or the start fails (`AgentsToolsRoutineLockAcquire`,
+  `AgentsTools.RoutineLock.include`), before the input scan, and gives it back once the last run of the
+  session has ended (`AgentsToolsRoutineLockRelease`, called where a run's record closes), a receipt in
+  the document first. A participant never locks or unlocks. A lock reads as held for 120 minutes
+  (`AgentsToolsRoutineLockMinutes`; the heartbeat's 15) without a state write. The five standing notes of
+  advance, daily, grooming, heartbeat and retro must exist; any other locking document is made by the
+  routine's first start. An inline run (`--routine-run-inline`) takes no lock.
+- **`--update-routine-state` (ThisSession) is the one write of a locked document**
+  (`AgentsToolsRoutineSessionStateUpdate`, `AgentsToolsRoutineStateWrite`): any participant of the locked
+  session calls it, with no routine name or path (`--document <note>` only where the session locked
+  several). The lock-owned fields (`type`, `from`, `date`, `owner`, `state`, `recheck-date`, `session-id`)
+  stay as the document has them, whatever the content says, so a caller cannot pin the lock open or give it
+  back; while `state` is `<routine>-running` each write refreshes `recheck-date`. Each is committed, and
+  pushed where a remote is set, before it returns. The per-routine `--magic-<routine>-state-and-lock-upsert`
+  are retired under the shim rule: gone from help and from the skillset, kept in the dispatcher.
+- **`--magic-<routine>-close-state-and-unlock`** writes closing content, finished state and unlock in one
+  `AgentsToolsItemUpsert` call. Unlock order: GC, lock write, one push, resync. No routine calls it any
+  more: the spawner's unlock does, for the five standing notes (`AgentsToolsRoutineLockOwnWord`), so what it
+  does under the lock still happens; any other locking document is closed by the spawner with a
+  `last-receipt` and `<routine>-finished`.
+- **Advance lock paths** run `myx.common git/cloneSync --no-push` when a remote is set, for every lock the
+  spawner takes. Acquire: state check, resync, state check, head comparison against `FETCH_HEAD:<path>`
+  (never `origin/<branch>`), then write, then a fetch that must read this session in the published note
+  (`LOCK_NOT_PUBLISHED`). `LOCK_CONFLICT` (merge, marker, local edit), `LOCK_STALE` (local commit is not
+  head), `LOCK_UNCHECKABLE` (could not answer, or no named branch) all refuse. A push or resync failure at
+  unlock warns and still closes.
+- **Heartbeat state and lock share one note.** `--update-routine-state` writes it through
+  `--intern-op-heartbeat-state-upsert`, which takes a whole-record body
   and splices in seven lock-owned fields read from the target (`type`, `from`, `date`, `owner`, `state`,
   `recheck-date`, `session-id`), excluding them from the caller's body. It strips `\r`, treats a
   fence-less body as all body, refuses when both extracted parts are empty from non-empty input, and
@@ -1791,17 +1877,24 @@ contracts are here.
   `heartbeat-running` each write refreshes `recheck-date` to now + 15 min. It stamps
   `last-iteration-date`/`-timestamp` and keeps `last-test-email-sent`. Only the heartbeat pass writes it,
   so the read-then-write gap races only itself.
-- **The day rhythm is computed by the tooling.** `--magic-heartbeat-input-scan` opens with `branch:`,
+- **The day rhythm is computed by the tooling.** `--intern-op-heartbeat-input-scan` opens with `branch:`,
   `today-stage:`, `grooming-today:`. Dates are local (the workday is the human-owner's); lock dates stay
   UTC; never compare the two. `last-close-date` is stamped by grooming and daily closes. The test report
   is built from the same functions the scan prints with. The scan lists board item names only, plus
   `## board counts` computed at scan time.
-- **The `--*-input-scan` wrappers stay separate**, even when two pass the same arguments. The op name is
-  the routine's interface; each wrapper is fixed and exposes no override. A caller wanting another shape
-  calls `--intern-op-session-context-scan`.
-- **`--magic-morning-review-input-scan`** reads board headers only (`AgentsMorningReviewStateShape.awk`),
-  capped per section, cut off at `last_reviewed_ts`, advanced only at close.
-- **`--magic-sweep-input-scan`** sweeps the team and each `client-*` concurrently and prints the team first.
+- **No input scan is an agent's call.** A scan is the operation `--intern-op-<scan>-input-scan`, named by a
+  routine's repeatable `input-scan-def: <scan> [--option value ...]` line (`none` alone for no scan) and run
+  by the spawner at start, after the lock, in the order written, for the member of the start; the results
+  are saved to `input/input-scan.md` of the session sandbox and named in the brief. One parser reads the
+  line for the validator and the spawner (`AgentsToolsInputScanDefWords`, `AgentsTools.InputScanDef.include`;
+  `AgentsToolsInputScanNames` is the list of scans). A value that exists only at session time is a macro,
+  `{{<option-name>}}` over the five names of the common option set, written only where the operation cannot
+  take it from its context. The `--magic-*-input-scan` and `--member-*-input-scan` wrappers are deleted,
+  no alias left. A caller wanting another shape calls `--intern-op-session-context-scan`.
+- **`--intern-op-morning-review-input-scan`** reads board headers only (`AgentsMorningReviewStateShape.awk`),
+  capped per section, cut off at `last_reviewed_ts` of the routine's locked state, advanced only at close:
+  the scan prints the `--update-routine-state --header:upsert:last_reviewed_ts:<next>` that does it.
+- **`--intern-op-sweep-input-scan`** sweeps the team and each `client-*` concurrently and prints the team first.
   `lib/parallel` runs in a nested subshell because it installs an `EXIT` trap. This is safe because
   `--intern-op-slack-call` waits out rate limits (`ratelimited`/429, `Retry-After`, up to 5 attempts,
   `AgentsToolsSlackRateLimitWait`).
@@ -1813,14 +1906,34 @@ contracts are here.
   that is not finished and has none alive, one housekeeping line when it started any, a failure said as
   one warning on the daemon line. A dead spawn's created dispatch item moves running
   → review. A review item whose `review-by` session has ended gets `review-by: magic-coordinator`.
-  `--magic-advance-input-scan` is a pure read: it changes nothing, posts nothing, and never accepts an
+  `--intern-op-advance-input-scan` is a pure read: it changes nothing, posts nothing, and never accepts an
   item.
 - **The input-scan cache** (`AgentsTools.InputScanCache.include`). In a team session,
-  `--magic-advance-input-scan` and `--magic-heartbeat-input-scan` write their report to
-  `.local/agents/sessions/<MDAT_SESSION_ID>/<op>.md` and reply with a reference to it, in the form of a
-  kept result. For 300 s by that file's mtime, a further call of the same scan in that session, from
+  `--intern-op-advance-input-scan` and `--intern-op-heartbeat-input-scan` write their report to
+  `.local/agents/sessions/<MDAT_SESSION_ID>/magic-advance-input-scan.md` and `magic-heartbeat-input-scan.md`
+  and reply with a reference to it, in the form of a kept result. For 300 s by that file's mtime, a further call of the same scan in that session, from
   any run, replies with the same file and reads no source. A change in a source does not refresh it.
   With no team session, or a scan that fails, the whole report is printed and nothing is kept.
+- **`--routine-run-inline <routine>` is a routine run in the calling session** (ThisSession,
+  `AgentsTools.RoutineRunInline.include`): it hands back the routine's Steps, without its frontmatter and
+  Maintainer Notes, with the Opening steps, Closure steps, local rules and tooling of
+  `magic-team.inline.routine` mixed in in place of those of its kind's. It takes no lock. The routine's
+  own `input-scan-def:` scans run now, by the runner the spawner uses, for the calling member, and are
+  saved to `input/input-scan.<routine>.md` of the caller's sandbox, named in a line ahead of the steps
+  (from no sandbox the result follows the steps); a scan that fails stops nothing, the file says so, and
+  a call from no member's session for a routine that declares a scan is refused.
+- **A routine's keys are read by the tooling, and `templates/routine.contract.format.md` is the one list of
+  them.** The validator is `--intern-doc-validate routine`, which `--tester-skillset-validate-routine`
+  stubs. `requires-session-kind:` (mandatory, no default) names a kind of the list the tooling owns, and
+  with it the routine inherits from the kind's routine, one level and never a chain: the kind's Opening
+  steps, then the routine's own; the routine's Closure steps, then the kind's; the kind's local rules and
+  tooling block; any key the routine leaves out (`AgentsToolsSpawnRoutineMixText`, `AgentsRoutineMix.awk`).
+  `skips-inherited:` names the kind's steps that do not run; prose in the local rules stands in for none
+  of it. `tracking-item:`, `operations:` and `start-context:` are decided by one evaluator,
+  `AgentsTools.RoutineRequirements.include`, at three sites (save, spawn, start) and in the order validate,
+  automate, help, reject; a key left out means any, and `operations:` is reported, never enforced.
+  `review-by:` is `inherit` (the review follows the run's `reports-to`), `none` or a reviewer.
+  `runs-at:` and `runs-after:` are the autorun keys, checked on save and read by nothing yet.
 
 ### `--intern-op-session-context-scan` (no help; essentials)
 
@@ -1859,7 +1972,7 @@ op's own option arm.
   shows at most 128 conversations and reads threads newest first, stopping below the cap with a
   `**NOTE:** capped` line. Each `## slack-message` block carries `author:` and `addressees:`, parsed from
   the team send header only when it is the text's first line.
-- **Rejection messages name what was actually wrong** (`--client-sweep-input-scan` and
+- **Rejection messages name what was actually wrong** (`--intern-op-client-sweep-input-scan` and
   `--client-sweep-config-check` are client-only).
 
 ## 18. Slack
@@ -2438,8 +2551,7 @@ op's own option arm.
   `AgentsToolsRoutineIsExecutor` (ItemDecisions) admits its executors to the answer and the forward,
   and a reroute forwards as the executor answering. `AgentsPendingAsksForRoutine` (ReviewFlow) lists
   one workspace's open asks per routine, oldest first; `--intern-op-permission-escalation-input-scan`
-  (stub `--magic-permission-escalation-input-scan`) reads every known workspace's, reading each ask
-  against its own (`MMDAPP` set in a subshell). The record also keeps `task-ref:` and `reason:`.
+  reads every known workspace's, reading each ask against its own (`MMDAPP` set in a subshell). The record also keeps `task-ref:` and `reason:`.
 - **`RequestPermission` itself takes `entries`** (`Tool,Tool:<place or folder>/**`, one `purpose:` line
   covering the entries above it), becoming one Permission set for the asking member's own task; no `to`
   is needed, and one answer grants all of it. A second single-call ask from the same session for the
@@ -2539,7 +2651,9 @@ Each instrument states what it proves and its red recipe in its own header. What
   the helper notes a process with when it began, and signals it later only while its pid is still that
   same process -- process ids come round within about a minute here while tests run, so a kept number
   can belong to a stranger by then. `AgentsTestSignalsCheck` holds the helper, and is also the guard
-  that fails on a new `kill`, `pkill` or `killall` in the tests that is not on its list.
+  that fails on a new `kill`, `pkill` or `killall` in the tests that is not on its list; its list holds
+  `member/AgentsWaitOwnPostRepliesCheck.test.sh` (`@probed`, `@own-watch`) as it holds
+  `AgentsHarnessWaitCheck`.
 - **Wired into `--owner-setup-scaleway --check`**: `HARNESS_PARSES`, `AgentsHarnessSelfCheck.test.awk`
   (four sites per tool; text match, so it misses syntax and JSON breaks), `AgentsHarnessToolsJsonCheck`
   (parsed vs text counts; reads through `AgentsHarnessJsonSlice.awk`, not the consuming reader),
@@ -2560,7 +2674,10 @@ Each instrument states what it proves and its red recipe in its own header. What
   are the routine, spawn and config operations' own. `AgentsManagerSessionKillCheck` and
   `AgentsManagerTeamMemberCheck` are the kill and team-member operations' own. The tests of the other
   `--manager-*` reads are named with them in section 10.
-  `AgentsSpawnReferenceOnlyCheck` is the no-start-for-a-reference-only-member rule's own.
+  `AgentsSpawnReferenceOnlyCheck` is the no-start-for-a-reference-only-member rule's own. The screen
+  starts on Manuals (Help), so a screen check that needs the first root selected says `root dashboard`.
+  `check-fixtures/rig-distro-workspace.include.sh` builds the distro workspace a check needs for
+  `ListDistroProjects`; `AgentsManagerManualReadCheck` is its first user.
 - **Diff checks hold a rewrite to its previous implementation**, kept only as fixtures in
   `sh-test/check-fixtures/*.legacy.*`: `AgentsWireStreamDiffCheck`, `AgentsHarnessJsonFieldDiffCheck`,
   `AgentsHarnessHooksDiffCheck`, `AgentsRegistryRowsDiffCheck` (also `--live-copy-from <workspace>`).

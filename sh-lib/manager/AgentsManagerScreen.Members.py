@@ -19,9 +19,43 @@ GRANT_COLUMNS = (
 GRANT_COVERS_CELLS = 40
 
 
-## What the read of a member printed of its grants, as rows (grantRows).
-def parseGrantRows(text):
-    return grantRows(parseMemberRead(text)["grants"])
+## What the read of a member printed of its grants, as kept: the grants, which the folder of `Permissions` makes its rows of
+## (memberGrantRows) each time it is drawn, since what a grant shows of its session is what that session is now.
+GRANTS_OF = "store:grants:"
+
+
+def parseGrants(text):
+    return parseMemberRead(text)["grants"]
+
+
+## The grants as `--magic-permission-list` prints them, a TAB-separated line each (kind, access, target, place, origin, ends), as the member read
+## has them: a space in a field is an underscore there, an empty field a `-`.
+def parsePermissionList(text):
+    lines = ["grant\t" + "\t".join(field.replace(" ", "_") or "-" for field in line.split("\t")) for line in text.splitlines() if line.strip()]
+    return parseGrants("\n".join(lines))
+
+
+## The words in the end of a grant of a session that name the session: `until session <id> ends`, and for one that holds while a
+## board item is open `... and session <id> runs`.
+GRANT_SESSION = re.compile(r"session (\S+) (?:ends|runs)")
+
+
+## A grant as it is shown: one of a session shows in the place where it ends the status of its session, whether it is
+## finished or active, and not its condition; the session is found among the sessions the list read gave. A grant of any other
+## kind is as it was read, and so is one whose session that list does not hold.
+def grantShown(state, grant):
+    named = GRANT_SESSION.search(grant["ends"]) if grant["kind"] == "session" else None
+    held = sessionRowOf(state, named.group(1)) if named else None
+    if held is None:
+        return grant
+    return dict(grant, ends="finished" if held["session"]["state"] == SESSION_FINISHED else "active")
+
+
+## The rows of `Permissions`, a member's or a participant's: its grants as read, each shown as grantShown has it, under a heading
+## for each kind (grantRows). None until they were read.
+def memberGrantRows(state, path):
+    grants = state.rows.get(GRANTS_OF + levelKey(path))
+    return None if grants is None else grantRows([grantShown(state, grant) for grant in grants])
 
 
 ## A member's grants as rows: under a heading for each kind, in the order they come, its
@@ -53,11 +87,10 @@ def grantRows(grants, coversCells=GRANT_COVERS_CELLS):
 ## A member's grants for the left pane, lines of that many cells: the table `Permissions`
 ## holds, in its order and under its headings (grantRows), drawn by the table of the left
 ## pane (paneTable): what a grant covers, the key, has its room first.
-def grantTableLines(grants, width, wrap=True, pane=None):
-    head, blocks = paneTable([column[0] for column in GRANT_COLUMNS], [
+def grantTableLines(state, grants):
+    return tableSummaryLines(state, [column[0] for column in GRANT_COLUMNS], [
         row["label"] if row["kind"] == "grant-kind" else [column[1](row["grant"]) or "-" for column in GRANT_COLUMNS]
-        for row in grantRows(grants, None)], width, wrap=wrap, kinds=[column[2] for column in GRANT_COLUMNS], pane=pane)
-    return head + [line for block in blocks for line in block]
+        for row in grantRows(grants, None)], [column[2] for column in GRANT_COLUMNS])
 
 
 ## One grant, whole: its kind, its access, what it covers as a path and by the rule of its
@@ -69,7 +102,7 @@ def grantLines(grant, width):
 
 ## The grants of one kind, a line each.
 def grantKindLines(state, row, width):
-    grants = [held["grant"] for held in state.rows.get(levelKey(state.path), ()) if held.get("grant") and held["grant"]["kind"] == row["grantKind"]]
+    grants = [held["grant"] for held in listedRows(state, state.path) or () if held.get("grant") and held["grant"]["kind"] == row["grantKind"]]
     lines = ["%d %s grant%s:" % (len(grants), row["grantKind"], "" if len(grants) == 1 else "s")]
     for grant in grants:
         lines.extend(hangLines("%s %s, from %s" % (grant["access"], grant["place"] or grant["target"], grant["origin"] or "-"), width))
@@ -79,14 +112,13 @@ def grantKindLines(state, row, width):
 ## The summary of `Permissions`: how many grants, by kind, as the caption of the table of
 ## them, fitted to the pane (grantTableLines).
 def grantsSummary(state, path, row, form):
-    rows = state.rows.get(levelKey(path))
+    rows = listedRows(state, path)
     if rows is None:
         return None
     grants = [held["grant"] for held in rows if held.get("grant")]
     if not grants:
         return ["No grants."]
-    tableCount(state, grants)
-    return grantTableLines(grants, state.viewWidth - 1, state.wrap, fullPane(state))
+    return grantTableLines(state, grants)
 
 
 ## What `--manager-team-member-files` printed: a file a row, by its path in the member's
@@ -118,6 +150,35 @@ def filesSummary(state, path, row, form):
         return ["No files."]
     return tableSummaryLines(state, ("NAME", "SIZE", "CONTENT"),
                              [[held["label"], shortBytes(held["file"]["bytes"]), "text" if held["text"] else "binary"] for held in files], ("key", "text", "enum"))
+
+
+## ---- the settings of a member: `Member Settings` ----
+
+## The settings of a member, as the rows of a list, each by its key: the lines of the subject `scopes` of the digest of the settings
+## whose group is the member, the scope that holds the key. They are lines as the digest gives them, so they are changed as any
+## setting is, by the forms of Settings (askSetting, askCredential). None until the digest has been read.
+def memberSettingRows(state, path):
+    roots = [level for level in (pluginLevel("settings"), pluginLevel("configuration")) if level]
+    if not any(root in state.rows for root in roots):
+        return None
+    rows = []
+    for root in roots:
+        for held in state.rows.get(root + "/scopes", ()):
+            line = held.get("line")
+            if line and line["group"] == path[-2]:
+                row = newRow(line["key"], line["key"], "record")
+                row["line"] = line
+                rows.append(row)
+    return rows
+
+
+## The summary of `Member Settings`: its lines as the table of any subject of the digest (subjectLines). None until the digest was read.
+def memberSettingsSummary(state, path, row, form):
+    rows = listedRows(state, path)
+    if rows is None:
+        return None
+    lines = [held["line"] for held in rows if held.get("line")]
+    return subjectLines(state, {"name": "member", "lines": lines}) if lines else ["No settings."]
 
 
 ## ---- the team members: `Team Members` ----
@@ -156,15 +217,14 @@ MEMBER_COLUMNS = (
 
 
 ## The members as one table, like the member table of the installer, for the left pane, in
-## lines of that many cells: under a header, each member's icon, its name, whether it runs
+## lines of the pane: under a header, each member's icon, its name, whether it runs
 ## now, its status, its kind and the project its skillset lies in, in columns as wide as
 ## their widest word, an absent one `-`. The icon is the one the operation gave, and no icon is named
 ## here. It is measured in cells as every text of the screen is, so a wide one, and one an
 ## emoji selector makes wide, take two; a member with none keeps that place empty.
-def memberTableLines(state, members, width, wrap=True):
-    head, blocks = paneTable([column[0] for column in MEMBER_COLUMNS], [[column[1](state, member) or "-" for column in MEMBER_COLUMNS] for member in members],
-                             width, [member["icon"] for member in members], wrap, [column[2] for column in MEMBER_COLUMNS], numbered=True, pane=fullPane(state))
-    return head + [line for block in blocks for line in block]
+def memberTableLines(state, members):
+    return tableSummaryLines(state, [column[0] for column in MEMBER_COLUMNS], [[column[1](state, member) or "-" for column in MEMBER_COLUMNS] for member in members],
+                             [column[2] for column in MEMBER_COLUMNS], icons=[member["icon"] for member in members], numbered=True)
 
 
 ## The rows of the members as a list, as every list is: each member's icon ahead of its
@@ -308,8 +368,7 @@ def membersSummary(state, path, row, form):
     members = [held["member"] for held in rows if held.get("member")]
     if not members:
         return ["No members."]
-    tableCount(state, members)
-    return memberTableLines(state, members, state.viewWidth - 1, state.wrap)
+    return memberTableLines(state, members)
 
 
 ## Whether `n` starts the member of that row: one the operation would start.
@@ -349,22 +408,61 @@ ACTION_FITS["start"] = memberFits
 ACTION_REFUSALS["start"] = lambda state, row: "%s is not started: %s" % (row["member"]["name"], memberRefusal(row["member"])) if row and row.get("member") else ""
 
 
+## What the left pane shows of the row selected among the members: the member, set out again only when it, what was read of it, the width or the minute
+## has changed.
+def teamFocus(state, row):
+    if not row.get("member"):
+        return None
+    stamp = (row["member"], id(state.view["info"]), state.viewWidth, int(nowEpoch() // 60))
+    if state.view.get("memberFor") == stamp:
+        return None
+    state.view["memberFor"] = stamp
+    return memberLines(row["member"], state.viewWidth, state.view["info"])
+
+
+## ... of a grant, or of the kind of grants a heading stands for.
+def grantsFocus(state, row):
+    if row.get("grant"):
+        return grantLines(row["grant"], state.viewWidth)
+    if row.get("grantKind"):
+        return grantKindLines(state, row, state.viewWidth)
+    return None
+
+
+## ... of a file of the skillset folder that has no text to show.
+def filesFocus(state, row):
+    if row.get("file") and not row["text"]:
+        return ["%s: %s, no text: it is not shown." % (row["id"], shortBytes(row["file"]["bytes"]))]
+    return None
+
+
+## ... of an operation of the help of a member.
+def helpFocus(state, row):
+    return helpLines(state, row, row["help"]) if row.get("help") else None
+
+
 ## ---- the plugin: `Team Members` ----
 
 registerPlugin({
     "name": "team",
+    "mount": "magic-team",
     "root": {"id": "team", "label": "Team Members", "go": "~T~eam Members", "group": "team"},
     ## What a member holds as a folder: MEMBER_FOLDERS.
     "rows": {
         "team/*": tuple((folderId, label, kind, True) for folderId, label, kind in MEMBER_FOLDERS),
     },
+    "focus": {"team": "teamFocus", "team/*/permissions": "grantsFocus", "team/*/files": "filesFocus", "team/*/help": "helpFocus",
+              "team/*/sessions": "sessionsFocus", "team/*/settings": "settingsFocus"},
     "summaries": {
         "team": {"lines": "membersSummary"},
         "team/*/permissions": {"lines": "grantsSummary"},
         "team/*/files": {"lines": "filesSummary"},
         "team/*/sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed")},
+        "team/*/settings": {"lines": "memberSettingsSummary"},
         "team/*/help": {"lines": "helpSummary", "chapters": "help"},
     },
+    ## The grants as they are shown, and the settings of the member, are made of what other reads hold.
+    "derived": {"team/*/permissions": "memberGrantRows", "team/*/settings": "memberSettingRows"},
     "reads": {
         ## The members of the team as this workspace knows them, one row each.
         "list:team": {"operation": ["--manager-team-member-list"], "rows": "members"},
@@ -379,8 +477,8 @@ registerPlugin({
         "list:team/*/sessions": {"operation": ["--manager-team-member-read", "--full", "{parent}"], "rows": "member-sessions"},
         "view:team/*/sessions:record": {"operation": ["--manager-session-read", "--session-id", "{id}"],
                                         "rows": "session-read", "needs": "session"},
-        "feed:team/*/sessions:record": {"operation": ["--manager-session-transcript-read", "--session-id", "{id}"],
-                                        "log": ["--log"], "rows": "transcript", "needs": "session"},
+        ## The settings of a member are lines of the digest of the settings, which the root `Settings` reads: the same read fills them.
+        "list:team/*/settings": {"from": "list:@settings"},
         "list:team/*/help": {"operation": ["--member-help", "{parent}"], "rows": "member-help", "once": True, "also": ("list:help",)},
         ## The chapters of the help of this tool, which a member's `Member Help` shows around its own
         ## syntax lines. It is no level of the list: a read of its own, made beside that folder.
@@ -395,5 +493,7 @@ registerPlugin({
             "on": ("team/*/files:file",),
             "help": ("team/*/help:help-entry", "team/*:member-help"),
         },
+        ## the lines of `Member Settings` are changed by the forms of Settings
+        "settings": {"lines": ("team/*/settings:record",)},
     },
 })

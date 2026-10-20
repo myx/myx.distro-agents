@@ -83,7 +83,7 @@ rigOp(){ ## result file, op and arguments... -- one team op, guarded; rc into <r
 	printf '%s' "$?" > "$opOut.rc"
 }
 rigDaysAgo(){ ## days -- that many days ago, as a processed stamp
-	printf '%s\n' "$(( $( date +%s ) - $1 * 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsEpochToIsoDate.awk"
+	printf '%s\n' "$(( $( date +%s ) - $1 * 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalEpochToIsoDate.awk"
 }
 rigStampAgo(){ ## days -- a touch -t stamp
 	local stampEpoch=$(( $( date +%s ) - $1 * 86400 ))
@@ -92,11 +92,11 @@ rigStampAgo(){ ## days -- a touch -t stamp
 
 echo "-- 1. an upserted note lands in the folder its stamp says --"
 printf -- '---\ntype: note\n---\n\nRIG-OPEN-NOTE\n' > "$rigTmp/open.md"
-rigOp "$rigTmp/u1" --member-inbox-note-upsert rig-member note-20261018T0900Z-open.md --from-file "$rigTmp/open.md"
+rigOp "$rigTmp/u1" --member-inbox-note-upsert rig-member note-20261018T0900Z-open.md --from-member rig-member --from-file "$rigTmp/open.md"
 rigAssert "the op succeeds"                                   "$( cat "$rigTmp/u1.rc" )" 0
 rigAssert "with no processed stamp: in incoming/"             "$( rigWhere note-20261018T0900Z-open.md )" incoming
-printf -- '---\ntype: note\nprocessed-at: %s\n---\n\nRIG-DONE-NOTE\n' "$( rigDaysAgo 1 )" > "$rigTmp/done.md"
-rigOp "$rigTmp/u2" --member-inbox-note-upsert rig-member note-20261018T0901Z-done.md --from-file "$rigTmp/done.md"
+printf -- '---\ntype: note\nprocessed-at: %s 00:00 +0000\n---\n\nRIG-DONE-NOTE\n' "$( rigDaysAgo 1 )" > "$rigTmp/done.md"
+rigOp "$rigTmp/u2" --member-inbox-note-upsert rig-member note-20261018T0901Z-done.md --from-member rig-member --from-file "$rigTmp/done.md"
 rigAssert "with its processed stamp: in processed/"           "$( rigWhere note-20261018T0901Z-done.md )" processed
 
 echo "-- 2. --member-inbox-to-processed moves the item, stamped --"

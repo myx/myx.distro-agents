@@ -23,10 +23,16 @@
 ## A declaration, every key but "name" optional:
 ##   "name"        the plugin, unique
 ##   "mount"       the name of the plugin whose root this one's root stands under; none: the root of the list
-##   "root"        {"id", "label", "go": the item of the Go menu, hot letter between tildes, "group": of ROOT_GROUPS, "when": see SECTIONS_WHEN}
+##   "root"        {"id", "label", "go": the item of the Go menu, hot letter between tildes, "group": of ROOT_GROUPS (a root of the list), "when": see SECTIONS_WHEN}
 ##   "rows"        {level: ((id, label, kind, dive), ...)} the rows the level always holds, ahead of its listed ones (FIXED_ROWS)
 ##   "summaries"   {level: {"lines": the function that makes the summary, ...}} (SUMMARIES)
 ##   "reads"       {read key: entry} (READS); the levels in a key and in "from" and "also" are paths as above
+##   "derived"     {level: the function (state, path) that gives the rows of that level}, for a level whose rows are made from what other reads hold and no
+##                 read of its own fills (DERIVED, levelRowsAt)
+##   "focus"       {level: the function (state, row) that gives the left window what the row selected there shows}: a spec of a view kind
+##                 (ViewKinds.py), or the lines the feature sets out itself, or None where it shows nothing of its own (FOCUS, localView)
+##   "counted"     {level: the function (state) that gives the number the row that opens that level shows after its label, `Label [N]`, or None where
+##                 it is not known yet} (COUNTED, levelRowsAt)
 ##   "commands"    ({command of COMMANDS}, ...) with its "views", "on" and "except" as paths as above; "window": the window it applies in alone;
 ##                 "after": the command it stands after in COMMANDS (default `exit`: ahead of the engine's own commands, which one that
 ##                 takes a key on a row of its own must precede); "with" / "exceptWith": ((feature, registry), ...), the views and
@@ -45,7 +51,7 @@ class PluginError(Exception):
 
 
 ## The groups the roots of the list fall in, in their order: a spacer stands between two groups (spacersAt). A root names its group.
-ROOT_GROUPS = ("team", "places", "setup", "manuals")
+ROOT_GROUPS = ("watch", "team", "places", "setup", "manuals")
 
 ## The plugins as they were registered, in order.
 PLUGIN_RECORDS = []
@@ -63,9 +69,9 @@ PLUGIN_BUILT = None
 ## Whether the parts are all loaded: only then can a build tell a clash of keys, which asks the parts that come after this one.
 PLUGINS_READY = False
 
-## The roots of the list, in order, each (id, label); the groups they fall in, in order, each the ids of its roots; the root that
-## stands only where what it shows is there: by id, the function that says so from what was read ("shown"), and why its item of
-## the `Go` menu does nothing where it is not ("says"). The roots that stand in the list now, in order, which are those
+## The roots of the list, in order, each (id, label); the groups they fall in, in order, each the ids of its roots; the root, at any
+## depth, that stands only where what it shows is there: by its path, the function that says so from what was read ("shown"), and why
+## its item of the `Go` menu does nothing where it is not ("says"). The roots that stand in the list now, in order, which are those
 ## SECTIONS_WHEN does not name until a turn of the screen has said which of the others are there too (noteRoots).
 SECTIONS = []
 SECTION_GROUPS = ()
@@ -76,6 +82,12 @@ FIXED_ROWS = {}
 ## What the left window shows of a folder, a row that opens a level of its own, while that row is selected, made from its rows
 ## in a form of its kind, by the function "lines" names (folderSummary).
 SUMMARIES = {}
+## The rows of a level that no read fills, by the function that gives them (the "derived" of a plugin).
+DERIVED = {}
+## What the left window shows of a row selected at a level, by the function that gives it (the "focus" of a plugin).
+FOCUS = {}
+## The number the row that opens a level shows after its label, by the function that gives it (the "counted" of a plugin).
+COUNTED = {}
 ## What each level of the list and each view of the left pane asks the tooling for: the operation with its arguments, as the
 ## dispatcher takes them, and under "active" what the `a` filter adds. None: no operation yet, the task of that level or view
 ## names it. A level below a record is named with `*` in the place of that record's id, and {level} in an argument is that id. A view
@@ -87,6 +99,8 @@ SUMMARIES = {}
 ## all. "acts" is what can be done with a row, read as one more part of it (VIEW_PARTS). "once": it is read when it is asked for, and
 ## never again because its period has passed (startDueReads). "seldom": a list that is read whatever is shown is read once, when
 ## the screen starts; it is read again, on the period and when a read is asked for, only while it is the list shown (seldomNow).
+## "count": the name of a counter; the operation of the list with `--count` added, which prints only the number of its rows, is read whatever is
+## shown, on the period, as a read of its own, "count:<name>", and the number it printed is kept as that counter (applyResult, state.counters).
 ## "peek": a list that is read also while its section is the row the root stands on, since the left window then shows that
 ## section from its rows (wantedReads). "also": the reads made beside the list of a level, by their keys, while that level is
 ## shown and while the folder that opens it has the focus, as a kind of their own. "demand": it is read only when its command asks
@@ -201,25 +215,23 @@ def pluginReadKeyOf(steps, key, bases):
     return key
 
 
-## The plugins in the order they are built in: in the order registered, a plugin after the one it is mounted under; and the path of each
-## plugin's root, and of the level its declarations are written under.
+## The plugins in the order they are built in: in the order registered, a plugin after the one it is mounted under, so that the plugins
+## mounted under one stand in it in the order they were registered in, whichever of them was registered ahead of the plugin they are
+## mounted under; and the path of each plugin's root, and of the level its declarations are written under.
 def pluginsOrdered():
     ordered = []
     bases = {}
     steps = {}
     waiting = list(PLUGIN_RECORDS)
-    progressed = True
-    while waiting and progressed:
-        progressed = False
-        for plugin in list(waiting):
-            mount = plugin.get("mount")
-            if mount is not None and mount not in bases:
-                continue
-            steps[plugin["name"]] = tuple(bases[mount]) if mount is not None else ()
-            bases[plugin["name"]] = steps[plugin["name"]] + ((plugin["root"]["id"],) if plugin.get("root") else ())
-            ordered.append(plugin)
-            waiting.remove(plugin)
-            progressed = True
+    while waiting:
+        plugin = next((held for held in waiting if held.get("mount") is None or held["mount"] in bases), None)
+        if plugin is None:
+            break
+        mount = plugin.get("mount")
+        steps[plugin["name"]] = tuple(bases[mount]) if mount is not None else ()
+        bases[plugin["name"]] = steps[plugin["name"]] + ((plugin["root"]["id"],) if plugin.get("root") else ())
+        ordered.append(plugin)
+        waiting.remove(plugin)
     return ordered, bases, steps, [plugin["name"] for plugin in waiting]
 
 
@@ -229,7 +241,7 @@ def pluginsOrdered():
 def pluginsBuilt():
     ordered, bases, stepsOf, unmounted = pluginsOrdered()
     built = {"bases": bases, "unmounted": unmounted, "notes": [], "sections": [], "groups": dict((group, []) for group in ROOT_GROUPS),
-             "when": {}, "rows": {}, "summaries": {}, "reads": {}, "goMore": [], "registries": {}, "kinds": {}}
+             "when": {}, "rows": {}, "summaries": {}, "focus": {}, "counted": {}, "derived": {}, "reads": {}, "goMore": [], "registries": {}, "kinds": {}}
     notes = built["notes"]
     kinds = built["kinds"]
     for plugin in ordered:
@@ -248,10 +260,10 @@ def pluginsBuilt():
                 if root.get("group") not in built["groups"]:
                     raise PluginError("plugin %s: the root %s is in no group of ROOT_GROUPS (%s)" % (name, root["id"], ", ".join(ROOT_GROUPS)))
                 built["groups"][root["group"]].append(root["id"])
-                if root.get("when"):
-                    built["when"][root["id"]] = root["when"]
             else:
                 built["rows"]["/".join(steps)] = built["rows"].get("/".join(steps), ()) + ((root["id"], root["label"], "section", True),)
+            if root.get("when"):
+                built["when"]["/".join(bases[name])] = root["when"]
             if root.get("go"):
                 goCommands.append({"name": root["id"], "keys": (), "menu": ("go", 1), "label": root["go"], "does": ("go", tuple(bases[name]))})
         for level, rows in plugin.get("rows", {}).items():
@@ -263,6 +275,18 @@ def pluginsBuilt():
             if path is not None:
                 ## the level whose read gave the chapters of a help is a path too
                 built["summaries"][path] = dict(form, chapters=pluginPathOf(steps, form["chapters"], bases)) if "chapters" in form else form
+        for level, function in plugin.get("derived", {}).items():
+            path = pluginPathOf(steps, level, bases)
+            if path is not None:
+                built["derived"][path] = function
+        for level, function in plugin.get("focus", {}).items():
+            path = pluginPathOf(steps, level, bases)
+            if path is not None:
+                built["focus"][path] = function
+        for level, function in plugin.get("counted", {}).items():
+            path = pluginPathOf(steps, level, bases)
+            if path is not None:
+                built["counted"][path] = function
         for key, entry in plugin.get("reads", {}).items():
             readKey = pluginReadKeyOf(steps, key, bases)
             if readKey is None:
@@ -336,6 +360,12 @@ def pluginsApplied(built):
     FIXED_ROWS.update(built["rows"])
     SUMMARIES.clear()
     SUMMARIES.update(built["summaries"])
+    FOCUS.clear()
+    FOCUS.update(built["focus"])
+    COUNTED.clear()
+    COUNTED.update(built["counted"])
+    DERIVED.clear()
+    DERIVED.update(built["derived"])
     ## a read a test set on the screen stands, until a plugin that names it is registered
     for key in PLUGIN_READ_KEYS:
         READS.pop(key, None)

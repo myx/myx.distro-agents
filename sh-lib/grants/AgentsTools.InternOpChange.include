@@ -128,7 +128,7 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 				''|-|"$( hostname -s 2> /dev/null || echo unknown )") ;;
 				*) return 1 ;;
 			esac
-			type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+			type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 			! AgentsToolsRegistrySpawnRuns "$goneSession" "$goneRecord" || return 1
 			return 0
 		done

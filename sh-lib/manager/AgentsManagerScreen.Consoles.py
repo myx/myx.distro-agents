@@ -109,11 +109,17 @@ def runChild(surface, state):
     readNow(state)
 
 
+## What the left pane shows of the thing to start that is selected.
+def consolesFocus(state, row):
+    return startLines(row["start"], state.viewWidth) if row.get("start") else None
+
+
 ## ---- the plugin: `Consoles` ----
 
 registerPlugin({
     "name": "consoles",
     "root": {"id": "consoles", "label": "Consoles", "go": "Co~n~soles", "group": "places"},
+    "focus": {"consoles": "consolesFocus"},
     "summaries": {
         "consoles": {"lines": "startsSummary"},
     },

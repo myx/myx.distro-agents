@@ -15,6 +15,7 @@
 ## The operations are called exactly as the tooling has them. Offline: no operation of the real tooling is called.
 ## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`.
 ## Reconciled for F11.0, the table lines: two spaces between the columns of the tables of the dashboard.
+## Reconciled for F11.5: Team Data stands under Magic-Team (Agents) (`at @teamdata`), and the root that holds it is Magic-Team (Agents).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -131,7 +132,8 @@ rigWords(){ ## text -- how many starts of the stand-in had exactly these words, 
 ## its first row selected.
 rigToCleanup='turn
 wait list 10
-keys 5
+at @teamdata
+turn
 wait list 10
 wait also 10
 keys DOWN ENTER
@@ -145,9 +147,12 @@ rigScript <<'RIGSCRIPT'
 turn
 wait list 10
 get root
-keys 5
+at @magic-team
+turn
+rowids none
+keys 4
 get five
-keys 9
+keys 8
 get nine
 keys m
 turn
@@ -157,9 +162,9 @@ keys ESC
 keys ALT-g m
 get chosen
 RIGSCRIPT
-rigAssert "with no team data the root list holds the nine roots and no Team Data" "$( rigVal root.rows ) $( rigHolds root 'Team Data' )" "9 0"
-rigAssert "the numbers follow the list as it is shown: 5 is Locations (Places) and 9 Manuals (Help), as with no such root" "$( rigVal five.path ) $( rigVal nine.path )" "places manuals"
-rigAssert "the menu Go names Team Data with no number, after Team Members, and the roots after it with theirs" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Team Members  *4 ' -e 'Team Data  *[0-9]* ' -e 'Locations (Places)  *5 ' -e 'Manuals (Help)  *9 ' | LC_ALL=C sed 's/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Team Members 4|Team Data|Locations (Places) 5|Manuals (Help) 9|"
+rigAssert "with no team data the root list holds the eight roots and no Team Data, and Magic-Team (Agents) holds Activity, Pending Questions and Team Members" "$( rigVal root.rows ) $( rigHolds root 'Team Data' ) $( rigVal none )" "8 0 .. activity pending team"
+rigAssert "the numbers follow the list as it is shown: 4 is Locations (Places) and 8 Manuals (Help)" "$( rigVal five.path ) $( rigVal nine.path )" "places manuals"
+rigAssert "the menu Go names Team Members and Team Data with no number, and the roots with theirs" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Team Members  *[0-9]* ' -e 'Team Data  *[0-9]* ' -e 'Locations (Places)  *[0-9]* ' -e 'Manuals (Help)  *[0-9]* ' | LC_ALL=C sed 's/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Team Members|Team Data|Locations (Places) 4|Manuals (Help) 8|"
 rigAssert "chosen there it does nothing and says why in the status line" "$( rigVal chosen.path ) $( rigVal chosen.notice )" "manuals Team Data: no team data is configured for this workspace"
 rigCase full rig full
 rigScript <<'RIGSCRIPT'
@@ -170,29 +175,34 @@ keys m
 turn
 show go
 keys ESC
+at @magic-team
+turn
+rowids full
 keys DOWN DOWN DOWN DOWN
 wait focus 10
 wait focus 10
 get on
 show on
-keys 5
+keys ENTER
 wait list 10
 get in
 show in
 RIGSCRIPT
-rigAssert "where the dashboard says the team data is there, Team Data is the fifth of ten roots, after Team Members" "$( rigVal root.rows ) $( rigVal on.index ) $( rigVal on.selectedLabel )" "10 4 Team Data"
-rigAssert "and the numbers follow: 5 is Team Data, the roots after it one more, and Launch (Start) has none past nine" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Team Data  *[0-9]* │' -e 'Locations (Places)  *[0-9]* │' -e 'Configuration  *[0-9]* │' -e 'Launch (Start)  *[0-9]* │' | LC_ALL=C sed 's/ *│$//;s/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Team Data 5|Locations (Places) 6|Configuration 9|Launch (Start)|"
+rigAssert "where the dashboard says the team data is there, Team Data stands in Magic-Team (Agents), after Team Members, and is no root" "$( rigVal root.rows ) $( rigVal on.index ) $( rigVal on.selectedLabel ) $( rigVal full )" "8 4 Team Data .. activity pending team teamdata"
+rigAssert "and the numbers are those of the roots alone: Team Data has none, Launch (Start) comes after the eight with the ninth" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Team Data  *[0-9]* │' -e 'Locations (Places)  *[0-9]* │' -e 'Configuration  *[0-9]* │' -e 'Launch (Start)  *[0-9]* │' | LC_ALL=C sed 's/ *│$//;s/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Team Data|Locations (Places) 4|Configuration 7|Launch (Start) 9|"
 rigAssert "selected, its summary says as its caption that the team data is there and its size, then where it is and the mode of the workspace" "$( rigHolds on '│Team data: there, 77.5M.' ) $( rigHolds on '│ root    /rig/ws/team-data' ) $( rigHolds on '│ mode    Team Rig, saved for the workspace; a full team rig' )" "1 1 1"
 rigAssert "its git state, nicely, as facts under a heading: where it stands and what it tracks, ahead and behind, what is not committed, each in the look of its level, and its last commit" "$( rigHolds on '│Git ' ) $( rigHolds on '│ branch       main, tracking origin/main' ) $( rigHolds on '│ ahead        2' ) $( rigHolds on '│ behind       1' ) $( rigHolds on '│ uncommitted  3' ) $( rigHolds on '│ last commit  2h 5m ago: the last change' )" "1 1 1 1 1 1"
 rigAssert "then the remote and the branch of the team data, its board by state as a table, and the main loop as a table, judged on a full team rig" "$( rigHolds on '│ remote  git@rig.invalid:team-data.git' ) $( rigHolds on "│ branch  not set: the tooling's own" ) $( rigHolds on '│  running  43' ) $( rigHolds on '│Main loop and heartbeat ' ) $( rigHolds on 'Main Loop Last Outcome          failed  (bad)' )" "1 1 1 1 1"
 rigAssert "focused, it read its blocks of the dashboard, its git state among them, and the digest of the settings, as they are called" "$( rigWords '[--manager-dashboard-read][team-data][team-data-git][loop]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigWords '[--manager-config-digest][--full]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "1 1"
-rigAssert "entered, it holds Operations, its three stores and its blocks: the team data, its git state and the main loop" "$( rigVal in.path ) $( rigVal in.rows ) $( rigFolderHolds in ' Operations ' ) $( rigHolds in ' Team Data Git' ) $( rigHolds in ' Main Loop And Heartbeat' ) $( rigHolds in ' The Machine' )" "teamdata 8 1 1 1 0"
+rigAssert "entered, it holds Operations, its three stores and its blocks: the team data, its git state and the main loop" "$( rigVal in.path ) $( rigVal in.rows ) $( rigFolderHolds in ' Operations ' ) $( rigHolds in ' Team Data Git' ) $( rigHolds in ' Main Loop And Heartbeat' ) $( rigHolds in ' The Machine' )" "magic-team/teamdata 8 1 1 1 0"
 
 echo "-- 2. the main loop by the mode of the workspace --"
 rigCase plain rig plain
 rigScript <<'RIGSCRIPT'
 turn
 wait list 10
+at @magic-team
+turn
 keys DOWN DOWN DOWN DOWN
 wait focus 10
 wait focus 10
@@ -203,6 +213,8 @@ rigCase agents agents agents
 rigScript <<RIGSCRIPT
 turn
 wait list 10
+at @magic-team
+turn
 keys DOWN DOWN DOWN DOWN
 wait focus 10
 wait focus 10
@@ -221,7 +233,7 @@ turn
 show sync
 RIGSCRIPT
 rigAssert "a workspace that is just agents has no main loop, and its summary says so" "$( rigHolds on '│ mode    Just Agents, saved for the workspace' ) $( rigHolds on 'No main loop here: a workspace has one in the mode team-rig alone.' ) $( rigHolds on 'Main Loop' )" "1 1 0"
-rigAssert "there Operations shows each operation, what it does, what it runs, and that it is offered" "$( rigVal purge.path ) $( rigVal purge.selectedLabel ) $( rigHolds purge 'Empties the cleanup folder of this workspace' ) $( rigHolds purge 'runs   --owner-cleanup-purge' ) $( rigHolds purge 'here   offered' )" "teamdata/operations Purge The Cleanup Folder 1 1 1"
+rigAssert "there Operations shows each operation, what it does, what it runs, and that it is offered" "$( rigVal purge.path ) $( rigVal purge.selectedLabel ) $( rigHolds purge 'Empties the cleanup folder of this workspace' ) $( rigHolds purge 'runs   --owner-cleanup-purge' ) $( rigHolds purge 'here   offered' )" "magic-team/teamdata/operations Purge The Cleanup Folder 1 1 1"
 rigAssert "the sync of the team data is not offered where no git remote of it is set" "$( rigHolds sync 'runs   --magic-team-data-commit-pending magic-coordinator' ) $( rigHolds sync 'here   not offered: no git remote of the team data is set' )" "1 1"
 rigAssert "the one that needs a team rig is not offered, with the label of the mode" "$( rigHolds gc 'runs   --intern-team-data-final-gc-deletion magic-coordinator' ) $( rigHolds gc 'here   not offered: for a team rig alone: this workspace is Just' )" "1 1"
 rigAssert "Enter on it opens nothing and says why in the status line, and nothing is called" "[$( rigVal gc.dialog )] $( rigVal gc.notice ) / $( rigWords '[--intern-team-data-final-gc-deletion][magic-coordinator]' )" "[] Run the operation: for a team rig alone: this workspace is Just Agents / 0"

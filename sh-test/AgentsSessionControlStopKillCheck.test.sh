@@ -175,7 +175,7 @@ echo ""
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SESSION CONTROL STOP KILL CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2
 	echo "  warn: a stop or a kill of a run reaches the control thread of its session, which is what reports the end of that run" >&2
-	echo "  fix:  the one rule a run is told by (AgentsToolsRegistryRunWords, myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include): the thread is no run -- never the assertion" >&2
+	echo "  fix:  the one rule a run is told by (AgentsToolsRegistryRunWords, myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include): the thread is no run -- never the assertion" >&2
 	exit 1
 fi
 printf 'SESSION_CONTROL_STOP_KILL: OK (%d assertions, offline, rig tree only)\n' "$rigPasses"

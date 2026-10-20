@@ -28,7 +28,7 @@
 ## workspace's scope is printed by its name alone.
 ##
 
-type AgentsToolsRegistryTeamMembersRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+type AgentsToolsRegistryTeamMembersRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 type AgentsToolsMemberInvitedWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 type AgentsToolsTeamMemberIsTeam > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 

@@ -1,0 +1,438 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Collect.include -- the collection of the sources an input scan reads (F4.2, Settled): it brings a member's mailbox
+## and its Trello notifications into the member's inbox, through the tooling, which holds the credentials hidden (they are read
+## from the member's own scope into the environment of the one child that needs them, and are never printed, kept or logged).
+## It never changes a source's read state: the mailbox is opened read-only and fetched with BODY.PEEK, Trello is read and
+## never written, so no member marks a message seen for another. It is tied to no routine; a scan calls it for the sources its
+## routine requires, and the one background thread (AgentsTools.InternSourceCollect.include) calls it for all.
+## Sourced, never run. Functions only.
+##
+## A MESSAGE IS A NOTE of the inbox of the member whose source it is, `note-<its date UTC>-email-u<uid>.md` for a mail,
+## `note-<its date UTC>-trello-<id>.md` for a Trello notification: the type of the inbox for what came in, owner and from the
+## member, the channel id of a mail (`email:<user>:<uid>`) where the member needs it to mark the mail read afterwards with its
+## ordinary tools, and the very block the scan renders for the message in the body, so the scan reads the note and prints what it
+## always printed. A note closes when its member processes it, and not otherwise: a person reading the mailbox in a client of his
+## own never takes a mail away from the member (the note is the member's record that it came). A message the member has processed
+## is never collected again.
+## THE POINTER of a source is the last UID of a mailbox collected without a gap, kept with the check time and the result in
+## $MMDAPP/.local/agents/collect/<kind>.<member>.state; a UID above it that has a note already is passed over. A TTL decides when
+## a source is asked again (AgentsTools.SourceTtl.include, the one table); a failed attempt leaves the check time as it was, so
+## the source stays due.
+##
+
+type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+type AgentsToolsSourceTtlOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.SourceTtl.include"
+type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
+type AgentsToolsCommsOwnSettingsApply > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSide.include"
+
+## What the last call of AgentsToolsCollectOne and of the two collectors left: the line it prints, how many notes it made, and why
+## it failed.
+agentsCollectLine="" agentsCollectNew=0 agentsCollectWhy=""
+## The notes written since the last commit, by path, and whether the caller commits them itself, once, at the end of its pass (yes) or
+## the collection of each source does (no): a pass of 64 mails is one commit, not 64.
+agentsCollectWritten=() agentsCollectDefer="no"
+
+AgentsToolsCollectDir(){
+	printf '%s\n' "$MMDAPP/.local/agents/collect"
+}
+
+AgentsToolsCollectStatePath(){ ## kind, member
+	printf '%s/%s.%s.state\n' "$( AgentsToolsCollectDir )" "$1" "$2"
+}
+
+## The value of a key of a source's state, nothing for a key it has none of.
+AgentsToolsCollectStateGet(){ ## kind, member, key
+	LC_ALL=C awk -v want="$3" '$1 == want { sub( /^[^ ]+ ?/, "" ) ; print ; exit ; }' "$( AgentsToolsCollectStatePath "$1" "$2" )" 2> /dev/null || :
+}
+
+## Sets keys of a source's state: key, value, key, value ...; an empty value removes the key. Written whole, then renamed.
+AgentsToolsCollectStateSet(){ ## kind, member, key, value, ...
+	local setKind="$1" setMember="$2" setPath setDir setTmp setPairs=""
+	shift 2
+	while [ $# -ge 2 ] ; do
+		setPairs="${setPairs}$1"$'\t'"$2"$'\n'
+		shift 2
+	done
+	setPath="$( AgentsToolsCollectStatePath "$setKind" "$setMember" )" ; setDir="${setPath%/*}"
+	mkdir -p "$setDir" || return 1
+	setTmp="$( mktemp "$setDir/.state.XXXXXX" )" || return 1
+	{ [ ! -f "$setPath" ] || cat "$setPath" ; } | SET_PAIRS="$setPairs" LC_ALL=C awk '
+		BEGIN { count = split( ENVIRON["SET_PAIRS"], rows, "\n" ) ; for ( i = 1 ; i <= count ; i++ ) { if ( rows[i] == "" ) { continue ; } split( rows[i], f, "\t" ) ; want[f[1]] = f[2] ; order[++n] = f[1] ; } ; }
+		{ key = $1 ; if ( key in want ) { if ( ! ( key in done ) && want[key] != "" ) { print key " " want[key] ; } done[key] = 1 ; next ; } print ; }
+		END { for ( i = 1 ; i <= n ; i++ ) { if ( ! ( order[i] in done ) && want[order[i]] != "" ) { print order[i] " " want[order[i]] ; done[order[i]] = 1 ; } } ; }
+	' > "$setTmp" && mv -f "$setTmp" "$setPath" || { rm -f "$setTmp" ; return 1 ; }
+	return 0
+}
+
+## The members whose sources a scan reads here, one a line -- no more and no less, so nothing is collected that no scan would have
+## read (the order of the scans' own reading): the members that execute a routine declaring the sweep (`input-scan-def: sweep`),
+## and the client-* members the sweep reads, every one of the member directory (AgentsToolsTeamMemberDirectoryText) whose own
+## directory this workspace holds, as `--intern-op-client-sweep-input-scan` asks. A client-* member is collected on the client
+## side (MDAT_COMMS_SIDE=client), as the scan reads it.
+AgentsToolsCollectScanMembers(){
+	local scanFile scanExecutors scanExecutor scanName scanDir scanOut=""
+	type AgentsToolsRoutineKeyOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
+	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	for scanFile in "${MDAT_SKILLSET_ROOT:-/nonexistent}"/*/*.routine.md ; do
+		[ -f "$scanFile" ] || continue
+		AgentsToolsRoutineKeyLinesOwn "$scanFile" input-scan-def | LC_ALL=C awk '$1 == "sweep" { found = 1 ; } END { exit ! found ; }' || continue
+		scanExecutors="$( AgentsToolsRoutineKeyOwn "$scanFile" executors | LC_ALL=C tr ',' ' ' )"
+		for scanExecutor in $scanExecutors ; do
+			[ -d "$MDAT_SKILLSET_ROOT/$scanExecutor" ] || continue
+			scanOut="$scanOut$scanExecutor"$'\n'
+		done
+	done
+	while IFS=$'\t' read -r scanName scanDir ; do
+		case "$scanName" in
+			client-*) [ -d "$scanDir" ] && [ -d "$MDAT_SKILLSET_ROOT/$scanName" ] && scanOut="$scanOut$scanName"$'\n' ;;
+		esac
+	done < <( AgentsToolsTeamMemberDirectoryText )
+	printf '%s' "$scanOut" | LC_ALL=C sort -u
+}
+
+## rc 0 when the member holds that source's credentials in its own scope, 4 when it does not, 5 when they are not ours to read
+## here (a client-* member's are the other organisation's, read on the client side).
+AgentsToolsCollectConfigured(){ ## kind, member
+	local confKind="$1" confMember="$2" confA confB confC
+	AgentsToolsCommsOwnSettingsApply "$confMember" || return 5
+	case "$confKind" in
+		mail)
+			confA="$( DistroAgentsTools --agents-config-option "$confMember" --select EMAIL_IMAP_HOST 2> /dev/null )" || confA=""
+			confB="$( DistroAgentsTools --agents-config-option "$confMember" --select EMAIL_USER 2> /dev/null )" || confB=""
+			confC="$( DistroAgentsTools --agents-config-option "$confMember" --select EMAIL_APP_PASSWORD 2> /dev/null )" || confC=""
+			[ -n "$confA" ] && [ -n "$confB" ] && [ -n "$confC" ] || return 4
+		;;
+		trello)
+			confA="$( DistroAgentsTools --agents-config-option "$confMember" --select TRELLO_KEY 2> /dev/null )" || confA=""
+			confB="$( DistroAgentsTools --agents-config-option "$confMember" --select TRELLO_TOKEN 2> /dev/null )" || confB=""
+			[ -n "$confA" ] && [ -n "$confB" ] || return 4
+		;;
+		*) return 4 ;;
+	esac
+	return 0
+}
+
+## One note of a member's inbox: the item name, the channel id (- for none), the file holding the block. It is written and not committed
+## (--no-commit): its path is kept in agentsCollectWritten, for AgentsToolsCollectCommit. What the write gate said that is a warning or
+## a refusal is passed on; the line of every item written is not.
+AgentsToolsCollectItemWrite(){ ## member, item name, channel id, block file
+	local itemMember="$1" itemName="$2" itemChannel="$3" itemBlock="$4" itemErr itemRc=0
+	mkdir -p "$MMDAPP/.local/temp" && itemErr="$( mktemp "$MMDAPP/.local/temp/mdat-collect-item.XXXXXX" )" || return 1
+	{
+		printf -- '---\ntype: note\nfrom: %s\nowner: %s\n' "$itemMember" "$itemMember"
+		[ "$itemChannel" = "-" ] || printf 'communication-channel-id: %s\n' "$itemChannel"
+		printf -- '---\n\n'
+		cat "$itemBlock"
+	} | DistroAgentsTools --intern-op-member-inbox-upsert "$itemMember" "$itemName" --no-commit --context --intern-op-collect-sources > /dev/null 2> "$itemErr" || itemRc=$?
+	LC_ALL=C grep -e 'WARNING' -e 'ERROR' -e 'nothing was written' -e 'contract-' "$itemErr" >&2 || :
+	rm -f "$itemErr"
+	[ "$itemRc" -ne 0 ] || agentsCollectWritten+=( "$( AgentsToolsInboxDir "$itemMember" )/$itemName" )
+	return "$itemRc"
+}
+
+## COMMITS WHAT A COLLECTION WROTE, once: the notes written since the last commit, through the one commit step of the tooling writers that
+## are not item operations (AgentsToolsTeamDataCommitPaths, as --magic-team-data-commit-pending does) -- a pass of 64 mails is one commit,
+## not 64. <push> yes pushes once after it where the store is ahead of its origin (AgentsToolsTeamDataPushIfAhead); a scan commits and
+## leaves the push to the close points, as the item operations do. A commit that fails warns and leaves the notes written.
+AgentsToolsCollectCommit(){ ## what, push (yes|no)
+	local commitCount="${#agentsCollectWritten[@]}"
+	[ "$commitCount" -gt 0 ] || return 0
+	type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include" 2> /dev/null || { agentsCollectWritten=() ; return 0 ; }
+	AgentsToolsTeamDataCommitPaths "$1: $commitCount new note(s)" "${agentsCollectWritten[@]}"
+	agentsCollectWritten=()
+	[ "${2:-no}" != "yes" ] || AgentsToolsTeamDataPushIfAhead "source collection"
+	return 0
+}
+
+## The ids a member's notes of a kind carry, in incoming/ and in processed/ (a note the member has processed is known too):
+## `mail` the UIDs, `trello` the notification ids, space-separated.
+AgentsToolsCollectKnown(){ ## kind, member
+	local knownKind="$1" knownMember="$2" knownFile knownId knownOut="" knownMark="-email-u"
+	[ "$knownKind" = "trello" ] && knownMark="-trello-"
+	for knownFile in "$( AgentsToolsInboxDirFor "$knownMember" no )"/note-*"$knownMark"*.md "$( AgentsToolsInboxDirFor "$knownMember" yes )"/note-*"$knownMark"*.md ; do
+		[ -e "$knownFile" ] || continue
+		knownId="${knownFile##*"$knownMark"}" ; knownId="${knownId%.md}"
+		knownOut="$knownOut $knownId"
+	done
+	printf '%s\n' "$knownOut"
+}
+
+## THE BLOCKS A SCAN READS from the collected notes of a source: oldest first by the date in the name, from <since> (YYYYMMDD, or
+## empty for all) on, the first <cap> of them; for a mail, after them a block for each message the last pass could not read -- said,
+## never dropped. Sets the two variables the caller names: the text (each block followed by a blank line), and how many there are in
+## all -- the notes from <since> on, the messages not read, and the unseen ones the last pass did not reach (pending).
+AgentsToolsCollectBlocks(){ ## kind, member, since, cap, blocks variable, total variable
+	local blkKind="$1" blkMember="$2" blkSince="${3:-}" blkCap="$4" blkVarBlocks="$5" blkVarTotal="$6" blkMark="-email-u" blkFile blkName blkDate blkCount=0 blkTotal=0 blkText="" blkBody blkOne blkPending
+	[ "$blkKind" = "trello" ] && blkMark="-trello-"
+	while IFS= read -r blkFile ; do
+		[ -n "$blkFile" ] && [ -f "$blkFile" ] || continue
+		blkName="${blkFile##*/}" ; blkDate="${blkName#note-}" ; blkDate="${blkDate%%T*}"
+		if [ -n "$blkSince" ] && [ "$blkDate" \< "$blkSince" ] ; then continue ; fi
+		blkTotal=$(( blkTotal + 1 ))
+		[ "$blkCount" -lt "$blkCap" ] || continue
+		blkBody="$( LC_ALL=C awk 'fm < 2 && $0 == "---" { fm++ ; next ; } fm >= 2 && ( NF || started ) { started = 1 ; print ; }' "$blkFile" )"
+		blkText="$blkText$blkBody"$'\n\n'
+		blkCount=$(( blkCount + 1 ))
+	done < <( ls -1 "$( AgentsToolsInboxDirFor "$blkMember" no )"/note-*"$blkMark"*.md 2> /dev/null | LC_ALL=C sort )
+	if [ "$blkKind" = "mail" ] ; then
+		for blkOne in $( AgentsToolsCollectStateGet mail "$blkMember" not-read ) ; do
+			blkTotal=$(( blkTotal + 1 ))
+			[ "$blkCount" -lt "$blkCap" ] || continue
+			blkText="$blkText## email-message ${blkOne%%:*}"$'\n'"mailbox: INBOX"$'\n'"status: unseen"$'\n'"fetch: not read -- the IMAP session returned ${blkOne##*:} for this UID; the message is UNKNOWN, not empty"$'\n\n'
+			blkCount=$(( blkCount + 1 ))
+		done
+		blkPending="$( AgentsToolsCollectStateGet mail "$blkMember" pending )"
+		case "$blkPending" in ''|*[!0123456789]*) ;; *) blkTotal=$(( blkTotal + blkPending )) ;; esac
+	fi
+	printf -v "$blkVarBlocks" '%s' "$blkText"
+	printf -v "$blkVarTotal" '%s' "$blkTotal"
+}
+
+## A MAILBOX. Sets agentsCollectNew and, on a failure, agentsCollectWhy. rc 0 collected, 1 failed.
+## <since> (dd-Mon-yyyy) bounds the search for a scan that reads from a cut-off.
+AgentsToolsCollectMail(){ ## member, since
+	local mailMember="$1" mailSince="${2:-}" mailHost mailUser mailPass mailWork mailOut mailRc=0 mailPointer mailKnown mailUids mailUid
+	local mailLast mailGap=0 mailItemRc mailName mailDate mailBlockRc mailNotRead="" mailPending=0
+	agentsCollectNew=0 ; agentsCollectWhy=""
+	mailHost="$( DistroAgentsTools --agents-config-option "$mailMember" --select EMAIL_IMAP_HOST 2> /dev/null )" || mailHost=""
+	mailUser="$( DistroAgentsTools --agents-config-option "$mailMember" --select EMAIL_USER 2> /dev/null )" || mailUser=""
+	mailPass="$( DistroAgentsTools --agents-config-option "$mailMember" --select EMAIL_APP_PASSWORD 2> /dev/null )" || mailPass=""
+	if [ -z "$mailHost" ] || [ -z "$mailUser" ] || [ -z "$mailPass" ] ; then
+		agentsCollectWhy="the mailbox is not configured in the member's own scope"
+		return 1
+	fi
+	mailWork="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/mdat-collect-mail.XXXXXX" )" || { agentsCollectWhy="no working folder could be made" ; return 1 ; }
+	mailPointer="$( AgentsToolsCollectStateGet mail "$mailMember" last-uid )"
+	case "$mailPointer" in ''|*[!0123456789]*) mailPointer=0 ;; esac
+	mailKnown="$( AgentsToolsCollectKnown mail "$mailMember" )"
+	## ONE IMAP SESSION: login, EXAMINE (read-only), UID SEARCH UNSEEN, and a UID FETCH of BODY.PEEK[] for each message not collected.
+	## The credentials live in the environment of this one child.
+	mailOut="$( AGENTS_IMAP_HOST="$mailHost" AGENTS_IMAP_USER="$mailUser" AGENTS_IMAP_PASS="$mailPass" AGENTS_IMAP_MAILBOX="INBOX" \
+		AGENTS_IMAP_SINCE="$mailSince" AGENTS_IMAP_MAX="64" AGENTS_IMAP_OUT_DIR="$mailWork" AGENTS_IMAP_AFTER_UID="$mailPointer" AGENTS_IMAP_SKIP_UIDS="$mailKnown" \
+		python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsImapSweepFetch.py" 2> "$mailWork/err" )" || mailRc=$?
+	if [ "$mailRc" -ne 0 ] ; then
+		agentsCollectWhy="$( LC_ALL=C sed -n '1p' "$mailWork/err" 2> /dev/null | LC_ALL=C cut -c1-200 )"
+		[ -n "$agentsCollectWhy" ] || agentsCollectWhy="the IMAP session failed"
+		agentsCollectWhy="${agentsCollectWhy//"$mailPass"/***}"
+		mailPass="" ; rm -rf "$mailWork"
+		return 1
+	fi
+	mailPass=""
+	mailUids="$( printf '%s\n' "$mailOut" | LC_ALL=C awk '{ sub( /\r$/, "" ) ; } /^\* SEARCH/ { seen = 1 ; for ( i = 3 ; i <= NF ; i++ ) { print $i ; } } END { if ( ! seen ) { exit 1 ; } }' )" || {
+		agentsCollectWhy="the IMAP session returned no search answer"
+		rm -rf "$mailWork"
+		return 1
+	}
+	mailLast="$mailPointer"
+	for mailUid in $mailUids ; do
+		[ "$mailUid" -gt "$mailPointer" ] || continue
+		case " $mailKnown " in
+			*" $mailUid "*) [ "$mailGap" = "1" ] || mailLast="$mailUid" ; continue ;;
+		esac
+		## A UID whose turn did not come in this pass (the cap) is pending; one the server would not give is said by the scan as not read,
+		## never dropped, and asked for again.
+		if [ ! -f "$mailWork/$mailUid.rc" ] ; then
+			mailGap=1 ; mailPending=$(( mailPending + 1 ))
+			continue
+		fi
+		mailBlockRc=2
+		read -r mailBlockRc < "$mailWork/$mailUid.rc" || mailBlockRc=2
+		if [ "$mailBlockRc" != "0" ] ; then
+			mailGap=1 ; mailNotRead="$mailNotRead $mailUid:$mailBlockRc"
+			continue
+		fi
+		AGENTS_EMAIL_UID="$mailUid" AGENTS_EMAIL_MAILBOX="INBOX" AGENTS_EMAIL_STATUS="unseen" python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionContextEmailItem.py" \
+			< "$mailWork/$mailUid.eml" > "$mailWork/$mailUid.block" 2> /dev/null || { mailGap=1 ; mailNotRead="$mailNotRead $mailUid:2" ; continue ; }
+		mailDate="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsCollectMailDate.py" < "$mailWork/$mailUid.eml" 2> /dev/null )" || mailDate="-"
+		case "$mailDate" in ????????T????Z) ;; *) mailDate="$( date -u +%Y%m%dT%H%MZ )" ;; esac
+		mailName="note-$mailDate-email-u$mailUid.md"
+		mailItemRc=0
+		AgentsToolsCollectItemWrite "$mailMember" "$mailName" "email:$mailUser:$mailUid" "$mailWork/$mailUid.block" || mailItemRc=$?
+		if [ "$mailItemRc" -ne 0 ] ; then
+			mailGap=1 ; mailPending=$(( mailPending + 1 ))
+			continue
+		fi
+		agentsCollectNew=$(( agentsCollectNew + 1 ))
+		[ "$mailGap" = "1" ] || mailLast="$mailUid"
+	done
+	AgentsToolsCollectStateSet mail "$mailMember" last-uid "$mailLast" not-read "${mailNotRead# }" pending "$( [ "$mailPending" -eq 0 ] || printf '%s' "$mailPending" )" || :
+	rm -rf "$mailWork"
+	return 0
+}
+
+## TRELLO. Sets the same. rc 0 collected, 1 failed. Reads only the unread notifications of the member; nothing is marked read.
+AgentsToolsCollectTrello(){ ## member
+	local trMember="$1" trWork trJson trRc=0 trKnown trId trName trDate trItemRc
+	agentsCollectNew=0 ; agentsCollectWhy=""
+	type AgentsToolsCommsTrelloCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsTrello.include"
+	trWork="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/mdat-collect-trello.XXXXXX" )" || { agentsCollectWhy="no working folder could be made" ; return 1 ; }
+	trJson="$( AgentsToolsCommsTrelloCheck "$trMember" 2> "$trWork/err" )" || trRc=$?
+	if [ "$trRc" -ne 0 ] ; then
+		agentsCollectWhy="the unread notifications could not be read (rc $trRc)"
+		rm -rf "$trWork"
+		return 1
+	fi
+	printf '%s\n' "$trJson" | LC_ALL=C awk -v kind=trello -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionContextCommsItems.awk" > "$trWork/blocks" 2> "$trWork/awkerr" || {
+		agentsCollectWhy="the answer of Trello was not a list of notifications"
+		rm -rf "$trWork"
+		return 1
+	}
+	trJson=""
+	## One file for each notification, oldest first, and the ids in that order.
+	LC_ALL=C awk -v dir="$trWork" '
+		/^## trello-notification / { if ( file != "" ) { close( file ) ; } id = $3 ; if ( id !~ /^[A-Za-z0-9]+$/ ) { file = "" ; next ; } file = dir "/" id ".block" ; print id >> ( dir "/ids" ) ; }
+		file != "" { print > file ; }
+		END { if ( file != "" ) { close( file ) ; } ; }
+	' "$trWork/blocks"
+	trKnown="$( AgentsToolsCollectKnown trello "$trMember" )"
+	if [ -f "$trWork/ids" ] ; then
+		while IFS= read -r trId ; do
+			[ -n "$trId" ] || continue
+			case " $trKnown " in *" $trId "*) continue ;; esac
+			trDate="$( LC_ALL=C sed -n 's/^date: \([0-9]\{4\}\)-\([0-9]\{2\}\)-\([0-9]\{2\}\)T\([0-9]\{2\}\):\([0-9]\{2\}\).*$/\1\2\3T\4\5Z/p' "$trWork/$trId.block" | head -n 1 )"
+			case "$trDate" in ????????T????Z) ;; *) trDate="$( date -u +%Y%m%dT%H%MZ )" ;; esac
+			trName="note-$trDate-trello-$trId.md"
+			trItemRc=0
+			AgentsToolsCollectItemWrite "$trMember" "$trName" "-" "$trWork/$trId.block" || trItemRc=$?
+			[ "$trItemRc" -eq 0 ] || continue
+			agentsCollectNew=$(( agentsCollectNew + 1 ))
+		done < "$trWork/ids"
+	fi
+	rm -rf "$trWork"
+	return 0
+}
+
+## The IMAP date (dd-Mon-yyyy) the thread bounds the search of a mailbox by: the day before the member's own stored sweep position, as
+## the scan that reads the mailbox bounds it, so the thread collects what the scan would show and not the backlog of years of unread
+## mail. Nothing where no position is stored (the scan reads then all that is unseen).
+AgentsToolsCollectSinceOf(){ ## member
+	local sinceOp="magic-sweep-input-scan" sinceTs sinceIso sinceMonth=""
+	case "$1" in client-*) sinceOp="client-sweep-input-scan" ;; esac
+	type AgentsToolsMagicSweepStoredPosition > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweepState.include" 2> /dev/null || return 0
+	sinceTs="$( AgentsToolsMagicSweepStoredPosition "$1" "$sinceOp" 2> /dev/null )" || return 0
+	sinceIso="$( printf '%s\n' "$(( ${sinceTs%%.*} - 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalEpochToIsoDate.awk" )" || return 0
+	case "$sinceIso" in ????-??-??) ;; *) return 0 ;; esac
+	## IMAP spells the month in English whatever the locale.
+	case "${sinceIso:5:2}" in
+		01) sinceMonth="Jan" ;; 02) sinceMonth="Feb" ;; 03) sinceMonth="Mar" ;; 04) sinceMonth="Apr" ;; 05) sinceMonth="May" ;; 06) sinceMonth="Jun" ;;
+		07) sinceMonth="Jul" ;; 08) sinceMonth="Aug" ;; 09) sinceMonth="Sep" ;; 10) sinceMonth="Oct" ;; 11) sinceMonth="Nov" ;; 12) sinceMonth="Dec" ;;
+	esac
+	[ -z "$sinceMonth" ] || printf '%s-%s-%s\n' "${sinceIso:8:2}" "$sinceMonth" "${sinceIso:0:4}"
+	return 0
+}
+
+## ONE SOURCE, if it is due: takes its lock, looks at its TTL, collects, keeps the state. Leaves the line it says in
+## agentsCollectLine and the count in agentsCollectNew. rc 0 collected, fresh, or busy; 3 failed; 4 not
+## configured; 5 not ours to read here.
+AgentsToolsCollectOne(){ ## kind, member, force (yes|no), since (dd-Mon-yyyy, or empty), configured (yes: the caller has just checked)
+	local oneKind="$1" oneMember="$2" oneForce="${3:-no}" oneSince="${4:-}" oneKnown="${5:-no}" oneSource oneConfRc=0 oneTtl oneChecked oneNow oneLockPath oneRc=0
+	oneSource="$oneKind:$oneMember"
+	agentsCollectLine="" ; agentsCollectNew=0 ; agentsCollectWhy=""
+	[ "$oneKnown" = "yes" ] || AgentsToolsCollectConfigured "$oneKind" "$oneMember" || oneConfRc=$?
+	case "$oneConfRc" in
+		4) agentsCollectLine="collect: $oneSource: not configured" ; return 4 ;;
+		5) agentsCollectLine="collect: $oneSource: skipped -- the $oneKind of a client-* member is the other organisation's, read on its own side" ; return 5 ;;
+	esac
+	if ! AgentsToolsLocalLockTake "collect.$oneKind.$oneMember" "${MDAT_COLLECT_LOCK_TRIES:-20}" "the collection of $oneSource" ; then
+		agentsCollectLine="collect: $oneSource: busy -- another collection holds it"
+		return 0
+	fi
+	oneLockPath="$agentsLocalLockPath"
+	oneTtl="$( AgentsToolsSourceTtlOf "$oneSource" )"
+	oneChecked="$( AgentsToolsCollectStateGet "$oneKind" "$oneMember" checked-at )"
+	case "$oneChecked" in ''|*[!0123456789]*) oneChecked=0 ;; esac
+	oneNow="$( date +%s )"
+	if [ "$oneForce" != "yes" ] && [ "$oneTtl" -gt 0 ] && [ $(( oneNow - oneChecked )) -lt "$oneTtl" ] ; then
+		agentsCollectLine="collect: $oneSource: fresh (checked $(( oneNow - oneChecked ))s ago, ttl ${oneTtl}s)"
+		AgentsToolsLocalLockGive "$oneLockPath"
+		return 0
+	fi
+	case "$oneKind" in
+		mail) AgentsToolsCollectMail "$oneMember" "$oneSince" || oneRc=$? ;;
+		trello) AgentsToolsCollectTrello "$oneMember" || oneRc=$? ;;
+		*) agentsCollectWhy="no such kind of source" ; oneRc=1 ;;
+	esac
+	[ "$agentsCollectDefer" = "yes" ] || AgentsToolsCollectCommit "source collection of $oneSource" no
+	if [ "$oneRc" -ne 0 ] ; then
+		[ -n "$oneChecked" ] || oneChecked=0
+		AgentsToolsCollectStateSet "$oneKind" "$oneMember" checked-at "$oneChecked" result failed why "$agentsCollectWhy" failed-at "$( date +%s )" || :
+		agentsCollectLine="collect: $oneSource: failed -- $agentsCollectWhy"
+		AgentsToolsLocalLockGive "$oneLockPath"
+		return 3
+	fi
+	AgentsToolsCollectStateSet "$oneKind" "$oneMember" checked-at "$( date +%s )" result ok why "" failed-at "" || :
+	agentsCollectLine="collect: $oneSource: $agentsCollectNew new"
+	AgentsToolsLocalLockGive "$oneLockPath"
+	return 0
+}
+
+## THE SOURCE A SCAN NEEDS, for the member of its start: collected for real if its TTL has passed, so nothing the scan reads is
+## stale. The scan has checked that the source is configured (AgentsToolsCollectConfigured); quiet: the line is left in
+## agentsCollectLine. rc as AgentsToolsCollectOne.
+AgentsToolsCollectEnsure(){ ## member, kind, since (dd-Mon-yyyy, or empty)
+	local ensureRc=0
+	AgentsToolsCollectOne "$2" "$1" no "${3:-}" yes || ensureRc=$?
+	## A scan used a source: the thread is wanted, and where other sources are long expired, with none to update them, one is started.
+	## What the check says is of no use to the scan, and its failure no fault of it.
+	local ensureLine="$agentsCollectLine" ensureNew="$agentsCollectNew" ensureWhy="$agentsCollectWhy"
+	type AgentsToolsCollectThreadCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.CollectThread.include" 2> /dev/null || :
+	! type AgentsToolsCollectThreadCheck > /dev/null 2>&1 || AgentsToolsCollectThreadCheck scan "$1" > /dev/null 2>&1 || :
+	agentsCollectLine="$ensureLine" ; agentsCollectNew="$ensureNew" ; agentsCollectWhy="$ensureWhy"
+	return "$ensureRc"
+}
+
+## The sources of the members a scan reads that hold their credentials, `<kind>:<member>` a line: what the thread has to look after.
+## A client-* member's are read on the client side. Reads no source.
+AgentsToolsCollectSources(){
+	local srcMember srcKind srcRc
+	while IFS= read -r srcMember ; do
+		[ -n "$srcMember" ] || continue
+		for srcKind in mail trello ; do
+			srcRc=0
+			case "$srcMember" in
+				client-*) MDAT_COMMS_SIDE=client AgentsToolsCollectConfigured "$srcKind" "$srcMember" || srcRc=$? ;;
+				*) AgentsToolsCollectConfigured "$srcKind" "$srcMember" || srcRc=$? ;;
+			esac
+			[ "$srcRc" -eq 0 ] || continue
+			printf '%s:%s\n' "$srcKind" "$srcMember"
+		done
+	done < <( AgentsToolsCollectScanMembers )
+}
+
+## Whether a source failed in the last ten minutes: rc 0 it did. The thread leaves such a source to the scans, which try it again each
+## time they want it, and does not hammer a mailbox that refuses the login every minute.
+AgentsToolsCollectBackoff(){ ## kind, member
+	local backAt
+	[ "$( AgentsToolsCollectStateGet "$1" "$2" result )" = "failed" ] || return 1
+	backAt="$( AgentsToolsCollectStateGet "$1" "$2" failed-at )"
+	case "$backAt" in ''|*[!0123456789]*) return 1 ;; esac
+	[ $(( $( date +%s ) - backAt )) -lt 600 ]
+}
+
+## The sources of those that nobody updated for twenty TTLs (AgentsToolsSourceStaleOf): the ones no scan asked for, which the one
+## background thread updates. One line each, `stale: <kind>:<member> (...)`. The sources of <except member>, which a scan has just
+## used, and a source that failed in the last ten minutes, are none. Reads no source.
+AgentsToolsCollectStaleReport(){ ## except member (or empty)
+	local staleSource staleKind staleMember staleLimit staleChecked staleAge staleNow
+	staleNow="$( date +%s )"
+	while IFS= read -r staleSource ; do
+		[ -n "$staleSource" ] || continue
+		staleKind="${staleSource%%:*}" ; staleMember="${staleSource#*:}"
+		[ -z "${1:-}" ] || [ "$staleMember" != "$1" ] || continue
+		AgentsToolsCollectBackoff "$staleKind" "$staleMember" && continue
+		staleLimit="$( AgentsToolsSourceStaleOf "$staleSource" )"
+		[ "$staleLimit" -gt 0 ] || continue
+		staleChecked="$( AgentsToolsCollectStateGet "$staleKind" "$staleMember" checked-at )"
+		case "$staleChecked" in ''|*[!0123456789]*) staleChecked=0 ;; esac
+		staleAge=$(( staleNow - staleChecked ))
+		[ "$staleAge" -gt "$staleLimit" ] || continue
+		if [ "$staleChecked" -eq 0 ] ; then
+			printf 'stale: %s (never checked, ttl %ss)\n' "$staleSource" "$( AgentsToolsSourceTtlOf "$staleSource" )"
+		else
+			printf 'stale: %s (%ss since its last check, ttl %ss)\n' "$staleSource" "$staleAge" "$( AgentsToolsSourceTtlOf "$staleSource" )"
+		fi
+	done < <( AgentsToolsCollectSources )
+}

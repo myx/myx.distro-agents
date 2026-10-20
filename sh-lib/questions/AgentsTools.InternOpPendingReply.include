@@ -430,9 +430,13 @@ case "$1" in
 			' "$pendingFile" )
 			if [ -n "$reactOwner" ] && [ -n "$reactChannel" ] ; then
 				[ -z "$pendingAnswerTs" ] || AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$pendingAnswerTs" eyes "$pendingId" "$reactIdentity"
-				## Never on the root of a proposal: a mark there is the human-owner's own verdict, and
-				## the tooling puts none beside it.
-				if [ -n "$reactQuestion" ] && [ "$reactKind" != "proposal" ] ; then
+				## Never a mark on the root of a proposal: a check mark there is the human-owner's own
+				## verdict, and the tooling puts none beside it. The two answer emoji it placed there itself
+				## (F9.4) are taken off, as the identity that placed them, so what stands is his alone.
+				if [ -n "$reactQuestion" ] && [ "$reactKind" = "proposal" ] ; then
+					type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+					AgentsToolsAskPostClose "$pendingFile" "$reactQuestion" "" ""
+				elif [ -n "$reactQuestion" ] ; then
 					## The question takes no click any more: with its mark the tooling takes off that
 					## post the answer emoji it placed there itself, the names its template gives for
 					## its kind and answer form, under the identity that placed them
@@ -742,7 +746,8 @@ case "$1" in
 						collectOwner="$( AgentsToolsPendingReplyCollectFieldOf "$collectFile" owner )"
 						collectNoteId="${collectFile##*/}" ; collectNoteId="${collectNoteId%.md}"
 						{
-							printf -- '---\nmember: %s\ndate: %s\n---\n\n' "$collectOwner" "$( date -u +%Y-%m-%d )"
+							## The keys of the inbox-item.note contract the write gate holds it to: the owner, and a date-time; the gate fills the rest.
+							printf -- '---\nowner: %s\ndate: %s\n---\n\n' "$collectOwner" "$( date +'%Y-%m-%d %H:%M %z' )"
 							printf '# Note: an answer arrived after your session ended\n\n'
 							printf 'Pending reply `%s` is answered, and its record is closed. What the tooling collected:\n\n' "$collectNoteId"
 							printf -- '- %s\n' "${collectLine#ANSWERED }"

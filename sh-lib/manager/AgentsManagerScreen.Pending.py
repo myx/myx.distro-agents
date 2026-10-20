@@ -534,36 +534,73 @@ DIALOG_HANDLERS["reject"] = submitAskAct
 DIALOG_HANDLERS["dismiss"] = submitAskAct
 
 
+## What the left pane shows of the ask selected: its facts, set out again only when the ask, what is stored of it, the width or the minute has changed.
+def pendingFocus(state, row):
+    if not row.get("ask"):
+        return None
+    stamp = (row["ask"], id(state.view["info"]), state.viewWidth, int(nowEpoch() // 60))
+    if state.view.get("askFor") == stamp:
+        return None
+    state.view["askFor"] = stamp
+    return askLines(row["ask"], state.viewWidth, state.view["info"])
+
+
+## How many asks wait, for the row of the questions to show after its label: the number the last count read printed (`count:asks`), or None
+## before it has come. The row under `Magic-Team (Agents)` counts by the same read, so both places show one number.
+def pendingCount(state):
+    return int(state.counters["asks"]) if "asks" in state.counters else None
+
+
 ## ---- the plugin: `Pending Questions` ----
 
+PENDING_READS = {
+    ## The asks that wait, every owner's. The member named filters nothing with --any-owner; it
+    ## is the one the tooling's own read of every owner's asks names (the heartbeat's input scan).
+    "list:pending": {"operation": ["--member-pending-reply-read", "magic-coordinator", "--any-owner"],
+                     "rows": "pending"},
+    ## One ask, whole: what the stores hold of it.
+    "view:pending:record": {"operation": ["--member-pending-reply-read", "magic-coordinator", "{id}"],
+                            "rows": "ask", "needs": "ask"},
+    ## What can be done with one ask from the console: the row of the question, with whether it
+    ## takes words, a reject and a dismissal and with the link of its message, and a row for
+    ## each answer it takes. Read as a part of its own, "acts", beside the view of the ask.
+    "acts:pending:record": {"operation": ["--manager-pending-reply-read", "--id", "{id}"],
+                            "rows": "ask-acts", "needs": "ask"},
+}
+
+## The questions are a root of the list, second after the dashboard, and the same under `Magic-Team (Agents)`: one declaration, two places,
+## each with its own copy of the list read, the commands being those of both. The copy of the root also counts (`count`): its operation with
+## --count, which prints only the number of the asks, is read whatever is shown, on the period, and the row of both places shows that number
+## (pendingCount). The list itself is read where it is shown, and not for this.
 registerPlugin({
     "name": "pending",
-    "root": {"id": "pending", "label": "Pending Questions", "go": "~P~ending Questions", "group": "team"},
+    "root": {"id": "pending", "label": "Pending Questions", "go": "~P~ending Questions", "group": "watch"},
+    "focus": {"pending": "pendingFocus"},
+    "counted": {"pending": "pendingCount"},
     "summaries": {
         "pending": {"lines": "pendingSummary"},
     },
-    "reads": {
-        ## The asks that wait, every owner's. The member named filters nothing with --any-owner; it
-        ## is the one the tooling's own read of every owner's asks names (the heartbeat's input scan).
-        "list:pending": {"operation": ["--member-pending-reply-read", "magic-coordinator", "--any-owner"],
-                         "rows": "pending"},
-        ## One ask, whole: what the stores hold of it.
-        "view:pending:record": {"operation": ["--member-pending-reply-read", "magic-coordinator", "{id}"],
-                                "rows": "ask", "needs": "ask"},
-        ## What can be done with one ask from the console: the row of the question, with whether it
-        ## takes words, a reject and a dismissal and with the link of its message, and a row for
-        ## each answer it takes. Read as a part of its own, "acts", beside the view of the ask.
-        "acts:pending:record": {"operation": ["--manager-pending-reply-read", "--id", "{id}"],
-                                "rows": "ask-acts", "needs": "ask"},
-    },
+    "reads": dict(PENDING_READS, **{"list:pending": dict(PENDING_READS["list:pending"], count="asks")}),
     "commands": (
         {"name": "answer", "keys": ("ENTER", "y"), "menu": ("question", 1), "label": "~A~nswer", "status": "Answer", "window": "list",
-         "views": ("pending",), "for": "a question", "on": ("pending:record",), "only": True, "says": "answer", "does": ("action", "answer"), "calls": ("answer",)},
+         "views": ("pending", "@pending-in-team"), "for": "a question", "on": ("pending:record", "@pending-in-team:record"), "only": True, "says": "answer",
+         "does": ("action", "answer"), "calls": ("answer",)},
         {"name": "reject", "keys": ("j",), "menu": ("question", 1), "label": "Re~j~ect", "status": "Reject", "window": "list",
-         "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "reject"), "calls": ("reject",)},
+         "views": ("pending", "@pending-in-team"), "for": "a question", "on": ("pending:record", "@pending-in-team:record"), "does": ("action", "reject"), "calls": ("reject",)},
         {"name": "dismiss", "keys": ("d",), "menu": ("question", 1), "label": "~D~ismiss", "status": "Dismiss", "window": "list",
-         "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "dismiss"), "calls": ("dismiss",)},
+         "views": ("pending", "@pending-in-team"), "for": "a question", "on": ("pending:record", "@pending-in-team:record"), "does": ("action", "dismiss"), "calls": ("dismiss",)},
         {"name": "link", "keys": ("o",), "menu": ("question", 2), "label": "Show the ~l~ink", "status": "Link", "window": "list",
-         "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "link")},
+         "views": ("pending", "@pending-in-team"), "for": "a question", "on": ("pending:record", "@pending-in-team:record"), "does": ("action", "link")},
     ),
+})
+registerPlugin({
+    "name": "pending-in-team",
+    "mount": "magic-team",
+    "root": {"id": "pending", "label": "Pending Questions"},
+    "focus": {"pending": "pendingFocus"},
+    "counted": {"pending": "pendingCount"},
+    "summaries": {
+        "pending": {"lines": "pendingSummary"},
+    },
+    "reads": PENDING_READS,
 })

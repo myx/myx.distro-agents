@@ -4,9 +4,10 @@ executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: coworking
 skips-inherited: fold-in-learned-lessons, dismiss-participants
-routine-lock-document: inbox:magic-coordinator:note-20260809T154715Z-advance-state-and-lock.md
+routine-lock-document: inbox:{{team-member}}:note-20260809T154715Z-advance-state-and-lock.md
 input-scan-def: advance
 review-by: inherit
+cache-prefix: routine
 ---
 # magic-coordinator.advance.routine — the actual procedure
 
@@ -131,7 +132,7 @@ Each item is a tracking document. Spawning work on it spawns the group its `part
 
 - `approval-*`: `recheck-date` due and not resolved → ask the human-owner in its tracked thread, else on his direct channel (`AskQuestion`, `wait: false`), alone in its own message. Extend it with `--recheck-in 17±2`. The ask is open, so it is not posted twice.
 - `interview-*`: run exactly one round of `magic-team.interview.routine`'s **resume-review** and **reassess-before-next-message** over its tracked thread. The round dispatches only pieces already approved, and sends at most one outward message, or one explicit close-out, then move on: the next pass continues it. With no tracked thread (`communication-channel-id` not `slack:<channel>:<ts>`), post the round to the human-owner and write the returned thread back as `communication-channel-id` (`--magic-advance-to-running --from-state:running`). A round finding every question resolved and none new moves the item to `board-processed` (`--magic-board-to-processed`).
-- `proposal-*`: carrying a `communication-channel-id`, it is in front of the human-owner (`magic-team.proposal.routine`). Read the thread root's closing reaction first: one is there, apply its outcome per that routine's **close-on-root-reaction**. None: take the `approval-*` rule. Otherwise run `magic-team.discuss.routine` over it this pass. That routine's **record-the-outcome** makes the move; approved or rejected, the item goes to `board-processed`, or carries the no-quorum document up where it does not converge, per "The ladder: one rung at a time".
+- `proposal-*`: carrying a `communication-channel-id`, it is in front of the human-owner (`magic-team.proposal.routine`). Read the thread root's closing reaction first (the human-owner's own): one is there, apply its outcome per that routine's **close-on-root-reaction**. None: take the `approval-*` rule. Otherwise run `magic-team.discuss.routine` over it this pass. That routine's **record-the-outcome** makes the move; approved or rejected, the item goes to `board-processed`, or carries the no-quorum document up where it does not converge, per "The ladder: one rung at a time".
 - `task-*`/`project-*`: completion claimed and no clean testing round → dispatch a `magic-tester` round in place. A stale testing round gets a fresh one. Otherwise apply the staleness checks above.
 - `dispatch-*`: nudge per the rule above, and append its report as a dated log entry (`--magic-advance-to-running --from-state:running`). The tooling moves a finished dispatch to `board-review`.
 - `change-*`: `recheck-date` due → check whether the change landed. Landed → `board-processed`. Not yet → `--recheck-in 17`.
@@ -159,7 +160,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- This routine extends `magic-team.coworking.routine`, with these overrides: the session thread is `event-track`; **advance-report** is the closing obligation. The inherited steps it does not run are declared in `skips-inherited:`.
+- The session thread is `event-track`; **advance-report** is the closing obligation.
 - Keep `event-track` current as things are found, not batched.
 - A `recheck-date` is set with `--recheck-in <minutes>[±<jitter-minutes>]`, never computed by hand.
 

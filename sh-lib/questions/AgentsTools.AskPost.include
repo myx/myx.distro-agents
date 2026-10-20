@@ -17,7 +17,7 @@
 
 if ! type AgentsToolsAskToolRow > /dev/null 2>&1 ; then
 
-	type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsTools.ToolingTemplate.include"
+	type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
 
 	## One row per name: `<tool>|<kind it presets>|<template>|<answer form>|<its own parameters>`.
 	## An empty answer form is taken from the call's `select`, `text` with none. A row with no

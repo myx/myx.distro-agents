@@ -23,7 +23,7 @@
 # writes one: `YYYY-MM-DDTHH:MM:SSZ`, `YYYY-MM-DD HH:MM +HHMM`, a truncation of either
 # (a bare date is 00:00:00), its offset `Z`, `+-HH:MM` or `+-HHMM` and none read as UTC;
 # or the name form `YYYYMMDDTHHMM[SS]Z`. Integer arithmetic only, the rule and the reason
-# of AgentsIsoToEpoch.awk and AgentsEpochToIsoDate.awk: no date(1), no strftime, no $TZ.
+# of LocalIsoToEpoch.awk and LocalEpochToIsoDate.awk: no date(1), no strftime, no $TZ.
 #
 # A style keeps what its site showed before it was a token:
 #   time-secs       {time_secs}             fallback 06:02:30 UTC
@@ -44,7 +44,7 @@ function sldFormat(styleName) {
 	return ""
 }
 
-# Days from 1970-01-01 to a civil date (days-from-civil, as AgentsIsoToEpoch.awk).
+# Days from 1970-01-01 to a civil date (days-from-civil, as LocalIsoToEpoch.awk).
 function sldDays(yearValue, monthValue, dayValue,   eraValue, yearOfEra, dayOfYear, dayOfEra) {
 	if (monthValue <= 2) yearValue = yearValue - 1
 	eraValue = int(yearValue / 400)
@@ -84,7 +84,7 @@ function sldEpoch(momentText,   restText, hourValue, minuteValue, secondValue, o
 }
 
 # Epoch seconds as the UTC text of a style, the fallback of its token (civil-from-days,
-# as AgentsEpochToIsoDate.awk); "" for a style there is none for.
+# as LocalEpochToIsoDate.awk); "" for a style there is none for.
 function sldUtc(epochSeconds, styleName,   dayCount, secOfDay, eraValue, dayOfEra, yearOfEra, yearValue, dayOfYear, monthPrime, dayValue, monthValue, dateText, minuteText, secondText) {
 	epochSeconds = int(epochSeconds)
 	dayCount = int(epochSeconds / 86400)

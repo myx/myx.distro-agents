@@ -420,7 +420,7 @@ rigAssert "the folder click the tooling placed itself is never an answer" \
 
 echo "-- the filler, asked directly: the answers and the emoji of a post follow what it was filled with --"
 rigFill(){ ## want, template, form -- the slots come from the caller's environment
-	ASKP_WANT="$1" ASKP_FORM="$3" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$rigHere/questions/AgentsAskPostFill.awk" "$rigHere/templates/$2" 2>&1
+	ASKP_WANT="$1" ASKP_FORM="$3" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolingTemplateFill.awk" -f "$rigHere/questions/AgentsAskPostFill.awk" "$rigHere/templates/$2" 2>&1
 }
 rigAssert "with a folder the permission post places four emoji, the folder last; with none, the three as before" \
 	"$( ASKP_F_folder='rig-out:reports/**' rigFill reactions request-permission.post.format.md grant | LC_ALL=C tr '\n' ' ' ):$( rigFill reactions request-permission.post.format.md grant | LC_ALL=C tr '\n' ' ' )" \

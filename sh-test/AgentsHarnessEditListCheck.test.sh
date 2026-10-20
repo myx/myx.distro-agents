@@ -115,11 +115,12 @@ rigPart(){ ## request id, json path under result -- the decoded value, empty whe
 	LC_ALL=C grep -m1 "^{\"jsonrpc\":\"2.0\",\"id\":$1," "$rigTmp/wire" | LC_ALL=C awk -v path="result.$2" -v optional=1 -f "$rigField" 2>/dev/null || :
 }
 
-## The first line of the tool's own result: the last text part, since the head part goes first.
+## The first line of the tool's own result: the text part before the last, which is the date part of the reply
+## layer (sh-test/check-fixtures/rig-reply.include.sh), since the head part goes first.
 rigResult(){ ## request id
 	local partIndex
 	partIndex="$( rigPart "$1" content.__count )"
-	partIndex=$(( ${partIndex:-0} - 1 ))
+	partIndex=$(( ${partIndex:-0} - 2 ))
 	while [ "$partIndex" -ge 0 ] ; do
 		[ "$( rigPart "$1" "content.$partIndex.type" )" != text ] || { rigPart "$1" "content.$partIndex.text" | head -n 1 ; return 0 ; }
 		partIndex=$(( partIndex - 1 ))

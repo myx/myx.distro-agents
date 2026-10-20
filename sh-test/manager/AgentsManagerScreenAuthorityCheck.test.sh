@@ -14,6 +14,7 @@
 ##      more; its Enqueue is one call more, the same with --escalate-enqueue
 ## Red before F6.10: the answer dialog acts at once, with no confirmation (2, 3 and 4 fail).
 ## Offline: no operation of the real tooling is called, and no ask is read from this machine.
+## Reconciled for F11.5: Pending Questions is the second root, key 2, and the list of the sessions is Active Sessions of Activity (`root active-sessions`).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -55,7 +56,7 @@ rigCase(){ ## name -- a fresh rig: no call noted yet, the ask the stand-in print
 	printf 'answered\t%s\tallow-once\thuman-owner\tconsole:rig\t-\n' "$rigAsk" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-answer"
 }
 rigScriptActs(){ ## the commands of the driver on standard input, after the ones that name the stand-in and the time of day; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:sessions none\nwall 2026-10-13 02:30 +0300\nroot sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:magic-team/activity none\nwall 2026-10-13 02:30 +0300\nroot active-sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -69,7 +70,7 @@ rigCase approve
 rigScriptActs <<'RIGSCRIPT'
 size 120 40
 turn
-keys 3
+keys 2
 wait list 30
 keys DOWN
 wait acts 30
@@ -103,7 +104,7 @@ rigCase cancel
 rigScriptActs <<'RIGSCRIPT'
 size 120 40
 turn
-keys 3
+keys 2
 wait list 30
 keys DOWN
 wait acts 30
@@ -124,7 +125,7 @@ rigCase ok
 rigScriptActs <<'RIGSCRIPT'
 size 120 40
 turn
-keys 3
+keys 2
 wait list 30
 keys DOWN
 wait acts 30
@@ -151,7 +152,7 @@ printf 'PENDING 9f9f9f9f-0000-4000-8000-000000000009 magic-tester\n' > "$MANAGER
 rigScriptActs <<'RIGSCRIPT'
 size 120 40
 turn
-keys 3
+keys 2
 wait list 30
 keys DOWN
 wait acts 30

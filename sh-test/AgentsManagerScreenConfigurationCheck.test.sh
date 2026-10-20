@@ -29,6 +29,7 @@
 ## bigger margins inside its frame (two empty lines under its top, one more under its buttons, three blank cells at
 ## each side), so its box is four cells wider and two lines taller and what it holds stands where it stood.
 ## Reconciled for F11.0, the table lines: two spaces between the columns, an empty line between two rows of a full table, and the columns of a wrapped table reassessed for the fewest lines.
+## Reconciled for F11.5: the list of the sessions is Active Sessions of Activity (`root active-sessions`), and Configuration is the seventh root, key 7.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -125,7 +126,7 @@ rigCase(){ ## name
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize %s\nroot sessions\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize %s\nroot active-sessions\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -186,7 +187,7 @@ echo "-- Configuration holds its two folders ahead of its subjects --"
 rigCase root
 rigScript <<'RIGSCRIPT'
 turn
-keys 8
+keys 7
 wait list 30
 turn
 get in
@@ -211,7 +212,7 @@ rigCase checker
 printf 'sleep 1\n' > "$MANAGER_SCREEN_RIG/mode.--manager-check-run"
 rigScript <<'RIGSCRIPT'
 turn
-keys 8
+keys 7
 wait list 30
 keys DOWN ENTER
 advance 11
@@ -270,7 +271,7 @@ rigCase checkfails
 printf 'fail\n' > "$MANAGER_SCREEN_RIG/mode.--manager-check-run"
 rigScript <<'RIGSCRIPT'
 turn
-keys 8
+keys 7
 wait list 30
 keys DOWN ENTER r
 wait check 30
@@ -283,7 +284,7 @@ echo "-- Server Keys: the groups from the rows, every key whole --"
 rigCase keys
 rigScript <<'RIGSCRIPT'
 turn
-keys 8
+keys 7
 wait list 30
 keys DOWN DOWN ENTER
 wait list 30
@@ -359,7 +360,7 @@ rigCase older
 cp "$rigTmp/older.keys" "$MANAGER_SCREEN_RIG/rows.--manager-keys-list"
 rigScript <<'RIGSCRIPT'
 turn
-keys 8
+keys 7
 wait list 30
 keys DOWN DOWN ENTER
 wait list 30
@@ -384,7 +385,7 @@ cp "$rigTmp/older.keys" "$MANAGER_SCREEN_RIG/rows.--manager-keys-list"
 printf 'fail\n' > "$MANAGER_SCREEN_RIG/mode.--manager-keys-read"
 rigScript <<'RIGSCRIPT'
 turn
-keys 8
+keys 7
 wait list 30
 keys DOWN DOWN ENTER
 wait list 30
@@ -541,7 +542,7 @@ rigCase pty
 mkdir -p "$rigTmp/ws-rig"
 printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigTools" > "$rigTmp/tools"
 chmod +x "$rigTmp/tools"
-rigOut="$( MANAGER_SCREEN_PTY_TRACE='checker=Config Checker|keys=Server Keys' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 100 30 "Sessions (Activity)" '8\p\aServer Keys\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
+rigOut="$( MANAGER_SCREEN_PTY_TRACE='checker=Config Checker|keys=Server Keys' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 100 30 "Magic-Team (Agents)" '7\p\aServer Keys\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
 rigAssert "it draws the folder and ends with status 0, the terminal given back: its folders stand in the list and in the table of the left pane" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft ) $( rigVal pty.modeBack ) [$( rigVal pty.trace )]" "yes 0 yes none yes [checker keys checker keys]"
 
 if [ "$rigFailCount" -ne 0 ] ; then

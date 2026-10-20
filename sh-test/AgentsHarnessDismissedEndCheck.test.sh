@@ -59,7 +59,10 @@ rigYes(){ "$@" > /dev/null 2>&1 && printf yes || printf no ; }
 ## ---------------------------------------------------------------- the served calls
 ## A session of another CLI: each tool call is one served call of this harness, and its run
 ## is a stand-in process that carries the session's id as its own --session-id word.
-rigThread="CSESS001:1700000002.000202"
+## The thread opener is older than every post the fake curl answers for (its ts begin 1700000001.000101): a run's own
+## post is always in a thread that was opened before it, and the wait for replies to that post (AgentsWaitOwnPostReplies.awk)
+## brings any message in the thread newer than the post.
+rigThread="CSESS001:1700000000.000202"
 rigDismissal="1700000200.000001"
 rigNo=0
 rigDir="" rigSpawn="" rigRunPid="" rigQuotePid=""

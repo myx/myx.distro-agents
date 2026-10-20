@@ -53,7 +53,7 @@ echo "-- 5691: item names --"
 rigData="$rigTmp/data"
 mkdir -p "$rigData/board/pending"
 rigCreate(){ ## result file, item name
-	printf -- '---\ntype: task\n---\n' | rigOp "$1" "$rigData" --intern-op-board-upsert-move-edit pending "$2" --create --upsert-from-stdin --context rig
+	printf -- '---\n---\n' | rigOp "$1" "$rigData" --intern-op-board-upsert-move-edit pending "$2" --create --acting-member:rig-member --upsert-from-stdin --context rig
 }
 rigCreate "$rigTmp/n1" task-2026-09-29-foo.md
 rigAssert "a bad name is still created, rc 0"          "$( cat "$rigTmp/n1.rc" ):$( [ -f "$rigData/board/pending/task-2026-09-29-foo.md" ] && printf created || printf absent )" "0:created"

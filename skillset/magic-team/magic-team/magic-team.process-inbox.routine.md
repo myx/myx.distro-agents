@@ -89,8 +89,8 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-inbox-item-read <member> <item-filename> [--start-line <N> --end-line <N>]`
-- `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
+- `--member-inbox-item-read <member> <item-filename> [--include-processed] [--start-line <N> --end-line <N>]`
+- `--member-upsert-member-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
 - `--member-comms-slack-send-message <team-member> <target> [text...]`
 - `--member-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]...`
 

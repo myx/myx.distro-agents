@@ -14,6 +14,7 @@
 ## Not tested, for want of a name: the operation that lists the README and MAGIC files of the build sequence, so the
 ## build order, the `a` key's alphabetical order and the project names are not asserted.
 ## Offline: no operation of the real tooling is called.
+## Reconciled for F11.5: the list of the sessions is Active Sessions of Activity (`root active-sessions`), and Configuration is the seventh root, key 7.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -102,7 +103,7 @@ rigAssert "resting on it: it is Tooling Commands, and --manager-command-list was
 
 echo "-- 4. Configuration holds Tooling Commands no more --"
 rigCase configuration
-rigRun "$rigPre"$'root sessions\n' < <( printf 'turn\nkeys 8\nwait list 30\nturn\n' ; rigCellsCmds )
+rigRun "$rigPre"$'root active-sessions\n' < <( printf 'turn\nkeys 7\nwait list 30\nturn\n' ; rigCellsCmds )
 rigConfiguration="$( rigRows )"
 rigAssert "Configuration's rows are read, and Tooling Commands is none of them" "$( [ -n "$rigConfiguration" ] && echo read || echo none ) $( printf '%s' "$rigConfiguration" | LC_ALL=C grep -q -F '[Tooling Commands]' && echo held || echo gone )" "read gone"
 

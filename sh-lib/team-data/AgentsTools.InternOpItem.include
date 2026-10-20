@@ -9,7 +9,7 @@
 ## Their caller holds the context they act in: a member is the caller's own, never switched to.
 ##
 
-. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsTools.OutputStyle.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
 
 AgentsToolsItemContextScan(){
 	opContext="<no --context given>"
@@ -66,7 +66,7 @@ AgentsToolsItemStaleCheck(){
 	itemRecheck="$( LC_ALL=C awk '/^recheck-date: /{ print substr($0, 15) ; exit ; }' "$path" )"
 	itemSession="$( LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' "$path" )"
 	set +e
-	itemRecheckEpoch="$( printf '%s\n' "$itemRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsIsoToEpoch.awk" 2>/dev/null )"
+	itemRecheckEpoch="$( printf '%s\n' "$itemRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2>/dev/null )"
 	set -e
 	if [ -n "$itemRecheckEpoch" ] && [ "$(( $( date +%s ) - itemRecheckEpoch ))" -lt 60 ] ; then
 		itemHeld="true"

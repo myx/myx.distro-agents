@@ -112,7 +112,7 @@ def sourceText(state, row):
     kinds = {}
     for source in feed["sources"]:
         kinds.setdefault(source["kind"], []).append(source["member"])
-    if row.get("run"):
+    if row.get("run") or row["kind"] == "transcript":
         kind = feed["sources"][0]["kind"] if feed["sources"] else "none"
         if kind == "transcript":
             return "the feed, from its transcript"

@@ -59,10 +59,12 @@ rigOnPath
 ## exports them, so on a machine where the real token is in the environment a rig that
 ## omitted this would write a live credential into its own request log.
 export XAI_API_KEY="rig-not-a-credential"
-## A session key inherited from the client running this check would add an
-## x-grok-conv-id line to the header channel the assertions below count. That header
-## is AgentsHarnessPromptCacheKeyCheck.test.sh's subject, not this check's.
+## The routing key of the prompt cache adds an x-grok-conv-id line to the header channel the
+## assertions below count (a key per workspace, provider and model since F10.7, sent whether a
+## session is named or not). That header is AgentsHarnessPromptCacheKeyCheck.test.sh's subject,
+## not this check's, so this one switches the key off.
 unset CLAUDE_CODE_SESSION_ID MDAT_SPAWN_SESSION_ID
+export HARNESS_PROMPT_CACHE_KEY=off
 
 ## What the leaf declared, read back from what the fake curl inherited -- never typed in,
 ## because both model ids follow the vendor's own model list and the provider name is a label

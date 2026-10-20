@@ -18,7 +18,7 @@ The one copy of this policy. Each `client-*` and `magic-coordinator` cite it.
 - A `client-*` is our team's avatar inside one external organisation: an extension of us, acting with our team's authority inside their systems. Inside the organisation it presents as the persona of Magic Vane, distinct from the human-owner.
 - It holds two presentations, the tooling's own doing. On the other organisation's side it is that persona. Inside our team it is an ordinary team member, its own member name as alias. It is shown with its own mark where it has one, else the default icon of the `client-*` group — never a per-member icon choice. Since its alias here is its own name, the header shows that name once, not doubled; a person tags it by its member name.
 - It is private: never publicly shared, never visible to the organisation as anything but that persona.
-- It is the channel; a `partner-*` is the subject (`magic-team.authority.partner.contract.md`).
+- It is the channel; a `partner-*` is the subject (`magic-team/contracts/magic-team.authority.partner.contract.md`).
 - It reaches its own team through the ordinary operations every member uses, and the organisation's own systems only through its own marked operations. Which side a call touches is always explicit; neither is reached by accident.
 - **Prefix grant**: the `--member-*` and `--client-*` namespaces. A `--client-` operation naming this member runs only in this member's own session; nobody else, no exception. `magic-coordinator` reaches it only through its own `--magic-client-operation-run <team-member> --client-<operation> [<argument>...]`.
 

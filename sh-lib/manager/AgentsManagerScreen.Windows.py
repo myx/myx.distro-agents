@@ -46,8 +46,9 @@ WINDOWS = (
 )
 ## The keys of navigation, which stay with the window that has the keys: a command that applies in one window alone (WINDOWS, "window")
 ## has these keys there alone. Every other key of a command is a button, and works whichever window has the keys: the
-## wrap and the cut of the lines, the raw log, the filter of the list, no Tab needed to reach them.
-NAVIGATION_KEYS = ("ENTER", "LEFT", "RIGHT", "UP", "DOWN", "PGUP", "PGDN", "HOME", "END", " ", "BACKSPACE", "TAB", "ESC")
+## wrap and the cut of the lines, the raw log, the filter of the list, no Tab needed to reach them. The key of the filter line of
+## a table (`/`, as in less) is one of navigation too: it opens a line the left window types into.
+NAVIGATION_KEYS = ("ENTER", "LEFT", "RIGHT", "UP", "DOWN", "PGUP", "PGDN", "HOME", "END", " ", "BACKSPACE", "TAB", "ESC", "/")
 ## The window the keys go to when the screen starts.
 WINDOW_FIRST = "list"
 ## The split between the two windows, which the user moves for the run of the screen: by
@@ -202,7 +203,7 @@ ENGINE_COMMANDS = (
     {"name": "alphabetical", "keys": ("a",), "menu": ("view", 1), "label": "Alpha~b~etical or build order", "status": ("Alphabetical", "Build order"), "toggle": "alphabetical",
      "with": (("list", "alphabetical"),), "does": ("alphabetical",)},
     {"name": "filter", "keys": ("a",), "menu": ("view", 1), "label": "~A~ll or active", "status": ("Active", "All"), "toggle": "activeOnly",
-     "exceptWith": (("list", "alphabetical"),), "does": ("filter",)},
+     "exceptWith": (("list", "alphabetical"), ("list", "unfiltered")), "does": ("filter",)},
     ## the left window's own: its long lines wrapped at words, or cut and scrolled sideways
     ## ("shown": what the status line names its keys by, a pair of keys as one); and the
     ## split between the windows, a step at a time ("split", towards a wider right window
@@ -213,6 +214,10 @@ ENGINE_COMMANDS = (
     {"name": "pan", "keys": ("LEFT", "RIGHT"), "status": "Scroll", "shown": "LEFT/RIGHT", "does": ("pan",)},
     ## in the left window, on a table that is all of it: Enter puts the row cursor on the top row in view, and then opens the row whole
     {"name": "row", "keys": ("ENTER",), "does": ("row",)},
+    ## the table of the left window, where it is all of it: its rows sorted by the next column, and the source order after the last (a button of both
+    ## windows), and the line that narrows them by what is typed (the left window's: it types into its line)
+    {"name": "sort", "keys": ("t",), "menu": ("view", 6), "label": "S~o~rt by the next column", "status": "Sort", "does": ("tablesort",)},
+    {"name": "rows-filter", "keys": ("/",), "menu": ("view", 6), "label": "Fi~l~ter the rows", "status": "Filter", "window": "view", "does": ("tablefilter",)},
     {"name": "split-wider", "keys": ("[",), "menu": ("view", 5), "label": "Wi~d~er list", "does": ("split", 1)},
     {"name": "split-narrower", "keys": ("]",), "menu": ("view", 5), "label": "Narrower lis~t~", "does": ("split", -1)},
     {"name": "style", "keys": ("I", "F9"), "menu": ("view", 3), "label": "Interface ~s~tyle: the next", "does": ("style",)},
@@ -268,6 +273,7 @@ REFUSALS = {
     "open": "%s: this row has nothing to open",
     "absent": "%s: %s",
     "wrapped": "%s: the lines are wrapped, none is cut",
+    "table": "%s: the left window holds no table",
 }
 
 ## The commands of the engine stand in COMMANDS from here, before any plugin is registered.

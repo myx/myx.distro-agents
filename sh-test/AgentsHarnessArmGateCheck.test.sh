@@ -67,10 +67,13 @@ rigEnd(){
 	rigRounds=$(( rigRounds + 1 ))
 	printf 'data: {"choices":[{"index":0,"delta":{"content":"RIG-DONE"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":20}}\ndata: [DONE]\n' > "$rigDir/res.$rigRounds"
 }
+## The prefetch of a spawned member's skill arms its run at the start (F10.8, AgentsPromptPrefetchCheck), and these scenarios are
+## about the read that arms: they run with the prefetch off (MDAT_HARNESS_PREFETCH), where they hold a skillset it would otherwise read.
+rigPrefetch="on"
 ## The model loop, guarded. A spawn id is set unless the scenario asks for none.
 rigLoop(){ ## spawn id or empty
 	env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		MDAT_SKILLSET_ROOT="$rigTmp/skills" ${1:+MDAT_SPAWN_SESSION_ID="$1"} MDAT_SPAWN_SANDBOX_ROOT="$rigDir/sandbox" \
+		MDAT_SKILLSET_ROOT="$rigTmp/skills" ${1:+MDAT_SPAWN_SESSION_ID="$1"} MDAT_SPAWN_SANDBOX_ROOT="$rigDir/sandbox" MDAT_HARNESS_PREFETCH="$rigPrefetch" \
 		RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" RIG_TMP="$rigTmp" RIG_HARNESS="$rigHarness" \
 		HARNESS_PROVIDER_NAME="arm-gate rig" HARNESS_SELF_NAME="AgentsHarnessArmGateCheck.test.sh" \
 		HARNESS_ENDPOINT="https://harness-arm-gate-check.invalid/v1/chat/completions" HARNESS_HOST="harness-arm-gate-check.invalid" \
@@ -189,7 +192,9 @@ rigCall Write "{\"path\":\"$rigTmp/merged/ws/OUT/s.txt\",\"content\":\"rig\"}"
 rigCall Skill "{\"skill\":\"$rigMember\"}"
 rigCall Write "{\"path\":\"$rigTmp/merged/ws/OUT/s.txt\",\"content\":\"rig\"}"
 rigEnd
+rigPrefetch="off"
 rigLoop rig-session-merged
+rigPrefetch="on"
 rm -rf "$rigTmp/skills/$rigMember/SKILL.md" "$rigTmp/skills/magic-team"
 rigAssert "a part of that read does not arm"           "$( rigRedirected 2 )" yes
 rigAssert "the whole read arms"                        "$( cat "$rigDir/ws/OUT/s.txt" 2>/dev/null )" rig

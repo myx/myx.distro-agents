@@ -23,8 +23,12 @@
 ## The menus follow the view, the level the list is at: a menu with no command of the view is not in the bar, the commands
 ## of a view all stand in its menus, and one that does not apply to the row selected is greyed and, tried, says why.
 ## Offline: the only thing the screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
+## Reconciled for F11.5: the list of sixty is Active Sessions of Activity (the `sessions` command of the driver; `..` and the sixty, so 61 rows); its title is the name of the
+## list; `Launch (Start)` and the team are levels of their own, put at with `at`; the key 2 is Pending Questions, 3 Magic-Team (Agents) and 6 Settings; the Go menu holds
+## the mounted levels, so the third item down is Activity; the row that goes up is the one that is no session, and its left window is the table of all sixty: a scroll bar, a count of rows in its bottom border, `/ Filter` and `t Sort`.
 ## Reconciled for F11.0: the spacer under `Launch (Start)` moves each session row of the list one line down, so the
 ## click on the first session lands a line lower in Turbo Vision and B/W.
+## Reconciled for F11.5, the lists of Activity: the key `a` (all or only the active) is not offered there, as it has nothing to take: not in the status line, and not in the menu View.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -90,8 +94,8 @@ rigHas(){ ## tag, text -- how many lines of that screen hold the text
 rigSqueeze(){ ## a line with every run of spaces as one
 	LC_ALL=C sed -e 's/  */ /g'
 }
-rigStart(){ ## the commands every case starts with: the row of counters is read, then the list holds sixty rows and is entered
-	printf 'tools %s\ntable list:pending none\nsize 120 40\nworkspace /somewhere/ws-rig\nclock 12:34:56\nwait sessions 30\ntable list:sessions none\nrowsgen sessions 60\nroot sessions\nkeys ENTER\nturn\n' "$rigTmp/tools"
+rigStart(){ ## the commands every case starts with: the row of counters is read, then the list holds sixty sessions that run (Active Sessions of Activity) and is entered
+	printf 'tools %s\ntable list:pending none\nsize 120 40\nworkspace /somewhere/ws-rig\nclock 12:34:56\nwait sessions 30\ntable list:magic-team/activity none\nsessions %s\nroot active-sessions\nkeys ENTER\nturn\n' "$rigTmp/tools" "$( awk 'BEGIN { for ( i = 1 ; i <= 60 ; i++ ) printf "r%03d=n%03d ", i, i }' )"
 }
 rigRun(){ ## the commands of the driver on standard input, after the ones every case starts with; what it printed is kept in rigOut
 	rigOut="$( { rigStart ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
@@ -128,14 +132,14 @@ rigAssert "the screen starts in the Turbo Vision style, and nothing is drawn pas
 rigAssert "the first line is the menu bar: the system mark, the menus, and at its right end the workspace, the machine and the clock" "$( rigLine a 1 | rigSqueeze )" " ≡ Go Session View Help ws-rig@rig-host 12:34:56 "
 rigAssert "each menu has its hot letter in a look of its own"        "$( rigRole r 1 1 36 )" "mmmmhmmmhmmmmmmmmhmmmmmhmmmmmmmmmmmm"
 rigAssert "the @ between the workspace and the machine has a look of its own, apart from the two names, also with no colour" "[$( rigVal where )] $( rigRole r 1 95 110 ) $( rigRole k 1 95 110 )" "[ws-rig@rig-host  12:34:56] mmmmmm@mmmmmmmmm RRRRRRHRRRRRRRRR"
-rigAssert "each window carries its title in the middle of its top border" "[$( rigVal viewTitle )] [$( rigVal listTitle )]" "[Sessions (Activity) [wrap]] [Sessions (Activity)]"
-rigAssert "the active window, the list, has a double frame with the icons of Turbo Vision, the box that closes and the one that zooms, and the other a single one" "[$( rigVal corners )]" "[┌─────────────────────────── Sessions (Activity) [wrap] ───────────────────────────┐╔═[■]══ Sessions (Activity) ═══[↕]═╗]"
-rigAssert "a list longer than its window has a scroll bar for its right border, and the other window its plain border" "[$( rigVal barTop )][$( rigVal barThumb )][$( rigVal barTrack )][$( rigVal barEnd )] [$( rigVal viewSide )] $( rigVal a.rows )" "[▲][■][▒][▼] [│] 62"
-rigAssert "the bottom borders of the two windows are plain: the counters and the load are the dashboard's" "[$( rigVal foot )] [$( rigVal load )] $( rigVal a.counters | LC_ALL=C grep -c 'load=0.42' )" "[] [] 1"
-rigAssert "the last line names the keys that work now, each key in the look of a hot letter" "[$( rigVal status )] $( rigRole r 40 1 16 )" "[ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut] mhhhhhmmmmmmmhhh"
-rigAssert "Tab makes the other window the active one: the frames change places" "$( rigVal t.focus ) [$( rigVal cornersT )]" "view [╔═[■]═══════════════════════ Sessions (Activity) [wrap] ═══════════════════════[↕]═╗┌────── Sessions (Activity) ───────┐]"
-rigAssert "and the status line names the keys of that window"        "[$( rigVal statusT )]" "[ a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
-rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r001 [ BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "each window carries its title in the middle of its top border" "[$( rigVal viewTitle )] [$( rigVal listTitle )]" "[Active Sessions [wrap]] [Active Sessions]"
+rigAssert "the active window, the list, has a double frame with the icons of Turbo Vision, the box that closes and the one that zooms, and the other a single one" "[$( rigVal corners )]" "[┌───────────────────────────── Active Sessions [wrap] ─────────────────────────────┐╔═[■]════ Active Sessions ═════[↕]═╗]"
+rigAssert "a list longer than its window has a scroll bar for its right border, and so has the other window, whose table of all sixty sessions is longer than it is" "[$( rigVal barTop )][$( rigVal barThumb )][$( rigVal barTrack )][$( rigVal barEnd )] [$( rigVal viewSide )] $( rigVal a.rows )" "[▲][■][▒][▼] [▒] 61"
+rigAssert "the bottom borders of the two windows are plain, but for the count of the rows of a table: the counters and the load are the dashboard's" "[$( rigVal foot )] [$( rigVal load )] $( rigVal a.counters | LC_ALL=C grep -c 'load=0.42' )" "[60 rows] [] 1"
+rigAssert "the last line names the keys that work now, each key in the look of a hot letter" "[$( rigVal status )] $( rigRole r 40 1 16 )" "[ ENTER Open  BSP Up  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut  t Sort] mhhhhhmmmmmmmhhh"
+rigAssert "Tab makes the other window the active one: the frames change places" "$( rigVal t.focus ) [$( rigVal cornersT )]" "view [╔═[■]═════════════════════════ Active Sessions [wrap] ═════════════════════════[↕]═╗┌──────── Active Sessions ─────────┐]"
+rigAssert "and the status line names the keys of that window"        "[$( rigVal statusT )]" "[ / Filter  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut  t Sort]"
+rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r002 [ ENTER Open  BSP Up  k Kill  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 
 echo "-- the menus --"
 rigRun <<'RIGSCRIPT'
@@ -154,7 +158,7 @@ keys ALT-v
 get v
 keys DOWN ENTER
 get chosen
-keys a
+keys TAB
 get keyed
 keys ALT-g t
 get team
@@ -164,17 +168,17 @@ keys ESC ALT-x
 get out
 RIGSCRIPT
 rigAssert "F10 opens the first menu, its bar on its first item"     "$( rigVal m.menu )" "go:dashboard"
-rigAssert "the pull-down is a frame with its items, their keys at the right, and a line between two groups" "$( rigHas m '┌───' ) $( rigHas m '│ Sessions (Activity)      2 │' ) $( rigHas m '│ Exit                    ^X │' ) $( rigHas m '│ Open                 ENTER │' ) $( rigHas m '│ Up one level           BSP │' ) $( rigHas m '├───' ) $( rigHas m '└───' )" "1 1 1 1 1 3 2"
+rigAssert "the pull-down is a frame with its items, their keys at the right, and a line between two groups" "$( rigHas m '┌───' ) $( rigHas m '│ Pending Questions        2 │' ) $( rigHas m '│ Exit                    ^X │' ) $( rigHas m '│ Open                 ENTER │' ) $( rigHas m '│ Up one level           BSP │' ) $( rigHas m '├───' ) $( rigHas m '└───' )" "1 1 1 1 1 3 2"
 rigAssert "the item the bar is on stands in the look of the bar, another has its hot letter in a look of its own, and the pull-down has a shadow" "$( rigRole mr 3 4 9 ) $( rigRole mr 4 4 9 ) $( rigRole mr 4 34 35 )" "moOooo mmhmmm ww"
 rigAssert "the status line names the keys of a menu"                 "$( rigLine m 40 | LC_ALL=C sed -e 's/  *$//' )" " ENTER Choose  ESC Close  ←/→ Menus  UP/DN Items"
-rigAssert "Down moves the bar"                                       "$( rigVal m2.menu )" "go:team"
+rigAssert "Down moves the bar"                                       "$( rigVal m2.menu )" "go:activity"
 rigAssert "Right opens the menu beside it"                           "$( rigVal s.menu )" "session:kill"
 rigAssert "an item that does not apply to the row selected is greyed" "$( rigRole sr 4 9 14 )" "xxxxxx"
 rigAssert "Esc closes the menu"                                      "[$( rigVal closed.menu )]" "[]"
 rigAssert "Alt with the hot letter of a menu opens that menu"        "$( rigVal v.menu )" "view:read"
-rigAssert "Enter chooses the item the bar is on: the menu closes, and the command is done" "[$( rigVal chosen.menu )] $( rigVal chosen.filter )" "[] active"
-rigAssert "the key of that command does the same"                    "$( rigVal keyed.filter )" "all"
-rigAssert "the hot letter of an item chooses it"                     "[$( rigVal team.menu )] $( rigVal team.path )" "[] team"
+rigAssert "Enter chooses the item the bar is on (Next window): the menu closes, and the command is done" "[$( rigVal chosen.menu )] $( rigVal chosen.focus )" "[] view"
+rigAssert "the key of that command does the same: Tab takes the keys back to the list" "$( rigVal keyed.focus )" "list"
+rigAssert "the hot letter of an item chooses it"                     "[$( rigVal team.menu )] $( rigVal team.path )" "[] magic-team/team"
 rigAssert "an item that does not apply is not chosen: the menu stays, nothing is done, and the status line says why" "$( rigVal grey.menu ) [$( rigVal grey.notice )] [$( rigVal grey.dialog )]" "member:start [Start: for a team member, not for what is selected] []"
 rigAssert "Alt-X ends the screen"                                    "$( rigVal out.quit )" "yes"
 
@@ -207,7 +211,7 @@ show hang
 roles hangr
 cells hangTop 1 3 31
 RIGSCRIPT
-rigAssert "Magic menu: no edge row between the bar and the first item, which stands on the line under the bar between its sides, its shadow beside it" "$( rigVal style.refused )[$( rigVal hangTop )] $( rigRole hangr 2 4 6 ) $( rigHas hang '▛' )" "[  Dashboard (Monitor)   1] moO 0"
+rigAssert "Magic menu: no edge row between the bar and the first item, which stands on the line under the bar between its sides, its shadow beside it" "$( rigVal style.refused )[$( rigVal hangTop )] $( rigRole hangr 2 4 6 ) $( rigHas hang '▛' )" "[  Dashboard (Monitor)   1  ▁] moO 0"
 rigAssert "and its bottom a thin line, the shadow half a line under it (the lines over and under the windows hold such a line too)" "$( rigHas hang "$( rigRepeat ▁ 27 )" ) $( rigHas hang "$( rigRepeat ▄ 27 )" )" "3 1"
 rigAssert "Magic menu: its shadow at its right starts beside its second item; beside its first stays what lies there" "$( [ "$( rigRole hangr 2 31 31 )" = z ] && echo shadow || echo under ) $( rigRole hangr 3 31 31 )" "under z"
 rigRun <<'RIGSCRIPT'
@@ -221,8 +225,8 @@ turn
 roles edr
 cells edTop 1 0 120
 RIGSCRIPT
-rigAssert "Magic windows: each title a tab at the left of the line over it, three cells in" "$( rigVal style.refused )[$( rigVal edTop )]" "[$( rigRepeat ▁ 3 ) Sessions (Activity) [wrap] $( rigRepeat ▁ 52 ) $( rigRepeat ▁ 3 ) Sessions (Activity) $( rigRepeat ▁ 11 )]"
-rigAssert "Magic windows: the shadow of the right column starts beside a window's second line; beside its first stays the desktop, as beside its top" "$( rigRole edr 2 84 84 ) $( rigRole edr 3 84 84 ) $( rigRole edr 4 84 84 )" "v v w"
+rigAssert "Magic windows: each title a tab at the left of the line over it, three cells in" "$( rigVal style.refused )[$( rigVal edTop )]" "[$( rigRepeat ▁ 3 ) Active Sessions [wrap] $( rigRepeat ▁ 56 ) $( rigRepeat ▁ 3 ) Active Sessions $( rigRepeat ▁ 15 )]"
+rigAssert "Magic windows: the shadow of the right column starts beside a window's second line; beside its first stays the desktop, as beside its top" "$( rigRole edr 2 84 84 ) $( rigRole edr 3 84 84 ) $( rigRole edr 4 84 84 )" "v v |"
 
 echo "-- Magic's scroll bar: in the cells of the shadow, a line lower than in the other styles, its arrows and thumb ▍ white on the shadow's black, grey and ▎ in another window --"
 rigRun <<'RIGSCRIPT'
@@ -299,14 +303,12 @@ cells cFirstRow 2 85 119
 mouse click 100 5
 get cClick
 RIGSCRIPT
-	rigAssert "in $rigStyle the first row stands right under the top, as before" "$( rigVal cFirstRow | LC_ALL=C grep -c -F '..' ) $( rigVal c.viewHeight ) $( rigVal c.listHeight ) $( rigVal cClick.index )" "1 $rigTvHeights 2"
+	rigAssert "in $rigStyle the first row stands right under the top, as before" "$( rigVal cFirstRow | LC_ALL=C grep -c -F '..' ) $( rigVal c.viewHeight ) $( rigVal c.listHeight ) $( rigVal cClick.index )" "1 $rigTvHeights 3"
 done
 
 echo "-- the menus follow the view --"
 rigRun <<'RIGSCRIPT'
 cells barSessions 0 0 40
-keys DOWN DOWN
-turn
 keys ALT-s
 show ss
 roles ssr
@@ -316,18 +318,19 @@ keys ESC k
 get byKey
 keys n
 get otherView
-keys 2 PGUP DOWN ENTER
+at @activity launch
 turn
 cells barLaunch 0 0 40
 keys ALT-s
 show sl
-keys ESC 3
+keys ESC 2
 turn
 cells barPending 0 0 40
-keys 4
+at @team
+turn
 turn
 cells barTeam 0 0 40
-keys 7
+keys 6
 turn
 cells barSettings 0 0 40
 keys LEFT
@@ -344,8 +347,8 @@ rigAssert "in a view every command of it stands in its menu, and none of another
 rigAssert "and Launch (Start), whose menu of the same name holds its two alone" "$( rigHas sl '│ Start the routine' ) $( rigHas sl '│ Free prompt' ) $( rigHas sl '│ Kill ' ) $( rigHas sl '│ Pause' )" "1 1 0 0"
 rigAssert "one that does not apply to the row selected is greyed" "$( rigRole ssr 6 9 14 )" "xxxxxx"
 rigAssert "clicked, it is not chosen: the menu stays, and the status line says why" "$( rigVal clicked.menu ) [$( rigVal clicked.notice )] [$( rigVal clicked.dialog )]" "session:pause [Pause is not built yet] []"
-rigAssert "tried by its key, it says why in the status line, and no box opens" "[$( rigVal byKey.notice )] [$( rigVal byKey.dialog )]" "[Kill: not for what is selected, as it is now] []"
-rigAssert "the key of a command of another view is no key here: nothing opens, and the status line keeps what it said" "[$( rigVal otherView.notice )] [$( rigVal otherView.dialog )]" "[Kill: not for what is selected, as it is now] []"
+rigAssert "tried by its key, it says why in the status line, and no box opens" "[$( rigVal byKey.notice )] [$( rigVal byKey.dialog )]" "[Kill: for a session or an agent, not for what is selected] []"
+rigAssert "the key of a command of another view is no key here: nothing opens, and the status line keeps what it said" "[$( rigVal otherView.notice )] [$( rigVal otherView.dialog )]" "[Kill: for a session or an agent, not for what is selected] []"
 
 echo "-- the styles --"
 rigRun <<'RIGSCRIPT'
@@ -370,17 +373,17 @@ rigAssert "a name that is no style is refused, and the style stays"  "$( rigVal 
 rigAssert "the compact style is retired: its name is no style any more" "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^style.refused=//p' | LC_ALL=C tr '\n' ' ' )$( rigVal retired.style )" "nonsense mc tv"
 
 echo "-- the real screen, on a terminal with colours and on one with none --"
-rigPty 100 30 "Sessions (Activity)" '\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
+rigPty 100 30 "Magic-Team (Agents)" '\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
 rigAssert "on a terminal with colours the screen comes up in its colours, and Alt-X ends it with status 0" "$( rigVal pty.frame ) $( rigVal pty.colours ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft )" "yes yes 0 yes none"
-MANAGER_SCREEN_PTY_TERM=vt100 rigPty 100 30 "Sessions (Activity)" '\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
+MANAGER_SCREEN_PTY_TERM=vt100 rigPty 100 30 "Magic-Team (Agents)" '\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
 rigAssert "on a terminal with no colours it comes up all the same, and sets none" "$( rigVal pty.frame ) $( rigVal pty.colours ) $( rigVal pty.rc ) $( rigVal pty.errorAfterLeft )" "yes no 0 none"
-rigPty 100 30 "Sessions (Activity)" '\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" --style bw
+rigPty 100 30 "Magic-Team (Agents)" '\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" --style bw
 rigAssert "started in the style Basic B/W it sets no colour on a terminal that has them" "$( rigVal pty.frame ) $( rigVal pty.colours ) $( rigVal pty.rc )" "yes no 0"
-MDAT_MANAGER_STYLE=mc rigPty 100 30 "Sessions (Activity)" '\x18' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
+MDAT_MANAGER_STYLE=mc rigPty 100 30 "Magic-Team (Agents)" '\x18' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
 rigAssert "the environment names the retired compact style: the default comes up instead, in its colours, and Ctrl-X ends it" "$( rigVal pty.frame ) $( rigVal pty.colours ) $( rigVal pty.shades ) $( rigVal pty.rc )" "yes yes no 0"
-MANAGER_SCREEN_PTY_TERM=xterm-256color rigPty 100 30 "Sessions (Activity)" '\x18' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" --style magic
+MANAGER_SCREEN_PTY_TERM=xterm-256color rigPty 100 30 "Magic-Team (Agents)" '\x18' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" --style magic
 rigAssert "started in Magic on a terminal of 256 colours it sets the shades of that palette, and Ctrl-X ends it" "$( rigVal pty.frame ) $( rigVal pty.shades ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft )" "yes yes 0 yes none"
-rigPty 100 30 "Sessions (Activity)" '\x18' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" --style magic
+rigPty 100 30 "Magic-Team (Agents)" '\x18' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" --style magic
 rigAssert "and on a terminal of eight colours in the eight" "$( rigVal pty.frame ) $( rigVal pty.colours ) $( rigVal pty.shades ) $( rigVal pty.rc )" "yes yes no 0"
 
 echo "-- the machine's name stands whole: in a narrow top line the workspace gives way first, then the seconds, then the start of the machine's name --"
@@ -418,15 +421,15 @@ RIGSCRIPT
 done
 
 echo "-- the exit: Esc and then x as a terminal sends it and as a hand types it, Ctrl-X, and what Option types on a Mac --"
-rigPty 100 30 "Sessions (Activity)" '\e\px' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
+rigPty 100 30 "Magic-Team (Agents)" '\e\px' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
 rigAssert "Esc, and x a moment after it, typed by hand, ends the real screen in Turbo Vision" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft )" "yes 0 yes none"
-rigPty 100 30 "Sessions (Activity)" '\e\px' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" --style bw
+rigPty 100 30 "Magic-Team (Agents)" '\e\px' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" --style bw
 rigAssert "and in Basic B/W"                                          "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left )" "yes 0 yes"
-rigPty 100 30 "Sessions (Activity)" '\x18' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
+rigPty 100 30 "Magic-Team (Agents)" '\x18' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
 rigAssert "Ctrl-X ends the real screen: the key every terminal delivers" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft )" "yes 0 yes none"
-rigPty 100 30 "Sessions (Activity)" 'm\p\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
+rigPty 100 30 "Magic-Team (Agents)" 'm\p\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
 rigAssert "with a menu open, Esc with x at once ends the real screen too, as the menu declares" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left )" "yes 0 yes"
-rigOut="$( "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 100 30 "Sessions (Activity)" '?\p\ex' 3 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
+rigOut="$( "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 100 30 "Magic-Team (Agents)" '?\p\ex' 3 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
 rigAssert "with a dialog open it ends nothing: no key of the screen works in a dialog, and the screen runs on" "$( rigVal pty.frame ) $( rigVal pty.rc )" "yes timeout"
 rigScript <<'RIGSCRIPT'
 size 120 40
@@ -457,9 +460,15 @@ size 120 40
 turn
 keys ©
 get g
-keys ESC 2 ß
+keys ESC
+at @activity active-sessions
+turn
+keys ß
 get s
-keys ESC 4 µ
+keys ESC
+at @team
+turn
+keys µ
 get m
 keys ESC √
 get v
@@ -471,7 +480,7 @@ keys ≈
 get x
 RIGSCRIPT
 rigAssert "what Option types on a Mac opens the menu of that letter, where the view has that menu: g, s among the sessions, m in the team, v, h" "$( rigVal g.menu ) $( rigVal s.menu ) $( rigVal m.menu ) $( rigVal v.menu ) $( rigVal h.menu )" "go:dashboard session:kill member:start view:read help:help"
-rigAssert "Option with a digit goes to that section, and Option with x ends the screen" "$( rigVal two.path ) $( rigVal x.quit )" "pending yes"
+rigAssert "Option with a digit goes to that section, and Option with x ends the screen" "$( rigVal two.path ) $( rigVal x.quit )" "magic-team yes"
 rigScript <<'RIGSCRIPT'
 size 120 40
 turn

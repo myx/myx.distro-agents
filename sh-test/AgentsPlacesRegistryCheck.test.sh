@@ -31,7 +31,7 @@ rigFn="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigFn" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include" "$rigHere/member/AgentsTools.MemberHomes.include" "$rigHere/member/AgentsTools.MemberWorkspace.include" ; do
+for rigFile in "$rigFn" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include" "$rigHere/member/AgentsTools.MemberHomes.include" "$rigHere/member/AgentsTools.MemberWorkspace.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 rigMyxCommon="$( command -v myx.common 2>/dev/null )"
@@ -174,7 +174,7 @@ rigAssert "every update registers the workspace: --make-workspace-integrations r
 rigAssert "the member install registers no workspace" "$( LC_ALL=C grep -c -e '--owner-workspace-upsert' -e 'directories.registry' "$rigHere/config/AgentsTools.Install.include" )" 0
 rigAssert "the * grant expansion walks the known workspace roots, this workspace first" "$( LC_ALL=C grep -c 'agentsGrantsRoots="$( AgentsToolsPlacesWorkspaceRoots "$regWs" )"' "$rigHere/grants/AgentsTools.Grants.include" )" 1
 rigRoots(){ ## workspace name -- AgentsToolsPlacesWorkspaceRoots from there under rigRunHome
-	env -i HOME="$rigRunHome" PATH=/usr/bin:/bin MMDAPP="$rigTmp/$1" bash -c '. "$1/AgentsTools.Places.include" ; AgentsToolsPlacesWorkspaceRoots "$MMDAPP"' rig "$rigHere/../../myx.distro-.local/sh-lib/registry" | rigCut | LC_ALL=C tr '\n' ' '
+	env -i HOME="$rigRunHome" PATH=/usr/bin:/bin MMDAPP="$rigTmp/$1" bash -c '. "$1/AgentsTools.Places.include" ; AgentsToolsPlacesWorkspaceRoots "$MMDAPP"' rig "$rigHere/team-data" | rigCut | LC_ALL=C tr '\n' ' '
 }
 rigAssert "the known workspace roots: this one first, then the workspace rows, then the pointer roots" "$( rigRoots ws-main )" "T/ws-main T/ws-side T/ws-two T/ws-three "
 ## The earlier list, under a HOME of its own: a trailing slash, a comment, a relative line,

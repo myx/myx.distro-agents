@@ -26,7 +26,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigRegInclude="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+rigRegInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 rigMakeInclude="$rigHere/config/AgentsTools.Make.include"
 rigBuilders="$rigPackage/builders/source-prepare"
 rigOne="--make-harness-indices"
@@ -408,7 +408,7 @@ while [ "$rigAtOnceRound" -lt 3 ] ; do
 	rigAtOncePids="$rigAtOncePids $!"
 	for rigAtOnceNo in 1 2 ; do
 		( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
-			bash -c '. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild' ) \
+			bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild' ) \
 			> "$rigTmp/at-once.$rigAtOnceRound.$rigAtOnceNo.out" 2> "$rigTmp/at-once.$rigAtOnceRound.$rigAtOnceNo.err" < /dev/null &
 		rigAtOncePids="$rigAtOncePids $!"
 	done

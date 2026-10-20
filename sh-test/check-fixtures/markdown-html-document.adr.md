@@ -16,7 +16,7 @@ already does.
 
 ## Decision
 
-Add a document mode, `AgentsMarkdownHtmlDocument.awk`, beside the email mode:
+Add a document mode, `LocalMarkdownHtmlDocument.awk`, beside the email mode:
 
 1. Keep the email converter byte-for-byte unchanged.
 2. Convert headings, lists, tables, quotes and images.

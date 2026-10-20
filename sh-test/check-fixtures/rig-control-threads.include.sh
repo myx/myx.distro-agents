@@ -22,6 +22,13 @@
 ## read as notes of the process helper, `<pid> <start>`, so a process is signalled only while its pid is still
 ## the process that began then: a pid another process has taken since is never signalled.
 ##
+## AND THE COMMUNICATIONS READER (F9.3), the one detached process of the workspace that the spawner starts beside a
+## session's control thread (sh-lib/session/AgentsTools.SessionComms.include): its start line is in comms/log of the
+## workspace and its lock, comms/lock, names it, both read here the same way.
+##
+## AND THE THREAD OF THE SOURCES A SCAN READS (F4.2), the same: its start line is in collect/thread.log and its lock, collect/thread.lock,
+## names it (sh-lib/collect/AgentsTools.CollectThread.include).
+##
 ##   rigControlThreadNotes <dir>...   the notes found under those rig trees, `<pid> <start>` a line
 ##   rigControlThreadsEnd <dir>...    ends every such process that is still itself, with what it started (the
 ##                                    sleep it waits on), the hard way: nothing of it is wanted any more
@@ -33,6 +40,12 @@ rigControlThreadNotes(){ ## dir...
 	PATH="$rigProcPath" find "$@" -path '*/control/log' -type f -exec cat {} + 2> /dev/null \
 		| PATH="$rigProcPath" LC_ALL=C sed -n 's/^.* a start of the control thread of session .* is made: pid \([0-9][0-9]*\), begun \([^ ]*\)$/\1 \2/p'
 	PATH="$rigProcPath" find "$@" -path '*/control/pid' -type f -exec cat {} + 2> /dev/null
+	PATH="$rigProcPath" find "$@" -path '*/comms/log' -type f -exec cat {} + 2> /dev/null \
+		| PATH="$rigProcPath" LC_ALL=C sed -n 's/^.* a start of the communications reader is made: pid \([0-9][0-9]*\), begun \([^ ]*\)$/\1 \2/p'
+	PATH="$rigProcPath" find "$@" -path '*/comms/lock' -type l -exec readlink {} \; 2> /dev/null
+	PATH="$rigProcPath" find "$@" -path '*/collect/thread.log' -type f -exec cat {} + 2> /dev/null \
+		| PATH="$rigProcPath" LC_ALL=C sed -n 's/^.* a start of the source collector is made: pid \([0-9][0-9]*\), begun \([^ ]*\)$/\1 \2/p'
+	PATH="$rigProcPath" find "$@" -path '*/collect/thread.lock' -type l -exec readlink {} \; 2> /dev/null
 	return 0
 }
 

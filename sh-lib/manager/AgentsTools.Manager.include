@@ -49,7 +49,7 @@ case "$1" in
 
 	## The most vital figures of this workspace and of its machine, in blocks a screen draws.
 	--manager-dashboard-*)
-		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/dashboard/AgentsTools.ManagerDashboard.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include"
 		return $?
 	;;
 

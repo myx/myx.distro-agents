@@ -32,22 +32,20 @@ def registryDate(value):
     return unspaced(value) + (" (%s ago)" % age if age else "")
 
 
-## What `--manager-session-list` printed, as rows by level: rows of TAB-separated fields,
-## the first naming the row. A `session` row is followed by its `run` rows, and the one
-## `counters` row is the last line (readCounters). The sessions keep the order they come
-## in, the newest first; each is a level of its own that holds its runs, the agents.
-## A session shows by its name, or by its id where it has none, and an agent by its
-## member, each with its state at the end of its row, and for a live agent its activity.
-## A session that is one lone run with no name is no work session to look at: it shows
-## plainer, dimmed, by the member that ran and the head of its id.
+## What `--manager-session-list` printed, as the rows of its sessions: rows of TAB-separated
+## fields, the first naming the row. A `session` row is followed by its `run` rows, which are
+## the runs of that session, its agents, and the one `counters` row is the last line
+## (readCounters). The sessions keep the order they come in, the newest first.
+## A session shows by its name, or by its id where it has none, with its state at the end of
+## its row. A session that is one lone run with no name is no work session to look at: it
+## shows plainer, dimmed, by the member that ran and the head of its id.
 ## After its eight fields a `session` row says of the control thread of the session, the
 ## tooling's own process that watches its runs: the state that thread stored, when, and
 ## whether it is `alive`, `gone` or `none`. A session whose thread is gone carries the mark
 ## of a process that is gone (MARK_GONE) ahead of its state; one whose thread lives, or that
 ## has none, carries no mark. A row of the eight fields alone says nothing of it: `-`.
-def parseSessionLevels(text):
-    level = pluginLevel("sessions")
-    levels = {level: []}
+def parseSessionRows(text):
+    rows = []
     sessions = {}
     for line in text.splitlines():
         fields = line.split("\t")
@@ -64,27 +62,47 @@ def parseSessionLevels(text):
                 session["tokens"] = fields[11]
                 row["wide"] = tokensShort(fields[11])
             sessions[fields[1]] = row
-            levels[level].append(row)
-            levels[level + "/" + fields[1]] = []
+            rows.append(row)
         elif fields[0] == "run" and len(fields) >= 12 and fields[1] in sessions:
-            runs = levels[level + "/" + fields[1]]
-            run = {"session": fields[1], "spawn": fields[2], "member": fields[3], "status": fields[4],
-                   "live": fields[5], "state": fields[6], "started": fields[7], "resolved": fields[8],
-                   "host": fields[9], "workspace": fields[10], "activity": fields[11]}
-            row = newRow(fields[2] if fields[2] != "-" else "-%d" % len(runs), fields[3], "record", False, fields)
-            row["run"] = run
-            row["tail"] = runStateText(run)
-            row["look"] = BOLD if run["live"] == "running" else PLAIN
-            sessions[fields[1]]["session"]["runs"].append(run)
-            runs.append(row)
-    for row in levels[level]:
+            sessions[fields[1]]["session"]["runs"].append({
+                "session": fields[1], "spawn": fields[2], "member": fields[3], "status": fields[4],
+                "live": fields[5], "state": fields[6], "started": fields[7], "resolved": fields[8],
+                "host": fields[9], "workspace": fields[10], "activity": fields[11]})
+    for row in rows:
         session = row["session"]
         if not session["name"] and len(session["runs"]) == 1:
             session["lone"] = True
             row["label"] = "%s %s" % (session["runs"][0]["member"], session["id"][:8])
             if row["look"] == PLAIN:
                 row["look"] = DIM
-    return levels
+    return rows
+
+
+## The private place of the rows of the sessions of the last read of the list, among the rows the screen holds (state.rows):
+## no level of the list is its own. Every list of `Activity` is made from these rows, and so is every list of the
+## sessions of a member (the lists of ACTIVITY_LISTS, derivedRows).
+SESSIONS_OF = "store:sessions"
+
+
+## What `--manager-session-list` printed, as what the screen keeps of it (SESSIONS_OF).
+def parseSessionLevels(text):
+    return {SESSIONS_OF: parseSessionRows(text)}
+
+
+## The rows of the sessions the last read of the list gave, or None until it has answered.
+def sessionRowsHeld(state):
+    return state.rows.get(SESSIONS_OF)
+
+
+## A participant of a session, an agent, as a row of a list: its member, its state at the end of its row and for a live one
+## its activity. It is a folder (`CheckList`, `Transcript`, `Permissions`), but one that has no id of its own is not: nothing is
+## read of it. Its id is the id of its run, or where it has none the place it stands in, `-` and a number.
+def participantRow(run, rowId, label):
+    row = newRow(rowId, label, "record", run["spawn"] != "-")
+    row["run"] = run
+    row["tail"] = runStateText(run)
+    row["look"] = BOLD if run["live"] == "running" else PLAIN
+    return row
 
 
 ## The total of the tokens of a session as its list row gives it, short: the number as
@@ -270,25 +288,46 @@ def membersText(session):
     return ", ".join(names)
 
 
-## What `Sessions (Activity)` holds, for the left pane while the section itself or the row
-## that goes up is selected: as its caption how many sessions, by the states the rows hold,
-## those its declaration counts first (SUMMARIES) ahead of the others, and the agents of the
-## workspace working and waiting; then every session of the list, in its order, as a table
-## (tableSummaryLines): its state in its colour, with the mark of a control thread that is
-## gone, how long ago it started, how many agents, its tokens and the members that run in
-## it. None until its read has answered.
-def sessionsSummary(state, path, row, form):
-    rows = state.rows.get(levelKey(path))
-    if rows is None:
-        return None
-    held = [one for one in rows if one.get("session")]
+## The sessions of the rows given, for the left pane, as a table (tableSummaryLines): each by its name, its state in its
+## colour, with the mark of a control thread that is gone, how long ago it started, how many agents, its tokens and the members
+## that run in it. The row of the table of every list of sessions, the root of `Activity` among them.
+def sessionsTable(state, held):
     if not held:
-        return ["No %ssessions." % ("active " if state.activeOnly else "")]
+        return ["No sessions."]
     now = nowEpoch()
     return tableSummaryLines(state, ("SESSION", "STATE", "AGE", "AGENTS", "TOKENS", "MEMBERS"), [
         [one["label"], one["tail"], ageText(registryEpoch(one["session"]["started"]), now) or "-", one["session"]["count"],
          tokensShort(one["session"]["tokens"]) if one["session"].get("tokens") else "-", membersText(one["session"]) or "-"] for one in held],
         ("key", "enum", "text", "text", "text", "text"), looks=[[None, stateLook(one["tail"])] + [None] * 4 for one in held])
+
+
+## What `Activity` holds, for the left pane while the section itself or the row that goes up is selected: every session
+## of the workspace, in the table of the sessions (sessionsTable). None until the list has answered.
+def activitySummary(state, path, row, form):
+    rows = sessionRowsHeld(state)
+    return None if rows is None else sessionsTable(state, rows)
+
+
+## What a list of sessions holds, for the left pane while the folder is selected, or the row that goes up: the sessions of
+## that list in the table of the sessions. None until the list has answered. The sessions of a member are one.
+def sessionsSummary(state, path, row, form):
+    rows = listedRows(state, path)
+    return None if rows is None else sessionsTable(state, [one for one in rows if one.get("session")])
+
+
+## What a list of agents holds, for the left pane, in the same way: each agent by its member, its state in its colour, the
+## session it works in and how long ago it started. None until the list of the sessions has answered.
+def agentsSummary(state, path, row, form):
+    rows = listedRows(state, path)
+    if rows is None:
+        return None
+    held = [one for one in rows if one.get("run")]
+    if not held:
+        return ["No agents."]
+    now = nowEpoch()
+    return tableSummaryLines(state, ("AGENT", "STATE", "SESSION", "AGE"), [
+        [one["run"]["member"], one["tail"], one["inSession"], ageText(registryEpoch(one["run"]["started"]), now) or "-"] for one in held],
+        ("key", "enum", "text", "text"), looks=[[None, stateLook(one["tail"]), None, None] for one in held])
 
 
 ## ---- the routines to start by hand: `Launch (Start)` ----
@@ -395,7 +434,7 @@ def routinesSummary(state, path, row, form):
 
 ## The row of a session in the list of the sessions, by its id, or None.
 def sessionRowOf(state, sessionId):
-    for row in pluginRows(state, "sessions"):
+    for row in sessionRowsHeld(state) or ():
         if row["id"] == sessionId and row.get("session"):
             return row
     return None
@@ -408,12 +447,11 @@ def sessionRowOf(state, sessionId):
 def killTargetOf(state, row):
     if row is None:
         return None
-    level = levelPattern(state.path)
-    if level == pluginLevel("sessions") and row.get("session") and row["session"]["id"] not in ("", "-"):
+    if row.get("session") and row["session"]["id"] not in ("", "-"):
         session = row["session"]
         return {"kind": "session", "id": session["id"], "label": row["label"], "session": session,
                 "runs": [run for run in session["runs"] if run["live"] == "running"]}
-    if level == pluginLevel("sessions", "*") and row.get("run"):
+    if row.get("run"):
         run = row["run"]
         sessionRow = sessionRowOf(state, run["session"])
         return {"kind": "run", "id": run["spawn"], "label": run["member"], "run": run,
@@ -773,7 +811,7 @@ def killAnswer(text):
 ## The session `c` acts on at that row, or None where the row is no session: the control
 ## thread is a session's, so an agent of one, a section and `Launch (Start)` have none.
 def controlTargetOf(state, row):
-    if row is None or levelPattern(state.path) != pluginLevel("sessions") or not row.get("session"):
+    if row is None or not row.get("session"):
         return None
     return row["session"] if row["session"]["id"] not in ("", "-") else None
 
@@ -1057,78 +1095,306 @@ ACTION_FITS["unstarted"] = unstartedFits
 ACTION_REFUSALS["kill"] = killRefusal
 ACTION_REFUSALS["launch"] = launchRefusal
 
+## What the left pane shows of the row selected in a list of sessions, among the participants of a session, and in a list of
+## agents: the facts of a session or of an agent, its summary. The log of a participant is its Transcript's (participantFocus).
+## None where the row has nothing of its own to show.
+def sessionsFocus(state, row):
+    if row.get("session"):
+        return sessionLines(row["session"], state.viewWidth, state.view["info"], wrap=state.wrap)
+    if row.get("run"):
+        return runLines(row["run"], state.viewWidth, state.view["info"])
+    return None
 
-## ---- the plugin: `Sessions (Activity)` ----
+
+## ... of the item selected in the folder of a participant: at its `Transcript` the summary of the participant, unless the log or
+## the raw log is shown (the modes of the left window are that item's), which the pane then draws from its feed; at its `CheckList`
+## nothing of its own, since the pane shows the text that was read, rendered as Markdown is.
+def participantFocus(state, row):
+    run = participantRunAt(state, state.path)
+    if run is None or row["kind"] != "transcript" or logShown(state, row):
+        return None
+    return runLines(run, state.viewWidth, state.view["info"])
+
+
+## ... of the row selected in `Launch (Start)`: the routine, or the free prompt.
+def launchFocus(state, row):
+    if row.get("routine"):
+        return routineLines(row["routine"], state.viewWidth)
+    if row["kind"] == "free":
+        return freePromptLines(state.viewWidth)
+    return None
+
+
+## ---- the lists of `Activity`: made from the rows of the sessions the list read gave ----
+
+## The sessions that are not closed, in the order of the list: every one that is not finished.
+def activeSessionRows(state, path):
+    held = sessionRowsHeld(state)
+    return None if held is None else [one for one in held if one["session"]["state"] != SESSION_FINISHED]
+
+
+## The sessions that are closed: those that are finished.
+def closedSessionRows(state, path):
+    held = sessionRowsHeld(state)
+    return None if held is None else [one for one in held if one["session"]["state"] == SESSION_FINISHED]
+
+
+## The tokens of a session as a number, from its row of the list: the sum it gives, the `+` that ends it where some of its runs
+## are not counted in left off. None where the list gave no figure.
+def tokensNumber(row):
+    value = row["session"].get("tokens", "")
+    value = value[:-1] if value.endswith("+") else value
+    return int(value) if value.isdigit() else None
+
+
+## The sessions whose tokens are known, the ones that ate most first; those with equal tokens keep the order of the list.
+def topTokenRows(state, path):
+    held = sessionRowsHeld(state)
+    if held is None:
+        return None
+    return [one for number, one in sorted(((tokensNumber(one), one) for one in held if tokensNumber(one) is not None), key=lambda pair: -pair[0])]
+
+
+## The agents of every session that a test says to keep, in the order of the sessions, each by its member and the session it works
+## in. Its id is the id of its run, or where it has none the session it is in and the place it stands in there.
+def agentRows(state, keep):
+    held = sessionRowsHeld(state)
+    if held is None:
+        return None
+    rows = []
+    for one in held:
+        for index, run in enumerate(one["session"]["runs"]):
+            if keep(run):
+                row = participantRow(run, run["spawn"] if run["spawn"] != "-" else "-%s.%d" % (run["session"], index), "%s  %s" % (run["member"], one["label"]))
+                row["inSession"] = one["label"]
+                rows.append(row)
+    return rows
+
+
+## The agents that work: the runs that are not finished and do not sit in a Wait. One that sits in a Wait is in `Waiting Agents`, and no run
+## is in both lists.
+def activeAgentRows(state, path):
+    return agentRows(state, lambda run: run["state"] != SESSION_FINISHED and run["activity"] != "waiting")
+
+
+## The agents that sit in a Wait now: the runs that are alive and wait.
+def waitingAgentRows(state, path):
+    return agentRows(state, lambda run: run["activity"] == "waiting")
+
+
+## The agents that are closed: the runs that are finished.
+def closedAgentRows(state, path):
+    return agentRows(state, lambda run: run["state"] == SESSION_FINISHED)
+
+
+## The participants of the session the level at that path is: its agents, in the order of its runs. The session is found among
+## the sessions of the list read (the sessions of a member are there too), and where it is not there, among the rows of the list the
+## level was entered from. None until one of them has been read.
+def participantRows(state, path):
+    found = sessionRowOf(state, path[-1])
+    if found is None:
+        for one in listedRows(state, path[:-1]) or ():
+            if one["id"] == path[-1] and one.get("session"):
+                found = one
+                break
+    if found is None:
+        return None if listedRows(state, path[:-1]) is None else []
+    return [participantRow(run, run["spawn"] if run["spawn"] != "-" else "-%d" % index, run["member"])
+            for index, run in enumerate(found["session"]["runs"])]
+
+
+## ---- the folder of a participant: `CheckList`, `Transcript`, `Permissions` ----
+
+## What a participant of a session holds, in its order: the id of each item, what it shows as, the kind of its row, and whether Enter
+## dives into it. The id of the check list ends in `.md`, since the text it shows is Markdown and is known by that (markdownShown).
+PARTICIPANT_ITEMS = (("checklist.md", "CheckList", "checklist", False), ("transcript", "Transcript", "transcript", False),
+                     ("permissions", "Permissions", "grants", True))
+
+
+## The levels, as the registries name them, that are the folder of a participant: below a session of each of the lists of sessions
+## of `Activity` and of a member, and in each of the lists of agents.
+def participantFolderLevels():
+    found = [pluginLevel("activity", name + "/*/*") for name, label, function in ACTIVITY_SESSION_LISTS]
+    found += [pluginLevel("activity", name + "/*") for name, label, function in ACTIVITY_AGENT_LISTS]
+    found.append(pluginLevel("team", "*/sessions/*/*"))
+    return [level for level in found if level]
+
+
+## The path of the folder of the participant that the level at that path is or lies in (its `Permissions`), or None.
+def participantFolderOf(state, path):
+    pattern = levelPattern(path)
+    folders = participantFolderLevels()
+    if pattern in folders:
+        return list(path)
+    if pattern.endswith("/permissions") and pattern[:-len("/permissions")] in folders:
+        return list(path[:-1])
+    return None
+
+
+## The run of the participant whose folder is at that path: its row is in the list above it. None where there is none.
+def participantRunAt(state, folder):
+    folder = participantFolderOf(state, folder)
+    for one in (listedRows(state, folder[:-1]) if folder else None) or ():
+        if one["id"] == folder[-1] and one.get("run"):
+            return one["run"]
+    return None
+
+
+## What the reads of a participant's folder are made by, as the words of an operation ({session}, {member} and {run}), and nothing
+## at a level that is no participant's.
+def participantValues(state, path):
+    run = participantRunAt(state, path)
+    return {"session": run["session"], "member": run["member"], "run": run["spawn"]} if run else {}
+
+
+## ---- the plugin: `Activity` ----
+
+## The lists `Activity` holds besides `Launch (Start)`, in their order: the id, what it shows as, and the function that gives its rows
+## from the sessions of the list read (derived).
+ACTIVITY_SESSION_LISTS = (
+    ("active-sessions", "Active Sessions", "activeSessionRows"),
+    ("closed-sessions", "Closed Sessions", "closedSessionRows"),
+    ("top-tokens", "Top Tokens", "topTokenRows"),
+)
+ACTIVITY_AGENT_LISTS = (
+    ("active-agents", "Active Agents", "activeAgentRows"),
+    ("waiting-agents", "Waiting Agents", "waitingAgentRows"),
+    ("closed-agents", "Closed Agents", "closedAgentRows"),
+)
+## The reads of a participant, by the id of its run: a session read of that one run, the transcript of that run, and the grants that apply to
+## its member in its session (`--magic-permission-list --member --session-id`: the floor and standing grants, and the session, task and once
+## grants of that session's own stores, not what the member holds in any other). {run}, {session} and {member} are the values of participantValues.
+PARTICIPANT_READS = {
+    "checklist": {"operation": ["--manager-session-checklist-read", "--session-id", "{session}", "{member}"], "participant": True},
+    "transcript": {"operation": ["--manager-session-read", "--session-id", "{run}", "--run"], "rows": "session-read", "participant": True},
+    "transcript-feed": {"operation": ["--manager-session-transcript-read", "--session-id", "{run}", "--run"],
+                        "log": ["--log"], "rows": "transcript", "participant": True},
+    "permissions": {"operation": ["--magic-permission-list", "--member", "{member}", "--session-id", "{session}"], "rows": "session-grants"},
+}
+
+
+## What a level whose rows are participants declares, and what its participants' folders do: the summary of a participant, the read
+## of one run, and for the folder of each the items it holds, their reads and which of them show Markdown (`CheckList`).
+## `tree` is where it is put: what the plugin declares, by the keys of its declaration.
+def activityParticipants(tree, level):
+    folder = level + "/*"
+    tree["participants"].append(level)
+    tree["folders"].append(folder)
+    tree["focus"][level] = "sessionsFocus"
+    tree["reads"]["view:%s:record" % level] = {"operation": ["--manager-session-read", "--session-id", "{id}", "--run"],
+                                               "rows": "session-read", "needs": "run"}
+    tree["rows"][folder] = PARTICIPANT_ITEMS
+    tree["focus"][folder] = "participantFocus"
+    tree["reads"]["view:%s:checklist" % folder] = PARTICIPANT_READS["checklist"]
+    tree["reads"]["view:%s:transcript" % folder] = PARTICIPANT_READS["transcript"]
+    tree["reads"]["feed:%s:transcript" % folder] = PARTICIPANT_READS["transcript-feed"]
+    tree["reads"]["list:%s/permissions" % folder] = PARTICIPANT_READS["permissions"]
+    tree["derived"][folder + "/permissions"] = "memberGrantRows"
+    tree["focus"][folder + "/permissions"] = "grantsFocus"
+    tree["summaries"][folder + "/permissions"] = {"lines": "grantsSummary"}
+    tree["markdown"].append("%s:checklist" % folder)
+
+
+## The plugin's declaration of its levels, from the lists above.
+def activityTree():
+    tree = {"rows": {"activity": (("launch", "Launch (Start)", "launch", True),)
+                     + tuple((name, label, "sessions", True) for name, label, function in ACTIVITY_SESSION_LISTS)
+                     + tuple((name, label, "agents", True) for name, label, function in ACTIVITY_AGENT_LISTS),
+                     "activity/launch": (("free", "Free prompt", "free", False),)},
+            "summaries": {"activity": {"lines": "activitySummary", "counted": ("running", "waiting", "unclosed")},
+                          "activity/launch": {"lines": "routinesSummary"}},
+            "focus": {"activity/launch": "launchFocus"}, "derived": {},
+            "reads": {
+                ## The coworking sessions with their runs, and last the row of counters of the status lines. Every list below is made of them.
+                "list:activity": {"operation": ["--manager-session-list"], "rows": "sessions", "kind": "sessions", "always": True},
+                ## The routines the members carry, each with whether the session spawner would start it.
+                "list:activity/launch": {"operation": ["--manager-routine-list"], "rows": "routines"},
+                ## What the kill of a session, and of one agent, would do, and nothing is done: the rows of the kill itself, each with what
+                ## would become of it (KILL_ROWS). Read when the confirmation of that kill opens, and once more when it is confirmed
+                ## (submitKill), by the id it names, as a kind of its own; never on the period, so what the confirmation says does not
+                ## change under the word typed into it.
+                "plan:kill:session": {"operation": ["--manager-session-kill", "--session-id", "{id}", "--plan"], "rows": "kill", "kind": "plan", "once": True},
+                "plan:kill:run": {"operation": ["--manager-session-kill", "--session-id", "{id}", "--run", "--plan"], "rows": "kill", "kind": "plan", "once": True},
+            },
+            "participants": [], "folders": [], "sessions": [], "agents": [], "markdown": []}
+    for name, label, function in ACTIVITY_SESSION_LISTS:
+        level = "activity/" + name
+        tree["sessions"].append(level)
+        tree["derived"][level] = function
+        tree["focus"][level] = "sessionsFocus"
+        tree["summaries"][level] = {"lines": "sessionsSummary"}
+        ## No list of these has a read of its own: the list of the sessions fills it.
+        tree["reads"]["list:" + level] = {"from": "list:activity"}
+        ## A session shows its facts, as read of that one session.
+        tree["reads"]["view:%s:record" % level] = {"operation": ["--manager-session-read", "--session-id", "{id}"], "rows": "session-read", "needs": "session"}
+        tree["derived"][level + "/*"] = "participantRows"
+        tree["reads"]["list:%s/*" % level] = {"from": "list:activity"}
+        activityParticipants(tree, level + "/*")
+    for name, label, function in ACTIVITY_AGENT_LISTS:
+        level = "activity/" + name
+        tree["agents"].append(level)
+        tree["derived"][level] = function
+        tree["summaries"][level] = {"lines": "agentsSummary"}
+        tree["reads"]["list:" + level] = {"from": "list:activity"}
+        activityParticipants(tree, level)
+    ## The sessions a member is in are listed by `Team Members` (Members.py); the participants of one of them are those of any session.
+    tree["derived"]["@team/*/sessions/*"] = "participantRows"
+    activityParticipants(tree, "@team/*/sessions/*")
+    return tree
+
+
+ACTIVITY_TREE = activityTree()
+
+## The places whose rows a command of a session or of an agent acts on, and those of the modes of the left window: a session of
+## a list of sessions (and the control thread, which only a session has), a participant of a session, an agent of a list of agents;
+## and the `Transcript` of a participant, whose modes are the log and the raw log.
+ACTIVITY_ACTS = ACTIVITY_TREE["sessions"] + ACTIVITY_TREE["participants"] + ACTIVITY_TREE["agents"]
+
+
+def activityActs(**more):
+    return dict(more, views=tuple(ACTIVITY_ACTS), on=tuple("%s:record" % level for level in ACTIVITY_ACTS))
+
+
+def activityMode(**more):
+    return dict(more, views=tuple(ACTIVITY_TREE["folders"]), on=tuple("%s:transcript" % level for level in ACTIVITY_TREE["folders"]))
+
 
 registerPlugin({
-    "name": "sessions",
-    "root": {"id": "sessions", "label": "Sessions (Activity)", "go": "~S~essions (Activity)", "group": "team"},
+    "name": "activity",
+    "mount": "magic-team",
+    "root": {"id": "activity", "label": "Activity", "go": "Acti~v~ity", "group": "team"},
     ## The rows a level always holds, ahead of the rows its operation gives.
-    "rows": {
-        "sessions": (("launch", "Launch (Start)", "launch", True),),
-        "sessions/launch": (("free", "Free prompt", "free", False),),
-    },
-    "summaries": {
-        "sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed")},
-        "sessions/launch": {"lines": "routinesSummary"},
-    },
-    "reads": {
-        ## The coworking sessions with their runs, and last the row of counters of the status lines.
-        "list:sessions": {"operation": ["--manager-session-list"], "active": ["--active"],
-                          "rows": "sessions", "kind": "sessions", "always": True},
-        ## The routines the members carry, each with whether the session spawner would start it.
-        "list:sessions/launch": {"operation": ["--manager-routine-list"], "rows": "routines"},
-        ## The agents of one session come with the list of the sessions.
-        "list:sessions/*": {"from": "list:sessions"},
-        "view:sessions:launch": None,
-        ## A session whole, and what its runs did: the lines its tracking thread shows.
-        "view:sessions:record": {"operation": ["--manager-session-read", "--session-id", "{id}"],
-                                 "rows": "session-read", "needs": "session"},
-        "feed:sessions:record": {"operation": ["--manager-session-transcript-read", "--session-id", "{id}"],
-                                 "log": ["--log"], "rows": "transcript", "needs": "session"},
-        ## One run of a session: --run takes the id as a run's own, the founder's too, whose id is its session's.
-        "view:sessions/*:record": {"operation": ["--manager-session-read", "--session-id", "{id}", "--run"],
-                                   "rows": "session-read", "needs": "run"},
-        "feed:sessions/*:record": {"operation": ["--manager-session-transcript-read", "--session-id", "{id}", "--run"],
-                                   "log": ["--log"], "rows": "transcript", "needs": "run"},
-        ## What the kill of a session, and of one agent, would do, and nothing is done: the rows
-        ## of the kill itself, each with what would become of it (KILL_ROWS). Read when the
-        ## confirmation of that kill opens, and once more when it is confirmed (submitKill), by
-        ## the id it names, as a kind of its own; never on the period, so what the confirmation
-        ## says does not change under the word typed into it.
-        "plan:kill:session": {"operation": ["--manager-session-kill", "--session-id", "{id}", "--plan"], "rows": "kill", "kind": "plan", "once": True},
-        "plan:kill:run": {"operation": ["--manager-session-kill", "--session-id", "{id}", "--run", "--plan"], "rows": "kill", "kind": "plan", "once": True},
-    },
-    "go": ({"name": "spawn", "path": "sessions/launch", "label": "~L~aunch (Start)"},),
+    "rows": ACTIVITY_TREE["rows"],
+    "focus": ACTIVITY_TREE["focus"],
+    "summaries": ACTIVITY_TREE["summaries"],
+    "derived": ACTIVITY_TREE["derived"],
+    "reads": ACTIVITY_TREE["reads"],
+    "go": ({"name": "spawn", "path": "activity/launch", "label": "~L~aunch (Start)"},),
     "commands": (
         {"name": "unstarted", "keys": ("ENTER",),
-         "views": ("sessions/launch",), "for": "a routine that cannot be started", "on": ("sessions/launch:record",), "only": True, "tells": True, "does": ("action", "unstarted")},
+         "views": ("activity/launch",), "for": "a routine that cannot be started", "on": ("activity/launch:record",), "only": True, "tells": True, "does": ("action", "unstarted")},
         {"name": "launch", "keys": ("ENTER",), "menu": ("session", 2), "label": "Start the ro~u~tine", "status": "Start", "window": "list",
-         "views": ("sessions/launch",), "for": "a routine", "on": ("sessions/launch:record",), "only": True, "does": ("action", "launch"), "calls": ("launch",)},
+         "views": ("activity/launch",), "for": "a routine", "on": ("activity/launch:record",), "only": True, "does": ("action", "launch"), "calls": ("launch",)},
         {"name": "prompt", "keys": ("ENTER",), "menu": ("session", 2), "label": "~F~ree prompt", "status": "Start", "window": "list",
-         "views": ("sessions/launch",), "for": "the free prompt", "on": ("sessions/launch:free",), "only": True, "does": ("action", "prompt"), "calls": ("prompt",)},
-        {"name": "kill", "keys": ("k",), "menu": ("session", 1), "label": "~K~ill", "status": "Kill", "after": "colours",
-         "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "kill"), "calls": ("kill:session", "kill:run")},
+         "views": ("activity/launch",), "for": "the free prompt", "on": ("activity/launch:free",), "only": True, "does": ("action", "prompt"), "calls": ("prompt",)},
+        activityActs(name="kill", keys=("k",), menu=("session", 1), label="~K~ill", status="Kill", after="colours",
+                     **{"for": "a session or an agent", "does": ("action", "kill"), "calls": ("kill:session", "kill:run")}),
         {"name": "control", "keys": ("c",), "menu": ("session", 1), "label": "~C~ontrol thread", "status": "Control", "after": "colours",
-         "views": ("sessions", "sessions/*"), "for": "a session", "asks": True, "on": ("sessions:record",), "does": ("action", "control"), "calls": ("control",)},
-        {"name": "pause", "keys": ("p",), "menu": ("session", 3), "label": "~P~ause", "after": "colours",
-         "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "pause")},
-        {"name": "resume", "keys": ("r",), "menu": ("session", 3), "label": "~R~esume", "after": "colours",
-         "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "resume")},
-        {"name": "stop", "keys": ("s",), "menu": ("session", 3), "label": "~S~top", "after": "colours",
-         "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "stop")},
-        {"name": "restart", "keys": ("R",), "menu": ("session", 3), "label": "Res~t~art", "after": "colours",
-         "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "restart")},
-        {"name": "mode", "keys": ("v",), "menu": ("view", 4), "label": "Ne~x~t mode of the left window", "after": "colours",
-         "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "")},
+         "views": tuple(ACTIVITY_TREE["sessions"]), "for": "a session", "asks": True, "on": tuple("%s:record" % level for level in ACTIVITY_TREE["sessions"]),
+         "does": ("action", "control"), "calls": ("control",)},
+        activityActs(name="pause", keys=("p",), menu=("session", 3), label="~P~ause", after="colours", **{"for": "a session or an agent", "does": ("action", "pause")}),
+        activityActs(name="resume", keys=("r",), menu=("session", 3), label="~R~esume", after="colours", **{"for": "a session or an agent", "does": ("action", "resume")}),
+        activityActs(name="stop", keys=("s",), menu=("session", 3), label="~S~top", after="colours", **{"for": "a session or an agent", "does": ("action", "stop")}),
+        activityActs(name="restart", keys=("R",), menu=("session", 3), label="Res~t~art", after="colours", **{"for": "a session or an agent", "does": ("action", "restart")}),
+        activityMode(name="mode", keys=("v",), menu=("view", 4), label="Ne~x~t mode of the left window", after="colours", **{"for": "a transcript", "does": ("mode", "")}),
         ## the summary and the raw mode are those of a Markdown text too: the places of the Markdown view are added to theirs
-        {"name": "mode-summary", "keys": ("b",), "menu": ("view", 4), "label": "Su~m~mary", "status": "Summary", "after": "colours",
-         "views": ("sessions", "sessions/*"), "for": "a session, an agent or a Markdown text", "on": ("sessions:record", "sessions/*:record"),
-         "with": (("markdown", "on"), ("markdown", "help")), "does": ("mode", "summary")},
-        {"name": "mode-log", "keys": ("l",), "menu": ("view", 4), "label": "~L~og", "status": "Log", "after": "colours",
-         "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "log")},
-        {"name": "mode-raw", "keys": ("g",), "menu": ("view", 4), "label": "Ra~w~ log", "status": "Raw log", "after": "colours",
-         "views": ("sessions", "sessions/*"), "for": "a session, an agent or a Markdown text", "on": ("sessions:record", "sessions/*:record"),
-         "with": (("markdown", "on"), ("markdown", "help")), "does": ("mode", "raw")},
+        activityMode(name="mode-summary", keys=("b",), menu=("view", 4), label="Su~m~mary", status="Summary", after="colours",
+                     **{"for": "a transcript or a Markdown text", "with": (("markdown", "on"), ("markdown", "help")), "does": ("mode", "summary")}),
+        activityMode(name="mode-log", keys=("l",), menu=("view", 4), label="~L~og", status="Log", after="colours", **{"for": "a transcript", "does": ("mode", "log")}),
+        activityMode(name="mode-raw", keys=("g",), menu=("view", 4), label="Ra~w~ log", status="Raw log", after="colours",
+                     **{"for": "a transcript or a Markdown text", "with": (("markdown", "on"), ("markdown", "help")), "does": ("mode", "raw")}),
     ),
+    ## the lists of `Activity` are made, whole, of the one read of the sessions: the key that takes all or only the active has nothing to take there
+    "integrates": {"markdown": {"on": tuple(ACTIVITY_TREE["markdown"])},
+                   "list": {"unfiltered": tuple("activity/" + name for name, label, function in ACTIVITY_SESSION_LISTS + ACTIVITY_AGENT_LISTS)}},
 })

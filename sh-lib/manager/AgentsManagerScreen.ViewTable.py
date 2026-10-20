@@ -13,6 +13,7 @@
 class Looked(str):
     looks = ()
     row = None
+    pinned = 0
 
 
 def looked(text, look, start=0):
@@ -55,6 +56,10 @@ def rowsApart():
 ## its header, nor below the start of ENUM_PREFIX_LEAST characters, or more, that tells its
 ## words apart, and its mark of a cut. None is wider than TABLE_CAP cells, which only stops a
 ## value that runs away, a very long path or text.
+## The cells a table keeps for the columns that scroll, beside the ones it pins: it pins none where they would take the room. And how many lines
+## the rows of a table must have in the window for its header to stay over them while they scroll.
+PIN_ROOM = 20
+STICKY_LEAST = 5
 TABLE_LEAST = 6
 TABLE_WORD_MOST = 16
 TABLE_CAP = 80
@@ -196,7 +201,7 @@ def reassessWidths(widths, words, kinds, natural, least):
 ## makes the table fit the pane without wrapping a cell: each of its lines is one line, a
 ## column stands only whole or is left out, the last first, and the first is cut at that many
 ## cells; `wrap` then says only how THE TABLE COLOUR RULE marks the rows.
-def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ", numbered=False, looks=None, pane=None, cut=None):
+def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ", numbered=False, looks=None, pane=None, cut=None, pin=0, pinRoom=0, headed=None):
     kinds = list(kinds or ["key"] + ["text"] * (len(heads) - 1))
     words = [row for row in rows if not isinstance(row, str)]
     natural = [(lambda most: most if kinds[index] == "whole" else min(TABLE_CAP, most))(max([textWidth(head)] + [textWidth(row[index]) for row in words])) for index, head in enumerate(heads)]
@@ -329,43 +334,169 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
             head[-1] = rule(TABLE_LOOKS["head"])
         else:
             head.append(rule(TABLE_LOOKS["head"]))
-    ## every line of a row, its padding and its rule too, says which row it is of
+    ## every line of a row, its padding and its rule too, says which row it is of: under the heads the table was given, not those a mark of its sort changed
     for number, block in enumerate(blocks):
         if isRow[number]:
-            said = (list(heads), list(rows[number]))
+            said = (list(headed or heads), list(rows[number]))
             for line in block:
                 line.row = said
+    ## the columns at the left that stay while the table is scrolled sideways (`pin` of them, with the number and the icon ahead of them): every line
+    ## carries how many cells they take, where the room beside them holds PIN_ROOM cells at least
+    stays = lead + sum(widths[:pin]) + pin * gap
+    if pin and pin < shown and stays + PIN_ROOM <= pinRoom:
+        for line in head + [line for block in blocks for line in block]:
+            line.pinned = stays
     return head, blocks
 
 
 ## A left pane that is a table (the owner: "show all items in table. Full table view - no
 ## summary on top.", "IF YOU WANT SUMMARIES THAT MUCH - ADD THEM TO PANEL BOTTOM RIGHT
 ## CORNER", "Do not double - one place"): its header and every row of it, nothing above it,
-## the pane scrolling; how many rows it holds stands in the frame alone (tableCount).
-def tableSummaryLines(state, heads, rows, kinds=None, icons=None, looks=None, numbered=False):
-    head, blocks = paneTable(heads, rows, state.viewWidth - 1, icons=icons, wrap=state.wrap, kinds=kinds, numbered=numbered, looks=looks, pane=fullPane(state))
-    tableCount(state, rows)
-    return head + [line for block in blocks for line in block]
+## the pane scrolling; how many rows it holds stands in the frame alone (tableCount). It is the one
+## table of the left window, and every key of a table is its: the rows sorted by a column, back to
+## the source order, narrowed by what is typed (tableOrder); its first columns kept while it is
+## scrolled sideways, `pin` of them, by default the first where it is a key (PIN_ROOM).
+def tableSummaryLines(state, heads, rows, kinds=None, icons=None, looks=None, numbered=False, pin=None):
+    table = state.view["table"]
+    table["columns"] = len(heads)
+    order = tableOrder(table, heads, rows)
+    sort = table.get("sort")
+    marked = [head + " " + MARKS["barUp"] if index == sort else head for index, head in enumerate(heads)]
+    kept = [rows[index] for index in order]
+    head, blocks = paneTable(marked, kept, state.viewWidth - 1, icons=[icons[index] for index in order] if icons else None, wrap=state.wrap, kinds=kinds,
+                             numbered=numbered, looks=[looks[index] for index in order] if looks else None, pane=fullPane(state),
+                             pin=(1 if kinds is None or kinds[0] == "key" else 0) if pin is None else pin, pinRoom=state.paneWidth - 2, headed=heads)
+    tableCount(state, kept, len([row for row in rows if not isinstance(row, str)]) if table.get("filter") else None)
+    lines = head + [line for block in blocks for line in block]
+    if rows and not kept:
+        lines.append(Looked("  No row has all of: %s" % table["filter"]))
+    return lines
 
 
 ## The cells and the lines of the left window that a table has for itself, where the table is
 ## all the window holds (the full view of paneTable): the window less the head that stays above
 ## its lines.
 def fullPane(state):
-    return state.paneWidth - 1, state.viewHeight - len(state.view.get("head") or ())
+    return state.paneWidth - 1, state.viewHeight - len(state.view.get("head") or ()) - (1 if filterLineShown(state) else 0)
 
 
 ## How many rows the table of the left pane holds, its headings of groups aside, for the
-## bottom border of its frame (viewCount).
-def tableCount(state, rows):
+## bottom border of its frame (viewCount); and, while a filter narrows it, how many it holds
+## without it.
+def tableCount(state, rows, total=None):
     state.view["tableRows"] = len([row for row in rows if not isinstance(row, str)])
+    state.view["tableAll"] = total
 
 
 ## What the bottom border of the left window says at its right: how many rows its table holds,
-## where it shows one, and nothing where it does not.
+## where it shows one, and nothing where it does not; `3 of 40 rows` while a filter narrows it.
 def viewCount(state):
     count = state.view.get("tableRows")
-    return "" if count is None else "%d row%s" % (count, "" if count == 1 else "s")
+    if count is None:
+        return ""
+    total = state.view.get("tableAll")
+    return ("%d of %d row%s" % (count, total, "" if total == 1 else "s")) if total is not None else "%d row%s" % (count, "" if count == 1 else "s")
+
+
+## ---- the table sorted and narrowed: its keys ----
+
+## How a cell sorts: a number by its value (a k, K, M, G or T after it counts thousands, millions, and so on), before the words, which sort
+## by their letters, before the cell that says nothing, `-` or empty, which stands last.
+SORT_NUMBER = re.compile(r"^([+-]?[0-9]+(?:\.[0-9]+)?)([kKMGT]?)")
+SORT_UNITS = {"": 1.0, "k": 1e3, "K": 1e3, "M": 1e6, "G": 1e9, "T": 1e12}
+
+
+def sortKeyOf(cell):
+    text = str(cell).strip()
+    if text in ("", "-"):
+        return (2, 0.0, "")
+    found = SORT_NUMBER.match(text)
+    if found:
+        return (0, float(found.group(1)) * SORT_UNITS[found.group(2)], text.lower())
+    return (1, 0.0, text.lower())
+
+
+## Whether a row has every word of the filter in its cells, whatever the case; cells that no column of the pane shows count too.
+def rowMatches(row, words):
+    text = " ".join(str(cell) for cell in row).lower()
+    return all(word in text for word in words)
+
+
+## The rows of a table as it shows them now, by their numbers in the rows it was given: a group (a heading, and the rows under it, or the rows alone)
+## narrowed by the filter, each sorted by the column of the sort, a group that has no row left dropped. The source order where neither is on.
+def tableOrder(table, heads, rows):
+    words = table.get("filter", "").lower().split()
+    sort = table.get("sort")
+    groups = [[None, []]]
+    for index, row in enumerate(rows):
+        if isinstance(row, str):
+            groups.append([index, []])
+        elif not words or rowMatches(row, words):
+            groups[-1][1].append(index)
+    order = []
+    for heading, members in groups:
+        if sort is not None:
+            found = [index for index in members if str(rows[index][sort]).strip() not in ("", "-")]
+            blank = [index for index in members if index not in found]
+            members = sorted(found, key=lambda index: sortKeyOf(rows[index][sort])) + blank
+        if heading is not None and (members or not words):
+            order.append(heading)
+        order.extend(members)
+    return order
+
+
+## Whether the left window holds a table that is all of it, which these keys act on.
+def tableShown(state):
+    return state.view.get("tableRows") is not None and bool(state.view["table"].get("columns"))
+
+
+## `t`: the rows sorted by the next column, the first after the source order and the source order after the last. The pane goes to the top of
+## the table and the cursor of its row, if it had one, is left.
+def tableSort(state):
+    table = state.view["table"]
+    column = 0 if table.get("sort") is None else table["sort"] + 1
+    table["sort"] = column if column < table["columns"] else None
+    state.view["rowCursor"] = None
+    state.view["top"] = 0
+
+
+## `/`: the line of the filter opens, on the last line of the left window, with what is typed there already.
+def tableFilterOpen(state):
+    state.view["table"]["filterOpen"] = True
+
+
+## Whether the line of the filter stands in the left window: open, or holding a filter that narrows the rows.
+def filterLineShown(state):
+    table = state.view.get("table") or {}
+    return bool(table.get("filterOpen") or table.get("filter"))
+
+
+## One key while the line of the filter is open: a character is typed into it and narrows the rows at once, Backspace takes the last one back, Enter closes
+## the line and keeps the filter, Esc closes it and clears the filter. Any other key is the screen's own. Gives whether the key was the line's.
+def filterKey(state, key):
+    table = state.view["table"]
+    if key == "ENTER":
+        table["filterOpen"] = False
+    elif key == "ESC":
+        table["filterOpen"] = False
+        table["filter"] = ""
+    elif key == "BACKSPACE":
+        table["filter"] = table.get("filter", "")[:-1]
+    elif len(key) == 1 and key.isprintable():
+        table["filter"] = table.get("filter", "") + key
+    else:
+        if key == "TAB":
+            table["filterOpen"] = False
+        return False
+    state.view["rowCursor"] = None
+    state.view["top"] = 0
+    return True
+
+
+## The line of the filter as the left window draws it, or "".
+def filterLine(state):
+    table = state.view.get("table") or {}
+    return "/" + table.get("filter", "") if filterLineShown(state) else ""
 
 
 ## ---- reading a table first: the row cursor ----
@@ -397,8 +528,15 @@ def tableRowsOf(state):
 ## gone down, and takes the place of the line at its top.
 def firstSeenLine(state):
     top = state.view["top"]
-    lines = state.view["lines"]
-    return top + 1 if 0 < top < len(lines) and getattr(lines[top], "stick", None) is not None else top
+    return top + 1 if headerStuck(state) is not None else top
+
+
+## The header that stays over the rows of a table that has gone up out of the window, or None: the window must hold more than STICKY_LEAST lines of rows.
+def headerStuck(state):
+    view = state.view
+    lines = view["lines"]
+    room = state.viewHeight - len(view["head"]) - (1 if filterLineShown(state) else 0)
+    return getattr(lines[view["top"]], "stick", None) if 0 < view["top"] < len(lines) and room > STICKY_LEAST else None
 
 
 ## The row the cursor is on, as the lines it takes, (first, last), or None while the table is read;

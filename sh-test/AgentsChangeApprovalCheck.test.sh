@@ -268,7 +268,7 @@ rigRemindQuote(){ ## record n (default: the newest)
 	cat "$rigDir/remind-quote"
 }
 rigFill(){ ## want -- the template filled straight, the slots from the caller's environment
-	ASKP_WANT="$1" ASKP_FORM=approve LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$rigLib/questions/AgentsAskPostFill.awk" "$rigTemplate" 2>&1
+	ASKP_WANT="$1" ASKP_FORM=approve LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolingTemplateFill.awk" -f "$rigLib/questions/AgentsAskPostFill.awk" "$rigTemplate" 2>&1
 }
 rigWaitSet(){ ## record n -- 1 while that prompt is in the Wait set of the session
 	LC_ALL=C sed -n 's/^sources: //p' "$rigWs/.local/agents/sessions/$rigSpawn/wait/state" 2> /dev/null | LC_ALL=C grep -c -F "ask:$( rigId "${1:-}" )"

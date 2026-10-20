@@ -23,8 +23,10 @@ HARNESS_CREDENTIAL_NAMES="XAI_API_KEY"
 
 ## --- tier -> model, and tier -> credential -------------------------------
 ## Both ids are listed by this API's own /v1/models; MAGIC.md carries the evidence.
-HARNESS_MODEL_LIGHT="grok-4.3"
-HARNESS_MODEL_MAIN="grok-4.7"
+## A model an exported HARNESS_MODEL_LIGHT or HARNESS_MODEL_MAIN names stands ahead of the leg's own: the console
+## exports the model name of the preset a spawn runs on (F10.2), and nothing else does. The default is the leg's.
+HARNESS_MODEL_LIGHT="${HARNESS_MODEL_LIGHT:-grok-4.3}"
+HARNESS_MODEL_MAIN="${HARNESS_MODEL_MAIN:-grok-4.7}"
 HARNESS_TOKEN_LIGHT="${XAI_API_KEY:-}"
 HARNESS_TOKEN_MAIN="${XAI_API_KEY:-}"
 

@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+## Slack-shaped fake curl for AgentsSessionChatFileCheck.test.sh. Opens no socket. Logs each call as
+## "<method> <token>" in $RIG_SCENARIO/calls; keeps each posted payload in $RIG_SCENARIO/post.<n>; and, at each
+## chat.postMessage, what the session chat file ($RIG_CHAT) held at that moment, as "<n> <line count>" in
+## $RIG_SCENARIO/at-post, so a check can tell a message recorded before its post from one recorded after.
+## A scenario can have posts answered with a Slack error, one error name per line in post-errors; a line `ok`
+## is a post that goes through.
+set -u
+rigHeader="$( cat )"
+rigMethod="" rigPrevArg="" rigBody=""
+for rigArg in "$@" ; do
+	case "$rigArg" in
+		https://slack.com/api/*) rigMethod="${rigArg#https://slack.com/api/}" ;;
+	esac
+	[ "$rigPrevArg" != "--data-binary" ] || rigBody="${rigArg#@}"
+	rigPrevArg="$rigArg"
+done
+rigToken="${rigHeader#Authorization: Bearer }"
+printf '%s %s\n' "$rigMethod" "$rigToken" >> "$RIG_SCENARIO/calls"
+case "$rigToken" in
+	rig-bot-*) rigUser="URIGBOT01" ;;
+	*) rigUser="URIG${rigToken##*-}" ;;
+esac
+case "$rigMethod" in
+	conversations.info) printf '{"ok":true,"channel":{"id":"CRIG00001","is_im":false,"is_mpim":false}}\n' ;;
+	auth.test) printf '{"ok":true,"url":"https://rig.invalid/","user_id":"%s"}\n' "$rigUser" ;;
+	chat.postMessage)
+		rigPost=$(( $( cat "$RIG_SCENARIO/posts" 2>/dev/null || echo 0 ) + 1 ))
+		printf '%s' "$rigPost" > "$RIG_SCENARIO/posts"
+		rigHeld=""
+		[ ! -f "${RIG_CHAT:-/nonexistent}" ] || rigHeld="$( LC_ALL=C wc -l < "$RIG_CHAT" | LC_ALL=C tr -d ' ' )"
+		printf '%s %s\n' "$rigPost" "$rigHeld" >> "$RIG_SCENARIO/at-post"
+		[ -z "$rigBody" ] || cp "$rigBody" "$RIG_SCENARIO/post.$rigPost"
+		if [ -s "$RIG_SCENARIO/post-errors" ] ; then
+			rigError="$( head -1 "$RIG_SCENARIO/post-errors" )"
+			tail -n +2 "$RIG_SCENARIO/post-errors" > "$RIG_SCENARIO/post-errors.next" && mv "$RIG_SCENARIO/post-errors.next" "$RIG_SCENARIO/post-errors"
+			if [ "$rigError" != "ok" ] ; then
+				printf '{"ok":false,"error":"%s"}\n' "$rigError"
+				exit 0
+			fi
+		fi
+		rigThread="$( sed -n 's/.*"thread_ts":"\([0-9.]*\)".*/\1/p' "$rigBody" 2>/dev/null | head -1 )"
+		printf '{"ok":true,"channel":"CRIG00001","ts":"1760000000.00010%s","message":{"ts":"1760000000.00010%s","user":"%s"%s}}\n' \
+			"$rigPost" "$rigPost" "$rigUser" "${rigThread:+,\"thread_ts\":\"$rigThread\"}"
+	;;
+	*) printf '{"ok":false,"error":"channel_not_found"}\n' ;;
+esac

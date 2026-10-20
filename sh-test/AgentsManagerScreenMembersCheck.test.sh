@@ -33,6 +33,7 @@
 ## dialog has bigger margins inside its frame (two empty lines under its top, one more under its buttons, three blank
 ## cells at each side), so its box is four cells wider and two lines taller and what it holds stands where it stood.
 ## Reconciled for F11.0, the table lines: two spaces between the columns of the members' table, and an empty line between its rows while the window holds them.
+## Reconciled for F11.5: the list of the sessions is Active Sessions of Activity (the third and fourth lines hold the first two sessions), and the members are read at Team Members under Magic-Team (Agents).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -145,7 +146,7 @@ rigCase(){ ## name
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size, with the reads of one session taken out of the table; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\nwall 2026-10-13 02:30 +0000\nsize %s\nroot sessions\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:magic-team/activity/active-sessions:record none\nwall 2026-10-13 02:30 +0000\nsize %s\nroot active-sessions\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -268,7 +269,7 @@ cells tinyRow4 5 28 46
 RIGSCRIPT
 rigSize=""
 rigAssert "until the section is entered the members are not read"    "$( rigVal on.selected ) [$( rigVal on.reading )]" "team []"
-rigAssert "entering it asks the operation that lists the members, once" "$( rigVal asked.path ) $( rigVal asked.reading ) $( rigCalled --manager-team-member-list ) $( rigOthers )" "team list:team 1 0"
+rigAssert "entering it asks the operation that lists the members, once" "$( rigVal asked.path ) $( rigVal asked.reading ) $( rigCalled --manager-team-member-list ) $( rigOthers )" "magic-team/team list:magic-team/team 1 0"
 rigAssert "the members stand in a list as every list does, no header: the row that goes up, then every member in the order of the operation, its icon and its name" \
 	"[$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigIconCells row3 | rigMarked )][$( rigIconCells row4 | rigMarked )][$( rigVal row7 )] $( rigScreenHolds u ' MEMBER ' )" \
 	"[Team Members] 6 [>..][ ## magic-coordinator][ ## keeper-myx][] 1"
@@ -314,7 +315,7 @@ cells keysLineStatus 39 0 120
 RIGSCRIPT
 rigAssert "the selection comes onto a member: nothing of it is read yet" "$( rigVal moved.selected ) [$( rigVal moved.reading )] $( rigVal moved.restLeft ) [$( rigVal resting.reading )]" "keeper-myx [] 0.33 []"
 rigAssert "until then the pane shows what the list holds of it, and says that the rest is not read" "[$( rigPane early 3 )][$( rigPane early 5 )][$( rigPane early 11 )]" "[ 📐 Sage Bourne, alias cronjob][ kind      keeper][ Team-member information: not read yet]"
-rigAssert "once it has rested it is read by its name, as a call of its own" "$( rigVal asked.reading ) $( rigCalled '--manager-team-member-read --full keeper-myx' ) $( rigOthers )" "view:team|record:keeper-myx 1 0"
+rigAssert "once it has rested it is read by its name, as a call of its own" "$( rigVal asked.reading ) $( rigCalled '--manager-team-member-read --full keeper-myx' ) $( rigOthers )" "view:magic-team/team|record:keeper-myx 1 0"
 rigAssert "its status, whether a run of it is alive, its workspace, and that n starts it" "[$( rigPane m 6 )][$( rigPane m 7 )][$( rigPane m 8 )][$( rigPane m 9 )]" \
 	"[ status    active][ process   a run of it is alive][ workspace ws-rig, set up here][ start     n starts it with a prompt, in a session of its own]"
 rigAssert "what it is for, a long text broken to the pane"           "[$( rigPane m 10 )][$( rigPane m 11 )]" "[ for       Source-content steward for the common tools and the distro tools of the][           rig, their scripts and their help.]"
@@ -384,10 +385,11 @@ show a
 said answeredLine
 wait sessions 30
 turn
-keys BACKSPACE UP UP ENTER
+at @activity active-sessions
+turn
 get up
-cells upRow3 5 85 119
-cells upRow4 6 85 119
+cells upRow3 3 85 119
+cells upRow4 4 85 119
 RIGSCRIPT
 rigAssert "n opens the dialog of a prompt, its list on that member, the keys on the prompt" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas d '║   > keeper-myx ' ) $( rigBoxHas d '║     magic-coordinator: a new coworking session, by the default routine ' )" "[prompt:prompt|] [Start the member keeper-myx] 1 1"
 rigAssert "and says where the prompt goes, and that no secret belongs in it" "$( rigBoxHas d '║   The prompt is the brief of a new session. It goes to the operation ' ) $( rigBoxHas d '║   No secret belongs in it: a brief shows on the command line of the ' ) $( rigBoxHas d ' »Start« ▅   Cancel  ▅' )" "1 1 1"
@@ -400,7 +402,7 @@ rigAssert "the operation is called once, for that member, with the name as one w
 rigAssert "the prompt is on its standard input, whole, with a line end" "$( rigInput 'fix the index, please' ) $( rigOthers )" "same 0"
 rigAssert "what the operation printed is shown: the session, the member, the name, the item" "[$( rigVal answeredLine )] [$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )][$( rigPane a 6 )][$( rigPane a 7 )][$( rigPane a 8 )]" \
 	"[started: keeper-myx, session $rigNew] [ the start, answered 02:30:00:][ session   $rigNew][ member    keeper-myx][ name      the index][ item      dispatch-20261013T023000Z-spawn-proxy-1][]"
-rigAssert "the list of the sessions is read again, and the new session is among its rows" "$( rigCalled --manager-session-list ) $( rigVal up.path ) [$( rigVal upRow3 )][$( rigVal upRow4 )]" "2 sessions [ the index               running ►][ daily of Monday         running ►]"
+rigAssert "the list of the sessions is read again, and the new session is among its rows" "$( rigCalled --manager-session-list ) $( rigVal up.path ) [$( rigVal upRow3 )][$( rigVal upRow4 )]" "2 magic-team/activity/active-sessions [ the index               running ►][ daily of Monday         running ►]"
 
 echo "-- no name, an empty prompt, Esc --"
 rigCase bare
@@ -507,7 +509,8 @@ rigSize="227 40"
 rigRow member magic-team :conclave: - - - team ws-rig here the-team no-process >> "$MANAGER_SCREEN_RIG/rows.--manager-team-member-list"
 rigScript <<'RIGSCRIPT'
 turn
-keys 4
+at @team
+turn
 wait list 30
 keys DOWN DOWN DOWN DOWN DOWN DOWN
 turn

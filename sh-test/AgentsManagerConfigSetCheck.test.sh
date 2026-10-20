@@ -22,7 +22,7 @@ rigPackage="${rigHere%/sh-lib}"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigRead="--manager-config-digest"
 rigWrite="--manager-config-set"
-rigKeys="MDAT_MANAGER_STYLE, MDLT_CONSOLE_HISTORY, MDLT_CONSOLE_ORIGIN, MDLT_CONSOLE_DETAIL, SESSION_CONTROL_REQUEST_SECONDS, SESSION_CONTROL_KILL_SECONDS"
+rigKeys="MDAT_MANAGER_STYLE, MDLT_CONSOLE_HISTORY, MDLT_CONSOLE_ORIGIN, MDLT_CONSOLE_DETAIL, SESSION_CONTROL_REQUEST_SECONDS, SESSION_CONTROL_KILL_SECONDS, MDAT_KNOWLEDGE_STORE"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -117,7 +117,7 @@ rigAssert "the origin of the tooling: a choice made at the call, the workspace's
 rigAssert "the verbosity: a choice of three, the user's own, now the default" "$( rigLine MDLT_CONSOLE_DETAIL )" "line console detail MDLT_CONSOLE_DETAIL set - Console_Verbosity yes choice user default =<default>_(none),true=true_(track),full=full_(debug) $rigOwn settings"
 rigAssert "the two bounds of a control request: whole numbers with their smallest and largest, the workspace's, now their defaults, to be saved in the settings of the team" "$( rigLine SESSION_CONTROL_REQUEST_SECONDS ) / $( rigLine SESSION_CONTROL_KILL_SECONDS )" "line control request SESSION_CONTROL_REQUEST_SECONDS set 5 Control_Request_Seconds yes number workspace default 1..60 $rigTeam settings / line control kill SESSION_CONTROL_KILL_SECONDS set 30 Control_Kill_Seconds yes number workspace default 5..600 $rigTeam settings"
 rigAssert "the style of the interface is one of them, in the same fields" "$( rigLine MDAT_MANAGER_STYLE )" "line interface style MDAT_MANAGER_STYLE set tv-system Interface_Style yes choice user default nu-system=Magic_-_System,nu-blue=Magic_-_Dark/Blue,nu-gray=Magic_-_Light/Gray,tv-system=Turbo_Vision_-_System,tv-blue=Turbo_Vision_-_Dark/Blue,tv-gray=Turbo_Vision_-_Light/Gray,bw-system=Basic_B/W_-_System,bw-dark=Basic_B/W_-_Dark/Blue,bw-light=Basic_B/W_-_Light/Gray $rigOwn settings"
-rigAssert "these six and no other line of the digest say yes" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $9 == "yes" { printf "%s ", $4 }' "$rigTmp/out" )" "MDAT_MANAGER_STYLE MDLT_CONSOLE_HISTORY MDLT_CONSOLE_ORIGIN MDLT_CONSOLE_DETAIL SESSION_CONTROL_REQUEST_SECONDS SESSION_CONTROL_KILL_SECONDS "
+rigAssert "these seven and no other line of the digest say yes" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $9 == "yes" { printf "%s ", $4 }' "$rigTmp/out" )" "MDAT_MANAGER_STYLE MDLT_CONSOLE_HISTORY MDLT_CONSOLE_ORIGIN MDLT_CONSOLE_DETAIL SESSION_CONTROL_REQUEST_SECONDS SESSION_CONTROL_KILL_SECONDS MDAT_KNOWLEDGE_STORE "
 rigRun "$rigRead" console control
 rigAssert "without --full the two subjects print their lines in the seven fields every line has, under their labels" "$rigRc $( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" | LC_ALL=C tr '\n' '/' )" "0 subject console 3 Console_Behaviour/line console history MDLT_CONSOLE_HISTORY set workspace-shared Console_History_Type/line console origin MDLT_CONSOLE_ORIGIN set - Console_Tooling_Origin/line console detail MDLT_CONSOLE_DETAIL set - Console_Verbosity/subject control 2 Session_Control/line control request SESSION_CONTROL_REQUEST_SECONDS set 5 Control_Request_Seconds/line control kill SESSION_CONTROL_KILL_SECONDS set 30 Control_Kill_Seconds/"
 
@@ -239,7 +239,7 @@ rigEntry(){ ## -- the writer's entry in the help.md, from under its heading to t
 	LC_ALL=C awk -v head="$( printf '\t\t%s <key> <value>' "$rigWrite" )" '$0 == head { on = 1 ; next } on && /^\t\t--/ { exit } on { print }' "$rigHelpMd"
 }
 rigAssert "the writer has its syntax echo, its syntax line and its entry, once each, and the earlier name stands nowhere in the help" "$( LC_ALL=C grep -c -x -F -- "echo \"$rigSyntax\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s <key> <value>' "$rigWrite" )" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -F -e 'manager-config-interface-set' "$rigHelpInclude" "$rigHelpMd" | LC_ALL=C awk -F: '{ n += $2 } END { print n + 0 }' )" "1 1 1 0"
-rigAssert "its entry names each key it takes, the two kinds and the two scopes" "$( for rigWord in MDAT_MANAGER_STYLE MDLT_CONSOLE_HISTORY SESSION_CONTROL_REQUEST_SECONDS SESSION_CONTROL_KILL_SECONDS choice number user workspace ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyyyy"
+rigAssert "its entry names each key it takes, the two kinds and the two scopes" "$( for rigWord in MDAT_MANAGER_STYLE MDLT_CONSOLE_HISTORY SESSION_CONTROL_REQUEST_SECONDS SESSION_CONTROL_KILL_SECONDS MDAT_KNOWLEDGE_STORE choice number user workspace ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyyyyy"
 rigAssert "what the user who runs this check and the real workspace have saved is as it was" "$( rigSum "$rigRealUser" ) $( rigSum "$rigRealTeam" )" "$rigRealBefore"
 rigAssert "no run of this check issued a request" "$( [ -e "$rigTmp/curl.calls" ] && wc -l < "$rigTmp/curl.calls" | LC_ALL=C tr -d ' ' || echo 0 )" "0"
 

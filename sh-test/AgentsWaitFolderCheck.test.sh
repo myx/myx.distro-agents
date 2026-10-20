@@ -41,7 +41,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTools" ] || rigRefuse "the tooling is not at the origin this workspace resolves: $rigTools"
-[ -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" ] || rigRefuse "the include that reads when a process began is missing from the package"
+[ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ] || rigRefuse "the include that reads when a process began is missing from the package"
 [ -r "${MDAT_SKILLSET_ROOT:-}/$rigMember/$rigMember.basic.md" ] || rigRefuse "MDAT_SKILLSET_ROOT does not hold $rigMember, so the wait would have no identity to read under"
 
 mkdir -p "$MMDAPP/.local/temp" || exit 1
@@ -281,7 +281,7 @@ rigGonePid=$!
 wait "$rigGonePid" 2>/dev/null
 ## A process that lives through the scenario: this check's own shell, and when it began by the tooling's own reading.
 rigLivePid="$$"
-rigLiveStart="$( set +u ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" > /dev/null 2>&1 ; AgentsToolsRegistryProcessStart "$rigLivePid" )"
+rigLiveStart="$( set +u ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" > /dev/null 2>&1 ; AgentsToolsRegistryProcessStart "$rigLivePid" )"
 [ -n "$rigLiveStart" ] || rigRefuse "the tooling's own reading does not say when this check's shell began, so no live owner can be recorded"
 rigMade(){ ## directory name, host (empty: no record), process (may be empty), "old" to set it years back
 	mkdir -p "$rigTempOf/$1" && : > "$rigTempOf/$1/now.1"

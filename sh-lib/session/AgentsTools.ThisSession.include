@@ -1,0 +1,419 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ThisSession.include -- ThisSession's session-channel operations (F7.2 of the refactorings epic): what a running
+## session asks of its own session channel, the Slack thread the tooling opened for it, and of its dispatch. Sourced by
+## DistroAgentsSession.fn.sh, never run. Functions only.
+##
+## ThisSession IS A TOOL OF ITS OWN: its operations are locked to the session of the call -- they take no session, no thread and no
+## target -- and may look like others while working differently. NOTHING EXISTING IS RENAMED INTO IT: Wait, the Slack send and the
+## reads keep their names and their ways, and every operation here is a name of its own, built on the same machinery beneath
+## (the session chat file and its one reader, Wait's `chat:` source, the Slack send).
+##
+##   --get-session-channel-id            the thread of the session, <channel>:<ts>
+##   --post-session-channel              a post to that thread: the Slack send, with no target
+##   --get-session-thread [--own]        the thread read from the session chat file: no network, nothing changed
+##   --wait-session-channel [--to-@me] [--to-@here] [--to-@any] [--wait-timeout <s>]
+##                                       Wait on the session channel alone
+##   --get-dispatch-text                 the dispatch of the session, from the sandbox's input/
+##   --executor-checkpoint-push [<name>] | --executor-checkpoint-rewind [<name>] [--from-stdin] | --executor-checkpoint-exit
+##                                       a snapshot of the run's conversation, a return to one, the end of both (F10.5, below)
+##   --idle-wait [--wait-timeout <s>]    wait for new input, and on an arrival return to the run's checkpoint with it as the next input
+##                                       (F10.5, below)
+## (--get-routine-text and --update-routine-state, --routine-run-inline are older, and unchanged.)
+##
+## THE SESSION THREAD IS READ FROM THE ONE STORE of its messages, the session chat file (AgentsTools.SessionChat.include), filtered at
+## read time: no per-member copy exists. A message belongs to it by the conversation:thread its index line holds; one never posted, one
+## of another conversation, and a reply to a post of the run are not of the thread.
+##
+
+thisSessionMember="" thisSessionKey="" thisSessionThread=""
+
+## The member the call is made by: the spawned member of this run. rc 1, with a plain line, for a call from no member's session.
+AgentsToolsThisSessionNeedMember(){ ## operation
+	thisSessionMember="${MDAT_SPAWN_AGENT:-}"
+	[ -z "$thisSessionMember" ] || return 0
+	echo "$MDSC_CMD: ⛔ ERROR: $1: a call from no member's session -- the operation acts as the member whose session it is called from. Nothing was done." >&2
+	return 1
+}
+
+## The session the call belongs to (AgentsToolsSessionChatKey), and its folder. rc 1, with a plain line, for a call of no session.
+AgentsToolsThisSessionNeedSession(){ ## operation
+	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	thisSessionKey="$( AgentsToolsSessionChatKey )"
+	[ -z "$thisSessionKey" ] || AgentsToolsSessionChatDir "$thisSessionKey" > /dev/null 2>&1 || thisSessionKey=""
+	[ -z "$thisSessionKey" ] || return 0
+	echo "$MDSC_CMD: ⛔ ERROR: $1: the call belongs to no session -- the operation is locked to the session it is called from. Nothing was done." >&2
+	return 1
+}
+
+## The thread of the session, the one the session-current alias names (AgentsToolsSessionCurrentThreadFind). rc 1, with a plain line, for none.
+AgentsToolsThisSessionNeedThread(){ ## operation
+	type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	thisSessionThread="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || thisSessionThread=""
+	[ -z "$thisSessionThread" ] || return 0
+	echo "$MDSC_CMD: ⛔ ERROR: $1: this session has no session thread, so it has no session channel. Nothing was done." >&2
+	return 1
+}
+
+## --get-session-channel-id: the thread of the session, <channel>:<ts>.
+AgentsToolsThisSessionChannelId(){ ## the operation's arguments (none)
+	if [ $# -gt 0 ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --get-session-channel-id: syntax is --get-session-channel-id, and takes no argument" >&2
+		return 1
+	fi
+	AgentsToolsThisSessionNeedThread --get-session-channel-id || return 1
+	printf '%s\n' "$thisSessionThread"
+}
+
+## --post-session-channel: the team's own Slack send, as the member of the call, to the session thread and to nowhere else -- it takes
+## no target, so the first word is text. Its other arguments are the send's (--address-to, --from-stdin, --identity-bot, ...); the send
+## records the message in the session chat file first and posts after (AgentsToolsSessionChatSend).
+AgentsToolsThisSessionPost(){ ## the send's arguments after its target
+	AgentsToolsThisSessionNeedMember --post-session-channel || return 1
+	AgentsToolsThisSessionNeedSession --post-session-channel || return 1
+	AgentsToolsThisSessionNeedThread --post-session-channel || return 1
+	if [ $# -eq 0 ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --post-session-channel: syntax is [--address-to <team-member>]... (<text...>|--from-stdin), and the post is to the session thread alone" >&2
+		return 1
+	fi
+	DistroAgentsTools --member-comms-slack-send-message "$thisSessionMember" session-current "$@"
+}
+
+## --get-session-thread [--own]: the messages of the session thread, read from the session chat file, in the order of the file. --own: the
+## ones sent by the caller, addressed to it, or mentioning it (@member, or its Slack account). No network call, and nothing is changed.
+AgentsToolsThisSessionThread(){ ## the operation's arguments
+	local threadOwn="no" threadMemberId="" threadFile
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--own) threadOwn="yes" ; shift ;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: --get-session-thread: invalid option: $1 -- syntax is --get-session-thread [--own]" >&2
+				return 1
+			;;
+		esac
+	done
+	[ "$threadOwn" != "yes" ] || AgentsToolsThisSessionNeedMember --get-session-thread --own || return 1
+	AgentsToolsThisSessionNeedSession --get-session-thread || return 1
+	AgentsToolsThisSessionNeedThread --get-session-thread || return 1
+	threadFile="$( AgentsToolsSessionChatDir "$thisSessionKey" )"
+	[ -s "$threadFile/$agentsSessionChatName.index" ] && [ -f "$threadFile/$agentsSessionChatName" ] || return 0
+	[ "$threadOwn" != "yes" ] || threadMemberId="$( AgentsToolsSessionChatMemberId "$thisSessionMember" )"
+	LC_ALL=C awk -v thread="$thisSessionThread" -v own="$threadOwn" -v member="$thisSessionMember" -v memberId="$threadMemberId" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionThreadRead.awk" \
+		"$threadFile/$agentsSessionChatName.index" "$threadFile/$agentsSessionChatName"
+}
+
+## --wait-session-channel: Wait on the session channel alone -- the `chat:` source, read by the caller's own floor pointer, the same one
+## Wait's floor and the tool returns use (AgentsWaitProbeChat). No option is the caller's floor: the executor of the session every message
+## of its thread, a participant the ones that name it. --to-@me: the messages addressed to the caller or mentioning it. --to-@here: the
+## ones addressed to all. --to-@any: every one. They combine as a union. What the options pass over that the floor owes the caller stays
+## for the floor, and what the call delivered beyond it is marked delivered, so nothing is lost and nothing comes twice. The output is
+## Wait's, whole. --wait-timeout <seconds> is Wait's bound; with none, the wait returns on an arrival.
+AgentsToolsThisSessionWait(){ ## the operation's arguments
+	local waitFilter="" waitBound=""
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			"--to-@me") waitFilter="$waitFilter me" ; shift ;;
+			"--to-@here") waitFilter="$waitFilter here" ; shift ;;
+			"--to-@any") waitFilter="$waitFilter any" ; shift ;;
+			--wait-timeout)
+				case "${2:-}" in
+					''|*[!0123456789]*)
+						echo "$MDSC_CMD: ⛔ ERROR: --wait-session-channel: --wait-timeout takes whole seconds. Nothing was waited on." >&2
+						return 1
+					;;
+				esac
+				waitBound="$2" ; shift 2
+			;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: --wait-session-channel: invalid option: $1 -- syntax is --wait-session-channel [--to-@me] [--to-@here] [--to-@any] [--wait-timeout <seconds>]. Nothing was waited on." >&2
+				return 1
+			;;
+		esac
+	done
+	AgentsToolsThisSessionNeedMember --wait-session-channel || return 1
+	AgentsToolsThisSessionNeedSession --wait-session-channel || return 1
+	AgentsToolsThisSessionNeedThread --wait-session-channel || return 1
+	local waitArgs=( "$thisSessionMember" --wait-source "chat:$thisSessionKey" )
+	[ -z "$waitBound" ] || waitArgs+=( --wait-timeout "$waitBound" )
+	MDAT_WAIT_CHAT_FILTER="${waitFilter# }" DistroAgentsTools --member-wait-for-input "${waitArgs[@]}"
+}
+
+## --get-dispatch-text: the dispatch of the session as the run was given it, from the sandbox's input/ (MDAT_SPAWN_SANDBOX_ROOT, else the
+## sandbox of the spawn id): dispatch.md, the copy of the board item, and input-scan.md, each a section of its own through the markdown
+## merge (--intern-merge-md-files, F2.1), in that order. Alone, dispatch.md is printed as it is. conversation.md is the thread, which
+## --get-session-thread serves; pointers.md and the MAGIC copies are references the dispatch names, and the scans of routines run inline
+## (input-scan.<routine>.md) are those calls' own.
+AgentsToolsThisSessionDispatchText(){ ## the operation's arguments (none)
+	local dispatchRoot="${MDAT_SPAWN_SANDBOX_ROOT:-}" dispatchInput dispatchFile dispatchItems=() dispatchItem dispatchMixins=()
+	if [ $# -gt 0 ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --get-dispatch-text: syntax is --get-dispatch-text, and takes no argument" >&2
+		return 1
+	fi
+	[ -n "$dispatchRoot" ] || [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || dispatchRoot="$MMDAPP/.local/agents/spawned/$MDAT_SPAWN_SESSION_ID"
+	dispatchInput="$dispatchRoot/input"
+	if [ -z "$dispatchRoot" ] || [ ! -d "$dispatchInput" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --get-dispatch-text: a call from no spawned session -- there is no sandbox input/ to read a dispatch from. Nothing was done." >&2
+		return 1
+	fi
+	if [ ! -f "$dispatchInput/dispatch.md" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --get-dispatch-text: no dispatch.md in $dispatchInput -- the session was given none, or its input/ was emptied. Nothing was done." >&2
+		return 1
+	fi
+	for dispatchFile in "$dispatchInput"/*.md ; do
+		[ -f "$dispatchFile" ] || continue
+		case "${dispatchFile##*/}" in
+			dispatch.md|pointers.md|conversation.md|input-scan.md|input-scan.*.md|MAGIC.*.md) ;;
+			*) dispatchItems+=( "$dispatchFile" ) ;;
+		esac
+	done
+	dispatchMixins=( --mixin "$dispatchInput/dispatch.md" "Dispatch" )
+	for dispatchItem in ${dispatchItems[@]+"${dispatchItems[@]}"} ; do
+		if [ "${#dispatchItems[@]}" -gt 1 ] ; then
+			dispatchMixins+=( --mixin "$dispatchItem" "Board item ${dispatchItem##*/}" )
+		else
+			dispatchMixins+=( --mixin "$dispatchItem" "Board item" )
+		fi
+	done
+	[ ! -f "$dispatchInput/input-scan.md" ] || dispatchMixins+=( --mixin "$dispatchInput/input-scan.md" "Input scan" )
+	if [ "${#dispatchMixins[@]}" -eq 3 ] ; then
+		cat "$dispatchInput/dispatch.md"
+		return $?
+	fi
+	type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
+	AgentsToolsMergeMdFiles --section-limit 6 "${dispatchMixins[@]}"
+}
+
+## ---- the executor's checkpoint operations (F10.5): --executor-checkpoint-push, -rewind and -exit ----
+## A snapshot of the conversation, a return to one, and the end of both, for a run of the model path (AgentsHarnessCheckpoint.include).
+## The executor's call is a shell command of its own and has no hand on the harness's conversation, so it WRITES A REQUEST into the run's
+## store (sessions/<spawn id>/checkpoint.request), and the harness reads it at the end of the round the call was made in, when the round is
+## whole. Every refusal that can be known here is made here, in the call's own answer. Two things are not refusals but a notice, rc 0, so that
+## the step a kind routine's Opening steps end on (`--executor-checkpoint-push opening`) is harmless wherever it does not apply: a run of
+## a native client (whose conversation only the client keeps), and a session whose routine does not allow the operation to its member.
+
+## rc 0 when the routine the session runs allows the operation to its member: an entry of the routine's own `allows:` that names it for
+## the member, for the routine's executors or for its participants (<who>:<operation>). The operations are not a file or a spend, and they
+## return nothing but the run's own conversation, so no maintainer's holding is asked, as it is for a tool of the team (AgentsToolsPermissionRoutineHolds).
+AgentsToolsThisSessionRoutineAllows(){ ## operation
+	local allowsRoutine allowsFile="" allowsOwner allowsDir allowsLine allowsAllows="" allowsExecutors="" allowsEntry allowsWho allowsRest
+	type AgentsToolsPermissionSessionRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	allowsRoutine="$( AgentsToolsPermissionSessionRoutine "${MDAT_SPAWN_SESSION_ID:-}" )"
+	[ -n "$allowsRoutine" ] || return 1
+	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	while IFS=$'\t' read -r allowsOwner allowsDir ; do
+		[ -n "$allowsDir" ] && [ -f "$allowsDir/$allowsRoutine" ] || continue
+		allowsFile="$allowsDir/$allowsRoutine"
+		break
+	done <<< "$( AgentsToolsTeamMemberDirectoryText 2> /dev/null )"
+	[ -n "$allowsFile" ] || return 1
+	while IFS= read -r allowsLine ; do
+		case "$allowsLine" in
+			'executors: '*) allowsExecutors="${allowsLine#executors: }" ;;
+			'allows: '*) allowsAllows="${allowsLine#allows: }" ;;
+		esac
+	done <<< "$( LC_ALL=C awk -v headers="executors"$'\034'"allows" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$allowsFile" 2> /dev/null )"
+	allowsExecutors=" $( printf '%s' "$allowsExecutors" | LC_ALL=C tr ',\t' '  ' ) "
+	while [ -n "$allowsAllows" ] ; do
+		allowsEntry="${allowsAllows%%,*}"
+		if [ "$allowsEntry" != "$allowsAllows" ] ; then allowsAllows="${allowsAllows#*,}" ; else allowsAllows="" ; fi
+		allowsEntry="${allowsEntry#"${allowsEntry%%[![:space:]]*}"}" ; allowsEntry="${allowsEntry%"${allowsEntry##*[![:space:]]}"}"
+		case "$allowsEntry" in *:*) ;; *) continue ;; esac
+		allowsWho="${allowsEntry%%:*}" ; allowsRest="${allowsEntry#*:}"
+		[ "${allowsRest%%:*}" = "$1" ] || continue
+		case "$allowsWho" in
+			participants) return 0 ;;
+			executors)
+				case "$allowsExecutors" in *" $thisSessionMember "*|*" magic-team "*|*" * "*) return 0 ;; esac
+			;;
+			*) [ "$allowsWho" != "$thisSessionMember" ] || return 0 ;;
+		esac
+	done
+	return 1
+}
+
+AgentsToolsThisSessionCheckpoint(){ ## push|rewind|exit, then the operation's arguments
+	local checkpointOp="$1" checkpointWord="--executor-checkpoint-$1" checkpointName="" checkpointStore checkpointHeld checkpointStdin="" checkpointText=""
+	shift
+	case "$checkpointOp" in
+		push)
+			if [ $# -gt 1 ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: $checkpointWord: syntax is $checkpointWord [<name>]. Nothing was done." >&2
+				return 1
+			fi
+			checkpointName="${1:-}"
+		;;
+		rewind)
+			while [ $# -gt 0 ] ; do
+				case "$1" in
+					--from-stdin) checkpointStdin="yes" ;;
+					*)
+						if [ -n "$checkpointName" ] ; then
+							echo "$MDSC_CMD: ⛔ ERROR: $checkpointWord: syntax is $checkpointWord [<name>] [--from-stdin]. Nothing was done." >&2
+							return 1
+						fi
+						checkpointName="$1"
+					;;
+				esac
+				shift
+			done
+		;;
+		exit)
+			if [ $# -gt 0 ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: $checkpointWord: syntax is $checkpointWord, and takes no argument. Nothing was done." >&2
+				return 1
+			fi
+		;;
+	esac
+	if [ -n "$checkpointName" ] ; then
+		type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+		AgentsToolsAssertBareName "$checkpointName" "the snapshot name" "$checkpointWord" || { echo "$MDSC_CMD: ⛔ ERROR: $checkpointWord: nothing was done." >&2 ; return 1 ; }
+	fi
+	AgentsToolsThisSessionNeedMember "$checkpointWord" || return 1
+	if [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || [ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $checkpointWord: the call belongs to no spawned session -- the operation is locked to the run it is called from. Nothing was done." >&2
+		return 1
+	fi
+	if [ ! -e "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" ] ; then
+		printf 'NOTICE: %s: no checkpoint was made -- this run is a native client'"'"'s, whose conversation only the client keeps. The session goes on.\n' "$checkpointWord"
+		return 0
+	fi
+	if ! AgentsToolsThisSessionRoutineAllows "$checkpointWord" ; then
+		printf 'NOTICE: %s: no checkpoint was made -- the routine this session runs does not allow it to its member (its allows: names it, for a single-participant routine). The session goes on.\n' "$checkpointWord"
+		return 0
+	fi
+	checkpointStore="$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID"
+	mkdir -p "$checkpointStore" 2> /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: $checkpointWord: $checkpointStore could not be made. Nothing was done." >&2 ; return 1 ; }
+	if [ "$checkpointOp" = rewind ] ; then
+		checkpointHeld="$( LC_ALL=C awk -F '\t' 'NF { print $1 }' "$checkpointStore/snapshots" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
+		if [ -z "$checkpointHeld" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $checkpointWord: this run holds no snapshot to return to. Nothing was done." >&2
+			return 1
+		fi
+		if [ -n "$checkpointName" ] ; then
+			case " $checkpointHeld" in
+				*" $checkpointName "*) ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: $checkpointWord: no snapshot named '$checkpointName' -- this run holds: ${checkpointHeld% }. Nothing was done." >&2
+					return 1
+				;;
+			esac
+		fi
+	fi
+	## The dispatch of the return, the text the run is given when it comes back: whole, beside the request, for the harness to read with it.
+	if [ -n "$checkpointStdin" ] ; then
+		checkpointText="$( cat )"
+		if [ -z "$checkpointText" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $checkpointWord: --from-stdin: no text on standard input -- the dispatch of a return is the text the run is given when it comes back. Nothing was done." >&2
+			return 1
+		fi
+		printf '%s\n' "$checkpointText" > "$checkpointStore/checkpoint.dispatch" || { echo "$MDSC_CMD: ⛔ ERROR: $checkpointWord: the dispatch could not be written. Nothing was done." >&2 ; return 1 ; }
+	fi
+	printf '%s%s\n' "$checkpointOp" "${checkpointName:+ $checkpointName}" >> "$checkpointStore/checkpoint.request" || { echo "$MDSC_CMD: ⛔ ERROR: $checkpointWord: the request could not be written. Nothing was done." >&2 ; return 1 ; }
+	case "$checkpointOp" in
+		push) printf 'OK: %s: the snapshot %s is made at the end of this round.\n' "$checkpointWord" "${checkpointName:-checkpoint}" ;;
+		rewind) printf 'OK: %s: the conversation returns to %s at the end of this round%s.\n' "$checkpointWord" "${checkpointName:-the newest snapshot}" "${checkpointStdin:+, with the text given as the next input}" ;;
+		exit) printf 'OK: %s: the snapshots are dropped at the end of this round.\n' "$checkpointWord" ;;
+	esac
+}
+
+## ---- --idle-wait (F10.5 gate B) ----
+## Wait for new input and, on an arrival, return to the run's checkpoint with the arrival as the next input: the work-duty behaviour of a
+## run that stays, so that the rounds of each piece of work do not pile up in its conversation. It WRITES A REQUEST as the checkpoint
+## operations do (`idle <timeout or -> [<source> ...]`), and the harness makes the wait at the end of the round, because only it holds the
+## conversation (AgentsHarnessIdleWait). It waits on what the routine the session runs waits on: the floor, and the scans the routine itself
+## declares with `input-scan-def:`, by name, as `scan:` sources (F3.3), so a work-duty run wakes on its work-duty input; with no scan
+## declared, on the floor alone. Who has it: a single-participant session -- a routine of kind standalone with one executor and no invitee,
+## the shape the checkpoint operations are for -- and a separate spawn, which runs no routine. For the run of a native client, and for a
+## session of several participants, it is a NOTICE that nothing was waited on, rc 0, and the way to wait there: Wait, which a call that
+## loops on this one is sent to, so that it cannot spin.
+
+## rc 0 when a routine is a single-participant one: its kind is standalone, it has one executor (not the whole team) and no invitee.
+## The validator holds the same shape for a routine that allows the checkpoint operations (AgentsToolsDocValidate).
+AgentsToolsThisSessionSingleParticipant(){ ## routine file path
+	local singleFm singleExecutors singleInvitees
+	type AgentsToolsSpawnRoutineKindOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include"
+	[ "$( AgentsToolsSpawnRoutineKindOwn "$1" )" = "standalone" ] || return 1
+	singleFm="$( AgentsToolsSpawnRoutineFrontmatter "$1" "$( AgentsToolsSpawnRoutineKindPath "$1" )" )"
+	singleExecutors="$( printf '%s\n' "$singleFm" | LC_ALL=C sed -n 's/^executors: //p' | head -1 )"
+	singleInvitees="$( printf '%s\n' "$singleFm" | LC_ALL=C sed -n 's/^invitees: //p' | head -1 )"
+	case "$singleExecutors" in
+		''|*[[:space:],*]*|magic-team) return 1 ;;
+	esac
+	case "$singleInvitees" in
+		''|none) ;;
+		*) return 1 ;;
+	esac
+	return 0
+}
+
+AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
+	local idleBound="" idleRoutine idleFile="" idleOwner idleDir idleLine idleScan idleSources="" idleStore idleHeld idleTarget="" idleShown idleTail idleQuiet=""
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--wait-timeout)
+				case "${2:-}" in
+					''|*[!0123456789]*)
+						echo "$MDSC_CMD: ⛔ ERROR: --idle-wait: --wait-timeout takes whole seconds. Nothing was waited on." >&2
+						return 1
+					;;
+				esac
+				idleBound="$2" ; shift 2
+			;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: --idle-wait: invalid option: $1 -- syntax is --idle-wait [--wait-timeout <seconds>]. Nothing was waited on." >&2
+				return 1
+			;;
+		esac
+	done
+	AgentsToolsThisSessionNeedMember --idle-wait || return 1
+	if [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || [ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --idle-wait: the call belongs to no spawned session -- the operation is locked to the run it is called from. Nothing was done." >&2
+		return 1
+	fi
+	if [ ! -e "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" ] ; then
+		printf "NOTICE: --idle-wait: nothing was waited on and nothing returned -- this run is a native client's, whose conversation only the client keeps. Wait on the session with Wait instead.\n"
+		return 0
+	fi
+	type AgentsToolsPermissionSessionRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+	idleRoutine="$( AgentsToolsPermissionSessionRoutine "$MDAT_SPAWN_SESSION_ID" )"
+	if [ -n "$idleRoutine" ] ; then
+		type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+		while IFS=$'\t' read -r idleOwner idleDir ; do
+			[ -n "$idleDir" ] && [ -f "$idleDir/$idleRoutine" ] || continue
+			idleFile="$idleDir/$idleRoutine"
+			break
+		done <<< "$( AgentsToolsTeamMemberDirectoryText 2> /dev/null )"
+		if [ -z "$idleFile" ] || ! AgentsToolsThisSessionSingleParticipant "$idleFile" ; then
+			printf 'NOTICE: --idle-wait: nothing was waited on and nothing returned -- the routine this session runs is not a single-participant one (kind standalone, one executor, no invitee), and the return of a conversation is for those. Wait on the session with Wait instead.\n'
+			return 0
+		fi
+		type AgentsToolsRoutineKeyLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
+		## The scans the routine declares, by name: the options of a definition are the spawner's, and a scan named twice is one source.
+		while IFS= read -r idleLine ; do
+			idleScan="${idleLine%%[[:space:]]*}"
+			case "$idleScan" in ''|none) continue ;; esac
+			case " $idleSources " in *" scan:$idleScan "*) continue ;; esac
+			idleSources="$idleSources${idleSources:+ }scan:$idleScan"
+		done <<< "$( AgentsToolsRoutineKeyLines "$idleFile" input-scan-def )"
+	fi
+	idleStore="$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID"
+	mkdir -p "$idleStore" 2> /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: --idle-wait: $idleStore could not be made. Nothing was done." >&2 ; return 1 ; }
+	## The checkpoint it returns to: `opening` where the run holds it, else `armed`, else none.
+	idleHeld=" $( LC_ALL=C awk -F '\t' 'NF { print $1 }' "$idleStore/snapshots" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
+	case "$idleHeld" in
+		*" opening "*) idleTarget=opening ;;
+		*" armed "*) idleTarget=armed ;;
+	esac
+	printf 'idle %s%s\n' "${idleBound:--}" "${idleSources:+ $idleSources}" >> "$idleStore/checkpoint.request" || { echo "$MDSC_CMD: ⛔ ERROR: --idle-wait: the request could not be written. Nothing was done." >&2 ; return 1 ; }
+	idleShown="the floor${idleSources:+ and ${idleSources// /, }}"
+	if [ -n "$idleTarget" ] ; then
+		idleTail="on an arrival this run returns to its checkpoint $idleTarget, with the arrival as the next input"
+	else
+		idleTail="no snapshot is held, so an arrival comes as a message and the conversation is not returned"
+	fi
+	[ -z "$idleBound" ] || idleQuiet="; with nothing in $idleBound seconds the wait ends with a TIMEOUT, and nothing is returned"
+	printf 'OK: --idle-wait: at the end of this round the harness waits on %s; %s%s.\n' "$idleShown" "$idleTail" "$idleQuiet"
+}

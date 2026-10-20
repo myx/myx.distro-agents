@@ -24,6 +24,7 @@
 ## Offline: no operation of the real tooling is called, and no console of this machine is started.
 ## Reconciled for F11.0: the left pane has no `keys:` line of its own any more; the status line names Enter as Start.
 ## Reconciled for F11.0, the table lines: the table of the consoles has an empty line between its rows, so the left window holds three lines more.
+## Reconciled for F11.5: the roots are Dashboard, Pending Questions, Magic-Team (Agents), Locations, Consoles, ...: Consoles is the fifth, by key 5.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -81,7 +82,7 @@ rigCase(){ ## name
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize %s\nroot sessions\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize %s\nroot active-sessions\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -102,6 +103,7 @@ rigOthers(){ ## how many starts were neither the list of the sessions nor the li
 echo "-- Consoles is a root, a folder, and lists what the operation gives --"
 rigCase list
 rigScript <<'RIGSCRIPT'
+root places
 turn
 wait sessions 30
 show rootShown
@@ -129,7 +131,7 @@ cells upStatus 39 0 120
 keys LEFT
 turn
 get root
-keys 6
+keys 5
 turn
 get six
 keys m
@@ -139,7 +141,7 @@ RIGSCRIPT
 rigRootLine(){ ## text -- the number of the line of the screen, as first shown, that holds the text
 	printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -n -F -- "$1" | head -1 | LC_ALL=C cut -d: -f1
 }
-rigAssert "the root list holds it after the team members and ahead of the settings, as a folder, whatever other roots stand between" "$( [ "$( rigRootLine ' Team Members  ' )" -lt "$( rigRootLine ' Consoles  ' )" ] && [ "$( rigRootLine ' Consoles  ' )" -lt "$( rigRootLine ' Settings  ' )" ] && echo in-that-order ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -F ' Consoles  ' | LC_ALL=C grep -c -F '►' )" "in-that-order 1"
+rigAssert "the root list holds it after the locations and ahead of the settings, as a folder, whatever other roots stand between" "$( [ "$( rigRootLine 'Locations (Places)' )" -lt "$( rigRootLine ' Consoles  ' )" ] && [ "$( rigRootLine ' Consoles  ' )" -lt "$( rigRootLine ' Settings  ' )" ] && echo in-that-order ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -F ' Consoles  ' | LC_ALL=C grep -c -F '►' )" "in-that-order 1"
 rigAssert "not entered: its list is read once the selection has rested on its row, and the left window then holds what the folder holds" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "consoles [] 12"
 rigAssert "Enter enters it, and its list is read by the operation with no argument" "$( rigVal in.path ) $( rigCalled --manager-console-list ) $( rigOthers )" "consoles 1 0"
 rigAssert "its window is titled by its name, without the dots"       "[$( rigVal title )]" "[Consoles]"
@@ -148,15 +150,15 @@ rigAssert "the rows stand in the order of the operation, each by its label with 
 rigAssert "a line that is no row of a console, and one too short to hold a command, is left out" "$( rigVal in.rows ) [$( rigVal row6 )]" "5 []"
 rigAssert "on the row that goes up the left window shows the folder itself: every one as a table, nothing above it, and no sentence of what Enter does" "[$( rigPane u 2 )][$( rigPane u 3 | LC_ALL=C sed 's/  */ /g' )]" \
 	"[ Consoles [wrap]][ CONSOLE GROUP COMMAND]"
-rigAssert "the menu Console is in the bar in this view"              "[$( rigVal bar )] [$( rigVal upStatus )]" "[ ≡  Go  Console  View  Help] [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
-rigAssert "Left goes back to the root, onto its row, and 6 goes there from anywhere" "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigVal six.path )]" "[] consoles [consoles]"
-rigAssert "the Go menu holds it with its key"                        "$( rigScreenHolds g '│ Consoles                 6 │' )" 1
+rigAssert "the menu Console is in the bar in this view"              "[$( rigVal bar )] [$( rigVal upStatus )]" "[ ≡  Go  Console  View  Help] [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut  t Sort]"
+rigAssert "Left goes back to the root, onto its row, and 5 goes there from anywhere" "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigVal six.path )]" "[] consoles [consoles]"
+rigAssert "the Go menu holds it with its key"                        "$( rigScreenHolds g '│ Consoles                 5 │' )" 1
 
 echo "-- the left window shows the selected console --"
 rigCase shown
 rigScript <<'RIGSCRIPT'
 turn
-keys 6
+keys 5
 wait list 30
 keys DOWN
 turn
@@ -186,7 +188,7 @@ echo "-- Enter gives the terminal to a child, started from the words of the row 
 rigCase enter
 rigScript <<'RIGSCRIPT'
 turn
-keys 6
+keys 5
 wait list 30
 keys DOWN
 turn
@@ -208,7 +210,7 @@ rigAssert "the selection stays, and the list is read again"          "$( rigVal 
 rigCase ends
 rigScript <<'RIGSCRIPT'
 turn
-keys 6
+keys 5
 wait list 30
 keys DOWN DOWN DOWN DOWN
 child 0
@@ -228,7 +230,7 @@ echo "-- a command that cannot be started says why in a box; the size the termin
 rigCase fails
 rigScript <<'RIGSCRIPT'
 turn
-keys 6
+keys 5
 wait list 30
 keys DOWN DOWN
 child missing
@@ -258,7 +260,7 @@ for rigStyle in tv bw magic ; do
 	rigScript <<RIGSCRIPT
 style $rigStyle
 turn
-keys 6
+keys 5
 wait list 30
 keys DOWN
 turn
@@ -328,7 +330,7 @@ rigTraced(){
 }
 rigTrace='on=1000h|off=1000l|in=\e[?1049h|out=\e[?1049l|up=STANDIN-UP|end=STANDIN-END|said=ended with status 7|wide=echo foxtrot golf|narrow=hotel india juliet'
 rigPtyCase pty-exit exit
-rigPty '6\p\aStandin\a\eOB\p\r\p\aSTANDIN-UP\ago\r\p\aended with status 7\a\x18'
+rigPty '5\p\aStandin\a\eOB\p\r\p\aSTANDIN-UP\ago\r\p\aended with status 7\a\x18'
 rigAssert "a normal end: the screen came up, ended by its own key with status 0, and gave the terminal back as it was" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.modeBack ) $( rigVal pty.errorAfterLeft )" "yes 0 yes yes none"
 rigAssert "the child was started from its words as they are, in its folder, with no shell" "$( rigFact argv ) [$( rigFact cwd )]" "[a word][_][-] [$rigTmp/ws rig]"
 rigAssert "it had the terminal, in the shell's mode, in its size"    "$( rigFact tty ) $( rigFact cooked ) $( rigFact size )" "yes yes 100x30"
@@ -336,12 +338,12 @@ rigAssert "the screen had left its mode before the child came up, wrote nothing 
 rigAssert "and the list was read again after it"                     "$( [ "$( rigCalled --manager-console-list )" -ge 2 ] && echo yes || echo "no ($( rigCalled --manager-console-list ))" )" "yes"
 rigTrace='on=1000h|off=1000l|in=\e[?1049h|out=\e[?1049l|up=STANDIN-UP|end=STANDIN-END|said=ended by signal 15'
 rigPtyCase pty-signal signal
-rigPty '6\p\aStandin\a\eOB\p\r\p\aended by signal 15\a\x18'
+rigPty '5\p\aStandin\a\eOB\p\r\p\aended by signal 15\a\x18'
 rigAssert "an end by a signal: the screen does not end with its child, and gives the terminal back at its own end" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.modeBack ) $( rigVal pty.errorAfterLeft )" "yes 0 yes yes none"
 rigAssert "it is back after the child, and says which signal ended it" "$( rigTraced )" "up at off/out, 0 while it ran, then in on said, at the end off/out"
 rigTrace='on=1000h|off=1000l|in=\e[?1049h|out=\e[?1049l|up=STANDIN-UP|end=STANDIN-END|said=ended with status 0|wide=echo foxtrot golf|narrow=hotel india juliet'
 rigPtyCase pty-resize resize
-rigPty '6\p\aStandin\a\eOB\p\r\p\aSTANDIN-UP\a\z70x24\pgo\r\p\aended with status 0\a\x18'
+rigPty '5\p\aStandin\a\eOB\p\r\p\aSTANDIN-UP\a\z70x24\pgo\r\p\aended with status 0\a\x18'
 rigAssert "a terminal resized while the child ran: the child saw both sizes, and the screen ended as ever" "$( rigFact size ) $( rigFact sizeAtEnd ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.modeBack )" "100x30 70x24 0 yes yes"
 rigAssert "the screen is back in the size the terminal has now: its left window breaks as 70 columns break it" "$( rigTraced )" "up at off/out, 0 while it ran, then in on narrow said, at the end off/out"
 

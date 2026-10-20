@@ -104,9 +104,39 @@ DistroAgentsTools(){
 
 
 		--agents-config-option)
+			## A write into a preset, or of a key that belongs to presets or to the tiers, asks the write check first (AgentsToolsPresetWriteCheck, AgentsTools.Preset.include): the same writer, with its refusals. A value it takes from stdin is held by the check, and the writer is handed it again.
+			case "${3:-}" in
+				--upsert|--upsert-from-stdin|--upsert-if|--delete|--delete-if)
+					case "$2:${4:-}" in
+						preset-*:*|*:PRESET_*|*:SPAWN_TIER_*)
+							type AgentsToolsPresetWriteCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
+							AgentsToolsPresetWriteCheck "${MMDAPP%/}" "$2" "$3" "${4:-}" "${5:-}" || { set +e ; return 1 ; }
+							if [ -n "$agentsPresetStdinTaken" ] ; then
+								agentsPresetStdinTaken=""
+								. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" <<< "$agentsPresetStdin"
+								return $?
+							fi
+						;;
+					esac
+				;;
+			esac
 			## An option is this workspace's own, with the exceptions the reader below cannot know, being the sibling package's: a read of one names the workspace it comes from where that is another (AgentsToolsConfigOptionElsewhere, AgentsTools.MemberWorkspace.include), and is then made there, by the same reader.
 			case "${3:-}" in
 				--select|--select-default)
+					## A spawn setting of the team, where tier settings are configured, is the preset's of the spawn (AgentsToolsPresetOverlay, AgentsTools.Preset.include): answered here, from the preset, ahead of the scope. Where none is set, the scope is read as ever.
+					if [ "$2" = "magic-team" ] ; then
+						local overlayOut overlayRc=0
+						type AgentsToolsPresetOverlay > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
+						overlayOut="$( AgentsToolsPresetOverlay "${4:-}" )" || overlayRc=$?
+						case "$overlayRc" in
+							0)
+								if [ -n "$overlayOut" ] ; then printf '%s\n' "$overlayOut" ; elif [ "$3" = "--select-default" ] ; then printf '%s\n' "${5:-}" ; fi
+								return 0
+							;;
+							1) ;;
+							*) set +e ; return 1 ;;
+						esac
+					fi
 					AgentsToolsConfigOptionElsewhere "$2" "${4:-}" || { set +e ; return 1 ; }
 					if [ -n "$agentsConfigOptionElsewhere" ] ; then
 						( MMDAPP="$agentsConfigOptionElsewhere" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" )
@@ -336,6 +366,12 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## The installer of the knowledge store's Python environment, beside the other installs.
+		--install-knowledge-store)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.InstallKnowledgeStore.include"
+			return $?
+		;;
+
 		--install-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Install.include"
 			return $?
@@ -462,6 +498,21 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## The communications reader and writer of the workspace (F9.3), beside the control thread above: one shell process
+		## of the tooling on a host that keeps the session chat files up to date with Slack, and Slack with them.
+		--intern-session-comms)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternSessionComms.include"
+			return $?
+		;;
+
+		## The background thread of the collection of the sources an input scan reads (F4.2): one shell process of the tooling on a host
+		## that keeps the mail and the Trello notes of the members a scan reads up to date in their inboxes. A scan and the main loop
+		## want it and start it; no agent calls it.
+		--intern-source-collect)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.InternSourceCollect.include"
+			return $?
+		;;
+
 		## Registered places: their registration and the tooling's resolvers.
 		--intern-directory-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternDirectory.include"
@@ -484,12 +535,12 @@ DistroAgentsTools(){
 		## Markdown files merged into one document, each by a mixin naming its section. Its consumer is
 		## the Skill tool, which serves a member's basic and armed files as one read.
 		--intern-merge-md-files)
-			. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/markdown/AgentsTools.InternMergeMdFiles.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
 			return $?
 		;;
 
-		## The one validator of a document against its contract, a rule set for each kind (the routine
-		## kind so far). Read-only; one row per fault, `<file>:<line>: <rule>: <text>`.
+		## The one validator of a document, a rule set for each kind (`routine`, and `document`, the
+		## self-check). Read-only; one row per fault, `<file>:<line>: <rule>: <text>`.
 		--intern-doc-validate)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include"
 			return $?
@@ -614,6 +665,19 @@ DistroAgentsTools(){
 		## magic-librarian.morning-review.routine: its input scan. The cut-off is the routine's own state, updated with --update-routine-state.
 		--intern-op-morning-review-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.InternOpMorningReview.include"
+			return $?
+		;;
+
+		## The collection of the sources an input scan reads (F4.2): a member's mailbox and Trello into its inbox, read-only. The tooling's
+		## own, called by the scans, the one background thread and the main loop; no agent calls it and no routine owns it.
+		--intern-op-collect-sources)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.InternOpCollect.include"
+			return $?
+		;;
+
+		## The work-duty input scan (F4.1): the spawner runs it from a routine's `input-scan-def: work-duty`; no member calls it.
+		--intern-op-work-duty-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.InternOpWorkDuty.include"
 			return $?
 		;;
 

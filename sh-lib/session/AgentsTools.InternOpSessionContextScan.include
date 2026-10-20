@@ -450,7 +450,7 @@ case "$1" in
 			if [ "$commsCutoffKind" = "--comms-since-utime" ] ; then
 				cutoffEpoch="$commsCutoffValue"
 			elif [ "$commsCutoffKind" = "--comms-since-date-time" ] ; then
-				cutoffEpoch="$( printf '%s\n' "$commsCutoffValue" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsIsoToEpoch.awk" )" || {
+				cutoffEpoch="$( printf '%s\n' "$commsCutoffValue" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" )" || {
 					echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --comms-since-date-time: could not convert to epoch seconds: $commsCutoffValue" >&2
 					set +e ; return 1
 				}
@@ -720,7 +720,7 @@ case "$1" in
 						imAnySourceFailed="true"
 					else
 						local mentionAfter="" mentionRc=0 mentionResponse="" mentionHits=""
-						mentionAfter="$( printf '%s\n' "$(( ${cutoffEpoch%%.*} - 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsEpochToIsoDate.awk" )" || mentionAfter=""
+						mentionAfter="$( printf '%s\n' "$(( ${cutoffEpoch%%.*} - 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalEpochToIsoDate.awk" )" || mentionAfter=""
 						if [ -z "$mentionAfter" ] ; then
 							imPartial="$imPartial**NOTE:** partial -- mention search not run, the search window's start date could not be derived from cut-off $cutoffEpoch"$'\n'
 							imAnySourceFailed="true"
@@ -1359,31 +1359,21 @@ case "$1" in
 			fi
 
 			local emailBlocks="" emailInstrument="" emailFailed="false"
-			local emailUidsTotal=0 emailNotConfigured="false"
+			local emailUidsTotal=0 emailNotConfigured="false" emailSince="" emailSinceIso=""
 			if [ "$wantEmail" = "true" ] ; then
 				emailInstrument="unread-semantics (IMAP UID SEARCH UNSEEN)"
-				## The mailbox this scan reads as, from the acting member's own
-				## scope. A member with no EMAIL_USER keeps the stated default.
-				local emailUser="" emailHost="" emailPass=""
+				## THE MAILBOX IS COLLECTED, NOT POLLED (F4.2): the tooling brings it into the member's inbox, TTL by TTL and read-only
+				## (AgentsTools.Collect.include), and this scan reads what it brought. No scan holds the password, and no source is
+				## asked by every scan that wants it.
+				## The mailbox this scan reads as, from the acting member's own scope. A member with no EMAIL_USER keeps the stated default.
+				local emailUser=""
 				emailUser="$( AgentsToolsCommsOwnSettingsApply "$actingMember" && DistroAgentsTools --agents-config-option "$actingMember" --select EMAIL_USER )" || emailUser=""
 				[ -z "$emailUser" ] || emailIdentity="$emailUser"
-				emailHost="$( AgentsToolsCommsOwnSettingsApply "$actingMember" && DistroAgentsTools --agents-config-option "$actingMember" --select EMAIL_IMAP_HOST )" || emailHost=""
-				emailPass="$( AgentsToolsCommsOwnSettingsApply "$actingMember" && DistroAgentsTools --agents-config-option "$actingMember" --select EMAIL_APP_PASSWORD )" || emailPass=""
-				## Mirrors --member-comms-email-check's own gate exactly: an optional
-				## source nothing is configured for must not read as one that failed.
-				if [ -z "$emailHost" ] || [ -z "$emailUser" ] || [ -z "$emailPass" ] ; then
-					emailNotConfigured="true"
-				fi
-				## ONE IMAP SESSION FOR THE WHOLE READ: one login, the search, and a
-				## fetch per message the cap will render (AgentsImapSweepFetch.py),
-				## where this used to log in for the search and again for every
-				## message. Still EXAMINE and BODY.PEEK[] -- nothing read here is
-				## marked seen. The scan's own cut-off narrows the search with
-				## SINCE: IMAP compares dates only, so the day before the cut-off's
-				## UTC date, never a day too late; unread semantics are unchanged.
-				local emailCheck emailUids emailUid emailSince="" emailSinceIso="" emailFetchDir=""
+				type AgentsToolsCollectEnsure > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.Collect.include"
+				## Mirrors the collection's own gate: an optional source nothing is configured for must not read as one that failed.
+				AgentsToolsCollectConfigured mail "$actingMember" || emailNotConfigured="true"
 				if [ "$emailNotConfigured" = "false" ] && [ -n "$cutoffEpoch" ] ; then
-					emailSinceIso="$( printf '%s\n' "$(( ${cutoffEpoch%%.*} - 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsEpochToIsoDate.awk" )" || emailSinceIso=""
+					emailSinceIso="$( printf '%s\n' "$(( ${cutoffEpoch%%.*} - 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalEpochToIsoDate.awk" )" || emailSinceIso=""
 					case "$emailSinceIso" in
 						????-??-??)
 							## IMAP spells the month in English whatever the locale.
@@ -1406,65 +1396,24 @@ case "$1" in
 					[ -z "$emailSince" ] || emailInstrument="unread-semantics (IMAP UID SEARCH UNSEEN SINCE $emailSince)"
 				fi
 				if [ "$emailNotConfigured" = "false" ] && [ "$emailFailed" = "false" ] ; then
-					emailFetchDir="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/mdat-sweep-email.XXXXXX" )" || { set +e ; return 1 ; }
-					emailCheck="$( AGENTS_IMAP_HOST="$emailHost" AGENTS_IMAP_USER="$emailUser" AGENTS_IMAP_PASS="$emailPass" \
-						AGENTS_IMAP_MAILBOX="INBOX" AGENTS_IMAP_SINCE="$emailSince" AGENTS_IMAP_MAX="$sessionContextCapEmail" \
-						AGENTS_IMAP_OUT_DIR="$emailFetchDir" python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsImapSweepFetch.py" )" || emailFailed="true"
+					## Collected now if its TTL has passed; the cut-off narrows the search and what is shown.
+					if AgentsToolsCollectEnsure "$actingMember" mail "$emailSince" ; then
+						AgentsToolsCollectBlocks mail "$actingMember" "${emailSinceIso//-/}" "$sessionContextCapEmail" emailBlocks emailUidsTotal
+					else
+						emailFailed="true"
+						echo "$MDSC_CMD: session-context-scan: $agentsCollectLine" >&2
+					fi
 				fi
-				emailPass=""
-				if [ "$emailNotConfigured" = "false" ] && [ "$emailFailed" = "false" ] ; then
-					emailUids="$( printf '%s\n' "$emailCheck" | LC_ALL=C awk '
-						{ sub(/\r$/, ""); }
-						/^\* SEARCH/ { seenSearch = 1; for (i = 3; i <= NF; i++) print $i; }
-						END {
-							if (!seenSearch) {
-								printf("⛔ ERROR: AgentsTools.InternOpSessionContextScan.include: the IMAP session returned no SEARCH response line -- treat as NOT SCANNED, never as empty\n") > "/dev/stderr"
-								exit 1
-							}
-						}
-					' )" || emailFailed="true"
-				fi
-				if [ "$emailFailed" = "false" ] ; then
-					local emailReadRc emailBlock emailFetched=0
-					while IFS= read -r emailUid ; do
-						[ -n "$emailUid" ] || continue
-						emailUidsTotal=$(( emailUidsTotal + 1 ))
-						## Only what the cap will render was fetched, by the session above.
-						[ "$emailFetched" -lt "$sessionContextCapEmail" ] || continue
-						emailFetched=$(( emailFetched + 1 ))
-						## The raw message is a file, never $(): a command substitution
-						## truncates raw message bytes at the first NUL. No .rc file is a
-						## UID the session broke before reaching.
-						emailReadRc=2
-						[ ! -f "$emailFetchDir/$emailUid.rc" ] || read -r emailReadRc < "$emailFetchDir/$emailUid.rc" || emailReadRc=2
-						if [ "$emailReadRc" != "0" ] ; then
-							emailBlocks="$emailBlocks## email-message $emailUid"$'\n'"mailbox: INBOX"$'\n'"status: unseen"$'\n'"fetch: not read -- the IMAP session returned $emailReadRc for this UID; the message is UNKNOWN, not empty"$'\n'$'\n'
-							continue
-						fi
-						emailBlock=""
-						emailBlock="$( AGENTS_EMAIL_UID="$emailUid" AGENTS_EMAIL_MAILBOX="INBOX" AGENTS_EMAIL_STATUS="unseen" python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionContextEmailItem.py" < "$emailFetchDir/$emailUid.eml" )" || emailBlock=""
-						if [ -z "$emailBlock" ] ; then
-							emailBlocks="$emailBlocks## email-message $emailUid"$'\n'"mailbox: INBOX"$'\n'"status: unseen"$'\n'"fetch: not rendered -- the message was fetched but could not be parsed into a block"$'\n'$'\n'
-							continue
-						fi
-						emailBlocks="$emailBlocks$emailBlock"$'\n'$'\n'
-					done <<< "$emailUids"
-				fi
-				[ -z "$emailFetchDir" ] || rm -rf "$emailFetchDir"
 			fi
 
 			local trelloBlocks="" trelloInstrument="" trelloFailed="false"
-			local trelloNotConfigured="false"
+			local trelloNotConfigured="false" trelloTotal=0
 			if [ "$wantTrello" = "true" ] ; then
 				trelloInstrument="unread-semantics (Trello read_filter=unread)"
-				local trelloKey="" trelloToken=""
-				trelloKey="$( AgentsToolsCommsOwnSettingsApply "$actingMember" && DistroAgentsTools --agents-config-option "$actingMember" --select TRELLO_KEY )" || trelloKey=""
-				trelloToken="$( AgentsToolsCommsOwnSettingsApply "$actingMember" && DistroAgentsTools --agents-config-option "$actingMember" --select TRELLO_TOKEN )" || trelloToken=""
-				## Mirrors --member-comms-trello-check's own gate, same reason as the email
-				## gate above: that op gives "no credentials" and "no answer" one status.
-				if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
-					trelloNotConfigured="true"
-				fi
+				## Collected, not polled, as the mailbox is (F4.2): the unread notifications are notes of the member's inbox.
+				type AgentsToolsCollectEnsure > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.Collect.include"
+				## Mirrors the collection's own gate, same reason as the email gate above.
+				AgentsToolsCollectConfigured trello "$actingMember" || trelloNotConfigured="true"
 				local trelloWhoami="" trelloUser="" trelloId=""
 				if [ "$trelloNotConfigured" = "false" ] ; then
 					type AgentsToolsCommsTrelloCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsTrello.include"
@@ -1475,18 +1424,13 @@ case "$1" in
 				if [ -n "$trelloUser" ] && [ -n "$trelloId" ] ; then
 					trelloIdentity="@$trelloUser / $trelloId"
 				fi
-				local trelloJson
-				## The ACTING MEMBER, same reason as the email check above.
 				if [ "$trelloNotConfigured" = "false" ] ; then
-					type AgentsToolsCommsTrelloCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsTrello.include"
-					trelloJson="$( AgentsToolsCommsTrelloCheck "$actingMember" )" || trelloFailed="true"
-				fi
-				if [ "$trelloNotConfigured" = "false" ] && [ "$trelloFailed" = "false" ] ; then
-					trelloBlocks="$( printf '%s\n' "$trelloJson" | LC_ALL=C awk -v kind=trello -f "$commsItemsAwk" )" || {
+					if AgentsToolsCollectEnsure "$actingMember" trello "" ; then
+						AgentsToolsCollectBlocks trello "$actingMember" "" "$sessionContextCapTrello" trelloBlocks trelloTotal
+					else
 						trelloFailed="true"
-						trelloBlocks=""
-					}
-					[ -z "$trelloBlocks" ] || trelloBlocks="$trelloBlocks"$'\n\n'
+						echo "$MDSC_CMD: session-context-scan: $agentsCollectLine" >&2
+					fi
 				fi
 			fi
 
@@ -1608,7 +1552,7 @@ case "$1" in
 				else
 					## The UID count, not the block count: the fetch loop stops at the cap,
 					## so a block count could never exceed it and would disclose no cut.
-					[ "$emailUidsTotal" -le "$sessionContextCapEmail" ] || printf '**NOTE:** truncated -- %s items found, capped at %s\n' "$emailUidsTotal" "$sessionContextCapEmail"
+					[ "$emailUidsTotal" -le "$emailCount" ] || printf '**NOTE:** truncated -- %s items found, capped at %s\n' "$emailUidsTotal" "$emailCount"
 					printf '\n'
 					printf '%s' "$emailBlocks" | LC_ALL=C awk -v cap="$sessionContextCapEmail" '/^## / { c++; } c <= cap'
 				fi
@@ -1642,7 +1586,7 @@ case "$1" in
 				if [ "$trelloCount" = "0" ] ; then
 					printf '**NOTE:** no new incoming Trello updates -- scanned 1 of 1 sources, 0 notifications matched %s\n\n' "$trelloInstrument"
 				else
-					[ "$trelloCount" -le "$sessionContextCapTrello" ] || printf '**NOTE:** truncated -- %s items found, capped at %s\n' "$trelloCount" "$sessionContextCapTrello"
+					[ "$trelloTotal" -le "$trelloCount" ] || printf '**NOTE:** truncated -- %s items found, capped at %s\n' "$trelloTotal" "$trelloCount"
 					printf '\n'
 					printf '%s' "$trelloBlocks" | LC_ALL=C awk -v cap="$sessionContextCapTrello" '/^## / { c++; } c <= cap'
 				fi
@@ -1739,6 +1683,14 @@ case "$1" in
 					while [ "$ci" -lt "$inboxScanned" ] ; do
 						f="${inboxCandidates[$ci]}"
 						ci=$(( ci + 1 ))
+						## The collected mail and Trello notes of the acting member are shown in the section of their source when this scan
+						## reads that source (F4.2), and not twice; a scan that does not read it lists them as the inbox items they are.
+						if [ "$inboxMember" = "$actingMember" ] ; then
+							case "${f##*/}" in
+								note-*-email-u*.md) [ "$wantEmail" != "true" ] || continue ;;
+								note-*-trello-*.md) [ "$wantTrello" != "true" ] || continue ;;
+							esac
+						fi
 						case "$inboxPrefix" in
 							-other-)
 								case "${f##*/}" in

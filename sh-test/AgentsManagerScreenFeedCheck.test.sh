@@ -12,6 +12,7 @@
 ## log of one agent names its member in the head too; and the raw mode shows the raw lines as they are, none of
 ## them a head.
 ## Offline: no operation of the real tooling is called. The time zone is set here, so the times read the same anywhere.
+## Reconciled for F11.5: what is read of a session's agents is the Transcript of each participant, not a feed of the session: the founder's and the tester's entries each stand in their own transcript.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -45,9 +46,9 @@ rigRow(){ ## the fields of one row, joined by TAB
 	while [ $# -gt 0 ] ; do rowText="$rowText"$'\t'"$1" ; shift ; done
 	printf '%s\n' "$rowText"
 }
-## One session that runs, with two agents: its founder, whose id is the session's, and a tester. The feed of the
-## session holds a short entry of each, a long one, one whose text looks like a head, and two of the same member
-## in the same minute; the feed of the founder alone holds its own entries.
+## One session that runs, with two agents: its founder, whose id is the session's, and a tester. The Transcript of the
+## founder holds a short entry, a second, a long one, one whose text looks like a head, and two of the same member
+## in the same minute; that of the tester holds its own.
 rigS1=11111111-0000-4000-8000-000000000001 ; rigR2=a2a2a2a2-0000-4000-8000-0000000000a2
 rigLong='✉️ to *magic-tester*: please run the named tests once more against live and say exactly which ones you ran, by name, and then wait for the next word from me before anything else is started'
 rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
@@ -59,22 +60,21 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 } > "$rigF/rows"
 {
 	rigRow source "$rigS1" magic-coordinator transcript /rig/audit/session-s1.log
-	rigRow source "$rigR2" magic-tester transcript /rig/audit/session-r2.log
 	rigRow feed 2026-10-13T02:00:05Z "$rigS1" magic-coordinator member magic-coordinator '🧠 round 98 · in 37K · cache 163K · out 56'
-	rigRow feed 2026-10-13T02:00:40Z "$rigR2" magic-tester member magic-tester '💻 run the named tests — execute job 7 · 31 s'
+	rigRow feed 2026-10-13T02:00:40Z "$rigS1" magic-coordinator member magic-coordinator '💻 run the named tests — execute job 7 · 31 s'
 	rigRow feed 2026-10-13T02:01:10Z "$rigS1" magic-coordinator member magic-coordinator "$rigLong"
 	rigRow feed 2026-10-13T02:01:20Z "$rigS1" magic-coordinator member magic-coordinator '12:34:56 nobody: a text that looks like a head'
 	rigRow feed 2026-10-13T02:01:30Z "$rigS1" magic-coordinator member magic-coordinator '⏳ wait going idle'
-} > "$rigF/rows.--manager-session-transcript-read --session-id $rigS1"
-{
-	rigRow source "$rigS1" magic-coordinator transcript /rig/audit/session-s1.log
-	rigRow feed 2026-10-13T02:00:05Z "$rigS1" magic-coordinator member magic-coordinator '🧠 round 98 · in 37K · cache 163K · out 56'
 } > "$rigF/rows.--manager-session-transcript-read --session-id $rigS1 --run"
 {
-	rigRow source "$rigS1" magic-coordinator session-log /rig/s1.log ; rigRow source "$rigR2" magic-tester session-log /rig/r2.log
+	rigRow source "$rigR2" magic-tester transcript /rig/audit/session-r2.log
+	rigRow feed 2026-10-13T02:00:40Z "$rigR2" magic-tester member magic-tester '💻 run the named tests — execute job 7 · 31 s'
+} > "$rigF/rows.--manager-session-transcript-read --session-id $rigR2 --run"
+{
+	rigRow source "$rigS1" magic-coordinator session-log /rig/s1.log
 	rigRow log "$rigS1" magic-coordinator 'coordinator log 1' ; rigRow log "$rigS1" magic-coordinator '  -> tool: 02:00:05 magic-coordinator: no head'
-	rigRow log "$rigR2" magic-tester 'tester log 1'
-} > "$rigF/rows.--manager-session-transcript-read --session-id $rigS1 --log"
+	rigRow log "$rigS1" magic-coordinator 'coordinator log 3'
+} > "$rigF/rows.--manager-session-transcript-read --session-id $rigS1 --run --log"
 rigCase(){ ## name
 	export MANAGER_SCREEN_RIG="$rigTmp/$1"
 	mkdir -p "$MANAGER_SCREEN_RIG"
@@ -83,7 +83,7 @@ rigCase(){ ## name
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable view:sessions/*:record none\nwall 2026-10-13 02:30 +0000\nsize %s\nroot sessions\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:magic-team/activity/active-sessions:record none\ntable view:magic-team/activity/active-sessions/*:record none\nwall 2026-10-13 02:30 +0000\nsize %s\nroot active-sessions\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -99,8 +99,9 @@ rigBody(){ ## the tags of the lines of one body, in their order -- its lines joi
 
 echo "-- the log of a session: every entry a head line and its body under it --"
 rigCase session
-rigScript <<'RIGSCRIPT'
-keys 2
+rigScript <<RIGSCRIPT
+at @activity active-sessions $rigS1 $rigS1
+turn
 wait sessions 30
 keys DOWN DOWN l
 wait feed 30
@@ -123,11 +124,11 @@ cells l16 16 1 83
 cells l17 17 1 83
 roles r
 RIGSCRIPT
-rigAssert "the session is selected, and its log is shown"            "$( rigVal s.selected ) $( rigVal s.viewMode ) $( rigVal s.viewLines ) $( rigVal s.spills )" "$rigS1 log 13 0"
+rigAssert "the Transcript of the agent is selected, and its log is shown" "$( rigVal s.selected ) $( rigVal s.viewMode ) $( rigVal s.viewLines ) $( rigVal s.spills )" "transcript log 13 0"
 rigAssert "the day line stays as it was"                             "[$( rigVal l3 )]" "[2026-10-13]"
 rigAssert "a short entry: its head, the time and the member ended by a colon" "[$( rigVal l4 )]" "[02:00:05 magic-coordinator:]"
 rigAssert "and its body on the next line, set in by the width of the time and one blank, its mark first" "[$( rigVal l5 )]" "[         🧠 round 98 · in 37K · cache 163K · out 56]"
-rigAssert "two members in turn: the member in the head keeps the entries apart" "[$( rigVal l6 )][$( rigVal l7 )][$( rigVal l8 )]" "[02:00:40 magic-tester:][         💻 run the named tests — execute job 7 · 31 s][02:01:10 magic-coordinator:]"
+rigAssert "every entry has a head of its own, the member in it" "[$( rigVal l6 )][$( rigVal l7 )][$( rigVal l8 )]" "[02:00:40 magic-coordinator:][         💻 run the named tests — execute job 7 · 31 s][02:01:10 magic-coordinator:]"
 rigAssert "a long body is broken at words into lines that all start in that column" "$( for rigTag in l9 l10 l11 ; do rigVal "$rigTag" | LC_ALL=C sed -e 's/^\( *\).*$/\1/' | LC_ALL=C tr ' ' '_' ; done | LC_ALL=C tr '\n' ' ' )" "_________ _________ _________ "
 rigAssert "and no word of it is lost"                                "[$( rigBody l9 l10 l11 )]" "[$rigLong]"
 rigAssert "a text that looks like a head is a body: the head comes from the row" "[$( rigVal l12 )][$( rigVal l13 )]" "[02:01:20 magic-coordinator:][         12:34:56 nobody: a text that looks like a head]"
@@ -136,8 +137,9 @@ rigAssert "a head is drawn paler than a body, and the day line as a body is" "[$
 
 echo "-- the indent is the same at another width of the window --"
 rigCase narrow
-rigSize="80 24" rigScript <<'RIGSCRIPT'
-keys 2
+rigSize="80 24" rigScript <<RIGSCRIPT
+at @activity active-sessions $rigS1 $rigS1
+turn
 wait sessions 30
 keys DOWN DOWN l
 wait feed 30
@@ -161,22 +163,24 @@ rigAssert "and holds every word"                                     "[$( rigBod
 
 echo "-- the log of one agent names its member in the head too --"
 rigCase agent
-rigScript <<'RIGSCRIPT'
-keys 2
+rigScript <<RIGSCRIPT
+at @activity active-sessions $rigS1 $rigR2
+turn
 wait sessions 30
-keys DOWN DOWN l ENTER DOWN
+keys DOWN DOWN l
 wait feed 30
 get a
 cells a4 4 1 83
 cells a5 5 1 83
 RIGSCRIPT
-rigAssert "the agent is selected, in the mode that was chosen"       "$( rigVal a.path ) $( rigVal a.selected ) $( rigVal a.viewMode )" "sessions/$rigS1 $rigS1 log"
-rigAssert "its entry is a head with its member and a body"           "[$( rigVal a4 )][$( rigVal a5 )]" "[02:00:05 magic-coordinator:][         🧠 round 98 · in 37K · cache 163K · out 56]"
+rigAssert "the Transcript of another agent is selected, in the mode that was chosen" "$( rigVal a.path ) $( rigVal a.selected ) $( rigVal a.viewMode )" "magic-team/activity/active-sessions/$rigS1/$rigR2 transcript log"
+rigAssert "its entry is a head with its member and a body"           "[$( rigVal a4 )][$( rigVal a5 )]" "[02:00:40 magic-tester:][         💻 run the named tests — execute job 7 · 31 s]"
 
 echo "-- the raw mode shows the raw lines as they are --"
 rigCase raw
-rigScript <<'RIGSCRIPT'
-keys 2
+rigScript <<RIGSCRIPT
+at @activity active-sessions $rigS1 $rigS1
+turn
 wait sessions 30
 keys DOWN DOWN g
 wait feed 30
@@ -189,8 +193,8 @@ cells w7 7 1 83
 cells w8 8 1 83
 roles q
 RIGSCRIPT
-rigAssert "the raw lines of each run stand under the line that names it, as before" "$( rigVal w.viewMode ) [$( rigVal w3 )][$( rigVal w4 )][$( rigVal w5 )][$( rigVal w6 )][$( rigVal w7 )][$( rigVal w8 )]" \
-	"raw [magic-coordinator 11111111, its session log:][coordinator log 1][  -> tool: 02:00:05 magic-coordinator: no head][magic-tester a2a2a2a2, its session log:][tester log 1][]"
+rigAssert "the raw lines of the run stand as they are, a run alone having no line that names it" "$( rigVal w.viewMode ) [$( rigVal w3 )][$( rigVal w4 )][$( rigVal w5 )][$( rigVal w6 )][$( rigVal w7 )][$( rigVal w8 )]" \
+	"raw [coordinator log 1][  -> tool: 02:00:05 magic-coordinator: no head][coordinator log 3][][][]"
 rigAssert "none of them is drawn as a head"                          "[$( rigLook q 3 1 83 )][$( rigLook q 4 1 83 )][$( rigLook q 5 1 83 )]" "[.][.][.]"
 
 if [ "$rigFailCount" -ne 0 ] ; then

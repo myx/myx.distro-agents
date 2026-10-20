@@ -89,7 +89,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 ## DistroAgentsTools magic-tooling operations
 
 - `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
-- `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
+- `--member-upsert-member-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
 - `--magic-grooming-create-backlog <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...` — `magic-coordinator` only
 - `--routine-run-inline <routine>`
 

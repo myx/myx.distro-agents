@@ -148,7 +148,7 @@ mv "$rigWs/.local/agents/spawned-sessions.registry" "$rigTmp/sessions.kept"
 rigRun "$rigList"
 rigAssert "where the registry of sessions is not there no count is given, and it is not built: every workspace reads -" "$rigRc $( LC_ALL=C awk -F'\t' '$4 == "workspace" { printf "%s=%s ", $2, $9 }' "$rigTmp/out" ) $( [ -e "$rigWs/.local/agents/spawned-sessions.registry" ] && echo built || echo not-built )" "0 ws-here=- ws-far=- ws-lost=-  not-built"
 mv "$rigTmp/sessions.kept" "$rigWs/.local/agents/spawned-sessions.registry"
-rigAssert "control: the registry of sessions names the session second and the workspace eleventh of its columns, as the tooling's own render of it says" "$( LC_ALL=C sed -n 's/^.*columns: \(tracking-name session-id .* workspace\) live state.$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" | LC_ALL=C awk '{ print $2, $11, NF }' )" "session-id workspace 11"
+rigAssert "control: the registry of sessions names the session second and the workspace eleventh of its columns, as the tooling's own render of it says" "$( LC_ALL=C sed -n 's/^.*columns: \(tracking-name session-id .* workspace\) live state.$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" | LC_ALL=C awk '{ print $2, $11, NF }' )" "session-id workspace 11"
 
 echo "-- 2. the read of one place --"
 rigRun "$rigRead" ws-here

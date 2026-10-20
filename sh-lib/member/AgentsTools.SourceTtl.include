@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SourceTtl.include -- THE ONE TABLE of the TTLs of the sources (F3.3, F4.2). The timing of a source is a TTL and no
+## interval: a source whose previous check is still inside its own TTL is skipped. Wait reads the table through AgentsWaitTtlOf, the
+## collection of the sources a scan reads (AgentsTools.Collect.include) through the same function. The TTLs are hardcoded, in
+## seconds, and no setting names them: an agent never needs them.
+## Sourced, never run. Functions only.
+##
+
+## Prints the seconds a source waits between its checks; 0 is every pass. <source> is `<kind>:<name>`.
+##   - the tags and mentions, and with them the team channel and the DMs they read: 15;
+##   - a scan, the age of its cache (AgentsTools.InputScanCache.include): 300;
+##   - the mailbox of a member: 60;
+##   - the Trello notifications of a member: 120.
+## The session thread, the replies and the file are timed where they are read (AgentsWaitChatTopUp, AgentsWaitRepliesLookRead).
+AgentsToolsSourceTtlOf(){ ## source
+	case "$1" in
+		tagged:*) printf '15\n' ;;
+		scan:*) printf '300\n' ;;
+		mail:*) printf '60\n' ;;
+		trello:*) printf '120\n' ;;
+		*) printf '0\n' ;;
+	esac
+}
+
+## Prints the seconds after which a source reads as long expired, nobody having updated it here: twenty of its TTLs. 0 for a source
+## with no TTL, which is never long expired.
+AgentsToolsSourceStaleOf(){ ## source
+	local staleTtl
+	staleTtl="$( AgentsToolsSourceTtlOf "$1" )"
+	printf '%s\n' $(( staleTtl * 20 ))
+}

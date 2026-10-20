@@ -109,7 +109,8 @@ AgentsToolsRoutineLockMinutes(){
 	printf '%s\n' 120
 }
 
-## The member and the note a `routine-lock-document:` value names: `<member><TAB><note>`; rc 1 for any other shape.
+## The member and the note a `routine-lock-document:` value names: `<member><TAB><note>`; rc 1 for any other shape, a macro
+## not yet filled included (AgentsToolsRoutineLockFill fills it).
 AgentsToolsRoutineLockParse(){ ## value
 	case "$1" in
 		inbox:*:*.md) ;;
@@ -118,8 +119,23 @@ AgentsToolsRoutineLockParse(){ ## value
 	local parseRest="${1#inbox:}"
 	local parseMember="${parseRest%%:*}" parseNote="${parseRest#*:}"
 	[ -n "$parseMember" ] && [ -n "$parseNote" ] || return 1
-	case "$parseMember$parseNote" in */*|*:*|*[[:space:]]*) return 1 ;; esac
+	case "$parseMember$parseNote" in */*|*:*|*[[:space:]]*|*"{{"*|*"}}"*) return 1 ;; esac
 	printf '%s\t%s\n' "$parseMember" "$parseNote"
+}
+
+## THE LOCK IS NAMED PER MEMBER (F4.2). A routine that more than one member runs names the document of the member of the start
+## with the macro `{{team-member}}` (the name of that option of the common option set, as in `input-scan-def:`), written in the
+## static routine file: `inbox:{{team-member}}:<note>.md`. Two members then hold two documents and never contend on one fixed note.
+## The spawner fills the macro with the member it starts, before it takes the lock, and the filled value is what the run's record,
+## the brief and every later reader keep.
+AgentsToolsRoutineLockFill(){ ## the routine-lock-document value (a list), the team member of the start
+	local fillMacro='{{team-member}}'
+	printf '%s\n' "${1//"$fillMacro"/$2}"
+}
+
+## One value as a routine file writes it: the shape of the filled form, the macro read as a member. rc 1 for any other shape.
+AgentsToolsRoutineLockShape(){ ## one routine-lock-document value
+	AgentsToolsRoutineLockParse "$( AgentsToolsRoutineLockFill "$1" macro-member )"
 }
 
 ## The path of the locking document, where an inbox note lives (F4.3).
@@ -154,9 +170,10 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 	lockOwn="$( AgentsToolsRoutineLockOwnWord "$lockNote" )"
 	[ -z "$lockOwn" ] || lockShort="$lockOwn"
 	if [ ! -f "$lockPath" ] ; then
-		## One of the five standing notes is made by the team's setup, and its absence is a fault. Any other locking document is the
-		## routine's own state, which does not exist before the routine's first start: the spawner makes it then, and commits it.
-		if [ -n "$lockOwn" ] ; then
+		## One of the five standing notes of magic-coordinator is made by the team's setup, and its absence is a fault. Any other locking
+		## document is the routine's own state, which does not exist before the routine's first start: the spawner makes it then, and
+		## commits it -- the note of a member other than magic-coordinator too (the lock is named per member, F4.2).
+		if [ -n "$lockOwn" ] && [ "$lockMember" = "magic-coordinator" ] ; then
 			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the locking document $lockNote of $lockMember does not exist, so the routine cannot be locked: $lockPath" >&2
 			return 1
 		fi

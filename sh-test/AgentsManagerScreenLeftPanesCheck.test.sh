@@ -15,6 +15,7 @@
 ## a row, its name and its path). Offline:
 ## no operation of the real tooling is called.
 ## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`.
+## Reconciled for F11.5: the folders of Activity and Team Data are put at with `at`, and the number keys of the roots are 2 Pending Questions, 4 Locations (Places) and 5 Consoles.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -138,7 +139,8 @@ size 120 40
 root dashboard
 turn
 wait list 10
-keys 2
+at @activity
+turn
 wait list 10
 show sessions
 roles sessionsr
@@ -146,25 +148,28 @@ keys DOWN
 wait focus 10
 show launch
 roles launchr
+at @activity active-sessions
+turn
 keys DOWN
 wait view 10
 show session
 roles sessionr
-keys 3
+keys 2
 wait list 10
 show pending
 roles pendingr
 keys DOWN
 wait view 10
 show ask
-keys 5
+at @teamdata
+turn
 wait list 10
 show teamdata
 keys DOWN
 wait focus 10
 show operations
 roles operationsr
-keys 6
+keys 4
 wait list 10
 show places
 roles placesr
@@ -172,16 +177,16 @@ keys DOWN
 wait view 10
 show place
 roles placer
-keys 7
+keys 5
 wait list 10
 show consoles
-keys 8
+keys 6
 wait list 10
 show settings
 keys DOWN
 wait focus 10
 show subject
-keys 9
+keys 7
 wait list 10
 show configuration
 keys DOWN

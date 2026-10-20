@@ -96,7 +96,7 @@ case "$1" in
 		fi
 
 		## The brief's text is the tooling's own template (AgentsToolsToolingTemplate); this op only fills its slots.
-		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsTools.ToolingTemplate.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
 		local briefTemplate
 		briefTemplate="$( AgentsToolsToolingTemplate spawn-brief.document.format.md )"
 		if [ ! -f "$briefTemplate" ] ; then
@@ -126,6 +126,11 @@ case "$1" in
 		local routineKind routineKindFile routineLockDoc routineScanDef
 		type AgentsToolsRoutineKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
 		routineLockDoc="$( AgentsToolsRoutineKey "$routineFile" routine-lock-document )"
+		## The lock is named per member (F4.2): the brief names the document of the member it is for.
+		if [ -n "$routineLockDoc" ] ; then
+			type AgentsToolsRoutineLockFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include"
+			routineLockDoc="$( AgentsToolsRoutineLockFill "$routineLockDoc" "$targetMember" )"
+		fi
 		type AgentsToolsInputScanDefNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InputScanDef.include"
 		routineScanDef="$( AgentsToolsInputScanDefNames "$( AgentsToolsRoutineKeyLines "$routineFile" input-scan-def )" )"
 		routineKind="$( AgentsToolsSpawnRoutineKindOwn "$routineFile" )"
@@ -150,6 +155,10 @@ case "$1" in
 		if [ -z "$briefCliService" ] ; then
 			local -x MDAT_SPAWN_SETTINGS_WORKSPACE=""
 			MDAT_SPAWN_SETTINGS_WORKSPACE="$( AgentsToolsSpawnSettingsSettle "$targetMember" "$briefSettingsWorkspace" spawn-prepare-brief )" || { set +e ; return 1 ; }
+			## and the preset chosen for the member it is for, as the spawn chooses it (F10.2), so the brief and the spawn read one CLI
+			local -x MDAT_SPAWN_PRESET=""
+			type AgentsToolsPresetChosen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
+			MDAT_SPAWN_PRESET="$( AgentsToolsPresetChosen "$targetMember" )" || MDAT_SPAWN_PRESET=""
 			briefCliService="$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2>/dev/null )" || briefCliService=""
 		fi
 		local briefHarness="own"

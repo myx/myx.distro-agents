@@ -24,7 +24,7 @@ rigHarness="$rigHere/harness/AgentsUniversalHarness.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigHarness" "$rigHere/harness/AgentsHarnessHooks.sh" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" ; do
+for rigFile in "$rigHarness" "$rigHere/harness/AgentsHarnessHooks.sh" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 rigRealSleep="$( command -v sleep )" || rigRefuse "no sleep on PATH to hand the other waits to"

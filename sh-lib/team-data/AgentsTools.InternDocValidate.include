@@ -8,16 +8,18 @@
 ## needs no store, no model and no decision. Sourced from its arm of DistroAgentsTools.fn.sh, so
 ## $1 is the operation and `local` is the operation's own; the functions below are the rule sets,
 ## one for each kind. Kinds built so far: `routine`, the contract of a `*.routine.md` skillset file
-## (magic-team/templates/routine.contract.format.md). The thin stubs of other surfaces, such as
-## --tester-skillset-validate-routine, call this and carry no logic of their own.
+## (magic-team/templates/routine.contract.format.md); and `document`, the self-check of any document
+## against itself (F5.7): what it cites, counts, adds up and says twice; and every team-data type, `<store>-item.<type>`
+## (`board-item.task`), whose rule set is its contract (AgentsTools.DocValidate.include, F5.3). The rules of `routine`
+## refuse; the rules of `document` arrive REPORTING, rows of a `report-` rule that refuse nothing; each rule of a
+## type has its disposition in the one table, per rule and call site.
+## The thin stubs of other surfaces, such as --tester-skillset-validate-routine, call this and carry
+## no logic of their own.
 ##
 
 type AgentsToolsRoutineRequirement > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
-
-## One fault row: the rows a rule set prints are its faults, one line each.
-AgentsToolsDocValidateRow(){ ## file as shown, line, rule, text
-	printf '%s:%s: %s: %s\n' "$1" "$2" "$3" "$4"
-}
+## The functions its callers share, the writers' gate among them: the row, the type rule sets, the dispositions.
+type AgentsToolsDocValidateGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidate.include"
 
 ## The line of a frontmatter key in a file; 1 where the key is not there.
 AgentsToolsDocValidateKeyLine(){ ## file, key
@@ -45,7 +47,8 @@ AgentsToolsDocValidateKeyLineOf(){ ## file, key, value
 AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	local routineFile="$1" routineShown="$2" routineFirst="" routineType routineKeyName routineVerdict routineWhy routineRows routineHeading routineLine
 	local routineKindPath routineEffective routineEffectiveLine routineLockValue routineLockOne routineScanValue routineScanWhy routineScanOne routineScanAt routineScanCount
-	local routineRunsAt routineRunsDays routineRunsTime routineRunsOk routineRunsAfter
+	local routineRunsAt routineRunsDays routineRunsTime routineRunsOk routineRunsAfter routineCachePrefix
+	local routineAllowsValue routineAllowsEntry routineAllowsTool routineAllowsNamed="" routineAllowsExecutors routineAllowsInvitees
 	IFS= read -r routineFirst < "$routineFile" 2> /dev/null || :
 	if [ "$routineFirst" != "---" ] ; then
 		AgentsToolsDocValidateRow "$routineShown" 1 frontmatter "the file does not open with a frontmatter block"
@@ -67,6 +70,43 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 		routineWhy="${routineVerdict#*$'\t'}"
 		AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" "$routineKeyName" )" "$routineKeyName" "$routineWhy"
 	done
+	## The caching policy (F10.7): `cache-prefix: armed | routine`, how far the cacheable prefix of a spawn of this routine reaches.
+	## `armed`, which a routine that says nothing has, is the member's armed floor alone (a routine that runs rarely, as the
+	## retro does); `routine` adds the routine's own instruction and reference, so a routine that runs often, as the advance does,
+	## shares it between its runs. The routine's own line, else its kind routine's.
+	routineCachePrefix="$( AgentsToolsRoutineKey "$routineFile" cache-prefix )"
+	case "$routineCachePrefix" in
+		''|armed|routine) ;;
+		*) AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" cache-prefix )" cache-prefix "cache-prefix: $routineCachePrefix is not armed or routine" ;;
+	esac
+	## The checkpoint operations (F10.5): `allows:` may name --executor-checkpoint-push, --executor-checkpoint-rewind and
+	## --executor-checkpoint-exit (`<who>:<operation>`), and no other operation of the --executor- family. A routine that names one is a
+	## single-participant routine: its kind is standalone, it has one executor and no invitee. A rewind returns ONE member's conversation,
+	## so the operations are not given to a session of several.
+	routineAllowsValue="$( AgentsToolsRoutineKeyOwn "$routineFile" allows )"
+	while [ -n "$routineAllowsValue" ] ; do
+		routineAllowsEntry="${routineAllowsValue%%,*}"
+		if [ "$routineAllowsEntry" != "$routineAllowsValue" ] ; then routineAllowsValue="${routineAllowsValue#*,}" ; else routineAllowsValue="" ; fi
+		routineAllowsEntry="${routineAllowsEntry#"${routineAllowsEntry%%[![:space:]]*}"}" ; routineAllowsEntry="${routineAllowsEntry%"${routineAllowsEntry##*[![:space:]]}"}"
+		case "$routineAllowsEntry" in *:*) ;; *) continue ;; esac
+		routineAllowsTool="${routineAllowsEntry#*:}" ; routineAllowsTool="${routineAllowsTool%%:*}"
+		case "$routineAllowsTool" in
+			--executor-checkpoint-push|--executor-checkpoint-rewind|--executor-checkpoint-exit) routineAllowsNamed=1 ;;
+			--executor-*) AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" allows )" allows "allows: $routineAllowsTool is no operation of the --executor- family; they are --executor-checkpoint-push, --executor-checkpoint-rewind and --executor-checkpoint-exit" ;;
+		esac
+	done
+	if [ -n "$routineAllowsNamed" ] ; then
+		routineAllowsExecutors="$( printf '%s\n' "$routineEffective" | LC_ALL=C sed -n 's/^executors: //p' | head -1 )"
+		routineAllowsInvitees="$( printf '%s\n' "$routineEffective" | LC_ALL=C sed -n 's/^invitees: //p' | head -1 )"
+		[ "$( AgentsToolsSpawnRoutineKindOwn "$routineFile" )" = "standalone" ] || AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" allows )" allows "allows: the --executor-checkpoint operations are for a single-participant routine, and this routine's kind is not standalone"
+		case "$routineAllowsExecutors" in
+			''|*[[:space:],*]*|magic-team) AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" allows )" allows "allows: the --executor-checkpoint operations are for a single-participant routine, and this routine's executors are not one member (${routineAllowsExecutors:-empty})" ;;
+		esac
+		case "$routineAllowsInvitees" in
+			''|none) ;;
+			*) AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" allows )" allows "allows: the --executor-checkpoint operations are for a single-participant routine, and this routine has invitees ($routineAllowsInvitees)" ;;
+		esac
+	fi
 	## `operations:` is REPORTED, NEVER ENFORCED: its findings are rows of the rule report-operations, which refuse nothing.
 	routineVerdict="$( AgentsToolsRoutineRequirement operations save "$routineFile" )" || :
 	while IFS=$'\t' read -r routineLine routineWhy ; do
@@ -77,7 +117,7 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	if [ -n "$routineLockValue" ] ; then
 		type AgentsToolsRoutineLockParse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include"
 		for routineLockOne in $( printf '%s' "$routineLockValue" | LC_ALL=C tr ',' ' ' ) ; do
-			AgentsToolsRoutineLockParse "$routineLockOne" > /dev/null || AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" routine-lock-document )" routine-lock-document "routine-lock-document: $routineLockOne is not inbox:<member>:<note>.md, a note in the inbox of the executor or of a named member (several, separated by commas)"
+			AgentsToolsRoutineLockShape "$routineLockOne" > /dev/null || AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" routine-lock-document )" routine-lock-document "routine-lock-document: $routineLockOne is not inbox:<member>:<note>.md, a note in the inbox of a named member or of the member of the start ({{team-member}}); several, separated by commas"
 		done
 	fi
 	## The routine's own input scans: one line for each, `<scan> [--option value ...]` (macros among the five names of the common
@@ -137,20 +177,104 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	return 0
 }
 
+## Where a cited file is looked for: an absolute path as it stands; a relative one from the folder of the document and each
+## folder above it (a document read from stdin has none), then the skillset of the team, the skillset root of the run, the
+## package, the namespace, the origin and the workspace. Prints the path found, rc 1 where it is nowhere.
+AgentsToolsDocValidateResolveFile(){ ## token, the document's path (empty where it has none)
+	local resolveToken="$1" resolveDoc="${2:-}" resolveDir resolveBase
+	case "$resolveToken" in
+		/*) [ -e "$resolveToken" ] || return 1 ; printf '%s\n' "$resolveToken" ; return 0 ;;
+	esac
+	if [ -n "$resolveDoc" ] ; then
+		resolveDir="$( cd "$( dirname "$resolveDoc" )" 2> /dev/null && pwd -P )" || resolveDir=""
+		while [ -n "$resolveDir" ] ; do
+			[ ! -e "$resolveDir/$resolveToken" ] || { printf '%s\n' "$resolveDir/$resolveToken" ; return 0 ; }
+			[ "$resolveDir" != "/" ] || break
+			resolveDir="$( dirname "$resolveDir" )"
+		done
+	fi
+	for resolveBase in "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team" "${MDAT_SKILLSET_ROOT:-}" "$MDLT_ORIGIN/myx/myx.distro-agents" "$MDLT_ORIGIN/myx" "$MDLT_ORIGIN" "${MMDAPP:-}" ; do
+		[ -n "$resolveBase" ] || continue
+		[ ! -e "$resolveBase/$resolveToken" ] || { printf '%s\n' "$resolveBase/$resolveToken" ; return 0 ; }
+	done
+	return 1
+}
+
+## Whether a board item of that name is on the board of the data root, in any of its states.
+AgentsToolsDocValidateBoardItem(){ ## item name, without .md
+	local boardFile
+	for boardFile in "${MDAT_DATA_ROOT%/}"/board/*/"$1.md" ; do
+		[ ! -e "$boardFile" ] || return 0
+	done
+	return 1
+}
+
+## The registered workspace and place names of this workspace, one a line (a name that carries @<workspace> also bare).
+AgentsToolsDocValidatePlaces(){
+	type AgentsToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include" || return 1
+	AgentsToolsPlacesMergedText "${MMDAPP%/}" quiet 2> /dev/null | LC_ALL=C awk -F'\t' '{ shown = $1 ; sub( /@.*$/, "", shown ) ; print shown ; print $1 ; }'
+}
+
+## The rule set of the `document` kind (F5.7): the document checked against itself, in one pass of AgentsDocSelfCheck.awk over its
+## text. The awk prints the faults the text alone shows and the citations that need asking: a file, a board item, a place, a
+## rule name in a file. They are answered here, and every row is a row of a `report-` rule, said and refused by nothing. A board
+## item is asked only where the run has a data root, and a place only where the registry can be read. The rows are printed in
+## the order of the lines they sit on, then of their rule and text, so the same document gives the same rows.
+AgentsToolsDocValidateSelfCheck(){ ## file, file as shown, the document's path (empty for stdin)
+	local selfFile="$1" selfShown="$2" selfDoc="${3:-}" selfOut selfKind selfLine selfName selfRest selfFound selfPlaces="" selfPlacesRead="no" selfLineNo selfRule selfText selfFlatFile="" selfFlatText="" selfFlatName
+	selfOut="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsDocSelfCheck.awk" "$selfFile" )" || return 1
+	{
+		while IFS=$'\t' read -r selfKind selfLine selfName selfRest ; do
+			case "$selfKind" in
+				ROW) printf '%s\t%s\t%s\n' "$selfLine" "$selfName" "$selfRest" ;;
+				FILE)
+					AgentsToolsDocValidateResolveFile "$selfName" "$selfDoc" > /dev/null || printf '%s\t%s\t%s\n' "$selfLine" report-citation "cites a file that is not there: $selfName"
+				;;
+				BOARD)
+					[ -n "${MDAT_DATA_ROOT:-}" ] && [ -d "${MDAT_DATA_ROOT%/}/board" ] || continue
+					AgentsToolsDocValidateBoardItem "$selfName" || printf '%s\t%s\t%s\n' "$selfLine" report-citation "cites a board item that is not there: $selfName"
+				;;
+				PLACE)
+					if [ "$selfPlacesRead" = "no" ] ; then selfPlaces="$( AgentsToolsDocValidatePlaces )" ; selfPlacesRead="yes" ; fi
+					[ -n "$selfPlaces" ] || continue
+					printf '%s\n' "$selfPlaces" | LC_ALL=C grep -q -x -F -- "$selfName" || printf '%s\t%s\t%s\n' "$selfLine" report-citation "cites a workspace or a place that is not registered: $selfName"
+				;;
+				RULE)
+					if ! selfFound="$( AgentsToolsDocValidateResolveFile "$selfRest" "$selfDoc" )" ; then
+						## A path is a FILE record of its own; only a bare name is said here.
+						case "$selfRest" in */*) ;; *) printf '%s\t%s\t%s\n' "$selfLine" report-citation "cites a file that is not there: $selfRest" ;; esac
+						continue
+					fi
+					[ -f "$selfFound" ] || continue
+					## The name is read as words: marks of bold and code, and where the line breaks, are no part of it.
+					if [ "$selfFlatFile" != "$selfFound" ] ; then selfFlatText="$( LC_ALL=C tr -d '`*' < "$selfFound" | LC_ALL=C tr '\n\t' '  ' | LC_ALL=C tr -s ' ' )" ; selfFlatFile="$selfFound" ; fi
+					selfFlatName="$( printf '%s' "$selfName" | LC_ALL=C tr -d '`*' | LC_ALL=C tr -s ' ' )"
+					printf '%s' "$selfFlatText" | LC_ALL=C grep -q -F -- "$selfFlatName" || printf '%s\t%s\t%s\n' "$selfLine" report-rule-name "the rule $selfName is not in $selfRest"
+				;;
+			esac
+		done <<< "$selfOut"
+	} | LC_ALL=C sort -t $'\t' -k1,1n -k2,2 -k3,3 -u | while IFS=$'\t' read -r selfLineNo selfRule selfText ; do
+		AgentsToolsDocValidateRow "$selfShown" "$selfLineNo" "$selfRule" "$selfText"
+	done
+	return 0
+}
+
 case "$1" in
 
 	--intern-doc-validate)
 		shift
-		local validateKind="${1:-}" validateInput="${2:-}" validateFile validateShown validateTemp=""
+		local validateKind="${1:-}" validateInput="${2:-}" validateFile validateShown validateTemp="" validateDoc=""
 		if [ -z "$validateKind" ] || [ -z "$validateInput" ] || [ $# -gt 2 ] ; then
-			echo "$MDSC_CMD: doc-validate: ⛔ ERROR: syntax is <kind> <file|--from-stdin> -- the kinds built: routine" >&2
+			echo "$MDSC_CMD: doc-validate: ⛔ ERROR: syntax is <kind> <file|--from-stdin> -- the kinds built: $( AgentsToolsDocValidateKinds | LC_ALL=C tr '\n' ' ' )" >&2
 			set +e ; return 1
 		fi
 		case "$validateKind" in
-			routine) ;;
+			routine|document) ;;
 			*)
-				echo "$MDSC_CMD: doc-validate: ⛔ ERROR: no rule set for the kind: $validateKind -- the kinds built: routine" >&2
-				set +e ; return 1
+				AgentsToolsDocValidateContractFile "$validateKind" > /dev/null || {
+					echo "$MDSC_CMD: doc-validate: ⛔ ERROR: no rule set for the kind: $validateKind -- the kinds built: $( AgentsToolsDocValidateKinds | LC_ALL=C tr '\n' ' ' )" >&2
+					set +e ; return 1
+				}
 			;;
 		esac
 		if [ "$validateInput" = "--from-stdin" ] ; then
@@ -163,10 +287,14 @@ case "$1" in
 				echo "$MDSC_CMD: doc-validate: ⛔ ERROR: no such file: $validateInput" >&2
 				set +e ; return 1
 			fi
-			validateFile="$validateInput" ; validateShown="$validateInput"
+			validateFile="$validateInput" ; validateShown="$validateInput" ; validateDoc="$validateInput"
 		fi
 		local validateRows
-		validateRows="$( AgentsToolsDocValidateRoutine "$validateFile" "$validateShown" )" || validateRows="$validateShown:1: validator: the rule set itself failed"
+		case "$validateKind" in
+			document) validateRows="$( AgentsToolsDocValidateSelfCheck "$validateFile" "$validateShown" "$validateDoc" )" || validateRows="$validateShown:1: validator: the rule set itself failed" ;;
+			*-item.*) validateRows="$( AgentsToolsDocValidateType "$validateFile" "$validateShown" "$validateKind" check )" || validateRows="$validateShown:1: validator: the rule set itself failed" ;;
+			*) validateRows="$( AgentsToolsDocValidateRoutine "$validateFile" "$validateShown" )" || validateRows="$validateShown:1: validator: the rule set itself failed" ;;
+		esac
 		[ -z "$validateTemp" ] || rm -f -- "$validateTemp"
 		if [ -n "$validateRows" ] ; then
 			printf '%s\n' "$validateRows"

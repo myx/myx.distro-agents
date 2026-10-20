@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 ## Behavioural check on the prompt-cache routing key of AgentsOpenAiChatWire.sh, run
 ## through the real leaves against the shared fake `curl`, which records each round's
-## body and its stdin header channel. What it proves: prompt_cache_key is one value for
-## every round and every restart of one harness session, another value for another
-## session, the same value as the x-grok-conv-id header on the xAI leaf, and absent
-## when switched off -- by HARNESS_PROMPT_CACHE_KEY=off, or by the Scaleway and Copilot
+## body and its stdin header channel. What it proves (F10.7): prompt_cache_key is one value for
+## every round, every restart and every SESSION of one workspace on one provider and one model, so
+## the prefix the sessions share is cached once for all of them; another value for another model
+## (another tier) or another workspace; the same value as the x-grok-conv-id header on the xAI leaf;
+## and absent when switched off -- by HARNESS_PROMPT_CACHE_KEY=off, or by the Scaleway and Copilot
 ## leaves, which default it off. Offline by construction: no socket, no credential.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -66,11 +67,14 @@ rigReadStream(){ ## canned-stream file, path to read
 ## The session comes from --session-id alone: the session variables of whatever client
 ## runs this check are removed, so they can neither supply nor change the key.
 rigRunStatus=0
+## The workspace of the runs: one for the scenarios of a workspace, which is what the key is made of; a scenario of another says so.
+rigWorkspace="$rigTmp/ws-shared"
+mkdir -p "$rigWorkspace" "$rigTmp/ws-other"
 rigRun(){ ## leaf name, then the leaf arguments this scenario adds
 	local runLeaf="$1"
 	shift
 	rigRunStatus=0
-	RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir" \
+	RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigWorkspace" \
 		env -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT \
 		"$rigHere/harness/Agents${runLeaf}Harness.sh" --access-write-root "$rigScenarioDir" "$@" RIG-TASK-MARKER \
 		> "$rigScenarioDir/out" 2> "$rigScenarioDir/err" || rigRunStatus=$?
@@ -149,14 +153,27 @@ rigRun Grok --session-id rig-session-one
 rigAssert "a restart of the session keeps its key"        "$( rigBodyKey "$rigScenarioDir/req.1" )" "$rigKeyA1"
 rigVerdict "the same session in a new process -- the same key"
 
-## C. Another session gets another key.
+## C. Another session of the same workspace, provider and model gets the same key: the prefix they share is cached once.
 rigStart c-other-session
 rigTextStream "$rigScenarioDir/res.1" RIG-FINAL-MARKER
 rigRun Grok --session-id rig-session-two
 rigKeyC="$( rigBodyKey "$rigScenarioDir/req.1" )"
 rigAssert "another session carries an opaque key"                 "$( rigKeyShape "$rigKeyC" )" opaque
-rigAssert "and it differs from the first session"         "$( rigDiffers "$rigKeyC" "$rigKeyA1" )" differs
-rigVerdict "another session -- another key"
+rigAssert "and it is the first session's key"             "$rigKeyC" "$rigKeyA1"
+rigVerdict "another session of the workspace -- the same key"
+
+## C2. Another model (the light tier) and another workspace get another key.
+rigStart c2-other-model
+rigTextStream "$rigScenarioDir/res.1" RIG-FINAL-MARKER
+rigRun Grok --session-id rig-session-one --tier light
+rigAssert "another model carries an opaque key"           "$( rigKeyShape "$( rigBodyKey "$rigScenarioDir/req.1" )" )" opaque
+rigAssert "and it differs from the main model's"          "$( rigDiffers "$( rigBodyKey "$rigScenarioDir/req.1" )" "$rigKeyA1" )" differs
+rigStart c3-other-workspace
+rigTextStream "$rigScenarioDir/res.1" RIG-FINAL-MARKER
+rigWorkspace="$rigTmp/ws-other" rigRun Grok --session-id rig-session-one
+rigAssert "another workspace carries an opaque key"       "$( rigKeyShape "$( rigBodyKey "$rigScenarioDir/req.1" )" )" opaque
+rigAssert "and it differs from the first workspace's"     "$( rigDiffers "$( rigBodyKey "$rigScenarioDir/req.1" )" "$rigKeyA1" )" differs
+rigVerdict "another model, another workspace -- another key"
 
 ## D. Switched off: neither the field nor the header.
 rigStart d-switched-off
@@ -167,13 +184,13 @@ rigAssert "no x-grok-conv-id when off"                    "$( rigHeaderKey "$rig
 rigAssert "stdin carries the bearer alone"                "$( cat "$rigScenarioDir/stdin.1" )" "Authorization: Bearer rig-not-a-credential"
 rigVerdict "HARNESS_PROMPT_CACHE_KEY=off -- no field, no header"
 
-## E. No session at all: nothing stable to key on, so nothing is sent.
+## E. No session at all: the key is the workspace's, provider's and model's, and is sent all the same.
 rigStart e-no-session
 rigTextStream "$rigScenarioDir/res.1" RIG-FINAL-MARKER
 rigRun Grok
-rigAssert "no session, no prompt_cache_key"               "$( rigBodyKey "$rigScenarioDir/req.1" )" absent
-rigAssert "no session, no x-grok-conv-id"                 "$( rigHeaderKey "$rigScenarioDir/stdin.1" )" absent
-rigVerdict "no session -- no key"
+rigAssert "no session, the same prompt_cache_key"         "$( rigBodyKey "$rigScenarioDir/req.1" )" "$rigKeyA1"
+rigAssert "no session, the same x-grok-conv-id"           "$( rigHeaderKey "$rigScenarioDir/stdin.1" )" "$rigKeyA1"
+rigVerdict "no session -- the same key"
 
 ## F. The leaves that default it off, and the switch turning it back on.
 for rigLeafName in Scaleway Copilot ; do
@@ -185,7 +202,7 @@ for rigLeafName in Scaleway Copilot ; do
 	rigStart "f-$rigLeafName-on"
 	rigTextStream "$rigScenarioDir/res.1" RIG-FINAL-MARKER
 	HARNESS_PROMPT_CACHE_KEY=on rigRun "$rigLeafName" --session-id rig-session-one
-	rigAssert "$rigLeafName: =on sends the session key"        "$( rigBodyKey "$rigScenarioDir/req.1" )" "$rigKeyA1"
+	rigAssert "$rigLeafName: =on sends a key"                   "$( rigKeyShape "$( rigBodyKey "$rigScenarioDir/req.1" )" )" opaque
 	rigAssert "$rigLeafName: =on still sends no xAI header"    "$( rigHeaderKey "$rigScenarioDir/stdin.1" )" absent
 	rigVerdict "$rigLeafName defaults it off, and =on turns it on"
 done

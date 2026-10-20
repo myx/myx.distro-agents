@@ -25,6 +25,7 @@
 ## Reconciled for F11.0: THE TABLE COLOUR RULE: colours that name no ground of their own for every other row underline
 ## the last line of each row instead, with the lines wrapped.
 ## Reconciled for F11.0, the table lines: two spaces between the columns of a table where its pane has the room, an empty line between two rows of a table that is all the left window, none ahead of a heading.
+## Reconciled for F11.5: Team Members and Team Data stand under Magic-Team (Agents), so a case that went to them by the number keys 4 and 5 puts the list there with `at @team` and `at @teamdata`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -130,7 +131,8 @@ rigCase data
 rigScript <<'RIGSCRIPT'
 turn
 wait list 10
-keys 5
+at @teamdata
+turn
 wait list 10
 get in
 show in
@@ -167,7 +169,7 @@ rigAssert "a folder of the Board selected is its items as a table and nothing ab
 	"[$( rigFirst running )] $( rigUnder running "$( rigBoardLine NAME DATE OWNER STATUS )" 4 ) $( rigHolds running 'running: 2 items' ) $( rigHolds running ' TYPE ' ) $( rigHolds running ' SIZE' ) $( rigWords '[--manager-team-data-read][board][running]' )" \
 	"[$( rigBoardLine NAME DATE OWNER STATUS )] [$( rigBoardLine NAME DATE OWNER STATUS )][][$( rigBoardLine task-20261001T0900Z-a.md '2026-10-01 09:00' keeper-rig running )][] 0 0 0 1"
 rigAssert "a folder of no more items than it shows has no key for every row: e is named nowhere" "$( rigHolds running 'All rows' ) $( rigHolds running 'and 0 more' )" "0 0"
-rigAssert "an item selected shows its text, read by its store, its folder and its name" "$( rigVal item.path ) $( rigHolds item '│The body of task a.' ) $( rigWords '[--manager-team-data-read][board][running][task-20261001T0900Z-a.md]' )" "teamdata/board/running 1 1"
+rigAssert "an item selected shows its text, read by its store, its folder and its name" "$( rigVal item.path ) $( rigHolds item '│The body of task a.' ) $( rigWords '[--manager-team-data-read][board][running][task-20261001T0900Z-a.md]' )" "magic-team/teamdata/board/running 1 1"
 rigAssert "an item in the store itself is read by - for its folder" "$( rigHolds audit '│A declaration.' ) $( rigWords '[--manager-team-data-read][audit][-][declaration-20260928T0000Z-x.md]' )" "1 1"
 rigAssert "an empty vault says so plainly" "$( rigHolds vault '│Vault: empty. It holds no items.' )" "1"
 rigCase absent
@@ -175,7 +177,8 @@ printf 'store\tvault\tabsent\t0\t0\n' > "$MANAGER_SCREEN_RIG/rows.--manager-team
 rigScript <<'RIGSCRIPT'
 turn
 wait list 10
-keys 5
+at @teamdata
+turn
 wait list 10
 keys DOWN DOWN DOWN DOWN
 wait focus 10
@@ -192,7 +195,8 @@ for rigNo in $( seq -w 1 60 ) ; do printf 'item\taudit\t2026-10\titem-%s.md\t100
 rigScript <<'RIGSCRIPT'
 turn
 wait list 10
-keys 5
+at @teamdata
+turn
 wait list 10
 keys DOWN DOWN
 wait focus 10
@@ -238,7 +242,8 @@ rigCase member
 rigScript <<'RIGSCRIPT'
 turn
 wait list 10
-keys 4
+at @team
+turn
 wait list 10
 keys DOWN
 wait view 10
@@ -276,7 +281,7 @@ get jumped
 RIGSCRIPT
 rigAssert "a member is a folder, with the mark of one; one whose workspace cannot be reached is none" "$( rigFolderHolds on '>keeper-rig ' ) $( rigFolderHolds on ' keeper-far ' ) $( rigHolds on ' keeper-far ' )" "1 0 1"
 rigAssert "its own summary shows its basic information alone: nothing of its settings or its grants, no table of them" "$( rigHolds on 'its settings' ) $( rigHolds on 'its grants' ) $( rigHolds on ' COVERS ' ) $( rigHolds on 'ws:source/**/README.md' ) $( rigHolds on '│for       A rig keeper' )" "0 0 0 0 1"
-rigAssert "inside it: Permissions, Skillset Files, Sessions and Member Help, each a folder" "$( rigVal in.path ) $( rigVal in.rows ) $( rigFolderHolds in ' Permissions ' ) $( rigFolderHolds in ' Skillset Files ' ) $( rigFolderHolds in ' Sessions ' ) $( rigFolderHolds in ' Member Help ' )" "team/keeper-rig 5 1 1 1 1"
+rigAssert "inside it: Permissions, Skillset Files, Sessions, Member Settings and Member Help, each a folder" "$( rigVal in.path ) $( rigVal in.rows ) $( rigFolderHolds in ' Permissions ' ) $( rigFolderHolds in ' Skillset Files ' ) $( rigFolderHolds in ' Sessions ' ) $( rigFolderHolds in ' Member Settings ' ) $( rigFolderHolds in ' Member Help ' )" "magic-team/team/keeper-rig 6 1 1 1 1 1"
 rigAssert "Permissions selected: no count above its grants, how many rows in the frame, from the read of the member" "$( rigHolds perms '3 grants' ) $( rigHolds perms ' 3 rows ' ) $( rigWords '[--manager-team-member-read][--full][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "0 1 1"
 rigAssert "its grants as the table of the member's own summary, the pane's first line its header, then a heading for each kind and a row for each grant; no hint stands before it" \
 	"[$( rigFirst perms )] $( rigUnder perms "$( rigGrantLine 22 COVERS ACCESS FROM ENDS )" 7 ) $( rigHolds perms 'Enter opens them' )" \
@@ -285,14 +290,15 @@ rigAssert "inside, its grants are a table under a heading for each kind" "$( rig
 rigAssert "a selected grant shows whole: the path it covers and the rule of its location" "$( rigHolds grant '│covers    /rig/ws/source/**/README.md' ) $( rigHolds grant '│rule      ws:source/**/README.md' ) $( rigHolds grant '│from      floor' )" "1 1 1"
 rigAssert "a skillset file selected shows whole, read by the member and its path" "$( rigHolds file '│The rig keeper' ) $( rigWords '[--manager-team-member-files][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigWords '[--manager-team-member-files][keeper-rig][SKILL.md]' )" "1 1 1"
 rigAssert "one that is no text says so and is never read" "$( rigHolds icon '│resources/icon.png: 1.4K, no text: it is not shown.' ) $( rigWords '[--manager-team-member-files][keeper-rig][resources/icon.png]' )" "1 0"
-rigAssert "Sessions selected: the sessions it is in, how many rows in the frame and no count above them; Enter on one opens it where a session does" "$( rigHolds sessions '1 session:' ) $( rigHolds sessions ' 1 row ' ) $( rigVal jumped.path )" "0 1 sessions/sess-1"
+rigAssert "Sessions selected: the sessions it is in, how many rows in the frame and no count above them; Enter on one opens it in the tree of the member, and does not jump to Activity" "$( rigHolds sessions '1 session:' ) $( rigHolds sessions ' 1 row ' ) $( rigVal jumped.path )" "0 1 magic-team/team/keeper-rig/sessions/sess-1"
 
 echo "-- 2b. the grants of a member, the table Permissions shows selected, follow the width of the pane --"
 rigCase widths
 rigScript <<'RIGSCRIPT'
 turn
 wait list 10
-keys 4
+at @team
+turn
 wait list 10
 keys DOWN
 wait view 10
@@ -335,7 +341,8 @@ for rigNo in $( seq -w 1 19 ) ; do printf 'file\tresources/file-%s.md\t%s\t%s\n'
 rigScript <<'RIGSCRIPT'
 turn
 wait list 10
-keys 4
+at @team
+turn
 wait list 10
 keys DOWN
 wait view 10
@@ -361,7 +368,8 @@ rigScript <<'RIGSCRIPT'
 size 201 40
 turn
 wait list 10
-keys 4
+at @team
+turn
 wait list 10
 keys DOWN
 wait view 10
@@ -392,12 +400,13 @@ printf 'chapter\thead\t\nchapter\thead\t**HEAD-TEXT-OF-THE-HELP** before the sum
 rigScript <<'RIGSCRIPT'
 turn
 wait list 10
-keys 4
+at @team
+turn
 wait list 10
 keys DOWN
 keys ENTER
 wait list 10
-keys DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN
 wait focus 10
 show whole
 keys ENTER

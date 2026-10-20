@@ -16,6 +16,8 @@
 ## Offline: nothing of the tooling is called.
 ## Reconciled for F11.0: a spacer stands between the groups of the roots, and the left pane has no `keys:` line any more
 ## (the status line names those keys), so its content takes its last line too.
+## Reconciled for F11.5: the root holds eight sections, and Magic-Team (Agents) is the one that holds Activity, Pending Questions, Team Members and Team Data; the level a case enters is Magic-Team (Agents), and the first item of Activity is Launch (Start).
+## Reconciled for F11.5, the lists of Activity: the key `a` (all or only the active) is not offered there, as it has nothing to take: not in the status line, and not in the menu View.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -61,14 +63,15 @@ cells row9 10 85 119
 cells row10 11 85 119
 cells row11 12 85 119
 cells row12 13 85 119
+cells row13 14 85 119
 RIGSCRIPT
-rigAssert "the root holds the nine sections in their order, the dashboard first, a spacer between its groups" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )][$( rigVal row9 )][$( rigVal row10 )][$( rigVal row11 )][$( rigVal row12 )]" "[ Dashboard (Monitor)             ►][ Sessions (Activity)             ►][ Pending Questions               ►][ Team Members                    ►][][ Locations (Places)              ►][ Consoles                        ►][][ Settings                        ►][ Configuration                   ►][][>Manuals (Help)                  ►]"
-rigAssert "the screen starts on the last one, Manuals (Help), selected, and the list has the focus" "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "manuals 8 list 9"
+rigAssert "the root holds the eight sections in their order, the dashboard first, a spacer between its five groups: Dashboard and Pending Questions, Magic-Team, Locations and Consoles, Settings and Configuration, Manuals" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )][$( rigVal row9 )][$( rigVal row10 )][$( rigVal row11 )][$( rigVal row12 )][$( rigVal row13 )]" "[ Dashboard (Monitor)             ►][ Pending Questions               ►][][ Magic-Team (Agents)             ►][][ Locations (Places)              ►][ Consoles                        ►][][ Settings                        ►][ Configuration                   ►][][>Manuals (Help)                  ►][]"
+rigAssert "the screen starts on the last one, Manuals (Help), selected, and the list has the focus" "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "manuals 7 list 8"
 
 echo "-- Enter dives in, the first row and Backspace go up --"
 rigScript <<'RIGSCRIPT'
 size 120 40
-root sessions
+root magic-team
 keys ENTER
 get in
 border inTitle 1 84 120
@@ -84,19 +87,19 @@ get back
 keys BACKSPACE
 get root
 RIGSCRIPT
-rigAssert "Enter shows the level of that section"                    "$( rigVal in.path ) [$( rigVal inTitle )]" "sessions [Sessions (Activity)  [all]]"
+rigAssert "Enter shows the level of that section"                    "$( rigVal in.path ) [$( rigVal inTitle )]" "magic-team [Magic-Team (Agents)]"
 rigAssert "its first row is the row that goes up, and it is selected" "[$( rigVal inRow1 )] $( rigVal in.selected )" "[>..] .."
-rigAssert "inside Sessions (Activity) the first item is Launch (Start)" "[$( rigVal inRow2 )]" "[ Launch (Start)                  ►]"
-rigAssert "the left pane names what it shows: on the row that goes up, the section itself"                     "[$( rigVal inLeft )]" "[Sessions (Activity) [wrap]]"
-rigAssert "Enter on the row that goes up shows the root again"       "[$( rigVal out.path )] $( rigVal out.selected )" "[] sessions"
-rigAssert "Enter dives into the third section"                       "$( rigVal third.path ) $( rigVal third.selected )" "team .."
-rigAssert "Backspace goes up and returns to the row it came from"    "[$( rigVal back.path )] $( rigVal back.selected )" "[] team"
-rigAssert "Backspace at the root stays at the root, and says why"    "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigVal root.notice )]" "[] team [Up one level: this is the top level]"
+rigAssert "inside Magic-Team (Agents) the first item is Activity" "[$( rigVal inRow2 )]" "[ Activity                        ►]"
+rigAssert "the left pane names what it shows: on the row that goes up, the section itself"                     "[$( rigVal inLeft )]" "[Magic-Team (Agents) [wrap]]"
+rigAssert "Enter on the row that goes up shows the root again"       "[$( rigVal out.path )] $( rigVal out.selected )" "[] magic-team"
+rigAssert "Enter dives into the third section"                       "$( rigVal third.path ) $( rigVal third.selected )" "consoles .."
+rigAssert "Backspace goes up and returns to the row it came from"    "[$( rigVal back.path )] $( rigVal back.selected )" "[] consoles"
+rigAssert "Backspace at the root stays at the root, and says why"    "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigVal root.notice )]" "[] consoles [Up one level: this is the top level]"
 
 echo "-- Launch (Start) is a level of its own --"
 rigScript <<'RIGSCRIPT'
 size 120 40
-root sessions
+root activity
 keys ENTER DOWN
 get on
 border onLeft 1 0 84
@@ -107,8 +110,8 @@ keys LEFT
 get back
 RIGSCRIPT
 rigAssert "it can be selected, and the left pane follows"            "$( rigVal on.selected ) [$( rigVal onLeft )]" "launch [Launch (Start) [wrap]]"
-rigAssert "Enter dives into it, and it holds the free prompt under the row that goes up" "$( rigVal in.path ) $( rigVal in.rows ) $( rigVal in.selected ) [$( rigVal inTitle )]" "sessions/launch 2 .. [Launch (Start)]"
-rigAssert "Left returns to it"                                       "$( rigVal back.path ) $( rigVal back.selected )" "sessions launch"
+rigAssert "Enter dives into it, and it holds the free prompt under the row that goes up" "$( rigVal in.path ) $( rigVal in.rows ) $( rigVal in.selected ) [$( rigVal inTitle )]" "magic-team/activity/launch 2 .. [Launch (Start)]"
+rigAssert "Left returns to it"                                       "$( rigVal back.path ) $( rigVal back.selected )" "magic-team/activity launch"
 
 echo "-- Up and Down stop at the ends --"
 rigScript <<'RIGSCRIPT'
@@ -128,7 +131,7 @@ rigAssert "Down on the last row stays there, and does not wrap"      "$( [ "$( r
 echo "-- PageDown and PageUp, a hundred rows in a pane of twenty lines --"
 rigScript <<'RIGSCRIPT'
 size 120 23
-root sessions
+root dashboard
 rowsgen pending 100
 keys DOWN ENTER
 get a
@@ -157,7 +160,7 @@ rigAssert "PageUp ends on the first row"                             "$( rigVal 
 echo "-- Left and Right in the list: Right pages down, Left pages up, on the first row it goes up a level, on the root's first row nothing more --"
 rigScript <<'RIGSCRIPT'
 size 120 23
-root sessions
+root dashboard
 rowsgen pending 100
 keys DOWN ENTER
 get a
@@ -183,7 +186,7 @@ lrPaths="[$( rigVal b.path )][$( rigVal c.path )][$( rigVal d.path )][$( rigVal 
 lrGone="[$( rigVal g.path )] $( rigVal g.selected ) [$( rigVal h.path )] $( rigVal h.selected ) [$( rigVal i.path )] $( rigVal i.selected ) $( rigVal i.focus ) [$( rigVal i.notice )]"
 rigScript <<'RIGSCRIPT'
 size 120 23
-root sessions
+root dashboard
 rowsgen pending 100
 keys DOWN ENTER
 keys PGDN
@@ -204,11 +207,11 @@ rigAssert "Left on the first row goes up a level, onto the row dived into; at th
 echo "-- Right opens nothing, Backspace goes up from any row, Enter goes down --"
 rigScript <<'RIGSCRIPT'
 size 120 23
-root sessions
+root dashboard
 keys RIGHT
 get root
 rowsgen pending 100
-keys UP UP UP UP UP UP UP UP DOWN DOWN ENTER
+keys UP UP UP UP UP UP UP UP DOWN ENTER
 get in
 keys RIGHT RIGHT RIGHT RIGHT RIGHT RIGHT RIGHT
 get bottom
@@ -226,7 +229,7 @@ rigAssert "and Enter dives into it again"                            "$( rigVal 
 echo "-- Tab moves the focus, and the left pane then scrolls --"
 rigScript <<'RIGSCRIPT'
 size 120 40
-root sessions
+root pending
 view 100
 turn
 get a
@@ -252,18 +255,19 @@ RIGSCRIPT
 rigAssert "the list has the focus first, and its title shows it"     "$( rigVal a.focus ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^la|//p' | LC_ALL=C sed -n '2p' | LC_ALL=C cut -c1,85 )" "list .B"
 rigAssert "Tab moves the focus to the left pane, and its title shows it" "$( rigVal b.focus ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^lb|//p' | LC_ALL=C sed -n '2p' | LC_ALL=C cut -c1,85 )" "view B."
 rigAssert "Down three times scrolls the left pane by three lines"    "$( rigVal b.viewTop ) [$( rigVal bFirst )]" "3 [line 004]"
-rigAssert "and the selection of the list has not moved"              "$( rigVal b.selected )" "sessions"
+rigAssert "and the selection of the list has not moved"              "$( rigVal b.selected )" "pending"
 rigAssert "PageDown scrolls it by the height of the pane"            "$( rigVal c.viewTop ) $( rigVal c.viewHeight )" "39 36"
 rigAssert "Up scrolls it back by one line"                           "$( rigVal d.viewTop )" 38
 rigAssert "it stops at its last line"                                "$( rigVal e.viewTop ) [$( rigVal eLast )]" "64 [line 100]"
 rigAssert "and at its first"                                         "$( rigVal f.viewTop )" 0
-rigAssert "the keys that dive and go up do nothing there"            "[$( rigVal g.path )] $( rigVal g.selected ) $( rigVal g.focus )" "[] sessions view"
-rigAssert "Tab gives the focus back to the list, and Down moves its selection again" "$( rigVal h.focus ) $( rigVal h.selected ) $( rigVal h.viewTop )" "list pending 0"
+rigAssert "the keys that dive and go up do nothing there"            "[$( rigVal g.path )] $( rigVal g.selected ) $( rigVal g.focus )" "[] pending view"
+rigAssert "Tab gives the focus back to the list, and Down moves its selection again" "$( rigVal h.focus ) $( rigVal h.selected ) $( rigVal h.viewTop )" "list magic-team 0"
 
 echo "-- a, all or active --"
 rigScript <<'RIGSCRIPT'
 size 120 40
-root sessions
+table list:magic-team/activity/launch --rig +active --active
+root launch
 keys ENTER
 get a
 keys TAB a
@@ -275,15 +279,15 @@ border cTitle 1 84 120
 keys a
 get d
 RIGSCRIPT
-rigAssert "all sessions are shown first"                             "$( rigVal a.filter )" all
-rigAssert "a is a button, so it works while the left pane has the focus: it switches to the active ones"  "$( rigVal b.focus ) $( rigVal b.filter ) [$( rigVal bTitle )]" "view active [Sessions (Activity)  [active]]"
-rigAssert "with the focus on the list it switches back to all" "$( rigVal c.focus ) $( rigVal c.filter ) [$( rigVal cTitle )]" "list all [Sessions (Activity)  [all]]"
+rigAssert "all are shown first"                             "$( rigVal a.filter )" all
+rigAssert "a is a button, so it works while the left pane has the focus: it switches to the active ones"  "$( rigVal b.focus ) $( rigVal b.filter ) [$( rigVal bTitle )]" "view active [Launch (Start)  [active]]"
+rigAssert "with the focus on the list it switches back to all" "$( rigVal c.focus ) $( rigVal c.filter ) [$( rigVal cTitle )]" "list all [Launch (Start)  [all]]"
 rigAssert "and once more to the active ones"                         "$( rigVal d.filter )" active
 
 echo "-- rows that come again --"
 rigScript <<'RIGSCRIPT'
 size 120 40
-root sessions
+root dashboard
 rows pending a=alpha b=beta c=gamma d=delta
 keys DOWN ENTER DOWN DOWN DOWN
 get a
@@ -306,7 +310,7 @@ rigAssert "and the last row where that place is gone too"            "$( rigVal 
 echo "-- q and Esc --"
 rigScript <<'RIGSCRIPT'
 size 120 40
-root sessions
+root dashboard
 keys ESC
 get esc
 advance 2
@@ -315,17 +319,19 @@ get bare
 keys ESC x
 get quit
 RIGSCRIPT
-rigAssert "Esc with nothing open does nothing"                       "$( rigVal esc.quit ) $( rigVal esc.selected ) $( rigVal esc.focus )" "no sessions list"
+rigAssert "Esc with nothing open does nothing"                       "$( rigVal esc.quit ) $( rigVal esc.selected ) $( rigVal esc.focus )" "no dashboard list"
 rigAssert "a bare q does nothing in the Turbo Vision key map; Esc and then x ends the screen, as Alt-X does" "$( rigVal bare.quit ) $( rigVal quit.quit )" "no yes"
 
 echo "-- the keys of the actions --"
 rigScript <<'RIGSCRIPT'
 size 120 40
-root sessions
-rows sessions s1=one_session
+root dashboard
+sessions s1=one_session!
 keys k
 get k
-keys ENTER DOWN DOWN
+at @activity closed-sessions
+turn
+keys DOWN
 keys p
 get p
 turn
@@ -350,9 +356,9 @@ get handled
 keys TAB k
 get handledLeft
 RIGSCRIPT
-rigAssert "each key of an action is a key in its view alone, and at the root none is; in its view it says in the status line why it does nothing: that it is not built, until its handler is; k, which is, that this row is nothing it acts on; l, the key of a mode of the left window, that the row has no log; and n, the key of another view, says nothing" \
+rigAssert "each key of an action is a key in its view alone, and at the root none is; in its view it says in the status line why it does nothing: that it is not built, until its handler is; k, which is, that this row is nothing it acts on; l, the key of a mode of the Transcript, and n, the key of another view, say nothing: the status line keeps what it said" \
 	"[$( rigVal k.notice )] [$( rigVal p.notice )][$( rigVal r.notice )][$( rigVal s.notice )][$( rigVal R.notice )][$( rigVal kIn.notice )][$( rigVal l.notice )][$( rigVal n.notice )] [$( rigVal n.dialog )]" \
-	"[] [Pause is not built yet][Resume is not built yet][Stop is not built yet][Restart is not built yet][Kill: not for what is selected, as it is now][Log: what is selected has no log][Log: what is selected has no log] []"
+	"[] [Pause is not built yet][Resume is not built yet][Stop is not built yet][Restart is not built yet][Kill: this session is finished][Kill: this session is finished][Kill: this session is finished] []"
 rigAssert "none of them moved or quit anything"                      "$( rigVal l.selected ) $( rigVal l.quit ) $( rigVal l.focus )" "s1 no list"
 rigAssert "with a handler, the key goes to it with the row that is selected" "[$( rigVal handled.notice )]" "[handled kill on s1]"
 rigAssert "also while the left pane has the focus"                   "$( rigVal handledLeft.focus ) [$( rigVal handledLeft.notice )]" "view [handled kill on s1]"
@@ -360,12 +366,13 @@ rigAssert "also while the left pane has the focus"                   "$( rigVal 
 echo "-- the keys that act on the selected item stand in the status line, and in no line of the left pane --"
 rigScript <<'RIGSCRIPT'
 size 120 40
-root sessions
-rows sessions s1=one_session
-rows team m1=one_member
+root dashboard
+sessions s1=one_session
+rows magic-team/team m1=one_member
 rows pending a1=one_ask
-keys ENTER DOWN DOWN
-view 100
+at @activity active-sessions
+turn
+keys DOWN
 turn
 get none
 cells noneKeys 37 1 83
@@ -377,30 +384,27 @@ get built
 cells builtKeys 37 1 83
 cells builtLast 36 1 83
 cells builtBottom 39 0 120
-keys TAB PGDN PGDN PGDN
-get scrolled
-cells scrolledLast 36 1 83
-keys TAB UP
-view 100
+root launch
 turn
 get launch
 cells launchKeys 37 1 83
-keys BACKSPACE DOWN ENTER DOWN
+root pending
+keys ENTER DOWN
 get ask
 cells askKeys 37 1 83
-keys BACKSPACE DOWN ENTER DOWN
+at @team
+turn
+keys DOWN
 get member
 cells memberKeys 37 1 83
 cells memberBottom 39 0 120
 RIGSCRIPT
-rigAssert "a session is selected: with no handler of an action built the pane names no key, and its last line is its content's" "$( rigVal none.selected ) [$( rigVal noneKeys )]" "s1 [line 036]"
-rigAssert "the status line names the keys that act on the session, and after them those of every window"             "[$( rigVal noneBottom )]" "[ BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
-rigAssert "with handlers built, the pane still names no key: its last line is its content's, and the status line names the key that acts on a session" "[$( rigVal builtKeys )] $( rigVal builtBottom | LC_ALL=C grep -c -F ' k Kill ' )" "[line 036] 1"
-rigAssert "the content of the pane goes on to its last line"         "[$( rigVal builtLast )]" "[line 035]"
-rigAssert "and scrolls in all of its lines"                          "$( rigVal scrolled.viewTop ) [$( rigVal scrolledLast )]" "64 [line 099]"
-rigAssert "Launch (Start) has no such key"                           "$( rigVal launch.selected ) [$( rigVal launchKeys )]" "launch [line 036]"
+rigAssert "a session is selected: with no handler of an action built the pane names no key, and its last line is its content's" "$( rigVal none.selected ) [$( rigVal noneKeys )]" "s1 []"
+rigAssert "the status line names the keys that act on the session, and after them those of every window"             "[$( rigVal noneBottom )]" "[ ENTER Open  BSP Up  k Kill  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "with handlers built, the pane still names no key: its last line is its content's, and the status line names the key that acts on a session" "[$( rigVal builtKeys )] $( rigVal builtBottom | LC_ALL=C grep -c -F ' k Kill ' )" "[] 1"
+rigAssert "Launch (Start) has no such key"                           "$( rigVal launch.selected ) [$( rigVal launchKeys )]" "launch []"
 rigAssert "an ask has none: no key answers it"                       "$( rigVal ask.path ) $( rigVal ask.selected ) [$( rigVal askKeys )]" "pending a1 []"
-rigAssert "a team member: no line of the pane names the key that starts it" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal memberKeys )]" "team m1 []"
+rigAssert "a team member: no line of the pane names the key that starts it" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal memberKeys )]" "magic-team/team m1 []"
 rigAssert "on a team member the status line names the key that starts it"                "[$( rigVal memberBottom )]" "[ BSP Up  a Active  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 
 if [ "$rigFailCount" -ne 0 ] ; then

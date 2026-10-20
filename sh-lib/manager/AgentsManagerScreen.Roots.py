@@ -63,7 +63,8 @@ TEAM_DATA_STORES = (("board", "Board"), ("audit", "Audit"), ("vault", "Vault"))
 ## The kind of the row of the team itself among the members: no member, and no folder.
 MEMBER_TEAM_KIND = "team"
 MEMBER_FOLDERS = (("permissions", "Permissions", "grants"), ("files", "Skillset Files", "files"),
-                  ("sessions", "Sessions", "member-sessions"), ("help", "Member Help", "member-help"))
+                  ("sessions", "Sessions", "member-sessions"), ("settings", "Member Settings", "member-settings"),
+                  ("help", "Member Help", "member-help"))
 ROOT_TITLE = "/"
 ROW_UP = ".."
 ## The scope a credential of a subject of the digest is read from, for the form of the credential: the scopes are their
@@ -77,6 +78,10 @@ FOLDER_WORDS = {
     "commands": "the commands a console user calls by name",
     "user": "the README.md of each project, in build order",
     "maintainer": "the MAGIC.md of each project, in build order",
+    "activity": "the sessions of the team and the agents in them, and the routines to start",
+    "pending": "the questions that wait for an answer",
+    "team": "each member of the team, its permissions, files, sessions, settings and help",
+    "teamdata": "the board, the audit and the vault of the team data, and its operations",
 }
 ## What each action asks the tooling for: the operation with its arguments, {id} the id of
 ## what it acts on. The screen itself signals no process and starts no CLI. A session's id

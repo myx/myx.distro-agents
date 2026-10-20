@@ -29,6 +29,8 @@
 ##      a fixed row or a summary of its own outside its plugin
 ## Red before F11.2: no plugin mechanism, the roots declared in the tables of Roots.py, wrap the left window's alone.
 ## Offline: no operation of the real tooling is called.
+## Reconciled for F11.5: the plugins now include magic-team, activity and pending-in-team, with Pending Questions second after the Dashboard, and each is registered by its own part.
+## Reconciled for the groups of the roots (owner, 2026-10-20): the stand-in root of the group `team` stands with Magic-Team (Agents); the Dashboard is in a group with Pending Questions.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
@@ -111,9 +113,9 @@ def commandNames():
 ## ---- 9. the ten roots are plugins, declared by their own parts
 def parts():
     names = [plugin["name"] for plugin in screen.PLUGIN_RECORDS]
-    say("ten", " ".join(name for name in ("dashboard", "sessions", "pending", "team", "teamdata", "places", "consoles", "settings", "configuration", "manuals") if name in names))
+    say("ten", " ".join(name for name in ("dashboard", "pending", "magic-team", "activity", "pending-in-team", "team", "teamdata", "places", "consoles", "settings", "configuration", "manuals") if name in names))
     say("sections", " ".join(sectionId for sectionId, label in screen.SECTIONS))
-    owned = {"dashboard": "Dashboard", "sessions": "Sessions", "pending": "Pending", "team": "Members", "teamdata": "TeamData", "places": "Places",
+    owned = {"dashboard": "Dashboard", "activity": "Sessions", "pending": "Pending", "pending-in-team": "Pending", "magic-team": "MagicTeam", "team": "Members", "teamdata": "TeamData", "places": "Places",
              "consoles": "Consoles", "settings": "Settings", "configuration": "Configuration", "manuals": "Manuals"}
     registered = []
     for name, part in sorted(owned.items()):
@@ -162,7 +164,7 @@ def rootAndRows():
     say("rootLabel", [row["label"] for row in screen.levelRowsAt(state, []) if row["id"] == "rigroot"][0])
     say("rootDives", [row["dive"] for row in screen.levelRowsAt(state, []) if row["id"] == "rigroot"][0])
     say("goItem", " ".join(command["label"] for command in screen.COMMANDS if command["does"] == ("go", ("rigroot",))))
-    say("group", "yes" if any("rigroot" in group and "dashboard" in group for group in screen.SECTION_GROUPS) else "no")
+    say("group", "yes" if any("rigroot" in group and "magic-team" in group for group in screen.SECTION_GROUPS) else "no")
     say("under", " ".join(row["id"] for row in screen.levelRowsAt(state, ["rigroot"])))
     say("underFolder", " ".join(row["id"] for row in screen.levelRowsAt(state, ["rigroot", "alpha"])))
     selectRoot(state, "rigroot")
@@ -424,8 +426,8 @@ rigAssert "a command that is only on rows of its own, with a key the generic com
 rigAssert "a name registered twice is refused" "$( rigVal twice )" "PluginError"
 
 echo "-- 9. every app feature is a plugin --"
-rigAssert "the ten roots are registered as plugins, in the order of the list" "$( rigVal ten ) / $( rigVal sections | cut -d' ' -f1-10 )" "dashboard sessions pending team teamdata places consoles settings configuration manuals / dashboard sessions pending team teamdata places consoles settings configuration manuals"
-rigAssert "each is registered by its own part, once" "$( rigVal ownParts )" "configuration:True consoles:True dashboard:True manuals:True pending:True places:True sessions:True settings:True team:True teamdata:True"
+rigAssert "the features are registered as plugins: the roots in the order of the list, Pending Questions second after the Dashboard, and the plugins that stand under Magic-Team (Agents)" "$( rigVal ten ) / $( rigVal sections | cut -d' ' -f1-10 )" "dashboard pending magic-team activity pending-in-team team teamdata places consoles settings configuration manuals / dashboard pending magic-team places consoles settings configuration manuals"
+rigAssert "each is registered by its own part, once" "$( rigVal ownParts )" "activity:True configuration:True consoles:True dashboard:True magic-team:True manuals:True pending:True pending-in-team:True places:True settings:True team:True teamdata:True"
 rigAssert "no table of the roots, the rows, the summaries, the reads, the Markdown places or the Go levels is left in Roots.py or Windows.py" "$( rigVal noTables )" "none"
 
 if [ "$rigFailCount" -ne 0 ] ; then

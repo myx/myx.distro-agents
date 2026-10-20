@@ -31,6 +31,44 @@ AgentsToolsOwnerSetupOptionSpec(){
 		WAIT_ROUND_SECONDS)
 			printf '%s\n' 'magic-team|<seconds>|plain|how long a wait of a session that brings nothing runs before it comes back, in whole seconds, for every session of this workspace whatever CLI it runs on. Left unset each CLI service takes its own: a little under the lifetime of its prompt cache where that is known, else 270, under a five-minute cache. Set it only where the cache of the service in use here is known to live longer or shorter than that.'
 		;;
+		## The window of the work-duty input scan's collect (F4.1, AgentsTools.InternOpWorkDuty.include).
+		WAIT_COLLECT_SECONDS)
+			printf '%s\n' 'magic-team|<seconds>|plain|how long the work-duty input scan collects the team channel before it returns, in whole seconds, for every session of this workspace. A message tagged to the member, in the team channel or its session thread, and any direct message end the collect at once. A minute when it is not set.'
+		;;
+		## The keys of a preset (AgentsTools.Preset.include), which stand in a block of their own, preset-<name>, and so in
+		## no one scope of the catalogue: scope `-`. Their text is what a person editing a preset reads.
+		PRESET_EXTEND)
+			printf '%s\n' '-|<preset-name>|plain|the preset whose parameters this one inherits, in a preset block preset-<name>. Its own value of a key stands ahead of the inherited one, but for the CLI service: where a preset extends, that is the one of the parent and cannot be edited.'
+		;;
+		PRESET_CLI_SERVICE)
+			printf '%s\n' '-|<cli-service>|plain|the CLI service of a preset that extends nothing: claude, copilot, grok, gemini, scaleway, standard-v1, claude-native, copilot-native or grok-native. The credentials the preset takes are those of that service, under the names its CLI reads.'
+		;;
+		PRESET_MODEL_OR_MACRO)
+			printf '%s\n' '-|<macro-or-model>|plain|the model of the preset, optional: a macro, low or easy, normal or default, high or hard, which picks the tier of the harness, or a model name, which is the model of that tier for a harness leg (claude, copilot, grok, scaleway). A native CLI is passed no model, so for it the model is stored and nothing uses it. Left unset the tier asked stands.'
+		;;
+		PRESET_EFFORT)
+			printf '%s\n' '-|<effort>|plain|how hard the model thinks, optional: low, default or normal, high or hard. High or hard takes a normal model to the heavy tier, which is the harness effort high. Not implemented in the CLIs yet, and fixed for a spawn: nothing changes it while the run goes on.'
+		;;
+		PRESET_INPUT_CACHE_TIME)
+			printf '%s\n' '-|<seconds>|plain|how long the provider keeps the input cache, in whole seconds, optional; the provider implementation has a default of its own. Stored only: nothing reads it yet.'
+		;;
+		PRESET_CONTEXT_MAX_SIZE)
+			printf '%s\n' '-|<tokens>|plain|the largest context the model works with, in whole tokens, optional; the provider implementation has a default of its own. Stored only: nothing reads it yet.'
+		;;
+		PRESET_EXTRA_SPAWN_LINE)
+			printf '%s\n' '-|<one line>|plain|one instruction that corrects the dispatch for the model of the preset. The human-owner writes it here and nobody else does: the spawner puts it into the dispatch it crafts, and no member is told where it came from.'
+		;;
+		## The tier settings (AgentsTools.Preset.include, F10.2): the team's, and optionally a member's own in its scope, which
+		## stands ahead of the team's. Scope magic-team, where the minimum to run team members is SPAWN_TIER_NORMAL.
+		SPAWN_TIER_LOW)
+			printf '%s\n' 'magic-team|<preset>[:<effort>]|plain|the preset a spawn runs on at the low tier (the tier asked, SPAWN_HARNESS_TIER, being light), with an effort after a colon where wanted: low, default or normal, high or hard. A member scope may set its own, which stands ahead of the team. Read in the workspace that pays for the spawn. Where it is not set the default tier is used.'
+		;;
+		SPAWN_TIER_NORMAL)
+			printf '%s\n' 'magic-team|<preset>[:<effort>]|plain|the preset a spawn runs on at the default tier (the tier asked being normal, or none), with an effort after a colon where wanted: low, default or normal, high or hard. The minimum to run team members is this one in the team scope; a member scope may set its own, which stands ahead of the team. Read in the workspace that pays for the spawn.'
+		;;
+		SPAWN_TIER_HIGH)
+			printf '%s\n' 'magic-team|<preset>[:<effort>]|plain|the preset a spawn runs on at the high tier (the tier asked, SPAWN_HARNESS_TIER, being heavy), with an effort after a colon where wanted: low, default or normal, high or hard. A member scope may set its own, which stands ahead of the team. Read in the workspace that pays for the spawn. Where it is not set the default tier is used.'
+		;;
 		## The team place in Confluence: a general team key, not the publish step alone. Its
 		## Google counterpart is found by listing, never configured: the folder named magic-team.
 		CONFLUENCE_SPACE)

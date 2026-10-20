@@ -18,7 +18,7 @@
 ## The scans of the tooling a definition may name, one a line: one for each `--intern-op-<scan>-input-scan` the
 ## dispatcher routes (F6.4).
 AgentsToolsInputScanNames(){
-	printf '%s\n' advance client-sweep grooming heartbeat member-work-session morning-review permission-escalation routine-coworking-session sweep
+	printf '%s\n' advance client-sweep grooming heartbeat member-work-session morning-review permission-escalation routine-coworking-session sweep work-duty
 }
 
 ## The call one definition line stands for, split into its words, one a line: the scan's operation, the team member,
@@ -49,7 +49,7 @@ AgentsToolsInputScanDefWords(){ ## definition line, team member, session id, spa
 			;;
 		esac
 		defFilled="$( printf '%s' "$defWord" | SCAN_TEAM_MEMBER="$2" SCAN_SESSION_ID="$3" SCAN_SPAWN_ID="$4" SCAN_SELECT_WORKSPACE="${MMDAPP:-}" SCAN_TOOLING_ORIGIN="${MDLT_ORIGIN:-}" \
-			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsInputScanDefFill.awk" )"
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolingTemplateFill.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsInputScanDefFill.awk" )"
 		case "$defFilled" in
 			*"{{"*)
 				echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: input-scan-def: '$defWord' names a macro that is none of team-member, session-id, spawn-id, select-workspace and tooling-origin" >&2
@@ -63,6 +63,29 @@ AgentsToolsInputScanDefWords(){ ## definition line, team member, session id, spa
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: input-scan-def: '$1': the option $defOption has no value -- the form is <scan> [--option value ...]" >&2
 		return 1
 	fi
+}
+
+## THE POINTER OF A SCAN, KEPT FOR THE RUN (F10.5 gate B). The spawner runs a routine's scans and gives the run their reports (input/input-scan.md). A
+## scan as a source of Wait (`scan:<scan>`, F3.3) wakes when its report differs from the one the session was last given, and the first time with the
+## report it has, so a run's first `--idle-wait` on its declared scans would wake at once on the report it was just handed, and cost a model round to
+## see it again. The spawner therefore keeps the pointer of the session, `scan:<scan>:<member>`, at the report it gave: the sum the wait keeps of a
+## report (<cksum>-<size>), so the first wait has only what is new beyond it. The wait reads a scan by its name, so a definition with options is
+## read by its name here too (the run waits on that view, not on the one the options made). A scan that failed has none.
+AgentsToolsInputScanDefSeed(){ ## definition line, scan, team member, session id, the file the spawner's run of the scan printed
+	local seedFile="$5" seedKept seedSum
+	[ -n "$4" ] || return 0
+	type AgentsToolsSessionChatPointerSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
+	if [ "$1" != "$2" ] ; then
+		seedFile="$5.seed"
+		DistroAgentsTools "--intern-op-$2-input-scan" "$3" > "$seedFile" 2> /dev/null || { rm -f "$seedFile" ; return 0 ; }
+	fi
+	## A scan called in a team session prints the reference to its kept report, and the report is that file (AgentsWaitProbeScan reads it so).
+	seedKept="$( LC_ALL=C sed -n 's/^\.\.\. KEPT: .* is in \(.*\) -- .*\.\.\.$/\1/p' "$seedFile" | head -1 )"
+	[ -z "$seedKept" ] || [ ! -f "$seedKept" ] || seedFile="$seedKept"
+	seedSum="$( LC_ALL=C cksum < "$seedFile" | LC_ALL=C awk '{ print $1 "-" $2 ; }' )"
+	[ "$1" = "$2" ] || rm -f "$5.seed"
+	[ -n "$seedSum" ] && AgentsToolsSessionChatPointerSet "$4" "scan:$2:$3" "$seedSum" || :
+	return 0
 }
 
 ## The scans a set of definition lines names, joined by `, `: what the brief says ran.
@@ -102,6 +125,7 @@ AgentsToolsInputScanDefRun(){ ## definition lines (one a line), team member, ses
 			echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the input scan $runScan of this routine failed (exit $runRc), and input/input-scan.md says so" >&2 || :
 		else
 			cat "$runOut" >> "$5"
+			AgentsToolsInputScanDefSeed "$runLine" "$runScan" "$2" "$3" "$runOut"
 		fi
 		[ "$runCount" -le 1 ] || printf '\n' >> "$5"
 	done <<< "$runLines"

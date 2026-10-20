@@ -124,7 +124,7 @@ All statements apply at the same time, always. These rules override a magic-team
 ## Routines (index)
 
 - `magic-librarian.conventions-check.routine` — checks a proposed change against its closest real analog before it lands.
-- `magic-librarian.morning-review.routine` — the once-per-workday joint checkpoint with `magic-coordinator` for board state-model drift and cross-file consistency.
+- `magic-librarian.morning-review.routine` — the once-per-workday checkpoint for board state-model drift and cross-file consistency.
 
 ## Documentation units
 

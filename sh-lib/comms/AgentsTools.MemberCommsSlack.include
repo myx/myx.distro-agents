@@ -40,7 +40,7 @@ AgentsToolsCommsSlackFileInfoEmitField(){
 	return 1
 }
 
-. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 ## A target, a mention or an addressee names a member of any workspace (AgentsToolsTeamMemberDirectory).
 type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 
@@ -243,7 +243,7 @@ AgentsToolsCommsSlackMentionUserId(){
 }
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSlack.include"
-. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsTools.OutputStyle.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include"
 
 ## One Slack file's metadata, read as the acting member: the in-context helper behind
 ## --member-comms-slack-file-info and the file fetch, no operation of its own (MAGIC.md, section 1).
@@ -571,17 +571,19 @@ case "$1" in
 				AgentsToolsSlackCheck "${conversationArgs[@]}" || { set +e ; return 1 ; }
 				return 0
 			fi
-			if [ -n "$readOldest" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: --oldest bounds how far back a conversation is read, and '$target' names one message -- drop --oldest, or drop the :<ts>" >&2
+			if [ -n "$readOldest" ] && [ "$wantThread" != "true" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: --oldest bounds how far back a conversation or a thread is read, and '$target' names one message -- drop --oldest, or drop the :<ts>, or add --thread" >&2
 				set +e ; return 1
 			fi
 
-			local identityArgs=()
+			local identityArgs=() oldestArgs=()
 			if [ "$identityAsBot" = "true" ] ; then
 				identityArgs+=( --identity bot )
 			fi
+			## A thread read from a ts on (the communications reader's, F9.3): Slack returns the parent and the replies after it.
+			[ -z "$readOldest" ] || oldestArgs+=( --form "oldest=$readOldest" )
 			if [ "$wantThread" = "true" ] ; then
-				echo "# $MDSC_CMD --member-comms-slack-read: GET conversations.replies channel=$channel ts=$threadTs (full thread, acting member $memberName)" >&2
+				echo "# $MDSC_CMD --member-comms-slack-read: GET conversations.replies channel=$channel ts=$threadTs${readOldest:+ oldest=$readOldest} (${readOldest:+replies after it of the }full thread, acting member $memberName)" >&2
 				## Slack drops a message's own metadata.event_payload from this
 				## endpoint's reply unless this form field asks for it -- live-
 				## verified in this workspace: event_type alone survives without
@@ -591,6 +593,7 @@ case "$1" in
 					--resolve-target "$channel" \
 					--form "ts=$threadTs" \
 					--form "include_all_metadata=true" \
+					${oldestArgs[@]+"${oldestArgs[@]}"} \
 					"${identityArgs[@]}" \
 					--context "--member-comms-slack-read" || { set +e ; return 1 ; }
 			else
@@ -714,7 +717,7 @@ case "$1" in
 						set +e ; return 1
 					;;
 				esac
-				cutoffEpoch="$( printf '%s\n' "$cutoffValue" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsIsoToEpoch.awk" )" || cutoffEpoch=""
+				cutoffEpoch="$( printf '%s\n' "$cutoffValue" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" )" || cutoffEpoch=""
 				if [ -z "$cutoffEpoch" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: --comms-since-date-time: could not convert to epoch seconds: $cutoffValue" >&2
 					set +e ; return 1
@@ -722,7 +725,7 @@ case "$1" in
 			fi
 
 			local afterDate=""
-			afterDate="$( printf '%s\n' "$(( ${cutoffEpoch%%.*} - 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsEpochToIsoDate.awk" )" || afterDate=""
+			afterDate="$( printf '%s\n' "$(( ${cutoffEpoch%%.*} - 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalEpochToIsoDate.awk" )" || afterDate=""
 			if [ -z "$afterDate" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: could not derive the search window's start date from cut-off $cutoffEpoch" >&2
 				set +e ; return 1
@@ -2533,6 +2536,9 @@ blocks|verbatim|caller|stdin file"
 		fi
 
 
+		## What the session chat file records of this message (F9.1): the body as it is, before the header Slack shows is put on it.
+		local chatBody="$rawText"
+
 		## The newline is deliberate: Slack flattens it to one space, which is
 		## exactly the ". " seam, and where no blocks travel and nothing
 		## flattens, the body still starts on its own line.
@@ -2697,6 +2703,21 @@ blocks|verbatim|caller|stdin file"
 		AgentsToolsSlackSendErrorCode(){ ## Slack's error code from $response, alone
 			printf '%s' "$response" | LC_ALL=C sed -n 's/.*"error":"\([a-z_]*\)".*/\1/p' | head -n 1
 		}
+		## A message recorded before its post (F9.1) whose post failed stays in the chat file, and its post is left to the writer of the
+		## communications reader (F9.3, AgentsTools.SessionComms.include): `retry` where Slack was not reached or did not confirm,
+		## `unknown` where it may have been reached (never posted again), `refused` where Slack answered and said no (never posted
+		## again). Quiet, and the send fails as it did.
+		AgentsToolsSlackSendChatKeep(){ ## retry|unknown|refused, why
+			[ -n "$chatRecord" ] || return 0
+			## A send on the side of the other organisation presents the member under that side's names, with that side's own settings:
+			## the writer reads none of them, so it posts none of those again.
+			if [ "$1" = "retry" ] && AgentsToolsSlackClientSide "$memberName" ; then
+				set -- refused "a send on the side of the other organisation is not posted again by the writer, which does not read that side's settings"
+			fi
+			type AgentsToolsSessionCommsOutboxKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" 2> /dev/null || return 0
+			AgentsToolsSessionCommsOutboxKeep "$chatKey" "$chatNo" "$1" "$memberName" "$sendIdentity" "$sendApi" "$payload" "$2" 2> /dev/null || :
+			return 0
+		}
 
 		local authUserId=""
 		if [ "$sendIdentity" = "user" ] ; then
@@ -2710,6 +2731,16 @@ blocks|verbatim|caller|stdin file"
 				AgentsToolsSlackSendLogLine failed "not posted: auth.test user_id not confirmed"
 				set +e ; return 1
 			fi
+		fi
+
+		## RECORDED FIRST, POSTED AFTER (F9.1): the message goes into the chat file of the run's session before Slack is
+		## called, and takes its ts and its thread once Slack has taken it. An edit changes a message already there and
+		## records nothing; a call with no session records nothing. Quiet, and never a reason for a send to fail.
+		local chatRecord="" chatKey="" chatNo=""
+		if [ -z "$updateTs" ] ; then
+			type AgentsToolsSessionChatSend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+			chatRecord="$( AgentsToolsSessionChatSend "$memberName" "$addressToList" "$chatBody" 2> /dev/null )" || chatRecord=""
+			chatKey="${chatRecord%% *}" ; chatNo="${chatRecord##* }"
 		fi
 
 		local response attempt=1 maxAttempts=5 backoff=2 sent="false" joinAttempted="false" identitySwapped="false" permanentVerdict="" sendRc sendUnknown=""
@@ -2736,6 +2767,7 @@ blocks|verbatim|caller|stdin file"
 				200)
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: nothing was posted -- the message body could not be staged under $MMDAPP/.local/temp, so curl never ran" >&2
 					AgentsToolsSlackSendLogLine failed "not posted: the body could not be staged locally"
+					AgentsToolsSlackSendChatKeep retry "the body could not be staged locally"
 					set +e ; return 1
 				;;
 				*)
@@ -2873,6 +2905,8 @@ blocks|verbatim|caller|stdin file"
 			## without it, and must say so rather than accept whatever arrives.
 			echo "SENT_MESSAGE_ADDRESSEES=${addressedIds% }" >&2
 			[ -z "$addressedMembers" ] || echo "SENT_MESSAGE_ADDRESSEE_MEMBERS=${addressedMembers% }" >&2
+			## The block recorded before the post takes the ts and the thread Slack gave it, so a later read of the thread knows it.
+			[ -z "$chatRecord" ] || [ -z "$sentTs" ] || AgentsToolsSessionChatStamp "$chatKey" "$chatNo" "$sentTs" "${sentChannel#client:}:$sentThreadTs" 2> /dev/null || :
 			AgentsToolsSlackSendLogLine ok "$( [ -n "$updateTs" ] && printf 'edited' || printf 'posted' ) ts=$sentTs"
 			printf '%s\n' "$response"
 			return 0
@@ -2894,16 +2928,19 @@ blocks|verbatim|caller|stdin file"
 		if [ -n "$sendUnknown" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: WHETHER THIS WAS POSTED IS UNKNOWN -- $sendUnknown. Read the conversation before sending it again, or it may appear twice." >&2
 			AgentsToolsSlackSendLogLine failed "unknown whether posted: $sendUnknown"
+			AgentsToolsSlackSendChatKeep unknown "$sendUnknown"
 			set +e ; return 1
 		fi
 
 		if [ -n "$permanentVerdict" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: nothing was posted -- $permanentVerdict. Slack answered, so comms are not stuck and no email is sent." >&2
 			AgentsToolsSlackSendLogLine failed "not posted: $permanentVerdict error=$( AgentsToolsSlackSendErrorCode )"
+			AgentsToolsSlackSendChatKeep refused "$permanentVerdict"
 			set +e ; return 1
 		fi
 
 		AgentsToolsSlackSendLogLine failed "not posted: no ok:true after $maxAttempts attempts error=$( AgentsToolsSlackSendErrorCode )"
+		AgentsToolsSlackSendChatKeep retry "no ok:true after $maxAttempts attempts"
 		echo "⛔ $MDSC_CMD --member-comms-slack-send-message: Slack did not confirm after $maxAttempts attempts -- notifying by email that Slack comms are stuck" >&2
 		local fallbackUser
 		fallbackUser="$( DistroAgentsTools --agents-config-option magic-coordinator --select EMAIL_USER )"

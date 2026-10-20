@@ -155,6 +155,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --install-workspace-restrictions [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]
+📘 syntax: DistroAgentsTools.fn.sh --install-knowledge-store [--from-folder <folder>]
 📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]
 📘 syntax: DistroAgentsTools.fn.sh --make-agents-indices [<name>...]
@@ -183,7 +184,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-list [--active]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-read --session-id <id> [--run]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-checklist-read --session-id <id> <member>
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run] [--plan]
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-effort <session-id> <low|normal|high>
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-control-start (--session-id <id>|--all)
 📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-data-read <store> [<folder> [<item>]] [--include-processed]
@@ -209,7 +212,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-data-commit-pending <team-member> [--commit-message <message>] [--no-push]
-📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop|--unwait <kind>:<target> --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>]
+📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop|--unwait <kind>:<target> --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>] [--wait-collect <seconds>]
 📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> --wait-list-sources
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-read <team-member> <request-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-answer <team-member> <request-id> <verdict> [text]
@@ -221,7 +224,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-permission-list --member <member> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-permission-list <team-member> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-permission-revoke <ref> [--session-id <id>]
-📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]
+📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner] [--count]
 📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle <team-member> <pending-id> --reason <text> [--withdraw]
 📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text> [--withdraw]
 📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-amend <magic-coordinator> <pending-id> --verdict <text> --reason <text>
@@ -2672,6 +2675,44 @@
 			`~/.claude.json` is a warning only. Prints an OK/FAIL
 			checklist plus Command Palette trust/restart guidance.
 
+		--install-knowledge-store [--from-folder <folder>]
+			Installs the Python environment the knowledge store
+			(LanceDB) needs, in `.local/knowledge-store/` of the
+			workspace, from binary packages alone. The store is optional
+			and off unless the setting `MDAT_KNOWLEDGE_STORE` is `on` (the
+			environment first, then the settings of the team;
+			`--manager-config-set` saves it): with it off the call
+			refuses, says so and how to turn it on, and installs nothing.
+			With it on, it asks the embedded Python of the local tools
+			(`DistroLocalTools.fn.sh --install-embedded-python`) for its
+			Python, which that makes where it stands not yet; where that
+			refuses, this refuses with its reason. There is no other
+			Python and no system package, on any system. It downloads
+			LanceDB, pinned, and what it needs as binary packages
+			(`pip --only-binary=:all:`) into `wheelhouse/`, or, with
+			`--from-folder`, takes the wheels of a folder downloaded
+			once elsewhere (the `wheelhouse/` of an online run, copied)
+			and downloads nothing. A host with no internet takes two
+			copied folders: the `downloads/` of `--install-embedded-python`
+			first, by its own `--from-folder`, then this `wheelhouse/`.
+			Before anything is placed it lists
+			every package with its version and its licence, read from its
+			wheel. Then it makes the environment `venv/` with that Python
+			and installs LanceDB into it from those files alone
+			(`--no-index`); the environment must import `lancedb`. The
+			licence files and the NOTICE of every package are copied into
+			`licenses/<name>-<version>/`, and the list is kept in
+			`packages.txt`. pip keeps no cache, its temporary folder is
+			`tmp/` of the store, and nothing is written outside the
+			workspace's `.local`. Where pip finds no binary package for
+			the system, or the environment cannot import `lancedb`, it
+			says so, leaves nothing, exits 1, and the store stays off: the
+			Knowledge tool reads `MAGIC.md` alone. On standard output it
+			prints the Python of the environment, one line; everything
+			else is on standard error. Safe to run again: an environment
+			that imports the pinned LanceDB is left as it is. Nothing
+			reads the store yet.
+
 		--install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
 			Runs, in order: `--install-vscode-integrations`,
 			`--install-skillset-symlinks` (forwarding `--scope` if
@@ -2901,8 +2942,8 @@
 			a call takes. The labels have one declaration. The subjects
 			are `Workspace Paths`, `CLI Services`, `Outside Systems`,
 			`Main Loop And Heartbeat`, `Scope Settings`,
-			`Interface Settings`, `Console Behaviour` and
-			`Session Control`. A line the tooling prints under a key
+			`Interface Settings`, `Console Behaviour`,
+			`Session Control` and `Knowledge Store`. A line the tooling prints under a key
 			of its own has a label of its own, as `Workspace Root` or
 			`Interface Style`. A line whose key is not the tooling's has
 			one by rule: a key of a scope, a credential of a harness leg
@@ -3038,13 +3079,18 @@
 			else its default: group `request`, key
 			`SESSION_CONTROL_REQUEST_SECONDS`; group `kill`, key
 			`SESSION_CONTROL_KILL_SECONDS`.
+			`knowledge`: the switch of the knowledge store, one line:
+			group `store`, key `MDAT_KNOWLEDGE_STORE`, `off` where nothing
+			sets it, or `on`, from the environment or from what is saved
+			for the team. The store is installed by
+			`--install-knowledge-store`, and only when this is `on`.
 
 		--manager-config-set <key> <value>
 			One of the console's own operations (see Notes). Saves one
 			changeable setting, and nothing else: the one operation of
 			the settings that writes. <key> is the key of a line that
 			`--manager-config-digest --full` says can be changed, a line
-			of the `settings`, and <value> one that line takes. Six are
+			of the `settings`, and <value> one that line takes. Seven are
 			declared. `MDAT_MANAGER_STYLE`, a `choice`, the user's own:
 			the interface style of the manager screen at its next start,
 			`<style>-<colours>`; another name of one is saved as the one
@@ -3066,7 +3112,10 @@
 			`SESSION_CONTROL_REQUEST_SECONDS`, a `number` from 1
 			to 60, and `SESSION_CONTROL_KILL_SECONDS`, a `number` from 5
 			to 600, the workspace's: the two bounds of a request to a
-			control thread, read at the next request. A setting of scope
+			control thread, read at the next request.
+			`MDAT_KNOWLEDGE_STORE`, a `choice` of `off` and `on`, the
+			workspace's: whether the workspace wants the knowledge store,
+			read at the next use, `off` where nothing sets it. A setting of scope
 			`user` is saved in the user's own settings of this workspace,
 			`.local/home/<user>/MDLT.settings.env` under its root, by the
 			setting reader of the local tools in its scope of the current
@@ -3757,6 +3806,21 @@
 			Exit 1, nothing printed, with one error line, where no
 			record carries <id>, or a registry cannot be rebuilt.
 
+		--manager-session-checklist-read --session-id <id> <member>
+			One of the console's own operations (see Notes). Shows the
+			checklist one member keeps in one coworking session: the
+			file <member>.checklist.md that the CheckList tool writes in
+			the place of the session, which is the sandbox root of the
+			spawn that founded the session where a spawn founded it,
+			else the folder sessions/<id>. Prints that file as it
+			stands on stdout, Markdown, one line an item, `- [x]` done,
+			`- [ ]` not yet, the item in progress followed by its
+			activeForm. Nothing is printed, and the status is 0, for a
+			member that kept no list there. It reads that one file and
+			writes nothing. <id> and <member> are bare names. Exit 1,
+			nothing printed, with one error line, where either is
+			missing or is no bare name.
+
 		--manager-session-kill --session-id <id> [--run] [--plan]
 			One of the console's own operations (see Notes). Ends runs of
 			this workspace on this host the hard way: no closure of a
@@ -3846,6 +3910,30 @@
 			the <outcome> `would-end` and its processes, `would-dismiss`,
 			`would-close`, and in the `finish` row the three counts of
 			what would be done and the state the session reads now.
+
+		--manager-session-effort <session-id> <low|normal|high>
+			One of the console's own operations (see Notes). Changes the
+			effort a running session asks of its model, while it runs. It
+			writes one line, low, normal or high, to `effort` in the store
+			of the session or of the run that <session-id> names, under
+			`.local/agents/sessions/`; it signals nothing, and no agent is
+			asked anything. A harness run reads that file before every
+			request: the run's own store first, else the store of its
+			coworking session. `normal` is the model's default effort, so
+			none is sent. An effort asked before the run's first request is
+			its starting one. CHANGING EFFORT IN THE MIDDLE OF A CONVERSATION
+			DISCARDS THE INPUT TOKEN CACHE of that session, and the run says
+			so when it reads the change: one `input cache` line in its log,
+			naming the old effort and the new, and the next request pays its
+			whole prompt again. The other way, a model that takes its effort
+			with each message and keeps the cached prefix when it is sent
+			in a system message, needs a measured trial against the real API
+			with a key and is not built: this change is always the one
+			that discards the cache. A native client's session reads no such
+			file. Prints one row, TAB-separated: `effort`, the id, the effort
+			saved, the path of the file. Exit 1, nothing saved, with one error
+			line, where the id is no bare name or names no store of this
+			workspace, or the effort is none of the three.
 
 		--manager-session-control-start (--session-id <id>|--all)
 			One of the console's own operations (see Notes). Starts the
@@ -4265,7 +4353,7 @@
 			holds the advance or heartbeat lock, or a file another op
 			is writing could be committed half-written.
 
-		--member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>]
+		--member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>] [--wait-collect <seconds>]
 		--member-wait-for-input <team-member> --wait-list-sources
 			Waits on a list of input sources, returns as soon as one
 			changes or the timeout expires.
@@ -4332,10 +4420,54 @@
 			--wait-session-id always carries it, first, and the
 			sources it names are added to it. It is returned once,
 			and what another source of the same wait reads is left
-			to that source. File, inbox and board carry no message ids. Another member's inbox
+			to that source. `chat:<session-id>` on the session chat
+			file (sessions/<session>/session.chat), the second half of the
+			floor, beside the replies: the messages of the session thread
+			that are for the run -- every one for the executor of the
+			session, the ones that tag or mention it for a participant --
+			read from the file by the member's pointer, in full, each run
+			of messages behind the source it is of. The file is brought up to date
+			here: where no source of the wait reads the session thread, the thread is
+			read into it when its TTL has passed (5 seconds and 1 more
+			for every 20 quiet, 300 at most); where one does, that source's own
+			read brings it in, so the thread is read once. What a
+			message of the file was delivered as, it is not delivered again.
+			`scan:<scan>` on a scan of the tooling
+			(for the tooling's own use, never in a default set): its
+			report, read through the cache of the session, TTL 300
+			seconds, returned when it differs from the one the session
+			was last given. `tagged:<own member>` on what is for the
+			member by name: a mention in the team channel or its session
+			thread, and any message of any DM, TTL 15 seconds.
+			--wait-collect <seconds> makes the call a collect (the
+			work-duty input scan): the window is its bound, it returns at
+			its end with everything the sources brought, or at once on an
+			arrival of the tags, and says which on a `# returned: window`
+			or `# returned: immediate` line; each source resumes from the
+			pointer the session kept for it. A slack source the caller
+			adds may end in `#short` or `#full`, chosen when it is added
+			(`--wait-source slack:magic-team#full`): `#short` returns each
+			message cut to a short form with its own reference
+			(`<source>:<ts>`) and, once in the return, the line that reads
+			one in full (`--member-comms-slack-read <member>
+			<source>:<ts> --thread`), and keeps only that short form; `#full` returns every
+			message whole, and keeps a single message too long for the
+			return (over the threshold of a long result) as a file of its
+			own in the session's folder
+			(sessions/<session>/messages/<source>/<ts>.md), returning a
+			preview and the path of that file; no file is made for any
+			other message. Either way the source's index cache file
+			(sessions/<session>/sources/<source>.md) keeps a line for each
+			message once. A source with neither returns each message whole.
+			The form is stored with the source, and goes with it on
+			--wait-add, --wait-drop and --wait-continue. File, inbox and
+			board carry no message ids. Another member's inbox
 			or another state name is an ERROR at second zero.
 			--wait-list-sources prints the source kinds this
-			build carries and waits on nothing.
+			build carries and waits on nothing. What a wait returns is the
+			floor first (the replies, then the chat file), then the other
+			sources' messages together in one group sorted by time, each
+			under the `# arrived on: <source>` line of the source it came from.
 
 			--wait-timeout: bound in whole seconds; none by default,
 			so the wait returns only when something arrives.
@@ -4555,7 +4687,11 @@
 			A proposal (ProposeApprove) takes only the human-owner's
 			own verdict. His white_check_mark on the root of its
 			thread is `approved` and his x there is `rejected`,
-			rejected first when he holds both. A reply whose first
+			rejected first when he holds both. The tooling places
+			its own x and white_check_mark there to click on, as the
+			identity that posted the root: they are never a verdict,
+			and are taken off when one is read or the proposal is
+			withdrawn. A reply whose first
 			word is approved or rejected gives the same, and the rest
 			of that line is printed as `VERDICT-TEXT:`. A reaction
 			under the proposal reply is no verdict, and only the
@@ -4809,7 +4945,7 @@
 			on the item's `## Decisions`. Only magic-coordinator, or
 			the console, may call it.
 
-		--member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]
+		--member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner] [--count]
 			Reads the records AskQuestion leaves, of any kind. With
 			<pending-id>, prints that one record. Without it, lists the
 			member's own open records, then `PENDING-REPLIES: <count>`.
@@ -4841,6 +4977,12 @@
 			rebuild `--make-harness-indices pending-replies` makes, so
 			that file is current after any list. One record by its
 			<pending-id> rebuilds nothing.
+			`--count` prints only the number of the records the list
+			would show, by the same store and the same test of what is
+			open, `--all` and `--any-owner` widening it as they widen
+			the list, and renders no record: it rebuilds no registry and
+			measures no asker. It takes no <pending-id>. The console
+			asks it for the number beside Pending Questions.
 			One record by its <pending-id> prints those same lines, then
 			the whole of what the stores hold of that ask, from
 			`PENDING-REPLY-STORED: <id>` to a blank line. Every line
@@ -5590,6 +5732,112 @@
 			itself; a value the caller gives wins. A stored `last-test-email-sent`
 			the caller leaves out is kept.
 
+		--get-session-thread [--own]
+			ThisSession's operation (DistroAgentsSession.fn.sh). The session thread,
+			read from the session's one store of its messages, the session chat file:
+			all of it, history included, in the order of the file, each message as
+			the file holds it (`<time> <from> -> <to>:` and its body). With `--own`
+			only the caller's own traffic: the messages it sent, the ones addressed
+			to it, and the ones mentioning it (`@<member>`, or its Slack account).
+			No network call is made and nothing is changed, the caller's pointer
+			included. A message of another conversation, a reply to a post of the
+			caller and a message never posted are not the thread. Refused with a
+			plain line from a call of no session, a session with no thread, and
+			`--own` from no member's session.
+
+		--get-session-channel-id
+			ThisSession's operation (DistroAgentsSession.fn.sh). Prints the thread of
+			the calling session, `<channel>:<ts>`: the one the `session-current` alias
+			names. Refused with a plain line where the session has none.
+
+		--post-session-channel [--address-to <team-member>]... (<text...>|--from-stdin)
+			ThisSession's operation (DistroAgentsSession.fn.sh). A post to the
+			session thread, and to nowhere else: the team's Slack send
+			(`--member-comms-slack-send-message`) as the calling member, with no
+			target, so the first word is text. The send's other options pass
+			(`--address-to`, `--from-stdin`, `--identity-bot`); the message is recorded
+			in the session chat file first and posted after, as every send of the
+			session is. Refused, and nothing posted, from a call of no member's
+			session or no session, a session with no thread, and a call with no text.
+
+		--wait-session-channel [--to-@me] [--to-@here] [--to-@any] [--wait-timeout <seconds>]
+			ThisSession's operation (DistroAgentsSession.fn.sh). Wait, on the session
+			channel alone: the session thread as the session chat file holds it, read
+			by the caller's own floor pointer, the one Wait's floor and every tool
+			return use. Prints what Wait prints. With no option it waits for the
+			caller's floor: the executor of the session is given every message of the
+			thread, a participant the ones that name it. `--to-@me` waits for the
+			messages addressed to the caller or mentioning it, `--to-@here` for the
+			ones addressed to all, `--to-@any` for every one; they combine as a union.
+			Nothing is lost and nothing comes twice: a message the options pass over
+			that the floor owes the caller stays for the floor, and what this call
+			delivered beyond it is marked delivered. The caller's own posts never come
+			back. `--wait-timeout` is Wait's bound; with none the wait returns on an
+			arrival. Refused, and nothing waited on, from a call of no member's session
+			or no session, and a session with no thread.
+
+		--get-dispatch-text
+			ThisSession's operation (DistroAgentsSession.fn.sh). The dispatch of the
+			calling session as its run was given it, from the sandbox's `input/`:
+			`dispatch.md`, the copy of the board item and `input-scan.md`, each a
+			section of its own, mixed by the markdown merge. Alone, `dispatch.md` is
+			printed as it is. `conversation.md` is the thread (`--get-session-thread`);
+			`pointers.md` and the MAGIC copies are references the dispatch names.
+			Refused with a plain line from a call of no spawned session, and a sandbox
+			with no dispatch.
+
+		--executor-checkpoint-push [<name>]
+			ThisSession's operation (DistroAgentsSession.fn.sh), for a single-participant
+			routine that names it in its `allows:` (`executors:--executor-checkpoint-push`).
+			A snapshot of this run's conversation under <name> (`checkpoint` where none is
+			given), made by the harness at the end of the round the call was made in, when
+			every call of the round has its result. A snapshot of a name already held
+			replaces it. `armed` is the tooling's own and is made for the run. Only the
+			conversation is kept: the files and the sandbox are what the run makes of them.
+			In the run of a native client, and where the routine does not allow it, it
+			makes no snapshot, says so in a NOTICE line, and the session goes on.
+
+		--executor-checkpoint-rewind [<name>] [--from-stdin]
+			ThisSession's operation (DistroAgentsSession.fn.sh), as --executor-checkpoint-push
+			allows it. At the end of the round, the conversation returns to the snapshot
+			of that name (the newest where none is named), the rounds after it are dropped,
+			and the snapshots taken after it with them. Tools and system text are not touched,
+			so the cached prefix stays the one the run began with. `--from-stdin` gives the
+			return a dispatch: the text on standard input is the next input of the run,
+			a message after the snapshot, or, for `armed` of a run started with a prefetch,
+			the task block after the task (the task, a blank line, the text -- never the text
+			of an earlier return). Refused, and nothing done, for a name this run does not
+			hold, and for `--from-stdin` with no text.
+
+		--executor-checkpoint-exit
+			ThisSession's operation (DistroAgentsSession.fn.sh), as --executor-checkpoint-push
+			allows it. Drops every snapshot of the run at the end of the round; the run goes
+			on as a run that takes none.
+
+		--idle-wait [--wait-timeout <seconds>]
+			ThisSession's operation (DistroAgentsSession.fn.sh). Wait for new input and,
+			on an arrival, return to the run's checkpoint with the arrival as the next
+			input: `opening` where the run holds it (the kind routines' last Opening step),
+			else `armed`. The rounds of each piece of work then do not pile up in the
+			conversation, and the model spends nothing while it waits. It waits on what the
+			routine the session runs waits on: the floor (the replies to the run's own posts
+			and the session thread), and the scans the routine itself declares with
+			`input-scan-def:`, by name, as `scan:` sources (a work-duty run wakes on its
+			work-duty input); with no scan declared, on the floor alone. A scan wakes the
+			wait when its report differs from the one the session was last given (the first
+			time, with the report it has), the cache of the scan being five minutes. With no
+			`--wait-timeout` the harness waits on through the quiet rounds of the session's
+			wait without waking the model. What is no arrival returns nothing: the bound of
+			`--wait-timeout` run out (Wait's bound), a wait that could not be made, a source
+			never read, and a dismissal are given to the model as a message, and its
+			conversation stays. A run that holds no snapshot is given the arrival the same
+			way. Only a single-participant session has it (a routine of kind standalone
+			with one executor and no invitee) and a separate spawn that runs no routine;
+			for the run of a native client and for a session of several participants it
+			waits on nothing, says so in a NOTICE line, and Wait is the way to wait there.
+			The wait is made by the harness of the run at the end of the round, so the
+			answer of the call is only read where nothing was returned.
+
 		--magic-heartbeat-test-report-send <team-member>
 			Sends the hourly test report. <team-member> must be
 			magic-coordinator. Prints `NOT_DUE:last-test-email-sent=...:
@@ -5678,7 +5926,9 @@
 			paging walks (needed on a busy channel -- past the page cap
 			is a hard failure, not a truncated answer). --thread is for
 			the `<channel>:<ts>` form only, --oldest for the
-			conversation form only.
+			conversation form only -- and with --thread, where it floors
+			the replies: the parent, and the replies after <ts> (how the
+			communications reader reads a thread it holds up to a ts).
 
 			**Use this, not --member-comms-slack-search-messages, for
 			something posted moments ago** -- search lags on Slack's

@@ -24,7 +24,7 @@ document-contract: board-item.approval
 type: approval
 from: <member>
 date: <date-time>
-owner: <optional -- member, the current assignee>
+owner: <member, the current assignee>
 blocks: <item-names>
 ---
 # Approval: <matter, one line>

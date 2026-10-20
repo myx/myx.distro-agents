@@ -15,13 +15,20 @@ def readWords(entry, state, values, filtered=True):
         words.extend(entry.get("active", ()))
     if rawShown(state):
         words.extend(entry.get("log", ()))
-    return [word.replace("{id}", values.get("id", "")).replace("{level}", values.get("level", "")).replace("{parent}", values.get("parent", "")) for word in words]
+    return [word.replace("{id}", values.get("id", "")).replace("{level}", values.get("level", "")).replace("{parent}", values.get("parent", ""))
+            .replace("{session}", values.get("session", "")).replace("{member}", values.get("member", "")).replace("{run}", values.get("run", ""))
+            for word in words]
 
 
 ## The values of the words of a read of the level at that path: {level}, its own id, and
-## {parent}, the id of the level above it.
-def pathValues(path):
-    return {"level": path[-1] if path else "", "parent": path[-2] if len(path) > 1 else ""}
+## {parent}, the id of the level above it; and where it is the folder of a participant of a
+## session or lies in it (its `Permissions`), the session, the member and the run of that
+## participant: {session}, {member} and {run} (participantValues).
+def pathValues(path, state=None):
+    values = {"level": path[-1] if path else "", "parent": path[-2] if len(path) > 1 else ""}
+    if state is not None:
+        values.update(participantValues(state, path))
+    return values
 
 
 ## The entry of READS a read is made by, from its key, or nothing: a read made for a row of
@@ -58,7 +65,7 @@ def demandRead(state):
 def shownReads(state):
     wanted = []
     row = selectedRow(state)
-    values = pathValues(state.path)
+    values = pathValues(state.path, state)
     for part in VIEW_PARTS:
         entry = viewReadOf(state, row, part)
         if entry and (part != "feed" or modeOf(state)["feed"]):
@@ -81,7 +88,7 @@ def shownRead(state, part):
 def wantedReads(state, focus=True):
     wanted = []
     pattern = levelPattern(state.path)
-    values = pathValues(state.path)
+    values = pathValues(state.path, state)
     shown = listReadOf(state.path)
     if shown:
         own = shown[0] == "list:" + levelKey(state.path)
@@ -99,10 +106,13 @@ def wantedReads(state, focus=True):
         entry = READS[key]
         if entry and entry.get("always") and not (shown and shown[0] == key):
             wanted.append((entry.get("kind", "list"), key, readWords(entry, state, {})))
+        if entry and entry.get("count"):
+            ## the count of a list: its operation with --count, which prints only the number, read whatever is shown; kept as the counter of that name
+            wanted.append(("count", "count:" + entry["count"], readWords(dict(entry, operation=list(entry["operation"]) + ["--count"]), state, {}, False)))
     wanted.extend(shownReads(state))
     ## every row of the level shown that carries what such a read needs is read by its id
     each = READS.get("each:" + pattern)
-    for row in state.rows.get(levelKey(state.path), ()) if each else ():
+    for row in (listedRows(state, state.path) or ()) if each else ():
         if row.get(each["needs"]):
             wanted.append((each.get("kind", "list"), "each:%s|%s" % (pattern, row["id"]),
                            readWords(each, state, {"id": row["id"]}, False)))
@@ -133,12 +143,12 @@ def focusReads(state):
     if not opened:
         return []
     wanted = [(opened[1].get("kind", "focus"), opened[0],
-               readWords(opened[1], state, pathValues(path), opened[0] == "list:" + levelKey(path)))]
+               readWords(opened[1], state, pathValues(path, state), opened[0] == "list:" + levelKey(path)))]
     pattern = levelPattern(path)
     for also in (READS.get("list:" + pattern) or {}).get("also", ()):
         wanted.append((READS[also].get("kind", "focus"), also, readWords(READS[also], state, {})))
     each = READS.get("each:" + pattern)
-    for held in state.rows.get(levelKey(path), ()) if each else ():
+    for held in (listedRows(state, path) or ()) if each else ():
         if held.get(each["needs"]):
             wanted.append((each.get("kind", "focus"), "each:%s|%s" % (pattern, held["id"]),
                            readWords(each, state, {"id": held["id"]}, False)))
@@ -152,6 +162,14 @@ def focusOnly(state):
             - set(key for kind, key, words in wantedReads(state, False)))
 
 
+## A read a dialog names, as READS names it: `list:team` is the list of the level of the plugin of that name, wherever it stands
+## (`Team Members` stands under `Magic-Team (Agents)`); a read that names no plugin is as it was written.
+def dialogReadKey(key):
+    kind, colon, rest = key.partition(":")
+    level = pluginLevel(rest) if kind == "list" and colon else None
+    return kind + colon + level if level else key
+
+
 ## The reads of the open dialog: the key in READS and the values of each entry it names
 ## that gives an operation. A name that holds {kind} is the entry of the kind of what the
 ## dialog was opened on, its "target", and is asked by the id of that.
@@ -161,9 +179,9 @@ def dialogReads(state):
     target = state.dialog["about"].get("target") or {}
     reads = []
     for name in DIALOGS[state.dialog["name"]].get("reads", ()):
-        key = name.replace("{kind}", target.get("kind", ""))
+        key = dialogReadKey(name.replace("{kind}", target.get("kind", "")))
         if READS.get(key):
-            reads.append((key, {"id": target.get("id", ""), "level": target.get("level", "")} if key != name else {}))
+            reads.append((key, {"id": target.get("id", ""), "level": target.get("level", "")} if "{kind}" in name else {}))
     return reads
 
 
@@ -176,6 +194,9 @@ def viewReadOf(state, row, part):
         return None
     entry = READS.get(part + ":" + levelPattern(state.path) + ":" + row["kind"])
     if not entry or (entry.get("needs") and not row.get(entry["needs"])):
+        return None
+    if entry.get("participant") and not participantValues(state, state.path):
+        ## the read of a participant's own, in the folder of one that is no longer in its session's list
         return None
     if row.get("run") and row["run"]["spawn"] == "-":
         return None
@@ -359,6 +380,10 @@ def applyResult(state, result):
         if entry.get("active") and all(word in result["words"] for word in entry["active"]):
             state.activeOf[key[len("list:"):]] = set(row["id"] for row in levels.get(key[len("list:"):], ()))
         state.counters.update(readCounters(entry.get("rows"), result["text"]))
+    elif key.startswith("count:"):
+        ## a read that counts: the number it printed is the counter of its name; what it printed, if it is no number, leaves the counter as it was
+        if result["text"].strip().isdigit():
+            state.counters[key[len("count:"):]] = result["text"].strip()
     else:
         row, entry = shownRead(state, key[:4])
         if entry.get("rows") == "session-read":

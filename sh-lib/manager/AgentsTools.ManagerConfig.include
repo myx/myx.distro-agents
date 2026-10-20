@@ -32,13 +32,13 @@ type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agen
 
 type AgentsToolsOwnerSetupOptionSpec > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.OwnerSetupOptionSpec.include"
 type AgentsToolsCredentialShown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.CredentialDisplay.include"
-type AgentsToolsPlacesListText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include"
+type AgentsToolsPlacesListText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
 type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.CliService.include"
 type AgentsToolsScopeKeyNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 
 ## The subjects of the digest, in the order a person looks for them, which is the order
 ## they are printed in whatever the order they are asked in.
-agentsManagerConfigSubjects="workspace cli systems loop scopes interface console control"
+agentsManagerConfigSubjects="workspace cli systems loop scopes interface console control knowledge"
 
 ## THE LABELS: what a screen calls each subject and each line, and what it says of a line, in
 ## the one declaration of them. One row on a line of its own,
@@ -87,6 +87,7 @@ cli|*||{name}||
 cli|workspace|SPAWN_CLI_SERVICE|Spawn CLI Service|configuration|The agent CLI this workspace starts for a member and for the console. A change reaches every next start, so it is made by the owner setup.
 cli|workspace|SPAWN_HARNESS_TIER|Spawn Harness Tier|configuration|The tier a harness leg is asked for at a start. What it may be is each leg's own, so it is set by the owner setup.
 cli|workspace|WAIT_ROUND_SECONDS|Wait Round Seconds|configuration|How long a wait that brings nothing runs before it comes back, for every CLI service. A round longer than a CLI allows ends the waits of running sessions, so it is set by the owner setup.
+cli|workspace|WAIT_COLLECT_SECONDS|Wait Collect Seconds|configuration|How long the work-duty input scan collects the team channel before it returns, in seconds. A tagged message ends the collect at once. A minute when it is not set.
 cli|workspace|spawn-settings-workspace|Spawn Settings Workspace|configuration|The workspace the spawn settings are read from. It is found at the call, from the settings of the team.
 cli|*|present|CLI Present|configuration|Whether this vendor CLI is on the machine, with the path of its binary. It is measured at the call.
 cli|*|usable|CLI Usable|configuration|Whether a start on this CLI can work: a harness leg with one of its credentials set, a vendor CLI where its binary is. It is measured at the call.
@@ -123,7 +124,10 @@ control|||Session Control||
 control|request||Control Request||
 control|kill||Control Kill||
 control|request|SESSION_CONTROL_REQUEST_SECONDS|Control Request Seconds|settings|How many seconds a console waits for the control thread of a session to take a request. After that the console takes the request back and carries it out itself, and a change is read at the next request.
-control|kill|SESSION_CONTROL_KILL_SECONDS|Control Kill Seconds|settings|How many seconds the carrying out of a kill request may take before it ends its own work. A change is read at the next request, by the console and by the control thread."
+control|kill|SESSION_CONTROL_KILL_SECONDS|Control Kill Seconds|settings|How many seconds the carrying out of a kill request may take before it ends its own work. A change is read at the next request, by the console and by the control thread.
+knowledge|||Knowledge Store||
+knowledge|store||Store Switch||
+knowledge|store|MDAT_KNOWLEDGE_STORE|Knowledge Store Switch|settings|Whether this workspace keeps a vector store of what the team knows, in addition to its MAGIC.md files. It is off unless it is turned on. The installer of the knowledge store makes the environment the store needs, from binary packages, and where that cannot be done the store stays off and the Knowledge tool reads MAGIC.md alone. A change is read at the next use."
 
 ## THE MODE OF THE WORKSPACE, the owner's: what this workspace is to the team, one of
 ## three, set by the installer of the workspace in the settings of the team, where the
@@ -360,7 +364,7 @@ AgentsToolsManagerConfigMode(){
 ## is, since it works off the sign-in of the machine; and its wait round.
 AgentsToolsManagerConfigCli(){
 	local cliHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib" cliKnown cliVendor cliLegs="" cliLeg cliName cliFile cliKey cliKeys cliValue cliPath cliUsable
-	for cliKey in SPAWN_CLI_SERVICE SPAWN_HARNESS_TIER WAIT_ROUND_SECONDS ; do
+	for cliKey in SPAWN_CLI_SERVICE SPAWN_HARNESS_TIER WAIT_ROUND_SECONDS WAIT_COLLECT_SECONDS ; do
 		cliValue="$( DistroAgentsTools --agents-config-option magic-team --select "$cliKey" 2> /dev/null )" || cliValue=""
 		if [ -n "$cliValue" ] ; then
 			AgentsToolsManagerConfigLine cli workspace "$cliKey" set "$cliValue"
@@ -523,7 +527,7 @@ AgentsToolsManagerConfigLoop(){
 			fi
 		done <<< "$( LC_ALL=C awk -v headers="state"$'\034'"recheck-date"$'\034'"last-iteration-timestamp" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$loopNote" 2> /dev/null )"
 		if [ "$loopState" = "heartbeat-running" ] && [ -n "$loopRecheck" ] ; then
-			loopEpoch="$( printf '%s\n' "$loopRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsIsoToEpoch.awk" 2> /dev/null )" || loopEpoch=""
+			loopEpoch="$( printf '%s\n' "$loopRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || loopEpoch=""
 			case "$loopEpoch" in
 				''|*[!0123456789]*) ;;
 				*) [ "$(( $( date +%s ) - loopEpoch ))" -ge 60 ] || loopRuns="yes" ;;
@@ -614,7 +618,8 @@ console|history|MDLT_CONSOLE_HISTORY|choice|user system|workspace-personal|works
 console|origin|MDLT_CONSOLE_ORIGIN|choice|user system||@origins|system
 console|detail|MDLT_CONSOLE_DETAIL|choice|user||=<default> (none),true=true (track),full=full (debug)
 control|request|SESSION_CONTROL_REQUEST_SECONDS|number|team|5|1..60
-control|kill|SESSION_CONTROL_KILL_SECONDS|number|team|30|5..600"
+control|kill|SESSION_CONTROL_KILL_SECONDS|number|team|30|5..600
+knowledge|store|MDAT_KNOWLEDGE_STORE|choice|environment team|off|off=Off,on=On"
 
 ## THE OTHER NAMES of a value of a changeable setting: a name it had before, or a second name
 ## of it, each with the value it means, which it is read as and saved as. One row a setting,
@@ -924,7 +929,7 @@ case "$1" in
 				systems) digestLines="$( AgentsToolsManagerConfigSystems )" || digestLines="" ;;
 				loop) digestLines="$( AgentsToolsManagerConfigLoop )" || digestLines="" ; [ -n "$digestLines" ] || continue ;;
 				scopes) digestLines="$( AgentsToolsManagerConfigScopes )" || digestLines="" ;;
-				interface|console|control) digestLines="$( AgentsToolsManagerConfigDeclared "$digestName" )" || digestLines="" ;;
+				interface|console|control|knowledge) digestLines="$( AgentsToolsManagerConfigDeclared "$digestName" )" || digestLines="" ;;
 			esac
 			digestCount=0
 			if [ -n "$digestLines" ] ; then

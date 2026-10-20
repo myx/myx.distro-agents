@@ -431,6 +431,16 @@ if [ -n "$harnessAgent" ] ; then
 	harnessAgentRealDir="$( cd "$harnessAgentDir" 2>/dev/null && pwd -P )" || harnessAgentRealDir="$harnessAgentDir"
 fi
 
+## THE TEAM'S COMMON INSTRUCTION (F10.7): magic-team/magic-team.basic.md, read as the member's own basic is, and carried FIRST in the
+## system text of every team-member run of the model path, so the system text of all of them opens with the same bytes: the prefix
+## the input token cache shares among them. It is MOVED there, not added beside itself: a run that carries it does not read it
+## again in the default skill bundle (the Skill tool below), while a served call, which is a native client's, keeps it in its bundle.
+## Not read for magic-team itself, nor for a run that names no agent.
+harnessSystemShared=""
+if [ -z "$harnessToolOnly" ] && [ -n "$harnessAgent" ] && [ "$harnessAgent" != "magic-team" ] && [ -r "${MDAT_SKILLSET_ROOT:-}/magic-team/magic-team.basic.md" ] ; then
+	harnessSystemShared="$( cat "$MDAT_SKILLSET_ROOT/magic-team/magic-team.basic.md" )"
+fi
+
 ## Remaining argv joined into one prompt; stdin when no argv prompt was given.
 ## --intern-tool takes neither: its argument object is on stdin and is read where the
 ## call is made, so reading a prompt here would swallow it.
@@ -1838,7 +1848,7 @@ AgentsHarnessToolBash(){
 			## one reading a process is kept by, loaded in the watchdog's own shell). Where no
 			## start can be read, nothing is signalled by the number alone.
 			(
-				type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null
+				type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
 				harnessRunBegan="$( printf '%s\n' "$harnessRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
 				sleep "$toolTimeout"
 				[ -n "$harnessRunBegan" ] && [ "$( printf '%s\n' "$harnessRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$harnessRunBegan" ] && kill -TERM "$harnessRunPid" 2>/dev/null && : > "$harnessScratch/run.timedout"
@@ -2285,7 +2295,7 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 ## AgentsToolsRegistryRenderSpawnedSessions's own header for what each composes with.
 AgentsHarnessToolListAgents(){
 	local toolView="${1:-agents}" toolSessionId="$2" toolState="$3"
-	local listRegistries="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+	local listRegistries="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	if [ -z "${MMDAPP:-}" ] ; then
 		printf 'ERROR: MMDAPP is not set in this process, so the spawn sandbox roots cannot be located. Nothing was listed, and no session is implied to be absent.\n' ; return 0
 	fi
@@ -2367,7 +2377,7 @@ AgentsHarnessDismissedAfter(){ ## tool name
 	AgentsHarnessWholeNumber "$afterGrace" || afterGrace=60
 	afterDelay=2 ; [ "$1" != "SubagentHandback" ] || afterDelay="$afterGrace"
 	afterSession="$MDAT_SPAWN_SESSION_ID"
-	type AgentsToolsRegistryRunWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null || return 0
+	type AgentsToolsRegistryRunWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
 	(
 		trap '' HUP INT
 		afterFd=3 ; while [ "$afterFd" -lt 64 ] ; do eval "exec $afterFd>&-" ; afterFd=$(( afterFd + 1 )) ; done
@@ -2958,7 +2968,7 @@ AgentsHarnessCheckListMembers(){
 	local membersFile membersName
 	{
 		printf '%s\n' "$checkListMember"
-		( . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" && AgentsToolsRegistrySpawnedSessionsRows 2> /dev/null ) \
+		( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" && AgentsToolsRegistrySpawnedSessionsRows 2> /dev/null ) \
 			| LC_ALL=C awk -v session="$checkListSession" '$2 == session && $5 != "-" { print $5 ; }'
 		for membersFile in "$checkListFolder"/*.checklist.md ; do
 			[ -f "$membersFile" ] || continue
@@ -3158,7 +3168,7 @@ AgentsHarnessDispatchReceipt(){ ## item filename
 ## participant's or the tooling's, is none of them: a process that waits on a session is
 ## never that session's run. `own-word` is still taken, and asks for nothing more.
 AgentsHarnessSessionWordPids(){ ## session id, optional `own-word` (the reading every caller gets)
-	type AgentsToolsRegistryRunPids > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null || return 0
+	type AgentsToolsRegistryRunPids > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
 	ps -A -ww -o pid=,args= 2>/dev/null | AgentsToolsRegistryRunPids "$1"
 	return 0
 }
@@ -3180,7 +3190,7 @@ AgentsHarnessSessionPids(){ ## session id, optional `own-word` (as above)
 			return 0
 		fi
 	fi
-	type AgentsToolsRegistryRunLeftKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null || return 0
+	type AgentsToolsRegistryRunLeftKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
 	if [ "${2:-}" = "own-word" ] ; then
 		## And what an earlier stop of this run signalled and left, kept in the run's store: it
 		## stands under no process of the run any more, and is still the run's to end.
@@ -3195,7 +3205,7 @@ AgentsHarnessSessionPids(){ ## session id, optional `own-word` (as above)
 ## stop reads what is left (AgentsToolsRegistryProcessesBegan). Loaded here, where it runs: the
 ## lookups of a stop run inside command substitutions, so what they load is gone with them.
 AgentsHarnessStopKept(){ ## -- stdin: process ids, a line each
-	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null || return 0
+	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
 	AgentsToolsRegistryProcessesBegan
 }
 
@@ -3204,7 +3214,7 @@ AgentsHarnessStopKept(){ ## -- stdin: process ids, a line each
 ## any more. In a shell of its own: what it loads is not the harness's to hold.
 AgentsHarnessStopKeep(){ ## session id, the process ids still there (may be empty)
 	(
-		type AgentsToolsRegistryRunLeftKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null || exit 0
+		type AgentsToolsRegistryRunLeftKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || exit 0
 		AgentsToolsRegistryRunLeftKeep "$1" "$2"
 	) > /dev/null 2>&1 || :
 	return 0
@@ -3215,7 +3225,7 @@ AgentsHarnessStopKeep(){ ## session id, the process ids still there (may be empt
 ## manager's kill reads it too (AgentsToolsRegistryRunLeft, AgentsTools.Registries.include).
 ## No asking process is named, as for the walk above.
 AgentsHarnessStopLeft(){ ## session id, the processes signalled as `<pid> <start>` lines (may be empty)
-	if type AgentsToolsRegistryRunLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null ; then
+	if type AgentsToolsRegistryRunLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null ; then
 		AgentsToolsRegistryRunLeft "$1" "$2" -
 		return 0
 	fi
@@ -4563,7 +4573,8 @@ AgentsHarnessAskRevise(){ ## record file, options given (empty: unchanged), sele
 		revSuperseded="${revPrev:-$askTs}"
 		MDSC_CMD="$harnessAskName" AgentsToolsAskPostClose "$revRecord" "$revSuperseded" superseded edit
 	fi
-	AgentsHarnessAskReact "$askChannel:$revTs" "$revAsBot" add $revNew
+	## A proposal's emoji stand under its root alone (F9.4): its reply carries none, and a changed one no more than the first.
+	[ "$toolKind" = "proposal" ] || AgentsHarnessAskReact "$askChannel:$revTs" "$revAsBot" add $revNew
 	revOut="$( printf '%s' "$askBody" | "$BASH" "$revTools" --intern-op-pending-reply-revise "$toolPendingId" --from-stdin --revision-ts "$revTs" --select "$toolSelect" --options "$toolOptions" \
 		--fields "$( AgentsHarnessAskFields )" --revised-by "$harnessAgent" ${revSuperseded:+--superseded "$revSuperseded"} --context "$harnessAskName" 2>&1 )" || {
 		printf 'ERROR: %s: the changed question WAS posted as %s:%s, and then pending reply %s could not be updated, so an answer is still read against the question as it was. What the operation reported follows:\n%s\n' "$harnessAskName" "$askChannel" "$revTs" "$toolPendingId" "$revOut" ; return 1
@@ -5996,6 +6007,159 @@ AgentsHarnessSkillSection(){ ## file, sections
 	skillSections="$2" LC_ALL=C awk -f "$harnessHere/harness/AgentsHarnessSkillSection.awk" "$1"
 }
 
+## THE PREFETCH (F10.8). What a harness member of a spawned session is told to read on its way to armed -- its own armed file, the
+## sections of the team's armed file that its task names (the brief the spawner puts first in a dispatch, spawn-brief.document.format.md,
+## gives them as `{name: .., file: .., section: ..}`), and, where the spawn record asks for the prefix of the routine, the routine's
+## text mixed with its kind routine -- is read for it before its task: the text goes first in the first message of the run, as a block
+## of its own, with the cache marker of the wire at its end (AgentsWireInitMessages). Exactly those reads and nothing more: the Skill
+## tool's own answers to them, called here, so the skillset stays the one source and nothing is copied for an agent to read; the whole
+## skill bundle stays what a default Skill load serves. Each read is kept in an internal cache under .local/agents/prefetch/, an
+## entry for a read and one for a routine's text. An entry carries a stamp, the checksum, size and path of every file the text is
+## made from and of the code that makes it, and it is used only where the stamp is the stamp of the files as they are now: an edited
+## file is picked up by the very next spawn, and an entry made before a change is never served. Where the entry is not good, the text
+## is built, and the entry written beside itself and renamed over. The run is armed at once, as the read of its armed file would have
+## armed it (AgentsHarnessArmNote), and the same read asked later is answered in one line (AgentsHarnessToolSkill, and
+## --get-routine-text for the routine's text, AgentsTools.PrefetchRoutine.include): in the first message already, unchanged. And the
+## system text says so instead of asking for the read (harnessArmedSentence): it is the harness's own text, and with no prefetch it is
+## as it was.
+## Only a spawned member's harness run does it: a served call, a native client's, a run with no spawn, a resumed context, and a
+## member with no armed file are as they were, and so is any run started with MDAT_HARNESS_PREFETCH=off (as MDAT_HARNESS_CONTEXT=off
+## keeps no context). Nothing is written into the dispatch, its input/ or the spawn record; the routine's text leaves a marker in the
+## root of the sandbox (AgentsToolsPrefetchMarkerWrite) for the process that prints it.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.PrefetchRoutine.include"
+harnessPrefetch="" harnessPrefetchWhat="" harnessPrefetchReads="" harnessPrefetchRoutineSum="" harnessPrefetchRoutineFiles="" harnessSkillWhole=""
+harnessPrefetchOneLine="$( AgentsToolsPrefetchOneLine )"
+AgentsHarnessPrefetchStamp(){ ## files... -- one line a file: its checksum, size and path; a file that is not there says so
+	local stampFile stampPresent=()
+	for stampFile in "$@" ; do
+		if [ -f "$stampFile" ] && [ -r "$stampFile" ] ; then stampPresent+=( "$stampFile" ) ; else printf 'absent %s\n' "$stampFile" ; fi
+	done
+	[ "${#stampPresent[@]}" -eq 0 ] || LC_ALL=C cksum "${stampPresent[@]}"
+}
+## An entry: a line `stamp <n>`, the n lines of the stamp, a line `--`, then the text byte for byte.
+AgentsHarnessPrefetchLoad(){ ## entry file, stamp text, body file -- rc 0, the text in the body file, where the entry carries this stamp
+	local loadCount
+	[ -f "$1" ] || return 1
+	loadCount="$( printf '%s\n' "$2" | wc -l | tr -d ' ' )"
+	[ "$( head -n "$(( loadCount + 2 ))" "$1" 2> /dev/null )" = "stamp $loadCount"$'\n'"$2"$'\n'"--" ] || return 1
+	tail -n "+$(( loadCount + 3 ))" "$1" > "$3" 2> /dev/null
+}
+AgentsHarnessPrefetchStore(){ ## entry file, stamp text, body file -- written beside the entry and renamed over it
+	local storeTemp storeCount
+	mkdir -p "${1%/*}" 2> /dev/null || return 0
+	storeTemp="$( mktemp "$1.XXXXXX" 2> /dev/null )" || return 0
+	storeCount="$( printf '%s\n' "$2" | wc -l | tr -d ' ' )"
+	{ printf 'stamp %s\n%s\n--\n' "$storeCount" "$2" ; cat "$3" ; } > "$storeTemp" 2> /dev/null && mv -f "$storeTemp" "$1" 2> /dev/null || rm -f "$storeTemp"
+	return 0
+}
+AgentsHarnessPrefetchEntry(){ ## entry file, body file, stamp text, build function -- prints cache or built; rc 1 where there is no text
+	if AgentsHarnessPrefetchLoad "$1" "$3" "$2" && [ -s "$2" ] ; then printf 'cache' ; return 0 ; fi
+	"$4" > "$2" 2> /dev/null || return 1
+	[ -s "$2" ] && [ "$( head -c 6 "$2" )" != "ERROR:" ] || return 1
+	AgentsHarnessPrefetchStore "$1" "$3" "$2"
+	printf 'built'
+}
+## One read as the Skill tool answers it: the file of a skill, or the sections of it, whole whatever the cap of a result.
+agentsPrefetchReadName="" agentsPrefetchReadFile="" agentsPrefetchReadSections=""
+AgentsHarnessPrefetchRead(){
+	local readRc=0
+	harnessSkillWhole=1
+	AgentsHarnessToolSkill "$agentsPrefetchReadName" "$agentsPrefetchReadFile" "" "" "" "" "" "$agentsPrefetchReadSections" || readRc=$?
+	harnessSkillWhole=""
+	return "$readRc"
+}
+## The reads a task tells the run to make with sections: every `{name: <skill>, file: <file>, section: <sections>}` in the text on stdin,
+## one line each, the three separated by tabs.
+AgentsHarnessPrefetchTaskReads(){
+	LC_ALL=C awk '
+		{
+			line = $0 ;
+			while ( match( line, /\{name: [A-Za-z0-9_.-]+, file: [A-Za-z0-9_.-]+, section: [^}]+\}/ ) ) {
+				found = substr( line, RSTART + 1, RLENGTH - 2 ) ;
+				line = substr( line, RSTART + RLENGTH ) ;
+				name = found ; sub( /^name: /, "", name ) ; sub( /,.*$/, "", name ) ;
+				file = found ; sub( /^[^,]*, file: /, "", file ) ; sub( /,.*$/, "", file ) ;
+				sections = found ; sub( /^.*, section: /, "", sections ) ;
+				print name "\t" file "\t" sections ;
+			}
+		}
+	'
+}
+AgentsHarnessPrefetchRoutineText(){
+	AgentsToolsSpawnRoutineMixText "$agentsPrefetchRoutineFile"
+}
+AgentsHarnessPrefetchRecordKey(){ ## record file, key -- the value of a line of its front matter
+	LC_ALL=C awk -v key="$2" 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit }' "$1" 2> /dev/null
+}
+agentsPrefetchRoutineFile=""
+AgentsHarnessPrefetchBuild(){
+	local pfRoot="${MDAT_SKILLSET_ROOT:-}" pfMember="$harnessAgent" pfCacheDir pfStamp pfHow pfBody="$harnessScratch/prefetch.body" pfRoutineBody="$harnessScratch/prefetch.routine"
+	local pfRecord pfPolicy="" pfRoutine="" pfKindFile pfText="" pfReads="" pfWhat pfHits=0 pfBuilt=0 pfCount=0 pfArmed="" pfName pfFile pfSections pfWanted pfPath pfTask=0 pfBlank=$'\n\n'
+	[ "${MDAT_HARNESS_PREFETCH:-on}" != "off" ] || return 0
+	[ -z "$harnessToolOnly" ] && [ -n "$pfMember" ] && [ -n "$harnessSystemShared" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -z "${MDAT_HARNESS_RESUME_CONTEXT:-}" ] || return 0
+	[ -n "${MMDAPP:-}" ] && [ -n "$pfRoot" ] && [ -f "$pfRoot/$pfMember/$pfMember.armed.md" ] || return 0
+	pfCacheDir="$MMDAPP/.local/agents/prefetch"
+	## The reads, in the order a member is told to make them: its armed file, then those its task names with sections.
+	pfWanted="$pfMember"$'\t'"$pfMember.armed.md"$'\t'
+	while IFS= read -r pfName ; do
+		[ -z "$pfName" ] || [ "$pfTask" -ge 6 ] || { pfWanted="$pfWanted"$'\n'"$pfName" ; pfTask=$(( pfTask + 1 )) ; }
+	done <<< "$( printf '%s\n' "$harnessPrompt" | AgentsHarnessPrefetchTaskReads )"
+	while IFS=$'\t' read -r pfName pfFile pfSections ; do
+		AgentsHarnessSkillSegmentOk "$pfName" && AgentsHarnessSkillSegmentOk "$pfFile" && [ -f "$pfRoot/$pfName/$pfFile" ] || continue
+		case $'\n'"$pfReads" in *$'\t'"$pfName"$'\t'"$pfFile"$'\t'"$pfSections"$'\n'*) continue ;; esac
+		pfPath="$pfRoot/$pfName/$pfFile"
+		agentsPrefetchReadName="$pfName" agentsPrefetchReadFile="$pfFile" agentsPrefetchReadSections="$pfSections"
+		pfStamp="$pfName"$'\t'"$pfFile"$'\t'"$pfSections"$'\n'"$( AgentsHarnessPrefetchStamp "$pfPath" "$harnessHere/harness/AgentsUniversalHarness.sh" "$harnessHere/harness/AgentsHarnessSkillSection.awk" )" || continue
+		pfHow="$( AgentsHarnessPrefetchEntry "$pfCacheDir/read.$pfName.$pfFile.$( printf '%s' "$pfSections" | LC_ALL=C cksum | LC_ALL=C cut -d ' ' -f 1 )" "$pfBody" "$pfStamp" AgentsHarnessPrefetchRead )" || {
+			## The armed file must come: without it the run is not armed, and there is no prefetch.
+			[ "$pfCount" -gt 0 ] || return 0
+			continue
+		}
+		case "$pfHow" in cache) pfHits=$(( pfHits + 1 )) ;; *) pfBuilt=$(( pfBuilt + 1 )) ;; esac
+		pfCount=$(( pfCount + 1 ))
+		[ "$pfCount" -gt 1 ] || pfArmed="$( cat "$pfBody" )"
+		pfReads="$pfReads$( LC_ALL=C cksum < "$pfPath" )"$'\t'"$pfName"$'\t'"$pfFile"$'\t'"$pfSections"$'\n'
+		printf -v pfText '%s%s{name: %s, file: %s%s}, read for you before your task:\n\n%s' "$pfText" "${pfText:+$pfBlank}" "$pfName" "$pfFile" "${pfSections:+, section: $pfSections}" "$( cat "$pfBody" )"
+	done <<< "$pfWanted"
+	[ "$pfCount" -gt 0 ] || return 0
+	pfWhat="your own $pfMember.armed.md"
+	[ "$pfCount" -le 1 ] || pfWhat="$pfWhat, the sections of the team's files that your task tells you to read"
+	## The routine's text too, where the spawn record asks for the prefix of the routine (`cache-prefix: routine`, F10.7).
+	pfRecord="${MDAT_SPAWN_SANDBOX_ROOT:-}/$MDAT_SPAWN_SESSION_ID.md"
+	if [ -f "$pfRecord" ] ; then
+		pfPolicy="$( AgentsHarnessPrefetchRecordKey "$pfRecord" cache-prefix )" ; pfRoutine="$( AgentsHarnessPrefetchRecordKey "$pfRecord" routine )"
+	fi
+	if [ "$pfPolicy" = routine ] && [ -n "$pfRoutine" ] && AgentsHarnessSkillSegmentOk "$pfRoutine" ; then
+		type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include" 2> /dev/null || :
+		type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" 2> /dev/null || :
+		agentsPrefetchRoutineFile="$( AgentsToolsSpawnRoutineResolve "$pfRoutine" 2> /dev/null )" || agentsPrefetchRoutineFile=""
+		if [ -f "$agentsPrefetchRoutineFile" ] ; then
+			pfKindFile="$( AgentsToolsSpawnRoutineKindPath "$agentsPrefetchRoutineFile" 2> /dev/null )" || pfKindFile=""
+			pfStamp="$( AgentsHarnessPrefetchStamp "$agentsPrefetchRoutineFile" "${pfKindFile:-$agentsPrefetchRoutineFile}" "$harnessHere/session/AgentsTools.SpawnRoutine.include" \
+				"$harnessHere/session/AgentsRoutineMix.awk" "$harnessHere/board/AgentsBoardItemFrontmatterPrintSelected.awk" )"
+			if pfHow="$( AgentsHarnessPrefetchEntry "$pfCacheDir/routine.$pfRoutine" "$pfRoutineBody" "$pfStamp" AgentsHarnessPrefetchRoutineText )" ; then
+				case "$pfHow" in cache) pfHits=$(( pfHits + 1 )) ;; *) pfBuilt=$(( pfBuilt + 1 )) ;; esac
+				printf -v pfText '%s\n\n%s\n\n%s' "$pfText" "DistroAgentsSession.fn.sh --get-routine-text $pfRoutine, read for you before your task:" "$( cat "$pfRoutineBody" )"
+				pfWhat="$pfWhat, the text of your routine mixed with the routine of its kind"
+				## What a read of the routine is compared with: the checksum of the mixed text as read, and of the two files it is mixed of.
+				harnessPrefetchRoutineSum="$( LC_ALL=C cksum < "$pfRoutineBody" )" || harnessPrefetchRoutineSum=""
+				harnessPrefetchRoutineFiles="$( LC_ALL=C cksum "$agentsPrefetchRoutineFile" ${pfKindFile:+"$pfKindFile"} | LC_ALL=C awk '{ name = $3 ; sub( /^.*\//, "", name ) ; print $1 " " $2 " " name ; }' )" || harnessPrefetchRoutineFiles=""
+				AgentsToolsPrefetchMarkerWrite "${agentsPrefetchRoutineFile##*/}" "$harnessPrefetchRoutineSum"
+			fi
+		fi
+	fi
+	## Armed as the read of the armed file arms: a text that does not arm is no prefetch, and the member reads as before.
+	AgentsHarnessArmNote Skill "{\"name\":\"$pfMember\",\"file\":\"$pfMember.armed.md\"}" "$pfArmed"
+	if [ -z "$harnessArmedAt" ] ; then
+		harnessPrefetchRoutineSum="" ; harnessPrefetchRoutineFiles=""
+		AgentsToolsPrefetchMarkerRemove
+		return 0
+	fi
+	harnessPrefetch="$pfText" ; harnessPrefetchReads="$pfReads" ; harnessPrefetchWhat="$pfWhat"
+	printf '%s\n' "${harnessDim}📥 prefetched the reads of the $pfMember skill into the first message -- ${#pfText} bytes, $pfHits from the cache, $pfBuilt built${harnessOff}" >&2
+	return 0
+}
+
 ## Reaches the skillset directly and DELIBERATELY NOT through AgentsHarnessPathAllowed.
 ## A member folder under the skillset root is a SYMLINK into whatever source tree owns
 ## it, so resolving a candidate with `cd ... && pwd -P` and prefix-matching it against
@@ -6006,7 +6170,7 @@ AgentsHarnessSkillSection(){ ## file, sections
 ## under the root, whatever that root later resolves to.
 AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, section
 	local toolName="$1" toolFile="$2" toolList="$3" toolOffset="$4" toolLimit="$5" toolSkill="$6" toolArgs="$7" toolSection="${8:-}"
-	local skillDir skillPath skillRest skillSeg skillBytes skillPrefix skillLeaf skillSought pluginRoot skillPluginData skillOwnRoot skillCandidate skillOther
+	local skillDir skillPath skillRest skillSeg skillBytes skillPrefix skillLeaf skillSought pluginRoot skillPluginData skillOwnRoot skillCandidate skillOther skillOwnSum
 	local skillVendor=()
 	## A member of another workspace is found through the shared registry, never through this workspace's own index.
 	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
@@ -6098,13 +6262,16 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 		if [ -f "$skillDir/$skillMember.basic.md" ] && [ -f "$skillDir/$skillMember.armed.md" ] \
 			&& [ "$( head -c 6 "$harnessScratch/skill.out" )" != "ERROR:" ] \
 			&& [ "$( LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } /^status:[ \t]*reference-only[ \t\r]*$/ { print "yes" ; exit }' "$skillPath" )" != yes ] ; then
-			type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/markdown/AgentsTools.InternMergeMdFiles.include"
+			type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
 			skillMixins=( --mixin "$skillDir/$skillMember.basic.md" "$skillMember.basic.md" --mixin "$skillDir/$skillMember.armed.md" "$skillMember.armed.md" )
 			if [ "$skillMember" != magic-team ] ; then
 				[ -z "$skillOwnRoot" ] || skillTeamDir="$skillOwnRoot/magic-team"
 				[ -d "$skillTeamDir" ] || skillTeamDir="$( AgentsToolsTeamMemberDirectory magic-team 2> /dev/null )" || skillTeamDir=""
 				if [ -f "$skillTeamDir/magic-team.basic.md" ] && [ -f "$skillTeamDir/magic-team.armed.md" ] ; then
-					skillMixins+=( --mixin "$skillTeamDir/magic-team.basic.md" "magic-team.basic.md" --mixin "$skillTeamDir/magic-team.armed.md" "magic-team.armed.md" )
+					## The team's basic file is in the system text of this run when it carries it (harnessSystemShared, F10.7):
+					## it is moved there, so it is left out of the bundle. A served call carries none, and keeps it.
+					[ -n "$harnessSystemShared" ] || skillMixins+=( --mixin "$skillTeamDir/magic-team.basic.md" "magic-team.basic.md" )
+					skillMixins+=( --mixin "$skillTeamDir/magic-team.armed.md" "magic-team.armed.md" )
 				fi
 			fi
 			AgentsToolsMergeMdFiles --section-limit 6 "${skillMixins[@]}" > "$harnessScratch/skill.out" 2> "$harnessScratch/skill.merge.err" || {
@@ -6119,7 +6286,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 		if [ -n "$skillReader" ] && [ "$skillReader" = "$skillMember" ] && [ -f "$skillDir/$skillMember.basic.md" ] ; then
 			skillIndex="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-tool-index --ensure 2> "$harnessScratch/skill.index.err" | head -1 )" || skillIndex=""
 			if [ -n "$skillIndex" ] && LC_ALL=C grep -q -x -F -- "# $skillMember" "$skillIndex" 2> /dev/null ; then
-				type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/markdown/AgentsTools.InternMergeMdFiles.include"
+				type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
 				printf '\n' >> "$harnessScratch/skill.out"
 				AgentsToolsMergeMdFiles --section-limit 6 --mixin --section-include "$skillMember" "$skillIndex" "Tool index" \
 					>> "$harnessScratch/skill.out" 2> "$harnessScratch/skill.merge.err" || {
@@ -6205,6 +6372,31 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 	if [ ! -r "$skillPath" ] ; then
 		printf 'ERROR: Skill: not readable (permission denied): %s\n' "$toolName/$toolFile" ; return 0
 	fi
+	## A read the prefetch (F10.8) made into the first message of this run, asked again as it was made -- the same name, file and
+	## sections, no range -- of a file that is the very bytes it read: said in one line, not read again. harnessPrefetchReads holds
+	## one line a read: the file's checksum and size, a tab, the name, a tab, the file, a tab, the sections.
+	if [ -n "$harnessPrefetchReads" ] && [ -z "$toolOffset$toolLimit" ] ; then
+		skillOwnSum="$( LC_ALL=C cksum < "$skillPath" )"$'\t'"$toolName"$'\t'"$toolFile"$'\t'"$toolSection"
+		case $'\n'"$harnessPrefetchReads"$'\n' in
+			*$'\n'"$skillOwnSum"$'\n'*)
+				printf '%s: %s%s of the %s skill. Nothing was read again.\n' "$harnessPrefetchOneLine" "$toolFile" "${toolSection:+, the sections you asked for,}" "$toolName"
+				return 0
+			;;
+		esac
+	fi
+	## The routine file of this run, or the routine file of its kind, whole, while the text of the routine mixed with its kind that the
+	## prefetch read into the first message is unchanged: said in one line, not read again (AgentsToolsPrefetchRoutineUnchanged).
+	if [ -n "$harnessPrefetchRoutineSum" ] && [ -z "$toolSection$toolOffset$toolLimit" ] ; then
+		skillOwnSum="$( LC_ALL=C cksum < "$skillPath" ) $toolFile"
+		case $'\n'"$harnessPrefetchRoutineFiles"$'\n' in
+			*$'\n'"$skillOwnSum"$'\n'*)
+				if AgentsToolsPrefetchRoutineUnchanged "$agentsPrefetchRoutineFile" "${agentsPrefetchRoutineFile##*/}" "$harnessPrefetchRoutineSum" ; then
+					printf '%s: %s, as part of the text of %s mixed with the routine of its kind. Nothing was read again.\n' "$harnessPrefetchOneLine" "$toolFile" "${agentsPrefetchRoutineFile##*/}"
+					return 0
+				fi
+			;;
+		esac
+	fi
 	## section narrows the file to the named headings first; offset, limit and the cap then
 	## apply to that text, as they do to a whole file.
 	if [ -n "$toolSection" ] ; then
@@ -6218,7 +6410,7 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 	fi
 	## Capped and said so, exactly as Read states its own cap.
 	skillBytes="$( wc -c < "$skillPath" | tr -d ' ' )"
-	if [ "$skillBytes" -gt "$harnessReadCap" ] ; then
+	if [ "$skillBytes" -gt "$harnessReadCap" ] && [ -z "$harnessSkillWhole" ] ; then
 		AgentsHarnessReadRange "$skillPath" 1 ""
 	else
 		cat "$skillPath"
@@ -6727,7 +6919,7 @@ AgentsHarnessReply(){ ## tool name, result -- sets harnessReply and harnessReply
 	type AgentsTranscriptReplyFinish > /dev/null 2>&1 || return 0
 	## A Read given offset or limit is a range, and comes back whole (AgentsTranscriptReplyFinish).
 	harnessReply="$( AgentsTranscriptReplyFinish "$1" "$2" "$( [ "$1" != Read ] || printf '%s' "${harnessArgV_file_path:-${harnessArgV_path}}" )" "$( [ "$1" != Read ] || [ -z "${harnessArgV_offset:-}${harnessArgV_limit:-}" ] || printf ranged )" )" || harnessReply="$2"
-	[ -z "$2" ] || harnessReplyDate="$( AgentsTranscriptReplyDate )"
+	[ -z "$2" ] || harnessReplyDate="$( AgentsTranscriptReplyBeside )"
 }
 
 ## One file's whole content, as `$( cat file )` gives it -- every trailing newline
@@ -6917,6 +7109,8 @@ fi
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessModelRound.include"
 ## The kept model context and its resume, on the model path only.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessContext.include"
+## Its snapshots and rewinds (F10.5), on the model path only.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessCheckpoint.include"
 
 ## A spawned session run by this loop is one whose arming can be observed: said beside its record.
 [ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || : > "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" 2>/dev/null || :
@@ -6938,13 +7132,23 @@ $harnessRoots
 $harnessWriteNote
 Use the given tools to accomplish the request, then reply with a final plain-text message once done. A plain-text reply with no tool call ends your run, so never give one while the work is still open: waiting for an answer, a reply, another session or any other event is not done. Wait for it with the Wait tool (mcp__myx_distro__Wait over MCP), and after a TIMEOUT wait again, look elsewhere or escalate -- never end the run just to wait. Then carry on obeying your instructions.$harnessSpawnedWaitNote Nobody is reading this terminal, so a question written into your own answer reaches no one: where you genuinely need a decision only a person can make, AskQuestion is the one way to ask for one. Otherwise make the most reasonable choice and state what you did."
 
+## The skill of a spawned member, read for it ahead of its task (F10.8), and the run armed by it: made before the system text, which
+## says whether the member has its skill files in its first message or is to read them. A resumed run holds them in its kept context.
+AgentsHarnessPrefetchBuild
+
 ## --agent given: the member's own identity replaces the generic opener entirely.
 ## Skill below is a tool name in prose, which no structural check can see.
 if [ -n "$harnessAgent" ] ; then
+	harnessArmedSentence="Before your first acting call, read your own $harnessAgent.armed.md with the Skill tool, name $harnessAgent and file $harnessAgent.armed.md -- it is not included here. In a spawned session, Write, Edit, Bash, execute, SendMessage, AskQuestion, ConfirmReadback, EscalateDecision, RequestPermission, ProposeApprove and Agent are redirected until you have. Every skillset file is read with Skill, which works even where Read is denied."
+	## Where a prefetch is carried (F10.8) the member has what that read would give it, and is armed: it is told so, not asked to read.
+	if [ -n "$harnessPrefetch" ] ; then
+		harnessArmedSentence="What you read on your way to armed -- $harnessPrefetchWhat -- is already in your first message, ahead of your task, and you are armed: Write, Edit, Bash, execute, SendMessage, AskQuestion, ConfirmReadback, EscalateDecision, RequestPermission, ProposeApprove and Agent are not held back. Every other skillset file is read with Skill, which works even where Read is denied."
+	fi
 	printf -v harnessSystemText '%s\n\n%s\n\n%s' \
 		"$harnessAgentBasicText" \
-		"Before your first acting call, read your own $harnessAgent.armed.md with the Skill tool, name $harnessAgent and file $harnessAgent.armed.md -- it is not included here. In a spawned session, Write, Edit, Bash, execute, SendMessage, AskQuestion, ConfirmReadback, EscalateDecision, RequestPermission, ProposeApprove and Agent are redirected until you have. Every skillset file is read with Skill, which works even where Read is denied." \
+		"$harnessArmedSentence" \
 		"You are running through a bespoke $harnessProviderName harness$harnessSystemTail"
+	[ -z "$harnessSystemShared" ] || printf -v harnessSystemText '%s\n\n%s' "$harnessSystemShared" "$harnessSystemText"
 else
 	harnessSystemText="You are an autonomous coding agent running through a bespoke $harnessProviderName harness$harnessSystemTail"
 fi
@@ -6964,6 +7168,52 @@ else
 fi
 AgentsHarnessContextInit
 AgentsHarnessContextBegin "$harnessContextResumed"
+## The armed state of a run the prefetch armed (F10.8) is a boundary already, before its first request: the system text and the first
+## message with the prefetch block, which a rewind to it renders again with the next input in place of the task (F10.5).
+AgentsHarnessCheckpointInit
+[ -z "$harnessPrefetch" ] || [ -z "$harnessArmedAt" ] || ! AgentsHarnessSnapshotTake armed init || harnessCheckpointArmedTaken=1
+
+## THE INPUT TOKEN CACHE WATCH (F10.7, Constraint 12 of the epic), called before every request is built. It does two things.
+## EFFORT WHILE THE RUN GOES ON: sessions/<key>/effort, a line low, normal or high that --manager-session-effort writes (the
+## run's own store, else its coworking session's), is read at each round, and the effort of the request is that: normal is the
+## model's default, none sent. Changing effort in the middle of a conversation is a known silent invalidator of the input token
+## cache, and the first bullet of Constraint 12 (per-message effort in a system message keeps the cached prefix) needs a measured
+## trial with a real key, so it is not tried here: the second stands, and the change is SAID. Before the first round an effort
+## asked is simply the starting one.
+## A PREFIX THAT CHANGED: the tools (the MCP set) or the system text differing from the last request's discards the cache the same
+## way, and is said the same way. Nothing degrades silently.
+harnessCacheSeenTools="" ; harnessCacheSeenSystem=""
+AgentsHarnessCacheWatch(){
+	local watchFile watchValue="" watchAsked="" watchOld watchNew watchTools watchSystem watchWhy=""
+	if [ -n "${MMDAPP:-}" ] ; then
+		for watchFile in "$( AgentsHarnessSessionKey )" "${MDAT_SESSION_ID:-}" ; do
+			[ -n "$watchFile" ] && AgentsHarnessBareName "$watchFile" || continue
+			[ -s "$MMDAPP/.local/agents/sessions/$watchFile/effort" ] || continue
+			IFS= read -r watchValue < "$MMDAPP/.local/agents/sessions/$watchFile/effort" || :
+			watchAsked="yes" ; break
+		done
+	fi
+	if [ -n "$watchAsked" ] ; then
+		case "$watchValue" in
+			low|high) ;;
+			normal) watchValue="" ;;
+			*) watchAsked="" ;;
+		esac
+	fi
+	if [ -n "$watchAsked" ] && [ "$watchValue" != "$harnessReasoningEffort" ] ; then
+		watchOld="${harnessReasoningEffort:-default}" ; watchNew="${watchValue:-default}"
+		harnessReasoningEffort="$watchValue"
+		[ "$harnessRound" -le 1 ] || watchWhy="effort changed from $watchOld to $watchNew"
+	fi
+	watchTools="$( printf '%s' "${harnessMcpToolsJson:-}" | cksum )" ; watchSystem="$( printf '%s' "$harnessSystemText" | cksum )"
+	if [ "$harnessRound" -gt 1 ] ; then
+		[ "$watchTools" = "$harnessCacheSeenTools" ] || watchWhy="${watchWhy}${watchWhy:+, }the tool set changed"
+		[ "$watchSystem" = "$harnessCacheSeenSystem" ] || watchWhy="${watchWhy}${watchWhy:+, }the system text changed"
+	fi
+	harnessCacheSeenTools="$watchTools" ; harnessCacheSeenSystem="$watchSystem"
+	[ -z "$watchWhy" ] || printf '%s\n' "${harnessWarn}💾 input cache${harnessOff} ${harnessDim}-- $watchWhy: the cached prefix of this session is discarded, so the next request pays its whole prompt again${harnessOff}" >&2
+	return 0
+}
 
 ## No round ceiling by default: a round is one model turn, which tracks neither
 ## cost nor progress, and a task is not finished by being cut off at one.
@@ -7078,6 +7328,7 @@ while : ; do
 	## stdin is already the header channel.
 	## The kept context first gains whatever user turns this round adds.
 	AgentsHarnessContextSync user ""
+	AgentsHarnessCacheWatch
 	AgentsWireRequestBody > "$harnessScratch/request.json"
 
 	## Every attempt starts from a clean accumulator, and a retry here never touches
@@ -7309,4 +7560,6 @@ while : ; do
 		printf '%s\n' "🏁 ${harnessDim}dismissed, and the handback is given: the run ends here${harnessOff}" >&2
 		harnessExitClean=1 ; exit 0
 	fi
+	## The round is whole, so this is a turn boundary: the snapshots and rewinds the run's executor asked in it are made (F10.5).
+	AgentsHarnessCheckpointRound
 done

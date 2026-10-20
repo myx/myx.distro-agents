@@ -70,7 +70,7 @@ verdicts: allow-set | deny | edit   <- edit also returns the change
 
 ```
 kind: proposal                      <- asked only by magic-coordinator, with ProposeApprove
-question: <the question the proposal answers, posted once as the root, with no tooling emoji>
+question: <the question the proposal answers, posted once as the root>
 proposal: <the proposed form and its tight reasoning, as the thread reply>
 document: <absolute link to the proposal document — required>
 task_ref: <the tracking item, if any>
@@ -82,7 +82,7 @@ verdicts: approved | rejected       <- the owner's own mark on the root, or a re
 - rule: Every field the kind names is filled. A missing field, or an unknown kind, posts nothing.
 - rule: The result's first line is `ASK-RESULT:`. A typed kind adds `VERDICT: <value>`. The addressee's own words beyond the verdict come back too: words in the same reply as `VERDICT-TEXT:`, a later reply in the same thread as `CLARIFICATION:`. A line of that text that reads like one of the reader's own markers is printed one space indented, so it is never mistaken for one.
 - rule: A typed answer is a verdict when the answering word stands alone on the reply's first line, or when a punctuation mark follows the word and then the comment (`allow-once, only this file`; `deny. The path is wrong`). A word followed by more words with no mark is not a verdict: it reads `RETURNED`, with the full text, and the ask stays open. A number answering a numbered `decision` keeps its own, more lenient rule: `2 please` still answers option 2. The member never guesses a verdict from the answer text.
-- rule: After `RETURNED`, the member may clarify in the same thread, then waits again with `Wait` — `mode=continue`, or a new wait on the result's `WAIT-ID`, as its `NEXT:` line gives. Nothing is posted by it, and only the asking session may wait on its own ask.
+- rule: After `RETURNED`, the member may clarify in the same thread, then waits again with a plain `Wait`. Nothing is posted by it, and only the asking session may wait on its own ask.
 - rule: Only the addressee's answer is a verdict. A reply from anyone else is not one.
 - rule: The addressee answers in the ask's own thread, or with `--member-escalation-answer <member> <request-id> <verdict> [text]`. The request id is the pending-reply id the ask printed. The asking member never answers its own ask. A reaction counts only where the kind declares it: ✅ is `yes` and ❌ is `no` on a readback, and ❌ is `deny` on a permission ask. A reaction counts only ahead of the addressee's first reply; once it has replied, a later click is not read. An answer given through `--member-escalation-answer` gets one reply, its confirmation; no separate `Answered by` line is posted. A member answering for someone else writes the word, a mark, and who decided (`allow-once. The owner decided it`). A member with no Slack account of its own may instead answer with a plain reply in the session thread; the tooling knows who answered by the sender its post recorded, not by a Slack account.
 - rule: An allow verdict also prints `GRANT:`. The tooling writes the grant with the session, and no member writes its own. The member then runs the operation the ask named: the refused call, or the other operation and route the ask put in its place.

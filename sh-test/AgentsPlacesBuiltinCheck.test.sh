@@ -23,7 +23,7 @@ rigFn="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigFn" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include" "$rigHere/common/AgentsTools.InternDirectory.include" ; do
+for rigFile in "$rigFn" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include" "$rigHere/common/AgentsTools.InternDirectory.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 rigMyxCommon="$( command -v myx.common 2>/dev/null )"

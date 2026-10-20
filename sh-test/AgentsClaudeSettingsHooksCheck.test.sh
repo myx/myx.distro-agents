@@ -118,6 +118,11 @@ rigAssert "install: its resume hook is wired under SessionStart, matcher resume,
 	"$( rigVerify SessionStart ".claude/hooks/root-session-end.sh resume" "$rigTmp/fresh/.claude/settings.json" ) / $( rigFlat "$rigTmp/fresh/.claude/settings.json" | LC_ALL=C grep -c -F '"matcher":"resume","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/root-session-end.shresume"}]' )" \
 	"hooks.SessionStart .claude/hooks/root-session-end.sh resume: OK / 1"
 rigAssert "install: its script is the package's, executable" "$( cmp -s "$rigHere/client-hooks/root-session-end.sh" "$rigTmp/fresh/.claude/hooks/root-session-end.sh" && [ -x "$rigTmp/fresh/.claude/hooks/root-session-end.sh" ] && printf same || printf differs )" same
+## The log of a spawned native session (F10.4): the pointer at the start, a copy at the end of a turn and at the end, the end with its own 5 s.
+rigAssert "install: the native log hook is wired under SessionStart, Stop and SessionEnd, the end with its own 5 s timeout" \
+	"$( rigVerify SessionStart ".claude/hooks/native-transcript-keep.sh start" "$rigTmp/fresh/.claude/settings.json" ) / $( rigVerify Stop ".claude/hooks/native-transcript-keep.sh keep" "$rigTmp/fresh/.claude/settings.json" ) / $( rigVerify SessionEnd ".claude/hooks/native-transcript-keep.sh end" "$rigTmp/fresh/.claude/settings.json" ) / $( rigFlat "$rigTmp/fresh/.claude/settings.json" | LC_ALL=C grep -c -F 'native-transcript-keep.shend","timeout":5}' )" \
+	"hooks.SessionStart .claude/hooks/native-transcript-keep.sh start: OK / hooks.Stop .claude/hooks/native-transcript-keep.sh keep: OK / hooks.SessionEnd .claude/hooks/native-transcript-keep.sh end: OK / 1"
+rigAssert "install: its script is the package's, executable" "$( cmp -s "$rigHere/client-hooks/native-transcript-keep.sh" "$rigTmp/fresh/.claude/hooks/native-transcript-keep.sh" && [ -x "$rigTmp/fresh/.claude/hooks/native-transcript-keep.sh" ] && printf same || printf differs )" same
 ## The entries an earlier install wrote here, beside one of the user's own: they go, it stays.
 rigOld="$rigTmp/old-grants"
 mkdir -p "$rigOld/.claude"

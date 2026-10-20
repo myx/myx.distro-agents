@@ -210,7 +210,7 @@ rigReacted(){ ## reactions|reactions.removed
 	LC_ALL=C awk -v want="$( rigField question-ts )" '$1 == want { out = out ( out == "" ? "" : " " ) $2 ; } END { print out ; }' "$rigDir/$1" 2> /dev/null
 }
 rigFill(){ ## want -- the template filled straight, the slots from the caller's environment
-	ASKP_WANT="$1" ASKP_FORM=verdict LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$rigLib/questions/AgentsAskPostFill.awk" "$rigTemplate" 2>&1
+	ASKP_WANT="$1" ASKP_FORM=verdict LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolingTemplateFill.awk" -f "$rigLib/questions/AgentsAskPostFill.awk" "$rigTemplate" 2>&1
 }
 
 echo "-- 0. the template: the post, the post that takes no answer any more, the emoji --"

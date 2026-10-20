@@ -79,7 +79,7 @@ AgentsToolsArtifactLastNumber(){ ## code
 
 ## The record of this document, one audit item: artRecord, rewritten whole at each state.
 AgentsToolsArtifactRecordWrite(){ ## state, url
-	printf -- '---\ntype: artifact\nnumber: %s\nkind: %s\ntitle: %s\nurl: %s\nmember: %s\nsession: %s\ndate: %s\nstate: %s\n---\n\n# %s\n' \
+	printf -- '---\ndocument-contract: audit-item.artifact\ntype: artifact\nnumber: %s\nkind: %s\ntitle: %s\nurl: %s\nmember: %s\nsession: %s\ndate: %s\nstate: %s\n---\n\n# %s\n' \
 		"${artNumber:--}" "${artCode:-${artKind:--}}" "$artTitle" "$2" "$artMember" "${artSession:--}" "$( date +"%Y-%m-%d %H:%M %z" )" "$1" "$artFullTitle" > "$artRecord" || {
 		echo "⛔ ERROR: $artCmd: the record $artRecord could not be written" >&2
 		return 1
@@ -402,7 +402,7 @@ AgentsToolsArtifactPublish(){
 	case "$artFormat" in
 		markdown)
 			artHtml="$artWork/document.html"
-			if ! LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/markdown/AgentsMarkdownHtmlDocument.awk" < "$artDocument" > "$artHtml" ; then
+			if ! LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/markdown/LocalMarkdownHtmlDocument.awk" < "$artDocument" > "$artHtml" ; then
 				echo "⛔ ERROR: $artCmd: the Markdown document converter failed on $artDocument. Nothing was published" >&2
 				return 1
 			fi

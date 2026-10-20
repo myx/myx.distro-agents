@@ -217,7 +217,7 @@ AgentsToolsRunRouteAvailable(){ ## session, member, the asking run's spawn recor
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	AgentsToolsAssertBareName "$1" "the session" AgentsToolsRunRouteAvailable 2> /dev/null && AgentsToolsAssertBareName "$2" "the member" AgentsToolsRunRouteAvailable 2> /dev/null || return 1
 	availOwn="${availRecord##*/}" ; availOwn="${availOwn%.md}"
-	type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null || :
+	type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || :
 	for availCandidate in $( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.md 2> /dev/null ) ; do
 		availId="${availCandidate##*/}" ; availId="${availId%.md}"
 		[ "$availId" != "$availOwn" ] || continue
@@ -662,7 +662,7 @@ AgentsToolsSpawnSandboxSweep(){ ## where
 	thisHost="$( hostname -s 2>/dev/null )" || thisHost="unknown"
 	## A process list that cannot be read says nothing of any run: nothing is touched then.
 	ps -A -ww -o args= > /dev/null 2>&1 || return 0
-	type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null || return 0
+	type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
 	for sweepDir in "$sweepRoot"/*/ ; do
 		sweepDir="${sweepDir%/}"
 		[ -d "$sweepDir/input" ] || continue
@@ -823,7 +823,7 @@ AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
 	thisHost="$( hostname -s 2>/dev/null )" || thisHost="unknown"
 	if [ "$childHost" = "$thisHost" ] ; then
 		## Running is a process that runs as the spawn, by the one rule of the spawned-sessions render.
-		type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+		type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 		AgentsToolsRegistrySpawnRuns "$itemSpawn" "$recordPath" || { printf 'ACCEPT-DISMISS: not sent: spawn %s is not running on this host, so its session has ended\n' "$itemSpawn" ; return 0 ; }
 	fi
 	childMember="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" owner )"
@@ -885,7 +885,7 @@ AgentsToolsSpawnProxyShellNote(){ ## -- keeps `<pid> <start>` of the shell it is
 	## read again. A process started anew has none of it.
 	case "${agentsSpawnProxyShellOf:-}" in "level-$BASH_SUBSHELL") return 0 ;; esac
 	agentsSpawnProxyShellIs="" ; agentsSpawnProxyShellOf="level-$BASH_SUBSHELL"
-	type AgentsToolsRegistryProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null || return 0
+	type AgentsToolsRegistryProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
 	## This shell's own process, which `$$` does not name in a subshell: what a command it starts has as its parent.
 	noteShell="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || noteShell=""
 	case "$noteShell" in ''|*[!0123456789]*) return 0 ;; esac
@@ -897,7 +897,7 @@ AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
 	local runFile="${MDAT_SPAWN_SANDBOX_ROOT:-}/${MDAT_SPAWN_SESSION_ID:-}.md" runStart runOps runBody runSeen runNow runTries=0
 	[ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -f "$runFile" ] || return 0
 	case "${1:-}" in ''|*[!0123456789]*) return 0 ;; esac
-	type AgentsToolsRegistryProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null || return 0
+	type AgentsToolsRegistryProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
 	runStart="$( AgentsToolsRegistryProcessStart "$1" )" || runStart=""
 	AgentsToolsSpawnProxyShellNote
 	[ -n "$runStart${agentsSpawnProxyShellIs:-}" ] || return 0

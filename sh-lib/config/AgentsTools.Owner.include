@@ -340,7 +340,7 @@ case "$1" in
 		esac
 		[ "$wsPath" = "/" ] || wsPath="${wsPath%/}"
 		[ -n "$wsName" ] || wsName="${wsPath##*/}"
-		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
 		if ! AgentsToolsPlacesNameValid "$wsName" ; then
 			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: a place name is letters, digits and . _ + - only: $wsName" >&2
 			set +e ; return 1
@@ -369,7 +369,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-forget: takes exactly one <name>, and more followed it: $*" >&2
 			set +e ; return 1
 		fi
-		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
 		AgentsToolsPlacesOwnerForget "${MMDAPP%/}" "$wsName" || { set +e ; return 1 ; }
 		return 0
 	;;
@@ -380,7 +380,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-list: takes no arguments" >&2
 			set +e ; return 1
 		fi
-		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Places.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
 		AgentsToolsPlacesListText "${MMDAPP%/}"
 		return 0
 	;;
@@ -1066,7 +1066,7 @@ case "$1" in
 						|| setupHelperBad="$setupHelperBad AgentsAnthropicMessagesStream.awk"
 					printf '{"hookSpecificOutput":{"permissionDecision":"allow"}}' | LC_ALL=C awk -f "$setupLibDir/harness/AgentsHarnessJsonField.awk" -f "$setupLibDir/harness/AgentsHarnessHookDecision.awk" >/dev/null 2>&1 \
 						|| setupHelperBad="$setupHelperBad AgentsHarnessHookDecision.awk"
-					printf 'Dback\\\\slash\nS/nonexistent/registry-probe.md\nE\n' | LC_ALL=C awk -v registryRows=spawned -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsRegistryHeaderRows.awk" >/dev/null 2>&1 \
+					printf 'Dback\\\\slash\nS/nonexistent/registry-probe.md\nE\n' | LC_ALL=C awk -v registryRows=spawned -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" >/dev/null 2>&1 \
 						|| setupHelperBad="$setupHelperBad AgentsRegistryHeaderRows.awk"
 					if [ -z "$setupHelperBad" ] ; then
 						echo "HARNESS_HELPERS_LOAD: OK (progress-line, json-escape, json-field, json-slice)"
@@ -1094,7 +1094,7 @@ case "$1" in
 						"$setupLibDir/harness/AgentsHarnessToolSearch.awk" \
 						"$setupLibDir/harness/AgentsHarnessMcpMirror.awk" \
 						"$setupLibDir/mcp/AgentsMcpJsonEscape.awk" \
-						"$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsRegistryHeaderRows.awk" \
+						"$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" \
 						"$setupTestDir/AgentsHarnessSelfCheck.test.awk" \
 						"$setupTestDir/AgentsHarnessAwkAxiom.test.awk" 2>&1 )" || setupAxiomRc=$?
 					if [ "$setupAxiomRc" = "0" ] ; then

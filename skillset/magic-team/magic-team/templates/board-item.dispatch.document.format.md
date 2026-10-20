@@ -26,7 +26,7 @@ document-contract: board-item.dispatch
 type: dispatch
 from: <member>
 date: <date-time>
-owner: <optional -- the caller member>
+owner: <the caller member>
 status: dispatch-started
 session-id: <session-id>
 spawn-id: <session-id>

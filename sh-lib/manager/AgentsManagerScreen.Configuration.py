@@ -196,7 +196,7 @@ def wholeLines(text, width, indent):
 ## Groups of keys for the left pane as one table (paneTable), each group under its label,
 ## its note first, dim, where its row gives one: every key by its label, its type, and its
 ## whole public line, never cut, or why none can be read, its state in its colour.
-def keyGroupLines(state, path, groups, width):
+def keyGroupLines(state, path, groups):
     rows = []
     looks = []
     for group in groups:
@@ -214,9 +214,7 @@ def keyGroupLines(state, path, groups, width):
             rows.append([unspaced(held["label"]) or held["key"], absent(held["type"]) or "-", line])
             looks.append([None, None, look])
     ## the line of a key has its room first: the label gives way before it
-    head, blocks = paneTable(("KEY", "TYPE", "PUBLIC LINE"), rows, max(10, width - 1), wrap=state.wrap, kinds=("text", "enum", "whole"), looks=looks, pane=fullPane(state))
-    tableCount(state, rows)
-    return head + [line for block in blocks for line in block]
+    return tableSummaryLines(state, ("KEY", "TYPE", "PUBLIC LINE"), rows, ("text", "enum", "whole"), looks=looks)
 
 
 ## The selected key for the left pane: what it is for; its type, its fingerprint, its
@@ -252,7 +250,7 @@ def serverKeysSummary(state, path, row, form):
     groups = [held["keyGroup"] for held in rows if held.get("keyGroup")]
     if not groups:
         return ["The operation listed no key of this server."]
-    return keyGroupLines(state, path, groups, state.viewWidth)
+    return keyGroupLines(state, path, groups)
 
 
 ## Whether the whole line of that row can be shown: a key whose public file can be read.
@@ -367,6 +365,19 @@ def commandsSummary(state, path, row, form):
                              ("key", "text"))
 
 
+## What the left pane shows of a check, of a server key and of a group of them.
+def checksFocus(state, row):
+    return checkLines(row["check"], state.viewWidth) if row.get("check") else None
+
+
+def keysFocus(state, row):
+    if row.get("serverKey"):
+        return serverKeyLines(state, state.path, row["serverKey"], state.viewWidth)
+    if row.get("keyGroup"):
+        return keyGroupLines(state, state.path, [row["keyGroup"]])
+    return None
+
+
 ## ---- the plugin: `Configuration` ----
 
 registerPlugin({
@@ -375,6 +386,7 @@ registerPlugin({
     "rows": {
         "configuration": (("checker", "Config Checker", "checker", True), ("keys", "Server Keys", "keys", True)),
     },
+    "focus": {"configuration/*": "settingsFocus", "configuration/checker": "checksFocus", "configuration/keys": "keysFocus"},
     "summaries": {
         "configuration": {"lines": "digestSummary"},
         "configuration/*": {"lines": "subjectSummary", "missingFirst": True},

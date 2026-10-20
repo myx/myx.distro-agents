@@ -1,0 +1,292 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsHarnessCheckpoint.include -- SNAPSHOT AND REWIND of the model path (F10.5 of the refactorings epic). Sourced by the model path
+## of AgentsUniversalHarness.sh next to the kept context (AgentsHarnessContext.include), never by a served call. Functions and state only.
+##
+## A SNAPSHOT is a name for the conversation as it stands at a turn boundary: the end of a round, once every tool call of the round has
+## its result (the loop's own "the round is whole"), or the start, before the first request. Never in the middle of a round, so a rewind
+## never leaves a tool call without its result. It is a record -- name, kind, number of messages, a checksum of the tools and of the system
+## text, the time -- and not a copy: the messages before a boundary are a prefix of the array, which only grows between rewinds.
+##   kind count   the first <count> messages of the array.
+##   kind init    the armed state of a run that carries a prefetch (F10.8): the system text and the first message with the prefetch block
+##                and no task yet, which AgentsWireInitMessages renders again, so the next dispatch is the second block of that message and
+##                the request is byte for byte the first request's through the end of the prefetch block (the input token cache).
+## THE STACK: a snapshot of a name already held replaces it; a rewind to a name drops the snapshots taken after it; `exit` drops them all.
+## The tooling marks `armed` itself: at the start for a prefetched run, else at the end of the round in which the arming read was made.
+## Any other is asked by the run's own executor, with `DistroAgentsSession.fn.sh --executor-checkpoint-push <name>` (ThisSession,
+## AgentsTools.ThisSession.include), which only WRITES A REQUEST: the executor's call is a shell command of its own, with no hand on this
+## process's array. The requests are read here, in order, at the end of each round (AgentsHarnessCheckpointRound), after the dismissed-end
+## check, and taken whole.
+##
+## A REWIND puts the array back to the snapshot, adds the dispatch it was given as the next input, drops the scan cache of the run's session
+## (AgentsHarnessScanCacheDrop, F10.6), opens a new leg of the kept context
+## (as a restart does: the transcript has rendered the old rounds already) and says so in the transcript. The tools and the system text are
+## not touched, so the prefix is the one the input token cache holds. Only the CONVERSATION returns: the files and the sandbox are what the
+## run made of them (the backlog's "prepared state is larger than the message array"). A snapshot whose tools or system text differ from
+## the run's now is still returned to, with a line saying the cached prefix is not the same (AgentsHarnessCacheWatch says the rest).
+##
+## THE INPUT OF A REWIND is the dispatch it is given: the text on the standard input of `--executor-checkpoint-rewind --from-stdin` (kept in
+## `checkpoint.dispatch`, spent when the return is made), or the arrival of an `--idle-wait`. Where the snapshot is a count, it is a user
+## message after the snapshot's. Where it is the init kind, it is the task block: THE TASK, A BLANK LINE, THE INPUT -- the task the run
+## was started with (harnessCheckpointTask, kept at the start), never the task block of the last return, so the blocks of repeated
+## returns do not grow, and each is the task and the one input of its cycle.
+##
+## --idle-wait (F10.5 gate B) is a request too: `idle <timeout or -> [<source> ...]`, the sources being the scans the routine itself
+## declares, as `scan:` sources (F3.3), or none. The wait is made HERE, at the end of the round, in this process and through the Wait
+## tool's own function (AgentsHarnessToolWait), so a dismissal, the seat of the run and the limit of a review are the Wait tool's, and the
+## model spends nothing while nothing happens: a quiet round of the session's wait (the service's round, which is shorter than the model's
+## prompt cache) goes on in this process, where the call named no bound and none is set for the run. An arrival returns the run to its
+## checkpoint -- `opening` where the run holds it, else `armed` -- with the arrival as the input (above). What is not an arrival (a bound
+## named by the call that ran out, an error, a dismissal, a source never read) returns nothing: the model is given it as a message and its
+## conversation stays. A run that holds no snapshot is given the arrival the same way. Any request after an idle one, in the same round,
+## is dropped: it was made for a conversation that is no more.
+##
+## Files, in the run's own store (sessions/<spawn id>/): `snapshots` (the stack as it stands now, a line each: name, kind, count, tools
+## checksum, system checksum, time, tab-separated), `checkpoint.request` (what the executor asked, a line each: push <name>, rewind
+## [<name>], exit, idle <timeout or -> [<source> ...]), `checkpoint.dispatch` (the input a rewind is given, whole). Nothing here is team
+## data.
+##
+
+harnessSnapshots="" harnessCheckpointDir="" harnessCheckpointArmedTaken="" harnessCheckpointTask=""
+
+## The run's own store, set only for a spawned run: any other has no executor to ask, and takes no snapshot. The task as the run was
+## started with is kept here, for a return to the init kind to build its task block from.
+AgentsHarnessCheckpointInit(){
+	harnessCheckpointDir=""
+	harnessCheckpointTask="$harnessPrompt"
+	[ -n "${MMDAPP:-}" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || return 0
+	harnessCheckpointDir="$( AgentsTranscriptSessionDir "$MDAT_SPAWN_SESSION_ID" 2> /dev/null )" || harnessCheckpointDir=""
+	[ -z "$harnessCheckpointDir" ] || mkdir -p "$harnessCheckpointDir" 2> /dev/null || harnessCheckpointDir=""
+	return 0
+}
+
+## The checksums of the tools and of the system text as the request holds them: `<tools> <system>`.
+AgentsHarnessCheckpointSum(){
+	printf '%s %s' "$( printf '%s' "${harnessMcpToolsJson:-}" | LC_ALL=C cksum | LC_ALL=C cut -d ' ' -f 1 )" "$( printf '%s' "$harnessSystemText" | LC_ALL=C cksum | LC_ALL=C cut -d ' ' -f 1 )"
+}
+
+## rc 0 when the array ends where a request may be made: no assistant record that still waits for the results of its calls.
+AgentsHarnessCheckpointBoundary(){
+	local boundaryLast="${harnessMessages[$(( ${#harnessMessages[@]} - 1 ))]:-}"
+	[ -n "$boundaryLast" ] || return 1
+	case "$boundaryLast" in
+		'{"role":"assistant"'*)
+			case "$boundaryLast" in *'"type":"tool_use"'*|*'"tool_calls":['*) return 1 ;; esac
+		;;
+	esac
+	return 0
+}
+
+## The stack as the run's store holds it for the executor's operations to read, written beside and renamed over.
+AgentsHarnessCheckpointWrite(){
+	local writeTemp
+	[ -n "$harnessCheckpointDir" ] || return 0
+	writeTemp="$( mktemp "$harnessCheckpointDir/snapshots.XXXXXX" 2> /dev/null )" || return 0
+	printf '%s' "$harnessSnapshots" > "$writeTemp" 2> /dev/null && mv -f "$writeTemp" "$harnessCheckpointDir/snapshots" 2> /dev/null || rm -f "$writeTemp"
+	return 0
+}
+
+## One name for the conversation as it stands. rc 1, with a line on stderr, where it cannot be taken.
+AgentsHarnessSnapshotTake(){ ## name, kind (count|init)
+	local takeName="$1" takeKind="${2:-count}" takeCount="${#harnessMessages[@]}" takeLine takeKept="" takeRow
+	[ -n "$harnessCheckpointDir" ] || return 1
+	AgentsHarnessBareName "$takeName" || { printf '%s\n' "${harnessWarn}⚠️  WARNING:${harnessOff} $harnessSelfName: no snapshot: '$takeName' is not a bare name" >&2 ; return 1 ; }
+	if ! AgentsHarnessCheckpointBoundary ; then
+		printf '%s\n' "${harnessWarn}⚠️  WARNING:${harnessOff} $harnessSelfName: no snapshot '$takeName': the conversation is not at a turn boundary" >&2
+		return 1
+	fi
+	[ "$takeKind" != "init" ] || takeCount=0
+	takeLine="$takeName"$'\t'"$takeKind"$'\t'"$takeCount"$'\t'"$( AgentsHarnessCheckpointSum | LC_ALL=C tr ' ' '\t' )"$'\t'"$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+	while IFS= read -r takeRow ; do
+		[ -n "$takeRow" ] || continue
+		[ "${takeRow%%$'\t'*}" = "$takeName" ] || takeKept="$takeKept$takeRow"$'\n'
+	done <<< "$harnessSnapshots"
+	harnessSnapshots="$takeKept$takeLine"$'\n'
+	AgentsHarnessCheckpointWrite
+	printf '%s\n' "${harnessDim}📌 snapshot $takeName -- ${takeKind}, $takeCount message(s)${harnessOff}" >&2
+	return 0
+}
+
+## rc 0 where the stack holds a snapshot of that name.
+AgentsHarnessSnapshotHeld(){ ## name
+	case $'\n'"$harnessSnapshots" in
+		*$'\n'"$1"$'\t'*) return 0 ;;
+	esac
+	return 1
+}
+
+## THE SCAN CACHE OF A RESET (F10.6). A return of the conversation is the agent's reset: the run starts a new cycle from its armed state,
+## and what a scan reported inside the cycle before is not what the next one should be given. The scans that are cached (advance and
+## heartbeat, AgentsToolsInputScanCached) keep their report in the folder of the team session for five minutes, whatever changes in their
+## sources, so a return drops those reports itself and the next scan gathers afresh. No operation is involved and no member is told. The
+## cache is keyed by the team session (MDAT_SESSION_ID): a run with none has no cache, and a name that is no folder name is no session.
+AgentsHarnessScanCacheDrop(){
+	local dropSession="${MDAT_SESSION_ID:-}" dropDir dropFile dropCount=0
+	case "$dropSession" in
+		''|.|..|*/*|*[[:space:]]*) return 0 ;;
+	esac
+	[ -n "${MMDAPP:-}" ] || return 0
+	dropDir="$MMDAPP/.local/agents/sessions/$dropSession"
+	[ -d "$dropDir" ] || return 0
+	for dropFile in "$dropDir"/*-input-scan.md ; do
+		[ -f "$dropFile" ] || continue
+		rm -f "$dropFile" 2> /dev/null && dropCount=$(( dropCount + 1 ))
+	done
+	[ "$dropCount" -eq 0 ] || printf '%s\n' "${harnessDim}🧹 scan cache dropped -- $dropCount report(s) of the session; the next scan gathers afresh${harnessOff}" >&2
+	return 0
+}
+
+## The conversation put back to the snapshot of that name (the newest where none is named), with the input given, if any, as the next one.
+AgentsHarnessRewindTo(){ ## name, dispatch text ('' for none)
+	local rewindName="$1" rewindInput="${2:-}" rewindRow rewindLine="" rewindKept="" rewindKind rewindCount rewindTools rewindSystem rewindTime rewindDropped nowSum
+	[ -n "$harnessCheckpointDir" ] || return 1
+	## The stack from the bottom to the snapshot rewound to is kept: the newest where no name is given, else the one of that name.
+	while IFS= read -r rewindRow ; do
+		[ -n "$rewindRow" ] || continue
+		rewindKept="$rewindKept$rewindRow"$'\n'
+		if [ -z "$rewindName" ] ; then
+			rewindLine="$rewindRow"
+		elif [ "${rewindRow%%$'\t'*}" = "$rewindName" ] ; then
+			rewindLine="$rewindRow"
+			break
+		fi
+	done <<< "$harnessSnapshots"
+	if [ -z "$rewindLine" ] ; then
+		printf '%s\n' "${harnessWarn}⚠️  WARNING:${harnessOff} $harnessSelfName: no rewind: no snapshot ${rewindName:+named '$rewindName'}is held" >&2
+		return 1
+	fi
+	IFS=$'\t' read -r rewindName rewindKind rewindCount rewindTools rewindSystem rewindTime <<< "$rewindLine"
+	rewindDropped=$(( ${#harnessMessages[@]} - rewindCount ))
+	[ "$rewindKind" != "init" ] || rewindDropped="${#harnessMessages[@]}"
+	nowSum="$( AgentsHarnessCheckpointSum )"
+	[ "$nowSum" = "$rewindTools $rewindSystem" ] || printf '%s\n' "${harnessWarn}⚠️  WARNING:${harnessOff} $harnessSelfName: the tools or the system text differ from those of snapshot $rewindName: the cached prefix is not the same" >&2
+	case "$rewindKind" in
+		init)
+			## The task block is the task the run started with and this input, never the block of the return before.
+			harnessPrompt="$harnessCheckpointTask"
+			[ -z "$rewindInput" ] || printf -v harnessPrompt '%s\n\n%s' "$harnessCheckpointTask" "$rewindInput"
+			AgentsWireInitMessages
+		;;
+		*)
+			harnessMessages=( "${harnessMessages[@]:0:$rewindCount}" )
+			[ -z "$rewindInput" ] || harnessMessages+=( "$( AgentsWireUserRecord "$rewindInput" )" )
+		;;
+	esac
+	harnessSnapshots="$rewindKept"
+	AgentsHarnessCheckpointWrite
+	AgentsHarnessScanCacheDrop
+	## A new leg of the kept context holds the array as it is, as a restart does; the old rounds are in the transcript already.
+	AgentsHarnessContextBegin 0
+	harnessRoundTotal=0
+	AgentsTranscriptHarnessRewind "$rewindName" "$rewindDropped" "$rewindKind" || :
+	printf '%s\n' "${harnessValue}⏪ rewound${harnessOff} ${harnessDim}-- to snapshot $rewindName ($rewindKind, $rewindCount message(s)); $rewindDropped message(s) dropped${rewindInput:+; the next input follows}${harnessOff}" >&2
+	return 0
+}
+
+## The wait of `--idle-wait`, made here as the Wait tool makes it, and what comes of it. The sources are the scans the routine declares
+## (`scan:<scan>`), or none. A session's wait always holds its floor, the replies to the run's own posts and the messages of its session
+## thread that are for it (`chat:<session>`), and the sources named are added to it. A wait that names none would be given the defaults of
+## a bare Wait -- the team channels, for a session with no thread -- so with no scan the floor is named, as the one source: the floor alone.
+AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources
+	local idleTimeout="${1:--}" idleSources idleShown idleOut idleHead idleTarget="" idleArrival idleText idleWaitSources idleKey
+	[ $# -eq 0 ] || shift
+	idleSources="$*"
+	[ "$idleTimeout" != "-" ] || idleTimeout=""
+	idleShown="the floor${idleSources:+ and ${idleSources// /, }}"
+	idleWaitSources="$idleSources"
+	if [ -z "$idleSources" ] ; then
+		idleKey="$( AgentsHarnessSessionKey )"
+		[ -z "$idleKey" ] || idleWaitSources="chat:$idleKey"
+	fi
+	printf '%s\n' "${harnessDim}💤 idle-wait -- waiting on $idleShown${harnessOff}" >&2
+	## A session's wait comes back quiet at the round of its service, a little before the model's prompt cache would expire, so that the
+	## model's next turn is read from the cache (AgentsTools.MemberWait.include). The model is not the one waiting here: with no bound
+	## named by the call, and none set for the run, a quiet round goes on in this process (the stored wait, mode continue), and the model
+	## is woken by an arrival, a dismissal, an error, or a source that was never read, whose silence means nothing.
+	local idleMode=default
+	while : ; do
+		idleOut="$( AgentsHarnessToolWait "$idleWaitSources" "$idleTimeout" "" "" "" "" "$idleMode" )"
+		idleHead="$( printf '%s\n' "$idleOut" | head -1 )"
+		case "$idleHead" in
+			"WAIT-RESULT: TIMEOUT"*)
+				if [ -z "$idleTimeout" ] && [ -z "${harnessWaitTimeout:-}" ] && ! printf '%s\n' "$idleOut" | LC_ALL=C grep -q '^WAIT-NEVER-READ: ' ; then
+					printf '%s\n' "${harnessDim}💤 idle-wait -- nothing yet, still waiting on $idleShown${harnessOff}" >&2
+					idleMode=continue ; idleWaitSources=""
+					sleep 1
+					continue
+				fi
+			;;
+		esac
+		break
+	done
+	case "$idleHead" in
+		"WAIT-RESULT: RECEIVED")
+			if AgentsHarnessSnapshotHeld opening ; then idleTarget=opening ; elif AgentsHarnessSnapshotHeld armed ; then idleTarget=armed ; fi
+			## The Wait tool's own last line says to go on with Wait: not a Wait that goes on here, so that line is left off.
+			idleArrival="$( printf '%s\n' "$idleOut" | LC_ALL=C awk '{ idleLine[NR] = $0 } END { idleLast = NR ; if ( idleLine[idleLast] ~ /^NEXT: / ) { idleLast-- } ; for ( idleAt = 1 ; idleAt <= idleLast ; idleAt++ ) { print idleLine[idleAt] } }' )"
+			## What arrived is given as a Wait result is: a long report is kept in the session's results/ and named (the one reply layer).
+			AgentsHarnessReply Wait "$idleArrival"
+			idleArrival="$harnessReply"
+			if [ -n "$idleTarget" ] ; then
+				printf -v idleText '%s\n\n%s' "Your --idle-wait returned: something arrived while this run was idle. The conversation is returned to its checkpoint $idleTarget, so none of the work after it is in front of you; the files, and everything outside the conversation, are as that work left them. What arrived:" "$idleArrival"
+				if AgentsHarnessRewindTo "$idleTarget" "$idleText" ; then
+					return 0
+				fi
+			fi
+			printf -v idleText '%s\n\n%s' "Something arrived while this run was idle, and no snapshot is held, so your conversation was not returned. What arrived:" "$idleArrival"
+		;;
+		"WAIT-RESULT: TIMEOUT"*)
+			printf -v idleText '%s\n\n%s' "Your --idle-wait ended with no arrival, and your conversation was not returned. Call --idle-wait again to keep waiting." "${idleOut/ NEXT: Wait mode=continue/}"
+		;;
+		"WAIT-RESULT: DISMISSED")
+			printf -v idleText '%s\n\n%s' "Your --idle-wait ended on a dismissal, and your conversation was not returned." "$idleOut"
+		;;
+		*)
+			printf -v idleText '%s\n\n%s' "Your --idle-wait could not be made, and your conversation was not returned. What the wait said:" "$idleOut"
+		;;
+	esac
+	harnessMessages+=( "$( AgentsWireUserRecord "$idleText" )" )
+	return 0
+}
+
+## Called at the end of every round, once the dismissed-end check has passed. The tooling's own mark first (armed, for a run that was
+## armed by a read in this round), then what the executor asked since the last round, in the order it asked.
+AgentsHarnessCheckpointRound(){
+	local roundTaken roundLine roundOp roundName roundInput=""
+	[ -n "$harnessCheckpointDir" ] || return 0
+	if [ -z "$harnessCheckpointArmedTaken" ] && [ -n "${harnessArmedAt:-}" ] ; then
+		AgentsHarnessSnapshotTake armed count && harnessCheckpointArmedTaken=1
+	fi
+	[ -s "$harnessCheckpointDir/checkpoint.request" ] || return 0
+	roundTaken="$harnessCheckpointDir/checkpoint.request.taken"
+	mv -f "$harnessCheckpointDir/checkpoint.request" "$roundTaken" 2> /dev/null || return 0
+	while IFS= read -r roundLine || [ -n "$roundLine" ] ; do
+		roundOp="${roundLine%% *}" ; roundName="" ; [ "$roundOp" = "$roundLine" ] || roundName="${roundLine#* }"
+		case "$roundOp" in
+			push) AgentsHarnessSnapshotTake "${roundName:-checkpoint}" count || : ;;
+			rewind)
+				## The dispatch the executor gave with it, whole and once.
+				roundInput=""
+				if [ -f "$harnessCheckpointDir/checkpoint.dispatch" ] ; then
+					roundInput="$( cat "$harnessCheckpointDir/checkpoint.dispatch" 2> /dev/null )" || roundInput=""
+					rm -f "$harnessCheckpointDir/checkpoint.dispatch" 2> /dev/null
+				fi
+				AgentsHarnessRewindTo "$roundName" "$roundInput" || :
+			;;
+			exit)
+				harnessSnapshots="" ; AgentsHarnessCheckpointWrite
+				printf '%s\n' "${harnessDim}📌 snapshots dropped${harnessOff}" >&2
+			;;
+			idle)
+				## roundName is the timeout and the sources, split into words by the call. Whatever the wait comes to, the requests after this
+				## one were made for a conversation that is not this one any more.
+				AgentsHarnessIdleWait $roundName < /dev/null
+				break
+			;;
+		esac
+	done < "$roundTaken"
+	rm -f "$roundTaken" 2> /dev/null
+	return 0
+}

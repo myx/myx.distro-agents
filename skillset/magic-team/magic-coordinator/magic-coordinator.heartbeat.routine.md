@@ -108,7 +108,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- This routine extends `magic-team.coworking.routine`, with these overrides: while the pass runs alone it has a tracking thread in `event-track`, never a session thread; the first member it brings in opens the session thread in `magic-team`, addressed to that member; the opening and closing groups reduce, through `skips-inherited:`, to posting into the tracking thread and **conclude-event-track-thread**.
+- While the pass runs alone it has a tracking thread in `event-track`, never a session thread; the first member it brings in opens the session thread in `magic-team`, addressed to that member.
 - Post a short progress line into the tracking thread after each step. Something the human-owner must act on goes per `magic-team.armed.md`'s "Anything needing the human-owner to act reaches him on his own direct channel".
 - Between steps, read what spawned sessions sent. Assess each, dispatch any real work through `spawn-one-dispatch`, and record the outcome in the tracking thread.
 - Running unattended, every caution rule applies at full strength: no unilateral epics, the per-platform send rules, no manufactured work.
@@ -145,8 +145,7 @@ Used to check this file's own definitions against its own goals when it is updat
 ## Verbatim-tests (benchmarks)
 
 - New work discovered mid-loop files into the relevant inbox or board queue rather than `main-loop` routing around it inline because it's convenient.
-- If this routine is already running (holding its own lock) and gets invoked again from anywhere, the second invocation's own lock-acquire fails and it exits without duplicating any work.
-- A pass whose **Board advance** step has not yet finished has not reached any Closure step: its lock is still held, no ✅ has been reacted, and no status has been reported. A pass that released the lock or reacted ✅ with advance unfinished has failed, however complete its report reads.
+- A pass whose **Board advance** step has not yet finished has not reached any Closure step: no ✅ has been reacted, and no status has been reported. A pass that reacted ✅ with advance unfinished has failed, however complete its report reads.
 
 ## Librarian Comments
 

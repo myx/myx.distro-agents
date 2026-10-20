@@ -27,7 +27,7 @@ AgentsToolsClientCommsSnapshotBeforeWrite(){ ## actingMember, writeOp, system, r
 		return 1
 	}
 	{
-		printf '%s\n' "---" "type: snapshot" "system: $snapSystem" "resource-type: $snapResourceType" "resource-id: $snapResourceId" "write-op: $snapWriteOp" "captured-by: $snapMember" "captured-at: $snapTime" "---" ""
+		printf '%s\n' "---" "document-contract: audit-item.snapshot" "type: snapshot" "system: $snapSystem" "resource-type: $snapResourceType" "resource-id: $snapResourceId" "write-op: $snapWriteOp" "captured-by: $snapMember" "captured-at: $snapTime" "---" ""
 		printf '%s\n' "$snapBody"
 	} > "$snapTmp"
 	AgentsToolsItemUpsert "$snapMember" --from-audit "$snapName" --from-file "$snapTmp" --context "$snapWriteOp-snapshot" --commit-message "audit snapshot: $snapName"

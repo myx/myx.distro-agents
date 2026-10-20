@@ -13,6 +13,7 @@
 ##      the last one where the pane went up
 ##   6. a left window that is no table has no such cursor: Enter does nothing there
 ## No setting for it. Offline: the only thing the screen calls here is the stand-in for the dispatcher.
+## Reconciled for F11.5: the list is Active Sessions of Activity, and Team Members is put at with `at @team`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -69,7 +70,7 @@ rigCase(){ ## name members -- a rig of its own: that many team members, and a Ma
 	echo rows > "mode" )
 }
 rigScript(){ ## size -- the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\nwall 2026-10-13 02:30 +0000\nsize %s\n' "$rigTools" "$1" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:magic-team/activity/active-sessions:record none\nwall 2026-10-13 02:30 +0000\nsize %s\n' "$rigTools" "$1" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -107,7 +108,7 @@ rigNumberOf(){ ## marked text -- the number the row starts with
 echo "-- 1, 2, 3, 4. a table of eighty-one rows --"
 rigCase table 80
 rigScript "120 30" <<'RIGSCRIPT'
-root sessions
+root active-sessions
 turn
 wait sessions 30
 root team
@@ -183,7 +184,8 @@ rigCase text 3
 rigScript "120 36" <<'RIGSCRIPT'
 turn
 wait list 10
-keys 4
+at @team
+turn
 wait list 10
 keys DOWN ENTER
 wait list 10

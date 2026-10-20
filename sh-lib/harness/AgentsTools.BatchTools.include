@@ -52,7 +52,7 @@ AgentsToolsBatchCancel(){ ## folder, call number
 	IFS= read -r cancelPid < "$1/$2.pid" 2> /dev/null || return 0
 	[ ! -f "$1/$2.rc" ] || return 0
 	: > "$1/$2.cancelled"
-	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null
+	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
 	cancelTree="$( ps -A -o pid=,ppid= 2> /dev/null | LC_ALL=C awk -v root="$cancelPid" '
 		{ under[$2] = under[$2] " " $1 }
 		END { queue = root ; while ( queue != "" ) { count = split( queue, now, " " ) ; queue = "" ; for ( at = 1 ; at <= count ; at++ ) { print now[at] ; queue = queue under[now[at]] } } }' )"

@@ -12,7 +12,7 @@ Read this for board states, the item lifecycle, garbage collection and the board
 
 ## Who actually reads/writes the board
 
-- `magic-librarian` joins once per workday under `magic-coordinator`'s lead, in `magic-librarian.morning-review.routine`.
+- `magic-librarian` runs `magic-librarian.morning-review.routine` once per workday, alone.
 - The board matters at grooming, at the daily meeting, and on request.
 - Inboxes are not part of the board.
 

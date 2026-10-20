@@ -273,6 +273,25 @@ MDLT_ORIGIN="$rigRealOrigin"
 rigAssert "the old code's packet has no routine line, so the exact row above can fail" "$( LC_ALL=C grep -c "^$rigRoutineLabel" "$rigTmp/stub.stdin" || : )" 0
 rigAssert "and it differs from the expected packet"       "$( rigExpect "$rigModeNon" "$rigRoutineLine" ; cmp -s "$rigTmp/stub.stdin" "$rigTmp/stub.expect" && echo identical || echo different )" different
 
+echo "-- the caching policy of a routine, carried on the spawn record (F10.7) --"
+for rigCacheName in cachea:routine cacheb: cachec:armed ; do
+	rigCacheFile="$rigSkills/magic-team/magic-team.${rigCacheName%%:*}.routine.md"
+	{
+		printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator, magic-librarian\ninvitees: magic-team\nrequires-session-kind: coworking\n'
+		[ -z "${rigCacheName#*:}" ] || printf 'cache-prefix: %s\n' "${rigCacheName#*:}"
+		printf -- '---\n# rig caching routine fixture\n'
+	} > "$rigCacheFile"
+done
+rigCacheRecord(){ ## the routine selector, or none -- the cache-prefix line of the record that spawn wrote, or `absent`
+	rm -rf "$rigWs/.local/agents/spawned" ; mkdir -p "$rigWs/.local/agents/spawned"
+	if [ "$1" = none ] ; then rigSpawn "RIG-TASK-TEXT" > /dev/null ; else rigSpawn "RIG-TASK-TEXT" --routine "$1" > /dev/null ; fi
+	LC_ALL=C sed -n 's/^cache-prefix: //p' "$rigWs/.local/agents/spawned"/*/*.md 2> /dev/null | head -1 | LC_ALL=C grep . || printf 'absent'
+}
+rigAssert "a routine that says cache-prefix: routine has it on the record"    "$( rigCacheRecord cachea )" routine
+rigAssert "a routine that says nothing has armed, the default"                "$( rigCacheRecord cacheb )" armed
+rigAssert "a routine that says armed has it"                                  "$( rigCacheRecord cachec )" armed
+rigAssert "a spawn of no routine has no such line on its record"              "$( rigCacheRecord none )" absent
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SPAWN PROXY ROUTINE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

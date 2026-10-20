@@ -179,8 +179,7 @@ def blocksView(state, only=None, level=None):
         state.view["looks"] = {}
         return ["Nothing to show here: the operation gave no block."]
     place = (lambda text: placedLine(state, text)) if placedShown(state) else None
-    lines, state.view["looks"] = blockGrid(blocks, max(20, state.paneWidth - 2), place)
-    return lines
+    return panelLines(blocks, max(20, state.paneWidth - 2), place)
 
 
 ## Whether the left pane shows panels (blocksView): its lines are then wrapped, whatever `w` is.
@@ -193,11 +192,17 @@ def dashboardSummary(state, path, row, form):
     return blocksView(state)
 
 
+## What the left pane shows of the block selected: that block alone, as wide as the window (the dashboard, and the blocks of Team Data).
+def dashboardFocus(state, row):
+    return blocksView(state, row["id"], levelKey(state.path)) if row.get("block") else None
+
+
 ## ---- the plugin: `Dashboard (Monitor)` ----
 
 registerPlugin({
     "name": "dashboard",
-    "root": {"id": "dashboard", "label": "Dashboard (Monitor)", "go": "~D~ashboard (Monitor)", "group": "team"},
+    "root": {"id": "dashboard", "label": "Dashboard (Monitor)", "go": "~D~ashboard (Monitor)", "group": "watch"},
+    "focus": {"dashboard": "dashboardFocus"},
     "summaries": {
         "dashboard": {"lines": "dashboardSummary"},
     },

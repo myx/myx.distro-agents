@@ -24,6 +24,7 @@ SUBJECT_WORDS = {
     "interface": "how this console looks, saved for the user who runs it",
     "console": "how the consoles of this workspace behave",
     "control": "how long a console waits when it asks something of a session",
+    "knowledge": "the optional vector store of what the team knows",
 }
 ## What each <source> of a line shows as, after its value: where the value comes from.
 ## One that is not listed here shows as it is printed.
@@ -288,14 +289,13 @@ def subjectSummary(state, path, row, form):
 ## A group of the lines of a subject for the left pane, while its heading is selected in
 ## the list: its label, how many lines it holds and how many of them are missing, then its
 ## lines as a table (digestTable), the missing ones first.
-def groupLines(group, width, wrap=True, pane=None, place=lambda text: text):
+def groupLines(state, group, place=lambda text: text):
     heads, rows, kinds, looks = digestTable(group["subject"], [line for line in group["lines"] if line["state"] in STATES_MISSING]
                                             + [line for line in group["lines"] if line["state"] not in STATES_MISSING], False, place)
     if group["subject"] in GROUP_COLUMNS:
         ## the title names the group: its column would say it again on every row
         heads, rows, kinds, looks = heads[1:], [row[1:] for row in rows], kinds[1:], [look[1:] for look in looks]
-    head, blocks = paneTable(heads, rows, max(10, width - 1), wrap=wrap, kinds=kinds, looks=looks, pane=pane)
-    return head + [line for block in blocks for line in block]
+    return tableSummaryLines(state, heads, rows, kinds, looks=looks)
 
 
 ## The selected line of a subject for the left pane, from its row: what it is now first,
@@ -310,28 +310,22 @@ def settingLines(line, width, place=lambda text: text):
         value = choiceWords(line["value"], dict(line["choices"]).get(line["value"], line["value"]), place)
     else:
         value = valueWords(line["subject"], line)
-    head = Looked("%s = %s" % (line.get("label") or line["key"] or "-", value))
-    head.looks = [(0, textWidth(head), BOLD)] + ([(textWidth(head) - textWidth(value), textWidth(value), stateLook(line["state"]))]
-                                                 if line["state"] in STATES_MISSING else [])
-    lines = [head]
-    if line["key"] == STYLE_VARIABLE and STYLE["value"] != line["value"]:
-        lines.append("This screen is drawn in %s now." % styleLabel())
-    if line["description"]:
-        lines.append("")
-        lines.extend(wrapToCells(line["description"], max(10, width - 1)))
-    lines.append("")
     refusal = changeRefusal(line)
-    lines.extend(factLines([
-        ("key", line["key"]),
-        ("group", line["group"]),
-        ("state", line["state"]),
-        ("source", SOURCE_WORDS.get(line["source"], line["source"])),
-        ("scope", SCOPE_WORDS.get(line["scope"], line["scope"])),
-        ("takes", ", ".join(choiceWords(value, label, place) for value, label in line["choices"]) or ("a whole number from %s to %s" % line["range"] if line["range"] else "")),
-        ("saved in", line["where"]),
-        ("change", "no: " + refusal if refusal else "yes"),
-    ], width))
-    return lines
+    return parameterLines({
+        "name": line.get("label") or line["key"] or "-", "value": value,
+        "valueLook": stateLook(line["state"]) if line["state"] in STATES_MISSING else None,
+        "notes": ["This screen is drawn in %s now." % styleLabel()] if line["key"] == STYLE_VARIABLE and STYLE["value"] != line["value"] else [],
+        "description": line["description"],
+        "more": [
+            ("key", line["key"]),
+            ("group", line["group"]),
+            ("state", line["state"]),
+            ("source", SOURCE_WORDS.get(line["source"], line["source"])),
+            ("scope", SCOPE_WORDS.get(line["scope"], line["scope"])),
+            ("takes", ", ".join(choiceWords(value, label, place) for value, label in line["choices"]) or ("a whole number from %s to %s" % line["range"] if line["range"] else "")),
+            ("saved in", line["where"]),
+            ("change", "no: " + refusal if refusal else "yes"),
+        ]}, width)
 
 
 ## Whether Enter changes that row: a line whose row says it is changed from here.
@@ -538,11 +532,24 @@ def digestSummary(state, path, row, form):
     return tableSummaryLines(state, ("SUBJECT", "LINES", "MISSING", "WHAT"), rows, ("key", "text", "text", "text"), looks=looks)
 
 
+## What the left pane shows of the row selected in a subject: a line, as a parameter; a group of lines, as its table.
+def settingsFocus(state, row):
+    if row.get("line"):
+        return settingLines(row["line"], state.viewWidth, placer(state))
+    if row.get("lineGroup"):
+        return groupLines(state, row["lineGroup"], placer(state))
+    return None
+
+
 ## ---- the plugin: `Settings` ----
 
+## The plugin offers the places of the lines of the digest of the settings (`lines`: level:kind) that are changed by its forms
+## wherever they are listed: the member's own, in `Team Members`.
 registerPlugin({
     "name": "settings",
     "root": {"id": "settings", "label": "Settings", "go": "S~e~ttings", "group": "setup"},
+    "registries": {"lines": "place"},
+    "focus": {"settings/*": "settingsFocus"},
     "summaries": {
         "settings": {"lines": "digestSummary"},
         "settings/*": {"lines": "subjectSummary"},
@@ -560,8 +567,10 @@ registerPlugin({
     },
     "commands": (
         {"name": "credential", "keys": ("ENTER",), "menu": ("view", 3), "label": "Open the cr~e~dential", "status": "Open", "window": "list",
-         "views": ("settings/*", "@configuration/*"), "for": "a credential", "on": ("settings/*:record", "@configuration/*:record"), "only": True, "tells": True, "enters": True, "does": ("action", "credential")},
+         "views": ("settings/*", "@configuration/*"), "for": "a credential", "on": ("settings/*:record", "@configuration/*:record"), "only": True, "tells": True, "enters": True,
+         "with": (("settings", "lines"),), "does": ("action", "credential")},
         {"name": "setting", "keys": ("ENTER",), "menu": ("view", 3), "label": "~C~hange the setting", "status": "Change", "window": "list",
-         "views": ("settings/*", "@configuration/*"), "for": "a setting", "on": ("settings/*:record", "@configuration/*:record"), "only": True, "enters": True, "says": "change", "does": ("action", "setting"), "calls": ("set",)},
+         "views": ("settings/*", "@configuration/*"), "for": "a setting", "on": ("settings/*:record", "@configuration/*:record"), "only": True, "enters": True, "says": "change",
+         "with": (("settings", "lines"),), "does": ("action", "setting"), "calls": ("set",)},
     ),
 })

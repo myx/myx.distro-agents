@@ -172,7 +172,6 @@ All statements apply at the same time, always. These rules override a participan
 
 - `magic-coordinator` is permitted and obliged to execute every step exactly as written, in order.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- This routine extends `magic-team.coworking.routine`; on conflict, this file wins.
 - `magic-coordinator`, `magic-librarian` and `magic-architect` make every judgement call jointly; `magic-coordinator` alone executes the steps and writes the board. Another member may request a pass, never run one.
 - The group never lets one view win by default. Unresolved: escalate. Running unattended: leave the item where it is and flag the disagreement for the next pass.
 - Running unattended (the heartbeat's first iteration of the day): **review-with-the-user** does not block. Its findings are recorded as provisional and confirmed when the human-owner is next present. Silence is never approval.

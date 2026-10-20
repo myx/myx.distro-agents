@@ -417,7 +417,7 @@ rigCall(){ ## short name of a session -- the function alone, called as a starter
 		MDAT_SPAWN_SESSION_ID=rig-spawn MDAT_SPAWN_AGENT=keeper-rig MDAT_SPAWN_SANDBOX_ROOT=/rig/sandbox MDAT_SESSION_ID=rig-session MDAT_SESSION_THREAD=CRIG:1.2 MDAT_CONVERSATION_THREADS=CRIG:3.4 \
 		harnessSessionId=rig-harness harnessAgent=keeper-rig CLAUDE_CODE_SESSION_ID=rig-client \
 		bash -c '
-			. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" || exit 90
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" || exit 90
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlStart.include" || exit 91
 			MDLT_ORIGIN="$RIG_FAKE"
 			exec 5> "$RIG_TMP/fn.fd5" 9> "$RIG_TMP/fn.fd9"
@@ -505,12 +505,21 @@ echo "-- 10. the guard: every check of sh-test that names an operation which sta
 ## them too, whether its own starts wait or not: the guard reads names. So does one that names the return of a
 ## review, which starts an ended run again, or the harness's own tool that brings a member in.
 rigGuardOps='--magic-advance-lock-acquire|--intern-main-loop|--manager-session-control-start|--intern-op-agent-spawn-proxy|--magic-heartbeat-spawn-proxy|--magic-spawn-session|--manager-spawn-member|--member-review-return|--intern-op-review-return|--intern-tool +"?Agent'
+## THE CHECKS THAT NAME A SPAWN OPERATION AND START NO THREAD, with the reason, by file name. A start its caller waits on (--wait) gets no control
+## thread (AgentsToolsSessionControlWaited: its transcript says wait=true; the spawner starts the thread, and the communications reader beside it,
+## in the supervising shell of a start that is not waited for), so a check whose every such line carries --wait has nothing to end. It stays on this
+## list only while that holds: one line of it that names an operation without --wait puts it back under the guard.
+##   AgentsThisSessionCheck.test.sh   its one spawn (section 8, the brief of a start with no routine) is --intern-op-agent-spawn-proxy ... --wait
+rigGuardWaived=' AgentsThisSessionCheck.test.sh '
 rigGuard(){ ## folder of checks -- `NOT ENDED: <file>` for each check that names one of the operations and does not end the threads of its rig, then how many name one
 	local guardFile guardNamed=0
 	for guardFile in "$1"/*.test.sh "$1"/*/*.test.sh ; do
 		[ -f "$guardFile" ] || continue
 		LC_ALL=C grep -v '^[[:space:]]*#' "$guardFile" | LC_ALL=C grep -q -E -e "$rigGuardOps" || continue
 		guardNamed=$(( guardNamed + 1 ))
+		case "$rigGuardWaived" in
+			*" ${guardFile##*/} "*) [ -n "$( LC_ALL=C grep -v '^[[:space:]]*#' "$guardFile" | LC_ALL=C grep -E -e "$rigGuardOps" | LC_ALL=C grep -v -e ' --wait' )" ] || continue ;;
+		esac
 		LC_ALL=C grep -q -E -e '^\. "[^"]*check-fixtures/rig-control-threads\.include\.sh" ' "$guardFile" \
 			&& LC_ALL=C grep -q -E -e "^trap '.*rigControlThreadsEnd \"\\\$rig[A-Za-z]+\" .*' EXIT\$" "$guardFile" \
 			|| printf 'NOT ENDED: %s\n' "${guardFile##*/}"
@@ -535,6 +544,17 @@ printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d "$MMDAPP/.local/agents
 printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/probe.XXXXXXXX" )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-advance-lock-acquire magic-coordinator rig-pass' > "$rigTmp/probe/sub/Nested.test.sh"
 rigAssert "the guard fails a check that names one of the operations and does not end the threads of its rig, one that only sources the fixture, one that starts a session through the spawner and ends nothing, and one in a subfolder that ends nothing; not one that ends them, nor one that names the operation in a comment alone" \
 	"$( rigGuard "$rigTmp/probe" | LC_ALL=C tr '\n' ' ' )" "NOT ENDED: Bare.test.sh NOT ENDED: Sourced.test.sh NOT ENDED: Spawned.test.sh NOT ENDED: Nested.test.sh named: 5 "
+## The check that is listed as starting no thread (rigGuardWaived), made to fail and to hold: of the same name, one whose only spawn is waited
+## for is let be; one that also names a spawn that is not waited for is put back under the guard, and so is one of another name that is waited for.
+mkdir -p "$rigTmp/probe-waited" "$rigTmp/probe-unwaited" "$rigTmp/probe-other"
+printf '%s\n' '#!/usr/bin/env bash' 'bash "$rigTool" --intern-op-agent-spawn-proxy rig-member --dispatch-doc:create --wait' '## --intern-op-agent-spawn-proxy rig-member in a comment' > "$rigTmp/probe-waited/AgentsThisSessionCheck.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'bash "$rigTool" --intern-op-agent-spawn-proxy rig-member --dispatch-doc:create --wait' 'bash "$rigTool" --intern-op-agent-spawn-proxy rig-member --dispatch-doc:create' > "$rigTmp/probe-unwaited/AgentsThisSessionCheck.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'bash "$rigTool" --intern-op-agent-spawn-proxy rig-member --dispatch-doc:create --wait' > "$rigTmp/probe-other/AgentsSomeOtherCheck.test.sh"
+rigAssert "a check listed as starting no thread is let be while every spawn it names is waited for, goes back under the guard when one is not, and the listing is by its name alone" \
+	"$( rigGuard "$rigTmp/probe-waited" | LC_ALL=C tr '\n' ' ' )/$( rigGuard "$rigTmp/probe-unwaited" | LC_ALL=C tr '\n' ' ' )/$( rigGuard "$rigTmp/probe-other" | LC_ALL=C tr '\n' ' ' )" \
+	"named: 1 /NOT ENDED: AgentsThisSessionCheck.test.sh named: 1 /NOT ENDED: AgentsSomeOtherCheck.test.sh named: 1 "
+rigAssert "control: the check that is listed is in the package, and every line of it that names a guarded operation is waited for" \
+	"$( [ -f "$rigPackage/sh-test/session/AgentsThisSessionCheck.test.sh" ] && printf present ):$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigPackage/sh-test/session/AgentsThisSessionCheck.test.sh" | LC_ALL=C grep -E -e "$rigGuardOps" | LC_ALL=C grep -c -v -e ' --wait' )" "present:0"
 
 echo "-- 11. nothing is left running, and nothing was asked of the network --"
 rigThreadsEnd

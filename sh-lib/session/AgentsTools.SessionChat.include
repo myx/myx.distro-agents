@@ -1,0 +1,347 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionChat.include -- the session chat file (F9.1 of the refactorings epic), and the one reader of it
+## (F3.3, F9.2, F4.1). The session comms channel, though it is a Slack thread, is recorded in a file of the session's
+## folder and served to members from it. Sourced, never run. Functions only.
+##
+## ONE FILE A SESSION, because the tooling keeps one message record per session and never one per thread:
+## $MMDAPP/.local/agents/sessions/<session>/session.chat, the session being the team session (MDAT_SESSION_ID) of
+## a run, else its spawn, else the client's own (AgentsToolsSessionChatKey: the chain
+## AgentsToolsSessionCurrentThreadFind reads session.thread by). Its name is one constant, agentsSessionChatName,
+## and the index and the pointers beside it are named by it.
+##
+## A MESSAGE IS ONE BLOCK: a header line `<iso-time> <from> -> <to>:`, the time as 2026-10-19T10:00:00Z, then the body
+## in a format based on the source's own -- Markdown where it is a good match, as for Slack's lists, quotes, code blocks
+## and emphasis, and the source's format, such as an email's HTML, where it is not -- then a blank line. A body line
+## that reads as a header is kept one space in (AgentsSessionChatBody.awk), so a header line is the only line that
+## begins a block. From is the sender as the team knows it (a member, never the bot account that posted it), to the
+## people it is for, comma-joined, `all` where it names none.
+##
+## THE INDEX, session.chat.index, has a line for each block, tab-separated, in the order of the file:
+##   <block number> <Slack ts, or -> <conversation>:<thread, or -> <origin> <line of its header in the file> <seen>
+## A message the run sent is recorded before it is posted (AgentsToolsSessionChatSend), so it has no ts and no
+## conversation until Slack has taken it (AgentsToolsSessionChatStamp). The origin says how the block came in: `own` for a
+## message the run's own tools sent, `slack` for one read from the thread, `history` for one that was there before the
+## run began (there for whoever reads the thread, never new to a floor), `reply:<member>` for a reply to a post of that
+## member. <seen> is the members whose own Wait delivered the block itself, comma-joined, `-` for none.
+##
+## THE POINTERS, session.chat.pointers, `<reader><TAB><value>` a line, are the one place a session keeps where a reader
+## has got to: `read:<member>` is a member's own floor (the number of the last block read), and `import:<conversation>:<thread>`
+## when the thread was first read into the file. The pointer of a member that has none is set to the end of the file at its
+## first read: what was there is not new to it.
+##
+## THE FLOOR, AgentsToolsSessionChatFloor, is what a run's tool returns and its Wait deliver of the file, from the pointer
+## forward (AgentsSessionChatRead.awk): the executor of the session every message of its thread, a participant the ones that
+## tag or mention it, every run the replies to its own posts. It reads the file and no network. The file is filled by the
+## write path (AgentsToolsSessionChatSend) and by whoever reads the thread or a reply from Slack
+## (AgentsToolsSessionChatImport): the Wait of a run, and the communications reader of F9.3 (AgentsTools.SessionComms.include),
+## which also posts what could not be posted when it was sent. A block that has no ts yet is a post that is not yet: the floor of
+## a reader does not pass it (AgentsSessionChatRead.awk), for five minutes at most, until it has one or is given up, when its
+## conversation in the index reads `refused` or `unknown` instead.
+##
+## A write takes the one local lock of the session's file for the length of one append, one stamp, one import or one pointer,
+## so the number of a block and the line of its header are what they say, however many runs and waits of the session write at once.
+##
+
+agentsSessionChatName="session.chat"
+## How long a post that is not yet holds the floor of a reader back, in seconds.
+agentsSessionChatPendingSeconds=300
+
+## The folder of a session's files. rc 1, nothing printed, for a name that is no session or no workspace.
+AgentsToolsSessionChatDir(){ ## session
+	case "$1" in
+		''|.|..|*/*|*[[:space:]]*) return 1 ;;
+	esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	printf '%s' "$MMDAPP/.local/agents/sessions/$1"
+}
+
+## The session this call belongs to, empty for none: the team session of a run, else the run's own, else the
+## client's. The same chain the session's thread is found by (AgentsToolsSessionCurrentThreadFind).
+AgentsToolsSessionChatKey(){
+	printf '%s' "${MDAT_SESSION_ID:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}}"
+}
+
+## The UTC time, as a header keeps it, before which a post that has no ts yet is given up by a floor.
+AgentsToolsSessionChatPendingCutoff(){
+	date -u -v-"$agentsSessionChatPendingSeconds"S +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || date -u -d "$agentsSessionChatPendingSeconds seconds ago" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || printf ''
+}
+
+## Says to the communications reader that a wait is blocked on the session: a marker in its folder is touched, and the reader
+## looks at the thread every few seconds while the marker is fresh (AgentsToolsSessionCommsActive). Quiet, for a session with no folder.
+AgentsToolsSessionChatWaiting(){ ## session
+	local waitingDir
+	waitingDir="$( AgentsToolsSessionChatDir "$1" )" || return 0
+	[ -d "$waitingDir" ] || return 0
+	{ touch "$waitingDir/$agentsSessionChatName.waiting" ; } 2> /dev/null || :
+	return 0
+}
+
+## When the communications reader last read the thread of a session, as epoch seconds: nothing where it never did. A wait reads the
+## thread itself only when this is older than its own TTL and ten seconds more (AgentsWaitChatTopUp). The reader keeps it outside
+## the session's folder (comms/looked/<session>, `<epoch> <gap>`), so a look that finds nothing is no activity of the session.
+AgentsToolsSessionChatReaderLooked(){ ## session
+	local lookedLine=""
+	[ -n "${MMDAPP:-}" ] || return 0
+	case "$1" in ''|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	{ IFS= read -r lookedLine < "$MMDAPP/.local/agents/comms/looked/$1" ; } 2> /dev/null || return 0
+	lookedLine="${lookedLine%% *}"
+	case "$lookedLine" in ''|*[!0123456789]*) ;; *) printf '%s\n' "$lookedLine" ;; esac
+	return 0
+}
+
+## The `to` of a header from the addressees a send names, spaced: comma-joined, `all` for none.
+AgentsToolsSessionChatTo(){ ## addressees...
+	local toOne toOut=""
+	for toOne in "$@" ; do
+		toOut="$toOut${toOut:+,}$toOne"
+	done
+	printf '%s' "${toOut:-all}"
+}
+
+## The lock of a session's chat files, taken by one function and given back by it: sets chatLock to what Give is handed.
+AgentsToolsSessionChatLockTake(){ ## session
+	chatLock=""
+	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include" 2> /dev/null || :
+	! AgentsToolsLocalLockTake "chat-$1" 10 "the chat file of session $1" 2> /dev/null || chatLock="$agentsLocalLockPath"
+}
+AgentsToolsSessionChatLockGive(){
+	[ -z "${chatLock:-}" ] || AgentsToolsLocalLockGive "$chatLock"
+	chatLock=""
+}
+
+## One block appended to the session's chat file; prints its number. The body is read from the standard input.
+## <ts> and <where> are `-` for a message not posted yet, <origin> says how it came in, <time> is the header's time
+## (now, in UTC, where none is given), <seen> the members whose Wait delivers it itself. rc 1, nothing written, where
+## the session has no folder to be kept in.
+AgentsToolsSessionChatAppend(){ ## session, from, to, ts, where, origin, time (optional), seen (optional) -- the body on stdin
+	local appendDir appendFile appendBody appendNo appendLine appendTime="${7:-}" appendFrom appendTo chatLock=""
+	appendDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
+	mkdir -p "$appendDir" 2>/dev/null || return 1
+	[ -n "$appendTime" ] || appendTime="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+	## A name is one line, and carries no arrow of its own.
+	appendFrom="$( printf '%s' "$2" | LC_ALL=C tr '\r\n\t' '   ' | LC_ALL=C sed 's/ -> / - /g' )"
+	appendTo="$( printf '%s' "$3" | LC_ALL=C tr '\r\n\t' '   ' | LC_ALL=C sed 's/ -> / - /g' )"
+	appendBody="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionChatBody.awk" )"
+	AgentsToolsSessionChatLockTake "$1"
+	appendFile="$appendDir/$agentsSessionChatName"
+	appendLine=$(( $( { LC_ALL=C wc -l < "$appendFile" ; } 2> /dev/null || printf 0 ) + 1 ))
+	appendNo=$(( $( { LC_ALL=C wc -l < "$appendFile.index" ; } 2> /dev/null || printf 0 ) + 1 ))
+	{
+		printf '%s %s -> %s:\n' "$appendTime" "$appendFrom" "$appendTo"
+		[ -z "$appendBody" ] || printf '%s\n' "$appendBody"
+		printf '\n'
+	} >> "$appendFile" 2> /dev/null && printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$appendNo" "${4:--}" "${5:--}" "${6:-own}" "$appendLine" "${8:--}" >> "$appendFile.index" 2> /dev/null \
+		|| { AgentsToolsSessionChatLockGive ; return 1 ; }
+	AgentsToolsSessionChatLockGive
+	printf '%s\n' "$appendNo"
+}
+
+## Sets the Slack ts and the conversation:thread of a block once Slack has taken the message it was recorded as.
+AgentsToolsSessionChatStamp(){ ## session, block number, ts, conversation:thread
+	local stampDir stampFile stampTmp chatLock=""
+	stampDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
+	stampFile="$stampDir/$agentsSessionChatName.index"
+	[ -f "$stampFile" ] || return 1
+	case "$2" in ''|*[!0123456789]*) return 1 ;; esac
+	AgentsToolsSessionChatLockTake "$1"
+	stampTmp="$( mktemp "$stampFile.XXXXXX" 2> /dev/null )" || stampTmp=""
+	if [ -n "$stampTmp" ] ; then
+		LC_ALL=C awk -F'\t' -v OFS='\t' -v want="$2" -v ts="$3" -v where="$4" '$1 == want { $2 = ts ; $3 = where ; } { print ; }' "$stampFile" >| "$stampTmp" 2> /dev/null \
+			&& mv -f "$stampTmp" "$stampFile" 2> /dev/null || rm -f "$stampTmp"
+	fi
+	AgentsToolsSessionChatLockGive
+	return 0
+}
+
+## A send's own record, before its post (the write path of F9.1): the message a run is about to send, recorded as
+## from the member, to the addressees. Prints `<session> <block number>` for AgentsToolsSessionChatStamp, nothing where
+## the call has no session or its folder cannot be kept. Quiet: the send's output is never changed by it.
+AgentsToolsSessionChatSend(){ ## member, addressees (spaced; may be empty), body
+	local sendKey sendNo
+	sendKey="$( AgentsToolsSessionChatKey )"
+	[ -n "$sendKey" ] || return 0
+	## The origin is `own`, the run's; the writer of the console sends with MDAT_CHAT_ORIGIN=console.
+	sendNo="$( printf '%s' "$3" | AgentsToolsSessionChatAppend "$sendKey" "$1" "$( AgentsToolsSessionChatTo $2 )" - - "${MDAT_CHAT_ORIGIN:-own}" 2> /dev/null )" || return 0
+	[ -z "$sendNo" ] || printf '%s %s\n' "$sendKey" "$sendNo"
+	return 0
+}
+
+## What a reader has got to: the value kept for it, nothing and rc 1 for none.
+AgentsToolsSessionChatPointer(){ ## session, reader
+	local pointerDir pointerValue
+	pointerDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
+	[ -f "$pointerDir/$agentsSessionChatName.pointers" ] || return 1
+	pointerValue="$( LC_ALL=C awk -F'\t' -v want="$2" '$1 == want { value = $2 ; found = 1 ; } END { if ( found ) { print value ; } else { exit 1 ; } }' "$pointerDir/$agentsSessionChatName.pointers" 2> /dev/null )" || return 1
+	printf '%s' "$pointerValue"
+}
+
+## Keeps what a reader has got to. With `max` as the fourth word a number only ever goes forward: a reader that is late
+## with its commit never takes another run's pointer back.
+AgentsToolsSessionChatPointerSet(){ ## session, reader, value, max (optional)
+	local pointerDir pointerFile pointerTmp chatLock=""
+	pointerDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
+	mkdir -p "$pointerDir" 2> /dev/null || return 1
+	pointerFile="$pointerDir/$agentsSessionChatName.pointers"
+	AgentsToolsSessionChatLockTake "$1"
+	pointerTmp="$( mktemp "$pointerFile.XXXXXX" 2> /dev/null )" || pointerTmp=""
+	if [ -n "$pointerTmp" ] ; then
+		{ [ ! -f "$pointerFile" ] || cat "$pointerFile" ; } 2> /dev/null | LC_ALL=C awk -F'\t' -v OFS='\t' -v want="$2" -v value="$3" -v onlyForward="${4:-}" '
+			$1 == want { found = 1 ; if ( onlyForward == "max" && ( $2 + 0 ) > ( value + 0 ) ) { print ; } else { print want, value ; } next ; }
+			{ print ; }
+			END { if ( ! found ) { print want, value ; } }' >| "$pointerTmp" 2> /dev/null \
+			&& mv -f "$pointerTmp" "$pointerFile" 2> /dev/null || rm -f "$pointerTmp"
+	fi
+	AgentsToolsSessionChatLockGive
+	return 0
+}
+
+## The thread of the session, `<channel>:<ts>`: the one a run is given, else the one the session keeps. rc 1, nothing printed, for none.
+AgentsToolsSessionChatThread(){ ## session
+	local threadLine="" threadDir
+	[ -z "${MDAT_SESSION_THREAD:-}" ] || { printf '%s' "$MDAT_SESSION_THREAD" ; return 0 ; }
+	threadDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
+	[ -f "$threadDir/session.thread" ] && IFS= read -r threadLine < "$threadDir/session.thread" || return 1
+	[ -n "$threadLine" ] || return 1
+	printf '%s' "$threadLine"
+}
+
+## The role of this run in its session: the run that founded it, whose own id is the id of the session, is its executor, every
+## other run a participant. A client's own session is its own.
+AgentsToolsSessionChatRole(){ ## session
+	if [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || [ "${MDAT_SPAWN_SESSION_ID:-}" = "$1" ] ; then
+		printf 'executor'
+	else
+		printf 'participant'
+	fi
+}
+
+## A member's Slack account, from the mention-id cache; nothing for none.
+AgentsToolsSessionChatMemberId(){ ## member
+	[ -n "${MMDAPP:-}" ] && [ -f "$MMDAPP/.local/.agents/slack-mention-ids.cache" ] || return 0
+	LC_ALL=C awk -F= -v who="$1" '$1 == who && $2 != "-" { print $2 ; exit ; }' "$MMDAPP/.local/.agents/slack-mention-ids.cache" 2> /dev/null
+}
+
+## A member's pointer, made where it has none: at the end of the file as it stands, 0 for a file with nothing in it yet. What is
+## there at a member's first contact is not new to it; what comes after is. A Wait calls it before it reads anything into the file.
+AgentsToolsSessionChatReaderInit(){ ## session, member
+	local initDir initCount=0
+	AgentsToolsSessionChatPointer "$1" "read:$2" > /dev/null && return 0
+	initDir="$( AgentsToolsSessionChatDir "$1" )" || return 0
+	initCount="$( { LC_ALL=C wc -l < "$initDir/$agentsSessionChatName.index" ; } 2> /dev/null | LC_ALL=C tr -d ' ' )"
+	case "$initCount" in ''|*[!0123456789]*) initCount=0 ;; esac
+	AgentsToolsSessionChatPointerSet "$1" "read:$2" "$initCount"
+}
+
+## THE FLOOR of a member's run, from its pointer forward: prints the blocks (each run of one source behind a `# via <source>`
+## line) and keeps nothing. agentsSessionChatNewest is the number the pointer is to be moved to once what was printed is
+## delivered (AgentsToolsSessionChatDelivered), empty where nothing was read. A member with no pointer yet gets one at the
+## end of the file and nothing is printed. <covered> is the spaced <channel>:<thread> a source of the same Wait reads itself.
+##
+## THE SESSION CHANNEL'S OWN READ (F7.2, ThisSession's --wait-session-channel): agentsSessionChatFilter, spaced words of me, here, any, set
+## by the caller for the one call, reads the messages of the session thread by those words in place of the floor's rule for them
+## (AgentsSessionChatRead.awk, -v filter). The pointer then stops in front of the first block the floor owes the member that the words
+## passed over, and agentsSessionChatSeen names the blocks delivered beyond it, spaced, for AgentsToolsSessionChatSeen to mark.
+agentsSessionChatNewest=""
+agentsSessionChatFilter=""
+agentsSessionChatSeen=""
+AgentsToolsSessionChatFloor(){ ## session, member, covered (optional), `deliver` (optional: the pointer moves as the blocks are printed)
+	local floorDir floorCount floorPointer floorSide floorThread
+	agentsSessionChatNewest="" agentsSessionChatSeen=""
+	floorDir="$( AgentsToolsSessionChatDir "$1" )" || return 0
+	[ -n "$2" ] && [ -d "$floorDir" ] || return 0
+	AgentsToolsSessionChatReaderInit "$1" "$2"
+	[ -s "$floorDir/$agentsSessionChatName.index" ] || return 0
+	floorCount="$( { LC_ALL=C wc -l < "$floorDir/$agentsSessionChatName.index" ; } 2> /dev/null | LC_ALL=C tr -d ' ' )"
+	case "$floorCount" in ''|*[!0123456789]*) return 0 ;; esac
+	floorPointer="$( AgentsToolsSessionChatPointer "$1" "read:$2" )" || return 0
+	case "$floorPointer" in ''|*[!0123456789]*) return 0 ;; esac
+	[ "$floorCount" -gt "$floorPointer" ] || return 0
+	floorThread="$( AgentsToolsSessionChatThread "$1" )" || floorThread=""
+	floorSide="$( mktemp "$floorDir/floor.XXXXXX" 2> /dev/null )" || return 0
+	LC_ALL=C awk -v after="$floorPointer" -v member="$2" -v role="$( AgentsToolsSessionChatRole "$1" )" -v thread="$floorThread" -v memberId="$( AgentsToolsSessionChatMemberId "$2" )" \
+		-v covered="${3:-}" -v replySource="replies:$1" -v side="$floorSide" -v filter="${agentsSessionChatFilter:-}" -v pendingBefore="$( AgentsToolsSessionChatPendingCutoff )" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionChatRead.awk" "$floorDir/$agentsSessionChatName.index" "$floorDir/$agentsSessionChatName" 2> /dev/null || :
+	agentsSessionChatNewest="$( LC_ALL=C sed -n 's/^newest //p' "$floorSide" 2> /dev/null | head -1 )"
+	agentsSessionChatSeen="$( LC_ALL=C sed -n 's/^seen //p' "$floorSide" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
+	rm -f "$floorSide"
+	[ "${4:-}" != "deliver" ] || AgentsToolsSessionChatDelivered "$1" "$2"
+	return 0
+}
+
+## Moves a member's pointer to what AgentsToolsSessionChatFloor read, once the caller has handed it over.
+AgentsToolsSessionChatDelivered(){ ## session, member
+	[ -n "${agentsSessionChatNewest:-}" ] || return 0
+	AgentsToolsSessionChatPointerSet "$1" "read:$2" "$agentsSessionChatNewest" max
+	agentsSessionChatNewest=""
+	[ -z "${agentsSessionChatSeen:-}" ] || AgentsToolsSessionChatSeen "$1" "$2" $agentsSessionChatSeen
+	agentsSessionChatSeen=""
+}
+
+## Marks blocks as delivered to a member by its own call, in the last field of their index lines (the members, comma-joined): the
+## floor reads past a block marked for its member. Nothing but the index changes, and a number that is no block is let be.
+AgentsToolsSessionChatSeen(){ ## session, member, block number...
+	local seenSession="$1" seenDir seenFile seenTmp seenMember="$2" seenNumbers chatLock=""
+	seenDir="$( AgentsToolsSessionChatDir "$seenSession" )" || return 1
+	seenFile="$seenDir/$agentsSessionChatName.index"
+	[ -f "$seenFile" ] || return 1
+	shift 2
+	seenNumbers=" $* "
+	case "$seenNumbers" in *[!\ 0123456789]*) return 1 ;; esac
+	AgentsToolsSessionChatLockTake "$seenSession"
+	seenTmp="$( mktemp "$seenFile.XXXXXX" 2> /dev/null )" || seenTmp=""
+	if [ -n "$seenTmp" ] ; then
+		SEEN_NUMBERS="$seenNumbers" SEEN_MEMBER="$seenMember" LC_ALL=C awk -F'\t' -v OFS='\t' '
+			$1 + 0 > 0 && index(ENVIRON["SEEN_NUMBERS"], " " $1 " ") > 0 {
+				seenCount = split($6, seenList, ",") ; seenHas = 0 ;
+				for ( seenAt = 1 ; seenAt <= seenCount ; seenAt++ ) { if ( seenList[seenAt] == ENVIRON["SEEN_MEMBER"] ) { seenHas = 1 ; } }
+				if ( ! seenHas ) { $6 = ( $6 == "-" || $6 == "" ) ? ENVIRON["SEEN_MEMBER"] : $6 "," ENVIRON["SEEN_MEMBER"] ; }
+			}
+			{ print ; }' "$seenFile" >| "$seenTmp" 2> /dev/null \
+			&& mv -f "$seenTmp" "$seenFile" 2> /dev/null || rm -f "$seenTmp"
+	fi
+	AgentsToolsSessionChatLockGive
+	return 0
+}
+
+## Reads a rendering of a Slack thread or conversation (AgentsSlackMessagesFormat.awk) into the file: the messages it does not
+## hold yet become blocks, under the file's lock (AgentsSessionChatImport.awk). Quiet, and no reason for a caller to fail.
+## <origin> is slack, or reply:<member>; <seen> the member whose own Wait delivers these itself, `-` for none. The first time a
+## thread is read, what was there before the run began is history: a message at or before the run's launch.
+AgentsToolsSessionChatImport(){ ## session, conversation:thread, rendering file, origin, seen (optional)
+	local importDir importWork importHistory=0 importStamp importMarker importMap chatLock="" importLine importNo
+	importDir="$( AgentsToolsSessionChatDir "$1" )" || return 0
+	[ -f "$3" ] || return 0
+	mkdir -p "$importDir" 2> /dev/null || return 0
+	importWork="$( mktemp -d "$importDir/import.XXXXXX" 2> /dev/null )" || return 0
+	AgentsToolsSessionChatLockTake "$1"
+	if ! AgentsToolsSessionChatPointer "$1" "import:$2" > /dev/null ; then
+		importHistory="$( date +%s )"
+		importMarker="${MDAT_SPAWN_LAUNCH_MARKER:-}"
+		if [ -n "$importMarker" ] && [ -f "$importMarker" ] ; then
+			importStamp="$( stat -f %m "$importMarker" 2> /dev/null || stat -c %Y "$importMarker" 2> /dev/null )" || importStamp=""
+			case "$importStamp" in ''|*[!0123456789]*) ;; *) importHistory="$importStamp" ;; esac
+		fi
+		## Written under the lock this function holds already, so it is not asked for again.
+		printf 'import:%s\t%s\n' "$2" "$importHistory" >> "$importDir/$agentsSessionChatName.pointers" 2> /dev/null || :
+	fi
+	: > "$importWork/chat" ; : > "$importWork/index" ; : > "$importWork/none"
+	[ -f "$importDir/$agentsSessionChatName.index" ] || : > "$importDir/$agentsSessionChatName.index"
+	[ -f "$importDir/$agentsSessionChatName" ] || : > "$importDir/$agentsSessionChatName"
+	importLine=$(( $( { LC_ALL=C wc -l < "$importDir/$agentsSessionChatName" ; } 2> /dev/null || printf 0 ) + 1 ))
+	importNo=$(( $( { LC_ALL=C wc -l < "$importDir/$agentsSessionChatName.index" ; } 2> /dev/null || printf 0 ) + 1 ))
+	importMap="${MMDAPP:-/nonexistent}/.local/.agents/slack-mention-ids.cache"
+	[ -f "$importMap" ] || importMap="$importWork/none"
+	LC_ALL=C awk -v channel="${2%%:*}" -v where="$2" -v origin="${4:-slack}" -v seen="${5:--}" -v historyBefore="$importHistory" \
+		-v startLine="$importLine" -v startNo="$importNo" -v chatOut="$importWork/chat" -v indexOut="$importWork/index" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionChatImport.awk" \
+		"$importDir/$agentsSessionChatName.index" "$importMap" "$3" 2> /dev/null || :
+	if [ -s "$importWork/index" ] ; then
+		cat "$importWork/chat" >> "$importDir/$agentsSessionChatName" 2> /dev/null && cat "$importWork/index" >> "$importDir/$agentsSessionChatName.index" 2> /dev/null || :
+	fi
+	AgentsToolsSessionChatLockGive
+	rm -rf "$importWork"
+	return 0
+}

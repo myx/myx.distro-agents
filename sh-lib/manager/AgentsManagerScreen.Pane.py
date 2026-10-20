@@ -76,7 +76,7 @@ def viewKeyOf(state):
 ## cell in view while its lines are cut and it is scrolled sideways.
 def newView(viewKey, feeds):
     return {"key": viewKey, "head": [], "lines": [], "top": 0, "feeds": feeds, "follow": feeds,
-            "info": None, "feed": None, "acts": None, "lineKeys": [], "built": None, "looks": {}, "left": 0}
+            "info": None, "feed": None, "acts": None, "lineKeys": [], "built": None, "looks": {}, "left": 0, "table": {}}
 
 
 ## The left pane follows the selection: another item is shown from its first line, and
@@ -104,9 +104,11 @@ def followSelection(state):
     ## how many rows a table holds is said again by what makes it (tableCount); where nothing is
     ## made new the pane keeps what it said
     counted = state.view.pop("tableRows", None)
+    countedAll = state.view.pop("tableAll", None)
     local = localView(state, row)
     if local is None and counted is not None:
         state.view["tableRows"] = counted
+        state.view["tableAll"] = countedAll
     if local is not None:
         state.view["lines"] = local
         state.view["lineKeys"] = []
@@ -154,74 +156,24 @@ def panOf(state, room):
     return view["left"]
 
 
-## What the left pane shows with no read of its own, from what a list read already holds:
-## the summary of a session and of an agent; of a folder, a row that opens a level, what
-## it holds, by its declaration (folderSummary); the selected ask; the selected routine of
-## `Launch (Start)` and its free prompt; the selected team member; a line of a subject of
-## the digest; a check; a server key and a group of them; the selected thing to start; the
-## one block of the selected row of the dashboard; the selected location. None: the pane
-## has no such content, and shows what its own read gives.
+## What the left pane shows with no read of its own, from what a list read already holds: the summary of the
+## folder a row opens, by its declaration (folderSummary); else what the focus handler of the level the list is at
+## gives of the row selected there (FOCUS, the "focus" of a plugin: the session and the agent, the selected ask,
+## routine, member, line of a subject, check, server key, thing to start, block of the dashboard, location, and so
+## on), a spec of a view kind or the lines the feature sets out itself (focusLines); else the help a read gave of the
+## row, as it is written (a tooling command's), set out as the help is. None: the pane has no such content, and shows
+## what its own read gives.
 def localView(state, row):
     if row is None:
         return None
-    level = levelPattern(state.path)
-    if not logShown(state, row):
-        ## the summary of a session and of an agent: its facts, and nothing of its log;
-        ## one that has no log has its summary alone, whatever the mode
-        if level in (pluginLevel("sessions"), pluginLevel("team", "*/sessions")) and row.get("session"):
-            return sessionLines(row["session"], state.viewWidth, state.view["info"], wrap=state.wrap)
-        if level == pluginLevel("sessions", "*") and row.get("run"):
-            return runLines(row["run"], state.viewWidth, state.view["info"])
     summary = folderSummary(state, row)
     if summary is not None:
         return summary
-    if level == pluginLevel("pending") and row.get("ask"):
-        ## set out again only when the ask, what is stored of it, the width or the minute has changed
-        stamp = (row["ask"], id(state.view["info"]), state.viewWidth, int(nowEpoch() // 60))
-        if state.view.get("askFor") == stamp:
-            return None
-        state.view["askFor"] = stamp
-        return askLines(row["ask"], state.viewWidth, state.view["info"])
-    if level == pluginLevel("sessions", "launch") and row.get("routine"):
-        return routineLines(row["routine"], state.viewWidth)
-    if level == pluginLevel("sessions", "launch") and row["kind"] == "free":
-        return freePromptLines(state.viewWidth)
-    if level == pluginLevel("team") and row.get("member"):
-        ## set out again only when the member, what was read of it, the width or the minute has changed
-        stamp = (row["member"], id(state.view["info"]), state.viewWidth, int(nowEpoch() // 60))
-        if state.view.get("memberFor") == stamp:
-            return None
-        state.view["memberFor"] = stamp
-        return memberLines(row["member"], state.viewWidth, state.view["info"])
-    if row.get("line"):
-        return settingLines(row["line"], state.viewWidth, placer(state))
-    if row.get("lineGroup"):
-        tableCount(state, row["lineGroup"]["lines"])
-        return groupLines(row["lineGroup"], state.viewWidth, state.wrap, fullPane(state), placer(state))
-    if row.get("check"):
-        return checkLines(row["check"], state.viewWidth)
-    if row.get("serverKey"):
-        return serverKeyLines(state, state.path, row["serverKey"], state.viewWidth)
-    if row.get("keyGroup"):
-        return keyGroupLines(state, state.path, [row["keyGroup"]], state.viewWidth)
-    if level == pluginLevel("consoles") and row.get("start"):
-        return startLines(row["start"], state.viewWidth)
-    if level in (pluginLevel("dashboard"), pluginLevel("teamdata")) and row.get("block"):
-        return blocksView(state, row["id"], levelKey(state.path))
-    if level == pluginLevel("teamdata", "operations") and row["kind"] == "operation":
-        return cleanupLines(state, row)
-    if level == pluginLevel("places") and row.get("place"):
-        return placeLines(state, row["place"], state.viewWidth, state.view["info"])
-    if level == pluginLevel("places", "*") and row.get("placeCommand"):
-        return placeCommandLines(row["placeCommand"], state.viewWidth)
-    if row.get("grant"):
-        return grantLines(row["grant"], state.viewWidth)
-    if row.get("grantKind"):
-        return grantKindLines(state, row, state.viewWidth)
-    if row.get("file") and not row["text"]:
-        return ["%s: %s, no text: it is not shown." % (row["id"], shortBytes(row["file"]["bytes"]))]
-    if row.get("help"):
-        return helpLines(state, row, row["help"])
+    handler = FOCUS.get(levelPattern(state.path))
+    if handler is not None:
+        content = globals()[handler](state, row)
+        if content is not None:
+            return focusLines(state, content)
     if helpShown(state, row) and state.view.get("text") is not None:
         ## the help a read gave of the row, as it is written (a tooling command's), set out as the
         ## help is; a read that gave none says so
@@ -276,7 +228,7 @@ def actionShown(state, row, actionName):
 
 ## How many lines of the left pane its content has: all of them.
 def viewContentHeight(state, layout):
-    return layout["viewHeight"]
+    return layout["viewHeight"] - (1 if filterLineShown(state) else 0)
 
 
 ## How many of those lines scroll: what the head of the pane leaves.
@@ -293,7 +245,7 @@ def viewHead(state, row):
         return []
     limit = max(4, state.viewHeight // 2) - 1
     lines = answerLines(state, limit)
-    if logShown(state, row) and (row.get("session") or row.get("run")):
+    if logShown(state, row):
         lines.extend(fieldLines([("lines", sourceText(state, row))], state.viewWidth))
     return lines
 

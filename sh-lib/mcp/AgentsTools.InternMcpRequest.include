@@ -106,8 +106,8 @@ AgentsMcpReplyText(){ ## tool name, result
 ## this server sends, a harness tool's included. A call of a batch carries none: the batch's reply has the one.
 AgentsMcpReplyDatePart(){
 	[ -z "${MDAT_REPLY_IN_BATCH:-}" ] || return 0
-	type AgentsTranscriptReplyDate > /dev/null 2>&1 || return 0
-	printf ',{"type":"text","text":"%s"}' "$( AgentsTranscriptReplyDate )"
+	type AgentsTranscriptReplyBeside > /dev/null 2>&1 || return 0
+	printf ',{"type":"text","text":"%s"}' "$( AgentsTranscriptReplyBeside | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
 }
 
 ## A notification carries no id and is never answered, so it has a sender of its own.
@@ -204,7 +204,7 @@ AgentsMcpJobDeadline(){ ## seconds, milliseconds, job directory
 ## number alone.
 AgentsMcpCallWatch(){ ## seconds, pid of the call (the leader of its process group), kill file
 	local watchBegan watchMembers watchLeft
-	type AgentsToolsRegistryGroupLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null
+	type AgentsToolsRegistryGroupLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
 	watchBegan="$( printf '%s\n' "$2" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
 	sleep "$1"
 	watchMembers="$( AgentsToolsRegistryGroupBegan "$watchBegan" 2> /dev/null )" && { : > "$3" ; kill -TERM -- "-$2" 2>/dev/null ; } || return 0
@@ -618,7 +618,7 @@ case "$1" in
 									## has that number, nothing shows whose it is: nothing is signalled by the
 									## number alone, and the caller is told so.
 									mcpIsError='false'
-									type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null
+									type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
 									if [ -n "$mcpJobPid" ] && [ "$( printf '%s\n' "$mcpJobPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$mcpJobKept" ] && kill -TERM -- "-$mcpJobPid" 2>/dev/null ; then
 										mcpOutput="[job $mcpJob: TERM sent to process group $mcpJobPid]"
 									elif [ -n "$mcpJobPid" ] && [ "$mcpJobPid" = "$mcpJobKept" ] && kill -0 "$mcpJobPid" 2>/dev/null ; then
@@ -733,7 +733,7 @@ case "$1" in
 					## Kept with when it began, read here as the job starts, and put in place with the
 					## pid by one rename (the directory is this request's alone): the kill action signals
 					## the group of that number only while its leader is still that process.
-					type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null
+					type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
 					mcpJobKept="$( printf '%s\n' "$mcpJobPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
 					printf '%s\n' "${mcpJobKept:-$mcpJobPid}" > "$mcpJobsDir/$mcpJobId/pid.aside" && mv -f "$mcpJobsDir/$mcpJobId/pid.aside" "$mcpJobsDir/$mcpJobId/pid"
 

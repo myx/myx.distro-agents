@@ -73,7 +73,6 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- This routine extends `magic-team.coworking.routine`; this file wins on conflict.
 - The skill-update offer of the **close-session** group is scoped to this member.
 - A decision outside the member's mandate goes through the chain of command, even though the human-owner is in the conversation.
 - Keep `event-track` current as the routine runs.
@@ -103,7 +102,6 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-team.coworking.routine` — the template: **session-start** and **close-session**.
 - `magic-coordinator.root-harness.routine` — spawns this routine's executor and relays the human-owner's turns.
 
 ### Conventions

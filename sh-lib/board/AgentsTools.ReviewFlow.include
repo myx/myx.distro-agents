@@ -124,7 +124,7 @@ AgentsReviewChildLive(){ ## record path
 	liveHost="$( AgentsToolsSpawnSandboxRecordHeader "$1" host )"
 	thisHost="$( hostname -s 2> /dev/null )" || thisHost="unknown"
 	[ "$liveHost" = "$thisHost" ] || return 0
-	type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+	type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	! AgentsToolsRegistrySpawnRuns "$liveSpawn" "$1" || return 0
 	printf 'spawn %s is not running on this host, so its session has ended\n' "$liveSpawn"
 	return 1
@@ -460,11 +460,11 @@ AgentsPendingAsksForRoutine(){ ## routine short name, e.g. permission-escalation
 		paRows="$paRows${paFile%.md}"$'\t'"${paKind:-question}"$'\t'"$paTo"$'\t'"$paAt"$'\n'
 	done
 	[ -n "$paRows" ] || return 0
-	## The epoch by the one ISO reader (AgentsIsoToEpoch.awk); `asked-at` is `YYYY-MM-DD HH:MM +HHMM`.
+	## The epoch by the one ISO reader (LocalIsoToEpoch.awk); `asked-at` is `YYYY-MM-DD HH:MM +HHMM`.
 	LC_ALL=C paste <( printf '%s' "$paRows" | LC_ALL=C awk -F'\t' '
 		$4 ~ /^[0-9][0-9][0-9][0-9]-[01][0-9]-[0-3][0-9] [0-2][0-9]:[0-5][0-9] [-+][0-9][0-9][0-9][0-9]$/ { print substr( $4, 1, 10 ) "T" substr( $4, 12, 5 ) ":00" substr( $4, 18 ) ; next ; }
 		{ print "1970-01-01T00:00:00Z" ; }
-	' | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsIsoToEpoch.awk" ) <( printf '%s' "$paRows" ) | LC_ALL=C sort -t "$( printf '\t' )" -k1,1n -k2,2
+	' | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" ) <( printf '%s' "$paRows" ) | LC_ALL=C sort -t "$( printf '\t' )" -k1,1n -k2,2
 }
 
 ## Where a spawn's handback goes when it names session-parent: the parent session's own

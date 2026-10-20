@@ -31,8 +31,10 @@ HARNESS_CREDENTIAL_NAMES="SCALEWAY_DEEPSEEK or SCALEWAY_GEMMA"
 ## own reasoning_effort. Either key reaches either model -- Scaleway scopes by
 ## Project and policy, not by model -- so each tier prefers its own key and
 ## falls back to the other rather than failing.
-HARNESS_MODEL_LIGHT="gemma-4-26b-a4b-it"
-HARNESS_MODEL_MAIN="deepseek-v4-flash-0731"
+## A model an exported HARNESS_MODEL_LIGHT or HARNESS_MODEL_MAIN names stands ahead of the leg's own: the console
+## exports the model name of the preset a spawn runs on (F10.2), and nothing else does. The default is the leg's.
+HARNESS_MODEL_LIGHT="${HARNESS_MODEL_LIGHT:-gemma-4-26b-a4b-it}"
+HARNESS_MODEL_MAIN="${HARNESS_MODEL_MAIN:-deepseek-v4-flash-0731}"
 
 ## Each model's own window. Scaleway's /v1/models publishes none, so this is its
 ## supported-models page on 2026-09-28, which gives both as "256k" and no exact figure.

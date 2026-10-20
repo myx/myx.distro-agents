@@ -24,7 +24,7 @@ document-contract: board-item.interview
 type: interview
 from: <member>
 date: <date-time>
-owner: <optional -- member, the current assignee>
+owner: <member, the current assignee>
 ---
 # Interview: <matter, one line>
 

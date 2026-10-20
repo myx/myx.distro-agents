@@ -31,6 +31,11 @@
 ## And its waits remind no ask (MDAT_WAIT_REMIND=off, AgentsTools.MemberWait.include): the asks of
 ## a rig carry the ts its fake Slack gives, years old, so every wait that brings nothing would
 ## remind them, one more post than a scenario counts. A test of the reminders unsets it.
+## And no test starts the communications reader (MDAT_COMMS_READER=off, AgentsTools.SessionComms.include):
+## a detached process of the tooling that a rig's spawn would leave running after the rig is gone. The
+## check of the reader unsets it, and ends what it starts.
+## And none starts the thread that updates the sources a scan reads (MDAT_COLLECT_THREAD=off, AgentsTools.CollectThread.include): the same
+## kind of process, left running after its rig is gone. The check of the thread unsets it, and ends what it starts.
 ##
 ## ONE FULL SUITE AT A TIME, MACHINE-WIDE. A run of every test (no name given) waits its turn,
 ## in arrival order, and says in one line that it waits and behind whom; a run of named tests
@@ -512,6 +517,8 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 		unset ${!MDAT_SPAWN_@} ${!MDAT_SESSION_@} MDAT_CONVERSATION_THREADS harnessSessionId harnessAgent
 		export CLAUDE_CODE_SESSION_ID="rig-run-$oneName-test-only"
 		export MDAT_WAIT_REMIND=off
+		export MDAT_COMMS_READER=off
+		export MDAT_COLLECT_THREAD=off
 		cd "$testDir" || exit 1
 		exec perl -e "$runSlotKeeper" take "$runSlotDir" "$runSlotDefault" 8 "$runDir/slot-wait.said" "$runDir/$oneName.started" "$runTestLock" "$runOwnFolder" "$oneTimeout" "$BASH" "$( AgentsRunTestPath "$oneName" )"
 	) 8>&2 > "$runDir/$oneName.log" 2>&1 &

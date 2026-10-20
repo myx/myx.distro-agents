@@ -7,12 +7,14 @@
 ## mode of a thing that has a log, in every style, and the choice is kept as the selection moves; the status line
 ## names the key of the help, last of the keys that work in every window; a kill whose plan could not be read is
 ## not asked for: its dialog says so, takes no word and has Cancel alone, and no kill reaches the tooling.
-## The number keys of the roots follow the order of the root list, top to bottom, `Launch (Start)` after them, and the
+## The number keys of the roots follow the order of the root list, top to bottom, and the
 ## menu Go names them so.
 ## And, with the real screen on a pseudo-terminal that is its controlling terminal: while a child has the whole
 ## terminal, an interrupt and a quit typed there reach the child and never end the screen, and a stop typed there
 ## leaves neither the child nor the screen stopped: the child reads on, ends in order, and the screen is back.
 ## Offline: no operation of the real tooling is called.
+## Reconciled for F11.5: the roots are Dashboard, Pending Questions, Magic-Team (Agents), Locations, Consoles, Settings, Configuration and Manuals, keys 1 to 8 (9 is
+## Launch (Start) of Activity, as before the one level besides the roots), the Go menu numbers those and the levels mounted on them have no other number; a thing that has a log is the transcript of a participant of a session, reached with `at`.
 ## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`.
 ## Reconciled for F11.0, the table lines: the table of the consoles wraps `Rig Child` in its column where the command wraps in fewer lines for it, so the child's row is waited for by `Child`.
 set -u
@@ -190,7 +192,9 @@ border t2 1 0 84
 keys TAB DOWN
 turn
 border t3 1 0 84
-keys UP ENTER DOWN DOWN
+at @activity active-sessions s-run sp-1
+turn
+keys DOWN DOWN
 turn
 border t4 1 0 84
 keys TAB w TAB
@@ -202,10 +206,10 @@ style magic
 turn
 show m
 RIGSCRIPT
-rigAssert "wrapped, as the screen starts: the title says so, on every row" "[$( rigVal t0 )] [$( rigVal t1 )]" "[Dashboard (Monitor) [wrap]] [Sessions (Activity) [wrap]]"
-rigAssert "w in the left window: the title says cut, and still does when the selection has moved" "[$( rigVal t2 )] [$( rigVal t3 )]" "[Sessions (Activity) [cut]] [Pending Questions [cut]]"
-rigAssert "a thing that has a log: the wrap state stands beside its mode, cut and then wrapped again" "[$( rigVal t4 )] [$( rigVal t5 )]" "[daily of Monday [summary] [cut]] [daily of Monday [summary] [wrap]]"
-rigAssert "with no colours and in Magic too" "[$( rigVal t6 )] $( rigHolds m 'daily of Monday [summary] [wrap]' )" "[daily of Monday [summary] [wrap]] 1"
+rigAssert "wrapped, as the screen starts: the title says so, on every row" "[$( rigVal t0 )] [$( rigVal t1 )]" "[Dashboard (Monitor) [wrap]] [Pending Questions [wrap]]"
+rigAssert "w in the left window: the title says cut, and still does when the selection has moved" "[$( rigVal t2 )] [$( rigVal t3 )]" "[Pending Questions [cut]] [Magic-Team (Agents) [cut]]"
+rigAssert "a thing that has a log: the wrap state stands beside its mode, cut and then wrapped again" "[$( rigVal t4 )] [$( rigVal t5 )]" "[Transcript [summary] [cut]] [Transcript [summary] [wrap]]"
+rigAssert "with no colours and in Magic too" "[$( rigVal t6 )] $( rigHolds m 'Transcript [summary] [wrap]' )" "[Transcript [summary] [wrap]] 1"
 
 echo "-- Help has its word in the status line --"
 rigCase help
@@ -226,7 +230,9 @@ echo fail > "$MANAGER_SCREEN_RIG/mode.--manager-session-kill"
 rigScript <<'RIGSCRIPT'
 turn
 wait sessions 5
-keys DOWN ENTER DOWN DOWN
+at @activity active-sessions
+turn
+keys DOWN
 turn
 keys k
 wait plan 5
@@ -270,8 +276,8 @@ keys m
 turn
 show go
 RIGSCRIPT
-rigAssert "1 to 9 go to the roots in the order of the list, the ninth Manuals (Help); Launch (Start) after them has none past nine; Alt with a number does the same" "$( rigVal k1.path ) $( rigVal k2.path ) $( rigVal k3.path ) $( rigVal k4.path ) $( rigVal k5.path ) $( rigVal k6.path ) $( rigVal k7.path ) $( rigVal k8.path ) $( rigVal k9.path ) $( rigVal a4.path )" "dashboard sessions pending team places consoles settings configuration manuals team"
-rigAssert "the menu Go names them so, top to bottom" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Dashboard (Monitor)  *1 ' -e 'Sessions (Activity)  *2 ' -e 'Pending Questions  *3 ' -e 'Team Members  *4 ' -e 'Locations (Places)  *5 ' -e 'Consoles  *6 ' -e 'Settings  *7 ' -e 'Configuration  *8 ' -e 'Manuals (Help)  *9 ' | LC_ALL=C sed 's/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Dashboard (Monitor) 1|Sessions (Activity) 2|Pending Questions 3|Team Members 4|Locations (Places) 5|Consoles 6|Settings 7|Configuration 8|Manuals (Help) 9|"
+rigAssert "1 to 8 go to the roots in the order of the list, the eighth Manuals (Help); the ninth is Launch (Start) of Activity, the one level named besides the roots; Alt with a number does the same" "$( rigVal k1.path ) $( rigVal k2.path ) $( rigVal k3.path ) $( rigVal k4.path ) $( rigVal k5.path ) $( rigVal k6.path ) $( rigVal k7.path ) $( rigVal k8.path ) $( rigVal k9.path ) $( rigVal a4.path )" "dashboard pending magic-team places consoles settings configuration manuals magic-team/activity/launch places"
+rigAssert "the menu Go names them so, top to bottom" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Dashboard (Monitor)  *1 ' -e 'Pending Questions  *2 ' -e 'Magic-Team (Agents)  *3 ' -e 'Locations (Places)  *4 ' -e 'Consoles  *5 ' -e 'Settings  *6 ' -e 'Configuration  *7 ' -e 'Manuals (Help)  *8 ' -e 'Launch (Start)  *9 ' | LC_ALL=C sed 's/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Dashboard (Monitor) 1|Pending Questions 2|Magic-Team (Agents) 3|Locations (Places) 4|Consoles 5|Settings 6|Configuration 7|Manuals (Help) 8|Launch (Start) 9|"
 
 echo "-- the real screen on a pseudo-terminal it controls: an interrupt, a quit and a stop typed while a child has the terminal are the child's alone --"
 rigCase child
@@ -291,7 +297,7 @@ while : ; do
 done
 RIGCHILD
 rigRow console child Rig Rig_Child terminal "$rigTmp" bash "$rigTmp/child.sh" > "$MANAGER_SCREEN_RIG/rows.--manager-console-list"
-rigOut="$( MANAGER_SCREEN_PTY_SESSION=1 MANAGER_SCREEN_PTY_TRACE='up=CHILD-UP|int=GOT-INT|quit=GOT-QUIT|read=READ-x|ended=Rig Child: ended with status 0' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 120 36 "Sessions (Activity)" '\x1bOA\p\x1bOA\p\x1bOA\p\aChild\a\r\p\x1bOB\p\r\p\aCHILD-UP\a\x03\p\aGOT-INT\a\x1c\p\aGOT-QUIT\a\x1a\px\r\p\aended with status 0\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
+rigOut="$( MANAGER_SCREEN_PTY_SESSION=1 MANAGER_SCREEN_PTY_TRACE='up=CHILD-UP|int=GOT-INT|quit=GOT-QUIT|read=READ-x|ended=Rig Child: ended with status 0' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 120 36 "Magic-Team (Agents)" '5\p\aChild\a\x1bOB\p\r\p\aCHILD-UP\a\x03\p\aGOT-INT\a\x1c\p\aGOT-QUIT\a\x1a\px\r\p\aended with status 0\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
 rigAssert "Ctrl-C and Ctrl-\\ reach the child, which says so and runs on; after Ctrl-Z it still reads its line and ends in order; the screen is back, says how it ended, and ends with status 0 by its own key, having left its screen" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft ) [$( rigVal pty.trace | LC_ALL=C tr ' ' '\n' | LC_ALL=C uniq | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )]" "yes 0 yes none [up int quit read ended]"
 
 if [ "$rigFailCount" -ne 0 ] ; then

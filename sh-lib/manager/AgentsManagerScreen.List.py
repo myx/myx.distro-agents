@@ -46,15 +46,29 @@ def rowKey(row):
     return row["kind"] + ":" + row["id"]
 
 
+## The row with the number its level is counted by (COUNTED) where that is known: the list draws it after the label, `Pending Questions [2]`.
+def countedRow(state, path, row):
+    function = COUNTED.get(levelKey(list(path) + [row["id"]]))
+    count = globals()[function](state) if function else None
+    if count is not None:
+        row["count"] = count
+    return row
+
+
+## What the list draws after the label of a row: the number its level is counted by, or nothing.
+def countedText(row):
+    return " [%d]" % row["count"] if "count" in row else ""
+
+
 ## The rows of a level: the root holds the sections; below it the first row goes up, then
 ## come the rows the level always holds, then the rows its operation gave.
 def levelRowsAt(state, path):
     if not path:
-        return [newRow(sectionId, sectionLabel, "section", True) for sectionId, sectionLabel in SECTIONS if sectionShown(state, sectionId)]
+        return [countedRow(state, path, newRow(sectionId, sectionLabel, "section", True)) for sectionId, sectionLabel in SECTIONS if sectionShown(state, sectionId)]
     rows = [newRow(ROW_UP, ROW_UP, "up")]
-    for rowId, label, kind, dive in FIXED_ROWS.get(levelPattern(path), ()):
-        rows.append(newRow(rowId, label, kind, dive))
-    listed = state.rows.get(levelKey(path), ())
+    for rowId, label, kind, dive in fixedRowsShown(state, path):
+        rows.append(countedRow(state, path, newRow(rowId, label, kind, dive)))
+    listed = listedRows(state, path) or ()
     if state.activeOnly and levelKey(path) in state.activeOf:
         ## the filter shows what the operation gave when it was last asked for the active
         ## ones, also of an answer read without it: which are active is the operation's to say
@@ -65,6 +79,18 @@ def levelRowsAt(state, path):
 
 def levelRows(state):
     return levelRowsAt(state, state.path)
+
+
+## The rows of a level that the read of its operation gave, or that the function its plugin derives them with makes of what other reads
+## hold (the "derived" of a plugin, DERIVED); not the rows it always holds. None until they were read.
+def listedRows(state, path):
+    derived = DERIVED.get(levelPattern(path))
+    return globals()[derived](state, path) if derived else state.rows.get(levelKey(path))
+
+
+## The rows a level always holds, but a root that stands only where what it shows is there and is not there now.
+def fixedRowsShown(state, path):
+    return [fixed for fixed in FIXED_ROWS.get(levelPattern(path), ()) if not pathHidden(state, list(path) + [fixed[0]])]
 
 
 ## The listed rows of a level in the order the user chose: by name where the level is one of ALPHABETICAL
@@ -89,7 +115,7 @@ def spacersAt(state, rows):
         groupOf = dict((sectionId, number) for number, group in enumerate(SECTION_GROUPS) for sectionId in group)
         return frozenset(position for position in range(1, len(rows))
                          if groupOf.get(rows[position]["id"]) != groupOf.get(rows[position - 1]["id"]))
-    fixed = len(FIXED_ROWS.get(levelPattern(state.path), ()))
+    fixed = len(fixedRowsShown(state, state.path))
     return frozenset((1 + fixed,)) if fixed and len(rows) > 1 + fixed else frozenset()
 
 
@@ -100,8 +126,8 @@ def rowLinesBetween(spacers, first, last):
 
 
 ## The one place where what a list operation printed becomes rows, by level: the entry of
-## the read names the form under "rows". "sessions": the sessions, and a level for each
-## with its runs. "pending": the asks. "routines": the routines to start by hand.
+## the read names the form under "rows". "sessions": the sessions, each with its runs, kept
+## where the lists of `Activity` are made from them (SESSIONS_OF). "pending": the asks. "routines": the routines to start by hand.
 ## "members": the team members. "digest": the subjects of the settings and of the
 ## configuration, and a level for each with its lines. "starts": what is started with the
 ## whole terminal. "blocks": the blocks of the dashboard. "places": the
@@ -143,15 +169,16 @@ def parseLevels(readKey, form, text):
     if form == "data-items":
         return {level: parseItemRows(text)}
     if form == "member-grants":
-        return {level: parseGrantRows(text)}
+        ## the rows of `Permissions` are made of the grants as they are drawn (memberGrantRows)
+        return {GRANTS_OF + level: parseGrants(text)}
+    if form == "session-grants":
+        ## the grants that apply to a participant in its session, as the list of permissions prints them
+        return {GRANTS_OF + level: parsePermissionList(text)}
     if form == "member-files":
         return {level: parseFileRows(text)}
     if form == "member-sessions":
-        ## a session of the member opens where every session does, in `Sessions (Activity)`
-        rows = parseSessionLevels(text)[pluginLevel("sessions")]
-        for row in rows:
-            row["jump"] = pluginPath("sessions") + [row["id"]]
-        return {level: rows}
+        ## a session of the member opens in the tree of the member, as it is: its agents, then the folder of each
+        return {level: parseSessionRows(text)}
     if form == "member-help":
         rows, whole = parseHelpRows(text)
         return {level: rows, WHOLE_OF + level: whole}
@@ -235,9 +262,6 @@ def diveIn(state, height):
     row = rows[cursorOf(state, rows, height)["index"]]
     if row["kind"] == "up":
         goUp(state)
-    elif row.get("jump"):
-        ## a row that stands for what has a place of its own elsewhere opens there
-        state.path = list(row["jump"])
     elif row["dive"]:
         state.path = state.path + [row["id"]]
 
@@ -260,4 +284,4 @@ def goUp(state):
 
 ## What the list offers the others to put in (Plugins.py): `alphabetical`, the levels whose listed rows the user may have by name
 ## instead of in the order the operation gave them, by the key of the command "alphabetical" (orderedRows).
-registerPlugin({"name": "list", "registries": {"alphabetical": "level"}})
+registerPlugin({"name": "list", "registries": {"alphabetical": "level", "unfiltered": "level"}})

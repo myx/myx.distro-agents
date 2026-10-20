@@ -96,7 +96,6 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- This routine extends `magic-team.coworking.routine`; this file wins on conflict.
 - The executor frames the day, supervises the work session, makes the board judgements, and owns the close. A participant works only its assigned items, reports when asked, and routes anything else to the executor. Board writes are the executor's alone.
 - This routine is never put on its own schedule without the human-owner's confirmation.
 - The board is the cross-day source of truth for each member's backlog; the todo list resets every session.
@@ -140,7 +139,6 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-team.coworking.routine` — the template this routine extends: its **session-start** and **close-session** groups.
 - `magic-librarian.morning-review.routine` — spawned at **spawn-morning-review**.
 - `magic-coordinator.advance.routine` — run at **run-advance-dispatch**.
 - `magic-coordinator.communication-sweep.routine` — its **check** step at **sweep-comms-read**.

@@ -61,7 +61,7 @@ rigOp(){ ## result file, op and arguments...
 
 echo "-- board create: names --"
 rigB1=approval-20261006T0930Z-rig-matter.md
-printf 'body one\n' | rigOp "$rigTmp/b1" --magic-board-create-running rig-member "$rigB1" --upsert-from-stdin
+printf 'body one\n' | rigOp "$rigTmp/b1" --magic-board-create-running rig-member "$rigB1" --upsert-from-stdin --header:upsert:blocks:task-20261006T0900Z-rig-gated
 rigAssert "a well-formed name is created as given, rc 0"    "$( cat "$rigTmp/b1.rc" ):$( [ -f "$rigData/board/running/$rigB1" ] && echo yes || echo no ):$( rigHolds "$rigTmp/b1" 'naming Rule' )" "0:yes:no"
 rigAssert "type from the prefix"                            "$( rigField "$rigData/board/running/$rigB1" type )" approval
 rigAssert "from the creating member"                        "$( rigField "$rigData/board/running/$rigB1" from )" rig-member
@@ -69,17 +69,19 @@ rigAssert "date in the team date-time form"                 "$( rigField "$rigDa
 rigAssert "started-at is still stamped"                     "$( rigFieldCount "$rigData/board/running/$rigB1" started-at )" 1
 rigAssert "the body is kept below the new frontmatter"      "$( rigHolds "$rigData/board/running/$rigB1" 'body one' )" yes
 
-printf -- '---\ntype: task\nfrom: someone-else\n---\nbody two\n' | rigOp "$rigTmp/b2" --magic-board-create-running rig-member approval-20261006T0930Z-full.md --upsert-from-stdin --header:upsert:date:2001-01-01\ 00:00\ +0000
-rigAssert "created"                                         "$( cat "$rigTmp/b2.rc" ):$( [ -f "$rigData/board/running/approval-20261006T0930Z-full.md" ] && echo created )" "0:created"
-rigAssert "a given type is never overwritten"               "$( rigField "$rigData/board/running/approval-20261006T0930Z-full.md" type )" task
-rigAssert "a given from is never overwritten"               "$( rigField "$rigData/board/running/approval-20261006T0930Z-full.md" from )" someone-else
-rigAssert "a --header: date wins over the default"          "$( rigField "$rigData/board/running/approval-20261006T0930Z-full.md" date )" "2001-01-01 00:00 +0000"
-rigAssert "each field once"                                 "$( rigFieldCount "$rigData/board/running/approval-20261006T0930Z-full.md" type )$( rigFieldCount "$rigData/board/running/approval-20261006T0930Z-full.md" from )$( rigFieldCount "$rigData/board/running/approval-20261006T0930Z-full.md" date )" 111
+printf -- '---\ntype: task\nfrom: someone-else\n---\nbody two\n' | rigOp "$rigTmp/b2" --magic-board-create-running rig-member task-20261006T0930Z-full.md --upsert-from-stdin --header:upsert:date:2001-01-01\ 00:00\ +0000
+rigAssert "created"                                         "$( cat "$rigTmp/b2.rc" ):$( [ -f "$rigData/board/running/task-20261006T0930Z-full.md" ] && echo created )" "0:created"
+rigAssert "a given type is never overwritten"               "$( rigField "$rigData/board/running/task-20261006T0930Z-full.md" type )" task
+rigAssert "a given from is never overwritten"               "$( rigField "$rigData/board/running/task-20261006T0930Z-full.md" from )" someone-else
+rigAssert "a --header: date wins over the default"          "$( rigField "$rigData/board/running/task-20261006T0930Z-full.md" date )" "2001-01-01 00:00 +0000"
+rigAssert "each field once"                                 "$( rigFieldCount "$rigData/board/running/task-20261006T0930Z-full.md" type )$( rigFieldCount "$rigData/board/running/task-20261006T0930Z-full.md" from )$( rigFieldCount "$rigData/board/running/task-20261006T0930Z-full.md" date )" 111
 
-printf -- '---\n---\nbody three\n' | rigOp "$rigTmp/b3" --intern-op-board-upsert-move-edit pending task-2026-09-29-legacy.md --create --upsert-from-stdin --context rig
+printf -- '---\n---\nbody three\n' | rigOp "$rigTmp/b3" --intern-op-board-upsert-move-edit pending task-2026-09-29-legacy.md --create --acting-member:rig-member --upsert-from-stdin --context rig
 rigAssert "another shape is still created, rc 0"            "$( cat "$rigTmp/b3.rc" ):$( [ -f "$rigData/board/pending/task-2026-09-29-legacy.md" ] && echo created )" "0:created"
 rigAssert "with the warning quoting the naming Rule"        "$( rigHolds "$rigTmp/b3" 'WARNING: --create: task-2026-09-29-legacy.md does not follow the naming Rule' )" yes
-rigAssert "no from without an acting member"                "$( rigFieldCount "$rigData/board/pending/task-2026-09-29-legacy.md" from )" 0
+rigAssert "from and owner are the acting member"            "$( rigField "$rigData/board/pending/task-2026-09-29-legacy.md" from ):$( rigField "$rigData/board/pending/task-2026-09-29-legacy.md" owner )" "rig-member:rig-member"
+printf -- '---\n---\nbody none\n' | rigOp "$rigTmp/b3n" --intern-op-board-upsert-move-edit pending task-20261006T0930Z-noactor.md --create --upsert-from-stdin --context rig
+rigAssert "with no acting member, a create is refused, nothing written" "$( cat "$rigTmp/b3n.rc" ):$( [ -f "$rigData/board/pending/task-20261006T0930Z-noactor.md" ] && echo written || echo absent ):$( rigHolds "$rigTmp/b3n" 'the key owner is required and absent' )" "1:absent:yes"
 
 printf -- '---\nopen\n' | rigOp "$rigTmp/b4" --intern-op-board-upsert-move-edit pending task-20261006T0930Z-open.md --create --upsert-from-stdin --context rig
 rigAssert "an unclosed frontmatter is written as before"    "$( cat "$rigTmp/b4.rc" ):$( cat "$rigData/board/pending/task-20261006T0930Z-open.md" 2>/dev/null | tr '\n' '|' )" "0:---|open|"
@@ -105,7 +107,7 @@ printf 'Asked.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q2" --member-upsert-membe
 rigAssert "naming itself writes the new item, from it"     "$( cat "$rigTmp/q2.rc" ):$( rigField "$rigQ" from )" "0:rig-other"
 printf -- '---\nfrom: magic-coordinator\n---\nOverwritten.\n' | RIG_AGENT=magic-coordinator rigOp "$rigTmp/q3" --member-upsert-member-inquiry rig-member "${rigQ##*/}"
 rigAssert "another member cannot overwrite it"             "$( cat "$rigTmp/q3.rc" ):$( rigHolds "$rigQ" 'Asked.' ):$( rigHolds "$rigTmp/q3" 'written by rig-other, so magic-coordinator cannot overwrite it' )" "1:yes:yes"
-printf -- '---\nfrom: rig-other\n---\nAsked again.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q4" --member-upsert-member-inquiry rig-member "${rigQ##*/}"
+printf -- '---\ndocument-contract: inbox-item.inquiry\ntype: inquiry\nfrom: rig-other\ndate: 2026-10-06 09:32 +0000\nowner: rig-member\n---\nAsked again.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q4" --member-upsert-member-inquiry rig-member "${rigQ##*/}"
 rigAssert "its author updates it"                           "$( cat "$rigTmp/q4.rc" ):$( rigHolds "$rigQ" 'Asked again.' )" "0:yes"
 
 printf -- '---\nowner: magic-coordinator\n---\nnote text\n' | RIG_AGENT=rig-member rigOp "$rigTmp/i2" --member-inbox-note-upsert rig-member note-20261006T0930Z-given.md --from-member magic-coordinator
@@ -113,8 +115,10 @@ rigI2Path="$rigData/inboxes/rig-member/incoming/note-20261006T0930Z-given.md"
 rigAssert "--from-member wins over the session's member"   "$( cat "$rigTmp/i2.rc" ):$( rigField "$rigI2Path" from )" "0:magic-coordinator"
 rigAssert "a given owner is never overwritten"              "$( rigField "$rigI2Path" owner ):$( rigFieldCount "$rigI2Path" owner )" "magic-coordinator:1"
 
-printf -- '---\ntype: note\n---\nrewritten\n' | rigOp "$rigTmp/i3" --member-inbox-note-upsert rig-member note-20261006T0930Z-given.md
-rigAssert "an update is not stamped"                        "$( cat "$rigTmp/i3.rc" ):$( rigFieldCount "$rigI2Path" from ):$( rigFieldCount "$rigI2Path" date ):$( rigFieldCount "$rigI2Path" owner )" "0:0:0:0"
+printf -- '---\ndocument-contract: inbox-item.note\ntype: note\nfrom: magic-coordinator\ndate: 2026-10-06 09:30 +0000\nowner: magic-coordinator\n---\nrewritten\n' | RIG_AGENT=rig-member rigOp "$rigTmp/i3" --member-inbox-note-upsert rig-member note-20261006T0930Z-given.md
+rigAssert "an update is not stamped: it is the content given, each key once" "$( cat "$rigTmp/i3.rc" ):$( rigHolds "$rigI2Path" rewritten ):$( rigFieldCount "$rigI2Path" from ):$( rigFieldCount "$rigI2Path" date ):$( rigFieldCount "$rigI2Path" owner )" "0:yes:1:1:1"
+printf -- '---\ntype: note\n---\ndropped\n' | RIG_AGENT=rig-member rigOp "$rigTmp/i3d" --member-inbox-note-upsert rig-member note-20261006T0930Z-given.md
+rigAssert "an update that drops the item's required keys is refused, the item as it was" "$( cat "$rigTmp/i3d.rc" ):$( rigHolds "$rigI2Path" rewritten ):$( rigHolds "$rigTmp/i3d" 'the key owner is required and absent' )" "1:yes:yes"
 
 printf 'legacy\n' | rigOp "$rigTmp/i4" --member-inbox-note-upsert rig-member 2026-07-22-note-legacy.md
 rigAssert "an old-shape name is still written, warned"     "$( cat "$rigTmp/i4.rc" ):$( [ -f "$rigData/inboxes/rig-member/incoming/2026-07-22-note-legacy.md" ] && echo written ):$( rigHolds "$rigTmp/i4" 'does not follow the naming Rule' )" "0:written:yes"

@@ -156,6 +156,15 @@ rigAssert "runs-after: one routine passes"                      "$rigRc" "0"
 rigWithRun after-bad 'runs-after: magic-coordinator.daily.routine, magic-team.grooming.routine'
 rigAssert "runs-after: two: refused, named"                     "$( rigVerdict runs-after )" "refused runs-after"
 
+echo "-- 2e. cache-prefix: armed or routine (F10.7) --"
+for rigCache in armed routine ; do
+	rigWithRun cache-ok "cache-prefix: $rigCache"
+	rigAssert "cache-prefix: $rigCache passes"                      "$rigRc" "0"
+done
+rigWithRun cache-bad 'cache-prefix: always'
+rigAssert "cache-prefix: always: refused, named"                "$( rigVerdict cache-prefix 'is not armed or routine' )" "refused cache-prefix is not armed or routine"
+rigAssert "a routine that leaves it out passes (armed)"         "$( rigRun stub "$( rigFile complete )" ; printf '%s' "$rigRc" )" "0"
+
 echo "-- 3. --from-stdin gives the same verdicts --"
 rigStdin="$( rigFile complete )" rigRun stub --from-stdin
 rigAssert "the complete routine on standard input passes"       "$rigRc" "0"

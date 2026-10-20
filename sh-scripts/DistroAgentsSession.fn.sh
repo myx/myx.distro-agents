@@ -2,7 +2,9 @@
 
 ##
 ## DistroAgentsSession.fn.sh -- ThisSession (F7.2): what a running session asks of its own session.
-## A subsystem interface: results are read from it. So far: --get-routine-text, --routine-run-inline and --update-routine-state.
+## A subsystem interface: results are read from it. So far: --get-routine-text, --routine-run-inline and --update-routine-state, and the
+## session channel's: --get-session-channel-id, --post-session-channel, --get-session-thread, --wait-session-channel and --get-dispatch-text
+## (F7.2). A tool of its own: its operations are locked to the session of the call, and none of them is a name that belongs to another tool.
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -45,6 +47,11 @@ DistroAgentsSessionTools(){
 	type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 }
 
+## The session channel's operations (AgentsTools.ThisSession.include), loaded where they are asked for.
+DistroAgentsSessionThis(){
+	type AgentsToolsThisSessionWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
+}
+
 DistroAgentsSession(){
 	local MDSC_CMD='DistroAgentsSession'
 	## The skillset root, as every operation of the tooling settles it (AgentsContext.UseAgentsTools.include).
@@ -66,6 +73,9 @@ DistroAgentsSession(){
 			type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include"
 			local routineTextFile
 			routineTextFile="$( AgentsToolsSpawnRoutineResolve "$2" )" || { set +e ; return 1 ; }
+			## A harness run that read this text into its first message (the prefetch, F10.8) is told so in one line while it is unchanged.
+			type AgentsToolsPrefetchRoutineSaid > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.PrefetchRoutine.include"
+			! AgentsToolsPrefetchRoutineSaid "$routineTextFile" || return 0
 			AgentsToolsSpawnRoutineMixText "$routineTextFile"
 			return $?
 		;;
@@ -84,6 +94,48 @@ DistroAgentsSession(){
 			return $?
 		;;
 
+		## The thread of the session, <channel>:<ts>, the one the session-current alias names.
+		--get-session-channel-id)
+			shift
+			DistroAgentsSessionThis
+			AgentsToolsThisSessionChannelId "$@"
+			return $?
+		;;
+
+		## A post to the session thread and to nowhere else: the team's Slack send as the calling member, with no target.
+		--post-session-channel)
+			shift
+			DistroAgentsSessionTools
+			DistroAgentsSessionThis
+			AgentsToolsThisSessionPost "$@"
+			return $?
+		;;
+
+		## The session thread read from the session chat file, all of it or with --own the caller's own traffic. No network call.
+		--get-session-thread)
+			shift
+			DistroAgentsSessionThis
+			AgentsToolsThisSessionThread "$@"
+			return $?
+		;;
+
+		## Wait on the session channel alone: [--to-@me] [--to-@here] [--to-@any] [--wait-timeout <seconds>].
+		--wait-session-channel)
+			shift
+			DistroAgentsSessionTools
+			DistroAgentsSessionThis
+			AgentsToolsThisSessionWait "$@"
+			return $?
+		;;
+
+		## The dispatch of the session from the sandbox's input/: dispatch.md, the board item's copy and input-scan.md, mixed.
+		--get-dispatch-text)
+			shift
+			DistroAgentsSessionThis
+			AgentsToolsThisSessionDispatchText "$@"
+			return $?
+		;;
+
 		## The update of the locked document of the session's routine (F6.2): one general operation. The session knows its
 		## routine and the document the spawner locked for it, so the call names neither; any participant of a locked session
 		## may make it. The lock-owned fields stay as the spawner set them, and each update is committed, and pushed where a
@@ -93,6 +145,27 @@ DistroAgentsSession(){
 			shift
 			DistroAgentsSessionTools
 			DistroAgentsTools --intern-op-update-routine-state "$@"
+			return $?
+		;;
+
+		## The executor's checkpoint operations (F10.5): a snapshot of the run's conversation, a return to one, and the end of both. They
+		## write a request that the harness of the run reads at the end of the round; in the run of a native client, or where the routine does
+		## not allow them, they take no checkpoint and say so.
+		--executor-checkpoint-push|--executor-checkpoint-rewind|--executor-checkpoint-exit)
+			local checkpointOp="${1#--executor-checkpoint-}"
+			shift
+			DistroAgentsSessionThis
+			AgentsToolsThisSessionCheckpoint "$checkpointOp" "$@"
+			return $?
+		;;
+
+		## Wait for new input, and on an arrival return to the run's checkpoint with it as the next input (F10.5): [--wait-timeout <seconds>].
+		## It waits on the floor and the scans the routine declares. Where the run is a native client's, or the session has several
+		## participants, nothing is waited on and nothing returned: a notice says so, and Wait is the way to wait there.
+		--idle-wait)
+			shift
+			DistroAgentsSessionThis
+			AgentsToolsThisSessionIdleWait "$@"
 			return $?
 		;;
 

@@ -3,7 +3,7 @@ maintainers: [magic-librarian, magic-coordinator, human-owner]
 ---
 # inbox-item.reflection — frontmatter contract
 
-Normative contract: this file's own `# Contract` section, at its end. The document shape is `inbox-item.reflection.document.format.md`. Read by the document validator, `--intern-doc-validate inbox-item.reflection <file>` (settled; not built yet).
+Normative contract: this file's own `# Contract` section, at its end. The document shape is `inbox-item.reflection.document.format.md`. Read by the document validator, `--intern-doc-validate inbox-item.reflection <file>`.
 
 ## Contents
 

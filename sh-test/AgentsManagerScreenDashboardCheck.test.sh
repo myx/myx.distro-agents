@@ -22,6 +22,7 @@
 ## row in it, and a block's row of `Team Data` are drawn as wrapped, titled [wrap]; `w` is greyed and refused there,
 ## and Left and Right too; the other views, `Team Data`'s own summary among them, stay cut.
 ## Offline: no operation of the real tooling is called.
+## Reconciled for F11.5: the list of the sessions is Active Sessions of Activity (`at @activity active-sessions`), the view that stays cut is Pending Questions, and Team Data is put at with `at @teamdata`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -249,7 +250,7 @@ get inside
 EOF
 rigReads="$( rigCalled --manager-dashboard-read )"
 rigAssert "while its row is selected at the root it is read again when the period has passed" "$( rigVal again.selected ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c '^DRIVER-FAILED' )" "dashboard 0"
-rigAssert "while another root is selected it is not read, however long; 8 goes into it, and it is read again, and on the period while it is open" "$( rigVal away.selected ) [$( rigVal back.path )] [$( rigVal inside.path )] $rigReads $( rigArgued )" "sessions [dashboard] [dashboard] 4 0"
+rigAssert "while another root is selected it is not read, however long; 8 goes into it, and it is read again, and on the period while it is open" "$( rigVal away.selected ) [$( rigVal back.path )] [$( rigVal inside.path )] $rigReads $( rigArgued )" "pending [dashboard] [dashboard] 4 0"
 
 echo "-- the borders stay plain in another view"
 rigCase borders
@@ -257,7 +258,8 @@ rigScript <<'EOF'
 turn
 wait list 5
 wait sessions 5
-keys 2
+at @activity active-sessions
+turn
 turn
 wait sessions 5
 get s
@@ -268,7 +270,7 @@ turn
 border leftFootBw 38 0 84
 border listFootBw 38 84 120
 EOF
-rigAssert "in the list of the sessions too, with the counters read, in both styles that have frames" "[$( rigVal s.path )] $( rigVal s.counters | LC_ALL=C grep -c 'running=3' ) [$( rigVal leftFoot )] [$( rigVal listFoot )] [$( rigVal leftFootBw )] [$( rigVal listFootBw )]" "[sessions] 1 [] [] [] []"
+rigAssert "in the list of the sessions too, with the counters read, in both styles that have frames" "[$( rigVal s.path )] $( rigVal s.counters | LC_ALL=C grep -c 'running=3' ) [$( rigVal leftFoot )] [$( rigVal listFoot )] [$( rigVal leftFootBw )] [$( rigVal listFootBw )]" "[magic-team/activity/active-sessions] 1 [] [] [] []"
 
 echo "-- panels have no cut mode: with the lines cut elsewhere, a view of panels is drawn as wrapped, and w is refused there"
 rigScreenOf(){ ## tag -- that whole screen as text
@@ -329,7 +331,7 @@ rigAssert "in View, w is greyed there, and not on another view" "$( rigLookAt pm
 rigAssert "a block's row: the block as wide as the window, its value at its right, nothing cut, titled [wrap]" "$( rigVal pa.selected ) $( rigHolds pa 'Alpha Block [wrap]' ) $( rigHolds pa '─┐ │║' ) $( rigBoth pa 'Plain Count' ' 1.2M │ │║' ) $( rigHolds pa '…' )" "alpha 1 1 1 0"
 rigAssert "a long value has the room to stand beside its label there" "$( rigBoth pg '│ Root Path ' '/box/END │ │║' )" "1"
 rigAssert "the row that goes up shows the dashboard whole, as wrapped" "$( rigVal pu.selected ) $( rigHolds pu 'Dashboard (Monitor) [wrap]' ) $( rigBoth pu '┌─ Alpha Block ─' '┌─ Beta Block ─' ) $( rigHolds pu '…' )" ".. 1 1 0"
-rigAssert "another view stays cut, and offers w" "$( rigHolds ps 'Sessions (Activity) [cut]' ) $( rigVal psStatus | LC_ALL=C grep -c ' w Wrap ' )" "1 1"
+rigAssert "another view stays cut, and offers w" "$( rigHolds ps 'Pending Questions [cut]' ) $( rigVal psStatus | LC_ALL=C grep -c ' w Wrap ' )" "1 1"
 rigCase teamdataPanels
 {
 	rigRow block team-data Store_Of_Data 2
@@ -341,7 +343,9 @@ rigSize="176 49" rigScript <<'EOF'
 style tv-blue
 turn
 wait list 5
-keys DOWN TAB w TAB 5
+keys DOWN TAB w TAB
+at @teamdata
+turn
 wait list 5
 turn
 get td
@@ -351,7 +355,7 @@ turn
 get tb
 show tb
 EOF
-rigAssert "Team Data's own summary stays cut; its block's row is drawn as wrapped, as wide as the window" "$( rigVal td.path ) $( rigHolds td 'Team Data [cut]' ) $( rigVal tb.selected ) $( rigHolds tb 'Store Of Data [wrap]' ) $( rigHolds tb '─┐ │║' ) $( rigBoth tb 'Data Present' ' yes │ │║' ) $( rigHolds tb '…' )" "teamdata 1 team-data 1 1 1 0"
+rigAssert "Team Data's own summary stays cut; its block's row is drawn as wrapped, as wide as the window" "$( rigVal td.path ) $( rigHolds td 'Team Data [cut]' ) $( rigVal tb.selected ) $( rigHolds tb 'Store Of Data [wrap]' ) $( rigHolds tb '─┐ │║' ) $( rigBoth tb 'Data Present' ' yes │ │║' ) $( rigHolds tb '…' )" "magic-team/teamdata 1 team-data 1 1 1 0"
 
 echo "-- an operation that gives no block, and one that fails"
 rigCase none

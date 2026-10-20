@@ -25,7 +25,7 @@ done
 rigTmp="$( rigTempDir AgentsPermissionHoldsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
-mkdir -p "$rigTmp/bin"
+mkdir -p "$rigTmp/bin" "$rigTmp/home"
 cp "$rigTest/check-fixtures/harness-ask-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 ## THE RIG'S OWN PROCESS LIST. A spawn is found running by its spawn id in the host's process
@@ -117,7 +117,7 @@ RIG_OP_SESSION=""
 rigOp(){
 	( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_ID \
 		${RIG_OP_SESSION:+MDAT_SPAWN_SESSION_ID="$RIG_OP_SESSION"} ${RIG_OP_AGENT:+MDAT_SPAWN_AGENT="$RIG_OP_AGENT"} \
-		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" RIG_SCENARIO="$rigTmp" bash "$rigTools" "$@" ) > "$rigTmp/op.out" 2> "$rigTmp/op.err"
+		HOME="$rigTmp/home" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" RIG_SCENARIO="$rigTmp" bash "$rigTools" "$@" ) > "$rigTmp/op.out" 2> "$rigTmp/op.err"
 }
 ## An in-context helper (no operation of its own) as a script for --intern-mcp-execute, which
 ## runs it inside the tool's own set-up context: its include, then the call with these arguments.

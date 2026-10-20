@@ -693,6 +693,24 @@ for DAGC_CREDENTIAL_NAME in $DAGC_CLI_CREDENTIALS ; do
 	export "$DAGC_CREDENTIAL_NAME=$DAGC_CREDENTIAL_VALUE"
 done
 
+## THE MODEL OF THE TIER (F10.2). A harness leg takes the model name of its light and main tiers from its environment ahead of
+## its own, and a leg exports both for its own run, so what a parent session left in the environment is dropped here, and the
+## model the preset of this spawn names for its tier is exported in its place: the same read as the credentials above, answered
+## from the preset where tier settings are configured (AgentsToolsPresetOverlay), and nothing where the preset names no model,
+## which leaves the leg its own. A vendor CLI is passed no model.
+DagcHarnessModelExport(){
+	local DAGC_MODEL_NAME DAGC_MODEL_VALUE
+	for DAGC_MODEL_NAME in HARNESS_MODEL_LIGHT HARNESS_MODEL_MAIN ; do
+		unset "$DAGC_MODEL_NAME"
+		DAGC_MODEL_VALUE="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select "$DAGC_MODEL_NAME" 2>/dev/null )" || DAGC_MODEL_VALUE=""
+		[ -z "$DAGC_MODEL_VALUE" ] || export "$DAGC_MODEL_NAME=$DAGC_MODEL_VALUE"
+	done
+	return 0
+}
+if DagcCliIsLeg "$DAGC_CLI" ; then
+	DagcHarnessModelExport
+fi
+
 ## claude-native: a signed-out spawn uses a configured key, else rc 6; an interactive console is only warned. MAGIC.md, "Claude sign-in".
 DagcClaudeAuthProbe(){
 	case "$( claude auth status </dev/null 2>/dev/null | LC_ALL=C tr -d ' \t' )" in

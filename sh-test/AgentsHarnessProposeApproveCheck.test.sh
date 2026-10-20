@@ -2,7 +2,7 @@
 ## Behavioural check on ProposeApprove, the tool that puts a proposal document to the
 ## human-owner, run through --intern-tool, the path the myx.distro MCP uses. Covers: its two
 ## posts filled from its own template, the root that is its question and the proposal reply
-## under it with the link to its document; no emoji placed by the tooling; a comment coming
+## under it with the link to its document; the tooling's two answer emoji placed on the root alone (F9.4); a comment coming
 ## back as VERDICT: RETURNED with the ways on; a changed proposal (revise) replacing the reply
 ## and never touching the root; the verdict by the human-owner's own click on the root and by
 ## a reply's first word; a click under the proposal reply being no verdict; a reply before the
@@ -12,6 +12,9 @@
 ## CORRECTION (no document, another member than the coordinator, a thread as `to`); a
 ## discarded proposal; the verdict on the Decisions of its tracking item, with the link; and
 ## the declaration every wire and the MCP serve.
+## Reconciled for F9.4 (propose-approve gains RequestPermission's reactions): the root carries the cross and the check mark, placed by
+## the posting identity, which never count as a verdict, and taken off the root when its verdict is read and when the proposal is
+## discarded; a changed proposal leaves them as they are and places none under its reply. sh-test/questions/AgentsProposeApproveReactionsCheck holds the same by itself.
 ## Offline: a Slack-shaped fake curl is first on PATH, and every scenario runs in its own
 ## workspace under this check's temp tree, in $MMDAPP/.local/temp.
 set -u
@@ -95,6 +98,10 @@ rigRecordId(){
 	local recordId
 	recordId="$( rigRecordFile )" ; recordId="${recordId##*/}"
 	printf '%s' "${recordId%.md}"
+}
+## The emoji placed on, or taken off, one post, its names sorted: the order of placing is not asserted here.
+rigReactedSet(){ ## reactions|reactions.removed, ts suffix
+	rigReacted "$1" "$2" | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep . | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed -e 's/ $//'
 }
 ## The emoji placed on, or taken off, one post: its names in the order asked for.
 rigReacted(){ ## reactions|reactions.removed, ts suffix
@@ -181,7 +188,7 @@ rigCall(){ ## guard seconds, tool, argument object, optional from-read
 
 ## One post filled straight from its template, as the tool fills it.
 rigFill(){ ## want, template, form -- the slots come from the caller's environment
-	ASKP_WANT="$1" ASKP_FORM="$3" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsToolingTemplateFill.awk" -f "$rigHere/questions/AgentsAskPostFill.awk" "$rigHere/templates/$2" 2>&1
+	ASKP_WANT="$1" ASKP_FORM="$3" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolingTemplateFill.awk" -f "$rigHere/questions/AgentsAskPostFill.awk" "$rigHere/templates/$2" 2>&1
 }
 ## The verdict the one reader takes from one rendering of the answers.
 rigVerdict(){ ## the answers, as AgentsSlackThreadAnswers.awk prints them
@@ -206,8 +213,8 @@ rigAssert "the context is shown where one is given" \
 rigAssert "a proposal with no document is not filled" \
 	"$( ASKP_F_proposal='This way.' ASKP_F_document='' rigFill post propose-approve.post.format.md approve )" \
 	"AgentsAskPostFill.awk: the slot {{document}} is required and has no value"
-rigAssert "the template places no emoji: the root carries only a person's own" \
-	"$( rigFill reactions propose-approve.post.format.md approve | LC_ALL=C grep -c . )" 0
+rigAssert "the template names the two emoji the tooling places, the cross first: x and white_check_mark" \
+	"$( rigFill reactions propose-approve.post.format.md approve | LC_ALL=C tr '\n' ' ' )" "x white_check_mark "
 rigAssert "a reply that takes no answer any more: the same text without How to answer" \
 	"$( ASKP_F_proposal='This way.' ASKP_F_document="$rigLink" rigFill closed propose-approve.post.format.md approve )" \
 	$'# 📘 The proposal\n\nThis way.\n\n**🔗 Document**\n'"$rigLink"
@@ -294,7 +301,7 @@ rigAssert "the second name puts no proposal"           "$( rigHolds "$rigScenari
 rigAssert "none of them posted anything"               "$( rigCalls chat.postMessage )" 0
 rigAssert "and none left a record"                     "$( rigRecordCount )" 0
 
-echo "-- put: the root, the proposal reply under it, no emoji, and a comment coming back --"
+echo "-- put: the root, the proposal reply under it, the tooling's two emoji on the root, and a comment coming back --"
 rigStart propose
 rigThread 000101 "" "$( rigMessage 000101 000201 URIGSELF1 'the proposal' )$( rigMessage 000101 000250 URIGOWNER 'What does it cost us?' )"
 rigCall 60 ProposeApprove "{$rigPropose,\"context\":\"The old sync runs nightly.\"}"
@@ -309,7 +316,7 @@ rigAssert "the proposal is a reply under the root"     "$( rigThreadOf "$rigScen
 rigAssert "it carries the link to its document"        "$( rigHolds "$rigScenarioDir/post.2" "**🔗 Document**\\n$rigLink" )" yes
 rigAssert "the proposed form, the context and how to answer" \
 	"$( rigHolds "$rigScenarioDir/post.2" 'The new sync covers every case it had.' ):$( rigHolds "$rigScenarioDir/post.2" 'The old sync runs nightly.' ):$( rigHolds "$rigScenarioDir/post.2" '✅ approves the document, ❌ rejects the proposal' )" "yes:yes:yes"
-rigAssert "the tooling placed no emoji anywhere"       "$( rigCalls reactions.add )" 0
+rigAssert "the tooling placed its two emoji, on the root alone" "$( rigCalls reactions.add ):$( rigReactedSet reactions 000101 ):$( rigReacted reactions 000201 )" "2:white_check_mark x:"
 rigAssert "the comment returns the proposal"           "$( rigVerdictLine )" "VERDICT: RETURNED"
 rigAssert "the comment text comes back"                "$( rigHolds "$rigScenarioDir/out" 'What does it cost us?' )" yes
 rigAssert "it says this may be a communication"        "$( rigHolds "$rigScenarioDir/out" 'This may be a communication and not a rejection: a request to explain, a correction, or an instruction.' )" yes
@@ -344,6 +351,8 @@ rigAssert "the second change is posted and waits"      "$rigKilled" yes
 rigAssert "it carries the other link, and the text of the first change" "$( rigHolds "$rigScenarioDir/post.4" "$rigLinkTwo" ):$( rigHolds "$rigScenarioDir/post.4" 'It costs one hour of work.' )" "yes:yes"
 rigAssert "one proposal reply is live: both before it are removed" "$( cat "$rigScenarioDir/deleted" 2>/dev/null | tr '\n' ' ' )" "1700000001.000201 1700000001.000301 "
 rigAssert "the record: its second change"              "$( rigRecordField revision-ts ):$( rigRecordField revisions ):$( LC_ALL=C grep -c '^## Revision ' "$( rigRecordFile )" )" "1700000001.000401:2:2"
+rigAssert "the changes placed no emoji under any changed reply and took none off the root: its two stand as they were put (F9.4)" \
+	"$( rigCalls reactions.add ):$( rigCalls reactions.remove ):$( rigReactedSet reactions 000101 ):$( rigReacted reactions 000301 ):$( rigReacted reactions 000401 )" "2:0:white_check_mark x::"
 rigCall 30 ProposeApprove "{\"pending_id\":\"$rigId\",\"revise\":true,\"question\":\"Another question?\"}"
 rigAssert "a change takes no question: a correction"   "$( rigOpens "$rigScenarioDir/out" "CORRECTION: ProposeApprove: the question of a proposal is the root of its thread" )" yes
 rigAssert "which posted nothing"                       "$( rigCalls chat.postMessage )" 4
@@ -358,7 +367,8 @@ rigAssert "it names who approved"                      "$( rigHolds "$rigScenari
 rigAssert "the record closes with it"                  "$( rigRecordField status ):$( rigRecordField verdict ):$( rigRecordField answered-by )" "reply-received:approved:URIGOWNER"
 rigAssert "the wait posts nothing itself: its one post is the confirmation reply of the answer it applied" \
 	"$( rigCalls chat.postMessage ):$( LC_ALL=C grep -c -F 'Read: `approved` by' "$rigScenarioDir/post.5" 2>/dev/null )" "5:1"
-rigAssert "the tooling never reacted, on the root or anywhere" "$( rigCalls reactions.add ):$( rigCalls reactions.remove )" "0:0"
+rigAssert "the tooling's two went on the root at the put and came off it again at the verdict, and it put no mark and no emoji anywhere else" \
+	"$( rigCalls reactions.add ):$( rigCalls reactions.remove ):$( rigReactedSet reactions 000101 ):$( rigReactedSet reactions.removed 000101 ):$( rigReacted reactions 000201 )" "2:2:white_check_mark x:white_check_mark x:"
 rigAssert "the root was never edited or removed"       "$( rigCalls chat.update ):$( LC_ALL=C grep -c -x '1700000001.000101' "$rigScenarioDir/deleted" )" "0:0"
 
 echo "-- a change once a verdict is on the root: nothing posted, the verdict given back --"
@@ -386,13 +396,13 @@ rigThread 000101 "$( rigReactions "$rigOwner" x )" "$( rigMessage 000101 000201 
 rigCall 60 ProposeApprove "{$rigPropose}"
 rigAssert "the cross on the root rejects"              "$rigKilled:$( rigVerdictLine )" "no:VERDICT: rejected"
 rigAssert "the record closes with it"                  "$( rigRecordField status ):$( rigRecordField verdict )" "reply-received:rejected"
-rigAssert "no emoji was placed"                        "$( rigCalls reactions.add )" 0
+rigAssert "the tooling's two were placed on the root, and the owner's own x decided; at the verdict they came off" "$( rigCalls reactions.add ):$( rigReactedSet reactions 000101 ):$( rigCalls reactions.remove )" "2:white_check_mark x:2"
 rigStart reject-reply
 rigThread 000101 "" "$( rigMessage 000101 000201 URIGSELF1 'the proposal' )$( rigMessage 000101 000250 URIGOWNER 'rejected: the new sync is not proven yet' )"
 rigCall 60 ProposeApprove "{$rigPropose}"
 rigAssert "the word in a reply rejects"                "$rigKilled:$( rigVerdictLine )" "no:VERDICT: rejected"
 rigAssert "the rest of its line is the verdict text"   "$( rigHolds "$rigScenarioDir/out" 'VERDICT-TEXT: the new sync is not proven yet' )" yes
-rigAssert "no mark is put on the root at the close"    "$( rigReacted reactions 000101 )" ""
+rigAssert "no mark of its own is put on the root at the close: its two went on at the put and came off" "$( rigReactedSet reactions 000101 ):$( rigReactedSet reactions.removed 000101 )" "white_check_mark x:white_check_mark x"
 rigStart approve-reply
 rigThread 000101 "" "$( rigMessage 000101 000201 URIGSELF1 'the proposal' )$( rigMessage 000101 000250 URIGOWNER 'Approved.' )"
 rigCall 60 ProposeApprove "{$rigPropose}"
@@ -454,7 +464,7 @@ rigAssert "it is withdrawn"                            "$rigKilled:$( rigFirstLi
 rigAssert "the note is said in its thread"             "$( rigThreadOf "$rigScenarioDir/post.3" ):$( rigHolds "$rigScenarioDir/post.3" 'superseded by a wider proposal' )" "1700000001.000101:yes"
 rigAssert "the proposal reply gets the cancelled mark" "$( rigReacted reactions 000201 )" "no_entry_sign"
 rigAssert "and is edited to its text without How to answer" "$( rigEditShape "$rigScenarioDir/edit.1700000001.000201" 1700000001.000201 ):$( rigHolds "$rigScenarioDir/edit.1700000001.000201" "$rigLink" )" "1:1:0:yes"
-rigAssert "the root is not marked, edited or removed"  "$( rigReacted reactions 000101 ):$( ls "$rigScenarioDir" | LC_ALL=C grep -c -x 'edit.1700000001.000101' ):$( rigCalls chat.delete )" ":0:0"
+rigAssert "the root is not marked, edited or removed: the tooling's two are taken off it" "$( rigReactedSet reactions 000101 ):$( rigReactedSet reactions.removed 000101 ):$( ls "$rigScenarioDir" | LC_ALL=C grep -c -x 'edit.1700000001.000101' ):$( rigCalls chat.delete )" "white_check_mark x:white_check_mark x:0:0"
 
 echo "-- the verdict on the tracking item, with the link to the document --"
 rigStart decisions

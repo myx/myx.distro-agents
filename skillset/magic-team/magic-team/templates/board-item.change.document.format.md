@@ -24,7 +24,7 @@ document-contract: board-item.change
 type: change
 from: <member>
 date: <date-time>
-owner: <optional -- member, the current assignee>
+owner: <member, the current assignee>
 ---
 # Change: <matter, one line>
 

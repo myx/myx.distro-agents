@@ -202,7 +202,7 @@ echo "-- 1f. when a process began is read by the tooling's own reading, and by n
 rigCode(){ LC_ALL=C grep -v '^[[:space:]]*#' "$1" ; } ## file -- its lines that are no comment
 rigAssert "the helper reads it through AgentsToolsRegistryProcessesBegan of the tooling, and names no start column of ps itself" \
 	"$( rigCode "$rigHelper" | LC_ALL=C grep -c -F 'AgentsToolsRegistryProcessesBegan' ) $( rigCode "$rigHelper" | LC_ALL=C grep -c -e 'lstart' -e 'etime' -e 'start_time' )" "2 0"
-rigAssert "that reading stands in the tooling" "$( LC_ALL=C grep -c '^AgentsToolsRegistryProcessesBegan(){' "$rigPackage/../myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" )" 1
+rigAssert "that reading stands in the tooling" "$( LC_ALL=C grep -c '^AgentsToolsRegistryProcessesBegan(){' "$rigPackage/sh-lib/team-data/AgentsTools.Registries.include" )" 1
 rigAssert "and nothing of the tooling is defined in the check that sourced the helper" "$( type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 && echo defined || echo not-defined )" "not-defined"
 
 echo "-- 2. the guard: every signal of sh-test outside the helper is on the list, with its reason --"
@@ -328,7 +328,13 @@ rigList(){
 		'check-fixtures/manager-screen.vt.stub.py|2|process.kill()|@uncollected' \
 		'member/AgentsWaitOwnPostRepliesCheck.test.sh|1|kill -TERM "$waitPid"|@probed' \
 		'member/AgentsWaitOwnPostRepliesCheck.test.sh|1|kill -KILL "$waitPid"|@probed' \
-		'member/AgentsWaitOwnPostRepliesCheck.test.sh|1|kill -TERM "$waitWatch"|@own-watch'
+		'member/AgentsWaitOwnPostRepliesCheck.test.sh|1|kill -TERM "$waitWatch"|@own-watch' \
+		'member/AgentsWaitChatFloorCheck.test.sh|1|kill -TERM "$waitPid"|@probed' \
+		'member/AgentsWaitChatFloorCheck.test.sh|1|kill -KILL "$waitPid"|@probed' \
+		'member/AgentsWaitChatFloorCheck.test.sh|1|kill -TERM "$waitWatch"|@own-watch' \
+		'member/AgentsWaitSourceModeCheck.test.sh|1|kill -TERM "$waitPid"|@probed' \
+		'member/AgentsWaitSourceModeCheck.test.sh|1|kill -KILL "$waitPid"|@probed' \
+		'member/AgentsWaitSourceModeCheck.test.sh|1|kill -TERM "$waitWatch"|@own-watch'
 }
 rigToolingList(){
 	printf '%s\n' \
@@ -492,7 +498,7 @@ printf '%s\n' 'Self.test.sh|0|nothing of this check is listed|whatever it signal
 rigAssert "this check itself sends no signal outside the helper" "$( cd "$rigTmp" && rigGuard "$rigTmp/self.list" Self.test.sh )$( LC_ALL=C grep -c 'rigProcSignal' "$rigTmp/Self.test.sh" | LC_ALL=C awk '{ print ( $1 > 5 ) ? "" : " and too few through the helper: " $1 ; }' )" ""
 
 echo "-- 3. the same guard over the tooling: every signal of sh-lib, sh-scripts and builders is on its own list --"
-( cd "$rigPackage" && find sh-lib sh-scripts builders ../myx.distro-.local/sh-lib/markdown ../myx.distro-.local/sh-lib/output ../myx.distro-.local/sh-lib/registry ../myx.distro-.local/sh-lib/dashboard -type f ! -name '*.md' | LC_ALL=C sort ) > "$rigTmp/tooling.files"
+( cd "$rigPackage" && find sh-lib sh-scripts builders ../myx.distro-.local/sh-lib/markdown ../myx.distro-.local/sh-lib/output -type f ! -name '*.md' | LC_ALL=C sort ) > "$rigTmp/tooling.files"
 rigAssert "control: the files of the tooling are read, the harness, the spawn proxy, the console template and the builders among them, and none has a space in its name" \
 	"$( [ "$( wc -l < "$rigTmp/tooling.files" | LC_ALL=C tr -d ' ' )" -ge 150 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/harness/AgentsUniversalHarness.sh' -e 'sh-lib/session/AgentsTools.InternOpAgentSpawnProxy.include' -e 'sh-lib/manager/AgentsConsoleShellScript.template.sh' -e 'sh-scripts/DistroAgentsTools.fn.sh' -e 'builders/source-prepare/1201-agents-indices.sh' "$rigTmp/tooling.files" || : ) $( LC_ALL=C grep -c ' ' "$rigTmp/tooling.files" || : )" "many 5 0"
 rigToolingOut="$( cd "$rigPackage" && rigGuard "$rigTmp/tooling.list" $( cat "$rigTmp/tooling.files" ) )"

@@ -3,7 +3,7 @@ maintainers: [magic-librarian, magic-coordinator, human-owner]
 ---
 # audit-item.incident — frontmatter contract
 
-Normative contract: this file's own `# Contract` section, at its end. The document shape is `audit-item.incident.document.format.md`. Read by the document validator, `--intern-doc-validate audit-item.incident <file>` (settled; not built yet).
+Normative contract: this file's own `# Contract` section, at its end. The document shape is `audit-item.incident.document.format.md`. Read by the document validator, `--intern-doc-validate audit-item.incident <file>`.
 
 ## Contents
 

@@ -232,7 +232,7 @@ def drawMenuBar(surface, state, columns):
 ## header is the line above them, which stays in place while they scroll. None for a
 ## list with no table.
 def listTableOf(state):
-    for row in state.rows.get(levelKey(state.path), ()):
+    for row in listedRows(state, state.path) or ():
         if row.get("table"):
             return row["table"]
     return None
@@ -293,7 +293,7 @@ def listRowParts(row, chosen, width, enters=False, dives=False, position=0, tabl
     if table and dives and not table.get("marks") and textWidth(tableAt(width - 1)[1][position].rstrip()) + 1 + edge <= width:
         columns = width - 1
     width -= edge
-    shown = tableAt(columns)[1][position].rstrip() if table else " " * row.get("indent", 0) + row.get("lead", "") + row["label"]
+    shown = tableAt(columns)[1][position].rstrip() if table else " " * row.get("indent", 0) + row.get("lead", "") + row["label"] + countedText(row)
     head = (MARK_SELECTED if chosen else " ") + shown
     tail = row.get("tail", "")
     if row.get("wide") and width + edge >= LIST_WIDE["from"]:
@@ -559,13 +559,20 @@ def putViewLine(surface, state, line, column, position, room, placing=False, mar
 ## of a line that is cut. Where the view takes the rule of the locations (`placing`), a
 ## path inside a location is drawn by the key of that location, the key in the look of a
 ## folder: the line that is held is not changed.
-def putLooked(surface, state, line, column, text, room, look, spans, placing):
+def putLooked(surface, state, line, column, text, room, look, spans, placing, left=None):
+    pinned = getattr(text, "pinned", 0)
     if placing and "/" in text:
         placed, keys = placedLine(state, text)
         if keys:
-            text, spans = placed, keys
+            text, spans, pinned = placed, keys, 0
     ## from the cell the pane stands at sideways (panOf, at the drawing of its body)
-    viewLeft = state.view["left"]
+    viewLeft = state.view["left"] if left is None else left
+    if pinned and viewLeft and 0 < pinned < room:
+        ## the columns that stay: the cells they take as they stand, and the rest of the line scrolled in the room that is left
+        kept, rest = splitAtCell(text, pinned)
+        putLooked(surface, state, line, column, kept, pinned, look, spansWithin(spans, 0, pinned), False, 0)
+        putLooked(surface, state, line, column + pinned, rest, room - pinned, look, spansWithin(spans, pinned, None), False, viewLeft)
+        return
     surface.put(line, column, panToCells(text, viewLeft, room), look)
     if not spans:
         return
@@ -586,6 +593,30 @@ def putLooked(surface, state, line, column, text, room, look, spans, placing):
             surface.put(line, column + shown[0][0] - viewLeft, "".join(cluster for at, cluster in shown), look)
 
 
+## A text cut in two at that cell: the cells before it, filled out to it, and the rest. A character of two cells that the cut would part goes to the rest.
+def splitAtCell(text, cell):
+    cells = textCells(text)
+    used = 0
+    taken = 0
+    for cluster, clusterWidth in cells:
+        if used + clusterWidth > cell:
+            break
+        used += clusterWidth
+        taken += 1
+    return "".join(cluster for cluster, clusterWidth in cells[:taken]) + " " * (cell - used), "".join(cluster for cluster, clusterWidth in cells[taken:])
+
+
+## The parts of a line that lie from that cell to that cell (None: to its end), each as the cell it starts at there, how many cells and its look.
+def spansWithin(spans, first, last):
+    kept = []
+    for start, count, look in spans or ():
+        begin = max(start, first)
+        end = start + count if last is None else min(start + count, last)
+        if end > begin:
+            kept.append((begin - first, end - begin, look))
+    return kept
+
+
 ## The body of a window that shows lines: what is selected in the list. Its head, which
 ## does not scroll; under it its lines.
 def drawLinesBody(surface, state, layout, box):
@@ -601,7 +632,7 @@ def drawLinesBody(surface, state, layout, box):
     scrollView(state, contentHeight - headHeight, 0)
     ## a table whose header has gone up out of the pane keeps it over its rows, sideways with them (paneTable)
     lines = state.view["lines"]
-    stuck = getattr(lines[state.view["top"]], "stick", None) if 0 < state.view["top"] < len(lines) and contentHeight - headHeight > 1 else None
+    stuck = headerStuck(state)
     marked = rowCursorLines(state)
     for offset in range(contentHeight - headHeight):
         if offset == 0 and stuck is not None:
@@ -610,6 +641,12 @@ def drawLinesBody(surface, state, layout, box):
         putViewLine(surface, state, top + headHeight + offset, column, state.view["top"] + offset, room, placing, marked)
     if contentHeight > headHeight and viewWaits(state):
         surface.put(top + headHeight, column, cutToCells(viewWaits(state), room), DIM)
+    if filterLineShown(state):
+        ## the line of the filter, on the last line of the window; the cursor stands after what is typed while the line is open
+        typed = filterLine(state)
+        surface.put(top + contentHeight, column, cutToCells(typed, room), BOLD)
+        if state.view["table"].get("filterOpen") and state.focus == "view" and state.dialog is None and state.menu is None:
+            surface.cursor(top + contentHeight, column + min(textWidth(typed), room - 1))
     return (len(state.view["lines"]), state.view["top"], contentHeight - headHeight)
 
 

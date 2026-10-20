@@ -237,7 +237,7 @@ AgentsToolsPermissionOnceLive(){ ## grant time
 	esac
 	[ "${liveStamp:8:1}" = T ] && [ "${liveStamp:$(( ${#liveStamp} - 1 ))}" = Z ] || return 1
 	case "${liveStamp:0:8}${liveStamp:9:$(( ${#liveStamp} - 10 ))}" in *[!0123456789]*) return 1 ;; esac
-	liveAt="$( printf '%s\n' "$liveIso" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsIsoToEpoch.awk" 2>/dev/null )" || return 1
+	liveAt="$( printf '%s\n' "$liveIso" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2>/dev/null )" || return 1
 	liveNow="$( date -u +%s )" || return 1
 	case "$liveAt$liveNow" in ''|*[!0123456789]*) return 1 ;; esac
 	[ $(( liveNow - liveAt )) -le "$liveTtl" ]

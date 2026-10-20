@@ -6,7 +6,9 @@
 ## form `--member-pending-reply-read <member> --any-owner` prints, a record `PENDING-REPLY: <id>` with its fields,
 ## `asker-live:` and `question:`, and `PENDING-REPLIES: <count>` last. The time of day is the case's own.
 ## Held: the screen asks `--member-pending-reply-read magic-coordinator --any-owner`, while the section is shown and
-## not at the root, where the counter of the status line is the list of sessions' own; each open ask is one row under
+## not at the root, where the counter of the status line is the list of sessions' own, and where, whatever is shown, it
+## asks the same operation with `--count`, which prints only the number: the row `Pending Questions` shows it, as
+## `Pending Questions [N]`, at the root and under Magic-Team (Agents) alike; each open ask is one row under
 ## the row that goes up, the newest first, with the mark of an asker that is gone, how long ago it was asked, the
 ## mark of its kind, who asks, of whom, and the first line of its question; the left pane shows the selected ask
 ## whole: its kind and tag, who asks and of whom, since when, whether its asker is alive and what that means, its
@@ -31,6 +33,8 @@
 ## Reconciled for F11.0: the left pane has no `keys:` line any more; every dialog has bigger margins inside its frame
 ## (two empty lines under its top, one more under its buttons, three blank cells at each side), so its box is four
 ## cells wider and two lines taller and what it holds stands where it stood.
+## Reconciled for F11.5: Pending Questions is the second root, key 2, and the list of the sessions is Active Sessions of Activity (`root active-sessions`, `table list:magic-team/activity`).
+## Reconciled for the count of Pending Questions (owner, 2026-10-20): the root reads the count of the asks (`--count`) whatever is shown, so the starts of the cases of the list leave it out (rigCalls, rigOtherCalls, rigReading); the cases of the count are the last.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -124,22 +128,25 @@ rigCase(){ ## name, the fixture the stand-in prints, what it does at every start
 	done
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in and the time of day, with the read of one ask taken out of the table; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:sessions none\ntable view:pending:record none\ntable acts:pending:record none\nwall 2026-10-13 02:30 +0300\nroot sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:magic-team/activity none\ntable view:pending:record none\ntable acts:pending:record none\nwall 2026-10-13 02:30 +0300\nroot active-sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigScriptActs(){ ## the same with every read of one ask as the screen has it: what the stores hold of it, and what can be done with it
-	rigOut="$( { printf 'tools bash %s\ntable list:sessions none\nwall 2026-10-13 02:30 +0300\nroot sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:magic-team/activity none\nwall 2026-10-13 02:30 +0300\nroot active-sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigScriptWhole(){ ## the same with the read of one ask as the screen has it
-	rigOut="$( { printf 'tools bash %s\ntable list:sessions none\ntable acts:pending:record none\nwall 2026-10-13 02:30 +0300\nroot sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:magic-team/activity none\ntable acts:pending:record none\nwall 2026-10-13 02:30 +0300\nroot active-sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
 }
-rigCalls(){ ## how many times the stand-in was started. The list of the locations, which every start of the screen reads, is not counted.
-	LC_ALL=C grep -c -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" || :
+rigReading(){ ## tag -- the reads under way in that state of the screen, the count of the asks, which the root reads whatever is shown, left out
+	rigVal "$1.reading" | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -v -x -F 'count:asks' | LC_ALL=C paste -s -d, - || :
 }
-rigOtherCalls(){ ## how many of its starts were anything but the read of the asks. The list of the locations, which every start of the screen reads, is not counted.
-	LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C grep -c -v -x -F -- "$rigRead" || :
+rigCalls(){ ## how many times the stand-in was started. The list of the locations, which every start of the screen reads, and the count of the asks, which the root reads whatever is shown, are not counted.
+	LC_ALL=C grep -c -v -x -e '--manager-place-list' -e "$rigRead --count" "$MANAGER_SCREEN_RIG/calls" || :
+}
+rigOtherCalls(){ ## how many of its starts were anything but the read of the asks. The list of the locations, which every start of the screen reads, and the count of the asks, which the root reads whatever is shown, are not counted.
+	LC_ALL=C grep -v -x -e '--manager-place-list' -e "$rigRead --count" "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C grep -c -v -x -F -- "$rigRead" || :
 }
 
 echo "-- the asks are read while the section is shown --"
@@ -168,12 +175,12 @@ get early
 advance 2
 wait list 30
 RIGSCRIPT
-rigAssert "at the root, before the selection has rested on the section, nothing of the asks is read, and the pane says that it waits for them" "$( rigVal first.selected ) [$( rigVal first.reading )] [$( rigVal firstLine )]" "pending [] [Populating Pending Questions...]"
-rigAssert "entering the section starts the read"                     "$( rigVal asked.path ) $( rigVal asked.reading )" "pending list:pending"
-rigAssert "it is the read of every owner's asks, named for magic-coordinator" "[$( LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C sed -n '1p' )]" "[$rigRead]"
+rigAssert "at the root, before the selection has rested on the section, nothing of the asks is read, and the pane says that it waits for them" "$( rigVal first.selected ) [$( rigReading first )] [$( rigVal firstLine )]" "pending [] [Populating Pending Questions...]"
+rigAssert "entering the section starts the read"                     "$( rigVal asked.path ) $( rigReading asked )" "pending list:pending"
+rigAssert "it is the read of every owner's asks, named for magic-coordinator" "[$( LC_ALL=C grep -v -x -e '--manager-place-list' -e "$rigRead --count" "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C sed -n '1p' )]" "[$rigRead]"
 rigAssert "back on the section itself the left pane is the table of the asks, nothing above it" "$( rigVal on.selected ) [$( rigVal title )] [$( rigVal line1 | LC_ALL=C tr -s ' ' )]" \
 	"pending [Pending Questions [wrap]] [ AGE KIND FROM TO QUESTION]"
-rigAssert "it is read again on the period, and not before"           "[$( rigVal early.reading )] $( rigCalls ) $( rigOtherCalls )" "[] 2 0"
+rigAssert "it is read again on the period, and not before"           "[$( rigReading early )] $( rigCalls ) $( rigOtherCalls )" "[] 2 0"
 
 echo "-- each open ask is one row --"
 rigCase rows three.asks rows
@@ -491,12 +498,12 @@ turn 3
 wait focus 30
 get up
 RIGSCRIPT
-rigAssert "on the row that goes up no ask is read by its id"          "$( rigVal in.selected ) [$( rigVal in.reading )]" ".. []"
-rigAssert "selecting an ask reads it by its id, as a call of its own" "$( rigVal asked.selected ) $( rigVal asked.reading )" "$rigC view:pending|record:$rigC"
+rigAssert "on the row that goes up no ask is read by its id"          "$( rigVal in.selected ) [$( rigReading in )]" ".. []"
+rigAssert "selecting an ask reads it by its id, as a call of its own" "$( rigVal asked.selected ) $( rigReading asked )" "$rigC view:pending|record:$rigC"
 rigAssert "until that read has come, the pane shows the first line of the question" "$( rigPaneHolds early ' question, its first line:' ) $( rigPaneHolds early ' May this change to the routine be applied?' ) [$( rigPane early 2 | LC_ALL=C cut -c1-3 )]" "1 1 [ ~ ]"
 rigAssert "then the question stands whole in its place"               "$( rigPaneHolds c ' question, its first line:' ) $( rigPaneHolds c ' question:' ) $( rigPaneHolds c ' May this change to the routine be applied?' )" "0 1 1"
 rigAssert "each ask is read once when it is selected, and again on the period while it stays selected" "$( rigReadOf "$rigC" ) $( rigReadOf "$rigT" ) $( rigReadOf "$rigP" ) $( rigReadOf "$rigD" )" "1 1 1 2"
-rigAssert "with no ask selected no ask is read, whatever time passes: the list alone, once more, since the selection came to rest on its section"   "$( rigVal up.selected ) [$( rigVal up.reading )] $( rigOtherCalls )" "pending [] 5"
+rigAssert "with no ask selected no ask is read, whatever time passes: the list alone, once more, since the selection came to rest on its section"   "$( rigVal up.selected ) [$( rigReading up )] $( rigOtherCalls )" "pending [] 5"
 
 echo "-- a held change: its fields, and its whole diff as it is --"
 rigAssert "what its post was filled with stands under the names of its slots" "$( rigPaneHolds c ' act Edit' ) $( rigPaneHolds c ' file skillset/rig/rig.routine.md' ) $( rigPaneHolds c ' change store change-0005' )" "1 1 1"
@@ -568,7 +575,7 @@ rigActs "$rigAsk1" drop -
 rigScriptActs <<'RIGSCRIPT'
 size 120 40
 turn
-keys 3
+keys 2
 wait list 30
 keys DOWN
 wait acts 30
@@ -606,7 +613,7 @@ rigActs "$rigAsk1" drop "be sure"
 rigScriptActs <<'RIGSCRIPT'
 size 120 40
 turn
-keys 3
+keys 2
 wait list 30
 keys DOWN DOWN DOWN
 wait acts 30
@@ -618,6 +625,7 @@ get dlg
 box abox
 cells sDlg 39 0 120
 keys 2
+turn
 get two
 keys TAB b e SPACE s u r e
 get typed
@@ -646,7 +654,7 @@ rigActs "$rigAsk3" "use it" -
 rigScriptActs <<'RIGSCRIPT'
 size 120 40
 turn
-keys 3
+keys 2
 wait list 30
 keys DOWN
 wait acts 30
@@ -678,7 +686,7 @@ printf 'fail\n' > "$MANAGER_SCREEN_RIG/mode.--manager-pending-reply-dismiss"
 rigScriptActs <<'RIGSCRIPT'
 size 120 40
 turn
-keys 3
+keys 2
 wait list 30
 keys DOWN DOWN
 wait acts 30
@@ -712,6 +720,53 @@ rigAssert "Enter rejects: its success in the status line; the reject is one call
 rigAssert "d asks for the confirmation of the dismissal, with a field for its reason" "[$( rigVal dis.dialog )] [$( rigVal dis.dialogTitle )] $( rigBoxHolds dbox '║   Reason, or none' ) $( rigBoxHolds dbox ' »Dismiss« ▅   Cancel  ▅' )" "[dismiss:words|] [Dismiss the permission of magic-librarian] 1 1"
 rigAssert "the operation refuses: what it wrote stands whole in a box" "[$( rigVal dfail.dialogTitle )] [$( rigVal dfail.dialogHolds )]" "[The dismissal failed] [operation: --manager-pending-reply-dismiss --id $rigAsk2 --reason no need / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
 rigAssert "j on a question that takes no reject opens no confirmation: the status line says why" "[$( rigVal norej.dialog )] [$( rigVal norej.notice )]" "[] [Reject: this decision has no negative answer of its own: answer it, or dismiss it]"
+
+echo "-- the row Pending Questions shows how many asks wait: the count is read at the root, whatever is shown --"
+rigScriptCount(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time of day and the size; the list of the sessions is out of the table, the count of the asks is read as the screen reads it
+	rigOut="$( { printf 'tools bash %s\ntable list:magic-team/activity none\nwall 2026-10-13 02:30 +0300\nsize 120 40\nroot dashboard\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+}
+rigRowOf(){ ## label -- a row of the right pane at 120 columns, not selected, as it is drawn: a blank, the label, the mark of a folder at the edge
+	printf ' %-32s►' "$1"
+}
+rigCountFile(){ ## the file the stand-in prints the answer of the count from, in the rig of the case
+	printf '%s' "$MANAGER_SCREEN_RIG/rows.$rigRead --count"
+}
+rigCase count no.asks rows
+printf '2\n' > "$( rigCountFile )"
+printf '0\n' > "$MANAGER_SCREEN_RIG/zero"
+rigScriptCount <<RIGSCRIPT
+turn
+cells unreadRoot 3 85 119
+wait count 30
+turn
+cells twoRoot 3 85 119
+at magic-team
+turn
+cells twoIn 4 85 119
+copy $MANAGER_SCREEN_RIG/zero $( rigCountFile )
+at
+advance 11
+turn
+wait count 30
+turn
+cells zeroRoot 3 85 119
+at magic-team
+turn
+cells zeroIn 4 85 119
+RIGSCRIPT
+rigAssert "before the count has come the row has none, at the root" "[$( rigVal unreadRoot )]" "[$( rigRowOf 'Pending Questions' )]"
+rigAssert "with two that wait it shows [2], at the root and under Magic-Team (Agents)" "[$( rigVal twoRoot )] [$( rigVal twoIn )]" "[$( rigRowOf 'Pending Questions [2]' )] [$( rigRowOf 'Pending Questions [2]' )]"
+rigAssert "when the count is read again it follows: none that wait, [0], in both places" "[$( rigVal zeroRoot )] [$( rigVal zeroIn )]" "[$( rigRowOf 'Pending Questions [0]' )] [$( rigRowOf 'Pending Questions [0]' )]"
+rigAssert "the count is the operation of the list with --count, asked twice in all, and the list itself not at all" "$( LC_ALL=C grep -c -x -F -- "$rigRead --count" "$MANAGER_SCREEN_RIG/calls" ) $( LC_ALL=C grep -c -x -F -- "$rigRead" "$MANAGER_SCREEN_RIG/calls" || : )" "2 0"
+rigCase countbad no.asks rows
+printf 'not a number\n' > "$( rigCountFile )"
+rigScriptCount <<'RIGSCRIPT'
+turn
+wait count 30
+turn
+cells badRoot 3 85 119
+RIGSCRIPT
+rigAssert "an answer that is no number leaves the row without one" "[$( rigVal badRoot )]" "[$( rigRowOf 'Pending Questions' )]"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN PENDING CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

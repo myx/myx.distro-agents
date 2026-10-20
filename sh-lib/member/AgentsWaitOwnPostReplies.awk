@@ -14,6 +14,7 @@
 #                      -v siblingsMax is read: -v siblings is the count so far. Once it has reached the
 #                      maximum the siblings are no longer watched (-v mentionsOnly=1): the read goes on from the
 #                      floor, and only a message that mentions the run is printed, and nothing is counted.
+#   -v callerId        the run's own Slack account, where known: a message that mentions it as <@id> mentions the run.
 #   -v postTs          the post itself. It is never printed, but its line gives the reactions it has.
 #   -v floorTs         only a message newer than this is new.
 #   -v side            a file for what the caller stores, one line each: `newest <ts>` (the newest message
@@ -92,6 +93,8 @@ function fromAddressee(line,   user, who, idx) {
 ## Whether the head line mentions the run: its member tagged in the send header's addressees, as
 ## `*_<member>_*` after the arrow, or written `@<member>` in the text.
 function mentionsRun(line,   rest, arrow, toPart, endPos) {
+	## A real Slack mention of the run's account (-v callerId, where the caller knows it): a person writing @member.
+	if ( callerId != "" && index(line, "<@" callerId ">") > 0 ) { return 1 ; }
 	if ( callerName == "" ) { return 0 ; }
 	rest = line
 	gsub(/[\r\n\t]+/, " ", rest)

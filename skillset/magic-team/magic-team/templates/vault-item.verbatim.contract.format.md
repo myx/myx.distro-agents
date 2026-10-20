@@ -3,7 +3,7 @@ maintainers: [magic-librarian, magic-coordinator, human-owner]
 ---
 # vault-item.verbatim — frontmatter contract
 
-Normative contract: this file's own `# Contract` section, at its end. The document shape is `vault-item.verbatim.document.format.md`. Read by the document validator, `--intern-doc-validate vault-item.verbatim <file>` (settled; not built yet).
+Normative contract: this file's own `# Contract` section, at its end. The document shape is `vault-item.verbatim.document.format.md`. Read by the document validator, `--intern-doc-validate vault-item.verbatim <file>`.
 
 ## Contents
 

@@ -258,7 +258,7 @@ $( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxP
 EOF
 	[ "${#stampPaths[@]}" -gt 0 ] || return 0
 	## One conversion for the whole root; every value was shape-checked above.
-	epochList="$( printf '%s\n' "${stampValues[@]}" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsIsoToEpoch.awk" )" || {
+	epochList="$( printf '%s\n' "${stampValues[@]}" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" )" || {
 		echo "$MDSC_CMD: team-data-final-gc-deletion: ⚠️ WARNING: kept every marked item in $scanDir -- its processed-at dates could not be converted" >&2
 		return 0
 	}

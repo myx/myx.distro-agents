@@ -208,6 +208,11 @@ AgentsToolsClientToolPolicyHookRecords(){
 	## default, and the marker and store touch must never be cut; the rest runs detached.
 	recordOut="${recordOut}SessionEnd	native	.claude/hooks/root-session-end.sh end		root-session-end.sh	end	5"$'\n'
 	recordOut="${recordOut}SessionStart	native	.claude/hooks/root-session-end.sh resume	resume	root-session-end.sh	resume"$'\n'
+	## A spawned session: the client's own log of it, kept in the sandbox of the spawn (F10.4). The pointer at the start, a copy at
+	## the end of every turn and at the end of the session, which carries its own timeout, 5 s, as the root session's end does.
+	recordOut="${recordOut}SessionStart	native	.claude/hooks/native-transcript-keep.sh start		native-transcript-keep.sh	start"$'\n'
+	recordOut="${recordOut}Stop	native	.claude/hooks/native-transcript-keep.sh keep		native-transcript-keep.sh	keep"$'\n'
+	recordOut="${recordOut}SessionEnd	native	.claude/hooks/native-transcript-keep.sh end		native-transcript-keep.sh	end	5"$'\n'
 	while IFS= read -r recordTool ; do
 		[ -n "$recordTool" ] || continue
 		recordOut="${recordOut}PreToolUse	reroute	$recordScript $recordTool	$recordTool	${recordScript##*/}	$recordTool"$'\n'

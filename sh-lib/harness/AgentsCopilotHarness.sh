@@ -28,8 +28,10 @@ HARNESS_CREDENTIAL_NAMES="COPILOT_GITHUB_TOKEN"
 ## declared choice and the second is machine-managed MRU state -- main is the tier doing the
 ## real work, so it takes the id actually selected. NEITHER ID IS YET CONFIRMED ACCEPTED BY
 ## THE ENDPOINT UNDER THIS SPELLING.
-HARNESS_MODEL_LIGHT="gpt-5.6-sol"
-HARNESS_MODEL_MAIN="claude-fable-5"
+## A model an exported HARNESS_MODEL_LIGHT or HARNESS_MODEL_MAIN names stands ahead of the leg's own: the console
+## exports the model name of the preset a spawn runs on (F10.2), and nothing else does. The default is the leg's.
+HARNESS_MODEL_LIGHT="${HARNESS_MODEL_LIGHT:-gpt-5.6-sol}"
+HARNESS_MODEL_MAIN="${HARNESS_MODEL_MAIN:-claude-fable-5}"
 HARNESS_TOKEN_LIGHT="${COPILOT_GITHUB_TOKEN:-}"
 HARNESS_TOKEN_MAIN="${COPILOT_GITHUB_TOKEN:-}"
 

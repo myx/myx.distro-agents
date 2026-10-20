@@ -110,7 +110,7 @@ case "$1" in
 		## Sessions the spawned-sessions registry knows and holds none live (as advance reads them).
 		local mrEndedFile="" mrRegistryText=""
 		mkdir -p "$MMDAPP/.local/temp" 2> /dev/null && mrEndedFile="$( mktemp "$MMDAPP/.local/temp/mdat-morning-review-ended.XXXXXX" )" || mrEndedFile=""
-		if [ -n "$mrEndedFile" ] && . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2>/dev/null ; then
+		if [ -n "$mrEndedFile" ] && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2>/dev/null ; then
 			mrRegistryText="$( AgentsToolsRegistryRenderSpawnedSessions agents 2>/dev/null )" || mrRegistryText=""
 			case "$mrRegistryText" in
 				*"no spawn sandbox root exists"*) : ;;

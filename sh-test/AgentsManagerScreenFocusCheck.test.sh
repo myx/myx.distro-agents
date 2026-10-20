@@ -22,6 +22,8 @@
 ## Offline: no operation of the real tooling is called.
 ## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`.
 ## Reconciled for F11.0, the table lines: two spaces between the columns of every table.
+## Reconciled for the count of Pending Questions (owner, 2026-10-20): the root reads the count of the asks (`--count`) whatever is shown, and that start is no read of a folder: the helpers leave it out.
+## Reconciled for F11.5: the roots are Dashboard, Pending Questions, Magic-Team (Agents), Locations, Consoles, Settings and Configuration, so the selection steps through those, and the sessions and the members are read inside Magic-Team (Agents) (Activity, Team Members); the asks, the places and the consoles keep their cases.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -176,11 +178,15 @@ for line in os.environ["RIG_OUT"].split("\n"):
 print(" / ".join(held))
 ' "$1"
 }
-rigCalls(){ ## text -- how many starts of the stand-in name it in their words
-	LC_ALL=C grep -c -F -- "$1" "$MANAGER_SCREEN_RIG/calls" || :
+rigCalls(){ ## text -- how many starts of the stand-in name it in their words, the count of the asks, which the root reads whatever is shown, left out
+	LC_ALL=C grep -v -x -F -- "$rigAsksCount" "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C grep -c -F -- "$1" || :
 }
+rigCallsIn(){ ## file, text -- the same in a copy of the calls
+	LC_ALL=C grep -v -x -F -- "$rigAsksCount" "$1" | LC_ALL=C grep -c -F -- "$2" || :
+}
+rigAsksCount="--member-pending-reply-read magic-coordinator --any-owner --count"
 rigFolderCalls(){ ## how many starts were of the lists that only a folder asks for: not of those that are read whatever is shown
-	LC_ALL=C grep -c -v -e '^--manager-dashboard-read$' -e '^--manager-place-list$' -e '^--manager-session-list' "$MANAGER_SCREEN_RIG/calls" || :
+	LC_ALL=C grep -c -v -e '^--manager-dashboard-read$' -e '^--manager-place-list$' -e '^--manager-session-list' -e "^$rigAsksCount\$" "$MANAGER_SCREEN_RIG/calls" || :
 }
 
 echo "-- the roots: the selection on each loads it and shows its summary, with no Enter --"
@@ -188,15 +194,18 @@ rigCase roots
 rigScript <<'RIGSCRIPT'
 turn
 keys DOWN
-wait sessions 5
-show S
-keys DOWN
 wait focus 5
 show Q
 keys DOWN
 wait focus 5
+show M
+keys ENTER DOWN
+wait sessions 5
+show S
+keys DOWN DOWN
+wait focus 5
 show T
-keys DOWN
+keys BACKSPACE DOWN
 wait focus 5
 show P
 keys DOWN
@@ -224,7 +233,7 @@ rigCase waits
 echo "sleep 1" > "$MANAGER_SCREEN_RIG/mode.--member-pending-reply-read"
 rigScript <<'RIGSCRIPT'
 turn
-keys DOWN DOWN
+keys DOWN
 turn
 show at
 get at
@@ -256,8 +265,6 @@ keys DOWN
 advance 0.1
 keys DOWN
 advance 0.1
-keys DOWN
-advance 0.1
 turn
 get ran
 copy $MANAGER_SCREEN_RIG/calls $MANAGER_SCREEN_RIG/calls.ran
@@ -266,20 +273,20 @@ turn
 wait focus 5
 show stop
 RIGSCRIPT
-rigAssert "over five folders in half a second: no read of a folder was started on the way" "$( rigVal ran.selected ) $( LC_ALL=C grep -c -e --member-pending-reply-read -e --manager-team-member-list -e --manager-console-list -e --manager-config-digest "$MANAGER_SCREEN_RIG/calls.ran" )" "consoles 0"
+rigAssert "over four folders in half a second: no read of a folder was started on the way" "$( rigVal ran.selected ) $( LC_ALL=C grep -v -x -F -- "$rigAsksCount" "$MANAGER_SCREEN_RIG/calls.ran" | LC_ALL=C grep -c -e --member-pending-reply-read -e --manager-team-member-list -e --manager-console-list -e --manager-config-digest )" "consoles 0"
 rigAssert "and where it stops, that folder alone is read" "$( rigFolderCalls ) $( rigCalls --manager-console-list ) $( rigHolds stop 'DistroAgentsConsole.sh' )" "1 1 1"
 
 echo "-- a slow read of a folder that was left: it holds the next one back, and never shows in another folder --"
 rigCase slow
-echo "sleep 2" > "$MANAGER_SCREEN_RIG/mode.--manager-team-member-list"
+echo "sleep 2" > "$MANAGER_SCREEN_RIG/mode.--member-pending-reply-read"
 rigScript <<'RIGSCRIPT'
 turn
 wait places 5
-keys DOWN DOWN DOWN
+keys DOWN
 advance 0.4
 turn
-get team
-keys DOWN DOWN
+get asks
+keys DOWN DOWN DOWN
 advance 0.4
 turn
 turn
@@ -288,20 +295,20 @@ get other
 wait focus 5
 wait focus 5
 show later
-keys UP UP
+keys UP UP UP
 turn
 show back
 RIGSCRIPT
-rigAssert "the members are being read, as a read of the focus" "[$( rigVal team.selected )] [$( rigVal team.reading | tr ',' '\n' | LC_ALL=C grep -F team )]" "[team] [list:team]"
-rigAssert "two folders on, while that read runs: the folder there waits by its own name, its read held back, and nothing of the members shows" "[$( rigVal other.selected )] [$( rigLeft other )] [$( rigVal other.reading | tr ',' '\n' | LC_ALL=C grep -c -F consoles )]" "[consoles] [Populating Consoles...] [0]"
-rigAssert "when it has ended the folder there is read and shown, and still nothing of the members" "$( rigHolds later 'DistroAgentsConsole.sh' ) $( rigHolds later '4 members' ) $( rigCalls --manager-console-list )" "1 0 1"
-rigAssert "back on the members: what that read gave stands there at once, and it was made once" "$( rigHolds back ' 1  magic-coordinator  running' ) $( rigCalls --manager-team-member-list )" "1 1"
+rigAssert "the asks are being read, as a read of the focus" "[$( rigVal asks.selected )] [$( rigVal asks.reading | tr ',' '\n' | LC_ALL=C grep -F pending )]" "[pending] [list:pending]"
+rigAssert "three folders on, while that read runs: the folder there waits by its own name, its read held back, and nothing of the asks shows" "[$( rigVal other.selected )] [$( rigLeft other )] [$( rigVal other.reading | tr ',' '\n' | LC_ALL=C grep -c -F consoles )]" "[consoles] [Populating Consoles...] [0]"
+rigAssert "when it has ended the folder there is read and shown, and still nothing of the asks" "$( rigHolds later 'DistroAgentsConsole.sh' ) $( rigHolds later 'Which of the two layouts stays?' ) $( rigCalls --manager-console-list )" "1 0 1"
+rigAssert "back on the asks: what that read gave stands there at once, and it was made once" "$( rigHolds back 'Which of the two layouts stays?' ) $( rigCalls --member-pending-reply-read )" "1 1"
 
 echo "-- while the selection stays on a folder its period reads it no more; coming back after the period reads it again --"
 rigCase stays
 rigScript <<RIGSCRIPT
 turn
-keys DOWN DOWN
+keys DOWN
 wait focus 5
 advance 10.5
 turn
@@ -325,13 +332,13 @@ keys u
 turn
 wait focus 5
 RIGSCRIPT
-rigAssert "two periods on the row: read once; away and back after the period: once more; away and back at once: no more; and the key that reads now reads it" "$( LC_ALL=C grep -c -F -- --member-pending-reply-read "$MANAGER_SCREEN_RIG/calls.stayed" ) $( LC_ALL=C grep -c -F -- --member-pending-reply-read "$MANAGER_SCREEN_RIG/calls.back" ) $( rigCalls --member-pending-reply-read )" "1 2 3"
+rigAssert "two periods on the row: read once; away and back after the period: once more; away and back at once: no more; and the key that reads now reads it" "$( rigCallsIn "$MANAGER_SCREEN_RIG/calls.stayed" --member-pending-reply-read ) $( rigCallsIn "$MANAGER_SCREEN_RIG/calls.back" --member-pending-reply-read ) $( rigCalls --member-pending-reply-read )" "1 2 3"
 
 echo "-- entering a folder afterwards uses what was read, and reads again when its period has passed --"
 rigCase enters
 rigScript <<RIGSCRIPT
 turn
-keys DOWN DOWN
+keys DOWN
 wait focus 5
 keys ENTER
 turn
@@ -343,16 +350,16 @@ turn
 wait list 5
 get aged
 RIGSCRIPT
-rigAssert "entered: its rows are there and no second read was made; the period passed: one more" "[$( rigVal in.path )] $( rigVal in.rows ) $( LC_ALL=C grep -c -F -- --member-pending-reply-read "$MANAGER_SCREEN_RIG/calls.in" ) $( rigCalls --member-pending-reply-read )" "[pending] 4 1 2"
+rigAssert "entered: its rows are there and no second read was made; the period passed: one more" "[$( rigVal in.path )] $( rigVal in.rows ) $( rigCallsIn "$MANAGER_SCREEN_RIG/calls.in" --member-pending-reply-read ) $( rigCalls --member-pending-reply-read )" "[pending] 4 1 2"
 
 echo "-- inside the sessions and the configuration: Launch (Start), Server Keys, a subject; the checker is not run by the focus --"
 rigCase inner
 rigScript <<'RIGSCRIPT'
 turn
-keys DOWN ENTER DOWN
+keys DOWN DOWN ENTER DOWN ENTER DOWN
 wait focus 5
 show L
-keys BACKSPACE DOWN DOWN DOWN DOWN DOWN DOWN ENTER DOWN
+keys BACKSPACE BACKSPACE BACKSPACE DOWN DOWN DOWN DOWN ENTER DOWN
 wait focus 5
 advance 11
 turn
@@ -394,7 +401,7 @@ rigCase fails
 echo fail > "$MANAGER_SCREEN_RIG/mode.--manager-console-list"
 rigScript <<'RIGSCRIPT'
 turn
-keys DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN
 wait focus 5
 get box
 keys ESC
@@ -408,7 +415,7 @@ rigCase pty
 mkdir -p "$rigTmp/ws-rig"
 printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigTools" > "$rigTmp/tools"
 chmod +x "$rigTmp/tools"
-rigOut="$( MANAGER_SCREEN_PTY_TRACE='asks=QUESTION' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 120 36 "Sessions (Activity)" '\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\aQUESTION\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
+rigOut="$( MANAGER_SCREEN_PTY_TRACE='asks=QUESTION' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 120 36 "Magic-Team (Agents)" '\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\aQUESTION\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
 rigAssert "it draws the summary of the asks with no Enter and ends with status 0, the terminal given back" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft ) $( rigVal pty.modeBack ) [$( rigVal pty.trace | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ $//' )]" "yes 0 yes none yes [asks]"
 
 if [ "$rigFailCount" -ne 0 ] ; then

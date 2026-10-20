@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpWorkDuty.include -- the work-duty input scan (F4.1 of the refactorings epic): `--intern-op-work-duty-input-scan
+## <team-member> [--session-id <id>]`. It is a scan a routine declares (`input-scan-def: work-duty --session-id {{session-id}}`,
+## AgentsTools.InputScanDef.include) and the spawner runs, with no instruction to an agent: no member calls it (F6.4). Sourced from the
+## dispatcher's own arm, one op in the file; needs $1/$@/$MDSC_CMD from dot-sourcing.
+##
+## It collects what is for the member to work on at the start of its duty:
+##   - the inbox items not yet processed -- the member's incoming/ alone (F4.3), invitations and sub-tasks for handling and joining
+##     among them, being items of their own types;
+##   - the Slack that is tagged to the member -- a mention of it in the team channel or in its session thread, and any DM -- and the
+##     team channel besides, over a collect window.
+## THE COLLECT IS A WAIT, NOT A SLEEP, and the same one the session chat file is read by (AgentsTools.MemberWait.include,
+## --wait-collect): it keeps a pointer at the last message already seen, in the session's pointers (session.chat.pointers), watches
+## from it, and returns everything accumulated when EITHER the window elapses OR an immediate message appears, whichever comes first.
+## The tags are immediate; the team channel is collected over the window. The window is the setting WAIT_COLLECT_SECONDS of the
+## magic-team scope, beside WAIT_ROUND_SECONDS in the settings catalogue, a minute when it is not set. The report says which ended
+## the collect on a `# returned: window` or `# returned: immediate` line.
+##
+
+case "$1" in
+
+	--intern-op-work-duty-input-scan)
+		shift
+		local workMember="${1:-}" workSession="${MDAT_SESSION_ID:-}" workWindow workWork workOut workInboxRc=0
+		if [ -z "$workMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-work-duty-input-scan: syntax is <team-member> [--session-id <id>]" >&2
+			set +e ; return 1
+		fi
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-op-work-duty-input-scan: --session-id: value required" >&2
+						set +e ; return 1
+					fi
+					workSession="$2"
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-work-duty-input-scan: invalid option: $1 -- syntax is <team-member> [--session-id <id>]" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		AgentsToolsAssertBareName "$workMember" "<team-member>" work-duty-input-scan || { set +e ; return 1 ; }
+		if [ ! -d "$MDAT_SKILLSET_ROOT/$workMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-work-duty-input-scan: no such member skill directory: $MDAT_SKILLSET_ROOT/$workMember" >&2
+			set +e ; return 1
+		fi
+		## The window: the setting of the team scope where it is a whole number of one second or more, else a minute.
+		workWindow="$( DistroAgentsTools --agents-config-option magic-team --select WAIT_COLLECT_SECONDS 2> /dev/null )" || workWindow=""
+		case "$workWindow" in ''|0|*[!0123456789]*) workWindow=60 ;; esac
+
+		mkdir -p "$MMDAPP/.local/agents/scratch" 2> /dev/null || true
+		workWork="$( mktemp -d "$MMDAPP/.local/agents/scratch/work-duty-scan.XXXXXXXX" 2> /dev/null )" || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-work-duty-input-scan: no working folder could be made under $MMDAPP/.local/agents/scratch, so nothing was collected" >&2
+			set +e ; return 1
+		}
+
+		printf '# Work duty input scan: %s\n\n' "$workMember"
+
+		## The inbox: the items not yet processed, which is what the member's incoming/ holds.
+		printf '## Inbox: items not yet processed\n\n'
+		DistroAgentsTools --intern-op-session-context-scan "$workMember" --all-types \
+			--do-inbox-reflections --do-inbox-notes --do-inbox-inquiry-active --do-inbox-other \
+			--no-slack --no-email --no-trello --no-board-related \
+			--context --intern-op-work-duty-input-scan > "$workWork/inbox.out" 2> "$workWork/inbox.err" || workInboxRc=$?
+		if [ "$workInboxRc" != "0" ] ; then
+			printf 'The inbox could not be read (exit %s):\n\n' "$workInboxRc"
+			cat "$workWork/inbox.err" 2> /dev/null
+		else
+			cat "$workWork/inbox.out"
+		fi
+
+		## Slack: the tags immediately, the team channel over the window.
+		printf '\n## Slack: tagged to %s, and the team channel over %ss\n\n' "$workMember" "$workWindow"
+		( [ -z "$workSession" ] || export MDAT_SESSION_ID="$workSession" ; DistroAgentsTools --intern-op-wait-for-input "$workMember" --wait-collect "$workWindow" --wait-source "tagged:$workMember" --wait-source slack:magic-team ) > "$workWork/collect.out" 2> "$workWork/collect.err" || :
+		if LC_ALL=C grep -q '^# arrived on: ' "$workWork/collect.out" ; then
+			LC_ALL=C awk '/^# arrived on: / { shown = 1 ; } shown && $0 !~ /^# (--- what that source holds now follows ---|--- end ---)$/ && $0 !~ /^(WAIT-|# returned: )/ { print ; }' "$workWork/collect.out"
+		else
+			printf 'Nothing new in Slack.\n'
+		fi
+		LC_ALL=C grep -m 1 '^# returned: ' "$workWork/collect.out" || printf '# returned: window\n'
+		[ ! -s "$workWork/collect.err" ] || LC_ALL=C grep -i -E 'error|could not|not read' "$workWork/collect.err" | head -5 >&2 || :
+		rm -rf "$workWork"
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

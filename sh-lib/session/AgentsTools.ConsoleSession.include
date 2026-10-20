@@ -47,7 +47,7 @@ DistroAgentsToolsResolveWorkspace(){
 ## start could be read, holds the pid alone.
 DistroAgentsToolsChannelPidKeep(){ ## pid file, pid
 	local keepLine keepAside
-	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null
+	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
 	keepLine="$( printf '%s\n' "$2" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
 	keepAside="$( mktemp "$1.XXXXXX" )" || return 1
 	printf '%s\n' "${keepLine:-$2}" > "$keepAside" && mv -f "$keepAside" "$1"
@@ -74,7 +74,7 @@ DistroAgentsToolsChannelSignal(){ ## signal, pid file
 		kill -0 "$signalPid" 2>/dev/null || return 1
 		return 2
 	fi
-	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null
+	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
 	[ "$( printf '%s\n' "$signalPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$signalLine" ] && kill "-$1" "$signalPid" 2>/dev/null || return 1
 	return 0
 }

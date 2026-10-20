@@ -456,13 +456,13 @@ rigScene nativeWaitName
 rigSessionRecord rig-native-id "$rigNativeThread"
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGSELF1","text":"RIG-NATIVE-OPENER"}],"has_more":false}\n' "${rigNativeThread#*:}" > "$rigScenarioDir/replies.${rigNativeThread#*:}.json"
 rigCall native Wait '{"sources":"slack:session-current","timeout":1,"since_utime":"1700000100"}'
-rigAssert "Wait on slack:session-current: its recorded thread"    "$( rigWaitEnded ):$( rigWaited rig-native-id )" "TIMEOUT:replies:rig-native-id slack:$rigNativeThread:conversation"
+rigAssert "Wait on slack:session-current: its recorded thread"    "$( rigWaitEnded ):$( rigWaited rig-native-id )" "TIMEOUT:replies:rig-native-id chat:rig-native-id slack:$rigNativeThread:conversation"
 
 echo "-- a bare Wait in such a session watches its recorded thread beside the two team conversations --"
 rigScene nativeWaitBare
 rigSessionRecord rig-native-id "$rigNativeThread"
 rigCall native Wait '{"timeout":1}'
-rigAssert "the Wait tool: the floor, the two conversations, and the session thread" "$( rigWaited rig-native-id )" "replies:rig-native-id slack:magic-team slack:human-owner slack:$rigNativeThread:conversation"
+rigAssert "the Wait tool: the floor, the two conversations, and the session thread" "$( rigWaited rig-native-id )" "replies:rig-native-id chat:rig-native-id slack:magic-team slack:human-owner slack:$rigNativeThread:conversation"
 rigScene nativeWaitBareNone
 rigCall native Wait '{"timeout":1}'
 rigAssert "with no thread recorded: the floor and the two conversations alone" "$( rigWaited rig-native-id )" "replies:rig-native-id slack:magic-team slack:human-owner"

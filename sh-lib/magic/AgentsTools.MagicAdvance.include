@@ -185,7 +185,8 @@ type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 AgentsToolsAdvanceInputScanReport(){ ## calling member
 	local callingMember="$1"
 	printf '%s\n\n' "## state-and-lock (routine-advance)"
-	local lockNote="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T154715Z-advance-state-and-lock.md"
+	## The lock note of the member the scan is for: the advance lock is named per member (F4.2), in the inbox of the member of the start.
+	local lockNote="$( AgentsToolsInboxDir "$callingMember" )/note-20260809T154715Z-advance-state-and-lock.md"
 	if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
 	## Scoped to what advance itself acts on, per the owner's "grooming reads
 	## backlog+inquiries+notes, advance does not": no backlog (promotion is
@@ -247,7 +248,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-advance-input-scan: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 		## A pure read: what a dead spawn left open is closed when the routine takes its lock (AgentsToolsAdvanceSpawnHousekeeping).
 		## In a team session the report is a file of its folder, served again for five minutes (AgentsTools.InputScanCache.include).
@@ -373,7 +374,7 @@ case "$1" in
 		local recheckDate
 		recheckDate="$( AgentsToolsRecheckDate 10 )"
 		AgentsToolsItemUpsert "$callingMember" \
-			note-20260809T154715Z-advance-state-and-lock.md \
+			--from-inbox "$callingMember" note-20260809T154715Z-advance-state-and-lock.md \
 			--header:upsert:state:advance-running \
 			"${passthrough[@]}" \
 			--header:upsert:recheck-date:"$recheckDate" \
@@ -502,7 +503,7 @@ case "$1" in
 			set +e ; return 1
 		}
 
-		local lockTarget="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T154715Z-advance-state-and-lock.md"
+		local lockTarget="$( AgentsToolsInboxDir "$callingMember" )/note-20260809T154715Z-advance-state-and-lock.md"
 		local originUrl="" repoRoot="" lockRelPath="" lockBranch=""
 		set +e
 		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
@@ -542,7 +543,7 @@ case "$1" in
 		local recheckDate
 		recheckDate="$( AgentsToolsRecheckDate 10 )"
 		if ! AgentsToolsItemRead "$callingMember" \
-			note-20260809T154715Z-advance-state-and-lock.md \
+			--from-inbox "$callingMember" note-20260809T154715Z-advance-state-and-lock.md \
 			--acquire-lock "$ownerLabel" \
 			--commit-message "* advance.routine: activate, lock" \
 			--header:upsert:state:advance-running \
@@ -571,7 +572,7 @@ case "$1" in
 		fi
 		## The pass's housekeeping, each time the routine takes its lock and only then, by the tooling itself: its lines go to the
 		## daemon line and the event-track thread (AgentsToolsHousekeepingReport), none to the output the agent reads.
-		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 		AgentsToolsAdvanceSpawnHousekeeping 24 "$callingMember" > /dev/null
 		return 0
@@ -591,7 +592,7 @@ case "$1" in
 		local recheckDate
 		recheckDate="$( AgentsToolsRecheckDate 10 )"
 		AgentsToolsItemUpsert "$callingMember" \
-			note-20260809T154715Z-advance-state-and-lock.md \
+			--from-inbox "$callingMember" note-20260809T154715Z-advance-state-and-lock.md \
 			--update-lock \
 			--header:upsert:state:advance-running \
 			--header:upsert:recheck-date:"$recheckDate" \
@@ -636,7 +637,7 @@ case "$1" in
 		## gcRc=2: nothing to delete -- not a failure, continue.
 
 		if ! AgentsToolsItemUpsert "$callingMember" \
-			note-20260809T154715Z-advance-state-and-lock.md \
+			--from-inbox "$callingMember" note-20260809T154715Z-advance-state-and-lock.md \
 			"${passthrough[@]}" \
 			--unlock-lock \
 			--header:upsert:state:advance-finished \
@@ -701,7 +702,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsItemRead "$callingMember" \
-			note-20260809T154715Z-advance-state-and-lock.md \
+			--from-inbox "$callingMember" note-20260809T154715Z-advance-state-and-lock.md \
 			--context --magic-advance-lock-status
 		return $?
 	;;

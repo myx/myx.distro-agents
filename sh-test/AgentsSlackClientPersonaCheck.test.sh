@@ -27,7 +27,7 @@ rigTest="${rigHere%/sh-lib}/sh-test"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigInclude="$rigHere/comms/AgentsTools.MemberCommsSlack.include"
-rigRegInclude="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+rigRegInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 rigPersona="magic-coordinator"
 rigOpName="--make-agents-indices"
 rigBuilderName="1201-agents-indices.sh"
@@ -768,9 +768,9 @@ rigAssert "the earlier index include, its file name, its functions and its build
 rigAssert "control: the same read of all includes does find a function that is there" "$( cat "$rigHere"/*/*.include | LC_ALL=C grep -c -E 'AgentsToolsCommsSlackMemberPresentation|AgentsToolsRegistryAgentsIndicesBuild' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "found" : "blind" }' )" found
 rigAssert "the marks function is defined in the registries include, not the Slack include" "$( LC_ALL=C grep -c '^AgentsToolsCommsSlackMemberMarks(){' "$rigRegInclude" || : ) $( LC_ALL=C grep -c '^AgentsToolsCommsSlackMemberMarks(){' "$rigInclude" || : )" "1 0"
 rigMarksFn="$( rigFnCut "$rigRegInclude" AgentsToolsCommsSlackMemberMarks )"
-rigAssert "the marks function is byte for byte as recorded (cksum, bytes)" "$( printf '%s\n' "$rigMarksFn" | cksum )" "3049307218 255"
+rigAssert "the marks function is byte for byte as recorded (cksum, bytes)" "$( printf '%s\n' "$rigMarksFn" | cksum )" "45624737 261"
 rigAssert "its awk is byte for byte as recorded"                           "$( cksum < "$rigHere/comms/AgentsToolsCommsSlackMemberMarks.awk" )" "175965626 570"
-rigAssert "control: another function text gives another checksum"          "$( [ "$( printf 'x\n' | cksum )" = "3049307218 255" ] && printf blind || printf notices )" notices
+rigAssert "control: another function text gives another checksum"          "$( [ "$( printf 'x\n' | cksum )" = "45624737 261" ] && printf blind || printf notices )" notices
 rigRegistryName(){ ## registry name -- the file name AgentsToolsRegistryFile gives it in the rig workspace
 	( MMDAPP="$rigWs" ; . "$rigRegInclude" && AgentsToolsRegistryFile "$1" )
 }

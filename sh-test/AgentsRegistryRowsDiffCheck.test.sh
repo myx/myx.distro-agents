@@ -33,8 +33,8 @@ rigLiveFrom=""
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" ] || rigRefuse "not found: $MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
-[ -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsRegistryHeaderRows.awk" ] || rigRefuse "not found: $MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsRegistryHeaderRows.awk"
+[ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ] || rigRefuse "not found: $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+[ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" ] || rigRefuse "not found: $MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk"
 [ -f "$rigTest/check-fixtures/AgentsToolsRegistriesRows.legacy.sh" ] || rigRefuse "legacy rows fixture not found"
 ## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
 ## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
@@ -96,7 +96,7 @@ rigRun(){ ## function, workspace, data root ("" for unset), output file
 	(
 		MMDAPP="$2"
 		if [ -n "$3" ] ; then MDAT_DATA_ROOT="$3" ; else unset MDAT_DATA_ROOT ; fi
-		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 		. "$rigTest/check-fixtures/AgentsToolsRegistriesRows.legacy.sh"
 		rigStart="$SECONDS"
 		"$1" > "$4" 2>"$4.err"
@@ -140,7 +140,7 @@ rigRender(){ ## function, workspace, data root ("" for unset), output file, view
 	(
 		MMDAPP="$2"
 		if [ -n "$3" ] ; then MDAT_DATA_ROOT="$3" ; else unset MDAT_DATA_ROOT ; fi
-		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 		. "$rigTest/check-fixtures/AgentsToolsRegistriesRows.legacy.sh"
 		rigStart="$SECONDS"
 		"$1" "$5" "$6" "$7" > "$4" 2>"$4.err"
@@ -362,13 +362,13 @@ rigAssert "an open ask makes waiting" "$( rigStateOf r-open-ask )" waiting
 rigAssert "a received ask is unclosed" "$( rigStateOf r-closed-ask )" unclosed
 rigAssert "a blocked board item makes waiting" "$( rigStateOf r-board )" waiting
 rigAssert "awk's numeric == holds: 100 against an ask for 1e2" "$( rigStateOf r-numeric )" waiting
-rigAssert "a backslash id goes through the function itself" "$( rigStateOf r-backslash )" "$( ( MMDAPP="$rigRWs" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" ; AgentsToolsRegistryDeriveState started no-process 'bs\x' ) )"
+rigAssert "a backslash id goes through the function itself" "$( rigStateOf r-backslash )" "$( ( MMDAPP="$rigRWs" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; AgentsToolsRegistryDeriveState started no-process 'bs\x' ) )"
 rigAssert "a prefix of an open id is not open" "$( rigStateOf r-prefix )" unclosed
 rigAssert "the ask of a run that joined a session is an ask of that session: the run that asked is waiting" "$( rigStateOf r-cow-joined )" waiting
 rigAssert "and so are that session's other unclosed runs, as they are by its founder's ask" "$( rigStateOf r-cow-founder ):$( rigStateOf r-cow-mate )" "waiting:waiting"
 rigAssert "a session of which nobody asked is not" "$( rigStateOf r-cow-other )" unclosed
 rigAssert "a row with no spawn id is not matched by an ask with no session id" "$( rigStateOf r-nospawn-quiet ):$( LC_ALL=C awk '$3 == "-" && $5 == "reply-pending" { openDash++ ; } END { print openDash + 0 ; }' "$rigRWs/.local/agents/pending-replies.registry" )" "unclosed:1"
-rigAssert "asked of one session alone, the function answers the same" "$( ( MMDAPP="$rigRWs" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" ; AgentsToolsRegistryPendingSessionOpen "s-cow-$$" && printf open || printf none ; AgentsToolsRegistryPendingSessionOpen "s-cow-other-$$" && printf :open || printf :none ; AgentsToolsRegistryPendingSessionOpen s-quiet && printf :open || printf :none ) )" "open:none:none"
+rigAssert "asked of one session alone, the function answers the same" "$( ( MMDAPP="$rigRWs" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; AgentsToolsRegistryPendingSessionOpen "s-cow-$$" && printf open || printf none ; AgentsToolsRegistryPendingSessionOpen "s-cow-other-$$" && printf :open || printf :none ; AgentsToolsRegistryPendingSessionOpen s-quiet && printf :open || printf :none ) )" "open:none:none"
 : > "$rigTmp/ps.list" ; : > "$rigTmp/ps.started"
 
 ## --- the dates of a run and the name of its session: three columns appended after workspace ---
@@ -418,7 +418,7 @@ rigStatedRow(){ ## tracking name -- its row of the rows function, whole
 	LC_ALL=C awk -v wantTracking="$1" '$1 == wantTracking { print ; exit ; }' "$rigTmp/stated.rows"
 }
 rigStatedRebuild(){ ## -- the rebuild of the registry file of this store; prints its rc and how many lines it said on stderr
-	( MMDAPP="$rigSWs" ; unset MDAT_DATA_ROOT ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" ; AgentsToolsRegistrySpawnedSessionsRebuild ) > /dev/null 2> "$rigTmp/stated.rebuild.err"
+	( MMDAPP="$rigSWs" ; unset MDAT_DATA_ROOT ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; AgentsToolsRegistrySpawnedSessionsRebuild ) > /dev/null 2> "$rigTmp/stated.rebuild.err"
 	printf '%s:%s\n' "$?" "$( LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/stated.rebuild.err" )"
 }
 rigStatedOf(){ ## session id -- the two last columns of each of its rows in the registry file as it lies, a row a word pair
@@ -460,7 +460,7 @@ rigAssert "after the next rebuild it holds finished, with the new date" "$( rigS
 ## loaded its code before these columns asks it, over the same records and the same state file.
 rigStatedAwk(){ ## the count of columns asked for ("" for none) -- how many columns each row of the two records and the empty sandbox has, and the last column of the first
 	printf 'T%s\nDt-founder\nS%s\nDt-member\nS%s\nDt-empty\nE\n' "$rigSSt/st-run/control/state" "$rigSSp/t-founder/$rigSLive.md" "$rigSSp/t-member/pt-member.md" \
-		| LC_ALL=C awk -v registryRows=spawned ${1:+-v registryColumns="$1"} -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsRegistryHeaderRows.awk" \
+		| LC_ALL=C awk -v registryRows=spawned ${1:+-v registryColumns="$1"} -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" \
 		| LC_ALL=C awk '{ printf "%s ", NF } NR == 1 { last = $NF } END { print last }'
 }
 rigAssert "a caller that asks for fourteen columns still gets fourteen, and no state: the comment of the session is its last column" "$( rigStatedAwk 14 )" "14 14 14 stated_one"
@@ -470,7 +470,7 @@ rigAssert "and one that asks for sixteen gets the state last" "$( rigStatedAwk 1
 ## and eighteen, the state last, for the one that names sixteen.
 printf '900021 claude --verbose --session-id %s --agent rig-member the brief\n' "$rigSLive" > "$rigTmp/ps.list"
 rigStatedMeasured(){ ## the stored columns the caller counts ("" for none) -- the words of each measured row of the session, and the two last of the first
-	( MMDAPP="$rigSWs" ; unset MDAT_DATA_ROOT ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" ; measuredRows="" ; measuredDated="" ; measuredAny=""
+	( MMDAPP="$rigSWs" ; unset MDAT_DATA_ROOT ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; measuredRows="" ; measuredDated="" ; measuredAny=""
 		AgentsToolsRegistryMeasureRows "$rigSReg" "$rigHost" st-run ${1:+"$1"} ; printf '%s' "$measuredDated" ) 2> /dev/null \
 		| LC_ALL=C awk '{ printf "%s ", NF } NR == 1 { last = $( NF - 1 ) " " $NF } END { print last }'
 }

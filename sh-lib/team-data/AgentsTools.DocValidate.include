@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.DocValidate.include -- the functions of the ONE validator of a document (`--intern-doc-validate`,
+## AgentsTools.InternDocValidate.include) that more than the validator's own arm calls. Sourced, never run. Functions only.
+##
+## THE KINDS. `routine` and `document` (the self-check) have their rule sets in AgentsTools.InternDocValidate.include. Every
+## team-data type is a kind, `<store>-item.<type>` (`board-item.task`, `inbox-item.note`, `audit-item.transcript`), and its rule
+## set is its contract: ONE reader (AgentsDocTypeCheck.awk) reads the contract's Keys table and unmarked Rules in
+## magic-team/templates/<kind>.contract.format.md, and the document with them. A document names its kind in `document-contract`.
+##
+## THE DISPOSITION belongs to the rule and the call site (AgentsToolsDocValidateDisposition): `check` is the validator called,
+## `write` is a writer's gate. A refusing rule's row stands as it is and refuses; a reporting rule's row is a row of a
+## `report-` rule, said and refusing nothing. A rule moves from reporting to refusing only on evidence, once it scores no
+## row against text a reader judges correct (magic-tester's run).
+##
+## THE WRITE GATE (AgentsToolsDocValidateGate) is the one place a writer of an item asks whether the write may go on. It runs the
+## validator twice, on the item as it is and on the item as it would be, and refuses only a refusing fault the write
+## introduced: an untouched line can start failing when a line above it moves, so a fault is its rule and its text, never its
+## line. A reporting fault the write introduced is said and the write goes on. Both are the same row, said the same way.
+##
+
+type AgentsToolsItemNameType > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.ItemNameShape.include"
+
+## One fault row: the rows a rule set prints are its faults, one line each.
+AgentsToolsDocValidateRow(){ ## file as shown, line, rule, text
+	printf '%s:%s: %s: %s\n' "$1" "$2" "$3" "$4"
+}
+
+## The contract of a type kind: its path, rc 1 where the kind has none. Looked for in the skillset of the run, then in the package.
+AgentsToolsDocValidateContractFile(){ ## kind
+	local contractBase
+	case "$1" in
+		''|*[!A-Za-z0-9.-]*|*-item.) return 1 ;;
+		*-item.?*) ;;
+		*) return 1 ;;
+	esac
+	for contractBase in "${MDAT_SKILLSET_ROOT:-}/magic-team" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team" ; do
+		[ ! -f "$contractBase/templates/$1.contract.format.md" ] || { printf '%s\n' "$contractBase/templates/$1.contract.format.md" ; return 0 ; }
+	done
+	return 1
+}
+
+## The kinds built, one a line: routine, document, and every type that has a contract.
+AgentsToolsDocValidateKinds(){
+	printf '%s\n' routine document
+	ls "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/templates" 2> /dev/null | LC_ALL=C sed -n 's/^\(.*-item\..*\)\.contract\.format\.md$/\1/p' | LC_ALL=C sort
+}
+
+## Whether the row of a rule refuses or reports at a site: `check` (the validator called) or `write` (a writer's gate). The
+## ONE table. A key the contract does not name is said, since writers of the team (the advance routine's
+## `advance-reassess-note-<stamp>`) keep keys of their own; two keys that appear together are said, since the writer of
+## `--recheck-in` writes `recheck-date` alone and 33 stored items stand so; a body that opens a frontmatter block it never
+## closes is written as it was, since a create that wrote before must not start refusing (its keys cannot be read); the
+## body, the file name, a contract rule this reader does not know, a name off the naming Rule and a type in the wrong
+## store are said. Everything else is the contract, and refuses.
+AgentsToolsDocValidateDisposition(){ ## rule, site
+	case "$1:$2" in
+		contract-unknown-key:check|contract-unknown-key:write|contract-pair:check|contract-pair:write) printf 'report' ;;
+		contract-frontmatter:check|contract-frontmatter:write) printf 'report' ;;
+		contract-body:check|contract-body:write|contract-filename:check|contract-filename:write) printf 'report' ;;
+		contract-rule-unread:check|contract-rule-unread:write|contract-name:check|contract-name:write|contract-store:check|contract-store:write) printf 'report' ;;
+		## Every other rule refuses, at both sites; so does a site this table does not know.
+		*) printf 'refuse' ;;
+	esac
+}
+
+## The faults of a document against the contract of its kind, one a line, `<line> TAB <rule> TAB <text> TAB <the value it is about>`;
+## the document is on stdin. A fault is its rule and its text: the value is apart, so a value changed stays the one fault.
+AgentsToolsDocValidateTypeRows(){ ## contract file, the document's file name (empty for none)
+	DOC_NAME="${2:-}" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsDocTypeCheck.awk" "$1" - | LC_ALL=C sed -n $'s/^ROW\t//p'
+}
+
+## The rule set of a type kind, as the validator prints it: a row for each fault, the rule of a reporting row `report-` first.
+AgentsToolsDocValidateType(){ ## file, file as shown, kind, site (check|write)
+	local typeContract typeLine typeRule typeText typeDetail typeShown typeName=""
+	typeContract="$( AgentsToolsDocValidateContractFile "$3" )" || return 1
+	[ "$2" = "<stdin>" ] || typeName="$( basename -- "$2" )"
+	AgentsToolsDocValidateTypeRows "$typeContract" "$typeName" < "$1" | LC_ALL=C sort -t $'\t' -k1,1n -k2,2 -k3,3 -k4,4 -u | while IFS=$'\t' read -r typeLine typeRule typeText typeDetail ; do
+		typeShown="$typeRule"
+		[ "$( AgentsToolsDocValidateDisposition "$typeRule" "$4" )" = "refuse" ] || typeShown="report-$typeRule"
+		AgentsToolsDocValidateRow "$2" "$typeLine" "$typeShown" "$typeText${typeDetail:+: $typeDetail}"
+	done
+	return 0
+}
+
+## THE WRITE GATE. The document as it will be written is on stdin. Returns 1, having said why, where the write introduces a
+## fault whose rule refuses at the `write` site; returns 0 otherwise, having said each reporting fault it introduces.
+##   op       the operation as it names itself in its lines (board-upsert-move-edit)
+##   label    what a line says it is about (`--create`, `new item`, or the item's name)
+##   store    board or inbox
+##   name     the item's file name
+##   before   the file the item is now, or empty where there is none
+##   mode     create (the rules of a new item are asked too: the naming Rule, and the type for the store) or change
+AgentsToolsDocValidateGate(){ ## op, label, store, name, before, mode
+	local gateOp="$1" gateLabel="$2" gateStore="$3" gateName="$4" gateBefore="${5:-}" gateMode="${6:-change}"
+	local gateAfter gateKind gateContract gateAfterRows gateBeforeIds gateNew gateRule gateText gateDetail gateShown gateRefused=0 gateFault
+	gateAfter="$( cat )"
+	gateKind="$gateStore-item.$( AgentsToolsItemNameType "$gateName" )"
+	gateContract="$( AgentsToolsDocValidateContractFile "$gateKind" )" || gateContract=""
+	## The faults of the item as it would be: `<rule> TAB <text> TAB <value>`.
+	gateAfterRows=""
+	if [ "$gateMode" = "create" ] ; then
+		gateFault="$( AgentsToolsItemNameShapeFault "$gateName" )"
+		[ -z "$gateFault" ] || gateAfterRows="contract-name"$'\t'"$gateFault"$'\t'$'\n'
+		if [ "$gateStore" = "inbox" ] ; then
+			case "$( AgentsToolsItemNameType "$gateName" )" in
+				note|inquiry|reflection) ;;
+				*) gateAfterRows="${gateAfterRows}contract-store"$'\t'"$gateName is not an inbox type (note-*, inquiry-*, reflection-*) -- a board type filed in an inbox is misfiled; written anyway"$'\t'$'\n' ;;
+			esac
+		fi
+	fi
+	[ -z "$gateContract" ] || gateAfterRows="$gateAfterRows$( printf '%s\n' "$gateAfter" | AgentsToolsDocValidateTypeRows "$gateContract" "$gateName" | LC_ALL=C cut -f 2- )"
+	## The faults the item has now, by rule and text.
+	gateBeforeIds=""
+	if [ -n "$gateContract" ] && [ -n "$gateBefore" ] && [ -f "$gateBefore" ] ; then
+		gateBeforeIds="$( AgentsToolsDocValidateTypeRows "$gateContract" "$gateName" < "$gateBefore" | LC_ALL=C cut -f 2-3 )"
+	fi
+	## The faults the write introduces: those after it that the item did not already have, a repeated fault counted as often as it is.
+	gateNew="$( printf '%s\n' "$gateAfterRows" | LC_ALL=C sed '/^$/d' | OLD="$gateBeforeIds" LC_ALL=C awk -F'\t' '
+		BEGIN { oldN = split( ENVIRON["OLD"], oldRows, "\n" ) ; for ( oldIdx = 1 ; oldIdx <= oldN ; oldIdx++ ) have[oldRows[oldIdx]]++ ; }
+		{ id = $1 "\t" $2 ; if ( have[id] > 0 ) { have[id]-- ; next ; } print ; }
+	' )"
+	[ -n "$gateNew" ] || return 0
+	while IFS=$'\t' read -r gateRule gateText gateDetail ; do
+		[ -n "$gateRule" ] || continue
+		## The two rules of a new item say their whole sentence, which opens with the name; a rule of the contract says the item, the rule and the fault.
+		case "$gateRule" in
+			contract-name|contract-store) gateShown="$gateText" ;;
+			*) gateShown="$gateName: $gateRule: $gateText${gateDetail:+: $gateDetail}" ;;
+		esac
+		if [ "$( AgentsToolsDocValidateDisposition "$gateRule" write )" = "refuse" ] ; then
+			echo "$MDSC_CMD: $gateOp: ⛔ ERROR: $gateLabel: $gateShown" >&2
+			gateRefused=$(( gateRefused + 1 ))
+		else
+			echo "$MDSC_CMD: $gateOp: ⚠️ WARNING: $gateLabel: $gateShown" >&2
+		fi
+	done <<< "$gateNew"
+	if [ "$gateRefused" -gt 0 ] ; then
+		echo "$MDSC_CMD: $gateOp: ⛔ ERROR: $gateName breaks the $gateKind contract in $gateRefused place(s) the write introduces -- nothing was written" >&2
+		return 1
+	fi
+	return 0
+}

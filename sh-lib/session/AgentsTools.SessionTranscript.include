@@ -497,6 +497,15 @@ AgentsTranscriptHarnessRestart(){ ## restart number, summary bytes
 	return 0
 }
 
+## A rewind of the model path (F10.5): the conversation put back to a snapshot, so the rounds after it are no more in the run's array.
+AgentsTranscriptHarnessRewind(){ ## snapshot name, messages dropped, kind
+	local rewindSession
+	rewindSession="$( AgentsTranscriptSessionKey )"
+	AgentsTranscriptEvent "$rewindSession" REWIND "" 0 to "$1" dropped "$2" kind "$3"
+	AgentsTranscriptMilestone "$rewindSession" "rewind $1"
+	return 0
+}
+
 AgentsTranscriptHarnessFinal(){ ## answer text
 	local finalSession
 	finalSession="$( AgentsTranscriptSessionKey )"
@@ -719,6 +728,36 @@ AgentsTranscriptReplyLong(){ ## tool name, result text, the file a Read read (op
 ## written into the result, so the result's closing lines (agentsReplyClosing) stay last in it.
 AgentsTranscriptReplyDate(){
 	printf 'current-date: %s' "$( date '+%Y-%m-%d %H:%M %z' )"
+}
+
+## THE FLOOR ON A TOOL RETURN (F3.3, F9.1): every tool that returns delivers the floor's new messages with its result, and only
+## the floor: a tool return never watches any other source. They are read from the session chat file, in the session's folder,
+## from the run's pointer forward, with no network call (AgentsToolsSessionChatFloor, AgentsTools.SessionChat.include): the
+## executor of the session is given every message of its thread, a participant the ones that tag or mention it, every run the
+## replies to its own posts. Printed in full, each run of messages from one source behind a `# via <source>` line, and the
+## pointer moves as they are printed, so the next return carries only what came after. Nothing is printed where the run has no
+## session, no member, no file, or nothing new. Like the date it goes beside the result and never inside it.
+AgentsTranscriptReplyFloor(){
+	local floorKey floorMember floorText
+	## The member of the run, as the served harness takes it: a native root caller is magic-coordinator's.
+	floorMember="${harnessAgent:-${MDAT_SPAWN_AGENT:-magic-coordinator}}"
+	[ -n "${MMDAPP:-}" ] || return 0
+	type AgentsToolsSessionChatFloor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
+	floorKey="$( AgentsToolsSessionChatKey )"
+	[ -n "$floorKey" ] || return 0
+	## A workspace that is selected -- the tooling stands in its .local -- and a run with a session id: the session's folder is made
+	## here, where it can be, before the run is served from it (F9.2). Without it those sessions lose their reads.
+	[ ! -d "$MMDAPP/.local/agents" ] || [ -d "$MMDAPP/.local/agents/sessions/$floorKey" ] || { AgentsToolsSessionChatDir "$floorKey" > /dev/null && mkdir -p "$MMDAPP/.local/agents/sessions/$floorKey" 2> /dev/null ; } || :
+	floorText="$( AgentsToolsSessionChatFloor "$floorKey" "$floorMember" "" deliver 2> /dev/null )" || floorText=""
+	[ -z "$floorText" ] || printf '# new for you in your session (its floor), from its chat file:\n%s' "$floorText"
+}
+
+## What a reply carries beside its result: the host's time, and the floor's new messages where there are any.
+AgentsTranscriptReplyBeside(){
+	local besideFloor
+	AgentsTranscriptReplyDate
+	besideFloor="$( AgentsTranscriptReplyFloor )" || besideFloor=""
+	[ -z "$besideFloor" ] || printf '\n%s' "$besideFloor"
 }
 
 ## The reply to one tool result: kept when long. Skill and ToolSearch are never

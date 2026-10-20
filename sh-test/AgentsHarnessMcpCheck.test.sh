@@ -232,6 +232,7 @@ rigAssert "two rounds were requested"                       "$rigRoundCount" 2
 rigAssert "the first round declares the registered server"  "$( rigHolds "$rigScenarioDir/req.1" 'RIG-DESC-MARKER' )" yes
 rigAssert "the next round no longer declares it"            "$( rigHolds "$rigScenarioDir/req.2" 'RIG-DESC-MARKER' )" no
 rigAssert "the change was reported"                         "$( rigHolds "$rigScenarioDir/err" 'MCP tool set changed' )" yes
+rigAssert "and the cost of it said: the input cache of the session is discarded (F10.7)"  "$( rigHolds "$rigScenarioDir/err" 'input cache -- the tool set changed: the cached prefix of this session is discarded' )" yes
 rigVerdict "a registration removed mid-run -- gone from the next round"
 
 rigStart registered-mid-run
@@ -243,6 +244,7 @@ rigAssert "the run ends normally"                           "$rigRunStatus" 0
 rigAssert "two rounds were requested"                       "$rigRoundCount" 2
 rigAssert "the first round declares no MCP tool"            "$( rigHolds "$rigScenarioDir/req.1" 'mcp__rigmcp__ping' )" no
 rigAssert "the next round declares the new registration"    "$( rigHolds "$rigScenarioDir/req.2" 'RIG-DESC-MARKER' )" yes
+rigAssert "and the input cache said discarded (F10.7)"      "$( rigHolds "$rigScenarioDir/err" 'input cache -- the tool set changed: the cached prefix of this session is discarded' )" yes
 rigVerdict "a registration added mid-run -- declared from the next round"
 
 ## The unavailable note follows the enumeration, both ways. The server dying after the

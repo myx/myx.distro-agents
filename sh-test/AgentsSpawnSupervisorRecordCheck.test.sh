@@ -184,7 +184,7 @@ rigAsk(){ ## record file
 		. "$1" 2> /dev/null
 		askWord="$( AgentsToolsRegistryRecordedSupervisor "$2" )"
 		printf "%s rc=%s" "$askWord" "$?"
-	' rig-ask "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" "$1" 2>> "$rigTmp/ask.err" )
+	' rig-ask "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" "$1" 2>> "$rigTmp/ask.err" )
 }
 rigAskErrors(){ LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/ask.err" ; }
 rigRunKept(){ [ -n "$( rigHeader "$rigRecord" run-process )" ] ; }
@@ -368,7 +368,7 @@ rigUnit raced "host: $rigHost" > /dev/null
 		return "$awkRc"
 	}
 	MDAT_SPAWN_SANDBOX_ROOT="$RIG_TMP/unit" MDAT_SPAWN_SESSION_ID=raced AgentsToolsSpawnProxyRunRecord "$$"
-' rig-raced "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" "$rigLib/session/AgentsTools.SpawnSandbox.include" 2>> "$rigTmp/ask.err" )
+' rig-raced "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" "$rigLib/session/AgentsTools.SpawnSandbox.include" 2>> "$rigTmp/ask.err" )
 rigAssert "control: the close was put in place while the launch wrote, once" "$( [ -e "$rigTmp/unit/raced.once" ] && printf once || printf never )" "once"
 rigAssert "the record keeps that close, and names the process the launch kept" "$( rigHeader "$rigTmp/unit/raced.md" status ) $( rigNames "$rigTmp/unit/raced.md" run-process )" "spawn-ended-without-close 1"
 

@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternSourceCollect.include -- the background thread of the collection of the sources an input scan reads (F4.2): a shell
+## process of the tooling that keeps the mail and the Trello notes of the members a scan reads up to date in their inboxes, and no agent.
+## Sourced from DistroAgentsTools.fn.sh's `--intern-source-collect` arm; needs $1/$@/$MDSC_CMD from dot-sourcing. What it does, what it
+## keeps and where, and when it ends: AgentsTools.CollectThread.include. A sibling of --intern-session-comms: a usage blurb on no mode,
+## the same set +e/set -e discipline, `--run` stays and `--one` makes one pass and ends.
+##
+## ONE A WORKSPACE ON A HOST. Its lock is $MMDAPP/.local/agents/collect/thread.lock, a symlink to `<pid> <start>` held for the life of
+## the process: a second start is refused at once, and a holder that is gone is taken over. Nothing but TERM ends it, but for its two
+## own ends -- nobody has wanted it for MDAT_COLLECT_IDLE_SECONDS (ten minutes), and its folder gone -- and a hangup, an interrupt or a
+## quit from a terminal, a stop from one, an alarm, are ignored, by it and by what it starts. A broken pipe and the two user signals are
+## taken and end nothing. Its input is /dev/null, its output and its errors its own log, the descriptors 3 to 9 it was handed are
+## closed, and its working folder is `/`, so nothing of whatever started it can end it. It runs as no member.
+##
+
+case "$1" in
+
+	--intern-source-collect)
+		shift
+
+		## Never run without a mode: an accidental invocation would stay.
+		local colThreadMode=''
+		case "${1:-}" in
+			--run) colThreadMode='--run' ;;
+			--one) colThreadMode='--one' ;;
+			--start) colThreadMode='--start' ;;
+			--check) colThreadMode='--check' ;;
+		esac
+		if [ -z "$colThreadMode" ] ; then
+			printf '%s\n' "$MDSC_CMD --intern-source-collect -- the background thread of the collection of the sources an input scan reads: a shell process of the tooling that keeps the mail and the Trello notes of the members a scan reads up to date in their inboxes. No agent runs it, no agent calls it." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-source-collect --run" >&2
+			printf '%s\n' "      The thread: takes the lock of the workspace, and every minute (MDAT_COLLECT_PASS_SECONDS) collects each source of the members a scan reads that is due, its TTL deciding. Ends on TERM, in order, and by itself when nobody has wanted it for ten minutes (MDAT_COLLECT_IDLE_SECONDS) -- a scan that used a source, the main loop and a start want it -- and when its folder is gone." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-source-collect --one [--force]" >&2
+			printf '%s\n' "      One pass over those sources under the same lock, then the end, whatever the TTL with --force: for a test, and for a check by hand." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-source-collect --start" >&2
+			printf '%s\n' "      Starts the thread detached where none lives, and says alive <pid>, started <pid>, off (MDAT_COLLECT_THREAD=off) or failed - <why>." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-source-collect --check [--main-loop]" >&2
+			printf '%s\n' "      The check a scan makes after it used a source, or the main loop on every iteration with --main-loop: the thread is wanted now, and one is started where none lives and the situation asks (a source long expired for a scan, a source configured for the main loop), at most once in five minutes. Says off, alive <pid>, waiting, quiet, started <pid> or failed - <why>." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "Its files are in .local/agents/collect/: thread.lock, thread.log, thread.wanted, thread.checked, beside the state of each source." >&2
+			set +e ; return 1
+		fi
+		shift
+
+		local colThreadForce="no" colThreadWho="scan"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--force)
+					[ "$colThreadMode" = "--one" ] || { echo "⛔ ERROR: $MDSC_CMD --intern-source-collect: --force is --one's" >&2 ; set +e ; return 1 ; }
+					colThreadForce="yes" ; shift
+				;;
+				--main-loop)
+					[ "$colThreadMode" = "--check" ] || { echo "⛔ ERROR: $MDSC_CMD --intern-source-collect: --main-loop is --check's" >&2 ; set +e ; return 1 ; }
+					colThreadWho="main-loop" ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-source-collect: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		[ -n "${MDAT_DATA_ROOT:-}" ] && [ -n "${MMDAPP:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-source-collect: MDAT_DATA_ROOT or MMDAPP is not set" >&2
+			set +e ; return 1
+		}
+
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.CollectThread.include" || { set +e ; return 1 ; }
+		set +e +u
+
+		local colThreadRc=0
+		if [ "$colThreadMode" = "--start" ] ; then
+			AgentsToolsCollectThreadStart ; colThreadRc=$?
+			return "$colThreadRc"
+		fi
+		if [ "$colThreadMode" = "--check" ] ; then
+			AgentsToolsCollectThreadCheck "$colThreadWho" ; colThreadRc=$?
+			return "$colThreadRc"
+		fi
+
+		## NOTHING BUT TERM ENDS THE PROCESS, from its first moment: what a terminal sends, to it and to what it starts, is ignored;
+		## a broken pipe and the two user signals are taken, and end nothing. A call of `--one` is a call like any other.
+		local colThreadEnd="" colThreadWoken=""
+		if [ "$colThreadMode" = "--run" ] ; then
+			trap '' HUP INT QUIT TSTP TTIN TTOU ALRM VTALRM PROF
+			trap 'colThreadWoken="yes"' PIPE USR1 USR2
+			trap 'colThreadEnd="TERM"' TERM
+		fi
+
+		## IT RUNS AS NO MEMBER: each name that carries a member's session is emptied here, for this operation and what it starts.
+		local colThreadDrop
+		for colThreadDrop in ${!MDAT_SPAWN_@} MDAT_SESSION_ID MDAT_SESSION_THREAD MDAT_CONVERSATION_THREADS harnessSessionId harnessAgent CLAUDE_CODE_SESSION_ID ; do
+			[ -z "${!colThreadDrop+set}" ] || local -x "$colThreadDrop="
+		done
+
+		## This process, with when it began: the pid of the shell that runs these lines, also where that is a subshell.
+		local colThreadPid colThreadMe colThreadLine colThreadDir="" colThreadLock="" colThreadHolder="" colThreadTookOver="" colThreadLeave=""
+		colThreadPid="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || colThreadPid=""
+		case "$colThreadPid" in ''|*[!0123456789]*) colThreadPid="" ;; esac
+		colThreadMe=""
+		[ -z "$colThreadPid" ] || colThreadMe="$( printf '%s\n' "$colThreadPid" | AgentsToolsRegistryProcessesBegan )" || colThreadMe=""
+		if [ -z "$colThreadMe" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-source-collect: could not read which process this is and when it began, so its lock would name nobody -- nothing was started" >&2
+			return 1
+		fi
+		## IT IS NO RUN OF A SESSION. By the one rule a run is recognised by, a command line of the tooling is none, whatever it carries.
+		colThreadLine="$( LC_ALL=C ps -ww -o args= -p "$colThreadPid" 2> /dev/null )" || colThreadLine=""
+		if [ -n "$( printf '%s %s\n' "$colThreadPid" "$colThreadLine" | AgentsToolsRegistryRunWords )" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-source-collect: the command line of this process would read as a run of a session: start it with the tooling script as the command itself, or as the first word after its interpreter -- nothing was started" >&2
+			return 1
+		fi
+		if [ "$colThreadMode" = "--run" ] ; then
+			case " $colThreadLine " in
+				*" --intern-source-collect --run "*) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-source-collect: --run is a process of its own, shown in the process list by this operation: start it as the tooling script with these arguments, not inside another operation's process -- nothing was started" >&2
+					return 1
+				;;
+			esac
+		fi
+
+		colThreadDir="$( AgentsToolsCollectThreadDir )" || { echo "⛔ ERROR: $MDSC_CMD --intern-source-collect: no workspace is selected -- nothing was started" >&2 ; return 1 ; }
+		colThreadLock="$colThreadDir/thread.lock"
+		mkdir -p "$colThreadDir" 2> /dev/null || { echo "⛔ ERROR: $MDSC_CMD --intern-source-collect: could not make $colThreadDir -- nothing was started" >&2 ; return 1 ; }
+		AgentsToolsCollectThreadLockTake ; colThreadRc=$?
+		case "$colThreadRc" in
+			0) ;;
+			1)
+				echo "⛔ ERROR: $MDSC_CMD --intern-source-collect: the thread already runs as pid ${colThreadHolder%% *}, begun ${colThreadHolder#* } -- a second one is not started" >&2
+				AgentsToolsCollectThreadSay "a start was refused: the thread already runs as pid ${colThreadHolder%% *}"
+				return 1
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --intern-source-collect: could not take the lock at $colThreadLock -- nothing was started" >&2
+				return 1
+			;;
+		esac
+		if [ "$colThreadMode" = "--run" ] ; then
+			## From here on its input is /dev/null and its output and its errors are its own log; the descriptors 3 to 9 it was handed are
+			## closed; and its working folder is one that does not vanish.
+			exec < /dev/null >> "$colThreadDir/thread.log" 2>&1
+			exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-
+			case "$MMDAPP:$MDLT_ORIGIN" in /*:/*) cd / 2> /dev/null ;; esac
+		fi
+		if [ -n "$colThreadTookOver" ] ; then
+			AgentsToolsCollectThreadSay "took over the lock of pid ${colThreadTookOver%% *}, which is gone or is another process now"
+		fi
+		[ "$colThreadMode" != "--run" ] || AgentsToolsCollectThreadSay "the source collector runs as pid $colThreadPid: it updates the sources the scans of $MMDAPP read, and TERM ends it in order"
+
+		local colThreadPassGap colThreadIdleLimit colThreadLastPass=-1000 colThreadLoops=0 colThreadFrom
+		colThreadPassGap="${MDAT_COLLECT_PASS_SECONDS:-60}"
+		case "$colThreadPassGap" in ''|*[!0123456789]*|0) colThreadPassGap=60 ;; esac
+		colThreadIdleLimit="${MDAT_COLLECT_IDLE_SECONDS:-600}"
+		case "$colThreadIdleLimit" in ''|*[!0123456789]*|0) colThreadIdleLimit=600 ;; esac
+
+		while : ; do
+			colThreadWoken=""
+			if [ "$colThreadMode" = "--one" ] || [ $(( SECONDS - colThreadLastPass )) -ge "$colThreadPassGap" ] ; then
+				AgentsToolsCollectThreadPass "$colThreadForce"
+				colThreadLastPass="$SECONDS"
+				colThreadLoops=$(( colThreadLoops + 1 ))
+				[ "$(( colThreadLoops % 60 ))" != 0 ] || AgentsToolsCollectThreadLogBound
+			fi
+			[ "$colThreadMode" != "--one" ] || break
+			[ -z "$colThreadEnd" ] || break
+			## The ends of its own: nobody wants it for the time set; its folder, or its lock, gone.
+			if [ "$( AgentsToolsCollectThreadWantedAge )" -ge "$colThreadIdleLimit" ] ; then
+				colThreadLeave="nobody has wanted it for ${colThreadIdleLimit}s"
+				break
+			fi
+			if [ ! -d "$colThreadDir" ] || [ "$( readlink "$colThreadLock" 2> /dev/null )" != "$colThreadMe" ] ; then
+				colThreadLeave="its folder or its lock is gone"
+				colThreadLock=""
+				break
+			fi
+			## The wait between two ticks is waited for and never slept through: TERM ends it at once, and so does a signal that asks
+			## for a pass. A sleep that cannot be made would spin, so the second is waited out by the shell itself.
+			colThreadFrom="$SECONDS"
+			sleep 1 &
+			{ wait "$!" ; } 2> /dev/null || :
+			while [ "$SECONDS" = "$colThreadFrom" ] && [ -z "$colThreadEnd" ] && [ -z "$colThreadWoken" ] ; do : ; done
+		done
+
+		if [ "$colThreadMode" = "--run" ] ; then
+			[ -n "$colThreadLeave" ] || colThreadLeave="it was ended by $colThreadEnd"
+			[ ! -d "$colThreadDir" ] || AgentsToolsCollectThreadSay "the source collector, pid $colThreadPid, ends: $colThreadLeave"
+		fi
+		[ -z "$colThreadLock" ] || AgentsToolsCollectThreadLockGive
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

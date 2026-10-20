@@ -132,6 +132,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --console-stop <channel>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-claude-permissions [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --install-knowledge-store [--from-folder <folder>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member> [--exclude-incoming]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-git-repo-history [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--limit <n>] <path>..." >&2
@@ -257,7 +258,9 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-dismiss --id 
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-list [--active]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-read --session-id <id> [--run]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-checklist-read --session-id <id> <member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run] [--plan]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-effort <session-id> <low|normal|high>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-control-start (--session-id <id>|--all)" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-data-read <store> [<folder> [<item>]] [--include-processed]" >&2
@@ -322,7 +325,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-audit-item-read <team-member
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-vault-item-read <team-member> <item-name> [--start-line <N> --end-line <N>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-board-item-read <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop|--unwait <kind>:<target> --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop|--unwait <kind>:<target> --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>] [--wait-collect <seconds>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> --wait-list-sources" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-escalation-read <team-member> <request-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-escalation-answer <team-member> <request-id> <verdict> [text]" >&2
@@ -334,7 +337,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-set-request <magic
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-list --member <member> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-permission-list <team-member> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-revoke <ref> [--session-id <id>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner] [--count]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle <team-member> <pending-id> --reason <text> [--withdraw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text> [--withdraw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-amend <magic-coordinator> <pending-id> --verdict <text> --reason <text>" >&2

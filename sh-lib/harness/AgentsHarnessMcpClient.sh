@@ -211,7 +211,7 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 				## one reading a process is kept by, loaded in the watchdog's own shell). Where no
 				## start can be read, nothing is signalled by the number alone.
 				(
-					type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" 2> /dev/null
+					type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null
 					runBegan="$( printf '%s\n' "$runPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
 					sleep "$runBound"
 					[ -n "$runBegan" ] && [ "$( printf '%s\n' "$runPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$runBegan" ] && kill -TERM "$runPid" 2>/dev/null && : > "$harnessScratch/mcp.timedout"
@@ -411,6 +411,7 @@ AgentsHarnessMcpEnumerate(){
 	harnessMcpCatalogue=""
 	harnessMcpUnavailableNote=""
 	harnessMcpToolsJson=""
+	harnessMcpDeclList=""
 	harnessMcpConfigFile=""
 	harnessMcpConfigFault=""
 	AgentsHarnessMcpServerSet
@@ -509,10 +510,14 @@ AgentsHarnessMcpEnumerate(){
 					continue
 				}
 				harnessMcpCatalogue="${harnessMcpCatalogue}${harnessMcpName}"$'\t'"${harnessMcpTool}"$'\t'"${harnessMcpDeclared}"$'\t'"${harnessMcpSchemaFile}"$'\n'
-				harnessMcpToolsJson="${harnessMcpToolsJson},$harnessMcpDeclaration"
+				harnessMcpDeclList="${harnessMcpDeclList}${harnessMcpDeclared}"$'\t'"${harnessMcpDeclaration}"$'\n'
 				printf '%s\n' "   ${harnessDim}·${harnessOff} ${harnessTool}${harnessMcpDeclared}${harnessOff} ${harnessDim}declared${harnessOff}" >&2
 			done
 		done
+		## The declarations in the order of their declared names (F10.7), whatever order the servers and their lists came in: the
+		## MCP tools stand after the floor in every request, and the same set is then the same bytes from one run to the next.
+		## A declaration is one line (its newlines are escaped) and holds no raw tab.
+		harnessMcpToolsJson="$( printf '%s' "$harnessMcpDeclList" | LC_ALL=C sort -t $'\t' -k1,1 -s | LC_ALL=C awk -F'\t' '{ printf ",%s", substr( $0, length( $1 ) + 2 ) ; }' )"
 	fi
 }
 

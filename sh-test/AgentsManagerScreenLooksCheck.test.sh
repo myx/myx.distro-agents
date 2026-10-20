@@ -14,6 +14,7 @@
 ## Offline: no operation of the real tooling is called. The time zone is set here, so the times read the same anywhere.
 ## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`; the spacer under
 ## `Launch (Start)` moves each session row of the list one line down.
+## Reconciled for F11.5: the list of the sessions is Active Sessions of Activity, put at with `at @activity active-sessions`; its first session stands in the third line.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -69,7 +70,7 @@ rigCase(){ ## name, what the stand-in does at every start, [the first word of an
 	[ $# -lt 4 ] || printf '%s\n' "$4" > "$MANAGER_SCREEN_RIG/mode.$3"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable list:dashboard none\ntable list:places none\ntable view:sessions:record none\nworkspace /somewhere/ws-rig\nwall 2026-10-13 02:30 +0000\nsize %s\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable list:dashboard none\ntable list:places none\ntable view:magic-team/activity/active-sessions:record none\ntable view:magic-team/activity/active-sessions/*/*:transcript none\nworkspace /somewhere/ws-rig\nwall 2026-10-13 02:30 +0000\nsize %s\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigBare(){ ## the commands of the driver on standard input, with no dispatcher
 	rigOut="$( { printf 'workspace /somewhere/ws-rig\nwall 2026-10-13 02:30 +0000\nsize %s\n' "${rigSize:-100 30}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
@@ -88,7 +89,8 @@ echo "-- a window that waits for its first rows says so, in a pale look --"
 rigCase waits rows --manager-session-list 'sleep 1'
 rigScript <<'RIGSCRIPT'
 turn
-keys 2
+at @activity active-sessions
+turn
 turn
 get w
 cells wView 2 1 83
@@ -99,39 +101,42 @@ roles wr
 wait sessions 30
 get r
 show rs
-cells rList3 5 85 119
+cells rList3 3 85 119
 RIGSCRIPT
-rigAssert "the sessions are being read, and none has come yet"       "$( rigVal w.path ) $( rigVal w.reading ) $( rigVal w.rows )" "sessions list:sessions 2"
-rigAssert "the list says what it waits for, under its fixed rows"     "[$( rigVal wList1 )][$( rigVal wList2 )][$( rigVal wList3 )]" "[>..][ Launch (Start)                  ►][ Populating Sessions (Activity)...]"
-rigAssert "and the left window, which shows the folder itself, on its first line" "[$( rigVal wView )]" "[Populating Sessions (Activity)...]"
-rigAssert "both in the pale look"                                    "[$( rigLook wr 2 1 83 )][$( rigLook wr 4 85 119 )]" "[D][D]"
-rigAssert "once the rows have come neither says it"                  "$( rigVal r.rows ) $( rigHolds rs 'Populating' ) [$( rigVal rList3 | LC_ALL=C cut -c1-16 )]" "6 0 [ daily of Monday]"
+rigAssert "the sessions are being read, and none has come yet"       "$( rigVal w.path ) $( rigVal w.reading ) $( rigVal w.rows )" "magic-team/activity/active-sessions list:magic-team/activity 1"
+rigAssert "the list says what it waits for, under the row that goes up"     "[$( rigVal wList1 )][$( rigVal wList2 )][$( rigVal wList3 )]" "[>..][ Populating Active Sessions...][]"
+rigAssert "and the left window, which shows the folder itself, on its first line" "[$( rigVal wView )]" "[Populating Active Sessions...]"
+rigAssert "both in the pale look"                                    "[$( rigLook wr 2 1 83 )][$( rigLook wr 3 85 119 )]" "[D][D]"
+rigAssert "once the rows have come neither says it"                  "$( rigVal r.rows ) $( rigHolds rs 'Populating' ) [$( rigVal rList3 | LC_ALL=C cut -c1-16 )]" "2 0 [ daily of Monday]"
 
 echo "-- read and empty, and a failed read, keep their own words --"
 rigCase empty rows
 : > "$MANAGER_SCREEN_RIG/rows"
 rigScript <<'RIGSCRIPT'
-keys 2
+at @activity active-sessions
+turn
 wait sessions 30
 get e
 show es
 RIGSCRIPT
-rigAssert "a list that was read and holds nothing does not say it waits" "$( rigVal e.rows ) [$( rigVal e.failed )] $( rigHolds es 'Populating' )" "2 [] 0"
+rigAssert "a list that was read and holds nothing does not say it waits" "$( rigVal e.rows ) [$( rigVal e.failed )] $( rigHolds es 'Populating' )" "1 [] 0"
 rigCase failed fail
 rigScript <<'RIGSCRIPT'
-keys 2
+at @activity active-sessions
+turn
 wait sessions 30
 keys ESC
 turn
 get f
 show fs
 RIGSCRIPT
-rigAssert "nor does one whose read failed"                           "[$( rigVal f.failed )] $( rigHolds fs 'Populating' )" "[list:sessions] 0"
+rigAssert "nor does one whose read failed"                           "[$( rigVal f.failed )] $( rigHolds fs 'Populating' )" "[list:magic-team/activity] 0"
 
 echo "-- the log of an item waits for its lines under its head; a screen with no reader waits for nothing --"
 rigCase log rows --manager-session-transcript-read 'sleep 1'
-rigScript <<'RIGSCRIPT'
-keys 2
+rigScript <<RIGSCRIPT
+at @activity active-sessions $rigS1 $rigS1
+turn
 wait sessions 30
 keys DOWN DOWN l
 advance 1
@@ -144,12 +149,14 @@ wait feed 30
 cells lLine 3 1 83
 show ls
 RIGSCRIPT
-rigAssert "its lines are being read"                                 "$( rigVal l.selected ) $( rigVal l.viewMode ) $( rigVal l.reading ) $( rigVal l.viewLines )" "$rigS1 log feed:sessions|record:$rigS1 0"
-rigAssert "under the head line the window says what it waits for, pale" "[$( rigVal lHead )][$( rigVal lWaits )][$( rigLook lr 3 1 83 )]" "[lines     the feed, not read yet][Populating daily of Monday...][D]"
+rigAssert "its lines are being read"                                 "$( rigVal l.selected ) $( rigVal l.viewMode ) $( rigVal l.reading ) $( rigVal l.viewLines )" "transcript log feed:magic-team/activity/active-sessions/$rigS1/$rigS1|transcript:transcript 0"
+rigAssert "under the head line the window says what it waits for, pale" "[$( rigVal lHead )][$( rigVal lWaits )][$( rigLook lr 3 1 83 )]" "[lines     the feed, not read yet][Populating Transcript...][D]"
 rigAssert "and no more once they have come"                          "[$( rigVal lLine )] $( rigHolds ls 'Populating' )" "[2026-10-13] 0"
 rigBare <<'RIGSCRIPT'
-rows sessions a=alpha
-keys 2 DOWN DOWN
+rows magic-team/activity/launch a=alpha
+at @activity launch
+turn
+keys DOWN DOWN
 turn
 get b
 show bs
@@ -184,19 +191,23 @@ rigAssert "behind a dialog both frames are the paler one, and the double line st
 echo "-- the total of the tokens of a session in a narrow column of the list --"
 rigCase tokens rows
 rigScript <<'RIGSCRIPT'
-keys 2
+at @activity active-sessions
+turn
 wait sessions 30
 get k
-cells k1 5 85 119
-cells k2 6 85 119
-cells k3 7 85 119
-cells k4 8 85 119
+cells k1 3 85 119
+at @activity closed-sessions
+turn
+cells k2 3 85 119
+cells k3 4 85 119
+cells k4 5 85 119
+at @activity active-sessions
 size 100 40
 turn
 get n
-cells n1 5 71 99
+cells n1 3 71 99
 RIGSCRIPT
-rigAssert "at 120 columns a row of the list has 34 cells"             "$( rigVal k.listWidth ) $( rigVal k.rows ) $( rigVal k.spills )" "36 6 0"
+rigAssert "at 120 columns a row of the list has 34 cells"             "$( rigVal k.listWidth ) $( rigVal k.rows ) $( rigVal k.spills )" "36 2 0"
 rigAssert "a session shows the total of its tokens, short, after its state" "[$( rigVal k1 )]" "[ daily of Monday  running  57.1M ►]"
 rigAssert "one with runs left out keeps its mark, one with no figure shows that, the figures one under another" "[$( rigVal k2 )][$( rigVal k3 )]" "[ the retro       finished  523K+ ►][ grooming        finished      - ►]"
 rigAssert "a row without that field has no column"                   "[$( rigVal k4 )]" "[ an old one             finished ►]"

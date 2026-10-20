@@ -115,6 +115,16 @@ def sectionShown(state, sectionId):
     return when is None or bool(globals()[when["shown"]](state))
 
 
+## Why a path is not there now, in words: the "says" of the first step of it that stands only where what it shows is there and is not
+## there now (SECTIONS_WHEN); "" where it is there.
+def pathHidden(state, path):
+    for index in range(1, len(path) + 1):
+        when = SECTIONS_WHEN.get("/".join(path[:index]))
+        if when is not None and not globals()[when["shown"]](state):
+            return when["says"]
+    return ""
+
+
 ## Which roots stand in the list now, for the number keys (SECTIONS_NOW, goKeys): at every turn.
 def noteRoots(state):
     SECTIONS_NOW[:] = [sectionId for sectionId, sectionLabel in SECTIONS if sectionShown(state, sectionId)]
@@ -318,6 +328,11 @@ DIALOG_HANDLERS["cleanup"] = submitCleanup
 
 ## ---- the plugin: `Team Data` ----
 
+## What the left pane shows of the operation selected among the cleanups of the team data.
+def cleanupsFocus(state, row):
+    return cleanupLines(state, row) if row["kind"] == "operation" else None
+
+
 ## The root `Team Data`: its own blocks of the dashboard, its git state among them, which
 ## is read only while the root is selected or opened (TEAM_DATA); and the digest of the
 ## settings read beside them ("also": read with the list of the level, while it is shown
@@ -347,12 +362,14 @@ for storeId, storeLabel in TEAM_DATA_STORES:
 
 registerPlugin({
     "name": "teamdata",
+    "mount": "magic-team",
     "root": {"id": "teamdata", "label": "Team Data", "go": "Tea~m~ Data", "group": "team",
              "when": {"shown": "teamDataHere", "says": "no team data is configured for this workspace"}},
     "rows": {
         "teamdata": (("operations", "Operations", "operations", True),) + tuple((storeId, label, "store", True) for storeId, label in TEAM_DATA_STORES),
         "teamdata/operations": tuple((cleanupId, cleanup["label"], "operation", False) for cleanupId, cleanup in CLEANUPS),
     },
+    "focus": {"teamdata": "dashboardFocus", "teamdata/operations": "cleanupsFocus"},
     "summaries": TEAM_DATA_SUMMARIES,
     "reads": TEAM_DATA_READS,
     "commands": (

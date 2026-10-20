@@ -26,6 +26,7 @@
 ## every dialog has bigger margins inside its frame (two empty lines under its top, one more under its buttons, three
 ## blank cells at each side), so its box is four cells wider and two lines taller and what it holds stands where it
 ## stood.
+## Reconciled for F11.5: `Launch (Start)` stands under Activity (`at @activity launch`), and the new session is among the rows of Active Sessions, the third and fourth lines of the list.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -102,7 +103,7 @@ rigCase(){ ## name
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size, with the reads of one session taken out of the table; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:magic-team/activity/active-sessions:record none\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot activity\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -181,7 +182,7 @@ cells row8 10 85 119
 looks k
 RIGSCRIPT
 rigAssert "until it is entered the routines are not read"            "$( rigVal on.selected ) $( rigCalled --manager-routine-list )" "launch 1"
-rigAssert "entering it asks the operation that lists the routines, once" "$( rigVal asked.path ) $( rigVal asked.reading ) $( rigCalled --manager-routine-list ) $( rigOthers )" "sessions/launch list:sessions/launch 1 0"
+rigAssert "entering it asks the operation that lists the routines, once" "$( rigVal asked.path ) $( rigVal asked.reading ) $( rigCalled --manager-routine-list ) $( rigOthers )" "magic-team/activity/launch list:magic-team/activity/launch 1 0"
 rigAssert "the first row under the row that goes up is the free prompt" "[$( rigVal title )] [$( rigVal row1 )][$( rigVal row2 )] $( rigVal in.rows )" "[Launch (Start)] [>..][ Free prompt] 7"
 rigAssert "then every routine, in the order of the operation, by its selector without .routine.md" "[$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )]" "[ keeper-myx.spec-conformance][ magic-coordinator.daily][ magic-coordinator.retro]"
 rigAssert "one that cannot be started carries what the operation says of it" "[$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )]" "[ magic-team.discuss  not-startable][ odd                        broken][]"
@@ -260,10 +261,11 @@ show a
 said answeredLine
 wait sessions 30
 turn
-keys BACKSPACE
+at @activity active-sessions
+turn
 get up
-cells upRow3 5 85 119
-cells upRow4 6 85 119
+cells upRow3 3 85 119
+cells upRow4 4 85 119
 RIGSCRIPT
 rigAssert "Enter on a routine opens its dialog, the keys on what the session is to work on, and in it the name of its session: the selector without its owner and .routine.md" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas d '║   daily ' )" "[routine:task|] [Start the routine] 1"
 rigAssert "the dialog says what will be started, and as whom"        "$( rigBoxHas d "║   routine   $rigDaily " ) $( rigBoxHas d '║   executors magic-coordinator: it runs as its executors, whoever is ' )" "1 1"
@@ -276,7 +278,7 @@ rigAssert "the bottom line shows the id of the new session, and of its members w
 rigAssert "the left pane shows what the operation printed: the session, its name, the routine, the members" "[$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )][$( rigPane a 6 )][$( rigPane a 7 )]" \
 	"[ the start, answered 02:30:00:][ session   $rigNew][ name      daily][ routine   $rigDaily][ members   magic-coordinator, magic-librarian]"
 rigAssert "and what it noted, then the routine as before" "[$( rigPane a 8 )][$( rigPane a 9 )][$( rigPane a 10 )]" "[ note      magic-spawn-session: added magic-librarian: the rig says so][][ magic-coordinator.daily.routine — the daily meeting]"
-rigAssert "the list is read again, and the new session is among its rows" "$( rigCalled --manager-session-list ) $( rigVal up.path ) [$( rigVal upRow3 )][$( rigVal upRow4 )]" "2 sessions [ daily                   running ►][ keeper-myx 11111111     running ►]"
+rigAssert "the list is read again, and the new session is among its rows" "$( rigCalled --manager-session-list ) $( rigVal up.path ) [$( rigVal upRow3 )][$( rigVal upRow4 )]" "2 magic-team/activity/active-sessions [ daily                   running ►][ keeper-myx 11111111     running ►]"
 
 echo "-- a name typed over the default is the one passed --"
 rigCase name
@@ -348,12 +350,12 @@ rigAssert "Enter on a routine that cannot be started opens the information box: 
 	"magic-team/magic-team.discuss.routine.md [information:ok|] [The routine is not started] [magic-team.discuss cannot be started from here. / routine: magic-team.discuss.routine.md / owner: magic-team / executors: magic-team / start: not-startable / why: its executors, magic-team, is any member: the session spawner starts it only with members named]"
 rigAssert "the box sets its facts out, the reason broken to the box with its underscores as spaces, over one button" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^discussBox|' | LC_ALL=C grep -c -F -e '║   routine   magic-team.discuss.routine.md ' -e '║   executors magic-team ' -e '║   why       its executors, magic-team, is any member: the session ' -e '║             starts it only with members named ' -e ' »OK« ▅' )" "5"
 rigAssert "the box says it and the status line does not; Enter closes it" "[$( rigVal discuss.notice )] [$( rigVal closed.dialog )] [$( rigVal closed.notice )]" "[] [] []"
-rigAssert "Right on it opens no box and dives nowhere: it pages down, as in every list" "$( rigVal right.path ) [$( rigVal right.dialog )] $( [ "$( rigVal right.index )" -gt "$( rigVal closed.index )" ] && echo down )" "sessions/launch [] down"
+rigAssert "Right on it opens no box and dives nowhere: it pages down, as in every list" "$( rigVal right.path ) [$( rigVal right.dialog )] $( [ "$( rigVal right.index )" -gt "$( rigVal closed.index )" ] && echo down )" "magic-team/activity/launch [] down"
 rigAssert "a click on it while it is selected, the click that opens, too" "$( rigVal click.selected ) [$( rigVal click.dialog )] [$( rigVal click.dialogTitle )]" "magic-team/magic-team.discuss.routine.md [information:ok|] [The routine is not started]"
 rigAssert "its greyed menu item is another thing: tried, it opens no box and says one line of the status line" "[$( rigVal item.dialog )] [$( rigVal item.notice )]" \
 	"[] [Start the routine: magic-team.discuss is not started from here: its executors, magic-team, is any member: the session spawner starts it only with members named]"
 rigAssert "a broken file is not started either"                      "[$( rigVal odd.dialog )] [$( rigVal odd.dialogHolds )]" "[information:ok|] [odd cannot be started from here. / routine: odd.routine.md / owner: rig-member / executors: none are named / start: broken / why: the file does not open with a frontmatter block]"
-rigAssert "Right on a routine that can be started pages down, dives nowhere and starts nothing" "$( rigVal can.selected ) $( rigVal can.path ) [$( rigVal can.dialog )]" "rig-member/odd.routine.md sessions/launch []"
+rigAssert "Right on a routine that can be started pages down, dives nowhere and starts nothing" "$( rigVal can.selected ) $( rigVal can.path ) [$( rigVal can.dialog )]" "rig-member/odd.routine.md magic-team/activity/launch []"
 rigAssert "with the focus on the left pane Enter starts nothing"     "$( rigVal left.focus ) $( rigVal left.selected ) [$( rigVal left.dialog )]" "view magic-coordinator/$rigDaily []"
 rigAssert "the operation that starts a session was never called"     "$( rigStarts ) $( rigOthers ) $( rigVal end.calls )" "0 0 0"
 
@@ -516,12 +518,13 @@ show f
 keys ENTER
 wait sessions 30
 turn
-keys BACKSPACE
+at @activity active-sessions
+turn
 get up
 RIGSCRIPT
 rigAssert "what the operation wrote stands in a box, whole" "[$( rigVal failed.dialogTitle )] [$( rigVal failed.dialogHolds )]" "[The start failed] [operation: --magic-spawn-session --routine $rigDaily --session-name-or-comment daily / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
 rigAssert "and in the left pane, which says that the start failed"   "[$( rigPane f 3 )][$( rigPane f 4 )][$( rigPane f 5 )]" "[ the start failed, answered 02:30:00:][ rig-tools: ⛔ ERROR: the rig said fail][]"
-rigAssert "the list is read again, and holds no new session"         "$( rigCalled --manager-session-list ) $( rigVal up.path ) $( rigVal up.rows )" "2 sessions 3"
+rigAssert "the list is read again, and holds no new session"         "$( rigCalled --manager-session-list ) $( rigVal up.path ) $( rigVal up.rows )" "2 magic-team/activity/active-sessions 2"
 
 echo "-- a routine that any member executes: its members are chosen in a dialog, and ONE session is started with them --"
 rigMembersCase(){ ## name -- a fresh rig in which the list says of the discussion that it needs members, and the team has three members that can be started, one that is never started and one whose workspace is not here

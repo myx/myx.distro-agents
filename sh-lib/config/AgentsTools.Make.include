@@ -9,7 +9,7 @@ case "$1" in
 	--make-agents-indices|--make-harness-indices)
 		local makeOp="$1"
 		shift
-		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 		## What it builds, by name, in the order it is built: the registries by their own one
 		## list (AgentsToolsRegistryList), then the rest, each name the stem of the file it
 		## writes. With no name everything; with names only those, in this order whatever the

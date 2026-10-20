@@ -71,7 +71,7 @@ rigAfter "session-transcript"
 
 echo "-- writer: output-style refusal log --"
 rigStep
-( MDSC_CMD=rig ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/AgentsTools.OutputStyle.include" ; printf 'One clause; another clause.\n' | AgentsToolsOutputStyleRefusal magic-tester "" rig-destination "" semicolon ) > "$rigTmp/out" 2>&1
+( MDSC_CMD=rig ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.OutputStyle.include" ; printf 'One clause; another clause.\n' | AgentsToolsOutputStyleRefusal magic-tester "" rig-destination "" semicolon ) > "$rigTmp/out" 2>&1
 rigAssert "output-style: a refusal row was written" "$( ls "$rigStore"/audit/refusal-*-output-style.md > /dev/null 2>&1 && printf yes || printf no )" yes
 rigAfter "output-style refusal"
 

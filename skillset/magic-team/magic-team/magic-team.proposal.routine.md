@@ -75,7 +75,7 @@ Named procedure blocks. Steps above call them by name. Not separate routines —
 - **root clause**: the root is the invariant question the proposal answers — self-contained, phone-readable, no history, narrative or references. It is posted once and never rewritten or deleted.
 - **in-thread-proposal clause**: the proposal is a reply in that thread, in clean form: present or future tense, the proposed form and its tight reasoning only. No history, no account of how it was reached, no precedent or tension. The back-and-forth lives in the work's tracking document, per "A rule statement stays a rule statement".
 - **revision clause**: a revision deletes the superseded reply and posts the new one into the same thread. Never stack replies, never open a new thread, never touch the root. A revision marks nothing.
-- **root-reaction clause**: closure is the human-owner's own reaction on the root: ✅ approved; an assessed negative reaction (❌ at least) rejected or dropped. A negative mark means the whole proposal, never one revision. He sets it; the routine never does.
+- **root-reaction clause**: closure is the human-owner's own reaction on the root: ✅ approved; an assessed negative reaction (❌ at least) rejected or dropped. A negative mark means the whole proposal, never one revision. He sets it; the x and ✅ the tooling placed there are no closure.
 
 # Routine's local rules
 
@@ -99,7 +99,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 - `--magic-advance-to-running <team-member> <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]...`
 - `--magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
 - `--magic-grooming-create-backlog <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`
-- `--member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-inbox-reflection-upsert <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
 - `--routine-run-inline <routine>`
 
 # Maintainer Notes
@@ -114,7 +114,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-tests (benchmarks)
 
-- A proposal is reworked after the human-owner comments — the old proposal reply is deleted and the new one posted into the same thread, the root gist and thread left intact and unmarked, and no new thread opened; the root gets `:white_check_mark:` only when he approves, or an assessed negative reaction only if the whole proposal is dropped.
+- A proposal is reworked after the human-owner comments — the old proposal reply is deleted and the new one posted into the same thread, the root gist and thread left intact and unmarked, and no new thread opened; the root's closing reaction is his own alone: `:white_check_mark:` when he approves, or an assessed negative reaction only if the whole proposal is dropped.
 - A proposal reply carrying history, narrative, an account of how it was reached, or precedent/tension recounting is not clean — it is reworked to present/future-tense, proposed-form-plus-tight-reasoning only, before it stands.
 - The routine never sets the root reaction — closure is detected from the human-owner's own reaction on the root.
 

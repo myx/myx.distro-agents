@@ -1,5 +1,6 @@
 #!/usr/bin/env awk
 # Prints each pending-reply record matching the owner/open filters, with an optional trailing count.
+# With -v countLine=only it renders no record and prints only the number of those that match, a line.
 # With -v askerHost, this host's name, each open record also says whether the run that asked it
 # is alive, `asker-live: <live>`, before its question: no-session-id where the record names no
 # asking session, host-unrecorded where it names no host, other-host where it was asked on
@@ -141,6 +142,7 @@ function resetRecord() {
 function flush(   keyIdx, keyName) {
 	if ( wantOwner != "" && val["owner"] != wantOwner ) { return ; }
 	if ( openOnly != "" && val["status"] != "reply-pending" ) { return ; }
+	if ( countLine == "only" ) { shown++ ; return ; }
 	printf "PENDING-REPLY: %s\n", fileId ;
 	for ( keyIdx = 1 ; keyIdx <= keyCount ; keyIdx++ ) {
 		keyName = keys[keyIdx] ;
@@ -174,5 +176,6 @@ dashes == 1 {
 dashes >= 2 && first == "" && $0 !~ /^#/ && $0 !~ /^[ \t]*$/ { first = $0 ; }
 END {
 	if ( haveRecord ) { flush() ; }
-	if ( countLine != "" ) { printf "PENDING-REPLIES: %d\n", shown + 0 ; }
+	if ( countLine == "only" ) { printf "%d\n", shown + 0 ; }
+	else if ( countLine != "" ) { printf "PENDING-REPLIES: %d\n", shown + 0 ; }
 }

@@ -21,7 +21,17 @@ agentsWireToolsJson="$( MDAT_READ_CAP_BYTES="${harnessReadCap:-}" bash "$harness
 	exit 1
 }
 agentsWireToolsJson="$( printf '%s\n' "$agentsWireToolsJson" | sed 's/"inputSchema":/"input_schema":/g' )"
+## THE FLOOR IN THE ORDER OF ITS NAMES, with a cache marker on its last tool (F10.7). The API caches tools, then system, then
+## messages, and the floor is the same for every member, so it is the first thing a prefix shared by all of them is made of:
+## sorted, it is byte for byte one block in every request, and the marker ends it, ahead of the MCP tools of the workspace,
+## which follow it and are sorted too (AgentsHarnessMcpClient.sh). A sort that changed the byte count is not trusted.
+agentsWireToolsSorted="$( printf '%s\n' "$agentsWireToolsJson" | LC_ALL=C awk -v shape=array -f "$harnessHere/harness/AgentsHarnessToolsSort.awk" )"
+[ "${#agentsWireToolsSorted}" -ne "${#agentsWireToolsJson}" ] || agentsWireToolsJson="$agentsWireToolsSorted"
+case "$agentsWireToolsJson" in
+	*"}]") agentsWireToolsJson="${agentsWireToolsJson%\}\]}"',"cache_control":{"type":"ephemeral"}}]' ;;
+esac
 agentsWireSystemJson=""
+agentsWireSystemBlocks=""
 
 ## JSON string body for any text, trailing newlines kept: the escaper is awk, which
 ## cannot see a final newline, so a sentinel carries it through and is cut after.
@@ -37,8 +47,25 @@ AgentsWireToolDeclaration(){ ## declared name, description, input schema JSON
 
 ## `system` is a top-level field on this wire, so it is rendered here once per leg and
 ## replayed by AgentsWireRequestBody rather than rebuilt per round.
+## Where the system text opens with the team's common instruction (harnessSystemShared, F10.7) it goes as two blocks, that
+## instruction first with a cache marker at its end and the member's own text after: the first block is one in every member's
+## request, behind the same tools, and so is cached once for all of them. Otherwise it is one string, as it was.
 AgentsWireInitMessages(){
+	local initRest
 	agentsWireSystemJson="$( AgentsWireJsonEscape "$harnessSystemText" )"
+	agentsWireSystemBlocks=""
+	if [ -n "${harnessSystemShared:-}" ] && [ "${harnessSystemText#"$harnessSystemShared"$'\n\n'}" != "$harnessSystemText" ] ; then
+		initRest="${harnessSystemText#"$harnessSystemShared"$'\n\n'}"
+		agentsWireSystemBlocks='[{"type":"text","text":"'"$( AgentsWireJsonEscape "$harnessSystemShared" )"'","cache_control":{"type":"ephemeral"}},{"type":"text","text":"'"$( AgentsWireJsonEscape "$initRest" )"'"}]'
+	fi
+	## Where the run has a prefetch (harnessPrefetch, F10.8) the first message is two blocks, the prefetch with a cache marker at its end
+	## and the task after it: the text of a member's skill is the same for its runs and the task is not, so it is a prefix of its own.
+	if [ -n "${harnessPrefetch:-}" ] ; then
+		harnessMessages=(
+			'{"role":"user","content":[{"type":"text","text":"'"$( AgentsWireJsonEscape "$harnessPrefetch" )"'","cache_control":{"type":"ephemeral"}},{"type":"text","text":"'"$( AgentsWireJsonEscape "$harnessPrompt" )"'"}]}'
+		)
+		return 0
+	fi
 	harnessMessages=(
 		'{"role":"user","content":"'"$( AgentsWireJsonEscape "$harnessPrompt" )"'"}'
 	)
@@ -75,18 +102,23 @@ AgentsWireToolResultRecord(){ ## call id, result text, date line (optional)
 }
 
 ## Appends in a fixed order, for the prompt cache. The top-level cache_control caches
-## the whole prefix up to the last message and moves with it, round after round.
+## the whole prefix up to the last message and moves with it, round after round, and stays:
+## it is what keeps a long session cheap. Two markers more stand on the prefix every member
+## shares, one at the end of the floor's tools and one at the end of the common instruction in
+## `system` (F10.7); none stands on a work message. A fourth stands at the end of the prefetch block that opens the first message
+## of a spawned member's run (F10.8), so a request carries three or four, and never more than the four the API allows.
 ## max_tokens is required on this wire, so a stub declaring none is refused rather than
 ## given a number nobody chose. An empty $harnessReasoningEffort omits output_config
 ## entirely, and an empty $harnessToolChoice is `auto`.
 AgentsWireRequestBody(){
-	local bodyMessagesJson bodyOut
+	local bodyMessagesJson bodyOut bodySystem
+	if [ -n "$agentsWireSystemBlocks" ] ; then bodySystem="$agentsWireSystemBlocks" ; else bodySystem='"'"$agentsWireSystemJson"'"' ; fi
 	if [ -z "$harnessOutputTokens" ] ; then
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: this wire requires max_tokens, and the stub declares no HARNESS_OUTPUT_TOKENS_* for the $harnessTier tier -- set it to $harnessModel's own maximum output" >&2
 		exit 1
 	fi
 	bodyMessagesJson="$( IFS=, ; echo "[${harnessMessages[*]}]" )"
-	bodyOut='{"model":"'"$harnessModel"'","max_tokens":'"$harnessOutputTokens"',"stream":true,"cache_control":{"type":"ephemeral"},"system":"'"$agentsWireSystemJson"'","tools":'"${agentsWireToolsJson%]}${harnessMcpToolsJson:-}"'],"tool_choice":{"type":"'"${harnessToolChoice:-auto}"'"},"messages":'"$bodyMessagesJson"
+	bodyOut='{"model":"'"$harnessModel"'","max_tokens":'"$harnessOutputTokens"',"stream":true,"cache_control":{"type":"ephemeral"},"system":'"$bodySystem"',"tools":'"${agentsWireToolsJson%]}${harnessMcpToolsJson:-}"'],"tool_choice":{"type":"'"${harnessToolChoice:-auto}"'"},"messages":'"$bodyMessagesJson"
 	[ -z "$harnessReasoningEffort" ] || bodyOut="$bodyOut"',"output_config":{"effort":"'"$harnessReasoningEffort"'"}'
 	printf '%s' "$bodyOut}"
 }
@@ -171,6 +203,17 @@ AgentsWireStreamConsume(){
 				AgentsWireStreamField || break
 				## Every prompt token this round, whichever of the three counts it landed in.
 				printf '\n%s\n' "   💾 ${harnessDim}prompt cache -- $usagePrompt prompt tokens this round, cached:${harnessOff} ${harnessValue}${usageRead:-absent}${harnessOff}${harnessDim}, written: ${agentsWireField:-absent}${harnessOff}" >&2
+				## Round 1 says what became of the shared prefix: read from the cache, another session's; written for the next; or neither,
+				## the prefix being under the model's minimum or its markers not honoured.
+				if [ "${harnessRound:-0}" = "1" ] ; then
+					if [ "${usageRead:-0}" -gt 0 ] 2>/dev/null ; then
+						printf '%s\n' "   💾 ${harnessDim}shared prefix -- round 1 read ${usageRead} tokens from the cache${harnessOff}" >&2
+					elif [ "${agentsWireField:-0}" -gt 0 ] 2>/dev/null ; then
+						printf '%s\n' "   💾 ${harnessDim}shared prefix -- round 1 wrote ${agentsWireField} tokens to the cache for the next session${harnessOff}" >&2
+					else
+						printf '%s\n' "   💾 ${harnessDim}shared prefix -- round 1 cached nothing: the prefix is under the model's minimum, or its markers were not honoured${harnessOff}" >&2
+					fi
+				fi
 			;;
 			X)
 				## The stream awk found a value bash's own arithmetic refuses, and stopped

@@ -46,7 +46,7 @@ The body of `# Maintainer Notes` in `magic-coordinator.armed.md`. Read it when t
 
 - `TEAM-ORGANIZATION-VISION.md` — the team's organisational vision, including when the human-owner is actually needed.
 - `magic-team/reference/board-model.md` — board states and transitions.
-- `magic-team/magic-team.authority.<type>.contract.md` — decision authority per member family.
+- `magic-team/contracts/magic-team.authority.<type>.contract.md` — decision authority per member family.
 - `myx.distro-agents/sh-lib/templates/spawn-brief.document.format.md` (tooling, not skillset) — the mechanical brief block the tooling adds.
 - `magic-team.grooming.routine`'s `check-backlog-promote` and `rice-scoring` — backlog promotion and scoring.
 - `magic-librarian` — `MAGIC.md`/`README.md` and skillset writing. `magic-architect` — design consistency, joint grooming. `magic-tester` — testing rounds.

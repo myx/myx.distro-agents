@@ -72,7 +72,7 @@ AgentsToolsPendingReplyMarkEnded(){ ## pending id, record file
 ## record nor store is listed only while a process runs as it.
 AgentsToolsPendingReplySessionsRunning(){
 	local runningIds runningLine runningRoot
-	type AgentsToolsRegistryAskersLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+	type AgentsToolsRegistryAskersLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 	runningIds="$( AgentsToolsRegistryRenderSpawnedSessions agents 2> /dev/null | LC_ALL=C awk '
 		NF == 13 && $2 != "-" && ( $13 == "running" || $13 == "unknown-foreign" ) && ! seen[$2]++ { printf "%s ", $2 ; }
 	' )"

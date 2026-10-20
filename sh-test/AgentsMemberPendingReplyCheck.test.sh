@@ -138,6 +138,15 @@ rigOp one --member-pending-reply-read magic-tester 11111111-0000-0000-0000-00000
 rigAssert "one by id shows it"                        "$( rigHolds "$rigTmp/one" 'owner: magic-coordinator' )" yes
 rigOp missing --member-pending-reply-read magic-tester 11111111-0000-0000-0000-000000000009
 rigAssert "a missing id fails"                        "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 )" non-zero
+## --count: the number of the records the same list shows, by the same store and the same test of what is open, and nothing else.
+rigOp countown --member-pending-reply-read magic-tester --count
+rigAssert "--count prints the number the list counts, and nothing else" "[$( cat "$rigTmp/countown" )] [$( LC_ALL=C sed -n 's/^PENDING-REPLIES: //p' "$rigTmp/list" )] $( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigTmp/countown" )" "[3] [3] 1"
+rigOp countall --member-pending-reply-read magic-tester --all --count
+rigAssert "--all widens the count as it widens the list" "$( cat "$rigTmp/countall" )" 4
+rigOp countany --member-pending-reply-read magic-tester --any-owner --count
+rigAssert "--any-owner counts every member's open records, as the list does" "$( [ "$( cat "$rigTmp/countany" )" = "$( LC_ALL=C sed -n 's/^PENDING-REPLIES: //p' "$rigTmp/listany" )" ] && echo same || echo differs ):$( LC_ALL=C grep -c -x -E '[0-9]+' "$rigTmp/countany" )" "same:1"
+rigOp countid --member-pending-reply-read magic-tester 11111111-0000-0000-0000-000000000003 --count
+rigAssert "--count with the id of one record is refused, and prints no number" "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 ):$( LC_ALL=C grep -c -x -E '[0-9]+' "$rigTmp/countid" )" "non-zero:0"
 
 echo "-- settle: the member's own open question --"
 rigOp settle1 --member-pending-reply-settle magic-tester 11111111-0000-0000-0000-000000000001 --reason "answered in the thread at 12:47"
@@ -258,7 +267,7 @@ rigWs2="$rigTmp/ws2"
 rigAgents2="$rigWs2/.local/agents"
 rigStore2="$rigAgents2/pending"
 rigReg2="$rigAgents2/pending-replies.registry"
-rigRegInclude="${MDLT_ORIGIN}/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+rigRegInclude="${MDLT_ORIGIN}/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 rigReadInclude="${MDLT_ORIGIN}/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberPendingReply.include"
 mkdir -p "$rigStore2" "$rigAgents2/spawned" "$rigAgents2/sessions" "$rigTmp/data2/board/running" "$rigWs2/.local"
 cp -R "$rigTmp/ws/.local/.agents" "$rigWs2/.local/.agents" || rigRefuse "the second workspace got no settings"
@@ -328,6 +337,14 @@ rigAssert "a read of one record by its id shows it"   "$( rigHolds "$rigTmp/one2
 rigAssert "and leaves the registry as it lay, the same file and the same bytes" "$( ls -i "$rigReg2" | LC_ALL=C awk '{ print $1 ; }' ):$( cksum < "$rigReg2" )" "$rigRegBefore"
 rigOp2 any2 --member-pending-reply-read magic-coordinator --any-owner
 rigAssert "the --any-owner list rebuilds it too"      "$( cmp -s "$rigReg2" "$rigTmp/rows2.want" && echo same || echo differs )" same
+## The count renders nothing and writes nothing: no registry rebuilt, no asker measured.
+rigStale2
+rigRegBefore="$( ls -i "$rigReg2" | LC_ALL=C awk '{ print $1 ; }' ):$( cksum < "$rigReg2" )"
+rigOp2 count2 --member-pending-reply-read magic-tester --count
+rigAssert "--count prints the number of the open ones the list shows" "$( cat "$rigTmp/count2" ):$rigRc" "2:0"
+rigAssert "and leaves the registry as it lay, the same file and the same bytes" "$( ls -i "$rigReg2" | LC_ALL=C awk '{ print $1 ; }' ):$( cksum < "$rigReg2" )" "$rigRegBefore"
+rigOp2 count3 --member-pending-reply-read magic-coordinator --any-owner --count
+rigAssert "--any-owner --count is the count of that list" "$( cat "$rigTmp/count3" ):$( LC_ALL=C sed -n 's/^PENDING-REPLIES: //p' "$rigTmp/any2" )" "2:2"
 ## A workspace with no ask store: the list says none, and the registry is written with no row.
 rigWs3="$rigTmp/ws3"
 mkdir -p "$rigWs3/.local" "$rigTmp/data3"

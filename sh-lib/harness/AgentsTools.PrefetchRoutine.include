@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.PrefetchRoutine.include -- what the prefetch of a harness run (F10.8, AgentsUniversalHarness.sh) lets the rest of the
+## tooling know of the routine text it read into the first message of the run, and the one line a read of that same, unchanged text
+## is answered with. Sourced by the harness and by DistroAgentsSession.fn.sh (--get-routine-text), for its functions only.
+##
+## The marker is `<spawn-id>.prefetch` in the root of the run's sandbox, which no member is granted (as the spawn record is): the
+## line `routine: <file name of the routine>` and the line `routine-sum: <checksum and size of the routine's mixed text as it was
+## read>`. The text is the routine mixed with the routine of its kind (AgentsToolsSpawnRoutineMixText), the same bytes that
+## `DistroAgentsSession.fn.sh --get-routine-text` prints, so a read of it while its checksum is still that one is said in one line.
+##
+
+## The one line every such answer starts with.
+AgentsToolsPrefetchOneLine(){
+	printf '%s' "Already in this run's first message, unchanged since then"
+}
+
+## The marker of the run this process belongs to; rc 1 and nothing printed outside a spawned run with a sandbox.
+AgentsToolsPrefetchMarkerFile(){
+	[ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || return 1
+	printf '%s/%s.prefetch' "$MDAT_SPAWN_SANDBOX_ROOT" "$MDAT_SPAWN_SESSION_ID"
+}
+
+AgentsToolsPrefetchMarkerWrite(){ ## routine file name, checksum line of its mixed text
+	local markerFile markerTemp
+	markerFile="$( AgentsToolsPrefetchMarkerFile )" || return 0
+	markerTemp="$( mktemp "$markerFile.XXXXXX" 2> /dev/null )" || return 0
+	{ printf 'routine: %s\nroutine-sum: %s\n' "$1" "$2" ; } > "$markerTemp" 2> /dev/null && mv -f "$markerTemp" "$markerFile" 2> /dev/null || rm -f "$markerTemp"
+	return 0
+}
+
+AgentsToolsPrefetchMarkerRemove(){
+	local markerFile
+	markerFile="$( AgentsToolsPrefetchMarkerFile )" || return 0
+	rm -f "$markerFile" 2> /dev/null
+	return 0
+}
+
+## rc 0 where the mixed text of this routine file is the text the run read into its first message, and is unchanged: its file name and
+## the checksum line it had then are the 2nd and 3rd words, or the marker's where they are not given.
+AgentsToolsPrefetchRoutineUnchanged(){ ## routine file path, [file name, checksum line]
+	local unchangedName="${2:-}" unchangedSum="${3:-}" unchangedMarker
+	if [ -z "$unchangedName" ] ; then
+		unchangedMarker="$( AgentsToolsPrefetchMarkerFile )" || return 1
+		[ -f "$unchangedMarker" ] || return 1
+		unchangedName="$( LC_ALL=C awk 'index( $0, "routine: " ) == 1 { print substr( $0, 10 ) ; exit }' "$unchangedMarker" )"
+		unchangedSum="$( LC_ALL=C awk 'index( $0, "routine-sum: " ) == 1 { print substr( $0, 14 ) ; exit }' "$unchangedMarker" )"
+	fi
+	[ -n "$unchangedName" ] && [ -n "$unchangedSum" ] && [ "${1##*/}" = "$unchangedName" ] || return 1
+	type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include" 2> /dev/null || return 1
+	[ "$( AgentsToolsSpawnRoutineMixText "$1" 2> /dev/null | LC_ALL=C cksum )" = "$unchangedSum" ]
+}
+
+## The answer of --get-routine-text for a routine this run read into its first message, where that text is unchanged: the line, rc 0.
+## rc 1, nothing printed, for any other.
+AgentsToolsPrefetchRoutineSaid(){ ## routine file path
+	AgentsToolsPrefetchRoutineUnchanged "$1" || return 1
+	printf '%s: the text of %s mixed with the routine of its kind, as this prints it. Nothing was printed again.\n' "$( AgentsToolsPrefetchOneLine )" "${1##*/}"
+}

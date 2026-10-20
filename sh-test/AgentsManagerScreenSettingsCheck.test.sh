@@ -24,6 +24,7 @@
 ## `keys:` line any more; every dialog has bigger margins inside its frame (two empty lines under its top, one more
 ## under its buttons, three blank cells at each side), so its box is four cells wider and two lines taller and what it
 ## holds stands where it stood; LOOKS has one more look, the underlined last line of a row (ROW_LINE).
+## Reconciled for F11.5: Settings and Configuration stand at the 6th and 7th number key (Sessions, Team Members and Team Data stand under Magic-Team (Agents)); the digest has the subject of the knowledge store (MDAT_KNOWLEDGE_STORE), whose words stand in the table of Settings.
 ## Reconciled for F11.0, the table lines: an empty line between two rows of a full table (the rows by line number move), two spaces between the columns, and LOOKS holds the looks of a cell on the ground of a row and on an underlined line besides.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -110,6 +111,8 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 	rigRow subject control 2 Session_Control
 	rigRow line control request SESSION_CONTROL_REQUEST_SECONDS set 5 Control_Request_Seconds 'How_many_seconds_a_console_waits_for_a_session_to_answer_a_request.' yes number workspace default 1..60 "$rigTeamEnv" settings
 	rigRow line control kill SESSION_CONTROL_KILL_SECONDS set 30 Control_Kill_Seconds 'How_many_seconds_the_carrying_out_of_a_kill_may_take.' yes number workspace workspace 5..600 "$rigTeamEnv" settings
+	rigRow subject knowledge 1 Knowledge_Store
+	rigRow line knowledge store MDAT_KNOWLEDGE_STORE set off Knowledge_Store_Switch 'Whether_this_workspace_keeps_a_vector_store_of_what_the_team_knows.' yes choice team default 'off=Off,on=On' "$rigTeamEnv" settings
 } > "$rigF/rows.--manager-config-digest"
 rigRow counters 0 0 0 0 0 0.42 > "$rigF/rows"
 rigRow saved MDAT_MANAGER_STYLE nu-blue user "$rigEnv" > "$rigF/rows.--manager-config-set"
@@ -127,7 +130,7 @@ rigCase(){ ## name
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize %s\nroot sessions\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize %s\nroot active-sessions\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -154,9 +157,10 @@ rigOthers(){ ## how many starts were neither the list of the sessions, nor the r
 echo "-- Configuration lists the subjects of its lines, and one read of the digest fills both roots --"
 rigCase list
 rigScript <<'RIGSCRIPT'
+root magic-team
 turn
 wait sessions 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN
 advance 11
 wait sessions 30
 wait focus 30
@@ -194,6 +198,7 @@ cells srow2 3 85 119
 cells srow3 4 85 119
 cells srow4 5 85 119
 cells srow5 6 85 119
+cells srow6 7 85 119
 show su
 get once
 advance 11
@@ -208,14 +213,15 @@ rigAssert "a subject with missing lines carries their count at the end of its ro
 rigAssert "on the row that goes up the left pane is the root's table, nothing above it (the owner: \"no summary on top\")" "[$( rigPane u 3 )] $( rigScreenHolds u '61 lines' )" "[  SUBJECT           LINES MISSING WHAT] 0"
 rigAssert "back at the root it says what it held"                   "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigPane r 3 )]" "[] configuration [  SUBJECT           LINES MISSING WHAT]"
 rigAssert "Settings, not entered yet, says what it holds from that same read" "$( rigVal sroot.selected ) [$( rigPane sr 3 )]" "settings [  SUBJECT            LINES MISSING WHAT]"
-rigAssert "it lists the subjects that have a line of the settings, a subject of both roots in each" "[$( rigVal stitle )] $( rigVal sin.rows ) [$( rigVal srow2 | sed 's/  *$//' )][$( rigVal srow3 | sed 's/  *$//' )][$( rigVal srow4 | sed 's/  *$//' )][$( rigVal srow5 )]" "[Settings] 4 [ Interface Settings              ►][ Console Behaviour               ►][ Session Control                 ►][]"
+rigAssert "it lists the subjects that have a line of the settings, a subject of both roots in each" "[$( rigVal stitle )] $( rigVal sin.rows ) [$( rigVal srow2 | sed 's/  *$//' )][$( rigVal srow3 | sed 's/  *$//' )][$( rigVal srow4 | sed 's/  *$//' )][$( rigVal srow5 | sed 's/  *$//' )][$( rigVal srow6 )]" "[Settings] 5 [ Interface Settings              ►][ Console Behaviour               ►][ Session Control                 ►][ Knowledge Store                 ►][]"
+rigAssert "the subject of the knowledge store says in the table of Settings what it holds, as every subject does" "$( rigScreenHolds sr 'Knowledge Store' ) $( rigScreenHolds sr 'the optional vector store of what the team knows' )" "1 1"
 rigAssert "and its table stands first, no words of the root above it" "[$( rigPane su 3 )] $( rigScreenHolds su 'What a user sets for himself' )" "[  SUBJECT            LINES MISSING WHAT] 0"
 rigAssert "the digest was read once for both roots, whole, and once more when its period had passed" "$( rigCalled '--manager-config-digest --full' ) $( rigCalled --manager-config-digest ) $( rigOthers )" "2 0 0"
 
 echo "-- the left pane shows the selected subject, group by group --"
 rigCase subjects
 rigScript <<'RIGSCRIPT'
-keys 8
+keys 7
 wait list 30
 keys DOWN DOWN DOWN
 turn
@@ -238,7 +244,7 @@ rigAssert "workspace: its table first, no caption and no words above it" "$( rig
 rigAssert "its lines as a table: its missing line first, under a heading of its own, with the group it is of, since it is a subject of the configuration; then its paths under a heading of their own, a path with an underscore as it is written" "[$( rigPane w 4 | LC_ALL=C tr -s ' ' )][$( rigPane w 5 | LC_ALL=C tr -s ' ' )][$( rigPane w 6 | LC_ALL=C tr -s ' ' )][$( rigPane w 7 | LC_ALL=C tr -s ' ' )]" \
 	"[ missing, first][ session-stores /rig/ws_rig/.local/agents/stores (missing) in paths][ paths][ workspace-root /rig/ws_rig -]"
 rigAssert "then its places, under a heading of their own" "[$( rigPane w 8 | LC_ALL=C tr -s ' ' )][$( rigPane w 9 | LC_ALL=C tr -s ' ' )][$( rigPane w 10 )]" "[ places][ ws-rig /rig/ws_rig -][]"
-rigAssert "under its lines no sentence says what Enter does: the status line names it; it names no key of its own" "[$( rigPane w 10 )][$( rigPane w 11 )] [$( rigVal wKeys )] [$( rigVal wStatus | sed 's/  *$//' )] $( rigVal w.spills )" "[][] [] [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut] 0"
+rigAssert "under its lines no sentence says what Enter does: the status line names it; it names no key of its own" "[$( rigPane w 10 )][$( rigPane w 11 )] [$( rigVal wKeys )] [$( rigVal wStatus | sed 's/  *$//' )] $( rigVal w.spills )" "[][] [] [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut  t Sort] 0"
 rigAssert "cli: a table CLI KEY VALUE, a row a line with its CLI, a missing key first; then what the workspace asks for, a key as it is written" "[$( rigPane c 3 | LC_ALL=C tr -s ' ' )][$( rigPane c 5 | LC_ALL=C tr -s ' ' )][$( rigPane c 11 | LC_ALL=C tr -s ' ' )] $( rigScreenHolds c '6 lines' )" \
 	"[ CLI KEY VALUE][ workspace SPAWN_HARNESS_TIER missing][ workspace SPAWN_CLI_SERVICE claude] 0"
 rigAssert "a secret shows only as configured or not configured: the one that is among the missing lines, the one that is not; then the leg's usable" "[$( rigPane c 7 | LC_ALL=C tr -s ' ' )][$( rigPane c 13 | LC_ALL=C tr -s ' ' )][$( rigPane c 15 | LC_ALL=C tr -s ' ' )]" \
@@ -255,7 +261,7 @@ echo "-- a subject longer than the pane scrolls with the focus on the left pane 
 rigCase scroll
 rigSize="120 20"
 rigScript <<'RIGSCRIPT'
-keys 8
+keys 7
 wait list 30
 keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 turn
@@ -276,7 +282,7 @@ rigAssert "the key and the secret that are missing stand on its first page, each
 echo "-- a subject is entered: its lines by their labels alone, and the left window shows the one selected --"
 rigCase entered
 rigScript <<'RIGSCRIPT'
-keys 7
+keys 6
 wait list 30
 keys DOWN DOWN ENTER
 turn
@@ -298,7 +304,7 @@ show t
 keys BACKSPACE
 turn
 get back
-keys 8
+keys 7
 turn
 keys DOWN DOWN DOWN DOWN ENTER
 turn
@@ -326,7 +332,7 @@ rigAssert "such a line is a credential, so a row that is entered (F11.8): the le
 echo "-- Configuration: Enter on a line changes nothing, and says why --"
 rigCase viewing
 rigScript <<'RIGSCRIPT'
-keys 8
+keys 7
 wait list 30
 keys DOWN DOWN DOWN DOWN ENTER
 turn
@@ -371,7 +377,7 @@ echo "-- the labels of the digest: a subject and a line show by their label, the
 rigCaseLabelled labels
 rigScript <<'RIGSCRIPT'
 turn
-keys 8
+keys 7
 wait list 30
 keys DOWN DOWN DOWN
 turn
@@ -380,7 +386,7 @@ keys DOWN
 turn
 get c
 show c
-keys 7
+keys 6
 turn
 keys DOWN
 turn
@@ -397,7 +403,7 @@ echo "-- Enter on the style: a dialog of its own, the style and its colours; OK 
 rigCaseLabelled style
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 6
 wait list 30
 keys DOWN ENTER
 turn
@@ -432,7 +438,7 @@ echo "-- Enter on a choice: the form offers the same choices and saves the raw v
 rigCase choice
 rigScript <<RIGSCRIPT
 turn
-keys 7
+keys 6
 wait list 30
 keys DOWN DOWN ENTER
 turn
@@ -498,7 +504,7 @@ echo "-- Enter on a number: its range in the dialog, saved for the workspace; on
 rigCase number
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 6
 wait list 30
 keys DOWN DOWN DOWN ENTER
 turn
@@ -535,7 +541,7 @@ echo "-- a setting of a kind the screen does not know is changed as a short text
 rigCase words
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 6
 wait list 30
 keys DOWN DOWN ENTER
 turn
@@ -557,7 +563,7 @@ rigCaseLabelled refused
 printf 'fail\n' > "$MANAGER_SCREEN_RIG/mode.--manager-config-set"
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 6
 wait list 30
 keys DOWN ENTER
 turn
@@ -600,7 +606,7 @@ echo "-- the styles: Magic, Turbo Vision and Basic B/W, in that order, Turbo Vis
 rigCase magic
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 6
 wait list 30
 turn
 keys I
@@ -660,7 +666,7 @@ rigCount(){ ## tag letters -- how many cells of the roles of that tag are drawn 
 }
 rigAssert "Magic: the windows stand in their own colour, a thin line on the bottom edge of the line above them and of their last line, the change of colour their sides, their shadow whole cells at their right; no line frame, no half block and nothing on the top of a cell" "$( rigScreenHolds m '▔' ) $( rigScreenHolds m '▀' ) $( rigSome "$( rigScreenHolds m '▁▁▁' )" ) $( rigScreenHolds m '▗' ) $( rigScreenHolds m '▐' ) $( rigScreenHolds m '▌' ) $( rigScreenHolds m '▝' ) $( rigScreenHolds m '┌' ) $( rigScreenHolds m '┏' ) $( rigScreenHolds m '┃' ) $( rigScreenHolds m '║' ) $( rigSome "$( rigCount mr V )" ) $( rigSome "$( rigCount mr v )" ) $( rigSome "$( rigCount mr E )" ) $( rigSome "$( rigCount mr a )" )" "0 0 some 0 0 0 0 0 0 0 0 some some some some"
 rigAssert "each title stands as a tab on the line over its window, in a look of its own, the active one in its own" "$( rigScreenHolds m '▁ Settings ▁' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^m|' | LC_ALL=C sed -n '2p' | LC_ALL=C grep -o '▟' | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mr|' | LC_ALL=C sed -n '2p' | LC_ALL=C tr -d -c 'T' | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' )" "1 0 10"
-rigAssert "a row that is entered has its mark at the right edge of the row, in every subject of the root" "$( rigScreenHolds m '► |' ) $( rigScreenHolds m 'Interface Settings...' )" "3 0"
+rigAssert "a row that is entered has its mark at the right edge of the row, in every subject of the root" "$( rigScreenHolds m '► |' ) $( rigScreenHolds m 'Interface Settings...' )" "4 0"
 rigAssert "the status line: each key a chip of its own colour, the text as it was" "$( rigSome "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mr|' | tail -1 | LC_ALL=C tr -d -c 'K' | LC_ALL=C wc -c )" ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^m|' | tail -1 | LC_ALL=C grep -c -F ' ⏎ Open  ' )" "some 1"
 rigAssert "a menu: hung from the bar, its own colour up to a thin line at its bottom, no mark at its sides, its shadow at its right and half a line under it, the black of it the ground of its cells" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mm|' | LC_ALL=C grep -c -F '▀' ) $( rigSome "$( rigScreenHolds mm '▁▁▁' )" ) $( rigScreenHolds mm '▄▄▄' ) $( rigScreenHolds mm '▛' ) $( rigScreenHolds mm '▜' ) $( rigScreenHolds mm '▙' ) $( rigScreenHolds mm '▟' ) $( rigScreenHolds mm '█' ) $( rigSome "$( rigCount mmr z )" )" "0 some 1 0 0 0 0 0 some"
 rigAssert "closed, it leaves nothing: what is drawn is what a new terminal shows of the same state" "$( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^mafter|//p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^mfresh|//p' )" ] && echo same || echo differs ) $( rigScreenHolds mafter '▄▄▄' )" "same 0"
@@ -800,7 +806,7 @@ print("kept %d of %d %s %s" % (len(kept), len(cells), "drawn" if "".join(kept).s
 rigCase schemes
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 6
 wait list 30
 turn
 style tv-blue
@@ -891,7 +897,7 @@ rigLeaves(){ ## style -- one scheme drawn with a menu and with a dialog, each cl
 	rigCase "leaves-$1"
 	rigScript <<RIGSCRIPT
 turn
-keys 7
+keys 6
 wait list 30
 turn
 style $1

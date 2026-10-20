@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on AgentsMarkdownHtmlDocument.awk, the document mode
+## Behavioural check on LocalMarkdownHtmlDocument.awk, the document mode
 ## beside AgentsEmailHtmlBuild.awk: every block construct (ATX headings,
 ## paragraphs and line breaks, nested lists, GFM tables, block quotes, rules,
 ## fences) and images, each against its exact HTML; the one-line inline
@@ -11,7 +11,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigPackage="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents"
-rigAwk="$rigPackage/../myx.distro-.local/sh-lib/markdown/AgentsMarkdownHtmlDocument.awk"
+rigAwk="$rigPackage/../myx.distro-.local/sh-lib/markdown/LocalMarkdownHtmlDocument.awk"
 rigEmailAwk="$rigPackage/sh-lib/comms/AgentsEmailHtmlBuild.awk"
 rigAxiomAwk="$rigPackage/sh-test/AgentsHarnessAwkAxiom.test.awk"
 rigFixtures="$rigPackage/sh-test/check-fixtures"

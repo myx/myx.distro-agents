@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpCollect.include -- `--intern-op-collect-sources`, the collection of the sources an input scan reads (F4.2,
+## Settled): the tooling's own operation, which no agent calls and no routine owns. A member's mailbox and Trello notifications
+## are brought into its inbox, TTL by TTL, and read-only (AgentsTools.Collect.include is the how). Sourced from the dispatcher's
+## own arm, one op in the file; needs $1/$@/$MDSC_CMD from dot-sourcing.
+##
+##   --intern-op-collect-sources --member <team-member> [--kind mail|trello] [--force] [--since <dd-Mon-yyyy>]
+##   --intern-op-collect-sources --all [--kind mail|trello] [--force]
+##   --intern-op-collect-sources --report-stale
+##
+## `--member` collects the member's sources that are due (all of them with --force) and says one line for each, the ones it holds
+## no credentials for too; `--all` does so for the members whose sources a scan reads here (AgentsToolsCollectScanMembers) and says
+## the ones it collected or tried; `--report-stale` names the sources of those members nobody updated for twenty TTLs and reads
+## none. Exit: 0, 3 when a source failed, 1 for a call that is no call.
+##
+
+case "$1" in
+
+	--intern-op-collect-sources)
+		shift
+		local collectMember="" collectAll="no" collectKind="" collectForce="no" collectSince="" collectStale="no" collectRc=0 collectOneRc collectName collectEachKind
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: collect-sources: ⛔ ERROR: --member: value required" >&2
+						set +e ; return 1
+					fi
+					collectMember="$2" ; shift 2
+				;;
+				--all) collectAll="yes" ; shift ;;
+				--report-stale) collectStale="yes" ; shift ;;
+				--force) collectForce="yes" ; shift ;;
+				--kind)
+					case "${2:-}" in
+						mail|trello) collectKind="$2" ; shift 2 ;;
+						*)
+							echo "$MDSC_CMD: collect-sources: ⛔ ERROR: --kind: the kind of a source is mail or trello, not '${2:-}'" >&2
+							set +e ; return 1
+						;;
+					esac
+				;;
+				--since)
+					case "${2:-}" in
+						[0-9]-???-[0-9][0-9][0-9][0-9]|[0-9][0-9]-???-[0-9][0-9][0-9][0-9]) collectSince="$2" ; shift 2 ;;
+						*)
+							echo "$MDSC_CMD: collect-sources: ⛔ ERROR: --since: the form is dd-Mon-yyyy, not '${2:-}'" >&2
+							set +e ; return 1
+						;;
+					esac
+				;;
+				--context)
+					[ -n "${2:-}" ] || { echo "$MDSC_CMD: collect-sources: ⛔ ERROR: --context: value required" >&2 ; set +e ; return 1 ; }
+					shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: collect-sources: ⛔ ERROR: unrecognized argument: $1 -- syntax is (--member <team-member>|--all) [--kind mail|trello] [--force] [--since <dd-Mon-yyyy>], or --report-stale" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ "$collectStale" = "no" ] && [ -z "$collectMember" ] && [ "$collectAll" = "no" ] ; then
+			echo "$MDSC_CMD: collect-sources: ⛔ ERROR: syntax is (--member <team-member>|--all) [--kind mail|trello] [--force] [--since <dd-Mon-yyyy>], or --report-stale" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$collectMember" ] && { [ "$collectAll" = "yes" ] || [ "$collectStale" = "yes" ] ; } ; then
+			echo "$MDSC_CMD: collect-sources: ⛔ ERROR: --member, --all and --report-stale name three different calls; give one" >&2
+			set +e ; return 1
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] && [ -n "${MMDAPP:-}" ] || {
+			echo "$MDSC_CMD: collect-sources: ⛔ ERROR: MDAT_DATA_ROOT or MMDAPP is not set" >&2
+			set +e ; return 1
+		}
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.Collect.include"
+		if [ "$collectStale" = "yes" ] ; then
+			AgentsToolsCollectStaleReport
+			return 0
+		fi
+		if [ -n "$collectMember" ] ; then
+			AgentsToolsAssertBareName "$collectMember" "--member" collect-sources || { set +e ; return 1 ; }
+			if [ ! -d "$MDAT_SKILLSET_ROOT/$collectMember" ] ; then
+				echo "$MDSC_CMD: collect-sources: ⛔ ERROR: no such member skill directory: $MDAT_SKILLSET_ROOT/$collectMember" >&2
+				set +e ; return 1
+			fi
+			agentsCollectDefer="yes"
+			for collectEachKind in mail trello ; do
+				[ -z "$collectKind" ] || [ "$collectKind" = "$collectEachKind" ] || continue
+				collectOneRc=0
+				AgentsToolsCollectOne "$collectEachKind" "$collectMember" "$collectForce" "$collectSince" || collectOneRc=$?
+				printf '%s\n' "$agentsCollectLine"
+				[ "$collectOneRc" -ne 3 ] || collectRc=3
+			done
+			agentsCollectDefer="no"
+			AgentsToolsCollectCommit "source collection of $collectMember" yes
+			set +e ; return "$collectRc"
+		fi
+		## The members a scan reads: a source one of them holds no credentials for is not said. A client-* member is collected on the client side.
+		## What is written is committed once at the end, and pushed once.
+		agentsCollectDefer="yes"
+		while IFS= read -r collectName ; do
+			[ -n "$collectName" ] || continue
+			for collectEachKind in mail trello ; do
+				[ -z "$collectKind" ] || [ "$collectKind" = "$collectEachKind" ] || continue
+				collectOneRc=0
+				case "$collectName" in
+					client-*) MDAT_COMMS_SIDE=client AgentsToolsCollectOne "$collectEachKind" "$collectName" "$collectForce" "" || collectOneRc=$? ;;
+					*) AgentsToolsCollectOne "$collectEachKind" "$collectName" "$collectForce" "" || collectOneRc=$? ;;
+				esac
+				case "$collectOneRc" in 4|5) continue ;; esac
+				printf '%s\n' "$agentsCollectLine"
+				[ "$collectOneRc" -ne 3 ] || collectRc=3
+			done
+		done < <( AgentsToolsCollectScanMembers )
+		agentsCollectDefer="no"
+		AgentsToolsCollectCommit "source collection" yes
+		set +e ; return "$collectRc"
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

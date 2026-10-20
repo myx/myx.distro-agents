@@ -14,7 +14,7 @@
 ## `kill -- -<pid>` its whole process group.
 ##
 ## HOW. A process is noted with when it began, as the tooling itself keeps a process
-## (`<pid> <start>`, AgentsToolsRegistryProcessesBegan of myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include:
+## (`<pid> <start>`, AgentsToolsRegistryProcessesBegan of myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include:
 ## that reading and no second one), and is signalled only while its pid is still the process
 ## that began then. The same pid begun at another time is another process, and one that is
 ## gone is nothing: neither is signalled. A process is noted right after it is started, by
@@ -71,7 +71,7 @@ rigProcBegan(){ ## pid...
 		PATH="$rigProcPath" ; export PATH
 		[ -n "${MDLT_ORIGIN:-}" ] || { MDLT_ORIGIN="${rigProcHere%/myx/myx.distro-agents/sh-test/check-fixtures}" ; export MDLT_ORIGIN ; }
 		unset -f ps awk 2> /dev/null
-		. "$rigProcHere/../../../myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include" || exit 0
+		. "$rigProcHere/../../../myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" || exit 0
 		beganLines="$( printf '%s\n' "$@" | AgentsToolsRegistryProcessesBegan )"
 		## one number that is no process id leaves the whole reading empty: then each by itself
 		if [ -z "$beganLines" ] && [ $# -gt 1 ] ; then

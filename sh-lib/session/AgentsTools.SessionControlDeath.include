@@ -63,7 +63,7 @@
 ##
 
 type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
-type AgentsToolsRegistrySpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+type AgentsToolsRegistrySpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 
 ## The outcome word a record is closed with here: the advance pass's own, for a run that
 ## ended and that no supervising shell closed (AgentsToolsAdvanceSpawnHousekeeping).

@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InstallKnowledgeStore.include -- `--install-knowledge-store [--from-folder <folder>]`, the installer of the
+## Python environment the knowledge store (LanceDB) needs. Sourced by the dispatcher, which hands over the operation word
+## and its arguments. Nothing reads the store yet: this only makes the environment, and says so when it cannot.
+##
+## The store is optional, and turned on by the setting MDAT_KNOWLEDGE_STORE (the catalogue of the changeable settings,
+## AgentsTools.ManagerConfig.include): off unless it is on, in the environment or in the settings of the team. With it off
+## nothing is installed. With it on:
+##   1. the Python is the embedded Python of the local tools (`DistroLocalTools.fn.sh --install-embedded-python`), which
+##      this asks of that operation and does not make again: where that refuses, this refuses, with its reason. There is
+##      no other Python, and no system package, on any system.
+##   2. LanceDB, pinned, is downloaded as binary packages alone (pip --only-binary=:all:) into the wheelhouse of the store,
+##      or, with --from-folder, taken from a folder of wheels downloaded once elsewhere (the wheelhouse of an online run,
+##      copied), where nothing is downloaded.
+##   3. BEFORE anything is placed, every package that would be placed is listed with its licence, read from the metadata of
+##      its wheel. Then the environment is made with that Python and LanceDB installed into it from those files alone.
+##   4. what the licences ask is carried: each wheel's licence files and NOTICE are copied into licenses/<name>-<version>/,
+##      and the list is kept in packages.txt.
+##   5. the environment must import lancedb. Where no binary package exists for this system (Intel macOS, FreeBSD aarch64
+##      and the like), or it cannot be imported, it says so, leaves nothing, and the store stays off.
+## All of it is in the workspace's `.local/knowledge-store/`: venv/, wheelhouse/, licenses/, tmp/ (the temp folder of pip's
+## process) and packages.txt. Nothing is written in the home folder or in the system. On standard output it prints the
+## Python of the environment, one line; everything else is said on standard error. It is safe to run again.
+##
+
+AgentsToolsKnowledgeStoreRefuse(){ ## text -- why, on standard error; rc 1
+	echo "$MDSC_CMD: ⛔ ERROR: --install-knowledge-store: $1" >&2
+	return 1
+}
+
+## The setting: on or off. The first place of its row in the catalogue that holds a value it takes (`on` or `off`), the
+## environment first, then the settings of the team; else off.
+AgentsToolsKnowledgeStoreSetting(){
+	local settingValue="${MDAT_KNOWLEDGE_STORE:-}"
+	case "$settingValue" in on|off) printf '%s\n' "$settingValue" ; return 0 ;; esac
+	settingValue="$( DistroAgentsTools --agents-config-option magic-team --select MDAT_KNOWLEDGE_STORE 2> /dev/null < /dev/null )" || settingValue=""
+	case "$settingValue" in on|off) printf '%s\n' "$settingValue" ; return 0 ;; esac
+	printf 'off\n'
+}
+
+## The embedded Python of the local tools: asked of its operation, which makes it where it stands not yet, and prints its path.
+## Where that operation refuses, its reason is on standard error and this is rc 1.
+AgentsToolsKnowledgeStoreEmbeddedPython(){
+	( set -- ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/python/LocalTools.EmbeddedPython.include" )
+}
+
+## A Python, run isolated (-I), with its process confined to the store: no cache, no check of pip's own version, nothing asked,
+## and the temp folder of its process is a folder of the store.
+AgentsToolsKnowledgeStoreRun(){ ## python, its arguments...
+	local runPython="$1"
+	shift
+	env \
+		PIP_NO_CACHE_DIR=1 \
+		PIP_DISABLE_PIP_VERSION_CHECK=1 \
+		PIP_NO_INPUT=1 \
+		TMPDIR="$storeDir/tmp" \
+		"$runPython" -I "$@"
+}
+
+## One wheel: its name, version and licence, TAB-separated, from the metadata it carries. The licence is the licence
+## expression, else the licence classifiers, else the first line of the License header (cut at 60 characters), else `unknown`.
+AgentsToolsKnowledgeStoreWheelInfo(){ ## wheel
+	unzip -p "$1" '*.dist-info/METADATA' 2> /dev/null | LC_ALL=C awk '
+		/^$/ { exit }
+		/^[[:space:]]/ { next }
+		/^Name: / { name = substr( $0, 7 ) }
+		/^Version: / { version = substr( $0, 10 ) }
+		/^License-Expression: / { expression = substr( $0, 21 ) }
+		/^Classifier: License :: / { count = split( $0, part, " :: " ) ; classifier = classifier ( classifier != "" ? "; " : "" ) part[count] }
+		/^License: / { header = substr( $0, 10 ) ; if ( length( header ) > 60 ) header = substr( header, 1, 60 ) }
+		END {
+			licence = ( expression != "" ) ? expression : ( classifier != "" ) ? classifier : ( header != "" ) ? header : "unknown"
+			if ( name != "" && version != "" ) printf "%s\t%s\t%s\n", name, version, licence
+		}'
+}
+
+## The licence files of one wheel, copied as they are into licenses/<name>-<version>/: the files of its licenses folder and the
+## LICENSE, LICENCE, NOTICE, COPYING and AUTHORS files of its metadata folder. The folder is made for every package, so that a
+## package that carries none shows as one.
+AgentsToolsKnowledgeStoreLicences(){ ## wheel, name, version
+	local licenceFolder="$storeDir/licenses/$2-$3"
+	mkdir -p "$licenceFolder" || return 1
+	unzip -o -q -j -d "$licenceFolder" "$1" '*.dist-info/licenses/*' '*.dist-info/LICEN[CS]E*' '*.dist-info/NOTICE*' '*.dist-info/COPYING*' '*.dist-info/AUTHORS*' > /dev/null 2>&1 || :
+	return 0
+}
+
+AgentsToolsKnowledgeStoreInstall(){ ## the arguments after the operation word
+	local fromFolder="" fromFolderSet="" lancedbVersion="0.40.0" pythonExe wheels storeDir venvDir venvPython storeNew="" system machine
+	local wheelFile wheelInfo wheelName wheelVersion wheelLicence wheelCount=0 wheelBytes=0 wheelSize pipErr missing infoFile
+
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--from-folder)
+				[ $# -ge 2 ] || { AgentsToolsKnowledgeStoreRefuse "$1 needs a folder" ; return 1 ; }
+				fromFolder="$2" ; fromFolderSet="true" ; shift 2
+			;;
+			*)
+				AgentsToolsKnowledgeStoreRefuse "invalid option: $1"
+				return 1
+			;;
+		esac
+	done
+	[ -n "${MMDAPP:-}" ] && [ -d "$MMDAPP/.local" ] || { AgentsToolsKnowledgeStoreRefuse "no workspace: MMDAPP is not set, or has no .local" ; return 1 ; }
+
+	if [ "$( AgentsToolsKnowledgeStoreSetting )" != "on" ] ; then
+		AgentsToolsKnowledgeStoreRefuse "the knowledge store is off (MDAT_KNOWLEDGE_STORE), so nothing was installed. Turn it on with: DistroAgentsTools.fn.sh --manager-config-set MDAT_KNOWLEDGE_STORE on"
+		return 1
+	fi
+
+	storeDir="$MMDAPP/.local/knowledge-store"
+	venvDir="$storeDir/venv"
+	venvPython="$venvDir/bin/python"
+	system="$( uname -s )" ; machine="$( uname -m )"
+
+	## what stands already: an environment that imports the pinned LanceDB
+	if [ -x "$venvPython" ] && [ "$( AgentsToolsKnowledgeStoreRun "$venvPython" -c 'import lancedb, importlib.metadata as m; print(m.version("lancedb"))' 2> /dev/null )" = "$lancedbVersion" ] ; then
+		echo "$MDSC_CMD: --install-knowledge-store: lancedb $lancedbVersion already installed: $venvPython" >&2
+		printf '%s\n' "$venvPython"
+		return 0
+	fi
+
+	if [ -n "$fromFolderSet" ] ; then
+		[ -d "$fromFolder" ] || { AgentsToolsKnowledgeStoreRefuse "not a folder: $fromFolder" ; return 1 ; }
+		wheels="$( cd "$fromFolder" && pwd -P )"
+		ls "$wheels"/*.whl > /dev/null 2>&1 || { AgentsToolsKnowledgeStoreRefuse "the folder has no wheel: $wheels" ; return 1 ; }
+		ls "$wheels"/lancedb-*.whl > /dev/null 2>&1 || { AgentsToolsKnowledgeStoreRefuse "the folder has no lancedb wheel: $wheels" ; return 1 ; }
+	else
+		wheels="$storeDir/wheelhouse"
+	fi
+
+	## the Python of the local tools; where that refuses, so does this, with its reason
+	pythonExe="$( AgentsToolsKnowledgeStoreEmbeddedPython )" || { echo "$MDSC_CMD: --install-knowledge-store: the embedded Python is not here, so the knowledge store stays off and nothing was installed" >&2 ; return 1 ; }
+	[ -x "$pythonExe" ] || { AgentsToolsKnowledgeStoreRefuse "the embedded Python is not here: '$pythonExe'" ; return 1 ; }
+	command -v unzip > /dev/null 2>&1 || { AgentsToolsKnowledgeStoreRefuse "unzip is needed to read the licences of the packages, and is not here" ; return 1 ; }
+
+	[ -e "$storeDir" ] || storeNew="true"
+	mkdir -p "$storeDir/tmp" || { AgentsToolsKnowledgeStoreRefuse "cannot make $storeDir" ; return 1 ; }
+
+	## the files: downloaded as binary packages alone, or the folder given
+	if [ -z "$fromFolderSet" ] ; then
+		mkdir -p "$wheels" || { AgentsToolsKnowledgeStoreRefuse "cannot make $wheels" ; [ -z "$storeNew" ] || rm -rf "$storeDir" ; return 1 ; }
+		echo "$MDSC_CMD: --install-knowledge-store: downloading lancedb $lancedbVersion and what it needs, as binary packages, into $wheels..." >&2
+		pipErr="$storeDir/tmp/pip-download.err"
+		if ! AgentsToolsKnowledgeStoreRun "$pythonExe" -m pip download --only-binary=:all: -d "$wheels" "lancedb==$lancedbVersion" > "$pipErr" 2>&1 ; then
+			cat "$pipErr" >&2
+			missing="$( LC_ALL=C sed -n 's/^.*No matching distribution found for //p' "$pipErr" | head -1 )"
+			[ -z "$storeNew" ] || rm -rf "$storeDir"
+			if [ -n "$missing" ] ; then
+				AgentsToolsKnowledgeStoreRefuse "no binary package of ${missing/==/ } exists for this system ($system $machine): the knowledge store stays off here, nothing was installed, and the Knowledge tool reads MAGIC.md alone"
+			else
+				AgentsToolsKnowledgeStoreRefuse "pip could not download lancedb $lancedbVersion (see above): the knowledge store stays off, and nothing was installed"
+			fi
+			return 1
+		fi
+		cat "$pipErr" >&2
+		rm -f "$pipErr"
+	fi
+
+	## BEFORE anything is placed: every package that would be placed, with its licence
+	infoFile="$storeDir/tmp/packages.list"
+	: > "$infoFile"
+	for wheelFile in "$wheels"/*.whl ; do
+		[ -f "$wheelFile" ] || continue
+		wheelInfo="$( AgentsToolsKnowledgeStoreWheelInfo "$wheelFile" )"
+		if [ -z "$wheelInfo" ] ; then
+			wheelName="${wheelFile##*/}" ; wheelVersion="${wheelName#*-}" ; wheelName="${wheelName%%-*}" ; wheelVersion="${wheelVersion%%-*}"
+			wheelInfo="$( printf '%s\t%s\tunknown' "$wheelName" "$wheelVersion" )"
+		fi
+		printf '%s\t%s\n' "$wheelInfo" "$wheelFile" >> "$infoFile"
+		wheelCount=$(( wheelCount + 1 ))
+		wheelSize="$( wc -c < "$wheelFile" | tr -d ' ' )"
+		wheelBytes=$(( wheelBytes + wheelSize ))
+	done
+	echo "$MDSC_CMD: --install-knowledge-store: $wheelCount packages ($(( wheelBytes / 1048576 )) MB) will be placed in $venvDir, from the files in $wheels, with these licences:" >&2
+	while IFS=$'\t' read -r wheelName wheelVersion wheelLicence wheelFile ; do
+		printf '    %-24s %-14s %s\n' "$wheelName" "$wheelVersion" "$wheelLicence" >&2
+	done < "$infoFile"
+
+	## the environment, made with the Python of the local tools, and LanceDB installed into it from those files alone
+	rm -rf "$venvDir"
+	if ! AgentsToolsKnowledgeStoreRun "$pythonExe" -m venv "$venvDir" ; then
+		rm -rf "$venvDir" ; [ -z "$storeNew" ] || rm -rf "$storeDir"
+		AgentsToolsKnowledgeStoreRefuse "the Python could not make the environment $venvDir: the knowledge store stays off, and nothing was installed"
+		return 1
+	fi
+	if ! AgentsToolsKnowledgeStoreRun "$venvPython" -m pip install --no-index --find-links "$wheels" "lancedb==$lancedbVersion" >&2 ; then
+		rm -rf "$venvDir" ; [ -z "$storeNew" ] || rm -rf "$storeDir"
+		AgentsToolsKnowledgeStoreRefuse "pip could not install lancedb $lancedbVersion from $wheels (see above): the knowledge store stays off, and nothing was installed"
+		return 1
+	fi
+	if [ "$( AgentsToolsKnowledgeStoreRun "$venvPython" -c 'import lancedb, importlib.metadata as m; print(m.version("lancedb"))' 2> /dev/null )" != "$lancedbVersion" ] ; then
+		rm -rf "$venvDir" ; [ -z "$storeNew" ] || rm -rf "$storeDir"
+		AgentsToolsKnowledgeStoreRefuse "lancedb $lancedbVersion was installed and cannot be imported on this system ($system $machine): the knowledge store stays off, and the environment was not kept"
+		return 1
+	fi
+
+	## what the licences ask: their files and NOTICE copied beside, and the list kept
+	while IFS=$'\t' read -r wheelName wheelVersion wheelLicence wheelFile ; do
+		case "$wheelName$wheelVersion" in *[!A-Za-z0-9._+-]*) wheelName="${wheelFile##*/}" ; wheelVersion="${wheelName#*-}" ; wheelName="${wheelName%%-*}" ; wheelVersion="${wheelVersion%%-*}" ;; esac
+		AgentsToolsKnowledgeStoreLicences "$wheelFile" "$wheelName" "$wheelVersion" || :
+	done < "$infoFile"
+	LC_ALL=C awk -F'\t' '{ printf "%s\t%s\t%s\n", $1, $2, $3 }' "$infoFile" > "$storeDir/packages.txt.new" && mv -f "$storeDir/packages.txt.new" "$storeDir/packages.txt"
+	rm -f "$infoFile"
+
+	echo "$MDSC_CMD: --install-knowledge-store: lancedb $lancedbVersion installed in $venvDir; licences in $storeDir/licenses, the list in $storeDir/packages.txt" >&2
+	printf '%s\n' "$venvPython"
+}
+
+case "$1" in
+	--install-knowledge-store)
+		shift
+		knowledgeStoreRc=0
+		( set +e ; AgentsToolsKnowledgeStoreInstall "$@" ) || knowledgeStoreRc=$?
+		[ "$knowledgeStoreRc" = 0 ] || { set +e ; return "$knowledgeStoreRc" ; }
+		return 0
+	;;
+	*)
+		## sourced for its helpers alone: nothing to run for a name that is not its own
+		:
+	;;
+esac

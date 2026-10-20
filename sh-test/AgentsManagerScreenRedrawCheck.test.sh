@@ -21,6 +21,8 @@
 ## by a signal, on a terminal with another screen and on one without, nothing of the screen stays and the cursor
 ## stands at the start of a blank line; a failure is said after the terminal was given back, and stays to be read.
 ## Offline: the only thing the real screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
+## Reconciled for F11.5: the team is read at Team Members under Magic-Team (Agents) and the log at the Transcript of a participant of a session (the sessions of the rig hold one run each, read by
+## `--manager-session-transcript-read --session-id <run> --run`); the steps go there by keys (3, then Enter down the folders, BSP back), the start of the real screen being Magic-Team (Agents).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -92,12 +94,14 @@ for name, icon, first, family, alias, liked in team:
     open(rig + "/rows.--manager-team-member-read --full " + name, "w").write("\n".join(read) + "\n")
 open(rig + "/rows.--manager-session-list", "w").write(
     "session\ts1\tlong-log\trunning\t2026-10-14T01:00:00Z\t2026-10-14T01:00:00Z\t1\t-\n"
-    "session\ts2\tshort\tended\t2026-10-14T01:00:00Z\t2026-10-14T01:00:00Z\t1\t-\n")
+    "run\ts1\tsp1\tmagic-devops\tdone\tlive\trunning\t2026-10-14T01:00:00Z\t-\trighost\tws-one\tworking\n"
+    "session\ts2\tshort\trunning\t2026-10-14T01:00:00Z\t2026-10-14T01:00:00Z\t1\t-\n"
+    "run\ts2\tsp2\tmagic-coordinator\tdone\tlive\trunning\t2026-10-14T01:00:00Z\t-\trighost\tws-one\tworking\n")
 log = ["source\tsp1\tmagic-devops\tlog\t/x"]
 log += ["log\tsp1\tmagic-devops\t%s line %02d of a long log, ⚒️ with \U0001f680 emoji ⚠️ and 1️⃣ keycaps and \U0001f9d1‍\U0001f4bb joined ones, long enough to wrap" % (
     "✅" if number % 3 else "✏️", number) for number in range(50)]
-open(rig + "/rows.--manager-session-transcript-read --session-id s1", "w").write("\n".join(log) + "\n")
-open(rig + "/rows.--manager-session-transcript-read --session-id s2", "w").write("source\tsp2\tmagic-coordinator\tlog\t/y\nlog\tsp2\tmagic-coordinator\tshort.\n")
+open(rig + "/rows.--manager-session-transcript-read --session-id sp1 --run", "w").write("\n".join(log) + "\n")
+open(rig + "/rows.--manager-session-transcript-read --session-id sp2 --run", "w").write("source\tsp2\tmagic-coordinator\tlog\t/y\nlog\tsp2\tmagic-coordinator\tshort.\n")
 RIGROWS
 
 echo "-- the count: an emoji is one character, in two cells or in its parts' where more, the same on every terminal --"
@@ -125,21 +129,25 @@ rigAssert "the owner's line of favourites takes the cells of its words and two f
 rigAssert "every mark of Magic and every name it gives a key is one cell, as text, none an emoji" "$( rigVal magic )" "[1] False"
 
 echo "-- a frame is sent whole only where its layout changed or what lay over it closed --"
-rigOut="$( printf '%s\n' 'size 120 40' 'root sessions' 'turn' 'get a' 'keys DOWN' 'get b' 'turn 3' 'get c' 'keys [' 'get d' 'keys ]' 'get e' 'keys m' 'get f' \
+rigOut="$( printf '%s\n' 'size 120 40' 'root magic-team' 'turn' 'get a' 'keys DOWN' 'get b' 'turn 3' 'get c' 'keys [' 'get d' 'keys ]' 'get e' 'keys m' 'get f' \
 	'keys DOWN' 'get g' 'keys ESC' 'get h' 'keys ?' 'get i' 'keys ESC' 'get j' 'size 100 30' 'get k' 'turn' 'get l' \
 	| "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
 rigAssert "none at the start, on a move of the selection and on quiet turns; once for each move of the split, once when a menu closes, not when it opens or its bar moves, once when a dialog closes, once for a new size" \
 	"$( for tag in a b c d e f g h i j k l ; do printf '%s ' "$( rigVal "$tag.repaints" )" ; done )" "0 0 0 1 2 2 2 3 3 4 5 5 "
 
 echo "-- the owner's views on a terminal that moves one cell for a selector and a keycap (narrow) and on one that moves two (wide) --"
-rigSteps='await Sessions (Activity)
+rigSteps='await Magic-Team (Agents)
 check start
 idle 3
 keys \eOB
 keys \eOB
 keys \eOA
 check root
-keys 4
+keys 3
+keys \eOB
+keys \eOB
+keys \eOB
+keys \r
 await magic-devops
 check team
 keys \eOB
@@ -181,16 +189,39 @@ keys ?
 check help
 keys \e
 check helpClosed
-keys 2
+keys \x7f
+keys \eOA
+keys \eOA
+keys \eOA
+keys \eOB
+keys \r
+keys \eOB
+keys \eOB
+keys \r
 await long-log
+keys \eOB
+keys \r
+keys \eOB
+keys \r
 keys \eOB
 keys \eOB
 keys l
 await line 49
 check log
+keys \x7f
+keys \x7f
+keys \eOB
+keys \r
+keys \eOB
+keys \r
+keys \eOB
 keys \eOB
 check logShort
+keys \x7f
+keys \x7f
 keys \eOA
+keys \r
+keys \r
 check logBack
 keys b
 check summary
@@ -205,7 +236,7 @@ end end'
 for rigEmulation in narrow wide ; do
 	rigVt "$rigEmulation" "$rigSteps"
 	rigAssert "$rigEmulation: the screen comes up, the views it is taken through come up, and it ends by its key" \
-		"$( rigVal 'await.Sessions_(Activity)' ) $( rigVal await.magic-devops ) $( rigVal await.long-log ) $( rigVal await.line_49 ) $( rigVal end.rc )" "yes yes yes yes 0"
+		"$( rigVal 'await.Magic-Team_(Agents)' ) $( rigVal await.magic-devops ) $( rigVal await.long-log ) $( rigVal await.line_49 ) $( rigVal end.rc )" "yes yes yes yes 0"
 	rigAssert "$rigEmulation: after every step every cell of the terminal is what the screen drew last" "$( rigClean )" "none"
 	rigAssert "$rigEmulation: so no mark of the selection, no line of a frame and no shade of a scroll bar stands anywhere it was not drawn" \
 		"$( printf '%s\n' "$rigOut" | LC_ALL=C awk -F'=' '/\.(marks|frames|shades)=/ && !/^idle\./ { sum += $2 } END { print sum + 0 }' )" "0"
@@ -219,12 +250,16 @@ done
 
 echo "-- the end: nothing of the screen stays, the cursor at the start of an empty line, a failure said after it --"
 echo "-- Magic on both terminals: its edges, rims, shadows, tabs, slim scroll bar, chips and the marks of its buttons --"
-rigMagicSteps='await Sessions (Activity)
+rigMagicSteps='await Magic-Team (Agents)
 check magicStart
 keys \eOB
 keys \eOB
 check magicMoved
-keys 4
+keys 3
+keys \eOB
+keys \eOB
+keys \eOB
+keys \r
 await magic-devops
 check magicTeam
 keys \t
@@ -251,20 +286,20 @@ end end'
 for rigEmulation in narrow wide ; do
 	rigVt "$rigEmulation" "$rigMagicSteps" MDAT_MANAGER_STYLE=magic
 	rigAssert "$rigEmulation, Magic: the screen comes up in Magic, the team comes up, and it ends by its key" \
-		"$( rigVal 'await.Sessions_(Activity)' ) $( rigVal await.magic-devops ) $( rigVal end.rc )" "yes yes 0"
+		"$( rigVal 'await.Magic-Team_(Agents)' ) $( rigVal await.magic-devops ) $( rigVal end.rc )" "yes yes 0"
 	rigAssert "$rigEmulation, Magic: after every step every cell of the terminal is what the screen drew last" "$( rigClean )" "none"
 done
 
 for rigOther in with without ; do
 	rigNoAlt="$( [ "$rigOther" = without ] && echo 1 || echo 0 )"
-	rigVt narrow "$( printf '%s\n' 'await Sessions (Activity)' 'keys \x18' 'end end' 'left key' )" MANAGER_SCREEN_VT_NOALT="$rigNoAlt"
+	rigVt narrow "$( printf '%s\n' 'await Magic-Team (Agents)' 'keys \x18' 'end end' 'left key' )" MANAGER_SCREEN_VT_NOALT="$rigNoAlt"
 	rigAssert "$rigOther another screen, ended by its key: no cell of the screen stands, the cursor at the start of a blank line" \
 		"$( rigVal end.rc ) $( rigVal key.cells ) $( rigVal key.cursor | LC_ALL=C sed 's/^.*,//' ) $( rigVal key.lineBlank )" "0 0 0 yes"
-	rigVt narrow "$( printf '%s\n' 'await Sessions (Activity)' 'signal SIGTERM' 'end end' 'left term' )" MANAGER_SCREEN_VT_NOALT="$rigNoAlt"
+	rigVt narrow "$( printf '%s\n' 'await Magic-Team (Agents)' 'signal SIGTERM' 'end end' 'left term' )" MANAGER_SCREEN_VT_NOALT="$rigNoAlt"
 	rigAssert "$rigOther another screen, ended by a signal: the same" \
 		"$( rigVal end.rc ) $( rigVal term.cells ) $( rigVal term.cursor | LC_ALL=C sed 's/^.*,//' ) $( rigVal term.lineBlank )" "143 0 0 yes"
 done
-rigVt narrow "$( printf '%s\n' 'await Sessions (Activity)' 'end end' 'left failed' )" MANAGER_SCREEN_VT_NOALT=1 MANAGER_SCREEN_VT_RAISE=1
+rigVt narrow "$( printf '%s\n' 'await Magic-Team (Agents)' 'end end' 'left failed' )" MANAGER_SCREEN_VT_NOALT=1 MANAGER_SCREEN_VT_RAISE=1
 rigAssert "a failure of the drawing, without another screen: what it says stands alone on the terminal once it was given back" \
 	"$( rigVal end.rc ) $( rigVal failed.first | LC_ALL=C grep -c -F 'the screen failed, and the terminal was given back first: RuntimeError' )" "1 1"
 

@@ -32,7 +32,7 @@
 ## left the check's tree before the bound is not found.
 ##
 
-type AgentsToolsRegistryGroupLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/registry/AgentsTools.Registries.include"
+type AgentsToolsRegistryGroupLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 
 ## The domains the owner setup has, in the order their rows are printed.
 agentsManagerCheckDomains="claude copilot grok scaleway slack storage"

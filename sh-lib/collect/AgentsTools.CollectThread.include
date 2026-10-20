@@ -1,0 +1,261 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CollectThread.include -- the one background thread that updates the sources an input scan reads (F4.2, Settled): where
+## other configured sources of the members a scan reads are long expired, which shows that no daemon updates them here, a scan
+## carefully starts ONE thread that checks them all and updates their data and pointers, so that nothing grows too stale to be
+## loaded in megabytes on demand; and a full team rig keeps it from the main loop, checked as a control thread is. Sourced, never
+## run. Functions only; the operation that runs it is --intern-source-collect (AgentsTools.InternSourceCollect.include). What it
+## collects and how: AgentsTools.Collect.include.
+##
+## ONE A WORKSPACE ON A HOST. Its files are in $MMDAPP/.local/agents/collect/, beside the state of the sources:
+##   thread.lock     a symlink whose target is `<pid> <start>`, held for the life of the process, as the control thread's and the
+##                   communications reader's (a second start is refused at once; a holder that is gone, or whose number another
+##                   process has, is taken over by a rename only one can make)
+##   thread.log      what it did, a line an event, never a line a tick; bounded to 128 KiB, cut back to its last 64
+##   thread.wanted   the epoch a scan that used a source, the main loop or a start last said it is wanted
+##   thread.checked  the epoch the situation was last looked at to start one: at most once in five minutes
+## A PASS takes the sources of the members a scan reads, AgentsToolsCollectSources, and collects each that is due, its TTL deciding
+## (AgentsTools.SourceTtl.include): every minute, MDAT_COLLECT_PASS_SECONDS. It ends on TERM, in order; by itself when nobody has
+## wanted it for ten minutes (MDAT_COLLECT_IDLE_SECONDS), which a rig's main loop does every iteration, so a rig's thread stays; and
+## when its folder is gone. It is NOT put back where its shell dies: the next scan or the next iteration of the main loop starts it
+## again. Never where MDAT_COLLECT_THREAD is `off` (the runner of the checks sets it).
+##
+
+type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+type AgentsToolsCollectOne > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.Collect.include"
+
+AgentsToolsCollectThreadDir(){
+	[ -n "${MMDAPP:-}" ] || return 1
+	printf '%s' "$MMDAPP/.local/agents/collect"
+}
+
+## One line of the log, with its moment. A call of `--one` says it to its caller too, on standard error.
+AgentsToolsCollectThreadSay(){ ## text
+	local sayDir
+	sayDir="$( AgentsToolsCollectThreadDir )" || return 0
+	{ mkdir -p "$sayDir" && printf '%s %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$1" >> "$sayDir/thread.log" ; } 2> /dev/null || :
+	[ "${colThreadMode:-}" != "--one" ] || echo "# $MDSC_CMD --intern-source-collect: $1" >&2
+	return 0
+}
+
+## The log is bounded so the process never fills a disk with it: over 128 KiB it is cut back to its last 64, from the first whole
+## line, by one rename, and its own descriptors are pointed at the new file.
+AgentsToolsCollectThreadLogBound(){
+	local boundDir boundSize
+	boundDir="$( AgentsToolsCollectThreadDir )" || return 0
+	boundSize="$( { LC_ALL=C wc -c < "$boundDir/thread.log" ; } 2> /dev/null )" || return 0
+	boundSize="${boundSize//[!0123456789]/}"
+	[ -n "$boundSize" ] && [ "$boundSize" -gt 131072 ] || return 0
+	{ LC_ALL=C tail -c 65536 "$boundDir/thread.log" | LC_ALL=C sed 1d > "$boundDir/thread.log.aside" && mv -f "$boundDir/thread.log.aside" "$boundDir/thread.log" ; } 2> /dev/null \
+		|| { rm -f "$boundDir/thread.log.aside" 2> /dev/null ; return 0 ; }
+	[ "${colThreadMode:-}" != "--run" ] || exec < /dev/null >> "$boundDir/thread.log" 2>&1
+	AgentsToolsCollectThreadSay "the log had grown over 128 KiB and holds its last 64 KiB now"
+	return 0
+}
+
+## Whether the process a lock names, `<pid> <start>`, is still that process. rc 0 it is. rc 1 it is not: no process has the number,
+## or the one that has it began at another time, or it has ended and is only not collected yet. rc 2 it cannot be told: such a lock
+## is left alone.
+AgentsToolsCollectThreadHolderLives(){ ## `<pid> <start>`
+	local holderPid="${1%% *}" holderStart="${1#* }" holderNow
+	case "$holderPid" in ''|*[!0123456789]*) return 1 ;; esac
+	[ "$holderStart" != "$1" ] && [ -n "$holderStart" ] || return 1
+	holderNow="$( printf '%s\n' "$holderPid" | AgentsToolsRegistryProcessesBegan )" || holderNow=""
+	[ "$holderNow" != "$1" ] || return 0
+	[ -z "$holderNow" ] || return 1
+	kill -0 "$holderPid" 2> /dev/null || return 1
+	case "$( LC_ALL=C ps -o stat= -p "$holderPid" 2> /dev/null )" in *Z*) return 1 ;; esac
+	return 2
+}
+
+## The pid of the thread of this workspace on this host, while one holds the lock; rc 1, nothing printed, for none.
+AgentsToolsCollectThreadLive(){
+	local liveDir liveLine="" liveRc
+	liveDir="$( AgentsToolsCollectThreadDir )" || return 1
+	[ -L "$liveDir/thread.lock" ] || return 1
+	liveLine="$( readlink "$liveDir/thread.lock" 2> /dev/null )" || return 1
+	AgentsToolsCollectThreadHolderLives "$liveLine" ; liveRc=$?
+	[ "$liveRc" != 1 ] || return 1
+	printf '%s\n' "${liveLine%% *}"
+}
+
+## Takes the lock for this process (colThreadLock, colThreadMe). rc 0 held, and colThreadTookOver names the holder it was taken from,
+## where it was. rc 1 another process holds it: colThreadHolder names it. rc 2 the lock could not be made.
+AgentsToolsCollectThreadLockTake(){
+	local takeTries=0 takeHolder takeStale takeMoved takeTold
+	colThreadHolder="" ; colThreadTookOver=""
+	while [ "$takeTries" -lt 5 ] ; do
+		takeTries=$(( takeTries + 1 ))
+		## Checked first: `ln -s` onto a directory creates the link inside it and succeeds.
+		[ ! -d "$colThreadLock" ] || [ -L "$colThreadLock" ] || return 2
+		ln -s "$colThreadMe" "$colThreadLock" 2> /dev/null && return 0
+		takeHolder="$( readlink "$colThreadLock" 2> /dev/null )" || takeHolder=""
+		[ -n "$takeHolder" ] || continue
+		[ "$takeHolder" != "$colThreadMe" ] || return 0
+		AgentsToolsCollectThreadHolderLives "$takeHolder" ; takeTold=$?
+		[ "$takeTold" = 1 ] || { colThreadHolder="$takeHolder" ; return 1 ; }
+		## Claimed by rename, so of two breakers only one moves it; a fresh lock moved by mistake is put back for its holder.
+		takeStale="$( mktemp "$colThreadLock.stale.XXXXXX" 2> /dev/null )" || continue
+		if mv -f "$colThreadLock" "$takeStale" 2> /dev/null ; then
+			takeMoved="$( readlink "$takeStale" 2> /dev/null )" || takeMoved=""
+			rm -f "$takeStale"
+			if [ "$takeMoved" = "$takeHolder" ] ; then
+				colThreadTookOver="$takeHolder"
+				continue
+			fi
+			[ -z "$takeMoved" ] || ln -s "$takeMoved" "$colThreadLock" 2> /dev/null || :
+		else
+			rm -f "$takeStale"
+		fi
+	done
+	return 2
+}
+AgentsToolsCollectThreadLockGive(){
+	[ "$( readlink "$colThreadLock" 2> /dev/null )" != "$colThreadMe" ] || rm -f "$colThreadLock" 2> /dev/null
+	return 0
+}
+
+## STARTS THE THREAD, detached, and does not wait for it. Prints one line, what it did:
+##   alive <pid>          one lives: nothing was started. rc 0.
+##   started <pid>        a process was started to be the thread, which it becomes once it holds the lock, within a second or so.
+##   off                  MDAT_COLLECT_THREAD is `off`: nothing was started. rc 0.
+##   failed - <reason>    no process was started. rc 1.
+## The process is the tooling script with the operation as its arguments, which is what makes it no run of any session and shows it
+## in the process list. Its own process group, a hangup ignored, the descriptors 3 to 63 closed, its input /dev/null, its output and
+## its errors appended to thread.log. The names that carry a member's session are taken out of its environment. One line of the log is
+## this function's: the start it made, with the process and when it began.
+AgentsToolsCollectThreadStart(){
+	local startDir startLive startTool startMonitor startPid="" startBegan startDrop
+	if [ "${MDAT_COLLECT_THREAD:-}" = "off" ] ; then
+		printf 'off\n'
+		return 0
+	fi
+	startDir="$( AgentsToolsCollectThreadDir )" || { printf 'failed - %s\n' "no workspace is selected" ; return 1 ; }
+	startLive="$( AgentsToolsCollectThreadLive )" && { printf 'alive %s\n' "$startLive" ; return 0 ; }
+	if ! mkdir -p "$startDir" 2> /dev/null || ! { printf '' >> "$startDir/thread.log" ; } 2> /dev/null ; then
+		printf 'failed - %s\n' "the log of the thread could not be written: $startDir/thread.log"
+		return 1
+	fi
+	startTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	if [ ! -f "$startTool" ] ; then
+		printf 'failed - %s\n' "the tooling script is not at $startTool"
+		return 1
+	fi
+	AgentsToolsCollectThreadWant
+	startMonitor="$BASH_SUBSHELL:$-"
+	set -m
+	(
+		trap '' HUP
+		set +e
+		for startDrop in ${!MDAT_SPAWN_@} MDAT_SESSION_ID MDAT_SESSION_THREAD MDAT_CONVERSATION_THREADS harnessSessionId harnessAgent CLAUDE_CODE_SESSION_ID ; do
+			unset "$startDrop"
+		done
+		for (( startDrop = 3 ; startDrop < 64 ; startDrop++ )) ; do
+			eval "exec $startDrop>&-"
+		done
+		exec "$BASH" "$startTool" --intern-source-collect --run
+	) < /dev/null >> "$startDir/thread.log" 2>&1 &
+	startPid="$!"
+	case "$startMonitor" in 0:*m*) ;; *) set +m ;; esac
+	case "$startPid" in
+		''|*[!0123456789]*)
+			printf 'failed - %s\n' "the process of the thread could not be started"
+			return 1
+		;;
+	esac
+	disown "$startPid" 2> /dev/null || :
+	startBegan="$( printf '%s\n' "$startPid" | AgentsToolsRegistryProcessesBegan )" || startBegan=""
+	{
+		if [ -n "$startBegan" ] ; then
+			printf '%s a start of the source collector is made: pid %s, begun %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$startPid" "${startBegan#* }"
+		else
+			printf '%s a start of the source collector is made: pid %s, which has ended already\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$startPid"
+		fi >> "$startDir/thread.log"
+	} 2> /dev/null || :
+	printf 'started %s\n' "$startPid"
+	return 0
+}
+
+## The thread is wanted now: a scan that used a source, the main loop and a start say so, and the thread does not end by idleness
+## while they do. Prints nothing.
+AgentsToolsCollectThreadWant(){
+	local wantDir
+	wantDir="$( AgentsToolsCollectThreadDir )" || return 0
+	{ mkdir -p "$wantDir" && date +%s > "$wantDir/thread.wanted" ; } 2> /dev/null || :
+	return 0
+}
+
+## The seconds since it was last wanted; large for a thread nobody ever wanted.
+AgentsToolsCollectThreadWantedAge(){
+	local ageDir ageAt
+	ageDir="$( AgentsToolsCollectThreadDir )" || { printf '%s\n' 999999 ; return 0 ; }
+	ageAt="$( { cat "$ageDir/thread.wanted" ; } 2> /dev/null )" || ageAt=""
+	case "$ageAt" in ''|*[!0123456789]*) printf '%s\n' 999999 ; return 0 ;; esac
+	printf '%s\n' $(( $( date +%s ) - ageAt ))
+}
+
+## THE CHECK a scan and the main loop make: the thread is wanted now, and where none lives and the situation asks for one, one is
+## started. <who> is `scan`: a source of the members a scan reads, other than <except member>'s that the scan has just used, is long
+## expired, which shows nothing here updates it; or `main-loop`:
+## a source of those members is configured at all, a full team rig keeping its thread as it keeps its control threads. Carefully:
+## never where MDAT_COLLECT_THREAD is `off`, never a second one, and the situation looked at no more than once in five minutes, as
+## it reads the settings of every member. Prints one line: off, alive <pid>, waiting, quiet, started <pid>, or failed - <why>.
+AgentsToolsCollectThreadCheck(){ ## who, except member (for a scan: the member whose source it has just used)
+	local chkWho="${1:-scan}" chkExcept="${2:-}" chkDir chkLive chkChecked chkNow chkFound
+	if [ "${MDAT_COLLECT_THREAD:-}" = "off" ] ; then
+		printf 'off\n'
+		return 0
+	fi
+	AgentsToolsCollectThreadWant
+	chkDir="$( AgentsToolsCollectThreadDir )" || { printf 'failed - %s\n' "no workspace is selected" ; return 1 ; }
+	chkLive="$( AgentsToolsCollectThreadLive )" && { printf 'alive %s\n' "$chkLive" ; return 0 ; }
+	chkNow="$( date +%s )"
+	chkChecked="$( { cat "$chkDir/thread.checked" ; } 2> /dev/null )" || chkChecked=""
+	case "$chkChecked" in ''|*[!0123456789]*) chkChecked=0 ;; esac
+	if [ $(( chkNow - chkChecked )) -lt 300 ] ; then
+		printf 'waiting\n'
+		return 0
+	fi
+	{ mkdir -p "$chkDir" && printf '%s\n' "$chkNow" > "$chkDir/thread.checked" ; } 2> /dev/null || :
+	case "$chkWho" in
+		main-loop) chkFound="$( AgentsToolsCollectSources | head -n 1 )" ;;
+		*) chkFound="$( AgentsToolsCollectStaleReport "$chkExcept" | head -n 1 )" ;;
+	esac
+	if [ -z "$chkFound" ] ; then
+		printf 'quiet\n'
+		return 0
+	fi
+	AgentsToolsCollectThreadStart
+}
+
+## A PASS: every source of the members a scan reads, in turn, is collected if it is due -- a mailbox from the day before its member's own
+## stored sweep position on, as the scan reads it (AgentsToolsCollectSinceOf); one that failed in the last ten minutes is
+## left to the scans (AgentsToolsCollectBackoff) unless <force> asks. One line of the log for each that collected, failed or was
+## skipped; none for one that was fresh or busy. A client-* member is collected on the client side. <force> yes asks
+## every source, whatever its TTL.
+AgentsToolsCollectThreadPass(){ ## force (yes|no)
+	local passSource passKind passMember passSince
+	## What the pass writes is committed once at its end, and pushed once.
+	agentsCollectDefer="yes"
+	while IFS= read -r passSource ; do
+		[ -n "$passSource" ] || continue
+		passKind="${passSource%%:*}" ; passMember="${passSource#*:}"
+		[ "${1:-no}" = "yes" ] || ! AgentsToolsCollectBackoff "$passKind" "$passMember" || continue
+		passSince=""
+		[ "$passKind" != "mail" ] || passSince="$( AgentsToolsCollectSinceOf "$passMember" )"
+		case "$passMember" in
+			client-*) MDAT_COMMS_SIDE=client AgentsToolsCollectOne "$passKind" "$passMember" "${1:-no}" "$passSince" yes || : ;;
+			*) AgentsToolsCollectOne "$passKind" "$passMember" "${1:-no}" "$passSince" yes || : ;;
+		esac
+		case "$agentsCollectLine" in
+			*": fresh ("*|*": busy -- "*) ;;
+			?*) AgentsToolsCollectThreadSay "${agentsCollectLine#collect: }" ;;
+		esac
+		[ -z "${colThreadEnd:-}" ] || break
+	done < <( AgentsToolsCollectSources )
+	agentsCollectDefer="no"
+	AgentsToolsCollectCommit "source collection" yes
+	return 0
+}

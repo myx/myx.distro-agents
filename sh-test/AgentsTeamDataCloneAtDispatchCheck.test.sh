@@ -43,7 +43,7 @@ rigScenario(){ ## name, TEAM_DATA_GIT_REMOTE value
 }
 ## One op writing a note, guarded; the store is $rigDir/store unless named.
 rigOp(){ ## result file, store path
-	printf 'rig note\n' | env -i HOME="$rigDir/home" PATH="/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$2" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigDir/home/skills" \
+	printf 'rig note\n' | env -i HOME="$rigDir/home" PATH="/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$2" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigDir/home/skills" MDAT_SPAWN_AGENT=magic-tester \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid \
 		RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '

@@ -79,7 +79,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- This routine extends `magic-team.coworking.routine`; this file wins on conflict. The executor still decides which members attend; **invite-participants** only sets when they arrive.
+- The executor decides which members attend; **invite-participants** only sets when they arrive.
 - First-person narration stays inside the session. Every external post is third person.
 - Retro produces proposals, never actions, however small — a member's own proposal included.
 - A cross-member pattern that looks like a design question goes to `magic-architect`.
@@ -117,7 +117,6 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-team.coworking.routine` — the template: **session-start** and **close-session**.
 - `magic-coordinator.daily.routine` — picks up the filed improvement at **update-todos**.
 
 ### Conventions

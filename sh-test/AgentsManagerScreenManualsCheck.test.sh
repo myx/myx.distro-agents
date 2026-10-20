@@ -13,6 +13,7 @@
 ## saying which, and the key of the filter of the active ones is none there; a project selected
 ## is read alone, once (`--manager-manual-read <kind> <project>`), and its manual shows as Markdown, rendered, its title
 ## saying so; `g` shows it as it is, and `b` renders it again. Offline: no operation of the real tooling is called.
+## Reconciled for F11.5: Manuals (Help) is the eighth root, key 8, since Team Data stands under Magic-Team (Agents) and is no root.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -81,7 +82,7 @@ get on
 show on
 keys 1
 turn
-keys 9
+keys 8
 wait list 10
 get k9
 keys m
@@ -91,7 +92,7 @@ RIGSCRIPT
 rigAssert "Manuals (Help) is the last root, a folder" "$( rigVal on.selectedLabel ) $( rigFolderHolds on '>Manuals (Help) ' )" "Manuals (Help) 1"
 rigAssert "selected, the left window is a table of its three folders, each with what it holds" "$( rigHolds on '│ FOLDER' ) $( rigHolds on 'User Manuals  ' ) $( rigHolds on 'the README.md of each project, in build order' ) $( rigHolds on 'Maintainer Manuals  ' ) $( rigHolds on 'the MAGIC.md of each project, in build order' ) $( rigHolds on 'the commands a console user calls by name' )" "1 1 1 1 1 1"
 rigAssert "it asks the tooling for none of its manuals: resting on the root and going to it reads no manual, no help and no command" "$( rigCalls '[--manager-manual-read][user]' ) $( rigCalls '[--manager-manual-read][maintainer]' ) $( rigCalls '[--manager-help-read]' ) $( rigCalls '[--manager-command-list]' )" "0 0 0 0"
-rigAssert "its number is that of its place: 9 where Team Data is not there, and the menu Go names it so" "$( rigVal k9.path ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -c -E 'Manuals \(Help\)  *9 ' )" "manuals 1"
+rigAssert "its number is that of its place: 8, since Team Data stands under Magic-Team (Agents) and is no root, and the menu Go names it so" "$( rigVal k9.path ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -c -E 'Manuals \(Help\)  *8 ' )" "manuals 1"
 
 echo "-- 2. User Manuals: a row for each project that has a README.md, by its name, in the build order --"
 rigCase user
