@@ -11,6 +11,8 @@
 ##   --contact-access, --escalate-contact, --allow-contact   what a contact may ask for, asked of the permission model
 ## A contact's access is not stored here: it is read from the permission model, the grants given to `contact:<id>`.
 ##
+## From DistroAgentsTools.fn.sh (F1.4, first stage): --send-contact-digest. They go on under their old names (sh-lib/harness/AgentsContext.FrontForward.include).
+##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
 ##
@@ -35,6 +37,12 @@ esac
 
 DistroAgentsContacts(){
 	local MDSC_CMD='DistroAgentsContacts'
+	## F1.4, first stage: an operation that came here under a new name goes on under its old one (sh-lib/harness/AgentsContext.FrontForward.include).
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontForward.include"
+	if AgentsToolsFrontKnows DistroAgentsContacts "$@" ; then
+		AgentsToolsFrontForward DistroAgentsContacts "$@"
+		return $?
+	fi
 	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,
 	## and the call is made again under what they resolve (sh-lib/common/AgentsTools.CommonOptions.include).
 	case "${agentsCommonFronted:-}:${2:-}" in

@@ -9,8 +9,10 @@
 ## `runs-after: <routine>`) plus a few configured values, and Dispatcher, which owns the runs and the policy deciding when a run
 ## starts, reads both. The flags are derived, never stored: worktime falls out of the timezone, the hours, the days and the clock;
 ## weekend out of the timezone, its days and the clock. What persists is settings, in the magic-team scope: MDAT_SCHEDULE_COUNTRY,
-## _TIMEZONE, _WORKTIME (`<start> <until> <days>`) and _WEEKEND (`<days>`), and the three overrides, MDAT_SCHEDULE_EMERGENCY and
-## _OVERTIME (`until <epoch>`, or `on` for an overtime with no end) and MDAT_SCHEDULE_LEARNING (`on`). The days are F5.4's: workdays,
+## _TIMEZONE, _WORKTIME (`<start> <until> <days>`) and _WEEKEND (`<days>`), and the overrides, MDAT_SCHEDULE_EMERGENCY, _OVERTIME and
+## _HOLIDAYS (`until <epoch>`, or `on` for one with no end) and MDAT_SCHEDULE_LEARNING (`on`). `holidays` is an override set by hand, as emergency
+## and overtime are (`--override-flag holidays [<ttl>]`): while it holds, worktime reads `no (holiday)` whatever the hours say; it overrides
+## worktime and nothing else -- emergency and overtime stand. The days are F5.4's: workdays,
 ## weekend, daily or a list such as mon,thu; workdays and weekend are read against the weekend setting, which is itself a list.
 ## The zone's offset is that of now, used for the days around now. Every instant here is an epoch (date +%s) and the arithmetic is
 ## integer arithmetic, never date(1) arithmetic (MAGIC.md).
@@ -82,9 +84,13 @@ AgentsToolsScheduleTimeSeconds(){ ## time
 	printf '%s\n' "$(( 10#${1:0:2} * 3600 + 10#${1:3:2} * 60 ))"
 }
 
-## Worktime now: the words "yes" or "no" and, in brackets, why not where it cannot be told. Needs the clock's words.
-AgentsToolsScheduleWorktime(){ ## weekday name, seconds into the day
+## Worktime now: the words "yes" or "no" and, in brackets, why not where it cannot be told. Needs the clock's words. Given the epoch too, a
+## holidays override that holds (MDAT_SCHEDULE_HOLIDAYS) makes it `no (holiday)` whatever the hours say.
+AgentsToolsScheduleWorktime(){ ## weekday name, seconds into the day, epoch now (may be empty)
 	local workValue workStart workUntil workDays workStartSec workUntilSec workIn
+	if [ -n "${3:-}" ] && [ -n "$( AgentsToolsScheduleOverrideLeft MDAT_SCHEDULE_HOLIDAYS "$3" )" ] ; then
+		printf 'no (holiday)\n' ; return 0
+	fi
 	workValue="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_WORKTIME )"
 	[ -n "$workValue" ] || { printf 'no (not set)\n' ; return 0 ; }
 	read -r workStart workUntil workDays <<< "$workValue"
@@ -131,17 +137,17 @@ AgentsToolsScheduleOverrideLeft(){ ## setting key, epoch now
 	esac
 }
 
-## The five flags, a line each, in the order of the epic.
+## The six flags, a line each, in the order of the epic.
 AgentsToolsScheduleFlagLine(){ ## flag, weekday name, seconds into the day, epoch now
 	local lineLeft lineValue
 	case "$1" in
-		worktime) printf 'worktime: %s\n' "$( AgentsToolsScheduleWorktime "$2" "$3" )" ;;
+		worktime) printf 'worktime: %s\n' "$( AgentsToolsScheduleWorktime "$2" "$3" "$4" )" ;;
 		weekend)
 			lineValue="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_WEEKEND )"
 			if [ -z "$lineValue" ] ; then printf 'weekend: no (not set)\n'
 			else case ",$lineValue," in *",$2,"*) printf 'weekend: yes\n' ;; *) printf 'weekend: no\n' ;; esac ; fi
 		;;
-		emergency|overtime)
+		emergency|overtime|holidays)
 			lineLeft="$( AgentsToolsScheduleOverrideLeft "MDAT_SCHEDULE_$( printf '%s' "$1" | LC_ALL=C tr 'a-z' 'A-Z' )" "$4" )"
 			case "$lineLeft" in
 				'') printf '%s: no\n' "$1" ;;
@@ -155,7 +161,7 @@ AgentsToolsScheduleFlagLine(){ ## flag, weekday name, seconds into the day, epoc
 	esac
 }
 
-## --current-flags: worktime, weekend, emergency, overtime and learning, a line each, `<flag>: yes|no`. Read-only.
+## --current-flags: worktime, weekend, holidays, emergency, overtime and learning, a line each, `<flag>: yes|no`. Read-only.
 AgentsToolsScheduleCurrentFlags(){ ## the operation as it was called, its arguments...
 	local flagsOp="$1" flagsEpoch flagsOffset flagsDay flagsSeconds flagsFlag
 	if [ $# -gt 1 ] ; then
@@ -164,7 +170,7 @@ AgentsToolsScheduleCurrentFlags(){ ## the operation as it was called, its argume
 	fi
 	AgentsToolsScheduleTools || return 1
 	read -r flagsEpoch flagsOffset flagsDay flagsSeconds <<< "$( AgentsToolsScheduleClock )"
-	for flagsFlag in worktime weekend emergency overtime learning ; do
+	for flagsFlag in worktime weekend holidays emergency overtime learning ; do
 		AgentsToolsScheduleFlagLine "$flagsFlag" "$( AgentsToolsScheduleDayName "$flagsDay" )" "$flagsSeconds" "$flagsEpoch"
 	done
 	return 0
@@ -223,9 +229,10 @@ AgentsToolsScheduleSet(){ ## the operation as it was called, its arguments...
 	printf '%s: %s\n' "$setKey" "$setValue"
 }
 
-## --override-flag [--no] <flag> [<ttl>]: emergency, overtime and learning are overridable, as settings; worktime and weekend are derived.
+## --override-flag [--no] <flag> [<ttl>]: emergency, overtime, holidays and learning are overridable, as settings; worktime and weekend are derived.
 ## emergency is set with a TTL in whole seconds, and a second call prolongs it (its end is the TTL from then); overtime is for outside
-## worktime and ends at its TTL or, if that is later or there is none, when normal worktime starts; learning is on or off and takes no
+## worktime and ends at its TTL or, if that is later or there is none, when normal worktime starts; holidays is set with a TTL or, with none, until
+## it is cleared, at any hour, and makes worktime read `no (holiday)` while it holds; learning is on or off and takes no
 ## TTL. --no clears the override. Prints the flag's line as --current-flags would.
 AgentsToolsScheduleOverride(){ ## the operation as it was called, its arguments...
 	local overOp="$1" overNo="" overFlag="" overTtl="" overEpoch overOffset overDay overSeconds overName overNext overEnd overKey
@@ -233,15 +240,15 @@ AgentsToolsScheduleOverride(){ ## the operation as it was called, its arguments.
 	[ "${1:-}" != "--no" ] || { overNo="no" ; shift ; }
 	overFlag="${1:-}" overTtl="${2:-}"
 	if [ -z "$overFlag" ] || [ $# -gt 2 ] ; then
-		echo "⛔ ERROR: $MDSC_CMD $overOp: syntax is [--no] <flag> [<ttl>], the flag emergency, overtime or learning" >&2 ; return 1
+		echo "⛔ ERROR: $MDSC_CMD $overOp: syntax is [--no] <flag> [<ttl>], the flag emergency, overtime, holidays or learning" >&2 ; return 1
 	fi
 	case "$overFlag" in
-		emergency|overtime|learning) ;;
+		emergency|overtime|holidays|learning) ;;
 		worktime|weekend)
 			echo "⛔ ERROR: $MDSC_CMD $overOp: $overFlag is derived from the settings and the clock and has no override -- set it with --set-$overFlag" >&2 ; return 1
 		;;
 		*)
-			echo "⛔ ERROR: $MDSC_CMD $overOp: no flag $overFlag -- the flags are worktime, weekend, emergency, overtime and learning, and emergency, overtime and learning are overridable" >&2 ; return 1
+			echo "⛔ ERROR: $MDSC_CMD $overOp: no flag $overFlag -- the flags are worktime, weekend, holidays, emergency, overtime and learning, and emergency, overtime, holidays and learning are overridable" >&2 ; return 1
 		;;
 	esac
 	if [ -n "$overTtl" ] && ! printf '%s\n' "$overTtl" | LC_ALL=C grep -q -E '^[1-9][0-9]*$' ; then
@@ -262,12 +269,15 @@ AgentsToolsScheduleOverride(){ ## the operation as it was called, its arguments.
 				[ -n "$overTtl" ] || { echo "⛔ ERROR: $MDSC_CMD $overOp: emergency is set with a TTL in seconds -- syntax is emergency <ttl>" >&2 ; return 1 ; }
 				overEnd="until $(( overEpoch + overTtl ))"
 			;;
+			holidays)
+				if [ -n "$overTtl" ] ; then overEnd="until $(( overEpoch + overTtl ))" ; else overEnd="on" ; fi
+			;;
 			learning)
 				[ -z "$overTtl" ] || { echo "⛔ ERROR: $MDSC_CMD $overOp: learning is on or off and takes no TTL" >&2 ; return 1 ; }
 				overEnd="on"
 			;;
 			overtime)
-				if [ "$( AgentsToolsScheduleWorktime "$overName" "$overSeconds" )" = "yes" ] ; then
+				if [ "$( AgentsToolsScheduleWorktime "$overName" "$overSeconds" "$overEpoch" )" = "yes" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD $overOp: overtime is for outside worktime, and worktime is on now" >&2 ; return 1
 				fi
 				overNext="$( AgentsToolsScheduleNextWorkStart "$overEpoch" "$overOffset" )"

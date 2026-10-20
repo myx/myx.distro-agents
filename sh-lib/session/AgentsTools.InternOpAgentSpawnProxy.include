@@ -646,8 +646,8 @@ case "$1" in
 		local conversationThreads=""
 		## Whether the session this spawn starts opens its session thread at once. magic-team,
 		## the default, runs the ordinary session-starting/joining logic below. event-track is
-		## an explicit override for a session that starts alone -- the main loop's own heartbeat
-		## pass uses it, so a solitary pass never opens a coworking thread it has no other
+		## an explicit override for a session that starts alone -- a non-interactive start of the
+		## root harness uses it, so a solitary session never opens a coworking thread it has no other
 		## member to share: it has its tracking thread only, and no session thread until it
 		## brings a member in, whose spawn opens one in magic-team. A tracking thread is never
 		## a session thread.
@@ -1665,8 +1665,8 @@ case "$1" in
 		## The coworking session this spawn belongs to: session-id and session-thread,
 		## distinct from this spawn's own spawn-id and agent-log-thread below. Settled
 		## before the event-track start post, which names it.
-		## --session-thread:event-track is an explicit, still-supported override (the
-		## main loop's own solitary heartbeat pass uses it): the session starts with its
+		## --session-thread:event-track is an explicit, still-supported override (a
+		## non-interactive start of the root harness uses it): the session starts with its
 		## tracking thread only, and nothing is opened in magic-team for it here.
 		## Otherwise: an inherited session-id, or an explicit --session-id, means
 		## this spawn JOINS that session and opens no thread, only a reply; none means this spawn

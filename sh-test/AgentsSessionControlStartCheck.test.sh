@@ -491,8 +491,8 @@ rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -
 rigCode(){ ## file -- its lines that are no comment
 	LC_ALL=C grep -v '^[[:space:]]*#' "$1"
 }
-rigAssert "one function starts a thread, and the console, the advance lock take and the main loop reach it through the one check" \
-	"$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsSessionControlStart\(\)\{' || : ) $( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -e '--intern-session-control --run --session-id "$startSession"' || : ) $( rigCode "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -e 'AgentsToolsSessionControlCheckWorkspace' -e 'AgentsToolsSessionControlStart "' || : ) $( rigCode "$rigHere/magic/AgentsTools.MagicAdvance.include" | LC_ALL=C grep -c -e '| AgentsToolsSessionControlCheck ' || : ) $( rigCode "$rigHere/magic/AgentsTools.InternMainLoop.include" | LC_ALL=C grep -c -e 'AgentsToolsSessionControlCheckWorkspace' || : )" "1 1 2 1 1"
+rigAssert "one function starts a thread, and the console, the advance lock take (through the board's housekeeping) and the main loop reach it through the one check" \
+	"$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsSessionControlStart\(\)\{' || : ) $( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -e '--intern-session-control --run --session-id "$startSession"' || : ) $( rigCode "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -e 'AgentsToolsSessionControlCheckWorkspace' -e 'AgentsToolsSessionControlStart "' || : ) $( rigCode "$rigHere/magic/AgentsTools.SpawnHousekeeping.include" | LC_ALL=C grep -c -e '| AgentsToolsSessionControlCheck ' || : ) $( rigCode "$rigHere/magic/AgentsTools.InternMainLoop.include" | LC_ALL=C grep -c -e 'AgentsToolsSessionControlCheckWorkspace' || : )" "1 1 2 1 1"
 
 echo "-- 10. the guard: every check of sh-test that names an operation which starts control threads ends them --"
 ## THE OPERATIONS that start the control thread of a session of the workspace they are called for: the advance
@@ -501,10 +501,10 @@ echo "-- 10. the guard: every check of sh-test that names an operation which sta
 ## and ends the threads of its rig in its EXIT trap, before its tree is removed: a thread whose rig is gone never
 ## ends by itself. A new check that names one and does not end them fails here. And the spawner, by each of its
 ## operations: the supervising shell of a start that is not waited for starts the thread of its session, so a check
-## that names the spawn proxy, the heartbeat's own, the start of a session or the console's start of a member ends
+## that names the spawn proxy, the spawn relay's own, the start of a session or the console's start of a member ends
 ## them too, whether its own starts wait or not: the guard reads names. So does one that names the return of a
 ## review, which starts an ended run again, or the harness's own tool that brings a member in.
-rigGuardOps='--magic-advance-lock-acquire|--intern-main-loop|--manager-session-control-start|--intern-op-agent-spawn-proxy|--magic-heartbeat-spawn-proxy|--magic-spawn-session|--manager-spawn-member|--member-review-return|--intern-op-review-return|--intern-tool +"?Agent'
+rigGuardOps='--magic-advance-lock-acquire|--intern-main-loop|--manager-session-control-start|--intern-op-agent-spawn-proxy|--magic-spawn-proxy|--magic-spawn-session|--manager-spawn-member|--member-review-return|--intern-op-review-return|--intern-tool +"?Agent'
 ## THE CHECKS THAT NAME A SPAWN OPERATION AND START NO THREAD, with the reason, by file name. A start its caller waits on (--wait) gets no control
 ## thread (AgentsToolsSessionControlWaited: its transcript says wait=true; the spawner starts the thread, and the communications reader beside it,
 ## in the supervising shell of a start that is not waited for), so a check whose every such line carries --wait has nothing to end. It stays on this

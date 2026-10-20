@@ -637,6 +637,20 @@ AgentsToolsRegistrySpawnRecord(){ ## spawn id
 	return 0
 }
 
+## The record of a run that has no spawn-id (an older record, or one a proxy wrote without it): the file of the session in the sandbox of its
+## own, named by the session, whose session-id says it is. Nothing where there is none.
+AgentsToolsRegistrySessionOwnRecord(){ ## session id
+	local ownFile
+	case "${1:-}" in ''|-|*/*|.|..) return 0 ;; esac
+	for ownFile in "$MMDAPP/.local/agents/spawned"/*/"$1.md" ; do
+		[ -f "$ownFile" ] || continue
+		[ "$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$ownFile" )" session-id )" = "$1" ] || continue
+		printf '%s\n' "$ownFile"
+		return 0
+	done
+	return 0
+}
+
 ## THE PROCESSES OF ONE RUN on this host, for a caller that ends the run: ONE WALK, for the
 ## manager's kill and for a stop alike (AgentsTools.ManagerSession.include,
 ## AgentsHarnessSessionPids of AgentsUniversalHarness.sh). First the run's own processes, by

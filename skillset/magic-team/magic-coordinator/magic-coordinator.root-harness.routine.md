@@ -43,7 +43,7 @@ review-by: inherit
 
 - Does:
   - Run on the root harness session the human-owner talks to (no `INTERACTION-MODE:` line), through **detect-harness-session** to **run-operating-mode-cycle**.
-  - Run on an `--intern-root-harness` instance, whose brief opens with an `INTERACTION-MODE:` line, through **branch-on-interaction-mode** onward. The host loop's heartbeat pass is one of these.
+  - Run on an `--intern-root-harness` instance, whose brief opens with an `INTERACTION-MODE:` line, through **branch-on-interaction-mode** onward.
   - Define the root-only harness modes `harness-session-detect` and `team-fix-session`.
 - Doesn't:
   - Run on any other spawned instance. Those work from their own dispatch brief.

@@ -99,7 +99,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - The tooling records every verdict and every ending in the item's `## Decisions` and in the session transcript.
 - A handback also states the agreement or approval it carries, in its own text: what was agreed, who agreed, who approved. The `## Decisions` record and the session transcript stay as they are, alongside it.
 - An ask tool's own wait may come back `ASK-RESULT: ARRIVED-OTHER`: something else of interest to the session arrived, the ask's own question stays open, and the result's last line gives the exact call to go on with.
-- Exception: a session spawned with its caller blocked on it (`--wait`, such as the host loop's heartbeat or root-harness pass) hands back and ends when its pass is done. Its caller cannot send `DISMISSED`.
+- Exception: a session spawned with its caller blocked on it (`--wait`, such as a root-harness pass) hands back and ends when its pass is done. Its caller cannot send `DISMISSED`.
 - `TaskStop` is only a last-resort force-stop for an unresponsive agent. It ends that agent's run with every process the run started, and never another member's run.
 - Finishing a routine's steps ("exits", "runs Step N once and exits") means leaving the routine, not ending the session: the session lives and listens.
 - A handback puts its item into `board-review`; the reviewer settles it with `magic-team.handback-review.routine`. Other cases are general communication.

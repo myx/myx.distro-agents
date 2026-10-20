@@ -370,17 +370,17 @@ keys DOWN
 keys ENTER
 get asked
 box d
-keys TAB ENTER
+keys TAB TAB ENTER
 get empty
 box e
-keys SPACE SPACE TAB ENTER
+keys SPACE SPACE TAB TAB ENTER
 get spaces
 keys ESC ENTER x ESC
 get esc
 turn 3
 get end
 RIGSCRIPT
-rigAssert "Enter on the free prompt opens its dialog, the keys on the prompt: who runs it, the prompt, the name" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas d '║   Who runs it ' ) $( rigBoxHas d '║   > magic-coordinator: a new coworking session, by the default routine ' ) $( rigBoxHas d '║   Prompt ' ) $( rigBoxHas d '║   Name of the session, or none ' ) $( rigBoxHas d ' »Start« ▅   Cancel  ▅' )" "[prompt:prompt|] [Free prompt] 1 1 1 1 1"
+rigAssert "Enter on the free prompt opens its dialog, the keys on the prompt: who runs it, the prompt, the name" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas d '║   Who runs it ' ) $( rigBoxHas d '║   > magic-coordinator: a new coworking session, by the default routine ' ) $( rigBoxHas d '║   Prompt ' ) $( rigBoxHas d '║   Name of the session, or none ' ) $( rigBoxHas d ' Start  ▅  »Cancel« ▅' )" "[prompt:prompt|] [Free prompt] 1 1 1 1 1"
 
 rigAssert "Start with no prompt starts nothing: the dialog says so in a line of its own, and the keys are back on the prompt" "[$( rigVal empty.dialog )] [$( rigVal empty.dialogSays )] $( rigBoxHas e '║   nothing is started: the prompt is empty ' )" "[prompt:prompt|] [nothing is started: the prompt is empty] 1"
 rigAssert "spaces alone are no prompt, and Esc starts nothing"       "[$( rigVal spaces.dialog )] [$( rigVal spaces.dialogSays )] [$( rigVal esc.dialog )] [$( rigVal esc.notice )]" "[prompt:prompt|  ] [nothing is started: the prompt is empty] [] []"
@@ -409,7 +409,7 @@ keys TAB TAB ENTER
 get byEnter
 mouse click 52 27
 get byClick
-keys BACKTAB DOWN TAB TAB ENTER
+keys BACKTAB DOWN TAB TAB TAB ENTER
 get member
 keys SPACE ENTER SPACE
 keys TAB TAB ENTER
@@ -422,7 +422,7 @@ keys ESC
 turn 3
 get end
 RIGSCRIPT
-rigAssert "while the prompt is empty the button that starts is greyed, and Enter in a field of one line names no button to press" "$( rigBoxHas off 'gxxxxxxxxxggbbbbbbbbbbg' ) [$( rigVal offStatus )]" "1 [ TAB Next  ESC Cancel]"
+rigAssert "while the prompt is empty the button that starts is greyed, and Enter in a field of one line names the default, Cancel" "$( rigBoxHas off 'gxxxxxxxxxggbbbbbbbbbbg' ) [$( rigVal offStatus )]" "1 [ ENTER Cancel  TAB Next  ESC Cancel]"
 rigAssert "Enter in the empty prompt is a new line, never the button: what is typed after it is in the prompt, the dialog is open, nothing was called" "[$( rigVal typed.dialog )] [$( rigVal typed.dialogSays )] $( rigVal typed.calls )" "[prompt:prompt|\\nhi] [] 0"
 rigAssert "Tab to the button and Space presses nothing: one line in the dialog says that the prompt is empty, and the keys are back in the prompt" "[$( rigVal bySpace.dialog )] [$( rigVal bySpace.dialogSays )] $( rigVal bySpace.calls )" "[prompt:prompt|] [nothing is started: the prompt is empty] 0"
 rigAssert "neither does Enter on the button, nor a click on it" "[$( rigVal byEnter.dialog )] $( rigVal byEnter.calls ) [$( rigVal byClick.dialog )] [$( rigVal byClick.dialogSays )] $( rigVal byClick.calls )" "[prompt:prompt|] 0 [prompt:prompt|] [nothing is started: the prompt is empty] 0"
@@ -563,7 +563,7 @@ turn
 get filled
 box m
 cells mStatus 39 0 120
-keys ENTER
+keys TAB TAB ENTER
 get none
 keys SPACE DOWN DOWN SPACE TAB$( rigType 'the plan for Monday' )
 get typed
@@ -577,7 +577,7 @@ rigAssert "the left pane says that its members are asked for, and it and the sta
 rigAssert "Enter opens the dialog of its members, and starts nothing" "$( rigVal opened.dialog ) [$( rigVal opened.dialogTitle )] $( rigVal opened.calls )" "members:members| [Start the routine with members] 0"
 rigAssert "the members are read by the operation that lists the team, once" "$( rigCalled --manager-team-member-list )" "1"
 rigAssert "the dialog names the routine, and has a box for each member that can be started from here, and for no other" "$( rigBoxHas m '║   routine   magic-team.discuss.routine.md ' ) $( rigBoxHas m '║   [ ] magic-coordinator ' ) $( rigBoxHas m '║   [ ] keeper-myx ' ) $( rigBoxHas m '║   [ ] magic-tester ' ) $( rigBoxHas m 'human-owner' ) $( rigBoxHas m 'keeper-gone' )" "1 1 1 1 0 0"
-rigAssert "under them the field for what the session is to work on, and OK and Cancel" "$( rigBoxHas m '║   What the session is to work on ' ) $( rigBoxHas m ' »OK« ▅   Cancel  ▅' ) [$( rigVal mStatus )]" "1 1 [ Space Toggle  UP/DN Move  TAB Next  ESC Cancel]"
+rigAssert "under them the field for what the session is to work on, and OK and Cancel" "$( rigBoxHas m '║   What the session is to work on ' ) $( rigBoxHas m ' OK  ▅  »Cancel« ▅' ) [$( rigVal mStatus )]" "1 1 [ Space Toggle  UP/DN Move  ENTER Cancel  TAB Next  ESC Cancel]"
 rigAssert "OK with no member checked is refused inside the dialog, and starts nothing" "$( rigVal none.dialog ) [$( rigVal none.dialogSays )] $( rigVal none.calls )" "members:members| [no member is checked: check one at least, with Space] 0"
 rigAssert "Space checks a member, and Tab goes on to the field"      "$( rigVal typed.dialog )" "members:task|the plan for Monday"
 rigAssert "OK starts it: the dialog closes, and the status line says with whom" "[$( rigVal started.dialog )] [$( rigVal started.notice )]" "[] [start asked of the tooling: $rigDiscuss, with magic-coordinator, magic-tester]"

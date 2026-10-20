@@ -27,7 +27,7 @@ SUBJECT_WORDS = {
     "workspace": "the paths of this workspace, and the places it knows",
     "cli": "the CLI service the workspace asks for, and each CLI the console knows",
     "systems": "each outside system, by the scopes that hold a setting of it",
-    "loop": "the main loop and the heartbeat, as they last left their state",
+    "loop": "the main loop, as it last left its state",
     "scopes": "each scope that holds a key, with its keys",
     "interface": "how this console looks, saved for the user who runs it",
     "console": "how the consoles of this workspace behave",

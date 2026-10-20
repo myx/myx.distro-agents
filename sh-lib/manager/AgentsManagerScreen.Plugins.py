@@ -103,7 +103,8 @@ COUNTED = {}
 ## shown, on the period, as a read of its own, "count:<name>", and the number it printed is kept as that counter (applyResult, state.counters).
 ## "peek": a list that is read also while its section is the row the root stands on, since the left window then shows that
 ## section from its rows (wantedReads). "also": the reads made beside the list of a level, by their keys, while that level is
-## shown and while the folder that opens it has the focus, as a kind of their own. "demand": it is read only when its command asks
+## shown and while the folder that opens it has the focus, as a kind of their own. "recheck": a read that is forced at every readNow (an action ended, a refresh, a followed command ended), for what decides what stands in
+## the list at all, with "always" and "seldom". "demand": it is read only when its command asks
 ## for it ("demand" in COMMANDS), never because it was not read yet or its period has passed, and "said" is what the status line
 ## says of it then. {parent} in an argument is the id of the level above the level read: the member of a folder of a member.
 ## "each": a read that is made for every row of the level it is named by that carries what it "needs", by the id of that row;

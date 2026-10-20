@@ -138,11 +138,28 @@ def teamDataFigures(state, blockId):
     return None
 
 
-## Team data is configured for this workspace: its root is set and is there, as the read
-## of the dashboard says.
+## The level of the read that decides whether the root stands in the list at all (TEAM_DATA_READS), and what it printed as rows: the one block
+## of the team data of the dashboard, alone, so that it never replaces the blocks of the root's own read.
+TEAM_DATA_HERE = "here"
+
+
+def parseTeamDataHere(readKey, level, text):
+    return {level: parseBlockRows(text)}
+
+
+ROW_FORMS["team-data-here"] = parseTeamDataHere
+
+
+## Team data is configured for this workspace: this is a team rig and its root is set and is there, as the read of the dashboard says (the
+## mode by the gate's one reader, the root by the context), re-read at the start and whenever something may have changed it (readNow).
+## Before that read has answered, or where the tooling gives no mode, what the root's own read last gave decides.
 def teamDataHere(state):
     blockId, figureKey, value = TEAM_DATA["present"]
-    return any(key == figureKey and figure["value"] == value for key, figure in teamDataFigures(state, blockId) or ())
+    rows = state.rows.get(pluginLevel("teamdata", TEAM_DATA_HERE))
+    if rows is None:
+        rows = pluginRows(state, "teamdata")
+    figures = dict((figure["key"], figure["value"]) for row in rows if row["id"] == blockId and row.get("block") for figure in row["block"]["figures"])
+    return figures.get(figureKey) == value and figures.get("mode") in (None, TEAM_DATA["teamRig"])
 
 
 ## A line of the digest of the settings, as it was last read: by its subject, its group
@@ -225,7 +242,7 @@ def teamDataSummary(state, path, row, form):
         lines.extend(headingLines("Board") + summaryTable(("STATE", "ITEMS"), [[name, figureValue(figure)] for name, figure in board], state.viewWidth))
     loop = teamDataFigures(state, TEAM_DATA["loop"])
     if loop:
-        lines.extend(headingLines("Main loop and heartbeat" + ("" if full else " (not judged here: a full team rig alone is)")))
+        lines.extend(headingLines("Main loop" + ("" if full else " (not judged here: a full team rig alone is)")))
         head, blocks = paneTable(("FIGURE", "VALUE"), [[unspaced(figure["label"]), figureShown(figure)] for key, figure in loop],
                                  max(10, state.viewWidth - 1), wrap=state.wrap, indent="  ",
                                  looks=[[None, figureLook(figure) if full else None] for key, figure in loop])
@@ -339,6 +356,9 @@ def cleanupsFocus(state, row):
 ## and while its folder has the focus), for the mode of the workspace and the remote of
 ## the team data. Its `Operations` reads the digest, for the mode and the remote.
 TEAM_DATA_READS = {
+    ## whether the root stands in the list: the block of the team data of the dashboard, read at the start whatever is shown, and asked again
+    ## whenever anything may have changed it (a setting saved, a wizard run, a refresh: "recheck", readNow)
+    "list:teamdata/" + TEAM_DATA_HERE: {"operation": ["--manager-dashboard-read", "team-data"], "rows": "team-data-here", "kind": "here", "always": True, "seldom": True, "recheck": True},
     "list:teamdata": {"operation": ["--manager-dashboard-read", "team-data", "team-data-git", "loop"], "rows": "blocks", "also": ("list:@settings",)},
     "list:teamdata/operations": {"from": "list:@settings"},
 }

@@ -174,33 +174,32 @@ rigAssert "names the armed.md sections" \
 	"$( grep -c -x -F 'Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief" )" 1
 rigAssert "interactive by default"                        "$( grep -c -x -F 'INTERACTION-MODE: interactive -- keep looping, with a dedicated Slack thread for interaction.' "$rigTmp/brief" )" 1
 
-## The payload routine goes into the packet by its resolved filename, worded as Step 16 of the heartbeat routine words it.
+## The payload routine goes into the packet by its resolved filename, worded as the packet words it.
 ## The line's name and its tail are awaiting the owner's approval, so each is spelled here and nowhere else in these rows.
 rigRoutineLabel="ROUTINE:"
 rigRoutineTail="-- the dispatch's --routine parameter: run it as this pass's payload."
-rigHeartbeatFile="magic-coordinator.heartbeat.routine.md"
-printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig heartbeat routine fixture\n' > "$rigSkills/magic-coordinator/$rigHeartbeatFile"
+rigRoutineFile="magic-coordinator.advance.routine.md"
+printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig advance routine fixture\n' > "$rigSkills/magic-coordinator/$rigRoutineFile"
 rigLineNo(){ ## file, fixed text at the start of a line -- the number of the first such line, or none
 	LC_ALL=C awk -v want="$2" 'index($0, want) == 1 { print NR ; found = 1 ; exit } END { if ( ! found ) print "none" }' "$1"
 }
 
-echo "-- --intern-root-harness through the real proxy: the packet names the payload routine, as the main loop calls it --"
-rigOut="$( rigRootHarness --routine heartbeat --non-interactive --wait )"
+echo "-- --intern-root-harness through the real proxy: the packet names the payload routine --"
+rigOut="$( rigRootHarness --routine advance --non-interactive --wait )"
 grep -q 'INTERACTION-MODE:' "$rigTmp/brief" || rigRefuse "the fake console never received the brief: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
 rigAssert "the launch succeeded"                          "$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=true$' )" 1
-rigAssert "the packet has exactly one routine line, naming the resolved file" "$( LC_ALL=C grep -c -x -F "$rigRoutineLabel $rigHeartbeatFile $rigRoutineTail" "$rigTmp/brief" )" 1
+rigAssert "the packet has exactly one routine line, naming the resolved file" "$( LC_ALL=C grep -c -x -F "$rigRoutineLabel $rigRoutineFile $rigRoutineTail" "$rigTmp/brief" )" 1
 rigModeNo="$( rigLineNo "$rigTmp/brief" 'INTERACTION-MODE: non-interactive' )"
 rigRoutineNo="$( rigLineNo "$rigTmp/brief" "$rigRoutineLabel " )"
 rigBriefNo="$( rigLineNo "$rigTmp/brief" 'SPAWN-REQUEST' )"
 rigAssert "the routine line comes right under the mode line"       "$( [ "$rigModeNo" != none ] && [ "$rigRoutineNo" = "$(( rigModeNo + 1 ))" ] && echo adjacent || echo "mode=$rigModeNo routine=$rigRoutineNo" )" adjacent
 rigAssert "and the brief follows it: SPAWN-REQUEST after both"     "$( [ "$rigBriefNo" != none ] && [ "$rigBriefNo" -gt "$rigRoutineNo" ] && echo after || echo "brief=$rigBriefNo" )" after
 rigAssert "the routine's own brief block still opens the packet"  "$( head -1 "$rigTmp/brief" )" "SPAWN-PREPARE-BRIEF: magic-coordinator"
-rigAssert "the main loop calls it with exactly these arguments"   "$( LC_ALL=C grep -c -F 'DistroAgentsTools --intern-root-harness --routine heartbeat --non-interactive --wait' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.InternMainLoop.include" )" 1
 
 echo "-- --intern-root-harness against a stub proxy: the exact packet and the exact proxy arguments --"
 rigStubRoot="$rigTmp/stub-skills" ; rigStubTwo="$rigTmp/stub-skills-two"
 mkdir -p "$rigStubRoot/magic-coordinator" "$rigStubRoot/magic-team" "$rigStubTwo/magic-coordinator" "$rigStubTwo/magic-team"
-printf -- '---\nexecutors: x\nmaintainers: x\nrequires-session-kind: standalone\n---\n' | tee "$rigStubRoot/magic-coordinator/$rigHeartbeatFile" "$rigStubRoot/magic-coordinator/magic-coordinator.grooming.routine.md" "$rigStubTwo/magic-coordinator/$rigHeartbeatFile" "$rigStubTwo/magic-team/magic-team.heartbeat-extra.routine.md" > /dev/null
+printf -- '---\nexecutors: x\nmaintainers: x\nrequires-session-kind: standalone\n---\n' | tee "$rigStubRoot/magic-coordinator/$rigRoutineFile" "$rigStubRoot/magic-coordinator/magic-coordinator.grooming.routine.md" "$rigStubTwo/magic-coordinator/$rigRoutineFile" "$rigStubTwo/magic-team/magic-team.advance-extra.routine.md" > /dev/null
 rigBriefFile="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/dispatches/root-harness-session-start.prompt-packet.verbatim.md"
 rigStubRun(){ ## skill root, arguments...
 	local stubRoot="$1" ; shift
@@ -218,22 +217,22 @@ rigExpect(){ ## mode line, routine line or empty -- the packet the stub must hav
 }
 rigModeNon="INTERACTION-MODE: non-interactive -- run one loop, then exit."
 rigModeInt="INTERACTION-MODE: interactive -- keep looping, with a dedicated Slack thread for interaction."
-rigRoutineLine="$rigRoutineLabel $rigHeartbeatFile $rigRoutineTail"
+rigRoutineLine="$rigRoutineLabel $rigRoutineFile $rigRoutineTail"
 
-rigStubRun "$rigStubRoot" --intern-root-harness --routine heartbeat --non-interactive --wait
+rigStubRun "$rigStubRoot" --intern-root-harness --routine advance --non-interactive --wait
 rigExpect "$rigModeNon" "$rigRoutineLine"
 rigAssert "non-interactive with a routine: the include returns 0"  "$rigStubRc" 0
 rigAssert "the packet is exactly mode line, routine line, one blank line, the unchanged brief" "$( cmp -s "$rigTmp/stub.stdin" "$rigTmp/stub.expect" && echo identical || echo different )" identical
-rigAssert "the proxy gets the raw selector, --session-thread and --wait, in that order" "$( cat "$rigTmp/stub.args" )" "--magic-heartbeat-spawn-proxy magic-coordinator --session-thread:event-track --routine heartbeat --wait"
+rigAssert "the proxy gets the raw selector, --session-thread and --wait, in that order" "$( cat "$rigTmp/stub.args" )" "--magic-spawn-proxy magic-coordinator --session-thread:event-track --routine advance --wait"
 rigAssert "the brief's own sections are all in the packet"       "$( for rigSec in SPAWN-REQUEST GOAL CONTEXT WAIT ; do LC_ALL=C grep -c -e "^$rigSec" -e "^## $rigSec" -e "^# $rigSec" "$rigTmp/stub.stdin" | LC_ALL=C awk '{ printf "%s ", ( $1 > 0 ? "yes" : "no" ) }' ; done )" "yes yes yes yes "
-rigStubRun "$rigStubRoot" --intern-root-harness --routine heartbeat
+rigStubRun "$rigStubRoot" --intern-root-harness --routine advance
 rigExpect "$rigModeInt" "$rigRoutineLine"
 rigAssert "interactive with a routine: the packet carries the routine line too" "$( cmp -s "$rigTmp/stub.stdin" "$rigTmp/stub.expect" && echo identical || echo different )" identical
-rigAssert "and the proxy is told the magic-team thread, and --wait though none was given: interactive is a terminal start" "$( cat "$rigTmp/stub.args" )" "--magic-heartbeat-spawn-proxy magic-coordinator --session-thread:magic-team --routine heartbeat --wait"
+rigAssert "and the proxy is told the magic-team thread, and --wait though none was given: interactive is a terminal start" "$( cat "$rigTmp/stub.args" )" "--magic-spawn-proxy magic-coordinator --session-thread:magic-team --routine advance --wait"
 rigStubRun "$rigStubRoot" --intern-root-harness --wait
 rigExpect "$rigModeInt" ""
 rigAssert "interactive without a routine: no routine line, the packet is mode line, blank line, brief" "$( cmp -s "$rigTmp/stub.stdin" "$rigTmp/stub.expect" && echo identical || echo different ) $( LC_ALL=C grep -c "^$rigRoutineLabel" "$rigTmp/stub.stdin" || : )" "identical 0"
-rigAssert "and no --routine reaches the proxy"                   "$( cat "$rigTmp/stub.args" )" "--magic-heartbeat-spawn-proxy magic-coordinator --session-thread:magic-team --wait"
+rigAssert "and no --routine reaches the proxy"                   "$( cat "$rigTmp/stub.args" )" "--magic-spawn-proxy magic-coordinator --session-thread:magic-team --wait"
 rigStubRun "$rigStubRoot" --intern-root-harness --non-interactive --wait
 rigAssert "non-interactive without a routine is refused, rc 1"     "$rigStubRc" 1
 rigAssert "with its own message"                                  "$( LC_ALL=C grep -c -x -F '⛔ ERROR: --non-interactive requires --routine <selector>' <( LC_ALL=C sed 's/^DistroAgentsTools --intern-root-harness: //' "$rigTmp/stub.out" ) || : )" 1
@@ -241,12 +240,12 @@ rigAssert "and the proxy was never called: no arguments, no packet" "$( [ -e "$r
 rigStubRun "$rigStubRoot" --intern-root-harness --routine no-such-routine --non-interactive --wait
 rigAssert "a selector that matches nothing is refused, rc 1, with the resolver's own line" "$rigStubRc $( LC_ALL=C grep -c -F -e '⛔ ERROR: --routine no-such-routine: matches no routine file' "$rigTmp/stub.out" || : )" "1 1"
 rigAssert "and nothing was piped to the proxy"                  "$( [ -e "$rigTmp/stub.args" ] || [ -e "$rigTmp/stub.stdin" ] && echo called || echo never-called )" never-called
-rigStubRun "$rigStubTwo" --intern-root-harness --routine heartbeat --non-interactive --wait
-rigAssert "control: a decoy matching the same selector is refused, rc 1" "$rigStubRc $( LC_ALL=C grep -c -F -e '⛔ ERROR: --routine heartbeat: matches more than one routine file' "$rigTmp/stub.out" || : )" "1 1"
-rigAssert "and both candidates are named"                       "$( LC_ALL=C grep -c -e "^  $rigHeartbeatFile\$" -e '^  magic-team.heartbeat-extra.routine.md$' "$rigTmp/stub.out" || : )" 2
+rigStubRun "$rigStubTwo" --intern-root-harness --routine advance --non-interactive --wait
+rigAssert "control: a decoy matching the same selector is refused, rc 1" "$rigStubRc $( LC_ALL=C grep -c -F -e '⛔ ERROR: --routine advance: matches more than one routine file' "$rigTmp/stub.out" || : )" "1 1"
+rigAssert "and both candidates are named"                       "$( LC_ALL=C grep -c -e "^  $rigRoutineFile\$" -e '^  magic-team.advance-extra.routine.md$' "$rigTmp/stub.out" || : )" 2
 rigAssert "and nothing was piped to the proxy"                  "$( [ -e "$rigTmp/stub.args" ] || [ -e "$rigTmp/stub.stdin" ] && echo called || echo never-called )" never-called
-rigStubRun "$rigStubRoot" --intern-root-harness --routine heartbeat --non-interactive --wait
-{ printf '%s\n' "$rigModeNon" "$rigRoutineLabel heartbeat -- the dispatch's --routine parameter: run it as this pass's payload." ; printf '\n' ; cat "$rigBriefFile" ; } > "$rigTmp/stub.oldshape"
+rigStubRun "$rigStubRoot" --intern-root-harness --routine advance --non-interactive --wait
+{ printf '%s\n' "$rigModeNon" "$rigRoutineLabel advance -- the dispatch's --routine parameter: run it as this pass's payload." ; printf '\n' ; cat "$rigBriefFile" ; } > "$rigTmp/stub.oldshape"
 rigAssert "control: the earlier packet form, a raw selector and a flag name, is not the packet the exact row accepts" "$( cmp -s "$rigTmp/stub.stdin" "$rigTmp/stub.oldshape" && echo identical || echo different )" different
 
 echo "-- --intern-root-harness: no routine and no --non-interactive, through the real proxy --"
@@ -268,7 +267,7 @@ LC_ALL=C grep -v -F "$rigRoutineLabel \${rootHarnessRoutineFile##*/}" "$rigOldIn
 rigAssert "control: the copy really lacks the edit"       "$( LC_ALL=C grep -c -F "$rigRoutineLabel \${rootHarnessRoutineFile##*/}" "$rigOldInc" || : )" 0
 rigRealOrigin="$MDLT_ORIGIN"
 MDLT_ORIGIN="$rigOld"
-rigStubRun "$rigStubRoot" --intern-root-harness --routine heartbeat --non-interactive --wait
+rigStubRun "$rigStubRoot" --intern-root-harness --routine advance --non-interactive --wait
 MDLT_ORIGIN="$rigRealOrigin"
 rigAssert "the old code's packet has no routine line, so the exact row above can fail" "$( LC_ALL=C grep -c "^$rigRoutineLabel" "$rigTmp/stub.stdin" || : )" 0
 rigAssert "and it differs from the expected packet"       "$( rigExpect "$rigModeNon" "$rigRoutineLine" ; cmp -s "$rigTmp/stub.stdin" "$rigTmp/stub.expect" && echo identical || echo different )" different

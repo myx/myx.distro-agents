@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.BoardDependencies.include -- the mechanical half of the board's dependency recompute (F7.12), by the tooling and no agent. It keeps
+## both directions of `blocks`/`blocked-by` (a gate recorded at one end is recorded at the other), finds the cycles the edges make, and reports
+## what must happen first, what waits and on what, what is blocked outside the board, and how many items are independent. Sourced, never run;
+## functions only. The main loop calls AgentsToolsBoardDependencies at each iteration; it does nothing until the board has changed since the last
+## time (a file written, one that came, went or moved), so the recompute is made once for each change and never for none.
+##
+## WHAT IT WRITES. The missing end of an edge, as a header edit of the item in its own state (--intern-op-board-upsert-move-edit): only on an item of
+## an active state (backlog, pending, running, review, blocked, parked); an item of processed, archived or retained is history and is never touched.
+## WHAT IT LEAVES TO JUDGEMENT, which the work-duty session does with the report in front of it: recording an edge that only the text of an item
+## shows, describing an unclear edge in the item's body, flagging a real cycle to magic-architect, and saying what a high-RICE item blocked on a
+## low-RICE one means. The report is .local/agents/board-dependencies.last, and the work-duty scan prints it (AgentsToolsBoardDependenciesSection).
+##
+
+agentsBoardDependenciesActive="backlog pending running review blocked parked"
+
+## The edges and their findings, from the board's items. One row a finding, TAB-separated, sorted:
+##   FIX<TAB>state<TAB>item<TAB>field<TAB>new value    the item's field is missing the other end of an edge (item names, comma-separated)
+##   CYCLE<TAB>a -> b -> a                             a cycle of `blocks`
+##   FIRST<TAB>item                                    gates others and has no blocker still on the board
+##   WAITING<TAB>item<TAB>blockers                     has a blocker still on the board (an item of an active state)
+##   OUTSIDE<TAB>item                                  is in blocked and names no blocker on the board
+##   INDEPENDENT<TAB>count                             active items with no edge at all
+AgentsToolsBoardDependenciesFindings(){
+	local depRoot="$MDAT_DATA_ROOT/board"
+	[ -d "$depRoot" ] || return 0
+	LC_ALL=C awk -v active="$agentsBoardDependenciesActive" '
+		function trimText(s) { sub(/^[ \t]+/, "", s) ; sub(/[ \t]+$/, "", s) ; return s }
+		function bare(s) { s = trimText(s) ; sub(/\.md$/, "", s) ; return s }
+		function has(list, one,   n, parts, i) { n = split(list, parts, ",") ; for (i = 1 ; i <= n ; i++) if (bare(parts[i]) == one) return 1 ; return 0 }
+		function addTo(list, one) { return (list == "" ? one : list "," one) }
+		function visit(node, path,   n, parts, i, next_, cyc, m, arr, k) {
+			color[node] = 1
+			n = split(blocks[node], parts, ",")
+			for (i = 1 ; i <= n ; i++) {
+				next_ = bare(parts[i])
+				if (next_ == "" || !(next_ in state)) continue
+				if (color[next_] == 1) {
+					m = split(path, arr, " ")
+					cyc = ""
+					for (k = 1 ; k <= m ; k++) if (arr[k] == next_ || cyc != "") cyc = (cyc == "" ? arr[k] : cyc " -> " arr[k])
+					cyc = cyc " -> " next_
+					if (!(cyc in seenCycle)) { seenCycle[cyc] = 1 ; print "CYCLE\t" cyc }
+				} else if (color[next_] == 0) visit(next_, path " " next_)
+			}
+			color[node] = 2
+		}
+		BEGIN { na = split(active, activeList, " ") ; for (i = 1 ; i <= na ; i++) isActive[activeList[i]] = 1 }
+		FNR == 1 {
+			infm = ($0 == "---")
+			n = split(FILENAME, p, "/") ; name = p[n] ; sub(/\.md$/, "", name) ; st = p[n - 1]
+			state[name] = st ; blocks[name] = "" ; bby[name] = ""
+			next
+		}
+		infm && $0 == "---" { infm = 0 ; next }
+		infm && index($0, "blocks: ") == 1 { blocks[name] = trimText(substr($0, 9)) }
+		infm && index($0, "blocked-by: ") == 1 { bby[name] = trimText(substr($0, 13)) }
+		END {
+			for (a in state) {
+				if (!(state[a] in isActive)) continue
+				n = split(blocks[a], parts, ",")
+				for (i = 1 ; i <= n ; i++) {
+					b = bare(parts[i]) ; if (b == "" || !(b in state) || b == a) continue
+					if (!has(bby[b], a)) { bby[b] = addTo(bby[b], a) ; touched[b SUBSEP "blocked-by"] = 1 }
+				}
+			}
+			for (b in state) {
+				if (!(state[b] in isActive)) continue
+				n = split(bby[b], parts, ",")
+				for (i = 1 ; i <= n ; i++) {
+					a = bare(parts[i]) ; if (a == "" || !(a in state) || a == b) continue
+					if (!has(blocks[a], b)) { blocks[a] = addTo(blocks[a], b) ; touched[a SUBSEP "blocks"] = 1 }
+				}
+			}
+			for (key in touched) {
+				split(key, kp, SUBSEP) ; item = kp[1] ; field = kp[2]
+				if (!(state[item] in isActive)) continue
+				print "FIX\t" state[item] "\t" item "\t" field "\t" (field == "blocks" ? blocks[item] : bby[item])
+			}
+			for (a in state) if (color[a] == 0 && (state[a] in isActive)) visit(a, a)
+			indep = 0
+			for (a in state) {
+				if (!(state[a] in isActive)) continue
+				if (blocks[a] == "" && bby[a] == "") { indep++ ; continue }
+				live = ""
+				n = split(bby[a], parts, ",")
+				for (i = 1 ; i <= n ; i++) { x = bare(parts[i]) ; if (x != "" && (x in state) && (state[x] in isActive)) live = addTo(live, x) }
+				if (live != "") print "WAITING\t" a "\t" live
+				else {
+					if (blocks[a] != "") print "FIRST\t" a
+					if (state[a] == "blocked") print "OUTSIDE\t" a
+				}
+			}
+			print "INDEPENDENT\t" indep
+		}
+	' "$depRoot"/*/*.md 2> /dev/null | LC_ALL=C sort
+}
+
+## The signature of the board's shape (the names of its items and the states they lie in), and whether anything was written since the marker.
+AgentsToolsBoardDependenciesChanged(){ ## marker file, signature file
+	local changedRoot="$MDAT_DATA_ROOT/board" changedNow changedOld=""
+	[ -d "$changedRoot" ] || return 1
+	changedNow="$( LC_ALL=C find "$changedRoot" -type f -name '*.md' 2> /dev/null | LC_ALL=C sort | LC_ALL=C cksum )"
+	[ ! -f "$2" ] || IFS= read -r changedOld < "$2" || :
+	[ "$changedNow" = "$changedOld" ] || { printf '%s\n' "$changedNow" > "$2.next" 2> /dev/null && mv -f "$2.next" "$2" 2> /dev/null ; return 0 ; }
+	[ -f "$1" ] || return 0
+	[ -n "$( LC_ALL=C find "$changedRoot" -type f -name '*.md' -newer "$1" 2> /dev/null | head -n 1 )" ]
+}
+
+## The recompute: nothing where the board has not changed since the last; else the missing ends of the edges written, the findings kept as the
+## report, and one line printed for each fix (what the tooling did). Never fatal.
+AgentsToolsBoardDependencies(){
+	local depState="$MMDAPP/.local/agents" depMarker depSig depFindings depRow depKind depRest depItemState depItem depField depValue depReport depFixed="" depStamp
+	[ -n "${MDAT_DATA_ROOT:-}" ] && [ -d "$MDAT_DATA_ROOT/board" ] || return 0
+	mkdir -p "$depState" 2> /dev/null || return 0
+	depMarker="$depState/board-dependencies.marker" depSig="$depState/board-dependencies.sig" depReport="$depState/board-dependencies.last"
+	AgentsToolsBoardDependenciesChanged "$depMarker" "$depSig" || return 0
+	depFindings="$( AgentsToolsBoardDependenciesFindings )"
+	while IFS=$'\t' read -r depKind depItemState depItem depField depValue ; do
+		[ "$depKind" = FIX ] || continue
+		if DistroAgentsTools --intern-op-board-upsert-move-edit "$depItemState" "$depItem.md" --from-state:"$depItemState" --header:upsert:"$depField":"$depValue" --context --intern-main-loop > /dev/null 2>&1 ; then
+			depFixed="${depFixed}$depItem $depField now $depValue"$'\n'
+			printf 'dependencies: %s has %s %s, the other end of an edge\n' "$depItem" "$depField" "$depValue"
+		else
+			printf 'dependencies: %s could not be given %s %s\n' "$depItem" "$depField" "$depValue"
+		fi
+	done <<< "$depFindings"
+	depStamp="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+	{
+		printf '## board dependencies (recomputed %s)\n\n' "$depStamp"
+		printf 'cycles: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C sed -n 's/^CYCLE\t//p' | LC_ALL=C awk 'NF { printf "%s%s", sep, $0 ; sep = "; " } END { if ( sep == "" ) printf "none" }' )"
+		printf 'must happen first: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C sed -n 's/^FIRST\t//p' | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' | LC_ALL=C awk '{ print ( NF ? $0 : "none" ) }' )"
+		printf 'waiting (item <- blockers still on the board):\n'
+		printf '%s\n' "$depFindings" | LC_ALL=C awk -F'\t' '$1 == "WAITING" { printf "- %s <- %s\n", $2, $3 ; n++ } END { if ( n == 0 ) printf "- none\n" }'
+		printf 'blocked with no blocker on the board: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C sed -n 's/^OUTSIDE\t//p' | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' | LC_ALL=C awk '{ print ( NF ? $0 : "none" ) }' )"
+		printf 'independent: %s\n' "$( printf '%s\n' "$depFindings" | LC_ALL=C awk -F'\t' '$1 == "INDEPENDENT" { print $2 }' )"
+		if [ -n "$depFixed" ] ; then
+			printf 'written by the tooling this time:\n'
+			printf '%s' "$depFixed" | LC_ALL=C sed 's/^/- /'
+		fi
+	} > "$depReport.next" 2> /dev/null && mv -f "$depReport.next" "$depReport" 2> /dev/null
+	: > "$depMarker" 2> /dev/null
+	return 0
+}
+
+## The report as a section of a scan: the last recompute, or one line that there is none yet.
+AgentsToolsBoardDependenciesSection(){
+	if [ -s "$MMDAPP/.local/agents/board-dependencies.last" ] ; then
+		cat "$MMDAPP/.local/agents/board-dependencies.last"
+	else
+		printf '## board dependencies\n\n(none recomputed yet)\n'
+	fi
+}

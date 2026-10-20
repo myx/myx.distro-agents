@@ -8,10 +8,10 @@
 ## retire with no alias; the old `--magic-<routine>-state-and-lock-upsert` and `--magic-<routine>-close-state-and-unlock`
 ## retire under the shim rule (MAGIC.md, "A superseded operation name stays as a working shim"): gone from the help,
 ## still answered by the dispatcher.
-## Held, for the five routines that lock today (advance, daily, grooming, heartbeat, retro) and the morning review:
+## Held, for the four routines that lock today (advance, daily, grooming, retro) and the morning review:
 ##   1. a run of the session that holds the lock updates its document through `--update-routine-state`, with no routine
 ##      name or path: the note holds the new text, and the team data's remote holds one commit more, with that text,
-##      when the call returns (the heartbeat's through its own writer)
+##      when the call returns
 ##   2. a participant of that session, another member whose record carries no lock of its own, updates it too
 ##   3. the lock-owned fields (type, from, date, owner, state, recheck-date, session-id) stay as the spawner left them,
 ##      whatever the content gives; header edits (`--header:upsert:`, `--header:remove:`) change the stored record's own fields
@@ -49,7 +49,7 @@ done
 printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s/curl.calls"\nexit 7\n' "$rigTmp" > "$rigTmp/bin/curl" ; chmod +x "$rigTmp/bin/curl"
 printf '[user]\n\temail = rig@example.invalid\n\tname = rig\n' > "$rigHome/.gitconfig"
 rigGit(){ env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="/usr/bin:/bin" git "$@" ; }
-rigNotes="advance:note-20260809T154715Z-advance-state-and-lock.md daily:note-20260811T120000Z-daily-state-and-lock.md grooming:note-20260809T154332Z-grooming-state-and-lock.md heartbeat:note-20260809T155000Z-heartbeat-state-and-lock.md retro:note-20260811T120000Z-retro-state-and-lock.md"
+rigNotes="advance:note-20260809T154715Z-advance-state-and-lock.md daily:note-20260811T120000Z-daily-state-and-lock.md grooming:note-20260809T154332Z-grooming-state-and-lock.md retro:note-20260811T120000Z-retro-state-and-lock.md"
 rigMrNote="note-20261008T000000Z-morning-review-state.md"
 ## The team data: a clone of the rig's own bare remote, holding each routine's note, each locked by its own session.
 rigGit init -q --bare "$rigTmp/remote.git" || rigRefuse "could not make the rig's bare remote"
@@ -128,7 +128,7 @@ for rigPair in $rigNotes ; do
 	rigLocalText="$( LC_ALL=C grep -c -F "RIG-STATE-UPDATE of $rigRoutine" "$( rigNotePath magic-coordinator "$rigNote" )" 2> /dev/null )"
 	[ "$( cat "$rigTmp/update-$rigRoutine.rc" ):${rigLocalText:-0}:$(( ${rigAfter:-0} - ${rigBefore:-0} )):${rigRemoteText:-0}" = "0:1:1:1" ] && rigPushed="$rigPushed $rigRoutine"
 done
-rigAssert "the routines whose update is in the note, one commit more on the remote, with it" "${rigPushed# }" "advance daily grooming heartbeat retro"
+rigAssert "the routines whose update is in the note, one commit more on the remote, with it" "${rigPushed# }" "advance daily grooming retro"
 
 echo "-- 2. a participant of the session updates it too --"
 rigUpdate participant rig-run-daily-p keeper-rig "$( printf -- '---\nstate: x\n---\n\nRIG-FROM-PARTICIPANT.\n' )"
@@ -184,7 +184,6 @@ rigGone=""
 for rigPair in $rigNotes ; do
 	rigRoutine="${rigPair%%:*}"
 	rigOlds="--magic-$rigRoutine-state-and-lock-upsert --magic-$rigRoutine-close-state-and-unlock"
-	[ "$rigRoutine" != heartbeat ] || rigOlds="--magic-$rigRoutine-close-state-and-unlock"
 	for rigOld in $rigOlds ; do
 		LC_ALL=C grep -q -F -- "DistroAgentsTools.fn.sh $rigOld " "$rigHelp" && rigInHelp="$rigInHelp $rigOld"
 		LC_ALL=C grep -q -x -F -- "📘 syntax: DistroAgentsTools.fn.sh $rigOld" "$rigHelp" && rigInHelp="$rigInHelp $rigOld"

@@ -2,7 +2,7 @@
 ## Behavioural check on which launches the harness gates as UNATTENDED. The gate itself
 ## is exercised under both markers by WriteSplit and PermissionCheck; this asks whether
 ## the launch paths a board task takes actually set them: a console run with
-## --non-interactive, the spawn proxy the heartbeat and the Agent tool both use, and the
+## --non-interactive, the spawn relay (--magic-spawn-proxy) and the Agent tool both use, and the
 ## Agent tool itself. The interactive console is the control that must stay attended.
 ## Offline: fake claude, fake console and fake curl, all under this rig's temp tree.
 set -u
@@ -95,12 +95,12 @@ sleep 2
 rigAssert "a nested spawn reaches the console non-interactively" "$( LC_ALL=C grep -c -- '--non-interactive' "$rigTmp/console.log" )" 1
 rigAssert "under a session id of its own"              "$( [ -n "$( sed -n 's/.*spawn=\[\([^]]*\)\].*/\1/p' "$rigTmp/console.log" )" ] && printf fresh || printf missing )" fresh
 
-echo "-- the heartbeat spawns through that proxy (call site only: PARTIAL) --"
+echo "-- the spawn relay spawns through that proxy (call site only: PARTIAL) --"
 ## Text matching proves the call site exists and nothing more; the edited copy is its control.
-rigHeartbeat="$rigHere/magic/AgentsTools.MagicHeartbeat.include"
-rigAssert "the heartbeat calls the spawn proxy"        "$( LC_ALL=C grep -c -- '--intern-op-agent-spawn-proxy' "$rigHeartbeat" )" 1
-sed 's/--intern-op-agent-spawn-proxy/--rig-removed/' "$rigHeartbeat" > "$rigTmp/heartbeat.edited"
-rigAssert "control: the same check on a copy without the call finds none" "$( LC_ALL=C grep -c -- '--intern-op-agent-spawn-proxy' "$rigTmp/heartbeat.edited" )" 0
+rigRelay="$rigHere/magic/AgentsTools.MagicCoordinatorState.include"
+rigAssert "the spawn relay calls the spawn proxy"       "$( LC_ALL=C grep -c -- '--intern-op-agent-spawn-proxy' "$rigRelay" )" 1
+sed 's/--intern-op-agent-spawn-proxy/--rig-removed/' "$rigRelay" > "$rigTmp/relay.edited"
+rigAssert "control: the same check on a copy without the call finds none" "$( LC_ALL=C grep -c -- '--intern-op-agent-spawn-proxy' "$rigTmp/relay.edited" )" 0
 
 echo "-- a served call is attended only from a known interactive client entrypoint --"
 ## A store write is the probe: attended calls may make it, unattended ones never do.
@@ -141,4 +141,4 @@ rigAssert "no request left this box"                   "$( LC_ALL=C awk 'END { p
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ UNATTENDED SCOPE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi
-printf 'HARNESS_UNATTENDED_SCOPE: OK (%d assertions, offline; heartbeat by call site only)\n' "$rigPassCount"
+printf 'HARNESS_UNATTENDED_SCOPE: OK (%d assertions, offline; spawn relay by call site only)\n' "$rigPassCount"

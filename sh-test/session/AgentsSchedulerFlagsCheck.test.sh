@@ -3,8 +3,8 @@
 ## convention with an interpreter, and Dispatcher owns the policy deciding when a run starts, so the flags and the setters are Dispatcher's.
 ## The flags are derived from the settings, the overrides and the clock, never stored (epic 1730); what persists is settings (1731, 1769).
 ## Held, run and not read, with a clock of the rig's own:
-##   1. --current-flags prints worktime, weekend, emergency, overtime and learning, in that order, a line each, `<flag>: yes|no`; with
-##      nothing set, worktime and weekend read `no (not set)` and the others `no`; it writes nothing.
+##   1. --current-flags prints worktime, weekend, holidays, emergency, overtime and learning, in that order, a line each, `<flag>: yes|no`;
+##      with nothing set, worktime and weekend read `no (not set)` and the others `no`; it writes nothing.
 ##   2. The setters keep their value in the settings the epic names (Settled 2026-10-19): --set-country (two or three letters) in
 ##      MDAT_SCHEDULE_COUNTRY, --set-timezone (a zone name of the system) in MDAT_SCHEDULE_TIMEZONE, --set-worktime <start> <until>
 ##      <days-of-week> in MDAT_SCHEDULE_WORKTIME, --set-weekend <days-of-week> in MDAT_SCHEDULE_WEEKEND; a value of another form is refused
@@ -14,7 +14,11 @@
 ##      `workdays` and `weekend` as worktime days need the weekend to be set.
 ##   4. The overrides are settings: emergency is set with a TTL, prolonged by a second call and cleared by --no; learning is on or off and
 ##      takes no TTL; overtime is for outside worktime, ends at the TTL or, with none, when normal worktime starts, and is refused
-##      during worktime; worktime and weekend are derived and have no override; a flag that is none of the five is refused.
+##      during worktime; worktime and weekend are derived and have no override; a flag that is none of the six is refused.
+##   5. holidays (the owner's, 2026-10-20) is an override like emergency and overtime: `--override-flag holidays [<ttl>]`, with a TTL or, with none,
+##      until `--no` clears it, at any hour; it shows in --current-flags with the seconds left. While it holds, worktime reads `no (holiday)`
+##      whatever the hours say; it overrides worktime and nothing else: emergency and overtime stand (an overtime may be set while it holds, and
+##      ends when normal worktime next starts); when it ends or is cleared, worktime is what the clock says.
 ## Offline: a date first on PATH gives the rig's clock; every workspace is a folder of the rig's own.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -88,8 +92,8 @@ rigStore(){ ## -- the settings file of the rig, as its sum
 
 echo "-- 1. --current-flags, nothing set --"
 rigRun "$rigDispatcher" --current-flags
-rigAssert "five lines in the order of the epic, worktime and weekend reading no (not set), the others no" "$rigRc:$( printf '%s' "$rigOut" | tr '\n' '|' )" \
-	"0:worktime: no (not set)|weekend: no (not set)|emergency: no|overtime: no|learning: no"
+rigAssert "six lines in the order of the epic, worktime and weekend reading no (not set), the others no" "$rigRc:$( printf '%s' "$rigOut" | tr '\n' '|' )" \
+	"0:worktime: no (not set)|weekend: no (not set)|holidays: no|emergency: no|overtime: no|learning: no"
 rigBefore="$( rigStore )" ; rigRun "$rigDispatcher" --current-flags
 rigAssert "it writes nothing" "$( rigStore )" "$rigBefore"
 rigRun "$rigDispatcher" --current-flags --everything
@@ -201,9 +205,40 @@ rigAssert "worktime is derived and has no override" "$rigRc" "1"
 rigRun "$rigDispatcher" --override-flag --no weekend
 rigAssert "nor has weekend" "$rigRc" "1"
 rigRun "$rigDispatcher" --override-flag holiday
-rigAssert "a flag that is none of the five is refused" "$rigRc" "1"
+rigAssert "a flag that is none of the six is refused" "$rigRc" "1"
 rigRun "$rigDispatcher" --override-flag
 rigAssert "no flag is refused" "$rigRc" "1"
+
+echo "-- 5. holidays --"
+rigAt "$rigMon13"
+rigAssert "Monday 13:00, nothing set: worktime, and the holidays flag no" "$( rigFlag worktime )|$( rigFlag holidays )" "worktime: yes|holidays: no"
+rigRun "$rigDispatcher" --override-flag holidays
+rigAssert "--override-flag holidays with no TTL: yes, until cleared, kept as a setting; worktime is off whatever the hours say" "$rigRc:$rigOut:$( rigSetting MDAT_SCHEDULE_HOLIDAYS ):$( rigFlag worktime )|$( rigFlag holidays )" "0:holidays: yes:on:worktime: no (holiday)|holidays: yes"
+rigAt "$rigTueStart"
+rigAssert "it holds the next day too, at the hours of worktime" "$( rigFlag worktime )|$( rigFlag holidays )" "worktime: no (holiday)|holidays: yes"
+rigRun "$rigDispatcher" --override-flag --no holidays
+rigAssert "--no clears it: worktime is what the clock says, the setting gone" "$rigRc:$( rigFlag worktime )|$( rigFlag holidays ):$( rigSetting MDAT_SCHEDULE_HOLIDAYS )" "0:worktime: yes|holidays: no:-"
+rigAt "$rigMon13"
+rigRun "$rigDispatcher" --override-flag holidays 3600
+rigAssert "with a TTL: yes with the seconds left, kept as the end instant" "$rigRc:$rigOut:$( rigSetting MDAT_SCHEDULE_HOLIDAYS )" "0:holidays: yes (3600 seconds left):until $(( rigMon13 + 3600 ))"
+rigAt $(( rigMon13 + 1800 ))
+rigAssert "the seconds follow the clock, and worktime is off" "$( rigFlag holidays )|$( rigFlag worktime )" "holidays: yes (1800 seconds left)|worktime: no (holiday)"
+rigAt $(( rigMon13 + 3601 ))
+rigAssert "past its end it is over: worktime is back" "$( rigFlag holidays )|$( rigFlag worktime )" "holidays: no|worktime: yes"
+rigRun "$rigDispatcher" --override-flag holidays 0
+rigAssert "a TTL is whole seconds, 1 or more: 0 is refused" "$rigRc" "1"
+rigRun "$rigDispatcher" --override-flag --no holidays 60
+rigAssert "--no takes no TTL" "$rigRc" "1"
+rigAt "$rigMon13"
+rigRun "$rigDispatcher" --override-flag holidays
+rigRun "$rigDispatcher" --override-flag emergency 3600
+rigRun "$rigDispatcher" --override-flag overtime
+rigAssert "it overrides worktime and not emergency or overtime: an overtime is allowed (worktime is off) and ends when worktime next starts; the emergency stands" "$( rigFlag emergency ):$( rigFlag overtime ):$( rigFlag worktime )" "emergency: yes (3600 seconds left):overtime: yes ($(( rigTueStart - rigMon13 )) seconds left):worktime: no (holiday)"
+rigRun "$rigDispatcher" --override-flag --no overtime
+rigRun "$rigDispatcher" --override-flag --no emergency
+rigRun "$rigDispatcher" --override-flag --no holidays
+rigRun "$rigDispatcher" --set-holidays 2026-12-25
+rigAssert "there is no setter for holidays: it is an override, not a list of dates" "$rigRc:$( rigFlag holidays )" "1:holidays: no"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SCHEDULER FLAGS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

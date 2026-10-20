@@ -103,16 +103,10 @@ systems|confluence|CONFLUENCE_*|{words}|configuration|A setting of this outside 
 systems|trello|TRELLO_*|{words}|configuration|A setting of this outside system as the scope named as its source holds it, with its value. A credential shows its first quarter and the rest masked. The settings of a scope are changed in its Scope Settings.
 systems|google|GOOGLE_*|{words}|configuration|A setting of this outside system as the scope named as its source holds it, with its value. A credential shows its first quarter and the rest masked. The settings of a scope are changed in its Scope Settings.
 systems|*|*|Scope {name}|configuration|Whether this scope holds the settings of this system, with the keys it still lacks. Its settings stand under it, each with its value.
-loop|||Main Loop And Heartbeat||
+loop|||Main Loop||
 loop|main-loop||Main Loop State||
-loop|heartbeat||Heartbeat State||
 loop|main-loop|state-file|Main Loop State File|configuration|The file the main loop leaves after every iteration. It says how the last one ended and when.
 loop|main-loop|MAIN_LOOP_*|{words}|configuration|What the last iteration of the main loop left in its state file. The loop writes it, and nothing reads a change made by hand.
-loop|heartbeat|state-note|Heartbeat State Note|configuration|The note the heartbeat keeps in the team data, with its lock.
-loop|heartbeat|state|Heartbeat State|configuration|The state the heartbeat wrote into its note at its last turn.
-loop|heartbeat|recheck-date|Heartbeat Recheck Date|configuration|The date until which the lock of the heartbeat holds. The heartbeat moves it at every turn.
-loop|heartbeat|last-iteration-timestamp|Heartbeat Last Iteration|configuration|When the heartbeat last finished a turn of its own.
-loop|heartbeat|running|Heartbeat Running|configuration|Whether the heartbeat runs now: its note says so and its lock is still held.
 scopes|||Scope Settings||
 scopes|*||{name}||
 scopes|*|*|{words}|configuration|A setting of this scope, saved in its own settings file. The owner setup saves it, and a credential among them shows its first quarter and masks the rest.
@@ -500,15 +494,11 @@ AgentsToolsManagerConfigSystems(){
 	return 0
 }
 
-## THE MAIN LOOP AND THE HEARTBEAT, by what the tooling keeps of each. The main loop leaves
-## its state file after every iteration, which says how the last one ended and when; no file
-## says that a loop runs now, so none is said here. The heartbeat keeps its note in the team
-## data, with its lock: it runs while the note reads heartbeat-running and its recheck date
-## is not yet a minute past, which is what the lock operations take for a held lock.
+## THE MAIN LOOP, by what the tooling keeps of it. The main loop leaves its state file after
+## every iteration, which says how the last one ended and when; no file says that a loop runs
+## now, so none is said here.
 AgentsToolsManagerConfigLoop(){
-	local loopFile="${MMDAPP%/}/.local/agents/main-loop.state" loopLine loopKey
-	local loopNote="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T155000Z-heartbeat-state-and-lock.md"
-	local loopState="" loopRecheck="" loopEpoch="" loopRuns="no"
+	local loopFile="${MMDAPP%/}/.local/agents/main-loop.state" loopLine
 	## Only a team rig runs the main loop: in any other mode nothing of it is said.
 	case "$( AgentsToolsManagerConfigMode )" in "team-rig "*) ;; *) return 0 ;; esac
 	if [ -f "$loopFile" ] && [ -r "$loopFile" ] ; then
@@ -521,34 +511,6 @@ AgentsToolsManagerConfigLoop(){
 		done < "$loopFile"
 	else
 		AgentsToolsManagerConfigLine loop main-loop state-file missing "$loopFile"
-	fi
-	if [ -f "$loopNote" ] && [ -r "$loopNote" ] ; then
-		AgentsToolsManagerConfigLine loop heartbeat state-note set "$loopNote"
-		while IFS= read -r loopLine ; do
-			loopKey="${loopLine%%: *}"
-			loopLine="${loopLine#"$loopKey": }"
-			[ "$loopKey" != "state" ] || loopState="$loopLine"
-			[ "$loopKey" != "recheck-date" ] || loopRecheck="$loopLine"
-			if [ -n "$loopLine" ] ; then
-				AgentsToolsManagerConfigLine loop heartbeat "$loopKey" set "$loopLine"
-			else
-				AgentsToolsManagerConfigLine loop heartbeat "$loopKey" missing ""
-			fi
-		done <<< "$( LC_ALL=C awk -v headers="state"$'\034'"recheck-date"$'\034'"last-iteration-timestamp" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$loopNote" 2> /dev/null )"
-		if [ "$loopState" = "heartbeat-running" ] && [ -n "$loopRecheck" ] ; then
-			loopEpoch="$( printf '%s\n' "$loopRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || loopEpoch=""
-			case "$loopEpoch" in
-				''|*[!0123456789]*) ;;
-				*) [ "$(( $( date +%s ) - loopEpoch ))" -ge 60 ] || loopRuns="yes" ;;
-			esac
-		fi
-	else
-		AgentsToolsManagerConfigLine loop heartbeat state-note missing "$loopNote"
-	fi
-	if [ "$loopRuns" = "yes" ] ; then
-		AgentsToolsManagerConfigLine loop heartbeat running set yes
-	else
-		AgentsToolsManagerConfigLine loop heartbeat running missing no
 	fi
 	return 0
 }

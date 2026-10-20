@@ -987,7 +987,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `parent-spawn-id`. `receiptId` is a different id (the audit log, `RECEIPT_ID=`), named
   `spawn-proxy-<UTC stamp>-<pid>-<first eight of the spawn id>`; its dispatch item is
   `dispatch-<UTC stamp>-spawn-proxy-<pid>-<first eight>.md`. Older names end at the pid.
-- **`--description`** (agent-spawn-proxy, `--magic-spawn-session`, `--magic-heartbeat-spawn-proxy`): the
+- **`--description`** (agent-spawn-proxy, `--magic-spawn-session`, `--magic-spawn-proxy`): the
   spawner's own words for what the spawn is for, redacted and bounded (`AgentsToolsTaskTextKept`). On
   agent-spawn-proxy, kept as `description:` on both the dispatch item it creates and its own spawn
   record, only when given; `--session-name-or-comment` is kept the same way, as `session-comment:` on
@@ -1019,7 +1019,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   read); `conversation.md` for a spawn continuing a thread (newest 50 per thread,
   `MDAT_CONVERSATION_HISTORY_MAX`). It is made read-only by file mode, because a verb-less access flag
   grants it for writing. Credentials are never copied. Emptied on every close path.
-- **Sandbox sweep**: each main-loop iteration and heartbeat close empties `input/` of sandboxes on this
+- **Sandbox sweep**: each main-loop iteration empties `input/` of sandboxes on this
   host with no live process, asking the one alive-by-one-rule check every reader now shares (see
   "A run is alive by one rule only" below). Never touched: another host, a running session, no record,
   or a record under 10 minutes old.
@@ -1238,14 +1238,36 @@ contracts are here.
   stdin closed. Any case it cannot read is `SKIP`. A new CLI's probe is a branch in the arm's `case`.
 - **Everything the loop says goes to stderr**, the readiness report included.
 - **Each iteration**: team-data sync (when `TEAM_DATA_GIT_REMOTE` is set), children index rebuild,
-  pending-reply collect and remind, the check of the control threads
+  the board's housekeeping (below), pending-reply collect and remind, the check of the control threads
   (`AgentsToolsSessionControlCheckWorkspace`, one stderr line when it started any, logged and never
   fatal), the source collector, then the configuration check and, when it passed, the schedule's steps
-  (autorun, work duty, advance, learning). The loop starts no agent of its own: what the schedule
-  declares is started through the spawner. Backoff starts at `MAIN_LOOP_RESTART_DELAY_SECONDS` (default 29),
+  (autorun, work duty, learning). The loop starts no agent of its own: what the schedule
+  declares is started through the spawner. Nothing starts `magic-coordinator.advance.routine` by itself
+  (`runs-at: none`): a console starts it by hand, and the coordinator's work duty takes its rules.
+- **The board's housekeeping is the loop's, by script** (F3.1, F7.12), at each iteration and before the
+  duty reads the board: what a dead spawn left open is closed (`AgentsToolsAdvanceSpawnHousekeeping`,
+  `AgentsTools.SpawnHousekeeping.include`: a started record whose session is dead, the dispatch item it
+  links, a running dispatch item whose record ended, a review item whose reviewer ended); and both ends of
+  every `blocks`/`blocked-by` edge are made whole, the cycles found and the dependencies reported
+  (`AgentsToolsBoardDependencies`, `AgentsTools.BoardDependencies.include`), once for each change of the
+  board and for none otherwise. It writes only items of the active states; what stays to judgement is
+  named in `process-board-checks.md`'s **board-dependencies**. `--magic-advance-lock-acquire` still calls the
+  first, for a manual start of the routine.
+- **The coordinator's work duty is `magic-coordinator.work-duty.routine`**, which declares
+  `includes: magic-coordinator.advance.routine.md: Steps, Routine's local procedures, Routine's local
+  rules, Routine-specific tooling`: the mix-in engine puts those sections after its own (`--get-routine-text`,
+  the brief and the cached prefix read the same bytes, `AgentsToolsSpawnRoutineMixIncluded`; the file
+  named is part of the checksum of a cached text). The rules stand in the advance routine alone. The
+  duty's scan carries the board for them (`AgentsTools.BoardRoundScan.include`: the digest, the review
+  items, the registries, the rechecks due, the dependencies), and its `wait-sources:` (`inbox:{{team-member}}`
+  for every member's duty, the five active states of the board for the coordinator's) are read at every
+  pass of its wait, so an arrival wakes it within seconds; a recheck-date that falls due changes the scan,
+  read at its TTL. It is started (`AgentsToolsScheduleDemand`) for an inbox item that is no standing
+  state-and-lock note, and for the coordinator also for board news: an item of an active state (not a
+  `dispatch-*` item) written since its duty last ended, or a recheck-date that fell due since. Backoff starts at `MAIN_LOOP_RESTART_DELAY_SECONDS` (default 29),
   doubles on failure, caps at `MAIN_LOOP_RESTART_DELAY_MAX_SECONDS` (default 1200), resets on success. A
   permanent misconfiguration therefore shows as failures then silence, not a loud exit.
-- **The configuration check is a script, no agent**: `--magic-heartbeat-config-check`, run by the iteration
+- **The configuration check is a script, no agent**: `--magic-config-check`, run by the iteration
   after the housekeeping. It runs at most once in 30 minutes while it passes, and in every iteration while
   its last result is a failure (`.local/agents/main-loop.config-check.last`: the answer, then the epoch).
   A FAIL line is said on stderr with its reason; a failed check fails the iteration (the backoff applies)
@@ -1260,8 +1282,8 @@ contracts are here.
   `README.md` gets an empty one from `cloneSync`, once. The store's branch must track its origin.
   `AgentsTeamDataCommitPendingCheck` is its test.
 - **`--intern-root-harness [--routine <selector>] [--non-interactive] [--wait]`**, no member argument.
-  The console no longer runs it; its callers are the main loop and a person by hand.
-  It spawns `--magic-heartbeat-spawn-proxy magic-coordinator`. Interactive (default) loops in its own
+  The console no longer runs it; its caller is a person by hand.
+  It spawns `--magic-spawn-proxy magic-coordinator`. Interactive (default) loops in its own
   thread in `magic-team` and always waits, as the foreground job of its terminal: Ctrl+C reaches the
   proxy, which stops the session and closes it; `--non-interactive` runs one loop and posts to `event-track`, and needs
   `--routine`. The brief is the static `root-harness-session-start.prompt-packet.verbatim.md` with an
@@ -1711,7 +1733,7 @@ contracts are here.
 ## 16. Team data, board and inbox
 
 - **Every tooling writer commits** the paths it wrote through `AgentsToolsTeamDataCommitPaths`
-  (`AgentsTools.TeamDataCommit.include`). A close point (spawn close, heartbeat close, main-loop pass)
+  (`AgentsTools.TeamDataCommit.include`). A close point (spawn close, main-loop iteration)
   pushes through `AgentsToolsTeamDataPushIfAhead` under the `team-data-push` lock: fetch,
   `merge-base --is-ancestor`, merge with `pull.rebase=false`, read back. `AgentsToolsTeamDataDirtyWarning`
   states an uncommitted or ahead store. The store is cloned at dispatch once per process tree
@@ -1766,7 +1788,7 @@ contracts are here.
   item takes those values as `default` ops; a stamped `board-blocked` item whose every `blocked-by` is
   processed, archived or retained moves to pending. Bad entries are reported and skipped; never fatal;
   idempotent. Paths join the approval's commit.
-- **`--intern-op-board-trash`** is the one implementation behind `--magic-heartbeat-board-item-trash`,
+- **`--intern-op-board-trash`** is the one implementation behind
   `--librarian-inbox-item-trash` and `--member-inbox-item-trash` (wrappers pass `--context`). Subject
   `- <invoked op>, <member>`. Without `.git` it creates `trash/`, tests `[ -e ]` before `mv`, and
   `touch`es the item so its trash clock starts now. With `.git` it deletes and commits.
@@ -1848,8 +1870,8 @@ contracts are here.
   `AgentsTools.RoutineLock.include`), before the input scan, and gives it back once the last run of the
   session has ended (`AgentsToolsRoutineLockRelease`, called where a run's record closes), a receipt in
   the document first. A participant never locks or unlocks. A lock reads as held for 120 minutes
-  (`AgentsToolsRoutineLockMinutes`; the heartbeat's 15) without a state write. The five standing notes of
-  advance, daily, grooming, heartbeat and retro must exist; any other locking document is made by the
+  (`AgentsToolsRoutineLockMinutes`) without a state write. The four standing notes of
+  advance, daily, grooming and retro must exist; any other locking document is made by the
   routine's first start. An inline run (`--routine-run-inline`) takes no lock.
 - **`--update-routine-state` (ThisSession) is the one write of a locked document**
   (`AgentsToolsRoutineSessionStateUpdate`, `AgentsToolsRoutineStateWrite`): any participant of the locked
@@ -1870,20 +1892,21 @@ contracts are here.
   (`LOCK_NOT_PUBLISHED`). `LOCK_CONFLICT` (merge, marker, local edit), `LOCK_STALE` (local commit is not
   head), `LOCK_UNCHECKABLE` (could not answer, or no named branch) all refuse. A push or resync failure at
   unlock warns and still closes.
-- **Heartbeat state and lock share one note.** `--update-routine-state` writes it through
-  `--intern-op-heartbeat-state-upsert`, which takes a whole-record body
-  and splices in seven lock-owned fields read from the target (`type`, `from`, `date`, `owner`, `state`,
-  `recheck-date`, `session-id`), excluding them from the caller's body. It strips `\r`, treats a
-  fence-less body as all body, refuses when both extracted parts are empty from non-empty input, and
-  strips the body's leading blank lines so the separator stays one line. While the state is
-  `heartbeat-running` each write refreshes `recheck-date` to now + 15 min. It stamps
-  `last-iteration-date`/`-timestamp` and keeps `last-test-email-sent`. Only the heartbeat pass writes it,
-  so the read-then-write gap races only itself.
-- **The day rhythm is computed by the tooling.** `--intern-op-heartbeat-input-scan` opens with `branch:`,
-  `today-stage:`, `grooming-today:`. Dates are local (the workday is the human-owner's); lock dates stay
-  UTC; never compare the two. `last-close-date` is stamped by grooming and daily closes. The test report
-  is built from the same functions the scan prints with. The scan lists board item names only, plus
-  `## board counts` computed at scan time.
+- **The state note and its lock share one note.** The coordinator's state note (the file name keeps
+  "heartbeat-state-and-lock"; it holds the standing directives, F7.9) is taken with
+  `--magic-state-note-lock-acquire` and written through `--intern-op-state-note-upsert`, which takes a
+  whole-record body and splices in seven lock-owned fields read from the target (`type`, `from`, `date`,
+  `owner`, `state`, `recheck-date`, `session-id`), excluding them from the caller's body. It strips `\r`,
+  treats a fence-less body as all body, refuses when both extracted parts are empty from non-empty input,
+  and strips the body's leading blank lines so the separator stays one line. While the state is
+  `heartbeat-running` (the stored value of a held lock) each write refreshes `recheck-date` to now + 15
+  min. It stamps `last-iteration-date`/`-timestamp` (the date of the write) and keeps
+  `last-test-email-sent`. No routine locks this note: only the directive writes of the coordinator's
+  surface and the test report write it, so the read-then-write gap races only itself.
+- **`last-close-date`** is stamped by the grooming and daily closes. Dates are local (the workday is the
+  human-owner's); lock dates stay UTC; never compare the two. The test report
+  (`--magic-test-report-send`, by hand or from a console, never scheduled) is built from the board's counts
+  and active items (`AgentsToolsBoardCounts`, `AgentsToolsBoardActiveItems`), which list item names only.
 - **No input scan is an agent's call.** A scan is the operation `--intern-op-<scan>-input-scan`, named by a
   routine's repeatable `input-scan-def: <scan> [--option value ...]` line (`none` alone for no scan) and run
   by the spawner at start, after the lock, in the order written, for the member of the start; the results
@@ -1911,9 +1934,9 @@ contracts are here.
   `--intern-op-advance-input-scan` is a pure read: it changes nothing, posts nothing, and never accepts an
   item.
 - **The input-scan cache** (`AgentsTools.InputScanCache.include`). In a team session,
-  `--intern-op-advance-input-scan` and `--intern-op-heartbeat-input-scan` write their report to
-  `.local/agents/sessions/<MDAT_SESSION_ID>/magic-advance-input-scan.md` and `magic-heartbeat-input-scan.md`
-  and reply with a reference to it, in the form of a kept result. For 300 s by that file's mtime, a further call of the same scan in that session, from
+  `--intern-op-advance-input-scan` writes its report to
+  `.local/agents/sessions/<MDAT_SESSION_ID>/magic-advance-input-scan.md`
+  and replies with a reference to it, in the form of a kept result. For 300 s by that file's mtime, a further call of the same scan in that session, from
   any run, replies with the same file and reads no source. A change in a source does not refresh it.
   With no team session, or a scan that fails, the whole report is printed and nothing is kept.
 - **`--routine-run-inline <routine>` is a routine run in the calling session** (ThisSession,
@@ -2022,7 +2045,7 @@ op's own option arm.
 - **Workspace domain** for `X-Request-Detail`: the member's own `SLACK_WORKSPACE_DOMAIN`, then
   `magic-team`'s (`AgentsToolsResolveSlackWorkspaceDomain`). It is persisted by
   `--intern-op-check-configs <scope> --resolve-slack-workspace-into SLACK_WORKSPACE_DOMAIN` (user token
-  first) on that scope's config-check pass (`--magic-heartbeat-config-check`,
+  first) on that scope's config-check pass (`--magic-config-check`,
   `--client-sweep-config-check`). A member without its own pass gets the team's domain, which is wrong if
   its token is in another workspace: add a pass, never a per-call `auth.test`. The resolved name is not
   persisted into a scope whose Slack settings are themselves read from another workspace
@@ -2071,13 +2094,13 @@ op's own option arm.
   denial, with no cap on attempts (`AgentsTools.OutputStyle.include`). Only the member's own Slack send
   (and only when `MDAT_SEND_FLOOR=hold`) and the member's own email gate on anything; every other caller
   -- the tooling's own sends, a board/inbox write, a spawn brief, a Trello comment, the team roster, the
-  heartbeat state, the sweep state -- passes gating predicates of `none`: measured and recorded, never
+  state note, the sweep state -- passes gating predicates of `none`: measured and recorded, never
   holding a send back.
 - **The checker measures only the writer's own prose** (`AgentsOutputStyleCheck.awk`): a fenced code
   block, an inline code span, a quoted line (`>`/`&gt;`), and a list item that is one bare path, name or
   identifier with no space in it are all left out, since nothing in them can be rewritten by the sender.
-- **Mention cache** `.local/.agents/slack-mention-ids.cache`, keyed by `cksum` of the advance and
-  heartbeat lock notes (so it resets each lock cycle). Rows `member=id=handle=real=display=domain`; the
+- **Mention cache** `.local/.agents/slack-mention-ids.cache`, keyed by `cksum` of the advance lock note
+  and the state note (so it resets each lock cycle). Rows `member=id=handle=real=display=domain`; the
   id stays field 2; `-` for none. Writes are `|| true`. `AgentsToolsCommsSlackMentionFindByName` searches it.
 - **The send reads presentation from `team-members-names.registry` only**
   (`AgentsToolsCommsSlackMemberPresentation`). An external `client-*` send (own user token, or own bot
@@ -2120,7 +2143,7 @@ op's own option arm.
   refused). An empty string is a value. Up to four calls; all fields validated before the first; each
   facet reported `applied|failed|not-requested`; no rollback. The avatar is always its own
   `users.setPhoto` upload (upload wins at the transport and would drop JSON fields) and its path may not
-  contain `;` or `,`. `profile-get` exits 0/3/4/1 by facets read. Not in the heartbeat scope poll list.
+  contain `;` or `,`. `profile-get` exits 0/3/4/1 by facets read. Not in the configuration check's scope list.
 - **Slack profile facts**: a profile is per workspace. Which of `display_name`/`real_name` renders is a
   viewer preference. `display_name` is the `@handle`; never change it to fix rendering. `title` is a
   workspace custom field; where it is not writable, `users.profile.set` answers ok and discards it (test
@@ -2644,7 +2667,7 @@ Each instrument states what it proves and its red recipe in its own header. What
   (`rigControlThreadNotes`, `rigControlThreadsEnd`, called in its `EXIT` trap); the guard for this is in
   `AgentsSessionControlStartCheck`, which fails a check of `sh-test` that names
   `--magic-advance-lock-acquire`, `--intern-main-loop`, `--manager-session-control-start`,
-  `--intern-op-agent-spawn-proxy`, `--magic-heartbeat-spawn-proxy`, `--magic-spawn-session`,
+  `--intern-op-agent-spawn-proxy`, `--magic-spawn-proxy`, `--magic-spawn-session`,
   `--manager-spawn-member`, `--member-review-return`, `--intern-op-review-return` or `--intern-tool
   Agent` outside a comment and does not do so (35 checks carry the fixture). A thread whose rig is
   removed now ends at its own next tick; the fixture still matters, for the time until that tick and for
@@ -2695,7 +2718,7 @@ Each instrument states what it proves and its red recipe in its own header. What
 - **Other offline checks**: `AgentsSlackBlocksLinkifyCheck`, `AgentsSlackBareUrlLinkCheck` (through a real
   send with `check-fixtures/slack-send-identity-check.curl.stub.sh`), `AgentsEmailHtmlPartCheck`
   (build-only), `AgentsSessionContextReadsCheck` (fake Slack and fake `imaplib`), `AgentsSlackRateLimitCheck`,
-  `AgentsHeartbeatDayRhythmCheck`, `AgentsBoardRecheckInCheck`, `AgentsApprovalCascadeCheck`,
+  `AgentsCoordinatorStateNoteCheck`, `AgentsBoardRecheckInCheck`, `AgentsApprovalCascadeCheck`,
   `AgentsGroomingToBacklogApprovalClearCheck`, `AgentsVscodePanelInstallCheck`,
   `AgentsHarnessSkillRangeCheck`, `AgentsHarnessSkillReadCheck`, `AgentsRefusedTargetDecodeCheck`,
   `AgentsHarnessMcpIndexCheck`, `AgentsHarnessSetupIndexCheck`, `AgentsHarnessToolCallsReadCheck`,

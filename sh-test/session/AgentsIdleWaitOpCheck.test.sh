@@ -10,7 +10,8 @@
 ##      spawn (no routine). A native client's run, and a routine of several participants, get a NOTICE, exit 0, no request, and are told
 ##      to Wait, so a loop on the call cannot spin
 ##   4. what it waits on: the floor, and the scans the routine itself declares (`input-scan-def:`), by name, as `scan:` sources; `none`
-##      declares none, an option of a scan is not carried, a scan named twice is named once
+##      declares none, an option of a scan is not carried, a scan named twice is named once; then the sources it declares with `wait-sources:`,
+##      the macro {{team-member}} being the member of the run, a source named twice once
 ##   5. the answer names the checkpoint the run returns to: `opening` where the run holds it, else `armed`, else none
 ##   6. the new dispatch of a rewind: `--from-stdin` keeps the text, whole, for the harness to give as the next input; with no text it is refused
 ## Offline: every path under one temp tree, no model, no network.
@@ -60,6 +61,7 @@ rigRoutine(){ ## short name, kind, executors, invitees, then the lines to add to
 }
 rigRoutine solonone standalone rig-a none 'input-scan-def: none'
 rigRoutine soloquiet standalone rig-a none
+rigRoutine solowait standalone rig-a none 'input-scan-def: work-duty' 'wait-sources: inbox:{{team-member}} board:running board:pending' 'wait-sources: board:running'
 rigRoutine soloduty standalone rig-a none 'input-scan-def: work-duty'
 rigRoutine solomany standalone rig-a none 'input-scan-def: grooming --select-workspace somewhere' 'input-scan-def: work-duty' 'input-scan-def: grooming'
 rigRoutine soloplus standalone rig-a none 'input-scan-def: work-duty' 'allows: executors:--executor-checkpoint-push,executors:--executor-checkpoint-rewind'
@@ -138,6 +140,8 @@ rigBind soloduty ; rigOp --idle-wait --wait-timeout 30
 rigAssert "a timeout is carried, and the answer says what a quiet wait does"            "$( rigRequests ):$( rigIn "$rigOut" '30 seconds' )" "idle 30 scan:work-duty:yes"
 rigBind soloduty ; rigOp --idle-wait --wait-timeout 0
 rigAssert "a timeout of 0 is one: read once and return"                                 "$rigRc:$( rigRequests )" "0:idle 0 scan:work-duty"
+rigBind solowait ; rigOp --idle-wait
+rigAssert "the sources a routine declares are added after its scans: its own inbox by the macro, the board states, none twice" "$( rigRequests ):$( rigIn "$rigOut" 'inbox:rig-a, board:running, board:pending' )" "idle - scan:work-duty inbox:rig-a board:running board:pending:yes"
 rigBind soloplus ; rigOp --executor-checkpoint-push a ; rigOp --idle-wait
 rigAssert "in the order of the calls of the round, after the snapshot asked before it"  "$( rigRequests )" "push a;idle - scan:work-duty"
 rigBind soloduty ; rigOp --executor-checkpoint-push a ; rigOp --idle-wait

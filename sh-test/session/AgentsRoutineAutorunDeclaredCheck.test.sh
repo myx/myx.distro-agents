@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-## Behavioural check on the autorun the day's routines declare (F7.12, the heartbeat retired: the scheduler decides the day rhythm the heartbeat's prose
-## held). Held, with the real routine files, run and not read:
+## Behavioural check on the autorun the day's routines declare (F7.12: the scheduler decides the day rhythm). Held, with the real routine files, run and not read:
 ##   1. THE DECLARATIONS: magic-librarian.morning-review `runs-at: workdays 09:00`; magic-team.grooming `runs-at: workdays 09:00` after the morning review
 ##      (`runs-after: magic-librarian.morning-review`); magic-coordinator.daily `runs-at: workdays 10:00` after the grooming (`runs-after: magic-team.grooming`);
-##      magic-coordinator.retro `runs-at: none`, the retro staying manual as the heartbeat's prose had it.
+##      magic-coordinator.retro `runs-at: none`, the retro staying manual.
 ##   2. THE ROUTINE VALIDATOR takes each of the four with no row.
 ##   3. THE DAY, by the scheduler's own evaluation (--routine-due) over a rig clock, a Monday of the team's zone: before 09:00 nothing is due; at 09:05 the
 ##      morning review is due and the grooming is refused until the review completed that day; once it did, the grooming is due; the daily is not before

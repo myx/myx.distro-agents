@@ -234,8 +234,9 @@ AgentsWireStreamConsume(){
 				## Every prompt token this round, whichever of the three counts it landed in.
 				printf '\n%s\n' "   💾 ${harnessDim}prompt cache -- $usagePrompt prompt tokens this round, cached:${harnessOff} ${harnessValue}${usageRead:-absent}${harnessOff}${harnessDim}, written: ${agentsWireField:-absent}${harnessOff}" >&2
 				## Round 1 says what became of the shared prefix: read from the cache, another session's; written for the next; or neither,
-				## the prefix being under the model's minimum or its markers not honoured.
-				if [ "${harnessRound:-0}" = "1" ] ; then
+				## the prefix being under the model's minimum or its markers not honoured. Round 1 of a leg: the run's first, and the first after each
+				## rewind, restart or wake (harnessLegRound), so the last such line is the cache's figure at the run's last wake (the work-duty's lifetime reads it).
+				if [ "${harnessLegRound:-${harnessRound:-0}}" = "1" ] ; then
 					if [ "${usageRead:-0}" -gt 0 ] 2>/dev/null ; then
 						printf '%s\n' "   💾 ${harnessDim}shared prefix -- round 1 read ${usageRead} tokens from the cache${harnessOff}" >&2
 					elif [ "${agentsWireField:-0}" -gt 0 ] 2>/dev/null ; then

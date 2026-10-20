@@ -111,6 +111,14 @@ def dialogMissing(dialog):
     return None
 
 
+## The default button of a dialog, which Enter presses and which is drawn with the marks: the first, unless it would act and a required input is not there
+## (what it would do is refused), and then the button that cancels. It follows what is typed, both ways.
+def dialogDefaultIndex(dialog):
+    if dialog["buttons"] and dialog["buttons"][0][0] != "cancel" and DIALOG_HANDLERS.get(dialog["name"]) is not None and dialogMissing(dialog) is not None:
+        return next((index for index, (name, label) in enumerate(dialog["buttons"]) if name == "cancel"), 0)
+    return 0
+
+
 ## A button of the open dialog is pressed. "cancel", and any button of a dialog that only
 ## says something, closes it. Any other goes to its handler: what that refuses stays in
 ## the dialog, which stays open; else the dialog closes. While a required input is not
@@ -157,7 +165,7 @@ def dialogKey(state, key):
     elif key == "ENTER" and what == "area":
         control["value"] += "\n"
     elif key == "ENTER" or (key == " " and what == "button"):
-        pressButton(state, dialog["buttons"][index if what == "button" else 0][0])
+        pressButton(state, dialog["buttons"][index if what == "button" else dialogDefaultIndex(dialog)][0])
     elif what == "button" and key in ("LEFT", "RIGHT"):
         dialog["focus"] = len(stops) - len(dialog["buttons"]) + (index + (1 if key == "RIGHT" else -1)) % len(dialog["buttons"])
     elif what in ("input", "area") and key == "BACKSPACE":
@@ -203,7 +211,7 @@ def dialogStatus(dialog):
     digits = [option[0] for option in control["options"] if option[0].isdigit()] if control and control.get("digits") else []
     if digits:
         items.append((digits[0] + "-" + digits[-1] if len(digits) > 1 else digits[0], "Choose"))
-    pressed = dialog["buttons"][index if what == "button" else 0]
+    pressed = dialog["buttons"][index if what == "button" else dialogDefaultIndex(dialog)]
     if what != "area" and (pressed[0] == "cancel" or dialogMissing(dialog) is None):
         ## a button that would act is no default while a required input is not there
         items.append(("ENTER", pressed[1]))
@@ -275,18 +283,16 @@ def areaLines(text, width):
     return lines
 
 
-## The margins of a dialog: its frame (its shadow never counted) stands DIALOG_MARGIN_COLUMNS cells from the terminal at each side and
-## DIALOG_MARGIN_LINES lines from the menu bar above and from the status line under it, at the least. F11.0 asks for two cells and a line more
-## for every modal: a dialog is as big as what it holds and centred, so wherever the terminal holds it with those margins it stands inside them,
-## and where it does not (a terminal too small) its margins are the least ones, never fewer. The big dialog (a command followed to its end)
-## has what it had before F11.0 and the two cells and the line more (DIALOG_BIG_MARGIN_*), whatever the terminal; it grows with the terminal up
-## to DIALOG_BIG_COLUMNS by DIALOG_BIG_LINES.
-DIALOG_MARGIN_COLUMNS = 2
-DIALOG_MARGIN_LINES = 0
-DIALOG_BIG_MARGIN_COLUMNS = DIALOG_MARGIN_COLUMNS + 2
-DIALOG_BIG_MARGIN_LINES = DIALOG_MARGIN_LINES + 1
+## The margins of a dialog (F11.0): its frame (its shadow never counted) stands DIALOG_MARGIN_COLUMNS cells from the terminal at each side and
+## DIALOG_MARGIN_LINES lines from the menu bar above and from the status line under it, wherever the terminal holds the dialog with them. Where it
+## cannot, the dialog has no margin at all and uses the whole desktop, never something in between (dialogPlan). The big dialog (a command followed
+## to its end) is held where the terminal gives it DIALOG_COLUMNS cells and DIALOG_BIG_LEAST_LINES lines inside its margins, and grows with the
+## terminal up to DIALOG_BIG_COLUMNS by DIALOG_BIG_LINES.
+DIALOG_MARGIN_COLUMNS = 4
+DIALOG_MARGIN_LINES = 1
 DIALOG_BIG_COLUMNS = 190
 DIALOG_BIG_LINES = 56
+DIALOG_BIG_LEAST_LINES = 18
 
 
 ## Where a dialog stands on a terminal of that size, and each of its parts in it: its box,
@@ -303,6 +309,16 @@ DIALOG_BIG_LINES = 56
 ## what is cut there scrolls. "long" says that
 ## a text holds more than it shows, and "page" how many lines of it show.
 def dialogPlan(dialog, columns, lines):
+    if DIALOGS.get(dialog["name"], {}).get("big"):
+        ## by the size of the terminal alone: what it holds is thousands of lines, laid out for one width only
+        held = columns - 2 * DIALOG_MARGIN_COLUMNS >= DIALOG_COLUMNS and lines - 2 - 2 * DIALOG_MARGIN_LINES - 2 >= DIALOG_BIG_LEAST_LINES
+        return dialogPlanAt(dialog, columns, lines, DIALOG_MARGIN_COLUMNS if held else 0, DIALOG_MARGIN_LINES if held else 0)
+    held = dialogPlanAt(dialog, columns, lines, DIALOG_MARGIN_COLUMNS, DIALOG_MARGIN_LINES)
+    return held if held["wide"] and held["high"] else dialogPlanAt(dialog, columns, lines, 0, 0)
+
+
+## The plan of a dialog with those margins: and whether it is held in them, wide enough and high enough, as "wide" and "high".
+def dialogPlanAt(dialog, columns, lines, marginColumns, marginLines):
     wanted = max(textWidth(dialog["title"]) + 2, sum(textWidth(label) + 6 for name, label in dialog["buttons"]))
     big = DIALOGS.get(dialog["name"], {}).get("big")
     ## the big dialog is as wide as the terminal whatever it holds: the lines of its text, up to thousands, are not measured at every turn
@@ -314,14 +330,13 @@ def dialogPlan(dialog, columns, lines):
             wanted = max(wanted, 11 + textWidth(paragraph[1]) if isinstance(paragraph, tuple) else textWidth(paragraph))
         for optionId, label in control["options"]:
             wanted = max(wanted, textWidth(label) + 4)
-    ## the margins are kept by every dialog, here and nowhere else
-    marginColumns, marginLines = (DIALOG_BIG_MARGIN_COLUMNS, DIALOG_BIG_MARGIN_LINES) if big else (DIALOG_MARGIN_COLUMNS, DIALOG_MARGIN_LINES)
     maxWidth = columns - 2 * marginColumns
-    width = min(maxWidth, max(40, min(wanted + 2 * DIALOG_SIDE, DIALOG_COLUMNS)))
-    if big:
-        width = min(maxWidth, DIALOG_BIG_COLUMNS)
+    naturalWidth = DIALOG_COLUMNS if big else max(40, min(wanted + 2 * DIALOG_SIDE, DIALOG_COLUMNS))
+    wide = naturalWidth <= maxWidth
+    width = min(maxWidth, DIALOG_BIG_COLUMNS if big else naturalWidth)
     inner = width - 2 * DIALOG_SIDE
     room = lines - 2 - 2 * marginLines - 2
+    high = room >= DIALOG_BIG_LEAST_LINES if big else True
     if big:
         room = min(room, DIALOG_BIG_LINES - 2)
     parts = []
@@ -341,6 +356,7 @@ def dialogPlan(dialog, columns, lines):
         parts[0]["height"] = max(1, room - sum(part["label"] + part["height"] for part in parts[1:]) - parts[0]["label"] - len(parts) - len(says) - foot - lead - tail)
     gap = 1
     over = lead + sum(part["label"] + part["height"] for part in parts) + gap * len(parts) + len(says) + foot + tail - room
+    high = high and (over <= 0 or big)
     if over > 0:
         over -= lead + tail
         lead = tail = 0
@@ -366,7 +382,7 @@ def dialogPlan(dialog, columns, lines):
     return {"box": (left, top, width, height), "inner": inner, "parts": parts, "says": says, "saysLine": line,
             "buttonsLine": top + height - 1 - foot - tail,
             "long": any(part["holds"] > part["height"] for part in texts),
-            "page": texts[0]["height"] if texts else 1}
+            "page": texts[0]["height"] if texts else 1, "wide": wide, "high": high}
 
 
 ## The open dialog, drawn over the screen from its declaration and its plan: its frame
@@ -492,7 +508,9 @@ def drawDialog(surface, state, columns, lines):
     ## under it the ground of its cells (drawGroundShadow).
     ## Buttons that are bars are of one width, each with its shadow, the label in the middle: the
     ## one that has the keys with the marks of the focus inside its ends, the default in its own look.
-    labels = [("[%s%s%s]" % (MARKS["default"][0], label, MARKS["default"][1]) if index == 0 else "[ %s ]" % label)
+    ## There is one default at a time, and Enter presses it (dialogDefaultIndex)
+    defaultIndex = dialogDefaultIndex(dialog)
+    labels = [("[%s%s%s]" % (MARKS["default"][0], label, MARKS["default"][1]) if index == defaultIndex else "[ %s ]" % label)
               for index, (name, label) in enumerate(dialog["buttons"])]
     bars = STYLE.get("buttons") == "bars"
     raised = bars or STYLE.get("buttons") == "raised"
@@ -512,7 +530,7 @@ def drawDialog(surface, state, columns, lines):
         ## a button that would act is greyed while a required input is not there
         off = dialog["buttons"][index][0] != "cancel" and DIALOG_HANDLERS.get(dialog["name"]) is not None and dialogMissing(dialog) is not None
         surface.put(last, column, label, BOX_BUTTON_ON if what == "button" and focusIndex == index else BAR_OFF if off
-                    else BOX_BUTTON_DEF if bars and index == 0 else BOX_BUTTON)
+                    else BOX_BUTTON_DEF if bars and index == defaultIndex else BOX_BUTTON)
         if bars:
             drawSlimShadow(surface, (column, last, textWidth(label), 1), last + 1, left + width - 1, shade)
         elif raised:

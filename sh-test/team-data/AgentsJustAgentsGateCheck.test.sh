@@ -95,14 +95,14 @@ rigOps=""
 rigAssert "the list stands in AgentsTools.TeamDataGate.include, and holds the primitives every item passes" \
 	"$( printf '%s\n' "$rigOps" | LC_ALL=C grep -c -x -e '--intern-op-board-upsert-move-edit' -e '--intern-op-member-inbox-upsert' -e '--intern-op-board-rename' -e '--intern-op-board-trash' -e '--intern-op-item-rename' -e '--intern-op-inbox-to-processed' -e '--intern-team-data-final-gc-deletion' || : )" 7
 rigAssert "and the families of the board's own machinery" \
-	"$( printf '%s\n' "$rigOps" | LC_ALL=C grep -c -x -e '--magic-board-\*' -e '--magic-grooming-\*' -e '--magic-sweep-\*' -e '--magic-heartbeat-\*' -e '--magic-advance-\*' -e '--magic-daily-\*' -e '--magic-retro-\*' -e '--magic-team-data-\*' -e '--intern-main-loop' || : )" 9
+	"$( printf '%s\n' "$rigOps" | LC_ALL=C grep -c -x -e '--magic-board-\*' -e '--magic-grooming-\*' -e '--magic-sweep-\*' -e '--magic-config-check' -e '--magic-spawn-proxy' -e '--magic-test-report-send' -e '--magic-state-note-\*' -e '--intern-op-state-note-upsert' -e '--magic-advance-\*' -e '--magic-daily-\*' -e '--magic-retro-\*' -e '--magic-team-data-\*' -e '--intern-main-loop' || : )" 13
 rigAssert "and the writers of a transcript and of the record of a published artifact" \
 	"$( printf '%s\n' "$rigOps" | LC_ALL=C grep -c -x -e '--member-append-session-transcript' -e '--magic-append-session-transcript' -e '--intern-op-append-session-transcript' -e '--intern-artifact-\*' || : )" 4
 rigMode=just-agents rigModeEnv=""
 while IFS= read -r rigPattern ; do
 	[ -n "$rigPattern" ] || continue
 	rigOp="${rigPattern//\*/rig-probe}" rigOpArg=""
-	case "$rigOp" in --member-*) rigOpArg=rig-member ;; --magic-append-*) rigAs=magic-coordinator ;; esac
+	case "$rigOp" in --member-*) rigOpArg=rig-member ;; --magic-append-*) rigAs=magic-coordinator ;; --magic-spawn-proxy|--magic-test-report-send) rigOpArg=magic-coordinator ;; esac
 	rigFresh ; rigRun "$rigTool" "$rigOp" ${rigOpArg:+"$rigOpArg"} ; rigAs=""
 	rigAssert "$rigOp: refused in a just-agents workspace, before anything is made" "$rigRc:$( rigSaid ):$( rigUntouched )" 1:1:0
 	rigAssert "$rigOp: the refusal is the first thing said, and names the operation" "$( LC_ALL=C grep -c -F -e "$rigOp: this workspace keeps no team data" "$rigTmp/err" || : )" 1

@@ -3,8 +3,8 @@
 
 ##
 ## AgentsTools.ExternalOwnerItems.include -- the items that belong to an owner who is no acting member, the human-owner or an external contact, which
-## have no inbox of their own: their content lives in magic-coordinator's inbox, and the board keeps the items they own (F7.12: what the heartbeat's
-## external-inbox step looked at, now a section of the coordinator's work-duty scan, found by script, with no agent). Sourced, never run. Functions only.
+## have no inbox of their own: their content lives in magic-coordinator's inbox, and the board keeps the items they own (F7.12: a section of the coordinator's work-duty scan,
+## found by script, with no agent). Sourced, never run. Functions only.
 ##
 ## WHERE THEY ARE: the coordinator's incoming/, and the board's active states (backlog, pending, running, review, blocked, parked). An item belongs to
 ## an owner who is no acting member when its `owner:` names none: not a member of the roster, or the human-owner, which is an identity record.

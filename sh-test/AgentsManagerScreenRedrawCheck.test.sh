@@ -21,6 +21,7 @@
 ## by a signal, on a terminal with another screen and on one without, nothing of the screen stays and the cursor
 ## stands at the start of a blank line; a failure is said after the terminal was given back, and stays to be read.
 ## Offline: the only thing the real screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
+## Reconciled for the default button that follows what is typed: a dialog has one default with its marks, the first button or, while the first is greyed, the one that cancels.
 ## Reconciled for F11.5: the team is read at Team Members under Magic-Team (Agents) and the log at the Transcript of a participant of a session (the sessions of the rig hold one run each, read by
 ## `--manager-session-transcript-read --session-id <run> --run`); the steps go there by keys (3, then Enter down the folders, BSP back), the start of the real screen being Magic-Team (Agents).
 set -u
@@ -303,7 +304,7 @@ rigVt narrow "$( printf '%s\n' 'await Magic-Team (Agents)' 'end end' 'left faile
 rigAssert "a failure of the drawing, without another screen: what it says stands alone on the terminal once it was given back" \
 	"$( rigVal end.rc ) $( rigVal failed.first | LC_ALL=C grep -c -F 'the screen failed, and the terminal was given back first: RuntimeError' )" "1 1"
 
-echo "-- every dialog: the button that has the keys is the only one in its look, and the default keeps its marks --"
+echo "-- every dialog: the button that has the keys is the only one in its look, and the one default keeps its marks --"
 rigDialogs="$( "$rigPython" -I -B - "$rigScreen" <<'RIGDIALOGS'
 import importlib.util, sys
 spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
@@ -327,15 +328,16 @@ rigButtons="$( printf '%s\n' "$rigOut" | LC_ALL=C awk '
 	/^d[0-9]+\.[0-9]+\.button\./ { split($0, kv, "=") ; split(kv[1], key, ".") ; tag = key[1] "." key[2] ; text = kv[2] ; sub(/@[0-9,]*$/, "", text) ; looks = kv[2] ; sub(/^.*@/, "", looks)
 		button[tag, key[4]] = looks ; buttons[tag] = buttons[tag] " " key[4] ; dialogs[key[1]] = 1
 		if ( ( key[1], key[4] ) in texts && texts[key[1], key[4]] != text ) { moved++ } ; texts[key[1], key[4]] = text
-		if ( key[4] == 0 && text !~ /»/ ) { unmarked++ } ; if ( key[4] != 0 && text ~ /»/ ) { marked++ } }
+		if ( text ~ /»/ ) { marks[tag]++ } ; tagged[tag] = 1 }
 	/^d[0-9]+\.[0-9]+\.focus=/ { split($0, kv, "=") ; split(kv[1], key, ".") ; focus[key[1] "." key[2]] = kv[2] }
 	END {
+		for ( tag in tagged ) { if ( marks[tag] + 0 == 0 ) { unmarked++ } ; if ( marks[tag] + 0 > 1 ) { marked++ } }
 		for ( tag in buttons ) { if ( focus[tag] != "None" ) { focused[button[tag, focus[tag]]] = 1 ; split(tag, part, ".") ; reached[part[1]] = 1 } }
 		for ( tag in buttons ) { n = split(buttons[tag], list, " ") ; for ( i = 1 ; i <= n ; i++ ) { if ( list[i] != focus[tag] && ( button[tag, list[i]] in focused ) ) { lookalike++ } } }
 		looks = 0 ; for ( one in focused ) { looks++ }
 		count = 0 ; for ( one in dialogs ) { count++ } ; steps = 0 ; for ( one in reached ) { steps++ }
 		print count " dialogs, " steps " with the keys on a button at a step, " looks " look of the keys, " ( lookalike + 0 ) " other buttons in it, " ( moved + 0 ) " moved, " ( unmarked + 0 ) " defaults unmarked, " ( marked + 0 ) " others marked" }' )"
-rigAssert "in each of the dialogs, Tab after Tab: one look of the keys, worn by the button that has them and no other; no button moves; the first has its marks and no other" \
+rigAssert "in each of the dialogs, Tab after Tab: one look of the keys, worn by the button that has them and no other; no button moves; one default has its marks and no other (the first button, or the one that cancels while the first is greyed for a required input)" \
 	"$rigButtons" "$rigDialogs dialogs, $rigDialogs with the keys on a button at a step, 1 look of the keys, 0 other buttons in it, 0 moved, 0 defaults unmarked, 0 others marked"
 rigAssert "and nothing of them stays when the last has closed" "$( rigClean )" "none"
 

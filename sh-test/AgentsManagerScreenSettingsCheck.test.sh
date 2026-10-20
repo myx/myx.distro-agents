@@ -100,10 +100,9 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 	rigKeyOf systems email EMAIL_IMAP_HOST set imap.rig.example Email_IMAP_Host magic-coordinator
 	rigConf systems confluence magic-team missing CONFLUENCE_SPACE
 	rigConf systems jira - missing -
-	rigRow subject loop 3
+	rigRow subject loop 2
 	rigConf loop main-loop MAIN_LOOP_LAST_OUTCOME set failed
-	rigConf loop heartbeat recheck-date set 2026-10-09_04:28_+0000
-	rigConf loop heartbeat running set no
+	rigConf loop main-loop MAIN_LOOP_LAST_ITERATION_UTC set 2026-10-09_04:28_+0000
 	rigRow subject longone 44
 	rigConf longone magic-coordinator EMAIL_USER set coordinator@rig.example
 	rigConf longone magic-coordinator SLACK_BOT_TOKEN secret-set -
@@ -216,7 +215,7 @@ advance 11
 wait list 30
 get twice
 RIGSCRIPT
-rigAssert "a root not entered: the digest is read once the selection has rested on its row, and the left window then holds what the root holds" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "configuration [] 31"
+rigAssert "a root not entered: the digest is read once the selection has rested on its row, and the left window then holds what the root holds" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "configuration [] 30"
 rigAssert "entering it afterwards asks for nothing more: the one read of the digest was made for the row" "$( rigVal asked.path ) [$( rigVal asked.reading )]" "configuration []"
 rigAssert "its two folders and then its subjects are listed under the row that goes up, the subjects in the order of the operation, each a row that is entered" "[$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row2 | sed 's/  *$//' )][$( rigVal row3 | sed 's/  *$//' )][$( rigVal row4 | sed 's/  *$//' )][$( rigVal row5 | sed 's/  *$//' )][$( rigVal rowD | sed 's/  *$//' )][$( rigVal row9 | sed 's/  *$//' )][$( rigVal row10 | sed 's/  *$//' )][$( rigVal row11 | sed 's/  *$//' )]" "[Configuration] 12 [>..][ Config Checker                  ►][ Server Keys                     ►][ Git Settings                    ►][ Installed Subsystems            ►][ Diagnostics                     ►][ loop                            ►][ longone               2 missing ►][ Console Behaviour               ►]"
 rigAssert "a subject with missing lines carries their count at the end of its row" "[$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )]" \
@@ -269,8 +268,8 @@ rigAssert "systems, all values shown (F11.7): under the scope that holds them st
 rigAssert "a credential of a system reads as its one form, nothing beside it (F11.7: an outside system says no more of it; a CLI's keeps its assessment); of its value the screen shows what the operation printed and no more" "[$( rigPane s 19 | LC_ALL=C tr -s ' ' )] $( rigScreenHolds s 'Ep1kF' ) $( rigScreenHolds s 'RIGSECRET' ) $( rigScreenHolds s '(configured)' )" \
 	"[ Email App Password Ep1kF************ magic-coordinator EMAIL_APP_PASSWORD] 1 0 0"
 rigAssert "a scope that misses a key, and a system no scope holds: the first lines, each with its system" "[$( rigPane s 4 | LC_ALL=C tr -s ' ' )][$( rigPane s 5 | LC_ALL=C tr -s ' ' )][$( rigPane s 7 | LC_ALL=C tr -s ' ' )]" "[ missing, first][ magic-team missing: CONFLUENCE_SPACE - in confluence][ no scope missing - in jira]"
-rigAssert "loop: no line is missing, and a date reads with its spaces" "$( rigVal l.selected ) [$( rigPane l 4 | LC_ALL=C tr -s ' ' )][$( rigPane l 5 | LC_ALL=C tr -s ' ' )][$( rigPane l 6 | LC_ALL=C tr -s ' ' )][$( rigPane l 7 | LC_ALL=C tr -s ' ' )][$( rigPane l 9 | LC_ALL=C tr -s ' ' )]" \
-	"loop [ main-loop][ MAIN_LOOP_LAST_OUTCOME failed][ heartbeat][ recheck-date 2026-10-09 04:28 +0000][ running no]"
+rigAssert "loop: no line is missing, and a date reads with its spaces" "$( rigVal l.selected ) [$( rigPane l 5 | LC_ALL=C tr -s ' ' )][$( rigPane l 7 | LC_ALL=C tr -s ' ' )]" \
+	"loop [ MAIN_LOOP_LAST_OUTCOME failed][ MAIN_LOOP_LAST_ITERATION_UTC 2026-10-09 04:28 +0000]"
 
 echo "-- a subject longer than the pane scrolls with the focus on the left pane --"
 rigCase scroll
@@ -530,7 +529,7 @@ keys ENTER
 turn
 get dlg
 box nbox
-keys BACKSPACE ENTER
+keys BACKSPACE TAB ENTER
 get empty
 keys 9 9 ENTER
 get high

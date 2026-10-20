@@ -6,6 +6,7 @@ allows: magic-librarian:skillset-upsert
 requires-session-kind: standalone
 routine-lock-document: inbox:{{team-member}}:note-20261020T000000Z-work-duty-state-and-lock.md
 input-scan-def: work-duty --session-id {{session-id}}
+wait-sources: inbox:{{team-member}}
 reports-to: none
 review-by: none
 cache-prefix: routine
@@ -15,7 +16,7 @@ runs-at: none
 
 # Summary
 
-A member's duty session: it works what its work-duty scan found, then waits for the next, until it is dismissed. The tooling starts it for a member when the schedule's flags allow and the member has something to work on, and has it dismissed at its next idle point when they stop allowing (`DistroAgentsDispatcher.fn.sh --current-flags`).
+A member's duty session: it works what its work-duty scan found, then waits for the next, until it is dismissed. The tooling starts it for a member when the schedule's flags allow and the member has something to work on, and has it dismissed at its next idle point when they stop allowing (`DistroAgentsDispatcher.fn.sh --current-flags`). It wakes within seconds of an item arriving in the member's inbox.
 
 # Opening steps
 

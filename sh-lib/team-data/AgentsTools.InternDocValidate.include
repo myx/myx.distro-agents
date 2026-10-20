@@ -83,7 +83,7 @@ AgentsToolsDocValidateRunsAfter(){ ## routine file, file as shown, its runs-afte
 AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	local routineFile="$1" routineShown="$2" routineFirst="" routineType routineKeyName routineVerdict routineWhy routineRows routineHeading routineLine
 	local routineKindPath routineEffective routineEffectiveLine routineLockValue routineLockOne routineScanValue routineScanWhy routineScanOne routineScanAt routineScanCount
-	local routineRunsAt routineRunsDays routineRunsTime routineRunsOk routineRunsAfter routineCachePrefix
+	local routineRunsAt routineRunsDays routineRunsTime routineRunsOk routineRunsAfter routineCachePrefix routineIncName routineIncSection routineIncFile routineIncWord
 	local routineAllowsValue routineAllowsEntry routineAllowsTool routineAllowsNamed="" routineAllowsExecutors routineAllowsInvitees
 	IFS= read -r routineFirst < "$routineFile" 2> /dev/null || :
 	if [ "$routineFirst" != "---" ] ; then
@@ -115,6 +115,33 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 		''|armed|routine) ;;
 		*) AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" cache-prefix )" cache-prefix "cache-prefix: $routineCachePrefix is not armed or routine" ;;
 	esac
+	## The sections of another routine this one takes in whole (`includes: <routine file name>: <section>, <section>`, one line for each routine): the mix-in
+	## engine puts them into the text where it is read (AgentsToolsSpawnRoutineMixIncluded). The routine must be one file of the skillset, the section one of
+	## the Steps, the local procedures, the local rules or the tooling block, and the routine must hold it.
+	while IFS=$'\t' read -r routineIncName routineIncSection ; do
+		[ -n "$routineIncName" ] || continue
+		case "$routineIncSection" in
+			"Steps"|"Routine's local procedures"|"Routine's local rules"|"Routine-specific tooling") ;;
+			*) AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" includes )" includes "includes: $routineIncSection is none of Steps, Routine's local procedures, Routine's local rules, Routine-specific tooling"
+				continue ;;
+		esac
+		routineIncFile="$( AgentsToolsSpawnRoutineResolve "$routineIncName" 2> /dev/null )" || routineIncFile=""
+		if [ -z "$routineIncFile" ] || [ ! -f "$routineIncFile" ] ; then
+			AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" includes )" includes "includes: $routineIncName names no one routine"
+		elif ! LC_ALL=C grep -q -x -F -- "# $routineIncSection" "$routineIncFile" ; then
+			AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" includes )" includes "includes: $routineIncName has no section $routineIncSection"
+		fi
+	done <<< "$( AgentsToolsSpawnRoutineIncludes "$routineFile" )"
+	## The sources a run of the routine waits on besides its scans (`wait-sources: <source> ...`, read by --idle-wait): `inbox:{{team-member}}`, the own inbox, and
+	## `board:<state>`, one state of the board.
+	while IFS= read -r routineIncSection ; do
+		for routineIncWord in $routineIncSection ; do
+			case "$routineIncWord" in
+				"inbox:{{team-member}}"|board:backlog|board:pending|board:running|board:review|board:blocked|board:parked|board:processed|board:archived|board:retained) ;;
+				*) AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" wait-sources )" wait-sources "wait-sources: $routineIncWord is none of inbox:{{team-member}} and board:<state>" ;;
+			esac
+		done
+	done <<< "$( AgentsToolsRoutineKeyLinesOwn "$routineFile" wait-sources )"
 	## The checkpoint operations (F10.5): `allows:` may name --executor-checkpoint-push, --executor-checkpoint-rewind and
 	## --executor-checkpoint-exit (`<who>:<operation>`), and no other operation of the --executor- family. A routine that names one is a
 	## single-participant routine: its kind is standalone, it has one executor and no invitee. A rewind returns ONE member's conversation,

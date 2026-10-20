@@ -35,7 +35,7 @@ review-by: inherit
 ## Goals
 
 - Notice and act on incoming communication on every live platform, without missing anything and without manufacturing work.
-- Stay cheap enough to run every main-loop iteration.
+- Stay cheap enough to run at each round of the advance rules.
 
 ## Scope
 

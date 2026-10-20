@@ -11,6 +11,8 @@
 ## and it reads the rows the console's list reads. Scheduling is a convention (a routine's runs-at and runs-after, a few settings) and this the
 ## interpreter of it, not a tool family.
 ##
+## From DistroAgentsTools.fn.sh (F1.4, first stage): --shutdown-runs, --spawn-prompt, --spawn-session. They go on under their old names (sh-lib/harness/AgentsContext.FrontForward.include).
+##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
 ##
@@ -46,6 +48,12 @@ DistroAgentsDispatcherSchedule(){
 
 DistroAgentsDispatcher(){
 	local MDSC_CMD='DistroAgentsDispatcher'
+	## F1.4, first stage: an operation that came here under a new name goes on under its old one (sh-lib/harness/AgentsContext.FrontForward.include).
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontForward.include"
+	if AgentsToolsFrontKnows DistroAgentsDispatcher "$@" ; then
+		AgentsToolsFrontForward DistroAgentsDispatcher "$@"
+		return $?
+	fi
 	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,
 	## and the call is made again under what they resolve (sh-lib/common/AgentsTools.CommonOptions.include).
 	case "${agentsCommonFronted:-}:${2:-}" in
@@ -93,7 +101,7 @@ DistroAgentsDispatcher(){
 			return $?
 		;;
 
-		## The flags of the schedule now, derived from the settings and the clock: worktime, weekend, emergency, overtime and
+		## The flags of the schedule now, derived from the settings and the clock: worktime, weekend, holidays, emergency, overtime and
 		## learning, a line each, `<flag>: yes|no`. Read-only.
 		--current-flags)
 			local flagsOp="$1"
@@ -103,7 +111,7 @@ DistroAgentsDispatcher(){
 			return $?
 		;;
 
-		## An override of a flag: [--no] <flag> [<ttl>], the flag emergency (with a TTL), overtime or learning.
+		## An override of a flag: [--no] <flag> [<ttl>], the flag emergency (with a TTL), overtime, holidays (with a TTL, or until cleared) or learning.
 		--override-flag)
 			local overrideOp="$1"
 			shift

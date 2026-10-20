@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on --manager-config-digest [<subject>...], the digest of the settings of a workspace as they
 ## are, run rather than read, against a rig workspace built here: its own scope files, its own registered place,
-## its own team data with a heartbeat note, its own main loop state, and a PATH of its own on which, of the vendor
+## its own team data, its own main loop state, and a PATH of its own on which, of the vendor
 ## binaries, only the rig's `copilot` stands. EVERY CREDENTIAL OF THE RIG IS A FAKE VALUE THIS CHECK KNOWS, each with
 ## six letters of its own at its head and at its tail and the mark RIGSECRET between them.
 ## Held: the nine subjects in their one order, each a `subject` row with the count of the `line` rows after it;
@@ -9,8 +9,7 @@
 ## the CLI service the workspace asks for, each vendor CLI with whether its binary is present (a harness leg lies in
 ## sh-lib and has no such line, the owner: "remove `present` - it is always present it is in sh-lib"), the credentials a harness leg
 ## reads as set or not, whether it is usable, and its wait round; the outside systems, each scope that holds one as
-## configured or not, with what it lacks by key name; the main loop by its state file and the heartbeat by its
-## note, running only while its lock is held; the scopes that hold a key, a scope with none left out, each key with
+## configured or not, with what it lacks by key name; the main loop by its state file; the scopes that hold a key, a scope with none left out, each key with
 ## its value. A CREDENTIAL IS PRINTED IN ONE FORM (F11.8): a key the catalogue marks secret, an outside system's
 ## among them, and a credential a harness leg reads, read secret-set with the first quarter of the value, 4 to 20
 ## characters, and a `*` for each character after it; a key that is none of those shows its value, whatever its name,
@@ -51,7 +50,6 @@ trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills"
 rigScopes="$rigWs/.local/.agents" ; rigAgents="$rigWs/.local/agents"
 rigData="$rigAgents/team-data-root"
-rigNote="$rigData/inboxes/magic-coordinator/incoming/note-20260809T155000Z-heartbeat-state-and-lock.md"
 mkdir -p "$rigTmp/bin" "$rigScopes" "$rigAgents" "$rigData/inboxes/magic-coordinator/incoming" "$rigHome" "$rigSkills" "$rigTmp/docs"
 rigTab="$( printf '\t' )"
 rigOrigin="${MDLT_ORIGIN%/}"
@@ -155,8 +153,7 @@ chmod 770 "$rigScopes" ; chmod 660 "$rigScopes"/*.agent.env
 	printf 'ws\tworkspace\tread-write\t%s\tworkspace\n' "$rigWs"
 	printf 'docs\tdirectory\tread-only\t%s\towner\n' "$rigTmp/docs"
 } > "$rigAgents/directories.registry"
-## The main loop's state, as its last iteration left it, and the heartbeat's note with its lock held: a
-## recheck date far ahead.
+## The main loop's state, as its last iteration left it.
 {
 	printf 'MAIN_LOOP_LAST_OUTCOME=succeeded\n'
 	printf 'MAIN_LOOP_LAST_ITERATION_UTC=2026-10-13T00:10:00Z\n'
@@ -165,10 +162,6 @@ chmod 770 "$rigScopes" ; chmod 660 "$rigScopes"/*.agent.env
 	printf 'MAIN_LOOP_TEAM_DATA=skipped\n'
 	printf 'MAIN_LOOP_TEAM_DATA_CONSECUTIVE_FAILURES=0\n'
 } > "$rigAgents/main-loop.state"
-rigNoteWrite(){ ## state, recheck-date
-	printf -- '---\ntype: note\nfrom: magic-coordinator\nowner: magic-coordinator\nrecheck-date: %s\nstate: %s\nsession-id: main-loop\nlast-iteration-timestamp: 2026-10-12T19:54:21Z\n---\n\nstate: a line of the body\n' "$2" "$1" > "$rigNote"
-}
-rigNoteWrite heartbeat-running '2099-01-01 00:00 +0000'
 mkdir -p "$rigTmp/ws-bare/.local/.agents"
 rigTreeBefore="$( rigTree )"
 
@@ -318,10 +311,10 @@ rigAssert "control: those are the outside systems the tooling knows, in its own 
 rigRunIn "$rigTmp/ws-bare" "$rigOp" systems
 rigAssert "in a workspace with no setting each system reads missing: the team's Slack with every key of the catalogue, a system no catalogue names under no scope" "$rigRc $( rigLine systems slack magic-team ) / $( rigLine systems email - ) / $( rigLine systems trello - )" "0 missing SLACK_BOT_TOKEN,SLACK_WORKSPACE_DOMAIN,SLACK_CHANNEL_MAGIC_TEAM,SLACK_CHANNEL_HUMAN_OWNER,SLACK_CHANNEL_EVENT_TRACK,SLACK_CHANNEL_EVENT_ALERT / missing - / missing -"
 
-echo "-- 7. the main loop and the heartbeat --"
+echo "-- 7. the main loop --"
 rigRun "$rigOp" loop
 rigWant="$( {
-	printf 'subject\tloop\t12\tMain_Loop_And_Heartbeat\n'
+	printf 'subject\tloop\t7\tMain_Loop\n'
 	printf 'line\tloop\tmain-loop\tstate-file\tset\t%s\tMain_Loop_State_File\n' "$rigAgents/main-loop.state"
 	printf 'line\tloop\tmain-loop\tMAIN_LOOP_LAST_OUTCOME\tset\tsucceeded\tMain_Loop_Last_Outcome\n'
 	printf 'line\tloop\tmain-loop\tMAIN_LOOP_LAST_ITERATION_UTC\tset\t2026-10-13T00:10:00Z\tMain_Loop_Last_Iteration_UTC\n'
@@ -329,22 +322,10 @@ rigWant="$( {
 	printf 'line\tloop\tmain-loop\tMAIN_LOOP_CURRENT_DELAY_SECONDS\tset\t29\tMain_Loop_Current_Delay_Seconds\n'
 	printf 'line\tloop\tmain-loop\tMAIN_LOOP_TEAM_DATA\tset\tskipped\tMain_Loop_Team_Data\n'
 	printf 'line\tloop\tmain-loop\tMAIN_LOOP_TEAM_DATA_CONSECUTIVE_FAILURES\tset\t0\tMain_Loop_Team_Data_Consecutive_Failures\n'
-	printf 'line\tloop\theartbeat\tstate-note\tset\t%s\tHeartbeat_State_Note\n' "$rigNote"
-	printf 'line\tloop\theartbeat\tstate\tset\theartbeat-running\tHeartbeat_State\n'
-	printf 'line\tloop\theartbeat\trecheck-date\tset\t2099-01-01_00:00_+0000\tHeartbeat_Recheck_Date\n'
-	printf 'line\tloop\theartbeat\tlast-iteration-timestamp\tset\t2026-10-12T19:54:21Z\tHeartbeat_Last_Iteration\n'
-	printf 'line\tloop\theartbeat\trunning\tset\tyes\tHeartbeat_Running\n'
 } )"
-rigAssert "the whole subject, byte for byte: the main loop by what its last iteration left, the heartbeat by its note, running while its lock is held" "$rigRc $( cat "$rigTmp/out" )" "0 $rigWant"
-rigNoteWrite heartbeat-running '2026-10-01 00:00 +0000'
-rigRun "$rigOp" loop
-rigAssert "a heartbeat whose lock has gone stale does not run: its recheck date is long past" "$( rigLine loop heartbeat state ) / $( rigLine loop heartbeat running )" "set heartbeat-running / missing no"
-rigNoteWrite heartbeat-finished '2099-01-01 00:00 +0000'
-rigRun "$rigOp" loop
-rigAssert "a heartbeat that has finished does not run, whatever its recheck date" "$( rigLine loop heartbeat state ) / $( rigLine loop heartbeat running )" "set heartbeat-finished / missing no"
+rigAssert "the whole subject, byte for byte: the main loop by what its last iteration left" "$rigRc $( cat "$rigTmp/out" )" "0 $rigWant"
 rigRunIn "$rigTmp/ws-bare" "$rigOp" loop
 rigAssert "a workspace that is no team rig says nothing of the main loop: it was its own case that each line reads missing, with the path it would have, before only a team rig had a main loop" "$rigRc $( cat "$rigTmp/out" | LC_ALL=C tr '\t' ' ' | LC_ALL=C tr '\n' '/' )" "0 "
-rigNoteWrite heartbeat-running '2099-01-01 00:00 +0000'
 ## The mode of the workspace, the one setting the main loop follows: only a team rig has it.
 rigModeFile="$( cat "$rigScopes/magic-team.agent.env" )"
 rigRun "$rigOp" workspace
@@ -449,7 +430,7 @@ rigCapitals="$( LC_ALL=C sed -n 's/^agentsManagerConfigLabelCapitals="\(.*\)"$/\
 rigNamed(){ ## subject, group, key -- the label the declaration gives a line of that name, by the labeller itself
 	{ printf '%s\n' "$rigTable" ; printf '\034\n' ; printf 'line\t%s\t%s\t%s\tset\tx\n' "$1" "$2" "$3" ; } | LC_ALL=C awk -v capitals="$rigCapitals" -f "$rigHere/manager/AgentsManagerConfigLabels.awk" 2> /dev/null | LC_ALL=C awk -F'\t' '{ print $NF }'
 }
-rigAssert "each subject row ends with its label" "$( LC_ALL=C awk -F'\t' '$1 == "subject" { printf "%s=%s ", $2, $NF }' "$rigTmp/whole" )" "workspace=Workspace_Paths cli=CLI_Services systems=Outside_Systems loop=Main_Loop_And_Heartbeat scopes=Scope_Settings interface=Interface_Settings console=Console_Behaviour control=Session_Control knowledge=Knowledge_Store "
+rigAssert "each subject row ends with its label" "$( LC_ALL=C awk -F'\t' '$1 == "subject" { printf "%s=%s ", $2, $NF }' "$rigTmp/whole" )" "workspace=Workspace_Paths cli=CLI_Services systems=Outside_Systems loop=Main_Loop scopes=Scope_Settings interface=Interface_Settings console=Console_Behaviour control=Session_Control knowledge=Knowledge_Store "
 rigRun "$rigOp"
 cp "$rigTmp/out" "$rigTmp/whole-late"
 rigRunIn "$rigTmp/ws-bare" "$rigOp"
@@ -457,12 +438,12 @@ rigAssert "every row has a label that keeps the rule, in the first digest, in th
 rigAssert "a system that no scope holds has its one line labelled so" "$( rigLabel "$rigTmp/out" systems email - )" "No_Scope_Configured"
 rigAssert "the paths of the workspace, and a registered place by its name" "$( for rigOne in workspace-root tooling-origin team-data-root session-records session-stores settings ; do printf '%s ' "$( rigLabel "$rigTmp/whole" workspace paths "$rigOne" )" ; done )/ $( rigLabel "$rigTmp/whole" workspace places docs )" "Workspace_Root Tooling_Origin Team_Data_Root Session_Records Session_Stores Scope_Settings_Folder / Registered_Place_docs"
 rigAssert "what the workspace asks of its CLI services, and the lines of one CLI, a credential by the words of its key" "$( for rigOne in SPAWN_CLI_SERVICE SPAWN_HARNESS_TIER WAIT_ROUND_SECONDS spawn-settings-workspace ; do printf '%s ' "$( rigLabel "$rigTmp/whole" cli workspace "$rigOne" )" ; done )/ $( printf '%s ' "$( rigLabel "$rigTmp/whole" cli claude-native present )" ; for rigOne in ANTHROPIC_API_KEY usable wait-round ; do printf '%s ' "$( rigLabel "$rigTmp/whole" cli claude "$rigOne" )" ; done )" "Spawn_CLI_Service Spawn_Harness_Tier Wait_Round_Seconds Spawn_Settings_Workspace / CLI_Present Anthropic_API_Key CLI_Usable CLI_Wait_Round "
-rigAssert "the main loop, what its state file holds by the words of the key, and the heartbeat" "$( rigLabel "$rigTmp/whole" loop main-loop state-file ) $( rigLabel "$rigTmp/whole" loop main-loop MAIN_LOOP_LAST_ITERATION_UTC ) / $( for rigOne in state-note state recheck-date last-iteration-timestamp running ; do printf '%s ' "$( rigLabel "$rigTmp/whole" loop heartbeat "$rigOne" )" ; done )" "Main_Loop_State_File Main_Loop_Last_Iteration_UTC / Heartbeat_State_Note Heartbeat_State Heartbeat_Recheck_Date Heartbeat_Last_Iteration Heartbeat_Running "
+rigAssert "the main loop, what its state file holds by the words of the key" "$( rigLabel "$rigTmp/whole" loop main-loop state-file ) $( rigLabel "$rigTmp/whole" loop main-loop MAIN_LOOP_LAST_ITERATION_UTC )" "Main_Loop_State_File Main_Loop_Last_Iteration_UTC"
 rigAssert "the style of the interface by its own name, and the key of every line still in its own field: the lines are found by the keys they had" "$( rigLabel "$rigTmp/whole" interface style MDAT_MANAGER_STYLE ) $( rigLabel "$rigTmp/whole-late" scopes magic-coordinator EMAIL_SMTP_PORT )" "Interface_Style Email_SMTP_Port"
-rigAssert "the include has the one declaration of the labels, and the labels come from it: control, a line it has no row for gets the label -, which the rule above fails" "$( LC_ALL=C grep -c -e '^agentsManagerConfigLabels="' "$rigInclude" || : ) $( printf '%s\n' "$rigTable" | LC_ALL=C grep -c -e '|' | LC_ALL=C awk '{ print ( $1 > 20 ) ? "rows" : "few" }' ) [$( rigNamed workspace paths no-such-line )] [$( rigNamed loop heartbeat no-such-header )] [$( rigNamed nonesuch any ANY_KEY )] [$( rigNamed workspace paths workspace-root )]" "1 rows [-] [-] [-] [Workspace_Root]"
+rigAssert "the include has the one declaration of the labels, and the labels come from it: control, a line it has no row for gets the label -, which the rule above fails" "$( LC_ALL=C grep -c -e '^agentsManagerConfigLabels="' "$rigInclude" || : ) $( printf '%s\n' "$rigTable" | LC_ALL=C grep -c -e '|' | LC_ALL=C awk '{ print ( $1 > 20 ) ? "rows" : "few" }' ) [$( rigNamed workspace paths no-such-line )] [$( rigNamed loop main-loop no-such-header )] [$( rigNamed nonesuch any ANY_KEY )] [$( rigNamed workspace paths workspace-root )]" "1 rows [-] [-] [-] [Workspace_Root]"
 rigAssert "the rule of a key's own words: a key of one word gets a second, an empty word is none, a word of the include's list stands in capitals" "$( rigNamed scopes any-scope PORT ) $( rigNamed scopes any-scope KEY_2__URL ) $( rigNamed cli any-cli XAI_API_KEY ) [$rigCapitals]" "Port_Setting Key_2_URL XAI_API_Key [API CLI ID IMAP SMTP URL UTC XAI]"
 rigAssert "every line the include prints under a key of its own has its own row in the declaration, none left to a row for any key: each key it names where it makes a line, and each key the workspace asks its CLI services by" "$( rigLacking="" ; rigCount=0 ; while read -r rigOwner rigOne ; do [ -n "$rigOne" ] || continue ; rigCount=$(( rigCount + 1 )) ; printf '%s\n' "$rigTable" | LC_ALL=C grep -q -e "^$rigOwner|[^|]*|$rigOne|." || rigLacking="$rigLacking $rigOwner/$rigOne" ; done <<< "$( { LC_ALL=C sed -n 's/^.*AgentsToolsManagerConfig\(Path\)\{0,1\}Line \([a-z][a-z]*\) [^ ]* \([a-z][a-z-]*\) .*$/\2 \3/p' "$rigInclude" ; LC_ALL=C sed -n 's/^	for cliKey in \([A-Z_ ]*\) ; do$/\1/p' "$rigInclude" | LC_ALL=C tr ' ' '\n' | LC_ALL=C sed -e 's/^/cli /' ; } | LC_ALL=C sort -u )" ; printf '%s%s' "$( [ "$rigCount" -ge 16 ] && echo many || echo "few:$rigCount" )" "${rigLacking:- none-lacking}" )" "many none-lacking"
-rigAssert "the entry of the help says what a label is, and names the label of each subject" "$( rigEntry | LC_ALL=C grep -c -F -e '<label> is what a screen calls' || : ) $( for rigWord in 'Workspace Paths' 'CLI Services' 'Outside Systems' 'Main Loop And Heartbeat' 'Scope Settings' 'Interface Settings' 'Console Behaviour' 'Session Control' ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "1 yyyyyyyy"
+rigAssert "the entry of the help says what a label is, and names the label of each subject" "$( rigEntry | LC_ALL=C grep -c -F -e '<label> is what a screen calls' || : ) $( for rigWord in 'Workspace Paths' 'CLI Services' 'Outside Systems' 'Main Loop' 'Scope Settings' 'Interface Settings' 'Console Behaviour' 'Session Control' ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "1 yyyyyyyy"
 
 echo "-- 13. each line in full: its description, and whether it can be changed --"
 rigRun "$rigOp" --full
@@ -481,9 +462,9 @@ rigAssert "in full each group of a subject has a row of its own ahead of its lin
 rigGroup(){ ## subject, group -- the label of that group in the digest in full
 	LC_ALL=C awk -F'\t' -v wantSubject="$1" -v wantGroup="$2" '$1 == "group" && $2 == wantSubject && $3 == wantGroup { print $5 }' "$rigTmp/full"
 }
-rigAssert "a group that is a word of the tooling's has a label of capitalised words, more than one, true to what it holds" "$( rigGroup workspace paths ) $( rigGroup workspace places ) $( rigGroup workspace mode ) $( rigGroup cli workspace ) $( rigGroup loop main-loop ) $( rigGroup loop heartbeat ) $( rigGroup interface style ) $( rigGroup console history ) $( rigGroup console origin ) $( rigGroup console detail ) $( rigGroup control request ) $( rigGroup control kill )" "Workspace_Folders Registered_Places Workspace_Role Workspace_Defaults Main_Loop_State Heartbeat_State Screen_Style Shell_History Tooling_Origin Tool_Verbosity Control_Request Control_Kill"
+rigAssert "a group that is a word of the tooling's has a label of capitalised words, more than one, true to what it holds" "$( rigGroup workspace paths ) $( rigGroup workspace places ) $( rigGroup workspace mode ) $( rigGroup cli workspace ) $( rigGroup loop main-loop ) $( rigGroup interface style ) $( rigGroup console history ) $( rigGroup console origin ) $( rigGroup console detail ) $( rigGroup control request ) $( rigGroup control kill )" "Workspace_Folders Registered_Places Workspace_Role Workspace_Defaults Main_Loop_State Screen_Style Shell_History Tooling_Origin Tool_Verbosity Control_Request Control_Kill"
 rigAssert "a group that is a name has that name as it is written, not made over: a CLI's, a system's, a scope's" "$( rigGroup cli claude ) $( rigGroup cli claude-native ) $( rigGroup cli scaleway ) $( rigGroup systems slack ) $( rigGroup scopes magic-team )" "claude claude-native scaleway slack magic-team"
-rigAssert "no group is without a label, and the label of a group of the tooling's own is never one word: a new group cannot come without one" "$( LC_ALL=C awk -F'\t' '$1 == "group" { rows++ ; if ( $5 == "-" || $5 == "" ) bad++ ; named = ( $2 == "systems" || $2 == "scopes" || ( $2 == "cli" && $3 != "workspace" ) ) ; if ( !named && $5 !~ /^[A-Z][A-Za-z]*(_[A-Z][A-Za-z]*)+$/ ) bad++ } END { print ( rows > 10 ? "groups" : "few" ) ":" bad + 0 }' "$rigTmp/full" ) $( printf '%s\n' "$rigTable" | LC_ALL=C awk -F'|' 'NF > 1 && $2 != "" && $3 == "" { rows++ ; if ( $4 == "" ) bad++ } END { print rows + 0 ":" bad + 0 }' )" "groups:0 16:0"
+rigAssert "no group is without a label, and the label of a group of the tooling's own is never one word: a new group cannot come without one" "$( LC_ALL=C awk -F'\t' '$1 == "group" { rows++ ; if ( $5 == "-" || $5 == "" ) bad++ ; named = ( $2 == "systems" || $2 == "scopes" || ( $2 == "cli" && $3 != "workspace" ) ) ; if ( !named && $5 !~ /^[A-Z][A-Za-z]*(_[A-Z][A-Za-z]*)+$/ ) bad++ } END { print ( rows > 10 ? "groups" : "few" ) ":" bad + 0 }' "$rigTmp/full" ) $( printf '%s\n' "$rigTable" | LC_ALL=C awk -F'|' 'NF > 1 && $2 != "" && $3 == "" { rows++ ; if ( $4 == "" ) bad++ } END { print rows + 0 ":" bad + 0 }' )" "groups:0 15:0"
 rigRun "$rigOp" cli
 rigAssert "without --full no group row is printed: the rows are as they were" "$rigRc $( LC_ALL=C grep -c -e '^group' "$rigTmp/out" || : )" "0 0"
 rigAssert "the entry of the help says that under the line of a scope of a system stands one line for each key the scope holds a value of, with its value or its credential in the one form, that a key held with no value has none, and that in full it names its scope and its file" "$( for rigWords in 'stands one line for each key of the system the scope holds a value of' 'or `secret-set` and a credential in the one form above' 'a key held with no value has no line of its own' 'carries <source>, the scope that holds the key, and <where>, the file of that scope' ; do rigEntry | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e "$rigWords" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyy"

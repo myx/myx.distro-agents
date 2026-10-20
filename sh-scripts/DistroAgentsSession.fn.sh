@@ -6,6 +6,8 @@
 ## session channel's: --get-session-channel-id, --post-session-channel, --get-session-thread, --wait-session-channel and --get-dispatch-text
 ## (F7.2). A tool of its own: its operations are locked to the session of the call, and none of them is a name that belongs to another tool.
 ##
+## From DistroAgentsTools.fn.sh (F1.4, first stage): --append-transcript, --wait-for-input. They go on under their old names (sh-lib/harness/AgentsContext.FrontForward.include).
+##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
 ##
@@ -54,6 +56,12 @@ DistroAgentsSessionThis(){
 
 DistroAgentsSession(){
 	local MDSC_CMD='DistroAgentsSession'
+	## F1.4, first stage: an operation that came here under a new name goes on under its old one (sh-lib/harness/AgentsContext.FrontForward.include).
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontForward.include"
+	if AgentsToolsFrontKnows DistroAgentsSession "$@" ; then
+		AgentsToolsFrontForward DistroAgentsSession "$@"
+		return $?
+	fi
 	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,
 	## and the call is made again under what they resolve (sh-lib/common/AgentsTools.CommonOptions.include).
 	case "${agentsCommonFronted:-}:${2:-}" in

@@ -260,7 +260,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--project <p>] [--file <changed-file>]... [--wait|--no-wait] [<test>...]
 📘 syntax: DistroAgentsTools.fn.sh --member-retest-drain [--rest [--about <scratch-folder>]]
 📘 syntax: DistroAgentsTools.fn.sh --member-retest-result <request-id>...
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-config-check
+📘 syntax: DistroAgentsTools.fn.sh --magic-config-check
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-running [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -271,9 +271,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-append-session-transcript [--team-member <team-member>] <session-id> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--create]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-create-running [--team-member <team-member>] <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-sleep-run
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire [--team-member <team-member>] <owner-label>
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-refresh [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-status [--team-member <team-member>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-state-note-lock-acquire [--team-member <team-member>] <owner-label>
+📘 syntax: DistroAgentsTools.fn.sh --magic-state-note-lock-status [--team-member <team-member>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-acquire [--team-member <team-member>] <owner-label>
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-refresh [--team-member <team-member>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-status [--team-member <team-member>]
@@ -286,10 +285,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-acquire [--team-member <team-member>] <owner-label>
 📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-refresh [--team-member <team-member>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-status [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-test-report-send [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash [--team-member <team-member>] <board-state> <item-name> [--untrash]
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]
+📘 syntax: DistroAgentsTools.fn.sh --magic-state-note-read [--team-member <team-member>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-test-report-send [--team-member <team-member>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-proxy [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]
 📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]
 📘 syntax: DistroAgentsTools.fn.sh --tester-skillset-validate-routine <routine-file|--from-stdin>
 📘 syntax: DistroAgentsTools.fn.sh --tester-test-register (<test-id> --project <p> --script <path>|--from-folder <dir> --project <p>) [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
@@ -316,7 +314,7 @@
 		comms; reading/writing board and inbox items; managing per-entity
 		credential/config scopes; running/reusing workspace console
 		sessions; and driving the process-flow state machinery (grooming,
-		heartbeat, board advancement) the team's routines depend on. Call
+		board advancement) the team's routines depend on. Call
 		it directly for anything it already covers, rather than a raw
 		shell command or file edit.
 
@@ -2383,7 +2381,7 @@
 			member than itself is refused. No
 			type-prefix restriction. An item carrying `archive: true` is
 			discarded like any other -- that header only diverts the
-			heartbeat GC's own retention clock.
+			GC's own retention clock.
 
 			**No inverse, whatever team-data's git state** -- same as
 			`--librarian-inbox-item-trash`: deleted and committed when
@@ -3012,7 +3010,7 @@
 			their blanks written `_`. <subject> and <key> stay the names
 			a call takes. The labels have one declaration. The subjects
 			are `Workspace Paths`, `CLI Services`, `Outside Systems`,
-			`Main Loop And Heartbeat`, `Scope Settings`,
+			`Main Loop`, `Scope Settings`,
 			`Interface Settings`, `Console Behaviour`,
 			`Session Control` and `Knowledge Store`. A line the tooling prints under a key
 			of its own has a label of its own, as `Workspace Root` or
@@ -3039,7 +3037,7 @@
 			(a rig of the test runner is given `team-rig` by
 			`MDAT_WORKSPACE_MODE`, which a setting stands ahead of);
 			and `full-team-rig`, `set yes` on a team rig whose team data
-			has a git remote. `Main Loop And Heartbeat` is printed in the
+			has a git remote. `Main Loop` is printed in the
 			mode `team-rig` alone.
 			With `--full`, given ahead of every name, each `line` row has
 			eight more fields at its end, and ahead of the lines of each
@@ -3112,10 +3110,8 @@
 			to the configuration and is not changed from the digest. A
 			system no scope holds has one line with the scope `-`.
 			`loop`: group `main-loop`, its state file and what the last
-			iteration left in it; group `heartbeat`, its note, its state,
-			its recheck date, and `running`, which is `yes` while its
-			lock is held. Nothing says that a main loop runs now, so that
-			is not printed.
+			iteration left in it. Nothing says that a main loop runs now, so
+			that is not printed.
 			`scopes`: one group for each scope that holds a key, <key>
 			the name of the key, in the order of its file. A scope with
 			no key is left out, and a line that is a comment is no key.
@@ -3383,11 +3379,9 @@
 			`ahead` and `behind` as of its last fetch, `uncommitted`, the
 			paths under the store not committed, `last-commit`, its age,
 			and `last-subject`; judged only on a full team rig.
-			`loop`, Main Loop And Heartbeat: as `--manager-config-digest`
+			`loop`, Main Loop: as `--manager-config-digest`
 			reads them, how the last iteration of the main loop ended,
-			how long ago, and after how many failures in a row; the
-			state of the heartbeat, how long ago its last iteration was,
-			and whether it runs. Nothing the tooling keeps says that a
+			how long ago, and after how many failures in a row. Nothing the tooling keeps says that a
 			main loop runs now, so that is no figure. Printed in the
 			mode `team-rig` of the workspace alone, and judged only on a
 			full team rig, whose team data has a git remote: elsewhere
@@ -4206,7 +4200,13 @@
 			item with it, marked `killed-by` and `killed-at`; a record
 			whose supervising shell lives is left to that shell, after a
 			wait of five seconds at most. A run of another host is not
-			touched. The rows that say so follow the `kill` rows:
+			touched. A run whose record has no `spawn-id:` header is the
+			run of the record that bears its session's name: it is found
+			and closed so, where nothing runs as it. Where a run's record
+			cannot be found, its `close` row is `not-closed`, and a
+			session that still reads `unclosed` after the call is said so
+			by an error line on stderr and exit 1 (`--plan` never fails).
+			The rows that say so follow the `kill` rows:
 			`dismiss <session-id> <pending-id> <asker> <outcome>`
 			`close <session-id> <spawn-id> <member> <outcome> <item>`
 			`finish <session-id> <ended> <dismissed> <closed> <state>`
@@ -4762,7 +4762,7 @@
 			already ahead of origin go out with the push.
 
 			**Hazard**: takes no lock -- run it only when no routine
-			holds the advance or heartbeat lock, or a file another op
+			holds the advance lock, or a file another op
 			is writing could be committed half-written.
 
 		--member-wait-for-input [--team-member <team-member>] [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>] [--wait-collect <seconds>]
@@ -5574,7 +5574,7 @@
 			`SHUTDOWN: spawn <id>: ...` line per spawn and a count. The
 			other ordered endings are recorded the same way, as
 			`dismissed: <reason>`: an archive (--magic-grooming-to-archived)
-			and a trash (--magic-heartbeat-board-item-trash) dismiss the item's live
+			and a trash (--intern-op-board-trash) dismiss the item's live
 			child, and a TaskStop records `taskstop` before its signal.
 
 		--magic-review-accept <magic-coordinator> <item-filename> [--summary <text>]
@@ -5641,9 +5641,9 @@
 			holds the logs of the run. A finished request is kept seven
 			days. Exit 1 where an id is unknown.
 
-		--magic-heartbeat-config-check
-			Read-only, no arguments -- routine-heartbeat's step-0
-			config gate. Checks magic-coordinator's own config for
+		--magic-config-check
+			Read-only, no arguments -- the configuration check the
+			main loop runs as a script. Checks magic-coordinator's own config for
 			TEAM_DATA_DIRECTORY and the EMAIL_*/TRELLO_* keys below,
 			and magic-team's for the four SLACK_CHANNEL_* keys,
 			SLACK_BOT_TOKEN and TEAM_DATA_GIT_REMOTE.
@@ -5915,25 +5915,8 @@
 			Read-only, no arguments -- a fixed-duration pacing operation in
 			routine-advance's operation group.
 
-		--magic-heartbeat-board-item-trash [--team-member <team-member>] <board-state> <item-name> [--untrash]
-			Relocates one terminal board-item out of the board entirely, for
-			routine-heartbeat's own GC step. <team-member> is the calling
-			member's own identity — recorded in the git-commit message once
-			team-data is git-tracked, otherwise unused;
-			<board-state> is the item's current real board state
-			(backlog/pending/running/review/blocked/parked/processed/
-			archived/retained); <item-name> is a bare filename. Thin wrapper.
-
-			--untrash restores instead: on a store with no git, it moves
-			trash/<item-name> back into board/<board-state>/, and refuses
-			if the board already holds that name. On a git store a
-			trashed item was deleted and committed, so --untrash fails
-			(non-zero), changes nothing, and says so: a git store keeps
-			trashed items only in its history, no tooling op restores
-			from it, and the coordinator is the one to ask.
-
-		--magic-heartbeat-spawn-proxy [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]
-			Heartbeat/advance spawn relay: executes a spawn prompt via
+		--magic-spawn-proxy [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]
+			Spawn relay: executes a spawn prompt via
 			DistroAgentsConsole.sh. Body is stdin (default),
 			--from-file, --from-board, --from-vault, or
 			--from-audit (exactly one); empty body is rejected,
@@ -6146,15 +6129,9 @@
 			The lock-owned fields (type, from, date, owner, state, recheck-date,
 			session-id) stay as the document has them, whatever the content gives.
 			While the note says `state: <routine>-running`, every state write also
-			refreshes the lock: `recheck-date` is set to now + 120 minutes (the
-			heartbeat: now + 15 minutes, the same value
-			`--magic-heartbeat-lock-refresh` writes), so a pass that keeps writing
-			its state needs no separate refresh call for it. Any other state is
-			carried over untouched.
-			For the heartbeat's note it also stamps `last-iteration-date` (today,
-			local) and `last-iteration-timestamp` (now, UTC `YYYY-MM-DDTHH:MM:SSZ`)
-			itself; a value the caller gives wins. A stored `last-test-email-sent`
-			the caller leaves out is kept.
+			refreshes the lock: `recheck-date` is set to now + 120 minutes, so a
+			session that keeps writing its state needs no separate refresh call
+			for it. Any other state is carried over untouched.
 
 		--get-session-thread [--own]
 			ThisSession's operation (DistroAgentsSession.fn.sh). The session thread,
@@ -6262,21 +6239,22 @@
 			The wait is made by the harness of the run at the end of the round, so the
 			answer of the call is only read where nothing was returned.
 
-		--magic-heartbeat-test-report-send [--team-member <team-member>]
-			Sends the hourly test report. <team-member> must be
+		--magic-test-report-send [--team-member <team-member>]
+			Sends the hourly test report, run by hand or from a console; nothing
+			schedules it. <team-member> must be
 			magic-coordinator. Prints `NOT_DUE:last-test-email-sent=...:
 			due-in=<n>s` and returns 0, sending nothing, until an hour
 			has passed since the note's `last-test-email-sent`. Once due:
-			builds the body from the heartbeat scan's own day-rhythm
-			lines, board counts and board active items, sends it through
+			builds the body from the board counts and the board active
+			items, sends it through
 			--member-comms-email-send (text group report) to human-owner's
 			EMAIL_USER, stamps `last-test-email-sent`, and prints
 			`SENT:to=<address>:last-test-email-sent=<timestamp>`. rc 1,
 			with nothing stamped, when EMAIL_USER is unset, the
-			heartbeat note does not exist yet, or the send fails.
+			state note does not exist yet, or the send fails.
 
-		--magic-heartbeat-lock-acquire [--team-member <team-member>] <owner-label>
-			Takes routine-heartbeat's lock before any other step. Prints
+		--magic-state-note-lock-acquire [--team-member <team-member>] <owner-label>
+			Takes the lock of the coordinator's state note. Prints
 			`ACQUIRED` (rc 0) on a fresh take; `RECLAIMED_STALE:prev_owner=
 			...:age=...s` (rc 0) when the previous holder went stale;
 			`ACTIVE:owner=...:state=...:recheck_date=...` (rc 1) when
@@ -6284,20 +6262,15 @@
 			<owner-label> names the running process (e.g. "main-loop"), not
 			a chat-session id. Takes no options; any further argument is rejected.
 
-		--magic-heartbeat-lock-refresh [--team-member <team-member>]
-			Re-asserts a held lock so a long run is not mistaken for a
-			crashed one. Prints `REFRESHED` (rc 0), or `NO_LOCK_HELD` (rc 1)
-			when nothing is held. Takes no options; any further argument is rejected.
-
-		--magic-heartbeat-lock-status [--team-member <team-member>]
+		--magic-state-note-lock-status [--team-member <team-member>]
 			Read-only, returns 0 always -- including when free, so a caller
 			can check before deciding to start. Prints `NO_LOCK` when free,
 			or `ACTIVE:owner=...:state=...:recheck_date=...` when held --
 			read from the lock note's own frontmatter. Takes no options;
 			any further argument is rejected.
 
-		--magic-heartbeat-state-read [--team-member <team-member>]
-			Reads back the whole record written by the state update of the heartbeat,
+		--magic-state-note-read [--team-member <team-member>]
+			Reads back the whole record of the coordinator's state note,
 			verbatim. Outputs `NO_STATE` if nothing is stored yet.
 			Read-only.
 
@@ -6346,9 +6319,11 @@
 
 		--current-flags
 			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). The flags of the
-			schedule now, derived from the settings and the clock and never stored: five
-			lines, `worktime`, `weekend`, `emergency`, `overtime`, `learning`, each
-			`<flag>: yes` or `<flag>: no`. `worktime` falls out of the timezone, the hours
+			schedule now, derived from the settings and the clock and never stored: six
+			lines, `worktime`, `weekend`, `holidays`, `emergency`, `overtime`, `learning`, each
+			`<flag>: yes` or `<flag>: no`. `holidays` is an override set by hand: while it
+			holds, `worktime` reads `no (holiday)` whatever the hours say; `emergency` and
+			`overtime` are not overridden by it. `worktime` falls out of the timezone, the hours
 			and the days (`MDAT_SCHEDULE_WORKTIME`) and the clock; `weekend` out of the
 			timezone, its days (`MDAT_SCHEDULE_WEEKEND`) and the clock. Where they are
 			not set a line reads `no (not set)`; worktime days of `workdays` or `weekend`
@@ -6361,10 +6336,12 @@
 			whole seconds (`emergency 3600`), prolonged by a second call (its end is the TTL
 			from then) and cleared by `--no`; `overtime` is for outside worktime, ends at
 			its TTL or, with none or a later one, when normal worktime starts, and is
-			refused during worktime; `learning` is on or off and takes no TTL. `--no`
+			refused during worktime; `holidays` is set with a TTL or, with none, until it
+			is cleared, at any hour, and while it holds `worktime` is off (`no (holiday)`);
+			`learning` is on or off and takes no TTL. `--no`
 			clears the override and takes no TTL. `worktime` and `weekend` are derived and
 			have no override. Prints the flag's line as `--current-flags` would. Refused,
-			rc 1, with a flag that is none of the five, a TTL that is no whole number of
+			rc 1, with a flag that is none of the six, a TTL that is no whole number of
 			seconds, or an emergency with none.
 
 		--set-country <iso-code-2-or-3-letters>
@@ -6750,7 +6727,7 @@
 			way. It owns no state and every view is the answer of the subject that owns it.
 			`--spawns` the runs of the team, the Dispatcher's rows (`--active` the default,
 			`--waiting`, `--all`); `--flags` the worktime flags now, the Dispatcher's lines;
-			`--tasks` the board as the heartbeat reads it, `# board` the count of each state
+			`--tasks` the board as the coordinator reads it, `# board` the count of each state
 			and `# active` the active items. Runs as magic-coordinator; a call from another
 			member is refused, a call from no member's session (the console) may read.
 
@@ -6779,12 +6756,12 @@
 		--directive-end --id <id> [--wait <seconds>]
 			AgentDispatcherTools.fn.sh, magic-coordinator only: an order of the human-owner
 			entered as a standing directive, and taken out. An order is one line of the
-			`# Standing directives` section of the heartbeat-state-note, `- <id> | set <date>
+			`# Standing directives` section of the state-note, `- <id> | set <date>
 			| expires-at: <date>|none | <text>`; the text is one line of at most 400
 			characters, and the `--expires-at` is needed, `none` where the order does not
 			end. An `--id` already there is replaced; without one the tool makes it.
 			The write goes through the note's lock as a session does
-			(`--magic-heartbeat-lock-acquire`): while a heartbeat holds the note it waits,
+			(`--magic-state-note-lock-acquire`): while another session holds the note it waits,
 			polling, up to `--wait` seconds (120 by default) and then refuses with the note
 			untouched; it changes that section alone, leaves the note's other fields and
 			body and its stamps as they are, commits and pushes as every state update does,

@@ -17,11 +17,10 @@ Steps:
 3. **board-mechanical-moves**: Apply the decided moves. Announce each one in the session thread as it happens:
    - `board-pending` item whose content records a dispatch → `board-running` (`--magic-advance-to-running`).
    - Never `board-backlog` straight to `board-running`.
-4. **board-recompute-dependencies**: Once per workday (`heartbeat-state-note`'s `today-stage`), or on request:
-   - Scope: every `board-running` and `board-blocked` item in this pass's read.
-   - Record each edge as `blocks`/`blocked-by` on the item. An unclear edge is described in the item's body, never forced into a field.
-   - A real cycle is flagged to `magic-architect`.
-   - Report what must happen first, what is independent, and what is blocked externally. A high-RICE item blocked on a low-RICE one is recorded plainly, never reordered.
+4. **board-dependencies**: The tooling keeps both directions of `blocks`/`blocked-by` whole, once for each change of the board, and the scan carries `## board dependencies`: the cycles, what must happen first, what waits and on what, what is blocked with no blocker on the board, and how many items are independent. What is left to judgement:
+   - Record an edge that only an item's text shows, as `blocks`/`blocked-by` on the item. An unclear edge is described in the item's body, never forced into a field.
+   - A real cycle in the report is flagged to `magic-architect`.
+   - A high-RICE item blocked on a low-RICE one is recorded plainly, never reordered.
    - In a time-boxed caller, such as the daily roll call, keep it proportionate.
 5. **board-per-type-state-rules**: For each `board-running` item, by filename prefix:
    - `approval-*`: approved (`approved-by`/`approved-at`, or an explicit go recorded as them) → `board-processed`. The move carries the go to what it `blocks`.

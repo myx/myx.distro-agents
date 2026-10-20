@@ -211,15 +211,12 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending [--team-m
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-retained [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-running [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash [--team-member <team-member>] <board-state> <item-name> [--untrash]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-close-state-and-unlock [--team-member <team-member>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-config-check" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire [--team-member <team-member>] <owner-label>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-refresh [--team-member <team-member>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-status [--team-member <team-member>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read [--team-member <team-member>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-test-report-send [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-config-check" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-state-note-lock-acquire [--team-member <team-member>] <owner-label>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-state-note-lock-status [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-proxy [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-state-note-read [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-test-report-send [--team-member <team-member>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-close-state-and-unlock [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-acquire [--team-member <team-member>] <owner-label>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-refresh [--team-member <team-member>]" >&2

@@ -187,6 +187,10 @@ keys y e
 get typing
 cells typingLine 38 1 83
 box t
+keys s
+box w
+keys BACKSPACE
+box v
 wait plan 30
 get planned
 box p
@@ -197,8 +201,9 @@ said escLine
 cells escKeys 37 1 83
 cells escKeysStatus 39 0 120
 RIGSCRIPT
+rigAssert "one default button at a time, and it follows the word typed, both ways: Cancel until yes is whole, Kill when it is, Cancel again when a letter is taken out" "$( rigBoxHas b ' »Cancel«' )$( rigBoxHas b ' »Kill«' ) $( rigBoxHas t ' »Cancel«' )$( rigBoxHas t ' »Kill«' ) $( rigBoxHas w ' »Cancel«' )$( rigBoxHas w ' »Kill«' ) $( rigBoxHas v ' »Cancel«' )$( rigBoxHas v ' »Kill«' )" "10 10 01 10"
 rigAssert "a running session is selected, and the left pane names the kill key for it" "$( rigVal on.selected ) [$( rigKeysNamed onKeys )]" "$rigS1 [keys: k kill]"
-rigAssert "k opens the dialog of a kill, the keys on the field for the word" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas b '║   Type yes to kill ' ) $( rigBoxHas b ' »Kill« ▅   Cancel  ▅' )" "[kill:word|] [Kill the session] 1 1"
+rigAssert "k opens the dialog of a kill, the keys on the field for the word" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas b '║   Type yes to kill ' ) $( rigBoxHas b ' Kill  ▅  »Cancel« ▅' )" "[kill:word|] [Kill the session] 1 1"
 rigAssert "the dialog says what will be killed: the session by its name and its id" "$( rigBoxHas b '║   KILL the session daily of Monday ' ) $( rigBoxHas b "║   session $rigS1 " )" "1 1"
 rigAssert "each agent that is alive, with its state and its own id"  "$( rigBoxHas b '║   Its 2 live agents end the hard way: no closure runs, none is asked ' ) $( rigBoxHas b "║     magic-coordinator  running waiting  $rigS1 " ) $( rigBoxHas b "║     magic-tester       running working  $rigR2 " )" "1 1 1"
 
@@ -318,33 +323,35 @@ rigAssert "the operation is called once, with that id and --run"     "$( rigKill
 rigAssert "never with the id alone, which would end the whole session" "$( rigCalled "$rigKillSession" ) $( rigCalled "$rigKillFounder" )" "0 1"
 rigAssert "the founder alone is answered for"                        "[$( rigVal answeredLine )]" "[kill: 1 ended]"
 
-echo "-- a wrong word kills nothing --"
+echo "-- a wrong word kills nothing: the button pressed on it is refused, and Enter cancels --"
 rigCase wrong
 rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
 keys DOWN
-keys k y e ENTER
+keys k y e TAB ENTER
 get part
 keys ESC
-keys k Y E S ENTER
+keys k Y E S TAB ENTER
 get capitals
 keys ESC
-keys k SPACE y e s ENTER
+keys k SPACE y e s TAB ENTER
 get spaceBefore
 keys ESC
-keys k y e s SPACE ENTER
+keys k y e s SPACE TAB ENTER
 get spaceAfter
 keys ESC
-keys k y e s s ENTER
+keys k y e s s TAB ENTER
 get more
 keys ESC
-keys k n o ENTER
+keys k n o TAB ENTER
 get no
 keys ESC
-keys k ENTER
+keys k TAB ENTER
 get nothing
 keys ESC
+keys k y e ENTER
+get enterCancels
 wait plan 30
 turn 3
 get end
@@ -353,6 +360,7 @@ rigNothing="nothing is killed: the word typed is not yes"
 rigAssert "a part of the word kills nothing: the dialog stays open, and says so" "[$( rigVal part.dialog )] [$( rigVal part.dialogSays )]" "[kill:word|ye] [$rigNothing]"
 rigAssert "neither do capitals, a space before it or after it, or a letter more" "[$( rigVal capitals.dialogSays )][$( rigVal spaceBefore.dialogSays )][$( rigVal spaceAfter.dialogSays )][$( rigVal more.dialogSays )]" "[$rigNothing][$rigNothing][$rigNothing][$rigNothing]"
 rigAssert "nor another word, nor no word at all"                     "[$( rigVal no.dialogSays )][$( rigVal nothing.dialogSays )]" "[$rigNothing][$rigNothing]"
+rigAssert "Enter in the field of the word presses the default, Cancel, until the word is whole: the dialog is closed and nothing is killed" "[$( rigVal enterCancels.dialog )] $( rigKills )" "[] 0"
 rigAssert "the operation was never called"                           "$( rigKills ) $( rigOthers ) $( rigVal end.calls ) [$( rigVal end.reading )]" "0 0 0 []"
 
 echo "-- a row that cannot be killed says so, and nothing is asked --"
@@ -438,7 +446,7 @@ box b
 wait plan 30
 get planned
 box p
-keys y e ENTER
+keys y e TAB ENTER
 get part
 keys s
 copy $rigTmp/waiting/after.rows $rigTmp/waiting/rows
@@ -462,7 +470,7 @@ get closed
 cells closedKeys 37 1 83
 RIGSCRIPT
 rigAssert "a session that waits with no agent alive is selected, and the left pane names the kill key for it" "$( rigVal on.selected ) [$( rigKeysNamed onKeys )]" "$rigS3 [keys: k kill]"
-rigAssert "k asks, and its title, its button and its word say Close: nothing of it lives" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas b '║   Type yes to close ' ) $( rigBoxHas b ' »Close« ▅   Cancel  ▅' ) $( rigBoxHas b ' »Kill« ▅' )" "[close:word|] [Close the session] 1 1 0"
+rigAssert "k asks, and its title, its button and its word say Close: nothing of it lives" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas b '║   Type yes to close ' ) $( rigBoxHas b ' Close  ▅  »Cancel« ▅' ) $( rigBoxHas b ' »Kill« ▅' )" "[close:word|] [Close the session] 1 1 0"
 rigAssert "it names the session, says that nothing is ended, and that the rest is being read" "$( rigBoxHas b '║   CLOSE the session stale work ' ) $( rigBoxHas b "║   session $rigS3 " ) $( rigBoxHas b '║   No agent of it is alive: nothing is ended. ' ) $( rigBoxHas b '║   What it does besides, the questions it dismisses and the records it ' )" "1 1 1 1"
 rigAssert "its plan is read when the dialog opens and once more when it is confirmed, and ends nothing" "$( rigPlans ) $( rigCalled "--manager-session-kill --session-id $rigS3 --plan" ) $( rigVal planned.calls ) [$( rigVal planned.dialog )]" "2 2 0 [close:word|]"
 rigAssert "from the rows of the plan: the question that is dismissed, by who asked it" "$( rigBoxHas p '║   No agent of it is alive: nothing is ended. ' ) $( rigBoxHas p '║   It dismisses 1 question of it that waits: ' ) $( rigBoxHas p "║     $rigQ1  asked by magic-coordinator " )" "1 1 1"
@@ -559,6 +567,24 @@ RIGSCRIPT
 rigAssert "a run that could not be ended is shown as not ended, with the other rows the operation printed" "[$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )]" \
 	"[ the kill failed, answered 02:30:00:][   magic-coordinator  not ended: a process is still there after TERM and KILL][   magic-tester       ended]"
 rigAssert "and the error line of the operation after them"           "[$( rigPane s 6 )][$( rigPane s 7 )] [$( rigVal stuck.dialogHolds )]" "[ rig-tools: ⛔ ERROR: the rig said fail, after its rows][] [operation: $rigKillSession / rig-tools: ⛔ ERROR: the rig said fail, after its rows]"
+
+echo "-- a close that the tooling could not do is shown as not closed, with the call failed --"
+rigCase unclosed
+printf 'kill\t%s\t-\tmagic-developer\tno-spawn-id\tspawn-started\t-\t-\nclose\t%s\t%s\tmagic-developer\tnot-closed\t-\nfinish\t%s\t0\t0\t0\tunclosed\n' "$rigS1" "$rigS1" "$rigS1" "$rigS1" > "$MANAGER_SCREEN_RIG/rows.$rigKillSession"
+echo fail-rows > "$MANAGER_SCREEN_RIG/mode.$rigKillSession"
+rigScript <<'RIGSCRIPT'
+keys ENTER
+wait sessions 30
+keys DOWN
+keys k
+wait plan 30
+keys y e s ENTER
+wait plan 30
+wait action 30
+get unclosed
+show u
+RIGSCRIPT
+rigAssert "a run with no spawn-id that could not be closed is shown as not closed, the session as unclosed still, and the call as failed" "[$( rigPane u 3 )][$( rigPane u 4 )][$( rigPane u 5 )][$( rigPane u 6 )][$( rigPane u 7 )]" "[ the kill failed, answered 02:30:00:][   magic-developer    not signalled: it has no id of its own][   record of magic-developer: not closed: it is open still][   the session reads unclosed][ rig-tools: ⛔ ERROR: the rig said fail, after its rows]"
 
 echo "-- an answer that comes when another item is selected stays out of its pane --"
 rigCase moved

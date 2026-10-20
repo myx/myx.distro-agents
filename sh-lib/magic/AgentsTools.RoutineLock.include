@@ -170,7 +170,7 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 	lockOwn="$( AgentsToolsRoutineLockOwnWord "$lockNote" )"
 	[ -z "$lockOwn" ] || lockShort="$lockOwn"
 	if [ ! -f "$lockPath" ] ; then
-		## One of the five standing notes of magic-coordinator is made by the team's setup, and its absence is a fault. Any other locking
+		## One of the standing notes of magic-coordinator is made by the team's setup, and its absence is a fault. Any other locking
 		## document is the routine's own state, which does not exist before the routine's first start: the spawner makes it then, and
 		## commits it -- the note of a member other than magic-coordinator too (the lock is named per member, F4.2).
 		if [ -n "$lockOwn" ] && [ "$lockMember" = "magic-coordinator" ] ; then
@@ -221,7 +221,7 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 	fi
 	local lockRecheck
 	if [ -n "$lockOwn" ] ; then
-		## One of the five standing notes (advance, daily, grooming, heartbeat, retro): the spawner takes the lock through the routine's
+		## One of the four standing notes (advance, daily, grooming, retro): the spawner takes the lock through the routine's
 		## own acquire operation, as the tooling itself, so what that operation does once the lock is taken still happens (the advance's
 		## housekeeping), and what it prints reaches the run (daily's first-today:).
 		lockOut="$( ( unset MDAT_SPAWN_AGENT harnessAgent ; MDAT_SPAWN_SESSION_ID="" ; DistroAgentsTools "--magic-$lockOwn-lock-acquire" "$lockMember" "$lockSession" ) 2>&1 )" || {
@@ -291,7 +291,7 @@ AgentsToolsRoutineLockUnlockOne(){ ## one routine-lock-document value, the sessi
 	unlockOwn="$( AgentsToolsRoutineLockOwnWord "${unlockParsed#*$'\t'}" )"
 	if [ -n "$unlockOwn" ] ; then
 		## The routine's own close, as the tooling itself: what it does under the lock before it lets go (the advance's collection,
-		## the grooming's and the daily's last-close-date) and after (the heartbeat's push and sweep) is done as it always was.
+		## the grooming's and the daily's last-close-date) is done as it always was.
 		unlockOut="$( ( unset MDAT_SPAWN_AGENT harnessAgent ; MDAT_SPAWN_SESSION_ID="" ; DistroAgentsTools "--magic-$unlockOwn-close-state-and-unlock" "${unlockParsed%%$'\t'*}" ) 2>&1 )" || \
 			echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the lock of session $unlockSession, ${unlockValue#inbox:}, could not be given back ($unlockEnded): $unlockOut" >&2 || :
 		return 0
@@ -308,14 +308,13 @@ AgentsToolsRoutineLockUnlockOne(){ ## one routine-lock-document value, the sessi
 	return 0
 }
 
-## The routine word of a standing state-and-lock note `note-<stamp>-<word>-state-and-lock.md` of the five routines that locked by hand
+## The routine word of a standing state-and-lock note `note-<stamp>-<word>-state-and-lock.md` of the four routines that locked by hand
 ## before the spawner did, whose own lock operations the spawner still calls; nothing for any other note.
 AgentsToolsRoutineLockOwnWord(){ ## note name
 	case "$1" in
 		note-*-advance-state-and-lock.md) printf advance ;;
 		note-*-daily-state-and-lock.md) printf daily ;;
 		note-*-grooming-state-and-lock.md) printf grooming ;;
-		note-*-heartbeat-state-and-lock.md) printf heartbeat ;;
 		note-*-retro-state-and-lock.md) printf retro ;;
 	esac
 }
@@ -474,8 +473,7 @@ AgentsToolsRoutineStateWrite(){ ## the inbox member, the note, the operation (fo
 ## [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`: the whole record on standard input (the default),
 ## a record in a file, a patch of the stored one, or header edits of the stored one. `--document` names the note, only where
 ## the session locked several (a routine that runs another inline). The lock-owned fields stay as they are (AgentsToolsRoutineStateWrite),
-## so a participant can update the state as often as it has updates, and can neither take the lock nor give it back. The
-## heartbeat's note goes through the heartbeat's own writer, which also stamps its day rhythm.
+## so a participant can update the state as often as it has updates, and can neither take the lock nor give it back.
 AgentsToolsRoutineSessionStateUpdate(){ ## the operation's arguments
 	local updOp="--update-routine-state" updDocument="" updHeaders="" updModes=0 updMode="" updFile="" updArg
 	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
@@ -591,13 +589,6 @@ AgentsToolsRoutineSessionStateUpdate(){ ## the operation's arguments
 	else
 		updContent="$( cat )"
 	fi
-	case "$updNote" in
-		note-*-heartbeat-state-and-lock.md)
-			[ -n "$updContent" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} $updOp: empty content -- refusing to erase the stored heartbeat state" >&2 ; return 1 ; }
-			printf '%s\n' "$updContent" | DistroAgentsTools --intern-op-heartbeat-state-upsert "$updMember"
-			return $?
-		;;
-	esac
 	AgentsToolsRoutineStateWrite "$updMember" "$updNote" "$updOp" "$updContent"
 	return $?
 }

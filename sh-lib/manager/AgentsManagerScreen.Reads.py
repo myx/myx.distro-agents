@@ -218,6 +218,10 @@ def readNow(state):
         ## neither is one that is read seldom, but while it is the list shown
         if not (READS.get(key) or {}).get("demand") and not seldomNow(state, key):
             state.forced.add(key)
+    ## a read that decides what stands in the list at all is asked again at each of these: what the user changed, or the refresh, may have changed it
+    for key, entry in READS.items():
+        if entry and entry.get("recheck"):
+            state.forced.add(key)
 
 
 ## How long the selection must still rest on its item before the reads of that one item

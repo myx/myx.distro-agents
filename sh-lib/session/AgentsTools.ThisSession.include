@@ -324,8 +324,8 @@ AgentsToolsThisSessionCheckpoint(){ ## push|rewind|exit, then the operation's ar
 ## run that stays, so that the rounds of each piece of work do not pile up in its conversation. It WRITES A REQUEST as the checkpoint
 ## operations do (`idle <timeout or -> [<source> ...]`), and the harness makes the wait at the end of the round, because only it holds the
 ## conversation (AgentsHarnessIdleWait). It waits on what the routine the session runs waits on: the floor, and the scans the routine itself
-## declares with `input-scan-def:`, by name, as `scan:` sources (F3.3), so a work-duty run wakes on its work-duty input; with no scan
-## declared, on the floor alone. Who has it: a single-participant session -- a routine of kind standalone with one executor and no invitee,
+## declares with `input-scan-def:`, by name, as `scan:` sources (F3.3), so a work-duty run wakes on its work-duty input, and the sources it declares with
+## `wait-sources:`; with none declared, on the floor alone. Who has it: a single-participant session -- a routine of kind standalone with one executor and no invitee,
 ## the shape the checkpoint operations are for -- and a separate spawn, which runs no routine. For the run of a native client, and for a
 ## session of several participants, it is a NOTICE that nothing was waited on, rc 0, and the way to wait there: Wait, which a call that
 ## loops on this one is sent to, so that it cannot spin.
@@ -350,7 +350,7 @@ AgentsToolsThisSessionSingleParticipant(){ ## routine file path
 }
 
 AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
-	local idleBound="" idleRoutine idleFile="" idleOwner idleDir idleLine idleScan idleSources="" idleStore idleHeld idleTarget="" idleShown idleTail idleQuiet=""
+	local idleBound="" idleRoutine idleFile="" idleOwner idleDir idleLine idleScan idleWord idleSources="" idleStore idleHeld idleTarget="" idleShown idleTail idleQuiet=""
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--wait-timeout)
@@ -398,6 +398,15 @@ AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
 			case " $idleSources " in *" scan:$idleScan "*) continue ;; esac
 			idleSources="$idleSources${idleSources:+ }scan:$idleScan"
 		done <<< "$( AgentsToolsRoutineKeyLines "$idleFile" input-scan-def )"
+		## The sources the routine declares besides (`wait-sources:`, words of the forms the wait takes: `inbox:<own member>` and `board:<state>`; the macro
+		## {{team-member}} is the member of the run), which are read at every pass of the wait, so an item arriving in them wakes the run within seconds.
+		while IFS= read -r idleLine ; do
+			for idleWord in $idleLine ; do
+				idleWord="${idleWord//\{\{team-member\}\}/${MDAT_SPAWN_AGENT:-}}"
+				case " $idleSources " in *" $idleWord "*) continue ;; esac
+				idleSources="$idleSources${idleSources:+ }$idleWord"
+			done
+		done <<< "$( AgentsToolsRoutineKeyLines "$idleFile" wait-sources )"
 	fi
 	idleStore="$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID"
 	mkdir -p "$idleStore" 2> /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: --idle-wait: $idleStore could not be made. Nothing was done." >&2 ; return 1 ; }

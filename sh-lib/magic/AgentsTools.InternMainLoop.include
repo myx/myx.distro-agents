@@ -218,7 +218,7 @@ case "$1" in
 			return 0
 		}
 
-		## The configuration check, run as a script and no agent: the check that was the first step of the heartbeat pass. It
+		## The configuration check, run as a script and no agent: the check of the team's settings, tokens and channels. It
 		## runs no more than once in 30 minutes while it passes (it asks Slack), and in each iteration while its last result is
 		## a failure. Its answer and the time are kept in main-loop.config-check.last. A FAIL line is said on stderr with its
 		## reason; any FAIL is a failed check. Prints nothing; the answer is $? (0 passed, 1 failed).
@@ -230,7 +230,7 @@ case "$1" in
 			if [ "$checkLastRc" = 0 ] && [ "$checkNow" -ge "$checkLastAt" ] && [ "$(( checkNow - checkLastAt ))" -lt 1800 ] ; then
 				return 0
 			fi
-			checkOut="$( DistroAgentsTools --magic-heartbeat-config-check < /dev/null 2>&1 )" && checkRc=0 || checkRc=1
+			checkOut="$( DistroAgentsTools --magic-config-check < /dev/null 2>&1 )" && checkRc=0 || checkRc=1
 			if [ "$checkRc" = 0 ] ; then
 				echo "# $MDSC_CMD --intern-main-loop: ✅ configuration check passed, the next in 30 minutes" >&2
 			else
@@ -260,9 +260,25 @@ case "$1" in
 				&& AgentsToolsChildrenIndexRepair "$MMDAPP" \
 				&& echo "# $MDSC_CMD --intern-main-loop: children lists rebuilt under .local/agents/children" >&2 \
 				|| echo "# $MDSC_CMD --intern-main-loop: the children lists could not be rebuilt -- every harness scans every spawn record until an iteration rebuilds them" >&2
+			## The board's housekeeping, by script and no agent (F3.1, F7.12), so the work-duty session of the coordinator reads a board that is
+			## settled: what a dead spawn left open is closed (AgentsToolsAdvanceSpawnHousekeeping), and the edges of the dependencies are made
+			## whole and the dependencies computed, once for each change of the board (AgentsToolsBoardDependencies). A line for each thing done;
+			## never fatal. The control threads are the loop's own check, a step below (the housekeeping of a manual start does both).
+			local mainLoopHouse="" mainLoopHouseLine
+			mainLoopHouse="$(
+				set +e
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" > /dev/null 2>&1 || exit 1
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.SpawnHousekeeping.include" > /dev/null 2>&1 || exit 1
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDependencies.include" > /dev/null 2>&1 || exit 1
+				AgentsToolsAdvanceSpawnHousekeeping 24 magic-coordinator no-threads 2>&1 > /dev/null
+				AgentsToolsBoardDependencies 2> /dev/null
+			)" || mainLoopHouse="housekeeping: the board's housekeeping could not run"
+			while IFS= read -r mainLoopHouseLine ; do
+				[ -z "$mainLoopHouseLine" ] || echo "# $MDSC_CMD --intern-main-loop: $mainLoopHouseLine" >&2
+			done <<< "$mainLoopHouse"
 			## Answers to questions whose session has ended, collected by the tooling before
 			## anything is spawned, each going to its asker's inbox. The result is kept as a
-			## file the pass only reads (--intern-op-heartbeat-input-scan); no model
+			## file (pending-collect.last) that a work-duty scan reads; no model
 			## does the collecting.
 			mkdir -p "$MMDAPP/.local/agents" \
 				&& DistroAgentsTools --intern-op-pending-reply-collect --ended --context --intern-main-loop \

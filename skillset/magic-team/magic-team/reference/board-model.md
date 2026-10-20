@@ -23,7 +23,7 @@ Always written `board-<state>`.
 - **Triage** is a process, not a state: `magic-coordinator` turns inbox content into a board item in `board-backlog`. During grooming it decides with `magic-librarian` and `magic-architect` (the authority group). A small, obvious item it triages alone.
 - **`board-backlog`** — newly created, not yet assessed.
 - **`board-pending`** — `approved-by`/`approved-at` recorded, not yet dispatched.
-  - Deferred, not built: a `magic-coordinator.heartbeat.routine` session may move a backlog item straight to `board-running` when its restart is trivial.
+  - Deferred, not built: a `magic-coordinator` work-duty session may move a backlog item straight to `board-running` when its restart is trivial.
 - **`board-running`** — dispatched and in progress, including its testing round and while waiting on an ask. An item reaches it only through dispatch, or by creation for `approval-*`, `dispatch-*` and `interview-*`.
   - When implementation is claimed complete, `magic-coordinator` dispatches `magic-tester` for a testing round, in place.
   - Clean → `board-processed`; or `board-blocked` awaiting the human-owner's sign-off where the work needs it — where "The ladder: one rung at a time" climbs that far, not by default.
@@ -58,4 +58,4 @@ The tooling removes processed board and inbox items after a retention period; `a
 # Process-Flow, the board dynamics
 
 - `magic-team.grooming.routine` decides and applies: triage, RICE scoring, backlog readiness and promotion (approved backlog → pending included), recall to backlog. Once per workday or on request.
-- `magic-coordinator.advance.routine` applies decided moves only, every main-loop iteration: dispatch → running, review and unblock handling, signalled reopens, dependency recompute, deferred comms actions. It never makes a go decision.
+- `magic-coordinator.advance.routine` applies decided moves only, at each round (a wake of the coordinator's work-duty session, or a manual start): dispatch → running, review and unblock handling, signalled reopens, the judgement left of the dependencies, deferred comms actions. It never makes a go decision.

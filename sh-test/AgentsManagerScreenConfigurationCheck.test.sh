@@ -500,8 +500,8 @@ rigGroupLine(){ ## subject, group, key, state, value, label -- a line of the con
 	rigGroupLine cli claude-native present set /rig/bin/claude CLI_Present
 	rigGroupLine cli claude-native usable set yes CLI_Usable
 	rigRow subject loop 2 Loop_State
-	rigGroupLine loop heartbeat running set no Running
-	rigGroupLine loop heartbeat recheck set soon Recheck
+	rigGroupLine loop main-loop running set no Running
+	rigGroupLine loop main-loop recheck set soon Recheck
 } > "$MANAGER_SCREEN_RIG/rows.--manager-config-digest"
 rigScript <<'RIGSCRIPT'
 turn

@@ -206,6 +206,8 @@ class TextSurface:
 ##   mode <name>                   the left window is in that mode of its VIEW_MODES, as if its key had been pressed
 ##                                 earlier in the run of the screen
 ##   plaintext <tag> <text>        that text as such a terminal is given it, as `<tag>=<text>`
+## What `get` says of the reads, the failed ones and the forced ones leaves out the read that decides whether Team Data stands in the list (TEAM_DATA_HERE):
+## it is made at every start and at every refresh whatever a test is about, as the list of the locations is, and no test is about it but its own.
 def scriptRun(module):
     state = module.ManagerState("")
     surface = TextSurface(80, 24)
@@ -223,12 +225,14 @@ def scriptRun(module):
             ## has ended, so what a script sees does not depend on how fast it ended. It is taken
             ## into the state at the next turn, as ever; since it has ended, the state no longer
             ## names it among the reads that run, which it would say only one turn later.
-            call = reader[0].running.get("places")
-            deadline = time.time() + 30
-            while call is not None and call["process"].poll() is None and time.time() < deadline:
-                time.sleep(0.02)
-            if call is not None and call["process"].poll() is not None:
-                state.reading = dict((kind, key) for kind, key in state.reading.items() if kind != "places")
+            ## So does the read that decides whether Team Data stands in the list (kind `here`), which the stand-in notes in a file of its own.
+            for own in ("places", "here"):
+                call = reader[0].running.get(own)
+                deadline = time.time() + 30
+                while call is not None and call["process"].poll() is None and time.time() < deadline:
+                    time.sleep(0.02)
+                if call is not None and call["process"].poll() is not None:
+                    state.reading = dict((kind, key) for kind, key in state.reading.items() if kind != own)
 
     def setRows(level, rows):
         state.rows[level] = rows
@@ -306,14 +310,14 @@ def scriptRun(module):
             ("quit", "yes" if state.quit else "no"),
             ("style", module.STYLE["name"] if hasattr(module, "STYLE") else ""),
             ("colours", module.STYLE.get("scheme", "") if hasattr(module, "STYLE") else ""),
-            ("reading", ",".join(sorted(state.reading.values()))),
+            ("reading", ",".join(sorted(key for key in state.reading.values() if not key.endswith("/" + module.TEAM_DATA_HERE)))),
             ("calls", len(getattr(state, "calls", ()))),
             ("answer", len(state.answer["lines"]) if getattr(state, "answer", None) else 0),
             ("restLeft", "%.2f" % module.restLeft(state, clock[0]) if hasattr(module, "restLeft") else ""),
             ("keyWait", "%.3f" % module.keyWait(state, clock[0]) if hasattr(module, "keyWait") else ""),
             ("counters", ",".join("%s=%s" % pair for pair in sorted(state.counters.items()))),
-            ("failed", ",".join(sorted(state.failed))),
-            ("forced", ",".join(sorted(state.forced))),
+            ("failed", ",".join(sorted(key for key in state.failed if not key.endswith("/" + module.TEAM_DATA_HERE)))),
+            ("forced", ",".join(sorted(key for key in state.forced if not key.endswith("/" + module.TEAM_DATA_HERE)))),
             ("spills", surface.spills), ("frames", surface.frames), ("repaints", surface.repaints), ("puts", surface.puts),
             ("cursor", "" if surface.cursorAt is None else "%d,%d" % surface.cursorAt),
             ("children", len(surface.children)),

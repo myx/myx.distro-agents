@@ -38,7 +38,7 @@ review-by: inherit
 
 ## Scope
 
-- Does: follow up the items whose `owner` is the human-owner or an external contact. Their content lives in `magic-coordinator`'s inbox, so only `magic-coordinator` runs this. Runs inline in every heartbeat pass, or standalone when a specific owner needs checking sooner.
+- Does: follow up the items whose `owner` is the human-owner or an external contact. Their content lives in `magic-coordinator`'s inbox, so only `magic-coordinator` runs this. Runs inline in the coordinator's work-duty session when its scan carries due items, or standalone when a specific owner needs checking sooner.
 - Doesn't: process `magic-coordinator`'s own mail. That is `magic-team.process-inbox.routine magic-coordinator`, run in the advance pass.
 
 # Opening steps
@@ -103,7 +103,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-coordinator.heartbeat.routine` — runs this routine at **handle-external-owner-items**.
+- `magic-team.work-duty.routine` — the coordinator's duty runs this routine at the due items of its scan.
 - `magic-team.process-inbox.routine` — the acting-member counterpart.
 
 ### Conventions

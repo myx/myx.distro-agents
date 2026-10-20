@@ -664,7 +664,7 @@ keys y
 turn
 get plain
 box pbox
-keys ENTER
+keys TAB ENTER
 get empty
 keys u s e SPACE i t ENTER
 wait action 30

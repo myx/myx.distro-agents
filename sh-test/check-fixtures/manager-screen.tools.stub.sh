@@ -17,6 +17,7 @@
 ##   script <file> becomes the bash script $MANAGER_SCREEN_RIG/<file> (exec): what it writes, on either
 ##                 stream and when, how it ends, by a status or by a signal, are the script's own; such a
 ##                 start appends nothing to $MANAGER_SCREEN_RIG/ended
+## The read that decides whether Team Data stands in the list (`--manager-dashboard-read team-data`) is the fourth, and is noted in the file `here` alone.
 ## Three operations the screen calls of its own accord, whatever a test is about, the list of the
 ## locations at every start (`--manager-place-list`), the blocks of the dashboard while the root
 ## stands on its first row (`--manager-dashboard-read`) and the count of the asks, whatever is shown
@@ -27,6 +28,13 @@
 ## `rows` are the fixture of the view under test, and are not theirs.
 set -u
 : "${MANAGER_SCREEN_RIG:?⛔ ERROR: MANAGER_SCREEN_RIG is not set}"
+## The read that decides whether Team Data stands in the list is made at every start and at every refresh, whatever a test is about: it is noted in
+## $MANAGER_SCREEN_RIG/here, one line a start, and in none of the files that count the starts; it prints the rig's rows of the dashboard.
+if [ "$*" = "--manager-dashboard-read team-data" ] ; then
+	printf '%s\n' "$*" >> "$MANAGER_SCREEN_RIG/here"
+	if [ -f "$MANAGER_SCREEN_RIG/rows.$*" ] ; then cat "$MANAGER_SCREEN_RIG/rows.$*" ; elif [ -f "$MANAGER_SCREEN_RIG/rows.--manager-dashboard-read" ] ; then cat "$MANAGER_SCREEN_RIG/rows.--manager-dashboard-read" ; fi
+	exit 0
+fi
 printf '%s\n' "$*" >> "$MANAGER_SCREEN_RIG/calls"
 rigOwn=""
 case "${1:-}" in --manager-place-list|--manager-dashboard-read) rigOwn="yes" ;; esac

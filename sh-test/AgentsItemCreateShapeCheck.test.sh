@@ -4,8 +4,7 @@
 ## created with the Rule's warning, board and inbox alike) and its creation
 ## headers (type/from/date on a board create, type/from/date/owner on a new inbox item,
 ## never over a given value, never on an update); --member-inbox-to-processed (own inbox
-## only, marked in place); the heartbeat state write refreshing a held lock; the heartbeat scan's board
-## counts; and the sweep's per-message author:/addressees: lines. Every call goes through
+## only, marked in place); the state-note write refreshing a held lock; and the sweep's per-message author:/addressees: lines. Every call goes through
 ## one `env -i` whose child refuses to run outside this rig's mktemp tree; no Slack, no mail.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -150,29 +149,26 @@ rigOp "$rigTmp/p4" --librarian-inbox-to-processed rig-member 2026-07-22-note-leg
 rigAssert "the librarian op still works"                    "$( cat "$rigTmp/p4.rc" ):$( rigFieldCount "$rigData/inboxes/rig-member/processed/2026-07-22-note-legacy.md" processed-at )" "0:1"
 
 echo "-- a --magic-* op is magic-coordinator's, or the console's --"
-RIG_AGENT=rig-other rigOp "$rigTmp/m1" --magic-heartbeat-lock-status magic-coordinator
-rigAssert "another member's session is refused"            "$( cat "$rigTmp/m1.rc" ):$( rigHolds "$rigTmp/m1" "this session acts as rig-other, and magic-heartbeat-lock-status is magic-coordinator's only" )" "1:yes"
-RIG_AGENT=magic-coordinator rigOp "$rigTmp/m2" --magic-heartbeat-lock-status magic-coordinator
+RIG_AGENT=rig-other rigOp "$rigTmp/m1" --magic-state-note-lock-status magic-coordinator
+rigAssert "another member's session is refused"            "$( cat "$rigTmp/m1.rc" ):$( rigHolds "$rigTmp/m1" "this session acts as rig-other, and magic-state-note-lock-status is magic-coordinator's only" )" "1:yes"
+RIG_AGENT=magic-coordinator rigOp "$rigTmp/m2" --magic-state-note-lock-status magic-coordinator
 rigAssert "the coordinator's own session is not"           "$( rigHolds "$rigTmp/m2" "is magic-coordinator's only" )" no
-rigOp "$rigTmp/m3" --magic-heartbeat-lock-status magic-coordinator
+rigOp "$rigTmp/m3" --magic-state-note-lock-status magic-coordinator
 rigAssert "nor the console"                                "$( rigHolds "$rigTmp/m3" "is magic-coordinator's only" )" no
 RIG_AGENT=rig-other rigOp "$rigTmp/m5" --magic-contact-digest-send rig-member rig-member --resolved rig digest
 rigAssert "--magic-contact-digest-send is refused to another member's session too" "$( cat "$rigTmp/m5.rc" ):$( rigHolds "$rigTmp/m5" "is magic-coordinator's only" )" "1:yes"
 
-echo "-- heartbeat: state write refreshes a held lock; board counts --"
+echo "-- state note: a write refreshes a held lock --"
 rigLock="$rigData/inboxes/magic-coordinator/incoming/note-20260809T155000Z-heartbeat-state-and-lock.md"
 mkdir -p "${rigLock%/*}"
 printf -- '---\ntype: note\nstate: heartbeat-running\nrecheck-date: 2001-01-01 00:00 +0000\nsession-id: rig-session\n---\n\nold state\n' > "$rigLock"
-printf -- '---\nlast-iteration-date: 2026-10-06\n---\n\nnew state\n' | rigOp "$rigTmp/h1" --intern-op-heartbeat-state-upsert magic-coordinator
+printf -- '---\nlast-iteration-date: 2026-10-06\n---\n\nnew state\n' | rigOp "$rigTmp/h1" --intern-op-state-note-upsert magic-coordinator
 rigAssert "the state write succeeds"                        "$( cat "$rigTmp/h1.rc" ):$( rigHolds "$rigLock" 'new state' )" "0:yes"
 rigAssert "recheck-date is moved forward, once"             "$( rigFieldCount "$rigLock" recheck-date ):$( [ "$( rigField "$rigLock" recheck-date )" \> "$( date -u +%Y-%m-%d )" ] && echo future || rigField "$rigLock" recheck-date )" "1:future"
 rigAssert "the caller's own fields are written"             "$( rigField "$rigLock" last-iteration-date )" 2026-10-06
 printf -- '---\ntype: note\nstate: heartbeat-finished\nrecheck-date: 2001-01-01 00:00 +0000\nsession-id: rig-session\n---\n\nold state\n' > "$rigLock"
-printf -- 'closed state\n' | rigOp "$rigTmp/h2" --intern-op-heartbeat-state-upsert magic-coordinator
+printf -- 'closed state\n' | rigOp "$rigTmp/h2" --intern-op-state-note-upsert magic-coordinator
 rigAssert "a finished note's recheck-date is untouched"    "$( cat "$rigTmp/h2.rc" ):$( rigField "$rigLock" recheck-date )" "0:2001-01-01 00:00 +0000"
-rigOp "$rigTmp/h3" --intern-op-heartbeat-input-scan magic-coordinator
-rigAssert "the scan has a board counts section"             "$( LC_ALL=C grep -c -x '## board counts' "$rigTmp/h3" )" 1
-rigAssert "counting each state's items"                     "$( LC_ALL=C grep -x -E '(running|pending|backlog|review): [0-9]+' "$rigTmp/h3" | tr '\n' ' ' )" "backlog: 1 pending: 2 running: 2 review: 0 "
 
 echo "-- sweep item blocks: author and addressees --"
 printf '%s\n' '{"ok":true,"messages":[{"ts":"1.000001","user":"U1","text":":m: *_magic-coordinator_* @Magic → :k: *_rig-member_* <@U9>; <@U7>.\nbody. more"},{"ts":"1.000002","bot_id":"B1","text":"*_magic-team_* @Team → @here.\nbody"},{"ts":"1.000003","user":"U2","text":"hey <@U5> look"},{"ts":"1.000004","user":"U3","text":"<!channel> all"},{"ts":"1.000005","user":"U3","text":"plain"}]}' \

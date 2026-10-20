@@ -41,7 +41,7 @@ review-by: inherit
 
 - Does:
   - Decide each open permission ask its input scan lists, oldest first, in every workspace this machine knows.
-  - Run inline when `magic-coordinator` is told to in a coworking session, and inline in every heartbeat pass (`magic-coordinator.heartbeat.routine`'s **handle-permission-asks**).
+  - Run inline when `magic-coordinator` is told to in a coworking session, and inline in the coordinator's work-duty session when its scan carries permission asks.
 - Doesn't:
   - Ask for a task's permission set, pass a permission on, or revoke one.
   - Close an ask with no verdict.
@@ -81,7 +81,7 @@ All statements apply at the same time, always. These rules override a participan
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
 - An ask still open after this pass stays open. Only a verdict closes it.
-- In a heartbeat pass nothing waits on the human-owner: **ask-the-human-owner** is registered by `magic-coordinator.heartbeat.routine`'s **register-owner-decisions** instead, and the ask stays open.
+- In a work-duty session nothing waits on the human-owner: **ask-the-human-owner** is registered instead as an `approval-*` item in `board-running` (`--magic-board-create-running`, `blocks` set to the item it gates) unless one exists, and the ask stays open. Advance asks and re-asks it. Nobody is present to work it out first: the "no parent present" branch of "The ladder: one rung at a time" applies.
 
 # Routine-specific tooling
 
@@ -107,7 +107,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-coordinator.heartbeat.routine` — runs this routine at **handle-permission-asks**.
+- `magic-team.work-duty.routine` — the coordinator's duty runs this routine at the permission asks of its scan.
 - `magic-team/templates/escalation.document.format.md` — the `permission` kind and its verdicts.
 
 ### Conventions

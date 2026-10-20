@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.BoardRoundScan.include -- the sections of a scan that a round of the board's rules reads (F7.12): the board's items of the
+## active states, the review items addressed to the advance routine, the registries of sessions, and the items whose recheck-date has arrived.
+## The advance scan (--intern-op-advance-input-scan, a manual start of the routine) and the coordinator's work-duty scan print the same
+## sections from here, so there is one reading of the board for the rules of magic-coordinator.advance.routine, wherever they are run.
+## Sourced, never run; functions only. All are pure reads: what a round acts on first (what a dead spawn left open, the edges of the
+## dependencies) is done by the tooling before, in the main loop's housekeeping (AgentsTools.SpawnHousekeeping.include,
+## AgentsTools.BoardDependencies.include).
+##
+
+## The board digest, the review items addressed to advance.routine and the registries. rc: that of the digest.
+AgentsToolsBoardRoundSections(){ ## calling member, the operation the scan is called as (for the log)
+	local roundRc=0
+	## Scoped to what the rules act on, per the owner's "grooming reads backlog+inquiries+notes, advance does not": no backlog (promotion is
+	## grooming's), and of the own inbox only notes -- the pending-slack-reaction and pending-trello-update records check-pending-comms-actions
+	## reads. Inquiries, reflections and the client-* inboxes are read by --intern-op-grooming-input-scan.
+	printf '\n%s\n\n' "## board digest"
+	DistroAgentsTools --intern-op-session-context-scan "$1" \
+		--state pending --state running --state review --state blocked --state parked \
+		--all-types \
+		--no-inbox-inquiry \
+		--no-inbox-reflections \
+		--do-inbox-notes \
+		--no-slack --no-email --no-trello \
+		--no-inbox-other \
+		--no-board-related \
+		--context "$2" || roundRc=$?
+	## The review items this routine reviews on this run (AgentsTools.ReviewFlow.include).
+	type AgentsReviewItemsForRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+	printf '\n%s\n\n' "## review items addressed to advance.routine"
+	AgentsReviewItemsForRoutine advance
+	## All three registries ride in the scan's output because the round that reads the board also needs to know who can be spawned, what is
+	## actually running and what is waiting on an answer. The rescan is what keeps each one a cache rather than a record anyone maintains by
+	## hand. The instruction to poll these and compare them with the board's own running items lives in magic-coordinator.advance.routine.
+	type AgentsToolsRegistryRenderAll > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+	printf '\n'
+	AgentsToolsRegistryRenderAll || :
+	return "$roundRc"
+}
+
+## The items of the active states whose recheck-date has arrived: one `- <state>/<item> recheck-date <date>` line each, or `(none)`.
+AgentsToolsBoardRecheckDueSection(){
+	local dueNow dueState dueFile dueRow dueItem dueDate dueEpoch dueOut="" dueN=0
+	dueNow="$( date +%s )"
+	printf '\n%s\n\n' "## recheck dates due"
+	for dueState in pending running review blocked parked ; do
+		for dueFile in "$MDAT_DATA_ROOT/board/$dueState"/*.md ; do
+			[ -f "$dueFile" ] || continue
+			dueRow="$( LC_ALL=C awk -v row="$dueState/${dueFile##*/}" 'FNR == 1 { fm = ( $0 == "---" ) ; next } fm && $0 == "---" { exit } fm && index( $0, "recheck-date: " ) == 1 { print row "\t" substr( $0, 15 ) ; exit }' "$dueFile" )"
+			[ -n "$dueRow" ] || continue
+			dueItem="${dueRow%%$'\t'*}" dueDate="${dueRow#*$'\t'}"
+			dueEpoch="$( printf '%s\n' "$dueDate" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )"
+			case "$dueEpoch" in ''|*[!0123456789]*) continue ;; esac
+			[ "$dueEpoch" -le "$dueNow" ] || continue
+			dueN=$(( dueN + 1 ))
+			dueOut="$dueOut- $dueItem recheck-date $dueDate"$'\n'
+		done
+	done
+	if [ "$dueN" -gt 0 ] ; then printf '%s' "$dueOut" ; else printf '(none)\n' ; fi
+	return 0
+}

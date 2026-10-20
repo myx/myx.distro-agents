@@ -17,7 +17,7 @@ panel	root	tokens	Session_Tokens	AgentsToolsManagerDashboardTokens	myx.distro-ag
 panel	root	team	Team_Members	AgentsToolsManagerDashboardTeam	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	-
 panel	root	team-data	Team_Data	AgentsToolsManagerDashboardTeamData	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	-
 panel	root	team-data-git	Team_Data_Git	AgentsToolsManagerDashboardTeamDataGit	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	named
-panel	root	loop	Main_Loop_And_Heartbeat	AgentsToolsManagerDashboardLoop	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	-
+panel	root	loop	Main_Loop	AgentsToolsManagerDashboardLoop	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	-
 panel	root	machine	The_Machine	LocalToolsManagerDashboardMachine	-	-
 panel	root	disk	Disk_Space	AgentsToolsManagerDashboardDisk	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	-
 panel	root	testing	Retest_Queue	AgentsToolsManagerDashboardTesting	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	-

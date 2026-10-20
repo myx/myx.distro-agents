@@ -31,10 +31,6 @@ AgentsToolsOwnerSetupOptionSpec(){
 		WAIT_ROUND_SECONDS)
 			printf '%s\n' 'magic-team|<seconds>|plain|how long a wait of a session that brings nothing runs before it comes back, in whole seconds, for every session of this workspace whatever CLI it runs on. Left unset each CLI service takes its own: a little under the lifetime of its prompt cache where that is known, else 270, under a five-minute cache. Set it only where the cache of the service in use here is known to live longer or shorter than that.'
 		;;
-		## The wait between two passes of the advance routine (F7.12, AgentsToolsScheduleAdvance in AgentsTools.DispatcherLoop.include).
-		MDAT_SCHEDULE_ADVANCE_MINUTES)
-			printf '%s\n' 'magic-team|<minutes>|plain|how many minutes after the last advance pass ended the main loop may start the next one, in whole minutes; 0 for no wait. A pass is started only when something is new for it and only while the schedule opens the coordinator duty (worktime, emergency or overtime); what is new waits for the next allowed start. Thirty minutes when it is not set.'
-		;;
 		## The window of the work-duty input scan's collect (F4.1, AgentsTools.InternOpWorkDuty.include).
 		WAIT_COLLECT_SECONDS)
 			printf '%s\n' 'magic-team|<seconds>|plain|how long the work-duty input scan collects the team channel before it returns, in whole seconds, for every session of this workspace. A message tagged to the member, in the team channel or its session thread, and any direct message end the collect at once. A minute when it is not set.'

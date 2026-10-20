@@ -199,7 +199,7 @@ rigAssert "Down scrolls it by a line"                                "$( rigHas 
 rigAssert "PgDn by a page, and it stops at its end"                  "$( rigHas b3 'line 04' ) $( rigHas b3 'line 05' ) $( rigHas b3 'line 10' ) $( rigHas b3 '▼' )" "0 1 1 0"
 rigAssert "the box has the keys: q does not end the screen"          "$( rigVal still.dialog ) $( rigVal still.quit )" "message:ok| no"
 rigAssert "a box that comes while one is open waits for it"          "[$( rigVal queued.dialogTitle )] $( rigVal queued.waiting )" "[The start failed] 1"
-rigAssert "and opens when that one is closed, its text broken between words" "[$( rigVal second.dialogTitle )] $( rigVal second.waiting ) $( rigHas b4 '║   a text that is broken to the box it stands in, ' ) $( rigHas b4 '║   hold all of it ' ) [$( rigVal st4 )]" "[Second] 0 1 1 [ ENTER OK  ESC Close]"
+rigAssert "and opens when that one is closed, its text broken between words" "[$( rigVal second.dialogTitle )] $( rigVal second.waiting ) $( rigHas b4 '║   a text that is broken to the box it stands in, ' ) $( rigHas b4 '║   all of it ' ) [$( rigVal st4 )]" "[Second] 0 1 1 [ ENTER OK  ESC Close]"
 rigAssert "Esc closes it, and the keys go back to the windows"       "[$( rigVal none.dialog )] $( rigVal none.waiting )" "[] 0"
 
 echo "-- the status line names only the keys that act for what has the keys --"
@@ -478,7 +478,7 @@ size 60 12
 tell A title far longer than the box that holds it can show | line 01 / line 02 / line 03 / line 04 / line 05 / line 06 / line 07 / line 08 / line 09 / line 10
 turn
 get long
-cells longTop 1 2 58
+cells longTop 1 0 60
 RIGSCRIPT
 rigLineOnTab(){ ## style, letter of a line, letter of a title tab -- "same" where the text of the line is the ground of the tab, on a terminal of eight colours and on one of 256, else the colours of both
 	"$rigPython" -I -B - "$rigScreen" "$1" "$2" "$3" <<'RIGPY' 2>&1
@@ -500,7 +500,7 @@ rigDown="$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^nbd|//p' | LC_ALL=C gr
 rigAssert "every style: under the top of a dialog its empty lines, as under its buttons, its text on the line after them (F11.0: two lines under its top, one more under its buttons)" "$( for rigOne in tv bw nb ; do printf '[%s %s %s]' "$( rigVal "$rigOne.dialogBox" )" "$( rigVal "${rigOne}Under" )" "$( rigVal "${rigOne}Text" )" ; done )" "[30,4,60,32   What the rig asks.][30,4,60,32   What the rig asks.][30,4,60,32   What the rig asks.]"
 rigAssert "Basic B/W, whose buttons cast no shadow: an empty line under its buttons too" "[$( rigVal bwButtons | LC_ALL=C sed -e 's/^ *//' )] [$( rigVal bwFoot )]" "[[»OK«]  [ Cancel ]] []"
 rigAssert "Magic: the line over a dialog and the line at its foot in the colour of the ground of its title tab, in each of its colours; the marks of a scroll in the look they had" "$( for rigOne in nb:nu-blue ng:nu-gray ns:nu-system ; do rigTag="${rigOne%%:*}r" ; printf '[%s %s]' "$( rigLineOnTab "${rigOne#*:}" "$( rigRole "$rigTag" 1 2 2 )" T )" "$( rigLineOnTab "${rigOne#*:}" "$( rigRole "$rigTag" 32 2 2 )" T )" ; done ) $( rigRole nbs "${rigDown:-1}" 59 59 ) $( rigGround nu-blue G )" "[same same][same same][same same] G black/cyan 16/87 dialog cyan 87"
-rigAssert "Magic: the title tab of a dialog at its left, three cells in; a long one cut to leave three cells of the line at its right" "[$( rigVal nbTop )] [$( rigVal longTop )]" "[$( rigRepeat ▁ 3 ) A dialog of the rig $( rigRepeat ▁ 36 )] [$( rigRepeat ▁ 3 ) A title far longer than the box that holds it c… $( rigRepeat ▁ 3 )]"
+rigAssert "Magic: the title tab of a dialog at its left, three cells in; a long one cut to leave three cells of the line at its right" "[$( rigVal nbTop )] [$( rigVal longTop )]" "[$( rigRepeat ▁ 3 ) A dialog of the rig $( rigRepeat ▁ 36 )] [$( rigRepeat ▁ 3 ) A title far longer than the box that holds it can s… $( rigRepeat ▁ 3 )]"
 rigAssert "Magic: the shadow at the right of a dialog starts beside its second line; beside its first stays what lies there" "$( [ "$( rigRole nbr 2 61 61 )" = z ] && echo shadow || echo under ) $( rigRole nbr 3 61 61 )" "under z"
 
 echo "-- on a real terminal, in every style: the cursor shows where what is typed goes while a field has the keys, and nowhere while a button has them --"

@@ -9,7 +9,7 @@
 ## rigAssert defined:
 ##   . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-schedule-loop.include.sh"
 ##   rigScheduleSetup <number of keepers>    builds the rig under $rigTmp/loop
-##   rigAt <epoch>  rigMentionCache  rigOneRun <name>  rigWaitStarts  rigDispatch <words...>  rigTool <words...>  rigSaid  rigStartsOf  rigRecordsOf  rigCalls  rigDutyCount  rigItem
+##   rigAt <epoch>  rigMentionCache  rigOneRun <name>  rigWaitStarts  rigDispatch <words...>  rigTool <words...>  rigSaid  rigStartsOf  rigRecordsOf  rigCalls  rigDutyCount  rigItem  rigLive
 ##
 
 rigScheduleSetup(){ ## number of keepers (01 up)
@@ -42,6 +42,9 @@ rigScheduleSetup(){ ## number of keepers (01 up)
 	## not need (the routine's own text is held by AgentsScheduleLoopCheck, section 0).
 	LC_ALL=C sed -e 's/^input-scan-def: .*$/input-scan-def: none/' "$rigPackage/skillset/magic-team/magic-team/magic-team.work-duty.routine.md" > "$rigSkills/magic-team/magic-team.work-duty.routine.md" \
 		|| rigRefuse "the work-duty routine is not in the package skillset"
+	## The coordinator's own duty routine of the package too, but for its scan and the sections it includes (the rig holds no advance routine to take them of).
+	LC_ALL=C sed -e 's/^input-scan-def: .*$/input-scan-def: none/' -e '/^includes: /d' "$rigPackage/skillset/magic-team/magic-coordinator/magic-coordinator.work-duty.routine.md" > "$rigSkills/magic-coordinator/magic-coordinator.work-duty.routine.md" \
+		|| rigRefuse "the coordinator's work-duty routine is not in the package skillset"
 	local rigBody="# Opening steps\n\nNone.\n\n# Steps\n\n1. **work**: work.\n\n# Closure steps\n\nNone.\n\n# Routine's local procedures\n\nNone.\n"
 	printf -- "---\ntype: routine\nexecutors: keeper-rig-01\nmaintainers: rig\nrequires-session-kind: standalone\nruns-at: daily 09:00\n---\n# keeper-rig-01.auto.routine\n\n$rigBody" > "$rigSkills/keeper-rig-01/keeper-rig-01.auto.routine.md"
 	printf -- "---\ntype: routine\nexecutors: keeper-rig-01\nmaintainers: rig\nrequires-session-kind: standalone\nruns-at: daily 09:00\nruns-after: keeper-rig-01.auto\n---\n# keeper-rig-01.chain.routine\n\n$rigBody" > "$rigSkills/keeper-rig-01/keeper-rig-01.chain.routine.md"
@@ -86,6 +89,29 @@ exec "$real" "$@"
 RIGDATE
 	chmod +x "$rigWs/DistroAgentsConsole.sh" "$rigDir/bin/curl" "$rigDir/bin/ps" "$rigDir/bin/date"
 	: > "$rigScn/calls" ; : > "$rigScn/history-empty"
+}
+
+rigLiveSpawn="" rigLivePid=""
+rigLive(){ ## member, idle|working -- the run of that member's duty in the rig: a stand-in process, a record, a thread and a store; its spawn id in rigLiveSpawn
+	local liveRecord liveSpawn liveLeft
+	liveRecord="$( LC_ALL=C grep -l -x "owner: $1" $( LC_ALL=C grep -l -x 'routine: magic-team.work-duty.routine.md' "$rigSp"/*/*.md ) | head -1 )"
+	liveSpawn="${liveRecord##*/}" ; liveSpawn="${liveSpawn%.md}"
+	## The real start of this duty ends a moment after its record says so, with a last milestone of its own; the run of the rig is made after that, or it is written over.
+	liveLeft=150
+	while [ "$liveLeft" -gt 0 ] && ! LC_ALL=C grep -q ' end$' "$rigStores/$liveSpawn/milestones" 2> /dev/null ; do sleep 0.2 ; liveLeft=$(( liveLeft - 1 )) ; done
+	LC_ALL=C sed -i.bak -e 's/^status: .*/status: spawn-started/' -e '/^resolved-at: /d' "$liveRecord" && rm -f "$liveRecord.bak"
+	if ! LC_ALL=C grep -q '^session-thread: ' "$liveRecord" ; then
+		LC_ALL=C awk '{ print } /^status: / { print "session-thread: CRIG00001:1760000000.0000" NR }' "$liveRecord" > "$liveRecord.next" && mv -f "$liveRecord.next" "$liveRecord"
+	fi
+	sleep 600 > /dev/null 2>&1 < /dev/null &
+	rigLivePid="$!"
+	rigProcNote "$!" ; rigStarted="$rigStarted $!"
+	printf '%s claude --verbose --session-id %s --agent %s the brief\n' "$!" "$liveSpawn" "$1" >> "$rigDir/ps.list"
+	disown "$!" 2> /dev/null || :
+	mkdir -p "$rigStores/$liveSpawn"
+	if [ "$2" = idle ] ; then printf '2026-10-19T10:00:00Z start\n2026-10-19T10:05:00Z wait going idle\n' > "$rigStores/$liveSpawn/milestones"
+	else printf '2026-10-19T10:00:00Z start\n2026-10-19T10:05:00Z message out\n' > "$rigStores/$liveSpawn/milestones" ; fi
+	rigLiveSpawn="$liveSpawn"
 }
 
 rigMentionCache(){ ## -- the Slack ids of the members of the rig (URIG<last word of the name>), as the tooling keeps them; the tooling rewrites the file, so a check that reads it sets it again
@@ -148,7 +174,7 @@ rigCalls(){ ## method -- how many calls of that Slack method the fake curl logge
 }
 rigDutyCount(){ ## member -- how many records of the work-duty routine that member owns
 	local dutyR dutyN=0
-	for dutyR in $( LC_ALL=C grep -l -x 'routine: magic-team.work-duty.routine.md' "$rigSp"/*/*.md 2> /dev/null ) ; do
+	for dutyR in $( LC_ALL=C grep -l -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' "$rigSp"/*/*.md 2> /dev/null ) ; do
 		[ "$( LC_ALL=C grep -c -x "owner: $1" "$dutyR" )" = 0 ] || dutyN=$(( dutyN + 1 ))
 	done
 	printf '%s\n' "$dutyN"

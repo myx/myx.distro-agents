@@ -16,10 +16,10 @@
 ##   3. its Closure steps are its own, then the kind's
 ##   4. with `skips-inherited:` naming one of the kind's Opening steps, that step is left out, the others stay, and it comes back nowhere
 ##   5. a real routine of the coworking kind, magic-team.grooming.routine, gets the kind's steps around its own
-##   6. advance and heartbeat: every step they skip is a step of the kind (a name that is none would skip nothing), it is not in their text, and the
+##   6. advance: every step they skip is a step of the kind (a name that is none would skip nothing), it is not in their text, and the
 ##      others of the kind are; retro skips none and has them all
 ##   7. the text is reproducible: two runs, in two sessions and some seconds apart, give the same bytes
-## Offline: the rig skillset carries a copy of the package's kind routine, of grooming, advance, heartbeat and retro, and the rig's own routines.
+## Offline: the rig skillset carries a copy of the package's kind routine, of grooming, advance and retro, and the rig's own routines.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -41,7 +41,7 @@ mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigTmp/home" "$rigSkil
 printf 'rig\n' > "$rigSkills/keeper-rig/keeper-rig.basic.md" ; printf 'rig\n' > "$rigSkills/keeper-rig/keeper-rig.armed.md"
 printf 'rig\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md" ; printf 'rig\n' > "$rigSkills/magic-coordinator/magic-coordinator.armed.md"
 cp "$rigKind" "$rigTeamDir/magic-team/magic-team.grooming.routine.md" "$rigSkills/magic-team/"
-for rigName in advance heartbeat retro ; do cp "$rigTeamDir/magic-coordinator/magic-coordinator.$rigName.routine.md" "$rigSkills/magic-coordinator/" ; done
+for rigName in advance retro ; do cp "$rigTeamDir/magic-coordinator/magic-coordinator.$rigName.routine.md" "$rigSkills/magic-coordinator/" ; done
 
 rigPassCount=0
 rigFailCount=0
@@ -130,8 +130,8 @@ rigText magic-team.grooming grooming
 rigAssert "grooming runs the kind's Opening steps" "$( rigSteps "$rigTmp/grooming.text" "$rigKindHead" )" "$rigKindOpening"
 rigAssert "its own Steps are there, and the kind's Closure steps come after them" "$( [ "$( rigLine "$rigTmp/grooming.text" '# Steps of magic-team.grooming.routine' )" -gt 0 ] && [ "$( rigLine "$rigTmp/grooming.text" '# Steps of magic-team.grooming.routine' )" -lt "$( rigLine "$rigTmp/grooming.text" "$rigKindClose" )" ] && echo own-then-kind )" "own-then-kind"
 
-echo "-- 6. advance and heartbeat skip what they name; retro skips none --"
-for rigName in advance heartbeat retro ; do
+echo "-- 6. advance skips what it names; retro skips none --"
+for rigName in advance retro ; do
 	rigText "magic-coordinator.$rigName" "co-$rigName"
 	rigFile="$rigSkills/magic-coordinator/magic-coordinator.$rigName.routine.md"
 	rigSkipped="$( LC_ALL=C sed -n 's/^skips-inherited: *//p' "$rigFile" | LC_ALL=C tr ',' '\n' | LC_ALL=C sed 's/^ *//; s/ *$//' | LC_ALL=C grep . | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )"

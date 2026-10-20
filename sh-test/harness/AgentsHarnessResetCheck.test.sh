@@ -7,7 +7,7 @@
 ## itself, so the next scan gathers afresh"), and what it promises is that the member's NEXT run starts armed from the cached entry.
 ## Held:
 ##   1. a rewind (the executor's own) drops the scan cache of the run's session -- the report files of the scans that are cached, advance
-##      and heartbeat -- and only those: another file of the session, and the caches of another session, stay
+##      and the others -- and only those: another file of the session, and the caches of another session, stay
 ##   2. so does the return of an `--idle-wait` that an arrival ends
 ##   3. a run with no team session (MDAT_SESSION_ID unset) has no scan cache, and a rewind touches no file of the kind
 ##   4. a rewind that is refused (no snapshot of the name) drops nothing; the function alone refuses a session name that is no folder name
@@ -143,12 +143,12 @@ rigRun(){ ## further harness arguments -- the run, as the team session rigSessId
 	rigRunStatus=$?
 	[ "$( cat "$rigDir/round" )" != 0 ] || rigRefuse "the harness issued no request at all -- its stderr: $( head -5 "$rigDir/err" )"
 }
-rigCacheName1="magic-advance-input-scan.md" rigCacheName2="magic-heartbeat-input-scan.md"
+rigCacheName1="magic-advance-input-scan.md" rigCacheName2="magic-work-duty-input-scan.md"
 rigPlaceCaches(){ ## session folder name -- the two report files a scan cache keeps, another file of the session, in its folder
 	local placeDir="$rigWs/.local/agents/sessions/$1"
 	mkdir -p "$placeDir"
 	printf 'REPORT-ADVANCE\n' > "$placeDir/$rigCacheName1"
-	printf 'REPORT-HEARTBEAT\n' > "$placeDir/$rigCacheName2"
+	printf 'REPORT-WORK-DUTY\n' > "$placeDir/$rigCacheName2"
 	printf 'NOT-A-REPORT\n' > "$placeDir/keep-notes.md"
 }
 rigCaches(){ ## session folder name -- what of those files is there, as three words

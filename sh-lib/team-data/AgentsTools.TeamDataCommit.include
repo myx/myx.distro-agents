@@ -10,7 +10,7 @@
 ## and independent of TEAM_DATA_GIT_REMOTE, and it never pushes -- the board ops
 ## commit locally and item-upsert is the op that pushes. A failed commit warns on
 ## stderr and never fails the write that came before it: the write has happened,
-## and the dirty-store warning at heartbeat and spawn close names what is left.
+## and the dirty-store warning at a spawn close names what is left.
 ##
 ## With TEAM_DATA_GIT_REMOTE set, the store's step of the set-up and the close push call
 ## myx.common's git/cloneSync for a store that has a remote, as the main loop's pass does,

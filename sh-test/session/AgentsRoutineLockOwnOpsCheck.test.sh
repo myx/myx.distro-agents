@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on the five routines that locked by hand before the spawner did (F6.2): advance, daily, grooming,
-## heartbeat and retro keep their standing state-and-lock notes, and the spawner now takes and gives back their locks
+## Behavioural check on the four routines that locked by hand before the spawner did (F6.2): advance, daily, grooming
+## and retro keep their standing state-and-lock notes, and the spawner now takes and gives back their locks
 ## through their own acquire and close operations, so what those do still happens, and what they print reaches the run.
 ## A routine names several locks in `routine-lock-document:`, separated by commas, as a routine that runs another inline does.
 ## Held, with the daily routine (a rig copy with the real lock note names):
@@ -9,7 +9,7 @@
 ##   2. once the run has ended, the note is `daily-finished` and carries `last-close-date:` of today, as the daily's own
 ##      close stamps it
 ##   3. a second start of the same day, the note now holding today's last-close-date, is told `first-today: no`
-##   4. a routine naming two locks (heartbeat and advance): both are running while it lives, both finished after
+##   4. a routine naming two locks (grooming and advance): both are running while it lives, both finished after
 ## Offline: a fake curl first on PATH; every tree is this rig's own.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -35,13 +35,13 @@ chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"
 rigDaily="note-20260811T120000Z-daily-state-and-lock.md"
-rigHeartbeat="note-20260809T155000Z-heartbeat-state-and-lock.md"
+rigGrooming="note-20260809T154332Z-grooming-state-and-lock.md"
 rigAdvance="note-20260809T154715Z-advance-state-and-lock.md"
 ## The console stand-in: while the run is live it copies the brief and the three notes.
 printf '%s\n' '#!/usr/bin/env bash' \
 	'## --cli-configured stand-in: writes MDAT_SPAWN_LAUNCH_MARKER and records the context.' \
 	'cat > "$RIG_SCENARIO/brief.$MDAT_SPAWN_AGENT"' \
-	'for n in note-20260811T120000Z-daily-state-and-lock.md note-20260809T155000Z-heartbeat-state-and-lock.md note-20260809T154715Z-advance-state-and-lock.md ; do cp "$RIG_INBOX/$n" "$RIG_SCENARIO/seen.$n" 2> /dev/null || : ; done' \
+	'for n in note-20260811T120000Z-daily-state-and-lock.md note-20260809T154332Z-grooming-state-and-lock.md note-20260809T154715Z-advance-state-and-lock.md ; do cp "$RIG_INBOX/$n" "$RIG_SCENARIO/seen.$n" 2> /dev/null || : ; done' \
 	'printf "📦 SubagentHandback\n"' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
@@ -60,7 +60,7 @@ rigRoutine(){ ## short name, the lock documents (a list)
 	} > "$rigSkills/magic-coordinator/magic-coordinator.$1.routine.md"
 }
 rigRoutine daily "inbox:magic-coordinator:$rigDaily"
-rigRoutine both "inbox:magic-coordinator:$rigHeartbeat,inbox:magic-coordinator:$rigAdvance"
+rigRoutine both "inbox:magic-coordinator:$rigGrooming,inbox:magic-coordinator:$rigAdvance"
 
 rigPassCount=0
 rigFailCount=0
@@ -98,10 +98,10 @@ echo "-- 3. the next start of the day --"
 rigSpawn daily
 rigAssert "is told first-today: no" "$( LC_ALL=C awk '/^## Routine lock/ { on = 1 ; next } on && /^first-today: / { print ; exit }' "$rigTmp/brief.magic-coordinator" )" "first-today: no"
 echo "-- 4. two locks --"
-rigNote "$rigHeartbeat" "heartbeat-finished" ; rigNote "$rigAdvance" "advance-finished"
+rigNote "$rigGrooming" "grooming-finished" ; rigNote "$rigAdvance" "advance-finished"
 rigSpawn both
-rigAssert "live: both notes are running" "$( rigField "$rigTmp/seen.$rigHeartbeat" state ):$( rigField "$rigTmp/seen.$rigAdvance" state )" "heartbeat-running:advance-running"
-rigAssert "after: both finished" "$( rigField "$rigInbox/$rigHeartbeat" state ):$( rigField "$rigInbox/$rigAdvance" state )" "heartbeat-finished:advance-finished"
+rigAssert "live: both notes are running" "$( rigField "$rigTmp/seen.$rigGrooming" state ):$( rigField "$rigTmp/seen.$rigAdvance" state )" "grooming-running:advance-running"
+rigAssert "after: both finished" "$( rigField "$rigInbox/$rigGrooming" state ):$( rigField "$rigInbox/$rigAdvance" state )" "grooming-finished:advance-finished"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ROUTINE LOCK OWN OPS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

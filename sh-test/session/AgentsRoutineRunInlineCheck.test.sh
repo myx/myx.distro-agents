@@ -150,7 +150,6 @@ rigCallerOf(){ ## caller file (short), callee routine (full name) -- rc 0 where 
 }
 for rigPair in \
 	magic-coordinator.advance.routine.md:magic-team.process-inbox.routine magic-coordinator.advance.routine.md:magic-team.handback-review.routine magic-coordinator.advance.routine.md:magic-coordinator.communication-sweep.routine \
-	magic-coordinator.heartbeat.routine.md:magic-coordinator.external-inbox-handle-loop.routine magic-coordinator.heartbeat.routine.md:magic-coordinator.permission-escalation.routine magic-coordinator.heartbeat.routine.md:magic-coordinator.advance.routine \
 	magic-coordinator.daily.routine.md:magic-coordinator.communication-sweep.routine magic-coordinator.daily.routine.md:magic-coordinator.advance.routine \
 	magic-coordinator.coordination-session.routine.md:magic-coordinator.communication-sweep.routine magic-coordinator.coordination-session.routine.md:magic-coordinator.advance.routine \
 	magic-coordinator.ingest-task.routine.md:magic-team.process-inbox.routine magic-coordinator.communication-sweep.routine.md:magic-team.process-inbox.routine \

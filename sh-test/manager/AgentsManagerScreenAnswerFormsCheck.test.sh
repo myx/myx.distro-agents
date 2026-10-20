@@ -136,7 +136,7 @@ wait view 30
 turn
 keys ENTER
 turn
-keys ENTER
+keys TAB TAB ENTER
 get none
 RIGSCRIPT
 rigAssert "none checked is refused inside: the dialog stays open and says so, and nothing is called" "[$( rigVal none.dialog )] [$( rigVal none.dialogSays )] [$( rigAnswerCalls )]" "[answer-many:answers|] [nothing is answered: no answer is checked: check one at least, with Space] []"
@@ -216,7 +216,7 @@ wait view 30
 turn
 keys ENTER
 turn
-keys ENTER
+keys TAB ENTER
 get empty
 RIGSCRIPT
 rigAssert "an empty answer is refused inside, and nothing is called" "[$( rigVal empty.dialog )] [$( rigAnswerCalls )]" "[reply:words|] []"

@@ -5,7 +5,7 @@
 ## started as a run, with its own process, and nothing refused it. Held, on each way a member is started: the spawn proxy
 ## (--intern-op-agent-spawn-proxy), which every start goes through, in every form of its call, the form a review return
 ## makes among them; --magic-spawn-session, with the team named alone, among five members, and with a routine whose
-## executors list holds it; the harness tool Agent; --magic-heartbeat-spawn-proxy; a review return of an item the team
+## executors list holds it; the harness tool Agent; --magic-spawn-proxy; a review return of an item the team
 ## owns; and --manager-spawn-member. Each is refused in one plain line that says it is the team itself and no member,
 ## and a refused start starts nobody and leaves nothing behind. A routine whose executors are `magic-team` still means
 ## any member: it starts with real members named, and reads not-startable, needing members, in --manager-routine-list.
@@ -200,15 +200,15 @@ rigAssert "control: the tool starts a member as before" "$( LC_ALL=C grep -c -F 
 rigWaitFor 60 rigConsolesAre keeper-myx "$(( rigConsolesBefore + 1 ))"
 rigSettle
 
-echo "-- 4. the heartbeat's start and a review return --"
+echo "-- 4. the spawn relay's start and a review return --"
 rigMadeBefore="$( rigMade )" ; rigStoresBefore="$( rigStores )"
-rigRun --magic-heartbeat-spawn-proxy magic-team --description rig-team-not-member
-rigAssert "--magic-heartbeat-spawn-proxy refuses in the same line, under its own name, and leaves nothing behind" \
-	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigRefused --magic-heartbeat-spawn-proxy ) $( rigErrors ) $( rigMade ) / $( rigStores )" "1 0 1 1 $rigMadeBefore / $rigStoresBefore"
-rigRun --magic-heartbeat-spawn-proxy keeper-myx --description rig-team-not-member
-rigAssert "control: a member the heartbeat does not start for is refused as before, as an unsupported caller" "$rigRc $( LC_ALL=C grep -c -F -- 'unsupported caller: keeper-myx' "$rigTmp/err" || : ) $( rigSaid "$rigTmp/err" )" "1 1 0"
-rigAssert "the main loop starts one member only, the coordinator, through that operation: it names no other" \
-	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/harness/AgentsTools.InternRootHarness.include" | LC_ALL=C grep -c -F -- '--magic-heartbeat-spawn-proxy magic-coordinator ' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/magic/AgentsTools.InternMainLoop.include" | LC_ALL=C grep -c -e 'spawn-proxy "' -e 'spawn-member' -e 'magic-spawn-session' || : )" "1 0"
+rigRun --magic-spawn-proxy magic-team --description rig-team-not-member
+rigAssert "--magic-spawn-proxy refuses in the same line, under its own name, and leaves nothing behind" \
+	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigRefused --magic-spawn-proxy ) $( rigErrors ) $( rigMade ) / $( rigStores )" "1 0 1 1 $rigMadeBefore / $rigStoresBefore"
+rigRun --magic-spawn-proxy keeper-myx --description rig-team-not-member
+rigAssert "control: a member the spawn relay does not start for is refused as before, as an unsupported caller" "$rigRc $( LC_ALL=C grep -c -F -- 'unsupported caller: keeper-myx' "$rigTmp/err" || : ) $( rigSaid "$rigTmp/err" )" "1 1 0"
+rigAssert "the root harness starts one member only, the coordinator, through that operation, and the main loop starts none itself: it names no other" \
+	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/harness/AgentsTools.InternRootHarness.include" | LC_ALL=C grep -c -F -- '--magic-spawn-proxy magic-coordinator ' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/magic/AgentsTools.InternMainLoop.include" | LC_ALL=C grep -c -e 'spawn-proxy "' -e 'spawn-member' -e 'magic-spawn-session' || : )" "1 0"
 printf -- '---\ntype: dispatch\nowner: magic-team\nstatus: dispatch-started\nreview-since-epoch: 1000\n---\n\n# rig dispatch\n' > "$rigData/board/review/dispatch-20261013T1200Z-team.md"
 rigConsolesBefore="$( rigConsoles )"
 rigRun --member-review-return magic-coordinator dispatch-20261013T1200Z-team --message "redo the rig step"
@@ -252,8 +252,8 @@ rigAssert "one function says what the team is, defined once, in the include of t
 	"$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsTeamMemberIsTeam\(\)\{' || : ) $( LC_ALL=C grep -c -E '^AgentsToolsTeamMember(IsTeam|StartCheck)\(\)\{' "$rigHere/team-data/AgentsTools.TeamRegistry.include" || : )" "1 2"
 rigAssert "the refusal's line is written once, in that check, which asks that function" \
 	"$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -F -- 'is the team itself and no member of it, and the team is never started' || : ) $( rigCode AgentsTools.TeamRegistry.include | LC_ALL=C awk '/^AgentsToolsTeamMemberStartCheck\(\)\{/ { inCheck = 1 } inCheck && /AgentsToolsTeamMemberIsTeam "/ { asked++ } inCheck && /^\}/ { inCheck = 0 } END { print asked + 0 }' )" "1 1"
-rigAssert "no starter asks what the team is, or names it, itself: the proxy, --magic-spawn-session, --manager-spawn-member and the heartbeat's start each ask the one check of a start, once" \
-	"$( for rigFile in InternOpAgentSpawnProxy MagicSpawnSession ManagerSpawn MagicHeartbeat ; do printf '%s:%s ' "$( rigCode "AgentsTools.$rigFile.include" | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberStartCheck "' || : )" "$( rigCode "AgentsTools.$rigFile.include" | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberIsTeam' || : )" ; done )" "1:0 1:0 1:0 1:0 "
+rigAssert "no starter asks what the team is, or names it, itself: the proxy, --magic-spawn-session, --manager-spawn-member and the spawn relay each ask the one check of a start, once" \
+	"$( for rigFile in InternOpAgentSpawnProxy MagicSpawnSession ManagerSpawn MagicCoordinatorState ; do printf '%s:%s ' "$( rigCode "AgentsTools.$rigFile.include" | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberStartCheck "' || : )" "$( rigCode "AgentsTools.$rigFile.include" | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberIsTeam' || : )" ; done )" "1:0 1:0 1:0 1:0 "
 rigAssert "--manager-routine-list and --manager-team-member-list ask that function, once each, and neither names the team" \
 	"$( rigCode AgentsTools.ManagerRoutine.include | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberIsTeam "' || : ) $( rigCode AgentsTools.ManagerTeamMember.include | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberIsTeam "' || : ) $( rigCode AgentsTools.ManagerRoutine.include | LC_ALL=C grep -c -e 'magic-team' || : ) $( rigCode AgentsTools.ManagerTeamMember.include | LC_ALL=C grep -c -e 'magic-team' || : )" "1 1 0 0"
 

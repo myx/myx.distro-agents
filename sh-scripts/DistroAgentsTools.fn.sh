@@ -73,7 +73,7 @@ DistroAgentsTools(){
 	type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 	## WE RUN FROM HERE: an operation naming a team member uses the workspace it is run from, for everything, and is carried to no other. A member set up only in another workspace on this machine is invited: only its skillset is read from there (AgentsToolsMemberSkillsetBring), and those of its own settings this workspace holds none of (AgentsToolsConfigOptionElsewhere), and it is stopped only when its skillset cannot be brought. A client-* member is invited like any other: which organisation its operation reaches is said by the operation's prefix and its address, never by a workspace. The spawn operations make the same check themselves, before they start anything.
 	case "$1:${2:-}" in
-		--intern-op-agent-spawn-proxy:*|--intern-merge-md-files:*|--magic-heartbeat-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--member-directory-*:*|--member-namespace-list:*|--owner-workspace-*:*|--make-*:*|--manager-*:*|*:|*:-*) ;;
+		--intern-op-agent-spawn-proxy:*|--intern-merge-md-files:*|--magic-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--member-directory-*:*|--member-namespace-list:*|--owner-workspace-*:*|--make-*:*|--manager-*:*|*:|*:-*) ;;
 		--*:*)
 			## An invited member, set up only in another workspace on this machine: its operation runs here, and only its skillset, and those of its own settings this workspace holds none of, are read from the workspace it is set up in. The root is set for this one call, and a call that already reads that root goes on as it is.
 			local memberBrought memberBroughtFrom
@@ -695,8 +695,8 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		--magic-heartbeat-*|--intern-op-heartbeat-input-scan|--intern-op-heartbeat-state-upsert)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicHeartbeat.include"
+		--magic-config-check|--magic-test-report-send|--magic-spawn-proxy|--magic-state-note-read|--magic-state-note-lock-acquire|--magic-state-note-lock-status|--intern-op-state-note-upsert)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicCoordinatorState.include"
 			return $?
 		;;
 

@@ -181,11 +181,11 @@ rigAssert "a name in neither folder: not found, non-zero, naming it" "$( [ "$( c
 echo "-- 11. a routine's standing state and lock note lives in incoming/ of a split inbox --"
 mkdir -p "$rigData/inboxes/magic-coordinator/incoming"
 rigLockNote=note-20260809T155000Z-heartbeat-state-and-lock.md
-rigOp "$rigTmp/k1" --magic-heartbeat-lock-acquire magic-coordinator rig-inbox-split
+rigOp "$rigTmp/k1" --magic-state-note-lock-acquire magic-coordinator rig-inbox-split
 rigAssert "the lock is taken"                                 "$( cat "$rigTmp/k1.rc" ):$( rigHolds "$rigTmp/k1" ACQUIRED )" "0:yes"
 rigAssert "its note is written in incoming/, and nothing of it at the inbox root" \
 	"$( [ -f "$rigData/inboxes/magic-coordinator/incoming/$rigLockNote" ] && printf incoming || printf missing ):$( [ -e "$rigData/inboxes/magic-coordinator/$rigLockNote" ] && printf root || printf none )" "incoming:none"
-rigOp "$rigTmp/k2" --magic-heartbeat-lock-status magic-coordinator
+rigOp "$rigTmp/k2" --magic-state-note-lock-status magic-coordinator
 rigAssert "and it is read from there: the lock is held"       "$( LC_ALL=C grep -c '^ACTIVE:' "$rigTmp/k2" )" 1
 
 if [ "$rigFailCount" -ne 0 ] ; then

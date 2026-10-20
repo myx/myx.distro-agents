@@ -18,7 +18,7 @@
 ## judges it. Only a team rig has a main loop at all.
 ##
 ## WHAT `just-agents` MUST NOT DO. It keeps no local team data, so it never creates or changes:
-##   - a board item, in any state: not by a board op, not by a grooming, advance, sweep, heartbeat, daily or retro pass, nor by the
+##   - a board item, in any state: not by a board op, not by a grooming, advance, sweep, daily or retro pass, nor by the
 ##     review of a run (the primitives are the gate's list, below);
 ##   - an inbox item: a note, an inquiry, a reflection, a routine's lock note, a reply left for a member;
 ##   - an audit item: the transcript of a session, the record of a published artifact;
@@ -56,7 +56,11 @@ agentsTeamDataGateOps="--intern-op-board-upsert-move-edit
 --magic-board-*
 --magic-grooming-*
 --magic-sweep-*
---magic-heartbeat-*
+--magic-config-check
+--magic-spawn-proxy
+--magic-test-report-send
+--magic-state-note-*
+--intern-op-state-note-upsert
 --magic-advance-*
 --magic-daily-*
 --magic-retro-*

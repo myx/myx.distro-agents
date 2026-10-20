@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on the scans as pure reads (F3.1 of the refactorings epic): the acting parts of a scan are
 ## lifted out of it -- closing dead spawns, moving a dispatch item from running to review, rewriting the review-by of
-## an item whose reviewer session has ended, starting control threads, the heartbeat lock's recheck date. They run
+## an item whose reviewer session has ended, starting control threads. They run
 ## in the bundled routine they belong to, right after that routine takes its lock, by the tooling itself, and their
 ## output goes to the tooling log (the daemon line, file descriptor 4), never into the agent's input.
 ## Held, against a rig board and workspace with a dead spawn, its running dispatch item, a review item whose reviewer
@@ -12,7 +12,8 @@
 ##   3. --magic-advance-lock-acquire, the advance routine taking its lock, does the housekeeping: the dead spawn is
 ##      closed, its item moves to review, the review-by becomes magic-coordinator, the control thread is started
 ##   4. its housekeeping lines go to the tooling log, and none to its standard output
-##   5. --intern-op-heartbeat-input-scan leaves its lock note as it was, the recheck-date among it
+##   5. the main loop does the housekeeping at every iteration, by script and with no agent (F7.12), and makes the other end of a `blocks`/`blocked-by`
+##      edge whole (AgentsTools.BoardDependencies.include)
 ## Red before F3.1: the advance scan does the housekeeping itself, and its lock does none (1, 2 and 3 fail).
 ## Offline: a ps first on PATH lists the rig's own runs only; a Slack-shaped fake curl logs any post; every tree is
 ## this rig's own.
@@ -141,13 +142,25 @@ echo "-- 4. its housekeeping goes to the tooling log, none to its output --"
 rigAssert "housekeeping lines in the tooling log"            "$( LC_ALL=C grep -c '^housekeeping: ' "$rigTmp/tooling.log" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "logged" : "none" }' )" logged
 rigAssert "and none on the lock's standard output"           "$( LC_ALL=C grep -c 'housekeeping' "$rigTmp/lock" || : )" 0
 
-echo "-- 5. the heartbeat scan leaves its lock note as it was --"
-mkdir -p "$rigD/inboxes/magic-coordinator"
-printf -- '---\ntype: note\nfrom: magic-coordinator\ndate: 2026-10-18\nowner: routine-heartbeat\nstate: heartbeat-running\nrecheck-date: 2026-10-18T10:00:00Z\nsession-id: rig-heartbeat\n---\n\n## state-and-lock (routine-heartbeat)\n' \
-	> "$rigD/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
-rigNoteBefore="$( rigSum "$rigD/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md" )"
-rigRun "$rigTmp/hb" --intern-op-heartbeat-input-scan magic-coordinator
-rigAssert "the lock note, its recheck-date among it, is byte for byte as it was" "$( rigSum "$rigD/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md" )" "$rigNoteBefore"
+echo "-- 5. the main loop does it at every iteration --"
+printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_CHANNEL_EVENT_TRACK=CRIG00002\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSPAWN_CLI_SERVICE=rig-cli\n' > "$rigW/.local/.agents/magic-team.agent.env"
+rigSandbox rig-ldead3 spawn-started ; rigItem running dispatch-rig-ldead3.md dispatch dispatch-started none rig-ldead3
+find "$rigW/.local/agents/spawned/rig-ldead3" -exec touch -t "$( rigStamp 48 )" {} +
+rigItem review task-rig-rv-ended3.md task dispatch-succeeded rig-ended none
+rigSandbox rig-live3 spawn-started
+printf '900003 rig-run --session-id rig-live3\n' >> "$rigTmp/ps.list"
+rigItem running task-rig-dep-a.md task running none none
+printf -- '---\ntype: task\nowner: rig-member\nstatus: running\nblocks: task-rig-dep-b\n---\n\nrig item\n' > "$rigD/board/running/task-rig-dep-a.md"
+rigItem pending task-rig-dep-b.md task pending none none
+: > "$rigTmp/tooling.log"
+rigRun "$rigTmp/loop" --intern-main-loop --one
+rigAssert "the iteration passes" "$( cat "$rigTmp/loop.rc" )" 0
+rigAssert "the dead spawn's record is closed" "$( [ "$( rigHeader "$rigW/.local/agents/spawned/rig-ldead3/rig-ldead3.md" status )" = spawn-started ] && printf open || printf closed )" closed
+rigAssert "its item moved to review" "$( rigLoc dispatch-rig-ldead3.md )" review
+rigAssert "the review-by of the ended reviewer's item is magic-coordinator" "$( rigHeader "$rigD/board/review/task-rig-rv-ended3.md" review-by )" magic-coordinator
+rigAssert "the live session's control thread is started" "$( rigControl rig-live3 )" started
+rigAssert "the other end of a gate is made: blocked-by on the item that waits" "$( rigHeader "$rigD/board/pending/task-rig-dep-b.md" blocked-by )" task-rig-dep-a
+rigAssert "the loop said so, in lines of its own, and posted nothing" "$( LC_ALL=C grep -c -e 'intern-main-loop: dependencies: task-rig-dep-b' "$rigTmp/loop.err" ):$( rigPosts )" "1:0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ INPUT SCAN PURE READ CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

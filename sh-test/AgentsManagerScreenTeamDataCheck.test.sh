@@ -72,7 +72,7 @@ rigDeployed="no:set_at_deployment:_a_wizard_will_change_it"
 	rigRow figure team-data-git uncommitted Paths_Not_Committed 3 count warn -
 	rigRow figure team-data-git last-commit Last_Commit 7500 seconds - -
 	rigRow figure team-data-git last-subject Last_Commit_Subject the_last_change - - -
-	rigRow block loop Main_Loop_And_Heartbeat 2
+	rigRow block loop Main_Loop 2
 	rigRow figure loop main-loop-outcome Main_Loop_Last_Outcome failed - bad -
 	rigRow figure loop main-loop-failures Main_Loop_Consecutive_Failures 1 count warn -
 	rigRow block machine The_Machine 1
@@ -193,9 +193,9 @@ rigAssert "where the dashboard says the team data is there, Team Data stands in 
 rigAssert "and the numbers are those of the roots alone: Team Data has none, Launch (Start) comes after the eight with the ninth" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Team Data  *[0-9]* │' -e 'Locations (Places)  *[0-9]* │' -e 'Configuration  *[0-9]* │' -e 'Launch (Start)  *[0-9]* │' | LC_ALL=C sed 's/ *│$//;s/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Team Data|Locations (Places) 4|Configuration 7|Launch (Start) 9|"
 rigAssert "selected, its summary says as its caption that the team data is there and its size, then where it is and the mode of the workspace" "$( rigHolds on '│Team data: there, 77.5M.' ) $( rigHolds on '│ root    /rig/ws/team-data' ) $( rigHolds on '│ mode    Team Rig, saved for the workspace; a full team rig' )" "1 1 1"
 rigAssert "its git state, nicely, as facts under a heading: where it stands and what it tracks, ahead and behind, what is not committed, each in the look of its level, and its last commit" "$( rigHolds on '│Git ' ) $( rigHolds on '│ branch       main, tracking origin/main' ) $( rigHolds on '│ ahead        2' ) $( rigHolds on '│ behind       1' ) $( rigHolds on '│ uncommitted  3' ) $( rigHolds on '│ last commit  2h 5m ago: the last change' )" "1 1 1 1 1 1"
-rigAssert "then the remote and the branch of the team data, its board by state as a table, and the main loop as a table, judged on a full team rig" "$( rigHolds on '│ remote  git@rig.invalid:team-data.git' ) $( rigHolds on "│ branch  not set: the tooling's own" ) $( rigHolds on '│  running  43' ) $( rigHolds on '│Main loop and heartbeat ' ) $( rigHolds on 'Main Loop Last Outcome          failed  (bad)' )" "1 1 1 1 1"
+rigAssert "then the remote and the branch of the team data, its board by state as a table, and the main loop as a table, judged on a full team rig" "$( rigHolds on '│ remote  git@rig.invalid:team-data.git' ) $( rigHolds on "│ branch  not set: the tooling's own" ) $( rigHolds on '│  running  43' ) $( rigHolds on '│Main loop ' ) $( rigHolds on 'Main Loop Last Outcome          failed  (bad)' )" "1 1 1 1 1"
 rigAssert "focused, it read its blocks of the dashboard, its git state among them, and the digest of the settings, as they are called" "$( rigWords '[--manager-dashboard-read][team-data][team-data-git][loop]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigWords '[--manager-config-digest][--full]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "1 1"
-rigAssert "entered, it holds Operations, its three stores and its blocks: the team data, its git state and the main loop" "$( rigVal in.path ) $( rigVal in.rows ) $( rigFolderHolds in ' Operations ' ) $( rigHolds in ' Team Data Git' ) $( rigHolds in ' Main Loop And Heartbeat' ) $( rigHolds in ' The Machine' )" "magic-team/teamdata 8 1 1 1 0"
+rigAssert "entered, it holds Operations, its three stores and its blocks: the team data, its git state and the main loop" "$( rigVal in.path ) $( rigVal in.rows ) $( rigFolderHolds in ' Operations ' ) $( rigHolds in ' Team Data Git' ) $( rigHolds in ' Main Loop' ) $( rigHolds in ' The Machine' )" "magic-team/teamdata 8 1 1 3 0"
 
 echo "-- 2. the main loop by the mode of the workspace --"
 rigCase plain rig plain
@@ -209,7 +209,7 @@ wait focus 10
 wait focus 10
 show on
 RIGSCRIPT
-rigAssert "a team rig with no shared persistence shows its main loop plain, and says so" "$( rigHolds on '│ remote  none: no shared persistence is set' ) $( rigHolds on 'Main loop and heartbeat (not judged here: a full team rig alone is)' ) $( rigHolds on 'a full team rig' )" "1 1 1"
+rigAssert "a team rig with no shared persistence shows its main loop plain, and says so" "$( rigHolds on '│ remote  none: no shared persistence is set' ) $( rigHolds on 'Main loop (not judged here: a full team rig alone is)' ) $( rigHolds on 'a full team rig' )" "1 1 1"
 rigCase agents agents agents
 rigScript <<RIGSCRIPT
 turn
@@ -369,7 +369,7 @@ RIGSCRIPT
 rigAssert "5300 lines in two bursts, a second apart, ended with status 0: the dialog shows the last line written, not the tail it had drawn at 5000" "$( rigHolds ended 'past: THE LAST LINE' ) $( rigHolds ended 'Ended with status 0' ) $( rigHolds ended 'past: line 5300' )" "1 1 1"
 rigAssert "and streaming them took under 1.8 seconds of the processor (0.8 as built, 3.1 when every chunk wrapped all the lines again): each line is broken once, when it comes" "$( printf '%s\n%s\n' "$( rigVal before.cpu )" "$( rigVal after.cpu )" | LC_ALL=C awk 'NR == 1 { first = $1 } NR == 2 { print ( $1 - first < 1.8 ) ? "bounded" : "spent " ( $1 - first ) }' )" "bounded"
 
-echo "-- 8. the big dialog: 4 cells from the sides and a line from the bars, the frame alone counted, capped at 190 by 56; other dialogs as they were --"
+echo "-- 8. the margins of a dialog: 4 cells from the sides and a line from the bars where the terminal holds it with them, none where it cannot; the big one capped at 190 by 56 --"
 ## before F11.0 the big dialog stood 2 cells from each side and against the bars (no line); F11.0: two cells and one line more
 rigCase margins rig agents
 printf 'script margin.sh\n' > "$MANAGER_SCREEN_RIG/mode.--owner-cleanup-purge"
@@ -388,7 +388,7 @@ RIGSCRIPT
 		rigVal $rigTag.dialogBox | LC_ALL=C awk -F, -v columns="$1" -v lines="$2" '{ printf "%s:%d,%d,%d,%d/%d,%d,%d,%d ", "'"$rigTag"'", $1, $2, $3, $4, $1, columns - $1 - $3, $2 - 1, lines - 1 - $2 - $4 }'
 	done
 }
-rigAssert "80x24: the big dialog keeps 4 cells at each side and a line under the menu bar and above the status line (it had 2 and none); the question is where it was" "$( rigMargins 80 24 )" "ask:2,4,76,15/2,2,3,4 big:4,2,72,20/4,4,1,1 "
+rigAssert "80x24: the terminal cannot hold the big dialog with its margins, nor the question: they take no margin at all, the whole width and the lines between the bars" "$( rigMargins 80 24 )" "ask:0,4,80,15/0,0,3,4 big:0,1,80,22/0,0,0,0 "
 rigAssert "205x55: the big one grows to 190 by 51 lines, centred; the question, which the terminal holds with its margins, stands 61 cells and 19 lines in" "$( rigMargins 205 55 )" "ask:61,20,82,15/61,62,19,19 big:7,2,190,51/7,8,1,1 "
 rigAssert "300x80: the big one is capped at 190 by 56, centred; the question as on any terminal that holds it with its margins" "$( rigMargins 300 80 )" "ask:109,32,82,15/109,109,31,32 big:55,12,190,56/55,55,11,11 "
 

@@ -46,10 +46,10 @@ CLEANUPS = (
                "does": "Empties the cleanup folder of this workspace, .local/.cleanup, where the tooling puts what is to be removed; the folder itself stays. It takes no arguments.",
                "needs": None}),
     ("final-gc", {"label": "Delete Expired Team Data", "operation": ["--intern-team-data-final-gc-deletion", "magic-coordinator"],
-                  "does": "Deletes from the team data what its retention has passed, the handled items of the inboxes, the processed items of the board and the trash, warnings and reflections after one day and every other item after seven, and commits the deletions where the team data is a repository. It is what closing the heartbeat runs, as magic-coordinator.",
+                  "does": "Deletes from the team data what its retention has passed, the handled items of the inboxes, the processed items of the board and the trash, warnings and reflections after one day and every other item after seven, and commits the deletions where the team data is a repository. It is what closing the advance runs, as magic-coordinator.",
                   "needs": "rig"}),
     ("sync", {"label": "Sync The Team Data", "operation": ["--magic-team-data-commit-pending", "magic-coordinator"],
-              "does": "Commits everything pending under the team data in one commit, then syncs it with its remote by myx.common git/cloneSync: the remote's commits are pulled and merged in, what is ahead is pushed, and the remote is read back. It takes no lock: run it only while no routine holds the advance or the heartbeat lock.",
+              "does": "Commits everything pending under the team data in one commit, then syncs it with its remote by myx.common git/cloneSync: the remote's commits are pulled and merged in, what is ahead is pushed, and the remote is read back. It takes no lock: run it only while no routine holds the advance lock.",
               "needs": "remote"}),
 )
 ## The stores of the team data that `Team Data` holds as folders, to browse their items, in

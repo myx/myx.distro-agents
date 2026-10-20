@@ -19,6 +19,9 @@
 ##   8. a quiet round of the session's wait does not wake the model: the harness waits on, and the model is woken once
 ##   9. the spawner has given the run the report of its declared scan (it keeps the scan's pointer at that report): the first --idle-wait
 ##      does not wake on it. Without the pointer (1 to 7) the first --idle-wait wakes on the report the scan has
+##  10. the prompt-cache line of round 1 (F10.7) is printed for round 1 of each leg -- the run's first, and the first after each rewind or wake --
+##      and not for the rounds between, so that the last such line of a run's log is the cache's figure at its last wake: the work-duty's lifetime
+##      reads it (a wake that read nothing from the cache ends the duty after 20 idle minutes, AgentsToolsScheduleDutyCache)
 ## Offline by construction: no socket, no credential; a call to anything but the model is refused and logged.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -176,6 +179,7 @@ rigAssert "the snapshots the run holds are as they were: armed, after the return
 rigAssert "the run says it waited and returned"                                           "$( rigIn "$( cat "$rigDir/err" )" 'idle-wait' ):$( rigIn "$( cat "$rigDir/err" )" 'rewound' )" yes:yes
 rigAssert "a new leg of the kept context is opened"                                       "$( LC_ALL=C grep '"type":"context"' "$rigSandbox/context.jsonl" 2> /dev/null | LC_ALL=C grep -c '"leg":2,' )" 1
 rigAssert "nothing but the model was called"                                              "$( rigOther )" 0
+rigAssert "the cache line of round 1 is printed at the first request and again at the first request after the wake (10)" "$( rigCount "$rigDir/err" 'shared prefix -- round 1 ' )" 2
 
 echo "-- 2. an arrival returns the run to opening, where it holds it --"
 rigScene to-opening rigduty
@@ -215,6 +219,7 @@ rigAssert "three requests, the second wait ended quiet"                         
 rigAssert "the conversation stays: the call and its answer are in the request"            "$( rigCount "$rigDir/req.3" 'toolu_RIG0' ):$( rigCount "$rigDir/req.3" 'OK: --idle-wait' )" "2:1"
 rigAssert "the model is told the wait ended with nothing and that nothing was returned"   "$( rigIn "$( cat "$rigDir/req.3" )" 'WAIT-RESULT: TIMEOUT' ):$( rigIn "$( cat "$rigDir/req.3" )" 'not returned' )" yes:yes
 rigAssert "and how to go on waiting"                                                      "$( rigIn "$( cat "$rigDir/req.3" )" 'Call --idle-wait again' )" yes
+rigAssert "a quiet wait is no wake: the line is printed at the first request and after the first wait's arrival, not after the quiet one (10)" "$( rigCount "$rigDir/err" 'shared prefix -- round 1 ' )" 2
 
 echo "-- 5. what it waits on --"
 rigScene floor rigquiet
@@ -240,6 +245,7 @@ rigToolStream "$rigDir/res.2" Bash "$( rigOp --idle-wait --wait-timeout 5 )"
 rigTextStream "$rigDir/res.3" RIG-DONE ; rigRun
 rigAssert "the arrival comes as a message; the conversation holds the calls before it"    "$( rigCount "$rigDir/req.3" "$rigArrival" ):$( rigCount "$rigDir/req.3" '"type":"tool_result"' )" 1:2
 rigAssert "and the model is told no snapshot is held and nothing was returned"            "$( rigIn "$( cat "$rigDir/req.3" )" 'no snapshot is held' ):$( rigIn "$( cat "$rigDir/req.3" )" 'not returned' )" yes:yes
+rigAssert "an arrival with no conversation returned is a wake too: the cache line of round 1 is printed again after it (10)" "$( rigCount "$rigDir/err" 'shared prefix -- round 1 ' )" 2
 
 echo "-- 8. a quiet round does not wake the model --"
 rigScene loop rigquiet

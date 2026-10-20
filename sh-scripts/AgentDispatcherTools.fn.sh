@@ -4,10 +4,12 @@
 ## AgentDispatcherTools.fn.sh -- the coordinator's role surface (F7.9): one tool for magic-coordinator over the tasks, the spawns, the worktime flags, the standing
 ## directives, and the contacts with their access level and coordinates. A role surface, not a merge: it OWNS NO STATE and every operation delegates to the subject
 ## that owns the answer (DistroAgentsDispatcher.fn.sh, DistroAgentsContacts.fn.sh, the board, the coordinator's inbox). It declares no store; the one standing
-## order of the human-owner it writes goes into the heartbeat-state-note, through that note's lock. Functions: sh-lib/session/AgentsTools.CoordinatorSurface.include.
+## order of the human-owner it writes goes into the state-note, through that note's lock. Functions: sh-lib/session/AgentsTools.CoordinatorSurface.include.
 ##   --tasks, --spawns, --flags, --contacts, --contact       the views
 ##   --standing-directives                                  the warnings, the coordinator notes and the orders in force, together
 ##   --directive-set, --directive-end                       an order of the human-owner entered, and taken out
+##
+## From DistroAgentsTools.fn.sh (F1.4, first stage): --advance-sleep-run, --client-operation-run, --config-check, --daily-lock-refresh, --grooming-lock-refresh, --retro-lock-refresh, --roster-upsert, --state-note-lock-acquire, --state-note-read, --sweep-state-advance, --sweep-state-read, --sweep-state-upsert. They go on under their old names (sh-lib/harness/AgentsContext.FrontForward.include).
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -33,6 +35,12 @@ esac
 
 AgentDispatcherTools(){
 	local MDSC_CMD='AgentDispatcherTools'
+	## F1.4, first stage: an operation that came here under a new name goes on under its old one (sh-lib/harness/AgentsContext.FrontForward.include).
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontForward.include"
+	if AgentsToolsFrontKnows AgentDispatcherTools "$@" ; then
+		AgentsToolsFrontForward AgentDispatcherTools "$@"
+		return $?
+	fi
 	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,
 	## and the call is made again under what they resolve (sh-lib/common/AgentsTools.CommonOptions.include).
 	case "${agentsCommonFronted:-}:${2:-}" in
@@ -61,7 +69,7 @@ AgentDispatcherTools(){
 			return $?
 		;;
 
-		## The board as the heartbeat reads it: the counts of each state and the active items.
+		## The board as the coordinator reads it: the counts of each state and the active items.
 		--tasks)
 			AgentsToolsSurfaceCaller "$1" read || return 1
 			AgentsToolsSurfaceTasks "$@"

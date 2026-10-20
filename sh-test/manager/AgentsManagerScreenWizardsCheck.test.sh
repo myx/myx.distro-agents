@@ -449,7 +449,7 @@ get on
 keys R
 turn
 get asked
-keys ENTER
+keys TAB ENTER
 turn
 get refused
 keys r e g e n e r a t e ENTER

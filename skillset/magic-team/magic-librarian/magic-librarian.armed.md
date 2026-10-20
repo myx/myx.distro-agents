@@ -52,7 +52,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Attend every coworking session whose output is code, shell, config or team-facing text, reviewing its text quality and conformance. Code logic is `magic-developer`'s.
   - Curate each `## For <team-member>` subsection of a `MAGIC.md`.
   - Audit help entries for call-contract conformance and report findings to the owning `keeper-*`.
-  - Own the field structure of the `heartbeat-state-note`, reviewed at `magic-librarian.morning-review.routine`. `magic-coordinator` reads and writes it.
+  - Own the field structure of the `state-note`, reviewed at `magic-librarian.morning-review.routine`. `magic-coordinator` reads and writes it.
   - Answer consults on its reference modules, with no invocation ceremony.
 - Doesn't:
   - Edit `README.md` or `MAGIC.md` beyond filling a gap or fixing a confirmed doc bug. A larger change still needs an explicit task.
@@ -151,7 +151,7 @@ Every skillset file states current, settled content — never a history of edits
 - Check nothing active is lost: every rule, condition, carve-out and fact the narration anchored survives.
 - Rewrite as firm present-tense content.
 
-Genuine history lives in processed board items. Logs, transcripts and processed items are exempt; a file holding standing state, such as the `heartbeat-state-note`, is not. A file whose content moves elsewhere leaves a short stub with a pointer, never a copy.
+Genuine history lives in processed board items. Logs, transcripts and processed items are exempt; a file holding standing state, such as the `state-note`, is not. A file whose content moves elsewhere leaves a short stub with a pointer, never a copy.
 
 Two precision checks on any rule captured mid-correction:
 

@@ -25,6 +25,7 @@
 ## run again, with no dispatch item and no transcript either; the control is a run that ends by itself with no
 ## handback, which the retry does start once more. A fake `curl` first on PATH answers as Slack and opens no
 ## socket. Offline; only the rig's own tree is read or written.
+## Reconciled for the run with no spawn-id (section 18): the finish of a session reads a run by the same walk in one more place, so the places that ask for it are four.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -609,7 +610,7 @@ rigCode(){ ## file -- its lines that are no comment
 	LC_ALL=C grep -v '^[[:space:]]*#' "$1"
 }
 rigAssert "the processes of a run are asked of the one place a run is recognised, when it is signalled and when what is left of it is read, and the family lists no process a second way: the plan of a kill reads a run by the same walk" \
-	"$( rigCode "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -e 'AgentsToolsRegistryRunProcesses "' -e 'AgentsToolsRegistryRunLeft "' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'ps -' -e 'RunWords' -e 'pgrep' -e 'pkill' || : ) $( rigCode "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" | LC_ALL=C grep -c -E '^AgentsToolsRegistryRunProcesses\(\)\{' || : )" "3 0 1"
+	"$( rigCode "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -e 'AgentsToolsRegistryRunProcesses "' -e 'AgentsToolsRegistryRunLeft "' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'ps -' -e 'RunWords' -e 'pgrep' -e 'pkill' || : ) $( rigCode "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" | LC_ALL=C grep -c -E '^AgentsToolsRegistryRunProcesses\(\)\{' || : )" "4 0 1"
 rigAssert "no process group is signalled, anywhere in the family" "$( cat "$rigHere"/*/AgentsTools.Manager*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -E 'kill +(-[A-Za-z0-9]+ +)?(-- +)?"?-[$"]' || : )" "0"
 rigAssert "the polite time is set in one place, two seconds" "$( rigCode "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -x -e 'agentsManagerKillPoliteSeconds=2' || : )" "1"
 rigAssert "the handback retry reads the mark of a kill on the record of its run" "$( rigCode "$rigHere/session/AgentsTools.InternOpAgentSpawnProxy.include" | LC_ALL=C grep -c -F -e 'AgentsToolsSpawnSandboxRecordHeader "$1" killed-at' || : )" "1"
@@ -718,6 +719,40 @@ rigRun "$rigOp" --session-id fin-plan
 rigAssert "and the kill of that whole session then ends its founder, dismisses the two questions that are left, closes its three records and leaves it finished" \
 	"$rigRc $( rigRowsOf finish ) $( rigAsked "$rigAskFounder" status ) $( rigAsked "$rigAskPlan" status ) $( rigStateOf fin-plan ) $( rigStateOf fin-plan --active )" "0 finish fin-plan 1 2 3 finished withdrawn withdrawn finished not-listed"
 rigAssert "every row of what a kill finished has the fields its form names: the rows of the questions it dismissed too" "$( cat "$rigTmp"/out.kept.* 2> /dev/null | LC_ALL=C awk -F'\t' -v wantFields="$( rigFormOf dismiss | LC_ALL=C awk '{ print NF }' )" '$1 == "dismiss" { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' )" "rows:0"
+
+echo "-- 18. a run with no spawn-id in its record is finished like any other: closed, or the call says it could not --"
+rigRecBare(){ ## sandbox folder, file stem, session id, owner, started-at (a date and a time) -- the record of a run written with no spawn-id: it is found by its session
+	mkdir -p "$rigSp/$1"
+	printf -- '---\nsession-id: %s\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: spawn-started\nstarted-at: %s +0300\nreports-to: %s\n---\n\n# Spawn session: %s\n' "$3" "$1" "$rigHost" "$4" "$5" "$rigConsoleUser" "$3" > "$rigSp/$1/$2.md"
+}
+## A LONE RUN, FOUNDERLESS, OLD: one record named by its session, no spawn-id, nothing runs as it.
+rigRecBare lone-ns lone-ns lone-ns magic-coordinator "2026-09-30 10:28"
+rigAssert "control: a lone run whose record has no spawn-id, left open for weeks with nothing alive, reads unclosed, among the active sessions" "$( rigStateOf lone-ns ) $( rigStateOf lone-ns --active )" "unclosed unclosed"
+rigRun "$rigOp" --session-id lone-ns
+grep DEBUG "$rigTmp/err" | cut -c1-600 >&2
+rigAssert "the kill of that session closes its record: one close row, closed, and a sum that says nothing ended, nothing dismissed, one closed, finished; status 0 and nothing else said" \
+	"$rigRc $( rigTroubles ) | $( rigRowsOf close ) | $( rigRowsOf finish )" "0 0 | close lone-ns lone-ns magic-coordinator closed - | finish lone-ns 0 0 1 finished"
+rigAssert "the record is closed as a run that ended without its close, marked as closed from the console, and the session has left the active ones" \
+	"$( rigHeader "$rigSp/lone-ns/lone-ns.md" status ) $( rigHeader "$rigSp/lone-ns/lone-ns.md" killed-by ) $( rigStateOf lone-ns ) $( rigStateOf lone-ns --active )" "spawn-ended-without-close rig finished not-listed"
+rigRun "$rigOp" --session-id lone-ns
+rigAssert "a second kill of it finds nothing left: the sum of zeros, status 0" "$rigRc $( rigRowsOf close ) | $( rigRowsOf finish )" "0  | finish lone-ns 0 0 0 finished"
+## A FOUNDERLESS RUN WITH A MEMBER THAT JOINED: both records closed, and the question of the lone one dismissed.
+rigRecBare join-ns join-ns join-ns magic-coordinator "2026-10-01 08:00"
+rigRec join-ns join-b join-ns "$rigHost" keeper-rig spawn-started 47 ""
+rigQuestion join-ns ; rigAskJoin="$rigPend"
+rigRun "$rigOp" --session-id join-ns
+rigAssert "a session whose founder has no spawn-id and that a member joined: both records are closed, its question dismissed, finished" \
+	"$rigRc $( rigRowsOf finish ) $( rigAsked "$rigAskJoin" status ) $( rigHeader "$rigSp/join-ns/join-ns.md" status ) $( rigHeader "$rigSp/join-ns/join-b.md" status ) $( rigStateOf join-ns )" \
+	"0 finish join-ns 0 1 2 finished withdrawn spawn-ended-without-close spawn-ended-without-close finished"
+## A RECORD THE KILL CANNOT FIND: its file is not named by its session. The call does not report success: it says which, and fails.
+mkdir -p "$rigSp/odd-ns"
+printf -- '---\nsession-id: odd-ns\ntracking-name: odd-ns\nhost: %s\nowner: magic-coordinator\nstatus: spawn-started\nstarted-at: 2026-09-29 09:00 +0300\nreports-to: %s\n---\n\n# Spawn session: odd-ns\n' "$rigHost" "$rigConsoleUser" > "$rigSp/odd-ns/some-other-name.md"
+rigRun "$rigOp" --session-id odd-ns
+rigAssert "a run whose record it cannot find to close: status 1, a close row that says not-closed, the state it still reads, and an error that names the session; nothing is reported as done" \
+	"$rigRc | $( rigRowsOf close ) | $( rigRowsOf finish ) | $( LC_ALL=C grep -c -F -- 'session odd-ns still reads unclosed after it' "$rigTmp/err" || : ) $( rigStateOf odd-ns )" \
+	"1 | close odd-ns odd-ns magic-coordinator not-closed - | finish odd-ns 0 0 0 unclosed | 1 unclosed"
+rigRun "$rigOp" --session-id odd-ns --plan
+rigAssert "the plan of it is no failure: its rows and the state, status 0" "$rigRc $( rigRowsOf finish )" "0 finish odd-ns 0 0 0 unclosed"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ MANAGER SESSION KILL CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

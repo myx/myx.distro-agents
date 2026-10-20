@@ -18,7 +18,7 @@
 ## sessions are the rows the list of sessions prints, by its own awk and its own measuring
 ## (AgentsManagerSessionRows.awk, AgentsToolsRegistryMeasureRows), an asker is alive as the
 ## read of the questions says it (AgentsToolsPendingReplyAskers), the members are the
-## machine's directory of them, the main loop and the heartbeat are the lines of the digest
+## machine's directory of them, the main loop is the lines of the digest
 ## of the settings (AgentsToolsManagerConfigLoop). What only the system knows is asked of
 ## the system, by the command each of macOS, Linux and FreeBSD has for it, and a figure the
 ## host has no command for is left out.
@@ -38,6 +38,7 @@
 
 type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
 
 ## What the readers of the sessions keep of one call, which the operation starts as one process: the counts of the rows
 ## of the sessions (AgentsToolsManagerDashboardSessionCounts), read once, and the rows themselves for the sessions that rank.
@@ -430,16 +431,19 @@ AgentsToolsManagerDashboardSize(){ ## folder
 	return 0
 }
 
-## TEAM DATA: where its root is, as the context resolved it, and whether it is there; its
-## size, kept; and the items of its board by state, a folder of the board a state and a
+## TEAM DATA: where its root is, as the context resolved it, the mode of the workspace as the
+## gate's one reader says it (AgentsToolsWorkspaceMode: a screen shows the team data of a team rig
+## alone), and whether it is there; its size, kept; and the items of its board by state, a folder of the board a state and a
 ## `.md` file of it an item, counted by the shell's own listing. NO git command is run: what
 ## only git knows of the team data, what is not committed and what is not pushed, is no
 ## figure here.
 AgentsToolsManagerDashboardTeamData(){
-	local dataRoot="${MDAT_DATA_ROOT:-}" dataState dataDir dataCounts="" dataCount dataLabel dataSeen=" "
+	local dataRoot="${MDAT_DATA_ROOT:-}" dataState dataDir dataCounts="" dataCount dataLabel dataSeen=" " dataMode="" dataModeSource=""
 	[ -n "$dataRoot" ] || return 0
 	dataRoot="${dataRoot%/}"
 	LocalToolsManagerDashboardFigure team-data root "Team Data Root" "$dataRoot" - - ""
+	read -r dataMode dataModeSource <<< "$( AgentsToolsWorkspaceMode )" || :
+	LocalToolsManagerDashboardFigure team-data mode "Workspace Mode" "${dataMode:-just-agents}" - - ""
 	if [ ! -d "$dataRoot" ] ; then
 		LocalToolsManagerDashboardFigure team-data present "Team Data Present" no - bad ""
 		return 0
@@ -584,18 +588,16 @@ AgentsToolsManagerDashboardTeamDataGit(){
 	return 0
 }
 
-## THE MAIN LOOP AND THE HEARTBEAT, as the digest of the settings reads them, by its own
-## reader (AgentsToolsManagerConfigLoop), whose lines are taken here: how the last iteration
-## of the main loop ended, how long ago, and after how many failures in a row; the state of
-## the heartbeat, how long ago its last iteration was, and whether it runs, which it does
-## while its lock is held. Nothing the tooling keeps says that a main loop runs now, so
-## that is no figure. Left out where no main loop left its state and no heartbeat its note,
-## and in every mode of the workspace but `team-rig`, where the digest says nothing of it.
+## THE MAIN LOOP, as the digest of the settings reads it, by its own reader
+## (AgentsToolsManagerConfigLoop), whose lines are taken here: how the last iteration
+## of the main loop ended, how long ago, and after how many failures in a row.
+## Nothing the tooling keeps says that a main loop runs now, so that is no figure.
+## Left out where no main loop left its state, and in every mode of the workspace but `team-rig`, where the digest says nothing of it.
 ## Its figures are judged, `warn` and `bad`, only on a FULL TEAM RIG, whose team data has a git
 ## remote, as the digest's reader of the mode says (AgentsToolsManagerConfigMode, which
 ## asks whether one is set and keeps no text of it); elsewhere they are shown plain, `-`.
 AgentsToolsManagerDashboardLoop(){
-	local loopLines loopRow loopSubject loopGroup loopKey loopState loopValue loopRest loopLevel loopNote="" loopJudged=""
+	local loopLines loopRow loopSubject loopGroup loopKey loopState loopValue loopRest loopLevel loopJudged=""
 	loopLines="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConfig.include" --definitions-only > /dev/null 2>&1 || :
 		printf 'mode\t%s\n' "$( AgentsToolsManagerConfigMode 2> /dev/null )"
 		AgentsToolsManagerConfigLoop 2> /dev/null )" || loopLines=""
@@ -617,16 +619,6 @@ AgentsToolsManagerDashboardLoop(){
 				loopLevel="ok" ; [ "$loopValue" = 0 ] || loopLevel="warn"
 				[ -n "$loopJudged" ] || loopLevel="-"
 				LocalToolsManagerDashboardFigure loop main-loop-failures "Main Loop Consecutive Failures" "$loopValue" count "$loopLevel" ""
-			;;
-			heartbeat:state-note:set) loopNote="yes" ;;
-			heartbeat:state:set) LocalToolsManagerDashboardFigure loop heartbeat-state "Heartbeat State" "$loopValue" - - "" ;;
-			heartbeat:last-iteration-timestamp:set)
-				LocalToolsManagerDashboardAge "$loopValue"
-				[ -z "$dashboardAge" ] || LocalToolsManagerDashboardFigure loop heartbeat-age "Heartbeat Last Iteration" "$dashboardAge" seconds - ""
-			;;
-			heartbeat:running:*)
-				[ -n "$loopNote" ] || continue
-				case "$loopValue" in yes|no) LocalToolsManagerDashboardFigure loop heartbeat-running "Heartbeat Running" "$loopValue" - - "" ;; esac
 			;;
 		esac
 	done <<< "$loopLines"

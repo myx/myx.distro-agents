@@ -11,8 +11,10 @@
 ##      session, `magic-team.work-duty.routine`, and not a second while it holds one; a member with nothing gets none; human-owner (an identity
 ##      record) and an oncall member get none. magic-coordinator also holds duty during emergency and overtime. A member whose flag does not allow is
 ##      started nothing, whatever it has to work on.
-##   3. THE END OF A DUTY. When the flag stops allowing, a run of the duty is told to go with DISMISSED in its session thread, at its next idle point
-##      (its Wait) and never while it works, once; a demand that comes later starts nothing until the flag allows again.
+##   3. THE END OF A DUTY. A run of the duty that is out of its flags, with no input and idle for more than an hour, is told to go with DISMISSED in
+##      its session thread, at its next idle point (its Wait) and never while it works, once; one that still has input is not (the whole lifetime
+##      rule -- the cache, the session, the 20 minutes, the holidays -- is AgentsDutyLifetimeCheck's); a demand that comes later starts nothing
+##      until the flag allows again.
 ##   4. A member that is not eligible costs no Slack read: the team channel is read only for members whose flag allows (the budget itself is AgentsScheduleBudgetCheck's).
 ##   5. LEARNING. With learning on, a session that ended since the last look gets one inquiry into magic-librarian's inbox, once; with it off, none, and
 ##      none later; none for a session of the first look (a history is no news), and none for a session whose only member is magic-librarian.
@@ -99,37 +101,20 @@ rigItem oncall-rig ; rigItem human-owner
 rigAssert "an oncall member and human-owner get none, whatever is in their inbox: no line of them" "$( rigDutyCount oncall-rig ):$( rigDutyCount human-owner ):$( rigSaid duty1 'oncall-rig' ):$( rigSaid duty1 'human-owner' )" "0:0:0:0"
 echo "-- 3. the end of a duty --"
 ## The duty of keeper-rig-02 as a live run in a Wait, and that of keeper-rig-03 as one at work.
-rigLiveSpawn=""
-rigLive(){ ## member, idle|working -- the run of that member's duty in the rig: a stand-in process, a record, a thread and a store; its spawn id in rigLiveSpawn
-	local liveRecord liveSpawn liveLeft
-	liveRecord="$( LC_ALL=C grep -l -x "owner: $1" $( LC_ALL=C grep -l -x 'routine: magic-team.work-duty.routine.md' "$rigSp"/*/*.md ) | head -1 )"
-	liveSpawn="${liveRecord##*/}" ; liveSpawn="${liveSpawn%.md}"
-	## The real start of this duty ends a moment after its record says so, with a last milestone of its own; the run of the rig is made after that, or it is written over.
-	liveLeft=150
-	while [ "$liveLeft" -gt 0 ] && ! LC_ALL=C grep -q ' end$' "$rigStores/$liveSpawn/milestones" 2> /dev/null ; do sleep 0.2 ; liveLeft=$(( liveLeft - 1 )) ; done
-	LC_ALL=C sed -i.bak -e 's/^status: .*/status: spawn-started/' -e '/^resolved-at: /d' "$liveRecord" && rm -f "$liveRecord.bak"
-	if ! LC_ALL=C grep -q '^session-thread: ' "$liveRecord" ; then
-		LC_ALL=C awk '{ print } /^status: / { print "session-thread: CRIG00001:1760000000.0000" NR }' "$liveRecord" > "$liveRecord.next" && mv -f "$liveRecord.next" "$liveRecord"
-	fi
-	sleep 600 > /dev/null 2>&1 < /dev/null &
-	rigProcNote "$!" ; rigStarted="$rigStarted $!"
-	printf '%s claude --verbose --session-id %s --agent %s the brief\n' "$!" "$liveSpawn" "$1" >> "$rigDir/ps.list"
-	disown "$!" 2> /dev/null || :
-	mkdir -p "$rigStores/$liveSpawn"
-	if [ "$2" = idle ] ; then printf '2026-10-19T10:00:00Z start\n2026-10-19T10:05:00Z wait going idle\n' > "$rigStores/$liveSpawn/milestones"
-	else printf '2026-10-19T10:00:00Z start\n2026-10-19T10:05:00Z message out\n' > "$rigStores/$liveSpawn/milestones" ; fi
-	rigLiveSpawn="$liveSpawn"
-}
 rigLive keeper-rig-02 idle ; rigSpawn02="$rigLiveSpawn" ; rigLive keeper-rig-03 working ; rigSpawn03="$rigLiveSpawn"
 rigAt "$rigMon18"
 rigOneRun end1
-rigAssert "worktime is over: the run in its Wait is told to go, once, with DISMISSED in its session thread" "$( rigSaid end1 "work-duty: $rigSpawn02 of keeper-rig-02 is told to go" ):$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "1:1"
-rigAssert "the run at work is told nothing: never mid-work" "$( rigSaid end1 "work-duty: $rigSpawn03 of" )" "0"
+rigAssert "worktime is over, and the run in its Wait still has an item in its inbox: it is not told to go at once (the lifetime is AgentsDutyLifetimeCheck's)" "$( rigSaid end1 "work-duty: $rigSpawn02 of" ):$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "0:0"
+rm -f "$rigData/inboxes/keeper-rig-02/incoming/note-20261019T0900Z-rig-work.md"
 rigOneRun end2
+rigAssert "its input worked off, out of worktime, idle for more than an hour: the run in its Wait is told to go, once, with DISMISSED in its session thread" "$( rigSaid end2 "work-duty: $rigSpawn02 of keeper-rig-02 is told to go" ):$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "1:1"
+rigAssert "the run at work is told nothing: never mid-work" "$( rigSaid end2 "work-duty: $rigSpawn03 of" )" "0"
+rigOneRun end2b
 rigAssert "the run already told is not told twice" "$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "1"
 printf '2026-10-19T10:05:00Z wait going idle\n' >> "$rigStores/$rigSpawn03/milestones"
+rm -f "$rigData/inboxes/keeper-rig-03/incoming/note-20261019T0900Z-rig-work.md"
 rigOneRun end3
-rigAssert "at its next idle point the other is told: DISMISSED reaches it" "$( rigSaid end3 "work-duty: $rigSpawn03 of keeper-rig-03 is told to go" ):$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "1:2"
+rigAssert "at its next idle point, its input worked off, the other is told: DISMISSED reaches it" "$( rigSaid end3 "work-duty: $rigSpawn03 of keeper-rig-03 is told to go" ):$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "1:2"
 rigItem keeper-rig-04
 rigTagsBefore="$( cksum < "$rigWs/.local/agents/schedule/team-channel" )"
 rigOneRun end4
@@ -141,6 +126,7 @@ rigAssert "magic-coordinator is not on duty after worktime without emergency or 
 rigDispatch --override-flag overtime
 rigOneRun end6 ; rigWaitStarts
 rigAssert "with overtime it is: its duty is started" "$( rigSaid end6 'work-duty: started the duty of magic-coordinator' )" "1"
+rigAssert "...and it is the coordinator's own duty routine, which the others have none of" "$( rigRecordsOf magic-coordinator.work-duty.routine.md ):$( rigRecordsOf magic-team.work-duty.routine.md | LC_ALL=C awk '{ print ( $1 > 0 ) ? "team-duties-too" : "none" }' )" "1:team-duties-too"
 rigAt $(( rigMon13 + 86400 ))
 rigOneRun back1 ; rigWaitStarts
 rigAssert "worktime again: the demand of keeper-rig-04 is answered" "$( rigSaid back1 'work-duty: started the duty of keeper-rig-04' )" "1"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## The scoped input scans (advance, heartbeat: the `--intern-op-<scan>-input-scan` ops, the wrappers having retired with F6.4) emit no section unrelated to their
+## The scoped input scans (advance: the `--intern-op-<scan>-input-scan` ops, the wrappers having retired with F6.4) emit no section unrelated to their
 ## routine: no comms, IM, Email, Trello or Other-Inbox heading, and no "not requested"
 ## line. The same scan op run with nothing declined is the control that emits them.
 ## Offline: a temp board, data root and HOME; no comms source is configured.
@@ -40,11 +40,10 @@ rigNotRequested(){ ## output file
 	LC_ALL=C grep -c -F '**NOTE:** not requested' "$1" || :
 }
 
-for rigStub in advance heartbeat ; do
+for rigStub in advance ; do
 	echo "-- the $rigStub input scan --"
 	rigRun "$rigTmp/$rigStub" "--intern-op-$rigStub-input-scan" magic-coordinator
-	## Heartbeat prints no board digest since it dropped inbox reflections; its last section is the reach marker.
-	rigReach='## board digest' ; [ "$rigStub" = heartbeat ] && rigReach='## board active items'
+	rigReach='## board digest'
 	LC_ALL=C grep -q -x -F -- "$rigReach" "$rigTmp/$rigStub" || rigRefuse "the $rigStub scan printed no '$rigReach', so its output was never reached"
 	rigAssert "it emits no unrelated section heading"   "$( rigUnrelated "$rigTmp/$rigStub" )" 0
 	rigAssert "and no \"not requested\" line"           "$( rigNotRequested "$rigTmp/$rigStub" )" 0

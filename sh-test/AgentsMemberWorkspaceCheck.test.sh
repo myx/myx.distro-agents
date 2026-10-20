@@ -1014,7 +1014,7 @@ sleep 3
 rm -f "$rigTmp"/paid.*
 rigConsole ws-here HERE
 
-echo "-- 10. --magic-spawn-session, --magic-heartbeat-* and the root harness --"
+echo "-- 10. --magic-spawn-session, the --magic-state-note-* operations and the root harness --"
 rigSessionIn(){ ## workspace, args... -- --magic-spawn-session from that workspace
 	: > "$rigTmp/calls" ; : > "$rigTmp/envs" ; : > "$rigTmp/bodies" ; rm -f "$rigTmp"/launched.* "$rigTmp"/roots.* "$rigTmp"/brief.*
 	rigRc=0
@@ -1042,25 +1042,25 @@ for rigW in there here ; do
 	mkdir -p "$rigWork/ws-$rigW/.local/agents/team-data-root/inboxes/magic-coordinator/incoming"
 	printf -- '---\nstate: working\nsession-id: RIG-%s-SESSION\nrecheck-date: %s\n---\nbody\n' "$rigW" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$rigWork/ws-$rigW/.local/agents/team-data-root/inboxes/magic-coordinator/incoming/note-20260809T155000Z-heartbeat-state-and-lock.md"
 done
-rigRunIn ws-here --magic-heartbeat-lock-status keeper-there
-rigAssert "a --magic-heartbeat-* operation naming an invited member reads the team data of the workspace it was called from, not the member's" "$( cat "$rigTmp/out" | LC_ALL=C sed 's/:recheck_date=.*//' )" "ACTIVE:owner=RIG-here-SESSION:state=working"
-rigRunIn ws-here --magic-heartbeat-lock-status keeper-here
+rigRunIn ws-here --magic-state-note-lock-status keeper-there
+rigAssert "a --magic-state-note-* operation naming an invited member reads the team data of the workspace it was called from, not the member's" "$( cat "$rigTmp/out" | LC_ALL=C sed 's/:recheck_date=.*//' )" "ACTIVE:owner=RIG-here-SESSION:state=working"
+rigRunIn ws-here --magic-state-note-lock-status keeper-here
 rigAssert "control: for a member set up here it reads the same, this workspace's own"     "$( cat "$rigTmp/out" | LC_ALL=C sed 's/:recheck_date=.*//' )" "ACTIVE:owner=RIG-here-SESSION:state=working"
-rigRunIn ws-there --magic-heartbeat-lock-status keeper-there
+rigRunIn ws-there --magic-state-note-lock-status keeper-there
 rigAssert "control: called from the member's own workspace it reads that one's"     "$( cat "$rigTmp/out" | LC_ALL=C sed 's/:recheck_date=.*//' )" "ACTIVE:owner=RIG-there-SESSION:state=working"
-rigRunIn ws-here --magic-heartbeat-lock-status keeper-pre
-rigAssert "(a) a --magic-heartbeat-* operation names the same refusal"     "$rigRc $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --magic-heartbeat-lock-status: member 'keeper-pre' is in the team members index but is present in no tracked workspace -- nothing was done" )" "1 1"
+rigRunIn ws-here --magic-state-note-lock-status keeper-pre
+rigAssert "(a) a --magic-state-note-* operation names the same refusal"     "$rigRc $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --magic-state-note-lock-status: member 'keeper-pre' is in the team members index but is present in no tracked workspace -- nothing was done" )" "1 1"
 rigRootIn(){ ## workspace, args... -- --intern-root-harness from that workspace
 	: > "$rigTmp/calls" ; : > "$rigTmp/envs" ; : > "$rigTmp/bodies" ; rm -f "$rigTmp"/launched.* "$rigTmp"/roots.* "$rigTmp"/brief.*
 	rigRc=0
 	( cd "$rigWork/$1" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
 		bash "$rigTool" --intern-root-harness "${@:2}" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
-printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig heartbeat routine fixture\n' > "$( rigMemberHome ws-here magic-coordinator )/magic-coordinator.heartbeat.routine.md"
-rigRootIn ws-here --routine heartbeat --non-interactive --wait ; rigSettle HERE
+printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig advance routine fixture\n' > "$( rigMemberHome ws-here magic-coordinator )/magic-coordinator.advance.routine.md"
+rigRootIn ws-here --routine advance --non-interactive --wait ; rigSettle HERE
 rigAssert "the root harness, whose caller is the coordinator set up in the current workspace: launched there" "$rigRc $( rigLaunched ) $( rigRoots HERE )" "0 HERE=ws-here magic-coordinator=ws-here/.local/agents/members"
 rigSpawnedBefore="$( rigSpawnedCount ws-there )" ; rigBoardBeforeThere="$( rigBoardItems ws-there )" ; rigBoardBeforeHere="$( rigBoardItems ws-here )"
-rigRootIn ws-there --routine heartbeat --non-interactive --wait ; rigSettle THERE
+rigRootIn ws-there --routine advance --non-interactive --wait ; rigSettle THERE
 rigAssert "the same from a workspace the coordinator is not set up in: it is invited, its session launched in the workspace it was asked from, on the coordinator's own workspace view" "$rigRc $( rigLaunched ) $( rigRoots THERE )" "0 THERE=ws-there magic-coordinator=ws-here/.local/agents/members"
 rigAssert "and the record stays in the workspace it was asked from"        "$(( $( rigSpawnedCount ws-there ) - rigSpawnedBefore ))" "1"
 rigAssert "and the dispatch item and board stay in the workspace it was asked from" "$(( $( rigBoardItems ws-there ) - rigBoardBeforeThere )) $(( $( rigBoardItems ws-here ) - rigBoardBeforeHere ))" "1 0"
@@ -1236,8 +1236,8 @@ rigExclusion="$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -F -e '|*:|*:
 ## The Decisions append and the review implementations are the tooling's own: their <who> is the name recorded, not
 ## the member whose workspace the item lives in, and they run where their caller's records are. The place ops' second
 ## word is a place name or a path, and the namespace listing's a namespace, never a member.
-rigAssert "the entry's one exclusion line: the spawn proxy, the markdown merge, the two operations that wrap it, the MCP execute, the Decisions append, the review implementations, the place ops, the make operations, the manager's own operations, an empty second word, an option" "$rigExclusion" '--intern-op-agent-spawn-proxy:*|--intern-merge-md-files:*|--magic-heartbeat-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--member-directory-*:*|--member-namespace-list:*|--owner-workspace-*:*|--make-*:*|--manager-*:*|*:|*:-*'
-rigAssert "control: a sample entry without the wrapping operations is told apart" "$( printf -- '--intern-op-agent-spawn-proxy:*|--intern-mcp-execute:*|*:|*:-*\n' )" "$( printf '%s' "$rigExclusion" | LC_ALL=C sed 's/--intern-merge-md-files:[*]|//; s/--magic-heartbeat-spawn-proxy:[*]|--magic-spawn-session:[*]|//; s/--intern-op-decisions-append:[*]|//; s/--intern-op-review-[*]:[*]|//; s/--intern-directory-[*]:[*]|--member-directory-[*]:[*]|--member-namespace-list:[*]|--owner-workspace-[*]:[*]|--make-[*]:[*]|--manager-[*]:[*]|//' )"
+rigAssert "the entry's one exclusion line: the spawn proxy, the markdown merge, the two operations that wrap it, the MCP execute, the Decisions append, the review implementations, the place ops, the make operations, the manager's own operations, an empty second word, an option" "$rigExclusion" '--intern-op-agent-spawn-proxy:*|--intern-merge-md-files:*|--magic-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--member-directory-*:*|--member-namespace-list:*|--owner-workspace-*:*|--make-*:*|--manager-*:*|*:|*:-*'
+rigAssert "control: a sample entry without the wrapping operations is told apart" "$( printf -- '--intern-op-agent-spawn-proxy:*|--intern-mcp-execute:*|*:|*:-*\n' )" "$( printf '%s' "$rigExclusion" | LC_ALL=C sed 's/--intern-merge-md-files:[*]|//; s/--magic-spawn-proxy:[*]|--magic-spawn-session:[*]|//; s/--intern-op-decisions-append:[*]|//; s/--intern-op-review-[*]:[*]|//; s/--intern-directory-[*]:[*]|--member-directory-[*]:[*]|--member-namespace-list:[*]|--owner-workspace-[*]:[*]|--make-[*]:[*]|--manager-[*]:[*]|//' )"
 rigAssert "an invited member's call is re-run whole in a subshell under its member set root, and only where that is not the root it already reads" "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c -F -e '( export MDAT_SKILLSET_ROOT="$memberBrought" ; DistroAgentsTools "$@" )' || : ) $( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c -F -e '[ "$memberBrought" != "${MDAT_SKILLSET_ROOT:-}" ]' || : )" "1 1"
 rigAssert "no call is carried to another workspace: the entry switches to none"  "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c "$rigSwitchFn " || : )" 0
 rigAssert "the resolver is called in its own file and nowhere else: by the bring, and beside it by what answers whether a member is invited, which workspace it is set up in, and where its own settings are read from" "$( LC_ALL=C grep -l "$rigResolveFn \"" "$rigHere"/*/*.include "$rigHere"/*/*.sh "$rigPackage/sh-scripts"/*.sh 2> /dev/null | LC_ALL=C sed 's|.*/||' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "AgentsTools.MemberWorkspace.include "

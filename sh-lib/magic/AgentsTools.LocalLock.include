@@ -3,7 +3,7 @@
 
 ##
 ## AgentsTools.LocalLock.include -- the one local lock primitive: the harness's
-## per-target write lock and the board's routine locks (advance, heartbeat, daily).
+## per-target write lock and the board's routine locks (advance, daily).
 ##
 ## A lock is a symlink in $MMDAPP/.local/agents/locks/<key> whose target is the
 ## holder's pid: `ln -s` creates it and names its holder in one atomic step, so there

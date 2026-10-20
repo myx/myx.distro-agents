@@ -188,7 +188,7 @@ AgentsToolsCommsSlackMentionFindByName(){ ## text
 ## One member's Slack user id, for a real mention element; nothing at all when
 ## that member has no Slack account of its own, which is the caller's cue to
 ## keep the plain "@alias" text. Cached beside the config store and re-resolved
-## once per advance/heartbeat lock cycle, never per message. See MAGIC.md,
+## once per advance/state-note lock cycle, never per message. See MAGIC.md,
 ## "A member name renders as a real Slack mention".
 AgentsToolsCommsSlackMentionUserId(){
 	## A client-* member's only account is the other organisation's: on our own side it has

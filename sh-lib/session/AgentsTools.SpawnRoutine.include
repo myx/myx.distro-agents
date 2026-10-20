@@ -122,6 +122,44 @@ AgentsToolsSpawnRoutineMixText(){ ## routine file path
 	AgentsToolsSpawnRoutineMixSections "$mixKindPath" "$1" "$mixSkips" notes
 }
 
+## The routines whose sections a routine takes in whole, from its `includes:` lines (one a line: `<routine file name>: <section>, <section>`): one
+## `<routine file name><TAB><section>` row for each section named. The sections that can be taken are the Steps, the local procedures, the
+## local rules and the tooling block. Nothing is copied: the text is the included routine's own, mixed in where the routine is read (--get-routine-text, the brief,
+## the cached prefix).
+AgentsToolsSpawnRoutineIncludes(){ ## routine file path
+	LC_ALL=C awk '
+		FNR == 1 { fm = ( $0 == "---" ) ; next }
+		fm && $0 == "---" { exit }
+		fm && index( $0, "includes: " ) == 1 {
+			line = substr( $0, 11 ) ; colon = index( line, ": " )
+			if ( colon == 0 ) next
+			name = substr( line, 1, colon - 1 ) ; rest = substr( line, colon + 2 )
+			n = split( rest, parts, "," )
+			for ( i = 1 ; i <= n ; i++ ) { sub( /^[ \t]+/, "", parts[i] ) ; sub( /[ \t]+$/, "", parts[i] ) ; if ( parts[i] != "" ) print name "\t" parts[i] }
+		}
+	' "$1" 2> /dev/null
+}
+
+## The files of the routines a routine includes, resolved, one a line (for the checksum of what a cached text was made of).
+AgentsToolsSpawnRoutineIncludePaths(){ ## routine file path
+	local pathsName pathsSection pathsFile
+	while IFS=$'\t' read -r pathsName pathsSection ; do
+		[ -n "$pathsName" ] || continue
+		pathsFile="$( AgentsToolsSpawnRoutineResolve "$pathsName" 2> /dev/null )" || continue
+		printf '%s\n' "$pathsFile"
+	done <<< "$( AgentsToolsSpawnRoutineIncludes "$1" | LC_ALL=C awk -F'\t' '!seen[$1]++' )"
+}
+
+## One section name of the included routines, added to the caller's mixArgs after the routine's own: AgentsToolsSpawnRoutineMixAdd for each include.
+AgentsToolsSpawnRoutineMixIncluded(){ ## routine file path, section
+	local incName incSection incFile
+	while IFS=$'\t' read -r incName incSection ; do
+		[ "$incSection" = "$2" ] || continue
+		incFile="$( AgentsToolsSpawnRoutineResolve "$incName" 2> /dev/null )" || continue
+		AgentsToolsSpawnRoutineMixAdd "$incFile" "$2"
+	done <<< "$( AgentsToolsSpawnRoutineIncludes "$1" )"
+}
+
 ## One section of a file as a mixin, if the file has it: `--mixin [filters] <file> "<section> of <file stem>"`, added to the caller's mixArgs. The filters
 ## (--section-exclude <step>) follow the section the mixin includes.
 AgentsToolsSpawnRoutineMixAdd(){ ## file, section, filter words...
@@ -147,13 +185,17 @@ AgentsToolsSpawnRoutineMixSections(){ ## kind routine file, routine file, skips-
 	AgentsToolsSpawnRoutineMixAdd "$mixKind" "Opening steps" ${mixSkipArgs[@]+"${mixSkipArgs[@]}"}
 	AgentsToolsSpawnRoutineMixAdd "$mixOwn" "Opening steps"
 	AgentsToolsSpawnRoutineMixAdd "$mixOwn" "Steps"
+	AgentsToolsSpawnRoutineMixIncluded "$mixOwn" "Steps"
 	AgentsToolsSpawnRoutineMixAdd "$mixOwn" "Closure steps"
 	AgentsToolsSpawnRoutineMixAdd "$mixKind" "Closure steps" ${mixSkipArgs[@]+"${mixSkipArgs[@]}"}
 	AgentsToolsSpawnRoutineMixAdd "$mixOwn" "Routine's local procedures"
+	AgentsToolsSpawnRoutineMixIncluded "$mixOwn" "Routine's local procedures"
 	AgentsToolsSpawnRoutineMixAdd "$mixKind" "Routine's local rules"
 	AgentsToolsSpawnRoutineMixAdd "$mixOwn" "Routine's local rules"
+	AgentsToolsSpawnRoutineMixIncluded "$mixOwn" "Routine's local rules"
 	AgentsToolsSpawnRoutineMixAdd "$mixKind" "Routine-specific tooling"
 	AgentsToolsSpawnRoutineMixAdd "$mixOwn" "Routine-specific tooling"
+	AgentsToolsSpawnRoutineMixIncluded "$mixOwn" "Routine-specific tooling"
 	[ "$mixNotes" != notes ] || AgentsToolsSpawnRoutineMixAdd "$mixOwn" "Maintainer Notes"
 	type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
 	AgentsToolsMergeMdFiles --section-limit 6 ${mixArgs[@]+"${mixArgs[@]}"}

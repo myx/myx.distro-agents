@@ -90,7 +90,7 @@ rigOwnerSend(){ ## member -- "<rc>:<tokens that posted>:<posts to the owner's ac
 rigAssert "no flag, a member with no account to human-owner: one post, the team bot's, to the owner's own account, and nothing said of another member's account" \
 	"$( rigOwnerSend magic-team )" "0:rig-bot-token-TEAM:1:0"
 rigAssert "a routine's send to human-owner is the team bot's too" \
-	"$( rigOwnerSend routine-heartbeat )" "0:rig-bot-token-TEAM:1:0"
+	"$( rigOwnerSend routine-advance )" "0:rig-bot-token-TEAM:1:0"
 ## A person at a console acts as user-<account> (F6.10, F11.6): no member, no skill folder and no account of its own, so its send is the team bot's,
 ## with the account as the sender it carries. A name that is none of a member, a routine and an account is refused as before.
 rigAssert "user-<account>, a person at a console, is let send: one post, the team bot's, to the owner's own account" \

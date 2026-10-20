@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on the coordinator's role surface (F7.9 of the refactorings epic): AgentDispatcherTools.fn.sh --tasks, --spawns, --flags, --contacts, --contact,
 ## --standing-directives, --directive-set and --directive-end, run rather than read, in a rig: a workspace with its team data (the board, magic-coordinator's inbox
-## with the heartbeat-state-note) and the real tooling. The surface owns no state; every view is the owner's answer, and the one write, an order of the human-owner,
-## is a section of the heartbeat-state-note written THROUGH the note's lock. Held:
+## with the state-note) and the real tooling. The surface owns no state; every view is the owner's answer, and the one write, an order of the human-owner,
+## is a section of the state-note written THROUGH the note's lock. Held:
 ##   1. WHO: magic-coordinator, and for what only reads a call from no member's session; another member is refused; a write from no member's session is refused.
 ##   2. THE VIEWS delegate: --spawns and --flags print what the Dispatcher prints, --contacts what Contacts prints, --contact a record with its access, --tasks the
 ##      board's counts and active items.
@@ -72,7 +72,7 @@ rigWriter(){ ## result prefix, stdin file, words... -- one call of DistroAgentsT
 rigField(){ ## key -- a front matter field of the state note
 	LC_ALL=C awk -v want="$1: " 'NR == 1 { next } $0 == "---" { exit } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit }' "$rigNote"
 }
-rigWrite(){ ## the state note as the heartbeat leaves it between passes
+rigWrite(){ ## the state note as a session leaves it
 	printf -- '---\ntype: note\nfrom: magic-coordinator\ndate: 2026-08-09\nowner: magic-coordinator\nstate: heartbeat-finished\nrecheck-date: 2026-01-01 00:00 +0000\nsession-id: rig-pass-0\ntoday-stage: grooming-dispatched\nlast-iteration-date: 2026-10-19\nlast-iteration-timestamp: 2026-10-19T08:00:00Z\n---\n\nLast iteration: rig.\n\n# Day notes\n\nkeep this line\n' > "$rigNote"
 }
 rigWrite
@@ -121,7 +121,7 @@ cp "$rigNote" "$rigNote.before"
 cp "$rigNote.held" "$rigNote"
 cp "$rigNote" "$rigTmp/held.before"
 rigSurface "$rigTmp/l1" --directive-set --text "While a pass runs" --expires-at none --wait 2
-rigAssert "a pass holds the note: the write waits its --wait, refuses naming the lock, and the note is untouched" "$rigRc $( rigHas 'is locked by a pass that is running' "$rigTmp/l1.err" ) $( cmp -s "$rigNote" "$rigTmp/held.before" && printf untouched )" "1 1 untouched"
+rigAssert "a session holds the note: the write waits its --wait, refuses naming the lock, and the note is untouched" "$rigRc $( rigHas 'is locked by a session that holds it' "$rigTmp/l1.err" ) $( cmp -s "$rigNote" "$rigTmp/held.before" && printf untouched )" "1 1 untouched"
 ( sleep 3 ; cp "$rigNote.before" "$rigNote" ) &
 rigPid=$!
 rigSurface "$rigTmp/l2" --directive-set --id after-wait --text "Written when the pass let go" --expires-at none --wait 20
@@ -143,7 +143,7 @@ rigAssert "no text, a text too long, no expires-at, an expires-at that is none, 
 mv "$rigNote" "$rigNote.gone"
 rigSurface "$rigTmp/x9" --directive-set --text x --expires-at none
 mv "$rigNote.gone" "$rigNote"
-rigAssert "no heartbeat-state-note: refused" "$rigRc $( rigHas 'the heartbeat-state-note is not there' "$rigTmp/x9.err" )" "1 1"
+rigAssert "no state-note: refused" "$rigRc $( rigHas 'the state-note is not there' "$rigTmp/x9.err" )" "1 1"
 
 echo "-- 2. the views delegate --"
 rigRun "$rigTmp/v1" "$rigDispatcher" --active-sessions

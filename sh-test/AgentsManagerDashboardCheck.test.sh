@@ -2,9 +2,10 @@
 ## Behavioural check on --manager-dashboard-read [<block>...], the dashboard of the console's own family --manager-*:
 ## the most vital figures of a workspace and of its machine, grouped in blocks, run rather than read, against a rig
 ## machine built here: a workspace with its two registries of sessions as an earlier call left them, the stores of
-## its runs, its questions, its team data with a board, its main loop state and heartbeat note; a HOME with a
+## its runs, its questions, its team data with a board, its main loop state; a HOME with a
 ## retest queue; a member set; and, first on PATH, the rig's own clock, process list and system: `date`, `ps`,
 ## `uname`, `uptime`, `sysctl`, `vm_stat`, `df`, `du`. A second workspace has nothing but its `.local`.
+## Reconciled for the start of Team Data: its block has a `mode` figure (the gate's one reader), after its root.
 ## Held: each block prints one `block` row that counts its `figure` rows, each figure with its label, value, unit,
 ## level and share, by known stores. The sessions are counted as the list of sessions counts them, with no
 ## registry rebuilt: a session that runs, one that waits on an ask, one unclosed, one that finished today and two
@@ -15,7 +16,7 @@
 ## another host is counted and its asker not measured. The tokens of the running sessions and of today's finished
 ## ones, and how many are not whole. The members, those that can be started and those that run. The team data: its
 ## root, present or not, its size, its board by state, a state of no known name after the known ones. The main
-## loop and the heartbeat as the digest reads them. The machine by the stand-ins of macOS and of FreeBSD: the load
+## loop as the digest reads it. The machine by the stand-ins of macOS and of FreeBSD: the load
 ## with a level by the processors, the memory, the uptime. The volumes, each once, one above the `warn` and one
 ## above the `bad` threshold, and a file system and a mount named with blanks. The retests that wait.
 ## A HOST WITH NO TEAM DATA ROOT says where the root would be and that it is not there, and prints no size and no
@@ -109,10 +110,9 @@ done
 printf -- '---\nname: human-owner\nstatus: reference-only\n---\n# human-owner\n' > "$rigSkills/human-owner/SKILL.md"
 
 ## THE TEAM DATA: a board with two running items and a file that is none, one in review, none blocked, and a
-## state of no known name; the heartbeat's note. THE MAIN LOOP: the state its last iteration left.
+## state of no known name. THE MAIN LOOP: the state its last iteration left.
 : > "$rigData/board/running/one.md" ; : > "$rigData/board/running/two.md" ; : > "$rigData/board/running/notes.txt"
 : > "$rigData/board/review/three.md" ; : > "$rigData/board/odd-state/four.md"
-printf -- '---\nstate: heartbeat-running\nrecheck-date: 2026-10-13_12:30_+0000\nlast-iteration-timestamp: 2026-10-13T11:00:00Z\n---\n' > "$rigData/inboxes/magic-coordinator/incoming/note-20260809T155000Z-heartbeat-state-and-lock.md"
 printf 'MAIN_LOOP_LAST_OUTCOME=ok\nMAIN_LOOP_LAST_ITERATION_UTC=2026-10-13T11:59:00Z\nMAIN_LOOP_CONSECUTIVE_FAILURES=0\n' > "$rigAgents/main-loop.state"
 
 ## THE RETESTS that wait, and one that is done.
@@ -227,9 +227,9 @@ rigAssert "tokens: the running session, today's finished one, and one session no
 rigAssert "team: three members, the team itself not counted; two can be started, the identity record cannot; two run" "$( rigBlock team )" \
 	"block team Team_Members 3/figure team members Members_Known 3 count - -/figure team startable Members_To_Start 2 count - 66/figure team running Members_Running_Now 2 count - 100/"
 rigAssert "team data: its root, present, its size from the stand-in, the board by state, a file that is no item not counted, a state of no known name last" "$( rigBlock team-data )" \
-	"block team-data Team_Data 7/figure team-data root Team_Data_Root $rigData - - -/figure team-data present Team_Data_Present yes - ok -/figure team-data size Team_Data_Size 125952 bytes - -/figure team-data board-running Board_Items_Running 2 count - -/figure team-data board-review Board_Items_Review 1 count - -/figure team-data board-blocked Board_Items_Blocked 0 count - -/figure team-data board-odd-state Board_Items_Odd_State 1 count - -/"
-rigAssert "loop: the last outcome of the main loop, its age and its failures; the heartbeat's state, the age of its last iteration, and that it runs" "$( rigBlock loop )" \
-	"block loop Main_Loop_And_Heartbeat 6/figure loop main-loop-outcome Main_Loop_Last_Outcome ok - ok -/figure loop main-loop-age Main_Loop_Last_Iteration 60 seconds - -/figure loop main-loop-failures Main_Loop_Consecutive_Failures 0 count ok -/figure loop heartbeat-state Heartbeat_State heartbeat-running - - -/figure loop heartbeat-age Heartbeat_Last_Iteration 3600 seconds - -/figure loop heartbeat-running Heartbeat_Running yes - - -/"
+	"block team-data Team_Data 8/figure team-data root Team_Data_Root $rigData - - -/figure team-data mode Workspace_Mode team-rig - - -/figure team-data present Team_Data_Present yes - ok -/figure team-data size Team_Data_Size 125952 bytes - -/figure team-data board-running Board_Items_Running 2 count - -/figure team-data board-review Board_Items_Review 1 count - -/figure team-data board-blocked Board_Items_Blocked 0 count - -/figure team-data board-odd-state Board_Items_Odd_State 1 count - -/"
+rigAssert "loop: the last outcome of the main loop, its age and its failures" "$( rigBlock loop )" \
+	"block loop Main_Loop 3/figure loop main-loop-outcome Main_Loop_Last_Outcome ok - ok -/figure loop main-loop-age Main_Loop_Last_Iteration 60 seconds - -/figure loop main-loop-failures Main_Loop_Consecutive_Failures 0 count ok -/"
 rigAssert "machine, by the stand-ins of macOS: a load under the processors ok, over them warn, over twice them bad, each share stopped at 100; the memory in use above its bad threshold; the uptime" "$( rigBlock machine )" \
 	"block machine The_Machine 7/figure machine load-1 Load_One_Minute 4.00 - ok 40/figure machine load-5 Load_Five_Minutes 12.50 - warn 100/figure machine load-15 Load_Fifteen_Minutes 25.00 - bad 100/figure machine processors Processors_Online 10 count - -/figure machine memory-used Memory_In_Use 15942656000 bytes bad 99/figure machine memory-free Memory_To_Use 57344000 bytes - -/figure machine uptime Machine_Up_For 90000 seconds - -/"
 rigAssert "disk: three volumes, the workspace's ok, its temp folder's above the warn threshold, the team data's above the bad one, its file system and mount named with blanks" "$( rigBlock disk )" \
@@ -243,7 +243,7 @@ rigModeFile="$( cat "$rigWs/.local/.agents/magic-team.agent.env" )"
 printf 'MDAT_WORKSPACE_MODE=team-rig\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 rigRun "$rigRead" loop
 rigAssert "a team rig whose team data has no git remote shows its loop plain: no figure of it is judged" "$( rigBlock loop )" \
-	"block loop Main_Loop_And_Heartbeat 6/figure loop main-loop-outcome Main_Loop_Last_Outcome ok - - -/figure loop main-loop-age Main_Loop_Last_Iteration 60 seconds - -/figure loop main-loop-failures Main_Loop_Consecutive_Failures 0 count - -/figure loop heartbeat-state Heartbeat_State heartbeat-running - - -/figure loop heartbeat-age Heartbeat_Last_Iteration 3600 seconds - -/figure loop heartbeat-running Heartbeat_Running yes - - -/"
+	"block loop Main_Loop 3/figure loop main-loop-outcome Main_Loop_Last_Outcome ok - - -/figure loop main-loop-age Main_Loop_Last_Iteration 60 seconds - -/figure loop main-loop-failures Main_Loop_Consecutive_Failures 0 count - -/"
 for rigOne in just-agents rig-client ; do
 	printf 'MDAT_WORKSPACE_MODE=%s\nTEAM_DATA_GIT_REMOTE=git@rig.invalid:team-data.git\n' "$rigOne" > "$rigWs/.local/.agents/magic-team.agent.env"
 	rigRun "$rigRead" loop team-data
@@ -273,7 +273,7 @@ echo "-- 4. a host with no team data root, no registry of sessions and no queue 
 rigRunWs="$rigBare" ; rigRunHome="$rigHomeBare"
 rigRun "$rigRead"
 rigAssert "it prints what it has: the members, the team data, the machine, the volume; no sessions, no questions, no tokens, no loop, no retests" "$rigRc $( rigTroubles ) $( rigBlocks )" "0 0 team team-data machine disk"
-rigAssert "the team data says where its root would be and that it is not there, bad, with no size and no board" "$( rigBlock team-data )" "block team-data Team_Data 2/figure team-data root Team_Data_Root $rigBare/.local/agents/team-data-root - - -/figure team-data present Team_Data_Present no - bad -/"
+rigAssert "the team data says where its root would be and that it is not there, bad, with no size and no board" "$( rigBlock team-data )" "block team-data Team_Data 3/figure team-data root Team_Data_Root $rigBare/.local/agents/team-data-root - - -/figure team-data mode Workspace_Mode just-agents - - -/figure team-data present Team_Data_Present no - bad -/"
 rigAssert "the members with no figure of who runs, since no session was read; and the folder that is not there has no volume" "$( rigBlock team )|$( LC_ALL=C grep -c -e 'team-data-size' "$rigTmp/out" || : )" "block team Team_Members 2/figure team members Members_Known 3 count - -/figure team startable Members_To_Start 2 count - 66/|0"
 rigRunWs="$rigWs" ; rigRunHome="$rigHome"
 
@@ -389,8 +389,8 @@ rigAssert "it has its syntax echo, its syntax line and its entry, once each" "$(
 rigAssert "the entry gives the forms of its three rows" "$( rigForm "$rigRead [--group <group>] [<block>...]" block ) | $( rigForm "$rigRead [--group <group>] [<block>...]" figure ) | $( rigForm "$rigRead [--group <group>] [<block>...]" group )" "block <block> <label> <figures> | figure <block> <figure> <label> <value> <unit> <level> <share> | group <group> <label> <panels>"
 rigAssert "and every row of the whole read has exactly the fields its form names, each block counting its figures" "$( for rigOne in block figure group ; do LC_ALL=C awk -F'\t' -v wantKind="$rigOne" -v wantFields="$( rigForm "$rigRead [--group <group>] [<block>...]" "$rigOne" | LC_ALL=C awk '{ print NF }' )" '$1 == wantKind { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s:%s ", wantKind, ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/whole" ; done ; LC_ALL=C awk -F'\t' '$1 == "block" { if ( open != "" && left != 0 ) bad++ ; open = $2 ; left = $4 ; next } $1 == "figure" { if ( $2 != open ) bad++ ; left-- ; next } $1 == "group" { next } { bad++ } END { if ( left != 0 ) bad++ ; printf "counts:%s", bad + 0 }' "$rigTmp/whole" )" "block:rows:0 figure:rows:0 group:rows:0 counts:0"
 rigAssert "every unit and every level of the whole read is one the entry names, and every share a whole number from 0 to 100 or -" "$( LC_ALL=C awk -F'\t' '$1 == "figure" { if ( $6 != "count" && $6 != "bytes" && $6 != "seconds" && $6 != "-" ) bad++ ; if ( $7 != "ok" && $7 != "warn" && $7 != "bad" && $7 != "-" ) bad++ ; if ( $8 != "-" && ( $8 !~ /^[0-9]+$/ || $8 + 0 > 100 ) ) bad++ ; } END { print bad + 0 }' "$rigTmp/whole" ) $( for rigWord in count bytes seconds ok warn bad ; do rigEntry "$rigRead [--group <group>] [<block>...]" | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "0 yyyyyy"
-rigAssert "the entry names each block by its key and its label, and says that it only reads, runs no git command, and what it keeps" "$( for rigOne in "sessions:Sessions And Agents" "pending:Pending Questions" "tokens:Session Tokens" "team:Team Members" "team-data:Team Data" "loop:Main Loop And Heartbeat" "machine:The Machine" "disk:Disk Space" "testing:Retest Queue" ; do rigEntry "$rigRead [--group <group>] [<block>...]" | LC_ALL=C grep -c -F -- "\`${rigOne%%:*}\`, ${rigOne#*:}:" | LC_ALL=C awk '{ printf "%s", ( $1 == 1 ) ? "y" : "n" }' ; done ) $( rigEntry "$rigRead [--group <group>] [<block>...]" | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e 'no git command is run' || : ) $( rigEntry "$rigRead [--group <group>] [<block>...]" | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e 'is kept for ten minutes' || : )" "yyyyyyyyy 1 1"
-rigAssert "the labels of the blocks in the entry are those the read prints" "$( LC_ALL=C awk -F'\t' '$1 == "block" { gsub( /_/, " ", $3 ) ; printf "%s:%s/", $2, $3 }' "$rigTmp/whole" )" "sessions:Sessions And Agents/pending:Pending Questions/tokens:Session Tokens/team:Team Members/team-data:Team Data/loop:Main Loop And Heartbeat/machine:The Machine/disk:Disk Space/testing:Retest Queue/"
+rigAssert "the entry names each block by its key and its label, and says that it only reads, runs no git command, and what it keeps" "$( for rigOne in "sessions:Sessions And Agents" "pending:Pending Questions" "tokens:Session Tokens" "team:Team Members" "team-data:Team Data" "loop:Main Loop" "machine:The Machine" "disk:Disk Space" "testing:Retest Queue" ; do rigEntry "$rigRead [--group <group>] [<block>...]" | LC_ALL=C grep -c -F -- "\`${rigOne%%:*}\`, ${rigOne#*:}:" | LC_ALL=C awk '{ printf "%s", ( $1 == 1 ) ? "y" : "n" }' ; done ) $( rigEntry "$rigRead [--group <group>] [<block>...]" | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e 'no git command is run' || : ) $( rigEntry "$rigRead [--group <group>] [<block>...]" | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e 'is kept for ten minutes' || : )" "yyyyyyyyy 1 1"
+rigAssert "the labels of the blocks in the entry are those the read prints" "$( LC_ALL=C awk -F'\t' '$1 == "block" { gsub( /_/, " ", $3 ) ; printf "%s:%s/", $2, $3 }' "$rigTmp/whole" )" "sessions:Sessions And Agents/pending:Pending Questions/tokens:Session Tokens/team:Team Members/team-data:Team Data/loop:Main Loop/machine:The Machine/disk:Disk Space/testing:Retest Queue/"
 rigRun --help-syntax
 rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigTmp/err" || : )" "0 1"
 [ "$( uname -s 2> /dev/null )" = "Linux" ] || printf '  NOTE  the reader of the machine for Linux reads /proc of the host itself and is not run by this check on a host that is not Linux\n'

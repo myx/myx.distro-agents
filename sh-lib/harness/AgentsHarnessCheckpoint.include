@@ -119,7 +119,7 @@ AgentsHarnessSnapshotHeld(){ ## name
 
 ## THE SCAN CACHE OF A RESET (F10.6). A return of the conversation is the agent's reset: the run starts a new cycle from its armed state,
 ## and what a scan reported inside the cycle before is not what the next one should be given. The scans that are cached (advance and
-## heartbeat, AgentsToolsInputScanCached) keep their report in the folder of the team session for five minutes, whatever changes in their
+## the others, AgentsToolsInputScanCached) keep their report in the folder of the team session for five minutes, whatever changes in their
 ## sources, so a return drops those reports itself and the next scan gathers afresh. No operation is involved and no member is told. The
 ## cache is keyed by the team session (MDAT_SESSION_ID): a run with none has no cache, and a name that is no folder name is no session.
 AgentsHarnessScanCacheDrop(){
@@ -180,6 +180,7 @@ AgentsHarnessRewindTo(){ ## name, dispatch text ('' for none)
 	## A new leg of the kept context holds the array as it is, as a restart does; the old rounds are in the transcript already.
 	AgentsHarnessContextBegin 0
 	harnessRoundTotal=0
+	harnessLegRound=0
 	AgentsTranscriptHarnessRewind "$rewindName" "$rewindDropped" "$rewindKind" || :
 	printf '%s\n' "${harnessValue}⏪ rewound${harnessOff} ${harnessDim}-- to snapshot $rewindName ($rewindKind, $rewindCount message(s)); $rewindDropped message(s) dropped${rewindInput:+; the next input follows}${harnessOff}" >&2
 	return 0
@@ -235,6 +236,8 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources
 					return 0
 				fi
 			fi
+			## An arrival that returned no conversation is a wake all the same: the next model call is round 1 of it, and says what the cache did.
+			harnessLegRound=0
 			printf -v idleText '%s\n\n%s' "Something arrived while this run was idle, and no snapshot is held, so your conversation was not returned. What arrived:" "$idleArrival"
 		;;
 		"WAIT-RESULT: TIMEOUT"*)

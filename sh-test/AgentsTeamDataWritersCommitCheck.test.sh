@@ -110,7 +110,7 @@ rigAssert "board-rename: git no longer holds the old name" "$( [ -z "$( git -C "
 
 echo "-- board-trash: an item git never knew is deleted without an error --"
 printf -- '---\nowner: rig\n---\nuntracked\n' > "$rigStore/board/backlog/rig-untracked.md"
-"$rigFn" --magic-heartbeat-board-item-trash magic-coordinator backlog rig-untracked.md > "$rigTmp/out" 2>&1
+"$rigFn" --intern-op-board-trash magic-coordinator backlog rig-untracked.md > "$rigTmp/out" 2>&1
 rigTrashRc=$?
 rigAssert "board-trash untracked: exit 0"             "$rigTrashRc" 0
 rigAssert "board-trash untracked: the item is gone"   "$( [ -e "$rigStore/board/backlog/rig-untracked.md" ] && printf present || printf gone )" gone
@@ -120,14 +120,14 @@ rigAssert "board-trash untracked: history keeps the item" "$( git -C "$rigStore"
 printf -- '---\nowner: rig\n---\nkeep me\n' > "$rigStore/board/backlog/rig-keep.md"
 printf '#!/bin/sh\nexit 1\n' > "$rigStore/.git/hooks/pre-commit" && chmod +x "$rigStore/.git/hooks/pre-commit"
 rigKeepBefore="$( rigCommits )"
-"$rigFn" --magic-heartbeat-board-item-trash magic-coordinator backlog rig-keep.md > "$rigTmp/out" 2>&1
+"$rigFn" --intern-op-board-trash magic-coordinator backlog rig-keep.md > "$rigTmp/out" 2>&1
 rigKeepRc=$?
 rm -f "$rigStore/.git/hooks/pre-commit"
 rigAssert "board-trash, keep-commit fails: rc 1, item kept, no new commit" "$rigKeepRc:$( [ -f "$rigStore/board/backlog/rig-keep.md" ] && printf kept || printf lost ):$(( $( rigCommits ) - rigKeepBefore ))" "1:kept:0"
 git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "rig: settle rig-keep"
 printf -- '---\nowner: rig\n---\ntracked\n' > "$rigStore/board/backlog/rig-tracked.md"
 git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "seed rig-tracked"
-"$rigFn" --magic-heartbeat-board-item-trash magic-coordinator backlog rig-tracked.md > "$rigTmp/out" 2>&1
+"$rigFn" --intern-op-board-trash magic-coordinator backlog rig-tracked.md > "$rigTmp/out" 2>&1
 rigAssert "board-trash tracked (control): exit 0, gone, clean" "$?:$( [ -e "$rigStore/board/backlog/rig-tracked.md" ] && printf present || printf gone ):$( rigClean )" "0:gone:clean"
 rigAssert "board-trash tracked (control): add plus delete in history" "$( git -C "$rigStore" log --all --format=%H -- board/backlog/rig-tracked.md | LC_ALL=C awk 'END { print NR ; }' )" 2
 

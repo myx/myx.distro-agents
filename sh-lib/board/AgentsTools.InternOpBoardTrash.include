@@ -85,7 +85,7 @@ case "$1" in
 			## macOS before Monterey).
 			##
 			## `archive: true` IS NOT CONSULTED HERE, deliberately: it governs the
-			## heartbeat GC's automatic retention clock, not a member naming one
+			## GC's automatic retention clock, not a member naming one
 			## file. An inbox item has no board state to be diverted into, so
 			## honouring it could only mean refusing -- and a refusal on a header
 			## is the deadlock this arm exists to break, since no tooling edits

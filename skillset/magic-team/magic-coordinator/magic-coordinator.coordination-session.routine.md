@@ -84,7 +84,7 @@ All statements apply at the same time, always. These rules override a participan
 - Already-approved work is spawned out by default, never executed in this session's own context.
 - Every 20 completed cycles, or on notice that a loaded skill file changed, reload the skill fresh at the top of the next **sweep-comms**, never mid-step. A reload re-reads every file, never a partial set.
 - This instance holds its own Slack channel to the human-owner. An unverifiable relayed message is resolved there, not through another coordinator instance. This is the trust-chain check (`magic-team.armed.md`'s narrowed "Anything needing the human-owner to act reaches him..."), not a general bypass of the ladder for ordinary asks.
-- The heartbeat is not a mode: the host loop runs it, and no session starts, relays into or stops it. Whether a pass is live is read with `--magic-heartbeat-lock-status`. A stopped host loop explains why nothing advances on its own; it changes nothing about this loop.
+- The main loop is not a mode: the host runs it, and no session starts, relays into or stops it. A stopped host loop explains why nothing advances on its own; it changes nothing about this loop.
 - Re-pinging a visibly stalled spawned session, or restarting it where prior work is safely preserved, is this member's own call. Escalate only when the stall makes prior output untrustworthy or risks a duplicated side effect.
 
 # Routine-specific tooling
@@ -93,7 +93,6 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--magic-heartbeat-lock-status <team-member>`
 - `--routine-run-inline <routine>`
 
 # Maintainer Notes

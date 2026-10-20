@@ -5,7 +5,7 @@
 ## AgentsTools.RecheckDate.include -- the one recheck-date calculation every
 ## writer shares: the routine lock ops' fixed offsets and the board ops'
 ## --recheck-in. Sourced by AgentsTools.InternOpBoardUpsertMoveEdit.include and
-## the AgentsTools.Magic{Advance,Daily,Grooming,Heartbeat,Retro}.include
+## the AgentsTools.Magic{Advance,Daily,Grooming,Retro}.include
 ## groups. Contract: MAGIC.md.
 ##
 

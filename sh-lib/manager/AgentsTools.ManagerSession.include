@@ -62,6 +62,25 @@ AgentsToolsManagerRunActivity(){ ## spawn id, stat flavour (bsd, gnu)
 	return 0
 }
 
+## Since when a waiting run has been idle, as an epoch: the stamp of the first `wait going idle` line of the stretch of them that ends its milestones
+## (a Wait that came back quiet and was called again adds a line to the stretch and does not end it; an arrival, a post, a rewind, a handback does).
+## rc 1, nothing printed, for a run that does not wait or whose stretch cannot be dated.
+AgentsToolsManagerRunIdleSince(){ ## spawn id, stat flavour (bsd, gnu)
+	local sinceLine sinceFirst=""
+	[ "$( AgentsToolsManagerRunActivity "${1:-}" "${2:-}" )" = "waiting" ] || return 1
+	while IFS= read -r sinceLine || [ -n "$sinceLine" ] ; do
+		case "$sinceLine" in
+			'') ;;
+			*' wait going idle') [ -n "$sinceFirst" ] || sinceFirst="$sinceLine" ;;
+			*) sinceFirst="" ;;
+		esac
+	done < "$MMDAPP/.local/agents/sessions/$1/milestones"
+	[ -n "$sinceFirst" ] || return 1
+	sinceFirst="$( printf '%s\n' "${sinceFirst%% *}" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || return 1
+	case "$sinceFirst" in ''|*[!0123456789]*) return 1 ;; esac
+	printf '%s\n' "$sinceFirst"
+}
+
 ## The one-minute load average of this host, as one figure; `-` where it cannot be read.
 AgentsToolsManagerLoadAverage(){
 	local loadText
@@ -241,13 +260,15 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 ## found by its name, <store>/<tracking-name>/<spawn-id>.md. `entries`: one entry pair a
 ## record for AgentsRegistryHeaderRows.awk, the sandbox then the record, so that awk reads
 ## what those records say now. `kept`: the rows that have no such record, as they are, a row
-## with no spawn id and one whose file is gone among them.
+## whose file is gone among them; a row with no spawn id has the record that bears its session's name.
 AgentsToolsManagerSessionRecordEntries(){ ## the store, spawned; entries or kept -- stdin: registry rows
-	local entriesStore="$1" entriesWant="$2" entriesLine entriesTracking entriesSkip entriesSpawn entriesRest entriesFile
+	local entriesStore="$1" entriesWant="$2" entriesLine entriesTracking entriesSession entriesSkip entriesSpawn entriesRest entriesFile
 	while IFS= read -r entriesLine ; do
 		[ -n "$entriesLine" ] || continue
-		read -r entriesTracking entriesSkip entriesSkip entriesSkip entriesSkip entriesSkip entriesSkip entriesSpawn entriesRest <<< "$entriesLine"
+		read -r entriesTracking entriesSession entriesSkip entriesSkip entriesSkip entriesSkip entriesSkip entriesSpawn entriesRest <<< "$entriesLine"
 		entriesFile=""
+		## A row with no spawn id is the row of the record that bears its session's name.
+		[ "$entriesSpawn" != "-" ] || entriesSpawn="$entriesSession"
 		case "$entriesTracking/$entriesSpawn" in
 			*/*/*|*/-|*/|/*) ;;
 			*) [ ! -f "$entriesStore/$entriesTracking/$entriesSpawn.md" ] || entriesFile="$entriesStore/$entriesTracking/$entriesSpawn.md" ;;
@@ -717,7 +738,7 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 	local finishOp="$1" finishId="$2" finishOwn="${3:-}" finishPlan="${4:-}" finishEnded="${5:-0}" finishTab=$'\t' finishNl=$'\n'
 	local finishWho finishStamp finishWhole="" finishIds=" " finishReason finishKind finishSession finishSpawn finishMember finishStatus finishLive finishRest
 	local finishKey finishSource finishAsker finishOwner finishAskStatus finishAsk finishRc finishRecord finishShell finishItem finishFound
-	local finishDismissed=0 finishClosed=0 finishState="-" finishWait=0 finishAt finishMarked
+	local finishDismissed=0 finishClosed=0 finishState="-" finishWait=0 finishAt finishMarked finishUnclosed=0
 	local finishSpawns=() finishMembers=() finishRecords=() finishWaits=()
 	local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
 	AgentsToolsManagerSessionScope "$finishOp" "$finishId" "$finishOwn" "nothing more was done" || return 1
@@ -742,6 +763,17 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 		[ -n "$finishWhole" ] || [ "$finishSpawn" = "$scopeRun" ] || continue
 		finishRecord="" ; finishFound=""
 		case "$finishSpawn" in ''|-) ;; *) finishRecord="$( AgentsToolsRegistrySpawnRecord "$finishSpawn" < /dev/null )" ;; esac
+		## A run with no spawn-id is the run of its own record, found by its session, closed as any other: it lives only if something runs as it.
+		if [ "$finishSpawn" = "-" ] && [ "$finishLive" = "no-spawn-id" ] && [ "$finishStatus" = "spawn-started" ] ; then
+			finishRecord="$( AgentsToolsRegistrySessionOwnRecord "$finishSession" )"
+			if [ -n "$finishRecord" ] ; then
+				finishSpawn="$finishSession" ; finishLive="no-process"
+				[ -z "$( AgentsToolsRegistryRunProcesses "$finishSpawn" "$finishRecord" < /dev/null | AgentsToolsManagerKillPids )" ] || finishLive="running"
+			elif [ -n "$finishWhole" ] && [ -z "$finishPlan" ] ; then
+				printf 'close\t%s\t%s\t%s\tnot-closed\t-\n' "$finishSession" "$finishSession" "$finishMember"
+				finishUnclosed=$(( finishUnclosed + 1 ))
+			fi
+		fi
 		if [ -n "$finishPlan" ] ; then
 			## What a kill would end: the run with what it started, as the walk finds it now.
 			[ "$finishLive" != "running" ] || finishFound="$( AgentsToolsRegistryRunProcesses "$finishSpawn" "$finishRecord" < /dev/null | AgentsToolsManagerKillPids )"
@@ -853,6 +885,11 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 		[ "$finishKind" != "session" ] || { finishState="$finishStatus" ; break ; }
 	done <<< "$scopeListed"
 	printf 'finish\t%s\t%s\t%s\t%s\t%s\n' "$finishSession" "$finishEnded" "$finishDismissed" "$finishClosed" "${finishState:--}"
+	## A session that still reads unclosed was not finished: it is said so and the call does not end well, whatever it did besides.
+	if [ -z "$finishPlan" ] && [ "$finishState" = "unclosed" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $finishOp: session $finishSession still reads unclosed after it: $( [ "$finishUnclosed" -gt 0 ] && printf 'a run of it has no record to close' || printf 'a record of it could not be closed' ) -- nothing more was done" >&2
+		return 1
+	fi
 	return 0
 }
 

@@ -9,6 +9,8 @@
 ## The three stores of the team, a project's, the workspace's and the team's own, are read as sources of one query. No vector store: the query reads the
 ## texts themselves (F8.2 and F8.3 are of the next epic). The functions are in sh-lib/team-data/AgentsTools.Knowledge.include.
 ##
+## From DistroAgentsTools.fn.sh (F1.4, first stage): --get-path-history, --get-place-path, --get-roster, --list-namespaces, --list-places, --member-help. They go on under their old names (sh-lib/harness/AgentsContext.FrontForward.include).
+##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
 ##
@@ -33,6 +35,12 @@ esac
 
 DistroAgentsKnowledge(){
 	local MDSC_CMD='DistroAgentsKnowledge'
+	## F1.4, first stage: an operation that came here under a new name goes on under its old one (sh-lib/harness/AgentsContext.FrontForward.include).
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontForward.include"
+	if AgentsToolsFrontKnows DistroAgentsKnowledge "$@" ; then
+		AgentsToolsFrontForward DistroAgentsKnowledge "$@"
+		return $?
+	fi
 	## The output format, before the first word: kept in a variable of the shell, since the common options below make the call again without it.
 	[ -n "${agentsCommonFronted:-}" ] || agentsKnowledgeFormat=md
 	if [ "${1:-}" = "--mdat-output-format" ] ; then

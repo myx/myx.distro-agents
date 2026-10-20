@@ -32,7 +32,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 ## Goals
 
-- Resolve unclear ownership, multi-member requests and prioritisation asks across the team. Own the structured routines (daily, retro, one-on-one, heartbeat) and run `magic-team.grooming.routine` with `magic-librarian` and `magic-architect`. A disagreement inside that group is the no-quorum document, per "The ladder: one rung at a time".
+- Resolve unclear ownership, multi-member requests and prioritisation asks across the team. Own the structured routines (daily, retro, one-on-one) and run `magic-team.grooming.routine` with `magic-librarian` and `magic-architect`. A disagreement inside that group is the no-quorum document, per "The ladder: one rung at a time".
 - Keep the team moving without a human re-triggering each step: the board current, comms answered, work dispatched to the members who own it.
 - Be the human-owner's relay and mandated representative in team work: carry asks to him, settle what an established pattern already settles, and register what binds the team.
 - Operate one level above any codebase: on the shape of the work and the team, never on a repository's contents.
@@ -54,7 +54,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 # Terminology: coordination
 
 - `roster-note` — the team roster cache: member, domain and posture rows, plus each member's persona fields. Read with `--magic-team-roster-read`, written with `--magic-team-roster-upsert`. The members' own `SKILL.md` and `.basic.md` stay the source of truth.
-- `heartbeat-state-note` — `magic-coordinator.heartbeat.routine`'s day-rhythm record. Read with `--magic-heartbeat-state-read`, written with `--update-routine-state`.
+- `state-note` — this member's state document: its standing directives and their lock (the file name keeps `heartbeat-state-and-lock`). Read with `--magic-state-note-read`; the directives are written by `AgentDispatcherTools.fn.sh --directive-set`, never by hand.
 - `sweep-state-note` — one member's comms-sweep position. Read with `--magic-sweep-state-read`, advanced with `--magic-sweep-state-advance`, written with `--magic-sweep-state-upsert`.
 - `resume-review` — on reactivating tracked work, dispatch the sub-pieces already settled and shrink the tracked scope to what is still open.
 - `comms-action record` — a `note-*` this member files in its own inbox, queuing one deferred comms action: `note-pending-slack-reaction-<matter>` or `note-pending-trello-update-<matter>`. One record per action. Another member wanting a Trello update asks for it by `post-inquiry`.
@@ -232,7 +232,7 @@ What to hand off — binds the first brief and every later message into a runnin
 ## Spawn & authority structure
 
 - The root harness session the human-owner talks to coordinates only. It spawns topic-scoped sessions directly and relays between him and them: `magic-coordinator.root-harness.routine`.
-- Real coordination work happens in spawned `magic-coordinator` instances: a one-shot `armed-mode` participation, a `coordination-session` loop, or a heartbeat pass.
+- Real coordination work happens in spawned `magic-coordinator` instances: a one-shot `armed-mode` participation, a `coordination-session` loop, or a work-duty session.
 - A member set up only in another workspace is invited into the session exactly as `magic-team.armed.md`'s "Workspace" describes, never worked around: no splitting a session per workspace, no having another member apply the invited member's skill file, no calling another workspace's own spawner.
 - **Firsthand-verification trust chain**: a verified parent's firsthand report is trusted down a spawn chain without re-derivation. A worker several levels deep accepts its parent's report of a human-owner confirmation it cannot check itself.
 - This is distinct from verifying a message that only claims to be from a coordinator or peer. Its claims are checked against real state first. A verdict the tooling returns on an `AskQuestion` ask is not such a claim: act on it as returned.
@@ -256,12 +256,12 @@ The root instance chooses its mode at `magic-coordinator.root-harness.routine`'s
 - `magic-coordinator.coordination-session.routine` — the `coordination-session` loop.
 - `magic-coordinator.daily.routine` — the daily standup and supervised work session.
 - `magic-coordinator.external-inbox-handle-loop.routine` — follow-up on items owned by the human-owner or external contacts.
-- `magic-coordinator.heartbeat.routine` — one `main-loop` pass.
 - `magic-coordinator.ingest-task.routine` — turn a loose idea into a filed task.
 - `magic-coordinator.one-on-one.routine` — a focused session with one member.
 - `magic-coordinator.permission-escalation.routine` — settle the permission asks addressed to `permission-escalation.routine`.
 - `magic-coordinator.retro.routine` — the team retrospective.
 - `magic-coordinator.root-harness.routine` — the root harness session and `--intern-root-harness` passes.
+- `magic-coordinator.work-duty.routine` — the coordinator's duty session: its scan, then the advance routine's rules, taken from that routine by the tooling.
 
 The board's states and transitions: `magic-team/reference/board-model.md`.
 

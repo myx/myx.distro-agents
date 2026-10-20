@@ -6147,7 +6147,8 @@ AgentsHarnessPrefetchBuild(){
 		if [ -f "$agentsPrefetchRoutineFile" ] ; then
 			pfKindFile="$( AgentsToolsSpawnRoutineKindPath "$agentsPrefetchRoutineFile" 2> /dev/null )" || pfKindFile=""
 			pfStamp="$( AgentsHarnessPrefetchStamp "$agentsPrefetchRoutineFile" "${pfKindFile:-$agentsPrefetchRoutineFile}" "$harnessHere/session/AgentsTools.SpawnRoutine.include" \
-				"$harnessHere/harness/AgentsTools.InternMergeMdFiles.include" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/markdown/LocalMergeMdFiles.awk" "$harnessHere/board/AgentsBoardItemFrontmatterPrintSelected.awk" )"
+				"$harnessHere/harness/AgentsTools.InternMergeMdFiles.include" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/markdown/LocalMergeMdFiles.awk" "$harnessHere/board/AgentsBoardItemFrontmatterPrintSelected.awk" \
+				$( AgentsToolsSpawnRoutineIncludePaths "$agentsPrefetchRoutineFile" 2> /dev/null ) )"
 			if pfHow="$( AgentsHarnessPrefetchEntry "$pfCacheDir/routine.$pfRoutine" "$pfRoutineBody" "$pfStamp" AgentsHarnessPrefetchRoutineText )" ; then
 				case "$pfHow" in cache) pfHits=$(( pfHits + 1 )) ;; *) pfBuilt=$(( pfBuilt + 1 )) ;; esac
 				printf -v pfText '%s\n\n%s\n\n%s' "$pfText" "DistroAgentsSession.fn.sh --get-routine-text $pfRoutine, read for you before your task:" "$( cat "$pfRoutineBody" )"
@@ -7268,6 +7269,9 @@ AgentsHarnessCacheWatch(){
 ## cost nor progress, and a task is not finished by being cut off at one.
 ## MDAT_HARNESS_MAX_ROUNDS sets one where a caller wants it; unset means none.
 harnessRound=0
+## The rounds of the leg being run: back to 0 where the conversation is replaced (a restart, a rewind) and where a wait ends in an arrival, so that
+## round 1 of a leg is the first model call of a wake, whose prompt-cache line (AgentsAnthropicMessagesWire) is the figure of that wake.
+harnessLegRound=0
 harnessMaxRounds="${MDAT_HARNESS_MAX_ROUNDS:-}"
 ## Whole rounds, by explicit enumeration rather than a collation-dependent range.
 harnessMaxRoundsRest="$harnessMaxRounds"
@@ -7314,6 +7318,7 @@ AgentsTranscriptHarnessStart || :
 
 while : ; do
 	harnessRound=$(( harnessRound + 1 ))
+	harnessLegRound=$(( harnessLegRound + 1 ))
 	## At a cap the run keeps its work: one last round, tools still declared but
 	## unusable, so what was read and run is reported instead of discarded.
 	if [ -n "$harnessMaxRounds" ] && [ "$harnessRound" -gt "$harnessMaxRounds" ] ; then
@@ -7516,6 +7521,7 @@ while : ; do
 		AgentsHarnessContextBegin 0
 		## The signal describes a conversation that has just been replaced.
 		harnessRoundTotal=0
+		harnessLegRound=0
 		printf '%s\n' "${harnessValue}♻️  restarted${harnessOff} ${harnessDim}-- original task verbatim plus the summary above; restart $harnessRestartCount${harnessMaxRestarts:+ of $harnessMaxRestarts}${harnessOff}" >&2
 		continue
 	fi

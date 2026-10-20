@@ -60,7 +60,7 @@ rigT=$'\t'
 	printf 'block\tteam-data-git\tTeam_Data_Git\t4\n'
 	printf 'figure\tteam-data-git\t%s\n' "repository${rigT}Team_Data_Repository${rigT}yes${rigT}-${rigT}-${rigT}-" "branch${rigT}Team_Data_Branch${rigT}main${rigT}-${rigT}-${rigT}-" \
 		"upstream${rigT}Team_Data_Upstream${rigT}origin/main${rigT}-${rigT}-${rigT}-" "ahead${rigT}Commits_Ahead${rigT}2${rigT}count${rigT}warn${rigT}-"
-	printf 'block\tloop\tMain_Loop_And_Heartbeat\t1\nfigure\tloop\tmain-loop-outcome\tMain_Loop_Last_Outcome\tfailed\t-\tbad\t-\n'
+	printf 'block\tloop\tMain_Loop\t1\nfigure\tloop\tmain-loop-outcome\tMain_Loop_Last_Outcome\tfailed\t-\tbad\t-\n'
 } > "rows.--manager-dashboard-read team-data team-data-git loop"
 {
 	printf 'session\tS-alpha\talpha_work\trunning\t2026-10-14_17:00_+0000\t2026-10-14_17:00_+0000\t1\trunning=1\trunning\t2026-10-14_17:00_+0000\talive\t5000\n'
@@ -291,7 +291,7 @@ rigAssert "an ask: its question ahead of its facts; no channel, thread or sessio
 
 echo "-- Team Data, Operations --"
 rigAssert "Team Data: Items, Git, Board and the main loop under headings; no hint" \
-	"$( rigHeading teamdata 'Items' ) $( rigHeading teamdata 'Git' ) $( rigHeading teamdata 'Board' ) $( rigHas teamdata 'Main loop and heartbeat' ) $( rigHas teamdata 'Enter opens it' )" "1 1 1 1 0"
+	"$( rigHeading teamdata 'Items' ) $( rigHeading teamdata 'Git' ) $( rigHeading teamdata 'Board' ) $( rigHas teamdata 'Main loop' ) $( rigHas teamdata 'Enter opens it' )" "1 1 1 1 0"
 rigAssert "Operations: a table, whether each runs here in its colour; no sentence under it" \
 	"$( rigHas operations 'OPERATION' ) $( rigRole operations 'Purge The Cleanup Folder' k ) $( rigHas operations 'Each is asked first' )" "1 1 0"
 

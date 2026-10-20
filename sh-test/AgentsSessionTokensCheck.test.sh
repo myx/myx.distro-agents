@@ -2,7 +2,7 @@
 ## Behavioural check on session token totals (T6): the `tokens:` header a session writes on
 ## its dispatch item (token counts only), written only when it changed; the roll-up summed when
 ## shown over tracks:, follows-up: and child sessions; the closing-message line; the board
-## scan and heartbeat lines; the to-processed closing line; and a whole spawn through the
+## scan and active-item lines; the to-processed closing line; and a whole spawn through the
 ## real proxy, whose fake console streams canned stream-json through the real writer.
 ## Offline: a temp git store and workspace; nothing is posted and the real store is never reached.
 set -u
@@ -109,14 +109,14 @@ rigClose="$(
 rigAssert "the event-track closing post, the end kind, carries the session's totals" \
 	"$( printf '%s\n' "$rigClose" | LC_ALL=C grep -c -x -e 'end' -e 'tokens=in=1100 cache-read=200 cache-write=300 out=1400 (incl. 1 sub-session)' )" 2
 
-echo "-- board lines: the scan, the heartbeat, the to-processed close --"
+echo "-- board lines: the scan, the active items, the to-processed close --"
 rigScan="$( "$rigFn" --intern-op-session-context-scan magic-tester --state backlog --state review --state running --all-types \
 	--no-inbox-inquiry --no-inbox-reflections --no-inbox-notes --no-inbox-other --no-slack --no-email --no-trello --no-board-related --context rig 2>/dev/null )"
 rigAssert "a scanned item carries its totals" "$( printf '%s\n' "$rigScan" | LC_ALL=C awk '/^## backlog\/task-20261008T1000Z-rig.md$/ { on = 1 } on && /^tokens-total: / { print ; exit }' )" \
 	'tokens-total: in=1111 cache-read=222 cache-write=333 out=1444 (incl. 3 sub-sessions)'
 rigAssert "an item with none carries no line" "$( printf '%s\n' "$rigScan" | LC_ALL=C awk '/^## backlog\/task-20261008T1003Z-other.md$/ { on = 1 ; next } /^## / { on = 0 } on && /^tokens-total: / { print "line" }' )" ""
-rigBeat="$( set +u ; MDSC_CMD=rig ; set -- --rig-none ; . "$rigHere/magic/AgentsTools.MagicHeartbeat.include" 2>/dev/null ; AgentsToolsHeartbeatBoardActiveItems )"
-rigAssert "a heartbeat active-item line carries its totals" "$( printf '%s\n' "$rigBeat" | LC_ALL=C grep '^running/dispatch-20261008T1000Z-rig-a.md' )" \
+rigBeat="$( set +u ; MDSC_CMD=rig ; set -- --rig-none ; . "$rigHere/magic/AgentsTools.MagicCoordinatorState.include" 2>/dev/null ; AgentsToolsBoardActiveItems )"
+rigAssert "an active-item line carries its totals" "$( printf '%s\n' "$rigBeat" | LC_ALL=C grep '^running/dispatch-20261008T1000Z-rig-a.md' )" \
 	'running/dispatch-20261008T1000Z-rig-a.md -- tokens: in=1100 cache-read=200 cache-write=300 out=1400 (incl. 1 sub-session)'
 rigProc="$( "$rigFn" --magic-board-to-processed magic-tester task-20261008T1000Z-rig.md --from-state:backlog 2>/dev/null )"
 rigAssert "closing a task reports its totals" "$( printf '%s\n' "$rigProc" | LC_ALL=C grep '^tokens: ' )" \

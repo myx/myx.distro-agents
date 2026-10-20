@@ -437,7 +437,7 @@ turn
 keys c
 turn
 get asked
-keys ENTER
+keys TAB ENTER
 turn
 get refused
 RIGSCRIPT

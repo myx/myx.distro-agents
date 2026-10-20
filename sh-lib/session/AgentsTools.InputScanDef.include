@@ -18,7 +18,7 @@
 ## The scans of the tooling a definition may name, one a line: one for each `--intern-op-<scan>-input-scan` the
 ## dispatcher routes (F6.4).
 AgentsToolsInputScanNames(){
-	printf '%s\n' advance client-sweep grooming heartbeat member-work-session morning-review permission-escalation routine-coworking-session sweep work-duty
+	printf '%s\n' advance client-sweep grooming member-work-session morning-review permission-escalation routine-coworking-session sweep work-duty
 }
 
 ## The call one definition line stands for, split into its words, one a line: the scan's operation, the team member,

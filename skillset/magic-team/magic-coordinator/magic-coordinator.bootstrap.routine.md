@@ -53,7 +53,7 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **check-readiness**: Run `--magic-heartbeat-config-check`. Every `FAIL` or `WARN` line, with its `fix:`, becomes a blocker for **checkpoint-ask-user**.
+1. **check-readiness**: Run `--magic-config-check`. Every `FAIL` or `WARN` line, with its `fix:`, becomes a blocker for **checkpoint-ask-user**.
 2. **check-auth-identity**: Take `SLACK_AUTH_IDENTITY` from **check-readiness**'s output. `OK` names her authenticated `user_id`; anything else is a blocker.
 3. **check-send-path**: Send a probe, carrying a timestamp marker, to `magic-team`, `event-track`, `event-alert` and `human-owner` (`--member-comms-slack-send-message`; it fails a send whose `message.user` is not **check-auth-identity**'s `user_id`). Read each back (`--member-comms-slack-read`). A probe counts only when it arrived where expected and reads as sent by Magic Vane. Delivered under another identity, or not found, is a blocker. App attribution alongside her own identity is a warning, not a failure.
 4. **check-alias-target**: A failed `human-owner` send leaves that target unresolved. Ask the human-owner for a reachable conversation; never guess a substitute.
@@ -87,7 +87,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--magic-heartbeat-config-check`
+- `--magic-config-check`
 - `--member-comms-slack-send-message <team-member> <target> [text...]`
 - `--member-comms-slack-read <team-member> <channel>:<ts>`
 - `--member-comms-slack-profile-get <team-member>`

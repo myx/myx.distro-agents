@@ -3,7 +3,7 @@
 ## in the session folder and returns the file's path, in F2.4's form. Within five minutes a further call in that
 ## session returns the same file and reads no source; a change in a source does not refresh it. A spawn uses the cache
 ## of the session it runs in. The cache is per session, on the report of every --*-input-scan.
-## Held, for --intern-op-advance-input-scan and --intern-op-heartbeat-input-scan, each called as a run of a team session:
+## Held, for --intern-op-advance-input-scan, called as a run of a team session:
 ##   1. the reply is the path of a file in the session's folder, with its size, a preview and a hint, not the report
 ##   2. a second call within five minutes returns the same file, unchanged, though a board item was added between
 ##   3. another run of the same session, a spawn joined to it, is served the same file
@@ -86,7 +86,7 @@ rigStamp(){ ## minutes ago -- a touch -t stamp, BSD or GNU date
 	date -r "$stampEpoch" +%Y%m%d%H%M.%S 2> /dev/null || date -d "@$stampEpoch" +%Y%m%d%H%M.%S
 }
 
-for rigOp in --intern-op-advance-input-scan --intern-op-heartbeat-input-scan ; do
+for rigOp in --intern-op-advance-input-scan ; do
 	rigTag="${rigOp#--magic-}" ; rigTag="${rigTag%-input-scan}"
 	rigSession="rig-cache-$rigTag" ; rigRunA="rig-cache-$rigTag-run-a" ; rigRunB="rig-cache-$rigTag-run-b"
 	echo "-- $rigOp --"
