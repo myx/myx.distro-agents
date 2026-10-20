@@ -129,7 +129,7 @@ print( ",".join( sorted( e["source"].split("/")[-1] + ":" + e["store"] + ":" + e
 echo "-- 9. the project docs, over a rig distro workspace --"
 rigDws="$rigTmp/dws"
 . "$rigOrigin/myx/myx.distro-agents/sh-test/check-fixtures/rig-distro-workspace.include.sh" || { echo "⛔ ERROR: the distro workspace fixture is missing -- refusing to report a result" >&2 ; exit 1 ; }
-if rigDistroPath > /dev/null && rigDistroWorkspace "$rigDws" rig && rigDistroProject "$rigDws" rig rig.alpha "" && rigDistroProject "$rigDws" rig rig.beta "" && rigDistroProject "$rigDws" rig util.workspace-rig "" && rigDistroProject "$rigDws" rig util.repository-rig "" ; then
+if rigDistroPath > /dev/null && rigDistroWorkspace "$rigDws" rig && rigDistroProject "$rigDws" rig rig.alpha $'Requires: \\\n\trig/rig.beta \\\n\n' && rigDistroProject "$rigDws" rig rig.beta "" && rigDistroProject "$rigDws" rig util.workspace-rig "" && rigDistroProject "$rigDws" rig util.repository-rig "" ; then
 	mkdir -p "$rigDws/source/rig/rig.alpha/docs/sub"
 	printf '# Alpha\n\n## Alpha rules\n\nThe RIGDOCWORD in a rule.\n\n## Other\n\nNothing.\n' > "$rigDws/source/rig/rig.alpha/MAGIC.md"
 	printf 'The RIGDOCWORD of a readme, ahead of its first heading.\n\n# Alpha readme\n\nMore.\n' > "$rigDws/source/rig/rig.alpha/README.md"
@@ -151,6 +151,8 @@ if rigDistroPath > /dev/null && rigDistroWorkspace "$rigDws" rig && rigDistroPro
 	rigAssert "the lines ahead of a README's first heading answer too"      "$( rigHolds docs 'The RIGDOCWORD of a readme, ahead of its first heading.' ):$( rigHolds docs 'More.' )" "yes:no"
 	rigDocs one --select-one-project rig/rig.alpha --add-source-docs --query-keyword RIGDOCWORD
 	rigAssert "a selector: that project's docs, and the workspace's and its repository's still, not another project's" "$( cat "$rigTmp/one.rc" ):$( rigHolds one '# source/rig/rig.alpha/MAGIC.md' ):$( rigHolds one '# source/rig/rig.beta/README.md' ):$( rigHolds one '# source/rig/util.workspace-rig/README.md' ):$( rigHolds one '# source/rig/util.repository-rig/README.md' )" "0:yes:no:yes:yes"
+	rigDocs req --select-one-project rig/rig.alpha --select-required --add-source-docs --query-keyword RIGDOCWORD
+	rigAssert "--select-required, as ListDistroProjects reads it: the selected project's required project's docs are searched, only with it" "$( cat "$rigTmp/req.rc" ):$( rigHolds req '# source/rig/rig.beta/README.md' ):$( rigHolds req '# source/rig/rig.alpha/MAGIC.md' ):$( rigHolds one '# source/rig/rig.beta/README.md' )" "0:yes:yes:no"
 else
 	rigAssert "a rig distro workspace could be made (myx.common on PATH, the fixture)" "no" "yes"
 fi
