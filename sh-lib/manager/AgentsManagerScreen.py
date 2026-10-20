@@ -132,6 +132,8 @@ def loadParts():
             exec(compile(handle.read(), path, "exec"), globals())
     for part in LOCAL_PARTS:
         loadLocalPart(here, part)
+    ## the folder of what the tooling sees stands after every other folder of the Configuration
+    registerDiagnostics()
 
 
 loadParts()

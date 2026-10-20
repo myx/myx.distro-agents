@@ -15,6 +15,12 @@ DIGEST_FIELDS = ("subject", "group", "key", "state", "value", "label", "descript
                  "scope", "source", "values", "where", "belongs")
 ## The subjects of the digest that no root lists as a folder of its own, since a feature of their own shows them.
 DIGEST_LEVEL_ONLY = ("scopes",)
+## The subject of the digest whose lines are the keys that a scope holds: a key of it is changed by the operations of the scope (`--manager-scope-set`), whatever the
+## digest says of the line, as in `Scope Settings` (F11.7: every setting is editable, with Enter).
+SCOPE_SUBJECT = "scopes"
+## The lines of the digest that declare what a key takes, its choices or its range, by the key, from every digest the screen has read: what the form of a key held by a
+## scope offers, wherever that key is held (declaredLine).
+DECLARED_LINES = {}
 ## What each subject of the digest holds, in words, for the head of its pane. A subject
 ## that is not listed here shows by its name alone.
 SUBJECT_WORDS = {
@@ -124,6 +130,8 @@ def parseDigestLevels(readKey, text):
             elif form == "range":
                 low, dots, high = values.partition("..")
                 line["range"] = (low, high) if low.isdigit() and high.isdigit() else None
+            if (line["choices"] or line["range"]) and not changeRefusal(line):
+                DECLARED_LINES[line["key"]] = line
             lineRow = newRow(setting["group"] + " " + setting["key"],
                              line["label"] or line["key"] or line["group"] or "-", "record")
             lineRow["line"] = line
@@ -174,7 +182,7 @@ def changeRefusal(line):
 
 
 ## What one line of the digest reads as. ALL VALUES ARE SHOWN (F11.7), also where an assessment is given: a credential that is set reads as its
-## one form, as the operation printed it (F11.8: its first quarter, then * for the rest), with `configured` beside it; one that is not, as not
+## one form, as the operation printed it (F11.8: its first quarter, then * for the rest), and nothing beside it; one that is not, as not
 ## configured. A line that offers choices reads as the label of
 ## the one it is set to. A scope of an outside system reads as set, with the keys it
 ## lacks, or as missing them, and a key it holds as its value; a CLI is usable or not;
@@ -185,7 +193,8 @@ def valueWords(subjectName, line):
         return dict(line["choices"]).get(value, value)
     if line["state"] in STATES_SECRET:
         if line["state"] == "secret-set" and value:
-            return "%s (%s)" % (value, settingWords(line["state"], ""))
+            ## the credential itself is shown, in its one form, and nothing beside it: wherever the masked value is shown, `configured` is not (F11.7)
+            return value
         return settingWords(line["state"], "")
     ## the line of a scope of an outside system has no source: it reads as set or missing, with what it lacks; the line of a key it holds has the scope as its
     ## source, and reads as its value (below), beside the assessment of the scope above it
@@ -339,7 +348,7 @@ def settingLines(line, width, place=lambda text: text):
 
 ## Whether Enter changes that row: a line whose row says it is changed from here.
 def settingFits(state, row):
-    return bool(row and row.get("line")) and not changeRefusal(row["line"])
+    return bool(row and row.get("line")) and (not changeRefusal(row["line"]) or scopeLine(row["line"]))
 
 
 ## Why Enter changes nothing on a line that is not changed from here: the words of its row.
@@ -354,6 +363,8 @@ def settingRefusal(state, row):
 ## drawn in. Nothing of a secret is put into a field.
 def askSetting(state, row):
     line = row.get("line") if row else None
+    if line is not None and scopeLine(line) and changeRefusal(line):
+        return askScopeLine(state, row)
     if line is None or changeRefusal(line):
         return ""
     state.answer = None
@@ -394,6 +405,13 @@ def submitSetting(state, dialog, button):
         if not (value.isdigit() and str(int(value)) == value and int(low) <= int(value) <= int(high)):
             return "nothing is saved: it takes a whole number from %s to %s, written with its digits alone" % (low, high)
     says = "%s: %s" % (line.get("label") or line["key"], dict(line["choices"]).get(value, value))
+    if dialog["about"].get("scopeId"):
+        ## a key that a scope holds: saved in that scope, with the value on the standard input alone
+        askCall(state, "scope", "%s/%s" % (dialog["about"]["scopeId"], line["key"]), callWords("scope-set", dialog["about"]["scopeId"]) + [line["key"]], value,
+                {"viewKey": dialog["about"]["viewKey"], "says": "saved %s in %s" % (line["key"], dialog["about"]["scopeLabel"])})
+        state.notice = "save asked of the tooling: %s" % says
+        state.noticeOf = None
+        return None
     if line["key"] == STYLE_VARIABLE:
         setStyle(value)
     askCall(state, "setting", line["key"], callWords("set", line["key"]) + [value], None,
@@ -412,6 +430,49 @@ def settingAnswer(text, says, width):
         if fields[0] == "saved" and len(fields) >= 5:
             return fieldLines([("saved", fields[1]), ("value", fields[2]), ("scope", fields[3]), ("in", fields[4])], width), "saved: %s" % says
     return [line for line in text.splitlines() if line.strip()], "the save printed no row of what it saved"
+
+
+## ---- a key that a scope holds (F11.7): every setting is editable ----
+
+## Whether a line is a key that a scope holds: the scope is the agent whose name is its group.
+def scopeLine(line):
+    return line["subject"] == SCOPE_SUBJECT and bool(line["group"]) and bool(line["key"])
+
+
+def scopeIdOf(line):
+    return "agents:" + line["group"]
+
+
+## The line of the digest that declares what a key takes, its choices or its range, wherever the key is held: the same form offers the same values. None where no
+## line does, or the digest has not been read.
+def declaredLine(state, key):
+    return DECLARED_LINES.get(key)
+
+
+## The form of a key of a scope that something declares: the dialog of its kind, on the values it takes, saved in that scope by its operation.
+def askScopeDeclared(state, key, valueNow, scopeId, scopeLabel, declared):
+    state.answer = None
+    line = dict(declared, subject=SCOPE_SUBJECT, key=key, label=key, value=valueNow, state="set", group="", scope="", source="", where="")
+    kind = SETTING_KINDS.get(line["kind"], SETTING_KIND_OTHER)
+    fill = {"about": {"lines": [("now", valueNow), ("key", key), ("scope", scopeLabel),
+                                "OK saves it in that scope" + (". Space chooses." if kind["values"] == "choices" else ".")]}}
+    if kind["values"] == "choices":
+        fill[kind["control"]] = {"options": list(line["choices"]), "value": valueNow}
+    else:
+        fill[kind["control"]] = {"value": valueNow, "label": "A whole number from %s to %s" % line["range"]}
+    openDialog(state, kind["dialog"], fill, {"line": line, "viewKey": viewKeyOf(state), "scopeId": scopeId, "scopeLabel": scopeLabel}, key)
+    return ""
+
+
+## Enter on a line that is a key of a scope and that the digest does not change: the form of the key in `Scope Settings` (askScopeEdit), which reads its value whole,
+## saves it with `--manager-scope-set` and, for a credential, shows its one form and has Reveal; or the form of its kind where the digest declares what the key takes.
+def askScopeLine(state, row):
+    line = row["line"]
+    secret = line["state"] in STATES_SECRET
+    held = {"name": line["key"], "state": "secret-set" if line["state"] == "secret-set" else "missing" if line["state"] in STATES_MISSING else "set",
+            "value": line["value"] or "-", "type": "credential" if secret else "setting", "description": "-", "scope": scopeIdOf(line),
+            "scopeLabel": "Agents: " + line["group"]}
+    return askScopeKey(state, held)
 
 
 ACTION_HANDLERS["setting"] = askSetting
@@ -440,6 +501,14 @@ CREDENTIAL_SAYS = {
 }
 
 
+## The value revealed, whole, where it can be read (F11.7): wrapped under the lines of the form, as well as in its field, which shows a line of it only.
+## It is held in the dialog alone, and goes with it when it closes.
+def revealedShown(dialog, value):
+    control = dialogControl(dialog, "about")
+    base = control.setdefault("shownBase", list(control["lines"]))
+    control["lines"] = list(base) + ["", "Its value, whole:", value]
+
+
 def credentialFits(state, row):
     return bool(row and row.get("line")) and row["line"]["state"] in STATES_SECRET
 
@@ -455,6 +524,8 @@ def credentialScope(line):
 ## a credential in the field. A line that is not changed from here has the buttons Close and Reveal.
 def askCredential(state, row):
     line = row["line"]
+    if scopeLine(line) and changeRefusal(line):
+        return askScopeLine(state, row)
     scope = credentialScope(line)
     refusal = changeRefusal(line)
     state.answer = None
@@ -496,6 +567,7 @@ def fillCredential(state, dialog):
         return
     about["whole"] = plan["value"]
     dialogControl(dialog, "words")["value"] = plan["value"]
+    revealedShown(dialog, plan["value"])
     dialog["says"] = ""
 
 

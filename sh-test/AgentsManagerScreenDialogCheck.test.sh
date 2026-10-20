@@ -246,7 +246,7 @@ rigAssert "on a session: the keys that act on a session, and Enter, which opens 
 rigAssert "the left window active: the list's own keys are gone, those that act on the selected session stay" "$( rigVal left.focus ) [$( rigVal onLeft )]" "view [ k Kill  c Control  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "a menu open: the keys of the menu alone"                  "[$( rigVal onMenu )]" "[ ENTER Choose  ESC Close  ←/→ Menus  UP/DN Items]"
 rigAssert "a line too short for all: the keys of every window are the first left out" "[$( rigVal narrow )]" "[ ENTER Open  BSP Up  k Kill  c Control]"
-rigAssert "on a member: the key that starts one, and none of a session's" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal onMember )]" "magic-team/team m1 [ BSP Up  a Active  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "on a member: the key that starts one, and none of a session's" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal onMember )]" "magic-team/team m1 [ ENTER Start  BSP Up  a Active  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 
 echo "-- the keys every terminal delivers: a plain key, or Esc and then a letter; no function key and no Alt --"
 rigRun <<'RIGSCRIPT'

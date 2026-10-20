@@ -364,6 +364,76 @@ rigAssert "Member Settings lists the lines of the scope of that member, and none
 rigAssert "as a table of the settings, a credential only as configured" "$( rigPaneHolds st 'Email User       coordinator@rig.example  default  EMAIL_USER' ) $( rigPaneHolds st 'Slack bot token  configured' )" "1 1"
 rigAssert "Enter on a line opens the form of that setting, on its value" "$( rigVal dlg.dialog ) | $( rigVal dlg.dialogTitle )" "setting-text:words|coordinator@rig.example | Email User"
 
+echo "-- 9b. Member Settings: every setting is changed with Enter (F11.7), the ones the digest does not change by the scope that holds them --"
+rigCase memberedit
+{
+	rigRow subject scopes 4
+	rigRow line scopes magic-coordinator TEAM_DATA_GIT_REMOTE set git@rig.example:board.git Team_Data_Git_Remote 'The_clone_URL.' 'no:set_at_deployment' - - - - - configuration
+	rigRow line scopes magic-coordinator MDAT_KNOWLEDGE_STORE set off Knowledge_Store 'Whether_it_is_kept.' 'no:set_at_deployment' - - - - - configuration
+	rigRow line scopes magic-coordinator TEAM_DATA_ROOT set /rig/ws/team-data Team_Data_Root 'The_folder.' 'no:set_at_deployment' - - - - - configuration
+	rigRow line scopes magic-coordinator SLACK_BOT_TOKEN secret-set 'xoxb-1************' Slack_Bot_Token 'The_token.' 'no:set_at_deployment' - - - - - configuration
+	rigRow subject knowledge 1 Knowledge_Store
+	rigRow line knowledge store MDAT_KNOWLEDGE_STORE set off Knowledge_Store_Switch 'Whether_the_team_keeps_a_store.' yes choice user default 'off=Off,on=On' /rig/user.env settings
+} > "$MANAGER_SCREEN_RIG/rows.--manager-config-digest"
+printf 'git@rig.example:board.git\n' > "$MANAGER_SCREEN_RIG/rows.--manager-scope-reveal agents:magic-coordinator TEAM_DATA_GIT_REMOTE"
+printf 'off\n' > "$MANAGER_SCREEN_RIG/rows.--manager-scope-reveal agents:magic-coordinator MDAT_KNOWLEDGE_STORE"
+printf '/rig/ws/team-data\n' > "$MANAGER_SCREEN_RIG/rows.--manager-scope-reveal agents:magic-coordinator TEAM_DATA_ROOT"
+rigScript <<'RIGSCRIPT'
+at @team magic-coordinator settings
+wait list 30
+turn
+rowids setids
+cells mrow1 3 85 119
+cells mrow2 4 85 119
+cells mrow3 5 85 119
+cells mrow4 6 85 119
+keys DOWN
+turn
+get plainSel
+keys ENTER
+turn
+get plain
+wait plan 30
+turn
+get plainLoaded
+keys BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE b o a r d
+turn
+get plainTyped
+keys ENTER
+turn
+wait action 30
+turn 2
+get plainSaved
+keys DOWN ENTER
+turn
+get enum
+show enum
+keys DOWN SPACE
+turn
+get enumPicked
+keys ENTER
+turn
+wait action 30
+turn 2
+get enumSaved
+keys DOWN ENTER
+turn
+get path
+wait plan 30
+turn
+get pathLoaded
+keys ESC
+keys DOWN ENTER
+turn
+get cred
+RIGSCRIPT
+
+rigAssert "every line of the scope of a member is a row that Enter opens, the plain, the enum and the path ones, whatever the digest says of changing it" "$( rigVal setids ) [$( rigVal mrow1 )][$( rigVal mrow2 )][$( rigVal mrow3 )][$( rigVal mrow4 )]" ".. TEAM_DATA_GIT_REMOTE MDAT_KNOWLEDGE_STORE TEAM_DATA_ROOT SLACK_BOT_TOKEN [ TEAM_DATA_GIT_REMOTE...][ MDAT_KNOWLEDGE_STORE...][ TEAM_DATA_ROOT...][ SLACK_BOT_TOKEN...]"
+rigAssert "Enter on a plain one opens its form, its value read whole, typed over, and saved in the scope of the member by the operation of the scope, the value on the standard input alone" "$( rigVal plain.dialog ) / $( rigVal plainLoaded.dialog ) / $( rigVal plainTyped.dialog ) / $( rigCalled '--manager-scope-set agents:magic-coordinator TEAM_DATA_GIT_REMOTE' ) [$( rigVal plainSaved.dialog )] $( LC_ALL=C grep -c -F -- 'board' "$MANAGER_SCREEN_RIG/calls" || : )" "scope-edit:words| / scope-edit:words|git@rig.example:board.git / scope-edit:words|board / 1 [] 0"
+rigAssert "Enter on an enum one opens the form of a choice on the value it holds, with the values the digest declares for the key, and saves the one chosen in that scope" "$( rigVal enum.dialog ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^enum|' | LC_ALL=C grep -c -F -e ' Off' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^enum|' | LC_ALL=C grep -c -F -e ' On' ) / $( rigVal enumPicked.dialog ) / $( rigCalled '--manager-scope-set agents:magic-coordinator MDAT_KNOWLEDGE_STORE' ) [$( rigVal enumSaved.dialog )] [$( LC_ALL=C tr -d '\n' < "$MANAGER_SCREEN_RIG/stdin.--manager-scope-set" 2> /dev/null )]" "setting:choice|off 1 1 / setting:choice|on / 1 [] [boardon]"
+rigAssert "Enter on a path one opens the form of a text with its value read whole" "$( rigVal path.dialog ) / $( rigVal pathLoaded.dialog )" "scope-edit:words| / scope-edit:words|/rig/ws/team-data"
+rigAssert "Enter on a credential of the scope opens the form of a credential, its one form in the field, with Reveal, as in Scope Settings" "$( rigVal cred.dialog )" "scope-credential:words|xoxb-1************"
+
 echo "-- 10. the key that takes all or only the active is not offered on the lists made whole of the one read; it stays where it has something to take --"
 rigCase unfiltered
 rigScript <<'RIGSCRIPT'

@@ -206,7 +206,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-join --session-id <id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-list
-📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-run (install|uninstall) <subsystem>
+📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-run (install|uninstall|update) <subsystem>
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-data-read <store> [<folder> [<item>]] [--include-processed]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-files <team-member> [<file>]
@@ -3463,7 +3463,12 @@
 			`key <key> <label> <group> <purpose> <type> <fingerprint> <short> <file> <state> <public>`
 			A group row stands ahead of its keys, which it counts, with
 			what a screen calls the group; <note> says why, where none of
-			its keys can be read, and reads `-` else.
+			its keys can be read, and reads `-` else. There are two groups,
+			in this order: `ours`, Our Keys To Trust, every key of this
+			server that others are to trust, whatever it is for, and
+			`trusted`, Keys We Trust, the keys this account trusts, which
+			are only listed. The <group> of a key row is one of the kinds
+			below for a key of `ours`, and `trusted` for the other.
 			<group> is `add-to-git`, a key an owner lists on a git host
 			as a deploy or user key: `deploy`, the key the account uses
 			for git, and `generated`, the default it made where that is
@@ -3487,6 +3492,16 @@
 			the name of this host, the type and the key; for one of
 			`add-to-authorized-keys` the public key line as it goes into
 			an authorized keys file, with nothing added.
+			The keys of `trusted` are the lines of this account's own
+			authorized keys file (`.ssh/authorized_keys` in the home of the
+			one who runs the tools) that hold a public key, in the order
+			they stand, with the options ahead of the key left out: <key>
+			is `trusted-<n>`, <n> counting from 1, <label> the comment of
+			the line, else `Trusted Key <n>`, <group> is `trusted`, <state>
+			is `present`, <file> is that file, and <public> the line as it
+			stands, the type, the key and the comment. The file is only
+			read, never changed. With none, the group has 0 keys and its
+			<note> says that the file holds no public key, or is not there.
 
 		--manager-keys-read <key>
 			One of the console's own operations (see Notes). Prints one
@@ -3499,8 +3514,10 @@
 			For a key of `add-to-git` the line is the public key line of
 			its file, whole. For one of `trust-on-connect` it is the line
 			of a known hosts file: the name of this host, the type and
-			the key. No repository is asked anything. Exit 1, nothing
-			printed, for a name that is no key.
+			the key. For a key of `trusted`, named `trusted-<n>` as the
+			list names it, it is the line of the authorized keys file, the
+			type, the key and the comment. No repository is asked
+			anything. Exit 1, nothing printed, for a name that is no key.
 
 		--manager-keys-generate <key>
 			One of the console's own operations (see Notes). Makes the key the
@@ -4391,27 +4408,33 @@
 			dispatcher of every subsystem's console offers. One is installed where
 			its installed copy stands in `.local/myx` of the workspace. Prints one
 			row each on stdout, TAB-separated:
-			`subsystem <name> <state> <role> <install> <uninstall>`
+			`subsystem <name> <state> <role> <install> <uninstall> <update>`
 			<state> is `installed` or `missing`. <role> says why a subsystem has no
 			command of its own, else `-`: `base` for `.local`, which installs the
 			rest, `shared` for `system`, which comes with source and deploy, and
 			`console` for the subsystem of the console that is asking, which is not
 			uninstalled from itself. <install> is `yes` for a toolset that is
 			missing, <uninstall> for a toolset that is installed and is not the
-			console's own. Exit 1, nothing printed, for a word after it.
+			console's own, and <update> for a toolset that is installed, the
+			console's own too: its install again, which pulls its copy. Each other
+			reads `no`. Exit 1, nothing printed, for a word after it.
 
-		--manager-subsystem-run (install|uninstall) <subsystem>
+		--manager-subsystem-run (install|uninstall|update) <subsystem>
 			One of the console's own operations (see Notes). Runs one command of a
 			subsystem that `--manager-subsystem-list` offers it: `install` of a
 			toolset that is missing, which is `DistroLocalTools.fn.sh
-			--install-distro-<subsystem>`, and `uninstall` of one that is installed
+			--install-distro-<subsystem>`, `uninstall` of one that is installed
 			and is not the console's own, which is `DistroLocalTools.fn.sh
-			--uninstall-distro-<subsystem>`. The output the local tools write is
+			--uninstall-distro-<subsystem>`, and `update` of one that is installed,
+			the console's own too, which is its install again. `update all` takes
+			no subsystem's name but `all`: it is `DistroLocalTools.fn.sh
+			--upgrade-installed-tools`, which updates every installed tool, and
+			`.local` and `system` with them. The output the local tools write is
 			this operation's, and so is their exit status. Exit 1, with one error
 			line and nothing run, for a command the list does not offer for that
-			subsystem (`.local`, `system`, the console's own, a toolset that is
-			already installed or not installed), for a subsystem or a command that
-			is none, and for a wrong count of words.
+			subsystem (`.local`, `system`, the console's own to uninstall, a toolset
+			that is already installed or not installed), for a subsystem or a command
+			that is none, and for a wrong count of words.
 
 		--manager-team-data-read <store> [<folder> [<item>]] [--include-processed]
 			One of the console's own operations (see Notes). Lists the

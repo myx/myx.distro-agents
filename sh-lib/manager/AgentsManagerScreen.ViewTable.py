@@ -16,6 +16,14 @@ class Looked(str):
     pinned = 0
 
 
+## A cell's text broken to that many cells: by textwrap where every character takes one cell (it breaks at hyphens too), else by the count of the screen (wrapToCells), which
+## is the one that knows an emoji takes two or more: textwrap counts characters, and a cell with an emoji would be cut where it should be broken.
+def wrapCell(text, width):
+    if textWidth(text) == len(text):
+        return textwrap.wrap(text, width)
+    return [line for line in wrapToCells(text, width) if line] if text.strip() else []
+
+
 def looked(text, look, start=0):
     line = Looked(text)
     line.looks = [(start, textWidth(text) - start, look)]
@@ -120,7 +128,7 @@ def wrappedLines(text, width):
     if (text, width) not in WRAPPED_LINES:
         if len(WRAPPED_LINES) > 100000:
             WRAPPED_LINES.clear()
-        WRAPPED_LINES[(text, width)] = len(textwrap.wrap(text, width)) or 1
+        WRAPPED_LINES[(text, width)] = len(wrapCell(text, width)) or 1
     return WRAPPED_LINES[(text, width)]
 
 
@@ -252,7 +260,7 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
     lead = margin + (numberWidth + gap if numbered else 0) + (iconWidth + gap if iconWidth else 0)
 
     def rowLines(cells, icon, look, count="", colours=None, shift=0, last=None):
-        parts = [(textwrap.wrap(cells[index], widths[index]) if wrapped and kinds[index] != "enum" else [cells[index]]) or [""] for index in range(shown)]
+        parts = [(wrapCell(cells[index], widths[index]) if wrapped and kinds[index] != "enum" else [cells[index]]) or [""] for index in range(shown)]
         lines = [looked(indent + ((count if not number else "").rjust(numberWidth) + " " * gap if numbered else "")
                         + (cutToCells(icon if not number else "", iconWidth) + " " * gap if iconWidth else "") + (" " * gap).join(
             cutToCells(part[number] if number < len(part) else "", widths[index]) for index, part in enumerate(parts)), look, margin)

@@ -273,7 +273,7 @@ case "$1" in
 		AgentsToolsManagerPendingOpen "$answerOp" || { set +e ; return 1 ; }
 		## A request for the authority is answered by whom it asks, its answer acting on what it asked for.
 		if [ -n "$( AgentsToolsEscalationField "$managerPendingFile" request-of )" ] ; then
-			AgentsToolsAuthorityRequestAnswer "$managerPendingFile" "${answerTyped:-deny}" || { set +e ; return 1 ; }
+			AgentsToolsAuthorityRequestAnswer "$managerPendingFile" "${answerTyped:-deny}" console || { set +e ; return 1 ; }
 			return 0
 		fi
 		if [ -n "$answerMode" ] ; then
@@ -295,6 +295,10 @@ case "$1" in
 		## of it -- asked only of an answer the question takes, so a wrong one is refused as one.
 		if AgentsToolsManagerPendingPlain "$managerPendingFile" || [ -n "${answerWord%% -- *}" ] ; then
 			local answerAsker="" answerAskerRecord=""
+			## A refusal is never gated (AgentsToolsAuthorityRefusing): the deny of a permission or a permission set, whoever it is asked of.
+			case "$( AgentsToolsEscalationField "$managerPendingFile" kind )" in
+				permission|permission-set) ! AgentsToolsAuthorityRefusing "${answerWord%% -- *}" || agentsAuthorityRefusing="yes" ;;
+			esac
 			answerAsker="$( AgentsToolsEscalationField "$managerPendingFile" session-id )"
 			type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 			answerAskerRecord="$( AgentsToolsSessionRunRecord "$answerAsker" )" || answerAskerRecord=""
@@ -358,6 +362,8 @@ case "$1" in
 		type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 		dismissAskerRecord="$( AgentsToolsSessionRunRecord "$dismissAsker" )" || dismissAskerRecord=""
 		if [ -z "$dismissAskerRecord" ] || [ -z "$( AgentsToolsEscalationField "$dismissAskerRecord" killed-by )" ] ; then
+			## A dismissal grants nothing: it is never gated, whoever the question is asked of.
+			agentsAuthorityRefusing="yes"
 			AgentsToolsAuthorityGate "dismiss question $managerPendingId" "$managerPendingId" "$dismissAskerRecord" "" console \
 				"$dismissOp" --id "$managerPendingId" --reason "$dismissReason" || :
 			AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }

@@ -236,6 +236,14 @@ AgentsToolsAuthorityApproving(){ ## verdict
 	return 1
 }
 
+## A REFUSAL IS NEVER GATED (F6.10, Settled): a refusal grants nothing, so a console person may deny any permission, permission-set or authority request, and dismiss
+## any question, whoever it was asked of, the human-owner included. Only approving needs the authority. A review, a held change and a proposal stay the human-owner's own
+## verdict (AgentsToolsManagerPendingOutcome says it is not taken), and an answer that is not a refusal is gated as it was. The one place that says which word refuses:
+AgentsToolsAuthorityRefusing(){ ## verdict
+	case "$1" in deny|reject|no) return 0 ;; esac
+	return 1
+}
+
 ## Whether the action now running was approved by its request (MDAT_AUTHORITY_REQUEST): the
 ## request of this very original, answered with an approval and not yet acted on. Taken here,
 ## marked as acted on, so it lets one action run. rc 0 approved.
@@ -567,6 +575,8 @@ AgentsToolsAuthorityGate(){ ## what (words), original (pending id or spawn id), 
 	local gateWhat="$1" gateOriginal="$2" gateRecord="$3" gateQuestion="$4" gateNamed="$5" gateHolder gateSession="" gateTo gateOpened gateId gateRc=0 gateConfirm="" gateExisting gateAge
 	shift 5
 	agentsAuthorityOutcome="act" agentsAuthorityChosenNow=""
+	## A refusal the caller says it is (agentsAuthorityRefusing, taken once) grants nothing: it is not gated.
+	if [ -n "${agentsAuthorityRefusing:-}" ] ; then agentsAuthorityRefusing="" ; return 0 ; fi
 	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 	! AgentsToolsAuthorityApproved "$gateOriginal" || return 0
 	AgentsToolsAuthorityCaller
@@ -658,7 +668,7 @@ AgentsToolsAuthorityExit(){
 ## A request answered with the escalation answer, by whom it asks, or by one the owners role
 ## granted the authority in its session (AgentsToolsAuthorityCaller first). Prints one line; rc 1
 ## where it is not that caller's to answer.
-AgentsToolsAuthorityRequestAnswer(){ ## request record, verdict
+AgentsToolsAuthorityRequestAnswer(){ ## request record, verdict, console (where the caller is a person at the console: it may refuse any request)
 	local answerTo
 	AgentsToolsAuthorityCaller
 	answerTo="$( AgentsToolsAuthorityField "$1" address-to )"
@@ -666,7 +676,7 @@ AgentsToolsAuthorityRequestAnswer(){ ## request record, verdict
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: request $( basename "$1" .md ) is not open, so it takes no answer" >&2
 		return 1
 	fi
-	if ! AgentsToolsAuthorityAddressHeld "$answerTo" && ! AgentsToolsAuthorityGranted "$( AgentsToolsAuthorityField "$1" session-id )" ; then
+	if ! AgentsToolsAuthorityAddressHeld "$answerTo" && ! AgentsToolsAuthorityGranted "$( AgentsToolsAuthorityField "$1" session-id )" && ! { [ "${3:-}" = console ] && AgentsToolsAuthorityRefusing "$2" ; } ; then
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: request $( basename "$1" .md ) asks $answerTo, and $agentsAuthorityCallerId is not that, so it cannot answer it" >&2
 		return 1
 	fi

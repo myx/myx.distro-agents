@@ -67,7 +67,9 @@ def checksSummary(state, path, row, form):
     shown = listReadOf(path)
     rows = state.rows.get(levelKey(path))
     if bool(shown) and shown[0] in state.reading.values():
-        return [looked("They are running now.", LEVEL_WARN)]
+        begun = state.started.get(shown[0])
+        return [looked("They are running now%s." % (", for %d seconds" % max(0, int(state.now - begun["at"])) if begun else ""), LEVEL_WARN),
+                looked("A run goes on when you leave this folder: come back to see how far it is, and its results.", DIM)]
     if rows is None:
         return [looked("The checks were not run yet in this run of the screen.", BOLD), looked("%s runs them. %s" % (commandKeys(commandNamed("check"))[0], CHECKS_SAY), DIM)]
     if not rows:
@@ -123,15 +125,19 @@ def parseKeyRows(text):
             groups.append(byGroup[name])
         return byGroup[name]
 
+    standing = None
     for printed in text.split("\n"):
         fields = printed.split("\t")
         if fields[0] == "group" and len(fields) >= len(GROUP_FIELDS):
             named = dict(zip(GROUP_FIELDS, fields[1:]))
-            groupOf(named["group"]).update(label=unspaced(named["label"]), note=unspaced(named.get("note", "-")).strip())
+            standing = groupOf(named["group"])
+            standing.update(label=unspaced(named["label"]), note=unspaced(named.get("note", "-")).strip())
         elif fields[0] == "key" and len(fields) > len(KEY_FIELDS):
             held = dict(zip(KEY_FIELDS, fields[1:]))
             held["line"] = unspaced(fields[len(KEY_FIELDS) + 1]) if len(fields) > len(KEY_FIELDS) + 1 else ""
-            groupOf(held["group"])["keys"].append(held)
+            ## a key stands in the group its own word names where a row has named it; else under the group row ahead of it (F11.7: `ours`
+            ## holds keys of several kinds, each of which says what it is for), else in the group its word makes
+            (groupOf(held["group"]) if held["group"] in byGroup or standing is None else standing)["keys"].append(held)
     grouped = []
     for group in groups:
         group["label"] = group["label"] or keyGroupLabel(group["key"])
@@ -367,7 +373,24 @@ def commandsSummary(state, path, row, form):
 
 ## What the left pane shows of a check, of a server key and of a group of them.
 def checksFocus(state, row):
-    return checkLines(row["check"], state.viewWidth) if row.get("check") else None
+    if row.get("check"):
+        return checkLines(row["check"], state.viewWidth)
+    return checksSummary(state, state.path, row, None) if row["kind"] == "checker-run" else None
+
+
+## The row `Run Config Checker...` of the folder asks what the key `r` asks (F11.7): the run of the checks, once, unless it runs.
+def askCheckRun(state, row):
+    shown = demandRead(state)
+    if not shown:
+        return ""
+    state.noticeOf = shown[0]
+    if shown[0] in state.reading.values() or shown[0] in state.forced:
+        return "Run Config Checker: it is running"
+    state.forced.add(shown[0])
+    return "Run Config Checker: asked of the tooling%s" % (", " + shown[1]["said"] if shown[1].get("said") else "")
+
+
+ACTION_HANDLERS["checkrun"] = askCheckRun
 
 
 def keysFocus(state, row):
@@ -387,6 +410,8 @@ registerPlugin({
     "registries": {"wizards": "plain"},
     "rows": {
         "configuration": (("checker", "Config Checker", "checker", True), ("keys", "Server Keys", "keys", True)),
+        ## the key that runs the checks, `r`, as a row of the folder too (F11.7)
+        "configuration/checker": (("run", "Run Config Checker", "checker-run", False),),
     },
     "focus": {"configuration/*": "settingsFocus", "configuration/checker": "checksFocus", "configuration/keys": "keysFocus"},
     "summaries": {
@@ -421,7 +446,62 @@ registerPlugin({
     "commands": (
         {"name": "check", "keys": ("r",), "menu": ("view", 1), "label": "Run the ~c~hecks", "status": "Run",
          "views": ("configuration", "configuration/checker"), "for": "the checker", "does": ("demand",)},
+        {"name": "checkrow", "keys": ("ENTER",), "menu": ("view", 2), "label": "Run Config Checker...", "status": "Run",
+         "views": ("configuration/checker",), "for": "the checker", "on": ("configuration/checker:checker-run",), "only": True, "enters": True, "says": "run",
+         "does": ("action", "checkrun")},
         {"name": "keyline", "keys": ("f",), "menu": ("view", 3), "label": "~F~ull public line", "status": "Full",
          "views": ("configuration/keys",), "for": "a server key", "on": ("configuration/keys:record",), "does": ("action", "line")},
     ),
 })
+
+
+## ---- what the tooling sees: `Diagnostics` (F11.7) ----
+
+## Read-only views of what the tooling sees, in the Configuration: the resolved tooling context, as `--intern-context-show` prints it, a line each, `<name>: <value>`, a credential
+## in the one form of a credential (F11.8) by the operation itself. The screen shows what it printed, a row each, and changes nothing.
+def parseContextLevels(readKey, level, text):
+    rows = []
+    for printed in text.split("\n"):
+        name, colon, value = printed.partition(": ")
+        if not colon or not name or " " in name:
+            continue
+        row = newRow(name, name, "context", False)
+        row["context"] = {"name": name, "value": value}
+        rows.append(row)
+    return {level: rows}
+
+
+ROW_FORMS["context"] = parseContextLevels
+
+
+## The folder for the left pane: every name and its value as a table. None until the read has answered.
+def contextSummary(state, path, row, form):
+    rows = state.rows.get(levelKey(path))
+    if rows is None:
+        return None
+    if not rows:
+        return [looked("The operation printed no context.", BOLD)]
+    return tableSummaryLines(state, ("NAME", "VALUE"), [[one["context"]["name"], one["context"]["value"] or "-"] for one in rows], ("key", "text"))
+
+
+## One line of it: its name and its value, as a parameter does.
+def contextFocus(state, row):
+    held = row.get("context")
+    if held is None:
+        return None
+    return parameterLines({"name": held["name"], "value": held["value"] or "-"}, state.viewWidth)
+
+
+## Registered after the parts of `.local`, so that its folder stands after the others the Configuration holds (loadParts).
+def registerDiagnostics():
+    registerPlugin({
+        "name": "diagnostics",
+        "mount": "configuration",
+        "root": {"id": "diagnostics", "label": "Diagnostics"},
+        "focus": {"diagnostics": "contextFocus"},
+        "summaries": {"diagnostics": {"lines": "contextSummary"}},
+        "reads": {
+            ## The context the call resolves, read on entering and when it is asked for: it does not change by itself.
+            "list:diagnostics": {"operation": ["--intern-context-show"], "rows": "context", "once": True},
+        },
+    })

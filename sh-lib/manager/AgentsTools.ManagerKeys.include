@@ -96,14 +96,56 @@ AgentsToolsManagerKeysDeclared(){
 	return 0
 }
 
+## THE TWO GROUPS THE LIST SHOWS (F11.7): `ours`, every key of this server that others are to trust, whatever it is for (a git server, the known hosts
+## of those who connect, another host's authorized keys: each key says what it is for), and `trusted`, the keys this account trusts, its own authorized
+## keys, which are only listed. The three kinds above stay what the keys of `ours` are, for the paste and for what may be made.
+AgentsToolsManagerKeysListed(){ ## kind of a declared key
+	case "$1" in
+		add-to-git|trust-on-connect|add-to-authorized-keys) printf '%s\n' "ours" ;;
+		*) printf '%s\n' "$1" ;;
+	esac
+}
+
 ## What a group of keys is called on a screen, by its name.
 AgentsToolsManagerKeysGroupLabel(){ ## group
 	case "$1" in
-		add-to-git) printf '%s\n' "Keys To Add To Git" ;;
-		trust-on-connect) printf '%s\n' "Keys To Trust When Connecting" ;;
-		add-to-authorized-keys) printf '%s\n' "Our Keys For Targets' Authorized Keys" ;;
+		ours) printf '%s\n' "Our Keys To Trust" ;;
+		trusted) printf '%s\n' "Keys We Trust" ;;
 		*) printf '%s\n' "$1" ;;
 	esac
+}
+
+## The keys this account trusts, the lines of its authorized keys that hold a public key: `<n>|<type>|<key>|<comment>`, in the order they stand. A line
+## may have options ahead of the key, which are not shown. Read-only: nothing here changes the file, and nothing of it is a secret. The file is
+## the account's own, in the ssh home of the one who runs the tools; rc 1, nothing printed, where there is none or it cannot be read.
+AgentsToolsManagerKeysTrustedFile(){
+	printf '%s\n' "${HOME%/}/.ssh/authorized_keys"
+}
+AgentsToolsManagerKeysTrusted(){
+	local trustedFile
+	trustedFile="$( AgentsToolsManagerKeysTrustedFile )"
+	[ -f "$trustedFile" ] && [ -r "$trustedFile" ] || return 1
+	LC_ALL=C awk '
+		/^[ \t]*(#|$)/ { next ; }
+		{
+			for ( at = 1 ; at < NF ; at++ ) { if ( $at ~ /^(ssh-|ecdsa-|sk-)/ ) { break ; } }
+			if ( at >= NF || $at !~ /^(ssh-|ecdsa-|sk-)/ || $(at + 1) !~ /^[A-Za-z0-9+\/=]+$/ ) { next ; }
+			comment = "" ;
+			for ( rest = at + 2 ; rest <= NF ; rest++ ) { comment = comment ( comment == "" ? "" : " " ) $rest ; }
+			printf "%d|%s|%s|%s\n", ++total, $at, $(at + 1), comment ;
+		}
+	' "$trustedFile"
+}
+
+## The `key` row of one trusted key, as the row of an own key has it: always `present`, the line as it stands in the file (type, key, comment).
+AgentsToolsManagerKeysTrustedRow(){ ## n, type, key, comment
+	local trustedPrint trustedLabel trustedShort="$3" trustedLine="$2 $3${4:+ $4}"
+	trustedPrint="$( printf '%s\n' "$2 $3" | ssh-keygen -l -f - 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit }' )" || trustedPrint=""
+	trustedLabel="${4:-Trusted Key $1}"
+	[ "${#trustedShort}" -le 24 ] || trustedShort="${3:0:12}...${3: -8}"
+	printf 'key\ttrusted-%s\t%s\ttrusted\t%s\t%s\t%s\t%s\t%s\tpresent\t%s\n' "$1" "$( AgentsToolsManagerKeysField "$trustedLabel" )" \
+		"$( AgentsToolsManagerKeysField "a key this account trusts, from its authorized keys: whoever holds its private key may log in here" )" "$2" "${trustedPrint:--}" "$trustedShort" \
+		"$( AgentsToolsManagerKeysField "$( AgentsToolsManagerKeysTrustedFile )" )" "$( AgentsToolsManagerKeysField "$trustedLine" )"
 }
 
 ## One field of a row: its whitespace reads `_`, and an empty one `-`, as in a registry.
@@ -156,7 +198,7 @@ AgentsToolsManagerKeysRow(){ ## key, label, group, what it is for, public file
 		rowShort="$keysText"
 		[ "${#keysText}" -le 24 ] || rowShort="${keysText:0:12}...${keysText: -8}"
 	fi
-	printf 'key\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$( AgentsToolsManagerKeysField "$2" )" "$3" "$( AgentsToolsManagerKeysField "$4" )" "${keysType:--}" "${rowPrint:--}" "$rowShort" "$( AgentsToolsManagerKeysField "$5" )" "$rowState" "$( AgentsToolsManagerKeysField "$rowPaste" )"
+	printf 'key\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$( AgentsToolsManagerKeysField "$2" )" "$( AgentsToolsManagerKeysListed "$3" )" "$( AgentsToolsManagerKeysField "$4" )" "${keysType:--}" "${rowPrint:--}" "$rowShort" "$( AgentsToolsManagerKeysField "$5" )" "$rowState" "$( AgentsToolsManagerKeysField "$rowPaste" )"
 }
 
 ## THE KEYS THIS WORKSPACE MAY MAKE, REPLACE AND REMOVE (F11.7): the three of the account that runs the tools, `deploy` (the
@@ -222,7 +264,7 @@ case "$1" in
 	## The public keys of this server, one row each: TAB-separated rows a screen reads. Their
 	## form is the help entry's.
 	--manager-keys-list)
-		local listOp="$1" listKey listLabel listGroup listFor listFile listWhy listAll listNow="" listRows listNote keysLine keysType keysText
+		local listOp="$1" listKey listLabel listGroup listFor listFile listWhy listAll listNow="" listRows listNote keysLine keysType keysText listShown listTrusted listN listType listText listComment listFileOf
 		shift
 		if [ $# -gt 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is $listOp, got $# argument(s) -- nothing is shown" >&2
@@ -233,14 +275,26 @@ case "$1" in
 		listAll="$( AgentsToolsManagerKeysDeclared )"
 		while IFS='|' read -r listKey listLabel listGroup listFor listFile listWhy ; do
 			[ -n "$listKey" ] || continue
-			if [ "$listGroup" != "$listNow" ] ; then
+			listShown="$( AgentsToolsManagerKeysListed "$listGroup" )"
+			if [ "$listShown" != "$listNow" ] ; then
 				[ -z "$listNow" ] || { printf 'group\t%s\t%s\t%s\t%s\n' "$listNow" "$( printf '%s\n' "$listRows" | LC_ALL=C grep -c . )" "$( AgentsToolsManagerKeysField "$( AgentsToolsManagerKeysGroupLabel "$listNow" )" )" "$( AgentsToolsManagerKeysField "$listNote" )" ; printf '%s\n' "$listRows" ; }
-				listNow="$listGroup" ; listRows="" ; listNote="none"
+				listNow="$listShown" ; listRows="" ; listNote=""
 			fi
-			if AgentsToolsManagerKeysPublic "$listFile" ; then listNote="" ; elif [ "$listNote" = "none" ] ; then listNote="${listWhy:-no public key can be read at $listFile}" ; fi
+			## why a key of the group cannot be read, each once, in the order the keys stand
+			if ! AgentsToolsManagerKeysPublic "$listFile" ; then listNote="$listNote${listNote:+; }${listWhy:-no public key can be read at $listFile}" ; fi
 			listRows="$listRows${listRows:+$'\n'}$( AgentsToolsManagerKeysRow "$listKey" "$listLabel" "$listGroup" "$listFor" "$listFile" )"
 		done <<< "$listAll"
 		[ -z "$listNow" ] || { printf 'group\t%s\t%s\t%s\t%s\n' "$listNow" "$( printf '%s\n' "$listRows" | LC_ALL=C grep -c . )" "$( AgentsToolsManagerKeysField "$( AgentsToolsManagerKeysGroupLabel "$listNow" )" )" "$( AgentsToolsManagerKeysField "$listNote" )" ; printf '%s\n' "$listRows" ; }
+		## The keys this account trusts, read-only: the lines of its authorized keys that hold a public key.
+		listFileOf="$( AgentsToolsManagerKeysTrustedFile )"
+		if listTrusted="$( AgentsToolsManagerKeysTrusted )" && [ -n "$listTrusted" ] ; then
+			printf 'group\ttrusted\t%s\t%s\t-\n' "$( printf '%s\n' "$listTrusted" | LC_ALL=C grep -c . )" "$( AgentsToolsManagerKeysField "$( AgentsToolsManagerKeysGroupLabel trusted )" )"
+			while IFS='|' read -r listN listType listText listComment ; do
+				AgentsToolsManagerKeysTrustedRow "$listN" "$listType" "$listText" "$listComment"
+			done <<< "$listTrusted"
+		else
+			printf 'group\ttrusted\t0\t%s\t%s\n' "$( AgentsToolsManagerKeysField "$( AgentsToolsManagerKeysGroupLabel trusted )" )" "$( AgentsToolsManagerKeysField "$( [ -f "$listFileOf" ] && printf 'the authorized keys of this account, %s, hold no public key' "$listFileOf" || printf 'no authorized keys file stands at %s' "$listFileOf" )" )"
+		fi
 		return 0
 	;;
 
@@ -257,6 +311,19 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is $readOp <key>, and the word given is no name of a key -- nothing is shown" >&2
 			set +e ; return 1
 		;; esac
+		case "$1" in
+			trusted-[0123456789]*)
+				readFile="$( AgentsToolsManagerKeysTrusted | LC_ALL=C awk -F'|' -v want="${1#trusted-}" '$1 == want { print ; exit }' )"
+				if [ -z "$readFile" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD $readOp: no key is named '$1' -- nothing is shown. The keys are those ${readOp%-read}-list prints" >&2
+					set +e ; return 1
+				fi
+				IFS='|' read -r readKey readLabel readGroup readFor <<< "$readFile"
+				AgentsToolsManagerKeysTrustedRow "$readKey" "$readLabel" "$readGroup" "$readFor"
+				printf 'paste\t%s\n' "$readLabel $readGroup${readFor:+ $readFor}"
+				return 0
+			;;
+		esac
 		while IFS='|' read -r readKey readLabel readGroup readFor readFile readHost ; do
 			[ "$readKey" = "$1" ] || continue
 			readFound="yes"

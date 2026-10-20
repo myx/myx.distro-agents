@@ -113,7 +113,7 @@ rigInput(){ ## the standard input the stand-in was given for an operation, its e
 rigToCli='at @configuration
 turn
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 '
 
@@ -134,7 +134,7 @@ turn
 rowids kids
 get in
 RIGSCRIPT
-rigAssert "the folder stands in the configuration, ahead of the subsystems; entered, its rows are the three settings" "$( rigVal ids ) / $( rigVal kids )" ".. checker keys git subsystems cli / .. user.name user.email ssh-key"
+rigAssert "the folder stands in the configuration, ahead of the subsystems; entered, its rows are the three settings" "$( rigVal ids ) / $( rigVal kids )" ".. checker keys git subsystems diagnostics cli / .. user.name user.email ssh-key"
 
 echo "-- 2. the CLI service's wizard --"
 rigCase cli1
@@ -397,6 +397,23 @@ wait follow 30
 turn
 RIGSCRIPT
 rigAssert "a form left as it is applies nothing: the operation is called with an empty standard input" "$( rigCalled '--manager-wizard-apply git-settings' ) / [$( rigInput --manager-wizard-apply )]" "1 / []"
+
+echo "-- 3b. Enter on an item that takes no Enter of its own runs its main action (owner, 2026-10-20): on a setting of the Git Settings it is c Configure --"
+rigCase gitenter
+rigScript <<'RIGSCRIPT'
+at @configuration git
+wait list 30
+turn
+keys DOWN
+turn
+get row
+keys ENTER
+turn
+wait plan 30
+turn
+get entered
+RIGSCRIPT
+rigAssert "Enter on a setting of the Git Settings opens the wizard, as c does: titled by it, on its one step" "$( rigVal row.path ) / $( rigVal entered.dialogTitle ) / $( rigVal entered.dialog | LC_ALL=C cut -d: -f1-2 )" "configuration/git / Configure Git Settings / wizard:git-settings"
 
 echo "-- 4. the server keys --"
 rigCase keygen

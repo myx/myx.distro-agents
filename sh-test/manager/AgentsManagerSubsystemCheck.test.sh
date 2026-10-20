@@ -71,8 +71,8 @@ rigCalls(){ LC_ALL=C tr '\n' '/' < "$rigTmp/local.calls" ; }
 
 echo "-- 1. the list --"
 rigRun --manager-subsystem-list
-rigAssert "the call ends 0, with no error, and lists the six in order: .local the base and system the shared with no command, deploy and remote installed and offered the uninstall, source missing and offered the install, agents installed and the console that asks, so not offered the uninstall" "$rigRc $( rigTroubles ) $( rigFlat "$rigTmp/out" )" \
-	"0 0 subsystem .local installed base no no/subsystem system installed shared no no/subsystem deploy installed - no yes/subsystem source missing - yes no/subsystem remote installed - no yes/subsystem agents installed console no no/"
+rigAssert "the call ends 0, with no error, and lists the six in order: .local the base and system the shared with no command, deploy and remote installed and offered the uninstall, source missing and offered the install, agents installed and the console that asks, so not offered the uninstall; an installed toolset with a command of its own, the console's too, is offered the update, and the base and the shared one are not" "$rigRc $( rigTroubles ) $( rigFlat "$rigTmp/out" )" \
+	"0 0 subsystem .local installed base no no no/subsystem system installed shared no no no/subsystem deploy installed - no yes yes/subsystem source missing - yes no no/subsystem remote installed - no yes yes/subsystem agents installed console no no yes/"
 rm -rf "$rigWs/.local/myx/myx.distro-system"
 rigRun --manager-subsystem-list
 rigAssert "a subsystem whose copy is not there reads missing, and system has no command whether it is there or not" "$( LC_ALL=C awk -F'\t' '$2 == "system" { print $3, $5, $6 }' "$rigTmp/out" )" "missing no no"
@@ -90,12 +90,21 @@ rigRun --manager-subsystem-run uninstall remote
 rigPre=()
 rigAssert "uninstall of an installed one calls it with --uninstall-distro-<name>, and their exit status is the operation's" "$rigRc $( rigCalls )" "3 --uninstall-distro-remote/"
 : > "$rigTmp/local.calls"
+rigRun --manager-subsystem-run update deploy
+rigAssert "update of an installed toolset is its install again: --install-distro-<name>, and what the local tools wrote comes back" "$rigRc $( rigCalls ) $( cat "$rigTmp/out" )" "0 --install-distro-deploy/ rig-local-tools says: --install-distro-deploy"
+: > "$rigTmp/local.calls"
+rigRun --manager-subsystem-run update agents
+rigAssert "the console's own toolset is updated too" "$rigRc $( rigCalls )" "0 --install-distro-agents/"
+: > "$rigTmp/local.calls"
+rigRun --manager-subsystem-run update all
+rigAssert "update all is Update Local Tools: --upgrade-installed-tools, and nothing else" "$rigRc $( rigCalls )" "0 --upgrade-installed-tools/"
+: > "$rigTmp/local.calls"
 rigBad=""
-for rigOne in "install deploy" "uninstall source" "uninstall agents" "install agents" "install .local" "uninstall .local" "install system" "uninstall system" "install no-such-thing" "remove deploy" "install" "install source extra" ; do
+for rigOne in "install deploy" "update source" "update .local" "update system" "update no-such-thing" "update" "update deploy extra" "install all" "uninstall all" "uninstall source" "uninstall agents" "install agents" "install .local" "uninstall .local" "install system" "uninstall system" "install no-such-thing" "remove deploy" "install" "install source extra" ; do
 	rigRun --manager-subsystem-run $rigOne
 	[ "$rigRc" = 1 ] && [ "$( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' )" = 0 ] || rigBad="$rigBad [$rigOne]"
 done
-rigAssert "install of an installed toolset, uninstall of a missing one, the console's own either way, .local, system, a name and a command that are none and a wrong count of words are each refused, with nothing on stdout" "${rigBad:- all refused}" " all refused"
+rigAssert "install of an installed toolset, update of a missing one, uninstall of a missing one, the console's own uninstalled, .local and system either way, a name and a command that are none and a wrong count of words are each refused, with nothing on stdout" "${rigBad:- all refused}" " all refused"
 rigAssert "and nothing of them was run" "$( rigCalls )" ""
 rigRun --manager-subsystem-run uninstall agents
 rigAssert "the refusal of the console's own says it is the console that asks, and repeats nothing of what was given but the subsystem's name" "$( LC_ALL=C grep -c -F -- 'is the console that asks' "$rigTmp/err" )" "1"
@@ -122,7 +131,7 @@ rigRun --manager-subsystem-run install source ; [ "$rigRc" = 1 ] && [ ! -s "$rig
 rigPre=()
 rigAssert "a member's session is refused both, magic-coordinator's too" "${rigBad:- all refused}" " all refused"
 rigBad=""
-for rigOne in "--manager-subsystem-list" "--manager-subsystem-run (install|uninstall) <subsystem>" ; do
+for rigOne in "--manager-subsystem-list" "--manager-subsystem-run (install|uninstall|update) <subsystem>" ; do
 	LC_ALL=C grep -q -F -- "DistroAgentsTools.fn.sh $rigOne" "$rigPackage/sh-lib/help/Help.DistroAgentsTools.include" || rigBad="$rigBad [include $rigOne]"
 	LC_ALL=C grep -q -x -F -- "		$rigOne" "$rigPackage/sh-lib/help/Help.DistroAgentsTools.help.md" || rigBad="$rigBad [help.md $rigOne]"
 done

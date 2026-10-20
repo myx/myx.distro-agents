@@ -406,7 +406,7 @@ rigAssert "with handlers built, the pane still names no key: its last line is it
 rigAssert "Launch (Start) has no such key"                           "$( rigVal launch.selected ) [$( rigVal launchKeys )]" "launch []"
 rigAssert "an ask has none: no key answers it"                       "$( rigVal ask.path ) $( rigVal ask.selected ) [$( rigVal askKeys )]" "pending a1 []"
 rigAssert "a team member: no line of the pane names the key that starts it" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal memberKeys )]" "magic-team/team m1 []"
-rigAssert "on a team member the status line names the key that starts it"                "[$( rigVal memberBottom )]" "[ BSP Up  a Active  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "on a team member the status line names the key that starts it"                "[$( rigVal memberBottom )]" "[ ENTER Start  BSP Up  a Active  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN LIST CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

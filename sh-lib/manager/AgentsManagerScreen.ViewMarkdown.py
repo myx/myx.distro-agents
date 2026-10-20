@@ -156,6 +156,23 @@ def catMarkdownSpans(text, width):
     return lines, spansOf
 
 
+## The lines catMarkdown gave, each held to the window by the count of the screen (textCells), the one that solved the width of emoji: catMarkdown measures by a count of
+## its own, so a line it broke at the width of the window may be wider than that in cells (keycap digits, 📋, ❓, a joined emoji, a flag). Such a line is broken again, here, between its
+## words (rawLines), the looks of its first piece kept as far as it goes. Where the window cuts its lines (UNWRAPPED_WIDTH) a line is cut at the border by the drawing, as ever.
+def markdownFitted(lines, spansOf, width):
+    room = max(10, width - 1)
+    if width >= UNWRAPPED_WIDTH or all(textWidth(line) <= room for line in lines):
+        return lines, spansOf
+    fitted, looks = [], {}
+    for number, line in enumerate(lines):
+        pieces = [line] if textWidth(line) <= room else (rawLines([line], width) or [""])
+        kept = [(start, min(cells, textWidth(pieces[0]) - start), look) for start, cells, look in spansOf.get(number, ()) if start < textWidth(pieces[0])]
+        if kept:
+            looks[len(fitted)] = kept
+        fitted.extend(pieces)
+    return fitted, looks
+
+
 ## A Markdown text as the lines of the left window, set out to that width, and the looks of
 ## their parts, as the view holds them: (lines, {number of a line: [(cell, cells, look)]}), as
 ## catMarkdown renders it (catMarkdownSpans), its first "lines" lines; where it cannot, the
@@ -166,7 +183,7 @@ def markdownLines(text, width):
     rendered = catMarkdownSpans("\n".join(source[:MARKDOWN["lines"]]), width)
     if rendered is None:
         return rawLines(text.splitlines(), width), {}
-    lines, spansOf = rendered
+    lines, spansOf = markdownFitted(*rendered, width)
     while lines and not lines[-1]:
         lines.pop()
     if later:

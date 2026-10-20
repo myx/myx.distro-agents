@@ -201,7 +201,7 @@ wait focus 10
 wait plan 10
 turn
 show keys
-keys DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN
 wait focus 10
 show cli
 roles clir

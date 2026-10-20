@@ -89,9 +89,10 @@ rigAcct="$( printf '%s' "$rigAcct" | LC_ALL=C tr -s ' \t\r\n' '_' )"
 [ -n "$rigAcct" ] || rigAcct="unknown"
 ## The member a console answer stands as (F6.10): user-<account>, the account in the small letters, digits and hyphens a name takes, never magic-coordinator.
 rigMember="user-$( printf '%s' "$rigAcct" | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C tr -c 'a-z0-9\n' '-' | LC_ALL=C sed -e 's/--*/-/g' -e 's/^-//' -e 's/-$//' )"
-rigSpawnRecord(){ ## spawn id, owner, parent session id
-	printf -- '---\nsession-id: rig-cow\nspawn-id: %s\n%shost: %s\nowner: %s\nstatus: spawn-started\n---\n\n# Spawn session\n' \
-		"$1" "${3:+parent-spawn-id: $3$'\n'}" "$rigHost" "$2" > "$rigWs/.local/agents/spawned/rig-cow/$1.md"
+rigSpawnRecord(){ ## spawn id, owner, parent session id, session id (default rig-cow)
+	mkdir -p "$rigWs/.local/agents/spawned/${4:-rig-cow}"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\n%shost: %s\nowner: %s\nstatus: spawn-started\n---\n\n# Spawn session\n' \
+		"${4:-rig-cow}" "$1" "${3:+parent-spawn-id: $3$'\n'}" "$rigHost" "$2" > "$rigWs/.local/agents/spawned/${4:-rig-cow}/$1.md"
 }
 rigSpawnRecord rig-coord magic-coordinator ""
 rigSpawnRecord rig-tester magic-tester rig-coord
@@ -290,6 +291,35 @@ rigAssert "the read says it is not taken" "$( rigRow answer accept )" "answer|-|
 rigMark
 rigOp --manager-pending-reply-answer --id "$rigPend" --answer accept
 rigAssert "the answer is refused, with why, and the review prompt stays open" "$rigOpRc:$( rigHas "$rigTmp/op.err" "is the human-owner's own" ):$( rigField "$rigFile" status ):$( rigNew 'console' )" "1:yes:reply-pending:0"
+
+echo "-- a refusal is never gated (F6.10, Settled): the person at the console who holds no authority over the asking run still denies and dismisses, whoever it is asked of --"
+## A session the console holds no authority over: no grant of the owners role stands for it.
+rigSpawnRecord rig-far-run magic-tester "" rig-far
+mkdir -p "$rigWs/.local/agents/sessions/rig-far"
+printf 'CRIG00001:1700000000.000901\n' > "$rigWs/.local/agents/sessions/rig-far/session.thread"
+rigOp --intern-op-permission-refusal-log magic-tester --session-id rig-far-run --tool Write --target "$rigWs/ELSE/far.txt" --reason rig
+rigRefusalId="$( LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' "$rigTmp/op.out" | head -1 )"
+[ -n "$rigRefusalId" ] || rigRefuse "no refusal could be recorded"
+rigAsk magic-tester rig-far-run permission human-owner --refusal-id "$rigRefusalId"
+rigOp --manager-pending-reply-answer --id "$rigPend" --answer allow-once
+rigAssert "an allow still needs the authority: it is refused, and the request stays open" "$rigOpRc:$( rigHas "$rigTmp/op.err" "authority" ):$( rigField "$rigFile" status )" "3:yes:reply-pending"
+rigMark
+rigOp --manager-pending-reply-answer --id "$rigPend" --answer deny
+rigAssert "a deny of a permission asked of the human-owner is taken, as the person at the console" "$rigOpRc:$( rigRow answered | cut -d'|' -f1,3,4,5 ):$( rigField "$rigFile" status ):$( rigField "$rigFile" verdict ):$( rigField "$rigFile" answered-by )" "0:answered|deny|$rigMember|console:$rigAcct:reply-received:deny:$rigMember"
+rigOp --intern-op-permission-refusal-log magic-tester --session-id rig-far-run --tool Write --target "$rigWs/ELSE/far2.txt" --reason rig
+rigRefusalId="$( LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' "$rigTmp/op.out" | head -1 )"
+rigAsk magic-tester rig-far-run permission human-owner --refusal-id "$rigRefusalId"
+rigOp --manager-pending-reply-answer --id "$rigPend" --reject
+rigAssert "so is its reject, which is its deny" "$rigOpRc:$( rigRow rejected | cut -d'|' -f1,3,4 ):$( rigField "$rigFile" status ):$( rigField "$rigFile" answered-by )" "0:rejected|deny|$rigMember:reply-received:$rigMember"
+rigAsk magic-tester rig-far-run question human-owner
+rigOp --manager-pending-reply-dismiss --id "$rigPend" --reason "not needed"
+rigAssert "the dismissal of a question asked of the human-owner is taken, recorded as the console's account" "$rigOpRc:$( rigRow dismissed ):$( rigField "$rigFile" status ):$( rigField "$rigFile" withdrawn-by )" "0:dismissed|$rigPend|console:$rigAcct|not needed:withdrawn:console:$rigAcct"
+rigAsk magic-tester rig-far-run question human-owner
+rigOp --manager-pending-reply-answer --id "$rigPend" --answer "some words"
+rigAssert "an answer that is no refusal is gated as it was: a question answered with words needs the authority too" "$rigOpRc:$( rigField "$rigFile" status )" "3:reply-pending"
+rigAsk magic-tester rig-far-run review human-owner
+rigOp --manager-pending-reply-answer --id "$rigPend" --reject
+rigAssert "a review reject stays the human-owner's own verdict: not taken, and the review stays open" "$rigOpRc:$( rigHas "$rigTmp/op.err" "is the human-owner's own" ):$( rigField "$rigFile" status )" "1:yes:reply-pending"
 
 echo "-- a dismissal, its asker running, with a reason --"
 printf '%s rig-run --session-id %s\n' "$(( 900000 + RANDOM ))" rig-tester > "$RIG_PS_LIST"

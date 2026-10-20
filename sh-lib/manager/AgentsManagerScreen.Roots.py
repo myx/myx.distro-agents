@@ -78,6 +78,7 @@ FOLDER_WORDS = {
     "scopes": "every scope of settings of this workspace, each a folder of its variables",
     "git": "the global git settings of the account that runs the tools",
     "subsystems": "the subsystems of the tool family, installed here or not, and the commands to install and uninstall them",
+    "diagnostics": "what the tooling sees, read-only: the context it resolves",
     "commands": "the commands a console user calls by name",
     "user": "the README.md of each project, in build order",
     "maintainer": "the MAGIC.md of each project, in build order",

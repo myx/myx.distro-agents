@@ -147,6 +147,12 @@ AgentsToolsOwnerSetupOptionSpec(){
 		EMAIL_APP_PASSWORD)
 			printf '%s\n' '-|<app-password>|secret|the app password of the mailbox of a member, kept in its own scope beside its other EMAIL_ settings.'
 		;;
+		GOOGLE_ACCOUNT_PASSWORD)
+			printf '%s\n' '-|<password>|secret|the password of the Google account of a member, kept in its own scope beside its other GOOGLE_ settings.'
+		;;
+		ATLASSIAN_ACCOUNT_PASSWORD)
+			printf '%s\n' '-|<password>|secret|the password of the Atlassian account of a member, kept in its own scope beside its other Atlassian settings.'
+		;;
 		TRELLO_KEY)
 			printf '%s\n' '-|<api-key>|secret|the Trello API key the Trello calls of a member sign in with, kept in its own scope.'
 		;;

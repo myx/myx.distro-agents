@@ -46,12 +46,12 @@ rigAssert(){ ## what is asserted, got, want
 rigRow(){ local rowText="$1" ; shift ; while [ $# -gt 0 ] ; do rowText="$rowText"$'\t'"$1" ; shift ; done ; printf '%s\n' "$rowText" ; }
 rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 {
-	rigRow subsystem .local installed base no no
-	rigRow subsystem system installed shared no no
-	rigRow subsystem deploy installed - no yes
-	rigRow subsystem source missing - yes no
-	rigRow subsystem remote installed - no yes
-	rigRow subsystem agents installed console no no
+	rigRow subsystem .local installed base no no no
+	rigRow subsystem system installed shared no no no
+	rigRow subsystem deploy installed - no yes yes
+	rigRow subsystem source missing - yes no no
+	rigRow subsystem remote installed - no yes yes
+	rigRow subsystem agents installed console no no yes
 } > "$rigF/rows.--manager-subsystem-list"
 rigRow counters 0 0 0 0 0 0.42 > "$rigF/rows"
 rigCase(){ ## name
@@ -94,7 +94,7 @@ at @configuration
 rowids ids
 RIGSCRIPT
 rigScreen="$rigRealScreen"
-rigAssert "a screen whose .local has no such part has no such folder, and fails nowhere" "$( rigVal ids )" ".. checker keys git"
+rigAssert "a screen whose .local has no such part has no such folder, and fails nowhere" "$( rigVal ids )" ".. checker keys git diagnostics"
 
 echo "-- 2. entered: the subsystems, each with its state, and its commands under it --"
 rigCase entered
@@ -106,17 +106,19 @@ wait list 30
 turn
 get in
 rowids ids
-cells r2 3 85 119
-cells r4 5 85 119
-cells r5 6 85 119
-cells r6 7 85 119
-cells r7 8 85 119
-cells r10 11 85 119
+cells r1 3 85 119
+cells r2 4 85 119
+cells r3 7 85 119
+cells r4 6 85 119
+cells r5 8 85 119
+cells r6 9 85 119
+cells r7 10 85 119
+cells r10 14 85 119
 RIGSCRIPT
 rigAssert "the operation was asked for the list, once, and nothing else of the operations of this folder" "$( rigCalled --manager-subsystem-list ) $( LC_ALL=C grep -c -F -e 'subsystem-run' "$MANAGER_SCREEN_RIG/calls" || : )" "1 0"
-rigAssert "in the order of the operation, a command under each subsystem that is offered one, none under .local, system and agents" "$( rigVal ids )" ".. .local system deploy deploy:uninstall source source:install remote remote:uninstall agents"
-rigAssert "each subsystem shows its state at the end of its row" "[$( rigVal r2 | sed 's/  */ /g' )][$( rigVal r4 | sed 's/  */ /g' )][$( rigVal r6 | sed 's/  */ /g' )][$( rigVal r10 | sed 's/  */ /g' )]" "[ .local installed][ deploy installed][ source missing][ agents installed]"
-rigAssert "a command stands set in by two under its subsystem" "[$( rigVal r5 | sed 's/ *$//' )][$( rigVal r7 | sed 's/ *$//' )]" "[   Uninstall...][   Install...]"
+rigAssert "in the order of the operation, Update All first, a command under each subsystem that is offered one (Update for an installed one, the console's own among them), none under .local and system" "$( rigVal ids )" ".. all:update .local system deploy deploy:update deploy:uninstall source source:install remote remote:update remote:uninstall agents agents:update"
+rigAssert "each subsystem shows its state at the end of its row" "[$( rigVal r2 | sed 's/  */ /g' )][$( rigVal r4 | sed 's/  */ /g' )][$( rigVal r6 | sed 's/  */ /g' )][$( rigVal r10 | sed 's/  */ /g' )]" "[ .local installed][ deploy installed][ source not installed][ agents installed]"
+rigAssert "a command stands set in by two under its subsystem" "[$( rigVal r5 | sed 's/ *$//' )][$( rigVal r7 | sed 's/ *$//' )] [$( rigVal r1 | sed 's/^ *//; s/ *$//' )][$( rigVal r3 | sed 's/ *$//' )]" "[   Uninstall...][   Install...] [Update All...][   Update...]"
 
 echo "-- 3. the left pane --"
 rigCase pane
@@ -129,16 +131,16 @@ show f
 keys ENTER
 wait list 30
 turn
-keys DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN
 turn
 show s
-keys DOWN
+keys DOWN DOWN
 turn
 show c
 RIGSCRIPT
 rigAssert "the folder selected, before it is entered: the table of the subsystems under its head, and for each the command it is offered or why it has none" "[$( rigPane f 3 | LC_ALL=C tr -s ' ' )][$( rigPane f 5 | LC_ALL=C tr -s ' ' )][$( rigPane f 11 | LC_ALL=C tr -s ' ' )][$( rigPane f 13 | LC_ALL=C tr -s ' ' )][$( rigPane f 15 | LC_ALL=C tr -s ' ' )]" \
-	"[ SUBSYSTEM STATE WHAT COMMAND][ .local installed local tool management: it the base that installs the][ deploy installed deploy-side operations uninstall][ source missing source sync, prepare and ingest install][ remote installed remote operations uninstall]"
-rigAssert "a subsystem selected: what it is, its state, what it is offered" "$( rigScreenHolds s 'deploy-side operations' ) $( rigScreenHolds s 'uninstall' )" "1 1"
+	"[ SUBSYSTEM STATE WHAT COMMAND][ .local installed local tool management: it installs the the base that][ deploy installed deploy-side operations update, uninstall][ source not installed source sync, prepare and ingest install][ remote installed remote operations update, uninstall]"
+rigAssert "a subsystem selected: what it is, its state, what it is offered" "$( rigScreenHolds s 'deploy-side operations' ) $( rigScreenHolds s 'update, uninstall' )" "1 1"
 rigAssert "a command selected: the command line it runs" "$( rigScreenHolds c 'DistroLocalTools.fn.sh --uninstall-distro-deploy' )" "1"
 
 echo "-- 4. Enter on a command asks first; Cancel and Esc do nothing; Run runs it in the output dialog --"
@@ -148,7 +150,7 @@ root subsystems
 turn
 keys ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 get on
 keys ENTER
@@ -172,7 +174,7 @@ root subsystems
 turn
 keys ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 keys ENTER
 turn
@@ -186,6 +188,47 @@ RIGSCRIPT
 rigAssert "Run runs the operation with exactly those words, in the output dialog titled by the command" "$( rigVal ran.dialogTitle ) $( rigCalled '--manager-subsystem-run uninstall deploy' )" "Uninstall deploy 1"
 rigAssert "the list is read again when it ends" "$( rigCalled --manager-subsystem-list )" "2"
 
+echo "-- 4b. Update asks first and runs the update of that toolset; Update All runs Update Local Tools --"
+rigCase update
+rigScript <<'RIGSCRIPT'
+root subsystems
+turn
+keys ENTER
+wait list 30
+keys DOWN DOWN DOWN DOWN DOWN
+turn
+get on
+keys ENTER
+turn
+get asked
+keys ENTER
+turn 2
+wait follow 30
+turn
+get ended
+RIGSCRIPT
+rigAssert "the selection is on the Update of deploy; Enter asks first, titled by the command, and holds the option of the local tools it runs" "$( rigVal on.selected ) / $( rigVal asked.dialogTitle ) / $( rigVal asked.dialogHolds | LC_ALL=C grep -c -F -e 'update deploy' )" "deploy:update / Update deploy / 1"
+rigAssert "Run runs the operation with exactly those words" "$( rigCalled '--manager-subsystem-run update deploy' )" "1"
+rigCase updateall
+rigScript <<'RIGSCRIPT'
+root subsystems
+turn
+keys ENTER
+wait list 30
+keys DOWN
+turn
+get on
+keys ENTER
+turn
+get asked
+keys ENTER
+turn 2
+wait follow 30
+turn
+get ended
+RIGSCRIPT
+rigAssert "Update All is the first row; Enter asks first, and Run runs Update Local Tools through the operation" "$( rigVal on.selected ) / $( rigVal asked.dialogTitle ) / $( rigCalled '--manager-subsystem-run update all' )" "all:update / Update all / 1"
+
 echo "-- 5. a subsystem with no command runs nothing --"
 rigCase none
 rigScript <<'RIGSCRIPT'
@@ -193,7 +236,7 @@ root subsystems
 turn
 keys ENTER
 wait list 30
-keys DOWN
+keys DOWN DOWN
 turn
 keys ENTER
 turn

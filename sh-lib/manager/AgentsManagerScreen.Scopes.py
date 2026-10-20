@@ -96,6 +96,7 @@ def parseScopeKeyLevels(readKey, level, text):
 
 ROW_FORMS["scopes"] = parseScopeLevels
 ROW_FORMS["scope-keys"] = parseScopeKeyLevels
+ROW_FORMS["declared"] = lambda readKey, level, text: (parseDigestLevels("list:settings", text), {})[1]
 
 
 ## What a variable shows as in a table: its value as the operation printed it, a variable that holds nothing as that.
@@ -154,7 +155,16 @@ def askScopeEdit(state, row):
     held = row.get("scopeKey") if row else None
     if held is None:
         return ""
+    return askScopeKey(state, held)
+
+
+## The form of one key of a scope, `held` as the scope's row gives it (a key of Member Settings has it made by askScopeLine): the form of its kind where the digest
+## declares what the key takes (askScopeDeclared); else its text form, or the form of a credential.
+def askScopeKey(state, held):
     secret = held["state"] == "secret-set"
+    declared = None if secret else declaredLine(state, held["name"])
+    if declared is not None:
+        return askScopeDeclared(state, held["name"], "" if held["state"] == "missing" else held["value"], held["scope"], held["scopeLabel"], declared)
     state.answer = None
     state.plans.pop(SCOPE_VALUE_READ, None)
     about = {"key": held, "target": {"kind": "scope-value", "id": held["name"], "level": held["scope"]}, "whole": None,
@@ -187,6 +197,8 @@ def fillScopeEdit(state, dialog):
         return
     about["whole"] = plan["rows"]
     dialogControl(dialog, "words")["value"] = plan["rows"]
+    if dialog["name"] == "scope-credential":
+        revealedShown(dialog, plan["rows"])
     dialog["says"] = ""
 
 
@@ -326,7 +338,10 @@ registerPlugin({
         ## The scopes of the workspace, a row each. Read on entering and when it is asked for, and again when a change was made.
         "list:scopes": {"operation": ["--manager-scope-list"], "rows": "scopes", "once": True},
         ## One scope: its variables, a credential in its one form.
-        "list:scopes/*": {"operation": ["--manager-scope-read", "{level}"], "rows": "scope-keys", "once": True},
+        "list:scopes/*": {"operation": ["--manager-scope-read", "{level}"], "rows": "scope-keys", "once": True, "also": ("list:declared",)},
+        ## The digest of the settings, once, for the lines of it that declare what a key takes, its choices or its range, which the form of a variable offers
+        ## (declaredLine). It fills no list of the screen: the rows it gives are the digest's own (Settings.py), read where those roots are.
+        "list:declared": {"operation": ["--manager-config-digest", "--full"], "rows": "declared", "once": True},
         ## One value whole, read when a form asks for it by the scope and the name and never before.
         SCOPE_VALUE_READ: {"operation": ["--manager-scope-reveal", "{level}", "{id}"], "rows": "scope-value", "kind": "plan", "demand": True},
     },

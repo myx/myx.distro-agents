@@ -32,7 +32,14 @@ def listWaits(state):
     shown = listReadOf(state.path)
     if not state.reads or not shown or shown[0] in state.levelsOf or shown[0] in state.failed:
         return ""
+    if demandWaits(state, shown):
+        return ""
     return POPULATING % levelName(state)
+
+
+## Whether a read waits to be asked for (F11.7: the Config Checker): it is read on demand alone, and nobody asked, so nothing is being populated.
+def demandWaits(state, read):
+    return bool(read[1].get("demand")) and read[0] not in state.forced and read[0] not in state.reading.values()
 
 
 ## What the left window says while it waits for its first rows (POPULATING), or "": it
@@ -52,7 +59,7 @@ def viewWaits(state):
     elif viewReadOf(state, row, "view") is not None:
         waits.append(("view:" + viewKey, view["info"] is None))
     opened = listReadOf(state.path + [row["id"]]) if row["dive"] else None
-    if opened:
+    if opened and not demandWaits(state, opened):
         waits.append((opened[0], opened[0] not in state.levelsOf))
     if any(key in state.failed for key, waiting in waits) or not any(waiting for key, waiting in waits):
         return ""
@@ -341,6 +348,12 @@ def statusWord(state, command):
     word = command.get("status")
     if isinstance(word, tuple):
         return word[1 if getattr(state, command["toggle"]) else 0]
+    if command["does"][0] == "open":
+        ## on an item that does not open, Enter runs its main action (mainActionOf): the line names that, and not Open
+        row = selectedRow(state)
+        main = mainActionOf(state) if row is not None and not row["dive"] and row["kind"] != "up" else None
+        if main is not None and main.get("status"):
+            return main["status"]
     return word
 
 
@@ -546,8 +559,14 @@ def putViewLine(surface, state, line, column, position, room, placing=False, mar
     lines = state.view["lines"]
     text = lines[position] if position < len(lines) else ""
     if marked is not None and marked[0] <= position <= marked[1]:
-        ## a line of the row the row cursor is on: in the look of the selection, the whole line
-        putLooked(surface, state, line, column, text, room, REVERSE if state.focus == "view" else BOLD, (), placing)
+        ## a line of the row the row cursor is on: in the look of the selection. A line of a table is selected as wide as the table is (F11.0: a background
+        ## starts at the table's first column and ends at its last, and never protrudes), the cells ahead of its first column and past its last as they were
+        look = REVERSE if state.focus == "view" else BOLD
+        own = getattr(text, "looks", ())
+        if own and getattr(text, "row", None) is not None:
+            putLooked(surface, state, line, column, text, room, lineLook(state.view, position), [(own[0][0], textWidth(text) - own[0][0], look)], placing)
+        else:
+            putLooked(surface, state, line, column, text, room, look, (), placing)
         return
     putLooked(surface, state, line, column, text, room, lineLook(state.view, position),
               state.view["looks"].get(position, ()) if text else (), placing)

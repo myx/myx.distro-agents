@@ -77,7 +77,7 @@ rigCase(){ ## name, digest -- a rig of its own, every fixture of this check in i
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 ## The commands that take the list into the first subject of the configuration, and onto its first line
-rigIntoSubject=$'root configuration\nkeys ENTER\nwait list 20\nkeys DOWN DOWN DOWN DOWN DOWN\nwait focus 20\nkeys ENTER\nwait list 20\nturn'
+rigIntoSubject=$'root configuration\nkeys ENTER\nwait list 20\nkeys DOWN DOWN DOWN DOWN DOWN DOWN\nwait focus 20\nkeys ENTER\nwait list 20\nturn'
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
 	rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize 120 40\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
 }
@@ -132,7 +132,7 @@ turn
 get again
 show again
 RIGSCRIPT
-rigAssert "it is read by the setting reader, from the scope of the line, once, and stands in the field whole, the form of it gone" "$( rigCalls '--agents-config-option magic-team --select SLACK_BOT_TOKEN' ) $( rigHolds whole "║   $rigWhole" ) $( rigHolds whole '║   rig-the-whol***********' )" "1 1 0"
+rigAssert "it is read by the setting reader, from the scope of the line, once, and stands whole in the field and, wrapped, under the form (F11.7), the form of it gone" "$( rigCalls '--agents-config-option magic-team --select SLACK_BOT_TOKEN' ) $( rigHolds whole "║   $rigWhole" ) $( rigHolds whole '║   rig-the-whol***********' ) $( rigHolds whole 'Its value, whole:' )" "1 2 0 1"
 rigAssert "Esc closes the form: the value whole is on the screen no more" "[$( rigVal closed.dialog )] $( rigHolds closed 'WHOLEVALUE' )" "[] 0"
 rigAssert "the form opened again shows the form of a credential, and the value whole was not read again" "$( rigHolds again 'WHOLEVALUE' ) $( rigHolds again '║   rig-the-whol***********' ) $( rigCalls '--agents-config-option magic-team --select SLACK_BOT_TOKEN' )" "0 1 1"
 
@@ -152,7 +152,7 @@ turn
 get cli
 show cli
 RIGSCRIPT
-rigAssert "its form is read as the setting of the team: by its key, from the scope magic-team" "$( rigVal cli.dialogTitle ) $( rigCalls '--agents-config-option magic-team --select ANTHROPIC_API_KEY' ) $( rigHolds cli "║   $rigWhole" )" "Anthropic API Key 1 1"
+rigAssert "its form is read as the setting of the team: by its key, from the scope magic-team" "$( rigVal cli.dialogTitle ) $( rigCalls '--agents-config-option magic-team --select ANTHROPIC_API_KEY' ) $( rigHolds cli "║   $rigWhole" )" "Anthropic API Key 1 2"
 rigCase missing "$rigTmp/scopes.digest"
 rigScript <<RIGSCRIPT
 $rigIntoSubject
@@ -233,7 +233,7 @@ turn
 get button
 show button
 RIGSCRIPT
-rigAssert "it reads the value, once, shows it whole in the field, and the form stays open" "$( rigCalls '--agents-config-option magic-team --select SLACK_BOT_TOKEN' ) $( rigHolds button "║   $rigWhole" ) $( rigVal button.dialogTitle )" "1 1 Slack Bot Token"
+rigAssert "it reads the value, once, shows it whole in the field and wrapped under the form, and the form stays open" "$( rigCalls '--agents-config-option magic-team --select SLACK_BOT_TOKEN' ) $( rigHolds button "║   $rigWhole" ) $( rigVal button.dialogTitle )" "1 2 Slack Bot Token"
 
 echo "-- 6. no other form has the key --"
 rigCase plain "$rigTmp/scopes.digest"

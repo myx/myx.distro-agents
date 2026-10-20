@@ -196,7 +196,8 @@ cells row2 3 85 119
 cells row3 4 85 119
 cells row4 5 85 119
 cells row5 6 85 119
-cells row6 8 85 119
+cells rowD 7 85 119
+cells row6 9 85 119
 keys DOWN
 turn
 show c
@@ -206,7 +207,7 @@ show k
 advance 11
 turn 3
 RIGSCRIPT
-rigAssert "Config Checker and Server Keys stand under the row that goes up, each a row that is entered, then the subjects" "$( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )][$( rigCell row5 )][$( rigCell row6 )]" "6 [ Config Checker ~ ►][ Server Keys ~ ►][ Git Settings ~ ►][ Installed Subsystems ~ ►][ Workspace Paths ~ ►]"
+rigAssert "Config Checker and Server Keys stand under the row that goes up, each a row that is entered, then the subjects" "$( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )][$( rigCell row5 )][$( rigCell rowD )][$( rigCell row6 )]" "7 [ Config Checker ~ ►][ Server Keys ~ ►][ Git Settings ~ ►][ Installed Subsystems ~ ►][ Diagnostics ~ ►][ Workspace Paths ~ ►]"
 rigAssert "on Config Checker the left window says that the checks were not run, and which key runs them" "[$( rigPane c 2 )][$( rigPane c 3 )][$( rigPane c 4 )]" "[ Config Checker [wrap]][ The checks were not run yet in this run of the screen.][ r runs them. It is the read-only diagnosis of each part of the installation: it]"
 rigAssert "the checks are not run before their folder is entered, whatever time passes; the keys are listed once the selection has rested on their folder" "$( rigCalled --manager-check-run ) $( rigCalled --manager-keys-list ) [$( rigPane k 2 )]" "0 1 [ Server Keys [wrap]]"
 
@@ -224,6 +225,8 @@ keys u
 advance 11
 turn 3
 get in
+show in
+cells inRun 3 85 119
 cells inStatus 39 0 120
 keys r
 turn
@@ -237,10 +240,12 @@ cells row2 3 85 119
 cells row3 4 85 119
 cells row4 5 85 119
 cells row5 6 85 119
+cells row6 7 85 119
+cells row7 8 85 119
 show u
 advance 11
 turn 3
-keys DOWN DOWN
+keys DOWN DOWN DOWN
 turn
 get g
 show g
@@ -259,15 +264,15 @@ advance 11
 turn 3
 get back
 RIGSCRIPT
-rigAssert "entering it runs nothing, nor does time, nor does the key that reads now: the list is empty and the status line names the key that runs them" "$( rigVal in.path ) $( rigVal in.rows ) $( rigVal in.reading | LC_ALL=C grep -c -F checker ) [$( rigVal inStatus | sed 's/  *$//' )]" "configuration/checker 1 0 [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  r Run  TAB Window  ? Help  w Cut]"
+rigAssert "entering it runs nothing, nor does time, nor does the key that reads now: the list holds the row that goes up and the row that runs the checks (F11.7), nothing is populating, and the status line names the key that runs them" "$( rigVal in.path ) $( rigVal in.rows ) $( rigVal in.reading | LC_ALL=C grep -c -F checker ) $( rigScreenHolds in 'Populating' ) [$( rigCell inRun )] [$( rigVal inStatus | sed 's/  *$//' )]" "configuration/checker 2 0 0 [ Run Config Checker...] [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  r Run  TAB Window  ? Help  w Cut]"
 rigAssert "r asks for the run, and the status line says so"          "[$( rigVal asked.notice )] $( rigVal asked.reading | LC_ALL=C grep -c -F 'list:configuration/checker' )" "[Run the checks: asked of the tooling, it takes up to a minute] 1"
 rigAssert "r while it runs asks for no second run"                   "[$( rigVal twice.notice )]" "[Run the checks: it is running]"
-rigAssert "when it has answered the checks are listed in the order of the operation, each with its state at the end of its row" "$( rigVal done.rows ) [$( rigVal done.notice )] [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )][$( rigCell row5 )]" "5 [] [ Copilot Harness Installed ~ ok][ Grok Credential ~ fail][ Slack Token ~ warn][ Scaleway Check ~ skipped]"
+rigAssert "when it has answered the checks are listed in the order of the operation, each with its state at the end of its row" "$( rigVal done.rows ) [$( rigVal done.notice )] [$( rigCell row2 )][$( rigCell row4 )][$( rigCell row5 )][$( rigCell row6 )][$( rigCell row7 )]" "6 [] [ Run Config Checker...][ Copilot Harness Installed ~ ok][ Grok Credential ~ fail][ Slack Token ~ warn][ Scaleway Check ~ skipped]"
 rigAssert "on the row that goes up the left window is every check as a table, the worst first, nothing above it; how many in the frame" "[$( rigPane u 3 | LC_ALL=C tr -s ' ' )][$( rigPane u 5 | LC_ALL=C tr -s ' ' )] $( rigScreenHolds u '4 checks' ) $( rigScreenHolds u ' 4 rows ' )" "[ CHECK STATE DOMAIN REASON][ Grok Credential fail grok XAI API KEY is not set, and it is required] 0 1"
 rigAssert "a check selected: its state first, why, and its remedy as it is printed" "$( rigVal g.selectedLabel ) [$( rigPane g 2 )][$( rigPane g 3 )][$( rigPane g 5 )][$( rigPane g 7 )]" "Grok Credential [ Grok Credential [wrap]][  state  fail][ XAI API KEY is not set, and it is required][  remedy  /rig/ws_rig/DistroAgentsTools.fn.sh --owner-setup-grok --apply]"
 rigAssert "then where it is from, and that the screen runs no remedy" "[$( rigPane g 8 )][$( rigPane g 9 )] $( rigPaneHolds g ' The remedy is a command for a console: the screen runs none.' ) $( rigPaneHolds s '  section  workspace_rig' )" "[  domain  grok][  key     GROK_CREDENTIAL] 1 1"
 rigAssert "Enter on a check opens nothing, and calls nothing"        "[$( rigVal enter.dialog )] [$( rigVal enter.notice )] $( rigVal enter.path )" "[] [Open: this row has nothing to open] configuration/checker"
-rigAssert "left and entered again it holds what the run gave, its table first: it was run once, by its key alone, with no argument" "$( rigVal up.path ) $( rigVal up.selected ) [$( rigPane f 3 | LC_ALL=C sed 's/[0-9][0-9]:[0-9][0-9]:[0-9][0-9]/HH:MM:SS/' )] $( rigVal back.rows ) $( rigCalled --manager-check-run ) $( LC_ALL=C grep -c -e '--manager-check-run' "$MANAGER_SCREEN_RIG/calls" )" "configuration checker [  CHECK                 STATE   DOMAIN   REASON] 5 1 1"
+rigAssert "left and entered again it holds what the run gave, its table first: it was run once, by its key alone, with no argument" "$( rigVal up.path ) $( rigVal up.selected ) [$( rigPane f 3 | LC_ALL=C sed 's/[0-9][0-9]:[0-9][0-9]:[0-9][0-9]/HH:MM:SS/' )] $( rigVal back.rows ) $( rigCalled --manager-check-run ) $( LC_ALL=C grep -c -e '--manager-check-run' "$MANAGER_SCREEN_RIG/calls" )" "configuration checker [  CHECK                 STATE   DOMAIN   REASON] 6 1 1"
 
 echo "-- a run of the checks that fails says so in a box --"
 rigCase checkfails
@@ -349,7 +354,7 @@ rigAssert "a group selected: the left window shows that group alone, and the key
 rigAssert "a key selected: what it is for, its type, its fingerprint, its file, its group as the row named it" "$( rigVal d.selected ) [$( rigPane d 2 )][$( rigPane d 3 )][$( rigPane d 5 )][$( rigPane d 6 )][$( rigPane d 7 )][$( rigPane d 8 )]" \
 	"deploy [ Deploy Key [wrap]][ the deploy key of this server, to list on each git repository it reads][  type         ssh-ed25519][  fingerprint  SHA256:abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ][  file         /rig/mdci/deploy-keys/mdci.pub][  group        Keys To Add To Git]"
 rigAssert "then its whole public line, as it is pasted, what goes on set further in" "[$( rigPane d 12 )][$( rigPane d 13 )] $( rigPane d 14 | LC_ALL=C grep -c '^       AAAAC3NzaC1lZDI1NTE5AAAAIabc' ) $( rigJoined d | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123mdci@rig-host' )" "[ Its public line, whole, as it is pasted:][   ssh-ed25519] 1 1"
-rigAssert "where it is to be registered; no sentence names the key that shows it alone: the status line names it" "$( rigPaneHolds d ' It is to be registered on each of these repositories:' ) $( rigPaneHolds d '   myx/myx.common git@github.com:myx/myx.common.git' ) $( rigPaneHolds d '   myx/myx.distro-agents git@github.com:myx/myx.distro-agents.git' ) $( rigPaneHolds d ' f shows it alone, in a box to copy.' ) [$( rigVal dStatus | sed 's/  *$//' )]" "1 1 1 0 [ f Full  R Regenerate  d Delete  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "where it is to be registered; no sentence names the key that shows it alone: the status line names it" "$( rigPaneHolds d ' It is to be registered on each of these repositories:' ) $( rigPaneHolds d '   myx/myx.common git@github.com:myx/myx.common.git' ) $( rigPaneHolds d '   myx/myx.distro-agents git@github.com:myx/myx.distro-agents.git' ) $( rigPaneHolds d ' f shows it alone, in a box to copy.' ) [$( rigVal dStatus | sed 's/  *$//' )]" "1 1 1 0 [ f Full  R Regenerate  d Delete  ENTER Full  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "it is whole in Basic B/W and in Magic too"                "$( rigJoined dbw | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123mdci@rig-host' ) $( rigJoined dmagic | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123mdci@rig-host' )" "1 1"
 rigAssert "the shortened key of a row is nowhere on the screen, and no line of the left window is cut" "$( rigScreenHolds u 'SHORT-never' ) $( rigScreenHolds g 'SHORT-never' ) $( rigScreenHolds d 'SHORT-never' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -e '^u|' -e '^d|' | LC_ALL=C sed -e 's/│║.*$//' | LC_ALL=C grep -c -F '…' )" "0 0 0 0"
 rigAssert "f opens the box of that key alone, which says that its line is being read" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] [$( rigVal asked.dialogHolds )]" "[keyline:ok|] [Deploy Key] [Its public line is being read.]"
@@ -357,6 +362,73 @@ rigAssert "it is read anew for the box, by the name of the key, and stands whole
 rigAssert "with its group, its type and its fingerprint, and where it is to be registered" "$( rigBoxHolds b 'group     Keys To Add To Git' ) $( rigBoxHolds b 'type      ssh-ed25519' ) $( rigBoxHolds b 'fingerprint SHA256:abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ' ) $( rigBoxHolds b '  myx/myx.common  git@github.com:myx/myx.common.git' ) $( rigBoxHolds b '  myx/myx.distro-agents  git@github.com:myx/myx.distro-agents.git' )" "1 1 1 1 1"
 rigAssert "Enter closes the box"                                     "[$( rigVal closed.dialog )]" "[]"
 rigAssert "a key that cannot be read says so, and f opens no box and reads nothing" "$( rigPaneHolds a ' No public key can be read at its file.' ) $( rigPaneHolds a '  state  absent' ) [$( rigVal absent.dialog )] [$( rigVal absent.notice )] $( LC_ALL=C grep -c -e '--manager-keys-read' "$MANAGER_SCREEN_RIG/calls" )" "1 1 [] [Full public line: no public key can be read there] 4"
+
+echo "-- Config Checker: its row runs the checks like the key, and a run goes on when its folder is left --"
+rigCase checkrow
+printf 'sleep 2\n' > "$MANAGER_SCREEN_RIG/mode.--manager-check-run"
+rigScript <<'RIGSCRIPT'
+turn
+keys 7
+wait list 30
+keys DOWN ENTER
+turn 3
+keys DOWN ENTER
+turn
+get asked
+keys ENTER
+get twice
+turn
+keys BACKSPACE
+turn
+get left
+show left
+keys ENTER
+turn
+get back
+show back
+wait check 30
+turn
+get done
+RIGSCRIPT
+rigAssert "Enter on the row Run Config Checker asks for the run, as the key does: once, with the same words" "[$( rigVal asked.notice )] $( rigVal asked.reading | LC_ALL=C grep -c -F 'list:configuration/checker' ) [$( rigVal twice.notice )]" "[Run Config Checker: asked of the tooling, it takes up to a minute] 1 [Run Config Checker: it is running]"
+rigAssert "the folder left while they run: its row says that they run, the folder entered again says it and its list is populating as it is, and nothing starts the run anew" "$( rigVal left.path | LC_ALL=C sed 's/^$/-/' ) [$( rigVal left.selectedLabel )] $( rigScreenHolds left 'They are running now' ) $( rigVal back.path ) $( rigScreenHolds back 'They are running now' ) $( rigScreenHolds back 'Populating' ) $( rigCalled --manager-check-run )" "configuration [Config Checker] 1 configuration/checker 1 1 1"
+rigAssert "the run that went on answered: the checks stand in the folder, still by the one run" "$( rigVal done.rows ) $( rigCalled --manager-check-run )" "6 1"
+
+echo "-- Server Keys, as the list names its two groups now: ours, of several kinds, and the keys we trust --"
+rigTrustedFull='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAItrustedTRUSTEDtrustedTRUSTEDtrustedTRUSTEDtrusted laptop@rig'
+{
+	rigRow group ours 2 Our_Keys_To_Trust -
+	rigKeyRow deploy Deploy_Key add-to-git 'the_deploy_key_of_this_server' ssh-ed25519 SHA256:abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ /rig/mdci/deploy-keys/mdci.pub present "$rigFull"
+	rigKeyRow host-ed25519 Host_Key_ED25519 trust-on-connect 'an_ssh_host_key_of_this_server' ssh-ed25519 SHA256:ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkj /rig/etc/ssh/ssh_host_ed25519_key.pub present "$rigHostFull"
+	rigRow group trusted 1 Keys_We_Trust -
+	rigKeyRow trusted-1 laptop@rig trusted 'a_key_this_account_trusts' ssh-ed25519 SHA256:trustedTRUSTEDtrustedTRUSTEDtrustedTRUSTEDtru /rig/mdci/.ssh/authorized_keys present "$rigTrustedFull"
+} > "$rigTmp/groups.keys"
+rigCase groups
+cp "$rigTmp/groups.keys" "$MANAGER_SCREEN_RIG/rows.--manager-keys-list"
+rigRow paste "$rigTrustedFull" > "$MANAGER_SCREEN_RIG/rows.--manager-keys-read trusted-1"
+rigScript <<'RIGSCRIPT'
+turn
+keys 7
+wait list 30
+keys DOWN DOWN ENTER
+wait list 30
+turn
+wait plan 30
+turn
+wait plan 30
+turn
+wait plan 30
+turn
+get in
+cells row2 3 85 119
+cells row3 4 85 119
+cells row4 5 85 119
+cells row5 6 85 119
+cells row6 7 85 119
+show u
+RIGSCRIPT
+rigAssert "two groups, each by the label its row gives, the keys under the row ahead of them whatever each is for, the keys we trust last" "$( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )][$( rigCell row5 )][$( rigCell row6 )]" "6 [ Our Keys To Trust][ ~ Deploy Key][ ~ Host Key ED25519][ Keys We Trust][ ~ laptop@rig]"
+rigAssert "a key we trust is read by its name as the others are, and its whole line stands in its row" "$( rigCalled '--manager-keys-read trusted-1' ) $( rigColumnJoined u 'PUBLIC LINE' | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAItrustedTRUSTEDtrusted' )" "1 1"
 
 echo "-- an older tooling: no row of a group and no whole line in the list --"
 rigCase older
@@ -436,7 +508,7 @@ turn
 root configuration
 keys ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 show sc
 keys ENTER
@@ -478,9 +550,9 @@ rigTrim(){ ## name -- the cells of that name without the spaces at their end
 }
 rigAssert "a subject with groups of lines of one name: a heading for each group, and each line under its own, set in by two" "$( rigVal in.path ) $( rigVal in.rows ) [$( rigTrim r1 )][$( rigTrim r2 )][$( rigTrim r3 )][$( rigTrim r4 )][$( rigTrim r5 )][$( rigTrim r6 )][$( rigTrim r7 )][$( rigTrim r8 )][$( rigTrim r9 )][$( rigTrim r10 )]" "configuration/cli 13 [ Workspace Defaults][   Spawn CLI Service][ claude][   CLI Usable][   CLI Key...][ grok][   CLI Usable][ copilot][   CLI Usable][ claude-native]"
 rigAssert "a heading is the label the row of its group gives, and a line under it is titled with that label; a group whose row gives none, and one that has no row, as a digest of before prints it, keep their own word" "[$( rigTrim r1 )] [$( rigVal wtitle )] [$( rigTrim r3 )] [$( rigTrim r6 )] [$( rigTrim r8 )]" "[ Workspace Defaults] [Workspace Defaults: Spawn CLI Service [wrap]] [ claude] [ grok] [ copilot]"
-rigAssert "a heading selected: the left window shows that group alone, a table CLI KEY VALUE (the owner: \"Make MEMBER KEY VALUE\", and the CLI view the same), each line by its CLI and its key with what it reads as, of a secret only its state" "[$( rigVal head.selected )] [$( rigPane hc 2 )][$( rigPane hc 3 | LC_ALL=C tr -s ' ' )][$( rigPane hc 4 | LC_ALL=C tr -s ' ' )][$( rigPane hc 5 | LC_ALL=C tr -s ' ' )][$( rigPane hc 6 | LC_ALL=C tr -s ' ' )][$( rigPane hc 7 | LC_ALL=C tr -s ' ' )] $( rigScreenHolds hc sk-never-shown ) $( rigScreenHolds hc SETTING )" "[group claude] [ claude [wrap]][ KEY VALUE][][ usable yes][][ RIG_CLI_KEY sk-n********** (configured)] 0 0"
+rigAssert "a heading selected: the left window shows that group alone, a table CLI KEY VALUE (the owner: \"Make MEMBER KEY VALUE\", and the CLI view the same), each line by its CLI and its key with what it reads as, of a secret only its state" "[$( rigVal head.selected )] [$( rigPane hc 2 )][$( rigPane hc 3 | LC_ALL=C tr -s ' ' )][$( rigPane hc 4 | LC_ALL=C tr -s ' ' )][$( rigPane hc 5 | LC_ALL=C tr -s ' ' )][$( rigPane hc 6 | LC_ALL=C tr -s ' ' )][$( rigPane hc 7 | LC_ALL=C tr -s ' ' )] $( rigScreenHolds hc sk-never-shown ) $( rigScreenHolds hc SETTING )" "[group claude] [ claude [wrap]][ KEY VALUE][][ usable yes][][ RIG_CLI_KEY sk-n**********] 0 0"
 rigSubjectPane="$( for rigNumber in 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 ; do printf '%s|' "$( rigPane sc "$rigNumber" | LC_ALL=C tr -s ' ' )" ; done )"
-rigSubjectWant=' CLI KEY VALUE|| grok usable no|| workspace SPAWN_CLI_SERVICE claude|| claude usable yes|| claude RIG_CLI_KEY sk-n********** (configured)|| copilot usable yes|| claude-native present /rig/bin/claude|| claude-native usable yes|'
+rigSubjectWant=' CLI KEY VALUE|| grok usable no|| workspace SPAWN_CLI_SERVICE claude|| claude usable yes|| claude RIG_CLI_KEY sk-n**********|| copilot usable yes|| claude-native present /rig/bin/claude|| claude-native usable yes|'
 [ "${rigSubjectPane#*"$rigSubjectWant"}" = "$rigSubjectPane" ] || rigSubjectPane="holds"
 rigAssert "the subject selected: a table CLI KEY VALUE, a row a line with its CLI, the missing one first, no heading row and no title column; a harness leg has no CLI Present (the owner: \"remove \`present\` - it is always present it is in sh-lib\"), the vendor CLI keeps its binary" "$rigSubjectPane $( rigScreenHolds sc 'CLI Present' ) $( rigScreenHolds sc 'SETTING' )" "holds 0 0"
 rigAssert "Enter on a heading does nothing: the status line says that the row has nothing to open" "[$( rigVal entered.path )] [$( rigVal entered.selected )] [$( rigVal entered.notice )] [$( rigVal entered.dialog )]" "[configuration/cli] [group claude] [Open: this row has nothing to open] []"
@@ -539,6 +611,30 @@ rigAssert "a command selected: its help is read by the help read with its name, 
 rigAssert "its option heads its text, set in as the help sets it, plain as --help prints it, and a long sentence is broken to the window" "$( rigPaneHolds h '         --rig-option <value>' ) $( rigLookOf h hr '--rig-option <value>' ) $( rigScreenHolds h 'ENDWORD' ) $( rigScreenHolds h 'What the option does, a long sentence that goes on and on, so that it is broken across the width of the left window, and ENDWORD.' )" "1 .................... 1 0"
 rigAssert "g shows it as it is, b renders it again, and w cuts each line instead of breaking it" "$( rigVal raw.textMode ) $( rigPaneHolds r ' ##  Summary:' ) $( rigVal cut.textMode ) $( rigScreenHolds c 'What the option does, a long sentence that goes on and on, so that' ) $( rigScreenHolds c 'ENDWORD' ) $( rigScreenHolds c '[cut]' )" "raw 1 summary 1 0 1"
 rigAssert "a command whose help read gives nothing says plainly that it has no help file, and only the selected commands were read" "$( rigVal none.selected ) $( rigPaneHolds n ' JumpRig.fn.sh has no help file beside it.' ) $( LC_ALL=C grep -c -e '^--manager-help-read' "$MANAGER_SCREEN_RIG/calls" ) $( rigCalled '--manager-help-read ScreenTo.fn.sh' )" "JumpRig.fn.sh 1 2 0"
+
+echo "-- Diagnostics: the resolved context of the tooling, read-only, a name and a value (F11.7) --"
+rigCase diag
+printf 'team-member: user-rig\nsession-id: \nselect-workspace: /rig/ws_rig\nMDAT_SLACK_BOT_TOKEN: xoxb-12**********\nMDAT_DATA_ROOT: /rig/ws_rig/.local/team-data\n' > "$MANAGER_SCREEN_RIG/rows.--intern-context-show"
+rigScript <<'RIGSCRIPT'
+at @configuration diagnostics
+wait list 30
+turn
+get in
+rowids ids
+show up
+keys DOWN
+turn
+get one
+show one
+keys DOWN DOWN DOWN
+turn
+get tok
+show tok
+RIGSCRIPT
+rigAssert "the folder lists each name of what the operation printed, one read of it, and it is a folder of the Configuration" "$( rigVal in.path ) / $( rigVal ids ) / $( rigCalled --intern-context-show )" "configuration/diagnostics / .. team-member session-id select-workspace MDAT_SLACK_BOT_TOKEN MDAT_DATA_ROOT / 1"
+rigAssert "on the row that goes up the left pane is the table of name and value, a value left empty as a dash" "$( rigPaneHolds up '  team-member           user-rig' ) $( rigPaneHolds up '  session-id            -' ) $( rigPaneHolds up '  MDAT_DATA_ROOT        /rig/ws_rig/.local/team-data' )" "1 1 1"
+rigAssert "a name selected: its name and its value, as a parameter" "$( rigVal one.selected ) [$( rigPane one 3 )]" "team-member [ team-member = user-rig]"
+rigAssert "a credential is shown in the one form the operation printed it in, and nothing more" "$( rigVal tok.selected ) $( rigScreenHolds tok 'xoxb-12**********' ) $( rigScreenHolds tok 'xoxb-12345' )" "MDAT_SLACK_BOT_TOKEN 1 0"
 
 echo "-- the real screen on a pseudo-terminal: it starts, shows Configuration with its folders, and Ctrl-X ends it --"
 rigCase pty

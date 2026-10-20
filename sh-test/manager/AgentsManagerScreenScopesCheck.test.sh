@@ -119,7 +119,7 @@ at @configuration scopes
 rowids lids
 RIGSCRIPT
 rigAssert "Settings holds Scope Settings among the rows it always holds, ahead of its subjects" "$( rigVal sids )" ".. scopes interface"
-rigAssert "Configuration holds no folder of the scopes: its rows are its folders and its other subjects" "$( rigVal cids | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x scopes || : ) / $( rigVal cids )" "0 / .. checker keys git subsystems workspace"
+rigAssert "Configuration holds no folder of the scopes: its rows are its folders and its other subjects" "$( rigVal cids | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x scopes || : ) / $( rigVal cids )" "0 / .. checker keys git subsystems diagnostics workspace"
 rigAssert "the lines of the scopes of the digest are still the level Member Settings reads" "$( rigVal lids )" ".. magic-team SPAWN_CLI_SERVICE"
 
 echo "-- 2, 3. entered, and what the left pane shows --"
@@ -259,6 +259,73 @@ get esc
 RIGSCRIPT
 rigAssert "Esc saves nothing" "[$( rigVal esc.dialog )] $( rigCalls )" "[] 0"
 
+echo "-- 4b. every variable is editable with Enter (F11.7): a plain, an enum and a path one --"
+rigCase kinds
+{
+	rigRow scope agents:magic-team Agents:_magic-team 3 yes yes /rig/ws/.local/.agents/magic-team.agent.env
+	rigRow key SPAWN_CLI_SERVICE set claude setting the_agent_CLI_this_workspace_starts
+	rigRow key MDAT_KNOWLEDGE_STORE set off setting -
+	rigRow key TEAM_DATA_ROOT set /rig/ws/team-data setting the_folder_of_the_team_data
+} > "$MANAGER_SCREEN_RIG/rows.--manager-scope-read agents:magic-team"
+printf 'off\n' > "$MANAGER_SCREEN_RIG/rows.--manager-scope-reveal agents:magic-team MDAT_KNOWLEDGE_STORE"
+printf '/rig/ws/team-data\n' > "$MANAGER_SCREEN_RIG/rows.--manager-scope-reveal agents:magic-team TEAM_DATA_ROOT"
+{
+	cat "$rigF/rows.--manager-config-digest --full"
+	rigRow subject knowledge 1 Knowledge_Store
+	rigRow line knowledge store MDAT_KNOWLEDGE_STORE set off Knowledge_Store_Switch 'Whether_the_team_keeps_a_vector_store.' yes choice user default 'off=Off,on=On' /rig/ws/.local/home/rig/MDLT.settings.env settings
+} > "$MANAGER_SCREEN_RIG/rows.--manager-config-digest --full"
+rigScript <<'RIGSCRIPT'
+root scopes
+turn
+keys ENTER
+wait list 30
+keys DOWN DOWN DOWN DOWN DOWN
+turn
+wait focus 30
+keys ENTER
+wait list 30
+wait also 30
+turn
+keys DOWN ENTER
+turn
+get plain
+wait plan 30
+turn
+get plainLoaded
+keys ESC
+turn
+keys DOWN ENTER
+turn
+get enum
+show enum
+keys DOWN SPACE
+turn
+get enumPicked
+keys ENTER
+turn
+wait action 30
+turn 2
+get enumSaved
+keys DOWN ENTER
+turn
+get path
+wait plan 30
+turn
+get pathLoaded
+keys BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE / r i g / w s / n e w
+turn
+get pathTyped
+keys ENTER
+turn
+wait action 30
+turn 2
+get pathSaved
+RIGSCRIPT
+
+rigAssert "Enter on a plain variable opens the form of a text, titled by it, and its value is read whole into the field" "$( rigVal plain.dialog ) / $( rigVal plainLoaded.dialog ) / $( rigVal plain.dialogTitle )" "scope-edit:words| / scope-edit:words|claude / Edit: SPAWN_CLI_SERVICE"
+rigAssert "one that the digest declares as a choice opens the form of a choice, both values offered, on the one it holds; its OK saves in that scope by the operation of the scope, the value on the standard input" "$( rigVal enum.dialog ) $( rigScreenHolds enum 'Off' ) $( rigScreenHolds enum ' On' ) / $( rigVal enumPicked.dialog ) / $( rigCalled '--manager-scope-set agents:magic-team MDAT_KNOWLEDGE_STORE' ) [$( rigVal enumSaved.dialog )]" "setting:choice|off 1 1 / setting:choice|on / 1 []"
+rigAssert "a variable that holds a path is the form of a text, as any: its value read whole, typed over, and saved in its scope, the value on the standard input alone" "$( rigVal pathLoaded.dialog ) / $( rigVal pathTyped.dialog ) / $( rigCalled '--manager-scope-set agents:magic-team TEAM_DATA_ROOT' ) [$( rigInput --manager-scope-set )] [$( rigVal pathSaved.dialog )] $( LC_ALL=C grep -c -F -- '/rig/ws/new' "$MANAGER_SCREEN_RIG/calls" || : )" "scope-edit:words|/rig/ws/team-data / scope-edit:words|/rig/ws/new / 1 [on/rig/ws/new] [] 0"
+
 echo "-- 5. a credential edited --"
 rigCase cred
 rigScript <<'RIGSCRIPT'
@@ -298,11 +365,13 @@ turn
 wait plan 30
 turn
 get revealed
+show revealed
 keys ENTER
 turn 3
 get unchanged
 RIGSCRIPT
 rigAssert "Reveal reads it whole, for as long as the form is open" "$( rigVal revealed.dialog ) / $( rigCalled "--manager-scope-reveal agents:magic-team SLACK_BOT_TOKEN" )" "scope-credential:words|$rigSecret / 1"
+rigAssert "Reveal also writes the value whole under the lines of the form, wrapped (F11.7), as well as in its field" "$( rigScreenHolds revealed 'Its value, whole:' ) $( rigScreenHolds revealed "$rigSecret" )" "1 2"
 rigAssert "the OK of a form that holds the value it showed saves nothing, and the value whole is on the screen of no other view" "[$( rigVal unchanged.dialog )] $( rigCalls )" "[] 0"
 rigCase credtyped
 rigScript <<'RIGSCRIPT'

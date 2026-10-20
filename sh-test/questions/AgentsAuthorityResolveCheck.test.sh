@@ -24,7 +24,7 @@
 ##   5. a mapped console account: not at once; a confirmation goes to the owner's channel, and only that acts
 ##   6. a grant: refused before it, the console caller resolves the questions of that session at once after the owners
 ##      role grants it by a recorded permission
-##   7. a dismissal without the authority fails as the answer does; enqueued, the question is not withdrawn
+##   7. a dismissal needs no authority (a refusal grants nothing): taken at once
 ##   8. the sweep: once the holder's allow stands in the request's thread, the original is answered as was asked
 ##   9. --escalate-wait: no timeout by default; approved by the holder, exit 0 and acted; denied, exit 1 and untouched;
 ##      at --timeout, exit 124 and untouched
@@ -288,9 +288,9 @@ rigThreadClick(){ ## request id, the emoji name
 rigCollect(){ rigOp --intern-op-pending-reply-collect --ended --context rig-authority ; }
 ## A dismissal the console caller is refused, enqueued: the request in rigReq, the question it would dismiss in rigOrig.
 rigDismissAsk(){ ## asking run, its member
-	rigAsk "$1" "$2" question
+	rigAsk "$1" "$2" question --select yes-no
 	rigOrig="$rigPend"
-	rigOp --manager-pending-reply-dismiss --id "$rigOrig" --reason stale --escalate-enqueue
+	rigOp --manager-pending-reply-answer --id "$rigOrig" --answer yes --escalate-enqueue
 	rigReq="$( rigPendingId )"
 }
 rigOf(){ ## pending id, field
@@ -353,14 +353,10 @@ rigAsk rig-granted-b magic-tester decision --options "$rigOptions"
 rigOp --manager-pending-reply-answer --id "$rigPend" --answer drop
 rigAssert "after the grant: another question of that session is answered at once" "$rigOpRc:$( rigPendingId ):$( rigStatus "$rigPend" )" "0::reply-received:drop"
 
-echo "-- 7. a dismissal without the authority: refused bare; enqueued, the question is not withdrawn --"
+echo "-- 7. a dismissal needs no authority (F6.10, Settled: a refusal grants nothing): it is taken at once, whoever it is asked of --"
 rigAsk rig-tester magic-tester question
 rigOp --manager-pending-reply-dismiss --id "$rigPend" --reason "stale"
-rigAssert "refused, naming magic-coordinator and both options" "$( rigRefusal magic-coordinator )" "$( rigRefusedAs )"
-rigOp --manager-pending-reply-dismiss --id "$rigPend" --reason "stale" --escalate-enqueue
-rigAssert "enqueued: PENDING, a request to the reports-to"    "$rigOpRc:$( rigRequest "$( rigPendingId )" | LC_ALL=C sed 's/^[^ ]* //' )" "0:magic-coordinator"
-rigAssert "a dismissal goes as a permission"                  "$( rigRequest "$( rigPendingId )" | LC_ALL=C cut -d' ' -f1 )" permission
-rigAssert "the question is not withdrawn"                     "$( rigStatus "$rigPend" )" "reply-pending:"
+rigAssert "taken at once, bare: the question is withdrawn, and no request is made" "$rigOpRc:$( rigStatus "$rigPend" ):$( rigPendingId )" "0:withdrawn::"
 
 echo "-- 8. the sweep: once the holder's allow stands in the request's thread, the original is answered --"
 ## The request was asked as the ask tools ask a member: a reply in the session's thread. The answer
@@ -485,8 +481,8 @@ rigAssert "the sweep acts on the holder's allow: the original is answered as the
 echo "-- 15. a request is posted in RequestPermission's form, with its emoji, and answered by reply or by click --"
 rm -f "$rigTmp"/post.* "$rigTmp/posts" "$rigTmp/reactions"
 rigDismissAsk rig-tester magic-tester
-rigPostFile="$( LC_ALL=C grep -l -F 'Allow **dismiss question' "$rigTmp"/post.* 2> /dev/null | head -1 )"
-rigAssert "the post is the permission's: its first line says plainly what is asked, and for whom" "$( LC_ALL=C grep -c -F "Allow **dismiss question $rigOrig** for **user-$rigAcct**?" "${rigPostFile:-/nonexistent}" )" 1
+rigPostFile="$( LC_ALL=C grep -l -F 'Allow **answer question' "$rigTmp"/post.* 2> /dev/null | head -1 )"
+rigAssert "the post is the permission's: its first line says plainly what is asked, and for whom" "$( LC_ALL=C grep -c -F "Allow **answer question $rigOrig with yes** for **user-$rigAcct**?" "${rigPostFile:-/nonexistent}" )" 1
 rigAssert "it has the permission's parts: why, the task, how to answer, the refusal by its id; and the old wording is gone" \
 	"$( LC_ALL=C grep -c -F -e 'Why this task needs it' -e 'How to answer' -e 'allow-session' -e 'Refusal:' "${rigPostFile:-/nonexistent}" ):$( LC_ALL=C grep -c -F 'asks for the authority of' "${rigPostFile:-/nonexistent}" || : )" "1:0"
 rigPostTs="$( rigOf "$rigReq" question-ts )"
@@ -497,23 +493,23 @@ for rigMode in reply click ; do
 		rigDismissAsk rig-tester magic-tester
 		if [ "$rigMode" = reply ] ; then rigThreadReply "$rigReq" "${rigWord%%|*}" ; else rigThreadClick "$rigReq" "${rigWord#*|}" ; fi
 		rigCollect
-		rigWant="withdrawn" ; [ "${rigWord%%|*}" != deny ] || rigWant="reply-pending"
+		rigWant="reply-received" ; [ "${rigWord%%|*}" != deny ] || rigWant="reply-pending"
 		rigAssert "$rigMode ${rigWord%%|*}: read, and applied as it says" "$( rigOf "$rigReq" verdict ):$( rigOf "$rigOrig" status )" "${rigWord%%|*}:$rigWant"
 	done
 done
 rigDismissAsk rig-tester magic-tester
 rigThreadReply "$rigReq" allow-session
 rigCollect
-rigAssert "reply allow-session: read, and the dismissal acted" "$( rigOf "$rigReq" verdict ):$( rigOf "$rigOrig" status )" "allow-session:withdrawn"
-rigAssert "it gave the requester the authority over the session while it lives: a grant of its refusal, by session" "$( LC_ALL=C grep -c "^session:authority:magic-coordinator:" "$rigWs/.local/agents/sessions/rig-cow/grants" 2> /dev/null || : )" 1
-rigAsk rig-tester magic-tester question
+rigAssert "reply allow-session: read, and the dismissal acted" "$( rigOf "$rigReq" verdict ):$( rigOf "$rigOrig" status )" "allow-session:reply-received"
+rigAssert "it gave the requester the authority over the session while it lives: a grant of its refusal, by session" "$( LC_ALL=C grep -c "^session:authority:magic-coordinator:" "$rigWs/.local/agents/sessions/rig-cow/grants" 2> /dev/null | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "granted" : "none" }' )" granted
+rigAsk rig-tester magic-tester question --select yes-no
 rigSeenMark
-rigOp --manager-pending-reply-dismiss --id "$rigPend" --reason "again"
-rigAssert "a second action on that session needs no new request: it acts at once, exit 0, no PENDING" "$rigOpRc:$( rigPendingId ):$( rigStatus "$rigPend" ):$( rigNewRequest )" "0::withdrawn::"
+rigOp --manager-pending-reply-answer --id "$rigPend" --answer yes
+rigAssert "a second action on that session needs no new request: it acts at once, exit 0, no PENDING" "$rigOpRc:$( rigPendingId ):$( rigStatus "$rigPend" ):$( rigNewRequest )" "0::reply-received:yes:"
 rigDismissAsk rig-orphan magic-tester
 rigThreadClick "$rigReq" repeat
 rigCollect
-rigAssert "click allow-session: read, and the dismissal acted" "$( rigOf "$rigReq" verdict ):$( rigOf "$rigOrig" status )" "allow-session:withdrawn"
+rigAssert "click allow-session: read, and the dismissal acted" "$( rigOf "$rigReq" verdict ):$( rigOf "$rigOrig" status )" "allow-session:reply-received"
 rigAssert "and its session has the grant too" "$( LC_ALL=C grep -c "^session:authority:" "$rigWs/.local/agents/sessions/rig-alone/grants" 2> /dev/null || : )" 1
 rigAssert "the grant is signed by the answerer the reader names, never by the owners role instead" "$( LC_ALL=C sed -n 's/^session:authority:[^:]*:\([^:]*\):.*$/\1/p' "$rigWs/.local/agents/sessions/rig-alone/grants" | head -1 )" "URIGOWNER"
 rigDismissAsk rig-asks-n keeper-myx
@@ -525,21 +521,21 @@ rigAssert "an allow-session whose answer names nobody grants nothing, says so, a
 echo "-- 16. the confirmation to the owner of a mapped console: the same way, by reply or by click --"
 rigMapOwnerTo "$rigAcct"
 rm -f "$rigTmp"/post.* "$rigTmp/posts" "$rigTmp/reactions"
-rigAsk rig-asks-n keeper-myx decision --options "$rigOptions"
+rigAsk rig-asks-n keeper-myx question --select yes-no
 rigConfirmPend="$rigPend"
 rigSeenMark
-rigOp --manager-pending-reply-answer --id "$rigConfirmPend" --answer drop
+rigOp --manager-pending-reply-answer --id "$rigConfirmPend" --answer yes
 rigConfirm="$( rigNewRequest )"
 rigConfirmTs="$( rigOf "$rigConfirm" question-ts )"
-rigAssert "the confirmation is posted in the same form, to the owner's channel, and goes as a readback" "$( rigOwnerPosts "Allow **answer question $rigConfirmPend with drop**" ):$( rigOf "$rigConfirm" kind )" "1:readback"
+rigAssert "the confirmation is posted in the same form, to the owner's channel, and goes as a readback" "$( rigOwnerPosts "Allow **answer question $rigConfirmPend with yes**" ):$( rigOf "$rigConfirm" kind )" "1:readback"
 rigAssert "its emoji are the form's: confirm and stop" "$( LC_ALL=C grep -F "$rigConfirmTs " "$rigTmp/reactions" 2> /dev/null | LC_ALL=C sed 's/^[^ ]* //' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "+1 x "
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"Confirm?","reactions":[{"name":"+1","count":1,"users":["URIGOWNER"]}]}],"has_more":false}\n' "$rigConfirmTs" > "$rigTmp/replies.$rigConfirmTs.json"
 rigCollect
-rigAssert "a click on the thumb confirms: the original is answered" "$( rigOf "$rigConfirm" verdict ):$( rigStatus "$rigConfirmPend" )" "yes:reply-received:drop"
-rigAsk rig-asks-n keeper-myx decision --options "$rigOptions"
+rigAssert "a click on the thumb confirms: the original is answered" "$( rigOf "$rigConfirm" verdict ):$( rigStatus "$rigConfirmPend" )" "yes:reply-received:yes"
+rigAsk rig-asks-n keeper-myx question --select yes-no
 rigConfirmPend="$rigPend"
 rigSeenMark
-rigOp --manager-pending-reply-answer --id "$rigConfirmPend" --answer drop
+rigOp --manager-pending-reply-answer --id "$rigConfirmPend" --answer yes
 rigConfirm="$( rigNewRequest )"
 rigConfirmTs="$( rigOf "$rigConfirm" question-ts )"
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"Confirm?"},{"ts":"1700000800.000001","user":"URIGOWNER","text":"no","thread_ts":"%s"}],"has_more":false}\n' "$rigConfirmTs" "$rigConfirmTs" > "$rigTmp/replies.$rigConfirmTs.json"
@@ -553,12 +549,12 @@ export MDAT_AUTHORITY_WAIT_READ_SECONDS=1 MDAT_AUTHORITY_WAIT_PROGRESS_SECONDS=2
 rigAlive(){ ## pid -- alive or ended
 	[ -n "$( rigProcStill "$1" )" ] && printf alive || printf ended
 }
-rigWaitAsk(){ ## result prefix, asking run, member, further words of the open... -- a question asked and its dismissal waited for: rigPend, rigBgPid, rigWReq
+rigWaitAsk(){ ## result prefix, asking run, member, further words of the open... -- a question asked and its answer waited for: rigPend, rigBgPid, rigWReq
 	local askOut="$1" askRun="$2" askMember="$3"
 	shift 3
-	rigAsk "$askRun" "$askMember" question "$@"
+	rigAsk "$askRun" "$askMember" question --select yes-no "$@"
 	rigSeenMark
-	rigBgOwn "$askOut" --manager-pending-reply-dismiss --id "$rigPend" --reason "wait" --escalate-wait
+	rigBgOwn "$askOut" --manager-pending-reply-answer --id "$rigPend" --answer yes --escalate-wait
 	rigWaitFor 20 rigHasNew
 	rigWReq="$( rigNewRequest )"
 }
@@ -568,12 +564,12 @@ sleep 2
 rigAssert "waiting: its request is open, nothing is acted, and no sweep has run" "$( rigAlive "$rigX1Pid" ):$( rigOf "$rigX1Req" status ):$( rigStatus "$rigX1Pend" )" "alive:reply-pending:reply-pending:"
 rigThreadReply "$rigX1Req" allow-once
 rigBgDone 40
-rigAssert "the owner replies allow-once in the thread: the wait reads it itself and acts, exit 0, with no main loop and no sweep" "$rigBgStatus:$( rigOf "$rigX1Req" verdict ):$( rigOf "$rigX1Req" answered-by ):$( rigOf "$rigX1Pend" status )" "0:allow-once:URIGOWNER:withdrawn"
+rigAssert "the owner replies allow-once in the thread: the wait reads it itself and acts, exit 0, with no main loop and no sweep" "$rigBgStatus:$( rigOf "$rigX1Req" verdict ):$( rigOf "$rigX1Req" answered-by ):$( rigOf "$rigX1Pend" status )" "0:allow-once:URIGOWNER:reply-received"
 rigWaitAsk "$rigTmp/x2" rig-asks-p keeper-myx
 rigX2Pend="$rigPend" ; rigX2Req="$rigWReq"
 rigThreadClick "$rigX2Req" one
 rigBgDone 40
-rigAssert "a click of the allow emoji is read the same way" "$rigBgStatus:$( rigOf "$rigX2Req" verdict ):$( rigOf "$rigX2Pend" status )" "0:allow-once:withdrawn"
+rigAssert "a click of the allow emoji is read the same way" "$rigBgStatus:$( rigOf "$rigX2Req" verdict ):$( rigOf "$rigX2Pend" status )" "0:allow-once:reply-received"
 rigWaitAsk "$rigTmp/x3" rig-asks-p keeper-myx
 rigX3Pend="$rigPend" ; rigX3Req="$rigWReq"
 rigThreadReply "$rigX3Req" deny
@@ -603,7 +599,7 @@ sleep 6
 rigAssert "a free-text reply names no answer: the wait goes on, the request stays open, and the person is told once in the thread what to reply" "$( rigAlive "$rigX4Pid" ):$( rigOf "$rigX4Req" status ):$( rigToldCount 'names none of the answers' )" "alive:reply-pending:1"
 rigThreadReply "$rigX4Req" allow-once
 rigBgDone 40
-rigAssert "and a reply that names one ends it as ever" "$rigBgStatus:$( rigOf "$rigX4Req" verdict ):$( rigOf "$rigX4Pend" status )" "0:allow-once:withdrawn"
+rigAssert "and a reply that names one ends it as ever" "$rigBgStatus:$( rigOf "$rigX4Req" verdict ):$( rigOf "$rigX4Pend" status )" "0:allow-once:reply-received"
 ## The ask was made in the owner's direct conversation, where a message typed there (not as a reply in the thread) is read by no one.
 rigWaitAsk "$rigTmp/x5" rig-asks-p keeper-myx
 rigX5Pend="$rigPend" ; rigX5Req="$rigWReq" ; rigX5Pid="$rigBgPid"
@@ -616,13 +612,13 @@ rigAssert "a message the owner wrote in the direct conversation outside the thre
 rm -f "$rigTmp/history.json"
 rigThreadReply "$rigX5Req" allow-once
 rigBgDone 40
-rigAssert "and the reply in the thread ends it" "$rigBgStatus:$( rigOf "$rigX5Req" verdict ):$( rigOf "$rigX5Pend" status )" "0:allow-once:withdrawn"
+rigAssert "and the reply in the thread ends it" "$rigBgStatus:$( rigOf "$rigX5Req" verdict ):$( rigOf "$rigX5Pend" status )" "0:allow-once:reply-received"
 
 echo "-- 17b. the waiter says it is alive; the second and third request post at once; a repeat joins the request already made --"
 rigWaitAsk "$rigTmp/y1" rig-asks-p keeper-myx
 rigY1Pend="$rigPend" ; rigY1Req="$rigWReq" ; rigY1Pid="$rigBgPid"
 rigThreadOpen "$rigY1Req"
-sleep 7
+sleep 10
 rigAssert "it prints a progress line now and then: how long it has waited, how many looks it made, how many failed" "$( LC_ALL=C grep -c -E "^waiting [0-9]+s, [0-9]+ checks, 0 errors \(request $rigY1Req\)" "$rigTmp/y1.err" | LC_ALL=C awk '{ print ( $1 >= 2 ) ? "repeated" : "only " $1 }' )" "repeated"
 ## the first wait is pending; a second request for another session, and a third, are posted at once: nothing is held across a wait
 rigPosts1="$( cat "$rigTmp/posts" 2> /dev/null || echo 0 )"
@@ -635,7 +631,7 @@ for rigYReq in "$rigY2Req" "$rigY3Req" ; do rigThreadReply "$rigYReq" deny ; don
 rigBgPid="$rigY2Pid" ; rigBgDone 40 ; rigBgPid="$rigY3Pid" ; rigBgDone 40
 ## a repeat of the very same call joins the request already made, and the answer settles both
 rigSeenMark
-rigBgOwn "$rigTmp/y4" --manager-pending-reply-dismiss --id "$rigY1Pend" --reason "wait" --escalate-wait
+rigBgOwn "$rigTmp/y4" --manager-pending-reply-answer --id "$rigY1Pend" --answer yes --escalate-wait
 rigY4Pid="$rigBgPid"
 sleep 4
 rigAssert "a repeat for the same target says it plainly, makes no new request, and waits on that one" "$( LC_ALL=C grep -c -F "already asked as $rigY1Req, waiting" "$rigTmp/y4.out" ):$( rigNewRequest ):$( rigAlive "$rigY4Pid" )" "1::alive"
@@ -643,27 +639,27 @@ rigThreadReply "$rigY1Req" allow-once
 rigBgPid="$rigY1Pid" ; rigBgDone 40 ; rigY1Rc="$rigBgStatus"
 rigBgPid="$rigY4Pid" ; rigBgDone 40 ; rigY4Rc="$rigBgStatus"
 rigY4Ended=ended ; { [ "$rigY1Rc" = 0 ] || [ "$rigY1Rc" = 1 ] ; } && { [ "$rigY4Rc" = 0 ] || [ "$rigY4Rc" = 1 ] ; } && { [ "$rigY1Rc" = 0 ] || [ "$rigY4Rc" = 0 ] ; } || rigY4Ended="$rigY1Rc/$rigY4Rc"
-rigAssert "the one answer settles both callers: both waits end, one acted at once (exit 0) and the other found it done" "$rigY4Ended:$( rigOf "$rigY1Req" verdict ):$( rigOf "$rigY1Pend" status )" "ended:allow-once:withdrawn"
+rigAssert "the one answer settles both callers: both waits end, one acted at once (exit 0) and the other found it done" "$rigY4Ended:$( rigOf "$rigY1Req" verdict ):$( rigOf "$rigY1Pend" status )" "ended:allow-once:reply-received"
 ## joining one that was only enqueued: the repeat waits on it, and the answer it reads is acted on by it
-rigAsk rig-asks-p keeper-myx question
+rigAsk rig-asks-p keeper-myx question --select yes-no
 rigZPend="$rigPend"
-rigOp --manager-pending-reply-dismiss --id "$rigZPend" --reason "enq" --escalate-enqueue
+rigOp --manager-pending-reply-answer --id "$rigZPend" --answer yes --escalate-enqueue
 rigZReq="$( rigPendingId )"
-rigBgOwn "$rigTmp/z1" --manager-pending-reply-dismiss --id "$rigZPend" --reason "enq" --escalate-wait
+rigBgOwn "$rigTmp/z1" --manager-pending-reply-answer --id "$rigZPend" --answer yes --escalate-wait
 rigZPid="$rigBgPid"
 sleep 4
 rigAssert "a repeat of an enqueued call joins it: said plainly, the request becomes a waited one, and no new request is made" "$( LC_ALL=C grep -c -F "already asked as $rigZReq, waiting" "$rigTmp/z1.out" ):$( rigOf "$rigZReq" request-mode ):$( rigAlive "$rigZPid" )" "1:wait:alive"
 rigThreadReply "$rigZReq" allow-once
 rigBgDone 40
-rigAssert "and its answer, read by that wait, is acted on: the question is dismissed" "$rigBgStatus:$( rigOf "$rigZReq" verdict ):$( rigOf "$rigZPend" status )" "0:allow-once:withdrawn"
+rigAssert "and its answer, read by that wait, is acted on: the question is dismissed" "$rigBgStatus:$( rigOf "$rigZReq" verdict ):$( rigOf "$rigZPend" status )" "0:allow-once:reply-received"
 ## an enqueue left to the sweep says so where no main loop has run on this host, and how it is acted on
-rigAsk rig-asks-p keeper-myx question
+rigAsk rig-asks-p keeper-myx question --select yes-no
 rm -f "$rigWs/.local/temp/mdat-authority-sweep-at"
-rigOp --manager-pending-reply-dismiss --id "$rigPend" --reason "n1" --escalate-enqueue
+rigOp --manager-pending-reply-answer --id "$rigPend" --answer yes --escalate-enqueue
 rigAssert "with no sweep ever run on this host, the PENDING reply says so in one line more, and how it will be acted on" "$( LC_ALL=C sed -n '1p' "$rigTmp/op.out" | LC_ALL=C cut -c1-8 ):$( LC_ALL=C grep -c -E '^NOTE: no main loop has swept the requests on this host \(never\), so .* is acted on by the next sweep, or by a wait on it' "$rigTmp/op.out" )" "PENDING :1"
 rigCollect
-rigAsk rig-asks-p keeper-myx question
-rigOp --manager-pending-reply-dismiss --id "$rigPend" --reason "n2" --escalate-enqueue
+rigAsk rig-asks-p keeper-myx question --select yes-no
+rigOp --manager-pending-reply-answer --id "$rigPend" --answer yes --escalate-enqueue
 rigAssert "once a sweep has run it is not said: the reply is the PENDING line alone" "$( LC_ALL=C grep -c . "$rigTmp/op.out" ):$( LC_ALL=C grep -c '^NOTE' "$rigTmp/op.out" )" "1:0"
 echo "-- 17c. the console polls its own requests while it is open (its period reads the count of the asks), and no one else's --"
 rigFresh(){ ## request id -- the ask made now, as it is in life (the pace of the poll goes by the age of the ask)
@@ -672,13 +668,13 @@ rigFresh(){ ## request id -- the ask made now, as it is in life (the pace of the
 	sed -i.bak -e "s/^question-ts: .*/question-ts: $freshTs/" -e "s/^thread-ts: .*/thread-ts: $freshTs/" "$freshFile" && rm -f "$freshFile.bak"
 }
 rigCountRead(){ rigOp --member-pending-reply-read magic-coordinator --any-owner --count ; }
-rigAsk rig-asks-p keeper-myx question
+rigAsk rig-asks-p keeper-myx question --select yes-no
 rigPollMine="$rigPend"
-rigOp --manager-pending-reply-dismiss --id "$rigPollMine" --reason "mine" --escalate-enqueue
+rigOp --manager-pending-reply-answer --id "$rigPollMine" --answer yes --escalate-enqueue
 rigPollMineReq="$( rigPendingId )"
-rigAsk rig-asks-p keeper-myx question
+rigAsk rig-asks-p keeper-myx question --select yes-no
 rigPollTeam="$rigPend"
-rigOp --manager-pending-reply-dismiss --id "$rigPollTeam" --reason "theirs" --escalate-enqueue
+rigOp --manager-pending-reply-answer --id "$rigPollTeam" --answer yes --escalate-enqueue
 rigPollTeamReq="$( rigPendingId )"
 ## the second is the team's own: a request a member made, not the console
 sed -i.bak "s/^requester: .*/requester: magic-tester/" "$( rigRecordOf "$rigPollTeamReq" )" && rm -f "$( rigRecordOf "$rigPollTeamReq" ).bak"
@@ -691,14 +687,24 @@ rigLaterReply(){ ## request id, the reply -- written after the ask, as it is in 
 }
 rigLaterReply "$rigPollMineReq" allow-once ; rigLaterReply "$rigPollTeamReq" allow-once
 rigCountRead
-rigAssert "the count read of the console, on its period, finds its own enqueued request answered in its thread and acts on it, with no main loop and no sweep; it still prints the count alone" "$( rigOf "$rigPollMineReq" verdict ):$( rigStatus "$rigPollMine" ):$( LC_ALL=C grep -c '^[0-9][0-9]*$' "$rigTmp/op.out" ):$( LC_ALL=C grep -c . "$rigTmp/op.out" )" "allow-once:withdrawn::1:1"
+rigAssert "the count read of the console, on its period, finds its own enqueued request answered in its thread and acts on it, with no main loop and no sweep; it still prints the count alone" "$( rigOf "$rigPollMineReq" verdict ):$( rigStatus "$rigPollMine" ):$( LC_ALL=C grep -c '^[0-9][0-9]*$' "$rigTmp/op.out" ):$( LC_ALL=C grep -c . "$rigTmp/op.out" )" "allow-once:reply-received:yes:1:1"
 rigAssert "a request of the team is not touched by it: its answer stands in its thread, and it stays open with its question" "$( rigOf "$rigPollTeamReq" status ):$( rigStatus "$rigPollTeam" )" "reply-pending:reply-pending:"
 ## a request whose requester is a member, and that member's own count read: it polls nothing either (only the person at the console polls)
 sed -i.bak "s/^requester: .*/requester: magic-tester/" "$( rigRecordOf "$rigPollTeamReq" )" && rm -f "$( rigRecordOf "$rigPollTeamReq" ).bak"
 RIG_OP_AGENT=magic-tester RIG_OP_SESSION=rig-tester rigOp --member-pending-reply-read magic-tester --any-owner --count
 rigAssert "a member's count read polls nothing: the answer in the thread of its own request is left to its Wait or the sweep" "$( rigOf "$rigPollTeamReq" status ):$( LC_ALL=C grep -c '^[0-9][0-9]*$' "$rigTmp/op.out" )" "reply-pending:1"
 rigCollect
-rigAssert "(and the sweep of the main loop does settle it, so the reply was there to be read)" "$( rigOf "$rigPollTeamReq" verdict ):$( rigStatus "$rigPollTeam" )" "allow-once:withdrawn:"
+rigAssert "(and the sweep of the main loop does settle it, so the reply was there to be read)" "$( rigOf "$rigPollTeamReq" verdict ):$( rigStatus "$rigPollTeam" )" "allow-once:reply-received:yes"
+echo "-- 18. a refusal is never gated (F6.10, Settled): the person at the console denies a request asked of the human-owner; approving still needs the authority --"
+rigAsk rig-asks-p keeper-myx question --select yes-no
+rigRefOrig="$rigPend"
+rigOp --manager-pending-reply-answer --id "$rigRefOrig" --answer yes --escalate-enqueue
+rigRefReq="$( rigPendingId )"
+rigOp --manager-pending-reply-answer --id "$rigRefReq" --answer allow-once
+rigAssert "an allow of a request asked of the human-owner is refused: the caller is not that, and the request stays open" "$rigOpRc:$( LC_ALL=C grep -c 'is not that, so it cannot answer it' "$rigTmp/op.err" ):$( rigOf "$rigRefReq" status )" "1:1:reply-pending"
+rigOp --manager-pending-reply-answer --id "$rigRefReq" --reject
+rigAssert "its deny is taken and recorded as the person at the console, and the question it would have acted on is untouched" "$rigOpRc:$( rigOf "$rigRefReq" status ):$( rigOf "$rigRefReq" verdict ):$( rigOf "$rigRefReq" answered-by ):$( rigStatus "$rigRefOrig" )" "0:reply-received:deny:user-$rigAcct:reply-pending:"
+
 unset MDAT_AUTHORITY_WAIT_READ_SECONDS MDAT_AUTHORITY_WAIT_PROGRESS_SECONDS
 
 echo "-- 12. the escalation tool states when to escalate, with its threshold, in its own description --"

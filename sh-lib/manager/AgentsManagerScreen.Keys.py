@@ -124,6 +124,31 @@ def commandOfKey(state, key):
     return None
 
 
+## THE MAIN ACTION OF AN ITEM (owner, 2026-10-20): where the selected item does not handle Enter itself, Enter runs the item's main action, one framework rule and no rule of a
+## view. The action a command declares as main ("main": True) first; else the first of edit, configure, change and open the item has; else any other action it has, one that
+## destroys last (DESTRUCTIVE_SAYS) -- every one asks for its confirmation, as it does by its own key. Within a kind, the first in the order the commands stand in, which is
+## the status line's. Only an action on the row (a command that names its places, "on") is one; None where the item has none.
+MAIN_SAYS = ("edit", "configure", "change", "open")
+DESTRUCTIVE_SAYS = ("delete", "kill", "uninstall", "regenerate", "clear", "finish", "reject", "dismiss", "remove", "unset")
+
+
+def mainActionOf(state):
+    handled = commandOfKey(state, "ENTER")
+    if handled is not None and handled["does"][0] != "open":
+        return None
+    best = None
+    for index, command in enumerate(COMMANDS):
+        if command["does"][0] != "action" or "on" not in command or "ENTER" in commandKeys(command):
+            continue
+        if not commandInView(state, command) or not commandApplies(state, command):
+            continue
+        says = command.get("says", "")
+        rank = (0 if command.get("main") else 1 if says in MAIN_SAYS else 3 if says in DESTRUCTIVE_SAYS else 2, MAIN_SAYS.index(says) if says in MAIN_SAYS else 0, index)
+        if best is None or rank < best[0]:
+            best = (rank, command)
+    return best[1] if best else None
+
+
 ## What a command is named by where the screen says something of it: as its menu shows
 ## it, else its word of the status line.
 def commandSaid(command):
@@ -181,7 +206,7 @@ def commandRefusal(state, command):
     if does[0] == "up":
         return "" if state.path else REFUSALS["up"] % said
     if does[0] == "open":
-        return "" if row is not None and (row["dive"] or row["kind"] == "up") else REFUSALS["open"] % said
+        return "" if row is not None and (row["dive"] or row["kind"] == "up" or mainActionOf(state) is not None) else REFUSALS["open"] % said
     return ""
 
 
@@ -289,7 +314,13 @@ def runCommand(state, command, layout, key=None):
         ## one level up a press; at the root nothing (goUp), and the keys stay in the list
         goUp(state)
     elif does[0] == "open":
-        diveIn(state, listRowsHeight(state, layout))
+        row = selectedRow(state)
+        main = mainActionOf(state) if row is not None and not row["dive"] and row["kind"] != "up" else None
+        if main is not None:
+            ## the row does not take Enter itself: Enter runs its main action, which asks first as it always did
+            runCommand(state, main, layout)
+        else:
+            diveIn(state, listRowsHeight(state, layout))
     elif does[0] == "up":
         goUp(state)
     elif does[0] == "go":

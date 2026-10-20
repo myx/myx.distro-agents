@@ -452,14 +452,15 @@ ACTION_FITS["cliauto"] = lambda state, row: wizardOfRow(state, row) == "cli-serv
 ACTION_REFUSALS["cliauto"] = lambda state, row: "it has no CLI to select"
 
 
-## The groups of server keys that are the account's, which the wizards make, replace and remove; a host key of the server, `trust-on-connect`, is the system's.
-KEY_MAKE_GROUPS = ("add-to-git", "add-to-authorized-keys")
+## The server keys that are the account's, which the wizards make, replace and remove (by their names, since a group is no longer a kind of key: F11.7);
+## a host key of the server and a key it trusts are not.
+KEY_MAKE_KEYS = ("deploy", "generated", "outgoing")
 
 
 ## A server key of the account, not a host key of the server.
 def keyMine(row):
     held = row.get("serverKey") if row else None
-    return held is not None and held["group"] in KEY_MAKE_GROUPS
+    return held is not None and held["key"] in KEY_MAKE_KEYS
 
 
 def keyWizardFits(what):

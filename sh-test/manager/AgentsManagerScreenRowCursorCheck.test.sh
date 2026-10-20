@@ -5,7 +5,7 @@
 ## (check-fixtures/manager-screen.tools.stub.sh), which prints the case's fixture.
 ## Held, for a table that is all of the left window (the members of the team, here eighty of them):
 ##   1. by default it is read like a text with `less`: no row is highlighted, and the keys of the paging scroll it
-##   2. Enter puts a row cursor on the top visible row, drawn as the selection is, and the arrows move it a row
+##   2. Enter puts a row cursor on the top visible row, drawn as the selection is (as wide as the table, F11.0), and the arrows move it a row
 ##   3. Enter on a row opens that row whole in the information dialog, one `head: cell` line for each column of the table; Esc closes
 ##      the dialog, with the cursor where it was
 ##   4. Esc leaves the cursor, back to reading; with no cursor it does nothing to the table
@@ -90,13 +90,23 @@ for number, line in enumerate(shown):
         marked.append(text)
     if re.match(r"[0-9]+ ", text):
         numbers.append(text.split(" ")[0])
-if what == "marked":
+if what == "extent":
+    ## where the selection starts and ends in the left window: cells counted from the border of the window
+    for number, line in enumerate(shown):
+        if number < len(roles) and roles[number][1:84].count("R") >= 6:
+            first, last = roles[number].index("R", 1), roles[number].rindex("R", 0, 84)
+            print("%d %d" % (first, last))
+            break
+elif what == "marked":
     print(" // ".join(marked) if marked else "none")
 else:
     print(" ".join(numbers))
 RIGLEFT
 rigMarked(){ ## text tag, roles tag -- the marked lines of the left window, their blanks squeezed, joined by ` // `, or `none`
 	printf '%s\n' "$rigOut" | "$rigPython" -I -B "$rigTmp/left.py" marked "$1" "$2"
+}
+rigExtent(){ ## text tag, roles tag -- the first and the last cell of the selection in the left window
+	printf '%s\n' "$rigOut" | "$rigPython" -I -B "$rigTmp/left.py" extent "$1" "$2"
 }
 rigNumbers(){ ## text tag -- the numbers at the start of the numbered rows in view in the left window, in a line
 	printf '%s\n' "$rigOut" | "$rigPython" -I -B "$rigTmp/left.py" numbers "$1" -
@@ -129,6 +139,10 @@ keys ENTER
 get cursor
 show b
 roles bR
+keys w
+show bw
+roles bwR
+keys w
 keys DOWN
 show c
 roles cR
@@ -166,6 +180,7 @@ roles kR
 RIGSCRIPT
 rigAssert "control: the table of the members is the left window, which has the keys, and holds more rows than it shows" "$( rigVal read.focus ) $( [ "$( rigVal read.viewLines )" -gt 60 ] && echo long || echo "short: $( rigVal read.viewLines )" )" "view long"
 rigAssert "by default no row is highlighted, also after the keys of the paging scrolled it" "$( rigMarked a aR ) / $( rigMarked a2 a2R ) / $( rigVal read.viewTop )" "none / none / 0"
+rigAssert "the selection is as wide as the table is, wrapped and cut: from its first column to its last, not the width of the pane (F11.0: a background never protrudes); the pane is wider, 83 cells" "$( rigExtent b bR ) / $( rigExtent bw bwR )" "2 47 / 2 47"
 rigFirstRow="$( rigNumbers b | LC_ALL=C awk '{ print $1 }' )"
 rigAssert "Enter puts the cursor on the top visible row, drawn as the selection is: one row, the first one in view" "$( rigNumberOf "$( rigMarked b bR )" ) $( rigMarked b bR | LC_ALL=C grep -c -F ' // ' )" "$rigFirstRow 0"
 rigAssert "the arrows move it a row at a time" "$( rigNumberOf "$( rigMarked c cR )" ) $( rigNumberOf "$( rigMarked d dR )" ) $( rigNumberOf "$( rigMarked e eR )" )" "$(( rigFirstRow + 1 )) $(( rigFirstRow + 3 )) $(( rigFirstRow + 2 ))"
