@@ -1,0 +1,398 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.DispatcherSchedule.include -- the schedule's operations of TeamDispatcher (F7.5, DistroAgentsDispatcher.fn.sh):
+## the flags, their setters and the interpreter of a routine's autorun. Sourced by that file, for its functions only.
+##
+## SCHEDULING IS A CONVENTION WITH AN INTERPRETER, not a subsystem: it is frontmatter a routine declares (`runs-at: <days> <HH:MM>`,
+## `runs-after: <routine>`) plus a few configured values, and Dispatcher, which owns the runs and the policy deciding when a run
+## starts, reads both. The flags are derived, never stored: worktime falls out of the timezone, the hours, the days and the clock;
+## weekend out of the timezone, its days and the clock. What persists is settings, in the magic-team scope: MDAT_SCHEDULE_COUNTRY,
+## _TIMEZONE, _WORKTIME (`<start> <until> <days>`) and _WEEKEND (`<days>`), and the three overrides, MDAT_SCHEDULE_EMERGENCY and
+## _OVERTIME (`until <epoch>`, or `on` for an overtime with no end) and MDAT_SCHEDULE_LEARNING (`on`). The days are F5.4's: workdays,
+## weekend, daily or a list such as mon,thu; workdays and weekend are read against the weekend setting, which is itself a list.
+## The zone's offset is that of now, used for the days around now. Every instant here is an epoch (date +%s) and the arithmetic is
+## integer arithmetic, never date(1) arithmetic (MAGIC.md).
+##
+
+agentsScheduleWeekdays="sun mon tue wed thu fri sat"
+agentsScheduleDayList='(mon|tue|wed|thu|fri|sat|sun)(,(mon|tue|wed|thu|fri|sat|sun))*'
+
+type AgentsToolsSpawnRoutineResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include"
+type AgentsToolsRoutineKeyOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
+type AgentsToolsDispatcherHistory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.Dispatcher.include"
+
+## The tooling's own function, for the settings and the posts: the loader of ThisSession finds the common library and sources it.
+AgentsToolsScheduleTools(){
+	type DistroAgentsTools > /dev/null 2>&1 && return 0
+	type DistroAgentsSessionTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsSession.fn.sh"
+	DistroAgentsSessionTools
+}
+
+## A setting of the magic-team scope; nothing printed where none is stored.
+AgentsToolsScheduleSetting(){ ## key
+	local settingValue
+	settingValue="$( DistroAgentsTools --agents-config-option magic-team --select-default "$1" "-" 2> /dev/null )" || settingValue="-"
+	case "$settingValue" in ''|-) return 0 ;; esac
+	printf '%s\n' "$settingValue"
+}
+
+## The instant and the zone, as "<epoch> <offset seconds> <weekday 0-6, sunday first> <seconds into the local day>".
+AgentsToolsScheduleClock(){
+	local clockZone clockEpoch clockOffset clockSeconds clockLocal
+	clockZone="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_TIMEZONE )"
+	clockEpoch="$( date +%s )"
+	if [ -n "$clockZone" ] ; then clockOffset="$( TZ="$clockZone" date +%z )" ; else clockOffset="$( date +%z )" ; fi
+	case "$clockOffset" in
+		[+-][0-9][0-9][0-9][0-9]) clockSeconds=$(( 10#${clockOffset:1:2} * 3600 + 10#${clockOffset:3:2} * 60 )) ; [ "${clockOffset:0:1}" = "+" ] || clockSeconds=$(( 0 - clockSeconds )) ;;
+		*) clockSeconds=0 ;;
+	esac
+	clockLocal=$(( clockEpoch + clockSeconds ))
+	printf '%s %s %s %s\n' "$clockEpoch" "$clockSeconds" "$(( ( clockLocal / 86400 + 4 ) % 7 ))" "$(( clockLocal % 86400 ))"
+}
+
+## The name of a weekday number, 0 (sunday) to 6.
+AgentsToolsScheduleDayName(){ ## number
+	local dayNumber="$1"
+	set -- $agentsScheduleWeekdays
+	shift "$dayNumber"
+	printf '%s\n' "$1"
+}
+
+## Whether a weekday (sun..sat) is one of a days value: rc 0 where it is, 1 where it is not, 2 where it cannot be decided (workdays
+## or weekend, with no weekend set).
+AgentsToolsScheduleDayIn(){ ## days value, weekday name
+	local inDays="$1" inDay="$2" inWeekend
+	case "$inDays" in
+		daily) return 0 ;;
+		workdays|weekend)
+			inWeekend="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_WEEKEND )"
+			[ -n "$inWeekend" ] || return 2
+			case ",$inWeekend," in *",$inDay,"*) [ "$inDays" = weekend ] ; return $? ;; esac
+			[ "$inDays" = workdays ] ; return $?
+		;;
+		*) case ",$inDays," in *",$inDay,"*) return 0 ;; esac ; return 1 ;;
+	esac
+}
+
+## Seconds into the day of a time HH:MM; rc 1, nothing printed, for any other form.
+AgentsToolsScheduleTimeSeconds(){ ## time
+	printf '%s\n' "$1" | LC_ALL=C grep -q -E '^([01][0-9]|2[0-3]):[0-5][0-9]$' || return 1
+	printf '%s\n' "$(( 10#${1:0:2} * 3600 + 10#${1:3:2} * 60 ))"
+}
+
+## Worktime now: the words "yes" or "no" and, in brackets, why not where it cannot be told. Needs the clock's words.
+AgentsToolsScheduleWorktime(){ ## weekday name, seconds into the day
+	local workValue workStart workUntil workDays workStartSec workUntilSec workIn
+	workValue="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_WORKTIME )"
+	[ -n "$workValue" ] || { printf 'no (not set)\n' ; return 0 ; }
+	read -r workStart workUntil workDays <<< "$workValue"
+	workStartSec="$( AgentsToolsScheduleTimeSeconds "$workStart" )" || { printf 'no (not set)\n' ; return 0 ; }
+	workUntilSec="$( AgentsToolsScheduleTimeSeconds "$workUntil" )" || { printf 'no (not set)\n' ; return 0 ; }
+	workIn=0
+	AgentsToolsScheduleDayIn "$workDays" "$1" || workIn=$?
+	case "$workIn" in
+		2) printf 'no (weekend not set)\n' ;;
+		0) if [ "$2" -ge "$workStartSec" ] && [ "$2" -lt "$workUntilSec" ] ; then printf 'yes\n' ; else printf 'no\n' ; fi ;;
+		*) printf 'no\n' ;;
+	esac
+}
+
+## The next start of worktime after an instant, as an epoch; nothing where worktime is not set or cannot be decided.
+AgentsToolsScheduleNextWorkStart(){ ## epoch, offset seconds
+	local nextValue nextStart nextUntil nextDays nextStartSec nextDay nextCount=0 nextName nextAt
+	nextValue="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_WORKTIME )"
+	[ -n "$nextValue" ] || return 0
+	read -r nextStart nextUntil nextDays <<< "$nextValue"
+	nextStartSec="$( AgentsToolsScheduleTimeSeconds "$nextStart" )" || return 0
+	nextDay=$(( ( $1 + $2 ) / 86400 ))
+	while [ "$nextCount" -le 8 ] ; do
+		nextName="$( AgentsToolsScheduleDayName "$(( ( nextDay + nextCount + 4 ) % 7 ))" )"
+		AgentsToolsScheduleDayIn "$nextDays" "$nextName"
+		case $? in 2) return 0 ;; 0)
+			nextAt=$(( ( nextDay + nextCount ) * 86400 + nextStartSec - $2 ))
+			[ "$nextAt" -le "$1" ] || { printf '%s\n' "$nextAt" ; return 0 ; }
+		;; esac
+		nextCount=$(( nextCount + 1 ))
+	done
+}
+
+## What an override says now: "on" for one with no end, the seconds left for one that has not ended, nothing for none or an ended one.
+AgentsToolsScheduleOverrideLeft(){ ## setting key, epoch now
+	local leftValue leftEnd
+	leftValue="$( AgentsToolsScheduleSetting "$1" )"
+	case "$leftValue" in
+		on) printf 'on\n' ;;
+		"until "[0-9]*)
+			leftEnd="${leftValue#until }"
+			[ "$leftEnd" -le "$2" ] || printf '%s\n' "$(( leftEnd - $2 ))"
+		;;
+	esac
+}
+
+## The five flags, a line each, in the order of the epic.
+AgentsToolsScheduleFlagLine(){ ## flag, weekday name, seconds into the day, epoch now
+	local lineLeft lineValue
+	case "$1" in
+		worktime) printf 'worktime: %s\n' "$( AgentsToolsScheduleWorktime "$2" "$3" )" ;;
+		weekend)
+			lineValue="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_WEEKEND )"
+			if [ -z "$lineValue" ] ; then printf 'weekend: no (not set)\n'
+			else case ",$lineValue," in *",$2,"*) printf 'weekend: yes\n' ;; *) printf 'weekend: no\n' ;; esac ; fi
+		;;
+		emergency|overtime)
+			lineLeft="$( AgentsToolsScheduleOverrideLeft "MDAT_SCHEDULE_$( printf '%s' "$1" | LC_ALL=C tr 'a-z' 'A-Z' )" "$4" )"
+			case "$lineLeft" in
+				'') printf '%s: no\n' "$1" ;;
+				on) printf '%s: yes\n' "$1" ;;
+				*) printf '%s: yes (%s seconds left)\n' "$1" "$lineLeft" ;;
+			esac
+		;;
+		learning)
+			[ -n "$( AgentsToolsScheduleOverrideLeft MDAT_SCHEDULE_LEARNING "$4" )" ] && printf 'learning: yes\n' || printf 'learning: no\n'
+		;;
+	esac
+}
+
+## --current-flags: worktime, weekend, emergency, overtime and learning, a line each, `<flag>: yes|no`. Read-only.
+AgentsToolsScheduleCurrentFlags(){ ## the operation as it was called, its arguments...
+	local flagsOp="$1" flagsEpoch flagsOffset flagsDay flagsSeconds flagsFlag
+	if [ $# -gt 1 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $flagsOp: takes no argument, got: $2" >&2
+		return 1
+	fi
+	AgentsToolsScheduleTools || return 1
+	read -r flagsEpoch flagsOffset flagsDay flagsSeconds <<< "$( AgentsToolsScheduleClock )"
+	for flagsFlag in worktime weekend emergency overtime learning ; do
+		AgentsToolsScheduleFlagLine "$flagsFlag" "$( AgentsToolsScheduleDayName "$flagsDay" )" "$flagsSeconds" "$flagsEpoch"
+	done
+	return 0
+}
+
+## The setters: --set-country, --set-timezone, --set-worktime and --set-weekend, each one setting of the magic-team scope, printed back
+## as `<setting>: <value>`. A value of another form is refused, rc 1, and nothing is stored.
+AgentsToolsScheduleSet(){ ## the operation as it was called, its arguments...
+	local setOp="$1" setKey setValue setStart setUntil setDays
+	shift
+	case "$setOp" in
+		--set-country)
+			setKey="MDAT_SCHEDULE_COUNTRY"
+			if [ $# -ne 1 ] || ! printf '%s\n' "${1:-}" | LC_ALL=C grep -q -E '^[A-Za-z]{2,3}$' ; then
+				echo "⛔ ERROR: $MDSC_CMD $setOp: syntax is <iso-code-2-or-3-letters>, got: ${*:-nothing}" >&2 ; return 1
+			fi
+			setValue="$( printf '%s' "$1" | LC_ALL=C tr 'a-z' 'A-Z' )"
+		;;
+		--set-timezone)
+			setKey="MDAT_SCHEDULE_TIMEZONE"
+			if [ $# -ne 1 ] || ! printf '%s\n' "${1:-}" | LC_ALL=C grep -q -E '^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*$' || [ ! -f "/usr/share/zoneinfo/$1" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $setOp: syntax is <tz-spec>, a zone name of this system such as Pacific/Auckland, got: ${*:-nothing}" >&2 ; return 1
+			fi
+			setValue="$1"
+		;;
+		--set-worktime)
+			setKey="MDAT_SCHEDULE_WORKTIME"
+			setStart="${1:-}" setUntil="${2:-}" setDays="${3:-}"
+			if [ $# -ne 3 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $setOp: syntax is <start HH:MM> <until HH:MM> <days-of-week>, got: ${*:-nothing}" >&2 ; return 1
+			fi
+			AgentsToolsScheduleTimeSeconds "$setStart" > /dev/null && AgentsToolsScheduleTimeSeconds "$setUntil" > /dev/null \
+				&& [ "$( AgentsToolsScheduleTimeSeconds "$setStart" )" -lt "$( AgentsToolsScheduleTimeSeconds "$setUntil" )" ] || {
+				echo "⛔ ERROR: $MDSC_CMD $setOp: the times are HH:MM, the start before the until, got: $setStart $setUntil" >&2 ; return 1
+			}
+			case "$setDays" in
+				daily|workdays|weekend) ;;
+				*) printf '%s\n' "$setDays" | LC_ALL=C grep -q -E "^$agentsScheduleDayList\$" || {
+					echo "⛔ ERROR: $MDSC_CMD $setOp: the days are workdays, weekend, daily or a list such as mon,thu, got: $setDays" >&2 ; return 1
+				} ;;
+			esac
+			setValue="$setStart $setUntil $setDays"
+		;;
+		--set-weekend)
+			setKey="MDAT_SCHEDULE_WEEKEND"
+			if [ $# -ne 1 ] || ! printf '%s\n' "${1:-}" | LC_ALL=C grep -q -E "^$agentsScheduleDayList\$" ; then
+				echo "⛔ ERROR: $MDSC_CMD $setOp: the weekend is a list of days such as sat,sun, got: ${*:-nothing}" >&2 ; return 1
+			fi
+			setValue="$1"
+		;;
+	esac
+	AgentsToolsScheduleTools || return 1
+	DistroAgentsTools --agents-config-option magic-team --upsert "$setKey" "$setValue" > /dev/null || {
+		echo "⛔ ERROR: $MDSC_CMD $setOp: $setKey could not be stored" >&2 ; return 1
+	}
+	printf '%s: %s\n' "$setKey" "$setValue"
+}
+
+## --override-flag [--no] <flag> [<ttl>]: emergency, overtime and learning are overridable, as settings; worktime and weekend are derived.
+## emergency is set with a TTL in whole seconds, and a second call prolongs it (its end is the TTL from then); overtime is for outside
+## worktime and ends at its TTL or, if that is later or there is none, when normal worktime starts; learning is on or off and takes no
+## TTL. --no clears the override. Prints the flag's line as --current-flags would.
+AgentsToolsScheduleOverride(){ ## the operation as it was called, its arguments...
+	local overOp="$1" overNo="" overFlag="" overTtl="" overEpoch overOffset overDay overSeconds overName overNext overEnd overKey
+	shift
+	[ "${1:-}" != "--no" ] || { overNo="no" ; shift ; }
+	overFlag="${1:-}" overTtl="${2:-}"
+	if [ -z "$overFlag" ] || [ $# -gt 2 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $overOp: syntax is [--no] <flag> [<ttl>], the flag emergency, overtime or learning" >&2 ; return 1
+	fi
+	case "$overFlag" in
+		emergency|overtime|learning) ;;
+		worktime|weekend)
+			echo "⛔ ERROR: $MDSC_CMD $overOp: $overFlag is derived from the settings and the clock and has no override -- set it with --set-$overFlag" >&2 ; return 1
+		;;
+		*)
+			echo "⛔ ERROR: $MDSC_CMD $overOp: no flag $overFlag -- the flags are worktime, weekend, emergency, overtime and learning, and emergency, overtime and learning are overridable" >&2 ; return 1
+		;;
+	esac
+	if [ -n "$overTtl" ] && ! printf '%s\n' "$overTtl" | LC_ALL=C grep -q -E '^[1-9][0-9]*$' ; then
+		echo "⛔ ERROR: $MDSC_CMD $overOp: a TTL is whole seconds, 1 or more, got: $overTtl" >&2 ; return 1
+	fi
+	if [ -n "$overNo" ] && [ -n "$overTtl" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $overOp: --no clears the override and takes no TTL" >&2 ; return 1
+	fi
+	overKey="MDAT_SCHEDULE_$( printf '%s' "$overFlag" | LC_ALL=C tr 'a-z' 'A-Z' )"
+	AgentsToolsScheduleTools || return 1
+	read -r overEpoch overOffset overDay overSeconds <<< "$( AgentsToolsScheduleClock )"
+	overName="$( AgentsToolsScheduleDayName "$overDay" )"
+	if [ -n "$overNo" ] ; then
+		DistroAgentsTools --agents-config-option magic-team --delete "$overKey" > /dev/null 2>&1 || :
+	else
+		case "$overFlag" in
+			emergency)
+				[ -n "$overTtl" ] || { echo "⛔ ERROR: $MDSC_CMD $overOp: emergency is set with a TTL in seconds -- syntax is emergency <ttl>" >&2 ; return 1 ; }
+				overEnd="until $(( overEpoch + overTtl ))"
+			;;
+			learning)
+				[ -z "$overTtl" ] || { echo "⛔ ERROR: $MDSC_CMD $overOp: learning is on or off and takes no TTL" >&2 ; return 1 ; }
+				overEnd="on"
+			;;
+			overtime)
+				if [ "$( AgentsToolsScheduleWorktime "$overName" "$overSeconds" )" = "yes" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD $overOp: overtime is for outside worktime, and worktime is on now" >&2 ; return 1
+				fi
+				overNext="$( AgentsToolsScheduleNextWorkStart "$overEpoch" "$overOffset" )"
+				if [ -n "$overTtl" ] ; then
+					overEnd=$(( overEpoch + overTtl ))
+					[ -z "$overNext" ] || [ "$overEnd" -le "$overNext" ] || overEnd="$overNext"
+					overEnd="until $overEnd"
+				elif [ -n "$overNext" ] ; then
+					overEnd="until $overNext"
+				else
+					overEnd="on"
+				fi
+			;;
+		esac
+		DistroAgentsTools --agents-config-option magic-team --upsert "$overKey" "$overEnd" > /dev/null || {
+			echo "⛔ ERROR: $MDSC_CMD $overOp: $overKey could not be stored" >&2 ; return 1
+		}
+	fi
+	AgentsToolsScheduleFlagLine "$overFlag" "$overName" "$overSeconds" "$overEpoch"
+}
+
+## THE AUTORUN. A routine declares `runs-at: <days> <HH:MM>` (or `none`) and, apart from it, `runs-after: <routine>`. The day is the
+## period, in the team's zone: it runs once on each of its days, from its time on. The time is the earliest start. Where a predecessor
+## is named it is the trigger, and the routine is due when the predecessor completed (spawn-succeeded) that day, so the chain needs no
+## waiting state; the time is then a not-before. The run history that decides it is Dispatcher's (AgentsToolsDispatcherHistory).
+
+## The line of a chain that stopped, posted once: the last day the routine was to run has passed, the predecessor did not complete on it
+## and the routine did not run on it. Posted to the event-alert channel from the tooling-note template (Schedule/chain-broken), recorded
+## in $MMDAPP/.local/agents/schedule/escalated/<routine>.<day> so it is posted once. A day that ended before the evaluator first looked
+## at the routine (schedule/seen/<routine>, the instant, kept by the first call) is not escalated: a chain just declared did not break.
+## Prints the ESCALATE line, and only for the call that posts.
+AgentsToolsScheduleChainCheck(){ ## routine name, predecessor selector, days value, epoch now, offset seconds
+	local chainName="$1" chainDays="$3" chainEpoch="$4" chainOffset="$5" chainPredFile chainPredName chainStore chainSeen chainDayNo chainBack=1 chainFound="" chainIn chainStart chainEnd chainDate chainMark chainText
+	chainPredFile="$( AgentsToolsSpawnRoutineResolve "$2" 2> /dev/null )" || return 0
+	chainPredName="${chainPredFile##*/}"
+	chainStore="$MMDAPP/.local/agents/schedule"
+	mkdir -p "$chainStore/seen" "$chainStore/escalated" 2> /dev/null || return 0
+	( set -C ; printf '%s\n' "$chainEpoch" > "$chainStore/seen/$chainName" ) 2> /dev/null || :
+	chainSeen="$( cat "$chainStore/seen/$chainName" 2> /dev/null )"
+	case "$chainSeen" in ''|*[!0123456789]*) return 0 ;; esac
+	while [ "$chainBack" -le 7 ] ; do
+		chainDayNo=$(( ( chainEpoch + chainOffset ) / 86400 - chainBack ))
+		chainIn=0
+		AgentsToolsScheduleDayIn "$chainDays" "$( AgentsToolsScheduleDayName "$(( ( chainDayNo + 4 ) % 7 ))" )" || chainIn=$?
+		[ "$chainIn" != 2 ] || return 0
+		if [ "$chainIn" = 0 ] ; then chainFound="$chainDayNo" ; break ; fi
+		chainBack=$(( chainBack + 1 ))
+	done
+	[ -n "$chainFound" ] || return 0
+	chainStart=$(( chainFound * 86400 - chainOffset )) ; chainEnd=$(( chainStart + 86400 ))
+	[ "$chainEnd" -gt "$chainSeen" ] || return 0
+	chainDate="$( printf '%s\n' "$(( chainFound * 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalEpochToIsoDate.awk" )"
+	chainMark="$chainStore/escalated/$chainName.$chainDate"
+	[ ! -e "$chainMark" ] || return 0
+	DISPATCH_MODE=started DISPATCH_ROUTINE="$chainName" DISPATCH_SINCE_MINUTES="$(( chainStart / 60 ))" DISPATCH_UNTIL_MINUTES="$(( chainEnd / 60 ))" AgentsToolsDispatcherHistory > /dev/null && return 0
+	DISPATCH_ROUTINE="$chainPredName" DISPATCH_SINCE_MINUTES="$(( chainStart / 60 ))" DISPATCH_UNTIL_MINUTES="$(( chainEnd / 60 ))" AgentsToolsDispatcherHistory > /dev/null && return 0
+	( set -C ; : > "$chainMark" ) 2> /dev/null || return 0
+	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only > /dev/null 2>&1 || :
+	chainText="$( ASKP_F_routine="$chainName" ASKP_F_predecessor="$chainPredName" ASKP_F_day="$chainDate" AgentsToolsEscalationNote "Schedule/chain-broken" )" || chainText=""
+	if [ -z "$chainText" ] ; then
+		echo "⚠️ WARNING: $MDSC_CMD: the broken chain of $chainName could not be posted: its line could not be filled from its template (tooling-note.post.format.md, Schedule/chain-broken)" >&2
+		rm -f "$chainMark"
+	elif ! printf '%s\n' "$chainText" | DistroAgentsTools --intern-op-comms-slack-send-message magic-coordinator event-alert --identity-bot --from-stdin > /dev/null 2>&1 ; then
+		echo "⚠️ WARNING: $MDSC_CMD: the broken chain of $chainName could not be posted to the event-alert channel, and is tried again at the next call" >&2
+		rm -f "$chainMark"
+	fi
+	printf 'ESCALATE: %s: %s did not run on %s, so the chain is broken\n' "$chainName" "$chainPredName" "$chainDate"
+	return 0
+}
+
+## --routine-due <routine>: whether the routine is due to start now by its own autorun declaration. rc 0, `DUE: <routine file>` (and,
+## after a predecessor, `AFTER: <predecessor file> <spawn id of its run>`); rc 1, `NOT-DUE: <routine file>: <why>`; rc 2, `REFUSED:
+## <routine file>: <the predecessor that has not completed today>`; rc 3, a call that could not be understood. A chain that stopped adds an
+## ESCALATE line (AgentsToolsScheduleChainCheck), ahead of the answer.
+AgentsToolsScheduleDue(){ ## the operation as it was called, its arguments...
+	local dueOp="$1" dueFile dueName dueRunsAt dueRunsAfter dueDays dueAt dueAtSec dueEpoch dueOffset dueDay dueSeconds dueDayName dueDayStart dueIn dueRow duePredFile duePredName
+	if [ $# -ne 2 ] || [ -z "$2" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $dueOp: syntax is <routine>, a routine file name or part of one, exactly one file" >&2
+		return 3
+	fi
+	AgentsToolsScheduleTools || return 3
+	dueFile="$( AgentsToolsSpawnRoutineResolve "$2" )" || return 3
+	dueName="${dueFile##*/}"
+	dueRunsAt="$( AgentsToolsRoutineKeyOwn "$dueFile" runs-at )"
+	dueRunsAfter="$( AgentsToolsRoutineKeyOwn "$dueFile" runs-after )"
+	case "$dueRunsAt" in
+		'') printf 'NOT-DUE: %s: it declares no autorun (no runs-at)\n' "$dueName" ; return 1 ;;
+		none) printf 'NOT-DUE: %s: it declares no autorun (runs-at: none)\n' "$dueName" ; return 1 ;;
+	esac
+	dueDays="${dueRunsAt%% *}" ; dueAt="${dueRunsAt#* }"
+	dueAtSec="$( AgentsToolsScheduleTimeSeconds "$dueAt" )" || {
+		echo "⛔ ERROR: $MDSC_CMD $dueOp: $dueName: runs-at: $dueRunsAt is not <days> <HH:MM>" >&2
+		return 3
+	}
+	read -r dueEpoch dueOffset dueDay dueSeconds <<< "$( AgentsToolsScheduleClock )"
+	dueDayName="$( AgentsToolsScheduleDayName "$dueDay" )"
+	dueDayStart=$(( dueEpoch - dueSeconds ))
+	[ -z "$dueRunsAfter" ] || AgentsToolsScheduleChainCheck "$dueName" "$dueRunsAfter" "$dueDays" "$dueEpoch" "$dueOffset"
+	dueIn=0
+	AgentsToolsScheduleDayIn "$dueDays" "$dueDayName" || dueIn=$?
+	case "$dueIn" in
+		2) printf 'NOT-DUE: %s: the weekend is not set, and %s needs it\n' "$dueName" "$dueDays" ; return 1 ;;
+		1) printf 'NOT-DUE: %s: today is not one of its days (%s)\n' "$dueName" "$dueDays" ; return 1 ;;
+	esac
+	if [ "$dueSeconds" -lt "$dueAtSec" ] ; then
+		printf 'NOT-DUE: %s: before its earliest start, %s\n' "$dueName" "$dueAt"
+		return 1
+	fi
+	if dueRow="$( DISPATCH_MODE=started DISPATCH_ROUTINE="$dueName" DISPATCH_SINCE_MINUTES="$(( dueDayStart / 60 ))" AgentsToolsDispatcherHistory )" ; then
+		printf 'NOT-DUE: %s: it ran today (%s)\n' "$dueName" "$( printf '%s\n' "$dueRow" | LC_ALL=C cut -f3 )"
+		return 1
+	fi
+	if [ -n "$dueRunsAfter" ] ; then
+		if ! duePredFile="$( AgentsToolsSpawnRoutineResolve "$dueRunsAfter" 2> /dev/null )" ; then
+			printf 'REFUSED: %s: runs-after %s names no routine\n' "$dueName" "$dueRunsAfter"
+			return 2
+		fi
+		duePredName="${duePredFile##*/}"
+		if ! dueRow="$( DISPATCH_ROUTINE="$duePredName" DISPATCH_SINCE_MINUTES="$(( dueDayStart / 60 ))" AgentsToolsDispatcherHistory )" ; then
+			printf 'REFUSED: %s: %s has not completed today\n' "$dueName" "$duePredName"
+			return 2
+		fi
+		printf 'DUE: %s\nAFTER: %s %s\n' "$dueName" "$duePredName" "$( printf '%s\n' "$dueRow" | LC_ALL=C cut -f3 )"
+		return 0
+	fi
+	printf 'DUE: %s\n' "$dueName"
+	return 0
+}

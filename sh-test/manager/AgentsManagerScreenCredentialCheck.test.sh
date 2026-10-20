@@ -49,16 +49,16 @@ rigConf(){ ## subject, group, key, state, value, label, description -- a line of
 	rigRow line "$1" "$2" "$3" "$4" "$5" "${6:--}" "${7:--}" 'no:set_at_deployment:_a_wizard_will_change_it' - - - - - configuration
 }
 rigWhole="rig-the-whole-credential-WHOLEVALUE"
-## The digest of a rig whose first subject is the scopes: a credential that is set, one that is missing, a plain setting, a credential
+## The digest of a rig whose first subject is the CLI services (F11.7: the scopes are edited in Scope Settings, and these lines are those of a subject of the configuration): a credential that is set, one that is missing, a plain setting, a credential
 ## that is changed from here (a short text, saved for the workspace) and a plain setting that is changed from here. The digest of
 ## the other holds a CLI, with the credential of a leg.
 {
-	rigRow subject scopes 5 Scope_Settings
-	rigConf scopes magic-team SLACK_BOT_TOKEN secret-set 'rig-the-whol***********' Slack_Bot_Token 'The_bot_token.'
-	rigConf scopes magic-team TRELLO_TOKEN secret-missing - Trello_Token
-	rigConf scopes magic-team SPAWN_CLI_SERVICE set claude Spawn_CLI_Service
-	rigRow line scopes magic-team RIG_CREDENTIAL secret-set 'rig-c*****' Rig_Credential 'A_credential_that_is_changed_from_here.' yes text workspace default - /rig/team.env configuration
-	rigRow line scopes magic-team RIG_PLAIN set rig_plain Rig_Plain 'A_plain_setting_changed_from_here.' yes text workspace default - /rig/team.env configuration
+	rigRow subject cli 5 CLI_Services
+	rigConf cli claude SLACK_BOT_TOKEN secret-set 'rig-the-whol***********' Slack_Bot_Token 'The_bot_token.'
+	rigConf cli claude TRELLO_TOKEN secret-missing - Trello_Token
+	rigConf cli claude SPAWN_CLI_SERVICE set claude Spawn_CLI_Service
+	rigRow line cli claude RIG_CREDENTIAL secret-set 'rig-c*****' Rig_Credential 'A_credential_that_is_changed_from_here.' yes text workspace default - /rig/team.env configuration
+	rigRow line cli claude RIG_PLAIN set rig_plain Rig_Plain 'A_plain_setting_changed_from_here.' yes text workspace default - /rig/team.env configuration
 } > "$rigTmp/scopes.digest"
 {
 	rigRow subject cli 1 CLI_Services
@@ -77,7 +77,7 @@ rigCase(){ ## name, digest -- a rig of its own, every fixture of this check in i
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 ## The commands that take the list into the first subject of the configuration, and onto its first line
-rigIntoSubject=$'root configuration\nkeys ENTER\nwait list 20\nkeys DOWN DOWN DOWN\nwait focus 20\nkeys ENTER\nwait list 20\nturn'
+rigIntoSubject=$'root configuration\nkeys ENTER\nwait list 20\nkeys DOWN DOWN DOWN DOWN DOWN\nwait focus 20\nkeys ENTER\nwait list 20\nturn'
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
 	rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize 120 40\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
 }
@@ -132,7 +132,7 @@ turn
 get again
 show again
 RIGSCRIPT
-rigAssert "it is read by the setting reader, from the scope of the line, once, and stands in the field whole, the form of it gone" "$( rigCalls '--agents-config-option magic-team --select SLACK_BOT_TOKEN' ) $( rigHolds whole "║   $rigWhole" ) $( rigHolds whole 'rig-the-whol***********' )" "1 1 0"
+rigAssert "it is read by the setting reader, from the scope of the line, once, and stands in the field whole, the form of it gone" "$( rigCalls '--agents-config-option magic-team --select SLACK_BOT_TOKEN' ) $( rigHolds whole "║   $rigWhole" ) $( rigHolds whole '║   rig-the-whol***********' )" "1 1 0"
 rigAssert "Esc closes the form: the value whole is on the screen no more" "[$( rigVal closed.dialog )] $( rigHolds closed 'WHOLEVALUE' )" "[] 0"
 rigAssert "the form opened again shows the form of a credential, and the value whole was not read again" "$( rigHolds again 'WHOLEVALUE' ) $( rigHolds again '║   rig-the-whol***********' ) $( rigCalls '--agents-config-option magic-team --select SLACK_BOT_TOKEN' )" "0 1 1"
 

@@ -34,6 +34,7 @@
 ## holds stands where it stood.
 ## Reconciled for F11.5, the lists of Activity: the key `a` (all or only the active) is not offered there, as it has nothing to take: not in the status line, and not in the menu View.
 ## Reconciled for the count of Pending Questions (owner, 2026-10-20): the count of the asks is read whatever is shown, so the key that reads now forces it as well.
+## Reconciled for F11.6: the status line of a session names the send-message key too, `M Message`, between `k Kill` and `u Read`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -241,8 +242,8 @@ keys k
 get wrongKey
 RIGSCRIPT
 rigAssert "the list active on Launch (Start): what the list takes there, which Enter starts, then the keys of every window" "$( rigVal launch.selected ) [$( rigVal onLaunch )]" "free [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
-rigAssert "on a session: the keys that act on a session, and Enter, which opens it" "$( rigVal session.selected ) [$( rigVal onSession )]" "s1 [ ENTER Open  BSP Up  k Kill  c Control  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
-rigAssert "the left window active: the list's own keys are gone, those that act on the selected session stay" "$( rigVal left.focus ) [$( rigVal onLeft )]" "view [ k Kill  c Control  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "on a session: the keys that act on a session, and Enter, which opens it" "$( rigVal session.selected ) [$( rigVal onSession )]" "s1 [ ENTER Open  BSP Up  k Kill  c Control  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "the left window active: the list's own keys are gone, those that act on the selected session stay" "$( rigVal left.focus ) [$( rigVal onLeft )]" "view [ k Kill  c Control  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "a menu open: the keys of the menu alone"                  "[$( rigVal onMenu )]" "[ ENTER Choose  ESC Close  ←/→ Menus  UP/DN Items]"
 rigAssert "a line too short for all: the keys of every window are the first left out" "[$( rigVal narrow )]" "[ ENTER Open  BSP Up  k Kill  c Control]"
 rigAssert "on a member: the key that starts one, and none of a session's" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal onMember )]" "magic-team/team m1 [ BSP Up  a Active  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
@@ -324,7 +325,7 @@ turn
 border settingsTitle 1 0 84
 RIGSCRIPT
 rigAssert "a session opened, the selection on the row that goes up: the left window still shows that session" "[$( rigVal outside )] [$( rigVal inside )] $( rigVal in.path ) $( rigVal in.selected )" "[one [wrap]] [one [wrap]] magic-team/activity/active-sessions/s1 .."
-rigAssert "the keys that act on the session stand in the status line there, and act on it" "[$( rigVal st )] [$( rigVal onUp.notice )]" "[ ENTER Open  BSP Up  a Active  k Kill  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut] [handled kill on s1]"
+rigAssert "the keys that act on the session stand in the status line there, and act on it" "[$( rigVal st )] [$( rigVal onUp.notice )]" "[ ENTER Open  BSP Up  a Active  k Kill  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut] [handled kill on s1]"
 rigAssert "moving to a child shows the child, and the keys act on the child" "[$( rigVal child )] [$( rigVal onChild.notice )]" "[magic-coordinator [wrap]] [handled kill on s1]"
 rigAssert "Launch (Start) and the roots, entered with the selection on the row that goes up, show themselves" "$( rigVal launch.path ) [$( rigVal launchTitle )] [$( rigVal teamTitle )] [$( rigVal pendingTitle )] [$( rigVal settingsTitle )]" "magic-team/activity/launch [Launch (Start) [wrap]] [Team Members [wrap]] [Pending Questions [wrap]] [Settings [wrap]]"
 

@@ -232,7 +232,7 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 		[ "$( AgentsToolsManagerRunActivity "$rowsSpawn" "$rowsStat" )" != "waiting" ] || rowsWaiting="$rowsWaiting$rowsSpawn "
 	done <<< "$( printf '%s' "$measuredDated" | LC_ALL=C awk 'NF == 18 && $12 == "running" { print $8 ; }' )"
 	printf '%s' "$measuredDated" \
-		| MDAT_MANAGER_WAITING="$rowsWaiting" MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -v hostName="$( AgentsToolsManagerHostName )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$rowsPending" - \
+		| MDAT_MANAGER_WAITING="$rowsWaiting" MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -v hostName="$( AgentsToolsManagerHostName )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$rowsPending" - \
 		| LC_ALL=C sort -t "$rowsTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
 		| LC_ALL=C cut -f6-
 }
@@ -379,11 +379,30 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 	## the last, counts this session alone and is no row of a read.
 	scopeControl="$( AgentsToolsManagerSessionControls "$scopeSession" )"
 	scopeListed="$( printf '%s' "$scopeMeasured" \
-		| MDAT_MANAGER_WAITING="$scopeWaiting" MDAT_MANAGER_CONTROL="$scopeControl" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v loadAverage="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$scopePending" - \
+		| MDAT_MANAGER_WAITING="$scopeWaiting" MDAT_MANAGER_CONTROL="$scopeControl" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v loadAverage="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$scopePending" - \
 		| LC_ALL=C sort -t "$scopeTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
 		| LC_ALL=C cut -f6- )"
 	scopeListed=${scopeListed%counters"$scopeTab"*}
 	scopeListed=${scopeListed%"$scopeNl"}
+	return 0
+}
+
+## One session, or one run of it, in full: the rows --manager-session-read prints and the Dispatcher's
+## --session-record (DistroAgentsDispatcher.fn.sh) prints, the one function both call. The records and
+## the stores of that one session are read, never another's.
+AgentsToolsManagerSessionReadRows(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty)
+	local readOp="$1" readId="$2" readOwn="${3:-}" readStores="" readSkip readSpawn readRest
+	local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
+	AgentsToolsManagerSessionScope "$readOp" "$readId" "$readOwn" || return 1
+	## Which runs have a store of their own: a folder is asked of the shell, not of awk.
+	while read -r readSkip readSkip readSkip readSkip readSkip readSkip readSkip readSpawn readRest ; do
+		case "$readSpawn" in ''|-|.|..|*/*) continue ;; esac
+		[ ! -d "$MMDAPP/.local/agents/sessions/$readSpawn" ] || readStores="$readStores$readSpawn"$'\n'
+	done <<< "$scopeMeasured"
+	[ "$scopeRun" != "-" ] || scopeRun=""
+	printf '%s\n' "$scopeListed" \
+		| MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" MDAT_MANAGER_ROWS="$scopeMeasured" MDAT_MANAGER_STORES="$readStores" MDAT_MANAGER_RUN="$scopeRun" MDAT_MANAGER_CONTROL="$scopeControl" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRead.awk" "$( AgentsToolsRegistryFile pending-replies )" -
 	return 0
 }
 
@@ -423,15 +442,31 @@ AgentsToolsManagerTranscriptTail(){ ## spawn id, lines
 ## long the hard one is then given, in seconds: the two seconds TaskStop waits.
 agentsManagerKillPoliteSeconds=2
 
-## The name the console's user has in the operating system, which a kill is recorded under:
-## one word, as a Decisions line and a record header take it; `unknown` where the system
-## gives none.
-AgentsToolsManagerConsoleUser(){
+## The name the console's user has in the operating system: one word, as a Decisions line and a record header take it.
+## Nothing and rc 1 where the system gives none.
+AgentsToolsManagerConsoleAccount(){
 	local userName
 	userName="$( id -un 2>/dev/null )" || userName=""
 	[ -n "$userName" ] || userName="${USER:-${LOGNAME:-}}"
 	userName="$( printf '%s' "$userName" | LC_ALL=C tr -s ' \t\r\n' '_' )"
-	printf '%s\n' "${userName:-unknown}"
+	[ -n "$userName" ] || return 1
+	printf '%s\n' "$userName"
+}
+
+## The same, which a kill is recorded under: `unknown` where the system gives none.
+AgentsToolsManagerConsoleUser(){
+	AgentsToolsManagerConsoleAccount || printf 'unknown\n'
+}
+
+## The name a person at the console acts under (F6.10), in a message and in an answer: `user-<account>`, the account as the system gives it, in the
+## small letters, digits and hyphens a name of a member takes. The one place that says it. Nothing and rc 1 where the system gives no account,
+## or one with no letter or digit in it: the name is never made up, and what is done under it is refused by whoever asks.
+AgentsToolsManagerConsoleMember(){
+	local memberAccount
+	memberAccount="$( AgentsToolsManagerConsoleAccount )" || return 1
+	memberAccount="$( printf '%s\n' "$memberAccount" | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C tr -c 'a-z0-9\n' '-' | LC_ALL=C sed -e 's/--*/-/g' -e 's/^-//' -e 's/-$//' )"
+	[ -n "$memberAccount" ] || return 1
+	printf 'user-%s\n' "$memberAccount"
 }
 
 ## Says on a run's own record that it was killed, by whom and when: `killed-by` and
@@ -845,8 +880,7 @@ case "$1" in
 	## started for, and each run's record and store. TAB-separated rows a screen reads; their
 	## form is the help entry's. It reads one session's records and stores, never another's.
 	--manager-session-read)
-		local readOp="$1" readId="" readOwn="" readStores="" readSkip readSpawn readRest
-		local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
+		local readOp="$1" readId="" readOwn=""
 		shift
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -868,16 +902,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is --session-id <id> [--run], got no --session-id" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsManagerSessionScope "$readOp" "$readId" "$readOwn" || { set +e ; return 1 ; }
-		## Which runs have a store of their own: a folder is asked of the shell, not of awk.
-		while read -r readSkip readSkip readSkip readSkip readSkip readSkip readSkip readSpawn readRest ; do
-			case "$readSpawn" in ''|-|.|..|*/*) continue ;; esac
-			[ ! -d "$MMDAPP/.local/agents/sessions/$readSpawn" ] || readStores="$readStores$readSpawn"$'\n'
-		done <<< "$scopeMeasured"
-		[ "$scopeRun" != "-" ] || scopeRun=""
-		printf '%s\n' "$scopeListed" \
-			| MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" MDAT_MANAGER_ROWS="$scopeMeasured" MDAT_MANAGER_STORES="$readStores" MDAT_MANAGER_RUN="$scopeRun" MDAT_MANAGER_CONTROL="$scopeControl" \
-				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRead.awk" "$( AgentsToolsRegistryFile pending-replies )" -
+		AgentsToolsManagerSessionReadRows "$readOp" "$readId" "$readOwn" || { set +e ; return 1 ; }
 		return 0
 	;;
 

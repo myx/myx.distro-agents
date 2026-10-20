@@ -43,6 +43,14 @@ A question or hand-off that needs an answer. The one member-to-member document: 
 | `supersedes` | optional | member | `item-names` | Items this one replaces. |
 | `superseded-by` | optional | member | `item-names` | Items that replace this one. |
 | `processed-at` | optional | tooling | `date-time` | Stamped by `--member-inbox-to-processed`. It decides the item's folder and is the retention clock. |
+| `update-kind` | optional | member | `text` | `document`, `knowledge` or `skill`. Set by `--request-update` (`AgentLibrarianTools.fn.sh`): an inquiry to `magic-librarian` that carries it is a request of the librarian's update queue. |
+| `update-target` | optional | member | `text` | With `update-kind`: the path of the document, the topic of the knowledge, or `<team-member>:<pathname>` of the skill file the update is about. |
+| `update-form` | optional | member | `text` | With `update-kind`: `message` (words), `text` (the proposed whole text of a skill file, in the body) or `edit` (an old and a new string of a skill file, in the body). |
+| `update-target-date` | optional | tooling | `date-time` | With `update-kind`: when the target file was last changed, as the tooling found it when the request was made. The requester never gives it. |
+| `update-target-checksum` | optional | tooling | `text` | With `update-kind`: the sha256 of the target file as the tooling found it, `sha256:<hex>`, or `none` for a file not there yet. `--queue-take` says `BASE-CHANGED` when the file no longer matches. The requester never gives it. |
+| `reply-requested` | optional | member | `literal yes` | Set by `--request-update --reply`: `--queue-done` then files one note with the outcome into the requester's inbox. Without it nothing is sent back. |
+| `update-outcome` | optional | tooling | `text` | Stamped by `--queue-done` when the librarian closes the request: `applied`, `refused` or `closed`. |
+| `update-result` | optional | tooling | `text` | Stamped by `--queue-done`: the librarian's result, on one line. |
 
 ## Value forms
 

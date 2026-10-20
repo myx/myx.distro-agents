@@ -91,6 +91,13 @@ rigAssert "no flag, a member with no account to human-owner: one post, the team 
 	"$( rigOwnerSend magic-team )" "0:rig-bot-token-TEAM:1:0"
 rigAssert "a routine's send to human-owner is the team bot's too" \
 	"$( rigOwnerSend routine-heartbeat )" "0:rig-bot-token-TEAM:1:0"
+## A person at a console acts as user-<account> (F6.10, F11.6): no member, no skill folder and no account of its own, so its send is the team bot's,
+## with the account as the sender it carries. A name that is none of a member, a routine and an account is refused as before.
+rigAssert "user-<account>, a person at a console, is let send: one post, the team bot's, to the owner's own account" \
+	"$( rigOwnerSend user-rigacct )" "0:rig-bot-token-TEAM:1:0"
+rigAssert "and the post carries the account as its sender" "$( LC_ALL=C grep -c -F '"sender":"user-rigacct"' "$rigTmp/bodies" )" "1"
+rigAssert "a name that is no member, no routine and no account is refused: its skill folder is not there" \
+	"$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigTool" --member-comms-slack-send-message nobody-rig magic-team RIG-BODY-MARKER 2>&1 | LC_ALL=C grep -c 'no such member skill directory' )" "1"
 mv "$rigWs/.local/.agents/magic-coordinator.agent.env" "$rigTmp/coordinator.env.aside"
 rigAssert "magic-coordinator with no account of its own: the team bot's as well, never an error for want of a relay" \
 	"$( rigOwnerSend magic-coordinator )" "0:rig-bot-token-TEAM:1:0"

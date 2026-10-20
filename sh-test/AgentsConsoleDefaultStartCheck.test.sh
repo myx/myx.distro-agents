@@ -210,7 +210,9 @@ echo "-- the plain start once more, with the real entry of the screen behind it 
 ## The keys that end the screen are the screen's own matter, and none of this check: `q`, which ended it once,
 ## and then Ctrl-x, which ends it now, so the start is judged here whichever of them the screen has.
 rigScreen=real
-rigEntryPty "Sessions (Activity)" 'q\p\x18'
+## The text awaited is a row of the first screen: `Sessions (Activity)` is no root of its own since the root `Magic-Team (Agents)` holds it, so it was
+## never drawn there and the run ended by its timeout.
+rigEntryPty "Magic-Team (Agents)" 'q\p\x18'
 rigScreen=""
 rigAssert "the screen comes up on the terminal, and its exit key ends it with status 0" "$( rigPtyVal frame ) $rigRc" "yes 0"
 rigAssert "the terminal is left as it was, and no vendor console was started" "$( rigPtyVal modeBack ) $( rigPtyVal errorAfterLeft ) $( rigVendor )" "yes none 0"

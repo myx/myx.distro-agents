@@ -29,6 +29,7 @@
 ## Reconciled for F11.0: the spacer under `Launch (Start)` moves each session row of the list one line down, so the
 ## click on the first session lands a line lower in Turbo Vision and B/W.
 ## Reconciled for F11.5, the lists of Activity: the key `a` (all or only the active) is not offered there, as it has nothing to take: not in the status line, and not in the menu View.
+## Reconciled for F11.6: the status line of a session names the send-message key too, `M Message`, between `k Kill` and `u Read`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -139,7 +140,7 @@ rigAssert "the bottom borders of the two windows are plain, but for the count of
 rigAssert "the last line names the keys that work now, each key in the look of a hot letter" "[$( rigVal status )] $( rigRole r 40 1 16 )" "[ ENTER Open  BSP Up  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut  t Sort] mhhhhhmmmmmmmhhh"
 rigAssert "Tab makes the other window the active one: the frames change places" "$( rigVal t.focus ) [$( rigVal cornersT )]" "view [╔═[■]═════════════════════════ Active Sessions [wrap] ═════════════════════════[↕]═╗┌──────── Active Sessions ─────────┐]"
 rigAssert "and the status line names the keys of that window"        "[$( rigVal statusT )]" "[ / Filter  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut  t Sort]"
-rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r002 [ ENTER Open  BSP Up  k Kill  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r002 [ ENTER Open  BSP Up  k Kill  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 
 echo "-- the menus --"
 rigRun <<'RIGSCRIPT'

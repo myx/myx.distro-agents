@@ -19,11 +19,34 @@
 type AgentsToolsEscalationTypedVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only
 
 ## WHOSE WORD an answer given at the console is: the member it stands as. The one place that
-## says it. An operator of the console stands at least equal to the coordinator and is
-## nobody's asker, so it is magic-coordinator's word, for every question, whoever asked it
-## and whoever it is addressed to: what the coordinator does not hold goes up the chain, as
-## his own answer does, and what is the human-owner's own stays the human-owner's.
+## says it. The person at the console, `user-<account>` (F6.10, Settled: "a console answers as
+## user-<acct> under the authority rule, never as magic-coordinator"), for every question,
+## whoever asked it and whoever it is addressed to: the answer is recorded, applied and
+## confirmed under that name (`answered-by`, the grant's `by`, the line in the thread). WHO MAY
+## ANSWER is the authority rule's alone (AgentsToolsAuthorityGate, asked of every answer below);
+## the name is not what decides it. Where the system gives no account the console is nobody:
+## nothing is printed and the rc is 1, since an answer is never recorded under a made-up name
+## (AgentsToolsManagerPendingNobody says so).
 AgentsToolsManagerPendingStanding(){ ## record file
+	local standingName=""
+	standingName="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include" --definitions-only > /dev/null 2>&1 || :
+		AgentsToolsManagerConsoleMember 2> /dev/null )" || return 1
+	[ -n "$standingName" ] || return 1
+	printf '%s\n' "$standingName"
+}
+
+## The refusal where there is no standing: nothing was read as, and nothing is recorded.
+AgentsToolsManagerPendingNobody(){ ## operation
+	echo "⛔ ERROR: $MDSC_CMD $1: the system gives no account for the person at the console, and an answer is not recorded under a made-up name -- nothing was done" >&2
+}
+
+## WHAT AN ALLOW MAY REACH from the console, as it always was: bounded by what magic-coordinator
+## holds. An operator of the console stands at least equal to the coordinator and is nobody's
+## asker, so what the coordinator does not hold goes up the chain, as its own answer does, and
+## what is the human-owner's own stays the human-owner's. The grant is no wider for the person
+## who answers than for the coordinator, and no narrower: only the name it is recorded under
+## is the person's.
+AgentsToolsManagerPendingHolder(){ ## record file
 	printf 'magic-coordinator\n'
 }
 
@@ -33,7 +56,8 @@ AgentsToolsManagerPendingStanding(){ ## record file
 ## a verdict that is the human-owner's own -- a review, a held change, a proposal -- which
 ## is refused here and stays open for him. The holding is asked as the apply asks it.
 AgentsToolsManagerPendingOutcome(){ ## record file, standing member, answer word
-	local outcomeAsked outcomeSession outcomeWide=""
+	local outcomeAsked outcomeSession outcomeWide="" outcomeHolder
+	outcomeHolder="$( AgentsToolsManagerPendingHolder "$1" )"
 	[ "$2" != "human-owner" ] || { printf 'settles\n' ; return 0 ; }
 	case "$( AgentsToolsEscalationField "$1" kind ):$3" in
 		review:*|change:*|proposal:*) printf 'not-taken\n' ; return 0 ;;
@@ -47,7 +71,7 @@ AgentsToolsManagerPendingOutcome(){ ## record file, standing member, answer word
 	outcomeSession="$( AgentsToolsEscalationField "$1" session-id )"
 	while IFS= read -r outcomeAsked ; do
 		[ -n "$outcomeAsked" ] || continue
-		case "$( DistroAgentsTools --intern-op-permission-holds "$2" "${outcomeAsked%%$'\t'*}" "${outcomeAsked#*$'\t'}" \
+		case "$( DistroAgentsTools --intern-op-permission-holds "$outcomeHolder" "${outcomeAsked%%$'\t'*}" "${outcomeAsked#*$'\t'}" \
 			${outcomeSession:+--session-id "$outcomeSession"} 2> /dev/null | head -1 )" in
 			'HOLDS '*) ;;
 			*) printf 'up-the-chain\n' ; return 0 ;;
@@ -194,7 +218,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is --id <pending-id>, got: ${managerPendingRest[0]}" >&2
 			set +e ; return 1
 		fi
-		readAs="$( AgentsToolsManagerPendingStanding "$managerPendingFile" )"
+		readAs="$( AgentsToolsManagerPendingStanding "$managerPendingFile" )" || { AgentsToolsManagerPendingNobody "$readOp" ; set +e ; return 1 ; }
 		readStatus="$( AgentsToolsEscalationField "$managerPendingFile" status )"
 		if [ "$readStatus" = "reply-pending" ] ; then
 			readDismiss="yes" ; readText="words"
@@ -258,7 +282,7 @@ case "$1" in
 				set +e ; return 1
 			fi
 		fi
-		answerAs="$( AgentsToolsManagerPendingStanding "$managerPendingFile" )"
+		answerAs="$( AgentsToolsManagerPendingStanding "$managerPendingFile" )" || { AgentsToolsManagerPendingNobody "$answerOp" ; set +e ; return 1 ; }
 		## A verdict that is the human-owner's own is not given in another's name.
 		answerWord="$answerTyped"
 		AgentsToolsManagerPendingPlain "$managerPendingFile" || answerWord="$( AgentsToolsEscalationTypedVerdict "$managerPendingFile" "$answerTyped" )"
@@ -279,7 +303,9 @@ case "$1" in
 			[ -z "$( AgentsToolsAuthorityChosen )" ] || { answerTyped="$( AgentsToolsAuthorityChosen )" ; answerMode="" ; }
 		fi
 		answerAccount="$( AgentsToolsManagerPendingAccount )"
-		answerOut="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" \
+		## Recorded as the person at the console; what an allow may reach is the coordinator's holding, named to the apply (agentsEscalationCapacity).
+		answerOut="$( agentsEscalationCapacity="$( AgentsToolsManagerPendingHolder "$managerPendingFile" )"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" \
 			--manager-pending-reply-answer "$answerAs" "$managerPendingId" "$answerTyped" "$answerWords" "$answerAccount" "$answerMode" )" || answerRc=$?
 		case "$answerRc:$answerOut" in
 			0:*"ESCALATION: $managerPendingId answered"*)

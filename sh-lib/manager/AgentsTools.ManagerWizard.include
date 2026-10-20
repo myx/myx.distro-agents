@@ -1,0 +1,292 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerWizard.include -- the --manager-wizard-* operations (F11.7 of the refactorings epic): what the console's
+## `Configuration` needs to ask a person a few questions and then apply a state change. A WIZARD is a form of one step or of several
+## that the console draws; this file gives it what the tooling knows and the form cannot (the choices, what stands now) and takes
+## its answers. Sourced from the `--manager-wizard-*)` arm of AgentsTools.Manager.include; who may call was asked where the family is
+## dispatched.
+##   --manager-wizard-read <wizard>    the choices of the form and what stands now, as rows
+##   --manager-wizard-apply <wizard>   the answers, `<field> <TAB> <value>` a line on the standard input, never an argument, applied
+##                                     in the order the state needs, each by the tooling's own writer, and stopped at the first the
+##                                     writer refuses
+## The wizards: `cli-service` (a preset and the team's three tiers) and `git-settings`. The server keys' wizards are the operations
+## of AgentsTools.ManagerKeys.include, which a form that has asked for the typed word calls.
+##
+## A VALUE IS PRINTED HERE only as a credential's one form (AgentsToolsCredentialShown, F11.8), and a refusal repeats nothing of what
+## was given: a field may hold a secret pasted by mistake.
+##
+
+type AgentsToolsCredentialShown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.CredentialDisplay.include"
+type AgentsToolsPresetCredentialKeys > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
+type AgentsToolsManagerKeysDeclared > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerKeys.include" --definitions-only > /dev/null 2>&1 || :
+
+## One field of a row: its whitespace reads `_`, an empty one `-`.
+AgentsToolsManagerWizardField(){ ## text
+	local fieldText="${1//[[:space:]]/_}"
+	printf '%s' "${fieldText:--}"
+}
+
+## THE CLI SERVICE'S WIZARD. A preset (F10.1) carries a CLI service, a model or a macro, an effort and the credentials of its
+## service; the team's three tiers (F10.2) each name a preset, `<preset>[:<effort>]`; and SPAWN_CLI_SERVICE of the team is the
+## service a workspace with no tier set asks for. The writer of each is the dispatcher's --agents-config-option, whose write check
+## is asked (AgentsToolsPresetWriteCheck): this file knows the order the checks need, and no rule of a value.
+
+## The presets of this workspace, one name a line.
+AgentsToolsManagerWizardPresets(){
+	local presetFile presetName
+	for presetFile in "${MMDAPP%/}/.local/.agents"/preset-*.agent.env ; do
+		[ -f "$presetFile" ] || continue
+		presetName="${presetFile##*/preset-}" ; presetName="${presetName%.agent.env}"
+		printf '%s\n' "$presetName"
+	done
+}
+
+## One value of one scope, as the setting reader of the sibling package gives it: what the file holds, nothing else.
+AgentsToolsManagerWizardValue(){ ## scope, key
+	[ -f "${MMDAPP%/}/.local/.agents/$1.agent.env" ] || return 0
+	(
+		set -- --agents-config-option "$1" --select "$2"
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+	) 2> /dev/null || :
+}
+
+## The `current` row of one key of one scope: the key, its state (`set`, `secret-set` for a credential, `missing`) and its value as
+## it is printed. A key the scope does not hold is a row of state `missing`.
+AgentsToolsManagerWizardRow(){ ## row name, scope, key, secret (yes or empty)
+	local rowValue
+	rowValue="$( AgentsToolsManagerWizardValue "$2" "$3" )"
+	if [ -z "$rowValue" ] ; then
+		printf '%s\t%s\tmissing\t-\n' "$1" "$3"
+	elif [ -n "${4:-}" ] ; then
+		printf '%s\t%s\tsecret-set\t%s\n' "$1" "$3" "$( AgentsToolsManagerWizardField "$( AgentsToolsCredentialShown "$rowValue" )" )"
+	else
+		printf '%s\t%s\tset\t%s\n' "$1" "$3" "$( AgentsToolsManagerWizardField "$rowValue" )"
+	fi
+}
+
+## The credentials of every CLI service a preset may name, a `credential` row for each: the service and the key.
+AgentsToolsManagerWizardCredentials(){
+	local credService credKey
+	for credService in $agentsPresetCliServices ; do
+		for credKey in $( AgentsToolsPresetCredentialKeys "$credService" ) ; do
+			printf 'credential\t%s\t%s\n' "$credService" "$credKey"
+		done
+	done
+}
+
+## The key a line of the cli-service wizard names: which scope it is written in, and where in the order the checks need it. rc 1 for
+## a key the wizard does not write.
+## Into wizardScope (`preset` or `team`) and wizardRank: the service first, then the model, the effort, the credentials, the tiers, and
+## the team's service last.
+AgentsToolsManagerWizardKey(){ ## key
+	wizardScope="" ; wizardRank=0
+	case "$1" in
+		PRESET_CLI_SERVICE) wizardScope=preset ; wizardRank=1 ;;
+		PRESET_MODEL_OR_MACRO) wizardScope=preset ; wizardRank=2 ;;
+		PRESET_EFFORT) wizardScope=preset ; wizardRank=3 ;;
+		SPAWN_TIER_LOW) wizardScope=team ; wizardRank=5 ;;
+		SPAWN_TIER_NORMAL) wizardScope=team ; wizardRank=6 ;;
+		SPAWN_TIER_HIGH) wizardScope=team ; wizardRank=7 ;;
+		SPAWN_CLI_SERVICE) wizardScope=team ; wizardRank=8 ;;
+		*[!ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_]*|'') return 1 ;;
+		*)
+			## a credential of some CLI service: the check of the preset's block decides whether this preset's service reads it
+			AgentsToolsManagerWizardCredentials | LC_ALL=C awk -F'\t' -v wantKey="$1" '$3 == wantKey { found = 1 } END { exit found ? 0 : 1 }' || return 1
+			wizardScope=preset ; wizardRank=4
+		;;
+	esac
+	return 0
+}
+
+## Writes (a value) or takes out (an empty value) one key of one scope of the agents, by the dispatcher's own writer. The value is
+## handed to it on the standard input. Prints the row, `set`, `removed` or `unchanged`, and rc 1 where the writer refuses.
+AgentsToolsManagerWizardWrite(){ ## scope, key, value
+	local writeBefore writeErr writeRc
+	writeBefore="$( AgentsToolsManagerWizardValue "$1" "$2" )"
+	if [ -z "$3" ] ; then
+		if [ -z "$writeBefore" ] && ! LC_ALL=C grep -q -e "^$2=" "${MMDAPP%/}/.local/.agents/$1.agent.env" 2> /dev/null ; then
+			printf 'unchanged\t%s\t%s\n' "$1" "$2"
+			return 0
+		fi
+		DistroAgentsTools --agents-config-option "$1" --delete "$2" > /dev/null 2>&1 < /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: $2 could not be taken out of $1 -- the rows above were applied, this and the rest were not" >&2 ; return 1 ; }
+		printf 'removed\t%s\t%s\n' "$1" "$2"
+		return 0
+	fi
+	if [ "$writeBefore" = "$3" ] ; then
+		printf 'unchanged\t%s\t%s\n' "$1" "$2"
+		return 0
+	fi
+	writeRc=0
+	writeErr="$( printf '%s\n' "$3" | DistroAgentsTools --agents-config-option "$1" --upsert-from-stdin "$2" 2>&1 > /dev/null )" || writeRc=$?
+	if [ "$writeRc" != 0 ] ; then
+		printf '%s\n' "$writeErr" | LC_ALL=C grep -F -- 'ERROR' | LC_ALL=C head -1 >&2
+		echo "$MDSC_CMD: ⛔ ERROR: $2 was not written to $1 -- the rows above were applied, this and the rest were not" >&2
+		return 1
+	fi
+	printf 'set\t%s\t%s\n' "$1" "$2"
+	return 0
+}
+
+## THE GIT SETTINGS' WIZARD: the account's global git settings, user.name, user.email and the key git connects with, which is the `-i`
+## of core.sshCommand (the key AgentsToolsManagerKeysDeploy finds). Only global settings of the account that runs the call are read and
+## written, and only these three.
+
+AgentsToolsManagerWizardGitValue(){ ## git key
+	git config --global --get "$1" 2> /dev/null || :
+}
+
+case "$1" in
+
+	## What the form of a wizard needs: the choices and what stands now, as rows. Its form is the help entry's.
+	--manager-wizard-read)
+		local readOp="$1" readName="${2:-}" readPreset readService readKey readFile readWhy readLabel readGroup readFor readRow readSeen=$'\n'
+		[ $# -eq 2 ] || { echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is $readOp <cli-service|git-settings>, got $(( $# - 1 )) argument(s) -- nothing is shown" >&2 ; set +e ; return 1 ; }
+		case "$readName" in
+			cli-service)
+				for readService in $agentsPresetCliServices ; do
+					printf 'option\tcli-service\t%s\t%s\n' "$readService" "$readService"
+				done
+				for readKey in $agentsPresetEfforts ; do
+					printf 'option\teffort\t%s\t%s\n' "$readKey" "$readKey"
+				done
+				AgentsToolsManagerWizardCredentials
+				while IFS= read -r readPreset ; do
+					[ -n "$readPreset" ] || continue
+					printf 'option\tpreset\t%s\t%s\n' "$readPreset" "$readPreset"
+					for readKey in $agentsPresetKeys ; do
+						case "$readKey" in PRESET_CLI_SERVICE|PRESET_MODEL_OR_MACRO|PRESET_EFFORT|PRESET_EXTEND) ;; *) continue ;; esac
+						AgentsToolsManagerWizardRow preset "preset-$readPreset" "$readKey" | LC_ALL=C awk -F'\t' -v presetName="$readPreset" '$3 != "missing" { print $1 "\t" presetName "\t" $2 "\t" $3 "\t" $4 }'
+					done
+					AgentsToolsManagerWizardCredentials | while IFS=$'\t' read -r readRow readService readKey ; do
+						AgentsToolsManagerWizardRow preset "preset-$readPreset" "$readKey" yes | LC_ALL=C awk -F'\t' -v presetName="$readPreset" '$3 != "missing" { print $1 "\t" presetName "\t" $2 "\t" $3 "\t" $4 }'
+					done | LC_ALL=C sort -u
+				done <<< "$( AgentsToolsManagerWizardPresets )"
+				for readKey in SPAWN_TIER_LOW SPAWN_TIER_NORMAL SPAWN_TIER_HIGH SPAWN_CLI_SERVICE ; do
+					AgentsToolsManagerWizardRow team magic-team "$readKey"
+				done
+				return 0
+			;;
+			git-settings)
+				printf 'current\tuser.name\t%s\n' "$( AgentsToolsManagerWizardField "$( AgentsToolsManagerWizardGitValue user.name )" )"
+				printf 'current\tuser.email\t%s\n' "$( AgentsToolsManagerWizardField "$( AgentsToolsManagerWizardGitValue user.email )" )"
+				printf 'current\tssh-key\t%s\n' "$( AgentsToolsManagerWizardField "$( AgentsToolsManagerKeysDeploy )" )"
+				## each private key once, by its file, the first label it has
+				while IFS='|' read -r readKey readLabel readGroup readFor readFile readWhy ; do
+					[ -n "$readKey" ] || continue
+					readFile="${readFile%.pub}"
+					[ -f "$readFile" ] || continue
+					case "$readKey" in host*) continue ;; esac
+					case "$readSeen" in *$'\n'"$readFile"$'\n'*) continue ;; esac
+					readSeen="$readSeen$readFile"$'\n'
+					printf 'option\tssh-key\t%s\t%s\n' "$( AgentsToolsManagerWizardField "$readFile" )" "$( AgentsToolsManagerWizardField "$readLabel" )"
+				done <<< "$( AgentsToolsManagerKeysDeclared )"
+				return 0
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD $readOp: the name given is no wizard here -- nothing is shown. The wizards are cli-service and git-settings" >&2
+				set +e ; return 1
+			;;
+		esac
+	;;
+
+	## The answers of a wizard, applied. Its form is the help entry's.
+	--manager-wizard-apply)
+		local applyOp="$1" applyName="${2:-}" applyPreset="" applyField applyValue applyList="" applyRank applyScope applyRc=0 wizardScope wizardRank applyTiers
+		if [ $# -ge 2 ] ; then shift 2 ; else shift ; fi
+		case "$applyName" in
+			cli-service)
+				if [ "${1:-}" = "--preset" ] && [ -n "${2:-}" ] ; then applyPreset="$2" ; shift 2 ; fi
+				;;
+		esac
+		if [ $# -ne 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $applyOp: syntax is $applyOp cli-service --preset <name> | $applyOp git-settings, the answers on the standard input, got more words -- nothing was applied" >&2
+			set +e ; return 1
+		fi
+		case "$applyName" in
+			cli-service)
+				[ -n "$applyPreset" ] || { echo "⛔ ERROR: $MDSC_CMD $applyOp: cli-service takes --preset <name> -- nothing was applied" >&2 ; set +e ; return 1 ; }
+				AgentsToolsPresetNameCheck "$applyPreset" || { echo "⛔ ERROR: $MDSC_CMD $applyOp: a preset's name is lower-case letters, digits, '.', '_' and '-', and the name given is not -- nothing was applied" >&2 ; set +e ; return 1 ; }
+				## the lines, checked whole before one is applied: a key the wizard writes, once, one line each
+				while IFS=$'\t' read -r applyField applyValue || [ -n "$applyField" ] ; do
+					[ -n "$applyField" ] || continue
+					if ! AgentsToolsManagerWizardKey "$applyField" ; then
+						echo "⛔ ERROR: $MDSC_CMD $applyOp: a line names a key this wizard does not write -- nothing was applied" >&2
+						set +e ; return 1
+					fi
+					case "$applyList" in *$'\t'"$applyField"$'\t'*) echo "⛔ ERROR: $MDSC_CMD $applyOp: a key is given twice -- nothing was applied" >&2 ; set +e ; return 1 ;; esac
+					applyList="$applyList$wizardRank"$'\t'"$applyField"$'\t'"$applyValue"$'\n'
+				done
+				while IFS=$'\t' read -r applyRank applyField applyValue ; do
+					[ -n "$applyField" ] || continue
+					AgentsToolsManagerWizardKey "$applyField"
+					if [ "$wizardScope" = "preset" ] ; then applyScope="preset-$applyPreset" ; else applyScope="magic-team" ; fi
+					## the team's CLI service is asked for only where no tier is set
+					if [ "$applyField" = "SPAWN_CLI_SERVICE" ] && [ -n "$applyValue" ] ; then
+						applyTiers="$( AgentsToolsManagerWizardValue magic-team SPAWN_TIER_LOW )$( AgentsToolsManagerWizardValue magic-team SPAWN_TIER_NORMAL )$( AgentsToolsManagerWizardValue magic-team SPAWN_TIER_HIGH )"
+						if [ -n "$applyTiers" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD $applyOp: SPAWN_CLI_SERVICE is the team's service where no tier is set, and a tier is -- it was not written" >&2
+							set +e ; return 1
+						fi
+					fi
+					AgentsToolsManagerWizardWrite "$applyScope" "$applyField" "$applyValue" || { applyRc=1 ; break ; }
+				done <<< "$( printf '%s' "$applyList" | LC_ALL=C sort -n -s -t "$( printf '\t' )" -k1,1 )"
+				[ "$applyRc" = 0 ] || { set +e ; return 1 ; }
+				return 0
+			;;
+			git-settings)
+				local gitName="" gitEmail="" gitKey="" gitSeen=""
+				while IFS=$'\t' read -r applyField applyValue || [ -n "$applyField" ] ; do
+					[ -n "$applyField" ] || continue
+					case "$gitSeen" in *" $applyField "*) echo "⛔ ERROR: $MDSC_CMD $applyOp: a field is given twice -- nothing was applied" >&2 ; set +e ; return 1 ;; esac
+					gitSeen="$gitSeen $applyField "
+					case "$applyField" in
+						user.name) gitName="$applyValue" ;;
+						user.email) gitEmail="$applyValue" ;;
+						ssh-key) gitKey="$applyValue" ;;
+						*) echo "⛔ ERROR: $MDSC_CMD $applyOp: a line names a field this wizard does not write -- nothing was applied. Its fields are user.name, user.email and ssh-key" >&2 ; set +e ; return 1 ;;
+					esac
+				done
+				case "$gitName$gitEmail$gitKey" in
+					*[[:cntrl:]]*) echo "⛔ ERROR: $MDSC_CMD $applyOp: a value holds a control character -- nothing was applied" >&2 ; set +e ; return 1 ;;
+				esac
+				if [ -n "$gitEmail" ] ; then
+					case "$gitEmail" in *@*@*|*[[:space:]]*|@*|*@) echo "⛔ ERROR: $MDSC_CMD $applyOp: user.email is not an address -- nothing was applied" >&2 ; set +e ; return 1 ;; esac
+					case "$gitEmail" in *@*) ;; *) echo "⛔ ERROR: $MDSC_CMD $applyOp: user.email is not an address -- nothing was applied" >&2 ; set +e ; return 1 ;; esac
+				fi
+				if [ -n "$gitKey" ] ; then
+					case "$gitKey" in
+						/*) ;;
+						*) echo "⛔ ERROR: $MDSC_CMD $applyOp: ssh-key is the whole path of a private key file -- nothing was applied" >&2 ; set +e ; return 1 ;;
+					esac
+					case "$gitKey" in *[\'\"\\\$\`\;\&\|\<\>\(\)\*\?]*|*[[:space:]]*) echo "⛔ ERROR: $MDSC_CMD $applyOp: ssh-key holds a character a command line would read -- nothing was applied" >&2 ; set +e ; return 1 ;; esac
+					[ -f "$gitKey" ] && [ ! -L "$gitKey" ] || { echo "⛔ ERROR: $MDSC_CMD $applyOp: ssh-key names no private key file -- nothing was applied" >&2 ; set +e ; return 1 ; }
+				fi
+				command -v git > /dev/null 2>&1 || { echo "⛔ ERROR: $MDSC_CMD $applyOp: git is not on the PATH -- nothing was applied" >&2 ; set +e ; return 1 ; }
+				if [ -n "$gitName" ] ; then
+					git config --global user.name "$gitName" || { echo "⛔ ERROR: $MDSC_CMD $applyOp: user.name was not written -- the rest was not applied" >&2 ; set +e ; return 1 ; }
+					printf 'set\tgit\tuser.name\n'
+				fi
+				if [ -n "$gitEmail" ] ; then
+					git config --global user.email "$gitEmail" || { echo "⛔ ERROR: $MDSC_CMD $applyOp: user.email was not written -- the rest was not applied" >&2 ; set +e ; return 1 ; }
+					printf 'set\tgit\tuser.email\n'
+				fi
+				if [ -n "$gitKey" ] ; then
+					git config --global core.sshCommand "ssh -i $gitKey -o IdentitiesOnly=yes" || { echo "⛔ ERROR: $MDSC_CMD $applyOp: core.sshCommand was not written" >&2 ; set +e ; return 1 ; }
+					printf 'set\tgit\tssh-key\n'
+				fi
+				return 0
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD $applyOp: the name given is no wizard here -- nothing was applied. The wizards are cli-service and git-settings" >&2
+				set +e ; return 1
+			;;
+		esac
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

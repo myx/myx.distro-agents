@@ -1155,12 +1155,16 @@ case "$1" in
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
 		local grantBy="$1"
 		shift || true
-		local grantSession="" grantRefusal="" grantKind="" grantTask="" grantAsked="" grantStamp=""
+		local grantSession="" grantRefusal="" grantKind="" grantTask="" grantAsked="" grantStamp="" grantHoldsAs=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--session-id) grantSession="${2:-}" ; shift 2 ;;
 				--refusal-id) grantRefusal="${2:-}" ; shift 2 ;;
 				--kind) grantKind="${2:-}" ; shift 2 ;;
+				## The member whose holding bounds this grant, where the one who grants is another and holds nothing of its own: a person at a
+				## console, user-<account> (F6.10), granting as that person within what magic-coordinator holds. The grant is recorded under the
+				## one who grants, never under this member.
+				--holds-as) grantHoldsAs="${2:-}" ; shift 2 ;;
 				--task) grantTask="${2:-}" ; shift 2 ;;
 				## The stamp its grants line is written under, named by an applier that noted it
 				## first (AgentsToolsEscalationApply): the line that stands under it already is not
@@ -1179,6 +1183,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$grantBy" "<granting-member>" permission-grant-open || { set +e ; return 1 ; }
+		[ -z "$grantHoldsAs" ] || AgentsToolsAssertBareName "$grantHoldsAs" "--holds-as" permission-grant-open || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$grantSession" "--session-id" permission-grant-open || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$grantRefusal" "--refusal-id" permission-grant-open || { set +e ; return 1 ; }
 		case "$grantStamp" in
@@ -1230,15 +1235,15 @@ case "$1" in
 		## No approving what you do not hold: the approver holds this tool and target, or is
 		## the human-owner. Refused with rc 3 and the holders up the chain, for the caller to
 		## re-address the request to.
-		local grantNatural grantHeld grantHolders grantPlace
+		local grantNatural grantHeld grantHolders grantPlace grantHolder="${grantHoldsAs:-$grantBy}"
 		grantNatural="$( AgentsToolsPermissionRecordDecode "$grantTarget" )"
 		## No write is granted in a read-only place, by anyone: refused first, with the route.
 		AgentsToolsPermissionCeilingRefuse "$grantTool" "$grantNatural" "$grantSession" "$grantTool:$grantNatural" || { set +e ; return 1 ; }
-		if ! grantHeld="$( AgentsToolsPermissionHolds "$grantBy" "$grantTool" "$grantNatural" "$grantSession" )" ; then
-			grantHolders="$( AgentsToolsPermissionHolders "$grantTool" "$grantNatural" "$grantSession" "$grantTask" "$grantOwner $grantBy" | LC_ALL=C awk '{ printf "%s%s", ( NR > 1 ? " " : "" ), $1 ; }' )" || grantHolders="human-owner"
-			printf 'NOT-HOLDS: %s %s %s\n' "$grantBy" "$grantTool" "$grantNatural"
+		if ! grantHeld="$( AgentsToolsPermissionHolds "$grantHolder" "$grantTool" "$grantNatural" "$grantSession" )" ; then
+			grantHolders="$( AgentsToolsPermissionHolders "$grantTool" "$grantNatural" "$grantSession" "$grantTask" "$grantOwner $grantHolder" | LC_ALL=C awk '{ printf "%s%s", ( NR > 1 ? " " : "" ), $1 ; }' )" || grantHolders="human-owner"
+			printf 'NOT-HOLDS: %s %s %s\n' "$grantHolder" "$grantTool" "$grantNatural"
 			printf 'HOLDERS: %s\n' "$grantHolders"
-			echo "$MDSC_CMD: ⛔ ERROR: $grantBy does not hold $grantTool $grantNatural, so it cannot grant it; nothing is granted -- the request goes up to: $grantHolders" >&2
+			echo "$MDSC_CMD: ⛔ ERROR: $grantHolder does not hold $grantTool $grantNatural, so $grantBy cannot grant it; nothing is granted -- the request goes up to: $grantHolders" >&2
 			set +e ; return 3
 		fi
 		## The record's target is in record form and the grants line is colon-delimited, so it

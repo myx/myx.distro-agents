@@ -58,6 +58,8 @@ def applyCall(state, result):
     elif about["action"] == "setting":
         what = "the save"
         lines, summary = settingAnswer(result["text"], about.get("says", ""), state.viewWidth)
+    elif about["action"] in ACTION_ANSWERS:
+        what, lines, summary = ACTION_ANSWERS[about["action"]](result["text"], about, state.viewWidth)
     elif about["action"] in ASK_ACT_WORDS:
         what = ASK_ACT_WORDS[about["action"]]
         lines, summary = askActAnswer(result["text"], state.viewWidth)

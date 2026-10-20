@@ -24,7 +24,8 @@
 #
 # A block is delivered when it is not history, not already delivered to the member (the index's last field), not the member's
 # own, and: a reply to the member's own post (origin reply:<member>) is the floor of that member alone; a message of the
-# session thread is the floor of the executor, and of a participant when it names it; nothing else is. A message not posted
+# session thread is the floor of the executor, and of a participant when it names it (in a session with no thread, a message recorded `local`
+# is that, and no `local` message is of a session that has a thread); nothing else is. A message not posted
 # (no ts yet) is nobody's, and a post of another member that is not yet is not passed: the blocks behind it wait, and `newest` stays
 # the block before it, until it has a ts, or is given up (`refused`, `unknown` in the place of its conversation), or its header
 # is older than pendingBefore (F9.3: a post the writer will still deliver reaches every floor once it is delivered). A post of
@@ -69,6 +70,12 @@ function isCovered(whereValue,   at) {
 	return 0 ;
 }
 
+# Whether a block's conversation is the session's own: its thread, else, for a session that has none, `local` -- what the console left
+# for the chat file alone (F11.6): recorded with no ts and nothing posted, and the floor of a session with no thread is that file.
+function ownThread(whereValue) {
+	return ( thread != "" ) ? ( whereValue == thread ) : ( whereValue == "local" ) ;
+}
+
 function listHas(listValue, wanted,   items, itemCount, at) {
 	itemCount = split(listValue, items, ",") ;
 	for ( at = 1 ; at <= itemCount ; at++ ) {
@@ -103,8 +110,8 @@ END {
 		} else if ( origin ~ /^reply:/ ) {
 			take = ( origin == "reply:" member ) ;
 			source = replySource ;
-		} else if ( thread != "" && idxWhere[at] == thread ) {
-			source = "slack:" idxWhere[at] ;
+		} else if ( ownThread(idxWhere[at]) ) {
+			source = ( idxWhere[at] == "local" ) ? "local" : "slack:" idxWhere[at] ;
 			if ( role == "executor" ) { take = 1 ; }
 			else {
 				take = listHas(to, member) ;
@@ -118,8 +125,8 @@ END {
 		if ( filtered ) {
 			floorOwed = ( take && ! isCovered(idxWhere[at]) ) ;
 			sel = 0 ;
-			if ( ! ( origin == "history" || idxWhere[at] == "-" || listHas(idxSeen[at], member) || from == member || origin ~ /^reply:/ ) && thread != "" && idxWhere[at] == thread && ! isCovered(idxWhere[at]) ) {
-				source = "slack:" idxWhere[at] ;
+			if ( ! ( origin == "history" || idxWhere[at] == "-" || listHas(idxSeen[at], member) || from == member || origin ~ /^reply:/ ) && ownThread(idxWhere[at]) && ! isCovered(idxWhere[at]) ) {
+				source = ( idxWhere[at] == "local" ) ? "local" : "slack:" idxWhere[at] ;
 				if ( wantAny ) { sel = 1 ; }
 				if ( wantHere && listHas(to, "all") ) { sel = 1 ; }
 				if ( wantMe && listHas(to, member) ) { sel = 1 ; }

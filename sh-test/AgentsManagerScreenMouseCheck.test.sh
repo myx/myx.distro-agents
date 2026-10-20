@@ -18,6 +18,7 @@
 ## dialog has bigger margins inside its frame (two empty lines under its top, one more under its buttons, three blank
 ## cells at each side), so its box is four cells wider and two lines taller and what it holds stands where it stood.
 ## Reconciled for F11.5, the lists of Activity: the key `a` (all or only the active) is not offered there, as it has nothing to take: not in the status line, and not in the menu View.
+## Reconciled for F11.6: the status line of a session names the send-message key too, `M Message`, between `k Kill` and `u Read` (so the keys of the status line stand eleven cells further on, where this check clicks them).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -172,9 +173,9 @@ rigRun <<'RIGSCRIPT'
 mouse click 90 5
 turn
 cells st 39 0 120
-mouse click 76 39
+mouse click 87 39
 get filtered
-mouse click 39 39
+mouse click 50 39
 get menu
 turn
 cells stMenu 39 0 120
@@ -188,7 +189,7 @@ cells stDialog 39 0 120
 mouse click 24 39
 get cancelled
 RIGSCRIPT
-rigAssert "the status line as it is clicked on"                      "[$( rigVal st )]" "[ ENTER Open  BSP Up  k Kill  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "the status line as it is clicked on"                      "[$( rigVal st )]" "[ ENTER Open  BSP Up  k Kill  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "a click on a key of a command does that command"          "$( rigVal filtered.wrap ) $( rigVal menu.menu )" "no go:dashboard"
 rigAssert "with a menu open a click on Esc closes it"                "[$( rigVal stMenu )] [$( rigVal closed.menu )]" "[ ENTER Choose  ESC Close  ←/→ Menus  UP/DN Items] []"
 rigAssert "a click on Backspace goes up one level"                        "[$( rigVal up.path )]" "[magic-team/activity]"

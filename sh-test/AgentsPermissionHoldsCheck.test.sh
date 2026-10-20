@@ -139,9 +139,9 @@ rigGrantRead(){ ## member, session, tool, target
 	rigOp --intern-op-permission-grant-read "$1" --session-id "$2" --tool "$3" --target "$4"
 	LC_ALL=C sed -n 's/^GRANT: \([a-z]*\) .*$/\1/p' "$rigTmp/op.out" | head -1
 }
-rigGrantOpen(){ ## approver, session, refusal id, kind, [task]; prints "<rc> <first GRANT/NOT-HOLDS line>"
+rigGrantOpen(){ ## approver, session, refusal id, kind, [task], [member whose holding bounds the grant]; prints "<rc> <first GRANT/NOT-HOLDS line>"
 	local openRc=0
-	rigOp --intern-op-permission-grant-open "$1" --session-id "$2" --refusal-id "$3" --kind "$4" ${5:+--task "$5"} || openRc=$?
+	rigOp --intern-op-permission-grant-open "$1" --session-id "$2" --refusal-id "$3" --kind "$4" ${5:+--task "$5"} ${6:+--holds-as "$6"} || openRc=$?
 	printf '%s %s' "$openRc" "$( LC_ALL=C grep -m1 -E '^(GRANT|NOT-HOLDS):' "$rigTmp/op.out" | LC_ALL=C awk '{ print $1 ; }' )"
 }
 rigField(){ ## file, field
@@ -200,6 +200,16 @@ rigIdHuman="$( rigRefusal magic-tester rig-tester Write "$rigWs/ELSE/h.txt" )"
 rigAssert "the human-owner's account approves anything"    "$( rigGrantOpen URIGOWNER rig-tester "$rigIdHuman" once )" "0 GRANT:"
 rigIdHuman2="$( rigRefusal magic-tester rig-tester Write "$rigWs/ELSE/h2.txt" )"
 rigAssert "and so does human-owner by name"                "$( rigGrantOpen human-owner rig-tester "$rigIdHuman2" once )" "0 GRANT:"
+## A person at a console grants as user-<account> (F6.10) and is held to what another member holds, here named: the grant is no wider than that member's, and
+## recorded under the person.
+rigIdPerson="$( rigRefusal magic-tester rig-tester Write "$rigWs/DEV/p.txt" )"
+rigAssert "a person is held to the holding named for it: where that member does not hold the call, refused rc 3, naming the member that was asked" \
+	"$( rigGrantOpen user-rig rig-tester "$rigIdPerson" session '' magic-coordinator ) $( rigHas "$rigTmp/op.out" 'NOT-HOLDS: magic-coordinator Write' )" "3 NOT-HOLDS: yes"
+rigAssert "a person who holds nothing itself is refused with no holding named" "$( rigGrantOpen user-rig rig-tester "$rigIdPerson" session )" "3 NOT-HOLDS:"
+rigAssert "where the member named holds it, the grant is written, to the one who asked" "$( rigGrantOpen user-rig rig-tester "$rigIdPerson" session '' magic-developer )" "0 GRANT:"
+rigAssert "and recorded under the person who gave it, never under the member whose holding bounded it" \
+	"$( LC_ALL=C grep -c -F -e ":user-rig:" "$rigWs/.local/agents/sessions/rig-tester/grants" ):$( LC_ALL=C grep -F -e "$rigIdPerson" "$rigWs/.local/agents/sessions/rig-tester/grants" | LC_ALL=C grep -c -F -e ":magic-developer:" )" "1:0"
+rigAssert "the call it admits is the asker's own" "$( rigGrantRead magic-tester rig-tester Write "$rigWs/DEV/p.txt" )" session
 
 echo "-- allow for this session is that run's own: no other participant of the coworking session is let through --"
 rigIdSession="$( rigRefusal magic-tester rig-tester Write "$rigWs/ELSE/s.txt" )"

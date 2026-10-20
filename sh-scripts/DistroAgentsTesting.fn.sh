@@ -3,8 +3,13 @@
 ##
 ## DistroAgentsTesting.fn.sh -- the testing, running and bookkeeping operations (F7.6), for
 ## magic-tester, console human users and the console app. A subsystem interface: results are
-## read from it. First slice: --skillset-validate-routine, a thin stub of the one validator,
-## --intern-doc-validate, with no logic of its own.
+## read from it. --skillset-validate-routine, a thin stub of the one validator, --intern-doc-validate,
+## with no logic of its own; and the testbed (.local/agents/testing): --test-register, --test-update,
+## --test-unregister, --test-invalidate and --test-list over the metadata of the tests, and
+## --run-oldest-untested and --run-all-nightly-regressions, which put tests into the retest queue.
+## All testing machinery gathers here, the retest queue included, and there is no second queue: the
+## queue is the one of --member-retest-* (AgentsTools.MemberRetest.include), whose names stay until the
+## operations are regrouped (F1.4). A member raises a testing need through AgentTestingTools.fn.sh.
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -28,9 +33,69 @@ case "$BASH" in
 	;;
 esac
 
+## The testbed's operations (AgentsTools.Testbed.include), loaded where they are asked for.
+DistroAgentsTestingTestbed(){
+	type AgentsToolsTestbedRegister > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Testbed.include"
+}
+
 DistroAgentsTesting(){
 	local MDSC_CMD='DistroAgentsTesting'
 	case "$1" in
+
+		## The metadata of the tests: <test-id> --project <p> --script <path> [--functionality <f>] [--keyword <k>]... [--rig <path>]
+		## [--document <path>]... [--resource <path>]... [--nightly yes|no], or --from-folder <dir> --project <p> for every *.test.sh of a folder.
+		--test-register)
+			local testOp="$1"
+			shift
+			DistroAgentsTestingTestbed
+			AgentsToolsTestbedRegister "$testOp" "$@"
+			return $?
+		;;
+
+		## Changes the metadata of a registered test: <test-id> and the options of --test-register, a list replaced whole.
+		--test-update)
+			local testOp="$1"
+			shift
+			DistroAgentsTestingTestbed
+			AgentsToolsTestbedUpdate "$testOp" "$@"
+			return $?
+		;;
+
+		## Takes a test out of the testbed: <test-id>. The test, its script and its pass record stay.
+		--test-unregister)
+			local testOp="$1"
+			shift
+			DistroAgentsTestingTestbed
+			AgentsToolsTestbedUnregister "$testOp" "$@"
+			return $?
+		;;
+
+		## Drops the pass record of a registered test, so that the next batch runs it: <test-id>.
+		--test-invalidate)
+			local testOp="$1"
+			shift
+			DistroAgentsTestingTestbed
+			AgentsToolsTestbedInvalidate "$testOp" "$@"
+			return $?
+		;;
+
+		## The registered tests, with their stats and a short run history: [--project <p>] [--namespace <n>] [--keyword <k>].
+		--test-list)
+			local testOp="$1"
+			shift
+			DistroAgentsTestingTestbed
+			AgentsToolsTestbedList "$testOp" "$@"
+			return $?
+		;;
+
+		## The oldest untested registered test, or all that are eligible for the nightly, into the retest queue: [--wait|--no-wait].
+		--run-oldest-untested|--run-all-nightly-regressions)
+			local testOp="$1"
+			shift
+			DistroAgentsTestingTestbed
+			AgentsToolsTestbedRun "$testOp" "$@"
+			return $?
+		;;
 
 		## Checks a routine file's frontmatter and required headers, and reports what is missing or
 		## wrong, a row each; exit non-zero where any. <routine-file|--from-stdin>. Read-only.
@@ -61,6 +126,21 @@ case "$0" in
 		fi
 		DistroAgentsContext --run-from-detect
 		DistroAgentsContext --distro-path-auto
+
+		## Copied from DistroAgentsTools.fn.sh: the test runner keys a pass by the myx.common it runs under, so the testbed
+		## reads the pass record under the same one the retest queue's batch runs under, called from here or through the tool.
+		if   [ -d "${MYXROOT:-}" ] && [ -f "$MYXROOT/bin/lib/catMarkdown.Common" ]; then
+			export MYXROOT
+		elif   [ -f "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/catMarkdown.Common" ]; then
+			export MYXROOT="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
+		elif [ -f "/usr/local/share/myx.common/bin/lib/catMarkdown.Common" ]; then
+			export MYXROOT="/usr/local/share/myx.common"
+		elif command -v myx.common 2>/dev/null && myx.common which lib/catMarkdown 2>/dev/null ; then
+			export MYXROOT="$( myx.common which lib/catMarkdown )"
+			export MYXROOT="${MYXROOT%/bin/lib/catMarkdown*}"
+		else
+			export MYXROOT=''
+		fi
 
 		DistroAgentsTesting "$@"
 	;;

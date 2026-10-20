@@ -212,7 +212,7 @@ AgentsToolsManagerDashboardSessionMeasured(){
 		[ "$( AgentsToolsManagerRunActivity "$rowsSpawn" "$rowsStat" )" != "waiting" ] || rowsWaiting="$rowsWaiting$rowsSpawn "
 	done <<< "$( printf '%s' "$measuredDated" | LC_ALL=C awk 'NF == 18 && $12 == "running" { print $8 ; }' )"
 	printf '%s' "$measuredDated" \
-		| MDAT_MANAGER_WAITING="$rowsWaiting" MDAT_MANAGER_CONTROL="$rowsControl" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v loadAverage="-" -v hostName="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$rowsPending" - \
+		| MDAT_MANAGER_WAITING="$rowsWaiting" MDAT_MANAGER_CONTROL="$rowsControl" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v loadAverage="-" -v hostName="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$rowsPending" - \
 		| LC_ALL=C cut -f6-
 	return 0
 }

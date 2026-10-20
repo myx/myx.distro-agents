@@ -183,7 +183,7 @@ show consoles
 keys 6
 wait list 10
 show settings
-keys DOWN
+keys DOWN DOWN
 wait focus 10
 show subject
 keys 7
@@ -201,7 +201,7 @@ wait focus 10
 wait plan 10
 turn
 show keys
-keys DOWN
+keys DOWN DOWN DOWN
 wait focus 10
 show cli
 roles clir

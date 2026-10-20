@@ -74,7 +74,7 @@ case "$1" in
 			echo "$MDSC_CMD: collect-sources: ⛔ ERROR: MDAT_DATA_ROOT or MMDAPP is not set" >&2
 			set +e ; return 1
 		}
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.Collect.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.Collect.include"
 		if [ "$collectStale" = "yes" ] ; then
 			AgentsToolsCollectStaleReport
 			return 0

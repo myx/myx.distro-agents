@@ -71,7 +71,7 @@ case "$1" in
 			set +e ; return 1
 		}
 
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.CollectThread.include" || { set +e ; return 1 ; }
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CollectThread.include" || { set +e ; return 1 ; }
 		set +e +u
 
 		local colThreadRc=0

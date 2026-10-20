@@ -1369,7 +1369,7 @@ case "$1" in
 				local emailUser=""
 				emailUser="$( AgentsToolsCommsOwnSettingsApply "$actingMember" && DistroAgentsTools --agents-config-option "$actingMember" --select EMAIL_USER )" || emailUser=""
 				[ -z "$emailUser" ] || emailIdentity="$emailUser"
-				type AgentsToolsCollectEnsure > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.Collect.include"
+				type AgentsToolsCollectEnsure > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.Collect.include"
 				## Mirrors the collection's own gate: an optional source nothing is configured for must not read as one that failed.
 				AgentsToolsCollectConfigured mail "$actingMember" || emailNotConfigured="true"
 				if [ "$emailNotConfigured" = "false" ] && [ -n "$cutoffEpoch" ] ; then
@@ -1411,7 +1411,7 @@ case "$1" in
 			if [ "$wantTrello" = "true" ] ; then
 				trelloInstrument="unread-semantics (Trello read_filter=unread)"
 				## Collected, not polled, as the mailbox is (F4.2): the unread notifications are notes of the member's inbox.
-				type AgentsToolsCollectEnsure > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.Collect.include"
+				type AgentsToolsCollectEnsure > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.Collect.include"
 				## Mirrors the collection's own gate, same reason as the email gate above.
 				AgentsToolsCollectConfigured trello "$actingMember" || trelloNotConfigured="true"
 				local trelloWhoami="" trelloUser="" trelloId=""

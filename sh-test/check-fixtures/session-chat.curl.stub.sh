@@ -43,5 +43,16 @@ case "$rigMethod" in
 		printf '{"ok":true,"channel":"CRIG00001","ts":"1760000000.00010%s","message":{"ts":"1760000000.00010%s","user":"%s"%s}}\n' \
 			"$rigPost" "$rigPost" "$rigUser" "${rigThread:+,\"thread_ts\":\"$rigThread\"}"
 	;;
+	## A scenario with a file `history-empty` has conversations that are empty and rosters with none, instead of an error: a read that succeeds and finds
+## nothing; with a file `history-body` a conversation reads as that file says (a Slack conversations.history answer).
+	conversations.history|conversations.list)
+		if [ -f "$RIG_SCENARIO/history-body" ] && [ "$rigMethod" = "conversations.history" ] ; then
+			cat "$RIG_SCENARIO/history-body"
+		elif [ -f "$RIG_SCENARIO/history-empty" ] ; then
+			printf '{"ok":true,"messages":[],"channels":[],"has_more":false}\n'
+		else
+			printf '{"ok":false,"error":"channel_not_found"}\n'
+		fi
+	;;
 	*) printf '{"ok":false,"error":"channel_not_found"}\n' ;;
 esac

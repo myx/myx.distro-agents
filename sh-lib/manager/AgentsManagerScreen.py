@@ -28,6 +28,7 @@ import datetime
 import locale
 import os
 import re
+import select
 import shlex
 import signal
 import subprocess
@@ -85,7 +86,10 @@ PARTS = (
     "AgentsManagerScreen.Places.py",
     "AgentsManagerScreen.Consoles.py",
     "AgentsManagerScreen.Settings.py",
+    "AgentsManagerScreen.Talk.py",
+    "AgentsManagerScreen.Scopes.py",
     "AgentsManagerScreen.Configuration.py",
+    "AgentsManagerScreen.Wizards.py",
     "AgentsManagerScreen.Manuals.py",
     "AgentsManagerScreen.Dialogs.py",
     "AgentsManagerScreen.Actions.py",
@@ -98,6 +102,14 @@ PARTS = (
     "AgentsManagerScreen.Terminal.py",
 )
 
+## The parts of the screen that belong to the sibling package `.local`, the common features of every console of the family (F11.4, F11.7):
+## the folder is the package's own, `sh-lib/manager` of `myx.distro-.local` beside this package, and each part is loaded after the parts above, as
+## they are, when it is there. A workspace whose `.local` has none of them has a screen without those features, and nothing else is changed.
+LOCAL_PARTS_FOLDER = os.path.join("..", "..", "..", "myx.distro-.local", "sh-lib", "manager")
+LOCAL_PARTS = (
+    "LocalManagerScreen.Subsystems.py",
+)
+
 
 def loadParts():
     here = os.path.dirname(os.path.abspath(__file__))
@@ -105,6 +117,11 @@ def loadParts():
         path = os.path.join(here, part)
         with open(path, encoding="utf-8") as handle:
             exec(compile(handle.read(), path, "exec"), globals())
+    for part in LOCAL_PARTS:
+        path = os.path.normpath(os.path.join(here, LOCAL_PARTS_FOLDER, part))
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8") as handle:
+                exec(compile(handle.read(), path, "exec"), globals())
 
 
 loadParts()

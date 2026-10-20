@@ -27,6 +27,12 @@ CURSES_KEYS = {
 MOUSE_VARIABLE = "MDLT_CONSOLE_MOUSE"
 
 
+## How many reads in a row that gave nothing, with the descriptor readable, are the end of the input, and how the screen ends then:
+## by the status of a hangup, 128 and its number, as endOnSignal ends it for the signal.
+INPUT_LOST_READS = 5
+INPUT_LOST_STATUS = 128 + signal.SIGHUP
+
+
 class CursesSurface:
     def __init__(self, window):
         self.window = window
@@ -62,6 +68,7 @@ class CursesSurface:
                           "\x18": "CTRL-x", "\x12": "CTRL-r"}
         ## Where the pointer was last, for a turn of the wheel that comes with no place.
         self.pointer = (-1, -1)
+        self.lost = 0
         self.mouse(True)
 
     ## The mouse, where the terminal reports one: reported to the screen, its first button
@@ -475,11 +482,28 @@ class CursesSurface:
         self.apartDrawn, self.putsDrawn = self.apart, self.puts
         self.whole = False
 
+    ## A read that gives nothing is the quiet of the terminal, which is what the screen waits on, or the terminal gone: its
+    ## master closed, or hung up, where every read gives nothing at once and for ever. The two are told by the descriptor:
+    ## while it reports itself readable, a read that gave nothing can only be the end of its input. A few such reads in a
+    ## row end the screen, as a hangup does (INPUT_LOST_STATUS), so that it uses no processor to wait for a terminal that
+    ## is not there. A key that comes between the reads, or no readable descriptor, begins the count again.
     def read(self):
         try:
-            return self.window.get_wch() if hasattr(self.window, "get_wch") else self.window.getch()
+            got = self.window.get_wch() if hasattr(self.window, "get_wch") else self.window.getch()
         except curses.error:
+            self.inputGone()
             return None
+        self.lost = 0
+        return got
+
+    def inputGone(self):
+        try:
+            readable = select.select([sys.stdin.fileno()], [], [], 0)[0]
+        except (OSError, ValueError):
+            readable = [0]
+        self.lost = self.lost + 1 if readable else 0
+        if self.lost >= INPUT_LOST_READS:
+            raise SystemExit(INPUT_LOST_STATUS)
 
     ## The next key by its name, or None when none came within that time. Alt with a key
     ## comes from a terminal as Esc and that key at once, and is named `ALT-` and the key.

@@ -13,6 +13,8 @@
 ## all in its row.
 DIGEST_FIELDS = ("subject", "group", "key", "state", "value", "label", "description", "change", "kind",
                  "scope", "source", "values", "where", "belongs")
+## The subjects of the digest that no root lists as a folder of its own, since a feature of their own shows them.
+DIGEST_LEVEL_ONLY = ("scopes",)
 ## What each subject of the digest holds, in words, for the head of its pane. A subject
 ## that is not listed here shows by its name alone.
 SUBJECT_WORDS = {
@@ -78,7 +80,8 @@ STYLE_DIALOG = "setting-style"
 ## lines of that root, each by its label alone, or by its key where it has none. A line
 ## of another root than those, and one too short to say its root, is left out. Of a
 ## secret its state is kept, and the value its row carries, which is its masked form (F11.8), for the form of a credential. At
-## the end of its row a subject shows how many of its lines are missing.
+## the end of its row a subject shows how many of its lines are missing. A subject of DIGEST_LEVEL_ONLY has its level and no row in the list of its
+## root: its lines are what another part reads (`Member Settings`), and its folder is shown by another feature (`Scope Settings`, Scopes.py).
 def parseDigestLevels(readKey, text):
     names = dict((name, pluginLevel(name)) for name, base in PLUGIN_BASES.items() if base and (listReadOf(list(base)) or ("",))[0] == readKey)
     levels = dict((level, []) for level in names.values())
@@ -104,7 +107,8 @@ def parseDigestLevels(readKey, text):
                 row = newRow(name, labels[name] or name, "record", True, subjectFields[name])
                 row["subject"] = {"name": name, "label": labels[name], "lines": []}
                 held[(root, name)] = row
-                levels[root].append(row)
+                if name not in DIGEST_LEVEL_ONLY:
+                    levels[root].append(row)
                 levels[root + "/" + name] = []
             line = {"subject": name, "group": absent(setting["group"]), "key": absent(setting["key"]),
                     "state": setting["state"],
@@ -169,20 +173,25 @@ def changeRefusal(line):
     return unspaced(reason).strip() or CHANGE_SAYS
 
 
-## What one line of the digest reads as. A secret reads only as configured or not: the
-## value of its row is never looked at. A line that offers choices reads as the label of
+## What one line of the digest reads as. ALL VALUES ARE SHOWN (F11.7), also where an assessment is given: a credential that is set reads as its
+## one form, as the operation printed it (F11.8: its first quarter, then * for the rest), with `configured` beside it; one that is not, as not
+## configured. A line that offers choices reads as the label of
 ## the one it is set to. A scope of an outside system reads as set, with the keys it
-## lacks, or as missing them; a CLI is usable or not; any other line by its value, a
-## missing one marked as that.
+## lacks, or as missing them, and a key it holds as its value; a CLI is usable or not;
+## any other line by its value, a missing one marked as that.
 def valueWords(subjectName, line):
     value = line["value"]
     if line.get("choices"):
         return dict(line["choices"]).get(value, value)
     if line["state"] in STATES_SECRET:
+        if line["state"] == "secret-set" and value:
+            return "%s (%s)" % (value, settingWords(line["state"], ""))
         return settingWords(line["state"], "")
-    if subjectName == "systems" and line["state"] == "set":
+    ## the line of a scope of an outside system has no source: it reads as set or missing, with what it lacks; the line of a key it holds has the scope as its
+    ## source, and reads as its value (below), beside the assessment of the scope above it
+    if subjectName == "systems" and not line.get("source") and line["state"] == "set":
         return "set" + (", lacks " + value.replace(",", ", ") if value else "")
-    if subjectName == "systems" and line["state"] == "missing":
+    if subjectName == "systems" and not line.get("source") and line["state"] == "missing":
         return "missing" + (": " + value.replace(",", ", ") if value else "")
     if line["key"] == "usable":
         return value or line["state"]
@@ -420,6 +429,8 @@ for dialogName in set(kind["dialog"] for kind in list(SETTING_KINDS.values()) + 
 ## of the settings do (submitSetting), where its line is changed from here; else it only closes. The value whole is held
 ## nowhere else, and the form that closes leaves nothing of it. The mask is no security boundary: a shell read shows it.
 CREDENTIAL_DIALOG = "setting-credential"
+## The dialogs whose form reads a value whole while it is open, which an app feature adds to (Scopes.py): what they read is kept for them (applyResult).
+READING_DIALOGS = (CREDENTIAL_DIALOG,)
 CREDENTIAL_READ = "full:credential"
 CREDENTIAL_SAYS = {
     "form": "Its value is shown in the form of a credential: its first quarter, then * for the rest. Reveal (Ctrl-R) shows it whole until this closes.",

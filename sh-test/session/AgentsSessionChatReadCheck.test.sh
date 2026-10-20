@@ -186,6 +186,38 @@ rigAssert "an executor is given what came into the session's thread after its po
 rigRead keeper-seen
 rigAssert "a member whose own Wait delivered the import itself is not given it again" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'RIG-IMPORT-FIVE' )" 0
 
+echo "-- 7. a session with no thread: what the console leaves for its chat file alone (F11.6) --"
+## A message to such a session is recorded with the conversation `local`: no ts, and nothing posted. Its floor is the thread's: the executor every
+## one, a participant the ones that name it; and a session that has a thread takes no `local` block for its floor.
+rigLocal="rig-chat-local"
+rigLocalDir="$MMDAPP/.local/agents/sessions/$rigLocal"
+mkdir -p "$rigLocalDir"
+rigLocalBlock(){ ## session, from, to, where, body
+	printf '%s' "$5" | AgentsToolsSessionChatAppend "$1" "$2" "$3" - "$4" console > /dev/null
+}
+rigReadOf(){ ## session, member -- the floor of that member in that session, into rigOut
+	AgentsToolsSessionChatFloor "$1" "$2" > "$rigTmp/floor.out"
+	rigOut="$( cat "$rigTmp/floor.out" )"
+}
+rigReadOf "$rigLocal" keeper-exec
+rigLocalBlock "$rigLocal" user-rig all local "RIG-L1 to all"
+rigLocalBlock "$rigLocal" user-rig keeper-part local "RIG-L2 to the participant"
+rigLocalBlock "$rigLocal" user-rig all local "RIG-L3 mentions @keeper-part in its body"
+rigLocalBlock "$rigLocal" keeper-old all "$rigOther" "RIG-L4 in a thread that is not the session's"
+rigLocalBlock "$rigLocal" keeper-exec all local "RIG-L5 the executor's own"
+rigLocalBlock "$rigLocal" user-rig all - "RIG-L6 not posted, for a session that has no thread to post to"
+rigReadOf "$rigLocal" keeper-exec
+rigAssert "the executor of a session with no thread is given every local message but its own, from the chat file" "$( rigMarks "$rigOut" )" "RIG-L1,RIG-L2,RIG-L3"
+rigAssert "and they come by the local source" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^# via ' | LC_ALL=C tr '\n' ' ' )" "# via local "
+AgentsToolsSessionChatPointerSet "$rigLocal" read:keeper-part 0
+export MDAT_SPAWN_SESSION_ID="rig-chat-local-spawn"
+rigReadOf "$rigLocal" keeper-part
+unset MDAT_SPAWN_SESSION_ID
+rigAssert "a participant of it, the ones that name it in the header or the body" "$( rigMarks "$rigOut" )" "RIG-L2,RIG-L3"
+rigLocalBlock "$rigSession" user-rig all local "RIG-L7 local, in a session that has a thread"
+rigReadOf "$rigSession" keeper-exec
+rigAssert "a session that has a thread takes no local block for its floor" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'RIG-L7' )" 0
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SESSION CHAT READ CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

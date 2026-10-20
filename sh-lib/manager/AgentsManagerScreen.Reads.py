@@ -292,7 +292,7 @@ def startCalls(state, reader):
     ## the operation of the big output dialog: started once, and asked to stop where it was
     follow = state.follow
     if follow is not None and not follow["started"]:
-        follow["started"] = reader.follow("follow", follow["key"], follow["words"])
+        follow["started"] = reader.follow("follow", follow["key"], follow["words"], follow.get("input"))
     if follow is not None and follow["stop"] == "asked":
         follow["stop"] = "sent" if reader.signal("follow", signal.SIGTERM) else None
 
@@ -354,6 +354,12 @@ def applyResult(state, result):
         ## a credential whole is its form's own: held while that form is open, and dropped where it is not
         if state.dialog is not None and state.dialog["name"] == CREDENTIAL_DIALOG:
             state.plans[key] = {"words": result["words"], "value": result["text"].rstrip("\n"),
+                                "error": result["error"] if result["status"] != 0 else ""}
+        return
+    if readEntry(key).get("rows") in PLAN_FORMS:
+        ## what an app feature's form reads, kept as the form of that feature takes it, while a dialog is open
+        if state.dialog is not None and state.dialog["name"] in READING_DIALOGS:
+            state.plans[key] = {"words": result["words"], "rows": PLAN_FORMS[readEntry(key)["rows"]](result["text"]),
                                 "error": result["error"] if result["status"] != 0 else ""}
         return
     if readEntry(key).get("rows") == "key-read":
@@ -499,16 +505,31 @@ class OperationReader:
     ## output and its standard error go into one pipe, so its lines keep the order they were
     ## written in; at each turn what the pipe holds is taken, and the call is never waited
     ## for. Cut off from the terminal's signals as every call is.
-    def follow(self, kind, key, words):
+    def follow(self, kind, key, words, inputText=None):
         if kind in self.running:
             return False
+        inputFile = None
+        if inputText is not None:
+            ## what was typed goes to the operation on its standard input, never as a word of its command; kept in a file of the workspace's scratch folder
+            folder = self.scratch()
+            if folder is None:
+                self.ended.append({"kind": kind, "key": key, "words": list(words), "status": 127, "text": "", "said": "", "seconds": 0.0,
+                                   "error": "could not be started: no workspace to keep its input in (.local/agents/scratch)"})
+                return True
+            inputFile = tempfile.TemporaryFile(dir=folder)
+            inputFile.write(inputText.encode("utf-8", "replace"))
+            inputFile.flush()
+            inputFile.seek(0)
         try:
-            process = subprocess.Popen(self.toolsCommand + list(words), stdin=subprocess.DEVNULL,
+            process = subprocess.Popen(self.toolsCommand + list(words), stdin=subprocess.DEVNULL if inputFile is None else inputFile,
                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
         except OSError as failure:
             self.ended.append({"kind": kind, "key": key, "words": list(words), "status": 127, "text": "",
                                "said": "", "error": "could not be started: %s" % failure, "seconds": 0.0})
             return True
+        finally:
+            if inputFile is not None:
+                inputFile.close()
         os.set_blocking(process.stdout.fileno(), False)
         self.running[kind] = {"key": key, "words": list(words), "process": process, "pipe": process.stdout,
                               "decoder": codecs.getincrementaldecoder("utf-8")("replace"), "since": time.time(),

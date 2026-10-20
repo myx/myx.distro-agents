@@ -1,0 +1,324 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Testbed.include -- the testbed of the testing system (F7.6, DistroAgentsTesting.fn.sh): the project metadata of the tests, kept in
+## $MMDAPP/.local/agents/testing/tests/<test-id>.md, one file a registered test, and the operations over it that the tester, a console user and the
+## console app call. Sourced by DistroAgentsTesting.fn.sh and by the retest queue, for its functions only.
+##
+## A TEST IS KNOWN BY ITS ID, which for the tests of a package is the runner's own name for it (sh-test/<id>.test.sh). The metadata says what the
+## test is about so that a batch and a nightly run can choose: its `project` (a project of the source, such as myx/myx.distro-agents), its `script`,
+## the `functionality` and the `keywords` it is about, the `rig`, `documents` and `resources` it needs, whether it is eligible for the nightly
+## regressions (`nightly: yes|no`), and when it was registered, updated and invalidated. The lists are comma-separated.
+## NOTHING IS STORED TWICE: whether a test has passed, and its runs, are the test runner's (AgentsRunTests.sh --passed, its pass record in
+## $HOME/.agents/magic-team/suite-results, and the receipts of its run folders): the testbed reads them. An invalidation drops the pass record of
+## the test, so that the next batch runs it. Running is the retest queue's, the one queue of the machine (AgentsTools.MemberRetest.include): the
+## operations that run tests put them in it.
+##
+
+agentsTestbedKeys="project script functionality keywords rig documents resources nightly"
+
+## The folder of the registered tests.
+AgentsToolsTestbedDir(){
+	printf '%s\n' "$MMDAPP/.local/agents/testing/tests"
+}
+
+## A test id, a project, a keyword and a path as the metadata keeps them. rc 1, the reason printed, for another form.
+AgentsToolsTestbedCheckId(){ ## test id
+	printf '%s\n' "$1" | LC_ALL=C grep -q -E '^[A-Za-z0-9][A-Za-z0-9._-]*$' || { echo "not the id of a test (letters, digits, dot, dash, underscore): $1" ; return 1 ; }
+}
+AgentsToolsTestbedCheckProject(){ ## project
+	printf '%s\n' "$1" | LC_ALL=C grep -q -E '^[A-Za-z0-9][A-Za-z0-9._/-]*$' || { echo "not a project of the source (such as myx/myx.distro-agents): $1" ; return 1 ; }
+}
+AgentsToolsTestbedCheckWord(){ ## what it is, text
+	printf '%s\n' "$2" | LC_ALL=C grep -q -E '^[A-Za-z0-9][A-Za-z0-9._-]*$' || { echo "not a single word of letters, digits, dot, dash and underscore for $1: $2" ; return 1 ; }
+}
+AgentsToolsTestbedCheckPath(){ ## what it is, path
+	case "$2" in ''|*,*|*[[:cntrl:]]*) echo "not a path (no comma, no control character) for $1: $2" ; return 1 ;; esac
+}
+
+## One key of a registered test; nothing for a key it lacks.
+AgentsToolsTestbedGet(){ ## test id, key
+	LC_ALL=C awk -v want="$2: " 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit }' "$( AgentsToolsTestbedDir )/$1.md" 2> /dev/null
+}
+
+## A test's file written whole and put in place by one rename: the arguments are `key value` pairs after the id, in the order they are to stand.
+AgentsToolsTestbedWrite(){ ## test id, key, value, key, value...
+	local writeId="$1" writeDir writeTemp
+	shift
+	writeDir="$( AgentsToolsTestbedDir )"
+	mkdir -p "$writeDir" 2> /dev/null && writeTemp="$( mktemp "$writeDir/.$writeId.XXXXXX" 2> /dev/null )" || { echo "⛔ ERROR: $MDSC_CMD: the testbed folder could not be made: $writeDir" >&2 ; return 1 ; }
+	{
+		printf -- '---\ntest-id: %s\n' "$writeId"
+		while [ $# -ge 2 ] ; do printf '%s: %s\n' "$1" "$2" ; shift 2 ; done
+		printf -- '---\n'
+	} > "$writeTemp" && mv -f "$writeTemp" "$writeDir/$writeId.md" || { rm -f "$writeTemp" ; return 1 ; }
+}
+
+## The options of a registration or an update, read into the variables of the caller (testbedValues, a `key<TAB>value` line each, and
+## testbedFrom for --from-folder). The lists (--keyword, --document, --resource) are collected; a key given again is refused.
+AgentsToolsTestbedOptions(){ ## the operation, its arguments after the test id...
+	local optOp="$1" optReason optKeywords="" optDocuments="" optResources="" optValue
+	shift
+	testbedValues="" testbedFrom=""
+	while [ $# -gt 0 ] ; do
+		[ -n "${2:-}" ] || { echo "⛔ ERROR: $MDSC_CMD $optOp: $1 takes a value" >&2 ; return 1 ; }
+		optValue="$2"
+		case "$1" in
+			--project) optReason="$( AgentsToolsTestbedCheckProject "$optValue" )" || { echo "⛔ ERROR: $MDSC_CMD $optOp: $optReason" >&2 ; return 1 ; } ; testbedValues="${testbedValues}project	$optValue"$'\n' ;;
+			--script) optReason="$( AgentsToolsTestbedCheckPath script "$optValue" )" || { echo "⛔ ERROR: $MDSC_CMD $optOp: $optReason" >&2 ; return 1 ; } ; testbedValues="${testbedValues}script	$optValue"$'\n' ;;
+			--functionality) optReason="$( AgentsToolsTestbedCheckWord functionality "$optValue" )" || { echo "⛔ ERROR: $MDSC_CMD $optOp: $optReason" >&2 ; return 1 ; } ; testbedValues="${testbedValues}functionality	$optValue"$'\n' ;;
+			--rig) optReason="$( AgentsToolsTestbedCheckPath rig "$optValue" )" || { echo "⛔ ERROR: $MDSC_CMD $optOp: $optReason" >&2 ; return 1 ; } ; testbedValues="${testbedValues}rig	$optValue"$'\n' ;;
+			--keyword) optReason="$( AgentsToolsTestbedCheckWord keyword "$optValue" )" || { echo "⛔ ERROR: $MDSC_CMD $optOp: $optReason" >&2 ; return 1 ; } ; optKeywords="$optKeywords${optKeywords:+,}$optValue" ;;
+			--document) optReason="$( AgentsToolsTestbedCheckPath document "$optValue" )" || { echo "⛔ ERROR: $MDSC_CMD $optOp: $optReason" >&2 ; return 1 ; } ; optDocuments="$optDocuments${optDocuments:+,}$optValue" ;;
+			--resource) optReason="$( AgentsToolsTestbedCheckPath resource "$optValue" )" || { echo "⛔ ERROR: $MDSC_CMD $optOp: $optReason" >&2 ; return 1 ; } ; optResources="$optResources${optResources:+,}$optValue" ;;
+			--nightly)
+				case "$optValue" in yes|no) ;; *) echo "⛔ ERROR: $MDSC_CMD $optOp: --nightly is yes or no, got: $optValue" >&2 ; return 1 ;; esac
+				testbedValues="${testbedValues}nightly	$optValue"$'\n'
+			;;
+			--from-folder) testbedFrom="$optValue" ;;
+			*) echo "⛔ ERROR: $MDSC_CMD $optOp: unknown option: $1" >&2 ; return 1 ;;
+		esac
+		shift 2
+	done
+	[ -z "$optKeywords" ] || testbedValues="${testbedValues}keywords	$optKeywords"$'\n'
+	[ -z "$optDocuments" ] || testbedValues="${testbedValues}documents	$optDocuments"$'\n'
+	[ -z "$optResources" ] || testbedValues="${testbedValues}resources	$optResources"$'\n'
+	return 0
+}
+
+## One value of the parsed options: nothing for a key not given.
+AgentsToolsTestbedValue(){ ## key
+	printf '%s' "$testbedValues" | LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print $2 ; exit }'
+}
+
+## The file of a script, as given: an absolute path, or one below the project's folder of the source, or below the workspace. rc 1 for none.
+AgentsToolsTestbedScript(){ ## project, script
+	local scriptTry
+	for scriptTry in "$2" "$MMDAPP/source/$1/$2" "$MMDAPP/$2" ; do
+		case "$scriptTry" in /*) ;; *) continue ;; esac
+		[ -f "$scriptTry" ] && return 0
+	done
+	return 1
+}
+
+## --test-register <test-id> --project <p> --script <path> [options], or --test-register --from-folder <dir> --project <p> [options]: the test is
+## registered with its metadata; --from-folder registers every *.test.sh of the folder and of the folders one level below it, each by the name of
+## its file. A test registered already is refused (--test-update); in a folder, left as it is and said.
+AgentsToolsTestbedRegister(){ ## the operation, its arguments...
+	local regOp="$1" regId="" regProject regScript regFrom regNow regCount=0 regSkipped=0 regFile regFolder regName
+	shift
+	if [ "${1:-}" != "" ] && [ "${1#--}" = "$1" ] ; then regId="$1" ; shift ; fi
+	AgentsToolsTestbedOptions "$regOp" "$@" || return 1
+	regProject="$( AgentsToolsTestbedValue project )" ; regScript="$( AgentsToolsTestbedValue script )" ; regFrom="$testbedFrom"
+	regNow="$( date +"%Y-%m-%d %H:%M %z" )"
+	[ -n "$regProject" ] || { echo "⛔ ERROR: $MDSC_CMD $regOp: syntax is <test-id> --project <p> --script <path> [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no], or --from-folder <dir> --project <p> [options] -- --project is needed" >&2 ; return 1 ; }
+	if [ -n "$regFrom" ] ; then
+		[ -z "$regId" ] && [ -z "$regScript" ] || { echo "⛔ ERROR: $MDSC_CMD $regOp: --from-folder registers the tests of a folder by their file names, and takes no test id and no --script" >&2 ; return 1 ; }
+		case "$regFrom" in /*) ;; *) regFrom="$MMDAPP/$regFrom" ;; esac
+		[ -d "$regFrom" ] || { echo "⛔ ERROR: $MDSC_CMD $regOp: no such folder: $regFrom" >&2 ; return 1 ; }
+		for regFile in "$regFrom"/*.test.sh "$regFrom"/*/*.test.sh ; do
+			[ -f "$regFile" ] || continue
+			regName="${regFile##*/}" ; regName="${regName%.test.sh}"
+			AgentsToolsTestbedCheckId "$regName" > /dev/null || continue
+			if [ -f "$( AgentsToolsTestbedDir )/$regName.md" ] ; then regSkipped=$(( regSkipped + 1 )) ; echo "skipped: $regName is registered already" ; continue ; fi
+			AgentsToolsTestbedPut "$regName" "$regProject" "${regFile#"${MMDAPP%/}"/}" "$regNow" || return 1
+			regCount=$(( regCount + 1 ))
+		done
+		echo "registered: $regCount test(s) of $regFrom for project $regProject, $regSkipped left as they were"
+		return 0
+	fi
+	[ -n "$regId" ] && [ -n "$regScript" ] || { echo "⛔ ERROR: $MDSC_CMD $regOp: syntax is <test-id> --project <p> --script <path> [options], or --from-folder <dir> --project <p> -- ${regId:+the --script is needed}${regId:-the test id and the --script are needed}" >&2 ; return 1 ; }
+	AgentsToolsTestbedCheckId "$regId" > /dev/null || { echo "⛔ ERROR: $MDSC_CMD $regOp: $( AgentsToolsTestbedCheckId "$regId" )" >&2 ; return 1 ; }
+	[ ! -f "$( AgentsToolsTestbedDir )/$regId.md" ] || { echo "⛔ ERROR: $MDSC_CMD $regOp: $regId is registered already -- change it with --test-update" >&2 ; return 1 ; }
+	AgentsToolsTestbedScript "$regProject" "$regScript" || { echo "⛔ ERROR: $MDSC_CMD $regOp: no such script: $regScript (as given, below the source of $regProject, or below the workspace)" >&2 ; return 1 ; }
+	AgentsToolsTestbedPut "$regId" "$regProject" "$regScript" "$regNow" || return 1
+	echo "registered: $regId"
+}
+
+## A test written from the parsed options (testbedValues), with its dates; the project and script are the ones given.
+AgentsToolsTestbedPut(){ ## test id, project, script, now
+	local putNightly putFunctionality putKeywords putRig putDocuments putResources
+	putNightly="$( AgentsToolsTestbedValue nightly )" ; putFunctionality="$( AgentsToolsTestbedValue functionality )" ; putKeywords="$( AgentsToolsTestbedValue keywords )"
+	putRig="$( AgentsToolsTestbedValue rig )" ; putDocuments="$( AgentsToolsTestbedValue documents )" ; putResources="$( AgentsToolsTestbedValue resources )"
+	AgentsToolsTestbedWrite "$1" project "$2" script "$3" functionality "${putFunctionality:--}" keywords "${putKeywords:--}" rig "${putRig:--}" documents "${putDocuments:--}" \
+		resources "${putResources:--}" nightly "${putNightly:-no}" registered-at "$4" updated-at "$4" invalidated-at "-"
+}
+
+## --test-update <test-id> [options]: the metadata named is changed, a list replaced whole; the rest stays. Another project or script is checked as at registration.
+AgentsToolsTestbedUpdate(){ ## the operation, test id, options...
+	local updOp="$1" updId="${2:-}" updKey updProject updScript updNow
+	[ -n "$updId" ] && [ "${updId#--}" = "$updId" ] || { echo "⛔ ERROR: $MDSC_CMD $updOp: syntax is <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]" >&2 ; return 1 ; }
+	shift 2
+	[ -f "$( AgentsToolsTestbedDir )/$updId.md" ] || { echo "⛔ ERROR: $MDSC_CMD $updOp: $updId is not registered -- register it with --test-register" >&2 ; return 1 ; }
+	AgentsToolsTestbedOptions "$updOp" "$@" || return 1
+	[ -z "$testbedFrom" ] || { echo "⛔ ERROR: $MDSC_CMD $updOp: --from-folder registers; it does not update" >&2 ; return 1 ; }
+	[ -n "$testbedValues" ] || { echo "⛔ ERROR: $MDSC_CMD $updOp: nothing to change is given" >&2 ; return 1 ; }
+	updProject="$( AgentsToolsTestbedValue project )" ; [ -n "$updProject" ] || updProject="$( AgentsToolsTestbedGet "$updId" project )"
+	updScript="$( AgentsToolsTestbedValue script )"
+	if [ -n "$updScript" ] ; then
+		AgentsToolsTestbedScript "$updProject" "$updScript" || { echo "⛔ ERROR: $MDSC_CMD $updOp: no such script: $updScript" >&2 ; return 1 ; }
+	fi
+	updNow="$( date +"%Y-%m-%d %H:%M %z" )"
+	local updPairs=() updValue
+	for updKey in project script functionality keywords rig documents resources nightly registered-at ; do
+		updValue="$( AgentsToolsTestbedValue "$updKey" )"
+		[ -n "$updValue" ] || updValue="$( AgentsToolsTestbedGet "$updId" "$updKey" )"
+		updPairs+=( "$updKey" "${updValue:--}" )
+	done
+	updPairs+=( updated-at "$updNow" invalidated-at "$( AgentsToolsTestbedGet "$updId" invalidated-at )" )
+	AgentsToolsTestbedWrite "$updId" "${updPairs[@]}" || return 1
+	echo "updated: $updId"
+}
+
+## --test-unregister <test-id>: the metadata goes; the test, its script and its pass record stay.
+AgentsToolsTestbedUnregister(){ ## the operation, test id
+	[ $# -eq 2 ] && [ -n "$2" ] || { echo "⛔ ERROR: $MDSC_CMD $1: syntax is <test-id>" >&2 ; return 1 ; }
+	AgentsToolsTestbedCheckId "$2" > /dev/null || { echo "⛔ ERROR: $MDSC_CMD $1: $( AgentsToolsTestbedCheckId "$2" )" >&2 ; return 1 ; }
+	[ -f "$( AgentsToolsTestbedDir )/$2.md" ] || { echo "⛔ ERROR: $MDSC_CMD $1: $2 is not registered" >&2 ; return 1 ; }
+	rm -f "$( AgentsToolsTestbedDir )/$2.md" || return 1
+	echo "unregistered: $2"
+}
+
+## --test-invalidate <test-id>: the pass record of the test is dropped (the runner's record, $HOME/.agents/magic-team/suite-results/<test-id>), so the
+## next batch runs it whatever state it passed on; the metadata keeps when.
+AgentsToolsTestbedInvalidate(){ ## the operation, test id
+	local invId="${2:-}" invDir="${HOME:-/nonexistent}/.agents/magic-team/suite-results" invPairs=() invKey invNow
+	[ $# -eq 2 ] && [ -n "$invId" ] || { echo "⛔ ERROR: $1: syntax is <test-id>" >&2 ; return 1 ; }
+	[ -f "$( AgentsToolsTestbedDir )/$invId.md" ] || { echo "⛔ ERROR: $MDSC_CMD $1: $invId is not registered" >&2 ; return 1 ; }
+	AgentsToolsTestbedCheckId "$invId" > /dev/null || return 1
+	rm -rf "$invDir/$invId" 2> /dev/null
+	invNow="$( date +"%Y-%m-%d %H:%M %z" )"
+	for invKey in project script functionality keywords rig documents resources nightly registered-at updated-at ; do invPairs+=( "$invKey" "$( AgentsToolsTestbedGet "$invId" "$invKey" )" ) ; done
+	AgentsToolsTestbedWrite "$invId" "${invPairs[@]}" invalidated-at "$invNow" || return 1
+	echo "invalidated: $invId"
+}
+
+## The registered tests, `<id><TAB><registered-at>` a line, those of a project, a namespace (the first word of the project) and a keyword where given.
+AgentsToolsTestbedSelect(){ ## project (may be empty), namespace (may be empty), keyword (may be empty)
+	local selFile selId selProject selKeywords
+	for selFile in "$( AgentsToolsTestbedDir )"/*.md ; do
+		[ -f "$selFile" ] || continue
+		selId="${selFile##*/}" ; selId="${selId%.md}"
+		selProject="$( AgentsToolsTestbedGet "$selId" project )" ; selKeywords="$( AgentsToolsTestbedGet "$selId" keywords )"
+		[ -z "$1" ] || [ "$selProject" = "$1" ] || continue
+		[ -z "$2" ] || [ "${selProject%%/*}" = "$2" ] || continue
+		[ -z "$3" ] || case ",$selKeywords," in *",$3,"*) ;; *) continue ;; esac
+		printf '%s\t%s\n' "$selId" "$( AgentsToolsTestbedGet "$selId" registered-at )"
+	done
+}
+
+## The tests of a project, one id a line; the retest queue's --project.
+AgentsToolsTestbedProjectTests(){ ## project
+	AgentsToolsTestbedSelect "$1" "" "" | LC_ALL=C cut -f1 | LC_ALL=C sort
+}
+
+## When each of the tests passed on the state it would run on now, `<id> <when|->` a line: the runner's own answer (--passed), no more than the ids given.
+AgentsToolsTestbedPassed(){ ## test id...
+	local passedRunner="${MDLT_ORIGIN:-}/myx/myx.distro-agents/sh-test/AgentsRunTests.sh"
+	[ $# -gt 0 ] || return 0
+	if [ -f "$passedRunner" ] ; then
+		( cd "$( dirname "$passedRunner" )/.." && "$BASH" "$passedRunner" --passed "$@" 2> /dev/null ) | LC_ALL=C awk -v ids=" $* " 'index( ids, " " $1 " " ) > 0'
+	else
+		printf '%s -\n' "$@"
+	fi
+}
+
+## The runs of the tests in the last run folders of the runner: `<id><TAB><run folder><TAB><rc><TAB><seconds>`, the newest run first.
+AgentsToolsTestbedRuns(){ ## the number of run folders to look at
+	local runsRoot="$MMDAPP/.local/temp/mdat-tests" runsDir
+	[ -d "$runsRoot" ] || return 0
+	for runsDir in $( ls -d "$runsRoot"/2*/ 2> /dev/null | LC_ALL=C sort -r | head -"$1" ) ; do
+		LC_ALL=C grep -H -e '^rc=' -e '^seconds=' "$runsDir"*.receipt 2> /dev/null
+	done | LC_ALL=C awk -F: '
+		{ file = $1 ; key = $2 ; sub( /^.*\//, "", file ) ; name = file ; sub( /\.receipt$/, "", name ) ; run = $1 ; sub( /\/[^\/]*$/, "", run ) ; sub( /^.*\//, "", run ) ; val = $0 ; sub( /^[^=]*=/, "", val ) ;
+		  if ( $2 ~ /^rc=/ ) rcOf[name SUBSEP run] = val ; else if ( $2 ~ /^seconds=/ ) secOf[name SUBSEP run] = val ;
+		  seen[name SUBSEP run] = 1 }
+		END { for ( k in seen ) { split( k, p, SUBSEP ) ; print p[1] "\t" p[2] "\t" ( k in rcOf ? rcOf[k] : "-" ) "\t" ( k in secOf ? secOf[k] : "-" ) } }' | LC_ALL=C sort -t "$(printf '\t')" -k1,1 -k2,2r
+}
+
+## --test-list [--project <p>] [--namespace <n>] [--keyword <k>]: the registered tests that answer, with their stats and a short run history, as rows:
+## `test<TAB>id<TAB>project<TAB>functionality<TAB>keywords<TAB>nightly<TAB>passed-on-this-state<TAB>invalidated-at<TAB>runs<TAB>passes<TAB>fails`, after each
+## its last runs `run<TAB>id<TAB>run folder<TAB>PASS|FAIL<TAB>seconds` (the last three of the last forty run folders), and a last row `tests<TAB>n<TAB>passed<TAB>not passed`.
+AgentsToolsTestbedList(){ ## the operation, its arguments...
+	local listOp="$1" listProject="" listNamespace="" listKeyword="" listIds listRows listPassed listRuns listTotal=0 listPassedCount=0 listLine listId
+	shift
+	while [ $# -gt 0 ] ; do
+		[ -n "${2:-}" ] || { echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is [--project <p>] [--namespace <n>] [--keyword <k>]" >&2 ; return 1 ; }
+		case "$1" in
+			--project) listProject="$2" ;;
+			--namespace) listNamespace="$2" ;;
+			--keyword) listKeyword="$2" ;;
+			*) echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is [--project <p>] [--namespace <n>] [--keyword <k>], got: $1" >&2 ; return 1 ;;
+		esac
+		shift 2
+	done
+	listRows="$( AgentsToolsTestbedSelect "$listProject" "$listNamespace" "$listKeyword" | LC_ALL=C sort )"
+	listIds="$( printf '%s\n' "$listRows" | LC_ALL=C cut -f1 | LC_ALL=C grep . | tr '\n' ' ' )"
+	if [ -n "$listIds" ] ; then
+		listPassed="$( AgentsToolsTestbedPassed $listIds )"
+		listRuns="$( AgentsToolsTestbedRuns 40 )"
+	else
+		listPassed="" listRuns=""
+	fi
+	for listId in $listIds ; do
+		listLine="$( printf '%s\n' "$listPassed" | LC_ALL=C awk -v id="$listId" '$1 == id { print $2 ; exit }' )"
+		listTotal=$(( listTotal + 1 )) ; [ -z "$listLine" ] || [ "$listLine" = "-" ] || listPassedCount=$(( listPassedCount + 1 ))
+		printf 'test\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t' "$listId" "$( AgentsToolsTestbedGet "$listId" project )" "$( AgentsToolsTestbedGet "$listId" functionality )" "$( AgentsToolsTestbedGet "$listId" keywords )" \
+			"$( AgentsToolsTestbedGet "$listId" nightly )" "${listLine:--}" "$( AgentsToolsTestbedGet "$listId" invalidated-at )"
+		printf '%s\n' "$listRuns" | LC_ALL=C awk -F'\t' -v id="$listId" '$1 == id { runs++ ; if ( $3 == "0" ) passes++ ; else fails++ } END { printf "%d\t%d\t%d\n", runs, passes, fails }'
+		printf '%s\n' "$listRuns" | LC_ALL=C awk -F'\t' -v id="$listId" '$1 == id && shown < 3 { shown++ ; printf "run\t%s\t%s\t%s\t%s\n", $1, $2, ( $3 == "0" ? "PASS" : "FAIL" ), $4 }'
+	done
+	printf 'tests\t%s\t%s\t%s\n' "$listTotal" "$listPassedCount" "$(( listTotal - listPassedCount ))"
+}
+
+## Tests put into the one retest queue of the machine (AgentsTools.MemberRetest.include), as the queue is called: the queue is the only one, and a
+## request is about this copy of the package. Prints what the queue prints (the request id); with --wait, the outcome.
+AgentsToolsTestbedEnqueue(){ ## the operation, why, wait flag (wait|no-wait), test id...
+	local enqueueOp="$1" enqueueWhy="$2" enqueueWait="$3" retestStore="${HOME:-}/.agents/magic-team/retest-queue" enqueueRc=0
+	shift 3
+	type AgentsToolsRetestQueue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberRetest.include" --definitions-only > /dev/null 2>&1 || :
+	( set +e ; AgentsToolsRetestQueue "$enqueueOp" --by "${MDAT_SPAWN_AGENT:-user-${USER:-console}}" --why "$enqueueWhy" "--$enqueueWait" "$@" ) || enqueueRc=$?
+	return "$enqueueRc"
+}
+
+## --run-oldest-untested [--wait|--no-wait] and --run-all-nightly-regressions [--wait|--no-wait]: tests of the testbed put into the retest queue.
+## The oldest untested is the registered test, of those that have not passed on the state they would run on now, registered first (its id breaking a tie);
+## the nightly regressions are all that are registered `nightly: yes`.
+AgentsToolsTestbedRun(){ ## the operation, its arguments...
+	local runOp="$1" runWait="no-wait" runRows runIds runPassed runPick="" runWhy
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--wait) runWait="wait" ;;
+			--no-wait) runWait="no-wait" ;;
+			*) echo "⛔ ERROR: $MDSC_CMD $runOp: syntax is [--wait|--no-wait], got: $1" >&2 ; return 1 ;;
+		esac
+		shift
+	done
+	runRows="$( AgentsToolsTestbedSelect "" "" "" )"
+	[ -n "$runRows" ] || { echo "⛔ ERROR: $MDSC_CMD $runOp: no test is registered in the testbed -- register tests with --test-register" >&2 ; return 1 ; }
+	case "$runOp" in
+		--run-oldest-untested)
+			runIds="$( printf '%s\n' "$runRows" | LC_ALL=C cut -f1 | tr '\n' ' ' )"
+			runPassed="$( AgentsToolsTestbedPassed $runIds )"
+			runPick="$( printf '%s\n' "$runRows" | AGENTS_TESTBED_PASSED="$runPassed" LC_ALL=C awk -F'\t' '
+				BEGIN { n = split( ENVIRON["AGENTS_TESTBED_PASSED"], passedLines, "\n" ) ; for ( i = 1; i <= n; i++ ) { split( passedLines[i], word, " " ) ; if ( word[1] != "" && word[2] != "" && word[2] != "-" ) passedOn[word[1]] = 1 ; } }
+				$1 != "" && !( $1 in passedOn ) { print $2 "\t" $1 ; }' | LC_ALL=C sort | LC_ALL=C sed -n 1p | LC_ALL=C cut -f2 )"
+			if [ -z "$runPick" ] ; then
+				echo "# $MDSC_CMD $runOp: every registered test has passed on the state it would run on now -- nothing is put in the queue" >&2
+				return 0
+			fi
+			runWhy="the oldest untested test of the testbed"
+		;;
+		--run-all-nightly-regressions)
+			runPick="$( printf '%s\n' "$runRows" | LC_ALL=C cut -f1 | while IFS= read -r runId ; do [ "$( AgentsToolsTestbedGet "$runId" nightly )" != yes ] || printf '%s\n' "$runId" ; done | LC_ALL=C sort | tr '\n' ' ' )"
+			if [ -z "${runPick% }" ] ; then
+				echo "# $MDSC_CMD $runOp: no registered test is eligible for the nightly regressions (nightly: yes, set with --test-register or --test-update) -- nothing is put in the queue" >&2
+				return 0
+			fi
+			runWhy="the nightly regressions of the testbed"
+		;;
+	esac
+	AgentsToolsTestbedEnqueue "$runOp" "$runWhy" "$runWait" $runPick
+}

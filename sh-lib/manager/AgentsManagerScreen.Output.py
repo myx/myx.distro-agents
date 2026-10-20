@@ -19,9 +19,10 @@ OUTPUT_KEPT = 5000
 
 
 ## The one way to run an operation in the big output dialog and follow it: its label, and
-## its words as the dispatcher takes them. The screen starts it at its next turn (startCalls).
-def runFollowed(state, label, words):
-    state.follow = {"key": "follow:" + label, "label": label, "words": list(words), "started": False, "stop": None, "rest": ""}
+## its words as the dispatcher takes them, and, where it takes any, what goes to it on its standard input (never a word of its command).
+## The screen starts it at its next turn (startCalls).
+def runFollowed(state, label, words, inputText=None):
+    state.follow = {"key": "follow:" + label, "label": label, "words": list(words), "started": False, "stop": None, "rest": "", "input": inputText}
     openDialog(state, "output", {"result": {"lines": [OUTPUT_SAYS["running"]]}}, about={"esc": "Stop"}, title=label)
 
 

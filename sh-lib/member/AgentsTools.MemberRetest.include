@@ -83,13 +83,14 @@ AgentsToolsRetestProcess(){ ## pid -- when that process was started, as the syst
 
 AgentsToolsRetestQueue(){ ## operation, its arguments... -- one request into the queue; its id on stdout
 	local queueOp="$1" ; shift
-	local queueSyntax="⛔ ERROR: $MDSC_CMD $queueOp: syntax is [--by <who>] [--about <scratch-folder>] --why <text> [--file <changed-file>]... [<test>...]"
-	local queueBy="${MDAT_SPAWN_AGENT:-}" queueAbout="" queueWhy="" queueGiven=() queueTests="" queueFiles="" queueRoot queueDir queueName queueFile queueId queueTestCount=0 queueFileCount=0
+	local queueSyntax="⛔ ERROR: $MDSC_CMD $queueOp: syntax is [--by <who>] [--about <scratch-folder>] --why <text> [--project <p>] [--file <changed-file>]... [--wait|--no-wait] [<test>...]"
+	local queueProject="" queueWait="no-wait" queueBy="${MDAT_SPAWN_AGENT:-}" queueAbout="" queueWhy="" queueGiven=() queueTests="" queueFiles="" queueRoot queueDir queueName queueFile queueId queueTestCount=0 queueFileCount=0
 	while [ $# -gt 0 ] ; do
 		case "$1" in
-			--by|--about|--why|--file)
+			--by|--about|--why|--file|--project)
 				[ -n "${2:-}" ] || { echo "$queueSyntax -- $1 takes a value" >&2 ; return 1 ; }
 				case "$1" in
+					--project) queueProject="$2" ;;
 					--by) queueBy="$( AgentsToolsRetestOneLine "$2" )" ;;
 					--about) queueAbout="$2" ;;
 					--why) queueWhy="$( AgentsToolsRetestOneLine "$2" )" ;;
@@ -97,10 +98,22 @@ AgentsToolsRetestQueue(){ ## operation, its arguments... -- one request into the
 				esac
 				shift 2
 			;;
+			--wait) queueWait="wait" ; shift ;;
+			--no-wait) queueWait="no-wait" ; shift ;;
 			-*) echo "$queueSyntax -- unknown option: $1" >&2 ; return 1 ;;
 			*) queueGiven[${#queueGiven[@]}]="test:$1" ; shift ;;
 		esac
 	done
+	## A project is the tests registered for it in the testbed (--test-register, DistroAgentsTesting.fn.sh).
+	if [ -n "$queueProject" ] ; then
+		local queueProjectTest queueProjectCount=0
+		type AgentsToolsTestbedProjectTests > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Testbed.include"
+		while IFS= read -r queueProjectTest ; do
+			[ -n "$queueProjectTest" ] || continue
+			queueGiven[${#queueGiven[@]}]="test:$queueProjectTest" ; queueProjectCount=$(( queueProjectCount + 1 ))
+		done <<< "$( AgentsToolsTestbedProjectTests "$queueProject" )"
+		[ "$queueProjectCount" -gt 0 ] || { echo "$queueSyntax -- no test is registered for the project $queueProject: register them with --test-register (DistroAgentsTesting.fn.sh)" >&2 ; return 1 ; }
+	fi
 	[ -n "$queueBy" ] || { echo "$queueSyntax -- who asks is not told: this session acts as no member, so --by is required" >&2 ; return 1 ; }
 	[ -n "$queueWhy" ] || { echo "$queueSyntax -- --why is required: one line on what was changed" >&2 ; return 1 ; }
 	[ "${#queueGiven[@]}" -gt 0 ] || { echo "$queueSyntax -- nothing to retest is named: a test, or a changed file with --file" >&2 ; return 1 ; }
@@ -140,7 +153,7 @@ AgentsToolsRetestQueue(){ ## operation, its arguments... -- one request into the
 	queueId="$( uuidgen 2> /dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' | LC_ALL=C cut -c1-8 )"
 	queueId="retest-$( date -u +%Y%m%dT%H%M%SZ )-${queueId:-$$-$RANDOM}"
 	{
-		printf 'id: %s\nasked: %s\nby: %s\nwhy: %s\nabout: %s\norigin: %s\nworkspace: %s\n' "$queueId" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$queueBy" "$queueWhy" "$( AgentsToolsRetestCopyName "$queueRoot" )" "$queueRoot" "${MMDAPP%/}"
+		printf 'id: %s\nasked: %s\npriority: %s\nby: %s\nwhy: %s\nabout: %s\norigin: %s\nworkspace: %s\n' "$queueId" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$queueWait" "$queueBy" "$queueWhy" "$( AgentsToolsRetestCopyName "$queueRoot" )" "$queueRoot" "${MMDAPP%/}"
 		[ -z "$queueTests" ] || printf '%s' "$queueTests" | LC_ALL=C sed 's/^/test: /'
 		[ -z "$queueFiles" ] || printf '%s' "$queueFiles" | LC_ALL=C sed 's/^/file: /'
 	} > "$retestStore/waiting/.$queueId.request" 2> /dev/null && mv -f "$retestStore/waiting/.$queueId.request" "$retestStore/waiting/$queueId.request" 2> /dev/null || {
@@ -152,6 +165,18 @@ AgentsToolsRetestQueue(){ ## operation, its arguments... -- one request into the
 		echo "# retest: queued as $queueId, about $( AgentsToolsRetestCopyName "$queueRoot" ): $queueTestCount test(s) by name, and $queueFileCount changed file(s) no test is known to cover, so every test not yet passed on the state that copy is in when the batch runs. The tester's next batch takes it; read the outcome with --member-retest-result $queueId" >&2
 	else
 		echo "# retest: queued as $queueId, about $( AgentsToolsRetestCopyName "$queueRoot" ): $queueTestCount test(s). The tester's next batch takes it; read the outcome with --member-retest-result $queueId" >&2
+	fi
+	## --wait: the call stays until its request is finished, and says how it came out; a request with that priority is the first batch the next drain takes.
+	if [ "$queueWait" = wait ] ; then
+		local queueLeft=300
+		while [ ! -f "$retestStore/done/$queueId.result" ] && [ "$queueLeft" -gt 0 ] ; do sleep 2 ; queueLeft=$(( queueLeft - 1 )) ; done
+		if [ -f "$retestStore/done/$queueId.result" ] ; then
+			AgentsToolsRetestSay "$retestStore/done/$queueId.result"
+			case "$( AgentsToolsRetestSay "$retestStore/done/$queueId.result" )" in "RETEST $queueId PASS"*) ;; *) return 1 ;; esac
+		else
+			AgentsToolsRetestResult "$queueOp" "$queueId"
+			return 1
+		fi
 	fi
 	return 0
 }
@@ -292,9 +317,16 @@ AgentsToolsRetestDrain(){ ## operation, its arguments... -- everything that wait
 	drainBatch="batch-$( date -u +%Y%m%dT%H%M%SZ )-$drainPid"
 	rm -rf "$drainWork" ; mkdir -p "$drainWork" || { echo "⛔ ERROR: $MDSC_CMD $drainOp: cannot write under $retestStore/running -- nothing was run" >&2 ; return 1 ; }
 	: > "$drainWork/copies"
-	## Everything that waits now is this batch, and with it what a drain that no longer exists left unfinished.
+	## Everything that waits now is this batch, and with it what a drain that no longer exists left unfinished. But for the requests that were made
+	## with --wait, someone waits for them: where any waits, the batch is those alone, and the rest is the next batch.
+	local drainPriority=""
 	for drainRequest in "$retestStore/waiting"/*.request ; do
 		[ -f "$drainRequest" ] || continue
+		[ "$( AgentsToolsRetestField "$drainRequest" priority | LC_ALL=C sed -n 1p )" != wait ] || { drainPriority=wait ; break ; }
+	done
+	for drainRequest in "$retestStore/waiting"/*.request ; do
+		[ -f "$drainRequest" ] || continue
+		[ -z "$drainPriority" ] || [ "$( AgentsToolsRetestField "$drainRequest" priority | LC_ALL=C sed -n 1p )" = wait ] || continue
 		mv -f "$drainRequest" "$retestStore/running/" 2> /dev/null
 	done
 	for drainRequest in "$retestStore/running"/*.request ; do

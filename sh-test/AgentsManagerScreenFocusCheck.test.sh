@@ -125,7 +125,7 @@ RIGROWS
 	rigRow line interface screen style set tv Style How_the_screen_is_drawn yes choice user file tv=Turbo_Vision,magic=Magic /rig/conf settings
 	rigRow line interface screen period set 10 Period Seconds_between_reads yes number user file 1..60 /rig/conf settings
 	rigRow line slack app channel set C123 Channel The_channel no:set_at_deployment text workspace file - /rig/conf configuration
-	rigRow line slack app token secret-set hidden-value Bot_token The_token_of_the_bot no:set_at_deployment text workspace file - /rig/conf configuration
+	rigRow line slack app token secret-set hidd******** Bot_token The_token_of_the_bot no:set_at_deployment text workspace file - /rig/conf configuration
 	rigRow line slack hooks signing secret-missing - Signing_secret The_signing_secret no:set_at_deployment text workspace file - /rig/conf configuration
 } > "$rigF/rows.--manager-config-digest"
 {
@@ -224,8 +224,8 @@ rigAssert "the asks: every ask as a table, nothing above it, with how long it wa
 rigAssert "the members: their table alone, numbered, and no line of a summary" "$( rigLeft T )" "$( printf ' %s  %-17s  %-7s  %-8s  %-6s  %s / ' '#' MEMBER RUN STATUS KIND WHERE 1 magic-coordinator running active lead - 2 keeper-myx - active keeper - 3 human-owner - ref-only human - 4 far-member - active keeper - | LC_ALL=C sed 's| / $||' )"
 rigAssert "the locations: every location as a table with its path, nothing above it" "$( rigLeft P )" "   PLACE     KIND     STATE   PATH                               SESSIONS CEILING /  • ws-one    workspa… present /rig/Workspaces/ws-one             2        read-wr… /    gone-work workspa… absent  /rig/Volumes/gone-work             0        read-wr… /    deep      directo… present /rig/Workspaces/ws-one/source/deep -        read-on…"
 rigAssert "what is to start: each as a table with its command, nothing above it" "$( rigLeft C )" " CONSOLE         GROUP   COMMAND /  Agents Console  Distro  bash DistroAgentsConsole.sh /  Source Console  Distro  bash DistroSourceConsole.sh /  Top             System  top"
-rigAssert "the settings: its subjects in a table, with what each holds" "$( rigLeft G | sed 's/^.*while the workspace runs\. \/ //' )" " SUBJECT    LINES  MISSING  WHAT /  Interface  2      -        how this console looks, saved for the user who runs it"
-rigAssert "the configuration: its subjects, how many lines each misses, and its folders" "$( rigLeft F | sed 's/^.*change it later\. \/ //' ) [$( rigLeft F | sed 's/ \/ .*$//' )]" " SUBJECT        LINES MISSING WHAT /  Slack          3     1       - /  Config Checker -     -       the read-only checks of the installation, run on /                               demand /  Server Keys    -     -       the public keys of this server [ SUBJECT        LINES MISSING WHAT]"
+rigAssert "the settings: its subjects in a table, with what each holds" "$( rigLeft G | sed 's/^.*while the workspace runs\. \/ //' )" " SUBJECT      LINES MISSING WHAT /  Interface    2     -       how this console looks, saved for the user who runs it /  Scope        -     -       every scope of settings of this workspace, each a /  Settings                   folder of its variables"
+rigAssert "the configuration: its subjects, how many lines each misses, and its folders" "$( rigLeft F | sed 's/^.*change it later\. \/ //' ) [$( rigLeft F | sed 's/ \/ .*$//' )]" " SUBJECT        LINES MISSING WHAT /  Slack          3     1       - /  Config Checker -     -       the read-only checks of the installation, run on /                               demand /  Server Keys    -     -       the public keys of this server /  Git Settings   -     -       the global git settings of the account that runs the /                               tools /  Installed      -     -       the subsystems of the tool family, installed here or /  Subsystems                   not, and the commands to install and uninstall them [ SUBJECT        LINES MISSING WHAT]"
 rigAssert "nothing was entered, and each list was read once: the asks, the members, what is to start, and the digest for both its roots" "[$( rigVal end.path )] $( rigCalls --member-pending-reply-read ) $( rigCalls --manager-team-member-list ) $( rigCalls --manager-console-list ) $( rigCalls --manager-config-digest ) $( rigFolderCalls )" "[] 1 1 1 1 4"
 
 echo "-- until the rows have come the window says that it waits; the read starts when the selection has rested --"
@@ -379,12 +379,12 @@ wait focus 5
 turn 2
 wait plan 5
 show Y
-keys DOWN DOWN
+keys DOWN DOWN DOWN DOWN
 wait focus 5
 show U
 keys r
 get refused
-keys BACKSPACE UP ENTER DOWN
+keys BACKSPACE UP ENTER DOWN DOWN
 wait focus 5
 show I
 RIGSCRIPT
@@ -392,7 +392,7 @@ rigAssert "Launch (Start): every routine as a table, its start in a word, nothin
 rigAssert "the checker on its row, rested, the period passed and a read asked for: it was not run; the folder says so and names the key, which the status line offers" "[$( rigVal k0.selected )] [$( rigLeft K0 | sed 's/ \/ .*$//' )] $( rigHolds K0 'r runs them.' ) [$( rigVal k0s | LC_ALL=C grep -c -F 'r Run' )]" "[checker] [The checks were not run yet in this run of the screen.] 1 [1]"
 rigAssert "r on that row runs them, once, and the folder then holds every check as a table, the worst first, nothing above it" "[$( rigVal asked.notice )] $( rigCalls --manager-check-run ) [$( rigLeft K1 )]" "[Run the checks: asked of the tooling, it takes up to a minute] 1 [ CHECK  STATE  DOMAIN   REASON /  Token  fail   slack    the token is missing /  Bash   ok     install  fine]"
 rigAssert "Server Keys: its groups in one table, each public key whole and never its short form, the list read once and each key that can be read" "$( rigLeft Y ) $( rigHolds Y short-marker ) $( rigCalls --manager-keys-list ) $( rigCalls '--manager-keys-read deploy' ) $( rigCalls '--manager-keys-read host' )" " KEY         TYPE         PUBLIC LINE /  To add to git /  Deploy key  ssh-ed25519  ssh-ed25519 AAAAC3NzaWHOLEKEY rig@host /  To trust when connecting /  Host key    ssh-ed25519  absent: /rig/keys/host.pub 0 1 1 0"
-rigAssert "a subject of the configuration: its missing line first, a secret by its state alone" "$( rigLeft U ) $( rigHolds U hidden-value )" " SETTING         VALUE           SOURCE  KEY /  missing, first /  Signing secret  not configured  file    signing in hooks /  app /  Channel         C123            file    channel /  Bot token       configured      file    token 0"
+rigAssert "a subject of the configuration: its missing line first, a secret in its one form with its state beside it" "$( rigLeft U ) $( rigHolds U hidden-value )" " SETTING         VALUE                      SOURCE  KEY /  missing, first /  Signing secret  not configured             file    signing in hooks /  app /  Channel         C123                       file    channel /  Bot token       hidd******** (configured)  file    token 0"
 rigAssert "on another row of the configuration the key of the checks says that it is not for it" "[$( rigVal refused.notice )]" "[Run the checks: for the checker, not for what is selected]"
 rigAssert "a subject of the settings: its settings with their values, a choice by the value it is saved as" "$( rigLeft I )" " SETTING  VALUE  SOURCE  KEY /  Style    tv     file    style /  Period   10     file    period"
 

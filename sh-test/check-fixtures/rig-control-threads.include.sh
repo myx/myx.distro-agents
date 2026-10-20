@@ -27,7 +27,7 @@
 ## workspace and its lock, comms/lock, names it, both read here the same way.
 ##
 ## AND THE THREAD OF THE SOURCES A SCAN READS (F4.2), the same: its start line is in collect/thread.log and its lock, collect/thread.lock,
-## names it (sh-lib/collect/AgentsTools.CollectThread.include).
+## names it (sh-lib/comms/AgentsTools.CollectThread.include).
 ##
 ##   rigControlThreadNotes <dir>...   the notes found under those rig trees, `<pid> <start>` a line
 ##   rigControlThreadsEnd <dir>...    ends every such process that is still itself, with what it started (the

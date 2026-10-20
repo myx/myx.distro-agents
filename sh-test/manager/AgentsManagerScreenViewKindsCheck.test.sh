@@ -16,6 +16,7 @@
 ## Red before F11.3: no view kinds and no focus handlers, the left pane's content chosen by a chain of tests on the level and the row.
 ## Offline: no operation of the real tooling is called.
 ## Reconciled for F11.5: ten plugins show a content through their focus handler: Activity is one more.
+## Reconciled for F11.7: three more: Scope Settings, Git Settings and Installed Subsystems.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
@@ -232,7 +233,7 @@ rigAssert "the plugin's command for a table stands in the menu and the status li
 	"$( rigVal tableStatus ) $( rigVal tableMenu ) / $( rigVal paramStatus ) $( rigVal paramMenu ) / $( rigVal otherStatus )" "True True / False False / False"
 
 echo "-- 4. every app feature gives its content through its focus handler --"
-rigAssert "the ten plugins that show a content declare their focus handler" "$( rigVal focused )" "activity configuration consoles dashboard pending pending-in-team places settings team teamdata"
+rigAssert "the thirteen plugins that show a content declare their focus handler" "$( rigVal focused )" "activity configuration consoles dashboard git pending pending-in-team places scopes settings subsystems team teamdata"
 rigAssert "the chooser of the left pane calls no function of a feature's" "$( rigVal chooserCalls )" "none"
 rigAssert "the setting of the settings is a parameter" "$( rigVal settingIsParameter )" "yes"
 

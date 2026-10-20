@@ -159,6 +159,64 @@ AgentsToolsManagerKeysRow(){ ## key, label, group, what it is for, public file
 	printf 'key\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$( AgentsToolsManagerKeysField "$2" )" "$3" "$( AgentsToolsManagerKeysField "$4" )" "${keysType:--}" "${rowPrint:--}" "$rowShort" "$( AgentsToolsManagerKeysField "$5" )" "$rowState" "$( AgentsToolsManagerKeysField "$rowPaste" )"
 }
 
+## THE KEYS THIS WORKSPACE MAY MAKE, REPLACE AND REMOVE (F11.7): the three of the account that runs the tools, `deploy` (the
+## key for git), `generated` (the generated default, where it is another) and `outgoing` (the key the tools connect out with). The
+## ssh host keys of the server, `trust-on-connect`, are the system's and are never touched here. A key is the pair a private file
+## and its public file stand for: the private file is the public file's name without `.pub`, as AgentsToolsManagerKeysDeclared names
+## it. A key is made as the rig's own installer makes the git key: ed25519, no passphrase, its comment `<account>@<host>`.
+## Into private, public and group (set by AgentsToolsManagerKeysMine): the files of the key a word names. rc 1, with the reason
+## and nothing done, for a word that names none of the three.
+AgentsToolsManagerKeysMine(){ ## operation, key
+	local mineKey mineLabel mineGroup mineFor mineFile mineRest
+	keysPrivate="" ; keysPublic="" ; keysGroup=""
+	case "$2" in ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*)
+		echo "⛔ ERROR: $MDSC_CMD $1: syntax is $1 <key>, and the word given is no name of a key -- nothing was done" >&2
+		return 1
+	;; esac
+	while IFS='|' read -r mineKey mineLabel mineGroup mineFor mineFile mineRest ; do
+		[ "$mineKey" = "$2" ] || continue
+		case "$mineGroup" in
+			add-to-git|add-to-authorized-keys) ;;
+			*) echo "⛔ ERROR: $MDSC_CMD $1: the key '$2' is a host key of this server, the system's, and is never made, replaced or removed here -- nothing was done" >&2 ; return 1 ;;
+		esac
+		keysPublic="$mineFile" ; keysPrivate="${mineFile%.pub}" ; keysGroup="$mineGroup"
+		return 0
+	done <<< "$( AgentsToolsManagerKeysDeclared )"
+	echo "⛔ ERROR: $MDSC_CMD $1: no key is named '$2' -- nothing was done. The keys are those ${1%-*}-list prints" >&2
+	return 1
+}
+
+## A key made: its private file and its public file, beside each other, in a folder of the account's own (mode 700 where it is made
+## here). Made under a name of its own first, and put in place by a rename, so that a key it replaces stays whole until the new one is.
+## rc 1, with the reason, where ssh-keygen is not there or does not make it.
+AgentsToolsManagerKeysMake(){ ## operation, private file
+	local makeDir makeAccount makeTemp
+	command -v ssh-keygen > /dev/null 2>&1 || { echo "⛔ ERROR: $MDSC_CMD $1: ssh-keygen is not on the PATH -- nothing was done" >&2 ; return 1 ; }
+	makeDir="${2%/*}"
+	[ -d "$makeDir" ] || { mkdir -p "$makeDir" && chmod 700 "$makeDir" ; } || { echo "⛔ ERROR: $MDSC_CMD $1: the folder of the key could not be made -- nothing was done" >&2 ; return 1 ; }
+	makeAccount="$( id -un 2> /dev/null )" || makeAccount=""
+	makeTemp="$( mktemp -d "$2.new.XXXXXX" 2> /dev/null )" || { echo "⛔ ERROR: $MDSC_CMD $1: a folder for the new key could not be made beside it -- nothing was changed" >&2 ; return 1 ; }
+	if ! ssh-keygen -q -t ed25519 -N '' -C "${makeAccount:-key}@$( hostname 2> /dev/null || echo localhost )" -f "$makeTemp/key" > /dev/null 2>&1 ; then
+		rm -rf -- "$makeTemp"
+		echo "⛔ ERROR: $MDSC_CMD $1: ssh-keygen did not make the key -- nothing was changed" >&2
+		return 1
+	fi
+	chmod 600 "$makeTemp/key" && chmod 644 "$makeTemp/key.pub" && mv -f "$makeTemp/key.pub" "$2.pub" && mv -f "$makeTemp/key" "$2" || { rm -rf -- "$makeTemp" ; echo "⛔ ERROR: $MDSC_CMD $1: the new key could not be put in place" >&2 ; return 1 ; }
+	rm -rf -- "$makeTemp"
+	return 0
+}
+
+## The row that says a key was made, replaced or removed, from the pair as it stands: what happened, the key, its private file, its type
+## and its fingerprint (`-` for a removed one).
+AgentsToolsManagerKeysDone(){ ## what happened, key, private file
+	local doneType="-" doneFinger="-" keysLine keysType keysText
+	if AgentsToolsManagerKeysPublic "$3.pub" ; then
+		doneType="$keysType"
+		doneFinger="$( ssh-keygen -l -f "$3.pub" 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit }' )" || doneFinger=""
+	fi
+	printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$( AgentsToolsManagerKeysField "$3" )" "$doneType" "${doneFinger:--}"
+}
+
 case "$1" in
 
 	## The public keys of this server, one row each: TAB-separated rows a screen reads. Their
@@ -223,6 +281,56 @@ case "$1" in
 				printf 'register\t%s\t%s\n' "$( AgentsToolsManagerKeysField "$readProject" )" "$( AgentsToolsManagerKeysField "$readUrl" )"
 			done < "$( AgentsToolsManagerKeysHome )/.mdci-source-repos.txt"
 		fi
+		return 0
+	;;
+
+	## A key made where there is none: the private file and its public file, nothing else touched. Refused where either file is already
+	## there: a key that stands is replaced with --manager-keys-regenerate. One row `generated`: the key, its private file, its type, its
+	## fingerprint.
+	--manager-keys-generate)
+		local generateOp="$1" keysPrivate keysPublic keysGroup
+		[ $# -eq 2 ] || { echo "⛔ ERROR: $MDSC_CMD $generateOp: syntax is $generateOp <key>, got $(( $# - 1 )) argument(s) -- nothing was done" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerKeysMine "$generateOp" "$2" || { set +e ; return 1 ; }
+		if [ -e "$keysPrivate" ] || [ -L "$keysPrivate" ] || [ -e "$keysPublic" ] || [ -L "$keysPublic" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $generateOp: a file of the key '$2' is there already, and this makes a key only where there is none -- nothing was done. --manager-keys-regenerate replaces one" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsManagerKeysMake "$generateOp" "$keysPrivate" || { set +e ; return 1 ; }
+		AgentsToolsManagerKeysDone generated "$2" "$keysPrivate"
+		return 0
+	;;
+
+	## A key that stands is replaced by a new one, in the same files: the old pair stays whole until the new one is made, and is then
+	## gone; whoever trusts the old public key trusts nothing of the new. Refused where the key has no private file or is no plain file.
+	## One row `regenerated`, as `generated` has it.
+	--manager-keys-regenerate)
+		local regenerateOp="$1" keysPrivate keysPublic keysGroup
+		[ $# -eq 2 ] || { echo "⛔ ERROR: $MDSC_CMD $regenerateOp: syntax is $regenerateOp <key>, got $(( $# - 1 )) argument(s) -- nothing was done" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerKeysMine "$regenerateOp" "$2" || { set +e ; return 1 ; }
+		if [ -L "$keysPrivate" ] || [ ! -f "$keysPrivate" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $regenerateOp: the key '$2' has no private file of its own to replace, a plain file -- nothing was done. --manager-keys-generate makes one" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsManagerKeysMake "$regenerateOp" "$keysPrivate" || { set +e ; return 1 ; }
+		AgentsToolsManagerKeysDone regenerated "$2" "$keysPrivate"
+		return 0
+	;;
+
+	## A key removed: its private file and its public file. Refused where there is no file of it. One row `deleted`.
+	--manager-keys-delete)
+		local deleteOp="$1" keysPrivate keysPublic keysGroup
+		[ $# -eq 2 ] || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: syntax is $deleteOp <key>, got $(( $# - 1 )) argument(s) -- nothing was done" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerKeysMine "$deleteOp" "$2" || { set +e ; return 1 ; }
+		if [ ! -e "$keysPrivate" ] && [ ! -e "$keysPublic" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $deleteOp: the key '$2' has no file to remove -- nothing was done" >&2
+			set +e ; return 1
+		fi
+		rm -f -- "$keysPrivate" "$keysPublic" || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: the files of '$2' could not be removed" >&2 ; set +e ; return 1 ; }
+		if [ -e "$keysPrivate" ] || [ -e "$keysPublic" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $deleteOp: a file of '$2' is still there after the removal" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsManagerKeysDone deleted "$2" "$keysPrivate"
 		return 0
 	;;
 

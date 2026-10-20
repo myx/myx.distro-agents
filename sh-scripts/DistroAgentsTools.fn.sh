@@ -291,6 +291,14 @@ DistroAgentsTools(){
 			fi
 		;;
 
+		## F7.7's stub of the librarian's skillset write, with no logic of its own: --librarian-skillset-upsert is AgentLibrarianTools.fn.sh --skillset-upsert.
+		--librarian-skillset-upsert)
+			shift
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/AgentLibrarianTools.fn.sh"
+			AgentLibrarianTools --skillset-upsert "$@"
+			return $?
+		;;
+
 		--librarian-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Librarian.include"
 			return $?
@@ -509,7 +517,7 @@ DistroAgentsTools(){
 		## that keeps the mail and the Trello notes of the members a scan reads up to date in their inboxes. A scan and the main loop
 		## want it and start it; no agent calls it.
 		--intern-source-collect)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.InternSourceCollect.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternSourceCollect.include"
 			return $?
 		;;
 
@@ -550,6 +558,16 @@ DistroAgentsTools(){
 		--tester-skillset-validate-routine)
 			shift
 			DistroAgentsTools --intern-doc-validate routine "$@"
+			return $?
+		;;
+
+		## F7.6's stubs of the testing system's operations (the `--tester-*` kind, approved in the refactorings epic), with no logic of their own:
+		## --tester-<operation> is DistroAgentsTesting.fn.sh --<operation>.
+		--tester-test-register|--tester-test-update|--tester-test-unregister|--tester-test-invalidate|--tester-test-list|--tester-run-oldest-untested|--tester-run-all-nightly-regressions)
+			local testerOp="${1#--tester-}"
+			shift
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTesting.fn.sh"
+			DistroAgentsTesting "--$testerOp" "$@"
 			return $?
 		;;
 
@@ -671,7 +689,7 @@ DistroAgentsTools(){
 		## The collection of the sources an input scan reads (F4.2): a member's mailbox and Trello into its inbox, read-only. The tooling's
 		## own, called by the scans, the one background thread and the main loop; no agent calls it and no routine owns it.
 		--intern-op-collect-sources)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.InternOpCollect.include"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.InternOpCollect.include"
 			return $?
 		;;
 

@@ -12,6 +12,7 @@
 ## why. Offline: a Slack-shaped fake curl is first on
 ## PATH, a ps that lists the rig's own runs only is beside it, and everything runs in a
 ## workspace under this check's temp tree.
+## Reconciled for F6.10's Settled line, "a console answers as user-<acct> under the authority rule, never as magic-coordinator": an answer is recorded and applied as that person (the row, answered-by, the grant's by, the confirmation), while what an allow may reach stays bounded by what magic-coordinator holds, as before: the authority gate alone decides who may answer.
 ## Extended for F6.10, the answer forms of the console: a question that takes several of its options is answered by their numbers with a comment, as the checked boxes of the console give them.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -86,6 +87,8 @@ rigHost="$( hostname -s 2>/dev/null || echo unknown )"
 rigAcct="$( id -un 2>/dev/null )" || rigAcct=""
 rigAcct="$( printf '%s' "$rigAcct" | LC_ALL=C tr -s ' \t\r\n' '_' )"
 [ -n "$rigAcct" ] || rigAcct="unknown"
+## The member a console answer stands as (F6.10): user-<account>, the account in the small letters, digits and hyphens a name takes, never magic-coordinator.
+rigMember="user-$( printf '%s' "$rigAcct" | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C tr -c 'a-z0-9\n' '-' | LC_ALL=C sed -e 's/--*/-/g' -e 's/^-//' -e 's/-$//' )"
 rigSpawnRecord(){ ## spawn id, owner, parent session id
 	printf -- '---\nsession-id: rig-cow\nspawn-id: %s\n%shost: %s\nowner: %s\nstatus: spawn-started\n---\n\n# Spawn session\n' \
 		"$1" "${3:+parent-spawn-id: $3$'\n'}" "$rigHost" "$2" > "$rigWs/.local/agents/spawned/rig-cow/$1.md"
@@ -163,7 +166,7 @@ rigAsk magic-tester rig-tester decision human-owner --options "$rigOptions"
 rigOp --manager-pending-reply-read --id "$rigPend"
 rigAssert "the read of a pending question succeeds" "$rigOpRc" "0"
 rigAssert "the question row: status, kind, form, asker, addressee, whose word, words, no reject, dismiss, the link" "$( rigRow question )" \
-	"question|$rigPend|reply-pending|decision|-|magic-tester|human-owner|magic-coordinator|words|-|yes|https://rig.slack.example/archives/CRIG00001/p${rigThread/./}"
+	"question|$rigPend|reply-pending|decision|-|magic-tester|human-owner|$rigMember|words|-|yes|https://rig.slack.example/archives/CRIG00001/p${rigThread/./}"
 rigAssert "the first option: its number, word, what becomes of it, its label" "$( rigRow answer keep )" "answer|1|keep|settles|keep the file"
 rigAssert "the second option" "$( rigRow answer drop )" "answer|2|drop|settles|drop it"
 
@@ -187,24 +190,35 @@ rigOp --magic-escalation-answer magic-coordinator "$rigPend" keep
 rigAssert "the coordinator's own stub still asks for a session" "$rigOpRc:$( rigHas "$rigTmp/op.err" 'carries no session id' )" "1:yes"
 rigAssert "after every refusal the question is still pending, and nothing was posted" "$( rigField "$rigFile" status ):$( rigNew 'console' )" "reply-pending:0"
 
+echo "-- the system gives no account: nobody answers, and nothing is recorded under a made-up name --"
+mkdir -p "$rigTmp/noid"
+printf '#!/bin/sh\nexit 1\n' > "$rigTmp/noid/id"
+chmod +x "$rigTmp/noid/id"
+rigMark
+USER="" LOGNAME="" PATH="$rigTmp/noid:$PATH" rigOp --manager-pending-reply-answer --id "$rigPend" --answer 2
+rigAssert "an answer is refused with an error that says why" "$rigOpRc:$( rigHas "$rigTmp/op.err" 'no account for the person at the console' ):$( rigHas "$rigTmp/op.err" 'made-up name' )" "1:yes:yes"
+rigAssert "nothing is recorded, applied or posted: the question is as it was" "$( rigField "$rigFile" status ):$( rigField "$rigFile" verdict ):$( rigField "$rigFile" answered-by ):$( rigNew 'console' ):$( LC_ALL=C grep -c -F -e user-unknown "$rigFile" )" "reply-pending:::0:0"
+USER="" LOGNAME="" PATH="$rigTmp/noid:$PATH" rigOp --manager-pending-reply-read --id "$rigPend"
+rigAssert "a read is refused the same way, and prints no row that stands as user-unknown" "$rigOpRc:$( rigHas "$rigTmp/op.err" 'no account for the person at the console' ):$( LC_ALL=C grep -c -F -e user-unknown "$rigTmp/op.out" )" "1:yes:0"
+
 echo "-- a decision answered by the number of an option --"
 rigMark
 rigOp --manager-pending-reply-answer --id "$rigPend" --answer 2
-rigAssert "the row says answered, with the option's word, whose word and the account" "$rigOpRc:$( rigRow answered )" "0:answered|$rigPend|drop|magic-coordinator|console:$rigAcct|-"
-rigAssert "the record closed as an answer read from its thread closes it" "$( rigField "$rigFile" status ):$( rigField "$rigFile" verdict ):$( rigField "$rigFile" answered-by )" "reply-received:drop:magic-coordinator"
+rigAssert "the row says answered, with the option's word, whose word and the account" "$rigOpRc:$( rigRow answered )" "0:answered|$rigPend|drop|$rigMember|console:$rigAcct|-"
+rigAssert "the record closed as an answer read from its thread closes it" "$( rigField "$rigFile" status ):$( rigField "$rigFile" verdict ):$( rigField "$rigFile" answered-by )" "reply-received:drop:$rigMember"
 rigAssert "the record names the console and the account" "$( rigField "$rigFile" answered-session )" "console:$rigAcct"
 rigAssert "one line in the question's thread says it was answered from the console, by whom, with what" \
 	"$( rigNew "Answered from the console by $rigAcct" 'drop' "$( rigInThread "$rigThread" )" )" "1"
 rigMark
 rigOp --manager-pending-reply-answer --id "$rigPend" --answer 1
-rigAssert "a second answer is refused, and says how it was answered" "$rigOpRc:$( rigHas "$rigTmp/op.err" 'is answered already, with "drop" by magic-coordinator' ):$( rigField "$rigFile" verdict ):$( rigNew 'console' )" "1:yes:drop:0"
+rigAssert "a second answer is refused, and says how it was answered" "$rigOpRc:$( rigHas "$rigTmp/op.err" 'is answered already, with "drop" by '"$rigMember" ):$( rigField "$rigFile" verdict ):$( rigNew 'console' )" "1:yes:drop:0"
 rigOp --manager-pending-reply-read --id "$rigPend"
 rigAssert "an answered question takes no answer, reject or dismissal any more" "$( rigRow question | cut -d'|' -f3,9-11 ):$( rigRow answer )" "reply-received|-|-|no:"
 
 echo "-- a decision the coordinator asked, answered by a word, with words --"
 rigAsk magic-coordinator rig-coord decision human-owner --options "$rigOptions"
 rigOp --manager-pending-reply-answer --id "$rigPend" --answer Keep --text "for now"
-rigAssert "the operator is not the asker: the coordinator's own question is answered" "$rigOpRc:$( rigRow answered )" "0:answered|$rigPend|keep|magic-coordinator|console:$rigAcct|for now"
+rigAssert "the operator is not the asker: the coordinator's own question is answered" "$rigOpRc:$( rigRow answered )" "0:answered|$rigPend|keep|$rigMember|console:$rigAcct|for now"
 rigAssert "its words are kept with the verdict" "$( rigField "$rigFile" verdict ):$( rigField "$rigFile" verdict-text )" "keep:for now"
 
 echo "-- a readback rejected --"
@@ -213,7 +227,7 @@ rigOp --manager-pending-reply-read --id "$rigPend"
 rigAssert "a readback names its reject" "$( rigRow question | cut -d'|' -f10 ):$( rigRow answer no )" "no:answer|-|no|settles|-"
 rigMark
 rigOp --manager-pending-reply-answer --id "$rigPend" --reject
-rigAssert "the reject gives the kind's own negative answer" "$rigOpRc:$( rigRow rejected ):$( rigField "$rigFile" verdict )" "0:rejected|$rigPend|no|magic-coordinator|console:$rigAcct|-:no"
+rigAssert "the reject gives the kind's own negative answer" "$rigOpRc:$( rigRow rejected ):$( rigField "$rigFile" verdict )" "0:rejected|$rigPend|no|$rigMember|console:$rigAcct|-:no"
 rigAssert "its line says rejected from the console" "$( rigNew "Rejected from the console by $rigAcct" "$( rigInThread "$rigThread" )" )" "1"
 
 echo "-- a permission: an allow the coordinator does not hold goes up the chain, a deny settles --"
@@ -224,10 +238,26 @@ rigAsk magic-tester rig-tester permission human-owner --refusal-id "$rigRefusalI
 rigOp --manager-pending-reply-read --id "$rigPend"
 rigAssert "the read says beforehand what becomes of each answer" "$( rigRow answer allow-once ) $( rigRow answer deny ) $( rigRow question | cut -d'|' -f10 )" "answer|-|allow-once|up-the-chain|- answer|-|deny|settles|- deny"
 rigOp --manager-pending-reply-answer --id "$rigPend" --answer allow-once
-rigAssert "the allow is not applied: the row says it went up, and to whom" "$rigOpRc:$( rigRow up-the-chain | cut -d'|' -f1-5 )" "0:up-the-chain|$rigPend|human-owner|magic-coordinator|console:$rigAcct"
+rigAssert "the allow is not applied: the row says it went up, and to whom" "$rigOpRc:$( rigRow up-the-chain | cut -d'|' -f1-5 )" "0:up-the-chain|$rigPend|human-owner|$rigMember|console:$rigAcct"
 rigAssert "the request stays open, and nothing is granted" "$( rigField "$rigFile" status ):$( rigHas "$rigWs/.local/agents/sessions/rig-tester/grants" "$rigRefusalId" )" "reply-pending:no-such-file"
 rigOp --manager-pending-reply-answer --id "$rigPend" --reject
 rigAssert "the reject of a permission is its deny, which settles" "$rigOpRc:$( rigRow rejected | cut -d'|' -f1-3 ):$( rigField "$rigFile" status )" "0:rejected|$rigPend|deny:reply-received"
+rigAssert "and it stands as the person at the console, never as the coordinator: the record's answered-by, and the member the row names" "$( rigField "$rigFile" answered-by ):$( rigRow rejected | cut -d'|' -f4 )" "$rigMember:$rigMember"
+
+echo "-- a permission the coordinator holds: applied, and recorded as the person at the console --"
+rigOp --intern-op-permission-refusal-log magic-coordinator --session-id rig-tester --tool Write --target "$rigWs/HELD/a.txt" --reason rig
+rigHeldRefusal="$( LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' "$rigTmp/op.out" | head -1 )"
+rigOp --intern-op-permission-grant-open human-owner --session-id rig-tester --refusal-id "${rigHeldRefusal:-none}" --kind session
+rigOp --intern-op-permission-refusal-log magic-tester --session-id rig-tester --tool Write --target "$rigWs/HELD/a.txt" --reason rig
+rigRefusalId="$( LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' "$rigTmp/op.out" | head -1 )"
+[ -n "$rigRefusalId" ] || rigRefuse "no refusal could be recorded"
+rigAsk magic-tester rig-tester permission human-owner --refusal-id "$rigRefusalId"
+rigOp --manager-pending-reply-read --id "$rigPend"
+rigAssert "an allow of what the coordinator holds settles: the bound of a grant is the coordinator's, as it was" "$( rigRow answer allow-once )" "answer|-|allow-once|settles|-"
+rigOp --manager-pending-reply-answer --id "$rigPend" --answer allow-once
+rigAssert "it is applied, and the row says it stands as the person at the console" "$rigOpRc:$( rigRow answered | cut -d'|' -f1,3,4,5 )" "0:answered|allow-once|$rigMember|console:$rigAcct"
+rigAssert "the grant is written, under the person, never under the coordinator whose holding bounded it" \
+	"$( LC_ALL=C grep -F -e "$rigRefusalId" "$rigWs/.local/agents/sessions/rig-tester/grants" | LC_ALL=C grep -c -F -e ":$rigMember:" ):$( LC_ALL=C grep -F -e "$rigRefusalId" "$rigWs/.local/agents/sessions/rig-tester/grants" | LC_ALL=C grep -c -F -e ":magic-coordinator:" ):$( rigField "$rigFile" answered-by )" "1:0:$rigMember"
 
 echo "-- a plain question takes words --"
 rigAsk magic-tester rig-tester question human-owner
@@ -330,13 +360,16 @@ rigOp --manager-pending-reply-answer --id "$rigPend" --answer "Use the Staging h
 rigAssert "control: the plain question the session asked is answered from the console" "$rigOpRc:$( rigField "$rigFile" status )" "0:reply-received"
 rigToolCall 40 Wait "{\"sources\":\"ask:$rigPend\",\"timeout\":5}"
 rigAssert "its Wait returns the answer as received, with the words that were given and who gave them" \
-	"$( rigHas "$rigTmp/tool.out" 'ASK-RESULT: RECEIVED' ):$( LC_ALL=C grep -c -x -F 'VERDICT: Use the Staging host, not prod' "$rigTmp/tool.out" ):$( LC_ALL=C grep -c -x -F 'ANSWERED-BY: magic-coordinator' "$rigTmp/tool.out" )" "yes:1:1"
+	"$( rigHas "$rigTmp/tool.out" 'ASK-RESULT: RECEIVED' ):$( LC_ALL=C grep -c -x -F 'VERDICT: Use the Staging host, not prod' "$rigTmp/tool.out" ):$( LC_ALL=C grep -c -x -F "ANSWERED-BY: $rigMember" "$rigTmp/tool.out" )" "yes:1:1"
 rigToolAsk "May the rig keep its second report?"
 rigOp --manager-pending-reply-dismiss --id "$rigPend" --reason "asked twice"
 rigAssert "control: the question the session asked is dismissed from the console" "$rigOpRc:$( rigField "$rigFile" status )" "0:withdrawn"
 rigToolCall 40 Wait "{\"sources\":\"ask:$rigPend\",\"timeout\":5}"
 rigAssert "its Wait says it was dismissed from the console, by which account and why, and gives no answer" \
 	"$( rigHas "$rigTmp/tool.out" "dismissed from the console by $rigAcct. Reason: asked twice." ):$( LC_ALL=C grep -c '^VERDICT: ' "$rigTmp/tool.out" )" "yes:0"
+
+rigAssert "the help entries say that the answer stands as the person at the console, user-<account>, and that what an allow may reach is bounded by what magic-coordinator holds" \
+	"$( LC_ALL=C tr -s ' \t\n' ' ' < "$rigHere/help/Help.DistroAgentsTools.help.md" | LC_ALL=C grep -c -F -e 'the person at the console, `user-<account>` (F6.10), and is recorded and applied under that name' -e 'is bounded as ever by what magic-coordinator holds: an allow of what it does not hold goes up the chain' )" "1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER PENDING REPLY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2

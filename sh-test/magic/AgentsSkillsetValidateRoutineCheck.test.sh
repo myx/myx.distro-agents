@@ -35,6 +35,9 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/.local/agents" "$rigTmp/home" "$rigTmp/skills/magic-tester" "$rigTmp/routines"
 printf 'rig\n' > "$rigTmp/skills/magic-tester/magic-tester.basic.md" ; printf 'rig\n' > "$rigTmp/skills/magic-tester/magic-tester.armed.md"
+## Reconciled for F7.5: a `runs-after:` must name a routine that exists (epic 1751), so the routine section 2d names stands in the rig's skillset.
+mkdir -p "$rigTmp/skills/magic-coordinator" ; printf 'rig\n' > "$rigTmp/skills/magic-coordinator/magic-coordinator.basic.md"
+printf -- '---\ntype: routine\n---\n# Steps\n' > "$rigTmp/skills/magic-coordinator/magic-coordinator.daily.routine.md"
 
 rigPassCount=0
 rigFailCount=0

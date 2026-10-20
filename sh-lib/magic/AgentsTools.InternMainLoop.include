@@ -314,12 +314,24 @@ case "$1" in
 			local mainLoopCollect=""
 			mainLoopCollect="$(
 				set +e
-				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.CollectThread.include" 2> /dev/null || exit 1
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CollectThread.include" 2> /dev/null || exit 1
 				AgentsToolsCollectThreadCheck main-loop 2> /dev/null
 			)" || mainLoopCollect="failed - the check could not run"
 			case "$mainLoopCollect" in
 				started*|failed*) echo "# $MDSC_CMD --intern-main-loop: the source collector: $mainLoopCollect" >&2 ;;
 			esac
+			## The schedule (F7.5): the autorun of the routines that declare one, the work-duty sessions the flags allow, and the learning
+			## inquiry for each session that ended (AgentsTools.DispatcherLoop.include). The decisions are Dispatcher's: the loop asks, and
+			## starts through the spawner as it starts the heartbeat. One line for each thing done; never fatal.
+			local mainLoopSchedule="" mainLoopScheduleLine
+			mainLoopSchedule="$(
+				set +e
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherLoop.include" 2> /dev/null || exit 1
+				AgentsToolsScheduleLoop 2> /dev/null
+			)" || mainLoopSchedule="schedule: the steps could not run"
+			while IFS= read -r mainLoopScheduleLine ; do
+				[ -z "$mainLoopScheduleLine" ] || echo "# $MDSC_CMD --intern-main-loop: $mainLoopScheduleLine" >&2
+			done <<< "$mainLoopSchedule"
 			## The spawn runs --wait, so without these lines the caller is silent for a whole iteration.
 			echo "# $MDSC_CMD --intern-main-loop: heartbeat iteration starting" >&2
 			## Named here so the choice is visible from the output itself, not only

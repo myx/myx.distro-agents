@@ -1,0 +1,289 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerScope.include -- the --manager-scope-* operations (F11.7 of the refactorings epic): the
+## console's `Scope Settings`. Every --config item of every installed subsystem is a SOURCE of settings, one
+## file of KEY=VALUE lines read and written by the one setting reader (LocalTools.Config.include of the sibling
+## package, as --system-config-option, --custom-config-option, --remote-config-option and --agents-config-option),
+## and each source is a scope the console lists, shows, edits and takes keys out of. Sourced from the
+## `--manager-scope-*)` arm of AgentsTools.Manager.include; who may call was asked where the family is dispatched.
+##
+## THE SCOPES, by the id the other operations take: `common:workspace` (the workspace's own settings, for
+## everybody), `common:user-<account>` (the settings of the one who runs the call in this workspace),
+## `remote:<id>` (a profile of the remote tools, where that subsystem is installed) and `agents:<name>` (a scope of
+## the agents, which is each member's, the team's, each routine's and each preset's: the `preset-<name>` blocks of
+## F10.1 are scopes of the agents, each a folder of its own). There is no deploy scope: the deploy tools have no
+## option scope, and the file they touch is read by nothing.
+## A scope is shown if its file is there. The two common scopes are one each and stay; a scope of the remote tools
+## and of the agents is one of many and may be deleted.
+##
+## EVERY WRITE GOES THROUGH THE SETTING READER, and for the agents through the dispatcher's own operation
+## (--agents-config-option), so the write checks of a preset and of the tiers are asked as they are for any
+## other writer. A VALUE NEVER TRAVELS IN ARGV: --manager-scope-set takes it on the standard input. A value is
+## printed in one form only, that of a credential (AgentsToolsCredentialShown, F11.8) where its key is one
+## (AgentsToolsManagerConfigKeySecret, the plugin's own enumeration), a password inside a URL masked alone: nothing
+## else of a secret is printed here, a refusal included. --manager-scope-reveal is the one operation that prints a
+## value whole, and it is asked only for a key that is set, by the key's name, when the console's form is told to
+## reveal it: the mask is no security boundary, since a shell read shows the value.
+##
+
+type AgentsToolsCredentialShown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.CredentialDisplay.include"
+type AgentsToolsManagerConfigKeySecret > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConfig.include" --definitions-only > /dev/null 2>&1 || :
+
+## The account the call runs as, and the files of the common scopes.
+AgentsToolsManagerScopeAccount(){
+	id -un 2> /dev/null || :
+}
+
+## A word a source's name may be: not empty, no slash, no blank, no `=` and no `:`, not led by a dot or a hyphen.
+AgentsToolsManagerScopeNameOk(){ ## name
+	case "$1" in ''|.*|-*|*/*|*[[:space:]]*|*=*|*:*) return 1 ;; esac
+	return 0
+}
+
+## The scopes, one a line: `<id> <TAB> <subsystem> <TAB> <name> <TAB> <file> <TAB> <deletable>`, in the order the console
+## lists them: the common ones, the remote ones, the agents' by name.
+AgentsToolsManagerScopeSources(){
+	local sourceAccount sourceFile sourceName
+	sourceAccount="$( AgentsToolsManagerScopeAccount )"
+	[ ! -f "${MMDAPP%/}/.local/MDLT.settings.env" ] || printf 'common:workspace\tCommon\tworkspace\t%s\tno\n' "${MMDAPP%/}/.local/MDLT.settings.env"
+	if [ -n "$sourceAccount" ] && [ -f "${MMDAPP%/}/.local/home/$sourceAccount/MDLT.settings.env" ] ; then
+		printf 'common:user-%s\tCommon\tuser-%s\t%s\tno\n' "$sourceAccount" "$sourceAccount" "${MMDAPP%/}/.local/home/$sourceAccount/MDLT.settings.env"
+	fi
+	if [ -d "$MDLT_ORIGIN/myx/myx.distro-remote" ] ; then
+		for sourceFile in "${MMDAPP%/}/remote/static"/*.remote.env ; do
+			[ -f "$sourceFile" ] || continue
+			sourceName="${sourceFile##*/}" ; sourceName="${sourceName%.remote.env}"
+			AgentsToolsManagerScopeNameOk "$sourceName" || continue
+			printf 'remote:%s\tRemote\t%s\t%s\tyes\n' "$sourceName" "$sourceName" "$sourceFile"
+		done
+	fi
+	for sourceFile in "${MMDAPP%/}/.local/.agents"/*.agent.env ; do
+		[ -f "$sourceFile" ] || continue
+		sourceName="${sourceFile##*/}" ; sourceName="${sourceName%.agent.env}"
+		AgentsToolsManagerScopeNameOk "$sourceName" || continue
+		printf 'agents:%s\tAgents\t%s\t%s\tyes\n' "$sourceName" "$sourceName" "$sourceFile"
+	done
+	return 0
+}
+
+## One scope by its id, into scopeId, scopeSubsystem, scopeName, scopeFile and scopeDeletable. rc 1, with the reason, for an id
+## that names none of the scopes listed: the refusal repeats nothing of what was given.
+AgentsToolsManagerScopeFind(){ ## operation, id
+	local findLine findId findRest
+	scopeId="" ; scopeSubsystem="" ; scopeName="" ; scopeFile="" ; scopeDeletable=""
+	while IFS=$'\t' read -r findId findRest ; do
+		[ "$findId" = "$2" ] || continue
+		IFS=$'\t' read -r scopeSubsystem scopeName scopeFile scopeDeletable <<< "$findRest"
+		scopeId="$findId"
+		return 0
+	done <<< "$( AgentsToolsManagerScopeSources )"
+	echo "⛔ ERROR: $MDSC_CMD $1: the id given is none of the scopes of this workspace -- nothing was done. The scopes are those $MDSC_CMD --manager-scope-list prints" >&2
+	return 1
+}
+
+## The reader's operation on a scope, whatever its subsystem: `read` or `write`, then `<config operation> <arguments>...`, the value of a
+## write on the standard input. A READ is the sibling package's reader itself, so what a scope's file holds is what is read, where the
+## dispatcher would answer a spawn setting of the team from the preset it names. A WRITE to a scope of the agents goes through the
+## dispatcher, whose write checks (a preset's, the tiers') it must pass.
+AgentsToolsManagerScopeCall(){ ## `read` or `write`, then the reader's arguments after the scope: --select KEY, --upsert-from-stdin KEY, --delete KEY ...
+	local callHow="$1" ; shift
+	case "$scopeId" in
+		agents:*)
+			if [ "$callHow" = write ] ; then
+				DistroAgentsTools --agents-config-option "$scopeName" "$@"
+			else
+				( set -- --agents-config-option "$scopeName" "$@" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" )
+			fi
+		;;
+		remote:*) ( set -- --remote-config-option "$scopeName" "$@" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ) ;;
+		common:workspace) ( set -- --system-config-option "$@" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ) ;;
+		common:user-*) ( USER="$( AgentsToolsManagerScopeAccount )" ; set -- --custom-config-option "$@" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ) ;;
+	esac
+}
+
+## The names of the keys a scope's file holds, each once, in the order of the file: names only, read from the text left of the `=`,
+## and only a name of a setting (a letter or `_` first, then letters, digits and `_`). A comment, a blank and a line of any other
+## shape are no key.
+AgentsToolsManagerScopeKeyNames(){ ## file
+	[ -f "$1" ] && [ -r "$1" ] || return 0
+	LC_ALL=C awk 'index( $0, "=" ) > 1 { name = substr( $0, 1, index( $0, "=" ) - 1 ) ; if ( name ~ /^[A-Za-z_][A-Za-z0-9_]*$/ && !( name in seen ) ) { seen[ name ] = 1 ; print name ; } }' "$1"
+}
+
+## A value as it is printed: a credential in its one form, a password inside a URL masked alone, any other value as it is.
+## One field: its whitespace reads `_`, as in a registry.
+AgentsToolsManagerScopeShown(){ ## key, value
+	local shownText
+	if AgentsToolsManagerConfigKeySecret "$1" ; then
+		shownText="$( AgentsToolsCredentialShown "$2" )"
+	elif ! shownText="$( AgentsToolsCredentialUrlShown "$2" )" ; then
+		shownText="$2"
+	fi
+	shownText="${shownText//[[:space:]]/_}"
+	printf '%s' "${shownText:--}"
+}
+
+## The `key` row of one key of the scope found: its name, its state (`set`, `secret-set` for a credential, `missing` where its line
+## holds nothing after the `=`), its value as it is printed, its type (`credential` or `setting`, as the plugin's own enumeration says,
+## AgentsToolsManagerConfigKeySecret) and its description, which is the catalogue of the owner setup's text for a key it describes
+## (AgentsToolsOwnerSetupOptionSpec) and `-` for any other. A description is plain words: it never holds a value.
+AgentsToolsManagerScopeKeyRow(){ ## key
+	local rowValue rowType="setting" rowSpec rowScope rowHolder rowSecret rowHow="" rowState
+	rowValue="$( AgentsToolsManagerScopeCall read --select "$1" 2> /dev/null < /dev/null )" || rowValue=""
+	! AgentsToolsManagerConfigKeySecret "$1" || rowType="credential"
+	rowSpec="$( AgentsToolsOwnerSetupOptionSpec "$1" 2> /dev/null )" || rowSpec=""
+	[ -z "$rowSpec" ] || IFS='|' read -r rowScope rowHolder rowSecret rowHow <<< "$rowSpec"
+	rowHow="${rowHow//[[:space:]]/_}"
+	if [ -z "$rowValue" ] ; then
+		rowState="missing" ; rowValue="-"
+	elif [ "$rowType" = "credential" ] ; then
+		rowState="secret-set" ; rowValue="$( AgentsToolsManagerScopeShown "$1" "$rowValue" )"
+	else
+		rowState="set" ; rowValue="$( AgentsToolsManagerScopeShown "$1" "$rowValue" )"
+	fi
+	printf 'key\t%s\t%s\t%s\t%s\t%s\n' "$1" "$rowState" "$rowValue" "$rowType" "${rowHow:--}"
+}
+
+## The `scope` row of the scope found: its id, its label as the console shows a folder (`Agents: client-ndm`), how many keys it
+## holds, whether it may be cleared and whether it may be deleted, and its file.
+AgentsToolsManagerScopeRow(){
+	local rowCount rowText
+	rowCount=0
+	while IFS= read -r rowText ; do
+		[ -n "$rowText" ] || continue
+		rowCount=$(( rowCount + 1 ))
+	done <<< "$( AgentsToolsManagerScopeKeyNames "$scopeFile" )"
+	printf 'scope\t%s\t%s\t%s\t%s\t%s\t%s\n' "$scopeId" "$( printf '%s: %s' "$scopeSubsystem" "$scopeName" | LC_ALL=C tr -s '[:space:]' '_' )" \
+		"$rowCount" "$( [ "$rowCount" -gt 0 ] && echo yes || echo no )" "$scopeDeletable" "${scopeFile//[[:space:]]/_}"
+}
+
+## Whether a name is the name of a setting: rc 0 when it is.
+AgentsToolsManagerScopeKeyOk(){ ## key
+	case "$1" in ''|[!A-Za-z_]*|*[!A-Za-z0-9_]*) return 1 ;; esac
+	return 0
+}
+
+case "$1" in
+
+	## The scopes of this workspace, one `scope` row each. Its form is the help entry's.
+	--manager-scope-list)
+		local listId listRest scopeId scopeSubsystem scopeName scopeFile scopeDeletable
+		while IFS=$'\t' read -r listId listRest ; do
+			[ -n "$listId" ] || continue
+			AgentsToolsManagerScopeFind "$1" "$listId" 2> /dev/null || continue
+			AgentsToolsManagerScopeRow
+		done <<< "$( AgentsToolsManagerScopeSources )"
+		return 0
+	;;
+
+	## One scope: its own `scope` row, then a `key` row for every key it holds. A credential shows in its one form.
+	--manager-scope-read)
+		local scopeId scopeSubsystem scopeName scopeFile scopeDeletable readKey
+		[ $# -eq 2 ] || { echo "⛔ ERROR: $MDSC_CMD $1: syntax is $1 <scope-id>, got $(( $# - 1 )) argument(s)" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerScopeFind "$1" "$2" || { set +e ; return 1 ; }
+		AgentsToolsManagerScopeRow
+		while IFS= read -r readKey ; do
+			[ -n "$readKey" ] || continue
+			AgentsToolsManagerScopeKeyRow "$readKey"
+		done <<< "$( AgentsToolsManagerScopeKeyNames "$scopeFile" )"
+		return 0
+	;;
+
+	## One value whole, by its scope and key: the one operation here that prints a value as it is, asked when a form is told to reveal
+	## a credential. It prints the value alone.
+	--manager-scope-reveal)
+		local scopeId scopeSubsystem scopeName scopeFile scopeDeletable
+		[ $# -eq 3 ] || { echo "⛔ ERROR: $MDSC_CMD $1: syntax is $1 <scope-id> <key>, got $(( $# - 1 )) argument(s)" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerScopeFind "$1" "$2" || { set +e ; return 1 ; }
+		AgentsToolsManagerScopeKeyOk "$3" || { echo "⛔ ERROR: $MDSC_CMD $1: the key given is no setting's name -- nothing was shown" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerScopeCall read --select "$3" 2> /dev/null < /dev/null
+		return 0
+	;;
+
+	## Saves one key of one scope: the value is the standard input, one line, never an argument. Its row `saved` says the key and what it
+	## holds now, as it is printed. An empty value is refused: a key is taken out with --manager-scope-unset.
+	--manager-scope-set)
+		local scopeId scopeSubsystem scopeName scopeFile scopeDeletable setValue setNow
+		[ $# -eq 3 ] || { echo "⛔ ERROR: $MDSC_CMD $1: syntax is $1 <scope-id> <key>, the value on the standard input; got $(( $# - 1 )) argument(s) -- nothing was saved" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerScopeFind "$1" "$2" || { set +e ; return 1 ; }
+		AgentsToolsManagerScopeKeyOk "$3" || { echo "⛔ ERROR: $MDSC_CMD $1: the key given is no setting's name -- nothing was saved" >&2 ; set +e ; return 1 ; }
+		setValue="$( cat )"
+		case "$setValue" in
+			'') echo "⛔ ERROR: $MDSC_CMD $1: the value on the standard input is empty -- nothing was saved. A key is taken out with --manager-scope-unset" >&2 ; set +e ; return 1 ;;
+			*$'\n'*) echo "⛔ ERROR: $MDSC_CMD $1: the value holds more than one line -- nothing was saved" >&2 ; set +e ; return 1 ;;
+		esac
+		printf '%s\n' "$setValue" | AgentsToolsManagerScopeCall write --upsert-from-stdin "$3" > /dev/null || { echo "⛔ ERROR: $MDSC_CMD $1: the setting reader refused the write of $3 in $2 -- nothing was saved" >&2 ; set +e ; return 1 ; }
+		setNow="$( AgentsToolsManagerScopeCall read --select "$3" 2> /dev/null < /dev/null )" || setNow=""
+		if [ "$setNow" != "$setValue" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $1: $3 could not be saved: $2 does not hold the value after the write" >&2
+			set +e ; return 1
+		fi
+		printf 'saved\t%s\t%s\t%s\n' "$2" "$3" "$( AgentsToolsManagerScopeShown "$3" "$setNow" )"
+		return 0
+	;;
+
+	## Takes one key out of one scope. Its row `removed` says which; a key the scope does not hold is refused.
+	--manager-scope-unset)
+		local scopeId scopeSubsystem scopeName scopeFile scopeDeletable unsetNow
+		[ $# -eq 3 ] || { echo "⛔ ERROR: $MDSC_CMD $1: syntax is $1 <scope-id> <key>, got $(( $# - 1 )) argument(s) -- nothing was removed" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerScopeFind "$1" "$2" || { set +e ; return 1 ; }
+		AgentsToolsManagerScopeKeyOk "$3" || { echo "⛔ ERROR: $MDSC_CMD $1: the key given is no setting's name -- nothing was removed" >&2 ; set +e ; return 1 ; }
+		if ! AgentsToolsManagerScopeKeyNames "$scopeFile" | LC_ALL=C grep -q -x -F -- "$3" ; then
+			echo "⛔ ERROR: $MDSC_CMD $1: the scope holds no such key -- nothing was removed" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsManagerScopeCall write --delete "$3" > /dev/null || { echo "⛔ ERROR: $MDSC_CMD $1: the setting reader refused to take $3 out of $2 -- nothing was removed" >&2 ; set +e ; return 1 ; }
+		if AgentsToolsManagerScopeKeyNames "$scopeFile" | LC_ALL=C grep -q -x -F -- "$3" ; then
+			echo "⛔ ERROR: $MDSC_CMD $1: $3 could not be removed: $2 still holds it after the write" >&2
+			set +e ; return 1
+		fi
+		printf 'removed\t%s\t%s\n' "$2" "$3"
+		return 0
+	;;
+
+	## Takes every key out of one scope, one by one as --manager-scope-unset does; the scope stays. Its row `cleared` says how many.
+	--manager-scope-clear)
+		local scopeId scopeSubsystem scopeName scopeFile scopeDeletable clearKey clearCount=0 clearLeft=0
+		[ $# -eq 2 ] || { echo "⛔ ERROR: $MDSC_CMD $1: syntax is $1 <scope-id>, got $(( $# - 1 )) argument(s) -- nothing was removed" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerScopeFind "$1" "$2" || { set +e ; return 1 ; }
+		while IFS= read -r clearKey ; do
+			[ -n "$clearKey" ] || continue
+			if AgentsToolsManagerScopeCall write --delete "$clearKey" > /dev/null 2>&1 ; then clearCount=$(( clearCount + 1 )) ; fi
+		done <<< "$( AgentsToolsManagerScopeKeyNames "$scopeFile" )"
+		while IFS= read -r clearKey ; do
+			[ -n "$clearKey" ] || continue
+			clearLeft=$(( clearLeft + 1 ))
+		done <<< "$( AgentsToolsManagerScopeKeyNames "$scopeFile" )"
+		if [ "$clearLeft" -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $1: $clearLeft key(s) of $2 could not be removed -- $clearCount were" >&2
+			set +e ; return 1
+		fi
+		printf 'cleared\t%s\t%s\n' "$2" "$clearCount"
+		return 0
+	;;
+
+	## Deletes one scope, its file, where the subsystem has many: a scope of the remote tools or of the agents. The two common scopes
+	## stay. Its row `deleted` says which.
+	--manager-scope-delete)
+		local scopeId scopeSubsystem scopeName scopeFile scopeDeletable
+		[ $# -eq 2 ] || { echo "⛔ ERROR: $MDSC_CMD $1: syntax is $1 <scope-id>, got $(( $# - 1 )) argument(s) -- nothing was deleted" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerScopeFind "$1" "$2" || { set +e ; return 1 ; }
+		if [ "$scopeDeletable" != "yes" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $1: this scope is the workspace's or the user's own, one of each, and is cleared, never deleted -- nothing was deleted" >&2
+			set +e ; return 1
+		fi
+		rm -f -- "$scopeFile" || { echo "⛔ ERROR: $MDSC_CMD $1: the file of $2 could not be removed -- nothing was deleted" >&2 ; set +e ; return 1 ; }
+		if [ -e "$scopeFile" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $1: the file of $2 is still there after the removal" >&2
+			set +e ; return 1
+		fi
+		printf 'deleted\t%s\n' "$2"
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

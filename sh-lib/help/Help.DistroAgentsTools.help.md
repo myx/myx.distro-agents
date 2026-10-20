@@ -131,6 +131,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-verify
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-harden
 📘 syntax: DistroAgentsTools.fn.sh --member-git-repo-history [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--limit <n>] <path>...
+📘 syntax: DistroAgentsTools.fn.sh --librarian-skillset-upsert <team-member> <pathname> (--from-stdin|--from-file <path>)
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member> [--exclude-incoming]
@@ -172,6 +173,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-help-read <Name>.fn.sh
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-read <key>
+📘 syntax: DistroAgentsTools.fn.sh --manager-keys-generate <key>
+📘 syntax: DistroAgentsTools.fn.sh --manager-keys-regenerate <key>
+📘 syntax: DistroAgentsTools.fn.sh --manager-keys-delete <key>
 📘 syntax: DistroAgentsTools.fn.sh --manager-manual-read <user|maintainer> [<project>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-read <place>
@@ -181,6 +185,16 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-read --id <pending-id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-answer --id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-dismiss --id <pending-id> [--reason <text>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-scope-list
+📘 syntax: DistroAgentsTools.fn.sh --manager-scope-read <scope-id>
+📘 syntax: DistroAgentsTools.fn.sh --manager-scope-reveal <scope-id> <key>
+📘 syntax: DistroAgentsTools.fn.sh --manager-scope-set <scope-id> <key>
+📘 syntax: DistroAgentsTools.fn.sh --manager-scope-unset <scope-id> <key>
+📘 syntax: DistroAgentsTools.fn.sh --manager-scope-clear <scope-id>
+📘 syntax: DistroAgentsTools.fn.sh --manager-scope-delete <scope-id>
+📘 syntax: DistroAgentsTools.fn.sh --manager-wizard-read <cli-service|git-settings>
+📘 syntax: DistroAgentsTools.fn.sh --manager-wizard-apply cli-service --preset <name>
+📘 syntax: DistroAgentsTools.fn.sh --manager-wizard-apply git-settings
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-list [--active]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-read --session-id <id> [--run]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]
@@ -188,7 +202,11 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run] [--plan]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-effort <session-id> <low|normal|high>
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-control-start (--session-id <id>|--all)
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-message --session-id <id> [--to <participant>]...
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-join --session-id <id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-list
+📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-run (install|uninstall) <subsystem>
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-data-read <store> [<folder> [<item>]] [--include-processed]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-files <team-member> [<file>]
@@ -239,7 +257,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-review-return <magic-coordinator> <item-filename> (--message <text>|--from-stdin)
 📘 syntax: DistroAgentsTools.fn.sh --magic-review-reject <magic-coordinator> <item-filename> (--message <text>|--from-stdin)
 📘 syntax: DistroAgentsTools.fn.sh --magic-review-follow-up <magic-coordinator> <item-filename> <new-item-name> --from-stdin
-📘 syntax: DistroAgentsTools.fn.sh --member-retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--file <changed-file>]... [<test>...]
+📘 syntax: DistroAgentsTools.fn.sh --member-retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--project <p>] [--file <changed-file>]... [--wait|--no-wait] [<test>...]
 📘 syntax: DistroAgentsTools.fn.sh --member-retest-drain [--rest [--about <scratch-folder>]]
 📘 syntax: DistroAgentsTools.fn.sh --member-retest-result <request-id>...
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-config-check
@@ -274,6 +292,13 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]
 📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]
 📘 syntax: DistroAgentsTools.fn.sh --tester-skillset-validate-routine <routine-file|--from-stdin>
+📘 syntax: DistroAgentsTools.fn.sh --tester-test-register (<test-id> --project <p> --script <path>|--from-folder <dir> --project <p>) [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
+📘 syntax: DistroAgentsTools.fn.sh --tester-test-update <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
+📘 syntax: DistroAgentsTools.fn.sh --tester-test-unregister <test-id>
+📘 syntax: DistroAgentsTools.fn.sh --tester-test-invalidate <test-id>
+📘 syntax: DistroAgentsTools.fn.sh --tester-test-list [--project <p>] [--namespace <n>] [--keyword <k>]
+📘 syntax: DistroAgentsTools.fn.sh --tester-run-oldest-untested [--wait|--no-wait]
+📘 syntax: DistroAgentsTools.fn.sh --tester-run-all-nightly-regressions [--wait|--no-wait]
 📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge
 📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --help-setup-<domain>
@@ -3019,12 +3044,20 @@
 			binary is.
 			`systems`: one group for each outside system, the team's own
 			Slack first: `slack`, `email`, `jira`, `confluence`, `trello`,
-			`google`. <key> is a scope, <state> is `set` where that scope
-			holds a value under a key of the system, and <value> names
-			the keys it lacks, joined by commas: each key the catalogue
-			keeps in that scope with no value, then each key the scope
-			holds with none. A system no scope holds has one line with
-			the scope `-`.
+			`google`. A scope has a line whose <key> is the scope, whose
+			<state> is `set` where that scope holds a value under a key of
+			the system, and whose <value> names the keys it lacks, joined
+			by commas: each key the catalogue keeps in that scope with no
+			value, then each key the scope holds with none. Under it
+			stands one line for each key of the system the scope holds a
+			value of, the catalogue's keys first and then the file's:
+			<key> is the key itself, <state> is `set` and <value> the value
+			as the scope has it, or `secret-set` and a credential in the one
+			form above; a key held with no value has no line of its own.
+			With `--full` such a line carries <source>, the scope that
+			holds the key, and <where>, the file of that scope; it belongs
+			to the configuration and is not changed from the digest. A
+			system no scope holds has one line with the scope `-`.
 			`loop`: group `main-loop`, its state file and what the last
 			iteration left in it; group `heartbeat`, its note, its state,
 			its recheck date, and `running`, which is `yes` while its
@@ -3390,6 +3423,45 @@
 			the key. No repository is asked anything. Exit 1, nothing
 			printed, for a name that is no key.
 
+		--manager-keys-generate <key>
+			One of the console's own operations (see Notes). Makes the key the
+			console's configuration wizard names, where there is none: a pair, the
+			private file and its public file, in the place `--manager-keys-list`
+			names it, which is `deploy` (the key the account uses for git, the one
+			its ssh command names, else the deploy key of the account under its
+			home, else the generated default), `generated` or `outgoing` (the key
+			the deploy and remote tools connect out with). It is ed25519 with no
+			passphrase, its comment `<account>@<host>`, made by ssh-keygen under a
+			name of its own and put in place by a rename; the ssh home is made with
+			mode 700 where it is not there, the private file has mode 600 and the
+			public file 644. The ssh host keys of the server, `trust-on-connect`,
+			are the system's and are never made here. Prints one row on stdout,
+			TAB-separated, a value's whitespace `_`:
+			`generated <key> <private file> <type> <fingerprint>`
+			Nothing of the private key is printed. Exit 1, with one error line,
+			nothing made: for a name that is no key, a host key, a word that is no
+			name, a wrong count of words, and where a file of the key is there
+			already (`--manager-keys-regenerate` replaces one).
+
+		--manager-keys-regenerate <key>
+			One of the console's own operations (see Notes). Replaces a key that
+			stands with a new one, in the same files, as `--manager-keys-generate`
+			makes it: the new pair is made under a name of its own beside the old
+			one, which stays whole until the new one is made, and is then put in
+			its place by a rename. Whoever trusts the old public key trusts nothing
+			of the new one. Prints one row on stdout like that of generate, its
+			first field `regenerated`. Exit 1, with one error line, nothing
+			changed: for the refusals of generate, and where the key has no private
+			file of its own, a plain file, or a link stands in its place.
+
+		--manager-keys-delete <key>
+			One of the console's own operations (see Notes). Removes a key: its
+			private file and its public file, as `--manager-keys-list` names them.
+			Prints one row on stdout like that of generate, its first field
+			`deleted`, its type and fingerprint `-`. Exit 1, with one error line,
+			nothing removed: for the refusals of generate but a file being there,
+			and where no file of the key is there.
+
 		--manager-manual-read <user|maintainer> [<project>]
 			One of the console's own operations (see Notes). Gives the
 			manuals of the projects of this workspace, which the root
@@ -3577,8 +3649,9 @@
 			its message. Then, while it is open, one row for each answer
 			it takes: `answer`, the number of the option, the word, what
 			becomes of it (`settles`; `up-the-chain`, an allow of what
-			that member does not hold; `not-taken`, a verdict that is the
-			human-owner's own), and the option's label.
+			magic-coordinator does not hold; `not-taken`, a verdict that is the
+			human-owner's own), and the option's label. Refused, rc 1,
+			where the system gives the console no account to stand as.
 
 		--manager-pending-reply-answer --id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]
 			One of the console's own operations (see Notes). Answers one
@@ -3588,9 +3661,13 @@
 			a word of the kind, the number of an option, or, for a plain
 			question, the words that are its answer; --reject gives the
 			kind's own negative answer; --text adds words to an answer.
-			The answer stands as the member the read names: an allow that
-			member does not hold goes up the chain, and a review, a held
-			change and a proposal are refused. The record keeps
+			The answer stands as the member the read names, the person at
+			the console, `user-<account>` (F6.10), and is recorded and
+			applied under that name: `answered-by`, the grant's `by` and
+			the line in the thread. What an allow may reach is bounded as
+			ever by what magic-coordinator holds: an allow of what it does
+			not hold goes up the chain, and a review, a held change and a
+			proposal are refused. The record keeps
 			`answered-session: console:<account>`, and one line by the
 			team bot in the question's thread says it was answered from
 			the console, by which account and with what; a line not
@@ -3601,7 +3678,9 @@
 			member, `console:<account>`, the reason. Refused, rc 1, one
 			line, nothing changed: no such question, one not pending or
 			answered already, an answer the kind does not have, a reject
-			of a kind with no negative answer.
+			of a kind with no negative answer, and the console where the
+			system gives it no account to stand as: nothing is recorded
+			under a made-up name.
 
 		--manager-pending-reply-dismiss --id <pending-id> [--reason <text>]
 			One of the console's own operations (see Notes). Closes one
@@ -3613,6 +3692,150 @@
 			the console and by which account. Prints one row: `dismissed`,
 			<pending-id>, `console:<account>`, the reason. Refused, rc 1,
 			one line: no such question, or one not pending.
+
+		--manager-scope-list
+			One of the console's own operations (see Notes). Lists the scopes of
+			settings this workspace keeps, which the console's `Scope Settings`
+			shows as folders: every --config item of every installed subsystem.
+			One scope is one file of KEY=VALUE lines, read and written by the one
+			setting reader of the local tools. They are `common:workspace`, the
+			workspace's own settings for everybody (--system-config-option);
+			`common:user-<account>`, the settings of the account that runs the
+			call in this workspace (--custom-config-option), those of no other
+			account; `remote:<id>`, a profile of the remote tools, where that
+			subsystem is installed (--remote-config-option); and `agents:<name>`,
+			a scope of the agents, which is each member's, the team's, each
+			routine's and each preset's, a `preset-<name>` block too
+			(--agents-config-option). A scope is listed where its file is. There
+			is no scope of the deploy tools: they have no option scope. Prints one
+			row each on stdout, TAB-separated, a value's whitespace `_`:
+			`scope <id> <label> <keys> <clear> <delete> <file>`
+			<label> is how a folder is named, `Agents: client-ndm`; <keys> how many
+			keys the file holds; <clear> `yes` where there is a key to take out;
+			<delete> `yes` for a scope of many, a remote profile or a scope of the
+			agents, `no` for the two common scopes, which are one each.
+
+		--manager-scope-read <scope-id>
+			One of the console's own operations (see Notes). Prints one scope as
+			`--manager-scope-list` prints it, its `scope` row, then one row for
+			each key it holds, in the order of its file, each once:
+			`key <name> <state> <value> <type> <description>`
+			<state> is `set`, `secret-set` for a credential, or `missing` where
+			the line holds nothing after the `=`; a comment, a line with no `=`
+			and a blank are no key. <value> is the value as it stands, its
+			whitespace written `_`, but a credential in its one form (the first
+			quarter of its value, not less than 4 and not more than 20
+			characters, then a `*` for every character after them) and a password
+			inside a URL masked alone. <type> is `credential` or `setting`: which
+			keys are credentials is the agents' plugin's to say, as for
+			`--manager-config-digest`. <description> is the text of the catalogue
+			of the owner setup for a key it describes, `-` for any other; it holds
+			no value. Exit 1, with one error line that repeats nothing of what was
+			given, for an id that is none of the scopes listed.
+
+		--manager-scope-reveal <scope-id> <key>
+			One of the console's own operations (see Notes). Prints the value of
+			one key of one scope whole, alone, as the setting reader gives it: the
+			one operation here that does, asked by the console when a form is told
+			to reveal a credential. The mask is no security boundary, since a shell
+			read shows the value as well. Nothing is printed for a key the scope
+			does not hold. Exit 1 for an id that is none of the scopes and for a
+			name that is no setting's.
+
+		--manager-scope-set <scope-id> <key>
+			One of the console's own operations (see Notes). Saves one key of one
+			scope: THE VALUE IS THE STANDARD INPUT, one line, and never an
+			argument. It is written by the setting reader of the scope; for a
+			scope of the agents by the dispatcher's own --agents-config-option,
+			so the write checks of a preset and of the tiers are asked as for any
+			writer, and a write they refuse is refused here. Every other line of
+			the file and its mode stay. Prints one row on stdout:
+			`saved <scope-id> <key> <value>`
+			<value> as it was read back after the write, in the form
+			`--manager-scope-read` prints it, so a credential in its one form.
+			Exit 1, with one error line and nothing saved: for an id that is none
+			of the scopes, a key that is no setting's name (a letter or `_`, then
+			letters, digits and `_`), a wrong count of words, an empty value (a key
+			is taken out with `--manager-scope-unset`), a value of more than one
+			line, and a write the reader or a check refuses.
+
+		--manager-scope-unset <scope-id> <key>
+			One of the console's own operations (see Notes). Takes one key out of
+			one scope, by the same writer as `--manager-scope-set`. Prints one row
+			on stdout: `removed <scope-id> <key>`. Exit 1, with one error line and
+			nothing removed: for an id that is none of the scopes, a name that is
+			no setting's, a key the scope does not hold, and a removal that a
+			check refuses or that did not take.
+
+		--manager-scope-clear <scope-id>
+			One of the console's own operations (see Notes). Takes every key out
+			of one scope, one by one as `--manager-scope-unset` does; the file,
+			its comments and the other scopes stay. Prints one row on stdout:
+			`cleared <scope-id> <how many>`. Exit 1, with one error line, where a
+			key could not be taken out, saying how many were, and for an id that
+			is none of the scopes. The console offers it for any scope.
+
+		--manager-scope-delete <scope-id>
+			One of the console's own operations (see Notes). Deletes one scope, its
+			file, where its subsystem has many: a profile of the remote tools or a
+			scope of the agents. The workspace's own settings and the account's own
+			are one each and are cleared, never deleted. Prints one row on stdout:
+			`deleted <scope-id>`. Exit 1, with one error line and nothing deleted,
+			for an id that is none of the scopes and for a scope of the two common.
+			There is no reset: no subsystem keeps defaults to reset a scope to.
+
+		--manager-wizard-read <cli-service|git-settings>
+			One of the console's own operations (see Notes). Gives what the form
+			of a configuration wizard needs and the form cannot know: its choices,
+			and what stands now. Prints rows on stdout, TAB-separated, a value's
+			whitespace `_`, a credential in its one form:
+			`option <field> <value> <label>`
+			`current <key> <state> <value>`
+			For `cli-service`: the options `cli-service` (the nine services of a
+			preset), `effort` (the five efforts) and `preset` (each preset block
+			there is); `credential <service> <key>` for the credentials each
+			service reads; `preset <name> <key> <state> <value>` for each key a
+			preset holds of its service, its model or macro, its effort, its
+			extend, and its credentials; `team <key> <state> <value>` for the
+			team's three tiers and its CLI service. For `git-settings`: `current`
+			rows for the global user.name, user.email and the key git connects
+			with (the `-i` of core.sshCommand, as `--manager-keys-list` finds it),
+			and an `option ssh-key <private file> <label>` for each private key
+			of the account that is there. Exit 1 for a name that is no wizard.
+
+		--manager-wizard-apply cli-service --preset <name>
+			One of the console's own operations (see Notes). Applies the answers
+			of the CLI service's wizard: a preset and the team's three tiers. THE
+			ANSWERS ARE THE STANDARD INPUT, a line each, `<key> <TAB> <value>`, and
+			never an argument. The keys it writes are PRESET_CLI_SERVICE,
+			PRESET_MODEL_OR_MACRO and PRESET_EFFORT of the preset <name> (a block
+			`preset-<name>`, made by the first write), the credentials of its CLI
+			service, and, in the team's scope, SPAWN_TIER_LOW, SPAWN_TIER_NORMAL,
+			SPAWN_TIER_HIGH (`<preset>[:<effort>]`) and SPAWN_CLI_SERVICE, which is
+			written only where no tier is set. They are applied in the order the
+			checks need, the service first and the tiers after the preset, each by
+			the dispatcher's own --agents-config-option, so its write checks are
+			asked; an empty value takes the key out. Prints one row for each:
+			`<set|removed|unchanged> <scope> <key>`
+			Applying stops at the first write that is refused, with one error line
+			that repeats no value, the rows above it having been applied. A line
+			that names a key the wizard does not write, a key given twice and a
+			preset name that is not lower-case refuse the whole call before
+			anything is written.
+
+		--manager-wizard-apply git-settings
+			One of the console's own operations (see Notes). Applies the answers
+			of the git wizard to the global git settings of the account that runs
+			the call, and to no other setting. THE ANSWERS ARE THE STANDARD INPUT, a
+			line each, `<field> <TAB> <value>`: `user.name`, `user.email` and
+			`ssh-key`, the whole path of a private key file, which becomes the
+			`-i` of core.sshCommand (`ssh -i <key> -o IdentitiesOnly=yes`). A field
+			not given, or given empty, is left as it is. Prints one row for each
+			written: `set git <field>`. Exit 1, with one error line and nothing
+			applied, for a field that is none of these, a field given twice, a
+			control character, an email that is no address, and a key path that is
+			not a whole path of a plain private file or holds a character a command
+			line would read.
 
 		--manager-session-list [--active]
 			One of the console's own operations (see Notes). Lists the
@@ -3988,6 +4211,63 @@
 			after its rows where a thread could not be started, or where
 			the session <id> names cannot be watched from here.
 
+		--manager-session-message --session-id <id> [--to <participant>]...
+			One of the console's own operations (see Notes). Leaves a message
+			for a session, or for some of its participants. The message is the
+			standard input, whole, and never an argument; an empty one, and one of
+			blank lines, are refused. <id> is the id of a session or the own id of
+			a run, as `--manager-session-read` takes it. Each `--to` names a
+			participant of the session, a member that has a run in it, and only
+			such a one; the same name given twice is one. With none the message is
+			for the whole session. The message is from `user-<account>`, the
+			account at the console as the system gives it, in the small letters,
+			digits and hyphens a name takes (the authority rule of the console),
+			never from magic-coordinator or any other member. It goes the way every
+			message of a session goes, through its chat file. Where the session has
+			a Slack thread, the message is left in the inbox of the session
+			(`--intern-session-comms --inject`), as `<from> -> <to>:` and its body,
+			and the communications writer sends it into the thread as the account,
+			recording it first. Where it has none, the message is recorded in the
+			chat file itself with the conversation `local`, nothing is posted, and
+			the members of the session read it there (on a tool return and in
+			their `Wait`, as they read the thread): a note on stderr says so. A
+			session with neither a folder nor a thread has nowhere to keep it, and
+			is refused. Prints one row of TAB-separated fields on stdout, and
+			exits 1 with one error line and nothing on stdout, nothing left, for
+			any refusal: an id no record carries, a name that is no participant, an
+			option that is none, and a system that gives the console no account to
+			send as.
+			`message <session-id> <from> <to> <how> <kept>`
+			<to> is `all` or the participants, comma-joined. <how> is `thread` for
+			a message left for the writer, <kept> the name it was left under in the
+			inbox, or `chat-file` for one recorded in the chat file, <kept> the
+			number of its block.
+
+		--manager-session-join --session-id <id>
+			One of the console's own operations (see Notes). Brings
+			magic-coordinator into a session, with a task to assess it, unblock it
+			interactively and report. It is offered for a session that has
+			finished, one that waits and one that is stuck, which are the states
+			`finished`, `waiting` and `unclosed` of `--manager-session-list`: every
+			participant has finished; a question of the session is open; a run of
+			it is still open and no process carries it. A session that runs, whose
+			participants work on it, one of another host, one that has no Slack
+			thread and an id no record carries are refused, in one line and with
+			nothing started. The join needs the thread of the session: the spawn
+			proxy joins a member into a session by its thread and into none that
+			has none, which is its own rule, so a workspace with no Slack joins
+			nobody. The start is the spawn proxy's, unchanged, with `--session-id`: the
+			coordinator joins that session, in its thread, and starts none, as a
+			run that outlives the console, with a dispatch item. The task it starts
+			on and the line its joining says in the thread are blocks of the
+			tooling-note template (`Tasks`, `assess-session` and
+			`assess-session-why`), filled: the name of the account at the console,
+			the session and its name, and the state in words. Prints one row on
+			stdout; exit 1 with one error line, nothing on stdout and nothing
+			started, for a refusal.
+			`join <session-id> <member> <dispatch-item>`
+			<member> is `magic-coordinator`, <dispatch-item> the item the start made.
+
 		--manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
 			One of the console's own operations (see Notes). Starts one
 			member with a prompt, in a new coworking session of its own,
@@ -4023,6 +4303,36 @@
 			<name> is the session's name as its record keeps it.
 			<dispatch-item> is the item the start made. Exit 1 with one
 			error line, and nothing on stdout, where nothing was started.
+
+		--manager-subsystem-list
+			One of the console's own operations (see Notes). Lists the subsystems
+			of the tool family, which the console's `Installed Subsystems` shows:
+			`.local`, `system`, `deploy`, `source`, `remote` and `agents`, in that
+			order. The operation is `.local`'s own, in its sh-lib, which the
+			dispatcher of every subsystem's console offers. One is installed where
+			its installed copy stands in `.local/myx` of the workspace. Prints one
+			row each on stdout, TAB-separated:
+			`subsystem <name> <state> <role> <install> <uninstall>`
+			<state> is `installed` or `missing`. <role> says why a subsystem has no
+			command of its own, else `-`: `base` for `.local`, which installs the
+			rest, `shared` for `system`, which comes with source and deploy, and
+			`console` for the subsystem of the console that is asking, which is not
+			uninstalled from itself. <install> is `yes` for a toolset that is
+			missing, <uninstall> for a toolset that is installed and is not the
+			console's own. Exit 1, nothing printed, for a word after it.
+
+		--manager-subsystem-run (install|uninstall) <subsystem>
+			One of the console's own operations (see Notes). Runs one command of a
+			subsystem that `--manager-subsystem-list` offers it: `install` of a
+			toolset that is missing, which is `DistroLocalTools.fn.sh
+			--install-distro-<subsystem>`, and `uninstall` of one that is installed
+			and is not the console's own, which is `DistroLocalTools.fn.sh
+			--uninstall-distro-<subsystem>`. The output the local tools write is
+			this operation's, and so is their exit status. Exit 1, with one error
+			line and nothing run, for a command the list does not offer for that
+			subsystem (`.local`, `system`, the console's own, a toolset that is
+			already installed or not installed), for a subsystem or a command that
+			is none, and for a wrong count of words.
 
 		--manager-team-data-read <store> [<folder> [<item>]] [--include-processed]
 			One of the console's own operations (see Notes). Lists the
@@ -5174,8 +5484,17 @@
 			item, whatever reviewer its `review-by` names. Runs only as
 			magic-coordinator.
 
-		--member-retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--file <changed-file>]... [<test>...]
-			Asks for a retest and returns at once: it waits for no test.
+		--member-retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--project <p>] [--file <changed-file>]... [--wait|--no-wait] [<test>...]
+			Asks for a retest and, unless it is made with `--wait`, returns
+			at once: it waits for no test. With `--wait` the request has the
+			priority wait: it is the first the next drain takes, and takes
+			alone, and the call stays until the batch has run it, then says
+			how it came out (`RETEST <id> PASS|FAIL -- ...`) and ends with
+			rc 0 for a pass, 1 otherwise. `--no-wait`, the default, is the
+			priority no-wait; of the two the last one counts. `--project <p>`
+			names the tests the testbed has registered for that project
+			(`DistroAgentsTesting.fn.sh --test-register`), beside any test
+			named; a project with none registered is refused.
 			Prints the id of the request on stdout. A request names tests
 			of the package (`sh-test/<test>.test.sh`, by `<test>`), or the
 			files that were changed, each with `--file`. A changed file
@@ -5198,7 +5517,10 @@
 			batch and runs the union of the tests asked for, each test
 			once however many requests named it, through the package's
 			test runner, which caps the machine by itself. A request that
-			comes in while the batch runs is in the next batch. Prints on
+			comes in while the batch runs is in the next batch. Where any
+			request that waits was made with `--wait`, someone is waiting
+			for it: the batch is those alone, and the others are the next
+			batch. Prints on
 			stdout one line for each request it finishes,
 			`RETEST <id> PASS|FAIL -- asked by <who> about <copy>: ...`,
 			for the tester to pass on: nothing is posted from here. A test
@@ -5877,6 +6199,116 @@
 			verbatim. Outputs `NO_STATE` if nothing is stored yet.
 			Read-only.
 
+		--all-sessions [--kind standalone|coworking|ad-hoc]
+			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh), for agent tools, the
+			shell console and shell automation alike. The sessions of this workspace with
+			their runs, the rows `--manager-session-list` prints (TAB-separated rows, their
+			form that entry's), by the very function it calls: one `session` row for each,
+			one `run` row for each of its runs, one `counters` row last. `--kind` keeps the
+			sessions of one kind and their runs (the counters row stays): the kind of the
+			routine the session's run records, `requires-session-kind:` of that routine's
+			file, or `ad-hoc` for a start whose run records no routine. A word that is no
+			kind is refused, rc 1, with the three named, and nothing is printed.
+
+		--active-sessions [--kind standalone|coworking|ad-hoc]
+			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). The rows of
+			`--all-sessions` for the sessions that are not finished and can be acted on from
+			this host (running, waiting or unclosed), as `--manager-session-list --active`
+			prints them; `--kind` as there.
+
+		--waiting-sessions [--kind standalone|coworking|ad-hoc]
+			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). The rows of
+			`--all-sessions` for the sessions the list reads as `waiting`: no live process,
+			and an ask of the session or of one of its runs still open. Each session with its
+			runs, and the counters row; `--kind` as there.
+
+		--session-record <session-id> [--run]
+			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). One session in full:
+			its rows as the list prints them, what it was started for, and each run's record
+			and store, the rows `--manager-session-read` prints, by the very function it
+			calls. `--run` takes the id as a run's own and shows that run. It reads the
+			records and stores of that one session, never another's. Refused, rc 1, with no
+			id, an id no record carries, and a word it does not know.
+
+		--routine-completed <routine> --since "<YYYY-MM-DD HH:MM>"
+			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh): the predecessor
+			question, decided from the run history. <routine> is named as `--routine` names
+			one, a file name or part of one, exactly one file. The time is of this host, as
+			the spawn records write theirs. Prints the run of that routine that closed
+			`spawn-succeeded` last at or after the time, as one `run` row (the session id,
+			the spawn id, the member, the status, started-at, resolved-at, the routine), rc 0.
+			Else it prints `NOT-COMPLETED: <routine file> since <time>`, rc 1: a run that
+			failed, one still open, one that closed before the time, and a run of another
+			routine are none. Refused, rc 1, with a time of another form, no `--since`, and
+			a routine that matches no file or several.
+
+		--current-flags
+			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). The flags of the
+			schedule now, derived from the settings and the clock and never stored: five
+			lines, `worktime`, `weekend`, `emergency`, `overtime`, `learning`, each
+			`<flag>: yes` or `<flag>: no`. `worktime` falls out of the timezone, the hours
+			and the days (`MDAT_SCHEDULE_WORKTIME`) and the clock; `weekend` out of the
+			timezone, its days (`MDAT_SCHEDULE_WEEKEND`) and the clock. Where they are
+			not set a line reads `no (not set)`; worktime days of `workdays` or `weekend`
+			with no weekend set read `no (weekend not set)`. An override that has an end
+			shows the seconds left, `yes (3600 seconds left)`. Read-only.
+
+		--override-flag [--no] <flag> [<ttl>]
+			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). An override of a flag,
+			kept as a setting of the `magic-team` scope: `emergency` is set with a TTL in
+			whole seconds (`emergency 3600`), prolonged by a second call (its end is the TTL
+			from then) and cleared by `--no`; `overtime` is for outside worktime, ends at
+			its TTL or, with none or a later one, when normal worktime starts, and is
+			refused during worktime; `learning` is on or off and takes no TTL. `--no`
+			clears the override and takes no TTL. `worktime` and `weekend` are derived and
+			have no override. Prints the flag's line as `--current-flags` would. Refused,
+			rc 1, with a flag that is none of the five, a TTL that is no whole number of
+			seconds, or an emergency with none.
+
+		--set-country <iso-code-2-or-3-letters>
+			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). Sets
+			`MDAT_SCHEDULE_COUNTRY` of the `magic-team` scope, upper case, and prints
+			`<setting>: <value>`. Two or three letters; any other form is refused, rc 1,
+			and nothing is stored.
+
+		--set-timezone <tz-spec>
+			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). Sets
+			`MDAT_SCHEDULE_TIMEZONE`, the zone the schedule's times are in, a zone name this
+			system knows, such as `Pacific/Auckland`; any other is refused, rc 1.
+
+		--set-worktime <start> <until> <days-of-week>
+			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). Sets
+			`MDAT_SCHEDULE_WORKTIME`: the hours, `HH:MM` each, the start before the until,
+			and the days, `workdays`, `weekend`, `daily` or a list such as `mon,thu`.
+			`workdays` is the days the weekend setting leaves. Refused, rc 1, otherwise.
+
+		--set-weekend <days-of-week>
+			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). Sets
+			`MDAT_SCHEDULE_WEEKEND`: a list of days such as `sat,sun`. `workdays`,
+			`weekend` and `daily` are no weekend and are refused, rc 1.
+
+		--routine-due <routine>
+			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh): whether a routine is
+			due to start now by its own autorun declaration, `runs-at: <days> <HH:MM>` and
+			`runs-after: <routine>` of its frontmatter, read against the schedule's
+			settings, the clock and the run history. <routine> is named as `--routine`
+			names one. The day, in the schedule's zone, is the period: the routine is due
+			once on each of its days, from its time on, which is the earliest start.
+			rc 0 and `DUE: <routine file>` when it is due, and after a predecessor
+			`AFTER: <predecessor file> <spawn id of its run>`; rc 1 and `NOT-DUE:
+			<routine file>: <why>` when it is not (no autorun, before its time, not one of
+			its days, the weekend not set and its days needing it, or already run today by
+			a run of any status); rc 2 and `REFUSED: <routine file>: <predecessor file> has
+			not completed today` when the predecessor it follows has not completed
+			(spawn-succeeded) today: where a predecessor is named it is the trigger, and the
+			chain needs no waiting state. rc 3, nothing on stdout, for a call that cannot be
+			understood. A chain that stopped is never silent: when the last day the routine
+			was to run has passed with the predecessor not completed on it and the routine
+			not run on it, the answer opens with `ESCALATE: <routine file>: <predecessor
+			file> did not run on <date>, so the chain is broken`, and one line goes to the
+			event-alert channel, once for that day. A day that ended before the routine was
+			first asked about is not escalated.
+
 		--tester-skillset-validate-routine <routine-file|--from-stdin>
 			Checks a routine file against the routine contract
 			(`magic-team/templates/routine.contract.format.md`) and prints one
@@ -5895,6 +6327,156 @@
 			refused the same way. A finding of `operations:` is a row of the
 			rule `report-operations`: it is said and refuses nothing.
 			`--from-stdin` reads the routine from standard input.
+
+		--tester-test-register (<test-id> --project <p> --script <path>|--from-folder <dir> --project <p>) [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
+			The thin stub of `DistroAgentsTesting.fn.sh --test-register`, which has the
+			logic; every `--tester-<operation>` below is the `--<operation>` of that file.
+			Registers a test in the testbed, the project metadata of the tests, kept in
+			`$MMDAPP/.local/agents/testing/tests/<test-id>.md`, one file for each test:
+			its `--project` (such as `myx/myx.distro-agents`), its `--script` (an
+			absolute path, or one below the project's folder in `source/`, or below the
+			workspace), and as it applies the `--functionality` and `--keyword`s it is
+			about, the `--rig`, `--document`s and `--resource`s it needs, and `--nightly
+			yes` to be one of the nightly regressions (the default is `no`). A test is
+			known by its id, which for the tests of a package is the runner's name for it.
+			One registered already is refused (`--tester-test-update`). With
+			`--from-folder`, every `*.test.sh` of the folder and of the folders one level
+			below it is registered for the project by its file name, its script kept
+			below the workspace; one registered already is left as it is, and said.
+			Whether a test has passed, and its runs, are not kept here: the test runner
+			keeps them (`AgentsRunTests.sh --passed`), and the testbed reads them.
+
+		--tester-test-update <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
+			The stub of `DistroAgentsTesting.fn.sh --test-update`. Changes the metadata
+			of a registered test: only what is named, a list (`--keyword`, `--document`,
+			`--resource`) replaced whole, the date of registration kept and the date of
+			the update set. A test not registered, nothing to change and a script that is
+			not there are refused, and the test is left as it was.
+
+		--tester-test-unregister <test-id>
+			The stub of `DistroAgentsTesting.fn.sh --test-unregister`. Takes the test out
+			of the testbed: its metadata goes, and the test, its script and its pass
+			record stay.
+
+		--tester-test-invalidate <test-id>
+			The stub of `DistroAgentsTesting.fn.sh --test-invalidate`. Drops the pass
+			record of a registered test, so that the next batch runs it whatever state
+			it passed on, and keeps when it was invalidated in its metadata.
+
+		--tester-test-list [--project <p>] [--namespace <n>] [--keyword <k>]
+			The stub of `DistroAgentsTesting.fn.sh --test-list`. Read-only. The
+			registered tests, those of a project, a namespace (the first word of the
+			project) and a keyword where given, as tab-separated rows: `test`, the id,
+			project, functionality, keywords, the nightly flag, when it passed on the
+			state it would run on now (`-` where it has not), when it was invalidated,
+			and the runs, passes and fails of the last forty run folders; after each
+			test its last runs, `run`, the id, the run folder, `PASS` or `FAIL`, and the
+			seconds; and a last row, `tests`, the number listed, passed and not passed.
+
+		--tester-run-oldest-untested [--wait|--no-wait]
+		--tester-run-all-nightly-regressions [--wait|--no-wait]
+			The stubs of `DistroAgentsTesting.fn.sh --run-oldest-untested` and
+			`--run-all-nightly-regressions`. They put tests of the testbed into the one
+			retest queue of the machine (`--member-retest-queue`), as the acting member
+			or the console user, and print the request's id: the registered test that
+			was registered first of those that have not passed on the state they would
+			run on now, or every test registered `--nightly yes`. Nothing is put in
+			the queue, and it is said, where every test has passed or none is eligible;
+			a testbed with no test is refused. With `--wait` the call stays until the
+			batch has run them and says how they came out, as `--member-retest-queue`
+			does.
+
+		--request-tests --why <text> [--project <p>] [--file <changed-file>]... [--about <scratch-folder>] [--wait|--no-wait] [<test>...]
+			AgentTestingTools.fn.sh, the tool any member uses to communicate a testing
+			need to the testing system and to `magic-tester`; nobody reads results from
+			it, and a call from no member's session is refused. Puts the tests into the
+			one retest queue as the calling member's request, with the options and the
+			rules of `--member-retest-queue` (`--by` is not given: the request is the
+			member's), and files one inquiry into `magic-tester`'s inbox that says who
+			asks, for what, why, with which priority, and where the outcome is read
+			(`--member-retest-result <id>`). A request the queue refuses queues nothing
+			and asks nobody. The first line printed is the request's id, said as soon as
+			the inquiry is filed; with `--wait`, for a sandbox before its hand-off, the
+			call then stays until the batch has run the request and says how it came
+			out, and ends with rc 0 for a pass.
+
+		--skillset-upsert <team-member> <pathname> (--from-stdin|--from-file <path>)
+		--librarian-skillset-upsert <team-member> <pathname> (--from-stdin|--from-file <path>)
+			AgentLibrarianTools.fn.sh --skillset-upsert, and its thin stub in this
+			dispatcher, which has no logic of its own. Skill access, not file access: a
+			tool of its own, apart from the rules of Skill, Read and Write. It names a
+			member and a `.md` file inside that member's skill (<pathname> is relative to
+			the skill's folder, no `..`; a file there or a new one, its folders made) and
+			saves the whole text into the skill's SOURCE COPY, found through the member
+			registry (members.registry: the folder a `source-symlink` or `source-declared`
+			row names). It never writes an install (a copy under a workspace's `.local`)
+			and never the HOME skills folder: a skill with no source copy, or with more
+			than one, is refused and the refusal says why. It is the librarian's: it runs
+			only as magic-librarian. It asks the permission chain for the permission
+			`skillset-upsert` over `<team-member>:<pathname>`, as a tool call is asked: a
+			routine whose `allows:` names it (`magic-librarian:skillset-upsert`) holds it,
+			and so does a grant of the session, the task or the call; a call that holds
+			none is refused with a REFUSAL-ID and the way to ask for it with
+			RequestPermission, and a granted call is retried as it was made. It changes the
+			skillset only while `learning` is on (`--current-flags`): while it is off the
+			librarian offers proposals, and the refusal says where the proposal goes. The
+			resulting text is checked before anything is saved: a `*.routine.md` against
+			the routine contract, which refuses the save and prints its rows, and every
+			file against itself, whose `report-` rows are printed and refuse nothing. The
+			save is one rename in the folder of the file. Prints `OK: wrote <file>`; the
+			change is the librarian's to commit.
+
+		--request-update --kind document|knowledge|skill --target <target> --why <text> (--from-stdin|--from-file <path>) [--reply]
+		--request-update --kind skill --target <team-member>:<pathname> --why <text> --whole-text (--from-stdin|--from-file <path>) [--reply]
+		--request-update --kind skill --target <team-member>:<pathname> --why <text> (--old <text>|--old-from-file <path>) (--new <text>|--new-from-file <path>) [--reply]
+			AgentLibrarianTools.fn.sh, the tool any member uses to ask the librarian for an
+			update. Everything for the librarian goes to the one queue, which is its inbox:
+			one inquiry-* into magic-librarian's incoming/, and its name is printed. A call
+			from no member's session is refused. Three forms. A message: the member's
+			words, about a document (the target a file, by a path), the knowledge base (the
+			target a topic; it waits for the knowledge tool) or a skill. A whole text: the
+			proposed whole text of a skill file. A concrete edit: the old and the new string
+			of a skill file, as Edit takes them, the old one being in the file once. A whole
+			text and an edit are for a skill file, the target `<team-member>:<pathname>`.
+			The tooling records the target file's date and checksum itself and the requester
+			never gives them (a file not there is recorded as none). A request is a notice
+			unless it asks for its outcome with `--reply`: then `--queue-done` files one note
+			with the outcome into the requester's inbox. Without `--reply` nothing is sent
+			back; `--request-result` is there for anyone who wants to look.
+
+		--request-result <name>
+			AgentLibrarianTools.fn.sh. Where a request stands, one line: `UPDATE <name>
+			WAITING -- ...` while it is in the librarian's incoming/, `UPDATE <name> DONE
+			(<outcome>) -- ...` with the outcome (`applied`, `refused` or `closed`) and the
+			result the librarian closed it with (`wrote <file>`, its reason, or its own
+			words), `UNKNOWN` (exit 1) for a name that is no update request.
+
+		--queue-list
+		--queue-take
+			AgentLibrarianTools.fn.sh, read-only. The update requests that wait in
+			magic-librarian's incoming/, that is the inquiries that carry an `update-kind`:
+			`--queue-list` as a row each (name, kind, target, form, from, date),
+			`--queue-take` as one batch, `UPDATE-BATCH: <n> request(s) waiting` and each
+			request whole under a `=== UPDATE-REQUEST <i>/<n>: <name> ===` line, with the
+			line `BASE:` where its target file is as it was when the request was written and
+			`BASE-CHANGED:` where it is not (changed, gone, or there now and not then). A
+			request leaves the queue only when it is closed.
+
+		--queue-done <name> --apply
+		--queue-done <name> --refuse <reason>
+		--queue-done <name> --result <text>
+			AgentLibrarianTools.fn.sh, the librarian only, which decides alone. `--apply`
+			saves the whole text or the concrete edit of a skill file by the very path and
+			checks of `--skillset-upsert` (the permission, learning, the source copy, the
+			validation); a whole text whose base has changed is not applied, and an edit
+			is applied only if its old string is in the file once. An apply that fails
+			leaves the request waiting and says why. `--refuse` closes it with the
+			librarian's reason, not correct or not needed; `--result` closes it with what
+			was done. The reason or the result is one line of at most 500 characters. The
+			request moves to processed/ with its `update-outcome` and `update-result`, and
+			`closed: <name>` is printed; where the request asked for it (`--reply`), one note
+			with the outcome is filed into the requester's inbox. A name that is no waiting
+			update request is refused.
 
 		--owner-cleanup-purge
 			Empties $MMDAPP/.local/.cleanup/ (the folder itself stays).

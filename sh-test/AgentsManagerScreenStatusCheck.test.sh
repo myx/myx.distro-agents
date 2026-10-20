@@ -16,6 +16,7 @@
 ## Reconciled for F11.0: the left pane has no `keys:` line any more; the status line alone names the keys of the row.
 ## Reconciled for F11.5: the sessions stand in `Activity`, under `Magic-Team (Agents)`: the root of the counters is that one, and the keys of a session are those of a row of Active Sessions.
 ## Reconciled for F11.5, the lists of Activity: the key `a` (all or only the active) is not offered there, as it has nothing to take: not in the status line, and not in the menu View.
+## Reconciled for F11.6: the status line of a session names the send-message key too, `M Message`, between `k Kill` and `u Read`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -198,7 +199,7 @@ get pending
 cells pendingBottom 39 0 120
 RIGSCRIPT
 rigAssert "a running session is selected"                            "$( rigVal session.selected )" "11111111-0000-4000-8000-000000000001"
-rigAssert "on a session the status line names the keys that act on it, and after them the keys of every window" "[$( rigVal sessionBottom )]" "[ ENTER Open  BSP Up  k Kill  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "on a session the status line names the keys that act on it, and after them the keys of every window" "[$( rigVal sessionBottom )]" "[ ENTER Open  BSP Up  k Kill  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "the keys that act on the session stand in no line of the left pane" "[$( rigVal sessionKeys | LC_ALL=C sed -n 's/^\(keys:\).*/\1/p' )]" "[]"
 rigAssert "on Launch (Start) it names what the list takes there, then the keys of every window"        "$( rigVal launch.selected ) [$( rigVal launchBottom )]" "launch [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "and on another section"                                   "$( rigVal pending.selected ) [$( rigVal pendingBottom )]" "pending [$rigHints]"

@@ -26,6 +26,7 @@ import pty
 import re
 import select
 import shutil
+import signal
 import struct
 import subprocess
 import sys
@@ -522,6 +523,11 @@ def scriptRun(module):
 ## Where the environment says MANAGER_SCREEN_PTY_SESSION=1 the pseudo-terminal is the controlling terminal of the
 ## command, which leads a session of its own: Ctrl-C, Ctrl-\ and Ctrl-Z written there are then signals, as at a real terminal.
 ## The terminal of such a session is taken away when its leader ends, so its mode afterwards cannot be read: modeBack is `unknown`.
+## Where the environment says MANAGER_SCREEN_PTY_HANGUP=<seconds>, the master of the pseudo-terminal is closed once <wait-for> was drawn, as
+## when the program that held it ended, and the run waits that long for the command to end by itself: printed are hangup (`ended` or
+## `running`) and hangupWithin2 (whether it ended within two seconds).
+## The command is the leader of a process group of its own whichever way it runs, and a run that is still there at its timeout is
+## ended whole: everything of that group, never the first process alone.
 def ptyRun(arguments):
     columns, lines, waitFor, keys, seconds = int(arguments[0]), int(arguments[1]), arguments[2], arguments[3], float(arguments[4])
     command = arguments[6:]
@@ -554,7 +560,10 @@ def ptyRun(arguments):
         os.setsid()
         fcntl.ioctl(0, termios.TIOCSCTTY, 0)
     process = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave, env=environment,
-                               preexec_fn=ownTerminal if os.environ.get("MANAGER_SCREEN_PTY_SESSION") == "1" else None)
+                               preexec_fn=ownTerminal if os.environ.get("MANAGER_SCREEN_PTY_SESSION") == "1" else os.setpgrp)
+    hangupWithin = float(os.environ.get("MANAGER_SCREEN_PTY_HANGUP") or 0)
+    masterOpen = True
+    hungUp = None
     output = b""
     during = None
     deadline = time.time() + seconds
@@ -579,14 +588,27 @@ def ptyRun(arguments):
                     os.write(master, typed)
                 writtenAt = len(output)
                 nextAt = time.time() + 0.4
+        if hangupWithin and during is not None:
+            time.sleep(0.3)
+            os.close(master)
+            masterOpen = False
+            began = time.time()
+            while process.poll() is None and time.time() - began < hangupWithin:
+                time.sleep(0.02)
+            hungUp = (process.poll() is not None, time.time() - began)
+            break
         if process.poll() is not None:
             break
     status = process.poll()
     if status is None:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
         process.kill()
         process.wait()
         status = "timeout"
-    while select.select([master], [], [], 0.2)[0]:
+    while masterOpen and select.select([master], [], [], 0.2)[0]:
         try:
             chunk = os.read(master, 65536)
         except OSError:
@@ -612,6 +634,9 @@ def ptyRun(arguments):
         lineEnd = output.find(b"\r", errorAt)
         errorLine = output[lineStart:lineEnd if lineEnd != -1 else len(output)].decode("utf-8", "replace")
     print("pty.rc=%s" % status)
+    if hungUp is not None:
+        print("pty.hangup=%s" % ("ended" if hungUp[0] else "running"))
+        print("pty.hangupWithin2=%s" % ("yes" if hungUp[0] and hungUp[1] <= 2.0 else "no"))
     print("pty.frame=%s" % ("yes" if during is not None else "no"))
     ## whether a colour was set on the terminal at any time: a text or a ground of the eight
     print("pty.colours=%s" % ("yes" if re.search(rb"\x1b\[(?:[0-9]+;)*(?:3[0-7]|4[0-7])(?:;[0-9]+)*m", output) else "no"))
@@ -633,7 +658,8 @@ def ptyRun(arguments):
                 found.append((at, name))
                 at = output.find(sought, at + 1)
         print("pty.trace=%s" % " ".join(name for at, name in sorted(found)))
-    os.close(master)
+    if masterOpen:
+        os.close(master)
     os.close(slave)
     return 0
 

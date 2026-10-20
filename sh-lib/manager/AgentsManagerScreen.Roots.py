@@ -75,6 +75,9 @@ CREDENTIAL_SCOPE = {"scopes": None, "cli": "magic-team"}
 FOLDER_WORDS = {
     "checker": "the read-only checks of the installation, run on demand",
     "keys": "the public keys of this server",
+    "scopes": "every scope of settings of this workspace, each a folder of its variables",
+    "git": "the global git settings of the account that runs the tools",
+    "subsystems": "the subsystems of the tool family, installed here or not, and the commands to install and uninstall them",
     "commands": "the commands a console user calls by name",
     "user": "the README.md of each project, in build order",
     "maintainer": "the MAGIC.md of each project, in build order",

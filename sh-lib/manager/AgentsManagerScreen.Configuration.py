@@ -383,6 +383,8 @@ def keysFocus(state, row):
 registerPlugin({
     "name": "configuration",
     "root": {"id": "configuration", "label": "Configuration", "go": "~C~onfiguration", "group": "setup"},
+    ## The wizards that configure a feature (Wizards.py): each feature declares its own form and puts it here.
+    "registries": {"wizards": "plain"},
     "rows": {
         "configuration": (("checker", "Config Checker", "checker", True), ("keys", "Server Keys", "keys", True)),
     },

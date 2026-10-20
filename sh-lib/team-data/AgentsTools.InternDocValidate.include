@@ -43,6 +43,42 @@ AgentsToolsDocValidateKeyLineOf(){ ## file, key, value
 	printf '%s\n' "${keyLineOfAt:-1}"
 }
 
+## The chain a `runs-after:` starts (F7.5): the routine it names is exactly one routine file of the skillset, and the names followed on
+## from file to file never meet a file twice. Two routines each following the other never run, and neither file shows it; nor does a
+## routine that follows a cycle it is no part of. A routine given on standard input has no name of its own to come back to, so only the
+## files it leads on to can close a cycle. A fault further along the chain is that file's own row, and ends the walk here.
+AgentsToolsDocValidateRunsAfter(){ ## routine file, file as shown, its runs-after value
+	local chainFile="$1" chainShown="$2" chainNext="$3" chainTrail="" chainPath chainWhy chainName chainAt
+	chainAt="$( AgentsToolsDocValidateKeyLine "$chainFile" runs-after )"
+	case "$chainShown" in "<stdin>") ;; *) chainTrail="${chainShown##*/}" ;; esac
+	chainWhy=""
+	while [ -n "$chainNext" ] ; do
+		if ! chainPath="$( AgentsToolsSpawnRoutineResolve "$chainNext" 2> /dev/null )" ; then
+			## Only the first name is this file's to answer for.
+			if [ -z "$chainWhy" ] ; then
+				if [ "$( AgentsToolsSpawnRoutineResolve "$chainNext" 2>&1 > /dev/null | LC_ALL=C grep -c 'more than one' )" != 0 ] ; then
+					AgentsToolsDocValidateRow "$chainShown" "$chainAt" runs-after "runs-after: $chainNext names more than one routine"
+				else
+					AgentsToolsDocValidateRow "$chainShown" "$chainAt" runs-after "runs-after: $chainNext names no routine"
+				fi
+			fi
+			return 0
+		fi
+		chainWhy="followed"
+		chainName="${chainPath##*/}"
+		case " $chainTrail " in
+			*" $chainName "*)
+				AgentsToolsDocValidateRow "$chainShown" "$chainAt" runs-after "runs-after: a cycle: ${chainTrail// / -> } -> $chainName"
+				return 0
+			;;
+		esac
+		chainTrail="$chainTrail${chainTrail:+ }$chainName"
+		chainNext="$( AgentsToolsRoutineKeyOwn "$chainPath" runs-after )"
+		case "$chainNext" in *[[:space:]]*|*,*) return 0 ;; esac
+	done
+	return 0
+}
+
 ## The rule set of the `routine` kind: the frontmatter keys, the requirements, the sections.
 AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	local routineFile="$1" routineShown="$2" routineFirst="" routineType routineKeyName routineVerdict routineWhy routineRows routineHeading routineLine
@@ -152,6 +188,7 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	routineRunsAfter="$( AgentsToolsRoutineKeyOwn "$routineFile" runs-after )"
 	case "$routineRunsAfter" in
 		''|*[[:space:]]*|*,*) [ -z "$routineRunsAfter" ] || AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" runs-after )" runs-after "runs-after: $routineRunsAfter is not one routine" ;;
+		*) AgentsToolsDocValidateRunsAfter "$routineFile" "$routineShown" "$routineRunsAfter" ;;
 	esac
 	## The sections: # Opening steps, # Steps and # Closure steps, each once, in that order; and the local procedures.
 	routineRows="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsRoutineHeadings.awk" "$routineFile" )"
@@ -263,9 +300,14 @@ case "$1" in
 
 	--intern-doc-validate)
 		shift
-		local validateKind="${1:-}" validateInput="${2:-}" validateFile validateShown validateTemp="" validateDoc=""
+		local validateKind="${1:-}" validateInput="${2:-}" validateFile validateShown validateTemp="" validateDoc="" validateAs=""
+		## `--from-stdin --as <path>`: the text on stdin is the document that will stand at that path (F7.7: a skillset file checked before it
+		## is saved), so it is shown by that path and its citations are looked for from there, as for the file itself.
+		if [ $# -eq 4 ] && [ "$validateInput" = "--from-stdin" ] && [ "${3:-}" = "--as" ] && [ -n "${4:-}" ] ; then
+			validateAs="$4" ; set -- "$1" "$2"
+		fi
 		if [ -z "$validateKind" ] || [ -z "$validateInput" ] || [ $# -gt 2 ] ; then
-			echo "$MDSC_CMD: doc-validate: ⛔ ERROR: syntax is <kind> <file|--from-stdin> -- the kinds built: $( AgentsToolsDocValidateKinds | LC_ALL=C tr '\n' ' ' )" >&2
+			echo "$MDSC_CMD: doc-validate: ⛔ ERROR: syntax is <kind> <file|--from-stdin [--as <path>]> -- the kinds built: $( AgentsToolsDocValidateKinds | LC_ALL=C tr '\n' ' ' )" >&2
 			set +e ; return 1
 		fi
 		case "$validateKind" in
@@ -281,7 +323,7 @@ case "$1" in
 			mkdir -p "$MMDAPP/.local/temp" || { set +e ; return 1 ; }
 			validateTemp="$( mktemp "$MMDAPP/.local/temp/AgentsDocValidate.XXXXXX" )" || { set +e ; return 1 ; }
 			cat > "$validateTemp"
-			validateFile="$validateTemp" ; validateShown="<stdin>"
+			validateFile="$validateTemp" ; validateShown="${validateAs:-<stdin>}" ; validateDoc="$validateAs"
 		else
 			if [ ! -f "$validateInput" ] ; then
 				echo "$MDSC_CMD: doc-validate: ⛔ ERROR: no such file: $validateInput" >&2

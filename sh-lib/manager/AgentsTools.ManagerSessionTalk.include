@@ -1,0 +1,197 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerSessionTalk.include -- the two operations of the console that speak to a session (F11.6 of the refactorings
+## epic): --manager-session-message leaves a message for a session or for some of its participants, and --manager-session-join
+## brings magic-coordinator into a session that has finished, waits or is stuck, with a task to assess it. Sourced from the
+## `--manager-session-message|--manager-session-join)` arm of AgentsTools.Manager.include; who may call was asked where the
+## family is dispatched. The rest of the family stays in AgentsTools.ManagerSession.include.
+##
+## A MESSAGE FROM THE CONSOLE IS A PERSON'S: it is from `user-<account>` (AgentsToolsManagerConsoleMember), the account at the
+## console, under the authority rule of F6.10, never from magic-coordinator or any other member. It goes through the one
+## path every message of a session takes, the session chat file (F9.1): where the session has a Slack thread it is left in the
+## inbox of the session for the communications writer (--intern-session-comms --inject), which sends it into the thread as the
+## account, recording it first and stamping it when Slack has it; where the session has no thread it is recorded in the chat file
+## itself with the conversation `local`, posts nothing, and is the floor of the session's members all the same (F9.2,
+## AgentsSessionChatRead.awk). A session with neither a folder nor a thread has nowhere to keep it, and is refused.
+##
+## THE JOIN is a start of magic-coordinator through the spawn proxy (--intern-op-agent-spawn-proxy), unchanged, with --session-id:
+## the member joins the session it is named for, in its thread, and does not start one. Offered for the sessions the list reads
+## as finished (every participant has finished), waiting (a question of it is open) and unclosed (a run still open, and no
+## process that carries it: stuck); refused for one that runs, which its participants work on, and for one of another host.
+## Its task is a block of the tooling-note template (`Tasks`, sh-lib/templates/tooling-note.post.format.md), never a text here.
+##
+
+type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include" --definitions-only > /dev/null 2>&1 || :
+type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+
+case "$1" in
+
+	## A message left for a session: to all of it, or to the participants named. One TAB-separated row, whose form is the help
+	## entry's. The message is read from the standard input, whole, and is never an argument.
+	--manager-session-message)
+		local messageOp="$1" messageId="" messageTo="" messageBody="" messageFrom messageThread messageDir messageKept messageAll messageOne messageKnown messageArgs=()
+		local messageSyntax="--session-id <id> [--to <participant>]... < message"
+		local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl="" messageTab=$'\t' messageKind messageRest messageMember
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					if [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $messageOp: --session-id needs an id -- syntax is $messageSyntax" >&2
+						set +e ; return 1
+					fi
+					messageId="$2" ; shift 2
+				;;
+				--to)
+					if [ $# -lt 2 ] || [ -z "$2" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $messageOp: --to needs a participant -- syntax is $messageSyntax" >&2
+						set +e ; return 1
+					fi
+					case "$2" in
+						*[!abcdefghijklmnopqrstuvwxyz0123456789-]*|-*)
+							echo "⛔ ERROR: $MDSC_CMD $messageOp: --to names a participant by its name, got '$2' -- nothing was left" >&2
+							set +e ; return 1
+						;;
+					esac
+					case ",$messageTo," in
+						*",$2,"*) ;;
+						*) messageTo="$messageTo${messageTo:+,}$2" ; messageArgs+=( --to "$2" ) ;;
+					esac
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $messageOp: syntax is $messageSyntax, got: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$messageId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $messageOp: syntax is $messageSyntax, got no --session-id" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$messageId" "--session-id" "${messageOp#--}" || { set +e ; return 1 ; }
+		messageBody="$( cat )" || messageBody=""
+		case "$messageBody" in
+			*[![:space:]]*) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD $messageOp: the message is empty -- nothing was left" >&2
+				set +e ; return 1
+			;;
+		esac
+		## The session, by the registries as the list reads them; the participants are the members of its runs.
+		AgentsToolsManagerSessionScope "$messageOp" "$messageId" "" "nothing was left" || { set +e ; return 1 ; }
+		messageKnown=" "
+		while IFS="$messageTab" read -r messageKind messageRest messageRest messageMember messageRest ; do
+			[ "$messageKind" = "run" ] && [ -n "$messageMember" ] && [ "$messageMember" != "-" ] || continue
+			case "$messageKnown" in *" $messageMember "*) ;; *) messageKnown="$messageKnown$messageMember " ;; esac
+		done <<< "$scopeListed"
+		for messageOne in ${messageTo//,/ } ; do
+			case "$messageKnown" in
+				*" $messageOne "*) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $messageOp: $messageOne is no participant of session $scopeSession (its participants:${messageKnown% }) -- nothing was left" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		messageFrom="$( AgentsToolsManagerConsoleMember )" || {
+			echo "⛔ ERROR: $MDSC_CMD $messageOp: the system gives no account for the person at the console, and a message is not sent under a made-up name -- nothing was left" >&2
+			set +e ; return 1
+		}
+		messageAll="${messageTo:-all}"
+		messageThread="$( MDAT_SESSION_THREAD="" AgentsToolsSessionChatThread "$scopeSession" )" || messageThread=""
+		messageDir="$( AgentsToolsSessionChatDir "$scopeSession" )" || messageDir=""
+		if [ -n "$messageThread" ] && [ -d "$messageDir" ] ; then
+			## Left for the writer, which sends it into the thread as the account, through the one send operation.
+			messageKept="$( printf '%s\n' "$messageBody" | DistroAgentsTools --intern-session-comms --inject --session-id "$scopeSession" --from "$messageFrom" ${messageArgs[@]+"${messageArgs[@]}"} )" || { set +e ; return 1 ; }
+			printf 'message\t%s\t%s\t%s\tthread\t%s\n' "$scopeSession" "$messageFrom" "$messageAll" "${messageKept:--}"
+			return 0
+		fi
+		if [ ! -d "$messageDir" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $messageOp: session $scopeSession has no chat file to keep a message in and no Slack thread to send it into -- nothing was left" >&2
+			set +e ; return 1
+		fi
+		## No thread: the message is recorded in the chat file alone, with the conversation `local`, and nothing is posted.
+		messageKept="$( printf '%s\n' "$messageBody" | AgentsToolsSessionChatAppend "$scopeSession" "$messageFrom" "$messageAll" - local console )" || messageKept=""
+		if [ -z "$messageKept" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $messageOp: the chat file of session $scopeSession could not be written -- nothing was left" >&2
+			set +e ; return 1
+		fi
+		echo "# $MDSC_CMD $messageOp: session $scopeSession has no Slack thread, so the message is recorded in its chat file only (block $messageKept) and nothing is posted; its members read it there" >&2
+		printf 'message\t%s\t%s\t%s\tchat-file\t%s\n' "$scopeSession" "$messageFrom" "$messageAll" "$messageKept"
+		return 0
+	;;
+
+	## magic-coordinator brought into a session that has finished, waits or is stuck, with the task of assessing it. One TAB-separated
+	## row, whose form is the help entry's.
+	--manager-session-join)
+		local joinOp="$1" joinId="" joinSyntax="--session-id <id>" joinState joinName joinKind joinRest joinTab=$'\t' joinThread joinTask joinWhy joinOut joinItem joinBy joinStateWords
+		local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					if [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $joinOp: --session-id needs an id -- syntax is $joinSyntax" >&2
+						set +e ; return 1
+					fi
+					joinId="$2" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $joinOp: syntax is $joinSyntax, got: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$joinId" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $joinOp: syntax is $joinSyntax, got no --session-id" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$joinId" "--session-id" "${joinOp#--}" || { set +e ; return 1 ; }
+		AgentsToolsManagerSessionScope "$joinOp" "$joinId" "" "nothing was started" || { set +e ; return 1 ; }
+		joinState="" ; joinName=""
+		while IFS="$joinTab" read -r joinKind joinRest joinName joinState joinRest ; do
+			[ "$joinKind" = "session" ] && break
+		done <<< "$scopeListed"
+		[ "$joinName" != "-" ] || joinName=""
+		case "$joinState" in
+			finished|waiting|unclosed) ;;
+			running)
+				echo "⛔ ERROR: $MDSC_CMD $joinOp: session $scopeSession runs: its participants work on it, so nobody is joined into it to assess it -- nothing was started" >&2
+				set +e ; return 1
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD $joinOp: session $scopeSession reads ${joinState:-unknown}, which is none of finished, waiting and unclosed, the states it is offered for -- nothing was started" >&2
+				set +e ; return 1
+			;;
+		esac
+		## The join is into the session's thread: the spawn proxy joins nobody into a session that has none.
+		joinThread="$( MDAT_SESSION_THREAD="" AgentsToolsSessionChatThread "$scopeSession" )" || joinThread=""
+		if [ -z "$joinThread" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $joinOp: session $scopeSession has no Slack thread, and a member is joined into a session by its thread -- nothing was started" >&2
+			set +e ; return 1
+		fi
+		type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+		joinBy="$( AgentsToolsManagerConsoleUser )"
+		joinWhy="$( ASKP_BLOCK="Tasks/assess-session-why" AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || joinWhy=""
+		joinStateWords="$( ASKP_BLOCK="Words/state-$joinState" AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || joinStateWords=""
+		joinTask="$( ASKP_BLOCK="Tasks/assess-session" ASKP_F_by="$joinBy" ASKP_F_session="$scopeSession" ASKP_F_name="${joinName//_/ }" ASKP_F_state="$joinStateWords" \
+			AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || joinTask=""
+		if [ -z "$joinTask" ] || [ -z "$joinWhy" ] || [ -z "$joinStateWords" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $joinOp: the task could not be filled from its template (tooling-note.post.format.md, Tasks) -- nothing was started" >&2
+			set +e ; return 1
+		fi
+		joinOut="$( printf '%s\n' "$joinTask" | DistroAgentsTools --intern-op-agent-spawn-proxy magic-coordinator --from-stdin --dispatch-doc:create --session-id "$scopeSession" --routine-default \
+			--description "$joinWhy" --context "$joinOp" )" || { set +e ; return 1 ; }
+		joinItem="$( printf '%s\n' "$joinOut" | LC_ALL=C awk -F= '$1 == "DISPATCH_ITEM" { print $2 ; exit ; }' )"
+		printf 'join\t%s\t%s\t%s\n' "$scopeSession" "magic-coordinator" "${joinItem:--}"
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

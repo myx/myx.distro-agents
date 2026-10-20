@@ -96,7 +96,13 @@ cli|*|*|{words}|configuration|A credential the harness leg of this CLI reads. If
 systems|||Outside Systems||
 systems|*||{name}||
 systems|*|-|No Scope Configured|configuration|No scope of this workspace holds a setting of this system, so no member reaches it from here.
-systems|*|*|Scope {name}|configuration|Whether this scope holds the settings of this system, with the keys it still lacks. The owner setup saves the settings themselves.
+systems|slack|SLACK_*|{words}|configuration|A setting of this outside system as the scope named as its source holds it, with its value. A credential shows its first quarter and the rest masked. The settings of a scope are changed in its Scope Settings.
+systems|email|EMAIL_*|{words}|configuration|A setting of this outside system as the scope named as its source holds it, with its value. A credential shows its first quarter and the rest masked. The settings of a scope are changed in its Scope Settings.
+systems|jira|JIRA_*|{words}|configuration|A setting of this outside system as the scope named as its source holds it, with its value. A credential shows its first quarter and the rest masked. The settings of a scope are changed in its Scope Settings.
+systems|confluence|CONFLUENCE_*|{words}|configuration|A setting of this outside system as the scope named as its source holds it, with its value. A credential shows its first quarter and the rest masked. The settings of a scope are changed in its Scope Settings.
+systems|trello|TRELLO_*|{words}|configuration|A setting of this outside system as the scope named as its source holds it, with its value. A credential shows its first quarter and the rest masked. The settings of a scope are changed in its Scope Settings.
+systems|google|GOOGLE_*|{words}|configuration|A setting of this outside system as the scope named as its source holds it, with its value. A credential shows its first quarter and the rest masked. The settings of a scope are changed in its Scope Settings.
+systems|*|*|Scope {name}|configuration|Whether this scope holds the settings of this system, with the keys it still lacks. Its settings stand under it, each with its value.
 loop|||Main Loop And Heartbeat||
 loop|main-loop||Main Loop State||
 loop|heartbeat||Heartbeat State||
@@ -262,6 +268,21 @@ AgentsToolsManagerConfigPathLine(){ ## subject, group, key, path
 	else
 		AgentsToolsManagerConfigLine "$1" "$2" "$3" missing "$4"
 	fi
+}
+
+## The line of a key an outside system holds in a scope, with its value (F11.7: all values are shown, beside the assessment of the scope): the key under the
+## group of its system, a credential as set in the one form of AgentsToolsCredentialShown and any other key with its value, a password inside a URL masked
+## alone in the digest in full. The fields a subject adds at its end say where the value comes from, the scope that holds it, and the file of that scope.
+AgentsToolsManagerConfigSystemKeyLine(){ ## group, scope, key, value
+	local keyState="set" keyShown="$4"
+	if AgentsToolsManagerConfigKeySecret "$3" ; then
+		keyState="secret-set" ; keyShown="$( AgentsToolsCredentialShown "$4" )"
+	elif [ -n "${digestFull:-}" ] && keyShown="$( AgentsToolsCredentialUrlShown "$4" )" ; then
+		keyState="secret-set"
+	else
+		keyShown="$4"
+	fi
+	AgentsToolsManagerConfigLine systems "$1" "$3" "$keyState" "$keyShown" "$2" "-" "-" "-" "${MMDAPP%/}/.local/.agents/$2.agent.env"
 }
 
 ## The line of one key of one scope of this workspace: a credential as set, with its value in
@@ -441,7 +462,7 @@ AgentsToolsManagerConfigCli(){
 ## only list of the keys a system needs, and it holds the team's own: what a member's scope
 ## lacks of a system beyond its empty keys is not known here, and not said.
 AgentsToolsManagerConfigSystems(){
-	local sysName sysGroup sysScope sysScopes sysCatalogue="" sysKey sysSpec sysKeys sysSeen sysLacking sysHolds sysAny
+	local sysName sysGroup sysScope sysScopes sysCatalogue="" sysKey sysSpec sysKeys sysSeen sysLacking sysHolds sysAny sysValue sysKeyLines
 	while IFS= read -r sysKey ; do
 		[ -n "$sysKey" ] || continue
 		sysSpec="$( AgentsToolsOwnerSetupOptionSpec "$sysKey" )" || sysSpec=""
@@ -463,7 +484,7 @@ AgentsToolsManagerConfigSystems(){
 		sysAny="false"
 		while IFS= read -r sysScope ; do
 			[ -n "$sysScope" ] || continue
-			sysAny="true" ; sysHolds="false" ; sysLacking="" ; sysKeys="" ; sysSeen=$'\n'
+			sysAny="true" ; sysHolds="false" ; sysLacking="" ; sysKeys="" ; sysSeen=$'\n' ; sysKeyLines=""
 			while read -r sysKey sysSpec ; do
 				case "$sysKey" in "$sysName"_*) ;; *) continue ;; esac
 				[ "$sysSpec" = "$sysScope" ] || continue
@@ -474,8 +495,11 @@ AgentsToolsManagerConfigSystems(){
 				[ -n "$sysKey" ] || continue
 				case "$sysSeen" in *$'\n'"$sysKey"$'\n'*) continue ;; esac
 				sysSeen="$sysSeen$sysKey"$'\n'
-				if AgentsToolsManagerConfigHolds "$sysScope" "$sysKey" ; then
+				## the value is read once: it is held where it is set, and shown (the key lines under the assessment of the scope)
+				sysValue="$( AgentsToolsManagerConfigValue "$sysScope" "$sysKey" )" || sysValue=""
+				if [ -n "$sysValue" ] ; then
 					sysHolds="true"
+					sysKeyLines="$sysKeyLines$( AgentsToolsManagerConfigSystemKeyLine "$sysGroup" "$sysScope" "$sysKey" "$sysValue" )"$'\n'
 				else
 					sysLacking="$sysLacking${sysLacking:+,}$sysKey"
 				fi
@@ -485,6 +509,7 @@ AgentsToolsManagerConfigSystems(){
 			else
 				AgentsToolsManagerConfigLine systems "$sysGroup" "$sysScope" missing "$sysLacking"
 			fi
+			[ -z "$sysKeyLines" ] || printf '%s' "$sysKeyLines"
 		done <<< "$sysScopes"
 		[ "$sysAny" = "true" ] || AgentsToolsManagerConfigLine systems "$sysGroup" "" missing ""
 	done

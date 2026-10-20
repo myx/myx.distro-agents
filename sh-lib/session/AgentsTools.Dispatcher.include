@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Dispatcher.include -- TeamDispatcher's operations (F7.4, DistroAgentsDispatcher.fn.sh): the runs of the
+## team, for agent tools, the shell console and shell automation alike. Sourced by that file, for its functions only.
+##
+## It owns no store and no row of its own. The session lists call the very function --manager-session-list calls
+## (AgentsToolsManagerSessionRows), and a session's record the function --manager-session-read calls
+## (AgentsToolsManagerSessionReadRows), both in AgentsTools.ManagerSession.include, which the family --manager-*
+## keeps for the console alone: what a run shows is decided there once, and a row is the same row whoever asks.
+## The kind of a session (F6.1) is read from the routine its run records, `requires-session-kind:` of that routine's
+## file; a run that records none is an ad-hoc start. A kind is a filter on the lists and no column of theirs.
+## The predecessor question is decided from the spawn records, which are the run history today.
+##
+
+type AgentsToolsSpawnRoutineResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include"
+
+## The manager's functions of the runs, loaded for their definitions only, as the dashboard and the pending replies
+## load them: the include's own case answers the word given with an error, which is not wanted here. rc 1 where
+## they cannot be loaded.
+AgentsToolsDispatcherManager(){
+	type AgentsToolsManagerSessionRows > /dev/null 2>&1 && type AgentsToolsManagerSessionReadRows > /dev/null 2>&1 && return 0
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include" --definitions-only > /dev/null 2>&1 || :
+	type AgentsToolsManagerSessionRows > /dev/null 2>&1 && type AgentsToolsManagerSessionReadRows > /dev/null 2>&1 && return 0
+	echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsDispatcher}: the functions of the runs could not be loaded from AgentsTools.ManagerSession.include -- nothing is shown" >&2
+	return 1
+}
+
+## The kind of the session a run row belongs to, by the first of its runs that records a routine: the kind that
+## routine's file names, `ad-hoc` where no run of the session records one, `-` where the routine is recorded and its file
+## is nowhere (a kind nothing can be said of). Printed as `<session><TAB><kind>` for each session of the rows given.
+AgentsToolsDispatcherKinds(){ ## the list's rows, as text
+	local kindsKind kindsSession kindsSpawn kindsRest kindsRecord kindsRoutine kindsFile kindsKnown="" kindsOf kindsDone=$'\n' kindsAll=$'\n'
+	while IFS=$'\t' read -r kindsKind kindsSession kindsSpawn kindsRest ; do
+		[ "$kindsKind" = "run" ] || continue
+		case "$kindsAll" in *$'\n'"$kindsSession"$'\n'*) ;; *) kindsAll="$kindsAll$kindsSession"$'\n' ;; esac
+		case "$kindsDone" in *$'\n'"$kindsSession"$'\n'*) continue ;; esac
+		kindsRecord="$( AgentsToolsRegistrySpawnRecord "$kindsSpawn" < /dev/null )"
+		[ -n "$kindsRecord" ] || continue
+		kindsRoutine="$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$kindsRecord" )" routine )"
+		case "$kindsRoutine" in ''|-) continue ;; esac
+		case "$kindsKnown" in
+			*$'\n'"$kindsRoutine"$'\t'*) kindsOf="${kindsKnown#*$'\n'"$kindsRoutine"$'\t'}" ; kindsOf="${kindsOf%%$'\n'*}" ;;
+			*)
+				kindsOf="-"
+				if kindsFile="$( AgentsToolsSpawnRoutineResolve "$kindsRoutine" 2> /dev/null )" ; then
+					kindsOf="$( AgentsToolsSpawnRoutineKindOwn "$kindsFile" )"
+					[ -n "$kindsOf" ] || kindsOf="-"
+				fi
+				kindsKnown="$kindsKnown"$'\n'"$kindsRoutine"$'\t'"$kindsOf"
+			;;
+		esac
+		kindsDone="$kindsDone$kindsSession"$'\n'
+		printf '%s\t%s\n' "$kindsSession" "$kindsOf"
+	done <<< "$1"
+	## A session none of whose runs records a routine is an ad-hoc start.
+	while IFS= read -r kindsSession ; do
+		[ -n "$kindsSession" ] || continue
+		case "$kindsDone" in *$'\n'"$kindsSession"$'\n'*) ;; *) printf '%s\tad-hoc\n' "$kindsSession" ;; esac
+	done <<< "$kindsAll"
+}
+
+## --all-sessions, --active-sessions and --waiting-sessions: the rows --manager-session-list prints, the sessions of
+## the workspace with their runs and the counters row; those not finished with --active-sessions, those the list
+## reads as `waiting` (no live process, an ask of theirs open) with --waiting-sessions. [--kind standalone|coworking|ad-hoc]
+## keeps the sessions of that kind and their runs. With no filter the rows are the function's, unchanged.
+AgentsToolsDispatcherSessions(){ ## the operation as it was called, its arguments...
+	local sessionsOp="$1" sessionsKind="" sessionsWaiting="" sessionsActive="" sessionsRows sessionsKept=""
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--kind)
+				case "${2:-}" in
+					standalone|coworking|ad-hoc) sessionsKind="$2" ; shift 2 ;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD $sessionsOp: --kind takes standalone, coworking or ad-hoc, got: ${2:-nothing}" >&2
+						return 1
+					;;
+				esac
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD $sessionsOp: syntax is [--kind standalone|coworking|ad-hoc], got: $1" >&2
+				return 1
+			;;
+		esac
+	done
+	case "$sessionsOp" in
+		--active-sessions) sessionsActive="active" ;;
+		--waiting-sessions) sessionsWaiting="waiting" ;;
+	esac
+	AgentsToolsDispatcherManager || return 1
+	if [ -z "$sessionsKind$sessionsWaiting" ] ; then
+		AgentsToolsManagerSessionRows "$sessionsOp" "$sessionsActive"
+		return $?
+	fi
+	sessionsRows="$( AgentsToolsManagerSessionRows "$sessionsOp" "$sessionsActive" )" || return 1
+	if [ -n "$sessionsKind" ] ; then
+		sessionsKept="$( AgentsToolsDispatcherKinds "$sessionsRows" | LC_ALL=C awk -F'\t' -v wantKind="$sessionsKind" '$2 == wantKind { printf "%s\n", $1 ; }' )"
+	fi
+	printf '%s\n' "$sessionsRows" | DISPATCH_STATE="$sessionsWaiting" DISPATCH_KIND="$sessionsKind" DISPATCH_KEPT="$sessionsKept" LC_ALL=C awk -F'\t' '
+		BEGIN {
+			wantState = ENVIRON["DISPATCH_STATE"] ; wantKind = ENVIRON["DISPATCH_KIND"] ;
+			keptCount = split( ENVIRON["DISPATCH_KEPT"], keptList, "\n" ) ;
+			for (keptAt = 1 ; keptAt <= keptCount ; keptAt++) if (keptList[keptAt] != "") kindOf[keptList[keptAt]] = 1 ;
+		}
+		$1 == "session" {
+			sessionKept = ( ( wantState == "" || $4 == wantState ) && ( wantKind == "" || ( $2 in kindOf ) ) ) ;
+			if (sessionKept) { keptSession[$2] = 1 ; print ; }
+			next ;
+		}
+		$1 == "run" { if ($2 in keptSession) print ; next ; }
+		{ print ; }
+	'
+	return 0
+}
+
+## --session-record <session-id> [--run]: one session in full, or one run of it, as --manager-session-read prints it:
+## the same rows, by the same function.
+AgentsToolsDispatcherRecord(){ ## the operation as it was called, its arguments...
+	local recordOp="$1" recordId="" recordOwn=""
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--run) recordOwn="run" ; shift ;;
+			-*)
+				echo "⛔ ERROR: $MDSC_CMD $recordOp: syntax is <session-id> [--run], got: $1" >&2
+				return 1
+			;;
+			*)
+				if [ -n "$recordId" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD $recordOp: syntax is <session-id> [--run], got a second id: $1" >&2
+					return 1
+				fi
+				recordId="$1" ; shift
+			;;
+		esac
+	done
+	if [ -z "$recordId" ] || [ "$recordId" = "-" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $recordOp: syntax is <session-id> [--run], got no session id" >&2
+		return 1
+	fi
+	AgentsToolsDispatcherManager || return 1
+	AgentsToolsManagerSessionReadRows "$recordOp" "$recordId" "$recordOwn"
+}
+
+## The run history, asked of the spawn records of this workspace: the one run of a routine that closed `spawn-succeeded` in a stretch of
+## time (DISPATCH_MODE completed, the default), or that started in it (started), the latest such, as one `run` row, rc 0; nothing, rc 1,
+## where none did. Its question is in the caller's environment, for AgentsDispatcherCompleted.awk to read: DISPATCH_ROUTINE (the file name
+## a record writes), the stretch's start as DISPATCH_SINCE_MINUTES or as DISPATCH_SINCE with DISPATCH_ZONE, and DISPATCH_UNTIL_MINUTES.
+AgentsToolsDispatcherHistory(){
+	local historyRecords historyLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+	historyRecords="$( find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -type f -name '*.md' 2> /dev/null | LC_ALL=C sort )"
+	[ -n "$historyRecords" ] || return 1
+	printf '%s\n' "$historyRecords" | LC_ALL=C awk -f "$historyLib/manager/AgentsManagerDateMinutes.awk" -f "$historyLib/session/AgentsDispatcherCompleted.awk"
+}
+
+## --routine-completed <routine> --since "<YYYY-MM-DD HH:MM>": the predecessor question. The routine is named as --routine
+## names one, a file name or part of one. The time is of this host, as the records write theirs. Prints the run of that routine
+## that closed `spawn-succeeded` last at or after the time, a `run` row, rc 0; else one line, `NOT-COMPLETED: <routine file>
+## since <time>`, rc 1. The run history is the spawn records of this workspace.
+AgentsToolsDispatcherCompleted(){ ## the operation as it was called, its arguments...
+	local completedOp="$1" completedRoutine="" completedSince="" completedFile completedName completedZone
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--since)
+				if [ -z "${2:-}" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD $completedOp: --since needs a time -- syntax is <routine> --since \"<YYYY-MM-DD HH:MM>\"" >&2
+					return 1
+				fi
+				completedSince="$2" ; shift 2
+			;;
+			-*)
+				echo "⛔ ERROR: $MDSC_CMD $completedOp: syntax is <routine> --since \"<YYYY-MM-DD HH:MM>\", got: $1" >&2
+				return 1
+			;;
+			*)
+				if [ -n "$completedRoutine" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD $completedOp: syntax is <routine> --since \"<YYYY-MM-DD HH:MM>\", got a second routine: $1" >&2
+					return 1
+				fi
+				completedRoutine="$1" ; shift
+			;;
+		esac
+	done
+	if [ -z "$completedRoutine" ] || [ -z "$completedSince" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $completedOp: syntax is <routine> --since \"<YYYY-MM-DD HH:MM>\", and both are needed" >&2
+		return 1
+	fi
+	printf '%s\n' "$completedSince" | LC_ALL=C grep -q -E '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$' || {
+		echo "⛔ ERROR: $MDSC_CMD $completedOp: --since is a time of the form YYYY-MM-DD HH:MM, got: $completedSince" >&2
+		return 1
+	}
+	completedFile="$( AgentsToolsSpawnRoutineResolve "$completedRoutine" )" || return 1
+	completedName="${completedFile##*/}"
+	completedZone="$( date +%z )"
+	if DISPATCH_ROUTINE="$completedName" DISPATCH_SINCE="$completedSince" DISPATCH_ZONE="$completedZone" AgentsToolsDispatcherHistory ; then
+		return 0
+	fi
+	printf 'NOT-COMPLETED: %s since %s\n' "$completedName" "$completedSince"
+	return 1
+}

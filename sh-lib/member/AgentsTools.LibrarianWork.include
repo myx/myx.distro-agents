@@ -1,0 +1,739 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.LibrarianWork.include -- the functions of AgentLibrarianTools.fn.sh (F7.7): the librarian's write of a skillset file
+## (--skillset-upsert) and the queue of requests to update a document, the knowledge base or a skill file. Sourced for its functions only;
+## $MDSC_CMD is the caller's.
+##
+## THE QUEUE IS THE LIBRARIAN'S INBOX, no store of its own. A request is an inquiry-* in magic-librarian's incoming/ that carries keys of its
+## frontmatter: `update-kind` (document, knowledge or skill), `update-target`, `update-form` (message, text or edit), and, recorded by the tooling
+## and never given by the requester, the date and the checksum of the target file as it stood (`update-target-date`, `update-target-checksum`).
+## It is closed as every inbox item is, into processed/, by the librarian's own inbox operation, with `update-outcome` (applied, refused or closed)
+## and `update-result` set. So one mechanism holds every request to the librarian: the inbox, its scan, its Wait, its retention.
+## THREE FORMS reach it. A message: any member's words, about a document, the knowledge base or a skill. A whole text: the proposed whole text of a
+## skill file, between marker lines of the body. A concrete edit: the old and the new string of a skill file, as Edit takes them, between marker
+## lines of the body. The librarian decides alone: it applies a text or an edit (--queue-done --apply, by the same path and checks as
+## --skillset-upsert), or refuses it with its reason (--queue-done --refuse), or closes a message with a result.
+##
+## THE WRITE OF A SKILLSET FILE is the librarian's own tool, apart from the rules of Skill, Read and Write: it names a member and a file in that
+## member's skill, resolves the skill to its SOURCE COPY through the member registry (an install under .local, and the HOME skills folder, are never
+## written), and saves the text itself once it has been validated. Only magic-librarian calls it. It asks the permission chain for the permission
+## `skillset-upsert` over `<member>:<pathname>`, the way a harness tool is asked: a routine whose `allows:` names it
+## (`magic-librarian:skillset-upsert`) or a grant of the session holds it, and a call that does not hold it is refused with a REFUSAL-ID and the
+## way to ask for it with RequestPermission. And it changes the skillset only while learning is on.
+##
+
+## What the functions below call, loaded where first needed.
+AgentsToolsLibrarianLoad(){
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	type AgentsToolsInboxItemFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+}
+
+## The tooling's own script, called as the family calls it from another script.
+AgentsToolsLibrarianTool(){ ## the script, its arguments...
+	local toolScript="$1" ; shift
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$toolScript.fn.sh" "$@"
+}
+
+## Who the call acts as, else a refusal: `librarian` is magic-librarian alone, `member` is any member's session. Prints the member.
+AgentsToolsLibrarianCaller(){ ## op, who (librarian|member)
+	local callerMember
+	AgentsToolsLibrarianLoad
+	callerMember="$( AgentsToolsActingMember )"
+	case "$2" in
+		librarian)
+			[ "$callerMember" = magic-librarian ] || {
+				echo "$MDSC_CMD: ⛔ ERROR: $1: runs only as magic-librarian, and this call comes from ${callerMember:-no member} -- nothing was done" >&2
+				return 1
+			}
+		;;
+		member)
+			[ -n "$callerMember" ] || {
+				echo "$MDSC_CMD: ⛔ ERROR: $1: a request is made by a member, and this call comes from no member's session -- nothing was done" >&2
+				return 1
+			}
+		;;
+	esac
+	printf '%s' "$callerMember"
+}
+
+## A text into a file of the workspace's temp, its path printed. The text comes from stdin or a file: `--from-stdin` or `--from-file <path>`.
+## Refused: none given, no such file, nothing in it.
+AgentsToolsLibrarianInput(){ ## op, mode (--from-stdin|--from-file), path (for --from-file), [empty-ok]
+	local inputTemp
+	case "$2" in
+		--from-stdin|--from-file) ;;
+		*) echo "$MDSC_CMD: ⛔ ERROR: $1: the text comes from --from-stdin or --from-file <path>, and neither was given" >&2 ; return 1 ;;
+	esac
+	if [ "$2" = "--from-file" ] && [ ! -f "${3:-}" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $1: --from-file names no file: ${3:-<nothing>}" >&2
+		return 1
+	fi
+	mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
+	inputTemp="$( mktemp "$MMDAPP/.local/temp/agent-librarian-tools.XXXXXX" )" || return 1
+	if [ "$2" = "--from-stdin" ] ; then cat > "$inputTemp" ; else cat "$3" > "$inputTemp" ; fi
+	if [ ! -s "$inputTemp" ] && [ -z "${4:-}" ] ; then
+		rm -f "$inputTemp"
+		echo "$MDSC_CMD: ⛔ ERROR: $1: the text is empty -- nothing was done" >&2
+		return 1
+	fi
+	printf '%s\n' "$inputTemp"
+}
+
+## One line of free text, as a frontmatter value: line breaks and tabs made spaces, runs of spaces one, ends trimmed.
+AgentsToolsLibrarianOneLine(){ ## text
+	printf '%s' "$1" | LC_ALL=C tr '\n\r\t' '   ' | LC_ALL=C tr -s ' ' | LC_ALL=C sed -e 's/^ //' -e 's/ $//'
+}
+
+## One key of the frontmatter of a file; nothing for a key it lacks.
+AgentsToolsLibrarianKey(){ ## file, key
+	LC_ALL=C awk -v want="$2: " 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit ; }' "$1" 2> /dev/null
+}
+
+## The checksum of a file as the queue records it, `sha256:<hex>`.
+AgentsToolsLibrarianSum(){ ## file
+	local sumHex=""
+	if command -v shasum > /dev/null 2>&1 ; then sumHex="$( shasum -a 256 "$1" 2> /dev/null | LC_ALL=C cut -d ' ' -f 1 )"
+	elif command -v sha256sum > /dev/null 2>&1 ; then sumHex="$( sha256sum "$1" 2> /dev/null | LC_ALL=C cut -d ' ' -f 1 )"
+	fi
+	[ -n "$sumHex" ] || return 1
+	printf 'sha256:%s' "$sumHex"
+}
+
+## The date of a file's last change as the queue records it, `YYYY-MM-DD HH:MM ±HHMM`.
+AgentsToolsLibrarianFileDate(){ ## file
+	local dateEpoch
+	dateEpoch="$( stat -f '%m' "$1" 2> /dev/null )" || dateEpoch=""
+	case "$dateEpoch" in ''|*[!0123456789]*) dateEpoch="$( stat -c '%Y' "$1" 2> /dev/null )" || dateEpoch="" ;; esac
+	case "$dateEpoch" in ''|*[!0123456789]*) return 1 ;; esac
+	if date -r 0 +%s > /dev/null 2>&1 ; then date -r "$dateEpoch" +"%Y-%m-%d %H:%M %z" ; else date -d "@$dateEpoch" +"%Y-%m-%d %H:%M %z" ; fi
+}
+
+## ---- the permission, the skill, the save ----
+
+## The permission chain's gate, asked as the harness asks it of any tool it gates: the permission `skillset-upsert` over `<member>:<pathname>`, held by
+## the routine the run is in (`allows: magic-librarian:skillset-upsert`) or granted for the session, the task or the one call
+## (--intern-op-permission-grant-read). A call that holds none is refused as a tool call is: the refusal is recorded (--intern-op-permission-refusal-log),
+## its REFUSAL-ID said with the way to ask for it, RequestPermission, and rc 1; a granted call is retried exactly as it was made.
+AgentsToolsLibrarianPermission(){ ## op, target (<team-member>:<pathname>)
+	local permMember permSession="${MDAT_SPAWN_SESSION_ID:-}" permOut="" permRc=0 permGrant permId permOpen permLog
+	AgentsToolsLibrarianLoad
+	permMember="$( AgentsToolsActingMember )"
+	if [ -n "$permSession" ] ; then
+		permOut="$( AgentsToolsLibrarianTool DistroAgentsTools --intern-op-permission-grant-read "$permMember" --session-id "$permSession" --tool skillset-upsert --target "$2" 2> /dev/null )" || permRc=$?
+		permGrant="$( printf '%s\n' "$permOut" | LC_ALL=C sed -n 's/^GRANT: //p' | LC_ALL=C sed -n 1p )"
+		if [ "$permRc" = 0 ] ; then
+			case "$permGrant" in
+				'session '*|'task '*|'planned '*|'standing '*) return 0 ;;
+				'once '*) AgentsToolsLibrarianTool DistroAgentsTools --intern-op-permission-grant-consume --session-id "$permSession" --refusal-id "${permGrant#once }" > /dev/null 2>&1 && return 0 ;;
+			esac
+		fi
+	fi
+	{
+		printf '%s: ⛔ ERROR: %s: this run holds no permission for it: the routine it is in does not name skillset-upsert in its allows: key (an entry such as magic-librarian:skillset-upsert), and no grant covers %s -- nothing was saved\n' "$MDSC_CMD" "$1" "$2"
+		if [ -z "$permSession" ] ; then
+			printf 'REFUSAL-ID: none -- this call has no session id, so the refusal was not recorded and cannot be escalated by id.\n'
+		else
+			permLog="$( AgentsToolsLibrarianTool DistroAgentsTools --intern-op-permission-refusal-log "$permMember" --session-id "$permSession" --tool skillset-upsert --target "$2" \
+				--reason "a $1 call this session holds no permission for" 2> /dev/null )" || permLog=""
+			permId="$( printf '%s\n' "$permLog" | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | LC_ALL=C sed -n 1p )"
+			if [ -z "$permId" ] ; then
+				printf 'REFUSAL-ID: none -- recording the refusal failed, so it cannot be escalated by id.\n'
+			else
+				printf 'REFUSAL-ID: %s\n' "$permId"
+				permOpen="$( printf '%s\n' "$permOut" | LC_ALL=C awk '$1 == "OPEN-ASK:" && $2 != "" { printf "%s%s (a %s, waiting on %s)", sep, $2, $3, $4 ; sep = ", " ; }' )"
+				[ -z "$permOpen" ] || printf 'An ask that would allow this call is already open: %s. Do not ask again: wait for its answer with Wait sources=ask:<its id>, then retry the call.\n' "$permOpen"
+				printf '%s\n' "$permLog" | LC_ALL=C sed -n 's/^HINT: //p'
+			fi
+		fi
+	} >&2
+	return 1
+}
+
+## The source copy of a member's skill, from the member registries (this workspace's, then the machine's): the folder a source-symlink or a
+## source-declared row names, on this machine. Sets it, physical, in `librarianCopy` (a variable, not output: the reason below must survive the call). Not one, else the reason in `librarianWhy` and rc 1: the registry has no row for the
+## member, its rows are installs (a copy under a workspace's .local) or other copies and no source copy, its source copy is not on this
+## machine, or it has more than one.
+librarianWhy="" librarianCopy="" librarianFile=""
+AgentsToolsLibrarianSourceCopy(){ ## member
+	local copyFile copyRows="" copyKinds="" copyKind copyDir copyReal copyDirs="" copyCount copyMissing="" copyShown=""
+	librarianWhy="" librarianCopy=""
+	type AgentsToolsTeamLocalFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	for copyFile in "$( AgentsToolsTeamLocalFile "$MMDAPP" members.registry )" "$( AgentsToolsTeamSharedMembers )" ; do
+		[ -f "$copyFile" ] || continue
+		copyRows="$copyRows$( LC_ALL=C awk -F'\t' -v who="$1" 'NF >= 5 && $1 == who { print $3 "\t" $5 }' "$copyFile" )"$'\n'
+	done
+	while IFS=$'\t' read -r copyKind copyDir ; do
+		[ -n "$copyKind" ] || continue
+		case " $copyKinds " in *" $copyKind "*) ;; *) copyKinds="$copyKinds $copyKind" ;; esac
+		case "$copyKind" in source-symlink|source-declared) ;; *) continue ;; esac
+		copyReal="$( cd -P "$copyDir" 2> /dev/null && pwd -P )" || { copyMissing="$copyDir" ; continue ; }
+		case $'\n'"$copyDirs" in *$'\n'"$copyReal"$'\n'*) ;; *) copyDirs="$copyDirs$copyReal"$'\n' ;; esac
+	done <<< "$copyRows"
+	copyCount="$( printf '%s' "$copyDirs" | LC_ALL=C grep -c . )" || copyCount=0
+	if [ "$copyCount" = 1 ] ; then
+		librarianCopy="${copyDirs%$'\n'}"
+		return 0
+	fi
+	if [ "$copyCount" -gt 1 ] ; then
+		librarianWhy="$1 has more than one source copy ($( printf '%s' "$copyDirs" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )), and the member registry must name one"
+	elif [ -n "$copyMissing" ] ; then
+		librarianWhy="the source copy of $1 is registered at $copyMissing, which is not on this machine"
+	elif [ -z "$copyKinds" ] ; then
+		librarianWhy="the member registry (members.registry) has no row for $1"
+	else
+		for copyKind in $copyKinds ; do
+			case "$copyKind" in
+				.local-symlink) copyShown="$copyShown${copyShown:+, }an install under .local" ;;
+				origin-symlink) copyShown="$copyShown${copyShown:+, }a copy under the origin" ;;
+				*) copyShown="$copyShown${copyShown:+, }a copy of the kind $copyKind" ;;
+			esac
+		done
+		librarianWhy="$1 has no source copy: the member registry knows it only as $copyShown, and an install is never written"
+	fi
+	return 1
+}
+
+## The shape of a skill file's name: a path below the skill's folder, with no '.', '..' or empty part, a .md file. rc 1, the reason printed.
+AgentsToolsLibrarianPathCheck(){ ## pathname
+	case "/$1/" in
+		*/../*|*/./*|*//*|*[[:cntrl:]]*) printf '%s' "<pathname> is a path below the skill's folder, with no '.', '..' or empty part: $1" ; return 1 ;;
+	esac
+	case "$1" in
+		/*|*/) printf '%s' "<pathname> is relative to the skill's folder and names a file: $1" ; return 1 ;;
+		*.md) ;;
+		*) printf '%s' "only a .md file of a skill is the librarian's to write, and <pathname> is not one: $1" ; return 1 ;;
+	esac
+}
+
+## The file a skill target `<team-member>:<pathname>` names, in the member's source copy: set in `librarianFile` (the file may not be there yet). Else rc 1 and the
+## reason in `librarianWhy`. The file is below the copy and not out of it by a link, and no link or folder itself.
+AgentsToolsLibrarianSkillFile(){ ## target
+	local fileMember fileRest fileCopy fileTarget fileAncestor fileReason
+	AgentsToolsLibrarianLoad
+	librarianWhy="" librarianFile=""
+	case "$1" in
+		?*:?*) fileMember="${1%%:*}" ; fileRest="${1#*:}" ;;
+		*) librarianWhy="the target of a skill is <team-member>:<pathname>, got: $1" ; return 1 ;;
+	esac
+	AgentsToolsAssertBareName "$fileMember" "<team-member>" skill-target 2> /dev/null || { librarianWhy="the target of a skill names a member that is no bare name: $fileMember" ; return 1 ; }
+	fileReason="$( AgentsToolsLibrarianPathCheck "$fileRest" )" || { librarianWhy="$fileReason" ; return 1 ; }
+	AgentsToolsLibrarianSourceCopy "$fileMember" || return 1
+	fileCopy="$librarianCopy"
+	fileTarget="$fileCopy/$fileRest"
+	fileAncestor="${fileTarget%/*}"
+	while [ ! -d "$fileAncestor" ] ; do fileAncestor="${fileAncestor%/*}" ; done
+	fileAncestor="$( cd "$fileAncestor" 2> /dev/null && pwd -P )" || fileAncestor=""
+	case "$fileAncestor/" in
+		"$fileCopy"/*) ;;
+		*) librarianWhy="$fileRest leaves the folder of $fileMember by a link" ; return 1 ;;
+	esac
+	if [ -L "$fileTarget" ] || [ -d "$fileTarget" ] ; then
+		librarianWhy="$fileRest is a link or a folder, not a file of $fileMember"
+		return 1
+	fi
+	librarianFile="$fileTarget"
+}
+
+## The save: the text in place of the file by a rename in its own folder, so that a reader sees the old file or the new one and never half; the mode of
+## the file kept, the folders made. Prints `OK: ...`.
+AgentsToolsLibrarianSave(){ ## target file, file with its resulting text
+	local saveTemp saveNew=""
+	mkdir -p "${1%/*}" 2> /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: the folder of $1 could not be made -- nothing was saved" >&2 ; return 1 ; }
+	saveTemp="$( mktemp "${1%/*}/.${1##*/}.upsert.XXXXXX" )" || { echo "$MDSC_CMD: ⛔ ERROR: $1 could not be written -- nothing was saved" >&2 ; return 1 ; }
+	if [ -e "$1" ] ; then
+		cp -p "$1" "$saveTemp" 2> /dev/null || { rm -f "$saveTemp" ; echo "$MDSC_CMD: ⛔ ERROR: $1 could not be written -- nothing was saved" >&2 ; return 1 ; }
+	else
+		saveNew=" (a new file)"
+		chmod 644 "$saveTemp" 2> /dev/null || :
+	fi
+	if ! cat "$2" > "$saveTemp" || ! mv -f "$saveTemp" "$1" ; then
+		rm -f "$saveTemp"
+		echo "$MDSC_CMD: ⛔ ERROR: $1 could not be written -- nothing was saved" >&2
+		return 1
+	fi
+	printf 'OK: wrote %s%s\n' "$1" "$saveNew"
+}
+
+## The text a --skillset-upsert call saves: the one on stdin or in a file, given with the call.
+AgentsToolsLibrarianProduceInput(){ ## target file (unused), op, mode, path
+	AgentsToolsLibrarianInput "$2" "$3" "${4:-}"
+}
+
+## THE CORE of the write, the same for a call and for the librarian's apply of a request: the checks in their order, the resulting text made by the
+## producer function (called with the target file, then its own arguments; it prints the file with the text), validated, then saved.
+AgentsToolsLibrarianSkillsetCore(){ ## op, team-member, pathname, producer, producer arguments...
+	local upOp="$1" upMember="$2" upPath="$3" upProducer="$4" upTarget upText upRows upRc=0 upFlag upReason
+	shift 4
+	AgentsToolsLibrarianLoad
+	AgentsToolsAssertBareName "$upMember" "<team-member>" "${upOp#--}" || return 1
+	upReason="$( AgentsToolsLibrarianPathCheck "$upPath" )" || { echo "$MDSC_CMD: ⛔ ERROR: $upOp: $upReason" >&2 ; return 1 ; }
+	AgentsToolsLibrarianCaller "$upOp" librarian > /dev/null || return 1
+	AgentsToolsLibrarianPermission "$upOp" "$upMember:$upPath" || return 1
+	## learning: the librarian changes the skillset when learning is on, and offers proposals when it is not
+	upFlag="$( AgentsToolsLibrarianTool DistroAgentsDispatcher --current-flags 2> /dev/null | LC_ALL=C sed -n 's/^learning: //p' )"
+	case "$upFlag" in
+		yes*) ;;
+		*)
+			echo "$MDSC_CMD: ⛔ ERROR: $upOp: learning is off, so the librarian offers proposals and changes no skillset file: file this change as an inquiry-* to magic-coordinator, its text labelled (draft), for the quorum of the file's maintainers (magic-team.armed.md); nothing was saved" >&2
+			return 1
+		;;
+	esac
+	## the skill's source copy, through the member registry, and the file in it
+	AgentsToolsLibrarianSkillFile "$upMember:$upPath" || {
+		echo "$MDSC_CMD: ⛔ ERROR: $upOp: $librarianWhy -- nothing was saved" >&2
+		return 1
+	}
+	upTarget="$librarianFile"
+	upText="$( "$upProducer" "$upTarget" "$@" )" || return 1
+	## the resulting version, checked before it is saved: a routine against its contract (which refuses), every file against itself (which reports)
+	upRows=""
+	case "$upPath" in
+		*.routine.md)
+			upRows="$( AgentsToolsLibrarianTool DistroAgentsTools --intern-doc-validate routine --from-stdin --as "$upTarget" < "$upText" 2> /dev/null )" || upRc=1
+		;;
+	esac
+	if [ "$upRc" != 0 ] ; then
+		printf '%s\n' "$upRows"
+		echo "$MDSC_CMD: ⛔ ERROR: $upOp: the resulting $upPath does not meet the routine contract, so nothing was saved" >&2
+		rm -f "$upText"
+		return 1
+	fi
+	upRows="$upRows$( AgentsToolsLibrarianTool DistroAgentsTools --intern-doc-validate document --from-stdin --as "$upTarget" < "$upText" 2> /dev/null )" || :
+	[ -z "$upRows" ] || printf '%s\n' "$upRows" | LC_ALL=C grep -v '^$'
+	AgentsToolsLibrarianSave "$upTarget" "$upText" || upRc=$?
+	rm -f "$upText"
+	return "$upRc"
+}
+
+## --skillset-upsert <team-member> <pathname> (--from-stdin|--from-file <path>): the whole text of a `.md` file of a team member's skill, saved.
+AgentsToolsLibrarianSkillsetUpsert(){ ## the operation, its arguments...
+	local upOp="$1"
+	if [ -z "${2:-}" ] || [ -z "${3:-}" ] || [ $# -lt 4 ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $upOp: syntax is <team-member> <pathname> (--from-stdin|--from-file <path>)" >&2
+		return 1
+	fi
+	AgentsToolsLibrarianSkillsetCore "$upOp" "$2" "$3" AgentsToolsLibrarianProduceInput "$upOp" "$4" "${5:-}"
+}
+
+## ---- the queue of requests to update a document, the knowledge base or a skill file ----
+
+## A block of an update request's body: the exact text between `----- update <name> begin -----` and `----- update <name> end -----`, whose last
+## line break is left out where the end line says `(no final line break)`. Prints the text; rc 1 where the block is not there.
+AgentsToolsLibrarianBlock(){ ## file, name
+	LC_ALL=C awk -v name="$2" '
+		BEGIN { begin = "----- update " name " begin -----" ; endPlain = "----- update " name " end -----" ; endBare = "----- update " name " end (no final line break) -----" ; }
+		state == 0 && $0 == begin { state = 1 ; found = 1 ; next ; }
+		state == 1 && ( $0 == endPlain || $0 == endBare ) { state = 2 ; bare = ( $0 == endBare ) ; next ; }
+		state == 1 { lines[++n] = $0 ; next ; }
+		END {
+			if ( ! found || state != 2 ) exit 1 ;
+			for ( i = 1 ; i <= n ; i++ ) { if ( i < n || ! bare ) printf "%s\n", lines[i] ; else printf "%s", lines[i] ; }
+		}
+	' "$1"
+}
+
+## A block written for a request body: the text of a file between its marker lines.
+AgentsToolsLibrarianBlockWrite(){ ## name, file with the text
+	printf '%s\n' "----- update $1 begin -----"
+	cat "$2"
+	if [ -s "$2" ] && [ -n "$( tail -c 1 "$2" )" ] ; then
+		printf '\n%s\n' "----- update $1 end (no final line break) -----"
+	else
+		printf '%s\n' "----- update $1 end -----"
+	fi
+}
+
+## The file a request's target is, and what the tooling records of it, by kind: a skill target `<team-member>:<pathname>` is the file in the member's
+## source copy; a document target is a file by an absolute path, the workspace's or the source's; a knowledge target is a topic and no file. Sets the
+## file in `librarianFile` (it may not be there yet, for a skill); empty for a target that is no file; rc 1 and `librarianWhy` for a skill target that cannot be resolved.
+AgentsToolsLibrarianTargetFile(){ ## kind, target
+	local targetTry
+	librarianFile="" librarianWhy=""
+	case "$1" in
+		skill) AgentsToolsLibrarianSkillFile "$2" ; return $? ;;
+		document)
+			for targetTry in "$2" "$MMDAPP/$2" "$MMDAPP/source/$2" ; do
+				case "$targetTry" in /*) ;; *) continue ;; esac
+				[ -f "$targetTry" ] && { librarianFile="$targetTry" ; return 0 ; }
+			done
+		;;
+	esac
+	return 0
+}
+
+## Where a request's base stands now, one line: its target's recorded checksum against the file as it is. Nothing for a request that recorded none.
+AgentsToolsLibrarianBase(){ ## request file
+	local baseKind baseTarget baseFile baseSum baseNow baseDate baseThen
+	baseSum="$( AgentsToolsLibrarianKey "$1" update-target-checksum )"
+	[ -n "$baseSum" ] || return 0
+	baseKind="$( AgentsToolsLibrarianKey "$1" update-kind )" ; baseTarget="$( AgentsToolsLibrarianKey "$1" update-target )"
+	baseThen="$( AgentsToolsLibrarianKey "$1" update-target-date )"
+	AgentsToolsLibrarianTargetFile "$baseKind" "$baseTarget" 2> /dev/null || librarianFile=""
+	baseFile="$librarianFile"
+	if [ -z "$baseFile" ] || [ ! -f "$baseFile" ] ; then
+		if [ "$baseSum" = none ] ; then printf 'BASE: the file was not there when this was written, and is not there now\n'
+		else printf 'BASE-CHANGED: %s is not there any more; it was %s (%s) when this was written\n' "$baseTarget" "$baseSum" "$baseThen"
+		fi
+		return 0
+	fi
+	baseNow="$( AgentsToolsLibrarianSum "$baseFile" )" || baseNow=""
+	baseDate="$( AgentsToolsLibrarianFileDate "$baseFile" )" || baseDate=""
+	if [ "$baseSum" = none ] ; then
+		printf 'BASE-CHANGED: %s was not there when this was written, and is now (%s, %s)\n' "$baseTarget" "$baseNow" "$baseDate"
+	elif [ "$baseSum" = "$baseNow" ] ; then
+		printf 'BASE: %s is unchanged since this was written (%s, %s)\n' "$baseTarget" "$baseSum" "$baseThen"
+	else
+		printf 'BASE-CHANGED: %s changed after this was written: it was %s (%s), it is %s (%s)\n' "$baseTarget" "$baseSum" "$baseThen" "$baseNow" "$baseDate"
+	fi
+}
+
+## The update requests that wait: the inquiries in magic-librarian's incoming/ that carry an `update-kind`, oldest name first, one path a line.
+AgentsToolsLibrarianWaiting(){
+	local waitFile waitDir
+	AgentsToolsLibrarianLoad
+	waitDir="$( AgentsToolsInboxDir magic-librarian )"
+	for waitFile in "$waitDir"/inquiry-*.md ; do
+		[ -f "$waitFile" ] || continue
+		[ -n "$( AgentsToolsLibrarianKey "$waitFile" update-kind )" ] || continue
+		printf '%s\n' "$waitFile"
+	done | LC_ALL=C sort
+}
+
+## --request-update --kind document|knowledge|skill --target <target> --why <text> and one of the three forms. Any member's request.
+##   a message          (--from-stdin|--from-file <path>)                             the words of the request
+##   a whole text       --whole-text (--from-stdin|--from-file <path>)                the proposed whole text of a skill file, kind skill
+##   a concrete edit    (--old <text>|--old-from-file <path>) (--new <text>|--new-from-file <path>)   the old and new string, as Edit takes them, kind skill
+## The tooling records the target file's date and checksum itself; they are never given. A request is a notice unless it asks for the outcome with --reply
+## (`reply-requested: yes`): then --queue-done files one note with the outcome into the requester's inbox. Without --reply nothing is sent back.
+AgentsToolsLibrarianRequestUpdate(){ ## the operation, its arguments...
+	local reqOp="$1" reqKind="" reqTarget="" reqWhy="" reqMode="" reqFrom="" reqWhole="" reqReply="" reqOld="" reqOldSet="" reqOldFile="" reqNew="" reqNewSet="" reqNewFile=""
+	local reqMember reqForm reqFile reqDetail="" reqOldPath="" reqNewPath="" reqText reqName reqTail reqSent reqRc=0 reqDate="" reqSum="" reqWhy2 reqLeft
+	shift
+	reqMember="$( AgentsToolsLibrarianCaller "$reqOp" member )" || return 1
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--kind|--target|--why|--from-file|--old-from-file|--new-from-file)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $reqOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in
+					--kind) reqKind="$2" ;;
+					--target) reqTarget="$2" ;;
+					--why) reqWhy="$2" ;;
+					--from-file) [ -z "$reqMode" ] || { echo "$MDSC_CMD: ⛔ ERROR: $reqOp: the text comes from --from-stdin or --from-file, not both" >&2 ; return 1 ; } ; reqMode="--from-file" ; reqFrom="$2" ;;
+					--old-from-file) reqOldFile="$2" ;;
+					--new-from-file) reqNewFile="$2" ;;
+				esac
+				shift 2
+			;;
+			--old) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $reqOp: --old takes a value" >&2 ; return 1 ; } ; reqOld="$2" ; reqOldSet=1 ; shift 2 ;;
+			--new) [ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $reqOp: --new takes a value" >&2 ; return 1 ; } ; reqNew="$2" ; reqNewSet=1 ; shift 2 ;;
+			--whole-text) reqWhole=1 ; shift ;;
+			--reply) reqReply=yes ; shift ;;
+			--from-stdin) [ -z "$reqMode" ] || { echo "$MDSC_CMD: ⛔ ERROR: $reqOp: the text comes from --from-stdin or --from-file, not both" >&2 ; return 1 ; } ; reqMode="--from-stdin" ; shift ;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $reqOp: unknown option: $1" >&2 ; return 1 ;;
+		esac
+	done
+	case "$reqKind" in
+		document|knowledge|skill) ;;
+		*) echo "$MDSC_CMD: ⛔ ERROR: $reqOp: syntax is --kind document|knowledge|skill --target <target> --why <text> and (--from-stdin|--from-file <path>), or --whole-text with it, or --old and --new" >&2 ; return 1 ;;
+	esac
+	reqTarget="$( AgentsToolsLibrarianOneLine "$reqTarget" )" ; reqWhy="$( AgentsToolsLibrarianOneLine "$reqWhy" )"
+	if [ -z "$reqTarget" ] || [ -z "$reqWhy" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $reqOp: syntax is --kind document|knowledge|skill --target <target> --why <text> and a text or an edit -- --target and --why are needed" >&2
+		return 1
+	fi
+	if [ "${#reqTarget}" -gt 200 ] || [ "${#reqWhy}" -gt 300 ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $reqOp: --target is at most 200 characters and --why at most 300; the rest goes in the text" >&2
+		return 1
+	fi
+	## which of the three forms
+	reqForm=""
+	if [ -n "$reqOldSet$reqOldFile$reqNewSet$reqNewFile" ] ; then
+		reqForm=edit
+		if [ -n "$reqMode" ] || [ -n "$reqWhole" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $reqOp: a concrete edit is --old and --new and takes no text of its own and no --whole-text" >&2 ; return 1
+		fi
+		if [ -z "$reqOldSet$reqOldFile" ] || [ -z "$reqNewSet$reqNewFile" ] || { [ -n "$reqOldSet" ] && [ -n "$reqOldFile" ] ; } || { [ -n "$reqNewSet" ] && [ -n "$reqNewFile" ] ; } ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $reqOp: a concrete edit needs its old string (--old or --old-from-file) and its new string (--new or --new-from-file), each once" >&2 ; return 1
+		fi
+	elif [ -n "$reqWhole" ] ; then
+		reqForm=text
+	else
+		reqForm=message
+	fi
+	if [ "$reqForm" != message ] && [ "$reqKind" != skill ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $reqOp: a whole text and a concrete edit are for a skill file, --kind skill; a request about a $reqKind is a message" >&2
+		return 1
+	fi
+	## the target: what the tooling records of its file
+	AgentsToolsLibrarianTargetFile "$reqKind" "$reqTarget" || {
+		echo "$MDSC_CMD: ⛔ ERROR: $reqOp: $librarianWhy -- nothing was filed" >&2
+		return 1
+	}
+	reqFile="$librarianFile"
+	if [ -n "$reqFile" ] ; then
+		if [ -f "$reqFile" ] ; then
+			reqSum="$( AgentsToolsLibrarianSum "$reqFile" )" || reqSum=""
+			reqDate="$( AgentsToolsLibrarianFileDate "$reqFile" )" || reqDate=""
+		else
+			reqSum="none" ; reqDate=""
+		fi
+	fi
+	## the words, and the strings
+	mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
+	case "$reqForm" in
+		edit)
+			if [ -n "$reqOldSet" ] ; then reqOldPath="$( mktemp "$MMDAPP/.local/temp/agent-librarian-tools.XXXXXX" )" && printf '%s' "$reqOld" > "$reqOldPath" ; else
+				[ -f "$reqOldFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: $reqOp: --old-from-file names no file: $reqOldFile" >&2 ; return 1 ; }
+				reqOldPath="$( mktemp "$MMDAPP/.local/temp/agent-librarian-tools.XXXXXX" )" && cat "$reqOldFile" > "$reqOldPath"
+			fi
+			if [ -n "$reqNewSet" ] ; then reqNewPath="$( mktemp "$MMDAPP/.local/temp/agent-librarian-tools.XXXXXX" )" && printf '%s' "$reqNew" > "$reqNewPath" ; else
+				[ -f "$reqNewFile" ] || { rm -f "$reqOldPath" ; echo "$MDSC_CMD: ⛔ ERROR: $reqOp: --new-from-file names no file: $reqNewFile" >&2 ; return 1 ; }
+				reqNewPath="$( mktemp "$MMDAPP/.local/temp/agent-librarian-tools.XXXXXX" )" && cat "$reqNewFile" > "$reqNewPath"
+			fi
+			if [ ! -s "$reqOldPath" ] ; then rm -f "$reqOldPath" "$reqNewPath" ; echo "$MDSC_CMD: ⛔ ERROR: $reqOp: the old string of a concrete edit is not empty" >&2 ; return 1 ; fi
+			if [ "$reqOldPath" = "$reqNewPath" ] || cmp -s "$reqOldPath" "$reqNewPath" ; then rm -f "$reqOldPath" "$reqNewPath" ; echo "$MDSC_CMD: ⛔ ERROR: $reqOp: the new string is the old one: there is nothing to change" >&2 ; return 1 ; fi
+		;;
+		*)
+			reqDetail="$( AgentsToolsLibrarianInput "$reqOp" "$reqMode" "$reqFrom" )" || return 1
+		;;
+	esac
+	## a text between marker lines must not hold a marker line of its own
+	for reqLeft in "$reqDetail" "$reqOldPath" "$reqNewPath" ; do
+		[ -n "$reqLeft" ] || continue
+		if LC_ALL=C grep -q -E '^----- update (text|old|new) (begin|end)' "$reqLeft" ; then
+			rm -f "$reqDetail" "$reqOldPath" "$reqNewPath"
+			echo "$MDSC_CMD: ⛔ ERROR: $reqOp: the text holds a line that opens or closes a block of a request (----- update text|old|new begin|end ...), so it could not be told from the block -- nothing was filed" >&2
+			return 1
+		fi
+	done
+	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only > /dev/null 2>&1 || :
+	reqText="$( ASKP_F_member="$reqMember" ASKP_F_kind="$reqKind" ASKP_F_target="$reqTarget" ASKP_F_why="$reqWhy" ASKP_F_form="$reqForm" ASKP_F_target_date="$reqDate" ASKP_F_target_checksum="$reqSum" ASKP_F_reply="$reqReply" AgentsToolsEscalationNote "Librarian/update-request" )" || reqText=""
+	if [ -z "$reqText" ] ; then
+		rm -f "$reqDetail" "$reqOldPath" "$reqNewPath"
+		echo "$MDSC_CMD: ⛔ ERROR: $reqOp: the request could not be filled from its template (tooling-note.post.format.md, Librarian/update-request) -- nothing was filed" >&2
+		return 1
+	fi
+	reqTail="$( uuidgen 2> /dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' | LC_ALL=C cut -c1-8 )"
+	reqName="inquiry-$( date -u +%Y%m%dT%H%MZ )-update-$reqKind-${reqTail:-$RANDOM$RANDOM}.md"
+	reqSent="$( mktemp "$MMDAPP/.local/temp/agent-librarian-tools.XXXXXX" )" || { rm -f "$reqDetail" "$reqOldPath" "$reqNewPath" ; return 1 ; }
+	{
+		printf '%s\n\n' "$reqText"
+		case "$reqForm" in
+			message) cat "$reqDetail" ;;
+			text) AgentsToolsLibrarianBlockWrite text "$reqDetail" ;;
+			edit) AgentsToolsLibrarianBlockWrite old "$reqOldPath" ; AgentsToolsLibrarianBlockWrite new "$reqNewPath" ;;
+		esac
+	} > "$reqSent"
+	AgentsToolsLibrarianTool DistroAgentsTools --member-upsert-member-inquiry magic-librarian "$reqName" --from-member "$reqMember" --from-file "$reqSent" > /dev/null || reqRc=$?
+	rm -f "$reqDetail" "$reqOldPath" "$reqNewPath" "$reqSent"
+	if [ "$reqRc" != 0 ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $reqOp: the request could not be filed into magic-librarian's inbox -- nothing was filed" >&2
+		return 1
+	fi
+	printf '%s\n' "$reqName"
+}
+
+## --queue-list: the requests that wait, a row each: name, update-kind, update-target, update-form, from, date.
+AgentsToolsLibrarianQueueList(){ ## the operation
+	local listFile listCount=0
+	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
+	while IFS= read -r listFile ; do
+		[ -n "$listFile" ] || continue
+		listCount=$(( listCount + 1 ))
+		printf '%s\t%s\t%s\t%s\t%s\t%s\n' "${listFile##*/}" "$( AgentsToolsLibrarianKey "$listFile" update-kind )" "$( AgentsToolsLibrarianKey "$listFile" update-target )" "$( AgentsToolsLibrarianKey "$listFile" update-form )" "$( AgentsToolsLibrarianKey "$listFile" from )" "$( AgentsToolsLibrarianKey "$listFile" date )"
+	done <<< "$( AgentsToolsLibrarianWaiting )"
+	[ "$listCount" -gt 0 ] || echo "# $1: no update request waits" >&2
+	return 0
+}
+
+## --queue-take: the requests that wait, as one batch, whole, each under a line of its own and with where its base stands now. It reads only: a request
+## leaves the queue when --queue-done closes it.
+AgentsToolsLibrarianQueueTake(){ ## the operation
+	local takeFile takeCount takeNo=0 takeList
+	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
+	takeList="$( AgentsToolsLibrarianWaiting )"
+	takeCount="$( printf '%s' "$takeList" | LC_ALL=C grep -c . )" || takeCount=0
+	printf 'UPDATE-BATCH: %s request(s) waiting\n' "$takeCount"
+	while IFS= read -r takeFile ; do
+		[ -n "$takeFile" ] || continue
+		takeNo=$(( takeNo + 1 ))
+		printf '\n=== UPDATE-REQUEST %s/%s: %s ===\n' "$takeNo" "$takeCount" "${takeFile##*/}"
+		AgentsToolsLibrarianBase "$takeFile"
+		cat "$takeFile"
+	done <<< "$takeList"
+	return 0
+}
+
+## The text of a whole-text request, for its apply: the block of its body, and only while its base stands (the file is as it was when the request was
+## written). Prints the file with the text.
+AgentsToolsLibrarianProduceText(){ ## target file, op, request file
+	local textBase textOut
+	textBase="$( AgentsToolsLibrarianBase "$3" )"
+	case "$textBase" in
+		BASE-CHANGED:*)
+			echo "$MDSC_CMD: ⛔ ERROR: $2: ${textBase#BASE-CHANGED: } -- a whole text is written against the file as it was, so merge it by hand and save it with --skillset-upsert, or refuse the request; nothing was saved" >&2
+			return 1
+		;;
+	esac
+	mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
+	textOut="$( mktemp "$MMDAPP/.local/temp/agent-librarian-tools.XXXXXX" )" || return 1
+	AgentsToolsLibrarianBlock "$3" text > "$textOut" || { rm -f "$textOut" ; echo "$MDSC_CMD: ⛔ ERROR: $2: the request holds no text block -- nothing was saved" >&2 ; return 1 ; }
+	printf '%s\n' "$textOut"
+}
+
+## The text of a concrete-edit request, for its apply: the file as it is, its old string replaced by the new one, the old string being in it once.
+AgentsToolsLibrarianProduceEdit(){ ## target file, op, request file
+	local editOld editNew editOut editCount
+	[ -f "$1" ] || { echo "$MDSC_CMD: ⛔ ERROR: $2: the file to edit is not there: $1 -- nothing was saved" >&2 ; return 1 ; }
+	if LC_ALL=C grep -q "$( printf '\001' )" "$1" ; then echo "$MDSC_CMD: ⛔ ERROR: $2: the file holds a control character the edit cannot work around -- nothing was saved" >&2 ; return 1 ; fi
+	mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
+	editOld="$( mktemp "$MMDAPP/.local/temp/agent-librarian-tools.XXXXXX" )" && editNew="$( mktemp "$MMDAPP/.local/temp/agent-librarian-tools.XXXXXX" )" && editOut="$( mktemp "$MMDAPP/.local/temp/agent-librarian-tools.XXXXXX" )" || return 1
+	if ! AgentsToolsLibrarianBlock "$3" old > "$editOld" || ! AgentsToolsLibrarianBlock "$3" new > "$editNew" ; then
+		rm -f "$editOld" "$editNew" "$editOut"
+		echo "$MDSC_CMD: ⛔ ERROR: $2: the request holds no old and new string -- nothing was saved" >&2
+		return 1
+	fi
+	editCount="$( AGENTS_LIB_OLD="$( cat "$editOld" ; printf x )" LC_ALL=C awk 'BEGIN { RS = "\001" ; old = ENVIRON["AGENTS_LIB_OLD"] ; old = substr( old, 1, length( old ) - 1 ) ; } { rest = $0 ; while ( ( at = index( rest, old ) ) > 0 ) { n++ ; rest = substr( rest, at + length( old ) ) ; } } END { print n + 0 ; }' "$1" )"
+	if [ "$editCount" != 1 ] ; then
+		rm -f "$editOld" "$editNew" "$editOut"
+		if [ "$editCount" = 0 ] ; then echo "$MDSC_CMD: ⛔ ERROR: $2: the old string is not in the file as it is now -- nothing was saved" >&2
+		else echo "$MDSC_CMD: ⛔ ERROR: $2: the old string is in the file $editCount times, and an edit needs it once -- nothing was saved" >&2
+		fi
+		return 1
+	fi
+	AGENTS_LIB_OLD="$( cat "$editOld" ; printf x )" AGENTS_LIB_NEW="$( cat "$editNew" ; printf x )" LC_ALL=C awk '
+		BEGIN { RS = "\001" ; old = ENVIRON["AGENTS_LIB_OLD"] ; old = substr( old, 1, length( old ) - 1 ) ; new = ENVIRON["AGENTS_LIB_NEW"] ; new = substr( new, 1, length( new ) - 1 ) ; }
+		{ at = index( $0, old ) ; printf "%s%s%s", substr( $0, 1, at - 1 ), new, substr( $0, at + length( old ) ) ; }
+	' "$1" > "$editOut"
+	rm -f "$editOld" "$editNew"
+	printf '%s\n' "$editOut"
+}
+
+## The outcome of a request, told to the requester that asked for it (`reply-requested: yes`): one note into the requester's inbox, from the template
+## block Librarian/update-reply, by the inbox operation that writes any member's inbox. Said on stderr when it could not be filed; the close stands.
+AgentsToolsLibrarianReply(){ ## op, request name, requester, kind, target, outcome, result
+	local replyText replyFile replyRc=0 replyName
+	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only > /dev/null 2>&1 || :
+	replyText="$( ASKP_F_requester="$3" ASKP_F_request="$2" ASKP_F_kind="$4" ASKP_F_target="$5" ASKP_F_outcome="$6" ASKP_F_result="$7" AgentsToolsEscalationNote "Librarian/update-reply" )" || replyText=""
+	replyName="note-$( date -u +%Y%m%dT%H%MZ )-update-$6-${2##*-}"
+	replyName="${replyName%.md}.md"
+	mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
+	replyFile="$( mktemp "$MMDAPP/.local/temp/agent-librarian-tools.XXXXXX" )" || replyFile=""
+	if [ -z "$replyText" ] || [ -z "$replyFile" ] ; then
+		[ -z "$replyFile" ] || rm -f "$replyFile"
+		echo "$MDSC_CMD: ⚠️ WARNING: $1: $2 is closed, but the note to $3 could not be filled from its template (tooling-note.post.format.md, Librarian/update-reply)" >&2
+		return 0
+	fi
+	printf '%s\n' "$replyText" > "$replyFile"
+	AgentsToolsLibrarianTool DistroAgentsTools --intern-op-member-inbox-upsert "$3" "$replyName" --from-member magic-librarian --from-file "$replyFile" --context "$1" > /dev/null || replyRc=$?
+	rm -f "$replyFile"
+	[ "$replyRc" = 0 ] || echo "$MDSC_CMD: ⚠️ WARNING: $1: $2 is closed, but the note to $3 could not be filed" >&2
+	return 0
+}
+
+## One waiting update request closed into processed/ by the inbox operation, with its outcome and its result on one line each of its frontmatter; and,
+## where the request asked for its outcome, the note that tells the requester.
+AgentsToolsLibrarianClose(){ ## op, name, outcome (applied|refused|closed), result
+	local closeFile closeFrom closeReply closeKind closeTarget
+	closeFile="$( AgentsToolsInboxDir magic-librarian )/$2"
+	closeFrom="$( AgentsToolsLibrarianKey "$closeFile" from )" ; closeReply="$( AgentsToolsLibrarianKey "$closeFile" reply-requested )"
+	closeKind="$( AgentsToolsLibrarianKey "$closeFile" update-kind )" ; closeTarget="$( AgentsToolsLibrarianKey "$closeFile" update-target )"
+	AgentsToolsLibrarianTool DistroAgentsTools --librarian-inbox-to-processed magic-librarian "$2" "--header:upsert:update-outcome:$3" "--header:upsert:update-result:$4" > /dev/null || {
+		echo "$MDSC_CMD: ⛔ ERROR: $1: $2 could not be closed -- it still waits" >&2
+		return 1
+	}
+	printf 'closed: %s\n' "$2"
+	[ "$closeReply" != yes ] || [ -z "$closeFrom" ] || AgentsToolsLibrarianReply "$1" "$2" "$closeFrom" "$closeKind" "$closeTarget" "$3" "$4"
+	return 0
+}
+
+## --queue-done <name> (--apply | --refuse <reason> | --result <text>): the librarian decides one waiting request. --apply saves a whole text or a concrete edit
+## by the very path and checks of --skillset-upsert; a failed apply leaves the request waiting, with its reason. --refuse closes it with the librarian's
+## reason (not correct, or not needed). --result closes it with what was done.
+AgentsToolsLibrarianQueueDone(){ ## the operation, its arguments...
+	local doneOp="$1" doneName="${2:-}" doneMode="" doneText="" doneFile doneKind doneForm doneTarget doneRc=0 doneOut doneSaid
+	shift
+	[ -n "$doneName" ] || { echo "$MDSC_CMD: ⛔ ERROR: $doneOp: syntax is <name> (--apply | --refuse <reason> | --result <text>)" >&2 ; return 1 ; }
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--apply) [ -z "$doneMode" ] || { echo "$MDSC_CMD: ⛔ ERROR: $doneOp: one of --apply, --refuse and --result, not several" >&2 ; return 1 ; } ; doneMode=apply ; shift ;;
+			--refuse|--result)
+				[ -z "$doneMode" ] || { echo "$MDSC_CMD: ⛔ ERROR: $doneOp: one of --apply, --refuse and --result, not several" >&2 ; return 1 ; }
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $doneOp: $1 takes a value" >&2 ; return 1 ; }
+				doneMode="${1#--}" ; doneText="$2" ; shift 2
+			;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $doneOp: unknown option: $1" >&2 ; return 1 ;;
+		esac
+	done
+	[ -n "$doneMode" ] || { echo "$MDSC_CMD: ⛔ ERROR: $doneOp: syntax is <name> (--apply | --refuse <reason> | --result <text>)" >&2 ; return 1 ; }
+	AgentsToolsLibrarianLoad
+	AgentsToolsAssertBareName "$doneName" "<name>" "${doneOp#--}" || return 1
+	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $doneOp: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
+	AgentsToolsLibrarianCaller "$doneOp" librarian > /dev/null || return 1
+	if [ "$doneMode" != apply ] ; then
+		doneText="$( AgentsToolsLibrarianOneLine "$doneText" )"
+		if [ -z "$doneText" ] || [ "${#doneText}" -gt 500 ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $doneOp: --$doneMode is one line of at most 500 characters" >&2
+			return 1
+		fi
+	fi
+	doneFile="$( AgentsToolsInboxDir magic-librarian )/$doneName"
+	if [ ! -f "$doneFile" ] || [ -z "$( AgentsToolsLibrarianKey "$doneFile" update-kind )" ] ; then
+		if AgentsToolsInboxItemProcessed magic-librarian "$doneName" ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $doneOp: $doneName is closed already -- nothing was done" >&2
+		else
+			echo "$MDSC_CMD: ⛔ ERROR: $doneOp: $doneName is no update request that waits in magic-librarian's inbox -- nothing was done" >&2
+		fi
+		return 1
+	fi
+	case "$doneMode" in
+		result) AgentsToolsLibrarianClose "$doneOp" "$doneName" closed "$doneText" ;;
+		refuse) AgentsToolsLibrarianClose "$doneOp" "$doneName" refused "$doneText" ;;
+		apply)
+			doneKind="$( AgentsToolsLibrarianKey "$doneFile" update-kind )" ; doneForm="$( AgentsToolsLibrarianKey "$doneFile" update-form )"
+			doneTarget="$( AgentsToolsLibrarianKey "$doneFile" update-target )"
+			if [ "$doneKind" != skill ] || { [ "$doneForm" != text ] && [ "$doneForm" != edit ] ; } ; then
+				echo "$MDSC_CMD: ⛔ ERROR: $doneOp: $doneName is a $doneForm request about a $doneKind, and only the whole text or the concrete edit of a skill file is applied: close it with --result, or refuse it with --refuse" >&2
+				return 1
+			fi
+			case "$doneForm" in
+				text) doneOut="$( AgentsToolsLibrarianSkillsetCore "$doneOp" "${doneTarget%%:*}" "${doneTarget#*:}" AgentsToolsLibrarianProduceText "$doneOp" "$doneFile" 2>&1 )" || doneRc=$? ;;
+				edit) doneOut="$( AgentsToolsLibrarianSkillsetCore "$doneOp" "${doneTarget%%:*}" "${doneTarget#*:}" AgentsToolsLibrarianProduceEdit "$doneOp" "$doneFile" 2>&1 )" || doneRc=$? ;;
+			esac
+			if [ "$doneRc" != 0 ] ; then
+				[ -z "$doneOut" ] || printf '%s\n' "$doneOut" >&2
+				echo "$MDSC_CMD: ⛔ ERROR: $doneOp: $doneName was not applied, and still waits" >&2
+				return 1
+			fi
+			[ -z "$doneOut" ] || printf '%s\n' "$doneOut"
+			doneSaid="$( printf '%s\n' "$doneOut" | LC_ALL=C sed -n 's/^OK: wrote //p' | LC_ALL=C sed -n 1p )"
+			AgentsToolsLibrarianClose "$doneOp" "$doneName" applied "wrote ${doneSaid:-the file}"
+		;;
+	esac
+}
+
+## --request-result <name>: where a request stands, one line: it waits, or it is closed and with what outcome and result.
+AgentsToolsLibrarianRequestResult(){ ## the operation, name
+	local resultFile resultKind
+	[ -n "${2:-}" ] && [ $# -eq 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: syntax is <name>" >&2 ; return 1 ; }
+	AgentsToolsLibrarianLoad
+	AgentsToolsAssertBareName "$2" "<name>" "${1#--}" || return 1
+	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
+	resultFile="$( AgentsToolsInboxItemFind magic-librarian "$2" yes )" || resultFile=""
+	resultKind=""
+	[ -z "$resultFile" ] || resultKind="$( AgentsToolsLibrarianKey "$resultFile" update-kind )"
+	if [ -z "$resultKind" ] ; then
+		printf 'UPDATE %s UNKNOWN -- no update request of that name is in magic-librarian'"'"'s inbox\n' "$2"
+		return 1
+	fi
+	if AgentsToolsInboxItemProcessed magic-librarian "$2" ; then
+		printf 'UPDATE %s DONE (%s) -- %s %s, asked by %s: %s\n' "$2" "$( AgentsToolsLibrarianKey "$resultFile" update-outcome )" "$resultKind" "$( AgentsToolsLibrarianKey "$resultFile" update-target )" "$( AgentsToolsLibrarianKey "$resultFile" from )" "$( AgentsToolsLibrarianKey "$resultFile" update-result )"
+	else
+		printf 'UPDATE %s WAITING -- %s %s, asked by %s on %s\n' "$2" "$resultKind" "$( AgentsToolsLibrarianKey "$resultFile" update-target )" "$( AgentsToolsLibrarianKey "$resultFile" from )" "$( AgentsToolsLibrarianKey "$resultFile" date )"
+	fi
+	return 0
+}

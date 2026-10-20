@@ -49,12 +49,26 @@ Not a member/routine contract — these are the fixed texts of the short lines t
   - authority
   - authority-text
   - authority-confirm
+- Schedule
+  - chain-broken
+  - learning-inquiry
+- Testing
+  - tests-wanted
+- Librarian
+  - update-request
+  - update-reply
 - Reasons
   - not-held
   - session-killed
   - asker-killed
+- Tasks
+  - assess-session
+  - assess-session-why
 - Words
   - asked-earlier
+  - state-finished
+  - state-waiting
+  - state-unclosed
 - Contract
 
 # Summary
@@ -296,6 +310,90 @@ This question no longer needs an answer.
 🔐 Confirm: the console account {{requester}} asks to {{what}}, which takes the authority of the owners role. Answer `yes` to let it do that, or `no` to refuse it.
 ```
 
+# Schedule
+
+What the tooling says of a routine's autorun, in the channel the team keeps for alerts.
+
+## chain-broken
+
+```
+⛓️ {{routine}} did not run on {{day}}: it follows {{predecessor}}, and {{predecessor}} did not complete that day. The chain is broken, and {{routine}} does not run until someone looks at it.
+```
+
+## learning-inquiry
+
+```
+---
+type: inquiry
+from: magic-coordinator
+owner: magic-librarian
+---
+# Inquiry: analyse session {{session}} for the retro
+
+Session {{session}} has ended ({{members}}), and learning is on. Analyse its transcript and the reflections its members filed, and process the proposals they led to for the retro: a skillset change goes through the maintainer quorum and propose-approve with the human-owner, any other finding to the place it belongs.
+```
+
+# Testing
+
+What the tooling files of a member's testing need, in the inbox of the member who takes it up.
+
+## tests-wanted
+
+```
+---
+type: inquiry
+from: {{member}}
+owner: magic-tester
+---
+# Inquiry: {{member}} asks for tests
+
+{{member}} put request {{request}} into the retest queue, with the priority `{{priority}}`. It asks for: {{what}}.
+
+Why: {{why}}
+
+The next batch takes the request, and its outcome is read with `--member-retest-result {{request}}`. What the queue cannot tell, such as a test that does not exist yet or one that needs a rig, is for you to take up with {{member}}.
+```
+
+# Librarian
+
+What the tooling files of a member's request to the librarian, in the librarian's inbox.
+
+## update-request
+
+```
+---
+type: inquiry
+from: {{member}}
+owner: magic-librarian
+update-kind: {{kind}}
+update-target: {{target}}
+update-form: {{form}}[[
+update-target-date: {{target-date}}]][[
+update-target-checksum: {{target-checksum}}]][[
+reply-requested: {{reply}}]]
+---
+# Inquiry: {{member}} asks for an update of the {{kind}} {{target}}
+
+{{member}} asks you to update the {{kind}} `{{target}}`.
+
+Why: {{why}}
+
+What is asked follows, as {{member}} wrote it. When it is done, or cannot be, close the request with `--queue-done`; {{member}} can read the outcome with `--request-result`.
+```
+
+## update-reply
+
+```
+---
+type: note
+from: magic-librarian
+owner: {{requester}}
+---
+# Note: your request {{request}} is {{outcome}}
+
+Your request to update the {{kind}} `{{target}}` was {{outcome}}: {{result}}
+```
+
 # Reasons
 
 Why an answer was not applied, as a line above says it.
@@ -318,6 +416,30 @@ the session was killed from the console by {{by}}
 the run that asked it was killed from the console by {{by}}
 ```
 
+# Tasks
+
+What a member is told when the console joins it into a session (F11.6): the task it is given, and the line its joining says in the session's thread.
+
+## assess-session
+
+```
+You are joined, by {{by}} at the console, to the session {{session}}[[ ({{name}})]]. Assess it, unblock it interactively, and report.
+
+The session {{state}}.
+
+Read what the thread of the session and its participants left. Look at their questions that are still open, what each did last, and why nothing goes on. Say in the thread what you find.
+
+Where it can be unblocked, do it with the people the thread names. Ask before any step that changes something, and never guess what they want. Where it cannot, say what is needed and from whom.
+
+When you are done, post your report in the thread, hand back, and Wait until dismissed.
+```
+
+## assess-session-why
+
+```
+assess the session, unblock it interactively and report
+```
+
 # Words
 
 A value a line above takes where the record gives none.
@@ -326,6 +448,24 @@ A value a line above takes where the record gives none.
 
 ```
 an earlier date
+```
+
+## state-finished
+
+```
+has ended: every participant of it has finished
+```
+
+## state-waiting
+
+```
+is waiting: a question of it is open
+```
+
+## state-unclosed
+
+```
+is stuck: a run of it is still open, and no process carries it
 ```
 
 # Contract
@@ -354,5 +494,11 @@ an earlier date
 - rule: `## reminder` is posted in the thread of an ask still waiting for its answer, under the identity it was asked with: `{{asked}}`, when it was asked, a Slack date token so each reader sees it in their own timezone, else the `## asked-earlier` words under `# Words` where the record names no time; `{{number}}`, which reminder this is; and `{{question}}`, the question as it was asked, quoted, left out with its line break where the record holds none.
 - rule: `## forwarded` is the line a request forwarded to the human-owner opens with, ahead of the request's own post as its record holds it: `{{by}}`, the member that forwards it, and `{{reason}}`, the `## not-held` line under `# Reasons`, only where the request goes up because an answer was not applied. It shows no request id: the thread it stands in is kept on the request's record, and its answer is read from there.
 - rule: `## now-yours` is posted by the team bot in the session's thread when a permission request goes up to a holder running in that session: `{{member}}`, who asked; `{{address-to}}`, the holder, who answers it now; `{{reason}}`, the `## not-held` line; and `{{request-id}}`, the id the holder passes to the answer operation, at the end of the line and in code style, since only that operation needs it.
+- rule: `## chain-broken` under `# Schedule` is posted once to the event-alert channel by `--routine-due` (DistroAgentsDispatcher.fn.sh) when the last day a routine was to run has passed with the routine it follows, `{{predecessor}}`, not completed on it and the routine itself, `{{routine}}`, not run on it: `{{day}}`, that day as `YYYY-MM-DD`. The routine does not run, and the broken chain is put in front of a person: it neither runs late nor skips in silence. It is recorded per routine and day, so it is posted once.
+- rule: `## learning-inquiry` under `# Schedule` is the whole inquiry the main loop files into `magic-librarian`'s inbox (`--member-upsert-member-inquiry`) for a session that ended while learning was on: `{{session}}`, the session's id, and `{{members}}`, the members that took part. It is filed once for a session, and for none whose only member is `magic-librarian`.
+- rule: `## tests-wanted` under `# Testing` is the whole inquiry `--request-tests` (AgentTestingTools.fn.sh) files into `magic-tester`'s inbox (`--member-upsert-member-inquiry`) once the request is in the retest queue: `{{member}}`, the member that asks; `{{request}}`, the id the queue gave it; `{{priority}}`, `wait` or `no-wait`; `{{what}}`, the project, the tests and the changed files it asks for, in words; and `{{why}}`, the reason the member gave. It is filed once for a request.
+- rule: `## update-request` under `# Librarian` is the whole head of the inquiry `--request-update` (AgentLibrarianTools.fn.sh) files into `magic-librarian`'s inbox (`--member-upsert-member-inquiry`): `{{member}}`, the member that asks; `{{kind}}`, `document`, `knowledge` or `skill`; `{{target}}`, the path or the topic, or `<team-member>:<pathname>` of a skill file; `{{form}}`, `message`, `text` or `edit`; `{{why}}`, the reason the member gave; and, left out with their lines where they have no value, `{{target-date}}` and `{{target-checksum}}`, which the tooling records of the target file and the requester never gives, and `{{reply}}`, `yes` where the requester asked for the outcome. What the member wrote of what is asked is added under it, as it was written. The `update-kind` of its frontmatter makes it a request of the queue (`--queue-list`, `--queue-take`, `--queue-done`).
+- rule: `## update-reply` under `# Librarian` is the whole note `--queue-done` files into the requester's inbox for a request made with `--reply`, once: `{{requester}}`, the member that asked; `{{request}}`, the request's name; `{{kind}}` and `{{target}}`, as the request had them; `{{outcome}}`, `applied`, `refused` or `closed`; and `{{result}}`, the librarian's result on one line. A request made without `--reply` is told to nobody.
 - rule: `## not-held` under `# Reasons` says what an approver did not hold: `{{by}}`, the approver, as a name; `{{tool}}`; and `{{target}}`, shown by its location root, `<place>:<relative path>`, where it lies in a registered place, and then never its absolute path beside it. A call with no target has no target part. The confirmation of an answer that goes up carries the same line as its reason.
+- rule: `## assess-session` and `## assess-session-why` under `# Tasks` are what the console gives magic-coordinator when it joins it into a session that has finished, waits or is stuck, by `--manager-session-join`: the first is the prompt it starts on, the second the `{{description}}` of the `## joined` line its joining says in the session's thread. `{{by}}` is the name the console's user has in the operating system, `{{session}}` the id of the session, `{{name}}` its name where it has one (left out with its parenthesis where it has none), and `{{state}}` one of the three `## state-*` lines under `# Words`: finished, waiting, or stuck, which is a session with a run still open and no process that carries it.
 - rule: Every text outside the slots is posted exactly as written here.

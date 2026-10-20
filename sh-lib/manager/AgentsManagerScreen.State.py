@@ -266,6 +266,9 @@ ACTION_FITS = {}
 ## words, set where it is defined. They stand in the status line, after the name of the
 ## command, when it is tried there. An action with no entry has the engine's own words.
 ACTION_REFUSALS = {}
+## What an action answered, for the actions an app feature adds: answer(text, about, width) gives what the call was (for its failure's title), the lines of
+## the left pane and the line of the status line. Set where each is defined.
+ACTION_ANSWERS = {}
 
 
 ## Everything the screen knows between two keys. Nothing here is the terminal's.
@@ -349,6 +352,8 @@ class ManagerState:
         ## the operation the big output dialog runs and follows, from its start to its end:
         ## {"key", "label", "words", "started", "stop", "rest"} (runFollowed, followResult)
         self.follow = None
+        ## the wizard that is being answered, from its start to its end: {"name", "context", "data", "answers", "step"} (startWizard)
+        self.wizard = None
         ## the locations as the rule of the locations last took them from their rows: those
         ## rows, the key of each path, and the pattern that finds one in a text (placesKnown)
         self.placed = None

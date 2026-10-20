@@ -77,6 +77,26 @@ case "$1" in
 		return $?
 	;;
 
+	## The settings of every scope this workspace keeps, to see, to edit and to take out: the common ones, the remote tools' and the agents'.
+	--manager-scope-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerScope.include"
+		return $?
+	;;
+
+	## What the forms of the console's configuration wizards need, and applying their answers: the CLI service's presets and tiers, git's settings.
+	--manager-wizard-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerWizard.include"
+		return $?
+	;;
+
+	## The subsystems of the tool family, which are installed and which are not, and installing and uninstalling one: the local tools' own,
+	## which every console of the family offers, and this one is the agents'.
+	--manager-subsystem-*)
+		local managerConsoleSubsystem="agents"
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerSubsystem.include"
+		return $?
+	;;
+
 	## The places of this machine: the workspaces and the directories the tooling knows by name.
 	--manager-place-*)
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerPlace.include"
@@ -86,6 +106,13 @@ case "$1" in
 	## The routines the members carry, and which of them the session spawner starts by itself.
 	--manager-routine-*)
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerRoutine.include"
+		return $?
+	;;
+
+	## What the console says to a session: a message left for it or for some of its participants, and magic-coordinator joined into
+	## one that has finished, waits or is stuck. Ahead of the family's arm, which keeps the rest.
+	--manager-session-message|--manager-session-join)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSessionTalk.include"
 		return $?
 	;;
 

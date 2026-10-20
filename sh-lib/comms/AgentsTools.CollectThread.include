@@ -24,7 +24,7 @@
 ##
 
 type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-type AgentsToolsCollectOne > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.Collect.include"
+type AgentsToolsCollectOne > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.Collect.include"
 
 AgentsToolsCollectThreadDir(){
 	[ -n "${MMDAPP:-}" ] || return 1

@@ -18,6 +18,7 @@
 ## (the status line names those keys), so its content takes its last line too.
 ## Reconciled for F11.5: the root holds eight sections, and Magic-Team (Agents) is the one that holds Activity, Pending Questions, Team Members and Team Data; the level a case enters is Magic-Team (Agents), and the first item of Activity is Launch (Start).
 ## Reconciled for F11.5, the lists of Activity: the key `a` (all or only the active) is not offered there, as it has nothing to take: not in the status line, and not in the menu View.
+## Reconciled for F11.6: the status line of a session names the send-message key too, `M Message`, between `k Kill` and `u Read`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -400,7 +401,7 @@ cells memberKeys 37 1 83
 cells memberBottom 39 0 120
 RIGSCRIPT
 rigAssert "a session is selected: with no handler of an action built the pane names no key, and its last line is its content's" "$( rigVal none.selected ) [$( rigVal noneKeys )]" "s1 []"
-rigAssert "the status line names the keys that act on the session, and after them those of every window"             "[$( rigVal noneBottom )]" "[ ENTER Open  BSP Up  k Kill  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "the status line names the keys that act on the session, and after them those of every window"             "[$( rigVal noneBottom )]" "[ ENTER Open  BSP Up  k Kill  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "with handlers built, the pane still names no key: its last line is its content's, and the status line names the key that acts on a session" "[$( rigVal builtKeys )] $( rigVal builtBottom | LC_ALL=C grep -c -F ' k Kill ' )" "[] 1"
 rigAssert "Launch (Start) has no such key"                           "$( rigVal launch.selected ) [$( rigVal launchKeys )]" "launch []"
 rigAssert "an ask has none: no key answers it"                       "$( rigVal ask.path ) $( rigVal ask.selected ) [$( rigVal askKeys )]" "pending a1 []"

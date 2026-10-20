@@ -557,10 +557,10 @@ rigAsk1=0d7affda-0000-4000-8000-000000000001
 rigAsk2=0e0c1c26-0000-4000-8000-000000000002
 rigAsk3=1f2e3d4c-0000-4000-8000-000000000003
 rigActs(){ ## for the case made last: what `--manager-pending-reply-read --id` prints of each of the three asks, a decision with two numbered answers and no reject, a permission with a reject and no link, a plain question, and what an answer prints
-	printf 'question\t%s\treply-pending\tdecision\t-\tkeeper-myx\tmagic-coordinator\tmagic-coordinator\twords\t-\tyes\thttps://rig.slack.example/archives/C0RIGCHAN01/p1790852505651369\nanswer\t1\tkeep\tsettles\tkeep the file\nanswer\t2\tdrop\tup-the-chain\tdrop it\n' "$rigAsk1" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigAsk1"
-	printf 'question\t%s\treply-pending\tpermission\t-\tmagic-librarian\thuman-owner\tmagic-coordinator\twords\tdeny\tyes\t-\nanswer\t-\tallow\tup-the-chain\t-\nanswer\t-\tdeny\tsettles\t-\n' "$rigAsk2" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigAsk2"
-	printf 'question\t%s\treply-pending\tquestion\t-\tmagic-tester\thuman-owner\tmagic-coordinator\tanswer\t-\tyes\thttps://rig.slack.example/archives/C0RIGCHAN01/p1791840000000400\n' "$rigAsk3" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigAsk3"
-	printf 'answered\t%s\t%s\tmagic-coordinator\tconsole:rig\t%s\n' "$1" "$2" "$3" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-answer"
+	printf 'question\t%s\treply-pending\tdecision\t-\tkeeper-myx\tmagic-coordinator\tuser-rig\twords\t-\tyes\thttps://rig.slack.example/archives/C0RIGCHAN01/p1790852505651369\nanswer\t1\tkeep\tsettles\tkeep the file\nanswer\t2\tdrop\tup-the-chain\tdrop it\n' "$rigAsk1" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigAsk1"
+	printf 'question\t%s\treply-pending\tpermission\t-\tmagic-librarian\thuman-owner\tuser-rig\twords\tdeny\tyes\t-\nanswer\t-\tallow\tup-the-chain\t-\nanswer\t-\tdeny\tsettles\t-\n' "$rigAsk2" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigAsk2"
+	printf 'question\t%s\treply-pending\tquestion\t-\tmagic-tester\thuman-owner\tuser-rig\tanswer\t-\tyes\thttps://rig.slack.example/archives/C0RIGCHAN01/p1791840000000400\n' "$rigAsk3" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigAsk3"
+	printf 'answered\t%s\t%s\tuser-rig\tconsole:rig\t%s\n' "$1" "$2" "$3" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-answer"
 }
 rigBoxHolds(){ ## tag, text -- how many lines of that box hold the text
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
@@ -638,14 +638,14 @@ get done
 said doneSaid
 RIGSCRIPT
 rigAssert "the dialog opens on its answers, titled by the kind and who asked" "[$( rigVal dlg.dialog )] [$( rigVal dlg.dialogTitle )]" "[answer:answers|1] [Answer the decision of keeper-myx]"
-rigAssert "it says who asked, of whom, as whom the answer stands, and the question" "$( rigBoxHolds abox '║   asked by  keeper-myx' ) $( rigBoxHolds abox '║   asked of  magic-coordinator' ) $( rigBoxHolds abox '║   answer as magic-coordinator' ) $( rigBoxHolds abox 'here after a second round of asking. What next?' )" "1 1 1 1"
+rigAssert "it says who asked, of whom, as whom the answer stands, and the question" "$( rigBoxHolds abox '║   asked by  keeper-myx' ) $( rigBoxHolds abox '║   asked of  magic-coordinator' ) $( rigBoxHolds abox '║   answer as user-rig' ) $( rigBoxHolds abox 'here after a second round of asking. What next?' )" "1 1 1 1"
 rigAssert "its answers stand with their numbers, and with what each does, as the rows say" "$( rigBoxHolds abox '║   > 1. keep: keep the file  --  settles it' ) $( rigBoxHolds abox '║     2. drop: drop it  --  goes up the chain, it stays open' )" "1 1"
 rigAssert "a field for words, and the buttons Answer and Cancel"      "$( rigBoxHolds abox '║   Words to go with it, or none' ) $( rigBoxHolds abox ' »Answer« ▅   Cancel  ▅' )" "1 1"
 rigAssert "the status line names the keys of the dialog, the digits among them" "[$( rigVal sDlg )]" "[ UP/DN Pick  1-2 Choose  ENTER Answer  TAB Next  ESC Cancel]"
 rigAssert "a digit chooses the answer of that number"                 "[$( rigVal two.dialog )]" "[answer:answers|2]"
 rigAssert "words are typed into the field"                            "[$( rigVal typed.dialog )]" "[answer:words|be sure]"
 rigAssert "Enter answers: the dialog closes, and the operation is called once, with the number chosen and the words" "[$( rigVal asked.dialog )] $( rigActCalls )" "[] [--manager-pending-reply-answer][--id][$rigAsk1][--answer][2][--text][be sure]"
-rigAssert "its success stands in the status line"                     "[$( rigVal doneSaid )] [$( rigVal done.dialog )]" "[answered: drop, as magic-coordinator] []"
+rigAssert "its success stands in the status line"                     "[$( rigVal doneSaid )] [$( rigVal done.dialog )]" "[answered: drop, as user-rig] []"
 rigAssert "and the list is read again after it"                       "$( LC_ALL=C sed -n '/^--manager-pending-reply-answer /,$p' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C grep -c -x -F -- "$rigRead" | LC_ALL=C sed -e 's/^[1-9][0-9]*$/read/' )" "read"
 
 echo "-- y on a plain question: its words are the answer, an empty one is refused inside; o shows its link --"
@@ -675,7 +675,7 @@ get link
 RIGSCRIPT
 rigAssert "the dialog of a plain question has the field of its answer, and no list" "[$( rigVal plain.dialog )] [$( rigVal plain.dialogTitle )] $( rigBoxHolds pbox '║   The answer' ) $( rigBoxHolds pbox 'Answers' ) $( rigBoxHolds pbox '║   Which of the two runs is the one to keep?' )" "[reply:words|] [Answer the question of magic-tester] 1 0 1"
 rigAssert "an empty answer is refused inside the dialog, which stays open" "[$( rigVal empty.dialog )] [$( rigVal empty.dialogSays )]" "[reply:words|] [nothing is answered: the answer is empty]"
-rigAssert "the words typed are the answer: one call, with them after --answer" "[$( rigVal pdone.notice )] $( rigActCalls )" "[answered: use it, as magic-coordinator] [--manager-pending-reply-answer][--id][$rigAsk3][--answer][use it]"
+rigAssert "the words typed are the answer: one call, with them after --answer" "[$( rigVal pdone.notice )] $( rigActCalls )" "[answered: use it, as user-rig] [--manager-pending-reply-answer][--id][$rigAsk3][--answer][use it]"
 rigAssert "o shows the link of the message of the question in a box" "[$( rigVal link.dialog )] [$( rigVal link.dialogTitle )] [$( rigVal link.dialogHolds )]" "[information:ok|] [Link of the question of magic-tester] [The message of the question, where it was posted: /  https://rig.slack.example/archives/C0RIGCHAN01/p1791840000000400]"
 
 echo "-- j rejects and d dismisses, each confirmed in a small dialog; a refusal stands whole in a box --"

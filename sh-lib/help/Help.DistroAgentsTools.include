@@ -136,6 +136,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --install-knowledge-store [--from-fol
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member> [--exclude-incoming]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-git-repo-history [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--limit <n>] <path>..." >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-skillset-upsert <team-member> <pathname> (--from-stdin|--from-file <path>)" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]..." >&2
@@ -246,6 +247,9 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-help-read" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-help-read <Name>.fn.sh" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-keys-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-keys-read <key>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-keys-generate <key>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-keys-regenerate <key>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-keys-delete <key>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-manual-read <user|maintainer> [<project>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-place-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-place-read <place>" >&2
@@ -255,6 +259,16 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-routine-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-read --id <pending-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-answer --id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-dismiss --id <pending-id> [--reason <text>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-list" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-read <scope-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-reveal <scope-id> <key>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-set <scope-id> <key>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-unset <scope-id> <key>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-clear <scope-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-delete <scope-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-wizard-read <cli-service|git-settings>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-wizard-apply cli-service --preset <name>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-wizard-apply git-settings" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-list [--active]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-read --session-id <id> [--run]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]" >&2
@@ -262,7 +276,11 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-checklist-read --se
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run] [--plan]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-effort <session-id> <low|normal|high>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-control-start (--session-id <id>|--all)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-message --session-id <id> [--to <participant>]..." >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-join --session-id <id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-list" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-run (install|uninstall) <subsystem>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-data-read <store> [<folder> [<item>]] [--include-processed]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-files <team-member> [<file>]" >&2
@@ -352,7 +370,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-review-accept <magic-coordina
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-review-return <magic-coordinator> <item-filename> (--message <text>|--from-stdin)" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-review-reject <magic-coordinator> <item-filename> (--message <text>|--from-stdin)" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-review-follow-up <magic-coordinator> <item-filename> <new-item-name> --from-stdin" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--file <changed-file>]... [<test>...]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--project <p>] [--file <changed-file>]... [--wait|--no-wait] [<test>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-retest-drain [--rest [--about <scratch-folder>]]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-retest-result <request-id>..." >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>" >&2

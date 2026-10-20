@@ -279,6 +279,11 @@ printf 'RIG-NOBODY-BODY' | { cd "$rigDir/ws" && env MDAT_COMMS_READER=off "PATH=
 rigPass inject-2
 rigAssert "one from nobody the team knows is kept aside, with the reason" "$( ls "$rigSessDir/chat.inbox" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/[0-9TZ]*\.[A-Za-z0-9]*\.msg/N.msg/' ):$( LC_ALL=C head -1 "$rigSessDir/chat.inbox"/*.refused | LC_ALL=C cut -c1-2 ):$( rigCalls chat.postMessage )" "N.msg.refused :# :1"
 rigAssert "and records nothing: the thread's root, which a pass reads, is the only block beside the console's" "$( rigBlocks )" 2
+## A person at a console acts as user-<account> (F6.10, F11.6): no member and no skill folder, and sent all the same, as the team bot with the account as its sender.
+printf 'RIG-PERSON-BODY' | { cd "$rigDir/ws" && env MDAT_COMMS_READER=off "PATH=$rigPath" "MMDAPP=$rigDir/ws" "MDLT_ORIGIN=$MDLT_ORIGIN" "MDAT_SKILLSET_ROOT=$rigTmp/skills" bash "$rigTool" --intern-session-comms --inject --session-id "$rigSession" --from user-rig-acct --to keeper-addr ; } > /dev/null 2> /dev/null
+rigPass inject-3
+rigAssert "one from the account at a console, user-<account>, is sent: recorded from that account to its addressee, posted to the thread, the account its sender, and the inbox empty" \
+	"$( LC_ALL=C grep -c -x '[0-9T:Z-]* user-rig-acct -> keeper-addr:' "$rigSessDir/session.chat" ):$( rigCalls chat.postMessage ):$( LC_ALL=C grep -c -F '"sender":"user-rig-acct"' "$rigDir/post.2" ):$( ls "$rigSessDir/chat.inbox" | LC_ALL=C grep -c -v '\.refused$' )" "1:2:1:0"
 rigOp inject-none --inject --session-id "no-such-session" --from keeper-rig < /dev/null
 rigAssert "a session that has no folder is refused, with a line saying so" "$( [ "$rigRc" != 0 ] && printf failed ):$( LC_ALL=C grep -c 'no-such-session' "$rigDir/inject-none.err" )" "failed:1"
 rigScene inject-start

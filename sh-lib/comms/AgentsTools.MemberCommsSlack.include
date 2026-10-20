@@ -1833,8 +1833,9 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-send-message || { set +e ; return 1 ; }
 		local memberDir="$MDAT_SKILLSET_ROOT/$memberName"
+		## A routine, and a person at a console (user-<account>, F6.10, F11.6), have no skill folder: neither is a member.
 		case "$memberName" in
-			routine-*)
+			routine-*|user-*)
 			;;
 			*)
 				if [ ! -d "$memberDir" ] ; then
@@ -2139,9 +2140,10 @@ blocks|verbatim|caller|stdin file"
 		local sendIdentity="bot" memberUserToken=""
 		memberUserToken="$( AgentsToolsSlackOwnSettingsApply "$memberName" && DistroAgentsTools --agents-config-option "$memberName" --select SLACK_USER_TOKEN 2>/dev/null || true )"
 
+		## A routine's send is the team bot's, and so is a person's at a console: neither holds an account of its own.
 		local routineAuthored="false"
 		case "$memberName" in
-			routine-*) routineAuthored="true" ;;
+			routine-*|user-*) routineAuthored="true" ;;
 		esac
 
 		if [ "$identityAsBot" = "true" ] ; then

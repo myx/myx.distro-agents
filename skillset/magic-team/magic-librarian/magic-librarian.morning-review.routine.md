@@ -2,6 +2,7 @@
 type: routine
 executors: magic-librarian
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+allows: magic-librarian:skillset-upsert
 reports-to: none
 requires-session-kind: standalone
 routine-lock-document: inbox:magic-librarian:note-20261008T000000Z-morning-review-state.md
@@ -90,6 +91,10 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 - `--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`
 - `--member-upsert-member-inquiry <team-member> <item-filename>`
+- `--skillset-upsert <team-member> <pathname>`
+- `--queue-list`
+- `--queue-take`
+- `--queue-done <name>`
 
 # Maintainer Notes
 

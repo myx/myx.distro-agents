@@ -72,11 +72,11 @@ rigCase(){ ## name -- a fresh rig: the fixture the stand-in prints, no call note
 	: > "$MANAGER_SCREEN_RIG/calls" ; : > "$MANAGER_SCREEN_RIG/words"
 	cp "$rigTmp/four.asks" "$MANAGER_SCREEN_RIG/rows"
 	printf 'rows\n' > "$MANAGER_SCREEN_RIG/mode"
-	printf 'question\t%s\treply-pending\tquestion\tyes-no\tmagic-tester\thuman-owner\tmagic-coordinator\twords\t-\tyes\t-\nanswer\t-\tyes\tsettles\t-\nanswer\t-\tno\tsettles\t-\n' "$rigYesNo" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigYesNo"
-	printf 'question\t%s\treply-pending\tquestion\tone\tmagic-tester\thuman-owner\tmagic-coordinator\twords\t-\tyes\t-\nanswer\t1\tkeep\tsettles\tkeep the first\nanswer\t2\tdrop\tsettles\tkeep the second\n' "$rigOne" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigOne"
-	printf 'question\t%s\treply-pending\tquestion\tmany\tmagic-tester\thuman-owner\tmagic-coordinator\twords\t-\tyes\t-\nanswer\t1\talpha\tsettles\tfirst\nanswer\t2\tbeta\tsettles\tsecond\nanswer\t3\tgamma\tsettles\tthird\n' "$rigMany" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigMany"
-	printf 'question\t%s\treply-pending\tquestion\t-\tmagic-tester\thuman-owner\tmagic-coordinator\tanswer\t-\tyes\t-\n' "$rigPlain" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigPlain"
-	printf 'answered\t%s\t%s\tmagic-coordinator\tconsole:rig\t%s\n' "$1" "$1" "-" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-answer"
+	printf 'question\t%s\treply-pending\tquestion\tyes-no\tmagic-tester\thuman-owner\tuser-rig\twords\t-\tyes\t-\nanswer\t-\tyes\tsettles\t-\nanswer\t-\tno\tsettles\t-\n' "$rigYesNo" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigYesNo"
+	printf 'question\t%s\treply-pending\tquestion\tone\tmagic-tester\thuman-owner\tuser-rig\twords\t-\tyes\t-\nanswer\t1\tkeep\tsettles\tkeep the first\nanswer\t2\tdrop\tsettles\tkeep the second\n' "$rigOne" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigOne"
+	printf 'question\t%s\treply-pending\tquestion\tmany\tmagic-tester\thuman-owner\tuser-rig\twords\t-\tyes\t-\nanswer\t1\talpha\tsettles\tfirst\nanswer\t2\tbeta\tsettles\tsecond\nanswer\t3\tgamma\tsettles\tthird\n' "$rigMany" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigMany"
+	printf 'question\t%s\treply-pending\tquestion\t-\tmagic-tester\thuman-owner\tuser-rig\tanswer\t-\tyes\t-\n' "$rigPlain" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigPlain"
+	printf 'answered\t%s\t%s\tuser-rig\tconsole:rig\t%s\n' "$1" "$1" "-" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-answer"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in and the time of day; what it printed is kept in rigOut
 	rigOut="$( { printf 'tools bash %s\ntable list:magic-team/activity none\nwall 2026-10-13 02:30 +0300\nroot active-sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"

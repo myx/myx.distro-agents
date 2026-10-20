@@ -52,8 +52,8 @@ rigCase(){ ## name -- a fresh rig: no call noted yet, the ask the stand-in print
 	: > "$MANAGER_SCREEN_RIG/calls"
 	cp "$rigTmp/one.ask" "$MANAGER_SCREEN_RIG/rows"
 	printf 'rows\n' > "$MANAGER_SCREEN_RIG/mode"
-	printf 'question\t%s\treply-pending\tpermission\t-\tmagic-tester\thuman-owner\thuman-owner\twords\tdeny\tyes\t-\nanswer\t-\tallow-once\tsettles\t-\nanswer\t-\tdeny\tsettles\t-\n' "$rigAsk" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigAsk"
-	printf 'answered\t%s\tallow-once\thuman-owner\tconsole:rig\t-\n' "$rigAsk" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-answer"
+	printf 'question\t%s\treply-pending\tpermission\t-\tmagic-tester\thuman-owner\tuser-rig\twords\tdeny\tyes\t-\nanswer\t-\tallow-once\tsettles\t-\nanswer\t-\tdeny\tsettles\t-\n' "$rigAsk" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigAsk"
+	printf 'answered\t%s\tallow-once\tuser-rig\tconsole:rig\t-\n' "$rigAsk" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-answer"
 }
 rigScriptActs(){ ## the commands of the driver on standard input, after the ones that name the stand-in and the time of day; what it printed is kept in rigOut
 	rigOut="$( { printf 'tools bash %s\ntable list:magic-team/activity none\nwall 2026-10-13 02:30 +0300\nroot active-sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"

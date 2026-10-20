@@ -6,6 +6,14 @@
 
 ## ---- the list: its levels, its rows, its selection ----
 
+## The forms of rows an app feature adds to those parseLevels reads: by the name an entry of READS gives under "rows", the function (readKey, level, text)
+## that gives the levels that read fills, as parseLevels returns them.
+ROW_FORMS = {}
+## The forms of what a read that is no list and no view gives, which an app feature adds (applyResult): by the name an entry of READS gives under "rows",
+## the function (text) that gives what the read printed as the screen keeps it, in the plan of the read (state.plans), with its words and its error.
+PLAN_FORMS = {}
+
+
 def levelKey(path):
     return "/".join(path)
 
@@ -131,7 +139,7 @@ def rowLinesBetween(spacers, first, last):
 ## "members": the team members. "digest": the subjects of the settings and of the
 ## configuration, and a level for each with its lines. "starts": what is started with the
 ## whole terminal. "blocks": the blocks of the dashboard. "places": the
-## locations. No name: the stand-in below.
+## locations. A form an app feature of another part brings (ROW_FORMS) is read by the function it names, which gives the levels. No name: the stand-in below.
 def parseLevels(readKey, form, text):
     if form == "sessions":
         return parseSessionLevels(text)
@@ -188,6 +196,8 @@ def parseLevels(readKey, form, text):
         return {level: [], CHAPTERS_OF + level: chapters}
     if form == "manuals":
         return {level: parseManualRows(text)}
+    if form in ROW_FORMS:
+        return ROW_FORMS[form](readKey, level, text)
     return {level: parseRows(readKey, text)}
 
 

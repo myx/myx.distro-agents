@@ -246,7 +246,7 @@ AgentsToolsCollectMail(){ ## member, since
 		fi
 		AGENTS_EMAIL_UID="$mailUid" AGENTS_EMAIL_MAILBOX="INBOX" AGENTS_EMAIL_STATUS="unseen" python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionContextEmailItem.py" \
 			< "$mailWork/$mailUid.eml" > "$mailWork/$mailUid.block" 2> /dev/null || { mailGap=1 ; mailNotRead="$mailNotRead $mailUid:2" ; continue ; }
-		mailDate="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsCollectMailDate.py" < "$mailWork/$mailUid.eml" 2> /dev/null )" || mailDate="-"
+		mailDate="$( python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsCollectMailDate.py" < "$mailWork/$mailUid.eml" 2> /dev/null )" || mailDate="-"
 		case "$mailDate" in ????????T????Z) ;; *) mailDate="$( date -u +%Y%m%dT%H%MZ )" ;; esac
 		mailName="note-$mailDate-email-u$mailUid.md"
 		mailItemRc=0
@@ -378,7 +378,7 @@ AgentsToolsCollectEnsure(){ ## member, kind, since (dd-Mon-yyyy, or empty)
 	## A scan used a source: the thread is wanted, and where other sources are long expired, with none to update them, one is started.
 	## What the check says is of no use to the scan, and its failure no fault of it.
 	local ensureLine="$agentsCollectLine" ensureNew="$agentsCollectNew" ensureWhy="$agentsCollectWhy"
-	type AgentsToolsCollectThreadCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/collect/AgentsTools.CollectThread.include" 2> /dev/null || :
+	type AgentsToolsCollectThreadCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CollectThread.include" 2> /dev/null || :
 	! type AgentsToolsCollectThreadCheck > /dev/null 2>&1 || AgentsToolsCollectThreadCheck scan "$1" > /dev/null 2>&1 || :
 	agentsCollectLine="$ensureLine" ; agentsCollectNew="$ensureNew" ; agentsCollectWhy="$ensureWhy"
 	return "$ensureRc"
