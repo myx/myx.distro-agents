@@ -285,15 +285,15 @@ case "$1" in
 		## nowhere to put them, and a create that wrote before must not start refusing.
 		if [ "$shapeRequired" = "true" ] && [ -n "$body" ] \
 			&& ! { [ "${body%%$'\n'*}" = "---" ] && [ "$( printf '%s\n' "$body" | LC_ALL=C awk -v fieldName=type -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterFieldProbe.awk" )" = "NONE" ] ; } ; then
-			local createDefaults="" createType createActing="$actingMember"
+			local createDefaults="" createType createActing="$actingMember" createAccount=""
 			if [ -z "$createActing" ] && [ -n "${MDAT_SPAWN_AGENT:-}" ] ; then
 				createActing="$MDAT_SPAWN_AGENT"
 				AgentsToolsAssertBareName "$createActing" "MDAT_SPAWN_AGENT" board-upsert-move-edit 2>/dev/null || createActing=""
 			fi
 			## A person at a console, with no session spawned, is user-<account> (the team member default of the common
 			## option set, F2.2); with not even an account, the create has no acting member and the gate refuses it.
-			if [ -z "$createActing" ] && [ -z "${MDAT_SPAWN_AGENT:-}" ] && [ -n "${USER:-}" ] ; then
-				createActing="user-$USER"
+			if [ -z "$createActing" ] && [ -z "${MDAT_SPAWN_AGENT:-}" ] && createAccount="$( AgentsToolsConsoleAccount )" && [ -n "$createAccount" ] ; then
+				createActing="user-$createAccount"
 				AgentsToolsAssertBareName "$createActing" "user-\$USER" board-upsert-move-edit 2>/dev/null || createActing=""
 			fi
 			createType="$( AgentsToolsItemNameType "$itemName" )"

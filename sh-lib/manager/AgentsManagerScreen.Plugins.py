@@ -24,7 +24,7 @@
 ##   "name"        the plugin, unique
 ##   "mount"       the name of the plugin whose root this one's root stands under; none: the root of the list
 ##   "root"        {"id", "label", "go": the item of the Go menu, hot letter between tildes, "group": of ROOT_GROUPS (a root of the list), "when": see SECTIONS_WHEN}
-##   "rows"        {level: ((id, label, kind, dive), ...)} the rows the level always holds, ahead of its listed ones (FIXED_ROWS)
+##   "rows"        {level: ((id, label, kind, dive), ...)} the rows the level always holds, ahead of its listed ones (FIXED_ROWS); a row may have a fifth word, the name of a function (state, path) that says whether it stands in the level shown (fixedRowsShown)
 ##   "summaries"   {level: {"lines": the function that makes the summary, ...}} (SUMMARIES)
 ##   "reads"       {read key: entry} (READS); the levels in a key and in "from" and "also" are paths as above
 ##   "derived"     {level: the function (state, path) that gives the rows of that level}, for a level whose rows are made from what other reads hold and no

@@ -182,6 +182,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-command-list <place>
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-command-run <place> <command>
 📘 syntax: DistroAgentsTools.fn.sh --manager-routine-list
+📘 syntax: DistroAgentsTools.fn.sh --manager-stats-tokens --by day|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-stats-routines [<routine>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-read --id <pending-id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-answer --id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-dismiss --id <pending-id> [--reason <text>]
@@ -3726,6 +3728,33 @@
 			every other row, so a console tells such a routine by this
 			field and not by the words of <reason>. With no routine file
 			at all, a note on stderr and no row.
+
+		--manager-stats-tokens --by day|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>]
+			One of the console's own operations (see Notes). The tokens of the
+			runs of this workspace summed by one key: it calls the Dispatcher's
+			`--token-stats` with these arguments, as they come, and prints
+			what it prints, with its status. It has no logic of its own and
+			writes nothing but what the Dispatcher's reader does, which
+			brings its index of the runs (`.local/agents/stats`) up to date
+			first. `--by` is the key: `day`, `member`, `routine`, `preset`
+			or `credential`, and `--since` and `--until` (a day,
+			YYYY-MM-DD) and the other four narrow the runs it sums. One
+			row a key, TAB-separated, on stdout, ordered by key:
+			`tokens <key> <runs> <in> <cache-read> <cache-write> <out>`
+			A run with no routine, preset or credential is under `-`. The
+			views of the tokens in the console read this. Exit 1, with its
+			error line, for a `--by` that is none, a date that is none or an
+			option it does not know.
+
+		--manager-stats-routines [<routine>]
+			One of the console's own operations (see Notes). The routines of
+			the runs of this workspace: it calls the Dispatcher's
+			`--routine-stats`, with its argument, and prints what it prints,
+			with its status. It has no logic of its own. One row a routine,
+			TAB-separated, on stdout, the one routine asked for or every one:
+			`routine <routine> <runs> <succeeded> <failed> <running> <last-run> <last-status> <last-succeeded> <in> <cache-read> <cache-write> <out> <members>`
+			A run with no routine is under `-`. Exit 1, with a note on
+			stderr and no row, for a routine with no run recorded.
 
 		--manager-pending-reply-read --id <pending-id>
 			One of the console's own operations (see Notes). What can be

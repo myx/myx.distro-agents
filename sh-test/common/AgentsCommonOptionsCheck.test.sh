@@ -31,6 +31,9 @@ rigRefuse(){
 rigTmp="$( rigTempDir AgentsCommonOptionsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
+## The effective account of these rigs is the USER they give: a stand-in `id` first on PATH says it (none where USER is empty), as the person at the console is the effective account
+## (AgentsToolsConsoleAccount, sh-lib/member/AgentsTools.CallerCheck.include).
+mkdir -p "$rigTmp/idbin" && printf '#!/bin/sh\n[ "$*" = "-un" ] || exec /usr/bin/id "$@"\n[ -n "${USER:-}" ] || exit 1\necho "$USER"\n' > "$rigTmp/idbin/id" && chmod +x "$rigTmp/idbin/id"
 rigFails=0 rigPasses=0
 rigAssert(){ ## what is asserted, got, want
 	if [ "$2" = "$3" ] ; then
@@ -51,7 +54,7 @@ rigRc=0
 rigRun(){ ## result prefix, VAR=value..., --, words... -- one call of the tool; rc in rigRc
 	local runOut="$1" runEnv=() ; shift
 	while [ "$1" != -- ] ; do runEnv+=( "$1" ) ; shift ; done ; shift
-	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" USER=rigacct PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" ${runEnv[@]+"${runEnv[@]}"} \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" USER=rigacct PATH="$rigTmp/idbin:$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" ${runEnv[@]+"${runEnv[@]}"} \
 		bash -c 'case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; exec bash "$@"' rig "$rigTool" "$@" ) > "$runOut.out" 2> "$runOut.err" < /dev/null
 	rigRc=$?
 }
@@ -165,14 +168,14 @@ rigAssert "the origin of a known workspace is accepted, and so is the one the se
 
 echo "-- 9. every tool takes the options --"
 for rigT in DistroAgentsTools DistroAgentsDispatcher DistroAgentsSession DistroAgentsContacts DistroAgentsTesting AgentLibrarianTools AgentTestingTools AgentDispatcherTools ; do
-	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" USER=rigacct PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" USER=rigacct PATH="$rigTmp/idbin:$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
 		bash "$rigPackage/sh-scripts/$rigT.fn.sh" --no-such-operation --session-id s-1 ) > "$rigTmp/t-$rigT.out" 2> "$rigTmp/t-$rigT.err" < /dev/null
 	printf '%s ' "$rigT:$( rigHas '--session-id' "$rigTmp/t-$rigT.err" ):$( rigHas 'no-such-operation' "$rigTmp/t-$rigT.err" )" >> "$rigTmp/t-all"
 done
 rigAssert "each of the eight consumes the options and then meets the operation: its error names the operation (1) and never the option (0)" "$( cat "$rigTmp/t-all" )" "DistroAgentsTools:0:1 DistroAgentsDispatcher:0:1 DistroAgentsSession:0:1 DistroAgentsContacts:0:1 DistroAgentsTesting:0:1 AgentLibrarianTools:0:1 AgentTestingTools:0:1 AgentDispatcherTools:0:1 "
-( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" USER=rigacct PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
+( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" USER=rigacct PATH="$rigTmp/idbin:$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
 	bash "$rigPackage/sh-scripts/DistroAgentsDispatcher.fn.sh" --all-sessions --select-workspace "$rigWs2" ) > "$rigTmp/n1.out" 2> "$rigTmp/n1.err" < /dev/null
-( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" USER=rigacct PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
+( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" USER=rigacct PATH="$rigTmp/idbin:$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
 	bash "$rigPackage/sh-scripts/DistroAgentsDispatcher.fn.sh" --all-sessions ) > "$rigTmp/n2.out" 2> "$rigTmp/n2.err" < /dev/null
 rigAssert "a call under --select-workspace reads that workspace (its run), the call without reads this one (none)" "$( rigHas 'run-b' "$rigTmp/n1.out" ) $( rigHas 'run-b' "$rigTmp/n2.out" )" "1 0"
 
@@ -189,7 +192,7 @@ printf '📘 syntax: DistroAgentsTools.fn.sh --member-rig-needs-session --sessio
 rigRunNeeds(){ ## result prefix, VAR=value..., --, words...
 	local runOut="$1" runEnv=() ; shift
 	while [ "$1" != -- ] ; do runEnv+=( "$1" ) ; shift ; done ; shift
-	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" USER=rigacct PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrg" MDLT_OPTION="--run-from-path $rigOrg" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" ${runEnv[@]+"${runEnv[@]}"} \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" USER=rigacct PATH="$rigTmp/idbin:$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrg" MDLT_OPTION="--run-from-path $rigOrg" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" ${runEnv[@]+"${runEnv[@]}"} \
 		bash -c 'case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; exec bash "$@"' rig "$rigPkg/sh-scripts/DistroAgentsTools.fn.sh" "$@" ) > "$runOut.out" 2> "$runOut.err" < /dev/null
 	rigRc=$?
 }

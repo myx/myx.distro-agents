@@ -31,6 +31,9 @@ rigRefuse(){
 rigTmp="$( rigTempDir AgentsDocWriteGateCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
+## The effective account of these rigs is the USER they give: a stand-in `id` first on PATH says it (none where USER is empty), as the person at the console is the effective account
+## (AgentsToolsConsoleAccount, sh-lib/member/AgentsTools.CallerCheck.include).
+mkdir -p "$rigTmp/idbin" && printf '#!/bin/sh\n[ "$*" = "-un" ] || exec /usr/bin/id "$@"\n[ -n "${USER:-}" ] || exit 1\necho "$USER"\n' > "$rigTmp/idbin/id" && chmod +x "$rigTmp/idbin/id"
 rigData="$rigTmp/data" rigSkills="$rigTmp/skills" rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/.local" "$rigTmp/home" "$rigSkills/rig-member" "$rigSkills/rig-other" "$rigSkills/magic-coordinator" "$rigData/board/running" "$rigData/board/pending" "$rigData/board/review" "$rigData/board/backlog" "$rigData/audit"
 
@@ -55,7 +58,7 @@ rigFieldCount(){ ## file, field
 ## One team op, guarded, against the rig's own stores; rc into <result>.rc. RIG_AGENT, when set, becomes MDAT_SPAWN_AGENT, RIG_USER USER.
 rigOp(){ ## result file, op and arguments...
 	local opOut="$1" ; shift
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$rigOrigin" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/idbin:/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$rigOrigin" \
 		MDLT_OPTION="--run-from-path $rigOrigin" ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} ${RIG_USER:+USER="$RIG_USER"} RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -68,7 +71,7 @@ rigOp(){ ## result file, op and arguments...
 ## The validator on one file as its kind, the rows and the exit code: `<rc>:<number of rows>`.
 rigMeets(){ ## kind, file
 	local meetsRows meetsRc=0
-	meetsRows="$( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
+	meetsRows="$( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/idbin:/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		bash "$rigFn" --intern-doc-validate "$1" "$2" 2> /dev/null )" || meetsRc=$?
 	printf '%s:%s' "$meetsRc" "$( printf '%s' "$meetsRows" | LC_ALL=C grep -c . || : )"
 }

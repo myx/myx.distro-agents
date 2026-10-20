@@ -30,12 +30,13 @@ agentsCommonOptions=" --team-member --session-id --spawn-id --select-workspace -
 
 ## The member a call acts as: the spawned session's member, else user-<account>. Nothing for no account (a console with USER empty).
 AgentsToolsTeamMember(){
-	local teamActing
+	local teamActing teamAccount
 	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
 	teamActing="$( AgentsToolsActingMember )"
 	if [ -n "$teamActing" ] ; then printf '%s' "$teamActing" ; return 0 ; fi
-	case "${USER:-}" in ''|*[!A-Za-z0-9._-]*) return 0 ;; esac
-	printf 'user-%s' "$USER"
+	teamAccount="$( AgentsToolsConsoleAccount )" || return 0
+	case "$teamAccount" in ''|*[!A-Za-z0-9._-]*) return 0 ;; esac
+	printf 'user-%s' "$teamAccount"
 }
 
 ## Whether the operation of a tool takes a team member first: its help syntax, in the index (`📘 syntax: <tool> <operation> ...`) or at the head of its entry (two tabs,

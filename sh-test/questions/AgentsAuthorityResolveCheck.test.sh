@@ -704,6 +704,20 @@ rigOp --manager-pending-reply-answer --id "$rigRefReq" --answer allow-once
 rigAssert "an allow of a request asked of the human-owner is refused: the caller is not that, and the request stays open" "$rigOpRc:$( LC_ALL=C grep -c 'is not that, so it cannot answer it' "$rigTmp/op.err" ):$( rigOf "$rigRefReq" status )" "1:1:reply-pending"
 rigOp --manager-pending-reply-answer --id "$rigRefReq" --reject
 rigAssert "its deny is taken and recorded as the person at the console, and the question it would have acted on is untouched" "$rigOpRc:$( rigOf "$rigRefReq" status ):$( rigOf "$rigRefReq" verdict ):$( rigOf "$rigRefReq" answered-by ):$( rigStatus "$rigRefOrig" )" "0:reply-received:deny:user-$rigAcct:reply-pending:"
+## the request of the old form, as a rig made before the new template holds one: kind `authority`, no refusal id and no kept slots, asked of the human-owner
+rigAsk rig-asks-q keeper-myx question --select yes-no
+rigOldOrig="$rigPend"
+rigOp --manager-pending-reply-answer --id "$rigOldOrig" --answer yes --escalate-enqueue
+rigOldReq="$( rigPendingId )"
+rigOldFile="$( rigRecordOf "$rigOldReq" )"
+sed -i.bak -e 's/^kind: .*/kind: authority/' -e '/^refusal-id: /d' -e '/^fields: /d' "$rigOldFile" && rm -f "$rigOldFile.bak"
+rigOp --manager-pending-reply-answer --id "$rigOldReq" --answer allow-once
+rigAssert "an allow of the old form is refused as ever: the caller is not the human-owner, and it stays open" "$rigOpRc:$( LC_ALL=C grep -c 'is not that, so it cannot answer it' "$rigTmp/op.err" ):$( rigOf "$rigOldReq" status )" "1:1:reply-pending"
+rigOp --manager-pending-reply-answer --id "$rigOldReq" --reject
+rigAssert "its reject from the console is taken all the same: status 0, denied, recorded as the person at the console, and the question it would have acted on untouched" "$rigOpRc:$( rigOf "$rigOldReq" status ):$( rigOf "$rigOldReq" verdict ):$( rigOf "$rigOldReq" answered-by ):$( rigStatus "$rigOldOrig" )" "0:reply-received:deny:user-$rigAcct:reply-pending:"
+## every post of a request for the authority comes from the new template: no other place of the tooling holds the words of the old one
+rigAssert "the words of the old post (asks for the authority of ..., Answer allow-once to let it do that) stand in no file of the tooling's code, templates and skillset, and the function that opens a request fills the Authority blocks of the template" \
+	"$( LC_ALL=C grep -r -l -F -e 'asks for the authority of' -e 'to let it do that, or' "$rigHere" "$rigHere/../sh-scripts" "$rigHere/../skillset" 2> /dev/null | LC_ALL=C grep -v -e '/sh-test/' | LC_ALL=C grep -c . || : ) $( LC_ALL=C grep -c -F 'Authority/reason' "$rigHere/questions/AgentsTools.Authority.include" || : )" "0 1"
 
 unset MDAT_AUTHORITY_WAIT_READ_SECONDS MDAT_AUTHORITY_WAIT_PROGRESS_SECONDS
 

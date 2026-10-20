@@ -54,7 +54,7 @@ case "$1" in
 		local content contentFromFile="false" bodyMode="" bodyModeCount=0
 		## Who is writing: the `from` a new item is stamped with when its content names none.
 		## A spawned session's own member when not given, else user-<account> for a person at a console.
-		local fromMember="${MDAT_SPAWN_AGENT:-}"
+		local fromMember="${MDAT_SPAWN_AGENT:-}" fromAccount=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-file)
@@ -171,8 +171,8 @@ case "$1" in
 			[ -n "$fromMember" ] && AgentsToolsAssertBareName "$fromMember" "MDAT_SPAWN_AGENT" member-inbox-upsert 2>/dev/null || fromMember=""
 			## A person at a console, with no session spawned, is user-<account> (the team member default of the common
 			## option set, F2.2); with not even an account, the item has no writer and the gate refuses it.
-			if [ -z "$fromMember" ] && [ -z "${MDAT_SPAWN_AGENT:-}" ] && [ -n "${USER:-}" ] ; then
-				fromMember="user-$USER"
+			if [ -z "$fromMember" ] && [ -z "${MDAT_SPAWN_AGENT:-}" ] && fromAccount="$( AgentsToolsConsoleAccount )" && [ -n "$fromAccount" ] ; then
+				fromMember="user-$fromAccount"
 				AgentsToolsAssertBareName "$fromMember" "user-\$USER" member-inbox-upsert 2>/dev/null || fromMember=""
 			fi
 			local createDefaults="" createType

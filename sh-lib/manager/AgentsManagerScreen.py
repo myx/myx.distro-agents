@@ -83,6 +83,7 @@ PARTS = (
     "AgentsManagerScreen.Members.py",
     "AgentsManagerScreen.TeamData.py",
     "AgentsManagerScreen.Places.py",
+    "AgentsManagerScreen.Tokens.py",
     "AgentsManagerScreen.Consoles.py",
     "AgentsManagerScreen.Settings.py",
     "AgentsManagerScreen.Talk.py",

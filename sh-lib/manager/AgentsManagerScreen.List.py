@@ -74,7 +74,8 @@ def levelRowsAt(state, path):
     if not path:
         return [countedRow(state, path, newRow(sectionId, sectionLabel, "section", True)) for sectionId, sectionLabel in SECTIONS if sectionShown(state, sectionId)]
     rows = [newRow(ROW_UP, ROW_UP, "up")]
-    for rowId, label, kind, dive in fixedRowsShown(state, path):
+    for fixed in fixedRowsShown(state, path):
+        rowId, label, kind, dive = fixed[:4]
         rows.append(countedRow(state, path, newRow(rowId, label, kind, dive)))
     listed = listedRows(state, path) or ()
     if state.activeOnly and levelKey(path) in state.activeOf:
@@ -96,9 +97,11 @@ def listedRows(state, path):
     return globals()[derived](state, path) if derived else state.rows.get(levelKey(path))
 
 
-## The rows a level always holds, but a root that stands only where what it shows is there and is not there now.
+## The rows a level always holds, but a root that stands only where what it shows is there and is not there now; and a row that has a fifth word, the name of a
+## function (state, path), only where that says it stands in the level shown.
 def fixedRowsShown(state, path):
-    return [fixed for fixed in FIXED_ROWS.get(levelPattern(path), ()) if not pathHidden(state, list(path) + [fixed[0]])]
+    return [fixed for fixed in FIXED_ROWS.get(levelPattern(path), ())
+            if (len(fixed) < 5 or globals()[fixed[4]](state, list(path))) and not pathHidden(state, list(path) + [fixed[0]])]
 
 
 ## The listed rows of a level in the order the user chose: by name where the level is one of ALPHABETICAL

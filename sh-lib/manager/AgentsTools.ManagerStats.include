@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerStats.include -- the --manager-stats-* operations: the runs and stats store of the Dispatcher (F7.11), as the console's views of the tokens and of
+## the routines read it. Sourced from the `--manager-stats-*)` arm of AgentsTools.Manager.include; who may call was asked where the family is dispatched.
+##
+## THEY HAVE NO LOGIC OF THEIR OWN. Dispatcher owns the runs and the index derived from their records (.local/agents/stats), and these two operations are its
+## readers, called as the Dispatcher is called by every other surface that reads it (`--token-stats` and `--routine-stats` of DistroAgentsDispatcher.fn.sh): the
+## arguments go to it as they come, its rows come back as they are, its status is the status of the call. The console renders them and computes nothing.
+##
+
+## The Dispatcher, called as a script of this package, as the surfaces that delegate to it call it.
+AgentsToolsManagerStatsDispatcher(){ ## its arguments...
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsDispatcher.fn.sh" "$@"
+}
+
+case "$1" in
+
+	## The tokens summed by one key: `tokens <key> <runs> <in> <cache-read> <cache-write> <out>`, a row a key.
+	--manager-stats-tokens)
+		shift
+		AgentsToolsManagerStatsDispatcher --token-stats "$@"
+		managerStatsRc=$?
+		set +e ; return "$managerStatsRc"
+	;;
+
+	## The routines rows of the runs: `routine <a row of routines.index>`, one routine's or every one's.
+	--manager-stats-routines)
+		shift
+		AgentsToolsManagerStatsDispatcher --routine-stats "$@"
+		managerStatsRc=$?
+		set +e ; return "$managerStatsRc"
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

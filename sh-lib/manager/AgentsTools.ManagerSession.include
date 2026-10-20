@@ -466,12 +466,8 @@ agentsManagerKillPoliteSeconds=2
 ## The name the console's user has in the operating system: one word, as a Decisions line and a record header take it.
 ## Nothing and rc 1 where the system gives none.
 AgentsToolsManagerConsoleAccount(){
-	local userName
-	userName="$( id -un 2>/dev/null )" || userName=""
-	[ -n "$userName" ] || userName="${USER:-${LOGNAME:-}}"
-	userName="$( printf '%s' "$userName" | LC_ALL=C tr -s ' \t\r\n' '_' )"
-	[ -n "$userName" ] || return 1
-	printf '%s\n' "$userName"
+	type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	AgentsToolsConsoleAccount
 }
 
 ## The same, which a kill is recorded under: `unknown` where the system gives none.

@@ -79,11 +79,8 @@ AgentsToolsAuthorityFieldSet(){ ## file, name, value, ...
 
 ## The account at the console, as every console operation records it.
 AgentsToolsAuthorityAccount(){
-	local accountName
-	accountName="$( id -un 2> /dev/null )" || accountName=""
-	[ -n "$accountName" ] || accountName="${USER:-${LOGNAME:-}}"
-	accountName="$( printf '%s' "$accountName" | LC_ALL=C tr -s ' \t\r\n' '_' )"
-	printf '%s\n' "${accountName:-unknown}"
+	type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	AgentsToolsConsoleAccount || printf 'unknown\n'
 }
 
 ## Who calls, set here: agentsAuthorityCallerKind `member` for a member's run, with

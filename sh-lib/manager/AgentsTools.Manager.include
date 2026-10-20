@@ -118,6 +118,12 @@ case "$1" in
 		return $?
 	;;
 
+	## The runs and stats store of the Dispatcher, as the views of the tokens and of the routines read it.
+	--manager-stats-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerStats.include"
+		return $?
+	;;
+
 	## The coworking sessions of this workspace and their runs.
 	--manager-session-*)
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include"
