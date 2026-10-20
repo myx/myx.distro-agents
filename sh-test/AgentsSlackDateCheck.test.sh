@@ -311,7 +311,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
 chmod +x "$rigTmp/ws/DistroAgentsConsole.sh"
 printf 'RIG-SPAWN-BRIEF\n' > "$rigTmp/spawn.brief"
 rigBefore="$( date +%s )"
-env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 	MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 	MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_SCENARIO="$rigTmp/scenario" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 	bash -c '

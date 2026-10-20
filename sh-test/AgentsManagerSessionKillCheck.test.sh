@@ -164,7 +164,7 @@ rigAlive(){ ## name... -- how many of them are still running
 rigPre=() rigKept=0 rigBash=( bash )
 rigRun(){ ## tool arguments... -- one dispatcher call in the rig workspace; rc in rigRc, stdout in out, stderr in err
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 		RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" ${rigPre[@]+"${rigPre[@]}"} "${rigBash[@]}" "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 	## Every output of the operation is kept, for the check of its rows against the form its help entry gives.
 	rigKept=$(( rigKept + 1 ))
@@ -427,7 +427,7 @@ rigGrantRefusal="$( LC_ALL=C grep -o -E 'refusal-[0-9a-f-]+' "$rigTmp/out" | hea
 rigRun --intern-op-permission-grant-open human-owner --session-id sess-left --refusal-id "${rigGrantRefusal:-none}" --kind session
 LC_ALL=C grep -q '^GRANT: session ' "$rigTmp/out" || rigRefuse "the grant of the authority over sess-left to the coordinator was not written: $( head -2 "$rigTmp/err" | LC_ALL=C tr '\n' ' ' )"
 printf '{"task_id":"run-left"}\n' > "$rigTmp/stop.args"
-( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 	RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" MDAT_SPAWN_AGENT=magic-coordinator bash "$rigHere/harness/AgentsUniversalHarness.sh" --intern-tool TaskStop < "$rigTmp/stop.args" ) > "$rigTmp/stop.out" 2>&1
 rigAssert "control: a stop without force ends the run's own process and says that the command is still running, and the run's store keeps it, by its pid and when it began" \
 	"$( LC_ALL=C grep -c '^STOP-RESULT: STILL-RUNNING' "$rigTmp/stop.out" ) $( rigAlive left-run ) $( rigAlive left-tool ) $( LC_ALL=C awk -v wantPid="$( rigPid left-tool )" '$1 == wantPid && NF == 2 { hit++ } END { print NR ":" hit + 0 }' "$rigStores/run-left/stop.left" 2> /dev/null )" "1 0 1 1:1"
@@ -472,7 +472,7 @@ echo "-- 12. never the caller: a command line that carries the id as the argumen
 rigLive run-w
 rigRec sess-w run-w sess-w "$rigHost" keeper-rig spawn-started 70 ""
 rm -f "$rigTmp/wrapper.said"
-( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" \
+( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" \
 	bash -c 'printf "%s %s %s\n" "$$" "$( LC_ALL=C "$RIG_TMP/bin/ps.real" -o lstart= -p $$ | LC_ALL=C awk "NF { \$1 = \$1 ; gsub( / /, \"_\" ) ; print ; exit ; }" )" "bash -c the-console-wrapper --manager-session-kill --session-id run-w" >> "$RIG_TMP/ps.list" ; bash "$0" --manager-session-kill --session-id run-w > "$RIG_TMP/out" 2> "$RIG_TMP/err" ; echo "rc $?" > "$RIG_TMP/wrapper.said"' "$rigTool" ) < /dev/null > /dev/null 2>&1
 rigAssert "the process that called the operation, whose own line reads as a run of that id, is not signalled: it goes on, and the run itself is ended" \
 	"$( cat "$rigTmp/wrapper.said" 2> /dev/null ) $( rigOut | LC_ALL=C awk '{ print $3, $5, $7 }' ) $( rigAlive run-w )" "rc 0 run-w ended $( rigPid run-w ) 0"
@@ -516,7 +516,7 @@ rigSpawn(){ ## scenario, dispatch document mode (none, create), `with-word` or e
 	mkdir -p "$rigDir"
 	[ -z "${3:-}" ] || : > "$rigDir/with-word"
 	[ -z "${4:-}" ] || : > "$rigDir/with-tree"
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 		RIG_TMP="$rigTmp" RIG_SCENARIO="$rigDir" bash "$rigTool" --intern-op-agent-spawn-proxy rig-member-a --dispatch-doc:"$2" --context rig-manager-kill <<< "RIG-BRIEF" > "$rigDir/proxy.out" 2>&1 )
 	rigSpawnId="$( LC_ALL=C sed -n 's|^OUTPUT_FILE=.*/sessions/\([^/]*\)/session\.log$|\1|p' "$rigDir/proxy.out" | head -1 )"
 	rigWaitFor 40 test -s "$rigDir/console.pid" || rigRefuse "the stand-in console never started in scenario $1: $( LC_ALL=C grep -m1 ERROR "$rigDir/proxy.out" )"
@@ -619,7 +619,7 @@ echo "-- 17. the kill of a whole session finishes it: its questions dismissed, i
 rigAskNo=0 ; rigPend=""
 rigQuestion(){ ## the id that asked, a run's own or a session's -> rigPend, the id of the question
 	rigAskNo=$(( rigAskNo + 1 ))
-	rigPend="$( printf '# Ask\n\nMay I?\n' | ( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" \
+	rigPend="$( printf '# Ask\n\nMay I?\n' | ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" \
 		bash "$rigTool" --intern-op-pending-reply-open magic-coordinator --to CRIG00001 --session-id "$1" --kind question \
 		--channel CRIG00001 --question-ts "1700000000.0007$( printf '%02d' "$rigAskNo" )" --thread-ts "1700000000.0007$( printf '%02d' "$rigAskNo" )" --addressees URIGOWNER --asking-accounts ' URIGSELF1 ' --ask-identity bot 2> /dev/null ) )"
 	[ -n "$rigPend" ] || rigRefuse "no pending question could be opened in the rig"
@@ -633,7 +633,7 @@ rigAsked(){ ## pending id, header -- its value in the record of that question
 	rigHeader "$rigAgents/pending/$1.md" "$2"
 }
 rigStateOf(){ ## session id, further words of the list -- the state its row of the list of sessions reads, `not-listed` where it has none
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" \
 		bash "$rigTool" --manager-session-list ${2:-} ) 2> /dev/null < /dev/null | LC_ALL=C awk -F'\t' -v wantId="$1" '$1 == "session" && $2 == wantId { print $4 ; found = 1 } END { if ( ! found ) print "not-listed" }'
 }
 rigRowsOf(){ ## row kind -- the rows of that kind in the last stdout, TAB written as a space, a `/` between them

@@ -1184,6 +1184,21 @@ case "$1" in
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --dispatch-doc:reuse requires a --from-board/--from-vault/--from-audit source naming an existing tracking item" >&2
 			set +e ; return 1
 		fi
+		## A workspace that keeps no team data (F13.1, AgentsTools.TeamDataGate.include) keeps no tracking item and no audit transcript of a
+		## session it starts: a start that creates a tracking item runs as `none`, and one that reuses an item is refused, since the item
+		## would be of a store that is not here.
+		local teamDataKept="yes"
+		type AgentsToolsTeamDataGateOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
+		AgentsToolsTeamDataGateOpen || teamDataKept="no"
+		if [ "$teamDataKept" = "no" ] ; then
+			case "$dispatchDocMode" in
+				create) dispatchDocMode="none" ;;
+				reuse)
+					echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --dispatch-doc:reuse: this workspace keeps no team data, so it has no tracking item to reuse -- nothing was started" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
 
 		if [ -z "$spawnContext" ] ; then
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: empty spawn context" >&2
@@ -1371,7 +1386,7 @@ case "$1" in
 					set +e ; return 1
 				fi
 			}
-			[ "${requirementVerdict%%$'\t'*}" != "automate" ] || dispatchDocMode="create"
+			[ "${requirementVerdict%%$'\t'*}" != "automate" ] || [ "$teamDataKept" = "no" ] || dispatchDocMode="create"
 			## HELP: the one party who can supply what is missing is asked, by the path every hand-off to the coordinator takes, an
 			## inquiry in its inbox naming the routine, and the start goes on with a warning that is counted: it is kept on the
 			## run's record as `start-warning:` and said here, where the start's own output (the Launch of the console among
@@ -1464,6 +1479,7 @@ case "$1" in
 		type AgentsTranscriptStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include" 2>/dev/null || :
 		local transcriptRel=""
 		type AgentsTranscriptNewRel > /dev/null 2>&1 && transcriptRel="$( AgentsTranscriptNewRel "$callerName" "$MDAT_SPAWN_SESSION_ID" )" || transcriptRel=""
+		[ "$teamDataKept" = "yes" ] || transcriptRel=""
 
 		## The spawn's own output is its session log, one per session and one name whatever
 		## the dispatch mode: sessions/<spawn-id>/session.log, beside the session's other

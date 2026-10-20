@@ -83,7 +83,7 @@ rigSpawn(){ ## content, member, the tier setting of the team (may be empty), the
 	if [ -n "${3:-}" ] ; then
 		if [ -n "${4:-}" ] ; then printf 'SPAWN_TIER_NORMAL=%s\n' "$3" > "$rigPayer/.local/.agents/magic-team.agent.env" ; else printf 'SPAWN_TIER_NORMAL=%s\n' "$3" >> "$rigWs/.local/.agents/magic-team.agent.env" ; fi
 	fi
-	env -i HOME="$rigTmp/home" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac

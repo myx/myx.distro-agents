@@ -96,7 +96,7 @@ rigEnv=()
 rigRun(){ ## result file, command...
 	local runOut="$1" ; shift
 	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
-	env -i HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" "${rigEnv[@]+"${rigEnv[@]}"}" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -1066,7 +1066,7 @@ echo "-- 21. a verdict comes back at once: a child it restarted, which never end
 rigPipedIn=/dev/null
 rigPiped(){ ## result file, seconds allowed, DistroAgentsTools.fn.sh args... -> returned | waiting
 	local pipedOut="$1" pipedLeft="$2" pipedPid ; shift 2
-	( env -i HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" "${rigEnv[@]+"${rigEnv[@]}"}" \
 		bash -c 'cd "$MMDAPP" && exec bash "$0" "$@"' "$rigFn" "$@" < "$rigPipedIn" 2>&1 | cat > "$pipedOut" ) &
 	pipedPid=$!

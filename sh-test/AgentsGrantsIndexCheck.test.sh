@@ -83,7 +83,7 @@ rigWsMake(){ ## workspace name, declare lines... -- a rig workspace with one sou
 rigRun(){ ## workspace name, op and arguments... -- the tool there, rig HOME, clean env; stdout in out, stderr in err, rc in rigRc
 	local runWs="$rigTmp/$1" ; shift
 	rigRc=0
-	env -i HOME="$rigHome" PATH="$rigTmp/bin:${rigMyxCommon%/*}:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$runWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:${rigMyxCommon%/*}:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$runWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigData" RIG_TMP="$rigTmp" bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$HOME" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -169,7 +169,7 @@ rigAssert "built in: magic-architect's tools, one row each"     "$( rigRow "magi
 rigAssert "magic-tester's reads in every workspace, writes in the testbeds" "$( rigRow "magic-tester:ws-main:builtin:Read(/$rigSide/source/**/sh-test/**)" ):$( rigRow "magic-tester:ws-main:builtin:Read(/$rigDecoy/.local/myx/**)" ):$( rigRow "magic-tester:ws-main:builtin:Edit(/$rigTestbedA/**)" ):$( rigRow "magic-tester:ws-main:builtin:Edit(/$rigDecoy/**)" )" "1:1:1:0"
 rigAssert "tagged own here, wildcard elsewhere, as declared ones are" "$( rigTag "magic-tester:ws-main:own:$rigMain/.local/myx" ):$( rigTag "magic-tester:ws-main:wildcard:$rigSide/.local/myx" ):$( rigTag "magic-tester:ws-main:wildcard:$rigSide/source" ):$( rigTag "magic-tester:ws-main:wildcard:$rigTestbedA" )" "1:1:1:1"
 rigRegRoots(){ ## function, [member] -- the roots the registry readers give (AgentsTools.ClientAccessRoots.include)
-	env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 		bash -c '. "'"$rigHere"'/client/AgentsTools.ClientAccessRoots.include" ; "$@"' rig "$@" 2>/dev/null
 }
 rigAssert "the registry readers find them: a testbed write root, a .local/myx read root" "$( rigRegRoots AgentsToolsClientAccessGrantRoots | LC_ALL=C grep -c -x -F -- "$rigTestbedA" ):$( rigRegRoots AgentsToolsClientAccessReadGrantRoots magic-tester | LC_ALL=C grep -c -x -F -- "$rigSide/.local/myx" )" "1:1"
@@ -205,7 +205,7 @@ rigAssert "magic-tester writes ** in the testbeds only"         "$( rigIdx magic
 
 echo "-- 2b. the roots a member is granted, off the index (AgentsToolsClientAccessMemberRoots) --"
 rigRoots(){ ## member, purpose, root -- 1 when the root is in that set, 0 when not
-	env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 		bash -c '. "'"$rigHere"'/client/AgentsTools.ClientAccessRoots.include" ; AgentsToolsClientAccessMemberRoots "$MMDAPP" "$@"' rig "$1" "$2" 2>/dev/null \
 		| LC_ALL=C grep -c -x -F -- "$3" || :
 }
@@ -218,13 +218,13 @@ rigAssert "the floor: readable members, temp, this origin's skillset" "$( rigRoo
 rigAssert "write roots: temp and the testbeds, not a read row nor the origin" "$( rigRoots magic-tester write "$rigMain/.local/temp" ):$( rigRoots magic-tester write "$rigTestbedA" ):$( rigRoots magic-tester write "$rigMain/.local/myx" ):$( rigRoots magic-tester write "$rigOrigin" )" "1:1:0:0"
 rigAssert "a capped grant is a read root, never a write root"   "$( rigRoots keeper-d read "$rigTmp/ro-dir" ):$( rigRoots keeper-d write "$rigTmp/ro-dir" )" "1:0"
 rigAssert "a glob inside a directory (rw-dir/*.md) is no root"  "$( rigRoots keeper-d read "$rigTmp/rw-dir" ):$( rigRoots keeper-d write "$rigTmp/rw-dir" )" "0:0"
-rigAssert "an unknown purpose is refused"                        "$( env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" bash -c '. "'"$rigHere"'/client/AgentsTools.ClientAccessRoots.include" ; AgentsToolsClientAccessMemberRoots "$MMDAPP" keeper-d all' > /dev/null 2>&1 && printf taken || printf refused )" refused
+rigAssert "an unknown purpose is refused"                        "$( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" bash -c '. "'"$rigHere"'/client/AgentsTools.ClientAccessRoots.include" ; AgentsToolsClientAccessMemberRoots "$MMDAPP" keeper-d all' > /dev/null 2>&1 && printf taken || printf refused )" refused
 
 echo "-- 3. the harness gate, read and write --"
 ## One served call, as the MCP server makes it; output in call.out.
 rigCall(){ ## member, session, tool, argument object, [extra env]...
 	local callMember="$1" callSession="$2" callTool="$3" callArgs="$4" ; shift 4
-	( cd "$rigMain" && printf '%s' "$callArgs" | env -i HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	( cd "$rigMain" && printf '%s' "$callArgs" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigData" MDAT_SPAWN_AGENT="$callMember" MDAT_SPAWN_SESSION_ID="$callSession" "$@" \
 		bash "$rigHarness" --intern-tool "$callTool" ) > "$rigTmp/call.out" 2> "$rigTmp/call.err"
 }
@@ -262,7 +262,7 @@ rigAssert "and a write is refused by its ceiling first"         "$( rigWrite kee
 rigAssert "naming another route, unrecorded"                    "$( rigN "$rigTmp/call.out" 'find another suitable location' ):$( rigN "$rigTmp/call.out" 'REFUSAL-ID' )" "1:0"
 mkdir -p "$rigMain/.local/agents/spawned/sb/input" "$rigMain/.local/agents/spawned/sb/output"
 rigAssert "with a sandbox, the route is its output/"            "$( rigWrite keeper-d s-d "$rigTmp/ro-dir/x.txt" MDAT_SPAWN_SANDBOX_ROOT="$rigMain/.local/agents/spawned/sb" ):$( rigN "$rigTmp/call.out" "write to your session sandbox output/ instead, or a folder under it: $rigMain/.local/agents/spawned/sb/output/" )" "ceiling:1"
-rigAssert "the human-owner's own session keeps the roots"       "$( ( cd "$rigMain" && printf '{"path":"%s"}' "$rigProj/x.sh" | env -i HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigHarness" --intern-tool Read 2>/dev/null ) | LC_ALL=C grep -c 'rig-seed x.sh' )" 1
+rigAssert "the human-owner's own session keeps the roots"       "$( ( cd "$rigMain" && printf '{"path":"%s"}' "$rigProj/x.sh" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigHarness" --intern-tool Read 2>/dev/null ) | LC_ALL=C grep -c 'rig-seed x.sh' )" 1
 
 echo "-- 4. the session permission index --"
 rigSessionIndex="$rigMain/.local/agents/sessions/s-life/permissions.magic-tester.index"
@@ -314,7 +314,7 @@ rigAssert "no code, help or doc names it"                       "$( LC_ALL=C gre
 mkdir -p "$rigMain/.local/.agents"
 printf 'CLIENT_ACCESS_ROOTS_EXTRA=%s\n' "$rigTmp/extra" > "$rigMain/.local/.agents/magic-team.agent.env"
 mkdir -p "$rigTmp/extra" ; printf 'rig-seed extra\n' > "$rigTmp/extra/a.txt"
-rigAssert "a stored value opens nothing"                        "$( rigRead magic-tester s-tester "$rigTmp/extra/a.txt" ):$( env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/client/AgentsTools.ClientAccessRoots.include" ; AgentsToolsClientAccessReferenceRoots read "$MMDAPP"' | LC_ALL=C grep -c -F "$rigTmp/extra" )" "refused:0"
+rigAssert "a stored value opens nothing"                        "$( rigRead magic-tester s-tester "$rigTmp/extra/a.txt" ):$( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'"$rigHere"'/client/AgentsTools.ClientAccessRoots.include" ; AgentsToolsClientAccessReferenceRoots read "$MMDAPP"' | LC_ALL=C grep -c -F "$rigTmp/extra" )" "refused:0"
 rigRun ws-main --owner-setup-claude --access-root "$rigTmp/extra" --apply
 rigAssert "its owner-setup option is refused as unknown"        "$( [ "$rigRc" != 0 ] && printf refused || printf taken )" refused
 

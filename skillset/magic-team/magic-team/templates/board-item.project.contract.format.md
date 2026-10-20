@@ -67,6 +67,14 @@ A container for related work, an epic. Its children link to it by `spawns` and `
 | `groomed-at` | optional | tooling | `date-time` | Stamped at a grooming move. |
 | `groomed-from` | optional | tooling | `text` | The board state the item was groomed from. |
 | `track` | optional | tooling | `flag` | Stamped by the tooling. |
+| `spawn-id` | optional | tooling | `session-id` | The spawn that tracks the item, written when a spawn reuses the item as its tracking document. |
+| `executing-workspace` | optional | tooling | `workspace-name` | The workspace that spawn executes in. Written with `spawn-id`. |
+| `paying-workspace` | optional | tooling | `workspace-name` | The workspace that pays for that spawn. Written with `spawn-id`. |
+| `member-workspace` | optional | tooling | `workspace-name` | The workspace the spawned member belongs to. Written with `spawn-id`. |
+| `transcript` | optional | tooling | `audit-path` | That spawn's own log, `session-*.log`. Written with `spawn-id`. |
+| `review-since-epoch` | optional | tooling | `epoch-seconds` | When the item entered review. Written with `review-reason`, removed when a verdict takes the item out of review. |
+| `review-reason` | optional | tooling | `text` | Why it entered review, such as `handback`. Written with `review-since-epoch`. |
+| `follows-up` | optional | tooling | `item-names` | The item this one follows up. Written by `--member-review-follow-up` on the item it creates in `board-pending`. |
 
 ## Value forms
 
@@ -83,6 +91,9 @@ A container for related work, an epic. Its children link to it by `spawns` and `
 - `reviewer` — `human-owner`, a member, a session, `<session-id>:<member>`, a routine such as `grooming.routine`, or `none`.
 - `flag` — the word `true`.
 - `allows-set` — comma-separated entries `session:<tool>:<target>:<granted-by>:<stamp>` or `task:<tool>:<target>:<granted-by>:<stamp>`, `<stamp>` as `YYYYMMDD'T'HHmm'Z'`, target %-escaped.
+- `workspace-name` — a workspace's basename, or `unknown`.
+- `audit-path` — a path under the audit store, as the audit reader names it.
+- `epoch-seconds` — whole seconds since the epoch.
 
 ## Body
 

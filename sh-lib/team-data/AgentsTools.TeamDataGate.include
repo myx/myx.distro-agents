@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.TeamDataGate.include -- THE MODE OF THE WORKSPACE (F13.1) and THE GATE it carries: which workspaces keep team data, and the
+## writers that refuse where one does not. Sourced, never run. Functions and declarations only, and nothing runs at the sourcing.
+##
+## THE MODE OF THE WORKSPACE, the owner's: what this workspace is to the team, one of three, set by the installer of the workspace in the
+## settings of the team, where the tooling keeps the workspace's own settings (the magic-team scope), and read by AgentsToolsWorkspaceMode
+## alone, for the digest of the console and for the gate alike. `just-agents`: not a team with infrastructure here. The team's members and
+## their skills are here and nothing else of the team: it works inline and starts sessions with the native consoles of this computer. Slack
+## and the other outside systems still work where they are set up. `rig-client`: it will start sessions on a remote rig or dispatch
+## documents to it; declared and not built, it acts as `just-agents`. `team-rig`: it is a rig itself, which uses and maintains the team
+## data here, with a shared persistence for it or none; no server setup makes one so, its installer does. Where nothing sets one of them
+## it is `just-agents`: nothing is inferred. A rig that sets no mode is given the mode MDAT_WORKSPACE_MODE names as its default, which
+## only the test runner exports (AgentsRunTests.sh gives `team-rig`), and which a setting of the workspace stands ahead of. A FULL TEAM RIG
+## is a `team-rig` whose team data has a shared persistence configured, today a git remote: only a full team rig checks the main loop and
+## judges it. Only a team rig has a main loop at all.
+##
+## WHAT `just-agents` MUST NOT DO. It keeps no local team data, so it never creates or changes:
+##   - a board item, in any state: not by a board op, not by a grooming, advance, sweep, heartbeat, daily or retro pass, nor by the
+##     review of a run (the primitives are the gate's list, below);
+##   - an inbox item: a note, an inquiry, a reflection, a routine's lock note, a reply left for a member;
+##   - an audit item: the transcript of a session, the record of a published artifact;
+##   - a vault item, a contact or an organisation, a trash entry, or the README of a store;
+##   and it never clones, initialises, commits or pushes a team-data store (TEAM_DATA_GIT_REMOTE is not read), and runs no main loop.
+## A session it starts keeps no tracking item and no transcript in the team data: the spawn runs as `--dispatch-doc:none`, which the spawn
+## proxy already has, and a start that asks to reuse a tracking item is refused, since that item would be of a store that is not here.
+## It still keeps what a session needs to run and be found, which is no team data: the session records and stores under .local/agents.
+##
+## THE GATE. One list, agentsTeamDataGateOps, of the operations that create or change team data, asked in one place, where the tooling
+## dispatches an operation (DistroAgentsTools.fn.sh, after the caller checks): a workspace that is no team rig refuses them there, before
+## the operation makes a folder or says a word. The list holds the primitives every item passes (so an op that reaches an item by way of
+## them is refused at the first of them, whatever its name) and the families that are the board's own machinery. Three writers have no
+## primitive to pass, and ask the gate where they write: the contacts store (AgentsToolsContactsWriteFile), the clone of a team-data store
+## (AgentsToolsTeamDataEnsureClone), and the spawn proxy, which degrades as said above. A reader is never refused: a store that is not
+## there reads as empty.
+##
+
+agentsManagerConfigModeKey="MDAT_WORKSPACE_MODE"
+agentsManagerConfigModes="just-agents rig-client team-rig"
+agentsManagerConfigModeTakes="just-agents=Just Agents,rig-client=Remote Rig Client,team-rig=Team Rig"
+
+## The operations that create or change team data, one pattern a line (a case pattern: `*` stands for the rest of a family's names).
+agentsTeamDataGateOps="--intern-op-board-upsert-move-edit
+--intern-op-item-rename
+--intern-op-board-rename
+--intern-op-board-trash
+--intern-team-data-final-gc-deletion
+--intern-op-inbox-to-processed
+--intern-op-member-inbox-upsert
+--member-append-session-transcript
+--magic-append-session-transcript
+--intern-op-append-session-transcript
+--intern-artifact-*
+--magic-board-*
+--magic-grooming-*
+--magic-sweep-*
+--magic-heartbeat-*
+--magic-advance-*
+--magic-daily-*
+--magic-retro-*
+--magic-team-data-*
+--intern-main-loop"
+
+## The mode of this workspace, `<mode> <source>`: the mode the settings of the team set, `workspace`; else the one MDAT_WORKSPACE_MODE
+## names as the default of a rig, `default`; else `just-agents`, `default`. A value that is none of the three is no value. The setting is
+## read by the setting reader of the sibling package, as AgentsContext.UseAgentsTools.include reads the team data directory: one file read,
+## no process.
+AgentsToolsWorkspaceMode(){
+	local modeValue="" modeSource="workspace"
+	modeValue="$( set -- --agents-config-option magic-team --select "$agentsManagerConfigModeKey" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" 2> /dev/null )" || modeValue=""
+	case " $agentsManagerConfigModes " in
+		*" ${modeValue:-.} "*) ;;
+		*)
+			modeSource="default" ; modeValue="${MDAT_WORKSPACE_MODE:-}"
+			case " $agentsManagerConfigModes " in *" ${modeValue:-.} "*) ;; *) modeValue="just-agents" ;; esac
+		;;
+	esac
+	printf '%s %s\n' "$modeValue" "$modeSource"
+}
+
+## Whether this workspace keeps team data: rc 0 where it is a team rig, rc 1 where it is not. Says nothing.
+AgentsToolsTeamDataGateOpen(){
+	local openMode="" openSource=""
+	read -r openMode openSource <<< "$( AgentsToolsWorkspaceMode )" || :
+	[ "$openMode" = "team-rig" ]
+}
+
+## The refusal of a write: rc 0 where the workspace keeps team data; else says that it keeps none, and why, and returns 1.
+AgentsToolsTeamDataGateRefuse(){ ## what is refused (an operation's name)
+	local refuseMode="" refuseSource=""
+	read -r refuseMode refuseSource <<< "$( AgentsToolsWorkspaceMode )" || :
+	[ "$refuseMode" != "team-rig" ] || return 0
+	echo "$MDSC_CMD: ⛔ ERROR: $1: this workspace keeps no team data -- its mode is ${refuseMode:-just-agents} ($refuseSource), and only a team rig keeps a board, inboxes, an audit, contacts and a team-data store -- nothing was written" >&2
+	return 1
+}
+
+## Whether an operation is on the list: rc 0 where it is.
+AgentsToolsTeamDataGateWrites(){ ## operation
+	local writesPattern
+	while IFS= read -r writesPattern ; do
+		case "$1" in $writesPattern) return 0 ;; esac
+	done <<< "$agentsTeamDataGateOps"
+	return 1
+}
+
+## THE GATE AT THE DISPATCH: an operation on the list is refused in a workspace that keeps no team data; every other one passes.
+AgentsToolsTeamDataGate(){ ## operation
+	AgentsToolsTeamDataGateWrites "$1" || return 0
+	AgentsToolsTeamDataGateRefuse "$1"
+}

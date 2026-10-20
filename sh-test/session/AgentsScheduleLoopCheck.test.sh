@@ -59,7 +59,7 @@ rigFinished rig-hist-$rigTag keeper-rig-05 spawn-succeeded
 echo "-- 0. the work-duty routine itself --"
 rigDutyFile="$rigPackage/skillset/magic-team/magic-team/magic-team.work-duty.routine.md"
 rigAssert "it is a standalone routine that declares the work-duty scan, never runs by itself, and ends its steps with --idle-wait" "$( LC_ALL=C grep -c -x -e 'requires-session-kind: standalone' -e 'input-scan-def: work-duty --session-id {{session-id}}' -e 'runs-at: none' "$rigDutyFile" ):$( LC_ALL=C grep -c -F -e '--idle-wait' "$rigDutyFile" | LC_ALL=C sed -e 's/^[1-9][0-9]*$/named/' )" "3:named"
-rigDutyRows="$( cd "$rigWs" && env -i HOME="$rigDir/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigPackage/sh-scripts/DistroAgentsTesting.fn.sh" --skillset-validate-routine "$rigDutyFile" 2>&1 < /dev/null | LC_ALL=C grep -c -E '^[^ ]+:[0-9]+: ' || : )"
+rigDutyRows="$( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigPackage/sh-scripts/DistroAgentsTesting.fn.sh" --skillset-validate-routine "$rigDutyFile" 2>&1 < /dev/null | LC_ALL=C grep -c -E '^[^ ]+:[0-9]+: ' || : )"
 rigAssert "and the routine contract is met: the validator has no row for it" "$rigDutyRows" "0"
 
 echo "-- 1. the autorun --"

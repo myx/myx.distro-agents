@@ -107,6 +107,8 @@ AgentsToolsSpawnRoutineKindPath(){ ## routine file path
 ## rules and its tooling block are the kind routine's too, the routine's own after them. A step
 ## the routine lists in `skips-inherited:` is left out of what the kind routine contributes, and
 ## a mix-in never re-adds it. A routine that names no kind routine is printed as it is.
+## The text is the merged document of the one nesting engine (--intern-merge-md-files): see
+## AgentsToolsSpawnRoutineMixSections. The same inputs give the same bytes.
 AgentsToolsSpawnRoutineMixText(){ ## routine file path
 	local mixKindPath mixSkips
 	mixKindPath="$( AgentsToolsSpawnRoutineKindPath "$1" )"
@@ -117,7 +119,44 @@ AgentsToolsSpawnRoutineMixText(){ ## routine file path
 	mixSkips="$( LC_ALL=C awk -v headers="skips-inherited" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$1" )"
 	mixSkips="${mixSkips#skips-inherited: }"
-	ROUTINE_SKIPS="$mixSkips" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsRoutineMix.awk" "$mixKindPath" "$1"
+	AgentsToolsSpawnRoutineMixSections "$mixKindPath" "$1" "$mixSkips" notes
+}
+
+## One section of a file as a mixin, if the file has it: `--mixin [filters] <file> "<section> of <file stem>"`, added to the caller's mixArgs. The filters
+## (--section-exclude <step>) follow the section the mixin includes.
+AgentsToolsSpawnRoutineMixAdd(){ ## file, section, filter words...
+	local addFile="$1" addSection="$2" addStem
+	shift 2
+	LC_ALL=C grep -q -x -F -- "# $addSection" "$addFile" || return 0
+	addStem="${addFile##*/}" ; addStem="${addStem%.md}"
+	mixArgs+=( --mixin --section-include "$addSection" "$@" "$addFile" "$addSection of $addStem" )
+}
+
+## The routine's text from its sections and those of its kind routine, merged by --intern-merge-md-files, one mixin for each file and section, in the order of
+## the F5.6 mix-in: the routine's Summary; the kind's Opening steps, then its own; its own Steps; its own Closure steps, then the kind's; its local
+## procedures; the kind's local rules, then its own; the kind's tooling block, then its own; its Maintainer Notes (notes, not no-notes). A step of the
+## kind routine is a section under its Opening steps or Closure steps, named as the step, so a step the routine skips is a `--section-exclude` of that
+## name on the kind's mixin. The engine's form: each mixin is a section named for its section and file, and the front matter is not carried.
+AgentsToolsSpawnRoutineMixSections(){ ## kind routine file, routine file, skips-inherited value, notes|no-notes
+	local mixKind="$1" mixOwn="$2" mixSkipText="$3" mixNotes="$4" mixArgs=() mixSkipArgs=() mixSkip
+	while IFS= read -r mixSkip ; do
+		mixSkip="${mixSkip#"${mixSkip%%[![:space:]]*}"}" ; mixSkip="${mixSkip%"${mixSkip##*[![:space:]]}"}"
+		[ -z "$mixSkip" ] || mixSkipArgs+=( --section-exclude "$mixSkip" )
+	done <<< "$( printf '%s' "$mixSkipText" | LC_ALL=C tr ',' '\n' )"
+	AgentsToolsSpawnRoutineMixAdd "$mixOwn" "Summary"
+	AgentsToolsSpawnRoutineMixAdd "$mixKind" "Opening steps" ${mixSkipArgs[@]+"${mixSkipArgs[@]}"}
+	AgentsToolsSpawnRoutineMixAdd "$mixOwn" "Opening steps"
+	AgentsToolsSpawnRoutineMixAdd "$mixOwn" "Steps"
+	AgentsToolsSpawnRoutineMixAdd "$mixOwn" "Closure steps"
+	AgentsToolsSpawnRoutineMixAdd "$mixKind" "Closure steps" ${mixSkipArgs[@]+"${mixSkipArgs[@]}"}
+	AgentsToolsSpawnRoutineMixAdd "$mixOwn" "Routine's local procedures"
+	AgentsToolsSpawnRoutineMixAdd "$mixKind" "Routine's local rules"
+	AgentsToolsSpawnRoutineMixAdd "$mixOwn" "Routine's local rules"
+	AgentsToolsSpawnRoutineMixAdd "$mixKind" "Routine-specific tooling"
+	AgentsToolsSpawnRoutineMixAdd "$mixOwn" "Routine-specific tooling"
+	[ "$mixNotes" != notes ] || AgentsToolsSpawnRoutineMixAdd "$mixOwn" "Maintainer Notes"
+	type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
+	AgentsToolsMergeMdFiles --section-limit 6 ${mixArgs[@]+"${mixArgs[@]}"}
 }
 
 ## Reads executors/maintainers/invitees out of a routine file's own frontmatter, through

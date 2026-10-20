@@ -76,7 +76,7 @@ rigEnv=()
 rigRun(){ ## result file, command...
 	local runOut="$1" ; shift
 	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
-	env -i HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" "${rigEnv[@]+"${rigEnv[@]}"}" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -153,7 +153,7 @@ rigHook(){ ## member, session, tool, path
 	local hookOut hookKey=file_path
 	case "$3" in Grep|Glob) hookKey=path ;; esac
 	printf '{"session_id":"%s","cwd":"%s","hook_event_name":"PreToolUse","tool_name":"%s","tool_input":{"pattern":"rig","%s":"%s","old_string":"a","new_string":"b","content":"rig"}}' "$2" "$rigWs" "$3" "$hookKey" "$4" > "$rigTmp/hook.in"
-	hookOut="$( env -i HOME="$rigTmp" PATH=/usr/bin:/bin:/usr/sbin:/sbin MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	hookOut="$( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH=/usr/bin:/bin:/usr/sbin:/sbin MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDAT_SPAWN_AGENT="$1" MDAT_SPAWN_SESSION_ID="$2" bash "$rigHook" < "$rigTmp/hook.in" 2> "$rigTmp/hook.err" )"
 	case "$hookOut" in
 		'') printf 'none' ;;

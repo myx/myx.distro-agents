@@ -120,7 +120,7 @@ rigPre=()
 rigRun(){ ## the file standard input is, tool arguments... -- one dispatcher call from the rig workspace, as a console makes it; rc in rigRc, stdout in out, stderr in err
 	local runInput="$1" ; shift
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigSc" ${rigPre[@]+"${rigPre[@]}"} \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigSc" ${rigPre[@]+"${rigPre[@]}"} \
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < "$runInput" || rigRc=$?
 	rigId="$( LC_ALL=C awk -F'\t' '$1 == "spawn" { print $2 ; exit }' "$rigTmp/out" )"
 }
@@ -313,7 +313,7 @@ echo "-- 11. a member started from a bare console outlives its starter --"
 rm -f "$rigSc/release"
 ls "$rigSc" | LC_ALL=C grep '^pid\.' | LC_ALL=C sort > "$rigTmp/pids.before"
 set -m
-( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigSc" RIG_RUN=90 \
+( cd "$rigWs" && exec env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigSc" RIG_RUN=90 \
 	bash -c 'bash "$1" "$2" keeper-myx --session-name-or-comment "outlives its starter" < "$3" > "$4/pass.out" 2> "$4/pass.err" ; exec sleep 120' rig-console "$rigTool" "$rigOp" "$rigTmp/prompt.two" "$rigTmp" ) &
 rigPassPid=$!
 rigPassGroup="$rigPassPid"

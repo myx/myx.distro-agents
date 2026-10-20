@@ -58,7 +58,7 @@ rigTiny "$rigTests/check-fixtures/rig-thing.stub.sh"
 rigCall(){ ## result prefix, command... -- one call from the workspace, rc in rigRc
 	local callOut="$1" ; shift
 	rigRc=0
-	( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MYXROOT="${MYXROOT:-}" \
+	( cd "$rigWs" && exec env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MYXROOT="${MYXROOT:-}" \
 		MDAT_SKILLSET_ROOT="$rigTmp/members" MDAT_DATA_ROOT="$rigTmp/data" RIG_TMP="$rigTmp" RIG_SHARED="$rigTmp" \
 		bash -c 'case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; exec "$@"' rig "$@" ) > "$callOut.out" 2> "$callOut.err" < /dev/null || rigRc=$?
 }

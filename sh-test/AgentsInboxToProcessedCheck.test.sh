@@ -54,7 +54,7 @@ rigFieldCount(){ ## file, field
 ## One team op, guarded, against the given data root (default the rig's); rc into <result>.rc.
 rigOp(){ ## result file, op and arguments...
 	local opOut="$1" ; shift
-	env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="${RIG_DATA:-$rigData}" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="${RIG_DATA:-$rigData}" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
@@ -179,7 +179,7 @@ if command -v git > /dev/null 2>&1 ; then
 	mkdir -p "$rigT/inboxes/rig-member/incoming" "$rigT/inboxes/rig-member/processed"
 	printf -- '---\ntype: note\n---\ntracked\n' > "$rigT/inboxes/rig-member/incoming/note-20261006T0930Z-tracked.md"
 	printf -- '---\ntype: note\nprocessed-at: 2020-01-01 00:00 +0000\n---\ntracked old\n' > "$rigT/inboxes/rig-member/processed/note-20200101T0000Z-tracked-old.md"
-	rigGit(){ env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" git -C "$rigT" "$@" ; }
+	rigGit(){ env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" git -C "$rigT" "$@" ; }
 	rigGit init -q && rigGit config user.email rig@example.invalid && rigGit config user.name rig \
 		&& rigGit add -A && rigGit commit -q -m seed || rigRefuse "could not seed the tracked root"
 	RIG_DATA="$rigT" rigOp "$rigTmp/t1" --member-inbox-to-processed rig-member note-20261006T0930Z-tracked.md

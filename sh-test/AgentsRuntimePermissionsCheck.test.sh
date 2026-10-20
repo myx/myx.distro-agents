@@ -85,7 +85,7 @@ rigSpawn sb-k s-k keeper-d
 RIG_AGENT="" RIG_SESSION=""
 rigRun(){ ## op and arguments... -- the tool in ws-main as RIG_AGENT in RIG_SESSION, rig HOME, clean env; out, err, rigRc
 	rigRc=0
-	env -i HOME="$rigHome" PATH="$rigTmp/bin:${rigMyxCommon%/*}:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:${rigMyxCommon%/*}:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigData" RIG_TMP="$rigTmp" ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} ${RIG_SESSION:+MDAT_SPAWN_SESSION_ID="$RIG_SESSION"} bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$HOME" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -108,7 +108,7 @@ rigRun --make-agents-indices
 
 ## One served call, as the MCP server makes it; output in call.out.
 rigCall(){ ## member, session, tool, argument object
-	( cd "$rigMain" && printf '%s' "$4" | env -i HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	( cd "$rigMain" && printf '%s' "$4" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigData" MDAT_SPAWN_AGENT="$1" MDAT_SPAWN_SESSION_ID="$2" \
 		bash "$rigHarness" --intern-tool "$3" ) > "$rigTmp/call.out" 2> "$rigTmp/call.err"
 }

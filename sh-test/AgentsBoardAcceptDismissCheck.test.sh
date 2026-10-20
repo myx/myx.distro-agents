@@ -69,7 +69,7 @@ rigAssert(){ ## what is asserted, got, want
 ## from a session acting as RIG_AGENT when set.
 rigAccept(){ ## result file, item filename, from state
 	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
-	env -i HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FN="$rigFn" RIG_SCENARIO="$rigTmp" ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -85,7 +85,7 @@ rigAcceptHelper(){ ## result file, item filename, from state, member
 	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
 	printf '%s\n' 'type AgentsToolsBoardToProcessed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicBoard.include"' \
 		'AgentsToolsBoardToProcessed "$RIG_A_WHO" "$RIG_A_ITEM" --from-state:"$RIG_A_STATE"' \
-	| env -i HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	| env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FN="$rigFn" RIG_SCENARIO="$rigTmp" ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} \
 		RIG_A_WHO="$4" RIG_A_ITEM="$2" RIG_A_STATE="$3" \
 		bash -c '

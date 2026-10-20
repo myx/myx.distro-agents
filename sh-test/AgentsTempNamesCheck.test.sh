@@ -236,7 +236,7 @@ rigPair(){ ## scenario folder, the temp name held, script -- then optional NAME=
 	local pairDir="$1" pairHold="$2" pairScript="$3"
 	shift 3
 	mkdir -p "$pairDir/hold"
-	env -i HOME="$rigHome" PATH="$rigTmp/held:/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/held:/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FN="$rigFn" RIG_OUT="$pairDir" RIG_HOLD_NAME="$pairHold" RIG_HOLD_DIR="$pairDir/hold" \
 		RIG_REAL_AWK="$rigRealAwk" RIG_REAL_CAT="$rigRealCat" RIG_CURL_LOG="$rigTmp/curl.calls" RIG_SCRIPT="$pairScript" "$@" \
 		bash -c '

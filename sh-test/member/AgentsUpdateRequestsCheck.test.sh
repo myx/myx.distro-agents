@@ -107,7 +107,7 @@ rigSession lib-allowed magic-librarian.rig-allowed.routine.md
 rigSession lib-bare ""
 rigAs="" rigSid="" rigStdin=""
 rigEnv(){ ## the environment of every call, the same
-	env -i HOME="$rigHome" PATH="$rigTmp/bin:$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" \
 		${rigAs:+MDAT_SPAWN_AGENT="$rigAs"} ${rigSid:+MDAT_SPAWN_SESSION_ID="$rigSid"} "$@"
 }
 rigRun(){ ## result prefix, tool words... -- one call of AgentLibrarianTools.fn.sh as the member in rigAs (session rigSid); stdin from rigStdin (a file) else none; rc in rigRc

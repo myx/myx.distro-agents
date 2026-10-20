@@ -108,6 +108,12 @@ DistroAgentsTools(){
 		--manager-*) AgentsToolsManagerCallerCheck "${1#--}" || { set +e ; return 1 ; } ;;
 	esac
 
+	## THE JUST-AGENTS GATE (F13.1): a workspace whose mode is no team rig keeps no team data, and refuses the operations that create or change
+	## it. The list, and what that mode must not do, are in AgentsTools.TeamDataGate.include. One place, here, before an arm makes a folder
+	## or says a word; a write that reaches the team data another way asks the gate itself where it writes.
+	type AgentsToolsTeamDataGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
+	AgentsToolsTeamDataGate "$1" || { set +e ; return 1 ; }
+
 	## A --client-* op reaches the other organisation of the client-* member it names. The
 	## prefix says so here, once, for everything the op calls: the side, and the op's own
 	## name for the heading of a refusal (AgentsTools.CommsSlack.include).

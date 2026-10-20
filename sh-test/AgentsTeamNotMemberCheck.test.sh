@@ -96,12 +96,12 @@ chmod +x "$rigWs/DistroAgentsConsole.sh"
 
 rigRun(){ ## tool arguments... -- one dispatcher call from the rig workspace, a brief on standard input; rc in rigRc, stdout in out, stderr in err
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigSc" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigSc" \
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-BRIEF-TEXT" || rigRc=$?
 }
 rigAgent(){ ## tool argument JSON -- the harness tool Agent, served: what it answers in out, what it traces of the call in err, its rc in rigRc
 	rigRc=0
-	printf '%s' "$1" | ( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	printf '%s' "$1" | ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		HARNESS_PROVIDER_NAME=rig HARNESS_SELF_NAME=rig RIG_SCENARIO="$rigSc" bash "$rigHarness" --intern-tool Agent --access-read-root "$rigTmp" ) > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?
 }
 rigErrors(){ ## -- how many lines of the last stderr are an error, but for the one every rig of this package gets

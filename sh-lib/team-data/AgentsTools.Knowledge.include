@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Knowledge.include -- TeamKnowledge's query (F7.3, DistroAgentsKnowledge.fn.sh): the sections of the team's texts that answer a query, as
+## snippets with their sources. Sourced for its functions only.
+##
+## THE STORES the query reads, each added by an option: --add-source-docs (MAGIC.md, README.md and docs/**.md of the projects selected, of each one's
+## repository util.repository-*, and of the workspace's util.workspace-*), --add-board-items, --add-vault-items (any text file of the team data root's
+## vault/), --add-inbox-items (the acting member's own inbox, incoming/ and processed/; the console reads every member's). A query reads only what is added.
+##
+## THE SELECTOR of the projects is the ListDistroProjects one (--select-*, --filter-*, --remove-*), taken as it stands and read from the workspace's source;
+## none given is every project of the workspace. It only decides whose docs --add-source-docs reads.
+##
+## THE QUERY starts with AND: --query-keyword, --query-pattern and --query-glob (each given once or more), and --query-open-and ... --query-close, --query-open-or
+## ... --query-close for a group. The unit it is answered by is the section (AgentsKnowledgeScan.awk), and a term holds of it when a line of the section
+## answers it.
+##
+## THE RESULT is markdown by default: each source that answers is a section of its own, named by the source (the path below the workspace, or below the team
+## data root), holding the sections that answer, merged by the one nesting engine (--intern-merge-md-files, AgentsTools.InternMergeMdFiles.include). Under
+## `--mdat-output-format json`, before the operation word, it is JSON: {"entries":[{"source":..,"store":..,"section":..,"snippet":..}]}.
+##
+
+## The ids of the projects a selector selects, one a line; none given, every project of the workspace. Read from the workspace's source, in a subshell of its own.
+AgentsToolsKnowledgeProjects(){ ## ListDistroProjects selector words...
+	(
+		set +e
+		type DistroAgentsContext > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include" || exit 1
+		DistroAgentsContext --distro-from-source || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsKnowledge}: cannot establish an input spec for workspace ${MMDAPP:-}" >&2 ; exit 1 ; }
+		Require ListDistroProjects || :
+		[ $# -gt 0 ] || set -- --select-all
+		Distro ListDistroProjects "$@" < /dev/null
+	)
+}
+
+## The text files of the sources added, absolute, one a line, each once. Arguments: the sources added, then `--` and the selector words.
+AgentsToolsKnowledgeFiles(){ ## sources, -- selector words...
+	local filesSources="" filesWs="${MMDAPP%/}" filesData="${MDAT_DATA_ROOT%/}" filesIds="" filesRepo filesFolder filesFile filesMember
+	while [ $# -gt 0 ] && [ "$1" != "--" ] ; do filesSources="$filesSources $1" ; shift ; done
+	shift
+	case "$filesSources" in *" --add-source-docs"*) filesIds="$( AgentsToolsKnowledgeProjects "$@" )" || return 1 ;; esac
+	{
+		case "$filesSources" in
+			*" --add-source-docs"*)
+				{
+					while IFS= read -r filesRepo ; do [ -z "$filesRepo" ] || printf '%s\n' "$filesWs/source/$filesRepo" ; done <<< "$filesIds"
+					for filesRepo in $( printf '%s\n' "$filesIds" | LC_ALL=C awk -F/ 'NF > 1 && !seen[$1]++ { print $1 }' ) ; do
+						for filesFolder in "$filesWs/source/$filesRepo"/util.repository-* ; do [ -d "$filesFolder" ] && printf '%s\n' "$filesFolder" ; done
+					done
+					for filesFolder in "$filesWs"/source/*/util.workspace-* ; do [ -d "$filesFolder" ] && printf '%s\n' "$filesFolder" ; done
+				} | LC_ALL=C awk '!seen[$0]++' | while IFS= read -r filesFolder ; do
+					for filesFile in MAGIC.md README.md ; do [ -f "$filesFolder/$filesFile" ] && printf '%s\n' "$filesFolder/$filesFile" ; done
+					[ ! -d "$filesFolder/docs" ] || find "$filesFolder/docs" -type f -name '*.md' 2> /dev/null | LC_ALL=C sort
+				done
+			;;
+		esac
+		case "$filesSources" in
+			*" --add-board-items"*) [ ! -d "$filesData/board" ] || find "$filesData/board" -type f -name '*.md' 2> /dev/null | LC_ALL=C sort ;;
+		esac
+		case "$filesSources" in
+			*" --add-vault-items"*)
+				[ ! -d "$filesData/vault" ] || find "$filesData/vault" -type f 2> /dev/null | LC_ALL=C sort | while IFS= read -r filesFile ; do
+					LC_ALL=C grep -Iq . "$filesFile" 2> /dev/null && printf '%s\n' "$filesFile"
+				done
+			;;
+		esac
+		case "$filesSources" in
+			*" --add-inbox-items"*)
+				type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+				filesMember="$( AgentsToolsActingMember )"
+				if [ -n "$filesMember" ] ; then
+					[ ! -d "$filesData/inboxes/$filesMember" ] || find "$filesData/inboxes/$filesMember" -type f -name '*.md' 2> /dev/null | LC_ALL=C sort
+				else
+					[ ! -d "$filesData/inboxes" ] || find "$filesData/inboxes" -type f -name '*.md' 2> /dev/null | LC_ALL=C sort
+				fi
+			;;
+		esac
+	} | LC_ALL=C awk '!seen[$0]++'
+}
+
+## The query: the --add-* options, the selector and the query terms, as the tool is called, after the output format (md or json). rc 1, a line on stderr, for
+## anything refused, with nothing read.
+AgentsToolsKnowledgeRun(){ ## format (md|json), arguments...
+	local knowFormat="$1" knowSources="" knowSelector=() knowQuery="" knowDepth=0 knowTerms=0 knowOp="${MDSC_CMD:-DistroAgentsKnowledge}"
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--add-source-docs|--add-board-items|--add-vault-items|--add-inbox-items)
+				case "$knowSources " in *" $1 "*) ;; *) knowSources="$knowSources $1" ;; esac
+				shift
+			;;
+			--query-keyword|--query-pattern|--query-glob)
+				if [ -z "${2:-}" ] ; then echo "$knowOp: ⛔ ERROR: $1 takes a text -- nothing was read" >&2 ; return 1 ; fi
+				case "$2" in *$'\n'*) echo "$knowOp: ⛔ ERROR: $1 takes a text of one line -- nothing was read" >&2 ; return 1 ;; esac
+				case "$1" in --query-keyword) knowQuery="${knowQuery}kw $2"$'\n' ;; --query-pattern) knowQuery="${knowQuery}re $2"$'\n' ;; *) knowQuery="${knowQuery}gl $2"$'\n' ;; esac
+				knowTerms=$(( knowTerms + 1 ))
+				shift 2
+			;;
+			--query-open-and) knowQuery="${knowQuery}open and"$'\n' ; knowDepth=$(( knowDepth + 1 )) ; shift ;;
+			--query-open-or) knowQuery="${knowQuery}open or"$'\n' ; knowDepth=$(( knowDepth + 1 )) ; shift ;;
+			--query-close)
+				if [ "$knowDepth" -le 0 ] ; then echo "$knowOp: ⛔ ERROR: --query-close closes no group -- nothing was read" >&2 ; return 1 ; fi
+				knowQuery="${knowQuery}close"$'\n' ; knowDepth=$(( knowDepth - 1 )) ; shift
+			;;
+			--select-all|--select-sequence|--select-none|--select-changed|--select-required|--select-affected|--select-required-projects|--select-affected-projects)
+				knowSelector+=( "$1" ) ; shift
+			;;
+			--select-*|--filter-*|--remove-*)
+				if [ -z "${2:-}" ] ; then echo "$knowOp: ⛔ ERROR: $1 takes a filter -- nothing was read" >&2 ; return 1 ; fi
+				knowSelector+=( "$1" "$2" ) ; shift 2
+			;;
+			*)
+				echo "$knowOp: ⛔ ERROR: invalid option: $1" >&2
+				return 1
+			;;
+		esac
+	done
+	if [ "$knowDepth" -gt 0 ] ; then echo "$knowOp: ⛔ ERROR: $knowDepth --query-open-and/--query-open-or group(s) not closed by --query-close -- nothing was read" >&2 ; return 1 ; fi
+	if [ -z "$knowSources" ] ; then echo "$knowOp: ⛔ ERROR: no source added: syntax is [--mdat-output-format json] [<selector>] --add-source-docs|--add-board-items|--add-vault-items|--add-inbox-items... <query: --query-keyword|--query-pattern|--query-glob|--query-open-and|--query-open-or|--query-close...>" >&2 ; return 1 ; fi
+	if [ "$knowTerms" -eq 0 ] ; then echo "$knowOp: ⛔ ERROR: no query term: --query-keyword, --query-pattern or --query-glob is needed -- nothing was read" >&2 ; return 1 ; fi
+	case "$knowSources" in
+		*" --add-board-items"*|*" --add-vault-items"*|*" --add-inbox-items"*)
+			if [ -z "${MDAT_DATA_ROOT:-}" ] ; then echo "$knowOp: ⛔ ERROR: no team data root (MDAT_DATA_ROOT) -- nothing was read" >&2 ; return 1 ; fi
+		;;
+	esac
+	local knowFiles knowRows knowGroups knowArgs=() knowPath knowRef knowPre knowCaps knowCaption
+	knowFiles="$( AgentsToolsKnowledgeFiles $knowSources -- ${knowSelector[@]+"${knowSelector[@]}"} )" || return 1
+	if [ -z "$knowFiles" ] ; then
+		[ "$knowFormat" != json ] || printf '{"entries":[\n\n]}\n'
+		echo "# $knowOp: the sources added hold no file to read" >&2
+		return 0
+	fi
+	if [ "$knowFormat" = json ] ; then
+		printf '%s\n' "$knowFiles" | KNOWLEDGE_QUERY="$knowQuery" LC_ALL=C awk -v wsRoot="${MMDAPP%/}/" -v dataRoot="${MDAT_DATA_ROOT:+${MDAT_DATA_ROOT%/}/}" -v format=json \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeScan.awk"
+		return $?
+	fi
+	knowRows="$( printf '%s\n' "$knowFiles" | KNOWLEDGE_QUERY="$knowQuery" LC_ALL=C awk -v wsRoot="${MMDAPP%/}/" -v dataRoot="${MDAT_DATA_ROOT:+${MDAT_DATA_ROOT%/}/}" -v format=list \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeScan.awk" )" || return 1
+	if [ -z "$knowRows" ] ; then
+		echo "# $knowOp: no section answers the query" >&2
+		return 0
+	fi
+	## One source after the other, in the order read: a mixin for the lines ahead of its first heading (every headed section left out), and one for the captions
+	## that answer. A caption is a glob to the engine, so its own `*`, `?` and `[` become `?`.
+	knowGroups="$( printf '%s\n' "$knowRows" | LC_ALL=C awk -F'\t' '
+		!seenPath[$1]++ { order[++count] = $1 ; ref[$1] = $2 }
+		$4 == "" { pre[$1] = 1 ; next }
+		!seenCaption[$1, $4]++ { caps[$1] = caps[$1] ( caps[$1] == "" ? "" : "\037" ) $4 }
+		END { for ( at = 1 ; at <= count ; at++ ) { path = order[at] ; printf "%s\t%s\t%d\t%s\n", path, ref[path], ( path in pre ), caps[path] } }' )"
+	while IFS=$'\t' read -r knowPath knowRef knowPre knowCaps ; do
+		[ -n "$knowPath" ] || continue
+		[ "$knowPre" != 1 ] || knowArgs+=( --mixin --section-exclude '*' "$knowPath" "$knowRef" )
+		if [ -n "$knowCaps" ] ; then
+			knowArgs+=( --mixin )
+			while IFS= read -r knowCaption ; do
+				knowArgs+=( --section-include "$( printf '%s' "$knowCaption" | LC_ALL=C tr '*?[' '???' )" )
+			done <<< "$( printf '%s' "$knowCaps" | LC_ALL=C tr '\037' '\n' )"
+			knowArgs+=( "$knowPath" "$knowRef" )
+		fi
+	done <<< "$knowGroups"
+	type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
+	AgentsToolsMergeMdFiles --section-limit 6 "${knowArgs[@]}"
+}

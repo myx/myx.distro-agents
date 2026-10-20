@@ -53,6 +53,6 @@ rigDistroRun(){ ## workspace, home, words...
 	local distroWs="$1" distroHome="$2" distroPathText
 	shift 2
 	distroPathText="$( rigDistroPath )" || { echo "rig-distro-workspace: no myx.common on PATH, which the source scan needs" >&2 ; return 97 ; }
-	( cd "$distroWs" && env -i HOME="$distroHome" PATH="$distroPathText" MMDAPP="$distroWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	( cd "$distroWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$distroHome" PATH="$distroPathText" MMDAPP="$distroWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		perl -e 'alarm 300 ; exec @ARGV' bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ) < /dev/null
 }

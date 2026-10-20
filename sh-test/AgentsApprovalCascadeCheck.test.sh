@@ -24,7 +24,7 @@ mkdir -p "$rigTmp/ws"
 for rigState in backlog pending running review blocked parked processed archived retained ; do
 	mkdir -p "$rigData/board/$rigState"
 done
-rigGit(){ env -i HOME="$rigTmp" PATH="/usr/bin:/bin" GIT_CONFIG_NOSYSTEM=1 git -C "$rigData" "$@" ; }
+rigGit(){ env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin" GIT_CONFIG_NOSYSTEM=1 git -C "$rigData" "$@" ; }
 rigGit init -q || rigRefuse "git init failed"
 rigGit config user.email rig@example.invalid
 rigGit config user.name rig
@@ -41,7 +41,7 @@ rigAssert(){ ## what is asserted, got, want
 }
 rigOp(){ ## result file, extra DistroAgentsTools.fn.sh arguments...
 	local opOut="$1" ; shift
-	env -i HOME="$rigTmp" PATH="/usr/bin:/bin" GIT_CONFIG_NOSYSTEM=1 MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin" GIT_CONFIG_NOSYSTEM=1 MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac

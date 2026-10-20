@@ -113,7 +113,7 @@ rigCall(){ ## name, member (empty: none), role, operation and its arguments...
 	[ -z "${rigSandbox:-}" ] || callEnv+=( "MDAT_SPAWN_SANDBOX_ROOT=$rigSandbox" )
 	[ -z "${rigThreadEnv:-}" ] || callEnv+=( "MDAT_SESSION_THREAD=$rigThreadEnv" )
 	rigOut="$rigScn/$callName.out" rigErr="$rigScn/$callName.err"
-	( cd "$rigWs" && env -i HOME="$rigTmp/home" "PATH=$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" "PATH=$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" \
 		"MDAT_SKILLSET_ROOT=$rigTmp/skills" "MDAT_DATA_ROOT=$rigScn/data" "RIG_SCENARIO=$rigScn" "RIG_CHAT=$rigChat/session.chat" \
 		MDAT_WAIT_POLL_SECONDS=1 MDAT_WAIT_SETTLE_SECONDS=1 MDAT_WAIT_REMIND=off ${callEnv[@]+"${callEnv[@]}"} \
 		perl -e 'alarm 90 ; exec @ARGV' bash "$rigSessionFn" "$@" ) > "$rigOut" 2> "$rigErr" < "${rigStdin:-/dev/null}" || callRc=$?
@@ -142,7 +142,7 @@ for rigOld in --member-wait-for-input --member-comms-slack-send-message --member
 	rigAssert "ThisSession does not answer the existing name $rigOld" "$rigRc:$( rigErrHolds 'invalid option' )" "1:1"
 done
 rigScene names2
-( cd "$rigWs" && env -i HOME="$rigTmp/home" "PATH=$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_SKILLSET_ROOT=$rigTmp/skills" \
+( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" "PATH=$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_SKILLSET_ROOT=$rigTmp/skills" \
 	perl -e 'alarm 60 ; exec @ARGV' bash "$rigTool" --member-wait-for-input rig-member --wait-list-sources ) > "$rigScn/list.out" 2> "$rigScn/list.err" < /dev/null
 rigAssert "Wait still answers as it did, with the chat source"      "$( LC_ALL=C sed -n '1p' "$rigScn/list.out" ):$( LC_ALL=C grep -c '^chat	' "$rigScn/list.out" )" "WAIT-RESULT: RECEIVED:1"
 
@@ -326,14 +326,14 @@ rigAssert "the dispatch's own headings sit below its section"       "$( LC_ALL=C
 rigAssert "the conversation, the pointers, the MAGIC copy and an inline scan are not the dispatch" "$( LC_ALL=C grep -c -e 'RIG-CONV' -e 'RIG-POINTERS' -e 'RIG-MAGIC' -e 'RIG-INLINE' "$rigOut" )" 0
 rigSandbox="" ; mkdir -p "$rigWs/.local/agents/spawned/rig-spawn/input"
 printf '# Brief\n\nRIG-FALLBACK found by the spawn id.\n' > "$rigWs/.local/agents/spawned/rig-spawn/input/dispatch.md"
-( cd "$rigWs" && env -i HOME="$rigTmp/home" "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_SPAWN_AGENT=rig-member" "MDAT_SPAWN_SESSION_ID=rig-spawn" \
+( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_SPAWN_AGENT=rig-member" "MDAT_SPAWN_SESSION_ID=rig-spawn" \
 	perl -e 'alarm 60 ; exec @ARGV' bash "$rigSessionFn" --get-dispatch-text ) > "$rigScn/d-3.out" 2> "$rigScn/d-3.err" < /dev/null
 rigAssert "with no sandbox variable, the sandbox of the spawn id"   "$( LC_ALL=C grep -c 'RIG-FALLBACK' "$rigScn/d-3.out" )" 1
 rm -f "$rigWs/.local/agents/spawned/rig-spawn/input/dispatch.md"
-( cd "$rigWs" && env -i HOME="$rigTmp/home" "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_SPAWN_AGENT=rig-member" "MDAT_SPAWN_SESSION_ID=rig-spawn" \
+( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_SPAWN_AGENT=rig-member" "MDAT_SPAWN_SESSION_ID=rig-spawn" \
 	perl -e 'alarm 60 ; exec @ARGV' bash "$rigSessionFn" --get-dispatch-text ) > "$rigScn/d-4.out" 2> "$rigScn/d-4.err" < /dev/null
 rigAssert "a sandbox with no dispatch: a plain line, nothing printed" "$?:$( wc -c < "$rigScn/d-4.out" | LC_ALL=C tr -d ' ' ):$( LC_ALL=C grep -c 'no dispatch' "$rigScn/d-4.err" )" "1:0:1"
-( cd "$rigWs" && env -i HOME="$rigTmp/home" "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" \
+( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" \
 	perl -e 'alarm 60 ; exec @ARGV' bash "$rigSessionFn" --get-dispatch-text ) > "$rigScn/d-5.out" 2> "$rigScn/d-5.err" < /dev/null
 rigD5Rc=$?
 rigAssert "from no spawned session: a plain line"                   "$rigD5Rc:$( LC_ALL=C grep -c 'no spawned session' "$rigScn/d-5.err" )" "1:1"
@@ -359,7 +359,7 @@ printf 'SLACK_BOT_TOKEN=rig-SECRET-1\nSPAWN_CLI_SERVICE=rig-cli\n' > "$rigBriefW
 printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\ncat "$MDAT_SPAWN_SANDBOX_ROOT"/input/dispatch.md > "%s/dispatch-while-running"\n' "$rigScn" > "$rigBriefWs/DistroAgentsConsole.sh"
 chmod +x "$rigBriefWs/DistroAgentsConsole.sh"
 printf 'Work on rigrepo/rigpkg following no routine at all.\n' \
-	| env -i HOME="$rigScn/home" PATH="/usr/bin:/bin" MMDAPP="$rigBriefWs" MDAT_DATA_ROOT="$rigScn/data" MDLT_ORIGIN="$rigOrigin" \
+	| env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigScn/home" PATH="/usr/bin:/bin" MMDAPP="$rigBriefWs" MDAT_DATA_ROOT="$rigScn/data" MDLT_ORIGIN="$rigOrigin" \
 		MDLT_OPTION="--run-from-path $rigOrigin" MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
 		bash -c 'cd "$MMDAPP" && exec bash "$RIG_FN" --intern-op-agent-spawn-proxy rig-member --dispatch-doc:create --wait' > "$rigScn/spawn.out" 2> "$rigScn/spawn.err"
 [ -f "$rigScn/dispatch-while-running" ] || rigRefuse "the console never ran, so the brief was never observed: $( tail -3 "$rigScn/spawn.err" )"

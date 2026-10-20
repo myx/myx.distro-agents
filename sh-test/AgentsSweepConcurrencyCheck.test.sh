@@ -89,7 +89,7 @@ rigSweep(){ ## name, origin
 	done
 	local sweepStart sweepRc=0
 	sweepStart="$( date +%s )"
-	env -i HOME="$sweepDir/home" PATH="$sweepDir/bin:/usr/bin:/bin" MMDAPP="$sweepDir/ws" MDAT_DATA_ROOT="$sweepDir/data" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$sweepDir/home" PATH="$sweepDir/bin:/usr/bin:/bin" MMDAPP="$sweepDir/ws" MDAT_DATA_ROOT="$sweepDir/data" \
 		MDLT_ORIGIN="$2" MDLT_OPTION="--run-from-path $2" FIX_DIR="$sweepDir" FIX_LATENCY=0.3 FIX_DMS=30 FIX_TS="$rigNow" RIG_TMP="$rigTmp" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac

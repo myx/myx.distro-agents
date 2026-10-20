@@ -6,7 +6,7 @@
 ## behaviour is unchanged; given both, the spawn is refused before anything launches.
 ## Offline: a fake console records exactly what it receives on stdin, a fake curl
 ## answers Slack. Modelled on AgentsSpawnSessionThreadCheck.test.sh (fake console/curl
-## rig) and AgentsHarnessArmGateCheck.test.sh (env -i isolated scenarios, rig tree only).
+## rig) and AgentsHarnessArmGateCheck.test.sh (env -i MDAT_WORKSPACE_MODE=team-rig isolated scenarios, rig tree only).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
@@ -68,7 +68,7 @@ printf 'RIG-FILE-MARKER-TEXT\n' > "$rigTmp/task-file.txt"
 rigSpawn(){ ## stdin content, then extra --intern-op-agent-spawn-proxy args...
 	local rigStdin="$1" ; shift
 	: > "$rigTmp/brief"
-	env -i HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -81,7 +81,7 @@ rigSpawn(){ ## stdin content, then extra --intern-op-agent-spawn-proxy args...
 ## brief file into the spawn proxy internally -- so this helper gives none, unlike rigSpawn.
 rigRootHarness(){ ## extra --intern-root-harness args...
 	: > "$rigTmp/brief"
-	env -i HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -205,7 +205,7 @@ rigBriefFile="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/
 rigStubRun(){ ## skill root, arguments...
 	local stubRoot="$1" ; shift
 	rm -f "$rigTmp/stub.args" "$rigTmp/stub.stdin"
-	env -i HOME="$rigTmp" PATH="$PATH" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$stubRoot" RIG_ARGS="$rigTmp/stub.args" RIG_STDIN="$rigTmp/stub.stdin" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$stubRoot" RIG_ARGS="$rigTmp/stub.args" RIG_STDIN="$rigTmp/stub.stdin" \
 		bash -c '
 			DistroAgentsTools(){ printf "%s\n" "$*" > "$RIG_ARGS" ; cat > "$RIG_STDIN" ; }
 			rigInclude(){ local MDSC_CMD=DistroAgentsTools ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternRootHarness.include" ; }

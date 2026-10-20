@@ -75,7 +75,7 @@ rigCall(){ ## name, kind, args...
 		member) callEnv=( MDAT_SPAWN_AGENT=keeper-rig MDAT_SPAWN_SESSION_ID=rig-run MDAT_SPAWN_SANDBOX_ROOT="$rigSandbox" ) ;;
 		nosandbox) callEnv=( MDAT_SPAWN_AGENT=keeper-rig MDAT_SPAWN_SESSION_ID=rig-run ) ;;
 	esac
-	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigData" ${callEnv[@]+"${callEnv[@]}"} \
 		perl -e 'alarm 120 ; exec @ARGV' bash "$rigSession" --routine-run-inline "$@" ) > "$rigTmp/$callName.out" 2> "$rigTmp/$callName.err" < /dev/null || callRc=$?
 	printf '%s' "$callRc" > "$rigTmp/$callName.rc"
@@ -83,9 +83,11 @@ rigCall(){ ## name, kind, args...
 rigHas(){ ## name, fixed string -- how many lines of the output hold it
 	LC_ALL=C grep -c -F -- "$2" "$rigTmp/$1.out" || :
 }
-rigSteps(){ ## name, heading -- the bold names of the top-level steps of a section of the output, joined
+rigSteps(){ ## name, heading -- the names of the steps of one section of the output (the engine's form: a mixin named `<section> of <file stem>`), joined: the numbered
+	## root steps `N. **name**` of a routine's own, and the sections of depth 3 and below of the kind's
 	LC_ALL=C awk -v want="$2" '
 		/^# / { on = ( $0 == want ) ; next }
+		on && /^###+ / { name = $0 ; sub( /^#+ /, "", name ) ; printf "%s%s", sep, name ; sep = " " ; next }
 		on && /^[0-9]+\. \*\*[^*]+\*\*/ { name = $0 ; sub( /^[0-9]+\. \*\*/, "", name ) ; sub( /\*\*.*$/, "", name ) ; printf "%s%s", sep, name ; sep = " " }
 	' "$rigTmp/$1.out"
 }
@@ -93,9 +95,9 @@ rigSteps(){ ## name, heading -- the bold names of the top-level steps of a secti
 echo "-- 1. the text of a routine run inline --"
 rigCall scanned member keeper-rig.scanned
 rigAssert "rc 0, and the first line names the routine"          "$( cat "$rigTmp/scanned.rc" ):$( head -1 "$rigTmp/scanned.out" )" "0:RUN-INLINE: keeper-rig.scanned.routine.md"
-rigAssert "Opening: the routine's own only (the inline routine has none)" "$( rigSteps scanned '# Opening steps' )" "rig-own-open"
-rigAssert "Steps: its own only"                                 "$( rigSteps scanned '# Steps' )" "rig-own-work"
-rigAssert "Closure: its own, then the inline routine's"         "$( rigSteps scanned '# Closure steps' )" "rig-own-close return-the-result"
+rigAssert "Opening: the routine's own only (the inline routine has none)" "$( rigSteps scanned '# Opening steps of keeper-rig.scanned.routine' ):$( rigSteps scanned '# Opening steps of magic-team.inline.routine' )" "rig-own-open:"
+rigAssert "Steps: its own only"                                 "$( rigSteps scanned '# Steps of keeper-rig.scanned.routine' )" "rig-own-work"
+rigAssert "Closure: its own, then the inline routine's"         "$( rigSteps scanned '# Closure steps of keeper-rig.scanned.routine' ) $( rigSteps scanned '# Closure steps of magic-team.inline.routine' ):$( [ "$( LC_ALL=C grep -n -x -F '# Closure steps of keeper-rig.scanned.routine' "$rigTmp/scanned.out" | LC_ALL=C sed 's/:.*//' )" -lt "$( LC_ALL=C grep -n -x -F '# Closure steps of magic-team.inline.routine' "$rigTmp/scanned.out" | LC_ALL=C sed 's/:.*//' )" ] && echo own-first )" "rig-own-close return-the-result:own-first"
 rigAssert "none of the session kind's groups"                   "$( LC_ALL=C grep -c -E -- 'session-start|close-session|fold-in-learned-lessons|declare-session-type|secure-continuity' "$rigTmp/scanned.out" || : )" "0"
 rigAssert "no frontmatter"                                      "$( LC_ALL=C grep -c -E -- '^(type|executors|maintainers|requires-session-kind|input-scan-def): |SENT-FRONT' "$rigTmp/scanned.out" || : )" "0"
 rigAssert "no Maintainer Notes"                                 "$( LC_ALL=C grep -c -E -- 'MAINT-SENTINEL|^# Maintainer Notes' "$rigTmp/scanned.out" || : )" "0"
@@ -103,7 +105,7 @@ rigAssert "the inline routine's rules are mixed in"             "$( rigHas scann
 
 echo "-- 2. a routine of the coworking kind is mixed the same way --"
 rigCall cow member keeper-rig.cow
-rigAssert "inline Closure and none of the coworking groups" "$( rigSteps cow '# Opening steps' ) | $( rigSteps cow '# Closure steps' ) | $( LC_ALL=C grep -c -E -- 'session-start|close-session|post-opening-broadcast|dismiss-participants' "$rigTmp/cow.out" || : )" "rig-own-open | rig-own-close return-the-result | 0"
+rigAssert "inline Closure and none of the coworking groups" "$( rigSteps cow '# Opening steps of keeper-rig.cow.routine' ) | $( rigSteps cow '# Closure steps of keeper-rig.cow.routine' ) $( rigSteps cow '# Closure steps of magic-team.inline.routine' ) | $( LC_ALL=C grep -c -E -- 'session-start|close-session|post-opening-broadcast|dismiss-participants' "$rigTmp/cow.out" || : )" "rig-own-open | rig-own-close return-the-result | 0"
 
 echo "-- 3. the scan --"
 rigAssert "a line names the saved file and the scan"            "$( rigHas scanned 'input-scan: input/input-scan.keeper-rig.scanned.md of your sandbox holds the result of this routine'"'"'s input scan (permission-escalation)' )" "1"
@@ -114,7 +116,7 @@ rigAssert "none: no line, no file"                               "$( cat "$rigTm
 rigCall twice member keeper-rig.twice
 rigAssert "two lines: both headings in the file, in order, both named" "$( LC_ALL=C grep '^## input scan: ' "$rigSandbox/input/input-scan.keeper-rig.twice.md" 2> /dev/null | LC_ALL=C tr '\n' '|' ):$( rigHas twice '(permission-escalation, member-work-session)' )" "## input scan: permission-escalation|## input scan: member-work-session|:1"
 rigCall failing member keeper-rig.failing
-rigAssert "a failing scan: the call goes on, the file says it failed and what it ran" "$( cat "$rigTmp/failing.rc" ):$( rigSteps failing '# Steps' ):$( LC_ALL=C grep -c -F '## input scan failed' "$rigSandbox/input/input-scan.keeper-rig.failing.md" 2> /dev/null ):$( LC_ALL=C grep -c -F 'permission-escalation-input-scan keeper-rig --bogus keeper-rig' "$rigSandbox/input/input-scan.keeper-rig.failing.md" 2> /dev/null )" "0:rig-own-work:1:1"
+rigAssert "a failing scan: the call goes on, the file says it failed and what it ran" "$( cat "$rigTmp/failing.rc" ):$( rigSteps failing '# Steps of keeper-rig.failing.routine' ):$( LC_ALL=C grep -c -F '## input scan failed' "$rigSandbox/input/input-scan.keeper-rig.failing.md" 2> /dev/null ):$( LC_ALL=C grep -c -F 'permission-escalation-input-scan keeper-rig --bogus keeper-rig' "$rigSandbox/input/input-scan.keeper-rig.failing.md" 2> /dev/null )" "0:rig-own-work:1:1"
 
 echo "-- 4. no sandbox, no member --"
 rigCall nosandbox nosandbox keeper-rig.scanned
@@ -122,7 +124,7 @@ rigAssert "no sandbox: the result follows the steps"             "$( cat "$rigTm
 rigCall console console keeper-rig.scanned
 rigAssert "from no member's session a routine with a scan is refused, nothing handed" "$( cat "$rigTmp/console.rc" ):$( LC_ALL=C grep -c -F 'comes from no member' "$rigTmp/console.err" ):$( wc -c < "$rigTmp/console.out" | tr -d ' ' )" "1:1:0"
 rigCall consoleplain console keeper-rig.plain
-rigAssert "a routine with no scan needs no member"               "$( cat "$rigTmp/consoleplain.rc" ):$( rigSteps consoleplain '# Steps' )" "0:rig-own-work"
+rigAssert "a routine with no scan needs no member"               "$( cat "$rigTmp/consoleplain.rc" ):$( rigSteps consoleplain '# Steps of keeper-rig.plain.routine' )" "0:rig-own-work"
 
 echo "-- 5. refusals --"
 rigCall none member
@@ -135,7 +137,7 @@ rigCall several member keeper-rig
 rigAssert "one that matches several"                             "$( cat "$rigTmp/several.rc" ):$( LC_ALL=C grep -c -F 'matches more than one routine file' "$rigTmp/several.err" )" "1:1"
 
 echo "-- 6. the inline routine, and the callers' prose --"
-rigValidate="$( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigTool" --intern-doc-validate routine "$rigInline" 2>&1 < /dev/null; echo "rc=$?" )"
+rigValidate="$( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigTool" --intern-doc-validate routine "$rigInline" 2>&1 < /dev/null; echo "rc=$?" )"
 rigAssert "the inline routine passes the routine validator"      "$( printf '%s\n' "$rigValidate" | LC_ALL=C grep -c '^rc=0$' ):$( printf '%s\n' "$rigValidate" | LC_ALL=C grep -c '^[^ ]*:[0-9]*: ' || : )" "1:0"
 rigAssert "it is never started as a session, has no Opening step and no post of its own" "$( LC_ALL=C grep -c -x 'start-context: inline' "$rigInline" ):$( LC_ALL=C grep -c -E 'declare-inline-run|slack-send-message' "$rigInline" || : )" "1:0"
 rigSkillset="$rigPackage/skillset/magic-team"

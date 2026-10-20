@@ -39,7 +39,7 @@ rigScenario(){ ## name
 ## One op, guarded; stdin is the caller's. The store is $rigStore unless RIG_NO_ROOT is set.
 rigOp(){ ## result file, op and its arguments...
 	local rigResult="$1" ; shift
-	env -i HOME="$rigDir/home" PATH="/usr/bin:/bin" MMDAPP="$rigDir/ws" ${RIG_NO_ROOT:-MDAT_DATA_ROOT="$rigStore"} MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigDir/home/skills" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="/usr/bin:/bin" MMDAPP="$rigDir/ws" ${RIG_NO_ROOT:-MDAT_DATA_ROOT="$rigStore"} MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigDir/home/skills" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac

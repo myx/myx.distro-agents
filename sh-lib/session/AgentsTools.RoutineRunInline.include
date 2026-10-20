@@ -24,8 +24,7 @@ AgentsToolsRoutineInlineText(){ ## routine file path
 	inlineSkips="$( LC_ALL=C awk -v headers="skips-inherited" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$1" )"
 	inlineSkips="${inlineSkips#skips-inherited: }"
-	ROUTINE_SKIPS="$inlineSkips" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsRoutineMix.awk" "$inlinePath" "$1" \
-		| LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsRoutineInlineStrip.awk"
+	AgentsToolsSpawnRoutineMixSections "$inlinePath" "$1" "$inlineSkips" no-notes
 }
 
 ## The run itself: the scans of the routine first, then the text.

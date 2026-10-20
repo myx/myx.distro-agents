@@ -151,7 +151,7 @@ rigPre=()
 rigRun(){ ## the file standard input is, tool arguments... -- one dispatcher call from the rig workspace, as a console makes it; rc in rigRc, stdout in out, stderr in err
 	local runInput="$1" ; shift
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigSc" MDAT_COMMS_READER=off ${rigPre[@]+"${rigPre[@]}"} \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigSc" MDAT_COMMS_READER=off ${rigPre[@]+"${rigPre[@]}"} \
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < "$runInput" || rigRc=$?
 }
 rigErrors(){ ## -- how many lines of the last stderr are an error, but for the one every rig of this package gets

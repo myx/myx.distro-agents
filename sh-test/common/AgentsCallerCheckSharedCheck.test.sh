@@ -62,7 +62,7 @@ rigAssert(){ ## what is asserted, got, want
 ## One call as a caller: the console (no session), or a member's session. rc in <name>.rc, stderr in <name>.err.
 rigAs(){ ## result name, member or console, command...
 	local asName="$1" asWho="$2" ; shift 2
-	env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		$( [ "$asWho" = console ] || printf 'MDAT_SPAWN_AGENT=%s MDAT_SPAWN_SESSION_ID=rig-caller-%s' "$asWho" "$asWho" ) \
 		bash -c 'cd "$MMDAPP" && exec bash "$@"' rig "$@" > "$rigTmp/$asName.out" 2> "$rigTmp/$asName.err" < /dev/null
@@ -76,7 +76,7 @@ rigRefusalOf(){ ## result name -- its first error line, the tooling's own lines 
 }
 
 echo "-- 0. guard: sourcing the include has no side effect --"
-( cd "$rigTmp/ws" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/probe-data" MDLT_ORIGIN="$MDLT_ORIGIN" \
+( cd "$rigTmp/ws" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/probe-data" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	RIG_TMP="$rigTmp" bash "$rigTmp/probe.sh" "$rigInclude" ) > "$rigTmp/probe.out" 2>&1 < /dev/null
 rigProbe(){ LC_ALL=C sed -n "s/^$1: //p" "$rigTmp/probe.out" | head -1 ; }
 rigAssert "it sources cleanly, saying nothing"                ["$( [ -f "$rigInclude" ] && echo there || echo missing ):$( cat "$rigTmp/probe.said" 2> /dev/null | LC_ALL=C tr '\n' ' ' )]" "[there:]"

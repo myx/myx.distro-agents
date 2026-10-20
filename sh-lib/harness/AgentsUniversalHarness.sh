@@ -6147,7 +6147,7 @@ AgentsHarnessPrefetchBuild(){
 		if [ -f "$agentsPrefetchRoutineFile" ] ; then
 			pfKindFile="$( AgentsToolsSpawnRoutineKindPath "$agentsPrefetchRoutineFile" 2> /dev/null )" || pfKindFile=""
 			pfStamp="$( AgentsHarnessPrefetchStamp "$agentsPrefetchRoutineFile" "${pfKindFile:-$agentsPrefetchRoutineFile}" "$harnessHere/session/AgentsTools.SpawnRoutine.include" \
-				"$harnessHere/session/AgentsRoutineMix.awk" "$harnessHere/board/AgentsBoardItemFrontmatterPrintSelected.awk" )"
+				"$harnessHere/harness/AgentsTools.InternMergeMdFiles.include" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/markdown/LocalMergeMdFiles.awk" "$harnessHere/board/AgentsBoardItemFrontmatterPrintSelected.awk" )"
 			if pfHow="$( AgentsHarnessPrefetchEntry "$pfCacheDir/routine.$pfRoutine" "$pfRoutineBody" "$pfStamp" AgentsHarnessPrefetchRoutineText )" ; then
 				case "$pfHow" in cache) pfHits=$(( pfHits + 1 )) ;; *) pfBuilt=$(( pfBuilt + 1 )) ;; esac
 				printf -v pfText '%s\n\n%s\n\n%s' "$pfText" "DistroAgentsSession.fn.sh --get-routine-text $pfRoutine, read for you before your task:" "$( cat "$pfRoutineBody" )"

@@ -60,22 +60,22 @@ printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\nin
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 
 rigHookRun(){ ## mode, payload, extra env assignments... -- the hook as a client runs it, in the workspace
-	printf '%s' "$2" | env -i HOME="$rigTmp/home" PATH="$rigPath" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	printf '%s' "$2" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigPath" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" RIG_SCENARIO="$rigTmp" "${@:3}" bash "$rigHook" "$1" > "$rigTmp/hook.out" 2> "$rigTmp/hook.err"
 	rigHookRc=$?
 }
 rigEnded(){ ## session id -- ended or open, by AgentsToolsGrantsSessionEnded
-	env -i PATH="$rigPath" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1/AgentsTools.Grants.include" && AgentsToolsGrantsSessionEnded "$2"' rig "$rigHere/grants" "$rigSessions/$1" \
+	env -i MDAT_WORKSPACE_MODE=team-rig PATH="$rigPath" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1/AgentsTools.Grants.include" && AgentsToolsGrantsSessionEnded "$2"' rig "$rigHere/grants" "$rigSessions/$1" \
 		&& printf ended || printf open
 }
 rigScan(){ ## session id -- what a session grant scan of its store finds for keeper-rig, Read /rig/target
-	env -i PATH="$rigPath" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '
+	env -i MDAT_WORKSPACE_MODE=team-rig PATH="$rigPath" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '
 		AgentsToolsPermissionEscape(){ printf "%s" "$1" ; }
 		. "$1/AgentsTools.PermissionHolds.include" && AgentsToolsPermissionGrantScan "$2" keeper-rig Read /rig/target hold || printf none' rig "$rigHere/grants" "$rigSessions/$1"
 }
 rigRunning(){ ## session id -- listed or absent among the sessions AgentsToolsPendingReplySessionsRunning lists
 	local runningList
-	runningList="$( env -i PATH="$rigPath" HOME="$rigTmp/home" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
+	runningList="$( env -i MDAT_WORKSPACE_MODE=team-rig PATH="$rigPath" HOME="$rigTmp/home" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
 		bash -c '. "$1/AgentsTools.PendingReplyCollect.include" && AgentsToolsPendingReplySessionsRunning' rig "$rigHere/questions" 2> /dev/null )"
 	case "$runningList" in
 		*" $1 "*) printf listed ;;
@@ -149,7 +149,7 @@ echo "-- 4. installed under the workspace .claude/hooks with no MMDAPP: it finds
 mkdir -p "$rigWs/.claude/hooks"
 cp "$rigHook" "$rigWs/.claude/hooks/root-session-end.sh" && chmod +x "$rigWs/.claude/hooks/root-session-end.sh"
 rigPlaced="rig-placed-$$-dd"
-( cd / && rigPayload SessionEnd "$rigPlaced" ',"reason":"logout"' | env -i HOME="$rigTmp/home" PATH="$rigPath" MDLT_ORIGIN="$MDLT_ORIGIN" \
+( cd / && rigPayload SessionEnd "$rigPlaced" ',"reason":"logout"' | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigPath" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	CLAUDE_PROJECT_DIR="$rigWs" bash "$rigWs/.claude/hooks/root-session-end.sh" end ) > /dev/null 2>&1
 rigAssert "the marker lands in that workspace" "$( LC_ALL=C sed -n 's/^reason: //p' "$rigSessions/$rigPlaced/ended" 2> /dev/null )" logout
 
@@ -162,7 +162,7 @@ printf '%s\n' '#!/usr/bin/env bash' '## cli-configured MDAT_SPAWN_LAUNCH_MARKER 
 chmod +x "$rigWs/DistroAgentsConsole.sh"
 ## A terminal foreground job: its own process group, SIGINT at its default, which a background start here would not have.
 perl -e '$SIG{INT} = "DEFAULT" ; $SIG{QUIT} = "DEFAULT" ; setpgrp( 0, 0 ) ; exec @ARGV' \
-	env -i HOME="$rigTmp/home" PATH="$rigPath" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigPath" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" bash -c 'cd "$MMDAPP" && exec bash "$0" --intern-root-harness' "$rigTool" \
 	> "$rigTmp/root.out" 2>&1 < /dev/null &
 rigRootPid=$!

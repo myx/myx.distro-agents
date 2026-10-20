@@ -166,6 +166,9 @@ AgentsToolsContactsPersonText(){
 ## The record written whole: a temp file in its own folder, then a rename over it. The folder is made. rc 1, said, where it could not be.
 AgentsToolsContactsWriteFile(){ ## operation, target file, function that prints the text
 	local writeTemp
+	## A workspace that keeps no team data (F13.1, AgentsTools.TeamDataGate.include) writes no contact.
+	type AgentsToolsTeamDataGateRefuse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
+	AgentsToolsTeamDataGateRefuse "$1" || return 1
 	mkdir -p "${2%/*}" 2> /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: $1: the folder of $2 could not be made -- nothing was written" >&2 ; return 1 ; }
 	writeTemp="$( mktemp "${2%/*}/.${2##*/}.write.XXXXXX" )" || { echo "$MDSC_CMD: ⛔ ERROR: $1: $2 could not be written -- nothing was written" >&2 ; return 1 ; }
 	if ! "$3" > "$writeTemp" || ! chmod 644 "$writeTemp" || ! mv -f -- "$writeTemp" "$2" ; then

@@ -961,7 +961,7 @@ RIGEOF
 chmod +x "$rigTmp/bin/curl"
 rigOp(){ ## stdin file, op arguments... -- stdout to op.out, stderr to op.err, rc to rigOpRc
 	local opIn="$1" ; shift
-	env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_SESSION_ID=rig-sender-session RIG_SCENARIO="$rigTmp/scenario" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
@@ -1109,7 +1109,7 @@ rigSpawnArgs=( --dispatch-doc:none )
 rigSpawn(){ ## the CLI the stand-in launches[, parent spawn id, session id] -- stdout to op.out, stderr to op.err, rc to rigOpRc
 	local spawnThreadArg="--session-thread:event-track"
 	[ -z "${3:-}" ] || spawnThreadArg=""
-	env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_SCENARIO="$rigTmp/scenario" RIG_TMP="$rigTmp" RIG_FN="$rigFn" RIG_LAUNCH_CLI="$1" \
 		RIG_THREAD_ARG="$spawnThreadArg" RIG_MEMBER="${rigSpawnMember:-magic-tester}" ${2:+"MDAT_SPAWN_SESSION_ID=$2"} ${3:+"MDAT_SESSION_ID=$3"} \
@@ -1234,7 +1234,7 @@ echo "   the feed: one poster per participant, both into the session's thread"
 ## Each participant's own buffer and poster, as the spawn proxy starts them. Their lines are
 ## written interleaved; the joiner's model line and restart are immediate lines of its run.
 rigFeedBefore="$( cat "$rigTmp/scenario/posts" 2>/dev/null || echo 0 )"
-env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 	MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 	MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_SCENARIO="$rigTmp/scenario" RIG_TMP="$rigTmp" RIG_A="$rigCow" RIG_B="$rigJoiner" RIG_THREAD="CRIGTRACK:$rigCowThread" \
 	bash -c '

@@ -57,9 +57,11 @@ None of its own: the routine run inline brings its own Steps.
 
 # Closure steps
 
-Run inline: the result goes back to the caller, below.
+Run inline: the result goes back to the caller, below. Each step of this routine that a routine may skip (`skips-inherited:`) is a section of its own, named as the step.
 
-1. **return-the-result**: give the result back to the caller as the end of the call: what the routine did, what it found and what it leaves for the caller to do. The caller's own steps carry on from it. No handback, no dismissal and no reflection of its own: the caller's session closes them.
+## return-the-result
+
+Give the result back to the caller as the end of the call: what the routine did, what it found and what it leaves for the caller to do. The caller's own steps carry on from it. No handback, no dismissal and no reflection of its own: the caller's session closes them.
 
 # Routine's local procedures
 

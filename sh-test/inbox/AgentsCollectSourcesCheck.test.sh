@@ -64,7 +64,7 @@ rigMailbox(){ ## "<uid> <unseen|seen>"... -- the fake mailbox as it is now
 rigRun(){ ## options of the operation -- output in $rigTmp/out and $rigTmp/err, status in rigRc
 	rigRc=0
 	: > "$rigFix/imap.log" ; : > "$rigFix/curl.log"
-	env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" PYTHONPATH="$rigTmp/py" PYTHONDONTWRITEBYTECODE=1 \
 		FIX_DIR="$rigFix" RIG_TMP="$rigTmp" MDAT_COLLECT_LOCK_TRIES=1 \
 		bash -c '

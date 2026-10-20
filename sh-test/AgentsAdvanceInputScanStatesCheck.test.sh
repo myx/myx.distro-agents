@@ -593,7 +593,7 @@ rigKept='rigKeptNo=0 ; while [ "$rigKeptNo" -lt 50 ] && ! grep -q "^run-process:
 printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\n%s\nif [ -e /dev/fd/4 ] ; then echo open > "%s/b10/fd4.seen" ; else echo closed > "%s/b10/fd4.seen" ; fi\necho deliverable > "$MDAT_SPAWN_SANDBOX_ROOT/output/result.txt"\n' "$rigKept" "$rigTmp" "$rigTmp" > "$rigW/DistroAgentsConsole.sh"
 chmod +x "$rigW/DistroAgentsConsole.sh"
 printf 'Work on rigrepo/rigpkg/file.sh following rig-member.armed.md.\n' \
-	| env -i HOME="$rigTmp/b10/home" PATH="$rigTmp/ps-bin:/usr/bin:/bin" MMDAPP="$rigW" MDAT_DATA_ROOT="$rigD" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	| env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/b10/home" PATH="$rigTmp/ps-bin:/usr/bin:/bin" MMDAPP="$rigW" MDAT_DATA_ROOT="$rigD" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/b10/skills" RIG_TMP="$rigTmp" RIG_FN="$rigTool" RIG_FD4="$rigTmp/b10/fd4.parent" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -608,7 +608,7 @@ rigCheck "a console launched by the spawn proxy, with fd 4 open in its caller, d
 rigCheck "the launcher kept the process it started on the spawn's record, its pid and when it began" "$( LC_ALL=C grep -l -E '^run-process: [0-9]+ [^ ]+$' "$rigSp"/*/*.md 2> /dev/null | wc -l | tr -d ' ' )" 1
 rm -f "$rigTmp/b10/fd4.seen"
 printf 'Work on rigrepo/rigpkg/file.sh following rig-member.armed.md.\n' \
-	| env -i HOME="$rigTmp/b10/home" PATH="$rigTmp/ps-bin:/usr/bin:/bin" MMDAPP="$rigW" MDAT_DATA_ROOT="$rigD" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	| env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/b10/home" PATH="$rigTmp/ps-bin:/usr/bin:/bin" MMDAPP="$rigW" MDAT_DATA_ROOT="$rigD" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/b10/skills" RIG_TMP="$rigTmp" RIG_FN="$rigTool" RIG_FD4="$rigTmp/b10/fd4.parent" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -632,7 +632,7 @@ rigAsync(){ ## case name, the console's own lines
 	chmod +x "$rigW/DistroAgentsConsole.sh"
 	asyncBefore="$( ls "$rigSp"/*/*.md 2> /dev/null )"
 	printf 'Work on rigrepo/rigpkg/file.sh following rig-member.armed.md.\n' \
-		| env -i HOME="$rigTmp/b10/home" PATH="$rigTmp/ps-bin:/usr/bin:/bin" MMDAPP="$rigW" MDAT_DATA_ROOT="$rigD" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		| env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/b10/home" PATH="$rigTmp/ps-bin:/usr/bin:/bin" MMDAPP="$rigW" MDAT_DATA_ROOT="$rigD" MDLT_ORIGIN="$MDLT_ORIGIN" \
 			MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/b10/skills" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
 			bash -c '
 				case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac

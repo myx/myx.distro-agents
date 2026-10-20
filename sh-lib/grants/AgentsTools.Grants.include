@@ -345,6 +345,61 @@ AgentsToolsGrantsPlaceMatch(){ ## pattern
 	return 0
 }
 
+## THE TESTING DIRECTIVE, `magic-team:testing:<project-glob>:<sh-test-path>:<host-glob>` in the Declares of a
+## project, and its one reader. It names the sh-test folders of the projects of the declaring workspace whose
+## name (the last segment of the id) the glob matches, and it is read for two ends alike: magic-tester's write over
+## them (AgentsToolsGrantsDeclaredText) and the folders eligible for the testing system (AgentsToolsTestingFolders).
+## The host glob is the last field and works as a place directive's does, so a path keeps its own colons. A line for
+## another host gives nothing; a malformed line, and a path that leaves its project, are skipped with a warning; a
+## glob no project matches gives no row.
+## The rows of the projects selected (their ids, one a line): `<project id><TAB><sh-test-path>`. rc of the declares
+## read where it failed.
+AgentsToolsTestingDirectiveRows(){ ## selected project ids, op name for messages
+	local testOp="$2" testShort testFull testLines testLine testRest testGlob testPath testHost testId
+	testLines="$( MDSC_SELECT_PROJECTS="$1" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:testing' )" || return $?
+	testShort="$( hostname -s 2> /dev/null )" || testShort=""
+	testFull="$( hostname 2> /dev/null )" || testFull=""
+	while IFS= read -r testLine ; do
+		[ -n "$testLine" ] || continue
+		testRest="${testLine#* }"
+		case "$testRest" in
+			?*:?*:?*) ;;
+			*) echo "🙋 WARNING: $testOp: ${testLine%% *}: malformed testing directive, skipped: magic-team:testing:$testRest (expected magic-team:testing:<project-glob>:<sh-test-path>:<host-glob>)" >&2 ; continue ;;
+		esac
+		testGlob="${testRest%%:*}" ; testRest="${testRest#*:}"
+		testHost="${testRest##*:}" ; testPath="${testRest%:*}"
+		testPath="${testPath#./}" ; testPath="${testPath%/}"
+		case "/$testPath/" in
+			//*|*/../*|*/./*|*//*) echo "🙋 WARNING: $testOp: ${testLine%% *}: the testing path stays inside the project, skipped: magic-team:testing:${testLine#* }" >&2 ; continue ;;
+		esac
+		case "$testShort" in
+			$testHost) ;;
+			*) case "$testFull" in $testHost) ;; *) continue ;; esac ;;
+		esac
+		while IFS= read -r testId ; do
+			[ -n "$testId" ] || continue
+			case "${testId##*/}" in
+				$testGlob) printf '%s\t%s\n' "$testId" "$testPath" ;;
+			esac
+		done <<< "$1"
+	done <<< "$testLines"
+}
+
+## The sh-test folders a workspace's testing directives name, absolute, one a line: the folders eligible for the
+## testing system, and no others. rc 0; 3 where the workspace has no source or no project (nothing is named);
+## 2 where it could not be read, said on stderr.
+AgentsToolsTestingFolders(){ ## workspace root, op name for messages
+	local foldersWs="${1%/}" foldersOp="$2" foldersSelected foldersRows
+	[ -d "$foldersWs/source" ] || return 3
+	DistroAgentsContext --distro-from-source || { echo "⛔ ERROR: $foldersOp: cannot establish an input spec for workspace $foldersWs" >&2 ; return 2 ; }
+	Require ListDistroProjects || :
+	Require ListDistroDeclares || :
+	foldersSelected="$( Distro ListDistroProjects --select-all )" || { echo "⛔ ERROR: $foldersOp: COULD-NOT-CHECK the testing directives: ListDistroProjects --select-all failed for workspace $foldersWs" >&2 ; return 2 ; }
+	[ -n "$foldersSelected" ] || return 3
+	foldersRows="$( AgentsToolsTestingDirectiveRows "$foldersSelected" "$foldersOp" )" || { echo "⛔ ERROR: $foldersOp: COULD-NOT-CHECK the testing directives: ListDistroDeclares failed for workspace $foldersWs" >&2 ; return 2 ; }
+	[ -z "$foldersRows" ] || printf '%s\n' "$foldersRows" | LC_ALL=C awk -F'\t' -v ws="$foldersWs" 'NF == 2 { print ws "/source/" $1 "/" $2 }'
+}
+
 ## One declaring workspace's grants, read off its project.inf as it stands, on stdout:
 ##   row <TAB> member:workspace:kind:grant      for the permissions registry
 ##   tag <TAB> member:workspace:tag:root        for the provenance tags
@@ -355,6 +410,8 @@ AgentsToolsGrantsPlaceMatch(){ ## pattern
 ##                          a pattern (`*-testbed`) every workspace place whose name matches
 ##   directory:<name>       a registered place of any kind, capped at its ceiling
 ##   project:<selector>     the estate's project resolver, in the declaring workspace
+## The testing directive (AgentsToolsTestingDirectiveRows) is the permissions one for
+## magic-tester alone: its write over the sh-test path it names, a `project` row.
 ## A name no place carries becomes an `unresolved` row, with a warning; a pattern no place
 ## matches gives no row and no warning. Reads the places from
 ## agentsGrantsPlaces and the tooling workspaces from agentsGrantsRoots.
@@ -362,7 +419,7 @@ AgentsToolsGrantsPlaceMatch(){ ## pattern
 ## 3 no project selected there, said as a note, the same.
 AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messages
 	local declWs="${1%/}" declOp="$2" declName declSelected="" declSelectStatus=0 declStatus=0 declTrusted=0
-	local declNamespace="" declWorkspace="" declDirectory="" declProject="" declScope declLines declLine declSel declRest
+	local declNamespace="" declWorkspace="" declDirectory="" declProject="" declTesting="" declScope declLines declLine declSel declRest
 	local declVerb declPerm declMember declGlob declRoot declOne declTag declTagRoot declPattern
 	declName="${declWs##*/}"
 	## No source folder: no project there to declare a grant, which is a state, not a fault.
@@ -386,6 +443,7 @@ AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messag
 		declWorkspace="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:workspace' )" || declStatus=$?
 		declDirectory="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:directory' )" || declStatus=$?
 		declProject="$( MDSC_SELECT_PROJECTS="$declSelected" Distro ListDistroDeclares --select-from-env --unroll-filter-and-cut 'magic-team:permissions:project:' cat )" || declStatus=$?
+		declTesting="$( AgentsToolsTestingDirectiveRows "$declSelected" "$declOp" )" || declStatus=$?
 	fi
 	if [ "$declSelectStatus" != "0" ] ; then
 		echo "⛔ ERROR: $declOp: COULD-NOT-CHECK declared grants: ListDistroProjects --select-all exited $declSelectStatus for workspace $declWs" >&2
@@ -501,6 +559,11 @@ AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messag
 			esac
 		done <<< "$declLines"
 	done
+	## The testing directive: magic-tester's write over each sh-test folder it names, a `project` row.
+	while IFS=$'\t' read -r declOne declSel ; do
+		[ -n "$declOne" ] || continue
+		printf 'row\tmagic-tester:%s:project:Edit(/%s/source/%s/%s/**)\n' "$declName" "$declWs" "$declOne" "$declSel"
+	done <<< "$declTesting"
 	return "$declTrusted"
 }
 

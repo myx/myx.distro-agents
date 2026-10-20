@@ -82,7 +82,7 @@ rigMember(){ ## the scope of keeper-myx: the lines given
 rigSpawn(){ ## member, then --spawn-cli-service <name> where the caller names one; the caller's environment as rigOuter says
 	: > "$rigTmp/brief" ; rm -f "$rigTmp/seen"
 	local spawnMember="$1" ; shift
-	env -i HOME="$rigTmp/home" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" ${rigOuter:-X=1} \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -156,7 +156,7 @@ rigAssert "a caller-named service adds no line"                              "$(
 
 echo "-- 8. the brief is made for the CLI of the preset --"
 rigBrief(){ ## member -- the brief the op prints, in brief.out
-	env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_FN="$rigTool" ${rigOuter:-X=1} bash -c 'cd "$MMDAPP" && exec bash "$RIG_FN" --intern-op-spawn-prepare-brief "$1" --routine-default' rig-brief "$1" > "$rigTmp/brief.out" 2> "$rigTmp/brief.err"
 }
 rigTeam "SPAWN_CLI_SERVICE=claude-native"

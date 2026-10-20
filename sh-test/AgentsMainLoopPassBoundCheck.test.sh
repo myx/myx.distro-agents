@@ -70,7 +70,7 @@ rigScenario(){ ## name, pass timeout seconds, first-pass seconds
 ## it is about to work before it starts.
 rigLoopStart(){
 	set -m
-	env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigDir/home/.claude/skills" \
 		RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
@@ -89,9 +89,9 @@ rigLoopStop(){
 	rigLoopPid=""
 }
 ## --one is a single, non-backgrounded iteration: run it in the foreground and
-## keep its own exit code, same guard rails as rigLoopStart's env -i wrapper.
+## keep its own exit code, same guard rails as rigLoopStart's env -i MDAT_WORKSPACE_MODE=team-rig wrapper.
 rigOneRun(){
-	env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigDir/home/.claude/skills" \
 		RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
@@ -113,7 +113,7 @@ rigAtLeast(){ [ "$( "$2" )" -ge "$1" ] ; }
 
 echo "-- the guard refuses a workspace outside the rig tree --"
 rigScenario guard 0 1
-rigGuardOut="$( env -i PATH=/usr/bin:/bin MMDAPP=/nonexistent/real MDAT_DATA_ROOT="$rigDir/data" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
+rigGuardOut="$( env -i MDAT_WORKSPACE_MODE=team-rig PATH=/usr/bin:/bin MMDAPP=/nonexistent/real MDAT_DATA_ROOT="$rigDir/data" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 	bash -c 'case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree: $MMDAPP" ; exit 99 ;; esac ; echo reached' )"
 rigAssert "a workspace outside the tree is refused before any tooling runs" "$rigGuardOut" "RIG-GUARD: MMDAPP outside the rig tree: /nonexistent/real"
 

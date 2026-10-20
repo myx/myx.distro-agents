@@ -86,7 +86,7 @@ rigPayload(){ ## tool name, file path -- one payload every hook can read
 rigStarted(){ ## run name, payload, command and its words... -- one start, in an environment of the rig alone
 	local startedName="$1" startedPayload="$2" ; shift 2
 	: > "$rigTmp/$startedName.asked"
-	printf '%s' "$startedPayload" | env -i HOME="$rigHome" PATH="$rigBin:/usr/bin:/bin" RIG_BASH_ASKED="$rigTmp/$startedName.asked" RIG_REAL_BASH="$rigRealBash" CLAUDE_PROJECT_DIR="$rigProj" \
+	printf '%s' "$startedPayload" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigBin:/usr/bin:/bin" RIG_BASH_ASKED="$rigTmp/$startedName.asked" RIG_REAL_BASH="$rigRealBash" CLAUDE_PROJECT_DIR="$rigProj" \
 		"$@" > "$rigTmp/$startedName.out" 2> "$rigTmp/$startedName.err"
 	printf '%s' "$?" > "$rigTmp/$startedName.rc"
 }
@@ -196,7 +196,7 @@ echo "-- 4. the generated console finds bash by the PATH, and starts the tool wi
 rigGen="$rigTmp/gen" ; rigWs="$rigTmp/ws" ; rigOrigin="$rigTmp/origin"
 mkdir -p "$rigGen/ws/.local" "$rigGen/home" "$rigWs/.local" "$rigOrigin/myx/myx.distro-agents/sh-scripts" || rigRefuse "could not create the rig's workspaces"
 printf 'MDLT_CONSOLE_ORIGIN=%s\n' "$MDLT_ORIGIN" > "$rigGen/ws/.local/MDLT.settings.env"
-env -i HOME="$rigGen/home" PATH="/usr/bin:/bin:${rigRealBash%/*}" MMDAPP="$rigGen/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" \
+env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigGen/home" PATH="/usr/bin:/bin:${rigRealBash%/*}" MMDAPP="$rigGen/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" \
 	"$rigRealBash" -c 'case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac ; cd "$MMDAPP" && exec "$BASH" "$0" --make-console-command --quiet' "$rigFn" \
 	> /dev/null 2> "$rigGen/make.err"
 [ -f "$rigGen/ws/DistroAgentsConsole.sh" ] || rigRefuse "no console was generated: $( tail -2 "$rigGen/make.err" 2> /dev/null )"
@@ -233,7 +233,7 @@ ln -s "$rigPython" "$rigNoBash/own/python3" || rigRefuse "could not place python
 rigNoBashPath="$rigNoBash/own:$rigNoBash/usr-bin:$rigNoBash/bin"
 rigExecWs="$rigTmp/exec-ws"
 rigAssert "control: that PATH holds no bash, and it holds the tools, python3 among them" \
-	"$( env -i PATH="$rigNoBashPath" /bin/sh -c 'command -v bash > /dev/null 2>&1 && echo bash-found || echo no-bash ; command -v python3 > /dev/null 2>&1 && command -v awk > /dev/null 2>&1 && echo tools' | LC_ALL=C tr '\n' ' ' )" "no-bash tools "
+	"$( env -i MDAT_WORKSPACE_MODE=team-rig PATH="$rigNoBashPath" /bin/sh -c 'command -v bash > /dev/null 2>&1 && echo bash-found || echo no-bash ; command -v python3 > /dev/null 2>&1 && command -v awk > /dev/null 2>&1 && echo tools' | LC_ALL=C tr '\n' ' ' )" "no-bash tools "
 ## A stand-in for the tool script, a bash script as that one is, and the two starters that are no shell, each
 ## started as its own code starts the tool: the screen's reader as the screen's start makes it, the receiver's filing.
 printf '%s\n' '#!/usr/bin/env bash' 'printf "RIG-TOOL %s\n" "$*"' 'printf "%s\n" "$*" >> "$RIG_FILED.words"' 'cat >> "$RIG_FILED"' > "$rigTmp/stand-tool.sh"
@@ -265,7 +265,7 @@ rigStarter(){ ## run folder, screen|socket, environment settings... -- one start
 	shift 2
 	[ "$starterKind" = screen ] || starterFile="$rigHere/comms/AgentsSlackSocketMode.py"
 	mkdir -p "$starterDir"
-	env -i HOME="$rigHome" PATH="$rigNoBashPath" MMDAPP="$rigTmp" RIG_FILED="$starterDir/$starterKind.filed" SOCKET_MODE_LOG_DIR="$starterDir/log" "$@" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigNoBashPath" MMDAPP="$rigTmp" RIG_FILED="$starterDir/$starterKind.filed" SOCKET_MODE_LOG_DIR="$starterDir/log" "$@" \
 		"$rigPython" -I -B "$rigTmp/starters.py" "$starterKind" "$starterFile" "$rigTmp/stand-tool.sh" > "$starterDir/$starterKind.out" 2>&1
 }
 ## A member's command, where the tooling runs one (--intern-mcp-execute), the tool entered by its path with its bash given.
@@ -282,7 +282,7 @@ rigEntered(){ ## run name, the PATH it is entered with
 	local enteredDir="$rigTmp/$1"
 	mkdir -p "$enteredDir"
 	rigPayload Read "$rigMemory/MEMORY.md" > "$enteredDir/payload"
-	( cd "$rigExecWs" && printf '%s\n' "$rigCommand" | env -i HOME="$rigHome" PATH="$2" MMDAPP="$rigExecWs" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
+	( cd "$rigExecWs" && printf '%s\n' "$rigCommand" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$2" MMDAPP="$rigExecWs" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_OUT="$enteredDir" RIG_LIB="$rigHere" RIG_HOOK="$rigProj/.claude/hooks/deny-memory-md-read.sh" \
 		RIG_BASH_ASKED="$enteredDir/asked" RIG_REAL_BASH="$rigRealBash" CLAUDE_PROJECT_DIR="$rigProj" \
 		"$rigRealBash" "$rigFn" --intern-mcp-execute ) > "$enteredDir/run.out" 2>&1
@@ -321,7 +321,7 @@ rigAssert "the screen's own start makes its reader that way" "$( LC_ALL=C grep -
 ## timeout of its own, which runs its command in a bash of its own.
 mkdir -p "$rigTmp/harness-call"
 printf '{"command":"echo RIG-RAN-$(( 6 * 7 ))","cwd":"%s","timeout":30}' "$rigExecWs" \
-	| ( cd "$rigExecWs" && env -i HOME="$rigHome" PATH="$rigNoBashPath" MMDAPP="$rigExecWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	| ( cd "$rigExecWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigNoBashPath" MMDAPP="$rigExecWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		HARNESS_PROVIDER_NAME="bash-path proof rig" HARNESS_SELF_NAME="AgentsBashPathProofCheck.test.sh" HARNESS_ENDPOINT="https://bash-path-proof-check.invalid/v1/chat/completions" \
 		HARNESS_HOST="bash-path-proof-check.invalid" HARNESS_WIRE="OpenAiChat" HARNESS_CREDENTIAL_NAMES="none -- this check never reads one" \
 		HARNESS_MODEL_LIGHT="rig-light" HARNESS_MODEL_MAIN="rig-main" HARNESS_TOKEN_MAIN="rig-not-a-credential" \
@@ -336,7 +336,7 @@ printf 'SPAWN_CLI_SERVICE=claude\n' > "$rigLegWs/.local/.agents/magic-team.agent
 printf '%s\n' '#!/usr/bin/env bash' 'HARNESS_CREDENTIAL_NAMES="RIG_NO_SUCH_CREDENTIAL"' '{ printf "leg args=" ; for rigArg in "$@" ; do printf "[%s]" "$rigArg" ; done ; printf "\n" ; } >> "$RIG_LEG_LOG"' > "$rigTmp/leg-stand-in"
 chmod +x "$rigTmp/leg-stand-in"
 : > "$rigTmp/leg.log"
-env -i HOME="$rigTmp/leg-home" PATH="$rigNoBashPath" RIG_LEG_LOG="$rigTmp/leg.log" MDAT_CLAUDE_HARNESS="$rigTmp/leg-stand-in" \
+env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/leg-home" PATH="$rigNoBashPath" RIG_LEG_LOG="$rigTmp/leg.log" MDAT_CLAUDE_HARNESS="$rigTmp/leg-stand-in" \
 	"$rigRealBash" "$rigLegWs/DistroAgentsConsole.sh" --cli-configured --non-interactive RIG-PROMPT < /dev/null > "$rigTmp/leg.out" 2> "$rigTmp/leg.err"
 rigAssert "the console, entered with its bash given, launches its leg: the leg ran with the prompt" "$( LC_ALL=C grep -c -F '[RIG-PROMPT]' "$rigTmp/leg.log" )" 1
 

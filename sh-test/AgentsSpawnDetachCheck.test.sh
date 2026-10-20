@@ -258,7 +258,7 @@ rigSessionAndEndPass(){ ## scenario, parent session id or empty, console seconds
 	rigDir="$rigTmp/$1"
 	mkdir -p "$rigDir"
 	set -m
-	( cd "$rigWs" && env -i HOME="$rigTmp" PATH="${4:+$rigTmp/held:}$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="${4:+$rigTmp/held:}$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		${2:+MDAT_SPAWN_SESSION_ID="$2" MDAT_SPAWN_AGENT=magic-coordinator} ${4:+RIG_CLOSE_HOLD="$4" RIG_REAL_AWK="$rigRealAwk"} RIG_SCENARIO="$rigDir" RIG_RUN="$3" RIG_BY_MEMBER=yes RIG_HANDBACK=yes \
 		bash "$rigTool" --magic-spawn-session --routine rigplain rig-member-a rig-member-b <<< "RIG-TASK-TEXT" > "$rigDir/session.out" 2>&1 ) &
 	rigPassPid=$!

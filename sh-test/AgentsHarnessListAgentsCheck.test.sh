@@ -80,7 +80,7 @@ rigRecord rig-finished rig-sess-finished "$rigThisHost" spawn-succeeded
 rigList(){ ## result file, then env assignments for this call -- reads $rigListBody (default {}) as the tool argument JSON
 	local listOut="$1" listBody='{}' ; shift
 	[ -z "${rigListBody:-}" ] || listBody="$rigListBody"
-	printf '%s' "$listBody" | env -i HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigWs/data" \
+	printf '%s' "$listBody" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigWs/data" \
 		HARNESS_PROVIDER_NAME=rig HARNESS_SELF_NAME=rig RIG_TMP="$rigTmp" RIG_HARNESS="$rigHarness" "$@" \
 		bash -c '
 			[ -z "${MMDAPP:-}" ] || case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac

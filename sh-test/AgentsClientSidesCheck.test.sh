@@ -147,12 +147,12 @@ rigPre=()
 rigRun(){ ## args... -- one dispatcher call from ws-here; stdout in out, stderr in err, rc in rigRc
 	rigClean
 	rigRc=0
-	( cd "$rigWork/ws-here" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" ${rigPre[@]+"${rigPre[@]}"} \
+	( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" ${rigPre[@]+"${rigPre[@]}"} \
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigFn(){ ## function and arguments... -- one function of the Slack include on its own, in ws-here; stdout in fnOut, rc in fnRc
 	fnRc=0
-	fnOut="$( cd "$rigWork/ws-here" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TOOL="$rigTool" RIG_INCLUDE="$rigSlackInclude" ${rigPre[@]+"${rigPre[@]}"} \
+	fnOut="$( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TOOL="$rigTool" RIG_INCLUDE="$rigSlackInclude" ${rigPre[@]+"${rigPre[@]}"} \
 		bash -c '
 			. "$RIG_TOOL"
 			MDSC_CMD=rig
@@ -166,7 +166,7 @@ rigToolAs(){ ## agent, tool, json -- one harness tool call as that agent, in a s
 	[ "$1" != client-ndm ] || toolRoot="$( rigView ws-there )"
 	rigClean
 	rigRc=0
-	( cd "$rigWork/ws-here" && printf '%s' "$3" | env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$toolRoot" RIG_SCENARIO="$rigTmp" \
+	( cd "$rigWork/ws-here" && printf '%s' "$3" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$toolRoot" RIG_SCENARIO="$rigTmp" \
 		MDAT_SPAWN_SESSION_ID=rig-session-client MDAT_SPAWN_AGENT="$1" MDAT_HARNESS_WAIT_TIMEOUT=1 ${rigPre[@]+"${rigPre[@]}"} bash "$rigHarness" --intern-tool "$2" ) > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?
 }
 rigN(){ ## file, fixed text -- how many lines hold it
@@ -487,7 +487,7 @@ rigAssert "a question to one of our own names under the marker is not posted, no
 echo "-- 8. a client's session is started here, like any invited member's --"
 rigClean
 rigRc=0
-( cd "$rigWork/ws-here" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
+( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
 	bash "$rigTool" --intern-op-agent-spawn-proxy client-ndm --dispatch-doc:none --wait --context rig-client-sides ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
 rigAssert "its session is launched by the console of the workspace it was called from, on the view of the workspace it is set up in" "$rigRc $( cat "$rigTmp/launched.HERE" 2> /dev/null | LC_ALL=C sed "s|$rigWork/||" ) $( cat "$rigTmp/roots.HERE" 2> /dev/null | LC_ALL=C sed "s|$rigWork/||" ) [$( cat "$rigTmp/launched.THERE" 2> /dev/null )]" "0 ws-here client-ndm=ws-there/.local/agents/members []"
 rigAssert "its session thread is opened in our own Slack by our team's bot, though the client holds a token of its own" "$( rigTokens chat.postMessage )$( rigChannel ) $( rigTheirs ) $( rigElsewhere )" "rig-bot-token-HERE CHERE0001 0 0"

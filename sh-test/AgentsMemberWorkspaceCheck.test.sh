@@ -211,23 +211,23 @@ rigPre=()
 rigRunIn(){ ## workspace, args... -- one dispatcher call from that workspace; stdout in out, stderr in err, rc in rigRc
 	: > "$rigTmp/calls" ; : > "$rigTmp/envs" ; : > "$rigTmp/bodies"
 	rigRc=0
-	( cd "$rigWork/$1" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" ${rigPre[@]+"${rigPre[@]}"} \
+	( cd "$rigWork/$1" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" ${rigPre[@]+"${rigPre[@]}"} \
 		bash "$rigTool" "${@:2}" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigTraceIn(){ ## workspace, args... -- the same under bash -x; the trace in $rigTmp/trace
 	: > "$rigTmp/calls" ; : > "$rigTmp/envs" ; : > "$rigTmp/bodies"
 	rigRc=0
-	( cd "$rigWork/$1" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" ${rigPre[@]+"${rigPre[@]}"} \
+	( cd "$rigWork/$1" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" ${rigPre[@]+"${rigPre[@]}"} \
 		bash -x "$rigTool" "${@:2}" ) > "$rigTmp/out" 2> "$rigTmp/trace" < /dev/null || rigRc=$?
 }
 rigResolve(){ ## workspace, member, operation -- the resolver on its own; stdout in resOut, stderr in resErr, rc in resRc
 	resRc=0
-	( env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDSC_CMD=RigCmd bash -c '. "$1" ; '"$rigResolveFn"' "$2" "$3"' rig-resolve "$rigResolveInclude" "$2" "${3:-RigOp}" ) > "$rigTmp/resOut" 2> "$rigTmp/resErr" || resRc=$?
+	( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDSC_CMD=RigCmd bash -c '. "$1" ; '"$rigResolveFn"' "$2" "$3"' rig-resolve "$rigResolveInclude" "$2" "${3:-RigOp}" ) > "$rigTmp/resOut" 2> "$rigTmp/resErr" || resRc=$?
 	resOut="$( cat "$rigTmp/resOut" )" ; resErr="$( cat "$rigTmp/resErr" )"
 }
 rigBring(){ ## workspace, member, operation -- the bring on its own, under the member set root rigPre carries, if any; stdout in brOut, stderr in brErr, rc in brRc
 	brRc=0
-	( env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDSC_CMD=RigCmd ${rigPre[@]+"${rigPre[@]}"} bash -c '. "$1" ; '"$rigBringFn"' "$2" "$3"' rig-bring "$rigResolveInclude" "$2" "${3:-RigOp}" ) > "$rigTmp/brOut" 2> "$rigTmp/brErr" || brRc=$?
+	( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDSC_CMD=RigCmd ${rigPre[@]+"${rigPre[@]}"} bash -c '. "$1" ; '"$rigBringFn"' "$2" "$3"' rig-bring "$rigResolveInclude" "$2" "${3:-RigOp}" ) > "$rigTmp/brOut" 2> "$rigTmp/brErr" || brRc=$?
 	brOut="$( cat "$rigTmp/brOut" )" ; brErr="$( cat "$rigTmp/brErr" )"
 }
 rigN(){ ## file, fixed text -- how many lines hold it
@@ -618,7 +618,7 @@ rigClientHere(){
 rigClientHere
 rigRunIn ws-here --agents-config-option client-ndm --select WHERE
 rigAssert "accepted sibling: a setting the workspace it was called from holds for the client is the one read" "$rigRc [$( cat "$rigTmp/out" )]" "0 [ws-here]"
-rigAssert "the caller's own shell keeps its MMDAPP after the call"          "$( MMDAPP="$rigWork/ws-here" ; ( cd "$rigWork/ws-here" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$MMDAPP" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" bash -c 'bash "$1" --agents-config-option client-ndm --select WHERE > /dev/null 2>&1 ; printf "%s" "$MMDAPP"' rig-shell "$rigTool" ) )" "$rigWork/ws-here"
+rigAssert "the caller's own shell keeps its MMDAPP after the call"          "$( MMDAPP="$rigWork/ws-here" ; ( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$MMDAPP" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" bash -c 'bash "$1" --agents-config-option client-ndm --select WHERE > /dev/null 2>&1 ; printf "%s" "$MMDAPP"' rig-shell "$rigTool" ) )" "$rigWork/ws-here"
 rigTraceIn ws-here --agents-config-option client-ndm --select WHERE
 rigAssert "its call is re-run once under its own member set root, as any invited member's is, and is switched to no workspace" "$rigRc $( cat "$rigTmp/out" ) $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=$( rigView ws-there )" ) $( rigN "$rigTmp/trace" "export MDAT_SKILLSET_ROOT=/" ) $( LC_ALL=C grep -c "+ $rigSwitchFn " "$rigTmp/trace" || : )" "0 ws-here 1 1 0"
 rigRunIn ws-here --member-help client-ndm
@@ -663,7 +663,7 @@ rigMemberAt ws-there client-ndm
 rigSpawnIn(){ ## workspace, member, extra args... -- the spawn proxy asked for that member from that workspace, task text on stdin; output in out
 	: > "$rigTmp/calls" ; : > "$rigTmp/envs" ; : > "$rigTmp/bodies" ; rm -f "$rigTmp"/launched.* "$rigTmp"/roots.* "$rigTmp"/brief.*
 	rigRc=0
-	( cd "$rigWork/$1" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
+	( cd "$rigWork/$1" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
 		bash "$rigTool" --intern-op-agent-spawn-proxy "$2" "${@:3}" --dispatch-doc:none --wait --context rig-ws-invited ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
 }
 rigLaunched(){ ## -- where each console was started: HERE THERE THIRD RIG, nothing for none
@@ -767,7 +767,7 @@ rm -f "$rigTmp"/start.*
 ## Without --wait: a --wait spawn under --dispatch-doc:none keeps no output file, and the
 ## retry reads the output file for the handback, so only this form reaches it.
 rigRc=0
-( cd "$rigWork/ws-here" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
+( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
 	bash "$rigTool" --intern-op-agent-spawn-proxy keeper-there --spawn-cli-service rig-service --dispatch-doc:none --context rig-ws-invited ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
 rigRetryLeft=30
 while [ ! -s "$rigTmp/start.true" ] && [ "$rigRetryLeft" -gt 0 ] ; do sleep 1 ; rigRetryLeft=$(( rigRetryLeft - 1 )) ; done
@@ -807,7 +807,7 @@ chmod +x "$rigWork/ws-here/DistroAgentsConsole.sh"
 rigRetrySpawn(){ ## close mode -- one async spawn of keeper-there, invited into ws-here, then up to 30 s for its own close to stamp the record, and as long again for the rest of that close
 	rm -f "$rigTmp"/start.* "$rigTmp/record.path" "$rigTmp/transcript.seen" ; : > "$rigTmp/calls" ; : > "$rigTmp/bodies"
 	rigRc=0
-	( cd "$rigWork/ws-here" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_CLOSE="$1" \
+	( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_CLOSE="$1" \
 		bash "$rigTool" --intern-op-agent-spawn-proxy keeper-there --spawn-cli-service rig-service --dispatch-doc:none --context rig-ws-invited ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
 	rigRetryLeft=30
 	while [ "$rigRetryLeft" -gt 0 ] && ! { [ -s "$rigTmp/record.path" ] && LC_ALL=C grep -q '^resolved-at: ' "$( cat "$rigTmp/record.path" )" 2> /dev/null ; } ; do sleep 1 ; rigRetryLeft=$(( rigRetryLeft - 1 )) ; done
@@ -849,7 +849,7 @@ printf 'SLACK_CHANNEL_EVENT_TRACK=CTRACK0001\n' >> "$rigWork/ws-here/.local/.age
 rigSpawnDocIn(){ ## workspace, member, source and dispatch document args... -- rigSpawnIn with a dispatch document of the caller's choosing
 	: > "$rigTmp/calls" ; : > "$rigTmp/envs" ; : > "$rigTmp/bodies" ; rm -f "$rigTmp"/launched.* "$rigTmp"/roots.* "$rigTmp"/brief.*
 	rigRc=0
-	( cd "$rigWork/$1" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
+	( cd "$rigWork/$1" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
 		bash "$rigTool" --intern-op-agent-spawn-proxy "$2" "${@:3}" --wait --context rig-ws-invited ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
 }
 rigThree(){ ## record or board item -- its executing, paying and member's workspace, and how many lines hold each: e/p/m n/n/n
@@ -998,14 +998,14 @@ rigPayTeamOff ws-here
 ## A spawn made from inside a session that is itself paid from elsewhere: what that session's spawn settled is in its
 ## environment, and is never taken over.
 rigRc=0
-( cd "$rigWork/ws-here" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" MDAT_SPAWN_SETTINGS_WORKSPACE="$rigWork/ws-third" \
+( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" MDAT_SPAWN_SETTINGS_WORKSPACE="$rigWork/ws-third" \
 	bash "$rigTool" --intern-op-agent-spawn-proxy keeper-multi --dispatch-doc:none --wait --context rig-ws-invited ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
 rigAssert "a spawn made from a session paid from elsewhere settles its own: nothing named for it, so this workspace pays" "$rigRc $( rigPaid )" "0 here/here/here/here"
 ## The handback retry: resumed with what the launch was started with, the workspace that pays included.
 rigPayWorld
 rm -f "$rigTmp"/paid.*
 rigRc=0
-( cd "$rigWork/ws-here" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_HANDBACK=resume-only \
+( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_HANDBACK=resume-only \
 	bash "$rigTool" --intern-op-agent-spawn-proxy keeper-here --spawn-settings-workspace ws-there --dispatch-doc:none --context rig-ws-invited ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
 rigRetryLeft=30
 while [ ! -s "$rigTmp/paid.HERE.true" ] && [ "$rigRetryLeft" -gt 0 ] ; do sleep 1 ; rigRetryLeft=$(( rigRetryLeft - 1 )) ; done
@@ -1018,7 +1018,7 @@ echo "-- 10. --magic-spawn-session, --magic-heartbeat-* and the root harness --"
 rigSessionIn(){ ## workspace, args... -- --magic-spawn-session from that workspace
 	: > "$rigTmp/calls" ; : > "$rigTmp/envs" ; : > "$rigTmp/bodies" ; rm -f "$rigTmp"/launched.* "$rigTmp"/roots.* "$rigTmp"/brief.*
 	rigRc=0
-	( cd "$rigWork/$1" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
+	( cd "$rigWork/$1" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
 		bash "$rigTool" --magic-spawn-session "${@:2}" ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
 }
 rigWorld
@@ -1053,7 +1053,7 @@ rigAssert "(a) a --magic-heartbeat-* operation names the same refusal"     "$rig
 rigRootIn(){ ## workspace, args... -- --intern-root-harness from that workspace
 	: > "$rigTmp/calls" ; : > "$rigTmp/envs" ; : > "$rigTmp/bodies" ; rm -f "$rigTmp"/launched.* "$rigTmp"/roots.* "$rigTmp"/brief.*
 	rigRc=0
-	( cd "$rigWork/$1" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
+	( cd "$rigWork/$1" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
 		bash "$rigTool" --intern-root-harness "${@:2}" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig heartbeat routine fixture\n' > "$( rigMemberHome ws-here magic-coordinator )/magic-coordinator.heartbeat.routine.md"
@@ -1067,7 +1067,7 @@ rigAssert "and the dispatch item and board stay in the workspace it was asked fr
 rigLoopIn(){ ## workspace -- --intern-main-loop --one from that workspace
 	: > "$rigTmp/calls" ; : > "$rigTmp/envs" ; : > "$rigTmp/bodies" ; rm -f "$rigTmp"/launched.* "$rigTmp"/roots.* "$rigTmp"/brief.*
 	rigRc=0
-	( cd "$rigWork/$1" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
+	( cd "$rigWork/$1" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
 		bash "$rigTool" --intern-main-loop --one ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigWorld
@@ -1082,7 +1082,7 @@ echo "-- 11. the harness tools that name a member --"
 rigToolIn(){ ## workspace the session runs in, the member set root the session was given, agent, tool, json -- one harness tool call as that agent; output in out
 	: > "$rigTmp/calls" ; : > "$rigTmp/envs" ; : > "$rigTmp/bodies" ; rm -f "$rigTmp"/launched.* "$rigTmp"/roots.* "$rigTmp"/brief.*
 	rigRc=0
-	( cd "$rigWork/$1" && printf '%s' "$5" | env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$2" RIG_SCENARIO="$rigTmp" \
+	( cd "$rigWork/$1" && printf '%s' "$5" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$2" RIG_SCENARIO="$rigTmp" \
 		MDAT_SPAWN_SESSION_ID=rig-session-a MDAT_SPAWN_AGENT="$3" MDAT_HARNESS_WAIT_TIMEOUT=1 bash "$rigHarness" --intern-tool "$4" ) > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?
 }
 rigSettle
@@ -1252,7 +1252,7 @@ rigAssert "control: the same pattern finds an origin line in a sample"      "$( 
 
 echo "-- 13. the member set root after a switch: a workspace's own index view holds its own members only --"
 rigSwitchRoot(){ ## skillset root carried -- the root after a switch from ws-here to ws-there
-	env -i PATH="$PATH" MMDAPP="$rigWork/ws-here" MDAT_SKILLSET_ROOT="$1" bash -c '. "$1" ; '"$rigSwitchFn"' "$2" ; printf "%s" "${MDAT_SKILLSET_ROOT:-}"' rig-switch "$rigResolveInclude" "$rigWork/ws-there"
+	env -i MDAT_WORKSPACE_MODE=team-rig PATH="$PATH" MMDAPP="$rigWork/ws-here" MDAT_SKILLSET_ROOT="$1" bash -c '. "$1" ; '"$rigSwitchFn"' "$2" ; printf "%s" "${MDAT_SKILLSET_ROOT:-}"' rig-switch "$rigResolveInclude" "$rigWork/ws-there"
 }
 rigAssert "a root that was the old workspace's own index view becomes the new workspace's own" "$( rigSwitchRoot "$rigWork/ws-here/.local/agents/members" )" "$rigWork/ws-there/.local/agents/members"
 rigAssert "accepted sibling: a root set anywhere else is kept across the switch" "$( rigSwitchRoot "$rigElsewhere" )" "$rigElsewhere"

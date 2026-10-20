@@ -57,7 +57,7 @@ rigHanded=( MDAT_SPAWN_SESSION_ID=rig-live-spawn MDAT_SPAWN_AGENT=rig-live-membe
 rigStart(){ ## how (runner: through the runner under test; direct: the tiny test itself) -- its output in <how>.out, its rc in rigRc
 	local startWhat="$rigTests/AgentsRunTests.sh" ; [ "$1" = runner ] || startWhat="$rigTests/RigEnv.test.sh"
 	rigRc=0
-	( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigWs/.local/temp/rig-scratch-a/source" MYXROOT="${MYXROOT:-}" \
+	( cd "$rigWs" && exec env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigWs/.local/temp/rig-scratch-a/source" MYXROOT="${MYXROOT:-}" \
 		MDAT_SKILLSET_ROOT="$rigMembers" MDAT_DATA_ROOT="$rigData" RIG_SHARED="$rigTmp" RIG_HOW="$1" "${rigHanded[@]}" \
 		bash "$startWhat" $( [ "$1" != runner ] || printf RigEnv ) ) > "$rigTmp/$1.out" 2>&1 || rigRc=$?
 }

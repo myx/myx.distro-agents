@@ -230,7 +230,7 @@ rigIsStill(){ ## `<pid> <start>` -- that pid is still the process that began the
 	[ "$( rigProcBegan "${1%% *}" )" = "$1" ]
 }
 rigCall(){ ## the tooling, as a bare console of the rig workspace calls it
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 		RIG_TMP="$rigTmp" bash "$rigTool" "$@" )
 }
 rigRc=0
@@ -240,7 +240,7 @@ rigOne(){ ## session id -- one tick; rc in rigRc, stdout in out, stderr in err
 }
 rigThreadPid=""
 rigThread(){ ## name of its output files, session id
-	( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" \
+	( cd "$rigWs" && exec env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" \
 		bash "$rigTool" "$rigOp" --run --session-id "$2" ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" < /dev/null &
 	rigThreadPid=$!
 	rigProcNote "$rigThreadPid" ; rigStarted="$rigStarted $rigThreadPid"

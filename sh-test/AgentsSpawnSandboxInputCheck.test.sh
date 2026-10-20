@@ -51,7 +51,7 @@ chmod +x "$rigWs/DistroAgentsConsole.sh"
 
 echo "-- a spawn fills input/, and its close empties it --"
 printf 'Work on rigrepo/rigpkg/file.sh following magic-team.rig.routine.md and rig-member.armed.md.\n' \
-	| env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigTmp/data" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	| env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigTmp/data" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
@@ -95,7 +95,7 @@ rigScratch(){ mkdir -p "$rigSpawned/$1/tmp/AgentsUniversalHarness.rig" && printf
 rigMake scratchonly old "$rigThisHost"
 rm -f "$rigSpawned/scratchonly/input/brief.md"
 rigScratch stale ; rigScratch scratchonly ; rigScratch fresh
-env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_LIB="$rigSandboxLib" \
+env -i MDAT_WORKSPACE_MODE=team-rig PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_LIB="$rigSandboxLib" \
 	bash -c '
 		case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 		MDSC_CMD=rig ; . "$RIG_LIB" ; AgentsToolsSpawnSandboxSweep rig-sweep
@@ -117,7 +117,7 @@ rigSessionId="rig-session-$$"
 printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > "%s/join-dispatch.txt"\necho deliverable > "$MDAT_SPAWN_SANDBOX_ROOT/output/result.txt"\n' \
 	"$rigTmp" > "$rigWs/DistroAgentsConsole.sh"
 printf 'Work on rigrepo/rigpkg/file.sh following magic-team.rig.routine.md and rig-member.armed.md.\n' \
-	| env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigTmp/data" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	| env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigTmp/data" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SESSION_ID="$rigSessionId" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac

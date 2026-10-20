@@ -104,7 +104,7 @@ rigLog(){ ## spawn-id, text (may be empty) -- the session log TaskOutput reads
 ## One served TaskOutput call of the harness, guarded to the rig's own trees and process list.
 rigOutput(){ ## result file, item stem
 	printf '{"handle":"dispatch-20261013T0000Z-%s.md"}\n' "$2" > "$rigTmp/tool.args"
-	env -i HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_HARNESS="$rigHarness" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -254,7 +254,7 @@ rigStand "claude --add-dir $rigSpawned/rig-sw-shared-$$/input --session-id rig-s
 rigRecord rig-sw-fresh-$$ spawn-started
 rigFill rig-sw-fresh-$$ ""
 rigSweep(){ ## result file, the folder whose ps is first on PATH
-	env -i PATH="$2:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_LIB="$rigSandboxLib" RIG_PS="$2/ps" \
+	env -i MDAT_WORKSPACE_MODE=team-rig PATH="$2:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_LIB="$rigSandboxLib" RIG_PS="$2/ps" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			[ "$( command -v ps )" = "$RIG_PS" ] || exit 98

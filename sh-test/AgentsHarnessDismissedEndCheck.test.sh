@@ -255,7 +255,7 @@ rigRoundEnd(){ ## -- the next canned round: plain text, which ends the run
 rigLoopRc=0
 rigLoop(){ ## -- the model loop of the spawned session, guarded
 	rigLoopRc=0
-	env -i HOME="$rigTmp/home" PATH="$rigTmp/loop:$rigPathBase" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/loop:$rigPathBase" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_SESSION_ID="$rigSpawn" MDAT_SPAWN_AGENT="$rigMember" MDAT_SPAWN_SANDBOX_ROOT="$rigDir/sandbox" \
 		RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" RIG_TMP="$rigTmp" RIG_HARNESS="$rigHarness" RIG_MEMBER="$rigMember" \
 		HARNESS_PROVIDER_NAME="dismissed-end rig" HARNESS_SELF_NAME="AgentsHarnessDismissedEndCheck.test.sh" \

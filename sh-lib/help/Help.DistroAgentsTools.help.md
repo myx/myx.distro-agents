@@ -300,6 +300,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --tester-run-oldest-untested [--wait|--no-wait]
 📘 syntax: DistroAgentsTools.fn.sh --tester-run-all-nightly-regressions [--wait|--no-wait]
 📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge
+📘 syntax: DistroAgentsTools.fn.sh --owner-clear-just-agents [--check|--apply]
 📘 syntax: DistroAgentsTools.fn.sh --member-help [--team-member <team-member>]
 📘 syntax: DistroAgentsTools.fn.sh --help-setup-<domain>
 📘 syntax: DistroAgentsTools.fn.sh [--help-syntax [<op>]]
@@ -2855,7 +2856,12 @@
 			`*-testbed`, matching workspace place names, none matching
 			no error), `directory:<name>` through the registered
 			places, capped to read on a read-only one, and
-			`project:<selector>`;
+			`project:<selector>`; and
+			`magic-team:testing:<project-glob>:<sh-test-path>:<host-glob>`,
+			magic-tester's write over `<sh-test-path>/**` of each of this
+			workspace's projects whose name the glob matches, a
+			`project` row (none for another host, none for a glob
+			matching no project, a malformed line skipped with a warning);
 			`allow-write` an `Edit(...)` row, `allow-read` a `Read(...)`
 			row, `allow-tool` a `<tool>[:<target>]` row. A name no
 			place carries is an `unresolved` row, with a warning. Every
@@ -3020,11 +3026,18 @@
 			`Workspace Paths` holds the mode of the workspace too,
 			`MDAT_WORKSPACE_MODE`, a line of the configuration:
 			`just-agents` (inline work and native consoles of this
-			computer, no documents), `rig-client` (it will dispatch
-			to a remote rig; not built yet, it acts as `just-agents`) or
+			computer, and no team data: the operations that write a board
+			item, an inbox item, an audit item or a contact are refused,
+			no team-data store is cloned, and a session it starts keeps
+			no tracking item; the list is `agentsTeamDataGateOps` in
+			`AgentsTools.TeamDataGate.include`), `rig-client` (it will
+			dispatch to a remote rig; not built yet, it acts as
+			`just-agents`) or
 			`team-rig` (a rig itself: the team data is used and maintained
 			here), as the installer of the workspace set it in the
-			settings of the team, and `just-agents` where nothing sets it;
+			settings of the team, and `just-agents` where nothing sets it
+			(a rig of the test runner is given `team-rig` by
+			`MDAT_WORKSPACE_MODE`, which a setting stands ahead of);
 			and `full-team-rig`, `set yes` on a team rig whose team data
 			has a git remote. `Main Loop And Heartbeat` is printed in the
 			mode `team-rig` alone.
@@ -6413,6 +6426,31 @@
 			writes the day of `started-at`. The stats are of this workspace: every member's
 			runs recorded here, with the workspace each executed and was paid in.
 
+		--add-source-docs|--add-board-items|--add-vault-items|--add-inbox-items [<selector>] <query>
+			TeamKnowledge's call (DistroAgentsKnowledge.fn.sh, no operation word: the
+			sources added and the query are its options), the query over what the team
+			has written, in markdown, or in JSON under `--mdat-output-format json` before
+			the first word. The sources, each added by its option: `--add-source-docs`,
+			MAGIC.md, README.md and docs/**.md of the projects selected, of each one's
+			repository `util.repository-*` and of the workspace's `util.workspace-*`;
+			`--add-board-items`; `--add-vault-items`, any text file of the team data
+			root's `vault/`; `--add-inbox-items`, the acting member's own inbox, incoming
+			and processed, the console reads every member's. The selector is that of
+			`ListDistroProjects` (`--select-*`, `--filter-*`, `--remove-*`), read from
+			the workspace's source and deciding whose docs `--add-source-docs` reads;
+			none given, every project of the workspace. The query starts with AND:
+			`--query-keyword <text>` (a line holds it, in any case), `--query-pattern
+			<regex>` (an extended regular expression on a line), `--query-glob <glob>`
+			(a shell glob on a whole line), each one or many, and `--query-open-and` or
+			`--query-open-or` ... `--query-close` for a group. A term holds of a section
+			(a heading down to the next heading; the lines ahead of the first heading
+			are one) when one of its lines answers it. The result is the sections that
+			answer, each source a section of its own named by its path (below the
+			workspace, or below the team data root), merged by `--intern-merge-md-files`;
+			in JSON, `{"entries":[{"source","store","section","snippet"}]}`. A call with
+			no source, no term, a group not closed, a close that closes none or an
+			option it does not know is refused, rc 1, with nothing read. No vector store.
+
 		--collect-contact --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct] [--reached-by <member>]
 			Contacts' operation (DistroAgentsContacts.fn.sh), the people subsystem: every
 			member uses it, the coordinator and the client-* members most. Records a person,
@@ -6539,6 +6577,9 @@
 			`--from-folder`, every `*.test.sh` of the folder and of the folders one level
 			below it is registered for the project by its file name, its script kept
 			below the workspace; one registered already is left as it is, and said.
+			A test whose folder no testing directive names is registered all the same,
+			and `registered; not eligible for system runs: no testing directive names
+			<folder>` is said on stderr: the system's runs leave it out.
 			Whether a test has passed, and its runs, are not kept here: the test runner
 			keeps them (`AgentsRunTests.sh --passed`), and the testbed reads them.
 
@@ -6576,7 +6617,12 @@
 			retest queue of the machine (`--member-retest-queue`), as the acting member
 			or the console user, and print the request's id: the registered test that
 			was registered first of those that have not passed on the state they would
-			run on now, or every test registered `--nightly yes`. Nothing is put in
+			run on now, or every test registered `--nightly yes`. Only a test whose
+			script is below a sh-test folder that a testing directive names
+			(`magic-team:testing:<project-glob>:<sh-test-path>:<host-glob>` in a
+			project.inf of the workspace, the directive `--make-agents-indices` reads
+			for magic-tester's write) is eligible: a folder no directive names is not,
+			and where none is named no test is. Nothing is put in
 			the queue, and it is said, where every test has passed or none is eligible;
 			a testbed with no test is refused. With `--wait` the call stays until the
 			batch has run them and says how they came out, as `--member-retest-queue`
@@ -6726,6 +6772,23 @@
 			Empties $MMDAPP/.local/.cleanup/ (the folder itself stays).
 			Takes no arguments -- always targets this one fixed location;
 			nothing to parameterize.
+
+		--owner-clear-just-agents [--check|--apply]
+			Clears a Just Agents workspace: the configuration settings
+			that do not belong in `Just Agents, default`, and nothing
+			else -- never any data (no file or folder of the team data,
+			.local/agents or .local/temp is looked at). The six:
+			TEAM_DATA_DIRECTORY (scope magic-coordinator) and
+			TEAM_DATA_GIT_REMOTE, TEAM_DATA_BRANCH,
+			TEAM_DATA_GIT_USER_NAME, TEAM_DATA_GIT_USER_EMAIL and
+			MDAT_WORKSPACE_MODE (scope magic-team), each taken out by the
+			settings writer. `--check`, which a bare call is, prints
+			`SETTING: <scope> <key> set` for each one that is set and
+			`CHECK: <n> of 6 set; --apply clears them` (or `nothing to
+			clear`), and changes nothing; `--apply` clears them and prints
+			`CLEARED: <n>`. A key is named, never its value. It acts on the
+			workspace it runs in; destructive and irreversible, so it is run
+			on a workspace the owner's order names, one at a time.
 
 		--member-help [--team-member <team-member>]
 			Read-only. Prints `<team-member>`'s own duty-related tooling

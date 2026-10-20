@@ -79,7 +79,7 @@ rigInitStore(){ ## branch
 ## Runs a piece of shell with the team-data functions at hand, as the tooling has them,
 ## guarded: HOME, the workspace and the store are the rig's.
 rigRun(){ ## result file, shell text
-	env -i HOME="$rigDir/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigStore" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigDir/home/skills" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigStore" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigDir/home/skills" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MYXROOT="$rigMyx" GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid \
 		RIG_TMP="$rigTmp" RIG_FN="$rigFn" RIG_TEXT="$2" \
 		bash -c '
@@ -96,7 +96,7 @@ rigRun(){ ## result file, shell text
 ## One op of the dispatcher itself, guarded the same way.
 rigOp(){ ## result file, op and arguments...
 	local rigResult="$1" ; shift
-	env -i HOME="$rigDir/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" ${RIG_NO_ROOT:-MDAT_DATA_ROOT="$rigStore"} MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigDir/home/skills" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" ${RIG_NO_ROOT:-MDAT_DATA_ROOT="$rigStore"} MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigDir/home/skills" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid \
 		RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '

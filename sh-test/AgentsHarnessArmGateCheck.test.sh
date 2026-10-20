@@ -72,7 +72,7 @@ rigEnd(){
 rigPrefetch="on"
 ## The model loop, guarded. A spawn id is set unless the scenario asks for none.
 rigLoop(){ ## spawn id or empty
-	env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" ${1:+MDAT_SPAWN_SESSION_ID="$1"} MDAT_SPAWN_SANDBOX_ROOT="$rigDir/sandbox" MDAT_HARNESS_PREFETCH="$rigPrefetch" \
 		RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" RIG_TMP="$rigTmp" RIG_HARNESS="$rigHarness" \
 		HARNESS_PROVIDER_NAME="arm-gate rig" HARNESS_SELF_NAME="AgentsHarnessArmGateCheck.test.sh" \
@@ -206,7 +206,7 @@ rigEnd
 rigLoop ""
 rigAssert "a loop with no spawn id writes unarmed"     "$( cat "$rigDir/ws/OUT/n.txt" 2>/dev/null )" rig
 rigScenario served
-printf '{"path":"%s","content":"rig"}' "$rigDir/ws/OUT/s.txt" | env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
+printf '{"path":"%s","content":"rig"}' "$rigDir/ws/OUT/s.txt" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_SESSION_ID=rig-session-served MDAT_SPAWN_AGENT="$rigMember" \
 	RIG_TMP="$rigTmp" RIG_HARNESS="$rigHarness" \
 	bash -c '
@@ -223,7 +223,7 @@ printf 'SPAWN_CLI_SERVICE=rig-cli\n' >> "$rigDir/ws/.local/.agents/magic-team.ag
 printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\ncase "$RIG_ARM" in yes) : > "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" ; echo "2026-09-29 10:00 +0300" > "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.armed" ;; no) : > "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" ;; esac\n' > "$rigDir/ws/DistroAgentsConsole.sh"
 chmod +x "$rigDir/ws/DistroAgentsConsole.sh"
 rigClose(){ ## armed mode (yes|no|unknown); prints the tracking record's armed lines
-	printf 'rig context' | env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	printf 'rig context' | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_ARM="$1" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" \
 		RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '

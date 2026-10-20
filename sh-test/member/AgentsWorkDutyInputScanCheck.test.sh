@@ -75,7 +75,7 @@ rigCall(){ ## result name, op words... -- one call from the rig workspace; rc, o
 	local callName="$1" callStart callRc=0
 	shift
 	callStart="$( date +%s )"
-	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_SCENARIO="$rigDir" MDAT_WAIT_REMIND=off MDAT_WAIT_POLL_SECONDS=1 perl -e 'alarm 120 ; exec @ARGV' bash "$rigTool" "$@" ) > "$rigDir/$callName.out" 2> "$rigDir/$callName.err" < /dev/null || callRc=$?
 	printf '%s' "$callRc" > "$rigDir/$callName.rc"
 	printf '%s' "$(( $( date +%s ) - callStart ))" > "$rigDir/$callName.took"

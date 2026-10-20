@@ -107,7 +107,7 @@ rigWorld(){ ## -- a fresh machine
 rigRunIn(){ ## workspace, args... -- one dispatcher call from that workspace; stdout in out, stderr in err, rc in rigRc
 	: > "$rigTmp/calls" ; : > "$rigTmp/envs" ; : > "$rigTmp/bodies"
 	rigRc=0
-	( cd "$rigWork/$1" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
+	( cd "$rigWork/$1" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/$1" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
 		bash "$rigTool" "${@:2}" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigSend(){ ## member, further arguments of the send... -- a --member- send to the team's conversation, from ws-here
@@ -157,7 +157,7 @@ rigAssert "and this workspace's registry gets no row for it" "$( LC_ALL=C grep -
 echo "-- a member with no mark of its own has the default icon of its prefix group, and one with its own keeps it --"
 ## The one list of them, asked directly: what the installer's member table shows.
 rigKindIcon(){ ## member
-	( env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1" ; AgentsToolsTeamMemberKindIcon "$2"' rig-icon "$rigHere/team-data/AgentsTools.TeamRegistry.include" "$1" ) 2> /dev/null
+	( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "$1" ; AgentsToolsTeamMemberKindIcon "$2"' rig-icon "$rigHere/team-data/AgentsTools.TeamRegistry.include" "$1" ) 2> /dev/null
 }
 rigAssert "control: the list gives each prefix group its icon, whatever member of it is asked" \
 	"$( rigKindIcon client-x ) $( rigKindIcon client-y ) $( rigKindIcon partner-x ) $( rigKindIcon keeper-x ) $( rigKindIcon keeper-y ) $( rigKindIcon warden-x ) $( rigKindIcon human-owner ) $( rigKindIcon magic-x ) $( rigKindIcon magic-y )" "👥 👥 👫 🔏 🔏 🔏 👤 🤖 🤖"

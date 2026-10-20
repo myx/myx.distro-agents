@@ -12,6 +12,7 @@
 ##   rigCall <prefix> <words...>      one call of the script in rigScript (DistroAgentsTools, DistroAgentsTesting or AgentTestingTools), in the background;
 ##                                    <prefix>.out .err, its pid in rigLast         rigEnd <pid>  rigOp <prefix> <words...>  (rigRc)
 ##   rigAs <member>                   the member the calls act as (MDAT_SPAWN_AGENT); empty for the console
+##   rigDirective <sh-test path|off> [host glob]   the testing directive in the project.inf of the rig's package (sh-test, any host, to begin with): the folders eligible for the nightly and the oldest untested
 ##   rigFresh   rigRoot   rigTests   rigUntil   rigBegins   rigBegun   rigHolds   rigLine   rigStands   rigInbox
 ##
 
@@ -30,11 +31,17 @@ rigMachineSetup(){
 	: > "$rigTmp/log"
 	rigTake myx/myx.distro-agents/sh-lib myx/myx.distro-agents/sh-lib || rigRefuse "the tooling's sh-lib could not be copied into the rig"
 	rigTake myx/myx.distro-agents/sh-scripts myx/myx.distro-agents/sh-scripts || rigRefuse "the tooling's sh-scripts could not be copied into the rig"
-	cp "$rigPackage/project.inf" "$rigLive/myx/myx.distro-agents/project.inf"
-	for rigSkill in myx.distro-.local myx.distro-system ; do rigTake "myx/$rigSkill" "myx/$rigSkill" || rigRefuse "the tooling's $rigSkill could not be copied into the rig" ; done
+	printf '# a repository of a sh-test rig\nName: myx\n' > "$rigLive/myx/repository.inf"
+	rigDirective sh-test
+	for rigSkill in myx.distro-.local myx.distro-source myx.distro-system ; do rigTake "myx/$rigSkill" "myx/$rigSkill" || rigRefuse "the tooling's $rigSkill could not be copied into the rig" ; done
 	rigTake myx/myx.common/os-myx.common/host/tarball/share/myx.common myx/myx.common/os-myx.common/host/tarball/share/myx.common || rigRefuse "myx.common could not be copied into the rig"
 	rigTests live RigOne RigTwo RigThree
 	rigTests rig-scratch-a RigOne RigTwo
+}
+rigDirective(){ ## sh-test path or `off`, [host glob, default *] -- the rig's package as the package is, with a testing directive naming that sh-test folder of it (the folders eligible for the testing system), or none
+	local directiveFile="$rigLive/myx/myx.distro-agents/project.inf" directiveTemp
+	directiveTemp="$( mktemp "$directiveFile.XXXXXX" )" || return 1
+	LC_ALL=C awk -v line="$( [ "$1" = off ] || printf '\tmagic-team:testing:myx.distro-agents:%s:%s \\' "$1" "${2:-*}" )" '{ print } /^Declares: \\$/ && line != "" { print line }' "$rigPackage/project.inf" > "$directiveTemp" && mv -f "$directiveTemp" "$directiveFile"
 }
 rigTake(){ ## folder below the origin, folder below the rig's tree -- that folder copied whole, links followed, .git left out
 	mkdir -p "$rigLive/$2" && tar -C "$MDLT_ORIGIN/$1" --exclude .git -chf - . 2> /dev/null | tar -C "$rigLive/$2" -xf - 2> /dev/null
@@ -64,7 +71,7 @@ rigCall(){ ## result prefix, words... -- one call of the script in rigScript fro
 	local callOut="$1" callTool ; shift
 	callTool="$rigLive/myx/myx.distro-agents/sh-scripts/$rigScript.fn.sh"
 	case "$rigWs" in "$rigTmp"/*) ;; *) rigRefuse "the workspace is outside this rig's own tree: $rigWs" ;; esac
-	( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigLive" MDLT_OPTION="--run-from-path $rigLive" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && exec env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigLive" MDLT_OPTION="--run-from-path $rigLive" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
 		RIG_TMP="$rigTmp" RIG_SHARED="$rigTmp" ${rigAs:+MDAT_SPAWN_AGENT="$rigAs"} \
 		bash -c 'case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; exec bash "$0" "$@"' "$callTool" "$@" ) > "$callOut.out" 2> "$callOut.err" < /dev/null &
 	rigLast=$!

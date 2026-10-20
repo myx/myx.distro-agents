@@ -185,7 +185,7 @@ rigEnv(){ ## scenario folder, NAME=value words, then the command...
 	while [ $# -gt 0 ] ; do
 		case "$1" in *=*) envWords[${#envWords[@]}]="$1" ; shift ;; *) break ;; esac
 	done
-	env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$envDir" \
 		${envWords[@]+"${envWords[@]}"} \
 		perl -e '$SIG{HUP} = "DEFAULT" ; $SIG{INT} = "DEFAULT" ; $SIG{QUIT} = "DEFAULT" ; exec { $ARGV[0] } @ARGV or exit 127' "$@"

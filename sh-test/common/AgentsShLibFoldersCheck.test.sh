@@ -4,7 +4,7 @@
 ## team-data/, config/, mcp/, manager/, comms/ (all outside communication: Slack, Atlassian, Google, Trello and mail), grants/,
 ## questions/ (the questions subsystem), harness/, member/, magic/, client/ and common/, beside the existing templates/ and help/; `intern` is not a system, so no folder is named for it. harness/
 ## takes every AgentsHarness* file, the universal harness and the claude files; common/ takes only the genuinely general
-## ones: directory, url-post-bytes, contact, artifact. myx.distro-.local/sh-lib/ keeps, in subfolders there, only what
+## ones: directory, url-post-bytes, contact, artifact, common options. myx.distro-.local/sh-lib/ keeps, in subfolders there, only what
 ## has no agents concept: markdown/ for the nesting engine of F2.1 and the document mode, output/ for the date filters.
 ## A file named Agents* or AgentsTools.* belongs to myx.distro-agents, so none stands in myx.distro-.local (the
 ## correction of 2026-10-20: registry/, dashboard/ and the agents-only files of the others went back to the agents).
@@ -13,7 +13,7 @@
 ##   2. every folder of sh-lib is one of the fifteen, or templates/, help/, client-hooks/ or vscode-fragments/,
 ##      which stay; none is named intern or op; a generated __pycache__/ is not counted
 ##   3. every AgentsHarness* file, AgentsUniversalHarness.sh and every AgentsClaude* file stands in harness/
-##   4. every file of common/ is one of the general four, by its name
+##   4. every file of common/ is one of the general five, by its name
 ##   5. myx.distro-.local/sh-lib/ holds markdown/ and output/, each with a file in it, and no file named Agents*
 ## Red before F1.3, and until its last batch: sh-lib is flat (1, 3 and 5 fail).
 ## Offline: it reads the packages and writes nothing.
@@ -59,9 +59,9 @@ echo "-- 3. the harness files stand in harness/ --"
 rigAssert "every AgentsHarness*, AgentsUniversalHarness.sh and AgentsClaude* file is in harness/" \
 	"[$( find "$rigLib" -type f \( -name 'AgentsHarness*' -o -name 'AgentsUniversalHarness.sh' -o -name 'AgentsClaude*' \) ! -path "$rigLib/harness/*" -exec basename {} \; | LC_ALL=C sort | rigShort )]" "[]"
 
-echo "-- 4. common/ holds the general four only --"
-rigAssert "every file of common/ is about a directory, url-post-bytes, a contact or an artifact" \
-	"[$( find "$rigLib/common" -type f 2> /dev/null -exec basename {} \; | LC_ALL=C grep -v -i -E 'director|url-?post-?bytes|UrlPostBytes|contact|artifact' | rigShort )]" "[]"
+echo "-- 4. common/ holds the general five only --"
+rigAssert "every file of common/ is about a directory, url-post-bytes, a contact, an artifact or the common options" \
+	"[$( find "$rigLib/common" -type f 2> /dev/null -exec basename {} \; | LC_ALL=C grep -v -i -E 'director|url-?post-?bytes|UrlPostBytes|contact|artifact|common-?options' | rigShort )]" "[]"
 
 echo "-- 5. myx.distro-.local/sh-lib holds markdown/ and output/, and no file named for the agents --"
 rigAbsent=""

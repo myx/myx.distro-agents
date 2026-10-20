@@ -61,7 +61,7 @@ for rigMember in client-ndm keeper-x ; do
 done
 rigAs="" rigSid=""
 rigEnv(){ ## the environment of every call
-	env -i HOME="$rigHome" PATH="$rigTmp/bin:$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" RIG_SCENARIO="$rigScn" RIG_CURL_LOG="$rigTmp/curl.log" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" RIG_SCENARIO="$rigScn" RIG_CURL_LOG="$rigTmp/curl.log" \
 		${rigAs:+MDAT_SPAWN_AGENT="$rigAs"} ${rigSid:+MDAT_SPAWN_SESSION_ID="$rigSid"} "$@"
 }
 rigTool(){ ## result prefix, the contacts tool's words... -- rc in rigRc

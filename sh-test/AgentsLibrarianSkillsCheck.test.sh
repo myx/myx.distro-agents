@@ -113,7 +113,7 @@ printf 'rig-seed word\n' > "$rigMain/source/rig/rig-proj/not-a-skillset/keeper-h
 rigRunHome="$rigHome"
 ## One served call as one member's run, as the MCP server makes it; its output in call.out.
 rigCall(){ ## member, session, tool, argument object
-	( cd "$rigMain" && printf '%s' "$4" | env -i HOME="$rigRunHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	( cd "$rigMain" && printf '%s' "$4" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigRunHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SPAWN_AGENT="$1" MDAT_SPAWN_SESSION_ID="$2" \
 		RIG_SCENARIO="$rigTmp/slack" RIG_CURL_LOG="$rigTmp/slack/curl.log" \
 		bash "$rigHarness" --intern-tool "$3" ) > "$rigTmp/call.out" 2> "$rigTmp/call.err"
@@ -138,7 +138,7 @@ rigRead(){ ## member, file
 }
 ## One operation of the tooling in ws-main, clean env; stdout in out.
 rigOp(){ ## op and arguments...
-	env -i HOME="$rigRunHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigRunHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_DATA_ROOT="$rigData" RIG_TMP="$rigTmp" bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$HOME" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -158,7 +158,7 @@ rigGrantRead(){ ## member, tool, path -- what grants that call, as its GRANT lin
 rigHookEdit(){ ## member, path
 	local hookOut
 	printf '{"session_id":"s-%s","cwd":"%s","hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"%s","old_string":"a","new_string":"b"}}' "$1" "$rigMain" "$2" > "$rigTmp/hook.in"
-	hookOut="$( env -i HOME="$rigRunHome" PATH=/usr/bin:/bin:/usr/sbin:/sbin MMDAPP="$rigMain" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	hookOut="$( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigRunHome" PATH=/usr/bin:/bin:/usr/sbin:/sbin MMDAPP="$rigMain" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDAT_SPAWN_AGENT="$1" MDAT_SPAWN_SESSION_ID="s-$1" bash "$rigHook" < "$rigTmp/hook.in" 2> "$rigTmp/hook.err" )"
 	case "$hookOut" in
 		'') printf 'none' ;;
@@ -169,7 +169,7 @@ rigHookEdit(){ ## member, path
 ## The check itself, as the harness gate and the hook call it: its rc, what admitted the call,
 ## the origin of that row, and whether it is the librarian's standing write on a skill file.
 rigCheck(){ ## member, tool, path
-	env -i HOME="$rigRunHome" PATH=/usr/bin:/bin:/usr/sbin:/sbin MMDAPP="$rigMain" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_MEMBER="$1" RIG_TOOL="$2" RIG_PATH="$3" bash -c '
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigRunHome" PATH=/usr/bin:/bin:/usr/sbin:/sbin MMDAPP="$rigMain" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_MEMBER="$1" RIG_TOOL="$2" RIG_PATH="$3" bash -c '
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" || exit 97
 		AgentsToolsGrantsSessionEnsure "$MMDAPP" "$RIG_MEMBER" "s-$RIG_MEMBER" "" "" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset" || exit 96
 		checkRc=0 ; checkSkill=no

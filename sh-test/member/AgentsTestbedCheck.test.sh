@@ -16,6 +16,9 @@
 ##      acting member or the console user, with the priority no-wait, and nothing when every test has passed; --test-invalidate drops the pass record
 ##      so that the test is the oldest untested again; --run-all-nightly-regressions puts every test that is eligible for the nightly and nothing
 ##      when none is; --wait is the priority of the request, and the call stays until the batch has run it and says how it came out.
+##      6b. Both runs are of the tests in a sh-test folder that a testing directive of a project.inf names (F13.5, the reader the grants use): with no directive,
+##      one for another folder or one for another host nothing is put in the queue and each says so, and the directive adds the folder; a test registered
+##      in a folder no directive names is registered, and says on stderr that it is not eligible for system runs.
 ##   7. STUBS. --tester-test-* and --tester-run-* of DistroAgentsTools.fn.sh give what the operations of DistroAgentsTesting.fn.sh give.
 ## Offline, rig tree only: nothing here reaches Slack or any endpoint.
 set -u
@@ -182,6 +185,32 @@ rigAssert "with --wait the priority of the request is wait, and the call has not
 rigTools "$rigTmp/d6f" --member-retest-drain
 rigEnd "$rigWaitPid"
 rigAssert "once the batch has run the test the call ends, rc 0, and says how it came out" "$rigRc $( rigHas 'RETEST retest-' "$rigTmp/w6.out" ) $( rigHas ' PASS -- asked by user-console about live: 1 passed' "$rigTmp/w6.out" )" "0 1 1"
+
+echo "-- 6b. eligible folders: the testing directive of the package's project.inf --"
+rigDirective off
+rigTesting "$rigTmp/e1" --run-all-nightly-regressions
+rigTesting "$rigTmp/e1b" --run-oldest-untested
+rigAssert "with no directive naming a folder no test is eligible: neither run puts anything in the queue, and each says so" "$rigRc $( LC_ALL=C grep -c . "$rigTmp/e1.out" ) $( LC_ALL=C grep -c . "$rigTmp/e1b.out" ) $( rigHolds waiting ) $( rigHas 'no registered test is in a sh-test folder that a testing directive names' "$rigTmp/e1.err" ) $( rigHas 'no registered test is in a sh-test folder that a testing directive names' "$rigTmp/e1b.err" )" "0 0 0 0 1 1"
+rigTesting "$rigTmp/e1c" --test-register RigNine --project "$rigProject" --script sh-test/RigThree.test.sh
+rigAssert "a test whose folder no directive names is registered all the same, and it says it is not eligible for system runs" "$rigRc $( cat "$rigTmp/e1c.out" ) $( rigHas 'registered; not eligible for system runs: no testing directive names source/myx/myx.distro-agents/sh-test' "$rigTmp/e1c.err" ) $( [ -f "$rigDir/RigNine.md" ] && printf stands )" "0 registered: RigNine 1 stands"
+rigTesting "$rigTmp/e1d" --test-unregister RigNine
+rigDirective sh-other
+rigTesting "$rigTmp/e2" --run-all-nightly-regressions
+rigAssert "a directive that names another folder gives the tests of this one nothing" "$rigRc $( LC_ALL=C grep -c . "$rigTmp/e2.out" ) $( rigHolds waiting )" "0 0 0"
+rigDirective sh-test rig-no-such-host
+rigTesting "$rigTmp/e3" --run-all-nightly-regressions
+rigAssert "a directive for another host gives nothing" "$rigRc $( LC_ALL=C grep -c . "$rigTmp/e3.out" ) $( rigHolds waiting )" "0 0 0"
+rigDirective sh-test
+rigTesting "$rigTmp/e4" --run-all-nightly-regressions
+rigIdF="$( LC_ALL=C sed -n 1p "$rigTmp/e4.out" )"
+rigAssert "the directive adds the folder: the nightly is the test flagged yes that stands in it" "$rigRc $( LC_ALL=C sed -n 's/^test: //p' "$rigQueue/waiting/$rigIdF.request" | LC_ALL=C tr '\n' ' ' )" "0 RigOne "
+rigTools "$rigTmp/d6g" --member-retest-drain
+rigTesting "$rigTmp/v6d" --test-invalidate RigTwo
+rigTesting "$rigTmp/e5" --run-oldest-untested
+rigIdG="$( LC_ALL=C sed -n 1p "$rigTmp/e5.out" )"
+rigAssert "and the oldest untested is again one of it: RigTwo" "$rigRc $( rigField "$rigQueue/waiting/$rigIdG.request" test )" "0 RigTwo"
+rigTools "$rigTmp/d6h" --member-retest-drain
+rigAssert "one reader of the verb: only the grants' include cuts magic-team:testing out of the declares, and the testbed calls it" "$( LC_ALL=C grep -rl -F "filter-and-cut 'magic-team:testing'" "$rigPackage/sh-lib" | LC_ALL=C sed 's#.*/##' | LC_ALL=C tr '\n' ' ' )$( LC_ALL=C grep -c 'AgentsToolsTestingFolders' "$rigPackage/sh-lib/member/AgentsTools.Testbed.include" | LC_ALL=C awk '$1 > 0 { print "called" }' )" "AgentsTools.Grants.include called"
 
 echo "-- nothing registered --"
 rigFresh

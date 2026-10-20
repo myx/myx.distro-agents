@@ -57,7 +57,7 @@ rigLine(){ ## file, line prefix -- the first line starting with it, prefix strip
 }
 rigOp(){ ## result file, op and arguments...
 	local opOut="$1" ; shift
-	env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" AGENTS_EMAIL_SEND_BUILD_ONLY=true \
 		RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '

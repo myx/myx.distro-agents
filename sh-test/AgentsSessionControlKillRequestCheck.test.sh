@@ -163,7 +163,7 @@ rigCall(){ ## NAME=value words, then a command -- in the rig workspace, as a bar
 	while [ $# -gt 0 ] ; do
 		case "$1" in *=*) callWords[${#callWords[@]}]="$1" ; shift ;; *) break ;; esac
 	done
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 		${callWords[@]+"${callWords[@]}"} "$@" ) < /dev/null
 }
 ## One call of the operation: what it printed, what it said and its status, each kept under the label.
@@ -191,7 +191,7 @@ rigSays(){ ## label, a part of a line
 ## The real thread of a session, listed in the rig's process list under its own command line. Sets rigThreadPid.
 rigThreadPid=""
 rigThread(){ ## session id
-	( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && exec env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 		bash "$rigTool" --intern-session-control --run --session-id "$1" ) >> "$rigTmp/thread.$1.out" 2>> "$rigTmp/thread.$1.err" < /dev/null &
 	rigThreadPid=$!
 	rigProcNote "$rigThreadPid" ; rigStarted="$rigStarted $rigThreadPid"

@@ -10,7 +10,7 @@
 ## Offline: a fake console records what each spawned member receives, a fake curl
 ## answers Slack.
 ## Modelled on AgentsSpawnSessionThreadCheck.test.sh (fake console/curl rig) and
-## AgentsHarnessArmGateCheck.test.sh (env -i isolated scenarios, rig tree only).
+## AgentsHarnessArmGateCheck.test.sh (env -i MDAT_WORKSPACE_MODE=team-rig isolated scenarios, rig tree only).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
@@ -78,7 +78,7 @@ printf -- '---\nexecutors: the coordinator and friends\nmaintainers: magic-coord
 
 rigRun(){ ## stdin content, then --magic-spawn-session args...
 	local rigStdin="$1" ; shift
-	env -i HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac

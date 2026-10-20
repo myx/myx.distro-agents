@@ -237,7 +237,7 @@ rigEnv(){ ## scenario folder, NAME=value words, then the command...
 	while [ $# -gt 0 ] ; do
 		case "$1" in *=*) envWords[${#envWords[@]}]="$1" ; shift ;; *) break ;; esac
 	done
-	env -i HOME="$rigHome" PATH="$rigTmp/held:$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/held:$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$envDir" RIG_HELPER="$rigHelper" RIG_REAL_AWK="$rigRealAwk" RIG_REAL_GIT="$rigRealGit" \
 		${envWords[@]+"${envWords[@]}"} \
 		perl -e '$SIG{HUP} = "DEFAULT" ; $SIG{INT} = "DEFAULT" ; $SIG{QUIT} = "DEFAULT" ; exec { $ARGV[0] } @ARGV or exit 127' "$@"
@@ -351,7 +351,7 @@ rigAssert "its item enters review, and its log says what the shell held" "$( rig
 echo "-- 4. a start its caller waits on: a polite end during the handback retry is held until the close is done --"
 rigDir="$rigTmp/waited-term"
 mkdir -p "$rigDir"
-( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$rigTmp/held:$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+( cd "$rigWs" && exec env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/held:$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 	MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigDir" RIG_HELPER="$rigHelper" RIG_REAL_AWK="$rigRealAwk" RIG_REAL_GIT="$rigRealGit" \
 	bash "$rigTool" --intern-op-agent-spawn-proxy rig-member-a --dispatch-doc:create --wait --context rig-supervisor-holds <<< "RIG-BRIEF" > "$rigDir/proxy.out" 2> "$rigDir/proxy.err" ) &
 rigCall=$!
@@ -376,7 +376,7 @@ rigDir="$rigTmp/waited-gone"
 mkdir -p "$rigDir"
 : > "$rigDir/handback-first"
 ## The caller reads nothing and then leaves: from then on nobody reads what the waiting shell writes.
-( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$rigTmp/held:$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+( cd "$rigWs" && exec env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/held:$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 	MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigDir" RIG_HELPER="$rigHelper" RIG_REAL_AWK="$rigRealAwk" RIG_REAL_GIT="$rigRealGit" \
 	bash "$rigTool" --intern-op-agent-spawn-proxy rig-member-a --dispatch-doc:create --wait --context rig-supervisor-holds <<< "RIG-BRIEF" ) 2>&1 \
 	| ( while [ ! -e "$rigDir/reader-leaves" ] ; do sleep 1 ; done ) &
@@ -472,7 +472,7 @@ rigProcSignal KILL $rigHelperPids
 rigDir="$rigTmp/helpers-waited"
 mkdir -p "$rigDir"
 : > "$rigDir/no-launch-marker" ; : > "$rigDir/handback-first"
-( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$rigTmp/held:$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+( cd "$rigWs" && exec env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/held:$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 	MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigDir" RIG_HELPER="$rigHelper" RIG_REAL_AWK="$rigRealAwk" RIG_REAL_GIT="$rigRealGit" \
 	bash "$rigTool" --intern-op-agent-spawn-proxy rig-member-a --dispatch-doc:create --wait --context rig-supervisor-holds <<< "RIG-BRIEF" > "$rigDir/proxy.out" 2> "$rigDir/proxy.err" ) &
 rigCall=$!

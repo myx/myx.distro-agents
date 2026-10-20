@@ -138,7 +138,7 @@ printf '0' > "$rigLoopDir/round"
 : > "$rigLoopDir/curl.log"
 printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"rig-call-1","type":"function","function":{"name":"Glob","arguments":"{\\"pattern\\":\\"*.txt\\",\\"path\\":\\"%s\\"}"}}]},"finish_reason":null}]}\ndata: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":20}}\ndata: [DONE]\n' "$rigFix" > "$rigLoopDir/res.1"
 printf 'data: {"choices":[{"index":0,"delta":{"content":"RIG-DONE"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":20}}\ndata: [DONE]\n' > "$rigLoopDir/res.2"
-env -i HOME="$rigTmp/home" PATH="$rigLoopDir/bin:/usr/bin:/bin" TZ=UTC MMDAPP="$rigTmp" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigLoopDir/bin:/usr/bin:/bin" TZ=UTC MMDAPP="$rigTmp" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 	MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_SESSION_ID=rig-current-date-loop MDAT_SPAWN_AGENT=magic-tester RIG_SCENARIO="$rigLoopDir" RIG_CURL_LOG="$rigLoopDir/curl.log" \
 	HARNESS_PROVIDER_NAME="current-date rig" HARNESS_SELF_NAME="AgentsReplyCurrentDateCheck.test.sh" \
 	HARNESS_ENDPOINT="https://reply-current-date-check.invalid/v1/chat/completions" HARNESS_HOST="reply-current-date-check.invalid" \

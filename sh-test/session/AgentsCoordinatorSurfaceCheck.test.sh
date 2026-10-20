@@ -49,7 +49,7 @@ printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator, ma
 rigAs=""
 rigRun(){ ## result prefix, script, words... -- rc in rigRc
 	local runOut="$1" runScript="$2" ; shift 2
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" ${rigAs:+MDAT_SPAWN_AGENT="$rigAs"} \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" ${rigAs:+MDAT_SPAWN_AGENT="$rigAs"} \
 		bash -c 'case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; exec bash "$@"' rig "$runScript" "$@" ) > "$runOut.out" 2> "$runOut.err" < /dev/null
 	rigRc=$?
 }
@@ -65,7 +65,7 @@ rigSame(){ ## file, file -- `same`, or the first of what differs
 }
 rigWriter(){ ## result prefix, stdin file, words... -- one call of DistroAgentsTools.fn.sh as magic-coordinator; rc in rigRc
 	local writerOut="$1" writerIn="$2" ; shift 2
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" MDAT_SPAWN_AGENT=magic-coordinator \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" MDAT_SPAWN_AGENT=magic-coordinator \
 		bash -c 'case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; exec bash "$@"' rig "$rigChain" "$@" ) > "$writerOut.out" 2> "$writerOut.err" < "$writerIn"
 	rigRc=$?
 }
@@ -188,7 +188,7 @@ rigAssert "--standing maybe and --standing on an inquiry are refused, nothing wr
 
 echo "-- 7. a spawn is given them --"
 rigBrief(){ ## result prefix
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		bash "$rigChain" --intern-op-spawn-prepare-brief rig-member --routine-default ) > "$1.out" 2> "$1.err" < /dev/null
 }
 rigBrief "$rigTmp/b1"

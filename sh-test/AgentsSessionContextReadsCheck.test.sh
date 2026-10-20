@@ -55,7 +55,7 @@ rigScan(){
 		> "$scanDir/ws/.local/.agents/client-fix1.agent.env"
 	: > "$scanDir/calls.log"
 	local scanRc=0
-	env -i HOME="$scanDir/home" PATH="$scanDir/bin:/usr/bin:/bin" MMDAPP="$scanDir/ws" MDAT_DATA_ROOT="$scanDir/data" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$scanDir/home" PATH="$scanDir/bin:/usr/bin:/bin" MMDAPP="$scanDir/ws" MDAT_DATA_ROOT="$scanDir/data" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" PYTHONPATH="$scanDir/py" PYTHONDONTWRITEBYTECODE=1 \
 		FIX_DIR="$scanDir" FIX_LATENCY=0 FIX_DMS="$scanDms" FIX_TS="$rigNow" FIX_CHANNELS="${RIG_CHANNELS:-0}" FIX_NONMEMBER="${RIG_NONMEMBER:-0}" \
 		FIX_K6_AGE="${RIG_K6_AGE:-60}" RIG_TMP="$rigTmp" \

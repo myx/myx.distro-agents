@@ -40,12 +40,12 @@ printf 'EMAIL_USER=Owner@Rig.Example\n' > "$rigWs/.local/.agents/human-owner.age
 rigAs=""
 rigTool(){ ## result prefix, the tool's words... -- DistroAgentsContacts.fn.sh as the member in rigAs
 	local toolOut="$1" ; shift
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$rigTmp/bin:$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" ${rigAs:+MDAT_SPAWN_AGENT="$rigAs"} \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" ${rigAs:+MDAT_SPAWN_AGENT="$rigAs"} \
 		bash "$rigContacts" "$@" ) > "$toolOut.out" 2> "$toolOut.err" < /dev/null
 }
 rigGate(){ ## result prefix, the gate's words after the member... -- the gate asked as client-ndm in the session rig-session; rc in rigRc
 	local gateOut="$1" ; shift
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$rigTmp/bin:$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SPAWN_SESSION_ID=rig-session MDAT_SPAWN_AGENT=client-ndm \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SPAWN_SESSION_ID=rig-session MDAT_SPAWN_AGENT=client-ndm \
 		bash -c '
 			DistroAgentsTools(){ "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"

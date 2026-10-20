@@ -123,7 +123,7 @@ rigPre=()
 rigRun(){ ## args... -- one dispatcher call from ws-here; stdout in out, stderr in err, rc in rigRc
 	rigClean
 	rigRc=0
-	( cd "$rigWork/ws-here" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_REAL_PYTHON3="$rigRealPython" ${rigPre[@]+"${rigPre[@]}"} \
+	( cd "$rigWork/ws-here" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_REAL_PYTHON3="$rigRealPython" ${rigPre[@]+"${rigPre[@]}"} \
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigN(){ ## file, fixed text -- how many lines hold it

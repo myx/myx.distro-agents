@@ -375,6 +375,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-retest-drain [--rest [--abou
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-retest-result <request-id>..." >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --owner-clear-just-agents [--check|--apply]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-harden" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-self-test" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-verify" >&2

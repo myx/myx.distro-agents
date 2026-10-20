@@ -102,7 +102,7 @@ rigReset(){
 rigStart(){ ## --magic-spawn-session arguments...
 	local startMembers startLeft=15
 	rigReset
-	env -i HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -141,7 +141,7 @@ rigAssert "magic-team.standalone.routine.md stands, declaring requires-session-k
 echo "-- 2. the two kinds, and nothing else --"
 rigValidate(){ ## routine file -- `0`, or `refused` and whether requires-session-kind is named
 	local validateRc=0
-	( cd "$rigWs" && env -i HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigTool" --tester-skillset-validate-routine "$1" ) > "$rigTmp/validate" 2>&1 < /dev/null || validateRc=$?
 	if [ "$validateRc" -eq 0 ] ; then printf 0 ; return ; fi
 	if LC_ALL=C grep -q -F 'requires-session-kind' "$rigTmp/validate" ; then printf 'refused named' ; else printf 'refused unnamed' ; fi

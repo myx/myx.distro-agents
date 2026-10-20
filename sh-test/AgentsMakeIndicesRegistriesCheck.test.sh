@@ -141,7 +141,7 @@ rigBytes(){ ## -- the bytes of every file a name builds here, as one sum
 }
 rigRun(){ ## tool arguments... -- in the rig workspace; rc in rigRc, stdout in $rigTmp/out, stderr in $rigTmp/err
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigMake(){ ## names... -- the one operation
@@ -304,7 +304,7 @@ rigAssert "the source-prepare build has one builder that makes the indices: its 
 	"$( ls "$rigBuilders" | LC_ALL=C tr '\n' ' ' )$( LC_ALL=C grep -c -x -F -- "DistroAgentsTools.fn.sh $rigOne" "$rigBuilders/1201-agents-indices.sh" || : ) $( cat "$rigBuilders"/*.sh | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- 'DistroAgentsTools' || : )" "1201-agents-indices.sh 1202-harness-indices.sh 1 1"
 rigBuilder(){ ## builder file name -- run as the source-prepare build runs it; rc in rigRc
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$rigPackage/sh-scripts:$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigPackage/sh-scripts:$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 		sh "$rigBuilders/$1" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigRound six
@@ -326,7 +326,7 @@ for rigIntPackage in "$MDLT_ORIGIN/myx"/myx.* ; do ln -s "$rigIntPackage" "$rigI
 rigIntPath="$rigTmp/bin:$( dirname "$( command -v myx.common )" ):/usr/bin:/bin:/usr/sbin:/sbin"
 rigInt(){ ## tool arguments... -- in that workspace; rc in rigRc, stderr in $rigTmp/int.err
 	rigRc=0
-	env -i HOME="$rigIntHome" PATH="$rigIntPath" MMDAPP="$rigIntWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigIntHome" PATH="$rigIntPath" MMDAPP="$rigIntWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$HOME" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -403,11 +403,11 @@ rigAtOnceFailed=0 ; rigAtOnceBroken=0 ; rigAtOnceRound=0
 while [ "$rigAtOnceRound" -lt 3 ] ; do
 	rigAtOnceRound=$(( rigAtOnceRound + 1 ))
 	rigAtOncePids=""
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 		bash "$rigTool" "$rigOne" ) > "$rigTmp/at-once.$rigAtOnceRound.build.out" 2> "$rigTmp/at-once.$rigAtOnceRound.build.err" < /dev/null &
 	rigAtOncePids="$rigAtOncePids $!"
 	for rigAtOnceNo in 1 2 ; do
-		( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
+		( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" \
 			bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild && AgentsToolsRegistrySpawnedSessionsRebuild && AgentsToolsRegistryPendingRepliesRebuild' ) \
 			> "$rigTmp/at-once.$rigAtOnceRound.$rigAtOnceNo.out" 2> "$rigTmp/at-once.$rigAtOnceRound.$rigAtOnceNo.err" < /dev/null &
 		rigAtOncePids="$rigAtOncePids $!"

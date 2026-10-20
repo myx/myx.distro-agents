@@ -59,7 +59,7 @@ printf 'ws-rig-known\tworkspace\tread-write\t%s\towner\n' "$rigWs" > "$rigWs/.lo
 rigDataEnv=( "MDAT_DATA_ROOT=$rigData" )
 rigRun(){ ## kind, file|--from-stdin -- rc in rigRc, the rows in $rigTmp/said.out, the other stream in $rigTmp/said.err
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigTmp/home" USER=rigacct PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" USER=rigacct PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		MDAT_SKILLSET_ROOT="$rigSkills" ${rigDataEnv[@]+"${rigDataEnv[@]}"} bash "$rigTool" --intern-doc-validate "$1" "$2" ) > "$rigTmp/said.out" 2> "$rigTmp/said.err" < "${rigStdin:-/dev/null}" || rigRc=$?
 }
 rigRowsAt(){ ## rule -- the lines of the rows of that rule in the last run, comma-separated, in the order printed

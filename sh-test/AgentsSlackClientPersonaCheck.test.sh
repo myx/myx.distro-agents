@@ -100,7 +100,7 @@ rigLinkDrop(){ ## member -- every row of that member out of the member registry
 }
 rigBuild(){ ## options... -- the registries build in the rig workspace; rc in rigBuildRc, stdout in $rigTmp/build.out, stderr in $rigTmp/build.err
 	rigBuildRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 		bash "$rigTool" "$rigOpName" "$@" ) > "$rigTmp/build.out" 2> "$rigTmp/build.err" < /dev/null || rigBuildRc=$?
 }
 rigWorld(){ ## -- a fresh workspace and skillset with the default tokens, members, linked-members index and registries built
@@ -163,13 +163,13 @@ rigIndexSet(){ ## member, field number (2 mark, 3 first, 4 family, 5 alias), val
 rigSend(){ ## member, target, send options... -- one send; rc in rigRc, stderr in $rigTmp/err, calls and bodies of this send alone
 	: > "$rigTmp/calls" ; rm -f "$rigTmp/bodies" ; touch "$rigTmp/bodies"
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigDataRoot" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigDataRoot" \
 		bash "$rigTool" --member-comms-slack-send-message "$1" "$2" "${@:3}" RIG-BODY ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigSendBody(){ ## member, target, body, send options... -- the same with a body of its own
 	: > "$rigTmp/calls" ; rm -f "$rigTmp/bodies" ; touch "$rigTmp/bodies"
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigDataRoot" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigDataRoot" \
 		bash "$rigTool" --member-comms-slack-send-message "$1" "$2" "${@:4}" "$3" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 ## A client's external send: by its client stub, into a conversation or to a person of the other organisation, named
@@ -177,13 +177,13 @@ rigSendBody(){ ## member, target, body, send options... -- the same with a body 
 rigSendOut(){ ## member, conversation or person id, send options... -- one external send; rc in rigRc, stderr in $rigTmp/err, calls and bodies of this send alone
 	: > "$rigTmp/calls" ; rm -f "$rigTmp/bodies" ; touch "$rigTmp/bodies"
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigDataRoot" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigDataRoot" \
 		bash "$rigTool" --client-comms-slack-send-message "$1" "$2" "${@:3}" RIG-BODY ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigSendOutBody(){ ## member, conversation or person id, body, send options... -- the same with a body of its own
 	: > "$rigTmp/calls" ; rm -f "$rigTmp/bodies" ; touch "$rigTmp/bodies"
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigDataRoot" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigDataRoot" \
 		bash "$rigTool" --client-comms-slack-send-message "$1" "$2" "${@:4}" "$3" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigN(){ ## file, fixed text -- how many lines hold it
@@ -793,7 +793,7 @@ rigAssert "and the build comes after the part of the install that writes the mem
 rigAssert "control: a sample with the build ahead of the install is not ordered" "$( printf '\t\tDistroAgentsTools --make-harness-indices || x\n\t\tDistroAgentsTools --install-workspace-integrations "$@" || x\n\t\tDistroAgentsTools --intern-member-home-register || x\n\t\tDistroAgentsTools --install-workspace-integrations "$@" || x\n' | LC_ALL=C awk '/DistroAgentsTools --install-workspace-integrations / { if ( !first ) first = NR ; else second = NR } /DistroAgentsTools --intern-member-home-register / { homes = NR } /DistroAgentsTools --make-(harness|agents)-indices / { build = NR } END { print ( first && first < homes && homes < build && build < second ) ? "ordered" : "not ordered" }' )" "not ordered"
 rigRunBuilder(){ ## agents scripts directory on the path or none -- the builder run as the source-prepare build runs it, the rig workspace as the workspace; rc in rigRc
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="${1:+$1:}$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" sh "$rigBuilder" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="${1:+$1:}$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" sh "$rigBuilder" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigWorld ; rm -f "$rigNamesFile" "$rigMembersFile"
 rigRunBuilder "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts"
@@ -816,11 +816,11 @@ echo "-- 21. the keys are accepted by the config writer, in any locale --"
 rigWorld
 rigUpsert(){ ## locale, member, key, value -- one --upsert-from-stdin; rc in rigRc
 	rigRc=0
-	( cd "$rigWs" && printf '%s' "$4" | env -i HOME="$rigHome" PATH="$PATH" LC_ALL="$1" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && printf '%s' "$4" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" LC_ALL="$1" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 		bash "$rigTool" --agents-config-option "$2" --upsert-from-stdin "$3" ) > "$rigTmp/up.out" 2> "$rigTmp/up.err" || rigRc=$?
 }
 rigSelect(){ ## locale, member, key
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" LC_ALL="$1" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" LC_ALL="$1" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 		bash "$rigTool" --agents-config-option "$2" --select "$3" 2> /dev/null )
 }
 for rigLocale in C en_US.UTF-8 ; do

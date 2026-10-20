@@ -81,7 +81,7 @@ rigSpawn(){ ## routine short name, create|none
 	rm -rf "$rigData/board" ; mkdir -p "$rigData/board"
 	chmod -R u+w -- "$rigWs/.local/agents" 2> /dev/null ; rm -rf "$rigWs/.local/agents/spawned"
 	rigRc=0
-	env -i HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -103,7 +103,7 @@ echo "-- 1. the validator takes the three words, and refuses another --"
 for rigValue in required optional forbidden sometimes ; do rigRoutine "$rigTmp/routines" "rigvalue-$rigValue" "$rigValue" ; done
 rigValidate(){ ## short name -- `0`, or `refused` and whether tracking-item is named
 	local validateRc=0
-	( cd "$rigWs" && env -i HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigTool" --tester-skillset-validate-routine "$rigTmp/routines/magic-team.$1.routine.md" ) > "$rigTmp/validate" 2>&1 < /dev/null || validateRc=$?
 	if [ "$validateRc" -eq 0 ] ; then printf 0 ; return ; fi
 	if LC_ALL=C grep -q -F 'tracking-item' "$rigTmp/validate" ; then printf 'refused named' ; else printf 'refused unnamed' ; fi

@@ -80,7 +80,7 @@ rigEnv=()
 rigRun(){ ## result file, command...
 	local runOut="$1" ; shift
 	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
-	env -i HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" "${rigEnv[@]+"${rigEnv[@]}"}" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -143,7 +143,7 @@ rigGrantOpen(){ ## approver, session, refusal id, kind -- prints the GRANT line'
 rigHookWrite(){ ## member, session, path
 	local hookOut
 	printf '{"session_id":"%s","cwd":"%s","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"%s","content":"rig"}}' "$2" "$rigWs" "$3" > "$rigTmp/hook.in"
-	hookOut="$( env -i HOME="$rigTmp" PATH=/usr/bin:/bin:/usr/sbin:/sbin MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	hookOut="$( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH=/usr/bin:/bin:/usr/sbin:/sbin MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDAT_SPAWN_AGENT="$1" MDAT_SPAWN_SESSION_ID="$2" bash "$rigHook" < "$rigTmp/hook.in" 2> "$rigTmp/hook.err" )"
 	case "$hookOut" in
 		'') printf 'none' ;;

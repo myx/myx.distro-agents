@@ -97,7 +97,7 @@ rigFirst(){ ## file -- its first line
 rigSpawn(){ ## routine short name
 	rm -f "$rigTmp"/brief.* "$rigTmp/input-scan.seen" "$rigTmp/pointers.seen" "$rigTmp/wait.seen" "$rigTmp/wait.control"
 	chmod -R u+w -- "$rigWs/.local/agents" 2> /dev/null ; rm -rf "$rigWs/.local/agents/spawned" "$rigWs/.local/agents/sandboxes"
-	env -i HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -151,7 +151,7 @@ AgentsToolsInputScanDefSeed "$RIG_LINE" "${RIG_LINE%% *}" keeper-rig "${RIG_SESS
 RIG_SEED_UNIT
 rigSeedUnit(){ ## definition line, the text the spawner's run printed, [names-only run's exit code] -- the pointer the session keeps afterwards
 	rm -rf "$rigTmp/seed-ws" ; mkdir -p "$rigTmp/seed-ws"
-	( env -i HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigTmp/seed-ws" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_LINE="$1" RIG_RUN_TEXT="$2" RIG_RUN_FILE="$rigTmp/seed-run.out" RIG_NAMES_RC="${3:-0}" ${RIG_SESSION+RIG_SESSION="$RIG_SESSION"} \
+	( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigTmp/seed-ws" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_LINE="$1" RIG_RUN_TEXT="$2" RIG_RUN_FILE="$rigTmp/seed-run.out" RIG_NAMES_RC="${3:-0}" ${RIG_SESSION+RIG_SESSION="$RIG_SESSION"} \
 		bash "$rigTmp/seed-unit.sh" ) > /dev/null 2>&1
 	cat "$rigTmp/seed-ws/.local/agents/sessions/seed-unit-session/session.chat.pointers" 2> /dev/null | LC_ALL=C awk -F '\t' '$1 == "scan:permission-escalation:keeper-rig" { print $2 ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }'
 }

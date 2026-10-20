@@ -47,7 +47,7 @@ rigFieldCount(){ ## file, field
 ## set, becomes MDAT_SPAWN_AGENT -- the spawned session's own member.
 rigOp(){ ## result file, op and arguments...
 	local opOut="$1" ; shift
-	env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} \
 		RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '

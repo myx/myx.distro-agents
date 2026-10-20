@@ -55,7 +55,7 @@ rigFieldCount(){ ## file, field
 ## One team op, guarded, against the rig's own stores; rc into <result>.rc. RIG_AGENT, when set, becomes MDAT_SPAWN_AGENT, RIG_USER USER.
 rigOp(){ ## result file, op and arguments...
 	local opOut="$1" ; shift
-	env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$rigOrigin" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$rigOrigin" \
 		MDLT_OPTION="--run-from-path $rigOrigin" ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} ${RIG_USER:+USER="$RIG_USER"} RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -68,7 +68,7 @@ rigOp(){ ## result file, op and arguments...
 ## The validator on one file as its kind, the rows and the exit code: `<rc>:<number of rows>`.
 rigMeets(){ ## kind, file
 	local meetsRows meetsRc=0
-	meetsRows="$( env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
+	meetsRows="$( env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		bash "$rigFn" --intern-doc-validate "$1" "$2" 2> /dev/null )" || meetsRc=$?
 	printf '%s:%s' "$meetsRc" "$( printf '%s' "$meetsRows" | LC_ALL=C grep -c . || : )"
 }

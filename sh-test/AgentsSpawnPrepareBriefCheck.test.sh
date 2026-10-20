@@ -55,7 +55,7 @@ printf '%s\n' "# broken fixture: no frontmatter block at all" "executors: rig-me
 
 rigBrief(){ ## result file, then --routine/--routine-default/--context args for the op
 	local rigResultFile="$1" ; shift
-	env -i HOME="$rigTmp" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
 			case "$MDAT_SKILLSET_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac

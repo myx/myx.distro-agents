@@ -56,7 +56,7 @@ rigSession=""
 rigRun(){ ## out-name, args...
 	local runName="$1" ; shift
 	local runRc=0
-	env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" FIX_DIR="$rigDir" FIX_LATENCY=0 FIX_DMS=2 FIX_TS="$rigNow" RIG_TMP="$rigTmp" ${rigSession:+MDAT_SPAWN_AGENT="$rigSession"} \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac

@@ -274,7 +274,7 @@ rigLoopScenario(){ ## name
 	rigScenarioDir="$rigDir"
 }
 rigOneRun(){
-	env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" TZ="$rigTz" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" TZ="$rigTz" \
 		MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigDir/home/.claude/skills" \
 		RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
@@ -673,7 +673,7 @@ wait "$rigBothPid" 2>/dev/null || :
 rigAssert "at once: one post was tried, and one reminder is on the record" "$( rigTries ):$( rigPosts ):$( rigField ask-both reminders )" 1:1:1
 ## And with the main loop itself: one iteration of it, and a wait, in either order.
 rigLoopWait(){ ## -- a wait on the loop scenario's ask, in the loop's own environment
-	env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" TZ="$rigTz" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" TZ="$rigTz" \
 		MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigDir/home/.claude/skills" RIG_FN="$rigTool" RIG_MEMBER="$rigMember" \
 		bash -c 'cd "$MMDAPP" && exec bash "$RIG_FN" --member-wait-for-input "$RIG_MEMBER" --wait-source ask:ask-loop --wait-timeout 1' > "$rigDir/wait.out" 2> "$rigDir/wait.err"

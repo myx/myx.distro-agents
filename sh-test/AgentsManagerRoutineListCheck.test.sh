@@ -120,12 +120,12 @@ chmod +x "$rigWs/DistroAgentsConsole.sh"
 rigPre=()
 rigRun(){ ## tool arguments... -- one dispatcher call from the rig workspace, as a console makes it; rc in rigRc, stdout in out, stderr in err
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" ${rigPre[@]+"${rigPre[@]}"} \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" ${rigPre[@]+"${rigPre[@]}"} \
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigStart(){ ## selector, then the members named, if any -- the session spawner asked to start that routine, a task text on stdin; rc in rigRc, stdout in start.out, stderr in start.err
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
 		bash "$rigTool" --magic-spawn-session --routine "$@" ) > "$rigTmp/start.out" 2> "$rigTmp/start.err" <<< "RIG-TASK-TEXT" || rigRc=$?
 }
 rigRowOf(){ ## selector -- that routine's row in the last output, TAB written as a space
@@ -217,7 +217,7 @@ rigAssert "no file of the machine changed, and none was made: the workspace, the
 rigAssert "and no request was issued" "$( [ -e "$rigTmp/calls" ] && wc -l < "$rigTmp/calls" | LC_ALL=C tr -d ' ' || echo 0 )" "0"
 rigBare="$rigTmp/ws-bare" ; mkdir -p "$rigBare/.local/.agents" "$rigTmp/home-bare"
 rigRc=0
-( cd "$rigBare" && env -i HOME="$rigTmp/home-bare" PATH="$PATH" MMDAPP="$rigBare" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" bash "$rigTool" "$rigOp" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
+( cd "$rigBare" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home-bare" PATH="$PATH" MMDAPP="$rigBare" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" bash "$rigTool" "$rigOp" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 rigAssert "a workspace with no member's folder prints no row, ends 0 and says so in one note, with no error and no warning" \
 	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "# DistroAgentsTools $rigOp: no member's folder holds a routine file" ) $( rigTroubles )" "0 0 1 0"
 

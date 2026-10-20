@@ -64,7 +64,7 @@ rigCacheWrite(){ ## rows... -- the cache holding the idle lock generation and th
 ## rigSide adds to a call's environment: the side of the call, where a row is a client-* member's.
 rigSide=()
 rigCall(){ ## function and arguments... -- one cache function in a fresh shell over the real tooling; its stdout in $rigTmp/fn.out
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigData" RIG_TOOL="$rigTool" RIG_INCLUDE="$rigInclude" ${rigSide[@]+"${rigSide[@]}"} \
 		bash -c '
 			. "$RIG_TOOL"

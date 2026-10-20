@@ -173,7 +173,7 @@ rigSame(){ ## what a header was, what it is -- as-it-was only for a value that w
 ## One call of the tooling in the rig workspace, as a bare console makes it: no session of its own.
 rigEnv(){ ## scenario folder, command...
 	local envDir="$1" ; shift
-	env -i HOME="$rigHome" PATH="$rigTmp/held:$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/held:$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$envDir" RIG_REAL_AWK="$rigRealAwk" "$@"
 }
 ## What the tooling says of the supervising shell of a record, and how the asking ended: `<word> rc=<status>`.
@@ -236,7 +236,7 @@ echo "-- 2. a start its caller waits on --"
 rigDir="$rigTmp/waited"
 mkdir -p "$rigDir"
 : > "$rigDir/handback-first"
-( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$rigTmp/held:$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+( cd "$rigWs" && exec env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/held:$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 	MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigDir" RIG_REAL_AWK="$rigRealAwk" \
 	bash "$rigTool" --intern-op-agent-spawn-proxy rig-member-a --dispatch-doc:none --wait --context rig-supervisor-record <<< "RIG-BRIEF" > "$rigDir/proxy.out" 2>&1 ) &
 rigCall=$!

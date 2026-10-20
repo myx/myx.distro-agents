@@ -72,7 +72,7 @@ rigHolds(){ ## file, fixed string
 }
 rigOp(){ ## DistroAgentsTools.fn.sh arguments... -- out, err, rc in rigRc
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" RIG_SCENARIO="$rigTmp" \
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?
 }
@@ -155,13 +155,13 @@ rigAbsent="transcript-20261010T1458Z-rig-absent.md"
 	'{"jsonrpc":"2.0","method":"notifications/initialized"}'
   printf '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute","arguments":{"command":"bash %s --member-audit-item-read magic-tester %s"}}}\n' "$rigTool" "$rigAbsent"
   sleep 8 ; } \
-	| ( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	| ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" RIG_SCENARIO="$rigTmp" bash "$rigTool" --intern-mcp-server --run 2> "$rigTmp/mcp.err" ) \
 	| LC_ALL=C grep '"id":2' > "$rigTmp/mcp.reply" || :
 rigAssert "through the MCP server's execute tool: an error, saying not found and the exit code" \
 	"$( LC_ALL=C sed -n 's/.*"isError":\([a-z]*\).*/\1/p' "$rigTmp/mcp.reply" | head -1 ) $( rigHolds "$rigTmp/mcp.reply" 'not found' ) $( LC_ALL=C grep -c -E '\[exit code: [1-9][0-9]*\]' "$rigTmp/mcp.reply" )" "true yes 1"
 printf '{"command":"bash %s --member-audit-item-read magic-tester %s","cwd":"%s","timeout":60}' "$rigTool" "$rigAbsent" "$rigWs" \
-	| ( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	| ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SPAWN_AGENT=magic-tester bash "$rigHere/harness/AgentsUniversalHarness.sh" --intern-tool Bash --access-root "$rigWs" ) \
 	> "$rigTmp/bash.out" 2> "$rigTmp/bash.err"
 rigAssert "through the served harness's Bash tool: not found, and an exit status that is no success" \

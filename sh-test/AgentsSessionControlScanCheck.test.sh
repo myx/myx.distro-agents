@@ -132,7 +132,7 @@ rigRc=0
 rigScan(){ ## name of its output files -- one take of the lock in the rig workspace: stdout in <name>.out, stderr in <name>.err, the daemon line (descriptor 4) in <name>.fd4
 	rigRc=0
 	rm -f "$rigData/inboxes/magic-coordinator/incoming/note-20260809T154715Z-advance-state-and-lock.md"
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		bash "$rigTool" "$rigOp" magic-coordinator rig-advance-pass ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" 4> "$rigTmp/$1.fd4" < /dev/null || rigRc=$?
 }
 rigHk(){ ## name of a scan -- the housekeeping lines of its report

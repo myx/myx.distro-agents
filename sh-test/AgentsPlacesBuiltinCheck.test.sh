@@ -83,7 +83,7 @@ printf -- '---\nsession-id: s-coord\nspawn-id: s-coord\nowner: magic-coordinator
 RIG_WS="$rigMain" RIG_HOME="$rigHome" RIG_AGENT="" RIG_SESSION="" RIG_SKILLSET=""
 rigRun(){ ## op and arguments... -- the tool in RIG_WS under RIG_HOME, clean env; out, err, rigRc
 	rigRc=0
-	env -i HOME="$RIG_HOME" PATH="$rigTmp/bin:${rigMyxCommon%/*}:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$RIG_WS" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$RIG_HOME" PATH="$rigTmp/bin:${rigMyxCommon%/*}:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$RIG_WS" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_DATA_ROOT="$rigData" RIG_TMP="$rigTmp" ${RIG_SKILLSET:+MDAT_SKILLSET_ROOT="$RIG_SKILLSET"} ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} ${RIG_SESSION:+MDAT_SPAWN_SESSION_ID="$RIG_SESSION"} bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$HOME" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac

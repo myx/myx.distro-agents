@@ -51,7 +51,7 @@ rigScenario(){ ## name, auth answer (in|out|junk), key value or empty
 }
 ## One console run, guarded; rc into $rigDir/rc.
 rigConsole(){ ## console args...
-	env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_TEMPLATE="$rigTemplate" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_TEMPLATE="$rigTemplate" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree: $MMDAPP" >&2 ; exit 99 ;; esac
 			case "$( command -v claude )" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: claude is not the rig stub" >&2 ; exit 99 ;; esac
@@ -100,7 +100,7 @@ rigScenario proxy in ""
 printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\nexit 6\n' > "$rigDir/ws/DistroAgentsConsole.sh"
 chmod +x "$rigDir/ws/DistroAgentsConsole.sh"
 mkdir -p "$rigDir/data"
-printf 'rig context' | env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDLT_ORIGIN="$MDLT_ORIGIN" \
+printf 'rig context' | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 	bash -c '
 		case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac

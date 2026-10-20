@@ -50,13 +50,31 @@ review-by: inherit
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **session-start**: the shared opening group, in its solo form, steps:
-   - **declare-session-type**: state that this session is standalone. Every type-gated step keys off this declaration.
-   - **post-opening-broadcast**: post the session type and the goal, if framed, into the session thread. Post at once; completeness never delays it.
-   - **fold-in-learned-lessons**: `magic-librarian`, when this session is its own, runs `magic-team.process-reflections.routine` inline (`--routine-run-inline magic-team.process-reflections.routine`) for this session's project or workspace. Any other member passes its own recent lessons to `magic-librarian` with `post-inquiry`, and may file a new `reflection-*`.
-   - **collect-reflections-output**: the member runs `magic-team.process-inbox.routine <own-name>` inline (`--routine-run-inline magic-team.process-inbox.routine`), picking up what **fold-in-learned-lessons** filed.
+Each step of this routine that a routine of its kind may skip (`skips-inherited:`) is a section of its own, named as the step, in the order it runs.
 
-2. **opening-checkpoint**: the last Opening step, only where this routine's `allows:` names `--executor-checkpoint-push` (a single-participant routine): run `DistroAgentsSession.fn.sh --executor-checkpoint-push opening`. A routine that does not name it does not run this step, and that is no skipped step.
+## session-start
+
+The shared opening group, in its solo form, steps:
+
+### declare-session-type
+
+State that this session is standalone. Every type-gated step keys off this declaration.
+
+### post-opening-broadcast
+
+Post the session type and the goal, if framed, into the session thread. Post at once; completeness never delays it.
+
+### fold-in-learned-lessons
+
+`magic-librarian`, when this session is its own, runs `magic-team.process-reflections.routine` inline (`--routine-run-inline magic-team.process-reflections.routine`) for this session's project or workspace. Any other member passes its own recent lessons to `magic-librarian` with `post-inquiry`, and may file a new `reflection-*`.
+
+### collect-reflections-output
+
+The member runs `magic-team.process-inbox.routine <own-name>` inline (`--routine-run-inline magic-team.process-inbox.routine`), picking up what **fold-in-learned-lessons** filed.
+
+## opening-checkpoint
+
+The last Opening step, only where this routine's `allows:` names `--executor-checkpoint-push` (a single-participant routine): run `DistroAgentsSession.fn.sh --executor-checkpoint-push opening`. A routine that does not name it does not run this step, and that is no skipped step.
 
 # Steps
 
@@ -66,15 +84,32 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **close-session**: the shared closing group, in its solo form, steps:
-   - **post-closing-broadcast**: post the session's substance into the session thread — resolutions, outcomes, highlights — not a one-line summary. The same substance reaches the session's own parent in the closing handback.
-   - **secure-continuity**: the member checks its own part of the session, steps:
-     - write anything important that lives only in this session into its own inbox: a `note-*` or a `reflection-*`. A proposed skillset change goes to `magic-coordinator` as an `inquiry-*`, its text labelled `(draft)`.
-     - write a ruling on the work into that work's own document, per **decision-lands-in-the-document-it-binds**.
-     - reflect on this session's real incidents, if any: corrections, conflicts with the human-owner's words, gaps found live. Frame a broken assumption as "the model was wrong".
-     - run `magic-team.process-inbox.routine <own-name>` inline (`--routine-run-inline magic-team.process-inbox.routine`), covering what was just filed and any item this session touched.
-   - **compact-session-context**: confirm nothing important lives only in this session, so it is safe to clear.
-   - **conclude-session-thread**: react ✅ on the session thread's root with `--member-comms-slack-react`. No live session thread: skip.
+Each step of this routine that a routine of its kind may skip (`skips-inherited:`) is a section of its own, named as the step, in the order it runs.
+
+## close-session
+
+The shared closing group, in its solo form, steps:
+
+### post-closing-broadcast
+
+Post the session's substance into the session thread — resolutions, outcomes, highlights — not a one-line summary. The same substance reaches the session's own parent in the closing handback.
+
+### secure-continuity
+
+The member checks its own part of the session, steps:
+
+- write anything important that lives only in this session into its own inbox: a `note-*` or a `reflection-*`. A proposed skillset change goes to `magic-coordinator` as an `inquiry-*`, its text labelled `(draft)`.
+- write a ruling on the work into that work's own document, per **decision-lands-in-the-document-it-binds**.
+- reflect on this session's real incidents, if any: corrections, conflicts with the human-owner's words, gaps found live. Frame a broken assumption as "the model was wrong".
+- run `magic-team.process-inbox.routine <own-name>` inline (`--routine-run-inline magic-team.process-inbox.routine`), covering what was just filed and any item this session touched.
+
+### compact-session-context
+
+Confirm nothing important lives only in this session, so it is safe to clear.
+
+### conclude-session-thread
+
+React ✅ on the session thread's root with `--member-comms-slack-react`. No live session thread: skip.
 
 # Routine's local procedures
 

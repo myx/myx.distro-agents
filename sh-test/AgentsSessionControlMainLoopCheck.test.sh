@@ -113,7 +113,7 @@ rigStand(){ ## short name of the run -- a stand-in under its own pid that only w
 ## before it starts. --one is a single iteration, run in the foreground.
 rigOneRc=0
 rigOneRun(){ ## name of its output files
-	env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 		MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigDir/home/.claude/skills" \
 		RIG_TMP="$rigTmp" RIG_FN="$rigFn" \

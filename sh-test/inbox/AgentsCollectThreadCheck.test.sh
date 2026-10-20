@@ -77,7 +77,7 @@ rigRunTool(){ ## name, args...
 	shift
 	rigRc=0
 	: > "$rigFix/imap.log"
-	( cd "$rigDir/ws" && env -i HOME="$rigDir/home" PATH="$rigPath" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDAT_SKILLSET_ROOT="$rigDir/skills" \
+	( cd "$rigDir/ws" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigPath" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDAT_SKILLSET_ROOT="$rigDir/skills" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" PYTHONPATH="$rigTmp/py" PYTHONDONTWRITEBYTECODE=1 FIX_DIR="$rigFix" MDAT_COLLECT_LOCK_TRIES=1 \
 		$rigOpEnv bash "$rigTool" "$@" ) > "$rigDir/$runName.out" 2> "$rigDir/$runName.err" < /dev/null || rigRc=$?
 }

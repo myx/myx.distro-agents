@@ -361,7 +361,7 @@ revDir="" ; revWs="" ; revData="" ; revSpawn="" ; revItem=""
 revEnv=()
 revRun(){ ## result file, command...
 	local runOut="$1" ; shift
-	env -i HOME="$revDir" PATH="$rigTmp/revbin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$revWs" MDAT_DATA_ROOT="$revData" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$revDir" PATH="$rigTmp/revbin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$revWs" MDAT_DATA_ROOT="$revData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_SCENARIO="$revDir" RIG_CURL_LOG="$revDir/curl.log" "${revEnv[@]+"${revEnv[@]}"}" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac

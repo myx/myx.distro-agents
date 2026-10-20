@@ -320,6 +320,20 @@ rigScene routine1 routine ; rigRecord routine magic-team.rigroutine.routine.md ;
 rigAssert "cache-prefix: routine: the first message holds the routine mixed with its kind routine, after the armed file"  "$( rigIn "$( rigReq 1 )" 'RIG-ROUTINE-OPENING' ):$( rigIn "$( rigReq 1 )" 'rig-own-work' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" yes:yes:yes
 rigAssert "in the same block, so four markers still"                                       "$( rigMarkers "$rigDir/req.1" )" 4
 rigAssert "the routine text is kept in an entry of its own"                                "$( [ -f "$rigWs/.local/agents/prefetch/routine.magic-team.rigroutine.routine.md" ] && printf kept || printf missing )" kept
+## Reproducible, for the cache (Constraint 3): the same routine built again, in another workspace and another session some seconds later, is the same bytes,
+## in the entry and in the block of the first message.
+rigRoutineBlock(){ ## request file -- the routine's block of the first message as sent: from its marker to the run's own paths, which the notes after it name
+	LC_ALL=C sed -e 's/.*"messages":\[//' -e 's/.*read for you before your task://' -e "s#$rigTmp.*##" "$1"
+}
+rigEntryText(){ ## entry file -- the entry without the stamp lines (a checksum, a size and the path of each input, the one thing that names its workspace)
+	LC_ALL=C grep -v -E '^[0-9]+ [0-9]+ ' "$1"
+}
+rigFirstEntry="$rigWs/.local/agents/prefetch/routine.magic-team.rigroutine.routine.md" ; rigFirstReq="$rigDir/req.1"
+sleep 2
+rigScene routine1b routineb ; rigRecord routine magic-team.rigroutine.routine.md ; rigSession="rig-session-routine-b" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes ; rigSession=""
+rigAssert "built again in another workspace and session, seconds later: the entry is the same bytes"  "$( [ -s "$rigFirstEntry" ] && [ -n "$( rigEntryText "$rigFirstEntry" )" ] && [ "$( rigEntryText "$rigFirstEntry" )" = "$( rigEntryText "$rigWs/.local/agents/prefetch/routine.magic-team.rigroutine.routine.md" )" ] && echo identical )" identical
+rigAssert "and so is the block of the first message"                                       "$( [ -n "$( rigRoutineBlock "$rigFirstReq" )" ] && [ "$( rigRoutineBlock "$rigFirstReq" )" = "$( rigRoutineBlock "$rigDir/req.1" )" ] && echo identical )" identical
+rigScene routine1 routine
 LC_ALL=C sed "s/RIG-ROUTINE-OPENING/RIG-ROUTINE-CACHED/g" "$rigWs/.local/agents/prefetch/routine.magic-team.rigroutine.routine.md" > "$rigTmp/entry.new" && mv -f "$rigTmp/entry.new" "$rigWs/.local/agents/prefetch/routine.magic-team.rigroutine.routine.md"
 rigScene routine2 routine ; rigRecord routine magic-team.rigroutine.routine.md ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
 rigAssert "unchanged: served from its entry"                                               "$( rigIn "$( rigReq 1 )" 'RIG-ROUTINE-CACHED' )" yes
@@ -469,7 +483,7 @@ rigWdPolicy="$( . "$rigHere/session/AgentsTools.RoutineRequirements.include" ; A
 rigScene wd wd ; rigRecord "$rigWdPolicy" magic-team.work-duty.routine.md
 cp "$rigWorkDuty/magic-team.work-duty.routine.md" "$rigWorkDuty/magic-team.standalone.routine.md" "$rigSkills/magic-team/"
 rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
-rigAssert "a run of it carries the routine's text in its first message, once, after the armed file: its own steps, and the opening steps of the kind it requires, mixed"  "$( rigCount "$rigDir/req.1" '**work-the-input**' ):$( rigCount "$rigDir/req.1" '**session-start**' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" 1:1:yes
+rigAssert "a run of it carries the routine's text in its first message, once, after the armed file: its own steps, and the opening steps of the kind it requires, mixed"  "$( rigCount "$rigDir/req.1" '**work-the-input**' ):$( rigCount "$rigDir/req.1" '### session-start' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" 1:1:yes
 rigAssert "in the block of the prefetch, behind its marker, the task after it"            "$( rigMarkers "$rigDir/req.1" ):$( rigHolds "$rigDir/req.1" 'read for you before your task:' )" 4:yes
 rigScene wd-none wd ; rigRecord "" magic-team.work-duty.routine.md ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
 rigAssert "control: a record without the policy carries none of it, the armed file alone"  "$( rigCount "$rigDir/req.1" '**work-the-input**' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" 0:yes

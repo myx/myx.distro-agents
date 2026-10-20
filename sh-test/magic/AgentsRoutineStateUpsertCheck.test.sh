@@ -48,7 +48,7 @@ for rigMember in magic-coordinator magic-librarian keeper-rig ; do
 done
 printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s/curl.calls"\nexit 7\n' "$rigTmp" > "$rigTmp/bin/curl" ; chmod +x "$rigTmp/bin/curl"
 printf '[user]\n\temail = rig@example.invalid\n\tname = rig\n' > "$rigHome/.gitconfig"
-rigGit(){ env -i HOME="$rigHome" PATH="/usr/bin:/bin" git "$@" ; }
+rigGit(){ env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="/usr/bin:/bin" git "$@" ; }
 rigNotes="advance:note-20260809T154715Z-advance-state-and-lock.md daily:note-20260811T120000Z-daily-state-and-lock.md grooming:note-20260809T154332Z-grooming-state-and-lock.md heartbeat:note-20260809T155000Z-heartbeat-state-and-lock.md retro:note-20260811T120000Z-retro-state-and-lock.md"
 rigMrNote="note-20261008T000000Z-morning-review-state.md"
 ## The team data: a clone of the rig's own bare remote, holding each routine's note, each locked by its own session.
@@ -94,7 +94,7 @@ rigUpdate(){ ## result name, run id (or -), acting member, standard input text, 
 	local callName="$1" callRun="$2" callMember="$3" callIn="$4" callRc=0 callEnv=()
 	shift 4
 	[ "$callRun" = "-" ] || callEnv=( MDAT_SPAWN_SESSION_ID="$callRun" MDAT_SPAWN_AGENT="$callMember" )
-	( cd "$rigWs" && printf '%s' "$callIn" | env -i HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
+	( cd "$rigWs" && printf '%s' "$callIn" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" ${callEnv[@]+"${callEnv[@]}"} \
 		perl -e 'alarm 120 ; exec @ARGV' bash "$rigSession" --update-routine-state "$@" ) > "$rigTmp/$callName.out" 2> "$rigTmp/$callName.err" || callRc=$?
 	printf '%s' "$callRc" > "$rigTmp/$callName.rc"
@@ -102,7 +102,7 @@ rigUpdate(){ ## result name, run id (or -), acting member, standard input text, 
 rigCall(){ ## result name, operation words... -- one call of the tool as magic-coordinator's console run; rc in <name>.rc
 	local callName="$1" callRc=0
 	shift
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=magic-coordinator \
 		perl -e 'alarm 120 ; exec @ARGV' bash "$rigTool" "$@" ) > "$rigTmp/$callName.out" 2> "$rigTmp/$callName.err" < /dev/null || callRc=$?
 	printf '%s' "$callRc" > "$rigTmp/$callName.rc"

@@ -187,6 +187,9 @@ AgentsToolsTeamDataEnsureClone(){ ## where
 	if [ -d "$MDAT_DATA_ROOT" ] && [ -n "$( ls -A "$MDAT_DATA_ROOT" 2>/dev/null )" ] ; then
 		return 0
 	fi
+	## A workspace that keeps no team data (F13.1, AgentsTools.TeamDataGate.include) clones none: the remote it may have set is not read.
+	type AgentsToolsTeamDataGateOpen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
+	AgentsToolsTeamDataGateOpen || return 0
 	## Once per process tree: an op dispatching nested ops never tries, or warns, twice.
 	[ -z "${MDAT_TEAM_DATA_CLONE_TRIED:-}" ] || return 0
 	local cloneRemote="" cloneLock=""

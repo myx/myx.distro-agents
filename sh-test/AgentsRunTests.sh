@@ -36,6 +36,9 @@
 ## check of the reader unsets it, and ends what it starts.
 ## And none starts the thread that updates the sources a scan reads (MDAT_COLLECT_THREAD=off, AgentsTools.CollectThread.include): the same
 ## kind of process, left running after its rig is gone. The check of the thread unsets it, and ends what it starts.
+## And a rig that sets no workspace mode is a team rig (MDAT_WORKSPACE_MODE=team-rig, AgentsTools.TeamDataGate.include): its mode is the
+## default the one reader of the mode gives, which a setting of the rig stands ahead of. Unset, a rig is just agents and keeps no team
+## data (F13.1). The checks of the gate and of the digest set or unset it themselves.
 ##
 ## ONE FULL SUITE AT A TIME, MACHINE-WIDE. A run of every test (no name given) waits its turn,
 ## in arrival order, and says in one line that it waits and behind whom; a run of named tests
@@ -519,6 +522,7 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 		export MDAT_WAIT_REMIND=off
 		export MDAT_COMMS_READER=off
 		export MDAT_COLLECT_THREAD=off
+		export MDAT_WORKSPACE_MODE=team-rig
 		cd "$testDir" || exit 1
 		exec perl -e "$runSlotKeeper" take "$runSlotDir" "$runSlotDefault" 8 "$runDir/slot-wait.said" "$runDir/$oneName.started" "$runTestLock" "$runOwnFolder" "$oneTimeout" "$BASH" "$( AgentsRunTestPath "$oneName" )"
 	) 8>&2 > "$runDir/$oneName.log" 2>&1 &

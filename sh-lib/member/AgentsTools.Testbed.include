@@ -9,7 +9,8 @@
 ## A TEST IS KNOWN BY ITS ID, which for the tests of a package is the runner's own name for it (sh-test/<id>.test.sh). The metadata says what the
 ## test is about so that a batch and a nightly run can choose: its `project` (a project of the source, such as myx/myx.distro-agents), its `script`,
 ## the `functionality` and the `keywords` it is about, the `rig`, `documents` and `resources` it needs, whether it is eligible for the nightly
-## regressions (`nightly: yes|no`), and when it was registered, updated and invalidated. The lists are comma-separated.
+## regressions (`nightly: yes|no`), and when it was registered, updated and invalidated. The lists are comma-separated. The nightly and the oldest untested
+## are of the eligible tests alone: those whose script is below a sh-test folder a testing directive of the workspace names (AgentsToolsTestbedEligibleIds).
 ## NOTHING IS STORED TWICE: whether a test has passed, and its runs, are the test runner's (AgentsRunTests.sh --passed, its pass record in
 ## $HOME/.agents/magic-team/suite-results, and the receipts of its run folders): the testbed reads them. An invalidation drops the pass record of
 ## the test, so that the next batch runs it. Running is the retest queue's, the one queue of the machine (AgentsTools.MemberRetest.include): the
@@ -92,21 +93,43 @@ AgentsToolsTestbedValue(){ ## key
 	printf '%s' "$testbedValues" | LC_ALL=C awk -F'\t' -v want="$1" '$1 == want { print $2 ; exit }'
 }
 
-## The file of a script, as given: an absolute path, or one below the project's folder of the source, or below the workspace. rc 1 for none.
-AgentsToolsTestbedScript(){ ## project, script
+## The file of a script, as given: an absolute path, or one below the project's folder of the source, or below the workspace. Printed; rc 1 for none.
+AgentsToolsTestbedScriptFile(){ ## project, script
 	local scriptTry
 	for scriptTry in "$2" "$MMDAPP/source/$1/$2" "$MMDAPP/$2" ; do
 		case "$scriptTry" in /*) ;; *) continue ;; esac
-		[ -f "$scriptTry" ] && return 0
+		[ -f "$scriptTry" ] && { printf '%s\n' "$scriptTry" ; return 0 ; }
 	done
 	return 1
+}
+AgentsToolsTestbedScript(){ ## project, script
+	AgentsToolsTestbedScriptFile "$1" "$2" > /dev/null
+}
+
+## THE ELIGIBLE TESTS: those whose script is below a sh-test folder that a testing directive names (`magic-team:testing:<project-glob>:<sh-test-path>:<host-glob>`
+## in a project.inf of the workspace), which the grants read for magic-tester's write by the one reader this uses (AgentsToolsTestingFolders). A folder no
+## directive names is not eligible, and where none is named no test is. The test ids on stdin, one a line; the eligible ones on stdout. rc 1, said, where the
+## directives could not be read.
+AgentsToolsTestbedEligibleIds(){ ## the operation
+	local eligOp="$1" eligFolders eligRc=0 eligId eligFile eligFolder
+	type AgentsToolsTestingFolders > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" || return 1
+	eligFolders="$( AgentsToolsTestingFolders "$MMDAPP" "$MDSC_CMD $eligOp" < /dev/null )" || eligRc=$?
+	[ "$eligRc" = 0 ] || [ "$eligRc" = 3 ] || return 1
+	while IFS= read -r eligId ; do
+		[ -n "$eligId" ] || continue
+		eligFile="$( AgentsToolsTestbedScriptFile "$( AgentsToolsTestbedGet "$eligId" project )" "$( AgentsToolsTestbedGet "$eligId" script )" )" || continue
+		while IFS= read -r eligFolder ; do
+			[ -n "$eligFolder" ] || continue
+			case "$eligFile" in "$eligFolder"/*) printf '%s\n' "$eligId" ; break ;; esac
+		done <<< "$eligFolders"
+	done
 }
 
 ## --test-register <test-id> --project <p> --script <path> [options], or --test-register --from-folder <dir> --project <p> [options]: the test is
 ## registered with its metadata; --from-folder registers every *.test.sh of the folder and of the folders one level below it, each by the name of
 ## its file. A test registered already is refused (--test-update); in a folder, left as it is and said.
 AgentsToolsTestbedRegister(){ ## the operation, its arguments...
-	local regOp="$1" regId="" regProject regScript regFrom regNow regCount=0 regSkipped=0 regFile regFolder regName
+	local regOp="$1" regId="" regProject regScript regFrom regNow regCount=0 regSkipped=0 regFile regFolder regName regIds=""
 	shift
 	if [ "${1:-}" != "" ] && [ "${1#--}" = "$1" ] ; then regId="$1" ; shift ; fi
 	AgentsToolsTestbedOptions "$regOp" "$@" || return 1
@@ -123,9 +146,10 @@ AgentsToolsTestbedRegister(){ ## the operation, its arguments...
 			AgentsToolsTestbedCheckId "$regName" > /dev/null || continue
 			if [ -f "$( AgentsToolsTestbedDir )/$regName.md" ] ; then regSkipped=$(( regSkipped + 1 )) ; echo "skipped: $regName is registered already" ; continue ; fi
 			AgentsToolsTestbedPut "$regName" "$regProject" "${regFile#"${MMDAPP%/}"/}" "$regNow" || return 1
-			regCount=$(( regCount + 1 ))
+			regCount=$(( regCount + 1 )) ; regIds="$regIds $regName"
 		done
 		echo "registered: $regCount test(s) of $regFrom for project $regProject, $regSkipped left as they were"
+		[ -z "$regIds" ] || AgentsToolsTestbedSayNotEligible "$regOp" $regIds
 		return 0
 	fi
 	[ -n "$regId" ] && [ -n "$regScript" ] || { echo "⛔ ERROR: $MDSC_CMD $regOp: syntax is <test-id> --project <p> --script <path> [options], or --from-folder <dir> --project <p> -- ${regId:+the --script is needed}${regId:-the test id and the --script are needed}" >&2 ; return 1 ; }
@@ -134,6 +158,24 @@ AgentsToolsTestbedRegister(){ ## the operation, its arguments...
 	AgentsToolsTestbedScript "$regProject" "$regScript" || { echo "⛔ ERROR: $MDSC_CMD $regOp: no such script: $regScript (as given, below the source of $regProject, or below the workspace)" >&2 ; return 1 ; }
 	AgentsToolsTestbedPut "$regId" "$regProject" "$regScript" "$regNow" || return 1
 	echo "registered: $regId"
+	AgentsToolsTestbedSayNotEligible "$regOp" "$regId"
+}
+
+## Said on stderr, once for each folder, after a registration whose tests stand in a folder that no testing directive names: the registration stands,
+## and the system's runs leave those tests out (AgentsToolsTestbedEligibleIds). Never a fault of the registration; where the directives could not be read
+## that is said by the reader and nothing more.
+AgentsToolsTestbedSayNotEligible(){ ## the operation, test id...
+	local sayOp="$1" sayEligible sayId sayFile sayFolder
+	shift
+	sayEligible="$( printf '%s\n' "$@" | AgentsToolsTestbedEligibleIds "$sayOp" )" || return 0
+	for sayId in "$@" ; do
+		case $'\n'"$sayEligible"$'\n' in *$'\n'"$sayId"$'\n'*) continue ;; esac
+		sayFile="$( AgentsToolsTestbedScriptFile "$( AgentsToolsTestbedGet "$sayId" project )" "$( AgentsToolsTestbedGet "$sayId" script )" )" || continue
+		dirname "${sayFile#"${MMDAPP%/}"/}"
+	done | LC_ALL=C sort -u | while IFS= read -r sayFolder ; do
+		echo "registered; not eligible for system runs: no testing directive names $sayFolder" >&2
+	done
+	return 0
 }
 
 ## A test written from the parsed options (testbedValues), with its dates; the project and script are the ones given.
@@ -284,9 +326,9 @@ AgentsToolsTestbedEnqueue(){ ## the operation, why, wait flag (wait|no-wait), te
 
 ## --run-oldest-untested [--wait|--no-wait] and --run-all-nightly-regressions [--wait|--no-wait]: tests of the testbed put into the retest queue.
 ## The oldest untested is the registered test, of those that have not passed on the state they would run on now, registered first (its id breaking a tie);
-## the nightly regressions are all that are registered `nightly: yes`.
+## the nightly regressions are all that are registered `nightly: yes`. Both are of the eligible tests alone (AgentsToolsTestbedEligibleIds).
 AgentsToolsTestbedRun(){ ## the operation, its arguments...
-	local runOp="$1" runWait="no-wait" runRows runIds runPassed runPick="" runWhy
+	local runOp="$1" runWait="no-wait" runRows runEligible runIds runPassed runPick="" runWhy
 	shift
 	while [ $# -gt 0 ] ; do
 		case "$1" in
@@ -298,6 +340,15 @@ AgentsToolsTestbedRun(){ ## the operation, its arguments...
 	done
 	runRows="$( AgentsToolsTestbedSelect "" "" "" )"
 	[ -n "$runRows" ] || { echo "⛔ ERROR: $MDSC_CMD $runOp: no test is registered in the testbed -- register tests with --test-register" >&2 ; return 1 ; }
+	## Only the eligible tests are run: those below a sh-test folder a testing directive names.
+	runEligible="$( printf '%s\n' "$runRows" | LC_ALL=C cut -f1 | AgentsToolsTestbedEligibleIds "$runOp" )" || return 1
+	runRows="$( printf '%s\n' "$runRows" | AGENTS_TESTBED_ELIGIBLE="$runEligible" LC_ALL=C awk -F'\t' '
+		BEGIN { n = split( ENVIRON["AGENTS_TESTBED_ELIGIBLE"], eligibleLines, "\n" ) ; for ( i = 1; i <= n; i++ ) if ( eligibleLines[i] != "" ) eligible[eligibleLines[i]] = 1 ; }
+		$1 in eligible' )"
+	if [ -z "$runRows" ] ; then
+		echo "# $MDSC_CMD $runOp: no registered test is in a sh-test folder that a testing directive names (magic-team:testing:<project-glob>:<sh-test-path>:<host-glob> in a project.inf) -- nothing is put in the queue" >&2
+		return 0
+	fi
 	case "$runOp" in
 		--run-oldest-untested)
 			runIds="$( printf '%s\n' "$runRows" | LC_ALL=C cut -f1 | tr '\n' ' ' )"

@@ -77,7 +77,7 @@ rigSpawn(){ ## lead|console
 	rm -rf "$rigData/board" ; mkdir -p "$rigData/board"
 	chmod -R u+w -- "$rigWs/.local/agents/spawned" 2> /dev/null ; rm -rf "$rigWs/.local/agents/spawned"
 	rigRc=0
-	env -i HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" ${spawnEnv[@]+"${spawnEnv[@]}"} \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac

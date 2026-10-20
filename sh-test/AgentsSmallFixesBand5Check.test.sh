@@ -37,7 +37,7 @@ rigHolds(){ ## file, fixed text
 ## One team op, guarded, against a named data root; rc into <result>.rc.
 rigOp(){ ## result file, data root, op and arguments...
 	local opOut="$1" opData="$2" ; shift 2
-	env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$opData" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$opData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid \
 		RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
@@ -70,7 +70,7 @@ printf 'rig old-form log\n' > "$rigData/audit/2026-09/spawn-proxy-20260929T01554
 printf -- '---\nstatus: dispatch-succeeded\n---\n' > "$rigData/board/pending/dispatch-20260929T015542Z-spawn-proxy-15464.md"
 printf 'rig new-form log\n' > "$rigData/audit/2026-09/spawn-proxy-20260929T015542Z-15464.output.log"
 rigTaskOutput(){ ## result file, handle
-	printf '{"handle":"%s"}' "$2" | env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	printf '{"handle":"%s"}' "$2" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		HARNESS_PROVIDER_NAME=rig HARNESS_SELF_NAME=rig RIG_TMP="$rigTmp" RIG_HARNESS="$rigHarness" \
 		bash -c '
 			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -111,7 +111,7 @@ rigAssert "and nothing was written under HOME"         "$( find "$rigTmp/home" -
 
 echo "-- 267: a member bundled and declared from the same folder --"
 rigInstall(){ ## result file, declared source folder
-	env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDSC_SKILLSET_PRESCAN=1 MDSC_SKILLSET_MEMBERNAMES="magic-tester" MDSC_SKILLSET_MEMBERSOURCES="magic-tester $2" \
 		MDSC_SKILLSET_DISCOVERY_TRUSTED=1 RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
@@ -132,7 +132,7 @@ rigLong="$rigTmp/ws/$( printf 'very-long-directory-name-segment-%02d/' 1 2 3 4 5
 mkdir -p "$rigLong"
 : > "$rigLong/target-file-name.txt"
 rigAnnounce(){ ## tool, arguments JSON -- prints the tool's announce line, colour removed
-	printf '%s' "$2" | env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" HARNESS_PROVIDER_NAME=rig HARNESS_SELF_NAME=rig \
+	printf '%s' "$2" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" HARNESS_PROVIDER_NAME=rig HARNESS_SELF_NAME=rig \
 		RIG_TMP="$rigTmp" RIG_HARNESS="$rigHarness" \
 		bash -c 'cd "$MMDAPP" && exec bash "$RIG_HARNESS" --intern-tool "$1" --access-read-root "$MMDAPP"' rig "$1" 2>&1 > /dev/null \
 		| LC_ALL=C sed 's/\x1b\[[0-9;]*m//g' | LC_ALL=C grep -m1 -F " $1 "

@@ -532,6 +532,58 @@ case "$1" in
 		return 0
 	;;
 
+	## --owner-clear-just-agents (F13.2) -- the clear of a Just Agents workspace: the configuration settings that do not belong in `Just Agents, default`,
+	## and nothing else. SETTINGS ONLY, never any data (Settled 2026-10-19): no file or folder of the team data, of .local/agents or of .local/temp is
+	## looked at, let alone removed. The six: TEAM_DATA_DIRECTORY (scope magic-coordinator) and TEAM_DATA_GIT_REMOTE, TEAM_DATA_BRANCH,
+	## TEAM_DATA_GIT_USER_NAME, TEAM_DATA_GIT_USER_EMAIL and MDAT_WORKSPACE_MODE (scope magic-team); the last because a workspace that sets no mode is
+	## just agents, by default. Each is taken out by the settings writer (--agents-config-option --delete), never by hand. --check, which a bare call is,
+	## names the ones that are set and changes nothing; --apply clears them. A key is named, never its value: a setting is asked through a pipe that keeps
+	## no text of it. It acts on the workspace it runs in, and the order that runs it names that workspace and this operation (F13.2: authorised for one
+	## named workspace at a time, destructive and irreversible). F13.1 lands first: the gate keeps the team data from returning.
+	--owner-clear-just-agents)
+		shift
+		local clearApply="no" clearSettings clearScope clearKey clearSet=0 clearDone=0 clearAll=0
+		case "${1:-}" in
+			''|--check) ;;
+			--apply) clearApply="yes" ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --owner-clear-just-agents: syntax is [--check|--apply], and it takes nothing after: $1" >&2
+				set +e ; return 1
+			;;
+		esac
+		if [ $# -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-clear-just-agents: syntax is [--check|--apply], and it takes nothing after: $2" >&2
+			set +e ; return 1
+		fi
+		clearSettings="magic-coordinator TEAM_DATA_DIRECTORY
+magic-team TEAM_DATA_GIT_REMOTE
+magic-team TEAM_DATA_BRANCH
+magic-team TEAM_DATA_GIT_USER_NAME
+magic-team TEAM_DATA_GIT_USER_EMAIL
+magic-team MDAT_WORKSPACE_MODE"
+		while read -r clearScope clearKey ; do
+			clearAll=$(( clearAll + 1 ))
+			DistroAgentsTools --agents-config-option "$clearScope" --select-all 2> /dev/null < /dev/null | LC_ALL=C grep -q -- "^$clearKey=" || continue
+			clearSet=$(( clearSet + 1 ))
+			echo "SETTING: $clearScope $clearKey set"
+			[ "$clearApply" = "yes" ] || continue
+			DistroAgentsTools --agents-config-option "$clearScope" --delete "$clearKey" > /dev/null 2>&1 < /dev/null || :
+			if DistroAgentsTools --agents-config-option "$clearScope" --select-all 2> /dev/null < /dev/null | LC_ALL=C grep -q -- "^$clearKey=" ; then
+				echo "⛔ ERROR: $MDSC_CMD --owner-clear-just-agents: $clearScope $clearKey is still set after its delete" >&2
+				set +e ; return 1
+			fi
+			clearDone=$(( clearDone + 1 ))
+		done <<< "$clearSettings"
+		if [ "$clearApply" = "yes" ] ; then
+			echo "CLEARED: $clearDone"
+		elif [ "$clearSet" -gt 0 ] ; then
+			echo "CHECK: $clearSet of $clearAll set; --apply clears them"
+		else
+			echo "CHECK: 0 of $clearAll set; nothing to clear"
+		fi
+		return 0
+	;;
+
 	## --owner-setup-cli-auto (F13.4) -- which of the vendor CLIs the console starts, claude-native or copilot-native, is installed and works on this
 	## machine, and the setup of the first that does. A bare call and --check are the read-only diagnosis; --apply carries out
 	## `--owner-setup-<that CLI> --apply`, so the one mechanism writes SPAWN_CLI_SERVICE and everything the setup of that CLI takes with it. The

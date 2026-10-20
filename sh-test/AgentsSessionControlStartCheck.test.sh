@@ -144,7 +144,7 @@ rigTranscript(){ ## short name of the run, true or false
 rigRc=0 rigPre=() rigKept=0
 rigRun(){ ## tool arguments... -- one dispatcher call in the rig workspace; rc in rigRc, stdout in out, stderr in err
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 		${rigPre[@]+"${rigPre[@]}"} bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 	## Every output of the operation is kept, for the check of its rows against the form its help entry gives.
 	rigKept=$(( rigKept + 1 ))
@@ -366,7 +366,7 @@ rigAssert "an id no record carries: one error line, nothing printed, nothing sta
 echo "-- 6. two calls at once leave one thread --"
 rigRec h h h "$rigHost" spawn-started '' ; rigStand h
 for rigCall in 1 2 ; do
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 		bash "$rigTool" "$rigOp" --session-id "$( rigId h )" ) > "$rigTmp/twice.$rigCall.out" 2> "$rigTmp/twice.$rigCall.err" < /dev/null &
 done
 wait
@@ -413,7 +413,7 @@ exec sleep 600
 RIGTOOL
 chmod +x "$rigFake/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigCall(){ ## short name of a session -- the function alone, called as a starter inside a member's session calls it; its answer in fn.out
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FAKE="$rigFake" RIG_KEPT=yes \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FAKE="$rigFake" RIG_KEPT=yes \
 		MDAT_SPAWN_SESSION_ID=rig-spawn MDAT_SPAWN_AGENT=keeper-rig MDAT_SPAWN_SANDBOX_ROOT=/rig/sandbox MDAT_SESSION_ID=rig-session MDAT_SESSION_THREAD=CRIG:1.2 MDAT_CONVERSATION_THREADS=CRIG:3.4 \
 		harnessSessionId=rig-harness harnessAgent=keeper-rig CLAUDE_CODE_SESSION_ID=rig-client \
 		bash -c '
