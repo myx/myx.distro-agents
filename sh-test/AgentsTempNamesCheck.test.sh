@@ -105,8 +105,7 @@ rigList(){
 		'sh-lib/common/AgentsTools.InternArtifact.include|1|${artSession:-no session} $$|no file name: the subject of a commit' \
 		'sh-lib/common/AgentsTools.InternArtifact.include|1|$artRecord-$$|no temp file: the name of a record, where one of that title and minute stands already' \
 		'sh-lib/common/AgentsTools.InternContact.include|1|no-session-$$|no temp file: stands for the calling shell where a refusal has no session to be logged under' \
-		'sh-lib/magic/AgentsTools.InternMainLoop.include|1|mdat-main-loop-status.$$|the main loop is a process of its own, and this is its one status file for its whole run' \
-		'sh-lib/magic/AgentsTools.InternMainLoop.include|1|spawn-proxy-[0-9TZ]+-$$(|no file name: the pattern of the receipt this loop gave its pass' \
+		'sh-lib/magic/AgentsTools.InternMainLoop.include|3|main-loop.config-check.last.$$|written by the main loop itself, a step after another in its own shell' \
 		'sh-lib/magic/AgentsTools.InternMainLoop.include|3|pending-collect.last.$$|written by the main loop itself, a step after another in its own shell' \
 		'sh-lib/magic/AgentsTools.InternMainLoop.include|3|pending-remind.last.$$|written by the main loop itself, a step after another in its own shell' \
 		'sh-lib/mcp/AgentsTools.InternMcpServer.include|6|agent-mcp.$$|the scratch folder of one server process, which hands its own id to every request it serves' \

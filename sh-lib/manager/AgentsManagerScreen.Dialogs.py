@@ -275,9 +275,23 @@ def areaLines(text, width):
     return lines
 
 
+## The margins of a dialog: its frame (its shadow never counted) stands DIALOG_MARGIN_COLUMNS cells from the terminal at each side and
+## DIALOG_MARGIN_LINES lines from the menu bar above and from the status line under it, at the least. F11.0 asks for two cells and a line more
+## for every modal: a dialog is as big as what it holds and centred, so wherever the terminal holds it with those margins it stands inside them,
+## and where it does not (a terminal too small) its margins are the least ones, never fewer. The big dialog (a command followed to its end)
+## has what it had before F11.0 and the two cells and the line more (DIALOG_BIG_MARGIN_*), whatever the terminal; it grows with the terminal up
+## to DIALOG_BIG_COLUMNS by DIALOG_BIG_LINES.
+DIALOG_MARGIN_COLUMNS = 2
+DIALOG_MARGIN_LINES = 0
+DIALOG_BIG_MARGIN_COLUMNS = DIALOG_MARGIN_COLUMNS + 2
+DIALOG_BIG_MARGIN_LINES = DIALOG_MARGIN_LINES + 1
+DIALOG_BIG_COLUMNS = 190
+DIALOG_BIG_LINES = 56
+
+
 ## Where a dialog stands on a terminal of that size, and each of its parts in it: its box,
 ## in the middle of the desktop, as wide as what it holds asks for, between forty cells
-## and DIALOG_COLUMNS, and never wider than the terminal less two cells at each side; how
+## and DIALOG_COLUMNS, and never nearer the edges than its margins; how
 ## wide its inside is, within its margins at each side (DIALOG_SIDE); each control with the
 ## line of its label, its first line and how many lines it has; the lines of what it refuses
 ## and the line of its buttons, under them the line of their shadow in a style where they
@@ -300,11 +314,16 @@ def dialogPlan(dialog, columns, lines):
             wanted = max(wanted, 11 + textWidth(paragraph[1]) if isinstance(paragraph, tuple) else textWidth(paragraph))
         for optionId, label in control["options"]:
             wanted = max(wanted, textWidth(label) + 4)
-    width = min(columns - 4, max(40, min(wanted + 2 * DIALOG_SIDE, DIALOG_COLUMNS)))
+    ## the margins are kept by every dialog, here and nowhere else
+    marginColumns, marginLines = (DIALOG_BIG_MARGIN_COLUMNS, DIALOG_BIG_MARGIN_LINES) if big else (DIALOG_MARGIN_COLUMNS, DIALOG_MARGIN_LINES)
+    maxWidth = columns - 2 * marginColumns
+    width = min(maxWidth, max(40, min(wanted + 2 * DIALOG_SIDE, DIALOG_COLUMNS)))
     if big:
-        width = columns - 4
+        width = min(maxWidth, DIALOG_BIG_COLUMNS)
     inner = width - 2 * DIALOG_SIDE
-    room = lines - 4
+    room = lines - 2 - 2 * marginLines - 2
+    if big:
+        room = min(room, DIALOG_BIG_LINES - 2)
     parts = []
     for index, control in enumerate(dialog["controls"]):
         kind = control["kind"]
@@ -336,8 +355,8 @@ def dialogPlan(dialog, columns, lines):
                 over -= cut
     inside = lead + sum(part["label"] + part["height"] for part in parts) + gap * len(parts) + len(says) + foot + tail
     height = max(1, min(inside, room)) + 2
-    left = (columns - width) // 2
-    top = 1 + max(0, (lines - 2 - height) // 2)
+    left = max(marginColumns, min((columns - width) // 2, columns - width - marginColumns))
+    top = max(1 + marginLines, min(1 + max(0, (lines - 2 - height) // 2), lines - 1 - marginLines - height))
     line = top + 1 + lead
     for part in parts:
         part["labelLine"] = line if part["label"] else None

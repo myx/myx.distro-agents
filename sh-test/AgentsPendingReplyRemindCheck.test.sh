@@ -263,8 +263,6 @@ rigLoopScenario(){ ## name
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.basic.md"
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigDir/home/.claude/skills/$rigMember/$rigMember.basic.md"
 	printf '# rig armed\n' > "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.armed.md"
-	printf -- '---\nexecutors: magic-coordinator (light)\nmaintainers: rig\nrequires-session-kind: standalone\n---\n# rig heartbeat routine fixture\n' \
-		> "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.heartbeat.routine.md"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSLACK_BOT_TOKEN=rig-not-a-token\nSPAWN_CLI_SERVICE=rig-cli\nSLACK_WORKSPACE_DOMAIN=rigspace\n' > "$rigDir/ws/.local/.agents/magic-team.agent.env"
 	printf 'MAIN_LOOP_RESTART_DELAY_SECONDS=2\n' > "$rigDir/ws/.local/.agents/magic-coordinator.agent.env"
 	printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\necho "start $$" >> "%s/console.log"\n' "$rigDir" > "$rigDir/ws/DistroAgentsConsole.sh"
@@ -287,18 +285,18 @@ rigOneRun(){
 }
 rigLoopScenario ok
 rigRecord ask-loop $(( 31 * 60 )) human-owner
-rigOneRun
+rigOneRun ; rigOneRc=$?
 rigAssert "the iteration reminds"                          "$( rigHolds "$rigDir/ws/.local/agents/pending-remind.last" 'REMINDED ask-loop human-owner thread reminder=1 stages=30m' )" yes
 rigAssert "and says so in its log"                         "$( rigHolds "$rigDir/one.err" '--intern-main-loop: REMIND: reminded=1 ' )" yes
 rigAssert "the reminder was posted"                        "$( rigHolds "$rigDir/posted" 'Still waiting for your answer' )" yes
-rigAssert "the pass still runs"                            "$( [ "$( LC_ALL=C grep -c '^start ' "$rigDir/console.log" 2>/dev/null )" -ge 1 ] && printf yes || printf no )" yes
+rigAssert "the iteration still passes, and starts no agent" "$rigOneRc:$( [ -e "$rigDir/console.log" ] && printf started || printf none )" 0:none
 rigLoopScenario failing
 rigRecord ask-loop $(( 31 * 60 )) human-owner
 chmod 000 "$rigDir/ws/.local/agents/pending"
-rigOneRun
+rigOneRun ; rigOneRc=$?
 chmod 755 "$rigDir/ws/.local/agents/pending"
 rigAssert "a failed reminder run is logged"                "$( rigHolds "$rigDir/one.err" '--intern-main-loop: the pending-reply reminders could not run' )" yes
-rigAssert "and the iteration goes on to its pass"          "$( [ "$( LC_ALL=C grep -c '^start ' "$rigDir/console.log" 2>/dev/null )" -ge 1 ] && printf yes || printf no )" yes
+rigAssert "and the iteration goes on: it passes"           "$rigOneRc" 0
 rigAssert "nothing was posted"                             "$( rigHolds "$rigDir/posted" 'Still waiting' )" no
 
 ## ---- where a reminder goes, and who drives it ----

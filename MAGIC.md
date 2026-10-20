@@ -1240,14 +1240,16 @@ contracts are here.
 - **Each iteration**: team-data sync (when `TEAM_DATA_GIT_REMOTE` is set), children index rebuild,
   pending-reply collect and remind, the check of the control threads
   (`AgentsToolsSessionControlCheckWorkspace`, one stderr line when it started any, logged and never
-  fatal), then one `--intern-root-harness --routine heartbeat
-  --non-interactive --wait`. Backoff starts at `MAIN_LOOP_RESTART_DELAY_SECONDS` (default 29), doubles on
-  failure, caps at `MAIN_LOOP_RESTART_DELAY_MAX_SECONDS` (default 1200), resets on success. A permanent
-  misconfiguration therefore shows as failures then silence, not a loud exit.
-- **A pass is watched.** After one minute it is reported every restart-delay seconds.
-  `MAIN_LOOP_PASS_TIMEOUT_SECONDS` (default 0 = no bound) ends it with TERM then KILL to its process
-  group, records `MAIN_LOOP_LAST_OUTCOME=timed-out`, and posts to event-track. The lock is left for the
-  next pass's stale-lock recheck.
+  fatal), the source collector, then the configuration check and, when it passed, the schedule's steps
+  (autorun, work duty, advance, learning). The loop starts no agent of its own: what the schedule
+  declares is started through the spawner. Backoff starts at `MAIN_LOOP_RESTART_DELAY_SECONDS` (default 29),
+  doubles on failure, caps at `MAIN_LOOP_RESTART_DELAY_MAX_SECONDS` (default 1200), resets on success. A
+  permanent misconfiguration therefore shows as failures then silence, not a loud exit.
+- **The configuration check is a script, no agent**: `--magic-heartbeat-config-check`, run by the iteration
+  after the housekeeping. It runs at most once in 30 minutes while it passes, and in every iteration while
+  its last result is a failure (`.local/agents/main-loop.config-check.last`: the answer, then the epoch).
+  A FAIL line is said on stderr with its reason; a failed check fails the iteration (the backoff applies)
+  and the schedule's starts are skipped in it, the housekeeping having run.
 - **A team-data store with content but no `.git` is adopted** by `myx.common git/cloneSync` into an empty
   remote only; `clonePull` never makes it a clone. `TEAM_DATA_BRANCH` travels as `init.defaultBranch` via
   `GIT_CONFIG_*`, or the push fails and `clonePull` then deletes the checkout. A remote with history plus

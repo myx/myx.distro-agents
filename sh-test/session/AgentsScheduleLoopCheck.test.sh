@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the schedule's three steps of the main loop (F7.5 of the refactorings epic, second gate; sh-lib/session/
-## AgentsTools.DispatcherLoop.include, taken at each iteration of --intern-main-loop before the heartbeat pass). The real loop (--one) and the
+## AgentsTools.DispatcherLoop.include, taken at each iteration of --intern-main-loop after its configuration check). The real loop (--one) and the
 ## real spawner run, as in AgentsSessionControlMainLoopCheck; the console, curl, date and every setting are this rig's own. GUARD: every tooling
 ## call goes through one `env -i` whose child refuses to start unless MMDAPP and MDAT_DATA_ROOT sit under this rig's tree and PATH holds no agent CLI.
 ## Held:
@@ -32,7 +32,17 @@ rigRefuse(){
 rigTmp="$( rigTempDir AgentsScheduleLoopCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigStarted=""
-trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rigControlThreadsEnd "$rigTmp" ; rigProcSignalWithChildren KILL $rigStarted ; rm -rf -- "$rigTmp"' EXIT
+## A detached session of the rig may still write into the tree for a moment after it is signalled: the removal is tried again, for ten seconds, before it says what it could not remove.
+rigRemoveTree(){
+	local removeLeft=10
+	while [ "$removeLeft" -gt 0 ] ; do
+		chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp" 2> /dev/null
+		[ ! -e "$rigTmp" ] && return 0
+		sleep 1 ; removeLeft=$(( removeLeft - 1 ))
+	done
+	rm -rf -- "$rigTmp"
+}
+trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rigControlThreadsEnd "$rigTmp" ; rigProcSignalWithChildren KILL $rigStarted ; rigRemoveTree' EXIT
 trap 'exit 1' INT TERM
 rigPassCount=0
 rigFailCount=0
@@ -68,7 +78,7 @@ rigAssert "a routine due at 09:00 daily, asked at 13:00 Monday, is started throu
 rigAssert "...and a spawn record of that routine stands, owned by its executor" "$( rigRecordsOf keeper-rig-01.auto.routine.md ):$( LC_ALL=C grep -l -x 'owner: keeper-rig-01' $( LC_ALL=C grep -l -x 'routine: keeper-rig-01.auto.routine.md' "$rigSp"/*/*.md ) | wc -l | tr -d ' ' )" "1:1"
 rigAssert "its successor, which follows it, waits quietly: not started, and no line of it" "$( rigRecordsOf keeper-rig-01.chain.routine.md ):$( rigSaid first 'keeper-rig-01.chain' )" "0:0"
 rigAssert "a routine whose executors are any member is not started, and not complained of" "$( rigRecordsOf keeper-rig-02.anyone.routine.md ):$( rigSaid first 'keeper-rig-02.anyone' )" "0:0"
-rigAssert "the pass of the loop ran after the schedule's lines" "$( [ "$( LC_ALL=C grep -n -F 'autorun: started' "$rigDir/first.err" | head -1 | cut -d: -f1 )" -lt "$( LC_ALL=C grep -n -F 'heartbeat iteration starting' "$rigDir/first.err" | head -1 | cut -d: -f1 )" ] && printf before )" "before"
+rigAssert "the configuration check of the loop ran before the schedule's lines" "$( [ "$( LC_ALL=C grep -n -F 'configuration check passed' "$rigDir/first.err" | head -1 | cut -d: -f1 )" -lt "$( LC_ALL=C grep -n -F 'autorun: started' "$rigDir/first.err" | head -1 | cut -d: -f1 )" ] && printf before )" "before"
 ## The predecessor completed: the record the spawner made is closed as a well-ended run, today.
 for rigRecord in $( LC_ALL=C grep -l -x 'routine: keeper-rig-01.auto.routine.md' "$rigSp"/*/*.md ) ; do
 	LC_ALL=C sed -i.bak -e 's/^status: .*/status: spawn-succeeded/' -e '/^resolved-at: /d' "$rigRecord" && rm -f "$rigRecord.bak"
@@ -91,9 +101,12 @@ echo "-- 3. the end of a duty --"
 ## The duty of keeper-rig-02 as a live run in a Wait, and that of keeper-rig-03 as one at work.
 rigLiveSpawn=""
 rigLive(){ ## member, idle|working -- the run of that member's duty in the rig: a stand-in process, a record, a thread and a store; its spawn id in rigLiveSpawn
-	local liveRecord liveSpawn
+	local liveRecord liveSpawn liveLeft
 	liveRecord="$( LC_ALL=C grep -l -x "owner: $1" $( LC_ALL=C grep -l -x 'routine: magic-team.work-duty.routine.md' "$rigSp"/*/*.md ) | head -1 )"
 	liveSpawn="${liveRecord##*/}" ; liveSpawn="${liveSpawn%.md}"
+	## The real start of this duty ends a moment after its record says so, with a last milestone of its own; the run of the rig is made after that, or it is written over.
+	liveLeft=150
+	while [ "$liveLeft" -gt 0 ] && ! LC_ALL=C grep -q ' end$' "$rigStores/$liveSpawn/milestones" 2> /dev/null ; do sleep 0.2 ; liveLeft=$(( liveLeft - 1 )) ; done
 	LC_ALL=C sed -i.bak -e 's/^status: .*/status: spawn-started/' -e '/^resolved-at: /d' "$liveRecord" && rm -f "$liveRecord.bak"
 	if ! LC_ALL=C grep -q '^session-thread: ' "$liveRecord" ; then
 		LC_ALL=C awk '{ print } /^status: / { print "session-thread: CRIG00001:1760000000.0000" NR }' "$liveRecord" > "$liveRecord.next" && mv -f "$liveRecord.next" "$liveRecord"
@@ -150,6 +163,23 @@ rigAssert "the next iteration sends no second one for the first, and none for a 
 rigDispatch --override-flag learning
 rigOneRun learnC
 rigAssert "...and none later, when learning is on again" "$( rigInquiries rig-new-$rigTag ):$( rigInquiries rig-off-$rigTag )" "1:0"
+
+echo "-- 6. a failing configuration check starts nothing --"
+## Two days on, the autorun of keeper-rig-01.auto is due again; without any Slack token the check fails, and the iteration fails with it.
+rigAt $(( rigMon13 + 2 * 86400 ))
+cp "$rigWs/.local/.agents/magic-team.agent.env" "$rigDir/team.env.kept" ; cp "$rigWs/.local/.agents/magic-coordinator.agent.env" "$rigDir/coord.env.kept"
+LC_ALL=C sed -i.bak -e '/^SLACK_BOT_TOKEN=/d' "$rigWs/.local/.agents/magic-team.agent.env" && rm -f "$rigWs/.local/.agents/magic-team.agent.env.bak"
+LC_ALL=C sed -i.bak -e '/^SLACK_USER_TOKEN=/d' "$rigWs/.local/.agents/magic-coordinator.agent.env" && rm -f "$rigWs/.local/.agents/magic-coordinator.agent.env.bak"
+rm -f "$rigWs/.local/agents/main-loop.config-check.last"
+rigWaitStarts
+rigAutoBefore="$( rigRecordsOf keeper-rig-01.auto.routine.md )" ; rigDutyBefore="$( rigDutyCount keeper-rig-04 )"
+rigItem keeper-rig-04
+rigOneRun nocheck ; rigWaitStarts
+rigAssert "the iteration fails and says why, and says that the schedule's starts are skipped" "$rigOneRc:$( rigSaid nocheck 'configuration check FAILED' ):$( rigSaid nocheck "the schedule's starts are skipped" )" "1:1:1"
+rigAssert "nothing was started: the routine that is due, and the duty of a member with work to do" "$( rigSaid nocheck 'autorun: started' ):$( rigSaid nocheck 'work-duty: started' ):$( rigRecordsOf keeper-rig-01.auto.routine.md ):$( rigDutyCount keeper-rig-04 )" "0:0:$rigAutoBefore:$rigDutyBefore"
+cp "$rigDir/team.env.kept" "$rigWs/.local/.agents/magic-team.agent.env" ; cp "$rigDir/coord.env.kept" "$rigWs/.local/.agents/magic-coordinator.agent.env"
+rigOneRun withcheck ; rigWaitStarts
+rigAssert "once the check passes the very next iteration starts what is due" "$rigOneRc:$( rigSaid withcheck 'configuration check passed' ):$( rigSaid withcheck 'autorun: started keeper-rig-01.auto.routine.md' )" "0:1:1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SCHEDULE LOOP CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

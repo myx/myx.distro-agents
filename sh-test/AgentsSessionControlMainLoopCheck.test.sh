@@ -2,16 +2,15 @@
 ## Behavioural check on the main loop starting the dead control threads of the sessions of its workspace at each
 ## iteration (--intern-main-loop, sh-lib/magic/AgentsTools.InternMainLoop.include, through the one check of
 ## sh-lib/session/AgentsTools.SessionControlStart.include). The real loop and spawn proxy run, as in
-## AgentsMainLoopPassBoundCheck; the console, curl, ps and every setting are this rig's own. GUARD: every tooling
+## AgentsMainLoopConfigCheck; the console, curl, ps and every setting are this rig's own. GUARD: every tooling
 ## call goes through one `env -i` whose child refuses to start unless MMDAPP and MDAT_DATA_ROOT sit under this
 ## rig's mktemp tree, and PATH holds no agent CLI.
 ## Held:
-##   1. An iteration starts the thread of a session that has a live run and none, before its pass: one line on its
-##      standard error says what was started, the thread runs after the iteration, detached, and the pass ran. The
-##      session of the pass itself, which the loop waits on, gets none.
-##   2. An iteration with nothing to start says nothing of it and goes on to its pass.
-##   3. A thread that cannot be started is one line, and the pass runs.
-##   4. A failure of the check is one line, and the iteration goes on to its pass.
+##   1. An iteration starts the thread of a session that has a live run and none: one line on its standard error says
+##      what was started, the thread runs after the iteration, detached, and the iteration goes on (it starts no agent).
+##   2. An iteration with nothing to start says nothing of it and goes on.
+##   3. A thread that cannot be started is one line, and the iteration goes on.
+##   4. A failure of the check is one line, and the iteration goes on.
 ## Red before the change: every assertion but the controls. Offline, rig tree only; every thread and stand-in this
 ## check starts is ended by it, through the rig's process helper.
 set -u
@@ -59,7 +58,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 
-## The workspace of AgentsMainLoopPassBoundCheck: settings, a fake console that ends at once, and a Slack-shaped
+## The workspace of AgentsMainLoopConfigCheck: settings, a fake console that ends at once, and a Slack-shaped
 ## curl that keeps every posted body. And a process list of the rig's own: the ps first on PATH answers the
 ## whole-host listing from the rig's list, each line only while its pid lives, and hands every other call to the
 ## real ps.
@@ -67,10 +66,8 @@ mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/data" "$rigDir/bin" "$rigDir/home/
 printf '# magic-coordinator\n' > "$rigDir/home/.claude/skills/magic-coordinator/SKILL.md"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.basic.md"
 printf '# rig armed\n' > "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.armed.md"
-printf -- '---\nexecutors: magic-coordinator (light)\nmaintainers: rig\nrequires-session-kind: standalone\n---\n# rig heartbeat routine fixture\n' \
-	> "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.heartbeat.routine.md"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSLACK_BOT_TOKEN=rig-not-a-token\nSPAWN_CLI_SERVICE=rig-cli\nSESSION_CONTROL_TICK_SECONDS=1\n' > "$rigDir/ws/.local/.agents/magic-team.agent.env"
-printf 'MAIN_LOOP_RESTART_DELAY_SECONDS=2\nMAIN_LOOP_PASS_TIMEOUT_SECONDS=0\n' > "$rigDir/ws/.local/.agents/magic-coordinator.agent.env"
+printf 'MAIN_LOOP_RESTART_DELAY_SECONDS=2\n' > "$rigDir/ws/.local/.agents/magic-coordinator.agent.env"
 printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\necho "start $$" >> "%s/console.log"\necho "end $$" >> "%s/console.log"\n' "$rigDir" "$rigDir" > "$rigDir/ws/DistroAgentsConsole.sh"
 printf '#!/bin/sh\ncat > /dev/null\necho "$*" >> "%s/curl.log"\nprintf %s\n' \
 	"$rigDir" "'{\"ok\":true,\"channel\":\"CRIG00001\",\"ts\":\"1700000001.000100\",\"message\":{\"ts\":\"1700000001.000100\"}}\n'" > "$rigDir/bin/curl"
@@ -159,7 +156,7 @@ rigSaid(){ ## name of a run, fixed text -- how many lines of its errors hold it
 rigLineOf(){ ## name of a run, fixed text -- the number of the first line of its errors that holds it, 0 for none
 	LC_ALL=C grep -n -F -- "$2" "$rigDir/$1.err" | LC_ALL=C sed -n '1s/:.*$//p' | LC_ALL=C grep . || printf '0\n'
 }
-rigPasses(){ ## -- how many passes the console of the rig was started for
+rigPasses(){ ## -- how many times the console of the rig was started: an iteration starts no agent, so none
 	LC_ALL=C grep -c '^start ' "$rigDir/console.log" 2> /dev/null || printf '0\n'
 }
 rigTag2="# DistroAgentsTools --intern-main-loop:"
@@ -167,30 +164,28 @@ rigTag2="# DistroAgentsTools --intern-main-loop:"
 echo "-- 1. an iteration starts the thread of a session that has a live run and none --"
 rigRec a a a "$rigHost" spawn-started ; rigStand a
 rigOneRun first
-[ "$( rigPasses )" -ge 1 ] || { tail -12 "$rigDir/first.err" >&2 ; rigRefuse "the iteration never started its pass, so nothing below would be measured" ; }
+[ "$rigOneRc" = 0 ] || { tail -12 "$rigDir/first.err" >&2 ; rigRefuse "the iteration did not pass, so nothing below would be measured" ; }
 rigWaitFor 20 rigHeld a
 rigA="$( rigHolder a )"
 rigAssert "after --one a control thread runs for that session, one, in a process group of its own: the iteration did not wait for it" \
 	"$( rigThreads a ):$( [ -n "$rigA" ] && [ "$( rigGroup "$rigA" )" = "$rigA" ] && echo own ):$( rigMade a )" "1:own:1"
-rigAssert "one line on its standard error says what was started, before its pass" \
-	"$( LC_ALL=C grep -c -x -F -- "$rigTag2 started the control thread of 1 session(s): $( rigId a )" "$rigDir/first.err" ):$( [ "$( rigLineOf first 'started the control thread of' )" -gt 0 ] && [ "$( rigLineOf first 'started the control thread of' )" -lt "$( rigLineOf first 'heartbeat iteration starting' )" ] && echo before )" "1:before"
-rigAssert "and its pass ran: the console of the rig was started for it, and the iteration said how its pass ended" "$( [ "$( rigPasses )" -ge 1 ] && echo started ):$( rigSaid first 'heartbeat iteration starting' ):$( LC_ALL=C grep -c -E -- "^$rigTag2 (✅|⛔) pass " "$rigDir/first.err" )" "started:1:1"
-rigAssert "the session of the pass itself, which the loop waits on, got no thread: the one control folder is that of the session with the live run" \
-	"$( ls -d "$rigStores"/*/control 2> /dev/null | LC_ALL=C grep -c . ):$( ls -d "$rigStores/$( rigId a )/control" 2> /dev/null | LC_ALL=C grep -c . ):$( ls -d "$rigStores"/*/ 2> /dev/null | LC_ALL=C grep -c . | LC_ALL=C awk '{ print ( $1 >= 2 ) ? "stores-of-both" : $1 }' )" "1:1:stores-of-both"
+rigAssert "one line on its standard error says what was started" \
+	"$( LC_ALL=C grep -c -x -F -- "$rigTag2 started the control thread of 1 session(s): $( rigId a )" "$rigDir/first.err" )" "1"
+rigAssert "the iteration went on and passed: its configuration check said so, and no agent was started" "$rigOneRc:$( rigSaid first 'configuration check passed' ):$( rigPasses )" "0:1:0"
+rigAssert "the one control folder is that of the session with the live run" \
+	"$( ls -d "$rigStores"/*/control 2> /dev/null | LC_ALL=C grep -c . ):$( ls -d "$rigStores/$( rigId a )/control" 2> /dev/null | LC_ALL=C grep -c . )" "1:1"
 
-echo "-- 2. an iteration with nothing to start goes on to its pass --"
-rigBefore="$( rigPasses )"
+echo "-- 2. an iteration with nothing to start goes on --"
 rigOneRun second
-rigAssert "every live session has its thread: the iteration starts no thread and says nothing of it, and starts its pass as before" \
-	"$( rigSaid second 'control thread' ):$( rigThreads a ):$( rigMade a ):$( rigHolder a ):$( [ "$( rigPasses )" -gt "$rigBefore" ] && echo started ):$( rigSaid second 'heartbeat iteration starting' )" "0:1:1:$rigA:started:1"
+rigAssert "every live session has its thread: the iteration starts no thread and says nothing of it, and passes" \
+	"$( rigSaid second 'control thread' ):$( rigThreads a ):$( rigMade a ):$( rigHolder a ):$rigOneRc" "0:1:1:$rigA:0"
 
-echo "-- 3. a thread that cannot be started is one line, and the pass runs --"
+echo "-- 3. a thread that cannot be started is one line, and the iteration goes on --"
 rigRec i i i "$rigHost" spawn-started ; rigStand i
 mkdir -p "$rigStores/$( rigId i )/control" ; chmod a-w "$rigStores/$( rigId i )/control"
-rigBefore="$( rigPasses )"
 rigOneRun third
-rigAssert "the folder control/ of a session cannot be written: one line says so, no process is started for it, and the pass runs" \
-	"$( LC_ALL=C grep -c -x -F -- "$rigTag2 the control thread of session $( rigId i ) could not be started: the log of the thread could not be written: $rigStores/$( rigId i )/control/log" "$rigDir/third.err" ):$( rigThreads i ):$( [ "$( rigPasses )" -gt "$rigBefore" ] && echo started )" "1:0:started"
+rigAssert "the folder control/ of a session cannot be written: one line says so, no process is started for it, and the iteration passes" \
+	"$( LC_ALL=C grep -c -x -F -- "$rigTag2 the control thread of session $( rigId i ) could not be started: the log of the thread could not be written: $rigStores/$( rigId i )/control/log" "$rigDir/third.err" ):$( rigThreads i ):$rigOneRc" "1:0:0"
 chmod u+w "$rigStores/$( rigId i )/control" ; rm -rf "$rigStores/$( rigId i )" "$rigSp/$( rigId i )"
 
 echo "-- 4. a failure of the check does not stop the iteration --"
@@ -198,11 +193,10 @@ echo "-- 4. a failure of the check does not stop the iteration --"
 rigThreadsEnd
 rigRec b b b "$rigHost" spawn-started ; rigStand b
 chmod a-w "$rigDir/ws/.local/agents"
-rigBefore="$( rigPasses )"
 rigOneRun fourth
 chmod u+w "$rigDir/ws/.local/agents"
-rigAssert "the check ends with an error: the iteration logs one line, starts no thread, and goes on to its pass" \
-	"$( LC_ALL=C grep -c -x -F -- "$rigTag2 the control threads of the sessions could not be checked -- the iteration goes on" "$rigDir/fourth.err" ):$( rigThreads b ):$( rigSaid fourth 'heartbeat iteration starting' ):$( [ "$( rigLineOf fourth 'could not be checked' )" -gt 0 ] && [ "$( rigLineOf fourth 'could not be checked' )" -lt "$( rigLineOf fourth 'heartbeat iteration starting' )" ] && echo before ):$( [ "$( rigPasses )" -gt "$rigBefore" ] && echo started )" "1:0:1:before:started"
+rigAssert "the check ends with an error: the iteration logs one line, starts no thread, and goes on" \
+	"$( LC_ALL=C grep -c -x -F -- "$rigTag2 the control threads of the sessions could not be checked -- the iteration goes on" "$rigDir/fourth.err" ):$( rigThreads b ):$rigOneRc" "1:0:0"
 rigOneRun fifth
 rigWaitFor 20 rigHeld b
 ## The thread of the first session was ended a moment ago, with the others of this check: the check leaves it alone, in silence.

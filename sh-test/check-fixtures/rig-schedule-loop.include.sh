@@ -29,7 +29,6 @@ rigScheduleSetup(){ ## number of keepers (01 up)
 	done
 	printf -- '---\nstatus: reference-only\n---\n# human-owner\n' > "$rigSkills/human-owner/SKILL.md"
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/human-owner/human-owner.basic.md"
-	printf -- '---\nexecutors: magic-coordinator (light)\nmaintainers: rig\nrequires-session-kind: standalone\n---\n# rig heartbeat routine fixture\n' > "$rigSkills/magic-coordinator/magic-coordinator.heartbeat.routine.md"
 	rigNames=""
 	for rigNo in $( seq 1 "$rigKeepers" ) ; do
 		rigNo="$( printf '%02d' "$rigNo" )"
@@ -49,7 +48,7 @@ rigScheduleSetup(){ ## number of keepers (01 up)
 	printf -- "---\ntype: routine\nexecutors: magic-team\nmaintainers: rig\nrequires-session-kind: standalone\nruns-at: daily 09:00\n---\n# keeper-rig-01.anyone.routine\n\n$rigBody" > "$rigSkills/keeper-rig-01/keeper-rig-01.anyone.routine.md"
 	rigMentionCache
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSPAWN_CLI_SERVICE=rig-cli\nSESSION_CONTROL_TICK_SECONDS=1\nWAIT_COLLECT_SECONDS=2\nMDAT_SCHEDULE_TIMEZONE=Etc/GMT-3\nMDAT_SCHEDULE_WEEKEND=sat,sun\nMDAT_SCHEDULE_WORKTIME=09:00 17:00 workdays\n' > "$rigWs/.local/.agents/magic-team.agent.env"
-	printf 'MAIN_LOOP_RESTART_DELAY_SECONDS=2\nMAIN_LOOP_PASS_TIMEOUT_SECONDS=0\nSLACK_USER_TOKEN=rig-user-token-COORD\n' > "$rigWs/.local/.agents/magic-coordinator.agent.env"
+	printf 'MAIN_LOOP_RESTART_DELAY_SECONDS=2\nSLACK_USER_TOKEN=rig-user-token-COORD\n' > "$rigWs/.local/.agents/magic-coordinator.agent.env"
 	for rigName in $rigNames magic-librarian ; do printf 'SLACK_USER_TOKEN=rig-user-token-%s\n' "${rigName##*-}" > "$rigWs/.local/.agents/$rigName.agent.env" ; done
 	printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\necho "start $$ $MDAT_SPAWN_AGENT" >> "%s/console.log"\necho "end $$" >> "%s/console.log"\n' "$rigDir" "$rigDir" > "$rigWs/DistroAgentsConsole.sh"
 	cp "$rigPackage/sh-test/check-fixtures/session-chat.curl.stub.sh" "$rigDir/bin/curl" || rigRefuse "the fake curl fixture is missing"
@@ -111,6 +110,18 @@ rigOneRun(){ ## name of its output files -- one iteration of the real loop
 rigWaitStarts(){ ## -- until the starts the loop made in the background have ended (at most 200 seconds)
 	local waitLeft=1000
 	while [ -n "$( LC_ALL=C ls "$rigWs/.local/agents/schedule/starting" 2> /dev/null | LC_ALL=C grep -v -e '\.rc$' -e '\.out$' )" ] && [ "$waitLeft" -gt 0 ] ; do sleep 0.2 ; waitLeft=$(( waitLeft - 1 )) ; done
+	## The record of a start (spawn-started) is closed a moment after the start, by the run that ended (its exit-code is the mark): the loop no longer holds the check for the
+	## time a pass took, so the close is waited for here (at most 60 seconds), or a check that closes a record by hand has it closed again under it.
+	local waitRecord waitOpen
+	waitLeft=300
+	while [ "$waitLeft" -gt 0 ] ; do
+		waitOpen=""
+		for waitRecord in $( LC_ALL=C grep -l '^status: spawn-started$' "$rigSp"/*/*.md 2> /dev/null ) ; do
+			LC_ALL=C grep -q '^exit-code: ' "$waitRecord" || waitOpen=1
+		done
+		[ -n "$waitOpen" ] || break
+		sleep 0.2 ; waitLeft=$(( waitLeft - 1 ))
+	done
 	return 0
 }
 rigTool(){ ## words... -- one tooling call from the rig workspace

@@ -27,7 +27,17 @@ rigRefuse(){
 rigTmp="$( rigTempDir AgentsAdvanceScheduleCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigStarted=""
-trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rigControlThreadsEnd "$rigTmp" ; rigProcSignalWithChildren KILL $rigStarted ; rm -rf -- "$rigTmp"' EXIT
+## A detached session of the rig may still write into the tree for a moment after it is signalled: the removal is tried again, for ten seconds, before it says what it could not remove.
+rigRemoveTree(){
+	local removeLeft=10
+	while [ "$removeLeft" -gt 0 ] ; do
+		chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp" 2> /dev/null
+		[ ! -e "$rigTmp" ] && return 0
+		sleep 1 ; removeLeft=$(( removeLeft - 1 ))
+	done
+	rm -rf -- "$rigTmp"
+}
+trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rigControlThreadsEnd "$rigTmp" ; rigProcSignalWithChildren KILL $rigStarted ; rigRemoveTree' EXIT
 trap 'exit 1' INT TERM
 rigPassCount=0
 rigFailCount=0

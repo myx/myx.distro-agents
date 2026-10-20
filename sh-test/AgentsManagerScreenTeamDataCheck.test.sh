@@ -15,6 +15,7 @@
 ## The operations are called exactly as the tooling has them. Offline: no operation of the real tooling is called.
 ## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`.
 ## Reconciled for F11.0, the table lines: two spaces between the columns of the tables of the dashboard.
+## Reconciled for the margins of the big dialog, F11.0 (section 8): the big dialog of a 120 by 36 terminal stands at 4,2 and is 112 by 32, it was 2,1 and 116 by 34.
 ## Reconciled for F11.5: Team Data stands under Magic-Team (Agents) (`at @teamdata`), and the root that holds it is Magic-Team (Agents).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -266,7 +267,7 @@ keys ENTER
 get closed
 RIGSCRIPT
 rigAssert "Enter asks first: what will run, its operation, and Run or Cancel" "$( rigVal ask.dialog ) [$( rigVal ask.dialogTitle )] $( rigHolds ask 'operation --owner-cleanup-purge' ) $( rigHolds ask ' »Run« ▅   Cancel  ▅' )" "cleanup:run| [Run: Purge The Cleanup Folder] 1 1"
-rigAssert "Run opens the big dialog, most of the screen, that runs it: its first line is there while it still runs" "$( rigVal running.dialog ) $( rigVal running.dialogBox ) [$( rigVal running.dialogHolds )] $( rigVal running.reading | LC_ALL=C grep -c -F 'follow:' )" "output:stop| 2,1,116,34 [purge: the first line, on standard output / It runs: Esc or Stop asks whether to stop it.] 1"
+rigAssert "Run opens the big dialog, most of the screen, that runs it: its first line is there while it still runs" "$( rigVal running.dialog ) $( rigVal running.dialogBox ) [$( rigVal running.dialogHolds )] $( rigVal running.reading | LC_ALL=C grep -c -F 'follow:' )" "output:stop| 4,2,112,32 [purge: the first line, on standard output / It runs: Esc or Stop asks whether to stop it.] 1"
 rigAssert "the status line names only its keys while it runs: Enter and Esc ask whether to stop it" "$( rigVal st | LC_ALL=C sed 's/  */ /g' )" " ENTER Stop ESC Stop"
 rigAssert "at its end it holds both streams in the order they were written, a tab as spaces and no sequence of a terminal" "$( rigVal ended.dialogHolds | LC_ALL=C sed 's/ \/ Ended with.*//' )" "purge: the first line, on standard output / purge: the second line, on standard error / purge:  a tab, a sequence and a mark ⛔"
 rigAssert "and its result in a line of its own, the status and how long it ran; OK alone; the status line says it too" "$( rigVal ended.dialogHolds | LC_ALL=C sed -n 's/.* \/ \(Ended with status 3, after [0-9.]*s\.\)$/\1/p' | LC_ALL=C sed 's/[0-9.]*s\.$/Ns./' ) $( rigVal ended.dialog ) $( rigVal ended.notice | LC_ALL=C sed 's/[0-9.]*s\.$/Ns./' )" "Ended with status 3, after Ns. output:ok| Purge The Cleanup Folder: Ended with status 3, after Ns."
@@ -367,6 +368,29 @@ show ended
 RIGSCRIPT
 rigAssert "5300 lines in two bursts, a second apart, ended with status 0: the dialog shows the last line written, not the tail it had drawn at 5000" "$( rigHolds ended 'past: THE LAST LINE' ) $( rigHolds ended 'Ended with status 0' ) $( rigHolds ended 'past: line 5300' )" "1 1 1"
 rigAssert "and streaming them took under 1.8 seconds of the processor (0.8 as built, 3.1 when every chunk wrapped all the lines again): each line is broken once, when it comes" "$( printf '%s\n%s\n' "$( rigVal before.cpu )" "$( rigVal after.cpu )" | LC_ALL=C awk 'NR == 1 { first = $1 } NR == 2 { print ( $1 - first < 1.8 ) ? "bounded" : "spent " ( $1 - first ) }' )" "bounded"
+
+echo "-- 8. the big dialog: 4 cells from the sides and a line from the bars, the frame alone counted, capped at 190 by 56; other dialogs as they were --"
+## before F11.0 the big dialog stood 2 cells from each side and against the bars (no line); F11.0: two cells and one line more
+rigCase margins rig agents
+printf 'script margin.sh\n' > "$MANAGER_SCREEN_RIG/mode.--owner-cleanup-purge"
+printf 'echo "margin: the first line"\nsleep 1\n' > "$MANAGER_SCREEN_RIG/margin.sh"
+rigMargins(){ ## columns, lines -- the frame of the question and of the big dialog on a terminal of that size: left,top,width,height, the cells each side and the lines each side that are free
+	rigScript <<RIGSCRIPT
+size $1 $2
+$rigToCleanup
+keys ENTER
+get ask
+keys ENTER
+wait follow 0.3
+get big
+RIGSCRIPT
+	for rigTag in ask big ; do
+		rigVal $rigTag.dialogBox | LC_ALL=C awk -F, -v columns="$1" -v lines="$2" '{ printf "%s:%d,%d,%d,%d/%d,%d,%d,%d ", "'"$rigTag"'", $1, $2, $3, $4, $1, columns - $1 - $3, $2 - 1, lines - 1 - $2 - $4 }'
+	done
+}
+rigAssert "80x24: the big dialog keeps 4 cells at each side and a line under the menu bar and above the status line (it had 2 and none); the question is where it was" "$( rigMargins 80 24 )" "ask:2,4,76,15/2,2,3,4 big:4,2,72,20/4,4,1,1 "
+rigAssert "205x55: the big one grows to 190 by 51 lines, centred; the question, which the terminal holds with its margins, stands 61 cells and 19 lines in" "$( rigMargins 205 55 )" "ask:61,20,82,15/61,62,19,19 big:7,2,190,51/7,8,1,1 "
+rigAssert "300x80: the big one is capped at 190 by 56, centred; the question as on any terminal that holds it with its margins" "$( rigMargins 300 80 )" "ask:109,32,82,15/109,109,31,32 big:55,12,190,56/55,55,11,11 "
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN TEAM DATA CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -1071,12 +1071,11 @@ rigLoopIn(){ ## workspace -- --intern-main-loop --one from that workspace
 		bash "$rigTool" --intern-main-loop --one ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigWorld
-printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig heartbeat routine fixture\n' > "$( rigMemberHome ws-here magic-coordinator )/magic-coordinator.heartbeat.routine.md"
 printf 'SPAWN_CLI_SERVICE=rig-cli\n' >> "$rigWork/ws-there/.local/.agents/magic-team.agent.env" ; printf 'SPAWN_CLI_SERVICE=rig-cli\n' >> "$rigWork/ws-here/.local/.agents/magic-team.agent.env"
 rigLoopIn ws-here ; rigSettle HERE
-rigAssert "the main loop in the coordinator's own workspace: one pass, launched there, as before"  "$rigRc $( rigLaunched ) $( rigN "$rigTmp/err" 'pass succeeded, exit 0, launched true' )" "0 HERE=ws-here 1"
+rigAssert "the main loop in the coordinator's own workspace: the iteration passes and launches no session of its own (the schedule starts what is declared)"  "$rigRc [$( rigLaunched )]" "0 []"
 rigLoopIn ws-there ; rigSettle THERE
-rigAssert "the main loop in a workspace the coordinator is not set up in: its pass launches the coordinator's session in that workspace, on the coordinator's own workspace view" "$rigRc $( rigLaunched ) $( rigRoots THERE ) $( rigN "$rigTmp/err" 'pass succeeded, exit 0, launched true' )" "0 THERE=ws-there magic-coordinator=ws-here/.local/agents/members 1"
+rigAssert "the main loop in a workspace the coordinator is not set up in: the same, the iteration passes and launches no session of its own" "$rigRc [$( rigLaunched )]" "0 []"
 
 echo "-- 11. the harness tools that name a member --"
 rigToolIn(){ ## workspace the session runs in, the member set root the session was given, agent, tool, json -- one harness tool call as that agent; output in out

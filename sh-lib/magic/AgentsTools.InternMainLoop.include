@@ -2,9 +2,10 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## Caller-less daemon loop: calls --intern-root-harness non-interactively with
-## heartbeat as its named routine, sleeps, repeats forever, no cap. Never
-## knows what a routine is itself -- that is the harness layer's own job.
+## Caller-less daemon loop: one iteration is housekeeping, the configuration check
+## and the schedule's steps (all scripts, no agent), then a sleep, repeated forever,
+## no cap. It starts no routine of its own: the routines the schedule declares are
+## started through the spawner, by the schedule's steps.
 ## Sourced from DistroAgentsTools.fn.sh's `--intern-main-loop` arm; needs
 ## $1/$@/$MDSC_CMD from dot-sourcing. Mirrors --intern-mcp-server's own shape:
 ## usage blurb on no flag, set +e/set -e discipline.
@@ -22,14 +23,14 @@ case "$1" in
 			--one) mainLoopMode='--one' ;;
 		esac
 		if [ -z "$mainLoopMode" ] ; then
-			printf '%s\n' "$MDSC_CMD --intern-main-loop -- spawns and keeps magic-coordinator.root-harness.routine's own start running forever, normal daemon/respawn-loop, no cap." >&2
+			printf '%s\n' "$MDSC_CMD --intern-main-loop -- runs the housekeeping, the configuration check and the schedule's steps, again and again, normal daemon loop, no cap." >&2
 			printf '%s\n' "" >&2
 			printf '%s\n' "  $MDSC_CMD --intern-main-loop --run" >&2
-			printf '%s\n' "      Spawn one root-harness-routine start, sleep, repeat -- forever, until killed." >&2
+			printf '%s\n' "      Run one iteration, sleep, repeat -- forever, until killed." >&2
 			printf '%s\n' "      This is the basement layer that RUNS own-service mode, not merely gated behind it already being up." >&2
 			printf '%s\n' "" >&2
 			printf '%s\n' "  $MDSC_CMD --intern-main-loop --one" >&2
-			printf '%s\n' "      Spawn exactly one root-harness-routine start and return its status. No sleep, no repeat." >&2
+			printf '%s\n' "      Run exactly one iteration and return its status. No sleep, no repeat." >&2
 			printf '%s\n' "      Runs the same readiness check, so it is also how that gate is exercised by hand." >&2
 			printf '%s\n' "" >&2
 			printf '%s\n' "Runs a short readiness check first and prints a compact report; the loop is entered only when all required settings are present." >&2
@@ -123,20 +124,12 @@ case "$1" in
 			return 1
 		fi
 
-		local sleepSeconds spawnRc nextDelaySeconds maxDelaySeconds mainLoopCliService
-		## The spawn proxy reports LAUNCHED/STATUS/EXIT_CODE on stdout. A command
-		## substitution would wait on pipe EOF and hang on any lingering child, so the
-		## documented remedy is a file plus a backgrounded command whose own PID $! is.
-		local mainLoopStatusFile="$MMDAPP/.local/temp/mdat-main-loop-status.$$" mainLoopExitCode
+		local sleepSeconds mainLoopRc nextDelaySeconds maxDelaySeconds
 		sleepSeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_SECONDS 29 )"
 		case "$sleepSeconds" in *[!0123456789]*|'') sleepSeconds=29 ;; esac
 		maxDelaySeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_RESTART_DELAY_MAX_SECONDS 1200 )"
 		case "$maxDelaySeconds" in *[!0123456789]*|'') maxDelaySeconds=1200 ;; esac
 		nextDelaySeconds="$sleepSeconds"
-		## No bound unless set: 0 or unset leaves a pass unbounded, and it is only reported.
-		local passTimeoutSeconds mainLoopPassTimedOut=""
-		passTimeoutSeconds="$( DistroAgentsTools --agents-config-option magic-coordinator --select-default MAIN_LOOP_PASS_TIMEOUT_SECONDS 0 )"
-		case "$passTimeoutSeconds" in *[!0123456789]*|'') passTimeoutSeconds=0 ;; esac
 
 		## Team data is pulled by the loop, not by the deploy, and only when a remote is
 		## configured. The branch is passed explicitly and never left empty: clonePull
@@ -157,16 +150,9 @@ case "$1" in
 		local mainLoopStateFile="$MMDAPP/.local/agents/main-loop.state"
 		local mainLoopConsecutiveFailures=0
 
-		local mainLoopInterrupted="false" mainLoopSpawnPid=""
-		## One Ctrl-C must kill whatever's in flight and stop the loop outright.
-		## Without this, SIGINT only interrupts the currently blocked `wait`
-		## (bash's own special case for that builtin) and the loop sails on to
-		## the next iteration -- forwarded to $mainLoopSpawnPid (empty during
-		## the sleep below, where a plain foreground `sleep` just dies on the
-		## signal by itself); process-group, not single-pid, since the real
-		## spawn-proxy process is one more pipe-hop inside --intern-root-harness
-		## now, same reach as the pass-timeout kill further down.
-		trap 'mainLoopInterrupted="true" ; [ -z "$mainLoopSpawnPid" ] || kill -TERM -- "-$mainLoopSpawnPid" 2>/dev/null' INT TERM
+		local mainLoopInterrupted="false"
+		## One Ctrl-C stops the loop outright: the iteration in flight ends at its next step and the loop returns.
+		trap 'mainLoopInterrupted="true"' INT TERM
 
 		## Health reporting must never kill what it reports on, so every step is swallowed:
 		## set -e is in force and a failing mktemp, write, chmod or mv would end the loop.
@@ -178,7 +164,6 @@ case "$1" in
 				mkdir -p "$MMDAPP/.local/agents"
 				stateTemp="$( mktemp "$mainLoopStateFile.XXXXXX" )"
 				{
-					if [ -n "$mainLoopPassTimedOut" ] && [ "$stateOutcome" = failed ] ; then stateOutcome=timed-out ; fi
 					printf 'MAIN_LOOP_LAST_OUTCOME=%s\n' "$stateOutcome"
 					printf 'MAIN_LOOP_LAST_ITERATION_UTC=%s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )"
 					printf 'MAIN_LOOP_CONSECUTIVE_FAILURES=%s\n' "$mainLoopConsecutiveFailures"
@@ -233,25 +218,38 @@ case "$1" in
 			return 0
 		}
 
-		## The spawn of the pass this loop started last, by its id: the newest spawn record that
-		## carries this loop's own receipt. The spawn proxy runs in this loop's own process, so the
-		## receipt it writes (`execution-receipt: spawn-proxy-<UTC stamp>-<pid>-<first part of the
-		## spawn's id>`, and with no such last part where it was written before a receipt had one)
-		## carries this process's id after its stamp, and nothing a pass spawns itself does. A pass
-		## that was ended leaves no status lines, so its record is how its session is known. Prints
-		## nothing for none.
-		AgentsToolsMainLoopPassSpawn() {
-			local passRecord=""
-			passRecord="$( LC_ALL=C grep -H -E "^execution-receipt: spawn-proxy-[0-9TZ]+-$$(-[0-9a-f]+)?\$" "$MMDAPP/.local/agents/spawned"/*/*.md 2> /dev/null \
-				| LC_ALL=C awk -F': ' '{ if ( $NF > newest ) { newest = $NF ; record = $1 ; } } END { sub( /:execution-receipt$/, "", record ) ; print record ; }' )" || passRecord=""
-			[ -n "$passRecord" ] && [ -f "$passRecord" ] || return 0
-			passRecord="${passRecord##*/}"
-			printf '%s' "${passRecord%.md}"
+		## The configuration check, run as a script and no agent: the check that was the first step of the heartbeat pass. It
+		## runs no more than once in 30 minutes while it passes (it asks Slack), and in each iteration while its last result is
+		## a failure. Its answer and the time are kept in main-loop.config-check.last. A FAIL line is said on stderr with its
+		## reason; any FAIL is a failed check. Prints nothing; the answer is $? (0 passed, 1 failed).
+		AgentsToolsMainLoopConfigCheck() {
+			local checkFile="$MMDAPP/.local/agents/main-loop.config-check.last" checkNow checkLastRc="" checkLastAt="" checkOut checkRc
+			checkNow="$( date +%s )"
+			{ read -r checkLastRc checkLastAt < "$checkFile" ; } 2> /dev/null || :
+			case "$checkLastAt" in ''|*[!0123456789]*) checkLastAt=0 ; checkLastRc="" ;; esac
+			if [ "$checkLastRc" = 0 ] && [ "$checkNow" -ge "$checkLastAt" ] && [ "$(( checkNow - checkLastAt ))" -lt 1800 ] ; then
+				return 0
+			fi
+			checkOut="$( DistroAgentsTools --magic-heartbeat-config-check < /dev/null 2>&1 )" && checkRc=0 || checkRc=1
+			if [ "$checkRc" = 0 ] ; then
+				echo "# $MDSC_CMD --intern-main-loop: ✅ configuration check passed, the next in 30 minutes" >&2
+			else
+				echo "# $MDSC_CMD --intern-main-loop: ⛔ configuration check FAILED:" >&2
+				printf '%s\n' "$checkOut" | LC_ALL=C grep -e ': FAIL$' -e '^  fail:' -e 'ERROR: .* is not configured' | LC_ALL=C sed -e 's/^/#   /' >&2 || :
+			fi
+			mkdir -p "$MMDAPP/.local/agents" \
+				&& printf '%s %s\n' "$checkRc" "$checkNow" > "$MMDAPP/.local/agents/main-loop.config-check.last.$$" \
+				&& mv -f "$MMDAPP/.local/agents/main-loop.config-check.last.$$" "$checkFile" \
+				|| { rm -f "$MMDAPP/.local/agents/main-loop.config-check.last.$$" ; echo "# $MDSC_CMD --intern-main-loop: the result of the configuration check could not be kept" >&2 ; }
+			return "$checkRc"
 		}
 
-		## One root-harness-routine start, spawn to reaped child, leaving the child's status in $spawnRc.
+		## One iteration: the configuration check (first: it takes seconds, and the steps below read the state of the workspace as it stands when they
+		## run), the housekeeping, then the schedule's steps, which run only when the check passed. The result is left in $mainLoopRc.
 		AgentsToolsMainLoopIteration() {
-			mainLoopPassTimedOut=""
+			mainLoopRc=0
+			local mainLoopConfigOk=""
+			if AgentsToolsMainLoopConfigCheck ; then mainLoopConfigOk="yes" ; else mainLoopRc=1 ; fi
 			AgentsToolsMainLoopSyncTeamData
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 			AgentsToolsSpawnSandboxSweep "--intern-main-loop"
@@ -322,120 +320,22 @@ case "$1" in
 			esac
 			## The schedule (F7.5): the autorun of the routines that declare one, the work-duty sessions the flags allow, and the learning
 			## inquiry for each session that ended (AgentsTools.DispatcherLoop.include). The decisions are Dispatcher's: the loop asks, and
-			## starts through the spawner as it starts the heartbeat. One line for each thing done; never fatal.
+			## starts through the spawner. One line for each thing done; never fatal. They run only
+			## when the configuration check passed: a failed check is the iteration's failure (the backoff applies), and starts nothing.
 			local mainLoopSchedule="" mainLoopScheduleLine
-			mainLoopSchedule="$(
-				set +e
-				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherLoop.include" 2> /dev/null || exit 1
-				AgentsToolsScheduleLoop 2> /dev/null
-			)" || mainLoopSchedule="schedule: the steps could not run"
-			while IFS= read -r mainLoopScheduleLine ; do
-				[ -z "$mainLoopScheduleLine" ] || echo "# $MDSC_CMD --intern-main-loop: $mainLoopScheduleLine" >&2
-			done <<< "$mainLoopSchedule"
-			## The spawn runs --wait, so without these lines the caller is silent for a whole iteration.
-			echo "# $MDSC_CMD --intern-main-loop: heartbeat iteration starting" >&2
-			## Named here so the choice is visible from the output itself, not only
-			## discoverable by reading config. SPAWN_CLI_SERVICE is guaranteed set by
-			## the time this line runs: the readiness check earlier in this same
-			## operation already gates entry on its presence, returning 1 before
-			## this is ever called if it's unset. "not set" below
-			## is a defensive label only, never expected to actually print.
-			mainLoopOptionSpec="$( AgentsToolsOwnerSetupOptionSpec SPAWN_CLI_SERVICE )"
-			mainLoopCliService="$( DistroAgentsTools --agents-config-option "${mainLoopOptionSpec%%|*}" --select SPAWN_CLI_SERVICE 2>/dev/null )"
-			echo "# $MDSC_CMD --intern-main-loop: 🤖 spawning via ${mainLoopCliService:-not set}" >&2
-			## Captured rather than merged into stderr: these five lines are the contract.
-			## Cost of capturing, accepted knowingly: they reach the log after the spawn
-			## ends instead of streaming live, so a long --wait goes quiet where it did not.
-			mkdir -p "$MMDAPP/.local/temp"
-			## Its own process group, so a bound that fires reaches every process of the pass.
-			set -m
-			DistroAgentsTools --intern-root-harness --routine heartbeat --non-interactive --wait > "$mainLoopStatusFile" &
-			mainLoopSpawnPid=$!
-			set +m
-			## Polled, never a bare wait: a pass running is said at the loop's own pace, and
-			## MAIN_LOOP_PASS_TIMEOUT_SECONDS, when set, ends a hung one. Unset, nothing ends it.
-			local passStarted="$SECONDS" passSaidAt="$SECONDS" passTimedOut="" passGrace
-			while kill -0 "$mainLoopSpawnPid" 2>/dev/null ; do
-				sleep 1
-				[ "$mainLoopInterrupted" = "false" ] || break
-				if [ "$(( SECONDS - passStarted ))" -ge 60 ] && [ "$(( SECONDS - passSaidAt ))" -ge "$sleepSeconds" ] ; then
-					passSaidAt="$SECONDS"
-					echo "# $MDSC_CMD --intern-main-loop: heartbeat pass running for $(( ( SECONDS - passStarted ) / 60 )) min" >&2
-				fi
-				if [ "$passTimeoutSeconds" -gt 0 ] && [ "$(( SECONDS - passStarted ))" -ge "$passTimeoutSeconds" ] ; then
-					passTimedOut=1
-					echo "⚠️ WARNING: $MDSC_CMD --intern-main-loop: heartbeat pass passed MAIN_LOOP_PASS_TIMEOUT_SECONDS=$passTimeoutSeconds -- ending it (TERM, then KILL); its lock is left for the next pass's stale-lock recheck" >&2
-					## A group already gone fails the kill; under set -e that would end the loop itself.
-					{
-						kill -TERM -- "-$mainLoopSpawnPid" || :
-						passGrace=5
-						while [ "$passGrace" -gt 0 ] && kill -0 "$mainLoopSpawnPid" ; do sleep 1 ; passGrace=$(( passGrace - 1 )) ; done
-						kill -KILL -- "-$mainLoopSpawnPid" || :
-					} 2>/dev/null
-					break
-				fi
-			done
-			spawnRc=0
-			## The whole block, not the wait alone: bash 3.2 prints its job notice here.
-			{ wait "$mainLoopSpawnPid" || spawnRc=$? ; } 2>/dev/null
-			mainLoopSpawnPid=""
-			if [ -n "$passTimedOut" ] ; then
-				[ 0 -ne "$spawnRc" ] || spawnRc=124
-				mainLoopPassTimedOut=1
-				## The time as a Slack date token, so each reader sees it in their own timezone
-				## (AgentsTools.SlackDate.include); a moment the helper cannot read stays as it was.
-				type AgentsToolsSlackDateToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SlackDate.include" 2> /dev/null || :
-				## A tracking post about the pass that timed out, so it goes into the tracking thread of
-				## that pass's own session, a reply there as every other is (AgentsToolsEventTrackThreadPost),
-				## never a post of its own at the top of event-track. Only a pass that ended before its
-				## spawn was recorded has no session to post into, and its post opens a thread by itself.
-				local passSpawn="" passPost=()
-				passSpawn="$( AgentsToolsMainLoopPassSpawn )" || passSpawn=""
-				passPost=( --kind error ${passSpawn:+--session-id "$passSpawn"} \
-					--field what="Heartbeat pass timed out after ${passTimeoutSeconds}s" \
-					--field detail="ended by TERM then KILL, process group; its lock is left for the next pass's stale-lock recheck" \
-					--field host="$( hostname -s 2>/dev/null || echo unknown )" \
-					--field at="$( AgentsToolsSlackDateToken "$( date +%s )" date-time 2> /dev/null || date +"%Y-%m-%d %H:%M %z" )" )
-				if [ -n "$passSpawn" ] ; then
-					type AgentsToolsEventTrackThreadPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackThread.include" 2> /dev/null || :
-					AgentsToolsEventTrackThreadPost magic-coordinator "$MMDAPP/.local/agents/sessions/$passSpawn" "${passPost[@]}" < /dev/null > /dev/null 2>&1 \
-						|| echo "# $MDSC_CMD --intern-main-loop: the timeout could not be posted to the tracking thread of the pass $passSpawn" >&2
-				else
-					DistroAgentsTools --intern-op-event-track-post magic-coordinator event-track "${passPost[@]}" > /dev/null 2>&1 \
-						|| echo "# $MDSC_CMD --intern-main-loop: the timeout could not be posted to event-track" >&2
-				fi
+			[ "$mainLoopInterrupted" = "false" ] || return 0
+			if [ -n "$mainLoopConfigOk" ] ; then
+				mainLoopSchedule="$(
+					set +e
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherLoop.include" 2> /dev/null || exit 1
+					AgentsToolsScheduleLoop 2> /dev/null
+				)" || mainLoopSchedule="schedule: the steps could not run"
+				while IFS= read -r mainLoopScheduleLine ; do
+					[ -z "$mainLoopScheduleLine" ] || echo "# $MDSC_CMD --intern-main-loop: $mainLoopScheduleLine" >&2
+				done <<< "$mainLoopSchedule"
+			else
+				echo "# $MDSC_CMD --intern-main-loop: the schedule's starts are skipped in this iteration" >&2
 			fi
-			## Nothing may sit between a wait and its spawnRc above: any diagnostic there
-			## becomes what $? reports. Everything below runs once the status is already held.
-			## One readable line from the proxy's contract fields, never the raw dump.
-			[ -r "$mainLoopStatusFile" ] || echo "# $MDSC_CMD --intern-main-loop: ⛔ pass left no status file" >&2
-			LC_ALL=C awk -F= -v tag="$MDSC_CMD --intern-main-loop" '
-				$1 ~ /^(STATUS|EXIT_CODE|LAUNCHED|SETUP_STATUS|TIMEOUT_SECONDS|DISPATCH_ITEM|OUTPUT_FILE)$/ { value[$1] = substr( $0, length( $1 ) + 2 ) ; }
-				END {
-					mark = ( value["STATUS"] == "succeeded" ) ? "✅" : "⛔" ;
-					line = "# " tag ": " mark " pass " ( value["STATUS"] != "" ? value["STATUS"] : "reported-no-status" ) ;
-					if ( value["EXIT_CODE"] != "" ) { line = line ", exit " value["EXIT_CODE"] ; }
-					if ( value["LAUNCHED"] != "" ) { line = line ", launched " value["LAUNCHED"] ; }
-					if ( value["SETUP_STATUS"] != "" ) { line = line ", setup " value["SETUP_STATUS"] ; }
-					if ( value["TIMEOUT_SECONDS"] != "" ) { line = line ", timed out after " value["TIMEOUT_SECONDS"] "s" ; }
-					if ( value["DISPATCH_ITEM"] != "" ) { line = line ", item " value["DISPATCH_ITEM"] ; }
-					print line ;
-					if ( value["OUTPUT_FILE"] != "" ) { print "# " tag ": 📄 OUTPUT_FILE=" value["OUTPUT_FILE"] ; }
-				}
-			' "$mainLoopStatusFile" >&2 2>/dev/null || :
-			## Required positively. Absent, empty, unreadable or truncated all read as
-			## failure -- never look for LAUNCHED=false and take its absence for success.
-			if ! grep -q '^LAUNCHED=true$' "$mainLoopStatusFile" 2>/dev/null ; then
-				[ 0 -ne "$spawnRc" ] || spawnRc=1
-			fi
-			## Two sources of truth, and the verdict is their union: the process status
-			## catches a writer that died before writing, the contract catches the rest.
-			mainLoopExitCode="$( sed -n 's/^EXIT_CODE=//p' "$mainLoopStatusFile" 2>/dev/null | tail -1 )"
-			case "$mainLoopExitCode" in
-				''|*[!0123456789]*|0) ;;
-				*) [ 0 -ne "$spawnRc" ] || spawnRc="$mainLoopExitCode" ;;
-			esac
-			rm -f "$mainLoopStatusFile"
 		}
 
 		## Every clean-stop path writes "stopped" before returning. That is the whole point
@@ -447,28 +347,27 @@ case "$1" in
 			echo "# $MDSC_CMD --intern-main-loop: interrupted, stopping" >&2
 		}
 
-		## One look: same iteration, no sleep, no loop to leave -- starting the
-		## root-harness session is itself a one-off, never a respawn loop.
+		## One look: same iteration, no sleep, no loop to leave.
 		if [ '--one' = "$mainLoopMode" ] ; then
 			AgentsToolsMainLoopIteration
 			trap - INT TERM
 			[ "$mainLoopInterrupted" = "false" ] || { AgentsToolsMainLoopStopped ; return 130 ; }
-			[ 0 -eq "$spawnRc" ] || echo "# $MDSC_CMD --intern-main-loop: iteration FAILED, spawn proxy rc=$spawnRc -- the spawned session's own output is in the log named by the OUTPUT_FILE line above" >&2
-			[ 0 -eq "$spawnRc" ] && mainLoopConsecutiveFailures=0 || mainLoopConsecutiveFailures=1
-			[ 0 -eq "$spawnRc" ] && AgentsToolsMainLoopWriteState ok || AgentsToolsMainLoopWriteState failed
-			return "$spawnRc"
+			[ 0 -eq "$mainLoopRc" ] || echo "# $MDSC_CMD --intern-main-loop: iteration FAILED, the configuration check failed" >&2
+			[ 0 -eq "$mainLoopRc" ] && mainLoopConsecutiveFailures=0 || mainLoopConsecutiveFailures=1
+			[ 0 -eq "$mainLoopRc" ] && AgentsToolsMainLoopWriteState ok || AgentsToolsMainLoopWriteState failed
+			return "$mainLoopRc"
 		fi
 
 		while true ; do
 			AgentsToolsMainLoopIteration
 			[ "$mainLoopInterrupted" = "false" ] || { trap - INT TERM ; AgentsToolsMainLoopStopped ; return 130 ; }
-			[ 0 -eq "$spawnRc" ] || echo "# $MDSC_CMD --intern-main-loop: iteration FAILED, spawn proxy rc=$spawnRc -- the spawned session's own output is in the log named by the OUTPUT_FILE line above" >&2
+			[ 0 -eq "$mainLoopRc" ] || echo "# $MDSC_CMD --intern-main-loop: iteration FAILED, the configuration check failed" >&2
 
 			## Consecutive failures lengthen the wait; the delay is the state, so doubling stops at the ceiling and cannot overflow.
-			if [ 0 -eq "$spawnRc" ] ; then
+			if [ 0 -eq "$mainLoopRc" ] ; then
 				nextDelaySeconds="$sleepSeconds"
 				mainLoopConsecutiveFailures=0
-				## The progress flag advances only here, on a pass this loop saw succeed; --one
+				## The progress flag advances only here, on an iteration that passed; --one
 				## never reaches it. Unset outside a rig, where nothing reads a flag.
 				[ -z "${MDAT_MAIN_LOOP_PROGRESS_FILE:-}" ] || touch -- "$MDAT_MAIN_LOOP_PROGRESS_FILE" 2>/dev/null \
 					|| echo "# $MDSC_CMD --intern-main-loop: could not touch $MDAT_MAIN_LOOP_PROGRESS_FILE -- the loop is unaffected, the progress check will read it as stale" >&2
@@ -480,7 +379,7 @@ case "$1" in
 			## Written after the delay is computed and before it is served: the reader's
 			## question is "should I have heard from you by now?", which needs the tolerance
 			## for the silence about to start, not the one already over.
-			[ 0 -eq "$spawnRc" ] && AgentsToolsMainLoopWriteState ok || AgentsToolsMainLoopWriteState failed
+			[ 0 -eq "$mainLoopRc" ] && AgentsToolsMainLoopWriteState ok || AgentsToolsMainLoopWriteState failed
 			echo "# $MDSC_CMD --intern-main-loop: iteration ended, sleeping ${nextDelaySeconds}s before the next one" >&2
 			sleep "$nextDelaySeconds"
 			[ "$mainLoopInterrupted" = "false" ] || { trap - INT TERM ; AgentsToolsMainLoopStopped ; return 130 ; }

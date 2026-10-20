@@ -11,8 +11,7 @@
 ## fallback, and the dismissal, mention and addressing readers still work on such text; a
 ## tracking post's given date comes out unescaped and outside a code span, and its Wait line
 ## shows the fallback; a spawn's start and end posts say their times as tokens.
-## The pending-reply reminder and the main loop's timeout post are held where their rigs
-## are: AgentsPendingReplyRemindCheck and AgentsMainLoopPassBoundCheck.
+## The pending-reply reminder is held where its rig is: AgentsPendingReplyRemindCheck.
 ## Offline: temp files, a Slack-shaped fake curl first on PATH for the one spawn that runs,
 ## and every op in a clean environment whose workspace and data root sit under this rig's
 ## own mktemp tree.
