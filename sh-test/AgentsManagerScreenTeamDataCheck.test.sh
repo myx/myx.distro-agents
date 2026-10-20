@@ -332,6 +332,42 @@ RIGSCRIPT
 rigAssert "it shows the end of what was written: the last line, not the first" "$( rigHolds end 'many: line 060' ) $( rigHolds end 'many: line 001' )" "1 0"
 rigAssert "scrolled up by a line the last one goes, and scrolled down to the end it is there again" "$( rigHolds up 'many: line 060' ) $( rigHolds down 'many: line 060' )" "0 1"
 
+echo "-- 6. a finished dialog left open costs the processor almost nothing, whatever it holds --"
+rigCase idle rig agents
+printf 'script big.sh\n' > "$MANAGER_SCREEN_RIG/mode.--owner-cleanup-purge"
+printf 'for n in $( seq 1 3000 ) ; do printf "big: line %%04d of a long output, with words enough to reach the border of the window and to be broken once or twice more than that\\n" "$n" ; done\n' > "$MANAGER_SCREEN_RIG/big.sh"
+rigScript <<RIGSCRIPT
+$rigToCleanup
+keys ENTER ENTER
+wait follow 60
+get ended
+spend idle 25
+get after
+RIGSCRIPT
+rigAssert "a palette-sized output ended with status 0 and left the dialog open for OK" "$( rigVal ended.dialog ) $( rigVal ended.dialogHolds | LC_ALL=C grep -c -F 'Ended with status 0' )" "output:ok| 1"
+rigAssert "left open for five seconds (25 turns of 0.2 s) it took under one second of the processor, no work in proportion to its lines at each turn" "$( rigVal idle.cpu | LC_ALL=C awk '{ print ( $1 < 1.0 ) ? "quiet" : "busy " $1 }' ) $( rigVal after.dialog )" "quiet output:ok|"
+
+echo "-- 7. past the lines it keeps the tail is current, and streaming them costs a bounded time --"
+rigCase past rig agents
+printf 'script past.sh\n' > "$MANAGER_SCREEN_RIG/mode.--owner-cleanup-purge"
+cat > "$MANAGER_SCREEN_RIG/past.sh" <<'RIGCHILD'
+for n in $( seq 1 5000 ) ; do printf "past: line %04d of a long output, with words enough to reach the border of the window and to be broken once or twice more than that\n" "$n" ; done
+sleep 1
+for n in $( seq 5001 5300 ) ; do printf "past: line %04d of a long output, with words enough to reach the border of the window and to be broken once or twice more than that\n" "$n" ; done
+echo "past: THE LAST LINE"
+RIGCHILD
+rigScript <<RIGSCRIPT
+$rigToCleanup
+cpu before
+keys ENTER ENTER
+wait follow 90
+cpu after
+get ended
+show ended
+RIGSCRIPT
+rigAssert "5300 lines in two bursts, a second apart, ended with status 0: the dialog shows the last line written, not the tail it had drawn at 5000" "$( rigHolds ended 'past: THE LAST LINE' ) $( rigHolds ended 'Ended with status 0' ) $( rigHolds ended 'past: line 5300' )" "1 1 1"
+rigAssert "and streaming them took under 1.8 seconds of the processor (0.8 as built, 3.1 when every chunk wrapped all the lines again): each line is broken once, when it comes" "$( printf '%s\n%s\n' "$( rigVal before.cpu )" "$( rigVal after.cpu )" | LC_ALL=C awk 'NR == 1 { first = $1 } NR == 2 { print ( $1 - first < 1.8 ) ? "bounded" : "spent " ( $1 - first ) }' )" "bounded"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN TEAM DATA CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

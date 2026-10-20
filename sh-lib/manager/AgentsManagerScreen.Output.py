@@ -66,6 +66,7 @@ def followResult(state, result):
         lines = (follow["rest"] + result["chunk"]).split("\n")
         follow["rest"] = lines.pop()
         output["lines"].extend(outputLine(line) for line in lines)
+        output["dropped"] = output.get("dropped", 0) + max(0, len(output["lines"]) - OUTPUT_KEPT)
         del output["lines"][:-OUTPUT_KEPT]
         return
     if follow["rest"]:

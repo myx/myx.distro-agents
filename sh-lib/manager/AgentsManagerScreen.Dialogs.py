@@ -220,13 +220,28 @@ def dialogStatus(dialog):
 ## full, and pairs that follow one another are set out as facts, their names in a column.
 def dialogTextLines(control, width):
     if control.get("raw"):
-        ## what an operation wrote: each line as it was, broken only where it is full; set
-        ## out again only when lines have come or the width has changed
+        ## what an operation wrote: each line as it was, broken only where it is full. Each line is broken once, when it has
+        ## come (or when the width has changed), whatever came or went before it: "dropped" counts the lines the front lost
+        ## (the dialog keeps the last few thousand), so what is kept stays in step with the lines and not with their number.
+        lines = control["lines"]
         kept = control.get("wrapped")
-        if kept is None or kept[0] != (len(control["lines"]), width):
-            kept = ((len(control["lines"]), width), [part for line in control["lines"] for part in areaLines(line, width)])
+        if kept is not None and (kept["width"] != width or kept["first"] > control.get("dropped", 0)
+                                 or control.get("dropped", 0) - kept["first"] > len(kept["pieces"])):
+            kept = None
+        if kept is None:
+            kept = {"width": width, "first": control.get("dropped", 0), "pieces": [], "flat": None}
             control["wrapped"] = kept
-        return kept[1]
+        gone = control.get("dropped", 0) - kept["first"]
+        if gone:
+            del kept["pieces"][:gone]
+            kept["first"] += gone
+            kept["flat"] = None
+        if len(kept["pieces"]) < len(lines):
+            kept["pieces"].extend(areaLines(line, width) for line in lines[len(kept["pieces"]):])
+            kept["flat"] = None
+        if kept["flat"] is None:
+            kept["flat"] = [part for piece in kept["pieces"] for part in piece]
+        return kept["flat"]
     lines = []
     pairs = []
     for paragraph in list(control["lines"]) + [None]:
@@ -275,7 +290,9 @@ def areaLines(text, width):
 ## a text holds more than it shows, and "page" how many lines of it show.
 def dialogPlan(dialog, columns, lines):
     wanted = max(textWidth(dialog["title"]) + 2, sum(textWidth(label) + 6 for name, label in dialog["buttons"]))
-    for control in dialog["controls"]:
+    big = DIALOGS.get(dialog["name"], {}).get("big")
+    ## the big dialog is as wide as the terminal whatever it holds: the lines of its text, up to thousands, are not measured at every turn
+    for control in () if big else dialog["controls"]:
         wanted = max(wanted, textWidth(control.get("label", "")))
         if control["kind"] in ("input", "area"):
             wanted = max(wanted, 52)
@@ -284,7 +301,6 @@ def dialogPlan(dialog, columns, lines):
         for optionId, label in control["options"]:
             wanted = max(wanted, textWidth(label) + 4)
     width = min(columns - 4, max(40, min(wanted + 2 * DIALOG_SIDE, DIALOG_COLUMNS)))
-    big = DIALOGS.get(dialog["name"], {}).get("big")
     if big:
         width = columns - 4
     inner = width - 2 * DIALOG_SIDE

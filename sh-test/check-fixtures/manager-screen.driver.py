@@ -166,6 +166,8 @@ class TextSurface:
 ##   rowids <tag>                  the ids of the rows of the level the list is at, as `<tag>=<id> <id> ...`
 ##   keys <key...>                 each key is one turn of the screen
 ##   turn [<count>]                turns with no key
+##   cpu <tag>                     the seconds of the processor used so far, `<tag>.cpu=`
+##   spend <tag> <count>           that many turns with no key, and the seconds of the processor they took, `<tag>.cpu=`
 ##   wait <kind> <seconds>         turns, in real time, until no call of that kind runs; the selection is taken as
 ##                                 rested first, so the reads of the selected item are started
 ##   child <status>|missing [<columns> <lines>]   how the next child that is given the terminal ends: with that
@@ -408,6 +410,16 @@ def scriptRun(module):
         elif command == "turn":
             for count in range(int(words[0]) if words else 1):
                 turn()
+        elif command == "cpu":
+            ## `cpu <tag>`: the seconds of the processor the driver has used so far, `<tag>.cpu=`; two of them bound what lies between
+            print("%s.cpu=%.3f" % (words[0], time.process_time()))
+        elif command == "spend":
+            ## `spend <tag> <turns>`: that many turns at rest, and how many seconds of the processor they took, as `<tag>.cpu=` (a screen
+            ## left open turns five times a second: the cost of 25 turns is the cost of five seconds)
+            spent = time.process_time()
+            for count in range(int(words[1])):
+                turn()
+            print("%s.cpu=%.3f" % (words[0], time.process_time() - spent))
         elif command == "wait":
             ## a test that waits for a read has let the selection rest: the reads of its item start
             if hasattr(module, "restLeft"):
