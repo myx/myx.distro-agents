@@ -80,6 +80,31 @@ rigAssert "after the credentials are exported"                                "$
 rigAssert "a vendor CLI is passed no model option"                            "$( LC_ALL=C grep -c -e '--model' "$rigTemplate" )" 0
 rigAssert "the harness gate takes light, normal, heavy as it did"             "$( LC_ALL=C grep -c -F -e 'light|normal|heavy) harnessTier="$2" ;;' "$rigPackage/sh-lib/harness/AgentsUniversalHarness.sh" )" 1
 
+echo "-- 4. the console's export of the lifetime the preset asks of the input cache (F10.7) --"
+rigFunction="$( LC_ALL=C awk '/^DagcHarnessCacheTimeExport\(\)\{/ { on = 1 } on { print } on && /^}/ { exit }' "$rigTemplate" )"
+rigAssert "the console defines it"                                          "$( printf '%s' "$rigFunction" | LC_ALL=C grep -c -e '^DagcHarnessCacheTimeExport(){' )" 1
+rigTimeExport(){ ## env assignments for the call -- `time=<value|unset>` after the function ran
+	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" MDAT_SKILLSET_ROOT="$rigTmp/skills" "$@" \
+		bash -c "$rigFunction"'
+			DagcHarnessCacheTimeExport
+			printf "time=%s" "${HARNESS_INPUT_CACHE_TIME-unset}"
+		' 2> /dev/null )
+}
+printf 'SPAWN_CLI_SERVICE=claude-native\n' > "$rigAgents/magic-team.agent.env"
+printf 'PRESET_CLI_SERVICE=claude\nPRESET_INPUT_CACHE_TIME=1h\n' > "$rigAgents/preset-rig-hour.agent.env"
+printf 'PRESET_EXTEND=rig-hour\n' > "$rigAgents/preset-rig-hour-ext.agent.env"
+printf 'PRESET_CLI_SERVICE=claude\nPRESET_INPUT_CACHE_TIME=5m\n' > "$rigAgents/preset-rig-five.agent.env"
+chmod 770 "$rigAgents" ; chmod 660 "$rigAgents"/*.agent.env
+rigAssert "no tier setting: none is exported, and a parent's is dropped"      "$( rigTimeExport HARNESS_INPUT_CACHE_TIME=1h )" "time=unset"
+rigAssert "the spawn's own preset asks the hour: 1h is exported"              "$( rigTimeExport MDAT_SPAWN_PRESET=rig-hour )" "time=1h"
+rigAssert "one that extends it asks it too"                                   "$( rigTimeExport MDAT_SPAWN_PRESET=rig-hour-ext )" "time=1h"
+rigAssert "one that asks 5m exports it as it is set (the leg's wire says nothing for it)" "$( rigTimeExport MDAT_SPAWN_PRESET=rig-five )" "time=5m"
+rigAssert "a preset that asks nothing: none, a parent's dropped"               "$( rigTimeExport MDAT_SPAWN_PRESET=rig-haiku HARNESS_INPUT_CACHE_TIME=1h )" "time=unset"
+rigAssert "a caller-named service is no preset's: none"                        "$( rigTimeExport MDAT_SPAWN_PRESET=-claude HARNESS_INPUT_CACHE_TIME=1h )" "time=unset"
+printf 'SPAWN_TIER_NORMAL=rig-hour\n' >> "$rigAgents/magic-team.agent.env"
+rigAssert "the team's tier setting is the preset where the spawn names none"   "$( rigTimeExport )" "time=1h"
+rigAssert "the call is for a harness leg, in the console, once, beside the models" "$( LC_ALL=C awk '/^if DagcCliIsLeg "\$DAGC_CLI" ; then$/ { gate = NR } /^\tDagcHarnessCacheTimeExport$/ { if ( gate > 0 && gate == NR - 2 ) found ++ ; else stray ++ } END { print found + 0 " " stray + 0 }' "$rigTemplate" )" "1 0"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ PRESET MODEL CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

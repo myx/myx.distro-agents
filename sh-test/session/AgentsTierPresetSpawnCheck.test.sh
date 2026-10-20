@@ -46,6 +46,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'printf "%s\n" "$rigContext" > "$RIG_SCENARIO/brief"' \
 	'{ printf "preset=%s\n" "${MDAT_SPAWN_PRESET-unset}" ; printf "light=%s\n" "${HARNESS_MODEL_LIGHT-unset}" ; printf "main=%s\n" "${HARNESS_MODEL_MAIN-unset}" ;' \
 	'  printf "cli=%s\n" "$( bash "$RIG_FN" --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2> /dev/null )" ;' \
+	'  printf "cachetime=%s\n" "$( bash "$RIG_FN" --agents-config-option magic-team --select HARNESS_INPUT_CACHE_TIME 2> /dev/null )" ;' \
 	'  [ -n "$( bash "$RIG_FN" --agents-config-option magic-team --select ANTHROPIC_API_KEY 2> /dev/null )" ] && printf "key=held\n" || printf "key=empty\n" ; } > "$RIG_SCENARIO/seen"' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
@@ -174,6 +175,35 @@ rigBrief rig-member
 rigAssert "the member's own setting is the one the brief follows"           "$( LC_ALL=C grep -c '^tools: ' "$rigTmp/brief.out" )" 1
 rigBrief keeper-myx
 rigAssert "and the team's for another member"                                "$( LC_ALL=C grep -c '^tools: ' "$rigTmp/brief.out" )" 0
+
+echo "-- 9. the lifetime the preset asks of the input cache (F10.7) --"
+printf 'PRESET_EXTEND=rig-hour\n' > "$rigAgents/preset-rig-hour-ext.agent.env"
+printf 'PRESET_CLI_SERVICE=claude\nPRESET_INPUT_CACHE_TIME=1h\n' > "$rigAgents/preset-rig-hour.agent.env"
+printf 'PRESET_CLI_SERVICE=claude\nPRESET_INPUT_CACHE_TIME=2h\n' > "$rigAgents/preset-rig-bad.agent.env"
+printf 'PRESET_EXTEND=rig-bad\n' > "$rigAgents/preset-rig-bad-ext.agent.env"
+rigMember
+rigTeam "SPAWN_TIER_NORMAL=rig-hour"
+rigSpawn keeper-myx > /dev/null
+rigAssert "a preset that asks the hour: the console reads 1h as the lifetime of the run"  "$( rigSeen cachetime )" 1h
+rigTeam "SPAWN_TIER_NORMAL=rig-hour-ext"
+rigSpawn keeper-myx > /dev/null
+rigAssert "one that extends it has it too"                                   "$( rigSeen cachetime )" 1h
+rigTeam "SPAWN_TIER_NORMAL=rig-ext"
+rigSpawn keeper-myx > /dev/null
+rigAssert "a preset that asks nothing: the console reads none, the provider's own"  "$( rigSeen cachetime )" ""
+rigTeam
+rigSpawn keeper-myx > /dev/null
+rigAssert "and with no tier setting at all"                                  "$( rigSeen cachetime )" ""
+rigTeam "SPAWN_TIER_NORMAL=rig-bad"
+rigOut="$( rigSpawn keeper-myx ; printf 'rc=%s' "$?" )"
+rigAssert "a preset that holds another lifetime (written by hand, past the write check) refuses the spawn: nothing reaches the console, and the reason names the preset and the key"  "$( [ -s "$rigTmp/brief" ] && echo started || echo refused ):$( printf '%s' "$rigOut" | LC_ALL=C grep -c 'preset rig-bad asks the input cache for a lifetime that is none of 5m, 1h' )" refused:1
+rigAssert "and prints no value of it"                                        "$( printf '%s' "$rigOut" | LC_ALL=C grep -c -F -- '2h' )" 0
+rigTeam "SPAWN_TIER_NORMAL=rig-bad-ext"
+rigSpawn keeper-myx > /dev/null
+rigAssert "so does a preset that extends it: the value it inherits is checked"  "$( [ -s "$rigTmp/brief" ] && echo started || echo refused )" refused
+rigTeam "SPAWN_TIER_NORMAL=rig-hour"
+rigSpawn keeper-myx --spawn-cli-service claude > /dev/null
+rigAssert "a caller-named CLI service is no preset's spawn, and asks nothing"  "$( rigSeen cachetime )" ""
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ TIER PRESET SPAWN CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

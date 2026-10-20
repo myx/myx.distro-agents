@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.DispatcherStats.include -- the functions of the Dispatcher's runs and stats store (F7.11), for DistroAgentsDispatcher.fn.sh. Sourced for its
+## functions only; $MDSC_CMD is the caller's.
+##
+## THE STORE is a block of its own in .local/agents: `stats/`, three index files of TAB-separated rows under a header line `myx.distro stats.<name> 1`:
+##   runs.index      one row for each run (AgentsDispatcherStatsRuns.awk's columns): the run, its session, member, routine, status, times, workspaces, the preset
+##                   and the credential it ran under (the credential's name, never its value), and its tokens (in, cache-read, cache-write, out).
+##   routines.index  one row for each routine, the routine being the entity and its runs attached: how many succeeded, failed, run now, when it last ran and,
+##                   beside it, when it last SUCCEEDED, its tokens and the members that ran it (AgentsDispatcherStatsRoll.awk, want routines).
+##   tokens.index    the tokens by day, member, routine, preset and credential: the one aggregation the token views read (want tokens).
+## IT IS AN INDEX, NEVER A SOURCE. Every fact in it is read from the run records (.local/agents/spawned/<session>/<run>.md) and the token files the harness
+## keeps (sessions/<run>/tokens); a fact never first appears here, so the store can be deleted and rebuilt and cannot drift. A reader brings it up to date
+## first: the records and token files newer than runs.index are read again, and the rows of those runs replaced (--refresh); a run record that was removed is
+## dropped only by a rebuild (--rebuild-stats). The check that is free: rebuild in a scratch place and compare (--stats-check): a difference is a missed read
+## or a hand edit. Per workspace: it covers the runs recorded in this workspace, of every member, with the workspace each executed and was paid in.
+##
+
+agentsStatsHere="${agentsStatsHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session}"
+agentsStatsFormat="myx.distro stats"
+
+## The runs of the workspace, as paths of run records, one a line; and the token file of a run when it has one.
+AgentsToolsStatsRecords(){
+	find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.md' 2> /dev/null | LC_ALL=C sort
+}
+
+## Derives the store into a folder: full, or the rows of what changed since the folder's runs.index (refresh). Prints nothing.
+AgentsToolsStatsDerive(){ ## folder, full|refresh
+	local deriveDir="$1" deriveMode="$2" deriveRef deriveList deriveRows deriveOld deriveIds deriveChanged deriveFile deriveRun
+	mkdir -p "$deriveDir" "$MMDAPP/.local/temp" 2> /dev/null || return 1
+	deriveRef="$( mktemp "$MMDAPP/.local/temp/mdat-stats-ref.XXXXXX" )" || return 1
+	deriveList="$( mktemp "$MMDAPP/.local/temp/mdat-stats-list.XXXXXX" )" || { rm -f "$deriveRef" ; return 1 ; }
+	deriveRows="$( mktemp "$MMDAPP/.local/temp/mdat-stats-rows.XXXXXX" )" || { rm -f "$deriveRef" "$deriveList" ; return 1 ; }
+	deriveOld="$deriveDir/runs.index"
+	if [ "$deriveMode" = refresh ] && [ -f "$deriveOld" ] ; then
+		## what changed since the index: records, and records whose token file did
+		deriveChanged="$( { find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.md' -newer "$deriveOld" 2> /dev/null
+			find "$MMDAPP/.local/agents/sessions" -mindepth 2 -maxdepth 2 -name tokens -newer "$deriveOld" 2> /dev/null | while IFS= read -r deriveFile ; do
+				deriveRun="${deriveFile%/tokens}" ; deriveRun="${deriveRun##*/}"
+				find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name "$deriveRun.md" 2> /dev/null
+			done ; } | LC_ALL=C sort -u )"
+		if [ -z "$deriveChanged" ] ; then rm -f "$deriveRef" "$deriveList" "$deriveRows" ; return 0 ; fi
+		printf '%s\n' "$deriveChanged" | while IFS= read -r deriveFile ; do
+			deriveRun="${deriveFile##*/}" ; deriveRun="${deriveRun%.md}"
+			[ ! -f "$MMDAPP/.local/agents/sessions/$deriveRun/tokens" ] || printf '%s\n' "$MMDAPP/.local/agents/sessions/$deriveRun/tokens"
+			printf '%s\n' "$deriveFile"
+		done > "$deriveList"
+	else
+		deriveMode=full
+		{ find "$MMDAPP/.local/agents/sessions" -mindepth 2 -maxdepth 2 -name tokens 2> /dev/null | LC_ALL=C sort ; AgentsToolsStatsRecords ; } > "$deriveList"
+	fi
+	LC_ALL=C awk -v list="$deriveList" -f "$agentsStatsHere/AgentsDispatcherStatsRuns.awk" > "$deriveRows" || { rm -f "$deriveRef" "$deriveList" "$deriveRows" ; return 1 ; }
+	if [ "$deriveMode" = refresh ] ; then
+		## the rows of runs that were not read again stay as they are
+		deriveIds="$( cut -f1 "$deriveRows" )"
+		LC_ALL=C awk -F'\t' -v ids="$deriveIds" 'BEGIN { count = split( ids, parts, "\n" ) ; for ( at = 1 ; at <= count ; at++ ) { skip[parts[at]] = 1 ; } } NR > 1 && !( $1 in skip ) { print }' "$deriveOld" >> "$deriveRows"
+	fi
+	{
+		printf '%s runs 1\n' "$agentsStatsFormat"
+		LC_ALL=C sort -t "$( printf '\t' )" -k6,6 -k1,1 "$deriveRows"
+	} > "$deriveDir/runs.index.new" || { rm -f "$deriveRef" "$deriveList" "$deriveRows" ; return 1 ; }
+	{
+		printf '%s routines 1\n' "$agentsStatsFormat"
+		tail -n +2 "$deriveDir/runs.index.new" | LC_ALL=C awk -v want=routines -f "$agentsStatsHere/AgentsDispatcherStatsRoll.awk" | LC_ALL=C sort -t "$( printf '\t' )" -k1,1
+	} > "$deriveDir/routines.index.new"
+	{
+		printf '%s tokens 1\n' "$agentsStatsFormat"
+		tail -n +2 "$deriveDir/runs.index.new" | LC_ALL=C awk -v want=tokens -f "$agentsStatsHere/AgentsDispatcherStatsRoll.awk" | LC_ALL=C sort -t "$( printf '\t' )" -k1,5
+	} > "$deriveDir/tokens.index.new"
+	## the index carries the moment the derivation began, so a record changed during it is read again next time
+	touch -r "$deriveRef" "$deriveDir/runs.index.new" 2> /dev/null || :
+	mv -f "$deriveDir/routines.index.new" "$deriveDir/routines.index" && mv -f "$deriveDir/tokens.index.new" "$deriveDir/tokens.index" && mv -f "$deriveDir/runs.index.new" "$deriveDir/runs.index"
+	local deriveRc=$?
+	rm -f "$deriveRef" "$deriveList" "$deriveRows"
+	return "$deriveRc"
+}
+
+## The store of the workspace, brought up to date (built when it is not there).
+AgentsToolsStatsEnsure(){
+	AgentsToolsStatsDerive "$MMDAPP/.local/agents/stats" refresh || { echo "$MDSC_CMD: ⛔ ERROR: the stats store could not be brought up to date" >&2 ; return 1 ; }
+}
+
+## --rebuild-stats: the store derived anew from the run records, whole.
+AgentsToolsStatsRebuild(){ ## the operation, its arguments...
+	[ $# -eq 1 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: takes no option: $2" >&2 ; return 1 ; }
+	AgentsToolsStatsDerive "$MMDAPP/.local/agents/stats" full || { echo "$MDSC_CMD: ⛔ ERROR: $1: the stats store could not be built" >&2 ; return 1 ; }
+	printf 'STATS: rebuilt %s run(s), %s routine(s), %s token row(s)\n' "$(( $( wc -l < "$MMDAPP/.local/agents/stats/runs.index" ) - 1 ))" "$(( $( wc -l < "$MMDAPP/.local/agents/stats/routines.index" ) - 1 ))" "$(( $( wc -l < "$MMDAPP/.local/agents/stats/tokens.index" ) - 1 ))"
+}
+
+## --stats-check: the store, brought up to date, against the same derived whole in a scratch place. rc 0 the same; rc 1 and the rows that differ.
+AgentsToolsStatsCheck(){ ## the operation, its arguments...
+	local checkDir checkRc=0 checkName
+	[ $# -eq 1 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: takes no option: $2" >&2 ; return 1 ; }
+	AgentsToolsStatsEnsure || return 1
+	checkDir="$( mktemp -d "$MMDAPP/.local/temp/mdat-stats-check.XXXXXX" )" || return 1
+	AgentsToolsStatsDerive "$checkDir" full || { rm -rf "$checkDir" ; return 1 ; }
+	for checkName in runs routines tokens ; do
+		if ! cmp -s "$MMDAPP/.local/agents/stats/$checkName.index" "$checkDir/$checkName.index" ; then
+			checkRc=1
+			printf 'STATS-CHECK: %s.index differs from the rebuild (< the store, > the rebuild):\n' "$checkName"
+			diff "$MMDAPP/.local/agents/stats/$checkName.index" "$checkDir/$checkName.index" | LC_ALL=C grep '^[<>]' | LC_ALL=C head -10
+		fi
+	done
+	rm -rf "$checkDir"
+	[ "$checkRc" != 0 ] || printf 'STATS-CHECK: same (%s run(s))\n' "$(( $( wc -l < "$MMDAPP/.local/agents/stats/runs.index" ) - 1 ))"
+	return "$checkRc"
+}
+
+## --run-stats [--member <m>] [--routine <r>] [--status <s>] [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>]: the runs rows, oldest first.
+AgentsToolsStatsRuns(){ ## the operation, its arguments...
+	local runsOp="$1" runsMember="" runsRoutine="" runsStatus="" runsSince="" runsUntil=""
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--member|--routine|--status|--since|--until)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $runsOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in --member) runsMember="$2" ;; --routine) runsRoutine="$2" ;; --status) runsStatus="$2" ;; --since) runsSince="$2" ;; --until) runsUntil="$2" ;; esac
+				shift 2
+			;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $runsOp: unknown option: $1 -- syntax is [--member <m>] [--routine <r>] [--status <s>] [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>]" >&2 ; return 1 ;;
+		esac
+	done
+	AgentsToolsStatsDatesCheck "$runsOp" "$runsSince" "$runsUntil" || return 1
+	AgentsToolsStatsEnsure || return 1
+	tail -n +2 "$MMDAPP/.local/agents/stats/runs.index" | LC_ALL=C awk -F'\t' -v member="$runsMember" -v routine="$runsRoutine" -v status="$runsStatus" -v since="$runsSince" -v until="$runsUntil" '
+		( member == "" || $3 == member ) && ( routine == "" || $4 == routine ) && ( status == "" || $5 == status ) && ( since == "" || $8 >= since ) && ( until == "" || ( $8 != "-" && $8 <= until ) ) { print "run\t" $0 }'
+}
+
+## --run-history [--member <m>] [--routine <r>] [--since <YYYY-MM-DD>] [--limit <n>]: the history view of the runs, the same rows as --run-stats, NEWEST first,
+## the last <n> of them where --limit is given.
+AgentsToolsStatsHistory(){ ## the operation, its arguments...
+	local historyOp="$1" historyMember="" historyRoutine="" historySince="" historyLimit=""
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--member|--routine|--since|--limit)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $historyOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in --member) historyMember="$2" ;; --routine) historyRoutine="$2" ;; --since) historySince="$2" ;; --limit) historyLimit="$2" ;; esac
+				shift 2
+			;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $historyOp: unknown option: $1 -- syntax is [--member <m>] [--routine <r>] [--since <YYYY-MM-DD>] [--limit <n>]" >&2 ; return 1 ;;
+		esac
+	done
+	AgentsToolsStatsDatesCheck "$historyOp" "$historySince" || return 1
+	case "$historyLimit" in ''|*[!0123456789]*|0) [ -z "$historyLimit" ] || { echo "$MDSC_CMD: ⛔ ERROR: $historyOp: --limit is a whole number above 0: $historyLimit" >&2 ; return 1 ; } ;; esac
+	AgentsToolsStatsEnsure || return 1
+	tail -n +2 "$MMDAPP/.local/agents/stats/runs.index" | LC_ALL=C sort -t "$( printf '\t' )" -k6,6r -k1,1r | LC_ALL=C awk -F'\t' -v member="$historyMember" -v routine="$historyRoutine" -v since="$historySince" -v limit="$historyLimit" '
+		( member == "" || $3 == member ) && ( routine == "" || $4 == routine ) && ( since == "" || $8 >= since ) { if ( limit != "" && ++taken > limit ) { exit } print "run\t" $0 }'
+}
+
+## A date given to a filter is YYYY-MM-DD, or none.
+AgentsToolsStatsDatesCheck(){ ## the operation, dates...
+	local datesOp="$1" datesValue
+	shift
+	for datesValue in "$@" ; do
+		case "$datesValue" in
+			''|[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $datesOp: a date is YYYY-MM-DD: $datesValue" >&2 ; return 1 ;;
+		esac
+	done
+}
+
+## --routine-stats [<routine>]: the routines rows (a routine, its runs, succeeded, failed, running, when it last ran, how that run ended, when it last SUCCEEDED,
+## its tokens and its members), by routine; one routine's, or every one. rc 1 for a routine with no run.
+AgentsToolsStatsRoutines(){ ## the operation, [routine]
+	local routinesOp="$1" routinesWant="${2:-}" routinesRows
+	[ $# -le 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $routinesOp: syntax is [<routine>]" >&2 ; return 1 ; }
+	AgentsToolsStatsEnsure || return 1
+	routinesRows="$( tail -n +2 "$MMDAPP/.local/agents/stats/routines.index" | LC_ALL=C awk -F'\t' -v want="$routinesWant" 'want == "" || $1 == want { print "routine\t" $0 }' )"
+	if [ -z "$routinesRows" ] && [ -n "$routinesWant" ] ; then
+		echo "$MDSC_CMD: $routinesOp: no run of the routine $routinesWant is recorded" >&2
+		return 1
+	fi
+	[ -z "$routinesRows" ] || printf '%s\n' "$routinesRows"
+}
+
+## --token-stats --by day|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>]:
+## the tokens summed by the one key asked for, a row `tokens <key> <runs> <in> <cache-read> <cache-write> <out>`, by key. The views of the console read this.
+AgentsToolsStatsTokens(){ ## the operation, its arguments...
+	local tokensOp="$1" tokensBy="" tokensSince="" tokensUntil="" tokensMember="" tokensRoutine="" tokensPreset="" tokensCredential="" tokensColumn
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--by|--since|--until|--member|--routine|--preset|--credential)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $tokensOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in --by) tokensBy="$2" ;; --since) tokensSince="$2" ;; --until) tokensUntil="$2" ;; --member) tokensMember="$2" ;; --routine) tokensRoutine="$2" ;; --preset) tokensPreset="$2" ;; --credential) tokensCredential="$2" ;; esac
+				shift 2
+			;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $tokensOp: unknown option: $1 -- syntax is --by day|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>]" >&2 ; return 1 ;;
+		esac
+	done
+	case "$tokensBy" in day) tokensColumn=1 ;; member) tokensColumn=2 ;; routine) tokensColumn=3 ;; preset) tokensColumn=4 ;; credential) tokensColumn=5 ;;
+		*) echo "$MDSC_CMD: ⛔ ERROR: $tokensOp: --by is day, member, routine, preset or credential: ${tokensBy:-<nothing>}" >&2 ; return 1 ;;
+	esac
+	AgentsToolsStatsDatesCheck "$tokensOp" "$tokensSince" "$tokensUntil" || return 1
+	AgentsToolsStatsEnsure || return 1
+	tail -n +2 "$MMDAPP/.local/agents/stats/tokens.index" | LC_ALL=C awk -F'\t' -v col="$tokensColumn" -v since="$tokensSince" -v until="$tokensUntil" -v member="$tokensMember" -v routine="$tokensRoutine" -v preset="$tokensPreset" -v credential="$tokensCredential" '
+		( since == "" || $1 >= since ) && ( until == "" || ( $1 != "-" && $1 <= until ) ) && ( member == "" || $2 == member ) && ( routine == "" || $3 == routine ) && ( preset == "" || $4 == preset ) && ( credential == "" || $5 == credential ) {
+			runs[$col] += $6 ; tin[$col] += $7 ; tcr[$col] += $8 ; tcw[$col] += $9 ; tout[$col] += $10
+		}
+		END { for ( key in runs ) { printf "tokens\t%s\t%d\t%d\t%d\t%d\t%d\n", key, runs[key], tin[key], tcr[key], tcw[key], tout[key] } }' | LC_ALL=C sort -t "$( printf '\t' )" -k2,2
+}

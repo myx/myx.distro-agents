@@ -6,8 +6,9 @@
 ## tools, the shell console and shell automation alike. So far: the session lists (--all-sessions, --active-sessions,
 ## --waiting-sessions, each with --kind), --session-record, the predecessor question (--routine-completed), and the schedule
 ## (F7.5): --current-flags, --override-flag, the setters --set-country, --set-timezone, --set-worktime and --set-weekend, and
-## --routine-due. Dispatcher owns the runs and the policy deciding when a run starts; it has no store of its own, and reads the
-## rows the console's list reads. Scheduling is a convention (a routine's runs-at and runs-after, a few settings) and this the
+## --routine-due, and the runs and stats store (F7.11): --rebuild-stats, --stats-check, --run-stats, --run-history, --routine-stats and --token-stats. Dispatcher owns
+## the runs and the policy deciding when a run starts; its one store is that index (.local/agents/stats), derived from the run records and never a source,
+## and it reads the rows the console's list reads. Scheduling is a convention (a routine's runs-at and runs-after, a few settings) and this the
 ## interpreter of it, not a tool family.
 ##
 ## NOTE:
@@ -45,6 +46,16 @@ DistroAgentsDispatcherSchedule(){
 
 DistroAgentsDispatcher(){
 	local MDSC_CMD='DistroAgentsDispatcher'
+	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,
+	## and the call is made again under what they resolve (sh-lib/common/AgentsTools.CommonOptions.include).
+	case "${agentsCommonFronted:-}:${2:-}" in
+		:--team-member|:--session-id|:--spawn-id|:--select-workspace|:--tooling-origin)
+			local commonRc=0
+			type AgentsToolsCommonRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
+			AgentsToolsCommonRun DistroAgentsDispatcher DistroAgentsDispatcher.fn.sh "$@" || commonRc=$?
+			return "$commonRc"
+		;;
+	esac
 	## The skillset root, as every operation of the tooling settles it (AgentsContext.UseAgentsTools.include).
 	if [ -z "${MDAT_SKILLSET_ROOT:-}" ] ; then
 		MDAT_SKILLSET_ROOT="$MMDAPP/.local/agents/members"
@@ -118,6 +129,23 @@ DistroAgentsDispatcher(){
 			shift
 			DistroAgentsDispatcherSchedule
 			AgentsToolsScheduleDue "$dueOp" "$@"
+			return $?
+		;;
+
+		## The runs and stats store of .local/agents (F7.11), an index derived from the run records and never a source: --rebuild-stats derives it whole,
+		## --stats-check compares it with a rebuild, and the readers --run-stats, --run-history, --routine-stats and --token-stats bring it up to date first.
+		--rebuild-stats|--stats-check|--run-stats|--run-history|--routine-stats|--token-stats)
+			local statsOp="$1"
+			shift
+			type AgentsToolsStatsDerive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherStats.include"
+			case "$statsOp" in
+				--rebuild-stats) AgentsToolsStatsRebuild "$statsOp" "$@" ;;
+				--stats-check) AgentsToolsStatsCheck "$statsOp" "$@" ;;
+				--run-stats) AgentsToolsStatsRuns "$statsOp" "$@" ;;
+				--run-history) AgentsToolsStatsHistory "$statsOp" "$@" ;;
+				--routine-stats) AgentsToolsStatsRoutines "$statsOp" "$@" ;;
+				--token-stats) AgentsToolsStatsTokens "$statsOp" "$@" ;;
+			esac
 			return $?
 		;;
 

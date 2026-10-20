@@ -21,7 +21,10 @@
 ## approved and acted, 1 denied, 124 at the timeout, where the request is withdrawn and its record
 ## kept, so nothing acts on it later. --escalate-enqueue asks and returns `PENDING <id>` on its
 ## first line, exit 0, and the action is taken when the answer arrives: given with the escalation
-## answer, or read in its thread by the pending-collect sweep.
+## answer, or read in its thread by the pending-collect sweep. --escalate-stop, with --escalate-wait,
+## makes the wait answer to a signal the console sends it: TERM, INT or HUP end the wait and withdraw
+## the request, its record kept, exit 130; USR1 ends the wait and leaves the request pending, as
+## --escalate-enqueue makes it (`ENQUEUED <id>`), exit 0, so the sweep acts on its answer.
 ## A REQUEST is a pending question in the questions store, .local/questions/, in the one
 ## pending-question form (--intern-op-pending-reply-open --store questions), with the action it
 ## lets run kept beside it (<id>.action, one word a line). It goes to the caller's reports-to, then
@@ -124,6 +127,22 @@ AgentsToolsAuthoritySessionRecord(){ ## session
 	printf '%s' "$sessionAny"
 }
 
+## A session said plainly, for a request that names it: `<name or id> (<routine>, <members>)`, from its records. The name is the session's comment
+## where it has one; the routine is the founding run's; the members are those that have a run in it.
+AgentsToolsAuthoritySessionWords(){ ## session
+	local wordsFile wordsName="" wordsRoutine="" wordsMembers="" wordsOwner
+	for wordsFile in $( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.md 2> /dev/null ) ; do
+		[ -n "$wordsName" ] || wordsName="$( AgentsToolsAuthorityField "$wordsFile" session-comment )"
+		[ -n "$wordsRoutine" ] || wordsRoutine="$( AgentsToolsAuthorityField "$wordsFile" routine )"
+		wordsOwner="$( AgentsToolsAuthorityField "$wordsFile" owner )"
+		[ -n "$wordsOwner" ] || continue
+		case $'\n'"$wordsMembers"$'\n' in *$'\n'"$wordsOwner"$'\n'*) ;; *) wordsMembers="$wordsMembers${wordsMembers:+$'\n'}$wordsOwner" ;; esac
+	done
+	wordsMembers="$( printf '%s' "$wordsMembers" | LC_ALL=C tr '\n' ',' | LC_ALL=C sed 's/,/, /g' )"
+	printf '%s' "${wordsName:-$1}"
+	[ -z "$wordsRoutine$wordsMembers" ] || printf ' (%s%s)' "$wordsRoutine" "${wordsMembers:+${wordsRoutine:+, }$wordsMembers}"
+}
+
 ## Whether the caller is an address (AgentsToolsAuthorityCaller first): the person it names, or
 ## its member (M, S:M, or S where the caller founded S). rc 0 it is.
 AgentsToolsAuthorityAddressHeld(){ ## address
@@ -191,11 +210,12 @@ AgentsToolsAuthorityTarget(){ ## holder
 ## (empty, enqueue or wait), agentsAuthorityTimeout, and the rest kept in agentsAuthorityRest.
 ## rc 1, said on stderr, for a timeout that is no whole number or goes with no wait.
 AgentsToolsAuthorityFlags(){ ## arguments...
-	agentsAuthorityMode="" agentsAuthorityTimeout="" agentsAuthorityRest=()
+	agentsAuthorityMode="" agentsAuthorityTimeout="" agentsAuthorityStop="" agentsAuthorityRest=()
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--escalate-enqueue) agentsAuthorityMode="enqueue" ; shift ;;
 			--escalate-wait) agentsAuthorityMode="wait" ; shift ;;
+			--escalate-stop) agentsAuthorityStop="yes" ; shift ;;
 			--timeout)
 				case "${2:-}" in
 					''|*[!0123456789]*) echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: --timeout needs a whole number of seconds, got: ${2:-}" >&2 ; return 1 ;;
@@ -206,12 +226,13 @@ AgentsToolsAuthorityFlags(){ ## arguments...
 		esac
 	done
 	[ -z "$agentsAuthorityTimeout" ] || [ "$agentsAuthorityMode" = wait ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: --timeout goes with --escalate-wait" >&2 ; return 1 ; }
+	[ -z "$agentsAuthorityStop" ] || [ "$agentsAuthorityMode" = wait ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: --escalate-stop goes with --escalate-wait" >&2 ; return 1 ; }
 	return 0
 }
 
 ## The words an approving answer of a request is, beside a choice of a decision's own.
 AgentsToolsAuthorityApproving(){ ## verdict
-	case "$1" in allow|allow-once|allow-session|allow-task|yes|correct) return 0 ;; esac
+	case "$1" in allow|allow-once|allow-session|allow-task|allow-contact|yes|correct) return 0 ;; esac
 	return 1
 }
 
@@ -268,7 +289,7 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 	local openMode="$1" openConfirm="$2" openTo="$3" openSession="$4" openOriginal="$5" openWhat="$6" openQuestion="$7"
 	shift 7
 	local openKind="permission" openOptions="" openSender="magic-coordinator" openTarget="" openAddress="" openThread="" openFounder=""
-	local openOut openChannel openTs openThreadTs openAddressees openAsking openId openLine openText=""
+	local openOut openChannel openTs openThreadTs openAddressees openAsking openId openLine openText="" openRefusal openForm openReason openTaskText openOperation openSlotText="" openSlotChoices="" openFields="" openNames=""
 	## A choice among answers goes as a choice: its options, beside an allow and a deny of the one proposed.
 	if [ -n "$openQuestion" ] && [ "$( AgentsToolsAuthorityField "$openQuestion" kind )" = decision ] && [ -s "${openQuestion%.md}.options" ] ; then
 		openKind="decision"
@@ -307,15 +328,30 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the request to $openTo could not be posted: no thread of its session is known, so nothing was asked" >&2
 		return 1
 	fi
-	## Its text, the template's (tooling-note.post.format.md, # Ask).
+	## Its text, in the form of a permission request (request-permission.post.format.md, with its `# Authority` words): the refused call said
+	## plainly, why it is asked, how to answer, and the refusal this request logs by its id, which an `allow-session` is granted from.
 	type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
-	openText="$( export ASKP_F_requester="$agentsAuthorityCallerId" ASKP_F_what="$openWhat" ASKP_F_holder="$openTo" ; \
-		ASKP_BLOCK="Ask/$( if [ -n "$openConfirm" ] ; then printf 'authority-confirm' ; elif [ "$openKind" = question ] ; then printf 'authority-text' ; else printf 'authority' ; fi )" AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || openText=""
-	if [ -z "$openText" ] ; then
-		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the request could not be posted: its text could not be filled from sh-lib/templates/tooling-note.post.format.md (# Ask), so nothing was asked" >&2
+	openRefusal="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-refusal-log "$agentsAuthorityCallerId" \
+		--session-id "${openSession:-none}" --tool authority --target "$openTo" --reason "$openWhat" 2> /dev/null | LC_ALL=C grep -o -E 'refusal-[0-9a-f-]+' | head -1 )"
+	if [ -z "$openRefusal" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the request could not be posted: its refusal could not be logged, so nothing was asked" >&2
 		return 1
 	fi
-	[ -z "$openOptions" ] || openText="$openText"$'\n'"$openOptions"
+	openOperation="${1:-}" ; [ "${openOperation:0:1}" != "@" ] || openOperation="${2:-a tool}"
+	openForm="grant" ; [ -z "$openConfirm" ] || openForm="confirm"
+	[ "$openKind" != question ] || openSlotText="yes"
+	[ "$openKind" != decision ] || openSlotChoices="$openOptions"
+	openReason="$( ASKP_BLOCK="Authority/reason" ASKP_F_requester="$agentsAuthorityCallerId" ASKP_F_holder="$openTo" AgentsToolsAskPostFill block request-permission.post.format.md "" 2> /dev/null )" || openReason=""
+	openTaskText="$( ASKP_BLOCK="Authority/task" ASKP_F_requester="$agentsAuthorityCallerId" ASKP_F_operation="$openOperation" AgentsToolsAskPostFill block request-permission.post.format.md "" 2> /dev/null )" || openTaskText=""
+	openText="$( export ASKP_F_refused_tool="$openWhat" ASKP_F_refused_for="$agentsAuthorityCallerId" ASKP_F_refusal_id="$openRefusal" ASKP_F_reason="$openReason" ASKP_F_task="$openTaskText" \
+		ASKP_F_text="$openSlotText" ASKP_F_choices="$openSlotChoices" ; AgentsToolsAskPostFill post request-permission.post.format.md "$openForm" 2> /dev/null )" || openText=""
+	if [ -z "$openText" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the request could not be posted: its text could not be filled from sh-lib/templates/request-permission.post.format.md, so nothing was asked" >&2
+		return 1
+	fi
+	[ -z "$openOptions" ] || [ "$openKind" != decision ] || openText="$openText"$'\n'"$openOptions"
+	## The slots the post was filled with, kept beside a permission request's record: a later fill starts from them.
+	[ "$openKind" != permission ] || openFields="$( AgentsToolsAskPostFieldsPack asked-as RequestPermission refused-tool "$openWhat" refused-for "$agentsAuthorityCallerId" refusal-id "$openRefusal" reason "$openReason" task "$openTaskText" )"
 	openOut="$( printf '%s\n' "$openText" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-send-message "$openSender" "$openTarget" --identity-bot ${openAddress:+--address-to "$openAddress"} --from-stdin 2>&1 )" || {
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the request to $openTo could not be posted, so nothing was asked: $( printf '%s\n' "$openOut" | LC_ALL=C grep -m1 'ERROR' )" >&2
 		return 1
@@ -332,10 +368,16 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 	openId="$( printf '%s\n' "$openText" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-open "$openSender" --store questions --to "$openChannel" \
 		--session-id "$openSession" --kind "$openKind" --address-to "$openTo" --channel "$openChannel" --question-ts "$openTs" --thread-ts "${openThreadTs:-$openTs}" \
 		--addressees "$openAddressees" --asking-accounts "$openAsking" --ask-identity bot ${openOptions:+--options "$openOptions"} \
-		--request-of "$openOriginal" --requester "$agentsAuthorityCallerId" --requester-run "$agentsAuthorityCallerRun" --request-mode "$openMode" --request-what "$openWhat" 2> /dev/null )" || openId=""
+		--request-of "$openOriginal" --requester "$agentsAuthorityCallerId" --requester-run "$agentsAuthorityCallerRun" --request-mode "$openMode" --request-what "$openWhat" ${openFields:+--fields "$openFields"} 2> /dev/null )" || openId=""
 	if [ -z "$openId" ] ; then
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the request to $openTo was posted but could not be kept, so its answer would act on nothing" >&2
 		return 1
+	fi
+	AgentsToolsAuthorityFieldSet "$( AgentsToolsQuestionsStore )/$openId.md" refusal-id "$openRefusal" || :
+	## The answer emoji go under the post, as the identity that posted it: the form's own, but for a request that asks for a text or a choice.
+	if [ -z "$openSlotText$openSlotChoices" ] && [ -n "$openChannel" ] && [ -n "$openTs" ] ; then
+		openNames="$( ASKP_F_text="" ASKP_F_choices="" AgentsToolsAskPostFill reactions request-permission.post.format.md "$openForm" 2> /dev/null )" || openNames=""
+		[ -z "$openNames" ] || AgentsToolsAskPostReact "$openSender" "$openChannel:$openTs" bot add $openNames
 	fi
 	## The action it lets run, one word a line.
 	for openLine in "$@" ; do printf '%s\n' "$openLine" ; done > "$( AgentsToolsQuestionsStore )/$openId.action" || {
@@ -350,7 +392,7 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 ## (AgentsToolsAuthorityRequestAct); a waited one by its waiter. Prints one line; rc 1 where the
 ## verdict is no answer of it.
 AgentsToolsAuthorityRequestSettle(){ ## request record, verdict, answered by
-	local settleFile="$1" settleVerdict settleBy="$3" settleChosen="" settleOption
+	local settleFile="$1" settleVerdict settleBy="$3" settleChosen="" settleOption settleGrantOut=""
 	settleVerdict="$( printf '%s' "$2" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
 	if ! AgentsToolsAuthorityApproving "$settleVerdict" ; then
 		case "$settleVerdict" in
@@ -370,6 +412,14 @@ AgentsToolsAuthorityRequestSettle(){ ## request record, verdict, answered by
 			;;
 		esac
 	fi
+	## An allow for the session gives the requester the authority over the session while it lives: the `session` grant of the refusal this request logged,
+	## signed by the answerer the answer reader names. Where it names nobody, or the grant cannot be written, nothing is granted and the request stays open.
+	if [ "$settleVerdict" = "allow-session" ] ; then
+		settleGrantOut="$( AgentsToolsAuthorityGrantSession "$settleFile" "$settleBy" 2>&1 )" || {
+			printf 'NOT-GRANTED %s: %s -- nothing is granted, and the request stays open\n' "$( basename "$settleFile" .md )" "$( printf '%s\n' "$settleGrantOut" | LC_ALL=C sed -n '1s/^# [^:]*: //p' )"
+			return 1
+		}
+	fi
 	AgentsToolsAuthorityFieldSet "$settleFile" status reply-received verdict "$settleVerdict" answered-by "$settleBy" answered-at "$( date +"%Y-%m-%d %H:%M %z" )" ${settleChosen:+chosen "$settleChosen"} || return 1
 	if ! AgentsToolsAuthorityApproving "$settleVerdict" && [ -z "$settleChosen" ] ; then
 		printf 'DENIED %s\n' "$( basename "$settleFile" .md )"
@@ -377,6 +427,22 @@ AgentsToolsAuthorityRequestSettle(){ ## request record, verdict, answered by
 	fi
 	[ "$( AgentsToolsAuthorityField "$settleFile" request-mode )" != wait ] || { printf 'APPROVED %s: its waiter acts\n' "$( basename "$settleFile" .md )" ; return 0 ; }
 	AgentsToolsAuthorityRequestAct "$settleFile"
+}
+
+## The authority over a session given for as long as it lives (an `allow-session` of a request): the grant of the refusal the request logged, signed by
+## whoever answered, as the answer reader names them. Never signed for anyone else: where it names nobody, none is written. The capacity it is bounded by
+## is the owners role's, since the chain's authority was the answerer's to give (the gate asked). Prints GRANT, or says why none was written.
+AgentsToolsAuthorityGrantSession(){ ## request record, answered by
+	local grantFile="$1" grantBy="$2" grantSession grantRefusal grantOut
+	grantSession="$( AgentsToolsAuthorityField "$grantFile" session-id )"
+	grantRefusal="$( AgentsToolsAuthorityField "$grantFile" refusal-id )"
+	[ -n "$grantSession" ] && [ "$grantSession" != none ] && [ -n "$grantRefusal" ] || { echo "# $( basename "$grantFile" .md ): no session grant was written: the request names no session or no refusal" >&2 ; return 1 ; }
+	case "$grantBy" in ''|*[!A-Za-z0-9_.-]*) echo "# $( basename "$grantFile" .md ): the answer names nobody to sign the grant" >&2 ; return 1 ;; esac
+	grantOut="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-grant-open "$grantBy" --session-id "$grantSession" --refusal-id "$grantRefusal" --kind session --holds-as human-owner 2>&1 )" || {
+		echo "# $( basename "$grantFile" .md ): no session grant was written: $( printf '%s\n' "$grantOut" | LC_ALL=C grep -m1 'ERROR' )" >&2
+		return 1
+	}
+	printf '%s\n' "$grantOut" | LC_ALL=C grep -m1 '^GRANT: '
 }
 
 ## The action an approved request lets run, run once, as the one who asked for it. Prints one line.
@@ -404,8 +470,21 @@ AgentsToolsAuthorityRequestAct(){ ## request record
 
 ## The waiter of a request: its answer awaited on its record, read once a second, with no bound
 ## unless one is given. rc 0 approved, 1 denied, 124 at the bound, where the request is withdrawn
-## and its record kept, so nothing acts on it later.
+## and its record kept, so nothing acts on it later. With --escalate-stop it answers to signals
+## (agentsAuthorityStop): TERM, INT and HUP withdraw the request as the bound does, rc 130; USR1
+## leaves it pending for the sweep, rc 125. An answer that stands on the record wins over a signal.
 AgentsToolsAuthorityRequestWait(){ ## request id, bound in seconds (empty: none)
+	local waitRc=0
+	agentsAuthorityStopSaid=""
+	if [ -n "${agentsAuthorityStop:-}" ] ; then
+		trap 'agentsAuthorityStopSaid=withdraw' TERM INT HUP
+		trap 'agentsAuthorityStopSaid=enqueue' USR1
+	fi
+	AgentsToolsAuthorityRequestWaitLoop "$@" || waitRc=$?
+	[ -z "${agentsAuthorityStop:-}" ] || trap - TERM INT HUP USR1
+	return "$waitRc"
+}
+AgentsToolsAuthorityRequestWaitLoop(){ ## request id, bound in seconds (empty: none)
 	local waitFile waitBegan
 	waitFile="$( AgentsToolsQuestionsStore )/$1.md"
 	waitBegan="$( date +%s )"
@@ -416,6 +495,16 @@ AgentsToolsAuthorityRequestWait(){ ## request id, bound in seconds (empty: none)
 				return 0
 			;;
 			withdrawn) return 1 ;;
+		esac
+		case "${agentsAuthorityStopSaid:-}" in
+			withdraw)
+				AgentsToolsAuthorityFieldSet "$waitFile" status withdrawn withdrawn-by "tooling (the wait was cancelled)" withdrawn-at "$( date +"%Y-%m-%d %H:%M %z" )" || :
+				return 130
+			;;
+			enqueue)
+				AgentsToolsAuthorityFieldSet "$waitFile" request-mode enqueue || :
+				return 125
+			;;
 		esac
 		if [ -n "$2" ] && [ $(( $( date +%s ) - waitBegan )) -ge "$2" ] ; then
 			AgentsToolsAuthorityFieldSet "$waitFile" status withdrawn withdrawn-by "tooling (no answer within ${2}s)" withdrawn-at "$( date +"%Y-%m-%d %H:%M %z" )" || :
@@ -471,6 +560,16 @@ AgentsToolsAuthorityGate(){ ## what (words), original (pending id or spawn id), 
 			return 0
 		;;
 		124) agentsAuthorityOutcome="timeout" ; return 124 ;;
+		125)
+			printf 'ENQUEUED %s: it is not waited for any more, and acts when the answer comes\n' "$gateId"
+			agentsAuthorityOutcome="pending"
+			return 0
+		;;
+		130)
+			printf 'WITHDRAWN %s: the wait was cancelled and the request withdrawn, its record kept\n' "$gateId"
+			agentsAuthorityOutcome="withdrawn"
+			return 130
+		;;
 		*) agentsAuthorityOutcome="denied" ; return 1 ;;
 	esac
 }
@@ -484,6 +583,7 @@ AgentsToolsAuthorityExit(){
 		pending) agentsAuthorityExit=0 ;;
 		refused) agentsAuthorityExit=3 ;;
 		timeout) agentsAuthorityExit=124 ;;
+		withdrawn) agentsAuthorityExit=130 ;;
 		*) agentsAuthorityExit=1 ;;
 	esac
 	return 1

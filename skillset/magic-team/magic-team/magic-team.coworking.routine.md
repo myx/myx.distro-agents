@@ -134,6 +134,8 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 BatchTools: several tool calls in one round, much quicker for calls that do not depend on each other.
 
+Contacts, the people you meet and reach, are kept by tooling and not by hand: DistroAgentsContacts.fn.sh --contacted-by <value> when someone writes to you, --reach-contact <id> to write to someone, --collect-contact to record one.
+
 ## DistroAgentsTools magic-tooling operations
 
 - `--member-comms-slack-send-message <team-member> <target> [text...]`

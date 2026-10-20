@@ -2577,7 +2577,7 @@ blocks|verbatim|caller|stdin file"
 		if [ "$presentExternal" = "true" ] ; then
 			type AgentsToolsContactAssertKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternContact.include"
 			AgentsToolsContactAssertKnown "$memberName" \
-				--tool member-comms-slack-send-message --target "$channel" \
+				--tool member-comms-slack-send-message --target "$channel" --team "$memberName" \
 				--message "$rawText" || { set +e ; return 1 ; }
 		fi
 

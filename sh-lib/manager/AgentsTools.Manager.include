@@ -47,9 +47,11 @@ case "$1" in
 		return $?
 	;;
 
-	## The most vital figures of this workspace and of its machine, in blocks a screen draws.
+	## The most vital figures of this workspace and of its machine, in panels a screen draws: the Dashboard, which is the local tools' own, reading the
+	## panels this console registers in its list (sh-lib/config/dashboard-panels.list), the readers of which are the agents' and the local tools'.
 	--manager-dashboard-*)
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include"
+		local managerConsoleSubsystem="agents" managerConsoleDashboardList="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/dashboard-panels.list"
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerDashboard.include"
 		return $?
 	;;
 

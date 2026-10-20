@@ -28,6 +28,36 @@ agentsCliServiceWaitRounds="claude-native:2700"
 ## The safe round, of every other service: four and a half minutes, under a five-minute cache.
 agentsCliServiceWaitRoundSafe=270
 
+## THE CLI THAT WORKS (F13.4). Of the vendor CLIs this machine may carry, claude-native and copilot-native, in that order, the first that is installed and
+## works is the one the setup selects (--owner-setup-cli-auto). It is asked here, of the CLI itself, when a person or the console asks the setup: a
+## spawn never asks, it resolves SPAWN_CLI_SERVICE and scans no PATH (AgentsReviewCliResolved), so this is called from the setup alone.
+##   claude-native    `claude` is in PATH and `claude auth status --json` says someone is signed in: the test the setup's own check makes
+##                    of it (SPAWN_CLI_AUTHENTICATED).
+##   copilot-native   `copilot` is in PATH and `copilot --version` ends well: copilot carries no sign-in to ask of, so this is all there is to ask.
+agentsCliServiceAutoOrder="claude-native copilot-native"
+
+## Whether one of those works here: rc 0 and one line saying why, or rc 1 and one line saying what is wrong. Nothing else is printed.
+AgentsToolsCliServiceWorks(){ ## cli service
+	local worksAnswer=""
+	case "$1" in
+		claude-native)
+			command -v claude > /dev/null 2>&1 || { printf 'the claude binary is not in PATH' ; return 1 ; }
+			worksAnswer="$( claude auth status --json < /dev/null 2> /dev/null || : )"
+			case "$worksAnswer" in
+				*'"loggedIn": true'*) printf 'claude is installed and signed in' ; return 0 ;;
+				*'"loggedIn": false'*) printf 'claude is installed and nobody is signed in' ; return 1 ;;
+			esac
+			printf 'claude did not say whether anybody is signed in' ; return 1
+		;;
+		copilot-native)
+			command -v copilot > /dev/null 2>&1 || { printf 'the copilot binary is not in PATH' ; return 1 ; }
+			copilot --version < /dev/null > /dev/null 2>&1 || { printf 'copilot --version did not end well' ; return 1 ; }
+			printf 'copilot is installed and answers --version' ; return 0
+		;;
+	esac
+	printf '%s is not a CLI that this chooses between' "$1" ; return 1
+}
+
 ## The CLI service a session runs on: the name its launcher wrote into the session's own
 ## store (the launch marker, MDAT_SPAWN_LAUNCH_MARKER). A session the tooling did not launch
 ## has none: the vendor claude CLI names its own session in its environment

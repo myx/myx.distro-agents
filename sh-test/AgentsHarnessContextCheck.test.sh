@@ -202,17 +202,69 @@ rigS2="$rigTmp/s2"
 mkdir -p "$rigS2"
 rigTextStream "$rigS2/res.1" RIG-RESUMED-ANSWER
 cp "$rigCtx" "$rigTmp/context.before"
+## A child of the resumed session, spawned since the context was kept: its sandbox is a root of this leg, and a root the kept messages cannot name.
+rigChild="$rigWs/.local/agents/spawned/rig-child"
+mkdir -p "$rigChild/input" "$rigChild/output"
+printf -- '---\nspawn-id: rig-child\nparent-spawn-id: %s\n---\n' "$rigSid2" > "$rigChild/rig-child.md"
 rigRun "$rigS2" "$rigSid2" MDAT_HARNESS_RESUME_CONTEXT="$rigCtx" MDAT_HARNESS_RESUME_MARKER="$rigTmp/resume.mark" -- RIG-CORRECTIONS
+rm -rf -- "$rigChild"
 rigAssert "the resumed run ends normally, in one request" "$rigRunStatus:$rigRounds" 0:1
 rigAssert "it marks the resume for the proxy" "$( [ -e "$rigTmp/resume.mark" ] && echo yes )" yes
-rigWant="${rigReq2%]\}},$( cat "$rigTmp/x1/rec.4" ),{\"role\":\"user\",\"content\":\"RIG-CORRECTIONS\"}]}"
-rigAssert "the request is the old one, its answer, then the corrections as a new user turn" "$( [ "$( cat "$rigS2/req.1" )" = "$rigWant" ] && echo exact || echo differ )" exact
+## This session's results folder and its child's sandbox are roots the kept messages do not name (F10.7): the turn that brings them is the one
+## that tells them, ahead of the corrections, and nothing kept is written over. The child's input/ is the one of them that may be written.
+rigNewRoot="$rigWs/.local/agents/sessions/$rigSid2/results"
+rigWant="${rigReq2%]\}},$( cat "$rigTmp/x1/rec.4" ),{\"role\":\"user\",\"content\":\"Beside the access roots in your system instructions, these are yours for this run alone:\\n$rigNewRoot\\n$rigWs/.local/agents/spawned/rig-child/output\\nWrite and Edit may only write under these of them:\\n$rigWs/.local/agents/spawned/rig-child/input\\nYou may read, list, search and run commands in the others, but not write to them. Do not try to work around that -- report it instead.\\n\\nRIG-CORRECTIONS\"}]}"
+rigAssert "the request is the old one, its answer, then the corrections as a new user turn, headed by the roots this session has that the old one does not name" "$( [ "$( cat "$rigS2/req.1" )" = "$rigWant" ] && echo exact || echo differ )" exact
+rigAssert "those roots are in the request once each, and a root the old request named (the sandbox's input/) is not told again: once, where it was"  "$( LC_ALL=C grep -o -F "$rigNewRoot" "$rigS2/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F '/spawned/rig-child/output' "$rigS2/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F "$rigSandbox/input" "$rigS2/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F 'these are yours for this run alone' "$rigS2/req.1" | wc -l | tr -d ' ' )" 1:1:1:2
 rigPrefix="${rigReq2%]\}}"
 rigNewReq="$( cat "$rigS2/req.1" )"
 rigAssert "so the old request is its prefix, byte for byte" "$( [ "${rigNewReq:0:${#rigPrefix}}" = "$rigPrefix" ] && echo prefix || echo no )" prefix
 rigAssert "the kept context continues: 6 messages, now this session's, the 4 loaded not its own" \
 	"$( LC_ALL=C awk -v mode=validate "${rigAwk[@]}" "$rigCtx" ):$( head -1 "$rigCtx" | LC_ALL=C awk -v path=session -f "$rigHere/harness/AgentsHarnessJsonField.awk" ):$( head -1 "$rigCtx" | LC_ALL=C awk -v path=from -f "$rigHere/harness/AgentsHarnessJsonField.awk" )" "6:$rigSid2:4"
 rigAssert "a later restart would carry the task and the corrections" "$( head -1 "$rigCtx" | LC_ALL=C awk -v path=task -f "$rigHere/harness/AgentsHarnessJsonField.awk" | tr '\n' '|' )" "RIG-TASK-MARKER||RIG-CORRECTIONS|"
+
+echo "-- 3b. a resume replays the system as the blocks it was sent as --"
+## A member's system text goes as two blocks, the common instruction with a cache marker at its end and the member's own text (F10.7). The context keeps
+## it as the one string it also is, and the size of the first block's text; the resumed request has the same two blocks and the same marker, so it is the
+## original through the common block's marker, byte for byte, and never one string.
+rigSk="$rigTmp/skills"
+mkdir -p "$rigSk/magic-team" "$rigSk/rig-a"
+printf 'RIG-TEAM-COMMON-LINE one two\n' > "$rigSk/magic-team/magic-team.basic.md"
+printf 'RIG-A-BASIC own words\n' > "$rigSk/rig-a/rig-a.basic.md"
+printf -- '---\nname: magic-team\n---\nteam skill\n' > "$rigSk/magic-team/SKILL.md"
+printf -- '---\nname: rig-a\n---\nmember skill\n' > "$rigSk/rig-a/SKILL.md"
+rigSandboxWas="$rigSandbox" ; rigSandbox="$rigTmp/sb4" ; mkdir -p "$rigSandbox"
+rigS4="$rigTmp/s4a" ; rigS5="$rigTmp/s4b" ; mkdir -p "$rigS4" "$rigS5"
+rigTextStream "$rigS4/res.1" RIG-ANSWER-ONE ; rigTextStream "$rigS5/res.1" RIG-ANSWER-TWO
+rigRun "$rigS4" "dddd4444-0000-4000-8000-0000000000a1" MDAT_SKILLSET_ROOT="$rigSk" -- --agent rig-a RIG-TASK-MARKER
+rigOrigStatus="$rigRunStatus"
+rigRun "$rigS5" "dddd4444-0000-4000-8000-0000000000a2" MDAT_SKILLSET_ROOT="$rigSk" MDAT_HARNESS_RESUME_CONTEXT="$rigSandbox/context.jsonl" MDAT_HARNESS_RESUME_MARKER="$rigTmp/resume4.mark" -- --agent rig-a RIG-CORRECTIONS
+rigAssert "the original and the resumed run end normally, in one request each"  "$rigOrigStatus:$rigRunStatus:$( cat "$rigS4/round" ):$( cat "$rigS5/round" ):$( [ -e "$rigTmp/resume4.mark" ] && echo marked )" 0:0:1:1:marked
+rigBlocks='"system":[{"type":"text","text":"RIG-TEAM-COMMON-LINE one two","cache_control":{"type":"ephemeral"}},{"type":"text","text":"'
+rigAssert "the original sends the system as two blocks, the common instruction with its marker first"  "$( LC_ALL=C grep -c -F -- "$rigBlocks" "$rigS4/req.1" )" 1
+rigAssert "the resumed request sends the same two blocks, not one string"  "$( LC_ALL=C grep -c -F -- "$rigBlocks" "$rigS5/req.1" ):$( LC_ALL=C grep -c -F -- '"system":"' "$rigS5/req.1" )" 1:0
+rigSysOf(){ ## request file -- the system field as sent
+	LC_ALL=C sed -e 's/.*"system"://' -e 's/,"tools":\[.*//' "$1"
+}
+rigAssert "the system field of the resumed request is the original's, byte for byte"  "$( [ "$( rigSysOf "$rigS4/req.1" )" = "$( rigSysOf "$rigS5/req.1" )" ] && echo same || echo differ )" same
+rigMarkEnd=$(( $( LC_ALL=C awk 'BEGIN { RS = "\001" ; mark = "\"cache_control\":{\"type\":\"ephemeral\"}}" } { m = index( $0, "\"system\":[" ) ; k = index( substr( $0, m ), mark ) ; print m + k - 1 + length( mark ) - 1 }' "$rigS4/req.1" ) ))
+head -c "$rigMarkEnd" "$rigS4/req.1" > "$rigTmp/orig.head" ; head -c "$rigMarkEnd" "$rigS5/req.1" > "$rigTmp/resumed.head"
+rigAssert "the resumed request is the original through the common block's marker, byte for byte (the body's opening and the system's first block)"  "$( cmp -s "$rigTmp/orig.head" "$rigTmp/resumed.head" && [ "$rigMarkEnd" -gt 150 ] && echo same || echo differ )" same
+rigToolsOf(){ ## request file -- the tools field as sent
+	LC_ALL=C sed -e 's/.*,"tools"://' -e 's/,"tool_choice":.*//' "$1"
+}
+rigAssert "and its tools, which the API caches ahead of the system, are the original's byte for byte"  "$( [ "$( rigToolsOf "$rigS4/req.1" )" = "$( rigToolsOf "$rigS5/req.1" )" ] && echo same || echo differ )" same
+rigAssert "and has the same markers: the moving one, the end of the floor, the end of the common block"  "$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$rigS4/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$rigS5/req.1" | wc -l | tr -d ' ' )" 3:3
+rigAssert "the context keeps the size of the first block, so a resume of the resumed context replays it too"  "$( head -1 "$rigSandbox/context.jsonl" | LC_ALL=C awk -v path=system_shared -f "$rigHere/harness/AgentsHarnessJsonField.awk" )" 28
+## The same with the hour asked of the cache (F10.7): the resumed system carries the same markers, each with its ttl.
+rigSandbox="$rigTmp/sb5" ; mkdir -p "$rigSandbox"
+rigS6="$rigTmp/s5a" ; rigS7="$rigTmp/s5b" ; mkdir -p "$rigS6" "$rigS7"
+rigTextStream "$rigS6/res.1" RIG-ANSWER-ONE ; rigTextStream "$rigS7/res.1" RIG-ANSWER-TWO
+rigRun "$rigS6" "dddd4444-0000-4000-8000-0000000000b1" MDAT_SKILLSET_ROOT="$rigSk" HARNESS_INPUT_CACHE_TIME=1h -- --agent rig-a RIG-TASK-MARKER
+rigRun "$rigS7" "dddd4444-0000-4000-8000-0000000000b2" MDAT_SKILLSET_ROOT="$rigSk" HARNESS_INPUT_CACHE_TIME=1h MDAT_HARNESS_RESUME_CONTEXT="$rigSandbox/context.jsonl" MDAT_HARNESS_RESUME_MARKER="$rigTmp/resume5.mark" -- --agent rig-a RIG-CORRECTIONS
+rigAssert "asked the hour, the original and the resumed request have three markers each, every one with the ttl, none plain"  "$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral","ttl":"1h"}' "$rigS6/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral","ttl":"1h"}' "$rigS7/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$rigS6/req.1" "$rigS7/req.1" | wc -l | tr -d ' ' )" 3:3:0
+rigAssert "and the resumed system field is the original's, byte for byte"                    "$( [ "$( rigSysOf "$rigS6/req.1" )" = "$( rigSysOf "$rigS7/req.1" )" ] && echo same || echo differ )" same
+rigSandbox="$rigSandboxWas"
 
 echo "-- 4. an ineligible resume refuses before any request, and the proxy falls back --"
 rigS3="$rigTmp/s3"

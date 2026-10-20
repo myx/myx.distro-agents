@@ -51,6 +51,25 @@ DistroAgentsTools(){
 			;;
 		esac
 	fi
+	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here, and
+	## the call is made again under what they resolve; where the operation takes a team member first and none is given, the implied one is placed
+	## (sh-lib/common/AgentsTools.CommonOptions.include). Rc 9 is "nothing to do": the call goes on as it is.
+	case "${agentsCommonFronted:-}:${1:-}:${2:-}" in
+		:--intern-context-show:--team-member|:--intern-context-show:--session-id|:--intern-context-show:--spawn-id|:--intern-context-show:--select-workspace|:--intern-context-show:--tooling-origin)
+			local commonRc=0
+			type AgentsToolsCommonRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
+			AgentsToolsCommonRun DistroAgentsTools DistroAgentsTools.fn.sh "$@" || commonRc=$?
+			[ "$commonRc" = 9 ] || return "$commonRc"
+		;;
+		## The internal operations are the tooling's own plumbing, with options of their own (--intern-op-permission-grant-consume --session-id): not commands of the set.
+		:--intern-*) ;;
+		:*:--team-member|:*:--session-id|:*:--spawn-id|:*:--select-workspace|:*:--tooling-origin|:--member-*:|:--member-*:--*|:--magic-*:|:--magic-*:--*|:--client-*:|:--client-*:--*|:--librarian-*:|:--librarian-*:--*)
+			local commonRc=0
+			type AgentsToolsCommonRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
+			AgentsToolsCommonRun DistroAgentsTools DistroAgentsTools.fn.sh "$@" || commonRc=$?
+			[ "$commonRc" = 9 ] || return "$commonRc"
+		;;
+	esac
 	type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 	## WE RUN FROM HERE: an operation naming a team member uses the workspace it is run from, for everything, and is carried to no other. A member set up only in another workspace on this machine is invited: only its skillset is read from there (AgentsToolsMemberSkillsetBring), and those of its own settings this workspace holds none of (AgentsToolsConfigOptionElsewhere), and it is stopped only when its skillset cannot be brought. A client-* member is invited like any other: which organisation its operation reaches is said by the operation's prefix and its address, never by a workspace. The spawn operations make the same check themselves, before they start anything.
 	case "$1:${2:-}" in
@@ -732,6 +751,13 @@ DistroAgentsTools(){
 
 		--magic-spawn-session)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSpawnSession.include"
+			return $?
+		;;
+
+		## The context this call resolves, a line each, `<name>: <value>` (F2.2): the common option set first, then the MDAT_* and MDLT_* variables. Read-only.
+		--intern-context-show)
+			type AgentsToolsContextShow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
+			AgentsToolsContextShow "$@"
 			return $?
 		;;
 

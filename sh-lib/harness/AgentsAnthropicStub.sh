@@ -73,6 +73,7 @@ HARNESS_TOKEN_MAIN="${ANTHROPIC_API_KEY:-}"
 ##    whoever writes that second adapter already stands. An adapter omitting any
 ##    one of these fails at the CALL, not at load, and no check catches it:
 ##      AgentsWireInitMessages              AgentsWireUserRecord
+##      AgentsWireSystemReplay
 ##      AgentsWireRequestBody
 ##      AgentsWireStreamConsume             AgentsWireSynthesizeResponse
 ##      AgentsWireErrorCode                 AgentsWireToolCallCount

@@ -1,0 +1,314 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CommonOptions.include -- the common option set of the commands of myx.distro-agents (F2.2 of the refactorings epic), and the operation that
+## shows the context they resolve (--intern-context-show). Sourced for its functions only.
+##
+## THE FIVE OPTIONS, given as a run directly after the operation word, never later (the value of another option can be spelled the same):
+##   --team-member <team-member>                      implied from MDAT_SPAWN_AGENT; at the console user-<account> (USER); with no account, nothing, and the call is refused
+##   --session-id <session-id>                        implied from MDAT_SESSION_ID
+##   --spawn-id <spawn-id>                            implied from MDAT_SPAWN_SESSION_ID, or `shell-console` for the shell CLI (the record's `spawn-id`; not the session id)
+##   --select-workspace <place-name|absolute-path>    implied by MMDAPP, resolved to an absolute path on input
+##   --tooling-origin <spec|absolute-path>            implied by MDLT_ORIGIN, resolved to an absolute path on input; the spec is `source` or `.local` of the workspace
+## Each entry point of the tooling takes them at the head of its main function (AgentsToolsCommonRun); the operation never sees them.
+##
+## THE MEMBER POSITIONAL IS RETIRED, NOT BROKEN. An operation whose help syntax says `<team-member>` (or `<member>`) first (the one list, the 📘 syntax index of
+## Help.DistroAgentsTools.help.md) gets the resolved team member in that place, so no operation body changes and its own checks (AgentsToolsActingMemberCheck,
+## AgentsToolsClientCallerCheck, the caller-check layer) see the very value they saw. The old positional stays a working shim: left out of the help, kept here.
+## The option takes the place of the positional.
+##
+## WHAT A MEMBER SESSION MAY NOT DO. A spawned session acts as one member (AgentsToolsActingMember): for an operation that takes no member positional, a
+## --team-member naming another is refused as AgentsToolsActingMemberCheck refuses it, and the console may name only its own default, user-<account>, never
+## another member (F6.10: a console answers as user-<account>); --session-id and --spawn-id may only restate its own; --tooling-origin may
+## name only the origin (`source` or `.local`) of a workspace this machine knows, as a gate run from a tree the member controls would bypass every gate; and
+## --select-workspace may name only the workspace it is in or the one the member-workspace resolution (AgentsTools.MemberWorkspace.include) gives the member.
+## The console, a call from no member's session, is unrestricted in these; for the member it answers as user-<account>.
+##
+
+agentsCommonOptions=" --team-member --session-id --spawn-id --select-workspace --tooling-origin "
+
+## The member a call acts as: the spawned session's member, else user-<account>. Nothing for no account (a console with USER empty).
+AgentsToolsTeamMember(){
+	local teamActing
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	teamActing="$( AgentsToolsActingMember )"
+	if [ -n "$teamActing" ] ; then printf '%s' "$teamActing" ; return 0 ; fi
+	case "${USER:-}" in ''|*[!A-Za-z0-9._-]*) return 0 ;; esac
+	printf 'user-%s' "$USER"
+}
+
+## Whether the operation of a tool takes a team member first: its help syntax, in the index (`📘 syntax: <tool> <operation> ...`) or at the head of its entry (two tabs,
+## the operation, ...), says `[--team-member <team-member>]` (or the older `<team-member>`, `<member>`) as its first parameter. An operation that lists the whole
+## common set after its name (`[--team-member ...] [--session-id ...]`, --intern-context-show) takes no member in front of its arguments.
+AgentsToolsCommonMemberFirst(){ ## tool script, operation
+	[ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md" ] || return 1
+	LC_ALL=C awk -v tool="$1" -v op="$2" '
+		$1 == "📘" && $3 == tool && $4 == op { at = 5 }
+		/^\t\t--[a-z]/ && tool == "DistroAgentsTools.fn.sh" && $1 == op { at = 2 }
+		at {
+			if ( $at ~ /^(<team-member>|<member>)/ ) { found = 1 }
+			else if ( $at == "[--team-member" && $( at + 2 ) !~ /^\[--session-id/ ) { found = 1 }
+			if ( found ) { exit }
+			at = 0
+		}
+		END { exit ( found ? 0 : 1 ) }
+	' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md"
+}
+
+## Whether an operation owns an option of the common set: its help syntax (the index, or the head of its entry) names it as its own parameter, such as
+## --manager-session-read --session-id <id>, where the session is the one to read. "Where applicable": such an operation keeps its option. The placeholder
+## `[--team-member <team-member>]` (or `<member>`) is the common option itself.
+AgentsToolsCommonOwns(){ ## operation, option
+	[ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md" ] || return 1
+	LC_ALL=C awk -v op="$1" -v opt="$2" '
+		BEGIN { re = "(^|[^A-Za-z0-9-])" opt "([^A-Za-z0-9-]|$)" }
+		$1 == "📘" && $4 == op { line = $0 ; sub( /^[^ ]+ [^ ]+ [^ ]+ [^ ]+ ?/, "", line ) }
+		/^\t\t--[a-z]/ && $1 == op { line = $0 ; sub( /^[ \t]*[^ ]+ ?/, "", line ) }
+		line != "" {
+			gsub( /\[?--team-member <(team-)?member>\]?/, "", line )
+			gsub( /\[?--session-id <session-id>\]?/, "", line )
+			gsub( /\[?--spawn-id <spawn-id>\]?/, "", line )
+			gsub( /\[?--select-workspace <place-name\|absolute-path>\]?/, "", line )
+			gsub( /\[?--tooling-origin <spec\|absolute-path>\]?/, "", line )
+			if ( line ~ re ) { found = 1 ; exit }
+			line = ""
+		}
+		END { exit ( found ? 0 : 1 ) }
+	' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md"
+}
+
+## Whether an operation REQUIRES a common option where the context does not hold it: its help syntax writes the option unbracketed with its common placeholder
+## (`--session-id <session-id>`), where the bracketed `[--session-id <session-id>]` is implied from its variable and may be left out.
+AgentsToolsCommonNeeds(){ ## operation, option
+	[ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md" ] || return 1
+	LC_ALL=C awk -v op="$1" -v opt="$2" '
+		BEGIN { want = ( opt == "--team-member" ? "^<(team-member|member)>" : ( opt == "--session-id" ? "^<session-id>" : ( opt == "--spawn-id" ? "^<spawn-id>" : "^$never$" ) ) ) }
+		$1 == "📘" && $4 == op { at = 5 }
+		/^\t\t--[a-z]/ && $1 == op { at = 2 }
+		at { for ( i = at ; i < NF ; i++ ) { if ( $i == opt && $( i + 1 ) ~ want ) { found = 1 ; exit } } at = 0 }
+		END { exit ( found ? 0 : 1 ) }
+	' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md"
+}
+
+## An absolute path of a directory, as given (no symlink is resolved): nothing, rc 1, where it is none.
+AgentsToolsCommonAbsolute(){ ## path
+	case "$1" in /*) ;; *) return 1 ;; esac
+	[ -d "$1" ] || return 1
+	( cd "$1" && pwd )
+}
+
+## The workspace --select-workspace names, absolute: a place name of the registry (a workspace), or an absolute path. Nothing, rc 1, with the reason said.
+AgentsToolsCommonWorkspace(){ ## operation, value
+	local wsPath="" wsAbs
+	case "$2" in
+		/*) wsPath="$2" ;;
+		*)
+			type AgentsToolsPlacesResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
+			wsPath="$( AgentsToolsPlacesResolve "${MMDAPP%/}" "$2" 2> /dev/null )" || wsPath=""
+			[ -n "$wsPath" ] || { echo "$MDSC_CMD: ${1#--}: ⛔ ERROR: --select-workspace: $2 is no place this machine knows and no absolute path -- nothing was done" >&2 ; return 1 ; }
+		;;
+	esac
+	wsAbs="$( AgentsToolsCommonAbsolute "$wsPath" )" || { echo "$MDSC_CMD: ${1#--}: ⛔ ERROR: --select-workspace: $wsPath is no directory -- nothing was done" >&2 ; return 1 ; }
+	printf '%s' "$wsAbs"
+}
+
+## Whether a workspace root is one this machine knows (the registry of places, AgentsTools.Places.include).
+AgentsToolsCommonWorkspaceKnown(){ ## absolute path
+	local knownRoot
+	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
+	while IFS= read -r knownRoot ; do
+		[ -n "$knownRoot" ] || continue
+		[ "$knownRoot" != "$1" ] || return 0
+	done <<< "$( AgentsToolsPlacesWorkspaceRoots "${MMDAPP%/}" 2> /dev/null )"
+	return 1
+}
+
+## The origin --tooling-origin names, absolute: `source` or `.local` (of the workspace now selected), or an absolute path that holds this tooling.
+AgentsToolsCommonOrigin(){ ## operation, value, workspace
+	local originPath originAbs
+	case "$2" in
+		source|.local) originPath="${3%/}/$2" ;;
+		--run-from-source) originPath="${3%/}/source" ;;
+		--run-from-.local) originPath="${3%/}/.local" ;;
+		/*) originPath="$2" ;;
+		*) echo "$MDSC_CMD: ${1#--}: ⛔ ERROR: --tooling-origin: $2 is neither source, .local nor an absolute path -- nothing was done" >&2 ; return 1 ;;
+	esac
+	originAbs="$( AgentsToolsCommonAbsolute "$originPath" )" || { echo "$MDSC_CMD: ${1#--}: ⛔ ERROR: --tooling-origin: $originPath is no directory -- nothing was done" >&2 ; return 1 ; }
+	[ -f "$originAbs/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] || { echo "$MDSC_CMD: ${1#--}: ⛔ ERROR: --tooling-origin: $originAbs holds no myx.distro-agents tooling -- nothing was done" >&2 ; return 1 ; }
+	printf '%s' "$originAbs"
+}
+
+## A member session's origin: the one it runs from, or the origin (`source` or `.local`) of a workspace this machine knows.
+AgentsToolsCommonOriginKnown(){ ## absolute origin
+	local originRoot originKnown
+	[ "$1" != "$( AgentsToolsCommonAbsolute "${MDLT_ORIGIN:-/nonexistent}" 2> /dev/null )" ] || return 0
+	originRoot="${1%/*}"
+	case "${1##*/}" in source|.local) ;; *) return 1 ;; esac
+	originKnown="$( AgentsToolsCommonAbsolute "$originRoot" )" || return 1
+	AgentsToolsCommonWorkspaceKnown "$originKnown"
+}
+
+## The entry of a tool's main, when the options are in the way: --team-member etc. consumed, the member placed, the context set, the call made again.
+## AgentsToolsCommonRun <main function> <tool script> "$@"; the caller returns its result.
+AgentsToolsCommonRun(){ ## main function, tool script, operation, arguments...
+	local runFn="$1" runScript="$2" runOp="$3" runActing runMember="" runSession="" runSpawn="" runWs="" runOrigin="" runName runWsAbs runOriginAbs runFirst runHere
+	local runGivenMember="" runGivenSession="" runGivenSpawn="" runGivenWs="" runGivenOrigin="" runRest=() runIsFirst=no runInserted=no agentsCommonFronted=1
+	shift 3
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	runActing="$( AgentsToolsActingMember )"
+	## The run of options after the operation word.
+	while [ $# -gt 0 ] ; do
+		case "$agentsCommonOptions" in *" $1 "*) ;; *) break ;; esac
+		if [ "$runOp" != --intern-context-show ] && AgentsToolsCommonOwns "$runOp" "$1" ; then break ; fi
+		runName="$1"
+		if [ -z "${2:-}" ] || { case "$2" in --*) true ;; *) false ;; esac ; } ; then
+			echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: $runName takes a value -- nothing was done" >&2 ; return 1
+		fi
+		case "$runName" in
+			--team-member) [ -z "$runGivenMember" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --team-member is given twice -- nothing was done" >&2 ; return 1 ; } ; runGivenMember="$2" ;;
+			--session-id) [ -z "$runGivenSession" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --session-id is given twice -- nothing was done" >&2 ; return 1 ; } ; runGivenSession="$2" ;;
+			--spawn-id) [ -z "$runGivenSpawn" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --spawn-id is given twice -- nothing was done" >&2 ; return 1 ; } ; runGivenSpawn="$2" ;;
+			--select-workspace) [ -z "$runGivenWs" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --select-workspace is given twice -- nothing was done" >&2 ; return 1 ; } ; runGivenWs="$2" ;;
+			--tooling-origin) [ -z "$runGivenOrigin" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --tooling-origin is given twice -- nothing was done" >&2 ; return 1 ; } ; runGivenOrigin="$2" ;;
+		esac
+		shift 2
+	done
+	runRest=( "$@" )
+
+	## REQUIRED WHERE THE CONTEXT DOES NOT HOLD IT: an operation whose syntax writes a common option unbracketed needs its value, from the option or from its variable;
+	## with neither, the call is refused naming the option, and never runs with an empty value.
+	for runName in --team-member --session-id --spawn-id ; do
+		AgentsToolsCommonNeeds "$runOp" "$runName" || continue
+		case "$runName" in
+			--team-member) runFirst="${runGivenMember:-$( AgentsToolsTeamMember )}" ; runHere="MDAT_SPAWN_AGENT in this context and no account (USER)" ;;
+			--session-id) runFirst="${runGivenSession:-${MDAT_SESSION_ID:-}}" ; runHere="MDAT_SESSION_ID in this context" ;;
+			--spawn-id) runFirst="${runGivenSpawn:-${MDAT_SPAWN_SESSION_ID:-shell-console}}" ; runHere="MDAT_SPAWN_SESSION_ID in this context" ;;
+		esac
+		[ -n "$runFirst" ] || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: needs $runName: no $runHere -- nothing was done" >&2 ; return 1 ; }
+	done
+
+	## The team member: a name, bare.
+	if [ -n "$runGivenMember" ] ; then
+		type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+		AgentsToolsAssertBareName "$runGivenMember" "--team-member" "${runOp#--}" || return 1
+	fi
+
+	## The ids: a member session restates its own, never another's. Anything else is the console's.
+	for runName in session spawn ; do
+		case "$runName" in
+			session) runFirst="$runGivenSession" ; runHere="${MDAT_SESSION_ID:-}" ;;
+			spawn) runFirst="$runGivenSpawn" ; runHere="${MDAT_SPAWN_SESSION_ID:-shell-console}" ;;
+		esac
+		[ -z "$runFirst" ] || case "$runFirst" in
+			[A-Za-z0-9]*) case "$runFirst" in *[!A-Za-z0-9._-]*) echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --$runName-id is letters, digits, '.', '_' and '-': $runFirst -- nothing was done" >&2 ; return 1 ;; esac ;;
+			*) echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: --$runName-id is letters, digits, '.', '_' and '-': $runFirst -- nothing was done" >&2 ; return 1 ;;
+		esac
+		if [ -n "$runFirst" ] && [ -n "$runActing" ] && [ "$runFirst" != "$runHere" ] ; then
+			echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: this session acts as $runActing, and --$runName-id names $runFirst, not its own ($runHere) -- nothing was done" >&2 ; return 1
+		fi
+	done
+
+	## The workspace.
+	runWsAbs=""
+	if [ -n "$runGivenWs" ] ; then
+		runWsAbs="$( AgentsToolsCommonWorkspace "$runOp" "$runGivenWs" )" || return 1
+		if [ -n "$runActing" ] && [ "$runWsAbs" != "$( AgentsToolsCommonAbsolute "${MMDAPP%/}" )" ] ; then
+			AgentsToolsCommonWorkspaceKnown "$runWsAbs" || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: this session acts as $runActing, and --select-workspace names $runWsAbs, which this machine does not know as a workspace -- nothing was done" >&2 ; return 1 ; }
+			type AgentsToolsMemberWorkspaceSelectable > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+			AgentsToolsMemberWorkspaceSelectable "$runActing" "$runWsAbs" || { echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: this session acts as $runActing, and --select-workspace names $runWsAbs, which is not the workspace it is in nor the one it is set up in -- nothing was done" >&2 ; return 1 ; }
+		fi
+	fi
+
+	## The origin.
+	runOriginAbs=""
+	if [ -n "$runGivenOrigin" ] ; then
+		runOriginAbs="$( AgentsToolsCommonOrigin "$runOp" "$runGivenOrigin" "${runWsAbs:-${MMDAPP%/}}" )" || return 1
+		if [ -n "$runActing" ] && ! AgentsToolsCommonOriginKnown "$runOriginAbs" ; then
+			echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: this session acts as $runActing, and --tooling-origin names $runOriginAbs, which is not the origin of a workspace this machine knows: a gate run from a tree the member controls would bypass every gate -- nothing was done" >&2
+			return 1
+		fi
+	fi
+
+	## The member goes where the positional was; for an operation without one, a member session may only restate itself, and the console acts as the member named.
+	if AgentsToolsCommonMemberFirst "$runScript" "$runOp" ; then
+		runIsFirst=yes
+		runFirst="${runRest[0]:-}"
+		## The option fills the place of the positional; without it, a first argument that is no option is the old positional (the shim), and the implied member goes
+		## where there is none.
+		if [ -n "$runGivenMember" ] ; then
+			runRest=( "$runGivenMember" ${runRest[@]+"${runRest[@]}"} )
+			runInserted=yes
+		## Absent: no argument at all, or an option. An empty first argument is a positional somebody gave, and stays.
+		elif [ ${#runRest[@]} -eq 0 ] || { case "$runFirst" in --*) true ;; *) false ;; esac ; } ; then
+			runMember="$( AgentsToolsTeamMember )"
+			if [ -z "$runMember" ] ; then
+				echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: needs --team-member: no MDAT_SPAWN_AGENT in this context and no account (USER) -- nothing was done" >&2
+				return 1
+			fi
+			runRest=( "$runMember" ${runRest[@]+"${runRest[@]}"} )
+			runInserted=yes
+		fi
+	elif [ -n "$runGivenMember" ] ; then
+		if [ -n "$runActing" ] ; then
+			AgentsToolsActingMemberCheck "$runGivenMember" "${runOp#--}" || return 1
+		else
+			## The console answers as user-<account>, never as a member it names (F6.10): its own default, or nothing.
+			runMember="$( AgentsToolsTeamMember )"
+			if [ "$runGivenMember" != "$runMember" ] ; then
+				echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: this is the console, which answers as ${runMember:-user-<account>} and never as another member, and --team-member names $runGivenMember -- nothing was done" >&2
+				return 1
+			fi
+		fi
+	fi
+
+	## Nothing given and nothing placed: the call goes on as it was, in the caller (rc 9).
+	[ -n "$runGivenMember$runGivenSession$runGivenSpawn$runGivenWs$runGivenOrigin" ] || [ "$runInserted" = yes ] || return 9
+	## Only a member placed, or a member named that changes no environment: the call is made again in place.
+	if [ -z "$runGivenSession$runGivenSpawn$runGivenWs$runGivenOrigin" ] ; then
+		"$runFn" "$runOp" ${runRest[@]+"${runRest[@]}"}
+		return $?
+	fi
+	## The call, made again under what was resolved: in a subshell of its own, so nothing is left behind in a shell that called this as a function.
+	(
+		[ -z "$runGivenWs" ] || { type AgentsToolsWorkspaceSwitch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include" ; AgentsToolsWorkspaceSwitch "$runWsAbs" ; }
+		[ -z "$runGivenSession" ] || export MDAT_SESSION_ID="$runGivenSession"
+		if [ -n "$runGivenSpawn" ] ; then
+			if [ "$runGivenSpawn" = shell-console ] ; then unset MDAT_SPAWN_SESSION_ID ; else export MDAT_SPAWN_SESSION_ID="$runGivenSpawn" ; fi
+		fi
+		if [ -n "$runGivenOrigin" ] ; then
+			export MDLT_ORIGIN="$runOriginAbs" MDLT_OPTION="--run-from-path $runOriginAbs"
+			exec "${BASH:-bash}" "$runOriginAbs/myx/myx.distro-agents/sh-scripts/$runScript" "$runOp" ${runRest[@]+"${runRest[@]}"}
+		fi
+		"$runFn" "$runOp" ${runRest[@]+"${runRest[@]}"}
+	)
+}
+
+## --intern-context-show: the context this call resolves, a line each in one form, `<name>: <value>`: the five resolved values first (team-member, session-id,
+## spawn-id, select-workspace, tooling-origin), then every MDAT_* and MDLT_* variable the tooling reads, by name. A variable that holds a secret (its name has
+## TOKEN, KEY, PASSWORD, PASSWD, SECRET or CREDENTIAL) is printed in the one form of a credential (AgentsToolsCredentialShown, F11.8). A value of several lines is
+## one line, its breaks written \n. Read-only; takes only the common options, which the entry has consumed.
+AgentsToolsContextShow(){ ## operation, arguments...
+	local showOp="$1" showMember showName showValue
+	shift
+	[ $# -eq 0 ] || { echo "$MDSC_CMD: ${showOp#--}: ⛔ ERROR: takes only the common options, got: $1 -- nothing was done" >&2 ; return 1 ; }
+	showMember="$( AgentsToolsTeamMember )"
+	if [ -z "$showMember" ] ; then
+		echo "$MDSC_CMD: ${showOp#--}: ⛔ ERROR: needs --team-member: no MDAT_SPAWN_AGENT in this context and no account (USER) -- nothing was done" >&2
+		return 1
+	fi
+	type AgentsToolsCredentialShown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.CredentialDisplay.include"
+	printf 'team-member: %s\n' "$showMember"
+	printf 'session-id: %s\n' "${MDAT_SESSION_ID:-}"
+	printf 'spawn-id: %s\n' "${MDAT_SPAWN_SESSION_ID:-shell-console}"
+	printf 'select-workspace: %s\n' "$( AgentsToolsCommonAbsolute "${MMDAPP%/}" 2> /dev/null || printf '%s' "${MMDAPP:-}" )"
+	printf 'tooling-origin: %s\n' "$( AgentsToolsCommonAbsolute "${MDLT_ORIGIN:-}" 2> /dev/null || printf '%s' "${MDLT_ORIGIN:-}" )"
+	for showName in $( { for showName in ${!MDAT_*} ${!MDLT_*} ; do printf '%s\n' "$showName" ; done ; } | LC_ALL=C sort -u ) ; do
+		showValue="${!showName}"
+		case "$showName" in
+			*TOKEN*|*KEY*|*PASSWORD*|*PASSWD*|*SECRET*|*CREDENTIAL*) showValue="$( AgentsToolsCredentialShown "$showValue" )" ;;
+		esac
+		showValue="${showValue//$'\n'/\\n}"
+		printf '%s: %s\n' "$showName" "$showValue"
+	done
+}

@@ -47,6 +47,8 @@ executors: {{executors}}
 invitees: {{invitees}}
 ## open warning-* items
 {{open-warnings}}
+## standing directives in force
+{{directives}}
 When done, hand back; then Wait until dismissed.
 ```
 
@@ -58,6 +60,7 @@ When done, hand back; then Wait until dismissed.
 - rule: `{{executors}}` is the resolved routine's own `executors` frontmatter value.
 - rule: `{{invitees}}` is the resolved routine's own `invitees` frontmatter value, or `none` where that field is absent or empty.
 - rule: `{{open-warnings}}` is one `- <warning-item-filename> [<state>]` line per open `warning-*` board item, across `backlog`, `pending`, `running`, `blocked` and `parked`, or `(none open)` where there is none.
+- rule: `{{directives}}` is one line for each standing directive in force that is not a warning (the warnings are listed above): `- order <id> (until <date>): <text>` for an order of the human-owner, with no `until` where it has none, and `- note <item>: <heading>` for a coordinator note that stands; or `(none in force)`. It is read from the heartbeat-state-note and the coordinator's inbox (`AgentDispatcherTools.fn.sh --standing-directives`), and it is part of the brief's per-run text, so it is given in the task block of the first message and never in the system text.
 - rule: `{{scan}}` is the scans the resolved routine's `input-scan-def:` lines name (its own lines, else its kind routine's), joined by `, `; a line tagged `[scan]` is emitted, without its tag, only for a routine that declares one.
 - rule: `{{lock}}` is the resolved routine's `routine-lock-document:` value (its own, else its kind routine's); a line tagged `[lock]` is emitted, without its tag, only for a routine that names one.
 - rule: a line tagged `[own]` or `[native]` is emitted, without its tag, only into a brief for that harness: `native` for a `*-native` client, `own` for the universal harness.

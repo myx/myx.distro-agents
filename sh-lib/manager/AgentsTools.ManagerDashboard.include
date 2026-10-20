@@ -2,16 +2,17 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.ManagerDashboard.include -- the --manager-dashboard-* operations: the most
-## vital figures of this workspace and of the machine it runs on, grouped in blocks a screen
-## draws as titled boxes. Sourced from the `--manager-dashboard-*)` arm of
-## AgentsTools.Manager.include; who may call was asked where the family is dispatched.
+## AgentsTools.ManagerDashboard.include -- the panels the agents register in the Dashboard: the most
+## vital figures of this workspace and of its team, each panel a set of figures under one label that a
+## screen draws as a titled box. The readers only: the operation that prints them is `.local`'s
+## (--manager-dashboard-read, myx.distro-.local/sh-lib/manager/LocalTools.ManagerDashboard.include), which
+## sources this file for the readers the list of panels of the agents names (sh-lib/config/dashboard-panels.list).
 ##
-## A BLOCK is a small set of FIGURES under one label. A screen draws a block with no
-## knowledge of what is in it: every figure carries its own label, its unit, a level, and,
-## where it is a part of a whole, the share it is of it, for a bar. THE BLOCKS HAVE ONE
-## DECLARATION (agentsManagerDashboardBlocks): another block is one more word there and its
-## reader here. A block that has no honest figure on this host is left out, never guessed.
+## A PANEL is a small set of FIGURES under one label. A screen draws it with no knowledge of
+## what is in it: every figure carries its own label, its unit, a level, and, where it is a part of
+## a whole, the share it is of it, for a bar. THE PANELS HAVE ONE DECLARATION, the list file: another
+## panel is one more line there and its reader here. A panel that has no honest figure on this host
+## is left out, never guessed.
 ##
 ## EVERY FIGURE IS READ THE WAY ITS SUBJECT ALREADY READS IT, never a second way. The
 ## sessions are the rows the list of sessions prints, by its own awk and its own measuring
@@ -22,129 +23,38 @@
 ## the system, by the command each of macOS, Linux and FreeBSD has for it, and a figure the
 ## host has no command for is left out.
 ##
-## ONE BLOCK RUNS GIT, the git state of the team data, local calls alone and only where it is
-## asked for by its name (agentsManagerDashboardNamedOnly): every other block runs none.
+## ONE PANEL RUNS GIT, the git state of the team data, local calls alone and only where it is
+## asked for by its name (the list says `named`): every other panel runs none.
 ## FOR VIEWING, AND CHEAP: a screen reads it every ten seconds. NO REGISTRY IS REBUILT: the
 ## two registries of the sessions are read as they lie, as the list of sessions left them,
 ## and only what no file holds is measured at the call, which runs are alive. No transcript
 ## and no record of a run is opened; of a question that waits, its header alone. The rest
-## and what is slow to read and changes seldom is KEPT (AgentsToolsManagerDashboardKeep).
+## and what is slow to read and changes seldom is KEPT (LocalToolsManagerDashboardKeep).
 ## NO git command is run, of no kind, and nothing reaches another host. A SECRET IS NEVER
-## PRINTED and none is read: no scope is opened here, and no path of one is a figure.
+## PRINTED and none is read: of the scopes only the one setting that names the CLI service is asked,
+## by its name, and only that it is set is kept (AgentsToolsManagerDashboardCliSet); no path of a
+## secret is a figure.
 ##
 
 type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 
-## THE BLOCKS, in the order they are printed, a word each: `<block>:<label>:<reader>`. The
-## label is what a screen calls the block, capitalised words, their blanks written `_`.
-## The ONE declaration: another block is one more word here, and its reader below.
-agentsManagerDashboardBlocks="sessions:Sessions_And_Agents:AgentsToolsManagerDashboardSessions
-	pending:Pending_Questions:AgentsToolsManagerDashboardPending
-	tokens:Session_Tokens:AgentsToolsManagerDashboardTokens
-	team:Team_Members:AgentsToolsManagerDashboardTeam
-	team-data:Team_Data:AgentsToolsManagerDashboardTeamData
-	team-data-git:Team_Data_Git:AgentsToolsManagerDashboardTeamDataGit
-	loop:Main_Loop_And_Heartbeat:AgentsToolsManagerDashboardLoop
-	machine:The_Machine:AgentsToolsManagerDashboardMachine
-	disk:Disk_Space:AgentsToolsManagerDashboardDisk
-	testing:Retest_Queue:AgentsToolsManagerDashboardTesting"
+## What the readers of the sessions keep of one call, which the operation starts as one process: the counts of the rows
+## of the sessions (AgentsToolsManagerDashboardSessionCounts), read once, and the rows themselves for the sessions that rank.
+dashboardSessions="" ; dashboardSize="" ; dashboardDeaths=0 ; dashboardSessionRows=""
+sessionsRunning=0 ; sessionsWaiting=0 ; sessionsUnclosed=0 ; sessionsPaused=0 ; agentsWorking=0 ; agentsWaiting=0 ; controlAlive=0 ; controlGone=0
+tokensRunning=0 ; tokensToday=0 ; tokensPartial=0 ; tokensRunningSessions=0 ; tokensTodaySessions=0 ; membersLive=0
 
-## THE THRESHOLDS of a level, each pair `warn` from the first and `bad` from the second.
-## A volume and the memory by the share that is used, in percent. The load by what it is of
-## the processors, in percent: 100 is one runnable process for each of them.
-agentsManagerDashboardDiskWarn=85
-agentsManagerDashboardDiskBad=95
-agentsManagerDashboardMemoryWarn=90
-agentsManagerDashboardMemoryBad=97
-agentsManagerDashboardLoadWarn=100
-agentsManagerDashboardLoadBad=200
 
 ## For how long the size of the team data is kept once it was measured, in seconds.
 agentsManagerDashboardSizeSeconds=600
 
-## The blocks printed only where they are asked for by name, never in the read of every
-## block: the git state of the team data, which runs git (local calls alone, no fetch), and
-## is read by a screen only while it shows the team data. For how long it is kept, in seconds.
-agentsManagerDashboardNamedOnly="team-data-git"
+## For how long the git state of the team data is kept, in seconds. Its panel is printed only where it is asked for by its name (the list of panels says so).
 agentsManagerDashboardGitSeconds=30
 
 ## The states of the board in the order their counts are printed; a folder of the board
 ## that is none of them follows, in the order of its name.
 agentsManagerDashboardBoardStates="running review blocked pending backlog parked retained processed archived"
-
-## One `figure` row of the block being read, into dashboardRows of the operation, counted
-## in dashboardCount. Every field is made one field: its whitespace reads `_`, and an empty
-## one reads `-`, as in a registry.
-AgentsToolsManagerDashboardFigure(){ ## block, figure, label, value, unit, level, share (may be empty)
-	local figureField figureRow="figure" figureTab=$'\t'
-	for figureField in "$1" "$2" "$3" "${4:-}" "${5:-}" "${6:-}" "${7:-}" ; do
-		figureField="${figureField//[[:space:]]/_}"
-		figureRow="$figureRow$figureTab${figureField:--}"
-	done
-	dashboardRows="$dashboardRows$figureRow"$'\n'
-	dashboardCount=$(( dashboardCount + 1 ))
-	return 0
-}
-
-## The level of a share by a pair of thresholds, in dashboardLevel: `bad` from the second,
-## `warn` from the first, `ok` under it, and `-` for what is no whole number.
-AgentsToolsManagerDashboardLevel(){ ## share, warn from, bad from
-	dashboardLevel="-"
-	case "${1:-}" in ''|*[!0123456789]*) return 0 ;; esac
-	if [ "$1" -ge "$3" ] ; then dashboardLevel="bad" ; elif [ "$1" -ge "$2" ] ; then dashboardLevel="warn" ; else dashboardLevel="ok" ; fi
-	return 0
-}
-
-## What a part is of a whole, in dashboardShare: a whole number from 0 to 100, empty where
-## either is no whole number or the whole is nothing.
-AgentsToolsManagerDashboardShare(){ ## part, whole
-	dashboardShare=""
-	case "${1:-}" in ''|*[!0123456789]*) return 0 ;; esac
-	case "${2:-}" in ''|*[!0123456789]*|0) return 0 ;; esac
-	dashboardShare=$(( $1 * 100 / $2 ))
-	[ "$dashboardShare" -le 100 ] || dashboardShare=100
-	return 0
-}
-
-## How long ago a moment was, in seconds, in dashboardAge: by the one ISO reader
-## (LocalIsoToEpoch.awk). Empty where the text is no such date, or lies ahead of now.
-AgentsToolsManagerDashboardAge(){ ## a date and time as the ISO reader takes it
-	local ageEpoch
-	dashboardAge=""
-	case "${1:-}" in [0123456789][0123456789][0123456789][0123456789]-[01][0123456789]-[0123][0123456789]*) ;; *) return 0 ;; esac
-	ageEpoch="$( printf '%s\n' "$1" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null )" || ageEpoch=""
-	case "$ageEpoch" in ''|*[!0123456789]*) return 0 ;; esac
-	[ "$dashboardNow" -ge "$ageEpoch" ] || return 0
-	dashboardAge=$(( dashboardNow - ageEpoch ))
-	return 0
-}
-
-## WHAT IS SLOW TO READ AND CHANGES SELDOM IS KEPT, in the tooling's own temp folder of the
-## workspace, .local/temp/mdat-manager-dashboard.<name>: two lines, `<read, seconds since
-## 1970> <the words kept>` and then what they are said of, put in place by one rename, so no
-## reader finds half of them. AgentsToolsManagerDashboardKept gives the words in
-## dashboardKept, rc 0, while they are of the same thing and younger than the seconds
-## given; rc 1, and nothing, for anything else. AgentsToolsManagerDashboardKeep keeps them,
-## rc 1 where it cannot. Two things are kept, each for agentsManagerDashboardSizeSeconds:
-## the size of the team data, and how many members there are and can be started.
-AgentsToolsManagerDashboardKept(){ ## name, for how many seconds, what it is said of
-	local keptFile="${MMDAPP%/}/.local/temp/mdat-manager-dashboard.$1" keptAsked="" keptWords="" keptOf=""
-	dashboardKept=""
-	[ -f "$keptFile" ] || return 1
-	{ read -r keptAsked keptWords && IFS= read -r keptOf ; } < "$keptFile" 2> /dev/null || return 1
-	case "$keptAsked" in ''|*[!0123456789]*|????????????*) return 1 ;; esac
-	[ -n "$keptWords" ] && [ "$keptOf" = "$3" ] && [ "$dashboardNow" -ge "$keptAsked" ] && [ "$(( dashboardNow - keptAsked ))" -lt "$2" ] || return 1
-	dashboardKept="$keptWords"
-	return 0
-}
-AgentsToolsManagerDashboardKeep(){ ## name, what it is said of, the words to keep
-	local keepDir="${MMDAPP%/}/.local/temp" keepAside=""
-	mkdir -p "$keepDir" 2> /dev/null || return 1
-	keepAside="$( mktemp "$keepDir/mdat-manager-dashboard.$1.XXXXXX" 2> /dev/null )" || return 1
-	{ printf '%s %s\n%s\n' "$dashboardNow" "$3" "$2" > "$keepAside" && chmod 644 "$keepAside" && mv -f "$keepAside" "$keepDir/mdat-manager-dashboard.$1" ; } 2> /dev/null || { rm -f "$keepAside" 2> /dev/null || : ; return 1 ; }
-	return 0
-}
 
 ## THE SESSIONS OF THIS WORKSPACE, AS THE LIST OF SESSIONS PRINTS THEM, with no registry
 ## rebuilt: its `session`, `run` and `counters` rows, by the list's own awk, from the
@@ -220,8 +130,9 @@ AgentsToolsManagerDashboardSessionMeasured(){
 ## Those rows counted, once a call, for the three blocks that read them, into the
 ## operation's own variables: the sessions by their state, the control threads that live
 ## and that are gone, the counters of the list as it prints them, the tokens of the
-## sessions that run and of those that finished today, and the members with a live run.
-## dashboardSessions is empty where there are no rows to count.
+## sessions that run and of those that finished today and how many sessions they are of, and
+## the members with a live run. dashboardSessions is empty where there are no rows to count;
+## dashboardSessionRows keeps the rows, for the panel that ranks the sessions.
 AgentsToolsManagerDashboardSessionCounts(){
 	local countsRows
 	[ -z "$dashboardSessions" ] || return 0
@@ -229,7 +140,8 @@ AgentsToolsManagerDashboardSessionCounts(){
 	countsRows="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include" --definitions-only > /dev/null 2>&1 || :
 		AgentsToolsManagerDashboardSessionMeasured 2> /dev/null )" || countsRows=""
 	[ -n "$countsRows" ] || return 0
-	read -r dashboardSessions sessionsRunning sessionsWaiting sessionsUnclosed sessionsPaused agentsWorking agentsWaiting controlAlive controlGone tokensRunning tokensToday tokensPartial membersLive <<< "$( printf '%s\n' "$countsRows" | LC_ALL=C awk -F'\t' -v todayDate="$dashboardToday" '
+	dashboardSessionRows="$countsRows"
+	read -r dashboardSessions sessionsRunning sessionsWaiting sessionsUnclosed sessionsPaused agentsWorking agentsWaiting controlAlive controlGone tokensRunning tokensToday tokensPartial membersLive tokensRunningSessions tokensTodaySessions <<< "$( printf '%s\n' "$countsRows" | LC_ALL=C awk -F'\t' -v todayDate="$dashboardToday" '
 		$1 == "session" {
 			sessionStates[$4]++ ;
 			if ($11 == "alive") controlAlive++ ; else if ($11 == "gone") controlGone++ ;
@@ -239,6 +151,7 @@ AgentsToolsManagerDashboardSessionCounts(){
 				if (sub(/\+$/, "", tokenFigure)) tokenWhole = 0 ;
 				if (tokenFigure !~ /^[0-9]+$/) { tokenWhole = 0 ; tokenFigure = 0 ; }
 				if ($4 == "running") tokensRunning += tokenFigure ; else tokensToday += tokenFigure ;
+				if ($12 ~ /^[0-9]+[+]?$/) { if ($4 == "running") runningSessions++ ; else todaySessions++ ; }
 				if (!tokenWhole) tokensPartial++ ;
 			}
 			next ;
@@ -247,7 +160,7 @@ AgentsToolsManagerDashboardSessionCounts(){
 		$1 == "counters" { countersSeen = 1 ; sessionsPaused = $3 ; agentsWorking = $4 ; agentsWaiting = $5 ; next ; }
 		END {
 			if (!countersSeen) { print "none" ; exit ; }
-			printf "read %d %d %d %d %d %d %d %d %.0f %.0f %d %d\n", sessionStates["running"], sessionStates["waiting"], sessionStates["unclosed"], sessionsPaused, agentsWorking, agentsWaiting, controlAlive, controlGone, tokensRunning, tokensToday, tokensPartial, membersLive ;
+			printf "read %d %d %d %d %d %d %d %d %.0f %.0f %d %d %d %d\n", sessionStates["running"], sessionStates["waiting"], sessionStates["unclosed"], sessionsPaused, agentsWorking, agentsWaiting, controlAlive, controlGone, tokensRunning, tokensToday, tokensPartial, membersLive, runningSessions, todaySessions ;
 		}
 	' )" || dashboardSessions="none"
 	return 0
@@ -281,21 +194,21 @@ AgentsToolsManagerDashboardSessions(){
 	AgentsToolsManagerDashboardSessionCounts
 	[ "$dashboardSessions" = "read" ] || return 0
 	AgentsToolsManagerDashboardDeaths
-	AgentsToolsManagerDashboardFigure sessions sessions-running "Sessions Running" "$sessionsRunning" count - ""
-	AgentsToolsManagerDashboardFigure sessions sessions-waiting "Sessions Waiting" "$sessionsWaiting" count - ""
+	LocalToolsManagerDashboardFigure sessions sessions-running "Sessions Running" "$sessionsRunning" count - ""
+	LocalToolsManagerDashboardFigure sessions sessions-waiting "Sessions Waiting" "$sessionsWaiting" count - ""
 	sessionsLevel="ok" ; [ "$sessionsUnclosed" = 0 ] || sessionsLevel="warn"
-	AgentsToolsManagerDashboardFigure sessions sessions-unclosed "Sessions Unclosed" "$sessionsUnclosed" count "$sessionsLevel" ""
-	AgentsToolsManagerDashboardFigure sessions sessions-paused "Sessions Paused" "$sessionsPaused" count - ""
+	LocalToolsManagerDashboardFigure sessions sessions-unclosed "Sessions Unclosed" "$sessionsUnclosed" count "$sessionsLevel" ""
+	LocalToolsManagerDashboardFigure sessions sessions-paused "Sessions Paused" "$sessionsPaused" count - ""
 	sessionsLive=$(( agentsWorking + agentsWaiting ))
-	AgentsToolsManagerDashboardShare "$agentsWorking" "$sessionsLive"
-	AgentsToolsManagerDashboardFigure sessions agents-working "Agents Working" "$agentsWorking" count - "$dashboardShare"
-	AgentsToolsManagerDashboardShare "$agentsWaiting" "$sessionsLive"
-	AgentsToolsManagerDashboardFigure sessions agents-waiting "Agents Waiting" "$agentsWaiting" count - "$dashboardShare"
-	AgentsToolsManagerDashboardFigure sessions control-alive "Control Threads Alive" "$controlAlive" count - ""
+	LocalToolsManagerDashboardShare "$agentsWorking" "$sessionsLive"
+	LocalToolsManagerDashboardFigure sessions agents-working "Agents Working" "$agentsWorking" count - "$dashboardShare"
+	LocalToolsManagerDashboardShare "$agentsWaiting" "$sessionsLive"
+	LocalToolsManagerDashboardFigure sessions agents-waiting "Agents Waiting" "$agentsWaiting" count - "$dashboardShare"
+	LocalToolsManagerDashboardFigure sessions control-alive "Control Threads Alive" "$controlAlive" count - ""
 	sessionsLevel="ok" ; [ "$controlGone" = 0 ] || sessionsLevel="warn"
-	AgentsToolsManagerDashboardFigure sessions control-gone "Control Threads Gone" "$controlGone" count "$sessionsLevel" ""
+	LocalToolsManagerDashboardFigure sessions control-gone "Control Threads Gone" "$controlGone" count "$sessionsLevel" ""
 	sessionsLevel="ok" ; [ "$dashboardDeaths" = 0 ] || sessionsLevel="warn"
-	AgentsToolsManagerDashboardFigure sessions deaths-unanswered "Deaths Unanswered" "$dashboardDeaths" count "$sessionsLevel" ""
+	LocalToolsManagerDashboardFigure sessions deaths-unanswered "Deaths Unanswered" "$dashboardDeaths" count "$sessionsLevel" ""
 	return 0
 }
 
@@ -356,27 +269,106 @@ AgentsToolsManagerDashboardPending(){
 	if [ -n "$pendingDates" ] ; then
 		pendingOldest="$( printf '%s' "$pendingDates" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null | LC_ALL=C sort -n | LC_ALL=C awk 'NR == 1 && $1 ~ /^[0-9]+$/ { print $1 ; }' )" || pendingOldest=""
 	fi
-	AgentsToolsManagerDashboardFigure pending open "Questions Open" "$pendingCount" count - ""
+	LocalToolsManagerDashboardFigure pending open "Questions Open" "$pendingCount" count - ""
 	pendingLevel="ok" ; [ "$pendingGone" = 0 ] || pendingLevel="warn"
-	AgentsToolsManagerDashboardShare "$pendingGone" "$pendingCount"
-	AgentsToolsManagerDashboardFigure pending asker-gone "Asker Is Gone" "$pendingGone" count "$pendingLevel" "$dashboardShare"
-	AgentsToolsManagerDashboardShare "$pendingOwner" "$pendingCount"
-	AgentsToolsManagerDashboardFigure pending human-owner "For The Human Owner" "$pendingOwner" count - "$dashboardShare"
-	[ -z "$pendingOldest" ] || [ "$dashboardNow" -lt "$pendingOldest" ] || AgentsToolsManagerDashboardFigure pending oldest-age "Oldest Question Age" "$(( dashboardNow - pendingOldest ))" seconds - ""
+	LocalToolsManagerDashboardShare "$pendingGone" "$pendingCount"
+	LocalToolsManagerDashboardFigure pending asker-gone "Asker Is Gone" "$pendingGone" count "$pendingLevel" "$dashboardShare"
+	LocalToolsManagerDashboardShare "$pendingOwner" "$pendingCount"
+	LocalToolsManagerDashboardFigure pending human-owner "For The Human Owner" "$pendingOwner" count - "$dashboardShare"
+	[ -z "$pendingOldest" ] || [ "$dashboardNow" -lt "$pendingOldest" ] || LocalToolsManagerDashboardFigure pending oldest-age "Oldest Question Age" "$(( dashboardNow - pendingOldest ))" seconds - ""
 	return 0
+}
+
+## WHETHER AN AI CLI SERVICE IS SET UP for use in this workspace on this machine (F11.4: the tokens are shown only
+## where one is), rc 0; rc 1 where it is not. A CLI is named by the workspace's SPAWN_CLI_SERVICE, or by a preset one of its tier
+## settings (SPAWN_TIER_LOW, _NORMAL, _HIGH) chooses, which has the CLI service of its own or of the preset it extends; and
+## a CLI that is named is set up where the digest of the settings reads it `usable yes` on this host
+## (AgentsToolsManagerConfigCli: a leg with one of its credentials set, a vendor CLI present in the path). The settings are
+## asked by their names, and only that a CLI is set up is kept (LocalToolsManagerDashboardKeep), for
+## agentsManagerDashboardSizeSeconds. A value of a credential is read by the digest's reader and never printed here.
+AgentsToolsManagerDashboardCliSet(){
+	local cliWords="" cliRoot cliNamed="" cliOne cliSpec cliLines cliRow cliSubject cliGroup cliKey cliState cliValue cliRest
+	if LocalToolsManagerDashboardKept cli-service "$agentsManagerDashboardSizeSeconds" "${MMDAPP%/}" ; then
+		cliWords="$dashboardKept"
+	else
+		type AgentsToolsPresetRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
+		cliRoot="$( AgentsToolsPresetPayRoot 2> /dev/null )" || cliRoot="${MMDAPP%/}"
+		cliNamed="$( AgentsToolsPresetRead "${MMDAPP%/}" magic-team SPAWN_CLI_SERVICE )"
+		for cliOne in LOW NORMAL HIGH ; do
+			cliSpec="$( AgentsToolsPresetRead "$cliRoot" magic-team "SPAWN_TIER_$cliOne" )"
+			[ -n "$cliSpec" ] || continue
+			cliSpec="$( AgentsToolsPresetEffective "$cliRoot" "${cliSpec%%:*}" PRESET_CLI_SERVICE 2> /dev/null )" || cliSpec=""
+			[ -z "$cliSpec" ] || cliNamed="$cliNamed $cliSpec"
+		done
+		cliWords="none"
+		if [ -n "${cliNamed// /}" ] ; then
+			cliLines="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConfig.include" --definitions-only > /dev/null 2>&1 || :
+				AgentsToolsManagerConfigCli 2> /dev/null )" || cliLines=""
+			while IFS=$'\t' read -r cliRow cliSubject cliGroup cliKey cliState cliValue cliRest ; do
+				[ "$cliRow" = "line" ] && [ "$cliSubject" = "cli" ] && [ "$cliKey" = "usable" ] && [ "$cliState" = "set" ] && [ "$cliValue" = "yes" ] || continue
+				case " $cliNamed " in *" $cliGroup "*) cliWords="set" ; break ;; esac
+			done <<< "$cliLines"
+		fi
+		LocalToolsManagerDashboardKeep cli-service "${MMDAPP%/}" "$cliWords" || :
+	fi
+	[ "$cliWords" = "set" ]
 }
 
 ## TOKENS. What a total covers: in, cache read, cache write and out, all added, of every run
 ## of a session, as the list of sessions has them from the store of each run. `running` is
 ## the sessions that run now; `finished-today` those whose last run closed on this host's
 ## date of today; `not-whole` how many of those sessions have a run with no known figures,
-## so that their total is less than they used. No transcript is opened for any of it.
+## so that their total is less than they used. No transcript is opened for any of it. Left out
+## where no AI CLI service is set up (AgentsToolsManagerDashboardCliSet).
 AgentsToolsManagerDashboardTokens(){
+	AgentsToolsManagerDashboardCliSet || return 0
 	AgentsToolsManagerDashboardSessionCounts
 	[ "$dashboardSessions" = "read" ] || return 0
-	AgentsToolsManagerDashboardFigure tokens running "Running Sessions Tokens" "$tokensRunning" count - ""
-	AgentsToolsManagerDashboardFigure tokens finished-today "Finished Today Tokens" "$tokensToday" count - ""
-	AgentsToolsManagerDashboardFigure tokens not-whole "Sessions Not Whole" "$tokensPartial" count - ""
+	LocalToolsManagerDashboardFigure tokens running "Running Sessions Tokens" "$tokensRunning" count - ""
+	LocalToolsManagerDashboardFigure tokens finished-today "Finished Today Tokens" "$tokensToday" count - ""
+	LocalToolsManagerDashboardFigure tokens not-whole "Sessions Not Whole" "$tokensPartial" count - ""
+	return 0
+}
+
+## THE LONGER PANEL of `Agents: Tokens`: the same figures as the panel of the Dashboard, with how many sessions each
+## total is of and what a session of them took on average (a whole number, the total over the sessions that have a
+## figure). Left out as the shorter panel is.
+AgentsToolsManagerDashboardTokensLong(){
+	AgentsToolsManagerDashboardCliSet || return 0
+	AgentsToolsManagerDashboardSessionCounts
+	[ "$dashboardSessions" = "read" ] || return 0
+	LocalToolsManagerDashboardFigure tokens running "Running Sessions Tokens" "$tokensRunning" count - ""
+	LocalToolsManagerDashboardFigure tokens running-sessions "Running Sessions Counted" "$tokensRunningSessions" count - ""
+	[ "$tokensRunningSessions" -eq 0 ] || LocalToolsManagerDashboardFigure tokens running-average "Average Per Running Session" "$(( tokensRunning / tokensRunningSessions ))" count - ""
+	LocalToolsManagerDashboardFigure tokens finished-today "Finished Today Tokens" "$tokensToday" count - ""
+	LocalToolsManagerDashboardFigure tokens finished-today-sessions "Finished Today Sessions Counted" "$tokensTodaySessions" count - ""
+	[ "$tokensTodaySessions" -eq 0 ] || LocalToolsManagerDashboardFigure tokens finished-today-average "Average Per Finished Session" "$(( tokensToday / tokensTodaySessions ))" count - ""
+	LocalToolsManagerDashboardFigure tokens not-whole "Sessions Not Whole" "$tokensPartial" count - ""
+	return 0
+}
+
+## THE SESSIONS THAT TOOK THE MOST TOKENS, from the same rows of the list of sessions (agentsManagerDashboardTopSessions
+## of them, the most first): those that count in the panel above, the sessions that are not finished and those that finished
+## today, as the rows are measured (AgentsToolsManagerDashboardSessionMeasured). Each is a figure named by the session, its name where
+## it has one, else its id, and the total of its runs; a total that is less than the session used ends its label with `+`.
+## A session with no known figures is not ranked. Left out as the shorter panel is.
+agentsManagerDashboardTopSessions=5
+AgentsToolsManagerDashboardTopSessions(){
+	local topTokens topLabel topPlace=0
+	AgentsToolsManagerDashboardCliSet || return 0
+	AgentsToolsManagerDashboardSessionCounts
+	[ "$dashboardSessions" = "read" ] || return 0
+	while IFS=$'\t' read -r topTokens topLabel ; do
+		[ -n "$topLabel" ] || continue
+		topPlace=$(( topPlace + 1 ))
+		LocalToolsManagerDashboardFigure top-sessions "top-$topPlace" "$topLabel" "$topTokens" count - ""
+	done <<< "$( printf '%s\n' "$dashboardSessionRows" | LC_ALL=C awk -F'\t' -v todayDate="$dashboardToday" '
+		$1 == "session" && $12 ~ /^[0-9]+[+]?$/ && ( $4 != "finished" || substr($6, 1, 10) == todayDate ) {
+			label = ( $3 == "-" || $3 == "" ) ? $2 : $3 ; gsub(/[ \t]/, "_", label ) ; label = substr(label, 1, 40) ;
+			figure = $12 ; if (sub(/[+]$/, "", figure)) label = label "+" ;
+			printf "%s\t%s\n", figure, label ;
+		}
+	' | LC_ALL=C sort -t "$(printf '\t')" -k1,1nr -s | LC_ALL=C head -n "$agentsManagerDashboardTopSessions" )"
 	return 0
 }
 
@@ -385,11 +377,11 @@ AgentsToolsManagerDashboardTokens(){
 ## check of a start asks (a folder that is there, and no identity record); and how many
 ## have a run with a live process in a session of this workspace. The first two are a file
 ## of each member read, and change when a member is set up or taken away: they are kept
-## (AgentsToolsManagerDashboardKeep), and read again once what is kept is older than
+## (LocalToolsManagerDashboardKeep), and read again once what is kept is older than
 ## agentsManagerDashboardSizeSeconds. Who runs is measured at every call.
 AgentsToolsManagerDashboardTeam(){
 	local teamMember teamDir teamTotal=0 teamStart=0 teamRest
-	if AgentsToolsManagerDashboardKept team-members "$agentsManagerDashboardSizeSeconds" "${MMDAPP%/}" ; then
+	if LocalToolsManagerDashboardKept team-members "$agentsManagerDashboardSizeSeconds" "${MMDAPP%/}" ; then
 		read -r teamTotal teamStart teamRest <<< "$dashboardKept" || :
 		case "$teamTotal$teamStart" in ''|*[!0123456789]*) teamTotal=0 ; teamStart=0 ; dashboardKept="" ;; esac
 	fi
@@ -402,29 +394,29 @@ AgentsToolsManagerDashboardTeam(){
 			! AgentsToolsTeamMemberReferenceOnly "$teamDir" || continue
 			teamStart=$(( teamStart + 1 ))
 		done <<< "$( AgentsToolsTeamMemberDirectoryText 2> /dev/null )"
-		AgentsToolsManagerDashboardKeep team-members "${MMDAPP%/}" "$teamTotal $teamStart" || :
+		LocalToolsManagerDashboardKeep team-members "${MMDAPP%/}" "$teamTotal $teamStart" || :
 	fi
 	[ "$teamTotal" -gt 0 ] || return 0
-	AgentsToolsManagerDashboardFigure team members "Members Known" "$teamTotal" count - ""
-	AgentsToolsManagerDashboardShare "$teamStart" "$teamTotal"
-	AgentsToolsManagerDashboardFigure team startable "Members To Start" "$teamStart" count - "$dashboardShare"
+	LocalToolsManagerDashboardFigure team members "Members Known" "$teamTotal" count - ""
+	LocalToolsManagerDashboardShare "$teamStart" "$teamTotal"
+	LocalToolsManagerDashboardFigure team startable "Members To Start" "$teamStart" count - "$dashboardShare"
 	AgentsToolsManagerDashboardSessionCounts
 	[ "$dashboardSessions" = "read" ] || return 0
-	AgentsToolsManagerDashboardShare "$membersLive" "$teamStart"
-	AgentsToolsManagerDashboardFigure team running "Members Running Now" "$membersLive" count - "$dashboardShare"
+	LocalToolsManagerDashboardShare "$membersLive" "$teamStart"
+	LocalToolsManagerDashboardFigure team running "Members Running Now" "$membersLive" count - "$dashboardShare"
 	return 0
 }
 
 ## THE SIZE OF A FOLDER, MEASURED AND KEPT, in dashboardSize, in bytes; empty where it is
 ## not known. du(1) walks every file under the folder, which is the one slow thing here, so
-## what it said is kept (AgentsToolsManagerDashboardKeep) and a call walks nothing while
+## what it said is kept (LocalToolsManagerDashboardKeep) and a call walks nothing while
 ## that is of this folder and not older than agentsManagerDashboardSizeSeconds. With no
 ## folder to keep the answer in, the folder is not measured at all: it is never walked at
 ## every call.
 AgentsToolsManagerDashboardSize(){ ## folder
 	local sizeText="" sizeBlocks=""
 	dashboardSize=""
-	if AgentsToolsManagerDashboardKept team-data-size "$agentsManagerDashboardSizeSeconds" "$1" ; then
+	if LocalToolsManagerDashboardKept team-data-size "$agentsManagerDashboardSizeSeconds" "$1" ; then
 		sizeBlocks="$dashboardKept"
 	else
 		mkdir -p "${MMDAPP%/}/.local/temp" 2> /dev/null && [ -w "${MMDAPP%/}/.local/temp" ] || return 0
@@ -433,7 +425,7 @@ AgentsToolsManagerDashboardSize(){ ## folder
 		sizeBlocks="${sizeText%%[[:space:]]*}"
 	fi
 	case "$sizeBlocks" in ''|*[!0123456789]*|????????????????*) return 0 ;; esac
-	[ -n "$dashboardKept" ] || AgentsToolsManagerDashboardKeep team-data-size "$1" "$sizeBlocks" || return 0
+	[ -n "$dashboardKept" ] || LocalToolsManagerDashboardKeep team-data-size "$1" "$sizeBlocks" || return 0
 	dashboardSize=$(( sizeBlocks * 1024 ))
 	return 0
 }
@@ -447,14 +439,14 @@ AgentsToolsManagerDashboardTeamData(){
 	local dataRoot="${MDAT_DATA_ROOT:-}" dataState dataDir dataCounts="" dataCount dataLabel dataSeen=" "
 	[ -n "$dataRoot" ] || return 0
 	dataRoot="${dataRoot%/}"
-	AgentsToolsManagerDashboardFigure team-data root "Team Data Root" "$dataRoot" - - ""
+	LocalToolsManagerDashboardFigure team-data root "Team Data Root" "$dataRoot" - - ""
 	if [ ! -d "$dataRoot" ] ; then
-		AgentsToolsManagerDashboardFigure team-data present "Team Data Present" no - bad ""
+		LocalToolsManagerDashboardFigure team-data present "Team Data Present" no - bad ""
 		return 0
 	fi
-	AgentsToolsManagerDashboardFigure team-data present "Team Data Present" yes - ok ""
+	LocalToolsManagerDashboardFigure team-data present "Team Data Present" yes - ok ""
 	AgentsToolsManagerDashboardSize "$dataRoot"
-	[ -z "$dashboardSize" ] || AgentsToolsManagerDashboardFigure team-data size "Team Data Size" "$dashboardSize" bytes - ""
+	[ -z "$dashboardSize" ] || LocalToolsManagerDashboardFigure team-data size "Team Data Size" "$dashboardSize" bytes - ""
 	AgentsToolsManagerDashboardStores "$dataRoot"
 	[ -d "$dataRoot/board" ] || return 0
 	for dataState in $agentsManagerDashboardBoardStates ; do
@@ -477,7 +469,7 @@ AgentsToolsManagerDashboardTeamData(){
 	## The label of a state is its words, capitalised, after `Board Items`.
 	while read -r dataState dataCount dataLabel ; do
 		[ -n "$dataState" ] || continue
-		AgentsToolsManagerDashboardFigure team-data "board-$dataState" "Board Items $dataLabel" "$dataCount" count - ""
+		LocalToolsManagerDashboardFigure team-data "board-$dataState" "Board Items $dataLabel" "$dataCount" count - ""
 	done <<< "$( printf '%s' "$dataCounts" | LC_ALL=C awk '{
 		stateWords = split($1, stateWord, "-") ; stateLabel = "" ;
 		for (stateAt = 1 ; stateAt <= stateWords ; stateAt++) stateLabel = stateLabel ( stateAt > 1 ? "_" : "" ) toupper(substr(stateWord[stateAt], 1, 1)) substr(stateWord[stateAt], 2) ;
@@ -497,7 +489,7 @@ AgentsToolsManagerDashboardStores(){ ## team data root
 	local storesRoot="$1" storesWords="" storesMonth storesStat="" storesAudit="- - -" storesVault="- -"
 	local storesItems storesThisMonth storesStamp storesCount storesNewest
 	storesMonth="$( date -u '+%Y-%m' 2> /dev/null )" || storesMonth=""
-	if AgentsToolsManagerDashboardKept team-data-stores "$agentsManagerDashboardSizeSeconds" "$storesRoot" ; then
+	if LocalToolsManagerDashboardKept team-data-stores "$agentsManagerDashboardSizeSeconds" "$storesRoot" ; then
 		storesWords="$dashboardKept"
 	else
 		if [ -d "$storesRoot/audit" ] ; then
@@ -522,21 +514,21 @@ AgentsToolsManagerDashboardStores(){ ## team data root
 			storesVault="$storesCount $storesNewest"
 		fi
 		storesWords="$storesAudit $storesVault"
-		[ "$storesWords" = "- - - - -" ] || AgentsToolsManagerDashboardKeep team-data-stores "$storesRoot" "$storesWords" || :
+		[ "$storesWords" = "- - - - -" ] || LocalToolsManagerDashboardKeep team-data-stores "$storesRoot" "$storesWords" || :
 	fi
 	read -r storesItems storesThisMonth storesStamp storesCount storesNewest <<< "$storesWords"
 	case "$storesItems" in ''|*[!0123456789]*) ;; *)
-		AgentsToolsManagerDashboardFigure team-data audit-items "Audit Items" "$storesItems" count - ""
-		AgentsToolsManagerDashboardFigure team-data audit-month "Audit Items This Month" "${storesThisMonth:-0}" count - ""
+		LocalToolsManagerDashboardFigure team-data audit-items "Audit Items" "$storesItems" count - ""
+		LocalToolsManagerDashboardFigure team-data audit-month "Audit Items This Month" "${storesThisMonth:-0}" count - ""
 		case "$storesStamp" in ????????T????)
-			AgentsToolsManagerDashboardAge "${storesStamp:0:4}-${storesStamp:4:2}-${storesStamp:6:2}T${storesStamp:9:2}:${storesStamp:11:2}:00Z"
-			[ -z "$dashboardAge" ] || AgentsToolsManagerDashboardFigure team-data audit-newest "Audit Newest Item" "$dashboardAge" seconds - ""
+			LocalToolsManagerDashboardAge "${storesStamp:0:4}-${storesStamp:4:2}-${storesStamp:6:2}T${storesStamp:9:2}:${storesStamp:11:2}:00Z"
+			[ -z "$dashboardAge" ] || LocalToolsManagerDashboardFigure team-data audit-newest "Audit Newest Item" "$dashboardAge" seconds - ""
 		;; esac
 	;; esac
 	case "$storesCount" in ''|*[!0123456789]*) ;; *)
-		AgentsToolsManagerDashboardFigure team-data vault-items "Vault Items" "$storesCount" count - ""
+		LocalToolsManagerDashboardFigure team-data vault-items "Vault Items" "$storesCount" count - ""
 		case "$storesNewest" in ''|*[!0123456789]*) ;; *)
-			[ "$dashboardNow" -lt "$storesNewest" ] || AgentsToolsManagerDashboardFigure team-data vault-newest "Vault Newest Item" "$(( dashboardNow - storesNewest ))" seconds - ""
+			[ "$dashboardNow" -lt "$storesNewest" ] || LocalToolsManagerDashboardFigure team-data vault-newest "Vault Newest Item" "$(( dashboardNow - storesNewest ))" seconds - ""
 		;; esac
 	;; esac
 	return 0
@@ -553,7 +545,7 @@ AgentsToolsManagerDashboardTeamDataGit(){
 	local gitRoot="${MDAT_DATA_ROOT:-}" gitWords="" gitRepo gitBranch gitUpstream gitAhead gitBehind gitDirty gitEpoch gitSubject gitJudged="" gitLevel
 	[ -n "$gitRoot" ] && [ -d "$gitRoot" ] || return 0
 	gitRoot="${gitRoot%/}"
-	if AgentsToolsManagerDashboardKept team-data-git "$agentsManagerDashboardGitSeconds" "$gitRoot" ; then
+	if LocalToolsManagerDashboardKept team-data-git "$agentsManagerDashboardGitSeconds" "$gitRoot" ; then
 		gitWords="$dashboardKept"
 	else
 		if [ "$( git -C "$gitRoot" rev-parse --is-inside-work-tree 2> /dev/null )" != "true" ] ; then
@@ -567,27 +559,27 @@ AgentsToolsManagerDashboardTeamDataGit(){
 			read -r gitEpoch gitSubject <<< "$( git -C "$gitRoot" log -1 --format='%ct %s' 2> /dev/null )" || :
 			gitWords="yes ${gitBranch:--} ${gitUpstream:--} ${gitAhead:--} ${gitBehind:--} ${gitDirty:--} ${gitEpoch:--} ${gitSubject:-}"
 		fi
-		AgentsToolsManagerDashboardKeep team-data-git "$gitRoot" "$gitWords" || :
+		LocalToolsManagerDashboardKeep team-data-git "$gitRoot" "$gitWords" || :
 	fi
 	read -r gitRepo gitBranch gitUpstream gitAhead gitBehind gitDirty gitEpoch gitSubject <<< "$gitWords"
-	AgentsToolsManagerDashboardFigure team-data-git repository "Team Data Repository" "${gitRepo:-no}" - - ""
+	LocalToolsManagerDashboardFigure team-data-git repository "Team Data Repository" "${gitRepo:-no}" - - ""
 	[ "$gitRepo" = "yes" ] || return 0
 	case "$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConfig.include" --definitions-only > /dev/null 2>&1 || : ; AgentsToolsManagerConfigMode 2> /dev/null )" in *" yes") gitJudged="yes" ;; esac
-	AgentsToolsManagerDashboardFigure team-data-git branch "Team Data Branch" "$gitBranch" - - ""
-	[ "$gitUpstream" = "-" ] || AgentsToolsManagerDashboardFigure team-data-git upstream "Team Data Upstream" "$gitUpstream" - - ""
+	LocalToolsManagerDashboardFigure team-data-git branch "Team Data Branch" "$gitBranch" - - ""
+	[ "$gitUpstream" = "-" ] || LocalToolsManagerDashboardFigure team-data-git upstream "Team Data Upstream" "$gitUpstream" - - ""
 	case "$gitAhead:$gitBehind" in *[!0123456789:]*|:*|*:) ;; *)
 		gitLevel="ok" ; [ "$gitAhead" = 0 ] && [ "$gitBehind" = 0 ] || gitLevel="warn" ; [ "$gitAhead" = 0 ] || [ "$gitBehind" = 0 ] || gitLevel="bad"
 		[ -n "$gitJudged" ] || gitLevel="-"
-		AgentsToolsManagerDashboardFigure team-data-git ahead "Commits Ahead" "$gitAhead" count "$gitLevel" ""
-		AgentsToolsManagerDashboardFigure team-data-git behind "Commits Behind" "$gitBehind" count "$gitLevel" ""
+		LocalToolsManagerDashboardFigure team-data-git ahead "Commits Ahead" "$gitAhead" count "$gitLevel" ""
+		LocalToolsManagerDashboardFigure team-data-git behind "Commits Behind" "$gitBehind" count "$gitLevel" ""
 	;; esac
 	case "$gitDirty" in ''|*[!0123456789]*) ;; *)
 		gitLevel="ok" ; [ "$gitDirty" = 0 ] || gitLevel="warn" ; [ -n "$gitJudged" ] || gitLevel="-"
-		AgentsToolsManagerDashboardFigure team-data-git uncommitted "Paths Not Committed" "$gitDirty" count "$gitLevel" ""
+		LocalToolsManagerDashboardFigure team-data-git uncommitted "Paths Not Committed" "$gitDirty" count "$gitLevel" ""
 	;; esac
 	case "$gitEpoch" in ''|*[!0123456789]*) ;; *)
-		[ "$dashboardNow" -lt "$gitEpoch" ] || AgentsToolsManagerDashboardFigure team-data-git last-commit "Last Commit" "$(( dashboardNow - gitEpoch ))" seconds - ""
-		[ -z "$gitSubject" ] || AgentsToolsManagerDashboardFigure team-data-git last-subject "Last Commit Subject" "$gitSubject" - - ""
+		[ "$dashboardNow" -lt "$gitEpoch" ] || LocalToolsManagerDashboardFigure team-data-git last-commit "Last Commit" "$(( dashboardNow - gitEpoch ))" seconds - ""
+		[ -z "$gitSubject" ] || LocalToolsManagerDashboardFigure team-data-git last-subject "Last Commit Subject" "$gitSubject" - - ""
 	;; esac
 	return 0
 }
@@ -614,194 +606,39 @@ AgentsToolsManagerDashboardLoop(){
 			main-loop:MAIN_LOOP_LAST_OUTCOME:set)
 				case "$loopValue" in ok) loopLevel="ok" ;; failed|timed-out) loopLevel="bad" ;; *) loopLevel="-" ;; esac
 				[ -n "$loopJudged" ] || loopLevel="-"
-				AgentsToolsManagerDashboardFigure loop main-loop-outcome "Main Loop Last Outcome" "$loopValue" - "$loopLevel" ""
+				LocalToolsManagerDashboardFigure loop main-loop-outcome "Main Loop Last Outcome" "$loopValue" - "$loopLevel" ""
 			;;
 			main-loop:MAIN_LOOP_LAST_ITERATION_UTC:set)
-				AgentsToolsManagerDashboardAge "$loopValue"
-				[ -z "$dashboardAge" ] || AgentsToolsManagerDashboardFigure loop main-loop-age "Main Loop Last Iteration" "$dashboardAge" seconds - ""
+				LocalToolsManagerDashboardAge "$loopValue"
+				[ -z "$dashboardAge" ] || LocalToolsManagerDashboardFigure loop main-loop-age "Main Loop Last Iteration" "$dashboardAge" seconds - ""
 			;;
 			main-loop:MAIN_LOOP_CONSECUTIVE_FAILURES:set)
 				case "$loopValue" in ''|*[!0123456789]*) continue ;; esac
 				loopLevel="ok" ; [ "$loopValue" = 0 ] || loopLevel="warn"
 				[ -n "$loopJudged" ] || loopLevel="-"
-				AgentsToolsManagerDashboardFigure loop main-loop-failures "Main Loop Consecutive Failures" "$loopValue" count "$loopLevel" ""
+				LocalToolsManagerDashboardFigure loop main-loop-failures "Main Loop Consecutive Failures" "$loopValue" count "$loopLevel" ""
 			;;
 			heartbeat:state-note:set) loopNote="yes" ;;
-			heartbeat:state:set) AgentsToolsManagerDashboardFigure loop heartbeat-state "Heartbeat State" "$loopValue" - - "" ;;
+			heartbeat:state:set) LocalToolsManagerDashboardFigure loop heartbeat-state "Heartbeat State" "$loopValue" - - "" ;;
 			heartbeat:last-iteration-timestamp:set)
-				AgentsToolsManagerDashboardAge "$loopValue"
-				[ -z "$dashboardAge" ] || AgentsToolsManagerDashboardFigure loop heartbeat-age "Heartbeat Last Iteration" "$dashboardAge" seconds - ""
+				LocalToolsManagerDashboardAge "$loopValue"
+				[ -z "$dashboardAge" ] || LocalToolsManagerDashboardFigure loop heartbeat-age "Heartbeat Last Iteration" "$dashboardAge" seconds - ""
 			;;
 			heartbeat:running:*)
 				[ -n "$loopNote" ] || continue
-				case "$loopValue" in yes|no) AgentsToolsManagerDashboardFigure loop heartbeat-running "Heartbeat Running" "$loopValue" - - "" ;; esac
+				case "$loopValue" in yes|no) LocalToolsManagerDashboardFigure loop heartbeat-running "Heartbeat Running" "$loopValue" - - "" ;; esac
 			;;
 		esac
 	done <<< "$loopLines"
 	return 0
 }
 
-## What a load average is of the processors, in dashboardShare, a whole number of percent
-## that stops at 100, with its level by the thresholds of the load in dashboardLevel. Both
-## read as nothing where the figure is no number or the processors are not known.
-AgentsToolsManagerDashboardLoad(){ ## load average, processors
-	local loadWhole loadPart="00" loadPercent
-	dashboardShare="" ; dashboardLevel="-"
-	case "${1:-}" in ''|.*|*.*.*|*[!0123456789.]*) return 0 ;; esac
-	case "${2:-}" in ''|*[!0123456789]*|0|????????*) return 0 ;; esac
-	loadWhole="${1%%.*}"
-	case "$1" in *.*) loadPart="${1#*.}00" ; loadPart="${loadPart:0:2}" ;; esac
-	case "$loadWhole" in ????????*) return 0 ;; esac
-	loadPercent=$(( ( 10#$loadWhole * 100 + 10#$loadPart ) / $2 ))
-	AgentsToolsManagerDashboardLevel "$loadPercent" "$agentsManagerDashboardLoadWarn" "$agentsManagerDashboardLoadBad"
-	[ "$loadPercent" -le 100 ] || loadPercent=100
-	dashboardShare="$loadPercent"
-	return 0
-}
-
-## THE MACHINE, by what each system has for it, asked now and never kept. A figure the host
-## gives no answer for is left out.
-##   the load averages    uptime(1), on all three: `load averages: 1.20 1.10 1.00`, or
-##                        `load average: 1.20, 1.10, 1.00`.
-##   the processors       macOS, FreeBSD: sysctl hw.ncpu. Linux: getconf _NPROCESSORS_ONLN.
-##   the memory           all of it, and what of it is free to use: the pages nothing holds
-##                        and those that are given up when asked. Used is all less that.
-##                        macOS: sysctl hw.memsize; vm_stat, its pages free, inactive and
-##                        speculative, by its own page size. FreeBSD: sysctl hw.physmem,
-##                        hw.pagesize, vm.stats.vm.v_free_count and v_inactive_count. Linux:
-##                        /proc/meminfo, MemTotal and MemAvailable, and on a kernel with no
-##                        MemAvailable MemFree, Buffers and Cached.
-##   the uptime           macOS, FreeBSD: sysctl kern.boottime, `{ sec = <seconds> ...`,
-##                        taken off now. Linux: /proc/uptime.
-AgentsToolsManagerDashboardMachine(){
-	local machineKind machineText machineOne="" machineFive="" machineFifteen="" machineRest machineCpus="" machineTotal="" machineFree="" machineBoot="" machineUp="" machineUsed
-	machineKind="$( uname -s 2> /dev/null )" || machineKind=""
-	machineText="$( LC_ALL=C uptime 2> /dev/null )" || machineText=""
-	case "$machineText" in
-		*'load averages: '*) machineText="${machineText##*load averages: }" ;;
-		*'load average: '*) machineText="${machineText##*load average: }" ;;
-		*) machineText="" ;;
-	esac
-	machineText="${machineText//,/ }"
-	read -r machineOne machineFive machineFifteen machineRest <<< "$machineText" || :
-	case "$machineKind" in
-		Darwin)
-			machineCpus="$( sysctl -n hw.ncpu 2> /dev/null )" || machineCpus=""
-			machineTotal="$( sysctl -n hw.memsize 2> /dev/null )" || machineTotal=""
-			machineFree="$( LC_ALL=C vm_stat 2> /dev/null | LC_ALL=C awk '
-				/page size of [0-9]+ bytes/ { pageBytes = $0 ; sub(/.*page size of /, "", pageBytes) ; sub(/ bytes.*/, "", pageBytes) ; }
-				/^Pages (free|inactive|speculative):/ { pageCount = $NF ; sub(/\.$/, "", pageCount) ; if (pageCount ~ /^[0-9]+$/) { pagesFree += pageCount ; pagesSeen++ ; } }
-				END { if (pageBytes > 0 && pagesSeen > 0) printf "%.0f\n", pagesFree * pageBytes ; }
-			' )" || machineFree=""
-			machineBoot="$( sysctl -n kern.boottime 2> /dev/null )" || machineBoot=""
-		;;
-		FreeBSD)
-			machineCpus="$( sysctl -n hw.ncpu 2> /dev/null )" || machineCpus=""
-			machineTotal="$( sysctl -n hw.physmem 2> /dev/null )" || machineTotal=""
-			machineFree="$( sysctl -n hw.pagesize vm.stats.vm.v_free_count vm.stats.vm.v_inactive_count 2> /dev/null | LC_ALL=C awk '
-				NR == 1 { pageBytes = $1 ; next ; }
-				$1 ~ /^[0-9]+$/ { pagesFree += $1 ; pagesSeen++ ; }
-				END { if (pageBytes > 0 && pagesSeen > 0) printf "%.0f\n", pagesFree * pageBytes ; }
-			' )" || machineFree=""
-			machineBoot="$( sysctl -n kern.boottime 2> /dev/null )" || machineBoot=""
-		;;
-		Linux)
-			machineCpus="$( getconf _NPROCESSORS_ONLN 2> /dev/null )" || machineCpus=""
-			if [ -r /proc/meminfo ] ; then
-				read -r machineTotal machineFree machineRest <<< "$( LC_ALL=C awk '
-					$1 == "MemTotal:" { memTotal = $2 ; }
-					$1 == "MemAvailable:" { memAvailable = $2 ; memSaid = 1 ; }
-					$1 == "MemFree:" || $1 == "Buffers:" || $1 == "Cached:" { memLoose += $2 ; }
-					END { if (memTotal > 0) printf "%.0f %.0f\n", memTotal * 1024, ( memSaid ? memAvailable : memLoose ) * 1024 ; }
-				' /proc/meminfo 2> /dev/null )" || :
-			fi
-			if [ -r /proc/uptime ] ; then
-				{ read -r machineUp machineRest < /proc/uptime ; } 2> /dev/null || :
-				machineUp="${machineUp%%.*}"
-			fi
-		;;
-	esac
-	case "$machineBoot" in
-		*'sec = '[0123456789]*)
-			machineBoot="${machineBoot#*sec = }" ; machineBoot="${machineBoot%%[!0123456789]*}"
-			case "$machineBoot" in ????????????*) ;; *) [ "$dashboardNow" -lt "$machineBoot" ] || machineUp=$(( dashboardNow - machineBoot )) ;; esac
-		;;
-	esac
-	case "$machineCpus" in ''|*[!0123456789]*|0|????????*) machineCpus="" ;; esac
-	case "$machineOne" in ''|.*|*.*.*|*[!0123456789.]*) ;; *)
-		AgentsToolsManagerDashboardLoad "$machineOne" "$machineCpus"
-		AgentsToolsManagerDashboardFigure machine load-1 "Load One Minute" "$machineOne" - "$dashboardLevel" "$dashboardShare"
-	;; esac
-	case "$machineFive" in ''|.*|*.*.*|*[!0123456789.]*) ;; *)
-		AgentsToolsManagerDashboardLoad "$machineFive" "$machineCpus"
-		AgentsToolsManagerDashboardFigure machine load-5 "Load Five Minutes" "$machineFive" - "$dashboardLevel" "$dashboardShare"
-	;; esac
-	case "$machineFifteen" in ''|.*|*.*.*|*[!0123456789.]*) ;; *)
-		AgentsToolsManagerDashboardLoad "$machineFifteen" "$machineCpus"
-		AgentsToolsManagerDashboardFigure machine load-15 "Load Fifteen Minutes" "$machineFifteen" - "$dashboardLevel" "$dashboardShare"
-	;; esac
-	[ -z "$machineCpus" ] || AgentsToolsManagerDashboardFigure machine processors "Processors Online" "$machineCpus" count - ""
-	case "$machineTotal" in ''|*[!0123456789]*|0|??????????????????*) machineTotal="" ;; esac
-	case "$machineFree" in ''|*[!0123456789]*|??????????????????*) machineFree="" ;; esac
-	if [ -n "$machineTotal" ] && [ -n "$machineFree" ] && [ "$machineFree" -le "$machineTotal" ] ; then
-		machineUsed=$(( machineTotal - machineFree ))
-		AgentsToolsManagerDashboardShare "$(( machineUsed / 1024 ))" "$(( machineTotal / 1024 ))"
-		AgentsToolsManagerDashboardLevel "$dashboardShare" "$agentsManagerDashboardMemoryWarn" "$agentsManagerDashboardMemoryBad"
-		AgentsToolsManagerDashboardFigure machine memory-used "Memory In Use" "$machineUsed" bytes "$dashboardLevel" "$dashboardShare"
-		AgentsToolsManagerDashboardFigure machine memory-free "Memory To Use" "$machineFree" bytes - ""
-	fi
-	case "$machineUp" in ''|*[!0123456789]*|????????????*) ;; *) AgentsToolsManagerDashboardFigure machine uptime "Machine Up For" "$machineUp" seconds - "" ;; esac
-	return 0
-}
-
-## DISK SPACE, by df(1) in the one form all three systems share (`df -k -P`), of the volume
-## each of these lies on: the workspace, the tooling's own temp folder of it, and the root
-## of the team data. A volume is printed once, under the first of them that lies on it, so
-## the temp folder and the team data have rows of their own only on another volume. Of each:
-## its size, what is used with the share df gives for it and a level by the thresholds of a
-## volume, and what is free.
+## DISK SPACE as the agents register it: `.local`'s panel (the workspace and its temp folder), with the root of the team
+## data added to the volumes it shows.
 AgentsToolsManagerDashboardDisk(){
-	local diskNames="" diskLabels="" diskName diskLabel diskPath diskAt diskBlocks diskUsed diskFree diskShare diskMount diskSeen=$'\n' diskTab=$'\t'
-	set --
-	while IFS="$diskTab" read -r diskName diskLabel diskPath ; do
-		[ -n "$diskPath" ] && [ -d "$diskPath" ] || continue
-		set -- "$@" "$diskPath"
-		diskNames="$diskNames$diskName " ; diskLabels="$diskLabels$diskLabel "
-	done <<< "workspace${diskTab}Workspace_Volume${diskTab}${MMDAPP%/}
-temp${diskTab}Temp_Folder_Volume${diskTab}${MMDAPP%/}/.local/temp
-team-data${diskTab}Team_Data_Volume${diskTab}${MDAT_DATA_ROOT:-}"
-	[ $# -gt 0 ] || return 0
-	## One line a folder, in the order asked: which it is, blocks of 1024 in all, used and free, the share used, the mount.
-	while IFS="$diskTab" read -r diskAt diskBlocks diskUsed diskFree diskShare diskMount ; do
-		case "$diskAt" in ''|*[!0123456789]*) continue ;; esac
-		case "$diskBlocks$diskUsed$diskFree$diskShare" in ''|*[!0123456789]*) continue ;; esac
-		[ -n "$diskMount" ] || continue
-		diskName="$diskNames" ; diskLabel="$diskLabels"
-		while [ "$diskAt" -gt 1 ] ; do diskName="${diskName#* }" ; diskLabel="${diskLabel#* }" ; diskAt=$(( diskAt - 1 )) ; done
-		diskName="${diskName%% *}" ; diskLabel="${diskLabel%% *}"
-		[ -n "$diskName" ] || continue
-		case "$diskSeen" in *$'\n'"$diskMount"$'\n'*) continue ;; esac
-		diskSeen="$diskSeen$diskMount"$'\n'
-		[ "$diskShare" -le 100 ] || diskShare=100
-		AgentsToolsManagerDashboardLevel "$diskShare" "$agentsManagerDashboardDiskWarn" "$agentsManagerDashboardDiskBad"
-		AgentsToolsManagerDashboardFigure disk "$diskName-size" "${diskLabel}_Size" "$(( diskBlocks * 1024 ))" bytes - ""
-		AgentsToolsManagerDashboardFigure disk "$diskName-used" "${diskLabel}_Used" "$(( diskUsed * 1024 ))" bytes "$dashboardLevel" "$diskShare"
-		AgentsToolsManagerDashboardFigure disk "$diskName-free" "${diskLabel}_Free" "$(( diskFree * 1024 ))" bytes - ""
-	done <<< "$( LC_ALL=C df -k -P "$@" 2> /dev/null | LC_ALL=C awk -v diskTab="$diskTab" '
-		NR == 1 { next ; }
-		{
-			## The name of a file system and of a mount may hold blanks: the row is found by its share, `<n>%`, after three numbers.
-			for (shareAt = 5 ; shareAt <= NF ; shareAt++) {
-				if ($shareAt ~ /^[0-9]+%$/ && $(shareAt - 1) ~ /^[0-9]+$/ && $(shareAt - 2) ~ /^[0-9]+$/ && $(shareAt - 3) ~ /^[0-9]+$/) break ;
-			}
-			if (shareAt > NF || shareAt == NF) next ;
-			mountText = $(shareAt + 1) ;
-			for (mountAt = shareAt + 2 ; mountAt <= NF ; mountAt++) mountText = mountText " " $mountAt ;
-			shareText = $shareAt ; sub(/%$/, "", shareText) ;
-			printf "%d%s%s%s%s%s%s%s%s%s%s\n", NR - 1, diskTab, $(shareAt - 3), diskTab, $(shareAt - 2), diskTab, $(shareAt - 1), diskTab, shareText, diskTab, mountText ;
-		}
-	' )"
-	return 0
+	local localManagerDashboardDiskVolumes
+	localManagerDashboardDiskVolumes="team-data"$'\t'"Team_Data_Volume"$'\t'"${MDAT_DATA_ROOT:-}"
+	LocalToolsManagerDashboardDisk
 }
 
 ## TESTING: the retests that wait in the queue of the machine, which is one folder
@@ -815,7 +652,7 @@ AgentsToolsManagerDashboardTesting(){
 	[ -d "$testingQueue" ] || return 0
 	set -- "$testingQueue"/*.request
 	[ -f "$1" ] || set --
-	AgentsToolsManagerDashboardFigure testing waiting "Retests Waiting" "$#" count - ""
+	LocalToolsManagerDashboardFigure testing waiting "Retests Waiting" "$#" count - ""
 	[ $# -gt 0 ] || return 0
 	{
 		while IFS= read -r testingLine && [ "$testingLines" -lt 20 ] ; do
@@ -823,57 +660,7 @@ AgentsToolsManagerDashboardTesting(){
 			case "$testingLine" in 'asked: '*) testingAsked="${testingLine#asked: }" ; break ;; esac
 		done < "$1"
 	} 2> /dev/null || :
-	AgentsToolsManagerDashboardAge "$testingAsked"
-	[ -z "$dashboardAge" ] || AgentsToolsManagerDashboardFigure testing oldest-age "Oldest Retest Age" "$dashboardAge" seconds - ""
+	LocalToolsManagerDashboardAge "$testingAsked"
+	[ -z "$dashboardAge" ] || LocalToolsManagerDashboardFigure testing oldest-age "Oldest Retest Age" "$dashboardAge" seconds - ""
 	return 0
 }
-
-case "$1" in
-
-	## The dashboard: each block with its figures, TAB-separated rows a screen reads. Their
-	## form is the help entry's.
-	--manager-dashboard-read)
-		local readOp="$1" readName readOne readKnown="" readFound readWanted=" " readReader readLabel
-		local dashboardRows="" dashboardCount=0 dashboardNow="" dashboardToday="" dashboardSessions="" dashboardLevel="-" dashboardShare="" dashboardAge="" dashboardSize="" dashboardKept="" dashboardDeaths=0
-		local sessionsRunning=0 sessionsWaiting=0 sessionsUnclosed=0 sessionsPaused=0 agentsWorking=0 agentsWaiting=0 controlAlive=0 controlGone=0 tokensRunning=0 tokensToday=0 tokensPartial=0 membersLive=0
-		shift
-		for readOne in $agentsManagerDashboardBlocks ; do
-			readKnown="$readKnown${readKnown:+ }${readOne%%:*}"
-		done
-		for readName in "$@" ; do
-			readFound="false"
-			for readOne in $readKnown ; do
-				[ "$readOne" != "$readName" ] || readFound="true"
-			done
-			if [ "$readFound" != "true" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD $readOp: a word given is none of its blocks -- nothing was printed. Its blocks: ${readKnown// /, }" >&2
-				set +e ; return 1
-			fi
-			readWanted="$readWanted$readName "
-		done
-		## with no name, every block but those printed only where they are named
-		if [ $# -eq 0 ] ; then
-			for readOne in $readKnown ; do
-				case " $agentsManagerDashboardNamedOnly " in *" $readOne "*) ;; *) readWanted="$readWanted$readOne " ;; esac
-			done
-		fi
-		## Now, once for every figure of the call: seconds since 1970, and this host's date of today.
-		read -r dashboardNow dashboardToday <<< "$( date '+%s %Y-%m-%d' 2> /dev/null )" || :
-		case "$dashboardNow" in ''|*[!0123456789]*) dashboardNow=0 ;; esac
-		for readOne in $agentsManagerDashboardBlocks ; do
-			readName="${readOne%%:*}" ; readReader="${readOne##*:}"
-			readLabel="${readOne#*:}" ; readLabel="${readLabel%%:*}"
-			case "$readWanted" in *" $readName "*) ;; *) continue ;; esac
-			dashboardRows="" ; dashboardCount=0
-			"$readReader" || :
-			[ "$dashboardCount" -gt 0 ] || continue
-			printf 'block\t%s\t%s\t%s\n%s' "$readName" "$readLabel" "$dashboardCount" "$dashboardRows"
-		done
-		return 0
-	;;
-
-	*)
-		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
-		set +e ; return 1
-	;;
-esac

@@ -129,11 +129,8 @@ rigOp "$rigTmp/r1" --magic-heartbeat-test-report-send magic-coordinator
 rigAssert "refused with no recipient configured"          "$( cat "$rigTmp/r1.rc" ):$( LC_ALL=C grep -c 'EMAIL_USER is not set' "$rigTmp/r1" )" "1:1"
 printf 'EMAIL_USER=owner@example.com\n' > "$rigTmp/ws/.local/.agents/human-owner.agent.env"
 printf 'EMAIL_USER=rig@example.com\nEMAIL_APP_PASSWORD=rig-app-password\nEMAIL_SMTP_HOST=smtp.rig.invalid\nEMAIL_SMTP_PORT=587\n' > "$rigTmp/ws/.local/.agents/magic-coordinator.agent.env"
-printf '%s\n' \
-	'| slack-id | contact | handle | email | organisation | permission level |' \
-	'| --- | --- | --- | --- | --- | --- |' \
-	'| <unresolved> | rig-owner | @rig-owner | owner@example.com | rig | unset |' \
-	> "$rigInbox/note-rig-contacts.md"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-contacts.include.sh" || exit 1
+rigContactSeed "$rigData" magic-coordinator rig-owner - owner@example.com
 rigOp "$rigTmp/r2" --magic-heartbeat-test-report-send magic-coordinator
 rigAssert "sent once due"                                 "$( cat "$rigTmp/r2.rc" ):$( LC_ALL=C grep -c '^SENT:to=owner@example.com:' "$rigTmp/r2" )" "0:1"
 rigAssert "addressed to the configured owner"             "$( LC_ALL=C grep -c -x 'To: owner@example.com' "$rigTmp/r2" )" 1

@@ -124,7 +124,7 @@ printf 'id: retest-20261001T100000Z-cccc\nasked: 2026-10-01T10:00:00Z\n' > "$rig
 rigSecret="xoxb-rig-SECRET-0123456789"
 printf 'SLACK_BOT_TOKEN=%s\n' "$rigSecret" > "$rigWs/.local/.agents/keeper-rig.agent.env"
 ## a full team rig: the mode its installer sets, and a git remote for its team data
-printf 'MDAT_WORKSPACE_MODE=team-rig\nTEAM_DATA_GIT_REMOTE=git@rig.invalid:team-data.git\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'MDAT_WORKSPACE_MODE=team-rig\nTEAM_DATA_GIT_REMOTE=git@rig.invalid:team-data.git\nSPAWN_CLI_SERVICE=claude-native\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 chmod 770 "$rigWs/.local/.agents" ; chmod 660 "$rigWs/.local/.agents"/*.agent.env
 
 ## THE RIG'S OWN PATH: its bin, then the system's own folders. Nothing remote and no git: each would log a call.
@@ -157,6 +157,8 @@ done
 DF_EOF
 ## The size of a folder: 123 blocks of 1024, and each walk logged.
 printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s/du.calls"\nfor one in "$@" ; do last="$one" ; done\nprintf "123\\t%%s\\n" "$last"\n' "$rigTmp" > "$rigTmp/bin/du"
+## A vendor CLI present in the path, which the digest of the settings reads usable.
+printf '#!/bin/sh\nexit 0\n' > "$rigTmp/bin/claude"
 chmod +x "$rigTmp/bin"/*
 rigPath="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 rigSystem(){ ## darwin or freebsd -- what the stand-ins of the system say
@@ -202,7 +204,7 @@ rigWhole(){ ## file, text -- how many lines of the file are that text, whole
 	LC_ALL=C grep -c -x -F -- "$2" "$1" 2> /dev/null || :
 }
 rigBlock(){ ## block, file (the last output where not given) -- its `block` row and its figures, TABs as blanks, a `/` after each row
-	LC_ALL=C awk -F'\t' -v wantBlock="$1" '$2 == wantBlock { gsub( /\t/, " " ) ; printf "%s/", $0 ; }' "${2:-$rigTmp/out}"
+	LC_ALL=C awk -F'\t' -v wantBlock="$1" '$1 != "group" && $2 == wantBlock { gsub( /\t/, " " ) ; printf "%s/", $0 ; }' "${2:-$rigTmp/out}"
 }
 rigBlocks(){ ## file (the last output where not given) -- the blocks printed, in their order
 	LC_ALL=C awk -F'\t' '$1 == "block" { printf "%s%s", ( said++ ? " " : "" ), $2 ; }' "${1:-$rigTmp/out}"
@@ -234,6 +236,8 @@ rigAssert "disk: three volumes, the workspace's ok, its temp folder's above the 
 	"block disk Disk_Space 9/figure disk workspace-size Workspace_Volume_Size 1024000 bytes - -/figure disk workspace-used Workspace_Volume_Used 512000 bytes ok 50/figure disk workspace-free Workspace_Volume_Free 512000 bytes - -/figure disk temp-size Temp_Folder_Volume_Size 2048000 bytes - -/figure disk temp-used Temp_Folder_Volume_Used 1802240 bytes warn 88/figure disk temp-free Temp_Folder_Volume_Free 245760 bytes - -/figure disk team-data-size Team_Data_Volume_Size 4096000 bytes - -/figure disk team-data-used Team_Data_Volume_Used 3932160 bytes bad 96/figure disk team-data-free Team_Data_Volume_Free 163840 bytes - -/"
 rigAssert "testing: two retests wait, the one that is done not counted, and the oldest has waited an hour" "$( rigBlock testing )" \
 	"block testing Retest_Queue 2/figure testing waiting Retests_Waiting 2 count - -/figure testing oldest-age Oldest_Retest_Age 3600 seconds - -/"
+
+rigAssert "the Dashboard ends with its submenus that apply: Agents: Tokens, which holds two panels" "$( LC_ALL=C awk -F'\t' '$1 == "group" { gsub( /\t/, " " ) ; printf "%s/", $0 }' "$rigTmp/whole" )" "group tokens Agents:_Tokens 2/"
 
 rigModeFile="$( cat "$rigWs/.local/.agents/magic-team.agent.env" )"
 printf 'MDAT_WORKSPACE_MODE=team-rig\n' > "$rigWs/.local/.agents/magic-team.agent.env"
@@ -284,7 +288,7 @@ rigRun "$rigRead" team team-data
 rigAssert "after ten minutes both are read again: one more walk, and the new member is counted" "$rigRc $( wc -l < "$rigTmp/du.calls" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C awk -F'\t' '$3 == "size" || $3 == "members" || $3 == "startable" { printf "%s=%s ", $3, $5 }' "$rigTmp/out" )" "0 2 members=4 startable=3 size=125952 "
 rm -rf "$rigSkills/keeper-new"
 printf '%s\n' "$rigNow" > "$rigTmp/now"
-rigAssert "what is kept lies in the temp folder of the workspace, two files, and nothing else is left there" "$( cd "$rigWs/.local/temp" && ls | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "mdat-manager-dashboard.team-data-size mdat-manager-dashboard.team-members "
+rigAssert "what is kept lies in the temp folder of the workspace, three files (the size of the team data, the counts of the members, that a CLI service is set up), and nothing else is left there" "$( cd "$rigWs/.local/temp" && ls | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "mdat-manager-dashboard.cli-service mdat-manager-dashboard.team-data-size mdat-manager-dashboard.team-members "
 chmod 555 "$rigWs/.local/temp" ; rm -f "$rigTmp/du.calls"
 printf '%s\n' "$(( rigNow + 5000 ))" > "$rigTmp/now"
 rigRun "$rigRead" team-data
@@ -299,7 +303,7 @@ fi
 echo "-- 6. no figure is a secret, and it only reads --"
 rigAssert "no row and no message of the whole read holds the value of a setting or the path of a scope" "$( LC_ALL=C grep -c -F -e "$rigSecret" -e '.agent.env' -e '.local/.agents' "$rigTmp/whole" "$rigTmp/whole.err" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed -e "s|$rigTmp/||g" )" "whole:0 whole.err:0 "
 rm -rf "$rigBare/.local/temp"
-rigAssert "every file of the rig but the two kept ones is as it was: no registry rebuilt, no record and no store touched" "$( rigTree )" "$rigTreeBefore"
+rigAssert "every file of the rig but the kept ones is as it was: no registry rebuilt, no record and no store touched" "$( rigTree )" "$rigTreeBefore"
 rigAssert "no git command and nothing remote was run" "$( [ -f "$rigTmp/forbidden.calls" ] && cat "$rigTmp/forbidden.calls" || echo none )" "none"
 
 echo "-- 6b. the audit and the vault of the team data, and its git state, named alone --"
@@ -312,15 +316,64 @@ rigAssert "the audit by its items, those of this month, and the age of its newes
 rigRun "$rigRead" team-data-git
 rigAssert "the git state is a block of its own, printed only where it is named: where git says the store is no repository, that alone" "$rigRc $( rigBlock team-data-git )" "0 block team-data-git Team_Data_Git 1/figure team-data-git repository Team_Data_Repository no - - -/"
 
+echo "-- 6c. the submenu Agents: Tokens, and the hosts where no CLI service is set up --"
+rigRun "$rigRead" --group tokens
+rigAssert "the group prints its own two panels: the longer Session Tokens, and the sessions that took the most, the most first: the one that finished long ago and took the most (5000) is not ranked, nor the one that left a control thread (20); the one not whole ends in +" "$rigRc $( rigTroubles ) $( rigBlocks ) | $( rigBlock tokens )$( rigBlock top-sessions )" \
+	"0 0 tokens top-sessions | block tokens Session_Tokens 7/figure tokens running Running_Sessions_Tokens 1000 count - -/figure tokens running-sessions Running_Sessions_Counted 1 count - -/figure tokens running-average Average_Per_Running_Session 1000 count - -/figure tokens finished-today Finished_Today_Tokens 100 count - -/figure tokens finished-today-sessions Finished_Today_Sessions_Counted 1 count - -/figure tokens finished-today-average Average_Per_Finished_Session 100 count - -/figure tokens not-whole Sessions_Not_Whole 1 count - -/block top-sessions Top_Sessions_By_Tokens 2/figure top-sessions top-1 run-one+ 1000 count - -/figure top-sessions top-2 s-today 100 count - -/"
+rigRun "$rigRead" --group tokens top-sessions
+rigAssert "named in the group, a panel alone" "$rigRc $( rigBlocks )" "0 top-sessions"
+rigRun "$rigRead" --group tokens sessions
+rigAssert "a panel of the Dashboard is no panel of the group: refused, rc 1, nothing on stdout, the line lists the panels of the group" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigRead: a word given is none of its blocks -- nothing was printed. Its blocks: tokens, top-sessions" )" "1 0 1"
+rigRun "$rigRead" --group no-such-group
+rigAssert "a group the list does not declare is refused, rc 1, nothing on stdout, in one line that lists the groups" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigRead: the group given is none of its groups -- nothing was printed. Its groups: root, tokens" )" "1 0 1"
+rigRun "$rigRead" --group
+rigAssert "--group with no group is refused" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigRead: --group needs a group -- nothing was printed" )" "1 0 1"
+## NO AI CLI SERVICE SET UP for use in this workspace on this machine: no tokens anywhere, and no submenu of them. A CLI is named by the workspace's service
+## setting or by the preset a tier setting chooses; and a CLI that is named is set up where the digest of the settings reads it usable on this host.
+rigSetupFile="$( cat "$rigWs/.local/.agents/magic-team.agent.env" )"
+rigNoCli(){ ## what -- the Dashboard and the submenu, read afresh (nothing kept)
+	rm -f "$rigWs/.local/temp/mdat-manager-dashboard.cli-service"
+	rigRun "$rigRead"
+	rigNoCliDash="$rigRc $( rigTroubles ) $( rigBlocks ) $( LC_ALL=C grep -c '^group' "$rigTmp/out" || : )"
+	rigRun "$rigRead" --group tokens
+	rigNoCliGroup="$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigTroubles )"
+}
+rigWithoutTokens="0 0 sessions pending team team-data loop machine disk testing 0"
+printf '%s\n' "$rigSetupFile" | LC_ALL=C grep -v -e '^SPAWN_CLI_SERVICE=' > "$rigWs/.local/.agents/magic-team.agent.env"
+rigNoCli
+rigAssert "with no CLI service named, the Dashboard has no panel of tokens and no submenu for them, and the rest as it was" "$rigNoCliDash" "$rigWithoutTokens"
+rigAssert "and the group, asked for by its name, prints nothing" "$rigNoCliGroup" "0 0 0"
+printf '%s\n' "$rigSetupFile" > "$rigWs/.local/.agents/magic-team.agent.env"
+mv "$rigTmp/bin/claude" "$rigTmp/claude.away"
+rigNoCli
+rigAssert "a CLI service that is set but not usable on this host (a vendor CLI that is not in the path) is none: no panel of tokens, no submenu" "$rigNoCliDash" "$rigWithoutTokens"
+rigAssert "and the group, asked for by its name, prints nothing" "$rigNoCliGroup" "0 0 0"
+mv "$rigTmp/claude.away" "$rigTmp/bin/claude"
+## a tier setting names a preset, and the preset a CLI that is usable: the same as the service setting
+printf '%s\n' "$rigSetupFile" | LC_ALL=C grep -v -e '^SPAWN_CLI_SERVICE=' > "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'SPAWN_TIER_NORMAL=rig-tier:high\n' >> "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'PRESET_CLI_SERVICE=claude-native\n' > "$rigWs/.local/.agents/preset-rig-tier.agent.env"
+rigNoCli
+rigAssert "a tier setting whose preset names a usable CLI sets one up: the panel of tokens and the submenu are there" "$rigNoCliDash" "0 0 sessions pending tokens team team-data loop machine disk testing 1"
+rigAssert "and the group prints its two panels" "$( rigBlocks )" "tokens top-sessions"
+mv "$rigTmp/bin/claude" "$rigTmp/claude.away"
+rigNoCli
+rigAssert "the same preset where its CLI is not usable here sets none up" "$rigNoCliDash" "$rigWithoutTokens"
+mv "$rigTmp/claude.away" "$rigTmp/bin/claude"
+rm -f "$rigWs/.local/.agents/preset-rig-tier.agent.env"
+printf '%s\n' "$rigSetupFile" > "$rigWs/.local/.agents/magic-team.agent.env"
+rm -f "$rigWs/.local/temp/mdat-manager-dashboard.cli-service"
+
 echo "-- 7. the caller rule of the family, and its place in it --"
 rigPre=( "MDAT_SPAWN_AGENT=keeper-rig" )
 rigRun "$rigRead"
 rigPre=()
 rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, in the one line of the family" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "DistroAgentsTools: manager-dashboard-read: ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" "1 0 1"
-rigAssert "the family's include has one arm for the dashboard, which sources its include" "$( LC_ALL=C grep -c -x -e '	--manager-dashboard-\*)' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include"' "$rigHere/manager/AgentsTools.Manager.include" || : )" "1 1"
+rigAssert "the family's include has one arm for the dashboard, which names the list of panels of the console and sources the include of the local tools" "$( LC_ALL=C grep -c -x -e '	--manager-dashboard-\*)' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e 'managerConsoleDashboardList="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/dashboard-panels.list"' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerDashboard.include"' "$rigHere/manager/AgentsTools.Manager.include" || : )" "1 1 1"
 rigRun --manager-dashboard-no-such
 rigAssert "an operation its subject does not have is refused by name, rc 1" "$rigRc $( rigWhole "$rigTmp/err" "DistroAgentsTools: ⛔ ERROR: invalid option: --manager-dashboard-no-such" )" "1 1"
-rigAssert "the blocks have one declaration, and each names a reader the include has" "$( LC_ALL=C grep -c -e '^agentsManagerDashboardBlocks=' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include" || : ) $( LC_ALL=C sed -n -e '/^agentsManagerDashboardBlocks=/,/"$/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include" | LC_ALL=C tr -d '"\t' | LC_ALL=C sed -e 's/^agentsManagerDashboardBlocks=//' | while IFS=: read -r rigOne rigLabel rigReader ; do [ -z "$rigOne" ] || LC_ALL=C grep -c -e "^$rigReader(){" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include" || : ; done | LC_ALL=C tr -d '\n' )" "1 1111111111"
+rigList="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/dashboard-panels.list"
+rigAssert "the panels have one declaration, the list of the console: each reader it names is a function of the include it names, the local tools' where it names none; each submenu's condition is one too" "$( LC_ALL=C awk -F'\t' '$1 == "panel"' "$rigList" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ) $( LC_ALL=C awk -F'\t' '$1 == "panel" { print $5 "\t" $6 }' "$rigList" | while IFS=$'\t' read -r rigReader rigInclude ; do rigFile="$MDLT_ORIGIN/myx/$rigInclude" ; [ "$rigInclude" != "-" ] || rigFile="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerDashboard.include" ; LC_ALL=C grep -c -e "^$rigReader(){" "$rigFile" || : ; done | LC_ALL=C tr -d '\n' ) $( LC_ALL=C awk -F'\t' '$1 == "group" { print $4 "\t" $5 }' "$rigList" | while IFS=$'\t' read -r rigReader rigInclude ; do LC_ALL=C grep -c -e "^$rigReader(){" "$MDLT_ORIGIN/myx/$rigInclude" || : ; done | LC_ALL=C tr -d '\n' )" "12 111111111111 1"
 
 echo "-- 8. the help pair --"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"
@@ -331,12 +384,12 @@ rigEntry(){ ## heading -- that operation's entry in the help.md, from under its 
 rigForm(){ ## heading, row kind -- the form line of that row in that entry, its back quotes and its indent taken off
 	rigEntry "$1" | LC_ALL=C sed -n -e 's/^[[:space:]]*`\('"$2"' <.*>\)`$/\1/p'
 }
-rigSyntax="📘 syntax: DistroAgentsTools.fn.sh $rigRead [<block>...]"
-rigAssert "it has its syntax echo, its syntax line and its entry, once each" "$( LC_ALL=C grep -c -x -F -- "echo \"$rigSyntax\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s' "$rigRead [<block>...]" )" "$rigHelpMd" || : )" "1 1 1"
-rigAssert "the entry gives the forms of its two rows" "$( rigForm "$rigRead [<block>...]" block ) | $( rigForm "$rigRead [<block>...]" figure )" "block <block> <label> <figures> | figure <block> <figure> <label> <value> <unit> <level> <share>"
-rigAssert "and every row of the whole read has exactly the fields its form names, each block counting its figures" "$( for rigOne in block figure ; do LC_ALL=C awk -F'\t' -v wantKind="$rigOne" -v wantFields="$( rigForm "$rigRead [<block>...]" "$rigOne" | LC_ALL=C awk '{ print NF }' )" '$1 == wantKind { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s:%s ", wantKind, ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/whole" ; done ; LC_ALL=C awk -F'\t' '$1 == "block" { if ( open != "" && left != 0 ) bad++ ; open = $2 ; left = $4 ; next } $1 == "figure" { if ( $2 != open ) bad++ ; left-- ; next } { bad++ } END { if ( left != 0 ) bad++ ; printf "counts:%s", bad + 0 }' "$rigTmp/whole" )" "block:rows:0 figure:rows:0 counts:0"
-rigAssert "every unit and every level of the whole read is one the entry names, and every share a whole number from 0 to 100 or -" "$( LC_ALL=C awk -F'\t' '$1 == "figure" { if ( $6 != "count" && $6 != "bytes" && $6 != "seconds" && $6 != "-" ) bad++ ; if ( $7 != "ok" && $7 != "warn" && $7 != "bad" && $7 != "-" ) bad++ ; if ( $8 != "-" && ( $8 !~ /^[0-9]+$/ || $8 + 0 > 100 ) ) bad++ ; } END { print bad + 0 }' "$rigTmp/whole" ) $( for rigWord in count bytes seconds ok warn bad ; do rigEntry "$rigRead [<block>...]" | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "0 yyyyyy"
-rigAssert "the entry names each block by its key and its label, and says that it only reads, runs no git command, and what it keeps" "$( for rigOne in "sessions:Sessions And Agents" "pending:Pending Questions" "tokens:Session Tokens" "team:Team Members" "team-data:Team Data" "loop:Main Loop And Heartbeat" "machine:The Machine" "disk:Disk Space" "testing:Retest Queue" ; do rigEntry "$rigRead [<block>...]" | LC_ALL=C grep -c -F -- "\`${rigOne%%:*}\`, ${rigOne#*:}:" | LC_ALL=C awk '{ printf "%s", ( $1 == 1 ) ? "y" : "n" }' ; done ) $( rigEntry "$rigRead [<block>...]" | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e 'no git command is run' || : ) $( rigEntry "$rigRead [<block>...]" | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e 'is kept for ten minutes' || : )" "yyyyyyyyy 1 1"
+rigSyntax="📘 syntax: DistroAgentsTools.fn.sh $rigRead [--group <group>] [<block>...]"
+rigAssert "it has its syntax echo, its syntax line and its entry, once each" "$( LC_ALL=C grep -c -x -F -- "echo \"$rigSyntax\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s' "$rigRead [--group <group>] [<block>...]" )" "$rigHelpMd" || : )" "1 1 1"
+rigAssert "the entry gives the forms of its three rows" "$( rigForm "$rigRead [--group <group>] [<block>...]" block ) | $( rigForm "$rigRead [--group <group>] [<block>...]" figure ) | $( rigForm "$rigRead [--group <group>] [<block>...]" group )" "block <block> <label> <figures> | figure <block> <figure> <label> <value> <unit> <level> <share> | group <group> <label> <panels>"
+rigAssert "and every row of the whole read has exactly the fields its form names, each block counting its figures" "$( for rigOne in block figure group ; do LC_ALL=C awk -F'\t' -v wantKind="$rigOne" -v wantFields="$( rigForm "$rigRead [--group <group>] [<block>...]" "$rigOne" | LC_ALL=C awk '{ print NF }' )" '$1 == wantKind { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s:%s ", wantKind, ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/whole" ; done ; LC_ALL=C awk -F'\t' '$1 == "block" { if ( open != "" && left != 0 ) bad++ ; open = $2 ; left = $4 ; next } $1 == "figure" { if ( $2 != open ) bad++ ; left-- ; next } $1 == "group" { next } { bad++ } END { if ( left != 0 ) bad++ ; printf "counts:%s", bad + 0 }' "$rigTmp/whole" )" "block:rows:0 figure:rows:0 group:rows:0 counts:0"
+rigAssert "every unit and every level of the whole read is one the entry names, and every share a whole number from 0 to 100 or -" "$( LC_ALL=C awk -F'\t' '$1 == "figure" { if ( $6 != "count" && $6 != "bytes" && $6 != "seconds" && $6 != "-" ) bad++ ; if ( $7 != "ok" && $7 != "warn" && $7 != "bad" && $7 != "-" ) bad++ ; if ( $8 != "-" && ( $8 !~ /^[0-9]+$/ || $8 + 0 > 100 ) ) bad++ ; } END { print bad + 0 }' "$rigTmp/whole" ) $( for rigWord in count bytes seconds ok warn bad ; do rigEntry "$rigRead [--group <group>] [<block>...]" | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "0 yyyyyy"
+rigAssert "the entry names each block by its key and its label, and says that it only reads, runs no git command, and what it keeps" "$( for rigOne in "sessions:Sessions And Agents" "pending:Pending Questions" "tokens:Session Tokens" "team:Team Members" "team-data:Team Data" "loop:Main Loop And Heartbeat" "machine:The Machine" "disk:Disk Space" "testing:Retest Queue" ; do rigEntry "$rigRead [--group <group>] [<block>...]" | LC_ALL=C grep -c -F -- "\`${rigOne%%:*}\`, ${rigOne#*:}:" | LC_ALL=C awk '{ printf "%s", ( $1 == 1 ) ? "y" : "n" }' ; done ) $( rigEntry "$rigRead [--group <group>] [<block>...]" | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e 'no git command is run' || : ) $( rigEntry "$rigRead [--group <group>] [<block>...]" | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e 'is kept for ten minutes' || : )" "yyyyyyyyy 1 1"
 rigAssert "the labels of the blocks in the entry are those the read prints" "$( LC_ALL=C awk -F'\t' '$1 == "block" { gsub( /_/, " ", $3 ) ; printf "%s:%s/", $2, $3 }' "$rigTmp/whole" )" "sessions:Sessions And Agents/pending:Pending Questions/tokens:Session Tokens/team:Team Members/team-data:Team Data/loop:Main Loop And Heartbeat/machine:The Machine/disk:Disk Space/testing:Retest Queue/"
 rigRun --help-syntax
 rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigTmp/err" || : )" "0 1"

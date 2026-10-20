@@ -107,13 +107,9 @@ rigWorld(){ ## -- a fresh machine
 	rigSystems TEAMTHERE team.THERE.invalid | rigScopeOf ws-there magic-team
 	rigSystems NDMTHERE ndm.THERE.invalid | rigScopeOf ws-there client-ndm
 	## the client's own contacts: a mail into the other organisation passes the outbound contact gate
-	## (AgentsToolsContactAssertKnown) only for a listed recipient
-	mkdir -p "$rigWork/ws-here/.local/agents/team-data-root/inboxes/client-ndm/incoming"
-	printf '%s\n' \
-		'| slack-id | contact | handle | email | organisation | permission level |' \
-		'| --- | --- | --- | --- | --- | --- |' \
-		'| UNDMPERSON | rig-ndm-person | @rig-ndm-person | person@ndm.invalid | rig | unset |' \
-		> "$rigWork/ws-here/.local/agents/team-data-root/inboxes/client-ndm/incoming/note-rig-contacts.md"
+	## (AgentsToolsContactAssertKnown) only for a recipient that is a coordinate of a contact it holds
+	. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-contacts.include.sh" || exit 1
+	rigContactSeed "$rigWork/ws-here/.local/agents/team-data-root" client-ndm rig-ndm-person UNDMPERSON person@ndm.invalid
 	rigClean
 }
 rigClean(){ ## -- the logs of the calls made so far, emptied
@@ -288,7 +284,7 @@ rigAssert "control: a member that is no client is offered none of them" "$rigRc 
 for rigFamily in email trello google ; do
 	rigInclude="$rigHere/comms/AgentsTools.MemberComms$( printf '%s' "$rigFamily" | LC_ALL=C awk '{ print toupper( substr( $0, 1, 1 ) ) substr( $0, 2 ) }' ).include"
 	rigAssert "every --client-comms-$rigFamily-* operation the code holds has its syntax line, and no syntax line names one the code does not hold" "$( rigNames "$rigInclude" "$rigFamily" | LC_ALL=C tr '\n' ' ' )" "$( rigNames "$rigHelpInclude" "$rigFamily" | LC_ALL=C tr '\n' ' ' )"
-	rigAssert "and each has its entry in the manual" "$( rigNames "$rigInclude" "$rigFamily" | while IFS= read -r rigName ; do LC_ALL=C grep -q -e "^		$rigName <team-member>" "$rigManual" || printf '%s ' "$rigName" ; done )" ""
+	rigAssert "and each has its entry in the manual" "$( rigNames "$rigInclude" "$rigFamily" | while IFS= read -r rigName ; do LC_ALL=C grep -q -e "^		$rigName \[--team-member <team-member>\]" "$rigManual" || printf '%s ' "$rigName" ; done )" ""
 	rigAssert "control: the search does find operations of that family in the code" "$( [ "$( rigNames "$rigInclude" "$rigFamily" | rigLines /dev/stdin )" -ge 3 ] && printf found || printf blind )" found
 done
 

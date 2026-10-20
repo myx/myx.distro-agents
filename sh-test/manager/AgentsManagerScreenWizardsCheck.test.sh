@@ -14,6 +14,9 @@
 ##      its service, model and effort (no service for a preset that extends one), the credentials of its service in their one form (no step for a service with none), and the
 ##      tiers (the team's CLI service only where no tier is set); Back goes back, Cancel and Esc leave nothing applied; Finish runs
 ##      `--manager-wizard-apply cli-service --preset <name>` in the output dialog with the changed answers alone, a line `<key> <TAB> <value>` each, on its standard input
+##   2b. F13.4: `s`, Auto-select CLI..., on the item of the CLI services runs `--owner-setup-cli-auto --check` in the output dialog, the one a command of a workspace runs in, and
+##      the screen computes nothing of it; where it ended with status 0 the dialog offers `Apply` beside OK, which runs `--owner-setup-cli-auto --apply` in a dialog of its own,
+##      and where it ended otherwise OK alone; anywhere else in the configuration it selects nothing
 ##   3. the git settings' wizard: one step, the name, the email and the key, each as it stands; Finish applies what was changed through `--manager-wizard-apply git-settings`
 ##   4. the server keys: `n` on a key that is not there asks, with its warning, and runs `--manager-keys-generate <key>`; `R` and `d` on a key that is there ask first
 ##      for the word typed whole (`regenerate`, `delete`) and run `--manager-keys-regenerate` and `--manager-keys-delete`; a host key of the server takes none
@@ -279,6 +282,78 @@ turn
 get back
 RIGSCRIPT
 rigAssert "Back returns to the step before" "$( rigVal back.dialogTitle )" "Configure CLI Service: the preset"
+
+echo "-- 2b. Auto-select CLI... (F13.4): the owner's check in the output dialog, and the apply offered from it --"
+rigCase auto1
+printf 'SPAWN_CLI_AUTO: OK\n  pick: claude-native, the first that works\n' > "$MANAGER_SCREEN_RIG/rows.--owner-setup-cli-auto --check"
+printf 'RIG-AUTO-APPLIED\n' > "$MANAGER_SCREEN_RIG/rows.--owner-setup-cli-auto --apply"
+rigScript <<RIGSCRIPT
+$rigToCli
+get row
+keys s
+turn
+get running
+wait follow 30
+turn
+get ended
+keys TAB
+get second
+keys ENTER
+turn 2
+get applying
+wait follow 30
+turn
+get applied
+RIGSCRIPT
+rigAssert "s on the CLI services runs the owner's check, and only that, in the output dialog, titled by the command, the way a command of a workspace is run" "$( rigVal row.selected ) / $( rigCalled '--owner-setup-cli-auto --check' ) / $( rigVal running.dialogTitle ) / $( rigCalled '--owner-setup-cli-auto --apply' )" "cli / 1 / Auto-select CLI / 1"
+rigAssert "what the check wrote is in the dialog as it wrote it, and the result line is its status" "$( rigVal ended.dialogHolds | LC_ALL=C grep -c -F -e 'SPAWN_CLI_AUTO: OK' -e 'pick: claude-native' -e 'Ended with status 0' )" "1"
+rigAssert "it ended with status 0, so the dialog offers the apply beside OK, OK first" "$( rigVal ended.dialog ) / $( rigVal second.dialog )" "output:ok| / output:then|"
+rigAssert "the apply is run by the operation and no word of the screen's own, in a dialog titled by it; the apply is not run before it is chosen" "$( rigVal applying.dialogTitle ) / $( rigCalled '--owner-setup-cli-auto --apply' ) / $( rigVal applied.dialogHolds | LC_ALL=C grep -c -F -e 'RIG-AUTO-APPLIED' -e 'Ended with status 0' )" "Auto-select CLI: apply / 1 / 1"
+rigCase auto2
+printf 'SPAWN_CLI_AUTO: FAIL\n' > "$MANAGER_SCREEN_RIG/rows.--owner-setup-cli-auto --check"
+printf 'fail' > "$MANAGER_SCREEN_RIG/mode.--owner-setup-cli-auto --check"
+rigScript <<RIGSCRIPT
+$rigToCli
+keys s
+turn
+wait follow 30
+turn
+get ended
+keys TAB
+get second
+keys ENTER
+turn 2
+get closed
+RIGSCRIPT
+rigAssert "a check that ends with another status offers nothing: OK alone, and the apply is never run" "$( rigVal ended.dialog ) / $( rigVal second.dialog ) / $( rigVal closed.dialogTitle ) / $( rigCalled '--owner-setup-cli-auto --apply' )" "output:ok| / output:ok| /  / 0"
+rigCase auto3
+rigScript <<RIGSCRIPT
+$rigToCli
+keys ENTER
+turn
+wait list 30
+turn
+keys DOWN
+turn
+get line
+keys s
+turn
+get lineopen
+RIGSCRIPT
+rigAssert "s on a line inside the CLI services is the line's own: nothing is run, and no dialog opens; the item of the CLI services is where it is offered" "$( rigVal line.path ) / $( rigCalled '--owner-setup-cli-auto --check' ) / $( rigVal lineopen.dialogTitle )" "configuration/cli / 0 / "
+rigCase auto4
+rigScript <<'RIGSCRIPT'
+at @configuration
+turn
+wait list 30
+keys DOWN DOWN DOWN
+turn
+get onGit
+keys s
+turn
+get nope
+RIGSCRIPT
+rigAssert "s anywhere else in the configuration (on the Git Settings) selects nothing: no check is run, no dialog is opened" "$( rigVal onGit.selected ) / $( rigCalled '--owner-setup-cli-auto --check' ) / $( rigVal nope.dialogTitle )" "git / 0 / "
 
 echo "-- 3. the git settings' wizard --"
 rigCase git

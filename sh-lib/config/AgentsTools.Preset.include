@@ -18,7 +18,8 @@
 ##   PRESET_CLI_SERVICE       where a preset extends nothing, one of agentsPresetCliServices.
 ##   PRESET_MODEL_OR_MACRO    optional: a macro, low or easy, normal or default, high or hard; or a model name.
 ##   PRESET_EFFORT            optional: low, default or normal, high or hard. Not implemented in the CLIs yet.
-##   PRESET_INPUT_CACHE_TIME  optional, whole seconds. STORED ONLY: its use is a later feature's.
+##   PRESET_INPUT_CACHE_TIME  optional, one of agentsPresetCacheTimes (5m or 1h): the lifetime the cache markers of a harness run on the
+##                            Anthropic wire ask for (F10.7). Unset is 5m, the provider's own, which puts nothing in a marker.
 ##   PRESET_CONTEXT_MAX_SIZE  optional, whole tokens. STORED ONLY: its use is a later feature's.
 ##   PRESET_EXTRA_SPAWN_LINE  optional, one line the human-owner writes, which the spawner puts into the dispatch
 ##                            it crafts (AgentsToolsPresetExtraSpawnLine). No member and no routine writes it,
@@ -41,6 +42,8 @@ agentsPresetCliServices="claude copilot grok gemini scaleway standard-v1 claude-
 ## The macros of the model, and the values of the effort.
 agentsPresetMacros="low easy normal default high hard"
 agentsPresetEfforts="low default normal high hard"
+## The lifetimes a preset may ask of the input token cache: the provider's default, and the hour.
+agentsPresetCacheTimes="5m 1h"
 ## How long a chain of PRESET_EXTEND may be before it is taken for a loop.
 agentsPresetChainLimit=8
 
@@ -128,6 +131,33 @@ AgentsToolsPresetExtraSpawnLine(){ ## workspace root, preset spec
 	AgentsToolsPresetEffective "$1" "$lineName" PRESET_EXTRA_SPAWN_LINE 2> /dev/null || :
 }
 
+## WHOSE KEY a preset's spawn runs on, for the run record's `credential:` (F11.4): the scope that holds the credential
+## of the preset's CLI service, after the extends, and the setting name of the key, `preset-<name>/<KEY>`. Of the
+## credentials the service's leg declares, in the order it declares them, the first that a preset up the chain holds
+## (the preset's own ahead of the one it extends); so presets that share one key give one answer. Nothing where the
+## spec names no preset, the preset is not there, or none holds a key. THE VALUE IS ASKED WHETHER IT IS THERE AND IS
+## NEVER PRINTED, and no hash of it either.
+AgentsToolsPresetCredentialHolder(){ ## workspace root, preset spec
+	local holdName="${2%%:*}" holdService holdKey holdScope holdDepth holdParent
+	[ -n "$holdName" ] || return 0
+	AgentsToolsPresetNameCheck "$holdName" || return 0
+	holdService="$( AgentsToolsPresetEffective "$1" "$holdName" PRESET_CLI_SERVICE 2> /dev/null )" || return 0
+	[ -n "$holdService" ] || return 0
+	for holdKey in $( AgentsToolsPresetCredentialKeys "$holdService" ) ; do
+		holdScope="$holdName" ; holdDepth=0
+		while [ "$holdDepth" -lt "$agentsPresetChainLimit" ] && [ -f "${1%/}/.local/.agents/preset-$holdScope.agent.env" ] ; do
+			if [ -n "$( AgentsToolsPresetRead "$1" "preset-$holdScope" "$holdKey" )" ] ; then
+				printf 'preset-%s/%s\n' "$holdScope" "$holdKey"
+				return 0
+			fi
+			holdParent="$( AgentsToolsPresetRead "$1" "preset-$holdScope" PRESET_EXTEND )"
+			[ -n "$holdParent" ] || break
+			holdScope="$holdParent" ; holdDepth=$(( holdDepth + 1 ))
+		done
+	done
+	return 0
+}
+
 ## THE WRITE CHECK, asked by --agents-config-option before it writes into a preset or writes a key that
 ## belongs to presets, and by nothing else. rc 0 lets the write go on, rc 1 has said why and nothing is written.
 ##   in a block `preset-<name>`: the name is a preset's; the key is one of the block's own or a credential of
@@ -137,7 +167,8 @@ AgentsToolsPresetExtraSpawnLine(){ ## workspace root, preset spec
 ##     PRESET_CLI_SERVICE       one of the nine; refused while this block extends a preset;
 ##     PRESET_MODEL_OR_MACRO    a macro, or a model name of one word (letters, digits, '.', '_', ':', '-');
 ##     PRESET_EFFORT            one of the five;
-##     PRESET_INPUT_CACHE_TIME, PRESET_CONTEXT_MAX_SIZE   a whole number from 1;
+##     PRESET_INPUT_CACHE_TIME  one of agentsPresetCacheTimes;
+##     PRESET_CONTEXT_MAX_SIZE  a whole number from 1;
 ##     PRESET_EXTRA_SPAWN_LINE  one line; and the human-owner's: no write or delete of it from a member's session,
 ##                              a routine's too (MDAT_SPAWN_AGENT or the harness's agent names one);
 ##   a PRESET_* key in any other scope is refused: a preset's keys stand in a preset;
@@ -213,7 +244,10 @@ AgentsToolsPresetWriteCheck(){ ## workspace root, scope, operation, key, value (
 		PRESET_EFFORT)
 			AgentsToolsPresetIsOneOf "$checkValue" "$agentsPresetEfforts" || { AgentsToolsPresetRefuse "PRESET_EFFORT is one of: ${agentsPresetEfforts// /, }" ; return 1 ; }
 		;;
-		PRESET_INPUT_CACHE_TIME|PRESET_CONTEXT_MAX_SIZE)
+		PRESET_INPUT_CACHE_TIME)
+			AgentsToolsPresetIsOneOf "$checkValue" "$agentsPresetCacheTimes" || { AgentsToolsPresetRefuse "PRESET_INPUT_CACHE_TIME is one of: ${agentsPresetCacheTimes// /, }" ; return 1 ; }
+		;;
+		PRESET_CONTEXT_MAX_SIZE)
 			case "$checkValue" in ''|0*|*[!0123456789]*|??????????*) AgentsToolsPresetRefuse "$checkKey is a whole number from 1, in digits alone" ; return 1 ;; esac
 		;;
 		PRESET_EXTRA_SPAWN_LINE)
@@ -348,6 +382,22 @@ AgentsToolsPresetNamedCredential(){ ## workspace root, cli service, key
 	return 1
 }
 
+## The lifetime a preset asks of the input cache (PRESET_INPUT_CACHE_TIME, F10.7), checked as it stands, whatever wrote it: rc 0 where it is unset or
+## one of agentsPresetCacheTimes, rc 1 with the reason said where it is another. The spawn asks it before it makes anything, as the write check
+## asked it of the setting. The value is not printed.
+AgentsToolsPresetCacheTimeCheck(){ ## preset of the spawn, `<preset>[:<effort>]`
+	local cacheRoot cacheName="${1%%:*}" cacheTime
+	[ -n "$cacheName" ] || return 0
+	cacheRoot="$( AgentsToolsPresetPayRoot )" || return 0
+	[ -f "$cacheRoot/.local/.agents/preset-$cacheName.agent.env" ] || return 0
+	cacheTime="$( AgentsToolsPresetEffective "$cacheRoot" "$cacheName" PRESET_INPUT_CACHE_TIME 2> /dev/null )" || cacheTime=""
+	[ -z "$cacheTime" ] || AgentsToolsPresetIsOneOf "$cacheTime" "$agentsPresetCacheTimes" || {
+		echo "$MDSC_CMD: ⛔ ERROR: preset $cacheName asks the input cache for a lifetime that is none of ${agentsPresetCacheTimes// /, } -- nothing was started; set PRESET_INPUT_CACHE_TIME of the preset (or of the one it extends) to one of them, or delete it" >&2
+		return 1
+	}
+	return 0
+}
+
 ## THE OVERLAY: the answer to a read of a spawn setting of the scope magic-team (the CLI service, the harness tier,
 ## a credential of a harness leg, the model of the light or main tier) from the preset of the spawn: the one in
 ## MDAT_SPAWN_PRESET, else, with no spawn behind the read, the team's own choice (AgentsToolsPresetChosen with no member).
@@ -409,6 +459,11 @@ AgentsToolsPresetOverlay(){ ## spawn setting key
 					esac
 				;;
 			esac
+		;;
+		HARNESS_INPUT_CACHE_TIME)
+			## The lifetime the cache markers of the run ask for, the preset's own or the one it inherits: nothing printed is the provider's.
+			ovValue="$( AgentsToolsPresetEffective "$ovRoot" "$ovName" PRESET_INPUT_CACHE_TIME 2> /dev/null )" || ovValue=""
+			[ -z "$ovValue" ] || printf '%s\n' "$ovValue"
 		;;
 		*)
 			AgentsToolsPresetIsOneOf "$1" "$( AgentsToolsPresetCredentialKeys "$ovCli" )" || return 0

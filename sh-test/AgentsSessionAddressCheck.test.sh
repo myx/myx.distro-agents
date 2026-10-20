@@ -631,7 +631,7 @@ done
 rigManual="$rigHere/help/Help.DistroAgentsTools.help.md"
 rigSyntax="$rigHere/help/Help.DistroAgentsTools.include"
 for rigHelpOp in send-message read react ; do
-	rigAssert "the syntax line of --member-comms-slack-$rigHelpOp" "$( LC_ALL=C grep -- "^echo \"📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-$rigHelpOp <team-member> " "$rigSyntax" | LC_ALL=C grep -c -e 'session-current|session-parent' )" 1
+	rigAssert "the syntax line of --member-comms-slack-$rigHelpOp" "$( LC_ALL=C grep -- "^echo \"📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-$rigHelpOp \\[--team-member <team-member>\\] " "$rigSyntax" | LC_ALL=C grep -c -e 'session-current|session-parent' )" 1
 	rigAssert "the manual entry of --member-comms-slack-$rigHelpOp" "$( LC_ALL=C awk -v want="--member-comms-slack-$rigHelpOp" '
 		/^\t\t--/ { split( $0, word, " " ) ; inEntry = ( word[1] == want ) ; }
 		inEntry && /session-current/ { current = 1 ; }
@@ -639,10 +639,10 @@ for rigHelpOp in send-message read react ; do
 		END { print current + 0 "" parent + 0 ; }' "$rigManual" )" 11
 done
 for rigHelpOp in delete-message edit-message ; do
-	rigAssert "the syntax lines of --member-comms-slack-$rigHelpOp, each" "$( LC_ALL=C grep -- "^echo \"📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-$rigHelpOp <team-member> " "$rigSyntax" | LC_ALL=C grep -c -v -e '<channel>:<ts>|<alias>:<ts>|session-current|session-parent ' )" 0
+	rigAssert "the syntax lines of --member-comms-slack-$rigHelpOp, each" "$( LC_ALL=C grep -- "^echo \"📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-$rigHelpOp \\[--team-member <team-member>\\] " "$rigSyntax" | LC_ALL=C grep -c -v -e '<channel>:<ts>|<alias>:<ts>|session-current|session-parent ' )" 0
 done
 for rigHelpOp in send-message read react delete-message edit-message ; do
-	rigAssert "<alias>:<ts> in the syntax line and the manual entry of --member-comms-slack-$rigHelpOp" "$( LC_ALL=C grep -- "^echo \"📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-$rigHelpOp <team-member> " "$rigSyntax" | LC_ALL=C grep -c -F -e '<alias>:<ts>' | LC_ALL=C sed 's/^[1-9][0-9]*$/yes/' ):$( LC_ALL=C awk -v want="--member-comms-slack-$rigHelpOp" '
+	rigAssert "<alias>:<ts> in the syntax line and the manual entry of --member-comms-slack-$rigHelpOp" "$( LC_ALL=C grep -- "^echo \"📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-$rigHelpOp \\[--team-member <team-member>\\] " "$rigSyntax" | LC_ALL=C grep -c -F -e '<alias>:<ts>' | LC_ALL=C sed 's/^[1-9][0-9]*$/yes/' ):$( LC_ALL=C awk -v want="--member-comms-slack-$rigHelpOp" '
 		/^\t\t--/ { split( $0, word, " " ) ; inEntry = ( word[1] == want ) ; }
 		inEntry && /<alias>:<ts>/ { said = 1 ; }
 		END { print said + 0 ; }' "$rigManual" )" "yes:1"

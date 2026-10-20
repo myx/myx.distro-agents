@@ -221,6 +221,53 @@ rigAssert "on the row of a block it shows that block alone, as wide as the windo
 rigAssert "there a long value has the room to stand beside its label" "$( rigVal gamma.selected ) $( rigBoth gamma '│ Root Path ' ' /rig/some/where/far/away/a/long/path/that/fits/no/small/box/END │' ) $( rigVal gamma.spills )" "gamma 1 0"
 rigAssert "Backspace goes back to the root, onto its row" "[$( rigVal out.path )] $( rigVal out.selected )" "[] dashboard"
 
+echo "-- a submenu a subsystem registers: a row of the Dashboard after its blocks, which opens a level of its own"
+rigCase submenu
+{
+	cat "$rigF/rows.--manager-dashboard-read"
+	rigRow group tokens Agents:_Tokens 2
+	rigRow group nameless
+} > "$MANAGER_SCREEN_RIG/rows.--manager-dashboard-read"
+{
+	rigRow block delta Delta_Block 1
+	rigRow figure delta d-one Delta_Figure 7 count - -
+	rigRow block epsilon Epsilon_Block 1
+	rigRow figure epsilon e-one Epsilon_Figure 9 count - -
+} > "$MANAGER_SCREEN_RIG/rows.--manager-dashboard-read --group tokens"
+rigScript <<'EOF'
+turn
+wait list 5
+keys ENTER
+turn
+get in
+show in
+keys DOWN DOWN DOWN DOWN
+turn
+wait focus 5
+get sub
+show sub
+border subTitle 1 0 84
+keys ENTER
+turn
+wait list 5
+get dive
+show dive
+keys DOWN
+turn
+get blk
+show blk
+border blkTitle 1 0 84
+keys BACKSPACE
+turn
+get out
+EOF
+rigAssert "the rows of the Dashboard: the row that goes up, the blocks in the order of the operation, then the submenu, whose line says how many panels it holds; the line of a submenu with no panels is none" "$( rigVal in.path ) $( rigVal in.rows ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^in|' | LC_ALL=C sed -n -e 's/^.*║.\(Alpha Block\).*$/\1/p' -e 's/^.*║.\(Beta Block\).*$/\1/p' -e 's/^.*║.\(Gamma Block\).*$/\1/p' -e 's/^.*║.\(Agents: Tokens\)  *\(2 panels\).*$/\1 \2/p' | tr '\n' ',' )" "dashboard 5 Alpha Block,Beta Block,Gamma Block,Agents: Tokens 2 panels,"
+rigAssert "selected, the submenu shows its panels in the left window, read for it with its key; the blocks of the Dashboard are not among them" "$( rigVal sub.selected ) [$( rigVal subTitle )] $( rigHolds sub '┌─ Delta Block ─' ) $( rigHolds sub '┌─ Epsilon Block ─' ) $( rigHolds sub '┌─ Alpha Block ─' ) $( rigCalled '--manager-dashboard-read --group tokens' )" "tokens [Agents: Tokens [wrap]] 1 1 0 1"
+rigAssert "Enter opens it: the row that goes up, then a row a block of the submenu" "$( rigVal dive.path ) $( rigVal dive.rows ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^dive|' | LC_ALL=C sed -n -e 's/^.*║.\(Delta Block\).*$/\1/p' -e 's/^.*║.\(Epsilon Block\).*$/\1/p' | tr '\n' ',' )" "dashboard/tokens 3 Delta Block,Epsilon Block,"
+rigAssert "on the row of a block of the submenu that block alone is shown, as wide as the window" "$( rigVal blk.selected ) [$( rigVal blkTitle )] $( rigHolds blk '┌─ Delta Block ─' ) $( rigHolds blk '┌─ Epsilon Block ─' )" "delta [Delta Block [wrap]] 1 0"
+rigAssert "Backspace goes back to the Dashboard, onto the row of the submenu" "[$( rigVal out.path )] $( rigVal out.selected )" "[dashboard] tokens"
+rigAssert "the Dashboard was read with no argument, whatever else was asked" "$( rigCalled --manager-dashboard-read ) $( rigArgued )" "1 1"
+
 echo "-- it is read on the period only while its root is selected or opened"
 rigCase period
 rigScript <<'EOF'

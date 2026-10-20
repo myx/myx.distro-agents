@@ -100,7 +100,7 @@ Every `.basic.md`, `.armed.md` and `.routine.md` follows the contract for its ki
 - Oncall / Expert — `templates/oncall-expert.contract.format.md`
 - Human-owner — `templates/human-owner.contract.format.md`
 
-Document formats: `templates/escalation.document.format.md` (the `ConfirmReadback`, `EscalateDecision`, `RequestPermission` and `ProposeApprove` kinds), `templates/session-context.document.format.md` (the generated session sweep report), `templates/contacts.document.format.md`, `templates/no-quorum.document.format.md` (the agreed-and-dissent document "The ladder: one rung at a time" names). The templates of messages the tooling produces automatically, the spawn brief block and the tooling's own tracking posts, are the tooling's own (`myx.distro-agents/sh-lib/templates/`), not the skillset's.
+Document formats: `templates/escalation.document.format.md` (the `ConfirmReadback`, `EscalateDecision`, `RequestPermission` and `ProposeApprove` kinds), `templates/session-context.document.format.md` (the generated session sweep report), `templates/no-quorum.document.format.md` (the agreed-and-dissent document "The ladder: one rung at a time" names). The templates of messages the tooling produces automatically, the spawn brief block and the tooling's own tracking posts, are the tooling's own (`myx.distro-agents/sh-lib/templates/`), not the skillset's.
 
 Every section a contract names is present, in contract order, with its lead-in, even when empty: write "none". Fix a gap when the file is next touched.
 

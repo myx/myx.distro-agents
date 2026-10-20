@@ -220,7 +220,7 @@ Stores: the board, member inboxes, `audit/`, `vault/`. A document's type is its 
 **Filename**: `<type>-<date>-<matter>.md`, `<date>` per the tooling **Rule**. Frontmatter dates use `date-time`.
 
 **Inbox types** — a member's inbox holds only these:
-- `note-*` — context or coordination. A member writes notes into its own inbox only (`--member-inbox-note-upsert`). Standing notes (contacts, roster) are rewritten in place under a fixed name.
+- `note-*` — context or coordination. A member writes notes into its own inbox only (`--member-inbox-note-upsert`). Standing notes (the roster) are rewritten in place under a fixed name.
 - `inquiry-*` — a question or handoff needing an answer. Any member may post one into any inbox (`post-inquiry`). The one member-to-member document.
 - `reflection-*` — a lesson whose resolution produces a change elsewhere. Own inbox only (`--member-inbox-reflection-upsert`).
 

@@ -81,6 +81,82 @@ AgentsToolsPermissionIsHumanOwner(){ ## who
 	return 1
 }
 
+## A CONTACT AS A GRANTEE (F7.10): `contact:<id>`, the id of a person of the contacts store (DistroAgentsContacts.fn.sh), is the owner of a
+## refusal logged for what a contact asked, and the holder a chain question about a contact is asked of. The one place such a name is
+## read; it is allowed only where a grantee enters the chain (the refusal log, grant-open, grant-read), and nowhere a member is named.
+## AgentsToolsPermissionContactId prints the id of a name of that form (rc 2: not of that form, rc 1: an id that is none);
+## AgentsToolsPermissionContactRecord prints the path of the contact's record (rc 1: no such contact is recorded).
+AgentsToolsPermissionContactId(){ ## name
+	local contactId
+	case "$1" in contact:?*) contactId="${1#contact:}" ;; *) return 2 ;; esac
+	case "$contactId" in -*|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) return 1 ;; esac
+	[ "${#contactId}" -le 64 ] || return 1
+	printf '%s' "$contactId"
+}
+AgentsToolsPermissionContactRecord(){ ## name
+	local recordId
+	recordId="$( AgentsToolsPermissionContactId "$1" )" || return 1
+	[ -n "${MDAT_DATA_ROOT:-}" ] && [ -f "$MDAT_DATA_ROOT/contacts/persons/$recordId.md" ] || return 1
+	printf '%s' "$MDAT_DATA_ROOT/contacts/persons/$recordId.md"
+}
+## The name of a refusal's owner or of a grantee: a bare name, or a contact that is recorded.
+AgentsToolsPermissionGranteeAssert(){ ## name, label, context
+	case "$1" in
+		contact:*)
+			AgentsToolsPermissionContactRecord "$1" > /dev/null || {
+				echo "$MDSC_CMD: $3: ❗ ASSERT: $2 names a contact that is not recorded (contact:<id> of the contacts store, DistroAgentsContacts.fn.sh --find-contact): $1" >&2
+				return 1
+			}
+		;;
+		*) AgentsToolsAssertBareName "$1" "$2" "$3" ;;
+	esac
+}
+## The standing grants of a contact: the entries of the `allows:` of its record, `contact:<tool>:<target>:<granted-by>:<time>`, comma-separated, the
+## way a task's are of its board item. Prints each as a TAB-separated row "<tool> <natural target> <granted by> <time>". rc 1 for no record.
+AgentsToolsPermissionContactAllowsList(){ ## contact:<id>
+	local listFile listAllows listEntry listRest listTool listTarget listBy listTime
+	listFile="$( AgentsToolsPermissionContactRecord "$1" )" || return 1
+	listAllows="$( AgentsToolsPermissionField "$listFile" allows )"
+	while [ -n "$listAllows" ] ; do
+		listEntry="${listAllows%%,*}"
+		if [ "$listEntry" != "$listAllows" ] ; then listAllows="${listAllows#*,}" ; else listAllows="" ; fi
+		listEntry="${listEntry# }"
+		[ "${listEntry%%:*}" = "contact" ] || continue
+		listRest="${listEntry#*:}"
+		listTool="${listRest%%:*}" ; listRest="${listRest#*:}"
+		listTarget="${listRest%%:*}" ; listRest="${listRest#*:}"
+		listBy="${listRest%%:*}" ; listTime="${listRest#*:}"
+		[ -n "$listTool" ] && [ -n "$listTarget" ] && [ -n "$listBy" ] || continue
+		printf '%s\t%s\t%s\t%s\n' "$listTool" "$( AgentsToolsPermissionUnescape "$listTarget" )" "$listBy" "$listTime"
+	done
+}
+## Whether a contact's standing grants cover a call, as far as their signer holds what they name: prints "contact <id>" and rc 0, else rc 1.
+AgentsToolsPermissionContactAllows(){ ## contact:<id>, tool, wanted target
+	local allowTool allowTarget allowBy allowTime
+	type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+	while IFS=$'\t' read -r allowTool allowTarget allowBy allowTime ; do
+		[ -n "$allowTool" ] || continue
+		AgentsToolsGrantsToolCovers "$allowTool" "$2" || continue
+		AgentsToolsPermissionCovers "$allowTarget" "$3" || continue
+		AgentsToolsPermissionHolds "$allowBy" "$allowTool" "$allowTarget" > /dev/null || continue
+		printf 'contact %s' "${1#contact:}"
+		return 0
+	done <<< "$( AgentsToolsPermissionContactAllowsList "$1" )"
+	return 1
+}
+## The member a post about a refusal or a grant is made as: the owner, and for a contact the member whose session it happens in.
+AgentsToolsPermissionPoster(){ ## owner
+	local posterMember
+	case "$1" in
+		contact:*)
+			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+			posterMember="$( AgentsToolsActingMember )"
+			printf '%s' "${posterMember:-magic-coordinator}"
+		;;
+		*) printf '%s' "$1" ;;
+	esac
+}
+
 ## A grants field back to its natural value (AgentsToolsPermissionEscape's inverse, for
 ## the characters a pattern can carry).
 AgentsToolsPermissionUnescape(){ ## grants-field value

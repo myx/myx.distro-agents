@@ -159,7 +159,7 @@ AgentsToolsEscalationNote(){ ## block `<Section>/<heading>`
 ## saying it again. Never fails its caller: a reply not posted is one stderr warning.
 AgentsToolsEscalationConfirm(){ ## record file, request id, block (granted|denied|edit|taken|applied|rejected|not-applied|not-yet|sent-up), verdict, answered by, read in the forward's thread (non-empty|empty), reason or the answer's text, who it goes to now (sent-up)
 	local cfFile="$1" cfId="$2" cfBlock="$3" cfVerdict="$4" cfBy="$5" cfForward="${6:-}" cfReason="${7:-}" cfHolder="${8:-}"
-	local cfKind cfChannel cfThread cfBot="" cfMark cfText="" cfOwner cfAsked cfTool="" cfTarget="" cfScope="" cfParts="" cfCount=0 cfLine cfArgs
+	local cfKind cfChannel cfThread cfBot="" cfMark cfText="" cfOwner cfWho cfAsked cfTool="" cfTarget="" cfScope="" cfParts="" cfCount=0 cfLine cfArgs
 	cfKind="$( AgentsToolsEscalationField "$cfFile" kind )"
 	cfChannel="$( AgentsToolsEscalationField "$cfFile" channel )" ; cfThread="$( AgentsToolsEscalationField "$cfFile" thread-ts )"
 	[ "$( AgentsToolsEscalationField "$cfFile" ask-identity )" != "bot" ] || cfBot=1
@@ -169,12 +169,15 @@ AgentsToolsEscalationConfirm(){ ## record file, request id, block (granted|denie
 	[ -n "$cfChannel" ] && [ -n "$cfThread" ] || return 0
 	cfMark="${cfFile%.md}.confirmed.$( printf '%s' "$cfBlock:$cfVerdict:$cfBy" | LC_ALL=C cksum | LC_ALL=C tr -d ' \t' )"
 	( set -o noclobber ; : > "$cfMark" ) 2> /dev/null || return 0
-	cfOwner="$( AgentsToolsEscalationField "$cfFile" owner )"
+	cfOwner="$( AgentsToolsEscalationField "$cfFile" owner )" ; cfWho="$cfOwner"
 	type AgentsToolsPermissionPartyName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include"
 	case "$cfKind" in
 		permission)
 			cfAsked="$( AgentsToolsEscalationAsked "$cfFile" | head -1 )"
 			cfTool="${cfAsked%%$'\t'*}" ; cfTarget="${cfAsked#*$'\t'}"
+			## A call refused for a contact (F7.10) is granted to the contact, not to the member that asked.
+			cfLine="$( AgentsToolsEscalationField "$MMDAPP/.local/agents/sessions/$( AgentsToolsEscalationField "$cfFile" session-id )/$( AgentsToolsEscalationField "$cfFile" refusal-id ).md" owner 2> /dev/null )" || cfLine=""
+			case "$cfLine" in contact:?*) cfWho="$cfLine" ;; esac
 			case "$cfVerdict" in
 				## The folder answer, and the project answer: what was granted is the folder, or the
 				## project, its set keeps, for the session.
@@ -201,7 +204,7 @@ AgentsToolsEscalationConfirm(){ ## record file, request id, block (granted|denie
 			cfTarget="$( AgentsChangeSlot "$cfFile" file )"
 		;;
 	esac
-	cfText="$( ASKP_F_verdict="$cfVerdict" ASKP_F_by="$( AgentsToolsPermissionPartyName "$cfBy" )" ASKP_F_member="$cfOwner" ASKP_F_tool="$cfTool" ASKP_F_target="$cfTarget" \
+	cfText="$( ASKP_F_verdict="$cfVerdict" ASKP_F_by="$( AgentsToolsPermissionPartyName "$cfBy" )" ASKP_F_member="$cfWho" ASKP_F_tool="$cfTool" ASKP_F_target="$cfTarget" \
 		ASKP_F_scope_words="$( [ -z "$cfScope" ] || AgentsToolsEscalationTemplateBlock "$cfKind" "Scope words/$cfScope" )" ASKP_F_participants="$cfParts" ASKP_F_count="$cfCount" \
 		ASKP_F_reason="$cfReason" ASKP_F_text="$cfReason" ASKP_F_holder="$cfHolder" AgentsToolsEscalationTemplateBlock "$cfKind" "Confirmations/$cfBlock" )" || cfText=""
 	if [ -z "$cfText" ] ; then
@@ -605,7 +608,7 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 	## stamp noted first, so the holder that completes this apply finds the line it wrote and
 	## writes no second one; a stamp whose line never came is replaced by a new one.
 	case "$applyKind:$applyVerdict" in
-		permission:allow-once|permission:allow-session|permission:allow-task)
+		permission:allow-once|permission:allow-session|permission:allow-task|permission:allow-contact)
 			applySession="$( AgentsToolsEscalationField "$applyFile" session-id )"
 			applyRefusal="$( AgentsToolsEscalationField "$applyFile" refusal-id )"
 			applyStamp="$( AgentsToolsEscalationNoteField "$applyNote" grant-stamp )"
@@ -652,7 +655,7 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 		;;
 	esac
 	case "$applyKind:$applyVerdict" in
-		permission:allow-once|permission:allow-session|permission:allow-task|permission:allow-folder|permission:allow-project|permission-set:allow-set)
+		permission:allow-once|permission:allow-session|permission:allow-task|permission:allow-contact|permission:allow-folder|permission:allow-project|permission-set:allow-set)
 			if [ -z "$applyGrant" ] ; then
 				## Nothing is granted, so nothing is recorded: the note goes and the claim with it,
 				## and the request stays open for an answer that can be applied. The one-entry set of
@@ -892,6 +895,7 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 		threadVerdict="$( printf '%s\n' "$threadAnswers" | LC_ALL=C grep -v '^UNMATCHED-REPLY ' \
 			| MDAT_VERDICT_WORDS=1 MDAT_VERDICT_KIND="${threadKind:-question}" MDAT_VERDICT_OPTIONS="$threadOptions" MDAT_VERDICT_AUTHORS="$threadAuthors" \
 				MDAT_VERDICT_FOLDER="$( AgentsToolsEscalationFolderOffered "$threadFile" )" MDAT_VERDICT_PROJECT="$( AgentsToolsEscalationFolderOffered "$threadFile" project )" \
+				MDAT_VERDICT_CONTACT="$( AgentsToolsEscalationFolderOffered "$threadFile" contact )" \
 				MDAT_VERDICT_SELECT="$( AgentsToolsEscalationField "$threadFile" select )" MDAT_VERDICT_ASKING="$( AgentsToolsEscalationField "$threadFile" asking-accounts )" \
 				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsEscalationVerdict.awk" 2>/dev/null )" || threadVerdict=""
 		[ -z "$threadNoVerdict" ] || [ -z "$threadVerdict" ] || threadVerdict="RETURNED"$'\t'$'\t'
@@ -997,6 +1001,7 @@ AgentsToolsEscalationTypedVerdict(){ ## record file, the line as typed
 	typedOut="$( printf '1.000001 | CONSOLE | %s\n' "${2//$'\n'/ }" \
 		| MDAT_VERDICT_WORDS=1 MDAT_VERDICT_KIND="$( AgentsToolsEscalationField "$1" kind )" MDAT_VERDICT_OPTIONS="$typedOptions" MDAT_VERDICT_AUTHORS="CONSOLE" \
 			MDAT_VERDICT_FOLDER="$( AgentsToolsEscalationFolderOffered "$1" )" MDAT_VERDICT_PROJECT="$( AgentsToolsEscalationFolderOffered "$1" project )" \
+			MDAT_VERDICT_CONTACT="$( AgentsToolsEscalationFolderOffered "$1" contact )" \
 			MDAT_VERDICT_SELECT="$( AgentsToolsEscalationField "$1" select )" MDAT_VERDICT_ASKING="" \
 			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsEscalationVerdict.awk" 2>/dev/null )" || typedOut=""
 	typedOut="${typedOut%%$'\t'*}"
@@ -1456,7 +1461,7 @@ case "$1" in
 			permission-set:allow-set|permission-set:deny|permission-set:edit) answerFound=1 ;;
 			## The folder answer, only of a request whose post offered the folder; the project
 			## answer, only of one whose post offered the project.
-			permission:allow-folder|permission:allow-project) [ -z "$( AgentsToolsEscalationFolderOffered "$answerFile" "${answerVerdict#allow-}" )" ] || answerFound=1 ;;
+			permission:allow-folder|permission:allow-project|permission:allow-contact) [ -z "$( AgentsToolsEscalationFolderOffered "$answerFile" "${answerVerdict#allow-}" )" ] || answerFound=1 ;;
 			decision:*)
 				while IFS= read -r answerOptionLine ; do
 					answerOptionLine="${answerOptionLine#- }"
@@ -1478,7 +1483,7 @@ case "$1" in
 			local answerAsker="" answerAskerRecord=""
 			answerAsker="$( AgentsToolsEscalationField "$answerFile" session-id )"
 			answerAskerRecord="$( AgentsToolsSessionRunRecord "$answerAsker" )" || answerAskerRecord=""
-			AgentsToolsAuthorityGate "the answer of question $answerId" "$answerId" "$answerAskerRecord" "$answerFile" console \
+			AgentsToolsAuthorityGate "answer question $answerId with $answerVerdict" "$answerId" "$answerAskerRecord" "$answerFile" console \
 				"$answerOp" "$answerMember" "$answerId" "$answerVerdict" ${answerText:+"$answerText"} || :
 			AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
 			[ -z "$( AgentsToolsAuthorityChosen )" ] || answerVerdict="$( AgentsToolsAuthorityChosen )"

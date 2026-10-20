@@ -16,11 +16,13 @@ function ttSlot( name ) {
 	if ( name == "executors" ) { return executors ; }
 	if ( name == "invitees" ) { return invitees ; }
 	if ( name == "open-warnings" ) { return warnings ; }
+	if ( name == "directives" ) { return directives ; }
 	return "{{" name "}}" ;
 }
 BEGIN {
 	member = ENVIRON["BRIEF_MEMBER"] ;
 	warnings = ENVIRON["BRIEF_WARNINGS"] ;
+	directives = ENVIRON["BRIEF_DIRECTIVES"] ;
 	routine = ENVIRON["BRIEF_ROUTINE"] ;
 	kind = ENVIRON["BRIEF_KIND"] ;
 	lockDoc = ENVIRON["BRIEF_LOCK"] ;
@@ -44,6 +46,7 @@ inSection && /^```/ { if ( inBlock ) { done = 1 ; exit ; } inBlock = 1 ; next ; 
 inBlock {
 	line = $0 ;
 	if ( line == "{{open-warnings}}" ) { print warnings ; next ; }
+	if ( line == "{{directives}}" ) { print directives ; next ; }
 	if ( ! harnessLine( line ) ) { next ; }
 	sub( /^\[(own|native|lock|scan)\] /, "", line ) ;
 	print ttFillSlots( line, 1 ) ;

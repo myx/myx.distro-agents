@@ -270,6 +270,8 @@ rigList(){
 		'AgentsHarnessPermissionCheck.test.sh|1|kill -KILL -- "-$rigAskPid"|@probed' \
 		'AgentsHarnessPermissionFolderCheck.test.sh|1|kill -TERM -- "-$callPid"|@probed' \
 		'AgentsHarnessPermissionFolderCheck.test.sh|1|kill -KILL -- "-$callPid"|@probed' \
+		'AgentsHarnessPermissionContactCheck.test.sh|1|kill -TERM -- "-$callPid"|@probed' \
+		'AgentsHarnessPermissionContactCheck.test.sh|1|kill -KILL -- "-$callPid"|@probed' \
 		'AgentsHarnessPermissionJoinCheck.test.sh|1|kill -TERM -- "-$callPid"|@probed' \
 		'AgentsHarnessPermissionJoinCheck.test.sh|1|kill -KILL -- "-$callPid"|@probed' \
 		'AgentsHarnessPermissionProjectCheck.test.sh|1|kill -TERM -- "-$callPid"|@probed' \

@@ -114,7 +114,7 @@ Confirmations go through the chain of command in `magic-team.armed.md`'s "Escala
     - **Basic** — no record needed: conversation, public information, consultation, expertise, as long as nothing long-running or costly is committed.
     - **Recorded level required** — affecting the board, dispatching jobs, or requesting internal information.
     - Assess every request as **granted**, **needs escalation** or **must be denied**. Without a recorded level that covers it, ask the human-owner with who wants what. He allows, denies, or asks for more.
-    - Only the human-owner sets a `permission-level:`. The record is the contacts note (`templates/contacts.document.format.md`) in the inbox of the member the exchange runs under.
+    - Only the human-owner grants a contact access. The contact and what it may ask for are kept by `DistroAgentsContacts.fn.sh`.
     - Every assessment is reported as one digest: originating member, who wanted what, resolution. Send it with `--member-contact-digest-send` (`--magic-contact-digest-send` for another member's correspondence), `--resolved` when settled and `--needs-ruling` when he must rule.
 
 # Interview-alike checkpoint mode

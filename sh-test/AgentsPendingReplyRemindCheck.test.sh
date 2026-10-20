@@ -510,10 +510,10 @@ printf '# rig armed\n' > "$rigScenarioDir/skills/client-rig/client-rig.armed.md"
 printf -- '---\nname: client-rig\n---\n\n# client-rig\n' > "$rigScenarioDir/skills/client-rig/SKILL.md"
 printf 'SLACK_USER_TOKEN=rig-user-token-CLIENT\nSLACK_WORKSPACE_DOMAIN=client.slack.invalid\nSLACK_CONVERSATIONS=CRIGCLNT1\n' > "$rigScenarioDir/ws/.local/.agents/client-rig.agent.env"
 printf '%s\n' 'client-rig 🔧 Rig Client rigclient' > "$rigScenarioDir/ws/.local/agents/team-members-names.registry"
-printf '%s\n' '| slack-id | contact | handle | email | organisation | permission level |' '| --- | --- | --- | --- | --- | --- |' \
-	'| CRIGCLNT1 | rig-client-team | @rig-client-team | <unresolved> | rig | unset |' \
-	'| URIGTHEIR | rig-client-person | @rig-client-person | <unresolved> | rig | unset |' \
-	'| DRIGTHEIR | rig-client-person-dm | @rig-client-person | <unresolved> | rig | unset |' > "$rigScenarioDir/data/inboxes/client-rig/incoming/note-rig-contacts.md"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-contacts.include.sh" || exit 1
+rigContactSeed "$rigScenarioDir/data" client-rig rig-client-team CRIGCLNT1 -
+rigContactSeed "$rigScenarioDir/data" client-rig rig-client-person URIGTHEIR -
+rigContactSeed "$rigScenarioDir/data" client-rig rig-client-person-dm DRIGTHEIR -
 rigClientTs="$( rigTsOf $(( 31 * 60 )) )"
 rigRecordRaw ask-client "owner: client-rig\nkind: question\naddress-to: client:URIGTHEIR\nchannel: client:DRIGTHEIR\nquestion-ts: $rigClientTs\nthread-ts: $rigClientTs\naddressees: URIGTHEIR\nask-identity: member\nasked-at: 2026-09-29 12:00 +0300\n" \
 	'# ❓ Question\n\nMay the rig go on, on your side?\n\n**✅ How to answer**\n- reply\n'

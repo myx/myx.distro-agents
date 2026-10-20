@@ -77,7 +77,6 @@ PARTS = (
     "AgentsManagerScreen.ViewFeed.py",
     "AgentsManagerScreen.ViewMarkdown.py",
     "AgentsManagerScreen.ViewKinds.py",
-    "AgentsManagerScreen.Dashboard.py",
     "AgentsManagerScreen.Sessions.py",
     "AgentsManagerScreen.Pending.py",
     "AgentsManagerScreen.MagicTeam.py",
@@ -109,19 +108,30 @@ LOCAL_PARTS_FOLDER = os.path.join("..", "..", "..", "myx.distro-.local", "sh-lib
 LOCAL_PARTS = (
     "LocalManagerScreen.Subsystems.py",
 )
+## A part of `.local` that stands in the order of the list of roots, since the roots stand in the order they were registered in (Plugins): it is loaded
+## ahead of the part of the screen it is named under, the Dashboard ahead of the sessions.
+LOCAL_PARTS_BEFORE = {
+    "AgentsManagerScreen.Sessions.py": ("LocalManagerScreen.Dashboard.py",),
+}
+
+
+def loadLocalPart(here, part):
+    path = os.path.normpath(os.path.join(here, LOCAL_PARTS_FOLDER, part))
+    if os.path.isfile(path):
+        with open(path, encoding="utf-8") as handle:
+            exec(compile(handle.read(), path, "exec"), globals())
 
 
 def loadParts():
     here = os.path.dirname(os.path.abspath(__file__))
     for part in PARTS:
+        for local in LOCAL_PARTS_BEFORE.get(part, ()):
+            loadLocalPart(here, local)
         path = os.path.join(here, part)
         with open(path, encoding="utf-8") as handle:
             exec(compile(handle.read(), path, "exec"), globals())
     for part in LOCAL_PARTS:
-        path = os.path.normpath(os.path.join(here, LOCAL_PARTS_FOLDER, part))
-        if os.path.isfile(path):
-            with open(path, encoding="utf-8") as handle:
-                exec(compile(handle.read(), path, "exec"), globals())
+        loadLocalPart(here, part)
 
 
 loadParts()

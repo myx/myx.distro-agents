@@ -707,8 +707,19 @@ DagcHarnessModelExport(){
 	done
 	return 0
 }
+## THE LIFETIME OF THE INPUT CACHE (F10.7). The cache markers of a harness run on the Anthropic wire ask for what the preset of this spawn names as its
+## PRESET_INPUT_CACHE_TIME, 5m or 1h: read as the models are, answered from the preset (AgentsToolsPresetOverlay) and exported for the leg, a parent's
+## dropped. Nothing exported is the provider's own lifetime, 5m, and the markers say nothing of it.
+DagcHarnessCacheTimeExport(){
+	local DAGC_CACHE_TIME
+	unset HARNESS_INPUT_CACHE_TIME
+	DAGC_CACHE_TIME="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HARNESS_INPUT_CACHE_TIME 2>/dev/null )" || DAGC_CACHE_TIME=""
+	[ -z "$DAGC_CACHE_TIME" ] || export "HARNESS_INPUT_CACHE_TIME=$DAGC_CACHE_TIME"
+	return 0
+}
 if DagcCliIsLeg "$DAGC_CLI" ; then
 	DagcHarnessModelExport
+	DagcHarnessCacheTimeExport
 fi
 
 ## claude-native: a signed-out spawn uses a configured key, else rc 6; an interactive console is only warned. MAGIC.md, "Claude sign-in".

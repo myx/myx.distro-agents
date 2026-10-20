@@ -32,6 +32,7 @@
 ##      escalated again, to that run's own reports-to
 ##  11. the coordinator escalates to its parent session, else to the person who started it, else to the owners role,
 ##      and never to magic-coordinator; where it is the reports-to it answers at once
+## Settled 2026-10-20 (owner), sections 14-16 (the confirmation is asked on a session no allow-session has reached): --escalate-stop (Cancel withdraws, Enqueue leaves it pending), and the request's post in RequestPermission's form.
 ## Red before F6.10: anyone answers or dismisses any question at once (2-11 fail but the controls).
 ## Offline: a Slack-shaped fake curl first on PATH, a ps that lists the rig's own runs only beside it; everything runs
 ## in a workspace under this check's temp tree.
@@ -251,6 +252,51 @@ rigOwnerPosts(){ ## fixed text -- how many posts to the human-owner's channel ho
 	printf '%s' "$ownerCount"
 }
 
+## The tool itself as the background job (exec), so that a signal reaches it alone: its pid in rigBgPid, its end read by rigBgDone into rigBgStatus.
+rigBgOwn(){ ## result prefix, operation and its arguments...
+	local bgOut="$1" ; shift
+	set -m
+	( cd "$rigWs" && exec env -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_ID -u harnessAgent -u harnessSessionId \
+		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_SCENARIO="$rigTmp" RIG_CURL_LOG="$rigTmp/curl.log" bash "$rigTools" "$@" ) > "$bgOut.out" 2> "$bgOut.err" < /dev/null &
+	rigBgPid=$!
+	set +m
+	rigProcNote "$rigBgPid" ; rigKept="$rigKept $rigBgPid"
+}
+rigBgDone(){ ## guard seconds
+	local doneLeft="$1"
+	rigBgStatus=0
+	while [ -n "$( rigProcStill "$rigBgPid" )" ] && [ "$doneLeft" -gt 0 ] ; do sleep 1 ; doneLeft=$(( doneLeft - 1 )) ; done
+	if [ -n "$( rigProcStill "$rigBgPid" )" ] ; then
+		rigProcGroupSignal TERM "$rigBgPid" ; sleep 1 ; rigProcGroupSignal KILL "$rigBgPid"
+		wait "$rigBgPid" 2> /dev/null || : ; rigBgStatus="still-running" ; return 0
+	fi
+	wait "$rigBgPid" 2> /dev/null || rigBgStatus=$?
+}
+## What the holder wrote in the thread of a request: a reply, or a click on its question.
+rigThreadReply(){ ## request id, the reply
+	local replyFile replyTs replyThread
+	replyFile="$( rigRecordOf "$1" )" ; replyTs="$( rigField "$replyFile" question-ts )" ; replyThread="$( rigField "$replyFile" thread-ts )"
+	printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"session opened"},{"ts":"%s","user":"URIGBOT01","text":"May it?","thread_ts":"%s"},{"ts":"1700000500.000001","user":"URIGOWNER","text":"%s","thread_ts":"%s"}],"has_more":false}\n' \
+		"$replyThread" "$replyTs" "$replyThread" "$2" "$replyThread" > "$rigTmp/replies.$replyThread.json"
+}
+rigThreadClick(){ ## request id, the emoji name
+	local clickFile clickTs clickThread
+	clickFile="$( rigRecordOf "$1" )" ; clickTs="$( rigField "$clickFile" question-ts )" ; clickThread="$( rigField "$clickFile" thread-ts )"
+	printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"session opened"},{"ts":"%s","user":"URIGBOT01","text":"May it?","thread_ts":"%s","reactions":[{"name":"%s","count":1,"users":["URIGOWNER"]}]}],"has_more":false}\n' \
+		"$clickThread" "$clickTs" "$clickThread" "$2" > "$rigTmp/replies.$clickThread.json"
+}
+rigCollect(){ rigOp --intern-op-pending-reply-collect --ended --context rig-authority ; }
+## A dismissal the console caller is refused, enqueued: the request in rigReq, the question it would dismiss in rigOrig.
+rigDismissAsk(){ ## asking run, its member
+	rigAsk "$1" "$2" question
+	rigOrig="$rigPend"
+	rigOp --manager-pending-reply-dismiss --id "$rigOrig" --reason stale --escalate-enqueue
+	rigReq="$( rigPendingId )"
+}
+rigOf(){ ## pending id, field
+	rigField "$( rigRecordOf "$1" )" "$2"
+}
+
 echo "-- 1. the console caller who is the run's reports-to answers at once --"
 rigAsk rig-dev magic-developer decision --options "$rigOptions"
 rigOp --manager-pending-reply-answer --id "$rigPend" --answer keep
@@ -400,6 +446,106 @@ rigOp --intern-op-pending-reply-collect --ended --context rig-authority
 rigAssert "after the sweep, the request holds the holder's text, and the original is answered with it" \
 	"$( rigField "$( rigRecordOf "$rigText" )" chosen ):$( rigField "$( rigRecordOf "$rigTextPend" )" status ):$( LC_ALL=C grep -c -F 'the holder text' "$( rigRecordOf "$rigTextPend" )" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "its-text" : "not-its-text" }' )" \
 	"the holder text:reply-received:its-text"
+
+echo "-- 14. --escalate-wait --escalate-stop: approved acts, Cancel withdraws the request, Enqueue leaves it pending for the sweep --"
+rigAsk rig-tester magic-tester decision --options "$rigOptions"
+rigSeenMark
+rigBgOwn "$rigTmp/s1" --manager-pending-reply-answer --id "$rigPend" --answer drop --escalate-wait --escalate-stop
+rigWaitFor 20 rigHasNew
+rigHolderAnswers "$( rigNewRequest )" allow-once
+rigBgDone 30
+rigAssert "approved: exit 0, and the call acted" "$rigBgStatus:$( rigStatus "$rigPend" )" "0:reply-received:drop"
+rigAsk rig-tester magic-tester decision --options "$rigOptions"
+rigStopPend="$rigPend"
+rigSeenMark
+rigBgOwn "$rigTmp/s2" --manager-pending-reply-answer --id "$rigStopPend" --answer drop --escalate-wait --escalate-stop
+rigWaitFor 20 rigHasNew
+rigStopReq="$( rigNewRequest )"
+rigProcSignal TERM "$rigBgPid"
+rigBgDone 30
+rigAssert "Cancel (TERM): the wait ends with 130 and says the request is withdrawn" "$rigBgStatus:$( LC_ALL=C grep -c "^WITHDRAWN $rigStopReq" "$rigTmp/s2.out" )" "130:1"
+rigAssert "the request is withdrawn, by the tooling, its record kept; the original is untouched" "$( rigOf "$rigStopReq" status ):$( rigOf "$rigStopReq" withdrawn-by | LC_ALL=C cut -c1-7 ):$( rigStatus "$rigStopPend" )" "withdrawn:tooling:reply-pending:"
+rigHolderAnswers "$rigStopReq" allow-once
+rigAssert "a later answer acts on nothing: the original is still untouched" "$( rigStatus "$rigStopPend" )" "reply-pending:"
+rigAsk rig-tester magic-tester decision --options "$rigOptions"
+rigEnqPend="$rigPend"
+rigSeenMark
+rigBgOwn "$rigTmp/s3" --manager-pending-reply-answer --id "$rigEnqPend" --answer drop --escalate-wait --escalate-stop
+rigWaitFor 20 rigHasNew
+rigEnqReq="$( rigNewRequest )"
+rigAssert "waiting for the answer, the request is a waited one" "$( rigOf "$rigEnqReq" request-mode )" wait
+rigProcSignal USR1 "$rigBgPid"
+rigBgDone 30
+rigAssert "Enqueue (USR1): the wait ends with 0 and says the request is enqueued" "$rigBgStatus:$( LC_ALL=C grep -c "^ENQUEUED $rigEnqReq" "$rigTmp/s3.out" )" "0:1"
+rigAssert "the request stays pending, now an enqueued one; the original is untouched" "$( rigOf "$rigEnqReq" status ):$( rigOf "$rigEnqReq" request-mode ):$( rigStatus "$rigEnqPend" )" "reply-pending:enqueue:reply-pending:"
+rigThreadReply "$rigEnqReq" allow-once
+rigCollect
+rigAssert "the sweep acts on the holder's allow: the original is answered as the call asked" "$( rigStatus "$rigEnqPend" )" "reply-received:drop"
+
+echo "-- 15. a request is posted in RequestPermission's form, with its emoji, and answered by reply or by click --"
+rm -f "$rigTmp"/post.* "$rigTmp/posts" "$rigTmp/reactions"
+rigDismissAsk rig-tester magic-tester
+rigPostFile="$( LC_ALL=C grep -l -F 'Allow **dismiss question' "$rigTmp"/post.* 2> /dev/null | head -1 )"
+rigAssert "the post is the permission's: its first line says plainly what is asked, and for whom" "$( LC_ALL=C grep -c -F "Allow **dismiss question $rigOrig** for **user-$rigAcct**?" "${rigPostFile:-/nonexistent}" )" 1
+rigAssert "it has the permission's parts: why, the task, how to answer, the refusal by its id; and the old wording is gone" \
+	"$( LC_ALL=C grep -c -F -e 'Why this task needs it' -e 'How to answer' -e 'allow-session' -e 'Refusal:' "${rigPostFile:-/nonexistent}" ):$( LC_ALL=C grep -c -F 'asks for the authority of' "${rigPostFile:-/nonexistent}" || : )" "1:0"
+rigPostTs="$( rigOf "$rigReq" question-ts )"
+rigAssert "the emoji of a permission are placed under it: deny, allow once, allow for the session" "$( LC_ALL=C grep -F "$rigPostTs " "$rigTmp/reactions" 2> /dev/null | LC_ALL=C sed 's/^[^ ]* //' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "one repeat x "
+rigAssert "the request keeps the refusal it logged, and the slots of its post" "$( rigOf "$rigReq" refusal-id | LC_ALL=C cut -c1-8 ):$( [ -f "$( rigRecordOf "$rigReq" | LC_ALL=C sed 's/\.md$//' ).fields" ] && printf kept || printf none )" "refusal-:kept"
+for rigMode in reply click ; do
+	for rigWord in "allow-once|one" "deny|x" ; do
+		rigDismissAsk rig-tester magic-tester
+		if [ "$rigMode" = reply ] ; then rigThreadReply "$rigReq" "${rigWord%%|*}" ; else rigThreadClick "$rigReq" "${rigWord#*|}" ; fi
+		rigCollect
+		rigWant="withdrawn" ; [ "${rigWord%%|*}" != deny ] || rigWant="reply-pending"
+		rigAssert "$rigMode ${rigWord%%|*}: read, and applied as it says" "$( rigOf "$rigReq" verdict ):$( rigOf "$rigOrig" status )" "${rigWord%%|*}:$rigWant"
+	done
+done
+rigDismissAsk rig-tester magic-tester
+rigThreadReply "$rigReq" allow-session
+rigCollect
+rigAssert "reply allow-session: read, and the dismissal acted" "$( rigOf "$rigReq" verdict ):$( rigOf "$rigOrig" status )" "allow-session:withdrawn"
+rigAssert "it gave the requester the authority over the session while it lives: a grant of its refusal, by session" "$( LC_ALL=C grep -c "^session:authority:magic-coordinator:" "$rigWs/.local/agents/sessions/rig-cow/grants" 2> /dev/null || : )" 1
+rigAsk rig-tester magic-tester question
+rigSeenMark
+rigOp --manager-pending-reply-dismiss --id "$rigPend" --reason "again"
+rigAssert "a second action on that session needs no new request: it acts at once, exit 0, no PENDING" "$rigOpRc:$( rigPendingId ):$( rigStatus "$rigPend" ):$( rigNewRequest )" "0::withdrawn::"
+rigDismissAsk rig-orphan magic-tester
+rigThreadClick "$rigReq" repeat
+rigCollect
+rigAssert "click allow-session: read, and the dismissal acted" "$( rigOf "$rigReq" verdict ):$( rigOf "$rigOrig" status )" "allow-session:withdrawn"
+rigAssert "and its session has the grant too" "$( LC_ALL=C grep -c "^session:authority:" "$rigWs/.local/agents/sessions/rig-alone/grants" 2> /dev/null || : )" 1
+rigAssert "the grant is signed by the answerer the reader names, never by the owners role instead" "$( LC_ALL=C sed -n 's/^session:authority:[^:]*:\([^:]*\):.*$/\1/p' "$rigWs/.local/agents/sessions/rig-alone/grants" | head -1 )" "URIGOWNER"
+rigDismissAsk rig-asks-n keeper-myx
+rigNobodySaid="$( cd "$rigWs" && MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_SCENARIO="$rigTmp" RIG_CURL_LOG="$rigTmp/curl.log" \
+	bash -c '. "$1/questions/AgentsTools.Authority.include" ; AgentsToolsAuthorityRequestSettle "$2" allow-session ""' rig-nobody "$rigHere" "$( rigRecordOf "$rigReq" )" 2>&1 )"
+rigAssert "an allow-session whose answer names nobody grants nothing, says so, and leaves the request open and the question untouched" \
+	"$( printf '%s\n' "$rigNobodySaid" | LC_ALL=C grep -c "^NOT-GRANTED $rigReq: the answer names nobody to sign the grant" ):$( rigOf "$rigReq" status ):$( rigStatus "$rigOrig" ):$( [ -s "$rigWs/.local/agents/sessions/rig-child-n/grants" ] && printf granted || printf none )" "1:reply-pending:reply-pending::none"
+
+echo "-- 16. the confirmation to the owner of a mapped console: the same way, by reply or by click --"
+rigMapOwnerTo "$rigAcct"
+rm -f "$rigTmp"/post.* "$rigTmp/posts" "$rigTmp/reactions"
+rigAsk rig-asks-n keeper-myx decision --options "$rigOptions"
+rigConfirmPend="$rigPend"
+rigSeenMark
+rigOp --manager-pending-reply-answer --id "$rigConfirmPend" --answer drop
+rigConfirm="$( rigNewRequest )"
+rigConfirmTs="$( rigOf "$rigConfirm" question-ts )"
+rigAssert "the confirmation is posted in the same form, to the owner's channel, and goes as a readback" "$( rigOwnerPosts "Allow **answer question $rigConfirmPend with drop**" ):$( rigOf "$rigConfirm" kind )" "1:readback"
+rigAssert "its emoji are the form's: confirm and stop" "$( LC_ALL=C grep -F "$rigConfirmTs " "$rigTmp/reactions" 2> /dev/null | LC_ALL=C sed 's/^[^ ]* //' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "+1 x "
+printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"Confirm?","reactions":[{"name":"+1","count":1,"users":["URIGOWNER"]}]}],"has_more":false}\n' "$rigConfirmTs" > "$rigTmp/replies.$rigConfirmTs.json"
+rigCollect
+rigAssert "a click on the thumb confirms: the original is answered" "$( rigOf "$rigConfirm" verdict ):$( rigStatus "$rigConfirmPend" )" "yes:reply-received:drop"
+rigAsk rig-asks-n keeper-myx decision --options "$rigOptions"
+rigConfirmPend="$rigPend"
+rigSeenMark
+rigOp --manager-pending-reply-answer --id "$rigConfirmPend" --answer drop
+rigConfirm="$( rigNewRequest )"
+rigConfirmTs="$( rigOf "$rigConfirm" question-ts )"
+printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"Confirm?"},{"ts":"1700000800.000001","user":"URIGOWNER","text":"no","thread_ts":"%s"}],"has_more":false}\n' "$rigConfirmTs" "$rigConfirmTs" > "$rigTmp/replies.$rigConfirmTs.json"
+rigCollect
+rigAssert "a reply no refuses it: the original is untouched" "$( rigOf "$rigConfirm" verdict ):$( rigStatus "$rigConfirmPend" )" "no:reply-pending:"
+rigMapOwnerTo rig-owner-account
 
 echo "-- 12. the escalation tool states when to escalate, with its threshold, in its own description --"
 rigAssert "EscalateDecision's description: only what needs the attention of the one reported to, and the rest decided" \

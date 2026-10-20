@@ -94,7 +94,7 @@ def escalateOffered(state, result, about):
     if not [line for line in said if AUTHORITY_SAYS in line]:
         return False
     openDialog(state, "escalate", {"about": {"lines": said + [" ",
-        "Request and wait: the same call asks for the authority, and waits for the answer, in the background.",
+        "Request and wait: the same call asks for the authority, and waits for the answer, in a window that follows what it writes. Cancel there withdraws the request; Enqueue leaves it pending.",
         "Enqueue: the same call asks for it, and returns at once; it acts once the answer comes."]}},
         {"id": result["key"].split(":", 2)[2], "action": about["action"], "words": list(result["words"]), "viewKey": about["viewKey"]},
         "Without the authority")
@@ -103,15 +103,16 @@ def escalateOffered(state, result, about):
     return True
 
 
-## The way picked in that dialog: the same call again, with --escalate-wait, which runs apart from
-## the other actions so that none waits behind it, or with --escalate-enqueue, as any action.
+## The way picked in that dialog: the same call again, with --escalate-wait, run in the big output dialog that follows what it writes
+## (runFollowed, the one a command of a workspace runs in) with --escalate-stop, so that the dialog's Cancel, which ends it, withdraws
+## the request and its Enqueue leaves the request pending; or with --escalate-enqueue, as any action. The tooling call acts on the answer.
 def submitEscalate(state, dialog, button):
     about = dialog["about"]
-    flag = "--escalate-wait" if button == "wait" else "--escalate-enqueue"
-    askCall(state, about["action"], about["id"], about["words"] + [flag], None,
-            {"viewKey": about["viewKey"], "escalation": button})
     if button == "wait":
-        state.calls[-1]["kind"] = "escalation"
+        runFollowed(state, "Request and wait", about["words"] + ["--escalate-wait", "--escalate-stop"], None, enqueue=True)
+        return None
+    askCall(state, about["action"], about["id"], about["words"] + ["--escalate-enqueue"], None,
+            {"viewKey": about["viewKey"], "escalation": button})
     state.notice = "request asked of the tooling"
     state.noticeOf = None
     return None

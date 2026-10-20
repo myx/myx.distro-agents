@@ -78,6 +78,14 @@ AgentsToolsMemberSkillsetBring(){ ## member, operation
 	printf '%s\t%s\n' "$bringRoot" "$bringWorkspace"
 }
 
+## rc 0 when a member's session may select the workspace (--select-workspace, F2.2) given by its path: it is the one the member-workspace resolution above gives the
+## member (where it is set up, when that is not this one). The workspace the session is in is its own to select and is asked of nobody here.
+AgentsToolsMemberWorkspaceSelectable(){ ## member, workspace path
+	local selectTarget
+	selectTarget="$( AgentsToolsMemberWorkspaceResolve "$1" "--select-workspace" 2> /dev/null )" || return 1
+	[ -n "$selectTarget" ] && [ "$selectTarget" = "$2" ]
+}
+
 ## rc 0 when the member is invited here: set up only in another workspace on this machine.
 ## Silent: what stops an invited member's operation is said where its skillset is brought.
 AgentsToolsMemberInvited(){ ## member
@@ -224,7 +232,7 @@ AgentsToolsScopeHoldsKeys(){ ## workspace, scope, key prefix
 AgentsToolsSpawnSettingKey(){ ## key
 	local keyNames
 	case "$1" in
-		SPAWN_CLI_SERVICE|SPAWN_HARNESS_TIER|HARNESS_MODEL_LIGHT|HARNESS_MODEL_MAIN) return 0 ;;
+		SPAWN_CLI_SERVICE|SPAWN_HARNESS_TIER|HARNESS_MODEL_LIGHT|HARNESS_MODEL_MAIN|HARNESS_INPUT_CACHE_TIME) return 0 ;;
 		''|SPAWN_*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_]*) return 1 ;;
 	esac
 	keyNames="$( LC_ALL=C sed -n 's/^HARNESS_CREDENTIAL_NAMES=//p' "${BASH_SOURCE[0]%/*}/../harness/"Agents*Harness.sh 2> /dev/null | LC_ALL=C tr -c 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' ' ' )" || keyNames=""

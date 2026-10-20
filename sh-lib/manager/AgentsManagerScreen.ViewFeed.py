@@ -38,6 +38,32 @@ def shortCount(value):
     return str(number)
 
 
+## A size in bytes for the eye: 512B, 123.0M, 14.1G.
+def shortBytes(value):
+    if not value.isdigit():
+        return value
+    number = float(value)
+    for unit in ("B", "K", "M", "G"):
+        if number < 1024:
+            return "%d%s" % (number, unit) if unit == "B" else "%.1f%s" % (number, unit)
+        number /= 1024.0
+    return "%.1fT" % number
+
+
+## A span of time in seconds for the eye, by its two largest parts: 42s, 12m 5s, 2h 27m, 13d 4h.
+def shortSpan(value):
+    if not value.isdigit():
+        return value
+    seconds = int(value)
+    if seconds < 60:
+        return "%ds" % seconds
+    if seconds < 3600:
+        return "%dm %ds" % (seconds // 60, seconds % 60)
+    if seconds < 86400:
+        return "%dh %dm" % (seconds // 3600, seconds % 3600 // 60)
+    return "%dd %dh" % (seconds // 86400, seconds % 86400 // 3600)
+
+
 ## A moment as the operations write it (2026-10-13T00:54:53Z), in seconds, or None.
 def isoEpoch(value):
     try:

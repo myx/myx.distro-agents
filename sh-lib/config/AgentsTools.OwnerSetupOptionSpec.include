@@ -50,7 +50,7 @@ AgentsToolsOwnerSetupOptionSpec(){
 			printf '%s\n' '-|<effort>|plain|how hard the model thinks, optional: low, default or normal, high or hard. High or hard takes a normal model to the heavy tier, which is the harness effort high. Not implemented in the CLIs yet, and fixed for a spawn: nothing changes it while the run goes on.'
 		;;
 		PRESET_INPUT_CACHE_TIME)
-			printf '%s\n' '-|<seconds>|plain|how long the provider keeps the input cache, in whole seconds, optional; the provider implementation has a default of its own. Stored only: nothing reads it yet.'
+			printf '%s\n' '-|<5m-or-1h>|plain|how long the provider keeps the input cache that the cache markers of a harness run on the Anthropic wire ask for, optional: 5m, which is the provider default and puts nothing in a marker, or 1h, which a work-duty loop uses to keep its prefix over its idle waits. A native CLI keeps its own.'
 		;;
 		PRESET_CONTEXT_MAX_SIZE)
 			printf '%s\n' '-|<tokens>|plain|the largest context the model works with, in whole tokens, optional; the provider implementation has a default of its own. Stored only: nothing reads it yet.'

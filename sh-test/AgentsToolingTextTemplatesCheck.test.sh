@@ -95,6 +95,24 @@ rigAssert "the line that hands a request to a holder: the holder named by the ad
 	'A permission request asked by keeper-rig is now yours to answer, keeper-holder. keeper-other does not hold WebSearch, so that answer is not applied. Answer it with the escalation answer operation, naming request `11111111-2222`.'
 rigAssert "what was not held, for a call with no target" \
 	"$( ASKP_F_by=keeper-other ASKP_F_tool=WebSearch rigBlock "$rigNote" Reasons/not-held )" 'keeper-other does not hold WebSearch'
+## The texts the contacts subsystem prints where a contact is used (F7.10): the two scenarios and the question to the human-owner.
+rigAssert "the way to ask the human-owner about a contact: the refusal, the contact by name, the one call of the escalation path, what his answer opens" \
+	"$( ASKP_F_member=client-ndm ASKP_F_id=alice-one ASKP_F_name='Alice One' ASKP_F_asked='Alice wants a job.' ASKP_F_refusal=refusal-1 ASKP_F_session=sess-1 rigBlock "$rigNote" Contacts/escalation-ask )" \
+	$'The refusal refusal-1 is recorded for the contact alice-one (Alice One), in session sess-1. Ask the human-owner with `RequestPermission refusal_id=refusal-1 reason="client-ndm asks about the contact alice-one: Alice wants a job." task_ref=<the task this serves>`.\nHis click or word opens the grant: for this session, or, with 👤, for the contact whatever the session.'
+rigAssert "the same, for a contact with no name: the parenthesis goes with it" \
+	"$( ASKP_F_member=client-ndm ASKP_F_id=alice-one ASKP_F_asked='Alice wants a job.' ASKP_F_refusal=refusal-1 ASKP_F_session=sess-1 rigBlock "$rigNote" Contacts/escalation-ask | head -1 )" \
+	$'The refusal refusal-1 is recorded for the contact alice-one, in session sess-1. Ask the human-owner with `RequestPermission refusal_id=refusal-1 reason="client-ndm asks about the contact alice-one: Alice wants a job." task_ref=<the task this serves>`.'
+rigAssert "being contacted by a sender nobody recorded: said so, with the next step" \
+	"$( ASKP_F_value=UX rigBlock "$rigNote" Contacts/contacted-unknown | head -1 )" \
+	'No contact is recorded for UX. It is met at Ingest and Basic only: read the request, answer what needs no record, commit nothing.'
+rigAssert "being contacted by a recorded sender: the access first, the tiers, the calls to make (three lines hold the four)" \
+	"$( ASKP_F_id=alice-one ASKP_F_access='dispatch on job-18 (allowed by human-owner)' rigBlock "$rigNote" Contacts/contacted-known | LC_ALL=C grep -c -F -e 'Access of alice-one: dispatch on job-18 (allowed by human-owner)' -e 'Ingest, always: read and understand it.' -e '--contact-access alice-one --tool <tool> --target <target>' -e '--escalate-contact alice-one' )" 3
+rigAssert "reaching a contact, every part given: the contact, how to meet it, a send line for each channel" \
+	"$( ASKP_F_id=alice-one ASKP_F_name='Alice One' ASKP_F_organisation=ndm ASKP_F_how='short messages' ASKP_F_slack='conversations c' ASKP_F_email='a@b.c' rigBlock "$rigNote" Contacts/reaching )" \
+	$'Reach alice-one, Alice One of ndm. How to meet them: short messages.\nSlack: conversations c. Send with `DistroAgentsTools.fn.sh --member-comms-slack-send-message <you> <conversation> <text>`.\nE-mail: a@b.c. Send with `DistroAgentsTools.fn.sh --member-comms-email-send <you> <address> -- <subject> -- <body>`.\nA send to an address that is no coordinate of a contact you hold is refused. Record what an exchange brings with `DistroAgentsContacts.fn.sh --collect-contact`.'
+rigAssert "reaching a contact that has only a name: no organisation, no how-to, no Slack, no e-mail line" \
+	"$( ASKP_F_id=alice-one ASKP_F_name='Alice One' rigBlock "$rigNote" Contacts/reaching )" \
+	$'Reach alice-one, Alice One.\nA send to an address that is no coordinate of a contact you hold is refused. Record what an exchange brings with `DistroAgentsContacts.fn.sh --collect-contact`.'
 ## Each report has the form the ask posts have: a title that says what it is, with its icon,
 ## the task in words where one is known, then each field under a label of its own.
 rigHandbackFull=$'# 🏁 Handback\n\n**🗂 Task**\nT\n\n**📦 Outcome**\nO\n\n**🔍 Findings**\nF\n\n**⏳ Unfinished, and what was not checked**\nU\n\n**📬 Answers collected, and questions still open**\nC'
@@ -129,7 +147,8 @@ rigInCode(){ ## fixed text -> how many code lines of the package hold it
 	cat "$rigHere"/*/*.sh "$rigHere"/*/*.include "$rigPackage/sh-scripts"/*.sh 2>/dev/null | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- "$1" || :
 }
 for rigPhrase in ' joined%s' 'posted no handback' 'left questions of its own open' 'Answered by $' 'Readback by $' 'Withdrawn by $' 'is now yours to answer' 'The answer in this thread is the verdict' 'Still waiting for your answer' \
-	"'Handback\\n" "'Findings: %s" 'Task as given:' 'What was established' 'Unfinished, and what was not checked' 'Confidence, and what was not checked' 'Action required:' 'What you need to do' 'Answers collected, and questions still open' ; do
+	"'Handback\\n" "'Findings: %s" 'Task as given:' 'What was established' 'Unfinished, and what was not checked' 'Confidence, and what was not checked' 'Action required:' 'What you need to do' 'Answers collected, and questions still open' \
+	'It is met at Ingest and Basic only' 'His click or word opens the grant' 'Ingest, always: read and understand it' 'Send with `DistroAgentsTools.fn.sh --member-comms' ; do
 	rigAssert "no code line holds: $rigPhrase"                "$( rigInCode "$rigPhrase" )" 0
 done
 rigAssert "control: the same search does find a text that is written in code" "$( [ "$( rigInCode 'Nothing was sent.' )" -gt 0 ] && printf found || printf blind )" found

@@ -30,6 +30,16 @@ esac
 
 AgentTestingTools(){
 	local MDSC_CMD='AgentTestingTools'
+	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,
+	## and the call is made again under what they resolve (sh-lib/common/AgentsTools.CommonOptions.include).
+	case "${agentsCommonFronted:-}:${2:-}" in
+		:--team-member|:--session-id|:--spawn-id|:--select-workspace|:--tooling-origin)
+			local commonRc=0
+			type AgentsToolsCommonRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
+			AgentsToolsCommonRun AgentTestingTools AgentTestingTools.fn.sh "$@" || commonRc=$?
+			return "$commonRc"
+		;;
+	esac
 	case "$1" in
 
 		## A testing need of the calling member: --why <text> and the queue's options, [--project <p>] [--file <changed-file>]... [--about <scratch-folder>]

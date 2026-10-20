@@ -119,24 +119,21 @@ rigWorld(){ ## -- a fresh workspace and skillset with the default tokens, member
 	printf 'SLACK_USER_TOKEN=rig-user-token-MEL\nSLACK_BOT_TOKEN=rig-bot-token-MEL\n' > "$rigWs/.local/.agents/client-mel.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-KEEPER\n' > "$rigWs/.local/.agents/keeper-myx.agent.env"
 	: > "$rigTmp/post-answers"
-	## Each client's own contacts note: an external send passes the outbound contact gate
-	## (AgentsToolsContactAssertKnown) only for a listed recipient, and these are the
-	## rig's own channel, owner and DM. Under the data root every send here is given,
-	## outside .local/agents so the registry folder holds only what the build wrote.
+	## Each client's own contacts: an external send passes the outbound contact gate
+	## (AgentsToolsContactAssertKnown) only for a recipient that is a coordinate of a contact
+	## it holds, and these are the rig's own channel, owner and DM. Under the data root every
+	## send here is given, outside .local/agents so the registry folder holds only what the
+	## build wrote.
 	local contactsMember
+	. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-contacts.include.sh" || exit 1
 	rm -rf "$rigDataRoot"
 	for contactsMember in client-ndm client-mel ; do
-		mkdir -p "$rigDataRoot/inboxes/$contactsMember/incoming"
-		printf '%s\n' \
-			'| slack-id | contact | handle | email | organisation | permission level |' \
-			'| --- | --- | --- | --- | --- | --- |' \
-			'| CRIG00001 | rig-team | @rig-team | <unresolved> | rig | unset |' \
-			'| URIGOWNER | rig-owner | @rig-owner | <unresolved> | rig | unset |' \
-			'| DRIG00001 | rig-owner-dm | @rig-owner | <unresolved> | rig | unset |' \
-			'| URIGKEEPER | rig-keeper | @rig-keeper | <unresolved> | rig | unset |' \
-			'| URIGNDM | rig-client-ndm | @rig-client-ndm | <unresolved> | rig | unset |' \
-			'| URIGACCT | rig-account | @rig-account | <unresolved> | rig | unset |' \
-			> "$rigDataRoot/inboxes/$contactsMember/incoming/note-rig-contacts.md"
+		rigContactSeed "$rigDataRoot" "$contactsMember" rig-team CRIG00001 -
+		rigContactSeed "$rigDataRoot" "$contactsMember" rig-owner URIGOWNER -
+		rigContactSeed "$rigDataRoot" "$contactsMember" rig-owner-dm DRIG00001 -
+		rigContactSeed "$rigDataRoot" "$contactsMember" rig-keeper URIGKEEPER -
+		rigContactSeed "$rigDataRoot" "$contactsMember" rig-client-ndm URIGNDM -
+		rigContactSeed "$rigDataRoot" "$contactsMember" rig-account URIGACCT -
 	done
 	rigBuild
 }

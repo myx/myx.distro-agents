@@ -35,7 +35,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
-			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: syntax is <member> <item-filename> [--from-member <member>] [--include-processed] [--no-commit] -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
+			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: syntax is <member> <item-filename> [--from-member <member>] [--include-processed] [--standing yes|no] [--no-commit] -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<member>" member-inbox-upsert || { set +e ; return 1 ; }
@@ -49,7 +49,7 @@ case "$1" in
 			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local includeProcessed="no" existingPath="" noCommit="no"
+		local includeProcessed="no" existingPath="" noCommit="no" standingValue=""
 		local target=""
 		local content contentFromFile="false" bodyMode="" bodyModeCount=0
 		## Who is writing: the `from` a new item is stamped with when its content names none.
@@ -99,12 +99,25 @@ case "$1" in
 					noCommit="yes"
 					shift
 				;;
+				## A note only: sets the header `standing: yes|no` (inbox-item.note's contract). A standing note is in force until it is processed
+				## (AgentDispatcherTools.fn.sh --standing-directives, and the brief of a spawn).
+				--standing)
+					case "${2:-}" in
+						yes|no) standingValue="$2" ;;
+						*) echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --standing is yes or no: ${2:-<nothing>}" >&2 ; set +e ; return 1 ;;
+					esac
+					shift 2
+				;;
 				*)
 					echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: unrecognized argument: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
+		case "$standingValue:$itemName" in
+			:*|*:note-*) ;;
+			*) echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --standing is for a note (note-*), and this is $itemName -- nothing was written" >&2 ; set +e ; return 1 ;;
+		esac
 		if [ "$bodyModeCount" -gt 1 ] ; then
 			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
 			set +e ; return 1
@@ -178,6 +191,19 @@ case "$1" in
 				mkdir -p "$MMDAPP/.local/temp" && headerOpsFile="$( mktemp "$MMDAPP/.local/temp/mdat-intern-op-inbox-headers.XXXXXX" )" || exit 1
 				trap 'rm -f "$headerOpsFile"' EXIT
 				printf '%s' "$createDefaults" > "$headerOpsFile" || exit 1
+				printf '%s\n' "$content" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk"
+			)" || { set +e ; return 1 ; }
+		fi
+		## --standing: the header set on the content as it would be written, over a value it has; the rest of the content as it is.
+		if [ -n "$standingValue" ] ; then
+			if [ "$openFrontmatter" = "true" ] ; then
+				echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --standing: the content opens a frontmatter block it never closes -- nothing was written" >&2
+				set +e ; return 1
+			fi
+			content="$(
+				mkdir -p "$MMDAPP/.local/temp" && headerOpsFile="$( mktemp "$MMDAPP/.local/temp/mdat-intern-op-inbox-standing.XXXXXX" )" || exit 1
+				trap 'rm -f "$headerOpsFile"' EXIT
+				printf 'upsert\tstanding\t%s\n' "$standingValue" > "$headerOpsFile" || exit 1
 				printf '%s\n' "$content" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk"
 			)" || { set +e ; return 1 ; }
 		fi

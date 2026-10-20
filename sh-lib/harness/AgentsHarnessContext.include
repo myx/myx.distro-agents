@@ -22,7 +22,8 @@
 ## (AgentsTranscriptContextRender), and the event-track feed reads the same lines live.
 ## THE RESUME: MDAT_HARNESS_RESUME_CONTEXT names a file to continue from. Its array is
 ## loaded as stored and the prompt this process was given -- the review corrections --
-## is appended as a new user turn, so the request begins with the old one byte for byte.
+## is appended as a new user turn, so the request begins with the old one byte for byte. A root this leg has that the kept messages do not
+## name (a child's) comes with that turn (F10.7), never into the system text or a record kept.
 ##
 
 harnessContextFile=""
@@ -112,11 +113,11 @@ AgentsHarnessContextBegin(){ ## from (default 0)
 	beginTools="$( AgentsHarnessContextToolsJson )"
 	beginTemp="$harnessContextFile.$$"
 	{
-		printf '{"type":"context","version":1,"session":"%s","member":"%s","service":"%s","model":"%s","api_host":"%s","wire":"%s","machine":"%s","leg":%s,"from":%s,"ts":"%s","cache_key":"%s","task":"%s"}\n' \
+		printf '{"type":"context","version":1,"session":"%s","member":"%s","service":"%s","model":"%s","api_host":"%s","wire":"%s","machine":"%s","leg":%s,"from":%s,"ts":"%s","cache_key":"%s","system_shared":%s,"task":"%s"}\n' \
 			"$MDAT_SPAWN_SESSION_ID" "$( AgentsHarnessContextEscape "${harnessAgent:-}" )" "$( AgentsHarnessContextEscape "${harnessProviderName:-}" )" \
 			"$( AgentsHarnessContextEscape "${harnessModel:-}" )" "$( AgentsHarnessContextEscape "${harnessHost:-}" )" "$harnessWire" \
 			"$( AgentsHarnessContextEscape "$( AgentsHarnessContextMachine )" )" "$harnessContextLeg" "$harnessContextFrom" "$( AgentsHarnessContextStamp )" \
-			"${agentsWirePromptCacheKey:-}" "$( AgentsHarnessContextEscape "$harnessPrompt" )"
+			"${agentsWirePromptCacheKey:-}" "${agentsWireSystemSharedBytes:-0}" "$( AgentsHarnessContextEscape "$harnessPrompt" )"
 		printf '{"type":"system","text":"%s"}\n' "$( AgentsHarnessContextSystemJson )"
 		printf '{"type":"tools","cksum":"%s","bytes":%s}\n' "$( printf '%s' "$beginTools" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 }' )" "$( printf '%s' "$beginTools" | LC_ALL=C wc -c | tr -d ' ' )"
 		while [ "$beginIndex" -lt "${#harnessMessages[@]}" ] ; do
@@ -212,11 +213,25 @@ AgentsHarnessContextHeader(){ ## file, field
 	printf '%s' "${headerValue%X}"
 }
 
+## The roots of this leg that the kept first messages do not name (a child's, spawned since: AgentsHarnessRunRootsText), as the paragraph
+## that tells a run its own roots; nothing where it names them all. A root named by no record before is told with the message that brings it,
+## and is never written back into the system text or into a record already kept, which a resumed request must begin with byte for byte.
+AgentsHarnessContextResumeRoots(){ ## the kept system text and first records, as the context holds them
+	local rootsKept="$1" rootsLine rootsNew="" rootsNewWrite=""
+	while IFS= read -r rootsLine ; do
+		[ -z "$rootsLine" ] || case "$rootsKept" in *'\n'"$( AgentsHarnessContextEscape "$rootsLine" )"'\n'*) ;; *) rootsNew="${rootsNew}${rootsLine}"$'\n' ;; esac
+	done <<< "$harnessRunRoots"
+	while IFS= read -r rootsLine ; do
+		[ -z "$rootsLine" ] || case "$rootsKept" in *'\n'"$( AgentsHarnessContextEscape "$rootsLine" )"'\n'*) ;; *) rootsNewWrite="${rootsNewWrite}${rootsLine}"$'\n' ;; esac
+	done <<< "$harnessRunWriteRoots"
+	[ -z "$rootsNew$rootsNewWrite" ] || AgentsHarnessRunRootsText "$rootsNew" "$rootsNewWrite"
+}
+
 ## Loads MDAT_HARNESS_RESUME_CONTEXT in place of AgentsWireInitMessages, then appends the
 ## corrections. rc 1, with the reason on stderr, when it is not this run's to continue:
 ## another model, service, API host, wire or machine, or a file that does not parse.
 AgentsHarnessContextResume(){
-	local resumeFile="$MDAT_HARNESS_RESUME_CONTEXT" resumeCount resumeIndex=1 resumeDir resumeWhy="" resumeSystem resumeTools resumeKey resumeTask
+	local resumeFile="$MDAT_HARNESS_RESUME_CONTEXT" resumeCount resumeIndex=1 resumeDir resumeWhy="" resumeSystem resumeTools resumeKey resumeTask resumeRoots
 	if [ ! -s "$resumeFile" ] ; then
 		resumeWhy="no context file at $resumeFile"
 	elif ! resumeCount="$( LC_ALL=C awk -v mode=validate "${harnessContextAwk[@]}" "$resumeFile" 2>&1 )" ; then
@@ -247,7 +262,8 @@ AgentsHarnessContextResume(){
 	resumeSystem="$( sed -n 2p "$resumeFile" )"
 	resumeSystem="${resumeSystem#\{\"type\":\"system\",\"text\":\"}"
 	resumeSystem="${resumeSystem%\"\}}"
-	[ "$harnessWire" != "AnthropicMessages" ] || agentsWireSystemJson="$resumeSystem"
+	## The system as it was sent -- the blocks and their marker, split where the header says (system_shared) -- and not rendered again.
+	AgentsWireSystemReplay "$resumeSystem" "$( AgentsHarnessContextHeader "$resumeFile" system_shared )"
 	harnessMessages=()
 	while [ "$resumeIndex" -le "$resumeCount" ] ; do
 		harnessMessages+=( "$( cat "$resumeDir/rec.$resumeIndex" ; printf X )" )
@@ -266,7 +282,12 @@ AgentsHarnessContextResume(){
 		|| echo "${harnessWarn}⚠️  WARNING:${harnessOff} $harnessSelfName: the tool set differs from the one the context was kept with -- resuming anyway, but the prompt cache will not cover the tools" >&2
 	## The corrections are the new user turn; the task a later restart re-renders keeps both.
 	resumeTask="$( AgentsHarnessContextHeader "$resumeFile" task )"
-	harnessMessages+=( "$( AgentsWireUserRecord "$harnessPrompt" )" )
+	resumeRoots="$( AgentsHarnessContextResumeRoots "${agentsWireSystemJson:-}${harnessMessages[0]:-}${harnessMessages[1]:-}" )"
+	if [ -n "$resumeRoots" ] ; then
+		harnessMessages+=( "$( AgentsWireUserRecord "$resumeRoots"$'\n\n'"$harnessPrompt" )" )
+	else
+		harnessMessages+=( "$( AgentsWireUserRecord "$harnessPrompt" )" )
+	fi
 	[ -z "$resumeTask" ] || printf -v harnessPrompt '%s\n\n%s' "$resumeTask" "$harnessPrompt"
 	printf '%s\n' "${harnessValue}♻️  resumed${harnessOff} ${harnessDim}-- $resumeCount messages from $resumeFile, then the corrections as a new user turn${harnessOff}" >&2
 	harnessContextResumed="$resumeCount"

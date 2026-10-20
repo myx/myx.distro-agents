@@ -295,11 +295,11 @@ rigAssert "and no temp file is left" "$( rigLeft mdat-intern-op-rename )" "0"
 
 echo "-- 3e. two emails at once: the message each sends --"
 ## The send as the email check runs it offline: built whole and printed, never handed to curl. The mail settings of
-## the member are the rig's, and its recipient stands in its own contacts note.
+## the member are the rig's, and its recipient is a coordinate of a contact it holds.
 mkdir -p "$rigWs/.local/.agents"
 printf 'EMAIL_USER=rig@example.com\nEMAIL_APP_PASSWORD=rig-app-password\nEMAIL_SMTP_HOST=smtp.rig.invalid\nEMAIL_SMTP_PORT=587\n' > "$rigWs/.local/.agents/rig-member.agent.env"
-printf '%s\n' '| slack-id | contact | handle | email | organisation | permission level |' '| --- | --- | --- | --- | --- | --- |' '| <unresolved> | rig-test | @rig-test | test@example.com | rig | unset |' \
-	> "$rigData/inboxes/rig-member/incoming/note-rig-contacts.md"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-contacts.include.sh" || exit 1
+rigContactSeed "$rigData" rig-member rig-test - test@example.com
 rigPair "$rigTmp/mail" mdat-comms-email-message "$( rigCall a 'printf "rig body alpha\n" | DistroAgentsTools --member-comms-email-send rig-member test@example.com -- "rig subject alpha" -- --from-stdin' ; rigCall b 'printf "rig body beta\n" | DistroAgentsTools --member-comms-email-send rig-member test@example.com -- "rig subject beta" -- --from-stdin' ; echo wait )" AGENTS_EMAIL_SEND_BUILD_ONLY=true
 rigAssert "control: both ran in subshells of one shell, stood at the read of their message together, and ended 0" "$( rigPairMet "$rigTmp/mail" )" "1 2 0 0"
 rigAssert "each sends its own message: its subject and its body, and not the other's" \

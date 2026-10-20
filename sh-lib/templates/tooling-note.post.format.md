@@ -46,9 +46,6 @@ Not a member/routine contract — these are the fixed texts of the short lines t
   - console-answered
   - console-rejected
   - console-dismissed
-  - authority
-  - authority-text
-  - authority-confirm
 - Schedule
   - chain-broken
   - learning-inquiry
@@ -57,6 +54,11 @@ Not a member/routine contract — these are the fixed texts of the short lines t
 - Librarian
   - update-request
   - update-reply
+- Contacts
+  - contacted-known
+  - contacted-unknown
+  - reaching
+  - escalation-ask
 - Reasons
   - not-held
   - session-killed
@@ -292,24 +294,6 @@ A permission request asked by {{member}} is now yours to answer, {{address-to}}.
 This question no longer needs an answer.
 ```
 
-## authority
-
-```
-🔐 {{requester}} asks for the authority of {{holder}} to {{what}}. Answer `allow-once` to let it do that, or `deny` to refuse it.
-```
-
-## authority-text
-
-```
-🔐 {{requester}} asks for the authority of {{holder}} to {{what}}. Reply with the text to give in its place, `allow-once` to let it give its own, or `deny` to refuse it.
-```
-
-## authority-confirm
-
-```
-🔐 Confirm: the console account {{requester}} asks to {{what}}, which takes the authority of the owners role. Answer `yes` to let it do that, or `no` to refuse it.
-```
-
 # Schedule
 
 What the tooling says of a routine's autorun, in the channel the team keeps for alerts.
@@ -392,6 +376,44 @@ owner: {{requester}}
 # Note: your request {{request}} is {{outcome}}
 
 Your request to update the {{kind}} `{{target}}` was {{outcome}}: {{result}}
+```
+
+# Contacts
+
+What DistroAgentsContacts.fn.sh prints where a contact is used (F7.10): the two scenarios, being contacted by a contact and reaching one, and the question to the human-owner about a contact.
+
+## contacted-known
+
+```
+Access of {{id}}: {{access}}
+
+A request is in one of three tiers. Ingest, always: read and understand it. Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed. Recorded access, for what affects the board, dispatches jobs or asks for internal information: only what the access above names.
+
+Next: assess the request as granted, needs escalation, or must be denied. Ask the chain about one call with `DistroAgentsContacts.fn.sh --contact-access {{id}} --tool <tool> --target <target>`. Where it does not cover the call, `DistroAgentsContacts.fn.sh --escalate-contact {{id}} --tool <tool> --target <target> --asked "<who wants what>"` asks the human-owner. Report the assessment as one digest with `--member-contact-digest-send`.
+```
+
+## contacted-unknown
+
+```
+No contact is recorded for {{value}}. It is met at Ingest and Basic only: read the request, answer what needs no record, commit nothing.
+
+Next: look the sender up where it wrote (`--member-comms-slack-read`, `--member-comms-slack-search-messages`) and record it with `DistroAgentsContacts.fn.sh --collect-contact --id <slug> --name <name> --slack <team>:<slack-id>`. Anything beyond Basic waits for that record, then `--escalate-contact`.
+```
+
+## reaching
+
+```
+Reach {{id}}, {{name}}[[ of {{organisation}}]].[[ How to meet them: {{how}}.]]
+[[Slack: {{slack}}. Send with `DistroAgentsTools.fn.sh --member-comms-slack-send-message <you> <conversation> <text>`.
+]][[E-mail: {{email}}. Send with `DistroAgentsTools.fn.sh --member-comms-email-send <you> <address> -- <subject> -- <body>`.
+]]A send to an address that is no coordinate of a contact you hold is refused. Record what an exchange brings with `DistroAgentsContacts.fn.sh --collect-contact`.
+```
+
+## escalation-ask
+
+```
+The refusal {{refusal}} is recorded for the contact {{id}}[[ ({{name}})]], in session {{session}}. Ask the human-owner with `RequestPermission refusal_id={{refusal}} reason="{{member}} asks about the contact {{id}}: {{asked}}" task_ref=<the task this serves>`.
+His click or word opens the grant: for this session, or, with 👤, for the contact whatever the session.
 ```
 
 # Reasons
@@ -499,6 +521,8 @@ is stuck: a run of it is still open, and no process carries it
 - rule: `## tests-wanted` under `# Testing` is the whole inquiry `--request-tests` (AgentTestingTools.fn.sh) files into `magic-tester`'s inbox (`--member-upsert-member-inquiry`) once the request is in the retest queue: `{{member}}`, the member that asks; `{{request}}`, the id the queue gave it; `{{priority}}`, `wait` or `no-wait`; `{{what}}`, the project, the tests and the changed files it asks for, in words; and `{{why}}`, the reason the member gave. It is filed once for a request.
 - rule: `## update-request` under `# Librarian` is the whole head of the inquiry `--request-update` (AgentLibrarianTools.fn.sh) files into `magic-librarian`'s inbox (`--member-upsert-member-inquiry`): `{{member}}`, the member that asks; `{{kind}}`, `document`, `knowledge` or `skill`; `{{target}}`, the path or the topic, or `<team-member>:<pathname>` of a skill file; `{{form}}`, `message`, `text` or `edit`; `{{why}}`, the reason the member gave; and, left out with their lines where they have no value, `{{target-date}}` and `{{target-checksum}}`, which the tooling records of the target file and the requester never gives, and `{{reply}}`, `yes` where the requester asked for the outcome. What the member wrote of what is asked is added under it, as it was written. The `update-kind` of its frontmatter makes it a request of the queue (`--queue-list`, `--queue-take`, `--queue-done`).
 - rule: `## update-reply` under `# Librarian` is the whole note `--queue-done` files into the requester's inbox for a request made with `--reply`, once: `{{requester}}`, the member that asked; `{{request}}`, the request's name; `{{kind}}` and `{{target}}`, as the request had them; `{{outcome}}`, `applied`, `refused` or `closed`; and `{{result}}`, the librarian's result on one line. A request made without `--reply` is told to nobody.
+- rule: `## contacted-known`, `## contacted-unknown` and `## reaching` under `# Contacts` are what `--contacted-by` and `--reach-contact` (DistroAgentsContacts.fn.sh) print after the record: `{{id}}`, the contact; `{{access}}`, what the permission model says it holds standing, or that it holds nothing; `{{value}}`, what was searched; `{{name}}`, `{{organisation}}` and `{{how}}`, what the record says (each left out with its sentence where the record has none); `{{slack}}` and `{{email}}`, its coordinates by channel, a line left out where it has none.
+- rule: `## escalation-ask` under `# Contacts` is what `--escalate-contact` prints after the refusal id: the one call that asks the human-owner, the permission request of the existing escalation path on the refusal the permission model recorded for the contact (`{{refusal}}`, in `{{session}}`): `{{member}}`, who asks; `{{id}}` and `{{name}}`, the contact; `{{asked}}`, who wants what in the member's words. His answer is applied by the escalation apply and signed by whoever answered.
 - rule: `## not-held` under `# Reasons` says what an approver did not hold: `{{by}}`, the approver, as a name; `{{tool}}`; and `{{target}}`, shown by its location root, `<place>:<relative path>`, where it lies in a registered place, and then never its absolute path beside it. A call with no target has no target part. The confirmation of an answer that goes up carries the same line as its reason.
 - rule: `## assess-session` and `## assess-session-why` under `# Tasks` are what the console gives magic-coordinator when it joins it into a session that has finished, waits or is stuck, by `--manager-session-join`: the first is the prompt it starts on, the second the `{{description}}` of the `## joined` line its joining says in the session's thread. `{{by}}` is the name the console's user has in the operating system, `{{session}}` the id of the session, `{{name}}` its name where it has one (left out with its parenthesis where it has none), and `{{state}}` one of the three `## state-*` lines under `# Words`: finished, waiting, or stuck, which is a session with a run still open and no process that carries it.
 - rule: Every text outside the slots is posted exactly as written here.

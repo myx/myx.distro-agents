@@ -435,6 +435,23 @@ ACTION_FITS["wizard"] = lambda state, row: wizardOfRow(state, row) is not None
 ACTION_REFUSALS["wizard"] = lambda state, row: "it has no wizard"
 
 
+## `Auto-select CLI...` (F13.4), on the item of the CLI services in the configuration, where the wizard of the CLI service is: it runs the owner's check of which vendor CLI works here, in the big output dialog
+## that a command of a workspace runs in, and where that ended with status 0 the dialog offers the apply as a button of its own. The screen computes nothing: which CLI works is what
+## the check says, and whether the apply is offered is the status it ended with.
+CLI_AUTO_CHECK = ["--owner-setup-cli-auto", "--check"]
+CLI_AUTO_APPLY = {"button": "Apply", "label": "Auto-select CLI: apply", "words": ["--owner-setup-cli-auto", "--apply"]}
+
+
+def askCliAuto(state, row):
+    runFollowed(state, "Auto-select CLI", CLI_AUTO_CHECK, then=CLI_AUTO_APPLY)
+    return ""
+
+
+ACTION_HANDLERS["cliauto"] = askCliAuto
+ACTION_FITS["cliauto"] = lambda state, row: wizardOfRow(state, row) == "cli-service" and levelKey(state.path) == pluginLevel("configuration")
+ACTION_REFUSALS["cliauto"] = lambda state, row: "it has no CLI to select"
+
+
 ## The groups of server keys that are the account's, which the wizards make, replace and remove; a host key of the server, `trust-on-connect`, is the system's.
 KEY_MAKE_GROUPS = ("add-to-git", "add-to-authorized-keys")
 
@@ -486,6 +503,10 @@ registerPlugin({
          "views": ("@configuration", "@configuration/cli", "@configuration/git"),
          "for": "a feature that is configured by a wizard", "on": ("@configuration:record", "@configuration:section", "@configuration/cli:record", "@configuration/git:record"),
          "only": True, "says": "configure", "does": ("action", "wizard")},
+        {"name": "cliauto", "keys": ("s",), "menu": ("view", 3), "label": "Auto-~s~elect CLI...", "status": "Auto-select", "window": "list",
+         "views": ("@configuration",),
+         "for": "the CLI services", "on": ("@configuration:record",),
+         "only": True, "says": "auto-select", "does": ("action", "cliauto")},
         {"name": "keygenerate", "keys": ("n",), "menu": ("view", 3), "label": "~N~ew key, generate it", "status": "Generate", "window": "list",
          "views": ("@configuration/keys",), "for": "a key that is not there", "on": ("@configuration/keys:record",), "only": True, "says": "generate",
          "does": ("action", "keygenerate")},

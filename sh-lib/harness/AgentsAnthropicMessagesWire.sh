@@ -16,6 +16,12 @@
 ## this wire's envelope differs from that only in the schema key's spelling.
 ## The rename is sed, not ${var//}: bash 3.2 substitutes over a string this long slowly
 ## enough to stall the start by minutes.
+## THE CACHE MARKER of every breakpoint of this wire (F10.7): the lifetime the preset of the spawn asks for, passed in as harnessInputCacheTime. Unset or 5m is
+## the provider's own, which a marker asks for by saying nothing: the bytes are what they were. 1h says its ttl in each of them, all alike, as the provider takes
+## a longer lifetime ahead of a shorter and never after it.
+agentsWireCacheControl='{"type":"ephemeral"}'
+[ "${harnessInputCacheTime:-}" != 1h ] || agentsWireCacheControl='{"type":"ephemeral","ttl":"1h"}'
+
 agentsWireToolsJson="$( MDAT_READ_CAP_BYTES="${harnessReadCap:-}" bash "$harnessHere/harness/AgentsHarnessMcpMirror.sh" )" || {
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the tool floor did not render for the Anthropic Messages wire -- the mirror's own error is above" >&2
 	exit 1
@@ -28,10 +34,13 @@ agentsWireToolsJson="$( printf '%s\n' "$agentsWireToolsJson" | sed 's/"inputSche
 agentsWireToolsSorted="$( printf '%s\n' "$agentsWireToolsJson" | LC_ALL=C awk -v shape=array -f "$harnessHere/harness/AgentsHarnessToolsSort.awk" )"
 [ "${#agentsWireToolsSorted}" -ne "${#agentsWireToolsJson}" ] || agentsWireToolsJson="$agentsWireToolsSorted"
 case "$agentsWireToolsJson" in
-	*"}]") agentsWireToolsJson="${agentsWireToolsJson%\}\]}"',"cache_control":{"type":"ephemeral"}}]' ;;
+	*"}]") agentsWireToolsJson="${agentsWireToolsJson%\}\]}"',"cache_control":'"$agentsWireCacheControl"'}]' ;;
 esac
 agentsWireSystemJson=""
 agentsWireSystemBlocks=""
+## The bytes of the escaped text of the first system block, 0 where the system goes as one string: kept in the header of the context (F10.7), so a resumed
+## leg splits the stored system where it was split (AgentsWireSystemReplay).
+agentsWireSystemSharedBytes=0
 
 ## JSON string body for any text, trailing newlines kept: the escaper is awk, which
 ## cannot see a final newline, so a sentinel carries it through and is cut after.
@@ -51,24 +60,45 @@ AgentsWireToolDeclaration(){ ## declared name, description, input schema JSON
 ## instruction first with a cache marker at its end and the member's own text after: the first block is one in every member's
 ## request, behind the same tools, and so is cached once for all of them. Otherwise it is one string, as it was.
 AgentsWireInitMessages(){
-	local initRest
+	local initRest initShared initTask="$harnessPrompt"
+	## The task block opens with the text of this run alone (harnessRunNotes, F10.7): what only this run has -- its sandbox, its results folder -- is
+	## the task's side of the marker, so the system text and the prefetch block are the same bytes for every spawn of a member.
+	[ -z "${harnessRunNotes:-}" ] || printf -v initTask '%s\n\n%s' "$harnessRunNotes" "$harnessPrompt"
 	agentsWireSystemJson="$( AgentsWireJsonEscape "$harnessSystemText" )"
-	agentsWireSystemBlocks=""
+	agentsWireSystemBlocks="" agentsWireSystemSharedBytes=0
 	if [ -n "${harnessSystemShared:-}" ] && [ "${harnessSystemText#"$harnessSystemShared"$'\n\n'}" != "$harnessSystemText" ] ; then
 		initRest="${harnessSystemText#"$harnessSystemShared"$'\n\n'}"
-		agentsWireSystemBlocks='[{"type":"text","text":"'"$( AgentsWireJsonEscape "$harnessSystemShared" )"'","cache_control":{"type":"ephemeral"}},{"type":"text","text":"'"$( AgentsWireJsonEscape "$initRest" )"'"}]'
+		initShared="$( AgentsWireJsonEscape "$harnessSystemShared" )"
+		agentsWireSystemBlocks='[{"type":"text","text":"'"$initShared"'","cache_control":'"$agentsWireCacheControl"'},{"type":"text","text":"'"$( AgentsWireJsonEscape "$initRest" )"'"}]'
+		agentsWireSystemSharedBytes="$( printf '%s' "$initShared" | LC_ALL=C wc -c | tr -d ' ' )"
 	fi
 	## Where the run has a prefetch (harnessPrefetch, F10.8) the first message is two blocks, the prefetch with a cache marker at its end
 	## and the task after it: the text of a member's skill is the same for its runs and the task is not, so it is a prefix of its own.
 	if [ -n "${harnessPrefetch:-}" ] ; then
 		harnessMessages=(
-			'{"role":"user","content":[{"type":"text","text":"'"$( AgentsWireJsonEscape "$harnessPrefetch" )"'","cache_control":{"type":"ephemeral"}},{"type":"text","text":"'"$( AgentsWireJsonEscape "$harnessPrompt" )"'"}]}'
+			'{"role":"user","content":[{"type":"text","text":"'"$( AgentsWireJsonEscape "$harnessPrefetch" )"'","cache_control":'"$agentsWireCacheControl"'},{"type":"text","text":"'"$( AgentsWireJsonEscape "$initTask" )"'"}]}'
 		)
 		return 0
 	fi
 	harnessMessages=(
-		'{"role":"user","content":"'"$( AgentsWireJsonEscape "$harnessPrompt" )"'"}'
+		'{"role":"user","content":"'"$( AgentsWireJsonEscape "$initTask" )"'"}'
 	)
+}
+
+## A resumed leg's system (AgentsHarnessContextResume), from the bytes the context kept: the escaped text as it was sent, and the bytes of the escaped
+## first block (the header's, 0 or none where the system went as one string, and for a context kept before it was written). Split there, with the
+## marker at the end of the first block, it is the two blocks it was sent as; never rendered again from the skillset as it is now, so the resumed
+## request is the original through the common block's marker, byte for byte.
+AgentsWireSystemReplay(){ ## escaped system text, bytes of its escaped first block
+	local replayFirst replayJoin replaySecond
+	agentsWireSystemJson="$1" agentsWireSystemBlocks="" agentsWireSystemSharedBytes=0
+	case "${2:-}" in ''|*[!0123456789]*|0) return 0 ;; esac
+	replayFirst="$( printf '%s' "$1" | LC_ALL=C cut -c "1-$2" )"
+	replayJoin="$( printf '%s' "$1" | LC_ALL=C cut -c "$(( $2 + 1 ))-$(( $2 + 4 ))" )"
+	replaySecond="$( printf '%s' "$1" | LC_ALL=C cut -c "$(( $2 + 5 ))-" )"
+	[ "$replayJoin" = '\n\n' ] && [ -n "$replaySecond" ] || return 0
+	agentsWireSystemBlocks='[{"type":"text","text":"'"$replayFirst"'","cache_control":'"$agentsWireCacheControl"'},{"type":"text","text":"'"$replaySecond"'"}]'
+	agentsWireSystemSharedBytes="$2"
 }
 
 AgentsWireUserRecord(){
@@ -118,7 +148,7 @@ AgentsWireRequestBody(){
 		exit 1
 	fi
 	bodyMessagesJson="$( IFS=, ; echo "[${harnessMessages[*]}]" )"
-	bodyOut='{"model":"'"$harnessModel"'","max_tokens":'"$harnessOutputTokens"',"stream":true,"cache_control":{"type":"ephemeral"},"system":'"$bodySystem"',"tools":'"${agentsWireToolsJson%]}${harnessMcpToolsJson:-}"'],"tool_choice":{"type":"'"${harnessToolChoice:-auto}"'"},"messages":'"$bodyMessagesJson"
+	bodyOut='{"model":"'"$harnessModel"'","max_tokens":'"$harnessOutputTokens"',"stream":true,"cache_control":'"$agentsWireCacheControl"',"system":'"$bodySystem"',"tools":'"${agentsWireToolsJson%]}${harnessMcpToolsJson:-}"'],"tool_choice":{"type":"'"${harnessToolChoice:-auto}"'"},"messages":'"$bodyMessagesJson"
 	[ -z "$harnessReasoningEffort" ] || bodyOut="$bodyOut"',"output_config":{"effort":"'"$harnessReasoningEffort"'"}'
 	printf '%s' "$bodyOut}"
 }

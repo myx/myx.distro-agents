@@ -532,6 +532,67 @@ case "$1" in
 		return 0
 	;;
 
+	## --owner-setup-cli-auto (F13.4) -- which of the vendor CLIs the console starts, claude-native or copilot-native, is installed and works on this
+	## machine, and the setup of the first that does. A bare call and --check are the read-only diagnosis; --apply carries out
+	## `--owner-setup-<that CLI> --apply`, so the one mechanism writes SPAWN_CLI_SERVICE and everything the setup of that CLI takes with it. The
+	## detection is here, run by a person or by the console, and never at a spawn: a spawn resolves SPAWN_CLI_SERVICE and scans no PATH
+	## (AgentsReviewCliResolved). Declared ahead of --owner-setup-*), which would take it for a domain of that family.
+	--owner-setup-cli-auto)
+		shift
+		local autoOperation="--check" autoPick="" autoOne autoWhy autoRc autoNow autoToolPath="${MMDAPP%/}/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+		case "${1:-}" in
+			''|--check) ;;
+			--apply) autoOperation="--apply" ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --owner-setup-cli-auto: takes --check or --apply, and nothing else, got: $1" >&2
+				set +e ; return 1
+			;;
+		esac
+		if [ $# -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-setup-cli-auto: takes one sub-operation, --check or --apply, got $# arguments" >&2
+			set +e ; return 1
+		fi
+		type AgentsToolsCliServiceWorks > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.CliService.include"
+		[ "$autoOperation" != "--check" ] || echo "# $MDSC_CMD --owner-setup-cli-auto --check: read-only diagnosis (nothing applied)"
+		for autoOne in $agentsCliServiceAutoOrder ; do
+			autoRc=0
+			autoWhy="$( AgentsToolsCliServiceWorks "$autoOne" )" || autoRc=$?
+			if [ "$autoRc" = 0 ] ; then
+				[ -n "$autoPick" ] || autoPick="$autoOne"
+				[ "$autoOperation" != "--check" ] || echo "$( printf '%s' "$autoOne" | LC_ALL=C tr 'a-z-' 'A-Z_' )_WORKS: OK"$'\n'"  note: $autoWhy"
+			else
+				[ "$autoOperation" != "--check" ] || echo "$( printf '%s' "$autoOne" | LC_ALL=C tr 'a-z-' 'A-Z_' )_WORKS: FAIL"$'\n'"  warn: $autoWhy"
+			fi
+		done
+		## Read only where the scope file already exists: a --select creates the file it reads, and a check writes nothing.
+		autoNow=""
+		[ ! -f "${MMDAPP%/}/.local/.agents/magic-team.agent.env" ] || autoNow="$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2> /dev/null )" || autoNow=""
+		if [ -z "$autoPick" ] ; then
+			if [ "$autoOperation" = "--check" ] ; then
+				echo "SPAWN_CLI_AUTO: FAIL"
+				echo "  warn: neither claude-native nor copilot-native works on this machine, so none is selected"
+				echo "  why:  each is asked of the CLI itself, above"
+				echo "  now:  SPAWN_CLI_SERVICE is ${autoNow:-not set}"
+			else
+				echo "⛔ ERROR: $MDSC_CMD --owner-setup-cli-auto --apply: neither claude-native nor copilot-native is installed and works on this machine, so none was selected and nothing was changed -- $MDSC_CMD --owner-setup-cli-auto --check says why for each" >&2
+			fi
+			set +e ; return 1
+		fi
+		if [ "$autoOperation" = "--check" ] ; then
+			echo "SPAWN_CLI_AUTO: OK"
+			echo "  pick: $autoPick, the first of $agentsCliServiceAutoOrder that works"
+			echo "  now:  SPAWN_CLI_SERVICE is ${autoNow:-not set}"
+			echo "  fix:  $autoToolPath --owner-setup-cli-auto --apply"
+			return 0
+		fi
+		echo "# $MDSC_CMD --owner-setup-cli-auto --apply: $autoPick is the first of $agentsCliServiceAutoOrder that works; carrying out --owner-setup-$autoPick --set-as-default --apply (SPAWN_CLI_SERVICE is ${autoNow:-not set} now)"
+		( DistroAgentsTools "--owner-setup-$autoPick" --set-as-default --apply ) || {
+			echo "⛔ ERROR: $MDSC_CMD --owner-setup-cli-auto --apply: --owner-setup-$autoPick --set-as-default --apply did not end well, what it says is above" >&2
+			set +e ; return 1
+		}
+		return 0
+	;;
+
 	## --owner-setup-<domain> -- per-domain setup op family, one domain per macro
 	## part of a working installation. A bare call, --check, --apply,
 	## --print-apply-command and --wizard are its five states. MAGIC.md's own

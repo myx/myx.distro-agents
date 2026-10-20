@@ -1,0 +1,26 @@
+## The Dashboard panels of myx.distro-agents, declared once (F11.4 of the refactorings epic): a panel or a submenu a line, TAB-separated, read as plain text by
+## `--manager-dashboard-read` (myx.distro-.local, sh-lib/manager/LocalTools.ManagerDashboard.include), so what this console offers is known with no python.
+##   group  <id>  <label>  <when>  <include>
+##       a Dashboard submenu of the console: the label as a screen shows it, capitalised words with their blanks written `_`; <when>, a function that
+##       says by its rc whether the submenu applies on this host (`-` for always); <include>, the file under myx/ that defines it (`-` for none).
+##   panel  <group>  <name>  <label>  <reader>  <include>  <read>
+##       a panel of a group, `root` being the Dashboard itself: its reader is a function of <include>, a file under myx/ (`-` where the reader is `.local`'s
+##       own); <read> is `named` where the panel is printed only when it is asked for by its name, `-` otherwise.
+## The panels are printed in the order of their lines. The readers of this package are in sh-lib/manager/AgentsTools.ManagerDashboard.include.
+## The Machine and Disk Space are `.local`'s: this console registers them, the second with the volume of the team data added.
+
+group	tokens	Agents:_Tokens	AgentsToolsManagerDashboardCliSet	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include
+
+panel	root	sessions	Sessions_And_Agents	AgentsToolsManagerDashboardSessions	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	-
+panel	root	pending	Pending_Questions	AgentsToolsManagerDashboardPending	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	-
+panel	root	tokens	Session_Tokens	AgentsToolsManagerDashboardTokens	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	-
+panel	root	team	Team_Members	AgentsToolsManagerDashboardTeam	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	-
+panel	root	team-data	Team_Data	AgentsToolsManagerDashboardTeamData	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	-
+panel	root	team-data-git	Team_Data_Git	AgentsToolsManagerDashboardTeamDataGit	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	named
+panel	root	loop	Main_Loop_And_Heartbeat	AgentsToolsManagerDashboardLoop	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	-
+panel	root	machine	The_Machine	LocalToolsManagerDashboardMachine	-	-
+panel	root	disk	Disk_Space	AgentsToolsManagerDashboardDisk	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	-
+panel	root	testing	Retest_Queue	AgentsToolsManagerDashboardTesting	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	-
+
+panel	tokens	tokens	Session_Tokens	AgentsToolsManagerDashboardTokensLong	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	-
+panel	tokens	top-sessions	Top_Sessions_By_Tokens	AgentsToolsManagerDashboardTopSessions	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerDashboard.include	-

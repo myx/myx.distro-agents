@@ -21,6 +21,12 @@
 ##   6. no prefetch for a run that is not a spawned session, for a member with no armed file, for a served call, or for a run started
 ##      with MDAT_HARNESS_PREFETCH=off; nothing of it in the sandbox's input/ or in the spawn record
 ##   7. the chat-completions wire carries the same text as one string
+##   9. the lifetime the cache markers ask for (F10.7): unset and 5m send the bytes they always did, 1h puts its ttl in every marker of the run and changes nothing else,
+##      another lifetime is refused before any request, and a served call is not asked
+##  10. magic-team.work-duty: its `cache-prefix: routine` is read from the file as the spawn reads it, and a run of it carries the text of its routine mixed with its kind's
+##   8. two spawns of one member, in sessions, sandboxes and zones of their own, send requests that are byte for byte the same through the marker
+##      that ends the prefetch block, and differ in the task block alone: what is of one run (its sandbox and results roots, the sentence of a
+##      spawned session) opens that block, and is in the system text nowhere (F10.7, the input token cache)
 ## Offline by construction: no socket, no credential.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -63,6 +69,20 @@ rigHolds(){ ## file, text
 rigCount(){ ## file, text -- how many times the file holds the text
 	[ -f "$1" ] || { printf 'no-such-file' ; return 0 ; }
 	LC_ALL=C grep -o -F -- "$2" "$1" | wc -l | tr -d ' '
+}
+rigEndsWith(){ ## text, tail -- yes where the text ends with the tail
+	case "$1" in
+		*"$2") printf 'yes' ;;
+		*) printf 'no' ;;
+	esac
+}
+## The first message of a run that carries no prefetch: one string, as it was, and the task its last words (a run with a sandbox, as every scene
+## here has, opens it with the text of its own roots: F10.7).
+rigStringTask(){ ## messages text -- yes where the first message is one string that ends with the task
+	case "$1" in
+		'{"role":"user","content":"'*'RIG-TASK-MARKER"}]}') printf 'yes' ;;
+		*) printf 'no' ;;
+	esac
 }
 rigMarkers(){ ## file -- how many cache markers the request carries
 	LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$1" | wc -l | tr -d ' '
@@ -152,18 +172,21 @@ rigChatTextStream(){ ## canned-stream file, content
 ## The run: a spawned member's harness (the spawn session id and the sandbox set), or a plain run with none.
 rigWire="AnthropicMessages"
 rigPrefetch="on"
+## Where a scene names them, the one access root all of its runs share (else the scene's folder), the zone the clock of the run reads and the
+## session the run belongs to; no word of them otherwise, so every scene before them runs as it did.
+rigRoot="" rigTz="" rigSession="" rigCacheTime="" rigNoRequest=""
 rigRun(){ ## member, spawned (yes|no), further harness arguments -- the scene's streams are in place
 	local runMember="$1" runSpawned="$2" runSpawnWord="RIG_NOT_SPAWNED=1" ; shift 2
 	[ "$runSpawned" != yes ] || runSpawnWord="MDAT_SPAWN_SESSION_ID=$rigSpawn"
 	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		MDAT_SKILLSET_ROOT="$rigSkills" "$runSpawnWord" MDAT_SPAWN_SANDBOX_ROOT="$rigSandbox" MDAT_HARNESS_PREFETCH="$rigPrefetch" RIG_SCENARIO="$rigDir" \
+		MDAT_SKILLSET_ROOT="$rigSkills" "$runSpawnWord" MDAT_SPAWN_SANDBOX_ROOT="$rigSandbox" MDAT_HARNESS_PREFETCH="$rigPrefetch" RIG_SCENARIO="$rigDir" ${rigTz:+TZ=$rigTz} ${rigSession:+MDAT_SESSION_ID=$rigSession} ${rigCacheTime:+HARNESS_INPUT_CACHE_TIME=$rigCacheTime} \
 		HARNESS_PROVIDER_NAME="first-message rig" HARNESS_SELF_NAME="AgentsPromptPrefetchCheck.test.sh" HARNESS_WIRE="$rigWire" HARNESS_CREDENTIAL_NAMES="none" \
 		HARNESS_ENDPOINT="https://harness-prompt-prefetch.invalid/v1/messages" HARNESS_HOST="harness-prompt-prefetch.invalid" HARNESS_EXTRA_HEADERS="anthropic-version: 2023-06-01" \
 		HARNESS_MODEL_LIGHT="rig-light" HARNESS_MODEL_MAIN="rig-main" HARNESS_TOKEN_LIGHT="rig-not-a-credential" HARNESS_TOKEN_MAIN="rig-not-a-credential" \
 		HARNESS_OUTPUT_TOKENS_LIGHT="4101" HARNESS_OUTPUT_TOKENS_MAIN="4202" MDAT_HARNESS_CONTEXT_TOKENS=0 MDAT_HARNESS_MAX_RESTARTS=1 \
-		bash "$rigHarness" ${runMember:+--agent "$runMember"} --access-root "$rigDir" --access-write-root "$rigSkills" "$@" "$rigTask" ) > "$rigDir/out" 2> "$rigDir/err"
+		bash "$rigHarness" ${runMember:+--agent "$runMember"} --access-root "${rigRoot:-$rigDir}" --access-write-root "$rigSkills" "$@" "$rigTask" ) > "$rigDir/out" 2> "$rigDir/err"
 	rigRunStatus=$?
-	[ "$( cat "$rigDir/round" )" != 0 ] || rigRefuse "the harness issued no request at all -- its stderr: $( head -5 "$rigDir/err" )"
+	[ "$( cat "$rigDir/round" )" != 0 ] || [ -n "$rigNoRequest" ] || rigRefuse "the harness issued no request at all -- its stderr: $( head -5 "$rigDir/err" )"
 }
 rigReq(){ ## round -- the messages of that request, as sent
 	LC_ALL=C sed 's/.*"messages":\[//' "$rigDir/req.$1"
@@ -201,8 +224,8 @@ echo "-- 1. a spawned member's first message: its armed file, then the task --"
 rigScene served shared ; rigRecord "" "" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
 rigServedDir="$rigDir"
 rigAssert "the run ends normally"                                                         "$rigRunStatus" 0
-rigAssert "the first message is two text blocks, the read with a marker at its end and the task after it" \
-	"$( rigIn "$( rigReq 1 )" '{"role":"user","content":[{"type":"text","text":"' ):$( rigIn "$( rigReq 1 )" '","cache_control":{"type":"ephemeral"}},{"type":"text","text":"RIG-TASK-MARKER"}]}' )" yes:yes
+rigAssert "the first message is two text blocks, the read with a marker at its end and the task block after it, the task its last words" \
+	"$( rigIn "$( rigReq 1 )" '{"role":"user","content":[{"type":"text","text":"' ):$( rigIn "$( rigReq 1 )" '","cache_control":{"type":"ephemeral"}},{"type":"text","text":"' ):$( rigEndsWith "$( rigReq 1 )" 'RIG-TASK-MARKER"}]}]}' )" yes:yes:yes
 rigAssert "four markers a request: the moving one, the floor, the common instruction, the read"  "$( rigMarkers "$rigDir/req.1" )" 4
 rigAssert "the read is the member's armed file, as the Skill tool serves it, front matter and all"  "$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' ):$( rigIn "$( rigReq 1 )" 'status: rig' )" yes:yes
 rigAssert "and nothing else: no basic file again, no team file, no tool index"             "$( rigCount "$rigDir/req.1" 'RIG-A-ARMED-BODY' ):$( rigCount "$rigDir/req.1" 'RIG-A-BASIC own words' ):$( rigIn "$( rigReq 1 )" 'RIG-TEAM-' ):$( rigIn "$( rigReq 1 )" 'Tool index' )" 1:1:no:no
@@ -213,7 +236,7 @@ echo "-- 1b. it is what the Skill read serves --"
 rigScene read shared ; rigToolStream "$rigDir/res.1" Skill "$( rigSkillCall rig-a rig-a.armed.md )" ; rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun rig-a no
 rigEscaped="$( rigEscapedResult "$rigDir/req.2" )"
 rigAssert "control: a run that is no spawned session reads the armed file itself"           "$( rigIn "$rigEscaped" 'RIG-A-ARMED-BODY' )" yes
-rigAssert "and its first message is the task alone, one string, three markers as before"     "$( rigIn "$( rigReq 1 )" '{"role":"user","content":"RIG-TASK-MARKER"}' ):$( rigMarkers "$rigDir/req.1" )" yes:3
+rigAssert "and its first message is one string with the task its last words, three markers as before"     "$( rigStringTask "$( rigReq 1 )" ):$( rigMarkers "$rigDir/req.1" )" yes:3
 rigFirstBlock="$( LC_ALL=C sed 's/.*"messages":\[{"role":"user","content":\[{"type":"text","text":"//' "$rigServedDir/req.1" | LC_ALL=C sed 's/","cache_control".*//' )"
 rigAssert "the first block of the spawned run holds that very text, byte for byte"          "$( [ -n "$rigEscaped" ] && rigIn "$rigFirstBlock" "$rigEscaped" )" yes
 
@@ -356,9 +379,9 @@ rigAssert "a run that is no spawned session: as it was"                         
 
 echo "-- 6. where there is no prefetch, and where nothing else is touched --"
 rigScene nofile shared ; rigRecord "" "" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-c yes
-rigAssert "a member with no armed file: the task alone, one string"                        "$( rigIn "$( rigReq 1 )" '{"role":"user","content":"RIG-TASK-MARKER"}' )" yes
+rigAssert "a member with no armed file: one string, the task its last words"                "$( rigStringTask "$( rigReq 1 )" )" yes
 rigPrefetch="off" ; rigScene off shared ; rigRecord "" "" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes ; rigPrefetch="on"
-rigAssert "started with MDAT_HARNESS_PREFETCH=off: the task alone, one string, three markers, and not armed"  "$( rigIn "$( rigReq 1 )" '{"role":"user","content":"RIG-TASK-MARKER"}' ):$( rigMarkers "$rigDir/req.1" ):$( [ -e "$rigSandbox/$rigSpawn.armed" ] && printf armed || printf unarmed )" yes:3:unarmed
+rigAssert "started with MDAT_HARNESS_PREFETCH=off: one string, the task its last words, three markers, and not armed"  "$( rigStringTask "$( rigReq 1 )" ):$( rigMarkers "$rigDir/req.1" ):$( [ -e "$rigSandbox/$rigSpawn.armed" ] && printf armed || printf unarmed )" yes:3:unarmed
 rigScene served-call shared ; rigRecord "" ""
 rigServedOut="$( printf '%s' '{"skill":"rig-a"}' | ( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 	MDAT_SKILLSET_ROOT="$rigSkills" MDAT_SPAWN_SESSION_ID="$rigSpawn" MDAT_SPAWN_SANDBOX_ROOT="$rigSandbox" MDAT_SPAWN_AGENT=rig-a bash "$rigHarness" --intern-tool Skill ) 2> /dev/null )"
@@ -373,8 +396,83 @@ rigWire="OpenAiChat"
 rigScene chat shared ; rigRecord "" "" ; rigChatTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
 rigAssert "the user message is one string: the read, then the task"                        "$( rigIn "$( cat "$rigDir/req.1" )" 'RIG-A-ARMED-BODY' ):$( rigIn "$( cat "$rigDir/req.1" )" 'RIG-TASK-MARKER"}' ):$( rigCount "$rigDir/req.1" 'cache_control' )" yes:yes:0
 rigAssert "in that order"                                                                  "$( LC_ALL=C awk '{ a = index( $0, "RIG-A-ARMED-BODY" ) ; b = index( $0, "RIG-TASK-MARKER" ) ; print ( a > 0 && b > a ) ? "ordered" : "not" ; exit }' "$rigDir/req.1" )" ordered
+rigAssert "the run's own roots are in the user message between the read and the task, and the system message names neither the sandbox nor the spawn"  "$( LC_ALL=C awk '{ u = index( $0, "\"role\":\"user\"" ) ; a = index( $0, "RIG-A-ARMED-BODY" ) ; r = index( $0, "sessions/rig-spawn-one/results" ) ; b = index( $0, "RIG-TASK-MARKER" ) ; print ( u > 0 && a > u && r > a && b > r && index( substr( $0, 1, u ), "rig-spawn-one" ) == 0 && index( substr( $0, 1, u ), "/sandbox" ) == 0 ) ? "ordered" : "not" ; exit }' "$rigDir/req.1" )" ordered
 rigAssert "the team's basic file is in the system message once"                            "$( rigCount "$rigDir/req.1" 'RIG-TEAM-COMMON-LINE' )" 1
 rigWire="AnthropicMessages"
+
+echo "-- 8. two spawns of one member: the same bytes through the prefetch marker, apart in the task block alone --"
+## What is of one run alone -- its sandbox and results roots, the sentence of a spawned session, the MCP note -- is not in the system text: it is
+## the task block's, after the marker, so the system text and the prefetch block are the same for every spawn of a member (the input token cache).
+rigPfEnd(){ ## request file -- the byte at which the marker that ends the prefetch block ends
+	LC_ALL=C awk 'BEGIN { RS = "\001" ; mark = "\"cache_control\":{\"type\":\"ephemeral\"}}" } { m = index( $0, "\"messages\":[" ) ; k = index( substr( $0, m ), mark ) ; print m + k - 1 + length( mark ) - 1 }' "$1"
+}
+rigTask="$rigBrief"$'\n'"RIG-TASK-ONE"
+rigSpawn="rig-spawn-two" rigSession="rig-session-two" rigTz="Pacific/Kiritimati"
+rigScene twin1 twin ; rigRoot="$rigWs" ; rigRecord "" "" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes ; rigTwinOne="$rigDir"
+rigTask="$rigBrief"$'\n'"RIG-TASK-TWO is another task, and a longer one"
+rigSpawn="rig-spawn-three" rigSession="rig-session-three" rigTz="Etc/GMT+12"
+rigScene twin2 twin ; rigRoot="$rigWs" ; rigRecord "" "" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes ; rigTwoStatus="$rigRunStatus"
+rigTwinTwo="$rigDir"
+rigSpawn="rig-spawn-one" rigSession="" rigTz="" rigRoot="" ; rigTask="RIG-TASK-MARKER"
+rigPfEndOne="$( rigPfEnd "$rigTwinOne/req.1" )" ; rigPfEndTwo="$( rigPfEnd "$rigTwinTwo/req.1" )"
+head -c "$rigPfEndOne" "$rigTwinOne/req.1" > "$rigTmp/twin.head.1" ; head -c "$rigPfEndTwo" "$rigTwinTwo/req.1" > "$rigTmp/twin.head.2"
+tail -c +"$(( rigPfEndOne + 1 ))" "$rigTwinOne/req.1" > "$rigTmp/twin.task.1" ; tail -c +"$(( rigPfEndTwo + 1 ))" "$rigTwinTwo/req.1" > "$rigTmp/twin.task.2"
+rigDiffAt="$( cmp -l "$rigTwinOne/req.1" "$rigTwinTwo/req.1" 2> /dev/null | head -1 | LC_ALL=C awk '{ print $1 }' )"
+rigAssert "both runs end normally, and each is a spawned session of its own: not the same session, sandbox or zone"  "$rigRunStatus:$rigTwoStatus:$( [ "$rigTwinOne/sandbox" != "$rigTwinTwo/sandbox" ] && printf apart )" 0:0:apart
+rigAssert "the first message is two blocks with four markers, the same in both"                  "$( rigMarkers "$rigTwinOne/req.1" ):$( rigMarkers "$rigTwinTwo/req.1" ):$( [ "$rigPfEndOne" = "$rigPfEndTwo" ] && printf same )" 4:4:same
+rigAssert "the two requests are the same bytes through the marker that ends the prefetch block"  "$( cmp -s "$rigTmp/twin.head.1" "$rigTmp/twin.head.2" && printf same || printf differ )" same
+rigAssert "what is the same is the tools, the common block, the member's own text and the reads: it holds the armed file, once"  "$( LC_ALL=C grep -o -F 'RIG-TEAM-COMMON-LINE' "$rigTmp/twin.head.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F 'RIG-A-BASIC own words' "$rigTmp/twin.head.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F 'RIG-A-ARMED-BODY' "$rigTmp/twin.head.1" | wc -l | tr -d ' ' )" 1:1:1
+rigAssert "the first byte that differs is in the task block, after the marker"                  "$( [ -n "$rigDiffAt" ] && [ "$rigDiffAt" -gt "$rigPfEndOne" ] && printf after )" after
+rigAssert "and the task blocks differ"                                                              "$( cmp -s "$rigTmp/twin.task.1" "$rigTmp/twin.task.2" && printf same || printf differ )" differ
+rigAssert "the spawn id, the sandbox and the session are nowhere in what is the same"            "$( LC_ALL=C grep -c -E 'rig-spawn-(two|three)|/sandbox|rig-session' "$rigTmp/twin.head.1" ):$( LC_ALL=C grep -c -E 'rig-spawn-(two|three)|/sandbox|rig-session' "$rigTmp/twin.head.2" )" 0:0
+rigAssert "they are in the task block: the sandbox's input/ and output/ and the results folder, each run's own"  "$( LC_ALL=C grep -o -F "/sandbox/input" "$rigTmp/twin.task.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F "/sandbox/output" "$rigTmp/twin.task.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F 'sessions/rig-spawn-two/results' "$rigTmp/twin.task.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F 'sessions/rig-spawn-three/results' "$rigTmp/twin.task.2" | wc -l | tr -d ' ' )" 1:2:1:1
+rigAssert "the sentence of a spawned session, that it never ends on its own, is in the task block and not in the system text"  "$( LC_ALL=C grep -c -F 'you never end on your own' "$rigTmp/twin.head.1" ):$( LC_ALL=C grep -o -F 'you never end on your own' "$rigTmp/twin.task.1" | wc -l | tr -d ' ' )" 0:1
+rigAssert "the root all the runs of the workspace share stays in the system text: among the access roots, and the write roots"  "$( LC_ALL=C grep -o -F "$rigWs" "$rigTmp/twin.head.1" | wc -l | tr -d ' ' )" 2
+rigAssert "the task is the task block's last words, after the run's own roots"                    "$( rigIn "$( cat "$rigTmp/twin.task.1" )" 'RIG-TASK-ONE"}]' ):$( rigIn "$( cat "$rigTmp/twin.task.2" )" 'RIG-TASK-TWO is another task, and a longer one"}]' )" yes:yes
+
+echo "-- 9. the lifetime the cache markers ask for (F10.7) --"
+rigTask="RIG-TASK-MARKER"
+rigSpawn="rig-spawn-ttl"
+rigTtl(){ ## scene name, the lifetime asked (empty: none) -- the request of a spawned run, its root the workspace's
+	rigCacheTime="$2" ; rigScene "$1" ttl ; rigRoot="$rigWs" ; rigRecord "" "" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
+	rigCacheTime=""
+}
+rigTtl ttl-none "" ; rigTtlNone="$rigDir"
+rigTtl ttl-five 5m ; rigTtlFive="$rigDir"
+rigTtl ttl-hour 1h ; rigTtlHour="$rigDir"
+rigPlain='"cache_control":{"type":"ephemeral"}'
+rigHourly='"cache_control":{"type":"ephemeral","ttl":"1h"}'
+rigAssert "unset: four markers, each the plain one, and no ttl anywhere in the request"  "$( rigCount "$rigTtlNone/req.1" "$rigPlain" ):$( rigCount "$rigTtlNone/req.1" '"ttl"' )" 4:0
+rigAssert "5m is the provider's own and says nothing: the request is the unset one's through the prefetch marker, byte for byte"  "$( head -c "$( rigPfEnd "$rigTtlNone/req.1" )" "$rigTtlNone/req.1" | cksum ):$( head -c "$( rigPfEnd "$rigTtlFive/req.1" )" "$rigTtlFive/req.1" | cksum )" "$( head -c "$( rigPfEnd "$rigTtlNone/req.1" )" "$rigTtlNone/req.1" | cksum ):$( head -c "$( rigPfEnd "$rigTtlNone/req.1" )" "$rigTtlNone/req.1" | cksum )"
+rigAssert "and has no ttl either"                                                         "$( rigCount "$rigTtlFive/req.1" '"ttl"' ):$( rigCount "$rigTtlFive/req.1" "$rigPlain" )" 0:4
+rigAssert "1h: all four markers of the run carry the ttl -- the moving one, the end of the floor, the end of the common block, the end of the prefetch -- and none is plain"  "$( rigCount "$rigTtlHour/req.1" "$rigHourly" ):$( rigCount "$rigTtlHour/req.1" "$rigPlain" ):$( rigCount "$rigTtlHour/req.1" '"cache_control":{' )" 4:0:4
+rigAssert "the end of the floor's tools is one of them"                                   "$( rigHolds "$rigTtlHour/req.1" "$rigHourly"'}],"tool_choice"' )" yes
+rigAssert "nothing else of the request changes: without the ttl it is the unset request through the prefetch marker"  "$( LC_ALL=C sed 's/,"ttl":"1h"//g' "$rigTtlHour/req.1" | head -c "$( rigPfEnd "$rigTtlNone/req.1" )" | cksum )" "$( head -c "$( rigPfEnd "$rigTtlNone/req.1" )" "$rigTtlNone/req.1" | cksum )"
+rigNoRequest="yes" ; rigTtl ttl-bad 2h ; rigNoRequest=""
+rigAssert "another lifetime is refused before any request: the harness ends non-zero, sends none, and says what it takes"  "$( [ "$rigRunStatus" != 0 ] && printf refused ):$( cat "$rigTmp/ttl-bad/round" ):$( rigIn "$( cat "$rigTmp/ttl-bad/err" )" 'HARNESS_INPUT_CACHE_TIME is none of 5m, 1h' )" refused:0:yes
+rigAssert "and prints no value of it"                                                     "$( LC_ALL=C grep -c -F -e '2h' "$rigTmp/ttl-bad/err" )" 0
+rigScene ttl-served ttl ; rigRecord "" ""
+rigServedOut="$( printf '%s' '{"skill":"rig-a"}' | ( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+	MDAT_SKILLSET_ROOT="$rigSkills" MDAT_SPAWN_SESSION_ID="$rigSpawn" MDAT_SPAWN_SANDBOX_ROOT="$rigSandbox" MDAT_SPAWN_AGENT=rig-a HARNESS_INPUT_CACHE_TIME=2h bash "$rigHarness" --intern-tool Skill ) 2> /dev/null )"
+rigAssert "a served call, a native client's, makes no request and is not asked: it answers whatever the variable holds"  "$( rigIn "$rigServedOut" 'RIG-A-ARMED-BODY' )" yes
+rigWire="OpenAiChat"
+rigCacheTime="1h" ; rigScene ttl-chat ttl ; rigRoot="$rigWs" ; rigRecord "" "" ; rigChatTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes ; rigCacheTime=""
+rigAssert "the chat-completions wire has no markers to say it in: the same request"       "$( rigCount "$rigDir/req.1" 'cache_control' ):$( rigCount "$rigDir/req.1" '"ttl"' )" 0:0
+rigWire="AnthropicMessages"
+rigSpawn="rig-spawn-one"
+
+echo "-- 10. magic-team.work-duty: its runs cache the text of the routine --"
+rigWorkDuty="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team"
+rigAssert "the routine says cache-prefix: routine, read as the spawn reads it (AgentsToolsRoutineKey)"  "$( . "$rigHere/session/AgentsTools.RoutineRequirements.include" ; AgentsToolsRoutineKey "$rigWorkDuty/magic-team.work-duty.routine.md" cache-prefix )" routine
+rigAssert "and the validator takes the file"                                              "$( MDLT_ORIGIN="$MDLT_ORIGIN" bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-doc-validate routine "$rigWorkDuty/magic-team.work-duty.routine.md" > /dev/null 2>&1 ; printf 'rc=%s' "$?" )" rc=0
+rigWdPolicy="$( . "$rigHere/session/AgentsTools.RoutineRequirements.include" ; AgentsToolsRoutineKey "$rigWorkDuty/magic-team.work-duty.routine.md" cache-prefix )"
+rigScene wd wd ; rigRecord "$rigWdPolicy" magic-team.work-duty.routine.md
+cp "$rigWorkDuty/magic-team.work-duty.routine.md" "$rigWorkDuty/magic-team.standalone.routine.md" "$rigSkills/magic-team/"
+rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
+rigAssert "a run of it carries the routine's text in its first message, once, after the armed file: its own steps, and the opening steps of the kind it requires, mixed"  "$( rigCount "$rigDir/req.1" '**work-the-input**' ):$( rigCount "$rigDir/req.1" '**session-start**' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" 1:1:yes
+rigAssert "in the block of the prefetch, behind its marker, the task after it"            "$( rigMarkers "$rigDir/req.1" ):$( rigHolds "$rigDir/req.1" 'read for you before your task:' )" 4:yes
+rigScene wd-none wd ; rigRecord "" magic-team.work-duty.routine.md ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
+rigAssert "control: a record without the policy carries none of it, the armed file alone"  "$( rigCount "$rigDir/req.1" '**work-the-input**' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" 0:yes
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ PROMPT PREFETCH CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

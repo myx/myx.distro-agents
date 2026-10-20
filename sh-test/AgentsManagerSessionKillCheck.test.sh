@@ -461,7 +461,7 @@ rigAssert "nothing was signalled and no record written by a refused call" "$( ri
 echo "-- 11. what it takes --"
 rigSyntax="--session-id <id> [--run] [--plan]"
 rigBadSyntax=""
-for rigArgs in "" "--run" "--session-id" "--session-id -" "--spawn-id sess-three" "--session-id sess-three --active" "sess-three" "--yes --session-id sess-three" ; do
+for rigArgs in "" "--run" "--session-id" "--session-id -" "--spawn-name sess-three" "--session-id sess-three --active" "sess-three" "--yes --session-id sess-three" ; do
 	rigRun "$rigOp" $rigArgs
 	[ "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -F -- "⛔ ERROR: DistroAgentsTools $rigOp: " "$rigTmp/err" | LC_ALL=C grep -c -F -- "syntax is $rigSyntax" ) $( rigTroubles )" = "1 0 1 1" ] || rigBadSyntax="$rigBadSyntax [$rigArgs: rc $rigRc, $( head -c 200 "$rigTmp/err" )]"
 done

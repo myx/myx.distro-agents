@@ -56,7 +56,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <entity-id> <o
 echo "📘 syntax: DistroAgentsTools.fn.sh --help-setup-<domain>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-workspace-restrictions [--workspace <path>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-help [--team-member <team-member>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-setup-<domain> [<config-option>...] [--all-workspaces] [--set-as-default] [--check|--apply|--print-apply-command|--wizard]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh [--help-syntax [<op>]]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh [--help]" >&2
@@ -64,67 +64,67 @@ echo "📘 syntax: DistroAgentsTools.fn.sh [--help]" >&2
 case "$1" in
 
 	--help-syntax)
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-comment-add <team-member> <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-comment-read <team-member> <page-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-create <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-delete <team-member> <page-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format] [--version <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-search <team-member> <cql> [--limit <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-update <team-member> <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-space-list <team-member> [--cursor <value>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-check <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-mark-seen <team-member> <uid>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-read <team-member> <uid> [--seen]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path> [--in-reply-to <message-id>] [--text-group report|brief|relay]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin [--in-reply-to <message-id>] [--text-group report|brief|relay]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--in-reply-to <message-id>] [--text-group report|brief|relay]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-file-find <team-member> <search-term> [--full-text] [--include-trashed] [--limit <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-file-find <team-member> <drive-query> --raw-query [--limit <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-comment-post <team-member> <file-id> (<text...>|--from-stdin|--from-file <path>)" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-comment-read <team-member> <file-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-doc-read <team-member> <doc-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-doc-write <team-member> <doc-id> (<text...>|--from-stdin|--from-file <path>)" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-sheet-clear <team-member> <sheet-id> <a1-range>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-sheet-info <team-member> <sheet-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-sheet-read <team-member> <sheet-id> <a1-range> [--unformatted]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-sheet-write <team-member> <sheet-id> <a1-range> [--append] [--user-entered] (--from-stdin|--from-file <path>)" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-whoami <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-board-issue-search <team-member> <board-id> [--start-at <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-board-list <team-member> [--start-at <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-board-read <team-member> <board-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-comment-add <team-member> <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-comment-read <team-member> <issue-key> [--format adf|rendered] [--start-at <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-create <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-delete <team-member> <issue-key>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-search <team-member> <jql> [--limit <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-transition <team-member> <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-update <team-member> <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-sprint-issue-search <team-member> <sprint-id> [--start-at <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-sprint-list <team-member> <board-id> [--start-at <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-delete-message <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] (<text...>|--from-stdin|--from-file <path>)" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-fetch <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-info <team-member> <file-id> [--identity-bot] [--raw]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-share <team-member> (<conversation-id>|<channel>:<ts>) (--from-file <path>|--from-stdin) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-presence-keep <team-member> [--ttl <seconds>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-presence-status <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-presence-stop <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-profile-get <team-member> [--raw]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-profile-set <team-member> {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot] [--remove]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<conversation-id> [--oldest <ts>]) [--identity-bot]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-search-messages <team-member> <conversation-id> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-send-message <team-member> (<conversation-id>|<channel>:<ts>|<user-id>) [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... (<text...>|--from-stdin|--from-file <path>)" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-socket-start <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-socket-status <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-socket-stop <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-check <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-post-comment <team-member> <card-id> --from-file <path>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-post-comment <team-member> <card-id> --from-stdin" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-post-comment <team-member> <card-id> [text...]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-read <team-member> <notification-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-whoami <team-member>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-comment-add [--team-member <team-member>] <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-comment-read [--team-member <team-member>] <page-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-create [--team-member <team-member>] (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-delete [--team-member <team-member>] <page-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format] [--version <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-space-list [--team-member <team-member>] [--cursor <value>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-check [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-mark-seen [--team-member <team-member>] <uid>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-read [--team-member <team-member>] <uid> [--seen]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- --from-file <path> [--in-reply-to <message-id>] [--text-group report|brief|relay]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- --from-stdin [--in-reply-to <message-id>] [--text-group report|brief|relay]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- <body...> [--in-reply-to <message-id>] [--text-group report|brief|relay]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-file-find [--team-member <team-member>] <search-term> [--full-text] [--include-trashed] [--limit <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-file-find [--team-member <team-member>] <drive-query> --raw-query [--limit <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-comment-post [--team-member <team-member>] <file-id> (<text...>|--from-stdin|--from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-comment-read [--team-member <team-member>] <file-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-doc-read [--team-member <team-member>] <doc-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-doc-write [--team-member <team-member>] <doc-id> (<text...>|--from-stdin|--from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-sheet-clear [--team-member <team-member>] <sheet-id> <a1-range>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-sheet-info [--team-member <team-member>] <sheet-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-sheet-read [--team-member <team-member>] <sheet-id> <a1-range> [--unformatted]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-sheet-write [--team-member <team-member>] <sheet-id> <a1-range> [--append] [--user-entered] (--from-stdin|--from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-whoami [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-board-issue-search [--team-member <team-member>] <board-id> [--start-at <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-board-list [--team-member <team-member>] [--start-at <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-board-read [--team-member <team-member>] <board-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-comment-add [--team-member <team-member>] <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-comment-read [--team-member <team-member>] <issue-key> [--format adf|rendered] [--start-at <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-create [--team-member <team-member>] --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-delete [--team-member <team-member>] <issue-key>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-read [--team-member <team-member>] <issue-key> [--format adf|rendered]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-search [--team-member <team-member>] <jql> [--limit <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-transition [--team-member <team-member>] <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-update [--team-member <team-member>] <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-sprint-issue-search [--team-member <team-member>] <sprint-id> [--start-at <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-sprint-list [--team-member <team-member>] <board-id> [--start-at <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-delete-message [--team-member <team-member>] <channel>:<ts> [<channel>:<ts>...] [--identity-bot]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-edit-message [--team-member <team-member>] <channel>:<ts> [--identity-bot] (<text...>|--from-stdin|--from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-fetch [--team-member <team-member>] <file-id> <destination-path> [--identity-bot] [--overwrite]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-info [--team-member <team-member>] <file-id> [--identity-bot] [--raw]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-share [--team-member <team-member>] (<conversation-id>|<channel>:<ts>) (--from-file <path>|--from-stdin) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-presence-keep [--team-member <team-member>] [--ttl <seconds>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-presence-status [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-presence-stop [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-profile-get [--team-member <team-member>] [--raw]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-react [--team-member <team-member>] <channel>:<ts> <emoji-name> [--identity-bot] [--remove]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-read [--team-member <team-member>] (<channel>:<ts> [--thread]|<conversation-id> [--oldest <ts>]) [--identity-bot]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-search-messages [--team-member <team-member>] <conversation-id> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-send-message [--team-member <team-member>] (<conversation-id>|<channel>:<ts>|<user-id>) [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... (<text...>|--from-stdin|--from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-socket-start [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-socket-status [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-socket-stop [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-check [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-post-comment [--team-member <team-member>] <card-id> --from-file <path>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-post-comment [--team-member <team-member>] <card-id> --from-stdin" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-post-comment [--team-member <team-member>] <card-id> [text...]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-read [--team-member <team-member>] <notification-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-whoami [--team-member <team-member>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-send <channel> [-- <command...>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --console-start [--override-workspace <path>] [--console DistroSourceConsole.sh|DistroDeployConsole.sh] [--ttl <seconds>]" >&2
@@ -133,105 +133,105 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --install-claude-permissions [--works
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-knowledge-store [--from-folder <folder>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member> [--exclude-incoming]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash [--team-member <team-member>] <item-filename> --from-inbox:<member> [--exclude-incoming]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-git-repo-history [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--limit <n>] <path>..." >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-skillset-upsert <team-member> <pathname> (--from-stdin|--from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-skillset-upsert [--team-member <team-member>] <pathname> (--from-stdin|--from-file <path>)" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]..." >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-acquire <team-member> <owner-label>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-refresh <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-status <team-member>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-batch-outcome [--team-member <team-member>] --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]..." >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-close-state-and-unlock [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-acquire [--team-member <team-member>] <owner-label>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-refresh [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-status [--team-member <team-member>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-sleep-run" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-create-running <team-member> <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-backlog <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-append-session-transcript <team-member> <session-id> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--create]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-state-and-lock-upsert [--team-member <team-member>] [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-running [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-create-running [--team-member <team-member>] <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-append-session-transcript [--team-member <team-member>] <session-id> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--create]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-client-operation-run <magic-coordinator> --client-<operation> <client-member-name> [<argument>...]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-comment-add <team-member> <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-comment-read <team-member> <page-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-create <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-delete <team-member> <page-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-search <team-member> <cql> [--limit <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-update <team-member> <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-space-list <team-member> [--cursor <value>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-board-issue-search <team-member> <board-id> [--start-at <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-board-list <team-member> [--start-at <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-board-read <team-member> <board-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-comment-add <team-member> <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-comment-read <team-member> <issue-key> [--format adf|rendered] [--start-at <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-create <team-member> --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-delete <team-member> <issue-key>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-search <team-member> <jql> [--limit <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-transition <team-member> <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-update <team-member> <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-sprint-issue-search <team-member> <sprint-id> [--start-at <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-sprint-list <team-member> <board-id> [--start-at <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-conversations-roster <team-member> [--identity user|bot|both] [--types <csv>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<channel>|<conversation-id> [--oldest <ts>]) [--identity-bot]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... (<text...>|--from-stdin|--from-file <path>)" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-email-send <team-member> <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>)" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-email-mark-seen <team-member> <uid>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-contact-digest-send <team-member> <origin team-member> (--resolved|--needs-ruling) <text...>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--raw]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> --from-file <path>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> --from-stdin" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> [text...]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-daily-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-acquire <team-member> <owner-label>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-refresh <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-status <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-daily-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-backlog <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-blocked <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-pending <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-processed <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-running <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-acquire <team-member> <owner-label>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-refresh <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-status <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-archived <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-parked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-retained <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-running <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name> [--untrash]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-close-state-and-unlock <team-member>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-comment-add [--team-member <team-member>] <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-comment-read [--team-member <team-member>] <page-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-create [--team-member <team-member>] (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-delete [--team-member <team-member>] <page-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-space-list [--team-member <team-member>] [--cursor <value>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-board-issue-search [--team-member <team-member>] <board-id> [--start-at <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-board-list [--team-member <team-member>] [--start-at <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-board-read [--team-member <team-member>] <board-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-comment-add [--team-member <team-member>] <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-comment-read [--team-member <team-member>] <issue-key> [--format adf|rendered] [--start-at <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-create [--team-member <team-member>] --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-delete [--team-member <team-member>] <issue-key>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-read [--team-member <team-member>] <issue-key> [--format adf|rendered]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-search [--team-member <team-member>] <jql> [--limit <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-transition [--team-member <team-member>] <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-update [--team-member <team-member>] <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-sprint-issue-search [--team-member <team-member>] <sprint-id> [--start-at <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-sprint-list [--team-member <team-member>] <board-id> [--start-at <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-conversations-roster [--team-member <team-member>] [--identity user|bot|both] [--types <csv>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-read [--team-member <team-member>] (<channel>:<ts> [--thread]|<channel>|<conversation-id> [--oldest <ts>]) [--identity-bot]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--address-to <who>]... (<text...>|--from-stdin|--from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-react [--team-member <team-member>] <channel>:<ts> <emoji-name> [--identity-bot]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-email-mark-seen [--team-member <team-member>] <uid>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-contact-digest-send [--team-member <team-member>] <origin team-member> (--resolved|--needs-ruling) <text...>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids [--team-member <team-member>] [--user-name <name>]... [--channel-name <name>]... [--raw]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment [--team-member <team-member>] <card-id> --from-file <path>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment [--team-member <team-member>] <card-id> --from-stdin" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment [--team-member <team-member>] <card-id> [text...]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-daily-close-state-and-unlock [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-acquire [--team-member <team-member>] <owner-label>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-refresh [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-status [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-daily-state-and-lock-upsert [--team-member <team-member>] [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-close-state-and-unlock [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-backlog [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-blocked [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-pending [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-processed [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-running [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]..." >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-acquire [--team-member <team-member>] <owner-label>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-refresh [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-status [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-state-and-lock-upsert [--team-member <team-member>] [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-archived [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-retained [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-running [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash [--team-member <team-member>] <board-state> <item-name> [--untrash]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-close-state-and-unlock [--team-member <team-member>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-config-check" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-member> <owner-label>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-refresh <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-status <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-test-report-send <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-acquire <team-member> <owner-label>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-refresh <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-status <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire [--team-member <team-member>] <owner-label>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-refresh [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-status [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-test-report-send [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-close-state-and-unlock [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-acquire [--team-member <team-member>] <owner-label>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-refresh [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-status [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-state-and-lock-upsert [--team-member <team-member>] [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-advance <team-member> <ts>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-read <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-team-data-commit-pending <team-member> [--commit-message <message>] [--no-push]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-read <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-advance [--team-member <team-member>] <ts>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-read [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-team-data-commit-pending [--team-member <team-member>] [--commit-message <message>] [--no-push]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-read [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-agents-indices [<name>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-harness-indices [<name>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]" >&2
@@ -242,7 +242,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-command-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-config-digest [--full] [<subject>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-config-set <key> <value>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-console-list" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --manager-dashboard-read [<block>...]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-dashboard-read [--group <group>] [<block>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-help-read" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-help-read <Name>.fn.sh" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-keys-list" >&2
@@ -285,86 +285,86 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-data-read <store> [<fo
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-files <team-member> [<file>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-read [--full] <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript [--team-member <team-member>] [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-directory-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-directory-path <name>[/<relative>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-namespace-list [<namespace>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format] [--version <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-space-list <team-member> [--cursor <value>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-contact-digest-send <team-member> (--resolved|--needs-ruling) <text...>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-check <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-mark-seen <team-member> <uid>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-read <team-member> <uid> [--seen]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path> [--in-reply-to <message-id>] [--text-group report|brief|relay]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin [--in-reply-to <message-id>] [--text-group report|brief|relay]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--in-reply-to <message-id>] [--text-group report|brief|relay]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-file-find <team-member> <search-term> [--full-text] [--include-trashed] [--limit <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-file-find <team-member> <drive-query> --raw-query [--limit <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-comment-post <team-member> <file-id> (<text...>|--from-stdin|--from-file <path>)" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-comment-read <team-member> <file-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-doc-read <team-member> <doc-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-doc-write <team-member> <doc-id> (<text...>|--from-stdin|--from-file <path>)" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-sheet-clear <team-member> <sheet-id> <a1-range>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-sheet-info <team-member> <sheet-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-sheet-read <team-member> <sheet-id> <a1-range> [--unformatted]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-sheet-write <team-member> <sheet-id> <a1-range> [--append] [--user-entered] (--from-stdin|--from-file <path>)" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-whoami <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-issue-search <team-member> <board-id> [--start-at <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-list <team-member> [--start-at <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-read <team-member> <board-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-sprint-issue-search <team-member> <sprint-id> [--start-at <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-sprint-list <team-member> <board-id> [--start-at <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-delete-message <team-member> <channel>:<ts>|<alias>:<ts>|session-current|session-parent [<channel>:<ts>...] [--identity-bot]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] --from-file <path> [--text-group report|brief|relay]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] --from-stdin [--text-group report|brief|relay]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] [text...] [--text-group report|brief|relay]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-fetch <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-info <team-member> <file-id> [--identity-bot] [--raw]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-share <team-member> <target> --from-file <path> [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-share <team-member> <target> --from-stdin [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-get <team-member> [--raw]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-set <team-member> {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts>|<alias>:<ts>|session-current|session-parent <emoji-name> [--identity-bot]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> (<channel>:<ts>|<alias>:<ts>|session-current|session-parent [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-search-messages <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|session-current|session-parent|<alias>:<ts>|<conversation-id>|<channel>:<ts>|<team-member>[:<ts>]> [--identity-bot] [--metadata <json>] [text...] [--text-group report|brief|relay]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-check <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-read <team-member> <notification-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-whoami <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-read <member> <item-filename> [--include-processed] [--start-line <N> --end-line <N>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-trash <member> <item-filename> [--exclude-incoming]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-reflection-upsert <member> <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-audit-item-read <team-member> <document-name> [--start-line <N> --end-line <N>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-vault-item-read <team-member> <item-name> [--start-line <N> --end-line <N>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-board-item-read <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop|--unwait <kind>:<target> --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>] [--wait-collect <seconds>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> --wait-list-sources" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-escalation-read <team-member> <request-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-escalation-answer <team-member> <request-id> <verdict> [text]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format] [--version <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-space-list [--team-member <team-member>] [--cursor <value>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-contact-digest-send [--team-member <team-member>] (--resolved|--needs-ruling) <text...>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-check [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-mark-seen [--team-member <team-member>] <uid>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-read [--team-member <team-member>] <uid> [--seen]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- --from-file <path> [--in-reply-to <message-id>] [--text-group report|brief|relay]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- --from-stdin [--in-reply-to <message-id>] [--text-group report|brief|relay]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- <body...> [--in-reply-to <message-id>] [--text-group report|brief|relay]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-file-find [--team-member <team-member>] <search-term> [--full-text] [--include-trashed] [--limit <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-file-find [--team-member <team-member>] <drive-query> --raw-query [--limit <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-comment-post [--team-member <team-member>] <file-id> (<text...>|--from-stdin|--from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-comment-read [--team-member <team-member>] <file-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-doc-read [--team-member <team-member>] <doc-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-doc-write [--team-member <team-member>] <doc-id> (<text...>|--from-stdin|--from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-sheet-clear [--team-member <team-member>] <sheet-id> <a1-range>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-sheet-info [--team-member <team-member>] <sheet-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-sheet-read [--team-member <team-member>] <sheet-id> <a1-range> [--unformatted]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-sheet-write [--team-member <team-member>] <sheet-id> <a1-range> [--append] [--user-entered] (--from-stdin|--from-file <path>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-google-whoami [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-issue-search [--team-member <team-member>] <board-id> [--start-at <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-list [--team-member <team-member>] [--start-at <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-read [--team-member <team-member>] <board-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-read [--team-member <team-member>] <issue-key> [--format adf|rendered]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-sprint-issue-search [--team-member <team-member>] <sprint-id> [--start-at <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-sprint-list [--team-member <team-member>] <board-id> [--start-at <n>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-delete-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [<channel>:<ts>...] [--identity-bot]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] --from-file <path> [--text-group report|brief|relay]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] --from-stdin [--text-group report|brief|relay]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] [text...] [--text-group report|brief|relay]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-fetch [--team-member <team-member>] <file-id> <destination-path> [--identity-bot] [--overwrite]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-info [--team-member <team-member>] <file-id> [--identity-bot] [--raw]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-share [--team-member <team-member>] <target> --from-file <path> [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-share [--team-member <team-member>] <target> --from-stdin [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-get [--team-member <team-member>] [--raw]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-react [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent <emoji-name> [--identity-bot]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read [--team-member <team-member>] (<channel>:<ts>|<alias>:<ts>|session-current|session-parent [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-search-messages [--team-member <team-member>] <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message [--team-member <team-member>] <magic-team|human-owner|event-track|event-alert|session-current|session-parent|<alias>:<ts>|<conversation-id>|<channel>:<ts>|<team-member>[:<ts>]> [--identity-bot] [--metadata <json>] [text...] [--text-group report|brief|relay]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-check [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-read [--team-member <team-member>] <notification-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-whoami [--team-member <team-member>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-read [--team-member <member>] <item-filename> [--include-processed] [--start-line <N> --end-line <N>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-trash [--team-member <member>] <item-filename> [--exclude-incoming]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-to-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-note-upsert [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-inbox-reflection-upsert [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-audit-item-read [--team-member <team-member>] <document-name> [--start-line <N> --end-line <N>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-vault-item-read [--team-member <team-member>] <item-name> [--start-line <N> --end-line <N>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-board-item-read [--team-member <team-member>] <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input [--team-member <team-member>] [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop|--unwait <kind>:<target> --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>] [--wait-collect <seconds>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input [--team-member <team-member>] --wait-list-sources" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-escalation-read [--team-member <team-member>] <request-id>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-escalation-answer [--team-member <team-member>] <request-id> <verdict> [text]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-escalation-readback <team-member> <request-id> <option word> [text]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-escalation-readback [--team-member <team-member>] <request-id> <option word> [text]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-forward <coordinator> <request-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-permission-pass <team-member> --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-permission-pass [--team-member <team-member>] --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-set-request <magic-coordinator> <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]..." >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-list --member <member> [--session-id <id>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-permission-list <team-member> [--session-id <id>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-permission-list [--team-member <team-member>] [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-revoke <ref> [--session-id <id>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner] [--count]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle <team-member> <pending-id> --reason <text> [--withdraw]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read [--team-member <team-member>] [<pending-id>] [--all] [--any-owner] [--count]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle [--team-member <team-member>] <pending-id> --reason <text> [--withdraw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text> [--withdraw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-amend <magic-coordinator> <pending-id> --verdict <text> --reason <text>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-decision-record <team-member> <item-filename> --kind <clarification|resolved|dismissed> --text <one line> [--source <ts-or-id>] [--clears-blocker]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-review-request <team-member> <item-filename> --reason <text>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-review-accept <team-member> <item-filename> [--summary <text>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-review-return <team-member> <item-filename> (--message <text>|--from-stdin)" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-review-reject <team-member> <item-filename> (--message <text>|--from-stdin)" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-review-follow-up <team-member> <item-filename> <new-item-name> --from-stdin" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-decision-record [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> [--source <ts-or-id>] [--clears-blocker]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-review-request [--team-member <team-member>] <item-filename> --reason <text>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-review-accept [--team-member <team-member>] <item-filename> [--summary <text>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-review-return [--team-member <team-member>] <item-filename> (--message <text>|--from-stdin)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-review-reject [--team-member <team-member>] <item-filename> (--message <text>|--from-stdin)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-review-follow-up [--team-member <team-member>] <item-filename> <new-item-name> --from-stdin" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-review-shutdown <magic-coordinator>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-review-accept <magic-coordinator> <item-filename> [--summary <text>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-review-return <magic-coordinator> <item-filename> (--message <text>|--from-stdin)" >&2
@@ -381,6 +381,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-verify" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <name>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path> [--name <name>] [--kind workspace|directory] [--ceiling read-only|read-write]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --intern-context-show [--team-member <team-member>] [--session-id <session-id>] [--spawn-id <spawn-id>] [--select-workspace <place-name|absolute-path>] [--tooling-origin <spec|absolute-path>]" >&2
 		return 0
 	;;
 

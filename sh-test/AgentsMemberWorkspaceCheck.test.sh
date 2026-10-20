@@ -182,18 +182,15 @@ rigWorld(){ ## -- a fresh machine: workspaces, members, scopes, registries, the 
 	printf '%s\n' 'client-ndm 🐭 Magic Vane dispatchr' 'keeper-both 🔧 Both Keeper bothkeep' 'keeper-there 🔧 There Keeper therekeep' > "$rigWork/ws-there/.local/agents/team-members-names.registry"
 	printf '%s\n' 'client-ndm 🐭 Rig Persona rigalias' > "$rigWork/ws-rig/.local/agents/team-members-names.registry"
 	rigConsole ws-here HERE ; rigConsole ws-there THERE ; rigConsole ws-third THIRD ; rigConsole ws-rig RIG
-	## client-ndm's own contacts note in each workspace that holds it: a send presenting into
+	## client-ndm's own contacts in each workspace that holds it: a send presenting into
 	## a client workspace passes the outbound contact gate (AgentsToolsContactAssertKnown)
-	## only for a listed recipient, and these are the rig's own channels and owners there.
+	## only for a recipient that is a coordinate of a contact it holds, and these are the
+	## rig's own channels and owners there.
+	. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-contacts.include.sh" || exit 1
 	for wsName in ws-there ws-rig ; do
-		mkdir -p "$rigWork/$wsName/.local/agents/team-data-root/inboxes/client-ndm/incoming"
-		printf '%s\n' \
-			'| slack-id | contact | handle | email | organisation | permission level |' \
-			'| --- | --- | --- | --- | --- | --- |' \
-			'| CTHERE0001 | rig-team-there | @rig-team-there | <unresolved> | rig | unset |' \
-			'| UTHEREOWNER | rig-owner-there | @rig-owner-there | <unresolved> | rig | unset |' \
-			'| CRIG000001 | rig-team-rig | @rig-team-rig | <unresolved> | rig | unset |' \
-			> "$rigWork/$wsName/.local/agents/team-data-root/inboxes/client-ndm/incoming/note-rig-contacts.md"
+		rigContactSeed "$rigWork/$wsName/.local/agents/team-data-root" client-ndm rig-team-there CTHERE0001 -
+		rigContactSeed "$rigWork/$wsName/.local/agents/team-data-root" client-ndm rig-owner-there UTHEREOWNER -
+		rigContactSeed "$rigWork/$wsName/.local/agents/team-data-root" client-ndm rig-team-rig CRIG000001 -
 	done
 	: > "$rigTmp/calls" ; : > "$rigTmp/envs" ; : > "$rigTmp/bodies"
 }
@@ -615,12 +612,8 @@ rigAssert "a client set up only in another workspace reads the settings of the w
 rigClientHere(){
 	rigScopeOf ws-here client-ndm 'WHERE=ws-here' 'SLACK_USER_TOKEN=rig-user-token-NDMHERE' 'JIRA_SITE=jira-here.invalid' 'JIRA_USER=ndm-here@rig.invalid' 'JIRA_API_TOKEN=rig-jira-token-HERE'
 	printf '%s\n' 'magic-coordinator 🐭 Magic Vane dispatchr' >> "$rigWork/ws-here/.local/agents/team-members-names.registry"
-	mkdir -p "$rigWork/ws-here/.local/agents/team-data-root/inboxes/client-ndm/incoming"
-	printf '%s\n' \
-		'| slack-id | contact | handle | email | organisation | permission level |' \
-		'| --- | --- | --- | --- | --- | --- |' \
-		'| CNDM00001 | rig-ndm-team | @rig-ndm-team | <unresolved> | rig | unset |' \
-		> "$rigWork/ws-here/.local/agents/team-data-root/inboxes/client-ndm/incoming/note-rig-contacts.md"
+	. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-contacts.include.sh" || exit 1
+	rigContactSeed "$rigWork/ws-here/.local/agents/team-data-root" client-ndm rig-ndm-team CNDM00001 -
 }
 rigClientHere
 rigRunIn ws-here --agents-config-option client-ndm --select WHERE

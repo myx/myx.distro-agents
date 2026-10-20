@@ -1107,7 +1107,7 @@ case "$1" in
 			else
 				killRecord="$( AgentsToolsAuthoritySessionRecord "$killId" )" || killRecord="$( AgentsToolsSessionRunRecord "$killId" )" || killRecord=""
 			fi
-			AgentsToolsAuthorityGate "the end of $( [ -n "$killOwn" ] && printf 'run' || printf 'session' ) $killId" "$killId" "$killRecord" "" console \
+			AgentsToolsAuthorityGate "end $( [ -n "$killOwn" ] && printf 'run %s' "$killId" || printf 'session %s' "$( AgentsToolsAuthoritySessionWords "$killId" )" )" "$killId" "$killRecord" "" console \
 				"$killOp" --session-id "$killId" ${killOwn:+--run} || :
 			AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
 		fi

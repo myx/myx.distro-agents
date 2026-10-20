@@ -74,7 +74,7 @@ printf '%s\n' "SPAWN-PREPARE-BRIEF: rig-member" "tool-routing: use the tools and
 	"session-kind: coworking, defined by magic-team.coworking.routine.md. Read it too, the same way: its Opening steps run before the Opening steps of magic-team.coworking.routine.md, its Closure steps after the Closure steps of magic-team.coworking.routine.md, and its rules and tooling apply as well. DistroAgentsSession.fn.sh --get-routine-text magic-team.coworking.routine.md prints the routine mixed in that order." \
 	"Read these two sections of magic-team/magic-team.armed.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.armed.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}" \
 	"executors: magic-coordinator" "invitees: magic-team" \
-	"## open warning-* items" "(none open)" "When done, hand back; then Wait until dismissed." > "$rigTmp/b1.want"
+	"## open warning-* items" "(none open)" "## standing directives in force" "(none in force)" "When done, hand back; then Wait until dismissed." > "$rigTmp/b1.want"
 rigAssert "the brief is the filled Skeleton, byte for byte" "$( cmp -s "$rigTmp/b1" "$rigTmp/b1.want" && printf same || printf differs )" same
 rigAssert "no slot is left unfilled"                   "$( LC_ALL=C grep -c '{{' "$rigTmp/b1" )" 0
 rigAssert "the header names the member"                "$( LC_ALL=C grep -c -x -F 'SPAWN-PREPARE-BRIEF: rig-member' "$rigTmp/b1" )" 1

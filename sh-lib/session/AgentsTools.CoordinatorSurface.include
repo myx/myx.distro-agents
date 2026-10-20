@@ -1,0 +1,278 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CoordinatorSurface.include -- the functions of AgentDispatcherTools.fn.sh (F7.9), the coordinator's role surface over the tasks, the spawns, the
+## worktime flags, the standing directives and the contacts. Sourced for its functions only; $MDSC_CMD is the caller's.
+##
+## IT OWNS NO STATE. Every operation delegates to the subject that owns the answer: the spawns and the flags to DistroAgentsDispatcher.fn.sh, the contacts
+## and their access to DistroAgentsContacts.fn.sh, the tasks to the board's own readers, a warning to the board, a coordinator note to the coordinator's
+## inbox. The one thing that had no home, a standing order of the human-owner, is written into the `# Standing directives` section of the heartbeat-state-note,
+## the coordinator's own standing-state document, THROUGH THE NOTE'S LOCK: the write takes the note's lock as a session does (--magic-heartbeat-lock-acquire),
+## waits while a heartbeat holds it, changes that section alone, and gives the lock back; committed and pushed as every state update is. A single write that
+## does not delegate would be the violation, and there is none here.
+##
+## A STANDING DIRECTIVE is one of three: a `warning-*` board item that is open (kept visible until mitigated), a coordinator note (an inbox note of
+## magic-coordinator that carries the header `standing: yes`, a row of inbox-item.note's contract set with --member-inbox-note-upsert --standing, kept visible until it is processed), and an order of the human-owner, a line of the section
+##   - <id> | set <YYYY-MM-DD HH:MM> | expires-at: <YYYY-MM-DD HH:MM>|none | <text>
+## which is IN FORCE while its expires-at is none or has not passed. A spawn is given the ones in force (--standing-directives, in the spawn brief).
+##
+
+agentsSurfaceNote="note-20260809T155000Z-heartbeat-state-and-lock.md"
+agentsSurfaceHeading="# Standing directives"
+
+AgentsToolsSurfaceNotePath(){
+	printf '%s/%s\n' "$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming" "$agentsSurfaceNote"
+}
+
+AgentsToolsSurfaceTool(){ ## the script, its arguments...
+	local surfaceScript="$1" ; shift
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/$surfaceScript.fn.sh" "$@"
+}
+
+## The tool runs as magic-coordinator, or from no member's session (the console, automation) for what only reads.
+AgentsToolsSurfaceCaller(){ ## the operation, write|read
+	local callerMember
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	callerMember="$( AgentsToolsActingMember )"
+	if [ -n "$callerMember" ] && [ "$callerMember" != magic-coordinator ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $1: runs only as magic-coordinator, and this call comes from $callerMember -- nothing was done" >&2
+		return 1
+	fi
+	if [ -z "$callerMember" ] && [ "$2" = write ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $1: a directive is written by magic-coordinator, and this call comes from no member's session -- nothing was written" >&2
+		return 1
+	fi
+	return 0
+}
+
+## ---- the delegating reads ----
+
+## --spawns [--active|--waiting|--all]: the runs of the team, the Dispatcher's rows.
+AgentsToolsSurfaceSpawns(){ ## the operation, its arguments...
+	local spawnsOp="$1" spawnsWhich="--active-sessions"
+	shift
+	case "${1:-}" in
+		'') ;;
+		--active) spawnsWhich="--active-sessions" ; shift ;;
+		--waiting) spawnsWhich="--waiting-sessions" ; shift ;;
+		--all) spawnsWhich="--all-sessions" ; shift ;;
+	esac
+	[ $# -eq 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: $spawnsOp: syntax is [--active|--waiting|--all] -- got: $1" >&2 ; return 1 ; }
+	AgentsToolsSurfaceTool DistroAgentsDispatcher "$spawnsWhich"
+}
+
+## --flags: the worktime flags now, the Dispatcher's lines.
+AgentsToolsSurfaceFlags(){ ## the operation, its arguments...
+	[ $# -eq 1 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: takes no option: $2" >&2 ; return 1 ; }
+	AgentsToolsSurfaceTool DistroAgentsDispatcher --current-flags
+}
+
+## --tasks: the board as the heartbeat reads it: the count of each state and the active items with their tokens, the board's own readers.
+AgentsToolsSurfaceTasks(){ ## the operation, its arguments...
+	[ $# -eq 1 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: takes no option: $2" >&2 ; return 1 ; }
+	type AgentsToolsHeartbeatBoardCounts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicHeartbeat.include" --definitions-only > /dev/null 2>&1 || :
+	type AgentsToolsHeartbeatBoardCounts > /dev/null 2>&1 || { echo "$MDSC_CMD: ⛔ ERROR: $1: the board's readers could not be loaded" >&2 ; return 1 ; }
+	printf '# board\n'
+	AgentsToolsHeartbeatBoardCounts
+	printf '# active\n'
+	AgentsToolsHeartbeatBoardActiveItems
+}
+
+## --contacts [--organisation <slug>] [--reached-by <member>]: the contacts, Contacts' rows. --contact <id>: one, its record and its access.
+AgentsToolsSurfaceContacts(){ ## the operation, its arguments...
+	local contactsOp="$1"
+	shift
+	if [ "$contactsOp" = --contact ] ; then
+		[ $# -eq 1 ] || { echo "$MDSC_CMD: ⛔ ERROR: $contactsOp: syntax is <id>" >&2 ; return 1 ; }
+		AgentsToolsSurfaceTool DistroAgentsContacts --contact-record "$1" || return $?
+		printf '# access\n'
+		AgentsToolsSurfaceTool DistroAgentsContacts --contact-access "$1"
+		return $?
+	fi
+	AgentsToolsSurfaceTool DistroAgentsContacts --all-contacts "$@"
+}
+
+## ---- the standing directives ----
+
+## The orders of the heartbeat-state-note, in force or not, one TAB-separated row each: id, set, expires-at, text.
+AgentsToolsSurfaceOrders(){
+	local ordersNote
+	ordersNote="$( AgentsToolsSurfaceNotePath )"
+	[ -f "$ordersNote" ] || return 0
+	LC_ALL=C awk -v heading="$agentsSurfaceHeading" '
+		$0 == heading { on = 1 ; next }
+		on && /^# / { on = 0 }
+		on && /^- / {
+			line = substr( $0, 3 ) ; count = split( line, parts, " \\| " )
+			if ( count < 4 ) { next }
+			text = parts[4] ; for ( at = 5 ; at <= count ; at++ ) { text = text " | " parts[at] }
+			set = parts[2] ; sub( /^set /, "", set ) ; expires = parts[3] ; sub( /^expires-at: /, "", expires )
+			printf "%s\t%s\t%s\t%s\n", parts[1], set, expires, text
+		}
+	' "$ordersNote"
+}
+
+## Whether an order is in force: its expires-at is none, or later than now.
+AgentsToolsSurfaceInForce(){ ## expires-at
+	[ "$1" = none ] || [ "$1" \> "$( date '+%Y-%m-%d %H:%M' )" ]
+}
+
+## --standing-directives [--all]: the standing directives in force, a row each: `warning <item> <state>`, `note <item> <heading>`, `order <id> <set> <expires-at> <text>`.
+## --all shows the expired orders too, marked `expired`. Reads only.
+AgentsToolsSurfaceStanding(){ ## the operation, its arguments...
+	local standingOp="$1" standingAll="" standingState standingFile standingId standingSet standingExpires standingText standingHead
+	shift
+	case "${1:-}" in --all) standingAll=yes ; shift ;; esac
+	[ $# -eq 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: $standingOp: syntax is [--all] -- got: $1" >&2 ; return 1 ; }
+	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $standingOp: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
+	for standingState in backlog pending running review blocked parked ; do
+		for standingFile in "$MDAT_DATA_ROOT/board/$standingState"/warning-*.md ; do
+			[ -e "$standingFile" ] || continue
+			printf 'warning\t%s\t%s\n' "${standingFile##*/}" "$standingState"
+		done
+	done
+	for standingFile in "$MDAT_DATA_ROOT/inboxes/magic-coordinator/incoming"/note-*.md ; do
+		[ -f "$standingFile" ] || continue
+		[ "$( LC_ALL=C awk 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } $0 == "standing: yes" { print "yes" ; exit ; }' "$standingFile" )" = yes ] || continue
+		standingHead="$( LC_ALL=C awk 'dashes >= 2 && /^# / { print substr( $0, 3 ) ; exit ; } $0 == "---" { dashes++ }' "$standingFile" )"
+		printf 'note\t%s\t%s\n' "${standingFile##*/}" "${standingHead:-$standingFile}"
+	done
+	while IFS=$'\t' read -r standingId standingSet standingExpires standingText ; do
+		[ -n "$standingId" ] || continue
+		if AgentsToolsSurfaceInForce "$standingExpires" ; then
+			printf 'order\t%s\t%s\t%s\t%s\n' "$standingId" "$standingSet" "$standingExpires" "$standingText"
+		elif [ -n "$standingAll" ] ; then
+			printf 'order\t%s\t%s\t%s (expired)\t%s\n' "$standingId" "$standingSet" "$standingExpires" "$standingText"
+		fi
+	done <<< "$( AgentsToolsSurfaceOrders )"
+}
+
+## What a spawn is given of them, for its brief: the orders in force and the coordinator notes, a line each; (none in force) where there are none. The open
+## warnings have their own lines in the brief.
+AgentsToolsSurfaceBriefText(){
+	local briefRows briefLine
+	briefRows="$( AgentsToolsSurfaceStanding briefing 2> /dev/null | LC_ALL=C awk -F'\t' '
+		$1 == "order" { printf "- order %s%s: %s\n", $2, ( $4 == "none" ? "" : " (until " $4 ")" ), $5 }
+		$1 == "note" { printf "- note %s: %s\n", $2, $3 }' )" || briefRows=""
+	[ -n "$briefRows" ] || briefRows="(none in force)"
+	printf '%s' "$briefRows"
+}
+
+## ---- the writes: the section of the heartbeat-state-note, through its lock ----
+
+## Takes the note's lock as a session does, waiting while another holds it (a heartbeat): polls every 2 seconds up to <wait> seconds.
+AgentsToolsSurfaceLockTake(){ ## the operation, owner label, wait seconds
+	local lockLeft="$3" lockOut lockRc
+	while : ; do
+		lockRc=0
+		lockOut="$( AgentsToolsSurfaceTool DistroAgentsTools --magic-heartbeat-lock-acquire magic-coordinator "$2" 2>&1 )" || lockRc=$?
+		[ "$lockRc" != 0 ] || return 0
+		if [ "$lockLeft" -le 0 ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $1: the heartbeat-state-note is locked by a pass that is running, and stayed so for $3 second(s) -- nothing was written: $( printf '%s' "$lockOut" | LC_ALL=C grep -v 'SystemContext\|SetInputSpec' | LC_ALL=C tr '\n' ' ' | LC_ALL=C cut -c1-240 )" >&2
+			return 1
+		fi
+		sleep 2 ; lockLeft=$(( lockLeft - 2 ))
+	done
+}
+
+## Gives the lock back, as the heartbeat's close does its unlock (the note committed and pushed), without the sweep that is the heartbeat's.
+AgentsToolsSurfaceLockGive(){ ## the operation
+	type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpItem.include"
+	AgentsToolsItemUpsert magic-coordinator "$agentsSurfaceNote" --unlock-lock --header:upsert:state:heartbeat-finished \
+		--commit-message "* directive, standing directives, $( date -u +%Y-%m-%dT%H:%M:%SZ )" --context "$1" > /dev/null 2>&1 \
+		|| echo "$MDSC_CMD: ⚠️ WARNING: $1: the lock of the heartbeat-state-note could not be given back: it stays until its recheck-date" >&2
+}
+
+## The note with only its `# Standing directives` section changed: the section's lines (given in the environment as SURFACE_LINES) replace it, or are appended.
+AgentsToolsSurfaceRewrite(){ ## the note path
+	SURFACE_LINES="$SURFACE_LINES" LC_ALL=C awk -v heading="$agentsSurfaceHeading" '
+		BEGIN { new = ENVIRON["SURFACE_LINES"] }
+		$0 == heading { on = 1 ; seen = 1 ; print ; print "" ; if ( new != "" ) { print new ; print "" } ; next }
+		on && /^# / { on = 0 }
+		on { next }
+		{ print }
+		END { if ( ! seen && new != "" ) { print "" ; print heading ; print "" ; print new } }
+	' "$1" | LC_ALL=C awk '{ if ( $0 == "" ) { blanks++ ; next } while ( blanks > 0 ) { print "" ; blanks-- } blanks = 0 ; print }'
+}
+
+## The whole write: the lock, then the orders read AGAIN under it (a heartbeat may have held the note and the section may have changed while this waited), the
+## change made on that, the section written by the heartbeat's own state writer (the stored stamps carried), the lock given back.
+AgentsToolsSurfaceStateWrite(){ ## the operation, wait seconds, set|end, id, the order line (set only)
+	local writeOp="$1" writeWait="$2" writeMode="$3" writeId="$4" writeLine="${5:-}" writeNote writeRc=0 writeContent writeHad writeKept
+	AgentsToolsSurfaceLockTake "$writeOp" "directive-$writeMode" "$writeWait" || return 1
+	writeNote="$( AgentsToolsSurfaceNotePath )"
+	writeHad="$( AgentsToolsSurfaceOrders | LC_ALL=C awk -F'\t' -v want="$writeId" '$1 == want { n++ } END { print n + 0 }' )"
+	if [ "$writeMode" = end ] && [ "$writeHad" = 0 ] ; then
+		AgentsToolsSurfaceLockGive "$writeOp"
+		echo "$MDSC_CMD: ⛔ ERROR: $writeOp: no directive $writeId stands in the heartbeat-state-note" >&2
+		return 1
+	fi
+	writeKept="$( AgentsToolsSurfaceOrders | LC_ALL=C awk -F'\t' -v skip="$writeId" '$1 != skip { printf "- %s | set %s | expires-at: %s | %s\n", $1, $2, $3, $4 }' )"
+	[ "$writeMode" != set ] || writeKept="${writeKept:+$writeKept$'\n'}$writeLine"
+	export SURFACE_LINES="$writeKept"
+	writeContent="$( AgentsToolsSurfaceRewrite "$writeNote" )" || writeRc=1
+	if [ "$writeRc" = 0 ] && [ -n "$writeContent" ] ; then
+		printf '%s\n' "$writeContent" | AgentsToolsSurfaceTool DistroAgentsTools --intern-op-heartbeat-state-upsert magic-coordinator > /dev/null || writeRc=$?
+	else
+		writeRc=1
+	fi
+	AgentsToolsSurfaceLockGive "$writeOp"
+	unset SURFACE_LINES
+	[ "$writeRc" = 0 ] || echo "$MDSC_CMD: ⛔ ERROR: $writeOp: the heartbeat-state-note could not be written -- the directives are as they were" >&2
+	return "$writeRc"
+}
+
+## --directive-set --text <text> --expires-at "<YYYY-MM-DD HH:MM>"|none [--id <id>] [--wait <seconds>]: an order of the human-owner entered as a standing directive.
+## Prints `DIRECTIVE: <id> set`. An id already there is replaced (a directive changed).
+AgentsToolsSurfaceDirectiveSet(){ ## the operation, its arguments...
+	local setOp="$1" setText="" setExpires="" setId="" setWait=120 setLine
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--text|--expires-at|--id|--wait)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $setOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in --text) setText="$2" ;; --expires-at) setExpires="$2" ;; --id) setId="$2" ;; --wait) setWait="$2" ;; esac
+				shift 2
+			;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $setOp: unknown option: $1 -- syntax is --text <text> --expires-at \"<YYYY-MM-DD HH:MM>\"|none [--id <id>] [--wait <seconds>]" >&2 ; return 1 ;;
+		esac
+	done
+	AgentsToolsSurfaceCaller "$setOp" write || return 1
+	setText="$( printf '%s' "$setText" | LC_ALL=C tr '\n\r\t' '   ' | LC_ALL=C tr -s ' ' | LC_ALL=C sed -e 's/^ //' -e 's/ $//' -e 's/ | / - /g' )"
+	[ -n "$setText" ] && [ "${#setText}" -le 400 ] || { echo "$MDSC_CMD: ⛔ ERROR: $setOp: --text is the order in one line of at most 400 characters" >&2 ; return 1 ; }
+	case "$setExpires" in
+		none|[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\ [0-9][0-9]:[0-9][0-9]) ;;
+		*) echo "$MDSC_CMD: ⛔ ERROR: $setOp: --expires-at is \"<YYYY-MM-DD HH:MM>\" or none, and is needed: ${setExpires:-<nothing>}" >&2 ; return 1 ;;
+	esac
+	[ -n "$setId" ] || setId="d$( date -u +%Y%m%dT%H%M%S )"
+	case "$setId" in ''|*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-]*) echo "$MDSC_CMD: ⛔ ERROR: $setOp: --id is letters, digits, '.', '_' and '-': $setId" >&2 ; return 1 ;; esac
+	case "$setWait" in ''|*[!0123456789]*) echo "$MDSC_CMD: ⛔ ERROR: $setOp: --wait is whole seconds: $setWait" >&2 ; return 1 ;; esac
+	[ -n "${MDAT_DATA_ROOT:-}" ] && [ -f "$( AgentsToolsSurfaceNotePath )" ] || { echo "$MDSC_CMD: ⛔ ERROR: $setOp: the heartbeat-state-note is not there: $( AgentsToolsSurfaceNotePath )" >&2 ; return 1 ; }
+	setLine="- $setId | set $( date '+%Y-%m-%d %H:%M' ) | expires-at: $setExpires | $setText"
+	AgentsToolsSurfaceStateWrite "$setOp" "$setWait" set "$setId" "$setLine" || return 1
+	printf 'DIRECTIVE: %s set\n' "$setId"
+}
+
+## --directive-end --id <id> [--wait <seconds>]: an order taken out of the section. rc 1 for an id that is not there.
+AgentsToolsSurfaceDirectiveEnd(){ ## the operation, its arguments...
+	local endOp="$1" endId="" endWait=120 endAt
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--id|--wait)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $endOp: $1 takes a value" >&2 ; return 1 ; }
+				if [ "$1" = --id ] ; then endId="$2" ; else endWait="$2" ; fi
+				shift 2
+			;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $endOp: unknown option: $1 -- syntax is --id <id> [--wait <seconds>]" >&2 ; return 1 ;;
+		esac
+	done
+	AgentsToolsSurfaceCaller "$endOp" write || return 1
+	[ -n "$endId" ] || { echo "$MDSC_CMD: ⛔ ERROR: $endOp: --id is needed" >&2 ; return 1 ; }
+	case "$endWait" in ''|*[!0123456789]*) echo "$MDSC_CMD: ⛔ ERROR: $endOp: --wait is whole seconds: $endWait" >&2 ; return 1 ;; esac
+	endAt="$( AgentsToolsSurfaceOrders | LC_ALL=C awk -F'\t' -v want="$endId" '$1 == want { n++ } END { print n + 0 }' )"
+	[ "$endAt" != 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: $endOp: no directive $endId stands in the heartbeat-state-note" >&2 ; return 1 ; }
+	AgentsToolsSurfaceStateWrite "$endOp" "$endWait" end "$endId" || return 1
+	printf 'DIRECTIVE: %s ended\n' "$endId"
+}

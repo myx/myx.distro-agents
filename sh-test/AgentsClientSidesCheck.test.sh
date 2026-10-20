@@ -126,16 +126,12 @@ rigWorld(){ ## -- a fresh machine
 	## The invited client has no row in it.
 	printf '%s\n' 'magic-coordinator 🐭 Magic Vane dispatchr' 'client-mel 🐭 Magic Vane dispatchr' 'keeper-here 🔧 Hera Keeper herakeep' > "$rigWork/ws-here/.local/agents/team-members-names.registry"
 	## each client's own contacts: a send into the other organisation passes the outbound contact gate
-	## (AgentsToolsContactAssertKnown) only for a listed recipient
+	## (AgentsToolsContactAssertKnown) only for a recipient that is a coordinate of a contact it holds
+	. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-contacts.include.sh" || exit 1
 	for memberName in client-ndm client-mel ; do
-		mkdir -p "$rigWork/ws-here/.local/agents/team-data-root/inboxes/$memberName/incoming"
-		printf '%s\n' \
-			'| slack-id | contact | handle | email | organisation | permission level |' \
-			'| --- | --- | --- | --- | --- | --- |' \
-			'| CNDM00001 | rig-ndm-team | @rig-ndm-team | <unresolved> | rig | unset |' \
-			'| UNDMPERSON | rig-ndm-person | @rig-ndm-person | <unresolved> | rig | unset |' \
-			'| DNDMPERSON | rig-ndm-person-dm | @rig-ndm-person | <unresolved> | rig | unset |' \
-			> "$rigWork/ws-here/.local/agents/team-data-root/inboxes/$memberName/incoming/note-rig-contacts.md"
+		rigContactSeed "$rigWork/ws-here/.local/agents/team-data-root" "$memberName" rig-ndm-team CNDM00001 -
+		rigContactSeed "$rigWork/ws-here/.local/agents/team-data-root" "$memberName" rig-ndm-person UNDMPERSON -
+		rigContactSeed "$rigWork/ws-here/.local/agents/team-data-root" "$memberName" rig-ndm-person-dm DNDMPERSON -
 	done
 	rigConsole ws-here HERE ; rigConsole ws-there THERE
 	rigClean

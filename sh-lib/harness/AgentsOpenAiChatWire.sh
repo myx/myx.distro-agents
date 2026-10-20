@@ -58,13 +58,21 @@ AgentsWireToolDeclaration(){ ## declared name, description, input schema JSON
 
 ## This wire carries the system prompt as the first record in `messages`. Where the run has a prefetch (harnessPrefetch, F10.8) the
 ## user message is that text, a blank line, and the task: this wire has no marker to put, the endpoint caches by the prefix it is given.
+## The task opens with the text of the run alone (harnessRunNotes, F10.7), so the system message and the prefetch are the same for every spawn of a member.
 AgentsWireInitMessages(){
 	local initUser="$harnessPrompt"
-	[ -z "${harnessPrefetch:-}" ] || printf -v initUser '%s\n\n%s' "$harnessPrefetch" "$harnessPrompt"
+	[ -z "${harnessRunNotes:-}" ] || printf -v initUser '%s\n\n%s' "$harnessRunNotes" "$harnessPrompt"
+	[ -z "${harnessPrefetch:-}" ] || printf -v initUser '%s\n\n%s' "$harnessPrefetch" "$initUser"
 	harnessMessages=(
 		'{"role":"system","content":"'"$( printf '%s' "$harnessSystemText" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}'
 		'{"role":"user","content":"'"$( printf '%s' "$initUser" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}'
 	)
+}
+
+## A resumed leg's system, from the bytes a context kept (AgentsHarnessContextResume): on this wire it is the first record of the array, loaded whole
+## with the rest, so there is nothing to put back.
+AgentsWireSystemReplay(){ ## escaped system text, bytes of its escaped first block
+	return 0
 }
 
 ## The core appends one of these to close a bounded run; InitMessages builds its own.

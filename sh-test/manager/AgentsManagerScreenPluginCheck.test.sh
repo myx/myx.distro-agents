@@ -29,6 +29,7 @@
 ##      a fixed row or a summary of its own outside its plugin
 ## Red before F11.2: no plugin mechanism, the roots declared in the tables of Roots.py, wrap the left window's alone.
 ## Offline: no operation of the real tooling is called.
+## Reconciled for F11.4: the Dashboard is registered by the part of the local tools, LocalManagerScreen.Dashboard.py.
 ## Reconciled for F11.5: the plugins now include magic-team, activity and pending-in-team, with Pending Questions second after the Dashboard, and each is registered by its own part.
 ## Reconciled for the groups of the roots (owner, 2026-10-20): the stand-in root of the group `team` stands with Magic-Team (Agents); the Dashboard is in a group with Pending Questions.
 set -u
@@ -119,7 +120,9 @@ def parts():
              "consoles": "Consoles", "settings": "Settings", "configuration": "Configuration", "manuals": "Manuals"}
     registered = []
     for name, part in sorted(owned.items()):
-        text = open(os.path.join(packageRoot, "sh-lib", "manager", "AgentsManagerScreen.%s.py" % part), encoding="utf-8").read()
+        ## the Dashboard is the local tools' (F11.4): its part stands in their package beside this one
+        partFile = os.path.join(packageRoot, "..", "myx.distro-.local", "sh-lib", "manager", "LocalManagerScreen.Dashboard.py") if name == "dashboard" else os.path.join(packageRoot, "sh-lib", "manager", "AgentsManagerScreen.%s.py" % part)
+        text = open(partFile, encoding="utf-8").read()
         registered.append("%s:%s" % (name, text.count('"name": "%s"' % name) == 1 and "registerPlugin(" in text))
     say("ownParts", " ".join(registered))
     roots = open(os.path.join(packageRoot, "sh-lib", "manager", "AgentsManagerScreen.Roots.py"), encoding="utf-8").read()

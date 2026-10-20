@@ -54,6 +54,16 @@ DistroAgentsSessionThis(){
 
 DistroAgentsSession(){
 	local MDSC_CMD='DistroAgentsSession'
+	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,
+	## and the call is made again under what they resolve (sh-lib/common/AgentsTools.CommonOptions.include).
+	case "${agentsCommonFronted:-}:${2:-}" in
+		:--team-member|:--session-id|:--spawn-id|:--select-workspace|:--tooling-origin)
+			local commonRc=0
+			type AgentsToolsCommonRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
+			AgentsToolsCommonRun DistroAgentsSession DistroAgentsSession.fn.sh "$@" || commonRc=$?
+			return "$commonRc"
+		;;
+	esac
 	## The skillset root, as every operation of the tooling settles it (AgentsContext.UseAgentsTools.include).
 	if [ -z "${MDAT_SKILLSET_ROOT:-}" ] ; then
 		MDAT_SKILLSET_ROOT="$MMDAPP/.local/agents/members"

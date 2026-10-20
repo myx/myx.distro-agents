@@ -22,10 +22,19 @@ Not a member/routine contract — this is the fixed text of the permission reque
   - grant
   - grant, with folder
   - grant, with folder and project
+  - grant, with text
+  - grant, with choices
+  - confirm
+  - grant, with contact
 - Reactions
   - grant
   - grant, with folder
   - grant, with folder and project
+  - grant, with contact
+  - confirm
+- Authority
+  - reason
+  - task
 - Marks
   - revised
   - superseded
@@ -36,6 +45,7 @@ Not a member/routine contract — this is the fixed text of the permission reque
   - once
   - session
   - task
+  - contact
 - Reasons
   - not-offered
 - Confirmations
@@ -141,6 +151,41 @@ The lines under `How to answer`.
 - the word first; a comment after a comma, or on the next lines
 ```
 
+## grant, with text
+
+```
+- reply with the text to give in its place
+- or reply `allow-once` to let {{refused-for}} give its own, or `deny` to refuse it
+- the word first; a comment after a comma, or on the next lines
+```
+
+## grant, with choices
+
+```
+- reply the word of one of the choices below
+- or reply `allow-once` to let {{refused-for}} give its own, or `deny` to refuse it
+- the word first; a comment after a comma, or on the next lines
+```
+
+## confirm
+
+```
+- click 👍 to confirm or ❌ to stop
+- or reply `yes` or `no`
+- the word first; a comment after a comma, or on the next lines
+```
+
+## grant, with contact
+
+For a call refused for a contact (`contact:<id>`, the contacts subsystem): the contact is granted for this session or for good, never once and never for a task.
+
+```
+- click ❌ to deny, or 🔁 to allow for this session
+- or click 👤 to allow **{{refused-tool}}** to the contact `{{contact}}`, for good, whatever the session
+- or reply `deny` or `allow-session`, or `allow-contact` for 👤
+- the word first; a comment after a comma, or on the next lines
+```
+
 # Reactions
 
 The emoji the tooling places under the post, as Slack names.
@@ -170,6 +215,37 @@ one
 repeat
 file_folder
 building_construction
+```
+
+## grant, with contact
+
+```
+x
+repeat
+bust_in_silhouette
+```
+
+## confirm
+
+```
++1
+x
+```
+
+# Authority
+
+The words of a request for the authority over a session or a run (F6.10): the post of an operation refused for the authority it needs, which the person at a console or a member asks of whoever holds it. It is this template's post, so its first line is the refused call said plainly (`{{refused-tool}}`, for example `end session <name or id> (<routine>, <members>)`), its reason and its task are the two blocks below, and its answers, emoji and reading are the permission's. `allow-session` gives the one who asked the authority over the named session while it lives.
+
+## reason
+
+```
+{{requester}} does not hold the authority of {{holder}} for this, and asks for it.
+```
+
+## task
+
+```
+{{requester}} ran `{{operation}}`, which needs that authority.
 ```
 
 # Marks
@@ -228,6 +304,12 @@ for this session
 
 ```
 for this task
+```
+
+## contact
+
+```
+for the contact, whatever the session
 ```
 
 # Reasons
@@ -295,4 +377,6 @@ The one reply the tooling posts in the thread an answer was read in: what was re
 - rule: `## hint` under `# Returned` is what the asker is told when a reply names none of the answers. `{{explain-call}}`, `{{revise-call}}`, `{{withdraw-call}}` and `{{readback-call}}` are the exact calls, given by the tool.
 - rule: Once an answer is read, the tooling says so with one reply in the thread it was read in, as the identity that posted there: the block under `# Confirmations` named `granted` for an allow that is applied, with what is granted (`{{tool}}`, `{{target}}`), to whom (`{{member}}`, the one whose call was refused) and how far (`{{scope-words}}`, the block under `# Scope words` named for the grant: once, session or task); `denied` for a deny; `not-applied` for an answer that could not be applied, with `{{reason}}`; and `sent-up` for an allow from someone who does not hold the permission, with `{{reason}}` and `{{holder}}`, who the question goes to now. `{{by}}` is who answered, as a name. It is posted once for an answer, never again on a later read.
 - rule: This post asks for one refused call. A further refused call of the same session, asked while this one is open to the human-owner and nothing from him stands in its thread, makes no new post: it is added to this one, which is then edited to the permission set post (`permission-set.post.format.md`). That post lists every call asked for, and its answers, its emoji and its confirmation are that template's.
+- rule: `## grant, with contact` under `# Answers` and under `# Reactions` stand for a call refused for a contact (`{{contact}}`, its id), in place of the folder and project answers, which such a call never offers: deny, the session, and the contact itself (👤, `allow-contact`, written into the contact's record as a standing grant by the escalation apply). `## contact` under `# Scope words` says how far that grant reaches.
 - rule: Every text outside the slots and the marks is posted exactly as written here.
+- rule: A request for the authority (F6.10, `# Authority`) is posted in this form, whatever it asks for, as the team bot when it goes to the human-owner and as the asking member otherwise. Its answers are `allow-once`, `allow-session` and `deny`, each a reply or a click (`# Reactions` `grant`): `allow-session` gives the requester the authority over the named session for as long as the session lives, through the `session` grant of the refusal the request logs; no allow is timed. A request that asks for a text takes the block `grant, with text` and one that asks for a choice among answers `grant, with choices`; neither places emoji. The confirmation to the owner of a mapped console is the form `confirm`, with its emoji `+1` and `x`.

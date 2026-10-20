@@ -1,5 +1,5 @@
 ##
-## AgentsManagerScreen.Roots.py -- what the roots of the list hold and what an action asks of the tooling: TEAM_DATA, CALLS, STARTS, DASHBOARD, PLACES. The roots themselves, their rows and their reads are declared by their plugins (Plugins.py).
+## AgentsManagerScreen.Roots.py -- what the roots of the list hold and what an action asks of the tooling: TEAM_DATA, CALLS, STARTS, PLACES. The roots themselves, their rows and their reads are declared by their plugins (Plugins.py).
 ## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
@@ -143,28 +143,6 @@ KILL_SAYS = {
 ## the same list, and Enter starts it the same way (askRun, runChild).
 STARTS = {
     "console": {"fields": ("key", "group", "label", "terminal"), "terminal": "terminal", "said": "console"},
-}
-
-## What the root `Dashboard (Monitor)` shows: blocks of figures, each block and each figure
-## as its operation prints it; the screen knows no block and no figure by its name, and
-## draws whatever comes. "block" and "figure": the names of the fields of such a row after
-## the first, as the family writes them, `_` for a blank and `-` for absent; what stands
-## after them in a row is left alone. "units": how a value shows by its unit, the name of
-## the function that makes it short for the eye; a value of another unit shows as it is
-## printed. "levels": the levels of a figure in their order, the worst last, each with
-## the look its value is drawn in and the mark that stands ahead of the value where the
-## style has no colours, so that bold and a mark tell it there. "bar": how many cells the
-## bar of a figure that is a share takes beside its value. "least": the least width of a
-## block: as many columns as blocks of that width fit are set side by side. "gap": the
-## cells between two columns.
-DASHBOARD = {
-    "block": ("key", "label", "figures"),
-    "figure": ("block", "key", "label", "value", "unit", "level", "share"),
-    "units": {"count": "shortCount", "bytes": "shortBytes", "seconds": "shortSpan"},
-    "levels": (("ok", {"look": LEVEL_OK, "mark": "+"}),
-               ("warn", {"look": LEVEL_WARN, "mark": "!"}),
-               ("bad", {"look": LEVEL_BAD, "mark": "!!"})),
-    "bar": 10, "least": 34, "gap": 1,
 }
 
 ## What the root `Locations (Places)` shows: the locations the tooling knows by a name, as

@@ -112,6 +112,7 @@ AgentsToolsManagerPendingAnswers(){ ## record file, standing member
 			answersWords="allow-once allow-session allow-task"
 			[ -z "$( AgentsToolsEscalationFolderOffered "$1" )" ] || answersWords="$answersWords allow-folder"
 			[ -z "$( AgentsToolsEscalationFolderOffered "$1" project )" ] || answersWords="$answersWords allow-project"
+			[ -z "$( AgentsToolsEscalationFolderOffered "$1" contact )" ] || answersWords="$answersWords allow-contact"
 			answersWords="$answersWords deny"
 		;;
 		permission-set:*) answersWords="allow-set edit deny" ;;
@@ -297,7 +298,7 @@ case "$1" in
 			answerAsker="$( AgentsToolsEscalationField "$managerPendingFile" session-id )"
 			type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 			answerAskerRecord="$( AgentsToolsSessionRunRecord "$answerAsker" )" || answerAskerRecord=""
-			AgentsToolsAuthorityGate "the answer $( [ -n "$answerMode" ] && printf 'reject' || printf '%s' "$answerTyped" ) of question $managerPendingId" "$managerPendingId" "$answerAskerRecord" "$managerPendingFile" console \
+			AgentsToolsAuthorityGate "answer question $managerPendingId with $( [ -n "$answerMode" ] && printf 'its reject' || printf '%s' "$answerTyped" )" "$managerPendingId" "$answerAskerRecord" "$managerPendingFile" console \
 				"$answerOp" --id "$managerPendingId" $( [ -n "$answerMode" ] && printf -- '--reject' ) ${answerTyped:+--answer "$answerTyped"} ${answerWords:+--text "$answerWords"} || :
 			AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
 			[ -z "$( AgentsToolsAuthorityChosen )" ] || { answerTyped="$( AgentsToolsAuthorityChosen )" ; answerMode="" ; }
@@ -357,7 +358,7 @@ case "$1" in
 		type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 		dismissAskerRecord="$( AgentsToolsSessionRunRecord "$dismissAsker" )" || dismissAskerRecord=""
 		if [ -z "$dismissAskerRecord" ] || [ -z "$( AgentsToolsEscalationField "$dismissAskerRecord" killed-by )" ] ; then
-			AgentsToolsAuthorityGate "the dismissal of question $managerPendingId" "$managerPendingId" "$dismissAskerRecord" "" console \
+			AgentsToolsAuthorityGate "dismiss question $managerPendingId" "$managerPendingId" "$dismissAskerRecord" "" console \
 				"$dismissOp" --id "$managerPendingId" --reason "$dismissReason" || :
 			AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
 		fi

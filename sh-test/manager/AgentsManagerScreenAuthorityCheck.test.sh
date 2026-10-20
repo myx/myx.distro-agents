@@ -12,6 +12,9 @@
 ##   4. its OK acts: one call of the answer operation, with the answer chosen
 ##   5. an answer refused for the authority opens the dialog of the two ways to ask for it, and calls nothing
 ##      more; its Enqueue is one call more, the same with --escalate-enqueue
+##   6. its Request and wait runs the same call with --escalate-wait --escalate-stop in the big output dialog the commands of a workspace run
+##      in, with its output live; the dialog has Cancel and Enqueue; Enqueue sends the call SIGUSR1 (it leaves the request pending)
+##   7. Cancel, asked about first, sends it SIGTERM (it withdraws the request)
 ## Red before F6.10: the answer dialog acts at once, with no confirmation (2, 3 and 4 fail).
 ## Offline: no operation of the real tooling is called, and no ask is read from this machine.
 ## Reconciled for F11.5: Pending Questions is the second root, key 2, and the list of the sessions is Active Sessions of Activity (`root active-sessions`).
@@ -178,6 +181,81 @@ rigAssert "the refusal opens the dialog of the two ways, the keys on its first" 
 rigAssert "the refusal called nothing more; its Enqueue: one call more, the same call with --escalate-enqueue" "$( rigVal picked.dialog ) $( rigActCalls )" \
 	"escalate:enqueue| [--manager-pending-reply-answer][--id][$rigAsk][--answer][allow-once] [--manager-pending-reply-answer][--id][$rigAsk][--answer][allow-once][--escalate-enqueue]"
 rigAssert "and the dialog is closed"                                  "[$( rigVal done.dialog )]" "[]"
+
+echo "-- 6. Request and wait runs in the big output dialog, with Cancel and Enqueue; Enqueue leaves the request pending --"
+rigWaitCall="--manager-pending-reply-answer --id $rigAsk --answer allow-once --escalate-wait --escalate-stop"
+rigCaseWait(){ ## name -- the refusal of section 5, and a stand-in tool call that waits like the real one: SIGTERM withdraws, SIGUSR1 leaves the request pending
+	rigCase "$1"
+	printf '#!/usr/bin/env bash\nprintf "%%s\\n" "🙋 WARNING: DistroAgentsTools: the answer allow-once of question %s needs the authority of magic-tester, which user-rig does not hold, so nothing was done." >&2\nexit 3\n' "$rigAsk" > "$MANAGER_SCREEN_RIG/refused.sh"
+	printf 'script refused.sh\n' > "$MANAGER_SCREEN_RIG/mode.--manager-pending-reply-answer --id $rigAsk --answer allow-once"
+	printf '#!/usr/bin/env bash\ntrap '"'"'printf "WITHDRAWN 9f9f\\n" ; exit 130'"'"' TERM\ntrap '"'"'printf "ENQUEUED 9f9f\\n" ; exit 0'"'"' USR1\nprintf "PENDING 9f9f magic-tester\\n"\nwhile : ; do sleep 1 ; done\n' > "$MANAGER_SCREEN_RIG/waits.sh"
+	printf 'script waits.sh\n' > "$MANAGER_SCREEN_RIG/mode.$rigWaitCall"
+}
+rigCaseWait enqueued
+rigScriptActs <<'RIGSCRIPT'
+size 120 40
+turn
+keys 2
+wait list 30
+keys DOWN
+wait acts 30
+wait view 30
+turn
+keys ENTER
+turn
+keys ENTER
+turn
+keys ENTER
+wait action 30
+turn
+keys ENTER
+turn
+wait follow 2
+get running
+keys TAB
+turn
+get second
+keys ENTER
+wait follow 30
+turn
+get ended
+RIGSCRIPT
+rigAssert "the output dialog opens, titled by what it does, on Cancel (its first button), and shows the call's live output" "$( rigVal running.dialog ) [$( rigVal running.dialogTitle )] $( rigVal running.dialogHolds | LC_ALL=C grep -c -F 'PENDING 9f9f magic-tester' )" "output:stop| [Request and wait] 1"
+rigAssert "the call is the same call with --escalate-wait --escalate-stop, run at once, not as an action" "$( rigActCalls )" "[--manager-pending-reply-answer][--id][$rigAsk][--answer][allow-once] [--manager-pending-reply-answer][--id][$rigAsk][--answer][allow-once][--escalate-wait][--escalate-stop]"
+rigAssert "Enqueue is the second button" "$( rigVal second.dialog )" "output:enqueue|"
+rigAssert "Enqueue sends the call SIGUSR1: it ends 0 having said it left the request pending, and the dialog has OK alone" "$( rigVal ended.dialog ) $( rigVal ended.dialogHolds | LC_ALL=C grep -c -F 'ENQUEUED 9f9f' ) $( rigVal ended.dialogHolds | LC_ALL=C grep -c -F 'Ended with status 0' )" "output:ok| 1 1"
+
+echo "-- 7. Cancel is asked about first, and sends the call SIGTERM: it withdraws the request --"
+rigCaseWait cancelled
+rigScriptActs <<'RIGSCRIPT'
+size 120 40
+turn
+keys 2
+wait list 30
+keys DOWN
+wait acts 30
+wait view 30
+turn
+keys ENTER
+turn
+keys ENTER
+turn
+keys ENTER
+wait action 30
+turn
+keys ENTER
+turn
+turn
+keys ENTER
+turn
+get asked
+keys ENTER
+wait follow 30
+turn
+get ended
+RIGSCRIPT
+rigAssert "Cancel asks first: its buttons are Cancel it and Go on" "$( rigVal asked.dialog ) $( rigVal asked.dialogSays | LC_ALL=C grep -c -F 'withdraws the request' )" "output:stop| 1"
+rigAssert "Cancel it sends SIGTERM: the call ends 130 having withdrawn the request" "$( rigVal ended.dialog ) $( rigVal ended.dialogHolds | LC_ALL=C grep -c -F 'WITHDRAWN 9f9f' ) $( rigVal ended.dialogHolds | LC_ALL=C grep -c -F 'Ended with status 130' )" "output:ok| 1 1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN AUTHORITY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

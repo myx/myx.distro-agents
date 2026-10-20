@@ -1,0 +1,735 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Contacts.include -- the functions of DistroAgentsContacts.fn.sh (F7.10): the people subsystem. Sourced for its functions only;
+## $MDSC_CMD is the caller's.
+##
+## THE STORE is the team data root's `contacts/` (committed with the rest by the team data commit): one file a person,
+## `contacts/persons/<id>.md`, and one an organisation, `contacts/organisations/<id>.md`. A person is a contact of the team, not of a member:
+## `reached-by:` lists the members that hold it. A record is written whole by this file's functions, a rename in its own folder, and read by
+## AgentsContactsIndex.awk; nobody keeps it by hand. A person's front matter, in this order (an empty value is not written):
+##   type contact; contact-id; display-name; organisation (an organisation's id, or none); role; relationship; is-owner (yes|no); reached-by
+##   (members, comma-separated); slack-id, slack-handle, slack-conversation (each entry `<team>:<value>`, the Slack team being the identity scope
+##   of the workspace the value belongs to: an id is unique within one workspace only); email; how-to-meet; allows (what the contact may ask for,
+##   written by the permission model's grant-open and read by its chain, never by this file).
+## The body is a title and `## Log`: one dated line for each change, each note and each escalation, in the order they happened.
+## ACCESS IS NOT HERE. A contact's access level is read from the permission model (the `allows:` entry above and the grants of a session
+## given to `contact:<id>`), never stored a second time; this file asks the chain.
+##
+
+## What the functions below call, loaded where first needed.
+AgentsToolsContactsLoad(){
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+}
+
+## The store's folders, set in contactsRoot, contactsPersons, contactsOrgs. rc 1, said, where the data root is not settled.
+contactsRoot="" contactsPersons="" contactsOrgs=""
+AgentsToolsContactsStore(){ ## the operation
+	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $1: MDAT_DATA_ROOT is not set, so the contacts store is not settled" >&2
+		return 1
+	fi
+	contactsRoot="$MDAT_DATA_ROOT/contacts" ; contactsPersons="$contactsRoot/persons" ; contactsOrgs="$contactsRoot/organisations"
+}
+
+## An id: lowercase letters, digits and hyphens, not starting with a hyphen, at most 64 characters. A person's id is the name `contact:<id>` has.
+AgentsToolsContactsSlug(){ ## value
+	case "$1" in
+		''|-*|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) return 1 ;;
+	esac
+	[ "${#1}" -le 64 ]
+}
+
+## One line of free text as a front matter value: line breaks and tabs made spaces, runs of spaces one, ends trimmed.
+AgentsToolsContactsOneLine(){ ## text
+	printf '%s' "$1" | LC_ALL=C tr '\n\r\t' '   ' | LC_ALL=C tr -s ' ' | LC_ALL=C sed -e 's/^ //' -e 's/ $//'
+}
+
+## The value of a front matter key of a record; nothing for a key it lacks.
+AgentsToolsContactsKey(){ ## file, key
+	LC_ALL=C awk -v want="$2: " 'NR == 1 { if ( $0 != "---" ) exit ; next ; } $0 == "---" { exit ; } index( $0, want ) == 1 { print substr( $0, length( want ) + 1 ) ; exit ; }' "$1" 2> /dev/null
+}
+
+## A list `a, b` with one more item, unless it holds it already (compared without regard to case).
+AgentsToolsContactsListAdd(){ ## list, item
+	local addLower
+	addLower="$( printf '%s' "$2" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+	if printf '%s' "$1" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' | LC_ALL=C awk -v want="$addLower" '{ count = split( $0, parts, /, */ ) ; for ( at = 1 ; at <= count ; at++ ) if ( parts[at] == want ) found = 1 ; } END { exit ! found ; }' ; then
+		printf '%s' "$1"
+	else
+		printf '%s%s' "${1:+$1, }" "$2"
+	fi
+}
+
+## A list without an item (compared without regard to case).
+AgentsToolsContactsListDrop(){ ## list, item
+	local dropLower
+	dropLower="$( printf '%s' "$2" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+	printf '%s' "$1" | LC_ALL=C awk -v want="$dropLower" '{ count = split( $0, parts, /, */ ) ; out = "" ; for ( at = 1 ; at <= count ; at++ ) { if ( tolower( parts[at] ) == want || parts[at] == "" ) continue ; out = out ( out == "" ? "" : ", " ) parts[at] ; } printf "%s", out ; }'
+}
+
+## The shape of a value of each coordinate, or rc 1 and the reason in contactsWhy.
+contactsWhy=""
+AgentsToolsContactsCoordinateCheck(){ ## kind (slack-id|slack-handle|slack-conversation|email), value
+	local coordTeam coordRest
+	contactsWhy=""
+	case "$1" in
+		slack-id|slack-handle|slack-conversation)
+			case "$2" in
+				?*:?*) coordTeam="${2%%:*}" ; coordRest="${2#*:}" ;;
+				*) contactsWhy="a Slack coordinate is <team>:<value>, the Slack team being the identity scope of its workspace: $2" ; return 1 ;;
+			esac
+			AgentsToolsAssertBareName "$coordTeam" "the Slack team" contacts-coordinate 2> /dev/null || { contactsWhy="the Slack team of $2 is a bare name (letters, digits, '.', '_', '-')" ; return 1 ; }
+			if [ "$1" = slack-handle ] ; then
+				case "$coordRest" in
+					@?*) ;;
+					*) contactsWhy="a Slack handle is <team>:@<handle>: $2" ; return 1 ;;
+				esac
+				case "${coordRest#@}" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*) contactsWhy="a Slack handle holds letters, digits, '.', '_' and '-': $2" ; return 1 ;; esac
+			else
+				case "$coordRest" in ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789]*) contactsWhy="a Slack id is letters and digits in capitals: $2" ; return 1 ;; esac
+			fi
+		;;
+		email)
+			case "$2" in
+				*[[:space:],]*|''|*@*@*|@*|*@|*@.*|*@*.|*[!-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@._+]*) contactsWhy="not an e-mail address: $2" ; return 1 ;;
+			esac
+			case "$2" in *@*.*) ;; *) contactsWhy="not an e-mail address: $2" ; return 1 ;; esac
+		;;
+	esac
+	return 0
+}
+
+## ---- the record: read into variables, written whole ----
+
+## A person's record read into crId, crName, crOrg, crRole, crRel, crOwner, crReached, crSlackId, crSlackHandle, crSlackConv, crEmail, crHow,
+## crAllows; crExtra holds the front matter lines this file does not know (kept as they stand), crLog the log lines. rc 1 for no file.
+crId="" crName="" crOrg="" crRole="" crRel="" crOwner="" crReached="" crSlackId="" crSlackHandle="" crSlackConv="" crEmail="" crHow="" crAllows="" crExtra="" crLog=""
+AgentsToolsContactsPersonRead(){ ## file
+	local readLine readState="" readKey readValue
+	crId="" crName="" crOrg="" crRole="" crRel="" crOwner="" crReached="" crSlackId="" crSlackHandle="" crSlackConv="" crEmail="" crHow="" crAllows="" crExtra="" crLog=""
+	[ -f "$1" ] || return 1
+	while IFS= read -r readLine || [ -n "$readLine" ] ; do
+		case "$readState:$readLine" in
+			':---') readState=front ; continue ;;
+			front:---) readState=body ; continue ;;
+			front:*)
+				readKey="${readLine%%: *}" ; readValue="${readLine#*: }"
+				[ "$readKey" != "$readLine" ] || continue
+				case "$readKey" in
+					type) ;;
+					contact-id) crId="$readValue" ;;
+					display-name) crName="$readValue" ;;
+					organisation) crOrg="$readValue" ;;
+					role) crRole="$readValue" ;;
+					relationship) crRel="$readValue" ;;
+					is-owner) crOwner="$readValue" ;;
+					reached-by) crReached="$readValue" ;;
+					slack-id) crSlackId="$readValue" ;;
+					slack-handle) crSlackHandle="$readValue" ;;
+					slack-conversation) crSlackConv="$readValue" ;;
+					email) crEmail="$readValue" ;;
+					how-to-meet) crHow="$readValue" ;;
+					allows) crAllows="$readValue" ;;
+					*) crExtra="$crExtra$readLine"$'\n' ;;
+				esac
+			;;
+			body:'## Log') readState=log ;;
+			log:'- '*) crLog="$crLog$readLine"$'\n' ;;
+		esac
+	done < "$1"
+	return 0
+}
+
+## The record as text, from the variables above, to stdout.
+AgentsToolsContactsPersonText(){
+	printf '%s\n' '---' 'type: contact' "contact-id: $crId"
+	[ -z "$crName" ] || printf 'display-name: %s\n' "$crName"
+	[ -z "$crOrg" ] || printf 'organisation: %s\n' "$crOrg"
+	[ -z "$crRole" ] || printf 'role: %s\n' "$crRole"
+	[ -z "$crRel" ] || printf 'relationship: %s\n' "$crRel"
+	[ -z "$crOwner" ] || printf 'is-owner: %s\n' "$crOwner"
+	[ -z "$crReached" ] || printf 'reached-by: %s\n' "$crReached"
+	[ -z "$crSlackId" ] || printf 'slack-id: %s\n' "$crSlackId"
+	[ -z "$crSlackHandle" ] || printf 'slack-handle: %s\n' "$crSlackHandle"
+	[ -z "$crSlackConv" ] || printf 'slack-conversation: %s\n' "$crSlackConv"
+	[ -z "$crEmail" ] || printf 'email: %s\n' "$crEmail"
+	[ -z "$crHow" ] || printf 'how-to-meet: %s\n' "$crHow"
+	[ -z "$crAllows" ] || printf 'allows: %s\n' "$crAllows"
+	[ -z "$crExtra" ] || printf '%s' "$crExtra"
+	printf '%s\n' '---' "# Contact: ${crName:-$crId}" '' '## Log' ''
+	[ -z "$crLog" ] || printf '%s' "$crLog"
+}
+
+## The record written whole: a temp file in its own folder, then a rename over it. The folder is made. rc 1, said, where it could not be.
+AgentsToolsContactsWriteFile(){ ## operation, target file, function that prints the text
+	local writeTemp
+	mkdir -p "${2%/*}" 2> /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: $1: the folder of $2 could not be made -- nothing was written" >&2 ; return 1 ; }
+	writeTemp="$( mktemp "${2%/*}/.${2##*/}.write.XXXXXX" )" || { echo "$MDSC_CMD: ⛔ ERROR: $1: $2 could not be written -- nothing was written" >&2 ; return 1 ; }
+	if ! "$3" > "$writeTemp" || ! chmod 644 "$writeTemp" || ! mv -f -- "$writeTemp" "$2" ; then
+		rm -f "$writeTemp"
+		echo "$MDSC_CMD: ⛔ ERROR: $1: $2 could not be written -- nothing was written" >&2
+		return 1
+	fi
+}
+
+## The stamp of a log line: `YYYY-MM-DD HH:MM +ZZZZ`.
+AgentsToolsContactsStamp(){
+	date '+%Y-%m-%d %H:%M %z'
+}
+
+## The store lock, so that two members' collects do not write over one another. The lock is released by AgentsToolsContactsUnlock.
+contactsLockPath=""
+AgentsToolsContactsLock(){ ## operation
+	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
+	AgentsToolsLocalLockTake contacts-store 60 "the contacts store" || { echo "$MDSC_CMD: ⛔ ERROR: $1: the contacts store is being changed by another call, and stayed so -- nothing was written" >&2 ; return 1 ; }
+	contactsLockPath="$agentsLocalLockPath"
+}
+AgentsToolsContactsUnlock(){
+	[ -z "$contactsLockPath" ] || AgentsToolsLocalLockGive "$contactsLockPath"
+	contactsLockPath=""
+}
+
+## ---- the organisation ----
+
+orgName="" orgDomain="" orgNote="" orgLog=""
+AgentsToolsContactsOrgRead(){ ## file
+	local readLine readState="" readKey readValue
+	orgName="" orgDomain="" orgNote="" orgLog=""
+	[ -f "$1" ] || return 1
+	while IFS= read -r readLine || [ -n "$readLine" ] ; do
+		case "$readState:$readLine" in
+			':---') readState=front ; continue ;;
+			front:---) readState=body ; continue ;;
+			front:*)
+				readKey="${readLine%%: *}" ; readValue="${readLine#*: }"
+				case "$readKey" in
+					display-name) orgName="$readValue" ;;
+					domain) orgDomain="$readValue" ;;
+					note) orgNote="$readValue" ;;
+				esac
+			;;
+			body:'## Log') readState=log ;;
+			log:'- '*) orgLog="$orgLog$readLine"$'\n' ;;
+		esac
+	done < "$1"
+	return 0
+}
+orgId=""
+AgentsToolsContactsOrgText(){
+	printf '%s\n' '---' 'type: contact-organisation' "organisation-id: $orgId"
+	[ -z "$orgName" ] || printf 'display-name: %s\n' "$orgName"
+	[ -z "$orgDomain" ] || printf 'domain: %s\n' "$orgDomain"
+	[ -z "$orgNote" ] || printf 'note: %s\n' "$orgNote"
+	printf '%s\n' '---' "# Organisation: ${orgName:-$orgId}" '' '## Log' ''
+	[ -z "$orgLog" ] || printf '%s' "$orgLog"
+}
+
+## ---- --collect-organisation and --collect-contact ----
+
+## What a collect of either kind needs to say about one field: sets `collectSaid` lines and the changed-field list.
+collectChanged="" collectKept=""
+## A scalar field merged: current value in the variable named, the given one; fill an empty one, keep a known one unless --correct.
+AgentsToolsContactsMerge(){ ## variable name, field label, given value, correct (yes|"")
+	local mergeVar="$1" mergeCurrent
+	[ -n "$3" ] || return 0
+	mergeCurrent="${!mergeVar}"
+	if [ -z "$mergeCurrent" ] ; then
+		printf -v "$mergeVar" '%s' "$3"
+		collectChanged="${collectChanged:+$collectChanged, }$2"
+	elif [ "$mergeCurrent" = "$3" ] ; then
+		:
+	elif [ -n "$4" ] ; then
+		printf -v "$mergeVar" '%s' "$3"
+		collectChanged="${collectChanged:+$collectChanged, }$2 (corrected, was: $mergeCurrent)"
+	else
+		collectKept="$collectKept$2 is $mergeCurrent and stays; $3 was given (--correct replaces a known value)"$'\n'
+	fi
+}
+
+## --collect-organisation --id <slug> [--name <text>] [--domain <text>] [--note <text>] [--correct]
+AgentsToolsContactsCollectOrganisation(){ ## the operation, its arguments...
+	local colOp="$1" colId="" colName="" colDomain="" colNote="" colCorrect="" colFile colNew=no colBy colStamp colWas colNow colKeptLine
+	shift
+	AgentsToolsContactsLoad
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--id|--name|--domain|--note)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in --id) colId="$2" ;; --name) colName="$( AgentsToolsContactsOneLine "$2" )" ;; --domain) colDomain="$( AgentsToolsContactsOneLine "$2" )" ;; --note) colNote="$( AgentsToolsContactsOneLine "$2" )" ;; esac
+				shift 2
+			;;
+			--correct) colCorrect=yes ; shift ;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $colOp: unknown option: $1 -- syntax is --id <slug> [--name <text>] [--domain <text>] [--note <text>] [--correct]" >&2 ; return 1 ;;
+		esac
+	done
+	AgentsToolsContactsSlug "$colId" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: --id is an organisation's id, lowercase letters, digits and hyphens (at most 64): ${colId:-<nothing>}" >&2 ; return 1 ; }
+	[ "${#colName}" -le 200 ] && [ "${#colDomain}" -le 200 ] && [ "${#colNote}" -le 300 ] || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: --name and --domain are at most 200 characters, --note at most 300" >&2 ; return 1 ; }
+	[ -n "$colName$colDomain$colNote" ] || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: nothing is given to record: --name, --domain or --note" >&2 ; return 1 ; }
+	AgentsToolsContactsStore "$colOp" || return 1
+	colBy="$( AgentsToolsActingMember )"
+	colFile="$contactsOrgs/$colId.md"
+	AgentsToolsContactsLock "$colOp" || return 1
+	collectChanged="" collectKept=""
+	if [ -f "$colFile" ] ; then AgentsToolsContactsOrgRead "$colFile" ; else orgName="" orgDomain="" orgNote="" orgLog="" ; colNew=yes ; fi
+	orgId="$colId"
+	AgentsToolsContactsMerge orgName "display-name" "$colName" "$colCorrect"
+	AgentsToolsContactsMerge orgDomain "domain" "$colDomain" "$colCorrect"
+	AgentsToolsContactsMerge orgNote "note" "$colNote" "$colCorrect"
+	if [ -n "$collectChanged" ] ; then
+		colStamp="$( AgentsToolsContactsStamp )"
+		orgLog="$orgLog- $colStamp -- ${colBy:-console} -- $( [ "$colNew" = yes ] && printf 'collected' || printf 'changed' ): $collectChanged"$'\n'
+		AgentsToolsContactsWriteFile "$colOp" "$colFile" AgentsToolsContactsOrgText || { AgentsToolsContactsUnlock ; return 1 ; }
+		colNow=$( [ "$colNew" = yes ] && printf created || printf updated )
+	else
+		colNow=unchanged
+	fi
+	AgentsToolsContactsUnlock
+	printf 'ORGANISATION: %s %s\n' "$colId" "$colNow"
+	while IFS= read -r colKeptLine ; do
+		[ -z "$colKeptLine" ] || printf 'KEPT: %s\n' "$colKeptLine"
+	done <<< "$collectKept"
+	return 0
+}
+
+## --collect-contact --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>]
+##   [--owner yes|no] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]...
+##   [--drop <coordinate>]... [--note <text>] [--correct] [--reached-by <member>]
+## Adds the calling member to `reached-by`; --reached-by names the member only for a call from no member's session (the console, a migration).
+AgentsToolsContactsCollectContact(){ ## the operation, its arguments...
+	local colOp="$1" colId="" colName="" colOrg="" colRole="" colRel="" colHow="" colOwner="" colNote="" colCorrect="" colMember="" colSlack="" colHandle="" colConv="" colMail="" colDrop=""
+	local colBy colFile colNew=no colStamp colNow colItem colKeptLine colSyntax
+	colSyntax="syntax is --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]"
+	shift
+	AgentsToolsContactsLoad
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--id|--name|--organisation|--role|--relationship|--how-to-meet|--owner|--slack|--slack-handle|--slack-conversation|--email|--drop|--note|--reached-by)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in
+					--id) colId="$2" ;;
+					--name) colName="$( AgentsToolsContactsOneLine "$2" )" ;;
+					--organisation) colOrg="$2" ;;
+					--role) colRole="$( AgentsToolsContactsOneLine "$2" )" ;;
+					--relationship) colRel="$( AgentsToolsContactsOneLine "$2" )" ;;
+					--how-to-meet) colHow="$( AgentsToolsContactsOneLine "$2" )" ;;
+					--owner) colOwner="$2" ;;
+					--slack) AgentsToolsContactsCoordinateCheck slack-id "$2" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: $contactsWhy" >&2 ; return 1 ; } ; colSlack="$( AgentsToolsContactsListAdd "$colSlack" "$2" )" ;;
+					--slack-handle) AgentsToolsContactsCoordinateCheck slack-handle "$2" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: $contactsWhy" >&2 ; return 1 ; } ; colHandle="$( AgentsToolsContactsListAdd "$colHandle" "$2" )" ;;
+					--slack-conversation) AgentsToolsContactsCoordinateCheck slack-conversation "$2" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: $contactsWhy" >&2 ; return 1 ; } ; colConv="$( AgentsToolsContactsListAdd "$colConv" "$2" )" ;;
+					--email) AgentsToolsContactsCoordinateCheck email "$2" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: $contactsWhy" >&2 ; return 1 ; } ; colMail="$( AgentsToolsContactsListAdd "$colMail" "$2" )" ;;
+					--drop) colDrop="$( AgentsToolsContactsListAdd "$colDrop" "$2" )" ;;
+					--note) colNote="$( AgentsToolsContactsOneLine "$2" )" ;;
+					--reached-by) colMember="$2" ;;
+				esac
+				shift 2
+			;;
+			--correct) colCorrect=yes ; shift ;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $colOp: unknown option: $1 -- $colSyntax" >&2 ; return 1 ;;
+		esac
+	done
+	AgentsToolsContactsSlug "$colId" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: --id is the contact's id, lowercase letters, digits and hyphens (at most 64): ${colId:-<nothing>}" >&2 ; return 1 ; }
+	case "$colOwner" in ''|yes|no) ;; *) echo "$MDSC_CMD: ⛔ ERROR: $colOp: --owner is yes or no: $colOwner" >&2 ; return 1 ;; esac
+	[ -z "$colOrg" ] || AgentsToolsContactsSlug "$colOrg" || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: --organisation is an organisation's id: $colOrg" >&2 ; return 1 ; }
+	if [ "${#colName}" -gt 200 ] || [ "${#colRole}" -gt 200 ] || [ "${#colRel}" -gt 300 ] || [ "${#colHow}" -gt 500 ] || [ "${#colNote}" -gt 500 ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $colOp: --name and --role are at most 200 characters, --relationship 300, --how-to-meet and --note 500" >&2
+		return 1
+	fi
+	[ -z "$colSlack$colHandle$colConv$colMail$colDrop$colName$colOrg$colRole$colRel$colHow$colOwner$colNote" ] \
+		&& { echo "$MDSC_CMD: ⛔ ERROR: $colOp: nothing is given to record -- $colSyntax" >&2 ; return 1 ; }
+	colBy="$( AgentsToolsActingMember )"
+	if [ -n "$colBy" ] ; then
+		[ -z "$colMember" ] || [ "$colMember" = "$colBy" ] || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: --reached-by names another member than the one this session acts as ($colBy); it is for a call from no member's session" >&2 ; return 1 ; }
+		colMember="$colBy"
+	else
+		[ -n "$colMember" ] || { echo "$MDSC_CMD: ⛔ ERROR: $colOp: a contact is held by a member, and this call comes from no member's session: name it with --reached-by <member>" >&2 ; return 1 ; }
+	fi
+	AgentsToolsAssertBareName "$colMember" "the member" "${colOp#--}" || return 1
+	AgentsToolsContactsStore "$colOp" || return 1
+	colFile="$contactsPersons/$colId.md"
+	if [ -n "$colOrg" ] && [ ! -f "$contactsOrgs/$colOrg.md" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $colOp: the organisation $colOrg is not recorded -- record it first: --collect-organisation --id $colOrg --name <text>" >&2
+		return 1
+	fi
+	AgentsToolsContactsLock "$colOp" || return 1
+	collectChanged="" collectKept=""
+	if ! AgentsToolsContactsPersonRead "$colFile" ; then
+		colNew=yes
+		if [ -z "$colName$colSlack$colHandle$colConv$colMail" ] ; then
+			AgentsToolsContactsUnlock
+			echo "$MDSC_CMD: ⛔ ERROR: $colOp: a new contact needs a --name or a coordinate (--slack, --slack-handle, --slack-conversation, --email) -- nothing was written" >&2
+			return 1
+		fi
+	fi
+	crId="$colId"
+	AgentsToolsContactsMerge crName "display-name" "$colName" "$colCorrect"
+	AgentsToolsContactsMerge crOrg "organisation" "$colOrg" "$colCorrect"
+	AgentsToolsContactsMerge crRole "role" "$colRole" "$colCorrect"
+	AgentsToolsContactsMerge crRel "relationship" "$colRel" "$colCorrect"
+	AgentsToolsContactsMerge crOwner "is-owner" "$colOwner" "$colCorrect"
+	AgentsToolsContactsMerge crHow "how-to-meet" "$colHow" "$colCorrect"
+	## the lists add what is new
+	local colBefore
+	colBefore="$crSlackId" ; while IFS= read -r colItem ; do [ -z "$colItem" ] || crSlackId="$( AgentsToolsContactsListAdd "$crSlackId" "$colItem" )" ; done <<< "$( printf '%s' "$colSlack" | LC_ALL=C tr ',' '\n' | LC_ALL=C sed 's/^ *//' )"
+	[ "$colBefore" = "$crSlackId" ] || collectChanged="${collectChanged:+$collectChanged, }slack-id"
+	colBefore="$crSlackHandle" ; while IFS= read -r colItem ; do [ -z "$colItem" ] || crSlackHandle="$( AgentsToolsContactsListAdd "$crSlackHandle" "$colItem" )" ; done <<< "$( printf '%s' "$colHandle" | LC_ALL=C tr ',' '\n' | LC_ALL=C sed 's/^ *//' )"
+	[ "$colBefore" = "$crSlackHandle" ] || collectChanged="${collectChanged:+$collectChanged, }slack-handle"
+	colBefore="$crSlackConv" ; while IFS= read -r colItem ; do [ -z "$colItem" ] || crSlackConv="$( AgentsToolsContactsListAdd "$crSlackConv" "$colItem" )" ; done <<< "$( printf '%s' "$colConv" | LC_ALL=C tr ',' '\n' | LC_ALL=C sed 's/^ *//' )"
+	[ "$colBefore" = "$crSlackConv" ] || collectChanged="${collectChanged:+$collectChanged, }slack-conversation"
+	colBefore="$crEmail" ; while IFS= read -r colItem ; do [ -z "$colItem" ] || crEmail="$( AgentsToolsContactsListAdd "$crEmail" "$colItem" )" ; done <<< "$( printf '%s' "$colMail" | LC_ALL=C tr ',' '\n' | LC_ALL=C sed 's/^ *//' )"
+	[ "$colBefore" = "$crEmail" ] || collectChanged="${collectChanged:+$collectChanged, }email"
+	## a coordinate dropped, by the value as it is written
+	if [ -n "$colDrop" ] ; then
+		local colDropped=""
+		while IFS= read -r colItem ; do
+			[ -n "$colItem" ] || continue
+			colBefore="$crSlackId|$crSlackHandle|$crSlackConv|$crEmail"
+			crSlackId="$( AgentsToolsContactsListDrop "$crSlackId" "$colItem" )" ; crSlackHandle="$( AgentsToolsContactsListDrop "$crSlackHandle" "$colItem" )"
+			crSlackConv="$( AgentsToolsContactsListDrop "$crSlackConv" "$colItem" )" ; crEmail="$( AgentsToolsContactsListDrop "$crEmail" "$colItem" )"
+			[ "$colBefore" = "$crSlackId|$crSlackHandle|$crSlackConv|$crEmail" ] || colDropped="${colDropped:+$colDropped, }$colItem"
+		done <<< "$( printf '%s' "$colDrop" | LC_ALL=C tr ',' '\n' | LC_ALL=C sed 's/^ *//' )"
+		[ -z "$colDropped" ] || collectChanged="${collectChanged:+$collectChanged, }dropped $colDropped"
+	fi
+	local colReached="$crReached"
+	crReached="$( AgentsToolsContactsListAdd "$crReached" "$colMember" )"
+	[ "$colReached" = "$crReached" ] || collectChanged="${collectChanged:+$collectChanged, }reached-by $colMember"
+	colStamp="$( AgentsToolsContactsStamp )"
+	if [ -n "$collectChanged" ] || [ -n "$colNote" ] ; then
+		[ -z "$collectChanged" ] || crLog="$crLog- $colStamp -- $colMember -- $( [ "$colNew" = yes ] && printf 'collected' || printf 'changed' ): $collectChanged"$'\n'
+		[ -z "$colNote" ] || crLog="$crLog- $colStamp -- $colMember -- note: $colNote"$'\n'
+		AgentsToolsContactsWriteFile "$colOp" "$colFile" AgentsToolsContactsPersonText || { AgentsToolsContactsUnlock ; return 1 ; }
+		colNow=$( [ "$colNew" = yes ] && printf created || printf updated )
+	else
+		colNow=unchanged
+	fi
+	AgentsToolsContactsUnlock
+	printf 'CONTACT: %s %s\n' "$colId" "$colNow"
+	while IFS= read -r colKeptLine ; do
+		[ -z "$colKeptLine" ] || printf 'KEPT: %s\n' "$colKeptLine"
+	done <<< "$collectKept"
+	return 0
+}
+
+## ---- the reads ----
+
+## --all-contacts [--organisation <slug>] [--reached-by <member>]: a row a contact, `contact <id> <display-name> <organisation> <reached-by> -`, by id.
+AgentsToolsContactsAll(){ ## the operation, its arguments...
+	local allOp="$1" allOrg="" allMember="" allOut
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--organisation|--reached-by)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allOp: $1 takes a value" >&2 ; return 1 ; }
+				if [ "$1" = --organisation ] ; then allOrg="$2" ; else allMember="$2" ; fi
+				shift 2
+			;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $allOp: unknown option: $1 -- syntax is [--organisation <slug>] [--reached-by <member>]" >&2 ; return 1 ;;
+		esac
+	done
+	AgentsToolsContactsStore "$allOp" || return 1
+	allOut="$( AgentsToolsContactsIndex all "" "" "$allMember" "$allOrg" )"
+	if [ -z "$allOut" ] ; then
+		echo "# $allOp: no contact is recorded${allOrg:+ for the organisation $allOrg}${allMember:+ that $allMember holds}" >&2
+		return 0
+	fi
+	printf '%s\n' "$allOut" | LC_ALL=C sort -t "$(printf '\t')" -k2,2
+}
+
+## The index rows: mode, wanted text, Slack team, member, organisation. The person files of the store, in the order of their names.
+AgentsToolsContactsIndex(){ ## mode, want, team, member, organisation
+	local indexMode="$1" indexWant="$2" indexTeam="$3" indexMember="$4" indexOrg="$5"
+	[ -d "$contactsPersons" ] || return 0
+	set -- "$contactsPersons"/*.md
+	[ -f "$1" ] || return 0
+	LC_ALL=C awk -v mode="$indexMode" -v want="$indexWant" -v team="$indexTeam" -v member="$indexMember" -v orgfilter="$indexOrg" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsContactsIndex.awk" "$@"
+}
+
+## --all-organisations: a row an organisation, `organisation <id> <display-name> <domain> <how many contacts>`, by id.
+AgentsToolsContactsAllOrganisations(){ ## the operation
+	local orgFile orgIdName orgCountN
+	[ $# -eq 1 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: takes no option: $2" >&2 ; return 1 ; }
+	AgentsToolsContactsStore "$1" || return 1
+	if [ ! -d "$contactsOrgs" ] || [ -z "$( ls "$contactsOrgs" 2> /dev/null | LC_ALL=C grep '\.md$' )" ] ; then
+		echo "# $1: no organisation is recorded" >&2
+		return 0
+	fi
+	for orgFile in "$contactsOrgs"/*.md ; do
+		[ -f "$orgFile" ] || continue
+		orgIdName="${orgFile##*/}" ; orgIdName="${orgIdName%.md}"
+		AgentsToolsContactsOrgRead "$orgFile"
+		orgCountN="$( AgentsToolsContactsIndex all "" "" "" "$orgIdName" | LC_ALL=C grep -c . )" || orgCountN=0
+		printf 'organisation\t%s\t%s\t%s\t%s\n' "$orgIdName" "$orgName" "$orgDomain" "$orgCountN"
+	done | LC_ALL=C sort -t "$(printf '\t')" -k2,2
+}
+
+## --contact-record <id>: the record, whole.
+AgentsToolsContactsRecord(){ ## the operation, id
+	[ -n "${2:-}" ] && [ $# -eq 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: syntax is <id>" >&2 ; return 1 ; }
+	AgentsToolsContactsSlug "$2" || { echo "$MDSC_CMD: ⛔ ERROR: $1: <id> is a contact's id, lowercase letters, digits and hyphens: $2" >&2 ; return 1 ; }
+	AgentsToolsContactsStore "$1" || return 1
+	if [ ! -f "$contactsPersons/$2.md" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $1: no contact $2 is recorded -- find one with --find-contact <value>" >&2
+		return 1
+	fi
+	cat "$contactsPersons/$2.md"
+}
+
+## --find-contact <value> [--team <scope>] [--reached-by <member>]: the contacts that value names, rows as --all-contacts with the last field
+## saying what matched (id, name, slack-id, slack-conversation, slack-handle, email). rc 1 with none, saying what was searched.
+contactsFound=""
+AgentsToolsContactsFind(){ ## the operation, its arguments...
+	local findOp="$1" findValue="" findTeam="" findMember="" findCount
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--team|--reached-by)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $findOp: $1 takes a value" >&2 ; return 1 ; }
+				if [ "$1" = --team ] ; then findTeam="$2" ; else findMember="$2" ; fi
+				shift 2
+			;;
+			-*) echo "$MDSC_CMD: ⛔ ERROR: $findOp: unknown option: $1 -- syntax is <value> [--team <scope>] [--reached-by <member>]" >&2 ; return 1 ;;
+			*)
+				[ -z "$findValue" ] || { echo "$MDSC_CMD: ⛔ ERROR: $findOp: one value, got a second: $1" >&2 ; return 1 ; }
+				findValue="$1" ; shift
+			;;
+		esac
+	done
+	[ -n "$findValue" ] || { echo "$MDSC_CMD: ⛔ ERROR: $findOp: syntax is <value> [--team <scope>] [--reached-by <member>]" >&2 ; return 1 ; }
+	AgentsToolsContactsStore "$findOp" || return 1
+	contactsFound="$( AgentsToolsContactsIndex find "$findValue" "$findTeam" "$findMember" "" | LC_ALL=C sort -t "$(printf '\t')" -k2,2 )"
+	if [ -z "$contactsFound" ] ; then
+		findCount="$( ls "$contactsPersons" 2> /dev/null | LC_ALL=C grep -c '\.md$' )" || findCount=0
+		echo "$MDSC_CMD: $findOp: no contact matches \"$findValue\"${findTeam:+ in the Slack team $findTeam}${findMember:+ among those $findMember holds} (searched the ids, names, Slack ids, conversations and handles, and e-mails of $findCount contact(s))" >&2
+		return 1
+	fi
+	printf '%s\n' "$contactsFound"
+}
+
+## The outbound gate's question (AgentsToolsContactAssertKnown): whether a recipient is a coordinate of a contact the member holds. rc 0 it is,
+## rc 1 it is not or the store is not there. A Slack send names its team (the sending member's identity scope), an e-mail none.
+AgentsToolsContactsKnown(){ ## member, value, [Slack team]
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+	contactsPersons="$MDAT_DATA_ROOT/contacts/persons"
+	[ -n "$( AgentsToolsContactsIndex known "$2" "${3:-}" "$1" "" )" ]
+}
+
+## ---- access: asked of the permission model, never kept here ----
+
+## The tooling's own script, called as the family calls it from another script.
+AgentsToolsContactsChain(){ ## DistroAgentsTools arguments...
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@"
+}
+
+## A standing grant for a contact, entered by grant-open --kind contact (AgentsTools.InternOpPermission.include): the entry
+## `contact:<tool>:<target>:<granted by>:<time>` joins the `allows:` of the record, the way a task grant's joins its board item's, and one dated log
+## line says what it allows. An entry for the same tool, target and signer is there once. The permission model reads the key, never this file.
+AgentsToolsContactsAllowAdd(){ ## id, entry, the natural target (for the log line)
+	local allowId="$1" allowEntry="$2" allowNatural="$3" allowFile allowKey allowTool allowRest allowBy
+	AgentsToolsContactsLoad
+	AgentsToolsContactsStore allow-add || return 1
+	allowFile="$contactsPersons/$allowId.md"
+	[ -f "$allowFile" ] || return 1
+	allowKey="${allowEntry%:*}:"
+	allowRest="${allowEntry#contact:}" ; allowTool="${allowRest%%:*}"
+	allowRest="${allowRest#*:}" ; allowRest="${allowRest#*:}" ; allowBy="${allowRest%%:*}"
+	AgentsToolsContactsLock allow-add || return 1
+	AgentsToolsContactsPersonRead "$allowFile" || { AgentsToolsContactsUnlock ; return 1 ; }
+	if [[ ",$crAllows," != *",$allowKey"* ]] ; then
+		crAllows="${crAllows:+$crAllows,}$allowEntry"
+		type AgentsToolsPermissionPartyName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include"
+		crLog="$crLog- $( AgentsToolsContactsStamp ) -- $( AgentsToolsPermissionPartyName "$allowBy" ) -- allowed: $allowTool $allowNatural (standing)"$'\n'
+		AgentsToolsContactsWriteFile allow-add "$allowFile" AgentsToolsContactsPersonText || { AgentsToolsContactsUnlock ; return 1 ; }
+	fi
+	AgentsToolsContactsUnlock
+}
+
+## What the chain says a contact holds standing, one line a grant: `ALLOW <tool> <target> <granted by> <time>`, or the words that there is none.
+AgentsToolsContactsAccessText(){ ## id
+	local accessRows
+	accessRows="$( AgentsToolsContactsChain --intern-op-permission-contact-holds "contact:$1" 2> /dev/null | LC_ALL=C awk -F'\t' 'NF >= 5 { printf "%s%s on %s (allowed by %s)", sep, $2, $3, $4 ; sep = ", " ; }' )" || accessRows=""
+	printf '%s' "${accessRows:-nothing standing, so Ingest and Basic only}"
+}
+
+## --contact-access <id> [--tool <tool> --target <target>] [--session-id <id>]: with a call, the permission model's answer to whether the contact may
+## ask for it (`GRANT: contact <id>` or `GRANT: session <ref>`, else `NO-GRANT: ...`, rc 1, with the asks that are open named); with none, what it
+## holds standing, a row `ALLOW <tool> <target> <granted by> <time>` each.
+AgentsToolsContactsAccess(){ ## the operation, its arguments...
+	local accOp="$1" accId="${2:-}" accTool="" accTarget="" accSession="" accOut accRc=0
+	[ -n "$accId" ] || { echo "$MDSC_CMD: ⛔ ERROR: $accOp: syntax is <id> [--tool <tool> --target <target>] [--session-id <id>]" >&2 ; return 1 ; }
+	shift 2
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--tool|--target|--session-id)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $accOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in --tool) accTool="$2" ;; --target) accTarget="$2" ;; --session-id) accSession="$2" ;; esac
+				shift 2
+			;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $accOp: unknown option: $1 -- syntax is <id> [--tool <tool> --target <target>] [--session-id <id>]" >&2 ; return 1 ;;
+		esac
+	done
+	AgentsToolsContactsLoad
+	AgentsToolsContactsSlug "$accId" || { echo "$MDSC_CMD: ⛔ ERROR: $accOp: <id> is a contact's id, lowercase letters, digits and hyphens: $accId" >&2 ; return 1 ; }
+	AgentsToolsContactsStore "$accOp" || return 1
+	[ -f "$contactsPersons/$accId.md" ] || { echo "$MDSC_CMD: ⛔ ERROR: $accOp: no contact $accId is recorded -- find one with --find-contact <value>" >&2 ; return 1 ; }
+	if [ -n "$accTool$accTarget" ] ; then
+		[ -n "$accTool" ] && [ -n "$accTarget" ] || { echo "$MDSC_CMD: ⛔ ERROR: $accOp: --tool and --target come together" >&2 ; return 1 ; }
+		accOut="$( AgentsToolsContactsChain --intern-op-permission-grant-read "contact:$accId" --session-id "${accSession:-${MDAT_SPAWN_SESSION_ID:-no-session}}" --tool "$accTool" --target "$accTarget" 2> /dev/null )" || accRc=$?
+		[ -z "$accOut" ] || printf '%s\n' "$accOut"
+		if [ "$accRc" != 0 ] ; then
+			printf 'NO-GRANT: contact:%s %s %s\n' "$accId" "$accTool" "$accTarget"
+			return 1
+		fi
+		return 0
+	fi
+	AgentsToolsContactsChain --intern-op-permission-contact-holds "contact:$accId"
+}
+
+## --escalate-contact <id> --tool <tool> --target <target> --asked <text> [--session-id <id>]: what a contact asks for and holds no access to is put to the
+## human-owner. The permission model records the refusal for `contact:<id>` in the member's session (REFUSAL-ID), one dated line of the contact's log says
+## it, and the text of the template says the one call that asks him, the permission request of the existing escalation path (RequestPermission on that
+## refusal): no second filing is made here. His answer is the escalation apply's, signed by whoever answered: for the session, or for the contact.
+AgentsToolsContactsEscalate(){ ## the operation, its arguments...
+	local escOp="$1" escId="${2:-}" escTool="" escTarget="" escAsked="" escSession="" escBy escRefusal escName escText
+	[ -n "$escId" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: syntax is <id> --tool <tool> --target <target> --asked <text> [--session-id <id>]" >&2 ; return 1 ; }
+	shift 2
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--tool|--target|--asked|--session-id)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in --tool) escTool="$2" ;; --target) escTarget="$2" ;; --asked) escAsked="$( AgentsToolsContactsOneLine "$2" )" ;; --session-id) escSession="$2" ;; esac
+				shift 2
+			;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $escOp: unknown option: $1 -- syntax is <id> --tool <tool> --target <target> --asked <text> [--session-id <id>]" >&2 ; return 1 ;;
+		esac
+	done
+	AgentsToolsContactsLoad
+	AgentsToolsContactsSlug "$escId" || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: <id> is a contact's id, lowercase letters, digits and hyphens: $escId" >&2 ; return 1 ; }
+	[ -n "$escTool" ] && [ -n "$escTarget" ] && [ -n "$escAsked" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: --tool, --target and --asked are needed: the call the contact asks for, and who wants what" >&2 ; return 1 ; }
+	[ "${#escAsked}" -le 400 ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: --asked is at most 400 characters" >&2 ; return 1 ; }
+	escBy="$( AgentsToolsActingMember )"
+	[ -n "$escBy" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: a ruling is asked by a member, and this call comes from no member's session" >&2 ; return 1 ; }
+	escSession="${escSession:-${MDAT_SPAWN_SESSION_ID:-}}"
+	[ -n "$escSession" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: the refusal is recorded in a session, and this call names none: --session-id <id>" >&2 ; return 1 ; }
+	AgentsToolsContactsStore "$escOp" || return 1
+	[ -f "$contactsPersons/$escId.md" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: no contact $escId is recorded -- find one with --find-contact <value>" >&2 ; return 1 ; }
+	escRefusal="$( AgentsToolsContactsChain --intern-op-permission-refusal-log "contact:$escId" --session-id "$escSession" --tool "$escTool" --target "$escTarget" --reason "$escAsked" 2> /dev/null | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | LC_ALL=C sed -n 1p )"
+	[ -n "$escRefusal" ] || { echo "$MDSC_CMD: ⛔ ERROR: $escOp: the permission model recorded no refusal for contact:$escId -- nothing was asked" >&2 ; return 1 ; }
+	AgentsToolsContactsLock "$escOp" || return 1
+	AgentsToolsContactsPersonRead "$contactsPersons/$escId.md" || { AgentsToolsContactsUnlock ; return 1 ; }
+	escName="$crName"
+	crLog="$crLog- $( AgentsToolsContactsStamp ) -- $escBy -- escalated: $escTool $escTarget: $escAsked (refusal $escRefusal)"$'\n'
+	AgentsToolsContactsWriteFile "$escOp" "$contactsPersons/$escId.md" AgentsToolsContactsPersonText || { AgentsToolsContactsUnlock ; return 1 ; }
+	AgentsToolsContactsUnlock
+	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only > /dev/null 2>&1 || :
+	escText="$( ASKP_F_member="$escBy" ASKP_F_id="$escId" ASKP_F_name="$escName" ASKP_F_asked="$escAsked" ASKP_F_refusal="$escRefusal" ASKP_F_session="$escSession" AgentsToolsEscalationNote "Contacts/escalation-ask" )" || escText=""
+	if [ -z "$escText" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $escOp: the way to ask could not be filled from its template (tooling-note.post.format.md, Contacts/escalation-ask) -- the refusal $escRefusal stands" >&2
+		return 1
+	fi
+	printf 'REFUSAL-ID: %s\n' "$escRefusal"
+	printf '%s\n' "$escText"
+}
+
+## --allow-contact <id> --session-id <id> --refusal-id <id> --kind session|contact: a member gives a contact what it holds itself, through grant-open, signed
+## by the member: for the session (`session`) or for the contact (`contact`, an entry of the `allows:` of its record). grant-open's holding check bounds it
+## (a member gives only what it holds, rc 3 with the holders up the chain). The human-owner's, or any authority's, allow is not this: it is the answer to
+## the refusal's permission request (RequestPermission), applied by the escalation apply and signed by whoever answered. Refused for a refusal that is not
+## recorded for this contact.
+AgentsToolsContactsAllow(){ ## the operation, its arguments...
+	local allowOp="$1" allowId="${2:-}" allowSession="" allowRefusal="" allowKind="" allowBy allowRecord allowOut allowRc=0 allowTool allowTarget
+	[ -n "$allowId" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: syntax is <id> --session-id <id> --refusal-id <id> --kind session|contact" >&2 ; return 1 ; }
+	shift 2
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--session-id|--refusal-id|--kind)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: $1 takes a value" >&2 ; return 1 ; }
+				case "$1" in --session-id) allowSession="$2" ;; --refusal-id) allowRefusal="$2" ;; --kind) allowKind="$2" ;; esac
+				shift 2
+			;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $allowOp: unknown option: $1 -- syntax is <id> --session-id <id> --refusal-id <id> --kind session|contact" >&2 ; return 1 ;;
+		esac
+	done
+	AgentsToolsContactsLoad
+	AgentsToolsContactsSlug "$allowId" || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: <id> is a contact's id, lowercase letters, digits and hyphens: $allowId" >&2 ; return 1 ; }
+	[ -n "$allowSession" ] && [ -n "$allowRefusal" ] && [ -n "$allowKind" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: --session-id, --refusal-id and --kind are needed" >&2 ; return 1 ; }
+	case "$allowKind" in session|contact) ;; *) echo "$MDSC_CMD: ⛔ ERROR: $allowOp: --kind is session (this session) or contact (the contact, standing): $allowKind" >&2 ; return 1 ;; esac
+	AgentsToolsAssertBareName "$allowSession" "--session-id" "${allowOp#--}" || return 1
+	AgentsToolsAssertBareName "$allowRefusal" "--refusal-id" "${allowOp#--}" || return 1
+	allowBy="$( AgentsToolsActingMember )"
+	[ -n "$allowBy" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: a grant is signed by a member, and this call comes from no member's session" >&2 ; return 1 ; }
+	AgentsToolsContactsStore "$allowOp" || return 1
+	[ -f "$contactsPersons/$allowId.md" ] || { echo "$MDSC_CMD: ⛔ ERROR: $allowOp: no contact $allowId is recorded -- find one with --find-contact <value>" >&2 ; return 1 ; }
+	allowRecord="$MMDAPP/.local/agents/sessions/$allowSession/$allowRefusal.md"
+	if [ ! -f "$allowRecord" ] || [ "$( AgentsToolsContactsKey "$allowRecord" owner )" != "contact:$allowId" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: $allowOp: the refusal $allowRefusal of session $allowSession is not one recorded for contact:$allowId (--escalate-contact records it) -- nothing is granted" >&2
+		return 1
+	fi
+	allowTool="$( AgentsToolsContactsKey "$allowRecord" tool )" ; allowTarget="$( AgentsToolsContactsKey "$allowRecord" target )"
+	allowOut="$( AgentsToolsContactsChain --intern-op-permission-grant-open "$allowBy" --session-id "$allowSession" --refusal-id "$allowRefusal" --kind "$allowKind" )" || allowRc=$?
+	[ -z "$allowOut" ] || printf '%s\n' "$allowOut"
+	[ "$allowRc" = 0 ] || return "$allowRc"
+	[ "$allowKind" = session ] || return 0
+	AgentsToolsContactsLock "$allowOp" || return 1
+	if AgentsToolsContactsPersonRead "$contactsPersons/$allowId.md" ; then
+		crLog="$crLog- $( AgentsToolsContactsStamp ) -- $allowBy -- allowed for the session $allowSession: $allowTool $allowTarget (refusal $allowRefusal)"$'\n'
+		AgentsToolsContactsWriteFile "$allowOp" "$contactsPersons/$allowId.md" AgentsToolsContactsPersonText || :
+	fi
+	AgentsToolsContactsUnlock
+}
+
+## ---- the two scenarios ----
+
+## --contacted-by <value> [--team <scope>]: being contacted. The sender looked up: the record, then what it holds and the tiers and next step of the
+## template. A sender nobody has recorded is said so, with the next step; rc 1 then, and where the value names more than one contact (rows, narrow it).
+AgentsToolsContactsContactedBy(){ ## the operation, its arguments...
+	local byOp="$1" byValue="" byTeam="" byRows byCount byId
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--team)
+				[ -n "${2:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: $byOp: --team takes a value" >&2 ; return 1 ; }
+				byTeam="$2" ; shift 2
+			;;
+			-*) echo "$MDSC_CMD: ⛔ ERROR: $byOp: unknown option: $1 -- syntax is <value> [--team <scope>]" >&2 ; return 1 ;;
+			*)
+				[ -z "$byValue" ] || { echo "$MDSC_CMD: ⛔ ERROR: $byOp: one value, got a second: $1" >&2 ; return 1 ; }
+				byValue="$1" ; shift
+			;;
+		esac
+	done
+	[ -n "$byValue" ] || { echo "$MDSC_CMD: ⛔ ERROR: $byOp: syntax is <value> [--team <scope>]" >&2 ; return 1 ; }
+	AgentsToolsContactsStore "$byOp" || return 1
+	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only > /dev/null 2>&1 || :
+	byRows="$( AgentsToolsContactsIndex find "$byValue" "$byTeam" "" "" | LC_ALL=C sort -t "$(printf '\t')" -k2,2 )"
+	if [ -z "$byRows" ] ; then
+		ASKP_F_value="$byValue" AgentsToolsEscalationNote "Contacts/contacted-unknown"
+		return 1
+	fi
+	byCount="$( printf '%s\n' "$byRows" | LC_ALL=C grep -c . )"
+	if [ "$byCount" -gt 1 ] ; then
+		printf '%s\n' "$byRows"
+		echo "$MDSC_CMD: $byOp: \"$byValue\" names $byCount contacts: say which, by its id (--contact-record <id>), or narrow it with --team" >&2
+		return 1
+	fi
+	byId="$( printf '%s\n' "$byRows" | LC_ALL=C cut -f2 )"
+	cat "$contactsPersons/$byId.md"
+	printf '\n'
+	ASKP_F_id="$byId" ASKP_F_access="$( AgentsToolsContactsAccessText "$byId" )" AgentsToolsEscalationNote "Contacts/contacted-known"
+}
+
+## --reach-contact <id>: reaching one. The coordinates by channel, how to meet it, the send lines of the template.
+AgentsToolsContactsReach(){ ## the operation, id
+	local reachFile reachSlack reachMail
+	[ -n "${2:-}" ] && [ $# -eq 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: syntax is <id>" >&2 ; return 1 ; }
+	AgentsToolsContactsSlug "$2" || { echo "$MDSC_CMD: ⛔ ERROR: $1: <id> is a contact's id, lowercase letters, digits and hyphens: $2" >&2 ; return 1 ; }
+	AgentsToolsContactsStore "$1" || return 1
+	reachFile="$contactsPersons/$2.md"
+	[ -f "$reachFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: $1: no contact $2 is recorded -- find one with --find-contact <value>" >&2 ; return 1 ; }
+	AgentsToolsContactsPersonRead "$reachFile"
+	reachSlack="${crSlackConv:+conversations $crSlackConv}${crSlackId:+${crSlackConv:+, }ids $crSlackId}"
+	reachMail="$crEmail"
+	type AgentsToolsEscalationNote > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only > /dev/null 2>&1 || :
+	ASKP_F_id="$crId" ASKP_F_name="${crName:-$crId}" ASKP_F_organisation="$( [ "$crOrg" = none ] || printf '%s' "$crOrg" )" ASKP_F_how="$crHow" ASKP_F_slack="$reachSlack" ASKP_F_email="$reachMail" AgentsToolsEscalationNote "Contacts/reaching"
+}

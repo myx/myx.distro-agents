@@ -40,16 +40,12 @@ printf 'EMAIL_USER=rig@example.com\nEMAIL_APP_PASSWORD=rig-app-password\nEMAIL_S
 	> "$rigWs/.local/.agents/keeper-myx.agent.env"
 
 ## The send's outbound contact gate (AgentsToolsContactAssertKnown) refuses a
-## recipient missing from the sender's own contacts note, before the build-only
-## exit. The rig's recipient is listed there, in the contacts document format
-## (templates/contacts.document.format.md), under the store this rig derives:
-## no MDAT_DATA_ROOT is carried, so it is $MMDAPP/.local/agents/team-data-root.
-mkdir -p "$rigWs/.local/agents/team-data-root/inboxes/keeper-myx/incoming"
-printf '%s\n' \
-	'| slack-id | contact | handle | email | organisation | permission level |' \
-	'| --- | --- | --- | --- | --- | --- |' \
-	'| <unresolved> | rig-test | @rig-test | test@example.com | rig | unset |' \
-	> "$rigWs/.local/agents/team-data-root/inboxes/keeper-myx/incoming/note-rig-contacts.md"
+## recipient that is not a coordinate of a contact the sender holds, before the
+## build-only exit. The rig's recipient is such a contact (the contacts store,
+## F7.10), under the store this rig derives: no MDAT_DATA_ROOT is carried, so it
+## is $MMDAPP/.local/agents/team-data-root.
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-contacts.include.sh" || exit 1
+rigContactSeed "$rigWs/.local/agents/team-data-root" keeper-myx rig-test - test@example.com
 
 rigPassCount=0
 rigFailCount=0

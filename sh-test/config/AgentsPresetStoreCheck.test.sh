@@ -11,7 +11,7 @@
 ##   C. a preset's name is lower-case
 ##   D. extend: a preset that is there, not itself, no loop; and where a preset extends, its CLI service is not editable
 ##   E. what an extending preset inherits: the parent's CLI service, the parent's other keys unless its own stands ahead
-##   F. the model or macro, the effort, the two numbers that are stored only, the extra spawn line (the owner's)
+##   F. the model or macro, the effort, the input cache time (5m or 1h, F10.7), the context size that is stored only, the extra spawn line (the owner's)
 ##   G. the credentials of the selected CLI service, and no other; never printed
 ##   H. a preset key stands in a preset and in no other scope; every other key and scope is written as it was
 ##   I. a value taken from stdin is checked as one in argv, and is written whole
@@ -125,16 +125,16 @@ rigSet mel-claude-haiku PRESET_EXTEND mel-claude > /dev/null
 
 echo "-- E. what an extending preset inherits --"
 rigSet mel-claude PRESET_EXTRA_SPAWN_LINE "Answer in short sentences; the tools are named as they are." > /dev/null
-rigSet mel-claude PRESET_INPUT_CACHE_TIME 300 > /dev/null
+rigSet mel-claude PRESET_INPUT_CACHE_TIME 1h > /dev/null
 rigSet mel-claude PRESET_MODEL_OR_MACRO normal > /dev/null
 rigSet mel-claude-haiku PRESET_MODEL_OR_MACRO low > /dev/null
 rigSet mel-claude-micro PRESET_EXTEND mel-claude-haiku > /dev/null
 rigAssert "the CLI service is the parent's"                                       "$( rigEffective mel-claude-haiku PRESET_CLI_SERVICE )" "claude rc=0"
-rigAssert "a key the preset does not hold is the parent's"                        "$( rigEffective mel-claude-haiku PRESET_INPUT_CACHE_TIME )" "300 rc=0"
+rigAssert "a key the preset does not hold is the parent's"                        "$( rigEffective mel-claude-haiku PRESET_INPUT_CACHE_TIME )" "1h rc=0"
 rigAssert "the extra spawn line is inherited too"                                 "$( rigEffective mel-claude-haiku PRESET_EXTRA_SPAWN_LINE )" "Answer in short sentences; the tools are named as they are. rc=0"
 rigAssert "a key the preset holds stands ahead of the parent's"                   "$( rigEffective mel-claude-haiku PRESET_MODEL_OR_MACRO )" "low rc=0"
 rigAssert "and the parent keeps its own"                                          "$( rigEffective mel-claude PRESET_MODEL_OR_MACRO )" "normal rc=0"
-rigAssert "two steps up: the grandparent's CLI service and cache time"            "$( rigEffective mel-claude-micro PRESET_CLI_SERVICE ) $( rigEffective mel-claude-micro PRESET_INPUT_CACHE_TIME )" "claude rc=0 300 rc=0"
+rigAssert "two steps up: the grandparent's CLI service and cache time"            "$( rigEffective mel-claude-micro PRESET_CLI_SERVICE ) $( rigEffective mel-claude-micro PRESET_INPUT_CACHE_TIME )" "claude rc=0 1h rc=0"
 rigAssert "the extension itself is never inherited"                               "$( rigEffective mel-claude-micro PRESET_EXTEND ) $( rigEffective mel-claude PRESET_EXTEND )" "mel-claude-haiku rc=0  rc=0"
 printf 'PRESET_EXTEND=mel-claude\nPRESET_CLI_SERVICE=grok\n' > "$rigAgents/preset-mel-hand.agent.env"
 rigAssert "a CLI service planted in an extending preset is ignored: the parent's is the value" "$( rigEffective mel-hand PRESET_CLI_SERVICE )" "claude rc=0"
@@ -152,10 +152,14 @@ rigOk=0
 for rigEffort in low default normal high hard ; do [ "$( rigSet mel-model PRESET_EFFORT "$rigEffort" )" = 0 ] && rigOk=$(( rigOk + 1 )) ; done
 rigAssert "the five efforts are accepted"                                         "$rigOk" 5
 rigAssert "any other is refused"                                                  "$( rigSet mel-model PRESET_EFFORT max )" 1
-rigAssert "the input cache time takes a whole number of seconds"                  "$( rigSet mel-model PRESET_INPUT_CACHE_TIME 3600 )" 0
+rigAssert "the input cache time takes 5m and 1h (F10.7)"                              "$( rigSet mel-model PRESET_INPUT_CACHE_TIME 5m )$( rigSet mel-model PRESET_INPUT_CACHE_TIME 1h )" 00
+rigAssert "and nothing else: 1H, 2h, 30m, a number of seconds, a word, a unit alone"   "$( for rigTime in 1H 2h 30m 300 3600 abc h m 5m1h ; do rigSet mel-model PRESET_INPUT_CACHE_TIME "$rigTime" ; done )" 111111111
+rigSet mel-model PRESET_INPUT_CACHE_TIME 2h > /dev/null
+rigAssert "a refusal names the two it takes and repeats nothing it was given"          "$( LC_ALL=C grep -c -e 'is one of: 5m, 1h' "$rigTmp/run.err" )$( LC_ALL=C grep -c -F -e '2h' "$rigTmp/run.err" )" 10
+rigAssert "the stored value is still the last good one"                              "$( rigGet mel-model PRESET_INPUT_CACHE_TIME )" 1h
 rigAssert "the context size takes a whole number of tokens"                       "$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE 200000 )" 0
-rigAssert "a number written otherwise is refused (word, zero, sign, fraction)"     "$( rigSet mel-model PRESET_INPUT_CACHE_TIME abc )$( rigSet mel-model PRESET_INPUT_CACHE_TIME 0 )$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE -5 )$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE 1.5 )" 1111
-rigAssert "the two numbers are stored only: no code of the package reads them"       "$( cd "$rigPackage" && LC_ALL=C grep -rl -e PRESET_INPUT_CACHE_TIME -e PRESET_CONTEXT_MAX_SIZE sh-lib sh-scripts | LC_ALL=C sort | tr '\n' ' ' )" "sh-lib/config/AgentsTools.OwnerSetupOptionSpec.include sh-lib/config/AgentsTools.Preset.include "
+rigAssert "a number written otherwise is refused (word, zero, sign, fraction)"     "$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE abc )$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE 0 )$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE -5 )$( rigSet mel-model PRESET_CONTEXT_MAX_SIZE 1.5 )" 1111
+rigAssert "the two keys are named in the preset code, the catalogue and the console alone (the console names the cache time it passes on; the context size is stored only)" "$( cd "$rigPackage" && LC_ALL=C grep -rl -e PRESET_INPUT_CACHE_TIME -e PRESET_CONTEXT_MAX_SIZE sh-lib sh-scripts | LC_ALL=C sort | tr '\n' ' ' )" "sh-lib/config/AgentsTools.OwnerSetupOptionSpec.include sh-lib/config/AgentsTools.Preset.include sh-lib/manager/AgentsConsoleShellScript.template.sh "
 rigAssert "the extra spawn line, one line with spaces and an = in it, is accepted"  "$( rigSet mel-model PRESET_EXTRA_SPAWN_LINE 'Think step by step; prefer a=b over c.' )" 0
 rigAssert "and is stored whole"                                                   "$( rigGet mel-model PRESET_EXTRA_SPAWN_LINE )" "Think step by step; prefer a=b over c."
 rigAssert "two lines are refused"                                                 "$( rigSet mel-model PRESET_EXTRA_SPAWN_LINE "$( printf 'one\ntwo' )" )" 1
@@ -204,7 +208,7 @@ rigCatalogue(){ ( . "$rigPackage/sh-lib/config/AgentsTools.OwnerSetupOptionSpec.
 rigAssert "each of the seven keys is in the catalogue, in no one scope, plain"     "$( for rigKey in PRESET_EXTEND PRESET_CLI_SERVICE PRESET_MODEL_OR_MACRO PRESET_EFFORT PRESET_INPUT_CACHE_TIME PRESET_CONTEXT_MAX_SIZE PRESET_EXTRA_SPAWN_LINE ; do rigCatalogue "$rigKey" | LC_ALL=C cut -d'|' -f1,3 ; done | LC_ALL=C sort | uniq -c | tr -s ' ' )" " 7 -|plain"
 rigAssert "the model's text says a native CLI is passed no model"                 "$( rigCatalogue PRESET_MODEL_OR_MACRO | LC_ALL=C grep -c -e 'native CLI is passed no model' )" 1
 rigAssert "the extra line's text says the human-owner writes it and nobody else"   "$( rigCatalogue PRESET_EXTRA_SPAWN_LINE | LC_ALL=C grep -c -e 'human-owner writes it' )" 1
-rigAssert "the two numbers' text says stored only"                                "$( rigCatalogue PRESET_INPUT_CACHE_TIME | LC_ALL=C grep -c -e 'Stored only' )$( rigCatalogue PRESET_CONTEXT_MAX_SIZE | LC_ALL=C grep -c -e 'Stored only' )" 11
+rigAssert "the context size's text says stored only, the cache time's says the two lifetimes it takes"  "$( rigCatalogue PRESET_CONTEXT_MAX_SIZE | LC_ALL=C grep -c -e 'Stored only' )$( rigCatalogue PRESET_INPUT_CACHE_TIME | LC_ALL=C grep -c -e 'Stored only' )$( rigCatalogue PRESET_INPUT_CACHE_TIME | LC_ALL=C grep -c -e '5m' -e '1h' )" 101
 
 echo "-- guard: no whole secret on any stream; the real workspace untouched --"
 rigAssert "no whole credential of the rig appears in any output"                  "$( LC_ALL=C grep -c -F -e "$rigSecretA" -e "$rigSecretB" -e "$rigSecretC" "$rigTmp/all.out" )" 0

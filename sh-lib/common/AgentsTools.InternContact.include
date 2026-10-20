@@ -17,20 +17,22 @@ type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agen
 ## The outbound-to-unlisted-people gate: one shared check, called from
 ## each real send op (Slack, email) right before its own network call,
 ## never duplicated per protocol. "Known" is deliberately narrow here --
-## any row in the acting member's own contacts note, by the format in
-## magic-team/templates/contacts.document.format.md, counts regardless of
-## its own permission-level: this gate is about a recipient being on
-## record at all, not about the separate tier-3 permission question that
-## format's own permission-level field answers. The team's own configured
+## the recipient must be a coordinate (a Slack id or conversation, an
+## e-mail) of a contact the acting member holds, in the contacts store
+## (DistroAgentsContacts.fn.sh, `reached-by:`): this gate is about a
+## recipient being on record at all, not about what that contact may ask
+## for, which is the permission model's. The team's own configured
 ## addresses -- the human-owner's and each member's -- are known as well,
-## read from config, never listed anywhere by hand. Not known: refused via
+## read from config, never listed anywhere by hand. A Slack send names
+## its team (`--team`, the sending member's identity scope), because a
+## Slack id is unique within one workspace only. Not known: refused via
 ## the existing --intern-op-permission-refusal-log/grant-open flow, so
 ## approval travels the one path every other refusal already does.
-AgentsToolsContactAssertKnown(){ ## <team-member> --tool <bare-op-name, no leading --> --target <recipient> [--named-member <team-member>] [--message <text>]
+AgentsToolsContactAssertKnown(){ ## <team-member> --tool <bare-op-name, no leading --> --target <recipient> [--team <slack-team>] [--named-member <team-member>] [--message <text>]
 	local MDSC_CMD='DistroAgentsTools'
 	local assertMember="$1"
 	shift || true
-	local assertTool="" assertTarget="" assertNamed="" assertMessage=""
+	local assertTool="" assertTarget="" assertNamed="" assertMessage="" assertTeam=""
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--tool)
@@ -50,6 +52,9 @@ AgentsToolsContactAssertKnown(){ ## <team-member> --tool <bare-op-name, no leadi
 			--named-member)
 				assertNamed="${2:-}" ; shift 2
 			;;
+			--team)
+				assertTeam="${2:-}" ; shift 2
+			;;
 			--message)
 				assertMessage="${2:-}" ; shift 2
 			;;
@@ -60,7 +65,7 @@ AgentsToolsContactAssertKnown(){ ## <team-member> --tool <bare-op-name, no leadi
 		esac
 	done
 	if [ -z "$assertMember" ] || [ -z "$assertTool" ] || [ -z "$assertTarget" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD contact-assert-known: syntax is <team-member> --tool <bare-op-name, no leading --> --target <recipient> [--named-member <team-member>] [--message <text>]" >&2
+		echo "⛔ ERROR: $MDSC_CMD contact-assert-known: syntax is <team-member> --tool <bare-op-name, no leading --> --target <recipient> [--team <slack-team>] [--named-member <team-member>] [--message <text>]" >&2
 		set +e ; return 1
 	fi
 	AgentsToolsAssertBareName "$assertMember" "<team-member>" contact-assert-known || { set +e ; return 1 ; }
@@ -69,49 +74,16 @@ AgentsToolsContactAssertKnown(){ ## <team-member> --tool <bare-op-name, no leadi
 	## A recipient already addressed by our own internal member name --
 	## a partner-*/human-owner team member -- is always known: these are
 	## the "partner and human members" the human-owner named, independent
-	## of any contacts note.
+	## of any contact record.
 	case "$assertNamed" in
 		partner-*|human-owner) return 0 ;;
 	esac
 
-	## The acting member's own contacts note -- one per identity, per
-	## that format's own "Goals" section -- is read directly (this is
-	## the op's own internal implementation, not a member-facing read),
-	## first file matching regardless of its own creation timestamp.
-	local assertContactsFile="" assertCandidate
-	for assertCandidate in "$( AgentsToolsInboxDir "$assertMember" )"/note-*-contacts.md ; do
-		[ -f "$assertCandidate" ] || continue
-		assertContactsFile="$assertCandidate" ; break
-	done
-	if [ -n "$assertContactsFile" ] ; then
-		## Two sources, not one: the `# Index` table's own slack-id/email
-		## columns, AND each person's `conversations:` line under `#
-		## Contacts` -- the Index table carries no conversation-id column
-		## of its own, so a raw channel/DM target (what a Slack send
-		## actually gets as its recipient) can only ever be found there.
-		## $0 is read as-is in the `conversations:` pattern-action below
-		## regardless of the `-F'|'` split used for the Index rows: FS
-		## splits fields, never the stored record text itself.
-		if LC_ALL=C awk -F'|' -v want="$assertTarget" '
-			function trim(s) { sub(/^[ \t]+/, "", s) ; sub(/[ \t]+$/, "", s) ; return tolower(s) }
-			NF >= 6 {
-				sid = trim($2) ; mail = trim($5) ;
-				if ( sid != "" && sid == tolower(want) ) { found = 1 ; exit }
-				if ( mail != "" && mail == tolower(want) ) { found = 1 ; exit }
-			}
-			/^[ \t]*conversations:/ {
-				line = $0
-				sub(/^[ \t]*conversations:[ \t]*/, "", line)
-				n = split(line, ids, ",")
-				for (i = 1; i <= n; i++) {
-					cid = trim(ids[i])
-					if ( cid != "" && cid == tolower(want) ) { found = 1 ; exit }
-				}
-			}
-			END { exit found ? 0 : 1 }
-		' "$assertContactsFile" ; then
-			return 0
-		fi
+	## A coordinate of a contact the acting member holds, in the contacts store: read here by the one reader of the records
+	## (AgentsContactsIndex.awk), not through a member-facing read.
+	type AgentsToolsContactsKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Contacts.include"
+	if AgentsToolsContactsKnown "$assertMember" "$assertTarget" "$assertTeam" ; then
+		return 0
 	fi
 
 	## The team's own configured addresses, compared regardless of case:
@@ -146,7 +118,7 @@ AgentsToolsContactAssertKnown(){ ## <team-member> --tool <bare-op-name, no leadi
 	assertBoundTarget="$assertTarget#msg-$assertDigest"
 	## The checks this gate made, in the order above: one wording for the
 	## recorded reason and the ERROR alike.
-	local assertChecks="not addressed as a partner-*/human-owner member, not listed in ${assertMember}'s own contacts note, not one of the team's own configured addresses (human-owner or member)"
+	local assertChecks="not addressed as a partner-*/human-owner member, not a coordinate of a contact ${assertMember} holds (DistroAgentsContacts.fn.sh --find-contact), not one of the team's own configured addresses (human-owner or member)"
 	local assertRefusalId=""
 	assertRefusalId="$( DistroAgentsTools --intern-op-permission-refusal-log "$assertMember" \
 		--session-id "${MDAT_SPAWN_SESSION_ID:-no-session-$$}" \

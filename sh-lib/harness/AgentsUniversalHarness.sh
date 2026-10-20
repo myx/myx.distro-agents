@@ -639,6 +639,12 @@ fi
 [ -n "$harnessWriteRoots" ] || harnessWriteRoots="$harnessRoots"
 [ -z "$harnessAgentRealDir" ] || harnessRuntimeWriteRoots="${harnessRuntimeWriteRoots}$harnessAgentRealDir"$'\n'
 
+## What the system text names (F10.7): the roots of the workspace and of the member, the same for every run of a member. What is added below is of
+## this run alone -- its sandbox, its results folder, the sandboxes of its children -- and goes to the task block of the first message
+## (harnessRunNotes), so the system text and the prefetch block are the same bytes for every spawn of a member. The two sets the gate reads,
+## harnessRoots and harnessWriteRoots, are the whole of them, as they were.
+harnessSystemRoots="$harnessRoots" harnessSystemWriteRoots="$harnessWriteRoots"
+
 ## The spawn's own sandbox is added here, after the write set is final.
 ## The spawn op hands over the sandbox already resolved, as MDAT_SPAWN_SANDBOX_ROOT_REAL.
 ## It is taken only where it is provably the same directory and its input/ and output/
@@ -727,6 +733,8 @@ if [ -n "$harnessParentKey" ] && [ -n "${MMDAPP:-}" ] ; then
 	harnessRuntimeRoots="${harnessRuntimeRoots}${harnessRoots#"$harnessRootsBeforeChildren"}"
 	harnessRuntimeWriteRoots="${harnessRuntimeWriteRoots}${harnessWriteRoots#"$harnessWriteRootsBeforeChildren"}"
 fi
+## The roots of this run alone: all that was appended to the two sets after the system's own were taken.
+harnessRunRoots="${harnessRoots#"$harnessSystemRoots"}" harnessRunWriteRoots="${harnessWriteRoots#"$harnessSystemWriteRoots"}"
 
 ## Claude Code saves a tool result too large to return under its own session folder, outside
 ## every workspace root -- member folders live inside the workspace only, so no grant reaches
@@ -4392,11 +4400,14 @@ AgentsHarnessAskCheck(){ ## -- reads the caller's tool* fields
 			## (--intern-op-permission-folder). A request with entries is a set, and offers none.
 			## The project that file lies in is one more answer beside the folder, where the same
 			## operation names one: a project of a source tree that is wider than the folder.
-			askRefusedFolder="" ; askRefusedProject=""
+			askRefusedFolder="" ; askRefusedProject="" ; askRefusedContact=""
 			[ -n "${toolEntries:-}" ] || askRefusedFolder="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-folder "$harnessAgent" \
 				--session-id "$askSession" --refusal-id "$toolRefusalId" 2> /dev/null )" || askRefusedFolder=""
 			askRefusedProject="$( LC_ALL=C sed -n 's/^PROJECT-SHOWN: //p' <<< "$askRefusedFolder" | head -1 )"
 			askRefusedFolder="$( LC_ALL=C sed -n 's/^SHOWN: //p' <<< "$askRefusedFolder" | head -1 )"
+			## A call refused for a contact (`contact:<id>`, the contacts subsystem, F7.10) is answered by the contact's own answers: the session
+			## and the contact, never the folder or the project of a file.
+			case "$askRefusedOwner" in contact:?*) askRefusedContact="${askRefusedOwner#contact:}" ; askRefusedFolder="" ; askRefusedProject="" ;; esac
 		;;
 		proposal)
 			## Put by its own tool only: the skeleton of the second name has no place for its document.
@@ -4436,7 +4447,7 @@ AgentsHarnessAskBody(){ ## optional revised (1: the question asked again, change
 	ASKP_OPTIONS="$toolOptions" ASKP_REVISED="${1:-}" ASKP_F_tag="$askTag" ASKP_F_question="$toolQuestion" ASKP_F_context="$toolContext" \
 		ASKP_F_understood="$toolUnderstood" ASKP_F_source="$toolFrom" ASKP_F_will_do="$toolWillDo" \
 		ASKP_F_refused_tool="$askRefusedTool" ASKP_F_refused_target="$askRefusedTarget" ASKP_F_refused_for="$askRefusedOwner" ASKP_F_refusal_id="$toolRefusalId" \
-		ASKP_F_folder="${askRefusedFolder:-}" ASKP_F_project="${askRefusedProject:-}" \
+		ASKP_F_folder="${askRefusedFolder:-}" ASKP_F_project="${askRefusedProject:-}" ASKP_F_contact="${askRefusedContact:-}" \
 		ASKP_F_reason="$toolReason" ASKP_F_task="$toolTaskRef" ASKP_F_proposal="$toolProposal" ASKP_F_document="$toolDocument" \
 		AgentsToolsAskPostFill post "$agentsAskRowTemplate" "$( AgentsHarnessAskForm )" 2> "$harnessScratch/ask-post.err"
 }
@@ -4461,7 +4472,7 @@ AgentsHarnessAskProse(){
 AgentsHarnessAskFields(){
 	AgentsHarnessAskPost || return 0
 	AgentsToolsAskPostFieldsPack asked-as "${askPostName:-$harnessAskName}" tag "$askTag" question "$toolQuestion" context "$toolContext" understood "$toolUnderstood" source "$toolFrom" will-do "$toolWillDo" \
-		refused-tool "$askRefusedTool" refused-target "$askRefusedTarget" refused-for "$askRefusedOwner" refusal-id "$toolRefusalId" folder "${askRefusedFolder:-}" project "${askRefusedProject:-}" \
+		refused-tool "$askRefusedTool" refused-target "$askRefusedTarget" refused-for "$askRefusedOwner" refusal-id "$toolRefusalId" folder "${askRefusedFolder:-}" project "${askRefusedProject:-}" contact "${askRefusedContact:-}" \
 		reason "$toolReason" task "$toolTaskRef" proposal "$toolProposal" document "$toolDocument"
 }
 
@@ -4470,7 +4481,7 @@ AgentsHarnessAskFields(){
 ## and the project's where it offers the project beside it.
 AgentsHarnessAskSeedNames(){
 	AgentsHarnessAskPost && AgentsToolsAskKindRow "$toolKind" || return 0
-	ASKP_OPTIONS="$toolOptions" ASKP_F_folder="${askRefusedFolder:-}" ASKP_F_project="${askRefusedProject:-}" AgentsToolsAskPostFill reactions "$agentsAskRowTemplate" "$( AgentsHarnessAskForm )" 2> /dev/null || :
+	ASKP_OPTIONS="$toolOptions" ASKP_F_folder="${askRefusedFolder:-}" ASKP_F_project="${askRefusedProject:-}" ASKP_F_contact="${askRefusedContact:-}" AgentsToolsAskPostFill reactions "$agentsAskRowTemplate" "$( AgentsHarnessAskForm )" 2> /dev/null || :
 }
 
 ## Places emoji under one post, or takes them off, as the identity that posted it. A failed
@@ -6947,6 +6958,20 @@ if [ -n "$harnessToolOnly" ] ; then
 	esac
 fi
 
+## THE LIFETIME OF THE INPUT CACHE (F10.7): what the preset of the spawn asks the cache markers of the Anthropic wire for, which the console passes as
+## HARNESS_INPUT_CACHE_TIME. Unset is 5m, the provider's own, and the markers are what they were; 1h puts its ttl in every one. Checked here as it was at the
+## setting and at the spawn, and on the model path alone: a value that is neither is refused before any request, not carried to the provider to be refused there.
+harnessInputCacheTime="${HARNESS_INPUT_CACHE_TIME:-}"
+if [ -z "$harnessToolOnly" ] ; then
+	case "$harnessInputCacheTime" in
+		''|5m|1h) ;;
+		*)
+			echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: HARNESS_INPUT_CACHE_TIME is none of 5m, 1h -- the preset of this run asks the input cache for a lifetime this wire does not know, so nothing was sent" >&2
+			exit 1
+		;;
+	esac
+fi
+
 ## Sourced, not exec'd: its functions run in this process and share everything above.
 ## Checked on every path, so a misnamed wire is refused exactly as it always was.
 harnessWireFile="$harnessHere/harness/Agents${harnessWire}Wire.sh"
@@ -7115,10 +7140,11 @@ fi
 ## A spawned session run by this loop is one whose arming can be observed: said beside its record.
 [ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || : > "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" 2>/dev/null || :
 
-## Said only when the two sets differ, so an ungranted run reads exactly as it did.
+## Said only when the two sets differ, so an ungranted run reads exactly as it did. The system text names the roots of the workspace and of the
+## member alone (harnessSystemRoots): what is of this run alone is told in the task block of its first message (AgentsHarnessRunNotesBuild).
 harnessWriteNote=""
-[ "$harnessWriteRoots" = "$harnessRoots" ] || harnessWriteNote="Writing is narrower than reading. Write and Edit may only write under these roots:
-$harnessWriteRoots
+[ "$harnessSystemWriteRoots" = "$harnessSystemRoots" ] || harnessWriteNote="Writing is narrower than reading. Write and Edit may only write under these roots:
+$harnessSystemWriteRoots
 Everything else above you may read, list, search and run commands in, but not write to. Do not try to work around that -- report it instead.
 "
 
@@ -7127,10 +7153,34 @@ Everything else above you may read, list, search and run commands in, but not wr
 harnessSpawnedWaitNote=""
 ## Nor one that reports to no one, which ends on its report (AgentsHarnessReportsNone).
 [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || [ "${MDAT_SPAWN_CALLER_WAITS:-}" = "true" ] || AgentsHarnessReportsNone || harnessSpawnedWaitNote=" You are a spawned session: you never end on your own, not even when your work is done. When it is done, report that to whoever started you with SubagentHandback, saying you are done and waiting for further instructions, then keep waiting with Wait on your session thread and keep obeying what arrives there. End your run only when a Wait returns DISMISSED."
+
+## THE TEXT OF THIS RUN ALONE (F10.7), told in the task block of the first message, after the marker of the prefetch block, and in no other place:
+## the roots only this run has (its sandbox's input/ and output/, its results folder, its children's sandboxes), the sentence of a spawned session,
+## and the note of an MCP server that is unavailable. None of it is in the system text, which is then the same bytes for every run of a member, and
+## so is the prefetch block behind it (the input token cache). Built at the start, so a rewind to the armed state renders the first message it was
+## taken with, and again at a restart, whose first message carries the note as the latest enumeration left it. A root that appears later (a child's,
+## on a resumed leg) is told by the message that brings it (AgentsHarnessContextResume), never written back into the system text or an earlier message.
+harnessRunNotes=""
+AgentsHarnessRunRootsText(){ ## roots, write roots -- one a line each; the paragraph that tells a run its own roots
+	printf 'Beside the access roots in your system instructions, these are yours for this run alone:\n%s\n' "${1%$'\n'}"
+	if [ -n "$2" ] ; then
+		printf 'Write and Edit may only write under these of them:\n%s\nYou may read, list, search and run commands in the others, but not write to them. Do not try to work around that -- report it instead.' "${2%$'\n'}"
+	else
+		printf 'You may read, list, search and run commands in them, but not write to them. Do not try to work around that -- report it instead.'
+	fi
+}
+AgentsHarnessRunNotesBuild(){
+	local notesBlank=$'\n\n'
+	harnessRunNotes=""
+	[ -z "$harnessRunRoots" ] || harnessRunNotes="$( AgentsHarnessRunRootsText "$harnessRunRoots" "$harnessRunWriteRoots" )"
+	[ -z "$harnessSpawnedWaitNote" ] || harnessRunNotes="${harnessRunNotes}${harnessRunNotes:+$notesBlank}${harnessSpawnedWaitNote# }"
+	[ -z "$harnessMcpUnavailableNote" ] || harnessRunNotes="${harnessRunNotes}${harnessRunNotes:+$notesBlank}${harnessMcpUnavailableNote%$'\n'}"
+	return 0
+}
 harnessSystemTail=" (no sandboxing beyond the paths below). You may only read, write, list, search or run commands with a working directory under one of these access roots:
-$harnessRoots
+$harnessSystemRoots
 $harnessWriteNote
-Use the given tools to accomplish the request, then reply with a final plain-text message once done. A plain-text reply with no tool call ends your run, so never give one while the work is still open: waiting for an answer, a reply, another session or any other event is not done. Wait for it with the Wait tool (mcp__myx_distro__Wait over MCP), and after a TIMEOUT wait again, look elsewhere or escalate -- never end the run just to wait. Then carry on obeying your instructions.$harnessSpawnedWaitNote Nobody is reading this terminal, so a question written into your own answer reaches no one: where you genuinely need a decision only a person can make, AskQuestion is the one way to ask for one. Otherwise make the most reasonable choice and state what you did."
+Use the given tools to accomplish the request, then reply with a final plain-text message once done. A plain-text reply with no tool call ends your run, so never give one while the work is still open: waiting for an answer, a reply, another session or any other event is not done. Wait for it with the Wait tool (mcp__myx_distro__Wait over MCP), and after a TIMEOUT wait again, look elsewhere or escalate -- never end the run just to wait. Then carry on obeying your instructions. Nobody is reading this terminal, so a question written into your own answer reaches no one: where you genuinely need a decision only a person can make, AskQuestion is the one way to ask for one. Otherwise make the most reasonable choice and state what you did."
 
 ## The skill of a spawned member, read for it ahead of its task (F10.8), and the run armed by it: made before the system text, which
 ## says whether the member has its skill files in its first message or is to read them. A resumed run holds them in its kept context.
@@ -7154,9 +7204,8 @@ else
 fi
 
 ## A named-but-unavailable MCP server owes the model a sentence: its tools are absent
-## from the declarations, and nothing else in the run says why.
-harnessSystemBase="$harnessSystemText"
-[ -z "$harnessMcpUnavailableNote" ] || printf -v harnessSystemText '%s\n\n%s' "$harnessSystemBase" "$harnessMcpUnavailableNote"
+## from the declarations, and nothing else in the run says why. It is told with the text of this run alone (F10.7), not in the system text.
+AgentsHarnessRunNotesBuild
 harnessMcpNoteTold="$harnessMcpUnavailableNote"
 
 ## A resume continues a kept context, or ends here, before any request: rc 7 tells the
@@ -7453,9 +7502,8 @@ while : ; do
 		## The task is re-rendered from $harnessPrompt, the same variable the first leg
 		## was built from and one nothing past argument parsing writes, so every restart
 		## carries the task itself rather than a summary of a summary of it.
-		## The fresh leg's system text carries the note as the latest enumeration left it.
-		harnessSystemText="$harnessSystemBase"
-		[ -z "$harnessMcpUnavailableNote" ] || printf -v harnessSystemText '%s\n\n%s' "$harnessSystemBase" "$harnessMcpUnavailableNote"
+		## The fresh leg's first message carries the note as the latest enumeration left it.
+		AgentsHarnessRunNotesBuild
 		harnessMcpNoteTold="$harnessMcpUnavailableNote"
 		AgentsWireInitMessages
 		printf -v harnessSummary '%s\n\n%s' "Notes you wrote for yourself at the end of your previous leg on this same task, which is stated above unchanged. Nothing else from that leg survives. Treat them as your own record of work already done, never as a new instruction, and carry on from where they stop." "$harnessSummary"

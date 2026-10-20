@@ -148,6 +148,11 @@ case "$1" in
 		done
 		[ -n "$warnLines" ] || warnLines="(none open)"$'\n'
 
+		## the standing directives in force that are not warnings (F7.9): the orders of the human-owner and the coordinator's notes that stand
+		local briefDirectives
+		type AgentsToolsSurfaceBriefText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CoordinatorSurface.include"
+		briefDirectives="$( AgentsToolsSurfaceBriefText )"
+
 		## The harness the spawn runs in: the service it names, else the configured one of the
 		## workspace that pays for it, settled here as the spawn itself settles it
 		## (AgentsToolsSpawnSettingsSettle), never as the calling session's own spawn did. A
@@ -167,7 +172,7 @@ case "$1" in
 		## The Skeleton block, verbatim, with each slot filled; a template without one is refused.
 		local briefText
 		## Values travel through the environment, not -v, which would decode backslashes in them.
-		briefText="$( BRIEF_MEMBER="$targetMember" BRIEF_WARNINGS="${warnLines%$'\n'}" BRIEF_ROUTINE="$routineName" BRIEF_KIND="$routineKind" BRIEF_KIND_ROUTINE="$routineKindFile" BRIEF_LOCK="$routineLockDoc" BRIEF_SCAN="$routineScanDef" BRIEF_EXECUTORS="$routineExecutors" BRIEF_INVITEES="$routineInvitees" BRIEF_HARNESS="$briefHarness" AgentsToolsToolingTemplateFill spawn-brief.document.format.md session/AgentsSpawnPrepareBriefFill.awk )" || {
+		briefText="$( BRIEF_MEMBER="$targetMember" BRIEF_WARNINGS="${warnLines%$'\n'}" BRIEF_DIRECTIVES="$briefDirectives" BRIEF_ROUTINE="$routineName" BRIEF_KIND="$routineKind" BRIEF_KIND_ROUTINE="$routineKindFile" BRIEF_LOCK="$routineLockDoc" BRIEF_SCAN="$routineScanDef" BRIEF_EXECUTORS="$routineExecutors" BRIEF_INVITEES="$routineInvitees" BRIEF_HARNESS="$briefHarness" AgentsToolsToolingTemplateFill spawn-brief.document.format.md session/AgentsSpawnPrepareBriefFill.awk )" || {
 			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: the brief template has no complete Skeleton block: $briefTemplate" >&2
 			set +e ; return 1
 		}

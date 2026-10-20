@@ -1008,6 +1008,18 @@ case "$1" in
 		else
 			MDAT_SPAWN_PRESET="$( AgentsToolsPresetChosen "$callerName" )" || MDAT_SPAWN_PRESET=""
 		fi
+		## The lifetime the preset asks of the input cache (F10.7) is one of the two it takes, as the setting was checked when written: a
+		## value that got there another way is refused here, before any dispatch, sandbox or post is made.
+		AgentsToolsPresetCacheTimeCheck "$MDAT_SPAWN_PRESET" || { set +e ; return 1 ; }
+		## What the run record says of it (F11.4): the preset chosen, and whose key it runs on; neither where a service was named for this spawn.
+		local spawnPresetRecorded="" spawnCredentialRecorded=""
+		case "$MDAT_SPAWN_PRESET" in
+			''|-*) ;;
+			*)
+				spawnPresetRecorded="$MDAT_SPAWN_PRESET"
+				spawnCredentialRecorded="$( AgentsToolsPresetCredentialHolder "${MDAT_SPAWN_SETTINGS_WORKSPACE:-${MMDAPP%/}}" "$MDAT_SPAWN_PRESET" 2> /dev/null )" || spawnCredentialRecorded=""
+			;;
+		esac
 
 		## Resolved before anything else runs, so a bad --session-id fails before any
 		## dispatch item, sandbox or post is created -- never a silent new session.
@@ -1930,6 +1942,10 @@ case "$1" in
 			printf 'member-workspace: %s\n' "$memberWorkspaceName"
 			printf 'cli: %s\n' "$spawnCliResolved"
 			printf 'cli-setting: %s\n' "$spawnCliSetting"
+			## The preset this spawn runs on, `<preset>[:<effort>]`, and the scope and setting name that hold its key (never the key): what the
+			## tokens of the run are grouped by. Neither where no preset was chosen.
+			[ -z "$spawnPresetRecorded" ] || printf 'preset: %s\n' "$spawnPresetRecorded"
+			[ -z "$spawnCredentialRecorded" ] || printf 'credential: %s\n' "$spawnCredentialRecorded"
 			## The service this one spawn was started on by name, only where one was named for it:
 			## what a restart of this session is started on again (AgentsReviewRecordCliAsked).
 			[ -z "$spawnCliService" ] || printf 'cli-asked: %s\n' "$spawnCliService"
@@ -2006,13 +2022,15 @@ case "$1" in
 			"Read-only input: $sandboxRoot/input" \
 			"Writable output, for deliverables and working files: $sandboxRoot/output" \
 			"Your own scratch inside it: $sandboxRoot/output/$callerName" )"
-		## A start with no routine has no tooling block to list the session thread (F7.2) and BatchTools (F7.8) in, so its brief carries the
-		## same lines; the kind routines' tooling blocks list them for every routine run.
+		## A start with no routine has no tooling block to list the session thread (F7.2), BatchTools (F7.8) and Contacts (F7.10) in, so its
+		## brief carries the same lines; the kind routines' tooling blocks list them for every routine run.
+		local contactsLine="Contacts, the people you meet and reach, are kept by tooling and not by hand: DistroAgentsContacts.fn.sh --contacted-by <value> when someone writes to you, --reach-contact <id> to write to someone, --collect-contact to record one."
 		[ -n "$routineFilePath" ] || spawnContext="$( printf '%s\n' \
 			"$spawnContext" \
 			"" \
 			"Your session thread, read with no network call: DistroAgentsSession.fn.sh --get-session-thread [--own]" \
-			"BatchTools: several tool calls in one round, much quicker for calls that do not depend on each other." )"
+			"BatchTools: several tool calls in one round, much quicker for calls that do not depend on each other." \
+			"$contactsLine" )"
 		## input/ gets what the task reads: the brief as given, its board item, MAGIC.md copies, pointers.
 		local sandboxItem=""
 		if [ -n "$dispatchItemName" ] ; then

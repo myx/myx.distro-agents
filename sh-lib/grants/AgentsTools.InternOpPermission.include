@@ -114,7 +114,7 @@ AgentsToolsPermissionRefusalHint(){ ## refusal id
 AgentsToolsPermissionRefusalPost(){ ## owner, session dir, refusal id, session id, tool, target, reason
 	local postWhere
 	postWhere="$( AgentsToolsPermissionRefusalWhere )"
-	AgentsToolsPermissionEventTrack "$1" "$2" --kind refusal --session-id "$4" --field what="Permission refused" --field refusal-id="$3" \
+	AgentsToolsPermissionEventTrack "$( AgentsToolsPermissionPoster "$1" )" "$2" --kind refusal --session-id "$4" --field what="Permission refused" --field refusal-id="$3" \
 		--field host="$( printf '%s\n' "$postWhere" | LC_ALL=C sed -n 's/^host: //p' )" \
 		--field workspace="$( printf '%s\n' "$postWhere" | LC_ALL=C sed -n 's/^workspace: //p' )" \
 		--field tool="$5" --field target="$( AgentsToolsPermissionShownTarget "$6" )" --field reason="${7:-none}" --field caller="$1"
@@ -154,7 +154,7 @@ AgentsToolsPermissionAnswerPost(){ ## kind (grant|denial), member whose call it 
 	## Who was asked is said only where it is not who answered.
 	[ "$answerAskedName" != "$answerByName" ] || answerAskedName=""
 	answerWhere="$( AgentsToolsPermissionRefusalWhere )"
-	agentsPermissionTrackWhat="$1" AgentsToolsPermissionEventTrack "$2" "$3" --kind "$1" --session-id "$4" --field refusal-id="${5:--}" \
+	agentsPermissionTrackWhat="$1" AgentsToolsPermissionEventTrack "$( AgentsToolsPermissionPoster "$2" )" "$3" --kind "$1" --session-id "$4" --field refusal-id="${5:--}" \
 		--field host="$( printf '%s\n' "$answerWhere" | LC_ALL=C sed -n 's/^host: //p' )" \
 		--field workspace="$( printf '%s\n' "$answerWhere" | LC_ALL=C sed -n 's/^workspace: //p' )" \
 		--field tool="${6:--}" --field target="$( [ -z "${7:-}" ] && printf '%s' - || AgentsToolsPermissionShownTarget "$7" )" --field caller="${2:--}" --field by="${answerByName:--}" \
@@ -1110,7 +1110,7 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> --session-id <id> --tool <tool> --target <target> [--reason <text>]" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsAssertBareName "$refusalOwner" "<team-member>" permission-refusal-log || { set +e ; return 1 ; }
+		AgentsToolsPermissionGranteeAssert "$refusalOwner" "<team-member>" permission-refusal-log || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$refusalSession" "--session-id" permission-refusal-log || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$refusalTool" "--tool" permission-refusal-log || { set +e ; return 1 ; }
 		local refusalId refusalDir
@@ -1179,7 +1179,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$grantBy" ] || [ -z "$grantSession" ] || [ -z "$grantRefusal" ] || [ -z "$grantKind" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: syntax is <granting-member> --session-id <id> --refusal-id <id> --kind once|session|task [--task <item>]" >&2
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <granting-member> --session-id <id> --refusal-id <id> --kind once|session|task|contact [--task <item>]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$grantBy" "<granting-member>" permission-grant-open || { set +e ; return 1 ; }
@@ -1194,7 +1194,7 @@ case "$1" in
 			;;
 		esac
 		case "$grantKind" in
-			once|session) ;;
+			once|session|contact) ;;
 			task)
 				## A task grant lives while its item is open, so it names one that is.
 				grantTask="${grantTask##*/}" ; grantTask="${grantTask%.md}"
@@ -1204,7 +1204,7 @@ case "$1" in
 				fi
 			;;
 			*)
-				echo "$MDSC_CMD: ⛔ ERROR: --kind must be once|session|task: $grantKind" >&2
+				echo "$MDSC_CMD: ⛔ ERROR: --kind must be once|session|task|contact: $grantKind" >&2
 				set +e ; return 1
 			;;
 		esac
@@ -1228,6 +1228,27 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: the refusal record $grantRecord lacks its owner, tool or target, so nothing is granted" >&2
 			set +e ; return 1
 		fi
+		## THE GRANTEE (F7.10): a refusal logged for a contact has `contact:<id>` for its owner. Such a contact is granted for a session
+		## (`session`) or for the contact (`contact`, written as an `allows:` entry of its record) and for nothing else, and the kind
+		## `contact` is for a refusal of a contact alone.
+		case "$grantOwner" in
+			contact:*)
+				case "$grantKind" in
+					session|contact) ;;
+					*)
+						echo "$MDSC_CMD: ⛔ ERROR: $grantOwner is a contact, granted for a session (--kind session) or for the contact (--kind contact), not $grantKind -- nothing is granted" >&2
+						set +e ; return 1
+					;;
+				esac
+				AgentsToolsPermissionGranteeAssert "$grantOwner" "the owner of the refusal" permission-grant-open || { set +e ; return 1 ; }
+			;;
+			*)
+				if [ "$grantKind" = "contact" ] ; then
+					echo "$MDSC_CMD: ⛔ ERROR: --kind contact is for the refusal of a contact, and the refusal $grantRefusal is $grantOwner's -- nothing is granted" >&2
+					set +e ; return 1
+				fi
+			;;
+		esac
 		if [ "$grantBy" = "$grantOwner" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: $grantBy asked for this call and cannot grant it to itself, so nothing is granted" >&2
 			set +e ; return 1
@@ -1249,6 +1270,19 @@ case "$1" in
 		## The record's target is in record form and the grants line is colon-delimited, so it
 		## becomes a grants field here.
 		grantTarget="$( AgentsToolsPermissionRecordToGrantField "$grantTarget" )"
+		## A grant for a contact, standing: an entry of the `allows:` of its record, as a task's is of its board item, read by the chain
+		## (grant-read, for the holder `contact:<id>`). Written by the contacts store's own function, once for what it holds already.
+		if [ "$grantKind" = "contact" ] ; then
+			local grantEntry="contact:$grantTool:$grantTarget:$grantBy:${grantStamp:-$( date -u +%Y%m%dT%H%M%SZ )}"
+			type AgentsToolsContactsAllowAdd > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.Contacts.include"
+			AgentsToolsContactsAllowAdd "${grantOwner#contact:}" "$grantEntry" "$grantNatural" || {
+				echo "$MDSC_CMD: ⛔ ERROR: can't write the grant for $grantRefusal into the record of $grantOwner, so nothing is granted" >&2
+				set +e ; return 1
+			}
+			AgentsToolsPermissionAnswerPost grant "$grantOwner" "$grantDir" "$grantSession" "$grantRefusal" "$grantTool" "$grantNatural" "$grantBy" "contact ${grantOwner#contact:}" "$grantAsked"
+			printf 'GRANT: contact %s\n' "$grantRefusal"
+			return 0
+		fi
 		## One line per stamp: where the line this call would write stands already, the grant was
 		## written by the apply that stopped after it, so nothing is written or said a second time.
 		if [ -n "$grantStamp" ] && LC_ALL=C grep -q -x -F -- "$grantKind:$grantTool:$grantTarget:$grantBy:$grantStamp:$grantRefusal" "$grantDir/grants" 2>/dev/null ; then
@@ -1416,6 +1450,24 @@ case "$1" in
 		local readDir="$MMDAPP/.local/agents/sessions/$readSession"
 		local readWant readEntry readKind readRest readEntryTool readEntryTarget readBy readFound readCow
 		readWant="$( AgentsToolsPermissionEscape "$readTarget" )"
+		## A CONTACT (F7.10) holds what the `allows:` of its record names, whatever the session, and what a session grant given to it in this
+		## session's stores names. No floor and no standing row of a member is a contact's.
+		case "$readMember" in
+			contact:*)
+				AgentsToolsPermissionContactRecord "$readMember" > /dev/null || { set +e ; return 1 ; }
+				if readFound="$( AgentsToolsPermissionContactAllows "$readMember" "$readTool" "$readTarget" )" ; then
+					printf 'GRANT: %s\n' "$readFound"
+					return 0
+				fi
+				while IFS= read -r readCow ; do
+					[ -n "$readCow" ] || continue
+					readFound="$( AgentsToolsPermissionGrantScan "$MMDAPP/.local/agents/sessions/$readCow" "$readMember" "$readTool" "$readTarget" use "$readDir" )" || continue
+					printf 'GRANT: %s\n' "$readFound"
+					return 0
+				done <<< "$( AgentsToolsPermissionRelatedStores "$readSession" )"
+				set +e ; return 1
+			;;
+		esac
 		## What the member holds by the floor or standing -- a tool row such as WebFetch for
 		## a member that holds it -- admits with no grant at all: every spawn has its (a) and (b).
 		## So does the routine the session runs, for this session: `standing routine <name>`.
@@ -1534,6 +1586,25 @@ case "$1" in
 			done
 		done <<< "$readPlanned"
 		set +e ; return 1
+	;;
+
+	## What a contact holds standing (F7.10): a row `ALLOW <tool> <target> <granted by> <time>` for each entry of the `allows:` of its record.
+	## rc 1 for a contact that is not recorded. The reader of a contact's access that DistroAgentsContacts.fn.sh asks, since the chain is the
+	## model that holds it.
+	--intern-op-permission-contact-holds)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-contact-holds"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+		local holdsContact="${1:-}" holdsRows
+		if [ -z "$holdsContact" ] || [ $# -ne 1 ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is contact:<id>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsPermissionGranteeAssert "$holdsContact" "<contact>" permission-contact-holds || { set +e ; return 1 ; }
+		case "$holdsContact" in contact:*) ;; *) echo "$MDSC_CMD: ⛔ ERROR: <contact> is contact:<id>: $holdsContact" >&2 ; set +e ; return 1 ;; esac
+		holdsRows="$( AgentsToolsPermissionContactAllowsList "$holdsContact" )"
+		printf '%s\n' "$holdsRows" | LC_ALL=C awk -F'\t' 'NF { print "ALLOW\t" $1 "\t" $2 "\t" $3 "\t" $4 ; }'
+		return 0
 	;;
 
 	--intern-op-permission-grant-consume)

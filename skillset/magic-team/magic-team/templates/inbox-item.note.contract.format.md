@@ -40,6 +40,7 @@ Context or coordination.
 | `communication-channel-id` | optional | member | `channel-id` | The one external message the item traces to. |
 | `references` | optional | member | `item-names` | Items this one cites. An inbox item may cite vault and audit items. |
 | `status` | optional | member | `text` | A state label in free text; dropped when stale. |
+| `standing` | optional | member | `enum yes, no` | `yes` marks a standing note: while it is unprocessed it is in force, shown by `AgentDispatcherTools.fn.sh --standing-directives` and given to every spawn in its brief. `no` or absent is an ordinary note. Set with `--member-inbox-note-upsert --standing yes|no`. |
 | `supersedes` | optional | member | `item-names` | Items this one replaces. |
 | `superseded-by` | optional | member | `item-names` | Items that replace this one. |
 | `processed-at` | optional | tooling | `date-time` | Stamped by `--member-inbox-to-processed`. It decides the item's folder and is the retention clock. |
@@ -51,6 +52,7 @@ Context or coordination.
 - `date-time` — `YYYY-MM-DD HH:MM ±HHMM`, numeric offset, never a zone abbreviation (`magic-team/magic-team.armed.md`'s Terminology `date-time`).
 - `channel-id` — `slack:<channel>`, `slack:<channel>:<ts>` or `email:<…>`.
 - `item-names` — bare item names, no folder, no `.md`, comma-separated, no brackets.
+- `enum` — one of the values listed after it.
 - `text` — free text on one line.
 
 ## Body

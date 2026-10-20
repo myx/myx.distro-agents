@@ -295,6 +295,9 @@ def startCalls(state, reader):
         follow["started"] = reader.follow("follow", follow["key"], follow["words"], follow.get("input"))
     if follow is not None and follow["stop"] == "asked":
         follow["stop"] = "sent" if reader.signal("follow", signal.SIGTERM) else None
+    ## the request left pending (the dialog of a request that waits): the tooling call takes SIGUSR1 as that
+    if follow is not None and follow["stop"] == "enqueue":
+        follow["stop"] = "sent" if reader.signal("follow", signal.SIGUSR1) else None
 
 
 ## The line a failed call is shown by: its first line that says ERROR, else the first line

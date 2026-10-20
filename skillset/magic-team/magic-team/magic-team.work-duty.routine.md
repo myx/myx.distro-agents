@@ -7,6 +7,7 @@ requires-session-kind: standalone
 input-scan-def: work-duty --session-id {{session-id}}
 reports-to: none
 review-by: none
+cache-prefix: routine
 runs-at: none
 ---
 # magic-team.work-duty.routine — the actual procedure
