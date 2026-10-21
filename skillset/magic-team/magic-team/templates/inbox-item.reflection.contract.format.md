@@ -36,13 +36,13 @@ A lesson whose resolution produces a change elsewhere.
 | `type` | required | either | `literal reflection` | The filename's type word, never a genre. Filled by inbox upsert where missing. |
 | `from` | required | either | `member` | The author. Filled by inbox upsert where missing; a member sets another value only on another member's behalf. |
 | `date` | required | either | `date-time` | Creation. Filled by inbox upsert where missing. |
-| `owner` | required | either | `member` | The member whose inbox holds the reflection. A member writes a reflection into its own inbox only (`--member-inbox-reflection-upsert`). |
+| `owner` | required | either | `member` | The member whose inbox holds the reflection. A member writes a reflection into its own inbox only (`--upsert-inbox-reflection`). |
 | `communication-channel-id` | optional | member | `channel-id` | The one external message the item traces to. |
 | `references` | optional | member | `item-names` | Items this one cites. An inbox item may cite vault and audit items. |
 | `status` | optional | member | `text` | A state label in free text; dropped when stale. |
 | `supersedes` | optional | member | `item-names` | Items this one replaces. |
 | `superseded-by` | optional | member | `item-names` | Items that replace this one. |
-| `processed-at` | optional | tooling | `date-time` | Stamped by `--member-inbox-to-processed`. It decides the item's folder and is the retention clock. |
+| `processed-at` | optional | tooling | `date-time` | Stamped by `--mark-inbox-processed`. It decides the item's folder and is the retention clock. |
 
 ## Value forms
 
@@ -62,5 +62,5 @@ A lesson whose resolution produces a change elsewhere.
 
 - `type` equals the type word in the filename (`reflection`).
 - [store] The inbox holds `note-*`, `inquiry-*` and `reflection-*` only. Any other type in an inbox is misfiled and is reported to `magic-coordinator`.
-- [store] An item is handled by marking it processed with `--member-inbox-to-processed`; an item still wanted stays unmarked.
+- [store] An item is handled by marking it processed with `--mark-inbox-processed`; an item still wanted stays unmarked.
 - [store] A member never writes a key whose writer is `tooling`.

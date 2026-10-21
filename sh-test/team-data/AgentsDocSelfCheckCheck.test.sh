@@ -107,7 +107,7 @@ rigDoc cites \
 	'Not citations: `input/input-scan.md`, `.local/agents/x.md`, `docs/<name>.md`, `docs/*.md`, `$MMDAPP/x.md`, `~/x.md`.' \
 	'A bare name is not checked: `gone.md`.' \
 	'Board: `task-20261001T1000Z-real-item` is on it, `task-20261001T1000Z-no-such-item` is not.' \
-	'Places: `ws-rig-known` is registered, `ws-rig-unknown` is not; `--member-directory-path ws-rig-nope` names none.' \
+	'Places: `ws-rig-known` is registered, `ws-rig-unknown` is not; `--get-place-path ws-rig-nope` names none.' \
 	'The skillset root: `magic-team/magic-team.armed.md` is there, `magic-team/magic-team.gone.md` is not.' \
 	'' '```' "\`$rigD/in-a-fence.md\` and \`task-20261001T1000Z-in-fence\` and \`ws-in-fence\`" '```'
 rigCheck cites

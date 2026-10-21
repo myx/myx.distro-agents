@@ -187,7 +187,7 @@ rigOp --manager-pending-reply-dismiss --id no-such-question
 rigAssert "a dismissal of no such question is refused" "$rigOpRc:$( rigHas "$rigTmp/op.err" 'no pending question no-such-question' )" "1:yes"
 RIG_OP_AGENT=magic-tester RIG_OP_SESSION=rig-tester rigOp --manager-pending-reply-answer --id "$rigPend" --answer keep
 rigAssert "a member's session is refused" "$rigOpRc:$( rigHas "$rigTmp/op.err" "the console's own" )" "1:yes"
-rigOp --magic-escalation-answer magic-coordinator "$rigPend" keep
+rigOp --answer-escalation magic-coordinator "$rigPend" keep
 rigAssert "the coordinator's own stub still asks for a session" "$rigOpRc:$( rigHas "$rigTmp/op.err" 'carries no session id' )" "1:yes"
 rigAssert "after every refusal the question is still pending, and nothing was posted" "$( rigField "$rigFile" status ):$( rigNew 'console' )" "reply-pending:0"
 

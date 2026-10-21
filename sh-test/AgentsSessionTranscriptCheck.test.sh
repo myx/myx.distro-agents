@@ -160,47 +160,47 @@ rigAssert "the NOTE line and its text" "$( LC_ALL=C grep -A1 'NOTE by=magic-test
 rigAssert "no session is refused" "$( AgentsTranscriptNote '' magic-tester x ; echo " rc=$?" )" "ERROR: no session resolves for this call (no session id in this process), so there is no transcript to note in. Nothing was written.
  rc=1"
 rigAssert "a session with no transcript is refused" "$( AgentsTranscriptNote no-such magic-tester x | cut -c1-36 )" "ERROR: session no-such has no transc"
-rigOut="$( "$rigFn" --member-append-session-transcript magic-tester --message 'from the op' 2>/dev/null )"
+rigOut="$( "$rigFn" --append-transcript magic-tester --message 'from the op' 2>/dev/null )"
 rigAssert "the op with no --transcript-name resolves the session itself" "$rigOut" "OK: appended to ${rigT##*/}"
 rigAssert "the op's line is there" "$( rigHas "$rigT" '> from the op' )" 1
 rigAssert "speaker defaults to the member, timestamp to now (UTC)" "$( LC_ALL=C grep -B1 '^> from the op$' "$rigT" | head -1 | LC_ALL=C grep -Ec ' NOTE by=magic-tester at=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' )" 1
-"$rigFn" --member-append-session-transcript magic-tester --speaker human-owner --timestamp 2026-10-08T01:02:03Z --message 'given speaker' > /dev/null 2>&1
+"$rigFn" --append-transcript magic-tester --speaker human-owner --timestamp 2026-10-08T01:02:03Z --message 'given speaker' > /dev/null 2>&1
 rigAssert "a given speaker and timestamp are kept" "$( LC_ALL=C grep -B1 '^> given speaker$' "$rigT" | head -1 | sed 's/^[^ ]* //' )" "NOTE by=human-owner at=2026-10-08T01:02:03Z"
-rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --member-append-session-transcript magic-tester --message 'no session line' 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript magic-tester --message 'no session line' 2>&1 ; echo "rc=$?" )"
 rigAssert "the op refuses where no session resolves" "$( printf '%s\n' "$rigOut" | tail -1 )" rc=1
-rigAssert "and says so" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'ERROR: .*--member-append-session-transcript: no session resolves' )" 1
+rigAssert "and says so" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'ERROR: .*--append-transcript: no session resolves' )" 1
 rigAssert "and writes nothing" "$( rigHas "$rigT" '> no session line' )" 0
-rigOut="$( "$rigFn" --member-append-session-transcript magic-tester --message 'create on existing' --create 2>&1 ; echo "rc=$?" )"
+rigOut="$( "$rigFn" --append-transcript magic-tester --message 'create on existing' --create 2>&1 ; echo "rc=$?" )"
 rigAssert "--create on a session that has a transcript just appends" "$( printf '%s\n' "$rigOut" | tail -1 )" rc=0
 rigAssert "into that same transcript" "$( rigHas "$rigT" '> create on existing' )" 1
-rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --member-append-session-transcript magic-tester --session-id "$rigSid" --message 'by session id' 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript magic-tester --session-id "$rigSid" --message 'by session id' 2>&1 ; echo "rc=$?" )"
 rigAssert "a member cannot name another session (--session-id is refused)" "$( printf '%s\n' "$rigOut" | tail -1 )" rc=1
 rigAssert "and nothing is written" "$( rigHas "$rigT" '> by session id' )" 0
-rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --member-append-session-transcript magic-tester --speaker x --timestamp 2026-10-08T01:02:03Z --message 'by name' --transcript-name "${rigT##*/}" 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript magic-tester --speaker x --timestamp 2026-10-08T01:02:03Z --message 'by name' --transcript-name "${rigT##*/}" 2>&1 ; echo "rc=$?" )"
 rigAssert "a member cannot name a session's own log" "$( printf '%s\n' "$rigOut" | tail -1 )" rc=1
 rigAssert "and nothing is written to it" "$( rigHas "$rigT" '> by name' )" 0
-rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --magic-append-session-transcript magic-coordinator "$rigSid" --message 'by the coordinator' 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript magic-coordinator --of-session "$rigSid" --message 'by the coordinator' 2>&1 ; echo "rc=$?" )"
 rigAssert "the coordinator appends to a session it names" "$( printf '%s\n' "$rigOut" | tail -1 )" rc=0
 rigAssert "and the line is in that session's transcript" "$( rigHas "$rigT" '> by the coordinator' )" 1
-rigOut="$( "$rigFn" --magic-append-session-transcript magic-coordinator --message 'no id' 2>&1 ; echo "rc=$?" )"
-rigAssert "the coordinator op needs a session id" "$( printf '%s\n' "$rigOut" | tail -1 )" rc=1
-rigOut="$( MDAT_SPAWN_AGENT=magic-developer "$rigFn" --member-append-session-transcript magic-tester --message 'impersonated' 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript magic-coordinator --message 'no id' 2>&1 ; echo "rc=$?" )"
+rigAssert "the coordinator, naming no session and having none, has nowhere to append" "$( printf '%s\n' "$rigOut" | tail -1 )" rc=1
+rigOut="$( MDAT_SPAWN_AGENT=magic-developer "$rigFn" --append-transcript magic-tester --message 'impersonated' 2>&1 ; echo "rc=$?" )"
 rigAssert "a spawned session appends as no other member" "$( printf '%s\n' "$rigOut" | tail -1 ):$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'this session acts as magic-developer' ):$( rigHas "$rigT" '> impersonated' )" rc=1:1:0
-rigOut="$( MDAT_SPAWN_AGENT=magic-tester "$rigFn" --member-append-session-transcript magic-tester --message 'as itself' 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_AGENT=magic-tester "$rigFn" --append-transcript magic-tester --message 'as itself' 2>&1 ; echo "rc=$?" )"
 rigAssert "and appends as its own member" "$( printf '%s\n' "$rigOut" | tail -1 ):$( rigHas "$rigT" '> as itself' )" rc=0:1
-rigOut="$( MDAT_SPAWN_AGENT=magic-developer MDAT_SKILLSET_ROOT="$rigTmp/skills" "$rigFn" --member-append-session-transcript magic-tester --speaker magic-tester --timestamp 2026-10-08T01:02:03Z --message 'shared, impersonated' --transcript-name transcript-2026-10-08-rig-access.md --create 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_AGENT=magic-developer MDAT_SKILLSET_ROOT="$rigTmp/skills" "$rigFn" --append-transcript magic-tester --speaker magic-tester --timestamp 2026-10-08T01:02:03Z --message 'shared, impersonated' --transcript-name transcript-2026-10-08-rig-access.md --create 2>&1 ; echo "rc=$?" )"
 rigAssert "a named transcript is refused to a session naming another member" "$( printf '%s\n' "$rigOut" | tail -1 ):$( [ -f "$rigStore/audit/2026-10/transcript-2026-10-08-rig-access.md" ] && echo written || echo absent )" rc=1:absent
-rigOut="$( MDAT_SPAWN_AGENT=magic-tester MDAT_SKILLSET_ROOT="$rigTmp/skills" "$rigFn" --member-append-session-transcript magic-tester --speaker magic-tester --timestamp 2026-10-08T01:02:03Z --message 'shared, as itself' --transcript-name transcript-2026-10-08-rig-access.md --create 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_AGENT=magic-tester MDAT_SKILLSET_ROOT="$rigTmp/skills" "$rigFn" --append-transcript magic-tester --speaker magic-tester --timestamp 2026-10-08T01:02:03Z --message 'shared, as itself' --transcript-name transcript-2026-10-08-rig-access.md --create 2>&1 ; echo "rc=$?" )"
 rigAssert "and taken from the member's own session" "$( printf '%s\n' "$rigOut" | tail -1 ):$( rigHas "$rigStore/audit/2026-10/transcript-2026-10-08-rig-access.md" '> shared, as itself' )" rc=0:1
-rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --magic-append-session-transcript magic-tester "$rigSid" --message 'not the coordinator' 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_SESSION_ID= "$rigFn" --append-transcript magic-tester "$rigSid" --message 'not the coordinator' 2>&1 ; echo "rc=$?" )"
 rigAssert "the coordinator op runs as magic-coordinator only" "$( printf '%s\n' "$rigOut" | tail -1 ):$( rigHas "$rigT" '> not the coordinator' )" rc=1:0
-rigOut="$( MDAT_SPAWN_SESSION_ID= MDAT_SPAWN_AGENT=magic-tester "$rigFn" --magic-append-session-transcript magic-coordinator "$rigSid" --message 'a member as the coordinator' 2>&1 ; echo "rc=$?" )"
+rigOut="$( MDAT_SPAWN_SESSION_ID= MDAT_SPAWN_AGENT=magic-tester "$rigFn" --append-transcript magic-coordinator "$rigSid" --message 'a member as the coordinator' 2>&1 ; echo "rc=$?" )"
 rigAssert "and from no member's session naming it" "$( printf '%s\n' "$rigOut" | tail -1 ):$( rigHas "$rigT" '> a member as the coordinator' )" rc=1:0
 rigOut="$( printf '%s' '{"note":"served note"}' | MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=magic-tester "$rigHarness" --intern-tool SessionTranscriptAppend 2>/dev/null )"
 rigAssert "the SessionTranscriptAppend tool appends through the served harness" "$rigOut" "OK: appended to ${rigT##*/}"
 rigAssert "with the member as speaker" "$( LC_ALL=C grep -A1 'NOTE by=magic-tester' "$rigT" | tail -1 )" '> served note'
 rigOut="$( printf '%s' '{"note":"x"}' | MDAT_SPAWN_SESSION_ID= MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=magic-tester "$rigHarness" --intern-tool SessionTranscriptAppend 2>/dev/null )"
-rigAssert "the tool refuses with ERROR where no session resolves" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c '^ERROR: .*--member-append-session-transcript: no session resolves' )" 1
+rigAssert "the tool refuses with ERROR where no session resolves" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c '^ERROR: .*--append-transcript: no session resolves' )" 1
 
 echo "-- the MCP paths: execute, a served tool, a refusal; the daemon log --"
 printf 'rig file line\n' > "$rigWs/rig.txt"

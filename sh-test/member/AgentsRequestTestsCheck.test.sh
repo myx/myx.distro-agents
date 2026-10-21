@@ -72,10 +72,10 @@ rigAssert "the request is the member's: who asks, why, the test, the priority no
 rigInquiryFile="$( rigInquiry )"
 rigAssert "one inquiry stands in magic-tester's inbox, and in no other" "$( [ -n "$rigInquiryFile" ] && printf one ) $( rigElsewhere )" "one 0"
 rigAssert "it is from the member to magic-tester, as the template says" "$( rigHas 'type: inquiry' "$rigInquiryFile" ) $( rigHas 'from: rig-member' "$rigInquiryFile" ) $( rigHas 'owner: magic-tester' "$rigInquiryFile" )" "1 1 1"
-rigAssert "it names the request, the test, the priority and the reason, and where the outcome is read" "$( rigHas "request $rigId" "$rigInquiryFile" ) $( rigHas 'RigOne' "$rigInquiryFile" ) $( rigHas 'priority `no-wait`' "$rigInquiryFile" ) $( rigHas 'Why: changed the wait tool' "$rigInquiryFile" ) $( rigHas "--member-retest-result $rigId" "$rigInquiryFile" )" "1 1 1 1 1"
+rigAssert "it names the request, the test, the priority and the reason, and where the outcome is read" "$( rigHas "request $rigId" "$rigInquiryFile" ) $( rigHas 'RigOne' "$rigInquiryFile" ) $( rigHas 'priority `no-wait`' "$rigInquiryFile" ) $( rigHas 'Why: changed the wait tool' "$rigInquiryFile" ) $( rigHas "--retest-result $rigId" "$rigInquiryFile" )" "1 1 1 1 1"
 rigAssert "the name of the inquiry carries the stamp and the request" "$( ls "$rigData/inboxes/magic-tester/incoming" | LC_ALL=C grep -c -E "^inquiry-[0-9]{8}T[0-9]{4}Z-tests-wanted-${rigId##*-}\.md\$" )" "1"
 rigScript=DistroAgentsTools
-rigOp "$rigTmp/d2" --member-retest-drain
+rigOp "$rigTmp/d2" --retest-drain
 rigAssert "the batch runs the test it asked for" "$rigRc [$( rigBegun )]" "0 [live:RigOne]"
 
 echo "-- 3. what it names --"
@@ -112,7 +112,7 @@ rigWaited=0
 while [ -z "$( rigInquiry )" ] && [ "$rigWaited" -lt 300 ] ; do sleep 0.2 ; rigWaited=$(( rigWaited + 1 )) ; done
 rigAssert "with --wait the request has the priority wait, the call stays, and the inquiry is filed before the batch has run" "$( rigField "$rigQueue/waiting/$rigId.request" priority ) $( kill -0 "$rigWaitPid" 2> /dev/null && printf staying ) $( [ -n "$( rigInquiry )" ] && printf filed ) $( rigHolds done )" "wait staying filed 0"
 rigAssert "the inquiry says the priority wait" "$( rigHas 'priority `wait`' "$( rigInquiry )" )" "1"
-rigOp "$rigTmp/d4" --member-retest-drain
+rigOp "$rigTmp/d4" --retest-drain
 rigEnd "$rigWaitPid"
 rigAssert "once the batch has run it the call ends, rc 0, and says how it came out" "$rigRc $( LC_ALL=C grep -c "^RETEST $rigId PASS -- asked by rig-member about live: 1 passed -- before handoff\$" "$rigTmp/w4.out" )" "0 1"
 

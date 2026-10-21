@@ -22,7 +22,7 @@ When you send commands into a console channel:
 
 See exactly which operations one member is allowed to run:
 
-	DistroAgentsTools.fn.sh --member-help <member>
+	DistroAgentsKnowledge.fn.sh --member-help <member>
 
 ## Running the agents console
 

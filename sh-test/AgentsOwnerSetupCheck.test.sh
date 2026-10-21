@@ -98,12 +98,12 @@ rigExpect "and it is still stored" \
 rigExpect "a flag with no value at all is still refused" \
 	"$( rigRun --owner-setup-storage --team-data-git-remote )" "a value is required"
 
-## SLACK_AUTH_IDENTITY in --magic-config-check: auth.test is answered by a
+## SLACK_AUTH_IDENTITY in --config-check: auth.test is answered by a
 ## stand-in curl first on PATH, so no request leaves this host.
 mkdir -p "$rigTmp/bin"
 printf '#!/bin/sh\ncat >/dev/null\nprintf %%s "$RIG_AUTH_REPLY"\n' > "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl"
 export RIG_AUTH_REPLY='{"ok":true,"user_id":"URIG00001"}'
-rigIdentity(){ PATH="$rigTmp/bin:$PATH" rigRun --magic-config-check | grep -A2 '^SLACK_AUTH_IDENTITY:' ; }
+rigIdentity(){ PATH="$rigTmp/bin:$PATH" rigRun --config-check | grep -A2 '^SLACK_AUTH_IDENTITY:' ; }
 rigExpect "identity: no SLACK_USER_TOKEN is a WARN" \
 	"$( rigIdentity )" "SLACK_AUTH_IDENTITY: WARN"
 printf 'xoxp-rig' | rigRun --agents-config-option magic-coordinator --upsert-from-stdin SLACK_USER_TOKEN >/dev/null

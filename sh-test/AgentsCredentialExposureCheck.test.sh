@@ -81,7 +81,7 @@ rigExposure(){ ## label, body-carrying: yes|no
 rigSendLog="$rigWs/.local/agents/comms-slack-send.$( date -u +%Y-%m ).log"
 
 echo "-- a Slack send that succeeds --"
-rigCall ok --member-comms-slack-send-message magic-team magic-team --identity-bot "$rigBodyMarker"
+rigCall ok --slack-send-message magic-team magic-team --identity-bot "$rigBodyMarker"
 grep -q 'chat.postMessage' "$rigScenario/argv.log" 2>/dev/null || rigRefuse "no Slack send reached the fake curl: $( grep -v SystemContext "$rigScenario/out" | grep -m1 -E "ERROR|WARNING" )"
 rigAssert "slack ok: rc" "$rigRc" 0
 rigExposure "slack ok" yes
@@ -90,7 +90,7 @@ rigAssert "536 slack ok: the send log has one line" "$( LC_ALL=C awk 'END { prin
 rigAssert "536 slack ok: that line reads ok" "$( LC_ALL=C awk -F '\t' 'END { print $6 ; }' "$rigSendLog" 2>/dev/null )" ok
 
 echo "-- a Slack send that fails --"
-rigCall fail --member-comms-slack-send-message magic-team magic-team --identity-bot "$rigBodyMarker"
+rigCall fail --slack-send-message magic-team magic-team --identity-bot "$rigBodyMarker"
 rigAssert "slack fail: rc is non-zero" "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 )" non-zero
 rigExposure "slack fail" yes
 rigAssert "536 slack fail: the send log has a second line" "$( LC_ALL=C awk 'END { print NR ; }' "$rigSendLog" 2>/dev/null )" 2

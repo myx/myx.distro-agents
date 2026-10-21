@@ -83,17 +83,17 @@ rigAssert "a run with no names runs both tests, each once, and never the fixture
 	"$rigRc $( LC_ALL=C grep -c '^PASS  ' "$rigTmp/r2.out" ) $( rigRan RigTop.test.sh ) $( rigRan RigSub.test.sh ) $( rigRan rig-thing.stub.sh )" "0 2 1 1 0"
 
 echo "-- 2. the retest queue takes the test in the subfolder, and its drain runs it --"
-rigCall "$rigTmp/q1" bash "$rigTool" --member-retest-queue --about rig-copy --by rig-builder --why 'a test in a subfolder, by its name' RigSub
+rigCall "$rigTmp/q1" bash "$rigTool" --retest-queue --about rig-copy --by rig-builder --why 'a test in a subfolder, by its name' RigSub
 rigId1="$( LC_ALL=C sed -n 1p "$rigTmp/q1.out" )"
 rigAssert "by its name: taken, as that test" "$rigRc [$( LC_ALL=C grep -e '^test: ' -e '^file: ' "$rigQueue/waiting/$rigId1.request" 2> /dev/null | LC_ALL=C tr '\n' '|' )]" "0 [test: RigSub|]"
-rigCall "$rigTmp/q2" bash "$rigTool" --member-retest-queue --about rig-copy --by rig-builder --why 'a test in a subfolder, as a changed file' --file sh-test/session/RigSub.test.sh
+rigCall "$rigTmp/q2" bash "$rigTool" --retest-queue --about rig-copy --by rig-builder --why 'a test in a subfolder, as a changed file' --file sh-test/session/RigSub.test.sh
 rigId2="$( LC_ALL=C sed -n 1p "$rigTmp/q2.out" )"
 rigAssert "by its path as a changed file: taken as that test, and no file is kept" "$rigRc [$( LC_ALL=C grep -e '^test: ' -e '^file: ' "$rigQueue/waiting/$rigId2.request" 2> /dev/null | LC_ALL=C tr '\n' '|' )]" "0 [test: RigSub|]"
-rigCall "$rigTmp/q3" bash "$rigTool" --member-retest-queue --about rig-copy --by rig-builder --why 'a fixture, as a changed file' --file sh-test/check-fixtures/rig-thing.stub.sh
+rigCall "$rigTmp/q3" bash "$rigTool" --retest-queue --about rig-copy --by rig-builder --why 'a fixture, as a changed file' --file sh-test/check-fixtures/rig-thing.stub.sh
 rigId3="$( LC_ALL=C sed -n 1p "$rigTmp/q3.out" )"
 rigAssert "control: a fixture given as a changed file is a file, not a test" "$rigRc [$( LC_ALL=C grep -e '^test: ' -e '^file: ' "$rigQueue/waiting/$rigId3.request" 2> /dev/null | LC_ALL=C tr '\n' '|' )]" "0 [file: sh-test/check-fixtures/rig-thing.stub.sh|]"
 : > "$rigTmp/log"
-rigCall "$rigTmp/d1" bash "$rigTool" --member-retest-drain
+rigCall "$rigTmp/d1" bash "$rigTool" --retest-drain
 rigAssert "the drain runs the test in the subfolder for the requests that named it, and never the fixture" \
 	"$rigRc $( rigRan RigSub.test.sh ) $( rigRan rig-thing.stub.sh ) $( LC_ALL=C grep -c -F -- "RETEST $rigId2 PASS " "$rigTmp/d1.out" )" "0 1 0 1"
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env awk
 
 # Agent-written text (stdin) -> an HTML fragment (stdout), for
-# AgentsTools.MemberCommsEmail.include's --member-comms-email-send, which
+# AgentsTools.MemberCommsEmail.include's --email-send, which
 # splices this output into the text/html part of a multipart/alternative
 # message sent beside the unmodified plain-text part. Invoked with
-# -v format=markdown|text, matching --member-comms-email-send's own
+# -v format=markdown|text, matching --email-send's own
 # --format flag.
 #
 # format=text: every line is HTML-escaped, and a bare "http://"/"https://"
@@ -35,7 +35,7 @@
 # becomes one "<pre>...escaped verbatim...</pre>".
 #
 # HTML-escaping covers exactly "&", "<", ">" and '"', in text and in href
-# values alike -- Help.DistroAgentsTools.help.md's --member-comms-email-send
+# values alike -- Help.DistroAgentsTools.help.md's --email-send
 # section and MAGIC.md's own heading for this file state the full rule.
 
 BEGIN {

@@ -327,7 +327,7 @@ rigWait(){ ## output name, TZ (empty: the rig's), wait arguments...
 	shift 2
 	( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u MDAT_WAIT_REMIND \
 		TZ="$waitTz" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		MDAT_DATA_ROOT="$rigScenarioDir/data" ${rigEnv[@]+"${rigEnv[@]}"} bash "$rigTool" --member-wait-for-input "$rigMember" "$@" ) \
+		MDAT_DATA_ROOT="$rigScenarioDir/data" ${rigEnv[@]+"${rigEnv[@]}"} bash "$rigTool" --wait-for-input "$rigMember" "$@" ) \
 		> "$rigScenarioDir/$waitOut" 2> "$rigScenarioDir/$waitOut.err"
 	rigRc=$?
 }
@@ -541,7 +541,7 @@ rigWait wait "" --wait-source ask:ask-wait --wait-timeout 1
 rigAssert "the wait itself is as it was: nothing arrived"  "$rigRc:$( head -1 "$rigScenarioDir/wait" )" "0:WAIT-RESULT: TIMEOUT"
 rigAssert "the ask is reminded"                            "$( rigPosts ):$( rigField ask-wait reminders ):$( [ -n "$( rigField ask-wait reminder-30m )" ] && printf stamped )" 1:1:stamped
 rigAssert "in its own thread"                              "$( rigPostChannel 1 ) $( rigPostThread 1 )" "CRIG00001 $( rigTsOf $(( 31 * 60 + 1 )) )"
-rigAssert "said in the log of the wait, never in its result" "$( rigHolds "$rigScenarioDir/wait.err" '# --member-wait-for-input: REMINDED ask-wait human-owner thread reminder=1 stages=30m' ):$( rigHolds "$rigScenarioDir/wait" 'REMIND' )" yes:no
+rigAssert "said in the log of the wait, never in its result" "$( rigHolds "$rigScenarioDir/wait.err" '# --wait-for-input: REMINDED ask-wait human-owner thread reminder=1 stages=30m' ):$( rigHolds "$rigScenarioDir/wait" 'REMIND' )" yes:no
 rigWait again "" --wait-source ask:ask-wait --wait-timeout 1
 rigAssert "a second wait sends nothing"                    "$( rigPosts ):$( rigField ask-wait reminders )" 1:1
 rigWait young "" --wait-source ask:ask-young --wait-timeout 1
@@ -562,7 +562,7 @@ rigThreadOf ask-rounds
 rigWait wait "" --wait-source ask:ask-rounds --wait-timeout 12 --wait-poll-interval 1
 rigAssert "more than one round was polled"                 "$( LC_ALL=C sed -n 's/^# waited: .*, \([0-9]*\) poll round(s).*/\1/p' "$rigScenarioDir/wait" | LC_ALL=C awk '{ print ( $1 >= 2 ) ? "yes" : "no:" $1 }' )" yes
 rigAssert "and the reminder was tried once"                "$( rigTries )" 1
-rigAssert "a send that failed is said in the log, and stamps no stage" "$( rigHolds "$rigScenarioDir/wait.err" '# --member-wait-for-input: FAILED ask-rounds human-owner | ' ):$( rigField ask-rounds reminders ):$( rigField ask-rounds reminder-30m )" yes::
+rigAssert "a send that failed is said in the log, and stamps no stage" "$( rigHolds "$rigScenarioDir/wait.err" '# --wait-for-input: FAILED ask-rounds human-owner | ' ):$( rigField ask-rounds reminders ):$( rigField ask-rounds reminder-30m )" yes::
 ## A send that fails can take a minute to say so, so a wait does not try that ask again for half an hour.
 rm -f "$rigScenarioDir/post-refuse"
 rigWait again "" --wait-source ask:ask-rounds --wait-timeout 1
@@ -621,7 +621,7 @@ rigAssert "each as its own asker, under the identity it was asked with" \
 	"$( for rigI in 1 2 3 ; do printf '%s=%s\n' "$( rigPostThread "$rigI" )" "$( rigPostAuth "$rigI" )" ; done | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" \
 	"$( printf '%s=%s\n' "$( rigField ask-own thread-ts )" rig-user-token-TESTER "$( rigField ask-mate thread-ts )" rig-user-token-ARCH "$( rigField ask-lead thread-ts )" rig-bot-token-TEAM | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )"
 rigAssert "an ask of another coworking session, and one of no session, are not this wait's" "$( rigField ask-far reminders ):$( rigField ask-loose reminders )" ":"
-rigAssert "the mate's answered one is not reminded, and the log of the wait says so" "$( rigField ask-heard reminders ):$( rigHolds "$rigScenarioDir/wait.err" '# --member-wait-for-input: HELD ask-heard human-owner | ' )" ":yes"
+rigAssert "the mate's answered one is not reminded, and the log of the wait says so" "$( rigField ask-heard reminders ):$( rigHolds "$rigScenarioDir/wait.err" '# --wait-for-input: HELD ask-heard human-owner | ' )" ":yes"
 ## The main loop's step, run after it: what no wait stood for, and nothing a second time.
 rigRemind step
 rigAssert "the main loop's step then reminds the other two, and none again" \
@@ -674,7 +674,7 @@ rigLoopWait(){ ## -- a wait on the loop scenario's ask, in the loop's own enviro
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin:/usr/sbin:/sbin" TZ="$rigTz" \
 		MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigDir/home/.claude/skills" RIG_FN="$rigTool" RIG_MEMBER="$rigMember" \
-		bash -c 'cd "$MMDAPP" && exec bash "$RIG_FN" --member-wait-for-input "$RIG_MEMBER" --wait-source ask:ask-loop --wait-timeout 1' > "$rigDir/wait.out" 2> "$rigDir/wait.err"
+		bash -c 'cd "$MMDAPP" && exec bash "$RIG_FN" --wait-for-input "$RIG_MEMBER" --wait-source ask:ask-loop --wait-timeout 1' > "$rigDir/wait.out" 2> "$rigDir/wait.err"
 }
 rigLoopReminders(){ LC_ALL=C grep -c -F 'Still waiting for your answer' "$rigDir/posted" 2>/dev/null || : ; }
 rigLoopScenario both-loop-last

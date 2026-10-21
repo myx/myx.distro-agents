@@ -72,10 +72,10 @@ case "$1" in
 	;;
 
 	## The registered places, for any member: name, kind and ceiling, never a path.
-	--member-directory-list)
+	--list-places)
 		shift
 		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-directory-list: takes no arguments" >&2
+			echo "⛔ ERROR: $MDSC_CMD --list-places: takes no arguments" >&2
 			set +e ; return 1
 		fi
 		LocalToolsPlacesMergedText "${MMDAPP%/}" quiet | LC_ALL=C awk -F'\t' -v OFS='\t' 'NF >= 3 && $1 != "" { print $1, $2, $3 ; }'
@@ -84,28 +84,28 @@ case "$1" in
 
 	## One place's path by its name, or a path under it: <name>/<relative>. A relative part
 	## with a .. segment, or an absolute one, is refused, and so is a name no place carries.
-	--member-directory-path)
+	--get-place-path)
 		shift
 		if [ $# -ne 1 ] || [ -z "$1" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-directory-path: syntax is <name>[/<relative>]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --get-place-path: syntax is <name>[/<relative>]" >&2
 			set +e ; return 1
 		fi
 		local pathName="${1%%/*}" pathRel="" pathBase
 		case "$1" in */*) pathRel="${1#*/}" ;; esac
 		case "/$pathRel/" in
 			*/../*)
-				echo "⛔ ERROR: $MDSC_CMD --member-directory-path: a .. segment is refused: $1" >&2
+				echo "⛔ ERROR: $MDSC_CMD --get-place-path: a .. segment is refused: $1" >&2
 				set +e ; return 1
 			;;
 		esac
 		case "$pathRel" in
 			/*)
-				echo "⛔ ERROR: $MDSC_CMD --member-directory-path: the path under a place is relative to it: $1" >&2
+				echo "⛔ ERROR: $MDSC_CMD --get-place-path: the path under a place is relative to it: $1" >&2
 				set +e ; return 1
 			;;
 		esac
 		if ! LocalToolsPlacesNameValid "${pathName%%@*}" || { [ "$pathName" != "${pathName%%@*}" ] && ! LocalToolsPlacesNameValid "${pathName#*@}" ; } ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-directory-path: not a place name: $pathName" >&2
+			echo "⛔ ERROR: $MDSC_CMD --get-place-path: not a place name: $pathName" >&2
 			set +e ; return 1
 		fi
 		pathBase="$( LocalToolsPlacesResolve "${MMDAPP%/}" "$pathName" )" || { set +e ; return 1 ; }
@@ -116,22 +116,22 @@ case "$1" in
 
 	## This workspace's distro projects by name, for any member: namespace and project, one
 	## TAB-separated row each, over ListDistroProjects; one namespace only when named.
-	--member-namespace-list)
+	--list-namespaces)
 		shift
 		if [ $# -gt 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-namespace-list: syntax is [<namespace>]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --list-namespaces: syntax is [<namespace>]" >&2
 			set +e ; return 1
 		fi
 		local nsWant="${1:-}" nsSelected="" nsStatus=0
-		[ -z "$nsWant" ] || AgentsToolsAssertBareName "$nsWant" "<namespace>" member-namespace-list || { set +e ; return 1 ; }
+		[ -z "$nsWant" ] || AgentsToolsAssertBareName "$nsWant" "<namespace>" list-namespaces || { set +e ; return 1 ; }
 		if ! DistroAgentsContext --distro-from-source ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-namespace-list: cannot establish an input spec for workspace $MMDAPP" >&2
+			echo "⛔ ERROR: $MDSC_CMD --list-namespaces: cannot establish an input spec for workspace $MMDAPP" >&2
 			set +e ; return 1
 		fi
 		Require ListDistroProjects || :
 		nsSelected="$( Distro ListDistroProjects --select-all )" || nsStatus=$?
 		if [ "$nsStatus" != 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-namespace-list: ListDistroProjects --select-all exited $nsStatus" >&2
+			echo "⛔ ERROR: $MDSC_CMD --list-namespaces: ListDistroProjects --select-all exited $nsStatus" >&2
 			set +e ; return 1
 		fi
 		printf '%s\n' "$nsSelected" | LC_ALL=C awk -F/ -v OFS='\t' -v want="$nsWant" 'NF && $1 != "" && ( want == "" || $1 == want ) { print $1, $0 ; }'

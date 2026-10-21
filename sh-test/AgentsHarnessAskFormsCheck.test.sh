@@ -1023,7 +1023,7 @@ rigLinkAll "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts" "$rigOldPackage/sh-sc
 	printf '#!/usr/bin/env bash\n'
 	printf 'export MDLT_ORIGIN=%q\n' "$MDLT_ORIGIN"
 	printf '%s\n' 'rigReal="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"' \
-		'if [ "${1:-}" = "--member-wait-for-input" ] && [ -f "$RIG_SCENARIO/odd-wait" ] ; then "$rigReal" "$@" | LC_ALL=C sed "1s/.*/WAIT-RESULT: REWOUND/" ; exit 0 ; fi' \
+		'if [ "${1:-}" = "--wait-for-input" ] && [ -f "$RIG_SCENARIO/odd-wait" ] ; then "$rigReal" "$@" | LC_ALL=C sed "1s/.*/WAIT-RESULT: REWOUND/" ; exit 0 ; fi' \
 		'[ "${1:-}" = "--intern-op-escalation-read" ] || exec "$rigReal" "$@"' \
 		'rigOut="$( "$rigReal" "$@" )"' \
 		'rigRc=$?' \

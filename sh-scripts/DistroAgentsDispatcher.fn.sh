@@ -11,7 +11,7 @@
 ## and it reads the rows the console's list reads. Scheduling is a convention (a routine's runs-at and runs-after, a few settings) and this the
 ## interpreter of it, not a tool family.
 ##
-## From DistroAgentsTools.fn.sh (F1.4, first stage): --shutdown-runs, --spawn-prompt, --spawn-session. They go on under their old names (sh-lib/harness/AgentsContext.FrontForward.include).
+## From DistroAgentsTools.fn.sh (F1.4): --shutdown-runs, --spawn-prompt, --spawn-session (sh-lib/harness/AgentsContext.FrontTable.include).
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -46,12 +46,42 @@ DistroAgentsDispatcherSchedule(){
 	type AgentsToolsScheduleDue > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include"
 }
 
+## The operations that came here from DistroAgentsTools.fn.sh (F1.4): every one of them is asked what each name of the table is asked, in AgentsContext.FrontDoor.include.
+DistroAgentsDispatcherMoved(){
+	local MDSC_CMD='DistroAgentsDispatcher' frontDone="" frontRc=0
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontDoor.include"
+	[ -z "$frontDone" ] || return "$frontRc"
+	case "$1" in
+
+		--shutdown-runs)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.InternOpReview.include"
+			return $?
+		;;
+
+		--spawn-prompt)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicCoordinatorState.include"
+			return $?
+		;;
+
+		--spawn-session)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSpawnSession.include"
+			return $?
+		;;
+
+		*)
+			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+			set +e ; return 1
+		;;
+	esac
+}
+
 DistroAgentsDispatcher(){
 	local MDSC_CMD='DistroAgentsDispatcher'
-	## F1.4, first stage: an operation that came here under a new name goes on under its old one (sh-lib/harness/AgentsContext.FrontForward.include).
-	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontForward.include"
+	## F1.4: a name that came here from DistroAgentsTools.fn.sh runs its operation in the function below.
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	if AgentsToolsFrontKnows DistroAgentsDispatcher "$@" ; then
-		AgentsToolsFrontForward DistroAgentsDispatcher "$@"
+		DistroAgentsDispatcherMoved "$@"
 		return $?
 	fi
 	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,

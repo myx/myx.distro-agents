@@ -110,7 +110,7 @@ Every section a contract names is present, in contract order, with its lead-in, 
 
 ### Partner / Client (`partner-*`/`client-*`)
 
-A `client-*` member's comms are read by the client sweep scan (`client-sweep`), `client-*` only, which the spawner runs. `magic-coordinator.communication-sweep.routine` runs it for every `client-*` member. A `--client-*` operation naming a client runs only for that client in its own session -- nobody else, checked once where the operation is dispatched. `magic-coordinator` reaches it through `--magic-client-operation-run` instead.
+A `client-*` member's comms are read by the client sweep scan (`client-sweep`), `client-*` only, which the spawner runs. `magic-coordinator.communication-sweep.routine` runs it for every `client-*` member. A `--client-*` operation naming a client runs only for that client in its own session -- nobody else, checked once where the operation is dispatched. `magic-coordinator` reaches it through `--client-operation-run` instead.
 
 ## Nested-item grammar
 

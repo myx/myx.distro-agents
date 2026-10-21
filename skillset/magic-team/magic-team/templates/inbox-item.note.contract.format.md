@@ -36,14 +36,14 @@ Context or coordination.
 | `type` | required | either | `literal note` | The filename's type word, never a genre. Filled by inbox upsert where missing. |
 | `from` | required | either | `member` | The author. Filled by inbox upsert where missing; a member sets another value only on another member's behalf. |
 | `date` | required | either | `date-time` | Creation. Filled by inbox upsert where missing. |
-| `owner` | required | either | `member` | The member whose inbox holds the note. A member writes a note into its own inbox only (`--member-inbox-note-upsert`). |
+| `owner` | required | either | `member` | The member whose inbox holds the note. A member writes a note into its own inbox only (`--upsert-inbox-note`). |
 | `communication-channel-id` | optional | member | `channel-id` | The one external message the item traces to. |
 | `references` | optional | member | `item-names` | Items this one cites. An inbox item may cite vault and audit items. |
 | `status` | optional | member | `text` | A state label in free text; dropped when stale. |
-| `standing` | optional | member | `enum yes, no` | `yes` marks a standing note: while it is unprocessed it is in force, shown by `AgentDispatcherTools.fn.sh --standing-directives` and given to every spawn in its brief. `no` or absent is an ordinary note. Set with `--member-inbox-note-upsert --standing yes|no`. |
+| `standing` | optional | member | `enum yes, no` | `yes` marks a standing note: while it is unprocessed it is in force, shown by `AgentDispatcherTools.fn.sh --standing-directives` and given to every spawn in its brief. `no` or absent is an ordinary note. Set with `--upsert-inbox-note --standing yes|no`. |
 | `supersedes` | optional | member | `item-names` | Items this one replaces. |
 | `superseded-by` | optional | member | `item-names` | Items that replace this one. |
-| `processed-at` | optional | tooling | `date-time` | Stamped by `--member-inbox-to-processed`. It decides the item's folder and is the retention clock. |
+| `processed-at` | optional | tooling | `date-time` | Stamped by `--mark-inbox-processed`. It decides the item's folder and is the retention clock. |
 
 ## Value forms
 
@@ -64,6 +64,6 @@ Context or coordination.
 
 - `type` equals the type word in the filename (`note`).
 - [store] The inbox holds `note-*`, `inquiry-*` and `reflection-*` only. Any other type in an inbox is misfiled and is reported to `magic-coordinator`.
-- [store] An item is handled by marking it processed with `--member-inbox-to-processed`; an item still wanted stays unmarked.
+- [store] An item is handled by marking it processed with `--mark-inbox-processed`; an item still wanted stays unmarked.
 - [store] A member never writes a key whose writer is `tooling`.
 - [store] A standing note, such as the roster, is rewritten in place under its fixed name and is never marked processed.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 ##
 ## AgentsGoogleApiCall.py -- the read-side Google API worker behind the
-## --member-comms-google-* operations in AgentsTools.MemberCommsGoogle.include.
+## --google-* operations in AgentsTools.MemberCommsGoogle.include.
 ##
 ## WHY A PYTHON HELPER AND NOT PLAIN curl, matching the reason
 ## AgentsImapFetchMessage.py exists: two things here cannot be done in shell in
@@ -258,7 +258,7 @@ def op_whoami(access_token, _args):
     scope beyond the Drive scope the family already requires, so it costs
     nothing extra to grant.
 
-    Printed as KEY=VALUE lines, the shape --member-comms-trello-whoami already
+    Printed as KEY=VALUE lines, the shape --trello-whoami already
     hands its caller for the same question on the Trello side.
     """
     payload = api_get(
@@ -479,7 +479,7 @@ def read_stdin_content(what):
 def stdin_tsv_values():
     """Parse the TSV on stdin into the API's `values` array.
 
-    The inverse of what --member-comms-google-sheet-read emits, so a range can
+    The inverse of what --google-sheet-read emits, so a range can
     be read, edited in a shell pipeline, and written straight back. Trailing
     newline is ignored; every other line becomes a row, including blank ones,
     since a blank row inside a range is meaningful data rather than padding.

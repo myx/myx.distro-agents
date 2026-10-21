@@ -20,7 +20,9 @@ command -v git > /dev/null || rigRefuse "git is not installed"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsCloseUnlockRecordCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
+## A take of a routine's lock may start the control threads of the sessions of the workspace, which outlive this check: the rig ends them.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
+trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/ws/.local/.agents"
 printf '[user]\n\tname = rig\n\temail = rig@example.invalid\n[init]\n\tdefaultBranch = main\n' > "$rigTmp/gitconfig"
 export GIT_CONFIG_GLOBAL="$rigTmp/gitconfig" GIT_CONFIG_NOSYSTEM=1 MMDAPP="$rigTmp/ws" MDLT_ORIGIN
@@ -53,7 +55,7 @@ rigOp(){ ## result file, op and arguments...
 	printf '%s' "$?" > "$opOut.rc"
 }
 rigClose(){ ## result file
-	rigOp "$1" --magic-grooming-close-state-and-unlock magic-coordinator
+	rigOp "$1" --intern-op-routine-lock-close grooming magic-coordinator
 }
 ## rc:released-count:error-count, the shape every close outcome is asserted in.
 rigOutcome(){ ## result file
@@ -65,7 +67,7 @@ rigRunningNote(){ ## session-id
 
 echo "-- plain store (not a repository) --"
 rigUse "$rigTmp/plain"
-rigOp "$rigTmp/p0" --magic-grooming-lock-acquire magic-coordinator rig
+rigOp "$rigTmp/p0" --intern-op-routine-lock-take grooming magic-coordinator rig
 rigAssert "acquired"                                  "$( cat "$rigTmp/p0.rc" ):$( LC_ALL=C grep -c -x ACQUIRED "$rigTmp/p0" )" "0:1"
 rigClose "$rigTmp/p1"
 rigAssert "close: RELEASED, rc 0"                     "$( rigOutcome "$rigTmp/p1" )" "0:1:0"
@@ -86,11 +88,11 @@ rigAssert "unwritable note: the lock is kept"         "$( rigField "$rigNote" st
 echo "-- git store, no remote --"
 rigUse "$rigTmp/local"
 git -C "$rigStore" init -q && printf 'seed\n' > "$rigStore/README.md" && git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m seed || rigRefuse "could not seed the local store"
-rigOp "$rigTmp/l0" --magic-grooming-lock-acquire magic-coordinator rig
+rigOp "$rigTmp/l0" --intern-op-routine-lock-take grooming magic-coordinator rig
 rigClose "$rigTmp/l1"
 rigAssert "close: RELEASED, rc 0"                     "$( rigOutcome "$rigTmp/l1" )" "0:1:0"
 rigAssert "close: committed as finished"              "$( git -C "$rigStore" show "HEAD:inboxes/magic-coordinator/incoming/$rigNoteName" | LC_ALL=C grep -c -x -e 'state: grooming-finished' -e "last-close-date: $rigToday" )" 2
-rigOp "$rigTmp/l2" --magic-grooming-lock-acquire magic-coordinator rig
+rigOp "$rigTmp/l2" --intern-op-routine-lock-take grooming magic-coordinator rig
 rigHeadBefore="$( git -C "$rigStore" rev-parse HEAD )"
 printf '#!/bin/sh\nexit 1\n' > "$rigStore/.git/hooks/pre-commit" ; chmod +x "$rigStore/.git/hooks/pre-commit"
 rigClose "$rigTmp/l3"
@@ -116,13 +118,13 @@ rigOtherPush(){ ## file relative to the store, content
 	git -C "$rigOther" add -A && git -C "$rigOther" commit -q -m other && git -C "$rigOther" push -q origin HEAD:main 2>/dev/null || rigRefuse "the other host could not push"
 }
 
-rigOp "$rigTmp/r0" --magic-grooming-lock-acquire magic-coordinator rig
+rigOp "$rigTmp/r0" --intern-op-routine-lock-take grooming magic-coordinator rig
 rigAssert "acquired and pushed"                       "$( cat "$rigTmp/r0.rc" ):$( rigOriginNote | LC_ALL=C grep -c -x 'state: grooming-running' )" "0:1"
 rigClose "$rigTmp/r1"
 rigAssert "close: RELEASED, rc 0"                     "$( rigOutcome "$rigTmp/r1" )" "0:1:0"
 rigAssert "close: the origin holds the close"         "$( rigOriginNote | LC_ALL=C grep -c -x -e 'state: grooming-finished' -e "last-close-date: $rigToday" )" 2
 
-rigOp "$rigTmp/r2" --magic-grooming-lock-acquire magic-coordinator rig
+rigOp "$rigTmp/r2" --intern-op-routine-lock-take grooming magic-coordinator rig
 rigOtherPush "inboxes/magic-coordinator/incoming/$rigNoteName" "$( printf -- '---\ntype: note\nstate: grooming-running\nsession-id: rig\nrecheck-date: 2999-01-01 00:00 +0000\n---\n\nedited on another host' )"
 rigClose "$rigTmp/r3"
 rigAssert "concurrent edit of the note: not released, rc 1, said" "$( rigOutcome "$rigTmp/r3" )" "1:0:1"
@@ -132,7 +134,7 @@ rigClose "$rigTmp/r4"
 rigAssert "re-run after the sync: RELEASED, rc 0"       "$( rigOutcome "$rigTmp/r4" )" "0:1:0"
 rigAssert "re-run: the origin holds the close"          "$( rigOriginNote | LC_ALL=C grep -c -x -e 'state: grooming-finished' -e "last-close-date: $rigToday" )" 2
 
-rigOp "$rigTmp/r5" --magic-grooming-lock-acquire magic-coordinator rig
+rigOp "$rigTmp/r5" --intern-op-routine-lock-take grooming magic-coordinator rig
 rigOtherPush "elsewhere/other-host.md" "unrelated"
 git -C "$rigStore" config pull.rebase true
 rigClose "$rigTmp/r6"
@@ -140,7 +142,7 @@ git -C "$rigStore" config --unset pull.rebase
 rigAssert "unrelated concurrent push, rebased: RELEASED, rc 0" "$( rigOutcome "$rigTmp/r6" )" "0:1:0"
 rigAssert "rebased: the origin holds the close"          "$( rigOriginNote | LC_ALL=C grep -c -x -e 'state: grooming-finished' -e "last-close-date: $rigToday" )" 2
 
-rigOp "$rigTmp/r7" --magic-grooming-lock-acquire magic-coordinator rig
+rigOp "$rigTmp/r7" --intern-op-routine-lock-take grooming magic-coordinator rig
 rigHeadBefore="$( git -C "$rigStore" rev-parse HEAD )"
 git -C "$rigStore" remote set-url origin "$rigTmp/missing.git"
 printf 'TEAM_DATA_GIT_REMOTE=%s\n' "$rigTmp/missing.git" > "$rigTmp/ws/.local/.agents/magic-team.agent.env"

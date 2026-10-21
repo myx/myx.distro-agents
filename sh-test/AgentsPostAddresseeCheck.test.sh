@@ -265,7 +265,7 @@ rigRow shapeBoth SendMessage "{\"to\":\"session-current\",\"address_to\":\"URIGS
 rigAssert "an account, a member and a conversation, each named as what it is" "$( rigPosts ):$( rigHeader )" "1:${rigFrom}<@URIGSOME1>; 🤖 *_${rigOther}_*; <#DRIGSOME1>."
 ## What the member send says of a word that names nobody: one line, whole.
 rigRefusal(){ ## the word as it was given
-	LC_ALL=C grep -c -x -F -- "⛔ ERROR: DistroAgentsTools --member-comms-slack-send-message: --address-to '$1': no such team member -- expected $rigTmp/skills/$1. The word is no Slack id either: an account is U and a conversation C, D or G, then upper-case letters and digits only, nine characters or more in all. Nothing was sent." "$rigScenarioDir/tool.out"
+	LC_ALL=C grep -c -x -F -- "⛔ ERROR: DistroAgentsTools --slack-send-message: --address-to '$1': no such team member -- expected $rigTmp/skills/$1. The word is no Slack id either: an account is U and a conversation C, D or G, then upper-case letters and digits only, nine characters or more in all. Nothing was sent." "$rigScenarioDir/tool.out"
 }
 rigShapeNo=0
 while IFS= read -r rigWord ; do

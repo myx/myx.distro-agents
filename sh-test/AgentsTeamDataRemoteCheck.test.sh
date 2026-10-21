@@ -24,7 +24,9 @@ command -v git > /dev/null || rigRefuse "git is not installed"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsTeamDataRemoteCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+## A take of a routine's lock may start the control threads of the sessions of the workspace, which outlive this check: the rig ends them.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 export GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
@@ -215,10 +217,10 @@ rigClaimDirB="$rigDir" ; rigClaimStoreB="$rigStore"
 rigScenario claima "$rigTmp/claims.git"
 git clone -q "$rigTmp/claims.git" "$rigStore" 2> /dev/null || rigRefuse "could not make the first clone"
 rigClaimNote="inboxes/magic-coordinator/incoming/note-20260809T154332Z-grooming-state-and-lock.md"
-rigOp "$rigDir/a" --magic-grooming-lock-acquire magic-coordinator rig-a
+rigOp "$rigDir/a" --intern-op-routine-lock-take grooming magic-coordinator rig-a
 rigAssert "the first takes it, and its claim is on the remote's main" "$( cat "$rigDir/a.rc" ):$( LC_ALL=C grep -c -x ACQUIRED "$rigDir/a" ):$( git -C "$rigTmp/claims.git" show "main:$rigClaimNote" 2> /dev/null | LC_ALL=C grep -c -x 'session-id: rig-a' )" "0:1:1"
 rigDir="$rigClaimDirB" ; rigStore="$rigClaimStoreB"
-rigOp "$rigDir/b" --magic-grooming-lock-acquire magic-coordinator rig-b
+rigOp "$rigDir/b" --intern-op-routine-lock-take grooming magic-coordinator rig-b
 rigAssert "the second does not take it"                          "$( [ "$( cat "$rigDir/b.rc" )" != 0 ] && printf refused || printf took ):$( LC_ALL=C grep -c -x ACQUIRED "$rigDir/b" )" "refused:0"
 rigAssert "the remote's main still holds the first's claim"      "$( git -C "$rigTmp/claims.git" show "main:$rigClaimNote" 2> /dev/null | LC_ALL=C grep -c -x 'session-id: rig-a' )" 1
 

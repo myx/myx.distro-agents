@@ -195,16 +195,16 @@ rigOptions='"options":"alpha -- the unit checks\nbeta -- the lint"'
 
 echo "-- the send: its own acting member is the sender it records, and no other --"
 rigStart send
-rigOp magic-developer --member-comms-slack-send-message magic-developer CRIG00001:1700000000.000001 --address-to magic-tester --metadata '{"event_type":"magic_sender","event_payload":{"sender":"magic-architect"}}' "beta, the lint is quick"
+rigOp magic-developer --slack-send-message magic-developer CRIG00001:1700000000.000001 --address-to magic-tester --metadata '{"event_type":"magic_sender","event_payload":{"sender":"magic-architect"}}' "beta, the lint is quick"
 rigAssert "metadata naming another member as the sender: refused, and nothing is posted" \
 	"$( LC_ALL=C grep -c 'names another sender than magic-developer' "$rigScenarioDir/op.err" ):$( rigCalls chat.postMessage )" "1:0"
-rigOp magic-developer --member-comms-slack-send-message magic-developer CRIG00001:1700000000.000001 --address-to magic-tester --metadata '{"event_type":"magic_sender","event_payload":{"\u0073ender":"magic-architect"}}' "beta, the lint is quick"
+rigOp magic-developer --slack-send-message magic-developer CRIG00001:1700000000.000001 --address-to magic-tester --metadata '{"event_type":"magic_sender","event_payload":{"\u0073ender":"magic-architect"}}' "beta, the lint is quick"
 rigAssert "the key written with an escape: refused, and nothing is posted" \
 	"$( LC_ALL=C grep -c 'holds a backslash escape' "$rigScenarioDir/op.err" ):$( rigCalls chat.postMessage )" "1:0"
-rigOp magic-developer --member-comms-slack-send-message magic-architect CRIG00001:1700000000.000001 --address-to magic-tester "beta, the lint is quick"
+rigOp magic-developer --slack-send-message magic-architect CRIG00001:1700000000.000001 --address-to magic-tester "beta, the lint is quick"
 rigAssert "a session that acts as one member sends as no other" \
 	"$( LC_ALL=C grep -c 'this session acts as magic-developer, so it cannot act as magic-architect' "$rigScenarioDir/op.err" ):$( rigCalls chat.postMessage )" "1:0"
-rigOp magic-developer --member-comms-slack-send-message magic-developer CRIG00001:1700000000.000001 --address-to magic-tester "beta, the lint is quick"
+rigOp magic-developer --slack-send-message magic-developer CRIG00001:1700000000.000001 --address-to magic-tester "beta, the lint is quick"
 rigAssert "its own send: posted under the team's account, with itself recorded as the sender" \
 	"$( rigCalls chat.postMessage ):$( cat "$rigScenarioDir/posted-as.1" 2>/dev/null ):$( LC_ALL=C grep -c -F '"metadata":{"event_type":"magic_sender","event_payload":{"sender":"magic-developer"}}' "$rigScenarioDir/post.1" 2>/dev/null )" \
 	"1:rig-bot-token-TEAM:1"

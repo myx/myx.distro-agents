@@ -34,7 +34,7 @@ rigRows="$( printf '%s\n' "$rigOut" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.dist
 
 ## The two entries this check was written for have to be among those measured, each
 ## with both of its syntax lines.
-for rigName in --member-comms-google-file-find --member-wait-for-input ; do
+for rigName in --google-file-find --wait-for-input ; do
 	rigHits="$( printf '%s\n' "$rigRows" | LC_ALL=C awk -F'\t' -v want="$rigName" '{ split( $2, word, " " ) ; if ( word[1] == want ) { hits++ ; } } END { print hits + 0 ; }' )"
 	[ "$rigHits" -gt 0 ] || rigRefuse "$rigName is not printed at all, so its entry would not be measured"
 	[ "$rigHits" -ge 2 ] || rigRows="$rigRows"$'\n'"FAIL	$rigName: printed with $rigHits of its 2 syntax lines"

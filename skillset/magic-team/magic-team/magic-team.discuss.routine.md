@@ -19,7 +19,7 @@ review-by: inherit
 - Routine's local procedures
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -84,7 +84,7 @@ All statements apply at the same time, always. These rules override a participan
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
 - Any member may run it. `magic-coordinator` convenes a discussion spanning several members' territory; a member deciding within its own domain needs no convener.
 - On any resume, apply `magic-team.negotiations.md`'s "Check-restart procedure"; a nudge restates the open decision. Waiting follows **wait-never-quit**.
-- Every exchange is kept as a `transcript-*` with `--member-append-session-transcript`.
+- Every exchange is kept as a `transcript-*` with `--append-transcript`.
 - Unsure whether this is a discussion, an interview or a brainstorm: ask what the goal is before starting.
 - Goal-directedness: work toward the framed decision. Off-goal items are recorded quickly, not acted on now.
 
@@ -92,14 +92,14 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--member-comms-slack-send-message <team-member> <target> [text...]`
-- `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
-- `--member-upsert-member-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
-- `--magic-advance-to-running <team-member> <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — `magic-coordinator` only
-- `--magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — `magic-coordinator` only
-- `--magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]...` — `magic-coordinator` only
+- `--slack-send-message <target> [text...]`
+- `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
+- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
+- `--advance-to-running <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — `magic-coordinator` only
+- `--move-to-processed <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — `magic-coordinator` only
+- `--move-to-pending <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]...` — `magic-coordinator` only
 - `--routine-run-inline <routine>`
 
 # Maintainer Notes

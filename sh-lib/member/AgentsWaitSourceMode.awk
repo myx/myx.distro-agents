@@ -5,7 +5,7 @@
 # source was added in. Lines ahead of the first head pass through as they are.
 #
 #   -v mode        short or full
-#   -v ref         what names the source for the operation that reads a message in full: <ref>:<ts> is `--member-comms-slack-read <member> <ref>:<ts> --thread`, and is what a cut message shows
+#   -v ref         what names the source for the operation that reads a message in full: <ref>:<ts> is `--slack-read <member> <ref>:<ts> --thread`, and is what a cut message shows
 #   -v member      the member whose wait this is
 #   -v cutFlag     short: a file made when a message was cut, for the caller to say how to read it in full, once
 #   -v dir         full: the folder a message too long for the return is kept in, one file a message, <dir>/<ts>.md, with the message whole

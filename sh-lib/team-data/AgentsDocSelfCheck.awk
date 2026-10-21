@@ -333,8 +333,8 @@ function readCitations(lineText, lineNo,   rest, spanEnd, spanText, lastFile, ru
 ## One code span: a file, a board item, a place, or nothing that is cited.
 function readSpan(spanIn, lineNo,   pathText, placeText) {
 	if (spanIn == "") return ;
-	if (spanIn ~ /^--member-directory-path [A-Za-z0-9][A-Za-z0-9._@-]*/) {
-		placeText = spanIn ; sub(/^--member-directory-path /, "", placeText) ; sub(/[\/ ].*$/, "", placeText) ;
+	if (spanIn ~ /^--get-place-path [A-Za-z0-9][A-Za-z0-9._@-]*/) {
+		placeText = spanIn ; sub(/^--get-place-path /, "", placeText) ; sub(/[\/ ].*$/, "", placeText) ;
 		if (placeText != "") emitCite("PLACE", lineNo, placeText) ;
 		return ;
 	}

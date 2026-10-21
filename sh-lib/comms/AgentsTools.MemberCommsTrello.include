@@ -17,32 +17,32 @@ AgentsToolsCommsTrelloCheck(){ ## <team-member>
 	local memberName="$1"
 	shift || true
 	if [ -z "$memberName" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-check: <team-member> missing" >&2
+		echo "⛔ ERROR: $MDSC_CMD --trello-check: <team-member> missing" >&2
 		set +e ; return 1
 	fi
-	AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-trello-check || { set +e ; return 1 ; }
+	AgentsToolsAssertBareName "$memberName" "<team-member>" trello-check || { set +e ; return 1 ; }
 	case "$memberName" in
 		routine-*)
 		;;
 		*)
 			if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-check: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+				echo "⛔ ERROR: $MDSC_CMD --trello-check: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 				set +e ; return 1
 			fi
 		;;
 	esac
-	AgentsToolsCommsOwnSideCheck "$memberName" Trello member-comms-trello-check || { set +e ; return 1 ; }
+	AgentsToolsCommsOwnSideCheck "$memberName" Trello trello-check || { set +e ; return 1 ; }
 	local trelloKey trelloToken
 	trelloKey="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_KEY )"
 	trelloToken="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_TOKEN )"
 	if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-check: TRELLO_KEY/TRELLO_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
+		echo "⛔ ERROR: $MDSC_CMD --trello-check: TRELLO_KEY/TRELLO_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
 		set +e ; return 1
 	fi
 	local trelloNewline=$'\n'
 	case "$trelloKey$trelloToken" in
 		*"$trelloNewline"*)
-			echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-check: TRELLO_KEY/TRELLO_TOKEN in ${memberName}'s own scope in .local/.agents contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second directive line and silently hiding a corrupted credential is worse than failing" >&2
+			echo "⛔ ERROR: $MDSC_CMD --trello-check: TRELLO_KEY/TRELLO_TOKEN in ${memberName}'s own scope in .local/.agents contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second directive line and silently hiding a corrupted credential is worse than failing" >&2
 			set +e ; return 1
 		;;
 	esac
@@ -53,7 +53,7 @@ AgentsToolsCommsTrelloCheck(){ ## <team-member>
 	curl -sS --connect-timeout 10 --max-time 120 --fail-with-body -H @- \
 		"https://api.trello.com/1/members/me/notifications?read_filter=unread" <<< "$trelloHeader" || trelloRc=$?
 	if [ "$trelloRc" -ne 0 ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-check: Trello members/me/notifications?read_filter=unread failed as $memberName (curl rc=$trelloRc) -- the unread notification list is UNKNOWN, not empty, and an HTTP error status counts as a failure here; curl's own error is on the line above" >&2
+		echo "⛔ ERROR: $MDSC_CMD --trello-check: Trello members/me/notifications?read_filter=unread failed as $memberName (curl rc=$trelloRc) -- the unread notification list is UNKNOWN, not empty, and an HTTP error status counts as a failure here; curl's own error is on the line above" >&2
 		set +e ; return "$trelloRc"
 	fi
 	return 0
@@ -64,33 +64,33 @@ AgentsToolsCommsTrelloWhoami(){ ## <team-member>
 	local memberName="$1"
 	shift || true
 	if [ -z "$memberName" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: <team-member> missing" >&2
+		echo "⛔ ERROR: $MDSC_CMD --trello-whoami: <team-member> missing" >&2
 		set +e ; return 1
 	fi
-	AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-trello-whoami || { set +e ; return 1 ; }
+	AgentsToolsAssertBareName "$memberName" "<team-member>" trello-whoami || { set +e ; return 1 ; }
 	case "$memberName" in
 		routine-*)
 			## Same carve-out, same reason, as the two arms above.
 		;;
 		*)
 			if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+				echo "⛔ ERROR: $MDSC_CMD --trello-whoami: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 				set +e ; return 1
 			fi
 		;;
 	esac
-	AgentsToolsCommsOwnSideCheck "$memberName" Trello member-comms-trello-whoami || { set +e ; return 1 ; }
+	AgentsToolsCommsOwnSideCheck "$memberName" Trello trello-whoami || { set +e ; return 1 ; }
 	local trelloKey trelloToken
 	trelloKey="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_KEY )"
 	trelloToken="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_TOKEN )"
 	if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: TRELLO_KEY/TRELLO_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
+		echo "⛔ ERROR: $MDSC_CMD --trello-whoami: TRELLO_KEY/TRELLO_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
 		set +e ; return 1
 	fi
 	local trelloNewline=$'\n'
 	case "$trelloKey$trelloToken" in
 		*"$trelloNewline"*)
-			echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: TRELLO_KEY/TRELLO_TOKEN in ${memberName}'s own scope in .local/.agents contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second curl config line and silently hiding a corrupted credential is worse than failing" >&2
+			echo "⛔ ERROR: $MDSC_CMD --trello-whoami: TRELLO_KEY/TRELLO_TOKEN in ${memberName}'s own scope in .local/.agents contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second curl config line and silently hiding a corrupted credential is worse than failing" >&2
 			set +e ; return 1
 		;;
 	esac
@@ -106,7 +106,7 @@ AgentsToolsCommsTrelloWhoami(){ ## <team-member>
 		| curl -sS --connect-timeout 10 --max-time 120 --fail-with-body -K - \
 			"https://api.trello.com/1/members/me?fields=id,username" )" || trelloRc=$?
 	if [ "$trelloRc" -ne 0 ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-whoami: Trello members/me failed as $memberName (curl rc=$trelloRc) -- the acting identity is UNKNOWN, not absent; curl's own error is on the line above" >&2
+		echo "⛔ ERROR: $MDSC_CMD --trello-whoami: Trello members/me failed as $memberName (curl rc=$trelloRc) -- the acting identity is UNKNOWN, not absent; curl's own error is on the line above" >&2
 		set +e ; return "$trelloRc"
 	fi
 	printf '%s\n' "$trelloMe" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsMemberCommsTrelloWhoami.awk" || { set +e ; return 1 ; }
@@ -117,18 +117,18 @@ case "$1" in
 
 		## The member stubs. Each acts under the named member's own credentials, so a spawned
 		## session names only itself (AgentsToolsActingMemberCheck); tooling calls the
-		## --intern-op-comms-trello-* implementation below directly. A --member-* operation reaches
+		## --intern-op-comms-trello-* implementation below directly. A member's operation reaches
 		## our own organisation (MDAT_COMMS_SIDE, AgentsTools.CommsSide.include), for a client-*
 		## member too: what such a member holds for this system is the other organisation's.
-		--member-comms-trello-check|--member-comms-trello-read|--member-comms-trello-whoami)
+		--trello-check|--trello-read|--trello-whoami)
 			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
 			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
 			## A stub whose implementation is an in-context helper calls it by name.
 			case "$1" in
-				--member-comms-trello-check) AgentsToolsCommsTrelloCheck "${@:2}" ; return $? ;;
-				--member-comms-trello-whoami) AgentsToolsCommsTrelloWhoami "${@:2}" ; return $? ;;
+				--trello-check) AgentsToolsCommsTrelloCheck "${@:2}" ; return $? ;;
+				--trello-whoami) AgentsToolsCommsTrelloWhoami "${@:2}" ; return $? ;;
 			esac
-			DistroAgentsTools "--intern-op-${1#--member-}" "${@:2}"
+			DistroAgentsTools "--intern-op-comms-${1#--}" "${@:2}"
 			return $?
 		;;
 
@@ -158,25 +158,25 @@ case "$1" in
 			local memberName="$1"
 			shift || true
 			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-read: <team-member> missing" >&2
+				echo "⛔ ERROR: $MDSC_CMD --trello-read: <team-member> missing" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-trello-read || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$memberName" "<team-member>" trello-read || { set +e ; return 1 ; }
 			case "$memberName" in
 				routine-*)
 				;;
 				*)
 					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-read: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+						echo "⛔ ERROR: $MDSC_CMD --trello-read: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
 						set +e ; return 1
 					fi
 				;;
 			esac
-			AgentsToolsCommsOwnSideCheck "$memberName" Trello member-comms-trello-read || { set +e ; return 1 ; }
+			AgentsToolsCommsOwnSideCheck "$memberName" Trello trello-read || { set +e ; return 1 ; }
 			local notificationId="$1"
 			shift || true
 			if [ -z "$notificationId" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-read: <notification-id> missing" >&2
+				echo "⛔ ERROR: $MDSC_CMD --trello-read: <notification-id> missing" >&2
 				set +e ; return 1
 			fi
 
@@ -184,13 +184,13 @@ case "$1" in
 			trelloKey="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_KEY )"
 			trelloToken="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_TOKEN )"
 			if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-read: TRELLO_KEY/TRELLO_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
+				echo "⛔ ERROR: $MDSC_CMD --trello-read: TRELLO_KEY/TRELLO_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
 				set +e ; return 1
 			fi
 			local trelloNewline=$'\n'
 			case "$trelloKey$trelloToken" in
 				*"$trelloNewline"*)
-					echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-read: TRELLO_KEY/TRELLO_TOKEN in ${memberName}'s own scope in .local/.agents contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second curl config line and silently hiding a corrupted credential is worse than failing" >&2
+					echo "⛔ ERROR: $MDSC_CMD --trello-read: TRELLO_KEY/TRELLO_TOKEN in ${memberName}'s own scope in .local/.agents contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second curl config line and silently hiding a corrupted credential is worse than failing" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -200,21 +200,21 @@ case "$1" in
 			trelloKeyEsc="${trelloKeyEsc//\"/\\\"}"
 			trelloTokenEsc="${trelloToken//\\/\\\\}"
 			trelloTokenEsc="${trelloTokenEsc//\"/\\\"}"
-			echo "# $MDSC_CMD --member-comms-trello-read: fetching full notification id=$notificationId" >&2
+			echo "# $MDSC_CMD --trello-read: fetching full notification id=$notificationId" >&2
 			local trelloRc=0
 			printf 'header = "Authorization: OAuth oauth_consumer_key=\\"%s\\", oauth_token=\\"%s\\""\n' \
 				"$trelloKeyEsc" "$trelloTokenEsc" \
 				| curl -sS --connect-timeout 10 --max-time 120 --fail-with-body -K - \
 					"https://api.trello.com/1/notifications/${notificationId}?fields=all&member=true&memberCreator=true&card=true&card_fields=all&board=true&board_fields=all" || trelloRc=$?
 			if [ "$trelloRc" -ne 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-trello-read: Trello notifications/${notificationId} failed as $memberName (curl rc=$trelloRc) -- the notification content is UNKNOWN, not empty, and an HTTP error status counts as a failure here; curl's own error is on the line above" >&2
+				echo "⛔ ERROR: $MDSC_CMD --trello-read: Trello notifications/${notificationId} failed as $memberName (curl rc=$trelloRc) -- the notification content is UNKNOWN, not empty, and an HTTP error status counts as a failure here; curl's own error is on the line above" >&2
 				set +e ; return "$trelloRc"
 			fi
 			return 0
 		;;
 
 		## One comment onto one card, under the Trello settings of the member named. The
-		## implementation of --magic-comms-trello-post-comment (AgentsTools.MagicComms.include) and
+		## implementation of --trello-post-comment (AgentsTools.MagicComms.include) and
 		## of the client stub above, which are its two names.
 		--intern-op-comms-trello-post-comment)
 			shift
@@ -223,7 +223,7 @@ case "$1" in
 			## set with the side). Tooling that calls this form directly is told by this name.
 			local postOp="${MDAT_COMMS_OP:-}"
 			case "$postOp" in
-				--magic-comms-trello-post-comment|--client-comms-trello-post-comment) ;;
+				--trello-post-comment|--client-comms-trello-post-comment) ;;
 				*) postOp="--intern-op-comms-trello-post-comment" ;;
 			esac
 			local callingMember="$1"
@@ -356,7 +356,7 @@ case "$1" in
 
 		## A Trello operation this file does not implement -- the retired --intern-op-comms-trello-check
 		## and --intern-op-comms-trello-whoami among them -- is reported, never swallowed.
-		--member-comms-trello-*|--client-comms-trello-*|--intern-op-comms-trello-*)
+		--trello-*|--client-comms-trello-*|--intern-op-comms-trello-*)
 			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 			set +e ; return 1
 		;;

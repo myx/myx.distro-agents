@@ -21,7 +21,7 @@
 ##      that joins starts it.
 ##   5. A START ITS CALLER WAITS ON GETS NONE: no control folder and no thread for the session it opens; nor for a
 ##      member that joins that session without a wait.
-##   6. THE START OF A SESSION WITH THREE MEMBERS, --magic-spawn-session: one thread, started once.
+##   6. THE START OF A SESSION WITH THREE MEMBERS, --spawn-session: one thread, started once.
 ##   7. THE THREAD OUTLIVES ITS STARTER: the process group of the caller is ended with TERM and KILL, and the
 ##      thread and the run go on.
 ##   8. THE THREAD OF A LONE RUN ENDS WHEN THAT RUN ENDS IN ORDER: the run hands back and ends, its supervising
@@ -355,7 +355,7 @@ rigAssert "control: the waited start came back once its run ended, and closed it
 
 echo "-- 6. the start of a session with three members: one thread, started once --"
 rigDir="$rigTmp/trio" ; mkdir -p "$rigDir"
-( cd "$rigWs" && rigEnv "$rigDir" bash "$rigTool" --magic-spawn-session --routine trio <<< "RIG-TASK-TEXT" > "$rigDir/proxy.out" 2> "$rigDir/proxy.err" )
+( cd "$rigWs" && rigEnv "$rigDir" bash "$rigTool" --spawn-session --routine trio <<< "RIG-TASK-TEXT" > "$rigDir/proxy.out" 2> "$rigDir/proxy.err" )
 rigTrio="$( LC_ALL=C sed -n 's/^SESSION_ID=//p' "$rigDir/proxy.out" | LC_ALL=C sed -n '1p' )"
 [ -n "$rigTrio" ] || rigRefuse "the start of a session printed no session: $( LC_ALL=C grep -h -m1 ERROR "$rigDir/proxy.out" "$rigDir/proxy.err" 2> /dev/null | LC_ALL=C grep -v -F 'SystemContext.SetInputSpec' | head -1 )"
 rigTrioUp(){ [ "$( ls "$rigTmp/trio"/first.*.began 2> /dev/null | LC_ALL=C grep -c . )" = "3" ] ; }

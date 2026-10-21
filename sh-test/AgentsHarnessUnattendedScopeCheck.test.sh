@@ -2,7 +2,7 @@
 ## Behavioural check on which launches the harness gates as UNATTENDED. The gate itself
 ## is exercised under both markers by WriteSplit and PermissionCheck; this asks whether
 ## the launch paths a board task takes actually set them: a console run with
-## --non-interactive, the spawn relay (--magic-spawn-proxy) and the Agent tool both use, and the
+## --non-interactive, the spawn relay (--spawn-prompt) and the Agent tool both use, and the
 ## Agent tool itself. The interactive console is the control that must stay attended.
 ## Offline: fake claude, fake console and fake curl, all under this rig's temp tree.
 set -u

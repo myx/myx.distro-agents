@@ -11,7 +11,7 @@
 ## session spawner looks in (AgentsToolsTeamMemberDirectoryText: this workspace's members,
 ## then those of the other workspaces of this machine). What it says of a routine it asks
 ## the session spawner's own functions (AgentsTools.SpawnRoutine.include), each as the
-## spawner calls it: a routine reads startable exactly where --magic-spawn-session, given
+## spawner calls it: a routine reads startable exactly where --spawn-session, given
 ## its file name and no member, would start it. Where it would not for one cause alone,
 ## that no member is named, the row says in its last field what a start of it needs: the
 ## same operation starts it with members named after the selector.

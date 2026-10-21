@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 ## Behavioural check on what the tooling does for the coordinator's state note and its neighbours, against temp stores only: the board's active-item
 ## list (capped, names only) and counts (AgentsToolsBoardActiveItems, AgentsToolsBoardCounts); --intern-op-state-note-upsert stamping
-## last-iteration-date/-timestamp (a given value wins) and keeping last-test-email-sent; --magic-test-report-send (refused without a recipient, built
+## last-iteration-date/-timestamp (a given value wins) and keeping last-test-email-sent; --send-report (refused without a recipient, built
 ## and stamped once due, NOT_DUE inside the hour) through the real email path in build-only mode with a fake curl first on PATH;
-## --magic-daily-lock-acquire's `first-today:` line and the grooming/daily closes' last-close-date stamp. Every call goes through one `env -i` whose
+## --intern-op-routine-lock-take daily's `first-today:` line and the grooming/daily closes' last-close-date stamp. Every call goes through one `env -i` whose
 ## child refuses to run outside this rig's mktemp tree.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -16,7 +16,9 @@ rigRefuse(){
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsCoordinatorStateNoteCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+## A take of a routine's lock may start the control threads of the sessions of the workspace, which outlive this check: the rig ends them.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigSkills="$rigTmp/skills"
 rigInbox="$rigData/inboxes/magic-coordinator/incoming"
@@ -95,33 +97,33 @@ printf -- '---\nlast-iteration-date: 2026-01-02\nlast-iteration-timestamp: rig-g
 rigAssert "a given value wins, once"                      "$( rigField "$rigHbNote" last-iteration-date ) $( rigField "$rigHbNote" last-iteration-timestamp ) $( LC_ALL=C grep -c '^last-iteration-date: ' "$rigHbNote" )" "2026-01-02 rig-given 1"
 
 echo "-- test report --"
-rigOp "$rigTmp/r1" --magic-test-report-send magic-coordinator
+rigOp "$rigTmp/r1" --send-report magic-coordinator
 rigAssert "refused with no recipient configured"          "$( cat "$rigTmp/r1.rc" ):$( LC_ALL=C grep -c 'EMAIL_USER is not set' "$rigTmp/r1" )" "1:1"
 printf 'EMAIL_USER=owner@example.com\n' > "$rigTmp/ws/.local/.agents/human-owner.agent.env"
 printf 'EMAIL_USER=rig@example.com\nEMAIL_APP_PASSWORD=rig-app-password\nEMAIL_SMTP_HOST=smtp.rig.invalid\nEMAIL_SMTP_PORT=587\n' > "$rigTmp/ws/.local/.agents/magic-coordinator.agent.env"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-contacts.include.sh" || exit 1
 rigContactSeed "$rigData" magic-coordinator rig-owner - owner@example.com
-rigOp "$rigTmp/r2" --magic-test-report-send magic-coordinator
+rigOp "$rigTmp/r2" --send-report magic-coordinator
 rigAssert "sent once due"                                 "$( cat "$rigTmp/r2.rc" ):$( LC_ALL=C grep -c '^SENT:to=owner@example.com:' "$rigTmp/r2" )" "0:1"
 rigAssert "addressed to the configured owner"             "$( LC_ALL=C grep -c -x 'To: owner@example.com' "$rigTmp/r2" )" 1
 rigAssert "the body carries the counts and the items"     "$( LC_ALL=C grep -c -x -E -e '- running: 1' -e '- blocked/task-rig-blocked.md' "$rigTmp/r2" | tr -d ' ' )" 2
 rigAssert "last-test-email-sent is stamped now"           "$( rigField "$rigHbNote" last-test-email-sent | cut -c1-10 )" "$( date -u +%Y-%m-%d )"
-rigOp "$rigTmp/r3" --magic-test-report-send magic-coordinator
+rigOp "$rigTmp/r3" --send-report magic-coordinator
 rigAssert "inside the hour it is not due, and sends nothing" "$( cat "$rigTmp/r3.rc" ):$( LC_ALL=C grep -c '^NOT_DUE:' "$rigTmp/r3" ):$( LC_ALL=C grep -c '^To: ' "$rigTmp/r3" )" "0:1:0"
 rigAssert "curl was never reached"                        "$( [ -f "$rigTmp/curl.log" ] && echo reached || echo never )" never
 
 echo "-- daily: first-today; grooming/daily closes stamp last-close-date --"
-rigOp "$rigTmp/d1" --magic-daily-lock-acquire magic-coordinator rig
+rigOp "$rigTmp/d1" --intern-op-routine-lock-take daily magic-coordinator rig
 rigAssert "a first daily is first-today"                  "$( cat "$rigTmp/d1.rc" ):$( rigLine "$rigTmp/d1" 'first-today: ' )" "0:yes"
-rigOp "$rigTmp/d2" --magic-daily-close-state-and-unlock magic-coordinator
+rigOp "$rigTmp/d2" --intern-op-routine-lock-close daily magic-coordinator
 rigAssert "the daily close stamps today"                  "$( rigField "$rigDailyNote" last-close-date )" "$rigToday"
-rigOp "$rigTmp/d3" --magic-daily-lock-acquire magic-coordinator rig
+rigOp "$rigTmp/d3" --intern-op-routine-lock-take daily magic-coordinator rig
 rigAssert "the next daily today is not first-today"       "$( cat "$rigTmp/d3.rc" ):$( rigLine "$rigTmp/d3" 'first-today: ' )" "0:no"
-rigOp "$rigTmp/d4" --magic-daily-lock-acquire magic-coordinator rig-other
+rigOp "$rigTmp/d4" --intern-op-routine-lock-take daily magic-coordinator rig-other
 rigAssert "a held daily lock still refuses, with no first-today line" "$( cat "$rigTmp/d4.rc" ):$( LC_ALL=C grep -c '^first-today: ' "$rigTmp/d4" )" "1:0"
 rm -f "$rigGroomNote"
-rigOp "$rigTmp/g1" --magic-grooming-lock-acquire magic-coordinator rig
-rigOp "$rigTmp/g2" --magic-grooming-close-state-and-unlock magic-coordinator
+rigOp "$rigTmp/g1" --intern-op-routine-lock-take grooming magic-coordinator rig
+rigOp "$rigTmp/g2" --intern-op-routine-lock-close grooming magic-coordinator
 rigAssert "the grooming close stamps today"               "$( rigField "$rigGroomNote" last-close-date )" "$rigToday"
 
 if [ "$rigFailCount" -ne 0 ] ; then

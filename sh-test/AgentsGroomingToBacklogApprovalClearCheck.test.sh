@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on --magic-grooming-to-backlog clearing the item's approval by itself:
+## Behavioural check on --grooming-to-backlog clearing the item's approval by itself:
 ## an item moved back to backlog arrives without approved-by/approved-at (check-backlog-promote
 ## re-earns them), an item carrying none moves cleanly, and a caller's own approved-by or
 ## approved-at header in the call stands untouched. Offline: plain board-file moves in a
@@ -48,7 +48,7 @@ rigItem(){ ## state, item filename, extra frontmatter lines
 
 echo "-- an approved item returns to backlog: its approval is cleared --"
 rigItem pending task-rig-approved.md $'approved-by: human-owner\napproved-at: 2026-09-29 10:00 +0000\n'
-rigOp "$rigTmp/o1" --magic-grooming-to-backlog magic-coordinator task-rig-approved.md --from-state:pending --owner-header-value rig
+rigOp "$rigTmp/o1" --grooming-to-backlog magic-coordinator task-rig-approved.md --from-state:pending --owner-header-value rig
 rigAssert "the move succeeds"                   "$( cat "$rigTmp/o1.rc" )" 0
 rigAssert "the item sits in board/backlog"      "$( [ -f "$rigData/board/backlog/task-rig-approved.md" ] && echo yes || echo no )" yes
 rigAssert "approved-by is gone"                 "$( rigCount task-rig-approved.md approved-by )" 0
@@ -57,13 +57,13 @@ rigAssert "control: groomed-from is stamped"    "$( rigCount task-rig-approved.m
 
 echo "-- an item with no approval moves cleanly --"
 rigItem parked task-rig-plain.md ''
-rigOp "$rigTmp/o2" --magic-grooming-to-backlog magic-coordinator task-rig-plain.md --from-state:parked --owner-header-value rig
+rigOp "$rigTmp/o2" --grooming-to-backlog magic-coordinator task-rig-plain.md --from-state:parked --owner-header-value rig
 rigAssert "the move succeeds"                   "$( cat "$rigTmp/o2.rc" )" 0
 rigAssert "the item sits in board/backlog"      "$( [ -f "$rigData/board/backlog/task-rig-plain.md" ] && echo yes || echo no )" yes
 
 echo "-- a caller's own approval header stands --"
 rigItem parked task-rig-caller.md $'approved-by: human-owner\napproved-at: 2026-09-29 10:00 +0000\n'
-rigOp "$rigTmp/o3" --magic-grooming-to-backlog magic-coordinator task-rig-caller.md --from-state:parked --owner-header-value rig \
+rigOp "$rigTmp/o3" --grooming-to-backlog magic-coordinator task-rig-caller.md --from-state:parked --owner-header-value rig \
 	'--header:upsert:approved-by:magic-architect (rig-session, 2026-09-29T10:00:00Z)'
 rigAssert "the move succeeds"                   "$( cat "$rigTmp/o3.rc" )" 0
 rigAssert "the caller's approved-by is kept"    "$( LC_ALL=C grep -c -x -F 'approved-by: magic-architect (rig-session, 2026-09-29T10:00:00Z)' "$rigData/board/backlog/task-rig-caller.md" )" 1

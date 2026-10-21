@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on the audit lookup (F5.8 of the refactorings epic): one lookup maps every name form the writer
 ## uses, compact and dashed, to its month folder, and to the audit root where no month applies, and all three audit
-## readers use it: the reader `--member-audit-item-read`, the spawn proxy's `--from-audit`, and the item operations'
+## readers use it: the reader `--get-audit-item`, the spawn proxy's `--from-audit`, and the item operations'
 ## audit lookup (AgentsToolsItemUpsert --from-audit). A session's own transcript, `session-*.log`, which a spawn record
 ## names in its `transcript:` field, is an audit item too. For a name with no item the reader answers `not found`,
 ## naming the name, and exits non-zero. Seen live on 2026-10-18: `not found` for transcript-20261010T1458Z-<topic>.md,
@@ -77,7 +77,7 @@ rigOp(){ ## DistroAgentsTools.fn.sh arguments... -- out, err, rc in rigRc
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?
 }
 rigRead(){ ## name, range arguments...
-	rigOp --member-audit-item-read magic-tester "$@"
+	rigOp --get-audit-item magic-tester "$@"
 }
 ## The spawn proxy, the item a source: whether the brief its console was handed holds the line.
 rigSpawnFinds(){ ## name, line
@@ -110,7 +110,7 @@ rigAssert "by line range: line two and nothing else"          "$rigRc $( rigHold
 
 echo "-- 2. what the writer files, the reader finds, under both name forms --"
 for rigName in transcript-20261018T0900Z-rig-written.md transcript-2026-10-18-rig-written.md ; do
-	rigOp --member-append-session-transcript magic-tester --speaker magic-tester --timestamp 2026-10-18T09:00:00Z --message "written to $rigName" --transcript-name "$rigName" --create
+	rigOp --append-transcript magic-tester --speaker magic-tester --timestamp 2026-10-18T09:00:00Z --message "written to $rigName" --transcript-name "$rigName" --create
 	rigWriteRc="$rigRc"
 	rigRead "$rigName"
 	rigAssert "$rigName: written (exit $rigWriteRc), then read back" "$rigWriteRc $rigRc $( rigHolds "$rigTmp/out" "written to $rigName" )" "0 0 yes"
@@ -145,7 +145,7 @@ for rigName in transcript-20261010T1458Z-rig-absent.md transcript-2026-10-10-rig
 	rigRead "$rigName"
 	rigAssert "$rigName: not found, non-zero, naming it"      "$( [ "$rigRc" -ne 0 ] && printf non-zero || printf 0 ) $( rigHolds "$rigTmp/err" 'not found' ) $( rigHolds "$rigTmp/err" "$rigName" )" "non-zero yes yes"
 done
-rigOp --intern-mcp-execute <<< "bash \"$rigTool\" --member-audit-item-read magic-tester transcript-20261010T1458Z-rig-absent.md"
+rigOp --intern-mcp-execute <<< "bash \"$rigTool\" --get-audit-item magic-tester transcript-20261010T1458Z-rig-absent.md"
 rigAssert "through --intern-mcp-execute, as a member's execute call runs it, still non-zero" "$( [ "$rigRc" -ne 0 ] && printf non-zero || printf 0 ) $( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -c 'not found' )" "non-zero 1"
 
 ## Added by the builder of F5.8: the served paths a member reads through give a not-found as an error, never as a
@@ -153,14 +153,14 @@ rigAssert "through --intern-mcp-execute, as a member's execute call runs it, sti
 rigAbsent="transcript-20261010T1458Z-rig-absent.md"
 { printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"rig","version":"1"}}}' \
 	'{"jsonrpc":"2.0","method":"notifications/initialized"}'
-  printf '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute","arguments":{"command":"bash %s --member-audit-item-read magic-tester %s"}}}\n' "$rigTool" "$rigAbsent"
+  printf '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute","arguments":{"command":"bash %s --get-audit-item magic-tester %s"}}}\n' "$rigTool" "$rigAbsent"
   sleep 8 ; } \
 	| ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" RIG_SCENARIO="$rigTmp" bash "$rigTool" --intern-mcp-server --run 2> "$rigTmp/mcp.err" ) \
 	| LC_ALL=C grep '"id":2' > "$rigTmp/mcp.reply" || :
 rigAssert "through the MCP server's execute tool: an error, saying not found and the exit code" \
 	"$( LC_ALL=C sed -n 's/.*"isError":\([a-z]*\).*/\1/p' "$rigTmp/mcp.reply" | head -1 ) $( rigHolds "$rigTmp/mcp.reply" 'not found' ) $( LC_ALL=C grep -c -E '\[exit code: [1-9][0-9]*\]' "$rigTmp/mcp.reply" )" "true yes 1"
-printf '{"command":"bash %s --member-audit-item-read magic-tester %s","cwd":"%s","timeout":60}' "$rigTool" "$rigAbsent" "$rigWs" \
+printf '{"command":"bash %s --get-audit-item magic-tester %s","cwd":"%s","timeout":60}' "$rigTool" "$rigAbsent" "$rigWs" \
 	| ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SPAWN_AGENT=magic-tester bash "$rigHere/harness/AgentsUniversalHarness.sh" --intern-tool Bash --access-root "$rigWs" ) \
 	> "$rigTmp/bash.out" 2> "$rigTmp/bash.err"

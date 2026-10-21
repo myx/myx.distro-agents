@@ -3,7 +3,7 @@
 ## fixture (a fake Slack) with two client members: the team part must resume from the
 ## calling member's own stored last_swept_ts, client-fix1 from its own, client-fix2 (none
 ## stored) from the default window, and no member's value may show up in another's part.
-## A stated cut-off moves the team part only. Then --magic-sweep-state-advance: creates,
+## A stated cut-off moves the team part only. Then --sweep-state-advance: creates,
 ## advances, keeps the body, refuses backwards and future values, is a no-op on the same
 ## value, and the next scan resumes from the advanced pointer.
 ## Offline: temp trees only, under one `env -i` guard; no real store, no network.
@@ -102,7 +102,7 @@ rigAssert "team part reads at the stated cut-off"           "$( rigHas "$rigTeam
 rigAssert "client-fix1 still reads at its own"              "$( rigHas "$rigC1" "cut-off --comms-since-utime $rigClientTs" )" yes
 rigAssert "the stated cut-off reaches no client"            "$( rigHas "$rigC1$( rigPart stated client-fix2 )" "$rigExplicitTs" )" no
 
-echo "-- the sweep from magic-coordinator's own session still reads every client: each is swept as that client, through --magic-client-operation-run --"
+echo "-- the sweep from magic-coordinator's own session still reads every client: each is swept as that client, through --client-operation-run --"
 rigSession=magic-coordinator
 rigRun session --intern-op-sweep-input-scan magic-coordinator
 rigSession=""
@@ -119,28 +119,28 @@ rigAssert "the scan refuses"                                "$( cat "$rigTmp/bro
 rigAssert "and says why"                                    "$( rigHas "$( cat "$rigTmp/broken.err" )" "no frontmatter block" )" yes
 rm -f "$rigDir/data/inboxes/client-fix2/incoming/$rigNote"
 
-echo "-- --magic-sweep-state-advance --"
+echo "-- --sweep-state-advance --"
 rigState(){ cat "$rigDir/data/inboxes/$1/incoming/$rigNote" 2>/dev/null ; }
 rigWm(){ LC_ALL=C awk -f "$rigPackage/sh-lib/magic/AgentsMagicSweepStateWatermark.awk" < "$rigDir/data/inboxes/$1/incoming/$rigNote" 2>/dev/null ; }
 rigNewTeam="$(( rigNow - 500 )).000001"
 printf -- '---\nlast_swept_ts: %s\nsource-UA-DB-last-swept-ts: 1.0\n---\n\n# sweep-state-note\n\nteam body line\n' "$rigTeamTs" > "$rigDir/data/inboxes/magic-coordinator/incoming/$rigNote"
-rigRun adv1 --magic-sweep-state-advance magic-coordinator "$rigNewTeam"
+rigRun adv1 --sweep-state-advance magic-coordinator "$rigNewTeam"
 rigAssert "advance succeeds"                                "$( cat "$rigTmp/adv1.rc" )" 0
 rigAssert "the pointer moved"                               "$( rigWm magic-coordinator )" "$rigNewTeam"
 rigAssert "the body is kept"                                "$( rigHas "$( rigState magic-coordinator )" "team body line" )" yes
 rigAssert "stale per-source pointers are dropped"           "$( rigHas "$( rigState magic-coordinator )" "source-UA-DB-last-swept-ts" )" no
 rigAssert "the other members' records are untouched"        "$( rigWm client-fix1 )" "$rigClientTs"
-rigRun adv2 --magic-sweep-state-advance magic-coordinator "$rigTeamTs"
+rigRun adv2 --sweep-state-advance magic-coordinator "$rigTeamTs"
 rigAssert "backwards is refused"                            "$( cat "$rigTmp/adv2.rc" )" 1
 rigAssert "and the pointer stays"                           "$( rigWm magic-coordinator )" "$rigNewTeam"
-rigRun adv3 --magic-sweep-state-advance magic-coordinator "$rigNewTeam"
+rigRun adv3 --sweep-state-advance magic-coordinator "$rigNewTeam"
 rigAssert "the same value is a no-op"                       "$( cat "$rigTmp/adv3.rc" ):$( rigHas "$( cat "$rigTmp/adv3.err" )" "nothing written" )" 0:yes
-rigRun adv4 --magic-sweep-state-advance magic-coordinator "$(( rigNow + 86400 )).000000"
+rigRun adv4 --sweep-state-advance magic-coordinator "$(( rigNow + 86400 )).000000"
 rigAssert "a future value is refused"                       "$( cat "$rigTmp/adv4.rc" ):$( rigWm magic-coordinator )" "1:$rigNewTeam"
-rigRun adv5 --magic-sweep-state-advance magic-coordinator "12x4"
+rigRun adv5 --sweep-state-advance magic-coordinator "12x4"
 rigAssert "a malformed value is refused"                    "$( cat "$rigTmp/adv5.rc" )" 1
 rigNewClient="$(( rigNow - 100 )).5"
-rigRun adv6 --magic-sweep-state-advance client-fix2 "$rigNewClient"
+rigRun adv6 --sweep-state-advance client-fix2 "$rigNewClient"
 rigAssert "a missing record is created"                     "$( cat "$rigTmp/adv6.rc" ):$( rigWm client-fix2 )" "0:$rigNewClient"
 
 echo "-- the next pass resumes from the advanced pointers --"

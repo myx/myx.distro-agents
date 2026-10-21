@@ -34,10 +34,12 @@ rigRefuse(){
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+## A return of a review starts an ended run again, with the session's control thread, which outlives this check: the rig ends it.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigTmp="$( rigTempDir AgentsReviewPromptCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigLivePids=""
-trap 'rigProcSignalWithChildren TERM $rigLivePids ; chmod -R u+w "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignalWithChildren TERM $rigLivePids ; chmod -R u+w "$rigTmp" 2> /dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin"
 cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse "could not install the fake curl"
 ## THE RIG'S OWN PROCESS LIST. A spawn is found running by a process list read from the host
@@ -385,7 +387,7 @@ echo "-- 9. a review settled another way: the prompt is closed, marked, and take
 rigStart settled
 rigWork human-owner
 rigHandback "rig work done"
-rigOp "$rigDir/typed" --magic-review-accept magic-coordinator "$rigItem" --summary "last resort"
+rigOp "$rigDir/typed" --accept-review magic-coordinator "$rigItem" --summary "last resort"
 rigAssert "the coordinator's typed verdict is applied"     "$( cat "$rigDir/typed.rc" ):$( rigLoc )" "0:processed"
 rigAssert "the prompt's record is withdrawn, by whom and why" "$( rigField status ):$( rigField withdrawn-by ):$( rigField withdraw-reason )" "withdrawn:magic-coordinator:$rigItem was accepted by magic-coordinator"
 rigAssert "its click answers are taken off, and it is marked" "$( rigReacted reactions.removed ):$( rigReacted reactions | LC_ALL=C awk '{ print $NF ; }' )" "+1 leftwards_arrow_with_hook x:no_entry_sign"
@@ -399,12 +401,12 @@ rigAssert "a click under it afterwards changes nothing"    "$( rigReadLine 'ESCA
 rigStart settled-return
 rigWork human-owner
 rigHandback "rig work done"
-rigOp "$rigDir/typed" --magic-review-return magic-coordinator "$rigItem" --message "one more pass"
+rigOp "$rigDir/typed" --return-review magic-coordinator "$rigItem" --message "one more pass"
 rigAssert "a typed return closes the prompt too"           "$( rigLoc ):$( rigField status ):$( rigField withdraw-reason )" "running:withdrawn:$rigItem was returned by magic-coordinator"
 rigStart settled-reject
 rigWork human-owner
 rigHandback "rig work done"
-rigOp "$rigDir/typed" --member-review-reject human-owner "$rigItem" --message "not this way"
+rigOp "$rigDir/typed" --reject-review human-owner "$rigItem" --message "not this way"
 rigAssert "and so does his own typed reject, at the console" "$( rigLoc ):$( rigField status ):$( rigField withdraw-reason )" "pending:withdrawn:$rigItem was rejected by human-owner"
 rigStart settled-archived
 rigWork human-owner

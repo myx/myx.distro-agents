@@ -98,19 +98,19 @@ What {{member}} may use is described here. Anything else is named by its family 
 ## family-held
 
 ```
-- `{{family}}*`, {{count}} operations, called by {{owners}} only: ask {{owners}}, or read `{{command}} --help-syntax {{family}}`
+- {{family}}, {{count}} operations, called by {{owners}} only: ask {{owners}}, or read `{{command}} --help-syntax{{hint}}`
 ```
 
 ## family-console
 
 ```
-- `{{family}}*`, {{count}} operations, the console's own, called from no member's session: read `{{command}} --help-syntax {{family}}`
+- {{family}}, {{count}} operations, the console's own, called from no member's session: read `{{command}} --help-syntax{{hint}}`
 ```
 
 ## family-closed
 
 ```
-- `{{family}}*`, {{count}} operations, called by no one here: read `{{command}} --help-syntax {{family}}`
+- {{family}}, {{count}} operations, called by no one here: read `{{command}} --help-syntax{{hint}}`
 ```
 
 ## calls

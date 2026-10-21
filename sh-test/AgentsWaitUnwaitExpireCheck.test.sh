@@ -92,27 +92,27 @@ RIGRECORD
 echo "-- --unwait drops a held source by name, and does not block naming it again --"
 rigSession1="rig-wait-unwait"
 rigRecord rig-unwait-001 1700000000.000000
-rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession1" --wait-source "ask:rig-unwait-001" --wait-timeout 5 --wait-poll-interval 1
+rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession1" --wait-source "ask:rig-unwait-001" --wait-timeout 5 --wait-poll-interval 1
 rigAssert "the first wait on it receives" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
 rigAssert "it is in the stored wait" "$( rigHolds "$rigScenarioDir/ws/.local/agents/sessions/$rigSession1/wait/state" "ask:rig-unwait-001" )" "yes"
-rigOp --member-wait-for-input "$rigMember" --unwait "ask:rig-unwait-001" --wait-session-id "$rigSession1"
+rigOp --wait-for-input "$rigMember" --unwait "ask:rig-unwait-001" --wait-session-id "$rigSession1"
 rigAssert "--unwait reports DROPPED" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: DROPPED"
 rigAssert "it leaves the stored sources line: the floor alone" "$( rigSourcesLine "$rigScenarioDir/out" )" "replies:$rigSession1"
-rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession1" --wait-source "ask:rig-unwait-001" --wait-timeout 5 --wait-poll-interval 1
+rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession1" --wait-source "ask:rig-unwait-001" --wait-timeout 5 --wait-poll-interval 1
 rigAssert "naming it again explicitly still works: dropping is not blocking" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
 
 echo "-- an answered question quiet for five minutes past its own update expires out on its own --"
 rigSession2="rig-wait-expire"
 rigRecord rig-expired-001 1600000000.000000
 : > "$rigScenarioDir/ws/quiet.txt"
-rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession2" --wait-source "ask:rig-expired-001" --wait-source "file:$rigScenarioDir/ws/quiet.txt" --wait-timeout 5 --wait-poll-interval 1
+rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession2" --wait-source "ask:rig-expired-001" --wait-source "file:$rigScenarioDir/ws/quiet.txt" --wait-timeout 5 --wait-poll-interval 1
 rigAssert "the first wait on it receives" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
-rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession2" --wait-source "file:$rigScenarioDir/ws/quiet.txt" --wait-timeout 3 --wait-poll-interval 1
+rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession2" --wait-source "file:$rigScenarioDir/ws/quiet.txt" --wait-timeout 3 --wait-poll-interval 1
 rigAssert "a later default wait, naming it from carry-forward alone, times out" \
 	"$( rigFirstLine "$rigScenarioDir/out" | LC_ALL=C sed 's/ (.*//' )" "WAIT-RESULT: TIMEOUT"
 rigAssert "the expiry is said, not silent" "$( rigHolds "$rigScenarioDir/out" "WAIT-DROPPED-EXPIRED: ask:rig-expired-001" )" "yes"
 rigAssert "it left the stored sources" "$( rigSourcesLine "$rigScenarioDir/out" )" "replies:$rigSession2 file:$rigScenarioDir/ws/quiet.txt"
-rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession2" --wait-source "ask:rig-expired-001" --wait-timeout 5 --wait-poll-interval 1
+rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession2" --wait-source "ask:rig-expired-001" --wait-timeout 5 --wait-poll-interval 1
 rigAssert "naming the expired source again explicitly still works" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
 
 echo "-- a recent clarification resets the five minutes, even with an ancient follow-floor --"
@@ -120,9 +120,9 @@ rigSession3="rig-wait-clarified"
 rigRecord rig-clarified-001 1600000000.000000
 printf -- '- %s.000000 URIGOWNER: a recent clarification\n' "$( date +%s )" >> "$rigScenarioDir/ws/.local/agents/pending/rig-clarified-001.md"
 : > "$rigScenarioDir/ws/quiet3.txt"
-rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession3" --wait-source "ask:rig-clarified-001" --wait-source "file:$rigScenarioDir/ws/quiet3.txt" --wait-timeout 5 --wait-poll-interval 1
+rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession3" --wait-source "ask:rig-clarified-001" --wait-source "file:$rigScenarioDir/ws/quiet3.txt" --wait-timeout 5 --wait-poll-interval 1
 rigAssert "the first wait on it receives" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
-rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession3" --wait-source "file:$rigScenarioDir/ws/quiet3.txt" --wait-timeout 3 --wait-poll-interval 1
+rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession3" --wait-source "file:$rigScenarioDir/ws/quiet3.txt" --wait-timeout 3 --wait-poll-interval 1
 rigAssert "it is NOT expired: the clarification, not the ancient follow-floor, is its last update" \
 	"$( rigHolds "$rigScenarioDir/out" "WAIT-DROPPED-EXPIRED" )" "no"
 rigAssert "it is still in the stored sources, carried forward" "$( rigHolds "$rigScenarioDir/out" "ask:rig-clarified-001" )" "yes"

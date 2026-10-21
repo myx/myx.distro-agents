@@ -17,7 +17,7 @@ maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
   - Universal CSS resets can break nested-list indentation
   - Idle-Tasks
 - Team-Member's (-specific) tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
 
 # Summary
@@ -89,9 +89,9 @@ Read `reference/css-reset-nested-lists.md` when writing or reviewing a CSS reset
 
 Every `magic-tooling` operation this team-member uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--member-upsert-member-inquiry <team-member> <item-filename>`
+- `--upsert-inbox-inquiry <team-member> <item-filename>`
 
 # Maintainer Notes
 

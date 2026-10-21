@@ -197,7 +197,7 @@ rigStart race
 rigRecord "$rigQ1" 1700000001.000102 Q1 rig-sess-e ""
 rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"yes","thread_ts":"1700000001.000101"}'
 ( rigCollect raceCollect --session-id rig-sess-e ) &
-( rigEnv env MDAT_SKILLSET_ROOT="$MDAT_SKILLSET_ROOT" bash "$rigTool" --member-pending-reply-settle "$rigMember" "$rigQ1" --reason "settled in the race" > "$rigScenarioDir/raceSettle" 2>&1 ) &
+( rigEnv env MDAT_SKILLSET_ROOT="$MDAT_SKILLSET_ROOT" bash "$rigTool" --settle-pending-reply "$rigMember" "$rigQ1" --reason "settled in the race" > "$rigScenarioDir/raceSettle" 2>&1 ) &
 wait
 rigAssert "one closer closed it"                          "$( cat "$rigScenarioDir/raceCollect" "$rigScenarioDir/raceSettle" | LC_ALL=C grep -c -E "^(ANSWERED $rigQ1|SETTLED $rigQ1)" )" 1
 rigAssert "the other found it closed"                     "$( cat "$rigScenarioDir/raceCollect" "$rigScenarioDir/raceSettle" | LC_ALL=C grep -c "^ALREADY-CLOSED $rigQ1" )" 1

@@ -216,7 +216,7 @@ rigAssert "revoked: the Read is refused, as the Edit is"   "$( rigRead keeper-my
 echo "-- 3. a Write passed on for the session reads too, and ends with the session --"
 rigRecord rig-coord rig-cow magic-coordinator ""
 rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator MDAT_SPAWN_SESSION_ID=rig-coord )
-rigOp "$rigTmp/pass.out" --member-permission-pass magic-coordinator --to keeper-myx --tool Write --target "$rigWs/PASS/in/**" --kind session
+rigOp "$rigTmp/pass.out" --pass-permission magic-coordinator --to keeper-myx --tool Write --target "$rigWs/PASS/in/**" --kind session
 rigEnv=()
 rigPass="$( LC_ALL=C sed -n 's/^GRANT: session \(pass-[0-9a-f-]*\)$/\1/p' "$rigTmp/pass.out" | head -1 )"
 [ -n "$rigPass" ] || { cat "$rigTmp/pass.out" >&2 ; rigRefuse "the coordinator's pass was not written" ; }

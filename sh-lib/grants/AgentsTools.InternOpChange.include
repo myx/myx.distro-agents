@@ -399,9 +399,9 @@ case "$1" in
 		if [ -z "$holdPending" ] ; then
 			## A prompt nobody can answer is taken away again, as the identity that posted it: the
 			## reply under it first, so the prompt leaves no thread behind.
-			[ -z "$holdDetailTs" ] || DistroAgentsTools --member-comms-slack-delete-message "$holdMember" "$holdChannel:$holdDetailTs" --identity-bot > /dev/null 2>&1 \
+			[ -z "$holdDetailTs" ] || DistroAgentsTools --slack-delete-message "$holdMember" "$holdChannel:$holdDetailTs" --identity-bot > /dev/null 2>&1 \
 				|| echo "⚠️ WARNING: $MDSC_CMD: the reply $holdChannel:$holdDetailTs under the prompt $holdChannel:$holdTs could not be removed" >&2
-			[ -z "$holdChannel" ] || [ -z "$holdTs" ] || DistroAgentsTools --member-comms-slack-delete-message "$holdMember" "$holdChannel:$holdTs" --identity-bot > /dev/null 2>&1 \
+			[ -z "$holdChannel" ] || [ -z "$holdTs" ] || DistroAgentsTools --slack-delete-message "$holdMember" "$holdChannel:$holdTs" --identity-bot > /dev/null 2>&1 \
 				|| echo "⚠️ WARNING: $MDSC_CMD: the prompt $holdChannel:$holdTs could not be removed, and stands with no change behind it" >&2
 			rm -rf "$holdDir"
 			if [ -n "$holdChannel" ] && [ -n "$holdTs" ] && [ -n "$holdAddressees" ] && [ -z "$holdDetailTs" ] ; then

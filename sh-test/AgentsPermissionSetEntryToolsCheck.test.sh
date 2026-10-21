@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on which tools an entry of a Permission set may name
-## (--magic-permission-set-request, AgentsTools.InternOpPermission.include). Covers: an entry
+## (--request-permission-set, AgentsTools.InternOpPermission.include). Covers: an entry
 ## names any tool the permission model can decide on, and those are listed in one place,
 ## the model's own (agentsPermissionEntryTools, AgentsTools.PermissionHolds.include): the file
 ## tools, and the others a gate asks about by name, Artifact, Agent, Bash, cred and spend among
@@ -118,13 +118,13 @@ rigOp(){
 }
 rigSetAsk(){ ## item, request options... -> the pending id
 	RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-set
-	rigOp --magic-permission-set-request magic-coordinator "$@"
+	rigOp --request-permission-set magic-coordinator "$@"
 	RIG_OP_AGENT="" RIG_OP_SESSION=""
 	LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out"
 }
 rigWithdraw(){ ## pending id, reason, [the member that withdraws; default the asker]
 	RIG_OP_AGENT="${3:-magic-coordinator}" RIG_OP_SESSION=rig-set
-	rigOp --member-pending-reply-settle "${3:-magic-coordinator}" "$1" --reason "$2" --withdraw
+	rigOp --settle-pending-reply "${3:-magic-coordinator}" "$1" --reason "$2" --withdraw
 	RIG_OP_AGENT="" RIG_OP_SESSION=""
 }
 rigGrantRead(){ ## member, session, tool, target
@@ -166,7 +166,7 @@ rigRc=0
 rigSetTry(){ ## item, request options...
 	RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-set
 	rigRc=0
-	rigOp --magic-permission-set-request magic-coordinator "$@" || rigRc=$?
+	rigOp --request-permission-set magic-coordinator "$@" || rigRc=$?
 	RIG_OP_AGENT="" RIG_OP_SESSION=""
 }
 rigLine(){ ## file, line -> how many lines of the file are that text

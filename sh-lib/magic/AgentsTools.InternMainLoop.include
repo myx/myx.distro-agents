@@ -230,7 +230,7 @@ case "$1" in
 			if [ "$checkLastRc" = 0 ] && [ "$checkNow" -ge "$checkLastAt" ] && [ "$(( checkNow - checkLastAt ))" -lt 1800 ] ; then
 				return 0
 			fi
-			checkOut="$( DistroAgentsTools --magic-config-check < /dev/null 2>&1 )" && checkRc=0 || checkRc=1
+			checkOut="$( DistroAgentsTools --config-check < /dev/null 2>&1 )" && checkRc=0 || checkRc=1
 			if [ "$checkRc" = 0 ] ; then
 				echo "# $MDSC_CMD --intern-main-loop: ✅ configuration check passed, the next in 30 minutes" >&2
 			else

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on --magic-spawn-session's coordinator rule, reconciled for F6.1: the coordinator comes only from
+## Behavioural check on --spawn-session's coordinator rule, reconciled for F6.1: the coordinator comes only from
 ## frontmatter (the coworking kind routine's `executors: magic-coordinator` is a default a routine may override), and
 ## the spawner's hardcoded add of it is gone. A coworking routine with its own members gets no coordinator added,
 ## whoever spawns it; a spawner that is magic-coordinator gets none added; a standalone routine gets none added. Any other member's session is refused: the op is magic-coordinator's only, the
@@ -55,7 +55,7 @@ printf -- '---\nexecutors: magic-team\nmaintainers: magic-coordinator\nrequires-
 printf -- '---\nexecutors: magic-team\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig plain routine fixture\n' \
 	> "$rigSkills/magic-team/magic-team.rigplain.routine.md"
 
-rigRun(){ ## spawner member (may be empty), stdin content, then --magic-spawn-session args...
+rigRun(){ ## spawner member (may be empty), stdin content, then --spawn-session args...
 	local rigSpawner="$1" rigStdin="$2" ; shift 2
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" RIG_SPAWNER="$rigSpawner" \
@@ -63,7 +63,7 @@ rigRun(){ ## spawner member (may be empty), stdin content, then --magic-spawn-se
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			[ -z "$RIG_SPAWNER" ] || export MDAT_SPAWN_AGENT="$RIG_SPAWNER"
-			cd "$MMDAPP" && exec bash "$RIG_FN" --magic-spawn-session "$@"
+			cd "$MMDAPP" && exec bash "$RIG_FN" --spawn-session "$@"
 		' rig-run-wrapper "$@" <<< "$rigStdin" 2>&1
 }
 
@@ -92,7 +92,7 @@ printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n
 
 echo "-- spawned by another member's session: refused, the op is magic-coordinator's only --"
 rigOut="$( rigRun rig-member-b "RIG-TASK-TEXT" --routine rigcowork rig-member-a )"
-rigAssert "is refused"                                   "$( printf '%s\n' "$rigOut" | grep -c "this session acts as rig-member-b, and magic-spawn-session is magic-coordinator's only" )" 1
+rigAssert "is refused"                                   "$( printf '%s\n' "$rigOut" | grep -c "this session acts as rig-member-b, and spawn-session is magic-coordinator's only" )" 1
 rigAssert "nothing was spawned"                          "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ):$( ls "$rigWs/.local/agents/spawned" 2>/dev/null | wc -l | tr -d ' ' )" "0:0"
 rigReset
 

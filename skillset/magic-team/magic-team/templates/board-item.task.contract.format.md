@@ -60,7 +60,7 @@ Concrete, ready-to-execute work.
 | `outcome` | optional | member | `text` | What an advance pass did. Written by `magic-coordinator`. |
 | `execution-receipt` | optional | member | `text` | The evidence for `outcome`, and for a move into `board-blocked`. Written by `magic-coordinator`. |
 | `references` | optional | member | `item-names` | Items this one cites. A board item may cite vault and audit items. |
-| `allows` | optional | tooling | `allows-set` | The approved permission set the tracked session carries, written when the set is approved (`--magic-permission-set-request`). `<granted-by>` is a holder, not the session's own member. |
+| `allows` | optional | tooling | `allows-set` | The approved permission set the tracked session carries, written when the set is approved (`--request-permission-set`). `<granted-by>` is a holder, not the session's own member. |
 | `processed-at` | optional | tooling | `date-time` | Stamped when the item is processed. |
 | `resolved-at` | optional | tooling | `date-time` | Stamped when the item resolves. |
 | `started-at` | optional | tooling | `date-time` | Stamped when work on the item starts. |
@@ -74,7 +74,7 @@ Concrete, ready-to-execute work.
 | `transcript` | optional | tooling | `audit-path` | That spawn's own log, `session-*.log`. Written with `spawn-id`. |
 | `review-since-epoch` | optional | tooling | `epoch-seconds` | When the item entered review. Written with `review-reason`, removed when a verdict takes the item out of review. |
 | `review-reason` | optional | tooling | `text` | Why it entered review, such as `handback`. Written with `review-since-epoch`. |
-| `follows-up` | optional | tooling | `item-names` | The item this one follows up. Written by `--member-review-follow-up` on the item it creates in `board-pending`. |
+| `follows-up` | optional | tooling | `item-names` | The item this one follows up. Written by `--follow-up-review` on the item it creates in `board-pending`. |
 
 ## Value forms
 
@@ -99,7 +99,7 @@ Concrete, ready-to-execute work.
 
 - Free text after the frontmatter, apart from what this contract names.
 - A first `#` title line, `# <Type>: <matter, one line>`, is the convention of stored items. The validator does not check it.
-- A `## Decisions` section, when present, is the one the tooling wrote: the heading is followed at once by `<!-- decisions-of: <item-name> -->`. A member adds to it only with `--member-decision-record`, never by hand.
+- A `## Decisions` section, when present, is the one the tooling wrote: the heading is followed at once by `<!-- decisions-of: <item-name> -->`. A member adds to it only with `--record-decision`, never by hand.
 
 ## Rules
 

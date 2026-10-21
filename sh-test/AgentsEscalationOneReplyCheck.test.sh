@@ -149,7 +149,7 @@ echo "-- an allow that is applied: one reply, which says what is granted --"
 rigIdA="$( rigRefusal magic-tester rig-tester Write "$rigWs/DEV/a.txt" )"
 [ -n "$rigIdA" ] || rigRefuse "no refusal could be recorded"
 rigAsk permission magic-developer "$rigIdA"
-rigAnswer magic-developer rig-dev --member-escalation-answer allow-session
+rigAnswer magic-developer rig-dev --answer-escalation allow-session
 [ "$( rigHas "$rigTmp/op.out" "ESCALATION: $rigPend answered" )" = yes ] || rigRefuse "the holder's answer was not applied, so no row below would be measured: $( LC_ALL=C grep -m1 ERROR "$rigTmp/op.err" )"
 rigAssert "the question's thread gets one reply"          "$( rigNew "$( rigInThread "$rigThread" )" )" 1
 rigAssert "it says what was read and what is granted"     "$( rigNew "$( rigInThread "$rigThread" )" 'Read: `allow-session` by magic-developer. Granted: Write on ' ' to magic-tester, for this session.' )" 1
@@ -158,14 +158,14 @@ rigAssert "and nothing else was posted for that answer"   "$( rigNew '"channel"'
 echo "-- a deny: one reply, which says nothing is granted --"
 rigIdD="$( rigRefusal magic-tester rig-tester Write "$rigWs/DEV/d.txt" )"
 rigAsk permission magic-developer "$rigIdD"
-rigAnswer magic-developer rig-dev --member-escalation-answer deny
+rigAnswer magic-developer rig-dev --answer-escalation deny
 rigAssert "the question's thread gets one reply"          "$( rigNew "$( rigInThread "$rigThread" )" )" 1
 rigAssert "it says nothing is granted"                    "$( rigNew "$( rigInThread "$rigThread" )" 'Read: `deny` by magic-developer. Nothing is granted to magic-tester.' )" 1
 rigAssert "and nothing else was posted for that answer"   "$( rigNew '"channel"' )" 1
 
 echo "-- a readback confirmed: one reply --"
 rigAsk readback magic-developer ""
-rigAnswer magic-developer rig-dev --member-escalation-answer yes
+rigAnswer magic-developer rig-dev --answer-escalation yes
 rigAssert "the answer is applied"                         "$( rigHas "$rigTmp/op.out" "ESCALATION: $rigPend answered" )" yes
 rigAssert "the question's thread gets one reply, which says what was read" "$( rigNew "$( rigInThread "$rigThread" )" ):$( rigNew "$( rigInThread "$rigThread" )" 'Read: `yes` by magic-developer.' )" "1:1"
 rigAssert "and nothing else was posted for that answer"   "$( rigNew '"channel"' )" 1
@@ -173,7 +173,7 @@ rigAssert "and nothing else was posted for that answer"   "$( rigNew '"channel"'
 echo "-- an allow that is NOT applied, going up to a holder in the session: one reply there, which says so --"
 rigIdR="$( rigRefusal magic-tester rig-tester Write "$rigWs/DEV/r.txt" )"
 rigAsk permission magic-coordinator "$rigIdR"
-rigAnswer magic-coordinator rig-coord --magic-escalation-answer allow-session
+rigAnswer magic-coordinator rig-coord --answer-escalation allow-session
 [ "$( rigHas "$rigTmp/op.out" "ESCALATION: $rigPend rerouted" )" = yes ] || rigRefuse "the coordinator's allow did not go up the chain, so no row below would be measured: $( LC_ALL=C grep -m1 ERROR "$rigTmp/op.err" )"
 rigAssert "the question's thread gets one reply"          "$( rigNew "$( rigInThread "$rigThread" )" )" 1
 rigAssert "it says the answer is not applied, why, and who the question goes to now" \
@@ -183,13 +183,13 @@ rigAssert "the one it goes to is told in the session's own thread, once" "$( rig
 rigAssert "and those two are all that was posted"         "$( rigNew '"channel"' )" 2
 rigAssert "the record is open, and nothing is granted"    "$( rigField "$rigWs/.local/agents/pending/$rigPend.md" status ):$( LC_ALL=C grep -c -F -- "$rigIdR" "$rigWs/.local/agents/sessions/rig-tester/grants" 2>/dev/null )" "reply-pending:0"
 ## The same answer given again says nothing a second time in the question's thread.
-rigAnswer magic-coordinator rig-coord --magic-escalation-answer allow-session
+rigAnswer magic-coordinator rig-coord --answer-escalation allow-session
 rigAssert "given again, the same answer gets no second reply in the question's thread" "$( rigNew "$( rigInThread "$rigThread" )" ):$( rigNew 'Answered by' )" "0:0"
 
 echo "-- an allow that is NOT applied, going up to the human-owner: one reply there, which says so --"
 rigIdE="$( rigRefusal magic-tester rig-tester Write "$rigWs/ELSE/e.txt" )"
 rigAsk permission magic-coordinator "$rigIdE"
-rigAnswer magic-coordinator rig-coord --magic-escalation-answer allow-once
+rigAnswer magic-coordinator rig-coord --answer-escalation allow-once
 [ "$( rigHas "$rigTmp/op.out" "ESCALATION: $rigPend rerouted" )" = yes ] || rigRefuse "the coordinator's allow did not go up the chain, so no row below would be measured: $( LC_ALL=C grep -m1 ERROR "$rigTmp/op.err" )"
 rigAssert "the question's thread gets one reply"          "$( rigNew "$( rigInThread "$rigThread" )" )" 1
 rigAssert "it says the answer is not applied, and that the question goes to the human-owner" \
@@ -205,7 +205,7 @@ rigAssert "no request left this box"                      "$( LC_ALL=C awk '/^ur
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ESCALATION ONE REPLY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2
 	echo "  warn: one answer gets more than one reply in its question's thread, or a reply that says it as given whatever became of it" >&2
-	echo "  fix:  repair --member-escalation-answer and AgentsToolsEscalationConfirm in sh-lib/questions/AgentsTools.MemberEscalation.include -- never the assertion" >&2
+	echo "  fix:  repair --answer-escalation and AgentsToolsEscalationConfirm in sh-lib/questions/AgentsTools.MemberEscalation.include -- never the assertion" >&2
 	exit 1
 fi
 printf 'ESCALATION_ONE_REPLY: OK (%d assertions, offline)\n' "$rigPassCount"

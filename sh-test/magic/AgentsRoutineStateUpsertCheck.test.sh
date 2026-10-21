@@ -6,8 +6,8 @@
 ## tool returns. The session knows its routine and the document it locked, so the call names neither a routine nor a
 ## path, and any participant of a locked session may make it. The per-routine `--magic-<routine>-state-upsert` operations
 ## retire with no alias; the old `--magic-<routine>-state-and-lock-upsert` and `--magic-<routine>-close-state-and-unlock`
-## retire under the shim rule (MAGIC.md, "A superseded operation name stays as a working shim"): gone from the help,
-## still answered by the dispatcher.
+## retire the same way (MAGIC.md, "An operation renamed or retired is deleted, with no alias"): gone from the help, and refused
+## with the operation that replaced them in the message.
 ## Held, for the four routines that lock today (advance, daily, grooming, retro) and the morning review:
 ##   1. a run of the session that holds the lock updates its document through `--update-routine-state`, with no routine
 ##      name or path: the note holds the new text, and the team data's remote holds one commit more, with that text,
@@ -19,7 +19,7 @@
 ##   5. refused, with its reason and nothing written: a call from no session, a session that holds no lock, a lock given
 ##      back, a session holding several documents without `--document`; `--document` names the one
 ##   6. the per-routine `--magic-<routine>-state-upsert` and `--magic-morning-review-state-advance` answer `invalid option`
-##   7. the old `-state-and-lock-upsert` and `-close-state-and-unlock` are gone from the help, and still answered
+##   7. the old `-state-and-lock-upsert` and `-close-state-and-unlock` are gone from the help, and refused as retired
 ## Offline: the git remote is a bare repository of this rig; a fake curl first on PATH.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -110,6 +110,9 @@ rigCall(){ ## result name, operation words... -- one call of the tool as magic-c
 rigInvalid(){ ## result name, operation -- yes where the call answered `invalid option` naming it
 	if LC_ALL=C grep -q -F -- "invalid option: $2" "$rigTmp/$1.err" "$rigTmp/$1.out" 2> /dev/null ; then printf yes ; else printf no ; fi
 }
+rigRetired(){ ## result name, operation -- yes where the call was refused (rc not 0) as retired or renamed, naming the operation
+	if [ "$( cat "$rigTmp/$1.rc" )" != 0 ] && LC_ALL=C grep -q -E -- "$2 (is retired|was renamed)" "$rigTmp/$1.err" "$rigTmp/$1.out" 2> /dev/null ; then printf yes ; else printf no ; fi
+}
 rigNotePath(){ ## member, note
 	printf '%s/inboxes/%s/incoming/%s' "$rigData" "$1" "$2"
 }
@@ -178,7 +181,7 @@ done
 rigAssert "none stands in the help"                    "[${rigInHelp# }]" "[]"
 rigAssert "the new operation does"                     "$( LC_ALL=C grep -c -F -- '--update-routine-state' "$rigHelp" | LC_ALL=C sed -e 's/^[1-9][0-9]*$/stands/' )" "stands"
 
-echo "-- 7. the old operations retire under the shim rule --"
+echo "-- 7. the old operations retire with no alias: refused, naming what replaced them --"
 rigInHelp=""
 rigGone=""
 for rigPair in $rigNotes ; do
@@ -188,11 +191,11 @@ for rigPair in $rigNotes ; do
 		LC_ALL=C grep -q -F -- "DistroAgentsTools.fn.sh $rigOld " "$rigHelp" && rigInHelp="$rigInHelp $rigOld"
 		LC_ALL=C grep -q -x -F -- "📘 syntax: DistroAgentsTools.fn.sh $rigOld" "$rigHelp" && rigInHelp="$rigInHelp $rigOld"
 		rigCall old "$rigOld"
-		[ "$( rigInvalid old "$rigOld" )" = no ] || rigGone="$rigGone $rigOld"
+		[ "$( rigRetired old "$rigOld" )" = yes ] || rigGone="$rigGone $rigOld"
 	done
 done
 rigAssert "none of them stands in the help any more"   "[${rigInHelp# }]" "[]"
-rigAssert "the dispatcher still answers every one of them" "[${rigGone# }]" "[]"
+rigAssert "the dispatcher refuses every one of them as retired, and none runs" "[${rigGone# }]" "[]"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ROUTINE STATE UPSERT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -4,7 +4,7 @@
 ## ONE IMAP session: one login, one EXAMINE, one UID SEARCH, then a UID FETCH
 ## per message the scan will render. The scan used to log in once for the
 ## search (twice: STATUS and SEARCH) and once more per message, through
-## --member-comms-email-check and --member-comms-email-read.
+## --email-check and --email-read.
 ##
 ## Same read discipline as AgentsImapFetchMessage.py, whose header says why it
 ## is imaplib and not curl: EXAMINE opens the mailbox read-only, and BODY.PEEK[]

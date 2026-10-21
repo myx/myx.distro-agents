@@ -12,11 +12,11 @@ Normative contract: `audit-item.transcript.contract.format.md`. Where it and thi
 
 # Summary
 
-A verbatim record of an exchange, with UTC stamps. Append-only, through `--member-append-session-transcript`. Never on the board.
+A verbatim record of an exchange, with UTC stamps. Append-only, through `--append-transcript`. Never on the board.
 
 The skeleton is shown for reading and for tests; this document is not written by hand.
 
-Entries are appended with `--member-append-session-transcript`; the file is not written by hand.
+Entries are appended with `--append-transcript`; the file is not written by hand.
 
 # Skeleton
 

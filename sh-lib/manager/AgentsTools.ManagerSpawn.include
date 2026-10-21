@@ -10,7 +10,7 @@
 ## here checks what it was given, hands the prompt over on standard input, never as an
 ## argument, and prints what was started as one row. Who the started session runs as is the
 ## member named, never the person at the console; on the side of the operating system it
-## runs as the user that runs the console. A routine is started by --magic-spawn-session,
+## runs as the user that runs the console. A routine is started by --spawn-session,
 ## which is no operation of this family.
 ##
 ## The dispatcher brings no invited member for an operation of this family, and an
@@ -111,7 +111,7 @@ case "$1" in
 
 		## A session of its own (--session-new), under the standing default routine of a
 		## coworking session, whose spawn brief block goes ahead of the prompt as
-		## --magic-spawn-session --routine-default gives it; a dispatch item, which is what
+		## --spawn-session --routine-default gives it; a dispatch item, which is what
 		## lists, reads and stops the run; and no wait.
 		local spawnArgs=( "$spawnMember" --from-stdin --dispatch-doc:create --session-new --routine-default )
 		[ -z "$spawnName" ] || spawnArgs+=( --session-name-or-comment "$spawnName" )

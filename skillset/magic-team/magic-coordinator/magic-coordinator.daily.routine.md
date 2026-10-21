@@ -25,7 +25,7 @@ review-by: inherit
 - Routine's local procedures
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -66,8 +66,8 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **reload-active-duty-context**: Re-read this member's armed file and this routine with the skillset reader, so anything the morning review changed is in force. Skip if this session already loaded them after the morning review.
-2. **keep-tracking-note-current**: Write this pass's tracking note (`--update-routine-state`) and keep it current, referencing items by name rather than copying them. Refresh the lock during the long pass (`--magic-daily-lock-refresh`).
-3. **librarian-confirms-roster**: Invite `magic-librarian` to confirm that the `roster-note` and `magic-team.armed.md`'s tooling section are current. Rewrite a drifted `roster-note` (`--magic-team-roster-upsert`).
+2. **keep-tracking-note-current**: Write this pass's tracking note (`--update-routine-state`) and keep it current, referencing items by name rather than copying them. Refresh the lock during the long pass (`--daily-lock-refresh`).
+3. **librarian-confirms-roster**: Invite `magic-librarian` to confirm that the `roster-note` and `magic-team.armed.md`'s tooling section are current. Rewrite a drifted `roster-note` (`--roster-upsert`).
 4. **sweep-comms-read**: Run `magic-coordinator.communication-sweep.routine`'s **check** step inline (`--routine-run-inline magic-coordinator.communication-sweep.routine`). Fold what is relevant into the roll call. Acting on it is the closure's advance pass, not this step.
 5. **roll-call**: For each permanent member except `magic-coordinator`, in a random order: read its board items (from the board sections of the `work-duty` scan in `input/input-scan.md`) and narrate what happened since last time, what is planned next and what blocks it. Every invitee gets a turn; `partner-*` members usually report nothing. Anything needing real discussion goes to **questions-then-conclude** or the backlog, never resolved here. The roll call must change the plan, not only record it.
 6. **run-check-process-board**: Run `check-process-board` against the board sections of this run's `work-duty` scan (`input/input-scan.md`), read by line range, for the dependency order the assignment follows. This read does no housekeeping: that runs only when the advance routine takes its lock.
@@ -76,7 +76,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 9. **fan-out-work-sessions**: Spawn each permanent member with work today, except `partner-*` members, into this session as a participant (`spawn-one-dispatch`, joining this session's id). Each works its assigned items for about 20-30 minutes and reports into the session thread.
     - Name the item and, for an idle-run routine, the exact routine file in each brief. Ask each participant to compact its own `reflection-*` items before it closes.
     - Supervise: wait on the session thread (wait-never-quit), answer and redirect as reports arrive, and refresh the lock at each check-in. Post milestones and new blockers to `magic-team` as they happen.
-    - A participant reporting it is stuck: move its item to `board-blocked` (`--magic-board-to-blocked`), recording why and any `blocked-by`.
+    - A participant reporting it is stuck: move its item to `board-blocked` (`--move-to-blocked`), recording why and any `blocked-by`.
     - A participant reporting completion: note the claim on the item, which stays in `board-running` for its testing round.
     - An ambiguous report: ask for a clearer status; until then the item keeps its state.
     - A new, unrelated ask a participant meets is filed for later, never switched to.
@@ -111,14 +111,14 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--magic-daily-lock-refresh <team-member>`
+- `--daily-lock-refresh`
 - `--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`
-- `--magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:...]...`
-- `--magic-advance-to-running <team-member> <item-filename> --from-state:running [--header:...]...`
-- `--magic-team-roster-upsert <team-member>`
-- `--member-comms-slack-send-message <team-member> <target> [text...]`
+- `--move-to-blocked <item-filename> --from-state:<state> [--header:...]...`
+- `--advance-to-running <item-filename> --from-state:running [--header:...]...`
+- `--roster-upsert`
+- `--slack-send-message <target> [text...]`
 - `--routine-run-inline <routine>`
 
 # Maintainer Notes

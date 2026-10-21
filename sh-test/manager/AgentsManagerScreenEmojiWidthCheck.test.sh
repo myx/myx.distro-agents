@@ -60,7 +60,7 @@ rigCase(){ ## name, with|without
 	: > "$MANAGER_SCREEN_RIG/calls"
 	cp "$rigTmp/one.ask" "$MANAGER_SCREEN_RIG/rows"
 	printf 'rows\n' > "$MANAGER_SCREEN_RIG/mode"
-	rigStored "$2" > "$MANAGER_SCREEN_RIG/rows.--member-pending-reply-read magic-coordinator $rigAsk"
+	rigStored "$2" > "$MANAGER_SCREEN_RIG/rows.--read-pending-reply magic-coordinator $rigAsk"
 }
 rigScript(){ ## the size, then the commands of the driver on standard input
 	rigOut="$( { printf 'tools bash %s\ntable list:magic-team/activity none\nwall 2026-10-13 02:30 +0300\nsize %s\nroot active-sessions\n' "$rigTools" "$1" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"

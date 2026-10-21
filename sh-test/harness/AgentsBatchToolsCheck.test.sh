@@ -19,7 +19,7 @@
 ##   9. format json: one JSON object, its entries in call order
 ##  10. an unknown mode, or an unknown tool among the calls, is refused and nothing runs
 ##  11. `--mdat-output-format json` on the shell operations that implement harness and MCP tools: the operation of
-##      Wait (--member-wait-for-input) and of the collect that SubagentHandback and ProposeApprove run
+##      Wait (--wait-for-input) and of the collect that SubagentHandback and ProposeApprove run
 ##      (--intern-op-pending-reply-collect) print one JSON document; an operation that implements no tool
 ##      (--agents-config-option) prints exactly as without it
 ## Red before F7.8: no such tool (every case fails).
@@ -170,7 +170,7 @@ rigShell(){ ## result name, arguments... -- one shell operation of the tooling, 
 rigIsJson(){ ## result name -- json where its whole output is one JSON document
 	"$rigPython" -I -c 'import json,sys ; json.load(open(sys.argv[1])) ; print("json")' "$rigTmp/$1.out" 2> /dev/null || printf not-json
 }
-rigShell o1 --mdat-output-format json --member-wait-for-input magic-tester --wait-source inbox:magic-tester --wait-session-id rig-batch-json --wait-timeout 1 --wait-poll-interval 1
+rigShell o1 --mdat-output-format json --wait-for-input magic-tester --wait-source inbox:magic-tester --wait-session-id rig-batch-json --wait-timeout 1 --wait-poll-interval 1
 rigAssert "the operation behind Wait prints one JSON document" "$( rigIsJson o1 )" json
 rigShell o2 --mdat-output-format json --intern-op-pending-reply-collect --ended --context rig-batch-json
 rigAssert "the collect behind SubagentHandback and ProposeApprove prints one JSON document" "$( rigIsJson o2 )" json
@@ -190,7 +190,8 @@ rigHarnessOps="$( LC_ALL=C awk '
 			line = substr( line, RSTART + RLENGTH )
 		}
 	}' "$rigHarness" | LC_ALL=C grep -v -x -e '--agents-config-option' ; printf '%s\n' --intern-mcp-execute )"
-rigListedOps="$( LC_ALL=C sed -n '/^agentsToolOperations="/,/"$/p' "$rigTool" | LC_ALL=C tr -s ' \t"' '\n' | LC_ALL=C grep -E '^--[a-z]' )"
+## The operations of the tool files carry the wrapper in their own door (their list is in the table of the tool files); the dispatcher's own, in its list.
+rigListedOps="$( { LC_ALL=C sed -n '/^agentsToolOperations="/,/"$/p' "$rigTool" ; LC_ALL=C sed -n '/^agentsFrontJsonOps="/,/"$/p' "$rigHere/harness/AgentsContext.FrontTable.include" ; } | LC_ALL=C tr -s ' \t"' '\n' | LC_ALL=C grep -E '^--[a-z]' )"
 rigAssert "the list beside the option is exactly the operations behind the tools" \
 	"$( printf '%s\n' "$rigHarnessOps" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "$( printf '%s\n' "$rigListedOps" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )"
 

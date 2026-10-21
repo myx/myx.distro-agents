@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check: the form of a search's lines, as --member-comms-slack-search-messages
+## Behavioural check: the form of a search's lines, as --slack-search-messages
 ## prints them. One line per match, "<ts> | <user> | <text>"; a reply inside a thread carries
 ## the reader's own mark AHEAD of its text, "<ts> | <user> | [thread-reply of <parent-ts>] <text>",
 ## as AgentsSlackMessagesFormat.awk prints its own annotations. The mark used to stand after
@@ -150,7 +150,7 @@ RIG_SEARCH_PAGE="$rigTmp/search.json"
 export RIG_CURL_LOG RIG_SEARCH_PAGE
 : > "$RIG_CURL_LOG"
 ( cd "$rigTmp/ws" && env -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_ID \
-	MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" bash "$rigTools" --member-comms-slack-search-messages "$rigMember" CRIG00001 --comms-since-utime 1700000000 ) \
+	MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" bash "$rigTools" --slack-search-messages "$rigMember" CRIG00001 --comms-since-utime 1700000000 ) \
 	> "$rigTmp/op.out" 2> "$rigTmp/op.err" < /dev/null ; rigRc=$?
 rigAssert "the search is done and complete, in the conversation asked for" \
 	"$rigRc:$( LC_ALL=C sed -n '1s/ query=.*//p' "$rigTmp/op.out" )" "0:## target=CRIG00001 channel=CRIG00001"

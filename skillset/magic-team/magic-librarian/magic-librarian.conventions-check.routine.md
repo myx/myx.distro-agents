@@ -21,7 +21,7 @@ review-by: inherit
   - `override-queue-read` — review the output-style declarations log
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -88,7 +88,7 @@ Named procedure blocks. Steps above call them by name. Not separate routines —
 A declaration is a member's own claim about the text it labelled — relay, report — which the machine cannot verify.
 
 Steps:
-1. Read the declarations log with `--member-audit-item-read`, by document name.
+1. Read the declarations log with `--get-audit-item`, by document name.
    - Open: three gaps block this read — the accessor's type policy admits only `transcript-*`, its folder resolver matches only `transcript-` with a hyphenated date, and the team's compact date form conflicts with that resolver (`magic-librarian`'s to settle). Until all three close, report the after-send check as required and missing; never substitute a path read.
 2. Run this routine's Steps against the text each entry carries, at the group it declares.
 3. Report a declaration that does not match its text: a relay declaration on the member's own words, a report declaration on a message.
@@ -113,9 +113,9 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--member-audit-item-read <team-member> <document-name>`
+- `--get-audit-item <document-name>`
 
 # Maintainer Notes
 

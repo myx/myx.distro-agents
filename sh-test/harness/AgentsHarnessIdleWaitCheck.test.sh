@@ -227,7 +227,7 @@ rigToolStream "$rigDir/res.1" Bash "$( rigOp --idle-wait --wait-timeout 1 )"
 rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun
 rigAssert "a run with no declared scan waits on the floor alone, and says so"              "$( rigIn "$( cat "$rigDir/err" )" 'idle-wait -- waiting on the floor' ):$( rigIn "$( cat "$rigDir/err" )" 'scan:' )" yes:no
 rigAssert "it ended with no arrival, and the conversation was not returned"               "$( rigCount "$rigDir/req.2" 'toolu_RIG0' ):$( rigIn "$( cat "$rigDir/req.2" )" 'not returned' )" 2:yes
-rigAssert "it reads the floor alone: no team channel is read for it, and none is reported unread to the model" "$( rigCount "$rigDir/req.2" 'WAIT-NEVER-READ' ):$( rigCount "$rigDir/err" 'member-comms-slack-read' ):$( rigCount "$rigDir/req.2" 'WAIT-RESULT: TIMEOUT' )" "$( rigCount "$rigDir/req.1" 'WAIT-NEVER-READ' ):0:$(( $( rigCount "$rigDir/req.1" 'WAIT-RESULT: TIMEOUT' ) + 1 ))"
+rigAssert "it reads the floor alone: no team channel is read for it, and none is reported unread to the model" "$( rigCount "$rigDir/req.2" 'WAIT-NEVER-READ' ):$( rigCount "$rigDir/err" 'slack-read' ):$( rigCount "$rigDir/req.2" 'WAIT-RESULT: TIMEOUT' )" "$( rigCount "$rigDir/req.1" 'WAIT-NEVER-READ' ):0:$(( $( rigCount "$rigDir/req.1" 'WAIT-RESULT: TIMEOUT' ) + 1 ))"
 rigAssert "the run with a scan says the floor and the scan"                               "$( rigIn "$( cat "$rigTmp/to-armed/err" )" 'waiting on the floor and scan:grooming' )" yes
 
 echo "-- 6. a wait that could not be made, and a session that is dismissed --"

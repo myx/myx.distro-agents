@@ -593,8 +593,8 @@ rigAssert "the same as plain text, as it was: headers with their spans, an empty
 echo "-- the agent's own description leads the line, and a command reads without its boilerplate --"
 ## ---------------------------------------------------------------------------
 cat > "$rigTmp/lines.intent" <<'RIG_INTENT_EOF'
-2030-01-01T00:07:00Z TOOL execute cmd="DistroSystemContext --distro-from-source ; Require DistroAgentsTools ; Distro DistroAgentsTools --member-board-item-read magic-tester task-x.md" -> ok 30B/2L 64ms | "Reading the task item"
-2030-01-01T00:07:01Z TOOL execute cmd="DistroSystemContext --distro-from-source ; Require DistroAgentsTools ; Distro DistroAgentsTools --member-help magic-tester" -> ok 30B/2L 60ms
+2030-01-01T00:07:00Z TOOL execute cmd="DistroSystemContext --distro-from-source ; Require DistroAgentsTools ; Distro DistroAgentsItems --get-board-item magic-tester task-x.md" -> ok 30B/2L 64ms | "Reading the task item"
+2030-01-01T00:07:01Z TOOL execute cmd="DistroSystemContext --distro-from-source ; Require DistroAgentsTools ; Distro DistroAgentsKnowledge --member-help magic-tester" -> ok 30B/2L 60ms
 2030-01-01T00:07:02Z TOOL mcp__myx_distro__Skill name=magic-team file=magic-team.armed.md -> ok 5701B/66L 49ms | "Checking the board rules"
 2030-01-01T00:07:03Z TOOL Agent agent=keeper-myx -> ok 200B/5L 3.0s | "Spawn the README keeper"
 2030-01-01T00:07:03Z SPAWN agent=keeper-myx
@@ -614,8 +614,8 @@ while IFS= read -r rigWant ; do
 	[ -n "$rigWant" ] || continue
 	rigAssert "renders: $rigWant" "$( cat "$rigTmp/k-intent"/?????? | LC_ALL=C grep -c -x -F -- "$rigWant" )" 1
 done <<'RIG_INTENT_WANT_EOF'
-💻 Reading the task item — execute `DistroAgentsTools --member-board-item-read magic-tester task-x.md` → exit 0 · 64 ms
-💻 execute `DistroAgentsTools --member-help magic-tester` → exit 0 · 60 ms
+💻 Reading the task item — execute `DistroAgentsItems --get-board-item magic-tester task-x.md` → exit 0 · 64 ms
+💻 execute `DistroAgentsKnowledge --member-help magic-tester` → exit 0 · 60 ms
 📚 Checking the board rules — Skill `magic-team` · `magic-team.armed.md` → 5.6 KB
 🚀 Spawn the README keeper — Agent spawn → *keeper-myx* (session 7f12abcd…) · started
 ⛔ Ask the owner — SendMessage `human-owner`: "Blocked on the registry, need your call." → error: ERROR: the send failed (rc=1) and nothing was posted.

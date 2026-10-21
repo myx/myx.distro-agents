@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Block Kit array (stdin) -> the text version of that message (stdout), for
-DistroAgentsTools.fn.sh's --member-comms-slack-send-message --format blocks
+DistroAgentsTools.fn.sh's --slack-send-message --format blocks
 path, used ONLY when the caller did not supply --message-text/--message-text-file.
 
 THIS IS NOT THE OLD FALLBACK RENDERER, AND THE DIFFERENCE IS THE WHOLE POINT.

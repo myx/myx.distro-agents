@@ -6,7 +6,7 @@
 ## session channel's: --get-session-channel-id, --post-session-channel, --get-session-thread, --wait-session-channel and --get-dispatch-text
 ## (F7.2). A tool of its own: its operations are locked to the session of the call, and none of them is a name that belongs to another tool.
 ##
-## From DistroAgentsTools.fn.sh (F1.4, first stage): --append-transcript, --wait-for-input. They go on under their old names (sh-lib/harness/AgentsContext.FrontForward.include).
+## From DistroAgentsTools.fn.sh (F1.4): --append-transcript, --wait-for-input (sh-lib/harness/AgentsContext.FrontTable.include).
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -54,12 +54,37 @@ DistroAgentsSessionThis(){
 	type AgentsToolsThisSessionWait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
 }
 
+## The operations that came here from DistroAgentsTools.fn.sh (F1.4): every one of them is asked what each name of the table is asked, in AgentsContext.FrontDoor.include.
+DistroAgentsSessionMoved(){
+	local MDSC_CMD='DistroAgentsSession' frontDone="" frontRc=0
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontDoor.include"
+	[ -z "$frontDone" ] || return "$frontRc"
+	case "$1" in
+
+		--append-transcript)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"
+			return $?
+		;;
+
+		--wait-for-input)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWait.include"
+			return $?
+		;;
+
+		*)
+			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+			set +e ; return 1
+		;;
+	esac
+}
+
 DistroAgentsSession(){
 	local MDSC_CMD='DistroAgentsSession'
-	## F1.4, first stage: an operation that came here under a new name goes on under its old one (sh-lib/harness/AgentsContext.FrontForward.include).
-	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontForward.include"
+	## F1.4: a name that came here from DistroAgentsTools.fn.sh runs its operation in the function below.
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	if AgentsToolsFrontKnows DistroAgentsSession "$@" ; then
-		AgentsToolsFrontForward DistroAgentsSession "$@"
+		DistroAgentsSessionMoved "$@"
 		return $?
 	fi
 	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on a board item's `## Decisions` (AgentsTools.ItemDecisions.include):
-## --member-decision-record creates the section, then appends inside it ahead of a later
+## --record-decision creates the section, then appends inside it ahead of a later
 ## heading; an ask records its item from task_ref, else from the session's `spawns:`; a
 ## closed ask writes its answer to that item and clears the blocker naming it, and leaves
 ## an unrelated blocker; an earlier answer is found by the same session's closed record or
@@ -71,20 +71,20 @@ rigSection(){ ## item file -> its Decisions lines, in file order
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include"
 
 echo "-- helper: create, then append --"
-rigOp rec1 --member-decision-record "$rigMember" "$rigTask.md" --kind clarification --text "The rig scope is the decisions helper only." --source 1700000009.000001
+rigOp rec1 --record-decision "$rigMember" "$rigTask.md" --kind clarification --text "The rig scope is the decisions helper only." --source 1700000009.000001
 [ "$rigRc" = "0" ] || rigRefuse "the decision op failed: $( cat "$rigTmp/rec1.err" )"
 rigAssert "it says recorded"                      "$( head -1 "$rigTmp/rec1" )" "DECISION-RECORDED $rigTask blocked"
 rigAssert "the section is created"                "$( rigHolds "$rigBoard/blocked/$rigTask.md" '## Decisions' )" yes
 rigAssert "with the line in its shape"            "$( rigSection "$rigBoard/blocked/$rigTask.md" | LC_ALL=C grep -c -E '^- [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z magic-tester clarification: The rig scope is the decisions helper only\. \(1700000009\.000001\)$' )" 1
 rigAssert "the blockers are left"                 "$( rigField "$rigBoard/blocked/$rigTask.md" blocked-on )" "the vendor contract"
-rigOp rec2 --member-decision-record "$rigMember" "$rigTask" --kind resolved --text "Second line."
+rigOp rec2 --record-decision "$rigMember" "$rigTask" --kind resolved --text "Second line."
 rigAssert "a second line is appended"             "$( rigSection "$rigBoard/blocked/$rigTask.md" | wc -l | tr -d ' ' )" 2
 rigAssert "after the first"                       "$( rigSection "$rigBoard/blocked/$rigTask.md" | tail -1 | LC_ALL=C sed 's/.* resolved: //' )" "Second line."
 rigAssert "one section only"                      "$( LC_ALL=C grep -c '^## Decisions' "$rigBoard/blocked/$rigTask.md" )" 1
 rigAssert "the read shows newest first"           "$( AgentsToolsDecisionsLines "$rigBoard/blocked/$rigTask.md" 30 | head -1 | LC_ALL=C sed 's/.* resolved: //' )" "Second line."
-rigOp rec3 --member-decision-record "$rigMember" "$rigTask" --kind answer --text "not a member kind"
+rigOp rec3 --record-decision "$rigMember" "$rigTask" --kind answer --text "not a member kind"
 rigAssert "a member may not record an answer"     "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken )" refused
-rigOp rec4 --member-decision-record "$rigMember" task-20261008T1300Z-missing --kind clarification --text "x"
+rigOp rec4 --record-decision "$rigMember" task-20261008T1300Z-missing --kind clarification --text "x"
 rigAssert "an item not on the board is refused"   "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken )" refused
 
 echo "-- ask -> item link --"
@@ -199,7 +199,7 @@ printf 'Which rig port should the tracked task use?\n' | rigOp early5 --intern-o
 rigAssert "a new dispatch finds it on the task"   "$( cut -d' ' -f1-2 "$rigTmp/early5" )" "EARLIER-DECISION $rigTracked"
 printf 'Which rig port should the tracked task use?\n' | rigOp early6 --intern-op-pending-reply-earlier "$rigMember" --session-id rig-session-d --kind question --item "$rigBeyond"
 rigAssert "tracks: is followed one level only"    "$( cat "$rigTmp/early6" )" ""
-rigOp rec5 --member-decision-record "$rigMember" "$rigDispA" --kind clarification --text "The rig port is fixed for this task."
+rigOp rec5 --record-decision "$rigMember" "$rigDispA" --kind clarification --text "The rig port is fixed for this task."
 rigAssert "a member record on a dispatch: both"   "$( LC_ALL=C grep -c '^DECISION-RECORDED ' "$rigTmp/rec5" )/$( AgentsToolsDecisionsLines "$rigBoard/running/$rigTracked.md" 30 | LC_ALL=C grep -c 'port is fixed' )" 2/1
 
 echo "-- only the item's own section: never a quoted copy --"
@@ -209,7 +209,7 @@ rigAssert "the read takes no quoted line"         "$( AgentsToolsDecisionsLines 
 rigAssert "and both own lines"                    "$( AgentsToolsDecisionsLines "$rigBoard/running/$rigDispA.md" 30 | wc -l | tr -d ' ' )" 2
 rigLegacy="task-20261008T1404Z-rig-legacy"
 printf -- '---\ntype: task\nowner: magic-tester\n---\n\n# Rig legacy\n\n## Decisions\n\n- 2026-10-01T00:00Z someone answer: LEGACY-LINE\n\n## Notes\n\nlater\n' > "$rigBoard/running/$rigLegacy.md"
-rigOp rec6 --member-decision-record "$rigMember" "$rigLegacy" --kind clarification --text "Appended to the legacy section."
+rigOp rec6 --record-decision "$rigMember" "$rigLegacy" --kind clarification --text "Appended to the legacy section."
 rigAssert "an unmarked section from before is still its own" "$( LC_ALL=C grep -c '^## Decisions' "$rigBoard/running/$rigLegacy.md" )/$( rigSection "$rigBoard/running/$rigLegacy.md" | wc -l | tr -d ' ' )" 1/2
 
 echo "-- the coordinator's forward refuses an escalation already answered --"
@@ -222,7 +222,7 @@ rigEsc(){ ## id, status, session, item, extra header lines
 rigCurlBefore="$( LC_ALL=C grep -c 'chat.postMessage' "$RIG_CURL_LOG" )"
 rigOp dec1 --intern-op-decisions-append magic-coordinator "$rigTask" --kind verdict --text "D1 Which rig release train should ship the fix? -> option-b" --source rig-earlier
 rigEsc 33333333-0000-0000-0000-000000000001 reply-pending rig-session-f "$rigTask" ""
-rigOp fwd1 --magic-escalation-forward magic-coordinator 33333333-0000-0000-0000-000000000001
+rigOp fwd1 --forward-escalation magic-coordinator 33333333-0000-0000-0000-000000000001
 rigAssert "answered in Decisions: not forwarded"  "$( head -1 "$rigTmp/fwd1" )" "ESCALATION: 33333333-0000-0000-0000-000000000001 answered-earlier"
 rigAssert "it prints the earlier answer"          "$( sed -n 2p "$rigTmp/fwd1" | cut -d' ' -f1-2 )/$( rigHolds "$rigTmp/fwd1" '-> option-b' )" "EARLIER-DECISION $rigTask/yes"
 rigEsc 33333333-0000-0000-0000-000000000002 reply-received rig-session-g "" "verdict: option-a
@@ -231,7 +231,7 @@ resolved-at: 2026-10-08 12:05 +0300
 resolved-epoch: 1700000000
 "
 rigEsc 33333333-0000-0000-0000-000000000003 reply-pending rig-session-g "" ""
-rigOp fwd2 --magic-escalation-forward magic-coordinator 33333333-0000-0000-0000-000000000003
+rigOp fwd2 --forward-escalation magic-coordinator 33333333-0000-0000-0000-000000000003
 rigAssert "answered in a closed record: not forwarded" "$( head -1 "$rigTmp/fwd2" )" "ESCALATION: 33333333-0000-0000-0000-000000000003 answered-earlier"
 rigAssert "it prints that record's answer"        "$( sed -n 2p "$rigTmp/fwd2" )" "EARLIER-RECORD 33333333-0000-0000-0000-000000000002 | option-a | URIGOWNER | 2026-10-08 12:05 +0300"
 rigAssert "nothing was posted, nothing recorded"  "$( LC_ALL=C grep -c 'chat.postMessage' "$RIG_CURL_LOG" )/$( LC_ALL=C grep -c '^forward-ts: ' "$rigStore/33333333-0000-0000-0000-000000000001.md" "$rigStore/33333333-0000-0000-0000-000000000003.md" | LC_ALL=C awk -F: '{ s += $NF } END { print s }' )" "$rigCurlBefore/0"
@@ -244,19 +244,19 @@ mkdir -p "$rigTmp/ws/.local/agents/spawned/rig-spawn-p" "$rigTmp/ws/.local/agent
 printf -- '---\nsession-id: rig-spawn-p\nowner: keeper-exec\nstatus: spawn-started\n---\n' > "$rigTmp/ws/.local/agents/spawned/rig-spawn-p/rig-spawn-p.spawn.md"
 printf -- '---\nsession-id: rig-spawn-q\nowner: keeper-link\nstatus: spawn-started\nspawned-by: %s\n---\n' "$rigParty" > "$rigTmp/ws/.local/agents/spawned/rig-spawn-q/rig-spawn-q.spawn.md"
 rigPartyLines(){ rigSection "$rigBoard/running/$rigParty.md" | wc -l | tr -d ' ' ; }
-rigOp par1 --member-decision-record keeper-other "$rigParty" --kind clarification --text "not a party"
+rigOp par1 --record-decision keeper-other "$rigParty" --kind clarification --text "not a party"
 rigAssert "a member that is no party is refused"   "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken ):$( rigPartyLines ):$( LC_ALL=C grep -c 'is not the owner, executor or reviewer' "$rigTmp/par1.err" )" refused:0:1
-rigOp par2 --member-decision-record keeper-other "$rigParty" --kind resolved --text "clearing it" --clears-blocker
+rigOp par2 --record-decision keeper-other "$rigParty" --kind resolved --text "clearing it" --clears-blocker
 rigAssert "and clears no blocker"                  "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken ):$( rigField "$rigBoard/running/$rigParty.md" blocked-on )" "refused:the rig gate"
-rigOp par3 --member-decision-record keeper-rev "$rigParty" --kind clarification --text "by the reviewer"
+rigOp par3 --record-decision keeper-rev "$rigParty" --kind clarification --text "by the reviewer"
 rigAssert "its review-by reviewer records"         "$rigRc:$( rigPartyLines )" 0:1
-rigOp par4 --member-decision-record keeper-exec "$rigParty" --kind clarification --text "by its spawned session's member"
+rigOp par4 --record-decision keeper-exec "$rigParty" --kind clarification --text "by its spawned session's member"
 rigAssert "its spawned session's member records"   "$rigRc:$( rigPartyLines )" 0:2
-rigOp par5 --member-decision-record keeper-link "$rigParty" --kind resolved --text "by the executor" --clears-blocker
+rigOp par5 --record-decision keeper-link "$rigParty" --kind resolved --text "by the executor" --clears-blocker
 rigAssert "a spawn working it records and clears"  "$rigRc:$( rigPartyLines ):$( rigField "$rigBoard/running/$rigParty.md" blocked-on )" 0:3:
-RIG_AGENT=keeper-other rigOp par6 --member-decision-record magic-tester "$rigParty" --kind clarification --text "naming the owner"
+RIG_AGENT=keeper-other rigOp par6 --record-decision magic-tester "$rigParty" --kind clarification --text "naming the owner"
 rigAssert "a session naming another member is refused" "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken ):$( rigPartyLines ):$( LC_ALL=C grep -c 'this session acts as keeper-other' "$rigTmp/par6.err" )" refused:3:1
-RIG_AGENT=magic-tester rigOp par7 --member-decision-record magic-tester "$rigParty" --kind clarification --text "the owner itself"
+RIG_AGENT=magic-tester rigOp par7 --record-decision magic-tester "$rigParty" --kind clarification --text "the owner itself"
 rigAssert "the owner's own session records"        "$rigRc:$( rigPartyLines )" 0:4
 
 echo

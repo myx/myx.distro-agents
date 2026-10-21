@@ -335,7 +335,7 @@ owner: magic-tester
 
 Why: {{why}}
 
-The next batch takes the request, and its outcome is read with `--member-retest-result {{request}}`. What the queue cannot tell, such as a test that does not exist yet or one that needs a rig, is for you to take up with {{member}}.
+The next batch takes the request, and its outcome is read with `--retest-result {{request}}`. What the queue cannot tell, such as a test that does not exist yet or one that needs a rig, is for you to take up with {{member}}.
 ```
 
 # Librarian
@@ -389,7 +389,7 @@ Access of {{id}}: {{access}}
 
 A request is in one of three tiers. Ingest, always: read and understand it. Basic, no record needed: conversation, public information, consultation, expertise, nothing long-running or costly committed. Recorded access, for what affects the board, dispatches jobs or asks for internal information: only what the access above names.
 
-Next: assess the request as granted, needs escalation, or must be denied. Ask the chain about one call with `DistroAgentsContacts.fn.sh --contact-access {{id}} --tool <tool> --target <target>`. Where it does not cover the call, `DistroAgentsContacts.fn.sh --escalate-contact {{id}} --tool <tool> --target <target> --asked "<who wants what>"` asks the human-owner. Report the assessment as one digest with `--member-contact-digest-send`.
+Next: assess the request as granted, needs escalation, or must be denied. Ask the chain about one call with `DistroAgentsContacts.fn.sh --contact-access {{id}} --tool <tool> --target <target>`. Where it does not cover the call, `DistroAgentsContacts.fn.sh --escalate-contact {{id}} --tool <tool> --target <target> --asked "<who wants what>"` asks the human-owner. Report the assessment as one digest with `--send-contact-digest`.
 ```
 
 ## contacted-unknown
@@ -397,15 +397,15 @@ Next: assess the request as granted, needs escalation, or must be denied. Ask th
 ```
 No contact is recorded for {{value}}. It is met at Ingest and Basic only: read the request, answer what needs no record, commit nothing.
 
-Next: look the sender up where it wrote (`--member-comms-slack-read`, `--member-comms-slack-search-messages`) and record it with `DistroAgentsContacts.fn.sh --collect-contact --id <slug> --name <name> --slack <team>:<slack-id>`. Anything beyond Basic waits for that record, then `--escalate-contact`.
+Next: look the sender up where it wrote (`--slack-read`, `--slack-search-messages`) and record it with `DistroAgentsContacts.fn.sh --collect-contact --id <slug> --name <name> --slack <team>:<slack-id>`. Anything beyond Basic waits for that record, then `--escalate-contact`.
 ```
 
 ## reaching
 
 ```
 Reach {{id}}, {{name}}[[ of {{organisation}}]].[[ How to meet them: {{how}}.]]
-[[Slack: {{slack}}. Send with `DistroAgentsTools.fn.sh --member-comms-slack-send-message <you> <conversation> <text>`.
-]][[E-mail: {{email}}. Send with `DistroAgentsTools.fn.sh --member-comms-email-send <you> <address> -- <subject> -- <body>`.
+[[Slack: {{slack}}. Send with `DistroAgentsSlack.fn.sh --slack-send-message <you> <conversation> <text>`.
+]][[E-mail: {{email}}. Send with `DistroAgentsMail.fn.sh --email-send <you> <address> -- <subject> -- <body>`.
 ]]A send to an address that is no coordinate of a contact you hold is refused. Record what an exchange brings with `DistroAgentsContacts.fn.sh --collect-contact`.
 ```
 
@@ -517,9 +517,9 @@ is stuck: a run of it is still open, and no process carries it
 - rule: `## forwarded` is the line a request forwarded to the human-owner opens with, ahead of the request's own post as its record holds it: `{{by}}`, the member that forwards it, and `{{reason}}`, the `## not-held` line under `# Reasons`, only where the request goes up because an answer was not applied. It shows no request id: the thread it stands in is kept on the request's record, and its answer is read from there.
 - rule: `## now-yours` is posted by the team bot in the session's thread when a permission request goes up to a holder running in that session: `{{member}}`, who asked; `{{address-to}}`, the holder, who answers it now; `{{reason}}`, the `## not-held` line; and `{{request-id}}`, the id the holder passes to the answer operation, at the end of the line and in code style, since only that operation needs it.
 - rule: `## chain-broken` under `# Schedule` is posted once to the event-alert channel by `--routine-due` (DistroAgentsDispatcher.fn.sh) when the last day a routine was to run has passed with the routine it follows, `{{predecessor}}`, not completed on it and the routine itself, `{{routine}}`, not run on it: `{{day}}`, that day as `YYYY-MM-DD`. The routine does not run, and the broken chain is put in front of a person: it neither runs late nor skips in silence. It is recorded per routine and day, so it is posted once.
-- rule: `## learning-inquiry` under `# Schedule` is the whole inquiry the main loop files into `magic-librarian`'s inbox (`--member-upsert-member-inquiry`) for a session that ended while learning was on: `{{session}}`, the session's id, and `{{members}}`, the members that took part. It is filed once for a session, and for none whose only member is `magic-librarian`.
-- rule: `## tests-wanted` under `# Testing` is the whole inquiry `--request-tests` (AgentTestingTools.fn.sh) files into `magic-tester`'s inbox (`--member-upsert-member-inquiry`) once the request is in the retest queue: `{{member}}`, the member that asks; `{{request}}`, the id the queue gave it; `{{priority}}`, `wait` or `no-wait`; `{{what}}`, the project, the tests and the changed files it asks for, in words; and `{{why}}`, the reason the member gave. It is filed once for a request.
-- rule: `## update-request` under `# Librarian` is the whole head of the inquiry `--request-update` (AgentLibrarianTools.fn.sh) files into `magic-librarian`'s inbox (`--member-upsert-member-inquiry`): `{{member}}`, the member that asks; `{{kind}}`, `document`, `knowledge` or `skill`; `{{target}}`, the path or the topic, or `<team-member>:<pathname>` of a skill file; `{{form}}`, `message`, `text` or `edit`; `{{why}}`, the reason the member gave; and, left out with their lines where they have no value, `{{target-date}}` and `{{target-checksum}}`, which the tooling records of the target file and the requester never gives, and `{{reply}}`, `yes` where the requester asked for the outcome. What the member wrote of what is asked is added under it, as it was written. The `update-kind` of its frontmatter makes it a request of the queue (`--queue-list`, `--queue-take`, `--queue-done`).
+- rule: `## learning-inquiry` under `# Schedule` is the whole inquiry the main loop files into `magic-librarian`'s inbox (`--upsert-inbox-inquiry`) for a session that ended while learning was on: `{{session}}`, the session's id, and `{{members}}`, the members that took part. It is filed once for a session, and for none whose only member is `magic-librarian`.
+- rule: `## tests-wanted` under `# Testing` is the whole inquiry `--request-tests` (AgentTestingTools.fn.sh) files into `magic-tester`'s inbox (`--upsert-inbox-inquiry`) once the request is in the retest queue: `{{member}}`, the member that asks; `{{request}}`, the id the queue gave it; `{{priority}}`, `wait` or `no-wait`; `{{what}}`, the project, the tests and the changed files it asks for, in words; and `{{why}}`, the reason the member gave. It is filed once for a request.
+- rule: `## update-request` under `# Librarian` is the whole head of the inquiry `--request-update` (AgentLibrarianTools.fn.sh) files into `magic-librarian`'s inbox (`--upsert-inbox-inquiry`): `{{member}}`, the member that asks; `{{kind}}`, `document`, `knowledge` or `skill`; `{{target}}`, the path or the topic, or `<team-member>:<pathname>` of a skill file; `{{form}}`, `message`, `text` or `edit`; `{{why}}`, the reason the member gave; and, left out with their lines where they have no value, `{{target-date}}` and `{{target-checksum}}`, which the tooling records of the target file and the requester never gives, and `{{reply}}`, `yes` where the requester asked for the outcome. What the member wrote of what is asked is added under it, as it was written. The `update-kind` of its frontmatter makes it a request of the queue (`--queue-list`, `--queue-take`, `--queue-done`).
 - rule: `## update-reply` under `# Librarian` is the whole note `--queue-done` files into the requester's inbox for a request made with `--reply`, once: `{{requester}}`, the member that asked; `{{request}}`, the request's name; `{{kind}}` and `{{target}}`, as the request had them; `{{outcome}}`, `applied`, `refused` or `closed`; and `{{result}}`, the librarian's result on one line. A request made without `--reply` is told to nobody.
 - rule: `## contacted-known`, `## contacted-unknown` and `## reaching` under `# Contacts` are what `--contacted-by` and `--reach-contact` (DistroAgentsContacts.fn.sh) print after the record: `{{id}}`, the contact; `{{access}}`, what the permission model says it holds standing, or that it holds nothing; `{{value}}`, what was searched; `{{name}}`, `{{organisation}}` and `{{how}}`, what the record says (each left out with its sentence where the record has none); `{{slack}}` and `{{email}}`, its coordinates by channel, a line left out where it has none.
 - rule: `## escalation-ask` under `# Contacts` is what `--escalate-contact` prints after the refusal id: the one call that asks the human-owner, the permission request of the existing escalation path on the refusal the permission model recorded for the contact (`{{refusal}}`, in `{{session}}`): `{{member}}`, who asks; `{{id}}` and `{{name}}`, the contact; `{{asked}}`, who wants what in the member's words. His answer is applied by the escalation apply and signed by whoever answered.

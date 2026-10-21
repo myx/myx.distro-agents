@@ -3,7 +3,7 @@
 ## stores only: a created item's name (kept as given, a name off the Rule's shape still
 ## created with the Rule's warning, board and inbox alike) and its creation
 ## headers (type/from/date on a board create, type/from/date/owner on a new inbox item,
-## never over a given value, never on an update); --member-inbox-to-processed (own inbox
+## never over a given value, never on an update); --mark-inbox-processed (own inbox
 ## only, marked in place); the state-note write refreshing a held lock; and the sweep's per-message author:/addressees: lines. Every call goes through
 ## one `env -i` whose child refuses to run outside this rig's mktemp tree; no Slack, no mail.
 set -u
@@ -60,7 +60,7 @@ rigOp(){ ## result file, op and arguments...
 
 echo "-- board create: names --"
 rigB1=approval-20261006T0930Z-rig-matter.md
-printf 'body one\n' | rigOp "$rigTmp/b1" --magic-board-create-running rig-member "$rigB1" --upsert-from-stdin --header:upsert:blocks:task-20261006T0900Z-rig-gated
+printf 'body one\n' | rigOp "$rigTmp/b1" --create-running rig-member "$rigB1" --upsert-from-stdin --header:upsert:blocks:task-20261006T0900Z-rig-gated
 rigAssert "a well-formed name is created as given, rc 0"    "$( cat "$rigTmp/b1.rc" ):$( [ -f "$rigData/board/running/$rigB1" ] && echo yes || echo no ):$( rigHolds "$rigTmp/b1" 'naming Rule' )" "0:yes:no"
 rigAssert "type from the prefix"                            "$( rigField "$rigData/board/running/$rigB1" type )" approval
 rigAssert "from the creating member"                        "$( rigField "$rigData/board/running/$rigB1" from )" rig-member
@@ -68,7 +68,7 @@ rigAssert "date in the team date-time form"                 "$( rigField "$rigDa
 rigAssert "started-at is still stamped"                     "$( rigFieldCount "$rigData/board/running/$rigB1" started-at )" 1
 rigAssert "the body is kept below the new frontmatter"      "$( rigHolds "$rigData/board/running/$rigB1" 'body one' )" yes
 
-printf -- '---\ntype: task\nfrom: someone-else\n---\nbody two\n' | rigOp "$rigTmp/b2" --magic-board-create-running rig-member task-20261006T0930Z-full.md --upsert-from-stdin --header:upsert:date:2001-01-01\ 00:00\ +0000
+printf -- '---\ntype: task\nfrom: someone-else\n---\nbody two\n' | rigOp "$rigTmp/b2" --create-running rig-member task-20261006T0930Z-full.md --upsert-from-stdin --header:upsert:date:2001-01-01\ 00:00\ +0000
 rigAssert "created"                                         "$( cat "$rigTmp/b2.rc" ):$( [ -f "$rigData/board/running/task-20261006T0930Z-full.md" ] && echo created )" "0:created"
 rigAssert "a given type is never overwritten"               "$( rigField "$rigData/board/running/task-20261006T0930Z-full.md" type )" task
 rigAssert "a given from is never overwritten"               "$( rigField "$rigData/board/running/task-20261006T0930Z-full.md" from )" someone-else
@@ -86,12 +86,12 @@ printf -- '---\nopen\n' | rigOp "$rigTmp/b4" --intern-op-board-upsert-move-edit 
 rigAssert "an unclosed frontmatter is written as before"    "$( cat "$rigTmp/b4.rc" ):$( cat "$rigData/board/pending/task-20261006T0930Z-open.md" 2>/dev/null | tr '\n' '|' )" "0:---|open|"
 
 rigB5=task-20261006T0930Z-rig-groomed.md
-printf 'grooming body\n' | rigOp "$rigTmp/b5" --magic-grooming-create-backlog rig-member "$rigB5" --owner-header-value rig-other --upsert-from-stdin
+printf 'grooming body\n' | rigOp "$rigTmp/b5" --grooming-create-backlog rig-member "$rigB5" --owner-header-value rig-other --upsert-from-stdin
 rigAssert "a grooming create gets the headers too"                 "$( cat "$rigTmp/b5.rc" ):$( rigField "$rigData/board/backlog/$rigB5" type ):$( rigField "$rigData/board/backlog/$rigB5" from ):$( rigField "$rigData/board/backlog/$rigB5" owner )" "0:task:rig-member:rig-other"
 
 echo "-- inbox: names and headers --"
 rigI1=inquiry-20261006T0930Z-rig-question.md
-printf 'Please look.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/i1" --member-upsert-member-inquiry rig-member "$rigI1"
+printf 'Please look.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/i1" --upsert-inbox-inquiry rig-member "$rigI1"
 rigI1Path="$rigData/inboxes/rig-member/incoming/$rigI1"
 rigAssert "a new inquiry is written as named, rc 0"         "$( cat "$rigTmp/i1.rc" ):$( [ -f "$rigI1Path" ] && echo written ):$( rigHolds "$rigTmp/i1" 'naming Rule' )" "0:written:no"
 rigAssert "type, from (the spawned member), owner"          "$( rigField "$rigI1Path" type ):$( rigField "$rigI1Path" from ):$( rigField "$rigI1Path" owner )" "inquiry:rig-other:rig-member"
@@ -100,63 +100,63 @@ rigAssert "the content follows"                             "$( rigHolds "$rigI1
 
 echo "-- inbox: an inquiry is from its caller, and never over another member's item --"
 rigQ="$rigData/inboxes/rig-member/incoming/inquiry-20261006T0932Z-rig-asked.md"
-printf 'Spoofed.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q1" --member-upsert-member-inquiry rig-member "${rigQ##*/}" --from-member magic-coordinator
+printf 'Spoofed.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q1" --upsert-inbox-inquiry rig-member "${rigQ##*/}" --from-member magic-coordinator
 rigAssert "a --from-member naming another member is refused, nothing written" "$( cat "$rigTmp/q1.rc" ):$( [ -f "$rigQ" ] && echo written || echo absent ):$( rigHolds "$rigTmp/q1" 'this session acts as rig-other' )" "1:absent:yes"
-printf 'Asked.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q2" --member-upsert-member-inquiry rig-member "${rigQ##*/}" --from-member rig-other
+printf 'Asked.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q2" --upsert-inbox-inquiry rig-member "${rigQ##*/}" --from-member rig-other
 rigAssert "naming itself writes the new item, from it"     "$( cat "$rigTmp/q2.rc" ):$( rigField "$rigQ" from )" "0:rig-other"
-printf -- '---\nfrom: magic-coordinator\n---\nOverwritten.\n' | RIG_AGENT=magic-coordinator rigOp "$rigTmp/q3" --member-upsert-member-inquiry rig-member "${rigQ##*/}"
+printf -- '---\nfrom: magic-coordinator\n---\nOverwritten.\n' | RIG_AGENT=magic-coordinator rigOp "$rigTmp/q3" --upsert-inbox-inquiry rig-member "${rigQ##*/}"
 rigAssert "another member cannot overwrite it"             "$( cat "$rigTmp/q3.rc" ):$( rigHolds "$rigQ" 'Asked.' ):$( rigHolds "$rigTmp/q3" 'written by rig-other, so magic-coordinator cannot overwrite it' )" "1:yes:yes"
-printf -- '---\ndocument-contract: inbox-item.inquiry\ntype: inquiry\nfrom: rig-other\ndate: 2026-10-06 09:32 +0000\nowner: rig-member\n---\nAsked again.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q4" --member-upsert-member-inquiry rig-member "${rigQ##*/}"
+printf -- '---\ndocument-contract: inbox-item.inquiry\ntype: inquiry\nfrom: rig-other\ndate: 2026-10-06 09:32 +0000\nowner: rig-member\n---\nAsked again.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q4" --upsert-inbox-inquiry rig-member "${rigQ##*/}"
 rigAssert "its author updates it"                           "$( cat "$rigTmp/q4.rc" ):$( rigHolds "$rigQ" 'Asked again.' )" "0:yes"
 
-printf -- '---\nowner: magic-coordinator\n---\nnote text\n' | RIG_AGENT=rig-member rigOp "$rigTmp/i2" --member-inbox-note-upsert rig-member note-20261006T0930Z-given.md --from-member magic-coordinator
+printf -- '---\nowner: magic-coordinator\n---\nnote text\n' | RIG_AGENT=rig-member rigOp "$rigTmp/i2" --upsert-inbox-note rig-member note-20261006T0930Z-given.md --from-member magic-coordinator
 rigI2Path="$rigData/inboxes/rig-member/incoming/note-20261006T0930Z-given.md"
 rigAssert "--from-member wins over the session's member"   "$( cat "$rigTmp/i2.rc" ):$( rigField "$rigI2Path" from )" "0:magic-coordinator"
 rigAssert "a given owner is never overwritten"              "$( rigField "$rigI2Path" owner ):$( rigFieldCount "$rigI2Path" owner )" "magic-coordinator:1"
 
-printf -- '---\ndocument-contract: inbox-item.note\ntype: note\nfrom: magic-coordinator\ndate: 2026-10-06 09:30 +0000\nowner: magic-coordinator\n---\nrewritten\n' | RIG_AGENT=rig-member rigOp "$rigTmp/i3" --member-inbox-note-upsert rig-member note-20261006T0930Z-given.md
+printf -- '---\ndocument-contract: inbox-item.note\ntype: note\nfrom: magic-coordinator\ndate: 2026-10-06 09:30 +0000\nowner: magic-coordinator\n---\nrewritten\n' | RIG_AGENT=rig-member rigOp "$rigTmp/i3" --upsert-inbox-note rig-member note-20261006T0930Z-given.md
 rigAssert "an update is not stamped: it is the content given, each key once" "$( cat "$rigTmp/i3.rc" ):$( rigHolds "$rigI2Path" rewritten ):$( rigFieldCount "$rigI2Path" from ):$( rigFieldCount "$rigI2Path" date ):$( rigFieldCount "$rigI2Path" owner )" "0:yes:1:1:1"
-printf -- '---\ntype: note\n---\ndropped\n' | RIG_AGENT=rig-member rigOp "$rigTmp/i3d" --member-inbox-note-upsert rig-member note-20261006T0930Z-given.md
+printf -- '---\ntype: note\n---\ndropped\n' | RIG_AGENT=rig-member rigOp "$rigTmp/i3d" --upsert-inbox-note rig-member note-20261006T0930Z-given.md
 rigAssert "an update that drops the item's required keys is refused, the item as it was" "$( cat "$rigTmp/i3d.rc" ):$( rigHolds "$rigI2Path" rewritten ):$( rigHolds "$rigTmp/i3d" 'the key owner is required and absent' )" "1:yes:yes"
 
-printf 'legacy\n' | rigOp "$rigTmp/i4" --member-inbox-note-upsert rig-member 2026-07-22-note-legacy.md
+printf 'legacy\n' | rigOp "$rigTmp/i4" --upsert-inbox-note rig-member 2026-07-22-note-legacy.md
 rigAssert "an old-shape name is still written, warned"     "$( cat "$rigTmp/i4.rc" ):$( [ -f "$rigData/inboxes/rig-member/incoming/2026-07-22-note-legacy.md" ] && echo written ):$( rigHolds "$rigTmp/i4" 'does not follow the naming Rule' )" "0:written:yes"
 
-printf 'misfiled\n' | rigOp "$rigTmp/i5" --member-inbox-note-upsert rig-member warning-20261006T0930Z-rig-misfiled.md
+printf 'misfiled\n' | rigOp "$rigTmp/i5" --upsert-inbox-note rig-member warning-20261006T0930Z-rig-misfiled.md
 rigAssert "a board type in an inbox is written, warned"    "$( cat "$rigTmp/i5.rc" ):$( rigHolds "$rigTmp/i5" 'is not an inbox type' )" "0:yes"
 
 echo "-- inbox: a note, a reflection and a trash are the inbox owner's own --"
-printf 'not mine to write\n' | RIG_AGENT=rig-other rigOp "$rigTmp/a1" --member-inbox-note-upsert rig-member note-20261006T0931Z-other.md
+printf 'not mine to write\n' | RIG_AGENT=rig-other rigOp "$rigTmp/a1" --upsert-inbox-note rig-member note-20261006T0931Z-other.md
 rigAssert "another member's session writes no note here"   "$( cat "$rigTmp/a1.rc" ):$( [ -f "$rigData/inboxes/rig-member/incoming/note-20261006T0931Z-other.md" ] && echo written || echo absent ):$( rigHolds "$rigTmp/a1" 'this session acts as rig-other' )" "1:absent:yes"
-printf 'a lesson\n' | RIG_AGENT=rig-other rigOp "$rigTmp/a2" --member-inbox-reflection-upsert rig-member reflection-20261006T0931Z-other.md
+printf 'a lesson\n' | RIG_AGENT=rig-other rigOp "$rigTmp/a2" --upsert-inbox-reflection rig-member reflection-20261006T0931Z-other.md
 rigAssert "nor a reflection"                                "$( cat "$rigTmp/a2.rc" ):$( [ -f "$rigData/inboxes/rig-member/incoming/reflection-20261006T0931Z-other.md" ] && echo written || echo absent )" "1:absent"
-printf 'a lesson\n' | RIG_AGENT=rig-member rigOp "$rigTmp/a3" --member-inbox-reflection-upsert rig-member reflection-20261006T0931Z-own.md
+printf 'a lesson\n' | RIG_AGENT=rig-member rigOp "$rigTmp/a3" --upsert-inbox-reflection rig-member reflection-20261006T0931Z-own.md
 rigAssert "its own session writes its own reflection"      "$( cat "$rigTmp/a3.rc" ):$( [ -f "$rigData/inboxes/rig-member/incoming/reflection-20261006T0931Z-own.md" ] && echo written || echo absent )" "0:written"
-RIG_AGENT=rig-other rigOp "$rigTmp/a4" --member-inbox-item-trash rig-member warning-20261006T0930Z-rig-misfiled.md
+RIG_AGENT=rig-other rigOp "$rigTmp/a4" --trash-inbox-item rig-member warning-20261006T0930Z-rig-misfiled.md
 rigAssert "another member's session trashes nothing here"  "$( cat "$rigTmp/a4.rc" ):$( [ -f "$rigData/inboxes/rig-member/incoming/warning-20261006T0930Z-rig-misfiled.md" ] && echo kept || echo gone )" "1:kept"
-RIG_AGENT=rig-member rigOp "$rigTmp/a5" --member-inbox-item-trash rig-member warning-20261006T0930Z-rig-misfiled.md
+RIG_AGENT=rig-member rigOp "$rigTmp/a5" --trash-inbox-item rig-member warning-20261006T0930Z-rig-misfiled.md
 rigAssert "its own session trashes its own item"           "$( cat "$rigTmp/a5.rc" ):$( [ -f "$rigData/inboxes/rig-member/incoming/warning-20261006T0930Z-rig-misfiled.md" ] && echo kept || echo gone )" "0:gone"
 
-echo "-- --member-inbox-to-processed --"
-rigOp "$rigTmp/p1" --member-inbox-to-processed rig-member "$rigI1"
+echo "-- --mark-inbox-processed --"
+rigOp "$rigTmp/p1" --mark-inbox-processed rig-member "$rigI1"
 rigAssert "the member's own item is marked and moves to processed/" "$( cat "$rigTmp/p1.rc" ):$( [ -f "$rigI1Path" ] && echo still || echo gone ):$( [ -f "$rigData/inboxes/rig-member/processed/$rigI1" ] && echo moved || echo absent )" "0:gone:moved"
 rigAssert "with processed-at stamped"                       "$( rigFieldCount "$rigData/inboxes/rig-member/processed/$rigI1" processed-at )" 1
-RIG_AGENT=rig-other rigOp "$rigTmp/p2" --member-inbox-to-processed rig-member note-20261006T0930Z-given.md
+RIG_AGENT=rig-other rigOp "$rigTmp/p2" --mark-inbox-processed rig-member note-20261006T0930Z-given.md
 rigAssert "another member's session is refused"             "$( cat "$rigTmp/p2.rc" ):$( [ -f "$rigI2Path" ] && echo kept ):$( rigFieldCount "$rigI2Path" processed-at )" "1:kept:0"
-RIG_AGENT=rig-member rigOp "$rigTmp/p3" --member-inbox-to-processed rig-member note-20261006T0930Z-given.md
+RIG_AGENT=rig-member rigOp "$rigTmp/p3" --mark-inbox-processed rig-member note-20261006T0930Z-given.md
 rigAssert "its own session is not"                          "$( cat "$rigTmp/p3.rc" ):$( rigFieldCount "$rigData/inboxes/rig-member/processed/${rigI2Path##*/}" processed-at )" "0:1"
 rigOp "$rigTmp/p4" --librarian-inbox-to-processed rig-member 2026-07-22-note-legacy.md
 rigAssert "the librarian op still works"                    "$( cat "$rigTmp/p4.rc" ):$( rigFieldCount "$rigData/inboxes/rig-member/processed/2026-07-22-note-legacy.md" processed-at )" "0:1"
 
 echo "-- a --magic-* op is magic-coordinator's, or the console's --"
-RIG_AGENT=rig-other rigOp "$rigTmp/m1" --magic-state-note-lock-status magic-coordinator
-rigAssert "another member's session is refused"            "$( cat "$rigTmp/m1.rc" ):$( rigHolds "$rigTmp/m1" "this session acts as rig-other, and magic-state-note-lock-status is magic-coordinator's only" )" "1:yes"
-RIG_AGENT=magic-coordinator rigOp "$rigTmp/m2" --magic-state-note-lock-status magic-coordinator
+RIG_AGENT=rig-other rigOp "$rigTmp/m1" --state-note-read magic-coordinator
+rigAssert "another member's session is refused"            "$( cat "$rigTmp/m1.rc" ):$( rigHolds "$rigTmp/m1" "this session acts as rig-other, and state-note-read is magic-coordinator's only" )" "1:yes"
+RIG_AGENT=magic-coordinator rigOp "$rigTmp/m2" --state-note-read magic-coordinator
 rigAssert "the coordinator's own session is not"           "$( rigHolds "$rigTmp/m2" "is magic-coordinator's only" )" no
-rigOp "$rigTmp/m3" --magic-state-note-lock-status magic-coordinator
+rigOp "$rigTmp/m3" --state-note-read magic-coordinator
 rigAssert "nor the console"                                "$( rigHolds "$rigTmp/m3" "is magic-coordinator's only" )" no
-RIG_AGENT=rig-other rigOp "$rigTmp/m5" --magic-contact-digest-send rig-member rig-member --resolved rig digest
-rigAssert "--magic-contact-digest-send is refused to another member's session too" "$( cat "$rigTmp/m5.rc" ):$( rigHolds "$rigTmp/m5" "is magic-coordinator's only" )" "1:yes"
+RIG_AGENT=rig-other rigOp "$rigTmp/m5" --send-contact-digest rig-member rig-member --resolved rig digest
+rigAssert "--send-contact-digest is refused to another member's session too: it cannot send as the member it names" "$( cat "$rigTmp/m5.rc" ):$( rigHolds "$rigTmp/m5" "this session acts as rig-other, so it cannot act as rig-member" )" "1:yes"
 
 echo "-- state note: a write refreshes a held lock --"
 rigLock="$rigData/inboxes/magic-coordinator/incoming/note-20260809T155000Z-heartbeat-state-and-lock.md"

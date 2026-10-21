@@ -77,7 +77,7 @@ rigAssert "helper refuses a malformed value"    "$( rigHelper 'x±1' )" "rc=2"
 echo "-- --recheck-in 17 on a move: format and offset --"
 rigItem blocked task-rig-plain.md ''
 t0="$( date +%s )"
-rigOp "$rigTmp/o1" --magic-board-to-parked magic-coordinator task-rig-plain.md --from-state:blocked --recheck-in 17
+rigOp "$rigTmp/o1" --move-to-parked magic-coordinator task-rig-plain.md --from-state:blocked --recheck-in 17
 t1="$( date +%s )"
 rigAssert "the move succeeds"                   "$( cat "$rigTmp/o1.rc" )" 0
 v="$( rigField parked task-rig-plain.md recheck-date )"
@@ -90,7 +90,7 @@ rigItem parked task-rig-jitter.md ''
 t0="$( date +%s )"
 rigBad="" rigSeen=""
 for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 ; do
-	rigOp "$rigTmp/o2" --magic-board-to-parked magic-coordinator task-rig-jitter.md --from-state:parked --recheck-in '7±2'
+	rigOp "$rigTmp/o2" --move-to-parked magic-coordinator task-rig-jitter.md --from-state:parked --recheck-in '7±2'
 	[ "$( cat "$rigTmp/o2.rc" )" = 0 ] || rigBad="$rigBad rc=$( cat "$rigTmp/o2.rc" )"
 	v="$( rigField parked task-rig-jitter.md recheck-date )"
 	[ "$( rigShape "$v" )" = ok ] || rigBad="$rigBad shape:$v"
@@ -102,51 +102,51 @@ rigAssert "jitter spreads the values"           "$( [ "$( printf '%s\n' $rigSeen
 
 echo "-- an explicit recheck-date header in the same call wins, in either order --"
 rigItem blocked task-rig-explicit-a.md ''
-rigOp "$rigTmp/o3" --magic-board-to-parked magic-coordinator task-rig-explicit-a.md --from-state:blocked \
+rigOp "$rigTmp/o3" --move-to-parked magic-coordinator task-rig-explicit-a.md --from-state:blocked \
 	--recheck-in 17 '--header:upsert:recheck-date:2030-01-01 00:00 +0000'
 rigAssert "the move succeeds"                   "$( cat "$rigTmp/o3.rc" )" 0
 rigAssert "header after: the header's value"    "$( rigField parked task-rig-explicit-a.md recheck-date )" "2030-01-01 00:00 +0000"
 rigItem blocked task-rig-explicit-b.md ''
-rigOp "$rigTmp/o4" --magic-board-to-parked magic-coordinator task-rig-explicit-b.md --from-state:blocked \
+rigOp "$rigTmp/o4" --move-to-parked magic-coordinator task-rig-explicit-b.md --from-state:blocked \
 	'--header:upsert:recheck-date:2030-01-01 00:00 +0000' --recheck-in 17
 rigAssert "header before: the header's value"   "$( rigField parked task-rig-explicit-b.md recheck-date )" "2030-01-01 00:00 +0000"
 rigItem blocked task-rig-explicit-c.md $'recheck-date: 2001-01-01 00:00 +0000\n'
-rigOp "$rigTmp/o5" --magic-board-to-parked magic-coordinator task-rig-explicit-c.md --from-state:blocked \
+rigOp "$rigTmp/o5" --move-to-parked magic-coordinator task-rig-explicit-c.md --from-state:blocked \
 	--recheck-in 17 --header:remove:recheck-date
 rigAssert "a remove header wins too"            "$( rigField parked task-rig-explicit-c.md recheck-date | grep -c . )" 0
 
 echo "-- without --recheck-in, recheck-date is untouched --"
 rigItem blocked task-rig-kept.md $'recheck-date: 2001-01-01 00:00 +0000\n'
-rigOp "$rigTmp/o6" --magic-board-to-parked magic-coordinator task-rig-kept.md --from-state:blocked
+rigOp "$rigTmp/o6" --move-to-parked magic-coordinator task-rig-kept.md --from-state:blocked
 rigAssert "the move succeeds"                   "$( cat "$rigTmp/o6.rc" )" 0
 rigAssert "the old value stays"                 "$( rigField parked task-rig-kept.md recheck-date )" "2001-01-01 00:00 +0000"
 rigItem blocked task-rig-none.md ''
-rigOp "$rigTmp/o7" --magic-board-to-parked magic-coordinator task-rig-none.md --from-state:blocked
+rigOp "$rigTmp/o7" --move-to-parked magic-coordinator task-rig-none.md --from-state:blocked
 rigAssert "none is added"                       "$( rigField parked task-rig-none.md recheck-date | grep -c . )" 0
 
 echo "-- a malformed value is refused and moves nothing --"
 for bad in abc '17±' '±2' '17±2±1' '-5' '' ; do
 	rigItem blocked task-rig-bad.md ''
-	rigOp "$rigTmp/o8" --magic-board-to-parked magic-coordinator task-rig-bad.md --from-state:blocked --recheck-in "$bad"
+	rigOp "$rigTmp/o8" --move-to-parked magic-coordinator task-rig-bad.md --from-state:blocked --recheck-in "$bad"
 	rigAssert "'$bad' is refused, item stays"   "$( cat "$rigTmp/o8.rc" ):$( [ -f "$rigData/board/blocked/task-rig-bad.md" ] && echo stays || echo moved )" 1:stays
 	rm -f "$rigData/board/parked/task-rig-bad.md"
 done
 rigItem blocked task-rig-missing.md ''
-rigOp "$rigTmp/o9" --magic-board-to-parked magic-coordinator task-rig-missing.md --from-state:blocked --recheck-in
+rigOp "$rigTmp/o9" --move-to-parked magic-coordinator task-rig-missing.md --from-state:blocked --recheck-in
 rigAssert "a missing value is refused"          "$( cat "$rigTmp/o9.rc" ):$( [ -f "$rigData/board/blocked/task-rig-missing.md" ] && echo stays || echo moved )" 1:stays
 
 echo "-- the grooming, advance and create families take it too --"
 rigItem pending task-rig-groom.md ''
 t0="$( date +%s )"
-rigOp "$rigTmp/g1" --magic-grooming-to-blocked magic-coordinator task-rig-groom.md --from-state:pending --owner-header-value rig --recheck-in 17
-rigAssert "--magic-grooming-to-blocked"         "$( cat "$rigTmp/g1.rc" ):$( rigWithin "$( rigField blocked task-rig-groom.md recheck-date )" "$t0" "$( date +%s )" 17 17 )" 0:ok
+rigOp "$rigTmp/g1" --grooming-to-blocked magic-coordinator task-rig-groom.md --from-state:pending --owner-header-value rig --recheck-in 17
+rigAssert "--grooming-to-blocked"         "$( cat "$rigTmp/g1.rc" ):$( rigWithin "$( rigField blocked task-rig-groom.md recheck-date )" "$t0" "$( date +%s )" 17 17 )" 0:ok
 rigItem pending task-rig-adv.md ''
 t0="$( date +%s )"
-rigOp "$rigTmp/g2" --magic-advance-to-running magic-coordinator task-rig-adv.md --from-state:pending --recheck-in '7±2'
-rigAssert "--magic-advance-to-running"          "$( cat "$rigTmp/g2.rc" ):$( rigWithin "$( rigField running task-rig-adv.md recheck-date )" "$t0" "$( date +%s )" 5 9 )" 0:ok
+rigOp "$rigTmp/g2" --advance-to-running magic-coordinator task-rig-adv.md --from-state:pending --recheck-in '7±2'
+rigAssert "--advance-to-running"          "$( cat "$rigTmp/g2.rc" ):$( rigWithin "$( rigField running task-rig-adv.md recheck-date )" "$t0" "$( date +%s )" 5 9 )" 0:ok
 t0="$( date +%s )"
-printf -- '---\nowner: rig\n---\n\nrig item\n' | rigOp "$rigTmp/g3" --magic-grooming-create-backlog magic-coordinator task-20261007T1200Z-rig-create.md --owner-header-value rig --upsert-from-stdin --recheck-in 17
-rigAssert "--magic-grooming-create-backlog"     "$( cat "$rigTmp/g3.rc" ):$( rigWithin "$( rigField backlog task-20261007T1200Z-rig-create.md recheck-date )" "$t0" "$( date +%s )" 17 17 )" 0:ok
+printf -- '---\nowner: rig\n---\n\nrig item\n' | rigOp "$rigTmp/g3" --grooming-create-backlog magic-coordinator task-20261007T1200Z-rig-create.md --owner-header-value rig --upsert-from-stdin --recheck-in 17
+rigAssert "--grooming-create-backlog"     "$( cat "$rigTmp/g3.rc" ):$( rigWithin "$( rigField backlog task-20261007T1200Z-rig-create.md recheck-date )" "$t0" "$( date +%s )" 17 17 )" 0:ok
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ BOARD RECHECK-IN CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -16,7 +16,7 @@
 ##      session and the agent have their summary alone
 ##   6. `CheckList` shows the member's check list in that session, as Markdown, read by --manager-session-checklist-read
 ##   7. `Permissions` of a participant shows the grants that apply to its run in its session (the floor, standing, session, task and once grants of that
-##      session, asked for with `--magic-permission-list --member --session-id`), and a grant of a session shows the status of its session, finished or active, and not
+##      session, asked for with `--list-permissions --member --session-id`), and a grant of a session shows the status of its session, finished or active, and not
 ##      its condition; so does `Permissions` of a member
 ##   8. diving into a session under a member's `Sessions` stays in that tree, and does not jump to `Activity`
 ##   9. a member holds `Member Settings` before `Member Help`: its own scope settings, changed by the forms of the settings
@@ -113,7 +113,7 @@ rigRow member magic-coordinator - - - - - here here active - > "$rigF/rows.--man
 	rigRow standing read /rig/ws_rig/docs docs:. "standing by owner" none
 	rigRow session read /rig/ws_rig/a - "ref-1 by magic-coordinator" "until session ${rigS1} ends"
 	rigRow session write /rig/ws_rig/b - "ref-2 by magic-coordinator" "until session ${rigS3} ends"
-} > "$rigF/rows.--magic-permission-list --member magic-coordinator --session-id ${rigS1}"
+} > "$rigF/rows.--list-permissions --member magic-coordinator --session-id ${rigS1}"
 {
 	rigRow subject scopes 2
 	rigRow line scopes magic-coordinator EMAIL_USER set coordinator@rig.example Email_User 'The_address_it_writes_from.' yes text user default - /rig/user.env settings
@@ -163,7 +163,7 @@ rigAssert "the roots, in order: the Dashboard, Pending Questions second, Magic-T
 rigAssert "Magic-Team (Agents) holds Activity, Pending Questions and Team Members, and Team Data only where the team data is there" \
 	"$( rigVal team )" ".. activity pending team routines"
 rigAssert "each shows by its name" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )]" "[ Activity                        ►][ Pending Questions               ►][ Team Members                    ►]"
-rigAssert "Pending Questions under it reads the questions, as the root does" "$( rigCalled "--member-pending-reply-read magic-coordinator --any-owner" )" "1"
+rigAssert "Pending Questions under it reads the questions, as the root does" "$( rigCalled "--read-pending-reply magic-coordinator --any-owner" )" "1"
 
 echo "-- 2. Activity: Launch (Start), then the lists; its left pane is the table of the sessions --"
 rigCase activity
@@ -324,7 +324,7 @@ RIGSCRIPT
 rigAssert "the grants of the member stand under a heading for each kind, as they are read" "$( rigVal perm )" ".. kind:standing 0 kind:session 1 2"
 rigAssert "a grant of a session shows the status of that session, active or finished, and not the condition; a standing one shows what it showed" \
 	"$( rigPaneHolds pp '/rig/ws_rig/a  read    ref-1 by magic-coordinator  active' ) $( rigPaneHolds pp '/rig/ws_rig/b  write   ref-2 by magic-coordinator  finished' ) $( rigPaneHolds pp 'until session' ) $( rigPaneHolds pp 'docs:.         read    standing by owner           none' ) $( rigPaneHolds pp '/rig/ws_rig/c' )" "1 1 0 1 0"
-rigAssert "the grants are those that apply to the member of that participant in its session, not all it holds: asked for that session once, never for the member alone, and the whole read of the member is not made for it" "$( rigCalled "--magic-permission-list --member magic-coordinator --session-id $rigS1" ) $( rigCalled "--magic-permission-list --member magic-coordinator" ) $( rigCalled "--manager-team-member-read --full magic-coordinator" )" "1 0 0"
+rigAssert "the grants are those that apply to the member of that participant in its session, not all it holds: asked for that session once, never for the member alone, and the whole read of the member is not made for it" "$( rigCalled "--list-permissions --member magic-coordinator --session-id $rigS1" ) $( rigCalled "--list-permissions --member magic-coordinator" ) $( rigCalled "--manager-team-member-read --full magic-coordinator" )" "1 0 0"
 rigCase memberpermissions
 rigScript <<RIGSCRIPT
 at @team magic-coordinator permissions

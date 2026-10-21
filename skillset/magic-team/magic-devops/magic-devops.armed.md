@@ -20,7 +20,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Reference modules
   - Idle-Tasks
 - Team-Member's (-specific) tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
 
 # Summary
@@ -129,7 +129,7 @@ Tier 1, for contrast — passes both questions: a tracked-file edit (restore: th
 
 Every `magic-tooling` operation this team-member uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
 - None beyond the floor in `magic-team/magic-team.armed.md`.
 

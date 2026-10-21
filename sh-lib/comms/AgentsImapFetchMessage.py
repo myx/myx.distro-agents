@@ -14,7 +14,7 @@
 ##       the literal, but it issues a plain FETCH BODY[], and curl exposes no
 ##       BODY.PEEK variant, so it sets \Seen as an unavoidable protocol side
 ##       effect. That would silently consume the unseen state that
-##       --member-comms-email-check reports on and --member-comms-email-mark-seen owns.
+##       --email-check reports on and --email-mark-seen owns.
 ## imaplib gets both halves right: EXAMINE opens the mailbox read-only (so the
 ## server cannot set \Seen even in principle, not merely "we asked it not to"),
 ## and BODY.PEEK[] asks for the body without the flag side effect.

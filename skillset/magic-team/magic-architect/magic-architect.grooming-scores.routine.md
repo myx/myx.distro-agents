@@ -20,7 +20,7 @@ review-by: inherit
 - Routine's local procedures
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -52,7 +52,7 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **review-open-items**: Take the open item names the dispatch lists. With none listed, ask the session's `magic-coordinator` for the open items in this domain. Read each with `--member-board-item-read`.
+1. **review-open-items**: Take the open item names the dispatch lists. With none listed, ask the session's `magic-coordinator` for the open items in this domain. Read each with `--get-board-item`.
 2. **score-in-domain**: For each item, set or refine a score per `magic-team.grooming.routine`'s `rice-scoring` block. For a structural score (risk, coupling, blast radius):
    - rule: the scenario and its sensitivity point are the one line of reasoning carried with the score.
    - step: name the concrete scenario the item affects — what breaks, under what condition.
@@ -81,10 +81,10 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--member-board-item-read <team-member> <item-filename>`
-- `--member-upsert-member-inquiry <team-member> <item-filename>`
+- `--get-board-item <item-filename>`
+- `--upsert-inbox-inquiry <team-member> <item-filename>`
 
 # Maintainer Notes
 

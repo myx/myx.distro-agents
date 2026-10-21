@@ -351,7 +351,7 @@ AgentsToolsPermissionGrantScan(){ ## session dir, member, tool, natural target, 
 		esac
 		[ -f "$scanDir/$scanRef.md" ] || continue
 		[ "$( AgentsToolsPermissionField "$scanDir/$scanRef.md" owner )" = "$scanMember" ] || continue
-		## Revoked: a marker beside its record (--magic-permission-revoke).
+		## Revoked: a marker beside its record (--revoke-permission).
 		[ ! -e "$scanDir/revoked/$scanRef" ] || continue
 		case "$scanRef" in
 			refusal-*) [ "$scanEntryTarget" = "$scanWantEsc" ] || continue ;;

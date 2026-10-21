@@ -547,7 +547,7 @@ rigThread "$( rigClick +1 URIGOTHER )" "$( rigReply 000250 URIGOTHER 'approve' )
 rigRead
 rigAssert "a click and a reply by somebody else are no answer" "$( rigReadLine 'ESCALATION: ' ):$( rigField status ):$( rigBytes "$rigWs/held/notes.md" )" "ESCALATION: $( rigId ) open:reply-pending:alpha\\nbeta\\ngamma\\ndelta\\n"
 rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator MDAT_SPAWN_SESSION_ID=rig-other-session )
-rigOp "$rigDir/answer" --magic-escalation-answer magic-coordinator "$( rigId )" approve
+rigOp "$rigDir/answer" --answer-escalation magic-coordinator "$( rigId )" approve
 rigEnv=()
 rigAssert "no member answers it through the team operation, the coordinator neither" "$( cat "$rigDir/answer.rc" ):$( LC_ALL=C grep -c -F 'approve is not a verdict of this change, so nothing is applied' "$rigDir/answer" ):$( rigField status ):$( rigBytes "$rigWs/held/notes.md" )" '1:1:reply-pending:alpha\nbeta\ngamma\ndelta\n'
 rigThread "" "$( rigReply 000250 URIGOWNER 'ok, looks fine' )"

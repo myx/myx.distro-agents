@@ -76,7 +76,7 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 	rigRow session s-done2 older_work finished 2026-10-10T00:00:00Z 2026-10-10T01:00:00Z 1 finished=1 - - none 100
 	rigRow counters 1 0 2 2 3 0.42 righost
 } > "$rigF/rows.--manager-session-list"
-cat > "$rigF/rows.--member-pending-reply-read" <<'RIGROWS'
+cat > "$rigF/rows.--read-pending-reply" <<'RIGROWS'
 PENDING-REPLY: ask-new
 asked-at: 2026-10-13 02:20 +0000
 kind: question
@@ -185,7 +185,7 @@ rigCalls(){ ## text -- how many starts of the stand-in name it in their words, t
 rigCallsIn(){ ## file, text -- the same in a copy of the calls
 	LC_ALL=C grep -v -x -F -- "$rigAsksCount" "$1" | LC_ALL=C grep -c -F -- "$2" || :
 }
-rigAsksCount="--member-pending-reply-read magic-coordinator --any-owner --count"
+rigAsksCount="--read-pending-reply magic-coordinator --any-owner --count"
 rigFolderCalls(){ ## how many starts were of the lists that only a folder asks for: not of those that are read whatever is shown
 	LC_ALL=C grep -c -v -e '^--manager-dashboard-read$' -e '^--manager-place-list$' -e '^--manager-session-list' -e "^$rigAsksCount\$" "$MANAGER_SCREEN_RIG/calls" || :
 }
@@ -231,11 +231,11 @@ rigAssert "what is to start: each as a table with its command, nothing above it"
 rigAssert "the workspace: its facts, the rows of the operation as it printed them, with no Enter" "$( rigLeft W )" " name  ws-one /  path  /rig/Workspaces/ws-one"
 rigAssert "the settings: its subjects in a table, with what each holds" "$( rigLeft G | sed 's/^.*while the workspace runs\. \/ //' )" " SUBJECT      LINES MISSING WHAT /  Interface    2     -       how this console looks, saved for the user who runs it /  Scope        -     -       every scope of settings of this workspace, each a /  Settings                   folder of its variables"
 rigAssert "the configuration: its subjects, how many lines each misses, and its folders" "$( rigLeft F | sed 's/^.*change it later\. \/ //' ) [$( rigLeft F | sed 's/ \/ .*$//' )]" " SUBJECT        LINES MISSING WHAT /  Slack          3     1       - /  Config Checker -     -       the read-only checks of the installation, run on /                               demand /  Server Keys    -     -       the public keys of this server /  Git Settings   -     -       the global git settings of the account that runs the /                               tools /  Installed      -     -       the subsystems of the tool family, installed here or /  Subsystems                   not, and the commands to install and uninstall them /  Diagnostics    -     -       what the tooling sees, read-only: the context it /                               resolves [ SUBJECT        LINES MISSING WHAT]"
-rigAssert "nothing was entered, and each list was read once: the asks, the members, what is to start, and the digest for both its roots" "[$( rigVal end.path )] $( rigCalls --member-pending-reply-read ) $( rigCalls --manager-team-member-list ) $( rigCalls --manager-console-list ) $( rigCalls --manager-config-digest ) $( rigFolderCalls )" "[] 1 1 1 1 5"
+rigAssert "nothing was entered, and each list was read once: the asks, the members, what is to start, and the digest for both its roots" "[$( rigVal end.path )] $( rigCalls --read-pending-reply ) $( rigCalls --manager-team-member-list ) $( rigCalls --manager-console-list ) $( rigCalls --manager-config-digest ) $( rigFolderCalls )" "[] 1 1 1 1 5"
 
 echo "-- until the rows have come the window says that it waits; the read starts when the selection has rested --"
 rigCase waits
-echo "sleep 1" > "$MANAGER_SCREEN_RIG/mode.--member-pending-reply-read"
+echo "sleep 1" > "$MANAGER_SCREEN_RIG/mode.--read-pending-reply"
 rigScript <<'RIGSCRIPT'
 turn
 keys DOWN
@@ -278,12 +278,12 @@ turn
 wait focus 5
 show stop
 RIGSCRIPT
-rigAssert "over four folders in half a second: no read of a folder was started on the way" "$( rigVal ran.selected ) $( LC_ALL=C grep -v -x -F -- "$rigAsksCount" "$MANAGER_SCREEN_RIG/calls.ran" | LC_ALL=C grep -c -e --member-pending-reply-read -e --manager-team-member-list -e --manager-console-list -e --manager-config-digest )" "consoles 0"
+rigAssert "over four folders in half a second: no read of a folder was started on the way" "$( rigVal ran.selected ) $( LC_ALL=C grep -v -x -F -- "$rigAsksCount" "$MANAGER_SCREEN_RIG/calls.ran" | LC_ALL=C grep -c -e --read-pending-reply -e --manager-team-member-list -e --manager-console-list -e --manager-config-digest )" "consoles 0"
 rigAssert "and where it stops, that folder alone is read" "$( rigFolderCalls ) $( rigCalls --manager-console-list ) $( rigHolds stop 'DistroAgentsConsole.sh' )" "1 1 1"
 
 echo "-- a slow read of a folder that was left: it holds the next one back, and never shows in another folder --"
 rigCase slow
-echo "sleep 2" > "$MANAGER_SCREEN_RIG/mode.--member-pending-reply-read"
+echo "sleep 2" > "$MANAGER_SCREEN_RIG/mode.--read-pending-reply"
 rigScript <<'RIGSCRIPT'
 turn
 wait places 5
@@ -307,7 +307,7 @@ RIGSCRIPT
 rigAssert "the asks are being read, as a read of the focus" "[$( rigVal asks.selected )] [$( rigVal asks.reading | tr ',' '\n' | LC_ALL=C grep -F pending )]" "[pending] [list:pending]"
 rigAssert "three folders on, while that read runs: the folder there waits by its own name, its read held back, and nothing of the asks shows" "[$( rigVal other.selected )] [$( rigLeft other )] [$( rigVal other.reading | tr ',' '\n' | LC_ALL=C grep -c -F consoles )]" "[consoles] [Populating Consoles...] [0]"
 rigAssert "when it has ended the folder there is read and shown, and still nothing of the asks" "$( rigHolds later 'DistroAgentsConsole.sh' ) $( rigHolds later 'Which of the two layouts stays?' ) $( rigCalls --manager-console-list )" "1 0 1"
-rigAssert "back on the asks: what that read gave stands there at once, and it was made once" "$( rigHolds back 'Which of the two layouts stays?' ) $( rigCalls --member-pending-reply-read )" "1 1"
+rigAssert "back on the asks: what that read gave stands there at once, and it was made once" "$( rigHolds back 'Which of the two layouts stays?' ) $( rigCalls --read-pending-reply )" "1 1"
 
 echo "-- while the selection stays on a folder its period reads it no more; coming back after the period reads it again --"
 rigCase stays
@@ -337,7 +337,7 @@ keys u
 turn
 wait focus 5
 RIGSCRIPT
-rigAssert "two periods on the row: read once; away and back after the period: once more; away and back at once: no more; and the key that reads now reads it" "$( rigCallsIn "$MANAGER_SCREEN_RIG/calls.stayed" --member-pending-reply-read ) $( rigCallsIn "$MANAGER_SCREEN_RIG/calls.back" --member-pending-reply-read ) $( rigCalls --member-pending-reply-read )" "1 2 3"
+rigAssert "two periods on the row: read once; away and back after the period: once more; away and back at once: no more; and the key that reads now reads it" "$( rigCallsIn "$MANAGER_SCREEN_RIG/calls.stayed" --read-pending-reply ) $( rigCallsIn "$MANAGER_SCREEN_RIG/calls.back" --read-pending-reply ) $( rigCalls --read-pending-reply )" "1 2 3"
 
 echo "-- entering a folder afterwards uses what was read, and reads again when its period has passed --"
 rigCase enters
@@ -355,7 +355,7 @@ turn
 wait list 5
 get aged
 RIGSCRIPT
-rigAssert "entered: its rows are there and no second read was made; the period passed: one more" "[$( rigVal in.path )] $( rigVal in.rows ) $( rigCallsIn "$MANAGER_SCREEN_RIG/calls.in" --member-pending-reply-read ) $( rigCalls --member-pending-reply-read )" "[pending] 4 1 2"
+rigAssert "entered: its rows are there and no second read was made; the period passed: one more" "[$( rigVal in.path )] $( rigVal in.rows ) $( rigCallsIn "$MANAGER_SCREEN_RIG/calls.in" --read-pending-reply ) $( rigCalls --read-pending-reply )" "[pending] 4 1 2"
 
 echo "-- inside the sessions and the configuration: Launch (Start), Server Keys, a subject; the checker is not run by the focus --"
 rigCase inner

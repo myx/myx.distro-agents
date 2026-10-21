@@ -305,7 +305,7 @@ rigAssert "the read guard of the memory store, started by its path from that com
 	"$( cat "$rigTmp/entered/hook.rc" 2> /dev/null ) $( LC_ALL=C grep -c '"permissionDecision": "deny"' "$rigTmp/entered/hook.out" 2> /dev/null )" "0 1"
 rigAssert "the manager screen's reader starts the tool script and has its answer" "$( cat "$rigTmp/entered/screen.out" 2> /dev/null )" "status=0 text=RIG-TOOL --rig-operation one"
 rigAssert "the socket receiver files its inquiry through the tool script: the words and the body reached it" \
-	"$( LC_ALL=C grep -c '^--member-upsert-member-inquiry magic-coordinator inquiry-' "$rigTmp/entered/socket.filed.words" 2> /dev/null ) $( LC_ALL=C grep -c -x 'RIG-MENTION' "$rigTmp/entered/socket.filed" 2> /dev/null )" "1 1"
+	"$( LC_ALL=C grep -c '^--upsert-inbox-inquiry magic-coordinator inquiry-' "$rigTmp/entered/socket.filed.words" 2> /dev/null ) $( LC_ALL=C grep -c -x 'RIG-MENTION' "$rigTmp/entered/socket.filed" 2> /dev/null )" "1 1"
 rigEntered found "$rigBin:$rigNoBashPath"
 rigAssert "where the PATH holds a bash nothing is put on it: the member's command finds that one, and the running one is handed on all the same" \
 	"$( cat "$rigTmp/found/run.rc" ) $( cat "$rigTmp/found/which" 2> /dev/null ) $( rigPathSays found ) $( cat "$rigTmp/found/handed" 2> /dev/null )" "0 $rigBin/bash 0 - $rigRealBash"

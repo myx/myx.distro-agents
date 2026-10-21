@@ -76,7 +76,7 @@ echo "-- final approve: the approval moves to processed and cascades, in one com
 rigItem blocked task-rig-a task $'blocked-by: approval-rig-a\n'
 rigItem backlog task-rig-b task ''
 rigItem running approval-rig-a approval "${rigApproved}blocks: task-rig-a, task-rig-b"$'\n'
-rigOp "$rigTmp/o1" --magic-board-to-processed magic-coordinator approval-rig-a.md --from-state:running
+rigOp "$rigTmp/o1" --move-to-processed magic-coordinator approval-rig-a.md --from-state:running
 rigAssert "the move succeeds"                              "$( cat "$rigTmp/o1.rc" )" 0
 rigAssert "the approval sits in board/processed"           "$( rigLoc approval-rig-a )" processed
 rigAssert "the gated item moved to board/pending"          "$( rigLoc task-rig-a )" pending
@@ -125,7 +125,7 @@ rigAssert "the gated item is not stamped"                  "$( rigCount task-rig
 echo "-- final denial: processed without approved-by/approved-at cascades nothing --"
 rigItem blocked task-rig-d task $'blocked-by: approval-rig-d\n'
 rigItem running approval-rig-d approval $'blocks: task-rig-d\ndecision: denied\n'
-rigOp "$rigTmp/o5" --magic-board-to-processed magic-coordinator approval-rig-d.md --from-state:running
+rigOp "$rigTmp/o5" --move-to-processed magic-coordinator approval-rig-d.md --from-state:running
 rigAssert "the move succeeds"                              "$( cat "$rigTmp/o5.rc" )" 0
 rigAssert "the approval sits in board/processed"           "$( rigLoc approval-rig-d )" processed
 rigAssert "no cascade step is printed"                     "$( rigCascadeLines "$rigTmp/o5" )" 0
@@ -136,7 +136,7 @@ echo "-- partial blocked-by: stamped, but stays blocked --"
 rigItem running task-rig-other task ''
 rigItem blocked task-rig-e task $'blocked-by: approval-rig-e, task-rig-other\n'
 rigItem running approval-rig-e approval "${rigApproved}blocks: task-rig-e"$'\n'
-rigOp "$rigTmp/o6" --magic-board-to-processed magic-coordinator approval-rig-e.md --from-state:running
+rigOp "$rigTmp/o6" --move-to-processed magic-coordinator approval-rig-e.md --from-state:running
 rigAssert "the move succeeds"                              "$( cat "$rigTmp/o6.rc" )" 0
 rigAssert "the gated item stays blocked"                   "$( rigLoc task-rig-e )" blocked
 rigAssert "the gated item is stamped"                      "$( rigHas task-rig-e "$rigBy" )" 1
@@ -145,7 +145,7 @@ rigAssert "the open blocker is reported"                   "$( LC_ALL=C grep -c 
 echo "-- an item's own approval values win --"
 rigItem blocked task-rig-f task $'blocked-by: approval-rig-f\napproved-by: magic-architect (other-session, 2026-10-01T09:00:00Z)\n'
 rigItem running approval-rig-f approval "${rigApproved}blocks: task-rig-f"$'\n'
-rigOp "$rigTmp/o7" --magic-board-to-processed magic-coordinator approval-rig-f.md --from-state:running
+rigOp "$rigTmp/o7" --move-to-processed magic-coordinator approval-rig-f.md --from-state:running
 rigAssert "the move succeeds"                              "$( cat "$rigTmp/o7.rc" )" 0
 rigAssert "the existing approved-by is kept"               "$( rigHas task-rig-f 'approved-by: magic-architect (other-session, 2026-10-01T09:00:00Z)' )" 1
 rigAssert "only one approved-by"                           "$( rigCount task-rig-f approved-by )" 1
@@ -156,7 +156,7 @@ echo "-- malformed, missing, frontmatter-less blocks targets: reported, the move
 rigItem blocked task-rig-g task $'blocked-by: approval-rig-g\n'
 printf 'no frontmatter here\n' > "$rigData/board/backlog/task-rig-nofm.md"
 rigItem running approval-rig-g approval "${rigApproved}blocks: bad/name, task-rig-missing, task-rig-nofm, task-rig-g.md, task-rig-g"$'\n'
-rigOp "$rigTmp/o8" --magic-board-to-processed magic-coordinator approval-rig-g.md --from-state:running
+rigOp "$rigTmp/o8" --move-to-processed magic-coordinator approval-rig-g.md --from-state:running
 rigAssert "the move succeeds"                              "$( cat "$rigTmp/o8.rc" )" 0
 rigAssert "the approval sits in board/processed"           "$( rigLoc approval-rig-g )" processed
 rigAssert "the malformed entries are reported"             "$( LC_ALL=C grep -c 'blocks entry malformed' "$rigTmp/o8" || : )" 2
@@ -169,7 +169,7 @@ echo "-- a retained blocker counts as resolved, like processed/archived --"
 rigItem retained task-rig-ret task ''
 rigItem blocked task-rig-h task $'blocked-by: approval-rig-h, task-rig-ret\n'
 rigItem running approval-rig-h approval "${rigApproved}blocks: task-rig-h"$'\n'
-rigOp "$rigTmp/o9" --magic-board-to-processed magic-coordinator approval-rig-h.md --from-state:running
+rigOp "$rigTmp/o9" --move-to-processed magic-coordinator approval-rig-h.md --from-state:running
 rigAssert "the move succeeds"                              "$( cat "$rigTmp/o9.rc" )" 0
 rigAssert "the gated item moved to board/pending"          "$( rigLoc task-rig-h )" pending
 

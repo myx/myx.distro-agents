@@ -32,21 +32,28 @@ AgentsToolsCommsClientSide(){ ## acting member
 
 ## The one plain line for a client-* member's operation on our own side, in a system where
 ## our side holds no setting for it: says so, and names the --client-* operation that
-## reaches the other organisation. That operation is the twin of the --member-comms-* or
-## --magic-comms-* one given, or the --client-* one a caller names outright; for any other
+## reaches the other organisation. That operation is the --client-comms-* twin of the Slack, Atlassian, Google, mail or
+## Trello operation given, or the --client-* one a caller names outright; for any other
 ## caller the family is named. Where the operation run is the coordinator's own
-## (--magic-comms-*, MDAT_COMMS_OP), the line names the coordinator's way to that operation:
-## --magic-client-operation-run, its caller, the operation, the member.
+## (its audience in the table of the tool files, MDAT_COMMS_OP), or run in magic-coordinator's own session, the line names the coordinator's way to that operation:
+## --client-operation-run, its caller, the operation, the member.
 AgentsToolsCommsOwnSideLine(){ ## member, the system in a word, the operation as it was run, with no leading --
-	local sideTwin="a --client-comms-* operation"
+	local sideTwin="a --client-comms-* operation" sideCoordinator=""
+	type AgentsToolsFrontFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+	[ -z "${MDAT_COMMS_OP:-}" ] || [ "$( AgentsToolsFrontAudience "$MDAT_COMMS_OP" )" != coordinator ] || sideCoordinator=yes
+	## A name the members and the coordinator share is the coordinator's own when its session runs it: its way is the same.
+	type AgentsToolsActingMember > /dev/null 2>&1 && [ "$( AgentsToolsActingMember )" = magic-coordinator ] && sideCoordinator=yes
 	case "$3" in
-		member-comms-*) sideTwin="--client-${3#member-}" ;;
-		magic-comms-*) sideTwin="--client-${3#magic-}" ;;
 		--client-*|--intern-op-client-sweep-input-scan) sideTwin="$3" ;;
+		*)
+			case "$( AgentsToolsFrontFile "--$3" )" in
+				DistroAgentsSlack|DistroAgentsAtlassian|DistroAgentsGoogle|DistroAgentsMail|DistroAgentsTrello) sideTwin="--client-comms-$3" ;;
+			esac
+		;;
 	esac
-	case "${MDAT_COMMS_OP:-}:$sideTwin" in
-		--magic-comms-*:--client-*) sideTwin="--magic-client-operation-run magic-coordinator $sideTwin $1" ;;
-		--magic-comms-*:*) sideTwin="--magic-client-operation-run magic-coordinator with $sideTwin" ;;
+	case "$sideCoordinator:$sideTwin" in
+		yes:--client-*) sideTwin="--client-operation-run magic-coordinator $sideTwin $1" ;;
+		yes:*) sideTwin="--client-operation-run magic-coordinator with $sideTwin" ;;
 	esac
 	printf '%s has no %s settings on our own organisation'"'"'s side: what it holds is the other organisation'"'"'s. For the other organisation use %s.\n' "$1" "$2" "$sideTwin"
 }

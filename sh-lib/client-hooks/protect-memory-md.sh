@@ -79,7 +79,7 @@ if [ -n "$hookDenied" ] ; then
 	printf '\t"hookSpecificOutput": {\n'
 	printf '\t\t"hookEventName": "PreToolUse",\n'
 	printf '\t\t"permissionDecision": "deny",\n'
-	printf '\t\t"permissionDecisionReason": "the machine-local agent memory is not team knowledge and is never written. Record it the team way instead: a lesson as a reflection-* in your own inbox (--member-inbox-reflection-upsert); a fact for another member as an inbox note or inquiry (--member-inbox-note-upsert, --member-upsert-member-inquiry); a decision, permission or problem as an escalation (AskUserQuestion to the session magic-coordinator); a repo or workspace finding in that MAGIC.md"\n'
+	printf '\t\t"permissionDecisionReason": "the machine-local agent memory is not team knowledge and is never written. Record it the team way instead: a lesson as a reflection-* in your own inbox (--upsert-inbox-reflection); a fact for another member as an inbox note or inquiry (--upsert-inbox-note, --upsert-inbox-inquiry); a decision, permission or problem as an escalation (AskUserQuestion to the session magic-coordinator); a repo or workspace finding in that MAGIC.md"\n'
 	printf '\t}\n'
 	printf '}\n'
 	exit 0

@@ -383,7 +383,7 @@ rigContact alice-two
 rigFirst="$( rigRefusedFor alice-two dispatch job-30 )"
 rigAskOne "$rigFirst" 8
 ( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SESSION_THREAD MDAT_SPAWN_SESSION_ID=rig-contact-coordinator MDAT_SPAWN_AGENT=magic-coordinator \
-	MDAT_DATA_ROOT="$rigScenarioDir/data" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigWs" bash "$rigTools" --magic-escalation-answer magic-coordinator "$( rigRecordId )" allow-contact ) \
+	MDAT_DATA_ROOT="$rigScenarioDir/data" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigWs" bash "$rigTools" --answer-escalation magic-coordinator "$( rigRecordId )" allow-contact ) \
 	> "$rigScenarioDir/op.out" 2> "$rigScenarioDir/op.err" ; rigOpRc=$?
 rigAssert "magic-coordinator answers allow-contact for a call it does not hold: not applied, the request stays open, nothing is granted" \
 	"$( rigRecordField status ):$( rigAllows alice-two ):$( rigContactGranted alice-two some-other-session dispatch job-30 )" "reply-pending::none"

@@ -6,7 +6,7 @@
 ## member of another workspace of the machine among them, with its selector, its owner, whether it can be started,
 ## its executors, whether it is coworking-like, the place of its arguments, its title, the reason where it cannot
 ## be started, and last what a start of it needs where that is all it lacks; the rows by owner, then by selector. THE
-## RULE IT PRINTS IS THE SESSION SPAWNER'S: a routine reads startable exactly where --magic-spawn-session, given its
+## RULE IT PRINTS IS THE SESSION SPAWNER'S: a routine reads startable exactly where --spawn-session, given its
 ## file name and no member, starts it -- asked of the spawner itself, row by row, with a stand-in console; and one
 ## whose row says that it needs members is started by that operation with two members named, in one session, while
 ## a wrong name among them starts nobody. A plain comma-separated list of existing members is startable, inner
@@ -126,7 +126,7 @@ rigRun(){ ## tool arguments... -- one dispatcher call from the rig workspace, as
 rigStart(){ ## selector, then the members named, if any -- the session spawner asked to start that routine, a task text on stdin; rc in rigRc, stdout in start.out, stderr in start.err
 	rigRc=0
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" \
-		bash "$rigTool" --magic-spawn-session --routine "$@" ) > "$rigTmp/start.out" 2> "$rigTmp/start.err" <<< "RIG-TASK-TEXT" || rigRc=$?
+		bash "$rigTool" --spawn-session --routine "$@" ) > "$rigTmp/start.out" 2> "$rigTmp/start.err" <<< "RIG-TASK-TEXT" || rigRc=$?
 }
 rigRowOf(){ ## selector -- that routine's row in the last output, TAB written as a space
 	LC_ALL=C awk -F'\t' -v wantName="$1" '$1 == "routine" && $2 == wantName { gsub( /\t/, " " ) ; print ; }' "$rigTmp/out"
@@ -225,7 +225,7 @@ rigRc=0
 rigAssert "a workspace with no member's folder prints no row, ends 0 and says so in one note, with no error and no warning" \
 	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "# DistroAgentsTools $rigOp: no member's folder holds a routine file" ) $( rigTroubles )" "0 0 1 0"
 
-echo "-- 3. the rule it prints is the session spawner's: each row asked of --magic-spawn-session itself --"
+echo "-- 3. the rule it prints is the session spawner's: each row asked of --spawn-session itself --"
 rigParityBad="" ; rigStartedRows=0 ; rigRefusedRows=0
 while IFS="$rigTab" read -r rigKind rigName rigOwner rigStartWord rigRest ; do
 	[ "$rigKind" = routine ] || continue
@@ -291,7 +291,7 @@ rigAssert "the operation has its syntax echo, its syntax line and its entry, onc
 rigForm="$( rigEntry | LC_ALL=C sed -n -e 's/^[[:space:]]*`\(routine <.*>\)`$/\1/p' )"
 rigAssert "its entry gives the form of a row" "$rigForm" "routine <selector> <owner> <start> <executors> <session> <arguments> <title> <reason> <needs> <state> <last-run> <auto> <runs-at> <runs-after> <valid> <would>"
 rigAssert "and every row printed has exactly the fields that form names" "$( LC_ALL=C awk -F'\t' -v wantFields="$( printf '%s\n' "$rigForm" | LC_ALL=C awk '{ print NF }' )" '{ rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/list.kept" )" "rows:0"
-rigAssert "the entry names the three words of <start>, the word of <session>, the operation that takes the selector, and the word of <needs>" "$( for rigWord in startable not-startable broken coworking '--magic-spawn-session --routine <selector>' members ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyy"
+rigAssert "the entry names the three words of <start>, the word of <session>, the operation that takes the selector, and the word of <needs>" "$( for rigWord in startable not-startable broken coworking '--spawn-session --routine <selector>' members ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyy"
 rigAssert "control: the entry was cut up to the next operation's heading, and holds its own text" "$( rigEntry | LC_ALL=C grep -c -F -- 'TAB-separated' || : ) $( rigEntry | LC_ALL=C awk 'END { print ( NR > 0 && NR < 90 ) ? "cut" : "not cut: " NR " lines" }' )" "1 cut"
 rigRun --help-syntax
 rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigTmp/err" || : )" "0 1"

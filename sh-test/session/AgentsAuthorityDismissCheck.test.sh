@@ -185,7 +185,7 @@ rigSettle(){ sleep 2 ; }
 ## The magic-coordinator's own run, the holder of the requests below: it answers one.
 rigRun rigHolder "rig-auth-holder-$rigTag" magic-coordinator spawned human-owner
 rigHolderAnswers(){ ## request id, verdict
-	rigMemberOp "$rigHolder" magic-coordinator --magic-escalation-answer magic-coordinator "${1:-none}" "$2"
+	rigMemberOp "$rigHolder" magic-coordinator --answer-escalation magic-coordinator "${1:-none}" "$2"
 }
 
 echo "-- 1. the console caller who is the founding run's reports-to ends the session at once --"

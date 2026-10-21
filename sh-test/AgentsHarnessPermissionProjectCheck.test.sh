@@ -473,7 +473,7 @@ rigAssert "typed all the same, allow-project is no answer there: the request com
 	"no:VERDICT: RETURNED:reply-pending:no-set:1"
 ## The coordinator's answer on behalf, from a session of its own.
 ( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SESSION_THREAD MDAT_SPAWN_SESSION_ID=rig-project-coordinator MDAT_SPAWN_AGENT=magic-coordinator \
-	MDAT_DATA_ROOT="$rigScenarioDir/data" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigWs" bash "$rigTools" --magic-escalation-answer magic-coordinator "$( rigRecordId )" allow-project ) \
+	MDAT_DATA_ROOT="$rigScenarioDir/data" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigWs" bash "$rigTools" --answer-escalation magic-coordinator "$( rigRecordId )" allow-project ) \
 	> "$rigScenarioDir/op.out" 2> "$rigScenarioDir/op.err" ; rigOpRc=$?
 rigAssert "given through the team operation it is refused too: no verdict of this request" \
 	"$( [ "$rigOpRc" != 0 ] && printf refused || printf taken ):$( rigHolds "$rigScenarioDir/op.err" 'allow-project is not a verdict of this permission' ):$( rigRecordField status )" "refused:yes:reply-pending"

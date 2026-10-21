@@ -2,41 +2,38 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.MemberContact.include -- the --member-contact-* stubs, the
-## contact family's own file on the member side. Sourced lazily from the
-## `--member-contact-*)` wildcard arm via the standard $MDLT_ORIGIN-based
-## path, ahead of the generic `--member-*)` arm that would otherwise swallow
-## the whole family. A further contact stub is a new arm here and no
-## dispatcher line. Not standalone: relies on being dot-sourced for
-## $1/$@/$MDSC_CMD.
+## AgentsTools.MemberContact.include -- the contact-digest stub of DistroAgentsContacts.fn.sh. Sourced from the tool
+## file's arm. Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
 case "$1" in
 
-	## The member form of the contact-digest primitive: the acting member IS the
-	## origin, so the origin is supplied here rather than accepted. A caller
-	## passing one fails closed -- use --magic-contact-digest-send for another
-	## identity's correspondence.
-	--member-contact-digest-send)
+	## The contact-digest primitive. The acting member is the origin of the correspondence unless the caller names
+	## another one, the member whose correspondence produced the digest, before the verdict word. Open to any member, and
+	## sent under the sender's own credentials: a spawned session names only itself.
+	--send-contact-digest)
 		shift
 		local digestMember="$1"
 		shift || true
+		local digestOrigin="$digestMember"
 		if [ -z "$digestMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-contact-digest-send: syntax is <team-member> (--resolved|--needs-ruling) <text...>" >&2
+			echo "⛔ ERROR: $MDSC_CMD --send-contact-digest: syntax is <team-member> [<origin team-member>] (--resolved|--needs-ruling) <text...>" >&2
 			set +e ; return 1
 		fi
 		case "${1:-}" in
-			--resolved|--needs-ruling)
-			;;
-			*)
-				echo "⛔ ERROR: $MDSC_CMD --member-contact-digest-send: syntax is <team-member> (--resolved|--needs-ruling) <text...> -- the acting member is the origin here and is never passed; report another identity's correspondence with --magic-contact-digest-send" >&2
+			--resolved|--needs-ruling) ;;
+			'')
+				echo "⛔ ERROR: $MDSC_CMD --send-contact-digest: syntax is <team-member> [<origin team-member>] (--resolved|--needs-ruling) <text...>" >&2
 				set +e ; return 1
 			;;
+			*)
+				digestOrigin="$1"
+				shift || true
+			;;
 		esac
-		## Sent under the member's own credentials: a spawned session names only itself.
-		AgentsToolsActingMemberCheck "$digestMember" member-contact-digest-send || { set +e ; return 1 ; }
-		DistroAgentsTools --intern-op-contact-digest-send "$digestMember" "$digestMember" "$@" \
-			--context --member-contact-digest-send
+		AgentsToolsActingMemberCheck "$digestMember" send-contact-digest || { set +e ; return 1 ; }
+		DistroAgentsTools --intern-op-contact-digest-send "$digestMember" "$digestOrigin" "$@" \
+			--context --send-contact-digest
 		return $?
 	;;
 

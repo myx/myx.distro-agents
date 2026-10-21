@@ -104,7 +104,7 @@ RIG_WS="$rigTwo" rigRun --intern-directory-register
 echo "-- 1. both names resolve, wherever a place is taken --"
 rigAssert "the machine's skillset in HOME, by its name"       "$( rigSays --intern-directory-resolve .skillset-shared )" "0:T/home/.claude/skills|"
 rigAssert "the workspace's own member set, by its name"       "$( rigSays --intern-directory-resolve .skillset-.local )" "0:T/ws-main/.local/agents/members|"
-rigAssert "a member's path under each, by name"               "$( rigSays --member-directory-path .skillset-shared/keeper-local/a.md )$( rigSays --member-directory-path .skillset-.local/keeper-real )" "0:T/home/.claude/skills/keeper-local/a.md|0:T/ws-main/.local/agents/members/keeper-real|"
+rigAssert "a member's path under each, by name"               "$( rigSays --get-place-path .skillset-shared/keeper-local/a.md )$( rigSays --get-place-path .skillset-.local/keeper-real )" "0:T/home/.claude/skills/keeper-local/a.md|0:T/ws-main/.local/agents/members/keeper-real|"
 rigAssert "the member set is the workspace's a run is in"     "$( RIG_WS="$rigTwo" rigSays --intern-directory-resolve .skillset-.local )" "0:T/ws-two/.local/agents/members|"
 mkdir -p "$rigTmp/home-agents/.agents/skills" "$rigTmp/home-none" "$rigTmp/skills-env"
 rigAssert "a HOME that holds .agents/skills only: the same name, that folder" "$( RIG_HOME="$rigTmp/home-agents" rigSays --intern-directory-resolve .skillset-shared )" "0:T/home-agents/.agents/skills|"
@@ -116,7 +116,7 @@ echo "-- 2. both are shown, wherever a place is shown --"
 rigAssert "a path under the machine's skillset is shown by that name" "$( rigSays --intern-directory-of "$rigSkills/keeper-local/a.md" )$( rigSays --intern-directory-of "$rigSkills" )" "0:.skillset-shared:keeper-local/a.md|0:.skillset-shared:.|"
 rigAssert "one under the member set by its name, not the workspace's" "$( rigSays --intern-directory-of "$rigMembers/keeper-real/b.md" )" "0:.skillset-.local:keeper-real/b.md|"
 rigAssert "control: another path of the workspace keeps the workspace's name" "$( rigSays --intern-directory-of "$rigMain/source/rig/rig-proj/project.inf" )" "0:ws-main:source/rig/rig-proj/project.inf|"
-rigRun --member-directory-list
+rigRun --list-places
 rigAssert "the members' list holds both, first, with no path" "$rigRc:$( head -2 "$rigTmp/out" | LC_ALL=C tr '\t\n' ' |' ):$( LC_ALL=C grep -c / "$rigTmp/out" )" "0:.skillset-shared directory read-write|.skillset-.local directory read-write|:0"
 rigRun --owner-workspace-list
 rigAssert "the owner's list holds both, with their folders"   "$rigRc:$( head -2 "$rigTmp/out" | rigCut | LC_ALL=C tr '\t\n' ' |' )" "0:.skillset-shared directory read-write T/home/.claude/skills present|.skillset-.local directory read-write T/ws-main/.local/agents/members present|"
@@ -144,22 +144,22 @@ printf '%s\t%s\n' .skillset-.local "$rigTwo" .planted "$rigTwo" >> "$rigHome/.ag
 rigAssert "a row of another workspace's registry does not take the name" "$( rigSays --intern-directory-resolve .skillset-.local )$( rigSays --intern-directory-resolve .planted )" "0:T/ws-main/.local/agents/members|1:"
 rigRun --owner-workspace-list
 rigAssert "the list holds no such row, and says each refused"   "$( LC_ALL=C grep -c -e '^\.planted' -e 'elsewhere' "$rigTmp/out" ):$( rigN "$rigTmp/err" 'place .planted is refused' ):$( rigN "$rigTmp/err" 'place .skillset-.local is refused' )" "0:1:1"
-rigRun --member-directory-list
+rigRun --list-places
 rigAssert "the members' list still holds two dot names, both read-write" "$( LC_ALL=C grep '^\.' "$rigTmp/out" | LC_ALL=C tr '\t\n' ' |' )" ".skillset-shared directory read-write|.skillset-.local directory read-write|"
 
 ## ---------------------------------------------------------------- a link and its target
 echo "-- 4. a link and its target give the same answer --"
 rigReal="$rigSource/keeper-linked"
 RIG_AGENT=magic-coordinator RIG_SESSION=s-coord
-rigRun --magic-permission-set-request magic-coordinator task-rig --entry "Read:@.skillset-shared:keeper-linked/a.md" --scope task --session-id s-coord
+rigRun --request-permission-set magic-coordinator task-rig --entry "Read:@.skillset-shared:keeper-linked/a.md" --scope task --session-id s-coord
 rigAssert "an entry asked through the HOME link is asked for the real file" "$( rigN "$rigTmp/out" "PLACE: Read:$rigReal/a.md is .skillset-shared:keeper-linked/a.md" ):$( rigN "$rigTmp/out" "EXTRA: Read:$rigReal/a.md" )" "1:1"
-rigRun --magic-permission-set-request magic-coordinator task-rig --entry "Read:@.skillset-.local:keeper-linked/a.md" --scope task --session-id s-coord
+rigRun --request-permission-set magic-coordinator task-rig --entry "Read:@.skillset-.local:keeper-linked/a.md" --scope task --session-id s-coord
 rigAssert "through the workspace's member link: the same file" "$( rigN "$rigTmp/out" "PLACE: Read:$rigReal/a.md is .skillset-.local:keeper-linked/a.md" ):$( rigN "$rigTmp/out" "EXTRA: Read:$rigReal/a.md" )" "1:1"
-rigRun --magic-permission-set-request magic-coordinator task-rig --entry "Read:@ws-main:source/rig/rig-proj/skillset/keeper-linked/a.md" --scope task --session-id s-coord
+rigRun --request-permission-set magic-coordinator task-rig --entry "Read:@ws-main:source/rig/rig-proj/skillset/keeper-linked/a.md" --scope task --session-id s-coord
 rigAssert "by the file's own path under source: the same file" "$( rigN "$rigTmp/out" "EXTRA: Read:$rigReal/a.md" )" 1
-rigRun --magic-permission-set-request magic-coordinator task-rig --entry "Read:@.skillset-shared:keeper-linked/reference/**" --scope task --session-id s-coord
+rigRun --request-permission-set magic-coordinator task-rig --entry "Read:@.skillset-shared:keeper-linked/reference/**" --scope task --session-id s-coord
 rigAssert "a folder under the link, with everything in it"    "$( rigN "$rigTmp/out" "PLACE: Read:$rigReal/reference/** is .skillset-shared:keeper-linked/reference/**" ):$( rigN "$rigTmp/out" "EXTRA: Read:$rigReal/reference/**" )" "1:1"
-rigRun --magic-permission-set-request magic-coordinator task-rig --entry "Read:@.skillset-shared:keeper-local/a.md" --scope task --session-id s-coord
+rigRun --request-permission-set magic-coordinator task-rig --entry "Read:@.skillset-shared:keeper-local/a.md" --scope task --session-id s-coord
 rigAssert "a machine-local skill's file is its own, under HOME" "$( rigN "$rigTmp/out" "PLACE: Read:$rigSkills/keeper-local/a.md is .skillset-shared:keeper-local/a.md" ):$( rigN "$rigTmp/out" "EXTRA: Read:$rigSkills/keeper-local/a.md" )" "1:1"
 RIG_AGENT="" RIG_SESSION=""
 

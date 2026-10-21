@@ -2,10 +2,8 @@
 
 ##
 ## DistroAgentsSlack.fn.sh -- the team's Slack operations (F1.4 of the refactorings epic). A subsystem interface: results are read from it, by agent tools,
-## the shell console and shell automation alike. Its operations: reading, sending, reacting, files, profile, presence and the socket. The names are the table of
-## sh-lib/harness/AgentsContext.FrontForward.include, one line each.
-## First stage: each operation goes on under the name it had in DistroAgentsTools.fn.sh, with every check and gate it had. The old names are
-## deleted, and the operations move into this file, when the stubs leave DistroAgentsTools.fn.sh.
+## the shell console and shell automation alike. Its operations: reading, sending, reacting, files, profile, presence and the socket. They are the lines of
+## sh-lib/harness/AgentsContext.FrontTable.include that name this file, and a bare call or --help lists them.
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -30,12 +28,8 @@ case "$BASH" in
 esac
 
 DistroAgentsSlack(){
-	local MDSC_CMD='DistroAgentsSlack'
-	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontForward.include"
-	if AgentsToolsFrontKnows DistroAgentsSlack "$@" ; then
-		AgentsToolsFrontForward DistroAgentsSlack "$@"
-		return $?
-	fi
+	local MDSC_CMD='DistroAgentsSlack' frontDone="" frontRc=0
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	case "${1:-}" in
 		'')
 			AgentsToolsFrontHelp DistroAgentsSlack "the team's Slack operations" >&2
@@ -45,6 +39,21 @@ DistroAgentsSlack(){
 			AgentsToolsFrontHelp DistroAgentsSlack "the team's Slack operations" >&2
 			return 0
 		;;
+	esac
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontDoor.include"
+	[ -z "$frontDone" ] || return "$frontRc"
+	case "$1" in
+
+		--slack-conversations-roster|--slack-resolve-ids)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicComms.include"
+			return $?
+		;;
+
+		--slack-delete-message|--slack-edit-message|--slack-file-fetch|--slack-file-info|--slack-file-share|--slack-presence-keep|--slack-presence-status|--slack-presence-stop|--slack-profile-get|--slack-profile-set|--slack-react|--slack-read|--slack-search-messages|--slack-send-message|--slack-socket-start|--slack-socket-status|--slack-socket-stop)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsSlack.include"
+			return $?
+		;;
+
 		*)
 			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 			set +e ; return 1

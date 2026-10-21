@@ -394,7 +394,7 @@ rigAssert "its entry gives the form of each of the three rows" "$( rigForm sessi
 rigRun "$rigOp"
 rigAssert "and every row printed has exactly the fields its form names" "$( for rigKind in session run counters ; do LC_ALL=C awk -F'\t' -v wantKind="$rigKind" -v wantFields="$( rigForm "$rigKind" | LC_ALL=C awk '{ print NF }' )" '$1 == wantKind { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s ", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" ; done )" "rows:0 rows:0 rows:0 "
 rigAssert "the entry names the two registries it rebuilds, each state of a session, and the two words of an agent's activity" "$( for rigWord in spawned-sessions pending-replies running waiting unknown-foreign unclosed finished working ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyyyy"
-rigAssert "control: the entry was cut up to the next operation's heading" "$( rigEntry | LC_ALL=C grep -c -F -- 'TAB-separated' || : ) $( rigEntry | LC_ALL=C grep -c -F -- '--magic-grooming-to-backlog' || : )" "1 0"
+rigAssert "control: the entry was cut up to the next operation's heading" "$( rigEntry | LC_ALL=C grep -c -F -- 'TAB-separated' || : ) $( rigEntry | LC_ALL=C grep -c -F -- '--grooming-to-backlog' || : )" "1 0"
 rigAssert "the notes of the help say whose the family is, once" "$( LC_ALL=C grep -c -F -- 'The `--manager-*` operations are the console'"'"'s own' "$rigHelpMd" || : )" "1"
 rigRun --help-syntax
 rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigTmp/err" || : )" "0 1"

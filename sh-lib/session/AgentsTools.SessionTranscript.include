@@ -521,7 +521,7 @@ AgentsTranscriptSpawnEnd(){ ## session id, outcome, exit code
 	return 0
 }
 
-## One NOTE line in the current session's transcript (--member-append-session-transcript with
+## One NOTE line in the current session's transcript (--append-transcript with
 ## no --transcript-name); rc 1 and an ERROR line when no session or no transcript resolves.
 ## Prints where it went. The optional time the speaker gave goes on the line as at=.
 AgentsTranscriptNote(){ ## session id, author, text, time given (optional)

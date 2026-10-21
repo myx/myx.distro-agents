@@ -1283,7 +1283,7 @@ magic-team MDAT_WORKSPACE_MODE"
 					## erroring, leaves every report above byte-identical to a clean one --
 					## and costs an agent the choice between waiting again and escalating,
 					## which is the only reason the operation exists. This one RUNS
-					## --member-wait-for-input and the Wait tool over it, and carries its own
+					## --wait-for-input and the Wait tool over it, and carries its own
 					## negative controls. Offline and invoked through its interpreter on the
 					## same terms as the two behaviour checks above.
 					local setupWaitOut="" setupWaitRc=0

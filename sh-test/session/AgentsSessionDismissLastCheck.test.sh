@@ -139,7 +139,7 @@ rigAccepts(){ ## item
 	rm -f "$rigDir"/post.* "$rigDir/posts"
 	( cd "$rigDir/ws" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$rigTmp/served:/usr/bin:/bin:/usr/sbin:/sbin" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" \
 		MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigDir/data" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
-		bash "$rigFn" --member-review-accept magic-coordinator "$1" --summary "The work is good." ) > "$rigDir/accept.out" 2>&1
+		bash "$rigFn" --accept-review magic-coordinator "$1" --summary "The work is good." ) > "$rigDir/accept.out" 2>&1
 	printf '%s' "$?" > "$rigDir/accept.rc"
 	cat "$rigDir"/post.* 2> /dev/null | LC_ALL=C grep -c -F 'DISMISSED' || :
 }

@@ -162,7 +162,7 @@ rigRunsRows(){ ## session, member
 ## The item returned from review by the coordinator: the run its return started, by its spawn id.
 rigReturn(){ ## item stem, sandbox folder, spawn ids known so far (space-separated)
 	local returnRecord returnId
-	rigOp "$rigTmp/return.out" --member-review-return magic-coordinator "$1" --message "redo the rig step"
+	rigOp "$rigTmp/return.out" --return-review magic-coordinator "$1" --message "redo the rig step"
 	for returnRecord in "$rigSpawned/$2"/*.spawn.md ; do
 		[ -f "$returnRecord" ] || continue
 		returnId="${returnRecord##*/}" ; returnId="${returnId%.spawn.md}"
@@ -199,7 +199,7 @@ rigAssert "and the served Write goes through, no error line" "$( rigWrite keeper
 ## one in the coworking session it works in, one in the session both runs were spawned from.
 rigPass(){ ## path, session -- the reference of the pass, or empty
 	rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator MDAT_SPAWN_SESSION_ID=rig-coord )
-	rigOp "$rigTmp/pass.out" --member-permission-pass magic-coordinator --to keeper-myx --tool Write --target "$1" --kind session --session-id "$2"
+	rigOp "$rigTmp/pass.out" --pass-permission magic-coordinator --to keeper-myx --tool Write --target "$1" --kind session --session-id "$2"
 	rigEnv=()
 	LC_ALL=C sed -n 's/^GRANT: session \(pass-[0-9a-f-]*\)$/\1/p' "$rigTmp/pass.out" | head -1
 }

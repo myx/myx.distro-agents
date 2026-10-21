@@ -59,6 +59,8 @@ function tixReadHelp( file, help,    line, part, op, words, zone, entryOp, colle
 			part = substr( line, length( "📘 syntax: " ) + 1 )
 			if ( split( part, words, " " ) < 2 ) continue
 			op = words[2] ; gsub( /[][]/, "", op )
+			## The manual is one for every tool file: a file lists the operations whose syntax lines name it.
+			if ( words[1] != file ) continue
 			if ( op !~ /^--/ || ( ( file, op ) in opSeen ) ) continue
 			opSeen[file, op] = 1
 			opName[file, ++opCount[file]] = op
@@ -100,6 +102,7 @@ function tixEntryEnd( file, ops, text,    list, count, at ) {
 ## An operation's family: `--` and its first word with the dash after it, or the whole
 ## operation where its name is one word.
 function tixFamily( op,    rest, dash ) {
+	if ( op in coordOp ) return "coordinator"
 	rest = substr( op, 3 ) ; dash = index( rest, "-" )
 	return dash ? "--" substr( rest, 1, dash ) : op
 }
@@ -138,7 +141,8 @@ function ttSlot( name ) {
 	if ( name == "summary" ) return curSummary
 	if ( name == "op" ) return curOp
 	if ( name == "description" ) return curText
-	if ( name == "family" ) return curFamily
+	if ( name == "family" ) return curFamilyText
+	if ( name == "hint" ) return curHint
 	if ( name == "count" ) return curCount
 	if ( name == "owners" ) return curOwners
 	if ( name == "tool" ) return curTool
@@ -158,7 +162,8 @@ BEGIN {
 	while ( ( got = ( getline row < dataFile ) ) > 0 ) {
 		fieldCount = split( row, f, "\t" )
 		if ( f[1] == "member" && f[2] != "" ) member[++memberCount] = f[2]
-		else if ( f[1] == "shell" ) { shellFile[++shellCount] = f[2] ; shellCommand[shellCount] = f[3] ; shellHelp[shellCount] = f[4] }
+		else if ( f[1] == "shell" ) { shellFile[++shellCount] = f[2] ; shellCommand[shellCount] = f[3] ; shellHelp[shellCount] = f[4] ; shellSummary[shellCount] = f[5] }
+		else if ( f[1] == "coordop" ) coordOp[f[2]] = 1
 		else if ( f[1] == "calls" ) { harnessTools = f[2] ; mcpTools = f[3] }
 		else if ( f[1] == "may" ) {
 			checked[f[2]] = 1 ; may[f[2], f[3]] = ( f[4] == "yes" )
@@ -168,7 +173,7 @@ BEGIN {
 	}
 	if ( got < 0 ) exit 4
 	close( dataFile )
-	for ( s = 1 ; s <= shellCount ; s++ ) tixReadHelp( shellFile[s], shellHelp[s] )
+	for ( s = 1 ; s <= shellCount ; s++ ) { tixReadHelp( shellFile[s], shellHelp[s] ) ; if ( shellSummary[s] != "" ) summary[shellFile[s]] = shellSummary[s] }
 	tixReadTools( harnessTools ) ; tixReadTools( mcpTools )
 
 	tixBlock( "head" )
@@ -191,6 +196,8 @@ BEGIN {
 				if ( curFamily in familyShown ) continue
 				familyShown[curFamily] = 1
 				curCount = familyCount[curFile, curFamily]
+				if ( curFamily == "coordinator" ) { curFamilyText = "the coordinator\047s own operations" ; curHint = "" }
+				else { curFamilyText = "`" curFamily "*`" ; curHint = " " curFamily }
 				split( "", owners ) ; ownerCount = 0
 				for ( k = 1 ; k <= mayCount[curFamily] ; k++ ) owners[++ownerCount] = mayList[curFamily, k]
 				curOwners = tixJoin( owners, ownerCount )

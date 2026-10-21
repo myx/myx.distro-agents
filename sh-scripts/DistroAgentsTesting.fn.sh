@@ -8,10 +8,9 @@
 ## --test-unregister, --test-invalidate and --test-list over the metadata of the tests, and
 ## --run-oldest-untested and --run-all-nightly-regressions, which put tests into the retest queue.
 ## All testing machinery gathers here, the retest queue included, and there is no second queue: the
-## queue is the one of --member-retest-* (AgentsTools.MemberRetest.include), whose names stay until the
-## operations are regrouped (F1.4). A member raises a testing need through AgentTestingTools.fn.sh.
+## queue is the one of the --retest-* operations (AgentsTools.MemberRetest.include). A member raises a testing need through AgentTestingTools.fn.sh.
 ##
-## From DistroAgentsTools.fn.sh (F1.4, first stage): --retest-drain, --retest-queue, --retest-result, --send-report. They go on under their old names (sh-lib/harness/AgentsContext.FrontForward.include).
+## From DistroAgentsTools.fn.sh (F1.4): --retest-drain, --retest-queue, --retest-result, --send-report (sh-lib/harness/AgentsContext.FrontTable.include).
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -40,12 +39,37 @@ DistroAgentsTestingTestbed(){
 	type AgentsToolsTestbedRegister > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Testbed.include"
 }
 
+## The operations that came here from DistroAgentsTools.fn.sh (F1.4): every one of them is asked what each name of the table is asked, in AgentsContext.FrontDoor.include.
+DistroAgentsTestingMoved(){
+	local MDSC_CMD='DistroAgentsTesting' frontDone="" frontRc=0
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontDoor.include"
+	[ -z "$frontDone" ] || return "$frontRc"
+	case "$1" in
+
+		--retest-drain|--retest-queue|--retest-result)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberRetest.include"
+			return $?
+		;;
+
+		--send-report)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicCoordinatorState.include"
+			return $?
+		;;
+
+		*)
+			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+			set +e ; return 1
+		;;
+	esac
+}
+
 DistroAgentsTesting(){
 	local MDSC_CMD='DistroAgentsTesting'
-	## F1.4, first stage: an operation that came here under a new name goes on under its old one (sh-lib/harness/AgentsContext.FrontForward.include).
-	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontForward.include"
+	## F1.4: a name that came here from DistroAgentsTools.fn.sh runs its operation in the function below.
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	if AgentsToolsFrontKnows DistroAgentsTesting "$@" ; then
-		AgentsToolsFrontForward DistroAgentsTesting "$@"
+		DistroAgentsTestingMoved "$@"
 		return $?
 	fi
 	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,

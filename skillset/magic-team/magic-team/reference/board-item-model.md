@@ -23,7 +23,7 @@ Read this when creating, moving or reading board, audit and vault items. The inb
 
 Not types: `talk-*` (use `interview-*`), `approve-*` (use `approval-*`), `epic-*` (use `project-*`), `assignment-*` and `session-*` (use `dispatch-*`), `pending-slack-reaction`/`pending-trello-update` (these are `note-*` records in `magic-coordinator`'s own inbox). A new type is added here first, then to every routine that creates or reads it.
 
-**Audit and vault types**: `transcript-*` (audit; append-only through `--member-append-session-transcript`; verbatim messages, UTC stamps; never on the board), `incident-*` (audit), `verbatim-*` (vault).
+**Audit and vault types**: `transcript-*` (audit; append-only through `--append-transcript`; verbatim messages, UTC stamps; never on the board), `incident-*` (audit), `verbatim-*` (vault).
 
 **Every board item is a tracking document.** It records who worked on it (`participants`) and the state they left it in; a restart spawns that group at that state.
 
@@ -38,7 +38,7 @@ Not types: `talk-*` (use `interview-*`), `approve-*` (use `approval-*`), `epic-*
 - `participants` — who worked on it, added as they join.
 - `restart-session` — members to spawn as a coworking session instead of running inline.
 - `review-by` — the reviewer of a `board-review` item. Unset, it is the run's `reports-to`. `none` means no review: the item closes straight to `board-processed`.
-- `allows` — the approved permission set the tracked session carries: `session|task:<tool>:<target>:<granted-by>:<YYYYMMDD'T'HHmm'Z'>`, target %-escaped, `granted-by` a holder and not the session's own member. Written by tooling when the set is approved (`--magic-permission-set-request`).
+- `allows` — the approved permission set the tracked session carries: `session|task:<tool>:<target>:<granted-by>:<YYYYMMDD'T'HHmm'Z'>`, target %-escaped, `granted-by` a holder and not the session's own member. Written by tooling when the set is approved (`--request-permission-set`).
 - `tracks` — on a `dispatch-*`, the item its session's work is tracked in.
 - `archive: true` — keep this processed item permanently.
 - `outcome`/`execution-receipt` — what an advance pass did, and the evidence. Written by `magic-coordinator`.

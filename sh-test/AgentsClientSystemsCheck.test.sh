@@ -142,12 +142,12 @@ rigElsewhere(){ ## -- how many calls of the last run carried anything of the oth
 	LC_ALL=C grep -c 'THERE' "$rigTmp/calls" || :
 }
 rigSideLine(){ ## the --member-* operation that was run, the system in a word -- how many lines of the last run are the one plain line: no settings on our side, and the --client-* operation of the same name
-	rigN "$rigTmp/err" "$1: client-ndm has no $2 settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --client-${1#--member-}."
+	rigN "$rigTmp/err" "$1: client-ndm has no $2 settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --client-comms-${1#--}."
 }
 rigOwnSide(){ ## the system in a word, the status wanted, a --member-* operation of client-ndm and its arguments... -- that operation is our own side: the one line, and no call
 	local sideWord="$1" sideRc="$2" ; shift 2
 	rigRun "$@"
-	rigAssert "$1 of a client says in one line that it holds no $sideWord settings on our side, names --client-${1#--member-}, and makes no call" "$rigRc $( rigSideLine "$1" "$sideWord" ) $( rigLines "$rigTmp/calls" )" "$sideRc 1 0"
+	rigAssert "$1 of a client says in one line that it holds no $sideWord settings on our side, names --client-comms-${1#--}, and makes no call" "$rigRc $( rigSideLine "$1" "$sideWord" ) $( rigLines "$rigTmp/calls" )" "$sideRc 1 0"
 }
 rigNames(){ ## file, family -- the --client-comms-<family>-<operation> names that file holds, sorted, one per line
 	LC_ALL=C grep -o -E -e "--client-comms-$2-[a-z-]*[a-z]" "$1" | LC_ALL=C sort -u
@@ -156,32 +156,32 @@ rigNames(){ ## file, family -- the --client-comms-<family>-<operation> names tha
 rigWorld
 rigRun --agents-config-option keeper-here --select TRELLO_KEY
 [ "$rigRc" = 0 ] && [ "$( cat "$rigTmp/out" )" = "rig-trello-key-KHERE" ] || rigRefuse "the baseline config select did not answer from the workspace everything is run from, so no row below would be measured: rc=$rigRc $( LC_ALL=C grep -m1 -E 'ERROR|WARNING' "$rigTmp/err" )"
-rigRun --member-comms-trello-whoami keeper-here
+rigRun --trello-whoami keeper-here
 [ "$rigRc" = 0 ] && [ "$( rigCalls )" = "trello members/me rig-trello-key-KHERE" ] || rigRefuse "the baseline Trello lookup of a member set up here reached no call under its own key, so no row below would be measured: rc=$rigRc $( rigCalls ) $( LC_ALL=C grep -m1 ERROR "$rigTmp/err" )"
 [ -d "$( rigView ws-there )/client-ndm" ] && [ ! -e "$( rigView ws-here )/client-ndm" ] || rigRefuse "the fixture does not hold client-ndm in the other workspace's view only, so no row below would show an invited client"
 
 echo "-- 1. a --member-* operation of a client is our own organisation's side, where it holds no settings: one plain line, no call --"
-rigOwnSide mail 1 --member-comms-email-check client-ndm
-rigOwnSide mail 1 --member-comms-email-read client-ndm 41
-rigOwnSide mail 1 --member-comms-email-mark-seen client-ndm 41
-rigOwnSide mail 1 --member-comms-email-send client-ndm person@ndm.invalid -- 'Rig subject' -- 'Rig body.'
-rigOwnSide Trello 1 --member-comms-trello-check client-ndm
-rigOwnSide Trello 1 --member-comms-trello-read client-ndm 5f0000000000000000000a01
-rigOwnSide Trello 1 --member-comms-trello-whoami client-ndm
-rigOwnSide Google 1 --member-comms-google-whoami client-ndm
-rigOwnSide Google 1 --member-comms-google-doc-read client-ndm RIGDOC0001
-rigOwnSide Google 1 --member-comms-google-sheet-read client-ndm RIGSHEET01 A1:B2
-rigOwnSide Jira 6 --member-comms-jira-board-list client-ndm
+rigOwnSide mail 1 --email-check client-ndm
+rigOwnSide mail 1 --email-read client-ndm 41
+rigOwnSide mail 1 --email-mark-seen client-ndm 41
+rigOwnSide mail 1 --email-send client-ndm person@ndm.invalid -- 'Rig subject' -- 'Rig body.'
+rigOwnSide Trello 1 --trello-check client-ndm
+rigOwnSide Trello 1 --trello-read client-ndm 5f0000000000000000000a01
+rigOwnSide Trello 1 --trello-whoami client-ndm
+rigOwnSide Google 1 --google-whoami client-ndm
+rigOwnSide Google 1 --google-doc-read client-ndm RIGDOC0001
+rigOwnSide Google 1 --google-sheet-read client-ndm RIGSHEET01 A1:B2
+rigOwnSide Jira 6 --jira-board-list client-ndm
 rigAssert "in Jira and Confluence it is the designed refusal of a member with no settings: the warning mark and its own status" "$( rigN "$rigTmp/err" '🙋 WARNING' ) $( rigN "$rigTmp/err" '⛔ ERROR' )" "1 0"
-rigOwnSide Jira 6 --member-comms-jira-issue-read client-ndm RIG-1
-rigOwnSide Confluence 6 --member-comms-confluence-space-list client-ndm
-rigOwnSide Confluence 6 --member-comms-confluence-page-read client-ndm 12345
+rigOwnSide Jira 6 --jira-issue-read client-ndm RIG-1
+rigOwnSide Confluence 6 --confluence-space-list client-ndm
+rigOwnSide Confluence 6 --confluence-page-read client-ndm 12345
 rigPre=( MDAT_COMMS_SIDE=client 'MDAT_COMMS_OP=--client-comms-email-check' )
-rigOwnSide mail 1 --member-comms-email-check client-ndm
-rigOwnSide Jira 6 --member-comms-jira-board-list client-ndm
+rigOwnSide mail 1 --email-check client-ndm
+rigOwnSide Jira 6 --jira-board-list client-ndm
 rigPre=()
 rigRun --intern-op-comms-email-check client-ndm
-rigAssert "an operation with no marker is our own side too: the same line, and no call" "$rigRc $( rigSideLine --member-comms-email-check mail ) $( rigLines "$rigTmp/calls" )" "1 1 0"
+rigAssert "an operation with no marker is our own side too: the same line, and no call" "$rigRc $( rigSideLine --email-check mail ) $( rigLines "$rigTmp/calls" )" "1 1 0"
 
 echo "-- 2. the --client-* operation of the same name reaches the other organisation, with what the client itself holds --"
 rigRun --client-comms-email-check client-ndm
@@ -238,31 +238,31 @@ for rigOp in --client-comms-email-bogus --client-comms-trello-bogus --client-com
 done
 
 echo "-- 5. control: a member of our own team is as it was --"
-rigRun --member-comms-email-check keeper-here
+rigRun --email-check keeper-here
 rigAssert "its mailbox check is its own mailbox" "$rigRc $( LC_ALL=C awk 'NR == 1 { print $1, $2, $3 }' "$rigTmp/calls" ) $( rigLines "$rigTmp/calls" )" "0 imap imap-keeper.here.invalid us@keeper.here.invalid 2"
-rigRun --member-comms-google-whoami keeper-here
+rigRun --google-whoami keeper-here
 rigAssert "its Google lookup is its own account" "$rigRc $( rigCalls )" "0 google whoami rig-google-client-KHERE"
-rigRun --member-comms-jira-board-list keeper-here
+rigRun --jira-board-list keeper-here
 rigAssert "its Jira listing is its own site" "$rigRc $( rigCalls )" "0 http jira-keeper.here.invalid us@keeper.here.invalid"
-rigRun --member-comms-confluence-space-list keeper-here
+rigRun --confluence-space-list keeper-here
 rigAssert "its Confluence listing is its own site" "$rigRc $( rigCalls )" "0 http confluence-keeper.here.invalid us@keeper.here.invalid"
-rigRun --member-comms-email-check keeper-none
+rigRun --email-check keeper-none
 rigAssert "a member of ours with no mailbox is told its own scope is not set, as before, and not the line of a client" "$rigRc $( rigN "$rigTmp/err" "not fully set in keeper-none's own scope" ) $( rigN "$rigTmp/err" 'on our own organisation' ) $( rigLines "$rigTmp/calls" )" "1 1 0 0"
-rigRun --member-comms-jira-board-list keeper-none
+rigRun --jira-board-list keeper-none
 rigAssert "and in Jira it is the designed refusal that names the missing settings, as before" "$rigRc $( rigN "$rigTmp/err" 'JIRA_SITE' ) $( rigN "$rigTmp/err" 'on our own organisation' ) $( rigLines "$rigTmp/calls" )" "6 1 0 0"
 
-echo "-- 6. magic-coordinator reaches the client side through --magic-client-operation-run; a --magic-comms-* operation given a client is our own side --"
-rigRun --magic-client-operation-run magic-coordinator --client-comms-email-mark-seen client-ndm 41
+echo "-- 6. magic-coordinator reaches the client side through --client-operation-run; a --magic-comms-* operation given a client is our own side --"
+rigRun --client-operation-run magic-coordinator --client-comms-email-mark-seen client-ndm 41
 rigAssert "its mark of a message as client-ndm, through its own operation, is in the mailbox the client holds" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3, $4, $5 }' "$rigTmp/calls" )" "0 imap imap-ndm.invalid us@ndm.invalid UID STORE"
-rigRun --magic-comms-email-mark-seen client-ndm 41
-rigAssert "the --magic-comms- mark given a client is our own side, where a client holds no mail settings: the one line, naming --magic-client-operation-run, and no call" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --member-comms-email-mark-seen: client-ndm has no mail settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --magic-client-operation-run magic-coordinator --client-comms-email-mark-seen client-ndm." )" "1 0 1"
-rigRun --magic-comms-email-mark-seen keeper-here 41
+rigRun --email-mark-seen client-ndm 41
+rigAssert "the mark of a message given a client is our own side, where a client holds no mail settings: the one line, naming --client-comms-email-mark-seen, and no call" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --email-mark-seen: client-ndm has no mail settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --client-comms-email-mark-seen." )" "1 0 1"
+rigRun --email-mark-seen keeper-here 41
 rigAssert "control: as a member of our own team it is that member's mailbox" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3 }' "$rigTmp/calls" )" "0 imap imap-keeper.here.invalid us@keeper.here.invalid"
-rigRun --magic-client-operation-run magic-coordinator --client-comms-trello-post-comment client-ndm 5f0000000000000000000c01 'Rig comment.'
+rigRun --client-operation-run magic-coordinator --client-comms-trello-post-comment client-ndm 5f0000000000000000000c01 'Rig comment.'
 rigAssert "its Trello comment as client-ndm, through its own operation, is under the account the client holds" "$rigRc $( rigCalls )" "0 trello cards/5f0000000000000000000c01/actions/comments rig-trello-key-NDM"
-rigRun --magic-comms-trello-post-comment client-ndm 5f0000000000000000000c01 'Rig comment.'
-rigAssert "the --magic-comms- comment given a client is our own side, where a client holds no Trello settings: the one line, naming --magic-client-operation-run, and no call" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --magic-comms-trello-post-comment: client-ndm has no Trello settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --magic-client-operation-run magic-coordinator --client-comms-trello-post-comment client-ndm." )" "1 0 1"
-rigRun --magic-comms-trello-post-comment keeper-here 5f0000000000000000000c01 'Rig comment.'
+rigRun --trello-post-comment client-ndm 5f0000000000000000000c01 'Rig comment.'
+rigAssert "the coordinator's comment given a client is our own side, where a client holds no Trello settings: the one line, naming --client-operation-run, and no call" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --trello-post-comment: client-ndm has no Trello settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --client-operation-run magic-coordinator --client-comms-trello-post-comment client-ndm." )" "1 0 1"
+rigRun --trello-post-comment keeper-here 5f0000000000000000000c01 'Rig comment.'
 rigAssert "control: as a member of our own team it is posted under that member's own account, as before" "$rigRc $( rigCalls )" "0 trello cards/5f0000000000000000000c01/actions/comments rig-trello-key-KHERE"
 
 echo "-- 7. a client's own sweep reads what the client holds, and a scan with no marker reads none of it --"
@@ -296,7 +296,7 @@ rigAssert "every file of the package that reads a member's own mail, Trello or G
 rigAssert "control: the same search does find files that read them" "$( for rigFile in "$rigHere"/*/*.include ; do LC_ALL=C grep -q -E -e '--agents-config-option "\$[A-Za-z]*" --select (EMAIL_APP_PASSWORD|TRELLO_TOKEN|GOOGLE_REFRESH_TOKEN)' "$rigFile" && printf 'x' ; done | LC_ALL=C awk '{ print ( length( $0 ) >= 4 ) ? "found" : "blind" }' )" found
 rigAssert "the one reader of a member's Jira and Confluence settings asks it before it reads them" "$( LC_ALL=C awk '/AgentsToolsCommsOwnSettingsApply "\$actingMember"/ && ! asked { asked = NR } /--select "\$\{keyPrefix\}_SITE"/ && ! read { read = NR } END { print ( asked && read && asked < read ) ? "asked-first" : "not" }' "$rigHere/comms/AgentsTools.InternOpAtlassianCall.include" )" asked-first
 rigAssert "a client's own document stays where its own settings name it: the publish says the client side itself, once" "$( LC_ALL=C grep -c -F -e 'client-*) local -x MDAT_COMMS_SIDE=client ;;' "$rigHere/common/AgentsTools.InternArtifact.include" || : )" 1
-rigAssert "a --magic-comms-* operation says our own side itself, once, whoever the member it is given is, and none says the client side" "$( LC_ALL=C grep -c -F -e 'local -x MDAT_COMMS_SIDE=client' "$rigHere/magic/AgentsTools.MagicComms.include" || : ) $( LC_ALL=C grep -c -F -e '--magic-comms-*) local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP="$1" ;;' "$rigHere/magic/AgentsTools.MagicComms.include" || : )" "0 1"
+rigAssert "a coordinator comms operation says our own side itself, once, whoever the member it is given is, and none says the client side" "$( LC_ALL=C grep -c -F -e 'local -x MDAT_COMMS_SIDE=client' "$rigHere/magic/AgentsTools.MagicComms.include" || : ) $( LC_ALL=C grep -c -F -e '--*) local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP="$1" ;;' "$rigHere/magic/AgentsTools.MagicComms.include" || : )" "0 1"
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ CLIENT SYSTEMS CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1
 fi

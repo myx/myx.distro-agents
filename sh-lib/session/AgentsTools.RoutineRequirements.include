@@ -100,14 +100,14 @@ AgentsToolsRoutineOverrideAsk(){ ## the requirement, the routine file name
 }
 
 ## THE HELP VERB's ask of the one party who can supply what a start lacks: an inquiry in magic-coordinator's inbox, by the
-## existing hand-off (--member-upsert-member-inquiry), naming the routine and the requirement. Never fails its caller.
+## existing hand-off (--upsert-inbox-inquiry), naming the routine and the requirement. Never fails its caller.
 AgentsToolsRoutineStartAsk(){ ## the member the run is, the routine file, the requirement, what is missing (words), the session id, the run id
 	local askFile askName askRc=0
 	mkdir -p "$MMDAPP/.local/temp" || return 0
 	askFile="$( mktemp "$MMDAPP/.local/temp/mdat-start-ask.XXXXXX" )" || return 0
 	askName="inquiry-$( date -u +%Y%m%dT%H%MZ )-start-$3-${2%.routine.md}.md"
 	printf '# Inquiry: %s needs a %s for its start\n\nThe start of `%s` as %s (session %s, run %s) lacks something only you can supply, and went on with a warning:\n\n%s\n\nPlease supply it for that session.\n' "$2" "$3" "$2" "$1" "$5" "$6" "$4" > "$askFile"
-	DistroAgentsTools --member-upsert-member-inquiry magic-coordinator "$askName" --from-file "$askFile" > /dev/null 2>&1 || askRc=$?
+	DistroAgentsTools --upsert-inbox-inquiry magic-coordinator "$askName" --from-file "$askFile" > /dev/null 2>&1 || askRc=$?
 	rm -f "$askFile"
 	[ "$askRc" -eq 0 ] || echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the inquiry to magic-coordinator for $2 could not be filed" >&2 || :
 	return 0
@@ -207,14 +207,15 @@ AgentsToolsRoutineRequirement(){ ## requirement, site (save|spawn|start), routin
 				[ -z "$opsAnnotated" ] || continue
 				for opsExecutor in $opsExecutors ; do
 					opsHolds="yes"
+					type AgentsToolsFrontPrefixAudience > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 					case "${opsPrefix%\*}" in
-						--magic-*) [ "$opsExecutor" = "magic-coordinator" ] || opsHolds="no" ;;
 						--client-*) case "$opsExecutor" in client-*) ;; *) opsHolds="no" ;; esac ;;
+						*) [ "$( AgentsToolsFrontPrefixAudience "${opsPrefix%\*}" )" != coordinator ] || [ "$opsExecutor" = "magic-coordinator" ] || opsHolds="no" ;;
 					esac
 					[ "$opsHolds" = "yes" ] || {
 						case "${opsPrefix%\*}" in
-							--magic-*) opsWho="the coordinator's only" ;;
-							*) opsWho="a client member's own" ;;
+							--client-*) opsWho="a client member's own" ;;
+							*) opsWho="the coordinator's only" ;;
 						esac
 						printf 'help\t%s\n' "operations: executor $opsExecutor cannot hold $opsPrefix for ${reqFile##*/}: that family is $opsWho; ask for it through the permission ask (RequestPermission naming the operation $opsPrefix, the member $opsExecutor and the routine), or annotate the operation in the routine's tooling list"
 						opsFound="yes"

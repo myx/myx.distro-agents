@@ -2,14 +2,14 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.MemberRetest.include -- the --member-retest-* operations for DistroAgentsTools.fn.sh's
-## dispatcher: the machine's queue of what is to be tested again. A session that changed
-## something says what to retest (--member-retest-queue) and goes on with its work: queueing
+## AgentsTools.MemberRetest.include -- the --retest-* operations of DistroAgentsTesting.fn.sh:
+## the machine's queue of what is to be tested again. A session that changed
+## something says what to retest (--retest-queue) and goes on with its work: queueing
 ## waits for no test. The team's tester takes everything that waits as one batch
-## (--member-retest-drain): the union of the tests asked for, each test once however many
+## (--retest-drain): the union of the tests asked for, each test once however many
 ## requests named it, through the package's own test runner, which caps the machine by itself
 ## (sh-test/AgentsRunTests.sh). Who asked reads the outcome by the id it was given
-## (--member-retest-result). Nothing here posts anywhere: the tester's session reports.
+## (--retest-result). Nothing here posts anywhere: the tester's session reports.
 ##
 ## The queue is one folder on the machine, $HOME/.agents/magic-team/retest-queue, beside the
 ## runner's line and its budget, shared by the live tree and every scratch copy:
@@ -162,9 +162,9 @@ AgentsToolsRetestQueue(){ ## operation, its arguments... -- one request into the
 	}
 	printf '%s\n' "$queueId"
 	if [ "$queueFileCount" -gt 0 ] ; then
-		echo "# retest: queued as $queueId, about $( AgentsToolsRetestCopyName "$queueRoot" ): $queueTestCount test(s) by name, and $queueFileCount changed file(s) no test is known to cover, so every test not yet passed on the state that copy is in when the batch runs. The tester's next batch takes it; read the outcome with --member-retest-result $queueId" >&2
+		echo "# retest: queued as $queueId, about $( AgentsToolsRetestCopyName "$queueRoot" ): $queueTestCount test(s) by name, and $queueFileCount changed file(s) no test is known to cover, so every test not yet passed on the state that copy is in when the batch runs. The tester's next batch takes it; read the outcome with --retest-result $queueId" >&2
 	else
-		echo "# retest: queued as $queueId, about $( AgentsToolsRetestCopyName "$queueRoot" ): $queueTestCount test(s). The tester's next batch takes it; read the outcome with --member-retest-result $queueId" >&2
+		echo "# retest: queued as $queueId, about $( AgentsToolsRetestCopyName "$queueRoot" ): $queueTestCount test(s). The tester's next batch takes it; read the outcome with --retest-result $queueId" >&2
 	fi
 	## --wait: the call stays until its request is finished, and says how it came out; a request with that priority is the first batch the next drain takes.
 	if [ "$queueWait" = wait ] ; then
@@ -403,15 +403,15 @@ AgentsToolsRetestResult(){ ## operation, request id... -- where each request sta
 
 case "$1" in
 
-	--member-retest-queue|--member-retest-drain|--member-retest-result)
+	--retest-queue|--retest-drain|--retest-result)
 		local retestOp="$1" retestRc=0
 		local retestStore="${HOME:-}/.agents/magic-team/retest-queue"
 		shift
 		## Each in a shell of its own: the drain holds a lock for as long as it runs, and gives it back however it ends.
 		case "$retestOp" in
-			--member-retest-queue) ( set +e ; AgentsToolsRetestQueue "$retestOp" "$@" ) || retestRc=$? ;;
-			--member-retest-drain) ( set +e ; AgentsToolsRetestDrain "$retestOp" "$@" ) || retestRc=$? ;;
-			--member-retest-result) ( set +e ; AgentsToolsRetestResult "$retestOp" "$@" ) || retestRc=$? ;;
+			--retest-queue) ( set +e ; AgentsToolsRetestQueue "$retestOp" "$@" ) || retestRc=$? ;;
+			--retest-drain) ( set +e ; AgentsToolsRetestDrain "$retestOp" "$@" ) || retestRc=$? ;;
+			--retest-result) ( set +e ; AgentsToolsRetestResult "$retestOp" "$@" ) || retestRc=$? ;;
 		esac
 		[ "$retestRc" = 0 ] || { set +e ; return "$retestRc" ; }
 		return 0

@@ -348,7 +348,7 @@ rigAssert "the operation has its syntax echo, its syntax line and its entry, onc
 rigForm="$( rigEntry | LC_ALL=C sed -n -e 's/^[[:space:]]*`\(spawn <.*>\)`$/\1/p' )"
 rigAssert "its entry gives the form of the row" "$rigForm" "spawn <session-id> <member> <name> <dispatch-item>"
 rigAssert "and the row a start printed has exactly the fields that form names" "$( LC_ALL=C awk -F'\t' -v wantFields="$( printf '%s\n' "$rigForm" | LC_ALL=C awk '{ print NF }' )" '{ rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/pass.out" )" "rows:0"
-rigAssert "the entry names the status that refuses a member, the member it gives as one, and the operation whose brief block the member gets" "$( for rigWord in 'status: reference-only' human-owner '--magic-spawn-session --routine-default' ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyy"
+rigAssert "the entry names the status that refuses a member, the member it gives as one, and the operation whose brief block the member gets" "$( for rigWord in 'status: reference-only' human-owner '--spawn-session --routine-default' ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyy"
 rigAssert "control: the entry was cut up to the next operation's heading, and holds its own text" "$( rigEntry | LC_ALL=C grep -c -F -- 'TAB-separated' || : ) $( rigEntry | LC_ALL=C awk 'END { print ( NR > 0 && NR < 60 ) ? "cut" : "not cut: " NR " lines" }' )" "1 cut"
 rigRun /dev/null --help-syntax
 rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigTmp/err" || : )" "0 1"

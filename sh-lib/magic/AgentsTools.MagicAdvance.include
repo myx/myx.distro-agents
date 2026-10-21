@@ -2,11 +2,10 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.MagicAdvance.include -- routine-advance's own --magic-advance-*
-## operation group for DistroAgentsTools.fn.sh's dispatcher. Sourced lazily
-## from the `--magic-advance-*)` wildcard arm via the standard
-## $MDLT_ORIGIN-based path. Not standalone: relies on being dot-sourced for
-## $1/$@/$MDSC_CMD.
+## AgentsTools.MagicAdvance.include -- routine-advance's own --advance-*
+## operation group (DistroAgentsItems.fn.sh, and --advance-sleep-run of AgentDispatcherTools.fn.sh).
+## Sourced lazily from the arm of the tool file that owns its names (sh-lib/harness/AgentsContext.FrontTable.include).
+## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
 ## The two lock paths resync the board through myx.common git/cloneSync
 ## whenever TEAM_DATA_GIT_REMOTE is set, and the acquire path refuses a lock
@@ -30,14 +29,14 @@ type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 
 case "$1" in
 
-	--magic-advance-to-running)
+	--advance-to-running)
 		shift
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-running: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --advance-to-running: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg=""
@@ -50,18 +49,18 @@ case "$1" in
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-running: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --advance-to-running: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -z "$fromStateArg" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-running: --from-state:<state> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --advance-to-running: --from-state:<state> is required" >&2
 			set +e ; return 1
 		fi
 		local startedAt ; startedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		mkdir -p "$MDAT_DATA_ROOT/board/running" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-running: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
+			echo "⛔ ERROR: $MDSC_CMD --advance-to-running: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
 			set +e ; return 1
 		}
 		## Stamped on a move only: a same-state edit of an item already running keeps the
@@ -71,12 +70,12 @@ case "$1" in
 		DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
 			"$fromStateArg" \
 			${startedArgs[@]+"${startedArgs[@]}"} \
-			--context --magic-advance-to-running \
+			--context --advance-to-running \
 			${passthrough[@]+"${passthrough[@]}"}
 		return $?
 	;;
 
-	--magic-advance-to-parked)
+	--advance-to-parked)
 		shift
 		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
@@ -84,7 +83,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-parked: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --advance-to-parked: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg=""
@@ -97,70 +96,32 @@ case "$1" in
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-parked: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --advance-to-parked: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -z "$fromStateArg" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-parked: --from-state:<state> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --advance-to-parked: --from-state:<state> is required" >&2
 			set +e ; return 1
 		fi
 		mkdir -p "$MDAT_DATA_ROOT/board/parked" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-to-parked: can't create board state directory: $MDAT_DATA_ROOT/board/parked" >&2
+			echo "⛔ ERROR: $MDSC_CMD --advance-to-parked: can't create board state directory: $MDAT_DATA_ROOT/board/parked" >&2
 			set +e ; return 1
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit parked "$itemName" \
 			"$fromStateArg" \
-			--context --magic-advance-to-parked \
+			--context --advance-to-parked \
 			"${passthrough[@]}"
 		return $?
 	;;
 
-	## HEADER ORDER IS LOAD-BEARING, and deliberately NOT the uniform
-	## stamp-first order --magic-advance-to-running uses.
-	--magic-advance-state-and-lock-upsert)
+	--advance-batch-outcome)
 		shift
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-state-and-lock-upsert: syntax is <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
-			set +e ; return 1
-		fi
-		local passthrough=()
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--header:*|--upsert-from-stdin|--edit-patch-from-stdin) passthrough+=( "$1" ) ; shift ;;
-				--from-file)
-					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-advance-state-and-lock-upsert: --from-file: value required" >&2
-						set +e ; return 1
-					fi
-					passthrough+=( "$1" "$2" ) ; shift 2
-				;;
-				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-advance-state-and-lock-upsert: invalid option: $1" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		local recheckDate
-		recheckDate="$( AgentsToolsRecheckDate 10 )"
-		AgentsToolsItemUpsert "$callingMember" \
-			--from-inbox "$callingMember" note-20260809T154715Z-advance-state-and-lock.md \
-			--header:upsert:state:advance-running \
-			"${passthrough[@]}" \
-			--header:upsert:recheck-date:"$recheckDate" \
-			--context --magic-advance-state-and-lock-upsert
-		return $?
-	;;
-
-	--magic-advance-batch-outcome)
-		shift
-		local callingMember="$1"
-		shift || true
-		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: syntax is <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,...]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: syntax is <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,...]" >&2
 			set +e ; return 1
 		fi
 		local itemsArg=""
@@ -168,20 +129,20 @@ case "$1" in
 			case "$1" in
 				--items:*)
 					if [ -n "$itemsArg" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: --items: given more than once" >&2
+						echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: --items: given more than once" >&2
 						set +e ; return 1
 					fi
 					itemsArg="${1#--items:}"
 					shift
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -z "$itemsArg" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: --items:<item-filename>:<outcome>:<execution-receipt>[,...] is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: --items:<item-filename>:<outcome>:<execution-receipt>[,...] is required" >&2
 			set +e ; return 1
 		fi
 
@@ -197,54 +158,54 @@ case "$1" in
 			itemName="${spec%%:*}"
 			rest="${spec#*:}"
 			if [ "$rest" = "$spec" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: malformed entry (need <item-filename>:<outcome>:<execution-receipt>): $spec" >&2
+				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: malformed entry (need <item-filename>:<outcome>:<execution-receipt>): $spec" >&2
 				set +e ; return 1
 			fi
 			outcome="${rest%%:*}"
 			receipt="${rest#*:}"
 			if [ "$receipt" = "$rest" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: malformed entry (need <item-filename>:<outcome>:<execution-receipt>): $spec" >&2
+				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: malformed entry (need <item-filename>:<outcome>:<execution-receipt>): $spec" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$itemName" "<item-filename> (in --items entry: $spec)" magic-advance-batch-outcome || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$itemName" "<item-filename> (in --items entry: $spec)" advance-batch-outcome || { set +e ; return 1 ; }
 			case "$outcome" in
 				nudged|respawned|redispatched|flagged-once|no-action) ;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: invalid outcome in entry $spec: $outcome" >&2
+					echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: invalid outcome in entry $spec: $outcome" >&2
 					set +e ; return 1
 				;;
 			esac
 			if [ -z "$receipt" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: entry $spec: execution-receipt required" >&2
+				echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: entry $spec: execution-receipt required" >&2
 				set +e ; return 1
 			fi
 			if ! DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
 				--from-state:running \
 				--header:upsert:outcome:"$outcome" \
 				--header:upsert:execution-receipt:"$receipt" \
-				--context --magic-advance-batch-outcome
+				--context --advance-batch-outcome
 			then
 				failCount=$(( failCount + 1 ))
 			fi
 		done
 
 		if [ "$itemCount" -eq 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: --items: no item entries found" >&2
+			echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: --items: no item entries found" >&2
 			set +e ; return 1
 		fi
 		if [ "$failCount" -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-batch-outcome: $failCount of $itemCount item(s) failed" >&2
+			echo "⛔ ERROR: $MDSC_CMD --advance-batch-outcome: $failCount of $itemCount item(s) failed" >&2
 			set +e ; return 1
 		fi
-		echo "# $MDSC_CMD --magic-advance-batch-outcome: recorded outcomes for $itemCount item(s)" >&2
+		echo "# $MDSC_CMD --advance-batch-outcome: recorded outcomes for $itemCount item(s)" >&2
 		return 0
 	;;
 
 	## Fixed 5-loop countdown-then-continue signal. No options.
-	--magic-advance-sleep-run)
+	--advance-sleep-run)
 		shift
 		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-sleep-run: takes no arguments" >&2
+			echo "⛔ ERROR: $MDSC_CMD --advance-sleep-run: takes no arguments" >&2
 			set +e ; return 1
 		fi
 		## Five one-second loops, the owner's own specification.
@@ -258,227 +219,6 @@ case "$1" in
 		return 0
 	;;
 
-
-	--magic-advance-lock-acquire)
-		shift
-		local callingMember="$1" ; shift || true
-		local ownerLabel="$1" ; shift || true
-		if [ -z "$callingMember" ] || [ -z "$ownerLabel" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: <team-member> <owner-label> required" >&2
-			set +e ; return 1
-		fi
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: invalid option: $1" >&2
-			set +e ; return 1
-		fi
-		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: MDAT_DATA_ROOT is not set" >&2
-			set +e ; return 1
-		}
-
-		local lockTarget="$( AgentsToolsInboxNotePath "$callingMember" note-20260809T154715Z-advance-state-and-lock.md )"
-		local originUrl="" repoRoot="" lockRelPath="" lockBranch=""
-		set +e
-		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
-		if [ -n "$originUrl" ] ; then
-			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
-		fi
-		set -e
-
-		## The pre-write half of the lock's concurrency control, ahead of
-		## item-upsert's own post-push read-back: refuse a conflicted copy,
-		## resync, refuse again, then refuse anything still not the head's.
-		if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
-			lockRelPath="${lockTarget#"$repoRoot"/}"
-			set +e
-			lockBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )"
-			set -e
-			case "$lockRelPath" in
-				/*|'')
-					echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: LOCK_UNCHECKABLE -- the lock note does not resolve inside the board checkout $repoRoot" >&2
-					set +e ; return 1
-				;;
-			esac
-			if [ -z "$lockBranch" ] || [ "$lockBranch" = "HEAD" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: LOCK_UNCHECKABLE -- the board checkout $repoRoot is not on a named branch" >&2
-				set +e ; return 1
-			fi
-			AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" --magic-advance-lock-acquire "before the board resync" || { set +e ; return 1 ; }
-			local advanceSyncOut
-			if ! AgentsToolsAdvanceCloneSync "$repoRoot" "$originUrl" "$lockBranch" ; then
-				echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: LOCK_UNCHECKABLE -- could not resync the board before taking the lock, so whether the local copy is the published one is UNKNOWN: $advanceSyncOut" >&2
-				set +e ; return 1
-			fi
-			AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" --magic-advance-lock-acquire "after the board resync" || { set +e ; return 1 ; }
-			AgentsToolsAdvanceLockHeadCheck "$repoRoot" "$lockRelPath" "$lockBranch" --magic-advance-lock-acquire || { set +e ; return 1 ; }
-		fi
-
-		local recheckDate
-		recheckDate="$( AgentsToolsRecheckDate 10 )"
-		if ! AgentsToolsItemRead "$callingMember" \
-			--from-inbox "$callingMember" note-20260809T154715Z-advance-state-and-lock.md \
-			--acquire-lock "$ownerLabel" \
-			--commit-message "* advance.routine: activate, lock" \
-			--header:upsert:state:advance-running \
-			--header:upsert:recheck-date:"$recheckDate" \
-			--context --magic-advance-lock-acquire
-		then
-			set +e ; return 1
-		fi
-
-		if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
-			local fetchOut="" fetchRc=0
-			set +e
-			fetchOut="$( git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )"
-			fetchRc=$?
-			set -e
-			if [ "$fetchRc" -ne 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: LOCK_UNCHECKABLE -- could not fetch origin/$lockBranch to verify the published lock: $fetchOut" >&2
-				set +e ; return 1
-			fi
-			local publishedSessionId
-			publishedSessionId="$( git -C "$repoRoot" show "FETCH_HEAD:$lockRelPath" 2>/dev/null | LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' )"
-			if [ "$publishedSessionId" != "$ownerLabel" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: LOCK_NOT_PUBLISHED -- origin/$lockBranch:$lockRelPath reads session-id '$publishedSessionId', not '$ownerLabel' -- the lock write did not actually land on the remote" >&2
-				set +e ; return 1
-			fi
-		fi
-		## The pass's housekeeping, each time the routine takes its lock and only then, by the tooling itself: its lines go to the
-		## daemon line and the event-track thread (AgentsToolsHousekeepingReport), none to the output the agent reads.
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
-		AgentsToolsAdvanceSpawnHousekeeping 24 "$callingMember" > /dev/null
-		return 0
-	;;
-
-	--magic-advance-lock-refresh)
-		shift
-		local callingMember="$1" ; shift || true
-		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-refresh: <team-member> required" >&2
-			set +e ; return 1
-		fi
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-refresh: invalid option: $1" >&2
-			set +e ; return 1
-		fi
-		local recheckDate
-		recheckDate="$( AgentsToolsRecheckDate 10 )"
-		AgentsToolsItemUpsert "$callingMember" \
-			--from-inbox "$callingMember" note-20260809T154715Z-advance-state-and-lock.md \
-			--update-lock \
-			--header:upsert:state:advance-running \
-			--header:upsert:recheck-date:"$recheckDate" \
-			--context --magic-advance-lock-refresh
-		return $?
-	;;
-
-	## ORDER IS LOAD-BEARING: the GC runs and commits under the still-held
-	## lock, the unlock commit is the last write under it, and the push plus
-	## resync publish both together.
-	--magic-advance-close-state-and-unlock)
-		shift
-		local callingMember="$1" ; shift || true
-		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-close-state-and-unlock: <team-member> required" >&2
-			set +e ; return 1
-		fi
-		local passthrough=()
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--edit-patch-from-stdin) passthrough+=( "$1" ) ; shift ;;
-				--from-file)
-					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-advance-close-state-and-unlock: --from-file: value required" >&2
-						set +e ; return 1
-					fi
-					passthrough+=( "$1" "$2" ) ; shift 2
-				;;
-				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-advance-close-state-and-unlock: invalid option: $1" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		local gcRc=0
-		DistroAgentsTools --intern-team-data-final-gc-deletion "$callingMember" \
-			--context --magic-advance-close-state-and-unlock || gcRc=$?
-		if [ "$gcRc" -ne 0 ] && [ "$gcRc" -ne 2 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-close-state-and-unlock: team-data-final-gc-deletion failed (exit $gcRc) -- aborting unlock rather than degrading silently (PROVISIONAL policy, see AgentsTools.InternTeamDataFinalGcDeletion.include's own header / this task's own report)" >&2
-			set +e ; return 1
-		fi
-		## gcRc=2: nothing to delete -- not a failure, continue.
-
-		if ! AgentsToolsItemUpsert "$callingMember" \
-			--from-inbox "$callingMember" note-20260809T154715Z-advance-state-and-lock.md \
-			"${passthrough[@]}" \
-			--unlock-lock \
-			--header:upsert:state:advance-finished \
-			--no-push \
-			--commit-message "* advance.routine: update, unlock" \
-			--context --magic-advance-close-state-and-unlock
-		then
-			set +e ; return 1
-		fi
-
-		local originUrl="" repoRoot=""
-		set +e
-		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
-		if [ -n "$originUrl" ] ; then
-			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
-		fi
-		set -e
-		if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
-			local lockBranch=""
-			set +e
-			lockBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )"
-			set -e
-			local pushAttempt=1 pushOut="" pushRc=0
-			while : ; do
-				set +e
-				pushOut="$( git -C "$repoRoot" push origin HEAD 2>&1 )"
-				pushRc=$?
-				set -e
-				[ "$pushRc" -eq 0 ] && break
-				case "$pushOut" in
-					*"Could not resolve host"*|*"could not resolve host"*|*"unable to access"*|*"Could not read from remote repository"*|*"Connection timed out"*|*"Connection refused"*|*"Operation timed out"*|*"Network is unreachable"*|*"connection reset"*)
-						if [ "$pushAttempt" -eq 1 ] ; then
-							echo "# $MDSC_CMD --magic-advance-close-state-and-unlock: push network failure, retrying once in 15s" >&2
-							sleep 15
-							pushAttempt=2
-							continue
-						fi
-					;;
-				esac
-				break
-			done
-			if [ "$pushRc" -ne 0 ] ; then
-				echo "⚠️ WARNING: $MDSC_CMD --magic-advance-close-state-and-unlock: push failed after unlock commits landed locally -- closing anyway (same tolerance as AgentsToolsItemUpsert's own closing-update warning): $pushOut" >&2
-			fi
-			local advanceSyncOut
-			if ! AgentsToolsAdvanceCloneSync "$repoRoot" "$originUrl" "$lockBranch" ; then
-				echo "⚠️ WARNING: $MDSC_CMD --magic-advance-close-state-and-unlock: board resync failed after the unlock landed locally -- closing anyway, the checkout is left unreconciled: $advanceSyncOut" >&2
-			fi
-		fi
-		return 0
-	;;
-
-	--magic-advance-lock-status)
-		shift
-		local callingMember="$1" ; shift || true
-		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-status: <team-member> required" >&2
-			set +e ; return 1
-		fi
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-status: invalid option: $1" >&2
-			set +e ; return 1
-		fi
-		AgentsToolsItemRead "$callingMember" \
-			--from-inbox "$callingMember" note-20260809T154715Z-advance-state-and-lock.md \
-			--context --magic-advance-lock-status
-		return $?
-	;;
 
 	*)
 		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2

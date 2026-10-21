@@ -2,11 +2,9 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.MagicGrooming.include -- routine-grooming's own --magic-
-## grooming-* operation group for DistroAgentsTools.fn.sh's dispatcher.
-## Sourced lazily from the `--magic-grooming-*)` wildcard arm via the
-## standard $MDLT_ORIGIN-based path. Not standalone: relies on being
-## dot-sourced for $1/$@/$MDSC_CMD.
+## AgentsTools.MagicGrooming.include -- routine-grooming's own --grooming-*
+## operation group of DistroAgentsItems.fn.sh. Sourced lazily from the arm of the tool file that owns its names (sh-lib/harness/AgentsContext.FrontTable.include).
+## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
 ## Where an inbox item lives (F4.3).
@@ -18,14 +16,14 @@ type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 
 case "$1" in
 
-	--magic-grooming-to-backlog)
+	--grooming-to-backlog)
 		shift
 		local callingMember="$1"
 		shift || true
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-backlog: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-backlog: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg="" owner=""
@@ -35,7 +33,7 @@ case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
 				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-backlog: --owner-header-value: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --grooming-to-backlog: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -45,17 +43,17 @@ case "$1" in
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-backlog: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --grooming-to-backlog: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -z "$fromStateArg" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-backlog: --from-state:<state> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-backlog: --from-state:<state> is required" >&2
 			set +e ; return 1
 		fi
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-backlog: --owner-header-value <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-backlog: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
@@ -70,7 +68,7 @@ case "$1" in
 			esac
 		done
 		mkdir -p "$MDAT_DATA_ROOT/board/backlog" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-backlog: can't create board state directory: $MDAT_DATA_ROOT/board/backlog" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-backlog: can't create board state directory: $MDAT_DATA_ROOT/board/backlog" >&2
 			set +e ; return 1
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit backlog "$itemName" \
@@ -79,13 +77,13 @@ case "$1" in
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:groomed-from:"$fromStateVal" \
 			--header:upsert:track:true \
-			--context --magic-grooming-to-backlog \
+			--context --grooming-to-backlog \
 			"${approvalClear[@]+"${approvalClear[@]}"}" \
 			"${passthrough[@]+"${passthrough[@]}"}"
 		return $?
 	;;
 
-	--magic-grooming-to-pending)
+	--grooming-to-pending)
 		shift
 		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
@@ -93,7 +91,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-pending: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-pending: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg="" owner=""
@@ -103,7 +101,7 @@ case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
 				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-pending: --owner-header-value: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --grooming-to-pending: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -113,23 +111,23 @@ case "$1" in
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-pending: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --grooming-to-pending: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -z "$fromStateArg" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-pending: --from-state:<state> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-pending: --from-state:<state> is required" >&2
 			set +e ; return 1
 		fi
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-pending: --owner-header-value <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-pending: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		mkdir -p "$MDAT_DATA_ROOT/board/pending" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-pending: can't create board state directory: $MDAT_DATA_ROOT/board/pending" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-pending: can't create board state directory: $MDAT_DATA_ROOT/board/pending" >&2
 			set +e ; return 1
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit pending "$itemName" \
@@ -138,12 +136,12 @@ case "$1" in
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:groomed-from:"$fromStateVal" \
 			--header:upsert:track:true \
-			--context --magic-grooming-to-pending \
+			--context --grooming-to-pending \
 			"${passthrough[@]}"
 		return $?
 	;;
 
-	--magic-grooming-to-processed)
+	--grooming-to-processed)
 		shift
 		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
@@ -151,7 +149,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-processed: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-processed: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg="" owner=""
@@ -161,7 +159,7 @@ case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
 				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-processed: --owner-header-value: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --grooming-to-processed: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -171,24 +169,24 @@ case "$1" in
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-processed: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --grooming-to-processed: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -z "$fromStateArg" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-processed: --from-state:<state> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-processed: --from-state:<state> is required" >&2
 			set +e ; return 1
 		fi
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-processed: --owner-header-value <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-processed: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		local processedAt ; processedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		mkdir -p "$MDAT_DATA_ROOT/board/processed" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-processed: can't create board state directory: $MDAT_DATA_ROOT/board/processed" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-processed: can't create board state directory: $MDAT_DATA_ROOT/board/processed" >&2
 			set +e ; return 1
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit processed "$itemName" \
@@ -198,12 +196,12 @@ case "$1" in
 			--header:upsert:groomed-from:"$fromStateVal" \
 			--header:upsert:processed-at:"$processedAt" \
 			--header:upsert:track:true \
-			--context --magic-grooming-to-processed \
+			--context --grooming-to-processed \
 			"${passthrough[@]}"
 		return $?
 	;;
 
-	--magic-grooming-to-parked)
+	--grooming-to-parked)
 		shift
 		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
@@ -211,7 +209,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-parked: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg="" owner=""
@@ -221,7 +219,7 @@ case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
 				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: --owner-header-value: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --grooming-to-parked: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -231,23 +229,23 @@ case "$1" in
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --grooming-to-parked: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -z "$fromStateArg" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: --from-state:<state> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-parked: --from-state:<state> is required" >&2
 			set +e ; return 1
 		fi
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: --owner-header-value <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-parked: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		mkdir -p "$MDAT_DATA_ROOT/board/parked" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-parked: can't create board state directory: $MDAT_DATA_ROOT/board/parked" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-parked: can't create board state directory: $MDAT_DATA_ROOT/board/parked" >&2
 			set +e ; return 1
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit parked "$itemName" \
@@ -256,12 +254,12 @@ case "$1" in
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:groomed-from:"$fromStateVal" \
 			--header:upsert:track:true \
-			--context --magic-grooming-to-parked \
+			--context --grooming-to-parked \
 			"${passthrough[@]}"
 		return $?
 	;;
 
-	--magic-grooming-to-blocked)
+	--grooming-to-blocked)
 		shift
 		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
@@ -269,7 +267,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-blocked: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg="" owner=""
@@ -279,7 +277,7 @@ case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
 				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: --owner-header-value: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --grooming-to-blocked: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -289,17 +287,17 @@ case "$1" in
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --grooming-to-blocked: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -z "$fromStateArg" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: --from-state:<state> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-blocked: --from-state:<state> is required" >&2
 			set +e ; return 1
 		fi
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: --owner-header-value <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-blocked: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
@@ -317,7 +315,7 @@ case "$1" in
 			passthrough+=( "--header:upsert:execution-receipt:blocked:$blockedAt" )
 		fi
 		mkdir -p "$MDAT_DATA_ROOT/board/blocked" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-blocked: can't create board state directory: $MDAT_DATA_ROOT/board/blocked" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-blocked: can't create board state directory: $MDAT_DATA_ROOT/board/blocked" >&2
 			set +e ; return 1
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit blocked "$itemName" \
@@ -326,12 +324,12 @@ case "$1" in
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:groomed-from:"$fromStateVal" \
 			--header:upsert:track:true \
-			--context --magic-grooming-to-blocked \
+			--context --grooming-to-blocked \
 			"${passthrough[@]}"
 		return $?
 	;;
 
-	--magic-grooming-to-running)
+	--grooming-to-running)
 		shift
 		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
@@ -339,7 +337,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-running: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg="" owner=""
@@ -349,7 +347,7 @@ case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
 				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: --owner-header-value: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --grooming-to-running: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -359,23 +357,23 @@ case "$1" in
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --grooming-to-running: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -z "$fromStateArg" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: --from-state:<state> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-running: --from-state:<state> is required" >&2
 			set +e ; return 1
 		fi
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: --owner-header-value <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-running: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		mkdir -p "$MDAT_DATA_ROOT/board/running" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-running: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-running: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
 			set +e ; return 1
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
@@ -384,12 +382,12 @@ case "$1" in
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:groomed-from:"$fromStateVal" \
 			--header:upsert:track:true \
-			--context --magic-grooming-to-running \
+			--context --grooming-to-running \
 			"${passthrough[@]}"
 		return $?
 	;;
 
-	--magic-grooming-to-archived)
+	--grooming-to-archived)
 		shift
 		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
@@ -397,7 +395,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-archived: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg="" owner=""
@@ -407,7 +405,7 @@ case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
 				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: --owner-header-value: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --grooming-to-archived: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -417,23 +415,23 @@ case "$1" in
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --grooming-to-archived: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -z "$fromStateArg" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: --from-state:<state> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-archived: --from-state:<state> is required" >&2
 			set +e ; return 1
 		fi
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: --owner-header-value <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-archived: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		mkdir -p "$MDAT_DATA_ROOT/board/archived" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-archived: can't create board state directory: $MDAT_DATA_ROOT/board/archived" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-archived: can't create board state directory: $MDAT_DATA_ROOT/board/archived" >&2
 			set +e ; return 1
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit archived "$itemName" \
@@ -442,7 +440,7 @@ case "$1" in
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:groomed-from:"$fromStateVal" \
 			--header:upsert:track:true \
-			--context --magic-grooming-to-archived \
+			--context --grooming-to-archived \
 			"${passthrough[@]}" || return $?
 		## An archive ends the item's child, ordered and recorded (AgentsTools.ReviewFlow.include):
 		## only on a real move into archived, and never failing the move.
@@ -455,7 +453,7 @@ case "$1" in
 
 	## routine-grooming does NOT move items into board-retained, and this op
 	## is not evidence that it does.
-	--magic-grooming-to-retained)
+	--grooming-to-retained)
 		shift
 		## <team-member> captured for future logging/validation, unused today
 		local callingMember="$1"
@@ -463,7 +461,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-retained: syntax is <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		local fromStateArg="" owner=""
@@ -473,7 +471,7 @@ case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
 				--owner-header-value)
 					if [ -z "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: --owner-header-value: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --grooming-to-retained: --owner-header-value: value required" >&2
 						set +e ; return 1
 					fi
 					owner="$2" ; shift 2
@@ -483,23 +481,23 @@ case "$1" in
 					passthrough+=( "$1" ) ; shift
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --grooming-to-retained: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -z "$fromStateArg" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: --from-state:<state> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-retained: --from-state:<state> is required" >&2
 			set +e ; return 1
 		fi
 		if [ -z "$owner" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: --owner-header-value <value> is required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-retained: --owner-header-value <value> is required" >&2
 			set +e ; return 1
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		mkdir -p "$MDAT_DATA_ROOT/board/retained" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-retained: can't create board state directory: $MDAT_DATA_ROOT/board/retained" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-to-retained: can't create board state directory: $MDAT_DATA_ROOT/board/retained" >&2
 			set +e ; return 1
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit retained "$itemName" \
@@ -508,13 +506,13 @@ case "$1" in
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:groomed-from:"$fromStateVal" \
 			--header:upsert:track:true \
-			--context --magic-grooming-to-retained \
+			--context --grooming-to-retained \
 			"${passthrough[@]}"
 		return $?
 	;;
 
 	## groomed-from is deliberately NOT stamped by any create arm.
-	--magic-grooming-create-backlog)
+	--grooming-create-backlog)
 		local createOp="$1"
 		local createState="backlog"
 		shift
@@ -532,7 +530,7 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*)
-					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --magic-grooming-to-${createState} to move an item that already exists." >&2
+					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --grooming-to-${createState} to move an item that already exists." >&2
 					set +e ; return 1
 				;;
 				--owner-header-value)
@@ -566,7 +564,7 @@ case "$1" in
 		fi
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		mkdir -p "$MDAT_DATA_ROOT/board/$createState" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-create-backlog: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-create-backlog: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
 			set +e ; return 1
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
@@ -580,7 +578,7 @@ case "$1" in
 		return $?
 	;;
 
-	--magic-grooming-create-processed)
+	--grooming-create-processed)
 		local createOp="$1"
 		local createState="processed"
 		shift
@@ -598,7 +596,7 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*)
-					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --magic-grooming-to-${createState} to move an item that already exists." >&2
+					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --grooming-to-${createState} to move an item that already exists." >&2
 					set +e ; return 1
 				;;
 				--owner-header-value)
@@ -633,7 +631,7 @@ case "$1" in
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		local processedAt ; processedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		mkdir -p "$MDAT_DATA_ROOT/board/$createState" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-create-processed: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-create-processed: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
 			set +e ; return 1
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
@@ -648,7 +646,7 @@ case "$1" in
 		return $?
 	;;
 
-	--magic-grooming-create-pending)
+	--grooming-create-pending)
 		local createOp="$1"
 		local createState="pending"
 		shift
@@ -666,7 +664,7 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*)
-					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --magic-grooming-to-${createState} to move an item that already exists." >&2
+					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --grooming-to-${createState} to move an item that already exists." >&2
 					set +e ; return 1
 				;;
 				--owner-header-value)
@@ -700,7 +698,7 @@ case "$1" in
 		fi
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		mkdir -p "$MDAT_DATA_ROOT/board/$createState" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-create-pending: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-create-pending: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
 			set +e ; return 1
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
@@ -714,7 +712,7 @@ case "$1" in
 		return $?
 	;;
 
-	--magic-grooming-create-blocked)
+	--grooming-create-blocked)
 		local createOp="$1"
 		local createState="blocked"
 		shift
@@ -732,7 +730,7 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*)
-					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --magic-grooming-to-${createState} to move an item that already exists." >&2
+					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --grooming-to-${createState} to move an item that already exists." >&2
 					set +e ; return 1
 				;;
 				--owner-header-value)
@@ -766,7 +764,7 @@ case "$1" in
 		fi
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		mkdir -p "$MDAT_DATA_ROOT/board/$createState" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-create-blocked: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-create-blocked: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
 			set +e ; return 1
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
@@ -780,7 +778,7 @@ case "$1" in
 		return $?
 	;;
 
-	--magic-grooming-create-running)
+	--grooming-create-running)
 		local createOp="$1"
 		local createState="running"
 		shift
@@ -798,7 +796,7 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*)
-					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --magic-grooming-to-${createState} to move an item that already exists." >&2
+					echo "⛔ ERROR: $MDSC_CMD $createOp: --from-state: is not valid here -- this op creates a board-item, and a created item has no source state. Use --grooming-to-${createState} to move an item that already exists." >&2
 					set +e ; return 1
 				;;
 				--owner-header-value)
@@ -832,7 +830,7 @@ case "$1" in
 		fi
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		mkdir -p "$MDAT_DATA_ROOT/board/$createState" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-create-running: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-create-running: can't create board state directory: $MDAT_DATA_ROOT/board/$createState" >&2
 			set +e ; return 1
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
@@ -875,7 +873,7 @@ case "$1" in
 		local lockNote="$( AgentsToolsInboxDir magic-coordinator )/note-20260809T154332Z-grooming-state-and-lock.md"
 		if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
 		printf '\n%s\n\n' "## team-roster (cache)"
-		DistroAgentsTools --magic-team-roster-read "$callingMember"
+		DistroAgentsTools --get-roster "$callingMember"
 		## The board scope below is already all types / any owner, so an item a
 		## client-* member filed on the board has always been visible here. An
 		## INBOX item was not: the scan read inboxes/<calling member>/ alone, and an
@@ -918,76 +916,16 @@ case "$1" in
 		return $groomingScanRc
 	;;
 
-	## HEADER ORDER IS LOAD-BEARING.
-	--magic-grooming-state-and-lock-upsert)
-		shift
-		local callingMember="$1"
-		shift || true
-		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-state-and-lock-upsert: syntax is <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
-			set +e ; return 1
-		fi
-		local passthrough=()
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--header:*|--upsert-from-stdin|--edit-patch-from-stdin) passthrough+=( "$1" ) ; shift ;;
-				--from-file)
-					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-state-and-lock-upsert: --from-file: value required" >&2
-						set +e ; return 1
-					fi
-					passthrough+=( "$1" "$2" ) ; shift 2
-				;;
-				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-state-and-lock-upsert: invalid option: $1" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		local recheckDate
-		recheckDate="$( AgentsToolsRecheckDate 30 )"
-		AgentsToolsItemUpsert "$callingMember" \
-			note-20260809T154332Z-grooming-state-and-lock.md \
-			--header:upsert:state:grooming-running \
-			"${passthrough[@]}" \
-			--header:upsert:recheck-date:"$recheckDate" \
-			--context --magic-grooming-state-and-lock-upsert
-		return $?
-	;;
 
-
-	--magic-grooming-lock-acquire)
-		shift
-		local callingMember="$1" ; shift || true
-		local ownerLabel="$1" ; shift || true
-		if [ -z "$callingMember" ] || [ -z "$ownerLabel" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-acquire: <team-member> <owner-label> required" >&2
-			set +e ; return 1
-		fi
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-acquire: invalid option: $1" >&2
-			set +e ; return 1
-		fi
-		local recheckDate
-		recheckDate="$( AgentsToolsRecheckDate 30 )"
-		AgentsToolsItemRead "$callingMember" \
-			note-20260809T154332Z-grooming-state-and-lock.md \
-			--acquire-lock "$ownerLabel" \
-			--header:upsert:state:grooming-running \
-			--header:upsert:recheck-date:"$recheckDate" \
-			--context --magic-grooming-lock-acquire
-		return $?
-	;;
-
-	--magic-grooming-lock-refresh)
+	--grooming-lock-refresh)
 		shift
 		local callingMember="$1" ; shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-refresh: <team-member> required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-lock-refresh: <team-member> required" >&2
 			set +e ; return 1
 		fi
 		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-refresh: invalid option: $1" >&2
+			echo "⛔ ERROR: $MDSC_CMD --grooming-lock-refresh: invalid option: $1" >&2
 			set +e ; return 1
 		fi
 		local recheckDate
@@ -997,58 +935,7 @@ case "$1" in
 			--update-lock \
 			--header:upsert:state:grooming-running \
 			--header:upsert:recheck-date:"$recheckDate" \
-			--context --magic-grooming-lock-refresh
-		return $?
-	;;
-
-	--magic-grooming-close-state-and-unlock)
-		shift
-		local callingMember="$1" ; shift || true
-		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-close-state-and-unlock: <team-member> required" >&2
-			set +e ; return 1
-		fi
-		local passthrough=()
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--edit-patch-from-stdin) passthrough+=( "$1" ) ; shift ;;
-				--from-file)
-					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-grooming-close-state-and-unlock: --from-file: value required" >&2
-						set +e ; return 1
-					fi
-					passthrough+=( "$1" "$2" ) ; shift 2
-				;;
-				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-grooming-close-state-and-unlock: invalid option: $1" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		AgentsToolsItemUpsert "$callingMember" \
-			note-20260809T154332Z-grooming-state-and-lock.md \
-			"${passthrough[@]}" \
-			--unlock-lock \
-			--header:upsert:state:grooming-finished \
-			--header:upsert:last-close-date:"$( date +%Y-%m-%d )" \
-			--context --magic-grooming-close-state-and-unlock
-		return $?
-	;;
-
-	--magic-grooming-lock-status)
-		shift
-		local callingMember="$1" ; shift || true
-		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-status: <team-member> required" >&2
-			set +e ; return 1
-		fi
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-status: invalid option: $1" >&2
-			set +e ; return 1
-		fi
-		AgentsToolsItemRead "$callingMember" \
-			note-20260809T154332Z-grooming-state-and-lock.md \
-			--context --magic-grooming-lock-status
+			--context --grooming-lock-refresh
 		return $?
 	;;
 

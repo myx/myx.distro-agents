@@ -137,13 +137,14 @@ rigSources(){ LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" ; }
 
 echo "-- 1. nothing existing is renamed into it --"
 rigScene names
-for rigOld in --member-wait-for-input --member-comms-slack-send-message --member-comms-slack-read ; do
+## --wait-for-input is this tool's own now (the table of the tool files); the operations of the other tool files are not answered here.
+for rigOld in --slack-send-message --slack-read ; do
 	rigCall "old-${rigOld#--member-}" rig-member executor "$rigOld" rig-member
 	rigAssert "ThisSession does not answer the existing name $rigOld" "$rigRc:$( rigErrHolds 'invalid option' )" "1:1"
 done
 rigScene names2
 ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" "PATH=$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_SKILLSET_ROOT=$rigTmp/skills" \
-	perl -e 'alarm 60 ; exec @ARGV' bash "$rigTool" --member-wait-for-input rig-member --wait-list-sources ) > "$rigScn/list.out" 2> "$rigScn/list.err" < /dev/null
+	perl -e 'alarm 60 ; exec @ARGV' bash "$rigTool" --wait-for-input rig-member --wait-list-sources ) > "$rigScn/list.out" 2> "$rigScn/list.err" < /dev/null
 rigAssert "Wait still answers as it did, with the chat source"      "$( LC_ALL=C sed -n '1p' "$rigScn/list.out" ):$( LC_ALL=C grep -c '^chat	' "$rigScn/list.out" )" "WAIT-RESULT: RECEIVED:1"
 
 echo "-- 2. --get-session-channel-id --"

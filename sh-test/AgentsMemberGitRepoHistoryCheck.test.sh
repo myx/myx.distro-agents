@@ -14,7 +14,7 @@ set -u
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigHelpInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include"
 rigHelpManual="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md"
-rigOpName="--member-git-repo-history"
+rigOpName="--get-path-history"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -99,7 +99,7 @@ rigErrLines(){ ## prefix -- stderr lines that are not the tool's own context sta
 	LC_ALL=C grep -v -e '^SystemContext' -e '^AgentsContext' -e '⛔ ERROR: SystemContext' "$1.err" 2> /dev/null | LC_ALL=C awk 'END { print NR }'
 }
 rigOpErrors(){ ## prefix -- the operation's own error lines
-	LC_ALL=C grep -c "⛔ ERROR: DistroAgentsTools $rigOpName" "$1.err" || :
+	LC_ALL=C grep -c "⛔ ERROR: DistroAgentsKnowledge $rigOpName" "$1.err" || :
 }
 rigStderrHas(){ ## prefix, fixed text
 	LC_ALL=C grep -c -F -- "$2" "$1.err" || :
@@ -236,10 +236,10 @@ printf 'x\n' >> "$rigWs/.git/description"
 rigAssert "control: the tree checksum does notice a one byte change"        "$( [ "$( rigTreeSum "$rigWs" ) $( rigTreeSum "$rigRoot1" )" = "$rigBefore" ] && printf blind || printf notices )" notices
 
 echo "-- 13. the help pair --"
-rigAssert "the syntax echo is in the help include, once"                   "$( LC_ALL=C grep -c "^echo \"📘 syntax: DistroAgentsTools.fn.sh $rigOpName" "$rigHelpInclude" || : )" 1
-rigAssert "the syntax line is in the manual's list, once"                  "$( LC_ALL=C grep -c "^📘 syntax: DistroAgentsTools.fn.sh $rigOpName" "$rigHelpManual" || : )" 1
+rigAssert "the syntax echo is in the help include, once"                   "$( LC_ALL=C grep -c "^echo \"📘 syntax: DistroAgentsKnowledge.fn.sh $rigOpName" "$rigHelpInclude" || : )" 1
+rigAssert "the syntax line is in the manual's list, once"                  "$( LC_ALL=C grep -c "^📘 syntax: DistroAgentsKnowledge.fn.sh $rigOpName" "$rigHelpManual" || : )" 1
 rigAssert "the manual has the entry itself, once"                          "$( LC_ALL=C grep -c -E "^[[:space:]]+$rigOpName( |\$)" "$rigHelpManual" || : )" 1
-rigAssert "control: the same three readers on --member-vault-item-read give 1 1 1" "$( LC_ALL=C grep -c "^echo \"📘 syntax: DistroAgentsTools.fn.sh --member-vault-item-read" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c "^📘 syntax: DistroAgentsTools.fn.sh --member-vault-item-read" "$rigHelpManual" || : ) $( LC_ALL=C grep -c -E "^[[:space:]]+--member-vault-item-read( |\$)" "$rigHelpManual" || : )" "1 1 1"
+rigAssert "control: the same three readers on --get-vault-item give 1 1 1" "$( LC_ALL=C grep -c "^echo \"📘 syntax: DistroAgentsItems.fn.sh --get-vault-item" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c "^📘 syntax: DistroAgentsItems.fn.sh --get-vault-item" "$rigHelpManual" || : ) $( LC_ALL=C grep -c -E "^[[:space:]]+--get-vault-item( |\$)" "$rigHelpManual" || : )" "1 1 1"
 rigRun "$rigTmp/r13"
 rigAssert "called with no path it refuses, exit non-zero, and says the syntax" "$( [ "$( rigRc "$rigTmp/r13" )" -ne 0 ] && printf refused || printf accepted ) $( LC_ALL=C grep -c -F -- "$rigOpName" "$rigTmp/r13.err" || : )" "refused 1"
 

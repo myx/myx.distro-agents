@@ -20,7 +20,7 @@ review-by: inherit
 - Routine's local procedures
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -131,7 +131,7 @@ Coworking-like sessions only: name to the file's own maintainers any member file
 
 ### conclude-session-thread
 
-React ✅ on the session thread's root with `--member-comms-slack-react`. No live session thread: skip.
+React ✅ on the session thread's root with `--slack-react`. No live session thread: skip.
 
 ## dismiss-participants
 
@@ -180,14 +180,14 @@ BatchTools: several tool calls in one round, much quicker for calls that do not 
 
 Contacts, the people you meet and reach, are kept by tooling and not by hand: DistroAgentsContacts.fn.sh --contacted-by <value> when someone writes to you, --reach-contact <id> to write to someone, --collect-contact to record one.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--member-comms-slack-send-message <team-member> <target> [text...]`
-- `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name>`
-- `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
-- `--member-inbox-note-upsert <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
-- `--member-inbox-reflection-upsert <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
-- `--member-upsert-member-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
+- `--slack-send-message <target> [text...]`
+- `--slack-react <channel>:<ts> <emoji-name>`
+- `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
+- `--upsert-inbox-note <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
+- `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
+- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
 - `--routine-run-inline <routine>`
 - `--get-session-thread [--own]`
 - `--executor-checkpoint-push [<name>]`

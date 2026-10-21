@@ -81,7 +81,7 @@ rigAssert(){ ## what is asserted, got, want
 }
 
 rigOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-	bash "$rigTool" --magic-comms-slack-conversations-roster magic-team --identity bot 2>&1 )" || rigRc=$?
+	bash "$rigTool" --slack-conversations-roster magic-team --identity bot 2>&1 )" || rigRc=$?
 LC_ALL=C grep -q '^auth.test ' "$rigTmp/calls" || rigRefuse "auth.test never reached the fake curl at all, so nothing below would be measured"
 
 rigAssert "the whole user directory is never fetched" "$( LC_ALL=C grep -c '^users.list ' "$rigTmp/calls" )" 0

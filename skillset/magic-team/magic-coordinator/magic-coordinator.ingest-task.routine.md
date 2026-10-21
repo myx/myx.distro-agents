@@ -20,7 +20,7 @@ review-by: inherit
 - Routine's local procedures
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -52,7 +52,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **process-own-inbox**: Run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`), so asks already queued are settled with this one rather than duplicated.
 2. **gather-and-agree**: Gather and agree with the requester, one topic at a time, with small, minimal-assumption questions, until the content is settled. Once a point is clear and agreed, move on.
 3. **output**: Once settled, file it, steps:
-   - Default: a `note-*` in `magic-coordinator`'s own inbox (`--member-inbox-note-upsert`), or an `inquiry-*` to the member it belongs to (`post-inquiry`). Never the board. Filing does not start the work.
+   - Default: a `note-*` in `magic-coordinator`'s own inbox (`--upsert-inbox-note`), or an `inquiry-*` to the member it belongs to (`post-inquiry`). Never the board. Filing does not start the work.
    - Dispatch: only within `magic-coordinator`'s own mandate, or on a live authorisation from someone holding it — still filed first, then dispatched through `spawn-one-dispatch`.
 4. **relationship-to-grooming**: Content that needs working out rather than writing down goes to `magic-team.interview.routine`, which takes each part through propose-approve as it settles.
 
@@ -83,11 +83,11 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--member-inbox-note-upsert <team-member> <item-filename>`
-- `--member-upsert-member-inquiry <member> <item-filename>`
-- `--member-comms-slack-send-message <team-member> <target> [text...]`
+- `--upsert-inbox-note <team-member> <item-filename>`
+- `--upsert-inbox-inquiry <member> <item-filename>`
+- `--slack-send-message <target> [text...]`
 - `--routine-run-inline <routine>`
 
 # Maintainer Notes

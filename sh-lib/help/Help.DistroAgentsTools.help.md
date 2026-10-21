@@ -4,49 +4,53 @@
 📘 syntax: DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <entity-id> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message [--team-member <team-member>] <magic-team|human-owner|event-track|event-alert|session-current|session-parent|<alias>:<ts>|<conversation-id>|<channel>:<ts>|<team-member>[:<ts>]> [--identity-bot] [--metadata <json>] [text...]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- <body...> [--format markdown|text] [--in-reply-to <message-id>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- --from-stdin [--format markdown|text] [--in-reply-to <message-id>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- --from-file <path> [--format markdown|text] [--in-reply-to <message-id>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-search-messages [--team-member <team-member>] <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-react [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent <emoji-name> [--identity-bot] [--remove]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-delete-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [<channel>:<ts>...] [--identity-bot]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] [text...]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] --from-stdin
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] --from-file <path>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-info [--team-member <team-member>] <file-id> [--identity-bot] [--raw]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-fetch [--team-member <team-member>] <file-id> <destination-path> [--identity-bot] [--overwrite]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-get [--team-member <team-member>] [--raw]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids [--team-member <team-member>] [--user-name <name>]... [--channel-name <name>]... [--raw]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-conversations-roster [--team-member <team-member>] [--identity user|bot|both] [--types <csv>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-read [--team-member <team-member>] (<channel>:<ts> [--thread]|<channel>|<conversation-id> [--oldest <ts>]) [--identity-bot]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--address-to <who>]... (<text...>|--from-stdin|--from-file <path>)
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-react [--team-member <team-member>] <channel>:<ts> <emoji-name> [--identity-bot] [--remove]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>)
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-email-mark-seen [--team-member <team-member>] <uid>
-📘 syntax: DistroAgentsTools.fn.sh --magic-client-operation-run <magic-coordinator> --client-<operation> <client-member-name> [<argument>...]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-check [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-mark-seen [--team-member <team-member>] <uid>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-check [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment [--team-member <team-member>] <card-id> [text...]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment [--team-member <team-member>] <card-id> --from-stdin
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment [--team-member <team-member>] <card-id> --from-file <path>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read [--team-member <team-member>] (<channel>:<ts>|<alias>:<ts>|session-current|session-parent [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-read [--team-member <team-member>] <uid> [--seen]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-read [--team-member <team-member>] <notification-id>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-space-list [--team-member <team-member>] [--cursor <value>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format] [--version <n>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-space-list [--team-member <team-member>] [--cursor <value>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-comment-read [--team-member <team-member>] <page-id>
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-create [--team-member <team-member>] (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-comment-add [--team-member <team-member>] <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-delete [--team-member <team-member>] <page-id>
+📘 syntax: DistroAgentsSlack.fn.sh --slack-send-message [--team-member <team-member>] <magic-team|human-owner|event-track|event-alert|session-current|session-parent|<alias>:<ts>|<conversation-id>|<channel>:<ts>|<team-member>[:<ts>]> [--identity-bot] [--metadata <json>] [text...]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
+📘 syntax: DistroAgentsMail.fn.sh --email-send [--team-member <team-member>] <email@address>... -- <subject> -- <body...> [--format markdown|text] [--in-reply-to <message-id>]
+📘 syntax: DistroAgentsMail.fn.sh --email-send [--team-member <team-member>] <email@address>... -- <subject> -- --from-stdin [--format markdown|text] [--in-reply-to <message-id>]
+📘 syntax: DistroAgentsMail.fn.sh --email-send [--team-member <team-member>] <email@address>... -- <subject> -- --from-file <path> [--format markdown|text] [--in-reply-to <message-id>]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-search-messages [--team-member <team-member>] <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-react [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent <emoji-name> [--identity-bot] [--remove]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-delete-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [<channel>:<ts>...] [--identity-bot]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] [text...]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] --from-stdin
+📘 syntax: DistroAgentsSlack.fn.sh --slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] --from-file <path>
+📘 syntax: DistroAgentsSlack.fn.sh --slack-file-info [--team-member <team-member>] <file-id> [--identity-bot] [--raw]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-file-fetch [--team-member <team-member>] <file-id> <destination-path> [--identity-bot] [--overwrite]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-profile-get [--team-member <team-member>] [--raw]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
+📘 syntax: DistroAgentsSlack.fn.sh --slack-presence-keep [--team-member <team-member>] [--ttl <seconds>]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-presence-status [--team-member <team-member>] [--ttl <seconds>]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-presence-stop [--team-member <team-member>] [--ttl <seconds>]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-socket-start [--team-member <team-member>]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-socket-status [--team-member <team-member>]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-socket-stop [--team-member <team-member>]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-resolve-ids [--team-member <team-member>] [--user-name <name>]... [--channel-name <name>]... [--raw]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-conversations-roster [--team-member <team-member>] [--identity user|bot|both] [--types <csv>]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-read [--team-member <team-member>] (<channel>:<ts> [--thread]|<channel>|<conversation-id> [--oldest <ts>]) [--identity-bot]
+📘 syntax: DistroAgentsSlack.fn.sh --slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--address-to <who>]... (<text...>|--from-stdin|--from-file <path>)
+📘 syntax: DistroAgentsSlack.fn.sh --slack-react [--team-member <team-member>] <channel>:<ts> <emoji-name> [--identity-bot] [--remove]
+📘 syntax: DistroAgentsMail.fn.sh --email-send [--team-member <team-member>] <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>)
+📘 syntax: DistroAgentsMail.fn.sh --email-mark-seen [--team-member <team-member>] <uid>
+📘 syntax: AgentDispatcherTools.fn.sh --client-operation-run <magic-coordinator> --client-<operation> <client-member-name> [<argument>...]
+📘 syntax: DistroAgentsMail.fn.sh --email-check [--team-member <team-member>]
+📘 syntax: DistroAgentsTrello.fn.sh --trello-check [--team-member <team-member>]
+📘 syntax: DistroAgentsTrello.fn.sh --trello-post-comment [--team-member <team-member>] <card-id> [text...]
+📘 syntax: DistroAgentsTrello.fn.sh --trello-post-comment [--team-member <team-member>] <card-id> --from-stdin
+📘 syntax: DistroAgentsTrello.fn.sh --trello-post-comment [--team-member <team-member>] <card-id> --from-file <path>
+📘 syntax: DistroAgentsSlack.fn.sh --slack-read [--team-member <team-member>] (<channel>:<ts>|<alias>:<ts>|session-current|session-parent [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]
+📘 syntax: DistroAgentsMail.fn.sh --email-read [--team-member <team-member>] <uid> [--seen]
+📘 syntax: DistroAgentsTrello.fn.sh --trello-read [--team-member <team-member>] <notification-id>
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-space-list [--team-member <team-member>] [--cursor <value>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format] [--version <n>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format]
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-read [--team-member <team-member>] <page-id>
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-create [--team-member <team-member>] (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-add [--team-member <team-member>] <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-delete [--team-member <team-member>] <page-id>
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-space-list [--team-member <team-member>] [--cursor <value>]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format] [--version <n>]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]
@@ -55,25 +59,19 @@
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-comment-add [--team-member <team-member>] <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-delete [--team-member <team-member>] <page-id>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-read [--team-member <team-member>] <issue-key> [--format adf|rendered]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-list [--team-member <team-member>] [--start-at <n>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-read [--team-member <team-member>] <board-id>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-issue-search [--team-member <team-member>] <board-id> [--start-at <n>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-sprint-list [--team-member <team-member>] <board-id> [--start-at <n>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-sprint-issue-search [--team-member <team-member>] <sprint-id> [--start-at <n>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-board-list [--team-member <team-member>] [--start-at <n>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-board-read [--team-member <team-member>] <board-id>
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-board-issue-search [--team-member <team-member>] <board-id> [--start-at <n>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-sprint-list [--team-member <team-member>] <board-id> [--start-at <n>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-sprint-issue-search [--team-member <team-member>] <sprint-id> [--start-at <n>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-search [--team-member <team-member>] <jql> [--limit <n>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-read [--team-member <team-member>] <issue-key> [--format adf|rendered]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-comment-read [--team-member <team-member>] <issue-key> [--format adf|rendered] [--start-at <n>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-create [--team-member <team-member>] --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-update [--team-member <team-member>] <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-transition [--team-member <team-member>] <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-comment-add [--team-member <team-member>] <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-jira-issue-delete [--team-member <team-member>] <issue-key>
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-read [--team-member <team-member>] <issue-key> [--format adf|rendered]
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-board-list [--team-member <team-member>] [--start-at <n>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-board-read [--team-member <team-member>] <board-id>
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-board-issue-search [--team-member <team-member>] <board-id> [--start-at <n>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-sprint-list [--team-member <team-member>] <board-id> [--start-at <n>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-sprint-issue-search [--team-member <team-member>] <sprint-id> [--start-at <n>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-search [--team-member <team-member>] <jql> [--limit <n>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-comment-read [--team-member <team-member>] <issue-key> [--format adf|rendered] [--start-at <n>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-create [--team-member <team-member>] --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-update [--team-member <team-member>] <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-transition [--team-member <team-member>] <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-comment-add [--team-member <team-member>] <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
+📘 syntax: DistroAgentsAtlassian.fn.sh --jira-issue-delete [--team-member <team-member>] <issue-key>
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-board-list [--team-member <team-member>] [--start-at <n>]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-board-read [--team-member <team-member>] <board-id>
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-board-issue-search [--team-member <team-member>] <board-id> [--start-at <n>]
@@ -130,28 +128,28 @@
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-self-test
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-verify
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-harden
-📘 syntax: DistroAgentsTools.fn.sh --member-git-repo-history [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--limit <n>] <path>...
+📘 syntax: DistroAgentsKnowledge.fn.sh --get-path-history [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--limit <n>] <path>...
 📘 syntax: DistroAgentsTools.fn.sh --librarian-skillset-upsert [--team-member <team-member>] <pathname> (--from-stdin|--from-file <path>)
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash [--team-member <team-member>] <item-filename> --from-inbox:<member> [--exclude-incoming]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --member-inbox-note-upsert [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--standing yes|no] [--from-file <path>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>]
-📘 syntax: DistroAgentsTools.fn.sh --member-inbox-reflection-upsert [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript [--team-member <team-member>] [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]
-📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-read [--team-member <member>] <item-filename> [--include-processed] [--start-line <N> --end-line <N>]
-📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-trash [--team-member <member>] <item-filename> [--exclude-incoming]
-📘 syntax: DistroAgentsTools.fn.sh --member-inbox-to-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --member-audit-item-read [--team-member <team-member>] <document-name> [--start-line <N> --end-line <N>]
-📘 syntax: DistroAgentsTools.fn.sh --member-vault-item-read [--team-member <team-member>] <item-name> [--start-line <N> --end-line <N>]
-📘 syntax: DistroAgentsTools.fn.sh --member-board-item-read [--team-member <team-member>] <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-note [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--standing yes|no] [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsSession.fn.sh --append-transcript [--team-member <team-member>] [--of-session <session-id>] [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]
+📘 syntax: DistroAgentsItems.fn.sh --get-inbox-item [--team-member <member>] <item-filename> [--include-processed] [--start-line <N> --end-line <N>]
+📘 syntax: DistroAgentsItems.fn.sh --trash-inbox-item [--team-member <member>] <item-filename> [--exclude-incoming]
+📘 syntax: DistroAgentsItems.fn.sh --mark-inbox-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --get-audit-item [--team-member <team-member>] <document-name> [--start-line <N> --end-line <N>]
+📘 syntax: DistroAgentsItems.fn.sh --get-vault-item [--team-member <team-member>] <item-name> [--start-line <N> --end-line <N>]
+📘 syntax: DistroAgentsItems.fn.sh --get-board-item [--team-member <team-member>] <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path> [--name <name>] [--kind workspace|directory] [--ceiling read-only|read-write]
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <name>
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list
-📘 syntax: DistroAgentsTools.fn.sh --member-directory-list
-📘 syntax: DistroAgentsTools.fn.sh --member-directory-path <name>[/<relative>]
-📘 syntax: DistroAgentsTools.fn.sh --member-namespace-list [<namespace>]
+📘 syntax: DistroAgentsKnowledge.fn.sh --list-places
+📘 syntax: DistroAgentsKnowledge.fn.sh --get-place-path <name>[/<relative>]
+📘 syntax: DistroAgentsKnowledge.fn.sh --list-namespaces [<namespace>]
 📘 syntax: DistroAgentsTools.fn.sh --install-claude-permissions [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-workspace-restrictions [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
@@ -214,84 +212,66 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-files <team-member> [<file>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-read [--full] <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-running [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-archived [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-retained [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-backlog [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-processed [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-pending [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-blocked [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-running [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
-📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-read [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-advance [--team-member <team-member>] <ts>
-📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-read [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-team-data-commit-pending [--team-member <team-member>] [--commit-message <message>] [--no-push]
-📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input [--team-member <team-member>] [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop|--unwait <kind>:<target> --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>] [--wait-collect <seconds>]
-📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input [--team-member <team-member>] --wait-list-sources
-📘 syntax: DistroAgentsTools.fn.sh --member-escalation-read [--team-member <team-member>] <request-id>
-📘 syntax: DistroAgentsTools.fn.sh --member-escalation-answer [--team-member <team-member>] <request-id> <verdict> [text]
-📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]
-📘 syntax: DistroAgentsTools.fn.sh --member-escalation-readback [--team-member <team-member>] <request-id> <option word> [text]
-📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-forward <coordinator> <request-id>
-📘 syntax: DistroAgentsTools.fn.sh --member-permission-pass [--team-member <team-member>] --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-permission-set-request <magic-coordinator> <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...
-📘 syntax: DistroAgentsTools.fn.sh --magic-permission-list --member <member> [--session-id <id>]
-📘 syntax: DistroAgentsTools.fn.sh --member-permission-list [--team-member <team-member>] [--session-id <id>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-permission-revoke <ref> [--session-id <id>]
-📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read [--team-member <team-member>] [<pending-id>] [--all] [--any-owner] [--count]
-📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle [--team-member <team-member>] <pending-id> --reason <text> [--withdraw]
-📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text> [--withdraw]
-📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-amend <magic-coordinator> <pending-id> --verdict <text> --reason <text>
-📘 syntax: DistroAgentsTools.fn.sh --member-decision-record [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> [--source <ts-or-id>] [--clears-blocker]
-📘 syntax: DistroAgentsTools.fn.sh --member-review-request [--team-member <team-member>] <item-filename> --reason <text>
-📘 syntax: DistroAgentsTools.fn.sh --member-review-accept [--team-member <team-member>] <item-filename> [--summary <text>]
-📘 syntax: DistroAgentsTools.fn.sh --member-review-return [--team-member <team-member>] <item-filename> (--message <text>|--from-stdin)
-📘 syntax: DistroAgentsTools.fn.sh --member-review-reject [--team-member <team-member>] <item-filename> (--message <text>|--from-stdin)
-📘 syntax: DistroAgentsTools.fn.sh --member-review-follow-up [--team-member <team-member>] <item-filename> <new-item-name> --from-stdin
-📘 syntax: DistroAgentsTools.fn.sh --magic-review-shutdown <magic-coordinator>
-📘 syntax: DistroAgentsTools.fn.sh --magic-review-accept <magic-coordinator> <item-filename> [--summary <text>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-review-return <magic-coordinator> <item-filename> (--message <text>|--from-stdin)
-📘 syntax: DistroAgentsTools.fn.sh --magic-review-reject <magic-coordinator> <item-filename> (--message <text>|--from-stdin)
-📘 syntax: DistroAgentsTools.fn.sh --magic-review-follow-up <magic-coordinator> <item-filename> <new-item-name> --from-stdin
-📘 syntax: DistroAgentsTools.fn.sh --member-retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--project <p>] [--file <changed-file>]... [--wait|--no-wait] [<test>...]
-📘 syntax: DistroAgentsTools.fn.sh --member-retest-drain [--rest [--about <scratch-folder>]]
-📘 syntax: DistroAgentsTools.fn.sh --member-retest-result <request-id>...
-📘 syntax: DistroAgentsTools.fn.sh --magic-config-check
-📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-running [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-append-session-transcript [--team-member <team-member>] <session-id> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--create]
-📘 syntax: DistroAgentsTools.fn.sh --magic-board-create-running [--team-member <team-member>] <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
-📘 syntax: DistroAgentsTools.fn.sh --magic-advance-sleep-run
-📘 syntax: DistroAgentsTools.fn.sh --magic-state-note-lock-acquire [--team-member <team-member>] <owner-label>
-📘 syntax: DistroAgentsTools.fn.sh --magic-state-note-lock-status [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-acquire [--team-member <team-member>] <owner-label>
-📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-refresh [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-advance-lock-status [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-acquire [--team-member <team-member>] <owner-label>
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-refresh [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-lock-status [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-acquire [--team-member <team-member>] <owner-label>
-📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-refresh [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-daily-lock-status [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-acquire [--team-member <team-member>] <owner-label>
-📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-refresh [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-status [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-state-note-read [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-test-report-send [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-proxy [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]
-📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-running [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-archived [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-to-retained [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-create-backlog [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-create-processed [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-create-pending [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-create-blocked [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+📘 syntax: DistroAgentsItems.fn.sh --grooming-create-running [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-read [--team-member <team-member>]
+📘 syntax: AgentDispatcherTools.fn.sh --sweep-state-advance [--team-member <team-member>] <ts>
+📘 syntax: AgentDispatcherTools.fn.sh --roster-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsKnowledge.fn.sh --get-roster [--team-member <team-member>]
+📘 syntax: DistroAgentsItems.fn.sh --commit-pending [--team-member <team-member>] [--commit-message <message>] [--no-push]
+📘 syntax: DistroAgentsSession.fn.sh --wait-for-input [--team-member <team-member>] [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop|--unwait <kind>:<target> --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>] [--wait-collect <seconds>]
+📘 syntax: DistroAgentsSession.fn.sh --wait-for-input [--team-member <team-member>] --wait-list-sources
+📘 syntax: DistroAgentsQuestions.fn.sh --read-escalation [--team-member <team-member>] <request-id>
+📘 syntax: DistroAgentsQuestions.fn.sh --answer-escalation [--team-member <team-member>] <request-id> <verdict> [text]
+📘 syntax: DistroAgentsQuestions.fn.sh --readback-escalation [--team-member <team-member>] <request-id> <option word> [text]
+📘 syntax: DistroAgentsQuestions.fn.sh --forward-escalation [--team-member <team-member>] <request-id>
+📘 syntax: DistroAgentsGrants.fn.sh --pass-permission [--team-member <team-member>] --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]
+📘 syntax: DistroAgentsQuestions.fn.sh --request-permission-set [--team-member <team-member>] <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...
+📘 syntax: DistroAgentsGrants.fn.sh --list-permissions [--team-member <team-member>] [--member <member>] [--session-id <id>]
+📘 syntax: DistroAgentsGrants.fn.sh --revoke-permission <ref> [--session-id <id>]
+📘 syntax: DistroAgentsQuestions.fn.sh --read-pending-reply [--team-member <team-member>] [<pending-id>] [--all] [--any-owner] [--count]
+📘 syntax: DistroAgentsQuestions.fn.sh --settle-pending-reply [--team-member <team-member>] <pending-id> --reason <text> [--withdraw]
+📘 syntax: DistroAgentsQuestions.fn.sh --amend-pending-reply [--team-member <team-member>] <pending-id> --verdict <text> --reason <text>
+📘 syntax: DistroAgentsQuestions.fn.sh --record-decision [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> [--source <ts-or-id>] [--clears-blocker]
+📘 syntax: DistroAgentsItems.fn.sh --request-review [--team-member <team-member>] <item-filename> --reason <text>
+📘 syntax: DistroAgentsItems.fn.sh --accept-review [--team-member <team-member>] <item-filename> [--summary <text>]
+📘 syntax: DistroAgentsItems.fn.sh --return-review [--team-member <team-member>] <item-filename> (--message <text>|--from-stdin)
+📘 syntax: DistroAgentsItems.fn.sh --reject-review [--team-member <team-member>] <item-filename> (--message <text>|--from-stdin)
+📘 syntax: DistroAgentsItems.fn.sh --follow-up-review [--team-member <team-member>] <item-filename> <new-item-name> --from-stdin
+📘 syntax: DistroAgentsDispatcher.fn.sh --shutdown-runs [--team-member <team-member>]
+📘 syntax: DistroAgentsTesting.fn.sh --retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--project <p>] [--file <changed-file>]... [--wait|--no-wait] [<test>...]
+📘 syntax: DistroAgentsTesting.fn.sh --retest-drain [--rest [--about <scratch-folder>]]
+📘 syntax: DistroAgentsTesting.fn.sh --retest-result <request-id>...
+📘 syntax: AgentDispatcherTools.fn.sh --config-check
+📘 syntax: DistroAgentsItems.fn.sh --advance-to-running [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --advance-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --move-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --move-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --move-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --move-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --move-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --create-running [--team-member <team-member>] <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+📘 syntax: AgentDispatcherTools.fn.sh --advance-sleep-run
+📘 syntax: AgentDispatcherTools.fn.sh --state-note-lock-acquire [--team-member <team-member>] <owner-label>
+📘 syntax: AgentDispatcherTools.fn.sh --grooming-lock-refresh [--team-member <team-member>]
+📘 syntax: AgentDispatcherTools.fn.sh --daily-lock-refresh [--team-member <team-member>]
+📘 syntax: AgentDispatcherTools.fn.sh --retro-lock-refresh [--team-member <team-member>]
+📘 syntax: AgentDispatcherTools.fn.sh --state-note-read [--team-member <team-member>]
+📘 syntax: DistroAgentsTesting.fn.sh --send-report [--team-member <team-member>]
+📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]
+📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]
 📘 syntax: DistroAgentsTools.fn.sh --tester-skillset-validate-routine <routine-file|--from-stdin>
 📘 syntax: DistroAgentsTools.fn.sh --tester-test-register (<test-id> --project <p> --script <path>|--from-folder <dir> --project <p>) [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
 📘 syntax: DistroAgentsTools.fn.sh --tester-test-update <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
@@ -302,7 +282,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --tester-run-all-nightly-regressions [--wait|--no-wait]
 📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge
 📘 syntax: DistroAgentsTools.fn.sh --owner-clear-just-agents [--check|--apply]
-📘 syntax: DistroAgentsTools.fn.sh --member-help [--team-member <team-member>]
+📘 syntax: DistroAgentsKnowledge.fn.sh --member-help [--team-member <team-member>]
 📘 syntax: DistroAgentsTools.fn.sh --help-setup-<domain>
 📘 syntax: DistroAgentsTools.fn.sh [--help-syntax [<op>]]
 📘 syntax: DistroAgentsTools.fn.sh [--help]
@@ -406,7 +386,7 @@
 			shell metacharacters like parentheses/quotes/semicolons) as the
 			trailing argument -- that has crashed a live console process for
 			real. For free text, call
-			--member-comms-slack-send-message/--member-comms-email-send
+			--slack-send-message/--email-send
 			as bare direct invocations instead; neither goes through
 			--console-send.
 
@@ -464,7 +444,7 @@
 			--member-config-option: a scope holds credentials, so settings
 			are the tooling's and the console's, never a member op.
 
-		--member-comms-slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... (text...|--from-stdin|--from-file <path>) [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]
+		--slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... (text...|--from-stdin|--from-file <path>) [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]
 			Posts <text> to magic-team, human-owner, event-track,
 			event-alert, session-current, session-parent, a
 			<channel>:<ts> thread, a bare
@@ -603,7 +583,7 @@
 			the message as it was, and nothing is queued or emailed
 			for it. Default metadata
 			marks <team-member> as sender, read back by
-			--member-wait-for-input's peer: source; --metadata
+			--wait-for-input's peer: source; --metadata
 			<json> replaces it, caller then owns keeping peer:
 			working. --message-text/--message-text-from-file sets a
 			blocks message's plain-text fallback; omitted, one is
@@ -657,15 +637,12 @@
 			not retried and raises no stuck-comms alert -- only a
 			send that exhausts its transport retries does.
 
-		--magic-contact-digest-send [--team-member <team-member>] <origin team-member> (--resolved|--needs-ruling) <text...>
-		--member-contact-digest-send [--team-member <team-member>] (--resolved|--needs-ruling) <text...>
+		--send-contact-digest [--team-member <team-member>] [<origin team-member>] (--resolved|--needs-ruling) <text...>
 			Sends one contact-assessment digest to the human-owner, under
-			<team-member> as the acting identity.
-			--magic-contact-digest-send takes the origin — the member
-			whose correspondence produced the digest — as a positional.
-			--member-contact-digest-send has no origin argument: the
-			acting member is the origin, and passing one is rejected.
-			Under either name, a spawned session sends only as itself.
+			<team-member> as the acting identity. The origin is the member
+			whose correspondence produced the digest: the acting member
+			when none is given, or the one named before the verdict word.
+			A spawned session sends only as itself.
 
 			The origin appears in the message's `to` field. <text> is the
 			rest of the digest, in order: who wanted what, then the
@@ -677,7 +654,7 @@
 			conversation with him. --needs-ruling goes to his own Slack
 			DM, where he replies.
 
-		--member-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>) [--format markdown|text] [--in-reply-to <message-id>] [--text-group report|brief|relay]
+		--email-send [--team-member <team-member>] <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>) [--format markdown|text] [--in-reply-to <message-id>] [--text-group report|brief|relay]
 			`<team-member>` is who the send authenticates as --
 			strict, no fallback to another member's mailbox; a
 			member without one fails here. It comes first, ahead
@@ -698,7 +675,7 @@
 			the body verbatim; text/html is built from it, UTF-8
 			both. In either mode a bare URL becomes a real link
 			(same URL-before-email precedence as
-			--member-comms-slack-send-message); a bare email
+			--slack-send-message); a bare email
 			becomes bold text, never a link. `markdown` mode also
 			honours `[text](url)`, code spans/fences, and
 			`*x*`/`_x_` emphasis (nested, real HTML tags); a link
@@ -733,11 +710,11 @@
 			`--in-reply-to <message-id>` threads the reply under
 			an earlier message in the recipient's client -- the
 			parent's own Message-Id, angle brackets included
-			(visible via --member-comms-email-read). Optional,
+			(visible via --email-read). Optional,
 			single-level only: placed on In-Reply-To and
 			References, not accumulated.
 
-		--member-comms-slack-search-messages [--team-member <team-member>] <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
+		--slack-search-messages [--team-member <team-member>] <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
 			`<team-member>` is who the search runs as -- a user
 			token, so its own visibility applies. Finds messages
 			in ONE conversation since a cut-off, but **a thread is
@@ -749,7 +726,7 @@
 			magic-team/human-owner/event-track/event-alert, an
 			explicit channel, or a bare conversation id. **A
 			`<channel>:<ts>` target is refused** -- read one
-			message or thread with --member-comms-slack-read
+			message or thread with --slack-read
 			instead. `<alias>:<ts>` is one message and is refused the
 			same way, and so are session-current and session-parent,
 			which name one thread, never a conversation to search.
@@ -784,7 +761,7 @@
 			line per message as `ts | user | text`. A reply in
 			a thread carries a tag ahead of its text:
 			`ts | user | [thread-reply of <parent-ts>] text`
-			(feed that ts to --member-comms-slack-read ...
+			(feed that ts to --slack-read ...
 			--thread). Text that itself starts with such a tag
 			is printed one space in. Line breaks flatten to
 			spaces. --raw returns the full API responses per
@@ -799,10 +776,10 @@
 			elsewhere, and a zero-match result on a known-busy
 			conversation is worth a direct-read check.
 
-		--magic-comms-slack-resolve-ids [--team-member <team-member>] [--user-name <name>]... [--channel-name <name>]... [--raw]
+		--slack-resolve-ids [--team-member <team-member>] [--user-name <name>]... [--channel-name <name>]... [--raw]
 			General coordinator comms-id resolver. Authenticates as
 			one team-member identity (same credential resolution as
-			--member-comms-slack-send-message), then reports: auth
+			--slack-send-message), then reports: auth
 			identity (`AUTH_USER_ID`, `AUTH_USER_NAME`); requested
 			user-name/channel-name matches with resolved IDs; and
 			configured alias reachability for magic-team/human-owner/
@@ -844,7 +821,7 @@
 			work above is reported, 1 on an argument, token or
 			auth.test error reported above.
 
-		--magic-comms-slack-conversations-roster [--team-member <team-member>] [--identity user|bot|both] [--types <csv>]
+		--slack-conversations-roster [--team-member <team-member>] [--identity user|bot|both] [--types <csv>]
 			Read-only: which conversations exist for that member
 			RIGHT NOW, per identity, asked of Slack fresh every call
 			-- `conversations.list` paged to exhaustion. A handle per
@@ -875,30 +852,10 @@
 			some failed (partial, not known-complete), 4 none
 			enumerated (UNKNOWN, never empty), 1 usage.
 
-		--magic-comms-slack-read [--team-member <team-member>] (<channel>:<ts> [--thread]|<channel>|<conversation-id> [--oldest <ts>]) [--identity-bot]
-		--magic-comms-slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--address-to <who>]... (<text...>|--from-stdin|--from-file <path>)
-		--magic-comms-slack-react [--team-member <team-member>] <channel>:<ts> <emoji-name> [--identity-bot] [--remove]
-		--magic-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>)
-		--magic-comms-email-mark-seen [--team-member <team-member>] <uid>
-			The coordinator acting for <team-member> inside our own
-			team: on our own organisation's side, whoever the member
-			is. Each takes every argument and option of the
-			--member-comms-* operation of the same name and does what
-			it does. Only magic-coordinator, or the console, may call
-			them: a --member-comms-* call from a spawned session acts
-			only as that session's own member.
-
-			A `client-*` member is no exception: what it holds for
-			its other organisation is reached by its --client-*
-			operations, which the coordinator runs with
-			--magic-client-operation-run. Where our own side holds
-			nothing of a system for such a member, the operation says
-			so in one line and names that way.
-
-		--magic-client-operation-run <magic-coordinator> --client-<operation> <client-member-name> [<argument>...]
+		--client-operation-run <magic-coordinator> --client-<operation> <client-member-name> [<argument>...]
 			The coordinator's one way to the other organisation of a
-			`client-*` member. <magic-coordinator> is the caller's
-			own member name, as in every --magic-* operation: any
+			`client-*` member. <team-member> is the caller's
+			own member name, which must be magic-coordinator: any
 			other name is refused. After it comes, word for word,
 			the command line the client itself gives: the --client-*
 			operation, the client member's name, that operation's
@@ -911,7 +868,7 @@
 			operation that is no --client-* one; a member name that
 			does not start with `client-`; a member that does not
 			exist. Only magic-coordinator, or the console, may call
-			it, as every --magic-* operation. A --client-* operation
+			it, as every operation of the coordinator's own. A --client-* operation
 			called directly is its client's own session's alone.
 
 		--client-comms-slack-send-message [--team-member <team-member>] (<conversation-id>|<channel>:<ts>|<user-id>) [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... (<text...>|--from-stdin|--from-file <path>)
@@ -930,17 +887,17 @@
 			Slack settings the member itself holds for it (its own
 			user token, else its own bot token), never the team's.
 			Any other name is refused. Each takes every argument and
-			option of the --member-comms-slack-* operation of the
+			option of the --slack-* operation of the
 			same name and does what it does. A conversation or a
 			person is named by its id. The team's own addresses --
 			magic-team, human-owner, event-track, event-alert, a
 			team member's name, the session thread -- are our own
 			organisation's and are refused here, naming the
-			--member-* operation they work in. Called by that
+			--slack-* operation they work in. Called by that
 			member's own session; any other session is refused.
 
 			The prefix and the address select the side, never a
-			token the member holds. A --member-comms-slack-*
+			token the member holds. A --slack-*
 			operation of a `client-*` member reaches our own team,
 			as the team bot. There, and in a tool that takes a `to`,
 			`client:<conversation-id>`, `client:<channel>:<ts>` or
@@ -983,12 +940,12 @@
 			of the EMAIL_* settings the member itself holds for it,
 			with no fallback to another scope. Any other name is
 			refused. Each takes every argument and option of the
-			--member-comms-email-* operation of the same name and
+			--email-* operation of the same name and
 			does what it does. Called by that member's own session;
 			any other session is refused.
 
 			The prefix selects the side, never a setting the member
-			holds. A --member-comms-email-* operation of a
+			holds. A --email-* operation of a
 			`client-*` member is our own organisation's side, where
 			such a member holds no mail settings: it says so in one
 			line and names the operation here.
@@ -1001,12 +958,12 @@
 			account of the TRELLO_* settings the member itself holds
 			for it, with no fallback to another scope. Any other
 			name is refused. Each takes every argument and option of
-			the --member-comms-trello-* operation of the same name
+			the --trello-* operation of the same name
 			and does what it does. Called by that member's own
 			session; any other session is refused.
 
 			The prefix selects the side, never a setting the member
-			holds. A --member-comms-trello-* operation of a
+			holds. A --trello-* operation of a
 			`client-*` member is our own organisation's side, where
 			such a member holds no Trello settings: it says so in
 			one line and names the operation here.
@@ -1044,17 +1001,17 @@
 			account of the GOOGLE_* settings the member itself holds
 			for it, with no fallback to another scope. Any other
 			name is refused. Each takes every argument and option of
-			the --member-comms-google-* operation of the same name
+			the --google-* operation of the same name
 			and does what it does. Called by that member's own
 			session; any other session is refused.
 
 			The prefix selects the side, never a setting the member
-			holds. A --member-comms-google-* operation of a
+			holds. A --google-* operation of a
 			`client-*` member is our own organisation's side, where
 			such a member holds no Google settings: it says so in
 			one line and names the operation here.
 
-		--member-comms-slack-react [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent <emoji-name> [--identity-bot] [--remove]
+		--slack-react [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent <emoji-name> [--identity-bot] [--remove]
 			<team-member> is the acting identity -- a bare, existing
 			member directory (routine-* exempt). Identity rule for
 			this whole family: member's own user token when it has
@@ -1075,7 +1032,7 @@
 
 			session-current or session-parent in place of
 			`<channel>:<ts>` names the opening message of that
-			session's thread (see --member-comms-slack-send-message).
+			session's thread (see --slack-send-message).
 
 			Three distinct outcomes. **Added**: posted by this call,
 			raw response printed, returns 0. **Already present**: the
@@ -1087,20 +1044,20 @@
 			reaction under another identity is a normal, separate
 			result.
 
-		--member-comms-slack-delete-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [<channel>:<ts>...] [--identity-bot]
-			Same identity rule as --member-comms-slack-react; here it
+		--slack-delete-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [<channel>:<ts>...] [--identity-bot]
+			Same identity rule as --slack-react; here it
 			also decides whether the call can succeed (see the
 			authorship rule below).
 
 			Deletes one specific Slack message -- `<channel>:<ts>`
 			only, no channel-wide or "delete all" form; same
-			credential resolution as --member-comms-slack-send-message,
+			credential resolution as --slack-send-message,
 			--identity-bot acts as the team bot.
 
 			`<alias>:<ts>` names the message with that ts in the
 			conversation an alias names, and session-current or
 			session-parent alone the opening message of that
-			session's thread (see --member-comms-slack-send-message).
+			session's thread (see --slack-send-message).
 			magic-team, human-owner, event-track or event-alert
 			alone names a conversation, no message, and is refused.
 
@@ -1121,24 +1078,24 @@
 			alongside; the other identity is never retried
 			automatically -- use --identity-bot explicitly.
 
-		--member-comms-slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] [text...|--from-stdin|--from-file <path>] [--text-group report|brief|relay]
-			Same identity rule as --member-comms-slack-react; as on
-			--member-comms-slack-delete-message it decides whether
+		--slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] [text...|--from-stdin|--from-file <path>] [--text-group report|brief|relay]
+			Same identity rule as --slack-react; as on
+			--slack-delete-message it decides whether
 			the call can succeed -- Slack permits editing only what
 			that identity authored.
 
 			Replaces the text of one message -- same `<channel>:<ts>`
-			grammar as --member-comms-slack-delete-message, with its
+			grammar as --slack-delete-message, with its
 			`<alias>:<ts>` and its session addresses. Text
 			comes from the same three forms as
-			--member-comms-slack-send-message (trailing argv,
+			--slack-send-message (trailing argv,
 			--from-stdin, --from-file; --message-from-stdin aliases
 			--from-stdin); no --format, plain text only. Empty
 			replacement text is refused. Re-running the same edit is
 			safe.
 
 			**Measured against the same plain-language floor as
-			--member-comms-slack-send-message, same --text-group
+			--slack-send-message, same --text-group
 			values.** An edit over a limit changes nothing and
 			returns the same CORRECTION, rc 6, naming each limit
 			and sentence: correct the text and edit again.
@@ -1150,7 +1107,7 @@
 			API response, returns 0 on `ok:true`; any refusal or
 			failure returns 1, message unchanged.
 
-		--member-comms-slack-file-info [--team-member <team-member>] <file-id> [--identity-bot] [--raw]
+		--slack-file-info [--team-member <team-member>] <file-id> [--identity-bot] [--raw]
 			<team-member> is the acting identity and decides whether
 			the file is visible at all (see exit code 3). Bare member
 			name (routine-* exempt); member's own user token when it
@@ -1180,11 +1137,11 @@
 			final for every identity. 1 the call did not complete;
 			nothing concluded about existence.
 
-		--member-comms-slack-file-fetch [--team-member <team-member>] <file-id> <destination-path> [--identity-bot] [--overwrite]
+		--slack-file-fetch [--team-member <team-member>] <file-id> <destination-path> [--identity-bot] [--overwrite]
 			<team-member> is the acting identity for both the
 			metadata read and the byte fetch -- never split across
 			identities. Same identity resolution and <file-id>
-			validation as --member-comms-slack-file-info: a file is
+			validation as --slack-file-info: a file is
 			named by its id, never by an alias.
 
 			Retrieves one Slack file's bytes to <destination-path>;
@@ -1208,20 +1165,20 @@
 			Prints `FETCH_STATE`, `FILE_ID`, `DESTINATION`,
 			`VERIFIED_BYTES`, `MIMETYPE`, `SOURCE_URL_KIND`.
 
-			Same four exit codes as --member-comms-slack-file-info: 0
+			Same four exit codes as --slack-file-info: 0
 			fetched and verified, 3 `file_not_found`, 4
 			`file_deleted`, 1 did not complete or the result wasn't
 			the file. Every non-zero code leaves the destination
 			unchanged.
 
-		--member-comms-slack-file-share [--team-member <team-member>] <target> --from-file <path> [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
-		--member-comms-slack-file-share [--team-member <team-member>] <target> --from-stdin [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
+		--slack-file-share [--team-member <team-member>] <target> --from-file <path> [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
+		--slack-file-share [--team-member <team-member>] <target> --from-stdin [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
 			Shares a file into a conversation, attributed to
 			`<team-member>`, for content too big for a message
 			body.
 
 			`<target>` takes the same forms as
-			--member-comms-slack-send-message, session-current and
+			--slack-send-message, session-current and
 			session-parent included; a target resolving
 			to a party opens a direct conversation first. An
 			invalid target is REJECTED before anything uploads --
@@ -1252,13 +1209,13 @@
 			is a FAILURE, not a partial success.
 
 			**mentions**: no addressee argument -- that's
-			--member-comms-slack-send-message's own. A bare
+			--slack-send-message's own. A bare
 			`@name` inside --comment is recognised `@` to the next
 			whitespace or end of line; a display name containing
 			a space can't be mentioned this way, use its id
 			instead.
 
-		--member-comms-slack-profile-get [--team-member <team-member>] [--raw]
+		--slack-profile-get [--team-member <team-member>] [--raw]
 			Reads the Slack profile, presence, do-not-disturb state and
 			custom profile fields of `<team-member>`'s own account, so
 			a profile-set can be checked. Persona identity only:
@@ -1278,7 +1235,7 @@
 			refused or unparsable, so the lines already printed are
 			not a full report. A failed facet is unknown, never unset.
 
-		--member-comms-slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
+		--slack-profile-set [--team-member <team-member>] {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
 			`<team-member>` is both the acting identity and the
 			account written: sets that member's own display name,
 			title, custom status, presence and do-not-disturb state.
@@ -1297,7 +1254,7 @@
 			--title is backed by a workspace-defined custom field: a
 			workspace that disallows it answers `"ok":true` and leaves
 			the field empty -- read the result back with
-			--member-comms-slack-profile-get rather than trusting the
+			--slack-profile-get rather than trusting the
 			applied facet.
 
 			**A custom status is cleared by both status flags
@@ -1319,7 +1276,20 @@
 			another identity. 0 every requested facet applied, 1 any
 			did not -- the facets reported applied really were.
 
-		--member-comms-email-check [--team-member <team-member>]
+		--slack-presence-keep [--team-member <team-member>] [--ttl <seconds>]
+		--slack-presence-status [--team-member <team-member>] [--ttl <seconds>]
+		--slack-presence-stop [--team-member <team-member>] [--ttl <seconds>]
+			The Slack presence of <team-member>'s account: `keep` holds it, `status` reads it,
+			`stop` ends it. `--ttl <seconds>` (default 300) is how long a keep holds.
+			Needs the scopes rtm:stream and users:read.
+
+		--slack-socket-start [--team-member <team-member>]
+		--slack-socket-status [--team-member <team-member>]
+		--slack-socket-stop [--team-member <team-member>]
+			The Socket Mode connection of <team-member>'s Slack app: `start`, `status` and
+			`stop`. Needs the scope app_mentions:read.
+
+		--email-check [--team-member <team-member>]
 			`<team-member>` is the member this check acts as, and it comes
 			first. It is required, and it is strict: what is counted is that
 			member's own mailbox and nothing else. There is no fallback to
@@ -1329,7 +1299,7 @@
 
 			IMAP STATUS INBOX (UNSEEN) check only -- unread count, not a full
 			fetch. Same EMAIL_* config as
-			--member-comms-email-send.
+			--email-send.
 
 			As a `client-*` member, this family is our own
 			organisation's side, where such a member holds no mail
@@ -1337,7 +1307,7 @@
 			the --client-comms-email-* operation of the same name,
 			which reaches the other organisation.
 
-		--member-comms-email-mark-seen [--team-member <team-member>] <uid>
+		--email-mark-seen [--team-member <team-member>] <uid>
 			`<team-member>` is the member this mark acts as, and it comes
 			first, ahead of the `<uid>`. It is required, and it is strict:
 			the mailbox written to is that member's own, with no fallback to
@@ -1346,12 +1316,12 @@
 			message, or none at all.
 
 			Marks one specific email (by IMAP UID, same identifier
-			--member-comms-email-read takes) as \Seen -- otherwise every
+			--email-read takes) as \Seen -- otherwise every
 			comms-sweep pass keeps re-seeing the same UIDs as unseen.
-			Same EMAIL_* config as --member-comms-email-check/
-			--member-comms-email-send.
+			Same EMAIL_* config as --email-check/
+			--email-send.
 
-		--member-comms-trello-check [--team-member <team-member>]
+		--trello-check [--team-member <team-member>]
 			`<team-member>` is the member this check acts as, and it comes
 			first. It is required, and it is strict: the unread list returned
 			is that member's own notifications, never another member's, and
@@ -1371,7 +1341,7 @@
 			the --client-comms-trello-* operation of the same name,
 			which reaches the other organisation.
 
-		--member-comms-trello-whoami [--team-member <team-member>]
+		--trello-whoami [--team-member <team-member>]
 			`<team-member>` is the member this lookup acts as, and it is
 			required: the identity returned is whoever that member's own
 			Trello credentials resolve to, with no fallback to another
@@ -1383,7 +1353,7 @@
 			be established — an unknown identity is never reported as an
 			empty one.
 
-		--member-comms-google-whoami [--team-member <team-member>]
+		--google-whoami [--team-member <team-member>]
 			`<team-member>` is the member this lookup acts as, and it is
 			required: the identity returned is whoever that member's own
 			`GOOGLE_REFRESH_TOKEN` resolves to, with no fallback to another
@@ -1408,8 +1378,8 @@
 			the --client-comms-google-* operation of the same name,
 			which reaches the other organisation.
 
-		--member-comms-google-file-find [--team-member <team-member>] <search-term> [--full-text] [--include-trashed] [--limit <n>]
-		--member-comms-google-file-find [--team-member <team-member>] <drive-query> --raw-query [--limit <n>]
+		--google-file-find [--team-member <team-member>] <search-term> [--full-text] [--include-trashed] [--limit <n>]
+		--google-file-find [--team-member <team-member>] <drive-query> --raw-query [--limit <n>]
 			`<team-member>` is the member this search acts as --
 			results are only what that member's own identity can see,
 			no fallback. The entry point for this family: every other
@@ -1431,19 +1401,19 @@
 			modifiedTime. No matches: no rows, exit 0. Could not
 			search: non-zero, says so -- never the same as empty.
 
-		--member-comms-google-sheet-info [--team-member <team-member>] <sheet-id>
+		--google-sheet-info [--team-member <team-member>] <sheet-id>
 			`<team-member>` is the member this read acts as, and it is
 			required: a spreadsheet is readable only by identities it is
 			shared with, read strictly from that member's own scope with no
 			fallback.
 
 			Tab names and grid dimensions — what a caller needs before it can
-			build a range for `--member-comms-google-sheet-read`. Prints
+			build a range for `--google-sheet-read`. Prints
 			`SPREADSHEET_TITLE=<title>` first, then a TSV table of tabs with
 			its own header row: `TAB_TITLE`, `TAB_ID`, `TAB_INDEX`, `ROWS`,
 			`COLUMNS`.
 
-		--member-comms-google-sheet-read [--team-member <team-member>] <sheet-id> <a1-range> [--unformatted]
+		--google-sheet-read [--team-member <team-member>] <sheet-id> <a1-range> [--unformatted]
 			`<team-member>` is the member this read acts as -- a
 			spreadsheet is readable only by identities it's shared
 			with, no fallback.
@@ -1468,12 +1438,12 @@
 			A range outside the sheet's grid limits is an error, not
 			an empty result.
 
-		--member-comms-google-sheet-write [--team-member <team-member>] <sheet-id> <a1-range> [--append] [--user-entered] (--from-stdin|--from-file <path>)
+		--google-sheet-write [--team-member <team-member>] <sheet-id> <a1-range> [--append] [--user-entered] (--from-stdin|--from-file <path>)
 			`<team-member>` is the member this write acts as, first --
 			credentials are strictly that member's own, no fallback.
 
 			Writes TSV into one A1 range; **the input format is
-			exactly what --member-comms-google-sheet-read emits**, so
+			exactly what --google-sheet-read emits**, so
 			a range round-trips byte-exact (tabs/newlines/backslashes
 			as `\t`/`\n`/`\r`/`\\`) through a shell pipeline.
 
@@ -1491,19 +1461,19 @@
 			On failure, whether anything changed is UNKNOWN -- never
 			assume nothing.
 
-		--member-comms-google-sheet-clear [--team-member <team-member>] <sheet-id> <a1-range>
+		--google-sheet-clear [--team-member <team-member>] <sheet-id> <a1-range>
 			`<team-member>` is the member this write acts as, and it comes
 			first, read strictly from that member's own scope with no
 			fallback.
 
 			Clears the values in one A1 range — its own operation, not a
-			flag on `--member-comms-google-sheet-write`, since it destroys
+			flag on `--google-sheet-write`, since it destroys
 			data and takes no content.
 
 			The range is required and is never defaulted: there is no
 			whole-sheet shorthand.
 
-		--member-comms-google-doc-read [--team-member <team-member>] <doc-id>
+		--google-doc-read [--team-member <team-member>] <doc-id>
 			`<team-member>` is the member this read acts as, and it is
 			required: a document is readable only by identities it is shared
 			with, read strictly from that member's own scope with no
@@ -1512,7 +1482,7 @@
 			Prints the document's plain text. **Paragraph text runs only** —
 			tables, embedded objects and footnotes are not rendered.
 
-		--member-comms-google-doc-write [--team-member <team-member>] <doc-id> (<text...>|--from-stdin|--from-file <path>)
+		--google-doc-write [--team-member <team-member>] <doc-id> (<text...>|--from-stdin|--from-file <path>)
 			`<team-member>` is the member this write acts as, and it comes
 			first, ahead of the document: the credentials are that member's
 			own, strictly, with no fallback.
@@ -1527,7 +1497,7 @@
 			On failure, whether anything was written is UNKNOWN and must not
 			be assumed to be nothing.
 
-		--member-comms-google-comment-read [--team-member <team-member>] <file-id>
+		--google-comment-read [--team-member <team-member>] <file-id>
 			`<team-member>` is the member this read acts as, and it is
 			required: comments are visible only to identities the file is
 			shared with, read strictly from that member's own scope with no
@@ -1538,7 +1508,7 @@
 			TSV with its own header row: `COMMENT_ID`, `AUTHOR`, `CREATED`,
 			`RESOLVED`, `CONTENT`.
 
-		--member-comms-google-comment-post [--team-member <team-member>] <file-id> (<text...>|--from-stdin|--from-file <path>)
+		--google-comment-post [--team-member <team-member>] <file-id> (<text...>|--from-stdin|--from-file <path>)
 			`<team-member>` is the member this write acts as, and it comes
 			first, ahead of the file: a comment is authored by one identity,
 			so the acting member decides which account signs it, read
@@ -1552,7 +1522,7 @@
 			success — a positive test on what is present, not an assumption
 			drawn from a 2xx status.
 
-		--member-comms-confluence-space-list [--team-member <team-member>] [--cursor <value>]
+		--confluence-space-list [--team-member <team-member>] [--cursor <value>]
 			`<team-member>` is required; the listing is exactly what that
 			identity can see. Any other argument is refused with 1.
 
@@ -1570,7 +1540,7 @@
 			status 6, and names the --client-comms-confluence-* operation
 			of the same name, which reaches the other organisation.
 
-		--member-comms-confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format] [--version <n>]
+		--confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format] [--version <n>]
 			`<team-member>` is required; a page is readable only by
 			identities it is shared with. Any other argument is refused
 			with 1.
@@ -1594,20 +1564,7 @@
 			returns 404 both for missing content and for content this
 			account cannot see.
 
-		--magic-comms-confluence-space-list [--team-member <team-member>] [--cursor <value>]
-			Runs only as `magic-coordinator` -- any other name is
-			refused, naming `--client-comms-confluence-space-list` as
-			the client-facing equivalent. `<team-member>` names the
-			acting identity; any other argument is refused with 1.
-			Output, paging and completeness reporting are as
-			`--member-comms-confluence-space-list` describes.
-
-		--magic-comms-confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format]
-			Runs only as `magic-coordinator`; any other name is refused
-			with 1. Everything else is as
-			`--member-comms-confluence-page-read` describes.
-
-		--magic-comms-confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]
+		--confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]
 			Runs only as `magic-coordinator`; any other name is refused
 			with 1. The entry point for the page and comment operations,
 			since they need a page id and this produces one. <cql> is
@@ -1618,14 +1575,14 @@
 			This endpoint reports no completeness signal: stderr always
 			states `more: unknown`, never a confirmed-complete page.
 
-		--magic-comms-confluence-comment-read [--team-member <team-member>] <page-id>
+		--confluence-comment-read [--team-member <team-member>] <page-id>
 			Runs only as `magic-coordinator`; any other name is refused
 			with 1. The page's top-level footer comments only -- replies
 			are not read. TSV rows: `COMMENT_ID`, `VERSION_AUTHOR_ID`,
 			`CREATED`, `BODY`. No completeness signal: stderr always
 			states `more: unknown`.
 
-		--magic-comms-confluence-page-create [--team-member <team-member>] (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
+		--confluence-page-create [--team-member <team-member>] (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
 			Runs only as `magic-coordinator`; any other name is refused
 			with 1. The page is created under that identity, in a space
 			it can see.
@@ -1641,7 +1598,7 @@
 			created page's response (its new id included) goes to
 			stdout.
 
-		--magic-comms-confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
+		--confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
 			Runs only as `magic-coordinator`; any other name is
 			refused with 1. A page is editable only by identities it
 			is shared with.
@@ -1661,7 +1618,7 @@
 			current version/title/body before deciding whether to
 			reapply; never resubmit version+1 unchanged.
 
-		--magic-comms-confluence-comment-add [--team-member <team-member>] <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
+		--confluence-comment-add [--team-member <team-member>] <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
 			Runs only as `magic-coordinator`; any other name is refused
 			with 1. The comment is posted under that identity.
 
@@ -1670,7 +1627,7 @@
 			parent on another page refuses the reply with 1. No version
 			gate.
 
-		--magic-comms-confluence-page-delete [--team-member <team-member>] <page-id>
+		--confluence-page-delete [--team-member <team-member>] <page-id>
 			Runs only as `magic-coordinator`; any other name, or a
 			missing <team-member>/<page-id>, is refused with 1,
 			naming the missing parameter. Deletes under that
@@ -1697,7 +1654,7 @@
 			credential, against that external organisation's own
 			Confluence; any other name is refused. Output, paging and
 			completeness reporting are as
-			`--member-comms-confluence-space-list` describes.
+			`--confluence-space-list` describes.
 
 			The whole --client-comms-confluence-* family is called by
 			that member's own session; any other session is refused.
@@ -1706,29 +1663,29 @@
 			Runs only as a `client-*` member, under that member's own
 			credential; any other name is refused with 1. Everything
 			else, `--version` included, is as
-			`--member-comms-confluence-page-read` describes.
+			`--confluence-page-read` describes.
 
 		--client-comms-confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]
 			Runs only as a `client-*` member, under that member's own
 			credential; any other name is refused with 1. Everything
-			else is as `--magic-comms-confluence-page-search` describes.
+			else is as `--confluence-page-search` describes.
 
 		--client-comms-confluence-comment-read [--team-member <team-member>] <page-id>
 			Runs only as a `client-*` member, under that member's own
 			credential; any other name is refused with 1. Top-level
 			footer comments only, no replies -- as
-			`--magic-comms-confluence-comment-read` describes.
+			`--confluence-comment-read` describes.
 
 		--client-comms-confluence-page-create [--team-member <team-member>] (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
 			Runs only as a `client-*` member, writing to that external
 			organisation's own Confluence under that member's own
 			credential; any other name is refused with 1. Everything
-			else is as `--magic-comms-confluence-page-create` describes.
+			else is as `--confluence-page-create` describes.
 
 		--client-comms-confluence-page-update [--team-member <team-member>] <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]
 			Runs only as a `client-*` member, writing under that member's
 			own credential; any other name is refused with 1. Everything
-			else is as `--magic-comms-confluence-page-update` describes.
+			else is as `--confluence-page-update` describes.
 
 			**Before this write runs, the current page is read and saved
 			byte-for-byte to the team's audit store.** A save that fails
@@ -1744,17 +1701,17 @@
 		--client-comms-confluence-comment-add [--team-member <team-member>] <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
 			Runs only as a `client-*` member, writing under that member's
 			own credential; any other name is refused with 1. Everything
-			else is as `--magic-comms-confluence-comment-add` describes.
+			else is as `--confluence-comment-add` describes.
 
 		--client-comms-confluence-page-delete [--team-member <team-member>] <page-id>
 			Runs only as a `client-*` member, writing under that member's
 			own credential; any other name is refused with 1. Everything
-			else is as `--magic-comms-confluence-page-delete` describes.
+			else is as `--confluence-page-delete` describes.
 
 			Same snapshot-before-write and approval-diff rule as
 			`--client-comms-confluence-page-update`.
 
-		--member-comms-jira-issue-read [--team-member <team-member>] <issue-key> [--format adf|rendered]
+		--jira-issue-read [--team-member <team-member>] <issue-key> [--format adf|rendered]
 			`<team-member>` required: an issue is readable only by
 			identities its project is shared with. Any other argument is
 			refused with 1.
@@ -1773,7 +1730,7 @@
 			reported UNKNOWN. A 404 does NOT establish the issue is
 			absent: it also covers content this account cannot see.
 
-		--member-comms-jira-board-list [--team-member <team-member>] [--start-at <n>]
+		--jira-board-list [--team-member <team-member>] [--start-at <n>]
 			`<team-member>` required: boards returned are only what that
 			member's Jira credential can see. Any other argument is
 			refused with 1.
@@ -1804,37 +1761,37 @@
 			status 6, and names the --client-comms-jira-* operation
 			of the same name, which reaches the other organisation.
 
-		--member-comms-jira-board-read [--team-member <team-member>] <board-id>
+		--jira-board-read [--team-member <team-member>] <board-id>
 			`<team-member>` required, same scope rule as board-list.
 			`<board-id>` must be a whole number, refused before the call
 			otherwise. Any other argument is refused with 1.
 
 			Writes the board to stdout as returned -- one object, so no
-			completeness line. Exit statuses as `--member-comms-jira-board-list`
+			completeness line. Exit statuses as `--jira-board-list`
 			lists them; an 8 here never means "no such board" -- Jira's
 			404 covers both non-existence and no-visibility.
 
-		--member-comms-jira-board-issue-search [--team-member <team-member>] <board-id> [--start-at <n>]
+		--jira-board-issue-search [--team-member <team-member>] <board-id> [--start-at <n>]
 			`<team-member>` required, same scope rule as board-list.
 			`<board-id>` must be a whole number. Any other argument is
 			refused with 1.
 
 			Returns the issues the named board's own filter currently
 			carries -- not an arbitrary query; use
-			`--magic-comms-jira-issue-search`/`--client-comms-jira-issue-search`
+			`--jira-issue-search`/`--client-comms-jira-issue-search`
 			(JQL) for that. Completeness on stderr as board-list
 			describes, from the site's own total. Exit statuses as
-			`--member-comms-jira-board-list` lists them.
+			`--jira-board-list` lists them.
 
-		--member-comms-jira-sprint-list [--team-member <team-member>] <board-id> [--start-at <n>]
+		--jira-sprint-list [--team-member <team-member>] <board-id> [--start-at <n>]
 			`<team-member>` required, same scope rule as board-list.
 			`<board-id>`, not a sprint id -- lists that board's sprints;
 			must be a whole number. Use the returned sprint ids with
-			`--member-comms-jira-sprint-issue-search`. Any other argument
+			`--jira-sprint-issue-search`. Any other argument
 			is refused with 1.
 
 			`--start-at` and completeness reporting as board-list
-			describes. Exit statuses as `--member-comms-jira-board-list`
+			describes. Exit statuses as `--jira-board-list`
 			lists them; a board with no sprints is an empty listing at 0,
 			not a failure -- a kanban board, or one with sprints disabled,
 			always answers this way. When that board's own features
@@ -1842,44 +1799,18 @@
 			when read and the sprints feature is anything but
 			ENABLED/DISABLED/absent, it returns 3.
 
-		--member-comms-jira-sprint-issue-search [--team-member <team-member>] <sprint-id> [--start-at <n>]
+		--jira-sprint-issue-search [--team-member <team-member>] <sprint-id> [--start-at <n>]
 			`<team-member>` required, same scope rule as board-list.
 			`<sprint-id>`, NOT a board id -- separate number spaces; the
 			wrong one reaches a different sprint or none, not a visible
 			failure. Must be a whole number. Obtain it from
-			`--member-comms-jira-sprint-list`. Any other argument is
+			`--jira-sprint-list`. Any other argument is
 			refused with 1.
 
 			Completeness on stderr as board-list describes. Exit statuses
-			as `--member-comms-jira-board-list` lists them.
+			as `--jira-board-list` lists them.
 
-		--magic-comms-jira-board-list [--team-member <team-member>] [--start-at <n>]
-			Runs only as `magic-coordinator` -- any other name is refused,
-			naming `--client-comms-jira-board-list` as the client-facing
-			equivalent. Everything else is as
-			`--member-comms-jira-board-list` describes.
-
-		--magic-comms-jira-board-read [--team-member <team-member>] <board-id>
-			Runs only as `magic-coordinator`; any other name is refused
-			with 1. Everything else is as `--member-comms-jira-board-read`
-			describes.
-
-		--magic-comms-jira-board-issue-search [--team-member <team-member>] <board-id> [--start-at <n>]
-			Runs only as `magic-coordinator`; any other name is refused
-			with 1. Everything else is as
-			`--member-comms-jira-board-issue-search` describes.
-
-		--magic-comms-jira-sprint-list [--team-member <team-member>] <board-id> [--start-at <n>]
-			Runs only as `magic-coordinator`; any other name is refused
-			with 1. Everything else is as `--member-comms-jira-sprint-list`
-			describes.
-
-		--magic-comms-jira-sprint-issue-search [--team-member <team-member>] <sprint-id> [--start-at <n>]
-			Runs only as `magic-coordinator`; any other name is refused
-			with 1. Everything else is as
-			`--member-comms-jira-sprint-issue-search` describes.
-
-		--magic-comms-jira-issue-search [--team-member <team-member>] <jql> [--limit <n>]
+		--jira-issue-search [--team-member <team-member>] <jql> [--limit <n>]
 			Runs only as `magic-coordinator`; any other name is
 			refused with 1. The entry point for the issue operations
 			-- they need an issue key, this produces one.
@@ -1899,29 +1830,24 @@
 			as board-list describes (more: no/yes/unknown); this
 			endpoint reports no total, so after more: yes raise
 			--limit or narrow the query. Exit statuses as
-			--member-comms-jira-board-list lists them.
+			--jira-board-list lists them.
 
-		--magic-comms-jira-issue-read [--team-member <team-member>] <issue-key> [--format adf|rendered]
-			Runs only as `magic-coordinator`; any other name is refused
-			with 1. Everything else is as `--member-comms-jira-issue-read`
-			describes.
-
-		--magic-comms-jira-comment-read [--team-member <team-member>] <issue-key> [--format adf|rendered] [--start-at <n>]
+		--jira-comment-read [--team-member <team-member>] <issue-key> [--format adf|rendered] [--start-at <n>]
 			Runs only as `magic-coordinator`; any other name is refused
 			with 1.
 
 			Comments on one issue, TSV rows: `COMMENT_ID`, `AUTHOR_ID`,
 			`AUTHOR_NAME`, `CREATED`, `UPDATED`, `BODY`. `--format` means
-			the same as on `--member-comms-jira-issue-read`, applied per
+			the same as on `--jira-issue-read`, applied per
 			comment body: `adf` (default) or `rendered`. Any other value
 			is refused with 1.
 
 			Completeness on stderr, from the issue's comment total:
 			`more: no`/`more: yes` (naming the next `--start-at`)/
 			`more: unknown`. Exit statuses as
-			`--member-comms-jira-board-list` lists them.
+			`--jira-board-list` lists them.
 
-		--magic-comms-jira-issue-create [--team-member <team-member>] --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
+		--jira-issue-create [--team-member <team-member>] --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
 			Runs only as `magic-coordinator`; any other name is
 			refused with 1. Created under that identity, only in a
 			project it can see.
@@ -1936,7 +1862,7 @@
 			{issueTypeId} yourself first.
 
 			--description-adf/-from-stdin/-from-file <path> is the
-			same ADF JSON --member-comms-jira-issue-read --format adf
+			same ADF JSON --jira-issue-read --format adf
 			emits for fields.description, passed straight through.
 
 			**Never retry a create whose outcome came back UNKNOWN**
@@ -1949,7 +1875,7 @@
 			The created issue's response (its new key included) goes
 			to stdout.
 
-		--magic-comms-jira-issue-update [--team-member <team-member>] <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
+		--jira-issue-update [--team-member <team-member>] <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
 			Runs only as `magic-coordinator`; any other name is
 			refused with 1. Editable only by identities its project
 			is shared with.
@@ -1964,7 +1890,7 @@
 
 			fields.status/update.status are refused locally, before
 			any call -- move status through
-			--magic-comms-jira-issue-transition instead.
+			--jira-issue-transition instead.
 
 			notifyUsers defaults false here (opposite of Jira's own
 			API default), to avoid spamming watchers on an automated
@@ -1974,7 +1900,7 @@
 			project's screen; HTTP 404 means the issue is absent or
 			invisible.
 
-		--magic-comms-jira-issue-transition [--team-member <team-member>] <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
+		--jira-issue-transition [--team-member <team-member>] <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
 			Runs only as `magic-coordinator`; any other name is
 			refused with 1. Editable only by identities its project
 			is shared with.
@@ -2000,7 +1926,7 @@
 			again between lookup and write, or the target screen
 			required a field not supplied -- re-run to re-resolve.
 
-		--magic-comms-jira-comment-add [--team-member <team-member>] <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
+		--jira-comment-add [--team-member <team-member>] <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
 			Runs only as `magic-coordinator`; any other name is refused
 			with 1. The comment is posted under that identity.
 
@@ -2010,7 +1936,7 @@
 			every comment posted is visible to everyone the issue is
 			already shared with. No read-before-write.
 
-		--magic-comms-jira-issue-delete [--team-member <team-member>] <issue-key>
+		--jira-issue-delete [--team-member <team-member>] <issue-key>
 			Runs only as `magic-coordinator`; any other name, or a
 			missing `<team-member>`/`<issue-key>`, is refused with 1,
 			naming the missing parameter. Deleted under that
@@ -2035,7 +1961,7 @@
 			Runs only as a `client-*` member, under that member's own
 			credential, against that external organisation's own Jira;
 			any other name is refused with 1. Output, paging and exit
-			statuses are as `--member-comms-jira-board-list` describes.
+			statuses are as `--jira-board-list` describes.
 
 			The whole --client-comms-jira-* family is called by that
 			member's own session; any other session is refused.
@@ -2043,50 +1969,50 @@
 		--client-comms-jira-board-read [--team-member <team-member>] <board-id>
 			Runs only as a `client-*` member, under that member's own
 			credential; any other name is refused with 1. Everything
-			else is as `--member-comms-jira-board-read` describes.
+			else is as `--jira-board-read` describes.
 
 		--client-comms-jira-board-issue-search [--team-member <team-member>] <board-id> [--start-at <n>]
 			Runs only as a `client-*` member, under that member's own
 			credential; any other name is refused with 1. Everything
-			else is as `--member-comms-jira-board-issue-search`
+			else is as `--jira-board-issue-search`
 			describes.
 
 		--client-comms-jira-sprint-list [--team-member <team-member>] <board-id> [--start-at <n>]
 			Runs only as a `client-*` member, under that member's own
 			credential; any other name is refused with 1. Everything
-			else is as `--member-comms-jira-sprint-list` describes.
+			else is as `--jira-sprint-list` describes.
 
 		--client-comms-jira-sprint-issue-search [--team-member <team-member>] <sprint-id> [--start-at <n>]
 			Runs only as a `client-*` member, under that member's own
 			credential; any other name is refused with 1. Everything
-			else is as `--member-comms-jira-sprint-issue-search`
+			else is as `--jira-sprint-issue-search`
 			describes.
 
 		--client-comms-jira-issue-search [--team-member <team-member>] <jql> [--limit <n>]
 			Runs only as a `client-*` member, under that member's own
 			credential; any other name is refused with 1. Everything
-			else is as `--magic-comms-jira-issue-search` describes.
+			else is as `--jira-issue-search` describes.
 
 		--client-comms-jira-issue-read [--team-member <team-member>] <issue-key> [--format adf|rendered]
 			Runs only as a `client-*` member, under that member's own
 			credential; any other name is refused with 1. Everything
-			else is as `--member-comms-jira-issue-read` describes.
+			else is as `--jira-issue-read` describes.
 
 		--client-comms-jira-comment-read [--team-member <team-member>] <issue-key> [--format adf|rendered] [--start-at <n>]
 			Runs only as a `client-*` member, under that member's own
 			credential; any other name is refused with 1. Everything
-			else is as `--magic-comms-jira-comment-read` describes.
+			else is as `--jira-comment-read` describes.
 
 		--client-comms-jira-issue-create [--team-member <team-member>] --project <key> --issuetype <name> --summary <text> [--description-adf <json>|--description-adf-from-stdin|--description-adf-from-file <path>] [--fields-json <json>]
 			Runs only as a `client-*` member, writing to that external
 			organisation's own Jira under that member's own credential;
 			any other name is refused with 1. Everything else is as
-			`--magic-comms-jira-issue-create` describes.
+			`--jira-issue-create` describes.
 
 		--client-comms-jira-issue-update [--team-member <team-member>] <issue-key> [--fields-json <json>] [--update-json <json>] [--notify-users]
 			Runs only as a `client-*` member, writing under that member's
 			own credential; any other name is refused with 1. Everything
-			else is as `--magic-comms-jira-issue-update` describes, except
+			else is as `--jira-issue-update` describes, except
 			a status change goes through
 			`--client-comms-jira-issue-transition`.
 
@@ -2104,7 +2030,7 @@
 		--client-comms-jira-issue-transition [--team-member <team-member>] <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
 			Runs only as a `client-*` member, writing under that member's
 			own credential; any other name is refused with 1. Everything
-			else is as `--magic-comms-jira-issue-transition` describes.
+			else is as `--jira-issue-transition` describes.
 
 			Same snapshot-before-write and approval-diff rule as
 			`--client-comms-jira-issue-update` -- `--fields-json` here can
@@ -2114,17 +2040,17 @@
 		--client-comms-jira-comment-add [--team-member <team-member>] <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
 			Runs only as a `client-*` member, writing under that member's
 			own credential; any other name is refused with 1. Everything
-			else is as `--magic-comms-jira-comment-add` describes.
+			else is as `--jira-comment-add` describes.
 
 		--client-comms-jira-issue-delete [--team-member <team-member>] <issue-key>
 			Runs only as a `client-*` member, writing under that member's
 			own credential; any other name is refused with 1. Everything
-			else is as `--magic-comms-jira-issue-delete` describes.
+			else is as `--jira-issue-delete` describes.
 
 			Same snapshot-before-write and approval-diff rule as
 			`--client-comms-jira-issue-update`.
 
-		--magic-comms-trello-post-comment [--team-member <team-member>] <card-id> (text...|--from-stdin|--from-file <path>)
+		--trello-post-comment [--team-member <team-member>] <card-id> (text...|--from-stdin|--from-file <path>)
 			`<team-member>` required: a comment is authored by one
 			identity, and the acting member decides which Trello
 			credentials sign it.
@@ -2146,7 +2072,7 @@
 			Our own organisation's side, whoever <team-member> is. A
 			`client-*` member holds no Trello settings there: for it
 			the operation says so in one line, posts nothing, and
-			names --magic-client-operation-run with
+			names --client-operation-run with
 			--client-comms-trello-post-comment, which posts onto the
 			other organisation's card.
 
@@ -2172,7 +2098,7 @@
 			no arguments. Call it when verify reports a path out of
 			hardening. Writes, unlike the other two.
 
-		--member-git-repo-history [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--limit <n>] <path>...
+		--get-path-history [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--limit <n>] <path>...
 			Read-only commit history of one to 20 paths, through `git log`
 			only -- members run no git themselves. A path is relative to
 			the workspace root or absolute, and must resolve (symlinks
@@ -2242,7 +2168,7 @@
 			always the acting member's own inbox; `--from-state:`/
 			`--from-inbox:` are both rejected if given. `--header:*`
 			and the three body-input modes behave as on the
-			`--magic-board-to-*` family.
+			`--move-to-*` family.
 
 			A caller's `--header:<op>:processed-at` wins over the
 			stamp (`:remove:` for none). An item already marked keeps
@@ -2252,7 +2178,7 @@
 			plain re-mark succeeds as a no-op; an edit needs
 			`--include-processed`.
 
-		--member-inbox-to-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--mark-inbox-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Marks one of `<team-member>`'s OWN inbox items handled:
 			`processed-at` stamped, and the item moved to `processed/`,
 			exactly as
@@ -2263,9 +2189,9 @@
 			real member skill directory, and a spawned session acting
 			as another member is refused. `<item-filename>` is a bare
 			name ending `.md`. `--header:*` and the three body-input
-			modes behave as on the `--magic-board-to-*` family.
+			modes behave as on the `--move-to-*` family.
 
-		--member-inbox-note-upsert [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--standing yes|no] [--from-file <path>|--edit-patch-from-stdin]
+		--upsert-inbox-note [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--standing yes|no] [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) a note into `<member>`'s own
 			inbox. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. The item lands in
 			the folder its processed stamp picks, `incoming/` or
@@ -2310,38 +2236,39 @@
 			ordinary one. The rest of the content is as given; to change
 			the header alone give `--edit-patch-from-stdin` with `[]`.
 
-		--member-upsert-member-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>]
+		--upsert-inbox-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>]
 			Passes an inquiry into a member's own inbox -- the standard
 			hand-off mechanism. `<member>` must exist as a real skill
 			directory; `<item-filename>` a bare filename. Inbox created
 			lazily if missing. Content via stdin by default, or
 			`--from-file <path>`. A new item's required
 			`type`/`from`/`date`/`owner` headers are completed as in
-			`--member-inbox-note-upsert`, and so is the folder it lands in. From a spawned session,
+			`--upsert-inbox-note`, and so is the folder it lands in. From a spawned session,
 			`--from-member` names only that session's own member, and an
 			item already in the inbox is overwritten only when its
 			`from:` is the caller; a new item is always written.
 
-		--member-inbox-reflection-upsert [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]
+		--upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) a reflection-type item into a
 			member's own inbox, own inbox only as for
-			`--member-inbox-note-upsert`. Same arguments, lazy inbox creation,
+			`--upsert-inbox-note`. Same arguments, lazy inbox creation,
 			stdin/`--from-file` content and `--edit-patch-from-stdin`
-			patch behaviour as `--member-inbox-note-upsert` (which
+			patch behaviour as `--upsert-inbox-note` (which
 			rejects patch mode; this accepts it). The content follows a
 			fixed shape: frontmatter, then a `# Reflection: <title>`
 			heading, then `## What happened` and
 			`## Why this is worth keeping` sections. `<item-filename>` is
 			conventionally expected to contain "reflection-", not
-			enforced. The old name `--member-upsert-inbox-reflection`
+			enforced. The old name `--upsert-inbox-reflection`
 			still works as an alias.
 
-		--member-append-session-transcript [--team-member <team-member>] [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]
+		--append-transcript [--team-member <team-member>] [--of-session <session-id>] [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]
 			With no `--transcript-name`: appends one NOTE line, by
 			`<speaker-name>` (default `<team-member>`) at `<timestamp>`
 			(default now, UTC), to the calling session's own tooling-written
-			transcript, never another session's; `--create` starts it when
-			the session has none. Refused when no session resolves. A
+			transcript, never another session's, except for magic-coordinator,
+			which names another session's by `--of-session <session-id>`;
+			`--create` starts it when the session has none. Refused when no session resolves. A
 			session's log (`session-*.log`) is never named with
 			`--transcript-name`. The SessionTranscriptAppend tool is the
 			same append from a model.
@@ -2362,7 +2289,7 @@
 			(`--message-from-stdin` is an alias of `--from-stdin`).
 			Returns the target path plus added line and byte counts.
 
-		--member-inbox-item-read [--team-member <member>] <item-filename> [--include-processed] [--start-line <N> --end-line <N>]
+		--get-inbox-item [--team-member <member>] <item-filename> [--include-processed] [--start-line <N> --end-line <N>]
 			Read-only read of one item in `<member>`'s own inbox, by bare
 			`<item-filename>`. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. It is read in
 			`incoming/`, and in `processed/` too with
@@ -2372,7 +2299,7 @@
 			`note-`/`inquiry-`/`reflection-`/`warning-`. `--start-line`/`--end-line` must be
 			given as a complete pair.
 
-		--member-inbox-item-trash [--team-member <member>] <item-filename> [--exclude-incoming]
+		--trash-inbox-item [--team-member <member>] <item-filename> [--exclude-incoming]
 			Discards one item out of `<member>`'s OWN inbox, by its name
 			alone, with no state change first, as
 			`--librarian-inbox-item-trash`: a split inbox from either
@@ -2391,7 +2318,7 @@
 			git-tracked, moved to `trash/` and recoverable only by hand
 			otherwise. Treat every call as final.
 
-		--member-audit-item-read [--team-member <team-member>] <document-name> [--start-line <N> --end-line <N>]
+		--get-audit-item [--team-member <team-member>] <document-name> [--start-line <N> --end-line <N>]
 			Read-only read of one audit document by logical identity, not
 			a filesystem path. Caller gives only `<team-member>` and a
 			bare `<document-name>`; path-like names are rejected. Fails
@@ -2399,14 +2326,14 @@
 			permitted. `--start-line`/`--end-line` must be a complete
 			pair.
 
-		--member-vault-item-read [--team-member <team-member>] <item-name> [--start-line <N> --end-line <N>]
+		--get-vault-item [--team-member <team-member>] <item-name> [--start-line <N> --end-line <N>]
 			Read-only read of one vault item (a verbatim document or
 			fact under the team-data store's `vault/`) by bare
 			`<item-name>`; path-like names are rejected. Any bare name is
 			accepted -- vault document types are open. Fails loud if
 			missing. `--start-line`/`--end-line` must be a complete pair.
 
-		--member-board-item-read [--team-member <team-member>] <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
+		--get-board-item [--team-member <team-member>] <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
 			Read-only read of one board item by bare `<item-name>`
 			(`<type>-<name>.md`). Repeatable `--board-state` narrows
 			lookup folders; omitted, all board states are searched in
@@ -2455,24 +2382,24 @@
 			registry row with a name that starts with a dot is left out,
 			with a warning. Takes no arguments.
 
-		--member-directory-list
+		--list-places
 			Prints the two built-in places, `.skillset-shared` (the
 			machine's skillset in HOME) and `.skillset-.local` (this
 			workspace's own member set), then every registered place, one
 			per line, TAB-separated: name (or <name>@<workspace>, as
 			--owner-workspace-list writes it), kind (workspace or
 			directory) and ceiling (read-only or read-write). Never a
-			path: ask for one by name with --member-directory-path. Takes
+			path: ask for one by name with --get-place-path. Takes
 			no arguments.
 
-		--member-directory-path <name>[/<relative>]
+		--get-place-path <name>[/<relative>]
 			Prints the path of the place <name>, or of <relative> under
 			it. A <relative> with a .. segment, or starting with /, is
 			refused, and so is a name no place carries. A place absent
 			on this host is printed with a warning. A path grants
 			nothing: reading or writing there still needs a grant.
 
-		--member-namespace-list [<namespace>]
+		--list-namespaces [<namespace>]
 			Prints this workspace's distro projects by name, one per
 			line, TAB-separated: namespace, project. With <namespace>,
 			that namespace's only. Names only, to name the namespaces a
@@ -2606,7 +2533,7 @@
 			`mcp__myx_distro`, `Agent`, `Task`, `SendMessage`) and
 			denies the native Slack MCP server
 			(`mcp__claude_ai_Slack`) unconditionally -- route Slack
-			through the team's own `--member-comms-slack-*` ops.
+			through the team's own `--slack-*` ops.
 			Sets `enabledMcpjsonServers` to `myx.common` and
 			`myx.distro`.
 
@@ -3337,7 +3264,7 @@
 			`pending`, Pending Questions: `open`, the asks that wait in
 			the registry `pending-replies` as it lies; `asker-gone`, how
 			many of them, asked on this host, have no live asker,
-			measured at the call as `--member-pending-reply-read` says
+			measured at the call as `--read-pending-reply` says
 			it; `human-owner`, how many are addressed to the human-owner;
 			`oldest-age`, how long the oldest has waited. Of a question
 			its header alone is read.
@@ -3694,7 +3621,7 @@
 			`routine <selector> <owner> <start> <executors> <session> <arguments> <title> <reason> <needs> <state> <last-run> <auto> <runs-at> <runs-after> <valid> <would>`
 			One row a routine, by <owner>, then by <selector>. <selector>
 			is the file's name, the selector
-			`--magic-spawn-session --routine <selector>`
+			`--spawn-session --routine <selector>`
 			takes. <owner> is the member whose folder holds the file.
 			<start> says whether that operation would start the routine
 			with no member named, by the checks it makes itself. It is
@@ -3724,7 +3651,7 @@
 			one cause is that the executors are any member: the same
 			operation then starts the routine with members named after
 			the selector,
-			`--magic-spawn-session --routine <selector> <team-member>...`
+			`--spawn-session --routine <selector> <team-member>...`
 			and checks every name before it starts anyone. It is `-` for
 			every other row, so a console tells such a routine by this
 			field and not by the words of <reason>. <state> and
@@ -3800,7 +3727,7 @@
 		--manager-pending-reply-answer --id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]
 			One of the console's own operations (see Notes). Answers one
 			open question of any member, through the one answer operation
-			(--member-escalation-answer): the same apply, close and
+			(--answer-escalation): the same apply, close and
 			confirmation as an answer read from its thread. --answer takes
 			a word of the kind, the number of an option, or, for a plain
 			question, the words that are its answer; --reject gives the
@@ -3829,7 +3756,7 @@
 		--manager-pending-reply-dismiss --id <pending-id> [--reason <text>]
 			One of the console's own operations (see Notes). Closes one
 			open question of any member with no answer, as its asker's own
-			withdraw does (--member-pending-reply-settle --withdraw): the
+			withdraw does (--settle-pending-reply --withdraw): the
 			record closes as withdrawn, `withdrawn-by: console:<account>`,
 			with the reason; it answers, grants and decides nothing; one
 			line by the team bot in its thread says it was dismissed from
@@ -4425,7 +4352,7 @@
 			`--from-file`, never an argument, and an empty one is
 			refused. The member gets it as its brief, behind the spawn
 			brief block of the standing default routine, as
-			`--magic-spawn-session --routine-default`
+			`--spawn-session --routine-default`
 			puts it ahead of a task text. The start makes a `dispatch-*`
 			item in board-running, and the run is detached: it outlives
 			the console that started it.
@@ -4629,7 +4556,7 @@
 			session is its `session` row, then the member's own `run`
 			rows in it, as `--manager-session-list` prints them: the
 			sessions where a run of the member is alive come first. The
-			`grant` rows are those `--magic-permission-list` prints for
+			`grant` rows are those `--list-permissions` prints for
 			the member. A `setting` row is one key of the member's scope
 			in this workspace, with the <state> and the <value>
 			`--manager-config-digest` gives it, in full where `--full`
@@ -4647,7 +4574,7 @@
 			member whose workspace cannot be reached, or a part that
 			cannot be read.
 
-		--magic-grooming-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--grooming-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Moves a board item to board/backlog/ and/or patches its
 			frontmatter, one call -- no full-content rewrite required.
 			`--edit-patch-from-stdin` takes a JSON array of `{"old":
@@ -4662,8 +4589,8 @@
 			body-input modes pass through for whatever else the move
 			also needs.
 
-		--magic-grooming-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			Same shape as `--magic-grooming-to-backlog`, target fixed to
+		--grooming-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Same shape as `--grooming-to-backlog`, target fixed to
 			board/pending/ -- the Advancement-review case (backlog ->
 			pending), e.g. `--header:upsert:approved-by:"<team-member>
 			(<session-id>, <date-time>)" --header:upsert:approved-at:
@@ -4671,30 +4598,30 @@
 			`<team-member> (<session-id>, <date-time>)` with an ISO UTC
 			date-time (suffix `Z`).
 
-		--magic-grooming-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			Same shape as `--magic-grooming-to-backlog`, target fixed to
+		--grooming-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Same shape as `--grooming-to-backlog`, target fixed to
 			board/processed/.
 
-		--magic-grooming-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			Same shape as `--magic-grooming-to-backlog`, target fixed to
+		--grooming-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Same shape as `--grooming-to-backlog`, target fixed to
 			board/parked/ -- a deliberate deferral by the team's own
 			choice (distinct from board/blocked/, a stall on something
 			external). `recheck-date` and `condition` are caller-
 			supplied via `--header:*` -- triage judgments this op cannot
 			compute.
 
-		--magic-grooming-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			Same shape as `--magic-grooming-to-backlog`, target fixed to
+		--grooming-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Same shape as `--grooming-to-backlog`, target fixed to
 			board/blocked/ -- stalled on something external (distinct
 			from board/parked/, a deliberate stop). Stamps `owner`/
 			`groomed-at`/`groomed-from`/`track`, which is what
-			distinguishes this from `--magic-board-to-blocked`: same
+			distinguishes this from `--move-to-blocked`: same
 			target state, but that one stamps nothing. `recheck-date`
 			and `condition` are caller-supplied via `--header:*`.
 
-		--magic-grooming-to-running [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			Same shape as `--magic-grooming-to-backlog`, target fixed to
-			board/running/. Distinct from `--magic-advance-to-running`,
+		--grooming-to-running [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Same shape as `--grooming-to-backlog`, target fixed to
+			board/running/. Distinct from `--advance-to-running`,
 			which targets the same state under a different owning
 			routine and different recorded provenance -- this one
 			stamps `owner`/`groomed-at`/`groomed-from`/`track`.
@@ -4702,8 +4629,8 @@
 			into board/running/ -- pass
 			`--header:upsert:started-at:<date-time>` to override it.
 
-		--magic-grooming-to-archived [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			Same shape as `--magic-grooming-to-backlog`, target fixed to
+		--grooming-to-archived [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Same shape as `--grooming-to-backlog`, target fixed to
 			board/archived/ -- a Drop outcome, or a re-check step
 			concluding a parked trigger is never coming or a blocked
 			item isn't worth waiting on. Still stamps `owner`/`groomed-
@@ -4712,8 +4639,8 @@
 			later reader needs. The archived reason text is caller-
 			supplied via `--header:*` or the body-input modes.
 
-		--magic-grooming-to-retained [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			Same shape as `--magic-grooming-to-backlog`, target fixed to
+		--grooming-to-retained [--team-member <team-member>] <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Same shape as `--grooming-to-backlog`, target fixed to
 			board/retained/ -- but a SAME-STATE PATCH, not a move: call
 			with `--from-state:retained` so source and target match and
 			nothing relocates; the existing body is read-and-preserved
@@ -4723,7 +4650,7 @@
 			meaning groomed while sitting there, not arrived from
 			elsewhere.
 
-		--magic-grooming-create-backlog [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+		--grooming-create-backlog [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 			Creates a board-item directly in board/backlog/ -- a first
 			write, not a move: the promoted default landing for an inbox
 			item the authority group promotes. `--from-state:` is
@@ -4735,30 +4662,30 @@
 			`references` ride `--header:*` in this same write.
 			Creation headers (`type`, `from` = <team-member>, `date`)
 			are completed by the tooling, as for
-			`--magic-board-create-running`; `owner` stays the
+			`--create-running`; `owner` stays the
 			`--owner-header-value`.
 
-		--magic-grooming-create-processed [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
-			As `--magic-grooming-create-backlog`, target board/processed/
+		--grooming-create-processed [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+			As `--grooming-create-backlog`, target board/processed/
 			-- a promoted-or-denied item landing with its resolution
 			text attached.
 
-		--magic-grooming-create-pending [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
-			As `--magic-grooming-create-backlog`, target board/pending/
+		--grooming-create-pending [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+			As `--grooming-create-backlog`, target board/pending/
 			-- a promotion where the group's own context already
 			warrants approval at creation.
 
-		--magic-grooming-create-blocked [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
-			As `--magic-grooming-create-backlog`, target board/blocked/
+		--grooming-create-blocked [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+			As `--grooming-create-backlog`, target board/blocked/
 			-- a promotion that needs human-owner approval, so the item
 			lands blocked.
 
-		--magic-grooming-create-running [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
-			As `--magic-grooming-create-backlog`, target board/running/
+		--grooming-create-running [--team-member <team-member>] <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+			As `--grooming-create-backlog`, target board/running/
 			-- the approval-* item the human-owner approval negotiation
 			runs in.
 
-		--magic-sweep-state-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]
+		--sweep-state-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) routine-communication-sweep's own
 			state record FOR THAT MEMBER. Takes no filename or path argument --
 			storage is the operation's own concern; `<team-member>` says whose
@@ -4776,13 +4703,13 @@
 			To re-read material below the stored pointer, pass an explicit
 			`--comms-since-utime` to the scan -- a read does not move the pointer.
 
-		--magic-sweep-state-read [--team-member <team-member>]
-			Reads back the whole record written by --magic-sweep-state-upsert
+		--sweep-state-read [--team-member <team-member>]
+			Reads back the whole record written by --sweep-state-upsert
 			for that member, verbatim. Outputs `NO_STATE` if nothing is stored
 			yet. Read-only. There is one pointer per member, `last_swept_ts`;
 			no per-source pointer is stored or read.
 
-		--magic-sweep-state-advance [--team-member <team-member>] <ts>
+		--sweep-state-advance [--team-member <team-member>] <ts>
 			Moves that member's own `last_swept_ts` to <ts>, the newest
 			message its pass actually processed. The rest of the record is
 			kept, except stale `source-<key>-last-swept-ts:` entries, which
@@ -4791,7 +4718,7 @@
 			The same value is a no-op; an older one is REFUSED, as is a
 			<ts> more than a minute in the future. Commits the record.
 
-		--magic-team-roster-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]
+		--roster-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]
 			Writes the team's roster cache -- member/domain/posture rows plus
 			the per-member persona subsections, one record. Call it after
 			re-deriving either from the members' own live skill files, to
@@ -4800,7 +4727,7 @@
 			content is rejected. If `--edit-patch-from-stdin` is used, stdin
 			must be a JSON patch array for exact-literal replace operations.
 
-		--magic-team-roster-read [--team-member <team-member>]
+		--get-roster [--team-member <team-member>]
 			Reads the team's roster cache -- member/domain/posture rows plus
 			the per-member persona subsections. The grooming input scan,
 			which the spawner runs for the grooming routine, already holds
@@ -4809,7 +4736,7 @@
 			Outputs the record content, or
 			`NO_RECORD` if none is stored yet. Read-only.
 
-		--magic-team-data-commit-pending [--team-member <team-member>] [--commit-message <message>] [--no-push]
+		--commit-pending [--team-member <team-member>] [--commit-message <message>] [--no-push]
 			Commits everything pending under the team-data store in one
 			commit (new/changed/deleted paths), then syncs the store
 			with its remote by myx.common git/cloneSync on the branch
@@ -4845,8 +4772,8 @@
 			holds the advance lock, or a file another op
 			is writing could be committed half-written.
 
-		--member-wait-for-input [--team-member <team-member>] [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>] [--wait-collect <seconds>]
-		--member-wait-for-input [--team-member <team-member>] --wait-list-sources
+		--wait-for-input [--team-member <team-member>] [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>] [--wait-collect <seconds>]
+		--wait-for-input [--team-member <team-member>] --wait-list-sources
 			Waits on a list of input sources, returns as soon as one
 			changes or the timeout expires.
 
@@ -4875,7 +4802,7 @@
 			on any new post in that thread not from this member;
 			`slack:session-current` and `slack:session-parent` on
 			that session's thread, in its `:conversation` form (see
-			--member-comms-slack-send-message; a name that names
+			--slack-send-message; a name that names
 			nowhere is an ERROR, by the same line as there);
 			`slack:<alias>:<ts>` on the thread of the message with
 			that ts in the conversation an alias names, and with
@@ -4941,7 +4868,7 @@
 			(`--wait-source slack:magic-team#full`): `#short` returns each
 			message cut to a short form with its own reference
 			(`<source>:<ts>`) and, once in the return, the line that reads
-			one in full (`--member-comms-slack-read <member>
+			one in full (`--slack-read <member>
 			<source>:<ts> --thread`), and keeps only that short form; `#full` returns every
 			message whole, and keeps a single message too long for the
 			return (over the threshold of a long result) as a file of its
@@ -5114,10 +5041,10 @@
 			addressee=.. include-own=..`, then `# reactions:
 			seen=N note=N done=N wait=N failed=<ids or none>`,
 			then the usual `#` lines. stderr carries one trace
-			line: `# --member-wait-for-input: mode=<mode>
+			line: `# --wait-for-input: mode=<mode>
 			member=<name> session=<id>`.
 
-		--member-escalation-read [--team-member <team-member>] <request-id>
+		--read-escalation [--team-member <team-member>] <request-id>
 			The verdict of one escalation: a ConfirmReadback,
 			EscalateDecision, RequestPermission or ProposeApprove, or
 			an AskQuestion with an answer form (`select`). <request-id>
@@ -5217,7 +5144,7 @@
 			session, but for a permission it grants nothing there --
 			the grant is keyed to the record's own session.
 
-		--member-escalation-answer [--team-member <team-member>] <request-id> <verdict> [text]
+		--answer-escalation [--team-member <team-member>] <request-id> <verdict> [text]
 			Answers one open escalation as <team-member>, which must be
 			the member it was addressed to, or an executor of the
 			routine it was addressed to (`<name>.routine`), and not the
@@ -5261,15 +5188,7 @@
 			its own beside it. A spawned session answers only as its
 			own member.
 
-		--magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]
-			The coordinator answers one open escalation on behalf of the
-			member it was addressed to, whoever that is, as
-			--member-escalation-answer does for the addressee: the same
-			verdicts, session checks, grant and thread notice, signed by
-			magic-coordinator. Never a question magic-coordinator asked.
-			Only magic-coordinator, or the console, may call it.
-
-		--member-escalation-readback [--team-member <team-member>] <request-id> <option word> [text]
+		--readback-escalation [--team-member <team-member>] <request-id> <option word> [text]
 			The asker closes its own open decision by reading the
 			reply back, once the person has replied and no reply names
 			an option. It posts in the question's own thread, under the
@@ -5294,7 +5213,7 @@
 			readback=<answer> for a question. A spawned session reads
 			back only as its own member.
 
-		--magic-escalation-forward <coordinator> <request-id>
+		--forward-escalation [--team-member <team-member>] <request-id>
 			Forwards one open escalation addressed to <coordinator> to
 			the human-owner, keeping the same record. The question is
 			posted to the human-owner as the team bot. His reply or
@@ -5304,7 +5223,7 @@
 			it, or an executor of the routine it is addressed to, and
 			only while it is open.
 
-		--member-permission-pass [--team-member <team-member>] --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]
+		--pass-permission [--team-member <team-member>] --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]
 			Passes a permission <team-member> holds on to <member>:
 			one it gives part of its own job to, or one who asks it.
 			Whether to pass is the member's own judgement. Tooling
@@ -5319,7 +5238,7 @@
 			--session-id names it. A spawned session passes only as
 			its own member.
 			<target> may also name a registered place, `@<name>[:<glob>]`,
-			as --magic-permission-set-request takes it; a path in a
+			as --request-permission-set takes it; a path in a
 			place is said as `PLACE: <tool>:<target> is
 			<name>:<relative>`. A write in a read-only place is refused,
 			naming the route to take instead. With --kind session both
@@ -5327,7 +5246,7 @@
 			it: how a keeper invited into a session widens the access
 			of the others there.
 
-		--magic-permission-set-request <magic-coordinator> <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...
+		--request-permission-set [--team-member <team-member>] <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...
 			Asks for a task's or session's permission set at spawn or
 			brief time. One --entry may name several tools for one
 			target, a comma list before the colon
@@ -5409,8 +5328,7 @@
 			after its REFUSAL-ID: the practice the RequestPermission
 			declaration carries, word for word, read from it.
 
-		--magic-permission-list --member <member> [--session-id <id>]
-		--member-permission-list [--team-member <team-member>] [--session-id <id>]
+		--list-permissions [--team-member <team-member>] [--member <member>] [--session-id <id>]
 			Prints one member's effective grants, one per line,
 			TAB-separated: kind (floor, standing, session, task or
 			once), read, write, approve (a write by approval: held
@@ -5421,11 +5339,11 @@
 			ends. Revoked, used, lapsed and ended grants are left out.
 			Every session store of the workspace is read, or with
 			--session-id only that session's own, coworking and parent
-			stores. --member-permission-list lists the caller's own
-			grants only; --magic-permission-list any member's, by
-			magic-coordinator or the console.
+			stores. Without --member the caller's own grants are listed;
+			--member names any member's, for magic-coordinator or the
+			console.
 
-		--magic-permission-revoke <ref> [--session-id <id>]
+		--revoke-permission <ref> [--session-id <id>]
 			Revokes one session, task or once grant by its reference
 			(refusal-, pass- or set-<id>): a marker is written beside
 			its record, every reader leaves it out from the next check
@@ -5437,7 +5355,7 @@
 			on the item's `## Decisions`. Only magic-coordinator, or
 			the console, may call it.
 
-		--member-pending-reply-read [--team-member <team-member>] [<pending-id>] [--all] [--any-owner] [--count]
+		--read-pending-reply [--team-member <team-member>] [<pending-id>] [--all] [--any-owner] [--count]
 			Reads the records AskQuestion leaves, of any kind. With
 			<pending-id>, prints that one record. Without it, lists the
 			member's own open records, then `PENDING-REPLIES: <count>`.
@@ -5514,7 +5432,7 @@
 			last-daily-reminder, reminders and last-reminder-at. A
 			reminder never closes a record.
 
-		--member-pending-reply-settle [--team-member <team-member>] <pending-id> --reason <text> [--withdraw]
+		--settle-pending-reply [--team-member <team-member>] <pending-id> --reason <text> [--withdraw]
 			Closes one of the member's own open questions that no longer
 			needs an answer, such as one settled elsewhere. It is
 			recorded as received, with verdict `settled: <text>` and
@@ -5541,17 +5459,7 @@
 			`WITHDRAWN <id>`.
 			AskQuestion pending_id=<id> withdraw=<reason> calls it.
 
-		--magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text> [--withdraw]
-			The coordinator settles another member's open plain question
-			on its behalf, as --member-pending-reply-settle does for the
-			asker: verdict `settled: <text>`, answered-by
-			`magic-coordinator (settled)`, `SETTLED <id>`. A readback,
-			decision or permission is refused, and a closed record is
-			left as it is. --withdraw withdraws only a question
-			magic-coordinator asked itself, as the member stub does.
-			Only magic-coordinator, or the console, may call it.
-
-		--magic-pending-reply-amend <magic-coordinator> <pending-id> --verdict <text> --reason <text>
+		--amend-pending-reply [--team-member <team-member>] <pending-id> --verdict <text> --reason <text>
 			Corrects the verdict of a plain question already closed with
 			a wrong or missing answer, and prints `AMENDED <id>`. Only
 			magic-coordinator may, and only on a closed record. The
@@ -5565,7 +5473,7 @@
 			have written a grant, which is corrected through the grant
 			store.
 
-		--member-decision-record [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> [--source <ts-or-id>] [--clears-blocker]
+		--record-decision [--team-member <team-member>] <item-filename> --kind <clarification|resolved|dismissed> --text <one line> [--source <ts-or-id>] [--clears-blocker]
 			Appends one dated line to the board item's `## Decisions`
 			section, creating the section when it is missing, through the
 			board edit primitive:
@@ -5576,7 +5484,7 @@
 			30. `--clears-blocker` also removes the item's `blocked-on`
 			and `condition`, each printed as `BLOCKER-CLEARED <field>`.
 			Only the item's own parties record on it: its owner, its
-			reviewer (`review-by`, as for --member-review-accept), the
+			reviewer (`review-by`, as for --accept-review), the
 			member of its spawned session (`spawn-id`) or of a spawn
 			whose `spawns`/`spawned-by` names it. A spawned session
 			records as its own member only.
@@ -5587,7 +5495,7 @@
 			or an earlier closed ask of the same session already answer
 			is not posted again, and returns that answer.
 
-		--member-review-request [--team-member <team-member>] <item-filename> --reason <text>
+		--request-review [--team-member <team-member>] <item-filename> --reason <text>
 			Moves a board item from running to review, and only from
 			running, with `review-reason: review-requested`, and records
 			`review: review-requested: by <team-member>: <text>` in its
@@ -5605,9 +5513,9 @@
 			(`review-wait-expired`, recorded), and the item stays in
 			review, where a return can restart that same session.
 
-		--member-review-accept [--team-member <team-member>] <item-filename> [--summary <text>]
+		--accept-review [--team-member <team-member>] <item-filename> [--summary <text>]
 			The accept verdict on an item in review or running: moves it
-			to processed through --magic-board-to-processed, which sends
+			to processed through --move-to-processed, which sends
 			DISMISSED to its live child (the ACCEPT-DISMISS line), and
 			records `verdict: accepted[: <summary>]` in its `## Decisions`
 			and its session transcript. Prints
@@ -5621,7 +5529,7 @@
 			own member; a member name, that member. A spawned session
 			gives a verdict as its own member only.
 
-		--member-review-return [--team-member <team-member>] <item-filename> (--message <text>|--from-stdin)
+		--return-review [--team-member <team-member>] <item-filename> (--message <text>|--from-stdin)
 			The return verdict on an item in review: the same session
 			continues. Moves it to running with the corrections appended
 			as a `## Review: returned` section, and records
@@ -5633,7 +5541,7 @@
 			Decisions first (`RETURN: restarted ...`). Its next handback
 			moves it to review again.
 
-		--member-review-reject [--team-member <team-member>] <item-filename> (--message <text>|--from-stdin)
+		--reject-review [--team-member <team-member>] <item-filename> (--message <text>|--from-stdin)
 			The reject verdict on an item in review or running: moves it
 			to pending with `status: review-rejected` and the corrections
 			appended as a `## Review: rejected` section, sends DISMISSED to
@@ -5641,32 +5549,23 @@
 			`verdict: rejected: <text>`, so a fresh spawn reads them. The
 			fresh spawn itself is the normal spawn path.
 
-		--member-review-follow-up [--team-member <team-member>] <item-filename> <new-item-name> --from-stdin
+		--follow-up-review [--team-member <team-member>] <item-filename> <new-item-name> --from-stdin
 			Creates <new-item-name> in pending from the body on stdin,
 			with a `follows-up: <item>` header, and records
 			`verdict: follow-up: <new-item-name>` on the original. It
 			combines with any other verdict, as often as needed.
 
-		--magic-review-shutdown <magic-coordinator>
+		--shutdown-runs [--team-member <team-member>]
 			Shutdown: sends DISMISSED, addressed to its member, into the
 			session thread of every live spawn, and records `dismissed:
 			shutdown` on the item each one works. Prints one
 			`SHUTDOWN: spawn <id>: ...` line per spawn and a count. The
 			other ordered endings are recorded the same way, as
-			`dismissed: <reason>`: an archive (--magic-grooming-to-archived)
+			`dismissed: <reason>`: an archive (--grooming-to-archived)
 			and a trash (--intern-op-board-trash) dismiss the item's live
 			child, and a TaskStop records `taskstop` before its signal.
 
-		--magic-review-accept <magic-coordinator> <item-filename> [--summary <text>]
-		--magic-review-return <magic-coordinator> <item-filename> (--message <text>|--from-stdin)
-		--magic-review-reject <magic-coordinator> <item-filename> (--message <text>|--from-stdin)
-		--magic-review-follow-up <magic-coordinator> <item-filename> <new-item-name> --from-stdin
-			magic-coordinator's verdicts as reviewer of last resort: each
-			does exactly what its `--member-review-*` form does, on any
-			item, whatever reviewer its `review-by` names. Runs only as
-			magic-coordinator.
-
-		--member-retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--project <p>] [--file <changed-file>]... [--wait|--no-wait] [<test>...]
+		--retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--project <p>] [--file <changed-file>]... [--wait|--no-wait] [<test>...]
 			Asks for a retest and, unless it is made with `--wait`, returns
 			at once: it waits for no test. With `--wait` the request has the
 			priority wait: it is the first the next drain takes, and takes
@@ -5694,7 +5593,7 @@
 			`$HOME/.agents/magic-team/retest-queue`, one for the live tree
 			and every scratch copy.
 
-		--member-retest-drain [--rest [--about <scratch-folder>]]
+		--retest-drain [--rest [--about <scratch-folder>]]
 			The tester's operation. Takes everything that waits as one
 			batch and runs the union of the tests asked for, each test
 			once however many requests named it, through the package's
@@ -5714,14 +5613,14 @@
 			scratch copy `--about` names, and prints
 			`RETEST rest PASS|FAIL -- about <copy>: ...`.
 
-		--member-retest-result <request-id>...
+		--retest-result <request-id>...
 			Where each request stands, one line each: `WAITING`, `RUNNING`,
 			or the line the drain printed for it, followed for a finished
 			request by what each of its tests did and the folder that
 			holds the logs of the run. A finished request is kept seven
 			days. Exit 1 where an id is unknown.
 
-		--magic-config-check
+		--config-check
 			Read-only, no arguments -- the configuration check the
 			main loop runs as a script. Checks magic-coordinator's own config for
 			TEAM_DATA_DIRECTORY and the EMAIL_*/TRELLO_* keys below,
@@ -5757,15 +5656,15 @@
 			only under a bot identity) or auth.test returns no
 			user_id. Never affects the exit code.
 
-		--magic-advance-batch-outcome [--team-member <team-member>] --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]...
+		--advance-batch-outcome [--team-member <team-member>] --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]...
 			Records a per-pass outcome (nudged/respawned/redispatched/
 			flagged-once/no-action) plus execution-receipt for several
 			board/running/ items in one call, instead of one
-			--magic-advance-to-running call per item. Same-state
+			--advance-to-running call per item. Same-state
 			(running -> running) header patch only -- never moves state,
 			never spawns anything; a genuine spawn/respawn/redispatch/
-			park still goes through --magic-advance-to-running/
-			--magic-advance-to-parked directly.
+			park still goes through --advance-to-running/
+			--advance-to-parked directly.
 
 			Item list is comma-joined, each entry colon-joined:
 			`<item-filename>:<outcome>:<execution-receipt>`. The receipt
@@ -5775,7 +5674,7 @@
 			or failing entry is reported inline without aborting the
 			rest; any failure makes the whole call exit non-zero.
 
-		--magic-advance-to-running [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--advance-to-running [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Moves a board item into board/running/, and/or patches its
 			frontmatter, in one call. `--from-state:<state>` is
 			required; `--from-state:running` is also valid (same-state,
@@ -5795,16 +5694,16 @@
 			`--recheck-in <minutes>[±<jitter-minutes>]` upserts
 			`recheck-date` to now + <minutes>, moved by a random whole
 			number of minutes within ±<jitter-minutes>, as
-			`YYYY-MM-DD HH:MM +0000` (UTC). Every `--magic-board-*`,
-			`--magic-grooming-to-*`/`-create-*` and
-			`--magic-advance-to-*` op takes it. A `--header:*` naming
+			`YYYY-MM-DD HH:MM +0000` (UTC). Every `--move-to-*`, `--create-running`,
+			`--grooming-to-*`/`--grooming-create-*` and
+			`--advance-to-*` op takes it. A `--header:*` naming
 			`recheck-date` in the same call wins.
 
 			Auto-stamps `started-at` (date-time) on every move into
 			board/running/.
 
-		--magic-advance-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			As `--magic-advance-to-running` for arguments and body-input
+		--advance-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			As `--advance-to-running` for arguments and body-input
 			shape, target board/parked/ -- routine-advance's own
 			check-execute-board fallback when a required spawn could not
 			run. No auto-stamp: the calling step supplies condition/
@@ -5813,43 +5712,36 @@
 			falls to routine-grooming's slower cadence, so this op never
 			invents one.
 
-		--magic-board-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			As `--magic-advance-to-running` for arguments and body-input
+		--move-to-pending [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			As `--advance-to-running` for arguments and body-input
 			shape, target board/pending/. No auto-stamp.
 
-		--magic-board-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			As `--magic-advance-to-running` for arguments and body-input
+		--move-to-blocked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			As `--advance-to-running` for arguments and body-input
 			shape, target board/blocked/. One auto-stamp:
 			`execution-receipt` defaults to `blocked:<timestamp>` unless
 			the caller supplies its own via `--header:upsert:execution-
 			receipt:*`/`--header:append:execution-receipt:*`, in which
 			case the caller's value stands.
 
-		--magic-board-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			As `--magic-advance-to-running` for arguments and body-input
+		--move-to-backlog [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			As `--advance-to-running` for arguments and body-input
 			shape, target board/backlog/. No auto-stamp.
 
-		--magic-board-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			As `--magic-advance-to-running` for arguments and body-input
+		--move-to-parked [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			As `--advance-to-running` for arguments and body-input
 			shape, target board/parked/ -- check-process-board's own
 			move, the board-mechanical-moves counterpart. No auto-stamp
-			here, and no `--magic-board-*` op stamps grooming provenance
+			here, and no `--move-to-*` op stamps grooming provenance
 			(the closing -to-blocked and -to-processed moves stamp their
 			own fields instead). `recheck-date`/`condition` are caller-
 			supplied via `--header:*`.
 
-		--magic-append-session-transcript [--team-member <team-member>] <session-id> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--create]
-			The coordinator's append to any session's tooling-written transcript,
-			named by its session id: one NOTE line, as the member form appends
-			to its own session. `--create` starts the transcript when the session
-			has none. Runs only as magic-coordinator. Members use
-			`--member-append-session-transcript`.
-
-		--magic-board-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			As `--magic-advance-to-running` for arguments and body-input
+		--move-to-processed [--team-member <team-member>] <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			As `--advance-to-running` for arguments and body-input
 			shape, target board/processed/ -- the RUNNING->PROCESSED leg
-			whose other two legs are `--magic-board-to-blocked` and
-			`--magic-board-to-backlog`. Two auto-stamps: `processed-at`
+			whose other two legs are `--move-to-blocked` and
+			`--move-to-backlog`. Two auto-stamps: `processed-at`
 			records entry into board/processed/, stamped only when
 			`--from-state:` is not already `processed` (so a same-state
 			patch doesn't restart the retention clock), and a caller-
@@ -5884,12 +5776,12 @@
 			target is reported and skipped; the approval move stands.
 			Re-running changes nothing.
 
-		--magic-board-create-running [--team-member <team-member>] <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+		--create-running [--team-member <team-member>] <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 			Creates a board-item directly in board/running/ --
 			check-process-board's own and only creating step: the
 			approval-* item raised when a board-backlog item is flagged
 			for human-owner approval (the move half of that same step is
-			`--magic-board-to-blocked`). `--from-state:` is rejected: a
+			`--move-to-blocked`). `--from-state:` is rejected: a
 			created item has no source state. `blocks`/`blocked-by`
 			ride `--header:*` in this same write. One body-input mode
 			is required.
@@ -5903,99 +5795,19 @@
 			  are added where neither the body nor a `--header:*`
 			  gives them. `started-at` is stamped as before.
 
-		--magic-advance-lock-acquire [--team-member <team-member>] <owner-label>
-		--magic-grooming-lock-acquire [--team-member <team-member>] <owner-label>
-		--magic-daily-lock-acquire [--team-member <team-member>] <owner-label>
-		--magic-retro-lock-acquire [--team-member <team-member>] <owner-label>
-			Takes the calling routine's lock before any other step. Prints
-			`ACQUIRED` (rc 0) on a fresh take; `RECLAIMED_STALE:prev_owner=
-			...:age=...s` (rc 0) when the previous holder went stale;
-			`ACTIVE:owner=...:state=...:recheck_date=...` (rc 1) when
-			another holder genuinely has it -- rc 1 means do not start.
-			<owner-label> names the running process, not a chat-session id.
-			Takes no options; any further argument is rejected.
-
-			--magic-daily-lock-acquire only: after a successful take, one
-			more line, `first-today: yes|no` -- no when the daily note's
-			`last-close-date` is today's local date.
-
-			--magic-advance-lock-acquire only, and only with
-			TEAM_DATA_GIT_REMOTE set: the board is resynced and the lock
-			note checked against the branch head before anything is
-			written, so three further rc 1 refusals are possible.
-			`LOCK_CONFLICT` -- the local lock note carries an unresolved
-			merge, a committed conflict marker, or an uncommitted edit.
-			`LOCK_STALE` -- the local lock note is not the one on the
-			branch head. `LOCK_UNCHECKABLE` -- the resync or fetch could
-			not answer, so ownership is unknown. All three mean do not
-			start, and nothing has been written.
-
-			--magic-advance-lock-acquire only, after a successful take:
-			the routine's housekeeping runs, by the tooling itself, so
-			the scan that follows already shows the result. It closes
-			what a dead spawn left open: a spawn record still started
-			whose session is gone (this host: no live process, no open
-			ask and nothing under its sandbox changed in the last 15
-			minutes; any other host: no open ask and nothing changed in
-			24 hours; a change is any file under its sandbox or under
-			`.local/agents/sessions/<id>/`, which is where a waiting
-			session keeps its Wait state) is closed with the
-			ended-without-close outcome; the dispatch item it links is
-			closed with that outcome too (a created dispatch item
-			moves to board-review, a reused item stays where it is); a
-			running dispatch item whose record already ended is closed
-			with that record's own outcome and moves to board-review,
-			and one with no record that has not changed in 24 hours is
-			closed with the ended-without-close outcome and moves to
-			board-review. Nothing about this is written into the take's
-			output: each action is one line of the daemon line, and
-			they go as one post into the event-track thread of the
-			calling spawn's coworking session, when it has one. A
-			second take changes nothing more.
-
-			And it starts the control thread of each session of this
-			workspace that is not finished and has none alive: a run of
-			it is alive on this host, or the record of a run of this
-			host is still open. It is the check
-			`--manager-session-control-start --all` makes, which each
-			iteration of the main loop makes too. A thread is the
-			tooling's own process and no agent, started detached and
-			never waited for. What was started is one more line of that
-			same post, and no line of the take's output; a thread that
-			could not be started is one warning on the daemon line, and
-			the take goes on.
-
-			It also hands a board-review item whose `review-by` names a
-			session that has ended (no live row for it, or no row and
-			the item unchanged for 24 hours) to `magic-coordinator`
-			by rewriting `review-by`. A member name, `human-owner`, a
-			live session and a missing `review-by` stay as they are.
-			Accepting or returning an item stays the caller's own call.
-
-		--magic-advance-lock-refresh [--team-member <team-member>]
-		--magic-grooming-lock-refresh [--team-member <team-member>]
-		--magic-daily-lock-refresh [--team-member <team-member>]
-		--magic-retro-lock-refresh [--team-member <team-member>]
+		--grooming-lock-refresh [--team-member <team-member>]
+		--daily-lock-refresh [--team-member <team-member>]
+		--retro-lock-refresh [--team-member <team-member>]
 			Re-asserts a held lock so a long run is not mistaken for a
 			crashed one. Prints `REFRESHED` (rc 0), or `NO_LOCK_HELD` (rc 1)
 			when nothing is held. Takes no options; any further argument is
 			rejected.
 
-		--magic-advance-lock-status [--team-member <team-member>]
-		--magic-grooming-lock-status [--team-member <team-member>]
-		--magic-daily-lock-status [--team-member <team-member>]
-		--magic-retro-lock-status [--team-member <team-member>]
-			Read-only, returns 0 always -- including when free, so a caller
-			can check before deciding to start. Prints `NO_LOCK` when free,
-			or `ACTIVE:owner=...:state=...:recheck_date=...` when held --
-			read from the lock note's own frontmatter. Takes no options;
-			any further argument is rejected.
-
-		--magic-advance-sleep-run
+		--advance-sleep-run
 			Read-only, no arguments -- a fixed-duration pacing operation in
 			routine-advance's operation group.
 
-		--magic-spawn-proxy [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]
+		--spawn-prompt [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]
 			Spawn relay: executes a spawn prompt via
 			DistroAgentsConsole.sh. Body is stdin (default),
 			--from-file, --from-board, --from-vault, or
@@ -6108,14 +5920,14 @@
 
 			The brief ends with a "## Your session thread" section
 			carrying `session_thread_ts: <channel>:<ts>` -- the
-			value --member-comms-slack-send-message takes as
-			target and --member-comms-slack-read takes with
+			value --slack-send-message takes as
+			target and --slack-read takes with
 			--thread. If the opening post failed, it says so and
 			asks the session to post its own thread. A session
 			that starts alone is told it has none yet, and that
 			one is opened when it brings a member in.
 
-		--magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]
+		--spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]
 			Starts a coworking session and spawns its initial members
 			in one call. Task text comes from stdin. Exactly one of
 			`--routine <selector>` | `--routine-default` is required
@@ -6234,7 +6046,7 @@
 		--post-session-channel [--address-to <team-member>]... (<text...>|--from-stdin)
 			ThisSession's operation (DistroAgentsSession.fn.sh). A post to the
 			session thread, and to nowhere else: the team's Slack send
-			(`--member-comms-slack-send-message`) as the calling member, with no
+			(`--slack-send-message`) as the calling member, with no
 			target, so the first word is text. The send's other options pass
 			(`--address-to`, `--from-stdin`, `--identity-bot`); the message is recorded
 			in the session chat file first and posted after, as every send of the
@@ -6319,7 +6131,7 @@
 			The wait is made by the harness of the run at the end of the round, so the
 			answer of the call is only read where nothing was returned.
 
-		--magic-test-report-send [--team-member <team-member>]
+		--send-report [--team-member <team-member>]
 			Sends the hourly test report, run by hand or from a console; nothing
 			schedules it. <team-member> must be
 			magic-coordinator. Prints `NOT_DUE:last-test-email-sent=...:
@@ -6327,13 +6139,13 @@
 			has passed since the note's `last-test-email-sent`. Once due:
 			builds the body from the board counts and the board active
 			items, sends it through
-			--member-comms-email-send (text group report) to human-owner's
+			--email-send (text group report) to human-owner's
 			EMAIL_USER, stamps `last-test-email-sent`, and prints
 			`SENT:to=<address>:last-test-email-sent=<timestamp>`. rc 1,
 			with nothing stamped, when EMAIL_USER is unset, the
 			state note does not exist yet, or the send fails.
 
-		--magic-state-note-lock-acquire [--team-member <team-member>] <owner-label>
+		--state-note-lock-acquire [--team-member <team-member>] <owner-label>
 			Takes the lock of the coordinator's state note. Prints
 			`ACQUIRED` (rc 0) on a fresh take; `RECLAIMED_STALE:prev_owner=
 			...:age=...s` (rc 0) when the previous holder went stale;
@@ -6342,14 +6154,7 @@
 			<owner-label> names the running process (e.g. "main-loop"), not
 			a chat-session id. Takes no options; any further argument is rejected.
 
-		--magic-state-note-lock-status [--team-member <team-member>]
-			Read-only, returns 0 always -- including when free, so a caller
-			can check before deciding to start. Prints `NO_LOCK` when free,
-			or `ACTIVE:owner=...:state=...:recheck_date=...` when held --
-			read from the lock note's own frontmatter. Takes no options;
-			any further argument is rejected.
-
-		--magic-state-note-read [--team-member <team-member>]
+		--state-note-read [--team-member <team-member>]
 			Reads back the whole record of the coordinator's state note,
 			verbatim. Outputs `NO_STATE` if nothing is stored yet.
 			Read-only.
@@ -6697,7 +6502,7 @@
 		--tester-run-all-nightly-regressions [--wait|--no-wait]
 			The stubs of `DistroAgentsTesting.fn.sh --run-oldest-untested` and
 			`--run-all-nightly-regressions`. They put tests of the testbed into the one
-			retest queue of the machine (`--member-retest-queue`), as the acting member
+			retest queue of the machine (`--retest-queue`), as the acting member
 			or the console user, and print the request's id: the registered test that
 			was registered first of those that have not passed on the state they would
 			run on now, or every test registered `--nightly yes`. Only a test whose
@@ -6708,7 +6513,7 @@
 			and where none is named no test is. Nothing is put in
 			the queue, and it is said, where every test has passed or none is eligible;
 			a testbed with no test is refused. With `--wait` the call stays until the
-			batch has run them and says how they came out, as `--member-retest-queue`
+			batch has run them and says how they came out, as `--retest-queue`
 			does.
 
 		--request-tests --why <text> [--project <p>] [--file <changed-file>]... [--about <scratch-folder>] [--wait|--no-wait] [<test>...]
@@ -6716,10 +6521,10 @@
 			need to the testing system and to `magic-tester`; nobody reads results from
 			it, and a call from no member's session is refused. Puts the tests into the
 			one retest queue as the calling member's request, with the options and the
-			rules of `--member-retest-queue` (`--by` is not given: the request is the
+			rules of `--retest-queue` (`--by` is not given: the request is the
 			member's), and files one inquiry into `magic-tester`'s inbox that says who
 			asks, for what, why, with which priority, and where the outcome is read
-			(`--member-retest-result <id>`). A request the queue refuses queues nothing
+			(`--retest-result <id>`). A request the queue refuses queues nothing
 			and asks nobody. The first line printed is the request's id, said as soon as
 			the inquiry is filed; with `--wait`, for a sandbox before its hand-off, the
 			call then stays until the batch has run the request and says how it came
@@ -6828,7 +6633,7 @@
 			board item (backlog, pending, running, review, blocked or parked; a mitigated
 			one is processed and is not shown); `note <item> <heading>`, a note of
 			magic-coordinator's incoming/ that carries the header `standing: yes` (set with
-			`--member-inbox-note-upsert --standing yes`, a row of the note's contract); and
+			`--upsert-inbox-note --standing yes`, a row of the note's contract); and
 			`order <id> <set> <expires-at> <text>`, an order of the human-owner. An order is
 			shown while it is in force, its expires-at being `none` or ahead; `--all` shows
 			an expired one too, with `(expired)` after its date. A spawn is given the orders
@@ -6844,7 +6649,7 @@
 			characters, and the `--expires-at` is needed, `none` where the order does not
 			end. An `--id` already there is replaced; without one the tool makes it.
 			The write goes through the note's lock as a session does
-			(`--magic-state-note-lock-acquire`): while another session holds the note it waits,
+			(`--state-note-lock-acquire`): while another session holds the note it waits,
 			polling, up to `--wait` seconds (120 by default) and then refuses with the note
 			untouched; it changes that section alone, leaves the note's other fields and
 			body and its stamps as they are, commits and pushes as every state update does,
@@ -6877,7 +6682,7 @@
 			Read-only. Prints `<team-member>`'s own duty-related tooling
 			help.
 
-		--member-comms-slack-read [--team-member <team-member>] (<channel>:<ts>|<alias>:<ts>|session-current|session-parent [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]
+		--slack-read [--team-member <team-member>] (<channel>:<ts>|<alias>:<ts>|session-current|session-parent [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]
 			`<team-member>` is the member this read acts as -- decides
 			which conversation this call can see at all.
 
@@ -6888,7 +6693,7 @@
 			that reply like any other message. session-current or
 			session-parent in place of `<channel>:<ts>` names that
 			session's thread: its opening message, or with --thread the
-			whole thread (see --member-comms-slack-send-message).
+			whole thread (see --slack-send-message).
 			`<alias>:<ts>` reads the message with that ts in the
 			conversation an alias names, or with --thread its thread.
 
@@ -6902,11 +6707,11 @@
 			the replies: the parent, and the replies after <ts> (how the
 			communications reader reads a thread it holds up to a ts).
 
-			**Use this, not --member-comms-slack-search-messages, for
+			**Use this, not --slack-search-messages, for
 			something posted moments ago** -- search lags on Slack's
 			own index; this reads the conversation directly.
 
-			Same credential resolution as --member-comms-slack-send-message;
+			Same credential resolution as --slack-send-message;
 			--identity-bot reads as the team bot. A direct conversation
 			belongs to one identity -- the bot's DM with someone and a
 			member's own are different conversations, neither readable
@@ -6917,18 +6722,18 @@
 			`<ts>` -- never read as "no such message" or "nobody
 			replied yet".
 
-		--member-comms-email-read [--team-member <team-member>] <uid> [--seen]
+		--email-read [--team-member <team-member>] <uid> [--seen]
 			`<team-member>` is the member this read acts as -- the mailbox
 			is that member's own, no fallback; the same `<uid>` under a
 			different member names a different message, or none.
 
 			Full RFC822 message (headers + body + MIME, attachments as
 			raw MIME parts) for one email by IMAP UID -- contrast with
-			--member-comms-email-check's STATUS-only count.
+			--email-check's STATUS-only count.
 
 			**Reading does not mark the message read** -- opened
 			read-only, BODY.PEEK[], \Seen left exactly as found; mark it
-			with --member-comms-email-mark-seen or --seen below.
+			with --email-mark-seen or --seen below.
 
 			**An empty result is never an answer here.** A call that
 			can't return the message fails non-zero; empty stdout is
@@ -6940,7 +6745,7 @@
 			--seen marks \Seen after a successful read only; a failed
 			read leaves the message untouched.
 
-		--member-comms-trello-read [--team-member <team-member>] <notification-id>
+		--trello-read [--team-member <team-member>] <notification-id>
 			`<team-member>` is the member this read acts as, and it comes
 			first, ahead of the `<notification-id>`. It is required and
 			strict: the notification is read as that member, with no
@@ -6948,7 +6753,7 @@
 			an id taken from another member's check is not readable here.
 
 			Full detail for one specific Trello notification (the unit
-			--member-comms-trello-check's unread list returns), including
+			--trello-check's unread list returns), including
 			its related card/board summary.
 
 		--help-setup-<domain>
@@ -6984,7 +6789,7 @@
 			entry points a reader starts from.
 
 			With <op>, only the syntax lines of that operation; a word
-			ending in `-`, such as `--magic-`, prints those of every
+			ending in `-`, such as `--grooming-`, prints those of every
 			operation it begins. A word that names none is refused, rc 1.
 
 		--help
@@ -7059,50 +6864,50 @@
 		`DistroAgentsTools.fn.sh --agents-config-option magic-team --select SLACK_BOT_TOKEN`
 
 		# Send a plain-text message to a fixed target
-		`DistroAgentsTools.fn.sh --member-comms-slack-send-message keeper-myx magic-team Build finished OK.`
+		`DistroAgentsSlack.fn.sh --slack-send-message keeper-myx magic-team Build finished OK.`
 
 		# Send a threaded reply with rich Block Kit formatting from stdin -- heredoc,
 		# not a piping command in front
 		```
-		DistroAgentsTools.fn.sh --member-comms-slack-send-message keeper-myx C0123ABCD:1700000000.000100 --from-stdin --format blocks <<'EOF'
+		DistroAgentsSlack.fn.sh --slack-send-message keeper-myx C0123ABCD:1700000000.000100 --from-stdin --format blocks <<'EOF'
 		[{"type":"section","text":{"type":"mrkdwn","text":"*done*"}}]
 		EOF
 		```
 
 		# Mark an email UID as read after processing it
-		`DistroAgentsTools.fn.sh --member-comms-email-mark-seen magic-coordinator 48`
+		`DistroAgentsMail.fn.sh --email-mark-seen magic-coordinator 48`
 
-		# Create a board Item -- one call, see --magic-grooming-create-backlog above
+		# Create a board Item -- one call, see --grooming-create-backlog above
 		```
-		DistroAgentsTools.fn.sh --magic-grooming-create-backlog magic-coordinator task-example.md --owner-header-value magic-coordinator --upsert-from-stdin <<'EOF'
+		DistroAgentsItems.fn.sh --grooming-create-backlog magic-coordinator task-example.md --owner-header-value magic-coordinator --upsert-from-stdin <<'EOF'
 		... board item content ...
 		EOF
 		```
 
 		# Move an existing board Item between states -- one call, old file relocated to trash/
-		`DistroAgentsTools.fn.sh --magic-board-to-pending magic-coordinator task-example.md --from-state:backlog`
+		`DistroAgentsItems.fn.sh --move-to-pending magic-coordinator task-example.md --from-state:backlog`
 
 		# Post a note into another member's own personal inbox
 		```
-		DistroAgentsTools.fn.sh --member-inbox-note-upsert keeper-myx note-20260722T0930Z-example.md <<'EOF'
+		DistroAgentsItems.fn.sh --upsert-inbox-note keeper-myx note-20260722T0930Z-example.md <<'EOF'
 		... note content ...
 		EOF
 		```
 
 		# Same, via --from-file instead of stdin
-		`DistroAgentsTools.fn.sh --member-inbox-note-upsert keeper-myx note-20260722T0930Z-example.md --from-file /path/to/note.md`
+		`DistroAgentsItems.fn.sh --upsert-inbox-note keeper-myx note-20260722T0930Z-example.md --from-file /path/to/note.md`
 
 		# Append one session transcript entry (one call = one entry block)
-		`DistroAgentsTools.fn.sh --member-append-session-transcript magic-coordinator --speaker human-owner --timestamp 2026-07-26T12:34:56Z --message "Approved. Proceed." --transcript-name transcript-2026-07-26-example.md --create`
+		`DistroAgentsSession.fn.sh --append-transcript magic-coordinator --speaker human-owner --timestamp 2026-07-26T12:34:56Z --message "Approved. Proceed." --transcript-name transcript-2026-07-26-example.md --create`
 
 		# Read a transcript audit document by filename (no raw path argument)
-		`DistroAgentsTools.fn.sh --member-audit-item-read magic-coordinator transcript-2026-07-26-example.md`
+		`DistroAgentsItems.fn.sh --get-audit-item magic-coordinator transcript-2026-07-26-example.md`
 
 		# Read only a selected line range from the same audit document
-		`DistroAgentsTools.fn.sh --member-audit-item-read magic-coordinator transcript-2026-07-26-example.md --start-line 10 --end-line 25`
+		`DistroAgentsItems.fn.sh --get-audit-item magic-coordinator transcript-2026-07-26-example.md --start-line 10 --end-line 25`
 
 		# Read from specific board state(s) only, with optional line range
-		`DistroAgentsTools.fn.sh --member-board-item-read magic-coordinator task-example.md --board-state pending --board-state running --start-line 1 --end-line 40`
+		`DistroAgentsItems.fn.sh --get-board-item magic-coordinator task-example.md --board-state pending --board-state running --start-line 1 --end-line 40`
 
 		# Register a workspace no project declares
 		`DistroAgentsTools.fn.sh --owner-workspace-upsert /Volumes/ws-2017/myx-work`
@@ -7112,7 +6917,7 @@
 
 		# Send an email with a multi-line body from stdin instead of fragile trailing argv
 		```
-		DistroAgentsTools.fn.sh --member-comms-email-send magic-coordinator example@example.org -- "Status update" -- --from-stdin <<'EOF'
+		DistroAgentsMail.fn.sh --email-send magic-coordinator example@example.org -- "Status update" -- --from-stdin <<'EOF'
 		Line one of the body.
 		Line two, with 'quotes' and (parens) that would have been fragile as argv.
 		EOF

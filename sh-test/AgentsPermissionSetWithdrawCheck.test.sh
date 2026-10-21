@@ -5,7 +5,7 @@
 ## (AgentsToolsPermissionSetRecordFill, AgentsTools.InternOpPermission.include), by its own
 ## template (sh-lib/templates/permission-set.post.format.md) without the how-to-answer part;
 ## the tooling's own answer emoji come off it, and it gets the cancelled mark.
-## Covers: the post as asked; the withdraw through `--member-pending-reply-settle --withdraw`;
+## Covers: the post as asked; the withdraw through `--settle-pending-reply --withdraw`;
 ## the edit, its text and its shape; the emoji taken off and the mark put on; a record written
 ## before the held entries were kept; an edit Slack refuses; and an allow-set still granting
 ## the asked entries only.
@@ -119,13 +119,13 @@ rigOp(){
 }
 rigSetAsk(){ ## item, request options... -> the pending id
 	RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-set
-	rigOp --magic-permission-set-request magic-coordinator "$@"
+	rigOp --request-permission-set magic-coordinator "$@"
 	RIG_OP_AGENT="" RIG_OP_SESSION=""
 	LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out"
 }
 rigWithdraw(){ ## pending id, reason, [the member that withdraws; default the asker]
 	RIG_OP_AGENT="${3:-magic-coordinator}" RIG_OP_SESSION=rig-set
-	rigOp --member-pending-reply-settle "${3:-magic-coordinator}" "$1" --reason "$2" --withdraw
+	rigOp --settle-pending-reply "${3:-magic-coordinator}" "$1" --reason "$2" --withdraw
 	RIG_OP_AGENT="" RIG_OP_SESSION=""
 }
 rigGrantRead(){ ## member, session, tool, target
@@ -225,7 +225,7 @@ rigEditsBefore="$( rigCalls chat.update )"
 rigWithdraw "$rigKeepId" "not mine to drop" magic-developer
 rigAssert "another member cannot withdraw it: it stays open, its post as it was" \
 	"$( rigField "$rigKeepFile" status ):$( rigHas "$rigTmp/op.err" "was asked by magic-coordinator, so magic-developer cannot withdraw it" ):$(( $( rigCalls chat.update ) - rigEditsBefore )):$( rigReacted reactions.removed "$rigKeepTs" )" "reply-pending:yes:0:"
-RIG_OP_SESSION=rig-human rigOp --member-escalation-answer human-owner "$rigKeepId" allow-set
+RIG_OP_SESSION=rig-human rigOp --answer-escalation human-owner "$rigKeepId" allow-set
 RIG_OP_SESSION=""
 rigAssert "the allow-set grants the one asked entry to each participant" "$( rigHas "$rigTmp/op.out" 'GRANT: set 3 entries for ' )" yes
 rigAssert "and not the entry that was held already"        "$( rigGrantRead magic-tester rig-set-tester Read "$rigWs/SETK/a.txt" ):$( rigGrantRead magic-tester rig-set-tester Edit "$rigWs/DEV/held/x" )" "task:"

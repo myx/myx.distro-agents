@@ -49,7 +49,7 @@ rigOp(){ ## result file, store path
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
 			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MDAT_DATA_ROOT outside the rig tree" >&2 ; exit 99 ;; esac
-			cd "$MMDAPP" && exec bash "$RIG_FN" --member-inbox-note-upsert magic-tester note-rig.md
+			cd "$MMDAPP" && exec bash "$RIG_FN" --upsert-inbox-note magic-tester note-rig.md
 		' > "$1" 2> "$1.err"
 	printf '%s' "$?" > "$1.rc"
 }

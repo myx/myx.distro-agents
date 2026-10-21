@@ -62,7 +62,7 @@ rigHas(){ ## fixed text, file -- how many lines of the file hold it
 rigBegin=$( date +%s )
 
 echo "-- 0. a store that is not there --"
-rigGate "$rigTmp/g0" --tool member-comms-email-send --target alice@ndm.example --message hello
+rigGate "$rigTmp/g0" --tool email-send --target alice@ndm.example --message hello
 rigAssert "no store, no contact: refused with rc 1, a refusal id and one recorded refusal" "$rigRc $( rigHas 'REFUSAL-ID: refusal-' "$rigTmp/g0.err" ) $( rigRefusals )" "1 1 1"
 
 echo "-- 1. what is known --"
@@ -74,42 +74,42 @@ rigTool "$rigTmp/s3" --collect-contact --id bob-two --name "Bob Two" --slack kee
 rigAs=client-ndm
 rigTool "$rigTmp/s4" --collect-contact --id cara-three --name "Cara Three" --slack other-team:UCARA0001
 rigAs=""
-rigGate "$rigTmp/k1" --tool member-comms-slack-send-message --target U111ABC --team client-ndm --message hello
+rigGate "$rigTmp/k1" --tool slack-send-message --target U111ABC --team client-ndm --message hello
 rigAssert "a Slack id of a contact the member holds, within the sending team" "$rigRc" "0"
-rigGate "$rigTmp/k2" --tool member-comms-slack-send-message --target D222DEF --team client-ndm --message hello
+rigGate "$rigTmp/k2" --tool slack-send-message --target D222DEF --team client-ndm --message hello
 rigAssert "a Slack conversation of that contact" "$rigRc" "0"
-rigGate "$rigTmp/k3" --tool member-comms-email-send --target ALICE@NDM.EXAMPLE --message hello
+rigGate "$rigTmp/k3" --tool email-send --target ALICE@NDM.EXAMPLE --message hello
 rigAssert "an e-mail address of that contact, in any case, with no team" "$rigRc" "0"
-rigGate "$rigTmp/k4" --tool member-comms-slack-send-message --target U111ABC --message hello
+rigGate "$rigTmp/k4" --tool slack-send-message --target U111ABC --message hello
 rigAssert "a Slack id with no team given (a caller that does not name one): matched by the id alone" "$rigRc" "0"
 rigAssert "none of them was refused or recorded: nothing printed, no new refusal" "$( cat "$rigTmp/k1.out" "$rigTmp/k2.out" "$rigTmp/k3.out" "$rigTmp/k4.out" | LC_ALL=C grep -c . ) $( rigRefusals )" "0 1"
 
 echo "-- 2. what is not --"
-rigGate "$rigTmp/n1" --tool member-comms-email-send --target stranger@nowhere.example --message hello
+rigGate "$rigTmp/n1" --tool email-send --target stranger@nowhere.example --message hello
 rigAssert "a recipient of no contact: refused, rc 1, with a refusal id; the error says what the gate checked" "$rigRc $( rigHas 'REFUSAL-ID: refusal-' "$rigTmp/n1.err" ) $( rigHas "not a coordinate of a contact client-ndm holds (DistroAgentsContacts.fn.sh --find-contact), not one of the team's own configured addresses (human-owner or member)" "$rigTmp/n1.err" )" "1 1 1"
-rigGate "$rigTmp/n2" --tool member-comms-email-send --target bob@acme.example --message hello
+rigGate "$rigTmp/n2" --tool email-send --target bob@acme.example --message hello
 rigAssert "a contact held by another member only: refused" "$rigRc" "1"
-rigGate "$rigTmp/n3" --tool member-comms-slack-send-message --target UCARA0001 --team client-ndm --message hello
+rigGate "$rigTmp/n3" --tool slack-send-message --target UCARA0001 --team client-ndm --message hello
 rigAssert "a Slack id of another team: refused, as the id is unique within one Slack workspace only" "$rigRc" "1"
-rigGate "$rigTmp/n3b" --tool member-comms-slack-send-message --target UCARA0001 --team other-team --message hello
+rigGate "$rigTmp/n3b" --tool slack-send-message --target UCARA0001 --team other-team --message hello
 rigAssert "and known when the send is of that team (the contact is held by the member)" "$rigRc" "0"
-rigGate "$rigTmp/n4" --tool member-comms-slack-send-message --target "Alice One" --team client-ndm --message hello
-rigGate "$rigTmp/n5" --tool member-comms-slack-send-message --target alice-one --team client-ndm --message hello
-rigGate "$rigTmp/n6" --tool member-comms-slack-send-message --target @alice --team client-ndm --message hello
+rigGate "$rigTmp/n4" --tool slack-send-message --target "Alice One" --team client-ndm --message hello
+rigGate "$rigTmp/n5" --tool slack-send-message --target alice-one --team client-ndm --message hello
+rigGate "$rigTmp/n6" --tool slack-send-message --target @alice --team client-ndm --message hello
 rigAssert "a name, a contact's id and a handle are no address: each refused" "$( cat "$rigTmp/n4.err" "$rigTmp/n5.err" "$rigTmp/n6.err" | LC_ALL=C grep -c 'REFUSED' )" "3"
 rigAssert "each refusal was recorded (the first one of the empty store, and these six)" "$( rigRefusals )" "7"
 
 echo "-- 3. what needs no record --"
-rigGate "$rigTmp/p1" --tool member-comms-slack-send-message --target CPARTNER1 --named-member partner-acme-cto --message hello ; rigP="$rigRc"
-rigGate "$rigTmp/p2" --tool member-comms-slack-send-message --target CHUMAN001 --named-member human-owner --message hello ; rigP="$rigP$rigRc"
-rigGate "$rigTmp/p3" --tool member-comms-email-send --target owner@RIG.example --message hello ; rigP="$rigP$rigRc"
+rigGate "$rigTmp/p1" --tool slack-send-message --target CPARTNER1 --named-member partner-acme-cto --message hello ; rigP="$rigRc"
+rigGate "$rigTmp/p2" --tool slack-send-message --target CHUMAN001 --named-member human-owner --message hello ; rigP="$rigP$rigRc"
+rigGate "$rigTmp/p3" --tool email-send --target owner@RIG.example --message hello ; rigP="$rigP$rigRc"
 rigAssert "a partner-* member and the human-owner named by the sender, the human-owner's address in any case: known, nothing recorded" "$rigP $( rigRefusals )" "000 7"
 
 echo "-- 4. the old note is not read --"
 mkdir -p "$rigData/inboxes/client-ndm/incoming"
 printf '%s\n' '| slack-id | contact | handle | email | organisation | permission level |' '| --- | --- | --- | --- | --- | --- |' '| UOLDNOTE1 | rig-old | @rig-old | old@example.com | rig | unset |' > "$rigData/inboxes/client-ndm/incoming/note-20260904T190756Z-contacts.md"
-rigGate "$rigTmp/o1" --tool member-comms-slack-send-message --target UOLDNOTE1 --team client-ndm --message hello
-rigGate "$rigTmp/o2" --tool member-comms-email-send --target old@example.com --message hello
+rigGate "$rigTmp/o1" --tool slack-send-message --target UOLDNOTE1 --team client-ndm --message hello
+rigGate "$rigTmp/o2" --tool email-send --target old@example.com --message hello
 rigAssert "a recipient listed only in a contacts note of the retired format: refused" "$( cat "$rigTmp/o1.err" "$rigTmp/o2.err" | LC_ALL=C grep -c 'REFUSED' )" "2"
 
 if [ "$rigFails" -ne 0 ] ; then

@@ -69,7 +69,7 @@ case "$1" in
 		done
 		## THIS MEMBER'S OWN STORED POSITION, and nobody else's. With no cut-off
 		## stated, the scan resumes from this client's own `last_swept_ts`
-		## (--magic-sweep-state-read <this member>); only when it has none stored
+		## (--sweep-state-read <this member>); only when it has none stored
 		## does the session-context scan's own default window apply. A stated
 		## cut-off always wins: it is how material below the pointer is re-read.
 		##
@@ -78,7 +78,7 @@ case "$1" in
 		## to a client's own conversations silently drops every client message
 		## older than the team's last team-side pass -- measured against the live
 		## NDM workspace, that hid all ten of its messages behind a cut-off that
-		## had nothing to do with them. `--magic-sweep-input-scan` forwards nothing
+		## had nothing to do with them. the coordinator's sweep scan forwards nothing
 		## here; this member resolves its own.
 		local clientCutoffOrigin="stated on the command line"
 		if [ ${#commsCutoffArgs[@]} -eq 0 ] ; then

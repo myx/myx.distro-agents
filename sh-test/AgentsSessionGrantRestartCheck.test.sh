@@ -6,7 +6,7 @@
 ## until the item is closed or that session ends, and never for another member, another item
 ## or another session.
 ## Proved through the real path: a served Write refused by the harness gate and recorded, the
-## grant opened on that refusal, the item returned by `--member-review-return`, the spawn proxy
+## grant opened on that refusal, the item returned by `--return-review`, the spawn proxy
 ## starting the new run, and that run's served Write decided by the gate's own grant read
 ## (`--intern-op-permission-grant-read`).
 ## Red recipe: drop the AgentsToolsPermissionItemRunsScan call from
@@ -137,7 +137,7 @@ rigGrantRead(){ ## member, session, path -- prints the kind a Write there is gra
 ## The item returned from review by the coordinator: the run its return started, by its spawn id.
 rigReturn(){ ## item stem, sandbox folder, spawn ids known so far (space-separated)
 	local returnRecord returnId
-	rigOp "$rigTmp/return.out" --member-review-return magic-coordinator "$1" --message "redo the rig step"
+	rigOp "$rigTmp/return.out" --return-review magic-coordinator "$1" --message "redo the rig step"
 	for returnRecord in "$rigSpawned/$2"/*.spawn.md ; do
 		[ -f "$returnRecord" ] || continue
 		returnId="${returnRecord##*/}" ; returnId="${returnId%.spawn.md}"

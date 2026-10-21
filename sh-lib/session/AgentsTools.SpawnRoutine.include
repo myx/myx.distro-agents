@@ -287,7 +287,7 @@ AgentsToolsSpawnRoutineContractExecutorsInvitees(){ ## contract-check output (it
 ## `*`, per magic-team/reference/skill-folder-model.md), `empty-name` for a list with an empty place, and
 ## `no-member<TAB><name>` for the first name no workspace of this machine holds a member of
 ## (AgentsToolsTeamMemberDirectory), prose among them. THE ONE RULE of what a routine starts
-## by itself: --magic-spawn-session starts by it, and --manager-routine-list prints it.
+## by itself: --spawn-session starts by it, and --manager-routine-list prints it.
 AgentsToolsSpawnRoutineExecutorsRoster(){ ## executors value
 	local rosterValue rosterList rosterName rosterNames=""
 	rosterValue="$( printf '%s' "$1" | LC_ALL=C awk '{ gsub(/^[ \t]+|[ \t]+$/, "") ; print ; }' )"

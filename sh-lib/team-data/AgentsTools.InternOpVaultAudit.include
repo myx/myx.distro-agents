@@ -4,7 +4,7 @@
 ##
 ## AgentsTools.InternOpVaultAudit.include -- the --intern-op-vault-* and
 ## --intern-op-audit-* families: the implementation behind the member stubs
-## --member-vault-item-read and --member-audit-item-read (AgentsTools.Member.include).
+## --get-vault-item and --get-audit-item (AgentsTools.Member.include).
 ## The stubs check who is asking; these resolve and read. Both stores are read through
 ## AgentsToolsDataRead today, and a later back end of the vault (a Confluence or Google
 ## Docs one, for example) is a change here, never in a stub or a caller.

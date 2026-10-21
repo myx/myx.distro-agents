@@ -212,7 +212,7 @@ rigAssert "permission: the allow, the words on its line, both messages; and the 
 rigAssert "the words did not turn the allow into anything else: its grant is written" "$( rigGrantRead magic-tester rig-set-tester Write "$rigWs/ELSE/w1.txt" )" "session"
 ## A Permission set.
 RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-set
-rigOp --magic-permission-set-request magic-coordinator dispatch-rig-set --entry "Read:$rigWs/SETW/**" --scope task --session-id rig-set "${rigSetThree[@]}"
+rigOp --request-permission-set magic-coordinator dispatch-rig-set --entry "Read:$rigWs/SETW/**" --scope task --session-id rig-set "${rigSetThree[@]}"
 RIG_OP_AGENT="" RIG_OP_SESSION=""
 rigId="$( LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out" )"
 [ -n "$rigId" ] || rigRefuse "the rig's permission set request asked nothing: $( head -2 "$rigTmp/op.err" )"

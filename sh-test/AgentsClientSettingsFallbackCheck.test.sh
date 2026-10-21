@@ -153,8 +153,18 @@ rigHeldHere(){ ## -- how many settings of the six systems this workspace's scope
 rigSaid(){ ## -- how many lines of the last run say a member's own settings are read from another workspace
 	rigN "$rigTmp/err" "holds no settings of its own in"
 }
+rigToolFile(){ ## operation -- the tool file that owns it, as it names itself in what it says
+	case "$1" in
+		--email-*) printf DistroAgentsMail ;;
+		--trello-*) printf DistroAgentsTrello ;;
+		--google-*) printf DistroAgentsGoogle ;;
+		--jira-*|--confluence-*) printf DistroAgentsAtlassian ;;
+		--slack-*) printf DistroAgentsSlack ;;
+		*) printf DistroAgentsTools ;;
+	esac
+}
 rigSaidFor(){ ## operation, the systems named -- how many lines of the last run are the one line of the fallback, whole, for a client: the systems, both workspaces, and the side that reads them
-	rigN "$rigTmp/err" "# DistroAgentsTools $1: member 'client-ndm' holds no settings of its own in $rigWork/ws-here for $2 -- each is read from $rigWork/ws-there, the workspace it is set up in, and only where the operation reaches the other organisation"
+	rigN "$rigTmp/err" "# $( rigToolFile "$1" ) $1: member 'client-ndm' holds no settings of its own in $rigWork/ws-here for $2 -- each is read from $rigWork/ws-there, the workspace it is set up in, and only where the operation reaches the other organisation"
 }
 rigEnded(){ ## -- how many lines of the last run say a system is read here alone from now on
 	rigN "$rigTmp/err" "settings are read here alone from now on"
@@ -241,26 +251,26 @@ rigRun --client-comms-email-check client-ndm
 rigAssert "nor a mailbox: neither team's is read in place of the one the client lacks" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "not fully set in client-ndm's own scope" )" "1 0 1"
 rigWorld
 rigSettings TEAMHERE SLACKTEAM EMAIL TRELLO GOOGLE JIRA CONFLUENCE | LC_ALL=C grep -v '^SLACK_BOT_TOKEN=' | rigScopeOf ws-here magic-team
-rigRun --member-comms-slack-read client-ndm magic-team
+rigRun --slack-read client-ndm magic-team
 rigAssert "our own side without our team's bot here is refused: the other workspace's team is not borrowed, and the client's own token is not used for our side" "$( [ "$rigRc" != 0 ] && printf refused || printf ran ) $( rigLines "$rigTmp/calls" )" "refused 0"
-rigRun --member-comms-slack-read keeper-here magic-team
+rigRun --slack-read keeper-here magic-team
 rigAssert "control: the same for a member of our own team" "$( [ "$rigRc" != 0 ] && printf refused || printf ran ) $( rigLines "$rigTmp/calls" )" "refused 0"
 rigRun --agents-config-option magic-team --select SLACK_BOT_TOKEN
 rigAssert "control: the team's scope here answers none for it, and nothing is said of another workspace" "$rigRc [$( cat "$rigTmp/out" )] $( rigSaid )" "0 [] 0"
 
 echo "-- 5. a --member-* operation of the client is our own side: nothing of the client's is borrowed for it --"
 rigWorld
-for rigOp in '--member-comms-email-check client-ndm|mail|1' '--member-comms-trello-whoami client-ndm|Trello|1' '--member-comms-google-whoami client-ndm|Google|1' '--member-comms-jira-board-list client-ndm|Jira|6' '--member-comms-confluence-space-list client-ndm|Confluence|6' ; do
+for rigOp in '--email-check client-ndm|mail|1' '--trello-whoami client-ndm|Trello|1' '--google-whoami client-ndm|Google|1' '--jira-board-list client-ndm|Jira|6' '--confluence-space-list client-ndm|Confluence|6' ; do
 	rigName="${rigOp%% *}" ; rigWord="${rigOp#*|}" ; rigWord="${rigWord%|*}"
 	rigRun ${rigOp%%|*}
-	rigAssert "$rigName makes no call and says the client holds no $rigWord settings on our side, though the workspace it is set up in holds them" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "$rigName: client-ndm has no $rigWord settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --client-${rigName#--member-}." )" "${rigOp##*|} 0 1"
+	rigAssert "$rigName makes no call and says the client holds no $rigWord settings on our side, though the workspace it is set up in holds them" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "$rigName: client-ndm has no $rigWord settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --client-comms-${rigName#--}." )" "${rigOp##*|} 0 1"
 	rigAssert "and the line of the fallback, said before the side is known, does not say they are read for it: only where the operation reaches the other organisation" "$( rigSaid ) $( rigSaidFor "$rigName" "$rigAll" )" "1 1"
 done
-rigRun --member-comms-slack-read client-ndm magic-team
+rigRun --slack-read client-ndm magic-team
 rigAssert "its Slack read of our team's conversation is our team's bot, held here: the token the client holds where it is set up is not used" "$rigRc $( rigCalls )" "0 slack conversations.history rig-bot-token-TEAMHERE"
-rigRun --member-comms-slack-read client-ndm client:CNDM00001
+rigRun --slack-read client-ndm client:CNDM00001
 rigAssert "control: the same operation with a client: address reaches the other organisation, and there the borrowed token is the one read" "$rigRc $( rigCalls )" "0 slack conversations.history rig-user-token-NDMTHERE"
-rigRun --member-comms-email-check keeper-here
+rigRun --email-check keeper-here
 rigAssert "control: a member of our own team that holds no mailbox is told its scope is not set: nothing is borrowed and nothing said for a member set up here" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "not fully set in keeper-here's own scope" ) $( rigSaid )" "1 0 1 0"
 rigAssert "across this whole section nothing of those systems was written into this workspace's scope of the client" "$( rigHeldHere )" 0
 
@@ -278,7 +288,7 @@ done
 rigAssert "and the workspace the client is set up in is only read by both" "$( rigTreeSum ws-there )" "$rigSumThere"
 rigRun --client-comms-slack-read client-ndm CNDM00001
 rigAssert "after the sweeps the client's Slack is still read from the workspace it is set up in" "$rigRc $( rigCalls )" "0 slack conversations.history rig-user-token-NDMTHERE"
-rigRun --magic-client-operation-run magic-coordinator --client-comms-email-mark-seen client-ndm 41
+rigRun --client-operation-run magic-coordinator --client-comms-email-mark-seen client-ndm 41
 rigAssert "magic-coordinator's own operation, run as the client, marks a message in the mailbox the client holds where it is set up, and says once which settings are read from there" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3, $4, $5 }' "$rigTmp/calls" ) $( rigN "$rigTmp/err" "holds no settings of its own in" )" "0 imap imap-ndmthere.invalid us@ndmthere.invalid UID STORE 1"
 rigSettings NDMHERE SLACK EMAIL TRELLO | rigScopeOf ws-here client-ndm
 rigRun --intern-op-client-sweep-input-scan client-ndm

@@ -16,7 +16,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Security/CRA
   - Idle-Tasks
 - Team-Member's (-specific) tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
 
 # Summary
@@ -105,9 +105,9 @@ Small, incremental steps grown out of review and idle work, not a compliance pro
 
 Every `magic-tooling` operation this team-member uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--member-upsert-member-inquiry <team-member> <item-filename>`
+- `--upsert-inbox-inquiry <team-member> <item-filename>`
 
 # Maintainer Notes
 

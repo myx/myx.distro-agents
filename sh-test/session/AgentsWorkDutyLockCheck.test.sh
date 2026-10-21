@@ -102,7 +102,7 @@ rigEpochOf(){ ## a recheck-date
 }
 rigWaitOnce(){ ## one wait of the live run, as its own process
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		MDAT_SPAWN_SESSION_ID="$rigSpawnId" MDAT_SPAWN_AGENT=rig-keeper perl -e 'alarm 60 ; exec @ARGV' bash "$rigTool" --member-wait-for-input rig-keeper --wait-timeout 1 < /dev/null > /dev/null 2>&1 )
+		MDAT_SPAWN_SESSION_ID="$rigSpawnId" MDAT_SPAWN_AGENT=rig-keeper perl -e 'alarm 60 ; exec @ARGV' bash "$rigTool" --wait-for-input rig-keeper --wait-timeout 1 < /dev/null > /dev/null 2>&1 )
 }
 rigLockNote="$rigKeeperProcessed/$rigNoteName"
 rigBeforeSum="$( cksum < "$rigLockNote" )"

@@ -129,23 +129,23 @@ echo "-- the note that a question is withdrawn carries the addressee of the ques
 rigStart withdrawOwner
 rigId="$( rigAsk question human-owner 1700000001.000101 )"
 [ -n "$rigId" ] || rigRefuse "no ask could be put on record, so nothing below would be measured: $( head -2 "$RIG_SCENARIO/op.err" )"
-RIG_AGENT="$rigAsker" rigOp --member-pending-reply-settle "$rigAsker" "$rigId" --reason "the task was cancelled" --withdraw
+RIG_AGENT="$rigAsker" rigOp --settle-pending-reply "$rigAsker" "$rigId" --reason "the task was cancelled" --withdraw
 LC_ALL=C grep -q -x -F "WITHDRAWN $rigId" "$RIG_SCENARIO/op.out" || rigRefuse "the withdraw never answered: $( head -2 "$RIG_SCENARIO/op.err" )"
 rigAssert "asked of the human-owner: one note, in the thread of the question, addressed to him by name" \
 	"$( rigCount "Withdrawn by $rigAsker: the task was cancelled" ):$( rigThreadOf 'Withdrawn by' ):$( rigHeader 'Withdrawn by' )" "1:1700000001.000101:$( rigTo "$rigAsker" "$rigOwner" )"
 rigStart withdrawMember
 rigId="$( rigAsk question "$rigAnswerer" 1700000001.000201 )"
-RIG_AGENT="$rigAsker" rigOp --member-pending-reply-settle "$rigAsker" "$rigId" --reason "asked the wrong member" --withdraw
+RIG_AGENT="$rigAsker" rigOp --settle-pending-reply "$rigAsker" "$rigId" --reason "asked the wrong member" --withdraw
 rigAssert "asked of a member: addressed to that member"             "$( rigCount 'Withdrawn by' ):$( rigHeader 'Withdrawn by' )" "1:$( rigTo "$rigAsker" "$( rigNamed "$rigAnswerer" )" )"
 rigStart withdrawNobody
 rigId="$( rigAsk question "" 1700000001.000301 )"
-RIG_AGENT="$rigAsker" rigOp --member-pending-reply-settle "$rigAsker" "$rigId" --reason "no longer needed" --withdraw
+RIG_AGENT="$rigAsker" rigOp --settle-pending-reply "$rigAsker" "$rigId" --reason "no longer needed" --withdraw
 rigAssert "a record that names nobody: the note is posted as it always was" "$( rigCount 'Withdrawn by' ):$( rigHeader 'Withdrawn by' )" "1:$( rigTo "$rigAsker" '@here' )"
 
 echo "-- an answer given through the team operation: its confirmation, and no line of the answering member's own --"
 rigStart answerMember
 rigId="$( rigAsk readback "$rigAnswerer" 1700000002.000101 )"
-RIG_AGENT="$rigAnswerer" RIG_SESSION=rig-answer-run rigOp --member-escalation-answer "$rigAnswerer" "$rigId" yes
+RIG_AGENT="$rigAnswerer" RIG_SESSION=rig-answer-run rigOp --answer-escalation "$rigAnswerer" "$rigId" yes
 [ "$( rigCount 'Read: `yes`' )" != 0 ] || rigRefuse "the answer was not said in the thread at all, so there is no header to read: $( LC_ALL=C grep -m1 ERROR "$RIG_SCENARIO/op.err" )"
 rigAssert "the confirmation, the asker's: addressed to the member asked, as the question was" \
 	"$( rigCount 'Read: `yes` by '"$rigAnswerer" ):$( rigThreadOf 'Read: `yes`' ):$( rigHeader 'Read: `yes`' )" "1:1700000002.000101:$( rigTo "$rigAsker" "$( rigNamed "$rigAnswerer" )" )"
@@ -154,7 +154,7 @@ rigAssert "one answer, one reply: the member that answered posts no line of its 
 rigStart answerGhost
 rigId="$( rigAsk readback "$rigAnswerer" 1700000002.000201 )"
 LC_ALL=C sed "s/^owner: $rigAsker\$/owner: $rigGhost/" "$rigStore/$rigId.md" > "$rigStore/$rigId.md.new" && mv "$rigStore/$rigId.md.new" "$rigStore/$rigId.md"
-RIG_AGENT="$rigAnswerer" RIG_SESSION=rig-answer-run rigOp --member-escalation-answer "$rigAnswerer" "$rigId" yes
+RIG_AGENT="$rigAnswerer" RIG_SESSION=rig-answer-run rigOp --answer-escalation "$rigAnswerer" "$rigId" yes
 rigAssert "an asker that is no member the send can post as: the answer is applied all the same, and no line is posted in the answering member's name" \
 	"$( LC_ALL=C grep -c -x -F "ESCALATION: $rigId answered" "$RIG_SCENARIO/op.out" ):$( rigCount 'Answered by' )" "1:0"
 

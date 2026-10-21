@@ -3,10 +3,9 @@
 
 ##
 ## AgentsTools.MagicTeamRoster.include -- the team roster cache's own
-## --magic-team-roster-* operation group for DistroAgentsTools.fn.sh's
-## dispatcher. Sourced lazily from the `--magic-team-roster-*)` wildcard arm
-## via the standard $MDLT_ORIGIN-based path. Not standalone: relies on being
-## dot-sourced for $1/$@/$MDSC_CMD.
+## --get-roster (DistroAgentsKnowledge.fn.sh) and --roster-upsert (AgentDispatcherTools.fn.sh).
+## Sourced lazily from the arm of the tool file that owns its names (sh-lib/harness/AgentsContext.FrontTable.include).
+## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
 ## Where an inbox item lives (F4.3).
@@ -14,21 +13,21 @@ type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agen
 
 case "$1" in
 
-	--magic-team-roster-upsert)
+	--roster-upsert)
 		shift
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-team-roster-upsert: syntax is <team-member> -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
+			echo "⛔ ERROR: $MDSC_CMD --roster-upsert: syntax is <team-member> -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
 			set +e ; return 1
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-team-roster-upsert: MDAT_DATA_ROOT is not set" >&2
+			echo "⛔ ERROR: $MDSC_CMD --roster-upsert: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
 		local stateDir="$( AgentsToolsInboxDir magic-coordinator )"
 		mkdir -p "$stateDir" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-team-roster-upsert: can't create inbox directory: $stateDir" >&2
+			echo "⛔ ERROR: $MDSC_CMD --roster-upsert: can't create inbox directory: $stateDir" >&2
 			set +e ; return 1
 		}
 		local target="$stateDir/note-20260804T0000Z-team-roster.md"
@@ -37,7 +36,7 @@ case "$1" in
 			case "$1" in
 				--from-file)
 					if [ -z "$2" ] || [ ! -f "$2" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-team-roster-upsert: --from-file: file not found: $2" >&2
+						echo "⛔ ERROR: $MDSC_CMD --roster-upsert: --from-file: file not found: $2" >&2
 						set +e ; return 1
 					fi
 					content="$( cat "$2" )"
@@ -52,13 +51,13 @@ case "$1" in
 					shift
 				;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-team-roster-upsert: unrecognized argument: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --roster-upsert: unrecognized argument: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ "$bodyModeCount" -gt 1 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-team-roster-upsert: --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
+			echo "⛔ ERROR: $MDSC_CMD --roster-upsert: --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 		if [ "$bodyMode" = "patch" ] ; then
@@ -75,33 +74,33 @@ case "$1" in
 			printf '%s' "$content" | AgentsToolsOutputStyleRefusal "$callingMember" "" "team roster" "" none || :
 		fi
 		if [ -z "$content" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-team-roster-upsert: empty content -- refusing to erase the stored team roster" >&2
+			echo "⛔ ERROR: $MDSC_CMD --roster-upsert: empty content -- refusing to erase the stored team roster" >&2
 			set +e ; return 1
 		fi
 		printf '%s\n' "$content" > "$target"
-		echo "# $MDSC_CMD --magic-team-roster-upsert: wrote ${target#"$stateDir"/} ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
+		echo "# $MDSC_CMD --roster-upsert: wrote ${target#"$stateDir"/} ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
-		AgentsToolsTeamDataCommitPaths "magic-team-roster-upsert, $callingMember" "$target"
+		AgentsToolsTeamDataCommitPaths "roster-upsert, $callingMember" "$target"
 		return 0
 	;;
 
-	--magic-team-roster-read)
+	--get-roster)
 		shift
 		local callingMember="$1"
 		shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-team-roster-read: <team-member> required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --get-roster: <team-member> required" >&2
 			set +e ; return 1
 		fi
 		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-team-roster-read: takes no arguments" >&2
+			echo "⛔ ERROR: $MDSC_CMD --get-roster: takes no arguments" >&2
 			set +e ; return 1
 		fi
 		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-team-roster-read: MDAT_DATA_ROOT is not set" >&2
+			echo "⛔ ERROR: $MDSC_CMD --get-roster: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		## Same fixed literal filename as --magic-team-roster-upsert above --
+		## Same fixed literal filename as --roster-upsert above --
 		## must match exactly, since this is a read of the SAME document.
 		local target="$( AgentsToolsInboxDir magic-coordinator )/note-20260804T0000Z-team-roster.md"
 		if [ -f "$target" ] ; then

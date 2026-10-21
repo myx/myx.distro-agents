@@ -2,7 +2,7 @@
 ## Behavioural check on a scan as a Wait source (F3.3 of the refactorings epic, open-names 1 to 4): a scan's report is
 ## a source of Wait, beside `slack:`, `file:`, `inbox:`, `board:` and `ask:`, spelt `scan:<scan>`, a scan of AgentsToolsInputScanNames. It wakes when the report differs from its stored baseline, as every source does. Inside the F3.2 cache
 ## age the cached report is read; past it the scan runs again, so the source's TTL is the cache age, five minutes. `timeout: 0` reads every source once and returns.
-## Run through Wait's shell operation, --member-wait-for-input, as a run of a team session.
+## Run through Wait's shell operation, --wait-for-input, as a run of a team session.
 ## Held, for the member-work-session scan (the advance scan this was first held for is retired, F7.12), a scan of the tooling that no member calls (F6.4: the
 ## spawner runs it from a routine's `input-scan-def:`), and so a source for the tooling's own use, never in the default set:
 ##   1. `scan:member-work-session` is a source this build waits on, not refused
@@ -62,7 +62,7 @@ rigWait(){ ## result name
 	waitStart="$( date +%s )"
 	( cd "$rigW" && env -u MDAT_SKILLSET_ROOT -u CLAUDE_CODE_SESSION_ID HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigD" RIG_SCENARIO="$rigTmp" \
 		MDAT_SESSION_ID="$rigSession" MDAT_SPAWN_SESSION_ID="$rigRun" MDAT_SPAWN_AGENT=magic-coordinator \
-		perl -e 'alarm 120 ; exec @ARGV' bash "$rigTool" --member-wait-for-input magic-coordinator --wait-source "$rigSource" --wait-timeout 0 ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" < /dev/null 4> /dev/null || waitRc=$?
+		perl -e 'alarm 120 ; exec @ARGV' bash "$rigTool" --wait-for-input magic-coordinator --wait-source "$rigSource" --wait-timeout 0 ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" < /dev/null 4> /dev/null || waitRc=$?
 	printf '%s' "$waitRc" > "$rigTmp/$1.rc"
 	printf '%s' "$(( $( date +%s ) - waitStart ))" > "$rigTmp/$1.took"
 }

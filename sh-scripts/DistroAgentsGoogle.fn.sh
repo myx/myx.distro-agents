@@ -2,10 +2,8 @@
 
 ##
 ## DistroAgentsGoogle.fn.sh -- the team's Google operations (F1.4 of the refactorings epic). A subsystem interface: results are read from it, by agent tools,
-## the shell console and shell automation alike. Its operations: drive files, sheets, documents and comments. The names are the table of
-## sh-lib/harness/AgentsContext.FrontForward.include, one line each.
-## First stage: each operation goes on under the name it had in DistroAgentsTools.fn.sh, with every check and gate it had. The old names are
-## deleted, and the operations move into this file, when the stubs leave DistroAgentsTools.fn.sh.
+## the shell console and shell automation alike. Its operations: drive files, sheets, documents and comments. They are the lines of
+## sh-lib/harness/AgentsContext.FrontTable.include that name this file, and a bare call or --help lists them.
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -30,12 +28,8 @@ case "$BASH" in
 esac
 
 DistroAgentsGoogle(){
-	local MDSC_CMD='DistroAgentsGoogle'
-	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontForward.include"
-	if AgentsToolsFrontKnows DistroAgentsGoogle "$@" ; then
-		AgentsToolsFrontForward DistroAgentsGoogle "$@"
-		return $?
-	fi
+	local MDSC_CMD='DistroAgentsGoogle' frontDone="" frontRc=0
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	case "${1:-}" in
 		'')
 			AgentsToolsFrontHelp DistroAgentsGoogle "the team's Google operations" >&2
@@ -45,6 +39,16 @@ DistroAgentsGoogle(){
 			AgentsToolsFrontHelp DistroAgentsGoogle "the team's Google operations" >&2
 			return 0
 		;;
+	esac
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontDoor.include"
+	[ -z "$frontDone" ] || return "$frontRc"
+	case "$1" in
+
+		--google-comment-post|--google-comment-read|--google-doc-read|--google-doc-write|--google-file-find|--google-sheet-clear|--google-sheet-info|--google-sheet-read|--google-sheet-write|--google-whoami)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsGoogle.include"
+			return $?
+		;;
+
 		*)
 			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 			set +e ; return 1

@@ -280,7 +280,7 @@ AgentsToolsSlackClientSide(){ ## acting member
 
 ## For an error about a Slack setting that is not there: what the side of the call has to do
 ## with it, for a client-* member. Prints nothing for any other member. Where the operation
-## run is the coordinator's own (--magic-comms-*, MDAT_COMMS_OP), the coordinator's way to a
+## run is the coordinator's own (its audience in the table of the tool files, MDAT_COMMS_OP, or magic-coordinator's own session), the coordinator's way to a
 ## --client-* operation is named with it.
 AgentsToolsSlackSideNote(){ ## acting member
 	local noteRun=""
@@ -289,9 +289,10 @@ AgentsToolsSlackSideNote(){ ## acting member
 			if AgentsToolsSlackClientSide "$1" ; then
 				printf ' -- this call is on the side of the other organisation, where only the settings %s itself holds are read, never the team'"'"'s' "$1"
 			else
-				case "${MDAT_COMMS_OP:-}" in
-					--magic-comms-*) noteRun=", which magic-coordinator runs with --magic-client-operation-run," ;;
-				esac
+				type AgentsToolsFrontAudience > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+				[ -z "${MDAT_COMMS_OP:-}" ] || [ "$( AgentsToolsFrontAudience "$MDAT_COMMS_OP" )" != coordinator ] || noteRun=", which magic-coordinator runs with --client-operation-run,"
+				## A name the members and the coordinator share is the coordinator's own when its session runs it.
+				type AgentsToolsActingMember > /dev/null 2>&1 && [ "$( AgentsToolsActingMember )" = magic-coordinator ] && noteRun=", which magic-coordinator runs with --client-operation-run,"
 				printf ' -- this call is on our own organisation'"'"'s side, where %s has no Slack settings of its own: what it holds is the other organisation'"'"'s, read in a --client-* operation%s or for a client:<addressee> address' "$1" "$noteRun"
 			fi
 		;;
@@ -302,9 +303,9 @@ AgentsToolsSlackSideNote(){ ## acting member
 ## prints it with rc 3. The team's own named conversations, the two session addresses, a team
 ## member's name and the session thread are our own organisation's; a client: address is the
 ## other organisation's, and only a client-* member has one. Where a --client-* Slack operation
-## was run (MDAT_COMMS_OP, set with the side), the line names it and its --member-* twin.
+## was run (MDAT_COMMS_OP, set with the side), the line names it and its DistroAgentsSlack.fn.sh twin.
 AgentsToolsSlackOneWayLine(){ ## address as given, acting member (optional)
-	local wayAlias="${1#client:}" wayRan="" wayOp="a --member-* operation"
+	local wayAlias="${1#client:}" wayRan="" wayOp="a DistroAgentsSlack.fn.sh operation"
 	wayAlias="${wayAlias%%:*}"
 	case "${2:-}:$1" in
 		client-*:*|:*) ;;
@@ -314,7 +315,7 @@ AgentsToolsSlackOneWayLine(){ ## address as given, acting member (optional)
 		;;
 	esac
 	case "${MDAT_COMMS_OP:-}" in
-		--client-comms-slack-*) wayRan=" in $MDAT_COMMS_OP" ; wayOp="--member-${MDAT_COMMS_OP#--client-} operation" ;;
+		--client-comms-slack-*) wayRan=" in $MDAT_COMMS_OP" ; wayOp="--${MDAT_COMMS_OP#--client-comms-} operation" ;;
 	esac
 	case "$1" in
 		client:*) wayOp="$wayOp, with no client: marker," ;;
@@ -1165,7 +1166,7 @@ case "$1" in
 			fi
 
 			if ! printf '%s\n' "$fetchUrl" | LC_ALL=C grep -qE '^https://([a-z0-9-]+\.)*slack\.com/' ; then
-				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --fetch-url refused: '$fetchUrl' is not an https URL on a slack.com host. Nothing was called and NO CREDENTIAL WAS SENT ANYWHERE. This op attaches the acting identity's Slack token to the request, so it will only ever address a host it has positively confirmed is Slack's; the URL to pass is the one --member-comms-slack-file-info reports as URL_PRIVATE_DOWNLOAD or URL_PRIVATE." >&2
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --fetch-url refused: '$fetchUrl' is not an https URL on a slack.com host. Nothing was called and NO CREDENTIAL WAS SENT ANYWHERE. This op attaches the acting identity's Slack token to the request, so it will only ever address a host it has positively confirmed is Slack's; the URL to pass is the one --slack-file-info reports as URL_PRIVATE_DOWNLOAD or URL_PRIVATE." >&2
 				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 				set +e ; return 1
 			fi

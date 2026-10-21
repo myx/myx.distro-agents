@@ -118,7 +118,7 @@ rigAssert "an item with none carries no line" "$( printf '%s\n' "$rigScan" | LC_
 rigBeat="$( set +u ; MDSC_CMD=rig ; set -- --rig-none ; . "$rigHere/magic/AgentsTools.MagicCoordinatorState.include" 2>/dev/null ; AgentsToolsBoardActiveItems )"
 rigAssert "an active-item line carries its totals" "$( printf '%s\n' "$rigBeat" | LC_ALL=C grep '^running/dispatch-20261008T1000Z-rig-a.md' )" \
 	'running/dispatch-20261008T1000Z-rig-a.md -- tokens: in=1100 cache-read=200 cache-write=300 out=1400 (incl. 1 sub-session)'
-rigProc="$( "$rigFn" --magic-board-to-processed magic-tester task-20261008T1000Z-rig.md --from-state:backlog 2>/dev/null )"
+rigProc="$( "$rigFn" --move-to-processed magic-tester task-20261008T1000Z-rig.md --from-state:backlog 2>/dev/null )"
 rigAssert "closing a task reports its totals" "$( printf '%s\n' "$rigProc" | LC_ALL=C grep '^tokens: ' )" \
 	'tokens: in=1111 cache-read=222 cache-write=333 out=1444 (incl. 3 sub-sessions)'
 

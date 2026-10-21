@@ -116,7 +116,7 @@ rigRun "$rigTmp/e2" USER= -- --member-help
 rigRun "$rigTmp/e3" USER= -- --member-help --team-member magic-rig
 rigRun "$rigTmp/e4" USER= -- --intern-context-show --team-member keeper-x
 rigRun "$rigTmp/e5" -- --intern-context-show --team-member magic-coordinator
-rigRun "$rigTmp/e6" -- --member-inbox-note-upsert --team-member magic-coordinator note-x.md
+rigRun "$rigTmp/e6" -- --upsert-inbox-note --team-member magic-coordinator note-x.md
 rigAssert "no account, no member's session: the call is refused, no user- is given" "$rigRcE1 $( [ ! -s "$rigTmp/e1.out" ] && printf none ) $( rigHas 'needs --team-member: no MDAT_SPAWN_AGENT in this context and no account (USER)' "$rigTmp/e1.err" ) $( rigHas 'user-' "$rigTmp/e1.out" )" "1 none 1 0"
 rigAssert "the same for an operation that takes a member first" "$( [ ! -s "$rigTmp/e2.out" ] && printf none ) $( rigHas 'needs --team-member: no MDAT_SPAWN_AGENT in this context and no account (USER)' "$rigTmp/e2.err" )" "none 1"
 rigAssert "an operation that takes a member first keeps today's positional meaning with the option, account or none" "$( rigHas '# Duty instructions' "$rigTmp/e3.err" )" "1"
@@ -138,8 +138,8 @@ rigRun "$rigTmp/g5" -- --member-help --team-member keeper-third magic-rig
 rigAssert "the option fills the place of the positional: a second member after it is the operation's own argument, which this one refuses" "$( [ ! -s "$rigTmp/g5.out" ] && printf none ) $( rigHas 'takes exactly one argument' "$rigTmp/g5.err" )" "none 1"
 rigRun "$rigTmp/g6" -- --member-help
 rigAssert "at the console the implied member is user-<account>, the operation then says that member is none" "$( rigHas 'user-rigacct' "$rigTmp/g6.err" )" "1"
-rigRun "$rigTmp/h1" MDAT_SPAWN_AGENT=magic-rig -- --member-inbox-note-upsert keeper-third note-x.md
-rigRun "$rigTmp/h2" MDAT_SPAWN_AGENT=magic-rig -- --member-inbox-note-upsert --team-member keeper-third note-x.md
+rigRun "$rigTmp/h1" MDAT_SPAWN_AGENT=magic-rig -- --upsert-inbox-note keeper-third note-x.md
+rigRun "$rigTmp/h2" MDAT_SPAWN_AGENT=magic-rig -- --upsert-inbox-note --team-member keeper-third note-x.md
 rigAssert "a member session naming another member is refused as it is by position: the same line" "$( rigHas 'this session acts as magic-rig, so it cannot act as keeper-third' "$rigTmp/h1.err" ) $( rigHas 'this session acts as magic-rig, so it cannot act as keeper-third' "$rigTmp/h2.err" ) $( rigSame "$rigTmp/h1.err" "$rigTmp/h2.err" )" "1 1 same"
 rigRun "$rigTmp/h3" MDAT_SPAWN_AGENT=magic-rig -- --intern-context-show --team-member keeper-third
 rigRun "$rigTmp/h4" MDAT_SPAWN_AGENT=magic-rig -- --intern-context-show --team-member magic-rig
@@ -188,7 +188,7 @@ for rigE in "$rigPackage"/* "$rigPackage"/.[a-zA-Z]* ; do [ -e "$rigE" ] || cont
 for rigE in "$rigPackage"/sh-lib/* ; do [ "${rigE##*/}" = help ] || ln -s "$rigE" "$rigPkg/sh-lib/${rigE##*/}" ; done
 for rigE in "$rigPackage"/sh-lib/help/* ; do [ "${rigE##*/}" = Help.DistroAgentsTools.help.md ] || ln -s "$rigE" "$rigPkg/sh-lib/help/${rigE##*/}" ; done
 cp "$rigPackage/sh-lib/help/Help.DistroAgentsTools.help.md" "$rigPkg/sh-lib/help/Help.DistroAgentsTools.help.md"
-printf '📘 syntax: DistroAgentsTools.fn.sh --member-rig-needs-session --session-id <session-id> <thing>\n' >> "$rigPkg/sh-lib/help/Help.DistroAgentsTools.help.md"
+printf '📘 syntax: DistroAgentsTools.fn.sh --librarian-rig-needs-session --session-id <session-id> <thing>\n' >> "$rigPkg/sh-lib/help/Help.DistroAgentsTools.help.md"
 rigRunNeeds(){ ## result prefix, VAR=value..., --, words...
 	local runOut="$1" runEnv=() ; shift
 	while [ "$1" != -- ] ; do runEnv+=( "$1" ) ; shift ; done ; shift
@@ -196,13 +196,13 @@ rigRunNeeds(){ ## result prefix, VAR=value..., --, words...
 		bash -c 'case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; exec bash "$@"' rig "$rigPkg/sh-scripts/DistroAgentsTools.fn.sh" "$@" ) > "$runOut.out" 2> "$runOut.err" < /dev/null
 	rigRc=$?
 }
-rigRunNeeds "$rigTmp/p1" -- --member-rig-needs-session
-rigRunNeeds "$rigTmp/p2" MDAT_SESSION_ID=native-1 -- --member-rig-needs-session
-rigRunNeeds "$rigTmp/p3" -- --member-rig-needs-session --session-id native-2
-rigRunNeeds "$rigTmp/p4" -- --member-rig-needs-session --session-id
-rigAssert "neither the variable nor the option: refused naming the option, and the operation does not run" "$( rigHas 'needs --session-id: no MDAT_SESSION_ID in this context' "$rigTmp/p1.err" ) $( rigHas 'invalid option: --member-rig-needs-session' "$rigTmp/p1.err" ) $( [ ! -s "$rigTmp/p1.out" ] && printf none )" "1 0 none"
-rigAssert "the variable alone, and the option alone, are enough: the call goes on to the dispatcher" "$( rigHas 'needs --session-id' "$rigTmp/p2.err" ) $( rigHas 'invalid option: --member-rig-needs-session' "$rigTmp/p2.err" ) $( rigHas 'needs --session-id' "$rigTmp/p3.err" ) $( rigHas 'invalid option: --member-rig-needs-session' "$rigTmp/p3.err" )" "0 1 0 1"
-rigAssert "an option without a value is no value" "$( rigHas 'takes a value' "$rigTmp/p4.err" ) $( rigHas 'invalid option: --member-rig-needs-session' "$rigTmp/p4.err" )" "1 0"
+rigRunNeeds "$rigTmp/p1" -- --librarian-rig-needs-session
+rigRunNeeds "$rigTmp/p2" MDAT_SESSION_ID=native-1 -- --librarian-rig-needs-session
+rigRunNeeds "$rigTmp/p3" -- --librarian-rig-needs-session --session-id native-2
+rigRunNeeds "$rigTmp/p4" -- --librarian-rig-needs-session --session-id
+rigAssert "neither the variable nor the option: refused naming the option, and the operation does not run" "$( rigHas 'needs --session-id: no MDAT_SESSION_ID in this context' "$rigTmp/p1.err" ) $( rigHas 'invalid option: --librarian-rig-needs-session' "$rigTmp/p1.err" ) $( [ ! -s "$rigTmp/p1.out" ] && printf none )" "1 0 none"
+rigAssert "the variable alone, and the option alone, are enough: the call goes on to the dispatcher" "$( rigHas 'needs --session-id' "$rigTmp/p2.err" ) $( rigHas 'invalid option: --librarian-rig-needs-session' "$rigTmp/p2.err" ) $( rigHas 'needs --session-id' "$rigTmp/p3.err" ) $( rigHas 'invalid option: --librarian-rig-needs-session' "$rigTmp/p3.err" )" "0 1 0 1"
+rigAssert "an option without a value is no value" "$( rigHas 'takes a value' "$rigTmp/p4.err" ) $( rigHas 'invalid option: --librarian-rig-needs-session' "$rigTmp/p4.err" )" "1 0"
 rigAssert "control: the same operation under the real manual does not need it, and the implied context-show runs with no session at all" "$( rigLine session-id "$rigTmp/a1.out" | LC_ALL=C awk '{ print ( $0 == "" ? "empty" : $0 ) }' ) $( rigHas 'needs --session-id' "$rigTmp/a1.err" )" "empty 0"
 
 if [ "$rigFails" -ne 0 ] ; then

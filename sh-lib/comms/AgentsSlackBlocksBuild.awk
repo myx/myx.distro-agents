@@ -1,11 +1,11 @@
 #!/usr/bin/env awk
 
 # Markdown-ish plain text (stdin) -> Slack Block Kit JSON array (stdout), for
-# DistroAgentsTools.fn.sh's --member-comms-slack-send-message --format markdown
+# DistroAgentsTools.fn.sh's --slack-send-message --format markdown
 # path (myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh /
 # sh-lib/member/AgentsTools.Member.include). Deliberately a small, restricted
 # markdown-ish syntax, not a general markdown parser -- see
-# Help.DistroAgentsTools.help.md's --member-comms-slack-send-message section for
+# Help.DistroAgentsTools.help.md's --slack-send-message section for
 # the exact rules and a worked example.
 #
 # Recognized per line:
@@ -81,7 +81,7 @@
 # rich_text cannot nest emphasis, so nested emphasis flattens into one
 # combined style set rather than nesting. Full grammar (the one ruled
 # flanking departure, the malformed-link rules): see
-# Help.DistroAgentsTools.help.md's --member-comms-slack-send-message section;
+# Help.DistroAgentsTools.help.md's --slack-send-message section;
 # for why each is shaped that way, MAGIC.md's own headings for this file.
 #
 # Consecutive lines of the same kind merge into ONE run, same "paragraph/

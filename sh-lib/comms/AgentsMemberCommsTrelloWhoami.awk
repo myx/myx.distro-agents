@@ -11,7 +11,7 @@ function field(k,   v) {
 END {
 	id = field("id") ; user = field("username")
 	if (id == "" || user == "") {
-		printf("⛔ ERROR: --member-comms-trello-whoami: members/me carried no id/username -- the acting identity is UNKNOWN, not absent\n") > "/dev/stderr"
+		printf("⛔ ERROR: --trello-whoami: members/me carried no id/username -- the acting identity is UNKNOWN, not absent\n") > "/dev/stderr"
 		exit 1
 	}
 	printf("TRELLO_USER_ID=%s\nTRELLO_USERNAME=%s\n", id, user)

@@ -4,17 +4,17 @@
 ## and where it would call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.stub.sh),
 ## which notes each start, its arguments word for word and what came on its standard input, and prints the fixture
 ## kept for that operation: rows in the form `--manager-routine-list` prints, and the three lines
-## `--magic-spawn-session` prints. Held: entering `Launch (Start)` asks `--manager-routine-list` once; its first row
+## `--spawn-session` prints. Held: entering `Launch (Start)` asks `--manager-routine-list` once; its first row
 ## under the row that goes up is `Free prompt`, then comes every routine in the order of the operation, each by its
 ## selector without `.routine.md`; one that is not startable shows plainer, dimmed, with what the operation says of
 ## it at the end of its row; the left pane shows the selected routine, its owner, its title, its executors, the kind
 ## of its session and the name its session takes, and for one that is not startable the reason; it names `Enter
 ## start` on a routine that can be started and on the free prompt, and nothing on one that cannot; Enter on a
 ## routine opens the line to type in with the session's name, the selector without its owner and without
-## `.routine.md`, and Enter again calls `--magic-spawn-session --routine <selector> --session-name-or-comment
+## `.routine.md`, and Enter again calls `--spawn-session --routine <selector> --session-name-or-comment
 ## <name>` once; a name typed over the default is the one passed, as one word; an emptied name passes none; Esc
 ## starts nothing; Enter on a routine that cannot be started calls nothing and says why; Enter on the free prompt
-## takes one line, then a name that may be left empty, and calls `--magic-spawn-session --routine-default` once with
+## takes one line, then a name that may be left empty, and calls `--spawn-session --routine-default` once with
 ## the line on its standard input and no word of it among its arguments, whatever characters it holds; an empty line
 ## is refused by the screen and starts nothing; Esc at either step starts nothing; what the operation printed, the
 ## session id and the members, is shown, and the list is read again and holds the new session; and an error of the
@@ -90,9 +90,9 @@ rigOld(){
 	rigRow counters 2 0 3 0 3 0.42
 } > "$rigF/after.rows"
 {
-	printf '%s\n' "magic-spawn-session: added magic-librarian: the rig says so"
+	printf '%s\n' "spawn-session: added magic-librarian: the rig says so"
 	printf '%s\n' "SESSION_ID=$rigNew" "ROUTINE=$rigDaily" "MEMBERS=magic-coordinator magic-librarian"
-} > "$rigF/rows.--magic-spawn-session"
+} > "$rigF/rows.--spawn-session"
 ## A fresh rig for one case: a copy of the fixtures, no call noted yet.
 rigCase(){ ## name
 	export MANAGER_SCREEN_RIG="$rigTmp/$1"
@@ -132,13 +132,13 @@ rigCalled(){ ## the arguments of a start -- how many times the stand-in was star
 	LC_ALL=C grep -c -x -F -- "$1" "$MANAGER_SCREEN_RIG/calls" || :
 }
 rigStarts(){ ## how many times the operation that starts a session was started, whatever its arguments
-	LC_ALL=C grep -c -- '^--magic-spawn-session' "$MANAGER_SCREEN_RIG/calls" || :
+	LC_ALL=C grep -c -- '^--spawn-session' "$MANAGER_SCREEN_RIG/calls" || :
 }
 rigStartWords(){ ## number -- the arguments of that start of the operation that starts a session, each between brackets
-	LC_ALL=C grep -F -- '[--magic-spawn-session]' "$MANAGER_SCREEN_RIG/words" | LC_ALL=C sed -n "${1}p"
+	LC_ALL=C grep -F -- '[--spawn-session]' "$MANAGER_SCREEN_RIG/words" | LC_ALL=C sed -n "${1}p"
 }
 rigOthers(){ ## how many starts were none of the four operations this screen may call here: the list of the team is read while a dialog that offers members is open. The list of the locations, which every start of the screen reads, is not counted.
-	LC_ALL=C grep -c -v -e '^--manager-session-list' -e '^--manager-routine-list$' -e '^--magic-spawn-session' -e '^--manager-team-member-list$' -e '^--manager-place-list$' "$MANAGER_SCREEN_RIG/calls" || :
+	LC_ALL=C grep -c -v -e '^--manager-session-list' -e '^--manager-routine-list$' -e '^--spawn-session' -e '^--manager-team-member-list$' -e '^--manager-place-list$' "$MANAGER_SCREEN_RIG/calls" || :
 }
 rigType(){ ## text -- the keys that type it, one a character
 	local typeText="$1" typeKeys="" typeChar
@@ -150,7 +150,7 @@ rigType(){ ## text -- the keys that type it, one a character
 	printf '%s' "$typeKeys"
 }
 rigInput(){ ## what the operation that starts a session got on its standard input, in all its starts: `none` where nothing came, `same` where it is exactly the text and a line end, else what came
-	local inputFile="$MANAGER_SCREEN_RIG/stdin.--magic-spawn-session"
+	local inputFile="$MANAGER_SCREEN_RIG/stdin.--spawn-session"
 	if [ ! -e "$inputFile" ] ; then printf none
 	elif printf '%s\n' "$1" | cmp -s - "$inputFile" ; then printf same
 	else cat "$inputFile" ; fi
@@ -272,12 +272,12 @@ rigAssert "the dialog says what will be started, and as whom"        "$( rigBoxH
 rigAssert "its fields are what the session is to work on and its name, over Start and Cancel" "$( rigBoxHas d '║   What the session is to work on ' ) $( rigBoxHas d '║   Name of the session, or none ' ) $( rigBoxHas d ' »Start« ▅   Cancel  ▅' ) $( rigBoxHas d 'With no name the session shows by its id.' )" "1 1 1 1"
 rigAssert "until Enter is pressed again nothing is started"          "[$( rigVal waiting.dialog )] $( rigVal waiting.calls ) [$( rigVal waiting.reading )]" "[routine:task|] 0 []"
 rigAssert "Enter again starts it, beside the screen"                 "[$( rigVal started.dialog )] $( rigVal started.reading ) [$( rigVal startedLine )]" "[] action:launch:$rigDaily [start asked of the tooling: $rigDaily, named daily]"
-rigAssert "the operation is called once, with that routine and the name daily" "$( rigStarts ) [$( rigStartWords 1 )]" "1 [[--magic-spawn-session][--routine][$rigDaily][--session-name-or-comment][daily]]"
+rigAssert "the operation is called once, with that routine and the name daily" "$( rigStarts ) [$( rigStartWords 1 )]" "1 [[--spawn-session][--routine][$rigDaily][--session-name-or-comment][daily]]"
 rigAssert "nothing goes to its standard input, and nothing else is called" "$( rigInput '' ) $( rigOthers )" "none 0"
 rigAssert "the bottom line shows the id of the new session, and of its members what fits" "[$( rigVal answeredLine )] [$( rigVal answered.notice )]" "[started: session $rigNew, members magic-coordina…] [started: session $rigNew, members magic-coordinator, magic-librarian]"
 rigAssert "the left pane shows what the operation printed: the session, its name, the routine, the members" "[$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )][$( rigPane a 6 )][$( rigPane a 7 )]" \
 	"[ the start, answered 02:30:00:][ session   $rigNew][ name      daily][ routine   $rigDaily][ members   magic-coordinator, magic-librarian]"
-rigAssert "and what it noted, then the routine as before" "[$( rigPane a 8 )][$( rigPane a 9 )][$( rigPane a 10 )]" "[ note      magic-spawn-session: added magic-librarian: the rig says so][][ magic-coordinator.daily.routine — the daily meeting]"
+rigAssert "and what it noted, then the routine as before" "[$( rigPane a 8 )][$( rigPane a 9 )][$( rigPane a 10 )]" "[ note      spawn-session: added magic-librarian: the rig says so][][ magic-coordinator.daily.routine — the daily meeting]"
 rigAssert "the list is read again, and the new session is among its rows" "$( rigCalled --manager-session-list ) $( rigVal up.path ) [$( rigVal upRow3 )][$( rigVal upRow4 )]" "2 magic-team/activity/active-sessions [ daily                   running ►][ keeper-myx 11111111     running ►]"
 
 echo "-- a name typed over the default is the one passed --"
@@ -303,10 +303,10 @@ keys ENTER TAB BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE SPACE SPACE ENT
 wait action 30
 RIGSCRIPT
 rigAssert "the name is typed on after the default"                   "[$( rigVal typed.dialog )]" "[routine:name|daily of Monday]"
-rigAssert "and passed whole, as one word of the command"             "[$( rigStartWords 1 )]" "[[--magic-spawn-session][--routine][$rigDaily][--session-name-or-comment][daily of Monday]]"
-rigAssert "the default deleted and another name typed: that one is passed" "[$( rigStartWords 2 )]" "[[--magic-spawn-session][--routine][$rigDaily][--session-name-or-comment][stand up]]"
-rigAssert "the name emptied: the routine is started with no name"    "[$( rigVal emptied.dialog )] [$( rigVal none.notice )] [$( rigStartWords 3 )]" "[routine:name|] [start asked of the tooling: $rigDaily, with no name] [[--magic-spawn-session][--routine][$rigDaily]]"
-rigAssert "spaces alone are no name"                                 "[$( rigStartWords 4 )] $( rigStarts )" "[[--magic-spawn-session][--routine][$rigDaily]] 4"
+rigAssert "and passed whole, as one word of the command"             "[$( rigStartWords 1 )]" "[[--spawn-session][--routine][$rigDaily][--session-name-or-comment][daily of Monday]]"
+rigAssert "the default deleted and another name typed: that one is passed" "[$( rigStartWords 2 )]" "[[--spawn-session][--routine][$rigDaily][--session-name-or-comment][stand up]]"
+rigAssert "the name emptied: the routine is started with no name"    "[$( rigVal emptied.dialog )] [$( rigVal none.notice )] [$( rigStartWords 3 )]" "[routine:name|] [start asked of the tooling: $rigDaily, with no name] [[--spawn-session][--routine][$rigDaily]]"
+rigAssert "spaces alone are no name"                                 "[$( rigStartWords 4 )] $( rigStarts )" "[[--spawn-session][--routine][$rigDaily]] 4"
 
 echo "-- Esc starts nothing; a routine that cannot be started says why --"
 rigCase refuse
@@ -459,7 +459,7 @@ rigAssert "Tab goes on to the name of the session, the prompt standing above it"
 
 rigAssert "until the name is entered nothing is started"             "[$( rigVal waiting.dialog )] $( rigVal waiting.calls ) [$( rigVal waiting.reading )]" "[prompt:name|] 0 []"
 rigAssert "Enter with no name starts it"                             "$( rigVal started.reading ) [$( rigVal started.notice )]" "action:prompt:free [start asked of the tooling: a free prompt, with no name]"
-rigAssert "the operation is called once, with --routine-default and no word of the line" "$( rigStarts ) [$( rigStartWords 1 )] $( rigCalled '--magic-spawn-session --routine-default' )" "1 [[--magic-spawn-session][--routine-default]] 1"
+rigAssert "the operation is called once, with --routine-default and no word of the line" "$( rigStarts ) [$( rigStartWords 1 )] $( rigCalled '--spawn-session --routine-default' )" "1 [[--spawn-session][--routine-default]] 1"
 rigAssert "the line is on its standard input, whole, with a line end" "$( rigInput 'Magic, start retro please' )" same
 rigAssert "what the operation printed is shown"                      "[$( rigVal answeredLine )] [$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )]" \
 	"[started: session $rigNew, members magic-coordina…] [ the start, answered 02:30:00:][ session   $rigNew][ name      none: it shows by its id]"
@@ -475,7 +475,7 @@ keys DOWN
 keys ENTER$( rigType 'Magic, start retro please' ) TAB$( rigType 'retro by hand' ) ENTER
 wait action 30
 RIGSCRIPT
-rigAssert "a name given after the line is passed, as one word, and the line stays on standard input" "[$( rigStartWords 1 )] $( rigInput 'Magic, start retro please' )" "[[--magic-spawn-session][--routine-default][--session-name-or-comment][retro by hand]] same"
+rigAssert "a name given after the line is passed, as one word, and the line stays on standard input" "[$( rigStartWords 1 )] $( rigInput 'Magic, start retro please' )" "[[--spawn-session][--routine-default][--session-name-or-comment][retro by hand]] same"
 rigOdd='-n "it'"'"'s" 50% a\b $(id) ; rm -rf x `y` --routine z'
 rigCase odd
 rigScript <<RIGSCRIPT
@@ -488,7 +488,7 @@ keys ENTER$( rigType "$rigOdd" ) TAB ENTER
 wait action 30
 RIGSCRIPT
 rigAssert "a line with quotes, a percent sign, a backslash, a dollar and a first word that starts with a dash arrives unchanged" "$( rigInput "$rigOdd" )" same
-rigAssert "and none of it is a word of the command"                  "$( rigStarts ) [$( rigStartWords 1 )]" "1 [[--magic-spawn-session][--routine-default]]"
+rigAssert "and none of it is a word of the command"                  "$( rigStarts ) [$( rigStartWords 1 )]" "1 [[--spawn-session][--routine-default]]"
 rigCase back
 rigScript <<RIGSCRIPT
 keys ENTER
@@ -504,7 +504,7 @@ rigAssert "Esc at the name starts nothing"                           "[$( rigVal
 
 echo "-- an error of the start is shown --"
 rigCase fail
-echo fail > "$MANAGER_SCREEN_RIG/mode.--magic-spawn-session"
+echo fail > "$MANAGER_SCREEN_RIG/mode.--spawn-session"
 rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
@@ -522,7 +522,7 @@ at @activity active-sessions
 turn
 get up
 RIGSCRIPT
-rigAssert "what the operation wrote stands in a box, whole" "[$( rigVal failed.dialogTitle )] [$( rigVal failed.dialogHolds )]" "[The start failed] [operation: --magic-spawn-session --routine $rigDaily --session-name-or-comment daily / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
+rigAssert "what the operation wrote stands in a box, whole" "[$( rigVal failed.dialogTitle )] [$( rigVal failed.dialogHolds )]" "[The start failed] [operation: --spawn-session --routine $rigDaily --session-name-or-comment daily / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
 rigAssert "and in the left pane, which says that the start failed"   "[$( rigPane f 3 )][$( rigPane f 4 )][$( rigPane f 5 )]" "[ the start failed, answered 02:30:00:][ rig-tools: ⛔ ERROR: the rig said fail][]"
 rigAssert "the list is read again, and holds no new session"         "$( rigCalled --manager-session-list ) $( rigVal up.path ) $( rigVal up.rows )" "2 magic-team/activity/active-sessions 2"
 
@@ -581,7 +581,7 @@ rigAssert "under them the field for what the session is to work on, and OK and C
 rigAssert "OK with no member checked is refused inside the dialog, and starts nothing" "$( rigVal none.dialog ) [$( rigVal none.dialogSays )] $( rigVal none.calls )" "members:members| [no member is checked: check one at least, with Space] 0"
 rigAssert "Space checks a member, and Tab goes on to the field"      "$( rigVal typed.dialog )" "members:task|the plan for Monday"
 rigAssert "OK starts it: the dialog closes, and the status line says with whom" "[$( rigVal started.dialog )] [$( rigVal started.notice )]" "[] [start asked of the tooling: $rigDiscuss, with magic-coordinator, magic-tester]"
-rigAssert "ONE session is started, with all the members checked as the words after the routine" "$( rigStarts ) [$( rigStartWords 1 )]" "1 [[--magic-spawn-session][--routine][$rigDiscuss][magic-coordinator][magic-tester]]"
+rigAssert "ONE session is started, with all the members checked as the words after the routine" "$( rigStarts ) [$( rigStartWords 1 )]" "1 [[--spawn-session][--routine][$rigDiscuss][magic-coordinator][magic-tester]]"
 rigAssert "what the session is to work on goes on the standard input of the operation, and is no word of it" "$( rigInput 'the plan for Monday' )" "same"
 rigAssert "what the operation printed is shown, as of every start"   "[$( rigVal answered.notice )]" "[started: session $rigNew, members magic-coordinator, magic-librarian]"
 rigMembersCase membersEsc
@@ -603,7 +603,7 @@ wait action 30
 get one
 RIGSCRIPT
 rigAssert "Esc closes the dialog and starts nothing, whatever was checked" "[$( rigVal esc.dialog )] $( rigVal quiet.calls ) $( rigVal again.dialog )" "[] 0 members:members|"
-rigAssert "one member checked and nothing typed: that member alone, and nothing on the standard input" "$( rigStarts ) [$( rigStartWords 1 )] $( rigInput '' )" "1 [[--magic-spawn-session][--routine][$rigDiscuss][keeper-myx]] none"
+rigAssert "one member checked and nothing typed: that member alone, and nothing on the standard input" "$( rigStarts ) [$( rigStartWords 1 )] $( rigInput '' )" "1 [[--spawn-session][--routine][$rigDiscuss][keeper-myx]] none"
 
 echo "-- the free prompt run by a member picked from its list --"
 rigMembersCase promptWho

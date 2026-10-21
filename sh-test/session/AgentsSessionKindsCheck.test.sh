@@ -7,7 +7,7 @@
 ## comes only from frontmatter: the coworking routine's `executors: magic-coordinator` is a default a coworking
 ## routine may override, and the spawner's hardcoded add of the coordinator goes. Both kinds are sessions with a
 ## session thread. The console starts any routine, and each kind with no routine.
-## Run through --magic-spawn-session from the console, the call the console's Launch makes, over a rig skillset that
+## Run through --spawn-session from the console, the call the console's Launch makes, over a rig skillset that
 ## carries a copy of the package's own kind routines.
 ## Held:
 ##   1. the package bundles both kind routines, each declaring its own kind
@@ -96,17 +96,17 @@ rigReset(){
 	rm -f "$rigTmp"/brief.*
 	chmod -R u+w -- "$rigWs/.local/agents/spawned" 2> /dev/null ; rm -rf "$rigWs/.local/agents/spawned"
 }
-## One --magic-spawn-session from the console, the task on its standard input; what it printed in $rigTmp/start.
+## One --spawn-session from the console, the task on its standard input; what it printed in $rigTmp/start.
 ## It waits, up to fifteen seconds, for the brief of every member the start names, so no brief of one start
 ## arrives during the next.
-rigStart(){ ## --magic-spawn-session arguments...
+rigStart(){ ## --spawn-session arguments...
 	local startMembers startLeft=15
 	rigReset
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
-			cd "$MMDAPP" && exec bash "$RIG_FN" --magic-spawn-session "$@"
+			cd "$MMDAPP" && exec bash "$RIG_FN" --spawn-session "$@"
 		' rig-kinds "$@" <<< "RIG-TASK-TEXT" > "$rigTmp/start" 2>&1
 	startMembers="$( LC_ALL=C sed -n 's/^MEMBERS=//p' "$rigTmp/start" | head -1 | LC_ALL=C wc -w | LC_ALL=C tr -d ' ' )"
 	while [ "$( ( cd "$rigTmp" && ls brief.* 2> /dev/null ) | LC_ALL=C grep -c . )" -lt "${startMembers:-0}" ] && [ "$startLeft" -gt 0 ] ; do

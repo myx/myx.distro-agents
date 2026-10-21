@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 ## Behavioural check on the split inbox (F4.3 of the refactorings epic): an inbox has two folders, `incoming/` and
-## `processed/`, and an item's processed stamp (`processed-at`) decides its folder. --member-inbox-to-processed moves an
+## `processed/`, and an item's processed stamp (`processed-at`) decides its folder. --mark-inbox-processed moves an
 ## item from incoming/ to processed/; scans and Wait list only incoming/; readers never see the folders: an operation
 ## names an item and finds it in either; the processed stamp stays the retention clock, and the garbage collector
 ## behaves exactly as before.
 ## Held, against a scratch team data store:
 ##   1. a note upserted with no processed stamp lands in incoming/; one upserted with it, in processed/
-##   2. --member-inbox-to-processed moves the item to processed/, stamped, and nothing of it stays in incoming/
+##   2. --mark-inbox-processed moves the item to processed/, stamped, and nothing of it stays in incoming/
 ##   3. a second mark is a no-op: the stamp and the folder are as they were
 ##   4. a named read finds an item in incoming/; without --include-processed it sees only incoming/, so a processed
 ##      item is not found
@@ -17,7 +17,7 @@
 ##      member's inbox (--manager-team-data-read inboxes <member>) holds no processed item by default, and holds them
 ##      with the option
 ##   9. a read takes it too: a named read with --include-processed reads an item of either folder
-##  10. --member-inbox-item-trash takes just an item's name and trashes it from either folder, with no state change
+##  10. --trash-inbox-item takes just an item's name and trashes it from either folder, with no state change
 ##      first; with --exclude-incoming it trashes only a processed item and leaves an incoming one; a name in neither
 ##      folder answers not found, with a non-zero exit
 ##  11. a routine's standing state and lock note lives in incoming/ of a split inbox: taken and read there
@@ -92,30 +92,30 @@ rigStampAgo(){ ## days -- a touch -t stamp
 
 echo "-- 1. an upserted note lands in the folder its stamp says --"
 printf -- '---\ntype: note\n---\n\nRIG-OPEN-NOTE\n' > "$rigTmp/open.md"
-rigOp "$rigTmp/u1" --member-inbox-note-upsert rig-member note-20261018T0900Z-open.md --from-member rig-member --from-file "$rigTmp/open.md"
+rigOp "$rigTmp/u1" --upsert-inbox-note rig-member note-20261018T0900Z-open.md --from-member rig-member --from-file "$rigTmp/open.md"
 rigAssert "the op succeeds"                                   "$( cat "$rigTmp/u1.rc" )" 0
 rigAssert "with no processed stamp: in incoming/"             "$( rigWhere note-20261018T0900Z-open.md )" incoming
 printf -- '---\ntype: note\nprocessed-at: %s 00:00 +0000\n---\n\nRIG-DONE-NOTE\n' "$( rigDaysAgo 1 )" > "$rigTmp/done.md"
-rigOp "$rigTmp/u2" --member-inbox-note-upsert rig-member note-20261018T0901Z-done.md --from-member rig-member --from-file "$rigTmp/done.md"
+rigOp "$rigTmp/u2" --upsert-inbox-note rig-member note-20261018T0901Z-done.md --from-member rig-member --from-file "$rigTmp/done.md"
 rigAssert "with its processed stamp: in processed/"           "$( rigWhere note-20261018T0901Z-done.md )" processed
 
-echo "-- 2. --member-inbox-to-processed moves the item, stamped --"
-rigOp "$rigTmp/p1" --member-inbox-to-processed rig-member note-20261018T0900Z-open.md
+echo "-- 2. --mark-inbox-processed moves the item, stamped --"
+rigOp "$rigTmp/p1" --mark-inbox-processed rig-member note-20261018T0900Z-open.md
 rigAssert "the mark succeeds"                                 "$( cat "$rigTmp/p1.rc" )" 0
 rigAssert "the item is in processed/, nothing of it in incoming/" "$( rigWhere note-20261018T0900Z-open.md ):$( [ -e "$rigInbox/incoming/note-20261018T0900Z-open.md" ] && printf left || printf gone )" "processed:gone"
 rigStamp="$( rigField "$rigInbox/processed/note-20261018T0900Z-open.md" processed-at )"
 rigAssert "it carries its processed stamp"                    "$( [ -n "$rigStamp" ] && printf stamped || printf unstamped )" stamped
 
 echo "-- 3. a second mark is a no-op --"
-rigOp "$rigTmp/p2" --member-inbox-to-processed rig-member note-20261018T0900Z-open.md
+rigOp "$rigTmp/p2" --mark-inbox-processed rig-member note-20261018T0900Z-open.md
 rigAssert "the stamp and the folder are as they were"         "$( cat "$rigTmp/p2.rc" ):$( rigWhere note-20261018T0900Z-open.md ):$( rigField "$rigInbox/processed/note-20261018T0900Z-open.md" processed-at )" "0:processed:$rigStamp"
 
 echo "-- 4. a named read finds an item in either folder --"
 mkdir -p "$rigInbox/incoming" "$rigInbox/processed"
 printf -- '---\ntype: note\n---\n\nRIG-INCOMING-READ\n' > "$rigInbox/incoming/note-20261018T0902Z-in.md"
-rigOp "$rigTmp/r1" --member-inbox-item-read rig-member note-20261018T0902Z-in.md
+rigOp "$rigTmp/r1" --get-inbox-item rig-member note-20261018T0902Z-in.md
 rigAssert "an item in incoming/ is read by its name"          "$( cat "$rigTmp/r1.rc" ):$( rigHolds "$rigTmp/r1" RIG-INCOMING-READ )" "0:yes"
-rigOp "$rigTmp/r2" --member-inbox-item-read rig-member note-20261018T0900Z-open.md
+rigOp "$rigTmp/r2" --get-inbox-item rig-member note-20261018T0900Z-open.md
 rigAssert "without --include-processed an operation sees only incoming/: a processed item is not found" "$( [ "$( cat "$rigTmp/r2.rc" )" -ne 0 ] && printf non-zero || printf 0 ):$( rigHolds "$rigTmp/r2" RIG-OPEN-NOTE ):$( rigHolds "$rigTmp/r2" 'not found' )" "non-zero:no:yes"
 
 echo "-- 5. the member's scan lists the incoming item, and no processed one --"
@@ -129,10 +129,10 @@ sleep 1
 rigWaitSince="$( date +%s )"
 sleep 1
 printf -- '---\ntype: note\nprocessed-at: %s\n---\n\nRIG-QUIET\n' "$( rigDaysAgo 0 )" > "$rigInbox/processed/note-20261018T0903Z-quiet.md"
-rigOp "$rigTmp/w1" --member-wait-for-input rig-member --wait-source inbox:rig-member --wait-session-id rig-inbox-split --wait-since-utime "$rigWaitSince" --wait-timeout 2 --wait-poll-interval 1
+rigOp "$rigTmp/w1" --wait-for-input rig-member --wait-source inbox:rig-member --wait-session-id rig-inbox-split --wait-since-utime "$rigWaitSince" --wait-timeout 2 --wait-poll-interval 1
 rigAssert "an item in processed/ wakes no Wait"               "$( LC_ALL=C grep -m1 '^WAIT-RESULT: ' "$rigTmp/w1" | LC_ALL=C cut -c1-20 )" "WAIT-RESULT: TIMEOUT"
 printf -- '---\ntype: note\n---\n\nRIG-WAKE\n' > "$rigInbox/incoming/note-20261018T0904Z-wake.md"
-rigOp "$rigTmp/w2" --member-wait-for-input rig-member --wait-source inbox:rig-member --wait-session-id rig-inbox-split-2 --wait-since-utime "$rigWaitSince" --wait-timeout 4 --wait-poll-interval 1
+rigOp "$rigTmp/w2" --wait-for-input rig-member --wait-source inbox:rig-member --wait-session-id rig-inbox-split-2 --wait-since-utime "$rigWaitSince" --wait-timeout 4 --wait-poll-interval 1
 rigAssert "an item in incoming/ does, and is named"           "$( LC_ALL=C grep -m1 '^WAIT-RESULT: ' "$rigTmp/w2" | LC_ALL=C cut -c1-21 ):$( rigHolds "$rigTmp/w2" note-20261018T0904Z-wake.md )" "WAIT-RESULT: RECEIVED:yes"
 
 echo "-- 7. the GC, by the stamp's age, as before --"
@@ -151,9 +151,9 @@ rigOp "$rigTmp/l2" --manager-team-data-read inboxes rig-member --include-process
 rigAssert "with --include-processed: the processed ones too"  "$( cat "$rigTmp/l2.rc" ):$( rigHolds "$rigTmp/l2" note-20261018T0902Z-in.md ):$( rigHolds "$rigTmp/l2" note-20261018T0900Z-open.md )" "0:yes:yes"
 
 echo "-- 9. a read takes --include-processed too --"
-rigOp "$rigTmp/r3" --member-inbox-item-read rig-member note-20261018T0900Z-open.md --include-processed
+rigOp "$rigTmp/r3" --get-inbox-item rig-member note-20261018T0900Z-open.md --include-processed
 rigAssert "a processed item, read with the option"           "$( cat "$rigTmp/r3.rc" ):$( rigHolds "$rigTmp/r3" RIG-OPEN-NOTE )" "0:yes"
-rigOp "$rigTmp/r4" --member-inbox-item-read rig-member note-20261018T0902Z-in.md --include-processed
+rigOp "$rigTmp/r4" --get-inbox-item rig-member note-20261018T0902Z-in.md --include-processed
 rigAssert "an incoming item, read with the option"           "$( cat "$rigTmp/r4.rc" ):$( rigHolds "$rigTmp/r4" RIG-INCOMING-READ )" "0:yes"
 
 echo "-- 10. the trash: by name, from either folder; --exclude-incoming; a name in neither --"
@@ -167,25 +167,25 @@ printf -- '---\ntype: note\n---\n\nRIG-TRASH-IN\n' > "$rigInbox/incoming/note-20
 printf -- '---\ntype: note\nprocessed-at: %s\n---\n\nRIG-TRASH-DONE\n' "$( rigDaysAgo 1 )" > "$rigInbox/processed/note-20261018T0911Z-trash-done.md"
 printf -- '---\ntype: note\n---\n\nRIG-KEEP-IN\n' > "$rigInbox/incoming/note-20261018T0912Z-keep-in.md"
 printf -- '---\ntype: note\nprocessed-at: %s\n---\n\nRIG-TRASH-DONE-2\n' "$( rigDaysAgo 1 )" > "$rigInbox/processed/note-20261018T0913Z-trash-done-2.md"
-rigOp "$rigTmp/t1" --member-inbox-item-trash rig-member note-20261018T0910Z-trash-in.md
+rigOp "$rigTmp/t1" --trash-inbox-item rig-member note-20261018T0910Z-trash-in.md
 rigAssert "an incoming item, by its name alone: trashed"     "$( cat "$rigTmp/t1.rc" ):$( rigTrashed note-20261018T0910Z-trash-in.md )" "0:trashed"
-rigOp "$rigTmp/t2" --member-inbox-item-trash rig-member note-20261018T0911Z-trash-done.md
+rigOp "$rigTmp/t2" --trash-inbox-item rig-member note-20261018T0911Z-trash-done.md
 rigAssert "a processed item, by its name alone: trashed"     "$( cat "$rigTmp/t2.rc" ):$( rigTrashed note-20261018T0911Z-trash-done.md )" "0:trashed"
-rigOp "$rigTmp/t3" --member-inbox-item-trash rig-member note-20261018T0912Z-keep-in.md --exclude-incoming
+rigOp "$rigTmp/t3" --trash-inbox-item rig-member note-20261018T0912Z-keep-in.md --exclude-incoming
 rigAssert "with --exclude-incoming an incoming item is not trashed" "$( [ "$( cat "$rigTmp/t3.rc" )" -ne 0 ] && printf refused || printf accepted ):$( rigTrashed note-20261018T0912Z-keep-in.md )" "refused:incoming"
-rigOp "$rigTmp/t4" --member-inbox-item-trash rig-member note-20261018T0913Z-trash-done-2.md --exclude-incoming
+rigOp "$rigTmp/t4" --trash-inbox-item rig-member note-20261018T0913Z-trash-done-2.md --exclude-incoming
 rigAssert "with --exclude-incoming a processed item is trashed" "$( cat "$rigTmp/t4.rc" ):$( rigTrashed note-20261018T0913Z-trash-done-2.md )" "0:trashed"
-rigOp "$rigTmp/t5" --member-inbox-item-trash rig-member note-20261018T0999Z-nowhere.md
+rigOp "$rigTmp/t5" --trash-inbox-item rig-member note-20261018T0999Z-nowhere.md
 rigAssert "a name in neither folder: not found, non-zero, naming it" "$( [ "$( cat "$rigTmp/t5.rc" )" -ne 0 ] && printf non-zero || printf 0 ):$( rigHolds "$rigTmp/t5" 'not found' ):$( rigHolds "$rigTmp/t5" note-20261018T0999Z-nowhere.md )" "non-zero:yes:yes"
 
 echo "-- 11. a routine's standing state and lock note lives in incoming/ of a split inbox --"
 mkdir -p "$rigData/inboxes/magic-coordinator/incoming"
 rigLockNote=note-20260809T155000Z-heartbeat-state-and-lock.md
-rigOp "$rigTmp/k1" --magic-state-note-lock-acquire magic-coordinator rig-inbox-split
+rigOp "$rigTmp/k1" --state-note-lock-acquire magic-coordinator rig-inbox-split
 rigAssert "the lock is taken"                                 "$( cat "$rigTmp/k1.rc" ):$( rigHolds "$rigTmp/k1" ACQUIRED )" "0:yes"
 rigAssert "its note is written in incoming/, and nothing of it at the inbox root" \
 	"$( [ -f "$rigData/inboxes/magic-coordinator/incoming/$rigLockNote" ] && printf incoming || printf missing ):$( [ -e "$rigData/inboxes/magic-coordinator/$rigLockNote" ] && printf root || printf none )" "incoming:none"
-rigOp "$rigTmp/k2" --magic-state-note-lock-status magic-coordinator
+rigOp "$rigTmp/k2" --state-note-lock-acquire magic-coordinator rig-inbox-split-two
 rigAssert "and it is read from there: the lock is held"       "$( LC_ALL=C grep -c '^ACTIVE:' "$rigTmp/k2" )" 1
 
 if [ "$rigFailCount" -ne 0 ] ; then

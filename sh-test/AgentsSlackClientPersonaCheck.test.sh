@@ -164,13 +164,13 @@ rigSend(){ ## member, target, send options... -- one send; rc in rigRc, stderr i
 	: > "$rigTmp/calls" ; rm -f "$rigTmp/bodies" ; touch "$rigTmp/bodies"
 	rigRc=0
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigDataRoot" \
-		bash "$rigTool" --member-comms-slack-send-message "$1" "$2" "${@:3}" RIG-BODY ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
+		bash "$rigTool" --slack-send-message "$1" "$2" "${@:3}" RIG-BODY ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigSendBody(){ ## member, target, body, send options... -- the same with a body of its own
 	: > "$rigTmp/calls" ; rm -f "$rigTmp/bodies" ; touch "$rigTmp/bodies"
 	rigRc=0
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigDataRoot" \
-		bash "$rigTool" --member-comms-slack-send-message "$1" "$2" "${@:4}" "$3" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
+		bash "$rigTool" --slack-send-message "$1" "$2" "${@:4}" "$3" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 ## A client's external send: by its client stub, into a conversation or to a person of the other organisation, named
 ## by id. The rig has one Slack, so the id is the rig's own channel or owner.
@@ -267,7 +267,7 @@ rigRefusal(){ ## label, how many fields the persona is missing
 	rigAssert "$1: the persona warns once per missing field, naming the persona, the field and the bullets" "$( rigWarnsOf "persona member $rigPersona: required field" ) $( LC_ALL=C grep -c -E "persona member $rigPersona: required field .* is missing or not valid in its basic.md [(]a Name bullet of plain words, or its scope key[)]\$" "$rigTmp/build.err" || : )" "$2 $2"
 	rigAssert "$1: every client row is dashes, though the clients have two clients' own files" "$( rigIndexRow client-ndm ) $( rigIndexRow client-mel )" 'client-ndm|-|-|-|- client-mel|-|-|-|-'
 	rigSendOut client-ndm CRIG00001
-	rigAssert "$1: the external send exits 1 naming the persona row, all three fields, ending nothing was sent" "$rigRc $( LC_ALL=C grep -c -F -- "⛔ ERROR: DistroAgentsTools --member-comms-slack-send-message: the external presentation needs the persona row in the team-members-names registry (--make-agents-indices): missing first-name, family-name, alias; nothing was sent" "$rigTmp/err" || : )" "1 1"
+	rigAssert "$1: the external send exits 1 naming the persona row, all three fields, ending nothing was sent" "$rigRc $( LC_ALL=C grep -c -F -- "⛔ ERROR: DistroAgentsTools --slack-send-message: the external presentation needs the persona row in the team-members-names registry (--make-agents-indices): missing first-name, family-name, alias; nothing was sent" "$rigTmp/err" || : )" "1 1"
 	rigAssert "$1: the curl stub was never called"                         "$( rigNoCalls )" 0
 	rigAssert "$1: no body was posted, so nothing fell back to another name" "$( rigNoBodies )" 0
 	rigSend client-ndm magic-team --identity-bot
@@ -422,7 +422,7 @@ rigWorld
 echo "-- 12. the addressee: a missing directory refuses, a directory with no row is plain --"
 rigWorldPlain
 rigSend keeper-myx magic-team --address-to keeper-ghost
-rigAssert "no skill directory: exit 1, no such team member, the path expected, nothing sent" "$rigRc $( LC_ALL=C grep -c -F -- "⛔ ERROR: DistroAgentsTools --member-comms-slack-send-message: --address-to 'keeper-ghost': no such team member -- expected $rigSkills/keeper-ghost" "$rigTmp/err" || : ) $( rigNoCalls ) $( rigNoBodies )" "1 1 0 0"
+rigAssert "no skill directory: exit 1, no such team member, the path expected, nothing sent" "$rigRc $( LC_ALL=C grep -c -F -- "⛔ ERROR: DistroAgentsTools --slack-send-message: --address-to 'keeper-ghost': no such team member -- expected $rigSkills/keeper-ghost" "$rigTmp/err" || : ) $( rigNoCalls ) $( rigNoBodies )" "1 1 0 0"
 rigAssert "and the message names nothing registry-related"                 "$( LC_ALL=C grep -c -i 'registry' "$rigTmp/err" || : )" 0
 rigSendOut client-ndm CRIG00001 --address-to keeper-ghost
 rigAssert "the same refusal in an external send"                           "$rigRc $( LC_ALL=C grep -c -F -- "'keeper-ghost': no such team member" "$rigTmp/err" || : ) $( rigNoCalls )" "1 1 0"

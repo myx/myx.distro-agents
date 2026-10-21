@@ -216,10 +216,10 @@ AgentsToolsTeamMemberIsTeam(){ ## member
 ## nothing said, for any other. The one place every start goes through asks it before it
 ## makes anything (--intern-op-agent-spawn-proxy). An operation that would make something
 ## first, or start one member before it reaches another, asks it too, ahead of that
-## (--magic-spawn-session, --manager-spawn-member): never a check of its own.
+## (--spawn-session, --manager-spawn-member): never a check of its own.
 ## NOR AS THE TEAM ITSELF, which is no member of it (AgentsToolsTeamMemberIsTeam, below):
 ## asked first, of the name alone, so the team is refused in a line of its own whether or
-## not a folder was found for it. --magic-spawn-proxy asks this check too, ahead
+## not a folder was found for it. --spawn-prompt asks this check too, ahead
 ## of its own list of who it starts for.
 AgentsToolsTeamMemberStartCheck(){ ## member, member directory, the operation asked, as the line names it
 	if AgentsToolsTeamMemberIsTeam "${1:-}" ; then

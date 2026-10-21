@@ -518,22 +518,20 @@ sleep 3
 rigAssert "before the answer, the call has not returned"   "$( kill -0 "$rigAskPid" 2>/dev/null && printf waiting || printf returned )" waiting
 rigAssert "and its record is open"                         "$( LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" reply-pending
 rigAssert "it names the member it asks among its addressees, by its member name" "$( LC_ALL=C awk -F': ' '$1 == "addressees" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" magic-coordinator
-rigOp --member-escalation-answer magic-developer "$rigPending" allow-once
+rigOp --answer-escalation magic-developer "$rigPending" allow-once
 rigAssert "a member it is not addressed to cannot answer"  "$( rigHolds "$rigScenarioDir/op.err" 'cannot answer it' )" yes
 ## The coordinator answers from its own session, with the coordinator's form.
 RIG_OP_AGENT=magic-coordinator
-rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-forever
+rigOp --answer-escalation magic-coordinator "$rigPending" allow-forever
 rigAssert "a verdict outside the kind is refused"          "$( rigHolds "$rigScenarioDir/op.err" 'is not a verdict of this permission' )" yes
-RIG_OP_SESSION="" ; rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-once ; RIG_OP_SESSION="rig-coordinator-session"
+RIG_OP_SESSION="" ; rigOp --answer-escalation magic-coordinator "$rigPending" allow-once ; RIG_OP_SESSION="rig-coordinator-session"
 rigAssert "an answer from a caller with no session id is refused" "$( rigHolds "$rigScenarioDir/op.err" 'carries no session id' )" yes
-RIG_OP_SESSION="rig-session" ; rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-once ; RIG_OP_SESSION="rig-coordinator-session"
+RIG_OP_SESSION="rig-session" ; rigOp --answer-escalation magic-coordinator "$rigPending" allow-once ; RIG_OP_SESSION="rig-coordinator-session"
 rigAssert "an answer from the asking session itself is refused" "$( rigHolds "$rigScenarioDir/op.err" 'asked from this same session' )" yes
-RIG_OP_AGENT=magic-tester ; rigOp --member-escalation-answer magic-coordinator "$rigPending" allow-once ; RIG_OP_AGENT=magic-coordinator
+RIG_OP_AGENT=magic-tester ; rigOp --answer-escalation magic-coordinator "$rigPending" allow-once ; RIG_OP_AGENT=magic-coordinator
 rigAssert "another member's session answering as the coordinator is refused" "$( rigHolds "$rigScenarioDir/op.err" 'this session acts as magic-tester, so it cannot act as magic-coordinator' )" yes
-RIG_OP_AGENT=magic-tester ; rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-once ; RIG_OP_AGENT=magic-coordinator
-rigAssert "and so is its use of the coordinator's form"    "$( rigHolds "$rigScenarioDir/op.err" "is magic-coordinator's only" )" yes
 rigAssert "the record is still open"                       "$( LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" reply-pending
-rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-once
+rigOp --answer-escalation magic-coordinator "$rigPending" allow-once
 rigAssert "the answering session is recorded"      "$( LC_ALL=C awk -F': ' '$1 == "answered-session" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" rig-coordinator-session
 rigAssert "the coordinator's answer is applied"            "$( rigHolds "$rigScenarioDir/op.out" "ESCALATION: $rigPending answered" )" yes
 rigAssert "and the grant is written from the record"       "$( rigHolds "$rigScenarioDir/op.out" "GRANT: once $rigIdC" )" yes
@@ -545,10 +543,10 @@ rigAssert "it returned RECEIVED"                           "$( rigFirstLine "$ri
 rigAssert "with the verdict"                               "$( rigLineOf 'VERDICT: ' )" "VERDICT: allow-once"
 rigAssert "and who gave it"                                "$( rigLineOf 'ANSWERED-BY: ' )" "ANSWERED-BY: magic-coordinator"
 rigAssert "the same session's exact retry passes"          "$( rigWriteCall rig-session "$rigTarget" )" "$( rigOkLine "$rigTarget" )"
-rigOp --magic-escalation-answer magic-coordinator "$rigPending" deny
+rigOp --answer-escalation magic-coordinator "$rigPending" deny
 rigAssert "an answered escalation takes no second answer"  "$( rigHolds "$rigScenarioDir/op.err" 'is not open' )" yes
 RIG_OP_AGENT=""
-rigOp --member-escalation-read magic-tester "$rigPending"
+rigOp --read-escalation magic-tester "$rigPending"
 rigAssert "read returns the recorded verdict"              "$( rigHolds "$rigScenarioDir/op.out" 'VERDICT: allow-once' )" yes
 rigVerdict "sync escalation -- waits for the coordinator's answer, resumes the same session, uses the grant"
 
@@ -569,7 +567,7 @@ sleep 3
 rigAssert "control: the call waits, and its record names the member among its addressees" \
 	"$( kill -0 "$rigAskPid" 2>/dev/null && printf waiting || printf returned ):$( LC_ALL=C awk -F': ' '$1 == "addressees" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" "waiting:magic-coordinator"
 RIG_OP_AGENT=magic-coordinator
-rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-once
+rigOp --answer-escalation magic-coordinator "$rigPending" allow-once
 RIG_OP_AGENT=""
 rigAssert "the waiting call ended on the answer given through the operation, within its round" "$( rigAskFinish 45 )" yes
 rigAssert "its thread was read for the member's own reply, and no read of it failed" "$( [ "$( rigCalls conversations.replies )" -gt 0 ] && printf read || printf unread ):$( rigHolds "$rigScenarioDir/err" 'rig_no_replies' )" "read:no"
@@ -589,7 +587,7 @@ sleep 3
 rigAskFinish 0 > /dev/null
 rigAssert "an asking call cut short leaves its ask open"   "$( LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" 2>/dev/null )" reply-pending
 RIG_OP_AGENT=magic-coordinator
-rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-session
+rigOp --answer-escalation magic-coordinator "$rigPending" allow-session
 RIG_OP_AGENT=""
 rigTool rig-session Wait "{\"sources\":\"ask:$rigPending\",\"timeout\":\"30\"}"
 rigAssert "a later Wait returns the answer to the requester" "$( rigFirstLine "$rigScenarioDir/out" ):$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT: RECEIVED' ):$( rigLineOf 'VERDICT: ' )" "WAIT-RESULT: RECEIVED:yes:VERDICT: allow-session"
@@ -609,7 +607,7 @@ rigPending="$( rigPendingId )"
 LC_ALL=C sed "s/^address-to: .*\$/address-to: $rigMember/" "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" > "$rigScenarioDir/record.rig" \
 	&& mv -f "$rigScenarioDir/record.rig" "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md"
 rigAssert "control: the record is addressed to its own asker" "$( LC_ALL=C awk -F': ' '$1 == "address-to" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" "$rigMember"
-rigOp --member-escalation-answer "$rigMember" "$rigPending" allow-session
+rigOp --answer-escalation "$rigMember" "$rigPending" allow-session
 rigAssert "the asker's own answer is refused"              "$( rigHolds "$rigScenarioDir/op.err" 'cannot answer it' )" yes
 rigAssert "the call is still waiting"                      "$( kill -0 "$rigAskPid" 2>/dev/null && printf waiting || printf returned )" waiting
 rigAskFinish 0 > /dev/null
@@ -617,7 +615,7 @@ rigVerdict "no self-answer through the operation"
 
 ## ---------------------------------------------------------------------------
 ## 18b. The coordinator answers a question addressed to another member, on its
-##      behalf, with --magic-escalation-answer; the member form stays the addressee's.
+##      behalf, with --answer-escalation; the member form stays the addressee's.
 ## ---------------------------------------------------------------------------
 rigStart answer-on-behalf no
 ## The route leaves a question with a member only where it holds the refused call and has a
@@ -636,20 +634,20 @@ rigAskMember rig-session "$rigIdB" magic-developer
 rigPending="$( rigPendingId )"
 rigAssert "control: the question stays with the member named, who holds the call and runs in the session" "$( LC_ALL=C awk -F': ' '$1 == "address-to" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" magic-developer
 RIG_OP_AGENT=magic-coordinator
-rigOp --member-escalation-answer magic-coordinator "$rigPending" allow-once
-rigAssert "the coordinator's member form is the addressee's only" "$( rigHolds "$rigScenarioDir/op.err" 'cannot answer it' )" yes
+rigOp --answer-escalation magic-coordinator "$rigPending" allow-once
+rigAssert "the coordinator, not the addressee, answers only where it holds the authority over the run that asked: before that, the authority is asked for and nothing is done" "$( rigHolds "$rigScenarioDir/op.err" 'which magic-coordinator does not hold, so nothing was done' )" yes
 ## The asking run reports to the coordinator, which so holds the authority to answer its
 ## questions on another's behalf (F6.10, AgentsTools.Authority.include).
 printf -- '---\nsession-id: rig-session\nspawn-id: rig-session\nhost: %s\nowner: %s\nreports-to: magic-coordinator\nstatus: spawn-started\n---\n\n# Spawn session\n' \
 	"$( hostname -s 2>/dev/null || echo unknown )" "$rigMember" > "$rigScenarioDir/ws/.local/agents/spawned/rig-session/rig-session.spawn.md"
-rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-once
+rigOp --answer-escalation magic-coordinator "$rigPending" allow-once
 rigAssert "its own form answers on the addressee's behalf" "$( rigHolds "$rigScenarioDir/op.out" "ESCALATION: $rigPending answered" )" yes
 rigAssert "signed by the coordinator, with the grant"      "$( rigHolds "$rigScenarioDir/op.out" 'ANSWERED-BY: magic-coordinator' ):$( rigHolds "$rigScenarioDir/op.out" "GRANT: once $rigIdB" )" "yes:yes"
 RIG_OP_AGENT=""
 rigAssert "the waiting call ended on the answer"           "$( rigAskFinish 45 )" yes
 rigAssert "with who gave it"                               "$( rigLineOf 'ANSWERED-BY: ' )" "ANSWERED-BY: magic-coordinator"
 : > "$rigTmp/ps.list"
-rigVerdict "answer on behalf -- the coordinator's own form, never the member form"
+rigVerdict "answer on behalf -- the coordinator, not the addressee, answers where it holds the authority"
 
 ## ---------------------------------------------------------------------------
 ## 18c. No approving what you don't hold: the coordinator's allow for a target outside
@@ -670,7 +668,7 @@ rigPending="$( rigPendingId )"
 cat "$rigScenarioDir/registry.before" > "$rigScenarioDir/ws/.local/agents/permissions.registry"
 rigAssert "control: it was asked of the coordinator, while the coordinator held the target" "$( LC_ALL=C awk -F': ' '$1 == "address-to" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" magic-coordinator
 RIG_OP_AGENT=magic-coordinator
-rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-session
+rigOp --answer-escalation magic-coordinator "$rigPending" allow-session
 RIG_OP_AGENT=""
 rigAssert "the allow is not applied, it is rerouted"      "$( rigHolds "$rigScenarioDir/op.out" "ESCALATION: $rigPending rerouted" )" yes
 rigAssert "up to the human-owner"                          "$( rigHolds "$rigScenarioDir/op.out" 'ADDRESS-TO: human-owner' )" yes
@@ -729,10 +727,10 @@ rigAssert "with the asking member, the tool and the target" "$( rigScanAsk "$rig
 rigAssert "with its reason and its task"                   "$( rigHolds "$rigScenarioDir/op.out" 'reason: the task report goes there' ):$( rigHolds "$rigScenarioDir/op.out" 'task-ref: dispatch-rig' )" "yes:yes"
 rigAssert "with who holds it, the executor first"          "$( LC_ALL=C sed -n 's/^holders: //p' "$rigScenarioDir/op.out" | head -1 | LC_ALL=C awk '/^magic-coordinator [a-z]/ && / human-owner human-owner$/ { print "executor-first" ; next ; } { print ; }' )" executor-first
 RIG_OP_AGENT=magic-developer ; RIG_OP_SESSION=rig-developer-session
-rigOp --member-escalation-answer magic-developer "$rigPendingE" allow-once
+rigOp --answer-escalation magic-developer "$rigPendingE" allow-once
 rigAssert "a non-executor cannot answer it"                "$( rigHolds "$rigScenarioDir/op.err" 'cannot answer it' ):$( LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$rigRecordE" )" "yes:reply-pending"
 RIG_OP_AGENT=magic-coordinator ; RIG_OP_SESSION=rig-coordinator-session
-rigOp --member-escalation-answer magic-coordinator "$rigPendingE" allow-once
+rigOp --answer-escalation magic-coordinator "$rigPendingE" allow-once
 rigAssert "the coordinator, as its executor, answers it"   "$( rigHolds "$rigScenarioDir/op.out" "ESCALATION: $rigPendingE answered" ):$( rigHolds "$rigScenarioDir/op.out" "GRANT: once $rigIdE" )" "yes:yes"
 rigAssert "the asking call's own wait ended on the answer" "$( rigAskFinish 75 )" yes
 rigAssert "with the verdict and who gave it"               "$( rigLineOf 'VERDICT: ' ):$( rigLineOf 'ANSWERED-BY: ' )" "VERDICT: allow-once:ANSWERED-BY: magic-coordinator"
@@ -744,7 +742,7 @@ rigAskRoutine rig-session "$rigIdW" "May this task also write the second refused
 rigPendingW="$( rigPendingIdOf "$rigIdW" )"
 rigAskFinish 0 > /dev/null
 rigAssert "an asking call cut short leaves its ask open"   "$( LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPendingW.md" 2>/dev/null )" reply-pending
-rigOp --member-escalation-answer magic-coordinator "$rigPendingW" allow-session
+rigOp --answer-escalation magic-coordinator "$rigPendingW" allow-session
 rigTool rig-session Wait "{\"sources\":\"ask:$rigPendingW\",\"timeout\":\"30\"}"
 rigAssert "a later Wait returns the answer to the requester" "$( rigFirstLine "$rigScenarioDir/out" ):$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT: RECEIVED' ):$( rigLineOf 'VERDICT: ' )" "WAIT-RESULT: RECEIVED:yes:VERDICT: allow-session"
 rigOp --intern-op-permission-escalation-input-scan magic-coordinator
@@ -765,9 +763,9 @@ rigWriteCall rig-session "$rigTarget" > /dev/null
 rigIdF="$( rigRefusalId )"
 rigAskMember rig-session "$rigIdF" magic-coordinator
 rigPending="$( rigPendingId )"
-rigOp --magic-escalation-forward magic-developer "$rigPending"
+rigOp --forward-escalation magic-developer "$rigPending"
 rigAssert "only the addressee forwards"                    "$( rigHolds "$rigScenarioDir/op.err" 'cannot forward it' )" yes
-rigOp --magic-escalation-forward magic-coordinator "$rigPending"
+rigOp --forward-escalation magic-coordinator "$rigPending"
 rigAssert "the forward is posted and recorded"             "$( rigHolds "$rigScenarioDir/op.out" "ESCALATION: $rigPending forwarded" )" yes
 rigForwardTs="$( LC_ALL=C awk -F': ' '$1 == "forward-ts" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )"
 rigAssert "the record names the forward's thread"          "$( [ -n "$rigForwardTs" ] && printf yes || printf no )" yes
@@ -799,15 +797,15 @@ printf 'SLACK_USER_TOKEN=rig-user-token-TESTER\n' > "$rigScenarioDir/ws/.local/.
 ## The question thread holds only the asking account's own answer, which is refused with a reason.
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"question"},{"ts":"1700000009.000500","user":"%s","text":"allow-session","thread_ts":"%s"}],"has_more":false}\n' \
 	"$( rigPendingField question-ts )" "$rigAsker" "$( rigPendingField thread-ts )" > "$rigScenarioDir/replies.$( rigPendingField thread-ts ).json"
-rigOp --member-escalation-read magic-tester "$rigPending"
+rigOp --read-escalation magic-tester "$rigPending"
 rigAssert "control: the question thread alone gives its own reason" "$( rigHolds "$rigScenarioDir/op.out" 'VERDICT-REASON: the answer came from the account that asked' )" yes
-rigOp --magic-escalation-forward magic-coordinator "$rigPending"
+rigOp --forward-escalation magic-coordinator "$rigPending"
 rigForwardTs="$( rigPendingField forward-ts )"
 [ -n "$rigForwardTs" ] || rigRefuse "the forward was not recorded, so its thread was never read"
 ## The forward thread holds a reply naming no answer, which carries no reason of its own.
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"forwarded"},{"ts":"1700000009.000900","user":"URIGOWNER","text":"maybe later","thread_ts":"%s"}],"has_more":false}\n' \
 	"$rigForwardTs" "$rigForwardTs" > "$rigScenarioDir/replies.$rigForwardTs.json"
-rigOp --member-escalation-read magic-tester "$rigPending"
+rigOp --read-escalation magic-tester "$rigPending"
 rigAssert "control: the read is still open and returned"   "$( rigHolds "$rigScenarioDir/op.out" 'VERDICT: RETURNED' )" yes
 rigAssert "the reason shown is not the question thread's" "$( rigHolds "$rigScenarioDir/op.out" 'VERDICT-REASON: the answer came from the account that asked' )" no
 rigAskFinish 0 > /dev/null
@@ -924,7 +922,7 @@ rigGateCall(){ ## recipient; prints the exit status
 	## The gate is an in-context helper with no operation: it runs inside the tool's own set-up context.
 	export RIG_GATE_TARGET="$1"
 	printf '%s\n' 'type AgentsToolsContactAssertKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternContact.include"' \
-		'AgentsToolsContactAssertKnown magic-coordinator --tool member-comms-email-send --target "$RIG_GATE_TARGET" --message "rig message"' \
+		'AgentsToolsContactAssertKnown magic-coordinator --tool email-send --target "$RIG_GATE_TARGET" --message "rig message"' \
 		| RIG_OP_SESSION=rig-session rigOp --intern-mcp-execute || gateRc=$?
 	printf '%s' "$gateRc"
 }

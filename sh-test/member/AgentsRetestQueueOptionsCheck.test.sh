@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the options F7.6 of the refactorings epic gave the retest queue (--member-retest-queue and --member-retest-drain,
+## Behavioural check on the options F7.6 of the refactorings epic gave the retest queue (--retest-queue and --retest-drain,
 ## sh-lib/member/AgentsTools.MemberRetest.include), which stay the one queue of the machine (no second queue): --project, --wait and --no-wait.
 ## Run rather than read, on the machine of check-fixtures/rig-retest-machine.include.sh. The older behaviour of the queue is held by
 ## AgentsRetestQueueCheck. Held:
@@ -38,7 +38,7 @@ rigProject=myx/myx.distro-agents
 rigAsk(){ ## result prefix, arguments of the queue operation... -- one request; its id in rigId, the rc in rigRc
 	local askOut="$1" ; shift
 	rigScript=DistroAgentsTools
-	rigOp "$askOut" --member-retest-queue "$@"
+	rigOp "$askOut" --retest-queue "$@"
 	rigId="$( LC_ALL=C sed -n 1p "$askOut.out" )"
 }
 rigRegister(){ ## test... -- those tests registered in the testbed for the project
@@ -86,24 +86,24 @@ echo "-- 3. a waiting call --"
 rigFresh
 rigRegister RigOne RigTwo
 rigAsk "$rigTmp/w3a" --by rig-first --why 'does not wait' RigOne ; rigIdA="$rigId"
-rigCall "$rigTmp/w3b" --member-retest-queue --by rig-second --why 'waits for the batch' --wait RigTwo ; rigWaitPid="$rigLast"
+rigCall "$rigTmp/w3b" --retest-queue --by rig-second --why 'waits for the batch' --wait RigTwo ; rigWaitPid="$rigLast"
 rigUntil "retest-" "$rigTmp/w3b.out" || rigRefuse "the call with --wait did not say its request id"
 rigIdB="$( LC_ALL=C sed -n 1p "$rigTmp/w3b.out" )"
 rigAssert "the call with --wait has said its id and stays: its request waits with the priority wait" "$( rigField "$rigQueue/waiting/$rigIdB.request" priority ) $( kill -0 "$rigWaitPid" 2> /dev/null && printf staying ) $( rigHolds waiting )" "wait staying 2"
-rigOp "$rigTmp/d3" --member-retest-drain
+rigOp "$rigTmp/d3" --retest-drain
 rigAssert "the first drain takes the request that is waited for, alone, and runs its test" "$rigRc [$( rigBegun )] $( rigHolds waiting ) $( [ -f "$rigQueue/waiting/$rigIdA.request" ] && printf other-waits )" "0 [live:RigTwo] 1 other-waits"
 rigEnd "$rigWaitPid"
 rigAssert "the call ends once it is run: rc 0, and it says how it came out" "$rigRc $( LC_ALL=C grep -c "^RETEST $rigIdB PASS -- asked by rig-second about live: 1 passed -- waits for the batch\$" "$rigTmp/w3b.out" )" "0 1"
-rigOp "$rigTmp/d3b" --member-retest-drain
+rigOp "$rigTmp/d3b" --retest-drain
 rigAssert "the next drain takes the one that did not wait" "$rigRc [$( rigBegun )] $( rigHolds waiting ) $( rigHolds done )" "0 [live:RigOne live:RigTwo] 0 2"
 
 echo "-- 4. a failure --"
 rigFresh
 rigRegister RigOne
 : > "$rigTmp/fail.RigOne"
-rigScript=DistroAgentsTools ; rigCall "$rigTmp/w4" --member-retest-queue --by rig-third --why 'fails' --wait RigOne ; rigWaitPid="$rigLast"
+rigScript=DistroAgentsTools ; rigCall "$rigTmp/w4" --retest-queue --by rig-third --why 'fails' --wait RigOne ; rigWaitPid="$rigLast"
 rigUntil "retest-" "$rigTmp/w4.out" || rigRefuse "the call with --wait did not say its request id"
-rigOp "$rigTmp/d4" --member-retest-drain
+rigOp "$rigTmp/d4" --retest-drain
 rigEnd "$rigWaitPid"
 rigAssert "a test that fails: the call says FAIL, and ends with rc 1" "$rigRc $( LC_ALL=C grep -c '^RETEST retest-.* FAIL -- asked by rig-third about live: 0 passed, FAILED: RigOne -- fails$' "$rigTmp/w4.out" )" "1 1"
 

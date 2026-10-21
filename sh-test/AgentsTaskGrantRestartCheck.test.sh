@@ -7,7 +7,7 @@
 ## (AgentsToolsGrantsItemRuns), for as long as the item the grant names is open, whatever became
 ## of that session, and never for another member, another item or another session.
 ## Proved through the real path: a served Write refused by the harness gate and recorded, the
-## grant opened on that refusal, the item returned by `--member-review-return`, the spawn proxy
+## grant opened on that refusal, the item returned by `--return-review`, the spawn proxy
 ## starting the new run, and that run's served Write decided by the gate, by its grant read
 ## (`--intern-op-permission-grant-read`) and by its session index (the native client's hook).
 ## What the restarted run holds that way it may pass on, for that task only.
@@ -154,7 +154,7 @@ rigHookWrite(){ ## member, session, path
 ## The restarted run passes the rig's Write on to magic-tester: the kind of the pass written, or empty.
 rigPassOn(){ ## kind, task item (with kind task)
 	rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID="$rigRun2" )
-	rigOp "$rigTmp/pass.out" --member-permission-pass keeper-myx --to magic-tester --tool Write --target "$rigFileA" --kind "$1" ${2:+--task "$2"}
+	rigOp "$rigTmp/pass.out" --pass-permission keeper-myx --to magic-tester --tool Write --target "$rigFileA" --kind "$1" ${2:+--task "$2"}
 	rigEnv=()
 	LC_ALL=C sed -n 's/^GRANT: \([a-z]*\) pass-.*$/\1/p' "$rigTmp/pass.out" | head -1
 }
@@ -165,7 +165,7 @@ rigListed(){ ## list file, kind, expiry text
 ## The item returned from review by the coordinator: the run its return started, by its spawn id.
 rigReturn(){ ## item stem, sandbox folder, spawn ids known so far (space-separated)
 	local returnRecord returnId
-	rigOp "$rigTmp/return.out" --member-review-return magic-coordinator "$1" --message "redo the rig step"
+	rigOp "$rigTmp/return.out" --return-review magic-coordinator "$1" --message "redo the rig step"
 	for returnRecord in "$rigSpawned/$2"/*.spawn.md ; do
 		[ -f "$returnRecord" ] || continue
 		returnId="${returnRecord##*/}" ; returnId="${returnId%.spawn.md}"

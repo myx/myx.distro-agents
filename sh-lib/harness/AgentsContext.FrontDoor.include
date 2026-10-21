@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsContext.FrontDoor.include -- what every tool file asks of a call before its operation runs, for the operations that came out of DistroAgentsTools.fn.sh
+## (F1.4 of the refactorings epic): the JSON wrapper, the common option set, the member's own workspace, the data root and the bare-name gate, the coordinator's-only
+## check and the team-data gate. Sourced from inside the entry function of a tool file, as AgentsContext.UseAgentsTools.include is, so that it shifts and reads
+## the function's own "$@". The function declares `frontDone` and `frontRc` first; a call this include has ended sets them, and the function returns frontRc.
+##
+
+type AgentsToolsFrontAudience > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+## The includes of the operations call the other operations by DistroAgentsTools, as they did in the dispatcher: a tool file run by itself has it too.
+type DistroAgentsTools > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+
+## `--help-syntax [<name>]`: the syntax lines of this tool file.
+if [ "${1:-}" = "--help-syntax" ] ; then
+	AgentsToolsFrontSyntax "$MDSC_CMD" "${2:-}" || frontRc=$?
+	frontDone=yes ; return 0
+fi
+
+## The JSON wrapper: `--mdat-output-format json` before the name prints the result of an operation the harness runs as one JSON object; any other runs as without it.
+if [ "${1:-}" = "--mdat-output-format" ] ; then
+	case "${2:-}" in
+		json) shift 2 ;;
+		*) echo "⛔ ERROR: $MDSC_CMD: --mdat-output-format takes json, got: ${2:-<none>}" >&2 ; set +e ; frontDone=yes ; frontRc=1 ; return 0 ;;
+	esac
+	case " $agentsFrontJsonOps " in
+		*" ${1:-} "*)
+			local formatOut formatRc=0
+			formatOut="$( "$MDSC_CMD" "$@" )" || formatRc=$?
+			printf '{"operation":"%s","status":%s,"result":"%s"}\n' "$1" "$formatRc" "$( printf '%s' "$formatOut" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsMcpJsonEscape.awk" )"
+			frontDone=yes ; frontRc="$formatRc" ; return 0
+		;;
+	esac
+fi
+
+## The common option set (F2.2): a run of options after the name is taken here, and the call is made again under what they resolve; where the name takes the member
+## first and none is given, the implied one is placed (sh-lib/common/AgentsTools.CommonOptions.include). Rc 9 is "nothing to do": the call goes on as it is.
+if [ -z "${agentsCommonFronted:-}" ] && { [ -z "${2:-}" ] || case "$2" in -*) true ;; *) false ;; esac ; } ; then
+	type AgentsToolsCommonRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
+	AgentsToolsCommonRun "$MDSC_CMD" "$MDSC_CMD.fn.sh" "$@" || frontRc=$?
+	if [ "$frontRc" != 9 ] ; then frontDone=yes ; return 0 ; fi
+	frontRc=0
+fi
+
+## WE RUN FROM HERE: a name that takes a team member first uses the workspace it is run from, for everything, and is carried to no other. A member set up only in
+## another workspace on this machine is invited: only its skillset is read from there (AgentsToolsMemberSkillsetBring), and those of its own settings this workspace
+## holds none of, and it is stopped only when its skillset cannot be brought.
+type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
+type AgentsToolsCommonMemberFirst > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.CommonOptions.include"
+case "$1" in
+	--spawn-prompt|--spawn-session|--list-places|--get-place-path|--list-namespaces) ;;
+	*)
+		case "${2:-}" in
+			''|-*) ;;
+			*)
+				if AgentsToolsCommonMemberFirst "$MDSC_CMD.fn.sh" "$1" ; then
+					local memberBrought memberBroughtFrom
+					memberBrought="$( AgentsToolsMemberSkillsetBring "$2" "$1" )" || { set +e ; frontDone=yes ; frontRc=1 ; return 0 ; }
+					memberBroughtFrom="${memberBrought#*$'\t'}"
+					memberBrought="${memberBrought%%$'\t'*}"
+					if [ -n "$memberBrought" ] && [ "$memberBrought" != "${MDAT_SKILLSET_ROOT:-}" ] ; then
+						AgentsToolsMemberSettingsBorrowedSay "$2" "$1" "$memberBroughtFrom"
+						( export MDAT_SKILLSET_ROOT="$memberBrought" ; "$MDSC_CMD" "$@" )
+						frontRc=$? ; frontDone=yes ; return 0
+					fi
+				fi
+			;;
+		esac
+	;;
+esac
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
+
+## A name that was a --magic-* operation is magic-coordinator's, or the console's (AgentsToolsMagicCallerCheck).
+if [ "$( AgentsToolsFrontAudience "$1" )" = coordinator ] ; then
+	AgentsToolsMagicCallerCheck "${1#--}" || { set +e ; frontDone=yes ; frontRc=1 ; return 0 ; }
+fi
+
+## THE JUST-AGENTS GATE (F13.1): a workspace whose mode is no team rig keeps no team data, and refuses the operations that create or change it
+## (the list is in AgentsTools.TeamDataGate.include).
+type AgentsToolsTeamDataGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
+AgentsToolsTeamDataGate "$1" || { set +e ; frontDone=yes ; frontRc=1 ; return 0 ; }

@@ -1,6 +1,6 @@
 #!/usr/bin/env awk
-# Prints every backtick-quoted op name under a "## DistroAgentsTools magic-tooling operations" heading.
-/^## DistroAgentsTools magic-tooling operations/ { inBlock=1; next; }
+# Prints every backtick-quoted op name under a "## Tooling operations" heading.
+/^## Tooling operations/ { inBlock=1; next; }
 inBlock && /^## / { inBlock=0; }
 inBlock && /^- `--/ {
 	## Every backtick-quoted op on the bullet is read, not just the first.

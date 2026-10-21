@@ -20,7 +20,7 @@ review-by: inherit
 - Routine's local procedures
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -59,8 +59,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - rule: an ask of another workspace is answered there: the `execute` tool's `workspace` argument, set to its `workspace:` line.
    - rule: the narrowest verdict the task needs: `allow-once`, else `allow-session`, else `allow-folder` where the ask offers it and the task works in that folder, else `allow-project` where the ask offers it and the task works across that project, else `allow-task`, which needs an `item:`.
    - rule: a second single-call ask from the same session for the same task, once the owner has answered its first, is denied, with the order to ask once with `entries` instead.
-   - **grant**: the task needs it: `--magic-escalation-answer magic-coordinator <id> <verdict> [text]`. Where `magic-coordinator` does not hold the refused call, tooling re-addresses it itself: to a holder running in this coworking session, else to the human-owner, each time with a `NOTE:` line saying why. That reply is the verdict.
-   - **deny**: the task does not need it, or another route serves it (a listed set-request, the session sandbox `output/`): `--magic-escalation-answer magic-coordinator <id> deny <why, and the route>`.
+   - **grant**: the task needs it: `--answer-escalation magic-coordinator <id> <verdict> [text]`. Where `magic-coordinator` does not hold the refused call, tooling re-addresses it itself: to a holder running in this coworking session, else to the human-owner, each time with a `NOTE:` line saying why. That reply is the verdict.
+   - **deny**: the task does not need it, or another route serves it (a listed set-request, the session sandbox `output/`): `--answer-escalation magic-coordinator <id> deny <why, and the route>`.
    - **ask-the-human-owner**: the ruling binds the team, whoever holds it: ask him with `EscalateDecision`, options `allow-once`, `allow-session`, `allow-task` and `deny`, and `Wait` as today. Then answer with his verdict, as in **grant** or **deny**, naming him in the text.
 3. **record-decision**: Each answer records its verdict on its item's `## Decisions` itself. An ask with no `item:`: say the verdict in this session's thread.
 
@@ -81,15 +81,15 @@ All statements apply at the same time, always. These rules override a participan
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
 - An ask still open after this pass stays open. Only a verdict closes it.
-- In a work-duty session nothing waits on the human-owner: **ask-the-human-owner** is registered instead as an `approval-*` item in `board-running` (`--magic-board-create-running`, `blocks` set to the item it gates) unless one exists, and the ask stays open. Advance asks and re-asks it. Nobody is present to work it out first: the "no parent present" branch of "The ladder: one rung at a time" applies.
+- In a work-duty session nothing waits on the human-owner: **ask-the-human-owner** is registered instead as an `approval-*` item in `board-running` (`--create-running`, `blocks` set to the item it gates) unless one exists, and the ask stays open. Advance asks and re-asks it. Nobody is present to work it out first: the "no parent present" branch of "The ladder: one rung at a time" applies.
 
 # Routine-specific tooling
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]`
+- `--answer-escalation <request-id> <verdict> [text]`
 
 # Maintainer Notes
 

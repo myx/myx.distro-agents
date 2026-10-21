@@ -9,7 +9,7 @@
 ##   --standing-directives                                  the warnings, the coordinator notes and the orders in force, together
 ##   --directive-set, --directive-end                       an order of the human-owner entered, and taken out
 ##
-## From DistroAgentsTools.fn.sh (F1.4, first stage): --advance-sleep-run, --client-operation-run, --config-check, --daily-lock-refresh, --grooming-lock-refresh, --retro-lock-refresh, --roster-upsert, --state-note-lock-acquire, --state-note-read, --sweep-state-advance, --sweep-state-read, --sweep-state-upsert. They go on under their old names (sh-lib/harness/AgentsContext.FrontForward.include).
+## From DistroAgentsTools.fn.sh (F1.4): --advance-sleep-run, --client-operation-run, --config-check, --daily-lock-refresh, --grooming-lock-refresh, --retro-lock-refresh, --roster-upsert, --state-note-lock-acquire, --state-note-read, --sweep-state-advance, --sweep-state-read, --sweep-state-upsert (sh-lib/harness/AgentsContext.FrontTable.include).
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -33,12 +33,67 @@ case "$BASH" in
 	;;
 esac
 
+## The operations that came here from DistroAgentsTools.fn.sh (F1.4): every one of them is asked what each name of the table is asked, in AgentsContext.FrontDoor.include.
+AgentDispatcherToolsMoved(){
+	local MDSC_CMD='AgentDispatcherTools' frontDone="" frontRc=0
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontDoor.include"
+	[ -z "$frontDone" ] || return "$frontRc"
+	case "$1" in
+
+		--advance-sleep-run)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicAdvance.include"
+			return $?
+		;;
+
+		--client-operation-run)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicClient.include"
+			return $?
+		;;
+
+		--config-check|--state-note-lock-acquire|--state-note-read)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicCoordinatorState.include"
+			return $?
+		;;
+
+		--daily-lock-refresh)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicDaily.include"
+			return $?
+		;;
+
+		--grooming-lock-refresh)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicGrooming.include"
+			return $?
+		;;
+
+		--retro-lock-refresh)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicRetro.include"
+			return $?
+		;;
+
+		--roster-upsert)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicTeamRoster.include"
+			return $?
+		;;
+
+		--sweep-state-advance|--sweep-state-read|--sweep-state-upsert)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweep.include"
+			return $?
+		;;
+
+		*)
+			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+			set +e ; return 1
+		;;
+	esac
+}
+
 AgentDispatcherTools(){
 	local MDSC_CMD='AgentDispatcherTools'
-	## F1.4, first stage: an operation that came here under a new name goes on under its old one (sh-lib/harness/AgentsContext.FrontForward.include).
-	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontForward.include"
+	## F1.4: a name that came here from DistroAgentsTools.fn.sh runs its operation in the function below.
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	if AgentsToolsFrontKnows AgentDispatcherTools "$@" ; then
-		AgentsToolsFrontForward AgentDispatcherTools "$@"
+		AgentDispatcherToolsMoved "$@"
 		return $?
 	fi
 	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,

@@ -39,14 +39,14 @@ AgentsToolsScheduleDutyRoutine(){ ## member, its skill folder
 ## scan collects over a window: a start made in the loop's own time would hold the iteration for it, one member after another. So it is made
 ## apart, its result kept in schedule/starting/<key>.rc and .out and said by the next iteration (AgentsToolsScheduleSpawnReport) if it
 ## failed. A start made in the last ten minutes that has not ended is not made again (schedule/starting/<key>). rc 1 for a start not made.
-AgentsToolsScheduleSpawn(){ ## key, the arguments of --magic-spawn-session...
+AgentsToolsScheduleSpawn(){ ## key, the arguments of --spawn-session...
 	local spawnKey="$1" spawnStore="$MMDAPP/.local/agents/schedule/starting"
 	shift
 	mkdir -p "$spawnStore" 2> /dev/null || return 1
 	[ -z "$( find "$spawnStore" -name "$spawnKey" -mmin -10 2> /dev/null )" ] || return 1
 	( set -C ; : > "$spawnStore/$spawnKey" ) 2> /dev/null || return 1
 	(
-		spawnOut="$( DistroAgentsTools --magic-spawn-session "$@" 2>&1 < /dev/null )" ; spawnRc=$?
+		spawnOut="$( DistroAgentsTools --spawn-session "$@" 2>&1 < /dev/null )" ; spawnRc=$?
 		printf '%s\n' "$spawnOut" > "$spawnStore/$spawnKey.out"
 		printf '%s\n' "$spawnRc" > "$spawnStore/$spawnKey.rc"
 		rm -f "$spawnStore/$spawnKey"
@@ -74,7 +74,7 @@ AgentsToolsScheduleSpawnReport(){
 ## --- the autorun ---
 
 ## Every routine file with a runs-at is asked whether it is due (AgentsToolsScheduleDue); a routine that is due is started through the
-## spawner, `--magic-spawn-session --routine <file>`, which takes the routine's lock as it declares (F6.2) and starts its own executors. A
+## spawner, `--spawn-session --routine <file>`, which takes the routine's lock as it declares (F6.2) and starts its own executors. A
 ## routine whose executors are any member is not started here: the spawner starts it only with members named. A chain that stopped says
 ## ESCALATE; a predecessor that names no routine says so; a chain that merely waits for its predecessor is quiet.
 AgentsToolsScheduleAutorun(){
@@ -277,7 +277,7 @@ AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spac
 		[ ! -f "$dmStore/dms/$dmMember" ] || read -r dmFloor < "$dmStore/dms/$dmMember" || :
 		[ -n "$dmFloor" ] || dmFloor="$dmNow.000000"
 		dmId="$( AgentsToolsSessionChatMemberId "$dmMember" )"
-		dmRoster="$( DistroAgentsTools --magic-comms-slack-conversations-roster "$dmMember" --types im 2> /dev/null < /dev/null )" || dmRoster=""
+		dmRoster="$( DistroAgentsTools --slack-conversations-roster "$dmMember" --types im 2> /dev/null < /dev/null )" || dmRoster=""
 		dmSeen="" dmNewest=""
 		while IFS= read -r dmLine ; do
 			case "$dmLine" in "CONV|"*) ;; *) continue ;; esac
@@ -423,7 +423,7 @@ AgentsToolsScheduleDutyLifetime(){ ## the duty's spawn record, member, whether t
 ## The work-duty sessions by the flags (epic 1758-1763): a standing member holds one during worktime, magic-coordinator during worktime,
 ## emergency and overtime. A standing member is every member of the roster but an identity record (human-owner) and the oncall and expert
 ## ones, who are no standing members. One is started when its member has something to work on (AgentsToolsScheduleDemand), the work-duty
-## routine, `--magic-spawn-session --routine <work-duty> <member>`; not while the member holds one already. Out of its flags a member is called by name only:
+## routine, `--spawn-session --routine <work-duty> <member>`; not while the member holds one already. Out of its flags a member is called by name only:
 ## a mention of it in the team channel (AgentsToolsScheduleTagNews) starts its duty at any hour, and an untagged message, an inbox item or the board's news do
 ## not; the team channel is read once in a TTL for all of them. What the flags do to a run that stands is not a dismissal at once:
 ## AgentsToolsScheduleDutyLifetime decides, at each iteration, how long it lives (a mention newer than its idle start keeps it, out of its flags too).
@@ -512,7 +512,7 @@ AgentsToolsScheduleLearning(){
 		mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
 		learnFile="$( mktemp "$MMDAPP/.local/temp/schedule-learning.XXXXXX" )" || continue
 		printf '%s\n' "$learnText" > "$learnFile" || { rm -f "$learnFile" ; continue ; }
-		if DistroAgentsTools --member-upsert-member-inquiry magic-librarian "inquiry-$learnStamp-learning-$learnId.md" --from-member magic-coordinator --from-file "$learnFile" > /dev/null 2>&1 ; then
+		if DistroAgentsTools --upsert-inbox-inquiry magic-librarian "inquiry-$learnStamp-learning-$learnId.md" --from-member magic-coordinator --from-file "$learnFile" > /dev/null 2>&1 ; then
 			printf 'learning: session %s ended: one inquiry to magic-librarian\n' "$learnId"
 		else
 			rm -f "$learnStore/$learnId"

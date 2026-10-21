@@ -37,7 +37,7 @@ echo "-- a source read once and then failing --"
 printf 'rig\n' > "$rigTmp/src"
 ( sleep 2 ; chmod 000 "$rigTmp/src" ) &
 rigRc=0
-"$rigTool" --member-wait-for-input magic-tester --wait-source "file:$rigTmp/src" --wait-timeout 5 --wait-poll-interval 1 > "$rigTmp/rf.out" 2> "$rigTmp/rf.err" || rigRc=$?
+"$rigTool" --wait-for-input magic-tester --wait-source "file:$rigTmp/src" --wait-timeout 5 --wait-poll-interval 1 > "$rigTmp/rf.out" 2> "$rigTmp/rf.err" || rigRc=$?
 wait
 rigAssert "the wait completes as TIMEOUT"             "$( head -1 "$rigTmp/rf.out" )" "WAIT-RESULT: TIMEOUT"
 rigAssert "it returns 0"                              "$rigRc" 0
@@ -47,7 +47,7 @@ rigAssert "it is not reported as never-read"          "$( rigHolds "$rigTmp/rf.o
 
 echo "-- control: a source unreadable from the start --"
 rigRc=0
-"$rigTool" --member-wait-for-input magic-tester --wait-source "file:$rigTmp/never" --wait-timeout 2 --wait-poll-interval 1 > "$rigTmp/nr.out" 2> "$rigTmp/nr.err" || rigRc=$?
+"$rigTool" --wait-for-input magic-tester --wait-source "file:$rigTmp/never" --wait-timeout 2 --wait-poll-interval 1 > "$rigTmp/nr.out" 2> "$rigTmp/nr.err" || rigRc=$?
 rigAssert "control: it is reported as never-read"     "$( rigHolds "$rigTmp/nr.out" "WAIT-NEVER-READ: [file:$rigTmp/never]" )" yes
 rigAssert "control: and claims no successful wait"    "$( rigHolds "$rigTmp/nr.out" 'COMPLETE, SUCCESSFUL' )" no
 

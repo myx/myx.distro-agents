@@ -52,8 +52,8 @@ that the code and docs do not readily tell you.
 - **Order matters.** The comms routes come before the `--member-*` route, or the broader glob takes
   them. An arm that claims a prefix (`--intern-op-slack-*`, `--intern-op-permission-*`) must have any
   differently-routed op of that prefix above it.
-- **Family routes.** `--magic-comms-*` → `AgentsTools.MagicComms.include`. `--client-comms-*` →
-  `AgentsTools.ClientComms.include`. `--member-comms-<service>-*` and `--intern-op-comms-<service>-*`
+- **Family routes.** the coordinator's own comms operations → `AgentsTools.MagicComms.include`. `--client-comms-*` →
+  `AgentsTools.ClientComms.include`. `--<service>-*` (the tool file of the platform) and `--intern-op-comms-<service>-*`
   share one arm per platform. `--intern-op-atlassian-*` → `AgentsTools.InternOpAtlassianCall.include`.
   `--magic-<routine>-*` → `AgentsTools.Magic<Routine>.include`, one explicit arm per op even where
   two arms are identical today. `--manager-*` → `sh-lib/manager/AgentsTools.Manager.include`, one further
@@ -126,8 +126,9 @@ that the code and docs do not readily tell you.
   harness's tools run, and the one behind `execute`) as one JSON object,
   `{"operation":<word>,"status":<rc>,"result":<its output>}`, and ends with that status. Every other operation runs as
   without it, and a word but `json` is refused. `AgentsBatchToolsCheck` holds the list to the words the harness runs.
-- **A superseded operation name stays as a working shim**: gone from help, kept in the dispatcher,
-  until a removal is approved.
+- **An operation renamed or retired is deleted, with no alias**: its name is not kept as a shim in the dispatcher. Its callers
+  and the skillset are swept in the same change. A call by an old name is refused with the new name in the message
+  (`AgentsToolsFrontRetired`, `sh-lib/harness/AgentsContext.FrontTable.include`), and does nothing else.
 - **A process that loaded the dispatcher before a routing change keeps its old arm table.** A bare-name
   call there can route to an include that no longer exists. A call by full script path is not affected.
   The process must restart.
@@ -386,7 +387,7 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   every workspace's file through the pointers. The same name and path is one place; the same name with
   another path: the local row wins, else one warning and `name@workspace`. `--intern-directory-resolve`
   and `--intern-directory-of` (`name:relative`) resolve through it; members read it by name only
-  (`--member-directory-list`, `--member-directory-path`), and the projects by `--member-namespace-list`,
+  (`--list-places`, `--get-place-path`), and the projects by `--list-namespaces`,
   all three routed with the place ops and never switched to a member workspace. The workspace roots the member
   resolver and the `*` grant expansion walk are its `workspace` rows plus every pointer root.
   `known-workspaces.registry`, the earlier list, is never written: it is read as owner rows until the
@@ -737,7 +738,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   the same one function now, `AgentsToolsSpawnRoutineExecutorsRoster`, that the spawner and this list
   both ask. A row's tenth and last field, `<needs>`, reads `members` where the routine is `not-startable`
   for one cause alone -- its executors are any member (`magic-team` or `*`) -- and `-` on every other
-  row, such a routine started by `--magic-spawn-session --routine <selector> <team-member>...`. Its code
+  row, such a routine started by `--spawn-session --routine <selector> <team-member>...`. Its code
   is `sh-lib/manager/AgentsTools.ManagerRoutine.include`; `AgentsManagerRoutineListCheck` is
   its test.
 - **`--manager-spawn-member <team-member>`** starts one member with a prompt, in a new coworking session
@@ -746,7 +747,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   Its code is `sh-lib/manager/AgentsTools.ManagerSpawn.include`; `AgentsManagerSpawnMemberCheck` is its test.
 - **No start starts an identity record.** A member whose `SKILL.md` says `status: reference-only` is
   never started, by any start: the spawn proxy refuses it before anything is made
-  (`AgentsToolsTeamMemberStartCheck`). `--magic-spawn-session` asks this check of every member before
+  (`AgentsToolsTeamMemberStartCheck`). `--spawn-session` asks this check of every member before
   its first spawn. `--manager-routine-list` says `not-startable` for a routine whose `executors` names
   such a member. `AgentsSpawnReferenceOnlyCheck` is the rule's own test.
 - **`--manager-config-digest [--full] [<subject>...]`** prints the settings as they are, by subject; every
@@ -865,10 +866,10 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   opened.
 - **Its actions**, each an operation: `k` kills (`--manager-session-kill`, its plan read first with
   `--plan`, the word `yes` typed), `c` starts a control thread (`--manager-session-control-start`, no
-  confirmation), Launch (Start) starts a routine or a free prompt (`--magic-spawn-session --routine
+  confirmation), Launch (Start) starts a routine or a free prompt (`--spawn-session --routine
   <selector>` or `--routine-default`, the prompt on standard input), `n` starts a member
   (`--manager-spawn-member`, the prompt on standard input). An action the screen began is not ended with
-  the screen. Pending Questions is read by `--member-pending-reply-read magic-coordinator --any-owner`.
+  the screen. Pending Questions is read by `--read-pending-reply magic-coordinator --any-owner`.
   No pane shows a `keys:` line: the status line shows the keys.
 - **Paging.** In the content pane Space, PgDn, PgUp, Home and End page and jump. In the list, PgUp and
   PgDn page; Left pages up as PgUp does and, on the list's first row, climbs one level, and at the root
@@ -987,7 +988,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `parent-spawn-id`. `receiptId` is a different id (the audit log, `RECEIPT_ID=`), named
   `spawn-proxy-<UTC stamp>-<pid>-<first eight of the spawn id>`; its dispatch item is
   `dispatch-<UTC stamp>-spawn-proxy-<pid>-<first eight>.md`. Older names end at the pid.
-- **`--description`** (agent-spawn-proxy, `--magic-spawn-session`, `--magic-spawn-proxy`): the
+- **`--description`** (agent-spawn-proxy, `--spawn-session`, `--spawn-prompt`): the
   spawner's own words for what the spawn is for, redacted and bounded (`AgentsToolsTaskTextKept`). On
   agent-spawn-proxy, kept as `description:` on both the dispatch item it creates and its own spawn
   record, only when given; `--session-name-or-comment` is kept the same way, as `session-comment:` on
@@ -1170,7 +1171,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `sessions/<spawn-id>/dismiss-held` and given at the run's first `Wait` once those runs have ended.
   The review-wait limit dismisses no run while another participant of its session runs. A run without
   its seat is no running participant.
-- **`--magic-spawn-session`** resolves the routine once, spawns the executors (or explicit members) async
+- **`--spawn-session`** resolves the routine once, spawns the executors (or explicit members) async
   with `--dispatch-doc:create`, the first starting the session and the rest joining by its `SESSION_ID=`.
   A wildcard or prose `executors` value is refused: the one function behind this,
   `AgentsToolsSpawnRoutineExecutorsRoster`, is also what `--manager-routine-list` asks to say whether a
@@ -1213,10 +1214,10 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   (`AgentsToolsActingMember`, `AgentsToolsActingSession`, `AgentsToolsActingMemberCheck`) and the three checks
   above. `AgentsContext.UseAgentsTools.include` sources it, and so may any `.fn.sh` that asks them alone;
   `AgentsCallerCheckSharedCheck` is its test.
-- **`--magic-client-operation-run <team-member> --client-<operation> [<argument>...]`**: `magic-coordinator`'s
+- **`--client-operation-run <team-member> --client-<operation> [<argument>...]`**: `magic-coordinator`'s
   own way to a client's operation. The named team member is the client, dispatched in its own session as
   the named `--client-<operation>` itself would be; `magic-coordinator` never runs a `--client-*` operation
-  directly. A `--magic-comms-*` operation stays our own side regardless of which member runs it, and no
+  directly. A coordinator's comms operation stays our own side regardless of which member runs it, and no
   longer reaches the other organisation for a client; the communication sweep reaches each `client-*`
   member through this operation instead.
 
@@ -1251,7 +1252,7 @@ contracts are here.
   every `blocks`/`blocked-by` edge are made whole, the cycles found and the dependencies reported
   (`AgentsToolsBoardDependencies`, `AgentsTools.BoardDependencies.include`), once for each change of the
   board and for none otherwise. It writes only items of the active states; what stays to judgement is
-  named in `process-board-checks.md`'s **board-dependencies**. `--magic-advance-lock-acquire` still calls the
+  named in `process-board-checks.md`'s **board-dependencies**. `--intern-op-routine-lock-take advance` still calls the
   first, for a manual start of the routine.
 - **The coordinator's work duty is `magic-coordinator.work-duty.routine`**, which declares
   `includes: magic-coordinator.advance.routine.md: Steps, Routine's local procedures, Routine's local
@@ -1267,7 +1268,7 @@ contracts are here.
   `dispatch-*` item) written since its duty last ended, or a recheck-date that fell due since. Backoff starts at `MAIN_LOOP_RESTART_DELAY_SECONDS` (default 29),
   doubles on failure, caps at `MAIN_LOOP_RESTART_DELAY_MAX_SECONDS` (default 1200), resets on success. A
   permanent misconfiguration therefore shows as failures then silence, not a loud exit.
-- **The configuration check is a script, no agent**: `--magic-config-check`, run by the iteration
+- **The configuration check is a script, no agent**: `--config-check`, run by the iteration
   after the housekeeping. It runs at most once in 30 minutes while it passes, and in every iteration while
   its last result is a failure (`.local/agents/main-loop.config-check.last`: the answer, then the epoch).
   A FAIL line is said on stderr with its reason; a failed check fails the iteration (the backoff applies)
@@ -1276,14 +1277,14 @@ contracts are here.
   remote only; `clonePull` never makes it a clone. `TEAM_DATA_BRANCH` travels as `init.defaultBranch` via
   `GIT_CONFIG_*`, or the push fails and `clonePull` then deletes the checkout. A remote with history plus
   local content is reported, to merge by hand.
-- **`--magic-team-data-commit-pending` commits, then syncs by `myx.common git/cloneSync`**, with
+- **`--commit-pending` commits, then syncs by `myx.common git/cloneSync`**, with
   `pull.rebase=false`: it pulls by a merge and pushes, with no push loop of its own. A real conflict
   leaves the merge in the store (`MERGE_HEAD`) and the call ends with status 1. A store that has no
   `README.md` gets an empty one from `cloneSync`, once. The store's branch must track its origin.
   `AgentsTeamDataCommitPendingCheck` is its test.
 - **`--intern-root-harness [--routine <selector>] [--non-interactive] [--wait]`**, no member argument.
   The console no longer runs it; its caller is a person by hand.
-  It spawns `--magic-spawn-proxy magic-coordinator`. Interactive (default) loops in its own
+  It spawns `--spawn-prompt magic-coordinator`. Interactive (default) loops in its own
   thread in `magic-team` and always waits, as the foreground job of its terminal: Ctrl+C reaches the
   proxy, which stops the session and closes it; `--non-interactive` runs one loop and posts to `event-track`, and needs
   `--routine`. The brief is the static `root-harness-session-start.prompt-packet.verbatim.md` with an
@@ -1566,7 +1567,7 @@ contracts are here.
   or a member name (its DM via `AgentsToolsCommsSlackMentionUserId`; an ask naming a member instead
   replies in the session thread, addressed to that member, the thread itself unnamed; no Slack account
   means an `inquiry-*` in its inbox, which `AskQuestion` refuses). An empty `to` is the session thread
-  (`AgentsToolsSessionThreadFind`), resolved inside `--member-comms-slack-send-message` so MCP gets it
+  (`AgentsToolsSessionThreadFind`), resolved inside `--slack-send-message` so MCP gets it
   too, the same in a native session that is itself the coworking session; the ask tools follow the same
   rule. `SubagentHandback` defaults to `session-parent`. `ProposeApprove` keeps its own `to`: the
   human-owner by default, or a named conversation -- never a thread, since its first message opens one.
@@ -1633,7 +1634,7 @@ contracts are here.
   whole number above nought, is refused with nothing run, every call being checked before any starts. An entry keeps the reply
   layer's rules except the date: over 8192 bytes it is a file reference, and the batch's one reply carries the
   one date (`MDAT_REPLY_IN_BATCH`). `AgentsBatchToolsCheck` is the test.
-- **`Wait` tool** calls `--member-wait-for-input`, which takes `slack:session-current` and
+- **`Wait` tool** calls `--wait-for-input`, which takes `slack:session-current` and
   `slack:session-parent` itself, the same as the other four built-in aliases and their `:<ts>` form, and
   adds only: `mode` (`default`/`continue`/`close`),
   reaction id sets, and `DISMISSED` detection
@@ -1721,7 +1722,7 @@ contracts are here.
 - **`WebSearch`** uses the keyless DuckDuckGo Instant Answer API, which answers named things and returns
   nothing for ordinary multi-word questions. Whether that is acceptable is open.
 - **`SessionTranscriptAppend`** appends one NOTE line to the current session's transcript through
-  `--member-append-session-transcript` with no `--transcript-name`.
+  `--append-transcript` with no `--transcript-name`.
 - **`Artifact`** announces a `url` as it always did, ungated. With `file` (and `files`) it publishes
   first: `AgentsHarnessArtifactPublish` checks `AgentsHarnessGranted Artifact publish` (not on the
   floor: a standing `allow-tool` row or a task or session grant), runs the read gate on every file,
@@ -1759,13 +1760,13 @@ contracts are here.
 - **List-shaped headers** (`blocks`, `blocked-by`, `supersedes`, `superseded-by`, `spawns`, `spawned-by`)
   are `a, b, c`, no brackets (`AgentsBoardItemHeaderOpsApply.awk`). There is no `references` field.
   `participants`/`restart-session` are space-separated, a separate convention.
-- **`--magic-board-to-blocked` and `--magic-grooming-to-blocked` stamp `execution-receipt: blocked:<ts>`**
+- **`--move-to-blocked` and `--grooming-to-blocked` stamp `execution-receipt: blocked:<ts>`**
   unless the caller supplies one; the check is a scan of that call's passthrough, in each arm. This
   header is written by several paths and is not yet in the armed file's header list.
-- **A state move belongs to the routine that makes it.** `--magic-grooming-to-parked`,
-  `--magic-advance-to-parked`, `--magic-board-to-parked` stay separate stubs; each stamps its own
+- **A state move belongs to the routine that makes it.** `--grooming-to-parked`,
+  `--advance-to-parked`, `--move-to-parked` stay separate stubs; each stamps its own
   provenance. Grooming stamps `owner`, `groomed-at`, `groomed-from`, `track`; a create stamps no
-  `groomed-from`. `--magic-grooming-to-backlog` clears `approved-by`/`approved-at`. `processed-at`, not
+  `groomed-from`. `--grooming-to-backlog` clears `approved-by`/`approved-at`. `processed-at`, not
   `groomed-at`, answers how long an item has been processed.
 - **`board-review` is entered only by the spawn proxy** (`AgentsToolsSpawnProxyCloseDispatch` create mode
   passes `review`, with `review-by` only from an explicit `--review-by`). An item's reviewer is its
@@ -1789,7 +1790,7 @@ contracts are here.
   processed, archived or retained moves to pending. Bad entries are reported and skipped; never fatal;
   idempotent. Paths join the approval's commit.
 - **`--intern-op-board-trash`** is the one implementation behind
-  `--librarian-inbox-item-trash` and `--member-inbox-item-trash` (wrappers pass `--context`). Subject
+  `--librarian-inbox-item-trash` and `--trash-inbox-item` (wrappers pass `--context`). Subject
   `- <invoked op>, <member>`. Without `.git` it creates `trash/`, tests `[ -e ]` before `mv`, and
   `touch`es the item so its trash clock starts now. With `.git` it deletes and commits.
 - **`--intern-team-data-final-gc-deletion`** retention is keyed on document type (`warning-*`,
@@ -1857,7 +1858,7 @@ contracts are here.
     resyncs with `cloneSync --no-push` and claims the next number, up to five times; an unreachable
     origin secures nothing and publishes nothing. The record is completed after the publish, or
     deleted when nothing was published, then pushed with `AgentsToolsTeamDataPushIfAhead`.
-- **Vault and audit reads**: `--member-vault-item-read` and `--member-audit-item-read` check the caller;
+- **Vault and audit reads**: `--get-vault-item` and `--get-audit-item` check the caller;
   `--intern-op-vault-item-read` and `--intern-op-audit-item-read` (`AgentsTools.InternOpVaultAudit.include`)
   resolve and read, so a new back end changes only there. There is no vault write op until a skillset
   step names one.
@@ -1894,7 +1895,7 @@ contracts are here.
   unlock warns and still closes.
 - **The state note and its lock share one note.** The coordinator's state note (the file name keeps
   "heartbeat-state-and-lock"; it holds the standing directives, F7.9) is taken with
-  `--magic-state-note-lock-acquire` and written through `--intern-op-state-note-upsert`, which takes a
+  `--state-note-lock-acquire` and written through `--intern-op-state-note-upsert`, which takes a
   whole-record body and splices in seven lock-owned fields read from the target (`type`, `from`, `date`,
   `owner`, `state`, `recheck-date`, `session-id`), excluding them from the caller's body. It strips `\r`,
   treats a fence-less body as all body, refuses when both extracted parts are empty from non-empty input,
@@ -1905,7 +1906,7 @@ contracts are here.
   surface and the test report write it, so the read-then-write gap races only itself.
 - **`last-close-date`** is stamped by the grooming and daily closes. Dates are local (the workday is the
   human-owner's); lock dates stay UTC; never compare the two. The test report
-  (`--magic-test-report-send`, by hand or from a console, never scheduled) is built from the board's counts
+  (`--send-report`, by hand or from a console, never scheduled) is built from the board's counts
   and active items (`AgentsToolsBoardCounts`, `AgentsToolsBoardActiveItems`), which list item names only.
 - **No input scan is an agent's call.** A scan is the operation `--intern-op-<scan>-input-scan`, named by a
   routine's repeatable `input-scan-def: <scan> [--option value ...]` line (`none` alone for no scan) and run
@@ -1923,7 +1924,7 @@ contracts are here.
   `lib/parallel` runs in a nested subshell because it installs an `EXIT` trap. This is safe because
   `--intern-op-slack-call` waits out rate limits (`ratelimited`/429, `Retry-After`, up to 5 attempts,
   `AgentsToolsSlackRateLimitWait`).
-- **`--magic-advance-lock-acquire` closes dead spawns** after a successful take, and only then, as
+- **`--intern-op-routine-lock-take advance` closes dead spawns** after a successful take, and only then, as
   housekeeping the tooling does itself. Its lines go to the daemon line and the caller's event-track
   thread (`AgentsToolsHousekeepingReport`), none to its output. Dead on this
   host: no live process, no open ask, nothing changed under its sandbox or `sessions/<id>/` for 15 min.
@@ -2022,7 +2023,7 @@ op's own option arm.
   running, or a client-side call naming one of our own aliases, is refused, rc 3, with the one line
   naming the operation and its `--member-*`/`--client-*` twin (`AgentsToolsSlackOneWayLine`). A
   `--client-comms-slack-*` operation (send, read, search, react, edit, delete, file-info, file-fetch,
-  file-share, profile) reaches the other organisation this way; `--member-comms-slack-*` reaches our own
+  file-share, profile) reaches the other organisation this way; `--slack-*` reaches our own
   team instead, posted as the team bot, whichever member is acting. The credential never makes this
   choice: the operation's own prefix and the address do.
 - **`session-current` and `session-parent` resolve in the same function**, each one thread, no `:<ts>`
@@ -2046,7 +2047,7 @@ op's own option arm.
 - **Workspace domain** for `X-Request-Detail`: the member's own `SLACK_WORKSPACE_DOMAIN`, then
   `magic-team`'s (`AgentsToolsResolveSlackWorkspaceDomain`). It is persisted by
   `--intern-op-check-configs <scope> --resolve-slack-workspace-into SLACK_WORKSPACE_DOMAIN` (user token
-  first) on that scope's config-check pass (`--magic-config-check`,
+  first) on that scope's config-check pass (`--config-check`,
   `--client-sweep-config-check`). A member without its own pass gets the team's domain, which is wrong if
   its token is in another workspace: add a pass, never a per-call `auth.test`. The resolved name is not
   persisted into a scope whose Slack settings are themselves read from another workspace
@@ -2077,7 +2078,7 @@ op's own option arm.
   defaults to pretty via `AgentsSlackMessagesFormat.awk`.
 - **`--intern-op-check-configs` carries no Slack call** except the domain resolve, sourced in that branch
   only.
-- **Send header.** `--member-comms-slack-send-message` always prepends the sender's mark, bold name and
+- **Send header.** `--slack-send-message` always prepends the sender's mark, bold name and
   `@alias` before `→`, naming the addressees its call's `address_to` (or `--address-to`) gave it. A
   member addressee becomes a real `<@U…>` mention via `AgentsToolsCommsSlackMentionUserId`: a member by
   `auth.test` on its own user token, the human-owner by `SLACK_CHANNEL_HUMAN_OWNER` (a user id). Anything
@@ -2151,12 +2152,12 @@ op's own option arm.
   with a plain field like `phone` first). Custom field ids differ per workspace (`team.profile.get`).
   `status_text` and `status_emoji` must travel together; the error fires only when one travels alone and
   empty.
-- **Presence** (`--member-comms-slack-presence-*`, no help pair): held by a websocket, never set
+- **Presence** (`--slack-presence-*`, no help pair): held by a websocket, never set
   (`users.setPresence` has no `active`). User token only (`rtm.connect` refuses bots). Keyed by
   `<team_id>:<user_id>`, one holder per account, found by argv match, start under a `mkdir` lock,
   extended with `SIGUSR1`, TTL 300 s default. Its client-side twin, `--client-comms-slack-presence-keep`,
   `-status` and `-stop`, now has its own help entries.
-- **Socket mode** (`--member-comms-slack-socket-*`, no help pair): `SLACK_APP_TOKEN` (member, then team);
+- **Socket mode** (`--slack-socket-*`, no help pair): `SLACK_APP_TOKEN` (member, then team);
   keyed by the token's scope, since Slack delivers each event to one connection. The token reaches the
   holder (URLs expire and refresh); envelopes are acknowledged on arrival; continuation frames are
   reassembled. Only `app_mention` is consumed, filed as an `inquiry-*` in `magic-coordinator`'s inbox
@@ -2175,7 +2176,7 @@ op's own option arm.
 - **`--intern-op-contact-digest-send <member> <origin> (--resolved|--needs-ruling) <text...>`**: stub over
   the send. The origin is any member, carried in `--address-to`. `--needs-ruling` goes to the human-owner's
   DM under the user identity; `--resolved` to the bot's conversation with him (`--identity-bot`). Public
-  wrappers: `--magic-contact-digest-send` (origin given) and `--member-contact-digest-send` (origin is the
+  wrappers: `--send-contact-digest` (origin given) and `--send-contact-digest` (origin is the
   caller). See `non-owner-contact-tiers-and-escalation` in `magic-team.conversations.md`.
 
 ## 19. Email, Trello, Atlassian
@@ -2184,7 +2185,7 @@ op's own option arm.
   once, in `wrapStyle`. Bare URLs link; bare addresses are bold blue with no `mailto:`.
   `AGENTS_EMAIL_SEND_BUILD_ONLY=true` builds without sending.
 - **Email reads** fetch in a subshell redirected to a file (a `$( )` loses NULs and leaks `set +e`).
-- **`--member-git-repo-history`** runs `git log` only, with `GIT_OPTIONAL_LOCKS=0`, no pager. Containment
+- **`--get-path-history`** runs `git log` only, with `GIT_OPTIONAL_LOCKS=0`, no pager. Containment
   is on the resolved path against the workspace plus `AgentsToolsClientAccessRoots read`; symlinks and
   `..` are refused; empty root lines are skipped (an empty root matches everything). "outside the
   readable roots" is fixed in the machine access-roots config.
@@ -2250,7 +2251,7 @@ op's own option arm.
 
 ## 20. Questions, decisions and review
 
-- **`--member-pending-reply-read`'s list first rebuilds the pending-replies registry**, by the same
+- **`--read-pending-reply`'s list first rebuilds the pending-replies registry**, by the same
   rebuild `--make-harness-indices pending-replies` makes, so the file is current after any list; a read
   by one `<pending-id>` rebuilds nothing. Each open record also prints `asker-live:` before `question:`,
   whether the run that asked it is alive, measured as the read is made and stored nowhere: `running` (a
@@ -2374,14 +2375,14 @@ op's own option arm.
 - **A click is read only ahead of the addressee's first reply.** Once a reply stands in the thread, a
   later click is never read as a verdict, even where the kind declares that reaction a verdict (see
   "18. Slack").
-- **The asker's readback** (`--member-escalation-readback`, EscalateDecision `pending_id` + `readback`):
+- **The asker's readback** (`--readback-escalation`, EscalateDecision `pending_id` + `readback`):
   once a decision's reply names no option, its asker may post, in the question's thread under the ask's
   identity, which option it takes the reply to mean. The record closes with that verdict, `closed-by:
   readback` (on its Decisions line too) and `follow-floor: <readback ts>`; the replies are kept as
   clarifications. As for any answered question, a later objection arrives as `ASK-RESULT: CLARIFIED`
   and is kept. The asker only, never a permission, never before a reply, never over a reply that names
   an option.
-- **Withdraw** (`--member-pending-reply-settle --withdraw`, AskQuestion `pending_id` + `withdraw`): the
+- **Withdraw** (`--settle-pending-reply --withdraw`, AskQuestion `pending_id` + `withdraw`): the
   asker discards its own open question of any kind. Status `withdrawn` (a close status of its own, with
   `withdrawn-by` and `withdraw-reason`, never a verdict), so it answers, grants and decides nothing;
   reminders stop, its Decisions line is `dismissed`, a note goes into its thread, and its `ask:` item
@@ -2414,12 +2415,12 @@ op's own option arm.
   `--intern-op-pending-reply-earlier` stops asking the same thing twice (`NOT ASKED AGAIN`). Decisions are
   shown first (30 lines) in briefs, `conversation.md` and scans.
 - **Review** (`AgentsTools.ReviewFlow.include`): only a `running` item enters `review` (handback, child
-  ended without handback, `--wait` pass ended, `--member-review-request`). The review limit
+  ended without handback, `--wait` pass ended, `--request-review`). The review limit
   (`REVIEW_WAIT_LIMIT`, default 3600 s) is enforced by `Wait` itself, returning `DISMISSED`, so it needs
   no main loop. It dismisses no run while another participant of its session runs (section 11). It
   does not run while a question about the death of a run stands open in the session of
   the waiting run (`AgentsReviewWaitLeft` asks `AgentsToolsSessionControlDeathQuestion`), and counts
-  again from that question's close. Verdicts `--member-review-accept|return|reject|follow-up` (`--intern-op-review-*`); a
+  again from that question's close. Verdicts `--accept-review|return|reject|follow-up` (`--intern-op-review-*`); a
   return restarts the session through the proxy's join path. Endings (`archived`, `trashed`,
   `shutdown`, `taskstop`, `review-wait-expired`) are recorded as `dismissed:` lines. A parent with no
   thread gets `parent-thread:` written on the child's record. The end of a run is told to the session
@@ -2563,7 +2564,7 @@ op's own option arm.
   Grep or Glob of the same target as well (`AgentsToolsGrantsToolCovers`), never the other way round.
   rc 1 when no row admits the call. magic-librarian's own standing `write` row for a team-member skill's
   `.md` files admits the same Read, Grep and Glob of it, the same way.
-- **Revoke** (`--magic-permission-revoke <ref>`, implemented as `--intern-op-permission-revoke`):
+- **Revoke** (`--revoke-permission <ref>`, implemented as `--intern-op-permission-revoke`):
   `<store>/revoked/<ref>`, a file (awk tests it by `getline`, which cannot tell a directory), then
   `AgentsToolsGrantsStoreTouch`. Every reader skips it. A task grant's entries (its `task:` grants
   lines without the trailing ref, the form set-apply writes) also leave its item's `allows:` through
@@ -2586,20 +2587,20 @@ op's own option arm.
   (`--intern-op-escalation-permission-add`), turning the open prompt into one Permission set; an answer
   already given to it is not widened by a later join. An entry's tool is any name the gate can decide,
   an `mcp__` tool name included; an unknown name returns a correction, posting nothing.
-- **Place names at request time.** `--magic-permission-set-request` takes `<tool>:@<name>[:<glob>]`,
+- **Place names at request time.** `--request-permission-set` takes `<tool>:@<name>[:<glob>]`,
   resolved by `--intern-directory-resolve` and `pwd -P` to the path it is asked for; an absolute path
   stays allowed. A write in a read-only place is refused there and in `grant-open`, before the holds
   check (the human-owner holds everything, and the harness would refuse the grant anyway), naming the
   route. The `name:relative` hint (`--intern-directory-of`) is printed as `PLACE:` and recorded as
   `<ref>.places` (natural target, TAB, hint) beside the grant's record, the way `.task` is.
-- **Pass** (`--member-permission-pass`, implemented as `--intern-op-permission-pass`; `--kind
+- **Pass** (`--pass-permission`, implemented as `--intern-op-permission-pass`; `--kind
   once|session|task`): its `--target` goes through `AgentsToolsPermissionEntryPlace` first (`@name`
   resolved, the ceiling refused with its route, `PLACE:` and `<ref>.places`), then the holds, lifetime
   and participant limits; `--kind session` also needs the passer in `AgentsToolsPermissionParticipants`
   of the session. One `pass-<uuid>` grant, signed by the passer, in `AgentsToolsPermissionShareStore`'s
   store, then `AgentsToolsGrantsStoreTouch`; a session pass ends with that store's session, and every
   pass is revoked by its ref.
-- **`--magic-permission-list` / `--member-permission-list`** (`--intern-op-permission-list`) are
+- **`--list-permissions` / `--list-permissions`** (`--intern-op-permission-list`) are
   `AgentsGrantsSessionIndex.awk` in `mode=list`: the same filters as the index, plus a once grant's
   use and TTL and a task's item, read in the awk.
 - **`allow-read` is `allow-write` without the write**: same `<scope>:<selector>:allow-read:<member>:<glob>`
@@ -2667,9 +2668,9 @@ Each instrument states what it proves and its red recipe in its own header. What
   ends the control threads of its own rig** through `sh-test/check-fixtures/rig-control-threads.include.sh`
   (`rigControlThreadNotes`, `rigControlThreadsEnd`, called in its `EXIT` trap); the guard for this is in
   `AgentsSessionControlStartCheck`, which fails a check of `sh-test` that names
-  `--magic-advance-lock-acquire`, `--intern-main-loop`, `--manager-session-control-start`,
-  `--intern-op-agent-spawn-proxy`, `--magic-spawn-proxy`, `--magic-spawn-session`,
-  `--manager-spawn-member`, `--member-review-return`, `--intern-op-review-return` or `--intern-tool
+  `--intern-op-routine-lock-take advance`, `--intern-main-loop`, `--manager-session-control-start`,
+  `--intern-op-agent-spawn-proxy`, `--spawn-prompt`, `--spawn-session`,
+  `--manager-spawn-member`, `--return-review`, `--intern-op-review-return` or `--intern-tool
   Agent` outside a comment and does not do so (35 checks carry the fixture). A thread whose rig is
   removed now ends at its own next tick; the fixture still matters, for the time until that tick and for
   a thread that runs older code.

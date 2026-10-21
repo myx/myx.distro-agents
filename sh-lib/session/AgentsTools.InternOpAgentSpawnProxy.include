@@ -1307,7 +1307,7 @@ case "$1" in
 
 		## The receipt, and the dispatch item named after it below: the stamp, this shell's pid,
 		## and the first part of the spawn's own id. The stamp and the pid alone are one for two
-		## spawns that one call makes inside one second (--magic-spawn-session spawns its members
+		## spawns that one call makes inside one second (--spawn-session spawns its members
 		## from one shell, one right after the other), and the second then took the first one's
 		## dispatch item for its own. The id is what tells such spawns apart.
 		receiptId="spawn-proxy-$timestamp-$$-${MDAT_SPAWN_SESSION_ID:0:8}"

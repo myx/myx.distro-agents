@@ -28,61 +28,61 @@ case "$1" in
 		case "$targetMember" in
 			magic-coordinator)
 				commonPrefixes=(
-					"--member-*"
+					"@member"
 					"--owner-workspace-list"
 					"--check-*"
-					"--member-comms-email-send"
-					"--member-comms-email-mark-seen"
-					"--magic-*"
+					"--email-send"
+					"--email-mark-seen"
+					"@coordinator"
 					"--console-*"
-					"--member-comms-slack-react"
+					"--slack-react"
 					"--routine-*"
 				)
 			;;
 			magic-librarian)
 				commonPrefixes=(
-					"--member-*"
+					"@member"
 					"--librarian-*"
 				)
 			;;
 			magic-devops)
 				commonPrefixes=(
-					"--member-*"
+					"@member"
 					"--install-*"
 				)
 			;;
 			magic-*)
 				commonPrefixes=(
-					"--member-*"
+					"@member"
 				)
 			;;
 			partner-*)
 				commonPrefixes=(
-					"--member-*"
+					"@member"
 				)
 			;;
-			## A client-* member works on both sides: our own team by --member-*, the other organisation by --client-*.
+			## A client-* member works on both sides: our own team by the operations of the tool files, the other organisation by --client-*.
 			client-*)
 				commonPrefixes=(
-					"--member-*"
+					"@member"
 					"--client-*"
 				)
 			;;
 			keeper-*|warden-*)
 				commonPrefixes=(
-					"--member-*"
+					"@member"
 					"--console-*"
 				)
 			;;
 			oncall-*|expert-*)
 				commonPrefixes=(
-					"--member-*"
+					"@member"
 				)
 			;;
 			human-owner)
 				commonPrefixes=(
 					"--help"
-					"--member-*"
+					"@member"
 					"--owner-*"
 				)
 			;;
@@ -91,6 +91,20 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+
+		## The names of the tool files stand for their audiences: every member's, and the coordinator's own (the table of the tool files).
+		type AgentsToolsFrontNamesOf > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+		local expandedPrefixes=() prefixItem prefixName
+		for prefixItem in "${commonPrefixes[@]}" ; do
+			case "$prefixItem" in
+				@member|@coordinator)
+					while IFS= read -r prefixName ; do
+						[ -z "$prefixName" ] || expandedPrefixes[${#expandedPrefixes[@]}]="$prefixName"
+					done <<< "$( AgentsToolsFrontNamesOf "${prefixItem#@}" )"
+				;;
+				*) expandedPrefixes[${#expandedPrefixes[@]}]="$prefixItem" ;;
+			esac
+		done
 
 		local skillRoot="$MDAT_SKILLSET_ROOT"
 		local memberFile="$skillRoot/$targetMember/$targetMember.armed.md"
@@ -128,13 +142,16 @@ case "$1" in
 		floorOpNames="$( ExtractOpNames "$floorFile" | sort -u )"
 
 		local allNames
-		allNames="$( { printf '%s\n' "$floorOpNames" ; printf '%s\n' "$ownOpNames" ; printf '%s\n' "${commonPrefixes[@]}" ; } | sort -u )"
+		allNames="$( { printf '%s\n' "$floorOpNames" ; printf '%s\n' "$ownOpNames" ; printf '%s\n' "${expandedPrefixes[@]}" ; } | sort -u )"
 
 		echo "# Tooling help output" >&2
 		echo >&2
 
 
 		export MDAT_MEMBER_HELP_NAMES="$allNames"
+		## What the coordinator alone calls is not shown to another member through a family prefix of its own.
+		export MDAT_MEMBER_HELP_EXCLUDE=""
+		[ "$targetMember" = magic-coordinator ] || MDAT_MEMBER_HELP_EXCLUDE="$( AgentsToolsFrontNamesOf coordinator )"
 		LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsMemberHelpToolingLinesFilter.awk" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include"
 
 		echo >&2

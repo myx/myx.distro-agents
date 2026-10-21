@@ -21,4 +21,4 @@ The floor is `magic-team/magic-team.armed.md`'s. This section states which claus
   - skillset text written with `Edit` or `Write` (the hook receives the path, not the content);
   - per-member evidence, where an operation receives no caller identity;
   - the relay exemption — untested, not passing;
-  - `--member-comms-google-doc-write` and `--member-comms-google-comment-post` — unwired, no single assembly point for the body.
+  - `--google-doc-write` and `--google-comment-post` — unwired, no single assembly point for the body.

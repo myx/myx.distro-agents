@@ -15,7 +15,7 @@
 ##   6. REFUSED: no text, a text too long, an expires-at that is none or missing, a bad id or wait, an option it does not know, an id that is not there, no note.
 ##   7. A SPAWN IS GIVEN THEM: the brief (spawn-prepare-brief) has a section `standing directives in force` with the orders and notes in force, or `(none in force)`.
 ##   8. STANDING IS A ROW OF THE NOTE CONTRACT: `standing: yes|no` meets inbox-item.note's contract (a value off it is refused by the one validator), and the note writer
-##      (--member-inbox-note-upsert) sets it with --standing yes|no, on a note only; the surface selects the notes that carry yes.
+##      (--upsert-inbox-note) sets it with --standing yes|no, on a note only; the surface selects the notes that carry yes.
 ## Offline, rig tree only.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -92,8 +92,8 @@ echo "-- 3. standing directives, three together --"
 printf -- '---\ntype: warning\n---\n\n# a risk\n' > "$rigData/board/running/warning-20261020-rig-risk.md"
 printf -- '---\ntype: warning\n---\n\n# a mitigated risk\n' > "$rigData/board/processed/warning-20261001-done.md"
 printf '# Keep the rig quiet on weekends\n\nx\n' > "$rigTmp/in1" ; printf '# A plain note\n\nx\n' > "$rigTmp/in2"
-rigWriter "$rigTmp/n1" "$rigTmp/in1" --member-inbox-note-upsert magic-coordinator note-20261020T1000Z-rig-standing.md --standing yes
-rigWriter "$rigTmp/n2" "$rigTmp/in2" --member-inbox-note-upsert magic-coordinator note-20261020T1000Z-rig-plain.md
+rigWriter "$rigTmp/n1" "$rigTmp/in1" --upsert-inbox-note magic-coordinator note-20261020T1000Z-rig-standing.md --standing yes
+rigWriter "$rigTmp/n2" "$rigTmp/in2" --upsert-inbox-note magic-coordinator note-20261020T1000Z-rig-plain.md
 rigAs=magic-coordinator
 rigSurface "$rigTmp/d1" --directive-set --id use-claude --text "Scaleway is down, use Claude" --expires-at "$rigFuture"
 rigSurface "$rigTmp/d2" --directive-set --id forever --text "Slack silence after 22:00" --expires-at none
@@ -176,14 +176,14 @@ LC_ALL=C sed 's/^standing: yes$/standing: maybe/' "$rigStand" > "$rigTmp/bad-not
 rigRun "$rigTmp/k3" "$rigChain" --intern-doc-validate inbox-item.note "$rigTmp/bad-note.md"
 rigAssert "a value off the row (maybe) is refused by the validator, naming the form" "$rigRc $( rigHas 'contract-form' "$rigTmp/k3.out" ) $( rigHas 'standing' "$rigTmp/k3.out" )" "1 1 1"
 printf '[]' > "$rigTmp/in3"
-rigWriter "$rigTmp/n3" "$rigTmp/in3" --member-inbox-note-upsert magic-coordinator note-20261020T1000Z-rig-standing.md --standing no --edit-patch-from-stdin
+rigWriter "$rigTmp/n3" "$rigTmp/in3" --upsert-inbox-note magic-coordinator note-20261020T1000Z-rig-standing.md --standing no --edit-patch-from-stdin
 rigSurface "$rigTmp/k4" --standing-directives
 rigAssert "--standing no on the existing note changes the header alone (body kept) and the surface no longer selects it" "$rigRc $( LC_ALL=C grep -c '^standing: no$' "$rigStand" ) $( LC_ALL=C grep -c '^standing: yes$' "$rigStand" ) $( LC_ALL=C grep -c '^x$' "$rigStand" ) $( rigHas 'note-20261020T1000Z-rig-standing.md' "$rigTmp/k4.out" )" "0 1 0 1 0"
-rigWriter "$rigTmp/n4" "$rigTmp/in3" --member-inbox-note-upsert magic-coordinator note-20261020T1000Z-rig-standing.md --standing yes --edit-patch-from-stdin
+rigWriter "$rigTmp/n4" "$rigTmp/in3" --upsert-inbox-note magic-coordinator note-20261020T1000Z-rig-standing.md --standing yes --edit-patch-from-stdin
 rigSurface "$rigTmp/k5" --standing-directives
 rigAssert "--standing yes again: selected again, the header once" "$rigRc $( LC_ALL=C grep -c '^standing:' "$rigStand" ) $( rigHas 'note-20261020T1000Z-rig-standing.md' "$rigTmp/k5.out" )" "0 1 1"
-rigWriter "$rigTmp/n5" "$rigTmp/in1" --member-inbox-note-upsert magic-coordinator note-20261020T1000Z-rig-other.md --standing maybe
-rigWriter "$rigTmp/n6" "$rigTmp/in1" --member-inbox-note-upsert magic-coordinator inquiry-20261020T1000Z-rig-other.md --standing yes
+rigWriter "$rigTmp/n5" "$rigTmp/in1" --upsert-inbox-note magic-coordinator note-20261020T1000Z-rig-other.md --standing maybe
+rigWriter "$rigTmp/n6" "$rigTmp/in1" --upsert-inbox-note magic-coordinator inquiry-20261020T1000Z-rig-other.md --standing yes
 rigAssert "--standing maybe and --standing on an inquiry are refused, nothing written" "$( rigHas '--standing is yes or no: maybe' "$rigTmp/n5.err" ) $( rigHas '--standing is for a note' "$rigTmp/n6.err" ) $( ls "$rigData/inboxes/magic-coordinator/incoming" | LC_ALL=C grep -c 'rig-other' )" "1 1 0"
 
 echo "-- 7. a spawn is given them --"

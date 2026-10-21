@@ -11,7 +11,7 @@
 ##   --contact-access, --escalate-contact, --allow-contact   what a contact may ask for, asked of the permission model
 ## A contact's access is not stored here: it is read from the permission model, the grants given to `contact:<id>`.
 ##
-## From DistroAgentsTools.fn.sh (F1.4, first stage): --send-contact-digest. They go on under their old names (sh-lib/harness/AgentsContext.FrontForward.include).
+## From DistroAgentsTools.fn.sh (F1.4): --send-contact-digest (sh-lib/harness/AgentsContext.FrontTable.include).
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -35,12 +35,32 @@ case "$BASH" in
 	;;
 esac
 
+## The operations that came here from DistroAgentsTools.fn.sh (F1.4): every one of them is asked what each name of the table is asked, in AgentsContext.FrontDoor.include.
+DistroAgentsContactsMoved(){
+	local MDSC_CMD='DistroAgentsContacts' frontDone="" frontRc=0
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontDoor.include"
+	[ -z "$frontDone" ] || return "$frontRc"
+	case "$1" in
+
+		--send-contact-digest)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.MemberContact.include"
+			return $?
+		;;
+
+		*)
+			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+			set +e ; return 1
+		;;
+	esac
+}
+
 DistroAgentsContacts(){
 	local MDSC_CMD='DistroAgentsContacts'
-	## F1.4, first stage: an operation that came here under a new name goes on under its old one (sh-lib/harness/AgentsContext.FrontForward.include).
-	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontForward.include"
+	## F1.4: a name that came here from DistroAgentsTools.fn.sh runs its operation in the function below.
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	if AgentsToolsFrontKnows DistroAgentsContacts "$@" ; then
-		AgentsToolsFrontForward DistroAgentsContacts "$@"
+		DistroAgentsContactsMoved "$@"
 		return $?
 	fi
 	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,

@@ -54,7 +54,7 @@ rigDrop(){ ## member, a rendering file -- what the drop leaves of it for that me
 echo "-- 1. the tooling's own sends are marked, a member's are not --"
 printf 'DISMISSED' | rigTooling --intern-op-comms-slack-send-message keeper-rig magic-team --identity-bot --address-to keeper-addr --from-stdin > /dev/null
 printf 'a note naming @keeper-addr and nobody for' | rigTooling --intern-op-comms-slack-send-message keeper-rig magic-team --identity-bot --from-stdin > /dev/null
-printf 'a member speaks to @keeper-addr' | rigTooling --member-comms-slack-send-message keeper-rig magic-team --identity-bot --from-stdin > /dev/null
+printf 'a member speaks to @keeper-addr' | rigTooling --slack-send-message keeper-rig magic-team --identity-bot --from-stdin > /dev/null
 rigAssert "three posts were made" "$( ls "$rigScn"/post.* 2> /dev/null | LC_ALL=C grep -c . )" "3"
 rigAssert "the DISMISSED of the tooling, addressed, and the note of the tooling carry the mark" "$( LC_ALL=C grep -c -F '"tracking":"tooling"' "$rigScn/post.1" ):$( LC_ALL=C grep -c -F '"tracking":"tooling"' "$rigScn/post.2" )" "1:1"
 rigAssert "a member's own send does not" "$( LC_ALL=C grep -c -F '"tracking"' "$rigScn/post.3" )" "0"

@@ -69,7 +69,7 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 	rigRow session s-done2 older_work finished 2026-10-10T00:00:00Z 2026-10-10T01:00:00Z 1 finished=1 - - none 100
 	rigRow counters 1 0 2 2 3 0.42 righost
 } > "$rigF/rows.--manager-session-list"
-cat > "$rigF/rows.--member-pending-reply-read" <<'RIGROWS'
+cat > "$rigF/rows.--read-pending-reply" <<'RIGROWS'
 PENDING-REPLY: ask-new
 asked-at: 2026-10-13 02:20 +0000
 kind: question

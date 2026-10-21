@@ -56,7 +56,7 @@ case "$1" in
 		## the help, each once in its order, but those of the families named here, the internal
 		## ones and those the agents call (a member's, the librarian's, the coordinator's, a
 		## client's, a routine's, a console channel's). The rule is this one line.
-		local helpReadOut='--intern- --member- --librarian- --magic- --client- --routine- --console-'
+		local helpReadOut='--intern- --librarian- --client- --routine- --console-'
 		LC_ALL=C awk -v out="$helpReadOut" '
 			BEGIN { count = split(out, outs, " ") }
 			/^echo "📘 syntax: DistroAgentsTools\.fn\.sh \[?--/ {

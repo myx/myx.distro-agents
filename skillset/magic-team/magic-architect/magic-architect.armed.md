@@ -15,7 +15,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Domain knowledge: macro-level design
   - Idle-Tasks
 - Team-Member's (-specific) tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
 
 # Summary
@@ -86,10 +86,10 @@ The lens is in Goals; the rules above are its standing findings.
 
 Every `magic-tooling` operation this team-member uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--member-board-item-read <team-member> <item-filename>`
-- `--member-upsert-member-inquiry <team-member> <item-filename>`
+- `--get-board-item <item-filename>`
+- `--upsert-inbox-inquiry <team-member> <item-filename>`
 
 # Maintainer Notes
 

@@ -20,7 +20,7 @@ review-by: inherit
 - Routine's local procedures
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -53,11 +53,11 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **check-readiness**: Run `--magic-config-check`. Every `FAIL` or `WARN` line, with its `fix:`, becomes a blocker for **checkpoint-ask-user**.
+1. **check-readiness**: Run `--config-check`. Every `FAIL` or `WARN` line, with its `fix:`, becomes a blocker for **checkpoint-ask-user**.
 2. **check-auth-identity**: Take `SLACK_AUTH_IDENTITY` from **check-readiness**'s output. `OK` names her authenticated `user_id`; anything else is a blocker.
-3. **check-send-path**: Send a probe, carrying a timestamp marker, to `magic-team`, `event-track`, `event-alert` and `human-owner` (`--member-comms-slack-send-message`; it fails a send whose `message.user` is not **check-auth-identity**'s `user_id`). Read each back (`--member-comms-slack-read`). A probe counts only when it arrived where expected and reads as sent by Magic Vane. Delivered under another identity, or not found, is a blocker. App attribution alongside her own identity is a warning, not a failure.
+3. **check-send-path**: Send a probe, carrying a timestamp marker, to `magic-team`, `event-track`, `event-alert` and `human-owner` (`--slack-send-message`; it fails a send whose `message.user` is not **check-auth-identity**'s `user_id`). Read each back (`--slack-read`). A probe counts only when it arrived where expected and reads as sent by Magic Vane. Delivered under another identity, or not found, is a blocker. App attribution alongside her own identity is a warning, not a failure.
 4. **check-alias-target**: A failed `human-owner` send leaves that target unresolved. Ask the human-owner for a reachable conversation; never guess a substitute.
-5. **check-slack-profile**: Read the profile (`--member-comms-slack-profile-get magic-coordinator`) and compare it with `magic-coordinator.basic.md`: picture, display name Magic Vane, handle `dispatchr`, and a short role-aligned status line (baseline: "Dispatch and prioritization lead for magic-*"). A mismatch is set (`--member-comms-slack-profile-set`) after the human-owner's go. A facet that could not be read is asked about, never assumed.
+5. **check-slack-profile**: Read the profile (`--slack-profile-get magic-coordinator`) and compare it with `magic-coordinator.basic.md`: picture, display name Magic Vane, handle `dispatchr`, and a short role-aligned status line (baseline: "Dispatch and prioritization lead for magic-*"). A mismatch is set (`--slack-profile-set`) after the human-owner's go. A facet that could not be read is asked about, never assumed.
 6. **checkpoint-ask-user**: For each blocker, ask the human-owner for exactly the next action, one question at a time (`AskQuestion`), and wait for the answer (`magic-team.armed.md`'s **wait-never-quit**). After each answer, apply only the affected fix and re-run only the affected step.
 
 # Closure steps
@@ -85,13 +85,13 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--magic-config-check`
-- `--member-comms-slack-send-message <team-member> <target> [text...]`
-- `--member-comms-slack-read <team-member> <channel>:<ts>`
-- `--member-comms-slack-profile-get <team-member>`
-- `--member-comms-slack-profile-set <team-member> {--display-name <v>|--status-text <v>|--avatar <path>|...}`
+- `--config-check`
+- `--slack-send-message <target> [text...]`
+- `--slack-read <channel>:<ts>`
+- `--slack-profile-get`
+- `--slack-profile-set {--display-name <v>|--status-text <v>|--avatar <path>|...}`
 
 # Maintainer Notes
 

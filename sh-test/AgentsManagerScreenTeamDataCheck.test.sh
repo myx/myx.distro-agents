@@ -235,7 +235,7 @@ show sync
 RIGSCRIPT
 rigAssert "a workspace that is just agents has no main loop, and its summary says so" "$( rigHolds on '│ mode    Just Agents, saved for the workspace' ) $( rigHolds on 'No main loop here: a workspace has one in the mode team-rig alone.' ) $( rigHolds on 'Main Loop' )" "1 1 0"
 rigAssert "there Operations shows each operation, what it does, what it runs, and that it is offered" "$( rigVal purge.path ) $( rigVal purge.selectedLabel ) $( rigHolds purge 'Empties the cleanup folder of this workspace' ) $( rigHolds purge 'runs   --owner-cleanup-purge' ) $( rigHolds purge 'here   offered' )" "magic-team/teamdata/operations Purge The Cleanup Folder 1 1 1"
-rigAssert "the sync of the team data is not offered where no git remote of it is set" "$( rigHolds sync 'runs   --magic-team-data-commit-pending magic-coordinator' ) $( rigHolds sync 'here   not offered: no git remote of the team data is set' )" "1 1"
+rigAssert "the sync of the team data is not offered where no git remote of it is set" "$( rigHolds sync 'runs   --commit-pending magic-coordinator' ) $( rigHolds sync 'here   not offered: no git remote of the team data is set' )" "1 1"
 rigAssert "the one that needs a team rig is not offered, with the label of the mode" "$( rigHolds gc 'runs   --intern-team-data-final-gc-deletion magic-coordinator' ) $( rigHolds gc 'here   not offered: for a team rig alone: this workspace is Just' )" "1 1"
 rigAssert "Enter on it opens nothing and says why in the status line, and nothing is called" "[$( rigVal gc.dialog )] $( rigVal gc.notice ) / $( rigWords '[--intern-team-data-final-gc-deletion][magic-coordinator]' )" "[] Run the operation: for a team rig alone: this workspace is Just Agents / 0"
 
@@ -286,7 +286,7 @@ RIGSCRIPT
 rigAssert "a team rig offers the cleanup that needs one, and calls it as the tooling has it, with its member" "$( rigWords '[--intern-team-data-final-gc-deletion][magic-coordinator]' )" "1"
 rigAssert "one that ends by a signal says the signal by its number and its name" "$( rigVal ended.dialogHolds | LC_ALL=C sed 's/[0-9.]*s\.$/Ns./' )" "gc: about to be ended / Ended by signal 9 (SIGKILL), after Ns."
 rigCase sync rig full
-printf 'script synced.sh\n' > "$MANAGER_SCREEN_RIG/mode.--magic-team-data-commit-pending"
+printf 'script synced.sh\n' > "$MANAGER_SCREEN_RIG/mode.--commit-pending"
 printf 'echo "TEAM-DATA-NOTHING-PENDING: /rig/ws/team-data"\n' > "$MANAGER_SCREEN_RIG/synced.sh"
 rigScript <<RIGSCRIPT
 $rigToCleanup
@@ -294,7 +294,7 @@ keys DOWN DOWN ENTER ENTER
 wait follow 10
 get ended
 RIGSCRIPT
-rigAssert "where a git remote is set the sync is offered, runs the tooling's own commit and push as it is, and ends with status 0" "$( rigWords '[--magic-team-data-commit-pending][magic-coordinator]' ) $( rigVal ended.dialogHolds | LC_ALL=C sed 's/[0-9.]*s\.$/Ns./' )" "1 TEAM-DATA-NOTHING-PENDING: /rig/ws/team-data / Ended with status 0, after Ns."
+rigAssert "where a git remote is set the sync is offered, runs the tooling's own commit and push as it is, and ends with status 0" "$( rigWords '[--commit-pending][magic-coordinator]' ) $( rigVal ended.dialogHolds | LC_ALL=C sed 's/[0-9.]*s\.$/Ns./' )" "1 TEAM-DATA-NOTHING-PENDING: /rig/ws/team-data / Ended with status 0, after Ns."
 rigCase stop rig agents
 printf 'script slow.sh\n' > "$MANAGER_SCREEN_RIG/mode.--owner-cleanup-purge"
 printf 'echo "slow: up"\nsleep 20\necho "slow: never"\n' > "$MANAGER_SCREEN_RIG/slow.sh"

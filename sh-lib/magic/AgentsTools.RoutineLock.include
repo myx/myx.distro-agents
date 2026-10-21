@@ -224,7 +224,7 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 		## One of the four standing notes (advance, daily, grooming, retro): the spawner takes the lock through the routine's
 		## own acquire operation, as the tooling itself, so what that operation does once the lock is taken still happens (the advance's
 		## housekeeping), and what it prints reaches the run (daily's first-today:).
-		lockOut="$( ( unset MDAT_SPAWN_AGENT harnessAgent ; MDAT_SPAWN_SESSION_ID="" ; DistroAgentsTools "--magic-$lockOwn-lock-acquire" "$lockMember" "$lockSession" ) 2>&1 )" || {
+		lockOut="$( ( unset MDAT_SPAWN_AGENT harnessAgent ; MDAT_SPAWN_SESSION_ID="" ; AgentsToolsRoutineLockTakeOwn "$lockOwn" "$lockMember" "$lockSession" ) 2>&1 )" || {
 			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the routine is already running, or its lock could not be taken: the locking document $lockNote ($lockMember) answered: ${lockOut:-<nothing>} -- nothing was started" >&2
 			return 1
 		}
@@ -292,7 +292,7 @@ AgentsToolsRoutineLockUnlockOne(){ ## one routine-lock-document value, the sessi
 	if [ -n "$unlockOwn" ] ; then
 		## The routine's own close, as the tooling itself: what it does under the lock before it lets go (the advance's collection,
 		## the grooming's and the daily's last-close-date) is done as it always was.
-		unlockOut="$( ( unset MDAT_SPAWN_AGENT harnessAgent ; MDAT_SPAWN_SESSION_ID="" ; DistroAgentsTools "--magic-$unlockOwn-close-state-and-unlock" "${unlockParsed%%$'\t'*}" ) 2>&1 )" || \
+		unlockOut="$( ( unset MDAT_SPAWN_AGENT harnessAgent ; MDAT_SPAWN_SESSION_ID="" ; AgentsToolsRoutineLockCloseOwn "$unlockOwn" "${unlockParsed%%$'\t'*}" ) 2>&1 )" || \
 			echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the lock of session $unlockSession, ${unlockValue#inbox:}, could not be given back ($unlockEnded): $unlockOut" >&2 || :
 		return 0
 	fi
@@ -591,4 +591,205 @@ AgentsToolsRoutineSessionStateUpdate(){ ## the operation's arguments
 	fi
 	AgentsToolsRoutineStateWrite "$updMember" "$updNote" "$updOp" "$updContent"
 	return $?
+}
+
+## THE TAKE AND THE GIVING BACK OF THE FOUR STANDING LOCKS (F1.4). The advance, daily, grooming and retro routines locked by hand before the spawner did, and what
+## their own take and close do under the lock stays (the advance's resync and housekeeping, the daily's first-today:, the stamp of the last close of the daily and
+## the grooming). The spawner calls these two functions with the routine word; there is no public operation for either: the lock is the spawner's, and the shell and
+## the checks reach the two functions through --intern-op-routine-lock-take and --intern-op-routine-lock-close. The resync, the state check and the head check are
+## the functions above.
+
+## What the standing locks need that a call from the spawner has not sourced.
+AgentsToolsRoutineLockOwnNeeds(){
+	type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InboxPlace.include"
+	type AgentsToolsRecheckDate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.RecheckDate.include"
+	type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpItem.include"
+}
+
+## The note of a routine's standing lock.
+AgentsToolsRoutineLockOwnNote(){ ## routine word
+	case "$1" in
+		advance) printf 'note-20260809T154715Z-advance-state-and-lock.md' ;;
+		daily) printf 'note-20260811T120000Z-daily-state-and-lock.md' ;;
+		grooming) printf 'note-20260809T154332Z-grooming-state-and-lock.md' ;;
+		retro) printf 'note-20260811T120000Z-retro-state-and-lock.md' ;;
+		*) return 1 ;;
+	esac
+}
+
+## The take: AgentsToolsRoutineLockTakeOwn <routine word> <member> <owner label>. Prints what the take said (the daily's first-today:); rc 1 where the lock is not taken.
+AgentsToolsRoutineLockTakeOwn(){ ## routine word, member, owner label
+	local takeWord="$1" takeMember="${2:-}" takeOwner="${3:-}" takeNote takeMinutes=30 takeOp="routine lock take ($1)" takeRecheck takeFirst="" takeLastClose=""
+	takeNote="$( AgentsToolsRoutineLockOwnNote "$takeWord" )" || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $takeOp: no standing lock for the routine $takeWord" >&2 ; return 1 ; }
+	if [ -z "$takeMember" ] || [ -z "$takeOwner" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $takeOp: <team-member> <owner-label> required" >&2
+		return 1
+	fi
+	AgentsToolsRoutineLockOwnNeeds
+	## The lock is team data: a workspace that keeps none takes none (AgentsTools.TeamDataGate.include).
+	type AgentsToolsTeamDataGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
+	AgentsToolsTeamDataGate --intern-op-routine-lock-take || return 1
+	if [ "$takeWord" = advance ] ; then
+		takeMinutes=10
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $takeOp: MDAT_DATA_ROOT is not set" >&2
+			return 1
+		}
+		local lockTarget="$( AgentsToolsInboxNotePath "$takeMember" "$takeNote" )"
+		local originUrl="" repoRoot="" lockRelPath="" lockBranch=""
+		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || originUrl=""
+		if [ -n "$originUrl" ] ; then
+			repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
+		fi
+		## The pre-write half of the lock's concurrency control, ahead of item-upsert's own post-push read-back: refuse a conflicted copy,
+		## resync, refuse again, then refuse anything still not the head's.
+		if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
+			lockRelPath="${lockTarget#"$repoRoot"/}"
+			lockBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )" || lockBranch=""
+			case "$lockRelPath" in
+				/*|'')
+					echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $takeOp: LOCK_UNCHECKABLE -- the lock note does not resolve inside the board checkout $repoRoot" >&2
+					return 1
+				;;
+			esac
+			if [ -z "$lockBranch" ] || [ "$lockBranch" = "HEAD" ] ; then
+				echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $takeOp: LOCK_UNCHECKABLE -- the board checkout $repoRoot is not on a named branch" >&2
+				return 1
+			fi
+			AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" "$takeOp" "before the board resync" || return 1
+			local advanceSyncOut
+			if ! AgentsToolsAdvanceCloneSync "$repoRoot" "$originUrl" "$lockBranch" ; then
+				echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $takeOp: LOCK_UNCHECKABLE -- could not resync the board before taking the lock, so whether the local copy is the published one is UNKNOWN: $advanceSyncOut" >&2
+				return 1
+			fi
+			AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" "$takeOp" "after the board resync" || return 1
+			AgentsToolsAdvanceLockHeadCheck "$repoRoot" "$lockRelPath" "$lockBranch" "$takeOp" || return 1
+		fi
+	fi
+	## Read before the acquire writes: the first daily of the day is one whose note does not carry today's local date as its last-close-date.
+	if [ "$takeWord" = daily ] ; then
+		takeFirst="yes"
+		if [ -n "${MDAT_DATA_ROOT:-}" ] && [ -f "$( AgentsToolsInboxDir magic-coordinator )/$takeNote" ] ; then
+			takeLastClose="$( LC_ALL=C awk '
+				{ sub(/\r$/, "") ; }
+				$0 == "---" { fmDepth++ ; if (fmDepth >= 2) exit ; next ; }
+				fmDepth == 1 && /^last-close-date: / { print substr($0, 18) ; exit ; }
+			' "$( AgentsToolsInboxDir magic-coordinator )/$takeNote" )"
+		fi
+		[ "$takeLastClose" != "$( date +%Y-%m-%d )" ] || takeFirst="no"
+	fi
+	takeRecheck="$( AgentsToolsRecheckDate "$takeMinutes" )"
+	if [ "$takeWord" = advance ] ; then
+		AgentsToolsItemRead "$takeMember" \
+			--from-inbox "$takeMember" "$takeNote" \
+			--acquire-lock "$takeOwner" \
+			--commit-message "* advance.routine: activate, lock" \
+			--header:upsert:state:advance-running \
+			--header:upsert:recheck-date:"$takeRecheck" \
+			--context "$takeOp" || return 1
+	else
+		AgentsToolsItemRead "$takeMember" \
+			"$takeNote" \
+			--acquire-lock "$takeOwner" \
+			--header:upsert:state:"$takeWord"-running \
+			--header:upsert:recheck-date:"$takeRecheck" \
+			--context "$takeOp" || return 1
+	fi
+	if [ "$takeWord" = advance ] && [ -n "${originUrl:-}" ] && [ -n "${repoRoot:-}" ] ; then
+		local fetchOut="" fetchRc=0 publishedSessionId
+		fetchOut="$( git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )" || fetchRc=$?
+		if [ "$fetchRc" -ne 0 ] ; then
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $takeOp: LOCK_UNCHECKABLE -- could not fetch origin/$lockBranch to verify the published lock: $fetchOut" >&2
+			return 1
+		fi
+		publishedSessionId="$( git -C "$repoRoot" show "FETCH_HEAD:$lockRelPath" 2>/dev/null | LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' )"
+		if [ "$publishedSessionId" != "$takeOwner" ] ; then
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $takeOp: LOCK_NOT_PUBLISHED -- origin/$lockBranch:$lockRelPath reads session-id '$publishedSessionId', not '$takeOwner' -- the lock write did not actually land on the remote" >&2
+			return 1
+		fi
+	fi
+	## The advance pass's housekeeping, each time the routine takes its lock and only then, by the tooling itself: its lines go to the daemon line and the event-track
+	## thread (AgentsToolsHousekeepingReport), none to the output the agent reads.
+	if [ "$takeWord" = advance ] ; then
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.SpawnHousekeeping.include"
+		AgentsToolsAdvanceSpawnHousekeeping 24 "$takeMember" > /dev/null
+	fi
+	[ "$takeWord" != daily ] || echo "first-today: $takeFirst"
+	return 0
+}
+
+## The giving back: AgentsToolsRoutineLockCloseOwn <routine word> <member>. What the routine's close does under the lock before it lets go stays: the advance's
+## final collection, its push and its board resync, and the stamp of the last close of the daily and the grooming. rc 1 where it could not be given back.
+AgentsToolsRoutineLockCloseOwn(){ ## routine word, member
+	local closeWord="$1" closeMember="${2:-}" closeNote closeOp="routine lock close ($1)"
+	closeNote="$( AgentsToolsRoutineLockOwnNote "$closeWord" )" || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $closeOp: no standing lock for the routine $closeWord" >&2 ; return 1 ; }
+	if [ -z "$closeMember" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $closeOp: <team-member> required" >&2
+		return 1
+	fi
+	AgentsToolsRoutineLockOwnNeeds
+	type AgentsToolsTeamDataGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
+	AgentsToolsTeamDataGate --intern-op-routine-lock-close || return 1
+	case "$closeWord" in
+		advance)
+			local gcRc=0
+			DistroAgentsTools --intern-team-data-final-gc-deletion "$closeMember" --context "$closeOp" || gcRc=$?
+			if [ "$gcRc" -ne 0 ] && [ "$gcRc" -ne 2 ] ; then
+				echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: $closeOp: team-data-final-gc-deletion failed (exit $gcRc) -- aborting unlock rather than degrading silently (PROVISIONAL policy, see MAGIC.md)" >&2
+				return 1
+			fi
+			## gcRc=2: nothing to delete -- not a failure, continue.
+			AgentsToolsItemUpsert "$closeMember" --from-inbox "$closeMember" "$closeNote" \
+				--unlock-lock \
+				--header:upsert:state:advance-finished \
+				--no-push \
+				--commit-message "* advance.routine: update, unlock" \
+				--context "$closeOp" || return 1
+			local originUrl="" repoRoot="" lockBranch="" advanceSyncOut pushAttempt=1 pushOut="" pushRc=0
+			originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || originUrl=""
+			if [ -n "$originUrl" ] ; then
+				repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
+			fi
+			if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
+				lockBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )" || lockBranch=""
+				while : ; do
+					pushOut="$( git -C "$repoRoot" push origin HEAD 2>&1 )" && pushRc=0 || pushRc=$?
+					[ "$pushRc" -eq 0 ] && break
+					case "$pushOut" in
+						*"Could not resolve host"*|*"could not resolve host"*|*"unable to access"*|*"Could not read from remote repository"*|*"Connection timed out"*|*"Connection refused"*|*"Operation timed out"*|*"Network is unreachable"*|*"connection reset"*)
+							if [ "$pushAttempt" -eq 1 ] ; then
+								echo "# ${MDSC_CMD:-DistroAgentsTools} $closeOp: push network failure, retrying once in 15s" >&2
+								sleep 15
+								pushAttempt=2
+								continue
+							fi
+						;;
+					esac
+					break
+				done
+				if [ "$pushRc" -ne 0 ] ; then
+					echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools} $closeOp: push failed after unlock commits landed locally -- closing anyway (same tolerance as AgentsToolsItemUpsert's own commit push): $pushOut" >&2
+				fi
+				if ! AgentsToolsAdvanceCloneSync "$repoRoot" "$originUrl" "$lockBranch" ; then
+					echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools} $closeOp: board resync failed after the unlock landed locally -- closing anyway, the checkout is left unreconciled: $advanceSyncOut" >&2
+				fi
+			fi
+		;;
+		daily|grooming)
+			AgentsToolsItemUpsert "$closeMember" "$closeNote" \
+				--unlock-lock \
+				--header:upsert:state:"$closeWord"-finished \
+				--header:upsert:last-close-date:"$( date +%Y-%m-%d )" \
+				--context "$closeOp" || return 1
+		;;
+		retro)
+			AgentsToolsItemUpsert "$closeMember" "$closeNote" \
+				--unlock-lock \
+				--header:upsert:state:retro-finished \
+				--context "$closeOp" || return 1
+		;;
+	esac
+	return 0
 }

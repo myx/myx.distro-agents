@@ -33,7 +33,7 @@ Form and control points for every live exchange: threads, sessions, interviews, 
 10. **react-at-each-stage**: React as a message moves: seen (👀), started, done or noted. Reactions add up. A reaction never replaces an owed reply. `Wait`'s `seen`/`note`/`done`/`wait` sets apply these reactions.
 11. **readback-closes-human-owner-message**: The last action on any message from the human-owner is a threaded reply that reads back what was received. For email, reply with `--in-reply-to <parent-message-id>`.
 12. **assess-incoming-reactions**: Reactions on your messages are signals. A recurring issue becomes a `reflection-*`.
-13. **wtf-reaction-creates-reflection**: A strong confusion or frustration signal (`WTF?!` or equal) is recorded with `--member-inbox-reflection-upsert`.
+13. **wtf-reaction-creates-reflection**: A strong confusion or frustration signal (`WTF?!` or equal) is recorded with `--upsert-inbox-reflection`.
 14. **quality-marker-creates-reflection**: `GOOD`/`BAD CONVERSATION`, `INTERVIEW` or `COMMUNICATION` is recorded the same way, covering the iterations that led to it.
 15. **watch-quoted-content-for-hints**: A `> ` quote of this conversation scopes the rest of the message to that point only. Other quotes are references.
 16. **address-messages-clearly**: Every message has an addressee (`magic-team.armed.md`'s "Every message is addressed, tagged, and sent on a real channel").
@@ -82,7 +82,7 @@ Confirmations go through the chain of command in `magic-team.armed.md`'s "Escala
 41. **session-is-one-continued-routine-instance**: One routine instance is one session and one transcript, across media and interruptions.
 42. **wording-and-substance-are-separate-checks**: Check wording and substance separately. Draft several phrasings and pick the better; present a real tradeoff and ask.
 43. **no-regress**: An edit of approved content keeps every intent, detail and benchmark it had.
-44. **transcripts-are-verbatim-records**: Interview, discuss and brainstorm exchanges are kept as `transcript-<date>-<topic>` via `--member-append-session-transcript`. Commentary is separate.
+44. **transcripts-are-verbatim-records**: Interview, discuss and brainstorm exchanges are kept as `transcript-<date>-<topic>` via `--append-transcript`. Commentary is separate.
 45. **transcript-append-strict-and-utc**: Append verbatim messages only, stamped UTC: the message's own time, else now.
 46. **relaying-does-not-merge-transcripts**: A relay records only that it happened, never the relayed substance.
 47. **name-speaker-on-coworking-transcript**: Each Slack coworking message names its speaker: `@<alias> (<verb>):` then the message.
@@ -115,7 +115,7 @@ Confirmations go through the chain of command in `magic-team.armed.md`'s "Escala
     - **Recorded level required** — affecting the board, dispatching jobs, or requesting internal information.
     - Assess every request as **granted**, **needs escalation** or **must be denied**. Without a recorded level that covers it, ask the human-owner with who wants what. He allows, denies, or asks for more.
     - Only the human-owner grants a contact access. The contact and what it may ask for are kept by `DistroAgentsContacts.fn.sh`.
-    - Every assessment is reported as one digest: originating member, who wanted what, resolution. Send it with `--member-contact-digest-send` (`--magic-contact-digest-send` for another member's correspondence), `--resolved` when settled and `--needs-ruling` when he must rule.
+    - Every assessment is reported as one digest: originating member, who wanted what, resolution. Send it with `--send-contact-digest` (`--send-contact-digest` for another member's correspondence), `--resolved` when settled and `--needs-ruling` when he must rule.
 
 # Interview-alike checkpoint mode
 

@@ -251,25 +251,25 @@ echo "-- the wait operation holds a session's wait to the round of its service -
 rigStart op-claude
 rigLaunchedOn claude-native
 rigDrop
-rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$( rigSessionOf )" --wait-source "file:$rigScenarioDir/drop.txt" --wait-since-utime 1 --wait-timeout 14400
+rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$( rigSessionOf )" --wait-source "file:$rigScenarioDir/drop.txt" --wait-since-utime 1 --wait-timeout 14400
 rigAssert "a session on the vendor claude CLI, asked to wait four hours: its bound is that service's round" "$( rigFirstLine "$rigScenarioDir/op.out" ):$( rigBound )" "WAIT-RESULT: RECEIVED:2700s bound"
 rigStart op-unknown
 rigDrop
-rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$( rigSessionOf )" --wait-source "file:$rigScenarioDir/drop.txt" --wait-since-utime 1 --wait-timeout 14400
+rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$( rigSessionOf )" --wait-source "file:$rigScenarioDir/drop.txt" --wait-since-utime 1 --wait-timeout 14400
 rigAssert "a session whose service is not known: the safe round" "$( rigFirstLine "$rigScenarioDir/op.out" ):$( rigBound )" "WAIT-RESULT: RECEIVED:270s bound"
-rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$( rigSessionOf )" --wait-source "file:$rigScenarioDir/drop.txt" --wait-since-utime 1
+rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$( rigSessionOf )" --wait-source "file:$rigScenarioDir/drop.txt" --wait-since-utime 1
 rigAssert "with no bound named, the round is its bound" "$( rigBound )" "270s bound"
-rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$( rigSessionOf )" --wait-source "file:$rigScenarioDir/drop.txt" --wait-since-utime 1 --wait-timeout 30
+rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$( rigSessionOf )" --wait-source "file:$rigScenarioDir/drop.txt" --wait-since-utime 1 --wait-timeout 30
 rigAssert "a shorter bound the call names stays" "$( rigBound )" "30s bound"
-rigOp --member-wait-for-input "$rigMember" --wait-source "file:$rigScenarioDir/drop.txt" --wait-since-utime 1 --wait-timeout 14400
+rigOp --wait-for-input "$rigMember" --wait-source "file:$rigScenarioDir/drop.txt" --wait-since-utime 1 --wait-timeout 14400
 rigAssert "control: a wait of no session keeps the bound it was given" "$( rigBound )" "14400s bound"
-rigOp --member-wait-for-input "$rigMember" --wait-source "file:$rigScenarioDir/drop.txt" --wait-since-utime 1
+rigOp --wait-for-input "$rigMember" --wait-source "file:$rigScenarioDir/drop.txt" --wait-since-utime 1
 rigAssert "control: and none where it names none" "$( rigBound )" "no bound"
 rigStart op-round
 rigRoundSet 2
 : > "$rigScenarioDir/quiet.txt"
 ## Under a guard of its own: a wait that did not come back would hold this check for the four hours it names.
-( rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$( rigSessionOf )" --wait-source "file:$rigScenarioDir/quiet.txt" --wait-timeout 14400 --wait-poll-interval 1 ) &
+( rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$( rigSessionOf )" --wait-source "file:$rigScenarioDir/quiet.txt" --wait-timeout 14400 --wait-poll-interval 1 ) &
 rigOpPid=$!
 rigOpLeft=45
 while kill -0 "$rigOpPid" 2>/dev/null && [ "$rigOpLeft" -gt 0 ] ; do sleep 1 ; rigOpLeft=$(( rigOpLeft - 1 )) ; done

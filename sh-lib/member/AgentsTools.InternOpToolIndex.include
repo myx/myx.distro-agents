@@ -9,8 +9,8 @@
 ## member's section, as one section `Tool index` (AgentsUniversalHarness.sh, through
 ## --intern-merge-md-files); --make-harness-indices builds it under the name `tool-index`.
 ##
-## WHO MAY USE WHAT is read, never written here: for the three families the dispatcher's gate
-## asks a caller check for (DistroAgentsTools.fn.sh: --magic-, --client-, --manager-), that
+## WHO MAY USE WHAT is read, never written here: for the three families a caller check is asked for (the coordinator's own operations,
+## named in the table of the tool files, AgentsContext.FrontTable.include; --client- and --manager-, DistroAgentsTools.fn.sh), that
 ## check itself, asked for each member and for a call from no member's session; for the tools,
 ## the grants index's tool rows, which carry the floor (AgentsToolsGrantsBuiltinText) and what
 ## the projects declare in project.inf. A family no check is asked for, and a tool no row
@@ -34,7 +34,7 @@ AgentsToolsToolIndexMay(){ ## family, member
 	(
 		MDAT_SPAWN_AGENT="$2" ; harnessAgent="" ; MDAT_SPAWN_SESSION_ID=""
 		case "$1" in
-			--magic-) AgentsToolsMagicCallerCheck magic-tool-index-probe ;;
+			coordinator) AgentsToolsMagicCallerCheck coordinator-tool-index-probe ;;
 			--client-)
 				case "$2" in
 					client-*) AgentsToolsClientCallerCheck "$2" client-tool-index-probe ;;
@@ -52,7 +52,7 @@ AgentsToolsToolIndexSources(){ ## workspace
 	local sourcesPackage="${agentsToolIndexHere%/sh-lib}" sourcesFile sourcesStem
 	printf '%s\n' "${1%/}/.local/agents/grants.index" "$sourcesPackage/sh-scripts" \
 		"$agentsToolIndexHere/harness/AgentsOpenAiChatWire.sh" "$agentsToolIndexHere/mcp/AgentsTools.InternMcpRequest.include" \
-		"$agentsToolIndexHere/harness/AgentsContext.UseAgentsTools.include" "$agentsToolIndexHere/member/AgentsTools.InternOpToolIndex.include" \
+		"$agentsToolIndexHere/harness/AgentsContext.UseAgentsTools.include" "$agentsToolIndexHere/harness/AgentsContext.FrontTable.include" "$agentsToolIndexHere/member/AgentsTools.InternOpToolIndex.include" \
 		"$agentsToolIndexHere/member/AgentsToolIndexFill.awk" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsToolingTemplateFill.awk" \
 		"$agentsToolIndexHere/templates/tool-index.document.format.md"
 	for sourcesFile in "$sourcesPackage"/sh-scripts/DistroAgents*.fn.sh "$sourcesPackage"/sh-scripts/Agent*Tools.fn.sh ; do
@@ -68,6 +68,7 @@ AgentsToolsToolIndexSources(){ ## workspace
 ## `holds <tool> <member>`. rc 1 when the members cannot be read.
 AgentsToolsToolIndexData(){ ## workspace
 	local dataWs="${1%/}" dataPackage="${agentsToolIndexHere%/sh-lib}" dataMembers dataMember dataFamily dataFile dataStem dataHelp dataVerdict
+	type AgentsToolsFrontOps > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include" || return 1
 	type AgentsToolsGrantsIndexEnsure > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include" || return 1
 	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" || return 1
 	AgentsToolsGrantsSkillsetRoot "$dataWs"
@@ -79,11 +80,14 @@ AgentsToolsToolIndexData(){ ## workspace
 		[ -f "$dataFile" ] || continue
 		dataStem="${dataFile##*/}" ; dataStem="${dataStem%.fn.sh}"
 		dataHelp="$agentsToolIndexHere/help/Help.$dataStem.help.md"
+		## The manual is one: the syntax lines of a tool file are the ones that name it (the table of the tool files says what each is).
+		[ -f "$dataHelp" ] || { [ -z "$( AgentsToolsFrontOps "$dataStem" )" ] || dataHelp="$agentsToolIndexHere/help/Help.DistroAgentsTools.help.md" ; }
 		[ -f "$dataHelp" ] || dataHelp=""
-		printf 'shell\t%s\t%s\t%s\n' "${dataFile##*/}" "$dataStem" "$dataHelp"
+		printf 'shell\t%s\t%s\t%s\t%s\n' "${dataFile##*/}" "$dataStem" "$dataHelp" "$( AgentsToolsFrontSummary "$dataStem" )"
 	done | LC_ALL=C sort -u
+	AgentsToolsFrontNamesOf coordinator | LC_ALL=C sort -u | LC_ALL=C awk '{ print "coordop\t" $0 }'
 	printf 'calls\t%s\t%s\n' "$agentsToolIndexHere/harness/AgentsOpenAiChatWire.sh" "$agentsToolIndexHere/mcp/AgentsTools.InternMcpRequest.include"
-	for dataFamily in --magic- --client- --manager- ; do
+	for dataFamily in coordinator --client- --manager- ; do
 		while IFS= read -r dataMember ; do
 			dataVerdict=no ; AgentsToolsToolIndexMay "$dataFamily" "$dataMember" && dataVerdict=yes
 			printf 'may\t%s\t%s\t%s\n' "$dataFamily" "$dataMember" "$dataVerdict"

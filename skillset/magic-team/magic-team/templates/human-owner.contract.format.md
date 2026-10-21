@@ -16,7 +16,7 @@ Normative contract: this file's own `# Contract` section, at its end. Where it a
 - Team-Member's (-specific) local rules
 - Domain knowledge: <topic>
 - Team-Member's (-specific) tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -75,7 +75,7 @@ No member-execution bullet: this record never executes anything itself. Its proc
 
 Every `magic-tooling` operation this record's own procedures invoke. Behaviour is read with `--member-help`. Procedures use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
 - [Operation, with argument syntax — or `None.` if no procedure invokes any.]
 

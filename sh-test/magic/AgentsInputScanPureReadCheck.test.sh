@@ -9,7 +9,7 @@
 ##   1. the board sections of the coordinator's scan (the advance scan that carried them alone is retired, F7.12) act on none of them: the dead spawn's record, the item's state, the review-by, the
 ##      sessions' control folders are as they were; nothing is posted and no housekeeping line is printed
 ##   2. it still reports them: the running item as a running/ row, the review item as a review/ row
-##   3. --magic-advance-lock-acquire, the advance routine taking its lock, does the housekeeping: the dead spawn is
+##   3. --intern-op-routine-lock-take advance, the advance routine taking its lock, does the housekeeping: the dead spawn is
 ##      closed, its item moves to review, the review-by becomes magic-coordinator, the control thread is started
 ##   4. its housekeeping lines go to the tooling log, and none to its standard output
 ##   5. the main loop does the housekeeping at every iteration, by script and with no agent (F7.12), and makes the other end of a `blocks`/`blocked-by`
@@ -131,7 +131,7 @@ rigItem review task-rig-rv-ended2.md task dispatch-succeeded rig-ended none
 rigSandbox rig-live2 spawn-started
 printf '900002 rig-run --session-id rig-live2\n' >> "$rigTmp/ps.list"
 : > "$rigTmp/tooling.log"
-rigRun "$rigTmp/lock" --magic-advance-lock-acquire magic-coordinator rig-advance-pass
+rigRun "$rigTmp/lock" --intern-op-routine-lock-take advance magic-coordinator rig-advance-pass
 rigAssert "the lock is taken"                                 "$( cat "$rigTmp/lock.rc" )" 0
 rigAssert "the dead spawn's record is closed"                 "$( [ "$( rigHeader "$rigW/.local/agents/spawned/rig-ldead2/rig-ldead2.spawn.md" status )" = spawn-started ] && printf open || printf closed )" closed
 rigAssert "its item moved to review"                          "$( rigLoc dispatch-rig-ldead2.md )" review

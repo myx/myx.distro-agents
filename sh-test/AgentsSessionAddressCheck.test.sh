@@ -236,7 +236,7 @@ rigOp(){ ## session thread (empty for none), operation and its arguments after t
 }
 ## The operation's own error lines, whole: a refusal is one line.
 rigOpErrors(){
-	LC_ALL=C grep -F -- '⛔ ERROR: DistroAgentsTools --member-' "$rigScenarioDir/op.err" 2>/dev/null
+	LC_ALL=C grep -E -- '⛔ ERROR: DistroAgents[A-Za-z]+ --(slack|wait)-' "$rigScenarioDir/op.err" 2>/dev/null
 }
 rigReacted(){ ## "<ts> <name>" -- how many times that reaction was asked for
 	LC_ALL=C grep -c -x -F -- "$1" "$rigScenarioDir/reactions" 2>/dev/null || :
@@ -244,45 +244,45 @@ rigReacted(){ ## "<ts> <name>" -- how many times that reaction was asked for
 
 echo "-- the send operation takes both names --"
 rigScene opSendCurrent
-rigOp "$rigCurrent" --member-comms-slack-send-message session-current RIG-BODY
+rigOp "$rigCurrent" --slack-send-message session-current RIG-BODY
 rigHolds "$rigScenarioDir/op.err" 'SENT_MESSAGE_TS=' | grep -q yes || rigRefuse "no send reached the fake curl at all: $( grep -m1 ERROR "$rigScenarioDir/op.err" )"
 rigAssert "session-current: one post, in the session thread"      "$rigOpRc:$( rigPosts ):$( rigPostedTo "$rigCurrent" )" "0:1:yes"
 rigScene opSendParent
-rigOp "$rigCurrent" --member-comms-slack-send-message session-parent RIG-BODY
+rigOp "$rigCurrent" --slack-send-message session-parent RIG-BODY
 rigAssert "session-parent: one post, in the parent's thread"      "$rigOpRc:$( rigPosts ):$( rigPostedTo "$rigParent" )" "0:1:yes"
 rigAssert "and not in the caller's own"                           "$( rigHolds "$rigScenarioDir/post.1" 'CSESS001' )" no
 rigScene opSendNoCurrent
-rigOp "" --member-comms-slack-send-message session-current RIG-BODY
+rigOp "" --slack-send-message session-current RIG-BODY
 rigAssert "no session thread: refused, nothing posted"            "$rigOpRc:$( rigPosts )" "1:0"
-rigAssert "by one line: why, and what to pass instead"            "$( rigOpErrors )" "⛔ ERROR: DistroAgentsTools --member-comms-slack-send-message: $rigNoCurrent Nothing was sent."
+rigAssert "by one line: why, and what to pass instead"            "$( rigOpErrors )" "⛔ ERROR: DistroAgentsTools --slack-send-message: $rigNoCurrent Nothing was sent."
 rigStart opSendNoParent
 rigRecords none "$rigParent"
-rigOp "$rigCurrent" --member-comms-slack-send-message session-parent RIG-BODY
+rigOp "$rigCurrent" --slack-send-message session-parent RIG-BODY
 rigAssert "no parent: refused, nothing posted"                    "$rigOpRc:$( rigPosts )" "1:0"
-rigAssert "by one line: why, and what to pass instead"            "$( rigOpErrors )" "⛔ ERROR: DistroAgentsTools --member-comms-slack-send-message: $rigNoParent Nothing was sent."
+rigAssert "by one line: why, and what to pass instead"            "$( rigOpErrors )" "⛔ ERROR: DistroAgentsTools --slack-send-message: $rigNoParent Nothing was sent."
 rigAssert "never the caller's own thread instead"                 "$( rigHolds "$rigScenarioDir/op.err" 'CSESS001' )" no
 
 echo "-- the read operation takes both names --"
 rigScene opRead
-rigOp "$rigCurrent" --member-comms-slack-read session-current --thread
+rigOp "$rigCurrent" --slack-read session-current --thread
 rigAssert "session-current --thread: the session thread is read"  "$rigOpRc:$( rigHolds "$rigScenarioDir/op.err" 'GET conversations.replies channel=CSESS001 ts=1700000002.000202 (full thread' )" "0:yes"
 rigAssert "and what it holds is returned"                         "$( rigHolds "$rigScenarioDir/op.out" 'RIG-CURRENT-OPENER' )" yes
-rigOp "$rigCurrent" --member-comms-slack-read session-parent
+rigOp "$rigCurrent" --slack-read session-parent
 rigAssert "session-parent: the parent thread's opening message"   "$rigOpRc:$( rigHolds "$rigScenarioDir/op.err" 'GET conversations.replies channel=CPARENT1 ts=1700000001.000101 (single message' )" "0:yes"
 rigAssert "and what it holds is returned"                         "$( rigHolds "$rigScenarioDir/op.out" 'RIG-PARENT-OPENER' )" yes
 : > "$RIG_CURL_LOG"
-rigOp "" --member-comms-slack-read session-current --thread
-rigAssert "no session thread: refused by the one line"            "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --member-comms-slack-read: $rigNoCurrent"
+rigOp "" --slack-read session-current --thread
+rigAssert "no session thread: refused by the one line"            "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-read: $rigNoCurrent"
 rigAssert "and nothing was read"                                  "$( LC_ALL=C grep -c -x 'conversations.replies' "$RIG_CURL_LOG" )" 0
 
 echo "-- the react operation takes both names --"
 rigScene opReact
-rigOp "$rigCurrent" --member-comms-slack-react session-current eyes
+rigOp "$rigCurrent" --slack-react session-current eyes
 rigAssert "session-current: on the session thread's opening message" "$rigOpRc:$( rigReacted '1700000002.000202 eyes' ):$( rigHolds "$rigScenarioDir/op.err" 'POST reactions.add channel=CSESS001 timestamp=1700000002.000202 name=eyes' )" "0:1:yes"
-rigOp "$rigCurrent" --member-comms-slack-react session-parent eyes
+rigOp "$rigCurrent" --slack-react session-parent eyes
 rigAssert "session-parent: on the parent thread's opening message"   "$rigOpRc:$( rigReacted '1700000001.000101 eyes' ):$( rigHolds "$rigScenarioDir/op.err" 'POST reactions.add channel=CPARENT1 timestamp=1700000001.000101 name=eyes' )" "0:1:yes"
-rigOp "" --member-comms-slack-react session-current eyes
-rigAssert "no session thread: refused by the one line"            "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --member-comms-slack-react: $rigNoCurrent"
+rigOp "" --slack-react session-current eyes
+rigAssert "no session thread: refused by the one line"            "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-react: $rigNoCurrent"
 rigAssert "only the two reactions asked for were placed"          "$( wc -l < "$rigScenarioDir/reactions" | tr -d ' ' )" 2
 
 echo "-- every other operation that resolves a target refuses the name by the same line --"
@@ -290,14 +290,14 @@ rigStart opOthers
 rigRecords none ""
 printf 'rig\n' > "$rigScenarioDir/share.txt"
 : > "$RIG_CURL_LOG"
-rigOp "" --member-comms-slack-edit-message session-parent RIG-BODY
-rigAssert "edit-message"                                          "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --member-comms-slack-edit-message: $rigNoParent"
-rigOp "" --member-comms-slack-search-messages session-parent --comms-since-utime 1700000000
-rigAssert "search-messages"                                       "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --member-comms-slack-search-messages: $rigNoParent"
-rigOp "" --member-comms-slack-file-share session-parent --from-file "$rigScenarioDir/share.txt"
-rigAssert "file-share, before anything is uploaded"               "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --member-comms-slack-file-share: $rigNoParent Nothing was uploaded."
-rigOp "" --member-comms-slack-delete-message session-parent
-rigAssert "delete-message, for that one target"                   "$rigOpRc:$( rigOpErrors | head -1 )" "1:⛔ ERROR: DistroAgentsTools --member-comms-slack-delete-message: $rigNoParent Nothing was deleted for this target; the remaining targets are still attempted."
+rigOp "" --slack-edit-message session-parent RIG-BODY
+rigAssert "edit-message"                                          "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-edit-message: $rigNoParent"
+rigOp "" --slack-search-messages session-parent --comms-since-utime 1700000000
+rigAssert "search-messages"                                       "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-search-messages: $rigNoParent"
+rigOp "" --slack-file-share session-parent --from-file "$rigScenarioDir/share.txt"
+rigAssert "file-share, before anything is uploaded"               "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-file-share: $rigNoParent Nothing was uploaded."
+rigOp "" --slack-delete-message session-parent
+rigAssert "delete-message, for that one target"                   "$rigOpRc:$( rigOpErrors | head -1 )" "1:⛔ ERROR: DistroAgentsTools --slack-delete-message: $rigNoParent Nothing was deleted for this target; the remaining targets are still attempted."
 rigAssert "and its state is the unresolvable one"                 "$( LC_ALL=C grep -c -x -e 'DELETE_TARGET=session-parent' -e 'DELETE_STATE=unresolvable-target' "$rigScenarioDir/op.out" )" 2
 rigAssert "none of them called Slack to post, edit, delete or upload" "$( LC_ALL=C grep -c -v -x -e 'auth.test' -e 'conversations.info' "$RIG_CURL_LOG" )" 0
 
@@ -400,39 +400,39 @@ rigOpSources(){ ## the sources the wait operation says it waited on
 	LC_ALL=C sed -n 's/^# sources: //p' "$rigScenarioDir/op.out" | LC_ALL=C tr -s ' ' | LC_ALL=C sed 's/ $//'
 }
 rigScene opWaitCurrent
-rigOp "$rigCurrent" --member-wait-for-input --wait-source slack:session-current --wait-timeout 1 --wait-since-utime 1700000100
+rigOp "$rigCurrent" --wait-for-input --wait-source slack:session-current --wait-timeout 1 --wait-since-utime 1700000100
 rigAssert "slack:session-current: the session thread was waited on" "$rigOpRc:$( LC_ALL=C sed -n '1p' "$rigScenarioDir/op.out" ):$( rigOpSources )" "0:WAIT-RESULT: TIMEOUT:slack:$rigCurrent:conversation"
 rigScene opWaitParent
-rigOp "$rigCurrent" --member-wait-for-input --wait-source slack:session-parent --wait-timeout 1 --wait-since-utime 1700000100
+rigOp "$rigCurrent" --wait-for-input --wait-source slack:session-parent --wait-timeout 1 --wait-since-utime 1700000100
 rigAssert "slack:session-parent: the parent's thread was waited on" "$rigOpRc:$( LC_ALL=C sed -n '1p' "$rigScenarioDir/op.out" ):$( rigOpSources )" "0:WAIT-RESULT: TIMEOUT:slack:$rigParent:conversation"
 rigScene opWaitStored
-rigOp "$rigCurrent" --member-wait-for-input --wait-default --wait-session-id rig-child-id --wait-source "file:$rigTmp/opWaitStored/drop" --wait-source slack:session-parent --wait-source slack:session-current --wait-timeout 1 --wait-since-utime 1700000100
+rigOp "$rigCurrent" --wait-for-input --wait-default --wait-session-id rig-child-id --wait-source "file:$rigTmp/opWaitStored/drop" --wait-source slack:session-parent --wait-source slack:session-current --wait-timeout 1 --wait-since-utime 1700000100
 rigAssert "a stored wait keeps each name as its thread, the rest as given" "$rigOpRc:$( rigWaited )" "0:replies:rig-child-id file:$rigTmp/opWaitStored/drop slack:$rigParent:conversation slack:$rigCurrent:conversation"
 rigScene opWaitNoCurrent
 : > "$RIG_CURL_LOG"
-rigOp "" --member-wait-for-input --wait-source slack:session-current --wait-timeout 1
+rigOp "" --wait-for-input --wait-source slack:session-current --wait-timeout 1
 rigAssert "no session thread: refused before the wait starts"     "$rigOpRc:$( LC_ALL=C sed -n '1p' "$rigScenarioDir/op.out" )" "1:WAIT-RESULT: ERROR"
-rigAssert "by the one line, the same as the Wait tool gives"      "$( rigOpErrors )" "⛔ ERROR: DistroAgentsTools --member-wait-for-input: $rigNoCurrent Nothing was waited on."
+rigAssert "by the one line, the same as the Wait tool gives"      "$( rigOpErrors )" "⛔ ERROR: DistroAgentsTools --wait-for-input: $rigNoCurrent Nothing was waited on."
 rigAssert "and nothing was read"                                  "$( LC_ALL=C grep -c . "$RIG_CURL_LOG" )" 0
 rigStart opWaitNoParent
 rigRecords none "$rigParent"
-rigOp "$rigCurrent" --member-wait-for-input --wait-source slack:session-parent --wait-timeout 1
-rigAssert "no parent: refused by the one line"                    "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --member-wait-for-input: $rigNoParent Nothing was waited on."
+rigOp "$rigCurrent" --wait-for-input --wait-source slack:session-parent --wait-timeout 1
+rigAssert "no parent: refused by the one line"                    "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --wait-for-input: $rigNoParent Nothing was waited on."
 
 echo "-- a session that is itself the coworking session: the name and the default are one thing --"
 rigScene nativeSendName
 rigSessionRecord rig-native-id "$rigNativeThread"
-rigOp native --member-comms-slack-send-message session-current RIG-BODY
+rigOp native --slack-send-message session-current RIG-BODY
 rigAssert "the send operation to session-current: its recorded thread" "$rigOpRc:$( rigPosts ):$( rigPostedTo "$rigNativeThread" )" "0:1:yes"
 rigScene nativeSendDefault
 rigSessionRecord rig-native-id "$rigNativeThread"
-rigOp native --member-comms-slack-send-message "" RIG-BODY
+rigOp native --slack-send-message "" RIG-BODY
 rigAssert "the send operation with no target: the same thread"    "$rigOpRc:$( rigPosts ):$( rigPostedTo "$rigNativeThread" )" "0:1:yes"
 rigScene nativeSendDefaultNone
-rigOp native --member-comms-slack-send-message "" RIG-BODY
-rigAssert "with no thread recorded it is refused as before"       "$rigOpRc:$( rigPosts ):$( rigOpErrors )" "1:0:⛔ ERROR: DistroAgentsTools --member-comms-slack-send-message: <target> missing"
+rigOp native --slack-send-message "" RIG-BODY
+rigAssert "with no thread recorded it is refused as before"       "$rigOpRc:$( rigPosts ):$( rigOpErrors )" "1:0:⛔ ERROR: DistroAgentsTools --slack-send-message: <target> missing"
 rigScene spawnSendDefault
-rigOp "$rigCurrent" --member-comms-slack-send-message "" RIG-BODY
+rigOp "$rigCurrent" --slack-send-message "" RIG-BODY
 rigAssert "control: a spawn's send with no target, its session thread" "$rigOpRc:$( rigPosts ):$( rigPostedTo "$rigCurrent" )" "0:1:yes"
 rigScene nativeToolName
 rigSessionRecord rig-native-id "$rigNativeThread"
@@ -468,21 +468,21 @@ rigCall native Wait '{"timeout":1}'
 rigAssert "with no thread recorded: the floor and the two conversations alone" "$( rigWaited rig-native-id )" "replies:rig-native-id slack:magic-team slack:human-owner"
 rigScene nativeOpWaitBare
 rigSessionRecord rig-native-id "$rigNativeThread"
-rigOp native --member-wait-for-input --wait-timeout 1
+rigOp native --wait-for-input --wait-timeout 1
 rigAssert "the wait operation: the same three sources"            "$rigOpRc:$( rigOpSources )" "0:slack:magic-team slack:human-owner slack:$rigNativeThread:conversation"
 rigScene nativeOpWaitBareNone
-rigOp native --member-wait-for-input --wait-timeout 1
+rigOp native --wait-for-input --wait-timeout 1
 rigAssert "with no thread recorded: the two conversations alone, as before" "$rigOpRc:$( rigOpSources )" "0:slack:magic-team slack:human-owner"
 rigScene nativeOpWaitBareBad
 rigSessionRecord rig-native-id not-a-thread
-rigOp native --member-wait-for-input --wait-timeout 1
+rigOp native --wait-for-input --wait-timeout 1
 rigAssert "a record that holds no thread adds nothing"            "$rigOpRc:$( rigOpSources )" "0:slack:magic-team slack:human-owner"
 rigScene spawnOpWaitBare
-rigOp "$rigCurrent" --member-wait-for-input --wait-timeout 1
+rigOp "$rigCurrent" --wait-for-input --wait-timeout 1
 rigAssert "control: a spawn's bare wait is its session thread alone" "$rigOpRc:$( rigOpSources )" "0:slack:$rigCurrent:conversation"
 rigScene spawnOpWaitBareNone
 rigSessionRecord rig-native-id "$rigNativeThread"
-rigOp "" --member-wait-for-input --wait-timeout 1
+rigOp "" --wait-for-input --wait-timeout 1
 rigAssert "control: a spawn with no thread, beside another session's record: the two alone" "$rigOpRc:$( rigOpSources )" "0:slack:magic-team slack:human-owner"
 
 ## The built-in aliases beside the two session addresses, and one message of an alias's
@@ -510,95 +510,95 @@ rigAssert "on the client side an alias of our own side stays refused, with its m
 
 echo "-- every operation that acts on one message takes <alias>:<ts>, for all six aliases --"
 rigAliasScene opMessageRead
-rigOp "$rigCurrent" --member-comms-slack-read "session-current:$rigMessage"
+rigOp "$rigCurrent" --slack-read "session-current:$rigMessage"
 rigAssert "read session-current:<ts>: that one message"           "$rigOpRc:$( rigHolds "$rigScenarioDir/op.err" "GET conversations.replies channel=CSESS001 ts=$rigMessage (single message" ):$( rigHolds "$rigScenarioDir/op.out" 'RIG-ONE-MESSAGE' )" "0:yes:yes"
-rigOp "$rigCurrent" --member-comms-slack-read "session-parent:$rigMessage" --thread
+rigOp "$rigCurrent" --slack-read "session-parent:$rigMessage" --thread
 rigAssert "read session-parent:<ts> --thread: the thread of that message" "$rigOpRc:$( rigHolds "$rigScenarioDir/op.err" "GET conversations.replies channel=CPARENT1 ts=$rigMessage (full thread" )" "0:yes"
-rigOp "$rigCurrent" --member-comms-slack-read "event-track:$rigMessage"
+rigOp "$rigCurrent" --slack-read "event-track:$rigMessage"
 rigAssert "read event-track:<ts>"                                 "$rigOpRc:$( rigHolds "$rigScenarioDir/op.err" "GET conversations.replies channel=CRIGTRACK ts=$rigMessage (single message" )" "0:yes"
-rigOp "$rigCurrent" --member-comms-slack-read "magic-team:$rigMessage" --thread
+rigOp "$rigCurrent" --slack-read "magic-team:$rigMessage" --thread
 rigAssert "read magic-team:<ts> --thread"                         "$rigOpRc:$( rigHolds "$rigScenarioDir/op.err" "GET conversations.replies channel=CRIG00001 ts=$rigMessage (full thread" )" "0:yes"
 rigAliasScene opMessageReact
-rigOp "$rigCurrent" --member-comms-slack-react "session-current:$rigMessage" eyes
+rigOp "$rigCurrent" --slack-react "session-current:$rigMessage" eyes
 rigAssert "react session-current:<ts>"                            "$rigOpRc:$( rigHolds "$rigScenarioDir/op.err" "POST reactions.add channel=CSESS001 timestamp=$rigMessage name=eyes" )" "0:yes"
-rigOp "$rigCurrent" --member-comms-slack-react "session-parent:$rigMessage" eyes
+rigOp "$rigCurrent" --slack-react "session-parent:$rigMessage" eyes
 rigAssert "react session-parent:<ts>"                             "$rigOpRc:$( rigHolds "$rigScenarioDir/op.err" "POST reactions.add channel=CPARENT1 timestamp=$rigMessage name=eyes" )" "0:yes"
-rigOp "$rigCurrent" --member-comms-slack-react "event-alert:$rigMessage" eyes
+rigOp "$rigCurrent" --slack-react "event-alert:$rigMessage" eyes
 rigAssert "react event-alert:<ts>"                                "$rigOpRc:$( rigHolds "$rigScenarioDir/op.err" "POST reactions.add channel=CRIGALERT timestamp=$rigMessage name=eyes" )" "0:yes"
-rigOp "$rigCurrent" --member-comms-slack-react magic-team eyes
-rigAssert "react on a conversation alias alone: refused, it names no message" "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --member-comms-slack-react: a specific <ts> is required -- use <channel>:<ts>, or <alias>:<ts> for a message in the conversation an alias names"
+rigOp "$rigCurrent" --slack-react magic-team eyes
+rigAssert "react on a conversation alias alone: refused, it names no message" "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-react: a specific <ts> is required -- use <channel>:<ts>, or <alias>:<ts> for a message in the conversation an alias names"
 rigAssert "the three reactions asked for were placed, and no other" "$( LC_ALL=C sort "$rigScenarioDir/reactions" | tr '\n' '|' )" "$rigMessage eyes|$rigMessage eyes|$rigMessage eyes|"
 rigAliasScene opMessageEdit
-rigOp "$rigCurrent" --member-comms-slack-edit-message "session-current:$rigMessage" RIG-BODY
+rigOp "$rigCurrent" --slack-edit-message "session-current:$rigMessage" RIG-BODY
 rigAssert "edit-message session-current:<ts>: that message is the one edited" "$( rigHolds "$rigScenarioDir/op.err" "chat.update channel=CSESS001 ts=$rigMessage " )" yes
-rigOp "$rigCurrent" --member-comms-slack-edit-message "event-track:$rigMessage" RIG-BODY
+rigOp "$rigCurrent" --slack-edit-message "event-track:$rigMessage" RIG-BODY
 rigAssert "edit-message event-track:<ts>"                         "$( rigHolds "$rigScenarioDir/op.err" "chat.update channel=CRIGTRACK ts=$rigMessage " )" yes
-rigOp "$rigCurrent" --member-comms-slack-edit-message session-parent RIG-BODY
+rigOp "$rigCurrent" --slack-edit-message session-parent RIG-BODY
 rigAssert "edit-message session-parent alone: the opening message of that thread" "$( rigHolds "$rigScenarioDir/op.err" "chat.update channel=CPARENT1 ts=${rigParent#*:} " )" yes
 : > "$RIG_CURL_LOG"
-rigOp "$rigCurrent" --member-comms-slack-edit-message event-track RIG-BODY
-rigAssert "edit-message on a conversation alias alone: refused, it names no message" "$rigOpRc:$( rigOpErrors ):$( LC_ALL=C grep -c -x 'chat.update' "$RIG_CURL_LOG" )" "1:⛔ ERROR: DistroAgentsTools --member-comms-slack-edit-message: a specific <ts> is required -- use <channel>:<ts>, or <alias>:<ts> for a message in the conversation an alias names:0"
+rigOp "$rigCurrent" --slack-edit-message event-track RIG-BODY
+rigAssert "edit-message on a conversation alias alone: refused, it names no message" "$rigOpRc:$( rigOpErrors ):$( LC_ALL=C grep -c -x 'chat.update' "$RIG_CURL_LOG" )" "1:⛔ ERROR: DistroAgentsTools --slack-edit-message: a specific <ts> is required -- use <channel>:<ts>, or <alias>:<ts> for a message in the conversation an alias names:0"
 rigAliasScene opMessageDelete
-rigOp "$rigCurrent" --member-comms-slack-delete-message "session-current:$rigMessage" "magic-team:$rigMessage" session-parent
+rigOp "$rigCurrent" --slack-delete-message "session-current:$rigMessage" "magic-team:$rigMessage" session-parent
 rigAssert "delete-message takes each: an alias with its message, and a session address alone" "$( LC_ALL=C grep -c -e "chat.delete channel=CSESS001 ts=$rigMessage " -e "chat.delete channel=CRIG00001 ts=$rigMessage " -e "chat.delete channel=CPARENT1 ts=${rigParent#*:} " "$rigScenarioDir/op.err" )" 3
 : > "$RIG_CURL_LOG"
-rigOp "$rigCurrent" --member-comms-slack-delete-message human-owner
-rigAssert "delete-message on a conversation alias alone: refused, it names no message" "$rigOpRc:$( rigOpErrors | head -1 ):$( LC_ALL=C grep -c -x 'chat.delete' "$RIG_CURL_LOG" )" "1:⛔ ERROR: DistroAgentsTools --member-comms-slack-delete-message: a specific <ts> is required -- use <channel>:<ts>, or <alias>:<ts> for a message in the conversation an alias names. Nothing was deleted for 'human-owner'; the remaining targets are still attempted.:0"
+rigOp "$rigCurrent" --slack-delete-message human-owner
+rigAssert "delete-message on a conversation alias alone: refused, it names no message" "$rigOpRc:$( rigOpErrors | head -1 ):$( LC_ALL=C grep -c -x 'chat.delete' "$RIG_CURL_LOG" )" "1:⛔ ERROR: DistroAgentsTools --slack-delete-message: a specific <ts> is required -- use <channel>:<ts>, or <alias>:<ts> for a message in the conversation an alias names. Nothing was deleted for 'human-owner'; the remaining targets are still attempted.:0"
 rigAliasScene opMessageSendCurrent
-rigOp "$rigCurrent" --member-comms-slack-send-message "session-current:$rigMessage" RIG-BODY
+rigOp "$rigCurrent" --slack-send-message "session-current:$rigMessage" RIG-BODY
 rigAssert "send to session-current:<ts>: a reply in the thread of that message" "$rigOpRc:$( rigPosts ):$( rigPostedTo "CSESS001:$rigMessage" )" "0:1:yes"
 rigAliasScene opMessageSendTrack
-rigOp "$rigCurrent" --member-comms-slack-send-message "event-track:$rigMessage" RIG-BODY
+rigOp "$rigCurrent" --slack-send-message "event-track:$rigMessage" RIG-BODY
 rigAssert "send to event-track:<ts>"                              "$rigOpRc:$( rigPosts ):$( rigPostedTo "CRIGTRACK:$rigMessage" )" "0:1:yes"
 rigAliasScene opMessageSendAlert
-rigOp "$rigCurrent" --member-comms-slack-send-message event-alert RIG-BODY
+rigOp "$rigCurrent" --slack-send-message event-alert RIG-BODY
 rigAssert "send to event-alert alone: a new message there, in no thread" "$rigOpRc:$( rigPosts ):$( rigHolds "$rigScenarioDir/post.1" '"channel":"CRIGALERT"' ):$( rigHolds "$rigScenarioDir/post.1" '"thread_ts"' )" "0:1:yes:no"
 
 echo "-- a conversation alias whose setting is not there names nowhere, by the resolver's one line --"
 rigAliasScene opNoSetting track
 printf 'rig\n' > "$rigScenarioDir/share.txt"
 : > "$RIG_CURL_LOG"
-rigOp "$rigCurrent" --member-comms-slack-send-message event-alert RIG-BODY
-rigAssert "send"                                                  "$rigOpRc:$( rigPosts ):$( rigOpErrors )" "1:0:⛔ ERROR: DistroAgentsTools --member-comms-slack-send-message: $rigNoAlert Nothing was sent."
-rigOp "$rigCurrent" --member-comms-slack-read event-alert
-rigAssert "read"                                                  "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --member-comms-slack-read: $rigNoAlert"
-rigOp "$rigCurrent" --member-comms-slack-react "event-alert:$rigMessage" eyes
-rigAssert "react"                                                 "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --member-comms-slack-react: $rigNoAlert"
-rigOp "$rigCurrent" --member-comms-slack-edit-message "event-alert:$rigMessage" RIG-BODY
-rigAssert "edit-message"                                          "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --member-comms-slack-edit-message: $rigNoAlert"
-rigOp "$rigCurrent" --member-comms-slack-delete-message "event-alert:$rigMessage"
-rigAssert "delete-message"                                        "$rigOpRc:$( rigOpErrors | head -1 )" "1:⛔ ERROR: DistroAgentsTools --member-comms-slack-delete-message: $rigNoAlert Nothing was deleted for this target; the remaining targets are still attempted."
-rigOp "$rigCurrent" --member-comms-slack-search-messages event-alert --comms-since-utime 1700000000
-rigAssert "search-messages"                                       "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --member-comms-slack-search-messages: $rigNoAlert"
-rigOp "$rigCurrent" --member-comms-slack-file-share event-alert --from-file "$rigScenarioDir/share.txt"
-rigAssert "file-share"                                            "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --member-comms-slack-file-share: $rigNoAlert Nothing was uploaded."
+rigOp "$rigCurrent" --slack-send-message event-alert RIG-BODY
+rigAssert "send"                                                  "$rigOpRc:$( rigPosts ):$( rigOpErrors )" "1:0:⛔ ERROR: DistroAgentsTools --slack-send-message: $rigNoAlert Nothing was sent."
+rigOp "$rigCurrent" --slack-read event-alert
+rigAssert "read"                                                  "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-read: $rigNoAlert"
+rigOp "$rigCurrent" --slack-react "event-alert:$rigMessage" eyes
+rigAssert "react"                                                 "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-react: $rigNoAlert"
+rigOp "$rigCurrent" --slack-edit-message "event-alert:$rigMessage" RIG-BODY
+rigAssert "edit-message"                                          "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-edit-message: $rigNoAlert"
+rigOp "$rigCurrent" --slack-delete-message "event-alert:$rigMessage"
+rigAssert "delete-message"                                        "$rigOpRc:$( rigOpErrors | head -1 )" "1:⛔ ERROR: DistroAgentsTools --slack-delete-message: $rigNoAlert Nothing was deleted for this target; the remaining targets are still attempted."
+rigOp "$rigCurrent" --slack-search-messages event-alert --comms-since-utime 1700000000
+rigAssert "search-messages"                                       "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-search-messages: $rigNoAlert"
+rigOp "$rigCurrent" --slack-file-share event-alert --from-file "$rigScenarioDir/share.txt"
+rigAssert "file-share"                                            "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-file-share: $rigNoAlert Nothing was uploaded."
 rigAssert "none of them called Slack"                             "$( LC_ALL=C grep -c -v -x -e 'auth.test' -e 'conversations.info' "$RIG_CURL_LOG" )" 0
-rigOp "$rigCurrent" --member-comms-slack-read event-track
+rigOp "$rigCurrent" --slack-read event-track
 rigAssert "control: the one that is set still resolves"           "$( rigOpErrors | LC_ALL=C grep -c 'names nowhere' )" 0
 
 echo "-- where an alias cannot make sense it is refused, and the line says why --"
 rigAliasScene opNoSense
 : > "$RIG_CURL_LOG"
-rigOp "$rigCurrent" --member-comms-slack-search-messages session-current --comms-since-utime 1700000000
-rigAssert "search-messages with a session address: it names one thread, the search wants a whole conversation" "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --member-comms-slack-search-messages: 'session-current' names one thread, and this operation searches a whole conversation over a time window, so a session address is refused here. To read that thread, use --member-comms-slack-read <team-member> session-current --thread."
-rigOp "$rigCurrent" --member-comms-slack-search-messages "magic-team:$rigMessage" --comms-since-utime 1700000000
+rigOp "$rigCurrent" --slack-search-messages session-current --comms-since-utime 1700000000
+rigAssert "search-messages with a session address: it names one thread, the search wants a whole conversation" "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --slack-search-messages: 'session-current' names one thread, and this operation searches a whole conversation over a time window, so a session address is refused here. To read that thread, use --slack-read <team-member> session-current --thread."
+rigOp "$rigCurrent" --slack-search-messages "magic-team:$rigMessage" --comms-since-utime 1700000000
 rigAssert "search-messages with <alias>:<ts>: one message, refused as <channel>:<ts> is" "$rigOpRc:$( rigOpErrors | LC_ALL=C grep -c "names one specific message (<channel>:<ts>), and this operation searches a whole conversation" )" "1:1"
-rigOp "$rigCurrent" --member-comms-slack-file-info magic-team
+rigOp "$rigCurrent" --slack-file-info magic-team
 rigAssert "file-info: a file is named by its id, never by a place" "$rigOpRc:$( rigOpErrors | LC_ALL=C grep -c "'magic-team' is not a Slack file id" )" "1:1"
-rigOp "$rigCurrent" --member-comms-slack-file-fetch session-current "$rigScenarioDir/fetched"
+rigOp "$rigCurrent" --slack-file-fetch session-current "$rigScenarioDir/fetched"
 rigAssert "file-fetch: the same, and nothing is written"          "$rigOpRc:$( rigOpErrors | LC_ALL=C grep -c "'session-current' is not a Slack file id" ):$( [ -e "$rigScenarioDir/fetched" ] && printf written || printf none )" "1:1:none"
 rigAssert "none of them called Slack"                             "$( LC_ALL=C grep -c -v -x -e 'auth.test' -e 'conversations.info' "$RIG_CURL_LOG" )" 0
 
 echo "-- the wait operation and the tools take <alias>:<ts> too --"
 rigAliasScene opWaitMessage
-rigOp "$rigCurrent" --member-wait-for-input --wait-source "slack:session-current:$rigMessage" --wait-timeout 1 --wait-since-utime "$rigMessage" --wait-addressee URIGOWNER
+rigOp "$rigCurrent" --wait-for-input --wait-source "slack:session-current:$rigMessage" --wait-timeout 1 --wait-since-utime "$rigMessage" --wait-addressee URIGOWNER
 rigAssert "slack:session-current:<ts>: the thread of that message, for its answer" "$rigOpRc:$( LC_ALL=C sed -n '1p' "$rigScenarioDir/op.out" ):$( rigOpSources )" "0:WAIT-RESULT: TIMEOUT:slack:CSESS001:$rigMessage"
-rigOp "$rigCurrent" --member-wait-for-input --wait-source "slack:session-parent:$rigMessage:conversation" --wait-timeout 1 --wait-since-utime 1700000100
+rigOp "$rigCurrent" --wait-for-input --wait-source "slack:session-parent:$rigMessage:conversation" --wait-timeout 1 --wait-since-utime 1700000100
 rigAssert "slack:session-parent:<ts>:conversation: any new post in the thread of that message" "$rigOpRc:$( rigOpSources )" "0:slack:CPARENT1:$rigMessage:conversation"
-rigOp "$rigCurrent" --member-wait-for-input --wait-source slack:session-current:conversation --wait-timeout 1 --wait-since-utime 1700000100
+rigOp "$rigCurrent" --wait-for-input --wait-source slack:session-current:conversation --wait-timeout 1 --wait-since-utime 1700000100
 rigAssert "slack:session-current:conversation: the session thread, as the name alone" "$rigOpRc:$( rigOpSources )" "0:slack:$rigCurrent:conversation"
-rigOp "" --member-wait-for-input --wait-source "slack:session-current:$rigMessage" --wait-timeout 1 --wait-since-utime "$rigMessage" --wait-addressee URIGOWNER
-rigAssert "with no session thread: the one line"                  "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --member-wait-for-input: $rigNoCurrent Nothing was waited on."
+rigOp "" --wait-for-input --wait-source "slack:session-current:$rigMessage" --wait-timeout 1 --wait-since-utime "$rigMessage" --wait-addressee URIGOWNER
+rigAssert "with no session thread: the one line"                  "$rigOpRc:$( rigOpErrors )" "1:⛔ ERROR: DistroAgentsTools --wait-for-input: $rigNoCurrent Nothing was waited on."
 rigAliasScene toolMessageSend
 rigCall "$rigCurrent" SendMessage "{\"to\":\"session-parent:$rigMessage\",\"message\":\"m\"}"
 rigAssert "SendMessage to session-parent:<ts>: a reply in the thread of that message" "$( rigPosts )$( rigPostedTo "CPARENT1:$rigMessage" ):$( rigFirst )" "1yes:Sent to CPARENT1:$rigMessage (a message in the conversation of the thread of parent session rig-parent-id) as $rigMember. What the operation reported follows:"
@@ -616,7 +616,7 @@ rigCall "$rigCurrent" AskQuestion '{"to":"event-track","question":"May the rig g
 rigAssert "AskQuestion to event-track with no address_to: a place has no party, so it is asked for" "$( rigPosts ):$( rigFirst | LC_ALL=C grep -c '^ERROR: AskQuestion: .*(event-track) rather than a party, so address_to is required' )" "0:1"
 rigAliasScene toolNoSetting track
 rigCall "$rigCurrent" SendMessage '{"to":"event-alert","message":"m"}'
-rigAssert "SendMessage to an alias whose setting is not there: the resolver's line, nothing posted" "$( rigPosts ):$( LC_ALL=C grep -c -F -- "--member-comms-slack-send-message: $rigNoAlert Nothing was sent." "$rigScenarioDir/tool.out" )" "0:1"
+rigAssert "SendMessage to an alias whose setting is not there: the resolver's line, nothing posted" "$( rigPosts ):$( LC_ALL=C grep -c -F -- "--slack-send-message: $rigNoAlert Nothing was sent." "$rigScenarioDir/tool.out" )" "0:1"
 
 echo "-- the harness resolves neither name itself --"
 rigAssert "each name is spelled once in the harness, where it is given its variable" "$( LC_ALL=C grep -v '^[[:space:]]*##' "$rigHarness" | LC_ALL=C grep -c -e 'session-current' -e 'session-parent' ):$( LC_ALL=C grep -c -x -e 'harnessCurrentName="session-current"' -e 'harnessParentName="session-parent"' "$rigHarness" )" "2:2"
@@ -631,18 +631,18 @@ done
 rigManual="$rigHere/help/Help.DistroAgentsTools.help.md"
 rigSyntax="$rigHere/help/Help.DistroAgentsTools.include"
 for rigHelpOp in send-message read react ; do
-	rigAssert "the syntax line of --member-comms-slack-$rigHelpOp" "$( LC_ALL=C grep -- "^echo \"📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-$rigHelpOp \\[--team-member <team-member>\\] " "$rigSyntax" | LC_ALL=C grep -c -e 'session-current|session-parent' )" 1
-	rigAssert "the manual entry of --member-comms-slack-$rigHelpOp" "$( LC_ALL=C awk -v want="--member-comms-slack-$rigHelpOp" '
+	rigAssert "the syntax line of --slack-$rigHelpOp" "$( LC_ALL=C grep -- "^echo \"📘 syntax: DistroAgentsSlack.fn.sh --slack-$rigHelpOp \\[--team-member <team-member>\\] " "$rigSyntax" | LC_ALL=C grep -c -e 'session-current|session-parent' )" 1
+	rigAssert "the manual entry of --slack-$rigHelpOp" "$( LC_ALL=C awk -v want="--slack-$rigHelpOp" '
 		/^\t\t--/ { split( $0, word, " " ) ; inEntry = ( word[1] == want ) ; }
 		inEntry && /session-current/ { current = 1 ; }
 		inEntry && /session-parent/ { parent = 1 ; }
 		END { print current + 0 "" parent + 0 ; }' "$rigManual" )" 11
 done
 for rigHelpOp in delete-message edit-message ; do
-	rigAssert "the syntax lines of --member-comms-slack-$rigHelpOp, each" "$( LC_ALL=C grep -- "^echo \"📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-$rigHelpOp \\[--team-member <team-member>\\] " "$rigSyntax" | LC_ALL=C grep -c -v -e '<channel>:<ts>|<alias>:<ts>|session-current|session-parent ' )" 0
+	rigAssert "the syntax lines of --slack-$rigHelpOp, each" "$( LC_ALL=C grep -- "^echo \"📘 syntax: DistroAgentsSlack.fn.sh --slack-$rigHelpOp \\[--team-member <team-member>\\] " "$rigSyntax" | LC_ALL=C grep -c -v -e '<channel>:<ts>|<alias>:<ts>|session-current|session-parent ' )" 0
 done
 for rigHelpOp in send-message read react delete-message edit-message ; do
-	rigAssert "<alias>:<ts> in the syntax line and the manual entry of --member-comms-slack-$rigHelpOp" "$( LC_ALL=C grep -- "^echo \"📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-$rigHelpOp \\[--team-member <team-member>\\] " "$rigSyntax" | LC_ALL=C grep -c -F -e '<alias>:<ts>' | LC_ALL=C sed 's/^[1-9][0-9]*$/yes/' ):$( LC_ALL=C awk -v want="--member-comms-slack-$rigHelpOp" '
+	rigAssert "<alias>:<ts> in the syntax line and the manual entry of --slack-$rigHelpOp" "$( LC_ALL=C grep -- "^echo \"📘 syntax: DistroAgentsSlack.fn.sh --slack-$rigHelpOp \\[--team-member <team-member>\\] " "$rigSyntax" | LC_ALL=C grep -c -F -e '<alias>:<ts>' | LC_ALL=C sed 's/^[1-9][0-9]*$/yes/' ):$( LC_ALL=C awk -v want="--slack-$rigHelpOp" '
 		/^\t\t--/ { split( $0, word, " " ) ; inEntry = ( word[1] == want ) ; }
 		inEntry && /<alias>:<ts>/ { said = 1 ; }
 		END { print said + 0 ; }' "$rigManual" )" "yes:1"
@@ -650,7 +650,7 @@ done
 for rigHelpTool in SendMessage AskQuestion Wait ; do
 	rigAssert "a name with :<ts> in the tool $rigHelpTool" "$( LC_ALL=C grep -F -- "{\"type\":\"function\",\"function\":{\"name\":\"$rigHelpTool\"," "$rigWire" | LC_ALL=C grep -c -F -e 'session-current:<ts>' -e 'slack:<name>:<ts>' )" 1
 done
-for rigHelpOp in --member-comms-slack-delete-message --member-comms-slack-edit-message --member-comms-slack-search-messages --member-comms-slack-file-share --member-wait-for-input ; do
+for rigHelpOp in --slack-delete-message --slack-edit-message --slack-search-messages --slack-file-share --wait-for-input ; do
 	rigAssert "the manual entry of $rigHelpOp" "$( LC_ALL=C awk -v want="$rigHelpOp" '
 		/^\t\t--/ { split( $0, word, " " ) ; inEntry = ( word[1] == want ) ; }
 		inEntry && /session-current/ { current = 1 ; }

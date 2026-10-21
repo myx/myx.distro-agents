@@ -223,16 +223,16 @@ rigStubRun "$rigStubRoot" --intern-root-harness --routine advance --non-interact
 rigExpect "$rigModeNon" "$rigRoutineLine"
 rigAssert "non-interactive with a routine: the include returns 0"  "$rigStubRc" 0
 rigAssert "the packet is exactly mode line, routine line, one blank line, the unchanged brief" "$( cmp -s "$rigTmp/stub.stdin" "$rigTmp/stub.expect" && echo identical || echo different )" identical
-rigAssert "the proxy gets the raw selector, --session-thread and --wait, in that order" "$( cat "$rigTmp/stub.args" )" "--magic-spawn-proxy magic-coordinator --session-thread:event-track --routine advance --wait"
+rigAssert "the proxy gets the raw selector, --session-thread and --wait, in that order" "$( cat "$rigTmp/stub.args" )" "--spawn-prompt magic-coordinator --session-thread:event-track --routine advance --wait"
 rigAssert "the brief's own sections are all in the packet"       "$( for rigSec in SPAWN-REQUEST GOAL CONTEXT WAIT ; do LC_ALL=C grep -c -e "^$rigSec" -e "^## $rigSec" -e "^# $rigSec" "$rigTmp/stub.stdin" | LC_ALL=C awk '{ printf "%s ", ( $1 > 0 ? "yes" : "no" ) }' ; done )" "yes yes yes yes "
 rigStubRun "$rigStubRoot" --intern-root-harness --routine advance
 rigExpect "$rigModeInt" "$rigRoutineLine"
 rigAssert "interactive with a routine: the packet carries the routine line too" "$( cmp -s "$rigTmp/stub.stdin" "$rigTmp/stub.expect" && echo identical || echo different )" identical
-rigAssert "and the proxy is told the magic-team thread, and --wait though none was given: interactive is a terminal start" "$( cat "$rigTmp/stub.args" )" "--magic-spawn-proxy magic-coordinator --session-thread:magic-team --routine advance --wait"
+rigAssert "and the proxy is told the magic-team thread, and --wait though none was given: interactive is a terminal start" "$( cat "$rigTmp/stub.args" )" "--spawn-prompt magic-coordinator --session-thread:magic-team --routine advance --wait"
 rigStubRun "$rigStubRoot" --intern-root-harness --wait
 rigExpect "$rigModeInt" ""
 rigAssert "interactive without a routine: no routine line, the packet is mode line, blank line, brief" "$( cmp -s "$rigTmp/stub.stdin" "$rigTmp/stub.expect" && echo identical || echo different ) $( LC_ALL=C grep -c "^$rigRoutineLabel" "$rigTmp/stub.stdin" || : )" "identical 0"
-rigAssert "and no --routine reaches the proxy"                   "$( cat "$rigTmp/stub.args" )" "--magic-spawn-proxy magic-coordinator --session-thread:magic-team --wait"
+rigAssert "and no --routine reaches the proxy"                   "$( cat "$rigTmp/stub.args" )" "--spawn-prompt magic-coordinator --session-thread:magic-team --wait"
 rigStubRun "$rigStubRoot" --intern-root-harness --non-interactive --wait
 rigAssert "non-interactive without a routine is refused, rc 1"     "$rigStubRc" 1
 rigAssert "with its own message"                                  "$( LC_ALL=C grep -c -x -F '⛔ ERROR: --non-interactive requires --routine <selector>' <( LC_ALL=C sed 's/^DistroAgentsTools --intern-root-harness: //' "$rigTmp/stub.out" ) || : )" 1

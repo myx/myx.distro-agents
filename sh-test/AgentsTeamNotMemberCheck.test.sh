@@ -4,8 +4,8 @@
 ## in the member set as a member has, and its SKILL.md says `status: active`, so a start once took it for a member: it was
 ## started as a run, with its own process, and nothing refused it. Held, on each way a member is started: the spawn proxy
 ## (--intern-op-agent-spawn-proxy), which every start goes through, in every form of its call, the form a review return
-## makes among them; --magic-spawn-session, with the team named alone, among five members, and with a routine whose
-## executors list holds it; the harness tool Agent; --magic-spawn-proxy; a review return of an item the team
+## makes among them; --spawn-session, with the team named alone, among five members, and with a routine whose
+## executors list holds it; the harness tool Agent; --spawn-prompt; a review return of an item the team
 ## owns; and --manager-spawn-member. Each is refused in one plain line that says it is the team itself and no member,
 ## and a refused start starts nobody and leaves nothing behind. A routine whose executors are `magic-team` still means
 ## any member: it starts with real members named, and reads not-startable, needing members, in --manager-routine-list.
@@ -111,8 +111,15 @@ rigWhole(){ ## file, text -- how many lines of the file are that text, whole
 	LC_ALL=C grep -c -x -F -- "$2" "$1" 2> /dev/null || :
 }
 rigSays='magic-team is the team itself and no member of it, and the team is never started: a run is a member'"'"'s, so name the members -- nothing was started'
+rigToolOf(){ ## operation -- the tool file that owns it, as it names itself in what it says
+	case "$1" in
+		--spawn-session|--spawn-prompt) printf DistroAgentsDispatcher ;;
+		--return-review|--accept-review|--reject-review|--request-review|--follow-up-review) printf DistroAgentsItems ;;
+		*) printf DistroAgentsTools ;;
+	esac
+}
 rigLine(){ ## the operation it was asked of -- the one plain line that refuses a start of the team
-	printf '⛔ ERROR: DistroAgentsTools %s: %s' "$1" "$rigSays"
+	printf '⛔ ERROR: %s %s: %s' "$( rigToolOf "$1" )" "$1" "$rigSays"
 }
 rigRefused(){ ## operation -- how many lines of the last stderr are that line, whole
 	rigWhole "$rigTmp/err" "$( rigLine "$1" )"
@@ -164,9 +171,9 @@ done
 rigAssert "in every form of the call: waited for or not, with or without a dispatch item, a session of its own, a routine, a calling member, a session that starts alone, and the form a review return makes of an item on the board" "${rigFormsBad:-each refused, nothing left}" "each refused, nothing left"
 rigSettle
 
-echo "-- 2. --magic-spawn-session --"
+echo "-- 2. --spawn-session --"
 rigMadeBefore="$( rigMade )" ; rigStoresBefore="$( rigStores )"
-rigSession="--magic-spawn-session"
+rigSession="--spawn-session"
 rigRun "$rigSession" --routine solo magic-team
 rigAssert "the team named: refused in that line, rc 1, no session id, and nothing left behind" \
 	"$rigRc $( LC_ALL=C grep -c '^SESSION_ID=' "$rigTmp/out" || : ) $( rigRefused "$rigSession" ) $( rigErrors ) $( rigMade ) / $( rigStores )" "1 0 1 1 $rigMadeBefore / $rigStoresBefore"
@@ -202,16 +209,16 @@ rigSettle
 
 echo "-- 4. the spawn relay's start and a review return --"
 rigMadeBefore="$( rigMade )" ; rigStoresBefore="$( rigStores )"
-rigRun --magic-spawn-proxy magic-team --description rig-team-not-member
-rigAssert "--magic-spawn-proxy refuses in the same line, under its own name, and leaves nothing behind" \
-	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigRefused --magic-spawn-proxy ) $( rigErrors ) $( rigMade ) / $( rigStores )" "1 0 1 1 $rigMadeBefore / $rigStoresBefore"
-rigRun --magic-spawn-proxy keeper-myx --description rig-team-not-member
+rigRun --spawn-prompt magic-team --description rig-team-not-member
+rigAssert "--spawn-prompt refuses in the same line, under its own name, and leaves nothing behind" \
+	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigRefused --spawn-prompt ) $( rigErrors ) $( rigMade ) / $( rigStores )" "1 0 1 1 $rigMadeBefore / $rigStoresBefore"
+rigRun --spawn-prompt keeper-myx --description rig-team-not-member
 rigAssert "control: a member the spawn relay does not start for is refused as before, as an unsupported caller" "$rigRc $( LC_ALL=C grep -c -F -- 'unsupported caller: keeper-myx' "$rigTmp/err" || : ) $( rigSaid "$rigTmp/err" )" "1 1 0"
 rigAssert "the root harness starts one member only, the coordinator, through that operation, and the main loop starts none itself: it names no other" \
-	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/harness/AgentsTools.InternRootHarness.include" | LC_ALL=C grep -c -F -- '--magic-spawn-proxy magic-coordinator ' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/magic/AgentsTools.InternMainLoop.include" | LC_ALL=C grep -c -e 'spawn-proxy "' -e 'spawn-member' -e 'magic-spawn-session' || : )" "1 0"
+	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/harness/AgentsTools.InternRootHarness.include" | LC_ALL=C grep -c -F -- '--spawn-prompt magic-coordinator ' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/magic/AgentsTools.InternMainLoop.include" | LC_ALL=C grep -c -e 'spawn-proxy "' -e 'spawn-member' -e 'spawn-session' || : )" "1 0"
 printf -- '---\ntype: dispatch\nowner: magic-team\nstatus: dispatch-started\nreview-since-epoch: 1000\n---\n\n# rig dispatch\n' > "$rigData/board/review/dispatch-20261013T1200Z-team.md"
 rigConsolesBefore="$( rigConsoles )"
-rigRun --member-review-return magic-coordinator dispatch-20261013T1200Z-team --message "redo the rig step"
+rigRun --return-review magic-coordinator dispatch-20261013T1200Z-team --message "redo the rig step"
 rigAssert "a review return of an item the team owns restarts nobody: it says the spawn of magic-team failed, with that line as the cause, and no console is started" \
 	"$( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -c -F -- 'RETURN: not restarted: the spawn of magic-team for dispatch-20261013T1200Z-team failed (rc 1): ' || : ) $( cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -F -- 'RETURN: not restarted' | LC_ALL=C grep -c -F -- "$rigSays" || : ) $(( $( rigConsoles ) - rigConsolesBefore )) $( rigConsolesOf magic-team )" "1 1 0 0"
 rigSettle
@@ -240,7 +247,7 @@ rigAssert "the read of the team shows it the same way" "$rigRc $( LC_ALL=C awk -
 echo "-- 6. a message to the team --"
 rigPostsBefore="$( LC_ALL=C grep -c '^chat.postMessage ' "$rigSc/calls" 2> /dev/null || : )"
 : > "$rigSc/bodies"
-rigRun --member-comms-slack-send-message keeper-myx magic-team --identity-bot --address-to magic-team --from-stdin
+rigRun --slack-send-message keeper-myx magic-team --identity-bot --address-to magic-team --from-stdin
 rigAssert "a message to the team's conversation, addressed to the team, goes out as before: rc 0, no error, one post, into that conversation" \
 	"$rigRc $( rigErrors ) $(( $( LC_ALL=C grep -c '^chat.postMessage ' "$rigSc/calls" 2> /dev/null || : ) - rigPostsBefore )) $( LC_ALL=C grep -c -F -- 'CRIG00001' "$rigSc/bodies" || : ) $( LC_ALL=C grep -c -F -- 'RIG-BRIEF-TEXT' "$rigSc/bodies" || : )" "0 0 1 1 1"
 
@@ -252,7 +259,7 @@ rigAssert "one function says what the team is, defined once, in the include of t
 	"$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsTeamMemberIsTeam\(\)\{' || : ) $( LC_ALL=C grep -c -E '^AgentsToolsTeamMember(IsTeam|StartCheck)\(\)\{' "$rigHere/team-data/AgentsTools.TeamRegistry.include" || : )" "1 2"
 rigAssert "the refusal's line is written once, in that check, which asks that function" \
 	"$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -F -- 'is the team itself and no member of it, and the team is never started' || : ) $( rigCode AgentsTools.TeamRegistry.include | LC_ALL=C awk '/^AgentsToolsTeamMemberStartCheck\(\)\{/ { inCheck = 1 } inCheck && /AgentsToolsTeamMemberIsTeam "/ { asked++ } inCheck && /^\}/ { inCheck = 0 } END { print asked + 0 }' )" "1 1"
-rigAssert "no starter asks what the team is, or names it, itself: the proxy, --magic-spawn-session, --manager-spawn-member and the spawn relay each ask the one check of a start, once" \
+rigAssert "no starter asks what the team is, or names it, itself: the proxy, --spawn-session, --manager-spawn-member and the spawn relay each ask the one check of a start, once" \
 	"$( for rigFile in InternOpAgentSpawnProxy MagicSpawnSession ManagerSpawn MagicCoordinatorState ; do printf '%s:%s ' "$( rigCode "AgentsTools.$rigFile.include" | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberStartCheck "' || : )" "$( rigCode "AgentsTools.$rigFile.include" | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberIsTeam' || : )" ; done )" "1:0 1:0 1:0 1:0 "
 rigAssert "--manager-routine-list and --manager-team-member-list ask that function, once each, and neither names the team" \
 	"$( rigCode AgentsTools.ManagerRoutine.include | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberIsTeam "' || : ) $( rigCode AgentsTools.ManagerTeamMember.include | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberIsTeam "' || : ) $( rigCode AgentsTools.ManagerRoutine.include | LC_ALL=C grep -c -e 'magic-team' || : ) $( rigCode AgentsTools.ManagerTeamMember.include | LC_ALL=C grep -c -e 'magic-team' || : )" "1 1 0 0"

@@ -2,7 +2,7 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.MemberCommsSlackSocket.include -- --member-comms-slack-socket-*.
+## AgentsTools.MemberCommsSlackSocket.include -- --slack-socket-*.
 ## Sourced lazily from AgentsTools.MemberCommsSlack.include; relies on being
 ## dot-sourced for $1/$@/$MDSC_CMD. Rationale and mechanism:
 ## myx.distro-agents/MAGIC.md.

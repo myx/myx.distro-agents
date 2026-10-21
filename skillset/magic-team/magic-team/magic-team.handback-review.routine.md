@@ -19,7 +19,7 @@ review-by: inherit
 - Routine's local procedures
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -86,13 +86,13 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--member-board-item-read <team-member> <item-name> [--board-state <state>]...`
-- `--member-review-accept <team-member> <item-filename> [--summary <text>]`
-- `--member-review-return <team-member> <item-filename> (--message <text>|--from-stdin)`
-- `--member-review-reject <team-member> <item-filename> (--message <text>|--from-stdin)`
-- `--member-review-follow-up <team-member> <item-filename> <new-item-name> --from-stdin`
+- `--get-board-item <item-name> [--board-state <state>]...`
+- `--accept-review <item-filename> [--summary <text>]`
+- `--return-review <item-filename> (--message <text>|--from-stdin)`
+- `--reject-review <item-filename> (--message <text>|--from-stdin)`
+- `--follow-up-review <item-filename> <new-item-name> --from-stdin`
 
 # Maintainer Notes
 

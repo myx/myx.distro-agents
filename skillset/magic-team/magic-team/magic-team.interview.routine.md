@@ -19,7 +19,7 @@ review-by: inherit
 - Routine's local procedures
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -60,7 +60,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 2. **open-channel-and-create-item**: on opening or resuming, steps:
    - rule: one topic, one thread. An unrelated topic surfacing mid-interview is forked into its own thread.
    - open or continue the channel: a Slack thread by default; email for slow or unusually complex matters.
-   - create the `interview-*` tracking item now, in `board-running` with `--magic-board-create-running`, unless it already exists. Never deferred.
+   - create the `interview-*` tracking item now, in `board-running` with `--create-running`, unless it already exists. Never deferred.
    - a live interactive session sets `owner-session: interactive` and `owner-session-since: <now>` on the item, and refreshes them at each **resume-review**.
 3. **name-the-interview-on-resume**: with more than one interview open, a resume names which one. A bare "continue" is an assumption gap: ask which, per **readback-on-suspected-assumption-gap**.
 4. **resume-review**: on every pickup, before any new question, steps:
@@ -84,7 +84,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - switch from asking to proposing only once a piece is verified settled: a plain one-line restatement the party did not correct.
    - a piece not yet settled stays in full live context, never summarised.
 8. **dispatch-settled-points**: dispatch each piece the moment it settles and is approved, steps:
-   - send it where it belongs: a board item in `board-backlog` with `--magic-grooming-create-backlog`, carrying `approved-by`/`approved-at` and `spawned-by` the interview item; or an `inquiry-*` to the member who owns it.
+   - send it where it belongs: a board item in `board-backlog` with `--grooming-create-backlog`, carrying `approved-by`/`approved-at` and `spawned-by` the interview item; or an `inquiry-*` to the member who owns it.
    - compact it into one present-tense block: the resulting rule, fact or decision, never the question-and-answer history. Keep every distinct settled point. The wording is simple and drops no intent, detail or benchmark.
    - give each settled design point two fields: `rejected:` — one line naming the live alternatives that lost, and why; `status:` — `settled`, or `superseded` with a pointer to its replacement.
    - remove it from the open scope. Context changes may still reopen it.
@@ -106,7 +106,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
     - **verbatim-intents**: purpose statements and invariants ("this exists so that ...").
     - both are a floor, never a ceiling, unless the party states a ceiling.
     - a session's own rephrasing is labelled as a derivative. The party's original wording stays retrievable and controlling.
-12. **keep-tracking-item-current**: keep the item's "settled so far" and "still open" sections current as **dispatch-settled-points** narrows the scope, with same-state `--magic-advance-to-running` calls.
+12. **keep-tracking-item-current**: keep the item's "settled so far" and "still open" sections current as **dispatch-settled-points** narrows the scope, with same-state `--advance-to-running` calls.
 
 # Closure steps
 
@@ -126,7 +126,7 @@ All statements apply at the same time, always. These rules override a participan
 - `magic-coordinator` is permitted and obliged to execute every step exactly as written, in order.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
 - This routine follows `magic-team.negotiations.md`: both presentation modes are available.
-- Every exchange is kept as a `transcript-*` with `--member-append-session-transcript`, per **transcripts-are-verbatim-records**.
+- Every exchange is kept as a `transcript-*` with `--append-transcript`, per **transcripts-are-verbatim-records**.
 - Before acting on anything the party just said, read back a one-line understanding and wait for confirmation, per **rephrase-and-confirm-before-acting**. Waiting follows **wait-never-quit**.
 - **Two gates.** A design point — a shape, an interface, an invariant — is approved by a one-line readback the party confirms. Executing anything — a dispatch, a spawn, a filing, a real change — passes the pre-dispatch gate as well, even for an approved design.
 - **Pre-dispatch gate**, steps:
@@ -154,17 +154,17 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--member-comms-slack-send-message <team-member> <target> [text...]`
-- `--member-comms-slack-read <team-member> <channel>:<ts> --thread`
-- `--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>`
-- `--magic-board-create-running <team-member> <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`
-- `--magic-advance-to-running <team-member> <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
-- `--magic-grooming-create-backlog <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`
-- `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
-- `--member-inbox-reflection-upsert <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
-- `--member-upsert-member-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
+- `--slack-send-message <target> [text...]`
+- `--slack-read <channel>:<ts> --thread`
+- `--email-send <email@address>... -- <subject> -- <body...>`
+- `--create-running <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`
+- `--advance-to-running <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
+- `--grooming-create-backlog <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`
+- `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
+- `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
+- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
 - `--routine-run-inline <routine>`
 
 # Maintainer Notes

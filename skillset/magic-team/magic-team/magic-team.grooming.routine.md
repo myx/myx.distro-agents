@@ -27,7 +27,7 @@ review-by: inherit
   - `check-reassess` — whether an active item returns to `board-backlog`
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -63,12 +63,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **invite-participants**: invite `magic-librarian` and `magic-architect` per `magic-team.coworking.routine`'s **invite-participants-visibly**.
 2. **gather-the-backlog**: open with what changed since the last pass and today's top priority, steps:
-   - read the open board and `magic-coordinator`'s inbox from this run's input scan result (`input/input-scan.md`). Its `state-and-lock` note is this pass's tracking document: keep it current with `--update-routine-state`, referencing items by name rather than copying them, and hold the lock with `--magic-grooming-lock-refresh` during a long pass.
+   - read the open board and `magic-coordinator`'s inbox from this run's input scan result (`input/input-scan.md`). Its `state-and-lock` note is this pass's tracking document: keep it current with `--update-routine-state`, referencing items by name rather than copying them, and hold the lock with `--grooming-lock-refresh` during a long pass.
    - run `magic-team.process-inbox.routine magic-coordinator` inline (`--routine-run-inline magic-team.process-inbox.routine`), so fresh inbox items are triaged with the backlog.
-   - refresh the `roster-note` with `--magic-team-roster-upsert` where a member's `SKILL.md` description drifted from it.
+   - refresh the `roster-note` with `--roster-upsert` where a member's `SKILL.md` description drifted from it.
    - check Trello board coverage.
-   - check Google Drive and Sheets for files modified since the last grooming, with `--member-comms-google-file-find`.
-   - collect the approved items needing the human-owner's own hands (app configuration, scope grants) into one batch, and send it to him with `--member-comms-slack-send-message` during this pass — at **review-with-the-user** if he is live, else once this step ends.
+   - check Google Drive and Sheets for files modified since the last grooming, with `--google-file-find`.
+   - collect the approved items needing the human-owner's own hands (app configuration, scope grants) into one batch, and send it to him with `--slack-send-message` during this pass — at **review-with-the-user** if he is live, else once this step ends.
 3. **triage-per-item**: give every open item, old or new, one recorded triage verb or an explicit skip reason. Time-box each item. Steps:
    - decide each item by this tree, first match wins:
      - duplicate of another open item → **Merge**.
@@ -79,17 +79,17 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - owned by the wrong member → **Reassign**.
      - otherwise → **Refine**: change at least one of description, size, order or `recheck-date`.
    - apply the verb, each one call:
-     - **Refine**, **Reassign**: same-state `--magic-grooming-to-<state>` with `--from-state:` that state.
-     - **Defer**: `--magic-grooming-to-parked`.
-     - **Block**: `--magic-grooming-to-blocked`, with `condition` and `recheck-date`.
-     - **Unblock**: `--magic-grooming-to-pending` for an approved item, `--magic-grooming-to-backlog` for one never approved.
-     - **Split**: create each child with `--magic-grooming-create-backlog`, `spawned-by` the parent; move the parent to `board-blocked`, `blocked-by` the children. A child needing several members' judgement carries `restart-session:` with them.
-     - **Drop**: `--magic-grooming-to-archived`, or remove an item that never had substance.
+     - **Refine**, **Reassign**: same-state `--grooming-to-<state>` with `--from-state:` that state.
+     - **Defer**: `--grooming-to-parked`.
+     - **Block**: `--grooming-to-blocked`, with `condition` and `recheck-date`.
+     - **Unblock**: `--grooming-to-pending` for an approved item, `--grooming-to-backlog` for one never approved.
+     - **Split**: create each child with `--grooming-create-backlog`, `spawned-by` the parent; move the parent to `board-blocked`, `blocked-by` the children. A child needing several members' judgement carries `restart-session:` with them.
+     - **Drop**: `--grooming-to-archived`, or remove an item that never had substance.
      - **Merge**: fold the duplicate's new information into the survivor (`supersedes`), and close the duplicate to `board-processed` (`superseded-by`). Settled information is applied into the survivor's content; in-flight information is added as a dated note. Merge only when sure it is the same ask; in doubt, keep both.
    - triage each inbox item, after a cheap duplicate look across the inbox, `board-backlog`, `board-pending` and `board-running`:
-     - **Promoted** → a new board item in `board-backlog` (`--magic-grooming-create-backlog`). Where the group already holds the go, create it in `board-pending` (`--magic-grooming-create-pending`) with `approved-by`/`approved-at`.
-     - **Needs the human-owner's go** → the item in `board-blocked` (`--magic-grooming-create-blocked`) and an `approval-*` in `board-running` (`--magic-grooming-create-running`), linked by `blocks`/`blocked-by`.
-     - **Denied** → a `board-processed` record with the resolution (`--magic-grooming-create-processed`), and a reply to the asker. An auto-reject cites its rule.
+     - **Promoted** → a new board item in `board-backlog` (`--grooming-create-backlog`). Where the group already holds the go, create it in `board-pending` (`--grooming-create-pending`) with `approved-by`/`approved-at`.
+     - **Needs the human-owner's go** → the item in `board-blocked` (`--grooming-create-blocked`) and an `approval-*` in `board-running` (`--grooming-create-running`), linked by `blocks`/`blocked-by`.
+     - **Denied** → a `board-processed` record with the resolution (`--grooming-create-processed`), and a reply to the asker. An auto-reject cites its rule.
      - **Not yet ready** → stays in the inbox.
      - **Ignored** → nothing on the board.
      - every handled inbox item is closed per `magic-team.process-inbox.routine`.
@@ -110,12 +110,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - recheck every `board-blocked` item, with a real attempt each pass:
      - **Escalate** — push for resolution now; it stays blocked meanwhile.
      - **Stays blocked** — only with something actually tried this pass. Any open `blocked-by` keeps it blocked.
-     - **Becomes parked** — active pursuit is no longer worth it: `--magic-grooming-to-parked`.
-     - **Unblocks** — its blocker cleared or dropped: `--magic-grooming-to-pending`. An approved `approval-*` just moves to `board-processed`; the move unblocks what it gated.
-     - **Archived** — even waiting is not worth it: `--magic-grooming-to-archived`.
-   - recheck every `board-parked` item: its trigger arrived → `--magic-grooming-to-pending` or `--magic-grooming-to-backlog`; never coming → `--magic-grooming-to-archived`.
-   - **recheck-and-exit** every `board-retained` item whose `recheck-date` is due or unset: still referenced → renew `recheck-date` (`--magic-grooming-to-retained --from-state:retained`); no longer referenced → `board-processed`.
-4. **assess-finished-unresolved**: assess every item carrying `processed-at` and no `resolved-at`. Write its decided outcome into the item with a same-state `--magic-grooming-to-<state>` call. No outcome decidable: say why; it stays visible next pass.
+     - **Becomes parked** — active pursuit is no longer worth it: `--grooming-to-parked`.
+     - **Unblocks** — its blocker cleared or dropped: `--grooming-to-pending`. An approved `approval-*` just moves to `board-processed`; the move unblocks what it gated.
+     - **Archived** — even waiting is not worth it: `--grooming-to-archived`.
+   - recheck every `board-parked` item: its trigger arrived → `--grooming-to-pending` or `--grooming-to-backlog`; never coming → `--grooming-to-archived`.
+   - **recheck-and-exit** every `board-retained` item whose `recheck-date` is due or unset: still referenced → renew `recheck-date` (`--grooming-to-retained --from-state:retained`); no longer referenced → `board-processed`.
+4. **assess-finished-unresolved**: assess every item carrying `processed-at` and no `resolved-at`. Write its decided outcome into the item with a same-state `--grooming-to-<state>` call. No outcome decidable: say why; it stays visible next pass.
 5. **rescore-backlog-rice**: score per `rice-scoring`, one pass over `board-backlog`, `board-pending`, `board-running`, `board-blocked` and `board-parked`, steps:
    - give every item triaged this pass that has no score its first one.
    - re-score the 10 open items with the oldest scores, oldest first.
@@ -152,19 +152,19 @@ Used by **rescore-backlog-rice** and by any member scoring an item.
 Run per item during **triage-per-item**. Steps:
 1. `interview-*`, or a `task-*`/`proposal-*` explicitly awaiting interview (read its content, not its title):
    - `owner-session: interactive` with `owner-session-since` within about an hour: skip; a live session holds it.
-   - otherwise: `--magic-grooming-to-pending`. `magic-coordinator.advance.routine` starts it and runs its interview rounds.
-2. Any other item already carrying `approved-by`/`approved-at` (created approved by another routine) → `--magic-grooming-to-pending`.
+   - otherwise: `--grooming-to-pending`. `magic-coordinator.advance.routine` starts it and runs its interview rounds.
+2. Any other item already carrying `approved-by`/`approved-at` (created approved by another routine) → `--grooming-to-pending`.
 3. Any other item, by the group's consensus this pass:
-   - dependencies clear and priority confirmed, nobody dissents → `--magic-grooming-to-pending` with `approved-by`/`approved-at`.
-   - a dependency still open → `--magic-grooming-to-blocked`, with a note. No `approval-*`: not a human decision.
-   - real doubt about priority or a dependency → an `approval-*` in `board-running` (`--magic-grooming-create-running`), and the item to `board-blocked`, linked by `blocks`/`blocked-by`.
+   - dependencies clear and priority confirmed, nobody dissents → `--grooming-to-pending` with `approved-by`/`approved-at`.
+   - a dependency still open → `--grooming-to-blocked`, with a note. No `approval-*`: not a human decision.
+   - real doubt about priority or a dependency → an `approval-*` in `board-running` (`--grooming-create-running`), and the item to `board-blocked`, linked by `blocks`/`blocked-by`.
    - not yet assessed → stays in `board-backlog`.
 
 ## `check-reassess` — whether an active item returns to `board-backlog`
 
 Decided jointly by `magic-coordinator`, `magic-librarian` and `magic-architect`. Steps:
 1. The item's scope or assumptions shifted so its state no longer reflects reality:
-   - all three agree → `--magic-grooming-to-backlog` with a note on the trigger.
+   - all three agree → `--grooming-to-backlog` with a note on the trigger.
    - they disagree → resolve it in discussion; escalate when still unresolved. Never a silent default.
 2. Framing still holds → no move; update only what narrower changed (owner, `recheck-date`, a note).
 
@@ -191,15 +191,15 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--magic-grooming-lock-refresh <team-member>`
+- `--grooming-lock-refresh`
 - `--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`
-- `--magic-grooming-to-<state> <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`, `<state>` one of `backlog`, `pending`, `parked`, `blocked`, `processed`, `archived`, `retained`
-- `--magic-grooming-create-<state> <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`, `<state>` one of `backlog`, `pending`, `running`, `blocked`, `processed`
-- `--magic-team-roster-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]`
-- `--member-comms-slack-send-message <team-member> <target> [text...]`
-- `--member-comms-google-file-find <team-member> <drive-query> --raw-query [--limit <n>]`
+- `--grooming-to-<state> <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`, `<state>` one of `backlog`, `pending`, `parked`, `blocked`, `processed`, `archived`, `retained`
+- `--grooming-create-<state> <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`, `<state>` one of `backlog`, `pending`, `running`, `blocked`, `processed`
+- `--roster-upsert [--from-file <path>|--edit-patch-from-stdin]`
+- `--slack-send-message <target> [text...]`
+- `--google-file-find <team-member> <drive-query> --raw-query [--limit <n>]`
 - `--routine-run-inline <routine>`
 
 # Maintainer Notes

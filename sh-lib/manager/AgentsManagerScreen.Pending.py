@@ -63,7 +63,7 @@ def ageText(asked, now):
     return "%dd" % (seconds // 86400)
 
 
-## What `--member-pending-reply-read <member> --any-owner` printed, as rows. A record starts
+## What `--read-pending-reply <member> --any-owner` printed, as rows. A record starts
 ## with `PENDING-REPLY: <id>`, holds `<field>: <value>` lines and ends with an empty line;
 ## the list ends with `PENDING-REPLIES: <count>`. A row shows the mark of an asker that is
 ## gone, how long ago it was asked, the mark of its kind, who asks, of whom, and the first
@@ -148,7 +148,7 @@ def askLines(ask, width, stored=None):
     return lines
 
 
-## What `--member-pending-reply-read <member> <id>` printed of the stores of one ask: the
+## What `--read-pending-reply <member> <id>` printed of the stores of one ask: the
 ## lines from `PENDING-REPLY-STORED: <id>` to the empty line, each `<name>: <text>`. A text
 ## of several lines repeats its name, and a name that lists things has one a line: both
 ## are kept as the lines of that name, in their order. None where it printed no such part.
@@ -556,10 +556,10 @@ def pendingCount(state):
 PENDING_READS = {
     ## The asks that wait, every owner's. The member named filters nothing with --any-owner; it
     ## is the one the tooling's own read of every owner's asks names (the work-duty scan).
-    "list:pending": {"operation": ["--member-pending-reply-read", "magic-coordinator", "--any-owner"],
+    "list:pending": {"operation": ["--read-pending-reply", "magic-coordinator", "--any-owner"],
                      "rows": "pending"},
     ## One ask, whole: what the stores hold of it.
-    "view:pending:record": {"operation": ["--member-pending-reply-read", "magic-coordinator", "{id}"],
+    "view:pending:record": {"operation": ["--read-pending-reply", "magic-coordinator", "{id}"],
                             "rows": "ask", "needs": "ask"},
     ## What can be done with one ask from the console: the row of the question, with whether it
     ## takes words, a reject and a dismissal and with the link of its message, and a row for

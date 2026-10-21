@@ -124,10 +124,10 @@ rigAssert "the run's record keeps the filled document" "$( LC_ALL=C grep -h -x "
 echo "-- 4. the two locks are independent --"
 rigNote "$rigCoordInbox" magic-coordinator advance-finished "COORDINATOR-NOTE"
 rigNote "$rigKeeperInbox" rig-keeper advance-finished "KEEPER-NOTE"
-rigTool2 --magic-advance-lock-acquire magic-coordinator rig-session-one > "$rigTmp/take1.out"; rigTake1=$?
-rigTool2 --magic-advance-lock-acquire rig-keeper rig-session-two > "$rigTmp/take2.out"; rigTake2=$?
-rigTool2 --magic-advance-lock-acquire rig-keeper rig-session-three > "$rigTmp/take3.out"; rigTake3=$?
-rigTool2 --magic-advance-lock-acquire magic-coordinator rig-session-four > "$rigTmp/take4.out"; rigTake4=$?
+rigTool2 --intern-op-routine-lock-take advance magic-coordinator rig-session-one > "$rigTmp/take1.out"; rigTake1=$?
+rigTool2 --intern-op-routine-lock-take advance rig-keeper rig-session-two > "$rigTmp/take2.out"; rigTake2=$?
+rigTool2 --intern-op-routine-lock-take advance rig-keeper rig-session-three > "$rigTmp/take3.out"; rigTake3=$?
+rigTool2 --intern-op-routine-lock-take advance magic-coordinator rig-session-four > "$rigTmp/take4.out"; rigTake4=$?
 rigAssert "the coordinator takes its note, the keeper takes its own while that is held" "$rigTake1:$rigTake2" "0:0"
 rigAssert "a second take of either held note refuses" "$rigTake3:$rigTake4" "1:1"
 rigAssert "each note holds its own session" "$( rigField "$rigCoordInbox/$rigAdvance" session-id ):$( rigField "$rigKeeperInbox/$rigAdvance" session-id )" "rig-session-one:rig-session-two"

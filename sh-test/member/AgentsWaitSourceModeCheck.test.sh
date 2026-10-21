@@ -71,7 +71,7 @@ rigWait(){ ## output basename, then the operation's arguments after the member
 	env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_WAIT_POLL_SECONDS -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_ID -u MDAT_SESSION_THREAD -u MDAT_CONVERSATION_THREADS \
 		"PATH=$rigWaitPath" "RIG_SCENARIO=$rigDir" "MMDAPP=$rigDir/ws" "MDAT_DATA_ROOT=$rigDir/data" "MDAT_SKILLSET_ROOT=$rigTmp/skills" ${rigKey:+MDAT_SESSION_ID=$rigKey} \
 		MDAT_WAIT_POLL_SECONDS=1 MDAT_WAIT_SETTLE_SECONDS=1 MDAT_WAIT_REMIND=off \
-		"$rigTool" --member-wait-for-input "$rigMember" "$@" > "$rigOut" 2> "$rigDir/$waitName.err" &
+		"$rigTool" --wait-for-input "$rigMember" "$@" > "$rigOut" 2> "$rigDir/$waitName.err" &
 	waitPid=$!
 	( waitLeft=60 ; while [ "$waitLeft" -gt 0 ] ; do kill -0 "$waitPid" 2>/dev/null || exit 0 ; sleep 1 ; waitLeft=$(( waitLeft - 1 )) ; done
 	  printf 'rig: the wait did not return within 60s, and was killed\n' >> "$rigDir/$waitName.err" ; kill -TERM "$waitPid" 2>/dev/null ; sleep 2 ; kill -KILL "$waitPid" 2>/dev/null ) &
@@ -108,7 +108,7 @@ rigAssert "RECEIVED"                                               "$( rigFirst 
 rigAssert "the short message whole"                                "$( rigHolds 'RIG-X-SMALL a short one' )" yes
 rigAssert "the long one cut: its first words, not its last"        "$( rigHolds RIG-X-LONG-START ):$( rigHolds RIG-X-LONG-END )" "yes:no"
 rigAssert "the cut message shows its own reference, source and ts"       "$( LC_ALL=C grep -c -E "RIG-X-LONG-START .*\\([0-9]+ bytes; CRIGXXX01:$(( rigNow - 80 )).000001\\)$" "$rigOut" )" 1
-rigAssert "the line that reads one in full stands once in the return, naming the operation" "$( LC_ALL=C grep -c -F -- "--member-comms-slack-read" "$rigOut" ):$( LC_ALL=C grep -c -F -- "# short forms: read one in full with --member-comms-slack-read $rigMember <source>:<ts> --thread" "$rigOut" )" "1:1"
+rigAssert "the line that reads one in full stands once in the return, naming the operation" "$( LC_ALL=C grep -c -F -- "--slack-read" "$rigOut" ):$( LC_ALL=C grep -c -F -- "# short forms: read one in full with --slack-read $rigMember <source>:<ts> --thread" "$rigOut" )" "1:1"
 rigAssert "the sources line names the source, without the form"    "$( LC_ALL=C sed -n 's/^# sources: //p' "$rigOut" )" "slack:CRIGXXX01"
 rigAssert "no message is kept"                                     "$( rigFiles "$( rigKept )" )" 0
 rigAssert "the index cache file keeps the short forms, a line each" "$( LC_ALL=C grep -c -E '^[0-9]+\.[0-9]+ \| URIGOTHER \| (RIG-X-SMALL a short one|RIG-X-LONG-START )' "$( rigIndexFile )" ):$( LC_ALL=C grep -c 'RIG-X-LONG-END' "$( rigIndexFile )" || : )" "2:0"
@@ -135,7 +135,7 @@ rigWait stored-1 --wait-default --wait-session-id "$rigSession" --wait-source "$
 rigAssert "stored with the stateful wait"                          "$( LC_ALL=C grep -c -x -F 'mode slack:CRIGXXX01 short' "$( rigSessionDir )/wait/state" )" 1
 rigHistory ",{\"ts\":\"$(( rigNow - 10 )).000001\",\"user\":\"URIGOTHER\",\"text\":\"RIG-X-NEWEST $rigLong\"}"
 rigWait stored-2 --wait-continue --wait-session-id "$rigSession" --wait-timeout 4
-rigAssert "continue serves the next message in the same form: cut" "$( rigHolds RIG-X-NEWEST ):$( rigHolds RIG-X-LONG-END ):$( LC_ALL=C grep -c -F -- '--member-comms-slack-read' "$rigOut" )" "yes:no:1"
+rigAssert "continue serves the next message in the same form: cut" "$( rigHolds RIG-X-NEWEST ):$( rigHolds RIG-X-LONG-END ):$( LC_ALL=C grep -c -F -- '--slack-read' "$rigOut" )" "yes:no:1"
 rigWait stored-3 --wait-add --wait-session-id "$rigSession" --wait-source "file:$rigDir/none#full"
 rigAssert "a form on a file source is refused, and the stored wait is as it was" "$( rigFirst ):$( LC_ALL=C grep -c -x -F 'mode slack:CRIGXXX01 short' "$( rigSessionDir )/wait/state" )" "WAIT-RESULT: ERROR:1"
 rigWait stored-4 --wait-add --wait-session-id "$rigSession" --wait-source "slack:CRIGYYY01#full"

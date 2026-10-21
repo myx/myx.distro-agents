@@ -2,7 +2,7 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.MemberRepoHistory.include -- the --member-git-repo-history operation for
+## AgentsTools.MemberRepoHistory.include -- the --get-path-history operation for
 ## DistroAgentsTools.fn.sh's dispatcher: the commit history of paths inside the workspace
 ## or a readable access root, through `git log` only. Sourced lazily from its own arm.
 ## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD. Contract: MAGIC.md.
@@ -10,7 +10,7 @@
 
 case "$1" in
 
-	--member-git-repo-history)
+	--get-path-history)
 		local historyOp="$1"
 		shift
 		local historyYear historyMonth historyDay historyDaysMax

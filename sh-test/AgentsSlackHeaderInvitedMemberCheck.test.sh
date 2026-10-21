@@ -112,7 +112,7 @@ rigRunIn(){ ## workspace, args... -- one dispatcher call from that workspace; st
 }
 rigSend(){ ## member, further arguments of the send... -- a --member- send to the team's conversation, from ws-here
 	local sendMember="$1" ; shift
-	rigRunIn ws-here --member-comms-slack-send-message "$sendMember" magic-team "$@"
+	rigRunIn ws-here --slack-send-message "$sendMember" magic-team "$@"
 }
 rigText(){ ## -- the text field of the first posted body, escapes as sent
 	LC_ALL=C sed -n '1s/^{"channel":"[^"]*","text":"//; 1s/","blocks":.*//; 1s/"}$//; 1p' "$rigTmp/bodies"
@@ -214,7 +214,7 @@ rigAssert "and nothing is said on stderr about its row or its alias" "$( rigNoRo
 rigSend magic-coordinator --identity-bot --address-to client-rig RIG-BODY
 rigAssert "addressed by the member whose persona it shares: two members, two aliases" \
 	"$rigRc $( rigHeader )" '0 🐭 *_magic-coordinator_* @dispatchr → 🐭 *_client-rig_*.'
-rigRunIn ws-there --member-comms-slack-send-message client-rig magic-team RIG-BODY
+rigRunIn ws-there --slack-send-message client-rig magic-team RIG-BODY
 rigAssert "the same in the workspace it is set up in, where the registry holds its persona row" "$rigRc $( rigText )" '0 🐭 *_client-rig_* → @here.\nRIG-BODY'
 rigAssert "no registry row is written, added or removed by a send: both registries stand as they were" \
 	"$( LC_ALL=C grep -c '' "$( rigNames ws-here )" ):$( LC_ALL=C grep -c '' "$( rigNames ws-there )" ):$( LC_ALL=C grep -c '^client-rig 🐭 Magic Vane dispatchr$' "$( rigNames ws-there )" )" "7:6:1"
@@ -238,7 +238,7 @@ rigAssert "and one line on stderr says so, naming the alias" "$( rigSaid "member
 rigSend keeper-here --address-to keeper-clash RIG-BODY
 rigAssert "as addressee, beside the member that has the alias here: two members, two aliases, and the same line" \
 	"$rigRc $( rigHeader ) $( rigSaid "member 'keeper-clash' is invited from another workspace" )" '0 🔧 *_keeper-here_* @herakeep → 🧭 *_keeper-clash_*. 1'
-rigRunIn ws-there --member-comms-slack-send-message keeper-clash magic-team RIG-BODY
+rigRunIn ws-there --slack-send-message keeper-clash magic-team RIG-BODY
 rigAssert "control: in the workspace it is set up in, where no other member has it, its alias is its own" "$rigRc $( rigHeader ) $( rigSaid 'is invited from another workspace' )" '0 🧭 *_keeper-clash_* @herakeep → @here. 0'
 rigSend keeper-there RIG-BODY
 rigAssert "control: an invited member whose alias nobody here has keeps it, with nothing said" "$( rigHeader ) $( rigSaid 'is invited from another workspace' )" '🌾 *_keeper-there_* @farmhand → @here. 0'

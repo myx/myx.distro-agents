@@ -430,7 +430,7 @@ rigAssert "its answer emoji are placed under the asking member's own token" "$( 
 rigAssert "a reply of that member that names no answer comes back, and the request stays open" \
 	"$rigKilled:$( rigVerdictLine ):$( rigRecordField status )" "no:VERDICT: RETURNED:reply-pending"
 rigRoutedId="$( rigRecordId )"
-RIG_OP_AGENT=magic-developer RIG_OP_SESSION="$rigHolderSpawn" rigOp --member-escalation-answer magic-developer "$rigRoutedId" allow-session
+RIG_OP_AGENT=magic-developer RIG_OP_SESSION="$rigHolderSpawn" rigOp --answer-escalation magic-developer "$rigRoutedId" allow-session
 rigAssert "that member answers it as itself, and the grant is written" \
 	"$( LC_ALL=C grep -c -x -F "ESCALATION: $rigRoutedId answered" "$rigScenarioDir/op.out" ):$( LC_ALL=C grep -c '^GRANT: session ' "$rigScenarioDir/op.out" ):$( rigRecordField status ):$( rigRecordField answered-by )" "1:1:reply-received:magic-developer"
 rigCall 60 Wait "{\"sources\":\"ask:$rigRoutedId\",\"timeout\":5}"

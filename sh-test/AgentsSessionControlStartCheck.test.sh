@@ -504,7 +504,7 @@ echo "-- 10. the guard: every check of sh-test that names an operation which sta
 ## that names the spawn proxy, the spawn relay's own, the start of a session or the console's start of a member ends
 ## them too, whether its own starts wait or not: the guard reads names. So does one that names the return of a
 ## review, which starts an ended run again, or the harness's own tool that brings a member in.
-rigGuardOps='--magic-advance-lock-acquire|--intern-main-loop|--manager-session-control-start|--intern-op-agent-spawn-proxy|--magic-spawn-proxy|--magic-spawn-session|--manager-spawn-member|--member-review-return|--intern-op-review-return|--intern-tool +"?Agent'
+rigGuardOps='--intern-op-routine-lock-take|--intern-main-loop|--manager-session-control-start|--intern-op-agent-spawn-proxy|--spawn-prompt|--spawn-session|--manager-spawn-member|--return-review|--intern-op-review-return|--intern-tool +"?Agent'
 ## THE CHECKS THAT NAME A SPAWN OPERATION AND START NO THREAD, with the reason, by file name. A start its caller waits on (--wait) gets no control
 ## thread (AgentsToolsSessionControlWaited: its transcript says wait=true; the spawner starts the thread, and the communications reader beside it,
 ## in the supervising shell of a start that is not waited for), so a check whose every such line carries --wait has nothing to end. It stays on this
@@ -535,13 +535,13 @@ rigAssert "control: the guard read the checks, and found those that name one: te
 ## and beside them one that does both, one that names the operation in a comment alone, and one that names none;
 ## and one in a subfolder, where the runner finds tests too, that takes the advance lock and ends nothing.
 mkdir -p "$rigTmp/probe/sub"
-printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/probe.XXXXXXXX" )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-advance-lock-acquire magic-coordinator rig-pass' > "$rigTmp/probe/Bare.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/probe.XXXXXXXX" )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --intern-op-routine-lock-take advance magic-coordinator rig-pass' > "$rigTmp/probe/Bare.test.sh"
 printf '%s\n' '#!/usr/bin/env bash' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1' 'rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/probe.XXXXXXXX" )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --intern-main-loop --one' > "$rigTmp/probe/Sourced.test.sh"
 printf '%s\n' '#!/usr/bin/env bash' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1' 'rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/probe.XXXXXXXX" )"' "trap 'rigControlThreadsEnd \"\$rigTmp\" ; rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --manager-session-control-start --all' > "$rigTmp/probe/Ended.test.sh"
-printf '%s\n' '#!/usr/bin/env bash' '## this check never calls --magic-advance-lock-acquire' 'echo nothing' > "$rigTmp/probe/Comment.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' '## this check never calls --intern-op-routine-lock-take advance' 'echo nothing' > "$rigTmp/probe/Comment.test.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'echo nothing' > "$rigTmp/probe/None.test.sh"
-printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/probe.XXXXXXXX" )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-spawn-session rig-member < /dev/null' > "$rigTmp/probe/Spawned.test.sh"
-printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/probe.XXXXXXXX" )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-advance-lock-acquire magic-coordinator rig-pass' > "$rigTmp/probe/sub/Nested.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/probe.XXXXXXXX" )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --spawn-session rig-member < /dev/null' > "$rigTmp/probe/Spawned.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/probe.XXXXXXXX" )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --intern-op-routine-lock-take advance magic-coordinator rig-pass' > "$rigTmp/probe/sub/Nested.test.sh"
 rigAssert "the guard fails a check that names one of the operations and does not end the threads of its rig, one that only sources the fixture, one that starts a session through the spawner and ends nothing, and one in a subfolder that ends nothing; not one that ends them, nor one that names the operation in a comment alone" \
 	"$( rigGuard "$rigTmp/probe" | LC_ALL=C tr '\n' ' ' )" "NOT ENDED: Bare.test.sh NOT ENDED: Sourced.test.sh NOT ENDED: Spawned.test.sh NOT ENDED: Nested.test.sh named: 5 "
 ## The check that is listed as starting no thread (rigGuardWaived), made to fail and to hold: of the same name, one whose only spawn is waited

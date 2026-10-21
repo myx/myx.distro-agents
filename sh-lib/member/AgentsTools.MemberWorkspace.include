@@ -218,7 +218,7 @@ AgentsToolsScopeHoldsKeys(){ ## workspace, scope, key prefix
 ## in this workspace's own magic-team scope; for one member, by the same key in that
 ## member's scope here; for one task, by --spawn-settings-workspace <name> on its spawn,
 ## which every way of spawning a task carries to it: the Agent tool (settings_workspace),
-## --magic-spawn-session, and a review return's restart, which reads it from the record of
+## --spawn-session, and a review return's restart, which reads it from the record of
 ## the run it replaces. The spawn operation settles the last two
 ## (AgentsToolsSpawnSettingsSettle) and exports the path as MDAT_SPAWN_SETTINGS_WORKSPACE
 ## for that one spawn (AgentsTools.InternOpAgentSpawnProxy.include).
@@ -270,7 +270,7 @@ AgentsToolsSpawnSettingsWorkspace(){
 ## it, are read from the workspace the member is set up in on this machine. System by
 ## system, and each whole: one setting of a system held here, and that system is read here
 ## alone, what it lacks here too, so no credential is ever put together from two
-## workspaces. A system is one comms family of the dispatcher (--member-comms-<system>-*),
+## workspaces. A system is one comms family of the dispatcher (--<system>-*),
 ## and its settings are the keys that begin with its name. Never borrowed: the team's own
 ## settings (the magic-team scope), a key that is no system's, and anything of a member
 ## that is set up here. The tooling says so in one line, where the member is invited

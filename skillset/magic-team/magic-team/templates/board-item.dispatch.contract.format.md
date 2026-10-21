@@ -60,7 +60,7 @@ The brief given to one spawned session, carried exactly, with a dated log of its
 | `outcome` | optional | member | `text` | What an advance pass did. Written by `magic-coordinator`. |
 | `execution-receipt` | optional | member | `text` | The evidence for `outcome`, and for a move into `board-blocked`. Written by `magic-coordinator`. |
 | `references` | optional | member | `item-names` | Items this one cites. A board item may cite vault and audit items. |
-| `allows` | optional | tooling | `allows-set` | The approved permission set the tracked session carries, written when the set is approved (`--magic-permission-set-request`). `<granted-by>` is a holder, not the session's own member. |
+| `allows` | optional | tooling | `allows-set` | The approved permission set the tracked session carries, written when the set is approved (`--request-permission-set`). `<granted-by>` is a holder, not the session's own member. |
 | `processed-at` | optional | tooling | `date-time` | Stamped when the item is processed. |
 | `resolved-at` | optional | tooling | `date-time` | Stamped when the item resolves. |
 | `started-at` | optional | tooling | `date-time` | Stamped when work on the item starts. |
@@ -105,7 +105,7 @@ The brief given to one spawned session, carried exactly, with a dated log of its
 - A `## Brief` section carries the spawn request exactly as given.
 - A `## Result` section, written by the tooling when the session ends, carries `status:`, `exit-code:`, `output-file:` and `completed-at:` lines.
 - A dated log of the session's reports follows the brief.
-- A `## Decisions` section, when present, is the one the tooling wrote: the heading is followed at once by `<!-- decisions-of: <item-name> -->`. A member adds to it only with `--member-decision-record`, never by hand.
+- A `## Decisions` section, when present, is the one the tooling wrote: the heading is followed at once by `<!-- decisions-of: <item-name> -->`. A member adds to it only with `--record-decision`, never by hand.
 
 ## Rules
 

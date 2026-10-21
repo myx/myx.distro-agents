@@ -48,8 +48,8 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'cp "$MDAT_SPAWN_SANDBOX_ROOT/input/input-scan.md" "$RIG_SCENARIO/input-scan.seen" 2> /dev/null || :' \
 	'## The run is in its session: its pointers, then the first wait on a scan the spawner ran, and one on a scan it did not.' \
 	'cp "$MMDAPP/.local/agents/sessions/$MDAT_SESSION_ID/session.chat.pointers" "$RIG_SCENARIO/pointers.seen" 2> /dev/null || :' \
-	'bash "$RIG_FN" --member-wait-for-input "$MDAT_SPAWN_AGENT" --wait-source scan:permission-escalation --wait-timeout 0 > "$RIG_SCENARIO/wait.seen" 2> /dev/null < /dev/null || :' \
-	'bash "$RIG_FN" --member-wait-for-input "$MDAT_SPAWN_AGENT" --wait-source scan:member-work-session --wait-timeout 0 > "$RIG_SCENARIO/wait.control" 2> /dev/null < /dev/null || :' \
+	'bash "$RIG_FN" --wait-for-input "$MDAT_SPAWN_AGENT" --wait-source scan:permission-escalation --wait-timeout 0 > "$RIG_SCENARIO/wait.seen" 2> /dev/null < /dev/null || :' \
+	'bash "$RIG_FN" --wait-for-input "$MDAT_SPAWN_AGENT" --wait-source scan:member-work-session --wait-timeout 0 > "$RIG_SCENARIO/wait.control" 2> /dev/null < /dev/null || :' \
 	'printf "📦 SubagentHandback\n"' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"

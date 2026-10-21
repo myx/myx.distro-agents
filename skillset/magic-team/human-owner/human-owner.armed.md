@@ -14,7 +14,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Team-Member's (-specific) local rules
 - Domain knowledge: none
 - Team-Member's (-specific) tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
 
 # Summary
@@ -56,8 +56,8 @@ Steps:
 2. **ask-at-once**: Ask with `AskQuestion`, `ConfirmReadback`, `EscalateDecision`, `RequestPermission` or `ProposeApprove`, of the fitting kind in `magic-team/templates/escalation.document.format.md`, as soon as the assessment is done. The tooling delivers it on his direct channel and waits inside the call. One topic, the decision first.
 3. **keep-it-tracked**: A question whose answer binds the team is registered by `magic-coordinator` as a board item blocking the work it gates. A member with no coordinator present files it to `magic-coordinator` with `post-inquiry`.
 4. **wait-for-the-answer**: Wait per **wait-never-quit** in `magic-team/magic-team.armed.md`. No reply is never a verdict, neither a deny nor an allow.
-   - A follow-up goes into the same thread. Read the thread before re-asking, and the record's own `asker-live:` (`--member-pending-reply-read`): `no-process` or `session-ended` means nobody is there to take his answer.
-   - A question settled elsewhere is closed by its asker with `--member-pending-reply-settle`.
+   - A follow-up goes into the same thread. Read the thread before re-asking, and the record's own `asker-live:` (`--read-pending-reply`): `no-process` or `session-ended` means nobody is there to take his answer.
+   - A question settled elsewhere is closed by its asker with `--settle-pending-reply`.
 
 # Team-Member's (-specific) local rules
 
@@ -75,10 +75,10 @@ All statements apply at the same time, always.
 
 Every `magic-tooling` operation this record's own procedures invoke. Behaviour is read with `--member-help`. Procedures use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--member-pending-reply-read <team-member>`
-- `--member-pending-reply-settle <team-member> ...`
+- `--read-pending-reply`
+- `--settle-pending-reply ...`
 
 # Maintainer Notes
 

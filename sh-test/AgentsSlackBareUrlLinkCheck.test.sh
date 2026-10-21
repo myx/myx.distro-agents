@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check that AgentsSlackBlocksBuild.awk's bare-URL/bare-address
-## branch reaches a real send, through --member-comms-slack-send-message's
+## branch reaches a real send, through --slack-send-message's
 ## default markdown path, with the fake curl fixture capturing the posted
 ## body. The unit-level proof lives in AgentsSlackBlocksLinkifyCheck.test.sh;
 ## this rig additionally proves the tooling-built preamble carries no link
@@ -54,7 +54,7 @@ rigSend(){ ## text...
 	: > "$rigTmp/bodies"
 	local sendOut=""
 	sendOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		bash "$rigTool" --member-comms-slack-send-message keeper-myx magic-team --identity-bot "$@" 2>&1 )" \
+		bash "$rigTool" --slack-send-message keeper-myx magic-team --identity-bot "$@" 2>&1 )" \
 		|| { printf 'send-failed: %s' "$( printf '%s\n' "$sendOut" | grep 'ERROR' | head -1 )" ; return 0 ; }
 	cat "$rigTmp/bodies"
 }
@@ -65,7 +65,7 @@ rigSendStdin(){
 	: > "$rigTmp/bodies"
 	local sendOut=""
 	sendOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		bash "$rigTool" --member-comms-slack-send-message keeper-myx magic-team --identity-bot --from-stdin 2>&1 )" \
+		bash "$rigTool" --slack-send-message keeper-myx magic-team --identity-bot --from-stdin 2>&1 )" \
 		|| { printf 'send-failed: %s' "$( printf '%s\n' "$sendOut" | grep 'ERROR' | head -1 )" ; return 0 ; }
 	cat "$rigTmp/bodies"
 }

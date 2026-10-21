@@ -2,7 +2,7 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.MemberCommsSlackPresence.include -- --member-comms-slack-presence-*.
+## AgentsTools.MemberCommsSlackPresence.include -- --slack-presence-*.
 ## Sourced lazily from DistroAgentsTools.fn.sh; relies on being dot-sourced
 ## for $1/$@/$MDSC_CMD. Rationale and mechanism: myx.distro-agents/MAGIC.md.
 ##

@@ -42,7 +42,7 @@ A question or hand-off that needs an answer. The one member-to-member document: 
 | `status` | optional | member | `text` | A state label in free text; dropped when stale. |
 | `supersedes` | optional | member | `item-names` | Items this one replaces. |
 | `superseded-by` | optional | member | `item-names` | Items that replace this one. |
-| `processed-at` | optional | tooling | `date-time` | Stamped by `--member-inbox-to-processed`. It decides the item's folder and is the retention clock. |
+| `processed-at` | optional | tooling | `date-time` | Stamped by `--mark-inbox-processed`. It decides the item's folder and is the retention clock. |
 | `update-kind` | optional | member | `text` | `document`, `knowledge` or `skill`. Set by `--request-update` (`AgentLibrarianTools.fn.sh`): an inquiry to `magic-librarian` that carries it is a request of the librarian's update queue. |
 | `update-target` | optional | member | `text` | With `update-kind`: the path of the document, the topic of the knowledge, or `<team-member>:<pathname>` of the skill file the update is about. |
 | `update-form` | optional | member | `text` | With `update-kind`: `message` (words), `text` (the proposed whole text of a skill file, in the body) or `edit` (an old and a new string of a skill file, in the body). |
@@ -70,7 +70,7 @@ A question or hand-off that needs an answer. The one member-to-member document: 
 
 - `type` equals the type word in the filename (`inquiry`).
 - [store] The inbox holds `note-*`, `inquiry-*` and `reflection-*` only. Any other type in an inbox is misfiled and is reported to `magic-coordinator`.
-- [store] An item is handled by marking it processed with `--member-inbox-to-processed`; an item still wanted stays unmarked.
+- [store] An item is handled by marking it processed with `--mark-inbox-processed`; an item still wanted stays unmarked.
 - [store] A member never writes a key whose writer is `tooling`.
-- [store] Posted with `--member-upsert-member-inquiry <target-member> <item-filename>`, adding `--from-member` only when writing on another member's behalf.
+- [store] Posted with `--upsert-inbox-inquiry <target-member> <item-filename>`, adding `--from-member` only when writing on another member's behalf.
 - [judged] `communication-channel-id` is given when the inquiry traces back to one external message.

@@ -4,8 +4,8 @@
 ##
 ## AgentsTools.InternOpDecisions.include -- the ops over a board item's `## Decisions`
 ## section (AgentsTools.ItemDecisions.include): the tooling's own append, and the member
-## stub a member records a clarification, resolution or dismissal with. Sourced from the
-## dispatcher's `--intern-op-decisions-*|--member-decision-*` arm; relies on being
+## stub a member records a clarification, resolution or dismissal with (--record-decision of
+## DistroAgentsQuestions.fn.sh). Sourced from the dispatcher's `--intern-op-decisions-*` arm and the tool file's; relies on being
 ## dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
@@ -14,7 +14,7 @@
 case "$1" in
 
 	## The tooling's own: any kind, any <who>, and blockers cleared on request.
-	--intern-op-decisions-append|--member-decision-record)
+	--intern-op-decisions-append|--record-decision)
 		local decOp="$1"
 		shift
 		MDSC_CMD="$MDSC_CMD $decOp"
@@ -45,7 +45,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "${decItem##*/}" "<item-filename>" decisions || { set +e ; return 1 ; }
-		if [ "$decOp" = "--member-decision-record" ] ; then
+		if [ "$decOp" = "--record-decision" ] ; then
 			AgentsToolsAssertBareName "$decWho" "<team-member>" decision-record || { set +e ; return 1 ; }
 			## An answer or a verdict is the tooling's to record, from the ask it closes.
 			case "$decKind" in
@@ -58,7 +58,7 @@ case "$1" in
 			[ -n "$decMentions" ] && { echo "$MDSC_CMD: ⛔ ERROR: invalid option: --clear-if-mentions" >&2 ; set +e ; return 1 ; }
 			## Who records, with or without --clears-blocker: the item's own parties only. An item
 			## not on the board is left to the append, which refuses it as before.
-			AgentsToolsActingMemberCheck "$decWho" member-decision-record || { set +e ; return 1 ; }
+			AgentsToolsActingMemberCheck "$decWho" record-decision || { set +e ; return 1 ; }
 			local decPath=""
 			if decPath="$( AgentsToolsDecisionsItemPath "$decItem" )" && ! AgentsToolsItemIsParty "$decPath" "$decWho" ; then
 				echo "$MDSC_CMD: ⛔ ERROR: $decWho is not the owner, executor or reviewer of ${decPath##*/}, nor the member of its spawned session, so it records nothing on it" >&2

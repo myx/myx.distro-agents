@@ -2189,7 +2189,7 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s, and no other send path exists here. Nothing was sent.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
 	fi
 	## Built as argv so the optional flag is one token rather than a quoted fragment.
-	set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-comms-slack-send-message "$harnessAgent" "$toolTarget"
+	set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --slack-send-message "$harnessAgent" "$toolTarget"
 	case "$toolAsBot" in
 		true|1|yes) set -- "$@" --identity-bot ;;
 	esac
@@ -2210,14 +2210,14 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 	fi
 	## A team member with no Slack DM of its own is reached by its inbox, a hand-off it reads later.
 	## A question cannot use it, because nothing can wait on a file.
-	if [ "$sendRc" != "0" ] && LC_ALL=C grep -q -E 'ERROR: .*--member-comms-slack-send-message: NO-SLACK-DM: ' "$harnessScratch/send.out" ; then
+	if [ "$sendRc" != "0" ] && LC_ALL=C grep -q -E 'ERROR: .*--slack-send-message: NO-SLACK-DM: ' "$harnessScratch/send.out" ; then
 		toolTarget="${toolTarget%%:*}"
 		if [ "$toolNoInbox" = "true" ] ; then
 			printf 'ERROR: %s has no Slack DM channel, and an inbox cannot carry a question that waits for an answer. Nothing was sent.\n' "$toolTarget" ; return 0
 		fi
 		toolInbox="inquiry-$( date -u +%Y%m%dT%H%MZ )-message-$( printf '%s' "$toolMessage" | cksum | cut -d' ' -f1 ).md"
 		if { printf -- '---\ntype: inquiry\nfrom: %s\ndate: %s\nowner: %s\n---\n\n%s\n' "$harnessAgent" "$( date +'%Y-%m-%d %H:%M %z' )" "$toolTarget" "$toolMessage" ; } \
-			| "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-upsert-member-inquiry "$toolTarget" "$toolInbox" > "$harnessScratch/inbox.out" 2>&1 ; then
+			| "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --upsert-inbox-inquiry "$toolTarget" "$toolInbox" > "$harnessScratch/inbox.out" 2>&1 ; then
 			printf 'inbox %s %s\n' "$toolTarget" "$toolInbox" > "$harnessScratch/send.delivered"
 			printf 'Sent to the inbox of %s as %s, because that team member has no Slack DM channel of its own. It is read only when that member next processes its inbox.\n' "$toolTarget" "$toolInbox"
 		else
@@ -2704,7 +2704,7 @@ AgentsHarnessToolWait(){
 	## No source named: default to this session's own coworking thread and every
 	## conversation thread it continues (AgentsToolsWaitDefaultSources), any post but
 	## the caller's own. An ad-hoc/solo spawn holding none keeps today's default exactly
-	## -- magic-team and human-owner, resolved below by --member-wait-for-input itself
+	## -- magic-team and human-owner, resolved below by --wait-for-input itself
 	## from an empty sources list.
 	if [ -z "$toolSources" ] && [ "$toolMode" != "continue" ] && [ "$toolMode" != "close" ] ; then
 		type AgentsToolsWaitDefaultSources > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
@@ -2734,7 +2734,7 @@ AgentsHarnessToolWait(){
 	## this function's wait/mode handling below.
 	if [ "$waitUnwaitMode" = "true" ] ; then
 		waitSession="$( AgentsHarnessSessionKey )"
-		set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-wait-for-input "$harnessAgent" --unwait "$toolSources"
+		set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input "$harnessAgent" --unwait "$toolSources"
 		[ -z "$waitSession" ] || set -- "$@" --wait-session-id "$waitSession"
 		"$@" >"$harnessScratch/wait.out" 2>"$harnessScratch/wait.err" || waitRc=$?
 		if [ "$waitRc" != "0" ] ; then
@@ -2748,7 +2748,7 @@ AgentsHarnessToolWait(){
 	fi
 	## Built as argv, so a source naming a thread stays one token rather than a
 	## quoted fragment, and an empty sources string adds no flag at all.
-	set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-wait-for-input "$harnessAgent"
+	set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input "$harnessAgent"
 	for waitSource in $toolSources ; do
 		set -- "$@" --wait-source "$waitSource"
 	done
@@ -2815,7 +2815,7 @@ AgentsHarnessToolWait(){
 	esac
 }
 
-## One line appended to the current session's transcript, by --member-append-session-transcript
+## One line appended to the current session's transcript, by --append-transcript
 ## with no --transcript-name: the session decides the file. No session, nothing appended.
 AgentsHarnessToolSessionTranscriptAppend(){ ## note
 	local appendOut="" appendRc=0
@@ -2823,7 +2823,7 @@ AgentsHarnessToolSessionTranscriptAppend(){ ## note
 		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s. Nothing was appended.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
 	fi
 	appendOut="$( MDAT_SPAWN_SESSION_ID="$( AgentsHarnessSessionKey )" "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" \
-		--member-append-session-transcript "${harnessAgent:-unknown}" --message "$1" 2>&1 )" || appendRc=$?
+		--append-transcript "${harnessAgent:-unknown}" --message "$1" 2>&1 )" || appendRc=$?
 	if [ "$appendRc" != "0" ] ; then
 		appendOut="$( printf '%s\n' "$appendOut" | LC_ALL=C grep -F 'ERROR:' | tail -1 )"
 		[ -n "$appendOut" ] || appendOut="ERROR: the append failed (rc=$appendRc). Nothing was appended."
@@ -4246,8 +4246,8 @@ AgentsHarnessAskKeepClarifications(){ ## pending id, clarification lines, newest
 }
 
 ## The asker acting on its own question already asked, by pending id: withdraw it with a
-## reason (--member-pending-reply-settle --withdraw), or close its decision by a readback
-## naming the option it takes the reply to mean (--member-escalation-readback). Prints the
+## reason (--settle-pending-reply --withdraw), or close its decision by a readback
+## naming the option it takes the reply to mean (--readback-escalation). Prints the
 ## result block.
 AgentsHarnessAskAct(){ ## pending id, readback option, withdraw reason, understood text
 	local actId="$1" actReadback="$2" actWithdraw="$3" actUnderstood="$4" actOut actRc=0
@@ -4262,7 +4262,7 @@ AgentsHarnessAskAct(){ ## pending id, readback option, withdraw reason, understo
 		printf 'ERROR: %s: pending_id %s names no pending reply in this workspace. Nothing was done.\n' "$harnessAskName" "$actId" ; return 0
 	fi
 	if [ -n "$actWithdraw" ] ; then
-		actOut="$( "$BASH" "$actTools" --member-pending-reply-settle "$harnessAgent" "$actId" --reason "$actWithdraw" --withdraw 2>&1 )" || actRc=$?
+		actOut="$( "$BASH" "$actTools" --settle-pending-reply "$harnessAgent" "$actId" --reason "$actWithdraw" --withdraw 2>&1 )" || actRc=$?
 		if [ "$actRc" = "0" ] && printf '%s\n' "$actOut" | LC_ALL=C grep -q -x -F "WITHDRAWN $actId" ; then
 			AgentsHarnessAskWaitItem drop "$actId" || :
 			printf 'ASK-RESULT: WITHDRAWN\nPending reply %s is withdrawn: closed with your reason and no verdict, so it answers, grants and decides nothing, and it is reminded no more. A note in its thread tells the person it is no longer needed, and it has left your Wait set.\n' "$actId"
@@ -4274,7 +4274,7 @@ AgentsHarnessAskAct(){ ## pending id, readback option, withdraw reason, understo
 		printf 'ERROR: %s: pending reply %s was NOT withdrawn, and stays as it was. What the operation reported follows:\n%s\n' "$harnessAskName" "$actId" "$actOut"
 		return 0
 	fi
-	actOut="$( "$BASH" "$actTools" --member-escalation-readback "$harnessAgent" "$actId" "$actReadback" "$actUnderstood" 2>&1 )" || actRc=$?
+	actOut="$( "$BASH" "$actTools" --readback-escalation "$harnessAgent" "$actId" "$actReadback" "$actUnderstood" 2>&1 )" || actRc=$?
 	if [ "$actRc" = "0" ] && printf '%s\n' "$actOut" | LC_ALL=C grep -q -x -F "ESCALATION: $actId answered" ; then
 		## The item stays in the Wait set: a later reply there is an objection, kept on the decision.
 		AgentsHarnessAskWaitItem add "$actId" || :
@@ -4567,7 +4567,7 @@ AgentsHarnessAskRevise(){ ## record file, options given (empty: unchanged), sele
 	if [ "$askThreadTs" = "$askTs" ] ; then
 		if [ -n "$revPrev" ] ; then
 			## One live update under the root: the one before it goes, under the identity that posted it.
-			"$BASH" "$revTools" --member-comms-slack-delete-message "$harnessAgent" "$askChannel:$revPrev" $( [ "$revAsBot" != "true" ] || printf -- '--identity-bot' ) > /dev/null 2>&1 \
+			"$BASH" "$revTools" --slack-delete-message "$harnessAgent" "$askChannel:$revPrev" $( [ "$revAsBot" != "true" ] || printf -- '--identity-bot' ) > /dev/null 2>&1 \
 				|| printf 'WARNING: %s: the update before this one, %s:%s, could not be removed, so the thread holds two.\n' "$harnessAskName" "$askChannel" "$revPrev" >&2
 		elif AgentsToolsAskKindRow "$toolKind" ; then
 			AgentsHarnessAskReact "$askChannel:$askTs" "$revAsBot" add $( ASKP_BLOCK="Marks/superseded" AgentsToolsAskPostFill block "$agentsAskRowTemplate" "" 2> /dev/null )
@@ -4627,7 +4627,7 @@ AgentsHarnessAskProposalReply(){ ## -- reads the caller's ask* and tool* fields
 			return 0
 		fi
 		## No root stands without its proposal.
-		if "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-comms-slack-delete-message "$harnessAgent" "$askChannel:$askTs" $replyBot > /dev/null 2>&1 ; then
+		if "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --slack-delete-message "$harnessAgent" "$askChannel:$askTs" $replyBot > /dev/null 2>&1 ; then
 			replyRoot="its root was removed"
 		else
 			replyRoot="its root $askChannel:$askTs could not be removed, and stands with no proposal under it"
@@ -4938,7 +4938,7 @@ AgentsHarnessAsk(){
 	## An ask of the human-owner, in the owner's own conversation (`to` is `human-owner`), is the
 	## team bot's to post, whoever asks and whatever as_bot the call gave: a question, a
 	## readback, a decision and a permission alike, in the bot's conversation with the owner, as
-	## a Permission set is (--magic-permission-set-request). So the owner is asked in one place,
+	## a Permission set is (--request-permission-set). So the owner is asked in one place,
 	## never in the conversation of whichever account asks, where the bot can place no answer
 	## emoji and read no answer. Its record then says `ask-identity: bot`, so its emoji and
 	## every later read, edit and reminder are the bot's too. An ask of a team member stays the

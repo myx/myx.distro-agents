@@ -109,7 +109,7 @@ rigAssert "being contacted by a recorded sender: the access first, the tiers, th
 	"$( ASKP_F_id=alice-one ASKP_F_access='dispatch on job-18 (allowed by human-owner)' rigBlock "$rigNote" Contacts/contacted-known | LC_ALL=C grep -c -F -e 'Access of alice-one: dispatch on job-18 (allowed by human-owner)' -e 'Ingest, always: read and understand it.' -e '--contact-access alice-one --tool <tool> --target <target>' -e '--escalate-contact alice-one' )" 3
 rigAssert "reaching a contact, every part given: the contact, how to meet it, a send line for each channel" \
 	"$( ASKP_F_id=alice-one ASKP_F_name='Alice One' ASKP_F_organisation=ndm ASKP_F_how='short messages' ASKP_F_slack='conversations c' ASKP_F_email='a@b.c' rigBlock "$rigNote" Contacts/reaching )" \
-	$'Reach alice-one, Alice One of ndm. How to meet them: short messages.\nSlack: conversations c. Send with `DistroAgentsTools.fn.sh --member-comms-slack-send-message <you> <conversation> <text>`.\nE-mail: a@b.c. Send with `DistroAgentsTools.fn.sh --member-comms-email-send <you> <address> -- <subject> -- <body>`.\nA send to an address that is no coordinate of a contact you hold is refused. Record what an exchange brings with `DistroAgentsContacts.fn.sh --collect-contact`.'
+	$'Reach alice-one, Alice One of ndm. How to meet them: short messages.\nSlack: conversations c. Send with `DistroAgentsSlack.fn.sh --slack-send-message <you> <conversation> <text>`.\nE-mail: a@b.c. Send with `DistroAgentsMail.fn.sh --email-send <you> <address> -- <subject> -- <body>`.\nA send to an address that is no coordinate of a contact you hold is refused. Record what an exchange brings with `DistroAgentsContacts.fn.sh --collect-contact`.'
 rigAssert "reaching a contact that has only a name: no organisation, no how-to, no Slack, no e-mail line" \
 	"$( ASKP_F_id=alice-one ASKP_F_name='Alice One' rigBlock "$rigNote" Contacts/reaching )" \
 	$'Reach alice-one, Alice One.\nA send to an address that is no coordinate of a contact you hold is refused. Record what an exchange brings with `DistroAgentsContacts.fn.sh --collect-contact`.'
@@ -304,7 +304,7 @@ rigRecord(){ ## id, kind, address-to, options (may be empty), age in seconds (de
 }
 rigStart withdrawn "$rigOrigin"
 rigRecord 11111111-0000-0000-0000-000000000001 question human-owner ""
-RIG_OP_AGENT="$rigMember" rigOp --member-pending-reply-settle "$rigMember" 11111111-0000-0000-0000-000000000001 --withdraw --reason "the rig went on by itself"
+RIG_OP_AGENT="$rigMember" rigOp --settle-pending-reply "$rigMember" 11111111-0000-0000-0000-000000000001 --withdraw --reason "the rig went on by itself"
 rigAssert "the withdrawn note follows its template"       "$( head -1 "$rigScenarioDir/op.out" ):$( rigBodyOf 1 )" \
 	'WITHDRAWN 11111111-0000-0000-0000-000000000001:RIGMARK Withdrawn by magic-tester: the rig went on by itself\nThis question no longer needs an answer.'
 
@@ -313,13 +313,13 @@ rigRecord 11111111-0000-0000-0000-000000000002 decision human-owner $'- alpha th
 ## The person replied, and the reply names neither option.
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGSELF1","text":"first"},{"ts":"%s","user":"URIGOWNER","text":"the later one, I think","thread_ts":"%s"}],"has_more":false}\n' \
 	"$rigRecordTs" "$(( ${rigRecordTs%%.*} + 30 )).000200" "$rigRecordTs" > "$rigScenarioDir/replies.json"
-RIG_OP_AGENT="$rigMember" rigOp --member-escalation-readback "$rigMember" 11111111-0000-0000-0000-000000000002 beta "the later one is the second way"
+RIG_OP_AGENT="$rigMember" rigOp --readback-escalation "$rigMember" 11111111-0000-0000-0000-000000000002 beta "the later one is the second way"
 rigAssert "the readback note follows its template"        "$( LC_ALL=C grep -c '^ESCALATION: 11111111-0000-0000-0000-000000000002 answered' "$rigScenarioDir/op.out" ):$( rigBodyOf 1 )" \
 	'1:RIGMARK 🔁 Readback by magic-tester: I take your reply to mean `beta` -- the later one is the second way\nIf that is wrong, reply here. Your reply is kept on this decision.'
 
 rigStart forwarded "$rigOrigin"
 rigRecord 11111111-0000-0000-0000-000000000003 decision magic-coordinator $'- alpha the first way\n- beta the second way'
-rigOp --magic-escalation-forward magic-coordinator 11111111-0000-0000-0000-000000000003
+rigOp --forward-escalation magic-coordinator 11111111-0000-0000-0000-000000000003
 rigAssert "the line a forwarded request opens with follows its template, ahead of the request as its record holds it" \
 	"$( LC_ALL=C grep -c '^ESCALATION: 11111111-0000-0000-0000-000000000003 forwarded' "$rigScenarioDir/op.out" ):$( rigBodyOf 1 | LC_ALL=C sed 's/\\n.*$//' ):$( rigSaid 'Which way should the rig go?' )" \
 	'1:RIGMARK Forwarded by magic-coordinator. The answer in this thread is the verdict for this request.:1'

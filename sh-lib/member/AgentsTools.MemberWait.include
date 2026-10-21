@@ -2,7 +2,7 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.MemberWait.include -- --member-wait-for-input: one bounded long
+## AgentsTools.MemberWait.include -- --wait-for-input: one bounded long
 ## poll over a list of input sources, returning the moment any of them changes.
 ##
 ## The waiting happens HERE, in the shell, which is the whole point: a caller
@@ -741,7 +741,7 @@ AgentsWaitTsNewer(){ ## candidate, floor
 
 ## THE FORM OF A SOURCE THE CALLER ADDS (F3.3, Settled). Short or full is the caller's choice when it adds the source, written after it,
 ## `slack:magic-team#short` or `slack:magic-team#full`. SHORT returns each message cut to a short form with its own reference, <source>:<ts>,
-## and, once in the return, the line that says how to read one in full (--member-comms-slack-read <member> <source>:<ts> --thread, the
+## and, once in the return, the line that says how to read one in full (--slack-read <member> <source>:<ts> --thread, the
 ## operation the agent has); it keeps only that short form, so a large message is copied nowhere. FULL returns every message whole; a single message too long for the return, over F2.4's threshold,
 ## is kept as a file of its own in the session's folder and the return carries a preview and a reference (the preview of F2.4), and no file is
 ## made for any other. Either way the source's index cache file, sessions/<session>/sources/<source>.md, keeps a line for each message once,
@@ -770,7 +770,7 @@ AgentsWaitSourceModeApply(){ ## member, source, form, in, out
 		applyDir="$applySession/messages/$applySlug"
 	fi
 	if [ "$3" = "full" ] && [ -z "$applyDir" ] ; then
-		echo "# --member-wait-for-input: $2#full: this call has no session folder to keep the messages in, so each is returned whole" >&2
+		echo "# --wait-for-input: $2#full: this call has no session folder to keep the messages in, so each is returned whole" >&2
 		return 1
 	fi
 	LC_ALL=C awk -v mode="$3" -v ref="$applyRef" -v member="$1" -v cutFlag="$5.cut" -v longBytes="${agentsReplyLongBytes:-8192}" -v dir="$( [ "$3" = full ] && printf '%s' "$applyDir" )" -v indexFile="$applyIndex" \
@@ -1123,7 +1123,7 @@ AgentsWaitRemind(){ ## session id (may be empty), sources, the wait's working di
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.PendingReplyRemind.include"
 		AgentsToolsPendingReplyRemindWaitRun "$1" "$2"
 	) > "$3/remind.out" 2> /dev/null || {
-		echo "# --member-wait-for-input: the reminders of this wait could not run" >&2
+		echo "# --wait-for-input: the reminders of this wait could not run" >&2
 		return 0
 	}
 	while IFS= read -r remindLine ; do
@@ -1133,7 +1133,7 @@ AgentsWaitRemind(){ ## session id (may be empty), sources, the wait's working di
 		esac
 		LC_ALL=C grep -q -x -F -- "$remindLine" "$3/remind.said" 2> /dev/null && continue
 		printf '%s\n' "$remindLine" >> "$3/remind.said"
-		echo "# --member-wait-for-input: $remindLine" >&2
+		echo "# --wait-for-input: $remindLine" >&2
 	done < "$3/remind.out"
 	return 0
 }
@@ -1219,8 +1219,8 @@ case "$1" in
 
 	## The member stub. A wait reads and reacts under the named member's own credentials, so
 	## a spawned session names only itself; tooling calls --intern-op-wait-for-input directly.
-	--member-wait-for-input)
-		if [ -n "${2:-}" ] && ! AgentsToolsActingMemberCheck "$2" member-wait-for-input ; then
+	--wait-for-input)
+		if [ -n "${2:-}" ] && ! AgentsToolsActingMemberCheck "$2" wait-for-input ; then
 			echo "WAIT-RESULT: ERROR"
 			set +e ; return 1
 		fi
@@ -1234,17 +1234,17 @@ case "$1" in
 		shift || true
 		if [ -z "$memberName" ] ; then
 			echo "WAIT-RESULT: ERROR"
-			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: <team-member> missing" >&2
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: <team-member> missing" >&2
 			set +e ; return 1
 		fi
 		case "$memberName" in
 			--*)
 				echo "WAIT-RESULT: ERROR"
-				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: <team-member> comes first, ahead of every flag, and '$memberName' is a flag. Nothing was waited on." >&2
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: <team-member> comes first, ahead of every flag, and '$memberName' is a flag. Nothing was waited on." >&2
 				set +e ; return 1
 			;;
 		esac
-		AgentsToolsAssertBareName "$memberName" "<team-member>" member-wait-for-input || {
+		AgentsToolsAssertBareName "$memberName" "<team-member>" wait-for-input || {
 			echo "WAIT-RESULT: ERROR"
 			set +e ; return 1
 		}
@@ -1262,7 +1262,7 @@ case "$1" in
 				--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop)
 					if [ -n "$waitMode" ] ; then
 						echo "WAIT-RESULT: ERROR"
-						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: modes are mutually exclusive, and this call names --wait-$waitMode and $1. Nothing was waited on." >&2
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: modes are mutually exclusive, and this call names --wait-$waitMode and $1. Nothing was waited on." >&2
 						set +e ; return 1
 					fi
 					waitMode="${1#--wait-}"
@@ -1274,12 +1274,12 @@ case "$1" in
 				--unwait)
 					if [ -n "$waitMode" ] ; then
 						echo "WAIT-RESULT: ERROR"
-						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: modes are mutually exclusive, and this call names --wait-$waitMode and --unwait. Nothing was waited on." >&2
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: modes are mutually exclusive, and this call names --wait-$waitMode and --unwait. Nothing was waited on." >&2
 						set +e ; return 1
 					fi
 					if [ -z "${2:-}" ] ; then
 						echo "WAIT-RESULT: ERROR"
-						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --unwait: value required (<kind>:<target> to drop from the stored wait)" >&2
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --unwait: value required (<kind>:<target> to drop from the stored wait)" >&2
 						set +e ; return 1
 					fi
 					waitMode="drop"
@@ -1289,7 +1289,7 @@ case "$1" in
 				--wait-session-id)
 					if [ -z "${2:-}" ] ; then
 						echo "WAIT-RESULT: ERROR"
-						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-session-id: value required" >&2
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-session-id: value required" >&2
 						set +e ; return 1
 					fi
 					waitSessionId="$2"
@@ -1299,12 +1299,12 @@ case "$1" in
 				--wait-react-seen|--wait-react-note|--wait-react-done|--wait-react-wait)
 					if [ -z "${2:-}" ] ; then
 						echo "WAIT-RESULT: ERROR"
-						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: $1: value required (message ids, space-separated)" >&2
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: $1: value required (message ids, space-separated)" >&2
 						set +e ; return 1
 					fi
 					if ! LC_ALL=C awk -v ids="$2" 'BEGIN { exit ( ids ~ /[^0-9A-Za-z._: -]/ ) ; }' ; then
 						echo "WAIT-RESULT: ERROR"
-						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: $1: a message id holds only letters, digits, '.', ':', '-' and '_'. Nothing was reacted to or waited on." >&2
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: $1: a message id holds only letters, digits, '.', ':', '-' and '_'. Nothing was reacted to or waited on." >&2
 						set +e ; return 1
 					fi
 					for reactWord in $2 ; do
@@ -1315,7 +1315,7 @@ case "$1" in
 				--wait-source)
 					if [ -z "${2:-}" ] ; then
 						echo "WAIT-RESULT: ERROR"
-						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-source: value required (<kind>:<target>)" >&2
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source: value required (<kind>:<target>)" >&2
 						set +e ; return 1
 					fi
 					## A source the caller adds may end in #short or #full, chosen when it is added (F3.3, AgentsWaitSourceModeApply).
@@ -1325,7 +1325,7 @@ case "$1" in
 								short|full) ;;
 								*)
 									echo "WAIT-RESULT: ERROR"
-									echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-source '$2': what follows # is short or full, and nothing else. Nothing was waited on." >&2
+									echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$2': what follows # is short or full, and nothing else. Nothing was waited on." >&2
 									set +e ; return 1
 								;;
 							esac
@@ -1339,7 +1339,7 @@ case "$1" in
 				--wait-timeout)
 					if [ -z "${2:-}" ] ; then
 						echo "WAIT-RESULT: ERROR"
-						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-timeout: value required (whole seconds)" >&2
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-timeout: value required (whole seconds)" >&2
 						set +e ; return 1
 					fi
 					waitTimeout="$2"
@@ -1348,7 +1348,7 @@ case "$1" in
 				--wait-poll-interval)
 					if [ -z "${2:-}" ] ; then
 						echo "WAIT-RESULT: ERROR"
-						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-poll-interval: value required (whole seconds)" >&2
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-poll-interval: value required (whole seconds)" >&2
 						set +e ; return 1
 					fi
 					waitPoll="$2"
@@ -1357,7 +1357,7 @@ case "$1" in
 				--wait-since-utime)
 					if [ -z "${2:-}" ] ; then
 						echo "WAIT-RESULT: ERROR"
-						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-since-utime: value required (epoch seconds)" >&2
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-since-utime: value required (epoch seconds)" >&2
 						set +e ; return 1
 					fi
 					waitSince="$2"
@@ -1366,7 +1366,7 @@ case "$1" in
 				--wait-addressee)
 					if [ -z "${2:-}" ] ; then
 						echo "WAIT-RESULT: ERROR"
-						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-addressee: value required (the Slack account id the question was addressed to)" >&2
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-addressee: value required (the Slack account id the question was addressed to)" >&2
 						set +e ; return 1
 					fi
 					## Resolved ids only, never a name: the send resolves a name once and reports
@@ -1389,7 +1389,7 @@ case "$1" in
 					case "${2:-}" in
 						''|*[!0123456789]*|0)
 							echo "WAIT-RESULT: ERROR"
-							echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-collect: value required (the window, in whole seconds, one or more)" >&2
+							echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-collect: value required (the window, in whole seconds, one or more)" >&2
 							set +e ; return 1
 						;;
 					esac
@@ -1398,14 +1398,14 @@ case "$1" in
 				;;
 				*)
 					echo "WAIT-RESULT: ERROR"
-					echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: invalid option: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD --wait-for-input: invalid option: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -n "$waitCollect" ] && { [ -n "$waitMode" ] || [ -n "$waitTimeout" ] ; } ; then
 			echo "WAIT-RESULT: ERROR"
-			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-collect is a call of its own: the window is its bound, and the floors it resumes from are the pointers of the session (session.chat.pointers), not a stored wait. It takes no --wait-timeout and no mode. Nothing was waited on." >&2
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-collect is a call of its own: the window is its bound, and the floors it resumes from are the pointers of the session (session.chat.pointers), not a stored wait. It takes no --wait-timeout and no mode. Nothing was waited on." >&2
 			set +e ; return 1
 		fi
 		[ -z "$waitCollect" ] || waitTimeout="$waitCollect"
@@ -1416,7 +1416,7 @@ case "$1" in
 				slack:*) ;;
 				*)
 					echo "WAIT-RESULT: ERROR"
-					echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-source '${modeOne%=*}#${modeOne##*=}': only a Slack source takes a short or a full form. Nothing was waited on." >&2
+					echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '${modeOne%=*}#${modeOne##*=}': only a Slack source takes a short or a full form. Nothing was waited on." >&2
 					set +e ; return 1
 				;;
 			esac
@@ -1455,7 +1455,7 @@ case "$1" in
 					sessionResolved="$( DistroAgentsToolsResolveTarget "$sessionAddress" "$memberName" )" || sessionRc=$?
 					if [ "$sessionRc" != "0" ] ; then
 						echo "WAIT-RESULT: ERROR"
-						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: $sessionResolved Nothing was waited on." >&2
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: $sessionResolved Nothing was waited on." >&2
 						set +e ; return 1
 					fi
 					sessionSource="slack:$( printf '%s\n' "$sessionResolved" | sed -n 's/^CHANNEL=//p' ):$( printf '%s\n' "$sessionResolved" | sed -n 's/^THREAD_TS=//p' )$sessionForm"
@@ -1472,22 +1472,22 @@ case "$1" in
 		if [ -n "$waitMode" ] ; then
 			if [ -z "$waitSessionId" ] ; then
 				echo "WAIT-RESULT: ERROR"
-				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-$waitMode needs --wait-session-id, because the state it keeps or ends is the state of one session. Nothing was waited on." >&2
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-$waitMode needs --wait-session-id, because the state it keeps or ends is the state of one session. Nothing was waited on." >&2
 				set +e ; return 1
 			fi
-			AgentsToolsAssertBareName "$waitSessionId" "<session-id>" member-wait-for-input || {
+			AgentsToolsAssertBareName "$waitSessionId" "<session-id>" wait-for-input || {
 				echo "WAIT-RESULT: ERROR"
 				set +e ; return 1
 			}
 			if [ "$waitMode" = "continue" ] && { [ -n "$waitSources" ] || [ -n "$waitSince" ] || [ -n "$waitAddressee" ] || [ "$waitIncludeOwn" = "true" ] ; } ; then
 				echo "WAIT-RESULT: ERROR"
-				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-continue repeats the stored wait and takes no source, since, addressee or include-own of its own. Nothing was waited on: call --wait-default to change them." >&2
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-continue repeats the stored wait and takes no source, since, addressee or include-own of its own. Nothing was waited on: call --wait-default to change them." >&2
 				set +e ; return 1
 			fi
 			if [ "$waitMode" = "add" ] || [ "$waitMode" = "drop" ] ; then
 				if [ -z "$waitSources" ] || [ -n "$waitSince" ] || [ -n "$waitAddressee" ] || [ "$waitIncludeOwn" = "true" ] || [ -n "$waitReactions" ] ; then
 					echo "WAIT-RESULT: ERROR"
-					echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-$waitMode takes one or more --wait-source and nothing else, since the since, addressee and include-own of a stored wait are shared by all its sources. Nothing was changed." >&2
+					echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-$waitMode takes one or more --wait-source and nothing else, since the since, addressee and include-own of a stored wait are shared by all its sources. Nothing was changed." >&2
 					set +e ; return 1
 				fi
 				local editSource
@@ -1495,19 +1495,19 @@ case "$1" in
 					case "${editSource/#slack:client:/slack:}" in
 						slack:*:*)
 							echo "WAIT-RESULT: ERROR"
-							echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-$waitMode does not take the thread source '$editSource', which needs a since and an addressee of its own. Nothing was changed: name it in a --wait-default." >&2
+							echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-$waitMode does not take the thread source '$editSource', which needs a since and an addressee of its own. Nothing was changed: name it in a --wait-default." >&2
 							set +e ; return 1
 						;;
 					esac
 				done
 			fi
 			waitStateDir="$MMDAPP/.local/agents/sessions/$waitSessionId/wait"
-			echo "# --member-wait-for-input: mode=$waitMode member=$memberName session=$waitSessionId" >&2
+			echo "# --wait-for-input: mode=$waitMode member=$memberName session=$waitSessionId" >&2
 			## Abandoned state is swept on the way in, as the working directories below are.
 			find "$MMDAPP/.local/agents/sessions" -maxdepth 2 -type d -name wait -mtime +7 -exec rm -rf {} + 2>/dev/null || true
 			if [ "$waitMode" = "continue" ] && [ ! -f "$waitStateDir/state" ] ; then
 				echo "WAIT-RESULT: ERROR"
-				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-continue found no stored wait for session $waitSessionId. Nothing was waited on, and no default wait was started in its place: call --wait-default." >&2
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-continue found no stored wait for session $waitSessionId. Nothing was waited on, and no default wait was started in its place: call --wait-default." >&2
 				set +e ; return 1
 			fi
 			## close names its own ids against the stored sources, unless it was given some.
@@ -1662,7 +1662,7 @@ case "$1" in
 			'') ;;
 			*[!0-9]*)
 				echo "WAIT-RESULT: ERROR"
-				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-timeout must be a whole number of seconds, got: $waitTimeout" >&2
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-timeout must be a whole number of seconds, got: $waitTimeout" >&2
 				set +e ; return 1
 			;;
 		esac
@@ -1688,13 +1688,13 @@ case "$1" in
 		case "$waitPoll" in
 			''|*[!0-9]*)
 				echo "WAIT-RESULT: ERROR"
-				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-poll-interval must be a whole number of seconds, got: $waitPoll" >&2
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-poll-interval must be a whole number of seconds, got: $waitPoll" >&2
 				set +e ; return 1
 			;;
 		esac
 		if [ "$waitPoll" -lt 1 ] ; then
 			echo "WAIT-RESULT: ERROR"
-			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-poll-interval must be at least 1 second -- a zero interval is a spin, not a poll." >&2
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-poll-interval must be at least 1 second -- a zero interval is a spin, not a poll." >&2
 			set +e ; return 1
 		fi
 		if [ -n "$waitSince" ] ; then
@@ -1704,7 +1704,7 @@ case "$1" in
 				## same <epoch>[.<micros>] shape --oldest already takes on the read side.
 				''|.*|*.|*[!0-9.]*|*.*.*)
 					echo "WAIT-RESULT: ERROR"
-					echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-since-utime: not epoch seconds, and not a Slack message ts either -- pass <epoch>[.<micros>]: $waitSince" >&2
+					echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-since-utime: not epoch seconds, and not a Slack message ts either -- pass <epoch>[.<micros>]: $waitSince" >&2
 					set +e ; return 1
 				;;
 			esac
@@ -1717,7 +1717,7 @@ case "$1" in
 			waitSinceNow="$( date +%s )"
 			if AgentsWaitTsNewer "$waitSince" "$(( waitSinceNow + agentsWaitFloorAhead ))" ; then
 				echo "WAIT-RESULT: ERROR"
-				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-since-utime: $waitSince is ahead of the present, which is $waitSinceNow in epoch seconds on this host. A floor is a moment that has passed: nothing at or before it counts, so from this one nothing that arrives would be returned until then. Nothing was waited on: pass the ts of a message already posted, or epoch seconds at or before the present, or leave it out to wait from the floor stored for the source, else from now." >&2
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-since-utime: $waitSince is ahead of the present, which is $waitSinceNow in epoch seconds on this host. A floor is a moment that has passed: nothing at or before it counts, so from this one nothing that arrives would be returned until then. Nothing was waited on: pass the ts of a message already posted, or epoch seconds at or before the present, or leave it out to wait from the floor stored for the source, else from now." >&2
 				set +e ; return 1
 			fi
 		fi
@@ -1731,13 +1731,13 @@ case "$1" in
 			checkTarget="${checkSource#*:}"
 			if [ "$checkKind" = "$checkSource" ] || [ -z "$checkTarget" ] ; then
 				echo "WAIT-RESULT: ERROR"
-				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-source '$checkSource' is not <kind>:<target>. Nothing was waited on. Kinds this build carries: $agentsWaitSourceKinds" >&2
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' is not <kind>:<target>. Nothing was waited on. Kinds this build carries: $agentsWaitSourceKinds" >&2
 				set +e ; return 1
 			fi
 			checkFn="$( AgentsWaitProbeFunctionName "$checkKind" )"
 			if ! command -v "$checkFn" >/dev/null 2>&1 ; then
 				echo "WAIT-RESULT: ERROR"
-				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: no input source of kind '$checkKind' exists in this build, so nothing was waited on -- this is NOT a wait that found nothing. Kinds this build carries: $agentsWaitSourceKinds" >&2
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: no input source of kind '$checkKind' exists in this build, so nothing was waited on -- this is NOT a wait that found nothing. Kinds this build carries: $agentsWaitSourceKinds" >&2
 				set +e ; return 1
 			fi
 			## A member waits on its own inbox only, and a board state is one of the nine directories.
@@ -1745,7 +1745,7 @@ case "$1" in
 				inbox:"$memberName"|board:backlog|board:pending|board:running|board:review|board:blocked|board:parked|board:processed|board:archived|board:retained) ;;
 				inbox:*|board:*)
 					echo "WAIT-RESULT: ERROR"
-					echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-source '$checkSource' names nothing this build can wait on: inbox:<own member name> is the own inbox only, and board:<state> is one of backlog pending running review blocked parked processed archived retained. Nothing was waited on." >&2
+					echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' names nothing this build can wait on: inbox:<own member name> is the own inbox only, and board:<state> is one of backlog pending running review blocked parked processed archived retained. Nothing was waited on." >&2
 					set +e ; return 1
 				;;
 				## A scan is one of the tooling's own scans (AgentsToolsInputScanNames); the tags are the member's own; the session chat is a session's.
@@ -1753,19 +1753,19 @@ case "$1" in
 					type AgentsToolsInputScanNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InputScanDef.include" 2> /dev/null || :
 					if ! AgentsToolsInputScanNames | LC_ALL=C grep -q -x -- "$checkTarget" ; then
 						echo "WAIT-RESULT: ERROR"
-						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-source '$checkSource' names no scan of the tooling: scan:<scan> takes one of $( AgentsToolsInputScanNames | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' ). Nothing was waited on." >&2
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' names no scan of the tooling: scan:<scan> takes one of $( AgentsToolsInputScanNames | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' ). Nothing was waited on." >&2
 						set +e ; return 1
 					fi
 				;;
 				tagged:*)
 					if [ "$checkTarget" != "$memberName" ] ; then
 						echo "WAIT-RESULT: ERROR"
-						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-source '$checkSource' names nothing this build can wait on: tagged:<own member name> is the own tags only. Nothing was waited on." >&2
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' names nothing this build can wait on: tagged:<own member name> is the own tags only. Nothing was waited on." >&2
 						set +e ; return 1
 					fi
 				;;
 				chat:*)
-					AgentsToolsAssertBareName "$checkTarget" "<session-id>" member-wait-for-input || {
+					AgentsToolsAssertBareName "$checkTarget" "<session-id>" wait-for-input || {
 						echo "WAIT-RESULT: ERROR"
 						set +e ; return 1
 					}
@@ -1778,9 +1778,9 @@ case "$1" in
 				ask:*)
 					[ "$waitMode" != "drop" ] || continue
 					local checkAskLine checkAskSession=""
-					if ! AgentsToolsAssertBareName "$checkTarget" "<pending-id>" member-wait-for-input || [ ! -f "$MMDAPP/.local/agents/pending/$checkTarget.md" ] ; then
+					if ! AgentsToolsAssertBareName "$checkTarget" "<pending-id>" wait-for-input || [ ! -f "$MMDAPP/.local/agents/pending/$checkTarget.md" ] ; then
 						echo "WAIT-RESULT: ERROR"
-						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-source '$checkSource' names no pending reply in this workspace, so there is no question to wait on. Nothing was waited on." >&2
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' names no pending reply in this workspace, so there is no question to wait on. Nothing was waited on." >&2
 						set +e ; return 1
 					fi
 					while IFS= read -r checkAskLine ; do
@@ -1797,7 +1797,7 @@ case "$1" in
 					fi
 					if [ -n "$checkAskSession" ] && [ -n "$waitSessionId" ] && [ "$checkAskSession" != "$waitSessionId" ] ; then
 						echo "WAIT-RESULT: ERROR"
-						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-source '$checkSource' is a question asked by session $checkAskSession, not $waitSessionId, so this session may not wait on it. Nothing was waited on." >&2
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' is a question asked by session $checkAskSession, not $waitSessionId, so this session may not wait on it. Nothing was waited on." >&2
 						set +e ; return 1
 					fi
 				;;
@@ -1854,7 +1854,7 @@ case "$1" in
 			else
 				mkdir -p "$waitStateDir" && editTmp="$( mktemp "$waitStateDir/state.XXXXXX" )" || {
 					echo "WAIT-RESULT: ERROR"
-					echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: the stored wait under $waitStateDir could not be written, so it is unchanged." >&2
+					echo "⛔ ERROR: $MDSC_CMD --wait-for-input: the stored wait under $waitStateDir could not be written, so it is unchanged." >&2
 					set +e ; return 1
 				}
 				{
@@ -1901,22 +1901,22 @@ case "$1" in
 		## post there, or the wait's start (below), any of which is a floor.
 		if [ "$checkUnfloored" -gt 0 ] && [ -z "$waitSince" ] && [ "$waitMode" != "continue" ] && [ "$waitMode" != "close" ] ; then
 			echo "WAIT-RESULT: ERROR"
-			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: a thread source needs --wait-since-utime carrying the ts of our own message in that thread, because an answer is what arrives AFTER it. Without that floor every message already in the thread would count as an answer, our own included. Nothing was waited on." >&2
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: a thread source needs --wait-since-utime carrying the ts of our own message in that thread, because an answer is what arrives AFTER it. Without that floor every message already in the thread would count as an answer, our own included. Nothing was waited on." >&2
 			set +e ; return 1
 		fi
 		if [ "$checkThreads" -gt "$checkConversation" ] && [ -z "$waitAddressee" ] ; then
 			echo "WAIT-RESULT: ERROR"
-			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: a thread source needs --wait-addressee carrying the Slack account the question was addressed to, because an answer is what that party wrote. Without it an unrelated message in the same thread would count as the answer, and so would our own next post. Nothing was waited on." >&2
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: a thread source needs --wait-addressee carrying the Slack account the question was addressed to, because an answer is what that party wrote. Without it an unrelated message in the same thread would count as the answer, and so would our own next post. Nothing was waited on." >&2
 			set +e ; return 1
 		fi
 		if [ "$checkConversation" -gt 0 ] && [ "$checkThreads" = "$checkConversation" ] && [ -n "$waitAddressee" ] ; then
 			echo "WAIT-RESULT: ERROR"
-			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: a :conversation thread source takes no --wait-addressee, because any new post counts, not just one party's reply. Nothing was waited on." >&2
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: a :conversation thread source takes no --wait-addressee, because any new post counts, not just one party's reply. Nothing was waited on." >&2
 			set +e ; return 1
 		fi
 		if [ "$checkThreads" = "0" ] && [ -n "$waitAddressee" ] ; then
 			echo "WAIT-RESULT: ERROR"
-			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-addressee qualifies an answer inside the thread the question was posted in, and this wait names no thread source. Over a whole conversation there is no message for an answer to come after. Nothing was waited on: name the thread as slack:<channel>:<ts>." >&2
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-addressee qualifies an answer inside the thread the question was posted in, and this wait names no thread source. Over a whole conversation there is no message for an answer to come after. Nothing was waited on: name the thread as slack:<channel>:<ts>." >&2
 			set +e ; return 1
 		fi
 		## --wait-include-own only changes anything on a :conversation thread source,
@@ -1926,7 +1926,7 @@ case "$1" in
 		## --wait-addressee mismatch checks above.
 		if [ "$waitIncludeOwn" = "true" ] && [ "$checkConversation" = "0" ] ; then
 			echo "WAIT-RESULT: ERROR"
-			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-include-own only changes anything on a slack:<channel>:<ts>:conversation source, which already includes this member's own posts everywhere else. Nothing was waited on: name a :conversation source, or drop the flag." >&2
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-include-own only changes anything on a slack:<channel>:<ts>:conversation source, which already includes this member's own posts everywhere else. Nothing was waited on: name a :conversation source, or drop the flag." >&2
 			set +e ; return 1
 		fi
 		## Reactions follow every check and precede the wait; a failed one is listed and never stops it.
@@ -1950,7 +1950,7 @@ case "$1" in
 					*)
 						if [ "$reactSlack" != "1" ] ; then
 							echo "WAIT-RESULT: ERROR"
-							echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: the message id '${reactWord#*=}' is a bare ts, which names a message only when the wait has exactly one slack source, and this one has $reactSlack. Nothing was reacted to or waited on: write it <channel>:<ts>." >&2
+							echo "⛔ ERROR: $MDSC_CMD --wait-for-input: the message id '${reactWord#*=}' is a bare ts, which names a message only when the wait has exactly one slack source, and this one has $reactSlack. Nothing was reacted to or waited on: write it <channel>:<ts>." >&2
 							set +e ; return 1
 						fi
 						reactNew="$reactNew${reactWord%%=*}=$reactChannel:${reactWord#*=} "
@@ -2017,7 +2017,7 @@ case "$1" in
 		fi
 		if [ -z "$waitDir" ] ; then
 			echo "WAIT-RESULT: ERROR"
-			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: could not create a working directory under $MMDAPP/.local/temp (${waitDirWhy:-mktemp gave no reason}), so no probe could write a rendering. Nothing was waited on." >&2
+			echo "⛔ ERROR: $MDSC_CMD --wait-for-input: could not create a working directory under $MMDAPP/.local/temp (${waitDirWhy:-mktemp gave no reason}), so no probe could write a rendering. Nothing was waited on." >&2
 			set +e ; return 1
 		fi
 
@@ -2336,9 +2336,9 @@ case "$1" in
 			echo "WAIT-RESULT: ERROR"
 			if [ -d "$waitDir" ] ; then
 				printf 'missed: %s\nat: %s\n' "$agentsWaitLost" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$waitDir/kept" 2>/dev/null || true
-				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: $agentsWaitLost, which a step of this wait wrote, is not there to be read. The wait ended at once, and its working directory is kept as it stands for whoever looks into it: $waitDir. Nothing that arrived is taken as read: wait again." >&2
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: $agentsWaitLost, which a step of this wait wrote, is not there to be read. The wait ended at once, and its working directory is kept as it stands for whoever looks into it: $waitDir. Nothing that arrived is taken as read: wait again." >&2
 			else
-				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: the working directory of this wait, $waitDir, is gone: something other than this wait removed it. The wait ended at once. Nothing that arrived is taken as read: wait again." >&2
+				echo "⛔ ERROR: $MDSC_CMD --wait-for-input: the working directory of this wait, $waitDir, is gone: something other than this wait removed it. The wait ended at once. Nothing that arrived is taken as read: wait again." >&2
 			fi
 			set +e ; return 1
 		fi
@@ -2419,7 +2419,7 @@ case "$1" in
 				done
 				[ ! -s "$waitDir/rest.manifest" ] || LC_ALL=C awk -v manifest="$waitDir/rest.manifest" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsWaitArrivalsOrder.awk" < /dev/null
 				## The line that reads a cut message in full stands once in a return, not once for each message.
-				[ -z "$( ls "$waitDir"/mode.*.cut 2> /dev/null )" ] || echo "# short forms: read one in full with --member-comms-slack-read $memberName <source>:<ts> --thread, the source and ts as the message shows them"
+				[ -z "$( ls "$waitDir"/mode.*.cut 2> /dev/null )" ] || echo "# short forms: read one in full with --slack-read $memberName <source>:<ts> --thread, the source and ts as the message shows them"
 				## What the wait has said is stored, and the last ts of each Slack source named.
 				for waitHit in $waitHits ; do
 					waitHitIndex="${waitHit%%=*}"

@@ -30,7 +30,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Verbatim-intents and Verbatim-benchmarks convention
   - Idle-Tasks
 - Team-Member's (-specific) tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
 
 # Summary
@@ -200,13 +200,13 @@ Read `reference/maintainer-notes.md` for the convention.
 
 Every `magic-tooling` operation this team-member uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
 - `--librarian-list-team-files [<path>...]`
 - `--librarian-list-team-files-dates [<path>...]`
 - `--librarian-inbox-to-processed <team-member> <item-filename> [--include-processed]`
 - `--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member> [--exclude-incoming]`
-- `--member-upsert-member-inquiry <team-member> <item-filename>`
+- `--upsert-inbox-inquiry <team-member> <item-filename>`
 
 # Maintainer Notes
 

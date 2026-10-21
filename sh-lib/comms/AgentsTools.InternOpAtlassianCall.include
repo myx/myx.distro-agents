@@ -911,7 +911,7 @@ case "$1" in
 	;;
 
 	## One Jira issue search. Full impl: every flag a caller may need, none
-	## hardcoded -- --magic-*/--client-* stubs forward their own argv here
+	## hardcoded -- the coordinator's and the --client-* stubs forward their own argv here
 	## unchanged, after inserting --member.
 	--intern-op-atlassian-jira-issue-search)
 		shift

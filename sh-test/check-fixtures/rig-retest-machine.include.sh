@@ -104,7 +104,7 @@ rigLine(){ ## result prefix, request id -- the line a drain printed for that req
 }
 rigStands(){ ## request id -- where the result operation says that request stands: the word after its id
 	local standsScript="$rigScript" ; rigScript=DistroAgentsTools
-	rigOp "$rigTmp/stands" --member-retest-result "$1"
+	rigOp "$rigTmp/stands" --retest-result "$1"
 	rigScript="$standsScript"
 	LC_ALL=C sed -n "1s/^RETEST $1 \([A-Z]*\) .*/\1/p" "$rigTmp/stands.out"
 }

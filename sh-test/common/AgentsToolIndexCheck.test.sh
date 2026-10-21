@@ -12,7 +12,7 @@
 ##   2. it names every DistroAgents*.fn.sh and Agent*Tools.fn.sh file of the package, every harness tool of its tools
 ##      list, and the MCP server's own tools
 ##   3. two generations are byte-identical, and it holds no date or time
-##   4. the coordinator's Skill read holds the index as one section; --magic-advance-lock-status, which it may call, is
+##   4. the coordinator's Skill read holds the index as one section; --advance-to-running, which it may call, is
 ##      listed there with its description
 ##   5. the tester's Skill read lists that operation by its family only, with its owner and the hint
 ##   6. a project.inf permission: WebFetch, allowed to magic-architect alone, is listed with its description in the
@@ -101,12 +101,12 @@ rigAssert "and it holds no date or time"                      "$( LC_ALL=C grep 
 echo "-- 4. the coordinator's Skill read: the index as one section, its own operation described --"
 rigSkill magic-coordinator
 rigAssert "one section of the read is the index"              "$( LC_ALL=C grep -c -E '^#+ .*[Tt]ool' "$rigTmp/skill.magic-coordinator.out" )" 1
-rigAssert "--magic-advance-lock-status, which it may call, with its description" "$( rigListed "$rigTmp/skill.magic-coordinator.out" --magic-advance-lock-status magic-coordinator )" described
+rigAssert "--advance-to-running, which it may call, with its description" "$( rigListed "$rigTmp/skill.magic-coordinator.out" --advance-to-running magic-coordinator )" described
 
 echo "-- 5. the tester's Skill read: that operation by family only, with its owner and the hint --"
 rigSkill magic-tester
-rigAssert "not described to the tester"                       "$( rigListed "$rigTmp/skill.magic-tester.out" --magic-advance-lock-status magic-coordinator | LC_ALL=C sed 's/^hinted$/not-described/; s/^absent$/not-described/' )" not-described
-rigAssert "its family, --magic-, with its owner and the hint" "$( rigFamilyHinted "$rigTmp/skill.magic-tester.out" '--magic-' magic-coordinator )" hinted
+rigAssert "not described to the tester"                       "$( rigListed "$rigTmp/skill.magic-tester.out" --advance-to-running magic-coordinator | LC_ALL=C sed 's/^hinted$/not-described/; s/^absent$/not-described/' )" not-described
+rigAssert "its family, the coordinator's own operations, with its owner and the hint" "$( rigFamilyHinted "$rigTmp/skill.magic-tester.out" "the coordinator's own operations" magic-coordinator )" hinted
 
 echo "-- 6. a project.inf permission: WebFetch for the architect alone --"
 rigSkill magic-architect
@@ -123,10 +123,10 @@ rigHelp(){ ## result name, words... -- the help call, its stderr and rc
 rigSyntaxOf(){ ## result name -- its syntax lines, as `<op>`, each once
 	LC_ALL=C sed -n 's/^📘 syntax: [^ ]* \(--[^ ]*\).*/\1/p' "$rigTmp/$1.err" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' '
 }
-rigHelp h1 --magic-advance-lock-status
-rigAssert "one operation: its syntax line alone"              "$( cat "$rigTmp/h1.rc" ):$( rigSyntaxOf h1 )" "0:--magic-advance-lock-status "
-rigHelp h2 --magic-
-rigAssert "a family prefix: its operations alone, more than one" "$( cat "$rigTmp/h2.rc" ):$( rigSyntaxOf h2 | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -v -e '^--magic-' -e '^$' ):$( rigSyntaxOf h2 | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c '^--magic-' )" "0:0:$( LC_ALL=C sed -n 's/^📘 syntax: [^ ]* \(--magic-[^ ]*\).*/\1/p' "${rigHere}/help/Help.DistroAgentsTools.help.md" | LC_ALL=C sort -u | LC_ALL=C grep -c . )"
+rigHelp h1 --advance-to-running
+rigAssert "one operation: its syntax line alone"              "$( cat "$rigTmp/h1.rc" ):$( rigSyntaxOf h1 )" "0:--advance-to-running "
+rigHelp h2 --manager-
+rigAssert "a family prefix: its operations alone, more than one" "$( cat "$rigTmp/h2.rc" ):$( rigSyntaxOf h2 | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -v -e '^--manager-' -e '^$' ):$( rigSyntaxOf h2 | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c '^--manager-' )" "0:0:$( LC_ALL=C sed -n 's/^📘 syntax: [^ ]* \(--manager-[^ ]*\).*/\1/p' "${rigHere}/help/Help.DistroAgentsTools.help.md" | LC_ALL=C sort -u | LC_ALL=C grep -c . )"
 rigHelp h3 --no-such-operation
 rigAssert "a word that names none is refused"                 "$( cat "$rigTmp/h3.rc" ):$( LC_ALL=C grep -c -F -- '--help-syntax --no-such-operation: no operation is named so' "$rigTmp/h3.err" )" "1:1"
 

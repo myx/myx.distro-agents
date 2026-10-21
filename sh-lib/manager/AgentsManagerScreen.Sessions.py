@@ -1060,7 +1060,7 @@ DIALOG_HANDLERS["prompt"] = submitPrompt
 DIALOG_FILLS["prompt"] = fillPrompt
 
 
-## What `--magic-spawn-session` printed: `SESSION_ID=`, `ROUTINE=` and `MEMBERS=`, a line
+## What `--spawn-session` printed: `SESSION_ID=`, `ROUTINE=` and `MEMBERS=`, a line
 ## each, and ahead of them what it noted. Given back: the lines for the left pane, with
 ## the name the start was asked under, and one line for the bottom line.
 def startAnswer(text, name, width):
@@ -1262,14 +1262,14 @@ ACTIVITY_AGENT_LISTS = (
     ("closed-agents", "Closed Agents", "closedAgentRows"),
 )
 ## The reads of a participant, by the id of its run: a session read of that one run, the transcript of that run, and the grants that apply to
-## its member in its session (`--magic-permission-list --member --session-id`: the floor and standing grants, and the session, task and once
+## its member in its session (`--list-permissions --member --session-id`: the floor and standing grants, and the session, task and once
 ## grants of that session's own stores, not what the member holds in any other). {run}, {session} and {member} are the values of participantValues.
 PARTICIPANT_READS = {
     "checklist": {"operation": ["--manager-session-checklist-read", "--session-id", "{session}", "{member}"], "participant": True},
     "transcript": {"operation": ["--manager-session-read", "--session-id", "{run}", "--run"], "rows": "session-read", "participant": True},
     "transcript-feed": {"operation": ["--manager-session-transcript-read", "--session-id", "{run}", "--run"],
                         "log": ["--log"], "rows": "transcript", "participant": True},
-    "permissions": {"operation": ["--magic-permission-list", "--member", "{member}", "--session-id", "{session}"], "rows": "session-grants"},
+    "permissions": {"operation": ["--list-permissions", "--member", "{member}", "--session-id", "{session}"], "rows": "session-grants"},
 }
 
 

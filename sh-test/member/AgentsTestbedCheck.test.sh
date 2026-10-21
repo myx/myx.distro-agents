@@ -142,14 +142,14 @@ rigIdA="$( LC_ALL=C sed -n 1p "$rigTmp/o6.out" )"
 rigFile="$rigQueue/waiting/$rigIdA.request"
 rigAssert "the oldest untested test is put in the one retest queue of the machine: rc 0, one line, its id" "$rigRc $( LC_ALL=C grep -c . "$rigTmp/o6.out" ) $( printf '%s' "$rigIdA" | LC_ALL=C grep -c -E '^retest-[0-9]{8}T[0-9]{6}Z-[0-9a-f-]+$' ) $( rigHolds waiting )" "0 1 1 1"
 rigAssert "it is RigOne, registered first, asked by the console user, with the priority no-wait, and says why" "$( rigField "$rigFile" test ) $( rigField "$rigFile" by ) $( rigField "$rigFile" priority ) $( rigField "$rigFile" why )" "RigOne user-console no-wait the oldest untested test of the testbed"
-rigTools "$rigTmp/d6" --member-retest-drain
+rigTools "$rigTmp/d6" --retest-drain
 rigAssert "the batch runs it, once" "$rigRc [$( rigBegun )]" "0 [live:RigOne]"
 rigTesting "$rigTmp/l6" --test-list
 rigAssert "the list now says RigOne passed on this state (a date, not a dash), one run, one pass, no fail, and shows the run; the other has not" "$( [ "$( rigRow "$rigTmp/l6.out" RigOne 7 )" != - ] && printf passed ) $( rigRow "$rigTmp/l6.out" RigOne 9 ) $( rigRow "$rigTmp/l6.out" RigOne 10 ) $( rigRow "$rigTmp/l6.out" RigOne 11 ) $( LC_ALL=C awk -F'\t' '$1 == "run" && $2 == "RigOne" && $4 == "PASS" { n++ } END { print n + 0 }' "$rigTmp/l6.out" ) $( rigRow "$rigTmp/l6.out" RigTwo 7 ) $( LC_ALL=C tail -n 1 "$rigTmp/l6.out" | LC_ALL=C tr '\t' '|' )" "passed 1 1 0 1 - tests|2|1|1"
 rigTesting "$rigTmp/o6b" --run-oldest-untested
 rigIdB="$( LC_ALL=C sed -n 1p "$rigTmp/o6b.out" )"
 rigAssert "the next oldest untested is the other: RigOne has passed" "$rigRc $( rigField "$rigQueue/waiting/$rigIdB.request" test )" "0 RigTwo"
-rigTools "$rigTmp/d6b" --member-retest-drain
+rigTools "$rigTmp/d6b" --retest-drain
 rigTesting "$rigTmp/o6c" --run-oldest-untested
 rigAssert "with every test passed, nothing is put in the queue, and it says so" "$rigRc $( LC_ALL=C grep -c . "$rigTmp/o6c.out" ) $( rigHolds waiting ) $( rigHas 'every registered test has passed' "$rigTmp/o6c.err" )" "0 0 0 1"
 rigTesting "$rigTmp/v6" --test-invalidate RigOne
@@ -158,7 +158,7 @@ rigAssert "an invalidation drops the pass record: RigOne is not passed any more 
 rigTesting "$rigTmp/o6d" --run-oldest-untested
 rigIdC="$( LC_ALL=C sed -n 1p "$rigTmp/o6d.out" )"
 rigAssert "so the invalidated test is the oldest untested again" "$( rigField "$rigQueue/waiting/$rigIdC.request" test )" "RigOne"
-rigTools "$rigTmp/d6c" --member-retest-drain
+rigTools "$rigTmp/d6c" --retest-drain
 rigTesting "$rigTmp/v6b" --test-invalidate RigNone
 rigAssert "a test that is not registered cannot be invalidated" "$rigRc $( rigHas 'RigNone is not registered' "$rigTmp/v6b.err" )" "1 1"
 rigAs=magic-tester
@@ -167,12 +167,12 @@ rigIdD="$( LC_ALL=C sed -n 1p "$rigTmp/a6.out" )"
 rigFile="$rigQueue/waiting/$rigIdD.request"
 rigAssert "the nightly regressions are every test that is eligible: both, asked by the acting member, with the reason" "$rigRc $( LC_ALL=C sed -n 's/^test: //p' "$rigFile" | LC_ALL=C tr '\n' ' ' )$( rigField "$rigFile" by ) $( rigField "$rigFile" why )" "0 RigOne RigTwo magic-tester the nightly regressions of the testbed"
 rigAs=""
-rigTools "$rigTmp/d6d" --member-retest-drain
+rigTools "$rigTmp/d6d" --retest-drain
 rigTesting "$rigTmp/u6" --test-update RigTwo --nightly no
 rigTesting "$rigTmp/a6b" --run-all-nightly-regressions
 rigIdE="$( LC_ALL=C sed -n 1p "$rigTmp/a6b.out" )"
 rigAssert "a test whose flag is no is not in them" "$( LC_ALL=C sed -n 's/^test: //p' "$rigQueue/waiting/$rigIdE.request" | LC_ALL=C tr '\n' ' ' )" "RigOne "
-rigTools "$rigTmp/d6e" --member-retest-drain
+rigTools "$rigTmp/d6e" --retest-drain
 rigTesting "$rigTmp/u6b" --test-update RigOne --nightly no
 rigTesting "$rigTmp/a6c" --run-all-nightly-regressions
 rigAssert "with none eligible, nothing is put in the queue, and it says so" "$rigRc $( LC_ALL=C grep -c . "$rigTmp/a6c.out" ) $( rigHolds waiting ) $( rigHas 'no registered test is eligible for the nightly' "$rigTmp/a6c.err" )" "0 0 0 1"
@@ -182,7 +182,7 @@ rigScript=DistroAgentsTesting ; rigCall "$rigTmp/w6" --run-all-nightly-regressio
 rigUntil "retest-" "$rigTmp/w6.out" || rigRefuse "the call with --wait did not say its request id"
 rigWaitFile="$( rigWaitingFile )"
 rigAssert "with --wait the priority of the request is wait, and the call has not ended" "$( rigField "$rigWaitFile" priority ) $( kill -0 "$rigWaitPid" 2> /dev/null && printf staying )" "wait staying"
-rigTools "$rigTmp/d6f" --member-retest-drain
+rigTools "$rigTmp/d6f" --retest-drain
 rigEnd "$rigWaitPid"
 rigAssert "once the batch has run the test the call ends, rc 0, and says how it came out" "$rigRc $( rigHas 'RETEST retest-' "$rigTmp/w6.out" ) $( rigHas ' PASS -- asked by user-console about live: 1 passed' "$rigTmp/w6.out" )" "0 1 1"
 
@@ -204,12 +204,12 @@ rigDirective sh-test
 rigTesting "$rigTmp/e4" --run-all-nightly-regressions
 rigIdF="$( LC_ALL=C sed -n 1p "$rigTmp/e4.out" )"
 rigAssert "the directive adds the folder: the nightly is the test flagged yes that stands in it" "$rigRc $( LC_ALL=C sed -n 's/^test: //p' "$rigQueue/waiting/$rigIdF.request" | LC_ALL=C tr '\n' ' ' )" "0 RigOne "
-rigTools "$rigTmp/d6g" --member-retest-drain
+rigTools "$rigTmp/d6g" --retest-drain
 rigTesting "$rigTmp/v6d" --test-invalidate RigTwo
 rigTesting "$rigTmp/e5" --run-oldest-untested
 rigIdG="$( LC_ALL=C sed -n 1p "$rigTmp/e5.out" )"
 rigAssert "and the oldest untested is again one of it: RigTwo" "$rigRc $( rigField "$rigQueue/waiting/$rigIdG.request" test )" "0 RigTwo"
-rigTools "$rigTmp/d6h" --member-retest-drain
+rigTools "$rigTmp/d6h" --retest-drain
 rigAssert "one reader of the verb: only the grants' include cuts magic-team:testing out of the declares, and the testbed calls it" "$( LC_ALL=C grep -rl -F "filter-and-cut 'magic-team:testing'" "$rigPackage/sh-lib" | LC_ALL=C sed 's#.*/##' | LC_ALL=C tr '\n' ' ' )$( LC_ALL=C grep -c 'AgentsToolsTestingFolders' "$rigPackage/sh-lib/member/AgentsTools.Testbed.include" | LC_ALL=C awk '$1 > 0 { print "called" }' )" "AgentsTools.Grants.include called"
 
 echo "-- nothing registered --"

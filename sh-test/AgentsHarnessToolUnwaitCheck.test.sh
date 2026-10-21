@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## End-to-end check that unwait, the Wait tool's own new parameter, actually reaches
-## --member-wait-for-input's --unwait through the real harness entry point
+## --wait-for-input's --unwait through the real harness entry point
 ## (AgentsHarnessToolWait, AgentsUniversalHarness.sh --intern-tool Wait) -- not just the
 ## low-level op AgentsWaitUnwaitExpireCheck.test.sh already covers. Offline: the only
 ## source ever named is a plain file:, so no curl call is expected at all.

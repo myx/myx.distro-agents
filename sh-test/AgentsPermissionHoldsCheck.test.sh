@@ -227,7 +227,7 @@ echo "-- rule 1 on the escalation answer: routed to a holder participant --"
 rigIdR="$( rigRefusal magic-tester rig-tester Write "$rigWs/DEV/r.txt" )"
 rigPend="$( rigPermissionAsk magic-tester rig-tester "$rigIdR" )"
 [ -n "$rigPend" ] || rigRefuse "no escalation record could be opened"
-RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --magic-escalation-answer magic-coordinator "$rigPend" allow-session
+RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --answer-escalation magic-coordinator "$rigPend" allow-session
 rigAssert "the coordinator's allow is not applied"         "$( rigHas "$rigTmp/op.out" "ESCALATION: $rigPend rerouted" )" yes
 rigAssert "it is re-addressed to the holder, who runs in this session" "$( rigField "$rigWs/.local/agents/pending/$rigPend.md" address-to )" magic-developer
 rigAssert "the holder is told in the session's thread, by name, with why it is theirs and the request to name, its id at the end and never at the head of the line" \
@@ -237,7 +237,7 @@ rigAssert "and the thread it was answered in is told the answer is not applied, 
 	"$( rigSaid 'Read: `allow-session` by magic-coordinator, and it is not applied: magic-coordinator does not hold Write' 'The question now goes to magic-developer, and stays open.' '"thread_ts":"1700000000.000001"' )" 1
 rigAssert "and stays open"                                 "$( rigField "$rigWs/.local/agents/pending/$rigPend.md" status )" reply-pending
 rigAssert "nothing was granted"                            "$( rigGrantRead magic-tester rig-tester Write "$rigWs/DEV/r.txt" )" ""
-RIG_OP_AGENT=magic-developer RIG_OP_SESSION=rig-dev rigOp --member-escalation-answer magic-developer "$rigPend" allow-session
+RIG_OP_AGENT=magic-developer RIG_OP_SESSION=rig-dev rigOp --answer-escalation magic-developer "$rigPend" allow-session
 rigAssert "the holder's answer is applied"                 "$( rigHas "$rigTmp/op.out" "GRANT: session $rigIdR" )" yes
 rigAssert "and the call is admitted"                       "$( rigGrantRead magic-tester rig-tester Write "$rigWs/DEV/r.txt" )" session
 
@@ -245,7 +245,7 @@ echo "-- no holder among the participants: up to the human-owner through the for
 rigPosts="$( rigCalls chat.postMessage )"
 rigIdE="$( rigRefusal magic-tester rig-tester Write "$rigWs/ELSE/e.txt" )"
 rigPend="$( rigPermissionAsk magic-tester rig-tester "$rigIdE" )"
-RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --magic-escalation-answer magic-coordinator "$rigPend" allow-once
+RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --answer-escalation magic-coordinator "$rigPend" allow-once
 rigAssert "re-addressed to the human-owner"                "$( rigField "$rigWs/.local/agents/pending/$rigPend.md" address-to )" human-owner
 rigAssert "through the existing forward"                   "$( [ -n "$( rigField "$rigWs/.local/agents/pending/$rigPend.md" forward-ts )" ] && printf yes || printf no )" yes
 rigAssert "one post was made for it"                       "$(( $( rigCalls chat.postMessage ) - rigPosts >= 1 ))" 1
@@ -259,14 +259,14 @@ rigAssert "its record says it waits on the human-owner"    "$( rigField "$rigWs/
 rigDead rig-dev
 rigIdN="$( rigRefusal magic-tester rig-tester Write "$rigWs/DEV/n.txt" )"
 rigPend="$( rigPermissionAsk magic-tester rig-tester "$rigIdN" )"
-RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --magic-escalation-answer magic-coordinator "$rigPend" allow-session
+RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --answer-escalation magic-coordinator "$rigPend" allow-session
 rigAssert "a holder with no live run in the session is passed over: the request goes to the human-owner, posted" \
 	"$( rigField "$rigWs/.local/agents/pending/$rigPend.md" address-to ):$( [ -n "$( rigField "$rigWs/.local/agents/pending/$rigPend.md" forward-ts )" ] && printf posted || printf silent )" "human-owner:posted"
 ## Where it cannot be posted to who it goes up to, it is not re-addressed at all, and that is said.
 rigIdQ="$( rigRefusal magic-tester rig-tester Write "$rigWs/DEV/q2.txt" )"
 rigPend="$( rigPermissionAsk magic-tester rig-tester "$rigIdQ" )"
 : > "$rigTmp/post-refuse"
-RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --magic-escalation-answer magic-coordinator "$rigPend" allow-session
+RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --answer-escalation magic-coordinator "$rigPend" allow-session
 rm -f "$rigTmp/post-refuse"
 rigAssert "a request that cannot be posted to the human-owner is not re-addressed, and the answer says so" \
 	"$( rigField "$rigWs/.local/agents/pending/$rigPend.md" address-to ):$( rigField "$rigWs/.local/agents/pending/$rigPend.md" status ):$( rigHas "$rigTmp/op.err" 'could not be posted to the human-owner either, so it is NOT re-addressed' )" "magic-coordinator:reply-pending:yes"
@@ -277,32 +277,32 @@ rigIdC="$( rigRefusal magic-tester rig-tester cred prod-db-password )"
 rigHelperScript AgentsTools.InternOpPermission.include AgentsToolsPermissionHoldersPrint cred prod-db-password --session-id rig-tester | rigOp --intern-mcp-execute
 rigAssert "nobody in the session holds a cred"            "$( LC_ALL=C tr '\n' '|' < "$rigTmp/op.out" )" "HOLDER: human-owner human-owner|"
 rigPend="$( rigPermissionAsk magic-tester rig-tester "$rigIdC" )"
-RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --magic-escalation-answer magic-coordinator "$rigPend" allow-session
+RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --answer-escalation magic-coordinator "$rigPend" allow-session
 rigAssert "the coordinator's allow goes to the human-owner" "$( rigField "$rigWs/.local/agents/pending/$rigPend.md" address-to )" human-owner
 rigIdS="$( rigRefusal magic-tester rig-tester spend 50usd )"
 rigAssert "a spend is approved by the human-owner only"   "$( rigGrantOpen magic-architect rig-tester "$rigIdS" once ):$( rigGrantOpen URIGOWNER rig-tester "$rigIdS" once )" "3 NOT-HOLDS::0 GRANT:"
 
 echo "-- passing a permission on, within its limits --"
 RIG_OP_AGENT=magic-developer RIG_OP_SESSION=rig-dev
-rigOp --member-permission-pass magic-developer --to magic-tester --tool Write --target "$rigWs/DEV/sub/**" --kind session
+rigOp --pass-permission magic-developer --to magic-tester --tool Write --target "$rigWs/DEV/sub/**" --kind session
 rigAssert "a holder passes part of its own to a participant" "$( LC_ALL=C sed -n 's/^GRANT: \([a-z]*\) .*/\1/p' "$rigTmp/op.out" )" session
 RIG_OP_AGENT="" RIG_OP_SESSION=""
 rigAssert "the receiver is admitted under it"             "$( rigGrantRead magic-tester rig-tester Write "$rigWs/DEV/sub/x/y.txt" )" session
 rigAssert "and nowhere else"                               "$( rigGrantRead magic-tester rig-tester Write "$rigWs/DEV/z.txt" )" ""
 RIG_OP_AGENT=magic-developer RIG_OP_SESSION=rig-dev
-rigOp --member-permission-pass magic-developer --to magic-tester --tool Write --target "$rigWs/**" --kind session
+rigOp --pass-permission magic-developer --to magic-tester --tool Write --target "$rigWs/**" --kind session
 rigAssert "more than the passer holds is refused"         "$( rigHas "$rigTmp/op.err" 'does not hold' ):$( LC_ALL=C grep -c '^GRANT:' "$rigTmp/op.out" )" "yes:0"
-rigOp --member-permission-pass magic-developer --to magic-frontender --tool Write --target "$rigWs/DEV/f/**" --kind session
+rigOp --pass-permission magic-developer --to magic-frontender --tool Write --target "$rigWs/DEV/f/**" --kind session
 rigAssert "a non-participant is refused"                   "$( rigHas "$rigTmp/op.err" 'takes no part' )" yes
-rigOp --member-permission-pass magic-developer --to magic-tester --tool Write --target "$rigWs/DEV/t/**" --kind task --task task-rig
+rigOp --pass-permission magic-developer --to magic-tester --tool Write --target "$rigWs/DEV/t/**" --kind task --task task-rig
 rigAssert "a task pass is written"                         "$( LC_ALL=C sed -n 's/^GRANT: \([a-z]*\) .*/\1/p' "$rigTmp/op.out" )" task
 RIG_OP_AGENT=magic-tester RIG_OP_SESSION=rig-tester
-rigOp --member-permission-pass magic-tester --to magic-coordinator --tool Write --target "$rigWs/DEV/t/**" --kind session
+rigOp --pass-permission magic-tester --to magic-coordinator --tool Write --target "$rigWs/DEV/t/**" --kind session
 rigAssert "a task grant does not pass on for the session" "$( rigHas "$rigTmp/op.err" 'only for task task-rig' )" yes
-rigOp --member-permission-pass magic-tester --to magic-coordinator --tool Write --target "$rigWs/DEV/t/**" --kind task --task task-rig
+rigOp --pass-permission magic-tester --to magic-coordinator --tool Write --target "$rigWs/DEV/t/**" --kind task --task task-rig
 rigAssert "but passes on for the same task"                "$( LC_ALL=C sed -n 's/^GRANT: \([a-z]*\) .*/\1/p' "$rigTmp/op.out" )" task
 RIG_OP_AGENT=magic-developer
-rigOp --member-permission-pass magic-tester --to magic-coordinator --tool Write --target "$rigWs/DEV/t/**" --kind once
+rigOp --pass-permission magic-tester --to magic-coordinator --tool Write --target "$rigWs/DEV/t/**" --kind once
 rigAssert "nobody passes as another member"                "$( rigHas "$rigTmp/op.err" 'cannot act as magic-tester' )" yes
 RIG_OP_AGENT="" RIG_OP_SESSION=""
 
@@ -319,7 +319,7 @@ mv "$rigData/board/processed/task-rig.md" "$rigData/board/running/task-rig.md"
 echo "-- the permission set: held entries, ONE ask for the extras, Decisions and grants --"
 rigPosts="$( rigCalls chat.postMessage )"
 RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord
-rigOp --magic-permission-set-request magic-coordinator task-rig --entry "Write:$rigWs/DEV/**" \
+rigOp --request-permission-set magic-coordinator task-rig --entry "Write:$rigWs/DEV/**" \
 	--entry "WebFetch:https://api.rig.example/*" --entry "cred:rig-api-token" --scope task --session-id rig-cow \
 	--participant magic-developer --participant magic-tester
 RIG_OP_AGENT="" RIG_OP_SESSION=""
@@ -328,9 +328,9 @@ rigAssert "the extras are said"                            "$( LC_ALL=C grep -c 
 rigSetId="$( LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out" )"
 rigAssert "ONE ask is posted for them"                     "$(( $( rigCalls chat.postMessage ) - rigPosts ))" 1
 rigAssert "a permission-set escalation to the human-owner" "$( rigField "$rigWs/.local/agents/pending/$rigSetId.md" kind ):$( rigField "$rigWs/.local/agents/pending/$rigSetId.md" address-to )" "permission-set:human-owner"
-RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --magic-escalation-answer magic-coordinator "$rigSetId" allow-set
+RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --answer-escalation magic-coordinator "$rigSetId" allow-set
 rigAssert "the asking coordinator cannot approve its own set" "$( rigHas "$rigTmp/op.err" 'cannot answer it' ):$( rigField "$rigWs/.local/agents/pending/$rigSetId.md" status )" "yes:reply-pending"
-RIG_OP_SESSION=rig-human rigOp --member-escalation-answer human-owner "$rigSetId" allow-set
+RIG_OP_SESSION=rig-human rigOp --answer-escalation human-owner "$rigSetId" allow-set
 rigAssert "the human-owner's allow-set is applied"         "$( rigHas "$rigTmp/op.out" "ESCALATION: $rigSetId answered" ):$( rigHas "$rigTmp/op.out" 'GRANT: set ' )" "yes:yes"
 rigAssert "the set is recorded on the item's Decisions"    "$( rigHas "$rigData/board/running/task-rig.md" 'permission set approved for the task' )" yes
 rigAssert "and as its allows, for a later dispatch"        "$( rigHas "$rigData/board/running/task-rig.md" 'allows: task:WebFetch:https%3A//api.rig.example/*:human-owner:' )" yes
@@ -374,11 +374,11 @@ rigAssert "and said on stderr"                             "$( rigHas "$rigTmp/o
 rigAssert "an entry a maintainer holds stands without him" "$( rigHolds magic-tester Write "$rigWs/DEV/n/a" rig-ncow )" "HOLDS routine magic-tester.rig-nohuman.routine"
 rigAssert "one no maintainer holds is ignored"             "$( rigHolds magic-tester Write "$rigWs/ELSE/a" rig-ncow ):$( rigHas "$rigTmp/op.err" 'none of its maintainers holds it' )" "NOT-HOLDS:yes"
 RIG_OP_AGENT=magic-tester RIG_OP_SESSION=rig-rcow
-rigOp --member-permission-pass magic-tester --to magic-developer --tool Edit --target "$rigWs/ROUT/sub/**" --kind session
+rigOp --pass-permission magic-tester --to magic-developer --tool Edit --target "$rigWs/ROUT/sub/**" --kind session
 rigAssert "a routine permission passes on to a participant" "$( LC_ALL=C sed -n 's/^GRANT: \([a-z]*\) .*/\1/p' "$rigTmp/op.out" )" session
-rigOp --member-permission-pass magic-tester --to magic-developer --tool Edit --target "$rigWs/**" --kind session
+rigOp --pass-permission magic-tester --to magic-developer --tool Edit --target "$rigWs/**" --kind session
 rigAssert "more than the routine allows is refused"        "$( rigHas "$rigTmp/op.err" 'does not hold' ):$( LC_ALL=C grep -c '^GRANT:' "$rigTmp/op.out" )" "yes:0"
-rigOp --member-permission-pass magic-tester --to magic-developer --tool Edit --target "$rigWs/ROUT/t/**" --kind task --task task-rig
+rigOp --pass-permission magic-tester --to magic-developer --tool Edit --target "$rigWs/ROUT/t/**" --kind task --task task-rig
 rigAssert "and it outlives the session for no task"        "$( rigHas "$rigTmp/op.err" 'only for this session' ):$( LC_ALL=C grep -c '^GRANT:' "$rigTmp/op.out" )" "yes:0"
 RIG_OP_AGENT="" RIG_OP_SESSION=""
 rigAssert "the receiver holds what was passed, as passed"  "$( rigHolds magic-developer Edit "$rigWs/ROUT/sub/x" rig-r2 | LC_ALL=C awk '{ print $1, $2 ; }' )" "HOLDS passed"
@@ -462,7 +462,7 @@ rigTrackPosts(){ ## fixed text...
 }
 rigTrackMark
 RIG_OP_AGENT=magic-developer RIG_OP_SESSION=rig-dev
-rigOp --member-permission-pass magic-developer --to magic-tester --tool Write --target "$rigWs/DEV/track/**" --kind session
+rigOp --pass-permission magic-developer --to magic-tester --tool Write --target "$rigWs/DEV/track/**" --kind session
 RIG_OP_AGENT="" RIG_OP_SESSION=""
 rigAssert "a pass is written"                              "$( LC_ALL=C sed -n 's/^GRANT: \([a-z]*\) .*/\1/p' "$rigTmp/op.out" )" session
 rigAssert "and said in one grant post: the call, who passed it, to whom, how far" \
@@ -471,7 +471,7 @@ rigTrackThread="$( cat "$rigWs/.local/agents/sessions/rig-cow/event-track.thread
 rigAssert "it opens the tracking-thread of the session the grant is written in, recorded once" "${rigTrackThread#*:}:$( LC_ALL=C grep -c -F '"thread_ts"' "$rigTmp/post.$(( rigTrackFrom + 1 ))" )" "1700000001.00010$(( rigTrackFrom + 1 )):0"
 rigTrackMark
 RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord
-rigOp --magic-permission-set-request magic-coordinator task-rig --entry "WebFetch:https://track.rig.example/*" --scope task --session-id rig-cow \
+rigOp --request-permission-set magic-coordinator task-rig --entry "WebFetch:https://track.rig.example/*" --scope task --session-id rig-cow \
 	--participant magic-coordinator --participant magic-developer --participant magic-tester
 RIG_OP_AGENT="" RIG_OP_SESSION=""
 rigTrackSet="$( LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out" )"
@@ -482,7 +482,7 @@ rigTrackPartCount="$( printf '%s\n' $rigTrackParts | LC_ALL=C grep -c . )"
 rigAssert "the set is for the members it names, the three of the rig" \
 	"$( [ "$rigTrackPartCount" -ge 3 ] && printf enough || printf few ):$( printf '%s\n' $rigTrackParts | LC_ALL=C grep -c -x -e magic-coordinator -e magic-developer -e magic-tester )" "enough:3"
 rigAssert "asking for a set posts no grant"                "$( rigTrackPosts '✅ permission granted' )" 0
-RIG_OP_SESSION=rig-human rigOp --member-escalation-answer human-owner "$rigTrackSet" allow-set
+RIG_OP_SESSION=rig-human rigOp --answer-escalation human-owner "$rigTrackSet" allow-set
 rigAssert "a set applied"                                  "$( rigHas "$rigTmp/op.out" "ESCALATION: $rigTrackSet answered" ):$( rigHas "$rigTmp/op.out" 'GRANT: set ' )" "yes:yes"
 rigAssert "is said in one grant post for each participant, in that same thread" \
 	"$( rigTrackPosts '✅ permission granted' "permission set $rigTrackSet, 1 permission(s)" "\"thread_ts\":\"${rigTrackThread#*:}\"" ):$( rigTrackPosts '✅ permission granted' )" "$rigTrackPartCount:$rigTrackPartCount"
@@ -492,11 +492,11 @@ done
 rigAssert "and no denial post"                             "$( rigTrackPosts '❌ permission denied' )" 0
 rigTrackMark
 RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord
-rigOp --magic-permission-set-request magic-coordinator task-rig --entry "WebFetch:https://deny.rig.example/*" --scope session --session-id rig-cow
+rigOp --request-permission-set magic-coordinator task-rig --entry "WebFetch:https://deny.rig.example/*" --scope session --session-id rig-cow
 RIG_OP_AGENT="" RIG_OP_SESSION=""
 rigTrackDenied="$( LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out" )"
 [ -n "$rigTrackDenied" ] || rigRefuse "the rig asked for no permission set to deny"
-RIG_OP_SESSION=rig-human rigOp --member-escalation-answer human-owner "$rigTrackDenied" deny
+RIG_OP_SESSION=rig-human rigOp --answer-escalation human-owner "$rigTrackDenied" deny
 rigAssert "a set denied"                                   "$( rigHas "$rigTmp/op.out" "ESCALATION: $rigTrackDenied answered" ):$( rigField "$rigWs/.local/agents/pending/$rigTrackDenied.md" verdict )" "yes:deny"
 rigAssert "is said in one denial post in that same thread: the set, who denied it, who asked" \
 	"$( rigTrackPosts '❌ permission denied' "permission set $rigTrackDenied, 1 permission(s)" 'denied by: human-owner · member: magic-coordinator' "\"thread_ts\":\"${rigTrackThread#*:}\"" ):$( rigTrackPosts '❌ permission denied' )" "1:1"
@@ -552,7 +552,7 @@ rigSetBody(){ ## pending id
 }
 rigSetAsk(){ ## item, request options... -> the pending id
 	RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord
-	rigOp --magic-permission-set-request magic-coordinator "$@"
+	rigOp --request-permission-set magic-coordinator "$@"
 	RIG_OP_AGENT="" RIG_OP_SESSION=""
 	LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out"
 }
@@ -587,7 +587,7 @@ rigAssert "the post that went out is that body, to the human-owner" \
 	"$( LC_ALL=C grep -l -F 'rig-ws:SETP/**' "$rigTmp"/post.[0-9]* 2>/dev/null | LC_ALL=C awk 'END { print NR }' ):$( rigField "$rigWs/.local/agents/pending/$rigSetId.md" kind ):$( rigField "$rigWs/.local/agents/pending/$rigSetId.md" address-to )" "1:permission-set:human-owner"
 rigAssert "the record keeps every entry exactly as asked, with its exact target, and each purpose with its place" \
 	"$( LC_ALL=C grep -c -x -F "entry: Write:$rigWs/SETP/**" "$rigWs/.local/agents/pending/$rigSetId.set" ):$( LC_ALL=C grep -c '^entry: ' "$rigWs/.local/agents/pending/$rigSetId.set" ):$( LC_ALL=C grep -c -x -F "purpose: $rigWs/SETP/**"$'\t''need to read some files' "$rigWs/.local/agents/pending/$rigSetId.set" ):$( LC_ALL=C grep -c -x -F "purpose: $rigWs/SETQ/**"$'\t''want to update vars there' "$rigWs/.local/agents/pending/$rigSetId.set" ):$( LC_ALL=C grep -c '^purpose: ' "$rigWs/.local/agents/pending/$rigSetId.set" )" "1:8:1:1:2"
-RIG_OP_SESSION=rig-human rigOp --member-escalation-answer human-owner "$rigSetId" allow-set
+RIG_OP_SESSION=rig-human rigOp --answer-escalation human-owner "$rigSetId" allow-set
 rigAssert "an allow-set still writes the grants: every extra, for every participant, by its exact path" \
 	"$( rigHas "$rigTmp/op.out" 'GRANT: set 24 entries for ' ):$( rigGrantRead magic-tester rig-set-tester Write "$rigWs/SETP/a/b.txt" ):$( rigGrantRead magic-developer rig-set-dev Read "$rigWs/SETQ/c.txt" ):$( rigGrantRead magic-tester rig-set-tester Read /nowhere/rig-set/x ):$( rigGrantRead magic-tester rig-set-tester Edit "$rigWs/DEV/held/x" )" "yes:task:task:task:"
 rigAssert "and the set grant record says what each place's access is for" \
@@ -612,7 +612,7 @@ rigAssert "the spawner's own description of the dispatch is that text where one 
 ## An item with no title, a request with no session: what there is, and no empty heading.
 printf -- '---\nstatus: task\nowner: magic-tester\n---\n\nno heading here.\n' > "$rigData/board/running/task-rig-bare.md"
 RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=""
-rigOp --magic-permission-set-request magic-coordinator task-rig-bare --entry "Read:/nowhere/rig-bare/**" --scope task --session-id ''
+rigOp --request-permission-set magic-coordinator task-rig-bare --entry "Read:/nowhere/rig-bare/**" --scope task --session-id ''
 RIG_OP_AGENT=""
 rigSetId="$( LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out" )"
 rigSetBody "$rigSetId" > "$rigTmp/set.body"
@@ -625,7 +625,7 @@ rigSetBody "$rigSetId" > "$rigTmp/set.body"
 rigAssert "the session's thread is a link where the workspace's address is configured" \
 	"$( LC_ALL=C awk '$0 == "**🧵 Session**" { on = 1 ; next ; } on && /^$/ { exit ; } on { print ; }' "$rigTmp/set.body" )" 'rework the vars loader · `rig-set` · [thread](https://rig-team.slack.com/archives/CRIG00001/p1700000000000500)'
 RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord
-rigOp --magic-permission-set-request magic-coordinator dispatch-rig-set --purpose 'a purpose with no entry before it' --entry "Read:$rigWs/SETU/**" --scope task --session-id rig-set
+rigOp --request-permission-set magic-coordinator dispatch-rig-set --purpose 'a purpose with no entry before it' --entry "Read:$rigWs/SETU/**" --scope task --session-id rig-set
 RIG_OP_AGENT="" RIG_OP_SESSION=""
 rigAssert "a purpose that follows no entry is refused, said plainly, and nothing is posted for it" "$( rigHas "$rigTmp/op.err" 'follows the --entry options of the place it is for' ):$( LC_ALL=C grep -c '^PERMISSION-SET: ' "$rigTmp/op.out" )" "yes:0"
 rm -f "$rigWs/.local/agents/directories.registry"
@@ -738,26 +738,26 @@ rigAssert "and a second read confirms nothing again"      "$(( $( rigCalls chat.
 
 echo "-- who a task set is for, a list of tools in one entry, and a holder that is not running --"
 RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord
-rigOp --magic-permission-set-request magic-coordinator dispatch-rig-set --entry "Read:$rigWs/SETW/**" --scope task --session-id rig-set
+rigOp --request-permission-set magic-coordinator dispatch-rig-set --entry "Read:$rigWs/SETW/**" --scope task --session-id rig-set
 rigAssert "a task set with nobody named is for the members of that task, not for the session's participants" "$( LC_ALL=C sed -n 's/^PARTICIPANTS: //p' "$rigTmp/op.out" )" "magic-developer"
-rigOp --magic-permission-set-request magic-coordinator dispatch-rig-set --entry "Read:$rigWs/SETX/**" --scope task --session-id rig-set --participant magic-tester
+rigOp --request-permission-set magic-coordinator dispatch-rig-set --entry "Read:$rigWs/SETX/**" --scope task --session-id rig-set --participant magic-tester
 rigAssert "a task set that names its members is for those only" "$( LC_ALL=C sed -n 's/^PARTICIPANTS: //p' "$rigTmp/op.out" )" "magic-tester"
-rigOp --magic-permission-set-request magic-coordinator dispatch-rig-set --entry "Read:$rigWs/SETY/**" --scope session --session-id rig-set
+rigOp --request-permission-set magic-coordinator dispatch-rig-set --entry "Read:$rigWs/SETY/**" --scope session --session-id rig-set
 rigAssert "accepted sibling: a session set is for everyone in the session" "$( LC_ALL=C sed -n 's/^PARTICIPANTS: //p' "$rigTmp/op.out" | LC_ALL=C tr ' ' '\n' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "magic-coordinator magic-developer magic-tester "
-rigOp --magic-permission-set-request magic-coordinator dispatch-rig-set --entry "Write,Read,Glob:$rigWs/SETZ/**" --scope task --session-id rig-set --participant magic-tester
+rigOp --request-permission-set magic-coordinator dispatch-rig-set --entry "Write,Read,Glob:$rigWs/SETZ/**" --scope task --session-id rig-set --participant magic-tester
 rigSetIdZ="$( LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out" )"
 rigAssert "one entry naming three tools for one target is three entries on the record, one a tool" \
 	"$( LC_ALL=C grep '^entry: ' "$rigWs/.local/agents/pending/$rigSetIdZ.set" 2>/dev/null | LC_ALL=C tr '\n' '|' )" "entry: Write:$rigWs/SETZ/**|entry: Read:$rigWs/SETZ/**|entry: Glob:$rigWs/SETZ/**|"
 rigSetPosts="$( rigCalls chat.postMessage )" ; rigSetRc=0
-rigOp --magic-permission-set-request magic-coordinator dispatch-rig-set --entry "Read,Everything:$rigWs/SETZ2/**" --scope task --session-id rig-set --participant magic-tester || rigSetRc=$?
+rigOp --request-permission-set magic-coordinator dispatch-rig-set --entry "Read,Everything:$rigWs/SETZ2/**" --scope task --session-id rig-set --participant magic-tester || rigSetRc=$?
 rigAssert "a list naming a tool the permission model does not know is a correction, never a refusal: nothing is asked, and no word means every tool" \
 	"$rigSetRc:$( LC_ALL=C grep -c "^CORRECTION: .*nothing was asked. The entry 'Read,Everything:$rigWs/SETZ2/\*\*' names a tool the permission model does not know: 'Everything'" "$rigTmp/op.err" ):$( LC_ALL=C grep -c -i -e 'refused' -e 'denied' "$rigTmp/op.err" ):$(( $( rigCalls chat.postMessage ) - rigSetPosts )):$( LC_ALL=C grep -c '^PERMISSION-SET: ' "$rigTmp/op.out" )" "6:1:0:0:0"
-rigOp --magic-permission-set-request magic-coordinator dispatch-rig-set --entry "Edit:$rigWs/DEV/held2/**" --scope task --session-id rig-set "${rigSetThree[@]}"
+rigOp --request-permission-set magic-coordinator dispatch-rig-set --entry "Edit:$rigWs/DEV/held2/**" --scope task --session-id rig-set "${rigSetThree[@]}"
 rigAssert "control: an entry a participant with a live run holds is held, and nothing is asked" \
 	"$( rigHas "$rigTmp/op.out" "HELD: Edit:$rigWs/DEV/held2/** by magic-developer standing" ):$( rigHas "$rigTmp/op.out" 'PERMISSION-SET: held' )" "yes:yes"
 rigDead rig-set-dev
 rigSetPosts="$( rigCalls chat.postMessage )"
-rigOp --magic-permission-set-request magic-coordinator dispatch-rig-set --entry "Edit:$rigWs/DEV/held3/**" --scope task --session-id rig-set "${rigSetThree[@]}"
+rigOp --request-permission-set magic-coordinator dispatch-rig-set --entry "Edit:$rigWs/DEV/held3/**" --scope task --session-id rig-set "${rigSetThree[@]}"
 rigAssert "an entry only a member that is not running holds is asked for, never said held with no live holder" \
 	"$( rigHas "$rigTmp/op.out" "EXTRA: Edit:$rigWs/DEV/held3/**" ):$( LC_ALL=C grep -c -e '^HELD: ' -e '^PERMISSION-SET: held' "$rigTmp/op.out" ):$( LC_ALL=C grep -c '^PERMISSION-SET: asked ' "$rigTmp/op.out" ):$(( $( rigCalls chat.postMessage ) - rigSetPosts ))" "yes:0:1:1"
 RIG_OP_AGENT="" RIG_OP_SESSION=""
@@ -779,7 +779,7 @@ rigReadRc=0 ; rigOp --intern-op-permission-grant-read magic-tester --session-id 
 rigAssert "accepted sibling: a call no open ask covers names none" "$rigReadRc:$( LC_ALL=C grep -c '^OPEN-ASK' "$rigTmp/op.out" )" "1:0"
 ## An open set that asks only Edit of a folder would allow a read there too, as its grant will
 ## (AgentsToolsGrantsToolCovers), so it is named for one; never the other way.
-RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --magic-permission-set-request magic-coordinator dispatch-rig-set --entry "Edit:$rigWs/SETE/**" --entry "Read:$rigWs/SETR/**" --scope task --session-id rig-set --participant magic-tester
+RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --request-permission-set magic-coordinator dispatch-rig-set --entry "Edit:$rigWs/SETE/**" --entry "Read:$rigWs/SETR/**" --scope task --session-id rig-set --participant magic-tester
 rigSetIdE="$( LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out" )"
 [ -n "$rigSetIdE" ] || rigRefuse "the rig's permission set request asked nothing: $( head -2 "$rigTmp/op.err" )"
 rigSetThread "$rigSetIdE" ""

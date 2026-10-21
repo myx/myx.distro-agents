@@ -3,7 +3,7 @@
 ##
 ## AgentTestingTools.fn.sh -- any member's personal tool for testing (F7.6): the way a member communicates a testing need or task to the testing
 ## system and to magic-tester. A tool that takes work in: nobody reads results from it. So far: --request-tests, which puts tests into the one
-## retest queue of the machine (the options of --member-retest-queue) and files one inquiry into magic-tester's inbox naming the need. What the
+## retest queue of the machine (the options of --retest-queue) and files one inquiry into magic-tester's inbox naming the need. What the
 ## testing system hands out (the testbed, its lists, the runs) is DistroAgentsTesting.fn.sh's.
 ##
 ## NOTE:
@@ -45,7 +45,7 @@ AgentTestingTools(){
 		## A testing need of the calling member: --why <text> and the queue's options, [--project <p>] [--file <changed-file>]... [--about <scratch-folder>]
 		## [--wait|--no-wait] [<test>...]. The tests go into the retest queue, and one inquiry into magic-tester's inbox says who asked, why and for what.
 		## With --wait the call stays until the batch has run them, and says how they came out. The outcome is read by the request's id, with
-		## `--member-retest-result`.
+		## `--retest-result`.
 		--request-tests)
 			local requestOp="$1" requestMember requestWhy="" requestProject="" requestAbout="" requestPriority="no-wait" requestTests="" requestFiles=""
 			local requestArgs=() requestWhat="" requestOut="" requestPid requestId="" requestText requestFile="" requestRc=0 requestLeft
@@ -53,7 +53,7 @@ AgentTestingTools(){
 			type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
 			requestMember="$( AgentsToolsActingMember )"
 			if [ -z "$requestMember" ] ; then
-				echo "$MDSC_CMD: ⛔ ERROR: $requestOp: a testing need is raised by a member, and this call comes from no member's session -- a console user queues tests with --member-retest-queue --by <who>" >&2
+				echo "$MDSC_CMD: ⛔ ERROR: $requestOp: a testing need is raised by a member, and this call comes from no member's session -- a console user queues tests with --retest-queue --by <who>" >&2
 				set +e ; return 1
 			fi
 			while [ $# -gt 0 ] ; do
@@ -88,7 +88,7 @@ AgentTestingTools(){
 			requestOut="$( mktemp "$MMDAPP/.local/temp/agent-testing-tools.XXXXXX" )" || { set +e ; return 1 ; }
 			## The queue checks the request first, and a refused one asks nobody. With --wait it stays until its batch is run, so it runs apart,
 			## and the inquiry is filed as soon as it has said the request's id.
-			( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-retest-queue --by "$requestMember" "${requestArgs[@]}" > "$requestOut" 2> "$requestOut.err" < /dev/null ) &
+			( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --retest-queue --by "$requestMember" "${requestArgs[@]}" > "$requestOut" 2> "$requestOut.err" < /dev/null ) &
 			requestPid=$!
 			requestLeft=300
 			while [ "$requestLeft" -gt 0 ] ; do
@@ -101,7 +101,7 @@ AgentTestingTools(){
 				requestText="$( ASKP_F_member="$requestMember" ASKP_F_why="$requestWhy" ASKP_F_what="${requestWhat:-the tests of the request}" ASKP_F_request="$requestId" ASKP_F_priority="$requestPriority" AgentsToolsEscalationNote "Testing/tests-wanted" )" || requestText=""
 				if [ -n "$requestText" ] ; then
 					requestFile="$( mktemp "$MMDAPP/.local/temp/agent-testing-tools.XXXXXX" )" && printf '%s\n' "$requestText" > "$requestFile" || requestFile=""
-					if [ -z "$requestFile" ] || ! "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-upsert-member-inquiry magic-tester "inquiry-$( date -u +%Y%m%dT%H%MZ )-tests-wanted-${requestId##*-}.md" --from-member "$requestMember" --from-file "$requestFile" > /dev/null 2>&1 ; then
+					if [ -z "$requestFile" ] || ! "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --upsert-inbox-inquiry magic-tester "inquiry-$( date -u +%Y%m%dT%H%MZ )-tests-wanted-${requestId##*-}.md" --from-member "$requestMember" --from-file "$requestFile" > /dev/null 2>&1 ; then
 						echo "$MDSC_CMD: ⚠️ WARNING: $requestOp: the request $requestId is queued, but the inquiry to magic-tester could not be filed" >&2
 					fi
 					[ -z "$requestFile" ] || rm -f "$requestFile"

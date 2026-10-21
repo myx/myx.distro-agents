@@ -69,7 +69,7 @@ rigAssert "the bare call is as it was: rc 1, its default syntax, a member's entr
 rigAssert "in: an --owner-* operation, and every entry point of the bare call but a member's" "$( LC_ALL=C grep -c -F -e 'fn.sh --owner-workspace-list' "$rigTmp/first" ) $( LC_ALL=C grep -v -F -e 'fn.sh --member-' "$rigTmp/bare" | LC_ALL=C grep -c -v -x -F -f "$rigTmp/first" )" "1 0"
 rigAssert "out: a member's operation and a librarian's, as the owner said, and an internal one" "$( LC_ALL=C grep -c -F -e 'fn.sh --member-' -e 'fn.sh [--member-' "$rigTmp/first" ) $( LC_ALL=C grep -c -F -e 'fn.sh --librarian-' "$rigTmp/first" ) $( LC_ALL=C grep -c -F -e 'fn.sh --intern-' -e 'fn.sh [--intern-' "$rigTmp/first" )" "0 0 0"
 rigLeftOut="$( LC_ALL=C sed -n "s/^[[:space:]]*local helpReadOut='\(.*\)'$/\1/p" "$rigHere/manager/AgentsTools.ManagerHelp.include" )"
-rigAssert "the families it leaves out are named in one line of the read, the owner's three among them, and none of them shows" "$( printf '%s\n' $rigLeftOut | LC_ALL=C grep -c -x -e '--intern-' -e '--member-' -e '--librarian-' ) $( for rigFamily in $rigLeftOut ; do LC_ALL=C grep -F -e "fn.sh $rigFamily" -e "fn.sh [$rigFamily" "$rigTmp/first" ; done | LC_ALL=C grep -c '' )" "3 0"
+rigAssert "the families it leaves out are named in one line of the read, the internal and the librarian's among them, and none of them shows" "$( printf '%s\n' $rigLeftOut | LC_ALL=C grep -c -x -e '--intern-' -e '--librarian-' ) $( for rigFamily in $rigLeftOut ; do LC_ALL=C grep -F -e "fn.sh $rigFamily" -e "fn.sh [$rigFamily" "$rigTmp/first" ; done | LC_ALL=C grep -c '' )" "2 0"
 
 echo "-- 2. the rule in a help that has every kind: a rig origin, its help with an operation of four families more --"
 ## The rig origin: every package of the real tree by symlink, and the agents package by symlink too except the
@@ -96,14 +96,14 @@ for rigPkg in "$rigHere"/help/* ; do
 	[ "${rigPkg##*/}" != "Help.DistroAgentsTools.include" ] || continue
 	ln -s "$rigPkg" "$rigOrigin/myx/myx.distro-agents/sh-lib/help/${rigPkg##*/}"
 done
-LC_ALL=C awk '{ print } $0 == "\t--help-syntax)" { count = split("owner intern member librarian", rigFamilies, " ") ; for (i = 1; i <= count; i++) printf "echo \"📘 syntax: DistroAgentsTools.fn.sh --%s-rig-probe\" >&2\n", rigFamilies[i] }' \
+LC_ALL=C awk '{ print } $0 == "\t--help-syntax)" { count = split("owner intern client librarian", rigFamilies, " ") ; for (i = 1; i <= count; i++) printf "echo \"📘 syntax: DistroAgentsTools.fn.sh --%s-rig-probe\" >&2\n", rigFamilies[i] }' \
 	"$rigHelpInclude" > "$rigOrigin/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include"
 rigPre=( "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" )
 rigRun "$rigRead"
 rigPre=()
 LC_ALL=C awk 'NF == 0 { exit } { print }' "$rigTmp/out" > "$rigTmp/first.rig"
 LC_ALL=C awk 'seen { print } NF == 0 { seen = 1 }' "$rigTmp/out" > "$rigTmp/rest.rig"
-rigAssert "an --owner-* operation in; an --intern-*, a --member-* and a --librarian-* one out; all four among every operation after" "$rigRc $( rigErrors ) $( LC_ALL=C grep -c -F -- '-rig-probe' "$rigHelpInclude" ) $( for rigFamily in owner intern member librarian ; do LC_ALL=C grep -c -x -F -- "📘 syntax: DistroAgentsTools.fn.sh --$rigFamily-rig-probe" "$rigTmp/first.rig" ; done | LC_ALL=C tr '\n' ' ' )$( LC_ALL=C grep -c -F -- '-rig-probe' "$rigTmp/rest.rig" )" "0 0 0 1 0 0 0 4"
+rigAssert "an --owner-* operation in; an --intern-*, a --client-* and a --librarian-* one out; all four among every operation after" "$rigRc $( rigErrors ) $( LC_ALL=C grep -c -F -- '-rig-probe' "$rigHelpInclude" ) $( for rigFamily in owner intern client librarian ; do LC_ALL=C grep -c -x -F -- "📘 syntax: DistroAgentsTools.fn.sh --$rigFamily-rig-probe" "$rigTmp/first.rig" ; done | LC_ALL=C tr '\n' ' ' )$( LC_ALL=C grep -c -F -- '-rig-probe' "$rigTmp/rest.rig" )" "0 0 0 1 0 0 0 4"
 
 echo "-- 3. then every operation, its syntax lines and its entry, as --member-help gives those of a member --"
 rigWant="$( LC_ALL=C grep -c -E '^echo "📘 syntax: DistroAgentsTools\.fn\.sh --' "$rigHelpInclude" )"

@@ -134,7 +134,7 @@ AgentsToolsCollectItemWrite(){ ## member, item name, channel id, block file
 }
 
 ## COMMITS WHAT A COLLECTION WROTE, once: the notes written since the last commit, through the one commit step of the tooling writers that
-## are not item operations (AgentsToolsTeamDataCommitPaths, as --magic-team-data-commit-pending does) -- a pass of 64 mails is one commit,
+## are not item operations (AgentsToolsTeamDataCommitPaths, as --commit-pending does) -- a pass of 64 mails is one commit,
 ## not 64. <push> yes pushes once after it where the store is ahead of its origin (AgentsToolsTeamDataPushIfAhead); a scan commits and
 ## leaves the push to the close points, as the item operations do. A commit that fails warns and leaves the notes written.
 AgentsToolsCollectCommit(){ ## what, push (yes|no)

@@ -41,7 +41,7 @@ AgentsToolsClientToolPolicyClaudeAllowJson(){
 ## mcp__myx_distro__execute, its mcp__myx_distro__Monitor twin, myx.common's
 ## lib_execShStdin, and the native Monitor tool, which is neither denied nor rerouted.
 ## Native Slack MCP tool, hard-blocked -- separate path from the team's own sanctioned
-## --member-comms-slack-* ops, which this cannot reach.
+## --slack-* ops, which this cannot reach.
 AgentsToolsClientToolPolicyClaudeDenyJson(){
 	printf '%s\n' '["mcp__claude_ai_Slack"]'
 }

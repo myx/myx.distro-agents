@@ -123,7 +123,7 @@ AgentsToolsInputScanDefOne(){ ## definition line, team member, session id, spawn
 
 ## THE WAIT OF A SCAN (`--wait <seconds>` on a definition line), before anything is made for the start: with input present the start goes on at once, after the
 ## scan's own collect window, which gathers what arrives together into one report. With an empty scan (AgentsToolsInputScanReportEmpty) the spawner waits up to that
-## long for some to come, on the Wait layer's sources (--member-wait-for-input): the sources the routine declares (`wait-sources:`, `{{team-member}}` the member
+## long for some to come, on the Wait layer's sources (--wait-for-input): the sources the routine declares (`wait-sources:`, `{{team-member}}` the member
 ## of the start), else the member's own inbox, read at every pass. At each wake, and once more when the time is out, the scan is run again. Each report is kept in
 ## the folder given, line.<n>, for the start to use as its own, so that no scan runs twice for a start that goes on. The sources are read from the instant the wait of
 ## the line began, not from their first pass of the Wait: what arrived between the scan's reading and the Wait's first pass is an arrival too.
@@ -157,7 +157,7 @@ AgentsToolsInputScanDefAwait(){ ## definition lines (one a line), team member, s
 			done <<< "$( AgentsToolsRoutineKeyLines "$5" wait-sources )"
 			[ -n "$awaitSources" ] || awaitSources="--wait-source inbox:$2"
 			## The Wait of the start has no session of its own: not the caller's floor, and not a pointer of the new session.
-			awaitOut="$( unset MDAT_SESSION_ID MDAT_SPAWN_SESSION_ID ; DistroAgentsTools --member-wait-for-input "$2" $awaitSources --wait-since-utime "$awaitFrom" --wait-timeout "$awaitLeft" 2> /dev/null < /dev/null )" || :
+			awaitOut="$( unset MDAT_SESSION_ID MDAT_SPAWN_SESSION_ID ; DistroAgentsTools --wait-for-input "$2" $awaitSources --wait-since-utime "$awaitFrom" --wait-timeout "$awaitLeft" 2> /dev/null < /dev/null )" || :
 			awaitHead="$( printf '%s\n' "$awaitOut" | head -n 1 )"
 			case "$awaitHead" in
 				"WAIT-RESULT: RECEIVED"*|"WAIT-RESULT: TIMEOUT"*) ;;

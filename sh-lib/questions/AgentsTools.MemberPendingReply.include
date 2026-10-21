@@ -99,9 +99,9 @@ case "$1" in
 	## the number of the records that list would show, by the same store and the same test of what is
 	## open, and renders nothing: no registry is rebuilt and no asker measured. The console asks it
 	## whatever it shows, for the number beside Pending Questions.
-	--member-pending-reply-read)
+	--read-pending-reply)
 		shift
-		MDSC_CMD="$MDSC_CMD --member-pending-reply-read"
+		MDSC_CMD="$MDSC_CMD --read-pending-reply"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
 		local readMember="${1:-}" readId="" readAll="" readAnyOwner="" readCount="" readFile readRegistry readAskers=""
 		shift || true
@@ -175,7 +175,7 @@ case "$1" in
 	## Closes one of the member's own open questions as settled, with the reason, when it
 	## no longer needs an answer. Only the member that asked it, and only a plain question:
 	## a readback, decision or permission closes through its own escalation ops. The
-	## --magic-* stub is the coordinator settling another member's question on its behalf.
+	## coordinator may also settle another member's question on its behalf.
 	## --withdraw instead discards the asker's own open question, of any kind: the record
 	## closes as withdrawn, with the reason and no verdict, so it answers, grants and decides
 	## nothing; reminders stop with it, and a short note in its thread tells the person it is
@@ -183,7 +183,7 @@ case "$1" in
 	## The console's arm comes here too (--manager-pending-reply-dismiss, sourced by
 	## AgentsTools.ManagerPendingReply.include): the same withdraw, of any member's question,
 	## by whoever is at the console.
-	--member-pending-reply-settle|--magic-pending-reply-settle|--manager-pending-reply-dismiss)
+	--settle-pending-reply|--manager-pending-reply-dismiss)
 		local settleOp="$1"
 		shift
 		MDSC_CMD="$MDSC_CMD $settleOp"
@@ -221,15 +221,11 @@ case "$1" in
 		AgentsToolsAssertBareName "$settleMember" "<team-member>" pending-reply-settle || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$settleId" "<pending-id>" pending-reply-settle || { set +e ; return 1 ; }
 		AgentsToolsActingMemberCheck "$settleMember" "${settleOp#--}" || { set +e ; return 1 ; }
-		if [ "$settleOp" = "--magic-pending-reply-settle" ] && [ "$settleMember" != "magic-coordinator" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: only magic-coordinator settles another member's question, not $settleMember -- a member settles its own with --member-pending-reply-settle" >&2
-			set +e ; return 1
-		fi
 		settleFile="$MMDAPP/.local/agents/pending/$settleId.md"
 		[ -f "$settleFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $settleId" >&2 ; set +e ; return 1 ; }
 		settleOwner="$( AgentsToolsPendingReplyField "$settleFile" owner )"
-		if [ -z "$settleConsole" ] && { [ "$settleOp" = "--member-pending-reply-settle" ] || [ -n "$settleWithdraw" ] ; } && [ "$settleOwner" != "$settleMember" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: $settleId was asked by ${settleOwner:-nobody}, so $settleMember cannot $( [ -n "$settleWithdraw" ] && printf withdraw || printf settle ) it; it stays as it is" >&2
+		if [ -z "$settleConsole" ] && [ "$settleOwner" != "$settleMember" ] && { [ -n "$settleWithdraw" ] || [ "$settleMember" != "magic-coordinator" ] ; } ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $settleId was asked by ${settleOwner:-nobody}, so $settleMember cannot $( [ -n "$settleWithdraw" ] && printf withdraw || printf settle ) it (the asker settles its own, and magic-coordinator another's); it stays as it is" >&2
 			set +e ; return 1
 		fi
 		## What is then done to the question's own post is done in its asker's name, as the
@@ -313,9 +309,9 @@ case "$1" in
 	## Corrects a closed record's verdict, when it was closed with a wrong or missing answer.
 	## The coordinator's only: a close can't be undone, so the correction is recorded beside
 	## it, with who amended it and why, and the record stays closed.
-	--magic-pending-reply-amend)
+	--amend-pending-reply)
 		shift
-		MDSC_CMD="$MDSC_CMD --magic-pending-reply-amend"
+		MDSC_CMD="$MDSC_CMD --amend-pending-reply"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
 		local amendMember="${1:-}" amendId="${2:-}" amendVerdict="" amendReason="" amendRc=0
 		shift 2 2>/dev/null || shift $#

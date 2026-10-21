@@ -64,10 +64,10 @@ rigRun(){ ## resolve-ids args... -- leaves $rigOut and $rigRc, resets $rigTmp/ca
 	## -u MDAT_SPAWN_AGENT/_SESSION_ID: this very check is run from a spawned
 	## session, and AgentsToolsMagicCallerCheck reads exactly those to learn
 	## who it is acting as. Unset, the call reads as the console's own, which
-	## --magic-comms-slack-resolve-ids accepts -- the same rule a live
+	## --slack-resolve-ids accepts -- the same rule a live
 	## magic-coordinator session meets.
 	rigOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		bash "$rigTool" --magic-comms-slack-resolve-ids magic-team "$@" 2>&1 )" || rigRc=$?
+		bash "$rigTool" --slack-resolve-ids magic-team "$@" 2>&1 )" || rigRc=$?
 }
 rigUsersListCalls(){ LC_ALL=C grep -c '^users\.list ' "$rigTmp/calls" ; }
 

@@ -482,7 +482,7 @@ LC_ALL=C sed -e "s/$rigDead/$rigHeldRun/g" -e "s/^spawns: .*\$/supervisor-proces
 find "$rigSp/$rigHeldRun" -exec touch -t "$rigStampText" {} +
 rigLock(){ ## result file -- the advance routine takes its lock, free, as the coordinator's session takes it: its housekeeping runs there
 	rm -f "$rigData/inboxes/magic-coordinator/incoming/note-20260809T154715Z-advance-state-and-lock.md"
-	rigConsole "$1" --magic-advance-lock-acquire magic-coordinator rig-advance-pass
+	rigConsole "$1" --intern-op-routine-lock-take advance magic-coordinator rig-advance-pass
 }
 rigLock "$rigDir/scan1.out"
 rigAssert "taking the lock closes its record as ended without close and takes its item to review" "$( rigHeader "$rigRecord" status ):$( rigItemIn "$rigDeadItem" )" "spawn-ended-without-close:review"
@@ -499,7 +499,7 @@ echo "-- 7. a return starts an ended run again, in the same session, sandbox and
 rigReturn(){ ## scenario, item stem
 	rigDir="$rigTmp/$1"
 	rm -f "$rigDir/first.began" "$rigDir/release-first" "$rigDir/release-retry"
-	( cd "$rigWs" && rigEnv "$rigDir" "${rigAsParent[@]}" bash "$rigTool" --member-review-return rig-member-b "$2" --message "redo the rig step" ) > "$rigDir/return.out" 2>&1 < /dev/null
+	( cd "$rigWs" && rigEnv "$rigDir" "${rigAsParent[@]}" bash "$rigTool" --return-review rig-member-b "$2" --message "redo the rig step" ) > "$rigDir/return.out" 2>&1 < /dev/null
 	rigRunStarted "$1" first
 }
 rigRestarted(){ ## item stem, the run that ended, its session, its sandbox -- what the return said, where the item is, and what the record of the run started again says

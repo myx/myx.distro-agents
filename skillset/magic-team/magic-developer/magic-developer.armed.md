@@ -15,7 +15,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Reference modules
   - Idle-Tasks
 - Team-Member's (-specific) tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
 
 # Summary
@@ -84,7 +84,7 @@ Modules start thin and grow: a language axiom surfaced in real work is proposed 
 
 Every `magic-tooling` operation this team-member uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
 - None beyond the floor in `magic-team/magic-team.armed.md`.
 

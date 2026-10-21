@@ -16,7 +16,7 @@ Normative contract: this file's own `# Contract` section, at its end. The docume
 
 # Summary
 
-A verbatim record of an exchange, with UTC stamps. Append-only, through `--member-append-session-transcript`. Never on the board.
+A verbatim record of an exchange, with UTC stamps. Append-only, through `--append-transcript`. Never on the board.
 
 # Contract
 

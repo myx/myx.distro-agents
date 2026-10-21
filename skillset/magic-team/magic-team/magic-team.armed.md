@@ -25,7 +25,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Human-owner's standing rules
 - Domain knowledge: team routines
 - Team-Member's (-specific) tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
   - Execution mechanisms
 - Maintainer Notes
 
@@ -82,7 +82,7 @@ Named procedure blocks. Steps call them by name. Not separate routines — not v
 Any member may run it. Steps:
 1. Name the item `inquiry-<date>-<matter>.md`, `<date>` per the tooling **Rule**.
 2. Give it frontmatter `communication-channel-id` when it traces back to one external message.
-3. Write it with `--member-upsert-member-inquiry <target-member> <item-filename>`, adding `--from-member` only when writing on another member's behalf.
+3. Write it with `--upsert-inbox-inquiry <target-member> <item-filename>`, adding `--from-member` only when writing on another member's behalf.
 
 # Team-Member's (-specific) local rules
 
@@ -104,7 +104,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - Finishing a routine's steps ("exits", "runs Step N once and exits") means leaving the routine, not ending the session: the session lives and listens.
 - A handback puts its item into `board-review`; the reviewer settles it with `magic-team.handback-review.routine`. Other cases are general communication.
 - Whatever it waits for — an answer, a verdict, a spawned member, a board or inbox change — it waits with `Wait`. `Wait` with no sources waits on the session thread.
-- `TIMEOUT` is a normal result, never an answer. Read what is pending (`--member-pending-reply-read`), then wait again or re-ask. People may take hours. An open record's own `asker-live:` says whether the asking run is still there: `no-process` or `session-ended` means nobody is there to take the answer, worth escalating rather than only waiting longer.
+- `TIMEOUT` is a normal result, never an answer. Read what is pending (`--read-pending-reply`), then wait again or re-ask. People may take hours. An open record's own `asker-live:` says whether the asking run is still there: `no-process` or `session-ended` means nobody is there to take the answer, worth escalating rather than only waiting longer.
 - A wait ends on an event, never on a clock. No sleep-and-look loops.
 - Silence is not a verdict, and never a reason to stop.
 
@@ -157,7 +157,7 @@ Writing:
 
 Git, scope and finishing:
 - **A member acts within its granted permissions.** Each member holds standing grants for its own scope; a `keeper-*` reads, writes and executes in its own domain by default. An action beyond them is refused with a `REFUSAL-ID:`. The member asks once for what the task needs, as one Permission set (`RequestPermission` with `entries`, "Nothing stops on its own"); a single-call ask is for a truly single case only. The grant is `allow-once`, `allow-session`, `allow-folder`, `allow-project` or `allow-task`.
-- What a member holds is computed by tooling only, and `--member-permission-list <own-name>` lists it: the floor, its standing grants (declared for it by namespace, workspace or place), its session's or task's permission set, and grants received; `cred:` and `spend:` start with the human-owner.
+- What a member holds is computed by tooling only, and `--list-permissions <own-name>` lists it: the floor, its standing grants (declared for it by namespace, workspace or place), its session's or task's permission set, and grants received; `cred:` and `spend:` start with the human-owner.
 - Read `reference/engineering-discipline.md` for how a member's permission set is composed and for the `allows:` note.
 - A destructive or irreversible action is confirmed through the chain of command before it runs, even inside a grant; a high-stakes one reaches the human-owner every time (`magic-team.conversations.md`'s **anchor-refusal-safeguard**).
 - **A human's checkout and git identity are never the team's.** In a checkout the team does not own, a member never commits, resets, stashes, discards or pushes, and never uses the human's account or key, unless explicitly tasked. Git state there is never evidence: other sessions and the human share the same uncommitted tree, so a member may look but never relies on it. Git work happens only in a dedicated checkout of the member's own. Team-data commits are the tooling's. Source work ends at a correct, uncommitted tree, checked by reading the files.
@@ -220,11 +220,11 @@ Stores: the board, member inboxes, `audit/`, `vault/`. A document's type is its 
 **Filename**: `<type>-<date>-<matter>.md`, `<date>` per the tooling **Rule**. Frontmatter dates use `date-time`.
 
 **Inbox types** — a member's inbox holds only these:
-- `note-*` — context or coordination. A member writes notes into its own inbox only (`--member-inbox-note-upsert`). Standing notes (the roster) are rewritten in place under a fixed name.
+- `note-*` — context or coordination. A member writes notes into its own inbox only (`--upsert-inbox-note`). Standing notes (the roster) are rewritten in place under a fixed name.
 - `inquiry-*` — a question or handoff needing an answer. Any member may post one into any inbox (`post-inquiry`). The one member-to-member document.
-- `reflection-*` — a lesson whose resolution produces a change elsewhere. Own inbox only (`--member-inbox-reflection-upsert`).
+- `reflection-*` — a lesson whose resolution produces a change elsewhere. Own inbox only (`--upsert-inbox-reflection`).
 
-Any other type in an inbox is misfiled and is reported to `magic-coordinator`. An inbox item is handled by marking it processed with `--member-inbox-to-processed`, which stamps `processed-at` and moves it from the inbox's `incoming/` to its `processed/`; an item still wanted stays unmarked, in `incoming/`, where scans and `Wait` look. A standing note is never marked. An operation names an item, never its folder, and sees `incoming/` alone unless it is given `--include-processed`.
+Any other type in an inbox is misfiled and is reported to `magic-coordinator`. An inbox item is handled by marking it processed with `--mark-inbox-processed`, which stamps `processed-at` and moves it from the inbox's `incoming/` to its `processed/`; an item still wanted stays unmarked, in `incoming/`, where scans and `Wait` look. A standing note is never marked. An operation names an item, never its folder, and sees `incoming/` alone unless it is given `--include-processed`.
 
 Read `reference/board-item-model.md` for the board types, the audit and vault types, and the tracking-document rule.
 
@@ -241,7 +241,7 @@ A board item is cited in prose as `board://<state>/<item-filename>`; a tool take
 ## Who actually reads/writes the board
 
 - **`magic-coordinator` is the board's only writer**: creating an item, moving it, scoring it, updating its fields. A routine it runs (grooming, advance, interview, discuss, proposal) scopes what it does there; no routine and no dispatch gives any other member board-write authority.
-- Every other member reads one item with `--member-board-item-read`, and contributes through its session's tracking document, or an `inquiry-*` to `magic-coordinator`.
+- Every other member reads one item with `--get-board-item`, and contributes through its session's tracking document, or an `inquiry-*` to `magic-coordinator`.
 - A dispatched member does not check the board: its dispatch carries its work.
 - Read `reference/board-model.md` for the board states, the item lifecycle, garbage collection and the board dynamics.
 
@@ -253,7 +253,7 @@ Read `reference/board-item-model.md` for vault-items, audit-items, referencing a
 
 - A rule, convention or contract change → the skillset, through the change rule above.
 - A ruling on one piece of work → that work's own document (`magic-team.conversations.md`'s **decision-lands-in-the-document-it-binds**).
-- **Decisions in a tracking document are binding context; tooling records them.** Its `## Decisions` lines (answers and verdicts, written as each ask closes) are read before acting and never asked again; record a clarification with `--member-decision-record`.
+- **Decisions in a tracking document are binding context; tooling records them.** Its `## Decisions` lines (answers and verdicts, written as each ask closes) are read before acting and never asked again; record a clarification with `--record-decision`.
 - A member's own small lesson → a `reflection-*` in its own inbox. Once it binds anyone else, it is a convention.
 - **A repo- or workspace-relevant finding that passes the `MAGIC.md` bar (`magic-librarian/magic-librarian.armed.md`'s "Content philosophy") is written into a `MAGIC.md` at once**, where everyone reads it, never parked in an inbox or backlog nobody reads: the touched repo's root `MAGIC.md` (under `## For <team-member>` if new), else the `util.repository-<namespace>/MAGIC.md`, else the owning `keeper-*`/`partner-*`/`client-*` member's domain knowledge when its files live in a repository we own. Below the bar: not recorded — git keeps it.
 - A cross-customer member (`magic-*`) keeps only the generic pattern in its own files, with a pointer to the concrete instance.
@@ -263,8 +263,8 @@ Read `reference/board-item-model.md` for vault-items, audit-items, referencing a
 
 # Workspace
 
-- A workspace or directory is named, never pathed, in any skillset file. A path comes only from `--member-directory-path <name>[/<relative>]` at the point of use.
-- Each such place has a ceiling, `read-only` or `read-write` (`--member-directory-list`). Registering a place grants nothing, and nothing is written in a read-only place, whatever the grant. A permission target may name a place, `@<name>[:<glob>]`.
+- A workspace or directory is named, never pathed, in any skillset file. A path comes only from `--get-place-path <name>[/<relative>]` at the point of use.
+- Each such place has a ceiling, `read-only` or `read-write` (`--list-places`). Registering a place grants nothing, and nothing is written in a read-only place, whatever the grant. A permission target may name a place, `@<name>[:<glob>]`.
 - Two place names are built in, needing no registration: `.skillset-shared` (the machine's HOME skills folder) and `.skillset-.local` (the workspace's own local skillset). Use either in place of a path. A custom place name may not start with a dot.
 - Read `reference/workspace-and-execution.md` for the registries, the three workspace roles, invited members and the source of settings.
 - The team edits inside the workspace holding its own source tree. A workspace or directory outside it is read, and edited only under a write grant on it. A member's own skillset files are the exception, at the path its folder resolves to.
@@ -324,7 +324,7 @@ Deferred work starts only when the current step is released and he has said to s
 
 ## Anything needing the human-owner to act reaches him on his own direct channel
 
-A question, link or blocking decision reaches him at once on his direct channel, never left in a session. It is asked with an ask tool, `AskQuestion` for a plain question, alone in its own message; a report or announcement never carries one. Confirming that the coordinator's relayed words really carry his intent is asked of him directly, with its own ask tool, no relay under a session's `magic-coordinator` standing between. That trust check is not a bypass of "The ladder: one rung at a time" for an ordinary ask. A follow-up goes into the same thread. Before re-asking, read the thread. A question settled elsewhere is closed by its asker with `--member-pending-reply-settle`. Send path: `human-owner`'s `reach-human-owner` procedure.
+A question, link or blocking decision reaches him at once on his direct channel, never left in a session. It is asked with an ask tool, `AskQuestion` for a plain question, alone in its own message; a report or announcement never carries one. Confirming that the coordinator's relayed words really carry his intent is asked of him directly, with its own ask tool, no relay under a session's `magic-coordinator` standing between. That trust check is not a bypass of "The ladder: one rung at a time" for an ordinary ask. A follow-up goes into the same thread. Before re-asking, read the thread. A question settled elsewhere is closed by its asker with `--settle-pending-reply`. Send path: `human-owner`'s `reach-human-owner` procedure.
 
 ## Nothing stops on its own: log, escalate, resolve
 
@@ -430,34 +430,34 @@ The team's shared tooling floor. Behaviour is read with `--member-help <own-name
 
 **Rule**: a date inside any name — document, file, item — is `YYYYMMDD'T'HHmm'Z'`, or `YYYYMMDD'T'HHmmSS'Z'` where seconds are needed.
 
-**Prefix grant**: the whole `--member-*` namespace. An operation's prefix names who may run it, with no exception: `--member-*` any member, `--magic-*` `magic-coordinator` only, `--librarian-*` `magic-librarian`, `--client-*` the named `client-*` member it names, in its own session, nobody else, `--owner-*` only where a member's own list names it. `--manager-*` is no member's: it is the console's own, and is refused from inside any member's session, the coordinator's included. A member needing a `--magic-*` operation asks the session's `magic-coordinator`. `magic-coordinator` reaches a client operation through its own `--magic-client-operation-run <team-member> --client-<operation> [<argument>...]`, never the `--client-*` operation itself.
+**Who may run what**: the operations of the tool files, any member except those the tool index marks as the coordinator's own, which are `magic-coordinator`'s only; `--librarian-*` `magic-librarian`, `--client-*` the named `client-*` member it names, in its own session, nobody else, `--owner-*` only where a member's own list names it. `--manager-*` is no member's: it is the console's own, and is refused from inside any member's session, the coordinator's included. A member needing an operation of the coordinator's own asks the session's `magic-coordinator`. `magic-coordinator` reaches a client operation through its own `--client-operation-run --client-<operation> [<argument>...]`, never the `--client-*` operation itself.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--member-help <team-member>`
+- `--member-help`
 - `--help`
-- `--member-comms-slack-send-message <team-member> <target> ...`
-- `--member-comms-slack-read`
-- `--member-comms-slack-react`
-- `--member-contact-digest-send`
-- `--member-escalation-read`
-- `--member-escalation-answer`
-- `--member-pending-reply-read`
-- `--member-pending-reply-settle`
-- `--member-decision-record`
-- `--member-inbox-note-upsert`
-- `--member-upsert-member-inquiry`
-- `--member-inbox-reflection-upsert`
-- `--member-inbox-item-read`
-- `--member-inbox-to-processed`
-- `--member-board-item-read`
-- `--member-audit-item-read`
-- `--member-vault-item-read`
-- `--member-append-session-transcript`
-- `--member-permission-list <team-member>`
-- `--member-permission-pass <team-member> --to <member> --tool <tool> --target <target> --kind once|session|task`
-- `--member-directory-list` / `--member-directory-path <name>[/<relative>]`
-- `--member-namespace-list [<namespace>]`
+- `--slack-send-message <target> ...`
+- `--slack-read`
+- `--slack-react`
+- `--send-contact-digest`
+- `--read-escalation`
+- `--answer-escalation`
+- `--read-pending-reply`
+- `--settle-pending-reply`
+- `--record-decision`
+- `--upsert-inbox-note`
+- `--upsert-inbox-inquiry`
+- `--upsert-inbox-reflection`
+- `--get-inbox-item`
+- `--mark-inbox-processed`
+- `--get-board-item`
+- `--get-audit-item`
+- `--get-vault-item`
+- `--append-transcript`
+- `--list-permissions`
+- `--pass-permission --to <member> --tool <tool> --target <target> --kind once|session|task`
+- `--list-places` / `--get-place-path <name>[/<relative>]`
+- `--list-namespaces [<namespace>]`
 - `--owner-cleanup-purge`
 
 ## Execution mechanisms

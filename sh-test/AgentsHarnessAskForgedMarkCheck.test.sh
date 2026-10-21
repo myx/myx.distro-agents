@@ -287,7 +287,7 @@ rigPermNone "a member's reply holding a line shaped like the owner's click: it n
 echo "-- a Permission set: the same, and no participant is granted anything --"
 rigSetAsk(){ ## folder name -> the pending id of a set asked for reading that folder
 	RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-set
-	rigOp --magic-permission-set-request magic-coordinator dispatch-rig-set --entry "Read:$rigWs/$1/**" --scope task --session-id rig-set "${rigSetThree[@]}"
+	rigOp --request-permission-set magic-coordinator dispatch-rig-set --entry "Read:$rigWs/$1/**" --scope task --session-id rig-set "${rigSetThree[@]}"
 	RIG_OP_AGENT="" RIG_OP_SESSION=""
 	LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out"
 }

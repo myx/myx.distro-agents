@@ -20,7 +20,7 @@ review-by: inherit
 - Routine's local procedures
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -95,10 +95,10 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--member-inbox-note-upsert <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
-- `--member-upsert-member-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
+- `--upsert-inbox-note <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
+- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
 - `--librarian-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
 - `--routine-run-inline <routine>`
 

@@ -36,7 +36,7 @@
 ## is really asking -- lives in MAGIC.md under this operation's own heading.
 ##
 ## No --help entry: internal plumbing, called from
-## --magic-advance-close-state-and-unlock and directly by magic-tester for
+## the close of the advance lock (AgentsToolsRoutineLockCloseOwn) and directly by magic-tester for
 ## scratch-fixture verification.
 ##
 
@@ -644,7 +644,7 @@ case "$1" in
 
 		## 2 means this pass deleted nothing, and a diversion is not a deletion:
 		## a divert-only pass answers 2, with the summary line saying what it
-		## archived. --magic-advance-close-state-and-unlock treats 0 and 2 alike
+		## archived. The close of the advance lock treats 0 and 2 alike
 		## and only anything else as a failure.
 		if [ "$(( inboxDeletedCount + boardDeletedCount + trashDeletedCount ))" -eq 0 ] ; then
 			set +e ; return 2

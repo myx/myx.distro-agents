@@ -29,7 +29,7 @@
 ## It still keeps what a session needs to run and be found, which is no team data: the session records and stores under .local/agents.
 ##
 ## THE GATE. One list, agentsTeamDataGateOps, of the operations that create or change team data, asked in one place, where the tooling
-## dispatches an operation (DistroAgentsTools.fn.sh, after the caller checks): a workspace that is no team rig refuses them there, before
+## dispatches an operation (DistroAgentsTools.fn.sh, after the caller checks, and the front door of each tool file, AgentsContext.FrontDoor.include): a workspace that is no team rig refuses them there, before
 ## the operation makes a folder or says a word. The list holds the primitives every item passes (so an op that reaches an item by way of
 ## them is refused at the first of them, whatever its name) and the families that are the board's own machinery. Three writers have no
 ## primitive to pass, and ask the gate where they write: the contacts store (AgentsToolsContactsWriteFile), the clone of a team-data store
@@ -49,22 +49,24 @@ agentsTeamDataGateOps="--intern-op-board-upsert-move-edit
 --intern-team-data-final-gc-deletion
 --intern-op-inbox-to-processed
 --intern-op-member-inbox-upsert
---member-append-session-transcript
---magic-append-session-transcript
+--append-transcript
 --intern-op-append-session-transcript
 --intern-artifact-*
---magic-board-*
---magic-grooming-*
---magic-sweep-*
---magic-config-check
---magic-spawn-proxy
---magic-test-report-send
---magic-state-note-*
+--move-to-*
+--create-running
+--grooming-*
+--sweep-state-*
+--config-check
+--spawn-prompt
+--send-report
+--state-note-*
 --intern-op-state-note-upsert
---magic-advance-*
---magic-daily-*
---magic-retro-*
---magic-team-data-*
+--advance-*
+--daily-*
+--retro-*
+--commit-pending
+--intern-op-routine-lock-take
+--intern-op-routine-lock-close
 --intern-main-loop"
 
 ## The mode of this workspace, `<mode> <source>`: the mode the settings of the team set, `workspace`; else the one MDAT_WORKSPACE_MODE

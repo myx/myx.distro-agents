@@ -19,7 +19,7 @@ review-by: inherit
 - Routine's local procedures
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -79,18 +79,18 @@ All statements apply at the same time, always. These rules override a participan
 - Ending with several candidates and no winner is a valid outcome. Nothing promising is valid too; never manufacture a winner.
 - An idea that sounds bad stands during generation; filtering happens at **assess-lightly**.
 - One idea steering toward a decision: return to generation while there is ground left, or say the session has become a discussion.
-- Every exchange is kept as a `transcript-*` with `--member-append-session-transcript`. Waiting follows **wait-never-quit**.
+- Every exchange is kept as a `transcript-*` with `--append-transcript`. Waiting follows **wait-never-quit**.
 - Goal-directedness: cover the loosely set topic. Off-goal items are recorded quickly, not acted on now.
 
 # Routine-specific tooling
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
-- `--member-upsert-member-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
-- `--magic-grooming-create-backlog <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...` — `magic-coordinator` only
+- `--append-transcript --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
+- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
+- `--grooming-create-backlog <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...` — `magic-coordinator` only
 - `--routine-run-inline <routine>`
 
 # Maintainer Notes

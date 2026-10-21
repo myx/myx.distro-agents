@@ -65,7 +65,7 @@ rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
 }
 rigActCalls(){ ## how the stand-in was started for anything but a read, each start between its own brackets
-	LC_ALL=C grep -v -e '^\[--member-pending-reply-read\]' -e '^\[--manager-pending-reply-read\]' -e '^\[--manager-place-list\]$' "$MANAGER_SCREEN_RIG/words" 2> /dev/null | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed -e 's/ $//'
+	LC_ALL=C grep -v -e '^\[--read-pending-reply\]' -e '^\[--manager-pending-reply-read\]' -e '^\[--manager-place-list\]$' "$MANAGER_SCREEN_RIG/words" 2> /dev/null | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed -e 's/ $//'
 }
 
 echo "-- 1. the request is a row of Pending Questions; Enter opens the dialog of its answer --"

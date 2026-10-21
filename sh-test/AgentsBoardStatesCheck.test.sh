@@ -107,7 +107,7 @@ rigAssert "and says no fault of a folder"                    "$( LC_ALL=C grep -
 rigOp "$rigDir/d" --manager-dashboard-read team-data
 rigAssert "the dashboard's team data block ends well"        "$( cat "$rigDir/d.rc" )" 0
 rigAssert "with no board figure, for there is no item"       "$( LC_ALL=C grep -c 'board-' "$rigDir/d" || : )" 0
-rigOp "$rigDir/r" --magic-state-note-lock-status magic-coordinator
+rigOp "$rigDir/r" --state-note-read magic-coordinator
 rigAssert "a read of an item of the board that is not there names no folder fault" "$( LC_ALL=C grep -c -i -e 'no such file' -e 'no such board state' "$rigDir/r" "$rigDir/r.err" | LC_ALL=C awk -F: '{ n += $NF } END { print n + 0 }' )" 0
 rigAssert "none of the reads made a board"                   "$( [ -e "$rigStore/board" ] && printf made || printf none )" none
 

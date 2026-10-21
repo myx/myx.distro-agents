@@ -20,7 +20,7 @@ review-by: inherit
   - `slack-reaction-tracking` — the reaction ladder on each Slack message
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -64,19 +64,19 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **process-own-inbox**: Run standalone (not inside an advance pass or a daily): run `magic-team.process-inbox.routine magic-coordinator` first, inline (`--routine-run-inline magic-team.process-inbox.routine`). Inside those, the caller already did.
 2. **check**: Read this run's input scan result (`input/input-scan.md`). Each member's part resumes from that member's own `last_swept_ts`, by the tooling. Read the result this way:
-   - New messages are found by every participant's own message timestamps, diffed against what was handled — never by "after my own last post". Read the top level, then each open thread in full (`--member-comms-slack-read <team-member> <channel>:<ts> --thread`, `--magic-client-operation-run <team-member> --client-comms-slack-read <channel>:<ts> --thread` on a `client-*` member's source). Open threads are the open board items whose `communication-channel-id` is `slack:<channel>:<ts>`.
+   - New messages are found by every participant's own message timestamps, diffed against what was handled — never by "after my own last post". Read the top level, then each open thread in full (`--slack-read <channel>:<ts> --thread`, `--client-operation-run --client-comms-slack-read <channel>:<ts> --thread` on a `client-*` member's source). Open threads are the open board items whose `communication-channel-id` is `slack:<channel>:<ts>`.
    - A thread this member started, was answered in or was tagged in is followed whatever its age.
    - The executor's own new messages form one set, ascending by timestamp. Each member's part is attributed by the member it names, and read in the order it declares. Messages are never ordered across sources.
    - Nothing new, could not be read, and no part at all are three different results. The run's exit status says whether all, some or none of the sources were scanned; output present is never evidence of success. A capped section is never read as complete.
    - A member's own inbox and board items in its part are read to know what is recorded, never answered.
    - A post by another member is inbound. Its author is the item's `author:`, who it is for its `addressees:`; `@here (unaddressed)` is unaddressed. The conversation it was posted in settles neither.
-3. **process-each-message**: For each message, in order — the executor's set, then each `client-*` member's run — run this sequence before the next one. A message on a member's own source is handled as that member: it is the `<team-member>` of every call. On a `client-*` member's source each comms call to the other organisation runs through `--magic-client-operation-run`, since a `--member-comms-*` call acts only as this executor and `--magic-comms-*` never reaches the other organisation. Steps:
+3. **process-each-message**: For each message, in order — the executor's set, then each `client-*` member's run — run this sequence before the next one. A message on a member's own source is handled as that member: it is the `<team-member>` of every call. On a `client-*` member's source each comms call to the other organisation runs through `--client-operation-run`, since a `--member-comms-*` call acts only as this executor and `--magic-comms-*` never reaches the other organisation. Steps:
    1. **read**: Read the full message. A message quoting a block is read past the quote: the instruction is usually after it.
    2. **analyze**: Cross-reference it with the board and the current todo state. Identify what it needs: work ready to dispatch, an idle-pass candidate, a knowledge candidate for `magic-librarian`, a reply. Nothing needed is a normal result. Whether it was handled is judged from what it asked and whether that was done, never from a later reply existing. Slack: react 👀 now.
    3. **act**: Settle whether it is routed or handled:
       - Addressed to another member: deliver it into that member's inbox as an `inquiry-*` (`post-inquiry`), carrying its `communication-channel-id`. Routing is the whole handling. Never answer it on that member's behalf, however obvious the answer.
       - Handled here, by size: approved, simple and obvious → do it now through the standard dispatch; bigger, needing the whole team → note it for the next daily; concerning specific members → propose a one-on-one; worth recording only → file it for grooming.
-      - A genuinely new item is filed as a `note-*` in `magic-coordinator`'s own inbox (`--member-inbox-note-upsert`), or as an `inquiry-*` to the member it clearly concerns (`post-inquiry`). Filing settles where the record lives, not whose words it carries or who replies.
+      - A genuinely new item is filed as a `note-*` in `magic-coordinator`'s own inbox (`--upsert-inbox-note`), or as an `inquiry-*` to the member it clearly concerns (`post-inquiry`). Filing settles where the record lives, not whose words it carries or who replies.
       - Slack: react per `slack-reaction-tracking`'s act stage.
    4. **reply-if-warranted**: Acknowledge every message not ignored, by each platform's own rules:
       - Slack: reply to `<channel>:<ts>` of this message, never a bare channel. `--format blocks`, always.
@@ -85,15 +85,15 @@ Exact instructions. Execute in order, every step, literally as written — not l
       - Never impersonate: nobody passes off words that are not their own. The source settles who sends: team sources send as the coordinator, a member's source as that member.
       - A reply the addressee must act on tags them (`magic-team.conversations.md`'s **address-messages-clearly**).
       - A question goes standalone. Distinct points go as threaded replies under one root message, never one long message (**one-message-one-speech-act**).
-      - Mark it read on every platform (`--member-comms-email-mark-seen` for email). Slack: react per `slack-reaction-tracking`'s reply stage.
-   5. **advance-pointer**: Only now is this message swept. Move this member's pointer to it (`--magic-sweep-state-advance <team-member> <ts>`) before the next message.
+      - Mark it read on every platform (`--email-mark-seen` for email). Slack: react per `slack-reaction-tracking`'s reply stage.
+   5. **advance-pointer**: Only now is this message swept. Move this member's pointer to it (`--sweep-state-advance <ts>`) before the next message.
 
 # Closure steps
 
 1. **update-context**: steps:
-   - Sources a pass could not read go in that member's `sweep-state-note` (`--magic-sweep-state-upsert`).
-   - Fold identity and routing changes into the `roster-note` (`--magic-team-roster-upsert`).
-   - Post today's status and what is blocked on the human team to the own-status Trello card (`--magic-comms-trello-post-comment`).
+   - Sources a pass could not read go in that member's `sweep-state-note` (`--sweep-state-upsert`).
+   - Fold identity and routing changes into the `roster-note` (`--roster-upsert`).
+   - Post today's status and what is blocked on the human team to the own-status Trello card (`--trello-post-comment`).
    - Post milestones and blockers to `magic-team` as threaded replies under the session's root message, as they happen, in plain language. No dispatch mechanics, ids or scores.
    - Post completion status to `event-track`.
 
@@ -107,9 +107,9 @@ Slack only. Reactions add up, per `magic-team.conversations.md`'s **react-at-eac
 - 👀 seen — at **analyze**, once understood.
 - ✍️ noted — at **act**, when the message is routed or filed for later.
 - ✅ done — at **reply-if-warranted**, when it is resolved this sweep.
-- ⏳ waiting — at **reply-if-warranted**, when it now waits on a tracked board item. File a `note-pending-slack-reaction-<matter>` record in `magic-coordinator`'s own inbox (`--member-inbox-note-upsert`), naming the `communication-channel-id` and the board item. `check-pending-comms-actions` adds the outcome reaction when the item resolves.
+- ⏳ waiting — at **reply-if-warranted**, when it now waits on a tracked board item. File a `note-pending-slack-reaction-<matter>` record in `magic-coordinator`'s own inbox (`--upsert-inbox-note`), naming the `communication-channel-id` and the board item. `check-pending-comms-actions` adds the outcome reaction when the item resolves.
 
-A reaction is removed or replaced when the request is declined, becomes blocked pending the human-owner, or he stops or parks the work. An assumption he called wrong gets ❌ on the message it came from. The reaction target stays the original message for the item's whole life: promotion carries `communication-channel-id` unchanged. React on the member's own source as that member (`--magic-client-operation-run <team-member> --client-comms-slack-react ...` for a `client-*` member). Messages handled before this routine read them are not backfilled.
+A reaction is removed or replaced when the request is declined, becomes blocked pending the human-owner, or he stops or parks the work. An assumption he called wrong gets ❌ on the message it came from. The reaction target stays the original message for the item's whole life: promotion carries `communication-channel-id` unchanged. React on the member's own source as that member (`--client-operation-run --client-comms-slack-react ...` for a `client-*` member). Messages handled before this routine read them are not backfilled.
 
 # Routine's local rules
 
@@ -128,21 +128,21 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--magic-sweep-state-read <team-member>`
-- `--magic-sweep-state-advance <team-member> <ts>`
-- `--magic-sweep-state-upsert <team-member>`
-- `--member-comms-slack-read <team-member> <channel>:<ts> [--thread]`
-- `--member-comms-slack-send-message <team-member> <target> [text...]`
-- `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name>`
-- `--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>`
-- `--member-comms-email-mark-seen <team-member> <uid>`
-- `--magic-client-operation-run <team-member> --client-<operation> [<argument>...]`
-- `--member-upsert-member-inquiry <member> <item-filename>`
-- `--member-inbox-note-upsert <team-member> <item-filename>`
-- `--magic-team-roster-upsert <team-member>`
-- `--magic-comms-trello-post-comment <team-member> <card-id> [text...]`
+- `--sweep-state-read`
+- `--sweep-state-advance <ts>`
+- `--sweep-state-upsert`
+- `--slack-read <channel>:<ts> [--thread]`
+- `--slack-send-message <target> [text...]`
+- `--slack-react <channel>:<ts> <emoji-name>`
+- `--email-send <email@address>... -- <subject> -- <body...>`
+- `--email-mark-seen <uid>`
+- `--client-operation-run --client-<operation> [<argument>...]`
+- `--upsert-inbox-inquiry <member> <item-filename>`
+- `--upsert-inbox-note <team-member> <item-filename>`
+- `--roster-upsert`
+- `--trello-post-comment <card-id> [text...]`
 - `--routine-run-inline <routine>`
 
 # Maintainer Notes

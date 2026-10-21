@@ -53,19 +53,19 @@ rigAfter(){ ## writer name
 	rigAssert "$1: exactly one new commit"             "$(( $( rigCommits ) - rigBefore ))" 1
 }
 
-echo "-- writer: --magic-sweep-state-upsert --"
+echo "-- writer: --sweep-state-upsert --"
 rigStep
-printf 'last_swept_ts: 1700000000.000100\n' | "$rigFn" --magic-sweep-state-upsert magic-tester > "$rigTmp/out" 2>&1
+printf 'last_swept_ts: 1700000000.000100\n' | "$rigFn" --sweep-state-upsert magic-tester > "$rigTmp/out" 2>&1
 rigAfter "sweep-state"
 
-echo "-- writer: --magic-team-roster-upsert --"
+echo "-- writer: --roster-upsert --"
 rigStep
-printf '# Roster\n\nmember one\n' | "$rigFn" --magic-team-roster-upsert magic-coordinator > "$rigTmp/out" 2>&1
+printf '# Roster\n\nmember one\n' | "$rigFn" --roster-upsert magic-coordinator > "$rigTmp/out" 2>&1
 rigAfter "team-roster"
 
-echo "-- writer: --member-append-session-transcript --"
+echo "-- writer: --append-transcript --"
 rigStep
-"$rigFn" --member-append-session-transcript magic-tester --speaker rig --timestamp 2026-09-29T00:00:00Z \
+"$rigFn" --append-transcript magic-tester --speaker rig --timestamp 2026-09-29T00:00:00Z \
 	--message "one line" --transcript-name transcript-2026-09-29-rig.md --create > "$rigTmp/out" 2>&1
 rigAfter "session-transcript"
 
@@ -145,8 +145,8 @@ rigOriginHead(){ git --git-dir="$rigBare" rev-parse "refs/heads/$rigBranch" 2>/d
 rigPush
 rigAssert "nothing ahead: no push is attempted"       "$( grep -q 'pushed\|push failed\|rejected' "$rigTmp/out" && printf attempted || printf none )" none
 
-printf 'more\n' | "$rigFn" --magic-team-roster-upsert magic-coordinator > /dev/null 2>&1
-printf 'more again\n' | "$rigFn" --magic-team-roster-upsert magic-coordinator > /dev/null 2>&1
+printf 'more\n' | "$rigFn" --roster-upsert magic-coordinator > /dev/null 2>&1
+printf 'more again\n' | "$rigFn" --roster-upsert magic-coordinator > /dev/null 2>&1
 rigAssert "two writer commits sit local before the close" "$( git -C "$rigStore" rev-list --count "origin/$rigBranch..HEAD" )" 2
 rigPush
 rigAssert "close: origin equals local head"           "$( rigOriginHead )" "$( git -C "$rigStore" rev-parse HEAD )"
@@ -157,7 +157,7 @@ rigOther="$rigTmp/other"
 git clone -q "$rigBare" "$rigOther" 2>/dev/null && git -C "$rigOther" config user.email rig@example.invalid && git -C "$rigOther" config user.name rig
 printf 'from another host\n' > "$rigOther/other-host.md"
 git -C "$rigOther" add -A && git -C "$rigOther" commit -q -m other && git -C "$rigOther" push -q origin HEAD 2>/dev/null
-printf 'local after\n' | "$rigFn" --magic-team-roster-upsert magic-coordinator > /dev/null 2>&1
+printf 'local after\n' | "$rigFn" --roster-upsert magic-coordinator > /dev/null 2>&1
 rigLocalBefore="$( git -C "$rigStore" rev-parse HEAD )"
 rigPush
 rigAssert "rejected: origin now holds the local commit" "$( git --git-dir="$rigBare" merge-base --is-ancestor "$rigLocalBefore" "refs/heads/$rigBranch" && printf yes || printf no )" yes
@@ -171,7 +171,7 @@ rigAssert "rejected: the main loop's next clonePull fast-forwards" "$( "$MYXROOT
 echo "-- an unreachable origin: warned, commits kept, a later close succeeds --"
 git -C "$rigStore" remote set-url origin "$rigTmp/missing.git"
 printf 'TEAM_DATA_GIT_REMOTE=%s\n' "$rigTmp/missing.git" > "$rigWs/.local/.agents/magic-team.agent.env"
-printf 'while offline\n' | "$rigFn" --magic-team-roster-upsert magic-coordinator > /dev/null 2>&1
+printf 'while offline\n' | "$rigFn" --roster-upsert magic-coordinator > /dev/null 2>&1
 rigOffline="$( git -C "$rigStore" rev-parse HEAD )"
 rigPush
 rigAssert "unreachable: a stated warning"              "$( grep -q 'team-data push failed' "$rigTmp/out" && printf yes || printf no )" yes

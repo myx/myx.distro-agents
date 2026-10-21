@@ -5,7 +5,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, keeper-myx, hu
 
 Normative contract: this file's own `# Contract` section, at its end. Where it and the rest of this file disagree, `# Contract` wins.
 
-Not a member/routine contract — this is the fixed text of the one ask `--magic-permission-set-request` posts to the human-owner for the extras of a task's or a session's permission set, of the one ask a member makes for what its own task needs (`RequestPermission` with `entries`), and of the one prompt a session's own permission questions to the human-owner become when a further refused call is asked while one is still open. The tooling fills its slots and sends it as the team bot, through the member send. It is not an event-track post.
+Not a member/routine contract — this is the fixed text of the one ask `--request-permission-set` posts to the human-owner for the extras of a task's or a session's permission set, of the one ask a member makes for what its own task needs (`RequestPermission` with `entries`), and of the one prompt a session's own permission questions to the human-owner become when a further refused call is asked while one is still open. The tooling fills its slots and sends it as the team bot, through the member send. It is not an event-track post.
 
 ## Contents
 

@@ -2,10 +2,8 @@
 
 ##
 ## DistroAgentsQuestions.fn.sh -- every ask of the team (F1.4 of the refactorings epic). A subsystem interface: results are read from it, by agent tools,
-## the shell console and shell automation alike. Its operations: the escalations (questions, readbacks, permission requests, decisions) and the replies pending to them. The names are the table of
-## sh-lib/harness/AgentsContext.FrontForward.include, one line each.
-## First stage: each operation goes on under the name it had in DistroAgentsTools.fn.sh, with every check and gate it had. The old names are
-## deleted, and the operations move into this file, when the stubs leave DistroAgentsTools.fn.sh.
+## the shell console and shell automation alike. Its operations: the escalations (questions, readbacks, permission requests, decisions) and the replies pending to them. They are the lines of
+## sh-lib/harness/AgentsContext.FrontTable.include that name this file, and a bare call or --help lists them.
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -30,12 +28,8 @@ case "$BASH" in
 esac
 
 DistroAgentsQuestions(){
-	local MDSC_CMD='DistroAgentsQuestions'
-	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontForward.include"
-	if AgentsToolsFrontKnows DistroAgentsQuestions "$@" ; then
-		AgentsToolsFrontForward DistroAgentsQuestions "$@"
-		return $?
-	fi
+	local MDSC_CMD='DistroAgentsQuestions' frontDone="" frontRc=0
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	case "${1:-}" in
 		'')
 			AgentsToolsFrontHelp DistroAgentsQuestions "every ask of the team" >&2
@@ -45,6 +39,31 @@ DistroAgentsQuestions(){
 			AgentsToolsFrontHelp DistroAgentsQuestions "every ask of the team" >&2
 			return 0
 		;;
+	esac
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontDoor.include"
+	[ -z "$frontDone" ] || return "$frontRc"
+	case "$1" in
+
+		--amend-pending-reply|--read-pending-reply|--settle-pending-reply)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberPendingReply.include"
+			return $?
+		;;
+
+		--answer-escalation|--forward-escalation|--read-escalation|--readback-escalation)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include"
+			return $?
+		;;
+
+		--record-decision)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.InternOpDecisions.include"
+			return $?
+		;;
+
+		--request-permission-set)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpPermission.include"
+			return $?
+		;;
+
 		*)
 			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 			set +e ; return 1

@@ -372,7 +372,7 @@ rigAssert "typed all the same, it is no answer: the request comes back, stays op
 	"no:VERDICT: RETURNED:reply-pending:no-set:1"
 ## The coordinator's answer on behalf, from a session of its own.
 ( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SESSION_THREAD MDAT_SPAWN_SESSION_ID=rig-folder-coordinator MDAT_SPAWN_AGENT=magic-coordinator \
-	MDAT_DATA_ROOT="$rigScenarioDir/data" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigWs" bash "$rigTools" --magic-escalation-answer magic-coordinator "$( rigRecordId )" allow-folder ) \
+	MDAT_DATA_ROOT="$rigScenarioDir/data" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigWs" bash "$rigTools" --answer-escalation magic-coordinator "$( rigRecordId )" allow-folder ) \
 	> "$rigScenarioDir/op.out" 2> "$rigScenarioDir/op.err" ; rigOpRc=$?
 rigAssert "given through the team operation it is refused too: no verdict of this request" \
 	"$( [ "$rigOpRc" != 0 ] && printf refused || printf taken ):$( rigHolds "$rigScenarioDir/op.err" 'allow-folder is not a verdict of this permission' ):$( rigRecordField status )" "refused:yes:reply-pending"

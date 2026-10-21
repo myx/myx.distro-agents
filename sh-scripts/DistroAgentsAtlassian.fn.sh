@@ -2,10 +2,8 @@
 
 ##
 ## DistroAgentsAtlassian.fn.sh -- the team's Jira and Confluence operations (F1.4 of the refactorings epic). A subsystem interface: results are read from it, by agent tools,
-## the shell console and shell automation alike. Its operations: boards, sprints, issues, spaces and pages. The names are the table of
-## sh-lib/harness/AgentsContext.FrontForward.include, one line each.
-## First stage: each operation goes on under the name it had in DistroAgentsTools.fn.sh, with every check and gate it had. The old names are
-## deleted, and the operations move into this file, when the stubs leave DistroAgentsTools.fn.sh.
+## the shell console and shell automation alike. Its operations: boards, sprints, issues, spaces and pages. They are the lines of
+## sh-lib/harness/AgentsContext.FrontTable.include that name this file, and a bare call or --help lists them.
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -30,12 +28,8 @@ case "$BASH" in
 esac
 
 DistroAgentsAtlassian(){
-	local MDSC_CMD='DistroAgentsAtlassian'
-	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontForward.include"
-	if AgentsToolsFrontKnows DistroAgentsAtlassian "$@" ; then
-		AgentsToolsFrontForward DistroAgentsAtlassian "$@"
-		return $?
-	fi
+	local MDSC_CMD='DistroAgentsAtlassian' frontDone="" frontRc=0
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	case "${1:-}" in
 		'')
 			AgentsToolsFrontHelp DistroAgentsAtlassian "the team's Jira and Confluence operations" >&2
@@ -45,6 +39,26 @@ DistroAgentsAtlassian(){
 			AgentsToolsFrontHelp DistroAgentsAtlassian "the team's Jira and Confluence operations" >&2
 			return 0
 		;;
+	esac
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontDoor.include"
+	[ -z "$frontDone" ] || return "$frontRc"
+	case "$1" in
+
+		--confluence-comment-add|--confluence-comment-read|--confluence-page-create|--confluence-page-delete|--confluence-page-search|--confluence-page-update|--jira-comment-add|--jira-comment-read|--jira-issue-create|--jira-issue-delete|--jira-issue-search|--jira-issue-transition|--jira-issue-update)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicComms.include"
+			return $?
+		;;
+
+		--confluence-page-read|--confluence-space-list)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsConfluence.include"
+			return $?
+		;;
+
+		--jira-board-issue-search|--jira-board-list|--jira-board-read|--jira-issue-read|--jira-sprint-issue-search|--jira-sprint-list)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.MemberCommsJira.include"
+			return $?
+		;;
+
 		*)
 			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 			set +e ; return 1

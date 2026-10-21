@@ -45,7 +45,7 @@ Maintainers: see [MAGIC.md](MAGIC.md) for the decisions, conventions and gotchas
 ## Getting help
 
 - `DistroAgentsTools.fn.sh --help` — every operation, with full syntax.
-- `DistroAgentsTools.fn.sh --member-help <member>` — only what that member may run.
+- `DistroAgentsKnowledge.fn.sh --member-help <member>` — only what that member may run.
 - `Agents --help` — agents-context dispatcher syntax, from inside the console.
 - Press TAB after a command name and a space for shell completion.
 

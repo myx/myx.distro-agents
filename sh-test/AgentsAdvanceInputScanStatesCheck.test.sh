@@ -132,8 +132,8 @@ rigScan(){ ## result file -- one pass of the board sections
 }
 rigPass(){ ## result file -- one advance pass: the routine takes its lock, free, and its housekeeping runs there (<result>.lock), then its scan reads (<result>)
 	rm -f "$rigD/inboxes/magic-coordinator/incoming/note-20260809T154715Z-advance-state-and-lock.md"
-	rigRun "$1.lock" --magic-advance-lock-acquire magic-coordinator rig-advance-pass
-	[ "$( cat "$1.lock.rc" )" = 0 ] || rigRefuse "--magic-advance-lock-acquire failed in the rig: $( tail -2 "$1.lock.err" )"
+	rigRun "$1.lock" --intern-op-routine-lock-take advance magic-coordinator rig-advance-pass
+	[ "$( cat "$1.lock.rc" )" = 0 ] || rigRefuse "--intern-op-routine-lock-take advance failed in the rig: $( tail -2 "$1.lock.err" )"
 	rigScan "$1"
 }
 rigSnap(){ ## rig name -- every file of that rig's workspace and data root with its checksum, one line each
@@ -316,7 +316,7 @@ rigCheck "control: a row whose status a pass changed reads different, and so doe
 rigCheck "and prints no section either"                                 "$( rigHeadings "$rigTmp/b1.s2" )" 0
 rigCheck "an aged advance.routine item is still advance.routine after the second scan" "$( rigHeader "$rigD/board/review/task-rig-rv-advr.md" review-by )" advance.routine
 rigCheck "control: an aged item with an unregistered session id was rewritten, in the same two scans" "$( rigHeader "$rigD/board/review/task-rig-rv-aged.md" review-by )" magic-coordinator
-rigRun "$rigTmp/b1.mv" --magic-board-to-processed magic-coordinator dispatch-rig-rv-triv.md --from-state:review
+rigRun "$rigTmp/b1.mv" --move-to-processed magic-coordinator dispatch-rig-rv-triv.md --from-state:review
 rigCheck "the coordinator's own move review -> processed succeeds"      "$( cat "$rigTmp/b1.mv.rc" )" 0
 rigCheck "the item is now in board/processed"                           "$( rigLoc dispatch-rig-rv-triv.md )" processed
 rigNew b1e

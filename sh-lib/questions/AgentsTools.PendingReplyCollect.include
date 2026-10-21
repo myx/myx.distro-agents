@@ -6,7 +6,7 @@
 ## questions nobody is waiting on. Definitions only, sourced by the
 ## --intern-op-pending-reply-collect arm (AgentsTools.InternOpPendingReply.include).
 ##
-## Each open record is read once and never waited on: one --member-wait-for-input round
+## Each open record is read once and never waited on: one --wait-for-input round
 ## with a zero bound, over the question's own thread, since the question -- the same
 ## probe and the same answer rules a live wait uses. A plain question its item's Decisions
 ## already answer is closed from there. A readback, decision or permission is read only by

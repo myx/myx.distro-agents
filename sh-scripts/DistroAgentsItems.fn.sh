@@ -2,10 +2,8 @@
 
 ##
 ## DistroAgentsItems.fn.sh -- the items of the team's stores: board, inbox, audit and vault (F1.4 of the refactorings epic). A subsystem interface: results are read from it, by agent tools,
-## the shell console and shell automation alike. Its operations: the board items and their states, the review of a dispatched item, the inbox notes, reflections and inquiries, and the audit and vault items. The names are the table of
-## sh-lib/harness/AgentsContext.FrontForward.include, one line each.
-## First stage: each operation goes on under the name it had in DistroAgentsTools.fn.sh, with every check and gate it had. The old names are
-## deleted, and the operations move into this file, when the stubs leave DistroAgentsTools.fn.sh.
+## the shell console and shell automation alike. Its operations: the board items and their states, the review of a dispatched item, the inbox notes, reflections and inquiries, and the audit and vault items. They are the lines of
+## sh-lib/harness/AgentsContext.FrontTable.include that name this file, and a bare call or --help lists them.
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -30,12 +28,8 @@ case "$BASH" in
 esac
 
 DistroAgentsItems(){
-	local MDSC_CMD='DistroAgentsItems'
-	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontForward.include"
-	if AgentsToolsFrontKnows DistroAgentsItems "$@" ; then
-		AgentsToolsFrontForward DistroAgentsItems "$@"
-		return $?
-	fi
+	local MDSC_CMD='DistroAgentsItems' frontDone="" frontRc=0
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	case "${1:-}" in
 		'')
 			AgentsToolsFrontHelp DistroAgentsItems "the items of the team's stores: board, inbox, audit and vault" >&2
@@ -45,6 +39,41 @@ DistroAgentsItems(){
 			AgentsToolsFrontHelp DistroAgentsItems "the items of the team's stores: board, inbox, audit and vault" >&2
 			return 0
 		;;
+	esac
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontDoor.include"
+	[ -z "$frontDone" ] || return "$frontRc"
+	case "$1" in
+
+		--accept-review|--follow-up-review|--reject-review|--request-review|--return-review)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.InternOpReview.include"
+			return $?
+		;;
+
+		--advance-batch-outcome|--advance-to-parked|--advance-to-running)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicAdvance.include"
+			return $?
+		;;
+
+		--commit-pending)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicTeamData.include"
+			return $?
+		;;
+
+		--create-running|--move-to-backlog|--move-to-blocked|--move-to-parked|--move-to-pending|--move-to-processed)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicBoard.include"
+			return $?
+		;;
+
+		--get-audit-item|--get-board-item|--get-inbox-item|--get-vault-item|--mark-inbox-processed|--trash-inbox-item|--upsert-inbox-inquiry|--upsert-inbox-note|--upsert-inbox-reflection)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"
+			return $?
+		;;
+
+		--grooming-create-backlog|--grooming-create-blocked|--grooming-create-pending|--grooming-create-processed|--grooming-create-running|--grooming-to-archived|--grooming-to-backlog|--grooming-to-blocked|--grooming-to-parked|--grooming-to-pending|--grooming-to-processed|--grooming-to-retained|--grooming-to-running)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicGrooming.include"
+			return $?
+		;;
+
 		*)
 			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 			set +e ; return 1

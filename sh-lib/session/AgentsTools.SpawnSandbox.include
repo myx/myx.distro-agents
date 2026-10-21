@@ -133,7 +133,7 @@ AgentsToolsSessionThreadFind(){
 ## caller's own. Prints "channel:ts" and returns 0; prints nothing and returns 1 for none.
 ## A bare Wait takes a spawn's thread by AgentsToolsSessionThreadFind alone
 ## (AgentsToolsWaitDefaultSources). With none it watches magic-team and human-owner, as it
-## always has, and beside them the thread recorded here (--member-wait-for-input).
+## always has, and beside them the thread recorded here (--wait-for-input).
 AgentsToolsSessionCurrentThreadFind(){
 	AgentsToolsSessionThreadFind && return 0
 	local currentSession="${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" currentLine=""
@@ -937,7 +937,7 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code
 	[ -f "$sandboxFile" ] || return 1
 	mkdir -p "$MMDAPP/.local/temp" || return 1
 	## A temp file of this close's own, by mktemp and never by $$: the members one call
-	## started (--magic-spawn-session) close in subshells of that one shell, which have its
+	## started (--spawn-session) close in subshells of that one shell, which have its
 	## $$, so two closing at once met on one name, and one read no changes and stayed started.
 	sandboxOps="$( mktemp "$MMDAPP/.local/temp/mdat-session-header-ops.XXXXXX" )" || return 1
 	{
@@ -1040,7 +1040,7 @@ AgentsToolsSpawnProxySessionNotice(){ ## thread or conversation, the member it i
 		agentsSpawnProxyNoticePosted="yes"
 	## The send refuses with rc 1 for every fault, so its words are all there is: the one exact line
 	## it prints for a member with no Slack DM, that member named, anchored at both ends.
-	elif noticeNoDm="--member-comms-slack-send-message: NO-SLACK-DM: team member '$noticeThread' has no Slack DM channel of its own" \
+	elif noticeNoDm="--slack-send-message: NO-SLACK-DM: team member '$noticeThread' has no Slack DM channel of its own" \
 			LC_ALL=C awk 'index( $0, "⛔ ERROR: " ) == 1 && length( $0 ) > length( ENVIRON["noticeNoDm"] ) && substr( $0, length( $0 ) - length( ENVIRON["noticeNoDm"] ) + 1 ) == ENVIRON["noticeNoDm"] { found = 1 } END { exit found ? 0 : 1 }' "$noticeOut" 2> /dev/null \
 		&& AgentsToolsTeamMemberDirectory "$noticeThread" > /dev/null 2>&1 ; then
 		## Told to a member with no Slack DM of its own: in its inbox, a hand-off it reads later, as

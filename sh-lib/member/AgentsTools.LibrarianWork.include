@@ -527,7 +527,7 @@ AgentsToolsLibrarianRequestUpdate(){ ## the operation, its arguments...
 			edit) AgentsToolsLibrarianBlockWrite old "$reqOldPath" ; AgentsToolsLibrarianBlockWrite new "$reqNewPath" ;;
 		esac
 	} > "$reqSent"
-	AgentsToolsLibrarianTool DistroAgentsTools --member-upsert-member-inquiry magic-librarian "$reqName" --from-member "$reqMember" --from-file "$reqSent" > /dev/null || reqRc=$?
+	AgentsToolsLibrarianTool DistroAgentsTools --upsert-inbox-inquiry magic-librarian "$reqName" --from-member "$reqMember" --from-file "$reqSent" > /dev/null || reqRc=$?
 	rm -f "$reqDetail" "$reqOldPath" "$reqNewPath" "$reqSent"
 	if [ "$reqRc" != 0 ] ; then
 		echo "$MDSC_CMD: ⛔ ERROR: $reqOp: the request could not be filed into magic-librarian's inbox -- nothing was filed" >&2

@@ -23,7 +23,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Operating modes
   - Routines (index)
 - Team-Member's (-specific) tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
 
 # Summary
@@ -53,9 +53,9 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 # Terminology: coordination
 
-- `roster-note` — the team roster cache: member, domain and posture rows, plus each member's persona fields. Read with `--magic-team-roster-read`, written with `--magic-team-roster-upsert`. The members' own `SKILL.md` and `.basic.md` stay the source of truth.
-- `state-note` — this member's state document: its standing directives and their lock (the file name keeps `heartbeat-state-and-lock`). Read with `--magic-state-note-read`; the directives are written by `AgentDispatcherTools.fn.sh --directive-set`, never by hand.
-- `sweep-state-note` — one member's comms-sweep position. Read with `--magic-sweep-state-read`, advanced with `--magic-sweep-state-advance`, written with `--magic-sweep-state-upsert`.
+- `roster-note` — the team roster cache: member, domain and posture rows, plus each member's persona fields. Read with `--get-roster`, written with `--roster-upsert`. The members' own `SKILL.md` and `.basic.md` stay the source of truth.
+- `state-note` — this member's state document: its standing directives and their lock (the file name keeps `heartbeat-state-and-lock`). Read with `--state-note-read`; the directives are written by `AgentDispatcherTools.fn.sh --directive-set`, never by hand.
+- `sweep-state-note` — one member's comms-sweep position. Read with `--sweep-state-read`, advanced with `--sweep-state-advance`, written with `--sweep-state-upsert`.
 - `resume-review` — on reactivating tracked work, dispatch the sub-pieces already settled and shrink the tracked scope to what is still open.
 - `comms-action record` — a `note-*` this member files in its own inbox, queuing one deferred comms action: `note-pending-slack-reaction-<matter>` or `note-pending-trello-update-<matter>`. One record per action. Another member wanting a Trello update asks for it by `post-inquiry`.
 
@@ -92,7 +92,7 @@ Steps:
    - `checked:` — what this brief did on both points above, so a brief that looked and found nothing differs from one that never looked.
    - `access:` — the places and tools this work needs, worked out before launch, so the spawned member asks once with `entries` rather than call by call.
    Re-read the drafted brief for the block before sending.
-3. **spawn-launch**: Spawn with the team `Agent` tool (`mcp__myx_distro__Agent` in a native client), never a client's in-process subagent. Further members join by the session id the first spawn printed. To start a routine's own session with its executors in one call, use `--magic-spawn-session`.
+3. **spawn-launch**: Spawn with the team `Agent` tool (`mcp__myx_distro__Agent` in a native client), never a client's in-process subagent. Further members join by the session id the first spawn printed. To start a routine's own session with its executors in one call, use `--spawn-session`.
 4. **spawn-record-dispatch**: Board-tracked work: move the tracked item to `board-running` if it is not there, and record the spawn's receipt as its `execution-receipt`.
 5. **spawn-dismiss**: A spawned member never ends on its own: it hands back, then waits (`magic-team.armed.md`'s **wait-never-quit**). Its handback puts its item into `board-review`; settle it with `magic-team.handback-review.routine`, whose verdicts end or continue the session. A session spawned with `--wait` ends on its own when its pass is done. `TaskStop` only for one that does not respond. The routine that spawned it names when. By hand: `SendMessage` its session thread, `address_to` naming it, message `DISMISSED`; with no `address_to` it dismisses no one. The tooling also posts, in that same thread, a fact-only note of how the run ended, death included; a `TaskStop` or a console kill of a member's run is told there too, naming who did it. For a death, the control thread asks the item's reviewer a decision instead (`resume`, `fresh`, `close`, `kill`); no reviewer, no question. `kill` ends every live run of that session; `resume`/`fresh` start the member again in the same session. An answer that fails asks the reviewer again, once per failure; an item a failed restart left running with no run goes back to review.
 
@@ -199,13 +199,13 @@ The fast gate at task creation: may this task exist, and may the asking member a
 
 - Work crossing a domain boundary loops in the owning member directly, never through an adjacent member. No task directs a member outside a domain another member owns. Ambiguous ownership is escalated.
 - No member creates a task telling another member to do something destructive or irreversible outside that action's established mandate. What counts as destructive is the acting member's own file (for infrastructure, `magic-devops.armed.md`'s "Destructive and irreversible actions").
-- A dispatch sanctioning a mutating action names the exact operation and target set. An unnamed one is unsanctioned, and the acting member escalates it. This member works out what the whole task needs before asking, the same as any member, and asks once: a permission the session will need is planned into its `dispatch-*` item's `allows:` (`--magic-permission-set-request`, an entry naming a place as `@<name>[:<glob>]` -- `.skillset-shared` and `.skillset-.local` are two built-in places, needing no registration), and the dispatch names the namespaces its work reads (`--member-namespace-list`).
+- A dispatch sanctioning a mutating action names the exact operation and target set. An unnamed one is unsanctioned, and the acting member escalates it. This member works out what the whole task needs before asking, the same as any member, and asks once: a permission the session will need is planned into its `dispatch-*` item's `allows:` (`--request-permission-set`, an entry naming a place as `@<name>[:<glob>]` -- `.skillset-shared` and `.skillset-.local` are two built-in places, needing no registration), and the dispatch names the namespaces its work reads (`--list-namespaces`).
 - **A batch of tasks is dispatched as a coworking session**, the quorum group as participants and the specialists as invitees, never as a series of solo dispatches. Solo is only for clear, checkable, single-dispatchable work one member fully owns. A restarted session re-notifies every participant and invitee.
 - **One spawned session holds one line of work.** A related follow-up goes to the live session by message; a new line of work gets a fresh session.
 - **`magic-coordinator` is the mandated channel to the human-owner**, for status, questions and approvals. No other member seeks his approval or verifies Slack, Trello or approval content on its own initiative. Inside a session it coordinates:
   - Members ask participants for facts, and this member, by `AskQuestion`, for consent and decisions (`magic-team.armed.md`'s "Escalation and chain of command"); their permission asks go to `magic-coordinator.permission-escalation.routine`, which this member runs. A consent or decision question still follows "The ladder: one rung at a time": the group works it out first, this member's answer is one rung, not the last word where it binds beyond the session.
-  - It settles a simple question itself and answers with `--magic-escalation-answer`, permission verdicts only for permissions it holds; tooling routes the rest up.
-  - A question whose answer binds the team is registered as a board item blocking the work it gates, and forwarded to him at once with `--magic-escalation-forward`, never held for a summary. Whether an answer binds is the test, not what the question blocks.
+  - It settles a simple question itself and answers with `--answer-escalation`, permission verdicts only for permissions it holds; tooling routes the rest up.
+  - A question whose answer binds the team is registered as a board item blocking the work it gates, and forwarded to him at once with `--forward-escalation`, never held for a summary. Whether an answer binds is the test, not what the question blocks.
   - One bounded exception: this member explicitly directs a member to seek his approval for something outside that member's mandate.
   - A member with no coordinator present asks its parent session first with `AskQuestion`; only with no parent present does it ask him.
 - An `owner-guaranteed` rule (this channel, no-agent-consent, the credential-store boundary) is crossed only inside `magic-coordinator.root-harness.routine`'s **run-team-fix-session**, through its per-conflict confirmation.
@@ -269,31 +269,31 @@ The board's states and transitions: `magic-team/reference/board-model.md`.
 
 Every `magic-tooling` operation this member's own procedures and rules use. Behaviour is read with `--member-help magic-coordinator`. Routines list their own.
 
-**Prefix grant**: the whole `--member-*` and `--magic-*` namespaces.
+**Who may run what**: every operation of the tool files, the coordinator's own among them.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--member-comms-slack-send-message <team-member> <target> [text...]`
-- `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name>`
-- `--magic-client-operation-run <team-member> --client-<operation> [<argument>...]` — this member's own way to a `client-*` member's operation; the named member is the client, dispatched in its own session.
-- `--magic-comms-trello-post-comment <team-member> <card-id> [text...]`
-- `--magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:...]...`
-- `--magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:...]...`
-- `--magic-board-to-backlog <team-member> <item-filename> --from-state:<state> [--header:...]...`
-- `--magic-board-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...`
-- `--magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:...]...`
-- `--magic-board-create-running <team-member> <item-filename> [--header:...]...`
-- `--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:...]...`
-- `--magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--spawn-settings-workspace <name>] [--spawn-cli-service <name>] [<team-member>...]`
-- `--member-inbox-note-upsert <team-member> <item-filename>`
-- `--member-upsert-member-inquiry <member> <item-filename>`
-- `--magic-team-roster-read <team-member>`
-- `--magic-team-roster-upsert <team-member>`
-- `--magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]`
-- `--magic-escalation-forward <coordinator> <request-id>`
-- `--magic-permission-set-request <magic-coordinator> <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...` — one `--entry` may name several tools for one target; after a place's entries the asker may state what that access will be used for, which helps the person decide. With no `--participant`, the set is for the item's own members. A target may name a place, built in (`.skillset-shared`, `.skillset-.local`) or registered; a custom place name may not start with a dot. A permission is decided on the real file, so a link and its target get the same answer.
-- `--magic-permission-list --member <member>`
-- `--magic-permission-revoke <ref>`
+- `--slack-send-message <target> [text...]`
+- `--slack-react <channel>:<ts> <emoji-name>`
+- `--client-operation-run --client-<operation> [<argument>...]` — this member's own way to a `client-*` member's operation; the named member is the client, dispatched in its own session.
+- `--trello-post-comment <card-id> [text...]`
+- `--move-to-pending <item-filename> --from-state:<state> [--header:...]...`
+- `--move-to-blocked <item-filename> --from-state:<state> [--header:...]...`
+- `--move-to-backlog <item-filename> --from-state:<state> [--header:...]...`
+- `--move-to-parked <item-filename> --from-state:<state> [--header:...]...`
+- `--move-to-processed <item-filename> --from-state:<state> [--header:...]...`
+- `--create-running <item-filename> [--header:...]...`
+- `--advance-to-running <item-filename> --from-state:<state> [--header:...]...`
+- `--spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--spawn-settings-workspace <name>] [--spawn-cli-service <name>] [<team-member>...]`
+- `--upsert-inbox-note <team-member> <item-filename>`
+- `--upsert-inbox-inquiry <member> <item-filename>`
+- `--get-roster`
+- `--roster-upsert`
+- `--answer-escalation <request-id> <verdict> [text]`
+- `--forward-escalation <request-id>`
+- `--request-permission-set <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...` — one `--entry` may name several tools for one target; after a place's entries the asker may state what that access will be used for, which helps the person decide. With no `--participant`, the set is for the item's own members. A target may name a place, built in (`.skillset-shared`, `.skillset-.local`) or registered; a custom place name may not start with a dot. A permission is decided on the real file, so a link and its target get the same answer.
+- `--list-permissions --member <member>`
+- `--revoke-permission <ref>`
 - `--owner-workspace-list`
 
 # Maintainer Notes

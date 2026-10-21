@@ -47,7 +47,7 @@
 ## member with no forward (`rerouted-from`): what its thread holds is the answer of the one
 ## it was first addressed to, which was not applied, and says nothing of who has it now.
 ##
-## Sent through --member-comms-slack-send-message, as the ask's own owner, under the
+## Sent through --slack-send-message, as the ask's own owner, under the
 ## identity its record names (`ask-identity: bot`), addressed with the same
 ## `--address-to` the ask used. A record with no thread, question ts, owner or
 ## addressee is skipped and logged, never guessed at.

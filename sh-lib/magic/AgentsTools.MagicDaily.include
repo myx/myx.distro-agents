@@ -2,11 +2,9 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.MagicDaily.include -- routine-daily's own --magic-daily-*
-## operation group for DistroAgentsTools.fn.sh's dispatcher. Sourced lazily
-## from the `--magic-daily-*)` wildcard arm via the standard
-## $MDLT_ORIGIN-based path. Not standalone: relies on being dot-sourced for
-## $1/$@/$MDSC_CMD.
+## AgentsTools.MagicDaily.include -- routine-daily's --daily-lock-refresh operation of
+## AgentDispatcherTools.fn.sh. Sourced lazily from the arm of the tool file that owns its names (sh-lib/harness/AgentsContext.FrontTable.include).
+## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
 ## Where an inbox item lives (F4.3).
@@ -18,86 +16,15 @@ type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-ag
 
 case "$1" in
 
-	## HEADER ORDER IS LOAD-BEARING.
-	--magic-daily-state-and-lock-upsert)
-		shift
-		local callingMember="$1"
-		shift || true
-		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-daily-state-and-lock-upsert: syntax is <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
-			set +e ; return 1
-		fi
-		local passthrough=()
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--header:*|--upsert-from-stdin|--edit-patch-from-stdin) passthrough+=( "$1" ) ; shift ;;
-				--from-file)
-					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-daily-state-and-lock-upsert: --from-file: value required" >&2
-						set +e ; return 1
-					fi
-					passthrough+=( "$1" "$2" ) ; shift 2
-				;;
-				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-daily-state-and-lock-upsert: invalid option: $1" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		local recheckDate
-		recheckDate="$( AgentsToolsRecheckDate 30 )"
-		AgentsToolsItemUpsert "$callingMember" \
-			note-20260811T120000Z-daily-state-and-lock.md \
-			--header:upsert:state:daily-running \
-			"${passthrough[@]}" \
-			--header:upsert:recheck-date:"$recheckDate" \
-			--context --magic-daily-state-and-lock-upsert
-		return $?
-	;;
-
-	--magic-daily-lock-acquire)
-		shift
-		local callingMember="$1" ; shift || true
-		local ownerLabel="$1" ; shift || true
-		if [ -z "$callingMember" ] || [ -z "$ownerLabel" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-daily-lock-acquire: <team-member> <owner-label> required" >&2
-			set +e ; return 1
-		fi
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-daily-lock-acquire: invalid option: $1" >&2
-			set +e ; return 1
-		fi
-		## Read before the acquire writes: the first daily of the day is one whose
-		## note does not carry today's local date as its last-close-date.
-		local recheckDate dailyLastClose="" dailyFirstToday="yes"
-		if [ -n "${MDAT_DATA_ROOT:-}" ] && [ -f "$( AgentsToolsInboxDir magic-coordinator )/note-20260811T120000Z-daily-state-and-lock.md" ] ; then
-			dailyLastClose="$( LC_ALL=C awk '
-				{ sub(/\r$/, "") ; }
-				$0 == "---" { fmDepth++ ; if (fmDepth >= 2) exit ; next ; }
-				fmDepth == 1 && /^last-close-date: / { print substr($0, 18) ; exit ; }
-			' "$( AgentsToolsInboxDir magic-coordinator )/note-20260811T120000Z-daily-state-and-lock.md" )"
-		fi
-		[ "$dailyLastClose" = "$( date +%Y-%m-%d )" ] && dailyFirstToday="no"
-		recheckDate="$( AgentsToolsRecheckDate 30 )"
-		AgentsToolsItemRead "$callingMember" \
-			note-20260811T120000Z-daily-state-and-lock.md \
-			--acquire-lock "$ownerLabel" \
-			--header:upsert:state:daily-running \
-			--header:upsert:recheck-date:"$recheckDate" \
-			--context --magic-daily-lock-acquire || { set +e ; return 1 ; }
-		echo "first-today: $dailyFirstToday"
-		return 0
-	;;
-
-	--magic-daily-lock-refresh)
+	--daily-lock-refresh)
 		shift
 		local callingMember="$1" ; shift || true
 		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-daily-lock-refresh: <team-member> required" >&2
+			echo "⛔ ERROR: $MDSC_CMD --daily-lock-refresh: <team-member> required" >&2
 			set +e ; return 1
 		fi
 		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-daily-lock-refresh: invalid option: $1" >&2
+			echo "⛔ ERROR: $MDSC_CMD --daily-lock-refresh: invalid option: $1" >&2
 			set +e ; return 1
 		fi
 		local recheckDate
@@ -107,58 +34,7 @@ case "$1" in
 			--update-lock \
 			--header:upsert:state:daily-running \
 			--header:upsert:recheck-date:"$recheckDate" \
-			--context --magic-daily-lock-refresh
-		return $?
-	;;
-
-	--magic-daily-close-state-and-unlock)
-		shift
-		local callingMember="$1" ; shift || true
-		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-daily-close-state-and-unlock: <team-member> required" >&2
-			set +e ; return 1
-		fi
-		local passthrough=()
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--edit-patch-from-stdin) passthrough+=( "$1" ) ; shift ;;
-				--from-file)
-					if [ -z "${2:-}" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --magic-daily-close-state-and-unlock: --from-file: value required" >&2
-						set +e ; return 1
-					fi
-					passthrough+=( "$1" "$2" ) ; shift 2
-				;;
-				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-daily-close-state-and-unlock: invalid option: $1" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		AgentsToolsItemUpsert "$callingMember" \
-			note-20260811T120000Z-daily-state-and-lock.md \
-			"${passthrough[@]}" \
-			--unlock-lock \
-			--header:upsert:state:daily-finished \
-			--header:upsert:last-close-date:"$( date +%Y-%m-%d )" \
-			--context --magic-daily-close-state-and-unlock
-		return $?
-	;;
-
-	--magic-daily-lock-status)
-		shift
-		local callingMember="$1" ; shift || true
-		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-daily-lock-status: <team-member> required" >&2
-			set +e ; return 1
-		fi
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-daily-lock-status: invalid option: $1" >&2
-			set +e ; return 1
-		fi
-		AgentsToolsItemRead "$callingMember" \
-			note-20260811T120000Z-daily-state-and-lock.md \
-			--context --magic-daily-lock-status
+			--context --daily-lock-refresh
 		return $?
 	;;
 

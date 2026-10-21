@@ -80,7 +80,7 @@ rigT=$'\t'
 	printf 'run\tS-alpha\tS-alpha\tkeeper-rig\tactive\trunning\trunning\t2026-10-14_17:00_+0000\t-\trig-host\t/rig/ws\tworking\n'
 } > "rows.--manager-session-read --session-id S-alpha"
 printf 'routine\tkeeper-rig.alpha-gap.routine.md\tkeeper-rig\tstartable\tkeeper-rig\t-\t-\tAlpha_gap\t-\nroutine\tkeeper-rig.beta-gap.routine.md\tkeeper-rig\tnot-startable\t-\t-\t-\tBeta_gap\tno_executors\n' > "rows.--manager-routine-list"
-cat > "rows.--member-pending-reply-read magic-coordinator --any-owner" <<'RIGASKS'
+cat > "rows.--read-pending-reply magic-coordinator --any-owner" <<'RIGASKS'
 PENDING-REPLY: A-one
 status: reply-pending
 owner: keeper-gone

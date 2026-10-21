@@ -101,7 +101,7 @@ rigAssert "the members/ view links each own member to its directory, and holds n
 rigAssert "the other workspace's member has no link and no folder in the view" \
 	"$( [ -e "$rigWs/.local/agents/members/keeper-rig" ] || [ -L "$rigWs/.local/agents/members/keeper-rig" ] && printf present || printf absent )" absent
 rigAssert "MDAT_SKILLSET_ROOT defaults to that view (a member op names it)" \
-	"$( rigRun --member-audit-item-read no-such-rig-member rig-item 2>&1 | LC_ALL=C grep -c "$rigWs/.local/agents/members/no-such-rig-member" )" 1
+	"$( rigRun --get-audit-item no-such-rig-member rig-item 2>&1 | LC_ALL=C grep -c "$rigWs/.local/agents/members/no-such-rig-member" )" 1
 rigDirectory(){ ## member -- AgentsToolsTeamMemberDirectory in the rig workspace, rig HOME
 	env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigWs" MDAT_SKILLSET_ROOT="$rigWs/.local/agents/members" bash -c '. "'"$rigHere"'/team-data/AgentsTools.TeamRegistry.include" ; AgentsToolsTeamMemberDirectory "$1" ; printf "rc=%s" "$?"' rig "$1"
 }

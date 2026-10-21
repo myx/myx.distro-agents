@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the WAIT class -- `--member-wait-for-input` and the `Wait`
+## Behavioural check on the WAIT class -- `--wait-for-input` and the `Wait`
 ## harness tool that drives it. AgentsHarnessSelfCheck.test.awk beside it proves `Wait`
 ## occupies its four structural sites and nothing whatever about a wait returning:
 ## a build where TIMEOUT returned 1, or where an unknown source kind timed out
@@ -212,7 +212,7 @@ rigOp(){ ## output basename, then the operation's own arguments
 	rigOpErr="$rigTmp/$opName.err"
 	rigOpStatus=0
 	opStart="$( date +%s )"
-	"$rigTool" --member-wait-for-input "$@" > "$rigOpOut" 2> "$rigOpErr" &
+	"$rigTool" --wait-for-input "$@" > "$rigOpOut" 2> "$rigOpErr" &
 	opPid=$!
 	(
 		opLeft="$rigOpGuard"
@@ -708,7 +708,7 @@ rigNew(){ ## output basename, then the operation's own arguments
 		"PATH=$rigSlackPath" "RIG_CURL_LOG=$rigNewDir/curl.log" "RIG_SCENARIO=$rigNewDir" "MMDAPP=$rigNewDir/ws" "MDAT_DATA_ROOT=$rigNewDir/data" \
 		${rigNewOrigin:+MDLT_ORIGIN=$rigNewOrigin} \
 		${rigNewPoll:+MDAT_WAIT_POLL_SECONDS=$rigNewPoll} \
-		"$opTool" --member-wait-for-input "$rigMember" "$@" > "$rigNewOut" 2> "$rigNewErr" &
+		"$opTool" --wait-for-input "$rigMember" "$@" > "$rigNewOut" 2> "$rigNewErr" &
 	opPid=$!
 	(
 		opLeft="$rigNewGuard"
@@ -831,7 +831,7 @@ rigAssert "it names its mode on the next line"                 "$( rigNth "$rigN
 rigAssert "it returns 0"                                       "$rigNewStatus" 0
 rigAssert "it returned at once, not at the 600s bound"         "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
 rigAssert "it did not wait"                                    "$( rigHolds "$rigNewOut" '# waited:' )" no
-rigAssert "it is visible in the log, with member and session"  "$( rigHolds "$rigNewErr" "# --member-wait-for-input: mode=close member=$rigMember session=$rigNewSession" )" yes
+rigAssert "it is visible in the log, with member and session"  "$( rigHolds "$rigNewErr" "# --wait-for-input: mode=close member=$rigMember session=$rigNewSession" )" yes
 rigNewIn close-twice --wait-close
 rigAssert "closing twice is CLOSED the second time too"        "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: CLOSED"
 rigAssert "and returns 0"                                      "$rigNewStatus" 0
@@ -871,14 +871,14 @@ rigAssert "default: the mode is the second line"               "$( rigNth "$rigN
 rigAssert "default: it returns 0"                              "$rigNewStatus" 0
 rigAssert "default: the filters it used are returned"          "$( rigOpens "$rigNewOut" '# filters:' )" 1
 rigAssert "default: the reaction counts are returned"          "$( rigHolds "$rigNewOut" '# reactions: seen=0 note=0 done=0 wait=0 failed=' )" yes
-rigAssert "default: the stderr trace names mode, member and session" "$( rigHolds "$rigNewErr" "# --member-wait-for-input: mode=default member=$rigMember session=$rigNewSession" )" yes
+rigAssert "default: the stderr trace names mode, member and session" "$( rigHolds "$rigNewErr" "# --wait-for-input: mode=default member=$rigMember session=$rigNewSession" )" yes
 rigAssert "default: the state is stored"                       "$( rigNewStateFile "$rigNewSession" )" present
 
 rigNewIn continue-control --wait-continue --wait-timeout 2
 rigAssert "control: continue with state is a wait"             "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
 rigAssert "control: the mode is continue"                      "$( rigNth "$rigNewOut" 2 )" "WAIT-MODE: continue"
 rigAssert "control: the stored source is the one waited on"    "$( rigHolds "$rigNewOut" "# sources: replies:$rigNewSession file:$rigDropA2" )" yes
-rigAssert "control: the trace says continue"                   "$( rigHolds "$rigNewErr" "# --member-wait-for-input: mode=continue member=$rigMember session=$rigNewSession" )" yes
+rigAssert "control: the trace says continue"                   "$( rigHolds "$rigNewErr" "# --wait-for-input: mode=continue member=$rigMember session=$rigNewSession" )" yes
 
 rigDropAfter 1 "$rigDropA2" RIG-CONTINUE-ARRIVAL
 rigNewIn continue-arrival --wait-continue --wait-timeout 30

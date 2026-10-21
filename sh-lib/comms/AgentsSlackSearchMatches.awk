@@ -2,7 +2,7 @@
 
 # Parses ONE `search.messages` JSON response (fed on stdin, run under
 # LC_ALL=C for byte safety) and reports that page's matches -- the reader
-# --member-comms-slack-search-messages uses, and the only thing in this package that
+# --slack-search-messages uses, and the only thing in this package that
 # understands search's own `messages.matches[]` envelope.
 #
 # WHY A SEPARATE READER, and not one of the two that already exist. Neither

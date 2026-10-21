@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check of the inbox processed marker over the split inbox (F4.3: `incoming/` and
 ## `processed/`, the item's processed stamp deciding its folder): --librarian-inbox-to-processed
-## and --member-inbox-to-processed stamp `processed-at` into the item and move it from incoming/
+## and --mark-inbox-processed stamp `processed-at` into the item and move it from incoming/
 ## to processed/, create frontmatter when the item has none, keep a caller's processed-at, treat
 ## a re-mark (with --include-processed) as a no-op, and keep the original stamp through an edit;
 ## an operation sees only incoming/ unless it takes --include-processed, a named read included;
@@ -90,30 +90,30 @@ rigAssert "and says so"                                "$( rigHolds "$rigTmp/m2"
 
 echo "-- an item with no frontmatter --"
 printf 'plain body line\n' > "$rigInbox/incoming/note-20261006T0930Z-plain.md"
-rigOp "$rigTmp/m3" --member-inbox-to-processed rig-member note-20261006T0930Z-plain.md
+rigOp "$rigTmp/m3" --mark-inbox-processed rig-member note-20261006T0930Z-plain.md
 rigAssert "the mark succeeds"                          "$( cat "$rigTmp/m3.rc" )" 0
 rigAssert "a frontmatter block is created, in processed/" "$( head -n 1 "$rigInbox/processed/note-20261006T0930Z-plain.md" ):$( rigFieldCount "$rigInbox/processed/note-20261006T0930Z-plain.md" processed-at )" "---:1"
 rigAssert "the body follows it"                        "$( rigHolds "$rigInbox/processed/note-20261006T0930Z-plain.md" 'plain body line' )" yes
 
 echo "-- a caller's processed-at wins --"
 printf -- '---\ntype: note\n---\nbody\n' > "$rigInbox/incoming/note-20261006T0930Z-given.md"
-rigOp "$rigTmp/m4" --member-inbox-to-processed rig-member note-20261006T0930Z-given.md "--header:upsert:processed-at:2020-02-02 02:02 +0000"
+rigOp "$rigTmp/m4" --mark-inbox-processed rig-member note-20261006T0930Z-given.md "--header:upsert:processed-at:2020-02-02 02:02 +0000"
 rigAssert "the given value is the one written"         "$( cat "$rigTmp/m4.rc" ):$( rigField "$rigInbox/processed/note-20261006T0930Z-given.md" processed-at ):$( rigFieldCount "$rigInbox/processed/note-20261006T0930Z-given.md" processed-at )" "0:2020-02-02 02:02 +0000:1"
 
 echo "-- an edit of an already-marked item keeps the original stamp --"
-printf -- '---\ntype: note\n---\nrewritten body\n' | rigOp "$rigTmp/m5" --member-inbox-to-processed rig-member note-20261006T0930Z-given.md --include-processed --upsert-from-stdin
+printf -- '---\ntype: note\n---\nrewritten body\n' | rigOp "$rigTmp/m5" --mark-inbox-processed rig-member note-20261006T0930Z-given.md --include-processed --upsert-from-stdin
 rigAssert "the edit is applied, where the item is"     "$( cat "$rigTmp/m5.rc" ):$( rigHolds "$rigInbox/processed/note-20261006T0930Z-given.md" 'rewritten body' ):$( rigIs "$rigInbox/incoming/note-20261006T0930Z-given.md" )" "0:yes:none"
 rigAssert "processed-at keeps its original time"       "$( rigField "$rigInbox/processed/note-20261006T0930Z-given.md" processed-at )" "2020-02-02 02:02 +0000"
 
 echo "-- without --include-processed an operation sees only incoming/ --"
-rigOp "$rigTmp/m6" --member-inbox-to-processed rig-member note-20261006T0930Z-given.md --header:upsert:x:y
+rigOp "$rigTmp/m6" --mark-inbox-processed rig-member note-20261006T0930Z-given.md --header:upsert:x:y
 rigAssert "an edit of a processed item without the option finds no item, and changes nothing" "$( [ "$( cat "$rigTmp/m6.rc" )" -ne 0 ] && printf refused || printf accepted ):$( rigFieldCount "$rigInbox/processed/note-20261006T0930Z-given.md" x )" "refused:0"
 
 echo "-- refusals --"
 rigOp "$rigTmp/m8" --librarian-inbox-to-processed keeper-rig note-rig.md
 rigAssert "a missing inbox is refused"                 "$( [ "$( cat "$rigTmp/m8.rc" )" -ne 0 ] && printf refused || printf accepted )" refused
 rigAssert "and no inbox is created, nor its folders"  "$( [ -e "$rigData/inboxes/keeper-rig" ] && printf yes || printf no )" no
-rigOp "$rigTmp/m9" --member-inbox-to-processed rig-member note-20261006T0930Z-absent.md
+rigOp "$rigTmp/m9" --mark-inbox-processed rig-member note-20261006T0930Z-absent.md
 rigAssert "a missing item is refused"                  "$( [ "$( cat "$rigTmp/m9.rc" )" -ne 0 ] && printf refused || printf accepted )" refused
 
 echo "-- readers: active scans drop marked items, named reads still find them --"
@@ -133,11 +133,11 @@ for rigScope in active all ; do
 done
 rigAssert "inquiry -active: the open one only"         "$( cat "$rigTmp/r-active.rc" ):$( rigHolds "$rigTmp/r-active" 'open q' ):$( rigHolds "$rigTmp/r-active" 'marked q' ):$( rigHolds "$rigTmp/r-active" 'legacy q' )" "0:yes:no:no"
 rigAssert "inquiry -all: the processed ones included"   "$( cat "$rigTmp/r-all.rc" ):$( rigHolds "$rigTmp/r-all" 'open q' ):$( rigHolds "$rigTmp/r-all" 'marked q' ):$( rigHolds "$rigTmp/r-all" 'legacy q' )" "0:yes:yes:yes"
-rigOp "$rigTmp/r2" --member-inbox-item-read rig-member note-20261006T0930Z-plain.md --include-processed
+rigOp "$rigTmp/r2" --get-inbox-item rig-member note-20261006T0930Z-plain.md --include-processed
 rigAssert "a marked item is read by name, with --include-processed" "$( cat "$rigTmp/r2.rc" ):$( rigHolds "$rigTmp/r2" 'plain body line' )" "0:yes"
-rigOp "$rigTmp/r3" --member-inbox-item-read rig-member note-20261006T0930Z-plain.md
+rigOp "$rigTmp/r3" --get-inbox-item rig-member note-20261006T0930Z-plain.md
 rigAssert "without it, a named read sees only incoming/: not found" "$( [ "$( cat "$rigTmp/r3.rc" )" -ne 0 ] && printf non-zero || printf 0 ):$( rigHolds "$rigTmp/r3" 'plain body line' )" "non-zero:no"
-rigOp "$rigTmp/r4" --member-inbox-item-read rig-member note-20261006T0931Z-open.md
+rigOp "$rigTmp/r4" --get-inbox-item rig-member note-20261006T0931Z-open.md
 rigAssert "an incoming item is read by name"           "$( cat "$rigTmp/r4.rc" ):$( rigHolds "$rigTmp/r4" 'still open' )" "0:yes"
 
 echo "-- GC: marked items by their stamp's age, never an unmarked one --"
@@ -182,13 +182,13 @@ if command -v git > /dev/null 2>&1 ; then
 	rigGit(){ env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" git -C "$rigT" "$@" ; }
 	rigGit init -q && rigGit config user.email rig@example.invalid && rigGit config user.name rig \
 		&& rigGit add -A && rigGit commit -q -m seed || rigRefuse "could not seed the tracked root"
-	RIG_DATA="$rigT" rigOp "$rigTmp/t1" --member-inbox-to-processed rig-member note-20261006T0930Z-tracked.md
+	RIG_DATA="$rigT" rigOp "$rigTmp/t1" --mark-inbox-processed rig-member note-20261006T0930Z-tracked.md
 	rigAssert "the mark succeeds"                      "$( cat "$rigTmp/t1.rc" )" 0
-	rigAssert "and is committed as processed"          "$( rigGit log -1 --format=%s ):$( rigGit status --porcelain | LC_ALL=C awk 'END { print NR }' )" "* processed: --member-inbox-to-processed:0"
+	rigAssert "and is committed as processed"          "$( rigGit log -1 --format=%s ):$( rigGit status --porcelain | LC_ALL=C awk 'END { print NR }' )" "* processed: --mark-inbox-processed:0"
 	rigAssert "the committed item carries the stamp, in processed/" "$( rigGit show HEAD:inboxes/rig-member/processed/note-20261006T0930Z-tracked.md | LC_ALL=C grep -c '^processed-at: ' )" 1
 	rigAssert "and incoming/ holds it no more, committed"  "$( rigGit ls-tree -r --name-only HEAD | LC_ALL=C grep -c -x 'inboxes/rig-member/incoming/note-20261006T0930Z-tracked.md' )" 0
 	rigCommits="$( rigGit rev-list --count HEAD )"
-	RIG_DATA="$rigT" rigOp "$rigTmp/t1b" --member-inbox-to-processed rig-member note-20261006T0930Z-tracked.md --include-processed --header:upsert:type:note
+	RIG_DATA="$rigT" rigOp "$rigTmp/t1b" --mark-inbox-processed rig-member note-20261006T0930Z-tracked.md --include-processed --header:upsert:type:note
 	rigAssert "an edit that changes no byte succeeds, no commit" "$( cat "$rigTmp/t1b.rc" ):$(( $( rigGit rev-list --count HEAD ) - rigCommits ))" "0:0"
 	RIG_DATA="$rigT" rigOp "$rigTmp/t2" --intern-team-data-final-gc-deletion rig-member
 	rigAssert "the GC deletes the old marked item"     "$( cat "$rigTmp/t2.rc" ):$( rigIs "$rigT/inboxes/rig-member/processed/note-20200101T0000Z-tracked-old.md" )" "0:none"

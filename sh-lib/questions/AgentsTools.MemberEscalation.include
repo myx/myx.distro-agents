@@ -1041,7 +1041,7 @@ case "$1" in
 	## The member stub. It reads threads under the named member's own credentials, so a
 	## spawned session names only itself (AgentsToolsActingMemberCheck); tooling calls the
 	## --intern-op-escalation-read implementation below directly.
-	--member-escalation-read)
+	--read-escalation)
 		[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
 		DistroAgentsTools --intern-op-escalation-read "${@:2}"
 		return $?
@@ -1234,9 +1234,9 @@ case "$1" in
 	## ts, so the asking session's Wait still sees a later reply there -- an objection -- and
 	## keeps it as one more. The asker only, and never a permission, which keeps needing an
 	## explicit answer. The asker answers its own question no other way.
-	--member-escalation-readback)
+	--readback-escalation)
 		shift
-		MDSC_CMD="$MDSC_CMD --member-escalation-readback"
+		MDSC_CMD="$MDSC_CMD --readback-escalation"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
 		local rbMember="${1:-}" rbId="${2:-}" rbOption="${3:-}" rbText="${4:-}" rbFile rbKind rbOwner rbOut rbVerdict rbOptionLine rbFound=""
 		local rbChannel rbThread rbSent rbTs rbNote
@@ -1245,7 +1245,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$rbMember" "<team-member>" escalation-readback || { set +e ; return 1 ; }
-		AgentsToolsActingMemberCheck "$rbMember" "member-escalation-readback" || { set +e ; return 1 ; }
+		AgentsToolsActingMemberCheck "$rbMember" "readback-escalation" || { set +e ; return 1 ; }
 		rbFile="$( AgentsToolsEscalationRecord "$rbId" )" || { set +e ; return 1 ; }
 		rbKind="$( AgentsToolsEscalationField "$rbFile" kind )"
 		local rbSelect=""
@@ -1347,12 +1347,12 @@ case "$1" in
 		return 0
 	;;
 
-	## The addressee answers as itself. The --magic-* stub is the coordinator answering a
-	## question addressed to another member, on its behalf, signed as the coordinator.
+	## The addressee answers as itself. magic-coordinator may also answer a question addressed to another
+	## member, on its behalf, signed as the coordinator.
 	## The console's arm comes here too (--manager-pending-reply-answer, sourced by
 	## AgentsTools.ManagerPendingReply.include, which says whose word the answer is): the same
 	## apply, for every kind a reply answers, with the answer as it was typed.
-	--member-escalation-answer|--magic-escalation-answer|--manager-pending-reply-answer)
+	--answer-escalation|--manager-pending-reply-answer)
 		local answerOp="$1"
 		shift
 		MDSC_CMD="$MDSC_CMD $answerOp"
@@ -1379,10 +1379,6 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$answerMember" "<team-member>" escalation-answer || { set +e ; return 1 ; }
 		AgentsToolsActingMemberCheck "$answerMember" "${answerOp#--}" || { set +e ; return 1 ; }
-		if [ "$answerOp" = "--magic-escalation-answer" ] && [ "$answerMember" != "magic-coordinator" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: only magic-coordinator answers on another member's behalf, not $answerMember -- the addressee answers with --member-escalation-answer" >&2
-			set +e ; return 1
-		fi
 		answerFile="$( AgentsToolsEscalationRecord "$answerId" )" || { set +e ; return 1 ; }
 		## A request for the authority is answered by whom it asks, and its answer acts on what it asked for.
 		if [ -n "$( AgentsToolsEscalationField "$answerFile" request-of )" ] ; then
@@ -1402,8 +1398,8 @@ case "$1" in
 			;;
 		esac
 		## An operator at the console is nobody's asker, whoever's word its answer has.
-		if [ -z "$answerConsole" ] && { { [ "$answerOp" = "--member-escalation-answer" ] && [ "$answerMember" != "$answerAddressee" ] ; } || [ "$answerMember" = "$answerOwner" ] ; } ; then
-			echo "$MDSC_CMD: ⛔ ERROR: $answerId is addressed to ${answerTo:-nobody} and asked by ${answerOwner:-nobody}, so $answerMember cannot answer it" >&2
+		if [ -z "$answerConsole" ] && { { [ "$answerMember" != "$answerAddressee" ] && [ "$answerMember" != "magic-coordinator" ] ; } || [ "$answerMember" = "$answerOwner" ] ; } ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $answerId is addressed to ${answerTo:-nobody} and asked by ${answerOwner:-nobody}, so $answerMember cannot answer it (only the addressee answers, and magic-coordinator on its behalf)" >&2
 			set +e ; return 1
 		fi
 		## The answering session comes from the caller's own environment, never from an
@@ -1476,10 +1472,10 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: $answerVerdict is not a verdict of this ${answerKind:-question}, so nothing is applied" >&2
 			set +e ; return 1
 		fi
-		## Answered on another's behalf from a member's run (--magic-escalation-answer): only by one
+		## Answered on another's behalf from a member's run (magic-coordinator, not the addressee): only by one
 		## that holds the authority over the run that asked it -- else asked for, as the words say.
 		## The verdict is checked first, so a wrong one is refused as one; then the authority.
-		if [ "$answerOp" = "--magic-escalation-answer" ] ; then
+		if [ -z "$answerConsole" ] && [ "$answerMember" != "$answerAddressee" ] ; then
 			local answerAsker="" answerAskerRecord=""
 			answerAsker="$( AgentsToolsEscalationField "$answerFile" session-id )"
 			answerAskerRecord="$( AgentsToolsSessionRunRecord "$answerAsker" )" || answerAskerRecord=""
@@ -1777,9 +1773,9 @@ case "$1" in
 		return 0
 	;;
 
-	--magic-escalation-forward)
+	--forward-escalation)
 		shift
-		MDSC_CMD="$MDSC_CMD --magic-escalation-forward"
+		MDSC_CMD="$MDSC_CMD --forward-escalation"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
 		local forwardBy="$1" forwardId="$2" forwardFile forwardOut forwardChannel forwardTs forwardAddressees
 		if [ -z "$forwardBy" ] || [ -z "$forwardId" ] ; then
@@ -1822,7 +1818,7 @@ case "$1" in
 		if [ -n "$forwardEarlier" ] ; then
 			printf 'ESCALATION: %s answered-earlier\n' "$forwardId"
 			printf '%s\n' "$forwardEarlier"
-			echo "⚠️ WARNING: $MDSC_CMD: $forwardId was not forwarded: the same question already has an answer, shown above; answer it with --member-escalation-answer" >&2
+			echo "⚠️ WARNING: $MDSC_CMD: $forwardId was not forwarded: the same question already has an answer, shown above; answer it with --answer-escalation" >&2
 			return 0
 		fi
 		## Posted by the team bot, its answer emoji under it, its thread kept on the record.

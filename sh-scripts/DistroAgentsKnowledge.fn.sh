@@ -9,7 +9,7 @@
 ## The three stores of the team, a project's, the workspace's and the team's own, are read as sources of one query. No vector store: the query reads the
 ## texts themselves (F8.2 and F8.3 are of the next epic). The functions are in sh-lib/team-data/AgentsTools.Knowledge.include.
 ##
-## From DistroAgentsTools.fn.sh (F1.4, first stage): --get-path-history, --get-place-path, --get-roster, --list-namespaces, --list-places, --member-help. They go on under their old names (sh-lib/harness/AgentsContext.FrontForward.include).
+## From DistroAgentsTools.fn.sh (F1.4): --get-path-history, --get-place-path, --get-roster, --list-namespaces, --list-places, --member-help (sh-lib/harness/AgentsContext.FrontTable.include).
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -33,12 +33,47 @@ case "$BASH" in
 	;;
 esac
 
+## The operations that came here from DistroAgentsTools.fn.sh (F1.4): every one of them is asked what each name of the table is asked, in AgentsContext.FrontDoor.include.
+DistroAgentsKnowledgeMoved(){
+	local MDSC_CMD='DistroAgentsKnowledge' frontDone="" frontRc=0
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontDoor.include"
+	[ -z "$frontDone" ] || return "$frontRc"
+	case "$1" in
+
+		--get-path-history)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberRepoHistory.include"
+			return $?
+		;;
+
+		--get-place-path|--list-namespaces|--list-places)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/common/AgentsTools.InternDirectory.include"
+			return $?
+		;;
+
+		--get-roster)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicTeamRoster.include"
+			return $?
+		;;
+
+		--member-help)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"
+			return $?
+		;;
+
+		*)
+			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+			set +e ; return 1
+		;;
+	esac
+}
+
 DistroAgentsKnowledge(){
 	local MDSC_CMD='DistroAgentsKnowledge'
-	## F1.4, first stage: an operation that came here under a new name goes on under its old one (sh-lib/harness/AgentsContext.FrontForward.include).
-	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontForward.include"
+	## F1.4: a name that came here from DistroAgentsTools.fn.sh runs its operation in the function below.
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
 	if AgentsToolsFrontKnows DistroAgentsKnowledge "$@" ; then
-		AgentsToolsFrontForward DistroAgentsKnowledge "$@"
+		DistroAgentsKnowledgeMoved "$@"
 		return $?
 	fi
 	## The output format, before the first word: kept in a variable of the shell, since the common options below make the call again without it.

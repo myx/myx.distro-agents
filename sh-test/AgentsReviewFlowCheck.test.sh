@@ -205,13 +205,13 @@ rigAssert "a failed Slack send moves nothing"              "$( LC_ALL=C grep -c 
 
 echo "-- 2. a review request (a member or the human): running -> review with its reason --"
 rigItem running dispatch-20261008T1200Z-rq ""
-rigOp "$rigTmp/q0" --member-review-request magic-tester dispatch-20261008T1200Z-rq --reason "not mine"
+rigOp "$rigTmp/q0" --request-review magic-tester dispatch-20261008T1200Z-rq --reason "not mine"
 rigAssert "a member that is neither owner nor spawner is refused" "$( cat "$rigTmp/q0.rc" ):$( rigLoc dispatch-20261008T1200Z-rq ):$( LC_ALL=C grep -c 'neither the owner of' "$rigTmp/q0" )" 1:running:1
 rigEnv=( MDAT_SPAWN_AGENT=magic-tester )
-rigOp "$rigTmp/q0s" --member-review-request keeper-myx dispatch-20261008T1200Z-rq --reason "as the owner"
+rigOp "$rigTmp/q0s" --request-review keeper-myx dispatch-20261008T1200Z-rq --reason "as the owner"
 rigEnv=()
 rigAssert "a session naming the owner is refused"          "$( cat "$rigTmp/q0s.rc" ):$( rigLoc dispatch-20261008T1200Z-rq ):$( LC_ALL=C grep -c 'this session acts as magic-tester' "$rigTmp/q0s" )" 1:running:1
-rigOp "$rigTmp/q1" --member-review-request keeper-myx dispatch-20261008T1200Z-rq --reason "looks finished"
+rigOp "$rigTmp/q1" --request-review keeper-myx dispatch-20261008T1200Z-rq --reason "looks finished"
 rigAssert "the op succeeds"                                "$( cat "$rigTmp/q1.rc" )" 0
 rigAssert "the item is in review"                          "$( rigLoc dispatch-20261008T1200Z-rq )" review
 rigAssert "the reason is review-requested"                 "$( LC_ALL=C grep -c -x 'review-reason: review-requested' "$rigData/board/review/dispatch-20261008T1200Z-rq.md" )" 1
@@ -222,10 +222,10 @@ LC_ALL=C sed -i.bak 's/^parent-spawn-id: none$/parent-spawn-id: rig-par-rq/' "$r
 rigRecord rig-par-rq spawn-succeeded "" ""
 LC_ALL=C sed -i.bak 's/^owner: keeper-myx$/owner: magic-tester/' "$rigSpawned/rig-par-rq/rig-par-rq.spawn.md" && rm -f "$rigSpawned/rig-par-rq/rig-par-rq.md.bak"
 rigEnv=( MDAT_SPAWN_AGENT=magic-tester MDAT_SPAWN_SESSION_ID=rig-par-rq )
-rigOp "$rigTmp/q1p" --member-review-request magic-tester dispatch-20261008T1200Z-rqp --reason "my child is done"
+rigOp "$rigTmp/q1p" --request-review magic-tester dispatch-20261008T1200Z-rqp --reason "my child is done"
 rigEnv=()
 rigAssert "the session that spawned it asks too"           "$( cat "$rigTmp/q1p.rc" ):$( rigLoc dispatch-20261008T1200Z-rqp )" 0:review
-rigOp "$rigTmp/q2" --member-review-request keeper-myx dispatch-20261008T1200Z-rq --reason "again"
+rigOp "$rigTmp/q2" --request-review keeper-myx dispatch-20261008T1200Z-rq --reason "again"
 rigAssert "a second request moves nothing out of review"   "$( LC_ALL=C grep -c 'only a running item enters review' "$rigTmp/q2" ):$( rigLoc dispatch-20261008T1200Z-rq )" 1:review
 
 echo "-- 3. the close fix: only a running item moves; review, processed and pending stay --"
@@ -332,7 +332,7 @@ rigRecord rig-live-acc-$$ spawn-started CACC00001:1700000000.000300 dispatch-202
 rigItem review dispatch-20261008T1200Z-acc rig-live-acc-$$
 rigTranscript rig-live-acc-$$
 sleep 1
-rigOp "$rigTmp/v1" --member-review-accept magic-coordinator dispatch-20261008T1200Z-acc --summary "good work"
+rigOp "$rigTmp/v1" --accept-review magic-coordinator dispatch-20261008T1200Z-acc --summary "good work"
 rigAssert "the op succeeds"                                "$( cat "$rigTmp/v1.rc" )" 0
 rigAssert "the item is processed"                          "$( rigLoc dispatch-20261008T1200Z-acc )" processed
 rigAssert "DISMISSED went to the child's thread"           "$( rigPosts ):$( LC_ALL=C grep -c '"channel": *"CACC00001"' "$rigTmp/bodies" )" 1:1
@@ -346,7 +346,7 @@ rigItem review dispatch-20261008T1200Z-ret rig-live-ret-$$ 'review-since-epoch: 
 '
 rigTranscript rig-live-ret-$$
 sleep 1
-rigOp "$rigTmp/v2" --member-review-return magic-coordinator dispatch-20261008T1200Z-ret --message "fix the rig widget"
+rigOp "$rigTmp/v2" --return-review magic-coordinator dispatch-20261008T1200Z-ret --message "fix the rig widget"
 rigAssert "the op succeeds"                                "$( cat "$rigTmp/v2.rc" )" 0
 rigAssert "the item is running again"                      "$( rigLoc dispatch-20261008T1200Z-ret )" running
 rigAssert "review-since-epoch is cleared"                  "$( LC_ALL=C grep -c '^review-since-epoch:' "$rigData/board/running/dispatch-20261008T1200Z-ret.md" )" 0
@@ -367,7 +367,7 @@ parent-member: magic-tester
 '
 mkdir -p "$rigWs/.local/agents/sessions/rig-par-rst" && printf '%s\n' CPRS00001:1700000000.000550 > "$rigWs/.local/agents/sessions/rig-par-rst/session.thread"
 rigItem review dispatch-20261008T1200Z-rst rig-ended-ret
-rigOp "$rigTmp/v3" --member-review-return magic-coordinator dispatch-20261008T1200Z-rst --message "redo the rig step"
+rigOp "$rigTmp/v3" --return-review magic-coordinator dispatch-20261008T1200Z-rst --message "redo the rig step"
 rigAssert "the op succeeds"                                "$( cat "$rigTmp/v3.rc" )" 0
 rigAssert "it says it restarted the session"               "$( LC_ALL=C grep -c '^RETURN: restarted keeper-myx on dispatch-20261008T1200Z-rst' "$rigTmp/v3" )" 1
 rigNewRecord="$( for rigCandidate in "$rigSpawned/trk-rig-rst"/*.spawn.md ; do [ "${rigCandidate##*/}" = rig-ended-ret.md ] || printf '%s\n' "$rigCandidate" ; done | head -1 )"
@@ -397,7 +397,7 @@ rigRecord rig-ended-np spawn-succeeded CENP00001:1700000000.000570 dispatch-2026
 '
 rigItem review dispatch-20261008T1200Z-np rig-ended-np
 rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator MDAT_SPAWN_SESSION_ID=rig-reviewer-np MDAT_SESSION_ID=rig-reviewer-np-session )
-rigOp "$rigTmp/v3np" --member-review-return magic-coordinator dispatch-20261008T1200Z-np --message "redo it once more"
+rigOp "$rigTmp/v3np" --return-review magic-coordinator dispatch-20261008T1200Z-np --message "redo it once more"
 rigEnv=()
 rigNewRecord="$( for rigCandidate in "$rigSpawned/trk-rig-np"/*.spawn.md ; do [ "${rigCandidate##*/}" = rig-ended-np.md ] || printf '%s\n' "$rigCandidate" ; done | head -1 )"
 rigAssert "restarted with no parent session and no address, whoever returned it" \
@@ -516,7 +516,7 @@ rigRecord rig-live-rej-$$ spawn-started CREJ00001:1700000000.000600 dispatch-202
 rigItem review dispatch-20261008T1200Z-rej rig-live-rej-$$
 rigTranscript rig-live-rej-$$
 sleep 1
-printf 'wrong approach\nstart over' | rigOp "$rigTmp/v4" --member-review-reject magic-coordinator dispatch-20261008T1200Z-rej --from-stdin
+printf 'wrong approach\nstart over' | rigOp "$rigTmp/v4" --reject-review magic-coordinator dispatch-20261008T1200Z-rej --from-stdin
 rigAssert "the op succeeds"                                "$( cat "$rigTmp/v4.rc" )" 0
 rigAssert "the item is pending"                            "$( rigLoc dispatch-20261008T1200Z-rej )" pending
 rigAssert "status review-rejected"                         "$( LC_ALL=C grep -c -x 'status: review-rejected' "$rigData/board/pending/dispatch-20261008T1200Z-rej.md" )" 1
@@ -526,12 +526,12 @@ rigAssert "transcript: VERDICT"                            "$( LC_ALL=C grep -c 
 
 echo "-- 11. follow-up, then accept on the same item: the verdicts combine --"
 rigItem review dispatch-20261008T1200Z-fu ""
-printf -- '---\ntype: task\n---\n\nthe one imperfection left\n' | rigOp "$rigTmp/v5" --member-review-follow-up magic-coordinator dispatch-20261008T1200Z-fu task-20261008T1300Z-rig-follow --from-stdin
+printf -- '---\ntype: task\n---\n\nthe one imperfection left\n' | rigOp "$rigTmp/v5" --follow-up-review magic-coordinator dispatch-20261008T1200Z-fu task-20261008T1300Z-rig-follow --from-stdin
 rigAssert "the op succeeds"                                "$( cat "$rigTmp/v5.rc" )" 0
 rigAssert "the new item is pending"                        "$( rigLoc task-20261008T1300Z-rig-follow )" pending
 rigAssert "it carries follows-up"                          "$( LC_ALL=C grep -c -x 'follows-up: dispatch-20261008T1200Z-fu' "$rigData/board/pending/task-20261008T1300Z-rig-follow.md" )" 1
 rigAssert "the original records the follow-up"             "$( rigDecisions "$rigData/board/review/dispatch-20261008T1200Z-fu.md" 'verdict: follow-up: task-20261008T1300Z-rig-follow' )" 1
-rigOp "$rigTmp/v6" --member-review-accept magic-coordinator dispatch-20261008T1200Z-fu
+rigOp "$rigTmp/v6" --accept-review magic-coordinator dispatch-20261008T1200Z-fu
 rigAssert "and the original is then accepted"              "$( cat "$rigTmp/v6.rc" ):$( rigLoc dispatch-20261008T1200Z-fu )" 0:processed
 
 ## ---------------------------------------------------------------- a routine as review-by
@@ -548,7 +548,7 @@ rigRun "$rigTmp/s2" bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtu
 ## The advance housekeeping runs when the routine takes its lock, free here, not in its scan.
 rigAdvanceLock(){ ## result file -- the advance routine takes its lock
 	rm -f "$rigData/inboxes/magic-coordinator/incoming/note-20260809T154715Z-advance-state-and-lock.md"
-	rigOp "$1" --magic-advance-lock-acquire magic-coordinator rig-advance-pass
+	rigOp "$1" --intern-op-routine-lock-take advance magic-coordinator rig-advance-pass
 	[ "$( cat "$1.rc" )" = 0 ] || rigRefuse "the advance lock was not taken in the rig: $( tail -2 "$1" | LC_ALL=C tr '\n' ' ' )"
 }
 rigAdvanceLock "$rigTmp/s2l"
@@ -583,7 +583,7 @@ rigRecord rig-live-arc-$$ spawn-started CARC00001:1700000000.000700 dispatch-202
 rigItem review dispatch-20261008T1200Z-arc rig-live-arc-$$
 rigTranscript rig-live-arc-$$
 sleep 1
-rigOp "$rigTmp/e1" --magic-grooming-to-archived magic-coordinator dispatch-20261008T1200Z-arc.md --from-state:review --owner-header-value keeper-myx
+rigOp "$rigTmp/e1" --grooming-to-archived magic-coordinator dispatch-20261008T1200Z-arc.md --from-state:review --owner-header-value keeper-myx
 rigAssert "the move succeeds"                              "$( cat "$rigTmp/e1.rc" ):$( rigLoc dispatch-20261008T1200Z-arc )" 0:archived
 rigAssert "DISMISSED went to the child"                    "$( LC_ALL=C grep -c '^END-DISMISS (archived): sent DISMISSED' "$rigTmp/e1" ):$( rigPosts )" 1:1
 rigAssert "Decisions: dismissed archived"                  "$( rigDecisions "$rigData/board/archived/dispatch-20261008T1200Z-arc.md" 'dismissed: archived: sent DISMISSED' )" 1
@@ -618,7 +618,7 @@ printf '%s claude --add-dir %s/rig-held-sd3-%s/input --session-id rig-other-run-
 disown "$!" 2> /dev/null || :
 rigItem running dispatch-20261008T1200Z-sd1 rig-live-sd1-$$
 sleep 1
-rigOp "$rigTmp/e3" --magic-review-shutdown magic-coordinator
+rigOp "$rigTmp/e3" --shutdown-runs magic-coordinator
 rigAssert "the op succeeds"                                "$( cat "$rigTmp/e3.rc" )" 0
 rigAssert "both live children were sent DISMISSED"         "$( LC_ALL=C grep -c -E "^SHUTDOWN: spawn rig-live-sd[12]-$$: sent keeper-myx" "$rigTmp/e3" ):$( LC_ALL=C grep -c -x 'SHUTDOWN: 2 of 2 live spawn(s) dismissed' "$rigTmp/e3" )" 2:1
 rigAssert "a spawn whose id only stands on another process's command line is no live child: nothing is said or sent for it" "$( LC_ALL=C grep -c -F "rig-held-sd3-$$" "$rigTmp/e3" )" 0
@@ -953,7 +953,7 @@ cli-setting: $3
 	[ "$4" != yes ] || { mkdir -p "$rigTmp/.claude/projects/-rig-ws" && : > "$rigTmp/.claude/projects/-rig-ws/$rsOld.jsonl" ; }
 	rm -f "$rigTmp"/claude-args.*
 	rigEnv=( RIG_TEMPLATE="$rigTemplate" )
-	rigOp "$rigTmp/rs-$1" --member-review-return magic-coordinator "$rsItem" --message "rs fix $1"
+	rigOp "$rigTmp/rs-$1" --return-review magic-coordinator "$rsItem" --message "rs fix $1"
 	rigEnv=()
 	rigNew="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigData"/board/*/"$rsItem.md" | head -1 )"
 	rigWaitFor 40 test -f "$rigData/board/review/$rsItem.md"
@@ -1018,45 +1018,47 @@ rigReviewItem(){ ## item stem, review-by value
 "
 }
 rigReviewItem dispatch-20261008T1500Z-vm keeper-myx
-rigOp "$rigTmp/va1" --member-review-accept magic-tester dispatch-20261008T1500Z-vm
+rigOp "$rigTmp/va1" --accept-review magic-tester dispatch-20261008T1500Z-vm
 rigAssert "another member gives no verdict"                "$( cat "$rigTmp/va1.rc" ):$( rigLoc dispatch-20261008T1500Z-vm ):$( LC_ALL=C grep -c 'is reviewed by keeper-myx' "$rigTmp/va1" )" 1:review:1
-rigOp "$rigTmp/va2" --member-review-reject magic-coordinator dispatch-20261008T1500Z-vm --message "not its call"
-rigAssert "nor magic-coordinator through the member op"    "$( cat "$rigTmp/va2.rc" ):$( rigLoc dispatch-20261008T1500Z-vm )" 1:review
+rigReviewItem dispatch-20261008T1500Z-vm2 keeper-myx
+rigOp "$rigTmp/va2" --reject-review magic-coordinator dispatch-20261008T1500Z-vm2 --message "not its call"
+rigAssert "magic-coordinator, named in the one op, gives its verdict as the reviewer of last resort: the item goes back"    "$( cat "$rigTmp/va2.rc" ):$( rigLoc dispatch-20261008T1500Z-vm2 )" 0:pending
 rigEnv=( MDAT_SPAWN_AGENT=magic-tester )
-rigOp "$rigTmp/va3" --member-review-accept keeper-myx dispatch-20261008T1500Z-vm
+rigOp "$rigTmp/va3" --accept-review keeper-myx dispatch-20261008T1500Z-vm
 rigEnv=()
 rigAssert "a session naming the reviewer is refused"       "$( cat "$rigTmp/va3.rc" ):$( rigLoc dispatch-20261008T1500Z-vm )" 1:review
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx )
-rigOp "$rigTmp/va4" --member-review-accept keeper-myx dispatch-20261008T1500Z-vm
+rigOp "$rigTmp/va4" --accept-review keeper-myx dispatch-20261008T1500Z-vm
 rigEnv=()
 rigAssert "the reviewer's own session accepts"             "$( cat "$rigTmp/va4.rc" ):$( rigLoc dispatch-20261008T1500Z-vm )" 0:processed
 rigReviewItem dispatch-20261008T1500Z-vc keeper-myx
-rigOp "$rigTmp/vc1" --magic-review-accept keeper-myx dispatch-20261008T1500Z-vc
-rigAssert "the last-resort op runs as magic-coordinator only" "$( cat "$rigTmp/vc1.rc" ):$( rigLoc dispatch-20261008T1500Z-vc )" 1:review
-rigOp "$rigTmp/vc2" --magic-review-accept magic-coordinator dispatch-20261008T1500Z-vc --summary "last resort"
-rigAssert "magic-coordinator, reviewer of last resort"     "$( cat "$rigTmp/vc2.rc" ):$( rigLoc dispatch-20261008T1500Z-vc ):$( rigDecisions "$rigData/board/processed/dispatch-20261008T1500Z-vc.md" 'verdict: accepted: last resort' )" 0:processed:1
+rigOp "$rigTmp/vc1" --accept-review keeper-myx dispatch-20261008T1500Z-vc
+rigAssert "the console, naming the reviewer, gives that reviewer's verdict" "$( cat "$rigTmp/vc1.rc" ):$( rigLoc dispatch-20261008T1500Z-vc )" 0:processed
+rigReviewItem dispatch-20261008T1500Z-vc2 keeper-myx
+rigOp "$rigTmp/vc2" --accept-review magic-coordinator dispatch-20261008T1500Z-vc2 --summary "last resort"
+rigAssert "magic-coordinator, reviewer of last resort"     "$( cat "$rigTmp/vc2.rc" ):$( rigLoc dispatch-20261008T1500Z-vc2 ):$( rigDecisions "$rigData/board/processed/dispatch-20261008T1500Z-vc2.md" 'verdict: accepted: last resort' )" 0:processed:1
 rigReviewItem dispatch-20261008T1500Z-vh human-owner
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx )
-rigOp "$rigTmp/vh1" --member-review-accept keeper-myx dispatch-20261008T1500Z-vh
+rigOp "$rigTmp/vh1" --accept-review keeper-myx dispatch-20261008T1500Z-vh
 rigEnv=()
 rigAssert "a human-owner item: no spawned session"         "$( cat "$rigTmp/vh1.rc" ):$( rigLoc dispatch-20261008T1500Z-vh )" 1:review
-rigOp "$rigTmp/vh2" --member-review-accept human-owner dispatch-20261008T1500Z-vh
+rigOp "$rigTmp/vh2" --accept-review human-owner dispatch-20261008T1500Z-vh
 rigAssert "the human, at the console"                      "$( cat "$rigTmp/vh2.rc" ):$( rigLoc dispatch-20261008T1500Z-vh )" 0:processed
 rigReviewItem dispatch-20261008T1500Z-vs rig-rev-session
 rigReviewItem dispatch-20261008T1500Z-vs2 rig-rev-session
 rigEnv=( MDAT_SPAWN_AGENT=magic-tester MDAT_SPAWN_SESSION_ID=rig-other-session )
-rigOp "$rigTmp/vs1" --member-review-accept magic-tester dispatch-20261008T1500Z-vs2
+rigOp "$rigTmp/vs1" --accept-review magic-tester dispatch-20261008T1500Z-vs2
 rigEnv=()
 rigAssert "a session reviewer: another session is refused" "$( cat "$rigTmp/vs1.rc" ):$( rigLoc dispatch-20261008T1500Z-vs2 )" 1:review
 rigEnv=( MDAT_SPAWN_AGENT=magic-tester MDAT_SPAWN_SESSION_ID=rig-rev-session )
-rigOp "$rigTmp/vs2" --member-review-accept magic-tester dispatch-20261008T1500Z-vs
+rigOp "$rigTmp/vs2" --accept-review magic-tester dispatch-20261008T1500Z-vs
 rigEnv=()
 rigAssert "that session itself accepts"                    "$( cat "$rigTmp/vs2.rc" ):$( rigLoc dispatch-20261008T1500Z-vs )" 0:processed
 printf -- '---\nexecutors: keeper-myx\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig routine\n' > "$rigWs/.local/agents/members/keeper-myx/keeper-myx.rigcheck.routine.md"
 rigReviewItem dispatch-20261008T1500Z-vr rigcheck.routine
-rigOp "$rigTmp/vr1" --member-review-accept magic-tester dispatch-20261008T1500Z-vr
+rigOp "$rigTmp/vr1" --accept-review magic-tester dispatch-20261008T1500Z-vr
 rigAssert "a routine reviewer: a non-executor is refused"  "$( cat "$rigTmp/vr1.rc" ):$( rigLoc dispatch-20261008T1500Z-vr )" 1:review
-rigOp "$rigTmp/vr2" --member-review-accept keeper-myx dispatch-20261008T1500Z-vr
+rigOp "$rigTmp/vr2" --accept-review keeper-myx dispatch-20261008T1500Z-vr
 rigAssert "the routine's executor accepts"                 "$( cat "$rigTmp/vr2.rc" ):$( rigLoc dispatch-20261008T1500Z-vr )" 0:processed
 rm -f "$rigWs/.local/agents/members/keeper-myx/keeper-myx.rigcheck.routine.md"
 
@@ -1093,7 +1095,7 @@ rm -f "$rigTmp/never.pid"
 ## From inside a session, as a coordinator gives a verdict: the child is then detached.
 rigEnv=( RIG_TEMPLATE="$rigTemplate" MDAT_SPAWN_SESSION_ID=rig-parent-nv MDAT_SPAWN_AGENT=magic-coordinator )
 rigAssert "a return that restarts a child which never ends comes back to its caller" \
-	"$( rigPiped "$rigTmp/nv" 40 --member-review-return magic-coordinator dispatch-20261008T1600Z-nv --message "redo the rig step" )" returned
+	"$( rigPiped "$rigTmp/nv" 40 --return-review magic-coordinator dispatch-20261008T1600Z-nv --message "redo the rig step" )" returned
 rigAssert "with what it did"                               "$( LC_ALL=C grep -c '^RETURN: restarted keeper-myx on dispatch-20261008T1600Z-nv, .*, resuming rig-old-nv$' "$rigTmp/nv" )" 1
 rigWaitFor 40 test -s "$rigTmp/never.pid"
 rigNever="$( cat "$rigTmp/never.pid" 2> /dev/null )" ; rigProcNote $rigNever
@@ -1106,11 +1108,11 @@ for rigVerb in accept reject follow-up ; do
 	rigTranscript "rig-live-nv-$rigVerb-$$"
 done
 sleep 1
-rigAssert "accept comes back at once"                      "$( rigPiped "$rigTmp/nva" 40 --member-review-accept magic-coordinator dispatch-20261008T1600Z-accept --summary "good" ):$( rigLoc dispatch-20261008T1600Z-accept )" returned:processed
-rigAssert "reject comes back at once"                      "$( rigPiped "$rigTmp/nvr" 40 --member-review-reject magic-coordinator dispatch-20261008T1600Z-reject --message "start over" ):$( rigLoc dispatch-20261008T1600Z-reject )" returned:pending
+rigAssert "accept comes back at once"                      "$( rigPiped "$rigTmp/nva" 40 --accept-review magic-coordinator dispatch-20261008T1600Z-accept --summary "good" ):$( rigLoc dispatch-20261008T1600Z-accept )" returned:processed
+rigAssert "reject comes back at once"                      "$( rigPiped "$rigTmp/nvr" 40 --reject-review magic-coordinator dispatch-20261008T1600Z-reject --message "start over" ):$( rigLoc dispatch-20261008T1600Z-reject )" returned:pending
 printf -- '---\ntype: task\n---\n\nthe one thing left\n' > "$rigTmp/nv.follow"
 rigPipedIn="$rigTmp/nv.follow"
-rigAssert "follow-up comes back at once"                   "$( rigPiped "$rigTmp/nvf" 40 --member-review-follow-up magic-coordinator dispatch-20261008T1600Z-follow-up task-20261008T1700Z-rig-nv --from-stdin ):$( rigLoc task-20261008T1700Z-rig-nv )" returned:pending
+rigAssert "follow-up comes back at once"                   "$( rigPiped "$rigTmp/nvf" 40 --follow-up-review magic-coordinator dispatch-20261008T1600Z-follow-up task-20261008T1700Z-rig-nv --from-stdin ):$( rigLoc task-20261008T1700Z-rig-nv )" returned:pending
 rigPipedIn=/dev/null
 rigEnv=()
 ## The child is ended now, so its own close steps finish before this check leaves. A claude
@@ -1133,7 +1135,7 @@ rigRecord rig-live-fl-$$ spawn-started CFL00001:1700000000.000950 dispatch-20261
 rigItem review dispatch-20261008T1600Z-fl rig-live-fl-$$
 rigTranscript rig-live-fl-$$
 sleep 1
-rigOp "$rigTmp/fl" --member-review-return magic-coordinator dispatch-20261008T1600Z-fl --message "$rigLongText"
+rigOp "$rigTmp/fl" --return-review magic-coordinator dispatch-20261008T1600Z-fl --message "$rigLongText"
 rigAssert "a verdict's text to a child, over the floor, is delivered" "$( cat "$rigTmp/fl.rc" ):$( LC_ALL=C grep -c 'RETURN: delivered to keeper-myx in CFL00001' "$rigTmp/fl" ):$( LC_ALL=C grep -c 'twentysix; with a semicolon' "$rigTmp/bodies" )" 0:1:1
 rigAssert "and its item carries it"                        "$( LC_ALL=C grep -c -x -F "$rigLongText" "$rigData/board/running/dispatch-20261008T1600Z-fl.md" )" 1
 rigAssert "and it is never returned as a correction"       "$( LC_ALL=C grep -c '^CORRECTION' "$rigTmp/fl" )" 0
@@ -1143,7 +1145,7 @@ rigOp "$rigTmp/fl2" --intern-op-comms-slack-send-message magic-coordinator CFL00
 rigAssert "a send of the tooling's own, over the floor, is sent and reported" \
 	"$( cat "$rigTmp/fl2.rc" ):$( LC_ALL=C grep -c 'IT WAS WRITTEN ANYWAY' "$rigTmp/fl2" ):$( LC_ALL=C grep -c '^SENT_MESSAGE_TS=' "$rigTmp/fl2" ):$( LC_ALL=C grep -c '^CORRECTION' "$rigTmp/fl2" )" 0:1:1:0
 rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
-rigOp "$rigTmp/fl3" --member-comms-slack-send-message magic-coordinator CFL00001:1700000000.000950 "$rigLongText"
+rigOp "$rigTmp/fl3" --slack-send-message magic-coordinator CFL00001:1700000000.000950 "$rigLongText"
 rigEnv=()
 rigAssert "a member's own send of the same text is not sent: a correction, with its own code" \
 	"$( cat "$rigTmp/fl3.rc" ):$( LC_ALL=C grep -c '^CORRECTION: ' "$rigTmp/fl3" ):$( LC_ALL=C grep -c '^- word-cap: ' "$rigTmp/fl3" ):$( LC_ALL=C grep -c '^- semicolon: ' "$rigTmp/fl3" ):$( LC_ALL=C grep -c -x 'NEXT: rewrite the sentences or paragraphs named above and send the message again' "$rigTmp/fl3" ):$( rigPosts )" 6:1:1:1:1:0

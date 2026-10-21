@@ -18,7 +18,7 @@ Normative contract: this file's own `# Contract` section, at its end. Where it a
 - Team-Member's (-specific) local rules
 - Domain knowledge: <topic>
 - Team-Member's (-specific) tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
   - `--operation-name` Operation Reference
 - Maintainer Notes
   - Verbatim-goals (intents)
@@ -82,7 +82,7 @@ All statements apply at the same time, always. These rules override a magic-team
 
 Every `magic-tooling` operation this team-member uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
 - [`--operation-name <args>`]
 

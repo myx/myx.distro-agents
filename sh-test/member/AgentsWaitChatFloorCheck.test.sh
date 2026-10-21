@@ -100,7 +100,7 @@ rigWait(){ ## output basename, then the operation's arguments after the member
 	env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_WAIT_POLL_SECONDS -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_ID -u MDAT_SESSION_THREAD -u MDAT_CONVERSATION_THREADS \
 		"PATH=$rigWaitPath" "RIG_SCENARIO=$rigDir" "MMDAPP=$rigDir/ws" "MDAT_DATA_ROOT=$rigDir/data" "MDAT_SKILLSET_ROOT=$rigTmp/skills" "MDAT_SESSION_ID=${rigKey:-$rigSession}" "MDAT_SPAWN_LAUNCH_MARKER=$rigDir/launch.marker" \
 		MDAT_WAIT_POLL_SECONDS=1 MDAT_WAIT_SETTLE_SECONDS=1 MDAT_WAIT_REMIND=off ${rigWithThread:+MDAT_SESSION_THREAD=$rigThread} \
-		"$rigTool" --member-wait-for-input "$rigMember" "$@" > "$rigOut" 2> "$rigDir/$waitName.err" &
+		"$rigTool" --wait-for-input "$rigMember" "$@" > "$rigOut" 2> "$rigDir/$waitName.err" &
 	waitPid=$!
 	( waitLeft=60 ; while [ "$waitLeft" -gt 0 ] ; do kill -0 "$waitPid" 2>/dev/null || exit 0 ; sleep 1 ; waitLeft=$(( waitLeft - 1 )) ; done
 	  printf 'rig: the wait did not return within 60s, and was killed\n' >> "$rigDir/$waitName.err" ; kill -TERM "$waitPid" 2>/dev/null ; sleep 2 ; kill -KILL "$waitPid" 2>/dev/null ) &

@@ -14,7 +14,7 @@
 ## lives in `.local/<that subsystem>/`, not under `.local/agents/`.
 ## The mapping of a console account to an owner is one rig setting (rigOwnerKey, below), the only place its name is
 ## spelled, until the owner names the real one.
-## Held, through --manager-pending-reply-answer and -dismiss (the console), --magic-escalation-answer and the served
+## Held, through --manager-pending-reply-answer and -dismiss (the console), --answer-escalation and the served
 ## EscalateDecision (a member's run):
 ##   1. the console caller who is the run's reports-to answers at once
 ##   2. a console caller who is not: the bare call fails, naming the authority needed and both options; the original is
@@ -239,7 +239,7 @@ rigWaiting(){ ## pid -- whether it still runs, its request made: waiting, or not
 }
 ## The holder of a request answers it: the reports-to magic-coordinator, from its own run.
 rigHolderAnswers(){ ## request id, verdict
-	RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --magic-escalation-answer magic-coordinator "${1:-none}" "$2"
+	RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --answer-escalation magic-coordinator "${1:-none}" "$2"
 }
 ## The posts made to the owner's own channel, and their texts.
 rigOwnerPosts(){ ## fixed text -- how many posts to the human-owner's channel hold it
@@ -413,13 +413,13 @@ rigAssert "the tester's run escalates it again: to its own reports-to, magic-coo
 
 echo "-- 11. the coordinator escalates up, never to itself --"
 rigAsk rig-tester magic-tester decision --options "$rigOptions"
-RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --magic-escalation-answer magic-coordinator "$rigPend" keep
+RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --answer-escalation magic-coordinator "$rigPend" keep
 rigAssert "control: the coordinator, the tester's reports-to, answers at once" "$rigOpRc:$( rigPendingId ):$( rigStatus "$rigPend" )" "0::reply-received:keep"
 rigToCoordBefore="$( rigRequestsTo magic-coordinator )"
 for rigCase in "p|rig-parent" "u|user-rig-starter" "n|human-owner" ; do
 	rigWhich="${rigCase%%|*}" ; rigTo="${rigCase#*|}"
 	rigAsk "rig-asks-$rigWhich" keeper-myx decision --options "$rigOptions"
-	RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION="rig-coord-$rigWhich" rigOp --magic-escalation-answer magic-coordinator "$rigPend" keep --escalate-enqueue
+	RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION="rig-coord-$rigWhich" rigOp --answer-escalation magic-coordinator "$rigPend" keep --escalate-enqueue
 	rigAssert "coordinator $rigWhich: PENDING, a request to $rigTo" "$rigOpRc:$( rigRequest "$( rigPendingId )" | LC_ALL=C sed 's/^[^ ]* //' | LC_ALL=C sed 's/:.*//' )" "0:$rigTo"
 	rigAssert "coordinator $rigWhich: the original untouched"  "$( rigStatus "$rigPend" )" "reply-pending:"
 done
@@ -667,7 +667,7 @@ rigFresh(){ ## request id -- the ask made now, as it is in life (the pace of the
 	freshFile="$( rigRecordOf "$1" )" ; freshTs="$(date +%s).000100"
 	sed -i.bak -e "s/^question-ts: .*/question-ts: $freshTs/" -e "s/^thread-ts: .*/thread-ts: $freshTs/" "$freshFile" && rm -f "$freshFile.bak"
 }
-rigCountRead(){ rigOp --member-pending-reply-read magic-coordinator --any-owner --count ; }
+rigCountRead(){ rigOp --read-pending-reply magic-coordinator --any-owner --count ; }
 rigAsk rig-asks-p keeper-myx question --select yes-no
 rigPollMine="$rigPend"
 rigOp --manager-pending-reply-answer --id "$rigPollMine" --answer yes --escalate-enqueue
@@ -691,7 +691,7 @@ rigAssert "the count read of the console, on its period, finds its own enqueued 
 rigAssert "a request of the team is not touched by it: its answer stands in its thread, and it stays open with its question" "$( rigOf "$rigPollTeamReq" status ):$( rigStatus "$rigPollTeam" )" "reply-pending:reply-pending:"
 ## a request whose requester is a member, and that member's own count read: it polls nothing either (only the person at the console polls)
 sed -i.bak "s/^requester: .*/requester: magic-tester/" "$( rigRecordOf "$rigPollTeamReq" )" && rm -f "$( rigRecordOf "$rigPollTeamReq" ).bak"
-RIG_OP_AGENT=magic-tester RIG_OP_SESSION=rig-tester rigOp --member-pending-reply-read magic-tester --any-owner --count
+RIG_OP_AGENT=magic-tester RIG_OP_SESSION=rig-tester rigOp --read-pending-reply magic-tester --any-owner --count
 rigAssert "a member's count read polls nothing: the answer in the thread of its own request is left to its Wait or the sweep" "$( rigOf "$rigPollTeamReq" status ):$( LC_ALL=C grep -c '^[0-9][0-9]*$' "$rigTmp/op.out" )" "reply-pending:1"
 rigCollect
 rigAssert "(and the sweep of the main loop does settle it, so the reply was there to be read)" "$( rigOf "$rigPollTeamReq" verdict ):$( rigStatus "$rigPollTeam" )" "allow-once:reply-received:yes"

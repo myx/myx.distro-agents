@@ -15,7 +15,7 @@ Steps:
 1. **board-read-state**: Use this pass's board read. With none loaded, call the calling routine's own scan.
 2. **board-state-vs-content**: An item whose body already records a move its state does not show (body says moved to `board-blocked`, item still in `board-running`) is moved to match. Note the correction in the report.
 3. **board-mechanical-moves**: Apply the decided moves. Announce each one in the session thread as it happens:
-   - `board-pending` item whose content records a dispatch → `board-running` (`--magic-advance-to-running`).
+   - `board-pending` item whose content records a dispatch → `board-running` (`--advance-to-running`).
    - Never `board-backlog` straight to `board-running`.
 4. **board-dependencies**: The tooling keeps both directions of `blocks`/`blocked-by` whole, once for each change of the board, and the scan carries `## board dependencies`: the cycles, what must happen first, what waits and on what, what is blocked with no blocker on the board, and how many items are independent. What is left to judgement:
    - Record an edge that only an item's text shows, as `blocks`/`blocked-by` on the item. An unclear edge is described in the item's body, never forced into a field.
@@ -30,7 +30,7 @@ Steps:
    - `dispatch-*`, `change-*`, `warning-*`: nothing here. `check-execute-board` handles them.
    - `idea-*`: not expected in `board-running` → flag for grooming.
    - Any type outside the board types (`magic-team.armed.md`'s entity model): misfiled → flag once for grooming.
-6. **board-reopen-signaled-items**: An in-scope item that explicitly says a `board-processed`/`board-archived` item needs reopening → move that item to `board-backlog` (`--magic-board-to-backlog`), noting the trigger.
+6. **board-reopen-signaled-items**: An in-scope item that explicitly says a `board-processed`/`board-archived` item needs reopening → move that item to `board-backlog` (`--move-to-backlog`), noting the trigger.
 7. **board-reassess-parked-blocked**: `board-parked`/`board-blocked` items whose `recheck-date` has arrived, or which carry none, from this pass's data only:
    - An external check is needed: file an `inquiry-*` for it (`post-inquiry`), reference it on the item, with `--recheck-in 17`.
    - `condition` not met: leave it in place with `--recheck-in 17`, note why.
@@ -46,6 +46,6 @@ A `recheck-date` is set with the board op's `--recheck-in <minutes>[±<jitter-mi
 
 Reads the comms-action records in this member's own inbox. Steps:
 1. **pending-read-slack**: Read every `note-pending-slack-reaction-*` record: a `communication-channel-id` and the board item it waits on.
-2. **pending-resolve-slack**: The board item is resolved (`board-processed`/`board-archived`): read its resolution, react ✅ for a positive outcome or a fitting negative emoji otherwise (`--member-comms-slack-react`), and mark the record processed (`--member-inbox-to-processed`). Still open: leave it.
+2. **pending-resolve-slack**: The board item is resolved (`board-processed`/`board-archived`): read its resolution, react ✅ for a positive outcome or a fitting negative emoji otherwise (`--slack-react`), and mark the record processed (`--mark-inbox-processed`). Still open: leave it.
 3. **pending-read-trello**: Read every `note-pending-trello-update-*` record: target card and gist.
-4. **pending-post-trello**: Post the gist (`--magic-comms-trello-post-comment`) and mark the record processed (`--member-inbox-to-processed`). A failed post leaves it for the next pass.
+4. **pending-post-trello**: Post the gist (`--trello-post-comment`) and mark the record processed (`--mark-inbox-processed`). A failed post leaves it for the next pass.

@@ -3,9 +3,9 @@
 ## rather than read. The screen's own code runs through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a stand-in script
 ## (check-fixtures/manager-screen.tools.stub.sh), which notes each start and prints the case's fixture: text in the
-## form `--member-pending-reply-read <member> --any-owner` prints, a record `PENDING-REPLY: <id>` with its fields,
+## form `--read-pending-reply <member> --any-owner` prints, a record `PENDING-REPLY: <id>` with its fields,
 ## `asker-live:` and `question:`, and `PENDING-REPLIES: <count>` last. The time of day is the case's own.
-## Held: the screen asks `--member-pending-reply-read magic-coordinator --any-owner`, while the section is shown and
+## Held: the screen asks `--read-pending-reply magic-coordinator --any-owner`, while the section is shown and
 ## not at the root, where the counter of the status line is the list of sessions' own, and where, whatever is shown, it
 ## asks the same operation with `--count`, which prints only the number: the row `Pending Questions` shows it, as
 ## `Pending Questions [N]`, at the root and under Magic-Team (Agents) alike; each open ask is one row under
@@ -62,7 +62,7 @@ rigAssert(){ ## what is asserted, got, want
 		printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFailCount=$(( rigFailCount + 1 ))
 	fi
 }
-rigRead="--member-pending-reply-read magic-coordinator --any-owner"
+rigRead="--read-pending-reply magic-coordinator --any-owner"
 ## The fixture of three open asks, as the operation prints them: a decision of eleven days whose asker is gone,
 ## a permission of three hours whose asker runs, with an item, and a question of 25 minutes of a session that is
 ## not measured, with one field more than the screen sets out itself.
@@ -321,7 +321,7 @@ RIGSCRIPT
 rigAssert "the second read failed"                                   "$( rigCalls ) [$( rigVal bad.failed )]" "3 [list:pending]"
 rigAssert "the asks stay, and the selection with them"               "$( rigVal bad.rows ) $( rigVal bad.selected )" "4 0e0c1c26-0000-4000-8000-000000000002"
 rigAssert "the level is marked as old"                               "[$( rigVal badTitle )]" "[! Pending Questions]"
-rigAssert "and what the read wrote is shown in a box"                  "[$( rigVal bad.dialogTitle )] [$( rigVal bad.dialogHolds )]" "[A read failed] [operation: --member-pending-reply-read magic-coordinator --any-owner / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
+rigAssert "and what the read wrote is shown in a box"                  "[$( rigVal bad.dialogTitle )] [$( rigVal bad.dialogHolds )]" "[A read failed] [operation: --read-pending-reply magic-coordinator --any-owner / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
 rigAssert "a good read takes the mark away"                          "[$( rigVal mended.failed )] [$( rigVal mendedTitle )]" "[] [Pending Questions]"
 
 ## Four asks for the read of one ask by its id: the decision above, asked before its slots were kept; the
@@ -365,7 +365,7 @@ rigOne(){ ## id -- the lines the list prints of that one ask, and the empty line
 	LC_ALL=C awk -v id="$1" '$0 == "PENDING-REPLY: " id { on = 1 } on { print } on && $0 == "" { exit }' "$rigTmp/four.asks"
 }
 rigStoredFile(){ ## id -- where the stand-in keeps what the read of that ask by its id prints
-	printf '%s' "$rigTmp/stored/rows.--member-pending-reply-read magic-coordinator $1"
+	printf '%s' "$rigTmp/stored/rows.--read-pending-reply magic-coordinator $1"
 }
 mkdir -p "$rigTmp/stored"
 {
@@ -459,7 +459,7 @@ rigPaneHolds(){ ## tag, text -- how many lines of the left pane of that screen a
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/▲.*$//' -e 's/▼.*$//' -e 's/▒.*$//' -e 's/■.*$//' -e 's/  *$//' | LC_ALL=C grep -c -x -F -- "$2" || :
 }
 rigReadOf(){ ## id -- how many times that one ask was read by its id
-	LC_ALL=C grep -c -x -F -- "--member-pending-reply-read magic-coordinator $1" "$MANAGER_SCREEN_RIG/calls" || :
+	LC_ALL=C grep -c -x -F -- "--read-pending-reply magic-coordinator $1" "$MANAGER_SCREEN_RIG/calls" || :
 }
 
 echo "-- the selected ask is read by its id, while it is selected --"
@@ -551,7 +551,7 @@ rigAssert "the pane starts at the top of the ask, and does not follow its end" "
 rigAssert "with the focus on it, PageDown shows its next page"        "$( rigVal paged.focus ) $( rigVal paged.viewTop ) $( rigPaneHolds paged ' as posted:' )" "view 10 1"
 rigAssert "and reaches its last line"                                 "$( rigPaneHolds end '  ask       5c5c5c5c-0000-4000-8000-000000000005' ) $( rigVal end.spills )" "1 0"
 rigAssert "a text is typed and Enter is pressed: no line opens, nothing is submitted, nothing is dived into" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.path ) $( rigVal typed.selected )" "[] [Answer: what can be done with this question is still being read] pending 0d7affda-0000-4000-8000-000000000001"
-rigAssert "every call was a read of the asks: the list, or one ask by its id" "$( LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C grep -c -v -- '^--member-pending-reply-read magic-coordinator ' || : ) $( [ "$( rigReadOf "$rigC" )" -ge 1 ] && printf read )" "0 read"
+rigAssert "every call was a read of the asks: the list, or one ask by its id" "$( LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C grep -c -v -- '^--read-pending-reply magic-coordinator ' || : ) $( [ "$( rigReadOf "$rigC" )" -ge 1 ] && printf read )" "0 read"
 
 rigAsk1=0d7affda-0000-4000-8000-000000000001
 rigAsk2=0e0c1c26-0000-4000-8000-000000000002
@@ -566,7 +566,7 @@ rigBoxHolds(){ ## tag, text -- how many lines of that box hold the text
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
 }
 rigActCalls(){ ## how the stand-in was started for anything but a read, each start between its own brackets
-	LC_ALL=C grep -v -e '^\[--member-pending-reply-read\]' -e '^\[--manager-pending-reply-read\]' -e '^\[--manager-place-list\]$' "$MANAGER_SCREEN_RIG/words" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed -e 's/ $//'
+	LC_ALL=C grep -v -e '^\[--read-pending-reply\]' -e '^\[--manager-pending-reply-read\]' -e '^\[--manager-place-list\]$' "$MANAGER_SCREEN_RIG/words" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed -e 's/ $//'
 }
 
 echo "-- a question is selected: its keys in the status line, in the left window and in the menu, only where its row says they apply --"

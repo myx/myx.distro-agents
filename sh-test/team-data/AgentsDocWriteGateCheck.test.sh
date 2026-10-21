@@ -78,12 +78,12 @@ rigMeets(){ ## kind, file
 
 echo "-- 1. a board create: the headers are filled, the item meets its contract --"
 rigT1=task-20261001T1000Z-first.md
-printf 'the work\n' | rigOp "$rigTmp/c1" --magic-board-create-running rig-member "$rigT1" --upsert-from-stdin
+printf 'the work\n' | rigOp "$rigTmp/c1" --create-running rig-member "$rigT1" --upsert-from-stdin
 rigAssert "created, rc 0" "$( cat "$rigTmp/c1.rc" ):$( [ -f "$rigData/board/running/$rigT1" ] && echo yes || echo no )" "0:yes"
 rigAssert "type, from, owner are the item's type and the acting member, document-contract the contract of the type" \
 	"$( rigField "$rigData/board/running/$rigT1" type ):$( rigField "$rigData/board/running/$rigT1" from ):$( rigField "$rigData/board/running/$rigT1" owner ):$( rigField "$rigData/board/running/$rigT1" document-contract )" "task:rig-member:rig-member:board-item.task"
 rigAssert "the item meets its contract: exit 0, no row" "$( rigMeets board-item.task "$rigData/board/running/$rigT1" )" "0:0"
-printf 'the work\n' | rigOp "$rigTmp/c2" --magic-board-create-running rig-member task-20261001T1001Z-owned.md --upsert-from-stdin --header:upsert:owner:rig-other
+printf 'the work\n' | rigOp "$rigTmp/c2" --create-running rig-member task-20261001T1001Z-owned.md --upsert-from-stdin --header:upsert:owner:rig-other
 rigAssert "an owner given is never overwritten" "$( rigField "$rigData/board/running/task-20261001T1001Z-owned.md" owner ):$( rigFieldCount "$rigData/board/running/task-20261001T1001Z-owned.md" owner )" "rig-other:1"
 printf -- '---\n---\nwork\n' | RIG_AGENT=rig-other rigOp "$rigTmp/c3" --intern-op-board-upsert-move-edit pending task-20261001T1002Z-spawned.md --create --upsert-from-stdin --context rig
 rigAssert "with no acting member named, the spawned session's own member is the acting one" "$( cat "$rigTmp/c3.rc" ):$( rigField "$rigData/board/pending/task-20261001T1002Z-spawned.md" from ):$( rigField "$rigData/board/pending/task-20261001T1002Z-spawned.md" owner )" "0:rig-other:rig-other"
@@ -100,9 +100,9 @@ printf -- '---\n---\nwork\n' | rigOp "$rigTmp/c5" --intern-op-board-upsert-move-
 rigAssert "a name whose type has no contract is no concern of the gate: written, no contract named" "$( cat "$rigTmp/c5.rc" ):$( rigFieldCount "$rigData/board/pending/epic-20261001T1004Z-notatype.md" document-contract )" "0:0"
 
 echo "-- 2. an approval needs blocks --"
-printf 'gate\n' | rigOp "$rigTmp/a1" --magic-board-create-running rig-member approval-20261001T1010Z-gate.md --upsert-from-stdin
+printf 'gate\n' | rigOp "$rigTmp/a1" --create-running rig-member approval-20261001T1010Z-gate.md --upsert-from-stdin
 rigAssert "an approval without blocks is refused, nothing written, the key named" "$( cat "$rigTmp/a1.rc" ):$( [ -f "$rigData/board/running/approval-20261001T1010Z-gate.md" ] && echo written || echo absent ):$( rigHolds "$rigTmp/a1" 'the key blocks is required and absent' )" "1:absent:yes"
-printf 'gate\n' | rigOp "$rigTmp/a2" --magic-board-create-running rig-member approval-20261001T1011Z-gate.md --upsert-from-stdin --header:upsert:blocks:"${rigT1%.md}"
+printf 'gate\n' | rigOp "$rigTmp/a2" --create-running rig-member approval-20261001T1011Z-gate.md --upsert-from-stdin --header:upsert:blocks:"${rigT1%.md}"
 rigAssert "with blocks it is made, and meets the contract of an approval" "$( cat "$rigTmp/a2.rc" ):$( rigField "$rigData/board/running/approval-20261001T1011Z-gate.md" document-contract ):$( rigMeets board-item.approval "$rigData/board/running/approval-20261001T1011Z-gate.md" )" "0:board-item.approval:0:0"
 
 echo "-- 3. before and after: only what the write introduces --"
@@ -135,37 +135,37 @@ echo "-- 4. one behaviour for a failure: refused or said, in one form --"
 printf -- '---\n---\nlegacy\n' | rigOp "$rigTmp/u1" --intern-op-board-upsert-move-edit pending task-2026-09-29-legacy.md --create --acting-member:rig-member --upsert-from-stdin --context rig
 rigAssert "the naming Rule is a rule of the gate: a WARNING line of the same form, the item created" \
 	"$( cat "$rigTmp/u1.rc" ):$( rigHolds "$rigTmp/u1" 'board-upsert-move-edit: ⚠️ WARNING: --create: task-2026-09-29-legacy.md does not follow the naming Rule' ):$( [ -f "$rigData/board/pending/task-2026-09-29-legacy.md" ] && echo created )" "0:yes:created"
-printf 'misfiled\n' | RIG_AGENT=rig-member rigOp "$rigTmp/u2" --member-inbox-note-upsert rig-member warning-20261001T1030Z-misfiled.md
+printf 'misfiled\n' | RIG_AGENT=rig-member rigOp "$rigTmp/u2" --upsert-inbox-note rig-member warning-20261001T1030Z-misfiled.md
 rigAssert "a type in the wrong store is a rule of the gate: a WARNING line of the same form, the item written" \
 	"$( cat "$rigTmp/u2.rc" ):$( rigHolds "$rigTmp/u2" 'member-inbox-upsert: ⚠️ WARNING: new item: warning-20261001T1030Z-misfiled.md is not an inbox type' )" "0:yes"
 rigAssert "there is no second mechanism: the naming check function is gone, and the two primitives ask the one gate" \
 	"$( LC_ALL=C grep -r -l 'AgentsToolsItemNameShapeCheck' "$rigPackage/sh-lib" "$rigPackage/sh-scripts" 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ):$( LC_ALL=C grep -c 'AgentsToolsDocValidateGate ' "$rigPackage/sh-lib/board/AgentsTools.InternOpBoardUpsertMoveEdit.include" ):$( LC_ALL=C grep -c 'AgentsToolsDocValidateGate ' "$rigPackage/sh-lib/inbox/AgentsTools.InternOpMemberInboxUpsert.include" )" "0:2:2"
 
 echo "-- 5. the inbox --"
-printf 'a note\n' | RIG_AGENT=rig-member rigOp "$rigTmp/i1" --member-inbox-note-upsert rig-member note-20261001T1040Z-own.md
+printf 'a note\n' | RIG_AGENT=rig-member rigOp "$rigTmp/i1" --upsert-inbox-note rig-member note-20261001T1040Z-own.md
 rigI1="$rigData/inboxes/rig-member/incoming/note-20261001T1040Z-own.md"
 rigAssert "a note: document-contract, owner the inbox's member, from the writer; it meets its contract" \
 	"$( cat "$rigTmp/i1.rc" ):$( rigField "$rigI1" document-contract ):$( rigField "$rigI1" owner ):$( rigField "$rigI1" from ):$( rigMeets inbox-item.note "$rigI1" )" "0:inbox-item.note:rig-member:rig-member:0:0"
-printf 'Please look.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/i2" --member-upsert-member-inquiry rig-member inquiry-20261001T1041Z-ask.md
+printf 'Please look.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/i2" --upsert-inbox-inquiry rig-member inquiry-20261001T1041Z-ask.md
 rigI2="$rigData/inboxes/rig-member/incoming/inquiry-20261001T1041Z-ask.md"
 rigAssert "an inquiry to another member's inbox: the owner is the member whose inbox holds it, from the one asking" "$( cat "$rigTmp/i2.rc" ):$( rigField "$rigI2" owner ):$( rigField "$rigI2" from ):$( rigField "$rigI2" document-contract )" "0:rig-member:rig-other:inbox-item.inquiry"
-printf 'a person wrote this\n' | RIG_USER=rigacct rigOp "$rigTmp/i5" --member-inbox-note-upsert rig-member note-20261001T1043Z-console.md
+printf 'a person wrote this\n' | RIG_USER=rigacct rigOp "$rigTmp/i5" --upsert-inbox-note rig-member note-20261001T1043Z-console.md
 rigAssert "a person at a console, no session spawned: the writer is user-<account>, and the note meets its contract" \
 	"$( cat "$rigTmp/i5.rc" ):$( rigField "$rigData/inboxes/rig-member/incoming/note-20261001T1043Z-console.md" from ):$( rigField "$rigData/inboxes/rig-member/incoming/note-20261001T1043Z-console.md" owner ):$( rigMeets inbox-item.note "$rigData/inboxes/rig-member/incoming/note-20261001T1043Z-console.md" )" "0:user-rigacct:rig-member:0:0"
-printf 'a member wrote this\n' | RIG_AGENT=rig-member RIG_USER=rigacct rigOp "$rigTmp/i6" --member-inbox-note-upsert rig-member note-20261001T1044Z-both.md
-printf 'a named member wrote this\n' | RIG_AGENT=rig-member RIG_USER=rigacct rigOp "$rigTmp/i7" --member-inbox-note-upsert rig-member note-20261001T1045Z-named.md --from-member magic-coordinator
+printf 'a member wrote this\n' | RIG_AGENT=rig-member RIG_USER=rigacct rigOp "$rigTmp/i6" --upsert-inbox-note rig-member note-20261001T1044Z-both.md
+printf 'a named member wrote this\n' | RIG_AGENT=rig-member RIG_USER=rigacct rigOp "$rigTmp/i7" --upsert-inbox-note rig-member note-20261001T1045Z-named.md --from-member magic-coordinator
 rigAssert "the spawned session's member comes before the account, and --from-member before both" \
 	"$( rigField "$rigData/inboxes/rig-member/incoming/note-20261001T1044Z-both.md" from ):$( rigField "$rigData/inboxes/rig-member/incoming/note-20261001T1045Z-named.md" from )" "rig-member:magic-coordinator"
-printf 'no one wrote this\n' | rigOp "$rigTmp/i3" --member-inbox-note-upsert rig-member note-20261001T1042Z-nobody.md
+printf 'no one wrote this\n' | rigOp "$rigTmp/i3" --upsert-inbox-note rig-member note-20261001T1042Z-nobody.md
 rigAssert "with no one at all (no writer named, no spawned session, no USER), the create is refused (from is required), nothing written" "$( cat "$rigTmp/i3.rc" ):$( [ -f "$rigData/inboxes/rig-member/incoming/note-20261001T1042Z-nobody.md" ] && echo written || echo absent ):$( rigHolds "$rigTmp/i3" 'the key from is required and absent' )" "1:absent:yes"
-printf -- '---\ntype: note\n---\ndropped\n' | RIG_AGENT=rig-member rigOp "$rigTmp/i4" --member-inbox-note-upsert rig-member note-20261001T1040Z-own.md
+printf -- '---\ntype: note\n---\ndropped\n' | RIG_AGENT=rig-member rigOp "$rigTmp/i4" --upsert-inbox-note rig-member note-20261001T1040Z-own.md
 rigAssert "an update that drops the item's required keys is refused, the item as it was" "$( cat "$rigTmp/i4.rc" ):$( rigHolds "$rigI1" 'a note' ):$( rigHolds "$rigTmp/i4" 'nothing was written' )" "1:yes:yes"
 
 echo "-- 6. the transcript appender --"
-RIG_AGENT=rig-member rigOp "$rigTmp/t1" --member-append-session-transcript rig-member --speaker rig-member --timestamp 2026-10-01T10:00:00Z --message "first" --transcript-name transcript-20261001T1050Z-rig.md --create
+RIG_AGENT=rig-member rigOp "$rigTmp/t1" --append-transcript rig-member --speaker rig-member --timestamp 2026-10-01T10:00:00Z --message "first" --transcript-name transcript-20261001T1050Z-rig.md --create
 rigT="$rigData/audit/2026-10/transcript-20261001T1050Z-rig.md"
 rigAssert "a new transcript opens with its contract and type" "$( cat "$rigTmp/t1.rc" ):$( rigField "$rigT" document-contract ):$( rigField "$rigT" type ):$( LC_ALL=C sed -n 1p "$rigT" )" "0:audit-item.transcript:transcript:---"
-RIG_AGENT=rig-member rigOp "$rigTmp/t2" --member-append-session-transcript rig-member --speaker rig-member --timestamp 2026-10-01T10:01:00Z --message "second" --transcript-name transcript-20261001T1050Z-rig.md
+RIG_AGENT=rig-member rigOp "$rigTmp/t2" --append-transcript rig-member --speaker rig-member --timestamp 2026-10-01T10:01:00Z --message "second" --transcript-name transcript-20261001T1050Z-rig.md
 rigAssert "a later entry adds no frontmatter, and the transcript meets its contract" "$( cat "$rigTmp/t2.rc" ):$( LC_ALL=C grep -c '^document-contract: ' "$rigT" ):$( rigHolds "$rigT" 'first' ):$( rigHolds "$rigT" 'second' ):$( rigMeets audit-item.transcript "$rigT" )" "0:1:yes:yes:0:0"
 
 echo "-- 7. every writer of an audit item names its contract, and what it writes meets it --"

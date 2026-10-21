@@ -149,7 +149,7 @@ rigWaitRc=()
 rigWait(){ ## the wait's number, a directory to put first on PATH (may be empty)
 	( cd "$rigScenarioDir/ws" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
 		PATH="${2:+$2:}$PATH" MDAT_DATA_ROOT="$rigScenarioDir/data" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_WAIT_SETTLE_SECONDS=1 MDAT_WAIT_REMIND=off \
-		bash "$rigTools" --member-wait-for-input "$rigMember" --wait-default --wait-session-id "rig-waitfolder-$rigScenarioName-$1" \
+		bash "$rigTools" --wait-for-input "$rigMember" --wait-default --wait-session-id "rig-waitfolder-$rigScenarioName-$1" \
 			--wait-source "slack:CRIG00001:1700000001.000${1}01:conversation" --wait-since-utime "1700000001.000${1}01" --wait-timeout "$rigBound" --wait-poll-interval 1 ) \
 		> "$rigScenarioDir/wait.$1.out" 2> "$rigScenarioDir/wait.$1.err" &
 	rigWaitPid[$1]=$!
@@ -160,7 +160,7 @@ rigQuickWait(){
 	printf 'RIG-PRESENT\n' > "$rigScenarioDir/drop.txt"
 	( cd "$rigScenarioDir/ws" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
 		MDAT_DATA_ROOT="$rigScenarioDir/data" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_WAIT_REMIND=off \
-		bash "$rigTools" --member-wait-for-input "$rigMember" --wait-source "file:$rigScenarioDir/drop.txt" --wait-since-utime 1 --wait-timeout 30 ) > "$rigScenarioDir/op.out" 2> "$rigScenarioDir/op.err"
+		bash "$rigTools" --wait-for-input "$rigMember" --wait-source "file:$rigScenarioDir/drop.txt" --wait-since-utime 1 --wait-timeout 30 ) > "$rigScenarioDir/op.out" 2> "$rigScenarioDir/op.err"
 }
 rigWaitEnd(){ ## the wait's number
 	rigWaitRc[$1]=0
@@ -319,7 +319,7 @@ rigFailed(){ ## scenario name, the directory whose mktemp is first on PATH
 	rigWait 1 "$2"
 	rigWaitEnd 1
 	printf '%s:%s:%s:%s:%s:%s' "${rigWaitRc[1]}" "$( rigFirstLine "$rigScenarioDir/wait.1.out" )" \
-		"$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*--member-wait-for-input: ' )" \
+		"$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*--wait-for-input: ' )" \
 		"$( rigCount "$rigScenarioDir/wait.1.err" 'No such file|can.t open file' )" \
 		"$( rigFolderCount )" "$( [ ! -f "$rigScenarioDir/calls" ] && printf '0' || rigCount "$rigScenarioDir/calls" '^conversations[.]replies ' )"
 }
@@ -338,7 +338,7 @@ rigTakenAt="$( date +%s )"
 rm -rf -- "$rigTakenDir"
 rigWaitEnd 1
 rigAssert "status 1, ERROR, one error line of the wait and it names the directory as gone, no round after round of missing files, long before its bound" \
-	"${rigWaitRc[1]}:$( rigFirstLine "$rigScenarioDir/wait.1.out" ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*--member-wait-for-input: ' ):$( rigCount "$rigScenarioDir/wait.1.err" "ERROR: .*${rigTakenDir##*/}, is gone" ):$( [ "$( rigCount "$rigScenarioDir/wait.1.err" 'No such file|can.t open file' )" -le 2 ] && printf 'no-rounds-of-it' || printf 'round-after-round' ):$( [ $(( $( date +%s ) - rigTakenAt )) -lt 30 ] && printf 'at-once' || printf 'at-its-bound' )" \
+	"${rigWaitRc[1]}:$( rigFirstLine "$rigScenarioDir/wait.1.out" ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*--wait-for-input: ' ):$( rigCount "$rigScenarioDir/wait.1.err" "ERROR: .*${rigTakenDir##*/}, is gone" ):$( [ "$( rigCount "$rigScenarioDir/wait.1.err" 'No such file|can.t open file' )" -le 2 ] && printf 'no-rounds-of-it' || printf 'round-after-round' ):$( [ $(( $( date +%s ) - rigTakenAt )) -lt 30 ] && printf 'at-once' || printf 'at-its-bound' )" \
 	"1:WAIT-RESULT: ERROR:1:1:no-rounds-of-it:at-once"
 
 echo "-- a file a step wrote that is not there when the next step reads it: the wait ends on it and keeps its directory --"
@@ -350,7 +350,7 @@ rigLostDir="$( rigFolderOfNew "" )" || rigLostDir="$rigScenarioDir/no-directory-
 rigAnswer 1
 rigWaitEnd 1
 rigAssert "the render of the settle pass gone as it is written: status 1, ERROR, one error line of the wait, and it names that file" \
-	"${rigWaitRc[1]}:$( rigFirstLine "$rigScenarioDir/wait.1.out" ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*--member-wait-for-input: ' ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*/settle[.]2[.]rendered, which a step of this wait wrote, is not there' )" \
+	"${rigWaitRc[1]}:$( rigFirstLine "$rigScenarioDir/wait.1.out" ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*--wait-for-input: ' ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*/settle[.]2[.]rendered, which a step of this wait wrote, is not there' )" \
 	"1:WAIT-RESULT: ERROR:1:1"
 rigAssert "its directory is kept as it stands, says what was missed, and is named in that line" \
 	"$( rigIsDir "$rigLostDir" ):$( rigCount "$rigLostDir/kept" '^missed: .*/settle[.]2[.]rendered$' ):$( rigCount "$rigScenarioDir/wait.1.err" "kept as it stands.*${rigLostDir##*/}" )" "stands:1:1"
@@ -362,7 +362,7 @@ rigThread 1 ""
 rigWait 1 "$rigTmp/bin-loseawk"
 rigWaitEnd 1
 rigAssert "the rendering of a round gone as it is written is no arrival: status 1, ERROR, one error line of the wait and it names that file, nothing said to have arrived, no file opened that is not there" \
-	"${rigWaitRc[1]}:$( rigFirstLine "$rigScenarioDir/wait.1.out" ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*--member-wait-for-input: ' ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*/now[.]2, which a step of this wait wrote, is not there' ):$( rigCount "$rigScenarioDir/wait.1.out" 'arrived on' ):$( rigCount "$rigScenarioDir/wait.1.err" 'can.t open file' )" \
+	"${rigWaitRc[1]}:$( rigFirstLine "$rigScenarioDir/wait.1.out" ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*--wait-for-input: ' ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*/now[.]2, which a step of this wait wrote, is not there' ):$( rigCount "$rigScenarioDir/wait.1.out" 'arrived on' ):$( rigCount "$rigScenarioDir/wait.1.err" 'can.t open file' )" \
 	"1:WAIT-RESULT: ERROR:1:1:0:0"
 
 rigUnknown="$( cat "$rigTmp"/*/curl.log 2>/dev/null | LC_ALL=C awk '$0 ~ /^url:/ || $0 == "no-method" { hitCount++ ; } END { print hitCount + 0 ; }' )"

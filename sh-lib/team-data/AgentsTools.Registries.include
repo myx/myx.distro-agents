@@ -474,14 +474,16 @@ AgentsToolsRegistryPendingOpenSessions(){ ## spawned-sessions registry file
 ## compared as text, and reaches awk in its environment.
 AgentsToolsRegistryRunWords(){ ## optional spawn id -- stdin: process list text
 	MDAT_REGISTRY_RUN_AS="${1:-}" LC_ALL=C awk '
-		function toolingWord( word ) {
-			return ( word == toolingName || ( length( word ) > length( toolingName ) && substr( word, length( word ) - length( toolingName ) ) == "/" toolingName ) ) ;
+		function toolingWord( word,   parts, base ) {
+			## The tooling is the dispatcher and every tool file (sh-lib/harness/AgentsContext.FrontTable.include): a process of one is no run.
+			base = word ; if ( split( word, parts, "/" ) > 1 ) { base = parts[ split( word, parts, "/" ) ] ; }
+			return ( base ~ /^(DistroAgents[A-Za-z]*|Agent[A-Za-z]*Tools)\.fn\.sh$/ ) ;
 		}
 		function runsAs( runId ) {
 			if ( runWanted == "" ) { print runId ; }
 			else if ( ( runId "" ) == runWanted && pidWord != "" ) { print pidWord ; }
 		}
-		BEGIN { toolingName = "DistroAgentsTools.fn.sh" ; runWanted = ENVIRON["MDAT_REGISTRY_RUN_AS"] "" ; }
+		BEGIN { runWanted = ENVIRON["MDAT_REGISTRY_RUN_AS"] "" ; }
 		{
 			wordAt = ( $1 ~ /^[0-9]+$/ ) ? 2 : 1 ;
 			pidWord = ( wordAt == 2 ) ? $1 : "" ;

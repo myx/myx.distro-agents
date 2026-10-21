@@ -6,12 +6,12 @@
 ## does not wait is detached the same whatever started it: one started with no session id,
 ## as a bare console starts one, leads a process group of its own, outlives its starter,
 ## ignores a hangup and records its own close, and so does every member a session is started
-## with by --magic-spawn-session, from a bare console and from inside a session. The start
+## with by --spawn-session, from a bare console and from inside a session. The start
 ## turns job control on in the shell that makes it, and leaves that shell's job control as it
 ## found it. The poster of a detached run's tracking feed takes a hangup as its run does: it
 ## goes on, a line the run writes later still reaches the thread, and it ends when its run
 ## ends; a poster started where the hangup is not ignored still ends on it, what is open
-## posted first. Two members of one --magic-spawn-session call that close in the same moment
+## posted first. Two members of one --spawn-session call that close in the same moment
 ## both close their records. The control: a spawn its caller waits on with no parent session
 ## (the main loop's own pass) stays in its caller's group and dies with it, so the pass bound
 ## still reaches it. A fake console and a fake curl, no model, offline by construction.
@@ -252,7 +252,7 @@ rigSpawnAsFunction(){ ## scenario, parent session id or empty, main-on or sub-on
 	rigWaitFor 30 test -s "$rigDir/console.pid" || rigRefuse "the fake console never started in scenario $1: $( grep -m1 ERROR "$rigDir/proxy.out" )"
 }
 
-## A whole session, started as "the pass" by --magic-spawn-session: its first member inside a
+## A whole session, started as "the pass" by --spawn-session: its first member inside a
 ## command substitution, its second on a pipe. Then that group is ended: TERM, then KILL.
 rigSessionAndEndPass(){ ## scenario, parent session id or empty, console seconds, seconds a record's close is held (optional)
 	rigDir="$rigTmp/$1"
@@ -260,7 +260,7 @@ rigSessionAndEndPass(){ ## scenario, parent session id or empty, console seconds
 	set -m
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="${4:+$rigTmp/held:}$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		${2:+MDAT_SPAWN_SESSION_ID="$2" MDAT_SPAWN_AGENT=magic-coordinator} ${4:+RIG_CLOSE_HOLD="$4" RIG_REAL_AWK="$rigRealAwk"} RIG_SCENARIO="$rigDir" RIG_RUN="$3" RIG_BY_MEMBER=yes RIG_HANDBACK=yes \
-		bash "$rigTool" --magic-spawn-session --routine rigplain rig-member-a rig-member-b <<< "RIG-TASK-TEXT" > "$rigDir/session.out" 2>&1 ) &
+		bash "$rigTool" --spawn-session --routine rigplain rig-member-a rig-member-b <<< "RIG-TASK-TEXT" > "$rigDir/session.out" 2>&1 ) &
 	rigPassPid=$!
 	rigPassGroup="$rigPassPid"
 	set +m
@@ -284,7 +284,7 @@ rigSessionAsserts(){
 	rigAssert "its first member survives its starter being ended"  "$( rigAlive rig-member-a )" alive
 	rigAssert "and so does its second"                       "$( rigAlive rig-member-b )" alive
 	## Released one after the other, the second once the first has closed its record. Two
-	## members of one --magic-spawn-session call that close in the same moment write the
+	## members of one --spawn-session call that close in the same moment write the
 	## header changes of that close through one temp file (AgentsToolsSpawnProxyCloseSandbox
 	## names it by `$$`, which is the starting call's pid in both), and one record can then
 	## stay as started. That is not what this check asks.
@@ -364,15 +364,15 @@ rigSpawnAsFunction fn-sub-on "" sub-on
 rigAssert "a subshell of such a shell, where it was off, has it off again" "$( cat "$rigDir/job-control.after" 2>/dev/null )" off
 rigAssert "and the run leads a process group of its own"  "$( rigLeads )" yes
 
-echo "-- a session started by --magic-spawn-session from a bare console --"
+echo "-- a session started by --spawn-session from a bare console --"
 rigSessionAndEndPass session-bare "" 90
 rigSessionAsserts
 
-echo "-- a session started by --magic-spawn-session from inside a session --"
+echo "-- a session started by --spawn-session from inside a session --"
 rigSessionAndEndPass session-nested parent-rig-session 90
 rigSessionAsserts
 
-echo "-- two members of one --magic-spawn-session call that close in the same moment --"
+echo "-- two members of one --spawn-session call that close in the same moment --"
 rigSessionAndEndPass session-close-at-once "" 90 5
 rigAssert "the session is started with both members"    "$( LC_ALL=C grep -c -x 'MEMBERS=rig-member-a rig-member-b' "$rigDir/session.out" )" 1
 : > "$rigDir/release"

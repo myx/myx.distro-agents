@@ -2,17 +2,17 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.MagicSpawnSession.include -- --magic-spawn-session. Starts a coworking
+## AgentsTools.MagicSpawnSession.include -- --spawn-session. Starts a coworking
 ## session and spawns its initial members in one call, each one carrying the resolved
 ## routine's own automatic brief (AgentsTools.InternOpAgentSpawnProxy.include's --routine/
 ## --routine-default). The first member spawned starts the session; every further one
 ## joins it by the session id the first spawn reports. Help pairing: MAGIC.md,
-## "--magic-spawn-session: starting a routine's own initial members".
+## "--spawn-session: starting a routine's own initial members".
 ##
 
 case "$1" in
 
-	--magic-spawn-session)
+	--spawn-session)
 		shift
 		local routineSelector="" routineDefault="false" sessionNameOrComment="" sessionDescription=""
 		local sessionCliService="" sessionSettingsWorkspace=""
@@ -21,7 +21,7 @@ case "$1" in
 			case "$1" in
 				--routine)
 					if [ -z "${2:-}" ] ; then
-						echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: --routine requires <selector>" >&2
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --routine requires <selector>" >&2
 						set +e ; return 1
 					fi
 					routineSelector="$2"
@@ -33,7 +33,7 @@ case "$1" in
 				;;
 				--session-name-or-comment)
 					if [ -z "${2:-}" ] ; then
-						echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: --session-name-or-comment requires <text>" >&2
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --session-name-or-comment requires <text>" >&2
 						set +e ; return 1
 					fi
 					sessionNameOrComment="$2"
@@ -43,7 +43,7 @@ case "$1" in
 				## unchanged, as --intern-op-agent-spawn-proxy takes it.
 				--description)
 					if [ -z "${2:-}" ] ; then
-						echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: --description requires <text>" >&2
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --description requires <text>" >&2
 						set +e ; return 1
 					fi
 					sessionDescription="$2"
@@ -55,7 +55,7 @@ case "$1" in
 				## checked there: a value it refuses stops the call at its first spawn.
 				--spawn-cli-service)
 					if [ -z "${2:-}" ] ; then
-						echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: --spawn-cli-service requires <cli-name>" >&2
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --spawn-cli-service requires <cli-name>" >&2
 						set +e ; return 1
 					fi
 					sessionCliService="$2"
@@ -63,14 +63,14 @@ case "$1" in
 				;;
 				--spawn-settings-workspace)
 					if [ -z "${2:-}" ] ; then
-						echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: --spawn-settings-workspace requires <workspace-name>" >&2
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: --spawn-settings-workspace requires <workspace-name>" >&2
 						set +e ; return 1
 					fi
 					sessionSettingsWorkspace="$2"
 					shift 2
 				;;
 				--*)
-					echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]" >&2
+					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]" >&2
 					set +e ; return 1
 				;;
 				*)
@@ -80,11 +80,11 @@ case "$1" in
 			esac
 		done
 		if [ -n "$routineSelector" ] && [ "$routineDefault" = "true" ] ; then
-			echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: use only one of --routine <selector> | --routine-default" >&2
+			echo "$MDSC_CMD: spawn-session: ⛔ ERROR: use only one of --routine <selector> | --routine-default" >&2
 			set +e ; return 1
 		fi
 		if [ -z "$routineSelector" ] && [ "$routineDefault" != "true" ] ; then
-			echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: exactly one of --routine <selector> | --routine-default is required" >&2
+			echo "$MDSC_CMD: spawn-session: ⛔ ERROR: exactly one of --routine <selector> | --routine-default is required" >&2
 			set +e ; return 1
 		fi
 
@@ -127,7 +127,7 @@ case "$1" in
 				done <<< "$execRoster"
 			fi
 			if [ ${#spawnMembers[@]} -eq 0 ] ; then
-				echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: $resolvedRoutineName's own executors ('$routineExecutorsLine') is not a plain comma-separated list of existing members -- pass explicit <team-member>... instead" >&2
+				echo "$MDSC_CMD: spawn-session: ⛔ ERROR: $resolvedRoutineName's own executors ('$routineExecutorsLine') is not a plain comma-separated list of existing members -- pass explicit <team-member>... instead" >&2
 				set +e ; return 1
 			fi
 		fi
@@ -144,12 +144,12 @@ case "$1" in
 		## which the spawn proxy asks of each spawn).
 		local spawnCheckMember spawnCheckFolder
 		for spawnCheckMember in "${spawnMembers[@]}" ; do
-			AgentsToolsAssertBareName "$spawnCheckMember" "<team-member>" magic-spawn-session || { set +e ; return 1 ; }
+			AgentsToolsAssertBareName "$spawnCheckMember" "<team-member>" spawn-session || { set +e ; return 1 ; }
 			if ! spawnCheckFolder="$( AgentsToolsTeamMemberDirectory "$spawnCheckMember" )" ; then
-				echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: no such team member: $spawnCheckMember" >&2
+				echo "$MDSC_CMD: spawn-session: ⛔ ERROR: no such team member: $spawnCheckMember" >&2
 				set +e ; return 1
 			fi
-			AgentsToolsTeamMemberStartCheck "$spawnCheckMember" "$spawnCheckFolder" "--magic-spawn-session" || { set +e ; return 1 ; }
+			AgentsToolsTeamMemberStartCheck "$spawnCheckMember" "$spawnCheckFolder" "--spawn-session" || { set +e ; return 1 ; }
 		done
 
 		## The first spawn starts the session; every further one joins it by the
@@ -172,16 +172,16 @@ case "$1" in
 			if [ "$spawnFirst" = "true" ] ; then
 				## This operation starts a session, so its first spawn asks for one of its own:
 				## otherwise it would be brought into the calling session's.
-				spawnOut="$( printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --session-new --context --magic-spawn-session )" || { set +e ; return 1 ; }
+				spawnOut="$( printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --session-new --context --spawn-session )" || { set +e ; return 1 ; }
 				spawnSessionId="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
 				if [ -z "$spawnSessionId" ] ; then
-					echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: the first spawn ($spawnMember) reported no SESSION_ID -- refusing to spawn the rest into no session" >&2
+					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: the first spawn ($spawnMember) reported no SESSION_ID -- refusing to spawn the rest into no session" >&2
 					set +e ; return 1
 				fi
 				spawnFirst="false"
 			else
 				spawnArgs+=( --session-id "$spawnSessionId" )
-				printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --context --magic-spawn-session > /dev/null || { set +e ; return 1 ; }
+				printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --context --spawn-session > /dev/null || { set +e ; return 1 ; }
 			fi
 		done
 		echo "SESSION_ID=$spawnSessionId"

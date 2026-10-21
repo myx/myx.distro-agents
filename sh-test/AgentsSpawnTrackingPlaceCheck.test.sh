@@ -219,7 +219,7 @@ rigSecond="$( cat "$rigTmp/last-spawn" )"
 rm -f "$rigTmp/posts" "$rigTmp"/post.* ; : > "$rigTmp/posts.log"
 ( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_ID -u MDAT_SESSION_THREAD -u MDAT_SPAWN_SANDBOX_ROOT \
 	MDAT_SPAWN_SESSION_ID="$rigSecond" MDAT_SPAWN_AGENT=magic-developer RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigTmp/data" MDLT_ORIGIN="$MDLT_ORIGIN" \
-	bash "$rigTool" --member-comms-slack-send-message magic-developer session-parent RIG-HANDBACK > "$rigTmp/handback.out" 2>&1 ) || :
+	bash "$rigTool" --slack-send-message magic-developer session-parent RIG-HANDBACK > "$rigTmp/handback.out" 2>&1 ) || :
 rigAssert "a handback sent to session-parent is a reply in the session thread in magic-team, and nothing goes to event-track" \
 	"$( rigPosts "$rigTeam" "${rigThread#*:}" message ):$( rigPosts "$rigTrackChannel" any any )" "1:0"
 rm -f "$rigTmp/console.handback"

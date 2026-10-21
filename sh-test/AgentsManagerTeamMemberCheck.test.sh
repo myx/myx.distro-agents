@@ -16,7 +16,7 @@
 ## THE READ: the member's row, its information (the description of its SKILL.md in both forms a frontmatter writes
 ## it, its workspace, its home, the kind of its link and its path), the bullets of its basic.md, the sessions it has
 ## a run in with those where a run of it is alive first -- rows of --manager-session-list, verbatim -- its grants,
-## which are the rows --magic-permission-list prints for it, and its settings by key, which are the lines
+## which are the rows --list-permissions prints for it, and its settings by key, which are the lines
 ## --manager-config-digest prints of its scope: the family has one rule on which key is a credential, the digest's.
 ## A CREDENTIAL IS PRINTED IN ONE FORM (F11.8): no value of one stands whole anywhere in what any call here printed,
 ## on either stream, only its first quarter and a `*` for each character after it.
@@ -392,8 +392,8 @@ rigSessionRows(){ ## session id, spawn id of the member's run in it... -- that s
 	LC_ALL=C awk -F'\t' -v wantId="$rowsSession" '$1 == "session" && $2 == wantId' "$rigTmp/sessions.list"
 	for rowsRun in "$@" ; do LC_ALL=C awk -F'\t' -v wantId="$rowsRun" '$1 == "run" && $3 == wantId' "$rigTmp/sessions.list" ; done
 }
-rigGrantRows(){ ## member -- the rows --magic-permission-list prints for it, each behind the word grant, a field's spaces written _ and an empty one -
-	rigRun --magic-permission-list --member "$1"
+rigGrantRows(){ ## member -- the rows --list-permissions prints for it, each behind the word grant, a field's spaces written _ and an empty one -
+	rigRun --list-permissions --member "$1"
 	[ "$rigRc" = 0 ] || rigRefuse "the rig could not list the grants of $1: $( LC_ALL=C grep -m2 -e ERROR "$rigTmp/err" )"
 	LC_ALL=C awk -F'\t' -v OFS='\t' 'NF { for ( fieldAt = 1 ; fieldAt <= NF ; fieldAt++ ) { gsub( /[ ]+/, "_", $fieldAt ) ; if ( $fieldAt == "" ) $fieldAt = "-" ; } print "grant", $0 ; }' "$rigTmp/out"
 }
@@ -537,7 +537,7 @@ rigCode(){ ## file -- its lines that are no comment
 rigAssert "the family's include has one arm for the subject, which sources the subject's own include" "$( LC_ALL=C grep -c -x -e '	--manager-team-member-\*)' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerTeamMember.include"' "$rigHere/manager/AgentsTools.Manager.include" || : )" "1 1"
 rigAssert "where a member of another workspace is set up is the tooling's own answer for an invited member, asked in one place; its name is the machine's own directory's, read by the list, the read and the files; and the machine's members index is read, a member brought and the resolver called by no code of this include" "$( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'AgentsToolsMemberInvitedWorkspace "' || : ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e '"\$( AgentsToolsTeamMemberDirectoryText )"' || : ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'members\.registry' -e 'awk -F.*HOME' -e 'AgentsToolsMemberSkillsetBring' -e 'AgentsToolsMemberWorkspaceResolve' || : )" "1 3 0"
 rigAssert "the sessions are read through the session list, and the store of the sessions and the process list are read by no code of this include" "$( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'DistroAgentsTools --manager-session-list' || : ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'spawned' -e 'ps -' -e 'RunWords' -e 'MeasureRows' || : )" "1 0"
-rigAssert "the grants are read through the permission list and the settings through the digest, whose rule on secrets is the one of the family: no code of this include opens a scope, asks the setting reader or asks the catalogue" "$( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'DistroAgentsTools --magic-permission-list --member' || : ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'DistroAgentsTools --manager-config-digest .*scopes' || : ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'agent\.env' -e 'config-option' -e 'LocalTools' -e 'AgentsToolsOwnerSetupOptionSpec' || : )" "1 1 0"
+rigAssert "the grants are read through the permission list and the settings through the digest, whose rule on secrets is the one of the family: no code of this include opens a scope, asks the setting reader or asks the catalogue" "$( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'DistroAgentsTools --list-permissions --member' || : ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'DistroAgentsTools --manager-config-digest .*scopes' || : ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'agent\.env' -e 'config-option' -e 'LocalTools' -e 'AgentsToolsOwnerSetupOptionSpec' || : )" "1 1 0"
 
 echo "-- 10. the help pair --"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"
@@ -554,7 +554,7 @@ rigAssert "each operation has its syntax echo, its syntax line and its entry, on
 rigAssert "and in no other form" "$( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh --manager-team-member-" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh --manager-team-member-" "$rigHelpMd" || : )" "3 3"
 rigMemberForm="member <team-member> <mark> <first-name> <family-name> <alias> <kind> <workspace> <set-up> <status> <live> <icon> <folder>"
 rigAssert "the entry of the list gives the form of its row" "$( rigForm "$rigListOp" member )" "$rigMemberForm"
-rigAssert "the entry of the read gives the form of each of its rows that is its own, and names the two operations whose rows it prints" "$( rigForm "$rigReadOp [--full] <team-member>" info ) | $( rigForm "$rigReadOp [--full] <team-member>" bullet ) | $( rigForm "$rigReadOp [--full] <team-member>" grant ) | $( rigForm "$rigReadOp [--full] <team-member>" setting ) | $( rigEntry "$rigReadOp [--full] <team-member>" | LC_ALL=C grep -c -F -e '`--manager-session-list`' || : ) $( rigEntry "$rigReadOp [--full] <team-member>" | LC_ALL=C grep -c -F -e '`--magic-permission-list`' || : ) $( rigEntry "$rigReadOp [--full] <team-member>" | LC_ALL=C grep -c -F -e '`--manager-team-member-list`' || : )" \
+rigAssert "the entry of the read gives the form of each of its rows that is its own, and names the two operations whose rows it prints" "$( rigForm "$rigReadOp [--full] <team-member>" info ) | $( rigForm "$rigReadOp [--full] <team-member>" bullet ) | $( rigForm "$rigReadOp [--full] <team-member>" grant ) | $( rigForm "$rigReadOp [--full] <team-member>" setting ) | $( rigEntry "$rigReadOp [--full] <team-member>" | LC_ALL=C grep -c -F -e '`--manager-session-list`' || : ) $( rigEntry "$rigReadOp [--full] <team-member>" | LC_ALL=C grep -c -F -e '`--list-permissions`' || : ) $( rigEntry "$rigReadOp [--full] <team-member>" | LC_ALL=C grep -c -F -e '`--manager-team-member-list`' || : )" \
 	"info <name> <value> | bullet <name> <text> | grant <kind> <access> <target> <place> <origin> <ends> | setting <key> <state> <value> <workspace> | 1 1 1"
 rigFieldsBad(){ ## row kind, form -- how many rows of that kind in the last output have another count of fields than the form names, behind whether there was any
 	LC_ALL=C awk -F'\t' -v wantKind="$1" -v wantFields="$( printf '%s\n' "$2" | LC_ALL=C awk '{ print NF }' )" '$1 == wantKind { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s ", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out"

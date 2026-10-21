@@ -400,7 +400,7 @@ rigAssert "the thread stays when the only run of its session is a death and its 
 rigCall --manager-session-list > "$rigTmp/list.out" 2> "$rigTmp/list.err" < /dev/null
 rigAssert "a session with no live run and an open question reads waiting in the list of sessions" \
 	"$( LC_ALL=C awk '$1 == "session" && $2 == "d-gone" { for ( wordAt = 3 ; wordAt <= NF ; wordAt++ ) { if ( $wordAt == "waiting" ) { print "waiting" ; exit } } }' "$rigTmp/list.out" )" "waiting"
-rigCall --member-pending-reply-read magic-coordinator --any-owner > "$rigTmp/pending.out" 2> "$rigTmp/pending.err" < /dev/null
+rigCall --read-pending-reply magic-coordinator --any-owner > "$rigTmp/pending.out" 2> "$rigTmp/pending.err" < /dev/null
 rigGoneAsk="$( LC_ALL=C grep -l -x -F -- 'session-id: d-gone' "$rigPending"/*.md 2> /dev/null | LC_ALL=C sed -n '1p' )"
 rigGoneAsk="${rigGoneAsk##*/}" ; rigGoneAsk="${rigGoneAsk%.md}"
 rigAssert "the question is among the pending questions: one open record of the kind decision, addressed to the reviewer, with the id of the session, and the line of the death keeps its id" \

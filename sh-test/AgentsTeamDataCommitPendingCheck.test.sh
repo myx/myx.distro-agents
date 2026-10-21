@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on --magic-team-data-commit-pending against temp git stores and
+## Behavioural check on --commit-pending against temp git stores and
 ## temp bare remotes only -- never the real team data. The gating case is shaped like
 ## the real store: its own repository root, nested in plain folders, origin equal to
 ## TEAM_DATA_GIT_REMOTE, with added, changed and deleted paths pending and two commits
@@ -67,7 +67,7 @@ rigPending(){ ## store path
 rigOp(){ ## store path, result file, member, extra args...
 	local opStore="$1" opOut="$2" ; shift 2
 	( cd "$rigTmp/ws" && env -u CLAUDE_CODE_ENTRYPOINT MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$opStore" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		bash "$rigFn" --magic-team-data-commit-pending "$@" ) > "$opOut" 2> "$opOut.err"
+		bash "$rigFn" --commit-pending "$@" ) > "$opOut" 2> "$opOut.err"
 	printf '%s' "$?" > "$opOut.rc"
 }
 rigCount(){ git -C "$1" rev-list --count HEAD ; }

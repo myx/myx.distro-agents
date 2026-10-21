@@ -728,7 +728,7 @@ case "$1" in
 							## One day early on purpose: Slack's own `after:` is
 							## day-granular and exclusive, and the real sub-second
 							## cut-off is applied by the trim every source already goes
-							## through. Same over-fetch --member-comms-slack-search-messages
+							## through. Same over-fetch --slack-search-messages
 							## documents at its own call site.
 							mentionResponse="$( DistroAgentsTools --intern-op-slack-call "$actingMember" \
 								--api search.messages --identity user \
@@ -1576,7 +1576,7 @@ case "$1" in
 				printf 'identity: trello %s (config: %s)\n' "$trelloIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$trelloInstrument"
 				printf 'sources-scanned: 0 of 1\n'
-				printf '**NOTE:** no scan was made -- --member-comms-trello-check failed or did not answer with JSON\n\n'
+				printf '**NOTE:** no scan was made -- --trello-check failed or did not answer with JSON\n\n'
 			else
 				printf 'identity: trello %s (config: %s)\n' "$trelloIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$trelloInstrument"

@@ -76,14 +76,14 @@ rigOp(){ ## operation and its arguments
 }
 
 echo "-- a question closed with no thread: the first poll sees it, a later one must not repeat it --"
-rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession" --wait-source "ask:$rigPendingId" --wait-timeout 5 --wait-poll-interval 1
+rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession" --wait-source "ask:$rigPendingId" --wait-timeout 5 --wait-poll-interval 1
 rigAssert "the first wait on a freshly-closed question receives it" "$( rigFirstLine "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
 
-rigOp --member-wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession" --wait-source "ask:$rigPendingId" --wait-since-utime 1 --wait-timeout 5 --wait-poll-interval 1
+rigOp --wait-for-input "$rigMember" --wait-default --wait-session-id "$rigSession" --wait-source "ask:$rigPendingId" --wait-since-utime 1 --wait-timeout 5 --wait-poll-interval 1
 rigAssert "a later default wait naming since_utime, nothing new, times out" \
 	"$( rigFirstLine "$rigScenarioDir/out" | LC_ALL=C sed 's/ (.*//' )" "WAIT-RESULT: TIMEOUT"
 
-rigOp --member-wait-for-input "$rigMember" --wait-continue --wait-session-id "$rigSession" --wait-timeout 5 --wait-poll-interval 1
+rigOp --wait-for-input "$rigMember" --wait-continue --wait-session-id "$rigSession" --wait-timeout 5 --wait-poll-interval 1
 rigAssert "control: a plain continue of the same stored wait also times out" \
 	"$( rigFirstLine "$rigScenarioDir/out" | LC_ALL=C sed 's/ (.*//' )" "WAIT-RESULT: TIMEOUT"
 

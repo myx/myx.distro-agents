@@ -21,7 +21,7 @@ Normative contract: this file's own `# Contract` section, at its end. Where it a
   - `<local-procedure-name>` — [goal+intent short summary]
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
   - `--operation-name` Operation Reference
 - Maintainer Notes
   - Verbatim-goals (intents)
@@ -98,7 +98,7 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
 - [`--operation-name <args>`]
 
@@ -200,7 +200,7 @@ Used to check this file's own definitions against its own goals when it is updat
   - Any other rules, exceptions, overrides.
 - `# Routine-specific tooling`
   - Every `magic-tooling` operation this routine uses — not more, not less.
-  - `## DistroAgentsTools magic-tooling operations`
+  - `## Tooling operations`
     - List, with argument syntax.
   - `## <--operation-name> Operation Reference`
     - Only what that operation's own help, read with `--member-help`, does not carry. Absent where the help carries it all.

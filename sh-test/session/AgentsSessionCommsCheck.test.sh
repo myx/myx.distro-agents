@@ -134,7 +134,7 @@ rigSend(){ ## body, send options...
 	shift
 	printf '%s' "$sendBody" | ( cd "$rigDir/ws" && env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_THREAD -u CLAUDE_CODE_SESSION_ID \
 		"PATH=$rigTmp/bin-fast:$rigPath" "RIG_SCENARIO=$rigDir" "MMDAPP=$rigDir/ws" "MDLT_ORIGIN=$MDLT_ORIGIN" "MDAT_SKILLSET_ROOT=$rigTmp/skills" "MDAT_SESSION_ID=$rigSession" \
-		bash "$rigTool" --member-comms-slack-send-message keeper-rig "$rigThread" "$@" --from-stdin ) > "$rigDir/send.out" 2> "$rigDir/send.err"
+		bash "$rigTool" --slack-send-message keeper-rig "$rigThread" "$@" --from-stdin ) > "$rigDir/send.out" 2> "$rigDir/send.err"
 	rigRc=$?
 }
 rigBlocks(){ ## how many header lines the chat file holds
@@ -406,7 +406,7 @@ rigWaitOp(){ ## output basename -- a wait of keeper-exec on the session, bounded
 	( cd "$rigDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_WAIT_POLL_SECONDS -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_ID -u MDAT_SESSION_THREAD -u MDAT_CONVERSATION_THREADS \
 		"PATH=$rigPath" "RIG_SCENARIO=$rigDir" "MMDAPP=$rigDir/ws" "MDAT_DATA_ROOT=$rigDir/data" "MDLT_ORIGIN=$MDLT_ORIGIN" "MDAT_SKILLSET_ROOT=$rigTmp/skills" "MDAT_SESSION_ID=$rigSession" \
 		"MDAT_SPAWN_LAUNCH_MARKER=$rigSessDir/launch" MDAT_WAIT_POLL_SECONDS=1 MDAT_WAIT_SETTLE_SECONDS=1 MDAT_WAIT_REMIND=off \
-		perl -e 'alarm shift; exec @ARGV' 60 bash "$rigTool" --member-wait-for-input keeper-exec --wait-default --wait-session-id "$rigSession" --wait-timeout 2 --wait-source "file:$rigDir/none" ) > "$rigDir/$1.out" 2> "$rigDir/$1.err"
+		perl -e 'alarm shift; exec @ARGV' 60 bash "$rigTool" --wait-for-input keeper-exec --wait-default --wait-session-id "$rigSession" --wait-timeout 2 --wait-source "file:$rigDir/none" ) > "$rigDir/$1.out" 2> "$rigDir/$1.err"
 }
 rigScene wait-fresh
 mkdir -p "$rigDir/ws/.local/agents/comms/looked"

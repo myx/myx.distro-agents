@@ -10,7 +10,7 @@
 ## through folders for what one of them holds. The members of this workspace are the rows of
 ## its team-members registry, rebuilt in the same call; their marks and names are their rows
 ## of team-members-names as it lies; the sessions are what --manager-session-list prints,
-## the grants what --magic-permission-list prints, and the settings what
+## the grants what --list-permissions prints, and the settings what
 ## --manager-config-digest prints of its scope. A member set up only in another
 ## workspace on this machine is a member here too: the machine's own directory of members
 ## names it (AgentsToolsTeamMemberDirectoryText), and where it is set up is the answer every
@@ -344,7 +344,7 @@ AgentsToolsManagerTeamMemberReadRows(){ ## the operation as it was called, membe
 			}
 		}
 	' )" || readSessions=""
-	readGrants="$( DistroAgentsTools --magic-permission-list --member "$readMember" )" || {
+	readGrants="$( DistroAgentsTools --list-permissions --member "$readMember" )" || {
 		echo "⛔ ERROR: $MDSC_CMD $readOp: the grants of $readMember could not be listed -- nothing is shown" >&2
 		return 1
 	}

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on --member-comms-email-send's new HTML part: a bare
+## Behavioural check on --email-send's new HTML part: a bare
 ## URL or address in the agent-written body becomes a real <a> link in the
 ## text/html part, with the same detection rules as
 ## AgentsSlackBlocksBuild.awk's own bare-URL/bare-address branch (lines
@@ -80,12 +80,12 @@ rigSend(){ ## recipient subject [format]
 	if [ -z "$fmt" ] ; then
 		out="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_CURL_LOG="$rigTmp/curl-calls" AGENTS_EMAIL_SEND_BUILD_ONLY=true \
 			MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-			bash "$rigTool" --member-comms-email-send keeper-myx "$recipient" -- "$subject" -- --from-stdin 2>"$rigTmp/stderr" )" \
+			bash "$rigTool" --email-send keeper-myx "$recipient" -- "$subject" -- --from-stdin 2>"$rigTmp/stderr" )" \
 			|| { printf 'send-failed: %s' "$( grep ERROR "$rigTmp/stderr" | head -1 )" ; return 0 ; }
 	else
 		out="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_CURL_LOG="$rigTmp/curl-calls" AGENTS_EMAIL_SEND_BUILD_ONLY=true \
 			MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-			bash "$rigTool" --member-comms-email-send keeper-myx "$recipient" -- "$subject" -- --from-stdin --format "$fmt" 2>"$rigTmp/stderr" )" \
+			bash "$rigTool" --email-send keeper-myx "$recipient" -- "$subject" -- --from-stdin --format "$fmt" 2>"$rigTmp/stderr" )" \
 			|| { printf 'send-failed: %s' "$( grep ERROR "$rigTmp/stderr" | head -1 )" ; return 0 ; }
 	fi
 	printf '%s' "$out"

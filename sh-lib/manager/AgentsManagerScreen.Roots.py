@@ -48,7 +48,7 @@ CLEANUPS = (
     ("final-gc", {"label": "Delete Expired Team Data", "operation": ["--intern-team-data-final-gc-deletion", "magic-coordinator"],
                   "does": "Deletes from the team data what its retention has passed, the handled items of the inboxes, the processed items of the board and the trash, warnings and reflections after one day and every other item after seven, and commits the deletions where the team data is a repository. It is what closing the advance runs, as magic-coordinator.",
                   "needs": "rig"}),
-    ("sync", {"label": "Sync The Team Data", "operation": ["--magic-team-data-commit-pending", "magic-coordinator"],
+    ("sync", {"label": "Sync The Team Data", "operation": ["--commit-pending", "magic-coordinator"],
               "does": "Commits everything pending under the team data in one commit, then syncs it with its remote by myx.common git/cloneSync: the remote's commits are pulled and merged in, what is ahead is pushed, and the remote is read back. It takes no lock: run it only while no routine holds the advance lock.",
               "needs": "remote"}),
 )
@@ -101,8 +101,8 @@ CALLS = {
     "kill:session": ["--manager-session-kill", "--session-id", "{id}"],
     "kill:run": ["--manager-session-kill", "--session-id", "{id}", "--run"],
     "control": ["--manager-session-control-start", "--session-id", "{id}"],
-    "launch": ["--magic-spawn-session", "--routine", "{id}"],
-    "prompt": ["--magic-spawn-session", "--routine-default"],
+    "launch": ["--spawn-session", "--routine", "{id}"],
+    "prompt": ["--spawn-session", "--routine-default"],
     "start": ["--manager-spawn-member", "{id}"],
     ## a pending question is answered, rejected by the negative answer of its kind, or
     ## dismissed, by its id; the answer chosen or typed is the word after --answer

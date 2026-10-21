@@ -453,13 +453,13 @@ rigAssert "a hook only in .claude/settings.json is never run by our harness" "$(
 echo "-- the policy's memory guard applies in our harness (class all) --"
 rigText="$( rigResult 77 )"
 rigAssert "a Write into the client memory store is refused by the hook, pointing to the team's ways" \
-	"$( rigHas "$rigText" 'blocked by a PreToolUse hook' ) $( rigHas "$rigText" 'member-inbox-reflection-upsert' ) $( rigHas "$rigText" 'escalation' ) $( rigBytes "$rigM/MEMORY.md" )" 'yes yes yes MISSING'
+	"$( rigHas "$rigText" 'blocked by a PreToolUse hook' ) $( rigHas "$rigText" 'upsert-inbox-reflection' ) $( rigHas "$rigText" 'escalation' ) $( rigBytes "$rigM/MEMORY.md" )" 'yes yes yes MISSING'
 rigText="$( rigResult 78 )"
 rigAssert "an Edit of a memory topic file is refused, the file untouched" \
 	"$( rigHas "$rigText" 'blocked by a PreToolUse hook' ) $( rigBytes "$rigM/feedback-rig.md" )" 'yes alpha\n'
 rigText="$( rigResult 80 )"
 rigAssert "a Read of a memory topic file is refused by the hook, pointing to the team's ways" \
-	"$( rigHas "$rigText" 'blocked by a PreToolUse hook' ) $( rigHas "$rigText" 'member-inbox-reflection-upsert' ) $( rigHas "$rigText" alpha )" 'yes yes no'
+	"$( rigHas "$rigText" 'blocked by a PreToolUse hook' ) $( rigHas "$rigText" 'upsert-inbox-reflection' ) $( rigHas "$rigText" alpha )" 'yes yes no'
 rigAssert "a Glob whose path is the store is refused" "$( rigHas "$( rigResult 81 )" 'blocked by a PreToolUse hook' ) $( rigHas "$( rigResult 81 )" feedback-rig )" 'yes no'
 rigAssert "a Glob whose absolute pattern reaches the store is refused" "$( rigHas "$( rigResult 82 )" 'blocked by a PreToolUse hook' ) $( rigHas "$( rigResult 82 )" feedback-rig )" 'yes no'
 rigAssert "a Grep whose path is the store is refused" "$( rigHas "$( rigResult 83 )" 'blocked by a PreToolUse hook' ) $( rigHas "$( rigResult 83 )" alpha )" 'yes no'

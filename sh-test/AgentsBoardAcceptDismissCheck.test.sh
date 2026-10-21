@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on accept releasing the child: --magic-board-to-processed moving an
+## Behavioural check on accept releasing the child: --move-to-processed moving an
 ## item whose spawn-id names a live spawn sends DISMISSED, addressed to that spawn's own
 ## member, into its session thread -- the message AgentsDismissalMatch.awk recognises, so
 ## the child's Wait returns WAIT-RESULT: DISMISSED. Every case where nothing can be sent
@@ -65,7 +65,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 ## One accept, guarded to this rig's own trees, the fake curl first on PATH; output into <result>, rc into <result>.rc.
-## RIG_ACCEPT_OP (default --magic-board-to-processed) by RIG_ACCEPT_WHO (default magic-coordinator),
+## RIG_ACCEPT_OP (default --move-to-processed) by RIG_ACCEPT_WHO (default magic-coordinator),
 ## from a session acting as RIG_AGENT when set.
 rigAccept(){ ## result file, item filename, from state
 	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
@@ -76,7 +76,7 @@ rigAccept(){ ## result file, item filename, from state
 			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			[ "$( command -v curl )" = "$RIG_TMP/bin/curl" ] || exit 98
 			cd "$MMDAPP" && exec bash "$RIG_FN" "$@"
-		' rig "${RIG_ACCEPT_OP:---magic-board-to-processed}" "${RIG_ACCEPT_WHO:-magic-coordinator}" "$2" --from-state:"$3" > "$1" 2>&1
+		' rig "${RIG_ACCEPT_OP:---move-to-processed}" "${RIG_ACCEPT_WHO:-magic-coordinator}" "$2" --from-state:"$3" > "$1" 2>&1
 	printf '%s' "$?" > "$1.rc"
 }
 ## The review flow's own call: the in-context helper, run inside the tool's set-up context
@@ -185,7 +185,7 @@ rigAssert "no ACCEPT-DISMISS line, nothing posted"         "$( LC_ALL=C grep -c 
 echo "-- who accepts: the coordinator's stub, or the review flow's own implementation --"
 rigItem review dispatch-rig-who.md ""
 RIG_AGENT=keeper-myx rigAccept "$rigTmp/o8" dispatch-rig-who.md review
-rigAssert "the coordinator's stub from another member's session is refused, the item stays" "$( cat "$rigTmp/o8.rc" ):$( [ -f "$rigData/board/review/dispatch-rig-who.md" ] && echo stays ):$( LC_ALL=C grep -c "magic-board-to-processed is magic-coordinator's only" "$rigTmp/o8" )" 1:stays:1
+rigAssert "the coordinator's stub from another member's session is refused, the item stays" "$( cat "$rigTmp/o8.rc" ):$( [ -f "$rigData/board/review/dispatch-rig-who.md" ] && echo stays ):$( LC_ALL=C grep -c "move-to-processed is magic-coordinator's only" "$rigTmp/o8" )" 1:stays:1
 RIG_AGENT=keeper-myx rigAcceptHelper "$rigTmp/o9" dispatch-rig-who.md review keeper-myx
 rigAssert "the review flow's implementation helper accepts it for that member's own review" "$( cat "$rigTmp/o9.rc" ):$( [ -f "$rigData/board/processed/dispatch-rig-who.md" ] && echo processed )" 0:processed
 

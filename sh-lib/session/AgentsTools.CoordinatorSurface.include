@@ -8,12 +8,12 @@
 ## IT OWNS NO STATE. Every operation delegates to the subject that owns the answer: the spawns and the flags to DistroAgentsDispatcher.fn.sh, the contacts
 ## and their access to DistroAgentsContacts.fn.sh, the tasks to the board's own readers, a warning to the board, a coordinator note to the coordinator's
 ## inbox. The one thing that had no home, a standing order of the human-owner, is written into the `# Standing directives` section of the state-note,
-## the coordinator's own standing-state document, THROUGH THE NOTE'S LOCK: the write takes the note's lock as a session does (--magic-state-note-lock-acquire),
+## the coordinator's own standing-state document, THROUGH THE NOTE'S LOCK: the write takes the note's lock as a session does (--state-note-lock-acquire),
 ## waits while a session holds it, changes that section alone, and gives the lock back; committed and pushed as every state update is. A single write that
 ## does not delegate would be the violation, and there is none here.
 ##
 ## A STANDING DIRECTIVE is one of three: a `warning-*` board item that is open (kept visible until mitigated), a coordinator note (an inbox note of
-## magic-coordinator that carries the header `standing: yes`, a row of inbox-item.note's contract set with --member-inbox-note-upsert --standing, kept visible until it is processed), and an order of the human-owner, a line of the section
+## magic-coordinator that carries the header `standing: yes`, a row of inbox-item.note's contract set with --upsert-inbox-note --standing, kept visible until it is processed), and an order of the human-owner, a line of the section
 ##   - <id> | set <YYYY-MM-DD HH:MM> | expires-at: <YYYY-MM-DD HH:MM>|none | <text>
 ## which is IN FORCE while its expires-at is none or has not passed. A spawn is given the ones in force (--standing-directives, in the spawn brief).
 ##
@@ -166,7 +166,7 @@ AgentsToolsSurfaceLockTake(){ ## the operation, owner label, wait seconds
 	local lockLeft="$3" lockOut lockRc
 	while : ; do
 		lockRc=0
-		lockOut="$( AgentsToolsSurfaceTool DistroAgentsTools --magic-state-note-lock-acquire magic-coordinator "$2" 2>&1 )" || lockRc=$?
+		lockOut="$( AgentsToolsSurfaceTool DistroAgentsTools --state-note-lock-acquire magic-coordinator "$2" 2>&1 )" || lockRc=$?
 		[ "$lockRc" != 0 ] || return 0
 		if [ "$lockLeft" -le 0 ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: $1: the state-note is locked by a session that holds it, and stayed so for $3 second(s) -- nothing was written: $( printf '%s' "$lockOut" | LC_ALL=C grep -v 'SystemContext\|SetInputSpec' | LC_ALL=C tr '\n' ' ' | LC_ALL=C cut -c1-240 )" >&2

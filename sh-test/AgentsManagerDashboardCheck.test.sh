@@ -83,7 +83,7 @@ printf 'sp-old member=keeper-rig role=executor found=2026-10-01T08:30:00Z told=2
 	printf '4242 /usr/local/bin/fake-cli --session-id sp-run --agent keeper-rig\n'
 	printf '4243 /usr/local/bin/fake-cli --session-id sp-run2 --agent magic-rig\n'
 	printf '4244 /usr/local/bin/fake-cli --resume sp-linger\n'
-	printf '4245 bash /rig/DistroAgentsTools.fn.sh --member-help keeper-rig --session-id sp-open\n'
+	printf '4245 bash /rig/DistroAgentsKnowledge.fn.sh --member-help keeper-rig --session-id sp-open\n'
 } > "$rigTmp/ps.list"
 
 ## THE QUESTIONS: three open, one answered. ask-1 is for the human-owner and its asker has a closed record and no

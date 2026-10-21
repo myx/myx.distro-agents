@@ -1732,7 +1732,7 @@ case "$1" in
 	## The target may name a place, @<name>[:<glob>], resolved as a set request's entry is;
 	## a write in a read-only place is refused with its route; a session pass needs the
 	## passer in the session too; the store is touched, so session indices rebuild.
-	--member-permission-pass|--intern-op-permission-pass)
+	--pass-permission|--intern-op-permission-pass)
 		local passOp="$1"
 		shift
 		MDSC_CMD="$MDSC_CMD $passOp"
@@ -1761,7 +1761,7 @@ case "$1" in
 		AgentsToolsAssertBareName "$passTo" "--to" permission-pass || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$passTool" "--tool" permission-pass || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$passSession" "--session-id" permission-pass || { set +e ; return 1 ; }
-		[ "$passOp" != "--member-permission-pass" ] || AgentsToolsActingMemberCheck "$passBy" "${passOp#--}" || { set +e ; return 1 ; }
+		[ "$passOp" != "--pass-permission" ] || AgentsToolsActingMemberCheck "$passBy" "${passOp#--}" || { set +e ; return 1 ; }
 		if [ "$passTo" = "$passBy" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: $passBy cannot pass a permission to itself, so nothing is passed" >&2
 			set +e ; return 1
@@ -1883,7 +1883,7 @@ case "$1" in
 	;;
 
 	## A task's or session's permission set, asked for at spawn or brief time. Entries any
-	## participant already holds are held, and pass on per --member-permission-pass when the
+	## participant already holds are held, and pass on per --pass-permission when the
 	## holder delegates. The rest are the extras, asked of the human-owner as ONE
 	## permission-set escalation: allow-set, deny or edit.
 	## A MEMBER'S OWN SET (--intern-op-permission-set-ask, the harness's, for a RequestPermission
@@ -1894,7 +1894,7 @@ case "$1" in
 	## nothing is asked. Everything else is one code: the entries, the post, the record, the
 	## answer. After `PERMISSION-SET: asked` it also prints `SCOPE: <scope>[ <item>]`,
 	## `ENTRIES: <how many are asked>` and where the post stands, as a send reports one.
-	--magic-permission-set-request|--intern-op-permission-set-ask)
+	--request-permission-set|--intern-op-permission-set-ask)
 		local setOwn=""
 		[ "$1" != "--intern-op-permission-set-ask" ] || setOwn=1
 		MDSC_CMD="$MDSC_CMD $1"
@@ -2004,7 +2004,7 @@ case "$1" in
 				set +e ; return 1
 			fi
 			AgentsToolsAssertBareName "$setBy" "<magic-coordinator>" permission-set-request || { set +e ; return 1 ; }
-			AgentsToolsMagicCallerCheck "--magic-permission-set-request" || { set +e ; return 1 ; }
+			AgentsToolsMagicCallerCheck "--request-permission-set" || { set +e ; return 1 ; }
 			setItem="${setItem##*/}" ; setItem="${setItem%.md}"
 			AgentsToolsAssertBareName "$setItem" "<item>" permission-set-request || { set +e ; return 1 ; }
 			AgentsToolsDecisionsItemPath "$setItem" > /dev/null || {
@@ -2289,7 +2289,7 @@ case "$1" in
 	## marker beside its record, and the store touched, so every session index joining it is
 	## rebuilt without it and every reader leaves it out. The coordinator stub and the
 	## implementation are one arm, as pass is.
-	--magic-permission-revoke|--intern-op-permission-revoke)
+	--revoke-permission|--intern-op-permission-revoke)
 		local revokeOp="$1"
 		shift
 		MDSC_CMD="$MDSC_CMD $revokeOp"
@@ -2396,20 +2396,17 @@ case "$1" in
 	## session, task, once), read, write or the tool, target, its place as name:relative or -,
 	## origin, expiry (AgentsToolsGrantsMemberList). Revoked, used, lapsed and ended ones are
 	## left out. The coordinator stub names any member; a member's own lists its own only.
-	--magic-permission-list|--member-permission-list|--intern-op-permission-list)
-		local listOp="$1"
+	--list-permissions|--intern-op-permission-list)
+		local listOp="$1" listActing="" listMember="" listSession=""
 		shift
 		MDSC_CMD="$MDSC_CMD $listOp"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
-		local listMember="" listSession=""
-		if [ "$listOp" != "--magic-permission-list" ] ; then
-			listMember="${1:-}"
-			shift || true
-		fi
+		listActing="${1:-}"
+		shift || true
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--member)
-					if [ "$listOp" != "--magic-permission-list" ] ; then
+					if [ "$listOp" != "--list-permissions" ] ; then
 						echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 						set +e ; return 1
 					fi
@@ -2422,16 +2419,21 @@ case "$1" in
 				;;
 			esac
 		done
-		if [ -z "$listMember" ] ; then
-			case "$listOp" in
-				--magic-permission-list) echo "$MDSC_CMD: ⛔ ERROR: syntax is --member <member> [--session-id <id>]" >&2 ;;
-				*) echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> [--session-id <id>]" >&2 ;;
-			esac
+		if [ -z "$listActing" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> [--member <member>] [--session-id <id>]" >&2
 			set +e ; return 1
 		fi
+		[ -n "$listMember" ] || listMember="$listActing"
 		AgentsToolsAssertBareName "$listMember" "<member>" permission-list || { set +e ; return 1 ; }
 		[ -z "$listSession" ] || AgentsToolsAssertBareName "$listSession" "--session-id" permission-list || { set +e ; return 1 ; }
-		[ "$listOp" != "--member-permission-list" ] || AgentsToolsActingMemberCheck "$listMember" "${listOp#--}" || { set +e ; return 1 ; }
+		if [ "$listOp" = "--list-permissions" ] ; then
+			AgentsToolsActingMemberCheck "$listActing" "${listOp#--}" || { set +e ; return 1 ; }
+			## Another member's grants are magic-coordinator's to list, or the console's.
+			if [ "$listMember" != "$listActing" ] && [ -n "$( AgentsToolsActingMember )" ] && [ "$( AgentsToolsActingMember )" != magic-coordinator ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: $listActing lists its own grants, and $listMember's are magic-coordinator's to list -- nothing was done" >&2
+				set +e ; return 1
+			fi
+		fi
 		AgentsToolsGrantsMemberList "${MMDAPP%/}" "$listMember" "$listSession" || {
 			echo "$MDSC_CMD: ⛔ ERROR: the grants of $listMember could not be listed: no grants index could be read or built" >&2
 			set +e ; return 1
@@ -2441,7 +2443,7 @@ case "$1" in
 
 	## A permission operation this file does not implement -- the retired
 	## --intern-op-permission-holders and -set-apply among them -- is reported, never swallowed.
-	--intern-op-permission-*|--member-permission-*|--magic-permission-*)
+	--intern-op-permission-*)
 		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
 	;;

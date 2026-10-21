@@ -11,9 +11,11 @@ rigRefuse(){
 }
 [ -d "$rigPackage/skillset" ] || rigRefuse "no skillset under $rigPackage"
 
-## Ops only, by namespace: prose also names options such as --from-file, which are not ops.
-rigNamed="$( find -L "$rigPackage/skillset" -type f -name '*.md' -exec grep -o -h -E -- '--(member|magic|intern-op|librarian|client|agents)-[a-z0-9<>*-]*' {} + \
-	| LC_ALL=C grep -v -E -- '[*<>]|-$' | LC_ALL=C sort -u )"
+## Ops only: the names of the tool files (the table, sh-lib/harness/AgentsContext.FrontTable.include) and the other namespaces; prose also names options such as --from-file, which are not ops.
+rigTable="$( . "$rigPackage/sh-lib/harness/AgentsContext.FrontTable.include" && printf '%s\n' "$agentsFrontTable" | LC_ALL=C cut -f2 | LC_ALL=C sort -u )"
+rigNamed="$( { find -L "$rigPackage/skillset" -type f -name '*.md' -exec grep -o -h -E -- '--(intern-op|librarian|client|agents)-[a-z0-9<>*-]*' {} + \
+	| LC_ALL=C grep -v -E -- '[*<>]|-$' ; find -L "$rigPackage/skillset" -type f -name '*.md' -exec grep -o -h -E -- '--[a-z][a-z0-9-]*[a-z0-9]' {} + \
+	| LC_ALL=C sort -u | LC_ALL=C comm -12 - <( printf '%s\n' "$rigTable" ) ; } | LC_ALL=C sort -u )"
 ## Exact-name arms only, both `a|b)` and `(a|b)`; a glob arm routes but is no op's own arm.
 rigArms="$( grep -h -E -- '^[[:space:]]*\(?--[a-z0-9|-]+\)' "$rigPackage"/sh-lib/*/*.include "$rigPackage"/sh-scripts/*.sh \
 	| sed -E 's/^[[:space:]]*\(?//; s/\).*$//' | tr '|' '\n' | LC_ALL=C sort -u )"
@@ -21,11 +23,11 @@ rigArms="$( grep -h -E -- '^[[:space:]]*\(?--[a-z0-9|-]+\)' "$rigPackage"/sh-lib
 rigFails=0
 ## Walk control: a name carried only by one member's own file must be seen.
 case $'\n'"$rigNamed"$'\n' in
-	*$'\n--magic-escalation-forward\n'*) echo "  PASS  the walk reached a member's own file" ;;
+	*$'\n--forward-escalation\n'*) echo "  PASS  the walk reached a member's own file" ;;
 	*) echo "  FAIL  the walk did not reach magic-coordinator's own file" ; rigFails=$(( rigFails + 1 )) ;;
 esac
 ## Matching controls, both directions.
-rigMissing="$( printf '%s\n' --member-inbox-reflection-upsert --member-rig-not-an-op | LC_ALL=C comm -23 - <( printf '%s\n' "$rigArms" ) )"
+rigMissing="$( printf '%s\n' --upsert-inbox-reflection --member-rig-not-an-op | LC_ALL=C comm -23 - <( printf '%s\n' "$rigArms" ) )"
 if [ "$rigMissing" = "--member-rig-not-an-op" ] ; then
 	echo "  PASS  control: an alternation arm is found and a made-up op is not"
 else

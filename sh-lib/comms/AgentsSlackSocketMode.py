@@ -201,7 +201,7 @@ def fileInquiry(eventBody, toolPath):
     bashPath = os.environ.get("MDAT_BASH", "")
     toolCommand = [bashPath, toolPath] if os.path.isabs(bashPath) and os.access(bashPath, os.X_OK) else [toolPath]
     filingResult = subprocess.run(
-        toolCommand + ["--member-upsert-member-inquiry", "magic-coordinator", itemName],
+        toolCommand + ["--upsert-inbox-inquiry", "magic-coordinator", itemName],
         input=itemBody.encode("utf-8"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     ## The tool's own output is not kept: it may quote the item, and so the message.
     if filingResult.returncode != 0:

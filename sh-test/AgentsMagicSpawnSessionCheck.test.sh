@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on --magic-spawn-session: exactly one of --routine <selector> |
+## Behavioural check on --spawn-session: exactly one of --routine <selector> |
 ## --routine-default is required; explicit <team-member>... spawns exactly those, the
 ## first starting the session and every further one joining it by session id; with no
 ## positional members, the routine's own executors line supplies the roster, and a
@@ -76,19 +76,19 @@ printf -- '---\nexecutors: magic-team\nmaintainers: magic-coordinator\nrequires-
 printf -- '---\nexecutors: the coordinator and friends\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig prose routine fixture\n' \
 	> "$rigSkills/rig-member-a/rig-member-a.prose.routine.md"
 
-rigRun(){ ## stdin content, then --magic-spawn-session args...
+rigRun(){ ## stdin content, then --spawn-session args...
 	local rigStdin="$1" ; shift
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
-			cd "$MMDAPP" && exec bash "$RIG_FN" --magic-spawn-session "$@"
+			cd "$MMDAPP" && exec bash "$RIG_FN" --spawn-session "$@"
 		' rig-run-wrapper "$@" <<< "$rigStdin" 2>&1
 }
 
 ## Polls for a condition up to 10 seconds -- only the async spawned console's own write
-## needs this; everything else --magic-spawn-session itself prints is synchronous.
+## needs this; everything else --spawn-session itself prints is synchronous.
 rigWaitFor(){ ## file
 	local rigLeft=10
 	while [ ! -s "$1" ] && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
@@ -168,12 +168,12 @@ sleep 6
 rigLeftBefore="$( rigLeft )"
 rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default rig-member-a rig-member-no-such )"
 sleep 3
-rigAssert "is refused, in one line that names the name that is wrong" "$( printf '%s\n' "$rigOut" | grep -c -x -F 'DistroAgentsTools: magic-spawn-session: ⛔ ERROR: no such team member: rig-member-no-such' ) $( printf '%s\n' "$rigOut" | grep 'ERROR' | grep -c -v -F 'SystemContext.SetInputSpec' )" "1 1"
+rigAssert "is refused, in one line that names the name that is wrong" "$( printf '%s\n' "$rigOut" | grep -c -x -F 'DistroAgentsDispatcher: spawn-session: ⛔ ERROR: no such team member: rig-member-no-such' ) $( printf '%s\n' "$rigOut" | grep 'ERROR' | grep -c -v -F 'SystemContext.SetInputSpec' )" "1 1"
 rigAssert "no session is started"                         "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 0
 rigAssert "the first member, a good one, is not started either: no console ran, and no record, no item and no thread is left" "$( rigLeft )" "$rigLeftBefore"
 rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default rig-member-a ../rig-member-b )"
 sleep 3
-rigAssert "nor with a second name that is no bare name: refused, nobody started, nothing left" "$( printf '%s\n' "$rigOut" | grep -c -F 'magic-spawn-session: ❗ ASSERT: <team-member> must be a bare name' ) $( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ) [$( rigLeft )]" "1 0 [$rigLeftBefore]"
+rigAssert "nor with a second name that is no bare name: refused, nobody started, nothing left" "$( printf '%s\n' "$rigOut" | grep -c -F 'spawn-session: ❗ ASSERT: <team-member> must be a bare name' ) $( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ) [$( rigLeft )]" "1 0 [$rigLeftBefore]"
 
 echo "-- both --routine and --routine-default: refused --"
 rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --routine solo rig-member-a )"

@@ -20,7 +20,7 @@ review-by: inherit
 - Routine's local procedures
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -53,13 +53,13 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **read-and-classify**: read the inbox from this run's input scan result (`input/input-scan.md`), and each body with `--member-inbox-item-read` where it was truncated. Classify each item by what it says: a status or block report, a request or question, a hand-off, a reflection, anything else.
+1. **read-and-classify**: read the inbox from this run's input scan result (`input/input-scan.md`), and each body with `--get-inbox-item` where it was truncated. Classify each item by what it says: a status or block report, a request or question, a hand-off, a reflection, anything else.
 2. **act-lightweight**: per item, steps:
    - reply, route it on with `post-inquiry`, or resolve it inline when it is simple, obvious and within this member's own duties. Failing that bar, route it.
    - a needed board change: `magic-coordinator` makes it; any other member routes it to `magic-coordinator`, however small.
    - an item of a type other than `note-*`, `inquiry-*` or `reflection-*` is misfiled: report it to `magic-coordinator`.
 3. **reply-on-cross-member-handoff**: a reply, route or hand-off touching another member gets an immediate compact post into the session thread: who, and which item. `magic-coordinator` posts it for a hand-off it decided, even where another member did the write. Unsure whether it is significant: post it.
-4. **mark-handled**: mark each handled item processed with `--member-inbox-to-processed`: it moves to the inbox's `processed/`, out of the scan and of `Wait`. An item still wanted stays unmarked, in `incoming/`; a standing note is never marked.
+4. **mark-handled**: mark each handled item processed with `--mark-inbox-processed`: it moves to the inbox's `processed/`, out of the scan and of `Wait`. An item still wanted stays unmarked, in `incoming/`; a standing note is never marked.
 
 # Closure steps
 
@@ -87,12 +87,12 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--member-inbox-item-read <member> <item-filename> [--include-processed] [--start-line <N> --end-line <N>]`
-- `--member-upsert-member-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
-- `--member-comms-slack-send-message <team-member> <target> [text...]`
-- `--member-inbox-to-processed <team-member> <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]...`
+- `--get-inbox-item <member> <item-filename> [--include-processed] [--start-line <N> --end-line <N>]`
+- `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
+- `--slack-send-message <target> [text...]`
+- `--mark-inbox-processed <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]...`
 
 # Maintainer Notes
 
@@ -104,7 +104,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-tests (benchmarks)
 
-- Any member can deliver into another member's inbox through `post-inquiry` (`--member-upsert-member-inquiry`), but only that inbox's own owner processes what's inside it — same as real email.
+- Any member can deliver into another member's inbox through `post-inquiry` (`--upsert-inbox-inquiry`), but only that inbox's own owner processes what's inside it — same as real email.
 
 ## Librarian Comments
 

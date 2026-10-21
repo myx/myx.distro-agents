@@ -83,7 +83,7 @@ case "$1" in
 		if [ "$rootHarnessInteractive" = "true" ] ; then
 			rootHarnessWaitFlag="true"
 		fi
-		local rootHarnessSpawnArgs=( --magic-spawn-proxy magic-coordinator "--session-thread:$rootHarnessSessionThread" )
+		local rootHarnessSpawnArgs=( --spawn-prompt magic-coordinator "--session-thread:$rootHarnessSessionThread" )
 		[ -z "$rootHarnessRoutineSelector" ] || rootHarnessSpawnArgs+=( --routine "$rootHarnessRoutineSelector" )
 		[ -z "$rootHarnessWaitFlag" ] || rootHarnessSpawnArgs+=( --wait )
 

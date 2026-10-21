@@ -38,8 +38,8 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'cp "$MDAT_SPAWN_SANDBOX_ROOT/input/input-scan.md" "$RIG_SCENARIO/input-scan.seen" 2> /dev/null || :' \
 	'## The run is in its session: its pointers, then the first wait on a scan the spawner ran, and one on a scan it did not.' \
 	'cp "$MMDAPP/.local/agents/sessions/$MDAT_SESSION_ID/session.chat.pointers" "$RIG_SCENARIO/pointers.seen" 2> /dev/null || :' \
-	'bash "$RIG_FN" --member-wait-for-input "$MDAT_SPAWN_AGENT" --wait-source scan:permission-escalation --wait-timeout 0 > "$RIG_SCENARIO/wait.seen" 2> /dev/null < /dev/null || :' \
-	'bash "$RIG_FN" --member-wait-for-input "$MDAT_SPAWN_AGENT" --wait-source scan:advance --wait-timeout 0 > "$RIG_SCENARIO/wait.control" 2> /dev/null < /dev/null || :' \
+	'bash "$RIG_FN" --wait-for-input "$MDAT_SPAWN_AGENT" --wait-source scan:permission-escalation --wait-timeout 0 > "$RIG_SCENARIO/wait.seen" 2> /dev/null < /dev/null || :' \
+	'bash "$RIG_FN" --wait-for-input "$MDAT_SPAWN_AGENT" --wait-source scan:advance --wait-timeout 0 > "$RIG_SCENARIO/wait.control" 2> /dev/null < /dev/null || :' \
 	'printf "📦 SubagentHandback\n"' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
@@ -128,9 +128,9 @@ rigAssert "the start did not wait: one spawn, well inside the sixty seconds, the
 
 echo "-- 4. the wait reads its sources from the start of the line, not from its own first pass --"
 ##   What arrives between the scan's reading and the Wait's first pass is an arrival (the floor of the wait, --wait-since-utime), or it would wait out the whole time.
-rigWaitOp(){ ## words... -- the first line of one --member-wait-for-input call of the rig
+rigWaitOp(){ ## words... -- the first line of one --wait-for-input call of the rig
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" bash -c 'cd "$MMDAPP" && exec bash "$1" --member-wait-for-input keeper-rig "${@:2}"' _ "$rigTool" "$@" 2> /dev/null < /dev/null | head -n 1
+		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" bash -c 'cd "$MMDAPP" && exec bash "$1" --wait-for-input keeper-rig "${@:2}"' _ "$rigTool" "$@" 2> /dev/null < /dev/null | head -n 1
 }
 rigItem delta
 rigAssert "control: an item that is there when the Wait starts is its baseline: nothing is new, TIMEOUT" "$( rigWaitOp --wait-source inbox:keeper-rig --wait-timeout 2 | LC_ALL=C cut -c1-20 )" "WAIT-RESULT: TIMEOUT"

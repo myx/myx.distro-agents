@@ -21,7 +21,7 @@ review-by: inherit
 - Routine's local procedures
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -52,7 +52,7 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **keep-tracking-note-current**: Write this pass's tracking note (`--update-routine-state`) and keep it current, referencing items by name rather than copying them; refresh the lock during the long pass (`--magic-retro-lock-refresh`).
+1. **keep-tracking-note-current**: Write this pass's tracking note (`--update-routine-state`) and keep it current, referencing items by name rather than copying them; refresh the lock during the long pass (`--retro-lock-refresh`).
 2. **invite-participants**: Spawn every participant into this session (`spawn-one-dispatch`) before **gather-recent-history**. Each stays to the close, listening to the others.
 3. **gather-recent-history**: Read recent `board-processed` items, `reflection-*` items included, and the last several dailies' results and repeated blockers. Raw material, not something to re-narrate.
 4. **self-analyse-per-member**: For each participant with enough recent history, steps:
@@ -66,7 +66,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-1. **file-next-daily-improvement**: File exactly one concrete, actionable improvement for the next daily as a `note-*` in `magic-coordinator`'s own inbox (`--member-inbox-note-upsert`).
+1. **file-next-daily-improvement**: File exactly one concrete, actionable improvement for the next daily as a `note-*` in `magic-coordinator`'s own inbox (`--upsert-inbox-note`).
 
 # Routine's local procedures
 
@@ -85,7 +85,7 @@ All statements apply at the same time, always. These rules override a participan
 - Retro produces proposals, never actions, however small — a member's own proposal included.
 - A cross-member pattern that looks like a design question goes to `magic-architect`.
 - A proposal big enough to change how the whole team works is agreed by this routine's maintainers first; that agreement is confirmed with the human-owner as build work before it goes anywhere, per "The ladder: one rung at a time".
-- A finding about re-prioritising existing work is filed for grooming (`--member-inbox-note-upsert`), not worked here.
+- A finding about re-prioritising existing work is filed for grooming (`--upsert-inbox-note`), not worked here.
 - No schedule or automation without the human-owner's confirmation.
 - Keep `event-track` current as the routine runs.
 
@@ -93,12 +93,12 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--magic-retro-lock-refresh <team-member>`
+- `--retro-lock-refresh`
 - `--update-routine-state [--document <note>] [--header:upsert:<name>:<value>]... [--header:remove:<name>]... [--from-file <path>|--edit-patch-from-stdin]`
-- `--member-inbox-note-upsert <team-member> <item-filename>`
-- `--member-comms-slack-send-message <team-member> <target> [text...]`
+- `--upsert-inbox-note <team-member> <item-filename>`
+- `--slack-send-message <target> [text...]`
 
 # Maintainer Notes
 

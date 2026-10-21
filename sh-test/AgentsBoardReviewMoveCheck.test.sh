@@ -5,7 +5,7 @@
 ## close path into review is covered separately by AgentsSpawnProxyCloseCommitCheck.test.sh
 ## (not duplicated here). Review is also a valid --from-state on that same primitive, for
 ## both directions a reviewer's own decision takes: reject (review -> running) and accept,
-## via the existing --magic-board-to-processed (review -> processed). No console, no git,
+## via the existing --move-to-processed (review -> processed). No console, no git,
 ## no Slack: these are plain board-file moves.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -69,9 +69,9 @@ printf -- '---\ntype: task\nowner: rig\n---\n\nrig item, reviewer comments appen
 rigAssert "the move succeeds"                          "$( cat "$rigTmp/o2.rc" )" 0
 rigAssert "the item lands back in board/running"       "$( rigLoc task-rig-reject.md )" running
 
-echo "-- accept: review -> processed, via the existing --magic-board-to-processed --"
+echo "-- accept: review -> processed, via the existing --move-to-processed --"
 printf -- '---\ntype: task\nowner: rig\n---\n\nrig item\n' > "$rigData/board/review/task-rig-accept.md"
-rigOp "$rigTmp/o3" --magic-board-to-processed magic-tester task-rig-accept.md --from-state:review
+rigOp "$rigTmp/o3" --move-to-processed magic-tester task-rig-accept.md --from-state:review
 rigAssert "the move succeeds"                          "$( cat "$rigTmp/o3.rc" )" 0
 rigAssert "the item lands in board/processed"          "$( rigLoc task-rig-accept.md )" processed
 

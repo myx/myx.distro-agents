@@ -28,7 +28,7 @@ def parseGrants(text):
     return parseMemberRead(text)["grants"]
 
 
-## The grants as `--magic-permission-list` prints them, a TAB-separated line each (kind, access, target, place, origin, ends), as the member read
+## The grants as `--list-permissions` prints them, a TAB-separated line each (kind, access, target, place, origin, ends), as the member read
 ## has them: a space in a field is an underscore there, an empty field a `-`.
 def parsePermissionList(text):
     lines = ["grant\t" + "\t".join(field.replace(" ", "_") or "-" for field in line.split("\t")) for line in text.splitlines() if line.strip()]

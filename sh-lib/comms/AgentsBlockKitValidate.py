@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Block Kit validator for DistroAgentsTools.fn.sh's --member-comms-slack-send-message
+# Block Kit validator for DistroAgentsTools.fn.sh's --slack-send-message
 # (myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh). Reads the final blocks
 # array on stdin -- already confirmed syntactically valid JSON and array-shaped
 # by the caller -- and prints one line per problem, each naming the path it sits

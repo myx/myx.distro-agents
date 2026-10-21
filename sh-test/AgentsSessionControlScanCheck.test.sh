@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the advance pass starting the dead control threads of the sessions of its workspace
-## (--magic-advance-lock-acquire, the housekeeping of sh-lib/magic/AgentsTools.MagicAdvance.include, through the one check
+## (--intern-op-routine-lock-take advance, the housekeeping of sh-lib/magic/AgentsTools.MagicAdvance.include, through the one check
 ## of sh-lib/session/AgentsTools.SessionControlStart.include), run rather than read, against a rig workspace and a rig data
 ## root built here, with a process list of the rig's own. A ps first on PATH lists the rig's runs only, stand-in
 ## processes under their own pids, never a real CLI, and counts what is asked of it; a curl beside it only logs,
@@ -28,7 +28,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigOp="--magic-advance-lock-acquire"
+rigOp="--intern-op-routine-lock-take"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -133,7 +133,7 @@ rigScan(){ ## name of its output files -- one take of the lock in the rig worksp
 	rigRc=0
 	rm -f "$rigData/inboxes/magic-coordinator/incoming/note-20260809T154715Z-advance-state-and-lock.md"
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		bash "$rigTool" "$rigOp" magic-coordinator rig-advance-pass ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" 4> "$rigTmp/$1.fd4" < /dev/null || rigRc=$?
+		bash "$rigTool" "$rigOp" advance magic-coordinator rig-advance-pass ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" 4> "$rigTmp/$1.fd4" < /dev/null || rigRc=$?
 }
 rigHk(){ ## name of a scan -- the housekeeping lines of its report
 	LC_ALL=C grep '^housekeeping: ' "$rigTmp/$1.fd4" 2> /dev/null || :
@@ -242,7 +242,7 @@ rigRec i i i "$rigHost" spawn-started '' ; rigStand i
 mkdir -p "$rigStores/$( rigId i )/control" ; chmod a-w "$rigStores/$( rigId i )/control"
 rigScan warned
 rigAssert "the folder control/ of a session cannot be written: one warning on the daemon line, none on stderr, and the take ends with status 0" \
-	"$rigRc:$( rigTroubles warned ):$( LC_ALL=C grep -c -x -F -- "⚠️ WARNING: DistroAgentsTools $rigOp: the control thread of session $( rigId i ) could not be started: the log of the thread could not be written: $rigStores/$( rigId i )/control/log" "$rigTmp/warned.fd4" )" "0:0:1"
+	"$rigRc:$( rigTroubles warned ):$( LC_ALL=C grep -c -x -F -- "⚠️ WARNING: DistroAgentsTools routine lock take (advance): the control thread of session $( rigId i ) could not be started: the log of the thread could not be written: $rigStores/$( rigId i )/control/log" "$rigTmp/warned.fd4" )" "0:0:1"
 rigAssert "no process was started for it, the report holds no line of it, and the take is whole: it says the lock was taken" \
 	"$( rigThreads i ):$( rigHk warned | LC_ALL=C grep -c -F -e 'control thread' ):$( LC_ALL=C grep -c -x -F -e 'ACQUIRED' "$rigTmp/warned.out" )" "0:0:1"
 chmod u+w "$rigStores/$( rigId i )/control" ; rm -rf "$rigStores/$( rigId i )" "$rigSp/$( rigId i )"

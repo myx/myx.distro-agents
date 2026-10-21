@@ -63,8 +63,8 @@ rigRoutine(){
 		printf "\n# Maintainer Notes\n\nNone.\n"
 	} > "$1/magic-team.$2.routine.md"
 }
-rigOp='--magic-board-to-pending'
-rigAnnotated='- `--magic-board-to-pending <team-member> <item-filename> --from-state:<state>` — `magic-coordinator` only'
+rigOp='--move-to-pending'
+rigAnnotated='- `--move-to-pending <team-member> <item-filename> --from-state:<state>` — `magic-coordinator` only'
 rigRoutine "$rigTmp/routines" holds magic-coordinator "$rigOp" ""
 rigRoutine "$rigTmp/routines" mismatch keeper-rig "$rigOp" ""
 rigRoutine "$rigTmp/routines" annotated keeper-rig "$rigOp" "$rigAnnotated"

@@ -54,7 +54,7 @@ rigTreeBefore="$( rigTree )"
 rigTab="$( printf '\t' )"
 
 echo "-- the build sequence, as the listing gives it --"
-rigRun --member-namespace-list rigrepo
+rigRun --list-namespaces rigrepo
 rigAssert "control: the listing of the rig names the three projects, in its own order" "$( LC_ALL=C awk -F'\t' '{ printf "%s ", $2 }' "$rigTmp/out" )" "rigrepo/aa-app rigrepo/mm-none rigrepo/zz-base "
 
 echo "-- the user manuals: the README.md of each project that has one --"

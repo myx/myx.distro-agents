@@ -20,7 +20,7 @@ review-by: inherit
   - `proposal-thread-mechanic` — the shape of a proposal thread
 - Routine's local rules
 - Routine-specific tooling
-  - DistroAgentsTools magic-tooling operations
+  - Tooling operations
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -94,12 +94,12 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 `ProposeApprove` runs the whole proposal thread itself — the root, the proposal reply, its revise and the wait for a verdict — replacing a by-hand send, delete and read.
 
-## DistroAgentsTools magic-tooling operations
+## Tooling operations
 
-- `--magic-advance-to-running <team-member> <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]...`
-- `--magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
-- `--magic-grooming-create-backlog <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`
-- `--member-inbox-reflection-upsert <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
+- `--advance-to-running <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]...`
+- `--move-to-processed <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
+- `--grooming-create-backlog <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`
+- `--upsert-inbox-reflection <member> <item-filename> [--include-processed] [--from-file <path>|--edit-patch-from-stdin]`
 - `--routine-run-inline <routine>`
 
 # Maintainer Notes

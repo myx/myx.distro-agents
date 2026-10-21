@@ -47,7 +47,7 @@ rigSend(){ ## mode (ok|fail), result file, [spawn session id]
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$( command -v curl )" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
-			cd "$MMDAPP" && exec bash "$RIG_FN" --member-comms-slack-send-message magic-team magic-team --identity-bot rig-body
+			cd "$MMDAPP" && exec bash "$RIG_FN" --slack-send-message magic-team magic-team --identity-bot rig-body
 		' > "$2" 2>&1
 	printf '%s' "$?" > "$2.rc"
 }

@@ -2,7 +2,7 @@
 ## Behavioural check on the rule that NOTHING RUNS AS AN IDENTITY RECORD, run rather than read, against a rig machine
 ## built here: a member whose SKILL.md says `status: reference-only` is the record of a person (human-owner is one) and
 ## no acting member, and no start starts it. Held, on each of the three ways a member is started: the spawn proxy
-## (--intern-op-agent-spawn-proxy), which every start goes through, in every form of its call; --magic-spawn-session,
+## (--intern-op-agent-spawn-proxy), which every start goes through, in every form of its call; --spawn-session,
 ## with the member named and with a routine whose executors name it; and the harness tool Agent. Each is refused in
 ## one plain line that names the member and says an identity record is never started, and a refused start leaves
 ## nothing behind: no sandbox and no spawn record, no run store, no board item, no console, and no post, so no session
@@ -117,8 +117,15 @@ rigErrors(){ ## -- how many lines of the last stderr are an error, but for the o
 rigWhole(){ ## file, text -- how many lines of the file are that text, whole
 	LC_ALL=C grep -c -x -F -- "$2" "$1" 2> /dev/null || :
 }
+rigToolOf(){ ## operation -- the tool file that owns it, as it names itself in what it says
+	case "$1" in
+		--spawn-session|--spawn-prompt) printf DistroAgentsDispatcher ;;
+		--return-review|--accept-review|--reject-review|--request-review|--follow-up-review) printf DistroAgentsItems ;;
+		*) printf DistroAgentsTools ;;
+	esac
+}
 rigLine(){ ## member, the operation it was asked of -- the one plain line that refuses its start
-	printf '⛔ ERROR: DistroAgentsTools %s: %s is an identity record, and an identity record is never started: its SKILL.md says status: reference-only -- nothing was started' "$2" "$1"
+	printf '⛔ ERROR: %s %s: %s is an identity record, and an identity record is never started: its SKILL.md says status: reference-only -- nothing was started' "$( rigToolOf "$2" )" "$2" "$1"
 }
 rigRefused(){ ## member, operation -- how many lines of the last stderr are that line, whole
 	rigWhole "$rigTmp/err" "$( rigLine "$1" "$2" )"
@@ -180,9 +187,9 @@ rigRun "$rigProxy" rig-meta-caller --dispatch-doc:none --context rig-reference-o
 rigAssert "control: a caller that is no member, with no folder at all, starts as before" "$( [ -e "$rigSkills/rig-meta-caller" ] && echo has-folder || echo no-folder ) $rigRc $( LC_ALL=C grep -c -e '^STATUS=started$' "$rigTmp/out" )" "no-folder 0 1"
 rigSettle
 
-echo "-- 2. --magic-spawn-session --"
+echo "-- 2. --spawn-session --"
 rigMadeBefore="$( rigMade )" ; rigStoresBefore="$( rigStores )"
-rigSession="--magic-spawn-session"
+rigSession="--spawn-session"
 rigRun "$rigSession" --routine solo human-owner
 rigAssert "the member named: refused in that line, rc 1, no session id, and nothing left behind" \
 	"$rigRc $( LC_ALL=C grep -c '^SESSION_ID=' "$rigTmp/out" || : ) $( LC_ALL=C grep -c -F -- 'human-owner is an identity record, and an identity record is never started: its SKILL.md says status: reference-only -- nothing was started' "$rigTmp/err" || : ) $( rigErrors ) $( rigMade ) / $( rigStores )" "1 0 1 1 $rigMadeBefore / $rigStoresBefore"
@@ -238,7 +245,7 @@ rigAssert "one function says what a reference-only member is and one refuses a s
 rigAssert "the refusal's line is written once, in that function" "$( cat "$rigHere"/*/*.include "$rigHere"/*/*.sh | LC_ALL=C grep -c -F -- 'an identity record is never started' || : )" "1"
 rigAssert "the spawn proxy asks it once, of the member it is about to start, before it reads its brief or makes anything" \
 	"$( rigCode AgentsTools.InternOpAgentSpawnProxy.include | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberStartCheck "\$callerName"' || : ) $( rigCode AgentsTools.InternOpAgentSpawnProxy.include | LC_ALL=C awk '/^\t--intern-op-agent-spawn-proxy\)/ { arm = 1 } ! arm { next } /AgentsToolsTeamMemberStartCheck "/ && ! asked { asked = NR } /spawnContext="\$\( cat \)"/ && ! read { read = NR } /mkdir -p/ && ! made { made = NR } END { print ( asked && read && made && asked < read && asked < made ) ? "first" : "not first: asked " asked ", brief " read ", made " made }' )" "1 first"
-rigAssert "--manager-spawn-member and --magic-spawn-session ask the same function, once each, and neither reads a SKILL.md itself" \
+rigAssert "--manager-spawn-member and --spawn-session ask the same function, once each, and neither reads a SKILL.md itself" \
 	"$( rigCode AgentsTools.ManagerSpawn.include | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberStartCheck "' || : ) $( rigCode AgentsTools.MagicSpawnSession.include | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberStartCheck "' || : ) $( rigCode AgentsTools.ManagerSpawn.include | LC_ALL=C grep -c -e 'reference-only' -e 'SKILL\.md' || : ) $( rigCode AgentsTools.MagicSpawnSession.include | LC_ALL=C grep -c -e 'reference-only' -e 'SKILL\.md' || : )" "1 1 0 0"
 rigAssert "--manager-routine-list asks the function that says what such a member is, and reads no SKILL.md itself" \
 	"$( rigCode AgentsTools.ManagerRoutine.include | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberReferenceOnly "' || : ) $( rigCode AgentsTools.ManagerRoutine.include | LC_ALL=C grep -c -e 'reference-only' -e 'SKILL\.md' || : )" "1 0"
