@@ -6,7 +6,7 @@
 ## with it (the epic, F3.2: "when an agent is reset and rewinds into a work-duty session the tooling drops that session's scan cache
 ## itself, so the next scan gathers afresh"), and what it promises is that the member's NEXT run starts armed from the cached entry.
 ## Held:
-##   1. a rewind (the executor's own) drops the scan cache of the run's session -- the report files of the scans that are cached, advance
+##   1. a rewind (the executor's own) drops the scan cache of the run's session -- the report files of the scans that are cached, grooming
 ##      and the others -- and only those: another file of the session, and the caches of another session, stay
 ##   2. so does the return of an `--idle-wait` that an arrival ends
 ##   3. a run with no team session (MDAT_SESSION_ID unset) has no scan cache, and a rewind touches no file of the kind
@@ -143,11 +143,11 @@ rigRun(){ ## further harness arguments -- the run, as the team session rigSessId
 	rigRunStatus=$?
 	[ "$( cat "$rigDir/round" )" != 0 ] || rigRefuse "the harness issued no request at all -- its stderr: $( head -5 "$rigDir/err" )"
 }
-rigCacheName1="magic-advance-input-scan.md" rigCacheName2="magic-work-duty-input-scan.md"
+rigCacheName1="magic-grooming-input-scan.md" rigCacheName2="magic-work-duty-input-scan.md"
 rigPlaceCaches(){ ## session folder name -- the two report files a scan cache keeps, another file of the session, in its folder
 	local placeDir="$rigWs/.local/agents/sessions/$1"
 	mkdir -p "$placeDir"
-	printf 'REPORT-ADVANCE\n' > "$placeDir/$rigCacheName1"
+	printf 'REPORT-GROOMING\n' > "$placeDir/$rigCacheName1"
 	printf 'REPORT-WORK-DUTY\n' > "$placeDir/$rigCacheName2"
 	printf 'NOT-A-REPORT\n' > "$placeDir/keep-notes.md"
 }

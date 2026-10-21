@@ -4,8 +4,8 @@
 ##
 ## AgentsTools.BoardRoundScan.include -- the sections of a scan that a round of the board's rules reads (F7.12): the board's items of the
 ## active states, the review items addressed to the advance routine, the registries of sessions, and the items whose recheck-date has arrived.
-## The advance scan (--intern-op-advance-input-scan, a manual start of the routine) and the coordinator's work-duty scan print the same
-## sections from here, so there is one reading of the board for the rules of magic-coordinator.advance.routine, wherever they are run.
+## The coordinator's work-duty scan prints them from here -- the scan the work-duty, the manual start of the advance routine and the daily declare -- so there is
+## one reading of the board for the rules of magic-coordinator.advance.routine, wherever they are run. (The advance scan, --intern-op-advance-input-scan, is retired.)
 ## Sourced, never run; functions only. All are pure reads: what a round acts on first (what a dead spawn left open, the edges of the
 ## dependencies) is done by the tooling before, in the main loop's housekeeping (AgentsTools.SpawnHousekeeping.include,
 ## AgentsTools.BoardDependencies.include).

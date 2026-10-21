@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on --intern-op-advance-input-scan, run rather than read, against a
+## Behavioural check on the board sections of the coordinator's scan (the advance scan that carried them alone is retired, F7.12), run rather than read, against a
 ## scenario board built here. Holds: one item placed in each active board state comes
 ## back as its own `## <state>/<item-filename>` row, except backlog, which is grooming's
 ## (the owner's "grooming reads backlog+inquiries+notes, advance does not"). Offline by construction.
@@ -14,6 +14,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+rigBoardScan="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/board-round-scan.rig.sh"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-reply.include.sh" || { echo "⛔ ERROR: the rig's reply fixture is missing from the package: sh-test/check-fixtures/rig-reply.include.sh -- refusing to report a result" >&2 ; exit 1 ; }
 
 ## Refusing to report is this function's whole job: a rig that could not reach its
@@ -71,7 +72,7 @@ for rigState in backlog pending running blocked parked ; do
 done
 
 rigOut="$( cd "$rigTmp/ws" && env -u MDAT_SKILLSET_ROOT HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigTmp/data" \
-	bash "$rigTool" --intern-op-advance-input-scan magic-coordinator 2>/dev/null )" || rigRefuse "--intern-op-advance-input-scan magic-coordinator failed"
+	bash "$rigBoardScan" "$rigTool" magic-coordinator 2>/dev/null )" || rigRefuse "the board sections of magic-coordinator's scan failed"
 
 ## The subject has to be reachable before anything is asserted about it.
 printf '%s\n' "$rigOut" | grep -q '^## running/task-rig-running\.md$' || rigRefuse "the running item, which every revision scans, came back missing, so no state below would be measured"
@@ -120,14 +121,14 @@ rigRun(){ ## result file, DistroAgentsTools.fn.sh arguments... -- one op against
 	fi
 	printf '%s' "$?" > "$runOut.rc"
 }
-rigRunBody(){ ## DistroAgentsTools.fn.sh arguments...
-	( cd "$rigW" && env -u MDAT_SKILLSET_ROOT HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigD" \
-		${rigExtraEnv[@]+"${rigExtraEnv[@]}"} bash "$rigTool" "$@" )
+rigRunBody(){ ## DistroAgentsTools.fn.sh arguments...; `--board-scan <member>`: the board sections of the coordinator's scan (check-fixtures/board-round-scan.rig.sh)
+	( cd "$rigW" && env -u MDAT_SKILLSET_ROOT HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigD" RIG_TOOL="$rigTool" RIG_BOARD_SCAN="$rigBoardScan" \
+		${rigExtraEnv[@]+"${rigExtraEnv[@]}"} bash -c 'if [ "$1" = --board-scan ] ; then shift ; exec bash "$RIG_BOARD_SCAN" "$RIG_TOOL" "$@" ; fi ; exec bash "$RIG_TOOL" "$@"' _ "$@" )
 }
 rigFd4=""
-rigScan(){ ## result file -- one --intern-op-advance-input-scan pass
-	rigRun "$1" --intern-op-advance-input-scan magic-coordinator
-	[ "$( cat "$1.rc" )" = 0 ] || rigRefuse "--intern-op-advance-input-scan failed in the rig: $( tail -2 "$1.err" )"
+rigScan(){ ## result file -- one pass of the board sections
+	rigRun "$1" --board-scan magic-coordinator
+	[ "$( cat "$1.rc" )" = 0 ] || rigRefuse "the board sections failed in the rig: $( tail -2 "$1.err" )"
 }
 rigPass(){ ## result file -- one advance pass: the routine takes its lock, free, and its housekeeping runs there (<result>.lock), then its scan reads (<result>)
 	rm -f "$rigD/inboxes/magic-coordinator/incoming/note-20260809T154715Z-advance-state-and-lock.md"
@@ -845,7 +846,7 @@ rigMcpOpen m3
 rigCall=40
 for rigMerge in true false ; do
 	rigCall=$(( rigCall + 1 ))
-	rigMcpCall "$rigCall" execute "{\"command\":\"DistroAgentsTools --intern-op-advance-input-scan magic-coordinator --bad 2> /dev/null ; echo rc=\$?\",\"merge_stderr\":$rigMerge}"
+	rigMcpCall "$rigCall" execute "{\"command\":\"DistroAgentsTools --intern-op-work-duty-input-scan magic-coordinator --bad 2> /dev/null ; echo rc=\$?\",\"merge_stderr\":$rigMerge}"
 	rigCheck "a failing op, merge_stderr $rigMerge: it exits 1"           "$( rigMcpText "$rigCall" | LC_ALL=C grep -c 'rc=1$' || : )" 1
 	rigCall=$(( rigCall + 1 ))
 	rigMcpCall "$rigCall" execute "{\"command\":\"MDAT_DATA_ROOT=$rigD DistroAgentsTools --intern-team-data-final-gc-deletion magic-coordinator 2> /dev/null ; echo rc=\$?\",\"merge_stderr\":$rigMerge}"

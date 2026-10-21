@@ -124,37 +124,39 @@ rigWithRun(){ ## name, frontmatter lines -- one stub run of it
 }
 
 echo "-- 2c. input-scan-def: one repeatable line a scan, or none alone --"
-rigWithRun scan-one 'input-scan-def: advance'
+rigWithRun scan-one 'input-scan-def: grooming'
 rigAssert "a scan of the tooling passes"                        "$rigRc" "0"
 rigWithRun scan-opt 'input-scan-def: sweep --comms-since-utime {{session-id}}'
 rigAssert "an option with a macro value passes"                 "$rigRc" "0"
-rigWithRun scan-two 'input-scan-def: advance
+rigWithRun scan-two 'input-scan-def: grooming
 input-scan-def: sweep'
 rigAssert "several lines pass"                                  "$rigRc" "0"
 rigWithRun scan-none 'input-scan-def: none'
 rigAssert "none alone passes"                                   "$rigRc" "0"
 rigWithRun scan-unknown 'input-scan-def: nosuch-scan'
 rigAssert "a scan the tooling has not: refused, the line named" "$( rigVerdict input-scan-def 'nosuch-scan' )" "refused input-scan-def nosuch-scan"
-rigWithRun scan-novalue 'input-scan-def: advance --option'
+rigWithRun scan-novalue 'input-scan-def: grooming --option'
 rigAssert "an option with no value: refused"                    "$( rigVerdict input-scan-def 'has no value' )" "refused input-scan-def has no value"
-rigWithRun scan-macro 'input-scan-def: advance --option {{nope}}'
+rigWithRun scan-macro 'input-scan-def: grooming --option {{nope}}'
 rigAssert "a macro of no common option: refused, named"         "$( rigVerdict input-scan-def 'none of team-member' )" "refused input-scan-def none of team-member"
 rigWithRun scan-mixed 'input-scan-def: none
-input-scan-def: advance'
+input-scan-def: grooming'
 rigAssert "none beside a scan: refused"                         "$( rigVerdict input-scan-def 'stands alone' )" "refused input-scan-def stands alone"
+rigWithRun scan-advance 'input-scan-def: advance'
+rigAssert "the advance scan, retired (F7.12), is no scan the line may name: refused" "$( rigVerdict input-scan-def "'advance' does not start with a scan of the tooling" )" "refused input-scan-def 'advance' does not start with a scan of the tooling"
 rigWithRun scan-old 'input-scan-def: --intern-op-advance-input-scan {{team-member}}'
 rigAssert "the old operation form: refused"                     "$( rigVerdict input-scan-def )" "refused input-scan-def"
 rigWithRun scan-wait 'input-scan-def: work-duty --session-id {{session-id}} --wait 300'
 rigAssert "--wait <seconds>, the spawner's own option beside the scan's: passes" "$rigRc" "0"
-rigWithRun scan-wait-only 'input-scan-def: advance --wait 5'
+rigWithRun scan-wait-only 'input-scan-def: grooming --wait 5'
 rigAssert "--wait alone on a scan passes"                       "$rigRc" "0"
-rigWithRun scan-wait-novalue 'input-scan-def: advance --wait'
+rigWithRun scan-wait-novalue 'input-scan-def: grooming --wait'
 rigAssert "--wait with no value: refused"                       "$( rigVerdict input-scan-def 'has no value' )" "refused input-scan-def has no value"
 for rigWaitBad in 0 -1 abc 05 1.5 ; do
-	rigWithRun scan-wait-bad "input-scan-def: advance --wait $rigWaitBad"
+	rigWithRun scan-wait-bad "input-scan-def: grooming --wait $rigWaitBad"
 	rigAssert "--wait $rigWaitBad is not whole seconds, 1 or more: refused" "$( rigVerdict input-scan-def '--wait takes whole seconds' )" "refused input-scan-def --wait takes whole seconds"
 done
-rigWithRun scan-wait-twice 'input-scan-def: advance --wait 5 --wait 6'
+rigWithRun scan-wait-twice 'input-scan-def: grooming --wait 5 --wait 6'
 rigAssert "--wait twice on a line: refused"                     "$( rigVerdict input-scan-def 'given twice' )" "refused input-scan-def given twice"
 
 echo "-- 2d. runs-at: <days> <HH:MM> or none; runs-after: one routine --"

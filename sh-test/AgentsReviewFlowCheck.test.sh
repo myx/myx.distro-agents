@@ -544,7 +544,7 @@ rigItem review dispatch-20261008T1200Z-adv "" 'review-by: advance.routine
 '
 touch -t 202001010000 "$rigData"/board/review/dispatch-20261008T1200Z-gr1.md "$rigData"/board/review/dispatch-20261008T1200Z-gr2.md
 rigOp "$rigTmp/s1" --intern-op-grooming-input-scan magic-coordinator
-rigOp "$rigTmp/s2" --intern-op-advance-input-scan magic-coordinator
+rigRun "$rigTmp/s2" bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/board-round-scan.rig.sh" "$rigFn" magic-coordinator
 ## The advance housekeeping runs when the routine takes its lock, free here, not in its scan.
 rigAdvanceLock(){ ## result file -- the advance routine takes its lock
 	rm -f "$rigData/inboxes/magic-coordinator/incoming/note-20260809T154715Z-advance-state-and-lock.md"

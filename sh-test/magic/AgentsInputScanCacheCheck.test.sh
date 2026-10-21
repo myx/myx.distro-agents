@@ -3,7 +3,8 @@
 ## in the session folder and returns the file's path, in F2.4's form. Within five minutes a further call in that
 ## session returns the same file and reads no source; a change in a source does not refresh it. A spawn uses the cache
 ## of the session it runs in. The cache is per session, on the report of every --*-input-scan.
-## Held, for --intern-op-advance-input-scan, called as a run of a team session:
+## Held, for the cache (AgentsToolsInputScanCached) as a scan of the tooling runs through it -- here a stand-in scan that lists the pending items of the board, run in the
+## tooling's own shell (--intern-mcp-execute), since the one scan that was wired through it, the advance scan, is retired (F7.12) -- called as a run of a team session:
 ##   1. the reply is the path of a file in the session's folder, with its size, a preview and a hint, not the report
 ##   2. a second call within five minutes returns the same file, unchanged, though a board item was added between
 ##   3. another run of the same session, a spawn joined to it, is served the same file
@@ -62,7 +63,10 @@ rigNewItem(){ ## item stem -- one more pending item, which a fresh scan shows
 ## One scan, called as a run of a team session: out, err, and the file the reply names.
 rigScan(){ ## result name, scan operation, session, run id
 	( cd "$rigW" && env -u MDAT_SKILLSET_ROOT -u CLAUDE_CODE_SESSION_ID HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigD" RIG_SCENARIO="$rigTmp" \
-		MDAT_SESSION_ID="$3" MDAT_SPAWN_SESSION_ID="$4" MDAT_SPAWN_AGENT=magic-coordinator bash "$rigTool" "$2" magic-coordinator ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" 4> /dev/null
+		MDAT_SESSION_ID="$3" MDAT_SPAWN_SESSION_ID="$4" MDAT_SPAWN_AGENT=magic-coordinator bash -c 'printf "%s\n" \
+			". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.InputScanCache.include\"" \
+			"rigStandInScan(){ printf \"## pending\\n\" ; ls \"\$MDAT_DATA_ROOT/board/pending\" ; }" \
+			"AgentsToolsInputScanCached $2 rigStandInScan" | bash "$1" --intern-mcp-execute' _ "$rigTool" "$2" ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" 4> /dev/null
 	printf '%s' "$?" > "$rigTmp/$1.rc"
 }
 rigFileOf(){ ## result name, session, what to print where it names none -- the first path of the reply to a file in that session's folder
@@ -86,7 +90,7 @@ rigStamp(){ ## minutes ago -- a touch -t stamp, BSD or GNU date
 	date -r "$stampEpoch" +%Y%m%d%H%M.%S 2> /dev/null || date -d "@$stampEpoch" +%Y%m%d%H%M.%S
 }
 
-for rigOp in --intern-op-advance-input-scan ; do
+for rigOp in rig-stand-in-input-scan ; do
 	rigTag="${rigOp#--magic-}" ; rigTag="${rigTag%-input-scan}"
 	rigSession="rig-cache-$rigTag" ; rigRunA="rig-cache-$rigTag-run-a" ; rigRunB="rig-cache-$rigTag-run-b"
 	echo "-- $rigOp --"

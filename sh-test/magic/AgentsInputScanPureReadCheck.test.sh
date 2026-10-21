@@ -6,7 +6,7 @@
 ## output goes to the tooling log (the daemon line, file descriptor 4), never into the agent's input.
 ## Held, against a rig board and workspace with a dead spawn, its running dispatch item, a review item whose reviewer
 ## session has ended, and a live session with no control thread:
-##   1. --intern-op-advance-input-scan acts on none of them: the dead spawn's record, the item's state, the review-by, the
+##   1. the board sections of the coordinator's scan (the advance scan that carried them alone is retired, F7.12) act on none of them: the dead spawn's record, the item's state, the review-by, the
 ##      sessions' control folders are as they were; nothing is posted and no housekeeping line is printed
 ##   2. it still reports them: the running item as a running/ row, the review item as a review/ row
 ##   3. --magic-advance-lock-acquire, the advance routine taking its lock, does the housekeeping: the dead spawn is
@@ -83,10 +83,10 @@ rigItem review task-rig-rv-ended.md task dispatch-succeeded rig-ended none
 rigSandbox rig-live spawn-started
 printf '900001 rig-run --session-id rig-live\n' > "$rigTmp/ps.list"
 
-rigRun(){ ## result file, DistroAgentsTools.fn.sh arguments... -- one op, fd 4 the tooling log of this rig: out, err, rc
+rigRun(){ ## result file, DistroAgentsTools.fn.sh arguments (`--board-scan <member>`: the board sections of the coordinator's scan, check-fixtures/board-round-scan.rig.sh)... -- one op, fd 4 the tooling log of this rig: out, err, rc
 	local runOut="$1" ; shift
-	( cd "$rigW" && env -u MDAT_SKILLSET_ROOT HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigD" RIG_SCENARIO="$rigTmp" \
-		bash "$rigTool" "$@" ) > "$runOut" 2> "$runOut.err" 4>> "$rigTmp/tooling.log"
+	( cd "$rigW" && env -u MDAT_SKILLSET_ROOT HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigD" RIG_SCENARIO="$rigTmp" RIG_TOOL="$rigTool" RIG_BOARD_SCAN="$rigTest/check-fixtures/board-round-scan.rig.sh" \
+		bash -c 'if [ "$1" = --board-scan ] ; then shift ; exec bash "$RIG_BOARD_SCAN" "$RIG_TOOL" "$@" ; fi ; exec bash "$RIG_TOOL" "$@"' _ "$@" ) > "$runOut" 2> "$runOut.err" 4>> "$rigTmp/tooling.log"
 	printf '%s' "$?" > "$runOut.rc"
 }
 rigSum(){ ## file -- its checksum, or gone
@@ -109,10 +109,10 @@ rigPosts(){ LC_ALL=C grep -c '^chat.postMessage ' "$rigTmp/calls" 2> /dev/null |
 : > "$rigTmp/calls" ; : > "$rigTmp/bodies" ; : > "$rigTmp/tooling.log"
 
 rigDeadBefore="$( rigSum "$rigW/.local/agents/spawned/rig-ldead/rig-ldead.md" )"
-rigRun "$rigTmp/scan" --intern-op-advance-input-scan magic-coordinator
-[ "$( cat "$rigTmp/scan.rc" )" = 0 ] || rigRefuse "the advance scan failed in the rig: $( tail -2 "$rigTmp/scan.err" | LC_ALL=C tr '\n' ' ' )"
+rigRun "$rigTmp/scan" --board-scan magic-coordinator
+[ "$( cat "$rigTmp/scan.rc" )" = 0 ] || rigRefuse "the board sections of the scan failed in the rig: $( tail -2 "$rigTmp/scan.err" | LC_ALL=C tr '\n' ' ' )"
 
-echo "-- 1. the advance scan acts on nothing --"
+echo "-- 1. the board sections of the scan act on nothing --"
 rigAssert "the dead spawn's record is as it was"              "$( rigSum "$rigW/.local/agents/spawned/rig-ldead/rig-ldead.md" )" "$rigDeadBefore"
 rigAssert "its item is still in running"                      "$( rigLoc dispatch-rig-ldead.md )" running
 rigAssert "the ended reviewer's item keeps its review-by"     "$( rigHeader "$rigD/board/review/task-rig-rv-ended.md" review-by )" rig-ended

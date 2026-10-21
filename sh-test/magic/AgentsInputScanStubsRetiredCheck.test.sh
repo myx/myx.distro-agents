@@ -17,6 +17,9 @@
 ## Not tested, for want of a name: that every scan the system needs is declared by a routine (F6.3's
 ## `input-scan-def:` form is open). Builder note: AgentsInputScanPureReadCheck and AgentsInputScanCacheCheck (F3.1,
 ## F3.2) and many checks today call --magic-advance-input-scan; they are reconciled in the same feature.
+## Since F13.1 each call is made in a team rig (MDAT_WORKSPACE_MODE=team-rig): in a workspace that keeps no team data the gate of that mode answers a --magic-* name before the
+## dispatcher can call it an invalid option. Since F7.12 the heartbeat scan and the advance scan are retired: their published names stay refused (1), their
+## --intern-op-* forms are gone (3 does not ask for them; the advance one is held to be no operation).
 ## Offline: each call is made with no argument, so each stops at its syntax; git, curl, ssh, rsync and scp are
 ## stand-ins that note any start and fail.
 set -u
@@ -53,7 +56,7 @@ rigAssert(){ ## what is asserted, got, want
 }
 rigCaller=()
 rigCall(){ ## operation -- one call with no argument, as the console unless rigCaller names a member; both streams in $rigTmp/said
-	( cd "$rigWs" && env -i HOME="$rigTmp/home" USER=rigacct PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
+	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" USER=rigacct PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" ${rigCaller[@]+"${rigCaller[@]}"} perl -e 'alarm 30 ; exec @ARGV' bash "$rigTool" "$1" ) > "$rigTmp/said" 2>&1 < /dev/null
 }
 rigInvalid(){ ## operation -- yes where the last call answered `invalid option` naming it
@@ -91,10 +94,14 @@ echo "-- 3. every scan has its --intern-op-<scan>-input-scan --"
 rigInternMissing=""
 for rigOp in $rigNine ; do
 	rigStem="${rigOp#--}" ; rigStem="${rigStem%-input-scan}" ; rigStem="${rigStem#magic-}"
+	## The two scans retired since (the heartbeat's with the heartbeat, the advance's with F7.12) have no implementation, by design.
+	case "$rigStem" in heartbeat|advance) continue ;; esac
 	rigCall "--intern-op-$rigStem-input-scan"
 	[ "$( rigInvalid "--intern-op-$rigStem-input-scan" )" = no ] || rigInternMissing="$rigInternMissing --intern-op-$rigStem-input-scan"
 done
 rigAssert "the internal operations still missing" "[${rigInternMissing# }]" "[]"
+rigCall "--intern-op-advance-input-scan"
+rigAssert "the advance scan is retired (F7.12): its --intern-op-* form is no operation either" "$( rigInvalid "--intern-op-advance-input-scan" )" "yes"
 rigAssert "and nothing reached for the network"                  "$( [ -s "$rigTmp/network" ] && echo reached || echo none )" "none"
 
 if [ "$rigFailCount" -ne 0 ] ; then

@@ -28,54 +28,7 @@ type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agen
 
 type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternOpItem.include"
 
-## The report of --intern-op-advance-input-scan, a pure read, kept for its session by AgentsToolsInputScanCached.
-AgentsToolsAdvanceInputScanReport(){ ## calling member
-	local callingMember="$1"
-	printf '%s\n\n' "## state-and-lock (routine-advance)"
-	## The lock note of the member the scan is for: the advance lock is named per member (F4.2), in the inbox of the member of the start.
-	local lockNote="$( AgentsToolsInboxNotePath "$callingMember" note-20260809T154715Z-advance-state-and-lock.md )"
-	if [ -f "$lockNote" ] ; then cat "$lockNote" ; else echo "(no state-and-lock note recorded yet)" ; fi
-	## The board, the review items and the registries: the sections a round of the advance rules reads, from the one reading of them (AgentsTools.BoardRoundScan.include).
-	AgentsToolsBoardRoundSections "$callingMember" --intern-op-advance-input-scan
-	local advanceScanRc=$?
-	return $advanceScanRc
-}
-
 case "$1" in
-
-	--intern-op-advance-input-scan)
-		shift
-		## <team-member> captured for future logging/validation, unused today
-		local callingMember="$1"
-		shift || true
-		if [ -z "$callingMember" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-advance-input-scan: syntax is <team-member>" >&2
-			set +e ; return 1
-		fi
-		if [ $# -gt 0 ] ; then
-			case "$1" in
-				--*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-advance-input-scan: invalid option: $1 -- syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-coordinator/magic-coordinator.advance.routine.md" >&2
-					set +e ; return 1
-				;;
-				*)
-					echo "⛔ ERROR: $MDSC_CMD --intern-op-advance-input-scan: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself, an item name is not a parameter. SEE Skill magic-coordinator/magic-coordinator.advance.routine.md" >&2
-					set +e ; return 1
-				;;
-			esac
-		fi
-		[ -n "${MDAT_DATA_ROOT:-}" ] || {
-			echo "⛔ ERROR: $MDSC_CMD --intern-op-advance-input-scan: MDAT_DATA_ROOT is not set" >&2
-			set +e ; return 1
-		}
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
-		## A pure read: what a dead spawn left open is closed when the routine takes its lock (AgentsToolsAdvanceSpawnHousekeeping).
-		## In a team session the report is a file of its folder, served again for five minutes (AgentsTools.InputScanCache.include).
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.InputScanCache.include"
-		AgentsToolsInputScanCached magic-advance-input-scan AgentsToolsAdvanceInputScanReport "$callingMember"
-		return $?
-	;;
 
 	--magic-advance-to-running)
 		shift

@@ -1931,11 +1931,12 @@ contracts are here.
   that is not finished and has none alive, one housekeeping line when it started any, a failure said as
   one warning on the daemon line. A dead spawn's created dispatch item moves running
   → review. A review item whose `review-by` session has ended gets `review-by: magic-coordinator`.
-  `--intern-op-advance-input-scan` is a pure read: it changes nothing, posts nothing, and never accepts an
-  item.
-- **The input-scan cache** (`AgentsTools.InputScanCache.include`). In a team session,
-  `--intern-op-advance-input-scan` writes its report to
-  `.local/agents/sessions/<MDAT_SESSION_ID>/magic-advance-input-scan.md`
+  The board sections of the coordinator's work-duty scan (`--intern-op-work-duty-input-scan`, which the work-duty,
+  the advance routine's manual start and the daily declare) are a pure read: they change nothing, post nothing, and
+  never accept an item. The advance scan (`--intern-op-advance-input-scan`) is retired.
+- **The input-scan cache** (`AgentsTools.InputScanCache.include`, `AgentsToolsInputScanCached`; no scan is wired through it since the advance scan was retired). In a team session,
+  a scan run through it writes its report to
+  `.local/agents/sessions/<MDAT_SESSION_ID>/<operation>.md`
   and replies with a reference to it, in the form of a kept result. For 300 s by that file's mtime, a further call of the same scan in that session, from
   any run, replies with the same file and reads no source. A change in a source does not refresh it.
   With no team session, or a scan that fails, the whole report is printed and nothing is kept.

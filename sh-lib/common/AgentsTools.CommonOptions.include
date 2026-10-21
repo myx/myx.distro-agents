@@ -241,7 +241,8 @@ AgentsToolsCommonRun(){ ## main function, tool script, operation, arguments...
 			runRest=( "$runGivenMember" ${runRest[@]+"${runRest[@]}"} )
 			runInserted=yes
 		## Absent: no argument at all, or an option. An empty first argument is a positional somebody gave, and stays.
-		elif [ ${#runRest[@]} -eq 0 ] || { case "$runFirst" in --*) true ;; *) false ;; esac ; } ; then
+		## `--print-required-scopes` is the operation's own declaration of the Slack scopes it needs, which no member is the subject of: no member is placed before it.
+		elif [ ${#runRest[@]} -eq 0 ] || { case "$runFirst" in --print-required-scopes) false ;; --*) true ;; *) false ;; esac ; } ; then
 			runMember="$( AgentsToolsTeamMember )"
 			if [ -z "$runMember" ] ; then
 				echo "$MDSC_CMD: ${runOp#--}: ⛔ ERROR: needs --team-member: no MDAT_SPAWN_AGENT in this context and no account (USER) -- nothing was done" >&2

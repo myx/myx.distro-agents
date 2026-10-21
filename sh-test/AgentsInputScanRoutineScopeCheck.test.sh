@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on each routine's input-scan scope, per the owner's "grooming reads
-## backlog+inquiries+notes, advance does not": the advance scan returns pending, running,
+## backlog+inquiries+notes, advance does not": the board sections of the coordinator's scan (the advance scan is retired) return pending, running,
 ## blocked and parked rows and no backlog; of the acting member's own inbox it returns notes
 ## only (the pending-slack-reaction and pending-trello-update records its comms step acts
 ## on), never inquiries or reflections, and no client-* inbox. The grooming scan returns
@@ -44,10 +44,10 @@ rigAssert(){ ## what is asserted, got, want
 		printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFailCount=$(( rigFailCount + 1 ))
 	fi
 }
-rigScan(){ ## op
+rigScan(){ ## op (`--board-scan`: the board sections of the coordinator's scan, check-fixtures/board-round-scan.rig.sh)
 	( cd "$rigTmp/ws" && env HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigTmp/data" \
-		bash "$rigTool" "$1" magic-coordinator ) > "$rigTmp/out" 2> "$rigTmp/err" \
+		MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigTmp/data" RIG_TOOL="$rigTool" RIG_BOARD_SCAN="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/board-round-scan.rig.sh" \
+		bash -c 'if [ "$1" = --board-scan ] ; then exec bash "$RIG_BOARD_SCAN" "$RIG_TOOL" magic-coordinator ; fi ; exec bash "$RIG_TOOL" "$1" magic-coordinator' _ "$1" ) > "$rigTmp/out" 2> "$rigTmp/err" \
 		|| rigRefuse "$1 failed: $( grep -v SetInputSpec "$rigTmp/err" | grep -m1 ERROR )"
 }
 rigHas(){ ## fixed string
@@ -57,8 +57,8 @@ rigRow(){ ## state
 	LC_ALL=C grep -q -x -- "## $1/task-rig-$1.md" "$rigTmp/out" && printf yes || printf no
 }
 
-echo "-- advance --"
-rigScan --intern-op-advance-input-scan
+echo "-- the board sections (the advance scan is retired) --"
+rigScan --board-scan
 [ "$( rigRow running )" = yes ] || rigRefuse "the running row, which every revision scans, is missing, so nothing below is measured"
 for rigState in pending running blocked parked ; do
 	rigAssert "the $rigState row is returned"            "$( rigRow $rigState )" yes

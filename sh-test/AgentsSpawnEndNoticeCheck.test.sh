@@ -550,8 +550,8 @@ rigInCode(){ ## fixed text -> how many code lines of the package hold it
 for rigPhrase in 'posted no handback' 'Its handback was posted in another thread' 'was killed from the console' 'with TaskStop' 'was ended by the tooling' 'No session requested this run' ; do
 	rigAssert "no code line holds: $rigPhrase" "$( rigInCode "$rigPhrase" )" 0
 done
-rigAssert "one function tells the end of a run, whoever closes it: the supervising shell in both its closes, and the advance pass" \
-	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigLib/session/AgentsTools.InternOpAgentSpawnProxy.include" | LC_ALL=C grep -c -F 'AgentsToolsSpawnProxyEndNotice "$sandboxTracking"' ):$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigLib/magic/AgentsTools.MagicAdvance.include" | LC_ALL=C grep -c -F 'AgentsToolsSpawnProxyEndNotice "$recordPath"' ):$( cat "$rigLib"/*/*.include "$rigLib"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsSpawnProxy(EndNotice|SessionNotice)\(\)\{' )" "2:1:2"
+rigAssert "one function tells the end of a run, whoever closes it: the supervising shell in both its closes, and the housekeeping pass" \
+	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigLib/session/AgentsTools.InternOpAgentSpawnProxy.include" | LC_ALL=C grep -c -F 'AgentsToolsSpawnProxyEndNotice "$sandboxTracking"' ):$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigLib/magic/AgentsTools.SpawnHousekeeping.include" | LC_ALL=C grep -c -F 'AgentsToolsSpawnProxyEndNotice "$recordPath"' ):$( cat "$rigLib"/*/*.include "$rigLib"/*/*.sh | LC_ALL=C grep -c -E '^AgentsToolsSpawnProxy(EndNotice|SessionNotice)\(\)\{' )" "2:1:2"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SPAWN END NOTICE CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

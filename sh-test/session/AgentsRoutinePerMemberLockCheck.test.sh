@@ -7,7 +7,6 @@
 ##   3. A START BY ANOTHER MEMBER locks the note of ITS inbox, made at its first start; the coordinator's note is left as it was;
 ##      the brief and the run's record name the filled document, never the macro
 ##   4. THE TWO LOCKS ARE INDEPENDENT: while one member holds its note the other takes its own, and a second take of the held one refuses
-##   5. THE ADVANCE INPUT SCAN shows the lock note of the member it runs for, not the coordinator's
 ##   6. THE CONTRACT lists work-duty among the scans `input-scan-def:` may name
 ## Offline: a fake curl first on PATH; every tree is this rig's own.
 set -u
@@ -132,13 +131,6 @@ rigTool2 --magic-advance-lock-acquire magic-coordinator rig-session-four > "$rig
 rigAssert "the coordinator takes its note, the keeper takes its own while that is held" "$rigTake1:$rigTake2" "0:0"
 rigAssert "a second take of either held note refuses" "$rigTake3:$rigTake4" "1:1"
 rigAssert "each note holds its own session" "$( rigField "$rigCoordInbox/$rigAdvance" session-id ):$( rigField "$rigKeeperInbox/$rigAdvance" session-id )" "rig-session-one:rig-session-two"
-
-echo "-- 5. the advance input scan --"
-rigNote "$rigCoordInbox" magic-coordinator advance-finished "COORDINATOR-NOTE-MARK"
-rigNote "$rigKeeperInbox" rig-keeper advance-finished "KEEPER-NOTE-MARK"
-rigTool2 --intern-op-advance-input-scan rig-keeper > "$rigTmp/scan.out"
-rigScanLock="$( LC_ALL=C awk '/^## state-and-lock/ { on = 1 ; next } /^## board digest/ { on = 0 } on' "$rigTmp/scan.out" )"
-rigAssert "its lock section shows the keeper's note and not the coordinator's" "$( printf '%s\n' "$rigScanLock" | LC_ALL=C grep -c 'KEEPER-NOTE-MARK' || : ):$( printf '%s\n' "$rigScanLock" | LC_ALL=C grep -c 'COORDINATOR-NOTE-MARK' || : )" "1:0"
 
 echo "-- 6. the contract's scan list and lock form --"
 rigContract="$rigPackage/skillset/magic-team/magic-team/templates/routine.contract.format.md"

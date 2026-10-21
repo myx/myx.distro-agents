@@ -700,7 +700,7 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		--magic-advance-*|--intern-op-advance-input-scan)
+		--magic-advance-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicAdvance.include"
 			return $?
 		;;

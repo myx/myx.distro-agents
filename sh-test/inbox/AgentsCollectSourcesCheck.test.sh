@@ -85,7 +85,7 @@ rigNames(){ ## folder, glob -- the item names, one a line
 }
 
 echo "-- 1. the one TTL table --"
-rigTtl="$( bash -c '. "$1/sh-lib/member/AgentsTools.SourceTtl.include" && for s in mail:rig-member trello:rig-member tagged:x scan:advance chat:s ; do printf "%s=%s " "${s%%:*}" "$( AgentsToolsSourceTtlOf "$s" )" ; done' rig "$rigPackage" 2> /dev/null )"
+rigTtl="$( bash -c '. "$1/sh-lib/member/AgentsTools.SourceTtl.include" && for s in mail:rig-member trello:rig-member tagged:x scan:work-duty chat:s ; do printf "%s=%s " "${s%%:*}" "$( AgentsToolsSourceTtlOf "$s" )" ; done' rig "$rigPackage" 2> /dev/null )"
 rigAssert "mail 60, trello 120, tagged 15, scan 300, any other 0" "$rigTtl" "mail=60 trello=120 tagged=15 scan=300 chat=0 "
 rigAssert "Wait's table is that table" "$( LC_ALL=C grep -c -F "scan:*) printf '300" "$rigPackage/sh-lib/member/AgentsTools.MemberWait.include" ):$( LC_ALL=C grep -c -F 'AgentsToolsSourceTtlOf "$1"' "$rigPackage/sh-lib/member/AgentsTools.MemberWait.include" )" "0:1"
 
