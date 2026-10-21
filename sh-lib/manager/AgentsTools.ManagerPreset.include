@@ -32,8 +32,11 @@ AgentsToolsManagerPresetNames(){
 
 ## How many variables a scope file holds.
 AgentsToolsManagerPresetKeys(){ ## file
+	local keysCount
 	[ -f "$1" ] || { printf 0 ; return 0 ; }
-	LC_ALL=C grep -c -E '^[A-Za-z_][A-Za-z0-9_]*=' "$1" 2> /dev/null || printf 0
+	## grep -c prints 0 for a file with no such line and then ends 1: the count is what it printed, once
+	keysCount="$( LC_ALL=C grep -c -E '^[A-Za-z_][A-Za-z0-9_]*=' "$1" 2> /dev/null || : )"
+	printf '%s' "${keysCount:-0}"
 }
 
 case "$1" in

@@ -77,6 +77,10 @@ rigRun --manager-scope-read agents:keeper-myx
 rigAssert "a member that holds no file of settings is a scope for its tiers: three missing choices; the id is none of the listed scopes" "$( rigKeyRow SPAWN_TIER_NORMAL ) $( rigRun --manager-scope-list ; LC_ALL=C grep -c 'keeper-myx' "$rigTmp/out" || : )" "missing|choice|rig-base=rig-base,rig-base:low=rig-base: 0"
 rigRun --manager-preset-tiers
 rigAssert "the tiers listed: the team first with its three, then each member to start" "$( LC_ALL=C awk -F'\t' '{ printf "%s %s %s %s %s / ", $2, $3, $8, $9, $10 }' "$rigTmp/out" )" "agents:magic-team Team rig-ext rig-ext - / agents:keeper-myx keeper-myx - - - / agents:magic-coordinator magic-coordinator - - - / "
+printf '# a note, no variable\n' > "$rigAgents/keeper-myx.agent.env"
+rigRun --manager-preset-tiers
+rigAssert "a member whose file holds no variable has the count 0 on one line, one row each, and no complaint on the error stream" "$( LC_ALL=C awk -F'\t' '$2 == "agents:keeper-myx" { printf "%s/%s/%s", NF, $4, $5 }' "$rigTmp/out" ) $( wc -l < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F 'integer expression' "$rigTmp/err" || : )" "10/0/no 3 0"
+rm -f "$rigAgents/keeper-myx.agent.env"
 
 echo "-- 4. the writes go through the setting reader --"
 rigInput="high" ; rigRun --manager-scope-set agents:preset-rig-base PRESET_EFFORT
