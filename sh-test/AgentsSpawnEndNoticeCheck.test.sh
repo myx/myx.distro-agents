@@ -141,7 +141,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'cat > /dev/null' \
 	'rigLaunch=first ; [ -z "${MDAT_SPAWN_RESUME:-}" ] || rigLaunch=retry' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' \
-	'printf "%s\n" "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.md" > "$RIG_SCENARIO/record"' \
+	'printf "%s\n" "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.spawn.md" > "$RIG_SCENARIO/record"' \
 	'printf "%s %s\n" "$rigLaunch" "$MDAT_SPAWN_SESSION_ID" >> "$RIG_SCENARIO/launches"' \
 	". '$rigHelper' 2> /dev/null && rigProcNoteFile \"\$RIG_SCENARIO/\$rigLaunch.began\" \$\$" \
 	'rigLeft=120' \
@@ -234,7 +234,7 @@ rigNoteText(){ ## scenario folder, fixed text
 		}
 	' "$1/bodies" 2> /dev/null
 }
-rigRunId(){ basename "$rigRecord" .md ; }
+rigRunId(){ basename "$rigRecord" .spawn.md ; }
 rigShort(){ rigRunId | cut -c1-8 ; }
 
 ## THE SESSION THAT REQUESTS THE RUNS OF THIS RIG: rig-parent, of rig-member-b, with a session thread of its own.
@@ -242,7 +242,7 @@ rigParent="rig-parent-$$"
 rigParentThread="CRIGPARENT:1700000000.000100"
 mkdir -p "$rigSp/$rigParent"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-b\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\nsession-thread: %s\n---\n\n# Spawn session: %s\n' \
-	"$rigParent" "$rigParent" "$rigParent" "$rigHost" "$rigParentThread" "$rigParent" > "$rigSp/$rigParent/$rigParent.md"
+	"$rigParent" "$rigParent" "$rigParent" "$rigHost" "$rigParentThread" "$rigParent" > "$rigSp/$rigParent/$rigParent.spawn.md"
 ## It runs: a stand-in process of this rig stands in the rig's process list as its run, by its own session word,
 ## so that the session lives for whoever measures it, the advance pass among them.
 sleep 900 > /dev/null 2>&1 < /dev/null &
@@ -350,7 +350,7 @@ rigNativeRun="$( rigRunId )" ; rigNativeLog="$rigLog"
 rigRead(){ ## run, its output file -- what the one reading says of it, its lines side by side
 	rigEnv "$rigTmp" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" ; AgentsToolsSpawnProxyHandbacks "$1" "$2"' rig "$1" "$2" 2> /dev/null | LC_ALL=C tr '\n' ' '
 }
-rigRunOf(){ basename "$( head -1 "$rigTmp/$1/record" 2> /dev/null )" .md ; } ## scenario -- the run of it
+rigRunOf(){ basename "$( head -1 "$rigTmp/$1/record" 2> /dev/null )" .spawn.md ; } ## scenario -- the run of it
 printf '📦 SubagentHandback\n' > "$rigTmp/harness-shaped.log"
 printf '  -> tool: Report the rig step back to whoever asked for it —\n       mcp__myx_distro__SubagentHandback\n' > "$rigTmp/native-shaped.log"
 rigAssert "the one reading, by the transcript of a run: the native-shaped run gave one handback, to where a handback goes that names no place; the one that handed back in its own thread gave one there; the one that ended with none gave none" \
@@ -377,8 +377,8 @@ rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigLi
 rigToMember="rtm4b$$x"
 mkdir -p "$rigSp/$rigToMember" "$rigTmp/s4b"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: rig-member-b\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-ended-without-close\nsession-thread: CRIGOWN4B:1700000004.000200\n---\n' \
-	"$rigToMember" "$rigToMember" "$rigReportsTo" "$rigToMember" "$rigHost" > "$rigSp/$rigToMember/$rigToMember.md"
-printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToMember/$rigToMember.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
+	"$rigToMember" "$rigToMember" "$rigReportsTo" "$rigToMember" "$rigHost" > "$rigSp/$rigToMember/$rigToMember.spawn.md"
+printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToMember/$rigToMember.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
 	| rigEnv "$rigTmp/s4b" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4b/out" 2>&1
 rigAssert "told once, in the inbox of the member it reports to, and in no conversation" \
 	"$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4b/out" ):$( LC_ALL=C grep -l -F -- "${rigToMember:0:8}" "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' ):$( rigNoteCount "$rigTmp/s4b" "${rigToMember:0:8}" )" "1:1:0"
@@ -387,8 +387,8 @@ echo "-- 4c. a run that reports to no one is told to no one --"
 rigToNone="rtn4c$$x"
 mkdir -p "$rigSp/$rigToNone" "$rigTmp/s4c"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: none\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-ended-without-close\nsession-thread: CRIGOWN4C:1700000004.000300\n---\n' \
-	"$rigToNone" "$rigToNone" "$rigReportsTo" "$rigToNone" "$rigHost" > "$rigSp/$rigToNone/$rigToNone.md"
-printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToNone/$rigToNone.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
+	"$rigToNone" "$rigToNone" "$rigReportsTo" "$rigToNone" "$rigHost" > "$rigSp/$rigToNone/$rigToNone.spawn.md"
+printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToNone/$rigToNone.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
 	| rigEnv "$rigTmp/s4c" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4c/out" 2>&1
 rigAssert "nothing said, nothing posted, nothing left in an inbox" \
 	"$( LC_ALL=C grep -c -x 'SAID=none' "$rigTmp/s4c/out" ):$( rigNoteCount "$rigTmp/s4c" "${rigToNone:0:8}" ):$( LC_ALL=C grep -l -F -- "${rigToNone:0:8}" "$rigData"/inboxes/*/incoming/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "1:0:0"
@@ -465,7 +465,7 @@ rigDead="rig-dead-$$"
 rigDeadItem="dispatch-20261013T0900Z-rigdead"
 rigDir="$rigTmp/advance"
 mkdir -p "$rigDir" "$rigSp/$rigDead/input" "$rigSp/$rigDead/output"
-rigRecord="$rigSp/$rigDead/$rigDead.md"
+rigRecord="$rigSp/$rigDead/$rigDead.spawn.md"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: %s\nparent-session-id: %s\nparent-member: rig-member-b\nparent-thread: %s\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-started\nstarted-at: 2026-10-13 09:10 +0300\nsession-thread: CRIGDEAD:1700000001.000100\nspawns: %s\n---\n\n# Spawn session: %s\n' \
 	"$rigDead" "$rigDead" "$rigParent" "$rigParent" "$rigParentThread" "$rigDead" "$rigHost" "$rigDeadItem" "$rigDead" > "$rigRecord"
 printf -- '---\ntype: dispatch\nowner: rig-member-a\nstatus: dispatch-started\nsession-id: %s\nspawn-id: %s\nreview-by: %s\n---\n\n# rig dispatch\n\n## Brief\n\nRIG-BRIEF\n' "$rigDead" "$rigDead" "$rigParent" > "$rigData/board/running/$rigDeadItem.md"
@@ -478,7 +478,7 @@ rigProcNote "$!" ; rigKept="$rigKept $!"
 rigHeldShell="$! $( rigBegan "$!" )"
 disown "$!" 2> /dev/null || :
 mkdir -p "$rigSp/$rigHeldRun"
-LC_ALL=C sed -e "s/$rigDead/$rigHeldRun/g" -e "s/^spawns: .*\$/supervisor-process: $rigHeldShell/" "$rigRecord" > "$rigSp/$rigHeldRun/$rigHeldRun.md"
+LC_ALL=C sed -e "s/$rigDead/$rigHeldRun/g" -e "s/^spawns: .*\$/supervisor-process: $rigHeldShell/" "$rigRecord" > "$rigSp/$rigHeldRun/$rigHeldRun.spawn.md"
 find "$rigSp/$rigHeldRun" -exec touch -t "$rigStampText" {} +
 rigLock(){ ## result file -- the advance routine takes its lock, free, as the coordinator's session takes it: its housekeeping runs there
 	rm -f "$rigData/inboxes/magic-coordinator/incoming/note-20260809T154715Z-advance-state-and-lock.md"
@@ -489,7 +489,7 @@ rigAssert "taking the lock closes its record as ended without close and takes it
 rigAssert "one note stands in the thread of the session that requested it, addressed to the member that brought it in" "$( rigNotes "$rigDir" "$rigMissing" )" "${rigParentThread%%:*} ${rigParentThread#*:} $rigToB"
 rigAssert "the take of the lock prints nothing of it" "$( LC_ALL=C grep -c -F -e 'posted no handback' -e 'ended its run' "$rigDir/scan1.out" )" "0"
 rigAssert "a dead run whose supervising shell still lives is closed by the pass and not told by it: that shell tells it at its own close" \
-	"$( rigIsStill "$rigHeldShell" && printf shell-alive ):$( rigHeader "$rigSp/$rigHeldRun/$rigHeldRun.md" status ):$( LC_ALL=C grep -c -F "${rigHeldRun:0:8}" "$rigDir/bodies" 2> /dev/null )" "shell-alive:spawn-ended-without-close:0"
+	"$( rigIsStill "$rigHeldShell" && printf shell-alive ):$( rigHeader "$rigSp/$rigHeldRun/$rigHeldRun.spawn.md" status ):$( LC_ALL=C grep -c -F "${rigHeldRun:0:8}" "$rigDir/bodies" 2> /dev/null )" "shell-alive:spawn-ended-without-close:0"
 rigLock "$rigDir/scan2.out"
 rigAssert "a second take of the lock posts nothing more for that run" "$( rigNoteCount "$rigDir" "$rigMissing" )" "1"
 
@@ -519,7 +519,7 @@ rigWaitFor 90 rigRecordClosed ; rigWaitFor 60 rigHasEnded "$rigShell"
 ## The run of 6: closed by the advance pass, its item in review.
 rigReturn advance "$rigDeadItem"
 rigAssert "a run the advance pass closed, its record ended without close: its reviewer returns its item, and the member is started again the same way" \
-	"$( rigHeader "$rigSp/$rigDead/$rigDead.md" status ):$( rigRestarted "$rigDeadItem" "$rigDead" "$rigDead" "$rigDead" )" "spawn-ended-without-close:1:running:run-of-its-own:same-session:same-sandbox:$rigDeadItem"
+	"$( rigHeader "$rigSp/$rigDead/$rigDead.spawn.md" status ):$( rigRestarted "$rigDeadItem" "$rigDead" "$rigDead" "$rigDead" )" "spawn-ended-without-close:1:running:run-of-its-own:same-session:same-sandbox:$rigDeadItem"
 rigLetGo
 rigWaitFor 90 rigRecordClosed ; rigWaitFor 60 rigHasEnded "$rigShell"
 

@@ -278,7 +278,7 @@ AgentsToolsSessionControlRows(){ ## session id
 	controlRows="" ; controlRowsNames=""
 	[ -d "$rowsStore" ] || return 0
 	## The names go to grep on a pipe, never as its arguments: a store of any size is read.
-	controlRowsNames="$( printf '%s\0' "$rowsStore"/*/*.md | LC_ALL=C xargs -0 grep -l -x -F -- "session-id: $1" 2> /dev/null )" || :
+	controlRowsNames="$( printf '%s\0' "$rowsStore"/*/*.spawn.md | LC_ALL=C xargs -0 grep -l -x -F -- "session-id: $1" 2> /dev/null )" || :
 	[ -n "$controlRowsNames" ] || return 0
 	[ -d "${controlRowsFile%/*}" ] || mkdir -p "${controlRowsFile%/*}" 2> /dev/null
 	{
@@ -398,7 +398,7 @@ AgentsToolsSessionControlWitness(){
 		witnessFound="$( printf '%s\n' "$witnessList" | AgentsToolsRegistryRunPids "$witnessSpawn" )" || witnessFound=""
 		if [ -z "$witnessFound" ] ; then
 			while IFS= read -r witnessFile ; do
-				[ "${witnessFile##*/}" = "$witnessSpawn.md" ] || continue
+				[ "${witnessFile##*/}" = "$witnessSpawn.spawn.md" ] || continue
 				witnessFound="$( AgentsToolsRegistryRecordedRun "$witnessFile" )" || witnessFound=""
 				[ -z "$witnessFound" ] || break
 			done <<< "$controlRowsNames"
@@ -587,7 +587,7 @@ AgentsToolsSessionControlDeathStep(){
 	case "$stepAsked" in
 		''|none)
 			while IFS= read -r stepOne ; do
-				[ "${stepOne##*/}" != "$stepRun.md" ] || { stepRecord="$stepOne" ; break ; }
+				[ "${stepOne##*/}" != "$stepRun.spawn.md" ] || { stepRecord="$stepOne" ; break ; }
 			done <<< "$controlRowsNames"
 			if [ -z "$stepRecord" ] || [ "$( AgentsToolsSpawnSandboxRecordHeader "$stepRecord" status )" != "spawn-started" ] ; then
 				deathsLine="$deathsLine settled=$stepStamp how=closed-elsewhere"
@@ -675,7 +675,7 @@ AgentsToolsSessionControlDeaths(){
 		case "
 $deathsNow" in *"
 $rowSpawn "*) continue ;; esac
-		deathsRecord="$MMDAPP/.local/agents/spawned/$rowTracking/$rowSpawn.md"
+		deathsRecord="$MMDAPP/.local/agents/spawned/$rowTracking/$rowSpawn.spawn.md"
 		[ -f "$deathsRecord" ] || continue
 		[ -z "$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" killed-by )$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" killed-at )" ] || continue
 		deathsShell="$( AgentsToolsRegistryRecordedSupervisor "$deathsRecord" 2> /dev/null )" || deathsShell=""

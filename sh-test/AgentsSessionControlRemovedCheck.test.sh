@@ -86,7 +86,7 @@ rigAssert(){ ## what is asserted, got, want
 rigRec(){ ## session id -- one record of a run of this host that is still open, the founder's
 	mkdir -p "$rigSp/t-$1"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: keeper-rig\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\n---\n\n# Spawn session: %s\n' \
-		"$1" "$1" "$rigHost" "$1" > "$rigSp/t-$1/rec-$1.md.rig" && mv -f "$rigSp/t-$1/rec-$1.md.rig" "$rigSp/t-$1/rec-$1.md"
+		"$1" "$1" "$rigHost" "$1" > "$rigSp/t-$1/rec-$1.md.rig" && mv -f "$rigSp/t-$1/rec-$1.md.rig" "$rigSp/t-$1/rec-$1.spawn.md"
 }
 ## A thread: a process of its own, started with its signals at their defaults, whatever this check itself was
 ## started with. Its pid in rigThreadPid. It is noted nowhere here: its own pid file is its note.

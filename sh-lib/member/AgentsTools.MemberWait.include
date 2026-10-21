@@ -1251,7 +1251,7 @@ case "$1" in
 
 		## A run that holds the lock of its routine keeps it held while it waits (AgentsToolsRoutineLockRefreshOwn): the record of the run is looked at first,
 		## and the lock code loaded only for a run that holds one.
-		if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && LC_ALL=C grep -q -s '^routine-lock: ' "${MMDAPP%/}"/.local/agents/spawned/*/"$MDAT_SPAWN_SESSION_ID.md" 2> /dev/null ; then
+		if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && LC_ALL=C grep -q -s '^routine-lock: ' "${MMDAPP%/}"/.local/agents/spawned/*/"$MDAT_SPAWN_SESSION_ID.spawn.md" 2> /dev/null ; then
 			type AgentsToolsRoutineLockRefreshOwn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include" 2> /dev/null || :
 			! type AgentsToolsRoutineLockRefreshOwn > /dev/null 2>&1 || AgentsToolsRoutineLockRefreshOwn "$MDAT_SPAWN_SESSION_ID" || :
 		fi

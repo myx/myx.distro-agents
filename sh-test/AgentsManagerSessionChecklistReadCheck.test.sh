@@ -54,7 +54,7 @@ rigTree(){ ## -- every file of the rig workspace with the sum of its bytes, as o
 ## THE STORES. A session that a spawn founded: its record in a sandbox folder of its own, the lists of two members in that folder; and a session that no
 ## record names: its lists in the folder sessions/<id>. Each list holds an item done, one not yet and one in progress.
 mkdir -p "$rigSp/sess-c" "$rigStores/sess-c" "$rigStores/sess-d"
-printf -- '---\nsession-id: sess-c\nspawn-id: sess-c\nhost: rig-host\nworkspace: rigws\nowner: magic-coordinator\nstatus: spawn-succeeded\nstarted-at: 2026-10-13 09:00 +0300\n---\n\n# Spawn session\n' > "$rigSp/sess-c/sess-c.md"
+printf -- '---\nsession-id: sess-c\nspawn-id: sess-c\nhost: rig-host\nworkspace: rigws\nowner: magic-coordinator\nstatus: spawn-succeeded\nstarted-at: 2026-10-13 09:00 +0300\n---\n\n# Spawn session\n' > "$rigSp/sess-c/sess-c.spawn.md"
 printf -- '- [x] read the brief\n- [ ] write the check (in progress: writing the check)\n- [ ] report\n' > "$rigSp/sess-c/keeper-rig.checklist.md"
 printf -- '- [ ] the other member item\n' > "$rigSp/sess-c/magic-tester.checklist.md"
 printf -- '- [ ] this one is in the wrong place\n' > "$rigStores/sess-c/keeper-rig.checklist.md"

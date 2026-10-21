@@ -121,7 +121,7 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 		case "$goneSession" in ''|*/*|.|..) return 0 ;; esac
 		type AgentsToolsGrantsSessionEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
 		! AgentsToolsGrantsSessionEnded "$MMDAPP/.local/agents/sessions/$goneSession" || return 0
-		for goneRecord in "$MMDAPP/.local/agents/spawned"/*/"$goneSession.md" ; do
+		for goneRecord in "$MMDAPP/.local/agents/spawned"/*/"$goneSession.spawn.md" ; do
 			[ -f "$goneRecord" ] || continue
 			goneHost="$( AgentsToolsAskPostField "$goneRecord" host )"
 			case "$goneHost" in
@@ -338,7 +338,7 @@ case "$1" in
 				ASKP_F_task_text="$( AgentsToolsTaskTextValue "$holdTask" text )" AgentsChangeFill block "Lines/task" 2> /dev/null )" || holdTaskText=""
 		fi
 		## The session that made the call: its short id, its thread, and what its spawn said it is for.
-		for holdCandidate in "$MMDAPP/.local/agents/spawned"/*/"$holdSession.md" ; do
+		for holdCandidate in "$MMDAPP/.local/agents/spawned"/*/"$holdSession.spawn.md" ; do
 			[ ! -f "$holdCandidate" ] || { holdRecord="$holdCandidate" ; break ; }
 		done
 		holdCow="$( [ -z "$holdRecord" ] || AgentsToolsSpawnSandboxRecordHeader "$holdRecord" session-id )"

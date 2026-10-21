@@ -55,7 +55,7 @@ rigRecord(){ ## session, run, member, routine (or -), status, started, preset (o
 		[ "$8" = "-" ] || printf 'credential: %s\n' "$8"
 		[ "$5" = "spawn-started" ] || printf 'resolved-at: %s +0300\nexit-code: 0\n' "$6"
 		printf -- '---\n\n# Spawn session: %s\n' "$2"
-	} > "$rigAgents/spawned/$1/$2.md"
+	} > "$rigAgents/spawned/$1/$2.spawn.md"
 }
 rigTokens(){ ## run, in, cache-read, cache-write, out
 	mkdir -p "$rigAgents/sessions/$1" ; printf '%s %s %s %s\n' "$2" "$3" "$4" "$5" > "$rigAgents/sessions/$1/tokens"
@@ -139,7 +139,7 @@ LC_ALL=C awk -F'\t' -v OFS='\t' '$1 == "run-a1" { $14 = 999 } { print }' "$rigSt
 rigRun "$rigTmp/c3" --stats-check
 rigAssert "a hand edit of an index: rc 1, the file named, the rows that differ shown" "$rigRc $( rigHas 'STATS-CHECK: runs.index differs from the rebuild' "$rigTmp/c3.out" ) $( LC_ALL=C grep -c '^< run-a1' "$rigTmp/c3.out" )" "1 1 1"
 rigRun "$rigTmp/c4" --rebuild-stats
-rm -f "$rigAgents/spawned/run-n1/run-n1.md"
+rm -f "$rigAgents/spawned/run-n1/run-n1.spawn.md"
 sleep 1
 rigRun "$rigTmp/c5" --routine-stats rc.routine.md
 rigAssert "a record removed is dropped only by a rebuild: the next read still shows its row" "$rigRc $( LC_ALL=C cut -f3 "$rigTmp/c5.out" )" "0 1"

@@ -121,7 +121,7 @@ rigSaid(){ ## file -- how many of its lines say it, whatever stands around it
 	LC_ALL=C grep -c -F -- "$rigSays" "$1" 2> /dev/null || :
 }
 rigMade(){ ## -- what the starts so far have made: sandboxes, spawn records, board items, consoles started, posts
-	printf '%s %s %s %s %s\n' "$( ls "$rigWs/.local/agents/spawned" 2> /dev/null | LC_ALL=C grep -c . || : )" "$( ls "$rigWs"/.local/agents/spawned/*/*.md 2> /dev/null | LC_ALL=C grep -c . || : )" \
+	printf '%s %s %s %s %s\n' "$( ls "$rigWs/.local/agents/spawned" 2> /dev/null | LC_ALL=C grep -c . || : )" "$( ls "$rigWs"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | LC_ALL=C grep -c . || : )" \
 		"$( find "$rigData/board" -type f 2> /dev/null | LC_ALL=C grep -c . || : )" "$( ls "$rigSc" | LC_ALL=C grep -c '^brief\.' || : )" "$( LC_ALL=C grep -c '^chat.postMessage ' "$rigSc/calls" 2> /dev/null || : )"
 }
 rigStores(){ ## -- how many run stores the workspace holds
@@ -138,7 +138,7 @@ rigConsoles(){ ## -- how many consoles were started at all
 }
 rigSettle(){ ## -- every run started so far has closed its record, so what a later scenario counts stands still
 	local settleLeft=90
-	while LC_ALL=C grep -l -x 'status: spawn-started' "$rigWs"/.local/agents/spawned/*/*.md > /dev/null 2>&1 && [ "$settleLeft" -gt 0 ] ; do sleep 1 ; settleLeft=$(( settleLeft - 1 )) ; done
+	while LC_ALL=C grep -l -x 'status: spawn-started' "$rigWs"/.local/agents/spawned/*/*.spawn.md > /dev/null 2>&1 && [ "$settleLeft" -gt 0 ] ; do sleep 1 ; settleLeft=$(( settleLeft - 1 )) ; done
 	sleep 1
 }
 

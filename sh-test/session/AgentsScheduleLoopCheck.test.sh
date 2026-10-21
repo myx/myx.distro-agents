@@ -62,7 +62,7 @@ rigMon13=1792404000 ; rigMon18=1792422000
 rigAt "$rigMon13"
 rigFinished(){ ## session, member, status
 	mkdir -p "$rigSp/$1"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\nstart-context: spawned\nhost: %s\nworkspace: rigws\nowner: %s\nstatus: %s\nstarted-at: 2026-10-19 08:00 +0300\nresolved-at: 2026-10-19 08:30 +0300\n---\n\n# Spawn session: %s\n' "$1" "$1" "$rigHost" "$2" "$3" "$1" > "$rigSp/$1/$1.md"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\nstart-context: spawned\nhost: %s\nworkspace: rigws\nowner: %s\nstatus: %s\nstarted-at: 2026-10-19 08:00 +0300\nresolved-at: 2026-10-19 08:30 +0300\n---\n\n# Spawn session: %s\n' "$1" "$1" "$rigHost" "$2" "$3" "$1" > "$rigSp/$1/$1.spawn.md"
 }
 ## Learning is on from the start, and a session has ended before the loop first looks.
 printf 'MDAT_SCHEDULE_LEARNING=on\n' >> "$rigWs/.local/.agents/magic-team.agent.env"
@@ -77,12 +77,12 @@ rigAssert "and the routine contract is met: the validator has no row for it" "$r
 echo "-- 1. the autorun --"
 rigOneRun first ; rigWaitStarts
 rigAssert "a routine due at 09:00 daily, asked at 13:00 Monday, is started through the spawner: one line says so" "$( rigSaid first 'autorun: started keeper-rig-01.auto.routine.md' )" "1"
-rigAssert "...and a spawn record of that routine stands, owned by its executor" "$( rigRecordsOf keeper-rig-01.auto.routine.md ):$( LC_ALL=C grep -l -x 'owner: keeper-rig-01' $( LC_ALL=C grep -l -x 'routine: keeper-rig-01.auto.routine.md' "$rigSp"/*/*.md ) | wc -l | tr -d ' ' )" "1:1"
+rigAssert "...and a spawn record of that routine stands, owned by its executor" "$( rigRecordsOf keeper-rig-01.auto.routine.md ):$( LC_ALL=C grep -l -x 'owner: keeper-rig-01' $( LC_ALL=C grep -l -x 'routine: keeper-rig-01.auto.routine.md' "$rigSp"/*/*.spawn.md ) | wc -l | tr -d ' ' )" "1:1"
 rigAssert "its successor, which follows it, waits quietly: not started, and no line of it" "$( rigRecordsOf keeper-rig-01.chain.routine.md ):$( rigSaid first 'keeper-rig-01.chain' )" "0:0"
 rigAssert "a routine whose executors are any member is not started, and not complained of" "$( rigRecordsOf keeper-rig-02.anyone.routine.md ):$( rigSaid first 'keeper-rig-02.anyone' )" "0:0"
 rigAssert "the configuration check of the loop ran before the schedule's lines" "$( [ "$( LC_ALL=C grep -n -F 'configuration check passed' "$rigDir/first.err" | head -1 | cut -d: -f1 )" -lt "$( LC_ALL=C grep -n -F 'autorun: started' "$rigDir/first.err" | head -1 | cut -d: -f1 )" ] && printf before )" "before"
 ## The predecessor completed: the record the spawner made is closed as a well-ended run, today.
-for rigRecord in $( LC_ALL=C grep -l -x 'routine: keeper-rig-01.auto.routine.md' "$rigSp"/*/*.md ) ; do
+for rigRecord in $( LC_ALL=C grep -l -x 'routine: keeper-rig-01.auto.routine.md' "$rigSp"/*/*.spawn.md ) ; do
 	LC_ALL=C sed -i.bak -e 's/^status: .*/status: spawn-succeeded/' -e '/^resolved-at: /d' "$rigRecord" && rm -f "$rigRecord.bak"
 	LC_ALL=C awk '{ print } /^started-at: / { sub( /^started-at: /, "" ) ; print "resolved-at: " $0 }' "$rigRecord" > "$rigRecord.next" && mv -f "$rigRecord.next" "$rigRecord"
 done

@@ -155,7 +155,7 @@ rigMsgTool(){ ## ts, user, text, kind, session
 }
 rigLaunched(){ ## spawn id, reports-to
 	mkdir -p "$rigWs/.local/agents/spawned/$1"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: rig-parent\nparent-member: keeper-rig\nstart-context: spawned\nowner: keeper-rig-other\nreports-to: %s\nstatus: spawn-succeeded\n---\n\n# Spawn session: %s\n' "$1" "$1" "$2" "$1" > "$rigWs/.local/agents/spawned/$1/$1.md"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: rig-parent\nparent-member: keeper-rig\nstart-context: spawned\nowner: keeper-rig-other\nreports-to: %s\nstatus: spawn-succeeded\n---\n\n# Spawn session: %s\n' "$1" "$1" "$2" "$1" > "$rigWs/.local/agents/spawned/$1/$1.spawn.md"
 }
 rigScene tooling 3
 rigLaunched rig-launched none

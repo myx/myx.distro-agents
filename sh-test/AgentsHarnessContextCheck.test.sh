@@ -205,7 +205,7 @@ cp "$rigCtx" "$rigTmp/context.before"
 ## A child of the resumed session, spawned since the context was kept: its sandbox is a root of this leg, and a root the kept messages cannot name.
 rigChild="$rigWs/.local/agents/spawned/rig-child"
 mkdir -p "$rigChild/input" "$rigChild/output"
-printf -- '---\nspawn-id: rig-child\nparent-spawn-id: %s\n---\n' "$rigSid2" > "$rigChild/rig-child.md"
+printf -- '---\nspawn-id: rig-child\nparent-spawn-id: %s\n---\n' "$rigSid2" > "$rigChild/rig-child.spawn.md"
 rigRun "$rigS2" "$rigSid2" MDAT_HARNESS_RESUME_CONTEXT="$rigCtx" MDAT_HARNESS_RESUME_MARKER="$rigTmp/resume.mark" -- RIG-CORRECTIONS
 rm -rf -- "$rigChild"
 rigAssert "the resumed run ends normally, in one request" "$rigRunStatus:$rigRounds" 0:1
@@ -308,15 +308,15 @@ rigProxyRun ok
 rigAssert "an eligible resume runs once" "$( tr '\n' '#' < "$rigTmp/console.log" )" "resume|RIG-CORRECTIONS#"
 rigAssert "and records restart: resumed-context" "$( cat "$rigRecords" )" "review: restart: resumed-context (from $rigSid2) [RESTART rig-new]"
 ## Eligibility, from the old session's spawn record.
-rigRec="$rigSandbox/$rigSid2.md"
+rigRec="$rigSandbox/$rigSid2.spawn.md"
 printf -- '---\ncli: rig-leg\ncli-setting: rig+-\nhost: %s\nstatus: spawn-ended\n---\n' "$( hostname -s )" > "$rigRec"
 AgentsReviewCliResolved(){ printf 'rig-leg' ; }
 AgentsReviewCliSetting(){ printf 'rig+-' ; }
 rigAssert "a harness session with its kept context is eligible" "$( AgentsReviewContextResumeEligible "$rigRec" ; echo " rc=$?" )" "$rigCtx rc=0"
 printf -- '---\ncli: claude-native\ncli-setting: rig+-\nhost: %s\n---\n' "$( hostname -s )" > "$rigTmp/native.md"
 rigAssert "a native session is not" "$( AgentsReviewContextResumeEligible "$rigTmp/native.md" ; echo " rc=$?" )" "the old session ran on claude-native, a native CLI, not the universal harness rc=1"
-cp "$rigRec" "$rigSandbox/$rigSid1.md"
-rigAssert "nor a session whose context another session kept since" "$( AgentsReviewContextResumeEligible "$rigSandbox/$rigSid1.md" ; echo " rc=$?" )" "the kept context belongs to session $rigSid2, not $rigSid1 rc=1"
+cp "$rigRec" "$rigSandbox/$rigSid1.spawn.md"
+rigAssert "nor a session whose context another session kept since" "$( AgentsReviewContextResumeEligible "$rigSandbox/$rigSid1.spawn.md" ; echo " rc=$?" )" "the kept context belongs to session $rigSid2, not $rigSid1 rc=1"
 AgentsReviewCliResolved(){ printf 'other-leg' ; }
 rigAssert "nor one whose cli changed" "$( AgentsReviewContextResumeEligible "$rigRec" ; echo " rc=$?" )" "the cli is now other-leg, the old session ran on rig-leg rc=1"
 

@@ -289,7 +289,7 @@ AgentsToolsSpawnProxyHandbackWarn(){
 	[ -z "$( AgentsToolsSpawnProxyHandbacks "${MDAT_SPAWN_SESSION_ID:-}" "$warnLog" )" ] || return 0
 	## A closed session is never resumed, as a closed child is never messaged (AgentsToolsBoardAcceptDismissChild,
 	## AgentsReviewChildLive): no retry, the handback-missing notice below, and the close takes its item to review.
-	warnClosed="$( AgentsToolsSpawnProxyRetryClosed "${MDAT_SPAWN_SANDBOX_ROOT:+$MDAT_SPAWN_SANDBOX_ROOT/${MDAT_SPAWN_SESSION_ID:-none}.md}" "${MDAT_SPAWN_SESSION_ID:-}" )" || warnClosed=""
+	warnClosed="$( AgentsToolsSpawnProxyRetryClosed "${MDAT_SPAWN_SANDBOX_ROOT:+$MDAT_SPAWN_SANDBOX_ROOT/${MDAT_SPAWN_SESSION_ID:-none}.spawn.md}" "${MDAT_SPAWN_SESSION_ID:-}" )" || warnClosed=""
 	[ -z "$warnClosed" ] || echo "# $MDSC_CMD --intern-op-agent-spawn-proxy: no handback retry for spawn ${MDAT_SPAWN_SESSION_ID:-}: $warnClosed -- the handback-missing notice is posted instead" >&2
 	## One bounded retry, mechanical rather than a reminder: the run ended
 	## without calling SubagentHandback, so it is resumed once, in its own
@@ -1362,7 +1362,7 @@ case "$1" in
 			startContext="inline"
 		fi
 		if [ -z "$parentSession" ] && [ -n "$parentSessionId" ] ; then
-			for parentSessionRecord in "$MMDAPP"/.local/agents/spawned/*/"$parentSessionId.md" ; do
+			for parentSessionRecord in "$MMDAPP"/.local/agents/spawned/*/"$parentSessionId.spawn.md" ; do
 				[ ! -f "$parentSessionRecord" ] || parentSession="$( AgentsToolsSpawnSandboxRecordHeader "$parentSessionRecord" session-id )"
 			done
 			[ -n "$parentSession" ] || parentSession="$parentSessionId"
@@ -1448,7 +1448,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		if [ "$sessionOfCaller" = "true" ] && [ "$callerName" = "$spawnCallMember" ] && [ -z "$restartedFromSaid" ] \
-			&& [ -z "$( ls "$MMDAPP"/.local/agents/spawned/*/"$sessionId.md" 2> /dev/null )" ] ; then
+			&& [ -z "$( ls "$MMDAPP"/.local/agents/spawned/*/"$sessionId.spawn.md" 2> /dev/null )" ] ; then
 			echo "$MDSC_CMD: agent-spawn-proxy: 🙋 WARNING: $callerName already runs in session $sessionId: the client session itself runs as it, so a second run of it is not started there; nothing was started" >&2
 			set +e ; return 1
 		fi
@@ -1920,7 +1920,7 @@ case "$1" in
 		## Named by the session uuid, not by a fixed filename: a joined sandbox holds
 		## one record per spawn that ran under that tracking name, and a fixed name
 		## would have the second spawn overwrite the first one's record.
-		local sandboxTracking="$sandboxRoot/$MDAT_SPAWN_SESSION_ID.md"
+		local sandboxTracking="$sandboxRoot/$MDAT_SPAWN_SESSION_ID.spawn.md"
 		## Where this spawn's handback goes (session-parent): the parent's own session thread,
 		## else magic-coordinator's, settled now, so a parent with no thread still leaves the
 		## handback, and the DISMISSED that follows it, a thread (AgentsTools.ReviewFlow.include).
@@ -2040,7 +2040,7 @@ case "$1" in
 			''|*/*|.|..) ;;
 			*)
 				{ mkdir -p "$MMDAPP/.local/agents/children" \
-					&& printf '%s\n' "$sandboxName/$MDAT_SPAWN_SESSION_ID.md" >> "$MMDAPP/.local/agents/children/$parentSessionId" ; } 2>/dev/null \
+					&& printf '%s\n' "$sandboxName/$MDAT_SPAWN_SESSION_ID.spawn.md" >> "$MMDAPP/.local/agents/children/$parentSessionId" ; } 2>/dev/null \
 					|| { rm -f "$MMDAPP/.local/agents/children/.indexed" ; echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: could not list this spawn among its parent's children in .local/agents/children/$parentSessionId -- every harness now finds children by scanning every record, until the main loop's next iteration re-lists them" >&2 ; }
 			;;
 		esac

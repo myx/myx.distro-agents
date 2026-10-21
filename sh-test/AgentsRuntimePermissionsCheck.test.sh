@@ -76,7 +76,7 @@ printf 'Name: rig-proj\n\nDeclares: \\\n\t%s \\\n\t%s \\\n\t%s \\\n\n' \
 ## Spawn records: a running session of the coordinator and two of keeper-d, each with its sandbox.
 rigSpawn(){ ## sandbox, session id, owner
 	mkdir -p "$rigMain/.local/agents/spawned/$1/output"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\nowner: %s\nstatus: spawn-started\n---\n\n# Spawn session\n' "$2" "$2" "$3" > "$rigMain/.local/agents/spawned/$1/$2.md"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nowner: %s\nstatus: spawn-started\n---\n\n# Spawn session\n' "$2" "$2" "$3" > "$rigMain/.local/agents/spawned/$1/$2.spawn.md"
 }
 rigSpawn sb-c s-coord magic-coordinator
 rigSpawn sb-d s-d keeper-d
@@ -180,7 +180,7 @@ echo "-- 3. a session grant ends with its session --"
 sleep 1
 rigAssert "the session grant admits while the session runs"   "$( rigRead keeper-d s-d "$rigTmp/rw-dir/sub/a.md" ):$( rigSessionRows s-d keeper-d "$rigIdD" )" "read:1"
 sleep 1 ; : > "$rigTmp/marker" ; sleep 1
-LC_ALL=C sed 's/^status: spawn-started$/status: spawn-succeeded/' "$rigMain/.local/agents/spawned/sb-d/s-d.md" > "$rigTmp/rec" && cat "$rigTmp/rec" > "$rigMain/.local/agents/spawned/sb-d/s-d.md"
+LC_ALL=C sed 's/^status: spawn-started$/status: spawn-succeeded/' "$rigMain/.local/agents/spawned/sb-d/s-d.spawn.md" > "$rigTmp/rec" && cat "$rigTmp/rec" > "$rigMain/.local/agents/spawned/sb-d/s-d.spawn.md"
 rigAssert "ended: refused on read, the index not rebuilt"      "$( rigRead keeper-d s-d "$rigTmp/rw-dir/sub/a.md" ):$( [ "$rigMain/.local/agents/sessions/s-d/permissions.keeper-d.index" -nt "$rigTmp/marker" ] && printf rebuilt || printf kept )" "refused:kept"
 rigAssert "and by grant-read"                                  "$( rigGrantRead keeper-d s-d Read "$rigTmp/rw-dir/sub/a.md" )" none
 touch "$rigMain/.local/agents/sessions/s-d/grants"
@@ -291,7 +291,7 @@ echo "-- 9. a session pass: a keeper passes what it holds to a participant, for 
 ## Coworking session s-cw: keeper-d started it (its standing write holds rw-dir/*.md), magic-tester joined it.
 rigSpawn sb-cw s-cw keeper-d
 mkdir -p "$rigMain/.local/agents/spawned/sb-cwt/output"
-printf -- '---\nsession-id: s-cw\nspawn-id: s-cw-t\nowner: magic-tester\nstatus: spawn-started\n---\n\n# Spawn session\n' > "$rigMain/.local/agents/spawned/sb-cwt/s-cw-t.md"
+printf -- '---\nsession-id: s-cw\nspawn-id: s-cw-t\nowner: magic-tester\nstatus: spawn-started\n---\n\n# Spawn session\n' > "$rigMain/.local/agents/spawned/sb-cwt/s-cw-t.spawn.md"
 for rigName in rw-dir/p.md rw-dir/q.md ; do printf 'rig-seed %s\n' "$rigName" > "$rigTmp/$rigName" ; done
 rigAssert "control: the tester does not write there unpassed"  "$( rigWrite magic-tester s-cw-t "$rigTmp/rw-dir/p.md" )" refused
 RIG_AGENT=keeper-d RIG_SESSION=s-cw
@@ -327,7 +327,7 @@ rigAssert "listed with the passer as origin, until the session ends" "$( rigRow 
 RIG_AGENT=magic-coordinator RIG_SESSION=s-coord rigRun --magic-permission-revoke "$rigPassP"
 rigAssert "revoke takes it"                                    "$rigRc:$( cat "$rigTmp/out" )" "0:REVOKED: $rigPassP"
 rigAssert "the next check refuses it, the other still writes"  "$( rigWrite magic-tester s-cw-t "$rigTmp/rw-dir/p.md" ):$( rigWrite magic-tester s-cw-t "$rigTmp/rw-dir/q.md" )" "refused:wrote"
-LC_ALL=C sed 's/^status: spawn-started$/status: spawn-succeeded/' "$rigMain/.local/agents/spawned/sb-cw/s-cw.md" > "$rigTmp/rec" && cat "$rigTmp/rec" > "$rigMain/.local/agents/spawned/sb-cw/s-cw.md"
+LC_ALL=C sed 's/^status: spawn-started$/status: spawn-succeeded/' "$rigMain/.local/agents/spawned/sb-cw/s-cw.spawn.md" > "$rigTmp/rec" && cat "$rigTmp/rec" > "$rigMain/.local/agents/spawned/sb-cw/s-cw.spawn.md"
 rigAssert "it ends with the session"                           "$( rigWrite magic-tester s-cw-t "$rigTmp/rw-dir/q.md" ):$( rigGrantRead magic-tester s-cw-t Write "$rigTmp/rw-dir/q.md" )" "refused:none"
 
 if [ "$rigFail" -ne 0 ] ; then

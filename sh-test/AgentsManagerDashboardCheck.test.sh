@@ -101,7 +101,7 @@ rigAsk ask-1 reply-pending "$rigHost" sp-ask human-owner "2026-10-13 08:00 +0000
 rigAsk ask-2 reply-pending "$rigHost" sp-run magic-coordinator "2026-10-12 12:00 +0000"
 rigAsk ask-3 reply-pending far-host sp-far magic-coordinator "2026-10-13 11:00 +0000"
 rigAsk ask-4 reply-received "$rigHost" sp-old human-owner "2026-10-01 08:00 +0000"
-printf -- '---\nstatus: spawn-succeeded\nhost: %s\n---\n' "$rigHost" > "$rigAgents/spawned/t-ask/sp-ask.md"
+printf -- '---\nstatus: spawn-succeeded\nhost: %s\n---\n' "$rigHost" > "$rigAgents/spawned/t-ask/sp-ask.spawn.md"
 
 ## THE MEMBERS: two that can be started, an identity record, and the team itself.
 for rigOne in keeper-rig magic-rig human-owner magic-team ; do

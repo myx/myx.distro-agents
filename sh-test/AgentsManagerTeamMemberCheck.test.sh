@@ -211,7 +211,7 @@ rigRec(){ ## sandbox, record name, session id, spawn id, owner, status, started-
 		[ -z "$8" ] || printf 'resolved-at: %s\n' "$8"
 		[ -z "$9" ] || printf 'session-comment: %s\n' "$9"
 		printf -- '---\n\n# Spawn session: %s\n' "$3"
-	} > "$rigSp/$1/$2.md"
+	} > "$rigSp/$1/$2.spawn.md"
 }
 rigLive(){ ## spawn id... -- the rig's process list: each a run by its own --session-id word
 	local liveId livePid=900100

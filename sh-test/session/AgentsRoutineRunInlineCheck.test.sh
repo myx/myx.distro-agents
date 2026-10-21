@@ -42,7 +42,7 @@ for rigMember in keeper-rig magic-coordinator ; do
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/$rigMember/$rigMember.basic.md" ; printf '# rig armed\n' > "$rigSkills/$rigMember/$rigMember.armed.md"
 done
 cp "$rigInline" "$rigStandalone" "$rigCoworking" "$rigSkills/magic-team/"
-printf -- '---\nspawn-id: rig-run\nsession-id: rig-session\nowner: keeper-rig\n---\n\nrig\n' > "$rigWs/.local/agents/spawned/keeper-rig/rig-run.md"
+printf -- '---\nspawn-id: rig-run\nsession-id: rig-session\nowner: keeper-rig\n---\n\nrig\n' > "$rigWs/.local/agents/spawned/keeper-rig/rig-run.spawn.md"
 rigRoutine(){ ## short name, kind, extra frontmatter lines (newline separated, may be empty)
 	{
 		printf -- '---\ntype: routine\nexecutors: keeper-rig\nmaintainers: SENT-FRONT\nrequires-session-kind: %s\n' "$2"

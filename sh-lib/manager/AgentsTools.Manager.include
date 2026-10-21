@@ -99,9 +99,18 @@ case "$1" in
 		return $?
 	;;
 
-	## The places of this machine: the workspaces and the directories the tooling knows by name.
+	## The workspace this console runs in, as `Workspace (System)` shows it: the local tools' own, which every console of the family offers, with the blocks
+	## this one adds (sh-lib/config/workspace-blocks.list).
+	--manager-workspace-*)
+		local managerConsoleSubsystem="agents" managerConsoleWorkspaceList="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/workspace-blocks.list"
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerWorkspace.include"
+		return $?
+	;;
+
+	## The places of this machine: the workspaces and the directories the tooling knows by name: the local tools' own, which every console of the family offers.
 	--manager-place-*)
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerPlace.include"
+		local managerConsolePlaceList="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/place-blocks.list"
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerPlace.include"
 		return $?
 	;;
 

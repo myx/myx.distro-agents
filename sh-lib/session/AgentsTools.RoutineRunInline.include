@@ -39,7 +39,7 @@ AgentsToolsRoutineRunInline(){ ## routine selector
 		inlineSession=""
 		if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] ; then
 			type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
-			for inlineRecord in "$MMDAPP/.local/agents/spawned"/*/"$MDAT_SPAWN_SESSION_ID.md" ; do
+			for inlineRecord in "$MMDAPP/.local/agents/spawned"/*/"$MDAT_SPAWN_SESSION_ID.spawn.md" ; do
 				[ -f "$inlineRecord" ] || continue
 				inlineSession="$( AgentsToolsSpawnSandboxRecordHeader "$inlineRecord" session-id )"
 				break

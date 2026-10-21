@@ -28,7 +28,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 	type AgentsToolsSessionControlDeathHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionControlDeath.include" 2> /dev/null || :
 	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowSessionThread rowWorkspace rowLive rowState ; do
 		[ -n "$rowTracking" ] || continue
-		recordPath="$spawnRoot/$rowTracking/$rowSpawn.md"
+		recordPath="$spawnRoot/$rowTracking/$rowSpawn.spawn.md"
 		[ -f "$recordPath" ] || continue
 		case "$rowLive" in
 			running) continue ;;
@@ -85,7 +85,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member, [no-threa
 		itemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" spawn-id )"
 		recordPath=""
 		if [ -n "$itemSpawn" ] && [ "$itemSpawn" != "-" ] ; then
-			for recordCandidate in "$spawnRoot"/*/"$itemSpawn.md" ; do
+			for recordCandidate in "$spawnRoot"/*/"$itemSpawn.spawn.md" ; do
 				[ ! -f "$recordCandidate" ] || { recordPath="$recordCandidate" ; break ; }
 			done
 		fi

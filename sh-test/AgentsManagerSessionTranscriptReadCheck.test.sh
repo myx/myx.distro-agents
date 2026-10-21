@@ -77,7 +77,7 @@ rigAssert(){ ## what is asserted, got, want
 
 rigRec(){ ## sandbox and spawn id, session id, owner, started-at
 	mkdir -p "$rigSp/$1"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: %s\nstatus: spawn-succeeded\nstarted-at: %s\nresolved-at: 2026-10-13 12:00 +0300\n---\n\n# Spawn session\n' "$2" "$1" "$rigHost" "$3" "$4" > "$rigSp/$1/$1.md"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: %s\nstatus: spawn-succeeded\nstarted-at: %s\nresolved-at: 2026-10-13 12:00 +0300\n---\n\n# Spawn session\n' "$2" "$1" "$rigHost" "$3" "$4" > "$rigSp/$1/$1.spawn.md"
 }
 rigTranscript(){ ## spawn id, file name in the rig's team data -- stdin: the lines of the transcript; the store's pointer names it
 	mkdir -p "$rigStores/$1"
@@ -286,15 +286,15 @@ rigAssert "the operation is one arm of the include of the sessions; a line of th
 
 ## A MEMBER JOINS A RUNNING SESSION after the registry was built: its record is added to the sandbox folder the
 ## session already has, and every time is made older than the registry, so that no comparison of times could tell.
-printf -- '---\nsession-id: sess-t\nspawn-id: run-j\nhost: %s\nworkspace: rigws\nowner: magic-librarian\nstatus: spawn-succeeded\nstarted-at: 2026-10-13 09:03 +0300\nresolved-at: 2026-10-13 12:00 +0300\n---\n\n# Spawn session\n' "$rigHost" > "$rigSp/sess-t/run-j.md"
+printf -- '---\nsession-id: sess-t\nspawn-id: run-j\nhost: %s\nworkspace: rigws\nowner: magic-librarian\nstatus: spawn-succeeded\nstarted-at: 2026-10-13 09:03 +0300\nresolved-at: 2026-10-13 12:00 +0300\n---\n\n# Spawn session\n' "$rigHost" > "$rigSp/sess-t/run-j.spawn.md"
 rigTranscript run-j session-j.log <<'RIGLINES'
 2026-10-13T07:00:07Z START session=run-j member=magic-librarian
 2026-10-13T07:00:08Z ROUND n=1 in=1 cache-read=0 cache-write=0 out=1
 RIGLINES
-TZ=UTC touch -t 202610010000.00 "$rigSp/sess-t/run-j.md" "$rigSp/sess-t" "$rigSp"
+TZ=UTC touch -t 202610010000.00 "$rigSp/sess-t/run-j.spawn.md" "$rigSp/sess-t" "$rigSp"
 rigJoinNewer="none-newer"
-for rigJoinPath in "$rigSp" "$rigSp/sess-t" "$rigSp/sess-t/run-j.md" ; do [ ! "$rigJoinPath" -nt "$rigAgents/spawned-sessions.registry" ] || rigJoinNewer="newer:$rigJoinPath" ; done
-rigAssert "control: the member's record stands in the session's own folder, nothing there is newer than the registry, and the registry holds the session and not the member" "$( ls "$rigSp/sess-t" | LC_ALL=C tr '\n' ' ' )$rigJoinNewer $( LC_ALL=C awk '$2 == "sess-t" { rows++ } $8 == "run-j" { joined++ } END { print rows + 0 ":" joined + 0 }' "$rigAgents/spawned-sessions.registry" )" "run-j.md sess-t.md none-newer 3:0"
+for rigJoinPath in "$rigSp" "$rigSp/sess-t" "$rigSp/sess-t/run-j.spawn.md" ; do [ ! "$rigJoinPath" -nt "$rigAgents/spawned-sessions.registry" ] || rigJoinNewer="newer:$rigJoinPath" ; done
+rigAssert "control: the member's record stands in the session's own folder, nothing there is newer than the registry, and the registry holds the session and not the member" "$( ls "$rigSp/sess-t" | LC_ALL=C tr '\n' ' ' )$rigJoinNewer $( LC_ALL=C awk '$2 == "sess-t" { rows++ } $8 == "run-j" { joined++ } END { print rows + 0 ":" joined + 0 }' "$rigAgents/spawned-sessions.registry" )" "run-j.spawn.md sess-t.spawn.md none-newer 3:0"
 rigRun "$rigOp" --session-id sess-t
 rigAssert "a member that joined a running session after the registry was built is in the next read of that session, with its feed: its source row, and its lines after the others, in the order of their times" \
 	"$rigRc $( LC_ALL=C awk -F'\t' '$1 == "source" { printf "%s:%s ", $2, $4 }' "$rigTmp/out" )/ $( rigFeed | LC_ALL=C awk '$2 == "run-j"' | LC_ALL=C tr '\n' '|' ) $( LC_ALL=C awk -F'\t' '$1 == "feed" { rows++ } END { print rows + 0 }' "$rigTmp/out" )" \

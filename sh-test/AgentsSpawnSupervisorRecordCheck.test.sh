@@ -125,7 +125,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'cat > /dev/null' \
 	'rigLaunch=first ; [ -z "${MDAT_SPAWN_RESUME:-}" ] || rigLaunch=retry' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' \
-	'printf "%s\n" "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.md" > "$RIG_SCENARIO/record"' \
+	'printf "%s\n" "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.spawn.md" > "$RIG_SCENARIO/record"' \
 	". '$rigHelper' 2> /dev/null && rigProcNoteFile \"\$RIG_SCENARIO/\$rigLaunch.began\" \$\$" \
 	'rigLeft=120' \
 	'while [ "$rigLeft" -gt 0 ] && [ ! -e "$RIG_SCENARIO/release-$rigLaunch" ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done' \
@@ -277,7 +277,7 @@ rigDir="$rigTmp/returned"
 mkdir -p "$rigDir" "$rigSp/trk-rig-ret"
 : > "$rigDir/handback-first"
 rigOldShell="4000001 Mon_Jan_1_00:00:00_2001"
-rigOldRecord="$rigSp/trk-rig-ret/rig-old-run.md"
+rigOldRecord="$rigSp/trk-rig-ret/rig-old-run.spawn.md"
 rigItem="dispatch-20261013T0900Z-rigret"
 printf -- '---\nsession-id: rig-old-run\nspawn-id: rig-old-run\nparent-spawn-id: none\ntracking-name: trk-rig-ret\nhost: %s\nowner: rig-member-a\nstatus: spawn-succeeded\nsession-thread: CEND00001:1700000000.000500\nspawns: %s\nsupervisor-process: %s\n---\n\n# Spawn session: rig-old-run\n' \
 	"$rigHost" "$rigItem" "$rigOldShell" > "$rigOldRecord"
@@ -302,8 +302,8 @@ rigProcNote "$rigStandPid" ; rigKept="$rigKept $rigStandPid"
 rigStandBegan="$( rigBegan "$rigStandPid" )"
 [ -n "$rigStandBegan" ] || rigRefuse "the stand-in of section 5 never started"
 rigUnit(){ ## name, the lines of its frontmatter after its ids -- a record of the rig's own, open; prints its path
-	printf -- '---\nsession-id: rig-unit-%s\nspawn-id: rig-unit-%s\nowner: rig-member-a\nstatus: spawn-started\n%s\n---\n\n# Spawn session: rig-unit-%s\n' "$1" "$1" "$2" "$1" > "$rigTmp/unit/$1.md"
-	printf '%s' "$rigTmp/unit/$1.md"
+	printf -- '---\nsession-id: rig-unit-%s\nspawn-id: rig-unit-%s\nowner: rig-member-a\nstatus: spawn-started\n%s\n---\n\n# Spawn session: rig-unit-%s\n' "$1" "$1" "$2" "$1" > "$rigTmp/unit/$1.spawn.md"
+	printf '%s' "$rigTmp/unit/$1.spawn.md"
 }
 rigAssert "a record that names a process which is still that process: alive" \
 	"$( rigAsk "$( rigUnit live "host: $rigHost
@@ -322,17 +322,17 @@ rigAssert "a record that names no host: unknown" \
 	"$( rigAsk "$( rigUnit nohost "supervisor-process: $rigStandPid Mon_Jan_1_00:00:00_2001" )" )" "unknown rc=0"
 rigUnit cut "host: $rigHost
 supervisor-process: $rigStandPid Mon_Jan_1_00:00:00_2001" > /dev/null
-LC_ALL=C sed -n '1,/^supervisor-process: /p' "$rigTmp/unit/cut.md" > "$rigTmp/unit/cut-short.md"
-rigAssert "a record cut short, its frontmatter not yet whole: unknown" "$( LC_ALL=C grep -c -x -e '---' "$rigTmp/unit/cut-short.md" ):$( rigAsk "$rigTmp/unit/cut-short.md" )" "1:unknown rc=0"
+LC_ALL=C sed -n '1,/^supervisor-process: /p' "$rigTmp/unit/cut.spawn.md" > "$rigTmp/unit/cut-short.spawn.md"
+rigAssert "a record cut short, its frontmatter not yet whole: unknown" "$( LC_ALL=C grep -c -x -e '---' "$rigTmp/unit/cut-short.spawn.md" ):$( rigAsk "$rigTmp/unit/cut-short.spawn.md" )" "1:unknown rc=0"
 rigAssert "a record that names the shell in no form this reads, a pid alone or no pid: unknown" \
 	"$( rigAsk "$( rigUnit pid-alone "host: $rigHost
 supervisor-process: $rigStandPid" )" ):$( rigAsk "$( rigUnit no-pid "host: $rigHost
 supervisor-process: rig Mon_Jan_1_00:00:00_2001" )" ):$( rigAsk "$( rigUnit two-words "host: $rigHost
 supervisor-process: $rigStandPid Mon Jan" )" )" "unknown rc=0:unknown rc=0:unknown rc=0"
 rigUnit body "host: $rigHost" > /dev/null
-printf 'supervisor-process: %s Mon_Jan_1_00:00:00_2001\n' "$rigStandPid" >> "$rigTmp/unit/body.md"
-rigAssert "a line of that name in the text under the frontmatter is no header: unknown" "$( rigAsk "$rigTmp/unit/body.md" )" "unknown rc=0"
-rigAssert "no file at all, and no name of one: unknown" "$( rigAsk "$rigTmp/unit/no-such-record.md" ):$( rigAsk "" )" "unknown rc=0:unknown rc=0"
+printf 'supervisor-process: %s Mon_Jan_1_00:00:00_2001\n' "$rigStandPid" >> "$rigTmp/unit/body.spawn.md"
+rigAssert "a line of that name in the text under the frontmatter is no header: unknown" "$( rigAsk "$rigTmp/unit/body.spawn.md" )" "unknown rc=0"
+rigAssert "no file at all, and no name of one: unknown" "$( rigAsk "$rigTmp/unit/no-such-record.spawn.md" ):$( rigAsk "" )" "unknown rc=0:unknown rc=0"
 ## A process that has ended and that the process which started it has not collected yet is no process any more.
 perl -e '$| = 1 ; my $kid = fork ; defined $kid or exit 1 ; if ( ! $kid ) { sleep 2 ; exit 0 } print "$kid\n" ; close STDOUT ; sleep 120' > "$rigTmp/unit/ended.pid" 2> /dev/null &
 rigHolder=$!
@@ -347,7 +347,7 @@ rigAssert "a process that has ended and is not yet collected by its starter is n
 supervisor-process: $rigEnded $rigEndedBegan" )" )" "ended-uncollected:gone rc=0"
 rigProcSignal KILL "$rigHolder" ; wait "$rigHolder" 2> /dev/null
 rigProcSignal KILL "$rigStandPid" ; wait "$rigStandPid" 2> /dev/null
-rigAssert "a process that is no more: gone" "$( rigAsk "$rigTmp/unit/live.md" )" "gone rc=0"
+rigAssert "a process that is no more: gone" "$( rigAsk "$rigTmp/unit/live.spawn.md" )" "gone rc=0"
 rigAssert "none of these answers is an error: nothing was written on stderr, in this section or in the four before it" "$( rigAskErrors )" "0"
 
 echo "-- 5b. the write of a launch keeps what another writer changed while it wrote --"
@@ -363,17 +363,17 @@ rigUnit raced "host: $rigHost" > /dev/null
 		command awk "$@" || awkRc=$?
 		if [ -n "$awkWriter" ] && [ ! -e "$RIG_TMP/unit/raced.once" ] ; then
 			: > "$RIG_TMP/unit/raced.once"
-			sed "s/^status: spawn-started\$/status: spawn-ended-without-close/" "$RIG_TMP/unit/raced.md" > "$RIG_TMP/unit/raced.md.rig" && mv -f "$RIG_TMP/unit/raced.md.rig" "$RIG_TMP/unit/raced.md"
+			sed "s/^status: spawn-started\$/status: spawn-ended-without-close/" "$RIG_TMP/unit/raced.spawn.md" > "$RIG_TMP/unit/raced.spawn.md.rig" && mv -f "$RIG_TMP/unit/raced.spawn.md.rig" "$RIG_TMP/unit/raced.spawn.md"
 		fi
 		return "$awkRc"
 	}
 	MDAT_SPAWN_SANDBOX_ROOT="$RIG_TMP/unit" MDAT_SPAWN_SESSION_ID=raced AgentsToolsSpawnProxyRunRecord "$$"
 ' rig-raced "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" "$rigLib/session/AgentsTools.SpawnSandbox.include" 2>> "$rigTmp/ask.err" )
 rigAssert "control: the close was put in place while the launch wrote, once" "$( [ -e "$rigTmp/unit/raced.once" ] && printf once || printf never )" "once"
-rigAssert "the record keeps that close, and names the process the launch kept" "$( rigHeader "$rigTmp/unit/raced.md" status ) $( rigNames "$rigTmp/unit/raced.md" run-process )" "spawn-ended-without-close 1"
+rigAssert "the record keeps that close, and names the process the launch kept" "$( rigHeader "$rigTmp/unit/raced.spawn.md" status ) $( rigNames "$rigTmp/unit/raced.spawn.md" run-process )" "spawn-ended-without-close 1"
 
 echo "-- 6. --manager-session-read prints the header among the headers of a closed run --"
-rigClosedId="${rigClosedRecord##*/}" ; rigClosedId="${rigClosedId%.md}"
+rigClosedId="${rigClosedRecord##*/}" ; rigClosedId="${rigClosedId%.spawn.md}"
 ( cd "$rigWs" && rigEnv "$rigTmp" bash "$rigTool" --manager-session-read --session-id "$rigClosedId" --run > "$rigTmp/read.out" 2> "$rigTmp/read.err" < /dev/null )
 [ "$( LC_ALL=C awk -F'\t' '$1 == "run" { readRuns++ } END { print readRuns + 0 }' "$rigTmp/read.out" )" = 1 ] || rigRefuse "--manager-session-read printed no run of $rigClosedId, so no header row would be measured: $( head -2 "$rigTmp/read.err" | LC_ALL=C tr '\n' ' ' )"
 rigAssert "the read of that run prints its supervisor-process as the record holds it, beside its run-process" \

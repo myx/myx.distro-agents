@@ -148,7 +148,7 @@ rigStart(){ ## scenario name
 		"$rigSpawn" "$rigName" > "$rigData/board/running/$rigItem.md"
 	mkdir -p "$rigWs/.local/agents/spawned/$rigSpawn" "$rigWs/.local/agents/sessions/$rigSpawn"
 	printf -- '---\nsession-id: 5e55104a-rig-%s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-started\nsession-thread: CSES00001:1700000000.000100\nspawns: %s\ndescription: rework the rig widget\n---\n' \
-		"$rigName" "$rigSpawn" "$rigSpawn" "$rigHost" "$rigItem" > "$rigWs/.local/agents/spawned/$rigSpawn/$rigSpawn.md"
+		"$rigName" "$rigSpawn" "$rigSpawn" "$rigHost" "$rigItem" > "$rigWs/.local/agents/spawned/$rigSpawn/$rigSpawn.spawn.md"
 	bash -c 'sleep 600 ; :' "$rigSpawn" > /dev/null 2>&1 < /dev/null &
 	rigPid="$!"
 	rigLivePids="$rigLivePids $rigPid" ; rigProcNote "$rigPid"
@@ -647,7 +647,7 @@ printf 'rig\n' > "$rigWs/source/rig/rig-proj/skillset/keeper-here/keeper-here.ba
 printf 'rig-seed armed\n' > "$rigWs/source/rig/rig-proj/skillset/keeper-here/keeper-here.armed.md"
 printf 'rig-seed mark\n' > "$rigWs/source/rig/rig-proj/skillset/keeper-here/mark.txt"
 ln -s "$rigWs/source/rig/rig-proj/skillset/keeper-here" "$rigDir/.claude/skills/keeper-here"
-LC_ALL=C sed -i.bak 's/^owner: keeper-myx$/owner: magic-librarian/' "$rigWs/.local/agents/spawned/$rigSpawn/$rigSpawn.md" "$rigData/board/running/$rigItem.md"
+LC_ALL=C sed -i.bak 's/^owner: keeper-myx$/owner: magic-librarian/' "$rigWs/.local/agents/spawned/$rigSpawn/$rigSpawn.spawn.md" "$rigData/board/running/$rigItem.md"
 rigSkillFile="$rigWs/source/rig/rig-proj/skillset/keeper-here/keeper-here.armed.md"
 rigEdit lib "$rigDir/.claude/skills/keeper-here/keeper-here.armed.md" rig-seed "rig-seed edited"
 rigAssert "the librarian's Edit of a skill .md file, by the HOME link, is held on the real file, not asked for and not applied" "$( rigFirst lib ):$( rigBytes "$rigSkillFile" ):$( LC_ALL=C grep -c 'REFUSAL-ID' "$rigDir/lib" )" "$( rigHeldLine "$rigSkillFile" ):rig-seedarmed\\n:0"

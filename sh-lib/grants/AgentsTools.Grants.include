@@ -78,14 +78,14 @@ AgentsToolsGrantsIndexFresh(){ ## workspace, index file
 	IFS= read -r freshHead < "$freshFile" || return 1
 	AgentsToolsGrantsIndexHeader "$freshWs"
 	[ "$freshHead" = "$agentsGrantsHeader" ] || return 1
-	type AgentsToolsPlacesHomeSkills > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include" || return 1
-	AgentsToolsPlacesHomeSkills || :
+	type LocalToolsPlacesHomeSkills > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" || return 1
+	LocalToolsPlacesHomeSkills || :
 	for freshSrc in \
 		"$freshWs/.local/agents/permissions.registry" "$freshWs/.local/agents/directories.registry" "$freshWs/.local/agents/members.index" \
 		"$freshShared/permissions.registry" "$freshShared/directories.registry" "$freshShared/members.registry" "$freshShared/member-homes.registry" \
-		"$freshShared/known-workspaces.registry" "$freshShared/known-workspaces.registry.imported" "$agentsGrantsSkillsetRoot" "$agentsPlacesHomeSkills" \
+		"$freshShared/known-workspaces.registry" "$freshShared/known-workspaces.registry.imported" "$agentsGrantsSkillsetRoot" "$localPlacesHomeSkills" \
 		"$agentsGrantsHere/grants/AgentsTools.Grants.include" "$agentsGrantsHere/grants/AgentsGrantsPattern.awk" "$agentsGrantsHere/grants/AgentsGrantsIndexBuild.awk" \
-		"$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include" \
+		"$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" \
 	; do
 		[ ! -e "$freshSrc" ] || [ "$freshFile" -nt "$freshSrc" ] || return 1
 	done
@@ -137,7 +137,7 @@ AgentsToolsGrantsBuiltinText(){ ## workspace the rows are written for, [tags]
 
 ## The team members' skills that are the machine's own and this workspace's to change, one
 ## resolved folder per line, each once: the entries of the machine's skillset in HOME, a
-## built-in place (AgentsToolsPlacesHomeSkills), that hold a member's own <name>.basic.md and
+## built-in place (LocalToolsPlacesHomeSkills), that hold a member's own <name>.basic.md and
 ## are no reference-only identity record, which is nobody's to write. A real folder there is
 ## a skill that lives on this machine only. A link there counts where its target really lies
 ## under this workspace's source/; one to anywhere else, another workspace's source tree or a
@@ -146,10 +146,10 @@ AgentsToolsGrantsBuiltinText(){ ## workspace the rows are written for, [tags]
 ## came by.
 AgentsToolsGrantsMemberSkills(){ ## workspace
 	local skillsSource skillsEntry skillsName skillsReal skillsSeen=$'\n'
-	type AgentsToolsPlacesHomeSkills > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include" || return 0
-	AgentsToolsPlacesHomeSkills || return 0
+	type LocalToolsPlacesHomeSkills > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" || return 0
+	LocalToolsPlacesHomeSkills || return 0
 	skillsSource="$( cd "${1%/}/source" 2> /dev/null && pwd -P )" || skillsSource=""
-	for skillsEntry in "$agentsPlacesHomeSkills"/*/ ; do
+	for skillsEntry in "$localPlacesHomeSkills"/*/ ; do
 		skillsEntry="${skillsEntry%/}"
 		[ -d "$skillsEntry" ] || continue
 		skillsName="${skillsEntry##*/}"
@@ -170,7 +170,7 @@ AgentsToolsGrantsMemberSkills(){ ## workspace
 AgentsToolsGrantsIndexText(){ ## workspace
 	local textWs="${1%/}" textStream textReal textRoot
 	[ -n "$textWs" ] || return 1
-	type AgentsToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include" || return 1
+	type LocalToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" || return 1
 	type AgentsToolsTeamGrantRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" || return 1
 	type AgentsToolsClientAccessRootsMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientAccessRoots.include" || return 1
 	AgentsToolsGrantsIndexHeader "$textWs"
@@ -178,8 +178,8 @@ AgentsToolsGrantsIndexText(){ ## workspace
 		printf 'head\t%s\n' "$agentsGrantsHeader"
 		MDAT_SKILLSET_ROOT="$agentsGrantsSkillsetRoot" AgentsToolsTeamMemberDirectoryText | LC_ALL=C awk -F'\t' 'NF && $1 != "" { print "member\t" $1 ; }'
 		## the places before the grants, which are capped by their ceilings as they are read
-		agentsGrantsPlaces="$( AgentsToolsPlacesMergedText "$textWs" quiet )"
-		agentsGrantsRoots="$( AgentsToolsPlacesWorkspaceRoots "$textWs" )"
+		agentsGrantsPlaces="$( LocalToolsPlacesMergedText "$textWs" quiet )"
+		agentsGrantsRoots="$( LocalToolsPlacesWorkspaceRoots "$textWs" )"
 		printf '%s\n' "$agentsGrantsPlaces" | LC_ALL=C awk -F'\t' -v OFS='\t' 'NF >= 4 { print "place", $1, $2, $3, $4 ; }'
 		## The standing write of magic-librarian on the team members' skills this machine holds
 		## (AgentsToolsGrantsMemberSkills): their .md files, and nothing else in them, BY APPROVAL
@@ -580,12 +580,12 @@ AgentsToolsGrantsRegistryWrite(){ ## workspace, op name for messages
 	local regFile regTagsFile regLock regWait=0 regOld=""
 	regWs="$( cd "${1%/}" 2> /dev/null && pwd )" || { echo "⛔ ERROR: $regOp: workspace not found: $1" >&2 ; return 1 ; }
 	regName="${regWs##*/}"
-	type AgentsToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include" || return 1
+	type LocalToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" || return 1
 	type AgentsToolsTeamGrantRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" || return 1
 	type AgentsToolsClientAccessRootsMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client/AgentsTools.ClientAccessRoots.include" || return 1
 	type AgentsToolsWorkspaceSwitch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include" || return 1
-	agentsGrantsPlaces="$( AgentsToolsPlacesMergedText "$regWs" quiet )"
-	agentsGrantsRoots="$( AgentsToolsPlacesWorkspaceRoots "$regWs" )"
+	agentsGrantsPlaces="$( LocalToolsPlacesMergedText "$regWs" quiet )"
+	agentsGrantsRoots="$( LocalToolsPlacesWorkspaceRoots "$regWs" )"
 	regText="$( AgentsToolsGrantsDeclaredText "$regWs" "$regOp" )" || regRc=$?
 	if [ "$regRc" != 0 ] ; then
 		[ "$regRc" = 3 ] || echo "🙋 WARNING: $regOp: declared allow-write was not determined for workspace $regWs, its permissions registry is kept as it stood" >&2
@@ -664,7 +664,7 @@ AgentsToolsGrantsRegistryWrite(){ ## workspace, op name for messages
 ## spawn record (AgentsToolsPermissionRelatedStores), read with builtins.
 AgentsToolsGrantsSessionStores(){ ## workspace, session id
 	local storesWs="${1%/}" storesRecord storesLine storesFront storesCow="" storesParent="" storesSeen=$'\n' storesOne
-	for storesRecord in "$storesWs/.local/agents/spawned"/*/"$2.md" ; do
+	for storesRecord in "$storesWs/.local/agents/spawned"/*/"$2.spawn.md" ; do
 		[ -f "$storesRecord" ] || continue
 		storesFront=""
 		while IFS= read -r storesLine ; do
@@ -687,7 +687,7 @@ AgentsToolsGrantsSessionStores(){ ## workspace, session id
 }
 
 ## Whether a session store's session has ended, by builtins only: its spawn record
-## (spawned/*/<id>.md) closed with a spawn-* status other than spawn-started. A session with
+## (spawned/*/<id>.spawn.md) closed with a spawn-* status other than spawn-started. A session with
 ## no spawn record (a root session: the human-owner's own, an interactive native console) ends
 ## by its client's SessionEnd hook instead (client-hooks/root-session-end.sh): an `ended`
 ## marker in its own store, which a resume removes. rc 0 ended, 1 not.
@@ -696,7 +696,7 @@ AgentsToolsGrantsSessionEnded(){ ## session store directory
 	endedRoot="$endedStore"
 	endedId="${endedRoot##*/}" ; endedRoot="${endedRoot%/*}" ; endedRoot="${endedRoot%/*}/spawned"
 	case "$endedId" in ''|.|..) return 1 ;; esac
-	for endedRecord in "$endedRoot"/*/"$endedId.md" ; do
+	for endedRecord in "$endedRoot"/*/"$endedId.spawn.md" ; do
 		[ -f "$endedRecord" ] || continue
 		endedSeen=1
 		endedFront=""
@@ -732,7 +732,7 @@ AgentsToolsGrantsItemRuns(){ ## workspace, session id, member
 	case "$2" in ''|*/*|.|..) return 1 ;; esac
 	[ -n "$runsWs" ] && [ -n "$3" ] || return 1
 	## No record, no awk: a root session has none.
-	for runsRecord in "$runsWs/.local/agents/spawned"/*/"$2.md" ; do
+	for runsRecord in "$runsWs/.local/agents/spawned"/*/"$2.spawn.md" ; do
 		[ ! -f "$runsRecord" ] || { runsFound=1 ; break ; }
 	done
 	[ -n "$runsFound" ] || return 1
@@ -742,7 +742,7 @@ AgentsToolsGrantsItemRuns(){ ## workspace, session id, member
 			session) [ "$runsValue" = "-" ] || runsSession="$runsWs/.local/agents/sessions/$runsValue" ;;
 			store) runsStores="$runsStores$runsWs/.local/agents/sessions/$runsValue"$'\n' ;;
 		esac
-	done < <( agentsGrantsItemRunsMember="$3" agentsGrantsItemRunsOwn="$2" LC_ALL=C awk -f "$agentsGrantsHere/grants/AgentsGrantsItemRuns.awk" "$runsWs/.local/agents/spawned"/*/*.md 2> /dev/null )
+	done < <( agentsGrantsItemRunsMember="$3" agentsGrantsItemRunsOwn="$2" LC_ALL=C awk -f "$agentsGrantsHere/grants/AgentsGrantsItemRuns.awk" "$runsWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )
 	[ -n "$runsItem" ] && [ -n "$runsStores" ] || return 1
 	agentsGrantsItemRunsItem="$runsItem" ; agentsGrantsItemRunsSession="$runsSession" ; agentsGrantsItemRunsStores="${runsStores%$'\n'}"
 	return 0
@@ -1009,7 +1009,7 @@ AgentsToolsGrantsMemberList(){ ## workspace, member, session id (may be empty)
 				if [ "$listCow" = "-" ] ; then listCow="" ; else listCow="$listWs/.local/agents/sessions/$listCow" ; fi
 				AgentsToolsGrantsItemRunsLive "$listItem" "$listCow" || continue
 				agentsGrantsItemRuns="$agentsGrantsItemRuns$listStore"$'\t'"$listItem"$'\t'"${listCow:--}"$'\t\n'
-			done < <( agentsGrantsItemRunsMember="$2" agentsGrantsItemRunsOwn="" LC_ALL=C awk -f "$agentsGrantsHere/grants/AgentsGrantsItemRuns.awk" "$listWs/.local/agents/spawned"/*/*.md 2> /dev/null )
+			done < <( agentsGrantsItemRunsMember="$2" agentsGrantsItemRunsOwn="" LC_ALL=C awk -f "$agentsGrantsHere/grants/AgentsGrantsItemRuns.awk" "$listWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )
 		fi
 	fi
 	while IFS= read -r listStore ; do

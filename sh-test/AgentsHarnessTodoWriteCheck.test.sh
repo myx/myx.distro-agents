@@ -42,7 +42,7 @@ done
 ## spawn rig-other, magic-architect; magic-developer was brought into it with a sandbox of its own.
 rigRecord(){ ## sandbox folder, spawn id, session id, member
 	mkdir -p "$rigSpawned/$1/input" "$rigSpawned/$1/output" || exit 1
-	printf -- '---\nsession-id: %s\nspawn-id: %s\ntracking-name: %s\nhost: rig\nowner: %s\nstatus: spawn-started\n---\n' "$3" "$2" "$1" "$4" > "$rigSpawned/$1/$2.md"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\ntracking-name: %s\nhost: rig\nowner: %s\nstatus: spawn-started\n---\n' "$3" "$2" "$1" "$4" > "$rigSpawned/$1/$2.spawn.md"
 }
 rigRecord sp-k sp-k rig-root keeper-myx
 rigRecord sp-k2 sp-k2 rig-root keeper-myx
@@ -146,7 +146,7 @@ rigOut="$( rigCall keeper '{"todos":'"$rigList3"'}' )"
 rigAssert "the call is answered OK, naming its list" "$( rigHolds "$rigOut" "checklist of keeper-myx in session rig-root now holds 2 item(s): 1 pending, 0 in progress, 1 completed. Kept in $rigRootPlace/keeper-myx.checklist.md" )" "yes"
 rigAssert "its list is kept in the session's place, a line an item" "$( rigKept "$rigRootPlace/keeper-myx.checklist.md" )" "$rigMd3"
 rigAssert "the list of the root session is untouched" "$( rigKept "$rigRootPlace/magic-coordinator.checklist.md" )" "$rigMd2"
-rigAssert "nothing is kept in its own sandbox" "$( find "$rigSpawned/sp-k" -type f ! -name 'sp-k.md' | LC_ALL=C grep -c . )" "0"
+rigAssert "nothing is kept in its own sandbox" "$( find "$rigSpawned/sp-k" -type f ! -name 'sp-k.spawn.md' | LC_ALL=C grep -c . )" "0"
 
 echo "-- 4. one member, one list: every run of a member reads and writes the same one --"
 rigAssert "a second run of keeper-myx reads the list the first wrote" "$( rigCall keeper2 '{}' )" "CHECKLIST of keeper-myx in session rig-root ($rigRootPlace/keeper-myx.checklist.md):

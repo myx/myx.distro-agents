@@ -76,7 +76,7 @@ rigMember(){ ## member, Name as written, alias, mark -- its skillset folder and 
 }
 rigSpawn(){ ## sandbox, spawn id -- one spawn record in a sandbox of its own
 	mkdir -p "$rigAgents/spawned/$1"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: righost\nowner: keeper-rig\nstatus: spawn-started\n---\nbody\n' "$2" "$2" > "$rigAgents/spawned/$1/$2.md"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: righost\nowner: keeper-rig\nstatus: spawn-started\n---\nbody\n' "$2" "$2" > "$rigAgents/spawned/$1/$2.spawn.md"
 }
 rigAsk(){ ## record name -- one open ask
 	mkdir -p "$rigAgents/pending"
@@ -379,7 +379,7 @@ rigAssert "every one of the eleven files is current at the end of the first inst
 rigAssert "control: the files compared are the files of the build, ten of them there (no project of this workspace declares a grant, so no permissions registry)" "$( rigIntBytes | LC_ALL=C grep -c -v ' absent$' || : ) $( rigIntBytes | LC_ALL=C grep ' absent$' )" "10 permissions.registry absent"
 ## Between the install and the update a session ran and asked: the stores hold records the files do not.
 mkdir -p "$rigIntAgents/spawned/s-int" "$rigIntAgents/pending"
-printf -- '---\nsession-id: spawn-int\nspawn-id: spawn-int\nhost: righost\nowner: magic-coordinator\nstatus: spawn-started\n---\nbody\n' > "$rigIntAgents/spawned/s-int/spawn-int.md"
+printf -- '---\nsession-id: spawn-int\nspawn-id: spawn-int\nhost: righost\nowner: magic-coordinator\nstatus: spawn-started\n---\nbody\n' > "$rigIntAgents/spawned/s-int/spawn-int.spawn.md"
 printf -- '---\nstatus: reply-pending\nsession-id: spawn-int\nowner: magic-coordinator\ncommunication-channel-id: CRIG00001\n---\nq\n' > "$rigIntAgents/pending/ask-int.md"
 rigInt --make-workspace-integrations --quiet
 rigAssert "a later update ends 0, with no error, makes the indices in one step, in the same order, and with no root to make writes the roots index once" "$rigRc $( rigIntCount '⛔ ERROR' ) $( rigIntCount "# DistroAgentsTools $rigOne: wrote $rigIntAgents/team-members.registry (" ) $( rigIntCount '✅ workspace integrations installed' ) $( rigIntOrder ) $( rigIntCount 'harness roots index written: .local/agents/harness.roots.index' )" "0 0 1 1 ordered 1"
@@ -462,7 +462,7 @@ done
 rigAssert "every writer of a registry or an index that holds no lock makes its temp name by mktemp, once, and none by the shell's process id" "${rigWriterBad:-each by mktemp}" "each by mktemp"
 rigMakeArm="$( LC_ALL=C awk '/^\t--make-agents-indices\|--make-harness-indices\)/ { on = 1 } on { print } on && /^\t;;/ { exit }' "$rigMakeInclude" )"
 rigAssert "and so does the one operation's own arm, for the harness's two indexes it writes itself" "$( printf '%s\n' "$rigMakeArm" | LC_ALL=C grep -c -F -- 'mktemp "' || : ) $( printf '%s\n' "$rigMakeArm" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- '$$' || : )" "1 0"
-rigAssert "control: a writer that does hold a lock is found by the same reader, with its temp name as it was" "$( rigWriterBody AgentsTools.Places.include AgentsToolsPlacesSharedUpdate | LC_ALL=C grep -c -F -- 'AgentsToolsPlacesLockTake' || : ) $( rigWriterBody AgentsTools.Places.include AgentsToolsPlacesSharedUpdate | LC_ALL=C grep -c -F -- '.tmp.$$' || : )" "1 2"
+rigAssert "control: a writer that does hold a lock is found by the same reader, with its temp name as it was" "$( rigWriterBody LocalTools.Places.include LocalToolsPlacesSharedUpdate | LC_ALL=C grep -c -F -- 'LocalToolsPlacesLockTake' || : ) $( rigWriterBody LocalTools.Places.include LocalToolsPlacesSharedUpdate | LC_ALL=C grep -c -F -- '.tmp.$$' || : )" "1 2"
 
 echo "-- 9. one list of what to build --"
 rigAssert "the registries are one list, a line each with the rebuild function of its name, in the order they are built" \

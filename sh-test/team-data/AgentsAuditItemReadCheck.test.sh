@@ -56,7 +56,7 @@ printf 'root line\n' > "$rigAudit/transcript-rig-root.md"
 rigLog="session-20260920T081500Z-magic-tester-1a2b3c4d.log"
 printf '2026-09-20T08:15:00Z START member=magic-tester\n2026-09-20T08:15:01Z TOOL Wait -> ok\n2026-09-20T08:16:00Z END rc=0\n' > "$rigAudit/2026-09/$rigLog"
 printf -- '---\nsession-id: rig-session\nspawn-id: 1a2b3c4d-0000-4000-8000-000000000001\nparent-spawn-id: none\nowner: magic-tester\nstatus: spawn-succeeded\ntranscript: audit/2026-09/%s\n---\n' \
-	"$rigLog" > "$rigWs/.local/agents/spawned/rig-session/1a2b3c4d-0000-4000-8000-000000000001.md"
+	"$rigLog" > "$rigWs/.local/agents/spawned/rig-session/1a2b3c4d-0000-4000-8000-000000000001.spawn.md"
 
 rigPassCount=0
 rigFailCount=0

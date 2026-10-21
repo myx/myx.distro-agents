@@ -149,7 +149,7 @@ AgentsToolsSessionControlDeathRecordMark(){ ## record file, header, value
 AgentsToolsSessionControlDeathClose(){ ## record file
 	local closeRecord="$1" closeRun closeOutput closeField closeStem closeItem closeState closePath closeSpawn closeTarget
 	[ -f "$closeRecord" ] || return 1
-	closeRun="${closeRecord##*/}" ; closeRun="${closeRun%.md}"
+	closeRun="${closeRecord##*/}" ; closeRun="${closeRun%.spawn.md}"
 	[ "$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" status )" = "spawn-started" ] || return 1
 	AgentsToolsSpawnProxyCloseSandbox "$closeRecord" "$agentsSessionControlDeathOutcome" unknown
 	[ "$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" status )" = "spawn-$agentsSessionControlDeathOutcome" ] || return 1
@@ -252,7 +252,7 @@ AgentsToolsSessionControlDeathAsk(){ ## session id, record file, where it is ask
 	local askSession="$1" askRecord="$2" askWhere="$3" askWhom="$4" askItem="${5:-}" askTry="${6:-1}" askFailed="${7:-}" askWhy="${8:-}" askRepeat="${9:-}" askBack="${10:-}" askKey
 	local askRun askMember askRole askName askShort="" askQuestion askOptions askContext askBody askOut askChannel askTs askThread askAddressees askAsking askId askSent askFound
 	type AgentsToolsAskPostReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
-	askRun="${askRecord##*/}" ; askRun="${askRun%.md}"
+	askRun="${askRecord##*/}" ; askRun="${askRun%.spawn.md}"
 	askMember="$( AgentsToolsSpawnSandboxRecordHeader "$askRecord" owner )"
 	[ -n "$askMember" ] || { printf 'failed %s\n' "its record names no member" ; return 1 ; }
 	AgentsToolsAskKindRow decision || { printf 'failed %s\n' "the table of the asks names no decision" ; return 1 ; }
@@ -565,7 +565,7 @@ AgentsToolsSessionControlDeathSay(){ ## thread, member, whom it is told, line, r
 AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the death, the file its result goes to
 	local actSession="$1" actRecord="$2" actLine="$3" actResult="$4"
 	local actRun actAnswer actId actPending actBy actMember actField actItem="" actState="" actNow actOut="" actWhy="" actSaid="" actReason="" actThread actParent actParentMember actBack="" actShown
-	actRun="${actRecord##*/}" ; actRun="${actRun%.md}"
+	actRun="${actRecord##*/}" ; actRun="${actRun%.spawn.md}"
 	actAnswer="$( AgentsToolsSessionControlDeathMark "$actLine" answer )" || actAnswer=""
 	actId="$( AgentsToolsSessionControlDeathMark "$actLine" asked )" || actId=""
 	actPending="$MMDAPP/.local/agents/pending/$actId.md"

@@ -142,7 +142,7 @@ rigRecord(){ ## cache-prefix, routine -- the spawn record in the root of the san
 		[ -z "$1" ] || printf 'cache-prefix: %s\n' "$1"
 		[ -z "$2" ] || printf 'routine: %s\n' "$2"
 		printf 'status: spawn-started\n---\n\n# Spawn session: %s\n' "$rigSpawn"
-	} > "$rigSandbox/$rigSpawn.md"
+	} > "$rigSandbox/$rigSpawn.spawn.md"
 }
 rigTextStream(){ ## canned-stream file, content
 	{
@@ -343,7 +343,7 @@ rigScene routine4 routine ; rigRecord armed magic-team.rigroutine.routine.md ; r
 rigAssert "cache-prefix: armed: no routine text"                                           "$( rigIn "$( rigReq 1 )" 'RIG-ROUTINE-' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" no:yes
 rigScene routine5 routine ; rigRecord "" "" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
 rigAssert "a record with no cache-prefix: no routine text"                                 "$( rigIn "$( rigReq 1 )" 'RIG-ROUTINE-' ):$( rigCount "$rigDir/req.1" 'RIG-A-ARMED-BODY' )" no:1
-rigScene routine6 routine ; rm -f "$rigSandbox/$rigSpawn.md" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
+rigScene routine6 routine ; rm -f "$rigSandbox/$rigSpawn.spawn.md" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
 rigAssert "no record at all: the armed file alone"                                         "$( rigIn "$( rigReq 1 )" 'RIG-ROUTINE-' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" no:yes
 
 echo "-- 5b. a later read of the routine: the same one line, while the mixed text is unchanged --"
@@ -402,7 +402,7 @@ rigServedOut="$( printf '%s' '{"skill":"rig-a"}' | ( cd "$rigWs" && env -i HOME=
 rigAssert "a served call, a native client's, is the bundle with the team's basic file, as it was"  "$( rigIn "$rigServedOut" 'RIG-A-ARMED-BODY' ):$( rigIn "$rigServedOut" 'RIG-TEAM-COMMON-LINE' ):$( rigIn "$rigServedOut" "$rigOneLine" )" yes:yes:no
 rigServedHad="$( rigCount "$rigServedDir/req.1" 'RIG-A-ARMED-BODY' )"
 rigAssert "nothing of the prefetch is in the sandbox's input/, where the run did prefetch"  "$rigServedHad:$( LC_ALL=C grep -r -l 'RIG-A-ARMED-BODY' "$rigServedDir/sandbox/input" 2> /dev/null | wc -l | tr -d ' ' )" 1:0
-rigAssert "nor in the spawn record, which is as the spawner wrote it"                       "$rigServedHad:$( rigIn "$( cat "$rigServedDir/sandbox/$rigSpawn.md" )" 'RIG-A-' )" 1:no
+rigAssert "nor in the spawn record, which is as the spawner wrote it"                       "$rigServedHad:$( rigIn "$( cat "$rigServedDir/sandbox/$rigSpawn.spawn.md" )" 'RIG-A-' )" 1:no
 rigAssert "nor in the output folder"                                                       "$rigServedHad:$( LC_ALL=C grep -r -l 'RIG-A-ARMED-BODY' "$rigServedDir/sandbox/output" 2> /dev/null | wc -l | tr -d ' ' )" 1:0
 
 echo "-- 7. the chat-completions wire: the same text as one string --"

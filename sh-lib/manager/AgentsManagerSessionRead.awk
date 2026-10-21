@@ -198,7 +198,7 @@ END {
 		if (runSpawn[runAt] == sessionId && founderAt == 0) founderAt = runAt ;
 		## Only the founder's record is read for a run that is not shown.
 		if (onlyRun != "" && runSpawn[runAt] != onlyRun && runAt != founderAt) continue ;
-		if (plainName(trackingOf[runSpawn[runAt]])) recordRead(runAt, agentsDir "/spawned/" trackingOf[runSpawn[runAt]] "/" runSpawn[runAt] ".md") ;
+		if (plainName(trackingOf[runSpawn[runAt]])) recordRead(runAt, agentsDir "/spawned/" trackingOf[runSpawn[runAt]] "/" runSpawn[runAt] ".spawn.md") ;
 	}
 	print sessionRow ;
 	## What the session was started for: its founder's routine, dispatch item and description.

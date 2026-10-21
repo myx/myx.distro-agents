@@ -119,7 +119,7 @@ rigRec(){ ## spawn id, session id, member, status, host, thread ("" for none)
 		[ "$4" = "spawn-started" ] || printf 'resolved-at: 2026-10-13 10:30 +0300\n'
 		[ -z "$6" ] || printf 'session-thread: %s\n' "$6"
 		printf -- '---\n\n# Spawn session: %s\n' "$2"
-	} > "$rigAgents/spawned/$1/$1.md"
+	} > "$rigAgents/spawned/$1/$1.spawn.md"
 }
 rigFolder(){ ## session id, thread ("" for none) -- the session's folder, with its thread file where it has a thread
 	mkdir -p "$rigAgents/sessions/$1"
@@ -240,7 +240,7 @@ rigRun /dev/null "$rigJoinOp" --session-id s-thread
 rigAssert "a finished session with a thread: ends 0 with no error and one join row, of the session, the coordinator and the dispatch item" \
 	"$rigRc $( rigErrors ) $( LC_ALL=C awk -F'\t' 'END { print NR }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '{ print $1, NF, $2, $3 }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '{ print $4 }' "$rigTmp/out" | LC_ALL=C grep -c '^dispatch-.*spawn-proxy.*\.md$' )" "0 0 1 join 4 s-thread magic-coordinator 1"
 rigWaitFor 30 test "$( ls "$rigSc" | LC_ALL=C grep -c '^done\.' )" -ge 1
-rigNewRec="$( LC_ALL=C grep -l -x 'start-context: joined' "$rigAgents"/spawned/*/*.md 2> /dev/null | head -1 )"
+rigNewRec="$( LC_ALL=C grep -l -x 'start-context: joined' "$rigAgents"/spawned/*/*.spawn.md 2> /dev/null | head -1 )"
 rigBrief="$( ls "$rigSc"/brief.* 2> /dev/null | head -1 )"
 rigAssert "one console was started more, as magic-coordinator, in the session it was joined into: it joined, and did not start a session of its own" "$( rigMade ) / $( LC_ALL=C awk '{ print $1, $2 }' "${rigBrief/brief./who.}" 2> /dev/null )" "${rigMadeBefore% *} 1 / magic-coordinator s-thread"
 rigAssert "the new record names the session as its own and says that it joined" "$( LC_ALL=C grep -c -x -e 'session-id: s-thread' -e 'start-context: joined' -e 'owner: magic-coordinator' "$rigNewRec" 2> /dev/null || : )" "3"

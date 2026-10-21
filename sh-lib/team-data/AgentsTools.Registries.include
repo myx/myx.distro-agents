@@ -352,7 +352,8 @@ AgentsToolsRegistrySpawnedSessionsRows(){
 			rowTracking="${rowTracking##*/}"
 			AgentsToolsRegistryRowsEntry D "$rowTracking"
 			sawRecord="false"
-			for sessionFile in "$sandboxDir"*.md ; do
+			## A record is a <spawn id>.spawn.md; the other files of the folder (a member's checklist, ...) are none.
+			for sessionFile in "$sandboxDir"*.spawn.md ; do
 				[ -f "$sessionFile" ] || continue
 				sawRecord="true"
 				AgentsToolsRegistryRowsEntry S "$sessionFile"
@@ -597,7 +598,7 @@ AgentsToolsRegistryRunningSpawns(){ ## spawned-sessions registry file, process l
 		case "$runningLine" in
 			'= '*) printf '%s\n' "${runningLine#'= '}" ;;
 			'? '*)
-				for runningRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"${runningLine#'? '}.md" ; do
+				for runningRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"${runningLine#'? '}.spawn.md" ; do
 					[ -f "$runningRecord" ] || continue
 					! AgentsToolsRegistryRecordedRunAlive "$runningRecord" || { printf '%s\n' "${runningLine#'? '}" ; break ; }
 				done
@@ -616,7 +617,7 @@ AgentsToolsRegistrySpawnRuns(){ ## spawn id, its record file (may be empty)
 	[ -n "${1:-}" ] || return 1
 	runsWords="$( ps -A -ww -o pid=,args= 2>/dev/null | AgentsToolsRegistryRunWords )" || runsWords=""
 	case $'\n'"$runsWords"$'\n' in *$'\n'"$1"$'\n'*) return 0 ;; esac
-	for runsRecord in "${2:-}" "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$1.md" ; do
+	for runsRecord in "${2:-}" "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$1.spawn.md" ; do
 		[ -n "$runsRecord" ] && [ -f "$runsRecord" ] || continue
 		! AgentsToolsRegistryRecordedRunAlive "$runsRecord" || return 0
 	done
@@ -628,7 +629,7 @@ AgentsToolsRegistrySpawnRuns(){ ## spawn id, its record file (may be empty)
 AgentsToolsRegistrySpawnRecord(){ ## spawn id
 	local spawnRecord
 	case "${1:-}" in ''|-|*/*|.|..) return 0 ;; esac
-	for spawnRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$1.md" ; do
+	for spawnRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$1.spawn.md" ; do
 		[ -f "$spawnRecord" ] || continue
 		[ "$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$spawnRecord" )" spawn-id )" = "$1" ] || continue
 		printf '%s\n' "$spawnRecord"
@@ -642,7 +643,7 @@ AgentsToolsRegistrySpawnRecord(){ ## spawn id
 AgentsToolsRegistrySessionOwnRecord(){ ## session id
 	local ownFile
 	case "${1:-}" in ''|-|*/*|.|..) return 0 ;; esac
-	for ownFile in "$MMDAPP/.local/agents/spawned"/*/"$1.md" ; do
+	for ownFile in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
 		[ -f "$ownFile" ] || continue
 		[ "$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$ownFile" )" session-id )" = "$1" ] || continue
 		printf '%s\n' "$ownFile"
@@ -959,7 +960,7 @@ $( printf '%s' "$1" | AgentsToolsRegistryRunWords )
 $askerId
 "*) printf '%s running\n' "$askerId" ; continue ;; esac
 		askerSeen="" ; askerLive="no-process"
-		for askerRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$askerId.md" ; do
+		for askerRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$askerId.spawn.md" ; do
 			[ -f "$askerRecord" ] || continue
 			askerSeen=1
 			## Only a record of this host that is still open can name a living process.

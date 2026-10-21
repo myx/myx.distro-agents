@@ -55,7 +55,7 @@ hookWs="${hookWs%/}"
 hookString session_id || exit 0
 hookSession="$hookValue"
 hookBare "$hookSession" || exit 0
-for hookRecord in "$hookWs/.local/agents/spawned"/*/"$hookSession.md" ; do
+for hookRecord in "$hookWs/.local/agents/spawned"/*/"$hookSession.spawn.md" ; do
 	[ ! -f "$hookRecord" ] || exit 0
 done
 hookStore="$hookWs/.local/agents/sessions/$hookSession"

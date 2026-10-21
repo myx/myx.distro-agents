@@ -1,0 +1,9 @@
+## The blocks of myx.distro-agents in `Workspace (System)`, declared once (F11.10 of the refactorings epic): a block a line, TAB-separated, read as plain text by
+## `--manager-workspace-read` (myx.distro-.local, sh-lib/manager/LocalTools.ManagerWorkspace.include), so what this console adds is known with no python.
+##   block  <name>  <label>  <reader>  <include>
+##       a block: its label as a screen shows it, capitalised words with their blanks written `_`; its reader, a function of <include>, a file under myx/, that writes the
+##       block's facts and items. The blocks are printed in the order of their lines, after `.local`'s own. The readers of this package are in
+##       sh-lib/manager/AgentsTools.ManagerWorkspace.include.
+
+block	agents	Agents	AgentsToolsManagerWorkspaceAgents	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerWorkspace.include
+block	team	Team_Members	AgentsToolsManagerWorkspaceTeam	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerWorkspace.include

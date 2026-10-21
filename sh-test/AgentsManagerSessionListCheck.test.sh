@@ -137,7 +137,7 @@ rigRec(){ ## sandbox, record name, session id, spawn id ("" for none), host, own
 		[ -z "$9" ] || printf 'resolved-at: %s\n' "$9"
 		[ -z "${10}" ] || printf 'session-comment: %s\n' "${10}"
 		printf -- '---\n\n# Spawn session: %s\n' "$3"
-	} > "$rigSp/$1/$2.md"
+	} > "$rigSp/$1/$2.spawn.md"
 }
 rigAsk(){ ## record name, session id, status
 	printf -- '---\nstatus: %s\nowner: keeper-rig\nsession-id: %s\nkind: question\n---\nq\n' "$3" "$2" > "$rigPend/$1.md"
@@ -317,7 +317,7 @@ rigAssert "nothing else of the workspace was written by any call so far: every o
 TZ=UTC touch -t 202610010000.00 "$rigAgents/spawned-sessions.registry" "$rigAgents/pending-replies.registry"
 rigRec sess-late sess-late sess-late sess-late "$rigHost" magic-coordinator spawn-succeeded '2026-10-07 06:00 +0300' '2026-10-07 06:30 +0300' 'late one'
 rigAsk ask-late sess-late reply-pending
-rigAssert "control: a record and an ask are newer than the registries, which hold no row of them" "$( [ "$rigSp/sess-late/sess-late.md" -nt "$rigAgents/spawned-sessions.registry" ] && echo newer ) $( LC_ALL=C grep -c -e 'sess-late' "$rigAgents/spawned-sessions.registry" "$rigAgents/pending-replies.registry" | LC_ALL=C tr '\n' ' ' )" "newer $rigAgents/spawned-sessions.registry:0 $rigAgents/pending-replies.registry:0 "
+rigAssert "control: a record and an ask are newer than the registries, which hold no row of them" "$( [ "$rigSp/sess-late/sess-late.spawn.md" -nt "$rigAgents/spawned-sessions.registry" ] && echo newer ) $( LC_ALL=C grep -c -e 'sess-late' "$rigAgents/spawned-sessions.registry" "$rigAgents/pending-replies.registry" | LC_ALL=C tr '\n' ' ' )" "newer $rigAgents/spawned-sessions.registry:0 $rigAgents/pending-replies.registry:0 "
 rigRun "$rigOp"
 rigAssert "a record written after the last rebuild has its row in the output: its session waits on the ask written with it" "$( rigRowOf session sess-late )" "session sess-late late_one waiting 2026-10-07_06:00_+0300 - 1 finished=1 - - none -"
 rigAssert "and in the registry files, which the call rebuilt: the row with its dates and its comment, the ask, and the counter of open asks one more" "$( LC_ALL=C awk '$2 == "sess-late" { print $12, $13, $14 }' "$rigAgents/spawned-sessions.registry" ) $( LC_ALL=C awk '$1 == "ask-late.md" { print $5 }' "$rigAgents/pending-replies.registry" ) $( rigRows counters | LC_ALL=C awk '{ print $6 }' )" "2026-10-07_06:00_+0300 2026-10-07_06:30_+0300 late_one reply-pending 4"

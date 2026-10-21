@@ -119,7 +119,7 @@ rigAssert "live: the keeper's own note is advance-running with a session id" "$(
 rigAssert "after: the keeper's note is advance-finished, in the keeper's inbox" "$( rigField "$rigKeeperInbox/$rigAdvance" state )" "advance-finished"
 rigAssert "the coordinator's note is as it was" "$( cksum < "$rigCoordInbox/$rigAdvance" )" "$rigBefore"
 rigAssert "the brief names the keeper's document, never the macro" "$( LC_ALL=C grep -q -F "inbox:rig-keeper:$rigAdvance" "$rigTmp/brief.rig-keeper" && echo named || echo missing ):$( LC_ALL=C grep -c -F '{{team-member}}' "$rigTmp/brief.rig-keeper" || : )" "named:0"
-rigAssert "the run's record keeps the filled document" "$( LC_ALL=C grep -h -x "routine-lock: inbox:rig-keeper:$rigAdvance" "$rigWs"/.local/agents/spawned/*/*.md 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C grep -c . || : )" "1"
+rigAssert "the run's record keeps the filled document" "$( LC_ALL=C grep -h -x "routine-lock: inbox:rig-keeper:$rigAdvance" "$rigWs"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C grep -c . || : )" "1"
 
 echo "-- 4. the two locks are independent --"
 rigNote "$rigCoordInbox" magic-coordinator advance-finished "COORDINATOR-NOTE"

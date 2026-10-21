@@ -106,7 +106,7 @@ rigAssert(){ ## what is asserted, got, want
 rigRec(){ ## sandbox, record name, session id, spawn id, host, status, more frontmatter lines (may be empty)
 	mkdir -p "$rigSp/$1"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: keeper-rig\nstatus: %s\nstarted-at: 2026-10-13 09:00 +0300\n%s---\n\n# Spawn session: %s\n' \
-		"$3" "$4" "$5" "$6" "${7:-}" "$3" > "$rigSp/$1/$2.md.rig" && mv -f "$rigSp/$1/$2.md.rig" "$rigSp/$1/$2.md"
+		"$3" "$4" "$5" "$6" "${7:-}" "$3" > "$rigSp/$1/$2.md.rig" && mv -f "$rigSp/$1/$2.md.rig" "$rigSp/$1/$2.spawn.md"
 }
 ## A stand-in process under its own pid that only waits; with a spawn id given it stands in the rig's process list
 ## as the run of that spawn, by its own --session-id word. Sets rigStandPid.
@@ -399,11 +399,11 @@ rigThread d sess-d ; rigD="$rigThreadPid"
 rigWaitFor 20 rigHolds sess-d "$rigD" || rigRefuse "the thread of sess-d did not start: $( LC_ALL=C tr '\n' ' ' < "$rigTmp/d.err" | cut -c1-600 )"
 rigWaitFor 10 rigStateIs sess-d running
 rigStateBefore="$( rigPrint "$rigStores/sess-d/control/state" )"
-printf -- '---\n' > "$rigSp/sess-d/sess-d.md" ; rigUnlist sess-d
+printf -- '---\n' > "$rigSp/sess-d/sess-d.spawn.md" ; rigUnlist sess-d
 sleep 4
 rigAssert "a record half written just as its run ended: the thread is there, the session is not called finished, and its state is as it was" \
 	"$( rigLives "$rigD" ):$( rigState sess-d ):$( [ "$( rigPrint "$rigStores/sess-d/control/state" )" = "$rigStateBefore" ] && echo untouched || echo written )" "1:running:untouched"
-rigAssert "its log says so once, with the record, and not at every tick" "$( rigLogHas sess-d "a record of it that was read before cannot be read now, half written or cut: $rigSp/sess-d/sess-d.md" )" "1"
+rigAssert "its log says so once, with the record, and not at every tick" "$( rigLogHas sess-d "a record of it that was read before cannot be read now, half written or cut: $rigSp/sess-d/sess-d.spawn.md" )" "1"
 rigRec sess-d sess-d sess-d sess-d "$rigHost" spawn-started ''
 rigStand sess-d ; rigRunD="$rigStandPid"
 rigAssert "the record whole again, and its run alive again: the thread is there, and its next tick is right" "$( rigLives "$rigD" ):$( rigTickRight sess-d "$rigD" )" "1:there, and right"

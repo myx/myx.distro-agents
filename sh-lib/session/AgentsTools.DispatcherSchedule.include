@@ -348,18 +348,21 @@ AgentsToolsScheduleChainCheck(){ ## routine name, predecessor selector, days val
 	return 0
 }
 
-## --routine-due <routine>: whether the routine is due to start now by its own autorun declaration. rc 0, `DUE: <routine file>` (and,
+## --routine-due [--read-only] <routine>: whether the routine is due to start now by its own autorun declaration. rc 0, `DUE: <routine file>` (and,
 ## after a predecessor, `AFTER: <predecessor file> <spawn id of its run>`); rc 1, `NOT-DUE: <routine file>: <why>`; rc 2, `REFUSED:
 ## <routine file>: <the predecessor that has not completed today>`; rc 3, a call that could not be understood. A chain that stopped adds an
-## ESCALATE line (AgentsToolsScheduleChainCheck), ahead of the answer.
+## ESCALATE line (AgentsToolsScheduleChainCheck), ahead of the answer. With --read-only the question is asked and answered and nothing else is done: no chain check, so no
+## post, no mark and no ESCALATE line. It is what a console that only looks asks with (the routines it lists, F11.11).
 AgentsToolsScheduleDue(){ ## the operation as it was called, its arguments...
-	local dueOp="$1" dueFile dueName dueRunsAt dueRunsAfter dueDays dueAt dueAtSec dueEpoch dueOffset dueDay dueSeconds dueDayName dueDayStart dueIn dueRow duePredFile duePredName
-	if [ $# -ne 2 ] || [ -z "$2" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD $dueOp: syntax is <routine>, a routine file name or part of one, exactly one file" >&2
+	local dueOp="$1" dueFile dueName dueRunsAt dueRunsAfter dueDays dueAt dueAtSec dueEpoch dueOffset dueDay dueSeconds dueDayName dueDayStart dueIn dueRow duePredFile duePredName dueReadOnly=""
+	shift
+	if [ "${1:-}" = "--read-only" ] ; then dueReadOnly="yes" ; shift ; fi
+	if [ $# -ne 1 ] || [ -z "$1" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $dueOp: syntax is [--read-only] <routine>, a routine file name or part of one, exactly one file" >&2
 		return 3
 	fi
 	AgentsToolsScheduleTools || return 3
-	dueFile="$( AgentsToolsSpawnRoutineResolve "$2" )" || return 3
+	dueFile="$( AgentsToolsSpawnRoutineResolve "$1" )" || return 3
 	dueName="${dueFile##*/}"
 	dueRunsAt="$( AgentsToolsRoutineKeyOwn "$dueFile" runs-at )"
 	dueRunsAfter="$( AgentsToolsRoutineKeyOwn "$dueFile" runs-after )"
@@ -375,7 +378,7 @@ AgentsToolsScheduleDue(){ ## the operation as it was called, its arguments...
 	read -r dueEpoch dueOffset dueDay dueSeconds <<< "$( AgentsToolsScheduleClock )"
 	dueDayName="$( AgentsToolsScheduleDayName "$dueDay" )"
 	dueDayStart=$(( dueEpoch - dueSeconds ))
-	[ -z "$dueRunsAfter" ] || AgentsToolsScheduleChainCheck "$dueName" "$dueRunsAfter" "$dueDays" "$dueEpoch" "$dueOffset"
+	[ -z "$dueRunsAfter" ] || [ -n "$dueReadOnly" ] || AgentsToolsScheduleChainCheck "$dueName" "$dueRunsAfter" "$dueDays" "$dueEpoch" "$dueOffset"
 	dueIn=0
 	AgentsToolsScheduleDayIn "$dueDays" "$dueDayName" || dueIn=$?
 	case "$dueIn" in

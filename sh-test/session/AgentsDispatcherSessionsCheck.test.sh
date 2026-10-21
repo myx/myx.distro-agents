@@ -59,7 +59,7 @@ rigRec(){ ## session id, spawn id, status, started-at, resolved-at ("" for none)
 		[ -z "${5:-}" ] || printf 'resolved-at: %s\n' "$5"
 		[ -z "${6:-}" ] || printf 'routine: %s\n' "$6"
 		printf -- '---\n\n# Spawn session: %s\n' "$2"
-	} > "$rigWs/.local/agents/spawned/$1/$2.md"
+	} > "$rigWs/.local/agents/spawned/$1/$2.spawn.md"
 }
 rigAsk(){ ## ask name, session id
 	printf -- '---\nstatus: reply-pending\nowner: rig-member\nsession-id: %s\nkind: question\n---\nq\n' "$2" > "$rigWs/.local/agents/pending/$1.md"

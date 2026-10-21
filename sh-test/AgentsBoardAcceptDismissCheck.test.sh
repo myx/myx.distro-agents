@@ -103,7 +103,7 @@ rigItem(){ ## state, item filename, spawn-id or empty
 rigRecord(){ ## spawn-id, status, host, session-thread or empty
 	mkdir -p "$rigSpawned/$1"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nowner: keeper-myx\nstatus: %s\n%sspawns: rig\n---\n' "$1" "$1" "$3" "$2" "${4:+session-thread: $4
-}" > "$rigSpawned/$1/$1.md"
+}" > "$rigSpawned/$1/$1.spawn.md"
 }
 rigPosts(){ LC_ALL=C grep -c '^chat.postMessage ' "$rigTmp/calls" ; }
 rigAcceptLine(){ LC_ALL=C grep -m1 '^ACCEPT-DISMISS: ' "$1" | LC_ALL=C sed -E 's/^(ACCEPT-DISMISS: (sent DISMISSED|not sent)).*/\1/' ; }

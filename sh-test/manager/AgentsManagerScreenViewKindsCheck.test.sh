@@ -233,7 +233,7 @@ rigAssert "the plugin's command for a table stands in the menu and the status li
 	"$( rigVal tableStatus ) $( rigVal tableMenu ) / $( rigVal paramStatus ) $( rigVal paramMenu ) / $( rigVal otherStatus )" "True True / False False / False"
 
 echo "-- 4. every app feature gives its content through its focus handler --"
-rigAssert "the sixteen plugins that show a content declare their focus handler" "$( rigVal focused )" "activity configuration consoles dashboard diagnostics git pending pending-in-team places routines scopes settings subsystems team teamdata tokens"
+rigAssert "the seventeen plugins that show a content declare their focus handler" "$( rigVal focused )" "activity configuration consoles dashboard diagnostics git pending pending-in-team places routines scopes settings subsystems team teamdata tokens workspace"
 rigAssert "the chooser of the left pane calls no function of a feature's" "$( rigVal chooserCalls )" "none"
 rigAssert "the setting of the settings is a parameter" "$( rigVal settingIsParameter )" "yes"
 

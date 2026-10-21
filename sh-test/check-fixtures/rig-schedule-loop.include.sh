@@ -94,8 +94,8 @@ RIGDATE
 rigLiveSpawn="" rigLivePid=""
 rigLive(){ ## member, idle|working -- the run of that member's duty in the rig: a stand-in process, a record, a thread and a store; its spawn id in rigLiveSpawn
 	local liveRecord liveSpawn liveLeft
-	liveRecord="$( LC_ALL=C grep -l -x "owner: $1" $( LC_ALL=C grep -l -x 'routine: magic-team.work-duty.routine.md' "$rigSp"/*/*.md ) | head -1 )"
-	liveSpawn="${liveRecord##*/}" ; liveSpawn="${liveSpawn%.md}"
+	liveRecord="$( LC_ALL=C grep -l -x "owner: $1" $( LC_ALL=C grep -l -x 'routine: magic-team.work-duty.routine.md' "$rigSp"/*/*.spawn.md ) | head -1 )"
+	liveSpawn="${liveRecord##*/}" ; liveSpawn="${liveSpawn%.spawn.md}"
 	## The real start of this duty ends a moment after its record says so, with a last milestone of its own; the run of the rig is made after that, or it is written over.
 	liveLeft=150
 	while [ "$liveLeft" -gt 0 ] && ! LC_ALL=C grep -q ' end$' "$rigStores/$liveSpawn/milestones" 2> /dev/null ; do sleep 0.2 ; liveLeft=$(( liveLeft - 1 )) ; done
@@ -142,7 +142,7 @@ rigWaitStarts(){ ## -- until the starts the loop made in the background have end
 	waitLeft=300
 	while [ "$waitLeft" -gt 0 ] ; do
 		waitOpen=""
-		for waitRecord in $( LC_ALL=C grep -l '^status: spawn-started$' "$rigSp"/*/*.md 2> /dev/null ) ; do
+		for waitRecord in $( LC_ALL=C grep -l '^status: spawn-started$' "$rigSp"/*/*.spawn.md 2> /dev/null ) ; do
 			LC_ALL=C grep -q '^exit-code: ' "$waitRecord" || waitOpen=1
 		done
 		[ -n "$waitOpen" ] || break
@@ -166,7 +166,7 @@ rigStartsOf(){ ## member -- how many starts of that member the console of the ri
 	LC_ALL=C grep -c -E -- "^start [0-9]+ $1\$" "$rigDir/console.log" || :
 }
 rigRecordsOf(){ ## routine file name -- how many spawn records of the rig name that routine
-	LC_ALL=C grep -l -x "routine: $1" "$rigSp"/*/*.md 2> /dev/null | wc -l | tr -d ' '
+	LC_ALL=C grep -l -x "routine: $1" "$rigSp"/*/*.spawn.md 2> /dev/null | wc -l | tr -d ' '
 }
 rigCalls(){ ## method -- how many calls of that Slack method the fake curl logged
 	[ -f "$rigScn/calls" ] || { printf '0\n' ; return 0 ; }
@@ -174,7 +174,7 @@ rigCalls(){ ## method -- how many calls of that Slack method the fake curl logge
 }
 rigDutyCount(){ ## member -- how many records of the work-duty routine that member owns
 	local dutyR dutyN=0
-	for dutyR in $( LC_ALL=C grep -l -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' "$rigSp"/*/*.md 2> /dev/null ) ; do
+	for dutyR in $( LC_ALL=C grep -l -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' "$rigSp"/*/*.spawn.md 2> /dev/null ) ; do
 		[ "$( LC_ALL=C grep -c -x "owner: $1" "$dutyR" )" = 0 ] || dutyN=$(( dutyN + 1 ))
 	done
 	printf '%s\n' "$dutyN"

@@ -138,7 +138,7 @@ rigMade(){ ## -- what the starts so far have made: sandboxes, run stores, board 
 		"$( find "$rigData/board" -type f 2> /dev/null | LC_ALL=C grep -c . || : )" "$( ls "$rigSc" | LC_ALL=C grep -c '^brief\.' || : )"
 }
 rigRecord(){ ## run id -- the spawn record of that run
-	printf '%s\n' "$rigWs/.local/agents/spawned/$1/$1.md"
+	printf '%s\n' "$rigWs/.local/agents/spawned/$1/$1.spawn.md"
 }
 rigHeader(){ ## run id, header -- that header of the run's record
 	LC_ALL=C awk -v wantHeader="$2" '$0 == "---" { if ( ++fm > 1 ) exit ; next } fm == 1 && index( $0, wantHeader ": " ) == 1 { print substr( $0, length( wantHeader ) + 3 ) ; exit }' "$( rigRecord "$1" )" 2> /dev/null
@@ -358,7 +358,7 @@ rigAssert "every request of this check went to the fake curl, and each was a Sla
 
 ## The runs started here close their records apart from this check: waited for, so none writes into a tree that is gone.
 rigLeft=90
-while LC_ALL=C grep -l -x 'status: spawn-started' "$rigWs"/.local/agents/spawned/*/*.md > /dev/null 2>&1 && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
+while LC_ALL=C grep -l -x 'status: spawn-started' "$rigWs"/.local/agents/spawned/*/*.spawn.md > /dev/null 2>&1 && [ "$rigLeft" -gt 0 ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ MANAGER SPAWN MEMBER CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

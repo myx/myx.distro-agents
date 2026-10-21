@@ -46,7 +46,7 @@ rigWs="$rigTmp/ws-a" rigWs2="$rigTmp/ws-b" rigWs3="$rigTmp/ws-c" rigHome="$rigTm
 mkdir -p "$rigWs/.local/temp" "$rigWs/.local/agents" "$rigWs2/.local/temp" "$rigWs2/.local/agents/spawned/sess-b" "$rigWs3/.local/temp" "$rigHome/.agents/magic-team" "$rigData" "$rigSkills/magic-rig" "$rigSkills/magic-team" "$rigEvil" "$rigWs2/source"
 printf '# rig armed\n' > "$rigSkills/magic-rig/magic-rig.armed.md"
 ln -s "$MDLT_ORIGIN/myx" "$rigEvil/myx" ; ln -s "$MDLT_ORIGIN/myx" "$rigWs2/source/myx"
-printf -- '---\nsession-id: sess-b\nspawn-id: run-b\nstart-context: spawned\nworkspace: ws-b\nowner: magic-rig\nstatus: spawn-started\nstarted-at: 2026-10-20 10:00 +0300\n---\n\n# Spawn session: run-b\n' > "$rigWs2/.local/agents/spawned/sess-b/run-b.md"
+printf -- '---\nsession-id: sess-b\nspawn-id: run-b\nstart-context: spawned\nworkspace: ws-b\nowner: magic-rig\nstatus: spawn-started\nstarted-at: 2026-10-20 10:00 +0300\n---\n\n# Spawn session: run-b\n' > "$rigWs2/.local/agents/spawned/sess-b/run-b.spawn.md"
 ## The machine: ws-a (here) and ws-b are workspaces it knows (a place of ws-a's registry names ws-b); ws-c it does not. magic-rig is set up here, keeper-other only in ws-b.
 printf 'ws-b-place\tworkspace\tread-write\t%s\tworkspace\n' "$rigWs2" > "$rigWs/.local/agents/directories.registry"
 printf 'magic-rig\t%s\tsource-link\tmyx/pkg/skillset/magic-rig\t%s\nkeeper-other\t%s\tsource-link\tmyx/pkg/skillset/keeper-other\t%s\n' "$rigWs" "$rigTmp/x1" "$rigWs2" "$rigTmp/x2" > "$rigHome/.agents/magic-team/members.registry"

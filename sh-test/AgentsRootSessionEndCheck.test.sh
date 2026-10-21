@@ -124,7 +124,7 @@ rigAssert "no model was called" "$( [ -s "$rigTmp/model-calls" ] && printf calle
 echo "-- 2. nothing for a spawned session or a bad id --"
 rigSpawn="rig-spawn-$$-bb"
 mkdir -p "$rigWs/.local/agents/spawned/rig-sandbox"
-printf -- '---\nspawn-id: %s\nstatus: spawn-started\n---\n' "$rigSpawn" > "$rigWs/.local/agents/spawned/rig-sandbox/$rigSpawn.md"
+printf -- '---\nspawn-id: %s\nstatus: spawn-started\n---\n' "$rigSpawn" > "$rigWs/.local/agents/spawned/rig-sandbox/$rigSpawn.spawn.md"
 rigHookRun end "$( rigPayload SessionEnd "$rigSpawn" ',"reason":"other"' )"
 rigAssert "a session with a spawn record: no marker, its proxy closes it" "$rigHookRc $( [ -e "$rigSessions/$rigSpawn/ended" ] && printf marked || printf none )" "0 none"
 rigLone="rig-lone-$$-cc"
@@ -173,7 +173,7 @@ kill -INT -"$rigRootPid" 2> /dev/null
 rigRootLeft=60
 while kill -0 "$rigRootPid" 2> /dev/null && [ "$rigRootLeft" -gt 0 ] ; do sleep 1 ; rigRootLeft=$(( rigRootLeft - 1 )) ; done
 kill -0 "$rigRootPid" 2> /dev/null && { kill -KILL -"$rigRootPid" 2> /dev/null ; rigRefuse "the root harness did not return within 60 s of Ctrl+C" ; }
-rigRootRecord="$( ls "$rigWs/.local/agents/spawned"/*/*.md 2> /dev/null | LC_ALL=C grep -v "/rig-sandbox/" | head -1 )"
+rigRootRecord="$( ls "$rigWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | LC_ALL=C grep -v "/rig-sandbox/" | head -1 )"
 rigAssert "Ctrl+C stopped the session before its work finished" "$( LC_ALL=C tr '\n' ' ' < "$rigTmp/session.events" )" "started "
 rigAssert "and the proxy closed its record: a closed status and its resolved-at" "$( LC_ALL=C sed -n 's/^status: //p' "$rigRootRecord" 2> /dev/null | head -1 ) $( LC_ALL=C grep -c '^resolved-at: ' "$rigRootRecord" 2> /dev/null )" "spawn-failed 1"
 rigAssert "the command waited for its session and printed its end" "$( LC_ALL=C grep -c -E '^(EXIT_CODE|STATUS)=' "$rigTmp/root.out" ) $( LC_ALL=C grep -c '^STATUS=started$' "$rigTmp/root.out" )" "2 0"

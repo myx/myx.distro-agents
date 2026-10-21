@@ -249,7 +249,7 @@ turn
 show v
 roles vr
 get v
-keys 6 DOWN DOWN
+keys 7 DOWN DOWN
 turn
 viewline $rigSaid
 turn

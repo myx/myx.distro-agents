@@ -110,7 +110,7 @@ rigRec(){ ## sandbox (short), record (short), session (short), host, status, mor
 	mkdir -p "$rigSp/$( rigId "$1" )"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: keeper-rig\nstatus: %s\nstarted-at: 2026-10-13 09:00 +0300\n%s---\n\n# Spawn session: %s\n' \
 		"$( rigId "$3" )" "$( rigId "$2" )" "$4" "$5" "${6:-}" "$( rigId "$3" )" > "$rigSp/$( rigId "$1" )/$( rigId "$2" ).md.rig" \
-		&& mv -f "$rigSp/$( rigId "$1" )/$( rigId "$2" ).md.rig" "$rigSp/$( rigId "$1" )/$( rigId "$2" ).md"
+		&& mv -f "$rigSp/$( rigId "$1" )/$( rigId "$2" ).md.rig" "$rigSp/$( rigId "$1" )/$( rigId "$2" ).spawn.md"
 }
 rigClosed='resolved-at: 2026-10-13 09:30 +0300
 '
@@ -179,7 +179,7 @@ rigOld(){ ## file... -- their time is set twenty minutes back
 	touch -t "$( date -v-20M +%Y%m%d%H%M.%S 2> /dev/null || date -d '20 minutes ago' +%Y%m%d%H%M.%S )" "$@"
 }
 rigStatus(){ ## sandbox (short), record (short) -- the status its record says
-	LC_ALL=C sed -n 's/^status: //p' "$rigSp/$( rigId "$1" )/$( rigId "$2" ).md" 2> /dev/null | LC_ALL=C sed -n '1p'
+	LC_ALL=C sed -n 's/^status: //p' "$rigSp/$( rigId "$1" )/$( rigId "$2" ).spawn.md" 2> /dev/null | LC_ALL=C sed -n '1p'
 }
 
 echo "-- 1. the cost: a scan with no thread to start --"
@@ -225,9 +225,9 @@ rigRec d d2 d "$rigHost" spawn-succeeded "$rigClosed"
 rigRec c c c "$rigHost" spawn-succeeded "$rigClosed"
 rigRec e e e elsewhere spawn-started ''
 rigRec f f f "$rigHost" spawn-started '' ; rigStand f ; rigTranscript f true
-rigRec g g g "$rigHost" spawn-started '' ; rigOld "$rigSp/$( rigId g )/$( rigId g ).md"
+rigRec g g g "$rigHost" spawn-started '' ; rigOld "$rigSp/$( rigId g )/$( rigId g ).spawn.md"
 mkdir -p "$rigSp/$( rigId u )"
-printf -- '---\nsession-id: %s\nhost: %s\nworkspace: rigws\nowner: keeper-rig\nstatus: spawn-started\nstarted-at: 2026-09-30 10:00 +0300\n---\n\n# Spawn session: %s\n' "$( rigId u )" "$rigHost" "$( rigId u )" > "$rigSp/$( rigId u )/$( rigId u ).md"
+printf -- '---\nsession-id: %s\nhost: %s\nworkspace: rigws\nowner: keeper-rig\nstatus: spawn-started\nstarted-at: 2026-09-30 10:00 +0300\n---\n\n# Spawn session: %s\n' "$( rigId u )" "$rigHost" "$( rigId u )" > "$rigSp/$( rigId u )/$( rigId u ).spawn.md"
 rigScan which
 rigWaitFor 20 rigHeld d
 rigAssert "a session with no run alive and a record of this host still open gets its thread, and the report names it alone" \

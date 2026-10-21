@@ -19,15 +19,22 @@
 
 type AgentsToolsSpawnRoutineExecutorsRoster > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include"
 type AgentsToolsTeamMemberIsTeam > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+type AgentsToolsRoutineRequirement > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
 
 ## The rows --manager-routine-list prints: one for each routine file, by owner, then by
 ## selector. Nothing is written by this operation. A value's own whitespace goes out as `_` and an absent one
 ## as `-`, in one pass over the rows, so a row is always its twelve fields. The last two, the state of the routine
 ## and when it last ran, are the Dispatcher's own rows of the runs (`--routine-stats`, the one reader of its
 ## store; F11.11): this operation joins them to the routine by its file name and computes nothing of them.
+## STAGE TWO (F11.11) adds five fields, each asked of the one decider and decided nowhere here: `auto` and the two keys of the autorun
+## (`runs-at`, `runs-after`) as the schedule reads them (AgentsToolsRoutineKeyOwn); `valid`, the validator of the routine contract
+## (--intern-doc-validate routine, run as its arm runs it; a row of a report- rule refuses nothing); and `would`, whether a start now would be
+## accepted: the spawner's own checks (`start`), the evaluator against a fresh spawn (AgentsToolsRoutineRequirement at the `spawn` site), and,
+## for a routine with an autorun, the Dispatcher's own answer to --routine-due --read-only, asked as a console that only looks.
 AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 	local rowsOp="$1" rowsMember rowsDir rowsFile rowsName rowsTab=$'\t' rowsLine rowsText=""
 	local rowsStart rowsReason rowsExecutors rowsSession rowsTitle rowsContract rowsWhy rowsExecutor rowsNeeds rowsStats=""
+	local rowsAuto rowsRunsAt rowsRunsAfter rowsValid rowsWould rowsFault rowsVerdict rowsDue
 	while IFS=$'\t' read -r rowsMember rowsDir ; do
 		[ -n "$rowsDir" ] || continue
 		for rowsFile in "$rowsDir"/*.routine.md ; do
@@ -95,10 +102,33 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 					rowsNeeds=""
 				;;
 			esac
+			## Stage two. The autorun it declares, as the schedule reads the two keys.
+			rowsRunsAt="$( AgentsToolsRoutineKeyOwn "$rowsFile" runs-at )" ; rowsRunsAfter="$( AgentsToolsRoutineKeyOwn "$rowsFile" runs-after )"
+			rowsAuto="no"
+			case "$rowsRunsAt" in ''|none) ;; *) rowsAuto="yes" ;; esac
+			## Valid: the words of the first row of the validator that refuses (a row of a report- rule refuses nothing; its rule and its place stand ahead of them), `yes` where it prints none.
+			rowsFault="$( set -- --intern-doc-validate routine "$rowsFile" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include" 2> /dev/null | LC_ALL=C grep -v -e '^[^ ]*:[0-9]*: report-' | LC_ALL=C sed -n '1s/^[^ ]*:[0-9]*: [^ ]*: //p' )" || rowsFault=""
+			rowsValid="yes" ; [ -z "$rowsFault" ] || rowsValid="no:$rowsFault"
+			## Would start now: what the spawner would not start, then the evaluator against a fresh spawn (no item attached, a spawned start), then the window of the autorun.
+			rowsWould="yes"
+			case "$rowsStart" in broken|not-startable) rowsWould="no:$rowsReason" ;; esac
+			[ "$rowsWould" != "yes" ] || rowsVerdict="$( AgentsToolsRoutineRequirement tracking-item spawn "$rowsFile" "item=none context=spawned" )" || rowsWould="no:${rowsVerdict#*$'\t'}"
+			[ "$rowsWould" != "yes" ] || rowsVerdict="$( AgentsToolsRoutineRequirement start-context spawn "$rowsFile" "context=spawned" )" || rowsWould="no:${rowsVerdict#*$'\t'}"
+			[ "$rowsWould" != "yes" ] || rowsVerdict="$( AgentsToolsRoutineRequirement review-by spawn "$rowsFile" )" || rowsWould="no:${rowsVerdict#*$'\t'}"
+			if [ "$rowsWould" = "yes" ] && [ "$rowsAuto" = "yes" ] ; then
+				rowsDue="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsDispatcher.fn.sh" --routine-due --read-only "$rowsName" 2> /dev/null < /dev/null )" || :
+				rowsDue="${rowsDue%%$'\n'*}"
+				case "$rowsDue" in
+					DUE:*) ;;
+					NOT-DUE:*|REFUSED:*) rowsDue="${rowsDue#*: }" ; rowsWould="no:${rowsDue#*: }" ;;
+					*) rowsWould="no:its autorun could not be decided" ;;
+				esac
+			fi
 			## The place of its arguments is kept, and empty: no routine file says, in a form a
 			## program reads, whether it takes any. The routine contract has no key for it.
-			printf -v rowsLine 'routine\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "${rowsName//"$rowsTab"/ }" "${rowsMember//"$rowsTab"/ }" "$rowsStart" \
-				"${rowsExecutors//"$rowsTab"/ }" "$rowsSession" "" "${rowsTitle//"$rowsTab"/ }" "${rowsReason//"$rowsTab"/ }" "$rowsNeeds"
+			printf -v rowsLine 'routine\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "${rowsName//"$rowsTab"/ }" "${rowsMember//"$rowsTab"/ }" "$rowsStart" \
+				"${rowsExecutors//"$rowsTab"/ }" "$rowsSession" "" "${rowsTitle//"$rowsTab"/ }" "${rowsReason//"$rowsTab"/ }" "$rowsNeeds" \
+				"$rowsAuto" "${rowsRunsAt//"$rowsTab"/ }" "${rowsRunsAfter//"$rowsTab"/ }" "${rowsValid//"$rowsTab"/ }" "${rowsWould//"$rowsTab"/ }"
 			rowsText="$rowsText$rowsLine"$'\n'
 		done
 	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
@@ -117,7 +147,7 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 				if ( statWords[1] == "routine" && statWords[2] != "" ) { runningNow[statWords[2]] = statWords[6] + 0 ; lastRun[statWords[2]] = statWords[7] ; lastHow[statWords[2]] = statWords[8] ; ran[statWords[2]] = 1 ; }
 			}
 		} {
-			for ( fieldAt = 1 ; fieldAt <= 10 ; fieldAt++ ) {
+			for ( fieldAt = 1 ; fieldAt <= 15 ; fieldAt++ ) {
 				gsub( /^[ \t]+|[ \t]+$/, "", $fieldAt ) ; gsub( /[ \t]+/, "_", $fieldAt ) ;
 				if ( $fieldAt == "" ) $fieldAt = "-" ;
 			}
@@ -126,7 +156,7 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 				when = lastRun[$2] ; gsub( /[ \t]+/, "_", when ) ; if ( when == "" ) when = "-" ;
 				state = ( runningNow[$2] > 0 ) ? "running" : lastHow[$2] ; sub( /^spawn-/, "", state ) ; if ( state == "" ) state = "never" ;
 			}
-			print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, state, when ;
+			print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, state, when, $11, $12, $13, $14, $15 ;
 		}' \
 		| LC_ALL=C sort -t "$rowsTab" -k3,3 -k2,2
 }

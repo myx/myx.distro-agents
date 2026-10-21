@@ -83,7 +83,6 @@ PARTS = (
     "AgentsManagerScreen.Members.py",
     "AgentsManagerScreen.TeamData.py",
     "AgentsManagerScreen.Routines.py",
-    "AgentsManagerScreen.Places.py",
     "AgentsManagerScreen.Tokens.py",
     "AgentsManagerScreen.Consoles.py",
     "AgentsManagerScreen.Settings.py",
@@ -111,9 +110,11 @@ LOCAL_PARTS = (
     "LocalManagerScreen.Subsystems.py",
 )
 ## A part of `.local` that stands in the order of the list of roots, since the roots stand in the order they were registered in (Plugins): it is loaded
-## ahead of the part of the screen it is named under, the Dashboard ahead of the sessions.
+## ahead of the part of the screen it is named under, the Dashboard ahead of the sessions, `Locations (Places)` (F11.10) ahead of the tokens, where it stood, and `Workspace (System)` (F11.10) at the end of the places, after the consoles, ahead of the settings.
 LOCAL_PARTS_BEFORE = {
     "AgentsManagerScreen.Sessions.py": ("LocalManagerScreen.Dashboard.py",),
+    "AgentsManagerScreen.Tokens.py": ("LocalManagerScreen.Places.py",),
+    "AgentsManagerScreen.Settings.py": ("LocalManagerScreen.Workspace.py",),
 }
 
 

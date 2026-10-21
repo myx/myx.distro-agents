@@ -95,7 +95,7 @@ rigRun(){ ## variable to set, session, member, start-context, parent-spawn-id, r
 	runItem="dispatch-20261018T1000Z-rig-dismiss-$rigRunNo"
 	mkdir -p "$rigDir/ws/.local/agents/spawned/$2"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: %s\nstart-context: %s\nreports-to: %s\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: spawn-started\nstarted-at: 2026-10-18 10:%02d +0000\nsession-thread: %s\nspawns: %s\n---\n' \
-		"$2" "$runId" "$5" "$4" "$6" "$2" "$rigHost" "$3" "$rigRunNo" "$( rigThreadOf "$2" )" "$runItem" > "$rigDir/ws/.local/agents/spawned/$2/$runId.md"
+		"$2" "$runId" "$5" "$4" "$6" "$2" "$rigHost" "$3" "$rigRunNo" "$( rigThreadOf "$2" )" "$runItem" > "$rigDir/ws/.local/agents/spawned/$2/$runId.spawn.md"
 	printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: %s\nreview-reason: handback\nreview-since-epoch: %s\n---\n\n# rig dispatch\n\n## Decisions\n\n' \
 		"$3" "$runId" "$rigSince" > "$rigDir/data/board/review/$runItem.md"
 	perl -e 'sleep 600' -- --session-id "$runId" > /dev/null 2>&1 &
@@ -113,7 +113,7 @@ rigChildRun(){ ## variable to set, session, member, parent session, reports-to, 
 	runItem="dispatch-20261018T1000Z-rig-dismiss-$rigRunNo"
 	mkdir -p "$rigDir/ws/.local/agents/spawned/$2"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\nparent-session-id: %s\nstart-context: spawned\nreports-to: %s\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: spawn-started\nstarted-at: 2026-10-18 10:%02d +0000\nsession-thread: %s\nspawns: %s\n---\n' \
-		"$2" "$runId" "$4" "$5" "$2" "$rigHost" "$3" "$rigRunNo" "$( rigThreadOf "$2" )" "$runItem" > "$rigDir/ws/.local/agents/spawned/$2/$runId.md"
+		"$2" "$runId" "$4" "$5" "$2" "$rigHost" "$3" "$rigRunNo" "$( rigThreadOf "$2" )" "$runItem" > "$rigDir/ws/.local/agents/spawned/$2/$runId.spawn.md"
 	printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: %s\nreview-by: %s\n---\n\n# rig dispatch of a child session\n\n## Decisions\n\n' \
 		"$3" "$runId" "$6" > "$rigDir/data/board/running/$runItem.md"
 	perl -e 'sleep 600' -- --session-id "$runId" > /dev/null 2>&1 &

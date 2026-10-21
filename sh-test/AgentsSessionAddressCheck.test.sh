@@ -98,10 +98,10 @@ rigRecords(){ ## parent id for the child record (none for no parent), the parent
 	local childLines=""
 	[ "$1" = none ] || childLines="parent-session-id: $1"$'\n'
 	printf -- '---\nspawn-id: rig-child-id\nparent-spawn-id: %s\n%s%s---\n' "$1" "${3:+parent-thread: $3
-}" "$childLines" > "$spawnDir/child-folder/rig-child-id.md"
+}" "$childLines" > "$spawnDir/child-folder/rig-child-id.spawn.md"
 	printf -- '---\nsession-id: rig-parent-id\nspawn-id: rig-parent-id\nparent-spawn-id: none\nowner: magic-coordinator\nstatus: spawn-started\n%s---\n' "${2:+session-thread: $2
-}" > "$spawnDir/parent-folder/rig-parent-id.md"
-	printf -- '---\nspawn-id: rig-parent-id-extra\nparent-spawn-id: none\nsession-thread: CWRONG01:1.1\n---\n' > "$spawnDir/prefix-folder/rig-parent-id-extra.md"
+}" > "$spawnDir/parent-folder/rig-parent-id.spawn.md"
+	printf -- '---\nspawn-id: rig-parent-id-extra\nparent-spawn-id: none\nsession-thread: CWRONG01:1.1\n---\n' > "$spawnDir/prefix-folder/rig-parent-id-extra.spawn.md"
 }
 ## One scenario with the usual records: a parent that has a thread.
 rigScene(){ ## scenario directory name
@@ -202,7 +202,7 @@ rigScene resolveStartParent
 rigChild(){ ## parent-spawn-id, start-context, parent-session-id, the address it reports to (may be empty), the member that brought it in (may be empty) -- the child's record, as a start writes it now
 	printf -- '---\nspawn-id: rig-child-id\nparent-spawn-id: %s\nstart-context: %s\nparent-session-id: %s\n%s%s---\n' "$1" "$2" "$3" "${4:+$rigReportsTo: $4
 }" "${5:+parent-member: $5
-}" > "$rigScenarioDir/ws/.local/agents/spawned/child-folder/rig-child-id.md"
+}" > "$rigScenarioDir/ws/.local/agents/spawned/child-folder/rig-child-id.spawn.md"
 }
 rigChild none joined rig-parent-id
 rigAssert "a start whose caller had no run id: the recorded parent session still names the parent" "$( rigResolve "$rigCurrent" session-parent )" "rc=0 CHANNEL=CPARENT1|THREAD_TS=1700000001.000101|PARENT_SESSION_ID=rig-parent-id"

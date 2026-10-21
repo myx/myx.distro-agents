@@ -62,7 +62,7 @@ rigCleanup(){
 	while [ "$cleanLeft" -gt 0 ] ; do
 		cleanOpen=""
 		while read -r cleanRun cleanFile ; do
-			[ -z "$cleanRun" ] || ! LC_ALL=C grep -q -x -F -- 'status: spawn-started' "$rigSp"/*/"$cleanRun.md" 2> /dev/null || cleanOpen="yes"
+			[ -z "$cleanRun" ] || ! LC_ALL=C grep -q -x -F -- 'status: spawn-started' "$rigSp"/*/"$cleanRun.spawn.md" 2> /dev/null || cleanOpen="yes"
 		done < "$rigTmp/launches" 2> /dev/null
 		[ -n "$cleanOpen" ] || break
 		sleep 0.5 ; cleanLeft=$(( cleanLeft - 1 ))
@@ -192,7 +192,7 @@ rigAssert(){ ## what is asserted, got, want
 rigRec(){ ## run id, which is its sandbox too; session id; member; status; more frontmatter lines (may be empty)
 	mkdir -p "$rigSp/$1"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: %s\nstatus: %s\nstarted-at: 2026-10-13 09:00 +0300\n%s---\n\n# Spawn session: %s\n' \
-		"$2" "$1" "$rigHost" "$3" "$4" "${5:-}" "$2" > "$rigSp/$1/$1.md.rig" && mv -f "$rigSp/$1/$1.md.rig" "$rigSp/$1/$1.md"
+		"$2" "$1" "$rigHost" "$3" "$4" "${5:-}" "$2" > "$rigSp/$1/$1.md.rig" && mv -f "$rigSp/$1/$1.md.rig" "$rigSp/$1/$1.spawn.md"
 }
 rigClosed='resolved-at: 2026-10-13 09:30 +0300
 '
@@ -204,7 +204,7 @@ rigHeader(){ ## run id, header name -- its value in the frontmatter of that run'
 	LC_ALL=C awk -v wantName="$2: " '
 		$0 == "---" { if ( ++fenceCount > 1 ) { exit ; } next ; }
 		fenceCount == 1 && index( $0, wantName ) == 1 { print substr( $0, length( wantName ) + 1 ) ; exit ; }
-	' "$rigSp/$1/$1.md" 2> /dev/null
+	' "$rigSp/$1/$1.spawn.md" 2> /dev/null
 }
 ## A stand-in process under its own pid that only waits; with a run id given it stands in the rig's process list
 ## as that run, by its own --session-id word. Sets rigStandPid.
@@ -500,7 +500,7 @@ rigAnswer d-res d-res resume ; rigCarry d-res d-res
 rigWaitFor 20 rigStateIs d-res running
 rigResNew="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigData/board/running/item-d-res.md" 2> /dev/null | LC_ALL=C sed -n '1p' )"
 rigAssert "a run that cannot be resumed is started as a new process, and the thread of the question says so; the restart of the executor keeps the session: a run of its own id, in the old session, and the session reads running" \
-	"$( rigLines 'as a new process from its brief: its context could not be resumed' d-res ):$( [ -n "$rigResNew" ] && [ "$rigResNew" != "d-res" ] && echo new-run ):$( LC_ALL=C grep -c -x -F -- "$rigResNew d-res brief" "$rigTmp/launches" ):$( LC_ALL=C sed -n 's/^session-id: //p' "$rigSp"/*/"$rigResNew.md" 2> /dev/null | LC_ALL=C sed -n '1p' ):$( rigState d-res )" "DRIG00001 thread human-owner;:new-run:1:d-res:running"
+	"$( rigLines 'as a new process from its brief: its context could not be resumed' d-res ):$( [ -n "$rigResNew" ] && [ "$rigResNew" != "d-res" ] && echo new-run ):$( LC_ALL=C grep -c -x -F -- "$rigResNew d-res brief" "$rigTmp/launches" ):$( LC_ALL=C sed -n 's/^session-id: //p' "$rigSp"/*/"$rigResNew.spawn.md" 2> /dev/null | LC_ALL=C sed -n '1p' ):$( rigState d-res )" "DRIG00001 thread human-owner;:new-run:1:d-res:running"
 ## A TRUE RESUME, through the death path: the dead run ran in the universal harness and kept its context, as the
 ## harness keeps one, a context.jsonl in its sandbox whose header names the run. The rig's console stands in for the
 ## harness: given a context to resume it marks that it loaded it, as the harness does before its first request.
@@ -593,7 +593,7 @@ rigDeath d-kill d-kill keeper-rig human-owner
 rigAnswer d-kill d-kill "$rigFourth" ; rigCarry d-kill d-kill
 rigWaitFor 10 rigEnded "$rigKOne" ; rigWaitFor 10 rigEnded "$rigKTwo"
 rigAssert "the answer that ends the session ends every live run of it: both processes are gone, their records say who killed them, the record of the dead run is closed, it is said once, and the death is settled" \
-	"$( rigEnded "$rigKOne" && rigEnded "$rigKTwo" && echo both-gone ):$( LC_ALL=C grep -l -x -F -- 'killed-by: rig' "$rigSp/k-one/k-one.md" "$rigSp/k-two/k-two.md" 2> /dev/null | LC_ALL=C grep -c . ):$( rigHeader d-kill status ):$( rigLines 'what still lived of it was killed' d-kill ):$( rigDeadLine d-kill d-kill | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- "how=$rigFourth" )" "both-gone:2:spawn-ended-without-close:DRIG00001 thread human-owner;:1"
+	"$( rigEnded "$rigKOne" && rigEnded "$rigKTwo" && echo both-gone ):$( LC_ALL=C grep -l -x -F -- 'killed-by: rig' "$rigSp/k-one/k-one.spawn.md" "$rigSp/k-two/k-two.spawn.md" 2> /dev/null | LC_ALL=C grep -c . ):$( rigHeader d-kill status ):$( rigLines 'what still lived of it was killed' d-kill ):$( rigDeadLine d-kill d-kill | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- "how=$rigFourth" )" "both-gone:2:spawn-ended-without-close:DRIG00001 thread human-owner;:1"
 rigAssert "every post of the rig was made as the team bot, and none under another account" \
 	"$( LC_ALL=C awk '$1 == "chat.postMessage" && $2 != "rig-bot-token-TEAM" { otherCount++ } END { print otherCount + 0 }' "$rigSlack/calls" )" "0"
 

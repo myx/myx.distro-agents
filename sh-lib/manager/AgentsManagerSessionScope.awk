@@ -13,7 +13,7 @@
 ## moment its rebuild ended, not the moment it read each folder. Names and counts are compared.
 ##
 ##   -v scopeMode=runs   the spawned-sessions registry, and the listing of <store>/*/ and
-##       <store>/*/*.md: every sandbox folder, then every record file in one. In the
+##       <store>/*/*.spawn.md: every sandbox folder, then every record file in one. In the
 ##       environment MDAT_MANAGER_STORE is `<store>/` and MDAT_MANAGER_ID the id asked for;
 ##       -v ownOnly=1 takes the id as a run's own alone. Prints `fresh` where the registry
 ##       has every folder the store has and no other, each with as many record rows as the

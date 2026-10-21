@@ -1192,10 +1192,10 @@ rigReset
 { cat "$rigTmp/agent.env.base" ; printf 'SPAWN_CLI_SERVICE=rig-cli\n' ; } > "$rigEnvFile"
 rigSpawnMember=magic-coordinator rigSpawn rig-cli
 rigCow="$( LC_ALL=C sed -n 's/^SESSION_ID=//p' "$rigTmp/op.out" | head -1 )"
-[ -n "$rigCow" ] && [ -f "$rigStore/spawned/$rigCow/$rigCow.md" ] || rigRefuse "the rig did not start a coworking session: $( LC_ALL=C grep -m1 ERROR "$rigTmp/op.err" )"
+[ -n "$rigCow" ] && [ -f "$rigStore/spawned/$rigCow/$rigCow.spawn.md" ] || rigRefuse "the rig did not start a coworking session: $( LC_ALL=C grep -m1 ERROR "$rigTmp/op.err" )"
 { cat "$rigTmp/agent.env.base" ; printf 'SPAWN_CLI_SERVICE=scaleway\nSPAWN_HARNESS_TIER=light\n' ; } > "$rigEnvFile"
 rigSpawnMember=magic-tester rigSpawn rig-other "$rigCow" "$rigCow"
-rigJoiner="$( ls "$rigStore/spawned/$rigCow"/*.md 2>/dev/null | LC_ALL=C sed -e 's:.*/::' -e 's:\.md$::' | LC_ALL=C grep -v -x -F "$rigCow" | head -1 )"
+rigJoiner="$( ls "$rigStore/spawned/$rigCow"/*.spawn.md 2>/dev/null | LC_ALL=C sed -e 's:.*/::' -e 's:\.spawn\.md$::' | LC_ALL=C grep -v -x -F "$rigCow" | head -1 )"
 [ -n "$rigJoiner" ] || rigRefuse "the rig's second spawn did not join the session's sandbox: $( LC_ALL=C grep -m1 ERROR "$rigTmp/op.err" )"
 rigCowThread="1700000001.000101"
 rigAssert "two spawns in one session share one thread: the starter's start is its first post, and everything after is a reply in it, the joiner's start too" \
@@ -1205,7 +1205,7 @@ rigAssert "the thread has one record, keyed by the session's id: the joiner has 
 	"$( cat "$rigStore/sessions/$rigCow/event-track.thread" 2>/dev/null ):$( [ -e "$rigStore/sessions/$rigJoiner/event-track.thread" ] && printf own || printf none ):$( [ -e "$rigStore/spawned/$rigCow/event-track.thread" ] && printf pointer || printf none )" \
 	"CRIGTRACK:$rigCowThread:none:none"
 rigAssert "both spawn records name that one thread" \
-	"$( LC_ALL=C grep -h '^agent-log-thread: ' "$rigStore/spawned/$rigCow/$rigCow.md" "$rigStore/spawned/$rigCow/$rigJoiner.md" | LC_ALL=C sort -u )" "agent-log-thread: CRIGTRACK:$rigCowThread"
+	"$( LC_ALL=C grep -h '^agent-log-thread: ' "$rigStore/spawned/$rigCow/$rigCow.spawn.md" "$rigStore/spawned/$rigCow/$rigJoiner.spawn.md" | LC_ALL=C sort -u )" "agent-log-thread: CRIGTRACK:$rigCowThread"
 ## What each post shows, as its boxes: `BOX …` headers, lines, `~ ` context lines.
 rigPostBoxes(){ ## post number
 	rigBoxes "$rigTmp/scenario/post.$1" | rigMask | LC_ALL=C tr '\n' '|'
@@ -1317,7 +1317,7 @@ rigAssert "the session still has its one thread, and no participant a record of 
 ## own store, and keeps posting there until it ends. Nothing it holds is rewritten.
 rigOld="0000aaaa-1111-4222-8333-444455556666"
 mkdir -p "$rigStore/sessions/$rigOld"
-printf -- '---\nsession-id: %s\nspawn-id: %s\nowner: magic-tester\nstatus: spawn-started\nagent-log-thread: CRIGTRACK:1700000001.000900\n---\n\n# Spawn session: %s\n' "$rigCow" "$rigOld" "$rigOld" > "$rigStore/spawned/$rigCow/$rigOld.md"
+printf -- '---\nsession-id: %s\nspawn-id: %s\nowner: magic-tester\nstatus: spawn-started\nagent-log-thread: CRIGTRACK:1700000001.000900\n---\n\n# Spawn session: %s\n' "$rigCow" "$rigOld" "$rigOld" > "$rigStore/spawned/$rigCow/$rigOld.spawn.md"
 printf 'CRIGTRACK:1700000001.000900\n' > "$rigStore/sessions/$rigOld/event-track.thread"
 rigOp /dev/null --intern-op-permission-refusal-log magic-tester --session-id "$rigOld" --tool Write --target /x/rig-old.txt --reason rig
 rigAssert "a spawn still running on its own per-spawn record keeps posting to its own thread, and its record is as it was" \
@@ -1384,7 +1384,7 @@ rigAssert "its start entry: the description on the first line, the task's title 
 	"$( rigBoxes "$rigTmp/scenario/post.1" | LC_ALL=C awk '/^BOX / { boxNo++ ; } boxNo == 2' | LC_ALL=C sed -n '2,4p' | LC_ALL=C tr '\n' '|' )" \
 	"▶️ run start — fix the loader for the vars file|task: Fix the vars loader · \`task-rig-start\` · \`${rigTaskDispatch%.md}\`|The loader drops a variable whose value holds an equals sign. It must keep the whole value! Add a check for it. Then run the suite?|"
 rigAssert "the description is kept on the dispatch record and on the spawn's record, and no comment field is written where none was given" \
-	"$( LC_ALL=C grep -c -x -F 'description: fix the loader for the vars file' "${rigTaskDispatchFile:-/dev/null}" ):$( LC_ALL=C grep -c -x -F 'description: fix the loader for the vars file' "$rigStore/spawned/$rigTaskSession/$rigTaskSession.md" ):$( cat "${rigTaskDispatchFile:-/dev/null}" "$rigStore/spawned/$rigTaskSession/$rigTaskSession.md" 2>/dev/null | LC_ALL=C grep -c '^session-comment:' )" "1:1:0"
+	"$( LC_ALL=C grep -c -x -F 'description: fix the loader for the vars file' "${rigTaskDispatchFile:-/dev/null}" ):$( LC_ALL=C grep -c -x -F 'description: fix the loader for the vars file' "$rigStore/spawned/$rigTaskSession/$rigTaskSession.spawn.md" ):$( cat "${rigTaskDispatchFile:-/dev/null}" "$rigStore/spawned/$rigTaskSession/$rigTaskSession.spawn.md" 2>/dev/null | LC_ALL=C grep -c '^session-comment:' )" "1:1:0"
 ## One that joins says what it was brought in for, from its own dispatch: no description, so
 ## its first line has none, and its own brief's text shows.
 printf 'Check the loader against the three sample files. Report what differs.\n' > "$rigTmp/spawn.brief"
@@ -1396,7 +1396,7 @@ rigAssert "a joiner's start entry shows its own: no description on its first lin
 	"$( rigBoxes "${rigJoinStart:-/dev/null}" | LC_ALL=C sed -n '2,4p' | LC_ALL=C tr '\n' '|' )" \
 	"▶️ run start · joined session \`${rigTaskSession:0:8}\`|task: Spawn-proxy dispatch: magic-coordinator · \`${rigJoinDispatch%.md}\`|Check the loader against the three sample files. Report what differs.|"
 rigAssert "and no description field is written for it: its dispatch has none, and of the session's two spawn records only the starter's has one" \
-	"$( cat "$rigTmp/data/board"/*/"$rigJoinDispatch" 2>/dev/null | LC_ALL=C grep -c '^description: ' ):$( ls "$rigStore/spawned/$rigTaskSession"/*.md 2>/dev/null | LC_ALL=C awk 'END { print NR }' ):$( cat "$rigStore/spawned/$rigTaskSession"/*.md 2>/dev/null | LC_ALL=C grep -c '^description: ' )" "0:2:1"
+	"$( cat "$rigTmp/data/board"/*/"$rigJoinDispatch" 2>/dev/null | LC_ALL=C grep -c '^description: ' ):$( ls "$rigStore/spawned/$rigTaskSession"/*.spawn.md 2>/dev/null | LC_ALL=C awk 'END { print NR }' ):$( cat "$rigStore/spawned/$rigTaskSession"/*.spawn.md 2>/dev/null | LC_ALL=C grep -c '^description: ' )" "0:2:1"
 rigSpawnArgs=( --dispatch-doc:none )
 printf 'RIG-SPAWN-BRIEF\n' > "$rigTmp/spawn.brief"
 cp "$rigTmp/agent.env.base" "$rigEnvFile"

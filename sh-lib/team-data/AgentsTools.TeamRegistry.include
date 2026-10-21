@@ -23,7 +23,7 @@
 ##                      $HOME/.agents/magic-team/members.registry -- every workspace's
 ##   directories.registry   the registered places: $MMDAPP/.local/agents/ -- this workspace's,
 ##                          $HOME/.agents/magic-team/ -- pointers, name and workspace root
-##                          (AgentsTools.Places.include); known-workspaces.registry, the
+##                          (LocalTools.Places.include); known-workspaces.registry, the
 ##                          earlier list of tracked workspaces, is read only until imported
 ##   member-homes.registry   $HOME/.agents/magic-team/ -- each multi-workspace member's home
 ##                          (AgentsTools.MemberHomes.include)

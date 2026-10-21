@@ -83,7 +83,7 @@ rigConsoleUser="user-$( printf '%s' "$( id -un 2>/dev/null )" | LC_ALL=C tr -s '
 rigRec(){ ## run id, which is its sandbox too; session id; member
 	mkdir -p "$rigSp/$1"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: %s\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\nspawns: dispatch-%s\nreports-to: %s\n---\n\n# Spawn session: %s\n' \
-		"$2" "$1" "$rigHost" "$3" "$1" "${rigReportsTo:-$rigConsoleUser}" "$2" > "$rigSp/$1/$1.md"
+		"$2" "$1" "$rigHost" "$3" "$1" "${rigReportsTo:-$rigConsoleUser}" "$2" > "$rigSp/$1/$1.spawn.md"
 	printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: %s\nsession-id: %s\n---\n\n# rig dispatch\n' "$3" "$1" "$2" > "$rigData/board/running/dispatch-$1.md"
 }
 ## A stand-in process that only waits, in the rig's process list as the run of that id, by its own --session-id word.
@@ -168,7 +168,7 @@ rigWaitFor 20 rigEnded "$rigThreadB"
 rigAssert "the kill of the whole session, by the id of its founder: the founder's process is ended, and the thread is ended by no signal meant for a run: the kill finished the session, so the thread ended by itself, in order, and its log says why" \
 	"$( rigEnded "$rigFb" && echo killed || echo runs ):$( rigEnded "$rigThreadB" && echo ended || echo alive ):$( LC_ALL=C grep -c -F -- ', ends: its session is finished' "$rigStores/fb-run/control/log" 2> /dev/null ):$( LC_ALL=C grep -c -F -- 'it was ended by' "$rigStores/fb-run/control/log" 2> /dev/null )" "killed:ended:1:0"
 rigAssert "control: the killed runs are marked on their records, so the thread takes neither for a death" \
-	"$( LC_ALL=C grep -l -e '^killed-by: rig$' "$rigSp/fb-run/fb-run.md" "$rigSp/pb-run/pb-run.md" 2> /dev/null | LC_ALL=C grep -c . ):$( [ -e "$rigStores/fb-run/control/dead" ] && echo dead-kept || echo none )" "2:none"
+	"$( LC_ALL=C grep -l -e '^killed-by: rig$' "$rigSp/fb-run/fb-run.spawn.md" "$rigSp/pb-run/pb-run.spawn.md" 2> /dev/null | LC_ALL=C grep -c . ):$( [ -e "$rigStores/fb-run/control/dead" ] && echo dead-kept || echo none )" "2:none"
 rigAssert "no request was made" "$( [ -e "$rigTmp/curl.calls" ] && echo called || echo none )" "none"
 
 echo ""

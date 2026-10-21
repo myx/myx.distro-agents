@@ -120,7 +120,7 @@ rigRec(){ ## sandbox (short), record (short), session (short), host, status, mor
 	mkdir -p "$rigSp/$( rigId "$1" )"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: keeper-rig\nstatus: %s\nstarted-at: 2026-10-13 09:00 +0300\n%s---\n\n# Spawn session: %s\n' \
 		"$( rigId "$3" )" "$( rigId "$2" )" "$4" "$5" "${6:-}" "$( rigId "$3" )" > "$rigSp/$( rigId "$1" )/$( rigId "$2" ).md.rig" \
-		&& mv -f "$rigSp/$( rigId "$1" )/$( rigId "$2" ).md.rig" "$rigSp/$( rigId "$1" )/$( rigId "$2" ).md"
+		&& mv -f "$rigSp/$( rigId "$1" )/$( rigId "$2" ).md.rig" "$rigSp/$( rigId "$1" )/$( rigId "$2" ).spawn.md"
 }
 rigClosed='resolved-at: 2026-10-13 09:30 +0300
 '
@@ -277,7 +277,7 @@ rigRec e e e elsewhere spawn-started ''
 rigRec f f f "$rigHost" spawn-started '' ; rigStand f ; rigTranscript f true
 rigTranscript b false
 mkdir -p "$rigSp/$( rigId u )"
-printf -- '---\nsession-id: %s\nhost: %s\nworkspace: rigws\nowner: keeper-rig\nstatus: spawn-started\nstarted-at: 2026-09-30 10:00 +0300\n---\n\n# Spawn session: %s\n' "$( rigId u )" "$rigHost" "$( rigId u )" > "$rigSp/$( rigId u )/$( rigId u ).md"
+printf -- '---\nsession-id: %s\nhost: %s\nworkspace: rigws\nowner: keeper-rig\nstatus: spawn-started\nstarted-at: 2026-09-30 10:00 +0300\n---\n\n# Spawn session: %s\n' "$( rigId u )" "$rigHost" "$( rigId u )" > "$rigSp/$( rigId u )/$( rigId u ).spawn.md"
 rigRun "$rigOp" --all
 rigAssert "--all prints a row for each session that needed a thread and had none alive, started, and for no other: not the one whose thread lives, the ended one, the one of another host, the one a waited start opened, the one whose open record names no run" \
 	"$rigRc:$( rigTroubles ):$( rigOut | LC_ALL=C sed 's/|[0-9][0-9]*|/|PID|/' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "0:0:control|$( rigId b )|started|PID|- control|$( rigId d )|started|PID|- "

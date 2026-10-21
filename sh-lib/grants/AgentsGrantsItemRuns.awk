@@ -27,7 +27,7 @@ BEGIN {
 
 FNR == 1 {
 	front = ( $0 == "---" ) ? 1 : 2 ;
-	runId = FILENAME ; sub( /^.*\//, "", runId ) ; sub( /\.md$/, "", runId ) ;
+	runId = FILENAME ; sub( /^.*\//, "", runId ) ; sub( /\.spawn\.md$/, "", runId ) ;
 	recOwner = "" ; recSession = "" ; recSpawns = "" ; recBy = "" ;
 	next ;
 }

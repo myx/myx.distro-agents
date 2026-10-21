@@ -280,6 +280,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-join --session-id <
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-run (install|uninstall|update) <subsystem>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-workspace-read" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-data-read <store> [<folder> [<item>]] [--include-processed]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-files <team-member> [<file>]" >&2

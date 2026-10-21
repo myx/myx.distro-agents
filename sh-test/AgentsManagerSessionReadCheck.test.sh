@@ -89,7 +89,7 @@ rigAssert(){ ## what is asserted, got, want
 
 rigRecord(){ ## sandbox, record name -- stdin: the header lines of the record, as they are to stand
 	mkdir -p "$rigSp/$1"
-	{ printf -- '---\n' ; cat ; printf -- '---\n\n# Spawn session\n' ; } > "$rigSp/$1/$2.md"
+	{ printf -- '---\n' ; cat ; printf -- '---\n\n# Spawn session\n' ; } > "$rigSp/$1/$2.spawn.md"
 }
 rigAsk(){ ## record name, the id of the run that asked, status
 	printf -- '---\nstatus: %s\nowner: keeper-rig\nsession-id: %s\nkind: question\n---\nq\n' "$3" "$2" > "$rigPend/$1.md"
@@ -286,14 +286,14 @@ rigRegBefore="$( rigPrint "$rigAgents/spawned-sessions.registry" ) $( rigPrint "
 rigRun "$rigOp" --session-id sess-a
 rigAssert "a call that finds the registries fresh rewrites neither: both are the files they were" "$rigRc $( rigPrint "$rigAgents/spawned-sessions.registry" ) $( rigPrint "$rigAgents/pending-replies.registry" )" "0 $rigRegBefore"
 ## Another session's record and store are made unreadable: a read of one session opens neither.
-chmod 000 "$rigSp/sess-n/sess-n.md" "$rigSp/desk-c/desk-c.md" ; chmod 000 "$rigStores/run-c"
+chmod 000 "$rigSp/sess-n/sess-n.spawn.md" "$rigSp/desk-c/desk-c.spawn.md" ; chmod 000 "$rigStores/run-c"
 rigRun "$rigOp" --session-id run-b
 rigAssert "the records of other sessions, and the store of another run, made unreadable, change nothing in the read of one run: no error, no warning" "$rigRc $( rigTroubles ) $( cat "$rigTmp/out" )" "0 0 $rigSessionRow
 $rigDispatchRow
 $rigControlRow
 $rigTokensRow
 $rigMemberRows"
-chmod 644 "$rigSp/sess-n/sess-n.md" "$rigSp/desk-c/desk-c.md" ; chmod 755 "$rigStores/run-c"
+chmod 644 "$rigSp/sess-n/sess-n.spawn.md" "$rigSp/desk-c/desk-c.spawn.md" ; chmod 755 "$rigStores/run-c"
 
 echo "-- 7. a registry is taken as it lies only while it holds the store as it is now, whatever the clock says --"
 ## Every time below is set by hand, so that no comparison of times could tell: the registries read newer than
@@ -310,8 +310,8 @@ rigNoneNewer(){ ## registry file, path... -- none-newer where no path is newer t
 ## A session started since the registry was built: a sandbox folder and an ask the registries do not hold.
 printf 'session-id: sess-late\nspawn-id: sess-late\nhost: %s\nworkspace: rigws\nowner: magic-coordinator\nstatus: spawn-succeeded\nstarted-at: 2026-10-07 06:00 +0300\nresolved-at: 2026-10-07 06:30 +0300\nsession-comment: late one\n' "$rigHost" | rigRecord sess-late sess-late
 rigAsk ask-late sess-late reply-pending
-rigOld "$rigSp/sess-late/sess-late.md" "$rigSp/sess-late" "$rigSp" "$rigPend/ask-late.md" "$rigPend"
-rigAssert "control: nothing of the two stores is newer than its registry, and the registries hold no row of the new session or its ask" "$( rigNoneNewer "$rigAgents/spawned-sessions.registry" "$rigSp" "$rigSp/sess-late" "$rigSp/sess-late/sess-late.md" ) $( rigNoneNewer "$rigAgents/pending-replies.registry" "$rigPend" "$rigPend/ask-late.md" ) $( cat "$rigAgents/spawned-sessions.registry" "$rigAgents/pending-replies.registry" | LC_ALL=C grep -c -e 'sess-late' || : )" "none-newer none-newer 0"
+rigOld "$rigSp/sess-late/sess-late.spawn.md" "$rigSp/sess-late" "$rigSp" "$rigPend/ask-late.md" "$rigPend"
+rigAssert "control: nothing of the two stores is newer than its registry, and the registries hold no row of the new session or its ask" "$( rigNoneNewer "$rigAgents/spawned-sessions.registry" "$rigSp" "$rigSp/sess-late" "$rigSp/sess-late/sess-late.spawn.md" ) $( rigNoneNewer "$rigAgents/pending-replies.registry" "$rigPend" "$rigPend/ask-late.md" ) $( cat "$rigAgents/spawned-sessions.registry" "$rigAgents/pending-replies.registry" | LC_ALL=C grep -c -e 'sess-late' || : )" "none-newer none-newer 0"
 rigRun "$rigOp" --session-id sess-late
 rigAssert "a session started after the last rebuild is read: a registry that does not hold a sandbox folder the store has now is rebuilt first, and the asks' one that does not hold an ask, so the session waits on the ask written with it" "$rigRc $( rigRows session ) / $( rigRows store | LC_ALL=C awk '{ print $9 }' )" "0 session sess-late late_one waiting 2026-10-07_06:00_+0300 - 1 finished=1 - - none - / ask-late"
 ## A registry that reads newer than everything, by a time years ahead, and still does not hold a folder.
@@ -322,9 +322,9 @@ rigAssert "a registry years newer than the store by its time is not taken for th
 ## A MEMBER JOINS A RUNNING SESSION: its record is added to the sandbox folder the session already has, which is
 ## where a spawn that joins a session by its id keeps it. No folder is new, and the id has its rows already.
 printf 'session-id: sess-a\nspawn-id: run-j\nparent-spawn-id: sess-a\nhost: %s\nworkspace: rigws\ncli: claude-native\nowner: magic-librarian\nstatus: spawn-started\nstarted-at: 2026-10-13 09:20 +0300\n' "$rigHost" | rigRecord sess-a run-j
-rigOld "$rigSp/sess-a/run-j.md" "$rigSp/sess-a" "$rigSp"
+rigOld "$rigSp/sess-a/run-j.spawn.md" "$rigSp/sess-a" "$rigSp"
 rigLive sess-a run-b run-j
-rigAssert "control: the member's record stands in the session's own folder, nothing there is newer than the registry, and the registry holds the session and not the member" "$( ls "$rigSp/sess-a" | LC_ALL=C tr '\n' ' ' )$( rigNoneNewer "$rigAgents/spawned-sessions.registry" "$rigSp" "$rigSp/sess-a" "$rigSp/sess-a/run-j.md" "$rigSp/sess-a/sess-a.md" ) $( LC_ALL=C awk '$2 == "sess-a" { rows++ } $8 == "run-j" { joined++ } END { print rows + 0 ":" joined + 0 }' "$rigAgents/spawned-sessions.registry" )" "run-j.md sess-a.md none-newer 3:0"
+rigAssert "control: the member's record stands in the session's own folder, nothing there is newer than the registry, and the registry holds the session and not the member" "$( ls "$rigSp/sess-a" | LC_ALL=C tr '\n' ' ' )$( rigNoneNewer "$rigAgents/spawned-sessions.registry" "$rigSp" "$rigSp/sess-a" "$rigSp/sess-a/run-j.spawn.md" "$rigSp/sess-a/sess-a.spawn.md" ) $( LC_ALL=C awk '$2 == "sess-a" { rows++ } $8 == "run-j" { joined++ } END { print rows + 0 ":" joined + 0 }' "$rigAgents/spawned-sessions.registry" )" "run-j.spawn.md sess-a.spawn.md none-newer 3:0"
 rigRun "$rigOp" --session-id sess-a
 rigAssert "a member that joined a running session after the registry was built is in the next read of that session: the session counts four runs, three of them running, and the member has its row, the headers of its record and its store row" \
 	"$rigRc $( rigRows session | LC_ALL=C awk '{ print $7, $8 }' ) / $( rigRows run | LC_ALL=C awk '{ printf "%s ", $3 }' )/ $( rigRows run | LC_ALL=C awk '$3 == "run-j"' ) / $( LC_ALL=C awk -F'\t' '$1 == "header" && $2 == "run-j" { headers++ } $1 == "store" && $2 == "run-j" { print headers + 0, $3 }' "$rigTmp/out" )" \
@@ -338,10 +338,10 @@ rigAssert "the read after it changes nothing: where the registries hold the stor
 	printf 'session-id: sess-a\nspawn-id: run-b\nparent-spawn-id: sess-a\nparent-member: magic-coordinator\nhost: %s\nworkspace: rigws\ncli: grok-harness\nowner: keeper-rig\n' "$rigHost"
 	printf 'status: spawn-succeeded\nexit-code: 0\nstarted-at: 2026-10-13 09:05 +0300\nresolved-at: 2026-10-13 09:50 +0300\n'
 } > "$rigTmp/run-b.closed"
-{ printf -- '---\n' ; cat "$rigTmp/run-b.closed" ; printf -- '---\n\n# Spawn session\n' ; } > "$rigSp/run-b/run-b.md"
-rigOld "$rigSp/run-b/run-b.md" "$rigSp/run-b"
+{ printf -- '---\n' ; cat "$rigTmp/run-b.closed" ; printf -- '---\n\n# Spawn session\n' ; } > "$rigSp/run-b/run-b.spawn.md"
+rigOld "$rigSp/run-b/run-b.spawn.md" "$rigSp/run-b"
 rigLive sess-a run-j
-rigAssert "control: the record is not newer than the registry, which still says the member is started" "$( rigNoneNewer "$rigAgents/spawned-sessions.registry" "$rigSp/run-b/run-b.md" "$rigSp/run-b" ) $( LC_ALL=C awk '$8 == "run-b" { print $6 }' "$rigAgents/spawned-sessions.registry" )" "none-newer spawn-started"
+rigAssert "control: the record is not newer than the registry, which still says the member is started" "$( rigNoneNewer "$rigAgents/spawned-sessions.registry" "$rigSp/run-b/run-b.spawn.md" "$rigSp/run-b" ) $( LC_ALL=C awk '$8 == "run-b" { print $6 }' "$rigAgents/spawned-sessions.registry" )" "none-newer spawn-started"
 rigRun "$rigOp" --session-id sess-a
 rigAssert "what a record of the session says is read from the record at every call: the member reads finished, with the date it closed, and the session's tally follows" "$rigRc $( rigRows session | LC_ALL=C awk '{ print $4, $8 }' ) $( rigRows run | LC_ALL=C awk '$3 == "run-b" { print $5, $6, $7, $9, $NF }' )" "0 running running=2,finished=2 spawn-succeeded no-process finished 2026-10-13_09:50_+0300 -"
 rigAssert "and no registry is rewritten for that: the file is the one it was" "$( rigPrint "$rigAgents/spawned-sessions.registry" ) $( rigPrint "$rigAgents/pending-replies.registry" )" "$rigRegBefore"

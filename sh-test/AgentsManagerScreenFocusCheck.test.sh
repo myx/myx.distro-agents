@@ -140,6 +140,7 @@ RIGROWS
 	rigRow group trust 1 To_trust_when_connecting -
 	rigRow key host Host_key trust incoming ssh-ed25519 SHA256:fedcba short-marker /rig/keys/host.pub absent
 } > "$rigF/rows.--manager-keys-list"
+printf 'fact\t-\tname\tws-one\nfact\t-\tpath\t/rig/Workspaces/ws-one\n' > "$rigF/rows.--manager-workspace-read"
 {
 	rigRow check install tools bash Bash ok fine -
 	rigRow check slack app token Token fail the_token_is_missing set_the_token
@@ -213,6 +214,9 @@ wait focus 5
 show C
 keys DOWN
 wait focus 5
+show W
+keys DOWN
+wait focus 5
 show G
 keys DOWN
 wait focus 5
@@ -224,9 +228,10 @@ rigAssert "the asks: every ask as a table, nothing above it, with how long it wa
 rigAssert "the members: their table alone, numbered, and no line of a summary" "$( rigLeft T )" "$( printf ' %s  %-17s  %-7s  %-8s  %-6s  %s / ' '#' MEMBER RUN STATUS KIND WHERE 1 magic-coordinator running active lead - 2 keeper-myx - active keeper - 3 human-owner - ref-only human - 4 far-member - active keeper - | LC_ALL=C sed 's| / $||' )"
 rigAssert "the locations: every location as a table with its path, nothing above it" "$( rigLeft P )" "   PLACE     KIND     STATE   PATH                               SESSIONS CEILING /  • ws-one    workspa… present /rig/Workspaces/ws-one             2        read-wr… /    gone-work workspa… absent  /rig/Volumes/gone-work             0        read-wr… /    deep      directo… present /rig/Workspaces/ws-one/source/deep -        read-on…"
 rigAssert "what is to start: each as a table with its command, nothing above it" "$( rigLeft C )" " CONSOLE         GROUP   COMMAND /  Agents Console  Distro  bash DistroAgentsConsole.sh /  Source Console  Distro  bash DistroSourceConsole.sh /  Top             System  top"
+rigAssert "the workspace: its facts, the rows of the operation as it printed them, with no Enter" "$( rigLeft W )" " name  ws-one /  path  /rig/Workspaces/ws-one"
 rigAssert "the settings: its subjects in a table, with what each holds" "$( rigLeft G | sed 's/^.*while the workspace runs\. \/ //' )" " SUBJECT      LINES MISSING WHAT /  Interface    2     -       how this console looks, saved for the user who runs it /  Scope        -     -       every scope of settings of this workspace, each a /  Settings                   folder of its variables"
 rigAssert "the configuration: its subjects, how many lines each misses, and its folders" "$( rigLeft F | sed 's/^.*change it later\. \/ //' ) [$( rigLeft F | sed 's/ \/ .*$//' )]" " SUBJECT        LINES MISSING WHAT /  Slack          3     1       - /  Config Checker -     -       the read-only checks of the installation, run on /                               demand /  Server Keys    -     -       the public keys of this server /  Git Settings   -     -       the global git settings of the account that runs the /                               tools /  Installed      -     -       the subsystems of the tool family, installed here or /  Subsystems                   not, and the commands to install and uninstall them /  Diagnostics    -     -       what the tooling sees, read-only: the context it /                               resolves [ SUBJECT        LINES MISSING WHAT]"
-rigAssert "nothing was entered, and each list was read once: the asks, the members, what is to start, and the digest for both its roots" "[$( rigVal end.path )] $( rigCalls --member-pending-reply-read ) $( rigCalls --manager-team-member-list ) $( rigCalls --manager-console-list ) $( rigCalls --manager-config-digest ) $( rigFolderCalls )" "[] 1 1 1 1 4"
+rigAssert "nothing was entered, and each list was read once: the asks, the members, what is to start, and the digest for both its roots" "[$( rigVal end.path )] $( rigCalls --member-pending-reply-read ) $( rigCalls --manager-team-member-list ) $( rigCalls --manager-console-list ) $( rigCalls --manager-config-digest ) $( rigFolderCalls )" "[] 1 1 1 1 5"
 
 echo "-- until the rows have come the window says that it waits; the read starts when the selection has rested --"
 rigCase waits
@@ -359,7 +364,7 @@ turn
 keys DOWN DOWN ENTER DOWN ENTER DOWN
 wait focus 5
 show L
-keys BACKSPACE BACKSPACE BACKSPACE DOWN DOWN DOWN DOWN ENTER DOWN
+keys BACKSPACE BACKSPACE BACKSPACE DOWN DOWN DOWN DOWN DOWN ENTER DOWN
 wait focus 5
 advance 11
 turn
@@ -415,7 +420,7 @@ rigCase pty
 mkdir -p "$rigTmp/ws-rig"
 printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigTools" > "$rigTmp/tools"
 chmod +x "$rigTmp/tools"
-rigOut="$( MANAGER_SCREEN_PTY_TRACE='asks=QUESTION' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 120 36 "Magic-Team (Agents)" '\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\aQUESTION\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
+rigOut="$( MANAGER_SCREEN_PTY_TRACE='asks=QUESTION' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 120 36 "Magic-Team (Agents)" '\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\aQUESTION\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
 rigAssert "it draws the summary of the asks with no Enter and ends with status 0, the terminal given back" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft ) $( rigVal pty.modeBack ) [$( rigVal pty.trace | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ $//' )]" "yes 0 yes none yes [asks]"
 
 if [ "$rigFailCount" -ne 0 ] ; then

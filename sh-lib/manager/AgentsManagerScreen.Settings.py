@@ -132,8 +132,13 @@ def parseDigestLevels(readKey, text):
                 line["range"] = (low, high) if low.isdigit() and high.isdigit() else None
             if (line["choices"] or line["range"]) and not changeRefusal(line):
                 DECLARED_LINES[line["key"]] = line
-            lineRow = newRow(setting["group"] + " " + setting["key"],
-                             line["label"] or line["key"] or line["group"] or "-", "record")
+            ## The id of a line is its group and its key; the same key held by more than one scope of one outside system (SLACK_CHANNEL_MAGIC_TEAM under
+            ## magic-team and under magic-coordinator) is one row for each, and the selection is kept by the id: the later rows of a key take the scope
+            ## that holds them after it, and the first keeps the id it always had.
+            lineId = setting["group"] + " " + setting["key"]
+            while lineId in [one["id"] for one in levels[root + "/" + name]]:
+                lineId += " " + (line["source"] or line["scope"] or "again")
+            lineRow = newRow(lineId, line["label"] or line["key"] or line["group"] or "-", "record")
             lineRow["line"] = line
             levels[root + "/" + name].append(lineRow)
             held[(root, name)]["subject"]["lines"].append(line)

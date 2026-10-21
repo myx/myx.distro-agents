@@ -127,7 +127,7 @@ rigLeads(){
 rigClosed(){
 	local closedId
 	closedId="$( LC_ALL=C sed -n 's|^OUTPUT_FILE=.*/sessions/\([^/]*\)/session\.log$|\1|p' "$rigDir/proxy.out" 2>/dev/null | head -1 )"
-	[ -n "$closedId" ] && LC_ALL=C grep -q -x 'status: spawn-succeeded' "$rigWs"/.local/agents/spawned/*/"$closedId.md" 2>/dev/null && printf yes || printf no
+	[ -n "$closedId" ] && LC_ALL=C grep -q -x 'status: spawn-succeeded' "$rigWs"/.local/agents/spawned/*/"$closedId.spawn.md" 2>/dev/null && printf yes || printf no
 }
 rigIsClosed(){ [ "$( rigClosed )" = yes ] ; }
 ## How many members of the scenario's session recorded their own close: the records of the
@@ -136,7 +136,7 @@ rigSessionClosed(){
 	local closedSession
 	closedSession="$( LC_ALL=C sed -n 's/^SESSION_ID=//p' "$rigDir/session.out" 2>/dev/null | head -1 )"
 	[ -n "$closedSession" ] || { printf 0 ; return 0 ; }
-	LC_ALL=C grep -l -x 'status: spawn-succeeded' "$rigWs/.local/agents/spawned/$closedSession"/*.md 2>/dev/null | wc -l | tr -d ' '
+	LC_ALL=C grep -l -x 'status: spawn-succeeded' "$rigWs/.local/agents/spawned/$closedSession"/*.spawn.md 2>/dev/null | wc -l | tr -d ' '
 }
 rigSessionClosedAre(){ [ "$( rigSessionClosed )" = "$1" ] ; }
 ## The tracking channel of the rig workspace: with it a session has its tracking thread, and

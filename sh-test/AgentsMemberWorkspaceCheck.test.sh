@@ -786,7 +786,7 @@ rigWorld
 cat > "$rigWork/ws-here/DistroAgentsConsole.sh" <<'RIGCONSOLE'
 #!/usr/bin/env bash
 ## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli) stand-in: records each start with its record status, hands back only when resumed.
-rigRecord="$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.md"
+rigRecord="$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.spawn.md"
 rigStatus="$( sed -n 's/^status: //p' "$rigRecord" 2> /dev/null | head -1 )"
 printf '%s\n' "${rigStatus:-none}" > "$RIG_SCENARIO/start.${MDAT_SPAWN_RESUME:-launch}"
 cat > /dev/null
@@ -861,7 +861,7 @@ rigThree(){ ## record or board item -- its executing, paying and member's worksp
 }
 rigRecordOf(){ ## workspace, member -- the newest spawn record of that member kept in that workspace
 	local recordFiles
-	recordFiles="$( LC_ALL=C grep -l -x "owner: $2" "$rigWork/$1"/.local/agents/spawned/*/*.md 2> /dev/null )"
+	recordFiles="$( LC_ALL=C grep -l -x "owner: $2" "$rigWork/$1"/.local/agents/spawned/*/*.spawn.md 2> /dev/null )"
 	[ -z "$recordFiles" ] || ls -t $recordFiles | LC_ALL=C sed -n 1p
 }
 rigStartContext(){ ## -- the small grey text of the run box of the start post among the posted bodies, its host and its date masked

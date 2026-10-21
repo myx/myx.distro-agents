@@ -89,7 +89,7 @@ printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n
 rigHost="$( hostname -s 2>/dev/null || echo unknown )"
 rigSpawnRecord(){ ## spawn id, owner, parent session id
 	printf -- '---\nsession-id: rig-cow\nspawn-id: %s\n%shost: %s\nowner: %s\nstatus: spawn-started\n---\n\n# Spawn session\n' \
-		"$1" "${3:+parent-spawn-id: $3$'\n'}" "$rigHost" "$2" > "$rigWs/.local/agents/spawned/rig-cow/$1.md"
+		"$1" "${3:+parent-spawn-id: $3$'\n'}" "$rigHost" "$2" > "$rigWs/.local/agents/spawned/rig-cow/$1.spawn.md"
 }
 ## A LIVE RUN of one spawn: a line of the rig's own process list that carries its spawn id, which
 ## is how the spawned-sessions render finds a spawn running. Ended by rigDead.
@@ -221,7 +221,7 @@ rigAssert "and not the same call of another participant"    "$( rigGrantRead mag
 rigAssert "nor of another run of the same member in that session" "$( rigGrantRead magic-tester rig-tester-2 Write "$rigWs/ELSE/s.txt" )" ""
 rigAssert "it is kept in that run's own store, never in the coworking session's" \
 	"$( cat "$rigWs/.local/agents/sessions/rig-tester/grants" 2>/dev/null | LC_ALL=C grep -c -F -- "$rigIdSession" ):$( cat "$rigWs/.local/agents/sessions/rig-cow/grants" 2>/dev/null | LC_ALL=C grep -c -F -- "$rigIdSession" )" "1:0"
-rm -f "$rigWs/.local/agents/spawned/rig-cow/rig-tester-2.md"
+rm -f "$rigWs/.local/agents/spawned/rig-cow/rig-tester-2.spawn.md"
 
 echo "-- rule 1 on the escalation answer: routed to a holder participant --"
 rigIdR="$( rigRefusal magic-tester rig-tester Write "$rigWs/DEV/r.txt" )"
@@ -356,9 +356,9 @@ printf -- '---\nexecutors: magic-tester\nmaintainers: magic-tester, human-owner\
 	> "$rigSkills/magic-tester/magic-tester.rig-review.routine.md"
 printf -- '---\nexecutors: magic-tester\nmaintainers: magic-developer\nallows: participants:cred:rig-secret, participants:Write:DEV/n/**, participants:Write:ELSE/**\nrequires-session-kind: standalone\n---\n# rig routine without the human-owner\n' \
 	> "$rigSkills/magic-tester/magic-tester.rig-nohuman.routine.md"
-printf -- '---\nsession-id: rig-rcow\nspawn-id: rig-rcow\nowner: magic-tester\nroutine: magic-tester.rig-review.routine.md\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-rcow/rig-rcow.md"
-printf -- '---\nsession-id: rig-rcow\nspawn-id: rig-r2\nparent-spawn-id: rig-rcow\nowner: magic-developer\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-rcow/rig-r2.md"
-printf -- '---\nsession-id: rig-ncow\nspawn-id: rig-ncow\nowner: magic-tester\nroutine: magic-tester.rig-nohuman.routine.md\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-ncow/rig-ncow.md"
+printf -- '---\nsession-id: rig-rcow\nspawn-id: rig-rcow\nowner: magic-tester\nroutine: magic-tester.rig-review.routine.md\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-rcow/rig-rcow.spawn.md"
+printf -- '---\nsession-id: rig-rcow\nspawn-id: rig-r2\nparent-spawn-id: rig-rcow\nowner: magic-developer\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-rcow/rig-r2.spawn.md"
+printf -- '---\nsession-id: rig-ncow\nspawn-id: rig-ncow\nowner: magic-tester\nroutine: magic-tester.rig-nohuman.routine.md\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-ncow/rig-ncow.spawn.md"
 export MDAT_SKILLSET_ROOT="$rigSkills"
 rigAssert "a member's routine allow holds in that routine's session" "$( rigHolds magic-tester Edit "$rigWs/ROUT/a.txt" rig-rcow )" "HOLDS routine magic-tester.rig-review.routine"
 rigAssert "and not in another session"                     "$( rigHolds magic-tester Edit "$rigWs/ROUT/a.txt" rig-tester ):$( rigHolds magic-tester Edit "$rigWs/ROUT/a.txt" )" "NOT-HOLDS:NOT-HOLDS"
@@ -533,7 +533,7 @@ printf '%s\t%s\t%s\t%s\t%s\n' rig-ws workspace read-write "$rigWs" workspace > "
 mkdir -p "$rigWs/.local/agents/spawned/rig-set"
 rigSetRecord(){ ## spawn id, owner, host, description (may be empty), further header lines (may be empty)
 	printf -- '---\nsession-id: rig-set\nspawn-id: %s\nowner: %s\nhost: %s\n%s%sstatus: spawn-started\n---\n\n# Spawn session\n' \
-		"$1" "$2" "$3" "${4:+description: $4$'\n'}" "${5:-}" > "$rigWs/.local/agents/spawned/rig-set/$1.md"
+		"$1" "$2" "$3" "${4:+description: $4$'\n'}" "${5:-}" > "$rigWs/.local/agents/spawned/rig-set/$1.spawn.md"
 }
 rigSetRecord rig-set magic-coordinator rig-host-a 'rework the vars loader' $'session-thread: CRIG00001:1700000000.000500\n'
 ## The developer's spawn of that session runs on this host, live: what it holds counts as held.
@@ -833,7 +833,7 @@ rigDead rig-dev
 ## session's thread and answers nothing here, so it is no holder running in this session.
 mkdir -p "$rigWs/.local/agents/spawned/rig-other"
 printf -- '---\nsession-id: rig-other\nspawn-id: rig-other-dev\nhost: %s\nowner: magic-developer\nstatus: spawn-started\n---\n\n# Spawn session\n' \
-	"$rigHost" > "$rigWs/.local/agents/spawned/rig-other/rig-other-dev.md"
+	"$rigHost" > "$rigWs/.local/agents/spawned/rig-other/rig-other-dev.spawn.md"
 rigLive rig-other-dev
 rigHelperScript AgentsTools.InternOpPermission.include AgentsToolsPermissionSessionRunning rig-other-dev | rigOp --intern-mcp-execute
 rigAssert "control: the holder's run in another coworking session is live, and is counted there" "$( LC_ALL=C tr '\n' '|' < "$rigTmp/op.out" )" "magic-developer|"

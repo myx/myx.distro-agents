@@ -62,7 +62,7 @@ rigRecord(){ ## tracking name, session id, host, status (default started)
 	## id split, and a lone spawn's own spawn-id equals its session-id, the same
 	## shape this fixture already gives session-id. Missing this made every row
 	## read no-spawn-id regardless of a real live process.
-	printf -- '---\nsession-id: %s\nspawn-id: %s\ntracking-name: %s\nhost: %s\nowner: rig-member\nstatus: %s\n---\n' "$2" "$2" "$1" "$3" "${4:-started}" > "$rigSpawned/$1/$2.md"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\ntracking-name: %s\nhost: %s\nowner: rig-member\nstatus: %s\n---\n' "$2" "$2" "$1" "$3" "${4:-started}" > "$rigSpawned/$1/$2.spawn.md"
 }
 rigRecord rig-local "$rigSession" "$rigThisHost"
 rigRecord rig-remote rig-sess-remote rig-elsewhere

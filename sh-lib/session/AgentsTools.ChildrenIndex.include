@@ -25,7 +25,7 @@ AgentsToolsChildrenIndexRepair(){ ## workspace
 	}
 	## A line is `<record path>:parent-spawn-id: <id>`, split at the first such marker;
 	## a record path is listed under spawned/, an id that could name another file is skipped.
-	{ LC_ALL=C grep -H '^parent-spawn-id: ' "$childSpawned"*/*.md 2>/dev/null || : ; } \
+	{ LC_ALL=C grep -H '^parent-spawn-id: ' "$childSpawned"*/*.spawn.md 2>/dev/null || : ; } \
 		| LC_ALL=C awk -v childDir="$childDir" -v childSpawned="$childSpawned" '
 			{
 				markAt = index( $0, ":parent-spawn-id: " )

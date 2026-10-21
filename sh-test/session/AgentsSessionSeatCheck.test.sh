@@ -91,7 +91,7 @@ rigRun(){ ## variable to set, session, member, start-context, parent-spawn-id, e
 	rigRunNo=$(( rigRunNo + 1 ))
 	runId="rig-seat-run-$rigTag-$rigRunNo-$RANDOM"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: %s\nstart-context: %s\nreports-to: magic-coordinator\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: spawn-started\nstarted-at: 2026-10-18 10:%02d +0000\nsession-thread: %s\n%s---\n' \
-		"$2" "$runId" "$5" "$4" "$2" "$rigHost" "$3" "$rigRunNo" "$( rigThreadOf "$2" )" "${6:-}" > "$rigSpawned/$2/$runId.md"
+		"$2" "$runId" "$5" "$4" "$2" "$rigHost" "$3" "$rigRunNo" "$( rigThreadOf "$2" )" "${6:-}" > "$rigSpawned/$2/$runId.spawn.md"
 	perl -e 'sleep 600' -- --session-id "$runId" > /dev/null 2>&1 &
 	eval "${1}Pid=\$!"
 	rigRunPids="$rigRunPids $!" ; rigProcNote "$!" ; disown "$!" 2> /dev/null || :

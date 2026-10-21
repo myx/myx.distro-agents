@@ -158,39 +158,39 @@ mkdir -p "$rigSp" "$rigPend" "$rigData/board/running" "$rigData/board/blocked"
 
 rigCompare "no store at all" "$rigTmp/none" ""
 
-mkdir -p "$rigSp/s-empty/input" "$rigSp/s-other/sub.md" "$rigSp/s space name" "$rigSp/s\\back" "$rigSp/s${rigNl}nl" "$rigSp/.hidden" "$rigSp/s-multi" "$rigSp/s-odd" "$rigSp/s-unread" "$rigSp/s-links" "$rigTmp/real-sandbox"
+mkdir -p "$rigSp/s-empty/input" "$rigSp/s-other/sub.spawn.md" "$rigSp/s space name" "$rigSp/s\\back" "$rigSp/s${rigNl}nl" "$rigSp/.hidden" "$rigSp/s-multi" "$rigSp/s-odd" "$rigSp/s-unread" "$rigSp/s-links" "$rigTmp/real-sandbox"
 printf 'note\n' > "$rigSp/s-other/notes.txt"
-printf -- '---\nsession-id: hid\n---\n' > "$rigSp/.hidden/r.md"
+printf -- '---\nsession-id: hid\n---\n' > "$rigSp/.hidden/r.spawn.md"
 ## Multi-record sandbox: a record's own tracking-name carries on to the later records.
-printf -- '---\ntracking-name: renamed-x\nsession-id: s1\nspawn-id: p1\nhost: h1\nowner: o1\nstatus: started\nexit-code: 0\nparent-spawn-id: -\nagent-log-thread: t1\nsession-thread: t2\nworkspace: ws1\n---\nbody\n' > "$rigSp/s-multi/a.md"
-printf -- '---\nsession-id: s2\n---\n' > "$rigSp/s-multi/b.md"
-printf 'no frontmatter at all\nstatus: body\n' > "$rigSp/s-multi/c.md"
-printf -- '---\ntracking-name:   \nsession-id: s4\n---\n' > "$rigSp/s-multi/d.md"
-: > "$rigSp/s-multi/e-empty.md"
+printf -- '---\ntracking-name: renamed-x\nsession-id: s1\nspawn-id: p1\nhost: h1\nowner: o1\nstatus: started\nexit-code: 0\nparent-spawn-id: -\nagent-log-thread: t1\nsession-thread: t2\nworkspace: ws1\n---\nbody\n' > "$rigSp/s-multi/a.spawn.md"
+printf -- '---\nsession-id: s2\n---\n' > "$rigSp/s-multi/b.spawn.md"
+printf 'no frontmatter at all\nstatus: body\n' > "$rigSp/s-multi/c.spawn.md"
+printf -- '---\ntracking-name:   \nsession-id: s4\n---\n' > "$rigSp/s-multi/d.spawn.md"
+: > "$rigSp/s-multi/e-empty.spawn.md"
 ## Odd shapes: no closing ---, a first empty value then a real one, inner whitespace,
 ## no space after the colon, a leading colon, a key with a trailing space, CR endings,
 ## headers before the first and after the second ---, a third block, `--- ` lookalike.
-printf -- '---\nsession-id: open\nstatus: no-close\n' > "$rigSp/s-odd/1-noclose.md"
-printf -- 'status: pre\n--- \n---\nstatus:\nstatus: started\nhost:  my  \t host \t\nowner:x\n:lead: y\nsession-id : bad\nspawn-id: abc\r\nexit-code: a:b: c\n---\nworkspace: post\n---\nworkspace: third\n---\n' > "$rigSp/s-odd/2-shapes.md"
-printf -- '---\r\nsession-id: crlf\r\n---\r\n' > "$rigSp/s-odd/3-crlf.md"
-printf -- '---\nsession-id: lastline-no-newline' > "$rigSp/s-odd/4-nonl.md"
-printf -- '---\nsession-id: eq\n---\n' > "$rigSp/s-odd/a=b.md"
-printf -- '---\nsession-id: dash\n---\n' > "$rigSp/s-odd/-.md"
-printf -- '---\nsession-id: bs\\x\n---\n' > "$rigSp/s-odd/back\\slash.md"
-printf -- '---\nsession-id: nl\n---\n' > "$rigSp/s-odd/new${rigNl}line.md"
+printf -- '---\nsession-id: open\nstatus: no-close\n' > "$rigSp/s-odd/1-noclose.spawn.md"
+printf -- 'status: pre\n--- \n---\nstatus:\nstatus: started\nhost:  my  \t host \t\nowner:x\n:lead: y\nsession-id : bad\nspawn-id: abc\r\nexit-code: a:b: c\n---\nworkspace: post\n---\nworkspace: third\n---\n' > "$rigSp/s-odd/2-shapes.spawn.md"
+printf -- '---\r\nsession-id: crlf\r\n---\r\n' > "$rigSp/s-odd/3-crlf.spawn.md"
+printf -- '---\nsession-id: lastline-no-newline' > "$rigSp/s-odd/4-nonl.spawn.md"
+printf -- '---\nsession-id: eq\n---\n' > "$rigSp/s-odd/a=b.spawn.md"
+printf -- '---\nsession-id: dash\n---\n' > "$rigSp/s-odd/-.spawn.md"
+printf -- '---\nsession-id: bs\\x\n---\n' > "$rigSp/s-odd/back\\slash.spawn.md"
+printf -- '---\nsession-id: nl\n---\n' > "$rigSp/s-odd/new${rigNl}line.spawn.md"
 printf -- '---\nsession-id: sp\n---\n' > "$rigSp/s-odd/with space.md"
 printf -- '---\nsession-id: in-space-sandbox\n---\n' > "$rigSp/s space name/r.md"
-printf -- '---\nsession-id: in-backslash-sandbox\n---\n' > "$rigSp/s\\back/r.md"
-printf -- '---\nsession-id: in-newline-sandbox\n---\n' > "$rigSp/s${rigNl}nl/r.md"
-printf -- '---\nsession-id: unread\n---\n' > "$rigSp/s-unread/r.md"
-printf -- '---\nsession-id: read-after-unread\n---\n' > "$rigSp/s-unread/s.md"
-chmod 000 "$rigSp/s-unread/r.md"
+printf -- '---\nsession-id: in-backslash-sandbox\n---\n' > "$rigSp/s\\back/r.spawn.md"
+printf -- '---\nsession-id: in-newline-sandbox\n---\n' > "$rigSp/s${rigNl}nl/r.spawn.md"
+printf -- '---\nsession-id: unread\n---\n' > "$rigSp/s-unread/r.spawn.md"
+printf -- '---\nsession-id: read-after-unread\n---\n' > "$rigSp/s-unread/s.spawn.md"
+chmod 000 "$rigSp/s-unread/r.spawn.md"
 printf -- '---\nsession-id: via-link\n---\n' > "$rigTmp/real-sandbox/r.md"
 ln -s "$rigTmp/real-sandbox" "$rigSp/s-linked"
-ln -s "$rigTmp/real-sandbox/r.md" "$rigSp/s-links/linked.md"
-ln -s "$rigTmp/nowhere.md" "$rigSp/s-links/dangling.md"
+ln -s "$rigTmp/real-sandbox/r.md" "$rigSp/s-links/linked.spawn.md"
+ln -s "$rigTmp/nowhere.md" "$rigSp/s-links/dangling.spawn.md"
 ln -s "$rigTmp/nowhere" "$rigSp/s-dangling"
-printf 'x\n' > "$rigSp/not-a-dir.md"
+printf 'x\n' > "$rigSp/not-a-dir.spawn.md"
 ## The state of a session, kept in the session's own folder: of one session of this store, of one
 ## whose id holds a backslash, and one file that names no state.
 rigSt="$rigWs/.local/agents/sessions"
@@ -201,8 +201,8 @@ printf 'state: No State\nstate-at: 2026-10-13 11:00 +0300\n' > "$rigSt/s2/contro
 
 printf -- '---\nstatus: reply-pending\nsession-id: a1\nowner: magic-coordinator\ncommunication-channel-id: C1\n---\nq\n' > "$rigPend/ask-1.md"
 printf -- '---\nstatus: received\nsession-id: a2\nblocked-on: human\n---\n' > "$rigPend/ask-2.md"
-cp "$rigSp/s-odd/2-shapes.md" "$rigPend/ask-3-shapes.md"
-cp "$rigSp/s-odd/1-noclose.md" "$rigPend/ask-4-noclose.md"
+cp "$rigSp/s-odd/2-shapes.spawn.md" "$rigPend/ask-3-shapes.md"
+cp "$rigSp/s-odd/1-noclose.spawn.md" "$rigPend/ask-4-noclose.md"
 printf 'plain\n' > "$rigPend/ask-5-nofm.md"
 printf -- '---\nstatus: x\n---\n' > "$rigPend/ask\\6.md"
 printf -- '---\nstatus: y\n---\n' > "$rigPend/ask${rigNl}7.md"
@@ -265,7 +265,7 @@ rigFounder="rig-founder-$$" ; rigResumed="rig-resumed-$$" ; rigForked="rig-forke
 printf '9000001 Mon Oct 12 07:00:00 2026\n9000003 Mon Oct 12 09:30:00 2026\n' > "$rigTmp/ps.started"
 rigRec(){ ## sandbox, record, session-id, spawn-id, host, status
 	mkdir -p "$rigRSp/$1"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nstatus: %s\nowner: o\n---\n' "$3" "$4" "$5" "$6" > "$rigRSp/$1/$2.md"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nstatus: %s\nowner: o\n---\n' "$3" "$4" "$5" "$6" > "$rigRSp/$1/$2.spawn.md"
 }
 rigAsk(){ ## file, session-id, status
 	printf -- '---\nsession-id: %s\nstatus: %s\nowner: o\n---\n' "$2" "$3" > "$rigRWs/.local/agents/pending/$1.md"
@@ -288,7 +288,7 @@ rigRec r-forked-from a s-x "$rigForkedFrom" "$rigHost" started
 rigRec r-quoted a s-x "$rigQuoted" "$rigHost" started
 rigRecRun(){ ## sandbox, spawn-id, status, pid -- a record, named for its spawn as the launcher names it, that keeps the process its launch started, begun at 07:00:00
 	mkdir -p "$rigRSp/$1"
-	printf -- '---\nsession-id: s-x\nspawn-id: %s\nhost: %s\nstatus: %s\nowner: o\nrun-process: %s Mon_Oct_12_07:00:00_2026\n---\n' "$2" "$rigHost" "$3" "$4" > "$rigRSp/$1/$2.md"
+	printf -- '---\nsession-id: s-x\nspawn-id: %s\nhost: %s\nstatus: %s\nowner: o\nrun-process: %s Mon_Oct_12_07:00:00_2026\n---\n' "$2" "$rigHost" "$3" "$4" > "$rigRSp/$1/$2.spawn.md"
 }
 rigRecRun r-noword-live "$rigNo-noword-live" started 9000001
 rigRecRun r-noword-dead "$rigNo-noword-dead" started 9000002
@@ -376,9 +376,9 @@ rigDWs="$rigTmp/dated/ws"
 rigDSp="$rigDWs/.local/agents/spawned"
 rigDLive="rig-dated-live-$$"
 mkdir -p "$rigDSp/d-closed" "$rigDSp/d-empty" "$rigDSp/d-live" "$rigDSp/d-named" "$rigDWs/.local/agents/pending"
-printf -- '---\nsession-id: sd-closed\nspawn-id: pd-closed\nhost: elsewhere\nowner: o\nstatus: spawn-succeeded\nworkspace: wsd\nstarted-at: 2026-10-12 16:57 +0300\nresolved-at: 2026-10-12 17:40 +0300\n---\n' > "$rigDSp/d-closed/pd-closed.md"
-printf -- '---\nsession-id: sd-live\nspawn-id: %s\nhost: %s\nowner: o\nstatus: spawn-started\nworkspace: wsd\nstarted-at: 2026-10-13 09:05 +0300\n---\n' "$rigDLive" "$rigHost" > "$rigDSp/d-live/$rigDLive.md"
-printf -- '---\nsession-id: sd-named\nspawn-id: pd-named\nhost: elsewhere\nowner: o\nstatus: spawn-failed\nworkspace: wsd\nsession-comment: daily of Monday\n---\n' > "$rigDSp/d-named/pd-named.md"
+printf -- '---\nsession-id: sd-closed\nspawn-id: pd-closed\nhost: elsewhere\nowner: o\nstatus: spawn-succeeded\nworkspace: wsd\nstarted-at: 2026-10-12 16:57 +0300\nresolved-at: 2026-10-12 17:40 +0300\n---\n' > "$rigDSp/d-closed/pd-closed.spawn.md"
+printf -- '---\nsession-id: sd-live\nspawn-id: %s\nhost: %s\nowner: o\nstatus: spawn-started\nworkspace: wsd\nstarted-at: 2026-10-13 09:05 +0300\n---\n' "$rigDLive" "$rigHost" > "$rigDSp/d-live/$rigDLive.spawn.md"
+printf -- '---\nsession-id: sd-named\nspawn-id: pd-named\nhost: elsewhere\nowner: o\nstatus: spawn-failed\nworkspace: wsd\nsession-comment: daily of Monday\n---\n' > "$rigDSp/d-named/pd-named.spawn.md"
 rigRun AgentsToolsRegistrySpawnedSessionsRows "$rigDWs" "" "$rigTmp/dated.rows" > /dev/null
 rigDatedRow(){ ## tracking name -- its row of the rows function, whole
 	LC_ALL=C awk -v wantTracking="$1" '$1 == wantTracking { print ; exit ; }' "$rigTmp/dated.rows"
@@ -409,7 +409,7 @@ rigSLive="rig-stated-live-$$"
 mkdir -p "$rigSSp/t-empty" "$rigSWs/.local/agents/pending"
 rigStatedRec(){ ## sandbox, record name, session id, spawn id, host, status
 	mkdir -p "$rigSSp/$1"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nowner: o\nstatus: %s\nworkspace: wss\nstarted-at: 2026-10-13 10:00 +0300\nsession-comment: stated one\n---\n' "$3" "$4" "$5" "$6" > "$rigSSp/$1/$2.md"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nowner: o\nstatus: %s\nworkspace: wss\nstarted-at: 2026-10-13 10:00 +0300\nsession-comment: stated one\n---\n' "$3" "$4" "$5" "$6" > "$rigSSp/$1/$2.spawn.md"
 }
 rigStatedFile(){ ## session id, the text of its state file
 	mkdir -p "$rigSSt/$1/control" && printf '%s' "$2" > "$rigSSt/$1/control/state"
@@ -459,7 +459,7 @@ rigAssert "after the next rebuild it holds finished, with the new date" "$( rigS
 ## Only a caller that asks for the wider row gets it: the awk of the rows, asked as a reader that
 ## loaded its code before these columns asks it, over the same records and the same state file.
 rigStatedAwk(){ ## the count of columns asked for ("" for none) -- how many columns each row of the two records and the empty sandbox has, and the last column of the first
-	printf 'T%s\nDt-founder\nS%s\nDt-member\nS%s\nDt-empty\nE\n' "$rigSSt/st-run/control/state" "$rigSSp/t-founder/$rigSLive.md" "$rigSSp/t-member/pt-member.md" \
+	printf 'T%s\nDt-founder\nS%s\nDt-member\nS%s\nDt-empty\nE\n' "$rigSSt/st-run/control/state" "$rigSSp/t-founder/$rigSLive.spawn.md" "$rigSSp/t-member/pt-member.spawn.md" \
 		| LC_ALL=C awk -v registryRows=spawned ${1:+-v registryColumns="$1"} -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" \
 		| LC_ALL=C awk '{ printf "%s ", NF } NR == 1 { last = $NF } END { print last }'
 }

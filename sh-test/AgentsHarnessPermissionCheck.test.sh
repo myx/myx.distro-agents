@@ -627,7 +627,7 @@ printf 'magic-developer:ws:workspace:Edit(/%s/**)\n' "$rigScenarioDir/ws" >> "$r
 rigLiveSpawn="rig-live-developer-$$"
 mkdir -p "$rigScenarioDir/ws/.local/agents/spawned/rig-session"
 printf -- '---\nsession-id: rig-session\nspawn-id: %s\nhost: %s\nowner: magic-developer\nstatus: spawn-started\n---\n\n# Spawn session\n' \
-	"$rigLiveSpawn" "$( hostname -s 2>/dev/null || echo unknown )" > "$rigScenarioDir/ws/.local/agents/spawned/rig-session/$rigLiveSpawn.md"
+	"$rigLiveSpawn" "$( hostname -s 2>/dev/null || echo unknown )" > "$rigScenarioDir/ws/.local/agents/spawned/rig-session/$rigLiveSpawn.spawn.md"
 printf '900001 rig-run --session-id %s\n' "$rigLiveSpawn" >> "$rigTmp/ps.list"
 rigTarget="$rigScenarioDir/ws/OUT/b.txt"
 rigWriteCall rig-session "$rigTarget" > /dev/null
@@ -641,7 +641,7 @@ rigAssert "the coordinator's member form is the addressee's only" "$( rigHolds "
 ## The asking run reports to the coordinator, which so holds the authority to answer its
 ## questions on another's behalf (F6.10, AgentsTools.Authority.include).
 printf -- '---\nsession-id: rig-session\nspawn-id: rig-session\nhost: %s\nowner: %s\nreports-to: magic-coordinator\nstatus: spawn-started\n---\n\n# Spawn session\n' \
-	"$( hostname -s 2>/dev/null || echo unknown )" "$rigMember" > "$rigScenarioDir/ws/.local/agents/spawned/rig-session/rig-session.md"
+	"$( hostname -s 2>/dev/null || echo unknown )" "$rigMember" > "$rigScenarioDir/ws/.local/agents/spawned/rig-session/rig-session.spawn.md"
 rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-once
 rigAssert "its own form answers on the addressee's behalf" "$( rigHolds "$rigScenarioDir/op.out" "ESCALATION: $rigPending answered" )" yes
 rigAssert "signed by the coordinator, with the grant"      "$( rigHolds "$rigScenarioDir/op.out" 'ANSWERED-BY: magic-coordinator' ):$( rigHolds "$rigScenarioDir/op.out" "GRANT: once $rigIdB" )" "yes:yes"

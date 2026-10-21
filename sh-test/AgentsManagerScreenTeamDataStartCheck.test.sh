@@ -75,7 +75,7 @@ at @magic-team
 turn
 rowids rig
 RIGSCRIPT
-rigAssert "a team rig whose team data is there: the screen starts at Manuals, and Team Data stands in Magic-Team (Agents)" "$( rigVal start.selected ) $( rigVal rig )" "manuals .. activity pending team teamdata"
+rigAssert "a team rig whose team data is there: the screen starts at Manuals, and Team Data stands in Magic-Team (Agents)" "$( rigVal start.selected ) $( rigVal rig )" "manuals .. activity pending team teamdata routines"
 rigAssert "it was read at the start, by the block of the team data alone" "$( rigReads )" "1"
 rigCase agents just-agents yes
 rigScript <<'RIGSCRIPT'
@@ -84,7 +84,7 @@ at @magic-team
 turn
 rowids agents
 RIGSCRIPT
-rigAssert "a workspace that is just agents does not show it, though the folder of the team data is there" "$( rigVal agents )" ".. activity pending team"
+rigAssert "a workspace that is just agents does not show it, though the folder of the team data is there" "$( rigVal agents )" ".. activity pending team routines"
 rigCase nodata team-rig no
 rigScript <<'RIGSCRIPT'
 wait here 10
@@ -92,7 +92,7 @@ at @magic-team
 turn
 rowids nodata
 RIGSCRIPT
-rigAssert "a team rig whose team data is not there does not show it" "$( rigVal nodata )" ".. activity pending team"
+rigAssert "a team rig whose team data is not there does not show it" "$( rigVal nodata )" ".. activity pending team routines"
 
 echo "-- 2. decided again: a refresh, and the end of a command --"
 rigDashboard just-agents yes > "$rigTmp/dash.agents"
@@ -113,7 +113,7 @@ keys u
 wait here 10
 rowids cleared
 RIGSCRIPT
-rigAssert "a workspace set to a team rig after the screen started shows Team Data at the refresh, with no restart, and cleared of it hides it at the next" "$( rigVal before ) / $( rigVal after ) / $( rigVal cleared )" ".. activity pending team / .. activity pending team teamdata / .. activity pending team"
+rigAssert "a workspace set to a team rig after the screen started shows Team Data at the refresh, with no restart, and cleared of it hides it at the next" "$( rigVal before ) / $( rigVal after ) / $( rigVal cleared )" ".. activity pending team routines / .. activity pending team teamdata routines / .. activity pending team routines"
 ## the end of a command: the one that Team Data runs writes what a wizard writes, the settings, here the answer of the tooling
 rigCase run team-rig yes
 printf 'script purge.sh\n' > "$MANAGER_SCREEN_RIG/mode.--owner-cleanup-purge"
@@ -141,7 +141,7 @@ at @magic-team
 turn
 rowids end
 RIGSCRIPT
-rigAssert "it runs a command of Team Data, which sets the workspace to just agents as it ends: the dialog is OK alone, and when it is closed the root is gone" "$( rigVal inside.path ) $( rigVal ended.dialog ) / $( rigVal end )" "magic-team/teamdata/operations output:ok| / .. activity pending team"
+rigAssert "it runs a command of Team Data, which sets the workspace to just agents as it ends: the dialog is OK alone, and when it is closed the root is gone" "$( rigVal inside.path ) $( rigVal ended.dialog ) / $( rigVal end )" "magic-team/teamdata/operations output:ok| / .. activity pending team routines"
 rigAssert "the end of the command asked for the block again, once more than the start and no refresh did" "$( rigReads )" "2"
 
 if [ "$rigFailCount" -ne 0 ] ; then

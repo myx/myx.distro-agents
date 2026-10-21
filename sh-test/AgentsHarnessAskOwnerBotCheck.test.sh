@@ -390,7 +390,7 @@ rigRoutedPath="/dev/null/rig-askbot/routed"
 rigSpawnRecord(){ ## spawn id, owner
 	mkdir -p "$rigScenarioDir/ws/.local/agents/spawned/$rigCow"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nowner: %s\nstatus: spawn-started\n---\n\n# Spawn session\n' \
-		"$rigCow" "$1" "$rigHost" "$2" > "$rigScenarioDir/ws/.local/agents/spawned/$rigCow/$1.md"
+		"$rigCow" "$1" "$rigHost" "$2" > "$rigScenarioDir/ws/.local/agents/spawned/$rigCow/$1.spawn.md"
 }
 ## A live run of one spawn: a line of the rig's own process list that carries its spawn id.
 rigLive(){ ## spawn id

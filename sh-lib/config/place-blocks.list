@@ -1,0 +1,10 @@
+## The blocks of myx.distro-agents in `Locations (Places)`, declared once (F11.10 of the refactorings epic): a block a line, TAB-separated, read as plain text by
+## `--manager-place-list` and `--manager-place-read` (myx.distro-.local, sh-lib/manager/LocalTools.ManagerPlace.include), so what this console adds is known with no python.
+##   block  <kind>  <reader>  <include>
+##       <kind> is what the reader writes: `sessions` (the registry of the sessions of this workspace, as a path, from which the sessions that name a workspace are counted), `stands`
+##       (rows of what stands in a place that the agents know) and `members` (the members that belong to a place); <reader> is a function of <include>, a file under myx/.
+##       The readers of this package are in sh-lib/manager/AgentsTools.ManagerPlaceBlocks.include and AgentsTools.ManagerPlaceMembers.include.
+
+block	sessions	AgentsToolsManagerPlaceSessions	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerPlaceBlocks.include
+block	stands	AgentsToolsManagerPlaceStands	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerPlaceBlocks.include
+block	members	AgentsToolsManagerPlaceMembers	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerPlaceMembers.include

@@ -130,9 +130,9 @@ case "$1" in
 		## The runs with a spawn record here: an item in review that names no reviewer falls to where its run reports to.
 		local mrRunsFile="" mrRunRecord
 		mkdir -p "$MMDAPP/.local/temp" 2> /dev/null && mrRunsFile="$( mktemp "$MMDAPP/.local/temp/mdat-morning-review-runs.XXXXXX" )" || mrRunsFile=""
-		[ -z "$mrRunsFile" ] || for mrRunRecord in "$MMDAPP"/.local/agents/spawned/*/*.md ; do
+		[ -z "$mrRunsFile" ] || for mrRunRecord in "$MMDAPP"/.local/agents/spawned/*/*.spawn.md ; do
 			[ -f "$mrRunRecord" ] || continue
-			mrRunRecord="${mrRunRecord##*/}" ; printf '%s\n' "${mrRunRecord%.md}"
+			mrRunRecord="${mrRunRecord##*/}" ; printf '%s\n' "${mrRunRecord%.spawn.md}"
 		done > "$mrRunsFile"
 		if mrShapeEndedFile="$mrEndedFile" mrShapeRunsFile="$mrRunsFile" LC_ALL=C awk -v cap="$mrSampleCap" -v width=100 \
 			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsMorningReviewStateShape.awk" \

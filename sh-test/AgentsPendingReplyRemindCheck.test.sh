@@ -342,7 +342,7 @@ rigThreadOf(){ ## id
 ## A spawn record: that session took part in that coworking session.
 rigSpawn(){ ## coworking session id, spawn id, owner
 	mkdir -p "$rigScenarioDir/ws/.local/agents/spawned/$1"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\nowner: %s\nstatus: spawn-succeeded\n---\n' "$1" "$2" "$3" > "$rigScenarioDir/ws/.local/agents/spawned/$1/$2.md"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nowner: %s\nstatus: spawn-succeeded\n---\n' "$1" "$2" "$3" > "$rigScenarioDir/ws/.local/agents/spawned/$1/$2.spawn.md"
 }
 
 echo "-- the thread: a question that is a root post is reminded under that post --"

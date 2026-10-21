@@ -115,7 +115,7 @@ printf '%s\t%s\t%s\t%s\t%s\n' rig-ws workspace read-write "$rigWs" workspace > "
 rigHost="$( hostname -s 2>/dev/null || echo unknown )"
 rigSetRecord(){ ## spawn id, owner, further header lines (may be empty)
 	printf -- '---\nsession-id: rig-set\nspawn-id: %s\nowner: %s\nhost: %s\ndescription: rig\n%sstatus: spawn-started\n---\n\n# Spawn session\n' \
-		"$1" "$2" "$rigHost" "${3:-}" > "$rigWs/.local/agents/spawned/rig-set/$1.md"
+		"$1" "$2" "$rigHost" "${3:-}" > "$rigWs/.local/agents/spawned/rig-set/$1.spawn.md"
 }
 rigSetRecord rig-set magic-coordinator $'session-thread: CRIG00001:1700000000.000500\n'
 rigSetRecord rig-set-dev magic-developer
@@ -398,7 +398,7 @@ revStart(){ ## scenario name
 	printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: %s\ntracks: task-20261012T0000Z-%s\nreview-by: human-owner\n---\n\n# rig dispatch\n' \
 		"$revSpawn" "$1" > "$revData/board/running/$revItem.md"
 	printf -- '---\nsession-id: 5e55104a-rig-%s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-started\nsession-thread: CSES00001:1700000000.000100\nspawns: %s\ndescription: rework the rig widget\n---\n' \
-		"$1" "$revSpawn" "$revSpawn" "$rigHost" "$revItem" > "$revWs/.local/agents/spawned/$revSpawn/$revSpawn.md"
+		"$1" "$revSpawn" "$revSpawn" "$rigHost" "$revItem" > "$revWs/.local/agents/spawned/$revSpawn/$revSpawn.spawn.md"
 	: > "$revDir/transcript.log"
 	printf '%s\n' "$revDir/transcript.log" > "$revWs/.local/agents/sessions/$revSpawn/transcript"
 	bash -c 'sleep 600 ; :' "$revSpawn" > /dev/null 2>&1 < /dev/null &

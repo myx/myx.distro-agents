@@ -88,7 +88,7 @@ rigSpawn(){ ## routine short name, create|none
 			cd "$MMDAPP" && exec bash "$RIG_FN" --intern-op-agent-spawn-proxy "$@"
 		' rig-tracking keeper-rig --routine "$1" --session-new "--dispatch-doc:$2" --wait <<< "RIG-TASK-TEXT" > "$rigTmp/spawn.out" 2>&1 || rigRc=$?
 	rigItems="$( find "$rigData/board" -type f -name '*.md' 2> /dev/null | LC_ALL=C grep -c . )"
-	rigLinked="$( LC_ALL=C sed -n 's/^spawns: //p' "$rigWs"/.local/agents/spawned/*/*.md 2> /dev/null | head -1 )"
+	rigLinked="$( LC_ALL=C sed -n 's/^spawns: //p' "$rigWs"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | head -1 )"
 	rigBriefed="$( [ -e "$rigTmp/brief.keeper-rig" ] && echo briefed || echo none )"
 }
 rigLinkedIsItem(){ ## -- `linked` where the record's spawns: names an item of the board

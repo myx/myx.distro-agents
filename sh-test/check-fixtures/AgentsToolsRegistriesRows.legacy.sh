@@ -59,7 +59,7 @@ AgentsToolsRegistryLegacySpawnedSessionsRows(){
 		rowTracking="${sandboxDir%/}"
 		rowTracking="${rowTracking##*/}"
 		sawRecord="false"
-		for sessionFile in "$sandboxDir"*.md ; do
+		for sessionFile in "$sandboxDir"*.spawn.md ; do
 			[ -f "$sessionFile" ] || continue
 			sawRecord="true"
 			headerText="$( AgentsToolsRegistryLegacyFrontmatter "$sessionFile" )"
@@ -170,7 +170,7 @@ AgentsToolsRegistryLegacyRunsAs(){ ## process list text (`<pid> <command line>` 
 ## AgentsToolsRegistryRecordedRunAlive states: that pid, started at that time.
 AgentsToolsRegistryLegacyRecordedRun(){ ## spawn id
 	local runRecord runNamed runNow
-	for runRecord in "$MMDAPP/.local/agents/spawned"/*/"$1.md" ; do
+	for runRecord in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
 		[ -f "$runRecord" ] || continue
 		runNamed="$( AgentsToolsRegistryLegacyHeader "$( AgentsToolsRegistryLegacyFrontmatter "$runRecord" )" run-process )"
 		## The header reader gives the value as one word: the pid, then the start, joined by `_`.

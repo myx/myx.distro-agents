@@ -127,10 +127,10 @@ rigAgent(){ ## tool argument JSON
 	sleep 1
 }
 rigRecord(){ ## spawn session id -> its record's conversation-threads value
-	LC_ALL=C awk '/^conversation-threads: /{ print substr( $0, 23 ) ; exit ; }' "$rigWs"/.local/agents/spawned/*/"$1".md 2>/dev/null
+	LC_ALL=C awk '/^conversation-threads: /{ print substr( $0, 23 ) ; exit ; }' "$rigWs"/.local/agents/spawned/*/"$1".spawn.md 2>/dev/null
 }
 rigSpawnId(){ ## proxy output -> the spawn id of the newest record
-	ls -t "$rigWs"/.local/agents/spawned/*/*.md 2>/dev/null | head -1 | sed 's|.*/||; s|\.md$||'
+	ls -t "$rigWs"/.local/agents/spawned/*/*.spawn.md 2>/dev/null | head -1 | sed 's|.*/||; s|\.spawn\.md$||'
 }
 
 echo "-- --conversation: brief, record, env, default Wait, capped history --"
@@ -166,7 +166,7 @@ echo "-- a thread that is a known session's own joins that session --"
 mkdir -p "$rigWs/.local/agents/spawned/rig-old-session"
 printf '%s\n' '---' 'session-id: rig-old-session' 'spawn-id: rig-old-session' 'parent-spawn-id: none' 'tracking-name: rig-old-session' \
 	"host: $( hostname -s )" 'workspace: ws' 'owner: keeper-myx' 'status: spawn-failed' 'session-thread: DRIGOLD:200.000001' '---' \
-	> "$rigWs/.local/agents/spawned/rig-old-session/rig-old-session.md"
+	> "$rigWs/.local/agents/spawned/rig-old-session/rig-old-session.spawn.md"
 rigOut="$( rigSpawn "RIG-JOIN-TASK" --conversation DRIGOLD:200.000001 )"
 rigAssert "joins the replaced session"                    "$( printf '%s\n' "$rigOut" | grep '^SESSION_ID=' )" "SESSION_ID=rig-old-session"
 rigAssert "in its own thread"                             "$( printf '%s\n' "$rigOut" | grep '^SESSION_THREAD=' )" "SESSION_THREAD=DRIGOLD:200.000001"

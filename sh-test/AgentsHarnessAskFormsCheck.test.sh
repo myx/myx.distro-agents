@@ -976,7 +976,7 @@ rigAssert "a thread recorded for a session that has one changes nothing, and the
 rigTrackStart track-from-spawn-record
 mkdir -p "$rigScenarioDir/ws/.local/agents/spawned/rig-box"
 printf -- '---\nsession-id: rig-box\nspawn-id: rig-forms-track-from-spawn-record\nowner: %s\nstatus: spawn-started\nagent-log-thread: CRIGTRACK:1700000001.000080\n---\n\n# Spawn session\n' "$rigMember" \
-	> "$rigScenarioDir/ws/.local/agents/spawned/rig-box/rig-forms-track-from-spawn-record.md"
+	> "$rigScenarioDir/ws/.local/agents/spawned/rig-box/rig-forms-track-from-spawn-record.spawn.md"
 rigCall 60 Write "{\"path\":\"/dev/null/rig-forms/track-from-spawn-record\",\"content\":\"x\"}"
 rigAssert "a session with its thread in its spawn record alone: the refusal is a reply in that thread" "$( rigHolds "$rigScenarioDir/post.1" '"thread_ts":"1700000001.000080"' )" yes
 rigCall 60 Write "{\"path\":\"/dev/null/rig-forms/track-from-spawn-record-b\",\"content\":\"x\"}"

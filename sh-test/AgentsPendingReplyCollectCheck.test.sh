@@ -232,12 +232,12 @@ rigSpawnRecords(){ ## parent id for the child record, the parent's thread (empty
 	local childLines=""
 	[ "$1" = none ] || childLines="parent-session-id: $1"$'\n'
 	[ -z "${3:-}" ] || childLines="$childLines$rigReportsTo: $3"$'\n'
-	printf -- '---\nspawn-id: rig-child-id\nparent-spawn-id: %s\n%s---\n' "$1" "$childLines" > "$spawnDir/child-folder/rig-child-id.md"
+	printf -- '---\nspawn-id: rig-child-id\nparent-spawn-id: %s\n%s---\n' "$1" "$childLines" > "$spawnDir/child-folder/rig-child-id.spawn.md"
 	printf '%s\n' 'CCHILD01:1700000002.000202' > "$spawnDir/child-folder/session.thread"
 	printf -- '---\nsession-id: rig-parent-id\nspawn-id: rig-parent-id\nparent-spawn-id: none\nowner: magic-coordinator\nstatus: spawn-started\n%s---\n' "${2:+session-thread: $2
-}" > "$spawnDir/parent-folder/rig-parent-id.md"
+}" > "$spawnDir/parent-folder/rig-parent-id.spawn.md"
 	printf '%s\n' 'CWRONG01:1.1' > "$spawnDir/parent-folder/session.thread"
-	printf -- '---\nspawn-id: rig-parent-id-extra\nparent-spawn-id: none\nsession-thread: CWRONG01:1.1\n---\n' > "$spawnDir/prefix-folder/rig-parent-id-extra.md"
+	printf -- '---\nspawn-id: rig-parent-id-extra\nparent-spawn-id: none\nsession-thread: CWRONG01:1.1\n---\n' > "$spawnDir/prefix-folder/rig-parent-id-extra.spawn.md"
 }
 rigCall(){ ## tool name, arguments JSON
 	printf '%s' "$2" | rigEnv env -u MDAT_SESSION_THREAD MDAT_SPAWN_SESSION_ID=rig-child-id MDAT_SPAWN_AGENT="$rigMember" MDAT_SKILLSET_ROOT="$MDAT_SKILLSET_ROOT" \
@@ -291,7 +291,7 @@ rigCall SubagentHandback '{"outcome":"x"}'
 rigAssert "a person: the human-owner's conversation, never the parent session's thread" "$( rigPosts ):$( rigPostedTo URIGOWNER '' ):$( rigHolds "$rigScenarioDir/post.1" 'CPARENT1' )" "1:yes:no"
 rigStart hbReportsSession
 rigSpawnRecords none "" rig-parent-id:keeper-myx
-printf -- '---\nsession-id: rig-parent-id\nspawn-id: rig-parent-id\nparent-spawn-id: none\nowner: magic-coordinator\nstatus: spawn-started\nsession-thread: CPARENT1:1700000001.000101\n---\n' > "$rigScenarioDir/ws/.local/agents/spawned/parent-folder/rig-parent-id.md"
+printf -- '---\nsession-id: rig-parent-id\nspawn-id: rig-parent-id\nparent-spawn-id: none\nowner: magic-coordinator\nstatus: spawn-started\nsession-thread: CPARENT1:1700000001.000101\n---\n' > "$rigScenarioDir/ws/.local/agents/spawned/parent-folder/rig-parent-id.spawn.md"
 rigCall SubagentHandback '{"outcome":"x"}'
 rigAssert "a session: its thread, with no parent session recorded" "$( rigPosts ):$( rigPostedTo CPARENT1 1700000001.000101 )" "1:yes"
 rigStart hbReportsMember
@@ -426,7 +426,7 @@ rigLinked(){ ## id, question ts, tag, session
 rigSpawnSession(){ ## session, status, spawn id
 	mkdir -p "$rigScenarioDir/ws/.local/agents/spawned/$1"
 	printf -- '---\nsession-id: %s\nparent-spawn-id: none\nhost: %s\nowner: %s\nstatus: %s\nspawn-id: %s\n---\n' "$1" "$( hostname -s )" "$rigMember" "$2" "$3" \
-		> "$rigScenarioDir/ws/.local/agents/spawned/$1/$3.md"
+		> "$rigScenarioDir/ws/.local/agents/spawned/$1/$3.spawn.md"
 }
 rigDecisionLines(){
 	LC_ALL=C awk '/^## Decisions[ \t]*$/ { on = 1 ; next } on && /^##? / { on = 0 } on && /^- / { n++ } END { print n + 0 }' "$rigScenarioDir/data/board/blocked/$rigLiveItem.md"

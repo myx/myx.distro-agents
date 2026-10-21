@@ -102,7 +102,7 @@ rigAssert(){ ## what is asserted, got, want
 rigRec(){ ## sandbox, record name, session id, spawn id, host, status, more frontmatter lines (may be empty)
 	mkdir -p "$rigSp/$1"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: keeper-rig\nstatus: %s\nstarted-at: 2026-10-13 09:00 +0300\n%s---\n\n# Spawn session: %s\n' \
-		"$3" "$4" "$5" "$6" "${7:-}" "$3" > "$rigSp/$1/$2.md.rig" && mv -f "$rigSp/$1/$2.md.rig" "$rigSp/$1/$2.md"
+		"$3" "$4" "$5" "$6" "${7:-}" "$3" > "$rigSp/$1/$2.md.rig" && mv -f "$rigSp/$1/$2.md.rig" "$rigSp/$1/$2.spawn.md"
 }
 rigClosed='resolved-at: 2026-10-13 09:30 +0300
 '

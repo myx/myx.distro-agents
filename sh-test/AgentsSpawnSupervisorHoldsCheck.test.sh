@@ -191,7 +191,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'rigLaunch=first ; [ -z "${MDAT_SPAWN_RESUME:-}" ] || rigLaunch=retry' \
 	'[ -z "${MDAT_HARNESS_RESUME_CONTEXT:-}" ] || { rigLaunch=resume ; : > "$MDAT_HARNESS_RESUME_MARKER" ; }' \
 	'[ -e "$RIG_SCENARIO/no-launch-marker" ] || printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' \
-	'printf "%s\n" "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.md" > "$RIG_SCENARIO/record"' \
+	'printf "%s\n" "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.spawn.md" > "$RIG_SCENARIO/record"' \
 	". '$rigHelper' 2> /dev/null && rigProcNoteFile \"\$RIG_SCENARIO/\$rigLaunch.began\" \$\$" \
 	'rigLeft=120' \
 	'while [ "$rigLeft" -gt 0 ] && [ ! -e "$RIG_SCENARIO/release-$rigLaunch" ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done' \
@@ -309,7 +309,7 @@ rigStart(){ ## scenario, the launches that leave a handback (first, retry; a spa
 	[ -n "$rigItem" ] || rigRefuse "the proxy named no dispatch item in scenario $1"
 	printf '%s.md\n' "$rigItem" > "$rigDir/item"
 	rigRunStarted "$1" first
-	rigLog="$rigWs/.local/agents/sessions/$( basename "$rigRecord" .md )/session.log"
+	rigLog="$rigWs/.local/agents/sessions/$( basename "$rigRecord" .spawn.md )/session.log"
 }
 rigHeldSaid(){ ## signal -- how many lines of the run's log say that the shell held it
 	LC_ALL=C grep -c -F "was sent $1 before its close was done" "$rigLog" 2> /dev/null || :

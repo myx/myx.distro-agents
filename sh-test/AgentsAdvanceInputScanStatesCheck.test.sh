@@ -221,7 +221,7 @@ rigSandbox(){ ## session id, host, status, extra header lines -- a sandbox with 
 		printf -- '---\nsession-id: %s\nspawn-id: %s\ntracking-name: %s\nhost: %s\nowner: rig-member\nstatus: %s\nspawns: dispatch-%s\n' "$1" "$1" "$1" "$2" "$3" "$1"
 		[ -z "${4:-}" ] || printf '%s\n' "$4"
 		printf -- '---\n'
-	} > "$sbDir/$1.md"
+	} > "$sbDir/$1.spawn.md"
 }
 rigDone(){ ## session id, exit code, armed, extra header lines -- a closed record on this host
 	rigSandbox "$1" "$rigHost" spawn-succeeded "exit-code: $2"$'\n'"armed: $3${4:+$'\n'$4}"
@@ -332,7 +332,7 @@ rigSandbox rig-live "$rigHost" spawn-started ; rigDispatch rig-live dispatch-sta
 rigSandbox rig-fdead rig-elsewhere spawn-started ; rigDispatch rig-fdead dispatch-started ; rigAge "$( rigDir rig-fdead )" 48
 rigSandbox rig-falive rig-elsewhere spawn-started ; rigDispatch rig-falive dispatch-started ; rigAge "$( rigDir rig-falive )" 1
 mkdir -p "$( rigDir rig-nospawn )/input"
-printf -- '---\nsession-id: rig-nospawn\ntracking-name: rig-nospawn\nhost: %s\nowner: rig-member\nstatus: spawn-started\nspawns: dispatch-rig-nospawn\n---\n' "$rigHost" > "$( rigDir rig-nospawn )/rig-nospawn.md"
+printf -- '---\nsession-id: rig-nospawn\ntracking-name: rig-nospawn\nhost: %s\nowner: rig-member\nstatus: spawn-started\nspawns: dispatch-rig-nospawn\n---\n' "$rigHost" > "$( rigDir rig-nospawn )/rig-nospawn.spawn.md"
 rigItem running dispatch-rig-nospawn.md dispatch dispatch-started none none ; rigAge "$( rigDir rig-nospawn )" 48
 rigSandbox rig-lask "$rigHost" spawn-started ; rigDispatch rig-lask dispatch-started ; rigAge "$( rigDir rig-lask )" 48
 mkdir -p "$rigW/.local/agents/pending"
@@ -341,7 +341,7 @@ rigSandbox rig-crec "$rigHost" spawn-succeeded "exit-code: 0" ; rigDispatch rig-
 rigItem running dispatch-rig-norec-old.md dispatch dispatch-started none rig-norec-old ; touch -t "$( rigStamp 48 )" "$rigD/board/running/dispatch-rig-norec-old.md"
 rigItem running dispatch-rig-norec-new.md dispatch dispatch-started none rig-norec-new
 mkdir -p "$( rigDir rig-sb )/input"
-printf -- '---\nsession-id: rig-sb\nspawn-id: rig-sb\ntracking-name: rig-sb\nhost: %s\nowner: rig-member\nstatus: spawn-started\nspawned-by: task-rig-sb\n---\n' "$rigHost" > "$( rigDir rig-sb )/rig-sb.md"
+printf -- '---\nsession-id: rig-sb\nspawn-id: rig-sb\ntracking-name: rig-sb\nhost: %s\nowner: rig-member\nstatus: spawn-started\nspawned-by: task-rig-sb\n---\n' "$rigHost" > "$( rigDir rig-sb )/rig-sb.spawn.md"
 rigItem running task-rig-sb.md task dispatch-started none none ; rigAge "$( rigDir rig-sb )" 48
 rigSandbox rig-l30 "$rigHost" spawn-started ; rigDispatch rig-l30 dispatch-started ; rigAgeMin "$( rigDir rig-l30 )" 30
 rigSandbox rig-l5 "$rigHost" spawn-started ; rigDispatch rig-l5 dispatch-started ; rigAgeMin "$( rigDir rig-l5 )" 5
@@ -351,15 +351,15 @@ rigSandbox rig-sessnew "$rigHost" spawn-started ; rigDispatch rig-sessnew dispat
 mkdir -p "$rigW/.local/agents/sessions/rig-sessnew" ; : > "$rigW/.local/agents/sessions/rig-sessnew/log.txt" ; rigAgeMin "$rigW/.local/agents/sessions/rig-sessnew" 5
 rigSandbox rig-ldeadrb "$rigHost" spawn-started ; rigItem running dispatch-rig-ldeadrb.md dispatch dispatch-started rig-ldeadrb rig-ldeadrb ; rigAge "$( rigDir rig-ldeadrb )" 48
 for rigId in rig-lfresh rig-live rig-falive rig-nospawn rig-lask rig-crec ; do
-	printf '%s %s\n' "$rigId" "$( rigSum "$( rigDir "$rigId" )/$rigId.md" )"
+	printf '%s %s\n' "$rigId" "$( rigSum "$( rigDir "$rigId" )/$rigId.spawn.md" )"
 done > "$rigTmp/b2.sums0"
 rigPass "$rigTmp/b2.s1" ; rigSnap b2 > "$rigTmp/b2.snap1"
 for rigId in rig-lfresh rig-live rig-falive rig-nospawn rig-lask rig-crec ; do
-	printf '%s %s\n' "$rigId" "$( rigSum "$( rigDir "$rigId" )/$rigId.md" )"
+	printf '%s %s\n' "$rigId" "$( rigSum "$( rigDir "$rigId" )/$rigId.spawn.md" )"
 done > "$rigTmp/b2.sums1"
 rigPass "$rigTmp/b2.s2" ; rigSnap b2 > "$rigTmp/b2.snap2"
 rigRec(){ ## session id -- that session's record file
-	printf '%s\n' "$( rigDir "$1" )/$1.md"
+	printf '%s\n' "$( rigDir "$1" )/$1.spawn.md"
 }
 rigItemFile(){ ## item filename -- that item's file in whichever state holds it
 	printf '%s\n' "$rigD/board/$( rigLoc "$1" )/$1"
@@ -590,7 +590,7 @@ printf '# rig armed\n' > "$rigTmp/b10/skills/rig-member/rig-member.armed.md"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigTmp/b10/skills/rig-member/rig-member.basic.md"
 ## A stand-in console stays until the launcher has kept it on the record (rigKept), five seconds at most: one that
 ## ends at once is gone before the launcher can read when it began, however it was started.
-rigKept='rigKeptNo=0 ; while [ "$rigKeptNo" -lt 50 ] && ! grep -q "^run-process: " "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.md" 2> /dev/null ; do rigKeptNo=$(( rigKeptNo + 1 )) ; sleep 0.1 ; done'
+rigKept='rigKeptNo=0 ; while [ "$rigKeptNo" -lt 50 ] && ! grep -q "^run-process: " "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.spawn.md" 2> /dev/null ; do rigKeptNo=$(( rigKeptNo + 1 )) ; sleep 0.1 ; done'
 printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\n%s\nif [ -e /dev/fd/4 ] ; then echo open > "%s/b10/fd4.seen" ; else echo closed > "%s/b10/fd4.seen" ; fi\necho deliverable > "$MDAT_SPAWN_SANDBOX_ROOT/output/result.txt"\n' "$rigKept" "$rigTmp" "$rigTmp" > "$rigW/DistroAgentsConsole.sh"
 chmod +x "$rigW/DistroAgentsConsole.sh"
 printf 'Work on rigrepo/rigpkg/file.sh following rig-member.armed.md.\n' \
@@ -606,7 +606,7 @@ printf 'Work on rigrepo/rigpkg/file.sh following rig-member.armed.md.\n' \
 printf '#!/bin/sh\nif [ -e /dev/fd/4 ] ; then echo open ; else echo closed ; fi\n' > "$rigTmp/b10/probe.sh" ; chmod +x "$rigTmp/b10/probe.sh"
 rigCheck "control: a child started with fd 4 open does list it"          "$( bash -c 'exec 4> "$1" ; "$2"' rig "$rigTmp/b10/fd4.ctl" "$rigTmp/b10/probe.sh" )" open
 rigCheck "a console launched by the spawn proxy, with fd 4 open in its caller, does not"  "$( cat "$rigTmp/b10/fd4.seen" )" closed
-rigCheck "the launcher kept the process it started on the spawn's record, its pid and when it began" "$( LC_ALL=C grep -l -E '^run-process: [0-9]+ [^ ]+$' "$rigSp"/*/*.md 2> /dev/null | wc -l | tr -d ' ' )" 1
+rigCheck "the launcher kept the process it started on the spawn's record, its pid and when it began" "$( LC_ALL=C grep -l -E '^run-process: [0-9]+ [^ ]+$' "$rigSp"/*/*.spawn.md 2> /dev/null | wc -l | tr -d ' ' )" 1
 rm -f "$rigTmp/b10/fd4.seen"
 printf 'Work on rigrepo/rigpkg/file.sh following rig-member.armed.md.\n' \
 	| env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/b10/home" PATH="$rigTmp/ps-bin:/usr/bin:/bin" MMDAPP="$rigW" MDAT_DATA_ROOT="$rigD" MDLT_ORIGIN="$MDLT_ORIGIN" \
@@ -619,7 +619,7 @@ printf 'Work on rigrepo/rigpkg/file.sh following rig-member.armed.md.\n' \
 		' > "$rigTmp/b10/spawn2.out" 2> "$rigTmp/b10/spawn2.err"
 ## Not waited for by the proxy, so this waits for the detached spawn's own close: the record leaving spawn-started.
 rigWaitLoop=0
-while [ "$rigWaitLoop" -lt 120 ] && { [ ! -f "$rigTmp/b10/fd4.seen" ] || LC_ALL=C grep -q -l 'status: spawn-started' "$rigSp"/*/*.md 2> /dev/null ; } ; do
+while [ "$rigWaitLoop" -lt 120 ] && { [ ! -f "$rigTmp/b10/fd4.seen" ] || LC_ALL=C grep -q -l 'status: spawn-started' "$rigSp"/*/*.spawn.md 2> /dev/null ; } ; do
 	sleep 0.5 ; rigWaitLoop=$(( rigWaitLoop + 1 ))
 done
 [ -f "$rigTmp/b10/fd4.seen" ] || rigRefuse "the detached fake console never ran: $( tail -3 "$rigTmp/b10/spawn2.err" )"
@@ -631,7 +631,7 @@ rigAsync(){ ## case name, the console's own lines
 	local asyncBefore asyncFile
 	printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\n%s\n%s\n' "$rigKept" "$2" > "$rigW/DistroAgentsConsole.sh"
 	chmod +x "$rigW/DistroAgentsConsole.sh"
-	asyncBefore="$( ls "$rigSp"/*/*.md 2> /dev/null )"
+	asyncBefore="$( ls "$rigSp"/*/*.spawn.md 2> /dev/null )"
 	printf 'Work on rigrepo/rigpkg/file.sh following rig-member.armed.md.\n' \
 		| env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/b10/home" PATH="$rigTmp/ps-bin:/usr/bin:/bin" MMDAPP="$rigW" MDAT_DATA_ROOT="$rigD" MDLT_ORIGIN="$MDLT_ORIGIN" \
 			MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/b10/skills" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
@@ -641,7 +641,7 @@ rigAsync(){ ## case name, the console's own lines
 				cd "$MMDAPP" && exec bash "$RIG_FN" --intern-op-agent-spawn-proxy rig-member --dispatch-doc:create
 			' > "$rigTmp/b10/async-$1.out" 2> "$rigTmp/b10/async-$1.err"
 	rigAsyncRecord=""
-	for asyncFile in "$rigSp"/*/*.md ; do
+	for asyncFile in "$rigSp"/*/*.spawn.md ; do
 		case $'\n'"$asyncBefore"$'\n' in *$'\n'"$asyncFile"$'\n'*) ;; *) rigAsyncRecord="$asyncFile" ;; esac
 	done
 	[ -n "$rigAsyncRecord" ] || rigRefuse "the detached spawn left no record: $( tail -3 "$rigTmp/b10/async-$1.err" )"
@@ -653,7 +653,7 @@ rigAsyncEnded(){ ## -- waits, up to a minute, for that record to leave spawn-sta
 }
 ## Whether the one rule takes that spawn for running: asked as the review flow and the accept dismissal ask it.
 rigAsyncRuns(){
-	( PATH="$rigTmp/ps-bin:$PATH" ; MMDAPP="$rigW" ; . "${rigTool%/sh-scripts/*}/../myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; rigAsyncId="${rigAsyncRecord##*/}" ; AgentsToolsRegistrySpawnRuns "${rigAsyncId%.md}" "$rigAsyncRecord" && printf running || printf not-running )
+	( PATH="$rigTmp/ps-bin:$PATH" ; MMDAPP="$rigW" ; . "${rigTool%/sh-scripts/*}/../myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" ; rigAsyncId="${rigAsyncRecord##*/}" ; AgentsToolsRegistrySpawnRuns "${rigAsyncId%.spawn.md}" "$rigAsyncRecord" && printf running || printf not-running )
 }
 rigAsync exit7 'echo first-on-stdout ; echo second-on-stderr >&2 ; echo third-on-stdout ; exit 7'
 rigAsyncEnded
@@ -895,9 +895,9 @@ rigCheck "exit 0, a deletion happened"                                    "$( ca
 rigCheck "the item is deleted"                                            "$( rigLoc dispatch-rig-g1.md )" not-found
 rigCheck "its sandbox folder is deleted with it"                          "$( rigPresent "$rigSp/rig-g1" )" gone
 rigCheck "the summary names both removed folders, board and trash"       "$( LC_ALL=C grep -c -F ' 2 sandbox-folders removed.' "$rigTmp/b4.g1" || : )" 1
-rigCheck "control: the orphan folder, no item, is left alone"             "$( rigPresent "$rigSp/rig-orphan/rig-orphan.md" )" present
-rigCheck "control: the young item and its folder are both kept"           "$( rigLoc dispatch-rig-young.md ) $( rigPresent "$rigSp/rig-young/rig-young.md" )" "processed present"
-rigCheck "control: a marked inbox item is deleted and touches no sandbox" "$( [ -f "$rigD/inboxes/rig-member/processed/note-rig-inbox.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-inbox/rig-inbox.md" )" "deleted present"
+rigCheck "control: the orphan folder, no item, is left alone"             "$( rigPresent "$rigSp/rig-orphan/rig-orphan.spawn.md" )" present
+rigCheck "control: the young item and its folder are both kept"           "$( rigLoc dispatch-rig-young.md ) $( rigPresent "$rigSp/rig-young/rig-young.spawn.md" )" "processed present"
+rigCheck "control: a marked inbox item is deleted and touches no sandbox" "$( [ -f "$rigD/inboxes/rig-member/processed/note-rig-inbox.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-inbox/rig-inbox.spawn.md" )" "deleted present"
 rigCheck "a trash item is deleted and takes its sandbox folder"           "$( [ -f "$rigD/trash/dispatch-rig-trash.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-trash" )" "deleted gone"
 echo "   another board item still links to the folder"
 rigProcessed rig-g2 rig-g2 ; rigDone rig-g2 0 yes
@@ -905,14 +905,14 @@ rigItem running dispatch-rig-g2-other.md dispatch dispatch-started none rig-g2
 rigGc 2
 rigCheck "exit 0, a deletion happened"                                    "$( cat "$rigTmp/b4.g2.rc" )" 0
 rigCheck "the item is deleted"                                            "$( rigLoc dispatch-rig-g2.md )" not-found
-rigCheck "the folder is kept"                                             "$( rigPresent "$rigSp/rig-g2/rig-g2.md" )" present
+rigCheck "the folder is kept"                                             "$( rigPresent "$rigSp/rig-g2/rig-g2.spawn.md" )" present
 rigCheck "no sandbox sentence"                                            "$( LC_ALL=C grep -c -F 'sandbox-folders' "$rigTmp/b4.g2" || : )" 0
 echo "   folder holds a spawn-started record"
 rigProcessed rig-g3 rig-g3 ; rigSandbox rig-g3 "$rigHost" spawn-started
 rigGc 3
 rigCheck "exit 2, nothing was deleted"                                    "$( cat "$rigTmp/b4.g3.rc" )" 2
 rigCheck "the item is kept this pass, still in processed"                 "$( rigLoc dispatch-rig-g3.md )" processed
-rigCheck "the folder is kept"                                             "$( rigPresent "$rigSp/rig-g3/rig-g3.md" )" present
+rigCheck "the folder is kept"                                             "$( rigPresent "$rigSp/rig-g3/rig-g3.spawn.md" )" present
 rigCheck "no sandbox sentence"                                            "$( LC_ALL=C grep -c -F 'sandbox-folders' "$rigTmp/b4.g3" || : )" 0
 echo "   no folder at all"
 rigProcessed rig-g4 rig-g4 ; rigProcessed rig-g4b none
@@ -920,7 +920,7 @@ rigGc 4
 rigCheck "control: the item with a spawn-id and no folder is deleted"     "$( rigLoc dispatch-rig-g4.md )" not-found
 rigCheck "control: the item with no spawn-id is deleted"                  "$( rigLoc dispatch-rig-g4b.md )" not-found
 rigCheck "control: no sandbox sentence"                                   "$( LC_ALL=C grep -c -F 'sandbox-folders' "$rigTmp/b4.g4" || : )" 0
-rigCheck "control: the held folder of the kept item is still there"       "$( rigPresent "$rigSp/rig-g3/rig-g3.md" )" present
+rigCheck "control: the held folder of the kept item is still there"       "$( rigPresent "$rigSp/rig-g3/rig-g3.spawn.md" )" present
 echo "   trash: an open folder keeps the item, a folder another board item links to is left alone"
 rigTrash(){ ## session id -- an aged trashed dispatch item naming that spawn-id
 	printf -- '---\ntype: dispatch\nowner: rig-member\nspawn-id: %s\n---\n\nrig trash item\n' "$1" > "$rigD/trash/dispatch-$1.md"
@@ -930,8 +930,8 @@ rigTrash rig-t-open ; rigSandbox rig-t-open "$rigHost" spawn-started
 rigTrash rig-t-shared ; rigDone rig-t-shared 0 yes
 rigItem running dispatch-rig-t-shared-other.md dispatch dispatch-started none rig-t-shared
 rigGc 4t
-rigCheck "the trash item with an open folder is kept"                     "$( [ -f "$rigD/trash/dispatch-rig-t-open.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-t-open/rig-t-open.md" )" "kept present"
-rigCheck "the trash item with a shared folder is deleted, the folder kept" "$( [ -f "$rigD/trash/dispatch-rig-t-shared.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-t-shared/rig-t-shared.md" )" "deleted present"
+rigCheck "the trash item with an open folder is kept"                     "$( [ -f "$rigD/trash/dispatch-rig-t-open.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-t-open/rig-t-open.spawn.md" )" "kept present"
+rigCheck "the trash item with a shared folder is deleted, the folder kept" "$( [ -f "$rigD/trash/dispatch-rig-t-shared.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-t-shared/rig-t-shared.spawn.md" )" "deleted present"
 rigCheck "no sandbox sentence"                                            "$( LC_ALL=C grep -c -F 'sandbox-folders' "$rigTmp/b4.g4t" || : )" 0
 echo "   a symlinked folder and a name with a slash are refused"
 mkdir -p "$rigTmp/b4/elsewhere" "$rigW/.local/agents/victim"

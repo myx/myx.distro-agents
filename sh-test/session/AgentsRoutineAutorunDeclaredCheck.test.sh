@@ -69,7 +69,7 @@ rigDue(){ ## routine name -- what --routine-due says, its answer line without th
 }
 rigDone(){ ## id, owner, routine file name, started, resolved -- a completed run of a routine, as the spawner records it
 	mkdir -p "$rigSp/$1"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\nstart-context: spawned\nhost: %s\nworkspace: rigws\nowner: %s\nroutine: %s\nstatus: spawn-succeeded\nstarted-at: %s\nresolved-at: %s\n---\n\n# Spawn session: %s\n' "$1" "$1" "$rigHost" "$2" "$3" "$4" "$5" "$1" > "$rigSp/$1/$1.md"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\nstart-context: spawned\nhost: %s\nworkspace: rigws\nowner: %s\nroutine: %s\nstatus: spawn-succeeded\nstarted-at: %s\nresolved-at: %s\n---\n\n# Spawn session: %s\n' "$1" "$1" "$rigHost" "$2" "$3" "$4" "$5" "$1" > "$rigSp/$1/$1.spawn.md"
 }
 ## Monday 2026-10-19 in Etc/GMT-3: 08:00, 09:05, 09:50, 10:05; Saturday 2026-10-24 13:00.
 rigAt 1792386000

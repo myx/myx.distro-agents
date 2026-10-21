@@ -94,14 +94,14 @@ rigRecords(){ ## parent id in the child's record (none for no parent), owner in 
 	local childSession=""
 	[ "$1" = none ] || childSession="parent-session-id: $1"$'\n'
 	printf -- '---\nspawn-id: rig-child-id\nparent-spawn-id: %s\n%s%sparent-thread: %s\nowner: %s\n---\n\nparent-member: rig-body-line\n' "$1" "$childSession" "${3:+parent-member: $3
-}" "$rigParent" "$rigMember" > "$spawnDir/child-folder/rig-child-id.md"
+}" "$rigParent" "$rigMember" > "$spawnDir/child-folder/rig-child-id.spawn.md"
 	## A parent with no record of its own is a native session: its thread is the one recorded for that session.
 	if [ "${2:-}" = "no-record" ] ; then
 		mkdir -p "$rigScenarioDir/ws/.local/agents/sessions/rig-parent-id" && printf '%s\n' "$rigParent" > "$rigScenarioDir/ws/.local/agents/sessions/rig-parent-id/session.thread"
 		return 0
 	fi
 	printf -- '---\nsession-id: rig-parent-id\nspawn-id: rig-parent-id\nparent-spawn-id: none\nstatus: spawn-started\n%ssession-thread: %s\n---\n\nowner: rig-body-line\n' "${2:+owner: $2
-}" "$rigParent" > "$spawnDir/parent-folder/rig-parent-id.md"
+}" "$rigParent" > "$spawnDir/parent-folder/rig-parent-id.spawn.md"
 }
 ## One scenario with the usual records: a caller the records name.
 rigScene(){ ## scenario directory name

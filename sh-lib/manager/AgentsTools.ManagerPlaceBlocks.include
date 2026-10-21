@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerPlaceBlocks.include -- the blocks the agents console adds to `Locations (Places)` (F11.10 of the refactorings epic), registered in
+## sh-lib/config/place-blocks.list and called by `.local`'s --manager-place-list and --manager-place-read (myx.distro-.local, sh-lib/manager/LocalTools.ManagerPlace.include):
+##   sessions  the registry of the sessions of this workspace, as it lies (never rebuilt here): a path, from which `.local` counts the sessions that name a workspace
+##   stands    what the agents know stands in a place that is there: the members whose home the machine keeps there (AgentsTools.MemberHomes.include) and the team data root of this workspace,
+##             where it lies in the place -- rows `stands <what> <name> <path>`, moved whole from the read of a place
+## and the third block, the members that belong to a place, is AgentsToolsManagerPlaceMembers (AgentsTools.ManagerPlaceMembers.include).
+## FOR VIEWING. Nothing here writes, and nothing reaches another host.
+##
+
+type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
+type AgentsToolsMemberHomesFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberHomes.include"
+type LocalToolsManagerField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerField.include"
+
+## The registry of the sessions of this workspace, a path.
+AgentsToolsManagerPlaceSessions(){
+	AgentsToolsRegistryFile spawned-sessions
+}
+
+## What stands in a place that is there: the members whose home the machine keeps in it, then the team data root of this workspace where it lies in the place.
+AgentsToolsManagerPlaceStands(){ ## the path of the place, its state
+	local standsFile standsMember standsHome standsRest
+	standsFile="$( AgentsToolsMemberHomesFile )"
+	if [ -r "$standsFile" ] ; then
+		while IFS=$'\t' read -r standsMember standsHome standsRest ; do
+			[ -n "$standsMember" ] && [ "${standsHome%/}" = "${1%/}" ] || continue
+			printf 'stands\tmember-home\t%s\t%s\n' "$( LocalToolsManagerField "$standsMember" )" "$( LocalToolsManagerField "${standsHome%/}" )"
+		done < "$standsFile"
+	fi
+	if [ -n "${MDAT_DATA_ROOT:-}" ] && [ -d "$MDAT_DATA_ROOT" ] ; then
+		case "${MDAT_DATA_ROOT%/}/" in
+			"${1%/}"/*) printf 'stands\tteam-data-root\t-\t%s\n' "$( LocalToolsManagerField "${MDAT_DATA_ROOT%/}" )" ;;
+		esac
+	fi
+	return 0
+}

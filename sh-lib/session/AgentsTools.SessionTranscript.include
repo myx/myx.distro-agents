@@ -608,7 +608,7 @@ AgentsSessionTokensRollupRows(){ ## item name...
 	[ $# -gt 0 ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 0
 	{
 		find "$MDAT_DATA_ROOT/board" -mindepth 2 -maxdepth 2 -name '*.md' 2>/dev/null
-		[ -z "${MMDAPP:-}" ] || find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.md' 2>/dev/null
+		[ -z "${MMDAPP:-}" ] || find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.spawn.md' 2>/dev/null
 	} | LC_ALL=C awk -v want="$*" -f "$agentsTranscriptLib/session/AgentsSessionTokensRollup.awk" 2>/dev/null
 	return 0
 }

@@ -149,7 +149,7 @@ rigAssert(){ ## what is asserted, got, want
 rigRec(){ ## run id, which is its sandbox too; session id; member; status; more frontmatter lines (may be empty)
 	mkdir -p "$rigSp/$1"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: %s\nstatus: %s\nstarted-at: 2026-10-13 09:00 +0300\n%s---\n\n# Spawn session: %s\n' \
-		"$2" "$1" "$rigHost" "$3" "$4" "${5:-}" "$2" > "$rigSp/$1/$1.md.rig" && mv -f "$rigSp/$1/$1.md.rig" "$rigSp/$1/$1.md"
+		"$2" "$1" "$rigHost" "$3" "$4" "${5:-}" "$2" > "$rigSp/$1/$1.md.rig" && mv -f "$rigSp/$1/$1.md.rig" "$rigSp/$1/$1.spawn.md"
 }
 rigClosed='resolved-at: 2026-10-13 09:30 +0300
 '
@@ -161,7 +161,7 @@ rigHeader(){ ## run id, header name -- its value in the frontmatter of that run'
 	LC_ALL=C awk -v wantName="$2: " '
 		$0 == "---" { if ( ++fenceCount > 1 ) { exit ; } next ; }
 		fenceCount == 1 && index( $0, wantName ) == 1 { print substr( $0, length( wantName ) + 1 ) ; exit ; }
-	' "$rigSp/$1/$1.md" 2> /dev/null
+	' "$rigSp/$1/$1.spawn.md" 2> /dev/null
 }
 ## A stand-in process under its own pid that only waits; with a run id given it stands in the rig's process list
 ## as that run, by its own --session-id word. Sets rigStandPid.
@@ -572,12 +572,12 @@ rigHeldAfter="$( rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session
 rigAssert "a death the thread keeps and has not settled is held by it while it lives, for the advance pass to leave alone; a settled one is not, and none is once the thread has ended" \
 	"$rigHeld$rigHeldAfter" "rig-held=0 rig-settled=1 rig-held=1 "
 rigBodies="$( wc -l < "$rigSlack/bodies" | LC_ALL=C tr -d ' ' )"
-rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"' "AgentsToolsSpawnProxyEndNotice '$rigSp/d-hang/d-hang.md' ; AgentsToolsSpawnProxyEndNotice '$rigSp/d-ho/d-ho.md' missing" > /dev/null
+rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"' "AgentsToolsSpawnProxyEndNotice '$rigSp/d-hang/d-hang.spawn.md' ; AgentsToolsSpawnProxyEndNotice '$rigSp/d-ho/d-ho.spawn.md' missing" > /dev/null
 rigAssert "a death the thread told is told by no other closer: the record keeps that it was told, and the one function that tells an end says nothing more of that run" \
 	"$( [ -n "$( rigHeader d-hang death-told )" ] && [ -n "$( rigHeader d-ho death-told )" ] && echo marked ):$(( $( wc -l < "$rigSlack/bodies" | LC_ALL=C tr -d ' ' ) - rigBodies ))" "marked:0"
 rigRec d-other d-other keeper-rig spawn-ended-without-close "${rigClosed}${rigAsked}supervisor-process: $rigGoneShell
 "
-rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"' "AgentsToolsSpawnProxyEndNotice '$rigSp/d-other/d-other.md' missing" > /dev/null
+rigInside '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"' "AgentsToolsSpawnProxyEndNotice '$rigSp/d-other/d-other.spawn.md' missing" > /dev/null
 rigAssert "control: a run no thread told is told by that function as before, as one that posted no handback" \
 	"$( rigPosts 'posted no handback' '`d-other`' | LC_ALL=C tr '\n' ';' )" "${rigReqThread%%:*} ${rigReqThread#*:} magic-coordinator;"
 rigAssert "no text the thread posts is written in its code: each is a block of the note template" \

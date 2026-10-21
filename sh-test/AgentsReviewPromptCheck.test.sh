@@ -144,7 +144,7 @@ rigWork(){ ## review-by value (empty: none), the address its run reports to (emp
 	mkdir -p "$rigWs/.local/agents/spawned/$rigSpawn" "$rigWs/.local/agents/sessions/$rigSpawn"
 	printf -- '---\nsession-id: 5e55104a-rig-%s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-started\nsession-thread: CSES00001:1700000000.000100\nspawns: %s\ndescription: rework the rig widget\n%s---\n' \
 		"$rigName" "$rigSpawn" "$rigSpawn" "$rigHost" "$rigItem" "${2:+$rigReportsTo: $2
-}" > "$rigWs/.local/agents/spawned/$rigSpawn/$rigSpawn.md"
+}" > "$rigWs/.local/agents/spawned/$rigSpawn/$rigSpawn.spawn.md"
 	: > "$rigDir/transcript.log"
 	printf '%s\n' "$rigDir/transcript.log" > "$rigWs/.local/agents/sessions/$rigSpawn/transcript"
 	bash -c 'sleep 600 ; :' "$rigSpawn" > /dev/null 2>&1 < /dev/null &

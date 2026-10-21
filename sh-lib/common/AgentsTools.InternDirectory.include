@@ -2,12 +2,12 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.InternDirectory.include -- the place operations (AgentsTools.Places.include):
+## AgentsTools.InternDirectory.include -- the place operations (LocalTools.Places.include):
 ## registering this workspace's places and the two resolvers, the tooling's; the members'
 ## read-only views of the places and of the namespaces and projects, by name.
 ##
 
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
+. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
 
 case "$1" in
 	## This workspace's places, from its directives, its own row included, into its own
@@ -37,15 +37,15 @@ case "$1" in
 				registerDeclares="$( MDSC_SELECT_PROJECTS="$registerSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team' )" || registerTrusted="false"
 			fi
 		fi
-		AgentsToolsPlacesLegacyImport "$registerWs" || { set +e ; return 1 ; }
+		LocalToolsPlacesLegacyImport "$registerWs" || { set +e ; return 1 ; }
 		if [ "$registerTrusted" = "true" ] ; then
-			registerRows="$( printf '%s\n' "$registerDeclares" | AgentsToolsPlacesDirectiveRows "$registerWs" )"
-			printf '%s\n' "$registerRows" | AgentsToolsPlacesLocalUpdate "$registerWs" directives || { set +e ; return 1 ; }
+			registerRows="$( printf '%s\n' "$registerDeclares" | LocalToolsPlacesDirectiveRows "$registerWs" )"
+			printf '%s\n' "$registerRows" | LocalToolsPlacesLocalUpdate "$registerWs" directives || { set +e ; return 1 ; }
 		else
 			echo "🙋 WARNING: $MDSC_CMD --intern-directory-register: the place directives of $registerWs were not read this run, its declared places are kept as they stood" >&2
-			AgentsToolsPlacesLocalUpdate "$registerWs" "owner:" < /dev/null || { set +e ; return 1 ; }
+			LocalToolsPlacesLocalUpdate "$registerWs" "owner:" < /dev/null || { set +e ; return 1 ; }
 		fi
-		echo "🧭 places registered: $( LC_ALL=C grep -c . "$( AgentsToolsPlacesLocalFile "$registerWs" )" ) in .local/agents/directories.registry" >&2
+		echo "🧭 places registered: $( LC_ALL=C grep -c . "$( LocalToolsPlacesLocalFile "$registerWs" )" ) in .local/agents/directories.registry" >&2
 		return 0
 	;;
 
@@ -56,7 +56,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --intern-directory-resolve: syntax is <name>" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsPlacesResolve "${MMDAPP%/}" "$1" || { set +e ; return 1 ; }
+		LocalToolsPlacesResolve "${MMDAPP%/}" "$1" || { set +e ; return 1 ; }
 		return 0
 	;;
 
@@ -67,7 +67,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --intern-directory-of: syntax is <path>" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsPlacesOf "${MMDAPP%/}" "$1" || { set +e ; return 1 ; }
+		LocalToolsPlacesOf "${MMDAPP%/}" "$1" || { set +e ; return 1 ; }
 		return 0
 	;;
 
@@ -78,7 +78,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-directory-list: takes no arguments" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsPlacesMergedText "${MMDAPP%/}" quiet | LC_ALL=C awk -F'\t' -v OFS='\t' 'NF >= 3 && $1 != "" { print $1, $2, $3 ; }'
+		LocalToolsPlacesMergedText "${MMDAPP%/}" quiet | LC_ALL=C awk -F'\t' -v OFS='\t' 'NF >= 3 && $1 != "" { print $1, $2, $3 ; }'
 		return 0
 	;;
 
@@ -104,11 +104,11 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
-		if ! AgentsToolsPlacesNameValid "${pathName%%@*}" || { [ "$pathName" != "${pathName%%@*}" ] && ! AgentsToolsPlacesNameValid "${pathName#*@}" ; } ; then
+		if ! LocalToolsPlacesNameValid "${pathName%%@*}" || { [ "$pathName" != "${pathName%%@*}" ] && ! LocalToolsPlacesNameValid "${pathName#*@}" ; } ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-directory-path: not a place name: $pathName" >&2
 			set +e ; return 1
 		fi
-		pathBase="$( AgentsToolsPlacesResolve "${MMDAPP%/}" "$pathName" )" || { set +e ; return 1 ; }
+		pathBase="$( LocalToolsPlacesResolve "${MMDAPP%/}" "$pathName" )" || { set +e ; return 1 ; }
 		while [ -n "$pathRel" ] && [ "${pathRel%/}" != "$pathRel" ] ; do pathRel="${pathRel%/}" ; done
 		printf '%s\n' "${pathBase%/}${pathRel:+/$pathRel}"
 		return 0

@@ -92,11 +92,11 @@ rigJoined(){ ## member that joined, who the line is for as the header says it, w
 }
 ## The spawn records of one coworking session, and one header of the newest spawn record.
 rigRecordsOf(){ ## session id
-	LC_ALL=C grep -l -x -F -- "session-id: $1" "$rigWs/.local/agents/spawned"/*/*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }'
+	LC_ALL=C grep -l -x -F -- "session-id: $1" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }'
 }
 rigNewest(){ ## header
 	local newestFile
-	newestFile="$( ls -t "$rigWs/.local/agents/spawned"/*/*.md 2> /dev/null | head -1 )"
+	newestFile="$( ls -t "$rigWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | head -1 )"
 	[ -n "$newestFile" ] || return 0
 	LC_ALL=C sed -n "s/^$1: //p" "$newestFile" | head -1
 }
@@ -258,13 +258,13 @@ rigAssert "a reviewer that is none of its forms is refused, and nothing is spawn
 rigOut="$( rigSpawn keeper-myx --reports-to 'rig:one:two' )"
 rigAssert "an address that is none of its forms is refused, and nothing is spawned" \
 	"$( printf '%s\n' "$rigOut" | grep -c 'ERROR: --reports-to requires' ):$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=' )" "1:0"
-rigRecordsBefore="$( ls "$rigWs/.local/agents/spawned"/*/*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )"
+rigRecordsBefore="$( ls "$rigWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )"
 rigOut="$( rigSpawn keeper-myx --start-context sideways )"
 rigAssert "a start context that is none of the three is refused, and nothing is spawned" \
 	"$( printf '%s\n' "$rigOut" | grep -c 'ERROR: --start-context requires spawned, inline or joined' ):$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=' )" "1:0"
 rigOut="$( rigSpawn keeper-myx --parent-session '../rig-native-one' )"
 rigAssert "a parent session that is no bare name is refused, and nothing is spawned" \
-	"$( printf '%s\n' "$rigOut" | grep -c 'ASSERT: --parent-session must be a bare name' ):$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=' ):$(( $( ls "$rigWs/.local/agents/spawned"/*/*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' ) - rigRecordsBefore ))" "1:0:0"
+	"$( printf '%s\n' "$rigOut" | grep -c 'ASSERT: --parent-session must be a bare name' ):$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=' ):$(( $( ls "$rigWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' ) - rigRecordsBefore ))" "1:0:0"
 
 echo "-- the spawn record names the member that made the spawn call --"
 ## Said by the caller of the proxy, for a calling session whose environment names no member.
@@ -277,10 +277,10 @@ rigOut="$( rigSpawn keeper-myx --calling-member magic-tester --description "its 
 rigAssert "a calling session whose environment names its member: that one stands, whatever is said" \
 	"$( rigNewest parent-member ):$( rigJoined keeper-myx "$( rigShown magic-coordinator )" 'its own member stands' )" "magic-coordinator:1"
 rigCaller=( CLAUDE_CODE_SESSION_ID=rig-native-four )
-rigRecordsBefore="$( ls "$rigWs/.local/agents/spawned"/*/*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )"
+rigRecordsBefore="$( ls "$rigWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )"
 rigOut="$( rigSpawn keeper-myx --calling-member '../magic-tester' )"
 rigAssert "a calling member that is no bare name is refused, and nothing is spawned" \
-	"$( printf '%s\n' "$rigOut" | grep -c 'ASSERT: --calling-member must be a bare name' ):$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=' ):$(( $( ls "$rigWs/.local/agents/spawned"/*/*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' ) - rigRecordsBefore ))" "1:0:0"
+	"$( printf '%s\n' "$rigOut" | grep -c 'ASSERT: --calling-member must be a bare name' ):$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=' ):$(( $( ls "$rigWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' ) - rigRecordsBefore ))" "1:0:0"
 
 echo "-- a helper a native session brings in with the Agent tool hands back to the member that call was made as --"
 ## The native session: a session of its own, no record of its own, and no member in its
@@ -305,12 +305,12 @@ rigAgentPid="$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^PID=\([0-9][0-9]*\
 rigWaited=0
 while ! grep -q 'RIG-AGENT-BRIEF' "$rigTmp/brief" 2> /dev/null && [ "$rigWaited" -lt 90 ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
 grep -q 'RIG-AGENT-BRIEF' "$rigTmp/brief" || rigRefuse "the Agent tool's spawn never reached the console, so nothing below would be measured: $( printf '%s\n' "$rigOut" | grep -m1 ERROR )"
-rigAgentRecord="$( LC_ALL=C grep -l -x -F 'parent-spawn-id: rig-native-six' "$rigWs/.local/agents/spawned"/*/*.md 2> /dev/null | head -1 )"
+rigAgentRecord="$( LC_ALL=C grep -l -x -F 'parent-spawn-id: rig-native-six' "$rigWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | head -1 )"
 [ -n "$rigAgentRecord" ] || rigRefuse "the spawn left no record that names the native session as its parent"
 rigAgentField(){ ## header
 	LC_ALL=C sed -n "s/^$1: //p" "$rigAgentRecord" | head -1
 }
-rigAssert "the parent session has no record of its own" "$( ls "$rigWs/.local/agents/spawned"/*/rig-native-six.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 0
+rigAssert "the parent session has no record of its own" "$( ls "$rigWs/.local/agents/spawned"/*/rig-native-six.spawn.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 0
 rigAssert "the helper's record names the member the Agent call was made as" "$( rigAgentField owner ):$( rigAgentField parent-member )" "keeper-myx:magic-coordinator"
 rigAssert "its joined line is addressed to that member" "$( rigJoined keeper-myx "$( rigShown magic-coordinator )" 'hand it back' )" 1
 ## The helper's own handback, with no addressee, into its session thread.

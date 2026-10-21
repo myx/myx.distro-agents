@@ -72,7 +72,7 @@ rigScene(){ ## scenario name, who the DISMISSED in the thread is addressed to (e
 	rigSpawn="rig-dismissed-$$-$rigNo-$RANDOM"
 	mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/ws/.local/agents/pending" "$rigDir/ws/.local/agents/spawned/rig-folder" "$rigDir/data"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigDir/ws/.local/.agents/magic-team.agent.env"
-	printf -- '---\nspawn-id: %s\nparent-spawn-id: none\nowner: %s\nstatus: spawn-started\n---\n' "$rigSpawn" "$rigMember" > "$rigDir/ws/.local/agents/spawned/rig-folder/$rigSpawn.md"
+	printf -- '---\nspawn-id: %s\nparent-spawn-id: none\nowner: %s\nstatus: spawn-started\n---\n' "$rigSpawn" "$rigMember" > "$rigDir/ws/.local/agents/spawned/rig-folder/$rigSpawn.spawn.md"
 	: > "$rigDir/curl.log"
 	printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGSELF1","text":"RIG-OPENER"}%s],"has_more":false}\n' "${rigThread#*:}" \
 		"${2:+,{\"ts\":\"$rigDismissal\",\"user\":\"URIGBOT01\",\"text\":\"*_${rigLead}_* @$rigLead → *_${2}_* @$2.\\nDISMISSED\",\"metadata\":{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"$rigLead\"}}}}" \
@@ -186,7 +186,7 @@ perl -e 'sleep 600' > /dev/null 2>&1 &
 rigRecordedPid=$! ; rigRunPids="$rigRunPids $rigRecordedPid" ; rigProcNote "$rigRecordedPid" ; disown "$rigRecordedPid" 2> /dev/null || :
 rigRecordedStart="$( LC_ALL=C ps -o lstart= -p "$rigRecordedPid" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }' )"
 [ -n "$rigRecordedStart" ] || rigRefuse "the stand-in of the run with no session word did not start, so its ending could not be measured"
-printf -- '---\nspawn-id: %s\nparent-spawn-id: none\nowner: %s\nstatus: spawn-started\nrun-process: %s %s\n---\n' "$rigSpawn" "$rigMember" "$rigRecordedPid" "$rigRecordedStart" > "$rigDir/ws/.local/agents/spawned/rig-folder/$rigSpawn.md"
+printf -- '---\nspawn-id: %s\nparent-spawn-id: none\nowner: %s\nstatus: spawn-started\nrun-process: %s %s\n---\n' "$rigSpawn" "$rigMember" "$rigRecordedPid" "$rigRecordedStart" > "$rigDir/ws/.local/agents/spawned/rig-folder/$rigSpawn.spawn.md"
 rigCall Wait "$rigWait"
 rigCall SubagentHandback '{"to":"session-current","outcome":"RIG-OUTCOME"}' MDAT_DISMISSED_END_GRACE=2
 rigAssert "dismissed, then the handback: its last line says to end" "$( rigLast )" "$rigNextEnd"

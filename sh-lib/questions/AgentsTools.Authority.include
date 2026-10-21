@@ -102,7 +102,7 @@ AgentsToolsAuthorityCaller(){
 AgentsToolsAuthorityFounder(){ ## session
 	local founderRecord
 	type AgentsToolsSessionRunExecutor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
-	for founderRecord in $( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.md 2> /dev/null ) ; do
+	for founderRecord in $( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
 		! AgentsToolsSessionRunExecutor "$founderRecord" || { printf '%s' "$founderRecord" ; return 0 ; }
 	done
 	return 1
@@ -116,7 +116,7 @@ AgentsToolsAuthoritySessionRecord(){ ## session
 	local sessionRecord="" sessionCandidate sessionAny=""
 	sessionRecord="$( AgentsToolsAuthorityFounder "$1" )" && { printf '%s' "$sessionRecord" ; return 0 ; }
 	AgentsToolsAuthorityCaller
-	for sessionCandidate in $( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.md 2> /dev/null ) ; do
+	for sessionCandidate in $( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
 		[ -n "$sessionAny" ] || sessionAny="$sessionCandidate"
 		AgentsToolsAuthorityHolds "$( AgentsToolsRunRoute "$sessionCandidate" )" "$1" || { printf '%s' "$sessionCandidate" ; return 0 ; }
 	done
@@ -128,7 +128,7 @@ AgentsToolsAuthoritySessionRecord(){ ## session
 ## where it has one; the routine is the founding run's; the members are those that have a run in it.
 AgentsToolsAuthoritySessionWords(){ ## session
 	local wordsFile wordsName="" wordsRoutine="" wordsMembers="" wordsOwner
-	for wordsFile in $( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.md 2> /dev/null ) ; do
+	for wordsFile in $( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
 		[ -n "$wordsName" ] || wordsName="$( AgentsToolsAuthorityField "$wordsFile" session-comment )"
 		[ -n "$wordsRoutine" ] || wordsRoutine="$( AgentsToolsAuthorityField "$wordsFile" routine )"
 		wordsOwner="$( AgentsToolsAuthorityField "$wordsFile" owner )"

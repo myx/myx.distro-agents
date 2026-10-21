@@ -103,7 +103,7 @@ echo "-- an item in review that names no reviewer, whose run has a record here -
 rigItem review dispatch-rig-runreviewed "spawn-id: rig-run-reviewed\n"
 rigItem review dispatch-rig-runmissing "spawn-id: rig-run-missing\n"
 mkdir -p "$rigTmp/ws/.local/agents/spawned/rig-run-reviewed"
-printf -- '---\nsession-id: rig-run-reviewed\nspawn-id: rig-run-reviewed\nowner: magic-librarian\n---\n' > "$rigTmp/ws/.local/agents/spawned/rig-run-reviewed/rig-run-reviewed.md"
+printf -- '---\nsession-id: rig-run-reviewed\nspawn-id: rig-run-reviewed\nowner: magic-librarian\n---\n' > "$rigTmp/ws/.local/agents/spawned/rig-run-reviewed/rig-run-reviewed.spawn.md"
 rigRun --intern-op-morning-review-input-scan magic-coordinator ; rigRc=$?
 rigAssert "the item whose run has a record is not flagged, the one whose run has none is, and no scratch file is left" \
 	"$rigRc:$( rigLine 'review-no-review-by:' ):$( rigHas 'dispatch-rig-runreviewed' ):$( rigHas 'dispatch-rig-runmissing' ):$( ls "$rigTmp/ws/.local/temp" 2> /dev/null | LC_ALL=C grep -c '^mdat-morning-review-runs' )" \

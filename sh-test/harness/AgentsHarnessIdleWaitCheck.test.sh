@@ -104,8 +104,8 @@ rigScene(){ ## scene name, routine short name
 	rigDir="$rigTmp/$1" ; rigWs="$rigTmp/ws-$1" ; rigSandbox="$rigDir/sandbox" ; rigStore="$rigWs/.local/agents/sessions/$rigSpawn"
 	mkdir -p "$rigDir" "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned/rig" "$rigSandbox/input" "$rigSandbox/output"
 	printf '0' > "$rigDir/round"
-	printf -- '---\nspawn-id: %s\nsession-id: %s\nroutine: magic-team.%s.routine.md\nstatus: spawn-started\n---\n\n# Spawn session: %s\n' "$rigSpawn" "$rigSpawn" "$2" "$rigSpawn" > "$rigWs/.local/agents/spawned/rig/$rigSpawn.md"
-	cp "$rigWs/.local/agents/spawned/rig/$rigSpawn.md" "$rigSandbox/$rigSpawn.md"
+	printf -- '---\nspawn-id: %s\nsession-id: %s\nroutine: magic-team.%s.routine.md\nstatus: spawn-started\n---\n\n# Spawn session: %s\n' "$rigSpawn" "$rigSpawn" "$2" "$rigSpawn" > "$rigWs/.local/agents/spawned/rig/$rigSpawn.spawn.md"
+	cp "$rigWs/.local/agents/spawned/rig/$rigSpawn.spawn.md" "$rigSandbox/$rigSpawn.spawn.md"
 }
 rigTextStream(){ ## canned-stream file, content
 	{

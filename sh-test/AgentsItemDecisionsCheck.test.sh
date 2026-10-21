@@ -41,7 +41,7 @@ rigTask="task-20261008T1200Z-rig-decisions"
 rigDispatch="dispatch-20261008T1201Z-spawn-proxy-1"
 printf -- '---\ntype: task\nowner: magic-tester\ncondition: has the human-owner answered pending reply PENDING-ID?\nblocked-on: the vendor contract\n---\n\n# Rig task\n\nBody text.\n\n## Notes\n\nA later section.\n' > "$rigBoard/blocked/$rigTask.md"
 printf -- '---\ntype: dispatch\nowner: magic-tester\n---\n\n# Rig dispatch\n' > "$rigBoard/running/$rigDispatch.md"
-printf -- '---\nsession-id: rig-spawn-1\nowner: magic-tester\nstatus: spawn-succeeded\nspawns: %s\n---\n' "$rigDispatch" > "$rigTmp/ws/.local/agents/spawned/rig-spawn-1/rig-spawn-1.md"
+printf -- '---\nsession-id: rig-spawn-1\nowner: magic-tester\nstatus: spawn-succeeded\nspawns: %s\n---\n' "$rigDispatch" > "$rigTmp/ws/.local/agents/spawned/rig-spawn-1/rig-spawn-1.spawn.md"
 
 rigPassCount=0
 rigFailCount=0
@@ -241,8 +241,8 @@ echo "-- who records: the item's own parties, as themselves --"
 rigParty="task-20261008T1500Z-rig-parties"
 printf -- '---\ntype: task\nowner: magic-tester\nreview-by: keeper-rev\nspawn-id: rig-spawn-p\nblocked-on: the rig gate\n---\n\n# Rig parties\n' > "$rigBoard/running/$rigParty.md"
 mkdir -p "$rigTmp/ws/.local/agents/spawned/rig-spawn-p" "$rigTmp/ws/.local/agents/spawned/rig-spawn-q"
-printf -- '---\nsession-id: rig-spawn-p\nowner: keeper-exec\nstatus: spawn-started\n---\n' > "$rigTmp/ws/.local/agents/spawned/rig-spawn-p/rig-spawn-p.md"
-printf -- '---\nsession-id: rig-spawn-q\nowner: keeper-link\nstatus: spawn-started\nspawned-by: %s\n---\n' "$rigParty" > "$rigTmp/ws/.local/agents/spawned/rig-spawn-q/rig-spawn-q.md"
+printf -- '---\nsession-id: rig-spawn-p\nowner: keeper-exec\nstatus: spawn-started\n---\n' > "$rigTmp/ws/.local/agents/spawned/rig-spawn-p/rig-spawn-p.spawn.md"
+printf -- '---\nsession-id: rig-spawn-q\nowner: keeper-link\nstatus: spawn-started\nspawned-by: %s\n---\n' "$rigParty" > "$rigTmp/ws/.local/agents/spawned/rig-spawn-q/rig-spawn-q.spawn.md"
 rigPartyLines(){ rigSection "$rigBoard/running/$rigParty.md" | wc -l | tr -d ' ' ; }
 rigOp par1 --member-decision-record keeper-other "$rigParty" --kind clarification --text "not a party"
 rigAssert "a member that is no party is refused"   "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken ):$( rigPartyLines ):$( LC_ALL=C grep -c 'is not the owner, executor or reviewer' "$rigTmp/par1.err" )" refused:0:1

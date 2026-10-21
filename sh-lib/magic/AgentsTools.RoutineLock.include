@@ -335,13 +335,13 @@ AgentsToolsRoutineLockRelease(){ ## spawn record, outcome, exit code
 	[ -n "$releaseValue" ] || return 0
 	releaseSession="$( AgentsToolsSpawnSandboxRecordHeader "$releaseRecord" session-id )"
 	releaseThis="${releaseRecord##*/}"
-	for releaseOther in "$MMDAPP"/.local/agents/spawned/*/*.md ; do
+	for releaseOther in "$MMDAPP"/.local/agents/spawned/*/*.spawn.md ; do
 		[ -f "$releaseOther" ] && [ "${releaseOther##*/}" != "$releaseThis" ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$releaseOther" session-id )" = "$releaseSession" ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$releaseOther" routine-lock )" = "$releaseValue" ] || continue
 		! AgentsToolsSessionRecordLive "$releaseOther" || return 0
 	done
-	AgentsToolsRoutineLockUnlock "$releaseValue" "$releaseSession" "${releaseThis%.md} ended $releaseOutcome, exit $releaseExit"
+	AgentsToolsRoutineLockUnlock "$releaseValue" "$releaseSession" "${releaseThis%.spawn.md} ended $releaseOutcome, exit $releaseExit"
 	return 0
 }
 
@@ -351,13 +351,13 @@ AgentsToolsRoutineLockRelease(){ ## spawn record, outcome, exit code
 AgentsToolsRoutineSessionLockValue(){ ## the calling run's spawn id
 	local sessionRecord sessionId="" sessionOther sessionValue
 	[ -n "${1:-}" ] && [ -n "${MMDAPP:-}" ] || return 1
-	for sessionRecord in "$MMDAPP"/.local/agents/spawned/*/"$1.md" ; do
+	for sessionRecord in "$MMDAPP"/.local/agents/spawned/*/"$1.spawn.md" ; do
 		[ -f "$sessionRecord" ] || continue
 		sessionId="$( AgentsToolsSpawnSandboxRecordHeader "$sessionRecord" session-id )"
 		break
 	done
 	[ -n "$sessionId" ] || return 1
-	for sessionOther in "$MMDAPP"/.local/agents/spawned/*/*.md ; do
+	for sessionOther in "$MMDAPP"/.local/agents/spawned/*/*.spawn.md ; do
 		[ -f "$sessionOther" ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$sessionOther" session-id )" = "$sessionId" ] || continue
 		sessionValue="$( AgentsToolsSpawnSandboxRecordHeader "$sessionOther" routine-lock )"

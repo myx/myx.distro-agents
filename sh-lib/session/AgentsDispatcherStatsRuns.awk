@@ -1,9 +1,9 @@
 # AgentsDispatcherStatsRuns.awk -- F7.11: the runs row of the stats store, derived from the run records. -v list=<file> names the files to read, one path a line,
 # so that no argument list limits it: the token files (sessions/<run>/tokens, `<in> <cache-read> <cache-write> <out>`, the running sum the harness keeps) and the
-# run records (spawned/<session>/<run>.md); a token file is told from a record by its name. One TAB-separated row for each record:
+# run records (spawned/<session>/<run>.spawn.md); a token file is told from a record by its name. One TAB-separated row for each record:
 #   run session member routine status started-at resolved-at day workspace executing paying preset credential in cache-read cache-write out exit-code
 # An empty or absent field is `-`, absent tokens are 0. The day is the date part of started-at as the record writes it. The run is the record's `spawn-id:`
-# (its file name without .md where it has none). Nothing is read from anywhere else.
+# (its file name without .spawn.md where it has none). Nothing is read from anywhere else.
 
 function base(path,    parts, count) { count = split(path, parts, "/") ; return parts[count] }
 function runOfTokens(path,    parts, count) { count = split(path, parts, "/") ; return parts[count - 1] }
@@ -36,7 +36,7 @@ function readRecord(path,    line, front, run, session, member, routine, status,
 		else if ( key == "exit-code" ) { exitCode = value }
 	}
 	close( path )
-	if ( run == "" ) { run = base( path ) ; sub( /\.md$/, "", run ) }
+	if ( run == "" ) { run = base( path ) ; sub( /\.spawn\.md$/, "", run ) }
 	day = substr( started, 1, 10 ) ; if ( day !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/ ) { day = "-" }
 	tokenText = ( run in tok ) ? tok[run] : "0\t0\t0\t0"
 	printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", run, dash( session ), dash( member ), dash( routine ), dash( status ), dash( started ), dash( resolved ), day, dash( workspace ), dash( executing ), dash( paying ), dash( preset ), dash( credential ), tokenText, dash( exitCode )

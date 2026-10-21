@@ -43,7 +43,7 @@ rigRecord(){ ## session, run, member, routine (or -), status, started, preset (o
 		[ "$8" = "-" ] || printf 'credential: %s\n' "$8"
 		[ "$5" = "spawn-started" ] || printf 'resolved-at: %s +0300\nexit-code: 0\n' "$6"
 		printf -- '---\n\n# Spawn session: %s\n' "$2"
-	} > "$rigAgents/spawned/$1/$2.md"
+	} > "$rigAgents/spawned/$1/$2.spawn.md"
 }
 rigTokens(){ ## run, in, cache-read, cache-write, out
 	mkdir -p "$rigAgents/sessions/$1" ; printf '%s %s %s %s\n' "$2" "$3" "$4" "$5" > "$rigAgents/sessions/$1/tokens"

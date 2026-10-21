@@ -16,6 +16,7 @@
 ## Offline: nothing of the tooling is called.
 ## Reconciled for F11.0: a spacer stands between the groups of the roots, and the left pane has no `keys:` line any more
 ## (the status line names those keys), so its content takes its last line too.
+## Reconciled for F11.10: Workspace (System) stands at the end of the places, so the root holds nine sections and Manuals (Help) is the ninth.
 ## Reconciled for F11.5: the root holds eight sections, and Magic-Team (Agents) is the one that holds Activity, Pending Questions, Team Members and Team Data; the level a case enters is Magic-Team (Agents), and the first item of Activity is Launch (Start).
 ## Reconciled for F11.5, the lists of Activity: the key `a` (all or only the active) is not offered there, as it has nothing to take: not in the status line, and not in the menu View.
 ## Reconciled for F11.6: the status line of a session names the send-message key too, `M Message`, between `k Kill` and `u Read`.
@@ -65,9 +66,10 @@ cells row10 11 85 119
 cells row11 12 85 119
 cells row12 13 85 119
 cells row13 14 85 119
+cells row14 15 85 119
 RIGSCRIPT
-rigAssert "the root holds the eight sections in their order, the dashboard first, a spacer between its five groups: Dashboard and Pending Questions, Magic-Team, Locations and Consoles, Settings and Configuration, Manuals" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )][$( rigVal row9 )][$( rigVal row10 )][$( rigVal row11 )][$( rigVal row12 )][$( rigVal row13 )]" "[ Dashboard (Monitor)             ►][ Pending Questions               ►][][ Magic-Team (Agents)             ►][][ Locations (Places)              ►][ Consoles                        ►][][ Settings                        ►][ Configuration                   ►][][>Manuals (Help)                  ►][]"
-rigAssert "the screen starts on the last one, Manuals (Help), selected, and the list has the focus" "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "manuals 7 list 8"
+rigAssert "the root holds the nine sections in their order, the dashboard first, a spacer between its five groups: Dashboard and Pending Questions, Magic-Team, Locations, Consoles and Workspace, Settings and Configuration, Manuals" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )][$( rigVal row9 )][$( rigVal row10 )][$( rigVal row11 )][$( rigVal row12 )][$( rigVal row13 )][$( rigVal row14 )]" "[ Dashboard (Monitor)             ►][ Pending Questions               ►][][ Magic-Team (Agents)             ►][][ Locations (Places)              ►][ Consoles                        ►][ Workspace (System)              ►][][ Settings                        ►][ Configuration                   ►][][>Manuals (Help)                  ►][]"
+rigAssert "the screen starts on the last one, Manuals (Help), selected, and the list has the focus" "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "manuals 8 list 9"
 
 echo "-- Enter dives in, the first row and Backspace go up --"
 rigScript <<'RIGSCRIPT'

@@ -92,7 +92,7 @@ rigRecord(){ ## spawn-id, status, sandbox folder (default: the spawn-id), extra 
 	local recFolder="${3:-$1}"
 	mkdir -p "$rigSpawned/$recFolder/input" "$rigSpawned/$recFolder/output"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: %s\n%s---\n' \
-		"$recFolder" "$1" "$recFolder" "$rigHost" "$2" "${4:-}" > "$rigSpawned/$recFolder/$1.md"
+		"$recFolder" "$1" "$recFolder" "$rigHost" "$2" "${4:-}" > "$rigSpawned/$recFolder/$1.spawn.md"
 }
 rigItem(){ ## item stem, spawn-id -- the dispatch item TaskOutput reaches the run by
 	printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: %s\n---\n\n# rig dispatch\n' "$2" > "$rigData/board/running/dispatch-20261013T0000Z-$1.md"
@@ -221,7 +221,7 @@ echo "-- 4. the sweep: only a run that lives by the one rule holds its sandbox -
 rigFill(){ ## sandbox folder, record of it to age (may be empty: the record stays new)
 	: > "$rigSpawned/$1/input/brief.md"
 	mkdir -p "$rigSpawned/$1/tmp/AgentsUniversalHarness.rig" && printf 'rig\n' > "$rigSpawned/$1/tmp/AgentsUniversalHarness.rig/wait.err"
-	[ -z "${2:-}" ] || touch -t 202001010000 "$rigSpawned/$1/$2.md"
+	[ -z "${2:-}" ] || touch -t 202001010000 "$rigSpawned/$1/$2.spawn.md"
 }
 ## The only run of a sandbox has ended, its record older than ten minutes, and a process of
 ## the tooling whose command line holds that run's id waits on its session.
@@ -248,7 +248,7 @@ rigStand "claude --add-dir $rigSpawned/rig-sw-gone-$$/output --session-id rig-sw
 rigRecord rig-sw-shared-$$ spawn-succeeded
 rigRecord rig-sw-joined-$$ spawn-started rig-sw-shared-$$
 rigFill rig-sw-shared-$$ rig-sw-shared-$$
-touch -t 202001010000 "$rigSpawned/rig-sw-shared-$$/rig-sw-joined-$$.md"
+touch -t 202001010000 "$rigSpawned/rig-sw-shared-$$/rig-sw-joined-$$.spawn.md"
 rigStand "claude --add-dir $rigSpawned/rig-sw-shared-$$/input --session-id rig-sw-joined-$$ --agent keeper-myx"
 ## A record under ten minutes old, with nothing running as it: it may still be launching.
 rigRecord rig-sw-fresh-$$ spawn-started

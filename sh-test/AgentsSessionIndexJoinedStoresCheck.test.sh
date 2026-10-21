@@ -105,7 +105,7 @@ rigRecord(){ ## spawn-id, status, coworking session id, owner, item link line (m
 	mkdir -p "$rigSpawned/$6"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: %s\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: %s\nsession-thread: CSES00001:1700000000.000100\n%s---\n' \
 		"$3" "$1" "${7:-none}" "$6" "$rigHost" "$4" "$2" "${5:+$5
-}" > "$rigSpawned/$6/$1.md"
+}" > "$rigSpawned/$6/$1.spawn.md"
 }
 rigStatus(){ ## record file, new status
 	LC_ALL=C sed -i.bak "s/^status: .*\$/status: $2/" "$1" && rm -f "$1.bak"
@@ -163,9 +163,9 @@ rigRunsRows(){ ## session, member
 rigReturn(){ ## item stem, sandbox folder, spawn ids known so far (space-separated)
 	local returnRecord returnId
 	rigOp "$rigTmp/return.out" --member-review-return magic-coordinator "$1" --message "redo the rig step"
-	for returnRecord in "$rigSpawned/$2"/*.md ; do
+	for returnRecord in "$rigSpawned/$2"/*.spawn.md ; do
 		[ -f "$returnRecord" ] || continue
-		returnId="${returnRecord##*/}" ; returnId="${returnId%.md}"
+		returnId="${returnRecord##*/}" ; returnId="${returnId%.spawn.md}"
 		case " $3 " in *" $returnId "*) continue ;; esac
 		printf '%s' "$returnId"
 		return 0
@@ -223,14 +223,14 @@ rigAssert "the grants of the other two stores still stand" "$( rigHookWrite keep
 
 ## ---------------------------------------------------------------- the restarted run
 echo "-- 3. the session grant of the member's earlier run is a runs row of the restarted run's index --"
-rigStatus "$rigSpawned/trk-rig-a/rig-run-1.md" spawn-succeeded
+rigStatus "$rigSpawned/trk-rig-a/rig-run-1.spawn.md" spawn-succeeded
 mv "$rigData/board/running/$rigItemA.md" "$rigData/board/review/$rigItemA.md"
 : > "$rigTmp/hold"
 rigRun2="$( rigReturn "$rigItemA" trk-rig-a "rig-run-1" )"
 [ -n "$rigRun2" ] || { cat "$rigTmp/return.out" >&2 ; rigRefuse "the return started no new run" ; }
 rigWaitFor 20 test -s "$rigTmp/console-in.$rigRun2"
 rigAssert "control: a new run, in the same coworking session, on the same item, with no grant of its own" \
-	"$( [ "$rigRun2" != rig-run-1 ] && printf new ):$( LC_ALL=C grep -c -x 'session-id: rig-cow' "$rigSpawned/trk-rig-a/$rigRun2.md" ):$( LC_ALL=C grep -c -x "spawned-by: $rigItemA" "$rigSpawned/trk-rig-a/$rigRun2.md" ):$( [ -s "$rigSessions/$rigRun2/grants" ] && printf has || printf none )" new:1:1:none
+	"$( [ "$rigRun2" != rig-run-1 ] && printf new ):$( LC_ALL=C grep -c -x 'session-id: rig-cow' "$rigSpawned/trk-rig-a/$rigRun2.spawn.md" ):$( LC_ALL=C grep -c -x "spawned-by: $rigItemA" "$rigSpawned/trk-rig-a/$rigRun2.spawn.md" ):$( [ -s "$rigSessions/$rigRun2/grants" ] && printf has || printf none )" new:1:1:none
 ## A second on, so the index built next is strictly newer than every grant and stays current.
 sleep 1
 rigAssert "the restarted run's index admits the call, by the grant its earlier run was given" "$( rigHookWrite keeper-myx "$rigRun2" "$rigFileA" )" "allow session $rigIdA"
@@ -279,13 +279,13 @@ rigItem running "$rigItemL" rig-lone-1
 rigIdL="$( rigRefusalOf keeper-myx rig-lone-1 "$rigFileL" )"
 [ -n "$rigIdL" ] || rigRefuse "the harness gate recorded no refusal for the lone run's Write"
 rigAssert "allowed for the session, and admitted by its own index" "$( rigGrantOpen human-owner rig-lone-1 "$rigIdL" session ):$( rigHookWrite keeper-myx rig-lone-1 "$rigFileL" )" "session:allow session $rigIdL"
-rigStatus "$rigSpawned/trk-rig-l/rig-lone-1.md" spawn-succeeded
+rigStatus "$rigSpawned/trk-rig-l/rig-lone-1.spawn.md" spawn-succeeded
 mv "$rigData/board/running/$rigItemL.md" "$rigData/board/review/$rigItemL.md"
 : > "$rigTmp/hold"
 rigLone2="$( rigReturn "$rigItemL" trk-rig-l "rig-lone-1" )"
 [ -n "$rigLone2" ] || { cat "$rigTmp/return.out" >&2 ; rigRefuse "the return of the lone run started no new run" ; }
 rigWaitFor 20 test -s "$rigTmp/console-in.$rigLone2"
-rigAssert "control: the new run joined the session its first run started" "$( LC_ALL=C grep -c -x 'session-id: rig-lone-1' "$rigSpawned/trk-rig-l/$rigLone2.md" )" 1
+rigAssert "control: the new run joined the session its first run started" "$( LC_ALL=C grep -c -x 'session-id: rig-lone-1' "$rigSpawned/trk-rig-l/$rigLone2.spawn.md" )" 1
 rigAssert "its index admits the call, by that grant"       "$( rigHookWrite keeper-myx "$rigLone2" "$rigFileL" )" "allow session $rigIdL"
 rigAssert "a runs row that names no session"               "$( rigRunsRows "$rigLone2" keeper-myx )" "Write|$rigIdL|$rigItemL|-;"
 rigAssert "and no session row: the run it was given to has ended" "$( rigRows "$rigLone2" keeper-myx session )" ""

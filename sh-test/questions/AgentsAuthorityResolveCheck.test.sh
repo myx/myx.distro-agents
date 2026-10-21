@@ -101,7 +101,7 @@ rigMapOwnerTo rig-owner-account
 rigRun(){ ## spawn id, session, member, start-context, reports-to (empty: none), parent-session-id (empty: none, and no line, as the spawner writes it)
 	mkdir -p "$rigWs/.local/agents/spawned/$2" "$rigWs/.local/agents/sessions/$2"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%sstart-context: %s\n%shost: %s\nowner: %s\nstatus: spawn-started\n---\n\n# Spawn session\n' \
-		"$2" "$1" "${6:+parent-session-id: $6$'\n'}" "$4" "${5:+reports-to: $5$'\n'}" "$rigHost" "$3" > "$rigWs/.local/agents/spawned/$2/$1.md"
+		"$2" "$1" "${6:+parent-session-id: $6$'\n'}" "$4" "${5:+reports-to: $5$'\n'}" "$rigHost" "$3" > "$rigWs/.local/agents/spawned/$2/$1.spawn.md"
 	printf 'CRIG00001:1700000000.0009%02d\n' "$(( ${#2} % 100 ))" > "$rigWs/.local/agents/sessions/$2/session.thread"
 	printf '%s rig-run --session-id %s\n' "$(( 900000 + RANDOM ))" "$1" >> "$RIG_PS_LIST"
 }

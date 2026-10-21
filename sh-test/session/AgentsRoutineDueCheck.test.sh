@@ -74,7 +74,7 @@ rigAssert(){ ## what is asserted, got, want
 		printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3"
 	fi
 }
-rigRc=0 rigOut="" rigErr=""
+rigRc=0 rigOut="" rigErr="" rigReadOnly=""
 rigRun(){ ## script, words... -- one call from the rig workspace; rc in rigRc, stdout in rigOut, stderr in rigErr
 	local runScript="$1"
 	shift
@@ -99,11 +99,11 @@ rigRecord(){ ## routine name, status, started-at, resolved-at ("" for none) -- o
 		printf -- '---\nsession-id: rig-sess-%s\nspawn-id: rig-run-%s\nparent-spawn-id: none\nstart-context: spawned\nhost: rig\nworkspace: rigws\nowner: rig-member\nstatus: %s\nstarted-at: %s\n' "$rigRun_n" "$rigRun_n" "$2" "$3"
 		[ -z "${4:-}" ] || printf 'resolved-at: %s\n' "$4"
 		printf 'routine: rig-member.%s.routine.md\n---\n\n# Spawn session: rig-run-%s\n' "$1" "$rigRun_n"
-	} > "$rigWs/.local/agents/spawned/rig-sess-$rigRun_n/rig-run-$rigRun_n.md"
+	} > "$rigWs/.local/agents/spawned/rig-sess-$rigRun_n/rig-run-$rigRun_n.spawn.md"
 }
 rigClearRecords(){ rm -rf "$rigWs/.local/agents/spawned" ; rigRun_n=0 ; }
-rigDue(){ ## name -- one --routine-due call, the answer in `<rc>|<stdout lines joined>`
-	rigRun "$rigDispatcher" --routine-due "rig-member.$1.routine.md"
+rigDue(){ ## name -- one --routine-due call (with --read-only where rigReadOnly is set), the answer in `<rc>|<stdout lines joined>`
+	rigRun "$rigDispatcher" --routine-due ${rigReadOnly:+--read-only} "rig-member.$1.routine.md"
 	printf '%s|%s' "$rigRc" "$( printf '%s\n' "$rigOut" | tr '\n' '|' )"
 }
 rigPosts(){ cat "$rigScn/posts" 2> /dev/null || printf 0 ; }
@@ -193,6 +193,44 @@ rigClearRecords
 rigRecord g spawn-succeeded '2026-10-19 11:00 +0300' '2026-10-19 11:20 +0300'
 rigAssert "Monday passed with g run all the same: no escalation" "$( rigDue g ):$( rigPosts )" "1|NOT-DUE: rig-member.g.routine.md: before its earliest start, 09:00|:0"
 rigClearRecords
+
+echo "-- 4b. --read-only: the question is asked, and nothing is posted or marked --"
+rigAt "$rigTue0030"
+rm -rf "$rigWs/.local/agents/schedule" ; : > "$rigScn/calls" ; printf "0" > "$rigScn/posts"
+rigReadOnly=1
+rigAssert "asked with --read-only: the answer without the ESCALATE line, no post, and no mark kept" "$( rigDue g ):$( rigPosts ):$( [ -e "$rigWs/.local/agents/schedule" ] && echo marked || echo unmarked )" "1|NOT-DUE: rig-member.g.routine.md: before its earliest start, 09:00|:0:unmarked"
+rigReadOnly=""
+## the first look at the routine, as an earlier call of the Dispatcher kept it: Monday morning, before the day that broke the chain ended
+mkdir -p "$rigWs/.local/agents/schedule/seen" ; printf '%s' "$rigMon08" > "$rigWs/.local/agents/schedule/seen/rig-member.g.routine.md"
+rigAssert "asked as the Dispatcher asks it (without it), the same chain is escalated and posted once (the control)" "$( rigDue g ):$( rigPosts )" "1|ESCALATE: rig-member.g.routine.md: rig-member.r.routine.md did not run on 2026-10-19, so the chain is broken|NOT-DUE: rig-member.g.routine.md: before its earliest start, 09:00|:1"
+rigClearRecords
+rigAt "$rigMon13"
+rigReadOnly=1
+rigAssert "every other answer is the same with it: due, not due, refused (Monday 13:00, nothing has run)" "$( rigDue d ) $( rigDue none-key ) $( rigDue g | cut -c1-1 )" "0|DUE: rig-member.d.routine.md| 1|NOT-DUE: rig-member.none-key.routine.md: it declares no autorun (runs-at: none)| 2"
+rigReadOnly=""
+rigRun "$rigDispatcher" --routine-due --read-only
+rigAssert "--read-only with no routine, and a second word, are refused as before: rc 3, nothing on stdout" "$rigRc:$( printf '%s' "$rigOut" | wc -c | tr -d ' ' )" "3:0"
+rigRun "$rigDispatcher" --routine-due --read-only rig-member.r.routine.md rig-member.g.routine.md
+rigAssert "two routines with it: rc 3" "$rigRc" "3"
+
+echo "-- 4c. the list a console shows: the autorun, whether the file is valid, and whether a start now would be accepted --"
+rigAt "$rigMon13"
+rigClearRecords
+rigListRow(){ ## name -- the autorun, valid and would-start fields (13 to 17) of that routine's row of --manager-routine-list
+	rigRun "$rigTool" --manager-routine-list
+	LC_ALL=C awk -F'\t' -v want="rig-member.$1.routine.md" '$1 == "routine" && $2 == want { print $13 "|" $14 "|" $15 "|" $16 "|" $17 }' "$rigTmp/out"
+}
+rigRoutine bad "soon"
+rigAssert "a routine with an autorun that is due now: it runs by itself, at its days and time, follows none, is valid, and a start now would be accepted" "$( rigListRow r )" "yes|workdays_09:00|-|yes|yes"
+rigAssert "one that follows a routine that has not completed today: its autorun is not due, and says why, so a start now would not be accepted, though the file is valid" "$( rigListRow g )" "yes|workdays_09:00|rig-member.r|yes|no:rig-member.r.routine.md_has_not_completed_today"
+rigAssert "daily is due on a Monday as well" "$( rigListRow d )" "yes|daily_09:00|-|yes|yes"
+rigAssert "a routine outside its window is valid and would not start: weekend on a Monday" "$( rigListRow w )" "yes|weekend_10:00|-|yes|no:today_is_not_one_of_its_days_(weekend)"
+rigAssert "runs-at: none and no runs-at declare no autorun; runs-after alone is the key kept, and no autorun" "$( rigListRow none-key ) / $( rigListRow no-key ) / $( rigListRow only-after )" "no|none|-|yes|yes / no|-|-|yes|yes / no|-|rig-member.r|yes|yes"
+rigAssert "a runs-at that is none of <days> <HH:MM> is declared, the validator refuses it with the rule and the words, and the Dispatcher cannot decide it" "$( rigListRow bad | LC_ALL=C cut -d'|' -f1-3 )|$( rigListRow bad | LC_ALL=C cut -d'|' -f4 | LC_ALL=C cut -c1-46 )|$( rigListRow bad | LC_ALL=C cut -d'|' -f5 )" "yes|soon|-|no:runs-at:_soon_is_not_none_or_<days>_<HH:MM>|no:its_autorun_could_not_be_decided"
+rm -rf "$rigWs/.local/agents/schedule" ; printf "0" > "$rigScn/posts"
+rigRun "$rigTool" --manager-routine-list
+rigAssert "listing the routines posts nothing and marks nothing: the question of the autorun is asked with --read-only" "$( rigPosts ):$( [ -e "$rigWs/.local/agents/schedule" ] && echo marked || echo unmarked )" "0:unmarked"
+rm -f "$rigDir/rig-member.bad.routine.md"
 
 echo "-- 5. a call that cannot be understood --"
 rigRun "$rigDispatcher" --routine-due

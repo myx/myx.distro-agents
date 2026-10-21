@@ -95,8 +95,8 @@ rigScene(){ ## scene name, routine short name ('' for a spawn with no routine) -
 		printf -- '---\nspawn-id: %s\nsession-id: %s\n' "$rigSpawn" "$rigSpawn"
 		[ -z "$2" ] || printf 'routine: magic-team.%s.routine.md\n' "$2"
 		printf 'status: spawn-started\n---\n\n# Spawn session: %s\n' "$rigSpawn"
-	} > "$rigWs/.local/agents/spawned/rig/$rigSpawn.md"
-	cp "$rigWs/.local/agents/spawned/rig/$rigSpawn.md" "$rigSandbox/$rigSpawn.md"
+	} > "$rigWs/.local/agents/spawned/rig/$rigSpawn.spawn.md"
+	cp "$rigWs/.local/agents/spawned/rig/$rigSpawn.spawn.md" "$rigSandbox/$rigSpawn.spawn.md"
 }
 rigTextStream(){ ## canned-stream file, content
 	{

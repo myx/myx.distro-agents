@@ -108,15 +108,15 @@ rigConsoleUser="user-$( printf '%s' "$( id -un 2>/dev/null )" | LC_ALL=C tr -s '
 rigRec(){ ## run id, which is its sandbox too; session id; member
 	mkdir -p "$rigSp/$1"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: %s\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\nspawns: dispatch-%s\nreports-to: %s\n---\n\n# Spawn session: %s\n' \
-		"$2" "$1" "$rigHost" "$3" "$1" "${rigReportsTo:-$rigConsoleUser}" "$2" > "$rigSp/$1/$1.md"
+		"$2" "$1" "$rigHost" "$3" "$1" "${rigReportsTo:-$rigConsoleUser}" "$2" > "$rigSp/$1/$1.spawn.md"
 	printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: %s\nsession-id: %s\n---\n\n# rig dispatch\n' "$3" "$1" "$2" > "$rigData/board/running/dispatch-$1.md"
 }
 ## What the supervising shell of a run does once the run has ended: its record is closed.
 rigClose(){ ## run id
-	LC_ALL=C sed 's/^status: spawn-started$/status: spawn-failed/' "$rigSp/$1/$1.md" > "$rigSp/$1/$1.closing" && mv -f "$rigSp/$1/$1.closing" "$rigSp/$1/$1.md"
+	LC_ALL=C sed 's/^status: spawn-started$/status: spawn-failed/' "$rigSp/$1/$1.spawn.md" > "$rigSp/$1/$1.closing" && mv -f "$rigSp/$1/$1.closing" "$rigSp/$1/$1.spawn.md"
 }
 rigHeader(){ ## run id, header
-	LC_ALL=C sed -n "s/^$2: //p" "$rigSp/$1/$1.md" 2> /dev/null | head -1
+	LC_ALL=C sed -n "s/^$2: //p" "$rigSp/$1/$1.spawn.md" 2> /dev/null | head -1
 }
 ## A stand-in process that only waits, in the rig's process list as the run of that id, by its own --session-id word.
 rigStandPid=""

@@ -80,7 +80,7 @@ rigSpawn(){ ## routine short name, joined|new
 			cd "$MMDAPP" && exec bash "$RIG_FN" --intern-op-agent-spawn-proxy "$@"
 		' rig-start-warning keeper-rig --routine "$1" "${spawnSession[@]}" --dispatch-doc:none --wait <<< "RIG-TASK-TEXT" > "$rigTmp/spawn.out" 2>&1 || rigRc=$?
 	rigInquiries="$( ls "$rigData"/inboxes/magic-coordinator/incoming/inquiry-* 2> /dev/null | LC_ALL=C grep -c . || : )"
-	rigWarned="$( LC_ALL=C grep -h -c '^start-warning: tracking-item' "$rigWs"/.local/agents/spawned/*/*.md 2> /dev/null | LC_ALL=C awk '{ n += $1 } END { print n + 0 }' )"
+	rigWarned="$( LC_ALL=C grep -h -c '^start-warning: tracking-item' "$rigWs"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | LC_ALL=C awk '{ n += $1 } END { print n + 0 }' )"
 	rigItems="$( find "$rigData/board" -type f -name '*.md' 2> /dev/null | LC_ALL=C grep -c . || : )"
 }
 

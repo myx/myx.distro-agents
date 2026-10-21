@@ -92,7 +92,7 @@ AgentsToolsClientAccessReferenceRoots(){
 		return 0
 	fi
 	## Places outside these are registered places with grants on them
-	## (AgentsTools.Places.include, AgentsTools.Grants.include), never a configured list.
+	## (LocalTools.Places.include, AgentsTools.Grants.include), never a configured list.
 	[ -z "${MDLT_ORIGIN:-}" ] || printf '%s\n' "$MDLT_ORIGIN/myx/myx.distro-agents/skillset"
 	printf '%s\n' "$HOME/.claude/skills"
 	return 0

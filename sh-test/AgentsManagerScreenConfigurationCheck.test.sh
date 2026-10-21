@@ -188,7 +188,7 @@ echo "-- Configuration holds its two folders ahead of its subjects --"
 rigCase root
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 turn
 get in
@@ -216,7 +216,7 @@ rigCase checker
 printf 'sleep 1\n' > "$MANAGER_SCREEN_RIG/mode.--manager-check-run"
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN ENTER
 advance 11
@@ -279,7 +279,7 @@ rigCase checkfails
 printf 'fail\n' > "$MANAGER_SCREEN_RIG/mode.--manager-check-run"
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN ENTER r
 wait check 30
@@ -292,7 +292,7 @@ echo "-- Server Keys: the groups from the rows, every key whole --"
 rigCase keys
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN ENTER
 wait list 30
@@ -368,7 +368,7 @@ rigCase checkrow
 printf 'sleep 2\n' > "$MANAGER_SCREEN_RIG/mode.--manager-check-run"
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN ENTER
 turn 3
@@ -408,7 +408,7 @@ cp "$rigTmp/groups.keys" "$MANAGER_SCREEN_RIG/rows.--manager-keys-list"
 rigRow paste "$rigTrustedFull" > "$MANAGER_SCREEN_RIG/rows.--manager-keys-read trusted-1"
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN ENTER
 wait list 30
@@ -435,7 +435,7 @@ rigCase older
 cp "$rigTmp/older.keys" "$MANAGER_SCREEN_RIG/rows.--manager-keys-list"
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN ENTER
 wait list 30
@@ -460,7 +460,7 @@ cp "$rigTmp/older.keys" "$MANAGER_SCREEN_RIG/rows.--manager-keys-list"
 printf 'fail\n' > "$MANAGER_SCREEN_RIG/mode.--manager-keys-read"
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN ENTER
 wait list 30
@@ -641,7 +641,7 @@ rigCase pty
 mkdir -p "$rigTmp/ws-rig"
 printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigTools" > "$rigTmp/tools"
 chmod +x "$rigTmp/tools"
-rigOut="$( MANAGER_SCREEN_PTY_TRACE='checker=Config Checker|keys=Server Keys' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 100 30 "Magic-Team (Agents)" '7\p\aServer Keys\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
+rigOut="$( MANAGER_SCREEN_PTY_TRACE='checker=Config Checker|keys=Server Keys' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 100 30 "Magic-Team (Agents)" '8\p\aServer Keys\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
 rigAssert "it draws the folder and ends with status 0, the terminal given back: its folders stand in the list and in the table of the left pane" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft ) $( rigVal pty.modeBack ) [$( rigVal pty.trace )]" "yes 0 yes none yes [checker keys checker keys]"
 
 if [ "$rigFailCount" -ne 0 ] ; then

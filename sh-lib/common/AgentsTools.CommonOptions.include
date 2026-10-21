@@ -105,8 +105,8 @@ AgentsToolsCommonWorkspace(){ ## operation, value
 	case "$2" in
 		/*) wsPath="$2" ;;
 		*)
-			type AgentsToolsPlacesResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
-			wsPath="$( AgentsToolsPlacesResolve "${MMDAPP%/}" "$2" 2> /dev/null )" || wsPath=""
+			type LocalToolsPlacesResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
+			wsPath="$( LocalToolsPlacesResolve "${MMDAPP%/}" "$2" 2> /dev/null )" || wsPath=""
 			[ -n "$wsPath" ] || { echo "$MDSC_CMD: ${1#--}: ⛔ ERROR: --select-workspace: $2 is no place this machine knows and no absolute path -- nothing was done" >&2 ; return 1 ; }
 		;;
 	esac
@@ -114,14 +114,14 @@ AgentsToolsCommonWorkspace(){ ## operation, value
 	printf '%s' "$wsAbs"
 }
 
-## Whether a workspace root is one this machine knows (the registry of places, AgentsTools.Places.include).
+## Whether a workspace root is one this machine knows (the registry of places, LocalTools.Places.include).
 AgentsToolsCommonWorkspaceKnown(){ ## absolute path
 	local knownRoot
-	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
+	type LocalToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
 	while IFS= read -r knownRoot ; do
 		[ -n "$knownRoot" ] || continue
 		[ "$knownRoot" != "$1" ] || return 0
-	done <<< "$( AgentsToolsPlacesWorkspaceRoots "${MMDAPP%/}" 2> /dev/null )"
+	done <<< "$( LocalToolsPlacesWorkspaceRoots "${MMDAPP%/}" 2> /dev/null )"
 	return 1
 }
 

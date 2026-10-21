@@ -129,8 +129,8 @@ rigBriefHolds(){ ## member, fixed text -- yes or no
 }
 rigThreads(){ ## -- `<records>:<records with a session-thread:>`
 	local threadsAll threadsWith
-	threadsAll="$( ls "$rigWs"/.local/agents/spawned/*/*.md 2> /dev/null | LC_ALL=C grep -c . )"
-	threadsWith="$( LC_ALL=C grep -l -E '^session-thread: [^ ]+' "$rigWs"/.local/agents/spawned/*/*.md 2> /dev/null | LC_ALL=C grep -c . )"
+	threadsAll="$( ls "$rigWs"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | LC_ALL=C grep -c . )"
+	threadsWith="$( LC_ALL=C grep -l -E '^session-thread: [^ ]+' "$rigWs"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | LC_ALL=C grep -c . )"
 	printf '%s:%s' "$threadsAll" "$threadsWith"
 }
 

@@ -101,7 +101,7 @@ rigRecord(){ ## spawn-id, coworking session id, owner, extra front matter line (
 	mkdir -p "$rigSpawned/trk-$1"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: trk-%s\nhost: %s\nowner: %s\nstatus: spawn-started\nsession-thread: CSES00001:1700000000.000100\n%s---\n' \
 		"$2" "$1" "$1" "$rigHost" "$3" "${4:+$4
-}" > "$rigSpawned/trk-$1/$1.md"
+}" > "$rigSpawned/trk-$1/$1.spawn.md"
 }
 ## One served call as one member's run; its output in call.out.
 rigCall(){ ## member, session, tool, arguments JSON

@@ -73,7 +73,7 @@ if ! type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 ; then
 	AgentsToolsEventTrackThreadSpawnHeader(){ ## session dir, header
 		local spawnRecord spawnLine
 		[ -n "${1:-}" ] || return 0
-		for spawnRecord in "${1%/sessions/*}/spawned"/*/"${1##*/}.md" ; do
+		for spawnRecord in "${1%/sessions/*}/spawned"/*/"${1##*/}.spawn.md" ; do
 			[ -f "$spawnRecord" ] || continue
 			while IFS= read -r spawnLine ; do
 				case "$spawnLine" in

@@ -49,7 +49,7 @@ AgentsToolsDecisionsItemFromRef(){ ## task ref text, session id
 	done < <( printf '%s\n' "$refText" | LC_ALL=C grep -oE '[a-z][a-z0-9]*-[0-9]{8}T[0-9]{4}([0-9]{2})?Z(-[A-Za-z0-9_.-]*[A-Za-z0-9_-])?' )
 	[ -n "$refSession" ] && [ -n "${MMDAPP:-}" ] || return 1
 	case "$refSession" in */*|.|..) return 1 ;; esac
-	for refRecord in "$MMDAPP/.local/agents/spawned/$refSession/$refSession.md" "$MMDAPP/.local/agents/spawned"/*/"$refSession.md" ; do
+	for refRecord in "$MMDAPP/.local/agents/spawned/$refSession/$refSession.spawn.md" "$MMDAPP/.local/agents/spawned"/*/"$refSession.spawn.md" ; do
 		[ -f "$refRecord" ] || continue
 		refSpawns="$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, "spawns: " ) == 1 { print substr( $0, 9 ) ; exit ; }' "$refRecord" 2> /dev/null )"
 		refSpawns="${refSpawns%%,*}" ; refSpawns="${refSpawns%% *}"
@@ -229,7 +229,7 @@ AgentsToolsSessionMember(){ ## session id
 	local smRecord
 	case "$1" in ''|-|none|*/*|.|..) return 0 ;; esac
 	[ -n "${MMDAPP:-}" ] || return 0
-	for smRecord in "$MMDAPP/.local/agents/spawned"/*/"$1.md" ; do
+	for smRecord in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
 		[ -f "$smRecord" ] || continue
 		AgentsToolsDecisionsField "$smRecord" owner
 		return 0
@@ -315,7 +315,7 @@ AgentsToolsItemIsOwnerOrParent(){ ## item path, member
 	AgentsToolsMemberListHas "$( AgentsToolsDecisionsField "$1" owner )" "$2" && return 0
 	opSpawn="$( AgentsToolsDecisionsField "$1" spawn-id )"
 	case "$opSpawn" in ''|-|*/*|.|..) return 1 ;; esac
-	for opParent in "$MMDAPP/.local/agents/spawned"/*/"$opSpawn.md" ; do
+	for opParent in "$MMDAPP/.local/agents/spawned"/*/"$opSpawn.spawn.md" ; do
 		[ -f "$opParent" ] || continue
 		opParent="$( AgentsToolsDecisionsField "$opParent" parent-spawn-id )"
 		case "$opParent" in ''|-|none) return 1 ;; esac
@@ -351,7 +351,7 @@ AgentsToolsItemIsParty(){ ## item path, member
 			for ( i = 1 ; i <= n ; i++ ) { one = part[i] ; sub( /\.md$/, "", one ) ; if ( one == item ) { linked = 1 ; } }
 		}
 		END { exit ( found ? 0 : 1 ) ; }
-	' "$MMDAPP/.local/agents/spawned"/*/*.md 2> /dev/null && return 0
+	' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null && return 0
 	return 1
 }
 

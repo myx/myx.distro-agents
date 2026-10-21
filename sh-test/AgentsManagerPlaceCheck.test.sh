@@ -4,7 +4,7 @@
 ## with its own pointers to the places and its own member homes, a workspace with its own registry of places, its
 ## consoles, its team data and its registry of sessions, a second workspace with a registry of its own, and a
 ## third the pointers name whose registry is not there.
-## Held: the list is the merged list of the places' own reader (AgentsToolsPlacesMergedText, what
+## Held: the list is the merged list of the places' own reader (LocalToolsPlacesMergedText, what
 ## --owner-workspace-list prints), a `place` row each, in its order: the two built-in places, this workspace's,
 ## then each other workspace's; a name two workspaces give two paths is written <name>@<workspace> for the other.
 ## Each row has the key, a label of the words of the key, capitalised, the kind, the ceiling, the path with its
@@ -209,8 +209,8 @@ rigAssert "the list takes no word" "$( rigRefused "⛔ ERROR: DistroAgentsTools 
 echo "-- 4. both only read, and reach no other host --"
 rigAssert "no call so far wrote, made or removed a file or a folder of the rig: its workspaces, their registries, the registry of sessions, the home" "$( rigTree )" "$rigTreeBefore"
 rigAssert "no call started anything that reaches another host" "$( [ -e "$rigTmp/remote.calls" ] && wc -l < "$rigTmp/remote.calls" | LC_ALL=C tr -d ' ' || echo 0 )" "0"
-rigInclude="$rigHere/manager/AgentsTools.ManagerPlace.include"
-rigAssert "the places are read by their own reader, the merged list, and the include opens no registry of places itself and names no writer of one" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigInclude" | LC_ALL=C grep -c -e 'AgentsToolsPlacesMergedText "' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigInclude" | LC_ALL=C grep -c -e 'directories\.registry' -e 'AgentsToolsPlacesLocalUpdate' -e 'AgentsToolsPlacesSharedUpdate' -e 'AgentsToolsPlacesOwner' || : )" "1 0"
+rigInclude="$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerPlace.include"
+rigAssert "the places are read by their own reader, the merged list, and the include opens no registry of places itself and names no writer of one" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigInclude" | LC_ALL=C grep -c -e 'LocalToolsPlacesMergedText "' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigInclude" | LC_ALL=C grep -c -e 'directories\.registry' -e 'LocalToolsPlacesLocalUpdate' -e 'LocalToolsPlacesSharedUpdate' -e 'LocalToolsPlacesOwner' || : )" "1 0"
 
 echo "-- 5. the caller rule of the family, and its place in it --"
 rigCallerBad=""
@@ -222,7 +222,7 @@ for rigOne in "$rigList" "$rigRead docs" ; do
 	[ "$rigRc" = 1 ] && [ ! -s "$rigTmp/out" ] && [ "$( rigWhole "$rigTmp/err" "DistroAgentsTools: $( printf '%s' "${rigOne%% *}" | LC_ALL=C sed -e 's/^--//' ): ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" )" = 1 ] || rigCallerBad="$rigCallerBad [${rigOne%% *}]"
 done
 rigAssert "from inside a member's session both are refused, rc 1, nothing on stdout, in the one line of the family" "${rigCallerBad:-each refused}" "each refused"
-rigAssert "the family's include has one arm for the places, which sources their include" "$( LC_ALL=C grep -c -x -e '	--manager-place-\*)' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerPlace.include"' "$rigHere/manager/AgentsTools.Manager.include" || : )" "1 1"
+rigAssert "the family's include has one arm for the places, which sources their include" "$( LC_ALL=C grep -c -x -e '	--manager-place-\*)' "$rigHere/manager/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerPlace.include"' "$rigHere/manager/AgentsTools.Manager.include" || : )" "1 1"
 rigRun --manager-place-no-such
 rigAssert "an operation its subject does not have is refused by name, rc 1" "$rigRc $( rigWhole "$rigTmp/err" "DistroAgentsTools: ⛔ ERROR: invalid option: --manager-place-no-such" )" "1 1"
 

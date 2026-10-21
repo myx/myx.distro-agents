@@ -75,7 +75,7 @@ AgentsReviewItemOfSession(){ ## spawn id
 	case "$1" in ''|*/*|.|..) return 1 ;; esac
 	[ -n "${MMDAPP:-}" ] || return 1
 	AgentsReviewLoad
-	for sesRecord in "$MMDAPP/.local/agents/spawned"/*/"$1.md" ; do
+	for sesRecord in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
 		[ -f "$sesRecord" ] || continue
 		for sesField in spawns spawned-by ; do
 			sesLink="$( AgentsToolsSpawnSandboxRecordHeader "$sesRecord" "$sesField" )"
@@ -95,13 +95,13 @@ AgentsReviewChildRecord(){ ## item path
 	AgentsReviewLoad
 	childSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$1" spawn-id )"
 	if [ -n "$childSpawn" ] && [ "$childSpawn" != "-" ] ; then
-		for childCandidate in "$MMDAPP/.local/agents/spawned"/*/"$childSpawn.md" ; do
+		for childCandidate in "$MMDAPP/.local/agents/spawned"/*/"$childSpawn.spawn.md" ; do
 			[ ! -f "$childCandidate" ] || { printf '%s\n' "$childCandidate" ; return 0 ; }
 		done
 		return 1
 	fi
 	for childFolder in $( AgentsToolsSpawnSandboxFoldersOfItem "$1" ) ; do
-		for childCandidate in "$MMDAPP/.local/agents/spawned/$childFolder"/*.md ; do
+		for childCandidate in "$MMDAPP/.local/agents/spawned/$childFolder"/*.spawn.md ; do
 			[ -f "$childCandidate" ] || continue
 			[ "$( AgentsToolsSpawnSandboxRecordHeader "$childCandidate" status )" = spawn-started ] || continue
 			[ -z "$childFound" ] || return 1
@@ -118,7 +118,7 @@ AgentsReviewChildRecord(){ ## item path
 ## with the reason printed.
 AgentsReviewChildLive(){ ## record path
 	local liveSpawn="${1##*/}" liveStatus liveHost thisHost
-	liveSpawn="${liveSpawn%.md}"
+	liveSpawn="${liveSpawn%.spawn.md}"
 	liveStatus="$( AgentsToolsSpawnSandboxRecordHeader "$1" status )"
 	[ "$liveStatus" = spawn-started ] || { printf 'spawn %s has already ended (status %s)\n' "$liveSpawn" "${liveStatus:--}" ; return 1 ; }
 	liveHost="$( AgentsToolsSpawnSandboxRecordHeader "$1" host )"
@@ -134,7 +134,7 @@ AgentsReviewChildLive(){ ## record path
 ## same send an accept's DISMISSED uses. Prints `sent <member> <thread>`, or `not sent: <why>`.
 AgentsReviewSendToChild(){ ## sending member, record path, body
 	local sendBy="$1" sendRecord="$2" sendBody="$3" sendSpawn="${2##*/}" sendMember sendThread="" sendOut
-	sendSpawn="${sendSpawn%.md}"
+	sendSpawn="${sendSpawn%.spawn.md}"
 	sendMember="$( AgentsToolsSpawnSandboxRecordHeader "$sendRecord" owner )"
 	[ -n "$sendMember" ] || { printf 'not sent: spawn %s names no owner member to address\n' "$sendSpawn" ; return 1 ; }
 	[ "$sendMember" != "$sendBy" ] || { printf 'not sent: the sending member %s is the child member itself, and its own Wait ignores what it authored\n' "$sendBy" ; return 1 ; }
@@ -291,7 +291,7 @@ AgentsReviewRecordCliNow(){ ## record path
 AgentsReviewResumeEligible(){ ## record path (may be empty)
 	local elRecord="$1" elSpawn elCli elNow elNowBoth elHost thisHost elJsonl elFound=""
 	[ -n "$elRecord" ] && [ -f "$elRecord" ] || { printf 'no spawn record of the old session' ; return 1 ; }
-	elSpawn="${elRecord##*/}" ; elSpawn="${elSpawn%.md}"
+	elSpawn="${elRecord##*/}" ; elSpawn="${elSpawn%.spawn.md}"
 	elCli="$( AgentsToolsSpawnSandboxRecordHeader "$elRecord" cli )"
 	case "$elCli" in
 		claude|claude-native) ;;
@@ -331,7 +331,7 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 	if [ -n "$rsFresh" ] ; then
 		rsWhy="a fresh start was asked for"
 	elif rsWhy="$( AgentsReviewResumeEligible "$rsRecord" )" ; then
-		rsFrom="${rsRecord##*/}" ; rsFrom="${rsFrom%.md}"
+		rsFrom="${rsRecord##*/}" ; rsFrom="${rsFrom%.spawn.md}"
 	fi
 	## Not a native resume: a universal-harness session resumes from its kept context
 	## (AgentsTools.HarnessResume.include), a separate branch end to end. Its reason replaces
@@ -381,7 +381,7 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 	[ -z "$rsInitiator" ] || set -- "$@" --parent-member "$rsInitiator"
 	## The run it replaces, by its spawn id: the restart takes over that run's seat in the session (F6.9).
 	if [ -n "$rsRecord" ] && [ -f "$rsRecord" ] ; then
-		rsReplaced="${rsRecord##*/}" ; rsReplaced="${rsReplaced%.md}"
+		rsReplaced="${rsRecord##*/}" ; rsReplaced="${rsReplaced%.spawn.md}"
 		set -- "$@" --restarted-from "$rsReplaced"
 	fi
 	## Joined only where the session has a thread to join by; the proxy refuses a join it cannot make.
@@ -483,7 +483,7 @@ AgentsToolsSpawnParentThread(){ ## parent session id, this spawn's own id
 	AgentsReviewLoad
 	type AgentsToolsEventTrackThreadIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackThread.include"
 	ptTrack="$( AgentsToolsEventTrackChannel )"
-	for ptRecord in "$MMDAPP/.local/agents/spawned"/*/"$ptParent.md" ; do
+	for ptRecord in "$MMDAPP/.local/agents/spawned"/*/"$ptParent.spawn.md" ; do
 		[ -f "$ptRecord" ] || continue
 		ptThread="$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" session-thread )"
 		AgentsToolsSpawnConversationThreadValid "$ptThread" && ! AgentsToolsEventTrackThreadIs "$ptThread" "$ptTrack" && { printf '%s\n' "$ptThread" ; return 0 ; }
@@ -495,9 +495,9 @@ AgentsToolsSpawnParentThread(){ ## parent session id, this spawn's own id
 		[ ! -s "$MMDAPP/.local/agents/sessions/$ptOne/session.thread" ] || IFS= read -r ptThread < "$MMDAPP/.local/agents/sessions/$ptOne/session.thread" || :
 		AgentsToolsSpawnConversationThreadValid "$ptThread" && ! AgentsToolsEventTrackThreadIs "$ptThread" "$ptTrack" && { printf '%s\n' "$ptThread" ; return 0 ; }
 	done
-	for ptRecord in "$MMDAPP/.local/agents/spawned"/*/*.md ; do
+	for ptRecord in "$MMDAPP/.local/agents/spawned"/*/*.spawn.md ; do
 		[ -f "$ptRecord" ] || continue
-		case "${ptRecord##*/}" in "$ptOwn.md") continue ;; esac
+		case "${ptRecord##*/}" in "$ptOwn.spawn.md") continue ;; esac
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" owner )" = magic-coordinator ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" status )" = spawn-started ] || continue
 		ptThread="$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" session-thread )"
@@ -531,7 +531,7 @@ AgentsReviewWaitLeft(){ ## spawn id
 	[ "$( AgentsToolsDecisionsField "$leftPath" spawn-id )" = "$1" ] || return 1
 	leftSince="$( AgentsToolsDecisionsField "$leftPath" review-since-epoch )"
 	case "$leftSince" in ''|*[!0123456789]*) return 1 ;; esac
-	for leftRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$1.md" ; do
+	for leftRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$1.spawn.md" ; do
 		[ ! -f "$leftRecord" ] || leftSession="$( AgentsToolsSpawnSandboxRecordHeader "$leftRecord" session-id )"
 	done
 	case "$leftSession" in ''|-|*/*|.|..) leftSession="" ;; esac
@@ -576,10 +576,10 @@ AgentsReviewWaitExpire(){ ## who, spawn id
 AgentsReviewShutdown(){ ## sending member
 	local sdBy="$1" sdRecord sdSpawn sdItem sdWhy sdSent=0 sdSeen=0
 	AgentsReviewLoad
-	for sdRecord in "$MMDAPP/.local/agents/spawned"/*/*.md ; do
+	for sdRecord in "$MMDAPP/.local/agents/spawned"/*/*.spawn.md ; do
 		[ -f "$sdRecord" ] || continue
 		sdWhy="$( AgentsReviewChildLive "$sdRecord" )" || continue
-		sdSpawn="${sdRecord##*/}" ; sdSpawn="${sdSpawn%.md}"
+		sdSpawn="${sdRecord##*/}" ; sdSpawn="${sdSpawn%.spawn.md}"
 		sdSeen=$(( sdSeen + 1 ))
 		sdWhy="$( AgentsReviewSendToChild "$sdBy" "$sdRecord" DISMISSED )" && sdSent=$(( sdSent + 1 ))
 		printf 'SHUTDOWN: spawn %s: %s\n' "$sdSpawn" "$sdWhy"
@@ -632,7 +632,7 @@ AgentsReviewPromptPost(){ ## who handed back, item file name, its spawn id, outc
 	rpTaskText="$( ASKP_F_task_title="$( AgentsToolsTaskTextValue "$rpTask" title )" ASKP_F_task_names="$rpNames" \
 		ASKP_F_task_text="$( AgentsToolsTaskTextValue "$rpTask" text )" AgentsReviewPromptFill block "Lines/task" 2> /dev/null )" || rpTaskText=""
 	## The session that handed back: its short id, its thread, and what its spawn said it is for.
-	for rpCandidate in "$MMDAPP/.local/agents/spawned"/*/"${rpSpawn:-none}.md" ; do
+	for rpCandidate in "$MMDAPP/.local/agents/spawned"/*/"${rpSpawn:-none}.spawn.md" ; do
 		[ ! -f "$rpCandidate" ] || { rpRecord="$rpCandidate" ; break ; }
 	done
 	rpCow="$( [ -z "$rpRecord" ] || AgentsToolsSpawnSandboxRecordHeader "$rpRecord" session-id )"

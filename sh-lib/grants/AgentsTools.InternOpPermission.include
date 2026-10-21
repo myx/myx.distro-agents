@@ -305,7 +305,7 @@ AgentsToolsPermissionCeilingRefuse(){ ## tool, natural target, session id, entry
 	case "$3" in
 		''|*/*|.|..) ;;
 		*)
-			for ceilRecord in "${MMDAPP%/}/.local/agents/spawned"/*/"$3.md" ; do
+			for ceilRecord in "${MMDAPP%/}/.local/agents/spawned"/*/"$3.spawn.md" ; do
 				[ -f "$ceilRecord" ] || continue
 				ceilRoute="write to the session sandbox output/ instead, or a folder under it: ${ceilRecord%/*}/output/"
 				break
@@ -341,11 +341,11 @@ AgentsToolsPermissionFolderEntry(){ ## tool, natural target, session id
 	[ -d "$folderOf" ] || folderOf="${folderOf%/*}"
 	folderOf="${folderOf%/}"
 	[ -n "$folderOf" ] && [ "$folderOf" != "${HOME%/}" ] || return 1
-	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include" || return 1
+	type LocalToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" || return 1
 	while IFS= read -r folderRoot ; do
 		[ -n "$folderRoot" ] || continue
 		[ "$folderRoot" != "$folderOf" ] && [ "$( AgentsToolsPermissionResolvePath "$folderRoot" )" != "$folderOf" ] || return 1
-	done <<< "$( AgentsToolsPlacesWorkspaceRoots "${MMDAPP%/}" 2> /dev/null )"
+	done <<< "$( LocalToolsPlacesWorkspaceRoots "${MMDAPP%/}" 2> /dev/null )"
 	AgentsToolsPermissionCeilingRefuse "$folderTool" "$folderOf/**" "$3" "$folderTool:$folderOf/**" 2> /dev/null || return 1
 	printf '%s:%s/**' "$folderTool" "$folderOf"
 }
@@ -369,7 +369,7 @@ AgentsToolsPermissionProjectEntry(){ ## tool, natural target, session id
 	case "$projectFolder/" in
 		*//*|*/./*) return 1 ;;
 	esac
-	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include" || return 1
+	type LocalToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" || return 1
 	## The source tree that holds the folder: of a workspace root as it is listed, or as it
 	## resolves; the deepest one, where a workspace lies inside the tree of another.
 	while IFS= read -r projectRoot ; do
@@ -384,7 +384,7 @@ AgentsToolsPermissionProjectEntry(){ ## tool, natural target, session id
 				;;
 			esac
 		done
-	done <<< "$( AgentsToolsPlacesWorkspaceRoots "${MMDAPP%/}" 2> /dev/null )"
+	done <<< "$( LocalToolsPlacesWorkspaceRoots "${MMDAPP%/}" 2> /dev/null )"
 	[ -n "$projectTree" ] || return 1
 	## The nearest folder, from the folder of the file up to the tree, that holds a project.inf.
 	projectOf="$projectFolder"
@@ -677,7 +677,7 @@ AgentsToolsPermissionSetSpawnHeader(){ ## coworking session id, member (empty: i
 	local spawnFile spawnFound=""
 	case "$1" in ''|*/*|.|..) return 0 ;; esac
 	if [ -z "$2" ] ; then
-		for spawnFile in "$MMDAPP/.local/agents/spawned"/*/"$1.md" ; do
+		for spawnFile in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
 			[ -f "$spawnFile" ] || continue
 			spawnFound="$spawnFile" ; break
 		done
@@ -685,7 +685,7 @@ AgentsToolsPermissionSetSpawnHeader(){ ## coworking session id, member (empty: i
 		while IFS= read -r spawnFile ; do
 			[ -f "$spawnFile" ] && [ "$( AgentsToolsPermissionField "$spawnFile" owner )" = "$2" ] || continue
 			[ -n "$spawnFound" ] && [ ! "$spawnFile" -nt "$spawnFound" ] || spawnFound="$spawnFile"
-		done < <( LC_ALL=C grep -l -x -F "session-id: $1" "$MMDAPP/.local/agents/spawned"/*/*.md 2>/dev/null )
+		done < <( LC_ALL=C grep -l -x -F "session-id: $1" "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2>/dev/null )
 	fi
 	[ -n "$spawnFound" ] || return 0
 	AgentsToolsPermissionField "$spawnFound" "$3"
@@ -2252,7 +2252,7 @@ case "$1" in
 	## magic-coordinator.permission-escalation.routine's input scan: the implementation the spawner runs for the routine's
 	## `input-scan-def:`. It has no stub: no agent calls a scan (F6.4).
 	## The oldest 20 open permission asks addressed to permission-escalation.routine (or its full
-	## name), across every workspace this machine knows (AgentsToolsPlacesWorkspaceRoots), this
+	## name), across every workspace this machine knows (LocalToolsPlacesWorkspaceRoots), this
 	## one first; each as AgentsToolsPermissionEscalationAsk prints it.
 	--intern-op-permission-escalation-input-scan)
 		shift
@@ -2265,11 +2265,11 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$escBy" "<team-member>" permission-escalation-input-scan || { set +e ; return 1 ; }
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
-		type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
+		type LocalToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
 		while IFS= read -r escRoot ; do
 			[ -n "$escRoot" ] && [ -d "$escRoot" ] || continue
 			escRows="$escRows$( AgentsPendingAsksForRoutine permission-escalation "$escRoot" | LC_ALL=C awk -F'\t' -v OFS='\t' -v root="$escRoot" '$3 == "permission" { print $1, root, $2, $5 ; }' )"$'\n'
-		done <<< "$( AgentsToolsPlacesWorkspaceRoots "${MMDAPP%/}" 2> /dev/null )"
+		done <<< "$( LocalToolsPlacesWorkspaceRoots "${MMDAPP%/}" 2> /dev/null )"
 		escRows="$( printf '%s' "$escRows" | LC_ALL=C awk 'NF' | LC_ALL=C sort -t "$( printf '\t' )" -k1,1n -k3,3 )"
 		escTotal="$( printf '%s' "$escRows" | LC_ALL=C awk 'NF { n++ ; } END { print n + 0 ; }' )"
 		printf '%s\n\n' "## permission asks addressed to permission-escalation.routine"

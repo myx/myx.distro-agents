@@ -75,7 +75,7 @@ rigBind(){ ## routine short name, or empty for a spawn record with no routine
 		printf -- '---\nspawn-id: %s\nsession-id: %s\n' "$rigId" "$rigId"
 		[ -z "$1" ] || printf 'routine: magic-team.%s.routine.md\n' "$1"
 		printf 'status: spawn-started\n---\n'
-	} > "$rigWs/.local/agents/spawned/rig/$rigId.md"
+	} > "$rigWs/.local/agents/spawned/rig/$rigId.spawn.md"
 	rm -rf "$rigStore" ; mkdir -p "$rigStore"
 }
 rigHarnessRun(){ ## the marker of a harness run in the sandbox, or none

@@ -65,7 +65,7 @@ rigStamp(){ ## hours ago -- a touch -t stamp, BSD or GNU date
 }
 rigSandbox(){ ## session id, status, extra header lines -- a sandbox with its session record, on this host
 	mkdir -p "$rigW/.local/agents/spawned/$1/input" "$rigW/.local/agents/spawned/$1/output"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\ntracking-name: %s\nhost: %s\nowner: rig-member\nstatus: %s\nspawns: dispatch-%s\n%s---\n' "$1" "$1" "$1" "$rigHost" "$2" "$1" "${3:-}" > "$rigW/.local/agents/spawned/$1/$1.md"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\ntracking-name: %s\nhost: %s\nowner: rig-member\nstatus: %s\nspawns: dispatch-%s\n%s---\n' "$1" "$1" "$1" "$rigHost" "$2" "$1" "${3:-}" > "$rigW/.local/agents/spawned/$1/$1.spawn.md"
 }
 rigItem(){ ## board state, item filename, type, status, review-by or none, session and spawn id or none
 	local itemReview="" itemSession=""
@@ -108,12 +108,12 @@ rigControl(){ ## session id -- whether its control folder holds anything: starte
 rigPosts(){ LC_ALL=C grep -c '^chat.postMessage ' "$rigTmp/calls" 2> /dev/null || : ; }
 : > "$rigTmp/calls" ; : > "$rigTmp/bodies" ; : > "$rigTmp/tooling.log"
 
-rigDeadBefore="$( rigSum "$rigW/.local/agents/spawned/rig-ldead/rig-ldead.md" )"
+rigDeadBefore="$( rigSum "$rigW/.local/agents/spawned/rig-ldead/rig-ldead.spawn.md" )"
 rigRun "$rigTmp/scan" --board-scan magic-coordinator
 [ "$( cat "$rigTmp/scan.rc" )" = 0 ] || rigRefuse "the board sections of the scan failed in the rig: $( tail -2 "$rigTmp/scan.err" | LC_ALL=C tr '\n' ' ' )"
 
 echo "-- 1. the board sections of the scan act on nothing --"
-rigAssert "the dead spawn's record is as it was"              "$( rigSum "$rigW/.local/agents/spawned/rig-ldead/rig-ldead.md" )" "$rigDeadBefore"
+rigAssert "the dead spawn's record is as it was"              "$( rigSum "$rigW/.local/agents/spawned/rig-ldead/rig-ldead.spawn.md" )" "$rigDeadBefore"
 rigAssert "its item is still in running"                      "$( rigLoc dispatch-rig-ldead.md )" running
 rigAssert "the ended reviewer's item keeps its review-by"     "$( rigHeader "$rigD/board/review/task-rig-rv-ended.md" review-by )" rig-ended
 rigAssert "no control thread was started"                     "$( rigControl rig-live )" none
@@ -133,7 +133,7 @@ printf '900002 rig-run --session-id rig-live2\n' >> "$rigTmp/ps.list"
 : > "$rigTmp/tooling.log"
 rigRun "$rigTmp/lock" --magic-advance-lock-acquire magic-coordinator rig-advance-pass
 rigAssert "the lock is taken"                                 "$( cat "$rigTmp/lock.rc" )" 0
-rigAssert "the dead spawn's record is closed"                 "$( [ "$( rigHeader "$rigW/.local/agents/spawned/rig-ldead2/rig-ldead2.md" status )" = spawn-started ] && printf open || printf closed )" closed
+rigAssert "the dead spawn's record is closed"                 "$( [ "$( rigHeader "$rigW/.local/agents/spawned/rig-ldead2/rig-ldead2.spawn.md" status )" = spawn-started ] && printf open || printf closed )" closed
 rigAssert "its item moved to review"                          "$( rigLoc dispatch-rig-ldead2.md )" review
 rigAssert "the review-by of the ended reviewer's item is magic-coordinator" "$( rigHeader "$rigD/board/review/task-rig-rv-ended2.md" review-by )" magic-coordinator
 rigAssert "the live session's control thread is started"     "$( rigControl rig-live2 )" started
@@ -155,7 +155,7 @@ rigItem pending task-rig-dep-b.md task pending none none
 : > "$rigTmp/tooling.log"
 rigRun "$rigTmp/loop" --intern-main-loop --one
 rigAssert "the iteration passes" "$( cat "$rigTmp/loop.rc" )" 0
-rigAssert "the dead spawn's record is closed" "$( [ "$( rigHeader "$rigW/.local/agents/spawned/rig-ldead3/rig-ldead3.md" status )" = spawn-started ] && printf open || printf closed )" closed
+rigAssert "the dead spawn's record is closed" "$( [ "$( rigHeader "$rigW/.local/agents/spawned/rig-ldead3/rig-ldead3.spawn.md" status )" = spawn-started ] && printf open || printf closed )" closed
 rigAssert "its item moved to review" "$( rigLoc dispatch-rig-ldead3.md )" review
 rigAssert "the review-by of the ended reviewer's item is magic-coordinator" "$( rigHeader "$rigD/board/review/task-rig-rv-ended3.md" review-by )" magic-coordinator
 rigAssert "the live session's control thread is started" "$( rigControl rig-live3 )" started

@@ -29,7 +29,7 @@ AgentsHarnessContextCheck(){ ## context file
 AgentsReviewContextResumeEligible(){ ## record path (may be empty)
 	local ctxRecord="$1" ctxSpawn ctxCli ctxNow ctxNowBoth ctxHost thisHost ctxFile ctxWhy ctxSession
 	[ -n "$ctxRecord" ] && [ -f "$ctxRecord" ] || { printf 'no spawn record of the old session' ; return 1 ; }
-	ctxSpawn="${ctxRecord##*/}" ; ctxSpawn="${ctxSpawn%.md}"
+	ctxSpawn="${ctxRecord##*/}" ; ctxSpawn="${ctxSpawn%.spawn.md}"
 	ctxCli="$( AgentsToolsSpawnSandboxRecordHeader "$ctxRecord" cli )"
 	case "$ctxCli" in
 		''|none|-) printf 'the old session recorded no cli' ; return 1 ;;

@@ -40,17 +40,19 @@ rigRow(){ ## the fields of one row, joined by TAB
 	printf '%s\n' "$rowText"
 }
 ## The block of the team data of the dashboard, as the tooling prints it: its mode and whether the folder is there.
-rigRow14(){ ## the fields of a routine row, TAB-joined: selector owner start executors session arguments title reason needs state last-run
-	printf 'routine\t%s\t%s\t%s\t%s\t%s\t-\t%s\t%s\t%s\t%s\t%s\n' "$@"
+rigRow14(){ ## the fields of a routine row, TAB-joined: selector owner start executors session title reason needs state last-run (and, of stage two, auto runs-at runs-after valid would)
+	printf 'routine\t%s\t%s\t%s\t%s\t%s\t-\t%s\t%s\t%s\t%s\t%s' "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}"
+	[ $# -lt 15 ] || printf '\t%s\t%s\t%s\t%s\t%s' "${11}" "${12}" "${13}" "${14}" "${15}"
+	printf '\n'
 }
 rigCase(){ ## name -- a fresh rig whose listing holds four routines
 	export MANAGER_SCREEN_RIG="$rigTmp/$1"
 	mkdir -p "$MANAGER_SCREEN_RIG"
 	{
-		rigRow14 magic-coordinator.daily.routine.md magic-coordinator startable magic-coordinator - Daily_of_the_team - - succeeded 2026-10-20_09:00
-		rigRow14 magic-team.coworking.routine.md magic-team not-startable magic-team coworking Coworking_session "its_executors,_magic-team,_is_any_member" members running 2026-10-20_14:17
-		rigRow14 keeper-myx.nightly.routine.md keeper-myx startable keeper-myx - Nightly_gap_check - - failed 2026-10-19_01:00
-		rigRow14 keeper-myx.fresh.routine.md keeper-myx startable keeper-myx - Not_yet_run - - never -
+		rigRow14 magic-coordinator.daily.routine.md magic-coordinator startable magic-coordinator - Daily_of_the_team - - succeeded 2026-10-20_09:00 yes daily_09:00 - yes yes
+		rigRow14 magic-team.coworking.routine.md magic-team not-startable magic-team coworking Coworking_session "its_executors,_magic-team,_is_any_member" members running 2026-10-20_14:17 no - - yes "no:its_executors,_magic-team,_is_any_member"
+		rigRow14 keeper-myx.nightly.routine.md keeper-myx startable keeper-myx - Nightly_gap_check - - failed 2026-10-19_01:00 yes workdays_01:00 keeper-myx.gone.routine.md "no:runs-after:_keeper-myx.gone.routine.md_names_no_routine" "no:today_is_not_one_of_its_days_(workdays)"
+		rigRow14 keeper-myx.fresh.routine.md keeper-myx startable keeper-myx - Not_yet_run - - never - no none - yes yes
 	} > "$MANAGER_SCREEN_RIG/rows.--manager-routine-list"
 	: > "$MANAGER_SCREEN_RIG/calls" ; : > "$MANAGER_SCREEN_RIG/words" ; echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
@@ -85,8 +87,8 @@ turn
 show s
 RIGSCRIPT
 rigAssert "Magic-Team (Agents) holds Routines, and Routines a row for each routine, by its name as the listing gave it" "$( printf '%s' "$( rigVal team )" | LC_ALL=C grep -c -w routines ) | $( rigVal rows )" "1 | .. magic-coordinator/magic-coordinator.daily.routine.md magic-team/magic-team.coworking.routine.md keeper-myx/keeper-myx.nightly.routine.md keeper-myx/keeper-myx.fresh.routine.md"
-rigAssert "the section selected shows all of them as one table: routine, executors, kind of session, state, last run" "$( rigHolds r 'ROUTINE                  EXECUTORS          KIND       STATE      LAST RUN' ) $( rigHolds r 'magic-coordinator.daily  magic-coordinator  -          succeeded  2026-10-20 09:00' ) $( rigHolds r 'magic-team.coworking     magic-team         coworking  running    2026-10-20 14:17' ) $( rigHolds r 'keeper-myx.nightly       keeper-myx         -          failed     2026-10-19 01:00' ) $( rigHolds r 'keeper-myx.fresh         keeper-myx         -          never' )" "1 1 1 1 1"
-rigAssert "a routine selected shows its title and its facts, its state and its last run among them" "$( rigHolds s 'Daily of the team' ) $( rigHolds s ' state      succeeded' ) $( rigHolds s ' last run   2026-10-20 09:00' ) $( rigHolds s ' executors  magic-coordinator' )" "1 1 1 1"
+rigAssert "the section selected shows all of them as one table: routine, executors, kind of session, state, last run, whether it runs by itself, whether it is valid, whether a start now would be accepted" "$( rigHolds r 'ROUTINE            EXECUTORS        KIND      STATE     LAST RUN         AUTO VALID WOULD START' ) $( rigHolds r 'succeeded 2026-10-20 09:00 yes  yes   yes' ) $( rigHolds r 'magic-team       coworking running   2026-10-20 14:17 no   yes   no' ) $( rigHolds r 'keeper-myx.nightly keeper-myx       -         failed    2026-10-19 01:00 yes  no    no' ) $( rigHolds r 'keeper-myx.fresh   keeper-myx       -         never                      no   yes   yes' )" "1 1 1 1 1"
+rigAssert "a routine selected shows its title and its facts, its state and its last run among them, its autorun and its two verdicts" "$( rigHolds s 'Daily of the team' ) $( rigHolds s ' state            succeeded' ) $( rigHolds s ' last run         2026-10-20 09:00' ) $( rigHolds s ' executors        magic-coordinator' ) $( rigHolds s ' runs by itself   yes' ) $( rigHolds s ' runs at          daily 09:00' ) $( rigHolds s ' valid            yes' ) $( rigHolds s ' would start now  yes' )" "1 1 1 1 1 1 1 1"
 rigAssert "the listing was read once for it" "$( rigCalled '--manager-routine-list' )" "1"
 rigScript <<'RIGSCRIPT'
 turn
@@ -98,7 +100,18 @@ wait focus 10
 turn
 show t
 RIGSCRIPT
-rigAssert "one that is not started says why, and the kind of its session" "$( rigHolds t 'its executors, magic-team, is any member' ) $( rigHolds t 'coworking: members working together' )" "1 1"
+rigAssert "one that is not started says why, and the kind of its session, and that a start now would not be accepted, for the same reason" "$( rigHolds t 'its executors, magic-team, is any member' ) $( rigHolds t 'coworking: members working together' ) $( rigHolds t ' would start now    no' ) $( rigHolds t ' would not because' ) $( rigHolds t ' runs by itself     no' )" "2 1 1 1 1"
+rigScript <<'RIGSCRIPT'
+turn
+at @routines
+turn
+wait list 10
+keys DOWN DOWN DOWN
+wait focus 10
+turn
+show n
+RIGSCRIPT
+rigAssert "one that follows a routine that is no routine, and runs on days it is not on: its times, why it is not valid and why a start now would not be accepted" "$( rigHolds n ' runs at            workdays 01:00' ) $( rigHolds n ' runs after         keeper-myx.gone.routine.md' ) $( rigHolds n ' not valid because' ) $( rigHolds n 'runs-after: keeper-myx.gone.routine.md names no routine' ) $( rigHolds n ' would start now    no' ) $( rigHolds n 'today is not one of its days (workdays)' )" "1 1 1 1 1 1"
 
 echo "-- a listing without the two fields: the routine reads -- --"
 rigCase old
@@ -110,7 +123,7 @@ turn
 wait list 10
 show o
 RIGSCRIPT
-rigAssert "a row of ten fields is still a row: its state and its last run read -" "$( rigHolds o '│ x        x          -     -      -' )" "1"
+rigAssert "a row of ten fields is still a row: its state and its last run, its autorun and its two verdicts read -" "$( rigHolds o 'x        x          -     -      -' ) $( rigHolds o 'ROUTINE  EXECUTORS' )" "1 1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN ROUTINES CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

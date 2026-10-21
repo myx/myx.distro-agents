@@ -231,7 +231,7 @@ rigClose(){ ## armed mode (yes|no|unknown); prints the tracking record's armed l
 			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			cd "$MMDAPP" && exec bash "$RIG_FN" --intern-op-agent-spawn-proxy rig-member --dispatch-doc:none --wait
 		' > "$rigDir/close.$1" 2>&1
-	LC_ALL=C cat "$rigDir/ws/.local/agents/spawned"/*/*.md 2>/dev/null | LC_ALL=C grep -E '^armed(-at)?: ' | LC_ALL=C sort | tr '\n' ' '
+	LC_ALL=C cat "$rigDir/ws/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C grep -E '^armed(-at)?: ' | LC_ALL=C sort | tr '\n' ' '
 	rm -rf "$rigDir/ws/.local/agents/spawned"
 }
 rigAssert "armed yes, with armed-at"                   "$( rigClose yes )" "armed-at: 2026-09-29 10:00 +0300 armed: yes "

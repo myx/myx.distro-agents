@@ -20,7 +20,7 @@ if ! type AgentsToolsActingMember >/dev/null 2>&1 ; then
 			case "$MDAT_SPAWN_SESSION_ID" in
 				*/*|.|..) ;;
 				*)
-					for actingRecord in "$MMDAPP/.local/agents/spawned"/*/"$MDAT_SPAWN_SESSION_ID.md" ; do
+					for actingRecord in "$MMDAPP/.local/agents/spawned"/*/"$MDAT_SPAWN_SESSION_ID.spawn.md" ; do
 						[ -f "$actingRecord" ] || continue
 						actingName="$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, "owner: " ) == 1 { print substr( $0, 8 ) ; exit ; }' "$actingRecord" 2> /dev/null )" || actingName=""
 						[ -z "$actingName" ] || break

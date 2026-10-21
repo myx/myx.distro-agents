@@ -128,7 +128,7 @@ rigSpawn(){ ## routine short name, spawned|inline|joined
 		' rig-context rig-member-a --routine "$1" --session-new --dispatch-doc:none ${spawnContext[@]+"${spawnContext[@]}"} --wait <<< "RIG-TASK-TEXT" > "$rigTmp/spawn" 2>&1 || rigRc=$?
 }
 rigRan(){ ## -- `ran` where the console was started or a record written, else `none`
-	if ls "$rigTmp"/brief.* > /dev/null 2>&1 || ls "$rigWs"/.local/agents/spawned/*/*.md > /dev/null 2>&1 ; then printf ran ; else printf none ; fi
+	if ls "$rigTmp"/brief.* > /dev/null 2>&1 || ls "$rigWs"/.local/agents/spawned/*/*.spawn.md > /dev/null 2>&1 ; then printf ran ; else printf none ; fi
 }
 rigNames(){ ## extended pattern -- `named` where the refusal says it
 	if LC_ALL=C grep -q -E -- "$1" "$rigTmp/spawn" ; then printf named ; else printf unnamed ; fi

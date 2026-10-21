@@ -100,7 +100,7 @@ for rigDir in "$rigSkills/magic-librarian" "$rigData/members/magic-librarian" ; 
 done
 rigSession(){ ## session id, routine file name (may be empty)
 	mkdir -p "$rigData/spawned/$1" "$rigData/sessions/$1"
-	printf -- '---\nsession-id: 5e55104a-%s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nowner: magic-librarian\nstatus: spawn-started\n%s---\n' "$1" "$1" "$1" "${2:+routine: $2$'\n'}" > "$rigData/spawned/$1/$1.md"
+	printf -- '---\nsession-id: 5e55104a-%s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nowner: magic-librarian\nstatus: spawn-started\n%s---\n' "$1" "$1" "$1" "${2:+routine: $2$'\n'}" > "$rigData/spawned/$1/$1.spawn.md"
 	printf '%s rig-run --session-id %s\n' "$rigStand" "$1" >> "$rigTmp/ps.list"
 }
 rigSession lib-allowed magic-librarian.rig-allowed.routine.md

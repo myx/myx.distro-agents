@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## The built-in places, run rather than read, against a rig HOME and rig workspaces under one
-## mktemp tree (AgentsToolsPlacesBuiltinRows, AgentsTools.Places.include): `.skillset-shared`,
+## mktemp tree (LocalToolsPlacesBuiltinRows, LocalTools.Places.include): `.skillset-shared`,
 ## the machine's skillset in HOME, and `.skillset-.local`, the member set of the workspace a
 ## run is in. Hardcoded, in every merged list, never a registry row; and no custom place has a
 ## name that starts with a dot.
@@ -23,7 +23,7 @@ rigFn="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-for rigFile in "$rigFn" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include" "$rigHere/common/AgentsTools.InternDirectory.include" ; do
+for rigFile in "$rigFn" "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" "$rigHere/common/AgentsTools.InternDirectory.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 rigMyxCommon="$( command -v myx.common 2>/dev/null )"
@@ -78,7 +78,7 @@ printf 'rig\n' > "$rigMembers/keeper-real/keeper-real.basic.md"
 for rigOne in "$rigSkills/keeper-local/a.md" "$rigSource/keeper-linked/a.md" "$rigSource/keeper-linked/reference/n.md" "$rigMembers/keeper-real/b.md" ; do printf 'rig-seed\n' > "$rigOne" ; done
 printf -- '---\nstatus: task\nowner: magic-coordinator\n---\n\n# Task\n' > "$rigData/board/running/task-rig.md"
 mkdir -p "$rigMain/.local/agents/spawned/sb-c/output"
-printf -- '---\nsession-id: s-coord\nspawn-id: s-coord\nowner: magic-coordinator\nstatus: spawn-started\n---\n\n# Spawn session\n' > "$rigMain/.local/agents/spawned/sb-c/s-coord.md"
+printf -- '---\nsession-id: s-coord\nspawn-id: s-coord\nowner: magic-coordinator\nstatus: spawn-started\n---\n\n# Spawn session\n' > "$rigMain/.local/agents/spawned/sb-c/s-coord.spawn.md"
 
 RIG_WS="$rigMain" RIG_HOME="$rigHome" RIG_AGENT="" RIG_SESSION="" RIG_SKILLSET=""
 rigRun(){ ## op and arguments... -- the tool in RIG_WS under RIG_HOME, clean env; out, err, rigRc

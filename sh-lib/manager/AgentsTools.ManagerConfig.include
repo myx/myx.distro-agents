@@ -32,7 +32,7 @@ type AgentsToolsInboxDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agen
 
 type AgentsToolsOwnerSetupOptionSpec > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.OwnerSetupOptionSpec.include"
 type AgentsToolsCredentialShown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.CredentialDisplay.include"
-type AgentsToolsPlacesListText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
+type LocalToolsPlacesListText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
 type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.CliService.include"
 type AgentsToolsScopeKeyNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 
@@ -334,7 +334,7 @@ AgentsToolsManagerConfigWorkspace(){
 		else
 			AgentsToolsManagerConfigLine workspace places "$placeName" missing "$placePath"
 		fi
-	done <<< "$( AgentsToolsPlacesListText "${MMDAPP%/}" )"
+	done <<< "$( LocalToolsPlacesListText "${MMDAPP%/}" )"
 	return 0
 }
 
@@ -688,7 +688,7 @@ AgentsToolsManagerConfigUserDrop(){ ## key
 ## commas between: no value, its own installed copy; then the `source` of each registered
 ## workspace that has the tool family there; then the `.local` of each that has it there, but
 ## for this workspace's own, which is the default. A workspace is one the places know
-## (AgentsToolsPlacesMergedText) whose folder is there and can be entered. IT HAS THE FAMILY
+## (LocalToolsPlacesMergedText) whose folder is there and can be entered. IT HAS THE FAMILY
 ## where the three files stand that a console loads first from its origin: the context of
 ## the agents console, which the context itself asks for before it takes a `source`, the
 ## settings reader, and the context every other context loads.
@@ -707,7 +707,7 @@ AgentsToolsManagerConfigOrigins(){
 		[ -d "$originsPath" ] && [ -r "$originsPath" ] && [ -x "$originsPath" ] || continue
 		! AgentsToolsManagerConfigOriginHas "$originsPath/source" || originsSource="$originsSource,$originsPath/source=$originsName (source)"
 		[ "$originsPath" = "$originsHere" ] || ! AgentsToolsManagerConfigOriginHas "$originsPath/.local" || originsLocal="$originsLocal,$originsPath/.local=$originsName (.local)"
-	done <<< "$( AgentsToolsPlacesMergedText "$originsHere" quiet 2> /dev/null )"
+	done <<< "$( LocalToolsPlacesMergedText "$originsHere" quiet 2> /dev/null )"
 	printf '%s\n' "=<default> (own .local)$originsSource$originsLocal"
 }
 

@@ -40,7 +40,7 @@ case "$1" in
 		## (`spawns:`) and the item it was started from (`spawned-by:`) -- which is context, not a value to write in a definition.
 		if [ ${#names[@]} -eq 0 ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] ; then
 			local ownRecord ownName
-			for ownRecord in "$MMDAPP/.local/agents/spawned"/*/"$MDAT_SPAWN_SESSION_ID.md" ; do
+			for ownRecord in "$MMDAPP/.local/agents/spawned"/*/"$MDAT_SPAWN_SESSION_ID.spawn.md" ; do
 				[ -f "$ownRecord" ] || continue
 				while IFS= read -r ownName ; do
 					[ -n "$ownName" ] || continue

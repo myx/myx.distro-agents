@@ -96,7 +96,7 @@ rigAssert "its lock note was made in the keeper's processed/, with the stamp of 
 rigAssert "live: work-duty-running, with a session id" "$( rigField "$rigTmp/seen.rig-keeper.0" state ):$( [ -n "$( rigField "$rigTmp/seen.rig-keeper.0" session-id )" ] && echo id || echo none )" "work-duty-running:id"
 rigAssert "the keeper's incoming/ holds nothing: the lock is no work, no demand" "$( ls -A "$rigKeeperIncoming" 2> /dev/null | LC_ALL=C grep -c . || : )" 0
 ## The wait of the run keeps the lock held: nothing while the last write is young, a fresh recheck-date once it is older than half the hold.
-rigSpawnId="$( ls "$rigWs"/.local/agents/spawned/*/*.md 2> /dev/null | LC_ALL=C sed -n '1s#.*/##p' | LC_ALL=C sed 's#\.md$##' )"
+rigSpawnId="$( ls "$rigWs"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | LC_ALL=C sed -n '1s#.*/##p' | LC_ALL=C sed 's#\.spawn\.md$##' )"
 rigEpochOf(){ ## a recheck-date
 	printf '%s\n' "$1" | LC_ALL=C awk -f "$rigPackage/../myx.distro-.local/sh-lib/output/LocalIsoToEpoch.awk" 2> /dev/null
 }

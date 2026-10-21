@@ -698,7 +698,7 @@ if [ -n "$harnessParentKey" ] && [ -n "${MMDAPP:-}" ] ; then
 		[ ! -f "$MMDAPP/.local/agents/children/$harnessParentKey" ] || IFS= read -r -d '' harnessChildNames < "$MMDAPP/.local/agents/children/$harnessParentKey" || :
 		if [ -n "$harnessChildNames" ] ; then
 			harnessChildFiles=()
-			for harnessChildRecord in "$MMDAPP"/.local/agents/spawned/*/*.md ; do
+			for harnessChildRecord in "$MMDAPP"/.local/agents/spawned/*/*.spawn.md ; do
 				case $'\n'"$harnessChildNames" in
 					*$'\n'"${harnessChildRecord#"$MMDAPP/.local/agents/spawned/"}"$'\n'*) harnessChildFiles+=( "$harnessChildRecord" ) ;;
 				esac
@@ -706,7 +706,7 @@ if [ -n "$harnessParentKey" ] && [ -n "${MMDAPP:-}" ] ; then
 			[ "${#harnessChildFiles[@]}" -eq 0 ] || harnessChildRecords="$( LC_ALL=C grep -l -x -F "parent-spawn-id: $harnessParentKey" "${harnessChildFiles[@]}" 2>/dev/null )" || harnessChildRecords=""
 		fi
 	else
-		harnessChildRecords="$( LC_ALL=C grep -l -x -F "parent-spawn-id: $harnessParentKey" "$MMDAPP"/.local/agents/spawned/*/*.md 2>/dev/null )" || harnessChildRecords=""
+		harnessChildRecords="$( LC_ALL=C grep -l -x -F "parent-spawn-id: $harnessParentKey" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2>/dev/null )" || harnessChildRecords=""
 	fi
 	## The spawned/ directory is resolved once; a child's own folder and its input/ and
 	## output/ that are real directories, not links, resolve under it to exactly what
@@ -2557,10 +2557,10 @@ AgentsHarnessSendDismissRefused(){ ## target as given, message, address to
 	[ -n "$dismissSession" ] || return 1
 	dismissRun="$( AgentsToolsSessionSeatHolder "$dismissSession" "$dismissMember" )" || dismissRun=""
 	if [ -z "$dismissRun" ] ; then
-		for dismissCandidate in $( LC_ALL=C grep -l -x -F "session-id: $dismissSession" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.md 2> /dev/null ) ; do
+		for dismissCandidate in $( LC_ALL=C grep -l -x -F "session-id: $dismissSession" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
 			[ "$( AgentsToolsSpawnSandboxRecordHeader "$dismissCandidate" owner )" = "$dismissMember" ] || continue
 			AgentsToolsSessionRecordLive "$dismissCandidate" || continue
-			dismissRun="${dismissCandidate##*/}" ; dismissRun="${dismissRun%.md}"
+			dismissRun="${dismissCandidate##*/}" ; dismissRun="${dismissRun%.spawn.md}"
 			break
 		done
 	fi
@@ -2668,7 +2668,7 @@ AgentsHarnessToolWait(){
 	## tooling ends it, recorded. The item stays in review. Only the tool's own stateful wait.
 	## Nothing is loaded for a session with no spawn record, which has no item to review.
 	if [ "$waitTool" = "true" ] && [ "${MDAT_SPAWN_CALLER_WAITS:-}" != "true" ] && [ -n "$( AgentsHarnessSessionKey )" ] \
-		&& [ -n "$( ls "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$( AgentsHarnessSessionKey ).md" 2> /dev/null )" ] ; then
+		&& [ -n "$( ls "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$( AgentsHarnessSessionKey ).spawn.md" 2> /dev/null )" ] ; then
 		local waitReviewLeft=""
 		type AgentsReviewWaitLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" 2> /dev/null || :
 		waitReviewLeft="$( AgentsReviewWaitLeft "$( AgentsHarnessSessionKey )" 2> /dev/null )" || waitReviewLeft=""
@@ -3129,7 +3129,7 @@ AgentsHarnessSpawnRecordPath(){ ## spawn id
 		''|*/*|*..*) return 0 ;;
 	esac
 	[ -n "${MMDAPP:-}" ] || return 0
-	for recordPath in "$MMDAPP/.local/agents/spawned"/*/"$1.md" ; do
+	for recordPath in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
 		[ -f "$recordPath" ] || continue
 		[ "$( AgentsHarnessDispatchField "$recordPath" spawn-id )" = "$1" ] || continue
 		printf '%s' "$recordPath"
@@ -6136,7 +6136,7 @@ AgentsHarnessPrefetchBuild(){
 	pfWhat="your own $pfMember.armed.md"
 	[ "$pfCount" -le 1 ] || pfWhat="$pfWhat, the sections of the team's files that your task tells you to read"
 	## The routine's text too, where the spawn record asks for the prefix of the routine (`cache-prefix: routine`, F10.7).
-	pfRecord="${MDAT_SPAWN_SANDBOX_ROOT:-}/$MDAT_SPAWN_SESSION_ID.md"
+	pfRecord="${MDAT_SPAWN_SANDBOX_ROOT:-}/$MDAT_SPAWN_SESSION_ID.spawn.md"
 	if [ -f "$pfRecord" ] ; then
 		pfPolicy="$( AgentsHarnessPrefetchRecordKey "$pfRecord" cache-prefix )" ; pfRoutine="$( AgentsHarnessPrefetchRecordKey "$pfRecord" routine )"
 	fi

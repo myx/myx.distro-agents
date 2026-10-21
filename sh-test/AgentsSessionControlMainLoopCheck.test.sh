@@ -98,7 +98,7 @@ rigId(){ ## short name -- the id of that session or run in this run of the check
 rigRec(){ ## sandbox (short), record (short), session (short), host, status
 	mkdir -p "$rigSp/$( rigId "$1" )"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: keeper-rig\nstatus: %s\nstarted-at: 2026-10-13 09:00 +0300\n---\n\n# Spawn session: %s\n' \
-		"$( rigId "$3" )" "$( rigId "$2" )" "$4" "$5" "$( rigId "$3" )" > "$rigSp/$( rigId "$1" )/$( rigId "$2" ).md"
+		"$( rigId "$3" )" "$( rigId "$2" )" "$4" "$5" "$( rigId "$3" )" > "$rigSp/$( rigId "$1" )/$( rigId "$2" ).spawn.md"
 }
 rigStand(){ ## short name of the run -- a stand-in under its own pid that only waits, the run of that spawn in the rig's process list
 	sleep 600 > /dev/null 2>&1 < /dev/null &

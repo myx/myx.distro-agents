@@ -98,7 +98,7 @@ rigRoutine(){ ## file name, executors, allows line (may be empty)
 }
 rigSession(){ ## session id, routine file name (may be empty)
 	mkdir -p "$rigWs/.local/agents/spawned/$1" "$rigWs/.local/agents/sessions/$1"
-	printf -- '---\nsession-id: 5e55104a-%s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nowner: magic-librarian\nstatus: spawn-started\n%s---\n' "$1" "$1" "$1" "${2:+routine: $2$'\n'}" > "$rigWs/.local/agents/spawned/$1/$1.md"
+	printf -- '---\nsession-id: 5e55104a-%s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nowner: magic-librarian\nstatus: spawn-started\n%s---\n' "$1" "$1" "$1" "${2:+routine: $2$'\n'}" > "$rigWs/.local/agents/spawned/$1/$1.spawn.md"
 	printf '%s rig-run --session-id %s\n' "$rigStand" "$1" >> "$rigTmp/ps.list"
 }
 rigRoutine magic-librarian.rig-allowed.routine.md magic-librarian 'magic-librarian:skillset-upsert' ; rigSession rig-allowed magic-librarian.rig-allowed.routine.md

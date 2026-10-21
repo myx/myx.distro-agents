@@ -11,7 +11,7 @@
 ##   routines.index  one row for each routine, the routine being the entity and its runs attached: how many succeeded, failed, run now, when it last ran and,
 ##                   beside it, when it last SUCCEEDED, its tokens and the members that ran it (AgentsDispatcherStatsRoll.awk, want routines).
 ##   tokens.index    the tokens by day, member, routine, preset and credential: the one aggregation the token views read (want tokens).
-## IT IS AN INDEX, NEVER A SOURCE. Every fact in it is read from the run records (.local/agents/spawned/<session>/<run>.md) and the token files the harness
+## IT IS AN INDEX, NEVER A SOURCE. Every fact in it is read from the run records (.local/agents/spawned/<session>/<run>.spawn.md) and the token files the harness
 ## keeps (sessions/<run>/tokens); a fact never first appears here, so the store can be deleted and rebuilt and cannot drift. A reader brings it up to date
 ## first: the records and token files newer than runs.index are read again, and the rows of those runs replaced (--refresh); a run record that was removed is
 ## dropped only by a rebuild (--rebuild-stats). The check that is free: rebuild in a scratch place and compare (--stats-check): a difference is a missed read
@@ -23,7 +23,7 @@ agentsStatsFormat="myx.distro stats"
 
 ## The runs of the workspace, as paths of run records, one a line; and the token file of a run when it has one.
 AgentsToolsStatsRecords(){
-	find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.md' 2> /dev/null | LC_ALL=C sort
+	find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.spawn.md' 2> /dev/null | LC_ALL=C sort
 }
 
 ## Derives the store into a folder: full, or the rows of what changed since the folder's runs.index (refresh). Prints nothing.
@@ -36,14 +36,14 @@ AgentsToolsStatsDerive(){ ## folder, full|refresh
 	deriveOld="$deriveDir/runs.index"
 	if [ "$deriveMode" = refresh ] && [ -f "$deriveOld" ] ; then
 		## what changed since the index: records, and records whose token file did
-		deriveChanged="$( { find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.md' -newer "$deriveOld" 2> /dev/null
+		deriveChanged="$( { find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.spawn.md' -newer "$deriveOld" 2> /dev/null
 			find "$MMDAPP/.local/agents/sessions" -mindepth 2 -maxdepth 2 -name tokens -newer "$deriveOld" 2> /dev/null | while IFS= read -r deriveFile ; do
 				deriveRun="${deriveFile%/tokens}" ; deriveRun="${deriveRun##*/}"
-				find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name "$deriveRun.md" 2> /dev/null
+				find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name "$deriveRun.spawn.md" 2> /dev/null
 			done ; } | LC_ALL=C sort -u )"
 		if [ -z "$deriveChanged" ] ; then rm -f "$deriveRef" "$deriveList" "$deriveRows" ; return 0 ; fi
 		printf '%s\n' "$deriveChanged" | while IFS= read -r deriveFile ; do
-			deriveRun="${deriveFile##*/}" ; deriveRun="${deriveRun%.md}"
+			deriveRun="${deriveFile##*/}" ; deriveRun="${deriveRun%.spawn.md}"
 			[ ! -f "$MMDAPP/.local/agents/sessions/$deriveRun/tokens" ] || printf '%s\n' "$MMDAPP/.local/agents/sessions/$deriveRun/tokens"
 			printf '%s\n' "$deriveFile"
 		done > "$deriveList"

@@ -142,7 +142,7 @@ case "$1" in
 		fi
 
 		## This workspace's places, its own row included, on every update: the grants and the
-		## member scan below read them (AgentsTools.Places.include).
+		## member scan below read them (LocalTools.Places.include).
 		DistroAgentsTools --intern-directory-register || { set +e ; return 1 ; }
 		DistroAgentsTools --make-console-command "$@" || { set +e ; return 1 ; }
 		## The install in two parts, with the ONE build of the indices between them: the part

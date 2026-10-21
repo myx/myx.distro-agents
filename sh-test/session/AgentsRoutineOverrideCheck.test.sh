@@ -95,7 +95,7 @@ echo "-- 2. the member holds the grant: overridden, and kept --"
 rigGrant 'tracking-item%3Amagic-team.rigforbid.routine.md'
 rigSpawn lead
 rigAssert "the start goes on, saying it was overridden by a permission" "$rigRc:$( [ -e "$rigTmp/brief.keeper-rig" ] && echo briefed || echo none ):$( LC_ALL=C grep -c 'overridden by a permission' "$rigTmp/spawn.out" )" "0:briefed:1"
-rigAssert "the record names the override" "$( LC_ALL=C grep -h -c '^override: tracking-item magic-team.rigforbid.routine.md' "$rigWs"/.local/agents/spawned/*/*.md 2> /dev/null | LC_ALL=C awk '{ n += $1 } END { print n + 0 }' )" "1"
+rigAssert "the record names the override" "$( LC_ALL=C grep -h -c '^override: tracking-item magic-team.rigforbid.routine.md' "$rigWs"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | LC_ALL=C awk '{ n += $1 } END { print n + 0 }' )" "1"
 rigAssert "the item's Decisions say so" "$( [ -n "$rigItem" ] && LC_ALL=C grep -c 'override: tracking-item' "$rigItem" || echo no-item )" "1"
 
 echo "-- 3. a grant for another requirement does not override this one --"

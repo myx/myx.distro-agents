@@ -1040,7 +1040,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberHomes.include"
 		local homesHere homesRoot homesStatus=0 homesScanErr homesRows
 		local scanMemberNames scanMemberSources scanDiscoveryTrusted scanDiscoveryError
@@ -1066,7 +1066,7 @@ case "$1" in
 			homesRows="$( printf '%s' "$scanMemberSources" | AgentsToolsMemberHomesDeclaredRows "$homesRoot" )"
 			printf '%s\n' "$homesRows" | AgentsToolsMemberHomesDeclaredWrite "$homesRoot" || homesStatus=1
 			echo "# $MDSC_CMD --intern-member-home-register: $homesRoot has no agents installed: $( printf '%s' "$homesRows" | LC_ALL=C grep -c . ) declared member(s) registered, nothing installed there" >&2
-		done <<< "$( AgentsToolsPlacesWorkspaceRoots "$homesHere" )"
+		done <<< "$( LocalToolsPlacesWorkspaceRoots "$homesHere" )"
 		rm -f "$homesScanErr"
 		AgentsToolsMemberHomesWrite || homesStatus=1
 		[ "$homesStatus" = "0" ] || { set +e ; return 1 ; }

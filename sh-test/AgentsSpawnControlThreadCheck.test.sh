@@ -146,7 +146,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'cat > /dev/null' \
 	'rigLaunch=first ; [ -z "${MDAT_SPAWN_RESUME:-}" ] || rigLaunch=retry' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' \
-	'printf "%s %s %s\n" "$rigLaunch" "$MDAT_SPAWN_SESSION_ID" "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.md" >> "$RIG_SCENARIO/launches"' \
+	'printf "%s %s %s\n" "$rigLaunch" "$MDAT_SPAWN_SESSION_ID" "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.spawn.md" >> "$RIG_SCENARIO/launches"' \
 	". '$rigHelper' 2> /dev/null && rigProcNoteFile \"\$RIG_SCENARIO/\$rigLaunch.\$MDAT_SPAWN_SESSION_ID.began\" \$\$" \
 	'rigLeft=150' \
 	'while [ "$rigLeft" -gt 0 ] && [ ! -e "$RIG_SCENARIO/release" ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done' \
@@ -309,7 +309,7 @@ echo "-- 4. a thread that cannot be started is one warning in the run's log, and
 rigParent="rig-parent-$rigTag"
 mkdir -p "$rigSp/$rigParent" "$rigStores/$rigParent"
 printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-b\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\nsession-thread: CRIGPARENT:1700000000.000100\n---\n\n# Spawn session: %s\n' \
-	"$rigParent" "$rigParent" "$rigParent" "$rigHost" "$rigParent" > "$rigSp/$rigParent/$rigParent.md"
+	"$rigParent" "$rigParent" "$rigParent" "$rigHost" "$rigParent" > "$rigSp/$rigParent/$rigParent.spawn.md"
 sleep 900 > /dev/null 2>&1 < /dev/null &
 rigProcNote "$!" ; rigKept="$rigKept $!"
 printf '%s rig-cli --session-id %s the brief\n' "$!" "$rigParent" >> "$rigTmp/ps.list"

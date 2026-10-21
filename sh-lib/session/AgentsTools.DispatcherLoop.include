@@ -114,12 +114,12 @@ AgentsToolsScheduleWorkDutyRecord(){ ## member
 	while IFS= read -r dutyRecord ; do
 		[ -f "$dutyRecord" ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$dutyRecord" owner )" = "$1" ] && [ "$( AgentsToolsSpawnSandboxRecordHeader "$dutyRecord" status )" = "spawn-started" ] || continue
-		dutySpawn="${dutyRecord##*/}" ; dutySpawn="${dutySpawn%.md}"
+		dutySpawn="${dutyRecord##*/}" ; dutySpawn="${dutySpawn%.spawn.md}"
 		type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 		AgentsToolsRegistrySpawnRuns "$dutySpawn" "$dutyRecord" || continue
 		printf '%s\n' "$dutyRecord"
 		return 0
-	done <<< "$( LC_ALL=C grep -l -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' "$MMDAPP/.local/agents/spawned"/*/*.md 2> /dev/null )"
+	done <<< "$( LC_ALL=C grep -l -E '^routine: [A-Za-z0-9-]+\.work-duty\.routine\.md$' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )"
 	return 1
 }
 
@@ -328,7 +328,7 @@ AgentsToolsScheduleDemand(){ ## member
 ## sender is a member other than the one dismissed, whose own Wait ignores a DISMISSED it authored.
 AgentsToolsScheduleDismiss(){ ## spawn record, why (a clause of the line printed)
 	local dismissRecord="$1" dismissWhy="${2:-it has no more duty}" dismissSpawn dismissMember dismissThread="" dismissBy dismissStore="$MMDAPP/.local/agents/schedule/dismissed" dismissStat=""
-	dismissSpawn="${dismissRecord##*/}" ; dismissSpawn="${dismissSpawn%.md}"
+	dismissSpawn="${dismissRecord##*/}" ; dismissSpawn="${dismissSpawn%.spawn.md}"
 	[ ! -e "$dismissStore/$dismissSpawn" ] || return 0
 	type AgentsToolsManagerRunActivity > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include" --definitions-only > /dev/null 2>&1 || :
 	if stat -f '%m' / > /dev/null 2>&1 ; then dismissStat="bsd" ; elif stat -c '%Y' / > /dev/null 2>&1 ; then dismissStat="gnu" ; fi
@@ -390,7 +390,7 @@ AgentsToolsScheduleInSession(){ ## the duty's spawn record, member
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$sessionOther" status )" = "spawn-started" ] || continue
 		case "$( AgentsToolsSpawnSandboxRecordHeader "$sessionOther" routine )" in *.work-duty.routine.md) continue ;; esac
 		AgentsToolsSessionRecordLive "$sessionOther" && return 0
-	done <<< "$( LC_ALL=C grep -l -x -F "owner: $2" "$MMDAPP/.local/agents/spawned"/*/*.md 2> /dev/null )"
+	done <<< "$( LC_ALL=C grep -l -x -F "owner: $2" "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null )"
 	return 1
 }
 
@@ -401,7 +401,7 @@ AgentsToolsScheduleInSession(){ ## the duty's spawn record, member
 ## cache figure is known the flags decide alone. Idle: since the first `wait going idle` line of the stretch that ends its milestones.
 AgentsToolsScheduleDutyLifetime(){ ## the duty's spawn record, member, whether the flags allow (yes|no)
 	local lifeRecord="$1" lifeMember="$2" lifeAllowed="$3" lifeSpawn lifeStat="" lifeSince lifeIdle lifeLimit="" lifeWhy
-	lifeSpawn="${lifeRecord##*/}" ; lifeSpawn="${lifeSpawn%.md}"
+	lifeSpawn="${lifeRecord##*/}" ; lifeSpawn="${lifeSpawn%.spawn.md}"
 	type AgentsToolsManagerRunIdleSince > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include" --definitions-only > /dev/null 2>&1 || :
 	type AgentsToolsManagerRunIdleSince > /dev/null 2>&1 || return 0
 	if stat -f '%m' / > /dev/null 2>&1 ; then lifeStat="bsd" ; elif stat -c '%Y' / > /dev/null 2>&1 ; then lifeStat="gnu" ; fi

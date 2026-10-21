@@ -136,8 +136,8 @@ rigList(){
 		'sh-lib/config/AgentsTools.Owner.include|1|selftest-$$-|no file name: a value written to a setting and read back' \
 		'sh-lib/questions/AgentsTools.PendingReplyCollect.include|3|$2.$$|under the lock of that one pending reply' \
 		'sh-lib/questions/AgentsTools.PendingReplyRemind.include|3|$2.$$|under the lock of that one pending reply' \
-		'sh-lib/team-data/AgentsTools.Places.include|3|$updateFile.tmp.$$|under the lock of that places registry' \
-		'sh-lib/team-data/AgentsTools.Places.include|3|$sharedFile.tmp.$$|under the lock of the places registry of the machine' \
+		'../myx.distro-.local/sh-lib/places/LocalTools.Places.include|3|$updateFile.tmp.$$|under the lock of that places registry' \
+		'../myx.distro-.local/sh-lib/places/LocalTools.Places.include|3|$sharedFile.tmp.$$|under the lock of the places registry of the machine' \
 		'sh-lib/team-data/AgentsTools.Registries.include|2|${3:-$$}|no file name: the asking process, this one where none is given' \
 		'sh-lib/team-data/AgentsTools.Registries.include|3|$keepFile.$$.aside|the file of one run, named by its spawn id: a stop or a kill of one run is one call at a time' \
 		'sh-lib/session/AgentsTools.SessionTranscript.include|1|context.render.$$|inside the store of one session id, rendered by that session alone' \
@@ -186,7 +186,7 @@ rigGuard(){ ## list file, shell files...
 	' "$@"
 }
 rigList > "$rigTmp/list"
-( cd "$rigPackage" && find sh-lib sh-scripts builders ../myx.distro-.local/sh-lib/markdown ../myx.distro-.local/sh-lib/output -type f \( -name '*.sh' -o -name '*.include' -o -name '*.rc' \) | LC_ALL=C sort ) > "$rigTmp/shell-files"
+( cd "$rigPackage" && find sh-lib sh-scripts builders ../myx.distro-.local/sh-lib/markdown ../myx.distro-.local/sh-lib/output ../myx.distro-.local/sh-lib/places -type f \( -name '*.sh' -o -name '*.include' -o -name '*.rc' \) | LC_ALL=C sort ) > "$rigTmp/shell-files"
 rigAssert "control: the shell files of the package are read, the console template and the builders among them" \
 	"$( [ "$( wc -l < "$rigTmp/shell-files" | LC_ALL=C tr -d ' ' )" -ge 100 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/manager/AgentsConsoleShellScript.template.sh' -e 'sh-scripts/DistroAgentsTools.fn.sh' -e 'builders/source-prepare/1201-agents-indices.sh' "$rigTmp/shell-files" || : )" "many 3"
 rigGuardOut="$( cd "$rigPackage" && rigGuard "$rigTmp/list" $( cat "$rigTmp/shell-files" ) )"

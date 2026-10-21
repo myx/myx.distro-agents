@@ -150,7 +150,7 @@ AgentsToolsDispatcherRecord(){ ## the operation as it was called, its arguments.
 ## a record writes), the stretch's start as DISPATCH_SINCE_MINUTES or as DISPATCH_SINCE with DISPATCH_ZONE, and DISPATCH_UNTIL_MINUTES.
 AgentsToolsDispatcherHistory(){
 	local historyRecords historyLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
-	historyRecords="$( find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -type f -name '*.md' 2> /dev/null | LC_ALL=C sort )"
+	historyRecords="$( find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -type f -name '*.spawn.md' 2> /dev/null | LC_ALL=C sort )"
 	[ -n "$historyRecords" ] || return 1
 	printf '%s\n' "$historyRecords" | LC_ALL=C awk -f "$historyLib/manager/AgentsManagerDateMinutes.awk" -f "$historyLib/session/AgentsDispatcherCompleted.awk"
 }

@@ -91,7 +91,7 @@ rigRun(){ ## variable to set, session, member, start-context, reports-to (empty:
 	runId="rig-auth-run-$rigTag-$rigRunNo-$RANDOM"
 	mkdir -p "$rigWs/.local/agents/spawned/$2" "$rigWs/.local/agents/sessions/$2"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\nstart-context: %s\n%shost: %s\nowner: %s\nstatus: spawn-started\nsession-thread: %s\n---\n' \
-		"$2" "$runId" "$4" "${5:+reports-to: $5$'\n'}" "$rigHost" "$3" "$( rigThreadOf "$2" )" > "$rigWs/.local/agents/spawned/$2/$runId.md"
+		"$2" "$runId" "$4" "${5:+reports-to: $5$'\n'}" "$rigHost" "$3" "$( rigThreadOf "$2" )" > "$rigWs/.local/agents/spawned/$2/$runId.spawn.md"
 	rigThreadOf "$2" > "$rigWs/.local/agents/sessions/$2/session.thread"
 	perl -e 'sleep 600' -- --session-id "$runId" > /dev/null 2>&1 &
 	eval "${1}Pid=\$!"
@@ -102,7 +102,7 @@ rigAlive(){ ## pid
 	kill -0 "$1" 2> /dev/null && printf alive || printf gone
 }
 rigMarked(){ ## session, run id -- whether its record says it was killed
-	LC_ALL=C grep -q '^killed-by: ' "$rigWs/.local/agents/spawned/$1/$2.md" 2> /dev/null && printf marked || printf unmarked
+	LC_ALL=C grep -q '^killed-by: ' "$rigWs/.local/agents/spawned/$1/$2.spawn.md" 2> /dev/null && printf marked || printf unmarked
 }
 rigEnv=( MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_SCENARIO="$rigTmp" RIG_CURL_LOG="$rigTmp/curl.log" )
 rigOpRc=0

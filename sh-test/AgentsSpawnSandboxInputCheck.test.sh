@@ -82,8 +82,8 @@ rigMake(){ ## name, record age (old|new|none), host
 	mkdir -p "$rigSpawned/$1/input" "$rigSpawned/$1/output"
 	: > "$rigSpawned/$1/input/brief.md"
 	[ "$2" != none ] || return 0
-	printf 'session-id: rig-dead-%s\nhost: %s\n' "$1" "$3" > "$rigSpawned/$1/rig-dead-$1.md"
-	[ "$2" != old ] || touch -t 202001010000 "$rigSpawned/$1/rig-dead-$1.md"
+	printf 'session-id: rig-dead-%s\nhost: %s\n' "$1" "$3" > "$rigSpawned/$1/rig-dead-$1.spawn.md"
+	[ "$2" != old ] || touch -t 202001010000 "$rigSpawned/$1/rig-dead-$1.spawn.md"
 }
 rigMake stale old "$rigThisHost"
 rigMake fresh new "$rigThisHost"

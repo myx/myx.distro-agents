@@ -281,7 +281,7 @@ AgentsToolsOwnerSetupBlock1Verdict(){
 case "$1" in
 
 	## A place no project declares, as an owner row of this workspace's own registry
-	## (AgentsTools.Places.include): a workspace by default, always read-write.
+	## (LocalTools.Places.include): a workspace by default, always read-write.
 	--owner-workspace-upsert)
 		shift
 		local wsPath="$1" wsName="" wsKind="workspace" wsCeiling="read-write"
@@ -340,8 +340,8 @@ case "$1" in
 		esac
 		[ "$wsPath" = "/" ] || wsPath="${wsPath%/}"
 		[ -n "$wsName" ] || wsName="${wsPath##*/}"
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
-		if ! AgentsToolsPlacesNameValid "$wsName" ; then
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
+		if ! LocalToolsPlacesNameValid "$wsName" ; then
 			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: a place name is letters, digits and . _ + - only: $wsName" >&2
 			set +e ; return 1
 		fi
@@ -353,7 +353,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: not a set-up workspace, no .local: $MMDAPP" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsPlacesOwnerUpsert "${MMDAPP%/}" "$wsName" "$wsKind" "$wsCeiling" "$wsPath" || { set +e ; return 1 ; }
+		LocalToolsPlacesOwnerUpsert "${MMDAPP%/}" "$wsName" "$wsKind" "$wsCeiling" "$wsPath" || { set +e ; return 1 ; }
 		return 0
 	;;
 
@@ -369,8 +369,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-forget: takes exactly one <name>, and more followed it: $*" >&2
 			set +e ; return 1
 		fi
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
-		AgentsToolsPlacesOwnerForget "${MMDAPP%/}" "$wsName" || { set +e ; return 1 ; }
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
+		LocalToolsPlacesOwnerForget "${MMDAPP%/}" "$wsName" || { set +e ; return 1 ; }
 		return 0
 	;;
 
@@ -380,8 +380,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-list: takes no arguments" >&2
 			set +e ; return 1
 		fi
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
-		AgentsToolsPlacesListText "${MMDAPP%/}"
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
+		LocalToolsPlacesListText "${MMDAPP%/}"
 		return 0
 	;;
 

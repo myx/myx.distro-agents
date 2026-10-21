@@ -19,8 +19,8 @@ type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx
 ## address (`reports-to:`, else the one a run has by default) is of another member, a person or nobody.
 AgentsToolsTrackingLaunchedAway(){ ## member
 	local awayRecord awayId awayRoute awayMember awayList=""
-	for awayRecord in $( LC_ALL=C grep -l -x -F "parent-member: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.md 2> /dev/null ) ; do
-		awayId="${awayRecord##*/}" ; awayId="${awayId%.md}"
+	for awayRecord in $( LC_ALL=C grep -l -x -F "parent-member: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+		awayId="${awayRecord##*/}" ; awayId="${awayId%.spawn.md}"
 		awayRoute="$( AgentsToolsRunRoute "$awayRecord" 2> /dev/null )" || awayRoute=""
 		awayMember="$( AgentsToolsRunRouteMember "$awayRoute" 2> /dev/null )" || awayMember=""
 		[ "$awayMember" != "$1" ] || continue

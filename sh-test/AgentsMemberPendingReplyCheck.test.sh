@@ -381,7 +381,7 @@ rigRun2(){ ## sandbox, session-id, spawn-id, status, the process its launch star
 		printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nstatus: %s\nowner: magic-tester\n' "$2" "$3" "$rigHost" "$4"
 		[ -z "$5" ] || printf 'run-process: %s\n' "$5"
 		printf -- '---\n'
-	} > "$rigAgents2/spawned/$1/$3.md"
+	} > "$rigAgents2/spawned/$1/$3.spawn.md"
 }
 rigRun2 "$rigLone" "$rigLone" "$rigLone" spawn-started ""
 rigRun2 "$rigEnded" "$rigEnded" "$rigEnded" spawn-succeeded ""

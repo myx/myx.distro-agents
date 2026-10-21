@@ -70,7 +70,7 @@ rigIdle(){ ## member, seconds idle at the clock of the rig -- the milestones of 
 rigCache(){ ## member, read|wrote|nothing|none -- the log of its run: an older line of the other kind first, then the last round-1 line (none: a log with no such line)
 	local cacheSpawn cacheRecord cacheLog
 	eval "cacheSpawn=\"\$rigSpawnOf$( rigNo "$1" )\""
-	cacheRecord="$rigSp/$cacheSpawn/$cacheSpawn.md" ; cacheLog="$rigStores/$cacheSpawn/rig-output.log"
+	cacheRecord="$rigSp/$cacheSpawn/$cacheSpawn.spawn.md" ; cacheLog="$rigStores/$cacheSpawn/rig-output.log"
 	case "$2" in
 		read) printf '%s\n' '   shared prefix -- round 1 cached nothing: the prefix is under the model minimum' '   some work' '   shared prefix -- round 1 read 4100 tokens from the cache' '   more work' > "$cacheLog" ;;
 		wrote) printf '%s\n' '   shared prefix -- round 1 read 4100 tokens from the cache' '   some work' '   shared prefix -- round 1 wrote 4100 tokens to the cache for the next session' '   more work' > "$cacheLog" ;;
@@ -139,7 +139,7 @@ rigCache keeper-rig-10 nothing
 ## keeper-rig-09 takes part in another run: a live run of a routine of its own, besides the duty.
 rigOtherSpawn="rig-other-$rigTag"
 mkdir -p "$rigSp/$rigOtherSpawn" "$rigStores/$rigOtherSpawn"
-printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\nstart-context: spawned\nhost: %s\nworkspace: rigws\nowner: keeper-rig-09\nstatus: spawn-started\nstarted-at: 2026-10-19 17:00 +0300\nroutine: magic-team.discuss.routine.md\n---\n\n# Spawn session: %s\n' "$rigOtherSpawn" "$rigOtherSpawn" "$rigHost" "$rigOtherSpawn" > "$rigSp/$rigOtherSpawn/$rigOtherSpawn.md"
+printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\nstart-context: spawned\nhost: %s\nworkspace: rigws\nowner: keeper-rig-09\nstatus: spawn-started\nstarted-at: 2026-10-19 17:00 +0300\nroutine: magic-team.discuss.routine.md\n---\n\n# Spawn session: %s\n' "$rigOtherSpawn" "$rigOtherSpawn" "$rigHost" "$rigOtherSpawn" > "$rigSp/$rigOtherSpawn/$rigOtherSpawn.spawn.md"
 sleep 600 > /dev/null 2>&1 < /dev/null &
 rigOtherPid="$!" ; rigProcNote "$rigOtherPid" ; rigStarted="$rigStarted $rigOtherPid"
 printf '%s claude --verbose --session-id %s --agent keeper-rig-09 the brief\n' "$rigOtherPid" "$rigOtherSpawn" >> "$rigDir/ps.list"

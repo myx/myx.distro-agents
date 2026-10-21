@@ -123,7 +123,7 @@ rigAssert "member b's own brief names the armed.md sections" "$( grep -c -x -F '
 rigAssert "member a's own brief ends its block with the handback line" "$( grep -c -x -F 'When done, hand back; then Wait until dismissed.' "$rigTmp/brief.rig-member-a" )" 1
 rigAssert "member b's own brief ends its block with the handback line" "$( grep -c -x -F 'When done, hand back; then Wait until dismissed.' "$rigTmp/brief.rig-member-b" )" 1
 rigAssert "both spawns' own tracking records share one session id" \
-	"$( LC_ALL=C grep -h -c -x -F "session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.md 2>/dev/null | LC_ALL=C awk '{s+=$1 ;} END{print s+0 ;}' )" 2
+	"$( LC_ALL=C grep -h -c -x -F "session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C awk '{s+=$1 ;} END{print s+0 ;}' )" 2
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
 
 echo "-- no positional members: the routine's own single-member executors supplies the roster --"
@@ -201,7 +201,7 @@ rm -f "$rigTmp/brief.rig-member-a" "$rigTmp/brief.rig-member-b"
 rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --description "rework the vars loader" rig-member-a rig-member-b )"
 rigAssert "the session is started"                       "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 1
 rigAssert "both spawn records keep the description as it was given" \
-	"$( LC_ALL=C grep -h -c -x -F 'description: rework the vars loader' "$rigWs/.local/agents/spawned"/*/*.md 2>/dev/null | LC_ALL=C awk '{ s += $1 ; } END { print s + 0 ; }' )" 2
+	"$( LC_ALL=C grep -h -c -x -F 'description: rework the vars loader' "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C awk '{ s += $1 ; } END { print s + 0 ; }' )" 2
 rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console never received a context"
 rigWaitFor "$rigTmp/brief.rig-member-b" || rigRefuse "rig-member-b's own console never received a context"
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
@@ -230,7 +230,7 @@ rigAssert "the session is started with both members"    "$( printf '%s\n' "$rigO
 rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console never received a context"
 rigWaitFor "$rigTmp/brief.rig-member-b" || rigRefuse "rig-member-b's own console never received a context"
 rigItemsOf(){ LC_ALL=C grep -l -x -F "owner: $1" "$rigData"/board/*/dispatch-*.md 2>/dev/null | wc -l | tr -d ' ' ; } ## member -> its dispatch items, in any state
-rigRecordValues(){ LC_ALL=C sed -n "s/^$1: //p" "$rigWs/.local/agents/spawned"/*/*.md 2>/dev/null | LC_ALL=C sort -u ; } ## header -> its values over the spawn records, each once
+rigRecordValues(){ LC_ALL=C sed -n "s/^$1: //p" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2>/dev/null | LC_ALL=C sort -u ; } ## header -> its values over the spawn records, each once
 rigAssert "each member has a dispatch item of its own"   "$( rigItemsOf rig-member-a ):$( rigItemsOf rig-member-b )" 1:1
 rigAssert "each spawn record names an item of its own"   "$( rigRecordValues spawns | wc -l | tr -d ' ' )" 2
 rigAssert "and a receipt of its own"                     "$( rigRecordValues execution-receipt | wc -l | tr -d ' ' )" 2
@@ -238,9 +238,9 @@ rigAssert "and a receipt of its own"                     "$( rigRecordValues exe
 ## part of the spawn's own id; and an item's name still gives its receipt, as the reader of
 ## an old output log derives it (AgentsHarnessDispatchReceipt, AgentsUniversalHarness.sh).
 rigNamesKept=0
-for rigRecord in "$rigWs/.local/agents/spawned"/*/*.md ; do
+for rigRecord in "$rigWs/.local/agents/spawned"/*/*.spawn.md ; do
 	[ -f "$rigRecord" ] || continue
-	rigSpawnId="${rigRecord##*/}" ; rigSpawnId="${rigSpawnId%.md}"
+	rigSpawnId="${rigRecord##*/}" ; rigSpawnId="${rigSpawnId%.spawn.md}"
 	rigReceipt="$( LC_ALL=C sed -n 's/^execution-receipt: //p' "$rigRecord" | head -1 )"
 	rigSpawns="$( LC_ALL=C sed -n 's/^spawns: //p' "$rigRecord" | head -1 )"
 	printf '%s\n' "$rigReceipt" | LC_ALL=C grep -q -E "^spawn-proxy-20300101T000000Z-[0-9]+-${rigSpawnId:0:8}\$" || continue

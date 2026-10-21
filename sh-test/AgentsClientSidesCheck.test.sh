@@ -398,7 +398,7 @@ echo "-- 5b. the two session addresses are our own organisation's: a client's --
 ## the session that started it, recorded for that session, a native one with no record of its own.
 mkdir -p "$rigWork/ws-here/.local/agents/spawned/rig-session-client" "$rigWork/ws-here/.local/agents/sessions/rig-session-parent"
 printf '%s\n' CHERE0001:1700000007.000700 > "$rigWork/ws-here/.local/agents/sessions/rig-session-parent/session.thread"
-printf -- '---\nspawn-id: rig-session-client\nowner: client-ndm\nparent-spawn-id: rig-session-parent\nparent-session-id: rig-session-parent\nparent-member: magic-coordinator\nparent-thread: CHERE0001:1700000007.000700\n---\n' > "$rigWork/ws-here/.local/agents/spawned/rig-session-client/rig-session-client.md"
+printf -- '---\nspawn-id: rig-session-client\nowner: client-ndm\nparent-spawn-id: rig-session-parent\nparent-session-id: rig-session-parent\nparent-member: magic-coordinator\nparent-thread: CHERE0001:1700000007.000700\n---\n' > "$rigWork/ws-here/.local/agents/spawned/rig-session-client/rig-session-client.spawn.md"
 rigPre=( MDAT_SPAWN_SESSION_ID=rig-session-client MDAT_SPAWN_AGENT=client-ndm MDAT_SESSION_THREAD=CHERE0001:1700000009.000100 )
 rigRun --member-comms-slack-send-message client-ndm session-current RIG-BODY
 rigAssert "session-current in a client's --member- send: its session thread in our own Slack, by our team's bot" "$rigRc $( rigTokens chat.postMessage )$( rigChannel ) $( rigN "$rigTmp/bodies" '"thread_ts":"1700000009.000100"' ) $( rigTheirs )" "0 rig-bot-token-HERE CHERE0001 1 0"
@@ -491,7 +491,7 @@ rigRc=0
 	bash "$rigTool" --intern-op-agent-spawn-proxy client-ndm --dispatch-doc:none --wait --context rig-client-sides ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
 rigAssert "its session is launched by the console of the workspace it was called from, on the view of the workspace it is set up in" "$rigRc $( cat "$rigTmp/launched.HERE" 2> /dev/null | LC_ALL=C sed "s|$rigWork/||" ) $( cat "$rigTmp/roots.HERE" 2> /dev/null | LC_ALL=C sed "s|$rigWork/||" ) [$( cat "$rigTmp/launched.THERE" 2> /dev/null )]" "0 ws-here client-ndm=ws-there/.local/agents/members []"
 rigAssert "its session thread is opened in our own Slack by our team's bot, though the client holds a token of its own" "$( rigTokens chat.postMessage )$( rigChannel ) $( rigTheirs ) $( rigElsewhere )" "rig-bot-token-HERE CHERE0001 0 0"
-rigClientRecord="$( LC_ALL=C grep -l -x 'owner: client-ndm' "$rigWork/ws-here"/.local/agents/spawned/*/*.md 2> /dev/null | LC_ALL=C grep -v '/rig-session-client/' | LC_ALL=C sed -n 1p )"
+rigClientRecord="$( LC_ALL=C grep -l -x 'owner: client-ndm' "$rigWork/ws-here"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | LC_ALL=C grep -v '/rig-session-client/' | LC_ALL=C sed -n 1p )"
 rigAssert "its record is kept here and says the three workspaces of the run as any invited member's does: executed and paid here, its member's the one it is set up in" "$( LC_ALL=C awk -F': ' '$1 == "executing-workspace" { e = $2 } $1 == "paying-workspace" { p = $2 } $1 == "member-workspace" { m = $2 } END { printf "%s/%s/%s", e, p, m }' "$rigClientRecord" 2> /dev/null ) $( ls "$rigWork/ws-there/.local/agents/spawned" 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "ws-here/ws-here/ws-there 0"
 
 echo "-- 9. static: the side is said in one place, and the settings are read by it --"

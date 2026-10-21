@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerWorkspace.include -- the blocks the agents console adds to `Workspace (System)` (F11.10 of the refactorings epic). The screen and the operation are `.local`'s
+## (--manager-workspace-read, myx.distro-.local, sh-lib/manager/LocalTools.ManagerWorkspace.include); this console REGISTERS its blocks in sh-lib/config/workspace-blocks.list, and
+## `.local` calls the reader of each. The readers write with LocalToolsManagerWorkspaceFact and LocalToolsManagerWorkspaceItem, and read nothing that is not already read elsewhere:
+##   agents  the mode of the workspace as the gate's one reader says it (AgentsToolsWorkspaceMode, AgentsTools.TeamDataGate.include), and whether it keeps team data (AgentsToolsTeamDataGateOpen)
+##   team    the members that belong to this workspace, by the one function that reads them (AgentsToolsManagerPlaceMembers, as the read of a place does)
+## FOR VIEWING. Nothing here writes, and nothing reaches another host.
+##
+
+type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
+type AgentsToolsManagerPlaceMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerPlaceMembers.include"
+
+## The agents' mode of this workspace and whether it keeps team data: `team-rig`, `just-agents` or `rig-client`, and `yes` for a team rig, else `no`.
+AgentsToolsManagerWorkspaceAgents(){
+	local agentsMode="" agentsSource=""
+	read -r agentsMode agentsSource <<< "$( AgentsToolsWorkspaceMode )" || :
+	LocalToolsManagerWorkspaceFact mode "${agentsMode:-just-agents}"
+	if AgentsToolsTeamDataGateOpen ; then LocalToolsManagerWorkspaceFact team-data yes ; else LocalToolsManagerWorkspaceFact team-data no ; fi
+	return 0
+}
+
+## The members that belong to this workspace, an item each: the name, its kind, how it is set up there, and its folder.
+AgentsToolsManagerWorkspaceTeam(){
+	local teamRow teamName teamKind teamHome teamSetup teamFolder
+	while IFS=$'\t' read -r teamRow teamName teamKind teamHome teamSetup teamFolder ; do
+		[ "$teamRow" = "member" ] || continue
+		LocalToolsManagerWorkspaceItem "$teamName" "$teamKind" "$teamSetup" "$teamFolder"
+	done <<< "$( AgentsToolsManagerPlaceMembers "${MMDAPP%/}" "$( [ -d "${MMDAPP%/}" ] && echo present || echo absent )" )"
+	return 0
+}

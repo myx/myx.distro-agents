@@ -201,7 +201,7 @@ AgentsToolsRunRouteMember(){ ## address
 		person|none) return 1 ;;
 	esac
 	case "$1" in *:*) printf '%s\n' "${1#*:}" ; return 0 ;; esac
-	for memberRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$1.md" ; do
+	for memberRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$1.spawn.md" ; do
 		[ ! -f "$memberRecord" ] || memberOwner="$( AgentsToolsSpawnSandboxRecordHeader "$memberRecord" owner )"
 	done
 	AgentsToolsAssertBareName "$memberOwner" "the owner of a session's founding record" AgentsToolsRunRouteMember 2> /dev/null || return 1
@@ -216,17 +216,17 @@ AgentsToolsRunRouteAvailable(){ ## session, member, the asking run's spawn recor
 	local availRecord="$3" availOwn availCandidate availId
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	AgentsToolsAssertBareName "$1" "the session" AgentsToolsRunRouteAvailable 2> /dev/null && AgentsToolsAssertBareName "$2" "the member" AgentsToolsRunRouteAvailable 2> /dev/null || return 1
-	availOwn="${availRecord##*/}" ; availOwn="${availOwn%.md}"
+	availOwn="${availRecord##*/}" ; availOwn="${availOwn%.spawn.md}"
 	type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || :
-	for availCandidate in $( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.md 2> /dev/null ) ; do
-		availId="${availCandidate##*/}" ; availId="${availId%.md}"
+	for availCandidate in $( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+		availId="${availCandidate##*/}" ; availId="${availId%.spawn.md}"
 		[ "$availId" != "$availOwn" ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$availCandidate" owner )" = "$2" ] || continue
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$availCandidate" status )" = spawn-started ] || continue
 		type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 && AgentsToolsRegistrySpawnRuns "$availId" "$availCandidate" > /dev/null 2>&1 || continue
 		return 0
 	done
-	[ -z "$( ls "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$1.md" 2> /dev/null )" ] || return 1
+	[ -z "$( ls "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$1.spawn.md" 2> /dev/null )" ] || return 1
 	[ "$( AgentsToolsSpawnSandboxRecordHeader "$availRecord" parent-member )" = "$2" ] || return 1
 	return 0
 }
@@ -279,7 +279,7 @@ AgentsToolsItemReviewer(){ ## item path
 	[ -z "$reviewerBy" ] || { printf '%s\n' "$reviewerBy" ; return 0 ; }
 	reviewerSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$1" spawn-id )"
 	AgentsToolsAssertBareName "$reviewerSpawn" "the item's spawn-id" AgentsToolsItemReviewer 2> /dev/null || return 0
-	for reviewerRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$reviewerSpawn.md" ; do
+	for reviewerRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$reviewerSpawn.spawn.md" ; do
 		[ -f "$reviewerRecord" ] || continue
 		AgentsToolsRunRoute "$reviewerRecord"
 		return 0
@@ -313,7 +313,7 @@ AgentsToolsSessionRunRecord(){ ## spawn id
 	local runRecord
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	AgentsToolsAssertBareName "$1" "the run" AgentsToolsSessionRunRecord 2> /dev/null || return 1
-	for runRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$1.md" ; do
+	for runRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$1.spawn.md" ; do
 		[ ! -f "$runRecord" ] || { printf '%s' "$runRecord" ; return 0 ; }
 	done
 	return 1
@@ -360,7 +360,7 @@ AgentsToolsSessionSeatLock(){ ## seat file
 AgentsToolsSessionSeatTake(){ ## session, member, the run's spawn record
 	local takeFile takeRun takeHolder="" takeHolderRecord takeTemp="" takeRc=0
 	takeFile="$( AgentsToolsSessionSeatFile "$1" "$2" )" || return 2
-	takeRun="${3##*/}" ; takeRun="${takeRun%.md}"
+	takeRun="${3##*/}" ; takeRun="${takeRun%.spawn.md}"
 	AgentsToolsSessionSeatLock "$takeFile" || return 2
 	[ ! -f "$takeFile" ] || IFS= read -r takeHolder < "$takeFile" || :
 	if [ -n "$takeHolder" ] && [ "$takeHolder" != "$takeRun" ] && takeHolderRecord="$( AgentsToolsSessionRunRecord "$takeHolder" )" \
@@ -391,7 +391,7 @@ AgentsToolsSessionSeatRelease(){ ## session, member, spawn id
 ## Whether a run is without its seat: another run of its member that still runs holds it. rc 0 it is.
 AgentsToolsSessionRunSeatless(){ ## spawn record
 	local lessRun lessHolder
-	lessRun="${1##*/}" ; lessRun="${lessRun%.md}"
+	lessRun="${1##*/}" ; lessRun="${lessRun%.spawn.md}"
 	lessHolder="$( AgentsToolsSessionSeatHolder "$( AgentsToolsSpawnSandboxRecordHeader "$1" session-id )" "$( AgentsToolsSpawnSandboxRecordHeader "$1" owner )" )" || return 1
 	[ "$lessHolder" != "$lessRun" ]
 }
@@ -412,9 +412,9 @@ AgentsToolsSessionOthersRunning(){ ## spawn record
 	othersSession="$( AgentsToolsSpawnSandboxRecordHeader "$1" session-id )"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	AgentsToolsAssertBareName "$othersSession" "the session" AgentsToolsSessionOthersRunning 2> /dev/null || return 1
-	othersOwn="${1##*/}" ; othersOwn="${othersOwn%.md}"
-	for othersCandidate in $( LC_ALL=C grep -l -x -F "session-id: $othersSession" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.md 2> /dev/null ) ; do
-		othersId="${othersCandidate##*/}" ; othersId="${othersId%.md}"
+	othersOwn="${1##*/}" ; othersOwn="${othersOwn%.spawn.md}"
+	for othersCandidate in $( LC_ALL=C grep -l -x -F "session-id: $othersSession" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+		othersId="${othersCandidate##*/}" ; othersId="${othersId%.spawn.md}"
 		[ "$othersId" != "$othersOwn" ] || continue
 		AgentsToolsSessionRecordLive "$othersCandidate" || continue
 		! AgentsToolsSessionRunSeatless "$othersCandidate" || continue
@@ -432,7 +432,7 @@ AgentsToolsSessionRunExecutor(){ ## spawn record
 		[ "$execContext" = spawned ]
 		return
 	fi
-	execRun="${1##*/}" ; execRun="${execRun%.md}"
+	execRun="${1##*/}" ; execRun="${execRun%.spawn.md}"
 	[ "$execRun" = "$( AgentsToolsSpawnSandboxRecordHeader "$1" session-id )" ]
 }
 
@@ -456,11 +456,11 @@ AgentsToolsSessionRunNamedBy(){ ## spawn record
 	namedMember="$( AgentsToolsSpawnSandboxRecordHeader "$1" owner )"
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	AgentsToolsAssertBareName "$namedSession" "the session" AgentsToolsSessionRunNamedBy 2> /dev/null && AgentsToolsAssertBareName "$namedMember" "the member" AgentsToolsSessionRunNamedBy 2> /dev/null || return 1
-	namedOwn="${1##*/}" ; namedOwn="${namedOwn%.md}"
+	namedOwn="${1##*/}" ; namedOwn="${namedOwn%.spawn.md}"
 	! AgentsToolsSessionRunExecutor "$1" || namedExecutor="executor"
 	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ItemDecisions.include" 2> /dev/null || :
-	for namedCandidate in $( LC_ALL=C grep -l -x -F -e "session-id: $namedSession" -e "parent-session-id: $namedSession" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.md 2> /dev/null ) ; do
-		namedId="${namedCandidate##*/}" ; namedId="${namedId%.md}"
+	for namedCandidate in $( LC_ALL=C grep -l -x -F -e "session-id: $namedSession" -e "parent-session-id: $namedSession" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+		namedId="${namedCandidate##*/}" ; namedId="${namedId%.spawn.md}"
 		[ "$namedId" != "$namedOwn" ] || continue
 		AgentsToolsSessionRecordLive "$namedCandidate" || continue
 		if ! AgentsToolsSessionAddressNames "$( AgentsToolsSpawnSandboxRecordHeader "$namedCandidate" "$agentsRunRouteField" )" "$namedSession" "$namedMember" "$namedExecutor" ; then
@@ -517,7 +517,7 @@ AgentsToolsSessionDismissHold(){ ## spawn id, who dismissed it, handback-given (
 ## The sandbox folder is named by tracking name or session id, so records are found by file name.
 AgentsToolsSessionParentThreadFind(){
 	local parentRecord="" parentCandidate parentRoute parentSession parentThread=""
-	for parentCandidate in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"${MDAT_SPAWN_SESSION_ID:-none}.md" ; do
+	for parentCandidate in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"${MDAT_SPAWN_SESSION_ID:-none}.spawn.md" ; do
 		[ ! -f "$parentCandidate" ] || { parentRecord="$parentCandidate" ; break ; }
 	done
 	[ -n "$parentRecord" ] || return 1
@@ -538,7 +538,7 @@ AgentsToolsSessionParentThreadFind(){
 ## to a person, or to a session whose executor no record names, or has no record.
 AgentsToolsSessionParentMember(){
 	local memberRecord="" memberCandidate
-	for memberCandidate in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"${MDAT_SPAWN_SESSION_ID:-none}.md" ; do
+	for memberCandidate in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"${MDAT_SPAWN_SESSION_ID:-none}.spawn.md" ; do
 		[ ! -f "$memberCandidate" ] || { memberRecord="$memberCandidate" ; break ; }
 	done
 	[ -n "$memberRecord" ] || return 1
@@ -625,7 +625,7 @@ AgentsToolsSpawnConversationHistory(){ ## output file, member, threads (space-se
 AgentsToolsConversationThreadsFind(){
 	[ -z "${MDAT_CONVERSATION_THREADS:-}" ] || { printf '%s\n' "$MDAT_CONVERSATION_THREADS" ; return 0 ; }
 	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || return 1
-	local recordFile="${MDAT_SPAWN_SANDBOX_ROOT:-$MMDAPP/.local/agents/spawned/$MDAT_SPAWN_SESSION_ID}/$MDAT_SPAWN_SESSION_ID.md" recordThreads=""
+	local recordFile="${MDAT_SPAWN_SANDBOX_ROOT:-$MMDAPP/.local/agents/spawned/$MDAT_SPAWN_SESSION_ID}/$MDAT_SPAWN_SESSION_ID.spawn.md" recordThreads=""
 	[ -f "$recordFile" ] || return 1
 	recordThreads="$( LC_ALL=C awk '/^---$/ { if ( ++fm == 2 ) exit ; next ; } fm == 1 && /^conversation-threads: / { print substr( $0, 23 ) ; exit ; }' "$recordFile" )"
 	[ -n "$recordThreads" ] || return 1
@@ -669,7 +669,7 @@ AgentsToolsSpawnSandboxSweep(){ ## where
 		[ -n "$( find "$sweepDir/input" "$sweepDir/tmp" -mindepth 1 -maxdepth 1 2>/dev/null | head -1 )" ] || continue
 		## A sandbox with no record, or with a record under 10 minutes old, may still be launching.
 		sweepLive="no-record"
-		for sweepRecord in "$sweepDir"/*.md ; do
+		for sweepRecord in "$sweepDir"/*.spawn.md ; do
 			[ -f "$sweepRecord" ] || continue
 			sweepLive=""
 			if [ -n "$( find "$sweepRecord" -mmin -10 2>/dev/null )" ] ; then sweepLive="launching" ; break ; fi
@@ -802,12 +802,12 @@ AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
 	local childStatus childMember childThread="" childHost thisHost sendOut
 	itemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" spawn-id )"
 	if [ -n "$itemSpawn" ] && [ "$itemSpawn" != "-" ] ; then
-		for recordCandidate in "$MMDAPP/.local/agents/spawned"/*/"$itemSpawn.md" ; do
+		for recordCandidate in "$MMDAPP/.local/agents/spawned"/*/"$itemSpawn.spawn.md" ; do
 			[ ! -f "$recordCandidate" ] || { recordPath="$recordCandidate" ; break ; }
 		done
 	else
 		for folderName in $( AgentsToolsSpawnSandboxFoldersOfItem "$itemPath" ) ; do
-			for recordCandidate in "$MMDAPP/.local/agents/spawned/$folderName"/*.md ; do
+			for recordCandidate in "$MMDAPP/.local/agents/spawned/$folderName"/*.spawn.md ; do
 				[ -f "$recordCandidate" ] || continue
 				[ "$( AgentsToolsSpawnSandboxRecordHeader "$recordCandidate" status )" = spawn-started ] || continue
 				[ -z "$recordPath" ] || { printf 'ACCEPT-DISMISS: not sent: more than one live spawn links %s, so which child to dismiss is not decided here\n' "${itemPath##*/}" ; return 0 ; }
@@ -816,7 +816,7 @@ AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
 		done
 	fi
 	[ -n "$recordPath" ] || { printf 'ACCEPT-DISMISS: not sent: no spawn record found for %s (spawn-id %s)\n' "${itemPath##*/}" "${itemSpawn:--}" ; return 0 ; }
-	itemSpawn="${recordPath##*/}" ; itemSpawn="${itemSpawn%.md}"
+	itemSpawn="${recordPath##*/}" ; itemSpawn="${itemSpawn%.spawn.md}"
 	childStatus="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )"
 	[ "$childStatus" = spawn-started ] || { printf 'ACCEPT-DISMISS: not sent: spawn %s has already ended (status %s)\n' "$itemSpawn" "${childStatus:--}" ; return 0 ; }
 	childHost="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" host )"
@@ -894,7 +894,7 @@ AgentsToolsSpawnProxyShellNote(){ ## -- keeps `<pid> <start>` of the shell it is
 	return 0
 }
 AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
-	local runFile="${MDAT_SPAWN_SANDBOX_ROOT:-}/${MDAT_SPAWN_SESSION_ID:-}.md" runStart runOps runBody runSeen runNow runTries=0
+	local runFile="${MDAT_SPAWN_SANDBOX_ROOT:-}/${MDAT_SPAWN_SESSION_ID:-}.spawn.md" runStart runOps runBody runSeen runNow runTries=0
 	[ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -f "$runFile" ] || return 0
 	case "${1:-}" in ''|*[!0123456789]*) return 0 ;; esac
 	type AgentsToolsRegistryProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" 2> /dev/null || return 0
@@ -954,10 +954,10 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code
 		printf 'upsert\tresolved-at\t%s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
 		## Whether the session read its own duty file, as the harness recorded it beside this file.
 		## "no" only where the harness loop ran and could see it; a native CLI's session is unknown.
-		if [ -s "${sandboxFile%.md}.armed" ] ; then
+		if [ -s "${sandboxFile%.spawn.md}.armed" ] ; then
 			printf 'upsert\tarmed\tyes\n'
-			printf 'upsert\tarmed-at\t%s\n' "$( head -1 "${sandboxFile%.md}.armed" )"
-		elif [ -e "${sandboxFile%.md}.harness" ] ; then
+			printf 'upsert\tarmed-at\t%s\n' "$( head -1 "${sandboxFile%.spawn.md}.armed" )"
+		elif [ -e "${sandboxFile%.spawn.md}.harness" ] ; then
 			printf 'upsert\tarmed\tno\n'
 		else
 			printf 'upsert\tarmed\tunknown\n'
@@ -1148,7 +1148,7 @@ AgentsToolsSpawnProxyEndNotice(){ ## the run's record, what its closer saw of a 
 	agentsSpawnProxyEndNoticeSaid="none"
 	[ -n "$endRecord" ] && [ -f "$endRecord" ] || return 0
 	[ "$endSeen" = "died" ] || [ -z "$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" death-told )" ] || return 0
-	endRun="${endRecord##*/}" ; endRun="${endRun%.md}"
+	endRun="${endRecord##*/}" ; endRun="${endRun%.spawn.md}"
 	endMember="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" owner )"
 	[ -n "$endMember" ] || return 0
 	endOwn="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" session-thread )"
@@ -1284,7 +1284,7 @@ AgentsToolsSpawnSandboxFoldersOfItem(){ ## item path
 			fmCount = 0 ;
 			folderName = FILENAME ; sub( /\/[^\/]*$/, "", folderName ) ; sub( /^.*\//, "", folderName ) ;
 			recordName = FILENAME ; sub( /^.*\//, "", recordName ) ;
-			if ( wantSpawn != "" && wantSpawn != "-" && recordName == wantSpawn ".md" ) { print folderName ; }
+			if ( wantSpawn != "" && wantSpawn != "-" && recordName == wantSpawn ".spawn.md" ) { print folderName ; }
 		}
 		$0 == "---" { fmCount++ ; next ; }
 		fmCount == 1 && ( index( $0, "spawns: " ) == 1 || index( $0, "spawned-by: " ) == 1 ) {
@@ -1295,7 +1295,7 @@ AgentsToolsSpawnSandboxFoldersOfItem(){ ## item path
 				if ( linkStem == wantStem ) { print folderName ; break ; }
 			}
 		}
-	' "$MMDAPP/.local/agents/spawned"/*/*.md 2> /dev/null | LC_ALL=C sort -u || :
+	' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | LC_ALL=C sort -u || :
 }
 
 ## Whether a sandbox folder may be removed for one item that is going: `open` (a record still started or without a status),
@@ -1305,15 +1305,15 @@ AgentsToolsSpawnSandboxFolderState(){ ## folder name, item stem going away
 	local recordPath recordStatus recordSpawn linkField linkText linkStem boardPath spawnIds=""
 	case "$folderName" in ''|.|..|*/*) echo shared ; return 0 ;; esac
 	[ -d "$spawnRoot/$folderName" ] && [ ! -L "$spawnRoot/$folderName" ] || { echo shared ; return 0 ; }
-	for recordPath in "$spawnRoot/$folderName"/*.md ; do
+	for recordPath in "$spawnRoot/$folderName"/*.spawn.md ; do
 		[ -f "$recordPath" ] || continue
 		recordStatus="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )"
 		case "$recordStatus" in ''|spawn-started) echo open ; return 0 ;; esac
 	done
-	for recordPath in "$spawnRoot/$folderName"/*.md ; do
+	for recordPath in "$spawnRoot/$folderName"/*.spawn.md ; do
 		[ -f "$recordPath" ] || continue
 		recordSpawn="${recordPath##*/}"
-		spawnIds="$spawnIds ${recordSpawn%.md}"
+		spawnIds="$spawnIds ${recordSpawn%.spawn.md}"
 		for linkField in spawns spawned-by ; do
 			linkText="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" "$linkField" )"
 			for linkStem in ${linkText//,/ } ; do

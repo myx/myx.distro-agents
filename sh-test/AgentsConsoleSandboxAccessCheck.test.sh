@@ -142,10 +142,10 @@ echo "-- the harness grants a parent its child's sandbox, by parent-spawn-id --"
 mkdir -p "$rigWs/.local/agents/spawned/rig-child/input" "$rigWs/.local/agents/spawned/rig-child/output"
 printf 'child output\n' > "$rigWs/.local/agents/spawned/rig-child/output/c.txt"
 printf 'child input\n' > "$rigWs/.local/agents/spawned/rig-child/input/c.txt"
-printf -- '---\nparent-spawn-id: rig-parent-key\n---\n' > "$rigWs/.local/agents/spawned/rig-child/rig-child.md"
+printf -- '---\nparent-spawn-id: rig-parent-key\n---\n' > "$rigWs/.local/agents/spawned/rig-child/rig-child.spawn.md"
 mkdir -p "$rigWs/.local/agents/spawned/rig-child2/output"
 printf 'child2 output\n' > "$rigWs/.local/agents/spawned/rig-child2/output/c.txt"
-printf -- '---\nparent-spawn-id: rig-parent-key-extra\n---\n' > "$rigWs/.local/agents/spawned/rig-child2/rig-child2.md"
+printf -- '---\nparent-spawn-id: rig-parent-key-extra\n---\n' > "$rigWs/.local/agents/spawned/rig-child2/rig-child2.spawn.md"
 rigParentTool(){ ## caller-session-key, tool, argument object
 	( cd "$rigWs" && printf '%s' "$3" | env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=rig-member CLAUDE_CODE_SESSION_ID="$1" \

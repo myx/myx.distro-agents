@@ -94,7 +94,7 @@ rigRecord(){ ## spawn-id, status, coworking session id, owner, item link line (m
 	mkdir -p "$rigSpawned/$6"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: %s\nsession-thread: CSES00001:1700000000.000100\n%s---\n' \
 		"$3" "$1" "$6" "$rigHost" "$4" "$2" "${5:+$5
-}" > "$rigSpawned/$6/$1.md"
+}" > "$rigSpawned/$6/$1.spawn.md"
 }
 rigStatus(){ ## record file, new status
 	LC_ALL=C sed -i.bak "s/^status: .*\$/status: $2/" "$1" && rm -f "$1.bak"
@@ -138,9 +138,9 @@ rigGrantRead(){ ## member, session, path -- prints the kind a Write there is gra
 rigReturn(){ ## item stem, sandbox folder, spawn ids known so far (space-separated)
 	local returnRecord returnId
 	rigOp "$rigTmp/return.out" --member-review-return magic-coordinator "$1" --message "redo the rig step"
-	for returnRecord in "$rigSpawned/$2"/*.md ; do
+	for returnRecord in "$rigSpawned/$2"/*.spawn.md ; do
 		[ -f "$returnRecord" ] || continue
-		returnId="${returnRecord##*/}" ; returnId="${returnId%.md}"
+		returnId="${returnRecord##*/}" ; returnId="${returnId%.spawn.md}"
 		case " $3 " in *" $returnId "*) continue ;; esac
 		printf '%s' "$returnId"
 		return 0
@@ -166,7 +166,7 @@ rigAssert "the run's call goes through"                    "$( rigWrite keeper-m
 
 ## ---------------------------------------------------------------- the restarted run
 echo "-- 2. the item is returned, the run restarted under a new id: the same call goes through --"
-rigStatus "$rigSpawned/trk-rig-a/rig-run-1.md" spawn-succeeded
+rigStatus "$rigSpawned/trk-rig-a/rig-run-1.spawn.md" spawn-succeeded
 mv "$rigData/board/running/$rigItemA.md" "$rigData/board/review/$rigItemA.md"
 : > "$rigTmp/hold"
 rigRun2="$( rigReturn "$rigItemA" trk-rig-a "rig-run-1" )"
@@ -174,9 +174,9 @@ rigAssert "the return restarted the member"                "$( cat "$rigTmp/retu
 [ -n "$rigRun2" ] || { cat "$rigTmp/return.out" >&2 ; rigRefuse "the return started no new run" ; }
 rigWaitFor 20 test -s "$rigTmp/console-in.$rigRun2"
 rigAssert "the new run has a new id, in the same coworking session, on the same item" \
-	"$( [ "$rigRun2" != rig-run-1 ] && printf new ):$( LC_ALL=C grep -c -x 'session-id: rig-cow' "$rigSpawned/trk-rig-a/$rigRun2.md" ):$( LC_ALL=C grep -c -x "spawned-by: $rigItemA" "$rigSpawned/trk-rig-a/$rigRun2.md" )" new:1:1
+	"$( [ "$rigRun2" != rig-run-1 ] && printf new ):$( LC_ALL=C grep -c -x 'session-id: rig-cow' "$rigSpawned/trk-rig-a/$rigRun2.spawn.md" ):$( LC_ALL=C grep -c -x "spawned-by: $rigItemA" "$rigSpawned/trk-rig-a/$rigRun2.spawn.md" )" new:1:1
 rigAssert "control: it is running, and its own store holds no grant" \
-	"$( LC_ALL=C grep -c -x 'status: spawn-started' "$rigSpawned/trk-rig-a/$rigRun2.md" ):$( rigLoc "$rigItemA" ):$( [ -s "$rigSessions/$rigRun2/grants" ] && printf has || printf none )" 1:running:none
+	"$( LC_ALL=C grep -c -x 'status: spawn-started' "$rigSpawned/trk-rig-a/$rigRun2.spawn.md" ):$( rigLoc "$rigItemA" ):$( [ -s "$rigSessions/$rigRun2/grants" ] && printf has || printf none )" 1:running:none
 rigAssert "the grant read admits the restarted run's call" "$( rigGrantRead keeper-myx "$rigRun2" "$rigFileA" )" session
 rigAssert "and names the grant it was given"               "$( LC_ALL=C grep -c -x "GRANT: session $rigIdA" "$rigTmp/read.out" )" 1
 rigAssert "the restarted run's served Write goes through"  "$( rigWrite keeper-myx "$rigRun2" "$rigFileA" second-run )" written
@@ -222,7 +222,7 @@ rigAssert "the grant holds while the item waits in review" "$( rigGrantRead keep
 rigRun3="$( rigReturn "$rigItemA" trk-rig-a "rig-run-1 $rigRun2" )"
 [ -n "$rigRun3" ] || { cat "$rigTmp/return.out" >&2 ; rigRefuse "the second return started no new run" ; }
 rigWaitFor 20 test -s "$rigTmp/console-in.$rigRun3"
-rigAssert "a third run, two ids on from the grant"         "$( [ "$rigRun3" != "$rigRun2" ] && [ "$rigRun3" != rig-run-1 ] && printf new ):$( LC_ALL=C grep -c -x 'session-id: rig-cow' "$rigSpawned/trk-rig-a/$rigRun3.md" )" new:1
+rigAssert "a third run, two ids on from the grant"         "$( [ "$rigRun3" != "$rigRun2" ] && [ "$rigRun3" != rig-run-1 ] && printf new ):$( LC_ALL=C grep -c -x 'session-id: rig-cow' "$rigSpawned/trk-rig-a/$rigRun3.spawn.md" )" new:1
 rigAssert "its call goes through"                          "$( rigGrantRead keeper-myx "$rigRun3" "$rigFileA" ):$( rigWrite keeper-myx "$rigRun3" "$rigFileA" third-run )" session:written
 
 ## ---------------------------------------------------------------- its end
@@ -256,13 +256,13 @@ rigItem running "$rigItemL" rig-lone-1
 rigIdL="$( rigRefusalOf keeper-myx rig-lone-1 "$rigFileL" )"
 [ -n "$rigIdL" ] || rigRefuse "the harness gate recorded no refusal for the lone run's Write"
 rigAssert "allowed for the session"                        "$( rigGrantOpen human-owner rig-lone-1 "$rigIdL" session ):$( rigGrantRead keeper-myx rig-lone-1 "$rigFileL" )" session:session
-rigStatus "$rigSpawned/trk-rig-l/rig-lone-1.md" spawn-succeeded
+rigStatus "$rigSpawned/trk-rig-l/rig-lone-1.spawn.md" spawn-succeeded
 mv "$rigData/board/running/$rigItemL.md" "$rigData/board/review/$rigItemL.md"
 : > "$rigTmp/hold"
 rigLone2="$( rigReturn "$rigItemL" trk-rig-l "rig-lone-1" )"
 [ -n "$rigLone2" ] || { cat "$rigTmp/return.out" >&2 ; rigRefuse "the return of the lone run started no new run" ; }
 rigWaitFor 20 test -s "$rigTmp/console-in.$rigLone2"
-rigAssert "the new run joined the session its first run started" "$( LC_ALL=C grep -c -x 'session-id: rig-lone-1' "$rigSpawned/trk-rig-l/$rigLone2.md" )" 1
+rigAssert "the new run joined the session its first run started" "$( LC_ALL=C grep -c -x 'session-id: rig-lone-1' "$rigSpawned/trk-rig-l/$rigLone2.spawn.md" )" 1
 rigAssert "its call goes through"                          "$( rigGrantRead keeper-myx "$rigLone2" "$rigFileL" ):$( rigWrite keeper-myx "$rigLone2" "$rigFileL" lone-second )" session:written
 mv "$rigData/board/running/$rigItemL.md" "$rigData/board/processed/$rigItemL.md"
 rigAssert "until the item is closed"                       "$( rigGrantRead keeper-myx "$rigLone2" "$rigFileL" )" ""

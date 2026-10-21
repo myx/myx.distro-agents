@@ -69,7 +69,7 @@ printf 'TEAM_DATA_GIT_REMOTE=%s\n' "$rigTmp/remote.git" > "$rigWs/.local/.agents
 ## The records of the runs: the run that took the lock carries `routine-lock:`, a participant's record carries none.
 rigRecord(){ ## member, run id, session id, routine-lock value or nothing
 	mkdir -p "$rigWs/.local/agents/spawned/$1"
-	{ printf -- '---\nowner: %s\nsession-id: %s\nspawn-id: %s\n' "$1" "$3" "$2" ; [ -z "$4" ] || printf 'routine-lock: %s\n' "$4" ; printf -- '---\n\nrig\n' ; } > "$rigWs/.local/agents/spawned/$1/$2.md"
+	{ printf -- '---\nowner: %s\nsession-id: %s\nspawn-id: %s\n' "$1" "$3" "$2" ; [ -z "$4" ] || printf 'routine-lock: %s\n' "$4" ; printf -- '---\n\nrig\n' ; } > "$rigWs/.local/agents/spawned/$1/$2.spawn.md"
 }
 for rigPair in $rigNotes ; do
 	rigRecord magic-coordinator "rig-run-${rigPair%%:*}" "rig-sess-${rigPair%%:*}" "inbox:magic-coordinator:${rigPair#*:}"

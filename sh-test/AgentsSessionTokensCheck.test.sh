@@ -83,7 +83,7 @@ rigItem backlog task-20261008T1000Z-rig.md "type: task" "tokens: in=1 cache-read
 rigItem review dispatch-20261008T1001Z-rig-b.md "follows-up: task-20261008T1000Z-rig" "tokens: in=10 cache-read=20 cache-write=30 out=40"
 rigItem review dispatch-20261008T1002Z-rig-c.md "spawn-id: s-c" "tokens: in=1000 cache-read=0 cache-write=0 out=1000"
 mkdir -p "$rigWs/.local/agents/spawned/s-c"
-printf -- '---\nspawn-id: s-c\nparent-spawn-id: s-a\nspawns: dispatch-20261008T1002Z-rig-c\n---\n' > "$rigWs/.local/agents/spawned/s-c/s-c.md"
+printf -- '---\nspawn-id: s-c\nparent-spawn-id: s-a\nspawns: dispatch-20261008T1002Z-rig-c\n---\n' > "$rigWs/.local/agents/spawned/s-c/s-c.spawn.md"
 rigItem backlog task-20261008T1003Z-other.md "type: task"
 git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "rollup items"
 rigRows="$( AgentsSessionTokensRollupRows task-20261008T1000Z-rig.md dispatch-20261008T1000Z-rig-a task-20261008T1003Z-other.md )"
@@ -147,7 +147,7 @@ case "$rigRel" in
 	audit/*/session-*-magic-tester-"${rigSpawn:0:8}".log) rigAssert "the dispatch item names its transcript" ok ok ;;
 	*) rigAssert "the dispatch item names its transcript" "$rigRel" "audit/YYYY-MM/session-<startUTC>-magic-tester-${rigSpawn:0:8}.log" ;;
 esac
-rigAssert "so does the spawn tracking file" "$( rigHeader "$rigWs/.local/agents/spawned/$rigSpawn/$rigSpawn.md" transcript )" "$rigRel"
+rigAssert "so does the spawn tracking file" "$( rigHeader "$rigWs/.local/agents/spawned/$rigSpawn/$rigSpawn.spawn.md" transcript )" "$rigRel"
 rigAssert "and sessions/<sid>/transcript" "$( cat "$rigWs/.local/agents/sessions/$rigSpawn/transcript" )" "$rigStore/$rigRel"
 rigT="$rigStore/$rigRel"
 rigAssert "START names member, service, parent and item" "$( LC_ALL=C grep -c " START session=$rigSpawn member=magic-tester service=configured parent=none item=$rigDispatch " "$rigT" )" 1

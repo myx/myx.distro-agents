@@ -271,7 +271,7 @@ AgentsToolsManagerSessionRecordEntries(){ ## the store, spawned; entries or kept
 		[ "$entriesSpawn" != "-" ] || entriesSpawn="$entriesSession"
 		case "$entriesTracking/$entriesSpawn" in
 			*/*/*|*/-|*/|/*) ;;
-			*) [ ! -f "$entriesStore/$entriesTracking/$entriesSpawn.md" ] || entriesFile="$entriesStore/$entriesTracking/$entriesSpawn.md" ;;
+			*) [ ! -f "$entriesStore/$entriesTracking/$entriesSpawn.spawn.md" ] || entriesFile="$entriesStore/$entriesTracking/$entriesSpawn.spawn.md" ;;
 		esac
 		if [ "$entriesWant" = "kept" ] ; then
 			[ -n "$entriesFile" ] || printf '%s\n' "$entriesLine"
@@ -330,7 +330,7 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 			## file the store has now; then, where a row carries the id, the run chosen, the
 			## session, and the rows of that session as they stand in the file. The store is
 			## listed by the shell, a name each, and no file of it is opened.
-			scopePicked="$( { printf '%s\n' "$scopeStore"/*/ ; printf '%s\n' "$scopeStore"/*/*.md ; } \
+			scopePicked="$( { printf '%s\n' "$scopeStore"/*/ ; printf '%s\n' "$scopeStore"/*/*.spawn.md ; } \
 				| MDAT_MANAGER_ID="$scopeId" MDAT_MANAGER_STORE="$scopeStore/" LC_ALL=C awk -v scopeMode=runs -v ownOnly="${scopeOwn:+1}" \
 					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsRegistryHeaderRows.awk" -f "$scopeLib/manager/AgentsManagerSessionScope.awk" "$scopeFile" - 2>/dev/null )" || scopePicked=""
 			scopeAge=${scopePicked%%"$scopeNl"*}
@@ -734,7 +734,7 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 	local finishOp="$1" finishId="$2" finishOwn="${3:-}" finishPlan="${4:-}" finishEnded="${5:-0}" finishTab=$'\t' finishNl=$'\n'
 	local finishWho finishStamp finishWhole="" finishIds=" " finishReason finishKind finishSession finishSpawn finishMember finishStatus finishLive finishRest
 	local finishKey finishSource finishAsker finishOwner finishAskStatus finishAsk finishRc finishRecord finishShell finishItem finishFound
-	local finishDismissed=0 finishClosed=0 finishState="-" finishWait=0 finishAt finishMarked finishUnclosed=0
+	local finishDismissed=0 finishClosed=0 finishState="-" finishWait=0 finishAt finishMarked finishUnclosed=0 finishOpen=0
 	local finishSpawns=() finishMembers=() finishRecords=() finishWaits=()
 	local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
 	AgentsToolsManagerSessionScope "$finishOp" "$finishId" "$finishOwn" "nothing more was done" || return 1
@@ -841,6 +841,7 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 			[ "$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$finishRecord" )" status )" = "spawn-started" ] || continue
 			if [ -n "${finishWaits[finishAt - 1]}" ] ; then
 				printf 'close\t%s\t%s\t%s\tleft\t-\n' "$finishSession" "$finishSpawn" "$finishMember"
+				finishOpen=$(( finishOpen + 1 ))
 				continue
 			fi
 			if [ -n "$finishPlan" ] ; then
@@ -867,6 +868,7 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 				finishClosed=$(( finishClosed + 1 ))
 			else
 				printf 'close\t%s\t%s\t%s\tnot-closed\t-\n' "$finishSession" "$finishSpawn" "$finishMember"
+				finishOpen=$(( finishOpen + 1 ))
 			fi
 		done
 	fi
@@ -883,7 +885,7 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 	printf 'finish\t%s\t%s\t%s\t%s\t%s\n' "$finishSession" "$finishEnded" "$finishDismissed" "$finishClosed" "${finishState:--}"
 	## A session that still reads unclosed was not finished: it is said so and the call does not end well, whatever it did besides.
 	if [ -z "$finishPlan" ] && [ "$finishState" = "unclosed" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD $finishOp: session $finishSession still reads unclosed after it: $( [ "$finishUnclosed" -gt 0 ] && printf 'a run of it has no record to close' || printf 'a record of it could not be closed' ) -- nothing more was done" >&2
+		echo "⛔ ERROR: $MDSC_CMD $finishOp: session $finishSession still reads unclosed after it: $( if [ "$finishUnclosed" -gt 0 ] ; then printf 'a run of it has no record to close' ; elif [ "$finishOpen" -gt 0 ] ; then printf 'a record of it could not be closed' ; else printf 'no record of it was left for this call to close' ; fi ) -- nothing more was done" >&2
 		return 1
 	fi
 	return 0
@@ -1078,7 +1080,7 @@ case "$1" in
 		AgentsToolsAssertBareName "$checklistId" "the session id" "$checklistOp" || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$checklistMember" "the member" "$checklistOp" || { set +e ; return 1 ; }
 		## The sandbox root of a spawn is the folder of its own name, its record the file of that name in it: the session a spawn founded has its place there.
-		checklistRecord="$MMDAPP/.local/agents/spawned/$checklistId/$checklistId.md"
+		checklistRecord="$MMDAPP/.local/agents/spawned/$checklistId/$checklistId.spawn.md"
 		if [ -f "$checklistRecord" ] ; then checklistFolder="${checklistRecord%/*}" ; else checklistFolder="$MMDAPP/.local/agents/sessions/$checklistId" ; fi
 		[ ! -f "$checklistFolder/$checklistMember.checklist.md" ] || cat "$checklistFolder/$checklistMember.checklist.md"
 		return 0
@@ -1132,7 +1134,7 @@ case "$1" in
 		## THE AUTHORITY to end it (F6.10): over one run, whoever it reports to; over a whole session,
 		## whoever its founding run reports to; the owners role; or a grant of it. A plan ends nothing,
 		## and an id no record here carries is refused as it was, below.
-		if [ -z "$killPlan" ] && [ -n "$( LC_ALL=C grep -l -x -F -e "session-id: $killId" -e "spawn-id: $killId" "$MMDAPP"/.local/agents/spawned/*/*.md 2> /dev/null | head -1 )" ] ; then
+		if [ -z "$killPlan" ] && [ -n "$( LC_ALL=C grep -l -x -F -e "session-id: $killId" -e "spawn-id: $killId" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | head -1 )" ] ; then
 			local killRecord=""
 			type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 			if [ -n "$killOwn" ] ; then

@@ -368,13 +368,13 @@ AgentsToolsSessionCommsPauseSet(){ ## epoch
 AgentsToolsSessionCommsMember(){ ## session
 	local memberRecord="" memberFile
 	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 0
-	for memberFile in "$MMDAPP/.local/agents/spawned"/*/"$1.md" ; do
+	for memberFile in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
 		[ -f "$memberFile" ] || continue
 		memberRecord="$memberFile"
 		break
 	done
 	if [ -z "$memberRecord" ] && [ -d "$MMDAPP/.local/agents/spawned" ] ; then
-		memberRecord="$( printf '%s\0' "$MMDAPP/.local/agents/spawned"/*/*.md | LC_ALL=C xargs -0 grep -l -x -F -- "session-id: $1" 2> /dev/null | LC_ALL=C sed -n '1p' )" || memberRecord=""
+		memberRecord="$( printf '%s\0' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md | LC_ALL=C xargs -0 grep -l -x -F -- "session-id: $1" 2> /dev/null | LC_ALL=C sed -n '1p' )" || memberRecord=""
 	fi
 	[ -n "$memberRecord" ] || return 0
 	AgentsToolsSpawnSandboxRecordHeader "$memberRecord" owner

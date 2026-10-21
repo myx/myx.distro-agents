@@ -100,7 +100,7 @@ rigScene(){ ## scenario name -- a workspace with one session: its folder, thread
 	rigRoot="$(( rigNow - 400 )).000001"
 	rigThread="CRIGSES01:$rigRoot"
 	printf '%s\n' "$rigThread" > "$rigSessDir/session.thread"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: rig\nworkspace: rigws\nowner: keeper-rig\nstatus: spawn-started\nstarted-at: 2026-10-19 09:00 +0300\n---\n\n# Spawn session: %s\n' "$rigSession" "$rigSession" "$rigSession" > "$rigDir/ws/.local/agents/spawned/trk/$rigSession.md"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: rig\nworkspace: rigws\nowner: keeper-rig\nstatus: spawn-started\nstarted-at: 2026-10-19 09:00 +0300\n---\n\n# Spawn session: %s\n' "$rigSession" "$rigSession" "$rigSession" > "$rigDir/ws/.local/agents/spawned/trk/$rigSession.spawn.md"
 	: > "$rigSessDir/launch"
 	touch -t "$( rigStamp $(( rigNow - 300 )) )" "$rigSessDir/launch"
 	: > "$rigDir/api.log"

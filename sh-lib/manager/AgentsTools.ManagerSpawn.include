@@ -125,7 +125,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		## The session's name as its record keeps it, which is what a list of sessions shows.
-		spawnKept="$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/spawned/$spawnSession/$spawnSession.md" session-comment \
+		spawnKept="$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/spawned/$spawnSession/$spawnSession.spawn.md" session-comment \
 			| LC_ALL=C awk '{ gsub( /^[ \t]+|[ \t]+$/, "" ) ; gsub( /[ \t]+/, "_" ) ; print ; exit ; }' )"
 		printf 'spawn\t%s\t%s\t%s\t%s\n' "$spawnSession" "$spawnMember" "${spawnKept:--}" "${spawnItem:--}"
 		return 0

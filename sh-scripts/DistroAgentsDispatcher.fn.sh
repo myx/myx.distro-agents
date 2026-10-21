@@ -130,7 +130,7 @@ DistroAgentsDispatcher(){
 			return $?
 		;;
 
-		## Whether a routine is due to start now by its own autorun declaration (runs-at, runs-after): <routine>. rc 0 due, 1 not due,
+		## Whether a routine is due to start now by its own autorun declaration (runs-at, runs-after): [--read-only] <routine>. rc 0 due, 1 not due,
 		## 2 refused, naming the predecessor that has not completed, 3 a call that could not be understood.
 		--routine-due)
 			local dueOp="$1"

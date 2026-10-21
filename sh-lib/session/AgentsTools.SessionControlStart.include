@@ -226,7 +226,7 @@ AgentsToolsSessionControlStart(){ ## session id
 	startDir="$startStore/control"
 	if [ ! -d "$startStore" ] ; then
 		## The names go to grep on a pipe, never as its arguments: a store of any size is read.
-		if [ ! -d "$MMDAPP/.local/agents/spawned" ] || [ -z "$( printf '%s\0' "$MMDAPP/.local/agents/spawned"/*/*.md | LC_ALL=C xargs -0 grep -l -x -F -- "session-id: $startSession" 2> /dev/null | LC_ALL=C sed -n '1p' )" ] ; then
+		if [ ! -d "$MMDAPP/.local/agents/spawned" ] || [ -z "$( printf '%s\0' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md | LC_ALL=C xargs -0 grep -l -x -F -- "session-id: $startSession" 2> /dev/null | LC_ALL=C sed -n '1p' )" ] ; then
 			printf 'failed - %s\n' "'$startSession' names no session of this workspace: no folder of a session has that name, and no record carries it as its session-id"
 			return 1
 		fi

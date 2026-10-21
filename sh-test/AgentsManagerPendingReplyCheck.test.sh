@@ -92,7 +92,7 @@ rigMember="user-$( printf '%s' "$rigAcct" | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C t
 rigSpawnRecord(){ ## spawn id, owner, parent session id, session id (default rig-cow)
 	mkdir -p "$rigWs/.local/agents/spawned/${4:-rig-cow}"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\n%shost: %s\nowner: %s\nstatus: spawn-started\n---\n\n# Spawn session\n' \
-		"${4:-rig-cow}" "$1" "${3:+parent-spawn-id: $3$'\n'}" "$rigHost" "$2" > "$rigWs/.local/agents/spawned/${4:-rig-cow}/$1.md"
+		"${4:-rig-cow}" "$1" "${3:+parent-spawn-id: $3$'\n'}" "$rigHost" "$2" > "$rigWs/.local/agents/spawned/${4:-rig-cow}/$1.spawn.md"
 }
 rigSpawnRecord rig-coord magic-coordinator ""
 rigSpawnRecord rig-tester magic-tester rig-coord

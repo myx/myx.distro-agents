@@ -107,7 +107,7 @@ AgentsToolsMemberInvitedWorkspace(){ ## member
 
 ## The workspace a member is set up in, from the machine-wide member directory, the
 ## member homes and the workspaces this machine knows, all in $HOME/.agents/magic-team
-## (AgentsTools.TeamRegistry.include, AgentsTools.MemberHomes.include, AgentsTools.Places.include).
+## (AgentsTools.TeamRegistry.include, AgentsTools.MemberHomes.include, LocalTools.Places.include).
 ## Order: the current workspace when the member is there, else the member's home, else the
 ## known workspace where the member is a source link, else the first known workspace that
 ## has it. A member registered only from a workspace without agents (source-declared) runs
@@ -143,8 +143,8 @@ AgentsToolsMemberWorkspaceResolve(){ ## member, operation
 	' "$resolveIndex" )"
 	[ "${resolveRows%%$'\n'*}" = "switch" ] || return 0
 	resolveRows="${resolveRows#*$'\n'}"
-	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "${MDLT_ORIGIN:-$( dirname $BASH_SOURCE )/../../../..}/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
-	resolveTracked="$( AgentsToolsPlacesWorkspaceRoots )"
+	type LocalToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "${MDLT_ORIGIN:-$( dirname $BASH_SOURCE )/../../../..}/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
+	resolveTracked="$( LocalToolsPlacesWorkspaceRoots )"
 	resolveHome="$( LC_ALL=C awk -F'\t' -v who="$resolveMember" '$1 == who { print $2 ; exit ; }' "${HOME:-}/.agents/magic-team/member-homes.registry" 2> /dev/null )" || resolveHome=""
 	for resolveWanted in home source-symlink any ; do
 		while IFS=$'\t' read -r resolveRoot resolveKind ; do
@@ -173,7 +173,7 @@ AgentsToolsMemberWorkspaceResolve(){ ## member, operation
 }
 
 ## A workspace known on this machine, by its name: the root, among those this machine knows
-## (AgentsToolsPlacesWorkspaceRoots, from $HOME/.agents/magic-team), whose last segment is
+## (LocalToolsPlacesWorkspaceRoots, from $HOME/.agents/magic-team), whose last segment is
 ## that name; the name of the workspace we run from is that workspace. Prints its path.
 ## rc 1 where the name names none, the reason printed in the path's place: no bare name, no
 ## known workspace of that name, several of them, or a path not on this machine.
@@ -185,11 +185,11 @@ AgentsToolsWorkspaceByName(){ ## name
 	if [ "${byHere##*/}" = "$byName" ] ; then
 		printf '%s\n' "$byHere" ; return 0
 	fi
-	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "${MDLT_ORIGIN:-$( dirname $BASH_SOURCE )/../../../..}/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include"
+	type LocalToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "${MDLT_ORIGIN:-$( dirname $BASH_SOURCE )/../../../..}/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include"
 	while IFS= read -r byRoot ; do
 		[ "${byRoot##*/}" = "$byName" ] || continue
 		byCount=$(( byCount + 1 )) ; byFound="$byFound${byFound:+, }$byRoot"
-	done <<< "$( AgentsToolsPlacesWorkspaceRoots 2> /dev/null )"
+	done <<< "$( LocalToolsPlacesWorkspaceRoots 2> /dev/null )"
 	case "$byCount" in
 		0) printf 'no workspace this machine knows has that name (%s)' "${HOME:-}/.agents/magic-team" ; return 1 ;;
 		1) ;;

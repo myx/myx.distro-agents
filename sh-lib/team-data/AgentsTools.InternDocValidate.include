@@ -275,8 +275,8 @@ AgentsToolsDocValidateBoardItem(){ ## item name, without .md
 
 ## The registered workspace and place names of this workspace, one a line (a name that carries @<workspace> also bare).
 AgentsToolsDocValidatePlaces(){
-	type AgentsToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Places.include" || return 1
-	AgentsToolsPlacesMergedText "${MMDAPP%/}" quiet 2> /dev/null | LC_ALL=C awk -F'\t' '{ shown = $1 ; sub( /@.*$/, "", shown ) ; print shown ; print $1 ; }'
+	type LocalToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" || return 1
+	LocalToolsPlacesMergedText "${MMDAPP%/}" quiet 2> /dev/null | LC_ALL=C awk -F'\t' '{ shown = $1 ; sub( /@.*$/, "", shown ) ; print shown ; print $1 ; }'
 }
 
 ## The rule set of the `document` kind (F5.7): the document checked against itself, in one pass of AgentsDocSelfCheck.awk over its

@@ -91,7 +91,7 @@ rigSpawn(){ ## content, member, the tier setting of the team (may be empty), the
 		' rig-spawn "$2" "${4:-}" <<< "$1" 2>&1
 }
 rigRecord(){ ## -- the run record the last spawn made
-	ls -t "$rigWs"/.local/agents/spawned/*/*.md 2> /dev/null | head -1
+	ls -t "$rigWs"/.local/agents/spawned/*/*.spawn.md 2> /dev/null | head -1
 }
 rigHeader(){ ## header -- its value in the run record, or `-` where it has none
 	local headerFile headerValue

@@ -376,7 +376,7 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   name, workspace root), `member-homes.registry` (member, home workspace root), and
   `permissions.registry` (pointers to workspaces that publish grants, whose rows every `grants.index`
   joins). Defined in `AgentsTools.TeamRegistry.include`.
-- **Places** (`AgentsTools.Places.include`). A place is a `workspace` (always read-write) or a
+- **Places** (`LocalTools.Places.include (myx.distro-.local)`). A place is a `workspace` (always read-write) or a
   `directory` (`read-only` or `read-write`); registering one grants nothing. A workspace's own
   `.local/agents/directories.registry` holds its places for this host (name, kind, ceiling, path,
   declared-by), its own row first, from its `magic-team:directory:` and `magic-team:workspace:`

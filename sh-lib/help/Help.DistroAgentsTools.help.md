@@ -209,6 +209,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-run (install|uninstall|update) <subsystem>
+📘 syntax: DistroAgentsTools.fn.sh --manager-workspace-read
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-data-read <store> [<folder> [<item>]] [--include-processed]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-files <team-member> [<file>]
@@ -3690,7 +3691,7 @@
 			nothing. Prints rows of TAB-separated fields on stdout, the
 			first naming the row. An absent value reads `-`, and a
 			value's own whitespace reads `_`.
-			`routine <selector> <owner> <start> <executors> <session> <arguments> <title> <reason> <needs> <state> <last-run>`
+			`routine <selector> <owner> <start> <executors> <session> <arguments> <title> <reason> <needs> <state> <last-run> <auto> <runs-at> <runs-after> <valid> <would>`
 			One row a routine, by <owner>, then by <selector>. <selector>
 			is the file's name, the selector
 			`--magic-spawn-session --routine <selector>`
@@ -3735,8 +3736,23 @@
 			off (`succeeded`, `failed`, `ended-without-close`), `never`
 			for a routine with no run; <last-run> is when that run
 			started, `YYYY-MM-DD_HH:MM`, `-` for none. This operation
-			computes neither. With no routine file at all, a note on
-			stderr and no row.
+			computes neither. The last five fields are the autorun the routine
+			declares and two verdicts, each asked of the one decider and decided
+			nowhere here. <auto> is `yes` for a routine that declares an autorun
+			(`runs-at:` other than `none`), else `no`; <runs-at> and
+			<runs-after> are its two keys as the schedule reads them, `-` for
+			none (`none` stays `none`). <valid> is `yes`, or `no:` and the first
+			refusal of the validator of the routine contract
+			(`--intern-doc-validate routine`, run as its arm runs it; a row of a
+			`report-` rule refuses nothing), as `<rule>: <text>`. <would> says
+			whether a start now would be accepted: `yes`, or `no:` and why. It
+			asks, in this order, what the session spawner says (<start> not
+			`startable`: its <reason>), the evaluator against a fresh spawn
+			(`tracking-item`, `start-context` and `review-by` at the `spawn`
+			site, with no item attached, a spawned start), and, for a routine
+			with an autorun, the Dispatcher's own `--routine-due --read-only`: a
+			routine outside its window is valid and would not start. With no
+			routine file at all, a note on stderr and no row.
 
 		--manager-stats-tokens --by day|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>]
 			One of the console's own operations (see Notes). The tokens of the
@@ -4473,6 +4489,32 @@
 			subsystem (`.local`, `system`, the console's own to uninstall, a toolset
 			that is already installed or not installed), for a subsystem or a command
 			that is none, and for a wrong count of words.
+
+		--manager-workspace-read
+			One of the console's own operations (see Notes). Prints the workspace the
+			console runs in, as the console's `Workspace (System)` shows it. The
+			operation is `.local`'s own, in its sh-lib, which the dispatcher of every
+			subsystem's console offers; a console adds its own blocks by registering
+			them in a list file (for this one, sh-lib/config/workspace-blocks.list).
+			Prints rows on stdout, TAB-separated, a blank written `_` and an empty
+			value `-`:
+			`fact <block> <name> <value>`
+			`block <id> <label> <count>`
+			`item <block> <name> <kind> <state> <detail>`
+			First the facts of the workspace itself, with the block `-`: `name`,
+			`path`, `tooling` (`source`, `.local` or `elsewhere`: where the tooling
+			it runs comes from), `tooling-path` and `account` (the account the
+			console runs as). Then the block `packages`, the subsystems installed
+			in it, an `item` each, as `--manager-subsystem-list` reads them
+			installed; then the blocks the console registered, in the order of its
+			list: for this one `agents`, the facts `mode` (`team-rig`, `just-agents`
+			or `rig-client`, as the one reader of the mode says it) and `team-data`
+			(`yes` for a team rig, else `no`), and `team`, an `item` for each member
+			that belongs to the workspace: its name, its kind, how it is set up there
+			and its folder. A `block` row gives the block's label and how many
+			`item` rows follow it; a block that wrote nothing is not printed. It
+			writes nothing, and runs no git command. Exit 1, nothing printed, for a
+			word after it.
 
 		--manager-team-data-read <store> [<folder> [<item>]] [--include-processed]
 			One of the console's own operations (see Notes). Lists the
@@ -6404,7 +6446,7 @@
 			`MDAT_SCHEDULE_WEEKEND`: a list of days such as `sat,sun`. `workdays`,
 			`weekend` and `daily` are no weekend and are refused, rc 1.
 
-		--routine-due <routine>
+		--routine-due [--read-only] <routine>
 			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh): whether a routine is
 			due to start now by its own autorun declaration, `runs-at: <days> <HH:MM>` and
 			`runs-after: <routine>` of its frontmatter, read against the schedule's
@@ -6424,7 +6466,10 @@
 			not run on it, the answer opens with `ESCALATE: <routine file>: <predecessor
 			file> did not run on <date>, so the chain is broken`, and one line goes to the
 			event-alert channel, once for that day. A day that ended before the routine was
-			first asked about is not escalated.
+			first asked about is not escalated. With `--read-only` the question is asked and
+			answered and nothing else is done: the chain check is not made, so no line goes
+			to the channel, no mark is kept and the answer has no `ESCALATE` line. It is what
+			a console that only looks asks with: the routines it lists (`--manager-routine-list`).
 
 		--rebuild-stats
 		--stats-check

@@ -64,7 +64,7 @@ rigIdle(){ ## member, seconds idle at the clock of the rig -- the milestones of 
 rigCache(){ ## member, read|wrote|nothing|none -- the log of its run: an older line of the other kind first, then the last round-1 line (none: a log with no such line)
 	local cacheSpawn cacheRecord cacheLog
 	eval "cacheSpawn=\"\$rigSpawnOf$( rigNo "$1" )\""
-	cacheRecord="$rigSp/$cacheSpawn/$cacheSpawn.md" ; cacheLog="$rigStores/$cacheSpawn/rig-output.log"
+	cacheRecord="$rigSp/$cacheSpawn/$cacheSpawn.spawn.md" ; cacheLog="$rigStores/$cacheSpawn/rig-output.log"
 	case "$2" in
 		read) printf '%s\n' '   shared prefix -- round 1 cached nothing: the prefix is under the model minimum' '   some work' '   shared prefix -- round 1 read 4100 tokens from the cache' '   more work' > "$cacheLog" ;;
 		wrote) printf '%s\n' '   shared prefix -- round 1 read 4100 tokens from the cache' '   some work' '   shared prefix -- round 1 wrote 4100 tokens to the cache for the next session' '   more work' > "$cacheLog" ;;
@@ -111,7 +111,7 @@ rigHistory(){ ## messages... -- the team channel answers with them
 rigLaunched(){ ## spawn id, launching member, reports-to (may be empty) -- the record of a session that member's duty launched, kept by the spawner and by nothing else
 	mkdir -p "$rigSp/$1"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: rig-parent\nparent-member: %s\nstart-context: spawned\nhost: %s\nworkspace: rigws\nowner: keeper-rig-01\nstatus: spawn-succeeded\nstarted-at: 2026-10-19 17:00 +0300\n%s---\n\n# Spawn session: %s\n' "$1" "$1" "$2" "$rigHost" "${3:+reports-to: $3
-}" "$1" > "$rigSp/$1/$1.md"
+}" "$1" > "$rigSp/$1/$1.spawn.md"
 }
 rigLaunched rig-launched-14 keeper-rig-14 none
 rigLaunched rig-away-15 keeper-rig-15 none
@@ -138,7 +138,7 @@ rigAssert "the hand-back of a run keeper-rig-15's duty launched that reports to 
 rigAssert "a DM to keeper-rig-16 from a person counts as a tag: its duty stays" "$( rigTold tag1 keeper-rig-16 )" "0"
 rigAssert "the hand-back of a run keeper-rig-17 launched that reports to it is news: its duty stays" "$( rigTold tag1 keeper-rig-17 )" "0"
 ## The duty's own session keeps its pointer into the tagged source (collect:<member>:tagged:<member>, session.chat.pointers); a tag it has been given is not news.
-rigSession12="$( LC_ALL=C sed -n 's/^session-id: //p' "$rigSp/$rigSpawnOf12/$rigSpawnOf12.md" | head -1 )"
+rigSession12="$( LC_ALL=C sed -n 's/^session-id: //p' "$rigSp/$rigSpawnOf12/$rigSpawnOf12.spawn.md" | head -1 )"
 mkdir -p "$rigStores/$rigSession12"
 printf 'collect:keeper-rig-12:tagged:keeper-rig-12\t%s.000100\n' "$rigNowTs" >> "$rigStores/$rigSession12/session.chat.pointers"
 rigAt $(( rigMon18 + 620 ))

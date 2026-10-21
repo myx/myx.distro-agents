@@ -220,7 +220,7 @@ AgentsToolsPermissionFloorRoots(){ ## workspace, member, read|write, session id 
 	case "$floorSession" in
 		''|*/*|.|..) ;;
 		*)
-			for floorRecord in "$floorWs/.local/agents/spawned"/*/"$floorSession.md" ; do
+			for floorRecord in "$floorWs/.local/agents/spawned"/*/"$floorSession.spawn.md" ; do
 				[ -f "$floorRecord" ] || continue
 				[ "$( AgentsToolsPermissionField "$floorRecord" owner )" = "$floorMember" ] || continue
 				floorDir="${floorRecord%/*}"
@@ -273,7 +273,7 @@ AgentsToolsPermissionField(){ ## file, field
 AgentsToolsPermissionShareStore(){ ## session id
 	local shareRecord shareSession=""
 	case "$1" in ''|*/*|.|..) return 0 ;; esac
-	for shareRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$1.md" ; do
+	for shareRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$1.spawn.md" ; do
 		[ -f "$shareRecord" ] || continue
 		shareSession="$( AgentsToolsPermissionField "$shareRecord" session-id )"
 		break
@@ -289,7 +289,7 @@ AgentsToolsPermissionShareStore(){ ## session id
 AgentsToolsPermissionRelatedStores(){ ## session id
 	local relRecord relCow="" relParent=""
 	case "$1" in ''|*/*|.|..) return 0 ;; esac
-	for relRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$1.md" ; do
+	for relRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$1.spawn.md" ; do
 		[ -f "$relRecord" ] || continue
 		relCow="$( AgentsToolsPermissionField "$relRecord" session-id )"
 		relParent="$( AgentsToolsPermissionField "$relRecord" parent-spawn-id )"
@@ -419,7 +419,7 @@ AgentsToolsPermissionGrantLayer(){ ## ref
 AgentsToolsPermissionSessionRoutine(){ ## session id
 	local srSession="$1" srRecord srCow="" srRoutine=""
 	case "$srSession" in ''|*/*|.|..) return 0 ;; esac
-	for srRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$srSession.md" ; do
+	for srRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$srSession.spawn.md" ; do
 		[ -f "$srRecord" ] || continue
 		srRoutine="$( AgentsToolsPermissionField "$srRecord" routine )"
 		srCow="$( AgentsToolsPermissionField "$srRecord" session-id )"
@@ -429,7 +429,7 @@ AgentsToolsPermissionSessionRoutine(){ ## session id
 		case "$srCow" in
 			*/*|.|..) ;;
 			*)
-				for srRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$srCow.md" ; do
+				for srRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$srCow.spawn.md" ; do
 					[ -f "$srRecord" ] || continue
 					srRoutine="$( AgentsToolsPermissionField "$srRecord" routine )"
 					break
@@ -648,7 +648,7 @@ AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (ma
 			case "$partSession" in */*|.|..) partSession="" ;; esac
 		fi
 		if [ -n "$partSession" ] && [ -n "${MMDAPP:-}" ] ; then
-			for partRecord in "$MMDAPP/.local/agents/spawned"/*/"$partSession.md" ; do
+			for partRecord in "$MMDAPP/.local/agents/spawned"/*/"$partSession.spawn.md" ; do
 				[ -f "$partRecord" ] || continue
 				partCow="$( AgentsToolsPermissionField "$partRecord" session-id )"
 				partParent="$( AgentsToolsPermissionField "$partRecord" parent-spawn-id )"
@@ -667,7 +667,7 @@ AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (ma
 				front == 1 && index( $0, "spawn-id: " ) == 1 { recSpawn = substr( $0, 11 ) ; }
 				front == 1 && index( $0, "parent-spawn-id: " ) == 1 { recParent = substr( $0, 18 ) ; }
 				front == 1 && index( $0, "owner: " ) == 1 { recOwner = substr( $0, 8 ) ; }
-			' "$MMDAPP/.local/agents/spawned"/*/*.md 2>/dev/null || :
+			' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2>/dev/null || :
 		fi
 		if [ -n "$partTask" ] && [ -n "${MDAT_DATA_ROOT:-}" ] ; then
 			partItem="${partTask##*/}" ; partItem="${partItem%.md}"

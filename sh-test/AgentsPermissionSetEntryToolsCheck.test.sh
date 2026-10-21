@@ -91,7 +91,7 @@ printf 'magic-developer:ws:workspace:Edit(/%s/DEV/**)\n' "$rigWs" > "$rigWs/.loc
 printf '%s\t%s\t%s\t%s\t%s\n' rig-ws workspace read-write "$rigWs" workspace > "$rigWs/.local/agents/directories.registry"
 rigSetRecord(){ ## spawn id, owner, host, description, further header lines (may be empty)
 	printf -- '---\nsession-id: rig-set\nspawn-id: %s\nowner: %s\nhost: %s\ndescription: %s\n%sstatus: spawn-started\n---\n\n# Spawn session\n' \
-		"$1" "$2" "$3" "$4" "${5:-}" > "$rigWs/.local/agents/spawned/rig-set/$1.md"
+		"$1" "$2" "$3" "$4" "${5:-}" > "$rigWs/.local/agents/spawned/rig-set/$1.spawn.md"
 }
 rigSetRecord rig-set magic-coordinator rig-host-a 'rework the vars loader' $'session-thread: CRIG00001:1700000000.000500\n'
 ## The developer's spawn runs on this host, live: an entry counts as held only by a participant

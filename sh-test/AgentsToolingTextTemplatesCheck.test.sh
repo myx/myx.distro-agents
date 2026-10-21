@@ -246,7 +246,7 @@ printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: r
 ## reviewer, is reviewed there, so no review prompt is posted among the posts counted below.
 rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/session/AgentsTools.SpawnSandbox.include" )"
 [ -n "$rigReportsTo" ] || rigRefuse "the package names no field for where a run reports to (agentsRunRouteField)"
-printf -- '---\nsession-id: rig-report-session\nspawn-id: rig-report-session\nparent-spawn-id: none\n%s: magic-coordinator\nowner: %s\nstatus: spawn-started\nspawns: dispatch-20261012T0100Z-rig-widget\n---\n' "$rigReportsTo" "$rigMember" > "$rigScenarioDir/ws/.local/agents/spawned/rig-report-session/rig-report-session.md"
+printf -- '---\nsession-id: rig-report-session\nspawn-id: rig-report-session\nparent-spawn-id: none\n%s: magic-coordinator\nowner: %s\nstatus: spawn-started\nspawns: dispatch-20261012T0100Z-rig-widget\n---\n' "$rigReportsTo" "$rigMember" > "$rigScenarioDir/ws/.local/agents/spawned/rig-report-session/rig-report-session.spawn.md"
 rigTaskTool(){ ## tool, argument object -- one served call of that session
 	( cd "$rigScenarioDir/ws" && printf '%s' "$2" | env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT \
 		MDLT_ORIGIN="$rigScenarioOrigin" MDLT_OPTION="--run-from-path $rigScenarioOrigin" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" \
