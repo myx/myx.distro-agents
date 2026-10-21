@@ -76,6 +76,7 @@ FOLDER_WORDS = {
     "checker": "the read-only checks of the installation, run on demand",
     "keys": "the public keys of this server",
     "scopes": "every scope of settings of this workspace, each a folder of its variables",
+    "clipresets": "the CLI services you set up as presets, and the preset and effort each member and the team use for their tiers",
     "git": "the global git settings of the account that runs the tools",
     "subsystems": "the subsystems of the tool family, installed here or not, and the commands to install and uninstall them",
     "diagnostics": "what the tooling sees, read-only: the context it resolves",

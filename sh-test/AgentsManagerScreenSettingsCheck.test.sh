@@ -204,14 +204,11 @@ turn 3
 get sin
 border stitle 1 84 120
 cells srow2 3 85 119
-cells srow3 4 85 119
-cells srow4 5 85 119
-cells srow5 6 85 119
-cells srow6 7 85 119
-cells srow7 8 85 119
-cells srow8 9 85 119
-cells srow9 10 85 119
-cells srow10 11 85 119
+cells srow3 5 85 119
+cells srow4 6 85 119
+cells srow5 7 85 119
+cells srow6 8 85 119
+cells srow7 9 85 119
 show su
 get once
 advance 11
@@ -220,13 +217,13 @@ get twice
 RIGSCRIPT
 rigAssert "a root not entered: the digest is read once the selection has rested on its row, and the left window then holds what the root holds" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "configuration [] 30"
 rigAssert "entering it afterwards asks for nothing more: the one read of the digest was made for the row" "$( rigVal asked.path ) [$( rigVal asked.reading )]" "configuration []"
-rigAssert "its two folders and then its subjects are listed under the row that goes up, the subjects in the order of the operation, each a row that is entered" "[$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row2 | sed 's/  *$//' )][$( rigVal row3 | sed 's/  *$//' )][$( rigVal row4 | sed 's/  *$//' )][$( rigVal row5 | sed 's/  *$//' )][$( rigVal rowD | sed 's/  *$//' )][$( rigVal row9 | sed 's/  *$//' )][$( rigVal row10 | sed 's/  *$//' )][$( rigVal row11 | sed 's/  *$//' )]" "[Configuration] 12 [>..][ Config Checker                  ►][ Server Keys                     ►][ Git Settings                    ►][ Installed Subsystems            ►][ Diagnostics                     ►][ loop                            ►][ longone               2 missing ►][ Console Behaviour               ►]"
+rigAssert "its two folders and then its subjects are listed under the row that goes up, the subjects in the order of the operation, each a row that is entered" "[$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row2 | sed 's/  *$//' )][$( rigVal row3 | sed 's/  *$//' )][$( rigVal row4 | sed 's/  *$//' )][$( rigVal row5 | sed 's/  *$//' )][$( rigVal rowD | sed 's/  *$//' )][$( rigVal row9 | sed 's/  *$//' )][$( rigVal row10 | sed 's/  *$//' )][$( rigVal row11 | sed 's/  *$//' )]" "[Configuration] 12 [>..][ Config Checker                  ►][ Server Keys                     ►][ CLI Presets and Tiers           ►][ Git Settings                    ►][ Installed Subsystems            ►][ loop                            ►][ longone               2 missing ►][ Console Behaviour               ►]"
 rigAssert "a subject with missing lines carries their count at the end of its row" "[$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )]" \
-	"[ workspace             1 missing ►][ cli                   3 missing ►][ systems               2 missing ►]"
-rigAssert "on the row that goes up the left pane is the root's table, nothing above it (the owner: \"no summary on top\")" "[$( rigPane u 3 )] $( rigScreenHolds u '61 lines' )" "[  SUBJECT        LINES MISSING WHAT] 0"
-rigAssert "back at the root it says what it held"                   "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigPane r 3 )]" "[] configuration [  SUBJECT        LINES MISSING WHAT]"
+	"[][ workspace             1 missing ►][ systems               2 missing ►]"
+rigAssert "on the row that goes up the left pane is the root's table, nothing above it (the owner: \"no summary on top\")" "[$( rigPane u 3 )] $( rigScreenHolds u '61 lines' )" "[  SUBJECT     LINES MISSING WHAT] 0"
+rigAssert "back at the root it says what it held"                   "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigPane r 3 )]" "[] configuration [  SUBJECT     LINES MISSING WHAT]"
 rigAssert "Settings, not entered yet, says what it holds from that same read" "$( rigVal sroot.selected ) [$( rigPane sr 3 )]" "settings [  SUBJECT            LINES MISSING WHAT]"
-rigAssert "it lists the subjects that have a line of the settings, a subject of both roots in each" "[$( rigVal stitle )] $( rigVal sin.rows ) [$( rigVal srow2 | sed 's/  *$//' )][$( rigVal srow3 | sed 's/  *$//' )][$( rigVal srow4 | sed 's/  *$//' )][$( rigVal srow5 | sed 's/  *$//' )][$( rigVal srow6 | sed 's/  *$//' )][$( rigVal srow7 | sed 's/  *$//' )][$( rigVal srow8 | sed 's/  *$//' )][$( rigVal srow9 | sed 's/  *$//' )][$( rigVal srow10 | sed 's/  *$//' )]" "[Settings] 8 [ Scope Settings                  ►][ Presets                         ►][ Tiers                           ►][][ Interface Settings              ►][ Console Behaviour               ►][ Session Control                 ►][ Knowledge Store                 ►][]"
+rigAssert "it lists the subjects that have a line of the settings, a subject of both roots in each" "[$( rigVal stitle )] $( rigVal sin.rows ) [$( rigVal srow2 | sed 's/  *$//' )][$( rigVal srow3 | sed 's/  *$//' )][$( rigVal srow4 | sed 's/  *$//' )][$( rigVal srow5 | sed 's/  *$//' )][$( rigVal srow6 | sed 's/  *$//' )][$( rigVal srow7 )]" "[Settings] 6 [ Scope Settings                  ►][ Interface Settings              ►][ Console Behaviour               ►][ Session Control                 ►][ Knowledge Store                 ►][]"
 rigAssert "the subject of the knowledge store says in the table of Settings what it holds, as every subject does" "$( rigScreenHolds sr 'Knowledge Store' ) $( rigScreenHolds sr 'the optional vector store of what the team knows' )" "1 1"
 rigAssert "and its table stands first, no words of the root above it" "[$( rigPane su 3 )] $( rigScreenHolds su 'What a user sets for himself' )" "[  SUBJECT            LINES MISSING WHAT] 0"
 rigAssert "the digest was read once for both roots, whole, and once more when its period had passed" "$( rigCalled '--manager-config-digest --full' ) $( rigCalled --manager-config-digest ) $( rigOthers )" "2 0 0"
@@ -236,15 +233,12 @@ rigCase subjects
 rigScript <<'RIGSCRIPT'
 keys 8
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 get w
 show w
 cells wKeys 37 1 83
 cells wStatus 39 0 120
-keys DOWN
-turn
-show c
 keys DOWN
 turn
 show s
@@ -258,12 +252,6 @@ rigAssert "its lines as a table: its missing line first, under a heading of its 
 	"[ missing, first][ session-stores /rig/ws_rig/.local/agents/stores (missing) in paths][ paths][ workspace-root /rig/ws_rig -]"
 rigAssert "then its places, under a heading of their own" "[$( rigPane w 8 | LC_ALL=C tr -s ' ' )][$( rigPane w 9 | LC_ALL=C tr -s ' ' )][$( rigPane w 10 )]" "[ places][ ws-rig /rig/ws_rig -][]"
 rigAssert "under its lines no sentence says what Enter does: the status line names it; it names no key of its own" "[$( rigPane w 10 )][$( rigPane w 11 )] [$( rigVal wKeys )] [$( rigVal wStatus | sed 's/  *$//' )] $( rigVal w.spills )" "[][] [] [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut  t Sort] 0"
-rigAssert "cli: a table CLI KEY VALUE, a row a line with its CLI, a missing key first; then what the workspace asks for, a key as it is written" "[$( rigPane c 3 | LC_ALL=C tr -s ' ' )][$( rigPane c 5 | LC_ALL=C tr -s ' ' )][$( rigPane c 11 | LC_ALL=C tr -s ' ' )] $( rigScreenHolds c '6 lines' )" \
-	"[ CLI KEY VALUE][ workspace SPAWN_HARNESS_TIER missing][ workspace SPAWN_CLI_SERVICE claude] 0"
-rigAssert "a secret shows as not configured, or in its one form and nothing beside it (F11.7): the one that is among the missing lines, the one that is not; then the leg's usable" "[$( rigPane c 7 | LC_ALL=C tr -s ' ' )][$( rigPane c 13 | LC_ALL=C tr -s ' ' )][$( rigPane c 15 | LC_ALL=C tr -s ' ' )]" \
-	"[ claude CLAUDE_CODE_OAUTH_TOKEN not configured][ claude ANTHROPIC_API_KEY sk-m**************][ claude usable yes]"
-rigAssert "of the value of a secret the screen shows what the operation printed, its first quarter and * for the rest, and nothing more: the row never carried more" "$( rigScreenHolds c 'sk-m' ) $( rigScreenHolds c 'never-show' ) $( LC_ALL=C grep -c -F 'sk-must-never-show' "$MANAGER_SCREEN_RIG/rows.--manager-config-digest" )" "1 0 0"
-rigAssert "a CLI that is not usable stands among the missing lines, with its name" "[$( rigPane c 9 | LC_ALL=C tr -s ' ' )]" "[ grok usable no]"
 rigAssert "systems: a scope that is set, and one that is set and lacks keys (the value column is as wide as the longest value, so the keys it lacks go on in the next rows)" "[$( rigPane s 8 | LC_ALL=C tr -s ' ' )][$( rigPane s 9 | LC_ALL=C tr -s ' ' )][$( rigPane s 11 | LC_ALL=C tr -s ' ' )][$( rigPane s 12 | LC_ALL=C tr -s ' ' )][$( rigPane s 13 | LC_ALL=C tr -s ' ' )]" \
 	"[ slack][ magic-team set - -][ magic-coordinator set, lacks - -][ SLACK_APP_TOKEN,][ SLACK_SIGNING_SECRET]"
 rigAssert "systems, all values shown (F11.7): under the scope that holds them stand the keys of a system, each with its value beside the assessment of its scope and the scope as its source" "[$( rigPane s 14 | LC_ALL=C tr -s ' ' )][$( rigPane s 15 | LC_ALL=C tr -s ' ' )][$( rigPane s 17 | LC_ALL=C tr -s ' ' )][$( rigPane s 21 | LC_ALL=C tr -s ' ' )]" \
@@ -301,7 +289,7 @@ rigCase entered
 rigScript <<'RIGSCRIPT'
 keys 7
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN ENTER
+keys DOWN DOWN DOWN ENTER
 turn
 get in
 border title 1 84 120
@@ -321,9 +309,9 @@ show t
 keys BACKSPACE
 turn
 get back
-keys 8
+at @configuration cli
 turn
-keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN ENTER
+wait list 30
 turn
 # the lines of this subject stand group by group: two headings stand ahead of this line
 keys DOWN DOWN DOWN DOWN DOWN
@@ -349,9 +337,9 @@ rigAssert "such a line is a credential, so a row that is entered (F11.8): the le
 echo "-- Configuration: Enter on a line changes nothing, and says why --"
 rigCase viewing
 rigScript <<'RIGSCRIPT'
-keys 8
+at @configuration cli
+turn
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN ENTER
 turn
 # the first row under the row that goes up is the heading of a group: the line is the one after it
 keys DOWN DOWN
@@ -396,24 +384,25 @@ rigScript <<'RIGSCRIPT'
 turn
 keys 8
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 get w
-keys DOWN
+at @configuration cli
 turn
-get c
+wait list 30
+turn
+wait focus 30
+turn 2
 show c
 keys 7
 turn
-keys DOWN DOWN DOWN DOWN
+keys DOWN DOWN
 turn
 get i
 show i
 RIGSCRIPT
-rigAssert "the subjects are listed by their labels"                  "[$( rigVal w.selectedLabel )] [$( rigVal c.selectedLabel )] [$( rigVal i.selectedLabel )]" "[Workspace Paths] [CLI Services] [Interface Settings]"
-rigAssert "the left window is titled by the label, and no caption repeats it" "[$( rigPane c 2 )] $( rigPaneHolds c ' CLI Services: 2 lines, 1 missing.' )" "[ CLI Services [wrap]] 0"
-rigAssert "a line of the CLI view shows by its CLI and its key, its label left out (the owner: \"Make MEMBER KEY VALUE\", the CLI view the same)" "[$( rigPane c 5 | LC_ALL=C tr -s ' ' )] $( rigScreenHolds c 'Spawn Harness Tier' )" "[ workspace SPAWN_HARNESS_TIER missing] 0"
-rigAssert "a line with no label shows by its key there too" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^c|' | LC_ALL=C tr -s ' ' | LC_ALL=C grep -c -F '│ workspace ODD_KEY odd' )" "1"
+rigAssert "the subjects are listed by their labels"                  "[$( rigVal w.selectedLabel )] [$( rigVal i.selectedLabel )]" "[Workspace Paths] [Interface Settings]"
+rigAssert "a line with no label shows by its key there too" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^c|' | LC_ALL=C tr -s ' ' | LC_ALL=C grep -c -F '║ ODD_KEY' )" "1"
 rigAssert "the subject of the interface shows its style as it is saved, by its value and not by the label of the choice, where it comes from, and its key" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^i|' | LC_ALL=C tr -s ' ' | LC_ALL=C grep -c -F '│ Interface Style tv-system default MDAT_MANAGER_STYLE' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^i|' | LC_ALL=C grep -F 'Interface Settings ' | LC_ALL=C grep -c -F '►' )" "1 1"
 
 echo "-- Enter on the style: a dialog of its own, the style and its colours; OK takes both at once and saves them as one value --"
@@ -422,7 +411,7 @@ rigScript <<'RIGSCRIPT'
 turn
 keys 7
 wait list 30
-keys DOWN DOWN DOWN DOWN ENTER
+keys DOWN DOWN ENTER
 turn
 keys ENTER
 get up
@@ -457,7 +446,7 @@ rigScript <<RIGSCRIPT
 turn
 keys 7
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN ENTER
+keys DOWN DOWN DOWN ENTER
 turn
 keys DOWN
 turn
@@ -523,7 +512,7 @@ rigScript <<'RIGSCRIPT'
 turn
 keys 7
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN ENTER
+keys DOWN DOWN DOWN DOWN ENTER
 turn
 keys DOWN
 turn
@@ -560,7 +549,7 @@ rigScript <<'RIGSCRIPT'
 turn
 keys 7
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN ENTER
+keys DOWN DOWN DOWN ENTER
 turn
 keys DOWN DOWN
 turn
@@ -582,7 +571,7 @@ rigScript <<'RIGSCRIPT'
 turn
 keys 7
 wait list 30
-keys DOWN DOWN DOWN DOWN ENTER
+keys DOWN DOWN ENTER
 turn
 keys DOWN
 turn
@@ -605,7 +594,7 @@ turn
 root settings
 keys ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN ENTER
+keys DOWN DOWN ENTER
 turn
 get in
 cells g1 3 85 119
@@ -683,7 +672,7 @@ rigCount(){ ## tag letters -- how many cells of the roles of that tag are drawn 
 }
 rigAssert "Magic: the windows stand in their own colour, a thin line on the bottom edge of the line above them and of their last line, the change of colour their sides, their shadow whole cells at their right; no line frame, no half block and nothing on the top of a cell" "$( rigScreenHolds m '▔' ) $( rigScreenHolds m '▀' ) $( rigSome "$( rigScreenHolds m '▁▁▁' )" ) $( rigScreenHolds m '▗' ) $( rigScreenHolds m '▐' ) $( rigScreenHolds m '▌' ) $( rigScreenHolds m '▝' ) $( rigScreenHolds m '┌' ) $( rigScreenHolds m '┏' ) $( rigScreenHolds m '┃' ) $( rigScreenHolds m '║' ) $( rigSome "$( rigCount mr V )" ) $( rigSome "$( rigCount mr v )" ) $( rigSome "$( rigCount mr E )" ) $( rigSome "$( rigCount mr a )" )" "0 0 some 0 0 0 0 0 0 0 0 some some some some"
 rigAssert "each title stands as a tab on the line over its window, in a look of its own, the active one in its own" "$( rigScreenHolds m '▁ Settings ▁' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^m|' | LC_ALL=C sed -n '2p' | LC_ALL=C grep -o '▟' | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mr|' | LC_ALL=C sed -n '2p' | LC_ALL=C tr -d -c 'T' | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' )" "1 0 10"
-rigAssert "a row that is entered has its mark at the right edge of the row, in every subject of the root" "$( rigScreenHolds m '► |' ) $( rigScreenHolds m 'Interface Settings...' )" "7 0"
+rigAssert "a row that is entered has its mark at the right edge of the row, in every subject of the root" "$( rigScreenHolds m '► |' ) $( rigScreenHolds m 'Interface Settings...' )" "5 0"
 rigAssert "the status line: each key a chip of its own colour, the text as it was" "$( rigSome "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mr|' | tail -1 | LC_ALL=C tr -d -c 'K' | LC_ALL=C wc -c )" ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^m|' | tail -1 | LC_ALL=C grep -c -F ' ⏎ Open  ' )" "some 1"
 rigAssert "a menu: hung from the bar, its own colour up to a thin line at its bottom, no mark at its sides, its shadow at its right and half a line under it, the black of it the ground of its cells" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mm|' | LC_ALL=C grep -c -F '▀' ) $( rigSome "$( rigScreenHolds mm '▁▁▁' )" ) $( rigScreenHolds mm '▄▄▄' ) $( rigScreenHolds mm '▛' ) $( rigScreenHolds mm '▜' ) $( rigScreenHolds mm '▙' ) $( rigScreenHolds mm '▟' ) $( rigScreenHolds mm '█' ) $( rigSome "$( rigCount mmr z )" )" "0 some 1 0 0 0 0 0 some"
 rigAssert "closed, it leaves nothing: what is drawn is what a new terminal shows of the same state" "$( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^mafter|//p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^mfresh|//p' )" ] && echo same || echo differs ) $( rigScreenHolds mafter '▄▄▄' )" "same 0"

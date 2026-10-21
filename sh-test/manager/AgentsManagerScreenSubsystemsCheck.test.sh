@@ -94,7 +94,7 @@ at @configuration
 rowids ids
 RIGSCRIPT
 rigScreen="$rigRealScreen"
-rigAssert "a screen whose .local has no such part has no such folder, and fails nowhere" "$( rigVal ids )" ".. checker keys git diagnostics"
+rigAssert "a screen whose .local has no such part has no such folder, and fails nowhere" "$( rigVal ids )" ".. checker keys clipresets git diagnostics"
 
 echo "-- 2. entered: the subsystems, each with its state, and its commands under it --"
 rigCase entered

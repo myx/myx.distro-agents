@@ -229,8 +229,8 @@ rigAssert "the members: their table alone, numbered, and no line of a summary" "
 rigAssert "the locations: every location as a table with its path, nothing above it" "$( rigLeft P )" "   PLACE     KIND     STATE   PATH                               SESSIONS CEILING /  • ws-one    workspa… present /rig/Workspaces/ws-one             2        read-wr… /    gone-work workspa… absent  /rig/Volumes/gone-work             0        read-wr… /    deep      directo… present /rig/Workspaces/ws-one/source/deep -        read-on…"
 rigAssert "what is to start: each as a table with its command, nothing above it" "$( rigLeft C )" " CONSOLE         GROUP   COMMAND /  Agents Console  Distro  bash DistroAgentsConsole.sh /  Source Console  Distro  bash DistroSourceConsole.sh /  Top             System  top"
 rigAssert "the workspace: its facts, the rows of the operation as it printed them, with no Enter" "$( rigLeft W )" " name  ws-one /  path  /rig/Workspaces/ws-one"
-rigAssert "the settings: its subjects in a table, with what each holds" "$( rigLeft G | sed 's/^.*while the workspace runs\. \/ //' )" " SUBJECT      LINES MISSING WHAT /  Interface    2     -       how this console looks, saved for the user who runs it /  Scope        -     -       every scope of settings of this workspace, each a /  Settings                   folder of its variables /  Presets      -     -       - /  Tiers        -     -       -"
-rigAssert "the configuration: its subjects, how many lines each misses, and its folders" "$( rigLeft F | sed 's/^.*change it later\. \/ //' ) [$( rigLeft F | sed 's/ \/ .*$//' )]" " SUBJECT        LINES MISSING WHAT /  Slack          3     1       - /  Config Checker -     -       the read-only checks of the installation, run on /                               demand /  Server Keys    -     -       the public keys of this server /  Git Settings   -     -       the global git settings of the account that runs the /                               tools /  Installed      -     -       the subsystems of the tool family, installed here or /  Subsystems                   not, and the commands to install and uninstall them /  Diagnostics    -     -       what the tooling sees, read-only: the context it /                               resolves [ SUBJECT        LINES MISSING WHAT]"
+rigAssert "the settings: its subjects in a table, with what each holds" "$( rigLeft G | sed 's/^.*while the workspace runs\. \/ //' )" " SUBJECT      LINES MISSING WHAT /  Interface    2     -       how this console looks, saved for the user who runs it /  Scope        -     -       every scope of settings of this workspace, each a /  Settings                   folder of its variables"
+rigAssert "the configuration: its subjects, how many lines each misses, and its folders" "$( rigLeft F | sed 's/^.*change it later\. \/ //' ) [$( rigLeft F | sed 's/ \/ .*$//' )]" " SUBJECT     LINES MISSING WHAT /  Slack       3     1       - /  Config      -     -       the read-only checks of the installation, run on demand /  Checker /  Server Keys -     -       the public keys of this server /  CLI Presets -     -       the CLI services you set up as presets, and the preset /  and Tiers                 and effort each member and the team use for their tiers /  Git         -     -       the global git settings of the account that runs the /  Settings                  tools /  Installed   -     -       the subsystems of the tool family, installed here or /  Subsystems                not, and the commands to install and uninstall them /  Diagnostics -     -       what the tooling sees, read-only: the context it /                            resolves [ SUBJECT     LINES MISSING WHAT]"
 rigAssert "nothing was entered, and each list was read once: the asks, the members, what is to start, and the digest for both its roots" "[$( rigVal end.path )] $( rigCalls --read-pending-reply ) $( rigCalls --manager-team-member-list ) $( rigCalls --manager-console-list ) $( rigCalls --manager-config-digest ) $( rigFolderCalls )" "[] 1 1 1 1 5"
 
 echo "-- until the rows have come the window says that it waits; the read starts when the selection has rested --"
@@ -384,12 +384,12 @@ wait focus 5
 turn 2
 wait plan 5
 show Y
-keys DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN
 wait focus 5
 show U
 keys r
 get refused
-keys BACKSPACE UP ENTER DOWN DOWN DOWN DOWN
+keys BACKSPACE UP ENTER DOWN DOWN
 wait focus 5
 show I
 RIGSCRIPT

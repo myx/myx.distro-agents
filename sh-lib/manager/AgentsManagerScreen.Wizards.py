@@ -98,7 +98,8 @@ def wizardStep(state, direction):
         return False
     held["step"] = step
     ## whether another step follows, and whether one stands before
-    ahead = wizardStepAt(state, 1)[0] is not None
+    ## (a step that follows may be skipped by what this one answers: the button is Next while any is declared, and Next where none is left applies)
+    ahead = step < len(wizardNamed(held["name"])["steps"]) - 1
     back = wizardStepAt(state, -1)[0] is not None
     name = "wizard:%s:%d" % (held["name"], step)
     buttons = [("next", "Next") if ahead else ("finish", made.get("finish", "Finish"))]
@@ -132,8 +133,7 @@ def submitWizardStep(state, dialog, button):
         refusal = globals()[made["check"]](state, held, answers)
         if refusal:
             return refusal
-    if button == "next":
-        wizardStep(state, 1)
+    if button == "next" and wizardStep(state, 1):
         return None
     label, words, inputText = globals()[wizard["apply"]](state, held)
     runFollowed(state, label, words, inputText)
@@ -199,7 +199,7 @@ def cliStepPreset(state, held):
                          {"name": "preset", "kind": "radios", "label": "Preset"},
                          {"name": "name", "kind": "input", "label": "Name of the new preset, lower case"}),
             "fill": {"about": {"lines": ["A preset is a block of settings for a CLI service: the service, its model or macro, its effort and the credentials of the service. Pick the preset to configure, or make a new one."]},
-                     "preset": {"options": options, "value": data["presets"][0] if data["presets"] else ""}}}
+                     "preset": {"options": options, "value": held["context"].get("preset") or (data["presets"][0] if data["presets"] else "")}}}
 
 
 def cliCheckPreset(state, held, answers):
@@ -243,17 +243,6 @@ def cliStepCredentials(state, held):
     return {"title": "Configure CLI Service: the credentials of %s" % service, "first": keys[0], "controls": controls, "fill": fill}
 
 
-def cliStepTiers(state, held):
-    data = held["data"]
-    team = data["team"]
-    controls = [{"name": "about", "kind": "text"}]
-    fill = {"about": {"lines": ["The team's three tiers each name a preset, <preset>[:<effort>], the effort one of low, default or normal, high or hard. The preset to configure is %s." % wizardPreset(held)]}}
-    for key, label in (("SPAWN_TIER_LOW", "Low tier"), ("SPAWN_TIER_NORMAL", "Normal tier"), ("SPAWN_TIER_HIGH", "High tier")):
-        controls.append({"name": key, "kind": "input", "label": "%s, %s" % (label, key)})
-        fill[key] = {"value": team.get(key, ("missing", ""))[1]}
-    return {"title": "Configure CLI Service: the tiers", "first": "SPAWN_TIER_NORMAL", "controls": controls, "fill": fill}
-
-
 ## What the wizard asks of the tooling, from the answers: each key whose answer is not what it held, one line `<key> <TAB> <value>` of the standard input of
 ## `--manager-wizard-apply cli-service --preset <name>`, which writes them in the order its checks need and refuses what they refuse.
 def cliApply(state, held):
@@ -272,8 +261,6 @@ def cliApply(state, held):
     service = wizardService(held)
     for key in data["credentials"].get(service, []):
         ask(key, wizardAnswer(held, 2, key, presetHeld(held, preset, key)), presetHeld(held, preset, key))
-    for key in ("SPAWN_TIER_LOW", "SPAWN_TIER_NORMAL", "SPAWN_TIER_HIGH"):
-        ask(key, wizardAnswer(held, 3, key, data["team"].get(key, ("missing", ""))[1]).strip(), data["team"].get(key, ("missing", ""))[1])
     return "Configure CLI Service: %s" % preset, ["--manager-wizard-apply", "cli-service", "--preset", preset], "".join(lines)
 
 
@@ -410,7 +397,7 @@ def wizardOfRow(state, row):
     level = levelKey(state.path)
     if level == here + "/git" or (level == here and row["id"] == "git"):
         return "git-settings"
-    if level == here + "/cli" or (level == here and row["id"] == "cli"):
+    if level == pluginLevel("clipresets") or (level == here and row["id"] == "clipresets"):
         return "cli-service"
     return None
 
@@ -438,7 +425,7 @@ def askCliAuto(state, row):
 
 
 ACTION_HANDLERS["cliauto"] = askCliAuto
-ACTION_FITS["cliauto"] = lambda state, row: wizardOfRow(state, row) == "cli-service" and levelKey(state.path) == pluginLevel("configuration")
+ACTION_FITS["cliauto"] = lambda state, row: wizardOfRow(state, row) == "cli-service"
 ACTION_REFUSALS["cliauto"] = lambda state, row: "it has no CLI to select"
 
 
@@ -478,7 +465,7 @@ registerPlugin({
     "name": "wizards",
     "integrates": {"configuration": {"wizards": (
         {"name": "cli-service", "title": "Configure CLI Service", "read": ["--manager-wizard-read", "cli-service"], "parse": "parseCliWizard",
-         "steps": ("cliStepPreset", "cliStepSettings", "cliStepCredentials", "cliStepTiers"), "apply": "cliApply"},
+         "steps": ("cliStepPreset", "cliStepSettings", "cliStepCredentials"), "apply": "cliApply"},
         {"name": "git-settings", "title": "Configure Git Settings", "read": ["--manager-wizard-read", "git-settings"], "parse": "parseGitWizard",
          "steps": ("gitStepSettings",), "apply": "gitApply"},
         {"name": "server-key-generate", "title": "Generate Server Key", "steps": ("keyStepGenerate",), "apply": "keyApplyGenerate"},
@@ -491,12 +478,12 @@ registerPlugin({
     },
     "commands": (
         {"name": "configure", "keys": ("c",), "menu": ("view", 3), "label": "~C~onfigure", "status": "Configure", "window": "list",
-         "views": ("@configuration", "@configuration/cli", "@configuration/git"),
-         "for": "a feature that is configured by a wizard", "on": ("@configuration:record", "@configuration:section", "@configuration/cli:record", "@configuration/git:record"),
+         "views": ("@configuration", "@clipresets", "@configuration/git"),
+         "for": "a feature that is configured by a wizard", "on": ("@configuration:record", "@configuration:section", "@clipresets:section", "@configuration/git:record"),
          "only": True, "says": "configure", "does": ("action", "wizard")},
         {"name": "cliauto", "keys": ("s",), "menu": ("view", 3), "label": "Auto-~s~elect CLI...", "status": "Auto-select", "window": "list",
-         "views": ("@configuration",),
-         "for": "the CLI services", "on": ("@configuration:record",),
+         "views": ("@configuration", "@clipresets"),
+         "for": "the CLI services", "on": ("@configuration:section", "@clipresets:section"),
          "only": True, "says": "auto-select", "does": ("action", "cliauto")},
         {"name": "keygenerate", "keys": ("n",), "menu": ("view", 3), "label": "~N~ew key, generate it", "status": "Generate", "window": "list",
          "views": ("@configuration/keys",), "for": "a key that is not there", "on": ("@configuration/keys:record",), "only": True, "says": "generate",

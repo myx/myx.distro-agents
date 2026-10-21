@@ -183,7 +183,7 @@ show consoles
 keys 7
 wait list 10
 show settings
-keys DOWN DOWN DOWN DOWN
+keys DOWN DOWN
 wait focus 10
 show subject
 keys 8
@@ -201,10 +201,6 @@ wait focus 10
 wait plan 10
 turn
 show keys
-keys DOWN DOWN DOWN DOWN
-wait focus 10
-show cli
-roles clir
 root manuals
 turn
 keys ENTER
@@ -306,9 +302,9 @@ echo "-- Consoles, Settings, Configuration --"
 rigAssert "Consoles: every console as a table with its command; no sentence" \
 	"$( rigHas consoles 'CONSOLE' ) $( rigHas consoles 'Rig Tool' ) $( rigHas consoles '/rig/tool.sh' ) $( rigHas consoles 'Enter starts one' )" "1 1 1 0"
 rigAssert "Settings: its subjects as a table with what each holds; Configuration: its folders among them" \
-	"$( rigHas settings 'WHAT' ) $( rigHas settings 'how this console looks' ) $( rigHas configuration 'Config Checker' ) $( rigHas configuration 'Server Keys' )" "1 1 1 1"
-rigAssert "a subject: its lines as a table, a missing value in its colour; no hint" \
-	"$( rigHas cli 'KEY' ) $( rigHas cli 'SETTING' ) $( rigRole cli 'RIG_CLI_A' W ) $( rigHas cli 'Enter opens it' ) $( rigHas subject 'Enter opens it' )" "1 0 1 0 0"
+	"$( rigHas settings 'WHAT' ) $( rigHas settings 'how this console looks' ) $( rigHas configuration 'Checker' ) $( rigHas configuration 'Server Keys' )" "1 1 1 1"
+rigAssert "a subject: its lines as a table; no hint" \
+	"$( rigHas subject 'SETTING' ) $( rigHas subject 'Enter opens it' )" "1 0"
 rigAssert "Config Checker: every check as a table, the worst first, in its colour" \
 	"$( rigHas checker 'CHECK' ) $( [ "$( rigLineOf checker 'Git Remote' )" -lt "$( rigLineOf checker 'Bash Version' )" ] && echo worst ) $( rigRole checker 'Git Remote' X )" "1 worst 1"
 rigAssert "Server Keys: a table, a public line whole; Tooling Commands: a table alone, a command a row with its path" \

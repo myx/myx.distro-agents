@@ -60,7 +60,66 @@ rigCase(){ ## name
 rigScript(){ rigOut="$( { printf 'tools bash %s\nwall 2026-10-21 09:30 +0000\nsize 150 40\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" ; }
 rigVal(){ printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1 ; }
 rigHolds(){ printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || : ; }
+rigCalled(){ LC_ALL=C grep -c -x -F -- "$1" "$MANAGER_SCREEN_RIG/calls" || : ; }
 rigWords(){ LC_ALL=C grep -c -x -F -- "$1" "$MANAGER_SCREEN_RIG/words" || : ; }
+
+echo "-- CLI Presets and Tiers, in the Configuration --"
+rigCase feature
+rigScript <<'RIGSCRIPT'
+turn
+at @configuration
+turn
+wait list 10
+rowids top
+keys DOWN DOWN DOWN
+wait focus 10
+turn
+wait focus 10
+turn
+get on
+show summary
+keys ENTER
+turn
+wait list 10
+rowids sub
+RIGSCRIPT
+rigAssert "the Configuration holds CLI Presets and Tiers, and the old item of the CLI services is gone" "$( rigVal top )" ".. checker keys clipresets git subsystems diagnostics"
+rigAssert "selected, it shows two compact tables: the presets, and the tiers that are assigned (the team's, and the number of members that use the defaults)" "$( rigVal on.selectedLabel ) $( rigHolds summary 'CLI Service Presets' ) $( rigHolds summary 'Member Tier Assignments' ) $( rigHolds summary 'PRESET    CLI SERVICE' ) $( rigHolds summary 'MEMBER  LOW' ) $( rigHolds summary '1 more member uses the defaults.' )" "CLI Presets and Tiers 1 1 1 1 1"
+rigAssert "the keys of its tasks stand in the status line: add a preset, assign a tier, configure, select the CLI" "$( rigHolds summary ' n New  a Assign  c Configure  s Auto-select' )" "1"
+rigAssert "opened, it holds its two folders" "$( rigVal sub )" ".. presets tiers"
+rigDump(){ ## tag... -- the left pane of those screens (RIG_DUMP=1 prints it, to be read); the frame, the right pane and the empty lines are left out
+	[ -z "${RIG_DUMP:-}" ] || RIG_OUT="$rigOut" "$rigPython" -I -c '
+import os, sys
+for tag in sys.argv[1:]:
+    print("== %s ==" % tag)
+    for line in os.environ["RIG_OUT"].split("\n"):
+        if line.startswith(tag + "|"):
+            text = line[len(tag) + 1:].split("│║")[0].split("┐")[0].split("┘")[0]
+            text = text[1:] if text[:1] in "│┌└" else text
+            if text.strip(" ─") and "Go  View" not in text:
+                print(text.rstrip())
+' "$@"
+}
+rigDumpBox(){ ## tag... -- the box (dialog) of those screens: its lines only, the panes behind it cut away
+	[ -z "${RIG_DUMP:-}" ] || RIG_OUT="$rigOut" "$rigPython" -I -c '
+import os, sys
+for tag in sys.argv[1:]:
+    print("== %s ==" % tag)
+    left = right = None
+    for line in os.environ["RIG_OUT"].split("\n"):
+        if not line.startswith(tag + "|"):
+            continue
+        text = line[len(tag) + 1:]
+        if left is None and "╔═[■]" in text:
+            left = text.index("╔═[■]")
+            right = text.index("╗", left) + 1
+        if left is not None:
+            print(text[left:right].rstrip())
+            if "╚" in text[left:right]:
+                break
+' "$@"
+}
+rigDump summary
 
 echo "-- the folders and the presets --"
 rigCase list
@@ -70,13 +129,13 @@ at @settings
 turn
 wait list 10
 rowids top
-at @settings presets
+at @clipresets presets
 turn
 wait list 10
 rowids rows
 show p
 RIGSCRIPT
-rigAssert "Settings holds Scope Settings, Presets and Tiers ahead of its subjects" "$( rigVal top | LC_ALL=C cut -d' ' -f1-4 )" ".. scopes presets tiers"
+rigAssert "Settings holds Scope Settings first and no presets or tiers: those are the Configuration's" "$( rigVal top | LC_ALL=C cut -d' ' -f1-2 )" ".. scopes"
 rigAssert "Presets lists the presets by their scope ids" "$( rigVal rows )" ".. agents:preset-rig-base agents:preset-rig-ext"
 rigAssert "the folder selected shows them as one table: the preset, what it extends, its CLI service, its model, its effort, and by whom it is used" "$( rigHolds p 'PRESET' ) $( rigHolds p 'rig-ext   rig-base' ) $( rigHolds p 'claude' ) $( rigHolds p 'magic-team' )" "1 1 3 1"
 
@@ -84,7 +143,7 @@ echo "-- a variable by its kind --"
 rigCase kinds
 rigScript <<'RIGSCRIPT'
 turn
-at @settings presets agents:preset-rig-ext
+at @clipresets presets agents:preset-rig-ext
 turn
 wait list 10
 rowids keys
@@ -125,7 +184,7 @@ echo "-- a preset made --"
 rigCase made
 rigScript <<'RIGSCRIPT'
 turn
-at @settings presets
+at @clipresets presets
 turn
 wait list 10
 keys n
@@ -136,7 +195,7 @@ RIGSCRIPT
 rigAssert "n opens the form of a new preset: its name, what it extends (none among them), its CLI service" "$( rigVal dialog.dialogTitle ) $( rigHolds dialog 'rig-base' ) $( rigHolds dialog 'none' ) $( rigHolds dialog 'claude' )" "New preset 4 3 5"
 rigScript <<'RIGSCRIPT'
 turn
-at @settings presets
+at @clipresets presets
 turn
 wait list 10
 keys n
@@ -150,16 +209,79 @@ turn 2
 RIGSCRIPT
 rigAssert "its OK makes it through --manager-preset-new, the name, the way and what it extends as words" "$( rigWords '[--manager-preset-new][rig-new][--extend][rig-base]' )" "1"
 
+echo "-- the tasks: use a preset for a member, assign a tier --"
+rigCase use
+rigScript <<'RIGSCRIPT'
+turn
+at @clipresets presets
+turn
+wait list 10
+keys DOWN
+wait focus 10
+turn
+keys f
+turn
+get who
+show who
+keys ENTER
+turn
+get editor
+show editor
+keys ENTER
+wait action 30
+turn 2
+RIGSCRIPT
+rigAssert "f on a preset asks for whom and which tier, naming the preset" "$( rigVal who.dialog | LC_ALL=C cut -d'|' -f1 ) [$( rigVal who.dialogTitle )] $( rigHolds who 'Team' ) $( rigHolds who 'keeper-myx' ) $( rigHolds who 'Low' ) $( rigHolds who 'High' )" "tier-who:who [Use rig-base for] 1 1 1 1"
+rigDumpBox who editor
+rigAssert "Next opens the two selectors of that tier, the preset chosen being the one selected" "$( rigVal editor.dialog | LC_ALL=C cut -d'|' -f1 ) [$( rigVal editor.dialogTitle )] $( rigHolds editor 'Preset' ) $( rigHolds editor 'Effort' )" "setting-tier:preset [SPAWN_TIER_NORMAL] 2 1"
+rigAssert "OK saves the value in the scope of the team by --manager-scope-set" "$( rigWords '[--manager-scope-set][agents:magic-team][SPAWN_TIER_NORMAL]' ) $( LC_ALL=C tr -d '\n' < "$MANAGER_SCREEN_RIG/stdin.--manager-scope-set" 2> /dev/null )" "1 rig-base"
+rigCase assign
+rigScript <<'RIGSCRIPT'
+turn
+at @clipresets tiers
+turn
+wait list 10
+keys a
+turn
+get ask
+keys DOWN SPACE TAB DOWN DOWN SPACE
+turn
+keys ENTER
+turn
+get editor
+keys DOWN SPACE TAB DOWN DOWN SPACE
+turn
+keys ENTER
+wait action 30
+turn 2
+RIGSCRIPT
+rigAssert "a on the tiers asks for whom and which tier; the member and the tier chosen come to the two selectors, and the choice is saved as <preset>:<effort> in that member's scope" "[$( rigVal ask.dialogTitle )] [$( rigVal editor.dialogTitle )] $( rigWords '[--manager-scope-set][agents:keeper-myx][SPAWN_TIER_HIGH]' ) $( LC_ALL=C tr -d '\n' < "$MANAGER_SCREEN_RIG/stdin.--manager-scope-set" 2> /dev/null )" "[Assign a tier] [SPAWN_TIER_HIGH] 1 rig-ext:normal"
+rigCase configure
+rigScript <<'RIGSCRIPT'
+turn
+at @clipresets presets
+turn
+wait list 10
+keys DOWN DOWN
+wait focus 10
+turn
+keys c
+turn
+wait dialog 5
+get wiz
+RIGSCRIPT
+rigAssert "c on a preset starts the wizard of the CLI service: it reads what the form needs" "$( rigCalled '--manager-wizard-read cli-service' )" "1"
+
 echo "-- the tiers --"
 rigCase tiers
 rigScript <<'RIGSCRIPT'
 turn
-at @settings tiers
+at @clipresets tiers
 turn
 wait list 10
 rowids rows
 show t
-at @settings tiers agents:magic-team
+at @clipresets tiers agents:magic-team
 turn
 wait list 10
 keys DOWN DOWN DOWN
@@ -171,11 +293,11 @@ get tier
 show tier
 RIGSCRIPT
 rigAssert "the tiers list the team and every member by their scope ids" "$( rigVal rows )" ".. agents:magic-team agents:keeper-myx"
-rigAssert "the folder selected shows who has which tier" "$( rigHolds t 'OWNER' ) $( rigHolds t 'Team' ) $( rigHolds t 'rig-ext' )" "1 2 2"
+rigAssert "the folder selected shows who has which tier" "$( rigHolds t 'MEMBER' ) $( rigHolds t 'Team' ) $( rigHolds t 'rig-ext' )" "1 2 2"
 rigAssert "Enter on a tier of the team opens a form of two selectors, the preset and the effort: the presets alone, no list of presets multiplied by efforts" "$( rigVal tier.dialog | LC_ALL=C cut -d'|' -f1 ) $( rigVal tier.dialogTitle ) $( rigHolds tier 'rig-base' ) $( rigHolds tier 'rig-ext:high' ) $( rigHolds tier 'Preset' ) $( rigHolds tier 'Effort' )" "setting-tier:preset SPAWN_TIER_HIGH 1 0 1 1"
 rigScript <<'RIGSCRIPT'
 turn
-at @settings tiers agents:magic-team
+at @clipresets tiers agents:magic-team
 turn
 wait list 10
 keys DOWN DOWN DOWN
@@ -195,7 +317,7 @@ rigAssert "the effort offers unset, low, normal and high; the two chosen are sav
 rigCase tier2
 rigScript <<'RIGSCRIPT'
 turn
-at @settings tiers agents:magic-team
+at @clipresets tiers agents:magic-team
 turn
 wait list 10
 keys DOWN
@@ -211,7 +333,7 @@ rigAssert "a tier that is <preset>:<effort> opens with both chosen, and OK as it
 rigCase tier3
 rigScript <<'RIGSCRIPT'
 turn
-at @settings tiers agents:magic-team
+at @clipresets tiers agents:magic-team
 turn
 wait list 10
 keys DOWN DOWN

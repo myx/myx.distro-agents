@@ -76,8 +76,8 @@ rigCase(){ ## name, digest -- a rig of its own, every fixture of this check in i
 	: > "$MANAGER_SCREEN_RIG/words"
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
-## The commands that take the list into the first subject of the configuration, and onto its first line
-rigIntoSubject=$'root configuration\nkeys ENTER\nwait list 20\nkeys DOWN DOWN DOWN DOWN DOWN DOWN\nwait focus 20\nkeys ENTER\nwait list 20\nturn'
+## The commands that take the list into the subject of the CLI services (its level stands, though the Configuration lists CLI Presets and Tiers in its place), and onto its first line
+rigIntoSubject=$'at @configuration cli\nturn\nwait list 20\nturn'
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
 	rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize 120 40\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
 }

@@ -114,7 +114,7 @@ def parseDigestLevels(readKey, text):
                 row = newRow(name, labels[name] or name, "record", True, subjectFields[name])
                 row["subject"] = {"name": name, "label": labels[name], "lines": []}
                 held[(root, name)] = row
-                if name not in DIGEST_LEVEL_ONLY:
+                if name not in DIGEST_LEVEL_ONLY and not (root == pluginLevel("configuration") and name == "cli"):
                     levels[root].append(row)
                 levels[root + "/" + name] = []
             line = {"subject": name, "group": absent(setting["group"]), "key": absent(setting["key"]),

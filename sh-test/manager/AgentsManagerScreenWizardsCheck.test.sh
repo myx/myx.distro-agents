@@ -109,10 +109,10 @@ rigInput(){ ## the standard input the stand-in was given for an operation, its e
 	LC_ALL=C tr '\n\t' '/ ' < "$MANAGER_SCREEN_RIG/stdin.$1" 2> /dev/null || :
 }
 ## the first part of every script: to the CLI services in the configuration, `c`, to the first step
-rigToCli='at @configuration
+rigToCli='at @configuration clipresets
 turn
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN
 turn
 '
 
@@ -133,7 +133,7 @@ turn
 rowids kids
 get in
 RIGSCRIPT
-rigAssert "the folder stands in the configuration, ahead of the subsystems; entered, its rows are the three settings" "$( rigVal ids ) / $( rigVal kids )" ".. checker keys git subsystems diagnostics cli / .. user.name user.email ssh-key"
+rigAssert "the folder stands in the configuration, after CLI Presets and Tiers and ahead of the subsystems; entered, its rows are the three settings" "$( rigVal ids ) / $( rigVal kids )" ".. checker keys clipresets git subsystems diagnostics / .. user.name user.email ssh-key"
 
 echo "-- 2. the CLI service's wizard --"
 rigCase cli1
@@ -146,7 +146,7 @@ wait plan 30
 turn
 get s1
 RIGSCRIPT
-rigAssert "c on the CLI services reads the form of the wizard once, by the operation, and opens its first step: the presets there are and a new one, the first chosen" "$( rigVal row.selected ) / $( rigCalled '--manager-wizard-read cli-service' ) / $( rigVal s1.dialogTitle ) / $( rigVal s1.dialog )" "cli / 1 / Configure CLI Service: the preset / wizard:cli-service:0:preset|base"
+rigAssert "c on the CLI services reads the form of the wizard once, by the operation, and opens its first step: the presets there are and a new one, the first chosen" "$( rigVal row.selected ) / $( rigCalled '--manager-wizard-read cli-service' ) / $( rigVal s1.dialogTitle ) / $( rigVal s1.dialog )" "presets / 1 / Configure CLI Service: the preset / wizard:cli-service:0:preset|base"
 rigCase cli2
 rigScript <<RIGSCRIPT
 $rigToCli
@@ -170,12 +170,6 @@ show s3screen
 keys $(printf '%s' "$rigSecret" | LC_ALL=C sed 's/./& /g')
 turn
 keys ENTER
-turn
-get s4
-keys f r e s h : h i g h
-turn
-get s4typed
-keys ENTER
 turn 2
 get applying
 wait follow 30
@@ -184,10 +178,10 @@ get ended
 RIGSCRIPT
 rigAssert "a new preset is named in the first step, and Next opens the second: the service (claude first), the model, the effort, titled by the preset" "$( rigVal named.dialog | LC_ALL=C cut -d'|' -f1 ) / $( rigVal s2.dialogTitle )" "wizard:cli-service:0:name / Configure CLI Service: fresh"
 rigAssert "the service and the effort are chosen (grok, high); Next opens the credentials of that service, the key it reads" "$( rigVal s2set.dialog | LC_ALL=C cut -d'|' -f1 ) / $( rigVal s3.dialogTitle ) / $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^s3screen|' | LC_ALL=C grep -c -F XAI_API_KEY )" "wizard:cli-service:1:effort / Configure CLI Service: the credentials of grok / 1"
-rigAssert "the last step is the tiers; Finish runs the operation with the preset's name as its words, in the output dialog" "$( rigVal s4.dialogTitle ) / $( rigVal applying.dialogTitle ) / $( rigCalled '--manager-wizard-apply cli-service --preset fresh' )" "Configure CLI Service: the tiers / Configure CLI Service: fresh / 1"
-rigAssert "what is changed is on its standard input, a line a key: the service, the effort, the credential, the tier, and the team's service, since a tier is typed, not" "$( rigInput --manager-wizard-apply )" "PRESET_CLI_SERVICE grok/PRESET_EFFORT high/XAI_API_KEY $rigSecret/SPAWN_TIER_NORMAL fresh:high/"
+rigAssert "the last step is the credentials; Finish runs the operation with the preset's name as its words, in the output dialog" "$( rigVal applying.dialogTitle ) / $( rigCalled '--manager-wizard-apply cli-service --preset fresh' )" "Configure CLI Service: fresh / 1"
+rigAssert "what is changed is on its standard input, a line a key: the service, the effort, the credential; the tiers are assigned elsewhere" "$( rigInput --manager-wizard-apply )" "PRESET_CLI_SERVICE grok/PRESET_EFFORT high/XAI_API_KEY $rigSecret/"
 rigAssert "no value of an answer is a word of any call, and the credential is in the standard input alone" "$( LC_ALL=C grep -c -F -e "$rigSecret" -e 'fresh:high' "$MANAGER_SCREEN_RIG/calls" || : ) $( LC_ALL=C grep -c -F -- "$rigSecret" "$MANAGER_SCREEN_RIG/words" || : )" "0 0"
-rigAssert "the wizard ends in the output dialog, which closes on OK; the digest is read again afterwards" "$( rigCalled '--manager-config-digest --full' )" "2"
+rigAssert "the wizard ends in the output dialog, which closes on OK; the presets are read again afterwards" "$( [ "$( rigCalled '--manager-preset-list' )" -ge 3 ] && echo again || echo once )" "again"
 rigCase cli3
 rigScript <<RIGSCRIPT
 $rigToCli
@@ -222,50 +216,14 @@ keys ENTER
 turn
 get third
 keys ENTER
-turn
-get fourth
-keys ENTER
 turn 2
 get applying
 wait follow 30
 turn
 RIGSCRIPT
-rigAssert "an existing preset left as it is: Next goes through, the credential shown in its one form, and Finish applies nothing but what changed, which is nothing: the standard input is empty" "$( rigVal second.dialogTitle ) / $( rigVal third.dialogTitle ) / $( rigVal fourth.dialogTitle ) / $( rigCalled '--manager-wizard-apply cli-service --preset base' ) / [$( rigInput --manager-wizard-apply )]" \
-	"Configure CLI Service: base / Configure CLI Service: the credentials of claude / Configure CLI Service: the tiers / 1 / []"
+rigAssert "an existing preset left as it is: Next goes through, the credential shown in its one form, and Finish applies nothing but what changed, which is nothing: the standard input is empty" "$( rigVal second.dialogTitle ) / $( rigVal third.dialogTitle ) / $( rigCalled '--manager-wizard-apply cli-service --preset base' ) / [$( rigInput --manager-wizard-apply )]" \
+	"Configure CLI Service: base / Configure CLI Service: the credentials of claude / 1 / []"
 rigAssert "the credential of the preset stands in its field in its one form, the value whole being nowhere" "$( LC_ALL=C grep -c -F -- "$rigSecret" "$MANAGER_SCREEN_RIG/calls" || : )" "0"
-rigCase cli5
-rigScript <<RIGSCRIPT
-$rigToCli
-keys c
-turn
-wait plan 30
-turn
-keys ENTER
-turn
-keys ENTER
-turn
-keys ENTER
-turn
-show tiers
-RIGSCRIPT
-rigAssert "the team's CLI service is offered nowhere: the last step holds the tiers alone" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F 'CLI service of the team where no tier is set' || : )" "0"
-rigCase cli6
-cp "$rigTmp/cli-with-tier" "$MANAGER_SCREEN_RIG/rows.--manager-wizard-read cli-service"
-rigScript <<RIGSCRIPT
-$rigToCli
-keys c
-turn
-wait plan 30
-turn
-keys ENTER
-turn
-keys ENTER
-turn
-keys ENTER
-turn
-show tiers
-RIGSCRIPT
-rigAssert "and not where a tier is set" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F 'CLI service of the team where no tier is set' || : ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F 'Low tier' || : )" "0 1"
 rigCase back
 rigScript <<RIGSCRIPT
 $rigToCli
@@ -304,7 +262,7 @@ wait follow 30
 turn
 get applied
 RIGSCRIPT
-rigAssert "s on the CLI services runs the owner's check, and only that, in the output dialog, titled by the command, the way a command of a workspace is run" "$( rigVal row.selected ) / $( rigCalled '--owner-setup-cli-auto --check' ) / $( rigVal running.dialogTitle ) / $( rigCalled '--owner-setup-cli-auto --apply' )" "cli / 1 / Auto-select CLI / 1"
+rigAssert "s on the CLI services runs the owner's check, and only that, in the output dialog, titled by the command, the way a command of a workspace is run" "$( rigVal row.selected ) / $( rigCalled '--owner-setup-cli-auto --check' ) / $( rigVal running.dialogTitle ) / $( rigCalled '--owner-setup-cli-auto --apply' )" "presets / 1 / Auto-select CLI / 1"
 rigAssert "what the check wrote is in the dialog as it wrote it, and the result line is its status" "$( rigVal ended.dialogHolds | LC_ALL=C grep -c -F -e 'SPAWN_CLI_AUTO: OK' -e 'pick: claude-native' -e 'Ended with status 0' )" "1"
 rigAssert "it ended with status 0, so the dialog offers the apply beside OK, OK first" "$( rigVal ended.dialog ) / $( rigVal second.dialog )" "output:ok| / output:then|"
 rigAssert "the apply is run by the operation and no word of the screen's own, in a dialog titled by it; the apply is not run before it is chosen" "$( rigVal applying.dialogTitle ) / $( rigCalled '--owner-setup-cli-auto --apply' ) / $( rigVal applied.dialogHolds | LC_ALL=C grep -c -F -e 'RIG-AUTO-APPLIED' -e 'Ended with status 0' )" "Auto-select CLI: apply / 1 / 1"
@@ -339,13 +297,13 @@ keys s
 turn
 get lineopen
 RIGSCRIPT
-rigAssert "s on a line inside the CLI services is the line's own: nothing is run, and no dialog opens; the item of the CLI services is where it is offered" "$( rigVal line.path ) / $( rigCalled '--owner-setup-cli-auto --check' ) / $( rigVal lineopen.dialogTitle )" "configuration/cli / 0 / "
+rigAssert "s on a line inside the CLI services is the line's own: nothing is run, and no dialog opens; the item of the CLI services is where it is offered" "$( rigVal line.path ) / $( rigCalled '--owner-setup-cli-auto --check' ) / $( rigVal lineopen.dialogTitle )" "configuration/clipresets/presets / 0 / "
 rigCase auto4
 rigScript <<'RIGSCRIPT'
 at @configuration
 turn
 wait list 30
-keys DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN
 turn
 get onGit
 keys s

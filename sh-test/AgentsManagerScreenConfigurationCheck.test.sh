@@ -207,7 +207,7 @@ show k
 advance 11
 turn 3
 RIGSCRIPT
-rigAssert "Config Checker and Server Keys stand under the row that goes up, each a row that is entered, then the subjects" "$( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )][$( rigCell row5 )][$( rigCell rowD )][$( rigCell row6 )]" "7 [ Config Checker ~ ►][ Server Keys ~ ►][ Git Settings ~ ►][ Installed Subsystems ~ ►][ Diagnostics ~ ►][ Workspace Paths ~ ►]"
+rigAssert "Config Checker and Server Keys stand under the row that goes up, each a row that is entered, then the subjects" "$( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )][$( rigCell row5 )][$( rigCell rowD )][$( rigCell row6 )]" "8 [ Config Checker ~ ►][ Server Keys ~ ►][ CLI Presets and Tiers ~ ►][ Git Settings ~ ►][ Installed Subsystems ~ ►][]"
 rigAssert "on Config Checker the left window says that the checks were not run, and which key runs them" "[$( rigPane c 2 )][$( rigPane c 3 )][$( rigPane c 4 )]" "[ Config Checker [wrap]][ The checks were not run yet in this run of the screen.][ r runs them. It is the read-only diagnosis of each part of the installation: it]"
 rigAssert "the checks are not run before their folder is entered, whatever time passes; the keys are listed once the selection has rested on their folder" "$( rigCalled --manager-check-run ) $( rigCalled --manager-keys-list ) [$( rigPane k 2 )]" "0 1 [ Server Keys [wrap]]"
 
@@ -505,13 +505,9 @@ rigGroupLine(){ ## subject, group, key, state, value, label -- a line of the con
 } > "$MANAGER_SCREEN_RIG/rows.--manager-config-digest"
 rigScript <<'RIGSCRIPT'
 turn
-root configuration
-keys ENTER
-wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN
+at @configuration cli
 turn
-show sc
-keys ENTER
+wait list 30
 turn
 get in
 cells r1 3 85 119
@@ -538,7 +534,9 @@ turn
 get line
 border title 1 0 84
 show u
-keys BACKSPACE DOWN ENTER
+at @configuration loop
+turn
+wait list 30
 turn
 get one
 cells o1 3 85 119
@@ -551,10 +549,6 @@ rigTrim(){ ## name -- the cells of that name without the spaces at their end
 rigAssert "a subject with groups of lines of one name: a heading for each group, and each line under its own, set in by two" "$( rigVal in.path ) $( rigVal in.rows ) [$( rigTrim r1 )][$( rigTrim r2 )][$( rigTrim r3 )][$( rigTrim r4 )][$( rigTrim r5 )][$( rigTrim r6 )][$( rigTrim r7 )][$( rigTrim r8 )][$( rigTrim r9 )][$( rigTrim r10 )]" "configuration/cli 13 [ Workspace Defaults][   Spawn CLI Service][ claude][   CLI Usable][   CLI Key...][ grok][   CLI Usable][ copilot][   CLI Usable][ claude-native]"
 rigAssert "a heading is the label the row of its group gives, and a line under it is titled with that label; a group whose row gives none, and one that has no row, as a digest of before prints it, keep their own word" "[$( rigTrim r1 )] [$( rigVal wtitle )] [$( rigTrim r3 )] [$( rigTrim r6 )] [$( rigTrim r8 )]" "[ Workspace Defaults] [Workspace Defaults: Spawn CLI Service [wrap]] [ claude] [ grok] [ copilot]"
 rigAssert "a heading selected: the left window shows that group alone, a table CLI KEY VALUE (the owner: \"Make MEMBER KEY VALUE\", and the CLI view the same), each line by its CLI and its key with what it reads as, of a secret only its state" "[$( rigVal head.selected )] [$( rigPane hc 2 )][$( rigPane hc 3 | LC_ALL=C tr -s ' ' )][$( rigPane hc 4 | LC_ALL=C tr -s ' ' )][$( rigPane hc 5 | LC_ALL=C tr -s ' ' )][$( rigPane hc 6 | LC_ALL=C tr -s ' ' )][$( rigPane hc 7 | LC_ALL=C tr -s ' ' )] $( rigScreenHolds hc sk-never-shown ) $( rigScreenHolds hc SETTING )" "[group claude] [ claude [wrap]][ KEY VALUE][][ usable yes][][ RIG_CLI_KEY sk-n**********] 0 0"
-rigSubjectPane="$( for rigNumber in 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 ; do printf '%s|' "$( rigPane sc "$rigNumber" | LC_ALL=C tr -s ' ' )" ; done )"
-rigSubjectWant=' CLI KEY VALUE|| grok usable no|| workspace SPAWN_CLI_SERVICE claude|| claude usable yes|| claude RIG_CLI_KEY sk-n**********|| copilot usable yes|| claude-native present /rig/bin/claude|| claude-native usable yes|'
-[ "${rigSubjectPane#*"$rigSubjectWant"}" = "$rigSubjectPane" ] || rigSubjectPane="holds"
-rigAssert "the subject selected: a table CLI KEY VALUE, a row a line with its CLI, the missing one first, no heading row and no title column; a harness leg has no CLI Present (the owner: \"remove \`present\` - it is always present it is in sh-lib\"), the vendor CLI keeps its binary" "$rigSubjectPane $( rigScreenHolds sc 'CLI Present' ) $( rigScreenHolds sc 'SETTING' )" "holds 0 0"
 rigAssert "Enter on a heading does nothing: the status line says that the row has nothing to open" "[$( rigVal entered.path )] [$( rigVal entered.selected )] [$( rigVal entered.notice )] [$( rigVal entered.dialog )]" "[configuration/cli] [group claude] [Open: this row has nothing to open] []"
 rigAssert "a line selected: its window is titled with its group ahead of its label, a missing one is read as it is, and its facts name the group" "[$( rigVal line.selected )] [$( rigVal title )] $( rigPaneHolds u '  group   grok' ) $( rigPaneHolds u '  key     usable' )" "[grok usable] [grok: CLI Usable [wrap]] 1 1"
 rigAssert "a subject with one group shows no heading: its lines alone, as they come" "$( rigVal one.path ) $( rigVal one.rows ) [$( rigTrim o1 )][$( rigTrim o2 )][$( rigTrim o3 )]" "configuration/loop 3 [ Running][ Recheck][]"
@@ -642,7 +636,7 @@ mkdir -p "$rigTmp/ws-rig"
 printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigTools" > "$rigTmp/tools"
 chmod +x "$rigTmp/tools"
 rigOut="$( MANAGER_SCREEN_PTY_TRACE='checker=Config Checker|keys=Server Keys' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 100 30 "Magic-Team (Agents)" '8\p\aServer Keys\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
-rigAssert "it draws the folder and ends with status 0, the terminal given back: its folders stand in the list and in the table of the left pane" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft ) $( rigVal pty.modeBack ) [$( rigVal pty.trace )]" "yes 0 yes none yes [checker keys checker keys]"
+rigAssert "it draws the folder and ends with status 0, the terminal given back: its folders stand in the list, and in the table of the left pane (where Config Checker wraps in its narrow column)" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft ) $( rigVal pty.modeBack ) [$( rigVal pty.trace )]" "yes 0 yes none yes [checker keys keys]"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN CONFIGURATION CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
