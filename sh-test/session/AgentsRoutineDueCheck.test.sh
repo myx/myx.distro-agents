@@ -7,7 +7,7 @@
 ##   1. A routine with no autorun, `runs-at: none` or none at all, is not due, whatever else it says.
 ##   2. runs-at: due from its time on a day of its days, in the team's zone; not before that time; not on another day; once a day:
 ##      a run of it that started that day, whatever became of it, makes it not due again until the next such day. A run of another day,
-##      and one of another routine, do not. `workdays` and `weekend` need the weekend to be set.
+##      and one of another routine, do not. `workdays` and `weekend` read the weekend setting, or sat,sun where none is set (the owner, 2026-10-21).
 ##   3. runs-after is the trigger: the routine is due when its time has come and the predecessor completed (spawn-succeeded) that
 ##      day; refused, naming the predecessor, while it has not (a run that failed, one that is still open and one of another day are
 ##      not completed); not due, with the time, before its time even when the predecessor completed.
@@ -146,7 +146,7 @@ rigRecord g spawn-succeeded '2026-10-19 09:30 +0300' '2026-10-19 09:50 +0300'
 rigAssert "a run of yesterday, and a run of another routine today, do not: due" "$( rigDue r )" "0|DUE: rig-member.r.routine.md|"
 rigClearRecords
 rigRun "$rigTool" --agents-config-option magic-team --delete MDAT_SCHEDULE_WEEKEND
-rigAssert "workdays with the weekend not set cannot be decided: not due, saying so" "$( rigDue r )" "1|NOT-DUE: rig-member.r.routine.md: the weekend is not set, and workdays needs it|"
+rigAssert "workdays with the weekend not set read the default sat,sun: due on a Monday" "$( rigDue r )" "0|DUE: rig-member.r.routine.md|"
 rigAssert "daily needs no weekend" "$( rigDue d )" "0|DUE: rig-member.d.routine.md|"
 rigRun "$rigDispatcher" --set-weekend sat,sun
 

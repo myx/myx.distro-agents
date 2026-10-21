@@ -4,14 +4,15 @@
 ## The flags are derived from the settings, the overrides and the clock, never stored (epic 1730); what persists is settings (1731, 1769).
 ## Held, run and not read, with a clock of the rig's own:
 ##   1. --current-flags prints worktime, weekend, holidays, emergency, overtime and learning, in that order, a line each, `<flag>: yes|no`;
-##      with nothing set, worktime and weekend read `no (not set)` and the others `no`; it writes nothing.
+##      with nothing set, worktime and weekend read their defaults (the owner, 2026-10-21: the host's zone, sat,sun, 09:00 18:00 mon-fri),
+##      marked `(default)`, and the others `no`; it writes nothing.
 ##   2. The setters keep their value in the settings the epic names (Settled 2026-10-19): --set-country (two or three letters) in
 ##      MDAT_SCHEDULE_COUNTRY, --set-timezone (a zone name of the system) in MDAT_SCHEDULE_TIMEZONE, --set-worktime <start> <until>
 ##      <days-of-week> in MDAT_SCHEDULE_WORKTIME, --set-weekend <days-of-week> in MDAT_SCHEDULE_WEEKEND; a value of another form is refused
 ##      with a line, rc 1, and nothing is stored. The days are F5.4's: workdays, weekend, daily, or a list such as mon,thu; the weekend
 ##      itself is a list of days.
 ##   3. worktime falls out of the timezone, the hours, the days and the clock; weekend out of the timezone, its days and the clock.
-##      `workdays` and `weekend` as worktime days need the weekend to be set.
+##      `workdays` and `weekend` as worktime days read the weekend setting, or sat,sun where none is set.
 ##   4. The overrides are settings: emergency is set with a TTL, prolonged by a second call and cleared by --no; learning is on or off and
 ##      takes no TTL; overtime is for outside worktime, ends at the TTL or, with none, when normal worktime starts, and is refused
 ##      during worktime; worktime and weekend are derived and have no override; a flag that is none of the six is refused.
@@ -92,8 +93,8 @@ rigStore(){ ## -- the settings file of the rig, as its sum
 
 echo "-- 1. --current-flags, nothing set --"
 rigRun "$rigDispatcher" --current-flags
-rigAssert "six lines in the order of the epic, worktime and weekend reading no (not set), the others no" "$rigRc:$( printf '%s' "$rigOut" | tr '\n' '|' )" \
-	"0:worktime: no (not set)|weekend: no (not set)|holidays: no|emergency: no|overtime: no|learning: no"
+rigAssert "six lines in the order of the epic, worktime and weekend by their defaults on Monday 13:00, the others no" "$rigRc:$( printf '%s' "$rigOut" | tr '\n' '|' )" \
+	"0:worktime: yes (default)|weekend: no (default)|holidays: no|emergency: no|overtime: no|learning: no"
 rigBefore="$( rigStore )" ; rigRun "$rigDispatcher" --current-flags
 rigAssert "it writes nothing" "$( rigStore )" "$rigBefore"
 rigRun "$rigDispatcher" --current-flags --everything
@@ -153,7 +154,7 @@ rigAssert "weekend as worktime days: on a Saturday" "$( rigFlag worktime )" "wor
 rigRun "$rigDispatcher" --set-worktime 09:00 17:00 workdays
 rigRun "$rigTool" --agents-config-option magic-team --delete MDAT_SCHEDULE_WEEKEND
 rigAt "$rigMon13"
-rigAssert "workdays with the weekend not set cannot be decided: no (weekend not set)" "$( rigFlag worktime )|$( rigFlag weekend )" "worktime: no (weekend not set)|weekend: no (not set)"
+rigAssert "workdays with the weekend not set read the default weekend sat,sun: Monday is a workday" "$( rigFlag worktime )|$( rigFlag weekend )" "worktime: yes|weekend: no (default)"
 rigRun "$rigDispatcher" --set-weekend sat,sun
 
 echo "-- 4. the overrides --"

@@ -27,8 +27,10 @@ type AgentsToolsTeamSharedMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.di
 ## folder of its own member set (.local/agents/members) that no row of the registry names,
 ## marked `not-in-registry`, with no home known.
 AgentsToolsManagerPlaceMembers(){ ## the path of the place, its state
-	local membersRows membersFolder membersName
-	membersRows="$( MDAT_MANAGER_PLACE_HOMES="$( AgentsToolsMemberHomesFile )" LC_ALL=C awk -F'\t' -v OFS='\t' -v place="${1%/}" '
+	local membersRows membersFolder membersName membersReal
+	## the place as the registry may write it, through a link or not
+	membersReal="$( cd -P "${1%/}" 2> /dev/null && pwd -P )" || membersReal=""
+	membersRows="$( MDAT_MANAGER_PLACE_HOMES="$( AgentsToolsMemberHomesFile )" LC_ALL=C awk -F'\t' -v OFS='\t' -v place="${1%/}" -v placeReal="${membersReal:-${1%/}}" '
 		BEGIN {
 			homes = ENVIRON["MDAT_MANAGER_PLACE_HOMES"]
 			while ( homes != "" && ( getline line < homes ) > 0 ) { split( line, part, "\t" ) ; sub( /\/+$/, "", part[2] ) ; home[part[1]] = part[2] }
@@ -44,11 +46,11 @@ AgentsToolsManagerPlaceMembers(){ ## the path of the place, its state
 		}
 		NF >= 3 && $1 != "" && !( $1 in seen ) {
 			root = $2 ; sub( /\/+$/, "", root )
-			if ( root != place ) next
+			if ( root != place && root != placeReal ) next
 			seen[$1] = 1
 			kind = $1 ; sub( /-.*$/, "", kind )
 			at = ( $1 in home ) ? home[$1] : ( ( $1 in linked ) ? linked[$1] : first[$1] )
-			print "member", field( $1 ), field( kind ), ( at == place ) ? field( place ) : "elsewhere", field( $3 ), field( $5 )
+			print "member", field( $1 ), field( kind ), ( at == place || at == placeReal ) ? field( place ) : "elsewhere", field( $3 ), field( $5 )
 		}
 	' "$( AgentsToolsTeamSharedMembers )" "$( AgentsToolsTeamSharedMembers )" 2> /dev/null )" || membersRows=""
 	[ -z "$membersRows" ] || printf '%s\n' "$membersRows"

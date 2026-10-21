@@ -34,7 +34,7 @@ AgentsToolsPendingReplyScan(){ ## owner filter (empty for any), open only (1 or 
 	scanHost="$( hostname -s 2>/dev/null )" || scanHost=""
 	[ -n "$scanHost" ] || scanHost="unknown"
 	printf '%s\n' "$scanAskers" | LC_ALL=C awk -v wantOwner="$scanOwner" -v openOnly="$scanOpen" -v countLine="$scanCount" -v askerHost="$scanHost" \
-		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsToolsPendingReplyScan.awk" - "$@" 2>/dev/null
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsToolsPendingReplyScan.awk" - "$@"
 }
 
 ## Whether the runs that asked are alive, for the asking ids on stdin, a line each: measured

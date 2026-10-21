@@ -40,6 +40,22 @@ AgentsToolsScheduleSetting(){ ## key
 	printf '%s\n' "$settingValue"
 }
 
+## THE DEFAULTS (the owner, 2026-10-21): the computer knows its time, so an unset setting stops nothing. The timezone is the host's (the clock
+## reads date(1) with no TZ), the weekend sat,sun, the worktime 09:00 18:00 mon-fri. A setting only overrides its default.
+agentsScheduleDefaultWeekend="sat,sun"
+agentsScheduleDefaultWorktime="09:00 18:00 mon,tue,wed,thu,fri"
+## A setting of the magic-team scope, or its default where none is stored: rc 0 for a stored one, rc 1 where the default stands.
+AgentsToolsScheduleValue(){ ## key
+	local valueStored
+	valueStored="$( AgentsToolsScheduleSetting "$1" )"
+	[ -z "$valueStored" ] || { printf '%s\n' "$valueStored" ; return 0 ; }
+	case "$1" in
+		MDAT_SCHEDULE_WEEKEND) printf '%s\n' "$agentsScheduleDefaultWeekend" ;;
+		MDAT_SCHEDULE_WORKTIME) printf '%s\n' "$agentsScheduleDefaultWorktime" ;;
+	esac
+	return 1
+}
+
 ## The instant and the zone, as "<epoch> <offset seconds> <weekday 0-6, sunday first> <seconds into the local day>".
 AgentsToolsScheduleClock(){
 	local clockZone clockEpoch clockOffset clockSeconds clockLocal
@@ -69,7 +85,7 @@ AgentsToolsScheduleDayIn(){ ## days value, weekday name
 	case "$inDays" in
 		daily) return 0 ;;
 		workdays|weekend)
-			inWeekend="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_WEEKEND )"
+			inWeekend="$( AgentsToolsScheduleValue MDAT_SCHEDULE_WEEKEND )"
 			[ -n "$inWeekend" ] || return 2
 			case ",$inWeekend," in *",$inDay,"*) [ "$inDays" = weekend ] ; return $? ;; esac
 			[ "$inDays" = workdays ] ; return $?
@@ -91,7 +107,7 @@ AgentsToolsScheduleWorktime(){ ## weekday name, seconds into the day, epoch now 
 	if [ -n "${3:-}" ] && [ -n "$( AgentsToolsScheduleOverrideLeft MDAT_SCHEDULE_HOLIDAYS "$3" )" ] ; then
 		printf 'no (holiday)\n' ; return 0
 	fi
-	workValue="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_WORKTIME )"
+	workValue="$( AgentsToolsScheduleValue MDAT_SCHEDULE_WORKTIME )"
 	[ -n "$workValue" ] || { printf 'no (not set)\n' ; return 0 ; }
 	read -r workStart workUntil workDays <<< "$workValue"
 	workStartSec="$( AgentsToolsScheduleTimeSeconds "$workStart" )" || { printf 'no (not set)\n' ; return 0 ; }
@@ -108,7 +124,7 @@ AgentsToolsScheduleWorktime(){ ## weekday name, seconds into the day, epoch now 
 ## The next start of worktime after an instant, as an epoch; nothing where worktime is not set or cannot be decided.
 AgentsToolsScheduleNextWorkStart(){ ## epoch, offset seconds
 	local nextValue nextStart nextUntil nextDays nextStartSec nextDay nextCount=0 nextName nextAt
-	nextValue="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_WORKTIME )"
+	nextValue="$( AgentsToolsScheduleValue MDAT_SCHEDULE_WORKTIME )"
 	[ -n "$nextValue" ] || return 0
 	read -r nextStart nextUntil nextDays <<< "$nextValue"
 	nextStartSec="$( AgentsToolsScheduleTimeSeconds "$nextStart" )" || return 0
@@ -139,13 +155,15 @@ AgentsToolsScheduleOverrideLeft(){ ## setting key, epoch now
 
 ## The six flags, a line each, in the order of the epic.
 AgentsToolsScheduleFlagLine(){ ## flag, weekday name, seconds into the day, epoch now
-	local lineLeft lineValue
+	local lineLeft lineValue lineTag
 	case "$1" in
-		worktime) printf 'worktime: %s\n' "$( AgentsToolsScheduleWorktime "$2" "$3" "$4" )" ;;
+		worktime)
+			lineTag= ; [ -n "$( AgentsToolsScheduleSetting MDAT_SCHEDULE_WORKTIME )" ] || lineTag=" (default)"
+			printf 'worktime: %s%s\n' "$( AgentsToolsScheduleWorktime "$2" "$3" "$4" )" "$lineTag"
+		;;
 		weekend)
-			lineValue="$( AgentsToolsScheduleSetting MDAT_SCHEDULE_WEEKEND )"
-			if [ -z "$lineValue" ] ; then printf 'weekend: no (not set)\n'
-			else case ",$lineValue," in *",$2,"*) printf 'weekend: yes\n' ;; *) printf 'weekend: no\n' ;; esac ; fi
+			lineTag= ; lineValue="$( AgentsToolsScheduleValue MDAT_SCHEDULE_WEEKEND )" || lineTag=" (default)"
+			case ",$lineValue," in *",$2,"*) printf 'weekend: yes%s\n' "$lineTag" ;; *) printf 'weekend: no%s\n' "$lineTag" ;; esac
 		;;
 		emergency|overtime|holidays)
 			lineLeft="$( AgentsToolsScheduleOverrideLeft "MDAT_SCHEDULE_$( printf '%s' "$1" | LC_ALL=C tr 'a-z' 'A-Z' )" "$4" )"

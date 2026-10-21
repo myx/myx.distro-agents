@@ -350,6 +350,12 @@ class CursesSurface:
                         isEmoji(cluster) or self.cursesCells(cluster) != cells):
                     parts.append(" " * cells)
                     apart.append((at, cluster, cells))
+                elif self.codes is None and (len(cluster) > 1 or ord(cluster) >= 0x300) and (
+                        isEmoji(cluster) or self.cursesCells(cluster) != cells):
+                    ## no way to place the cursor: curses is given the character with the blanks that make up the cells the screen counts it in,
+                    ## so that what follows it stands where the screen says, however many cells curses counts it in
+                    counted = self.cursesCells(cluster)
+                    parts.append(cluster + " " * (cells - counted) if 0 < counted <= cells else " " * cells)
                 else:
                     parts.append(cluster)
                     if cells > 1:
