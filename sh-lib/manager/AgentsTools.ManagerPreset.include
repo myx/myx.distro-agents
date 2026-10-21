@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerPreset.include -- the --manager-preset-* operations (F10.1, F10.2, F11.7): the console's `Presets` and `Tiers`. A preset is a settings block `preset-<name>` of this
+## workspace (AgentsTools.Preset.include); a tier is a setting of the team's block or of a member's, SPAWN_TIER_LOW, _NORMAL and _HIGH, each `<preset>[:<effort>]`. The variables of both
+## are the scopes of --manager-scope-* (AgentsTools.ManagerScope.include), which lists, edits and takes them out by their kinds; what is here is what a scope does not say: the presets
+## as a list with what each extends and what it comes to, a preset made, and the tiers of the team and of every member. Sourced from the `--manager-preset-*)` arm of
+## AgentsTools.Manager.include; who may call was asked where the family is dispatched. Every write is made by the setting reader of the dispatcher (--agents-config-option), whose write
+## checks of a preset and of the tiers are asked as they are for any other writer. A secret is never printed: a credential is not a column here.
+##
+
+type AgentsToolsPresetCredentialKeys > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
+type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+
+## One field: its whitespace reads `_`, and an empty one `-`, as in a registry.
+AgentsToolsManagerPresetField(){ ## text
+	local fieldText="${1//[[:space:]]/_}"
+	printf '%s' "${fieldText:--}"
+}
+
+## The names of the presets of this workspace, one a line, by name.
+AgentsToolsManagerPresetNames(){
+	local namesFile namesOne
+	for namesFile in "${MMDAPP%/}/.local/.agents"/preset-*.agent.env ; do
+		[ -f "$namesFile" ] || continue
+		namesOne="${namesFile##*/preset-}" ; namesOne="${namesOne%.agent.env}"
+		AgentsToolsPresetNameCheck "$namesOne" || continue
+		printf '%s\n' "$namesOne"
+	done
+}
+
+## How many variables a scope file holds.
+AgentsToolsManagerPresetKeys(){ ## file
+	[ -f "$1" ] || { printf 0 ; return 0 ; }
+	LC_ALL=C grep -c -E '^[A-Za-z_][A-Za-z0-9_]*=' "$1" 2> /dev/null || printf 0
+}
+
+case "$1" in
+
+	## The presets, one `preset` row each, by name: the scope row of its block (id, label, how many variables, whether it may be cleared, whether it may be deleted, its file),
+	## then what it extends, its CLI service, its model or macro and its effort as they come to with what it inherits, and by whom it is used.
+	--manager-preset-list)
+		local listOp="$1" listName listFile listKeys listExtends listService listModel listEffort listUsers
+		shift
+		[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is $listOp, got $# argument(s) -- nothing is shown" >&2 ; set +e ; return 1 ; }
+		while IFS= read -r listName ; do
+			[ -n "$listName" ] || continue
+			listFile="${MMDAPP%/}/.local/.agents/preset-$listName.agent.env"
+			listKeys="$( AgentsToolsManagerPresetKeys "$listFile" )"
+			listExtends="$( AgentsToolsPresetRead "$MMDAPP" "preset-$listName" PRESET_EXTEND )"
+			listService="$( AgentsToolsPresetEffective "$MMDAPP" "$listName" PRESET_CLI_SERVICE 2> /dev/null )" || listService=""
+			listModel="$( AgentsToolsPresetEffective "$MMDAPP" "$listName" PRESET_MODEL_OR_MACRO 2> /dev/null )" || listModel=""
+			listEffort="$( AgentsToolsPresetEffective "$MMDAPP" "$listName" PRESET_EFFORT 2> /dev/null )" || listEffort=""
+			listUsers="$( AgentsToolsPresetUsers "$listName" )"
+			printf 'preset\tagents:preset-%s\t%s\t%s\t%s\tyes\t%s\t%s\t%s\t%s\t%s\t%s\n' "$listName" "$( AgentsToolsManagerPresetField "Agents: preset-$listName" )" "$listKeys" "$( [ "$listKeys" -gt 0 ] && echo yes || echo no )" \
+				"$( AgentsToolsManagerPresetField "$listFile" )" "$( AgentsToolsManagerPresetField "$listExtends" )" "$( AgentsToolsManagerPresetField "$listService" )" \
+				"$( AgentsToolsManagerPresetField "$listModel" )" "$( AgentsToolsManagerPresetField "$listEffort" )" "$( AgentsToolsManagerPresetField "$listUsers" )"
+		done <<< "$( AgentsToolsManagerPresetNames )"
+		return 0
+	;;
+
+	## A preset made: `<name> --extend <preset>` or `<name> --cli-service <service>`, its first variable written by the setting reader of the dispatcher, so that the write checks of a preset
+	## are asked (the name, the service, the parent being there, no loop). A name that is taken is refused. Its row `created` names the scope.
+	--manager-preset-new)
+		local newOp="$1" newName newWhat newValue newKey newFile
+		shift
+		if [ $# -ne 3 ] || { [ "$2" != "--extend" ] && [ "$2" != "--cli-service" ] ; } ; then
+			echo "⛔ ERROR: $MDSC_CMD $newOp: syntax is $newOp <name> (--extend <preset>|--cli-service <service>), got $# argument(s) -- nothing was made" >&2
+			set +e ; return 1
+		fi
+		newName="$1" ; newWhat="$2" ; newValue="$3"
+		AgentsToolsPresetNameCheck "$newName" || { echo "⛔ ERROR: $MDSC_CMD $newOp: the name given is no preset's: a bare name with no upper-case letter -- nothing was made" >&2 ; set +e ; return 1 ; }
+		newFile="${MMDAPP%/}/.local/.agents/preset-$newName.agent.env"
+		[ ! -e "$newFile" ] || { echo "⛔ ERROR: $MDSC_CMD $newOp: a preset of that name is there already -- nothing was made" >&2 ; set +e ; return 1 ; }
+		case "$newWhat" in
+			--extend) newKey="PRESET_EXTEND" ;;
+			*) newKey="PRESET_CLI_SERVICE" ;;
+		esac
+		printf '%s\n' "$newValue" | DistroAgentsTools --agents-config-option "preset-$newName" --upsert-from-stdin "$newKey" > /dev/null || {
+			echo "⛔ ERROR: $MDSC_CMD $newOp: the setting reader refused the first variable of the preset -- nothing was made" >&2
+			rm -f -- "$newFile"
+			set +e ; return 1
+		}
+		printf 'created\tagents:preset-%s\n' "$newName"
+		return 0
+	;;
+
+	## The tiers, one `tier` row each, the team's first and then each member's: the id of the scope, its label, how many variables its file holds, whether it may be cleared,
+	## whether it may be deleted, its file, and what its three tiers are set to, low, normal and high, `-` where one is not.
+	--manager-preset-tiers)
+		local tiersOp="$1" tiersMember tiersDir tiersFile tiersScope tiersLabel tiersKeys
+		shift
+		[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD $tiersOp: syntax is $tiersOp, got $# argument(s) -- nothing is shown" >&2 ; set +e ; return 1 ; }
+		tiersRow(){ ## scope name, label
+			tiersFile="${MMDAPP%/}/.local/.agents/$1.agent.env"
+			tiersKeys="$( AgentsToolsManagerPresetKeys "$tiersFile" )"
+			printf 'tier\tagents:%s\t%s\t%s\t%s\tno\t%s\t%s\t%s\t%s\n' "$1" "$( AgentsToolsManagerPresetField "$2" )" "$tiersKeys" "$( [ "$tiersKeys" -gt 0 ] && echo yes || echo no )" \
+				"$( AgentsToolsManagerPresetField "$tiersFile" )" "$( AgentsToolsManagerPresetField "$( AgentsToolsPresetRead "$MMDAPP" "$1" SPAWN_TIER_LOW )" )" \
+				"$( AgentsToolsManagerPresetField "$( AgentsToolsPresetRead "$MMDAPP" "$1" SPAWN_TIER_NORMAL )" )" "$( AgentsToolsManagerPresetField "$( AgentsToolsPresetRead "$MMDAPP" "$1" SPAWN_TIER_HIGH )" )"
+		}
+		tiersRow magic-team "Team"
+		while IFS=$'\t' read -r tiersMember tiersDir ; do
+			[ -n "$tiersMember" ] && [ "$tiersMember" != "magic-team" ] || continue
+			AgentsToolsTeamMemberIsTeam "$tiersMember" && continue
+			AgentsToolsTeamMemberReferenceOnly "$tiersDir" && continue
+			tiersRow "$tiersMember" "$tiersMember"
+		done <<< "$( AgentsToolsTeamMemberDirectoryText )"
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

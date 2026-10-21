@@ -6,7 +6,7 @@
 ## environment (a preset, the models its leg exported) is not handed on; and the brief a spawn is prepared with reads the
 ## CLI the spawn will run on.
 ## Held, against the proxy with a console stand-in that records what its environment says and what the tooling answers there:
-##   1. no tier setting: no preset is chosen, and the console reads the team's own CLI service
+##   1. no tier setting: no preset is chosen, and there is no CLI service (an old SPAWN_CLI_SERVICE line is not read)
 ##   2. a team tier setting: the console gets it, and the CLI service it reads is the preset's
 ##   3. a member's own setting stands ahead of the team's, with its effort
 ##   4. the tier asked picks the setting of that tier (SPAWN_HARNESS_TIER)
@@ -101,7 +101,7 @@ rigTeam ; rigMember
 rigOut="$( rigSpawn keeper-myx )"
 grep -q 'RIG-TASK-TEXT' "$rigTmp/brief" || rigRefuse "the fake console never received the context: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
 rigAssert "no preset is chosen: the console's is empty"                      "$( rigSeen preset )" ""
-rigAssert "and it reads the team's own CLI service, and holds no Claude credential"  "$( rigSeen cli ) $( rigSeen key )" "rig-old-cli empty"
+rigAssert "and it reads no CLI service, the old line of the team scope not being read, and holds no Claude credential"  "$( rigSeen cli ) $( rigSeen key )" " empty"
 
 echo "-- 2. a team tier setting --"
 rigTeam "SPAWN_TIER_NORMAL=rig-ext"
@@ -128,7 +128,7 @@ echo "-- 5. a CLI service named by the caller is no preset's spawn --"
 rigTeam "SPAWN_TIER_NORMAL=rig-ext"
 rigSpawn keeper-myx --spawn-cli-service claude > /dev/null
 rigAssert "the console is told the service named, as no preset's"             "$( rigSeen preset )" "-claude"
-rigAssert "it reads the team's own CLI service"                              "$( rigSeen cli )" rig-old-cli
+rigAssert "it reads no CLI service from the team scope"                       "$( rigSeen cli )" ""
 rigAssert "and the credential of the service named, from the first block that has it" "$( rigSeen key )" held
 
 echo "-- 6. a parent's preset and models are not handed on --"
@@ -137,7 +137,7 @@ rigOuter="MDAT_SPAWN_PRESET=rig-grok HARNESS_MODEL_MAIN=leak-main HARNESS_MODEL_
 rigSpawn keeper-myx > /dev/null
 rigAssert "the parent's preset is gone"                                      "$( rigSeen preset )" ""
 rigAssert "so are its models, as empty values the leg stubs read as none"    "$( rigSeen light )|$( rigSeen main )" "|"
-rigAssert "and the console reads the team's own CLI service"                 "$( rigSeen cli )" rig-old-cli
+rigAssert "and the console reads none from the team scope"                    "$( rigSeen cli )" ""
 rigTeam "SPAWN_TIER_NORMAL=rig-ext"
 rigSpawn keeper-myx > /dev/null
 rigAssert "with a tier setting the parent's preset is replaced by the member's own choice"  "$( rigSeen preset )" rig-ext
@@ -161,7 +161,7 @@ rigBrief(){ ## member -- the brief the op prints, in brief.out
 }
 rigTeam "SPAWN_CLI_SERVICE=claude-native"
 rigBrief rig-member
-rigAssert "control: with no tier setting the team's native service gives the native brief (a tools line)"  "$( LC_ALL=C grep -c '^tools: ' "$rigTmp/brief.out" )" 1
+rigAssert "control: with no tier setting the old native line is not read, so the brief is the harness one (no tools line)"  "$( LC_ALL=C grep -c '^tools: ' "$rigTmp/brief.out" )" 0
 rigTeam "SPAWN_CLI_SERVICE=claude-native" "SPAWN_TIER_NORMAL=rig-ext"
 rigBrief rig-member
 rigAssert "with the team's tier a harness preset (claude) gives the harness brief, whatever the old setting says" "$( LC_ALL=C grep -c '^tools: ' "$rigTmp/brief.out" )" 0

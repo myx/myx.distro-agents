@@ -88,7 +88,7 @@ rigScenario(){ ## name, SPAWN_CLI_SERVICE or empty, stub names...
 	cp "$rigGen/ws/DistroAgentsConsole.sh" "$rigDir/ws/DistroAgentsConsole.sh"
 	printf 'MDLT_CONSOLE_ORIGIN=%s\n' "$rigOrigin" > "$rigDir/ws/.local/MDLT.settings.env"
 	: > "$rigDir/ws/.local/.agents/magic-team.agent.env"
-	[ -z "$rigService" ] || printf 'SPAWN_CLI_SERVICE=%s\n' "$rigService" >> "$rigDir/ws/.local/.agents/magic-team.agent.env"
+	[ -z "$rigService" ] || printf 'SPAWN_TIER_NORMAL=%s\n' "$rigService" >> "$rigDir/ws/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=%s\n' "$rigService" > "$rigDir/ws/.local/.agents/preset-$rigService.agent.env"
 	for rigStub in "$@" ; do
 		printf '#!/bin/sh\nif [ "$1" = auth ] ; then echo "{\\"loggedIn\\":true}" ; exit 0 ; fi\nrigTty=no ; [ -t 0 ] && [ -t 1 ] && rigTty=yes\n{ printf "started %s tty=%%s args=" "$rigTty" ; for rigArg in "$@" ; do printf "[%%s]" "$rigArg" ; done ; printf "\\n" ; } >> "%s/cli.log"\n' "$rigStub" "$rigDir" > "$rigDir/bin/$rigStub"
 		chmod +x "$rigDir/bin/$rigStub"

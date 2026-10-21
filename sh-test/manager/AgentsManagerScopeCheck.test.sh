@@ -62,7 +62,7 @@ printf 'MDLT_CONSOLE_ORIGIN=.local\nMDLT_CONSOLE_HISTORY=workspace-shared\n' > "
 printf 'MDLT_CONSOLE_HISTORY=workspace-separate\n' > "$rigOwn"
 printf 'MDLT_CONSOLE_HISTORY=workspace-personal\n' > "$rigOther"
 printf 'REMOTE_HOST=mdci01.rig.example\nREMOTE_NOTE=two words\n' > "$rigRemote"
-printf '# a note of the owner\nSPAWN_CLI_SERVICE=claude\nSLACK_BOT_TOKEN=%s\nnot a setting line\nlower_case=1\n\nEMPTY_KEY=\n' "$rigSecret" > "$rigTeam"
+printf '# a note of the owner\nWAIT_ROUND_SECONDS=claude\nSLACK_BOT_TOKEN=%s\nnot a setting line\nlower_case=1\n\nEMPTY_KEY=\n' "$rigSecret" > "$rigTeam"
 printf 'PRESET_CLI_SERVICE=claude\nPRESET_EFFORT=high\n' > "$rigPreset"
 : > "$rigAgents/keeper-rig.agent.env" ; : > "$rigAgents/magic-coordinator.agent.env"
 printf 'U1:rig\n' > "$rigAgents/slack-mention-ids.cache"
@@ -114,13 +114,13 @@ rigAssert "the workspace's own, the user's own, the remote profile, then the sco
 echo "-- 2. a scope read --"
 rigRun --manager-scope-read agents:magic-team
 rigAssert "its own row, then a row for each key, in the order of the file, with its type: a setting, a credential in its one form, a key with nothing after the = as missing; a comment, a line with no = and a blank are no key" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "scope" { printf "%s %s %s %s %s %s %s / ", $2, $3, $4, $5, $6, $7, NF } $1 == "key" { printf "%s %s %s %s / ", $2, $3, $4, $5 }' "$rigTmp/out" )" \
-	"0 agents:magic-team Agents:_magic-team 4 yes yes $rigTeam 7 / SPAWN_CLI_SERVICE set claude setting / SLACK_BOT_TOKEN secret-set $rigShown credential / lower_case set 1 setting / EMPTY_KEY missing - setting / "
-rigAssert "the description is the catalogue of the owner setup's text for a key it describes, and a dash for any other; it holds no value" "$( LC_ALL=C awk -F'\t' '$1 == "key" { printf "%s:%s ", $2, ( $6 == "-" ) ? "none" : "text" }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '$1 == "key" && $2 == "SPAWN_CLI_SERVICE" { print $6 }' "$rigTmp/out" | LC_ALL=C grep -c -F 'the_agent_CLI' )" "SPAWN_CLI_SERVICE:text SLACK_BOT_TOKEN:text lower_case:none EMPTY_KEY:none  1"
+	"0 agents:magic-team Agents:_magic-team 4 yes yes $rigTeam 7 / WAIT_ROUND_SECONDS set claude setting / SLACK_BOT_TOKEN secret-set $rigShown credential / lower_case set 1 setting / EMPTY_KEY missing - setting / SPAWN_TIER_LOW missing - setting / SPAWN_TIER_NORMAL missing - setting / SPAWN_TIER_HIGH missing - setting / "
+rigAssert "the description is the catalogue of the owner setup's text for a key it describes, and a dash for any other; it holds no value" "$( LC_ALL=C awk -F'\t' '$1 == "key" { printf "%s:%s ", $2, ( $6 == "-" ) ? "none" : "text" }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '$1 == "key" && $2 == "WAIT_ROUND_SECONDS" { print $6 }' "$rigTmp/out" | LC_ALL=C grep -c -F 'how_long_a_wait' )" "WAIT_ROUND_SECONDS:text SLACK_BOT_TOKEN:text lower_case:none EMPTY_KEY:none SPAWN_TIER_LOW:text SPAWN_TIER_NORMAL:text SPAWN_TIER_HIGH:text  1"
 rigAssert "the credential is never on the screen whole: not in what was printed, not in what was said" "$( LC_ALL=C grep -c -F -- "$rigSecret" "$rigTmp/out" "$rigTmp/err" | LC_ALL=C awk -F: '{ n += $NF } END { print n + 0 }' )" "0"
 rigRun --manager-scope-read remote:mdci01.rig.example
-rigAssert "a remote profile: its keys with their values, a value of two words as one field" "$rigRc $( rigFlat "$rigTmp/out" )" "0 scope remote:mdci01.rig.example Remote:_mdci01.rig.example 2 yes yes $rigRemote/key REMOTE_HOST set mdci01.rig.example setting -/key REMOTE_NOTE set two_words setting -/"
+rigAssert "a remote profile: its keys with their values, a value of two words as one field" "$rigRc $( rigFlat "$rigTmp/out" )" "0 scope remote:mdci01.rig.example Remote:_mdci01.rig.example 2 yes yes $rigRemote/key REMOTE_HOST set mdci01.rig.example setting - - -/key REMOTE_NOTE set two_words setting - - -/"
 rigRun --manager-scope-read "common:user-$rigUser"
-rigAssert "the user's own settings are the running user's, read from the user's own file" "$rigRc $( rigFlat "$rigTmp/out" )" "0 scope common:user-$rigUser Common:_user-$rigUser 1 yes no $rigOwn/key MDLT_CONSOLE_HISTORY set workspace-separate setting -/"
+rigAssert "the user's own settings are the running user's, read from the user's own file" "$rigRc $( rigFlat "$rigTmp/out" )" "0 scope common:user-$rigUser Common:_user-$rigUser 1 yes no $rigOwn/key MDLT_CONSOLE_HISTORY set workspace-separate setting - - -/"
 rigRun --manager-scope-read common:user-rig-other-user
 rigAssert "the settings of another user are none of the scopes: refused, nothing on stdout, the id not repeated" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- 'rig-other-user' "$rigTmp/err" || : )" "1 0 0"
 rigRun --manager-scope-read agents:no-such-scope
@@ -130,19 +130,19 @@ rigAssert "a read with no id is refused with its syntax" "$rigRc $( LC_ALL=C gre
 
 echo "-- 3. a key saved --"
 rigTeamBefore="$( rigSum "$rigTeam" )" ; rigModeBefore="$( rigMode "$rigTeam" )"
-rigRunIn "codex" --manager-scope-set agents:magic-team SPAWN_CLI_SERVICE
-rigAssert "the value comes on the standard input; one row says what the key holds now" "$rigRc $( rigFlat "$rigTmp/out" )" "0 saved agents:magic-team SPAWN_CLI_SERVICE codex/"
-rigAssert "the file holds the one new value; every other line, the comment and the credential among them, stands as it was; the mode stays" "$( LC_ALL=C grep -c -x -F -- 'SPAWN_CLI_SERVICE=codex' "$rigTeam" ) $( LC_ALL=C grep -c -F -- 'SPAWN_CLI_SERVICE=' "$rigTeam" ) $( LC_ALL=C grep -c -x -F -- "SLACK_BOT_TOKEN=$rigSecret" "$rigTeam" ) $( LC_ALL=C grep -c -x -F -- '# a note of the owner' "$rigTeam" ) $( rigMode "$rigTeam" )" "1 1 1 1 $rigModeBefore"
+rigRunIn "codex" --manager-scope-set agents:magic-team WAIT_ROUND_SECONDS
+rigAssert "the value comes on the standard input; one row says what the key holds now" "$rigRc $( rigFlat "$rigTmp/out" )" "0 saved agents:magic-team WAIT_ROUND_SECONDS codex/"
+rigAssert "the file holds the one new value; every other line, the comment and the credential among them, stands as it was; the mode stays" "$( LC_ALL=C grep -c -x -F -- 'WAIT_ROUND_SECONDS=codex' "$rigTeam" ) $( LC_ALL=C grep -c -F -- 'WAIT_ROUND_SECONDS=' "$rigTeam" ) $( LC_ALL=C grep -c -x -F -- "SLACK_BOT_TOKEN=$rigSecret" "$rigTeam" ) $( LC_ALL=C grep -c -x -F -- '# a note of the owner' "$rigTeam" ) $( rigMode "$rigTeam" )" "1 1 1 1 $rigModeBefore"
 rigRunIn "$rigSecret-2" --manager-scope-set agents:magic-team SLACK_BOT_TOKEN
 rigAssert "a credential saved shows in its one form, the new value never whole" "$rigRc $( rigFlat "$rigTmp/out" ) $( LC_ALL=C grep -c -F -- "$rigSecret" "$rigTmp/out" "$rigTmp/err" | LC_ALL=C awk -F: '{ n += $NF } END { print n + 0 }' )" "0 saved agents:magic-team SLACK_BOT_TOKEN $rigShownTwo/ 0"
-rigRunIn "" --manager-scope-set agents:magic-team SPAWN_CLI_SERVICE
-rigAssert "an empty value is refused, and says a key is taken out with --manager-scope-unset" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- '--manager-scope-unset' "$rigTmp/err" || : ) $( LC_ALL=C grep -c -x -F -- 'SPAWN_CLI_SERVICE=codex' "$rigTeam" )" "1 0 1 1"
-rigRunIn $'one\ntwo' --manager-scope-set agents:magic-team SPAWN_CLI_SERVICE
-rigAssert "a value of more than one line is refused and the file stays" "$rigRc $( LC_ALL=C grep -c -x -F -- 'SPAWN_CLI_SERVICE=codex' "$rigTeam" )" "1 1"
+rigRunIn "" --manager-scope-set agents:magic-team WAIT_ROUND_SECONDS
+rigAssert "an empty value is refused, and says a key is taken out with --manager-scope-unset" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- '--manager-scope-unset' "$rigTmp/err" || : ) $( LC_ALL=C grep -c -x -F -- 'WAIT_ROUND_SECONDS=codex' "$rigTeam" )" "1 0 1 1"
+rigRunIn $'one\ntwo' --manager-scope-set agents:magic-team WAIT_ROUND_SECONDS
+rigAssert "a value of more than one line is refused and the file stays" "$rigRc $( LC_ALL=C grep -c -x -F -- 'WAIT_ROUND_SECONDS=codex' "$rigTeam" )" "1 1"
 rigRunIn "x" --manager-scope-set agents:magic-team 'BAD KEY'
 rigAssert "a name that is no setting's is refused" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' )" "1 0"
-rigRun --manager-scope-set agents:magic-team SPAWN_CLI_SERVICE claude
-rigAssert "a value given as an argument is refused: a value never travels in argv" "$rigRc $( LC_ALL=C grep -c -x -F -- 'SPAWN_CLI_SERVICE=codex' "$rigTeam" )" "1 1"
+rigRun --manager-scope-set agents:magic-team WAIT_ROUND_SECONDS claude
+rigAssert "a value given as an argument is refused: a value never travels in argv" "$rigRc $( LC_ALL=C grep -c -x -F -- 'WAIT_ROUND_SECONDS=codex' "$rigTeam" )" "1 1"
 rigRunIn "sideways" --manager-scope-set agents:preset-rig PRESET_EFFORT
 rigAssert "a preset's write check is asked as for any writer: a value its key does not take is refused and the file stays as it was" "$rigRc $( LC_ALL=C grep -c -x -F -- 'PRESET_EFFORT=high' "$rigPreset" ) $( LC_ALL=C grep -c -F -- 'sideways' "$rigPreset" || : )" "1 1 0"
 rigRunIn "low" --manager-scope-set agents:preset-rig PRESET_EFFORT
@@ -157,9 +157,9 @@ rigRunIn "x" --manager-scope-set agents:no-such-scope SOMETHING
 rigAssert "a scope that is none is refused" "$rigRc" "1"
 
 echo "-- 4. a key taken out, a scope cleared, a scope deleted --"
-rigRun --manager-scope-unset agents:magic-team SPAWN_CLI_SERVICE
-rigAssert "a key is taken out: one row, and the file no longer holds it, the others stand" "$rigRc $( rigFlat "$rigTmp/out" ) $( LC_ALL=C grep -c -F -- 'SPAWN_CLI_SERVICE' "$rigTeam" || : ) $( LC_ALL=C grep -c -F -- 'SLACK_BOT_TOKEN=' "$rigTeam" )" "0 removed agents:magic-team SPAWN_CLI_SERVICE/ 0 1"
-rigRun --manager-scope-unset agents:magic-team SPAWN_CLI_SERVICE
+rigRun --manager-scope-unset agents:magic-team WAIT_ROUND_SECONDS
+rigAssert "a key is taken out: one row, and the file no longer holds it, the others stand" "$rigRc $( rigFlat "$rigTmp/out" ) $( LC_ALL=C grep -c -F -- 'WAIT_ROUND_SECONDS' "$rigTeam" || : ) $( LC_ALL=C grep -c -F -- 'SLACK_BOT_TOKEN=' "$rigTeam" )" "0 removed agents:magic-team WAIT_ROUND_SECONDS/ 0 1"
+rigRun --manager-scope-unset agents:magic-team WAIT_ROUND_SECONDS
 rigAssert "a key the scope does not hold is refused" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' )" "1 0"
 rigRun --manager-scope-clear agents:magic-team
 rigAssert "a scope is cleared of every key: one row with their count, the file and its comment stay, the other scopes stay" "$rigRc $( rigFlat "$rigTmp/out" ) $( [ -f "$rigTeam" ] && echo file ) $( LC_ALL=C grep -c -x -F -- '# a note of the owner' "$rigTeam" ) $( LC_ALL=C grep -c -F -- 'SLACK_BOT_TOKEN' "$rigTeam" || : ) $( LC_ALL=C grep -c -x -F -- 'PRESET_EFFORT=low' "$rigPreset" )" "0 cleared agents:magic-team 3/ file 1 0 1"

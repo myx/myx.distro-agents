@@ -251,15 +251,11 @@ def cliStepTiers(state, held):
     for key, label in (("SPAWN_TIER_LOW", "Low tier"), ("SPAWN_TIER_NORMAL", "Normal tier"), ("SPAWN_TIER_HIGH", "High tier")):
         controls.append({"name": key, "kind": "input", "label": "%s, %s" % (label, key)})
         fill[key] = {"value": team.get(key, ("missing", ""))[1]}
-    if not any(team.get(key, ("missing", ""))[1] for key in ("SPAWN_TIER_LOW", "SPAWN_TIER_NORMAL", "SPAWN_TIER_HIGH")):
-        controls.append({"name": "SPAWN_CLI_SERVICE", "kind": "radios", "label": "CLI service of the team where no tier is set"})
-        fill["SPAWN_CLI_SERVICE"] = {"options": [("", "not set")] + [(name, name) for name in data["services"]], "value": team.get("SPAWN_CLI_SERVICE", ("missing", ""))[1]}
     return {"title": "Configure CLI Service: the tiers", "first": "SPAWN_TIER_NORMAL", "controls": controls, "fill": fill}
 
 
 ## What the wizard asks of the tooling, from the answers: each key whose answer is not what it held, one line `<key> <TAB> <value>` of the standard input of
-## `--manager-wizard-apply cli-service --preset <name>`, which writes them in the order its checks need and refuses what they refuse. The team's CLI service
-## is asked only where no tier is typed.
+## `--manager-wizard-apply cli-service --preset <name>`, which writes them in the order its checks need and refuses what they refuse.
 def cliApply(state, held):
     data = held["data"]
     preset = wizardPreset(held)
@@ -276,14 +272,8 @@ def cliApply(state, held):
     service = wizardService(held)
     for key in data["credentials"].get(service, []):
         ask(key, wizardAnswer(held, 2, key, presetHeld(held, preset, key)), presetHeld(held, preset, key))
-    tiers = 0
     for key in ("SPAWN_TIER_LOW", "SPAWN_TIER_NORMAL", "SPAWN_TIER_HIGH"):
-        answer = wizardAnswer(held, 3, key, data["team"].get(key, ("missing", ""))[1]).strip()
-        tiers += 1 if answer else 0
-        ask(key, answer, data["team"].get(key, ("missing", ""))[1])
-    if not tiers:
-        ask("SPAWN_CLI_SERVICE", wizardAnswer(held, 3, "SPAWN_CLI_SERVICE", data["team"].get("SPAWN_CLI_SERVICE", ("missing", ""))[1]),
-            data["team"].get("SPAWN_CLI_SERVICE", ("missing", ""))[1])
+        ask(key, wizardAnswer(held, 3, key, data["team"].get(key, ("missing", ""))[1]).strip(), data["team"].get(key, ("missing", ""))[1])
     return "Configure CLI Service: %s" % preset, ["--manager-wizard-apply", "cli-service", "--preset", preset], "".join(lines)
 
 

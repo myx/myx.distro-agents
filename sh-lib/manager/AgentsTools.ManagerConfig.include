@@ -84,7 +84,6 @@ workspace|places|*|Registered Place {name}|configuration|The path of the place r
 cli|||CLI Services||
 cli|workspace||Workspace Defaults||
 cli|*||{name}||
-cli|workspace|SPAWN_CLI_SERVICE|Spawn CLI Service|configuration|The agent CLI this workspace starts for a member and for the console. A change reaches every next start, so it is made by the owner setup.
 cli|workspace|SPAWN_HARNESS_TIER|Spawn Harness Tier|configuration|The tier a harness leg is asked for at a start. What it may be is each leg's own, so it is set by the owner setup.
 cli|workspace|WAIT_ROUND_SECONDS|Wait Round Seconds|configuration|How long a wait that brings nothing runs before it comes back, for every CLI service. A round longer than a CLI allows ends the waits of running sessions, so it is set by the owner setup.
 cli|workspace|WAIT_COLLECT_SECONDS|Wait Collect Seconds|configuration|How long the work-duty input scan collects the team channel before it returns, in seconds. A tagged message ends the collect at once. A minute when it is not set.
@@ -353,7 +352,7 @@ AgentsToolsManagerConfigMode(){
 	printf '%s %s %s\n' "$modeValue" "$modeSource" "$modeFull"
 }
 
-## THE CLI SERVICES. First what the workspace asks for: its service, its harness tier, its
+## THE CLI SERVICES. First what the workspace asks for: its harness tier, its
 ## one wait round for every service, and the workspace its spawn settings are read from.
 ## Then each CLI the console knows, by the console's own declaration, and each harness leg
 ## beside them: of a vendor CLI whether it is present, by its binary, and of a leg nothing
@@ -363,7 +362,7 @@ AgentsToolsManagerConfigMode(){
 ## is, since it works off the sign-in of the machine; and its wait round.
 AgentsToolsManagerConfigCli(){
 	local cliHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib" cliKnown cliVendor cliLegs="" cliLeg cliName cliFile cliKey cliKeys cliValue cliPath cliUsable
-	for cliKey in SPAWN_CLI_SERVICE SPAWN_HARNESS_TIER WAIT_ROUND_SECONDS WAIT_COLLECT_SECONDS ; do
+	for cliKey in SPAWN_HARNESS_TIER WAIT_ROUND_SECONDS WAIT_COLLECT_SECONDS ; do
 		cliValue="$( DistroAgentsTools --agents-config-option magic-team --select "$cliKey" 2> /dev/null )" || cliValue=""
 		if [ -n "$cliValue" ] ; then
 			AgentsToolsManagerConfigLine cli workspace "$cliKey" set "$cliValue"

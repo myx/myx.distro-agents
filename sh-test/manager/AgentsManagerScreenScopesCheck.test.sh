@@ -118,7 +118,7 @@ rowids cids
 at @configuration scopes
 rowids lids
 RIGSCRIPT
-rigAssert "Settings holds Scope Settings among the rows it always holds, ahead of its subjects" "$( rigVal sids )" ".. scopes interface"
+rigAssert "Settings holds Scope Settings among the rows it always holds, ahead of its subjects" "$( rigVal sids )" ".. scopes presets tiers interface"
 rigAssert "Configuration holds no folder of the scopes: its rows are its folders and its other subjects" "$( rigVal cids | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x scopes || : ) / $( rigVal cids )" "0 / .. checker keys git subsystems diagnostics workspace"
 rigAssert "the lines of the scopes of the digest are still the level Member Settings reads" "$( rigVal lids )" ".. magic-team SPAWN_CLI_SERVICE"
 

@@ -281,7 +281,7 @@ AgentsToolsManagerDashboardPending(){
 }
 
 ## WHETHER AN AI CLI SERVICE IS SET UP for use in this workspace on this machine (F11.4: the tokens are shown only
-## where one is), rc 0; rc 1 where it is not. A CLI is named by the workspace's SPAWN_CLI_SERVICE, or by a preset one of its tier
+## where one is), rc 0; rc 1 where it is not. A CLI is named by a preset one of its tier
 ## settings (SPAWN_TIER_LOW, _NORMAL, _HIGH) chooses, which has the CLI service of its own or of the preset it extends; and
 ## a CLI that is named is set up where the digest of the settings reads it `usable yes` on this host
 ## (AgentsToolsManagerConfigCli: a leg with one of its credentials set, a vendor CLI present in the path). The settings are
@@ -294,7 +294,6 @@ AgentsToolsManagerDashboardCliSet(){
 	else
 		type AgentsToolsPresetRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
 		cliRoot="$( AgentsToolsPresetPayRoot 2> /dev/null )" || cliRoot="${MMDAPP%/}"
-		cliNamed="$( AgentsToolsPresetRead "${MMDAPP%/}" magic-team SPAWN_CLI_SERVICE )"
 		for cliOne in LOW NORMAL HIGH ; do
 			cliSpec="$( AgentsToolsPresetRead "$cliRoot" magic-team "SPAWN_TIER_$cliOne" )"
 			[ -n "$cliSpec" ] || continue

@@ -141,7 +141,7 @@ DistroAgentsTools(){
 			case "${3:-}" in
 				--upsert|--upsert-from-stdin|--upsert-if|--delete|--delete-if)
 					case "$2:${4:-}" in
-						preset-*:*|*:PRESET_*|*:SPAWN_TIER_*)
+						preset-*:*|*:PRESET_*|*:SPAWN_TIER_*|*:SPAWN_CLI_SERVICE)
 							type AgentsToolsPresetWriteCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
 							AgentsToolsPresetWriteCheck "${MMDAPP%/}" "$2" "$3" "${4:-}" "${5:-}" || { set +e ; return 1 ; }
 							if [ -n "$agentsPresetStdinTaken" ] ; then
@@ -156,7 +156,7 @@ DistroAgentsTools(){
 			## An option is this workspace's own, with the exceptions the reader below cannot know, being the sibling package's: a read of one names the workspace it comes from where that is another (AgentsToolsConfigOptionElsewhere, AgentsTools.MemberWorkspace.include), and is then made there, by the same reader.
 			case "${3:-}" in
 				--select|--select-default)
-					## A spawn setting of the team, where tier settings are configured, is the preset's of the spawn (AgentsToolsPresetOverlay, AgentsTools.Preset.include): answered here, from the preset, ahead of the scope. Where none is set, the scope is read as ever.
+					## A spawn setting of the team, where tier settings are configured, is the preset's of the spawn (AgentsToolsPresetOverlay, AgentsTools.Preset.include): answered here, from the preset, ahead of the scope. Where none is set, the scope is read as ever, but for the CLI service, which has no scope reading.
 					if [ "$2" = "magic-team" ] ; then
 						local overlayOut overlayRc=0
 						type AgentsToolsPresetOverlay > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
@@ -166,7 +166,13 @@ DistroAgentsTools(){
 								if [ -n "$overlayOut" ] ; then printf '%s\n' "$overlayOut" ; elif [ "$3" = "--select-default" ] ; then printf '%s\n' "${5:-}" ; fi
 								return 0
 							;;
-							1) ;;
+							1)
+								## The CLI service is the tier's preset's alone: no tier is no CLI service, whatever an old line of the scope still holds (it is not read), and the spawn that finds none is refused naming SPAWN_TIER_NORMAL.
+								if [ "${4:-}" = "SPAWN_CLI_SERVICE" ] ; then
+									if [ "$3" = "--select-default" ] ; then printf '%s\n' "${5:-}" ; fi
+									return 0
+								fi
+							;;
 							*) set +e ; return 1 ;;
 						esac
 					fi

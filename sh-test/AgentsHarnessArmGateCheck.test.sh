@@ -218,7 +218,7 @@ rigAssert "a served call with a spawn id writes unarmed" "$( cat "$rigDir/ws/OUT
 echo "-- the close record --"
 rigScenario close
 mkdir -p "$rigDir/data"
-printf 'SPAWN_CLI_SERVICE=rig-cli\n' >> "$rigDir/ws/.local/.agents/magic-team.agent.env"
+printf 'SPAWN_TIER_NORMAL=rig-cli\n' >> "$rigDir/ws/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=rig-cli\n' > "$rigDir/ws/.local/.agents/preset-rig-cli.agent.env"
 ## The fake console leaves what a harness loop would: .harness, and .armed once armed.
 printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\ncase "$RIG_ARM" in yes) : > "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" ; echo "2026-09-29 10:00 +0300" > "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.armed" ;; no) : > "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" ;; esac\n' > "$rigDir/ws/DistroAgentsConsole.sh"
 chmod +x "$rigDir/ws/DistroAgentsConsole.sh"

@@ -183,7 +183,7 @@ show consoles
 keys 7
 wait list 10
 show settings
-keys DOWN DOWN
+keys DOWN DOWN DOWN DOWN
 wait focus 10
 show subject
 keys 8

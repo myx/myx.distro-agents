@@ -88,6 +88,7 @@ PARTS = (
     "AgentsManagerScreen.Settings.py",
     "AgentsManagerScreen.Talk.py",
     "AgentsManagerScreen.Scopes.py",
+    "AgentsManagerScreen.Presets.py",
     "AgentsManagerScreen.Configuration.py",
     "AgentsManagerScreen.Wizards.py",
     "AgentsManagerScreen.Manuals.py",

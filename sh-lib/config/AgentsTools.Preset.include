@@ -58,6 +58,20 @@ AgentsToolsPresetIsOneOf(){ ## word, list (blank separated)
 	case " $2 " in *" $1 "*) [ -n "$1" ] ;; *) return 1 ;; esac
 }
 
+## Who uses a preset: the presets that extend it and the scopes whose tiers name it (`<preset>` or `<preset>:<effort>`), as scope names, blank separated; nothing where none does.
+AgentsToolsPresetUsers(){ ## the name of the preset, without `preset-`
+	local usersFile usersName usersOut=""
+	for usersFile in "${MMDAPP%/}/.local/.agents"/*.agent.env ; do
+		[ -f "$usersFile" ] || continue
+		usersName="${usersFile##*/}" ; usersName="${usersName%.agent.env}"
+		[ "$usersName" != "preset-$1" ] || continue
+		if LC_ALL=C grep -q -E "^(PRESET_EXTEND|SPAWN_TIER_(LOW|NORMAL|HIGH))=[\"']?$1(:[a-z]+)?[\"']?\$" "$usersFile" 2> /dev/null ; then
+			usersOut="$usersOut${usersOut:+ }$usersName"
+		fi
+	done
+	printf '%s' "$usersOut"
+}
+
 ## Whether a name is a preset's: a bare name with no upper-case letter in it, rc 0 when it is.
 AgentsToolsPresetNameCheck(){ ## name
 	AgentsToolsAssertBareName "$1" "a preset name" preset 2> /dev/null || return 1
@@ -182,6 +196,11 @@ AgentsToolsPresetWriteCheck(){ ## workspace root, scope, operation, key, value (
 	local checkRoot="$1" checkScope="$2" checkOp="$3" checkKey="$4" checkValue="${5:-}" checkName="" checkWrites="" checkCli checkParent checkDepth
 	case "$checkOp" in --upsert|--upsert-from-stdin|--upsert-if) checkWrites="yes" ;; esac
 	case "$checkKey" in
+		SPAWN_CLI_SERVICE)
+			## No longer a setting: the CLI service of a spawn is its tier's preset's. A line an older release wrote may be deleted.
+			[ -z "$checkWrites" ] || { AgentsToolsPresetRefuse "SPAWN_CLI_SERVICE is no setting any more: the CLI service of a spawn is its tier's preset's -- make a preset (--manager-preset-new) and set SPAWN_TIER_NORMAL to it" ; return 1 ; }
+			return 0
+		;;
 		SPAWN_TIER_*)
 			AgentsToolsPresetTierCheck "$checkRoot" "$checkScope" "$checkOp" "$checkKey" "$checkValue"
 			return $?

@@ -112,7 +112,7 @@ printf '# member\n' > "$rigAgents/keeper-rig.agent.env"
 chmod 770 "$rigAgents" ; chmod 660 "$rigAgents"/*.agent.env
 
 echo "-- control: with no tier setting the team's own spawn settings are read as ever --"
-rigAssert "the CLI service is the team's"                                          "$( rigSelect SPAWN_CLI_SERVICE )" claude-native
+rigAssert "the CLI service is none with no tier: an old line of the scope is not read"  "$( rigSelect SPAWN_CLI_SERVICE )" ""
 rigAssert "the credential is the team's"                                           "$( rigSame ANTHROPIC_API_KEY "$rigOldKey" )" same
 rigAssert "the harness tier asked is none"                                         "$( rigSelect SPAWN_HARNESS_TIER )" ""
 
@@ -216,7 +216,7 @@ echo "-- G. a CLI service named by the caller --"
 rigSecretF="sk-RIGaaaCRED-7Hn2Vb5Qd9Xw3Lm8Pt1Zc4Rk6Jf0"
 rigSecretG="sk-RIGextCRED-3Pq8Wd2Hn6Tb9Vm1Zc5Lk7Jf4Rx0Gs"
 rigPreset="-claude"
-rigAssert "the CLI service is read from the team's scope, as ever: the named one is the caller's own"  "$( rigSelect SPAWN_CLI_SERVICE )" claude-native
+rigAssert "the CLI service is none from the scope here too: the named one is the caller's own"  "$( rigSelect SPAWN_CLI_SERVICE )" ""
 rigAssert "a Claude credential is the first claude block's, the team's old one not given"  "$( rigSame ANTHROPIC_API_KEY "$rigSecretA" )$( rigSame CLAUDE_CODE_OAUTH_TOKEN "$rigSecretB" )" samesame
 rigPreset="-claude-native"
 rigAssert "a native service has the credentials of its leg"                         "$( rigSame ANTHROPIC_API_KEY "$rigSecretA" )" same

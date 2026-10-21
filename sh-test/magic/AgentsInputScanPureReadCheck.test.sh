@@ -143,7 +143,7 @@ rigAssert "housekeeping lines in the tooling log"            "$( LC_ALL=C grep -
 rigAssert "and none on the lock's standard output"           "$( LC_ALL=C grep -c 'housekeeping' "$rigTmp/lock" || : )" 0
 
 echo "-- 5. the main loop does it at every iteration --"
-printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_CHANNEL_EVENT_TRACK=CRIG00002\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSPAWN_CLI_SERVICE=rig-cli\n' > "$rigW/.local/.agents/magic-team.agent.env"
+printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_CHANNEL_EVENT_TRACK=CRIG00002\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSPAWN_TIER_NORMAL=rig-cli\n' > "$rigW/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=rig-cli\n' > "$rigW/.local/.agents/preset-rig-cli.agent.env"
 rigSandbox rig-ldead3 spawn-started ; rigItem running dispatch-rig-ldead3.md dispatch dispatch-started none rig-ldead3
 find "$rigW/.local/agents/spawned/rig-ldead3" -exec touch -t "$( rigStamp 48 )" {} +
 rigItem review task-rig-rv-ended3.md task dispatch-succeeded rig-ended none

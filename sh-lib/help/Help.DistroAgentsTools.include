@@ -239,6 +239,9 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-stats-routines [<routine>]"
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-read --id <pending-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-answer --id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-dismiss --id <pending-id> [--reason <text>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-preset-list" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-preset-new <name> (--extend <preset>|--cli-service <service>)" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-preset-tiers" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-read <scope-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-scope-reveal <scope-id> <key>" >&2

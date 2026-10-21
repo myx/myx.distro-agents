@@ -22,7 +22,7 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigTmp/home" "$rigTmp/sandbox/input" "$rigTmp/sandbox/output"
 printf 'MDLT_CONSOLE_ORIGIN=%s\n' "$MDLT_ORIGIN" > "$rigWs/.local/MDLT.settings.env"
-printf 'SPAWN_CLI_SERVICE=claude-native\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'SPAWN_TIER_NORMAL=claude-native\n' > "$rigWs/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=claude-native\n' > "$rigWs/.local/.agents/preset-claude-native.agent.env"
 ## The stub claude is signed in, and records the argv it was started with.
 printf '#!/bin/sh\nif [ "$1" = auth ] ; then echo "{\\"loggedIn\\":true}" ; exit 0 ; fi\nfor a in "$@" ; do printf "%%s\\n" "$a" ; done > "%s/claude.argv"\n' "$rigTmp" > "$rigTmp/bin/claude"
 chmod +x "$rigTmp/bin/claude"

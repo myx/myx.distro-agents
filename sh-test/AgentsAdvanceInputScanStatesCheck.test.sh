@@ -584,7 +584,7 @@ rigCheck "every writer of the session log appends: three appending, none truncat
 	END { printf "%d %d", appending, truncating }' "$rigSpawnInc" )" "3 0"
 rigNew b10 ; rigSp="$rigW/.local/agents/spawned"
 mkdir -p "$rigW/.local/.agents" "$rigTmp/b10/skills/rig-member" "$rigTmp/b10/home" "$rigW/source/rigrepo/rigpkg"
-printf 'SPAWN_CLI_SERVICE=rig-cli\n' > "$rigW/.local/.agents/magic-team.agent.env"
+printf 'SPAWN_TIER_NORMAL=rig-cli\n' > "$rigW/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=rig-cli\n' > "$rigW/.local/.agents/preset-rig-cli.agent.env"
 printf '# rigpkg\n' > "$rigW/source/rigrepo/rigpkg/MAGIC.md" ; : > "$rigW/source/rigrepo/rigpkg/file.sh" ; printf '# workspace\n' > "$rigW/MAGIC.md"
 printf '# rig armed\n' > "$rigTmp/b10/skills/rig-member/rig-member.armed.md"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigTmp/b10/skills/rig-member/rig-member.basic.md"

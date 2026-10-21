@@ -107,6 +107,12 @@ case "$1" in
 		return $?
 	;;
 
+	## The presets and the tiers (F10.1, F10.2): the list of the presets, a preset made, the tiers of the team and of every member.
+	--manager-preset-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerPreset.include"
+		return $?
+	;;
+
 	## The places of this machine: the workspaces and the directories the tooling knows by name: the local tools' own, which every console of the family offers.
 	--manager-place-*)
 		local managerConsolePlaceList="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/place-blocks.list"

@@ -1133,7 +1133,7 @@ rigPostsMade(){
 }
 
 rigReset
-{ cat "$rigTmp/agent.env.base" ; printf 'SPAWN_CLI_SERVICE=rig-cli\n' ; } > "$rigEnvFile"
+{ cat "$rigTmp/agent.env.base" ; printf 'SPAWN_TIER_NORMAL=rig-cli\n' ; } > "$rigEnvFile" ; printf 'PRESET_CLI_SERVICE=rig-cli\n' > "${rigEnvFile%/*}/preset-rig-cli.agent.env"
 rigSpawn rig-cli
 rigAssert "the spawn ran and launched"                    "$rigOpRc:$( LC_ALL=C grep -c '^LAUNCHED=true$' "$rigTmp/op.out" )" 0:1
 rigAssert "one start post, the first post, a root, with the CLI resolved before it: no placeholder" \
@@ -1152,7 +1152,7 @@ rigAssert "the launch agreed with it, so the only reply is the end post, in its 
 	"$( rigPostsMade | LC_ALL=C awk 'NR > 1 { printf "%s %s ", $2, $3 }' )" "1700000001.000101 🏁_run_end "
 
 rigReset
-{ cat "$rigTmp/agent.env.base" ; printf 'SPAWN_CLI_SERVICE=scaleway\nSPAWN_HARNESS_TIER=light\n' ; } > "$rigEnvFile"
+{ cat "$rigTmp/agent.env.base" ; printf 'SPAWN_TIER_NORMAL=scaleway\nSPAWN_HARNESS_TIER=light\n' ; } > "$rigEnvFile" ; printf 'PRESET_CLI_SERVICE=scaleway\n' > "${rigEnvFile%/*}/preset-scaleway.agent.env"
 rigSpawn rig-other
 rigAssert "a harness leg: the start post says so, with its tier" \
 	"$rigOpRc:$( rigYes env LC_ALL=C grep -q -F '\ncli: scaleway · runs: harness · tier: light · wait: true\n' "$rigTmp/scenario/post.1" )" 0:yes
@@ -1168,7 +1168,7 @@ rigJoinSession="154edb9e-3291-4654-a4bf-c15968a2c588"
 ## The thread records the spawns above left, each a session of its own: none is this session's.
 rigThreadsBefore="$( ls "$rigTmp/ws/.local/agents/sessions"/*/event-track.thread 2>/dev/null | LC_ALL=C awk 'END { print NR }' )"
 rigReset
-{ cat "$rigTmp/agent.env.base" ; printf 'SPAWN_CLI_SERVICE=rig-cli\n' ; } > "$rigEnvFile"
+{ cat "$rigTmp/agent.env.base" ; printf 'SPAWN_TIER_NORMAL=rig-cli\n' ; } > "$rigEnvFile" ; printf 'PRESET_CLI_SERVICE=rig-cli\n' > "${rigEnvFile%/*}/preset-rig-cli.agent.env"
 rigSpawn rig-cli "$rigJoinSession" "$rigJoinSession"
 rigAssert "spawned from the session's own spawn: the session it joined, short, no parent or tracking that only repeat it, and nothing of the session's own: no session box, no session thread" \
 	"$rigOpRc:$( rigYes env LC_ALL=C grep -q -F '"text":"▶️ run start · joined session `154edb9e`\ncli: rig-cli' "$rigTmp/scenario/post.1" ):$( LC_ALL=C grep -c -e 'parent: ' -e 'tracking: ' -e 'session start' -e 'session thread' -e '"name":"thread"' "$rigTmp/scenario/post.1" )" 0:yes:0
@@ -1189,11 +1189,11 @@ echo "-- one event-track thread per coworking session: every participant posts i
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigTmp/skills/magic-coordinator/magic-coordinator.basic.md"
 rigStore="$rigTmp/ws/.local/agents"
 rigReset
-{ cat "$rigTmp/agent.env.base" ; printf 'SPAWN_CLI_SERVICE=rig-cli\n' ; } > "$rigEnvFile"
+{ cat "$rigTmp/agent.env.base" ; printf 'SPAWN_TIER_NORMAL=rig-cli\n' ; } > "$rigEnvFile" ; printf 'PRESET_CLI_SERVICE=rig-cli\n' > "${rigEnvFile%/*}/preset-rig-cli.agent.env"
 rigSpawnMember=magic-coordinator rigSpawn rig-cli
 rigCow="$( LC_ALL=C sed -n 's/^SESSION_ID=//p' "$rigTmp/op.out" | head -1 )"
 [ -n "$rigCow" ] && [ -f "$rigStore/spawned/$rigCow/$rigCow.spawn.md" ] || rigRefuse "the rig did not start a coworking session: $( LC_ALL=C grep -m1 ERROR "$rigTmp/op.err" )"
-{ cat "$rigTmp/agent.env.base" ; printf 'SPAWN_CLI_SERVICE=scaleway\nSPAWN_HARNESS_TIER=light\n' ; } > "$rigEnvFile"
+{ cat "$rigTmp/agent.env.base" ; printf 'SPAWN_TIER_NORMAL=scaleway\nSPAWN_HARNESS_TIER=light\n' ; } > "$rigEnvFile" ; printf 'PRESET_CLI_SERVICE=scaleway\n' > "${rigEnvFile%/*}/preset-scaleway.agent.env"
 rigSpawnMember=magic-tester rigSpawn rig-other "$rigCow" "$rigCow"
 rigJoiner="$( ls "$rigStore/spawned/$rigCow"/*.spawn.md 2>/dev/null | LC_ALL=C sed -e 's:.*/::' -e 's:\.spawn\.md$::' | LC_ALL=C grep -v -x -F "$rigCow" | head -1 )"
 [ -n "$rigJoiner" ] || rigRefuse "the rig's second spawn did not join the session's sandbox: $( LC_ALL=C grep -m1 ERROR "$rigTmp/op.err" )"
@@ -1326,7 +1326,7 @@ rigAssert "a spawn still running on its own per-spawn record keeps posting to it
 ## A spawn that starts a session of its own, as a sub-spawn that does not join its parent's:
 ## its own thread, opened by its own start post.
 rigOwnBefore="$( rigPostNo )"
-{ cat "$rigTmp/agent.env.base" ; printf 'SPAWN_CLI_SERVICE=rig-cli\n' ; } > "$rigEnvFile"
+{ cat "$rigTmp/agent.env.base" ; printf 'SPAWN_TIER_NORMAL=rig-cli\n' ; } > "$rigEnvFile" ; printf 'PRESET_CLI_SERVICE=rig-cli\n' > "${rigEnvFile%/*}/preset-rig-cli.agent.env"
 rigSpawn rig-cli
 cp "$rigTmp/agent.env.base" "$rigEnvFile"
 rigOwn="$( LC_ALL=C sed -n 's/^SESSION_ID=//p' "$rigTmp/op.out" | head -1 )"
@@ -1373,7 +1373,7 @@ rigAssert "a description somebody gave is one line, redacted, cut as a message i
 	"$( AgentsToolsTaskTextLine "$( printf 'first line\nsecond line %0130d' 0 )" | LC_ALL=C awk '{ print substr( $0, 1, 22 ) ":" length( $0 ) }' )" "first line second line:123"
 ## Through the spawn proxy: a spawn made for a tracked task, with the spawner's description.
 rigReset
-{ cat "$rigTmp/agent.env.base" ; printf 'SPAWN_CLI_SERVICE=rig-cli\n' ; } > "$rigEnvFile"
+{ cat "$rigTmp/agent.env.base" ; printf 'SPAWN_TIER_NORMAL=rig-cli\n' ; } > "$rigEnvFile" ; printf 'PRESET_CLI_SERVICE=rig-cli\n' > "${rigEnvFile%/*}/preset-rig-cli.agent.env"
 rigSpawnArgs=( --from-board task-rig-start.md --dispatch-doc:create --description 'fix the loader for the vars file' )
 rigSpawn rig-cli
 rigTaskDispatch="$( LC_ALL=C sed -n 's/^DISPATCH_ITEM=//p' "$rigTmp/op.out" | head -1 )"

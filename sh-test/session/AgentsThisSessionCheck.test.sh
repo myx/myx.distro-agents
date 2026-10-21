@@ -356,7 +356,7 @@ echo "-- 8. a start with no routine gets the line in its brief --"
 rigScene brief
 rigBriefWs="$rigScn/ws"
 mkdir -p "$rigBriefWs/.local/.agents" "$rigScn/data" "$rigScn/home" "$rigBriefWs/source/rigrepo/rigpkg"
-printf 'SLACK_BOT_TOKEN=rig-SECRET-1\nSPAWN_CLI_SERVICE=rig-cli\n' > "$rigBriefWs/.local/.agents/magic-team.agent.env"
+printf 'SLACK_BOT_TOKEN=rig-SECRET-1\nSPAWN_TIER_NORMAL=rig-cli\n' > "$rigBriefWs/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=rig-cli\n' > "$rigBriefWs/.local/.agents/preset-rig-cli.agent.env"
 printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\ncat "$MDAT_SPAWN_SANDBOX_ROOT"/input/dispatch.md > "%s/dispatch-while-running"\n' "$rigScn" > "$rigBriefWs/DistroAgentsConsole.sh"
 chmod +x "$rigBriefWs/DistroAgentsConsole.sh"
 printf 'Work on rigrepo/rigpkg following no routine at all.\n' \

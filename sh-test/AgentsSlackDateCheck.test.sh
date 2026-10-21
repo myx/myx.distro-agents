@@ -269,7 +269,7 @@ rigAssert "a Wait's line shows a received token as its fallback, never the contr
 echo "-- a spawn's start and end posts say their times as tokens, offline --"
 ## ---------------------------------------------------------------------------
 mkdir -p "$rigTmp/bin" "$rigTmp/ws/.local/.agents" "$rigTmp/data" "$rigTmp/home" "$rigTmp/scenario"
-printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSLACK_BOT_TOKEN=rig-not-a-token\nSPAWN_CLI_SERVICE=rig-cli\n' > "$rigTmp/ws/.local/.agents/magic-team.agent.env"
+printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSLACK_BOT_TOKEN=rig-not-a-token\nSPAWN_TIER_NORMAL=rig-cli\n' > "$rigTmp/ws/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=rig-cli\n' > "$rigTmp/ws/.local/.agents/preset-rig-cli.agent.env"
 ## A Slack-shaped curl: logs each method, keeps each posted body, answers by method. Opens no socket.
 cat > "$rigTmp/bin/curl" <<'RIGEOF'
 #!/usr/bin/env bash

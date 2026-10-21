@@ -16,7 +16,7 @@
 
 ## The fields of a `scope` row of `--manager-scope-list` and `--manager-scope-read`, after its first, and those of a `key` row.
 SCOPE_FIELDS = ("id", "label", "keys", "clear", "delete", "file")
-SCOPE_KEY_FIELDS = ("name", "state", "value", "type", "description")
+SCOPE_KEY_FIELDS = ("name", "state", "value", "type", "description", "kind", "takes")
 ## The read that gives one value whole, for the form that edits it, and what the forms say meanwhile and where they cannot.
 SCOPE_VALUE_READ = "full:scope-value"
 SCOPE_SAYS = {
@@ -83,8 +83,9 @@ def parseScopeKeyLevels(readKey, level, text):
         fields = printed.split("\t")
         if fields[0] == "scope" and len(fields) > len(SCOPE_FIELDS):
             scope = dict(zip(SCOPE_FIELDS, fields[1:]))
-        elif fields[0] == "key" and len(fields) > len(SCOPE_KEY_FIELDS) and scope is not None:
-            held = dict(zip(SCOPE_KEY_FIELDS, fields[1:]), scope=scope["id"], scopeLabel=unspaced(scope["label"]))
+        elif fields[0] == "key" and len(fields) > 5 and scope is not None:
+            ## a key row of before the kinds has no kind and no list: its variable is a text
+            held = dict(dict(zip(SCOPE_KEY_FIELDS, ("", "", "", "", "", "-", "-"))), **dict(zip(SCOPE_KEY_FIELDS, fields[1:])), scope=scope["id"], scopeLabel=unspaced(scope["label"]))
             row = newRow(held["name"], held["name"], "scope-key", False, fields)
             row["scopeKey"] = held
             if held["state"] == "missing":
@@ -160,9 +161,23 @@ def askScopeEdit(state, row):
 
 ## The form of one key of a scope, `held` as the scope's row gives it (a key of Member Settings has it made by askScopeLine): the form of its kind where the digest
 ## declares what the key takes (askScopeDeclared); else its text form, or the form of a credential.
+def scopeKindDeclared(held):
+    kind, takes = held.get("kind", "-"), absent(held.get("takes", "-"))
+    if kind == "choice" and takes:
+        choices = [(part.partition("=")[0], unspaced(part.partition("=")[2]) or part.partition("=")[0]) for part in takes.split(",") if part]
+        return {"kind": "choice", "choices": choices, "range": None} if choices else None
+    if kind == "number" and ".." in takes:
+        low, dots, high = takes.partition("..")
+        return {"kind": "number", "choices": [], "range": (low, high)} if low.isdigit() and high.isdigit() else None
+    return None
+
+
 def askScopeKey(state, held):
     secret = held["state"] == "secret-set"
-    declared = None if secret else declaredLine(state, held["name"])
+    ## What the operation says the key takes (F10.1, F10.2: a preset's parameters and the tiers): locked, with why; a choice from its list; a whole number in its range.
+    if held.get("kind") == "locked":
+        return "%s cannot be edited: %s" % (held["name"], unspaced(absent(held.get("takes", "-"))))
+    declared = None if secret else (scopeKindDeclared(held) or declaredLine(state, held["name"]))
     if declared is not None:
         return askScopeDeclared(state, held["name"], "" if held["state"] == "missing" else held["value"], held["scope"], held["scopeLabel"], declared)
     state.answer = None
@@ -315,7 +330,7 @@ DIALOG_HANDLERS["scope-delete"] = submitScopeWhole
 def scopeAnswer(text, about, width):
     for printed in text.splitlines():
         fields = printed.split("\t")
-        if fields[0] in ("saved", "removed", "cleared", "deleted") and len(fields) >= 2:
+        if fields[0] in ("saved", "removed", "cleared", "deleted", "created") and len(fields) >= 2:
             return "the change", fieldLines([(fields[0], " ".join(fields[1:]))], width), about.get("says", fields[0])
     return "the change", [line for line in text.splitlines() if line.strip()], "the operation printed no row of what it did"
 

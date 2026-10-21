@@ -931,7 +931,7 @@ rigProcSignal TERM "$rigStandChild" "$rigStandPid"
 rigTemplate="$rigLib/manager/AgentsConsoleShellScript.template.sh"
 [ -f "$rigTemplate" ] || rigRefuse "console template not found: $rigTemplate"
 printf 'MDLT_CONSOLE_ORIGIN=%s\n' "$MDLT_ORIGIN" > "$rigWs/.local/MDLT.settings.env"
-printf 'SPAWN_CLI_SERVICE=claude-native\n' >> "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'SPAWN_TIER_NORMAL=claude-native\n' >> "$rigWs/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=claude-native\n' > "$rigWs/.local/.agents/preset-claude-native.agent.env"
 printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli) -- the real console template, on the rig stub claude\nexec bash "$RIG_TEMPLATE" "$@"\n' > "$rigWs/DistroAgentsConsole.sh"
 printf '%s\n' '#!/bin/sh' \
 	'case "$1" in --version) echo "9.9.9 (rig claude)" ; exit 0 ;; auth) echo "{\"loggedIn\":true}" ; exit 0 ;; esac' \

@@ -170,7 +170,8 @@ export PATH
 ## no post of this rig reaches on a loaded machine, and two where a scenario is about the bound: a post that is
 ## ended at its bound is tried again, and what that does is held by those scenarios, not left to the load.
 rigBound(){ ## seconds
-	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSESSION_CONTROL_TICK_SECONDS=1\nSESSION_CONTROL_CLOSING_SECONDS=4\nSESSION_CONTROL_POST_SECONDS=%s\nSESSION_CONTROL_ANSWER_READ_SECONDS=3\nSPAWN_CLI_SERVICE=rig-cli\n' "$1" > "$rigWs/.local/.agents/magic-team.agent.env.rig" \
+	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSESSION_CONTROL_TICK_SECONDS=1\nSESSION_CONTROL_CLOSING_SECONDS=4\nSESSION_CONTROL_POST_SECONDS=%s\nSESSION_CONTROL_ANSWER_READ_SECONDS=3\nSPAWN_TIER_NORMAL=rig-cli\n' "$1" > "$rigWs/.local/.agents/magic-team.agent.env.rig" \
+		&& printf 'PRESET_CLI_SERVICE=rig-cli\n' > "$rigWs/.local/.agents/preset-rig-cli.agent.env" \
 		&& mv -f "$rigWs/.local/.agents/magic-team.agent.env.rig" "$rigWs/.local/.agents/magic-team.agent.env"
 }
 rigBound 30

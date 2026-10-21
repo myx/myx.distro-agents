@@ -37,7 +37,7 @@ rigYes(){ "$@" && printf yes || printf no ; }
 rigWs="$rigTmp/ws"
 rigSecret="rig-SECRET-7f3a9c"
 mkdir -p "$rigWs/.local/.agents" "$rigTmp/data" "$rigTmp/home" "$rigWs/source/rigrepo/rigpkg" "$rigTmp/skills/rig-member"
-printf 'SLACK_BOT_TOKEN=%s\nSPAWN_CLI_SERVICE=rig-cli\n' "$rigSecret" > "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'SLACK_BOT_TOKEN=%s\nSPAWN_TIER_NORMAL=rig-cli\n' "$rigSecret" > "$rigWs/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=rig-cli\n' > "$rigWs/.local/.agents/preset-rig-cli.agent.env"
 printf '# rigpkg\n' > "$rigWs/source/rigrepo/rigpkg/MAGIC.md"
 : > "$rigWs/source/rigrepo/rigpkg/file.sh"
 printf '# workspace\n' > "$rigWs/MAGIC.md"

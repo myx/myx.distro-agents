@@ -29,8 +29,8 @@ AgentsToolsManagerWizardField(){ ## text
 }
 
 ## THE CLI SERVICE'S WIZARD. A preset (F10.1) carries a CLI service, a model or a macro, an effort and the credentials of its
-## service; the team's three tiers (F10.2) each name a preset, `<preset>[:<effort>]`; and SPAWN_CLI_SERVICE of the team is the
-## service a workspace with no tier set asks for. The writer of each is the dispatcher's --agents-config-option, whose write check
+## service; and the team's three tiers (F10.2) each name a preset, `<preset>[:<effort>]`. There is no team CLI service beside them:
+## a spawn with no tier is refused. The writer of each is the dispatcher's --agents-config-option, whose write check
 ## is asked (AgentsToolsPresetWriteCheck): this file knows the order the checks need, and no rule of a value.
 
 ## The presets of this workspace, one name a line.
@@ -79,7 +79,7 @@ AgentsToolsManagerWizardCredentials(){
 ## The key a line of the cli-service wizard names: which scope it is written in, and where in the order the checks need it. rc 1 for
 ## a key the wizard does not write.
 ## Into wizardScope (`preset` or `team`) and wizardRank: the service first, then the model, the effort, the credentials, the tiers, and
-## the team's service last.
+## the tiers last.
 AgentsToolsManagerWizardKey(){ ## key
 	wizardScope="" ; wizardRank=0
 	case "$1" in
@@ -89,7 +89,6 @@ AgentsToolsManagerWizardKey(){ ## key
 		SPAWN_TIER_LOW) wizardScope=team ; wizardRank=5 ;;
 		SPAWN_TIER_NORMAL) wizardScope=team ; wizardRank=6 ;;
 		SPAWN_TIER_HIGH) wizardScope=team ; wizardRank=7 ;;
-		SPAWN_CLI_SERVICE) wizardScope=team ; wizardRank=8 ;;
 		*[!ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_]*|'') return 1 ;;
 		*)
 			## a credential of some CLI service: the check of the preset's block decides whether this preset's service reads it
@@ -163,7 +162,7 @@ case "$1" in
 						AgentsToolsManagerWizardRow preset "preset-$readPreset" "$readKey" yes | LC_ALL=C awk -F'\t' -v presetName="$readPreset" '$3 != "missing" { print $1 "\t" presetName "\t" $2 "\t" $3 "\t" $4 }'
 					done | LC_ALL=C sort -u
 				done <<< "$( AgentsToolsManagerWizardPresets )"
-				for readKey in SPAWN_TIER_LOW SPAWN_TIER_NORMAL SPAWN_TIER_HIGH SPAWN_CLI_SERVICE ; do
+				for readKey in SPAWN_TIER_LOW SPAWN_TIER_NORMAL SPAWN_TIER_HIGH ; do
 					AgentsToolsManagerWizardRow team magic-team "$readKey"
 				done
 				return 0
@@ -193,7 +192,7 @@ case "$1" in
 
 	## The answers of a wizard, applied. Its form is the help entry's.
 	--manager-wizard-apply)
-		local applyOp="$1" applyName="${2:-}" applyPreset="" applyField applyValue applyList="" applyRank applyScope applyRc=0 wizardScope wizardRank applyTiers
+		local applyOp="$1" applyName="${2:-}" applyPreset="" applyField applyValue applyList="" applyRank applyScope applyRc=0 wizardScope wizardRank
 		if [ $# -ge 2 ] ; then shift 2 ; else shift ; fi
 		case "$applyName" in
 			cli-service)
@@ -222,14 +221,6 @@ case "$1" in
 					[ -n "$applyField" ] || continue
 					AgentsToolsManagerWizardKey "$applyField"
 					if [ "$wizardScope" = "preset" ] ; then applyScope="preset-$applyPreset" ; else applyScope="magic-team" ; fi
-					## the team's CLI service is asked for only where no tier is set
-					if [ "$applyField" = "SPAWN_CLI_SERVICE" ] && [ -n "$applyValue" ] ; then
-						applyTiers="$( AgentsToolsManagerWizardValue magic-team SPAWN_TIER_LOW )$( AgentsToolsManagerWizardValue magic-team SPAWN_TIER_NORMAL )$( AgentsToolsManagerWizardValue magic-team SPAWN_TIER_HIGH )"
-						if [ -n "$applyTiers" ] ; then
-							echo "⛔ ERROR: $MDSC_CMD $applyOp: SPAWN_CLI_SERVICE is the team's service where no tier is set, and a tier is -- it was not written" >&2
-							set +e ; return 1
-						fi
-					fi
 					AgentsToolsManagerWizardWrite "$applyScope" "$applyField" "$applyValue" || { applyRc=1 ; break ; }
 				done <<< "$( printf '%s' "$applyList" | LC_ALL=C sort -n -s -t "$( printf '\t' )" -k1,1 )"
 				[ "$applyRc" = 0 ] || { set +e ; return 1 ; }

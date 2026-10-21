@@ -102,7 +102,7 @@
 		`--cli scaleway` without `--non-interactive` is refused with a
 		stated reason -- unlike `grok-native`, which is the opposite case (a real
 		interactive binary, not yet proven non-interactive). Setting
-		SPAWN_CLI_SERVICE to `scaleway` here configures the domain and, via
+		SPAWN_TIER_NORMAL to the preset `scaleway` here configures the domain and, via
 		DAGC_NONINTERACTIVE_CLIS, is enough for a spawn proxy to use it. See
 		MAGIC.md.
 

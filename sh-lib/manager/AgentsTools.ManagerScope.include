@@ -28,6 +28,8 @@
 ## reveal it: the mask is no security boundary, since a shell read shows the value.
 ##
 
+type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+type AgentsToolsPresetCredentialKeys > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
 type AgentsToolsCredentialShown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.CredentialDisplay.include"
 type AgentsToolsManagerConfigKeySecret > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConfig.include" --definitions-only > /dev/null 2>&1 || :
 
@@ -79,6 +81,16 @@ AgentsToolsManagerScopeFind(){ ## operation, id
 		scopeId="$findId"
 		return 0
 	done <<< "$( AgentsToolsManagerScopeSources )"
+	## A member of the team that holds no file of settings yet is a scope all the same, for its tiers (F10.2): it is not listed, and the first key written makes its file.
+	case "$2" in
+		agents:*)
+			findId="${2#agents:}"
+			if [ "$findId" != "magic-team" ] && AgentsToolsManagerScopeNameOk "$findId" && AgentsToolsTeamMemberDirectory "$findId" > /dev/null 2>&1 ; then
+				scopeId="$2" ; scopeSubsystem="Agents" ; scopeName="$findId" ; scopeFile="${MMDAPP%/}/.local/.agents/$findId.agent.env" ; scopeDeletable="no"
+				return 0
+			fi
+		;;
+	esac
 	echo "⛔ ERROR: $MDSC_CMD $1: the id given is none of the scopes of this workspace -- nothing was done. The scopes are those $MDSC_CMD --manager-scope-list prints" >&2
 	return 1
 }
@@ -124,6 +136,67 @@ AgentsToolsManagerScopeShown(){ ## key, value
 	printf '%s' "${shownText:--}"
 }
 
+## THE KEYS OF A SCOPE OF THE AGENTS THAT THE CONSOLE KNOWS (F10.1, F10.2, F11.7): what a preset takes and what a tier takes, with the kind of each and what it takes, so that a variable
+## is edited by its kind -- a choice from its list, a whole number in its range, a text -- and a parameter the scope does not hold yet is offered, as a variable that holds nothing. One line a
+## key, TAB-separated: the key, its kind (`choice`, `number`, `text`, or `locked`, which the scope may not set and says why in the next field), what it takes (`<value>=<label>,...` for a
+## choice, `<smallest>..<largest>` for a number, `-` for a text, the reason for a locked one) and its description. The lists are the preset include's own (AgentsTools.Preset.include): the
+## CLI services, the efforts, the lifetimes of the input cache, the credentials of the service. A scope of a preset takes the parameters of a preset, the team's and a member's the three
+## tiers, each `<preset>[:<effort>]`, chosen from the presets this workspace holds. No value holds a blank, a `,`, a `=` or a `|`.
+AgentsToolsManagerScopeKnown(){ ## the name of the scope of the agents
+	local knownName="$1" knownFile knownOne knownList="" knownEfforts="" knownService="" knownKey knownEffort knownPreset
+	case "$knownName" in
+		preset-*)
+			for knownFile in "${MMDAPP%/}/.local/.agents"/preset-*.agent.env ; do
+				[ -f "$knownFile" ] || continue
+				knownOne="${knownFile##*/preset-}" ; knownOne="${knownOne%.agent.env}"
+				[ "preset-$knownOne" = "$knownName" ] || knownList="$knownList${knownList:+,}$knownOne=$knownOne"
+			done
+			if [ -n "$knownList" ] ; then
+				printf 'PRESET_EXTEND\tchoice\t%s\tThe_preset_whose_parameters_this_one_inherits.\n' "$knownList"
+			else
+				printf 'PRESET_EXTEND\tlocked\tthere_is_no_other_preset_to_extend\tThe_preset_whose_parameters_this_one_inherits.\n'
+			fi
+			knownList=""
+			for knownOne in $agentsPresetCliServices ; do knownList="$knownList${knownList:+,}$knownOne=$knownOne" ; done
+			if [ -n "$( AgentsToolsPresetRead "$MMDAPP" "$knownName" PRESET_EXTEND )" ] ; then
+				printf 'PRESET_CLI_SERVICE\tlocked\tit_extends_a_preset:_the_CLI_service_is_the_parents,_and_cannot_be_edited\tThe_CLI_service_of_the_preset.\n'
+			else
+				printf 'PRESET_CLI_SERVICE\tchoice\t%s\tThe_CLI_service_of_a_preset_that_extends_none.\n' "$knownList"
+			fi
+			printf 'PRESET_MODEL_OR_MACRO\ttext\t-\tThe_model,_or_a_macro:_%s.\n' "$( printf '%s' "$agentsPresetMacros" | LC_ALL=C tr ' ' ',' )"
+			knownList=""
+			for knownOne in $agentsPresetEfforts ; do knownList="$knownList${knownList:+,}$knownOne=$knownOne" ; done
+			printf 'PRESET_EFFORT\tchoice\t%s\tThe_effort,_optional.\n' "$knownList"
+			knownList=""
+			for knownOne in $agentsPresetCacheTimes ; do knownList="$knownList${knownList:+,}$knownOne=$knownOne" ; done
+			printf 'PRESET_INPUT_CACHE_TIME\tchoice\t%s\tHow_long_the_input_cache_of_a_spawn_lives.\n' "$knownList"
+			printf 'PRESET_CONTEXT_MAX_SIZE\tnumber\t1000..10000000\tThe_largest_context,_in_tokens.\n'
+			printf 'PRESET_EXTRA_SPAWN_LINE\ttext\t-\tA_line_the_owner_adds_to_every_dispatch_of_this_preset.\n'
+			if [ -z "$( AgentsToolsPresetRead "$MMDAPP" "$knownName" PRESET_EXTEND )" ] ; then
+				knownService="$( AgentsToolsPresetRead "$MMDAPP" "$knownName" PRESET_CLI_SERVICE )"
+				for knownKey in $( AgentsToolsPresetCredentialKeys "$knownService" ) ; do
+					printf '%s\ttext\t-\tA_credential_of_%s.\n' "$knownKey" "$knownService"
+				done
+			fi
+		;;
+		*)
+			## the tiers: of the team, and optionally of a member; the scope of anything else holds none
+			case "$knownName" in magic-team) ;; *) AgentsToolsTeamMemberDirectory "$knownName" > /dev/null 2>&1 || return 0 ;; esac
+			for knownFile in "${MMDAPP%/}/.local/.agents"/preset-*.agent.env ; do
+				[ -f "$knownFile" ] || continue
+				knownPreset="${knownFile##*/preset-}" ; knownPreset="${knownPreset%.agent.env}"
+				knownList="$knownList${knownList:+,}$knownPreset=$knownPreset"
+				for knownEffort in $agentsPresetEfforts ; do knownList="$knownList,$knownPreset:$knownEffort=$knownPreset:$knownEffort" ; done
+			done
+			[ -n "$knownList" ] || return 0
+			printf 'SPAWN_TIER_LOW\tchoice\t%s\tThe_preset_(and_its_effort)_of_the_low_tier.\n' "$knownList"
+			printf 'SPAWN_TIER_NORMAL\tchoice\t%s\tThe_preset_(and_its_effort)_of_the_normal_tier.\n' "$knownList"
+			printf 'SPAWN_TIER_HIGH\tchoice\t%s\tThe_preset_(and_its_effort)_of_the_high_tier.\n' "$knownList"
+		;;
+	esac
+	return 0
+}
+
 ## The `key` row of one key of the scope found: its name, its state (`set`, `secret-set` for a credential, `missing` where its line
 ## holds nothing after the `=`), its value as it is printed, its type (`credential` or `setting`, as the plugin's own enumeration says,
 ## AgentsToolsManagerConfigKeySecret) and its description, which is the catalogue of the owner setup's text for a key it describes
@@ -142,7 +215,26 @@ AgentsToolsManagerScopeKeyRow(){ ## key
 	else
 		rowState="set" ; rowValue="$( AgentsToolsManagerScopeShown "$1" "$rowValue" )"
 	fi
-	printf 'key\t%s\t%s\t%s\t%s\t%s\n' "$1" "$rowState" "$rowValue" "$rowType" "${rowHow:--}"
+	## what the console knows the key takes (AgentsToolsManagerScopeKnown): its kind and what it takes
+	local rowKind="-" rowTakes="-" rowKnown="" rowKnownKey rowKnownDescription
+	if [ -n "${scopeKnown:-}" ] ; then
+		rowKnown="$( printf '%s\n' "$scopeKnown" | LC_ALL=C awk -F'\t' -v key="$1" '$1 == key { print ; exit }' )"
+		IFS=$'\t' read -r rowKnownKey rowKind rowTakes rowKnownDescription <<< "$rowKnown"
+		[ "$rowHow" != "-" ] && [ -n "$rowHow" ] || rowHow="${rowKnownDescription:--}"
+		rowKind="${rowKind:--}" ; rowTakes="${rowTakes:--}"
+	fi
+	printf 'key\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$rowState" "$rowValue" "$rowType" "${rowHow:--}" "$rowKind" "$rowTakes"
+}
+
+## The `key` rows of the keys the console knows of a scope of the agents that its file does not hold: a variable that holds nothing, to be set from here.
+AgentsToolsManagerScopeMissingRows(){ ## the keys the file holds, one a line
+	local missingLine missingKey missingKind missingTakes missingDescription missingType
+	while IFS=$'\t' read -r missingKey missingKind missingTakes missingDescription ; do
+		[ -n "$missingKey" ] || continue
+		printf '%s\n' "$1" | LC_ALL=C grep -q -x -F -- "$missingKey" && continue
+		missingType="setting" ; ! AgentsToolsManagerConfigKeySecret "$missingKey" || missingType="credential"
+		printf 'key\t%s\tmissing\t-\t%s\t%s\t%s\t%s\n' "$missingKey" "$missingType" "${missingDescription:--}" "$missingKind" "${missingTakes:--}"
+	done <<< "$scopeKnown"
 }
 
 ## The `scope` row of the scope found: its id, its label as the console shows a folder (`Agents: client-ndm`), how many keys it
@@ -179,14 +271,16 @@ case "$1" in
 
 	## One scope: its own `scope` row, then a `key` row for every key it holds. A credential shows in its one form.
 	--manager-scope-read)
-		local scopeId scopeSubsystem scopeName scopeFile scopeDeletable readKey
+		local scopeId scopeSubsystem scopeName scopeFile scopeDeletable readKey scopeKnown=""
 		[ $# -eq 2 ] || { echo "⛔ ERROR: $MDSC_CMD $1: syntax is $1 <scope-id>, got $(( $# - 1 )) argument(s)" >&2 ; set +e ; return 1 ; }
 		AgentsToolsManagerScopeFind "$1" "$2" || { set +e ; return 1 ; }
 		AgentsToolsManagerScopeRow
+		scopeKnown="" ; case "$scopeId" in agents:*) scopeKnown="$( AgentsToolsManagerScopeKnown "$scopeName" )" ;; esac
 		while IFS= read -r readKey ; do
 			[ -n "$readKey" ] || continue
 			AgentsToolsManagerScopeKeyRow "$readKey"
 		done <<< "$( AgentsToolsManagerScopeKeyNames "$scopeFile" )"
+		[ -z "$scopeKnown" ] || AgentsToolsManagerScopeMissingRows "$( AgentsToolsManagerScopeKeyNames "$scopeFile" )"
 		return 0
 	;;
 
@@ -266,13 +360,23 @@ case "$1" in
 	## Deletes one scope, its file, where the subsystem has many: a scope of the remote tools or of the agents. The two common scopes
 	## stay. Its row `deleted` says which.
 	--manager-scope-delete)
-		local scopeId scopeSubsystem scopeName scopeFile scopeDeletable
+		local scopeId scopeSubsystem scopeName scopeFile scopeDeletable deleteUsers
 		[ $# -eq 2 ] || { echo "⛔ ERROR: $MDSC_CMD $1: syntax is $1 <scope-id>, got $(( $# - 1 )) argument(s) -- nothing was deleted" >&2 ; set +e ; return 1 ; }
 		AgentsToolsManagerScopeFind "$1" "$2" || { set +e ; return 1 ; }
 		if [ "$scopeDeletable" != "yes" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD $1: this scope is the workspace's or the user's own, one of each, and is cleared, never deleted -- nothing was deleted" >&2
 			set +e ; return 1
 		fi
+		## A preset that another preset extends, or that a tier of the team or of a member names, is in use: it is not deleted from under them.
+		case "$scopeName" in
+			preset-*)
+				deleteUsers="$( AgentsToolsPresetUsers "${scopeName#preset-}" )"
+				if [ -n "$deleteUsers" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD $1: the preset is in use by ${deleteUsers} -- nothing was deleted" >&2
+					set +e ; return 1
+				fi
+			;;
+		esac
 		rm -f -- "$scopeFile" || { echo "⛔ ERROR: $MDSC_CMD $1: the file of $2 could not be removed -- nothing was deleted" >&2 ; set +e ; return 1 ; }
 		if [ -e "$scopeFile" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD $1: the file of $2 is still there after the removal" >&2

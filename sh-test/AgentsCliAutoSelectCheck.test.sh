@@ -51,8 +51,8 @@ rigRun(){ ## arguments of the tool -- its output, then `rc=<status>`; the scene'
 	( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT HOME="$rigHome" PATH="$rigBin:/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		bash "$rigTool" "$@" 2>&1 | grep -v -e '^SystemContext' -e '^AgentsContext' -e ': Working in:' ; printf 'rc=%s\n' "${PIPESTATUS[0]}" )
 }
-rigStored(){ ## the value of SPAWN_CLI_SERVICE the scene's workspace holds, or nothing
-	LC_ALL=C sed -n 's/^SPAWN_CLI_SERVICE=//p' "$rigWs"/.local/.agents/*.env 2> /dev/null | head -1
+rigStored(){ ## the preset SPAWN_TIER_NORMAL of the scene's workspace names, or nothing
+	LC_ALL=C sed -n 's/^SPAWN_TIER_NORMAL=//p' "$rigWs"/.local/.agents/*.env 2> /dev/null | head -1
 }
 
 rigPassCount=0
@@ -72,7 +72,7 @@ echo "-- 1. the first of claude-native and copilot-native that works is the pick
 rigScene in ok ; rigOut="$( rigRun --owner-setup-cli-auto --check )"
 rigAssert "both work: claude-native is the pick, the check ends well"       "$( rigHolds "$rigOut" 'SPAWN_CLI_AUTO: OK' ):$( rigHolds "$rigOut" 'pick: claude-native,' ):$( rigHolds "$rigOut" 'rc=0' )" yes:yes:yes
 rigAssert "and each is reported, with what was found"                       "$( rigHolds "$rigOut" 'CLAUDE_NATIVE_WORKS: OK' ):$( rigHolds "$rigOut" 'claude is installed and signed in' ):$( rigHolds "$rigOut" 'COPILOT_NATIVE_WORKS: OK' ):$( rigHolds "$rigOut" 'copilot is installed and answers --version' )" yes:yes:yes:yes
-rigAssert "it says what SPAWN_CLI_SERVICE is now, and the command that applies the pick"  "$( rigHolds "$rigOut" 'now:  SPAWN_CLI_SERVICE is not set' ):$( rigHolds "$rigOut" '--owner-setup-cli-auto --apply' )" yes:yes
+rigAssert "it says what the spawns start now, and the command that applies the pick"  "$( rigHolds "$rigOut" 'now:  the spawns start nothing' ):$( rigHolds "$rigOut" '--owner-setup-cli-auto --apply' )" yes:yes
 rigAssert "a bare call is the same diagnosis"                               "$( rigRun --owner-setup-cli-auto | LC_ALL=C grep -c -e 'SPAWN_CLI_AUTO: OK' -e 'pick: claude-native,' )" 2
 rigAssert "a check stores nothing"                                           "$( rigStored ):$( ls "$rigWs/.local/.agents" | wc -l | tr -d ' ' )" ":0"
 rigScene out ok ; rigOut="$( rigRun --owner-setup-cli-auto --check )"
@@ -94,30 +94,30 @@ rigAssert "--apply then changes nothing, says why on standard error and ends non
 
 echo "-- 3. --apply is the setup of the pick, over a selection already made --"
 rigScene in ok
-printf 'SPAWN_CLI_SERVICE=scaleway\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'SPAWN_TIER_NORMAL=scaleway\n' > "$rigWs/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=scaleway\n' > "$rigWs/.local/.agents/preset-scaleway.agent.env"
 rigOut="$( rigRun --owner-setup-cli-auto --check )"
-rigAssert "the check names the selection it would replace"                  "$( rigHolds "$rigOut" 'now:  SPAWN_CLI_SERVICE is scaleway' )" yes
+rigAssert "the check names the selection it would replace"                  "$( rigHolds "$rigOut" 'now:  the spawns start scaleway' )" yes
 rigOut="$( rigRun --owner-setup-cli-auto --apply )"
-rigAssert "claude-native works: its own setup is carried out, with --set-as-default, and says it was"  "$( rigHolds "$rigOut" 'carrying out --owner-setup-claude-native --set-as-default --apply' ):$( rigHolds "$rigOut" 'SPAWN_CLI_SERVICE is scaleway now' )" yes:yes
-rigAssert "SPAWN_CLI_SERVICE is claude-native in the scene's workspace, the scaleway selection repointed"  "$( rigStored )" claude-native
+rigAssert "claude-native works: its own setup is carried out, with --set-as-default, and says it was"  "$( rigHolds "$rigOut" 'carrying out --owner-setup-claude-native --set-as-default --apply' ):$( rigHolds "$rigOut" 'the spawns start scaleway now' )" yes:yes
+rigAssert "SPAWN_TIER_NORMAL is claude-native in the scene's workspace, the scaleway selection repointed"  "$( rigStored )" claude-native
+rigAssert "the preset named as the CLI is made, with the CLI as its service, and the scaleway preset stands"  "$( LC_ALL=C grep -c '^PRESET_CLI_SERVICE=claude-native$' "$rigWs/.local/.agents/preset-claude-native.agent.env" ) $( LC_ALL=C grep -c '^PRESET_CLI_SERVICE=scaleway$' "$rigWs/.local/.agents/preset-scaleway.agent.env" )" "1 1"
+rigAssert "and nothing is written under the old name"                       "$( LC_ALL=C grep -c '^SPAWN_CLI_SERVICE=' "$rigWs/.local/.agents/magic-team.agent.env" )" 0
 rigScene absent ok
 rigOut="$( rigRun --owner-setup-cli-auto --apply )"
 rigAssert "only copilot works: the setup of copilot-native is carried out, and it is stored"  "$( rigHolds "$rigOut" 'carrying out --owner-setup-copilot-native --set-as-default --apply' ):$( rigStored )" yes:copilot-native
 
-echo "-- 3b. written is not in effect: a tier preset stands ahead --"
+echo "-- 3b. a tier preset of the team is replaced, the preset itself is not touched --"
 rigScene in ok
-printf 'SPAWN_CLI_SERVICE=scaleway\nSPAWN_TIER_NORMAL=default\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'SPAWN_TIER_NORMAL=default\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 printf 'PRESET_CLI_SERVICE=grok\nXAI_API_KEY=xai-rigkey\n' > "$rigWs/.local/.agents/preset-default.agent.env"
 rigOut="$( rigRun --owner-setup-cli-auto --check )"
-rigAssert "the check shows what a spawn resolves, and says the team scope holds another and a tier preset stands ahead"  "$( rigHolds "$rigOut" 'now:  SPAWN_CLI_SERVICE is grok' ):$( rigHolds "$rigOut" 'the team scope itself holds scaleway; a tier preset' )" yes:yes
+rigAssert "the check shows what a spawn resolves"                           "$( rigHolds "$rigOut" 'now:  the spawns start grok' )" yes
 rigOut="$( rigRun --owner-setup-cli-auto --apply )"
-rigAssert "--apply stores the pick, and says it is not in effect: rc 1, the preset named as the reason, untouched"  "$( rigStored ):$( rigHolds "$rigOut" 'a spawn still resolves grok' ):$( rigHolds "$rigOut" 'rc=1' ):$( LC_ALL=C grep -c '^PRESET_CLI_SERVICE=grok$' "$rigWs/.local/.agents/preset-default.agent.env" )" "claude-native:yes:yes:1"
+rigAssert "--apply points the tier at the pick: what a spawn resolves is the pick, and the preset it left is untouched"  "$( rigStored ):$( rigHolds "$rigOut" 'still resolves' ):$( LC_ALL=C grep -c '^PRESET_CLI_SERVICE=grok$' "$rigWs/.local/.agents/preset-default.agent.env" )" "claude-native:no:1"
 rigScene in ok
-printf 'SPAWN_CLI_SERVICE=scaleway\n' > "$rigWs/.local/.agents/magic-team.agent.env"
-rigOut="$( rigRun --owner-setup-cli-auto --check )"
-rigAssert "no preset: no such note, the two agree"  "$( rigHolds "$rigOut" 'a tier preset' )" no
+printf 'SPAWN_TIER_NORMAL=scaleway\n' > "$rigWs/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=scaleway\n' > "$rigWs/.local/.agents/preset-scaleway.agent.env"
 rigOut="$( rigRun --owner-setup-cli-auto --apply )"
-rigAssert "and --apply says nothing of a preset: what it stored is what a spawn resolves"  "$( rigHolds "$rigOut" 'still resolves' ):$( rigStored )" no:claude-native
+rigAssert "and --apply says nothing of a preset standing ahead: what it stored is what a spawn resolves"  "$( rigHolds "$rigOut" 'still resolves' ):$( rigStored )" no:claude-native
 
 echo "-- 4. nothing else is taken --"
 rigScene in ok

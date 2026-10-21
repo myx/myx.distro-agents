@@ -92,7 +92,7 @@ rigScenario(){ ## name, SPAWN_CLI_SERVICE or empty, stored key or empty, stub na
 	cp "$rigGen/ws/DistroAgentsConsole.sh" "$rigDir/ws/DistroAgentsConsole.sh"
 	printf 'MDLT_CONSOLE_ORIGIN=%s\n' "$rigOrigin" > "$rigDir/ws/.local/MDLT.settings.env"
 	: > "$rigDir/ws/.local/.agents/magic-team.agent.env"
-	[ -z "$rigService" ] || printf 'SPAWN_CLI_SERVICE=%s\n' "$rigService" >> "$rigDir/ws/.local/.agents/magic-team.agent.env"
+	[ -z "$rigService" ] || printf 'SPAWN_TIER_NORMAL=%s\n' "$rigService" >> "$rigDir/ws/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=%s\n' "$rigService" > "$rigDir/ws/.local/.agents/preset-$rigService.agent.env"
 	[ -z "$rigKeyStored" ] || printf 'ANTHROPIC_API_KEY=%s\n' "$rigKeyStored" >> "$rigDir/ws/.local/.agents/magic-team.agent.env"
 	: > "$rigDir/cli.log" ; : > "$rigDir/root.log" ; : > "$rigDir/manager.log"
 	for rigStub in "$@" ; do

@@ -124,7 +124,7 @@ printf 'id: retest-20261001T100000Z-cccc\nasked: 2026-10-01T10:00:00Z\n' > "$rig
 rigSecret="xoxb-rig-SECRET-0123456789"
 printf 'SLACK_BOT_TOKEN=%s\n' "$rigSecret" > "$rigWs/.local/.agents/keeper-rig.agent.env"
 ## a full team rig: the mode its installer sets, and a git remote for its team data
-printf 'MDAT_WORKSPACE_MODE=team-rig\nTEAM_DATA_GIT_REMOTE=git@rig.invalid:team-data.git\nSPAWN_CLI_SERVICE=claude-native\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'MDAT_WORKSPACE_MODE=team-rig\nTEAM_DATA_GIT_REMOTE=git@rig.invalid:team-data.git\nSPAWN_TIER_NORMAL=claude-native\n' > "$rigWs/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=claude-native\n' > "$rigWs/.local/.agents/preset-claude-native.agent.env"
 chmod 770 "$rigWs/.local/.agents" ; chmod 660 "$rigWs/.local/.agents"/*.agent.env
 
 ## THE RIG'S OWN PATH: its bin, then the system's own folders. Nothing remote and no git: each would log a call.
@@ -339,9 +339,9 @@ rigNoCli(){ ## what -- the Dashboard and the submenu, read afresh (nothing kept)
 	rigNoCliGroup="$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigTroubles )"
 }
 rigWithoutTokens="0 0 sessions pending team team-data loop machine disk testing 0"
-printf '%s\n' "$rigSetupFile" | LC_ALL=C grep -v -e '^SPAWN_CLI_SERVICE=' > "$rigWs/.local/.agents/magic-team.agent.env"
+printf '%s\n' "$rigSetupFile" | LC_ALL=C grep -v -e '^SPAWN_TIER_NORMAL=' > "$rigWs/.local/.agents/magic-team.agent.env"
 rigNoCli
-rigAssert "with no CLI service named, the Dashboard has no panel of tokens and no submenu for them, and the rest as it was" "$rigNoCliDash" "$rigWithoutTokens"
+rigAssert "with no tier named, the Dashboard has no panel of tokens and no submenu for them, and the rest as it was" "$rigNoCliDash" "$rigWithoutTokens"
 rigAssert "and the group, asked for by its name, prints nothing" "$rigNoCliGroup" "0 0 0"
 printf '%s\n' "$rigSetupFile" > "$rigWs/.local/.agents/magic-team.agent.env"
 mv "$rigTmp/bin/claude" "$rigTmp/claude.away"
@@ -350,7 +350,7 @@ rigAssert "a CLI service that is set but not usable on this host (a vendor CLI t
 rigAssert "and the group, asked for by its name, prints nothing" "$rigNoCliGroup" "0 0 0"
 mv "$rigTmp/claude.away" "$rigTmp/bin/claude"
 ## a tier setting names a preset, and the preset a CLI that is usable: the same as the service setting
-printf '%s\n' "$rigSetupFile" | LC_ALL=C grep -v -e '^SPAWN_CLI_SERVICE=' > "$rigWs/.local/.agents/magic-team.agent.env"
+printf '%s\n' "$rigSetupFile" | LC_ALL=C grep -v -e '^SPAWN_TIER_NORMAL=' > "$rigWs/.local/.agents/magic-team.agent.env"
 printf 'SPAWN_TIER_NORMAL=rig-tier:high\n' >> "$rigWs/.local/.agents/magic-team.agent.env"
 printf 'PRESET_CLI_SERVICE=claude-native\n' > "$rigWs/.local/.agents/preset-rig-tier.agent.env"
 rigNoCli

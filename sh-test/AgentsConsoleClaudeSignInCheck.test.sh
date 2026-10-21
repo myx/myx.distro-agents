@@ -37,8 +37,8 @@ rigScenario(){ ## name, auth answer (in|out|junk), key value or empty
 	rigDir="$rigTmp/$1"
 	mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/bin" "$rigDir/home"
 	printf 'MDLT_CONSOLE_ORIGIN=%s\n' "$MDLT_ORIGIN" > "$rigDir/ws/.local/MDLT.settings.env"
-	printf 'SPAWN_CLI_SERVICE=claude-native\n' > "$rigDir/ws/.local/.agents/magic-team.agent.env"
-	[ -z "$3" ] || printf 'ANTHROPIC_API_KEY=%s\n' "$3" >> "$rigDir/ws/.local/.agents/magic-team.agent.env"
+	printf 'SPAWN_TIER_NORMAL=claude-native\n' > "$rigDir/ws/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=claude-native\n' > "$rigDir/ws/.local/.agents/preset-claude-native.agent.env"
+	[ -z "$3" ] || printf 'ANTHROPIC_API_KEY=%s\n' "$3" >> "$rigDir/ws/.local/.agents/preset-claude-native.agent.env"
 	case "$2" in
 		in)   rigAnswer='{"loggedIn":true}' ;;
 		out)  rigAnswer='{ "loggedIn": false }' ;;

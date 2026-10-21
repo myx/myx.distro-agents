@@ -68,7 +68,6 @@ rigCli(){ ## the rows the CLI wizard's read prints, the tiers given as arguments
 	rigRow team SPAWN_TIER_LOW "${1:-missing}" "${2:--}"
 	rigRow team SPAWN_TIER_NORMAL missing -
 	rigRow team SPAWN_TIER_HIGH missing -
-	rigRow team SPAWN_CLI_SERVICE set claude
 }
 rigCli > "$rigF/rows.--manager-wizard-read cli-service"
 rigCli set base > "$rigTmp/cli-with-tier"
@@ -249,7 +248,7 @@ keys ENTER
 turn
 show tiers
 RIGSCRIPT
-rigAssert "the team's CLI service is offered in the last step where no tier is set" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F 'CLI service of the team where no tier is set' || : )" "1"
+rigAssert "the team's CLI service is offered nowhere: the last step holds the tiers alone" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F 'CLI service of the team where no tier is set' || : )" "0"
 rigCase cli6
 cp "$rigTmp/cli-with-tier" "$MANAGER_SCREEN_RIG/rows.--manager-wizard-read cli-service"
 rigScript <<RIGSCRIPT

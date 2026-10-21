@@ -10,11 +10,11 @@
 
 		It stores nothing of its own. `--apply` carries out
 		`--owner-setup-<that CLI> --set-as-default --apply`, so the setup
-		of that CLI writes SPAWN_CLI_SERVICE and everything else that
+		of that CLI makes the preset named as that CLI, points SPAWN_TIER_NORMAL at it, and writes everything else that
 		setup takes with it, as it would if you had named the CLI yourself.
 
 		The detection is here and in the console's Configuration, never
-		at a spawn: a spawn resolves SPAWN_CLI_SERVICE and scans no PATH.
+		at a spawn: a spawn resolves the preset of its tier and scans no PATH.
 
 ##  What works, for each CLI:
 
@@ -33,7 +33,7 @@
 		--check
 			(the same as none) Asks each CLI whether it works, says why
 			for each, and names the pick and the command that applies
-			it, and what SPAWN_CLI_SERVICE is now. Read-only. Its exit
+			it, and what the spawns start now. Read-only. Its exit
 			status is non-zero while neither works.
 
 		--apply

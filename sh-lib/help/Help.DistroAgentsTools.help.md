@@ -185,6 +185,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-read --id <pending-id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-answer --id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-dismiss --id <pending-id> [--reason <text>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-preset-list
+📘 syntax: DistroAgentsTools.fn.sh --manager-preset-new <name> (--extend <preset>|--cli-service <service>)
+📘 syntax: DistroAgentsTools.fn.sh --manager-preset-tiers
 📘 syntax: DistroAgentsTools.fn.sh --manager-scope-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-scope-read <scope-id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-scope-reveal <scope-id> <key>
@@ -421,7 +424,8 @@
 			error. Use it for every secret.
 			A read of one key (--select <key>, --select-default) answers
 			from this workspace's own scope, with two exceptions. A spawn
-			setting of the `magic-team` scope (SPAWN_CLI_SERVICE,
+			setting of the `magic-team` scope (SPAWN_CLI_SERVICE, which is the
+			CLI service of the preset the tier names and no scope line,
 			SPAWN_HARNESS_TIER, a credential a harness leg declares) is read
 			from the workspace named to pay, where one is named:
 			SPAWN_SETTINGS_WORKSPACE=<workspace-name> in the `magic-team`
@@ -3269,8 +3273,8 @@
 			`oldest-age`, how long the oldest has waited. Of a question
 			its header alone is read.
 			`tokens`, Session Tokens: printed only where a CLI service is
-			set up for this workspace (its setting SPAWN_CLI_SERVICE is
-			set); `running`, the tokens of the
+			set up for this workspace (a tier names a preset
+			with one); `running`, the tokens of the
 			sessions that run now, and `finished-today`, of those whose
 			last run closed on this host's date of today. A total covers
 			in, cache read, cache write and out, all added, of every run
@@ -3786,11 +3790,45 @@
 			<delete> `yes` for a scope of many, a remote profile or a scope of the
 			agents, `no` for the two common scopes, which are one each.
 
+		--manager-preset-list
+			One of the console's own operations (see Notes). Lists the presets of
+			this workspace (F10.1), the `preset-<name>` blocks of its settings, one row
+			each, by name, TAB-separated, a blank written `_` and an absent value `-`:
+			`preset <scope-id> <label> <keys> <clear> <delete> <file> <extends> <service> <model> <effort> <used-by>`
+			The first six are a scope's, as `--manager-scope-list` prints them
+			(<delete> is `yes`). <extends> is the preset it extends, `-` for none;
+			<service>, <model> and <effort> are what it comes to with what it
+			inherits up its chain of extends; <used-by> names, blank written `_`,
+			the presets that extend it and the scopes, the team's and the members',
+			whose tiers name it. Writes nothing. Exit 1, nothing printed, for a word
+			after it.
+
+		--manager-preset-new <name> (--extend <preset>|--cli-service <service>)
+			One of the console's own operations (see Notes). Makes a preset: its
+			first variable, `PRESET_EXTEND` or `PRESET_CLI_SERVICE`, is written by
+			the setting reader of the dispatcher, so the write checks of a preset
+			are asked (a bare name with no upper-case letter, a CLI service of the
+			list, a parent that is there, no loop). Prints `created <scope-id>`. Exit
+			1, with one error line and nothing made, for a name that is taken or is
+			none, a parent that is not there, a service that is none, or a wrong
+			count of words. The other parameters are set with `--manager-scope-set`.
+
+		--manager-preset-tiers
+			One of the console's own operations (see Notes). Lists the tiers (F10.2),
+			the team's first and then each member's that is a member to start, one row
+			each: `tier <scope-id> <label> <keys> <clear> <delete> <file> <low> <normal> <high>`
+			The first six are a scope's (<delete> is `no`); the three last are the
+			values of SPAWN_TIER_LOW, _NORMAL and _HIGH of that scope, each
+			`<preset>[:<effort>]`, `-` where one is not set. A tier is set with
+			`--manager-scope-set` on the scope, its value chosen from the presets
+			(`--manager-scope-read` lists them). Writes nothing. Exit 1, nothing
+			printed, for a word after it.
+
 		--manager-scope-read <scope-id>
 			One of the console's own operations (see Notes). Prints one scope as
 			`--manager-scope-list` prints it, its `scope` row, then one row for
 			each key it holds, in the order of its file, each once:
-			`key <name> <state> <value> <type> <description>`
+			`key <name> <state> <value> <type> <description> <kind> <takes>`
 			<state> is `set`, `secret-set` for a credential, or `missing` where
 			the line holds nothing after the `=`; a comment, a line with no `=`
 			and a blank are no key. <value> is the value as it stands, its
@@ -3800,9 +3838,21 @@
 			inside a URL masked alone. <type> is `credential` or `setting`: which
 			keys are credentials is the agents' plugin's to say, as for
 			`--manager-config-digest`. <description> is the text of the catalogue
-			of the owner setup for a key it describes, `-` for any other; it holds
-			no value. Exit 1, with one error line that repeats nothing of what was
-			given, for an id that is none of the scopes listed.
+			of the owner setup for a key it describes, else the console's own words
+			for a key of a preset or of a tier, `-` for any other; it holds
+			no value. <kind> and <takes> say what the key takes, for a scope of the
+			agents that holds presets or tiers (F10.1, F10.2): `choice` with its
+			list, `<value>=<label>,...` (the CLI services, the efforts, the
+			lifetimes of the input cache, and for a tier the presets of the
+			workspace, each alone and with each effort), `number` with its range,
+			`<smallest>..<largest>` (the largest context), `text` with `-`, or
+			`locked` with why (the CLI service of a preset that extends another);
+			`-` and `-` for any other key. After the keys the file holds come the keys
+			the console knows of that scope and the file does not hold, as `missing`:
+			a parameter of a preset, the three tiers of the team or of a member of
+			the team. A member of the team that holds no file of settings yet is a
+			scope for its tiers. Exit 1, with one error line that repeats nothing of
+			what was given, for an id that is none of the scopes listed.
 
 		--manager-scope-reveal <scope-id> <key>
 			One of the console's own operations (see Notes). Prints the value of
@@ -3882,8 +3932,8 @@
 			PRESET_MODEL_OR_MACRO and PRESET_EFFORT of the preset <name> (a block
 			`preset-<name>`, made by the first write), the credentials of its CLI
 			service, and, in the team's scope, SPAWN_TIER_LOW, SPAWN_TIER_NORMAL,
-			SPAWN_TIER_HIGH (`<preset>[:<effort>]`) and SPAWN_CLI_SERVICE, which is
-			written only where no tier is set. They are applied in the order the
+			SPAWN_TIER_HIGH (`<preset>[:<effort>]`); there is no team CLI service beside
+			them, and a write of SPAWN_CLI_SERVICE is refused. They are applied in the order the
 			checks need, the service first and the tiers after the preset, each by
 			the dispatcher's own --agents-config-option, so its write checks are
 			asked; an empty value takes the key out. Prints one row for each:
@@ -5638,7 +5688,7 @@
 			TEAM_DATA_DIRECTORY is optional and never SKIP: unset
 			reads OK, naming the workspace's own default. Required:
 			SLACK_CHANNEL_MAGIC_TEAM, SLACK_CHANNEL_HUMAN_OWNER,
-			SPAWN_CLI_SERVICE, and at least one Slack token
+			a tier naming a preset (SPAWN_TIER_NORMAL), and at least one Slack token
 			(SLACK_TOKEN line: magic-coordinator's SLACK_USER_TOKEN or
 			SLACK_BOT_TOKEN, or magic-team's SLACK_BOT_TOKEN) -- any
 			missing prints a fix and returns 1. The rest (plus

@@ -49,7 +49,7 @@ rigMask(){ ## value -- the form of F11.8: its first quarter, not under 4 and not
 	printf -v maskRest '%*s' $(( ${#1} - maskHead )) ''
 	printf '%s%s' "${1:0:maskHead}" "${maskRest// /*}"
 }
-printf 'SPAWN_CLI_SERVICE=claude\n' > "$rigTeam"
+printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\n' > "$rigTeam"
 printf 'PRESET_CLI_SERVICE=claude\nPRESET_MODEL_OR_MACRO=normal\nANTHROPIC_API_KEY=%s\n' "$rigSecret" > "$rigAgents/preset-base.agent.env"
 printf 'PRESET_EXTEND=base\n' > "$rigAgents/preset-ext.agent.env"
 : > "$rigAgents/keeper-rig.agent.env"
@@ -95,14 +95,14 @@ rigAssert "the nine services of a preset, in the owner's order" "$( LC_ALL=C awk
 rigAssert "the five efforts, and the presets there are" "$( LC_ALL=C awk -F'\t' '$1 == "option" && $2 == "effort" { printf "%s ", $3 }' "$rigTmp/out" ) / $( LC_ALL=C awk -F'\t' '$1 == "option" && $2 == "preset" { printf "%s ", $3 }' "$rigTmp/out" )" "low default normal high hard  / base ext "
 rigAssert "the credentials each service reads, from its harness leg" "$( rigRows '^credential (claude|grok) ' )" "credential claude ANTHROPIC_API_KEY/credential claude CLAUDE_CODE_OAUTH_TOKEN/credential grok XAI_API_KEY/"
 rigAssert "what a preset holds: its service, its model, a credential in its one form; and what an extending preset holds" "$( rigRows '^preset (base|ext) ' | LC_ALL=C tr '/' '\n' | LC_ALL=C sort | LC_ALL=C tr '\n' '/' )" "preset base ANTHROPIC_API_KEY secret-set $( rigMask "$rigSecret" )/preset base PRESET_CLI_SERVICE set claude/preset base PRESET_MODEL_OR_MACRO set normal/preset ext PRESET_EXTEND set base/"
-rigAssert "what the team holds: its three tiers (none) and its service" "$( rigRows '^current|^team ' )" "team SPAWN_TIER_LOW missing -/team SPAWN_TIER_NORMAL missing -/team SPAWN_TIER_HIGH missing -/team SPAWN_CLI_SERVICE set claude/"
+rigAssert "what the team holds: its three tiers (none), and no CLI service of its own" "$( rigRows '^current|^team ' )" "team SPAWN_TIER_LOW missing -/team SPAWN_TIER_NORMAL missing -/team SPAWN_TIER_HIGH missing -/"
 rigAssert "the credential is never on the screen whole" "$( rigLeak )" "0"
 
 echo "-- 2. the apply of the CLI service's wizard --"
 rigRunIn "SPAWN_TIER_NORMAL"$'\t'"fresh:high"$'\n'"XAI_API_KEY"$'\t'"$rigSecret"$'\n'"PRESET_EFFORT"$'\t'"high"$'\n'"PRESET_CLI_SERVICE"$'\t'"grok"$'\n' --manager-wizard-apply cli-service --preset fresh
 rigAssert "a new preset and a tier that names it, given in any order, are applied in the order the checks need: the service, the effort, the credential, the tier; a row each" "$rigRc $( rigTroubles ) $( rigFlat "$rigTmp/out" )" \
 	"0 0 set preset-fresh PRESET_CLI_SERVICE/set preset-fresh PRESET_EFFORT/set preset-fresh XAI_API_KEY/set magic-team SPAWN_TIER_NORMAL/"
-rigAssert "the block of the preset is made, and holds the four keys; the team holds the tier; the team's other lines stand" "$( rigHolds "$rigAgents/preset-fresh.agent.env" PRESET_CLI_SERVICE=grok ) $( rigHolds "$rigAgents/preset-fresh.agent.env" PRESET_EFFORT=high ) $( rigHolds "$rigAgents/preset-fresh.agent.env" "XAI_API_KEY=$rigSecret" ) $( rigHolds "$rigTeam" SPAWN_TIER_NORMAL=fresh:high ) $( rigHolds "$rigTeam" SPAWN_CLI_SERVICE=claude )" "1 1 1 1 1"
+rigAssert "the block of the preset is made, and holds the four keys; the team holds the tier; the team's other lines stand" "$( rigHolds "$rigAgents/preset-fresh.agent.env" PRESET_CLI_SERVICE=grok ) $( rigHolds "$rigAgents/preset-fresh.agent.env" PRESET_EFFORT=high ) $( rigHolds "$rigAgents/preset-fresh.agent.env" "XAI_API_KEY=$rigSecret" ) $( rigHolds "$rigTeam" SPAWN_TIER_NORMAL=fresh:high ) $( rigHolds "$rigTeam" SLACK_CHANNEL_MAGIC_TEAM=CRIG00001 )" "1 1 1 1 1"
 rigAssert "no value is printed: the credential stands whole nowhere" "$( rigLeak )" "0"
 rigRunIn "PRESET_EFFORT"$'\t'"high"$'\n'"PRESET_MODEL_OR_MACRO"$'\t'"" --manager-wizard-apply cli-service --preset fresh
 rigAssert "a value that is the one held is unchanged, an empty value for a key not held is unchanged too" "$rigRc $( rigFlat "$rigTmp/out" )" "0 unchanged preset-fresh PRESET_MODEL_OR_MACRO/unchanged preset-fresh PRESET_EFFORT/"
@@ -117,10 +117,8 @@ rigAssert "a credential that the preset's service does not read is refused by th
 rigRunIn "SPAWN_TIER_HIGH"$'\t'"no-such-preset" --manager-wizard-apply cli-service --preset fresh
 rigAssert "a tier that names no preset is refused by the tier's check" "$rigRc $( rigNone "$rigTeam" SPAWN_TIER_HIGH )" "1 0"
 rigRunIn "SPAWN_CLI_SERVICE"$'\t'"copilot" --manager-wizard-apply cli-service --preset fresh
-rigAssert "the team's CLI service is written only where no tier is set, and a tier is: refused, the service stands" "$rigRc $( rigHolds "$rigTeam" SPAWN_CLI_SERVICE=claude ) $( LC_ALL=C grep -c -F -- 'no tier is set' "$rigTmp/err" )" "1 1 1"
+rigAssert "the team's CLI service is no key of the wizard: refused, nothing written" "$rigRc $( rigNone "$rigTeam" SPAWN_CLI_SERVICE )" "1 0"
 rigRunIn "SPAWN_TIER_NORMAL"$'\t' --manager-wizard-apply cli-service --preset fresh
-rigRunIn "SPAWN_CLI_SERVICE"$'\t'"copilot" --manager-wizard-apply cli-service --preset fresh
-rigAssert "with the tier taken out, the team's CLI service is written" "$rigRc $( rigFlat "$rigTmp/out" ) $( rigHolds "$rigTeam" SPAWN_CLI_SERVICE=copilot )" "0 set magic-team SPAWN_CLI_SERVICE/ 1"
 rigSumBefore="$( cksum "$rigAgents/preset-fresh.agent.env" "$rigTeam" "$rigAgents/preset-base.agent.env" )"
 rigBad=""
 rigRunIn "PRESET_EFFORT"$'\t'"low"$'\n'"PRESET_EXTRA_SPAWN_LINE"$'\t'"be nice" --manager-wizard-apply cli-service --preset fresh

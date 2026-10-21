@@ -899,7 +899,7 @@ rigPayConsole(){ ## workspace, label -- rigConsole, also recording what it was s
 		"printf '%s\\n' \"\$MMDAPP\" > \"\$RIG_SCENARIO/launched.$2\"" \
 		"printf '%s=%s\\n' \"\${MDAT_SPAWN_AGENT:-none}\" \"\${MDAT_SKILLSET_ROOT:-unset}\" >> \"\$RIG_SCENARIO/roots.$2\"" \
 		'printf "%s\n" "$*" > "$RIG_SCENARIO/args.'"$2"'.${MDAT_SPAWN_RESUME:-launch}"' \
-		'rigPaidLine="" ; for rigKey in SPAWN_CLI_SERVICE SPAWN_HARNESS_TIER XAI_API_KEY WEB_ALLOW_PREFIXES ; do rigPaidLine="$rigPaidLine$rigKey=$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select "$rigKey" 2> /dev/null ) " ; done' \
+		'rigPaidLine="" ; for rigKey in SPAWN_CLI_SERVICE HARNESS_MODEL_MAIN XAI_API_KEY WEB_ALLOW_PREFIXES ; do rigPaidLine="$rigPaidLine$rigKey=$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select "$rigKey" 2> /dev/null ) " ; done' \
 		'printf "%s\n" "${rigPaidLine% }" > "$RIG_SCENARIO/paid.'"$2"'.${MDAT_SPAWN_RESUME:-launch}"' \
 		'cat > "$RIG_SCENARIO/brief.'"$2"'"' \
 		'[ "${RIG_HANDBACK:-}" = resume-only ] && [ "${MDAT_SPAWN_RESUME:-}" != true ] || printf "📦 SubagentHandback\n"' \
@@ -910,14 +910,16 @@ rigPayWorld(){ ## -- a fresh machine whose workspaces each hold spawn settings o
 	rigWorld
 	local payWs
 	for payWs in here there third ; do
-		printf 'SPAWN_CLI_SERVICE=rig-cli-%s\nSPAWN_HARNESS_TIER=tier-%s\nXAI_API_KEY=rig-xai-%s\nWEB_ALLOW_PREFIXES=https://%s.invalid/\n' "$payWs" "$payWs" "$payWs" "$payWs" >> "$rigWork/ws-$payWs/.local/.agents/magic-team.agent.env"
+		## the spawn settings of a workspace are its preset's: the tier names a preset, whose service reads the credential of the rig (grok), whose model is a name of the rig, and the other setting stays the scope's
+		printf 'SPAWN_TIER_NORMAL=rig-cli-%s\nWEB_ALLOW_PREFIXES=https://%s.invalid/\n' "$payWs" "$payWs" >> "$rigWork/ws-$payWs/.local/.agents/magic-team.agent.env"
+		printf 'PRESET_CLI_SERVICE=grok\nPRESET_MODEL_OR_MACRO=tier-%s\nXAI_API_KEY=rig-xai-%s\n' "$payWs" "$payWs" > "$rigWork/ws-$payWs/.local/.agents/preset-rig-cli-$payWs.agent.env"
 	done
 	printf 'SLACK_CHANNEL_EVENT_TRACK=CTRACK0001\n' >> "$rigWork/ws-here/.local/.agents/magic-team.agent.env"
 	rigPayConsole ws-here HERE
 	rm -f "$rigTmp"/paid.*
 }
 rigPaid(){ ## [start] -- what the console's own reads answered at that start (launch, or true for the handback retry), the workspace each came from: cli/tier/credential/not-a-spawn-setting
-	LC_ALL=C sed -e 's/SPAWN_CLI_SERVICE=rig-cli-//' -e 's/ SPAWN_HARNESS_TIER=tier-/\//' -e 's/ XAI_API_KEY=rig-xai-/\//' -e 's/ WEB_ALLOW_PREFIXES=https:\/\//\//' -e 's/\.invalid\/$//' "$rigTmp/paid.HERE.${1:-launch}" 2> /dev/null
+	LC_ALL=C sed -e 's/SPAWN_CLI_SERVICE=grok\(-native\)\{0,1\} HARNESS_MODEL_MAIN=tier-\([a-z]*\)/\2\1\/\2/' -e 's/SPAWN_CLI_SERVICE= HARNESS_MODEL_MAIN= XAI_API_KEY= /-\/-\/- /' -e 's/ XAI_API_KEY=rig-xai-/\//' -e 's/ WEB_ALLOW_PREFIXES=https:\/\//\//' -e 's/\.invalid\/$//' "$rigTmp/paid.HERE.${1:-launch}" 2> /dev/null
 }
 rigPayTeam(){ ## workspace, name -- that name set to pay for every spawn of that workspace
 	printf 'SPAWN_SETTINGS_WORKSPACE=%s\n' "$2" >> "$rigWork/$1/.local/.agents/magic-team.agent.env"
@@ -937,7 +939,7 @@ rigSumThere="$( rigTreeSum ws-there )"
 rigSpawnIn ws-here keeper-here --spawn-settings-workspace ws-there
 rigAssert "one task (--spawn-settings-workspace): its CLI service, tier and credential are read from the workspace named, and a setting that is no spawn setting still from the one we run from" "$rigRc $( rigPaid )" "0 there/there/there/here"
 rigAssert "the session is still started here, on this workspace's view, by this workspace's console" "$( rigLaunched ) $( LC_ALL=C sed -n 's/^owner: //p' "$( rigRecordOf ws-here keeper-here )" )" "HERE=ws-here keeper-here"
-rigAssert "its record is kept here and says which workspace pays, and the CLI resolved there" "$( rigSpawnedCount ws-here ) $( rigSpawnedCount ws-there ) $( rigThree "$( rigRecordOf ws-here keeper-here )" ) $( LC_ALL=C sed -n 's/^cli: //p' "$( rigRecordOf ws-here keeper-here )" )" "1 0 ws-here/ws-there/ws-here 1/1/1 rig-cli-there"
+rigAssert "its record is kept here and says which workspace pays, and the CLI resolved there" "$( rigSpawnedCount ws-here ) $( rigSpawnedCount ws-there ) $( rigThree "$( rigRecordOf ws-here keeper-here )" ) $( LC_ALL=C sed -n 's/^cli: //p' "$( rigRecordOf ws-here keeper-here )" )" "1 0 ws-here/ws-there/ws-here 1/1/1 grok"
 rigAssert "its session thread and its tracking posts are this workspace's own Slack, by this team's bot" "$( LC_ALL=C awk '$1 == "chat.postMessage" { print $2 }' "$rigTmp/calls" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )$( rigChannel ) $( rigN "$rigTmp/calls" 'token-THERE' )" "rig-bot-token-HERE CHERE0001 0"
 rigAssert "its start post says the paying workspace, after where it runs" "$( rigStartContext )" "where: <host> / ws-here · started: <date> · paying workspace: ws-there"
 rigAssert "the workspace that pays is only read: nothing is written under its .local" "$( rigTreeSum ws-there )" "$rigSumThere"
@@ -960,8 +962,8 @@ rigAssert "the member's own naming goes before the workspace's" "$rigRc $( rigPa
 rigSpawnIn ws-here keeper-both --spawn-settings-workspace ws-here
 rigAssert "and a task naming the workspace we run from is paid by it, whatever is named for every spawn" "$rigRc $( rigPaid ) $( rigStartContext )" "0 here/here/here/here where: <host> / ws-here · started: <date>"
 rigRunIn ws-here --agents-config-option magic-team --select SPAWN_CLI_SERVICE
-rigAssert "named for every spawn, any read of a spawn setting here follows, not a spawn's alone: the CLI service" "$rigRc $( cat "$rigTmp/out" )" "0 rig-cli-there"
-rigRunIn ws-here --agents-config-option magic-team --select-default SPAWN_HARNESS_TIER rig-default
+rigAssert "named for every spawn, any read of a spawn setting here follows, not a spawn's alone: the CLI service" "$rigRc $( cat "$rigTmp/out" )" "0 grok"
+rigRunIn ws-here --agents-config-option magic-team --select-default HARNESS_MODEL_MAIN rig-default
 rigAssert "a read with a default follows too" "$rigRc $( cat "$rigTmp/out" )" "0 tier-there"
 rigRunIn ws-here --agents-config-option magic-team --select SPAWN_SETTINGS_WORKSPACE
 rigAssert "the naming itself is this workspace's own, and so is every setting that is no spawn setting: the team's bot token, a web prefix" "$( cat "$rigTmp/out" ) $( rigRunIn ws-here --agents-config-option magic-team --select SLACK_BOT_TOKEN ; cat "$rigTmp/out" ) $( rigRunIn ws-here --agents-config-option magic-team --select WEB_ALLOW_PREFIXES ; cat "$rigTmp/out" )" "ws-there rig-bot-token-HERE https://here.invalid/"
@@ -1077,7 +1079,7 @@ rigLoopIn(){ ## workspace -- --intern-main-loop --one from that workspace
 		bash "$rigTool" --intern-main-loop --one ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigWorld
-printf 'SPAWN_CLI_SERVICE=rig-cli\n' >> "$rigWork/ws-there/.local/.agents/magic-team.agent.env" ; printf 'SPAWN_CLI_SERVICE=rig-cli\n' >> "$rigWork/ws-here/.local/.agents/magic-team.agent.env"
+printf 'SPAWN_TIER_NORMAL=rig-cli\n' >> "$rigWork/ws-there/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=rig-cli\n' > "$rigWork/ws-there/.local/.agents/preset-rig-cli.agent.env" ; printf 'SPAWN_TIER_NORMAL=rig-cli\n' >> "$rigWork/ws-here/.local/.agents/magic-team.agent.env" ; printf 'PRESET_CLI_SERVICE=rig-cli\n' > "$rigWork/ws-here/.local/.agents/preset-rig-cli.agent.env"
 rigLoopIn ws-here ; rigSettle HERE
 rigAssert "the main loop in the coordinator's own workspace: the iteration passes and launches no session of its own (the schedule starts what is declared)"  "$rigRc [$( rigLaunched )]" "0 []"
 rigLoopIn ws-there ; rigSettle THERE
@@ -1155,11 +1157,11 @@ rigPayClear(){ ## -- what the console left of its last starts
 	rm -f "$rigTmp"/paid.* "$rigTmp"/args.* "$rigTmp"/launched.* "$rigTmp"/roots.* "$rigTmp"/brief.*
 }
 rigPayWorld
-printf 'SPAWN_CLI_SERVICE=rig-cli-third-native\n' >> "$rigWork/ws-third/.local/.agents/magic-team.agent.env"
+printf 'PRESET_CLI_SERVICE=grok-native\nPRESET_MODEL_OR_MACRO=tier-third\nXAI_API_KEY=rig-xai-third\n' > "$rigWork/ws-third/.local/.agents/preset-rig-cli-third.agent.env"
 rigAssert "the Agent tool declares the field beside cli_service, once, on the wire, and so in its MCP mirror, which is made from that declaration" "$( LC_ALL=C grep -o '"cli_service":{[^}]*},"settings_workspace":{"type":"string"' "$rigHere/harness/AgentsOpenAiChatWire.sh" | LC_ALL=C grep -c . || : ) $( MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/harness/AgentsHarnessMcpMirror.sh" 2> /dev/null | LC_ALL=C grep -o '"settings_workspace":{"type":"string"' | LC_ALL=C grep -c . || : )" "1 1"
 rigPayClear
 rigToolIn ws-here "$( rigView ws-here )" keeper-here Agent '{"agent":"keeper-both","prompt":"RIG-TASK-TEXT","settings_workspace":"ws-there","cli_service":"rig-service"}' ; rigSettle HERE
-rigAssert "the Agent tool, settings_workspace and cli_service: the helper is started with the spawn settings of the workspace named, on the service named" "$( rigPaid ) [$( rigArgs )]" "there/there/there/here [--cli rig-service --non-interactive]"
+rigAssert "the Agent tool, settings_workspace and cli_service: the helper is started with the spawn settings of the workspace named, on the service named" "$( rigPaid ) [$( rigArgs )]" "-/-/-/here [--cli rig-service --non-interactive]"
 rigAssert "and its record says which workspace pays and which service it was started on by name" "$( rigAsked "$( rigRecordOf ws-here keeper-both )" ) $( rigThree "$( rigRecordOf ws-here keeper-both )" )" "ws-there/rig-service ws-here/ws-there/ws-here 1/1/1"
 rigPayClear
 rigToolIn ws-here "$( rigView ws-here )" keeper-here Agent '{"agent":"keeper-both","prompt":"RIG-TASK-TEXT","settings_workspace":"ws-third"}' ; rigSettle HERE
@@ -1189,7 +1191,7 @@ rm -f "$rigWork/ws-here/.local/.agents/keeper-multi.agent.env"
 rigPayClear
 rigSessionIn ws-here --routine-default --spawn-settings-workspace ws-there --spawn-cli-service rig-service keeper-both keeper-here ; rigSettle HERE ; rigSettleCount HERE 2
 sleep 3
-rigAssert "--spawn-session gives both to every spawn of its call: each of its two members is started with the settings of the workspace named, on the service named" "$rigRc $( rigPaid ) [$( rigArgs )] $( rigRoots HERE | LC_ALL=C tr ' ' '\n' | LC_ALL=C sed 's/=.*//' | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )" "0 there/there/there/here [--cli rig-service --non-interactive] keeper-both keeper-here"
+rigAssert "--spawn-session gives both to every spawn of its call: each of its two members is started with the settings of the workspace named, on the service named" "$rigRc $( rigPaid ) [$( rigArgs )] $( rigRoots HERE | LC_ALL=C tr ' ' '\n' | LC_ALL=C sed 's/=.*//' | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )" "0 -/-/-/here [--cli rig-service --non-interactive] keeper-both keeper-here"
 rigAssert "and both records say so" "$( rigAsked "$( rigRecordOf ws-here keeper-both )" ) $( rigAsked "$( rigRecordOf ws-here keeper-here )" )" "ws-there/rig-service ws-there/rig-service"
 rigPayClear ; rigSpawnedBefore="$( rigSpawnedCount ws-here )"
 rigSessionIn ws-here --routine-default --spawn-settings-workspace ws-nowhere keeper-both
@@ -1213,7 +1215,7 @@ rigFirstRecord="$( rigRecordOf ws-here keeper-here )"
 rigAssert "control: a task spawned with both of its own ends in review, its record saying which workspace paid and which service it was started on by name" "$rigRc $( rigAsked "$rigFirstRecord" ) $( [ -f "$rigWork/ws-here/.local/agents/team-data-root/board/review/task-rig-paid.md" ] && printf in-review || printf elsewhere )" "0 ws-there/rig-service in-review"
 rigReturn task-rig-paid
 rigAssert "returned, its ended session is started again, and the return is given neither" "$rigRc $( LC_ALL=C grep -c '^RETURN: restarted keeper-here on task-rig-paid, ' "$rigTmp/out" || : )" "0 1"
-rigAssert "the run that replaces it is paid from the same workspace and started on the same service, both read off the record of the run it replaces" "$( rigPaid ) [$( rigArgs )]" "there/there/there/here [--cli rig-service --non-interactive]"
+rigAssert "the run that replaces it is paid from the same workspace and started on the same service, both read off the record of the run it replaces" "$( rigPaid ) [$( rigArgs )]" "-/-/-/here [--cli rig-service --non-interactive]"
 rigSecondRecord="$( rigRecordOf ws-here keeper-here )"
 rigAssert "and its own record says the same, so a second return reads them again" "$( [ "$rigSecondRecord" != "$rigFirstRecord" ] && printf a-new-record || printf the-same-record ) $( rigAsked "$rigSecondRecord" )" "a-new-record ws-there/rig-service"
 rigReturnItem task-rig-here

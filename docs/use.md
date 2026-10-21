@@ -60,8 +60,8 @@ Keep the console for work that needs an agent session.
   on a machine where nothing else is set up. Configure it once with
   `DistroAgentsTools.fn.sh --owner-setup-scaleway`. It is one-shot only: always pass
   `--non-interactive`, and it will tell you so if you forget.
-- `--cli-auto` — for a start with no terminal, as `--non-interactive`: take the configured CLI
-  (`SPAWN_CLI_SERVICE`), or the first installed one from the order above when none is configured. On a
+- `--cli-auto` — for a start with no terminal, as `--non-interactive`: take the CLI of the preset the
+  team's tier (`SPAWN_TIER_NORMAL`) names, or the first installed one from the order above when none is configured. On a
   terminal it opens the manager screen, as a plain start does.
 - `--cli <name>` — start that CLI. A CLI missing from `PATH` is an error; there is no fallback.
 - No `--cli` given — on a terminal, the manager screen. With no terminal, the same as `--cli-auto`: the

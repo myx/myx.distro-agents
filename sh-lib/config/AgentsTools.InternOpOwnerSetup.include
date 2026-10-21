@@ -347,15 +347,23 @@ case "$1" in
 				setupCurrent="$( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --select "$setupServiceKey" || : )"
 			fi
 			if [ "$setupCurrent" = "$setupServiceValue" ] ; then
-				echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: $setupServiceKey already selects '$setupServiceValue'"
+				echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: the spawns already start '$setupServiceValue'"
 			elif [ -z "$setupForceDefault" ] && [ -n "$setupCurrent" ] ; then
-				echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: $setupServiceKey selects '$setupCurrent' -- pass --set-as-default to point it at '$setupServiceValue' instead"
+				echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: the spawns start '$setupCurrent' -- pass --set-as-default to point SPAWN_TIER_NORMAL at the preset '$setupServiceValue' instead"
 			else
-				printf '%s' "$setupServiceValue" | ( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --upsert-from-stdin "$setupServiceKey" ) || {
-					echo "$MDSC_CMD: owner-setup: ⛔ ERROR: could not write $setupServiceKey into the $setupScope scope of $setupWorkspace" >&2
+				## The selection is a tier: a preset named as the CLI (made here where there is none) and the team's SPAWN_TIER_NORMAL
+				## pointing at it. SPAWN_CLI_SERVICE is no setting, so nothing is written under that name.
+				if [ ! -f "$setupWorkspace/.local/.agents/preset-$setupServiceValue.agent.env" ] ; then
+					printf '%s' "$setupServiceValue" | ( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "preset-$setupServiceValue" --upsert-from-stdin PRESET_CLI_SERVICE ) || {
+						echo "$MDSC_CMD: owner-setup: ⛔ ERROR: could not make the preset $setupServiceValue in $setupWorkspace" >&2
+						set +e ; return 1
+					}
+				fi
+				printf '%s' "$setupServiceValue" | ( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --upsert-from-stdin SPAWN_TIER_NORMAL ) || {
+					echo "$MDSC_CMD: owner-setup: ⛔ ERROR: could not write SPAWN_TIER_NORMAL into the $setupScope scope of $setupWorkspace" >&2
 					set +e ; return 1
 				}
-				echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: $setupServiceKey set to '$setupServiceValue' in $setupWorkspace"
+				echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: SPAWN_TIER_NORMAL set to the preset '$setupServiceValue' in $setupWorkspace"
 			fi
 		fi
 
