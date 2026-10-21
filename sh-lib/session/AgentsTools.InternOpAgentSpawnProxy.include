@@ -89,7 +89,7 @@ AgentsToolsSpawnProxySessionRootPost(){ ## member whose bot token posts it, the 
 		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: could not create a scratch file under $MMDAPP/.local/temp" >&2
 		return 0
 	fi
-	rootPayload="{\"channel\":\"$rootChannel\",\"text\":\"$( printf '%s' "$rootText" | LC_ALL=C awk -f "$rootLib/mcp/AgentsMcpJsonEscape.awk" )\",\"metadata\":{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"magic-team\",\"tracking\":\"session-root\"}}}"
+	rootPayload="{\"channel\":\"$rootChannel\",\"text\":\"$( printf '%s' "$rootText" | LC_ALL=C awk -f "$rootLib/mcp/AgentsMcpJsonEscape.awk" )\",\"metadata\":{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"magic-team\",\"tracking\":\"session-root\"${MDAT_SPAWN_SESSION_ID:+,\"session\":\"$MDAT_SPAWN_SESSION_ID\"}}}}"
 	while : ; do
 		rootRc=0
 		rootResponse="$( DistroAgentsTools --intern-op-slack-call "$rootMember" --api chat.postMessage --identity bot --json-body "$rootPayload" \
@@ -1451,6 +1451,28 @@ case "$1" in
 			&& [ -z "$( ls "$MMDAPP"/.local/agents/spawned/*/"$sessionId.md" 2> /dev/null )" ] ; then
 			echo "$MDSC_CMD: agent-spawn-proxy: 🙋 WARNING: $callerName already runs in session $sessionId: the client session itself runs as it, so a second run of it is not started there; nothing was started" >&2
 			set +e ; return 1
+		fi
+
+		## THE WAIT OF A SCAN (`input-scan-def: <scan> --wait <seconds>`), before the lock and before anything is made for the start: a routine whose scan is
+		## empty waits here, up to that long, for input to come, and a start that nothing came to is none -- no lock, no record, no sandbox, no agent -- ending with
+		## one line that says so. With input present the start goes on at once, with the reports the wait made as its scans' own (AgentsToolsInputScanDefAwait).
+		agentsInputScanGiven=""
+		if [ -n "$routineFilePath" ] && [ -f "$routineFilePath" ] ; then
+			local awaitDefs awaitGiven awaitRc=0
+			awaitDefs="$( AgentsToolsRoutineKeyLines "$routineFilePath" input-scan-def | LC_ALL=C grep -v -x 'none' || : )"
+			if printf '%s\n' "$awaitDefs" | LC_ALL=C grep -q -e ' --wait ' ; then
+				type AgentsToolsInputScanDefAwait > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InputScanDef.include"
+				mkdir -p "$MMDAPP/.local/agents/scratch" 2> /dev/null
+				awaitGiven="$( mktemp -d "$MMDAPP/.local/agents/scratch/scan-wait.XXXXXXXX" 2> /dev/null )" || awaitGiven=""
+				if [ -n "$awaitGiven" ] ; then
+					AgentsToolsInputScanDefAwait "$awaitDefs" "$callerName" "$sessionId" "$MDAT_SPAWN_SESSION_ID" "$routineFilePath" "$awaitGiven" || awaitRc=$?
+					case "$awaitRc" in
+						0) agentsInputScanGiven="$awaitGiven" ;;
+						3) rm -rf "$awaitGiven" ; set +e ; return 0 ;;
+						*) rm -rf "$awaitGiven" ; set +e ; return 1 ;;
+					esac
+				fi
+			fi
 		fi
 
 		## THE ROUTINE'S LOCK (F6.2): a routine that names a locking document (`routine-lock-document:`, its own or its kind

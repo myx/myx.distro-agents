@@ -3,7 +3,7 @@ type: routine
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 requires-session-kind: coworking
-input-scan-def: advance
+input-scan-def: routine-coworking-session
 review-by: inherit
 ---
 # magic-coordinator.one-on-one.routine — the actual procedure
@@ -51,7 +51,7 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **pick-the-member**: Use the member the human-owner named. None named: ask, never guess.
-2. **prep-member-context**: Gather the member's board items (from the input scan in `input/input-scan.md`) and any board item that references it, so the conversation does not start cold. Little or nothing found is fine.
+2. **prep-member-context**: Gather the member's board items and the reflections, notes and inquiries held for the session (from the session's input scan in `input/input-scan.md`) and any board item that references it, so the conversation does not start cold. Little or nothing found is fine.
 3. **invite-target-member**: Spawn the member into this session (`spawn-one-dispatch`). It loads its own skill and processes its own inbox at its own session start.
 4. **hold-the-conversation**: Carry the conversation between the human-owner's relayed turns and the member, in the session thread. Waiting is per `magic-team.armed.md`'s **wait-never-quit**. A member silent past a reply is asked; one found dead is reported to the root ("the one-on-one session appears to have died — restart it?"). Genuinely private phrasing goes to the human-owner's DM instead of the thread.
 

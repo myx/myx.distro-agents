@@ -7,10 +7,11 @@
 ## is a post that goes through.
 set -u
 rigHeader="$( cat )"
-rigMethod="" rigPrevArg="" rigBody=""
+rigMethod="" rigPrevArg="" rigBody="" rigChannel=""
 for rigArg in "$@" ; do
 	case "$rigArg" in
 		https://slack.com/api/*) rigMethod="${rigArg#https://slack.com/api/}" ;;
+		channel@*) rigChannel="$( cat "${rigArg#channel@}" 2>/dev/null )" ;;
 	esac
 	[ "$rigPrevArg" != "--data-binary" ] || rigBody="${rigArg#@}"
 	rigPrevArg="$rigArg"
@@ -45,8 +46,15 @@ case "$rigMethod" in
 	;;
 	## A scenario with a file `history-empty` has conversations that are empty and rosters with none, instead of an error: a read that succeeds and finds
 ## nothing; with a file `history-body` a conversation reads as that file says (a Slack conversations.history answer).
+	## A scenario can also have direct conversations: `dms.<token>.json`, the `channels` array of conversations.list for the account whose token ends so (none
+	## for the others), and `history.<channel>.json`, the answer of conversations.history for that conversation; users.info answers one person.
+	users.info) printf '{"ok":true,"user":{"id":"URIGFRIEND","name":"rig-friend","real_name":"Rig Friend","profile":{"display_name":"rigf"}}}\n' ;;
 	conversations.history|conversations.list)
-		if [ -f "$RIG_SCENARIO/history-body" ] && [ "$rigMethod" = "conversations.history" ] ; then
+		if [ "$rigMethod" = "conversations.list" ] && [ -f "$RIG_SCENARIO/dms.$rigToken.json" ] ; then
+			printf '{"ok":true,"channels":%s,"response_metadata":{"next_cursor":""}}\n' "$( cat "$RIG_SCENARIO/dms.$rigToken.json" )"
+		elif [ "$rigMethod" = "conversations.history" ] && [ -n "$rigChannel" ] && [ -f "$RIG_SCENARIO/history.$rigChannel.json" ] ; then
+			cat "$RIG_SCENARIO/history.$rigChannel.json"
+		elif [ -f "$RIG_SCENARIO/history-body" ] && [ "$rigMethod" = "conversations.history" ] ; then
 			cat "$RIG_SCENARIO/history-body"
 		elif [ -f "$RIG_SCENARIO/history-empty" ] ; then
 			printf '{"ok":true,"messages":[],"channels":[],"has_more":false}\n'

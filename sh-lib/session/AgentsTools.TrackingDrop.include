@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.TrackingDrop.include -- what the tooling posted itself is no input to the member it concerns. The reads that decide whether something is
+## input (the tags and the DMs the main loop looks at, the sources a Wait reads, AgentsTools.MemberWait.include, AgentsTools.DispatcherLoop.include)
+## pass a rendering of Slack through AgentsToolsTrackingDrop, which takes out the tracking posts by their own mark (`[tracking: <kind>]` and
+## `[session: <spawn id>]`, from the metadata the tooling gives what it posts, AgentsSlackMessagesFormat.awk), and the hand-back of a run the member
+## launched that reports to nobody else's duty. The tooling's own sends are marked `tracking: tooling` (AgentsTools.MemberCommsSlack.include) and
+## dropped too -- but what is ADDRESSED to the member is never dropped: DISMISSED, and whatever the tooling sends a run, always reaches its Wait. Nothing here reads the words of a post, and nothing of it is in an agent's memory: the spawn record
+## names who launched a run (`parent-member:`, the member whose call started it) and where it reports to (`reports-to:`, or the address it has by
+## default, AgentsToolsRunRoute), so a duty that was rewound since it launched a session is told the same as one that was not.
+## Sourced, never run. Functions only.
+##
+
+type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+
+## The spawn ids of the runs a member launched that do not report to it, spaced: the spawn records that name it as `parent-member:` and whose
+## address (`reports-to:`, else the one a run has by default) is of another member, a person or nobody.
+AgentsToolsTrackingLaunchedAway(){ ## member
+	local awayRecord awayId awayRoute awayMember awayList=""
+	for awayRecord in $( LC_ALL=C grep -l -x -F "parent-member: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.md 2> /dev/null ) ; do
+		awayId="${awayRecord##*/}" ; awayId="${awayId%.md}"
+		awayRoute="$( AgentsToolsRunRoute "$awayRecord" 2> /dev/null )" || awayRoute=""
+		awayMember="$( AgentsToolsRunRouteMember "$awayRoute" 2> /dev/null )" || awayMember=""
+		[ "$awayMember" != "$1" ] || continue
+		awayList="$awayList $awayId"
+	done
+	printf '%s\n' "${awayList# }"
+}
+
+## A rendering on stdin for a member, its tooling's own posts taken out, on stdout.
+AgentsToolsTrackingDrop(){ ## member
+	LC_ALL=C awk -v member="$1" -v away="$( AgentsToolsTrackingLaunchedAway "$1" )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTrackingDrop.awk"
+}

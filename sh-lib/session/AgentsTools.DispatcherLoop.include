@@ -127,8 +127,9 @@ AgentsToolsScheduleWorkDutyRecord(){ ## member
 ## mentions it (`<@its Slack id>` or `@its name`), kept in tags/<member>. No read at all inside the TTL of the source, and none made for nobody.
 ## The first look reads from now: what stood there before is not news. A read that fails is tried again after the TTL.
 AgentsToolsScheduleTeamTags(){ ## the members to look for, spaced
-	local teamStore="$MMDAPP/.local/agents/schedule" teamNow teamTtl teamAt="" teamFloor="" teamOut teamTemp teamMember teamId teamNewest teamHit
-	[ -n "$1" ] || return 0
+	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TrackingDrop.include"
+	local teamStore="$MMDAPP/.local/agents/schedule" teamNow teamTtl teamAt="" teamFloor="" teamOut teamTemp teamMember teamId teamNewest teamHit teamIdList=""
+	[ -n "${1// /}" ] || return 0
 	teamNow="$( date +%s )"
 	teamTtl="$( AgentsToolsSourceTtlOf tagged:magic-team )"
 	[ ! -f "$teamStore/team-channel" ] || read -r teamAt teamFloor < "$teamStore/team-channel" || :
@@ -136,18 +137,22 @@ AgentsToolsScheduleTeamTags(){ ## the members to look for, spaced
 	[ -z "$teamAt" ] || [ $(( teamNow - teamAt )) -ge "$teamTtl" ] || return 0
 	mkdir -p "$teamStore/tags" 2> /dev/null || return 0
 	[ -n "$teamFloor" ] || teamFloor="$teamNow.000000"
+	## The accounts of the members, before the read: a read that names a person rewrites the cache they come from.
+	for teamMember in $1 ; do teamIdList="$teamIdList $teamMember=$( AgentsToolsSessionChatMemberId "$teamMember" )" ; done
 	teamOut="$( DistroAgentsTools --intern-op-comms-slack-read magic-coordinator magic-team --oldest "$teamFloor" 2> /dev/null < /dev/null )" || teamOut=""
 	teamNewest="$( printf '%s\n' "$teamOut" | LC_ALL=C awk -v floor="$teamFloor" '/^[0-9]+\.[0-9]+ \| / { if ( $1 + 0 > floor + 0 ) { newest = $1 } } END { print newest }' )"
 	for teamMember in $1 ; do
-		teamId="$( AgentsToolsSessionChatMemberId "$teamMember" )"
-		teamHit="$( printf '%s\n' "$teamOut" | MEMBER="$teamMember" MEMBER_ID="$teamId" FLOOR="$teamFloor" LC_ALL=C awk '
+		teamId="${teamIdList#* $teamMember=}" ; teamId="${teamId%% *}"
+		## What the tooling posted itself is no mention (AgentsToolsTrackingDrop), nor is the member's own post.
+		teamHit="$( printf '%s\n' "$teamOut" | AgentsToolsTrackingDrop "$teamMember" | MEMBER="$teamMember" MEMBER_ID="$teamId" FLOOR="$teamFloor" LC_ALL=C awk '
 			/^[0-9]+\.[0-9]+ \| / {
-				if ( $1 + 0 <= ENVIRON["FLOOR"] + 0 ) next
+				own = ( index( $0, "[sender: " ENVIRON["MEMBER"] "]" ) > 0 )
+				if ( $1 + 0 <= ENVIRON["FLOOR"] + 0 || own ) next
 				if ( ENVIRON["MEMBER_ID"] != "" && index( $0, "<@" ENVIRON["MEMBER_ID"] ">" ) > 0 ) { hit = $1 }
 				else if ( index( $0, "@" ENVIRON["MEMBER"] ) > 0 ) { hit = $1 }
 			}
 			END { print hit }' )"
-		[ -z "$teamHit" ] || printf '%s\n' "$teamHit" > "$teamStore/tags/$teamMember"
+		AgentsToolsScheduleTagNote "$teamMember" "$teamHit"
 	done
 	if teamTemp="$( mktemp "$teamStore/team-channel.XXXXXX" 2> /dev/null )" ; then
 		printf '%s %s\n' "$teamNow" "${teamNewest:-$teamFloor}" > "$teamTemp" && mv -f "$teamTemp" "$teamStore/team-channel" || rm -f "$teamTemp"
@@ -200,17 +205,122 @@ AgentsToolsScheduleBoardDemand(){
 	return 1
 }
 
+## THE TAGGED SOURCE OF A MEMBER, as the scheduler holds it: the newest message that calls the member (a mention in the team channel, or a DM to it --
+## the two are one source, `tagged:<member>`, and the untagged team channel is another) in tags/<member>, a Slack ts; and the member's own pointer into it,
+## handed/<member>, the ts of the newest one its duty was given -- set when a duty is started for it, and moved by the pointer the duty's own session keeps
+## (collect:<member>:tagged:<member> in its session.chat.pointers). A tag is news when it is newer than that pointer. The channel is read once for every
+## member (AgentsToolsScheduleTeamTags), the DMs once for each (AgentsToolsScheduleDmTags): a cache that feeds each member's own pointer, never one for all.
+AgentsToolsScheduleTagNote(){ ## member, ts found (may be empty)
+	local noteOld=""
+	[ -n "$2" ] || return 0
+	[ ! -f "$MMDAPP/.local/agents/schedule/tags/$1" ] || read -r noteOld < "$MMDAPP/.local/agents/schedule/tags/$1" || :
+	case "${noteOld%%.*}" in ''|*[!0123456789]*) noteOld=0 ;; esac
+	[ "${2%%.*}" -gt "${noteOld%%.*}" ] || return 0
+	mkdir -p "$MMDAPP/.local/agents/schedule/tags" 2> /dev/null && printf '%s\n' "$2" > "$MMDAPP/.local/agents/schedule/tags/$1"
+}
+
+## The seconds of a member's pointer into its tagged source: the scheduler's (handed/<member>), and the one the live duty's session keeps, whichever is later.
+AgentsToolsScheduleTagPointer(){ ## member, the duty's session id (may be empty)
+	local pointerOwn="" pointerSession=""
+	[ ! -f "$MMDAPP/.local/agents/schedule/handed/$1" ] || read -r pointerOwn < "$MMDAPP/.local/agents/schedule/handed/$1" || :
+	case "${pointerOwn%%.*}" in ''|*[!0123456789]*) pointerOwn=0 ;; esac
+	pointerOwn="${pointerOwn%%.*}"
+	if [ -n "${2:-}" ] ; then
+		type AgentsToolsSessionChatPointer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+		pointerSession="$( AgentsToolsSessionChatPointer "$2" "collect:$1:tagged:$1" 2> /dev/null )" || pointerSession=""
+		case "${pointerSession%%.*}" in ''|*[!0123456789]*) pointerSession=0 ;; esac
+		pointerSession="${pointerSession%%.*}"
+		[ "$pointerSession" -le "$pointerOwn" ] || pointerOwn="$pointerSession"
+	fi
+	printf '%s\n' "$pointerOwn"
+}
+
+## The duty is given what stands in the tagged source: the member's pointer moves to the newest tag.
+AgentsToolsScheduleTagGive(){ ## member
+	local giveTag=""
+	[ ! -f "$MMDAPP/.local/agents/schedule/tags/$1" ] || read -r giveTag < "$MMDAPP/.local/agents/schedule/tags/$1" || :
+	[ -n "$giveTag" ] || return 0
+	mkdir -p "$MMDAPP/.local/agents/schedule/handed" 2> /dev/null && printf '%s\n' "$giveTag" > "$MMDAPP/.local/agents/schedule/handed/$1"
+}
+
+## Whether the tagged source of a member holds a tag newer than its pointer (AgentsToolsScheduleTagPointer) and than an instant (epoch seconds, optional): a
+## tag is how the member is called, at any hour. An untagged message of the channel is read by the work-duty scan in worktime, and by nothing else.
+AgentsToolsScheduleTagNews(){ ## member, since (epoch seconds, may be empty), the duty's session id (may be empty)
+	local newsTag="" newsFloor
+	[ ! -f "$MMDAPP/.local/agents/schedule/tags/$1" ] || read -r newsTag < "$MMDAPP/.local/agents/schedule/tags/$1" || :
+	case "${newsTag%%.*}" in ''|*[!0123456789]*) return 1 ;; esac
+	newsFloor="$( AgentsToolsScheduleTagPointer "$1" "${3:-}" )"
+	case "${2:-0}" in *[!0123456789]*) ;; *) [ "${2:-0}" -le "$newsFloor" ] || newsFloor="${2:-0}" ;; esac
+	[ "${newsTag%%.*}" -gt "$newsFloor" ]
+}
+
+## The DMs of the members, looked at for each member on its own (a DM is a call by name, as a mention is): the conversations of the member's accounts
+## (the roster of its direct ones), each read from the member's DM floor, dms/<member>, the ts up to which they were read -- a member's first look reads
+## from now, as the channel's does. At most once in a minute for a member within its flags, once in five minutes out of them (the Slack read budget: every
+## standing member is looked at then). What the tooling posted itself and the member's own posts are none. The newest DM message goes into the member's
+## tagged source (AgentsToolsScheduleTagNote).
+AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spaced; the members out of them, spaced
+	local dmStore="$MMDAPP/.local/agents/schedule" dmMember dmNow dmChecked dmFloor dmRoster dmLine dmConv dmKind dmIdentity dmArg dmSeen dmRead dmNewest dmId dmTtl
+	[ -n "$1$2" ] || return 0
+	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TrackingDrop.include"
+	dmNow="$( date +%s )"
+	mkdir -p "$dmStore/dms" "$dmStore/dm-looked" 2> /dev/null || return 0
+	for dmMember in $1 $2 ; do
+		dmTtl=60
+		case " $2 " in *" $dmMember "*) dmTtl=300 ;; esac
+		dmChecked=""
+		[ ! -f "$dmStore/dm-looked/$dmMember" ] || read -r dmChecked < "$dmStore/dm-looked/$dmMember" || :
+		case "$dmChecked" in ''|*[!0123456789]*) dmChecked="" ;; esac
+		[ -z "$dmChecked" ] || [ $(( dmNow - dmChecked )) -ge "$dmTtl" ] || continue
+		printf '%s\n' "$dmNow" > "$dmStore/dm-looked/$dmMember"
+		dmFloor=""
+		[ ! -f "$dmStore/dms/$dmMember" ] || read -r dmFloor < "$dmStore/dms/$dmMember" || :
+		[ -n "$dmFloor" ] || dmFloor="$dmNow.000000"
+		dmId="$( AgentsToolsSessionChatMemberId "$dmMember" )"
+		dmRoster="$( DistroAgentsTools --magic-comms-slack-conversations-roster "$dmMember" --types im 2> /dev/null < /dev/null )" || dmRoster=""
+		dmSeen="" dmNewest=""
+		while IFS= read -r dmLine ; do
+			case "$dmLine" in "CONV|"*) ;; *) continue ;; esac
+			dmConv="" dmKind="" dmIdentity=""
+			for dmArg in $( printf '%s\n' "$dmLine" | LC_ALL=C tr '|' ' ' ) ; do
+				case "$dmArg" in
+					id=*) dmConv="${dmArg#id=}" ;;
+					kind=*) dmKind="${dmArg#kind=}" ;;
+					identity=*) dmIdentity="${dmArg#identity=}" ;;
+				esac
+			done
+			[ -n "$dmConv" ] && [ "$dmKind" = "im" ] || continue
+			case " $dmSeen " in *" $dmConv "*) continue ;; esac
+			dmSeen="$dmSeen $dmConv"
+			dmRead="$( DistroAgentsTools --intern-op-comms-slack-read "$dmMember" "$dmConv" $( [ "$dmIdentity" != "bot" ] || printf '%s' --identity-bot ) --oldest "$dmFloor" 2> /dev/null < /dev/null )" || continue
+			dmRead="$( printf '%s\n' "$dmRead" | AgentsToolsTrackingDrop "$dmMember" | DM_FLOOR="$dmFloor" DM_MEMBER="$dmMember" DM_ID="$dmId" LC_ALL=C awk '
+				/^[0-9]+\.[0-9]+ \| / {
+					if ( $1 + 0 <= ENVIRON["DM_FLOOR"] + 0 ) next
+					if ( index( $0, "[sender: " ENVIRON["DM_MEMBER"] "]" ) > 0 ) next
+					if ( ENVIRON["DM_ID"] != "" && index( $0, $1 " | " ENVIRON["DM_ID"] " |" ) == 1 ) next
+					if ( $1 + 0 > newest + 0 ) newest = $1
+				}
+				END { print newest }' )"
+			if [ -n "$dmRead" ] ; then
+				if [ -z "$dmNewest" ] || [ "${dmRead%%.*}" -gt "${dmNewest%%.*}" ] ; then dmNewest="$dmRead" ; fi
+			fi
+		done <<< "$dmRoster"
+		if [ -n "$dmNewest" ] ; then
+			printf '%s\n' "$dmNewest" > "$dmStore/dms/$dmMember"
+			AgentsToolsScheduleTagNote "$dmMember" "$dmNewest"
+		elif [ ! -f "$dmStore/dms/$dmMember" ] ; then
+			printf '%s\n' "$dmFloor" > "$dmStore/dms/$dmMember"
+		fi
+	done
+	return 0
+}
+
 ## Whether a member has something to work on: an item in its inbox not yet processed (incoming/), for the coordinator also the board's news, or a
 ## mention in the team channel newer than the last start of its duty (tags/<member> against duty/<member>, both in epoch seconds).
 AgentsToolsScheduleDemand(){ ## member
-	local demandTag="" demandStarted=""
 	! AgentsToolsScheduleHasWork "$1" || return 0
 	[ "$1" != magic-coordinator ] || ! AgentsToolsScheduleBoardDemand || return 0
-	[ ! -f "$MMDAPP/.local/agents/schedule/tags/$1" ] || read -r demandTag < "$MMDAPP/.local/agents/schedule/tags/$1" || :
-	[ ! -f "$MMDAPP/.local/agents/schedule/duty/$1" ] || read -r demandStarted < "$MMDAPP/.local/agents/schedule/duty/$1" || :
-	case "${demandTag%%.*}" in ''|*[!0123456789]*) return 1 ;; esac
-	case "${demandStarted:-0}" in *[!0123456789]*) demandStarted=0 ;; esac
-	[ "${demandTag%%.*}" -gt "${demandStarted:-0}" ]
+	AgentsToolsScheduleTagNews "$1"
 }
 
 ## Tells a work-duty run to go, with DISMISSED in its session thread, as a dismissal is given to a run: at its idle point only (the run
@@ -303,6 +413,7 @@ AgentsToolsScheduleDutyLifetime(){ ## the duty's spawn record, member, whether t
 		! AgentsToolsScheduleHasWork "$lifeMember" || return 0
 		[ "$lifeMember" != magic-coordinator ] || ! AgentsToolsScheduleBoardDemand || return 0
 		! AgentsToolsScheduleInSession "$lifeRecord" "$lifeMember" || return 0
+		! AgentsToolsScheduleTagNews "$lifeMember" "$lifeSince" "$( AgentsToolsSpawnSandboxRecordHeader "$lifeRecord" session-id )" || return 0
 		lifeLimit=3600 ; lifeWhy="out of worktime with no input, and it was idle $(( lifeIdle / 60 )) minutes"
 	fi
 	[ -n "$lifeLimit" ] && [ "$lifeIdle" -ge "$lifeLimit" ] || return 0
@@ -312,26 +423,32 @@ AgentsToolsScheduleDutyLifetime(){ ## the duty's spawn record, member, whether t
 ## The work-duty sessions by the flags (epic 1758-1763): a standing member holds one during worktime, magic-coordinator during worktime,
 ## emergency and overtime. A standing member is every member of the roster but an identity record (human-owner) and the oncall and expert
 ## ones, who are no standing members. One is started when its member has something to work on (AgentsToolsScheduleDemand), the work-duty
-## routine, `--magic-spawn-session --routine <work-duty> <member>`; not while the member holds one already. Only a member whose flag allows
-## is looked at for demand, so a member whose flag does not allow costs no Slack read, and the team channel is read once in a TTL for all of them. When the flag stops allowing, a run is told to go at
-## its next idle point (AgentsToolsScheduleDismiss), and a demand that comes later starts nothing until the flag allows again.
-## What the flags do to a run that stands is not a dismissal at once: AgentsToolsScheduleDutyLifetime decides, at each iteration, how long it lives.
+## routine, `--magic-spawn-session --routine <work-duty> <member>`; not while the member holds one already. Out of its flags a member is called by name only:
+## a mention of it in the team channel (AgentsToolsScheduleTagNews) starts its duty at any hour, and an untagged message, an inbox item or the board's news do
+## not; the team channel is read once in a TTL for all of them. What the flags do to a run that stands is not a dismissal at once:
+## AgentsToolsScheduleDutyLifetime decides, at each iteration, how long it lives (a mention newer than its idle start keeps it, out of its flags too).
 AgentsToolsScheduleWorkDuty(){
-	local dutyFlags dutyWork=no dutyCoordinator=no dutyMember dutyDir dutyAllowed dutyRecord dutyLook=""
+	local dutyFlags dutyWork=no dutyCoordinator=no dutyMember dutyDir dutyAllowed dutyRecord dutyLook="" dutyLookOut=""
 	dutyFlags="$( AgentsToolsScheduleCurrentFlags --current-flags 2> /dev/null )" || dutyFlags=""
 	case "$dutyFlags" in *"worktime: yes"*) dutyWork=yes ; dutyCoordinator=yes ;; esac
 	case "$dutyFlags" in *"emergency: yes"*|*"overtime: yes"*) dutyCoordinator=yes ;; esac
-	## The members a duty could start for now: eligible by the flags, with no duty running and nothing in the inbox. The team channel is read once for all.
+	## The members whose mentions are looked for: those within their flags that have no duty running and nothing in the inbox (nothing else would start them
+	## otherwise), and every standing member out of its flags, for a mention starts or keeps its duty. The team channel is read once for all.
 	while IFS=$'\t' read -r dutyMember dutyDir ; do
 		[ -n "$dutyDir" ] || continue
 		AgentsToolsScheduleStanding "$dutyMember" "$dutyDir" || continue
 		dutyAllowed="$dutyWork"
 		[ "$dutyMember" != magic-coordinator ] || dutyAllowed="$dutyCoordinator"
-		[ "$dutyAllowed" = yes ] || continue
-		! AgentsToolsScheduleHasWork "$dutyMember" || continue
-		AgentsToolsScheduleWorkDutyRecord "$dutyMember" > /dev/null || dutyLook="$dutyLook $dutyMember"
+		if [ "$dutyAllowed" = yes ] ; then
+			! AgentsToolsScheduleHasWork "$dutyMember" || continue
+			! AgentsToolsScheduleWorkDutyRecord "$dutyMember" > /dev/null || continue
+			dutyLook="$dutyLook $dutyMember"
+		else
+			dutyLookOut="$dutyLookOut $dutyMember"
+		fi
 	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
-	AgentsToolsScheduleTeamTags "${dutyLook# }"
+	AgentsToolsScheduleTeamTags "${dutyLook# } ${dutyLookOut# }"
+	AgentsToolsScheduleDmTags "${dutyLook# }" "${dutyLookOut# }"
 	while IFS=$'\t' read -r dutyMember dutyDir ; do
 		[ -n "$dutyDir" ] || continue
 		AgentsToolsScheduleStanding "$dutyMember" "$dutyDir" || continue
@@ -342,10 +459,15 @@ AgentsToolsScheduleWorkDuty(){
 			AgentsToolsScheduleDutyLifetime "$dutyRecord" "$dutyMember" "$dutyAllowed"
 			continue
 		fi
-		[ "$dutyAllowed" = yes ] || continue
-		AgentsToolsScheduleDemand "$dutyMember" || continue
+		if [ "$dutyAllowed" = yes ] ; then
+			AgentsToolsScheduleDemand "$dutyMember" || continue
+		else
+			## Out of its flags: a tag (a mention, a DM) newer than its pointer into the tagged source, and nothing else.
+			AgentsToolsScheduleTagNews "$dutyMember" || continue
+		fi
 		if AgentsToolsScheduleSpawn "work-duty.$dutyMember" --routine "$( AgentsToolsScheduleDutyRoutine "$dutyMember" "$dutyDir" )" "$dutyMember" ; then
 			mkdir -p "$MMDAPP/.local/agents/schedule/duty" 2> /dev/null && date +%s > "$MMDAPP/.local/agents/schedule/duty/$dutyMember"
+			AgentsToolsScheduleTagGive "$dutyMember"
 			printf 'work-duty: started the duty of %s\n' "$dutyMember"
 		fi
 	done <<< "$( AgentsToolsTeamMemberDirectoryText )"

@@ -21,11 +21,13 @@ type AgentsToolsSpawnRoutineExecutorsRoster > /dev/null 2>&1 || . "$MDLT_ORIGIN/
 type AgentsToolsTeamMemberIsTeam > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 
 ## The rows --manager-routine-list prints: one for each routine file, by owner, then by
-## selector. Nothing is written. A value's own whitespace goes out as `_` and an absent one
-## as `-`, in one pass over the rows, so a row is always its ten fields.
+## selector. Nothing is written by this operation. A value's own whitespace goes out as `_` and an absent one
+## as `-`, in one pass over the rows, so a row is always its twelve fields. The last two, the state of the routine
+## and when it last ran, are the Dispatcher's own rows of the runs (`--routine-stats`, the one reader of its
+## store; F11.11): this operation joins them to the routine by its file name and computes nothing of them.
 AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 	local rowsOp="$1" rowsMember rowsDir rowsFile rowsName rowsTab=$'\t' rowsLine rowsText=""
-	local rowsStart rowsReason rowsExecutors rowsSession rowsTitle rowsContract rowsWhy rowsExecutor rowsNeeds
+	local rowsStart rowsReason rowsExecutors rowsSession rowsTitle rowsContract rowsWhy rowsExecutor rowsNeeds rowsStats=""
 	while IFS=$'\t' read -r rowsMember rowsDir ; do
 		[ -n "$rowsDir" ] || continue
 		for rowsFile in "$rowsDir"/*.routine.md ; do
@@ -104,13 +106,27 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 		echo "# $MDSC_CMD $rowsOp: no member's folder holds a routine file" >&2
 		return 0
 	fi
+	## What the Dispatcher says of the runs of each routine: nothing where it has no store or no run (every routine then reads `never`).
+	rowsStats="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsDispatcher.fn.sh" --routine-stats 2> /dev/null < /dev/null )" || rowsStats=""
 	printf '%s' "$rowsText" \
-		| LC_ALL=C awk -F'\t' 'BEGIN { OFS = "\t" ; } {
+		| MDAT_ROUTINE_STATS="$rowsStats" LC_ALL=C awk -F'\t' 'BEGIN {
+			OFS = "\t" ;
+			statCount = split( ENVIRON["MDAT_ROUTINE_STATS"], statLines, "\n" ) ;
+			for ( statAt = 1 ; statAt <= statCount ; statAt++ ) {
+				split( statLines[statAt], statWords, "\t" ) ;
+				if ( statWords[1] == "routine" && statWords[2] != "" ) { runningNow[statWords[2]] = statWords[6] + 0 ; lastRun[statWords[2]] = statWords[7] ; lastHow[statWords[2]] = statWords[8] ; ran[statWords[2]] = 1 ; }
+			}
+		} {
 			for ( fieldAt = 1 ; fieldAt <= 10 ; fieldAt++ ) {
 				gsub( /^[ \t]+|[ \t]+$/, "", $fieldAt ) ; gsub( /[ \t]+/, "_", $fieldAt ) ;
 				if ( $fieldAt == "" ) $fieldAt = "-" ;
 			}
-			print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10 ;
+			state = "never" ; when = "-" ;
+			if ( $2 in ran ) {
+				when = lastRun[$2] ; gsub( /[ \t]+/, "_", when ) ; if ( when == "" ) when = "-" ;
+				state = ( runningNow[$2] > 0 ) ? "running" : lastHow[$2] ; sub( /^spawn-/, "", state ) ; if ( state == "" ) state = "never" ;
+			}
+			print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, state, when ;
 		}' \
 		| LC_ALL=C sort -t "$rowsTab" -k3,3 -k2,2
 }

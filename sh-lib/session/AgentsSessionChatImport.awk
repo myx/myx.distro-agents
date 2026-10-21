@@ -102,7 +102,10 @@ function flush(   bodyLast, at, text, header, arrow, toPart, endPos, to, firstTe
 		lineCount++ ;
 	}
 	print "" >> chatOut ;
-	printf "%d\t%s\t%s\t%s\t%d\t%s\n", startNo, msgTs, where, ( secOf(msgTs) <= historyBefore + 0 ) ? "history" : origin, startLine, seen >> indexOut ;
+	# A tracking post of the tooling (`[tracking: <kind>]`) is held for whoever reads the thread and is never new to a floor, as history is: it tells
+	# nobody anything the tooling did not already do. News are `handback`, a run reporting to the run that started it, and what the tooling sent that is
+# addressed to someone (`tooling` with a header naming its addressees: DISMISSED among it): that always reaches the one it is for.
+	printf "%d\t%s\t%s\t%s\t%d\t%s\n", startNo, msgTs, where, ( secOf(msgTs) <= historyBefore + 0 || ( msgTracking != "" && msgTracking != "handback" && ! ( msgTracking == "tooling" && to != "all" ) ) ) ? "history" : origin, startLine, seen >> indexOut ;
 	startNo++ ;
 	startLine += lineCount + 1 ;
 }
@@ -138,9 +141,15 @@ FILENAME == ARGV[2] {
 	sub(/ \|.*$/, "", msgUser) ;
 	sub(/^[^|]*\|/, "", rest) ;
 	msgSender = "" ;
+	msgTracking = "" ;
 	while ( match(rest, /^ \[[^]]*\]/) ) {
 		ann = substr(rest, RSTART + 1, RLENGTH - 1) ;
 		rest = substr(rest, RSTART + RLENGTH) ;
+		if ( ann ~ /^\[tracking: / ) {
+			msgTracking = ann ;
+			sub(/^\[tracking: /, "", msgTracking) ;
+			sub(/\]$/, "", msgTracking) ;
+		}
 		if ( ann ~ /^\[sender: / ) {
 			msgSender = ann ;
 			sub(/^\[sender: /, "", msgSender) ;

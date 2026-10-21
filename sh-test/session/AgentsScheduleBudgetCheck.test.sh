@@ -7,7 +7,8 @@
 ##   1. The first iteration of worktime reads the team channel once: ONE Slack read (`conversations.history`) for the 17, not 17.
 ##   2. An iteration 5 seconds later, inside the TTL of the source in AgentsToolsSourceTtlOf (15 s), makes no Slack read for them.
 ##   3. An iteration past the TTL reads it once again, and no more.
-##   4. After worktime nobody is eligible: an iteration reads nothing for them.
+##   4. After worktime nobody is within the flags, and a member is still called by name: an iteration reads the team channel once more, for the tags of all
+##      of them (a mention starts or keeps a duty at any hour), and that is one read, not one for each.
 ##   5. A mention of one member in that one read gives that member, and no other, its duty; the next iteration starts no second.
 ## Offline, rig tree only.
 set -u
@@ -51,13 +52,13 @@ rigAssert "an iteration past the TTL reads it once again, and no more" "$(( $( r
 rigHistoryC="$( rigCalls conversations.history )"
 rigAt "$rigMon18"
 rigOneRun d
-rigAssert "after worktime nobody is eligible: an iteration reads nothing for them" "$( rigCalls conversations.history )" "$rigHistoryC"
+rigAssert "after worktime nobody is within the flags: an iteration reads the channel once, for the tags of all of them" "$(( $( rigCalls conversations.history ) - rigHistoryC ))" "1"
 ## A mention of keeper-rig-09 (its Slack id URIG09 in the rig) in the team channel, newer than the last read, and one of nobody.
 rigTue13=$(( rigMon13 + 86400 ))
 printf '{"ok":true,"messages":[{"type":"message","user":"U1","text":"<@URIG09> please look at this","ts":"%s.000100"},{"type":"message","user":"U2","text":"plain talk","ts":"%s.000200"}],"has_more":false}\n' "$(( rigTue13 - 5 ))" "$(( rigTue13 - 4 ))" > "$rigScn/history-body"
 rigAt "$rigTue13" ; rigMentionCache
 rigOneRun e ; rigWaitStarts
-rigAssert "a mention of keeper-rig-09 gives it its duty, and no other member of the 17 is given one: one read, one start" "$(( $( rigCalls conversations.history ) - rigHistoryC )):$( rigDutyCount keeper-rig-09 ):$( rigSaid e 'work-duty: started the duty of' )" "1:1:1"
+rigAssert "a mention of keeper-rig-09 gives it its duty, and no other member of the 17 is given one: one read (two since the worktime ended), one start" "$(( $( rigCalls conversations.history ) - rigHistoryC )):$( rigDutyCount keeper-rig-09 ):$( rigSaid e 'work-duty: started the duty of' )" "2:1:1"
 rigAt $(( rigTue13 + 40 ))
 rigOneRun f ; rigWaitStarts
 rigAssert "the next iteration past the TTL starts no second duty for that mention" "$( rigDutyCount keeper-rig-09 ):$( rigSaid f 'work-duty: started the duty of' )" "1:0"

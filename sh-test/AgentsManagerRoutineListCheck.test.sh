@@ -137,11 +137,11 @@ rigTroubles(){ ## -- how many lines of the last stderr are an error or a warning
 rigWhole(){ ## file, text -- how many lines of the file are that text, whole
 	LC_ALL=C grep -c -x -F -- "$2" "$1" 2> /dev/null || :
 }
-rigMachine(){ ## -- every file of the rig machine, each with the sum of its bytes, as one sum
-	( cd "$rigTmp" && find ws-here ws-far home data -type f | LC_ALL=C sort | while IFS= read -r machineFile ; do printf '%s %s\n' "$machineFile" "$( cksum < "$machineFile" )" ; done ) | cksum
+rigMachine(){ ## -- every file of the rig machine but the Dispatcher's derived index of the runs (.local/agents/stats, which its reader brings up to date), each with the sum of its bytes, as one sum
+	( cd "$rigTmp" && find ws-here ws-far home data -type f ! -path '*/.local/agents/stats/*' | LC_ALL=C sort | while IFS= read -r machineFile ; do printf '%s %s\n' "$machineFile" "$( cksum < "$machineFile" )" ; done ) | cksum
 }
 rigWantRow(){ ## selector, owner, start, executors, session, title, reason, what a start of it needs where it needs anything -- a row as the operation prints it
-	printf 'routine\t%s\t%s\t%s\t%s\t%s\t-\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "$6" "$7" "${8:--}"
+	printf 'routine\t%s\t%s\t%s\t%s\t%s\t-\t%s\t%s\t%s\tnever\t-\n' "$1" "$2" "$3" "$4" "$5" "$6" "$7" "${8:--}"
 }
 rigTitleOf(){ ## file name -- its title line as a row carries it
 	printf '%s_—_the_actual_procedure' "${1%.md}"
@@ -197,8 +197,8 @@ rigAssert "a file whose name is part of another routine file's name cannot be se
 rigAssert "the rows come by the name of the member, then by the name of the file: four owners, and the seven files of one in order" \
 	"$( LC_ALL=C awk -F'\t' '$3 != last { printf "%s ", $3 ; last = $3 }' "$rigTmp/out" )/ $( LC_ALL=C awk -F'\t' '$3 == "keeper-rig" { printf "%s ", $2 }' "$rigTmp/out" )" \
 	"keeper-far keeper-rig magic-coordinator magic-team / keeper-rig.alpha.routine.md keeper-rig.far.routine.md keeper-rig.ghost.routine.md keeper-rig.owner.routine.md keeper-rig.pair.routine.md keeper-rig.wild.routine.md x.routine.md "
-rigAssert "the rows are sorted as sort(1) sorts them by owner, then by selector, and every row has ten fields" \
-	"$( LC_ALL=C sort -c -t "$rigTab" -k3,3 -k2,2 "$rigTmp/out" 2> /dev/null && echo sorted || echo unsorted ) $( LC_ALL=C awk -F'\t' 'NF != 10 || $1 != "routine" { bad++ } END { print NR ":" bad + 0 }' "$rigTmp/out" )" "sorted 16:0"
+rigAssert "the rows are sorted as sort(1) sorts them by owner, then by selector, and every row has twelve fields" \
+	"$( LC_ALL=C sort -c -t "$rigTab" -k3,3 -k2,2 "$rigTmp/out" 2> /dev/null && echo sorted || echo unsorted ) $( LC_ALL=C awk -F'\t' 'NF != 12 || $1 != "routine" { bad++ } END { print NR ":" bad + 0 }' "$rigTmp/out" )" "sorted 16:0"
 rigAssert "the last field says what a start of the routine needs: members, for one whose executors is any member, and nothing for every other, one that is not startable for another reason too" \
 	"$( LC_ALL=C awk -F'\t' '$10 == "members" { printf "%s ", $2 }' "$rigTmp/out" )/ $( LC_ALL=C awk -F'\t' '$10 != "members" && $10 != "-" { n++ } END { print n + 0 }' "$rigTmp/out" ) $( rigRowOf keeper-rig.ghost.routine.md | LC_ALL=C awk '{ print $4, $10 }' ) $( rigRowOf keeper-rig.alpha.routine.md | LC_ALL=C awk '{ print $4, $10 }' )" \
 	"keeper-rig.wild.routine.md magic-coordinator.star.routine.md / 0 not-startable - startable -"
@@ -285,12 +285,32 @@ rigEntry(){ ## -- the operation's entry in the help.md, from under its heading t
 }
 rigAssert "the operation has its syntax echo, its syntax line and its entry, once each, and in no other form" "$( LC_ALL=C grep -c -x -F -- "echo \"$rigSyntax\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s' "$rigOp" )" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh $rigOp" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh $rigOp" "$rigHelpMd" || : )" "1 1 1 1 1"
 rigForm="$( rigEntry | LC_ALL=C sed -n -e 's/^[[:space:]]*`\(routine <.*>\)`$/\1/p' )"
-rigAssert "its entry gives the form of a row" "$rigForm" "routine <selector> <owner> <start> <executors> <session> <arguments> <title> <reason> <needs>"
+rigAssert "its entry gives the form of a row" "$rigForm" "routine <selector> <owner> <start> <executors> <session> <arguments> <title> <reason> <needs> <state> <last-run>"
 rigAssert "and every row printed has exactly the fields that form names" "$( LC_ALL=C awk -F'\t' -v wantFields="$( printf '%s\n' "$rigForm" | LC_ALL=C awk '{ print NF }' )" '{ rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/list.kept" )" "rows:0"
 rigAssert "the entry names the three words of <start>, the word of <session>, the operation that takes the selector, and the word of <needs>" "$( for rigWord in startable not-startable broken coworking '--magic-spawn-session --routine <selector>' members ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyy"
 rigAssert "control: the entry was cut up to the next operation's heading, and holds its own text" "$( rigEntry | LC_ALL=C grep -c -F -- 'TAB-separated' || : ) $( rigEntry | LC_ALL=C awk 'END { print ( NR > 0 && NR < 60 ) ? "cut" : "not cut: " NR " lines" }' )" "1 cut"
 rigRun --help-syntax
 rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigTmp/err" || : )" "0 1"
+
+echo "-- the state and the last run of a routine are the Dispatcher's own rows of its runs, joined to it --"
+rigRunRecord(){ ## session, run, routine, status, started -- the record of a run of a routine, as the Dispatcher reads the runs
+	mkdir -p "$rigWs/.local/agents/spawned/$1"
+	{
+		printf -- '---\nsession-id: %s\nspawn-id: %s\nstart-context: spawned\nworkspace: ws-rig\nexecuting-workspace: ws-rig\npaying-workspace: ws-rig\nowner: keeper-rig\nroutine: %s\nstatus: %s\nstarted-at: %s +0300\n' "$1" "$2" "$3" "$4" "$5"
+		[ "$4" = "spawn-started" ] || printf 'resolved-at: %s +0300\nexit-code: 0\n' "$5"
+		printf -- '---\n\n# Spawn session: %s\n' "$2"
+	} > "$rigWs/.local/agents/spawned/$1/$2.md"
+}
+rigRunRecord rt-a1 rt-a1 keeper-rig.alpha.routine.md spawn-succeeded "2027-01-01 09:00"
+rigRunRecord rt-a2 rt-a2 keeper-rig.alpha.routine.md spawn-failed "2027-01-02 09:00"
+rigRunRecord rt-f1 rt-f1 keeper-rig.far.routine.md spawn-started "2027-01-03 11:00"
+rigRunRecord rt-d1 rt-d1 magic-coordinator.daily.routine.md spawn-succeeded "2027-01-03 10:00"
+rigRun "$rigOp"
+rigAssert "state and last run: how the last run ended and when it started; a run that runs reads running; a routine with no run reads never and -" \
+	"$( rigRowOf keeper-rig.alpha.routine.md | LC_ALL=C awk '{ print $11, $12 }' ) | $( rigRowOf keeper-rig.far.routine.md | LC_ALL=C awk '{ print $11, $12 }' ) | $( rigRowOf magic-coordinator.daily.routine.md | LC_ALL=C awk '{ print $11, $12 }' ) | $( rigRowOf keeper-rig.ghost.routine.md | LC_ALL=C awk '{ print $11, $12 }' )" \
+	"failed 2027-01-02_09:00 | running 2027-01-03_11:00 | succeeded 2027-01-03_10:00 | never -"
+rigAssert "every row still has its twelve fields, the first ten as they were" "$( LC_ALL=C awk -F'\t' 'NF != 12 { bad++ } END { printf "%s:%s", NR, bad + 0 }' "$rigTmp/out" )" "16:0"
+rigAssert "the Dispatcher's own reader is what is called, once: this operation holds no copy of the rows of the runs" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerRoutine.include" | LC_ALL=C grep -c -e 'DistroAgentsDispatcher.fn.sh\" --routine-stats' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerRoutine.include" | LC_ALL=C grep -c -e 'routines.index' -e 'spawned/' || : )" "1 0"
 
 ## The runs section 3 started close their records apart from this check: waited for, so none writes into a tree that is gone.
 rigLeft=90

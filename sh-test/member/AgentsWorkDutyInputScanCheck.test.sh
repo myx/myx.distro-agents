@@ -147,6 +147,36 @@ rigScan p2
 rigAssert "the first scan returns the message, the second of the session does not"  "$( rigHolds p1 RIG-TEAM-ONCE ):$( rigHolds p2 RIG-TEAM-ONCE )" "1:0"
 rigAssert "the pointer is kept in the session, at the last message returned"        "$( LC_ALL=C awk -F'\t' '$1 == "collect:keeper-rig:slack:magic-team" { print $2 ; }' "$rigWs/.local/agents/sessions/$rigSession/session.chat.pointers" )" "$(( rigNow - 50 )).000001"
 
+echo "-- 8. what the tooling posted itself is no input --"
+##   The tooling marks what it posts itself (tracking and the spawn id of the session, AgentsSlackMessagesFormat.awk): the collect does not end on such a post,
+##   though it names the member, and does not report it; a hand-back of a run that reports to the member is news, of one the member launched that reports to nobody is none.
+rigMsgTool(){ ## ts, user, text, kind, session
+	printf '{"ts":"%s","user":"%s","text":"%s","metadata":{"event_type":"magic_sender","event_payload":{"sender":"magic-team","tracking":"%s","session":"%s"}}}' "$1" "$2" "$3" "$4" "$5"
+}
+rigLaunched(){ ## spawn id, reports-to
+	mkdir -p "$rigWs/.local/agents/spawned/$1"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: rig-parent\nparent-member: keeper-rig\nstart-context: spawned\nowner: keeper-rig-other\nreports-to: %s\nstatus: spawn-succeeded\n---\n\n# Spawn session: %s\n' "$1" "$1" "$2" "$1" > "$rigWs/.local/agents/spawned/$1/$1.md"
+}
+rigScene tooling 3
+rigLaunched rig-launched none
+rigHistory CRIG00001 "$( rigMsgTool "$(( rigNow - 40 )).000001" URIGBOT01 'RIG-TOOL-START @keeper-rig session started' session-root rig-launched )" "$( rigMsgTool "$(( rigNow - 30 )).000001" URIGBOT01 'RIG-TOOL-ACTIVITY @keeper-rig' activity rig-launched )"
+rigScan tooling
+rigAssert "a start post and an activity post of the tooling, both naming the member: the collect runs its window, and reports neither" "$( [ "$( rigTook tooling )" -ge 3 ] && echo window || echo "took:$( rigTook tooling )" ):$( rigHolds tooling '# returned: window' ):$( rigHolds tooling RIG-TOOL-START ):$( rigHolds tooling RIG-TOOL-ACTIVITY )" "window:1:0:0"
+rigScene toolaway 3
+rigLaunched rig-away none
+rigHistory CRIG00001 "$( rigMsgTool "$(( rigNow - 40 )).000001" URIGBOT01 'RIG-AWAY-HANDBACK @keeper-rig done' handback rig-away )"
+rigScan toolaway
+rigAssert "the hand-back of a run the member launched that reports to nobody: no tag, the window runs" "$( [ "$( rigTook toolaway )" -ge 3 ] && echo window || echo "took:$( rigTook toolaway )" ):$( rigHolds toolaway RIG-AWAY-HANDBACK )" "window:0"
+rigScene toolhome 25
+rigLaunched rig-home keeper-rig
+rigHistory CRIG00001 "$( rigMsgTool "$(( rigNow - 40 )).000001" URIGBOT01 'RIG-HOME-HANDBACK @keeper-rig done' handback rig-home )"
+rigScan toolhome
+rigAssert "the hand-back of a run that reports to the member is news: it ends the collect at once" "$( [ "$( rigTook toolhome )" -lt 20 ] && echo quick || echo "took:$( rigTook toolhome )" ):$( rigHolds toolhome '# returned: immediate' ):$( rigHolds toolhome RIG-HOME-HANDBACK )" "quick:1:1"
+rigScene toolchat 25
+rigHistory CRIG00001 "$( rigMsg "$(( rigNow - 40 )).000001" URIGOTHER 'RIG-PERSON-TAG @keeper-rig look' )"
+rigScan toolchat
+rigAssert "control: a person's tag in the same rig still ends it at once" "$( [ "$( rigTook toolchat )" -lt 20 ] && echo quick || echo "took:$( rigTook toolchat )" ):$( rigHolds toolchat '# returned: immediate' )" "quick:1"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ WORK DUTY INPUT SCAN CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

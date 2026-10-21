@@ -188,7 +188,9 @@ case "$1" in
 		## them) goes once more as plain text, in the text rendering cut to Slack's `text` limit,
 		## with a warning: nothing is lost. A post to a conversation opens a thread; what
 		## follows it goes there.
-		local etpMetadata="{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"$etpMember\",\"tracking\":\"$etpKind\"}}"
+		## The session the post belongs to, as `--session-id` gave it, else the run's own (the one the send log keeps): `[session: <id>]` on a read, which says whose launch a post is.
+		local etpMetaSession="${etpSession:-${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-}}}"
+		local etpMetadata="{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"$etpMember\",\"tracking\":\"$etpKind\"${etpMetaSession:+,\"session\":\"$etpMetaSession\"}}}"
 		local etpIndex=0 etpText etpPayload etpResponse etpRc etpJoined="false" etpTs etpError etpErrorName
 		local etpSends=() etpSendAt etpSendFile etpAsText etpBlocksRefused etpSentAny="false"
 		for etpPostFile in "${etpPosts[@]}" ; do

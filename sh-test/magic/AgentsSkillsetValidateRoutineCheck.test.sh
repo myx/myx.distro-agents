@@ -144,6 +144,18 @@ input-scan-def: advance'
 rigAssert "none beside a scan: refused"                         "$( rigVerdict input-scan-def 'stands alone' )" "refused input-scan-def stands alone"
 rigWithRun scan-old 'input-scan-def: --intern-op-advance-input-scan {{team-member}}'
 rigAssert "the old operation form: refused"                     "$( rigVerdict input-scan-def )" "refused input-scan-def"
+rigWithRun scan-wait 'input-scan-def: work-duty --session-id {{session-id}} --wait 300'
+rigAssert "--wait <seconds>, the spawner's own option beside the scan's: passes" "$rigRc" "0"
+rigWithRun scan-wait-only 'input-scan-def: advance --wait 5'
+rigAssert "--wait alone on a scan passes"                       "$rigRc" "0"
+rigWithRun scan-wait-novalue 'input-scan-def: advance --wait'
+rigAssert "--wait with no value: refused"                       "$( rigVerdict input-scan-def 'has no value' )" "refused input-scan-def has no value"
+for rigWaitBad in 0 -1 abc 05 1.5 ; do
+	rigWithRun scan-wait-bad "input-scan-def: advance --wait $rigWaitBad"
+	rigAssert "--wait $rigWaitBad is not whole seconds, 1 or more: refused" "$( rigVerdict input-scan-def '--wait takes whole seconds' )" "refused input-scan-def --wait takes whole seconds"
+done
+rigWithRun scan-wait-twice 'input-scan-def: advance --wait 5 --wait 6'
+rigAssert "--wait twice on a line: refused"                     "$( rigVerdict input-scan-def 'given twice' )" "refused input-scan-def given twice"
 
 echo "-- 2d. runs-at: <days> <HH:MM> or none; runs-after: one routine --"
 for rigAt in 'workdays 09:30' 'weekend 00:00' 'daily 23:59' 'mon,thu 18:00' 'none' ; do

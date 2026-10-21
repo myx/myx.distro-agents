@@ -253,6 +253,8 @@ AgentsWaitProbeSlack(){
 	AgentsWaitOwnFile "$probeOut.rendered" || return 2
 	## The session thread, read here, is brought into the session chat file too: one read serves this source and the file.
 	case "$probeTarget" in client:*) ;; *) [ "$probeThread" != "true" ] || [ "$probeRc" != "0" ] || AgentsWaitChatImportRead "$probeMember" "$probeTarget" "$probeOut.rendered" || : ;; esac
+	## What the tooling posted itself is no arrival (AgentsTools.TrackingDrop.include); the chat file above holds the whole thread as it was.
+	AgentsWaitTrackingDropFile "$probeMember" "$probeOut.rendered"
 	if [ "$probeThread" = "false" ] ; then
 		if [ "$probeRc" != "0" ] ; then
 			[ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2
@@ -539,6 +541,15 @@ AgentsWaitReadRendered(){ ## member, read target, thread|conversation, oldest (a
 		[ ! -s "$readOut.err" ] || cat "$readOut.err" >&2
 		return 2
 	fi
+	AgentsWaitTrackingDropFile "$readMember" "$readOut"
+	return 0
+}
+
+## The tooling's own posts out of a rendering file, in place, for a member: a tracking post is no input to it (AgentsTools.TrackingDrop.include).
+AgentsWaitTrackingDropFile(){ ## member, a rendering file
+	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TrackingDrop.include" 2> /dev/null || return 0
+	[ -f "$2" ] || return 0
+	AgentsToolsTrackingDrop "$1" < "$2" > "$2.nt" 2> /dev/null && mv -f "$2.nt" "$2" || rm -f "$2.nt"
 	return 0
 }
 

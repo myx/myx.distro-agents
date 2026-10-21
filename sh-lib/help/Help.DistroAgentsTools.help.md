@@ -3690,7 +3690,7 @@
 			nothing. Prints rows of TAB-separated fields on stdout, the
 			first naming the row. An absent value reads `-`, and a
 			value's own whitespace reads `_`.
-			`routine <selector> <owner> <start> <executors> <session> <arguments> <title> <reason> <needs>`
+			`routine <selector> <owner> <start> <executors> <session> <arguments> <title> <reason> <needs> <state> <last-run>`
 			One row a routine, by <owner>, then by <selector>. <selector>
 			is the file's name, the selector
 			`--magic-spawn-session --routine <selector>`
@@ -3726,8 +3726,17 @@
 			`--magic-spawn-session --routine <selector> <team-member>...`
 			and checks every name before it starts anyone. It is `-` for
 			every other row, so a console tells such a routine by this
-			field and not by the words of <reason>. With no routine file
-			at all, a note on stderr and no row.
+			field and not by the words of <reason>. <state> and
+			<last-run>, the last two fields, are the Dispatcher's own
+			(`--routine-stats`, the one reader of its store of the runs,
+			called as it is by `--manager-stats-routines`) joined to the
+			routine by its file name: <state> is `running` where a run of
+			it runs now, else how its last run ended with `spawn-` taken
+			off (`succeeded`, `failed`, `ended-without-close`), `never`
+			for a routine with no run; <last-run> is when that run
+			started, `YYYY-MM-DD_HH:MM`, `-` for none. This operation
+			computes neither. With no routine file at all, a note on
+			stderr and no row.
 
 		--manager-stats-tokens --by day|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>]
 			One of the console's own operations (see Notes). The tokens of the

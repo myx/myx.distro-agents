@@ -144,7 +144,7 @@ function dateFallbacks(textValue,   outText, tokenText, barAt) {
 ## answer of a member with no account of its own by `[sender: X]` -- so that place holds
 ## the formatter's word only, never what somebody typed.
 function ownStart(textValue) {
-	return (textValue ~ /^\[(sender|reactions|thread): /) ? " " textValue : textValue
+	return (textValue ~ /^\[(sender|tracking|session|reactions|thread): /) ? " " textValue : textValue
 }
 
 function ownLines(textValue,   outText) {
@@ -187,6 +187,11 @@ function emitLeaf(path, raw, val,   idx, rest, afterIdx, afterReactions, j, afte
 	## back. Absent for every message that carries neither, so this adds nothing
 	## to a rendering with no such message.
 	if (afterIdx == "metadata.event_payload.sender") { senderOf[idx] = val; return; }
+	## The tooling's own tracking posts (AgentsTools.InternOpEventTrackPost.include, the session root) carry `event_payload.tracking`, the kind of the
+	## post: a reader that decides whether something is input tells them by this annotation, `[tracking: <kind>]`, never by their text.
+	if (afterIdx == "metadata.event_payload.tracking") { trackingOf[idx] = val; return; }
+	## and the spawn id of the session it belongs to, `[session: <id>]`, which says whose launch it is (AgentsTools.TrackingDrop.include).
+	if (afterIdx == "metadata.event_payload.session") { sessionOf[idx] = val; return; }
 	if (index(afterIdx, "reactions.") == 1) {
 		afterReactions = substr(afterIdx, length("reactions.") + 1)
 		j = afterReactions
@@ -310,6 +315,8 @@ END {
 		annotations = ""
 
 		if (i in senderOf) annotations = annotations sprintf(" [sender: %s]", senderOf[i])
+		if (i in trackingOf) annotations = annotations sprintf(" [tracking: %s]", trackingOf[i])
+		if (i in sessionOf) annotations = annotations sprintf(" [session: %s]", sessionOf[i])
 
 		if (i in reactionCountPerMsg) {
 			for (j = 0; j < reactionCountPerMsg[i]; j++) {

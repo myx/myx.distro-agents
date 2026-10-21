@@ -24,8 +24,11 @@ AgentsToolsInputScanNames(){
 ## The call one definition line stands for, split into its words, one a line: the scan's operation, the team member,
 ## then each option and its value with the macros filled from the spawn's context. rc 1, the reason on stderr, for a
 ## line that names no scan, an option with no value, a word that is no option, or a macro that is none of the five.
+## One option is the spawner's and not the scan's, `--wait <seconds>` (whole seconds, 1 or more, once): it is not among the words, and
+## AgentsToolsInputScanDefWait reads it. With input present the start is at once; with an empty scan the spawner waits up to that long
+## for some to come (AgentsToolsInputScanDefAwait), and a start that nothing came to is none.
 AgentsToolsInputScanDefWords(){ ## definition line, team member, session id, spawn id
-	local defWords defScan defAt defWord defFilled defOption=""
+	local defWords defScan defAt defWord defFilled defOption="" defWaitSeen=""
 	read -r -a defWords <<< "$1"
 	defScan="${defWords[0]:-}"
 	if [ -z "$defScan" ] || ! AgentsToolsInputScanNames | LC_ALL=C grep -q -x -- "$defScan" ; then
@@ -37,7 +40,7 @@ AgentsToolsInputScanDefWords(){ ## definition line, team member, session id, spa
 		defWord="${defWords[$defAt]}"
 		if [ -z "$defOption" ] ; then
 			case "$defWord" in
-				--*) defOption="$defWord" ; printf '%s\n' "$defWord" ; continue ;;
+				--*) defOption="$defWord" ; continue ;;
 			esac
 			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: input-scan-def: '$1': '$defWord' is no --option -- the form is <scan> [--option value ...]" >&2
 			return 1
@@ -56,13 +59,117 @@ AgentsToolsInputScanDefWords(){ ## definition line, team member, session id, spa
 				return 1
 			;;
 		esac
+		if [ "$defOption" = "--wait" ] ; then
+			case "$defFilled" in
+				''|*[!0123456789]*|0|0[0123456789]*)
+					echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: input-scan-def: '$1': --wait takes whole seconds, 1 or more, got: $defFilled" >&2
+					return 1
+				;;
+			esac
+			if [ -n "$defWaitSeen" ] ; then
+				echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: input-scan-def: '$1': --wait is given twice" >&2
+				return 1
+			fi
+			defWaitSeen="yes" ; defOption=""
+			continue
+		fi
+		printf '%s\n' "$defOption" "$defFilled"
 		defOption=""
-		printf '%s\n' "$defFilled"
 	done
 	if [ -n "$defOption" ] ; then
 		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: input-scan-def: '$1': the option $defOption has no value -- the form is <scan> [--option value ...]" >&2
 		return 1
 	fi
+}
+
+## The seconds of the `--wait <seconds>` option of a definition line, nothing printed for a line with none.
+AgentsToolsInputScanDefWait(){ ## definition line
+	local waitWords waitAt
+	read -r -a waitWords <<< "$1"
+	for (( waitAt = 1 ; waitAt < ${#waitWords[@]} ; waitAt++ )) ; do
+		[ "${waitWords[$waitAt]}" != "--wait" ] || { printf '%s\n' "${waitWords[$(( waitAt + 1 ))]:-}" ; return 0 ; }
+	done
+	return 0
+}
+
+## Whether a scan's report holds nothing to work: rc 0 where every line of it is blank, a heading (`#`), a section's `scope:` or `cap:` line, `(none)`, a
+## `**NOTE:** no new ...` line or `Nothing new ...`. Any other line is input, so a scan that words its emptiness in another way starts the run, and a report is
+## never taken for empty on a guess: the mistake can only be a start.
+AgentsToolsInputScanReportEmpty(){ ## the report file
+	LC_ALL=C awk '
+		/^[[:space:]]*$/ { next }
+		/^#/ { next }
+		/^\(none\)$/ { next }
+		/^scope: / { next }
+		/^cap: / { next }
+		/^\*\*NOTE:\*\* no new / { next }
+		/^Nothing new/ { next }
+		{ found = 1 ; exit }
+		END { exit ( found ? 1 : 0 ) }' "$1" 2> /dev/null
+}
+
+## One scan of a definition line run, its report into a file; a scan that fails leaves its failure in the report, which is input to whoever starts on it.
+AgentsToolsInputScanDefOne(){ ## definition line, team member, session id, spawn id, the report file
+	local oneWords oneWord oneArgs=() oneRc=0
+	oneWords="$( AgentsToolsInputScanDefWords "$1" "$2" "$3" "$4" )" || return 1
+	while IFS= read -r oneWord ; do oneArgs+=( "$oneWord" ) ; done <<< "$oneWords"
+	DistroAgentsTools "${oneArgs[@]}" > "$5" 2> "$5.err" || oneRc=$?
+	if [ "$oneRc" -ne 0 ] ; then
+		{ printf 'The input scan failed (exit %s):\n' "$oneRc" ; cat "$5.err" 2> /dev/null ; } >> "$5"
+	fi
+	rm -f "$5.err"
+	return 0
+}
+
+## THE WAIT OF A SCAN (`--wait <seconds>` on a definition line), before anything is made for the start: with input present the start goes on at once, after the
+## scan's own collect window, which gathers what arrives together into one report. With an empty scan (AgentsToolsInputScanReportEmpty) the spawner waits up to that
+## long for some to come, on the Wait layer's sources (--member-wait-for-input): the sources the routine declares (`wait-sources:`, `{{team-member}}` the member
+## of the start), else the member's own inbox, read at every pass. At each wake, and once more when the time is out, the scan is run again. Each report is kept in
+## the folder given, line.<n>, for the start to use as its own, so that no scan runs twice for a start that goes on. The sources are read from the instant the wait of
+## the line began, not from their first pass of the Wait: what arrived between the scan's reading and the Wait's first pass is an arrival too.
+## rc 0 the start goes on; rc 3 nothing came
+## (one line says so, on stdout); rc 1 the wait could not be made.
+AgentsToolsInputScanDefAwait(){ ## definition lines (one a line), team member, session id, spawn id, the routine file, the folder for the reports
+	local awaitLine awaitIndex=0 awaitSeconds awaitScan awaitFile awaitDeadline awaitLeft awaitSources awaitWord awaitArgs awaitOut awaitHead awaitFrom
+	type AgentsToolsRoutineKeyLines > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
+	while IFS= read -r awaitLine ; do
+		[ -n "$awaitLine" ] && [ "$awaitLine" != "none" ] || continue
+		awaitIndex=$(( awaitIndex + 1 ))
+		awaitSeconds="$( AgentsToolsInputScanDefWait "$awaitLine" )"
+		[ -n "$awaitSeconds" ] || continue
+		awaitScan="${awaitLine%% *}"
+		awaitFile="$6/line.$awaitIndex"
+		awaitFrom="$( date +%s )"
+		awaitDeadline=$(( awaitFrom + awaitSeconds ))
+		AgentsToolsInputScanDefOne "$awaitLine" "$2" "$3" "$4" "$awaitFile" || return 1
+		while AgentsToolsInputScanReportEmpty "$awaitFile" ; do
+			awaitLeft=$(( awaitDeadline - $( date +%s ) ))
+			if [ "$awaitLeft" -le 0 ] ; then
+				printf '%s: agent-spawn-proxy: nothing came on the %s scan of %s within %s seconds: no agent was started\n' "${MDSC_CMD:-DistroAgentsTools}" "$awaitScan" "${5##*/}" "$awaitSeconds"
+				return 3
+			fi
+			awaitSources=""
+			while IFS= read -r awaitWord ; do
+				for awaitWord in $awaitWord ; do
+					awaitWord="${awaitWord//\{\{team-member\}\}/$2}"
+					awaitSources="$awaitSources --wait-source $awaitWord"
+				done
+			done <<< "$( AgentsToolsRoutineKeyLines "$5" wait-sources )"
+			[ -n "$awaitSources" ] || awaitSources="--wait-source inbox:$2"
+			## The Wait of the start has no session of its own: not the caller's floor, and not a pointer of the new session.
+			awaitOut="$( unset MDAT_SESSION_ID MDAT_SPAWN_SESSION_ID ; DistroAgentsTools --member-wait-for-input "$2" $awaitSources --wait-since-utime "$awaitFrom" --wait-timeout "$awaitLeft" 2> /dev/null < /dev/null )" || :
+			awaitHead="$( printf '%s\n' "$awaitOut" | head -n 1 )"
+			case "$awaitHead" in
+				"WAIT-RESULT: RECEIVED"*|"WAIT-RESULT: TIMEOUT"*) ;;
+				*)
+					echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: agent-spawn-proxy: the wait of the $awaitScan scan ($awaitSources) could not be made: ${awaitHead:-no answer}" >&2
+					return 1
+				;;
+			esac
+			AgentsToolsInputScanDefOne "$awaitLine" "$2" "$3" "$4" "$awaitFile" || return 1
+		done
+	done <<< "$1"
+	return 0
 }
 
 ## THE POINTER OF A SCAN, KEPT FOR THE RUN (F10.5 gate B). The spawner runs a routine's scans and gives the run their reports (input/input-scan.md). A
@@ -98,7 +205,7 @@ AgentsToolsInputScanDefNames(){ ## definition lines (one a line)
 ## A scan's own failure is not the start's: the file then says it failed, and what it said, and the agent reads that.
 ## rc 1 only for a definition that cannot be run at all, before any scan has run.
 AgentsToolsInputScanDefRun(){ ## definition lines (one a line), team member, session id, spawn id, result file
-	local runLines="" runLine runCount=0 runScan runWords runWord runArgs runRc runOut runErr
+	local runLines="" runLine runCount=0 runScan runWords runWord runArgs runRc runOut runErr runAt=0
 	while IFS= read -r runLine ; do
 		[ -n "$runLine" ] && [ "$runLine" != "none" ] || continue
 		AgentsToolsInputScanDefWords "$runLine" "$2" "$3" "$4" > /dev/null || return 1
@@ -109,12 +216,18 @@ AgentsToolsInputScanDefRun(){ ## definition lines (one a line), team member, ses
 	runOut="$5.one" ; runErr="$5.err"
 	while IFS= read -r runLine ; do
 		[ -n "$runLine" ] || continue
+		runAt=$(( runAt + 1 ))
 		runScan="${runLine%% *}"
 		runWords="$( AgentsToolsInputScanDefWords "$runLine" "$2" "$3" "$4" )"
 		runArgs=()
 		while IFS= read -r runWord ; do runArgs+=( "$runWord" ) ; done <<< "$runWords"
 		runRc=0
-		DistroAgentsTools "${runArgs[@]}" > "$runOut" 2> "$runErr" || runRc=$?
+		## The report the wait of this line made last (AgentsToolsInputScanDefAwait) is the one this start goes on with; the scan is not run a second time.
+		if [ -n "${agentsInputScanGiven:-}" ] && [ -f "$agentsInputScanGiven/line.$runAt" ] ; then
+			cp "$agentsInputScanGiven/line.$runAt" "$runOut" && : > "$runErr" || runRc=1
+		else
+			DistroAgentsTools "${runArgs[@]}" > "$runOut" 2> "$runErr" || runRc=$?
+		fi
 		[ "$runCount" -le 1 ] || printf '## input scan: %s\n\n' "$runScan" >> "$5"
 		if [ "$runRc" -ne 0 ] ; then
 			{
@@ -130,5 +243,6 @@ AgentsToolsInputScanDefRun(){ ## definition lines (one a line), team member, ses
 		[ "$runCount" -le 1 ] || printf '\n' >> "$5"
 	done <<< "$runLines"
 	rm -f "$runOut" "$runErr"
+	[ -z "${agentsInputScanGiven:-}" ] || { rm -rf "$agentsInputScanGiven" ; agentsInputScanGiven="" ; }
 	return 0
 }

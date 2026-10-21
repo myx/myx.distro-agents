@@ -1969,7 +1969,11 @@ case "$1" in
 		## bot account. An explicit --metadata below replaces it outright;
 		## bareness of $memberName is already asserted above, so it never
 		## needs JSON-escaping here.
-		local sendMetadata="{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"$memberName\"}}"
+		## What the tooling sends itself is marked `tracking: tooling` (a member's own send, MDAT_SEND_FLOOR=hold, set by its stub, is not): the readers that
+		## decide whether something is input leave a tooling post that is not addressed to the reader out (AgentsTools.TrackingDrop.include).
+		local sendTracking=""
+		[ "${MDAT_SEND_FLOOR:-}" = "hold" ] || sendTracking=",\"tracking\":\"tooling\""
+		local sendMetadata="{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"$memberName\"$sendTracking}}"
 		local defaultMetadata="$sendMetadata"
 		while [ $# -gt 0 ] ; do
 			case "$1" in

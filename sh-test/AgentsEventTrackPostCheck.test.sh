@@ -996,7 +996,7 @@ rigAssert "nothing but the box: no block outside one, no odd child, no divider, 
 rigAssert "one post, and it carried blocks" "$( LC_ALL=C tr '\n' ' ' < "$rigTmp/scenario/kinds" )" 'blocks '
 rigAssert "no code fence, no raw line, no @here and no addressee line" \
 	"$( LC_ALL=C grep -c -e '```' -e 'TOOL Read' -e '@here' -e '\\n→' "$rigBody" )" 0
-rigAssert "the sender is named in its metadata, with the kind" "$( rigYes env LC_ALL=C grep -q -F '"metadata":{"event_type":"magic_sender","event_payload":{"sender":"magic-tester","tracking":"feed"}}' "$rigBody" )" yes
+rigAssert "the sender is named in its metadata, with the kind and the session the post belongs to" "$( rigYes env LC_ALL=C grep -q -F '"metadata":{"event_type":"magic_sender","event_payload":{"sender":"magic-tester","tracking":"feed","session":"abcdef01-2345"}}' "$rigBody" )" yes
 rigAssert "the post is reported as the member send reports one" "$( LC_ALL=C grep -c -e '^SENT_MESSAGE_CHANNEL=CRIGTRACK$' -e '^SENT_MESSAGE_TS=1700000001.000101$' "$rigTmp/op.err" )" 2
 rigAssert "one ok line in the monthly send log, as the bot" "$( rigLog | LC_ALL=C awk -F'\t' '$2 == "magic-tester" && $3 == "event-track" && $4 == "CRIGTRACK" && $5 == "bot" && $6 == "ok" && $8 == "rig-sender-session" { n++ } END { print n + 0 }' )" 1
 

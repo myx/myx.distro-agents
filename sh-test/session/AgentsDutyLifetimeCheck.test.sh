@@ -89,12 +89,13 @@ echo "-- 0. a duty is lazy: it starts when something arrives --"
 rigAt "$rigMon13"
 rigOneRun idle0 ; rigWaitStarts
 rigAssert "worktime, a standing member with nothing to work on: no duty is started for it, however many iterations pass" "$( rigDutyCount keeper-rig-11 ):$( rigSaid idle0 'the duty of keeper-rig-11' )" "0:0"
-for rigM in 02 03 04 05 06 07 08 09 10 ; do rigItem keeper-rig-$rigM ; done
+rigDutyMembers="02 03 04 05 06 07 08 09 10"
+for rigM in $rigDutyMembers ; do rigItem keeper-rig-$rigM ; done
 rigAt $(( rigMon13 + 20 ))
 rigOneRun start0 ; rigWaitStarts
-rigAssert "the items arrive: the duty of each member that has one is started, and keeper-rig-11, with none, still has none" "$( for rigM in 02 03 04 05 06 07 08 09 10 ; do rigDutyCount keeper-rig-$rigM ; done | tr -d '\n' ):$( rigDutyCount keeper-rig-11 )" "111111111:0"
+rigAssert "the items arrive: the duty of each member that has one is started, and keeper-rig-11, with none, still has none" "$( for rigM in $rigDutyMembers ; do rigDutyCount keeper-rig-$rigM ; done | tr -d '\n' ):$( rigDutyCount keeper-rig-11 )" "111111111:0"
 ## Each duty becomes a live run in its Wait; their inbox items are worked off but for keeper-rig-08's, which stays (the input of the case it is for).
-for rigM in 02 03 04 05 06 07 08 09 10 ; do
+for rigM in $rigDutyMembers ; do
 	rigLive keeper-rig-$rigM idle ; eval "rigSpawnOf$rigM=\"\$rigLiveSpawn\""
 	[ "$rigM" = 08 ] || rm -f "$rigData/inboxes/keeper-rig-$rigM/incoming/note-20261019T0900Z-rig-work.md"
 done
@@ -156,6 +157,7 @@ rigAssert "two minutes on, idle for 62 minutes, no input, no session: told to go
 rigAssert "the input worked off, idle for hours: told to go" "$( rigTold off2 keeper-rig-08 )" "1"
 rigAssert "the other run ended, idle for hours: told to go" "$( rigTold off2 keeper-rig-09 )" "1"
 rigAssert "...and nothing is told twice" "$( LC_ALL=C grep -l -F DISMISSED "$rigScn"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "9"
+
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ DUTY LIFETIME CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
