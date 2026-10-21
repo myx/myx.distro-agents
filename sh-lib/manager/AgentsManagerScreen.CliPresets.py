@@ -4,7 +4,7 @@
 ## set up) and the tiers that are assigned (which preset, and which effort, each member and the team use for their low, normal and high tier); the two folders under it, `CLI Service Presets`
 ## and `Member Tier Assignments`, show each more of its own when selected. The tasks are the keys: `n` adds a preset, `c` configures one (the wizard, which makes, extends, sets the model, the
 ## effort, the cache and the credentials), `u` uses a preset for a member, `a` assigns a tier (who, which tier, then the two selectors, the preset and the effort), `D` deletes a preset, `s` selects
-## the CLI the machine has. Enter on a preset or an owner goes into its variables, where each is changed by its kind: that is Scope Settings' (Scopes.py), which stays as it was.
+## the CLI the machine has. Enter on a preset or an owner goes into its variables, where each is changed by its kind: that is Scope Settings' (LocalManagerScreen.Scopes.py of `.local`), which stays as it was.
 ## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the order of its PARTS, and it is never run by itself. The part is plain text of the screen.
 ## The screen writes no file: --manager-scope-set, --manager-preset-new, --manager-scope-delete and the wizard's --manager-wizard-apply do, by the setting reader of the dispatcher.
 ##
@@ -12,7 +12,8 @@
 ## The fields of a `preset` row of `--manager-preset-list` after the six of a scope's, and of a `tier` row.
 PRESET_FIELDS = ("extends", "service", "model", "effort", "used")
 TIER_FIELDS = ("low", "normal", "high")
-TIER_KEYS = (("SPAWN_TIER_LOW", "low", "Low"), ("SPAWN_TIER_NORMAL", "normal", "Normal"), ("SPAWN_TIER_HIGH", "high", "High"))
+## the order and the titles the screen shows the three tiers by (the keys they are stored in are unchanged)
+TIER_KEYS = (("SPAWN_TIER_NORMAL", "normal", "Default / Normal"), ("SPAWN_TIER_HIGH", "high", "High / Heavy"), ("SPAWN_TIER_LOW", "low", "Low / Easy"))
 CALLS["preset-new"] = ["--manager-preset-new"]
 
 
@@ -33,6 +34,29 @@ def parsePresetRows(readKey, level, text):
     return {level: rows}
 
 
+## What a tier of an owner resolves to, as the spawner chooses (AgentsToolsPresetChosen): its own setting; else, for a member, the team's of that tier; else the member's normal, else the team's
+## normal. Returns (value, how): how is "set", "inherits the team's" or "uses the normal tier".
+def tierResolved(owners, owner, tier):
+    team = next((one for one in owners if one["scope"]["id"] == "agents:magic-team"), None)
+    own = absent(owner["tiers"][tier])
+    if own:
+        return own, "set"
+    if owner is not team and team is not None and absent(team["tiers"][tier]):
+        return absent(team["tiers"][tier]), "inherits the team's"
+    if tier != "normal" and absent(owner["tiers"]["normal"]):
+        return absent(owner["tiers"]["normal"]), "uses its normal tier"
+    if team is not None and absent(team["tiers"]["normal"]):
+        return absent(team["tiers"]["normal"]), ("uses the team's normal tier" if owner is not team else "uses the normal tier, used for all tiers")
+    return "", "nothing is set"
+
+
+def tierSlotText(owners, owner, tier):
+    value, how = tierResolved(owners, owner, tier)
+    if how == "set":
+        return value
+    return "unset (%s: %s)" % (how, value) if value else "unset (nothing is set)"
+
+
 def parseTierRows(readKey, level, text):
     rows = []
     for printed in text.split("\n"):
@@ -44,9 +68,19 @@ def parseTierRows(readKey, level, text):
         row = newRow(scope["id"], unspaced(scope["label"]), "tier", True, fields)
         row["scope"] = scope
         row["tiers"] = tiers
-        row["tail"] = absent(tiers["normal"]) or "-"
         rows.append(row)
-    return {level: rows}
+    held = {level: rows}
+    for row in rows:
+        ## the rows of an owner are its three tiers alone, each with what it resolves to: nothing else of its scope belongs here
+        row["tail"] = absent(row["tiers"]["normal"]) or ("inherits: " + (tierResolved(rows, row, "normal")[0] or "-"))
+        slots = []
+        for key, tier, label in TIER_KEYS:
+            slot = newRow(tier, label, "tier-slot", False)
+            slot["tierSlot"] = {"key": key, "tier": tier, "owner": row, "text": tierSlotText(rows, row, tier), "own": absent(row["tiers"][tier]), "value": tierResolved(rows, row, tier)[0]}
+            slot["tail"] = tierSlotText(rows, row, tier)
+            slots.append(slot)
+        held[level + "/" + row["id"]] = slots
+    return held
 
 
 ## What the operation of the presets printed, for the level of the feature itself: it holds the two folders, and their rows are those of their own levels.
@@ -76,7 +110,7 @@ def presetCells(presets):
 
 
 def tierCells(owners):
-    return [[unspaced(one["scope"]["label"]), absent(one["tiers"]["low"]) or "-", absent(one["tiers"]["normal"]) or "-", absent(one["tiers"]["high"]) or "-"] for one in owners]
+    return [[unspaced(one["scope"]["label"]), absent(one["tiers"]["normal"]) or "-", absent(one["tiers"]["high"]) or "-", absent(one["tiers"]["low"]) or "-"] for one in owners]
 
 
 ## The feature as the left pane shows it: the presets and the assigned tiers, two compact tables one under the other.
@@ -90,7 +124,7 @@ def cliPresetsSummary(state, path, row, form):
     lines = headingLines("CLI Service Presets")
     lines += compactTable(state, ("PRESET", "CLI SERVICE", "MODEL", "EFFORT", "USED BY"), presetCells(held), ("key", "enum", "text", "enum", "text"), state.viewWidth) if held else [looked("No preset is set up yet. n adds one.", BOLD)]
     lines += headingLines("Member Tier Assignments")
-    lines += compactTable(state, ("MEMBER", "LOW", "NORMAL", "HIGH"), tierCells(assigned), ("key", "text", "text", "text"), state.viewWidth) if assigned else [looked("No tier is assigned. a assigns one.", BOLD)]
+    lines += compactTable(state, ("MEMBER", "DEFAULT", "HIGH", "LOW"), tierCells(assigned), ("key", "text", "text", "text"), state.viewWidth) if assigned else [looked("No tier is assigned. a assigns one.", BOLD)]
     others = len([one for one in tiers if one.get("tiers")]) - len(assigned)
     if others > 0:
         lines.append("%d more member%s the defaults." % (others, " uses" if others == 1 else "s use"))
@@ -111,14 +145,28 @@ def presetsSummary(state, path, row, form):
                              ("key", "key", "enum", "text", "enum", "text"))
 
 
+def tierSlotsSummary(state, path, row, form):
+    rows = state.rows.get(levelKey(path))
+    if not rows:
+        return None
+    return compactTable(state, ("TIER", "SET HERE", "IN EFFECT"), [[one["label"], one["tierSlot"]["own"] or "unset", one["tierSlot"]["value"] or "-"] for one in rows if one.get("tierSlot")],
+                        ("key", "text", "text"), state.viewWidth)
+
+
+def tierSlotFocus(state, row):
+    slot = row.get("tierSlot")
+    return None if slot is None else [looked(row["label"], BOLD)] + factLines([("set here", slot["own"] or "unset"), ("in effect", slot["value"] or "nothing is set"), ("enter", "opens the preset and the effort")], state.viewWidth)
+
+
 def tiersSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
         return None
-    assigned = tiersAssigned(rows)
-    if not assigned:
+    owners = [one for one in rows if one.get("tiers")]
+    if not owners:
         return [looked("No tier is assigned. a assigns one.", BOLD)]
-    return tableSummaryLines(state, ("MEMBER", "LOW", "NORMAL", "HIGH"), tierCells(assigned), ("key", "text", "text", "text"))
+    return tableSummaryLines(state, ("MEMBER", "SET HERE (NORMAL)", "IN EFFECT (NORMAL)"),
+                             [[unspaced(one["scope"]["label"]), absent(one["tiers"]["normal"]) or "unset", tierResolved(rows, one, "normal")[0] or "-"] for one in owners], ("key", "text", "text"))
 
 
 ## ---- a preset made ----
@@ -229,6 +277,21 @@ ACTION_HANDLERS["cliassign"] = lambda state, row: askTierWho(state, None)
 ACTION_FITS["cliassign"] = cliHere
 ACTION_REFUSALS["cliassign"] = lambda state, row: "it is a task of the CLI presets"
 ## Configure the preset selected: the wizard of the CLI service, on that preset.
+def askTierSlot(state, row):
+    slot = row.get("tierSlot") if row else None
+    if slot is None:
+        return ""
+    owner = slot["owner"]
+    names = [held["preset"]["name"] for held in state.rows.get(pluginLevel("presets")) or () if held.get("preset")]
+    return askScopeDeclared(state, slot["key"], absent(owner["tiers"][slot["tier"]]), owner["scope"]["id"], unspaced(owner["scope"]["label"]),
+                            {"kind": "tier", "choices": [(name, name) for name in names], "efforts": ["low", "normal", "high"], "range": None})
+
+
+ACTION_HANDLERS["tierslot"] = askTierSlot
+ACTION_FITS["tierslot"] = lambda state, row: bool(row and row.get("tierSlot"))
+ACTION_REFUSALS["tierslot"] = lambda state, row: "select a tier"
+
+
 def askCliConfigure(state, row):
     return startWizard(state, "cli-service", {"preset": row["preset"]["name"]} if row and row.get("preset") else None)
 
@@ -292,13 +355,14 @@ registerPlugin({
     "name": "tiers",
     "mount": "clipresets",
     "root": {"id": "tiers", "label": "Member Tier Assignments"},
-    "focus": {"tiers/*": "scopeKeyFocus"},
-    "summaries": {"tiers": {"lines": "tiersSummary"}, "tiers/*": {"lines": "scopeKeysSummary"}},
+    "focus": {"tiers/*": "tierSlotFocus"},
+    "summaries": {"tiers": {"lines": "tiersSummary"}, "tiers/*": {"lines": "tierSlotsSummary"}},
     "reads": {
         "list:tiers": {"operation": ["--manager-preset-tiers"], "rows": "tiers", "once": True, "also": ("list:@presets",)},
-        "list:tiers/*": {"operation": ["--manager-scope-read", "{level}"], "rows": "scope-keys", "once": True},
     },
-    "commands": scopeKeyCommands("tiers") + (
+    "commands": (
+        {"name": "tierslot", "keys": ("ENTER", "a"), "menu": ("view", 3), "label": "~A~ssign the tier", "status": "Assign", "window": "list",
+         "views": ("tiers/*",), "for": "a tier", "on": ("tiers/*:tier-slot",), "only": True, "enters": True, "says": "assign", "does": ("action", "tierslot"), "calls": ("scope-set",)},
         {"name": "tierassign", "keys": ("a",), "menu": ("view", 3), "label": "~A~ssign a tier", "status": "Assign", "window": "list",
          "views": ("tiers",), "for": "a tier", "on": ("tiers:tier", "tiers:up"), "only": True, "says": "assign", "does": ("action", "tierassign"), "calls": ("scope-set",)},
     ),

@@ -84,7 +84,7 @@ wait list 10
 rowids sub
 RIGSCRIPT
 rigAssert "the Configuration holds CLI Presets and Tiers, and the old item of the CLI services is gone" "$( rigVal top )" ".. checker keys clipresets git subsystems diagnostics"
-rigAssert "selected, it shows two compact tables: the presets, and the tiers that are assigned (the team's, and the number of members that use the defaults)" "$( rigVal on.selectedLabel ) $( rigHolds summary 'CLI Service Presets' ) $( rigHolds summary 'Member Tier Assignments' ) $( rigHolds summary 'PRESET    CLI SERVICE' ) $( rigHolds summary 'MEMBER  LOW' ) $( rigHolds summary '1 more member uses the defaults.' )" "CLI Presets and Tiers 1 1 1 1 1"
+rigAssert "selected, it shows two compact tables: the presets, and the tiers that are assigned (the team's, and the number of members that use the defaults)" "$( rigVal on.selectedLabel ) $( rigHolds summary 'CLI Service Presets' ) $( rigHolds summary 'Member Tier Assignments' ) $( rigHolds summary 'PRESET    CLI SERVICE' ) $( rigHolds summary 'MEMBER  DEFAULT' ) $( rigHolds summary '1 more member uses the defaults.' )" "CLI Presets and Tiers 1 1 1 1 1"
 rigAssert "the keys of its tasks stand in the status line: add a preset, assign a tier, configure, select the CLI" "$( rigHolds summary ' n New  a Assign  c Configure  s Auto-select' )" "1"
 rigAssert "opened, it holds its two folders" "$( rigVal sub )" ".. presets tiers"
 rigDump(){ ## tag... -- the left pane of those screens (RIG_DUMP=1 prints it, to be read); the frame, the right pane and the empty lines are left out
@@ -244,7 +244,7 @@ wait list 10
 keys a
 turn
 get ask
-keys DOWN SPACE TAB DOWN DOWN SPACE
+keys DOWN SPACE TAB DOWN SPACE
 turn
 keys ENTER
 turn
@@ -281,10 +281,13 @@ turn
 wait list 10
 rowids rows
 show t
-at @clipresets tiers agents:magic-team
+at @clipresets tiers
 turn
 wait list 10
-keys DOWN DOWN DOWN
+keys DOWN ENTER
+turn
+wait list 10
+keys DOWN DOWN
 wait focus 10
 turn
 keys ENTER
@@ -293,14 +296,17 @@ get tier
 show tier
 RIGSCRIPT
 rigAssert "the tiers list the team and every member by their scope ids" "$( rigVal rows )" ".. agents:magic-team agents:keeper-myx"
-rigAssert "the folder selected shows who has which tier" "$( rigHolds t 'MEMBER' ) $( rigHolds t 'Team' ) $( rigHolds t 'rig-ext' )" "1 2 2"
+rigAssert "the folder selected shows who has which tier" "$( rigHolds t 'MEMBER' ) $( rigHolds t 'Team' ) $( rigHolds t 'rig-ext' )" "1 2 3"
 rigAssert "Enter on a tier of the team opens a form of two selectors, the preset and the effort: the presets alone, no list of presets multiplied by efforts" "$( rigVal tier.dialog | LC_ALL=C cut -d'|' -f1 ) $( rigVal tier.dialogTitle ) $( rigHolds tier 'rig-base' ) $( rigHolds tier 'rig-ext:high' ) $( rigHolds tier 'Preset' ) $( rigHolds tier 'Effort' )" "setting-tier:preset SPAWN_TIER_HIGH 1 0 1 1"
 rigScript <<'RIGSCRIPT'
 turn
-at @clipresets tiers agents:magic-team
+at @clipresets tiers
 turn
 wait list 10
-keys DOWN DOWN DOWN
+keys DOWN ENTER
+turn
+wait list 10
+keys DOWN DOWN
 wait focus 10
 turn
 keys ENTER
@@ -313,14 +319,17 @@ keys ENTER
 wait action 30
 turn 2
 RIGSCRIPT
-rigAssert "the effort offers unset, low, normal and high; the two chosen are saved as one value, <preset>:<effort>, alone on the standard input of --manager-scope-set" "$( rigHolds picked 'unset' ) $( rigHolds picked 'high' ) $( rigWords '[--manager-scope-set][agents:magic-team][SPAWN_TIER_HIGH]' ) $( LC_ALL=C tr -d '\n' < "$MANAGER_SCREEN_RIG/stdin.--manager-scope-set" 2> /dev/null )" "1 1 1 rig-ext:high"
+rigAssert "the effort offers unset, low, normal and high; the two chosen are saved as one value, <preset>:<effort>, alone on the standard input of --manager-scope-set" "$( rigHolds picked 'unset' ) $( rigHolds picked 'high' ) $( rigWords '[--manager-scope-set][agents:magic-team][SPAWN_TIER_HIGH]' ) $( LC_ALL=C tr -d '\n' < "$MANAGER_SCREEN_RIG/stdin.--manager-scope-set" 2> /dev/null )" "3 1 1 rig-ext:high"
 rigCase tier2
 rigScript <<'RIGSCRIPT'
 turn
-at @clipresets tiers agents:magic-team
+at @clipresets tiers
 turn
 wait list 10
-keys DOWN
+keys DOWN ENTER
+turn
+wait list 10
+keys DOWN DOWN DOWN
 wait focus 10
 turn
 keys ENTER
@@ -329,14 +338,17 @@ keys ENTER
 wait action 30
 turn 2
 RIGSCRIPT
-rigAssert "a tier that is <preset>:<effort> opens with both chosen, and OK as it stands saves the same value" "$( LC_ALL=C tr -d '\n' < "$MANAGER_SCREEN_RIG/stdin.--manager-scope-set" 2> /dev/null )" "rig-ext:high"
+rigAssert "a tier that is <preset>:<effort> opens with both chosen, and OK as it stands saves the same value" "$( LC_ALL=C tr -d '\n' < "$MANAGER_SCREEN_RIG/stdin.--manager-scope-set" 2> /dev/null )" "rig-ext"
 rigCase tier3
 rigScript <<'RIGSCRIPT'
 turn
-at @clipresets tiers agents:magic-team
+at @clipresets tiers
 turn
 wait list 10
-keys DOWN DOWN
+keys DOWN ENTER
+turn
+wait list 10
+keys DOWN
 wait focus 10
 turn
 keys ENTER

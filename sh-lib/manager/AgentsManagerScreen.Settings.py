@@ -508,7 +508,7 @@ for dialogName in set(kind["dialog"] for kind in list(SETTING_KINDS.values()) + 
 ## of the settings do (submitSetting), where its line is changed from here; else it only closes. The value whole is held
 ## nowhere else, and the form that closes leaves nothing of it. The mask is no security boundary: a shell read shows it.
 CREDENTIAL_DIALOG = "setting-credential"
-## The dialogs whose form reads a value whole while it is open, which an app feature adds to (Scopes.py): what they read is kept for them (applyResult).
+## The dialogs whose form reads a value whole while it is open, which an app feature adds to (LocalManagerScreen.Scopes.py of `.local`): what they read is kept for them (applyResult).
 READING_DIALOGS = (CREDENTIAL_DIALOG,)
 CREDENTIAL_READ = "full:credential"
 CREDENTIAL_SAYS = {

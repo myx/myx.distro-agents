@@ -87,7 +87,6 @@ PARTS = (
     "AgentsManagerScreen.Consoles.py",
     "AgentsManagerScreen.Settings.py",
     "AgentsManagerScreen.Talk.py",
-    "AgentsManagerScreen.Scopes.py",
     "AgentsManagerScreen.Configuration.py",
     "AgentsManagerScreen.CliPresets.py",
     "AgentsManagerScreen.Wizards.py",
@@ -109,6 +108,7 @@ PARTS = (
 LOCAL_PARTS_FOLDER = os.path.join("..", "..", "..", "myx.distro-.local", "sh-lib", "manager")
 LOCAL_PARTS = (
     "LocalManagerScreen.Subsystems.py",
+    "LocalManagerScreen.Scopes.py",
 )
 ## A part of `.local` that stands in the order of the list of roots, since the roots stand in the order they were registered in (Plugins): it is loaded
 ## ahead of the part of the screen it is named under, the Dashboard ahead of the sessions, `Locations (Places)` (F11.10) ahead of the tokens, where it stood, and `Workspace (System)` (F11.10) at the end of the places, after the consoles, ahead of the settings.
