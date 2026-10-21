@@ -223,6 +223,14 @@ def parseRows(readKey, text):
 def cursorOf(state, rows, height):
     cursor = state.cursors.setdefault(levelKey(state.path), {"key": None, "index": 0, "top": 0})
     index = cursor["index"]
+    ## a row asked for by its id (a link that led here, goLink): taken as soon as the level has rows, found or not
+    wanted = cursor.get("want")
+    if wanted is not None and rows:
+        cursor.pop("want")
+        for position, row in enumerate(rows):
+            if row["id"] == wanted and row["kind"] != "up":
+                cursor["key"] = rowKey(row)
+                break
     for position, row in enumerate(rows):
         if rowKey(row) == cursor["key"]:
             index = position

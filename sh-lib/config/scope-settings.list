@@ -1,0 +1,10 @@
+## What the agents register for `Scope Settings`, which is `.local`'s (myx.distro-.local, sh-lib/manager/LocalTools.ManagerScope.include), declared once (F11.7 of the refactorings epic): a line a
+## registration, TAB-separated, read as plain text by the --manager-scope-* operations; `#` lines and blank lines are left alone. The functions are in sh-lib/manager/AgentsTools.ManagerScopeAgents.include
+## and the include it names; the forms of the lines are in the head of the `.local` include.
+
+source	agents	AgentsToolsManagerScopeAgentsSources	AgentsToolsManagerScopeAgentsCall	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerScopeAgents.include
+unlisted	agents:*	AgentsToolsManagerScopeAgentsUnlisted	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerScopeAgents.include
+known	agents:*	AgentsToolsManagerScopeAgentsKnown	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerScopeAgents.include
+guard	agents:*	AgentsToolsManagerScopeAgentsGuard	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerScopeAgents.include
+secret	AgentsToolsManagerConfigKeySecret	AgentsToolsCredentialShown	AgentsToolsCredentialUrlShown	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerScopeAgents.include
+describe	agents:*	AgentsToolsOwnerSetupOptionSpec	myx.distro-agents/sh-lib/config/AgentsTools.OwnerSetupOptionSpec.include

@@ -211,6 +211,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-run (install|uninstall|update) <subsystem>
 📘 syntax: DistroAgentsTools.fn.sh --manager-workspace-read
+📘 syntax: DistroAgentsTools.fn.sh --manager-workspace-command-list
+📘 syntax: DistroAgentsTools.fn.sh --manager-workspace-command-run <command>
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-data-read <store> [<folder> [<item>]] [--include-processed]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-files <team-member> [<file>]
@@ -3573,9 +3575,13 @@
 			it is not given one name.
 
 		--manager-place-command-list <place>
-			One of the console's own operations (see Notes). Lists the
-			commands of one place that is a workspace: the same its
-			editor's palette gets. Each package of this console declares
+			One of the console's own operations (see Notes). Lists what
+			stands in one place that is a workspace as its folder shows it: first
+			`here` (`yes` where it is the workspace the console runs in) and
+			`sessions` (how many sessions of the registry name it, `-` for none
+			counted), then the commands, the same its editor's palette gets, then a
+			`member` row for each member that belongs to it, as
+			`--manager-place-read` prints them. Each package of this console declares
 			its workspace commands once, in its
 			`sh-lib/config/workspace-commands.list`, a command a line: its name,
 			its emoji part of it, how it runs, and the command, a TAB
@@ -3843,8 +3849,10 @@
 			no value. <kind> and <takes> say what the key takes, for a scope of the
 			agents that holds presets or tiers (F10.1, F10.2): `choice` with its
 			list, `<value>=<label>,...` (the CLI services, the efforts, the
-			lifetimes of the input cache, and for a tier the presets of the
-			workspace, each alone and with each effort), `number` with its range,
+			lifetimes of the input cache), `tier` for a tier, taking the presets
+			of the workspace, a slash, and the efforts it offers
+			(`<preset>,...` `/` `low,normal,high`: two selectors, the value
+			stays `<preset>[:<effort>]`), `number` with its range,
 			`<smallest>..<largest>` (the largest context), `text` with `-`, or
 			`locked` with why (the CLI service of a preset that extends another);
 			`-` and `-` for any other key. After the keys the file holds come the keys
@@ -4477,21 +4485,43 @@
 			value `-`:
 			`fact <block> <name> <value>`
 			`block <id> <label> <count>`
-			`item <block> <name> <kind> <state> <detail>`
+			`item <block> <name> <kind> <state> <detail> <go>`
+			(`<go>`, where an item leads on, is the place of the console it opens,
+			`@<root>/<rest>`, `-` for none.)
 			First the facts of the workspace itself, with the block `-`: `name`,
 			`path`, `tooling` (`source`, `.local` or `elsewhere`: where the tooling
 			it runs comes from), `tooling-path` and `account` (the account the
 			console runs as). Then the block `packages`, the subsystems installed
 			in it, an `item` each, as `--manager-subsystem-list` reads them
-			installed; then the blocks the console registered, in the order of its
+			installed; then the block `commands`, an `item` for each command of the
+			workspace's palette (its name, how it runs, `ready`, the package that
+			declares it); then the blocks the console registered, in the order of its
 			list: for this one `agents`, the facts `mode` (`team-rig`, `just-agents`
 			or `rig-client`, as the one reader of the mode says it) and `team-data`
-			(`yes` for a team rig, else `no`), and `team`, an `item` for each member
-			that belongs to the workspace: its name, its kind, how it is set up there
-			and its folder. A `block` row gives the block's label and how many
+			(`yes` for a team rig, else `no`), with the items `mode` (leading to the
+			settings of the team), `team-data` and `sessions` (how many are recorded
+			for this workspace; leading to Activity), and `team`, an `item` for each
+			member that belongs to the workspace: its name, its kind, how it is set
+			up there and its folder, leading to its folder in Team Members. A `block` row gives the block's label and how many
 			`item` rows follow it; a block that wrote nothing is not printed. It
 			writes nothing, and runs no git command. Exit 1, nothing printed, for a
 			word after it.
+
+		--manager-workspace-command-list
+			One of the console's own operations (see Notes). Lists the commands of
+			the workspace the console runs in, the same its editor's palette gets
+			(see `--manager-place-command-list`): rows `command <name> <package>
+			<how it runs>`, the whitespace of a name written `_`. It only reads, and
+			starts nothing. Exit 1 for a word after it.
+
+		--manager-workspace-command-run <command>
+			One of the console's own operations (see Notes). Runs one command of
+			the workspace the console runs in, the one `--manager-workspace-command-list`
+			names (its blanks as `_` or as they are), in the root of the workspace, by
+			`/bin/sh` as the palette runs a task, with none of the console's
+			variables, on the input and the output of the call. Ends with that
+			command's status. Exit 1, nothing run, for a name that is none of the
+			commands and for a wrong number of words.
 
 		--manager-team-data-read <store> [<folder> [<item>]] [--include-processed]
 			One of the console's own operations (see Notes). Lists the

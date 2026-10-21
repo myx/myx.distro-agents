@@ -412,6 +412,53 @@ rigAssert "one that runs with the whole terminal is given the terminal, as a con
 	"$( rigVal started.children ) $( rigVal started.childWords ) $( rigVal started.childDirectory ) $( LC_ALL=C grep -c -F -e '[--manager-place-command-run][ws-one][🖥️_Start_Source_Console]' "$MANAGER_SCREEN_RIG/words" || : )" \
 	"1 [bash][$rigTools][--manager-place-command-run][ws-one][🖥️_Start_Source_Console] /rig/Workspaces/ws-one 0"
 
+echo "-- the folder of a workspace also holds its sessions and its members, which lead on where it is the workspace the console runs in"
+rigInside(){ ## here (yes|no), how many rows down from the first row of the folder -- the folder's rows, then the path after Enter on the row asked for
+	rigCase links
+	{
+		rigRow here "$1"
+		rigRow sessions 3
+		rigRow command 🖥️_Start_Source_Console myx.distro-source terminal
+		rigRow command ⬇️_Pull/Sync_All_Known_Sources myx.distro-source output
+		rigRow member keeper-rig keeper /rig/Workspaces/ws-one source-symlink /rig/members/keeper-rig
+		rigRow member odd-one odd /rig/Workspaces/ws-one not-in-registry /rig/members/odd-one
+	} > "$MANAGER_SCREEN_RIG/rows.--manager-place-command-list ws-one"
+	rigSize="200 40" rigScript <<RIGSCRIPT
+turn
+wait places 5
+keys 4
+turn
+wait places 5
+keys DOWN DOWN
+turn
+wait view 5
+wait focus 5
+keys ENTER
+turn
+wait list 5
+rowids rows
+keys $2
+turn
+wait focus 5
+get picked
+show p
+keys ENTER
+turn
+wait list 5
+get after
+RIGSCRIPT
+}
+rigInside yes "DOWN DOWN DOWN"
+rigAssert "inside it: the commands as before, then the sessions with their number, then the members, indented, each by its name with how it is set up at the end" "$( rigVal rows )" ".. 🖥️_Start_Source_Console ⬇️_Pull/Sync_All_Known_Sources place:sessions place:members member:keeper-rig member:odd-one"
+rigAssert "the sessions selected: the left window says how many, and where Enter goes" "$( rigVal picked.selectedLabel ) $( rigHolds p '3 recorded' ) $( rigHolds p 'opens Activity' )" "Sessions 1 1"
+rigAssert "Enter on them goes to Activity, where this is the workspace the console runs in" "$( rigVal after.path )" "magic-team/activity"
+rigInside yes "DOWN DOWN DOWN DOWN DOWN"
+rigAssert "a member selected: its kind, how it is set up and its folder; Enter goes to its folder in Team Members" "$( rigVal picked.selectedLabel ) $( rigHolds p 'source-symlink' ) $( rigVal after.path )" "keeper-rig 2 magic-team/team/keeper-rig"
+rigInside no "DOWN DOWN DOWN DOWN DOWN"
+rigAssert "in a workspace other than that one a member is listed and leads nowhere: the member is not one this console holds" "$( rigHolds p 'source-symlink' ) $( rigVal after.path )" "2 places/ws-one"
+rigInside no "DOWN DOWN DOWN"
+rigAssert "nor do its sessions: they are the sessions of the console of that workspace" "$( rigHolds p 'by the console of that workspace' ) $( rigVal after.path )" "1 places/ws-one"
+
 echo "-- no location known: every path stands as it is; and a list that fails"
 rigCase none
 : > "$MANAGER_SCREEN_RIG/rows.--manager-place-list"

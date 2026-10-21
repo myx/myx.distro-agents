@@ -4,7 +4,7 @@
 ##
 ## AgentsTools.ManagerPreset.include -- the --manager-preset-* operations (F10.1, F10.2, F11.7): the console's `Presets` and `Tiers`. A preset is a settings block `preset-<name>` of this
 ## workspace (AgentsTools.Preset.include); a tier is a setting of the team's block or of a member's, SPAWN_TIER_LOW, _NORMAL and _HIGH, each `<preset>[:<effort>]`. The variables of both
-## are the scopes of --manager-scope-* (AgentsTools.ManagerScope.include), which lists, edits and takes them out by their kinds; what is here is what a scope does not say: the presets
+## are the scopes of --manager-scope-* (LocalTools.ManagerScope.include of `.local`), which lists, edits and takes them out by their kinds; what is here is what a scope does not say: the presets
 ## as a list with what each extends and what it comes to, a preset made, and the tiers of the team and of every member. Sourced from the `--manager-preset-*)` arm of
 ## AgentsTools.Manager.include; who may call was asked where the family is dispatched. Every write is made by the setting reader of the dispatcher (--agents-config-option), whose write
 ## checks of a preset and of the tiers are asked as they are for any other writer. A secret is never printed: a credential is not a column here.

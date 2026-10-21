@@ -79,9 +79,11 @@ case "$1" in
 		return $?
 	;;
 
-	## The settings of every scope this workspace keeps, to see, to edit and to take out: the common ones, the remote tools' and the agents'.
+	## The settings of every scope this workspace keeps, to see, to edit and to take out: the common ones and the remote tools' (the local tools' own, which every console of the family
+	## offers), with what this console registers (sh-lib/config/scope-settings.list): the scopes of the agents, the keys it knows of a preset and of the tiers.
 	--manager-scope-*)
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerScope.include"
+		local managerConsoleScopeList="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/scope-settings.list"
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerScope.include"
 		return $?
 	;;
 

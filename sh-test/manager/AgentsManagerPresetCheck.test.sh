@@ -72,9 +72,9 @@ rigAssert "a credential offered is one, by its type" "$( LC_ALL=C awk -F'\t' '$1
 
 echo "-- 3. the tiers --"
 rigRun --manager-scope-read agents:magic-team
-rigAssert "the team's three tiers: set or missing, each a choice of the presets, each alone and with every effort" "$( rigKeyRow SPAWN_TIER_LOW ) $( rigKeyRow SPAWN_TIER_HIGH ) $( LC_ALL=C awk -F'\t' '$2 == "SPAWN_TIER_HIGH" { print gsub( /=/, "=", $8 ) }' "$rigTmp/out" )" "set|choice|rig-base=rig-base,rig-base:low=rig-base: missing|choice|rig-base=rig-base,rig-base:low=rig-base: 18"
+rigAssert "the team's three tiers: set or missing, each of the kind tier, taking the presets, then after a slash the efforts" "$( LC_ALL=C awk -F'\t' '$1 == "key" && $2 ~ /^SPAWN_TIER_/ { efforts = $8 ; sub( /^[^\/]*\//, "", efforts ) ; presets = $8 ; sub( /\/.*$/, "", presets ) ; printf "%s:%s:%s:%s ", $2, $3, $7, efforts ; if ( presets ~ /rig-base/ && presets !~ /:/ ) held++ } END { print held + 0 }' "$rigTmp/out" )" "SPAWN_TIER_LOW:set:tier:low,normal,high SPAWN_TIER_NORMAL:set:tier:low,normal,high SPAWN_TIER_HIGH:missing:tier:low,normal,high 3"
 rigRun --manager-scope-read agents:keeper-myx
-rigAssert "a member that holds no file of settings is a scope for its tiers: three missing choices; the id is none of the listed scopes" "$( rigKeyRow SPAWN_TIER_NORMAL ) $( rigRun --manager-scope-list ; LC_ALL=C grep -c 'keeper-myx' "$rigTmp/out" || : )" "missing|choice|rig-base=rig-base,rig-base:low=rig-base: 0"
+rigAssert "a member that holds no file of settings is a scope for its tiers: three missing tiers; the id is none of the listed scopes" "$( rigKeyRow SPAWN_TIER_NORMAL ) $( rigRun --manager-scope-list ; LC_ALL=C grep -c 'keeper-myx' "$rigTmp/out" || : )" "missing|tier|rig-base,rig-ext,rig-opus/low,normal,hig 0"
 rigRun --manager-preset-tiers
 rigAssert "the tiers listed: the team first with its three, then each member to start" "$( LC_ALL=C awk -F'\t' '{ printf "%s %s %s %s %s / ", $2, $3, $8, $9, $10 }' "$rigTmp/out" )" "agents:magic-team Team rig-ext rig-ext - / agents:keeper-myx keeper-myx - - - / agents:magic-coordinator magic-coordinator - - - / "
 printf '# a note, no variable\n' > "$rigAgents/keeper-myx.agent.env"

@@ -237,10 +237,12 @@ rigRan(){ ## workspace root -- what its stand-in wrote, on one line, and it is c
 echo "-- 2. the commands of a workspace --"
 rigRun "$rigListOp" ws-here
 rigAssert "this workspace: the commands of myx.distro-source, then of each package whose console at its root is executable, in the palette's order, a row each, whitespace of a name as _" \
-	"$rigRc $( LC_ALL=C tr '\t\n' ' |' < "$rigTmp/out" )" \
+	"$rigRc $( LC_ALL=C grep '^command' "$rigTmp/out" | LC_ALL=C tr '\t\n' ' |' )" \
 	"0 command 🧪_Rig_Output myx.distro-source output|command 🧪_Rig_\"Quoted\"_\\_Back myx.distro-source output|command 🧪_Rig_Deploy myx.distro-deploy output|command 🧪_Rig_Terminal myx.distro-agents terminal|"
+rigAssert "it begins with whether it is the workspace the call runs in, and how many sessions name it" "$( LC_ALL=C awk -F'\t' '$1 == "here" || $1 == "sessions" { printf "%s=%s ", $1, $2 }' "$rigTmp/out" )" "here=yes sessions=- "
 rigRun "$rigListOp" ws-far
-rigAssert "a workspace with no console at its root has the commands of myx.distro-source alone" "$rigRc $( LC_ALL=C cut -f2 "$rigTmp/out" | LC_ALL=C tr '\n' ' ' )" "0 🧪_Rig_Output 🧪_Rig_\"Quoted\"_\\_Back "
+rigAssert "a workspace other than the one the call runs in says so" "$( LC_ALL=C awk -F'\t' '$1 == "here" { printf "%s=%s ", $1, $2 }' "$rigTmp/out" )" "here=no "
+rigAssert "a workspace with no console at its root has the commands of myx.distro-source alone" "$rigRc $( LC_ALL=C grep '^command' "$rigTmp/out" | LC_ALL=C cut -f2 | LC_ALL=C tr '\n' ' ' )" "0 🧪_Rig_Output 🧪_Rig_\"Quoted\"_\\_Back "
 rigRun "$rigListOp" docs
 rigAssert "a directory has none, and that is no error" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigSaid )" "0 0 0"
 rigRun "$rigListOp" ws-gone
@@ -264,6 +266,14 @@ rigRun "$rigRunOp" docs "🧪_Rig_Output"
 rigAssert "a directory runs nothing" "$rigRc $( rigRan "$rigWs" ) $( rigRan "$rigFar" )" "1 nothing ran nothing ran"
 rigRun "$rigRunOp" ws-here
 rigAssert "a call without a command is refused by its syntax" "$rigRc $( LC_ALL=C grep -c -F -e "syntax is $rigRunOp <place> <command>" "$rigTmp/err" || : )" "1 1"
+
+echo "-- 3b. the commands of the workspace the call runs in --"
+rigRun --manager-workspace-command-run "🧪_Rig_Terminal"
+rigAssert "the workspace's own command runs as a command of its location does, in its root" "$rigRc $( rigRan "$rigWs" )" "3 args: [terminal]|cwd: $rigWs|origin: none mmdapp: none|"
+rigRun --manager-workspace-command-run "🧪 Rig \"Quoted\" \\ Back"
+rigAssert "a name is taken with its blanks too" "$rigRc $( rigRan "$rigWs" )" "3 args: [a \"b\"]|cwd: $rigWs|origin: none mmdapp: none|"
+rigRun --manager-workspace-command-list
+rigAssert "its list is the one of the location, without the rows of the location" "$rigRc $( LC_ALL=C tr '\t\n' ' |' < "$rigTmp/out" )" "0 command 🧪_Rig_Output myx.distro-source output|command 🧪_Rig_\"Quoted\"_\\_Back myx.distro-source output|command 🧪_Rig_Deploy myx.distro-deploy output|command 🧪_Rig_Terminal myx.distro-agents terminal|"
 
 rigAssert "nothing of the rig was written into the package: the four lists are as they were" "$( rigRealSum | cksum )" "$( printf '%s\n' "$rigRealBefore" | cksum )"
 

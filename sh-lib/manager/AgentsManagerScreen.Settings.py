@@ -70,6 +70,7 @@ CHANGE_SAYS = "it is not changed from here"
 SETTING_KINDS = {
     "choice": {"dialog": "setting", "control": "choice", "values": "choices"},
     "number": {"dialog": "setting-number", "control": "number", "values": "range"},
+    "tier": {"dialog": "setting-tier", "control": "preset", "values": "tier"},
 }
 SETTING_KIND_OTHER = {"dialog": "setting-text", "control": "words", "values": ""}
 ## The dialog of the setting of the style this screen is drawn in (STYLE_VARIABLE), whatever
@@ -403,6 +404,11 @@ def submitSetting(state, dialog, button):
         ## the colours by the style's own name of them
         setStyle("%s-%s" % (dialogValue(dialog, "style"), dialogValue(dialog, "colours")))
         value = STYLE["value"]
+    elif kind["values"] == "tier":
+        ## the preset and its effort, one value: <preset>[:<effort>]
+        if not dialogValue(dialog, "preset"):
+            return "nothing is saved: no preset is chosen"
+        value = dialogValue(dialog, "preset") + (":" + dialogValue(dialog, "effort") if dialogValue(dialog, "effort") else "")
     else:
         value = dialogValue(dialog, kind["control"])
     if kind["values"] == "range" and line["range"] and dialog["name"] != STYLE_DIALOG:
@@ -463,6 +469,13 @@ def askScopeDeclared(state, key, valueNow, scopeId, scopeLabel, declared):
                                 "OK saves it in that scope" + (". Space chooses." if kind["values"] == "choices" else ".")]}}
     if kind["values"] == "choices":
         fill[kind["control"]] = {"options": list(line["choices"]), "value": valueNow}
+    elif kind["values"] == "tier":
+        ## two selectors: the preset, and the effort (unset, or one of those offered, with the one the value holds if it is another)
+        presetNow, colon, effortNow = valueNow.partition(":")
+        efforts = [(effort, effort) for effort in line["efforts"]] + ([(effortNow, effortNow)] if effortNow and effortNow not in line["efforts"] else [])
+        fill["preset"] = {"options": list(line["choices"]), "value": presetNow}
+        fill["effort"] = {"options": [("", "unset")] + efforts, "value": effortNow}
+        fill["about"] = {"lines": [("now", valueNow), ("key", key), ("scope", scopeLabel), "The preset, and how hard it thinks. OK saves them as one value in that scope. Space chooses, Tab goes to the other."]}
     else:
         fill[kind["control"]] = {"value": valueNow, "label": "A whole number from %s to %s" % line["range"]}
     openDialog(state, kind["dialog"], fill, {"line": line, "viewKey": viewKeyOf(state), "scopeId": scopeId, "scopeLabel": scopeLabel}, key)

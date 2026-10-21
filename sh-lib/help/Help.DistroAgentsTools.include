@@ -265,6 +265,8 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> 
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-run (install|uninstall|update) <subsystem>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-workspace-read" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-workspace-command-list" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-workspace-command-run <command>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-data-read <store> [<folder> [<item>]] [--include-processed]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-files <team-member> [<file>]" >&2

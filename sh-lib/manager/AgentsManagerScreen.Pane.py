@@ -46,6 +46,10 @@ class shownLevel:
     def __exit__(self, kind, failure, trace):
         self.state.shown -= 1
         self.state.path = self.kept
+        ## a command that leads somewhere else (goLink) names the level, and the screen is there when the command is over
+        if self.state.goTo is not None:
+            self.state.path = self.state.goTo
+            self.state.goTo = None
         return False
 
 

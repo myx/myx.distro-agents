@@ -7,7 +7,7 @@
 
 ## ---- the scopes: `Scope Settings` ----
 
-## It is a plugin mounted on `Settings`, and its operations are `--manager-scope-*` (AgentsTools.ManagerScope.include): the screen draws what they print
+## It is a plugin mounted on `Settings`, and its operations are `--manager-scope-*` (LocalTools.ManagerScope.include of `.local`): the screen draws what they print
 ## and takes the keys, and writes no file. A scope is a folder, named as its subsystem names it (`Agents: client-ndm`, `Remote: mdci01.ndm9.xyz`,
 ## `Common: user-myx`), and the variables of the scope are its rows. The left window shows a scope as a table of its variables and their values, and one
 ## variable as that table's one row. Enter edits a variable, `d` takes it out, with a confirmation; a scope is cleared of every variable (`c`) and, where
@@ -166,6 +166,9 @@ def scopeKindDeclared(held):
     if kind == "choice" and takes:
         choices = [(part.partition("=")[0], unspaced(part.partition("=")[2]) or part.partition("=")[0]) for part in takes.split(",") if part]
         return {"kind": "choice", "choices": choices, "range": None} if choices else None
+    if kind == "tier" and "/" in takes:
+        presets, slash, efforts = takes.partition("/")
+        return {"kind": "tier", "choices": [(part, part) for part in presets.split(",") if part], "efforts": [part for part in efforts.split(",") if part], "range": None}
     if kind == "number" and ".." in takes:
         low, dots, high = takes.partition("..")
         return {"kind": "number", "choices": [], "range": (low, high)} if low.isdigit() and high.isdigit() else None

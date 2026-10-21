@@ -164,6 +164,12 @@ DIALOGS = {
                 "controls": ({"name": "about", "kind": "text"},
                              {"name": "choice", "kind": "radios", "label": "Choices"}),
                 "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
+    ## a tier of the team or of a member: the preset and the effort, one of each chosen, saved as one value, `<preset>[:<effort>]`
+    "setting-tier": {"title": "Setting", "feeds": "setting", "first": "preset",
+                     "controls": ({"name": "about", "kind": "text"},
+                                  {"name": "preset", "kind": "radios", "label": "Preset"},
+                                  {"name": "effort", "kind": "radios", "label": "Effort"}),
+                     "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
     ## the style of the interface: what it is now, the style and the colours, one of each chosen
     "setting-style": {"title": "Setting", "feeds": "setting", "first": "style",
                       "controls": ({"name": "about", "kind": "text"},
@@ -317,6 +323,8 @@ class ManagerState:
         self.spots = []
         ## how deep the screen is in looking at what the left window shows (shownLevel)
         self.shown = 0
+        ## the level a command asked to be taken to once it is over (goLink)
+        self.goTo = None
         self.notice = ""
         self.noticeOf = None
         ## the reads: when each was last started and with which words, which failed last

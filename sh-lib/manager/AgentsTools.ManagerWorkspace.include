@@ -5,20 +5,26 @@
 ## AgentsTools.ManagerWorkspace.include -- the blocks the agents console adds to `Workspace (System)` (F11.10 of the refactorings epic). The screen and the operation are `.local`'s
 ## (--manager-workspace-read, myx.distro-.local, sh-lib/manager/LocalTools.ManagerWorkspace.include); this console REGISTERS its blocks in sh-lib/config/workspace-blocks.list, and
 ## `.local` calls the reader of each. The readers write with LocalToolsManagerWorkspaceFact and LocalToolsManagerWorkspaceItem, and read nothing that is not already read elsewhere:
-##   agents  the mode of the workspace as the gate's one reader says it (AgentsToolsWorkspaceMode, AgentsTools.TeamDataGate.include), and whether it keeps team data (AgentsToolsTeamDataGateOpen)
-##   team    the members that belong to this workspace, by the one function that reads them (AgentsToolsManagerPlaceMembers, as the read of a place does)
+##   agents  the mode of the workspace as the gate's one reader says it (AgentsToolsWorkspaceMode, AgentsTools.TeamDataGate.include), and whether it keeps team data (AgentsToolsTeamDataGateOpen); as items that lead
+##           on: the mode (to the settings of the team, where it is changed), the team data, and the sessions of this workspace (to Activity)
+##   team    the members that belong to this workspace, by the one function that reads them (AgentsToolsManagerPlaceMembers, as the read of a place does); each leads to its folder in Team Members
 ## FOR VIEWING. Nothing here writes, and nothing reaches another host.
 ##
 
 type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
+type AgentsToolsManagerPlaceSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerPlaceBlocks.include"
 type AgentsToolsManagerPlaceMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerPlaceMembers.include"
 
 ## The agents' mode of this workspace and whether it keeps team data: `team-rig`, `just-agents` or `rig-client`, and `yes` for a team rig, else `no`.
 AgentsToolsManagerWorkspaceAgents(){
-	local agentsMode="" agentsSource=""
+	local agentsMode="" agentsSource="" agentsSessions=0
 	read -r agentsMode agentsSource <<< "$( AgentsToolsWorkspaceMode )" || :
 	LocalToolsManagerWorkspaceFact mode "${agentsMode:-just-agents}"
 	if AgentsToolsTeamDataGateOpen ; then LocalToolsManagerWorkspaceFact team-data yes ; else LocalToolsManagerWorkspaceFact team-data no ; fi
+	LocalToolsManagerWorkspaceItem mode setting "${agentsMode:-just-agents}" "the settings of the team" "@scopes/agents:magic-team"
+	if AgentsToolsTeamDataGateOpen ; then LocalToolsManagerWorkspaceItem team-data store yes "the team data" "@teamdata" ; else LocalToolsManagerWorkspaceItem team-data store no "the team data" "@teamdata" ; fi
+	agentsSessions="$( LC_ALL=C awk -v ws="${MMDAPP%/}" 'BEGIN { sub( /.*\//, "", ws ) } NF >= 11 && $11 == ws { id = ( $2 == "-" ) ? $1 : $2 ; if ( !seen[id]++ ) n++ } END { print n + 0 }' "$( AgentsToolsManagerPlaceSessions )" 2> /dev/null )" || agentsSessions=0
+	LocalToolsManagerWorkspaceItem sessions sessions "${agentsSessions:-0} recorded" "Activity" "@activity"
 	return 0
 }
 
@@ -27,7 +33,7 @@ AgentsToolsManagerWorkspaceTeam(){
 	local teamRow teamName teamKind teamHome teamSetup teamFolder
 	while IFS=$'\t' read -r teamRow teamName teamKind teamHome teamSetup teamFolder ; do
 		[ "$teamRow" = "member" ] || continue
-		LocalToolsManagerWorkspaceItem "$teamName" "$teamKind" "$teamSetup" "$teamFolder"
+		LocalToolsManagerWorkspaceItem "$teamName" "$teamKind" "$teamSetup" "$teamFolder" "@team/$teamName"
 	done <<< "$( AgentsToolsManagerPlaceMembers "${MMDAPP%/}" "$( [ -d "${MMDAPP%/}" ] && echo present || echo absent )" )"
 	return 0
 }

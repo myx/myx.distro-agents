@@ -51,9 +51,9 @@ rigCase(){ ## name
 	} > "$MANAGER_SCREEN_RIG/rows.--manager-preset-tiers"
 	{
 		rigScope agents:magic-team Agents:_magic-team 3
-		rigKey SPAWN_TIER_LOW set rig-ext setting Low choice "rig-ext=rig-ext,rig-ext:high=rig-ext:high,rig-base=rig-base"
-		rigKey SPAWN_TIER_NORMAL set rig-ext setting Normal choice "rig-ext=rig-ext,rig-ext:high=rig-ext:high,rig-base=rig-base"
-		rigKey SPAWN_TIER_HIGH missing - setting High choice "rig-ext=rig-ext,rig-ext:high=rig-ext:high,rig-base=rig-base"
+		rigKey SPAWN_TIER_LOW set rig-ext:high setting Low tier "rig-base,rig-ext/low,normal,high"
+		rigKey SPAWN_TIER_NORMAL set rig-ext setting Normal tier "rig-base,rig-ext/low,normal,high"
+		rigKey SPAWN_TIER_HIGH missing - setting High tier "rig-base,rig-ext/low,normal,high"
 	} > "$MANAGER_SCREEN_RIG/rows.--manager-scope-read agents:magic-team"
 	: > "$MANAGER_SCREEN_RIG/calls" ; : > "$MANAGER_SCREEN_RIG/words" ; echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
@@ -172,7 +172,58 @@ show tier
 RIGSCRIPT
 rigAssert "the tiers list the team and every member by their scope ids" "$( rigVal rows )" ".. agents:magic-team agents:keeper-myx"
 rigAssert "the folder selected shows who has which tier" "$( rigHolds t 'OWNER' ) $( rigHolds t 'Team' ) $( rigHolds t 'rig-ext' )" "1 2 2"
-rigAssert "Enter on a tier of the team opens a form of a choice with the presets, each alone and with an effort" "$( rigVal tier.dialog | LC_ALL=C cut -d'|' -f1 ) $( rigVal tier.dialogTitle ) $( rigHolds tier 'rig-ext:high' ) $( rigHolds tier 'rig-base' )" "setting:choice SPAWN_TIER_HIGH 1 1"
+rigAssert "Enter on a tier of the team opens a form of two selectors, the preset and the effort: the presets alone, no list of presets multiplied by efforts" "$( rigVal tier.dialog | LC_ALL=C cut -d'|' -f1 ) $( rigVal tier.dialogTitle ) $( rigHolds tier 'rig-base' ) $( rigHolds tier 'rig-ext:high' ) $( rigHolds tier 'Preset' ) $( rigHolds tier 'Effort' )" "setting-tier:preset SPAWN_TIER_HIGH 1 0 1 1"
+rigScript <<'RIGSCRIPT'
+turn
+at @settings tiers agents:magic-team
+turn
+wait list 10
+keys DOWN DOWN DOWN
+wait focus 10
+turn
+keys ENTER
+turn
+keys DOWN SPACE TAB DOWN DOWN DOWN SPACE
+turn
+get picked
+show picked
+keys ENTER
+wait action 30
+turn 2
+RIGSCRIPT
+rigAssert "the effort offers unset, low, normal and high; the two chosen are saved as one value, <preset>:<effort>, alone on the standard input of --manager-scope-set" "$( rigHolds picked 'unset' ) $( rigHolds picked 'high' ) $( rigWords '[--manager-scope-set][agents:magic-team][SPAWN_TIER_HIGH]' ) $( LC_ALL=C tr -d '\n' < "$MANAGER_SCREEN_RIG/stdin.--manager-scope-set" 2> /dev/null )" "1 1 1 rig-ext:high"
+rigCase tier2
+rigScript <<'RIGSCRIPT'
+turn
+at @settings tiers agents:magic-team
+turn
+wait list 10
+keys DOWN
+wait focus 10
+turn
+keys ENTER
+turn
+keys ENTER
+wait action 30
+turn 2
+RIGSCRIPT
+rigAssert "a tier that is <preset>:<effort> opens with both chosen, and OK as it stands saves the same value" "$( LC_ALL=C tr -d '\n' < "$MANAGER_SCREEN_RIG/stdin.--manager-scope-set" 2> /dev/null )" "rig-ext:high"
+rigCase tier3
+rigScript <<'RIGSCRIPT'
+turn
+at @settings tiers agents:magic-team
+turn
+wait list 10
+keys DOWN DOWN
+wait focus 10
+turn
+keys ENTER
+turn
+keys ENTER
+wait action 30
+turn 2
+RIGSCRIPT
+rigAssert "a preset with no effort stays so: the effort selector on unset saves the preset alone" "$( LC_ALL=C tr -d '\n' < "$MANAGER_SCREEN_RIG/stdin.--manager-scope-set" 2> /dev/null )" "rig-ext"
 
 if [ "$rigFailCount" -ne 0 ] ; then echo "⛔ MANAGER SCREEN PRESETS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1 ; fi
 echo "MANAGER_SCREEN_PRESETS: OK ($rigPassCount assertions, offline, stand-in terminal and stand-in dispatcher)"
