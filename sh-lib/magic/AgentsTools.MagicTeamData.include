@@ -59,7 +59,9 @@ case "$1" in
 		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
 		set -e
 		if [ -z "$repoRoot" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --commit-pending: $MDAT_DATA_ROOT is not in a git repository, so there is nothing to commit into" >&2
+			## git's own reason, its first line, such as the dubious ownership of a repository another account owns.
+			gitOut="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>&1 >/dev/null | head -n 1 )" || gitOut=""
+			echo "⛔ ERROR: $MDSC_CMD --commit-pending: $MDAT_DATA_ROOT is not in a git repository git can use (git: ${gitOut:-no message}), so there is nothing to commit into" >&2
 			set +e ; return 1
 		fi
 

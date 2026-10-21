@@ -9,7 +9,8 @@
 ##   3. THE VALIDATOR takes the duty routine, the advance routine and the team's duty routine with no row, and refuses an `includes:` that names no routine, a
 ##      section that cannot be taken, a section the routine does not hold, and a `wait-sources:` word that is none of inbox:{{team-member}} and board:<state>
 ##   4. THE FILES a routine includes are known to the checksum of a cached text (AgentsToolsSpawnRoutineIncludePaths)
-##   5. THE DUTY WAITS on its own inbox for every member, and for the coordinator also on the active states of the board (`wait-sources:`)
+##   5. THE DUTY WAITS on its own inbox and what is tagged to it (a mention, a DM) for every member, and for the coordinator also on the active
+##      states of the board (`wait-sources:`)
 ## Offline: a skillset root of this rig, with the real folders of the package linked in; every call through `env -i`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -89,8 +90,8 @@ rigPaths="$( env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDL
 rigAssert "the checksum of a cached text knows the file of the advance routine" "$rigPaths" "magic-coordinator.advance.routine.md"
 
 echo "-- 5. the duty waits on its inbox, and the coordinator's on the board too --"
-rigAssert "the team's duty: its own inbox" "$( LC_ALL=C sed -n 's/^wait-sources: //p' "$rigTeamDuty" )" "inbox:{{team-member}}"
-rigAssert "the coordinator's: its own inbox and the five active states of the board" "$( LC_ALL=C sed -n 's/^wait-sources: //p' "$rigDuty" )" "inbox:{{team-member}} board:pending board:running board:review board:blocked board:parked"
+rigAssert "the team's duty: its own inbox and its tags" "$( LC_ALL=C sed -n 's/^wait-sources: //p' "$rigTeamDuty" )" "inbox:{{team-member}} tagged:{{team-member}}"
+rigAssert "the coordinator's: its own inbox, its tags and the five active states of the board" "$( LC_ALL=C sed -n 's/^wait-sources: //p' "$rigDuty" )" "inbox:{{team-member}} tagged:{{team-member}} board:pending board:running board:review board:blocked board:parked"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ROUTINE INCLUDES CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

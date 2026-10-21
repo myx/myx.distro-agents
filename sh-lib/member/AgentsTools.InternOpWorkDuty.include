@@ -101,7 +101,18 @@ case "$1" in
 		printf '\n## Slack: tagged to %s, and the team channel over %ss\n\n' "$workMember" "$workWindow"
 		( [ -z "$workSession" ] || export MDAT_SESSION_ID="$workSession" ; DistroAgentsTools --intern-op-wait-for-input "$workMember" --wait-collect "$workWindow" --wait-source "tagged:$workMember" --wait-source slack:magic-team ) > "$workWork/collect.out" 2> "$workWork/collect.err" || :
 		if LC_ALL=C grep -q '^# arrived on: ' "$workWork/collect.out" ; then
-			LC_ALL=C awk '/^# arrived on: / { shown = 1 ; } shown && $0 !~ /^# (--- what that source holds now follows ---|--- end ---)$/ && $0 !~ /^(WAIT-|# returned: )/ { print ; }' "$workWork/collect.out"
+			## A tag reaches only the members it names: in the team channel, a message that names someone (`<@id>`) and not this member, by its
+			## Slack id or `@<member>`, is that one's and is left out here, with the lines it continues on. The tagged parts (`# in <where>`) are kept whole.
+			type AgentsToolsSessionChatMemberId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+			LC_ALL=C awk -v member="$workMember" -v memberId="$( AgentsToolsSessionChatMemberId "$workMember" 2> /dev/null )" '
+				/^# arrived on: / { shown = 1 ; team = ( index( $0, "slack:magic-team" ) > 0 ) ; skip = 0 ; }
+				/^# in / { team = 0 ; skip = 0 ; }
+				!shown || $0 ~ /^# (--- what that source holds now follows ---|--- end ---)$/ || $0 ~ /^(WAIT-|# returned: )/ { next ; }
+				team && /^[0-9]+\.[0-9]+ \| / {
+					skip = ( index( $0, "<@" ) > 0 && ( memberId == "" || index( $0, "<@" memberId ">" ) == 0 ) && index( $0, "@" member ) == 0 )
+				}
+				team && /^#/ { skip = 0 ; }
+				!skip { print ; }' "$workWork/collect.out"
 		else
 			printf 'Nothing new in Slack.\n'
 		fi

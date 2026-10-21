@@ -123,8 +123,8 @@ rigAssert "a bare command line: a run that starts its own session, and no parent
 rigAssert "it reports to the person whose account started it at the console" "$( rigNewest "$rigReportsTo" )" "user-$( id -un )"
 rigAssert "the opening is posted once, under the bot token" \
 	"$( LC_ALL=C awk '$1 == "chat.postMessage" { print $2 }' "$rigTmp/calls" )" rig-bot-token-TEAM
-rigAssert "the opening is the session's own post, seeded by the tooling: no author line, no addressee, the session by its id where it has no name" \
-	"$( grep -c '→' "$rigTmp/bodies" ) $( rigOpeners "\"text\":\"🧵 Session *$( rigNewest session-id )*\"" ) $( LC_ALL=C grep -c -F '"sender":"magic-team","tracking":"session-root"' "$rigTmp/bodies" )" "0 1 1"
+rigAssert "the opening is the session's own post, seeded by the tooling: no author line, no addressee, the session by its member where it has no name and no routine, never its id" \
+	"$( grep -c '→' "$rigTmp/bodies" ) $( rigOpeners '"text":"🧵 Session *keeper-myx*"' ) $( LC_ALL=C grep -c -F '"sender":"magic-team","tracking":"session-root"' "$rigTmp/bodies" )" "0 1 1"
 rigAssert "the brief hands over session_thread_ts as <channel>:<ts>" \
 	"$( grep '^session_thread_ts: ' "$rigTmp/brief" )" "session_thread_ts: DRIG00001:1.000001"
 
@@ -177,8 +177,8 @@ rigAssert "and its own run id, never the session's, as its spawn id" \
 ## Another caller: another session.
 rigCaller=( CLAUDE_CODE_SESSION_ID=rig-native-two )
 rigOut="$( rigSpawn keeper-myx --description "look at the logs" )"
-rigAssert "a member another caller brings in gets that caller's session, with a thread of its own, the session by its id where it has no name and no known starter" \
-	"$( rigRecordsOf rig-native-two ):$( rigRecordsOf rig-native-one ):$( rigOpeners '"text":"🧵 Session *rig-native-two*"' ):$( rigReplies 'keeper-myx joined: look at the logs' )" "1:2:1:1"
+rigAssert "a member another caller brings in gets that caller's session, with a thread of its own, the session by its member where it has no name, no routine and no known starter" \
+	"$( rigRecordsOf rig-native-two ):$( rigRecordsOf rig-native-one ):$( rigOpeners '"text":"🧵 Session *keeper-myx*"' ):$( rigReplies 'keeper-myx joined: look at the logs' )" "1:2:1:1"
 rigAssert "a caller that acts as no member, and none said: its record names none" "$( rigNewest parent-spawn-id ):$( rigNewest parent-member )" "rig-native-two:"
 rigAssert "a caller that acts as no member: the line is addressed to nobody, and still posted" \
 	"$( rigJoined keeper-myx '@here' 'look at the logs' ):$( rigJoined keeper-myx "$( rigShown keeper-myx )" 'look at the logs' )" "1:0"

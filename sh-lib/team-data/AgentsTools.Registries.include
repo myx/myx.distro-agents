@@ -1065,6 +1065,14 @@ AgentsToolsRegistryMeasureRows(){ ## spawned-sessions registry file, this host (
 	## pattern match per row over the whole list.
 	runningSet="$( AgentsToolsRegistryRunningSpawns "$measuredFile" "$psText" )
 "
+	## The starts the main loop has in hand (schedule/starting/<key> with no <key>.rc yet): a run of one of them whose record is
+	## open and whose process is not seen yet is `starting`, not `unclosed`. The key is work-duty.<member> or the routine's file.
+	local startingKeys=" " startingMark startingRoutine
+	for startingMark in "${MMDAPP:-/nonexistent}/.local/agents/schedule/starting"/* ; do
+		[ -f "$startingMark" ] || continue
+		case "$startingMark" in *.rc|*.out) continue ;; esac
+		[ -e "$startingMark.rc" ] || startingKeys="$startingKeys${startingMark##*/} "
+	done
 	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowStarted rowResolved rowComment rowSessionState rowSessionStateAt rowRest ; do
 		[ -n "$rowTracking" ] || continue
 		measuredAny="true"
@@ -1093,6 +1101,15 @@ $rowSpawn
 			fi
 		fi
 		AgentsToolsRegistryDeriveStateFromSet "$rowStatus" "$rowLive" "$rowSession" "$openSet"
+		if [ "$derivedState" = unclosed ] && [ "$startingKeys" != " " ] ; then
+			case "$startingKeys" in
+				*" work-duty.$rowOwner "*) derivedState="starting" ;;
+				*)
+					startingRoutine="$( LC_ALL=C awk '$0 == "---" { if ( ++fenceCount > 1 ) { exit ; } next ; } fenceCount == 1 && index( $0, "routine: " ) == 1 { print substr( $0, 10 ) ; exit ; }' "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$rowSpawn.spawn.md" 2> /dev/null )" || startingRoutine=""
+					case "$startingRoutine" in ''|*.work-duty.routine.md) ;; *) case "$startingKeys" in *" $startingRoutine "*) derivedState="starting" ;; esac ;; esac
+				;;
+			esac
+		fi
 		[ -z "$filterSession" ] || [ "$rowSession" = "$filterSession" ] || continue
 		measuredRows="$measuredRows$rowTracking $rowSession $rowParent $rowHost $rowOwner $rowStatus $rowExit $rowSpawn $rowAgentLogThread $rowSessionThread $rowWorkspace $rowLive $derivedState
 "

@@ -1740,7 +1740,7 @@ case "$1" in
 		if [ -z "$sessionThread" ] && { [ -n "$sessionJoined" ] || [ "$sessionThreadMode" != "event-track" ] ; } ; then
 			## Human-owner's own correction: the team-channel root is not the tooling
 			## thread. One short human line, titled by --session-name-or-comment or
-			## else the session id -- no id block, no host, no timestamps. That detail
+			## else the routine's name and the member -- no id block, no host, no timestamps. That detail
 			## lives in the agent-log-thread's own session start post below.
 			## The root is the session's own post, seeded by the tooling, never a member's
 			## message: it names the session, by its name or comment, else its id, and who
@@ -1750,8 +1750,20 @@ case "$1" in
 			## (AgentsToolsSpawnProxySessionRootPost). The thread under it is the participants' own.
 			## Posted where this spawn runs, as its other settings are read: this workspace, so the
 			## token and the conversation are always one Slack's.
+			## With no name given, the title is the routine's name and the member (`Morning review · magic-librarian`), the routine's
+			## name from its file name; with no routine, the member alone. Never the session id: it names nothing to a person.
+			local rootTitle="$sessionNameOrComment" rootRoutine=""
+			if [ -z "$rootTitle" ] ; then
+				if [ -n "$routineFilePath" ] ; then
+					rootRoutine="${routineFilePath##*/}" ; rootRoutine="${rootRoutine%.routine.md}"
+					rootRoutine="${rootRoutine#"$callerName".}" ; rootRoutine="${rootRoutine#magic-team.}" ; rootRoutine="${rootRoutine//-/ }"
+					rootTitle="$( printf '%s' "${rootRoutine:0:1}" | LC_ALL=C tr 'a-z' 'A-Z' )${rootRoutine:1} · $callerName"
+				else
+					rootTitle="$callerName"
+				fi
+			fi
 			sessionThread="$(
-				AgentsToolsSpawnProxySessionRootPost "$callerName" "${sessionNameOrComment:-$sessionId}" "$spawnerMember"
+				AgentsToolsSpawnProxySessionRootPost "$callerName" "$rootTitle" "$spawnerMember"
 			)" || sessionThread=""
 			## Recorded at once as the session's, so the member brought in next finds it, and the
 			## session that brought this one in does (session-current, AgentsToolsSessionCurrentThreadFind).

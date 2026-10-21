@@ -6,7 +6,7 @@ allows: magic-librarian:skillset-upsert
 requires-session-kind: standalone
 routine-lock-document: inbox:{{team-member}}:note-20261020T000000Z-work-duty-state-and-lock.md
 input-scan-def: work-duty --session-id {{session-id}}
-wait-sources: inbox:{{team-member}}
+wait-sources: inbox:{{team-member}} tagged:{{team-member}}
 reports-to: none
 review-by: none
 cache-prefix: routine

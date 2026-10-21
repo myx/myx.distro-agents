@@ -132,13 +132,13 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 			AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" includes )" includes "includes: $routineIncName has no section $routineIncSection"
 		fi
 	done <<< "$( AgentsToolsSpawnRoutineIncludes "$routineFile" )"
-	## The sources a run of the routine waits on besides its scans (`wait-sources: <source> ...`, read by --idle-wait): `inbox:{{team-member}}`, the own inbox, and
-	## `board:<state>`, one state of the board.
+	## The sources a run of the routine waits on besides its scans (`wait-sources: <source> ...`, read by --idle-wait): `inbox:{{team-member}}`, the own inbox,
+	## `tagged:{{team-member}}`, what is for the member by name, and `board:<state>`, one state of the board.
 	while IFS= read -r routineIncSection ; do
 		for routineIncWord in $routineIncSection ; do
 			case "$routineIncWord" in
-				"inbox:{{team-member}}"|board:backlog|board:pending|board:running|board:review|board:blocked|board:parked|board:processed|board:archived|board:retained) ;;
-				*) AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" wait-sources )" wait-sources "wait-sources: $routineIncWord is none of inbox:{{team-member}} and board:<state>" ;;
+				"inbox:{{team-member}}"|"tagged:{{team-member}}"|board:backlog|board:pending|board:running|board:review|board:blocked|board:parked|board:processed|board:archived|board:retained) ;;
+				*) AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" wait-sources )" wait-sources "wait-sources: $routineIncWord is none of inbox:{{team-member}}, tagged:{{team-member}} and board:<state>" ;;
 			esac
 		done
 	done <<< "$( AgentsToolsRoutineKeyLinesOwn "$routineFile" wait-sources )"

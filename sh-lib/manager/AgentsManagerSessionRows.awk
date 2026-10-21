@@ -42,16 +42,17 @@
 ## something can still be done from this host. `running`. `waiting`, no live process and an
 ## ask of it still open: the ask can be answered or dismissed. `unclosed`, no live process
 ## and a record still open: the record can be closed, the run started again. Not `finished`;
-## and not `unknown-foreign`, which is another host's: nothing can be done with it from here.
+## and not `unknown-foreign`, which is another host's: nothing can be done with it from here. `starting`, a run the main
+## loop is still starting (its start marker has no result yet), whose process is not seen yet.
 function activeState(stateWord) {
-	return ( stateWord == "running" || stateWord == "waiting" || stateWord == "unclosed" ) ;
+	return ( stateWord == "running" || stateWord == "starting" || stateWord == "waiting" || stateWord == "unclosed" ) ;
 }
 
 BEGIN {
 	OFS = "\t" ;
 	waitingSet = ENVIRON["MDAT_MANAGER_WAITING"] ;
 	agentsDir = ENVIRON["MDAT_MANAGER_AGENTS"] ;
-	stateTotal = split("running waiting unclosed unknown-foreign finished", stateOrder, " ") ;
+	stateTotal = split("running starting waiting unclosed unknown-foreign finished", stateOrder, " ") ;
 	controlTotal = split(ENVIRON["MDAT_MANAGER_CONTROL"], controlLines, "\n") ;
 	for (controlAt = 1 ; controlAt <= controlTotal ; controlAt++) {
 		if (split(controlLines[controlAt], controlWords, " ") >= 2) controlOf[controlWords[1]] = controlWords[2] ;
@@ -95,6 +96,7 @@ NF != 16 && NF != 18 { next ; }
 	if ((sessionKey in openOf) || ($8 != "-" && ($8 in openOf)) || $13 == "waiting") sessionAsks[sessionKey] = 1 ;
 	if ($13 == "unknown-foreign") sessionForeign[sessionKey] = 1 ;
 	if ($13 == "unclosed" || $13 == "waiting") sessionOpen[sessionKey] = 1 ;
+	if ($13 == "starting") sessionStarting[sessionKey] = 1 ;
 	sessionRuns[sessionKey]++ ;
 	## The tokens of the run, added to those of its session; a run with no known figures is counted apart.
 	if (agentsDir != "" && !( ( sessionKey, $8 ) in tokenTaken )) {
@@ -117,6 +119,7 @@ END {
 	for (sessionAt = 1 ; sessionAt <= sessionTotal ; sessionAt++) {
 		sessionKey = sessionOf[sessionAt] ;
 		if (sessionKey in sessionLive) sessionState[sessionKey] = "running" ;
+		else if (sessionKey in sessionStarting) sessionState[sessionKey] = "starting" ;
 		else if (sessionKey in sessionAsks) sessionState[sessionKey] = "waiting" ;
 		else if (sessionKey in sessionForeign) sessionState[sessionKey] = "unknown-foreign" ;
 		else if (sessionKey in sessionOpen) sessionState[sessionKey] = "unclosed" ;
