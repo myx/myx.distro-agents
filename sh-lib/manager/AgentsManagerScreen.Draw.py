@@ -867,6 +867,11 @@ def sizeTaken(surface, state):
 ## actions that were asked for; the reads that are due now; the drawing. `now` is a clock
 ## that only goes forward.
 def screenTurn(surface, state, reader, now, key):
+    ## a setting of the mouse was saved: the terminal is told at once, as the start of the screen tells it (CursesSurface.mouse)
+    if state.mouseAsk:
+        state.mouseAsk = False
+        if getattr(surface, "mouse", None) is not None:
+            surface.mouse(True)
     layout = sizeTaken(surface, state)
     state.clock = time.strftime("%H:%M:%S", time.localtime(nowEpoch()))
     state.now = now

@@ -45,6 +45,14 @@ AgentsToolsManagerScopeAgentsUnlisted(){ ## id
 	return 0
 }
 
+## A scope of the agents made, empty: its file in the agents' folder, with the mode the others have.
+AgentsToolsManagerScopeAgentsCreate(){ ## name of the scope
+	LocalToolsManagerScopeNameOk "$1" || return 1
+	mkdir -p "${MMDAPP%/}/.local/.agents" || return 1
+	( umask 007 ; : > "${MMDAPP%/}/.local/.agents/$1.agent.env" ) || return 1
+	return 0
+}
+
 ## Who keeps a preset from being deleted: the presets that extend it, and the tiers that name it. Nothing for any other scope of the agents.
 AgentsToolsManagerScopeAgentsGuard(){ ## name of the scope
 	case "$1" in

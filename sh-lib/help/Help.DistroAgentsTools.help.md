@@ -195,6 +195,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-scope-unset <scope-id> <key>
 📘 syntax: DistroAgentsTools.fn.sh --manager-scope-clear <scope-id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-scope-delete <scope-id>
+📘 syntax: DistroAgentsTools.fn.sh --manager-scope-new <subsystem>:<name>
 📘 syntax: DistroAgentsTools.fn.sh --manager-wizard-read <cli-service|git-settings>
 📘 syntax: DistroAgentsTools.fn.sh --manager-wizard-apply cli-service --preset <name>
 📘 syntax: DistroAgentsTools.fn.sh --manager-wizard-apply git-settings
@@ -3903,6 +3904,16 @@
 			`cleared <scope-id> <how many>`. Exit 1, with one error line, where a
 			key could not be taken out, saying how many were, and for an id that
 			is none of the scopes. The console offers it for any scope.
+
+		--manager-scope-new <subsystem>:<name>
+			One of the console's own operations (see Notes). Makes one scope,
+			empty: the id is the subsystem and a name a scope may have
+			(`agents:routine-x`), the subsystem one whose console registered how
+			a scope of it is made (sh-lib/config/scope-settings.list, the line
+			`create`), and no scope of that id there already. Prints
+			`created <id>`. The variables are added by `--manager-scope-set`.
+			Exit 1, nothing made, for an id of another form, a name no scope may
+			have, a scope that is there, and a subsystem that makes none here.
 
 		--manager-scope-delete <scope-id>
 			One of the console's own operations (see Notes). Deletes one scope, its

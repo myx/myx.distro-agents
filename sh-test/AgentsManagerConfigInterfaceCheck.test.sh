@@ -104,7 +104,7 @@ rigOtherBefore="$( rigSum "$rigOther" )"
 echo "-- 1. the subject of the interface, with nothing saved --"
 rigRun "$rigRead" interface
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
-rigAssert "the subject has one line, the interface style: its key, the default as its value, where the value comes from, and the values to choose from with their labels, its two own fields after the value; and each row ends with its label" "$( cat "$rigTmp/out" )" "$( printf 'subject\tinterface\t1\tInterface_Settings\nline\tinterface\tstyle\t%s\tset\ttv-system\tdefault\t%s\tInterface_Style' "$rigKey" "$rigChoices" )"
+rigAssert "the subject has three lines, the interface style first, then the mouse and the spacers: its key, the default as its value, where the value comes from, and the values to choose from with their labels, its two own fields after the value; and each row ends with its label" "$( cat "$rigTmp/out" )" "$( printf 'subject\tinterface\t3\tInterface_Settings\nline\tinterface\tstyle\t%s\tset\ttv-system\tdefault\t%s\tInterface_Style\nline\tinterface\tmouse\tMDLT_CONSOLE_MOUSE\tset\t-\tdefault\t=Enabled,disable=Disabled\tMouse_Support\nline\tinterface\tspacers\tMDLT_CONSOLE_SPACERS\tset\t-\tdefault\t=Enabled,disable=Disabled\tList_Spacers' "$rigKey" "$rigChoices" )"
 rigAssert "reading made nothing: the user has no settings file and no folder, and the rig is as it was" "$( rigSum "$rigOwn" ) $( [ -e "${rigOwn%/*}" ] && echo folder || echo no-folder ) $( rigTree )" "absent no-folder $rigTreeBefore"
 rigAssert "control: the workspace's own settings file holds the key, and another user has saved one: neither is the user's own" "$( LC_ALL=C grep -c -x -e "$rigKey=bw" "$rigShared" ) $( LC_ALL=C grep -c -x -e "$rigKey=magic" "$rigOther" )" "1 1"
 cp "$rigTmp/out" "$rigTmp/alone"
@@ -172,7 +172,7 @@ rigAssert "each is refused, rc 1, nothing on stdout, in one line that lists the 
 rigAssert "nothing that was given is repeated in a refusal: the pasted secret stands nowhere in what any call printed" "$( LC_ALL=C grep -c -F -e 'RIGSECRET' "$rigTmp/all" || : )" "0"
 
 echo "-- 6. a key that is no interface setting is refused, and so is a wrong count of arguments --"
-rigNoKey="⛔ ERROR: DistroAgentsTools $rigWrite: the key given is none of the changeable settings -- nothing was saved. Its keys: $rigKey, MDLT_CONSOLE_HISTORY, MDLT_CONSOLE_ORIGIN, MDLT_CONSOLE_DETAIL, SESSION_CONTROL_REQUEST_SECONDS, SESSION_CONTROL_KILL_SECONDS, MDAT_KNOWLEDGE_STORE"
+rigNoKey="⛔ ERROR: DistroAgentsTools $rigWrite: the key given is none of the changeable settings -- nothing was saved. Its keys: $rigKey, MDLT_CONSOLE_MOUSE, MDLT_CONSOLE_SPACERS, MDLT_CONSOLE_HISTORY, MDLT_CONSOLE_ORIGIN, MDLT_CONSOLE_DETAIL, SESSION_CONTROL_REQUEST_SECONDS, SESSION_CONTROL_KILL_SECONDS, MDAT_KNOWLEDGE_STORE"
 rigBad=""
 for rigOne in MDSC_DETAIL SLACK_BOT_TOKEN style mdat_manager_style "$rigKey=bw" "$rigKey " "*" "" ; do
 	rigRun "$rigWrite" "$rigOne" bw
@@ -217,7 +217,7 @@ spec.loader.exec_module(module)
 print(",".join("%s-%s=%s - %s" % (name, scheme, style["label"], module.COLOURS[place][1])
                for name, style in module.STYLES for place, (scheme, changes) in enumerate(style["schemes"])).replace(" ", "_"))
 ' "$rigScreen" )" "$rigChoices"
-rigAssert "a changeable setting cannot come without its label and its description: each row of the declaration of the settings has a row of its own in the one declaration of the labels" "$( rigLacking="" ; rigCount=0 ; while IFS='|' read -r rigOwner rigGroup rigOne rigRest ; do [ -n "$rigOne" ] || continue ; rigCount=$(( rigCount + 1 )) ; LC_ALL=C sed -n '/^agentsManagerConfigLabels="/,/"$/p' "$rigHere/manager/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -q -e "^$rigOwner|$rigGroup|$rigOne|[A-Z][^|]*|[^|]*|[A-Z]" || rigLacking="$rigLacking $rigOne" ; done <<< "$( LC_ALL=C sed -n '/^agentsManagerConfigSettings="/,/"$/p' "$rigHere/manager/AgentsTools.ManagerConfig.include" | LC_ALL=C sed -e 's/^agentsManagerConfigSettings="//' -e 's/"$//' )" ; printf '%s%s' "$rigCount" "${rigLacking:- none-lacking}" )" "7 none-lacking"
+rigAssert "a changeable setting cannot come without its label and its description: each row of the declaration of the settings has a row of its own in the one declaration of the labels" "$( rigLacking="" ; rigCount=0 ; while IFS='|' read -r rigOwner rigGroup rigOne rigRest ; do [ -n "$rigOne" ] || continue ; rigCount=$(( rigCount + 1 )) ; LC_ALL=C sed -n '/^agentsManagerConfigLabels="/,/"$/p' "$rigHere/manager/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -q -e "^$rigOwner|$rigGroup|$rigOne|[A-Z][^|]*|[^|]*|[A-Z]" || rigLacking="$rigLacking $rigOne" ; done <<< "$( LC_ALL=C sed -n '/^agentsManagerConfigSettings="/,/"$/p' "$rigHere/manager/AgentsTools.ManagerConfig.include" | LC_ALL=C sed -e 's/^agentsManagerConfigSettings="//' -e 's/"$//' )" ; printf '%s%s' "$rigCount" "${rigLacking:- none-lacking}" )" "9 none-lacking"
 rigAssert "the default is the style the screen starts in, and the key is the variable of the environment the screen reads" "$( LC_ALL=C sed -n 's/^STYLE_FIRST = "\(.*\)"$/\1/p' "${rigScreen%.py}.Styles.py" ) $( LC_ALL=C sed -n 's/^STYLE_VARIABLE = "\(.*\)"$/\1/p' "${rigScreen%.py}.Styles.py" )" "tv-system $rigKey"
 
 echo "-- 10. the help pair --"

@@ -112,6 +112,10 @@ scopes|*|*|{words}|configuration|A setting of this scope, saved in its own setti
 interface|||Interface Settings||
 interface|style||Screen Style||
 interface|style|MDAT_MANAGER_STYLE|Interface Style|settings|How the manager screen is drawn: its windows, its frames and its colours. A change is the look of the screen at its next start, for this user in this workspace.
+interface|mouse||Mouse Support||
+interface|mouse|MDLT_CONSOLE_MOUSE|Mouse Support|settings|Whether the manager screen takes the mouse. Disabled, the mouse is left to the terminal, whose own selection then copies text. A change is read by the screen at its next start, for this user.
+interface|spacers||List Spacers||
+interface|spacers|MDLT_CONSOLE_SPACERS|List Spacers|settings|Whether the lists of the manager screen keep a blank line between their groups. Disabled, they do not. A change is read by the screen at its next start, for this user.
 console|||Console Behaviour||
 console|history||Shell History||
 console|origin||Tooling Origin||
@@ -584,6 +588,8 @@ AgentsToolsManagerConfigScopes(){
 ## running sessions). The tick and the other seconds of a control thread are no line at all:
 ## a running thread reads them.
 agentsManagerConfigSettings="interface|style|MDAT_MANAGER_STYLE|choice|environment user|tv-system|nu-system=Magic - System,nu-blue=Magic - Dark/Blue,nu-gray=Magic - Light/Gray,tv-system=Turbo Vision - System,tv-blue=Turbo Vision - Dark/Blue,tv-gray=Turbo Vision - Light/Gray,bw-system=Basic B/W - System,bw-dark=Basic B/W - Dark/Blue,bw-light=Basic B/W - Light/Gray
+interface|mouse|MDLT_CONSOLE_MOUSE|choice|user system||=Enabled,disable=Disabled
+interface|spacers|MDLT_CONSOLE_SPACERS|choice|user system||=Enabled,disable=Disabled
 console|history|MDLT_CONSOLE_HISTORY|choice|user system|workspace-personal|workspace-personal=Per User In This Workspace,workspace-separate=Per User And Per Console,workspace-shared=Shared By All Users,local-machine-home=In The Home Of The User,bash-default=The File Bash Uses,user-default=As The User Has It
 console|origin|MDLT_CONSOLE_ORIGIN|choice|user system||@origins|system
 console|detail|MDLT_CONSOLE_DETAIL|choice|user||=<default> (none),true=true (track),full=full (debug)

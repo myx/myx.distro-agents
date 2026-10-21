@@ -425,6 +425,14 @@ def submitSetting(state, dialog, button):
         return None
     if line["key"] == STYLE_VARIABLE:
         setStyle(value)
+    ## the mouse and the spacers apply at once, as the style does: the screen reads both from its environment, where the start put what the user saved, so the environment is changed and the
+    ## terminal told about the mouse; the list draws its spacers anew at the next turn
+    if line["key"] in (MOUSE_VARIABLE, SPACERS_VARIABLE):
+        if value:
+            os.environ[line["key"]] = value
+        else:
+            os.environ.pop(line["key"], None)
+        state.mouseAsk = line["key"] == MOUSE_VARIABLE
     askCall(state, "setting", line["key"], callWords("set", line["key"]) + [value], None,
             {"viewKey": dialog["about"]["viewKey"], "says": says})
     state.notice = "save asked of the tooling: %s" % says

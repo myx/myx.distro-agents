@@ -22,7 +22,7 @@ rigPackage="${rigHere%/sh-lib}"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigRead="--manager-config-digest"
 rigWrite="--manager-config-set"
-rigKeys="MDAT_MANAGER_STYLE, MDLT_CONSOLE_HISTORY, MDLT_CONSOLE_ORIGIN, MDLT_CONSOLE_DETAIL, SESSION_CONTROL_REQUEST_SECONDS, SESSION_CONTROL_KILL_SECONDS, MDAT_KNOWLEDGE_STORE"
+rigKeys="MDAT_MANAGER_STYLE, MDLT_CONSOLE_MOUSE, MDLT_CONSOLE_SPACERS, MDLT_CONSOLE_HISTORY, MDLT_CONSOLE_ORIGIN, MDLT_CONSOLE_DETAIL, SESSION_CONTROL_REQUEST_SECONDS, SESSION_CONTROL_KILL_SECONDS, MDAT_KNOWLEDGE_STORE"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -117,7 +117,7 @@ rigAssert "the origin of the tooling: a choice made at the call, the workspace's
 rigAssert "the verbosity: a choice of three, the user's own, now the default" "$( rigLine MDLT_CONSOLE_DETAIL )" "line console detail MDLT_CONSOLE_DETAIL set - Console_Verbosity yes choice user default =<default>_(none),true=true_(track),full=full_(debug) $rigOwn settings"
 rigAssert "the two bounds of a control request: whole numbers with their smallest and largest, the workspace's, now their defaults, to be saved in the settings of the team" "$( rigLine SESSION_CONTROL_REQUEST_SECONDS ) / $( rigLine SESSION_CONTROL_KILL_SECONDS )" "line control request SESSION_CONTROL_REQUEST_SECONDS set 5 Control_Request_Seconds yes number workspace default 1..60 $rigTeam settings / line control kill SESSION_CONTROL_KILL_SECONDS set 30 Control_Kill_Seconds yes number workspace default 5..600 $rigTeam settings"
 rigAssert "the style of the interface is one of them, in the same fields" "$( rigLine MDAT_MANAGER_STYLE )" "line interface style MDAT_MANAGER_STYLE set tv-system Interface_Style yes choice user default nu-system=Magic_-_System,nu-blue=Magic_-_Dark/Blue,nu-gray=Magic_-_Light/Gray,tv-system=Turbo_Vision_-_System,tv-blue=Turbo_Vision_-_Dark/Blue,tv-gray=Turbo_Vision_-_Light/Gray,bw-system=Basic_B/W_-_System,bw-dark=Basic_B/W_-_Dark/Blue,bw-light=Basic_B/W_-_Light/Gray $rigOwn settings"
-rigAssert "these seven and no other line of the digest say yes" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $9 == "yes" { printf "%s ", $4 }' "$rigTmp/out" )" "MDAT_MANAGER_STYLE MDLT_CONSOLE_HISTORY MDLT_CONSOLE_ORIGIN MDLT_CONSOLE_DETAIL SESSION_CONTROL_REQUEST_SECONDS SESSION_CONTROL_KILL_SECONDS MDAT_KNOWLEDGE_STORE "
+rigAssert "these nine and no other line of the digest say yes" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $9 == "yes" { printf "%s ", $4 }' "$rigTmp/out" )" "MDAT_MANAGER_STYLE MDLT_CONSOLE_MOUSE MDLT_CONSOLE_SPACERS MDLT_CONSOLE_HISTORY MDLT_CONSOLE_ORIGIN MDLT_CONSOLE_DETAIL SESSION_CONTROL_REQUEST_SECONDS SESSION_CONTROL_KILL_SECONDS MDAT_KNOWLEDGE_STORE "
 rigRun "$rigRead" console control
 rigAssert "without --full the two subjects print their lines in the seven fields every line has, under their labels" "$rigRc $( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" | LC_ALL=C tr '\n' '/' )" "0 subject console 3 Console_Behaviour/line console history MDLT_CONSOLE_HISTORY set workspace-shared Console_History_Type/line console origin MDLT_CONSOLE_ORIGIN set - Console_Tooling_Origin/line console detail MDLT_CONSOLE_DETAIL set - Console_Verbosity/subject control 2 Session_Control/line control request SESSION_CONTROL_REQUEST_SECONDS set 5 Control_Request_Seconds/line control kill SESSION_CONTROL_KILL_SECONDS set 30 Control_Kill_Seconds/"
 

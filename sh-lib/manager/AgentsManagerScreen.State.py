@@ -325,6 +325,8 @@ class ManagerState:
         self.shown = 0
         ## the level a command asked to be taken to once it is over (goLink)
         self.goTo = None
+        ## the mouse setting was changed and the terminal is to be told (screenTurn)
+        self.mouseAsk = False
         self.notice = ""
         self.noticeOf = None
         ## the reads: when each was last started and with which words, which failed last

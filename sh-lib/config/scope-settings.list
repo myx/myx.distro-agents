@@ -8,3 +8,4 @@ known	agents:*	AgentsToolsManagerScopeAgentsKnown	myx.distro-agents/sh-lib/manag
 guard	agents:*	AgentsToolsManagerScopeAgentsGuard	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerScopeAgents.include
 secret	AgentsToolsManagerConfigKeySecret	AgentsToolsCredentialShown	AgentsToolsCredentialUrlShown	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerScopeAgents.include
 describe	agents:*	AgentsToolsOwnerSetupOptionSpec	myx.distro-agents/sh-lib/config/AgentsTools.OwnerSetupOptionSpec.include
+create	agents:*	AgentsToolsManagerScopeAgentsCreate	myx.distro-agents/sh-lib/manager/AgentsTools.ManagerScopeAgents.include
