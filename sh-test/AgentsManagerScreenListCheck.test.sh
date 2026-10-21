@@ -68,8 +68,8 @@ cells row12 13 85 119
 cells row13 14 85 119
 cells row14 15 85 119
 RIGSCRIPT
-rigAssert "the root holds the nine sections in their order, the dashboard first, a spacer between its five groups: Dashboard and Pending Questions, Magic-Team, Locations, Consoles and Workspace, Settings and Configuration, Manuals" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )][$( rigVal row9 )][$( rigVal row10 )][$( rigVal row11 )][$( rigVal row12 )][$( rigVal row13 )][$( rigVal row14 )]" "[ Dashboard (Monitor)             ►][ Pending Questions               ►][][ Magic-Team (Agents)             ►][][ Locations (Places)              ►][ Consoles                        ►][ Workspace (System)              ►][][ Settings                        ►][ Configuration                   ►][][>Manuals (Help)                  ►][]"
-rigAssert "the screen starts on the last one, Manuals (Help), selected, and the list has the focus" "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "manuals 8 list 9"
+rigAssert "the root holds the nine sections in their order, the dashboard first, a spacer between its five groups: Dashboard and Pending Questions, Magic-Team, Locations, Consoles and Workspace, Settings and Configuration, Manuals" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )][$( rigVal row9 )][$( rigVal row10 )][$( rigVal row11 )][$( rigVal row12 )][$( rigVal row13 )][$( rigVal row14 )]" "[ Dashboard (Monitor)             ►][ Pending Questions               ►][][ Magic-Team (Agents)             ►][][ Locations (Places)              ►][ Consoles                        ►][ Workspace (System)              ►][ This Machine                    ►][][ Settings                        ►][ Configuration                   ►][][>Manuals (Help)                  ►]"
+rigAssert "the screen starts on the last one, Manuals (Help), selected, and the list has the focus" "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "manuals 9 list 10"
 
 echo "-- Enter dives in, the first row and Backspace go up --"
 rigScript <<'RIGSCRIPT'
@@ -214,7 +214,7 @@ root dashboard
 keys RIGHT
 get root
 rowsgen pending 100
-keys UP UP UP UP UP UP UP UP DOWN ENTER
+keys UP UP UP UP UP UP UP UP UP DOWN ENTER
 get in
 keys RIGHT RIGHT RIGHT RIGHT RIGHT RIGHT RIGHT
 get bottom

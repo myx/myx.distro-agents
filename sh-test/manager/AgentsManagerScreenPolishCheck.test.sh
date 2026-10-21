@@ -232,7 +232,7 @@ else : print("spaced" if below[0] == above[0] + 2 and rows[ above[0] + 1 ] == "-
 rigAssert "control: Team Data is not shown, no team data being configured" "$( printf '%s\n' "$rigRootRows" | LC_ALL=C tr '|' '\n' | LC_ALL=C grep -c '^Team Data' )" 0
 rigAssert "a spacer between Pending Questions and Magic-Team (Agents)" "$( rigSpaceAfter 'Pending' 'Magic-Team' )" spaced
 rigAssert "a spacer between Magic-Team (Agents) and Locations"  "$( rigSpaceAfter 'Magic-Team' 'Locations' )" spaced
-rigAssert "a spacer between Workspace and Settings"            "$( rigSpaceAfter 'Workspace' 'Settings' )" spaced
+rigAssert "a spacer between This Machine and Settings"            "$( rigSpaceAfter 'This Machine' 'Settings' )" spaced
 rigAssert "a spacer between Configuration and Manuals"         "$( rigSpaceAfter 'Configuration' 'Manuals' )" spaced
 rigAssert "and no other spacer at the root"                    "$( printf '%s\n' "$rigRootRows" | LC_ALL=C tr '|' '\n' | LC_ALL=C grep -c -x -- '-' )" 4
 ## In any folder a spacer stands between its commands (FIXED_ROWS) and its children: in Launch (Start), after Free prompt.

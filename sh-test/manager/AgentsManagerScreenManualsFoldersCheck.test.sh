@@ -103,7 +103,7 @@ rigAssert "resting on it: it is Tooling Commands, and --manager-command-list was
 
 echo "-- 4. Configuration holds Tooling Commands no more --"
 rigCase configuration
-rigRun "$rigPre"$'root active-sessions\n' < <( printf 'turn\nkeys 7\nwait list 30\nturn\n' ; rigCellsCmds )
+rigRun "$rigPre"$'root active-sessions\n' < <( printf 'turn\nkeys 8\nwait list 30\nturn\n' ; rigCellsCmds )
 rigConfiguration="$( rigRows )"
 rigAssert "Configuration's rows are read, and Tooling Commands is none of them" "$( [ -n "$rigConfiguration" ] && echo read || echo none ) $( printf '%s' "$rigConfiguration" | LC_ALL=C grep -q -F '[Tooling Commands]' && echo held || echo gone )" "read gone"
 

@@ -217,6 +217,9 @@ wait focus 5
 show W
 keys DOWN
 wait focus 5
+show N
+keys DOWN
+wait focus 5
 show G
 keys DOWN
 wait focus 5
@@ -231,7 +234,7 @@ rigAssert "what is to start: each as a table with its command, nothing above it"
 rigAssert "the workspace: its facts, the rows of the operation as it printed them, with no Enter" "$( rigLeft W )" " name  ws-one /  path  /rig/Workspaces/ws-one"
 rigAssert "the settings: its subjects in a table, with what each holds" "$( rigLeft G | sed 's/^.*while the workspace runs\. \/ //' )" " SUBJECT      LINES MISSING WHAT /  Interface    2     -       how this console looks, saved for the user who runs it /  Scope        -     -       every scope of settings of this workspace, each a /  Settings                   folder of its variables"
 rigAssert "the configuration: its subjects, how many lines each misses, and its folders" "$( rigLeft F | sed 's/^.*change it later\. \/ //' ) [$( rigLeft F | sed 's/ \/ .*$//' )]" " SUBJECT     LINES MISSING WHAT /  Slack       3     1       - /  Config      -     -       the read-only checks of the installation, run on demand /  Checker /  Server Keys -     -       the public keys of this server /  CLI Presets -     -       the CLI services you set up as presets, and the preset /  and Tiers                 and effort each member and the team use for their tiers /  Git         -     -       the global git settings of the account that runs the /  Settings                  tools /  Installed   -     -       the subsystems of the tool family, installed here or /  Subsystems                not, and the commands to install and uninstall them /  Diagnostics -     -       what the tooling sees, read-only: the context it /                            resolves [ SUBJECT     LINES MISSING WHAT]"
-rigAssert "nothing was entered, and each list was read once: the asks, the members, what is to start, and the digest for both its roots" "[$( rigVal end.path )] $( rigCalls --read-pending-reply ) $( rigCalls --manager-team-member-list ) $( rigCalls --manager-console-list ) $( rigCalls --manager-config-digest ) $( rigFolderCalls )" "[] 1 1 1 1 5"
+rigAssert "nothing was entered, and each list was read once: the asks, the members, what is to start, and the digest for both its roots" "[$( rigVal end.path )] $( rigCalls --read-pending-reply ) $( rigCalls --manager-team-member-list ) $( rigCalls --manager-console-list ) $( rigCalls --manager-config-digest ) $( rigFolderCalls )" "[] 1 1 1 1 6"
 
 echo "-- until the rows have come the window says that it waits; the read starts when the selection has rested --"
 rigCase waits
@@ -364,7 +367,7 @@ turn
 keys DOWN DOWN ENTER DOWN ENTER DOWN
 wait focus 5
 show L
-keys BACKSPACE BACKSPACE BACKSPACE DOWN DOWN DOWN DOWN DOWN ENTER DOWN
+keys BACKSPACE BACKSPACE BACKSPACE DOWN DOWN DOWN DOWN DOWN DOWN ENTER DOWN
 wait focus 5
 advance 11
 turn
@@ -420,7 +423,7 @@ rigCase pty
 mkdir -p "$rigTmp/ws-rig"
 printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigTools" > "$rigTmp/tools"
 chmod +x "$rigTmp/tools"
-rigOut="$( MANAGER_SCREEN_PTY_TRACE='asks=QUESTION' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 120 36 "Magic-Team (Agents)" '\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\aQUESTION\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
+rigOut="$( MANAGER_SCREEN_PTY_TRACE='asks=QUESTION' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 120 36 "Magic-Team (Agents)" '\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\x1bOA\p\aQUESTION\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
 rigAssert "it draws the summary of the asks with no Enter and ends with status 0, the terminal given back" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft ) $( rigVal pty.modeBack ) [$( rigVal pty.trace | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ $//' )]" "yes 0 yes none yes [asks]"
 
 if [ "$rigFailCount" -ne 0 ] ; then

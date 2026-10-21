@@ -320,7 +320,7 @@ border teamTitle 1 0 84
 keys ALT-2
 turn
 border pendingTitle 1 0 84
-keys ALT-7
+keys ALT-8
 turn
 border settingsTitle 1 0 84
 RIGSCRIPT

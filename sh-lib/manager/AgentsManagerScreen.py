@@ -115,7 +115,7 @@ LOCAL_PARTS = (
 LOCAL_PARTS_BEFORE = {
     "AgentsManagerScreen.Sessions.py": ("LocalManagerScreen.Dashboard.py",),
     "AgentsManagerScreen.Tokens.py": ("LocalManagerScreen.Places.py",),
-    "AgentsManagerScreen.Settings.py": ("LocalManagerScreen.Workspace.py",),
+    "AgentsManagerScreen.Settings.py": ("LocalManagerScreen.Workspace.py", "LocalManagerScreen.Machine.py"),
 }
 
 

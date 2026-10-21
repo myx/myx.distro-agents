@@ -158,7 +158,7 @@ rigCalled(){ ## the arguments of a start -- how many times the stand-in was star
 	LC_ALL=C grep -c -x -F -- "$1" "$MANAGER_SCREEN_RIG/calls" || :
 }
 rigOthers(){ ## how many starts were neither the list of the sessions, nor the read of the dashboard the screen starts on, nor the digest asked for whole. The list of the locations, which every start of the screen reads, is not counted.
-	LC_ALL=C grep -c -v -x -e '--manager-session-list' -e '--manager-dashboard-read' -e '--manager-config-digest --full' -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" || :
+	LC_ALL=C grep -c -v -x -e '--manager-session-list' -e '--manager-dashboard-read' -e '--manager-dashboard-read machine disk' -e '--manager-config-digest --full' -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" || :
 }
 
 echo "-- Configuration lists the subjects of its lines, and one read of the digest fills both roots --"
@@ -167,7 +167,7 @@ rigScript <<'RIGSCRIPT'
 root magic-team
 turn
 wait sessions 30
-keys DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN
 advance 11
 wait sessions 30
 wait focus 30
@@ -231,7 +231,7 @@ rigAssert "the digest was read once for both roots, whole, and once more when it
 echo "-- the left pane shows the selected subject, group by group --"
 rigCase subjects
 rigScript <<'RIGSCRIPT'
-keys 8
+keys 9
 wait list 30
 keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 turn
@@ -266,7 +266,7 @@ echo "-- a subject longer than the pane scrolls with the focus on the left pane 
 rigCase scroll
 rigSize="120 20"
 rigScript <<'RIGSCRIPT'
-keys 8
+keys 9
 wait list 30
 keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 turn
@@ -287,7 +287,7 @@ rigAssert "the key that is missing stands on its first page, with its scope" "[$
 echo "-- a subject is entered: its lines by their labels alone, and the left window shows the one selected --"
 rigCase entered
 rigScript <<'RIGSCRIPT'
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN DOWN ENTER
 turn
@@ -382,7 +382,7 @@ echo "-- the labels of the digest: a subject and a line show by their label, the
 rigCaseLabelled labels
 rigScript <<'RIGSCRIPT'
 turn
-keys 8
+keys 9
 wait list 30
 keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 turn
@@ -394,7 +394,7 @@ turn
 wait focus 30
 turn 2
 show c
-keys 7
+keys 8
 turn
 keys DOWN DOWN
 turn
@@ -409,7 +409,7 @@ echo "-- Enter on the style: a dialog of its own, the style and its colours; OK 
 rigCaseLabelled style
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN ENTER
 turn
@@ -444,7 +444,7 @@ echo "-- Enter on a choice: the form offers the same choices and saves the raw v
 rigCase choice
 rigScript <<RIGSCRIPT
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN DOWN ENTER
 turn
@@ -510,7 +510,7 @@ echo "-- Enter on a number: its range in the dialog, saved for the workspace; on
 rigCase number
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN DOWN DOWN ENTER
 turn
@@ -547,7 +547,7 @@ echo "-- a setting of a kind the screen does not know is changed as a short text
 rigCase words
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN DOWN ENTER
 turn
@@ -569,7 +569,7 @@ rigCaseLabelled refused
 printf 'fail\n' > "$MANAGER_SCREEN_RIG/mode.--manager-config-set"
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN ENTER
 turn
@@ -612,7 +612,7 @@ echo "-- the styles: Magic, Turbo Vision and Basic B/W, in that order, Turbo Vis
 rigCase magic
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 turn
 keys I
@@ -812,7 +812,7 @@ print("kept %d of %d %s %s" % (len(kept), len(cells), "drawn" if "".join(kept).s
 rigCase schemes
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 turn
 style tv-blue
@@ -903,7 +903,7 @@ rigLeaves(){ ## style -- one scheme drawn with a menu and with a dialog, each cl
 	rigCase "leaves-$1"
 	rigScript <<RIGSCRIPT
 turn
-keys 7
+keys 8
 wait list 30
 turn
 style $1

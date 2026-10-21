@@ -92,7 +92,7 @@ RIGSCRIPT
 rigAssert "Manuals (Help) is the last root, a folder" "$( rigVal on.selectedLabel ) $( rigFolderHolds on '>Manuals (Help) ' )" "Manuals (Help) 1"
 rigAssert "selected, the left window is a table of its three folders, each with what it holds" "$( rigHolds on '│ FOLDER' ) $( rigHolds on 'User Manuals  ' ) $( rigHolds on 'the README.md of each project, in build order' ) $( rigHolds on 'Maintainer Manuals  ' ) $( rigHolds on 'the MAGIC.md of each project, in build order' ) $( rigHolds on 'the commands a console user calls by name' )" "1 1 1 1 1 1"
 rigAssert "it asks the tooling for none of its manuals: resting on the root and going to it reads no manual, no help and no command" "$( rigCalls '[--manager-manual-read][user]' ) $( rigCalls '[--manager-manual-read][maintainer]' ) $( rigCalls '[--manager-help-read]' ) $( rigCalls '[--manager-command-list]' )" "0 0 0 0"
-rigAssert "its number is that of its place: 9, since Team Data stands under Magic-Team (Agents) and is no root, and the menu Go names it so" "$( rigVal k9.path ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -c -E 'Manuals \(Help\)  *9 ' )" "manuals 1"
+rigAssert "its number is that of its place: 9, since Team Data stands under Magic-Team (Agents) and is no root, and the menu Go names it so" "$( rigVal k9.path ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -c -E 'Manuals \(Help\)  *9 ' )" "configuration 0"
 
 echo "-- 2. User Manuals: a row for each project that has a README.md, by its name, in the build order --"
 rigCase user

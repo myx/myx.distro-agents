@@ -429,7 +429,7 @@ rigAssert "a command that is only on rows of its own, with a key the generic com
 rigAssert "a name registered twice is refused" "$( rigVal twice )" "PluginError"
 
 echo "-- 9. every app feature is a plugin --"
-rigAssert "the features are registered as plugins: the roots in the order of the list, Pending Questions second after the Dashboard, and the plugins that stand under Magic-Team (Agents)" "$( rigVal ten ) / $( rigVal sections | cut -d' ' -f1-10 )" "dashboard pending magic-team activity pending-in-team team teamdata places consoles settings configuration manuals / dashboard pending magic-team places consoles workspace settings configuration manuals"
+rigAssert "the features are registered as plugins: the roots in the order of the list, Pending Questions second after the Dashboard, and the plugins that stand under Magic-Team (Agents)" "$( rigVal ten ) / $( rigVal sections | cut -d' ' -f1-10 )" "dashboard pending magic-team activity pending-in-team team teamdata places consoles settings configuration manuals / dashboard pending magic-team places consoles workspace machine settings configuration manuals"
 rigAssert "each is registered by its own part, once" "$( rigVal ownParts )" "activity:True configuration:True consoles:True dashboard:True magic-team:True manuals:True pending:True pending-in-team:True places:True settings:True team:True teamdata:True"
 rigAssert "no table of the roots, the rows, the summaries, the reads, the Markdown places or the Go levels is left in Roots.py or Windows.py" "$( rigVal noTables )" "none"
 

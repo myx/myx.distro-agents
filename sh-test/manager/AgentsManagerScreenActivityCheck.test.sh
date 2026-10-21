@@ -159,7 +159,7 @@ wait list 30
 rowids pend
 RIGSCRIPT
 rigAssert "the roots, in order: the Dashboard, Pending Questions second, Magic-Team (Agents), and none of Sessions, Team Members, Team Data" \
-	"$( rigVal roots )" "dashboard pending magic-team places consoles workspace settings configuration manuals"
+	"$( rigVal roots )" "dashboard pending magic-team places consoles workspace machine settings configuration manuals"
 rigAssert "Magic-Team (Agents) holds Activity, Pending Questions and Team Members, and Team Data only where the team data is there" \
 	"$( rigVal team )" ".. activity pending team routines"
 rigAssert "each shows by its name" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )]" "[ Activity                        ►][ Pending Questions               ►][ Team Members                    ►]"

@@ -180,13 +180,13 @@ roles placer
 keys 5
 wait list 10
 show consoles
-keys 7
+keys 8
 wait list 10
 show settings
 keys DOWN DOWN
 wait focus 10
 show subject
-keys 8
+keys 9
 wait list 10
 show configuration
 keys DOWN
