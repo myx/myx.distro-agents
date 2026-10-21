@@ -3892,6 +3892,15 @@ AgentsHarnessReportsNone(){
 	[ "$( AgentsToolsSpawnSandboxRecordHeader "$noneRecord" "$agentsRunRouteField" )" = none ]
 }
 
+## Whether this run is a work duty, as its own spawn record names its routine (`<member>.work-duty.routine.md`): rc 0 it is.
+AgentsHarnessWorkDuty(){
+	local dutyRecord=""
+	dutyRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$dutyRecord" ] || return 1
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 1
+	case "$( AgentsToolsSpawnSandboxRecordHeader "$dutyRecord" routine )" in *.work-duty.routine.md) return 0 ;; esac
+	return 1
+}
+
 ## Who a handback is for where its call names nobody: the caller, the member that made the
 ## spawn call this session was started by, as the spawn records name it (AgentsToolsSessionParentMember). Prints
 ## nothing where no record names it, where it is this member itself, or where the member
@@ -3957,7 +3966,8 @@ AgentsHarnessToolSubagentHandback(){
 	## A run that reports to no one ends on its report, whatever it reports: marked as a dismissed
 	## run whose handback is given, so the harness ends it once this call is over
 	## (AgentsHarnessDismissedAfter). Its report moves nothing to review.
-	if [ "$toolRoute" = none ] && [ -f "$harnessScratch/send.delivered" ] ; then
+	## A work duty is the exception: it lives on in its wait, and the main loop decides when it goes (AgentsToolsScheduleDutyLifetime).
+	if [ "$toolRoute" = none ] && [ -f "$harnessScratch/send.delivered" ] && ! AgentsHarnessWorkDuty ; then
 		## One that runs still need ends once they have ended (F6.9): kept until then.
 		if AgentsHarnessDismissWaits > /dev/null ; then
 			AgentsToolsSessionDismissHold "$MDAT_SPAWN_SESSION_ID" "tooling (this run reports to no one, and its report is given)" handback-given

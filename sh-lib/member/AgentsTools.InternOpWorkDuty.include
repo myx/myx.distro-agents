@@ -101,18 +101,20 @@ case "$1" in
 		printf '\n## Slack: tagged to %s, and the team channel over %ss\n\n' "$workMember" "$workWindow"
 		( [ -z "$workSession" ] || export MDAT_SESSION_ID="$workSession" ; DistroAgentsTools --intern-op-wait-for-input "$workMember" --wait-collect "$workWindow" --wait-source "tagged:$workMember" --wait-source slack:magic-team ) > "$workWork/collect.out" 2> "$workWork/collect.err" || :
 		if LC_ALL=C grep -q '^# arrived on: ' "$workWork/collect.out" ; then
-			## A tag reaches only the members it names: in the team channel, a message that names someone (`<@id>`) and not this member, by its
-			## Slack id or `@<member>`, is that one's and is left out here, with the lines it continues on. The tagged parts (`# in <where>`) are kept whole.
+			## A message of the team channel that names someone (`<@id>`) and not this member is kept, for the member to know of it, and labelled by the
+			## tooling as another's to answer; the names come from the mention cache. It is collected over the window, so it alone wakes nothing.
 			type AgentsToolsSessionChatMemberId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
-			LC_ALL=C awk -v member="$workMember" -v memberId="$( AgentsToolsSessionChatMemberId "$workMember" 2> /dev/null )" '
-				/^# arrived on: / { shown = 1 ; team = ( index( $0, "slack:magic-team" ) > 0 ) ; skip = 0 ; }
-				/^# in / { team = 0 ; skip = 0 ; }
+			LC_ALL=C awk -v member="$workMember" -v memberId="$( AgentsToolsSessionChatMemberId "$workMember" 2> /dev/null )" -v cache="$MMDAPP/.local/.agents/slack-mention-ids.cache" '
+				BEGIN { while ( ( getline cacheLine < cache ) > 0 ) { split( cacheLine, cacheField, "=" ) ; if ( cacheField[2] != "" && cacheField[2] != "-" ) { nameOf[cacheField[2]] = cacheField[1] ; } } }
+				/^# arrived on: / { shown = 1 ; team = ( index( $0, "slack:magic-team" ) > 0 ) ; }
+				/^# in / { team = 0 ; }
 				!shown || $0 ~ /^# (--- what that source holds now follows ---|--- end ---)$/ || $0 ~ /^(WAIT-|# returned: )/ { next ; }
-				team && /^[0-9]+\.[0-9]+ \| / {
-					skip = ( index( $0, "<@" ) > 0 && ( memberId == "" || index( $0, "<@" memberId ">" ) == 0 ) && index( $0, "@" member ) == 0 )
+				team && /^[0-9]+\.[0-9]+ \| / && index( $0, "<@" ) > 0 && ( memberId == "" || index( $0, "<@" memberId ">" ) == 0 ) && index( $0, "@" member ) == 0 {
+					names = "" ; rest = $0
+					while ( match( rest, /<@[A-Z0-9]+>/ ) ) { mentioned = substr( rest, RSTART + 2, RLENGTH - 3 ) ; names = names ( names == "" ? "" : ", " ) ( mentioned in nameOf ? nameOf[mentioned] : mentioned ) ; rest = substr( rest, RSTART + RLENGTH ) }
+					print "# addressed to " names ": for your knowledge, not yours to answer"
 				}
-				team && /^#/ { skip = 0 ; }
-				!skip { print ; }' "$workWork/collect.out"
+				{ print ; }' "$workWork/collect.out"
 		else
 			printf 'Nothing new in Slack.\n'
 		fi
