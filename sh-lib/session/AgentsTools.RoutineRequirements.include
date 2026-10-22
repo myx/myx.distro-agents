@@ -63,6 +63,33 @@ AgentsToolsRoutineKeyLines(){ ## routine file path, key
 	[ -z "$linesValue" ] || printf '%s\n' "$linesValue"
 }
 
+## The routine file a session runs: its spawn record's `routine:` (or its coworking session's) found in the team members' folders. Prints the
+## path; rc 1, nothing printed, where the session runs no routine or the file is nowhere.
+AgentsToolsSessionRoutineFile(){ ## session id
+	local fileRoutine fileOwner fileDir
+	type AgentsToolsPermissionSessionRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" 2> /dev/null || return 1
+	fileRoutine="$( AgentsToolsPermissionSessionRoutine "$1" )"
+	[ -n "$fileRoutine" ] || return 1
+	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" 2> /dev/null || return 1
+	while IFS=$'\t' read -r fileOwner fileDir ; do
+		[ -n "$fileDir" ] && [ -f "$fileDir/$fileRoutine" ] || continue
+		printf '%s\n' "$fileDir/$fileRoutine"
+		return 0
+	done <<< "$( AgentsToolsTeamMemberDirectoryText 2> /dev/null )"
+	return 1
+}
+
+## The words of a routine's `wait-sources:` lines, one a line, the macro {{team-member}} filled with the member. The one reader of that key: the idle wait,
+## the wait of a scan at a start, and the floor of every wait of a session that runs the routine take their sources from it.
+AgentsToolsRoutineWaitWords(){ ## routine file path, team member
+	local wordsLine wordsOne
+	while IFS= read -r wordsLine ; do
+		for wordsOne in $wordsLine ; do
+			printf '%s\n' "${wordsOne//\{\{team-member\}\}/$2}"
+		done
+	done <<< "$( AgentsToolsRoutineKeyLines "$1" wait-sources )"
+}
+
 ## The body of one root section of a routine file, by its heading text without the `# `.
 AgentsToolsRoutineSectionText(){ ## routine file path, heading text
 	LC_ALL=C awk -v SECTION="$2" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsRoutineHeadings.awk" "$1"

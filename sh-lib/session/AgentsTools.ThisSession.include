@@ -377,15 +377,11 @@ AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
 		printf "NOTICE: --idle-wait: nothing was waited on and nothing returned -- this run is a native client's, whose conversation only the client keeps. Wait on the session with Wait instead.\n"
 		return 0
 	fi
+	type AgentsToolsSessionRoutineFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
+	idleFile="$( AgentsToolsSessionRoutineFile "$MDAT_SPAWN_SESSION_ID" )" || idleFile=""
 	type AgentsToolsPermissionSessionRoutine > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
 	idleRoutine="$( AgentsToolsPermissionSessionRoutine "$MDAT_SPAWN_SESSION_ID" )"
 	if [ -n "$idleRoutine" ] ; then
-		type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
-		while IFS=$'\t' read -r idleOwner idleDir ; do
-			[ -n "$idleDir" ] && [ -f "$idleDir/$idleRoutine" ] || continue
-			idleFile="$idleDir/$idleRoutine"
-			break
-		done <<< "$( AgentsToolsTeamMemberDirectoryText 2> /dev/null )"
 		if [ -z "$idleFile" ] || ! AgentsToolsThisSessionSingleParticipant "$idleFile" ; then
 			printf 'NOTICE: --idle-wait: nothing was waited on and nothing returned -- the routine this session runs is not a single-participant one (kind standalone, one executor, no invitee), and the return of a conversation is for those. Wait on the session with Wait instead.\n'
 			return 0
@@ -400,13 +396,10 @@ AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
 		done <<< "$( AgentsToolsRoutineKeyLines "$idleFile" input-scan-def )"
 		## The sources the routine declares besides (`wait-sources:`, words of the forms the wait takes: `inbox:<own member>` and `board:<state>`; the macro
 		## {{team-member}} is the member of the run), which are read at every pass of the wait, so an item arriving in them wakes the run within seconds.
-		while IFS= read -r idleLine ; do
-			for idleWord in $idleLine ; do
-				idleWord="${idleWord//\{\{team-member\}\}/${MDAT_SPAWN_AGENT:-}}"
-				case " $idleSources " in *" $idleWord "*) continue ;; esac
-				idleSources="$idleSources${idleSources:+ }$idleWord"
-			done
-		done <<< "$( AgentsToolsRoutineKeyLines "$idleFile" wait-sources )"
+		for idleWord in $( AgentsToolsRoutineWaitWords "$idleFile" "${MDAT_SPAWN_AGENT:-}" ) ; do
+			case " $idleSources " in *" $idleWord "*) continue ;; esac
+			idleSources="$idleSources${idleSources:+ }$idleWord"
+		done
 	fi
 	idleStore="$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID"
 	mkdir -p "$idleStore" 2> /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: --idle-wait: $idleStore could not be made. Nothing was done." >&2 ; return 1 ; }

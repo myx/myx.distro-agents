@@ -149,12 +149,9 @@ AgentsToolsInputScanDefAwait(){ ## definition lines (one a line), team member, s
 				return 3
 			fi
 			awaitSources=""
-			while IFS= read -r awaitWord ; do
-				for awaitWord in $awaitWord ; do
-					awaitWord="${awaitWord//\{\{team-member\}\}/$2}"
-					awaitSources="$awaitSources --wait-source $awaitWord"
-				done
-			done <<< "$( AgentsToolsRoutineKeyLines "$5" wait-sources )"
+			for awaitWord in $( AgentsToolsRoutineWaitWords "$5" "$2" ) ; do
+				awaitSources="$awaitSources --wait-source $awaitWord"
+			done
 			[ -n "$awaitSources" ] || awaitSources="--wait-source inbox:$2"
 			## The Wait of the start has no session of its own: not the caller's floor, and not a pointer of the new session.
 			awaitOut="$( unset MDAT_SESSION_ID MDAT_SPAWN_SESSION_ID ; DistroAgentsTools --wait-for-input "$2" $awaitSources --wait-since-utime "$awaitFrom" --wait-timeout "$awaitLeft" 2> /dev/null < /dev/null )" || :

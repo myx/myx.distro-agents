@@ -2434,8 +2434,8 @@ op's own option arm.
   `transcript.stream`). Commits at milestones only. `sessions/<sid>/tokens` becomes the item's `tokens:`
   header; rollups are summed when shown, never written up the chain.
 - **The event-track thread is the session's debug feed** (`AgentsTools.EventTrackFeed.include`): one open
-  post, sent 5 s after its first line or right after an error, refusal or session event joins it, the feed
-  polled every 4 s (under 10 s from a line to its send; fixed in code, no knobs), rendered as Slack
+  post, sent 7 s after its first line and sent early by no line (an error, a refusal or a session event waits
+  with the rest), the feed polled every 4 s (under 12 s from a line to its send; fixed in code, no knobs), rendered as Slack
   `container` blocks by subject — a title, a subtitle with the time of its first line, its lines in section
   children, secondary details in a context child — one templated line per operation, never a raw line, a
   section capped at 3000 characters, a box at 10 children, a post at 50 blocks. A post whose blocks Slack

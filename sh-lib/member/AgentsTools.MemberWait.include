@@ -904,6 +904,8 @@ AgentsWaitProbeScan(){
 		return 2
 	}
 	AgentsWaitOwnFile "$probeOut.reply" || return 2
+	## MDAT_SCAN_TRACE=1 on the wait: the seconds each section of the scan took, which the scan wrote to its stderr, are said on this one.
+	[ -z "${MDAT_SCAN_TRACE:-}" ] || LC_ALL=C grep '^scan-trace: ' "$probeOut.err" >&2 || :
 	## A report kept for the session is named by the reply (AgentsTranscriptReplyRef); the report is what that file holds.
 	probeKept="$( LC_ALL=C sed -n 's/^\.\.\. KEPT: .* is in \(.*\) -- .*\.\.\.$/\1/p' "$probeOut.reply" | head -1 )"
 	if [ -n "$probeKept" ] && [ -f "$probeKept" ] ; then
@@ -1650,6 +1652,19 @@ case "$1" in
 				esac
 			fi
 		fi
+		## THE SCANS ARE READ LAST. A scan is the one source whose read takes minutes (the work-duty scan runs the inbox, the owner's
+		## items, the board and a collect window), so a source that follows it in a round is read when the scan has ended. Every other
+		## source keeps its order. This is an order within the call: a stored wait read back by `continue` is ordered the same way.
+		if [ -n "$waitSessionId" ] && { [ "$waitMode" = "default" ] || [ "$waitMode" = "continue" ] ; } ; then
+			local orderOne orderFirst="" orderScans=""
+			for orderOne in $waitSources ; do
+				case "$orderOne" in
+					scan:*) orderScans="$orderScans$orderOne " ;;
+					*) orderFirst="$orderFirst$orderOne " ;;
+				esac
+			done
+			waitSources="$orderFirst$orderScans"
+		fi
 		## THE RETURN BOUND. No --wait-timeout is no bound: the wait returns on an arrival and on
 		## nothing else, so an idle caller spends no round per quiet interval. A caller that must
 		## return by a deadline (an MCP client cutoff, a zero-bound read) names one.
@@ -2180,6 +2195,12 @@ case "$1" in
 				## bound (a zero-bound read) reads every source.
 				if [ "$waitOutcome" = "RECEIVED" ] && [ -n "$waitDeadline" ] && [ "$roundNow" -lt "$waitDeadline" ] && [ "$( date +%s )" -ge "$waitDeadline" ] ; then
 					break
+				fi
+				## A scan takes minutes, so one that has not begun is not begun once something has arrived in this round (the arrival wakes
+				## the caller, and the scan is read at the next wait, its report being compared with the one last given), nor once the
+				## bound has passed in it. It then shows in WAIT-NEVER-READ.
+				if [ "$roundKind" = "scan" ] && { [ "$waitOutcome" = "RECEIVED" ] || { [ -n "$waitDeadline" ] && [ "$roundNow" -lt "$waitDeadline" ] && [ "$( date +%s )" -ge "$waitDeadline" ] ; } ; } ; then
+					continue
 				fi
 				waitProbedAt[$roundIndex]="$roundNow"
 

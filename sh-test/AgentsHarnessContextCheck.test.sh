@@ -4,9 +4,9 @@
 ## and keeps the request prefix byte for byte; an ineligible resume refuses before any request
 ## and the proxy falls back to a new process; the transcript rendered from it matches the lines
 ## the per-call hooks write and is merged by time with the live lines; the event-track feed
-## collects its lines into one open post, sent 5 s after its first line with no further line,
-## or right after an error, a refusal or a session event joins it, against a fake Slack, one
-## send at a time and in order, and keeps on disk only what is not yet posted.
+## collects its lines into one open post, sent 7 s after its first line with no further line, and
+## sent early by no line (an error, a refusal or a session event waits with the rest), against a fake
+## Slack, one send at a time and in order, and keeps on disk only what is not yet posted.
 ## Offline and self-contained: MMDAPP, the team-data store (a temp git repository), HOME and
 ## the sandbox are fixtures; the model rounds come from a fake curl first on PATH; every live
 ## session id, data root and calls log is unset, so nothing reaches the real team data.
@@ -320,7 +320,7 @@ rigAssert "nor a session whose context another session kept since" "$( AgentsRev
 AgentsReviewCliResolved(){ printf 'other-leg' ; }
 rigAssert "nor one whose cli changed" "$( AgentsReviewContextResumeEligible "$rigRec" ; echo " rc=$?" )" "the cli is now other-leg, the old session ran on rig-leg rc=1"
 
-echo "-- 5. event-track: one open post, sent 5 s after its first line or right after an immediate line, against a fake Slack --"
+echo "-- 5. event-track: one open post, sent 7 s after its first line and by no line early, against a fake Slack --"
 . "$rigHere/session/AgentsTools.EventTrackFeed.include"
 rigSlack="$rigTmp/slack"
 : > "$rigSlack"
@@ -335,30 +335,34 @@ AgentsEventTrackFeedOpen "$rigSidF" "CRIG:9.9"
 AgentsTranscriptEvent "$rigSidF" VERDICT "" 0 item rig-item
 rigAssert "a transcript event goes to the open feed too" "$( LC_ALL=C grep -c ' VERDICT item=rig-item' "$rigWs/.local/agents/sessions/$rigSidF/feed" )" 1
 rigPosts(){ LC_ALL=C grep -c '^POST ' "$rigSlack" ; }
-## The removed knobs set, to show they change nothing: the 5 seconds and the immediate kinds are fixed in code.
+## The removed knobs set, to show they change nothing: the window is fixed in code, and no kind of line sends a post.
 ( MDAT_EVENT_TRACK_BATCH_SECONDS=1 MDAT_EVENT_TRACK_IMMEDIATE_KINDS=VERDICT AgentsEventTrackFeedRun "$rigSidF" magic-tester "CRIG:9.9" ) &
 rigFeedPid=$!
 rigProcNote "$rigFeedPid"
 sleep 3
 rigAssert "an ordinary line waits in the open post, whatever the removed knobs say" "$( rigPosts )" 0
-sleep 4
-rigAssert "5 s after its first line the open post goes, with no further line, to the thread" "$( rigPosts ):$( sed -n 1p "$rigSlack" ):$( rigHas "$rigSlack" ' VERDICT item=rig-item' )" "1:POST magic-tester CRIG:9.9 $rigSidF:1"
+sleep 3
+rigAssert "and is still waiting 6 s after its first line, the window being 7 s" "$( rigPosts )" 0
+sleep 5
+rigAssert "7 s after its first line the open post goes, with no further line, to the thread" "$( rigPosts ):$( sed -n 1p "$rigSlack" ):$( rigHas "$rigSlack" ' VERDICT item=rig-item' )" "1:POST magic-tester CRIG:9.9 $rigSidF:1"
 rigFeed="$rigWs/.local/agents/sessions/$rigSidF/feed"
 ## The feed is a buffer, never a second log: what was posted is no longer in it.
 rigAssert "the feed buffer no longer holds what was posted" "$( cat "$rigFeed" "$rigFeed.posting" 2>/dev/null | LC_ALL=C grep -c ' VERDICT item=rig-item' )" 0
 printf '2030-01-01T00:01:00Z TOOL Read path=/x -> ok 3B/1L 2ms\n' >> "$rigFeed"
 printf '2030-01-01T00:01:01Z TOOL Edit path=/x -> refused "ERROR: refused by a hook"\n> ERROR: refused by a hook\n' >> "$rigFeed"
-## The feed is polled every 4 s, fixed in code: each wait below spans one poll at least.
-sleep 4
-rigAssert "an immediate line (a refusal) sends the open post at once: what waited first, the refusal last" \
+## The feed is polled every 4 s, fixed in code: a line is read within 4 s and its window then runs 7 s.
+sleep 5
+rigAssert "a refusal does not send the open post: nothing new went 5 s on" "$( rigPosts )" 1
+sleep 8
+rigAssert "the window ended: one post, the Read first and the refusal last" \
 	"$( rigPosts ):$( LC_ALL=C awk '/^POST /{ n++ ; next } n == 2 && /^2030/ { printf "%s ", $3 }' "$rigSlack" )" "2:Read Edit "
-printf '2030-01-01T00:01:02Z ROUND n=4 in=1 cache-read=2 cache-write=0 out=3\n' >> "$rigFeed"
-sleep 4
-rigAssert "a ROUND line waits in the open post, as an ordinary line does" "$( rigPosts )" 2
 rigAssert "the posted lines are gone from the buffer" "$( cat "$rigFeed" "$rigFeed.posting" 2>/dev/null | LC_ALL=C grep -c 'path=/x' )" 0
+printf '2030-01-01T00:01:02Z ROUND n=4 in=1 cache-read=2 cache-write=0 out=3\n' >> "$rigFeed"
 printf '2030-01-01T00:01:03Z RESTART n=1 summary=10B\n' >> "$rigFeed"
-sleep 4
-rigAssert "a session event (a restart) sends the open post at once: the ROUND that waited first" \
+sleep 5
+rigAssert "a ROUND line and a session event (a restart) wait in the open post, as ordinary lines do" "$( rigPosts )" 2
+sleep 8
+rigAssert "the window ended: the ROUND and the RESTART go in one post" \
 	"$( rigPosts ):$( LC_ALL=C awk '/^POST /{ n++ ; next } n == 3 && /^2030/ { printf "%s ", $2 }' "$rigSlack" )" "3:ROUND RESTART "
 printf '2030-01-01T00:01:04Z TOOL Glob pattern=* -> ok 1B/1L 1ms\n' >> "$rigFeed"
 sleep 5
@@ -371,8 +375,8 @@ rigAssert "strict order: every line the feed got was posted once, in the order i
 	"$( LC_ALL=C awk '/^2030|^20[0-9][0-9]-/ { printf "%s ", $2 }' "$rigSlack" )" "VERDICT TOOL TOOL ROUND RESTART TOOL "
 rigAssert "one at a time: each send ended before the next began" "$( LC_ALL=C grep -e '^POST ' -e '^SENT$' "$rigSlack" | LC_ALL=C awk '{ printf "%s ", $1 }' )" "POST SENT POST SENT POST SENT POST SENT "
 : > "$rigSlack"
-rigOpenLeft="$( AgentsEventTrackFeedPost magic-tester "CRIG:9.9" "$( for rigI in 1 2 3 4 5 ; do printf '2030-01-01T00:02:0%sZ TOOL Read path=/a/long/enough/path%s -> ok\n' "$rigI" "$rigI" ; done ; printf '2030-01-01T00:02:06Z ERROR boom\n' )" "$rigSidF" 0 )"
-rigAssert "lines that end in an error go to the post op whole, as one post (the op cuts it to size), nothing left open" \
+rigOpenLeft="$( AgentsEventTrackFeedPost magic-tester "CRIG:9.9" "$( for rigI in 1 2 3 4 5 ; do printf '2030-01-01T00:02:0%sZ TOOL Read path=/a/long/enough/path%s -> ok\n' "$rigI" "$rigI" ; done ; printf '2030-01-01T00:02:06Z ERROR boom\n' )" "$rigSidF" 1 )"
+rigAssert "the lines, an error among them, go to the post op whole at the window's end, as one post (the op cuts it to size), nothing left open" \
 	"$( rigPosts ):$( sed -n 1p "$rigSlack" ):$( LC_ALL=C grep -c -e 'TOOL Read path=/a/long/enough/path' -e 'ERROR boom' "$rigSlack" ):$rigOpenLeft" "1:POST magic-tester CRIG:9.9 $rigSidF:6:"
 
 if [ "$rigFailCount" -ne 0 ] ; then

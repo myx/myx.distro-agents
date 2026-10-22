@@ -62,6 +62,17 @@ case "$1" in
 			set +e ; return 1
 		}
 
+		## MDAT_SCAN_TRACE=1: the seconds each section took, one line each on stderr, so a slow scan names its slow part.
+		local workTraceAt
+		workTraceAt="$( date +%s )"
+		workTrace(){ ## section name
+			[ -n "${MDAT_SCAN_TRACE:-}" ] || return 0
+			local traceNow
+			traceNow="$( date +%s )"
+			printf 'scan-trace: %s %ss\n' "$1" "$(( traceNow - workTraceAt ))" >&2
+			workTraceAt="$traceNow"
+		}
+
 		printf '# Work duty input scan: %s\n\n' "$workMember"
 
 		## The inbox: the items not yet processed, which is what the member's incoming/ holds.
@@ -76,6 +87,7 @@ case "$1" in
 		else
 			cat "$workWork/inbox.out"
 		fi
+		workTrace inbox
 
 		## What only magic-coordinator's duty carries (F7.12): the items of the human-owner and the external contacts that are due, and
 		## the permission asks, each found by script. The wait of the duty watches this scan, so a new ask or a due item wakes it, and none starts a session.
@@ -83,8 +95,10 @@ case "$1" in
 			type AgentsToolsExternalOwnerSection > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.ExternalOwnerItems.include"
 			printf '\n'
 			AgentsToolsExternalOwnerSection
+			workTrace external-owner-items
 			printf '\n'
 			DistroAgentsTools --intern-op-permission-escalation-input-scan "$workMember" 2> /dev/null || printf '## permission asks addressed to permission-escalation.routine\n\n(the permission asks could not be read)\n'
+			workTrace permission-asks
 			## The board, for the rules of magic-coordinator.advance.routine, which this duty takes (F7.12): the items of the active states, the review items,
 			## the registries of sessions, the items whose recheck-date has arrived and the dependencies as the tooling last computed them. All pure reads: what a
 			## dead spawn left open and the edges of the dependencies are done by the main loop before.
@@ -92,9 +106,12 @@ case "$1" in
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardRoundScan.include"
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.BoardDependencies.include"
 			AgentsToolsBoardRoundSections "$workMember" --intern-op-work-duty-input-scan || printf '\n(the board could not be read)\n'
+			workTrace board-digest-review-and-registries
 			AgentsToolsBoardRecheckDueSection
+			workTrace recheck-dates
 			printf '\n'
 			AgentsToolsBoardDependenciesSection
+			workTrace dependencies
 		fi
 
 		## Slack: the tags immediately, the team channel over the window.
@@ -120,6 +137,7 @@ case "$1" in
 		fi
 		LC_ALL=C grep -m 1 '^# returned: ' "$workWork/collect.out" || printf '# returned: window\n'
 		[ ! -s "$workWork/collect.err" ] || LC_ALL=C grep -i -E 'error|could not|not read' "$workWork/collect.err" | head -5 >&2 || :
+		workTrace slack-collect
 		rm -rf "$workWork"
 		return 0
 	;;

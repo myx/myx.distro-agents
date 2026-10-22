@@ -15,15 +15,16 @@
 AgentsToolsBoardRoundSections(){ ## calling member, the operation the scan is called as (for the log)
 	local roundRc=0
 	## Scoped to what the rules act on, per the owner's "grooming reads backlog+inquiries+notes, advance does not": no backlog (promotion is
-	## grooming's), and of the own inbox only notes -- the pending-slack-reaction and pending-trello-update records check-pending-comms-actions
-	## reads. Inquiries, reflections and the client-* inboxes are read by --intern-op-grooming-input-scan.
+	## grooming's), and no inbox at all: the one caller, the work-duty scan, prints the own inbox (notes among it, the pending-slack-reaction and
+	## pending-trello-update records check-pending-comms-actions reads) in its first section, and a second print of the notes was 56 KB of the
+	## scan's 190. Inquiries, reflections and the client-* inboxes are read by --intern-op-grooming-input-scan.
 	printf '\n%s\n\n' "## board digest"
 	DistroAgentsTools --intern-op-session-context-scan "$1" \
 		--state pending --state running --state review --state blocked --state parked \
 		--all-types \
 		--no-inbox-inquiry \
 		--no-inbox-reflections \
-		--do-inbox-notes \
+		--no-inbox-notes \
 		--no-slack --no-email --no-trello \
 		--no-inbox-other \
 		--no-board-related \

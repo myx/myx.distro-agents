@@ -167,6 +167,9 @@ case "$1" in
 		mkdir -p "$etpDir/posts"
 		if [ "$etpStdin" = "true" ] ; then cat > "$etpDir/lines" ; else : > "$etpDir/lines" ; fi
 		local etpRenderRc=0
+		## What the log row says of the window: how many lines it held and how many parts it was cut into, so a window that passes Slack's size limit shows.
+		local etpLineCount
+		etpLineCount="$( LC_ALL=C awk 'END { print NR + 0 }' "$etpDir/lines" )"
 		AgentsEventTrackPostRender "$etpKind" "$etpMember" "$etpSession" "$etpDir/posts" "$etpDir/lines" ${etpFields[@]+"${etpFields[@]}"} || etpRenderRc=$?
 		local etpPosts=()
 		local etpPostFile
@@ -246,7 +249,7 @@ case "$1" in
 				fi
 				etpTs="$( printf '%s\n' "$etpResponse" | LC_ALL=C awk -v path=ts -v optional=1 -v dialect=slack -f "$agentsEventTrackPostLib/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || etpTs=""
 				[ -n "$etpTs" ] || etpTs="$( printf '%s\n' "$etpResponse" | LC_ALL=C awk -v path=message.ts -v optional=1 -v dialect=slack -f "$agentsEventTrackPostLib/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || etpTs=""
-				AgentsEventTrackPostLog "$etpMember" "$etpTarget" "$etpChannel" ok "event-track $etpKind posted${etpAsText:+ as text, its blocks refused} ts=$etpTs"
+				AgentsEventTrackPostLog "$etpMember" "$etpTarget" "$etpChannel" ok "event-track $etpKind posted${etpAsText:+ as text, its blocks refused} part $etpIndex of ${#etpPosts[@]} lines=$etpLineCount ts=$etpTs"
 				if [ "$etpSentAny" = "false" ] ; then
 					etpSentAny="true"
 					echo "SENT_MESSAGE_CHANNEL=$etpChannel" >&2

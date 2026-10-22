@@ -28,14 +28,15 @@
 ## THE POSTS: the lines collect into one open post, in the order they happened, whoever they
 ## regard: the post's own blocks say that, a box for its subject each time the subject changes.
 ## Fixed in code, never configured, the open post goes on whichever comes first:
-##   - 5 seconds after its first line, even when nothing follows: the poster's loop never
+##   - 7 seconds after its first line, even when nothing follows: the poster's loop never
 ##     sleeps past that moment;
-##   - right after an immediate line joins it: an error, a refusal, or a session event
-##     (start, end, model, restart, handback, dismissed), AgentsEventTrackFeedPlan.awk;
 ##   - at the size limit: the post op cuts it between boxes into posts of at most 50
 ##     blocks, a box's children counted too, Slack's limit for a message.
+## No line ends a post early, an error, a refusal or a session event included: Slack takes about
+## one post a second to a channel, and every session posts into one, so they all wait for their window.
+## When the poster ends (TERM) it posts what is open, so no line is left behind.
 ## The feed is polled every 4 seconds, so a line waits at most 4 s to be read, then at most
-## 5 s more (just under 6 on the whole-second clock) before its post goes: under 10 s from
+## 7 s more (just under 8 on the whole-second clock) before its post goes: under 12 s from
 ## the line to the send call.
 ## Posts go one at a time, in the order of their lines, each once: none is ever edited. Each
 ## goes through --intern-op-event-track-post --kind feed, the tooling's own post path, never
@@ -65,9 +66,8 @@ AgentsEventTrackFeedSend(){ ## member, thread, session id
 	"$BASH" "$agentsEventTrackFeedTools" --intern-op-event-track-post "$1" "$2" --kind feed ${3:+--session-id "$3"} --from-stdin > /dev/null 2>&1 || :
 }
 
-## The open post's lines and the new ones: every post that ends among them sent, in order and
-## one at a time (AgentsEventTrackFeedPlan.awk); prints the lines the open post keeps. With
-## all 1, the open post goes too.
+## The open post's lines and the new ones: the open post, when all is 1, sent; prints the lines the open post
+## keeps (AgentsEventTrackFeedPlan.awk). Nothing ends a post but all.
 AgentsEventTrackFeedPost(){ ## member, thread, lines, session id, all
 	local planLine planBody="" planInPost="" planOpen=""
 	[ -n "$3" ] || return 0
@@ -95,10 +95,10 @@ AgentsEventTrackFeedDrop(){ ## taken feed, bytes read from it
 }
 
 ## The poster: runs until killed, then posts what is still open. Polls the feed every 4
-## seconds, fixed in code, and never sleeps past the open post's 5 seconds, so that post goes
+## seconds, fixed in code, and never sleeps past the open post's 7 seconds, so that post goes
 ## on time with no further line; reads whole lines only. 4, not 5: a line read just after it
-## was written waits a poll, then the 5 s window, which the whole-second clock can stretch to
-## just under 6 -- 4 + 6 keeps every line under 10 s from written to sent. Takes the feed
+## was written waits a poll, then the 7 s window, which the whole-second clock can stretch to
+## just under 8 -- 4 + 8 keeps every line under 12 s from written to sent. Takes the feed
 ## whole, renamed to feed.posting, and removes that at the next poll once every line in it is
 ## read and so held here to post: the file on disk only ever holds what is not yet posted.
 AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the session's thread
@@ -131,22 +131,22 @@ AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the sess
 				if [ "$runCut" != "$runNew" ] ; then
 					runOffset=$(( runOffset + ${#runCut} + 1 ))
 					runWas="$runOpen"
-					## Into the open post; an immediate line sends it, and what came before it, at once.
+					## Into the open post; no line sends it early.
 					runOpen="$( AgentsEventTrackFeedPost "$2" "$3" "${runOpen:+$runOpen$'\n'}$runCut" "$1" 0 )"
-					## The 5 seconds count from the open post's first line: anew once that post went.
+					## The 7 seconds count from the open post's first line: anew once that post went.
 					[ -n "$runWas" ] && [ "${runOpen%%$'\n'*}" = "${runWas%%$'\n'*}" ] || runSince="$( date +%s )"
 				fi
 			fi
 		fi
 		runNow="$( date +%s )"
-		## Fixed, never configured: the open post goes 5 seconds after its first line.
-		if [ -n "$runOpen" ] && [ $(( runNow - runSince )) -ge 5 ] ; then
+		## Fixed, never configured: the open post goes 7 seconds after its first line.
+		if [ -n "$runOpen" ] && [ $(( runNow - runSince )) -ge 7 ] ; then
 			AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 > /dev/null
 			runOpen=""
 		fi
 		## Asleep no longer than the open post has left.
 		runNap="$runPoll"
-		[ -z "$runOpen" ] || [ $(( runSince + 5 - runNow )) -ge "$runNap" ] || runNap=$(( runSince + 5 - runNow ))
+		[ -z "$runOpen" ] || [ $(( runSince + 7 - runNow )) -ge "$runNap" ] || runNap=$(( runSince + 7 - runNow ))
 		[ "$runNap" -ge 1 ] || runNap=1
 		sleep "$runNap" &
 		wait $! 2>/dev/null || :

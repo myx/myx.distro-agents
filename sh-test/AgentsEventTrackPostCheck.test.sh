@@ -14,8 +14,9 @@
 ## bytes (3000 to a section, 10 children to a box, 50 blocks to a post with children counted,
 ## 150 to a subtitle), with nothing cut inside a line or a date token; every post carries a
 ## short text beside its boxes; a post whose blocks Slack refuses goes once more as plain
-## text, in posts of at most 4000 characters, with a warning; the feed ends a post right
-## after an immediate line, sends its posts one at a time and in order, and never edits one;
+## text, in posts of at most 4000 characters, with a warning; no line ends a post early
+## (an error, a refusal or a session event included), the open post goes at its 7 s window or at the size limit,
+## the feed sends its posts one at a time and in order, and never edits one;
 ## the op posts through the shared Slack call (a rate limit is waited out), threads the
 ## later parts of a post under the first, logs each post, and has no edit option; a spawn's
 ## start post is made once, after its CLI is resolved, and what is learned later is a reply.
@@ -848,11 +849,13 @@ rigAssert "MDAT_EVENT_TRACK_CHUNK_BYTES changes nothing: still one post, and one
 	"$( rigPostCount "$rigTmp/k-wide" ):$( ls "$rigTmp/k-wide" | LC_ALL=C grep -c '\.plain\.' )" 1:1
 rigAssert "neither knob is read anywhere in sh-lib" \
 	"$( LC_ALL=C grep -r -l -e 'MDAT_EVENT_TRACK_CHUNK_BYTES' -e 'MDAT_EVENT_TRACK_POLL_SECONDS' -e 'ETP_CAP' "$rigLib" | LC_ALL=C awk 'END { print NR }' )" 0
-rigAssert "the feed polls every 4 s: with the 5 s window, under 10 s from a line to its send" \
+rigAssert "the feed polls every 4 s: with the 7 s window, under 12 s from a line to its send" \
 	"$( LC_ALL=C grep -c -e '^	local runFeed .* runPoll=4 ' "$rigLib/session/AgentsTools.EventTrackFeed.include" )" 1
+rigAssert "the window is 7 s, in the loop and in the nap, and no 5 s window is left" \
+	"$( LC_ALL=C grep -c -e 'runNow - runSince )) -ge 7 ]' -e 'runSince + 7 - runNow' "$rigLib/session/AgentsTools.EventTrackFeed.include" ):$( LC_ALL=C grep -c -e 'runSince + 5' -e 'runSince )) -ge 5' "$rigLib/session/AgentsTools.EventTrackFeed.include" )" 2:0
 
 ## ---------------------------------------------------------------------------
-echo "-- the feed ends a post right after an immediate line, and sends its posts in order --"
+echo "-- no line ends a post early, and the feed sends its posts in order --"
 ## ---------------------------------------------------------------------------
 . "$rigLib/session/AgentsTools.EventTrackFeed.include"
 rigPlan(){ ## all (1|0), lines... -- the planner's posts and open post, marks as #POST and #OPEN, lines as their third word
@@ -862,21 +865,21 @@ rigPlan(){ ## all (1|0), lines... -- the planner's posts and open post, marks as
 		| LC_ALL=C tr '\001' '#' | LC_ALL=C awk '/^#/ { printf "%s ", $0 ; next } { printf "%s ", $2 }'
 }
 rigAssert "ordinary lines stay in the open post" "$( rigPlan 0 'TOOL Read path=/x -> ok' 'ROUND n=1' 'VERDICT item=x' )" '#OPEN TOOL ROUND VERDICT '
-rigAssert "an immediate line ends the post right after it: the lines before it go with it, the ones after stay open" \
-	"$( rigPlan 0 'TOOL Read path=/x -> ok' 'TOOL Edit path=/x -> refused "x"' 'TOOL Glob pattern=* -> ok' )" '#POST TOOL TOOL #OPEN TOOL '
-rigAssert "fixed in code: errors, refusals and session events end a post; nothing else does" \
+rigAssert "an error or a refusal does not end the post: every line stays open, in order" \
+	"$( rigPlan 0 'TOOL Read path=/x -> ok' 'TOOL Edit path=/x -> refused "x"' 'TOOL Glob pattern=* -> ok' )" '#OPEN TOOL TOOL TOOL '
+rigAssert "fixed in code: no kind of line ends a post, errors, refusals and session events included" \
 	"$( for rigKind in 'ERROR source=cli' 'TOOL Read -> error "x"' 'TOOL Edit -> refused "x"' 'RESULT outcome=error' 'START session=x' 'END outcome=failed' 'MODEL model=m' 'RESTART n=1' 'HANDBACK to=x' 'DISMISSED' 'ENDING item=x' \
 		'TOOL Read -> ok' 'ROUND n=1' 'FINAL' 'RESULT outcome=ok' 'REVIEW item=x' 'VERDICT item=x' 'NOTE by=x' 'MSG-OUT to=x' 'WAIT-RESULT' ; do
 		rigGot="$( rigPlan 0 "$rigKind" )" ; [ "${rigGot#\#POST}" != "$rigGot" ] && printf 'now ' || printf 'open ' ; done )" \
-	'now now now now now now now now now now now open open open open open open open open open '
+	'open open open open open open open open open open open open open open open open open open open open '
 MDAT_EVENT_TRACK_BATCH_SECONDS=1 MDAT_EVENT_TRACK_IMMEDIATE_KINDS=ROUND
 rigAssert "the knobs are gone: MDAT_EVENT_TRACK_IMMEDIATE_KINDS changes nothing" "$( rigPlan 0 'ROUND n=1' )" '#OPEN ROUND '
 unset MDAT_EVENT_TRACK_BATCH_SECONDS MDAT_EVENT_TRACK_IMMEDIATE_KINDS
 rigAssert "a call is one unit: a handback's TOOL line goes with it" \
-	"$( rigPlan 0 'TOOL Read -> ok' 'TOOL SubagentHandback to=x -> ok' 'HANDBACK to=x' )" '#POST TOOL TOOL HANDBACK #OPEN '
-rigAssert "a failed ask takes its ASK and ANSWER with it" \
-	"$( rigPlan 0 'TOOL AskUserQuestion to=x -> error "e"' 'ASK to=x' 'ANSWER' 'TOOL Read -> ok' )" '#POST TOOL ASK ANSWER #OPEN TOOL '
-rigAssert "with all, the open post goes too" "$( rigPlan 1 'TOOL Read -> ok' 'ROUND n=1' )" '#POST TOOL ROUND #OPEN '
+	"$( rigPlan 1 'TOOL Read -> ok' 'TOOL SubagentHandback to=x -> ok' 'HANDBACK to=x' )" '#POST TOOL TOOL HANDBACK #OPEN '
+rigAssert "a failed ask keeps its ASK and ANSWER in the one post" \
+	"$( rigPlan 1 'TOOL AskUserQuestion to=x -> error "e"' 'ASK to=x' 'ANSWER' 'TOOL Read -> ok' )" '#POST TOOL ASK ANSWER TOOL #OPEN '
+rigAssert "with all, the open post goes, whole" "$( rigPlan 1 'TOOL Read -> ok' 'ROUND n=1' )" '#POST TOOL ROUND #OPEN '
 ## Every send recorded, begun and ended, its lines kept: the order and one at a time show.
 rigSends="$rigTmp/sends"
 : > "$rigSends"
@@ -884,12 +887,12 @@ AgentsEventTrackFeedSend(){ { printf 'BEGIN %s %s %s\n' "$1" "$2" "$3" ; cat ; }
 rigFeedIn="$( printf '2030-01-01T00:06:%02dZ %s\n' 1 'TOOL Read path=/x/1 -> ok' 2 'NOTE by=x' 3 'TOOL Edit path=/x/3 -> error "e"' 4 'TOOL Read path=/x/4 -> ok' \
 	5 'HANDBACK to=x' 6 'TOOL Read path=/x/6 -> ok' 7 'ROUND n=7' )"
 rigOpen="$( AgentsEventTrackFeedPost magic-tester "CRIG:9.9" "$rigFeedIn" rig-sid 0 )"
-rigAssert "two posts, each ending at its immediate line; the rest stays open" \
-	"$( LC_ALL=C grep -c '^BEGIN magic-tester CRIG:9.9 rig-sid$' "$rigSends" ):$( printf '%s\n' "$rigOpen" | LC_ALL=C awk '{ print $1 }' | LC_ALL=C tr '\n' ' ' )" \
-	'2:2030-01-01T00:06:06Z 2030-01-01T00:06:07Z '
-rigAssert "one at a time: each send ends before the next begins" "$( LC_ALL=C awk '{ print $1 }' "$rigSends" | LC_ALL=C grep -e '^BEGIN$' -e '^END$' | LC_ALL=C tr '\n' ' ' )" 'BEGIN END BEGIN END '
-rigAssert "strict order: what was sent, then what stays open, is every line given, in order, once" \
-	"$( { LC_ALL=C grep -v -e '^BEGIN ' -e '^END$' "$rigSends" ; printf '%s\n' "$rigOpen" ; } | cksum )" "$( printf '%s\n' "$rigFeedIn" | cksum )"
+rigAssert "no post goes while the window runs: nothing sent, every line stays open" \
+	"$( LC_ALL=C grep -c '^BEGIN ' "$rigSends" ):$( printf '%s\n' "$rigOpen" | LC_ALL=C awk 'END { print NR }' )" '0:7'
+rigAssert "strict order: what stays open is every line given, in order, once" \
+	"$( printf '%s\n' "$rigOpen" | cksum )" "$( printf '%s\n' "$rigFeedIn" | cksum )"
+rigAssert "at the window's end the post goes once, whole, in order" \
+	"$( AgentsEventTrackFeedPost magic-tester "CRIG:9.9" "$rigFeedIn" rig-sid 1 > /dev/null ; LC_ALL=C grep -c '^BEGIN magic-tester CRIG:9.9 rig-sid$' "$rigSends" ):$( LC_ALL=C grep -v -e '^BEGIN ' -e '^END$' "$rigSends" | cksum )" "1:$( printf '%s\n' "$rigFeedIn" | cksum )"
 ## The real send, its op a fake: what the feed hands the post op.
 . "$rigLib/session/AgentsTools.EventTrackFeed.include"
 cat > "$rigTmp/fake-tools" <<'RIG_FAKE_EOF'
@@ -902,7 +905,7 @@ agentsEventTrackFeedTools="$rigTmp/fake-tools"
 RIG_ARGS="$rigTmp/send.args" ; export RIG_ARGS
 AgentsEventTrackFeedPost magic-tester "CRIG:9.9" "$rigFeedIn" rig-sid 1 > /dev/null
 rigAssert "every feed post goes to the post op as a new feed post, never an edit" \
-	"$( LC_ALL=C grep -c -x -F -e '--intern-op-event-track-post magic-tester CRIG:9.9 --kind feed --session-id rig-sid --from-stdin' "$rigTmp/send.args" ):$( LC_ALL=C grep -c -e '--update' "$rigTmp/send.args" )" 3:0
+	"$( LC_ALL=C grep -c -x -F -e '--intern-op-event-track-post magic-tester CRIG:9.9 --kind feed --session-id rig-sid --from-stdin' "$rigTmp/send.args" ):$( LC_ALL=C grep -c -e '--update' "$rigTmp/send.args" )" 1:0
 
 ## ---------------------------------------------------------------------------
 echo "-- the op posts through the shared Slack call, offline --"
@@ -1064,6 +1067,8 @@ rigAssert "a warning says so, naming the post and Slack's error" \
 	"$( LC_ALL=C grep -c '^⚠️ WARNING: .*--intern-op-event-track-post: Slack refused the blocks of the feed post, part 1 of 1 (invalid_blocks), so it goes as plain text instead' "$rigTmp/op.err" ):$( LC_ALL=C grep -c '⛔ ERROR: .*--intern-op-event-track-post' "$rigTmp/op.err" )" 1:0
 rigAssert "the post is reported and logged as sent, as text" \
 	"$( LC_ALL=C grep -c -x -e 'SENT_MESSAGE_TS=1700000001.000101' "$rigTmp/op.err" ):$( rigLog | LC_ALL=C awk -F'\t' -v from="$rigLogBefore" 'NR > from && $6 == "ok" && index( $7, "posted as text" ) > 0 { n++ } NR > from && $6 == "failed" { bad++ } END { print n + 0 ":" bad + 0 }' )" 1:1:0
+rigAssert "the log row says which part of how many it was, and how many lines the window held" \
+	"$( rigLog | LC_ALL=C awk -F'\t' -v from="$rigLogBefore" 'NR > from && $6 == "ok" && index( $7, " part 1 of 1 lines=2 ts=" ) > 0 { n++ } END { print n + 0 }' )" 1
 rigReset
 : > "$rigTmp/scenario/refuse-blocks"
 rigOp "$rigLong" --intern-op-event-track-post magic-tester event-track --kind feed --session-id abcdef01-2345 --from-stdin

@@ -4928,7 +4928,9 @@
 			thread is looked at ever more rarely and never dropped
 			by time alone. A --wait-default or --wait-continue with
 			--wait-session-id always carries it, first, and the
-			sources it names are added to it. It is returned once,
+			sources it names are added to it. A scan source is read last
+			in a round, and not begun once something has arrived in it
+			or the bound has passed in it. It is returned once,
 			and what another source of the same wait reads is left
 			to that source. `chat:<session-id>` on the session chat
 			file (sessions/<session>/session.chat), the second half of the
@@ -5026,7 +5028,10 @@
 			`WAIT-NEVER-READ: [<kind>:<target>] ...` names, right
 			after the marker, any source never read during the
 			wait -- absent when every source was read at least
-			once; never changes the outcome or exit code.
+			once; never changes the outcome or exit code. A bound
+			that passes during a round, with an arrival in hand, ends
+			it between two sources, so the ones it did not reach are
+			named here too; a probe already running is not cut short.
 
 			RECEIVED returns every source that changed in that
 			round, one `# arrived on: <source>` block each. On a
