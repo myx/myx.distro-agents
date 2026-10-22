@@ -53,7 +53,7 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **read-and-classify**: read the inbox from this run's input scan result (`input/input-scan.md`), and each body with `--get-inbox-item` where it was truncated. Classify each item by what it says: a status or block report, a request or question, a hand-off, a reflection, anything else.
+1. **read-and-classify**: read the inbox from this run's input scan result, and each body with `--get-inbox-item` where it was truncated. Classify each item by what it says: a status or block report, a request or question, a hand-off, a reflection, anything else.
 2. **act-lightweight**: per item, steps:
    - reply, route it on with `post-inquiry`, or resolve it inline when it is simple, obvious and within this member's own duties. Failing that bar, route it.
    - a needed board change: `magic-coordinator` makes it; any other member routes it to `magic-coordinator`, however small.
