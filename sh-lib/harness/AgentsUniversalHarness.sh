@@ -2272,6 +2272,11 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 			printf 'NEXT: you are dismissed and your handback is given -- end your run now, and call nothing more\n'
 			return 0
 		fi
+		## A work duty reports to no one and is not ended by its report: it waits for the next input, in the same session.
+		if AgentsHarnessReportsNone && AgentsHarnessWorkDuty ; then
+			printf 'NEXT: your report is given; you are a work duty -- run DistroAgentsSession.fn.sh --idle-wait for the next input, until it returns DISMISSED\n'
+			return 0
+		fi
 		## A run that reports to no one ends on its report.
 		if AgentsHarnessReportsNone ; then
 			## Unless runs that need it still run (F6.9): it ends once they have.

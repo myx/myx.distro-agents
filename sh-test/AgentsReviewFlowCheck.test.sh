@@ -510,6 +510,18 @@ rigEnv=()
 rigAssert "once that member has ended, its next Wait is its dismissal, its report given" \
 	"$( LC_ALL=C grep -c -x 'WAIT-RESULT: DISMISSED' "$rigTmp/w9h" ):$( [ -f "$rigWs/.local/agents/sessions/rig-none-9h-$$/dismissed.handback" ] && printf given )" "1:given"
 
+echo "-- 9i. a work duty reports to no one, and still is not ended by its report: two handlings, one session, it waits on --"
+rigRecord rig-duty-9i-$$ spawn-started CDUT9I001:1700000000.000940 "" "" "$rigReportsTo: none
+routine: magic-team.work-duty.routine.md
+"
+rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-duty-9i-$$ MDAT_SESSION_THREAD=CDUT9I001:1700000000.000940 )
+rigTool "$rigTmp/h9i1" SubagentHandback '{"outcome":"the first input is worked"}'
+rigTool "$rigTmp/h9i2" SubagentHandback '{"outcome":"the second input is worked"}'
+rigEnv=()
+rigAssert "both reports are posted in its one session thread, and neither ends it: no dismissal, no end told" \
+	"$( LC_ALL=C grep -c '"channel": *"CDUT9I001"' "$rigTmp/bodies" ):$( [ -f "$rigWs/.local/agents/sessions/rig-duty-9i-$$/dismissed" ] && printf ended || printf waits ):$( cat "$rigTmp/h9i1" "$rigTmp/h9i2" | LC_ALL=C grep -c 'end your run now' )" "2:waits:0"
+rigAssert "it stays one session: one record, the same session id" "$( ls "$rigSpawned"/*/rig-duty-9i-*.spawn.md 2> /dev/null | wc -l | tr -d ' ' ):$( LC_ALL=C sed -n 's/^session-id: //p' "$rigSpawned/rig-duty-9i-$$/rig-duty-9i-$$.spawn.md" )" "1:rig-duty-9i-$$"
+
 echo "-- 10. reject: -> pending, the child dismissed, corrections in Decisions for the fresh spawn --"
 rigLive rig-live-rej-$$
 rigRecord rig-live-rej-$$ spawn-started CREJ00001:1700000000.000600 dispatch-20261008T1200Z-rej

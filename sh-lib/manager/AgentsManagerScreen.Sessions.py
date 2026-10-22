@@ -1130,7 +1130,24 @@ def launchFocus(state, row):
 ## The sessions that are not closed, in the order of the list: every one that is not finished.
 def activeSessionRows(state, path):
     held = sessionRowsHeld(state)
-    return None if held is None else [one for one in held if one["session"]["state"] != SESSION_FINISHED]
+    return None if held is None else [lingering(one) for one in held if one["session"]["state"] != SESSION_FINISHED or lingers(one)]
+
+
+## How long, in seconds, a session that has just ended stays among the active ones, drawn dim, so that it does not vanish at once.
+LINGER_SECONDS = 30
+
+
+## Whether a finished session ended less than LINGER_SECONDS ago, by the end time its row of the list gives (the registry keeps it to the minute).
+def lingers(row):
+    if row["session"]["state"] != SESSION_FINISHED:
+        return False
+    ended = registryEpoch(row["session"]["stateAt"])
+    return ended is not None and 0 <= nowEpoch() - ended < LINGER_SECONDS
+
+
+## The row as the active list draws it: a session that has ended is dim, the list's own row untouched.
+def lingering(row):
+    return dict(row, look=DIM) if row["session"]["state"] == SESSION_FINISHED else row
 
 
 ## The sessions that are closed: those that are finished.
