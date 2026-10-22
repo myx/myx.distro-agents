@@ -911,7 +911,11 @@ AgentsWaitProbeScan(){
 	else
 		cp "$probeOut.reply" "$probeOut.report" 2> /dev/null || return 2
 	fi
-	probeSum="$( LC_ALL=C cksum < "$probeOut.report" | LC_ALL=C awk '{ print $1 "-" $2 ; }' )"
+	## THE SUM IS OF THE REPORT LESS ITS TOKEN COUNTERS. The board sections of a scan print the `tokens:` and `tokens-total:` lines of
+	## every running item, the session's own dispatch item among them, and the harness rewrites those at every model round: summed whole,
+	## the report differed at every wait and the wait never idled. Only a line of exactly the counters' own shape is left out
+	## (AgentsSessionTokensRollupText); the report returned is whole.
+	probeSum="$( LC_ALL=C awk '/^tokens(-total)?: in=[0-9]+ cache-read=[0-9]+ cache-write=[0-9]+ out=[0-9]+( \(incl\. [0-9]+ sub-sessions?\))?$/ { next ; } { print ; }' "$probeOut.report" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 ; }' )"
 	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
 	probeKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || probeKey=""
 	if [ -n "$probeKey" ] ; then
@@ -1649,6 +1653,7 @@ case "$1" in
 		## THE RETURN BOUND. No --wait-timeout is no bound: the wait returns on an arrival and on
 		## nothing else, so an idle caller spends no round per quiet interval. A caller that must
 		## return by a deadline (an MCP client cutoff, a zero-bound read) names one.
+		## A bound is also kept inside a round, between two sources (THE BOUND IS KEPT BETWEEN SOURCES, in the round below).
 		## THE POLL CADENCE is separate and only decides how soon an arrival is noticed.
 		## A given interval (--wait-poll-interval, else MDAT_WAIT_POLL_SECONDS) stays fixed.
 		## Unset, the interval backs off: 5s growing by 15s every 5 minutes, capped at 5
@@ -2166,6 +2171,15 @@ case "$1" in
 							[ "$roundTtl" = "0" ] || [ $(( roundNow - ${waitProbedAt[$roundIndex]:-0} )) -ge "$roundTtl" ] || continue
 						;;
 					esac
+				fi
+				## THE BOUND IS KEPT BETWEEN SOURCES, once something has arrived. A round that has an arrival in hand and finds the bound
+				## passed ends before the next source is probed, and returns what it has: the arrival is not held for the rest of the round.
+				## The sources not reached show in WAIT-NEVER-READ. A probe already running is never cut short, and a round with nothing
+				## in hand reads every source, as it always did: a quiet round that stopped at the bound would never reach the sources
+				## at its tail, whatever they are, and that is a matter of the order of the sources. A round that began at or after the
+				## bound (a zero-bound read) reads every source.
+				if [ "$waitOutcome" = "RECEIVED" ] && [ -n "$waitDeadline" ] && [ "$roundNow" -lt "$waitDeadline" ] && [ "$( date +%s )" -ge "$waitDeadline" ] ; then
+					break
 				fi
 				waitProbedAt[$roundIndex]="$roundNow"
 
