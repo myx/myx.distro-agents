@@ -25,12 +25,40 @@ case "$1" in
 	--upsert-inbox-inquiry)
 		shift
 		local inquiryFrom="" inquiryArg inquiryNext="" inquiryFile inquiryAuthor
+		## --from-reflection <reflection-file>: the lesson this inquiry files came from a reflection of the filing member's own inbox, and
+		## filing it is that reflection's exit -- the reflection is marked processed in the same call, after the inquiry is written.
+		local inquiryReflection="" inquiryReflectionNext="" inquiryArgs=()
 		for inquiryArg in "$@" ; do
-			[ -z "$inquiryNext" ] || { inquiryFrom="$inquiryArg" ; inquiryNext="" ; continue ; }
-			[ "$inquiryArg" != "--from-member" ] || inquiryNext=1
+			[ -z "$inquiryNext" ] || { inquiryFrom="$inquiryArg" ; inquiryNext="" ; inquiryArgs+=( "$inquiryArg" ) ; continue ; }
+			[ -z "$inquiryReflectionNext" ] || { inquiryReflection="$inquiryArg" ; inquiryReflectionNext="" ; continue ; }
+			case "$inquiryArg" in
+				--from-member) inquiryNext=1 ; inquiryArgs+=( "$inquiryArg" ) ;;
+				--from-reflection) inquiryReflectionNext=1 ;;
+				*) inquiryArgs+=( "$inquiryArg" ) ;;
+			esac
 		done
+		if [ -n "$inquiryReflectionNext" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: --from-reflection takes a reflection file name -- nothing was done" >&2
+			set +e ; return 1
+		fi
+		set -- ${inquiryArgs[@]+"${inquiryArgs[@]}"}
 		[ -z "$inquiryFrom" ] || AgentsToolsActingMemberCheck "$inquiryFrom" upsert-inbox-inquiry || { set +e ; return 1 ; }
 		[ -n "$inquiryFrom" ] || inquiryFrom="$( AgentsToolsActingMember )"
+		## The reflection is checked before anything is written: a bare name of a reflection still in the filing member's own incoming/.
+		if [ -n "$inquiryReflection" ] ; then
+			AgentsToolsAssertBareName "$inquiryReflection" "<reflection-file>" upsert-inbox-inquiry || { set +e ; return 1 ; }
+			case "$inquiryReflection" in
+				reflection-*.md) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: --from-reflection names a reflection-*.md item, not $inquiryReflection -- nothing was done" >&2
+					set +e ; return 1
+				;;
+			esac
+			if [ -z "$inquiryFrom" ] || [ ! -f "$( AgentsToolsInboxDir "$inquiryFrom" )/$inquiryReflection" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: $inquiryReflection is not an unprocessed reflection in ${inquiryFrom:-the filing member}'s own inbox -- nothing was done" >&2
+				set +e ; return 1
+			fi
+		fi
 		case "${1:-}:${2:-}" in
 			*/*|:*|*:) ;;
 			*)
@@ -46,6 +74,14 @@ case "$1" in
 			;;
 		esac
 		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --upsert-inbox-inquiry || return 1
+		if [ -n "$inquiryReflection" ] ; then
+			DistroAgentsTools --intern-op-inbox-to-processed "$inquiryFrom" "$inquiryReflection" \
+				--context --upsert-inbox-inquiry \
+				"--header:upsert:disposition:filed-as-inquiry" "--header:upsert:filed-as:${2:-}" || {
+				echo "⛔ ERROR: $MDSC_CMD --upsert-inbox-inquiry: the inquiry ${2:-} is filed, but $inquiryReflection could not be marked processed -- mark it with --mark-inbox-processed" >&2
+				set +e ; return 1
+			}
+		fi
 		return 0
 	;;
 

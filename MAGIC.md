@@ -1815,6 +1815,28 @@ contracts are here.
   - A deleted processed or trashed item takes its spawn sandbox folders (`spawn-id`, `spawns`/`spawned-by`)
     unless a record is still `spawn-started`, has no status, or another item links the folder. Unlinked
     sandboxes are never removed; synced copies may return.
+- **`--intern-team-data-reflection-sweep <member> [--days N]`** is the safety net for reflections nobody
+  handled, tooling retention like the final GC (it acts on every inbox under the caller's name and moves
+  only reflections): a `reflection-*.md` in an inbox's `incoming/` dated more than 35 days ago (by default)
+  is moved to that inbox's `processed/` as discarded, appended at the end of its frontmatter exactly as the
+  mark op appends (`processed-at`, `disposition: discarded`, `discarded-by: reflection-sweep-<N>d`), and the
+  final GC takes it a day later. The date is the `date:` header's, else the NAME's
+  (`reflection-<YYYYMMDD>T<HHMM>Z-…` or the old `reflection-<YYYY-MM-DD>-…`). A name date before the cutoff
+  is compared as a string in the shell with nothing opened; only those, and the few names with no date,
+  are opened, all by one awk (`AgentsReflectionSweep.awk`). A date is healed lazily and logged: a file with
+  no `date:` header is given one, the date of its name, and a file with neither is given the day of the
+  sweep and kept; one warning for each, never again. The stamp is `<YYYY-MM-DD> 00:00 +0000` UTC, the same
+  all day, so two rigs sweeping one shared store write the same bytes. One commit for the run, by
+  `AgentsToolsTeamDataCommitPaths`. A line for each inbox and one for the run; `rc` 2 when nothing was swept.
+- **Retention is run by the main loop**, at most once an hour (`AgentsToolsRetentionRun`,
+  `AgentsTools.Retention.include`, the time of the last run in `.local/agents/retention.stamp`, written
+  before the run; `MDAT_RETENTION_INTERVAL` seconds overrides the hour): the sweep, then the final GC. Each
+  step is tried whatever the other did; a failure is a line, never fatal. The GC is otherwise run only at
+  the close of a routine lock and from the console menu.
+- **`--upsert-inbox-inquiry … --from-reflection <reflection-file>`** is a reflection's exit at filing: the
+  reflection of the filing member's own `incoming/` is checked before anything is written, and marked
+  processed after the inquiry is written, in the same call (`disposition: filed-as-inquiry`, `filed-as:
+  <inquiry>`). A name that is no reflection there, or is another member's, refuses the call whole.
 - **The GC and the trash op are separate mechanisms**: one deletes on a clock, the other relocates one
   named item.
 - **Inbox items live in `incoming/` and `processed/`** (`AgentsTools.InboxPlace.include`, the one answer to
@@ -1983,7 +2005,10 @@ op's own option arm.
 - **Every section carries a `scope:` line**; the board one whenever it has content. An empty section's
   NOTE has a denominator and a filter.
 - **Inbox**: four sections (inquiry, reflections, notes, other), the last catching every other prefix.
-  Capped at 64, oldest first by mtime; the board is never capped. Each block carries the whole item
+  Capped at 64, NEWEST kept in full and shown oldest first by mtime; the board is never capped. The
+  older items are one `older: inbox/<name>` line each, the next 64 by name, then one
+  `older: (+N more, not listed)` line. Reflections are capped at the newest 5, each cut at 1024 bytes,
+  and the older ones are a count in the `truncated` NOTE, no names. Each block carries the whole item
   framed by `body-lines: <N>` (always the last key), because bodies may contain `## ` lines. One awk
   per section (`AgentsInboxItemBlockPrint.awk`, `RS="\004"`). Per-item byte cap 8192 marks
   `body-truncated:` inside its framing, cutting whole lines. A fence-less item is all body.

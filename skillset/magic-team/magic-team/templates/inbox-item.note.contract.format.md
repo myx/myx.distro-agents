@@ -66,4 +66,4 @@ Context or coordination.
 - [store] The inbox holds `note-*`, `inquiry-*` and `reflection-*` only. Any other type in an inbox is misfiled and is reported to `magic-coordinator`.
 - [store] An item is handled by marking it processed with `--mark-inbox-processed`; an item still wanted stays unmarked.
 - [store] A member never writes a key whose writer is `tooling`.
-- [store] A standing note, such as the roster, is rewritten in place under its fixed name and is never marked processed.
+- [store] A standing note, such as the roster, is rewritten in place under its fixed name and is never marked processed. It holds only what is in force now, short and current.

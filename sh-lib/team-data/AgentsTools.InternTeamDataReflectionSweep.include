@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternTeamDataReflectionSweep.include -- the
+## --intern-team-data-reflection-sweep op for DistroAgentsTools.fn.sh's
+## dispatcher. Sourced lazily from that exact op's own dispatcher arm via the
+## standard $MDLT_ORIGIN-based path. Not standalone: relies on being
+## dot-sourced for $1/$@/$MDSC_CMD.
+##
+## The safety net for the reflections nobody handled: a `reflection-*.md` still
+## in an inbox's incoming/ 35 days after its date is moved to that inbox's
+## processed/ as discarded, and the final GC (AgentsTools.InternTeamDataFinalGcDeletion.include,
+## one day for a reflection) collects it from there. No agent runs it: the main
+## loop calls it, at most hourly, beside the final GC (AgentsTools.Retention.include).
+##
+## IDENTITY. Like the final GC this is the tooling's own retention, not a member's act: it works on every inbox under
+## the name of the caller (magic-coordinator, in the main loop's context), moves nothing but a reflection and touches no other item type.
+##
+## NOTHING IS OPENED TO FIND THE OLD ONES. The date is in the NAME
+## (`reflection-<YYYYMMDD>T<HHMM>Z-...`, or the old `reflection-<YYYY-MM-DD>-...`),
+## and a name date before the cutoff is compared as a string, in the shell, with no
+## process. Only those that pass, and the few with no date in their name, are opened, ALL IN ONE awk
+## (AgentsReflectionSweep.awk), which reads the `date:` header once, keeps a file whose date is on or after the cutoff,
+## and writes the others, stamped, to processed/ in the same pass.
+##
+## A DOCUMENT WITHOUT A DATE IS HEALED, LAZILY AND LOGGED (the owner's rule): a file with no `date:` header is given one, the date of
+## its name, and a file with neither is given the day of this sweep and kept; a warning for each, never again for the file.
+## THE STAMP IS THE SAME ALL DAY (`<YYYY-MM-DD> 00:00 +0000`, UTC), the processed-at of a sweep and the date of a healed file alike, so two rigs
+## that share one team-data store and both run the main loop write the same bytes for the same file and their commits do not conflict.
+## The moves are committed once, by the team-data commit step (AgentsToolsTeamDataCommitPaths).
+##
+## Prints, for each inbox that held a reflection past the name filter, `reflection-sweep: <member>: swept N, kept M`, and a last line
+## for the run. Returns 0 where it swept something, 2 where it swept nothing (as the final GC), 1 on an error.
+##
+
+## YYYYMMDD of the day <days> days ago, in UTC. BSD date takes -v, GNU date -d; the probe is the call that works.
+type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+
+AgentsToolsReflectionSweepCutoff(){ ## days
+	date -u -v-"$1"d +%Y%m%d 2> /dev/null || date -u -d "$1 days ago" +%Y%m%d
+}
+
+case "$1" in
+
+	--intern-team-data-reflection-sweep)
+		shift
+		local opContext="<no --context given>"
+		local ctxWanted="" ctxArg
+		for ctxArg in "$@" ; do
+			if [ -n "$ctxWanted" ] ; then opContext="$ctxArg" ; ctxWanted="" ; continue ; fi
+			[ "$ctxArg" = "--context" ] && ctxWanted="1"
+		done
+
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "$MDSC_CMD: team-data-reflection-sweep: ⛔ ERROR: syntax is <team-member> [--days <N>] [--context <caller-op>]" >&2
+			set +e ; return 1
+		fi
+		local sweepDays=35
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--context)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: team-data-reflection-sweep: ⛔ ERROR: --context: value required" >&2
+						set +e ; return 1
+					fi
+					shift 2
+				;;
+				--days)
+					case "${2:-}" in
+						""|*[!0-9]*)
+							echo "$MDSC_CMD: team-data-reflection-sweep: ⛔ ERROR: --days takes a whole number of days: ${2:-<none>}" >&2
+							set +e ; return 1
+						;;
+					esac
+					sweepDays="$2" ; shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: team-data-reflection-sweep: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		AgentsToolsAssertBareName "$callingMember" "<team-member>" team-data-reflection-sweep || { set +e ; return 1 ; }
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "$MDSC_CMD: team-data-reflection-sweep: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+
+		local sweepCutoff=""
+		sweepCutoff="$( AgentsToolsReflectionSweepCutoff "$sweepDays" )" || sweepCutoff=""
+		case "$sweepCutoff" in
+			[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]) ;;
+			*)
+				echo "$MDSC_CMD: team-data-reflection-sweep: ⛔ ERROR: the date $sweepDays days ago could not be worked out -- nothing was done" >&2
+				set +e ; return 1
+			;;
+		esac
+
+		## The name filter: a string comparison per file, no process. A name with no date cannot be judged by its name: it is a candidate,
+		## and the awk reads its header.
+		local sweepPath sweepName sweepNameDate sweepTail
+		local sweepScanned=0 sweepCandidates=() sweepMembers=""
+		for sweepPath in "$MDAT_DATA_ROOT"/inboxes/*/incoming/reflection-*.md ; do
+			[ -f "$sweepPath" ] || continue
+			sweepScanned=$(( sweepScanned + 1 ))
+			sweepName="${sweepPath##*/}"
+			case "$sweepName" in
+				reflection-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T*)
+					sweepNameDate="${sweepName:11:8}"
+				;;
+				reflection-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*)
+					sweepTail="${sweepName:11:10}"
+					sweepNameDate="${sweepTail//-/}"
+				;;
+				*)
+					sweepCandidates+=( "$sweepPath" )
+					continue
+				;;
+			esac
+			## Past the cutoff by name: left alone, unopened.
+			[ "$sweepNameDate" -lt "$sweepCutoff" ] || continue
+			sweepCandidates+=( "$sweepPath" )
+		done
+
+		local sweepSwept=0 sweepKept=0 sweepHealed=0 sweepOut="" sweepKind sweepA sweepB sweepC
+		local sweepSources=() sweepTargets=() sweepHealedPaths=() sweepHealedTemps=() sweepStamp="" sweepDirs=""
+		local LF=$'\n'
+		if [ "${#sweepCandidates[@]}" -gt 0 ] ; then
+			## The same all day, UTC (see the header): the processed-at of a sweep and the date of a healed file.
+			sweepStamp="$( date -u +"%Y-%m-%d 00:00 +0000" )"
+			## processed/ of each inbox the candidates are in: made here, before the one awk writes into it.
+			for sweepPath in "${sweepCandidates[@]}" ; do
+				sweepDirs="${sweepPath%/incoming/*}/processed"
+				case "$LF$sweepMembers" in *"$LF$sweepDirs$LF"*) continue ;; esac
+				sweepMembers="$sweepMembers$sweepDirs$LF"
+				mkdir -p "$sweepDirs" || {
+					echo "$MDSC_CMD: team-data-reflection-sweep: ⛔ ERROR: could not create $sweepDirs -- nothing was moved" >&2
+					set +e ; return 1
+				}
+			done
+			sweepOut="$( LC_ALL=C awk -v cutoff="$sweepCutoff" -v stamp="$sweepStamp" -v reason="reflection-sweep-${sweepDays}d" \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsReflectionSweep.awk" "${sweepCandidates[@]}" )" || {
+				echo "$MDSC_CMD: team-data-reflection-sweep: ⛔ ERROR: the sweep pass failed -- the copies it made are overwritten by the next run, nothing was removed" >&2
+				set +e ; return 1
+			}
+			local sweepTab=$'\t'
+			while IFS="$sweepTab" read -r sweepKind sweepA sweepB sweepC ; do
+				case "$sweepKind" in
+					swept)
+						sweepSources+=( "$sweepA" ) ; sweepTargets+=( "$sweepB" )
+						sweepSwept=$(( sweepSwept + 1 ))
+					;;
+					healed) sweepHealedPaths+=( "$sweepA" ) ; sweepHealedTemps+=( "$sweepB" ) ;;
+					kept) sweepKept=$(( sweepKept + 1 )) ;;
+					warn) echo "$MDSC_CMD: team-data-reflection-sweep: ⚠️ WARNING: ${sweepA#"$MDAT_DATA_ROOT"/}: $sweepB" >&2 ;;
+					count) printf 'reflection-sweep: %s: swept %s, kept %s\n' "$sweepA" "$sweepB" "$sweepC" ;;
+				esac
+			done <<< "$sweepOut"
+			## A healed file is the original with its date written: moved over it, one rename each.
+			local sweepHi=0
+			while [ "$sweepHi" -lt "${#sweepHealedPaths[@]}" ] ; do
+				if mv -f -- "${sweepHealedTemps[$sweepHi]}" "${sweepHealedPaths[$sweepHi]}" ; then
+					sweepHealed=$(( sweepHealed + 1 ))
+				else
+					echo "$MDSC_CMD: team-data-reflection-sweep: ⚠️ WARNING: could not write the date into ${sweepHealedPaths[$sweepHi]}" >&2
+					rm -f -- "${sweepHealedTemps[$sweepHi]}"
+				fi
+				sweepHi=$(( sweepHi + 1 ))
+			done
+			if [ "${#sweepSources[@]}" -gt 0 ] ; then
+				rm -f -- "${sweepSources[@]}" || {
+					echo "$MDSC_CMD: team-data-reflection-sweep: ⛔ ERROR: could not remove the swept reflections from incoming/ -- the next run moves them again" >&2
+					set +e ; return 1
+				}
+			fi
+			## One commit for the run, by the team-data commit step: it commits what is under the store, warns and never fails on git.
+			if [ "${#sweepTargets[@]}" -gt 0 ] || [ "$sweepHealed" -gt 0 ] ; then
+				local sweepCommitText="reflection-sweep: $sweepSwept discarded after $sweepDays days"
+				[ "$sweepHealed" -eq 0 ] || sweepCommitText="$sweepCommitText, $sweepHealed date(s) written"
+				AgentsToolsTeamDataCommitPaths "$sweepCommitText" \
+					${sweepTargets[@]+"${sweepTargets[@]}"} ${sweepSources[@]+"${sweepSources[@]}"} ${sweepHealedPaths[@]+"${sweepHealedPaths[@]}"}
+			fi
+		fi
+		printf 'reflection-sweep: swept %s of %s reflection(s) older than %s days (cutoff %s), by %s\n' "$sweepSwept" "$sweepScanned" "$sweepDays" "$sweepCutoff" "$opContext"
+		if [ "$sweepSwept" -eq 0 ] ; then
+			set +e ; return 2
+		fi
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

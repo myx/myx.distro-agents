@@ -298,6 +298,17 @@ case "$1" in
 				&& mv -f "$MMDAPP/.local/agents/pending-remind.last.$$" "$MMDAPP/.local/agents/pending-remind.last" \
 				&& echo "# $MDSC_CMD --intern-main-loop: $( tail -1 "$MMDAPP/.local/agents/pending-remind.last" )" >&2 \
 				|| { rm -f "$MMDAPP/.local/agents/pending-remind.last.$$" ; echo "# $MDSC_CMD --intern-main-loop: the pending-reply reminders could not run" >&2 ; }
+			## The team data's retention, by script and no agent, at most once an hour (AgentsTools.Retention.include): the 35-day sweep of the
+			## reflections nobody handled, then the final GC of the processed items. A line for each thing done; never fatal.
+			local mainLoopRetention="" mainLoopRetentionLine
+			mainLoopRetention="$(
+				set +e
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Retention.include" > /dev/null 2>&1 || exit 1
+				AgentsToolsRetentionRun 2> /dev/null
+			)" || mainLoopRetention="retention: could not run"
+			while IFS= read -r mainLoopRetentionLine ; do
+				[ -z "$mainLoopRetentionLine" ] || echo "# $MDSC_CMD --intern-main-loop: $mainLoopRetentionLine" >&2
+			done <<< "$mainLoopRetention"
 			## The on-demand check of the health of the sessions, included here because the loop
 			## runs: the control thread of each session of this workspace that is not finished and
 			## has none alive is started, detached and never waited for

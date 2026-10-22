@@ -409,6 +409,11 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		--intern-team-data-reflection-sweep)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternTeamDataReflectionSweep.include"
+			return $?
+		;;
+
 		--intern-op-inbox-to-processed)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsTools.InternOpInboxToProcessed.include"
 			return $?

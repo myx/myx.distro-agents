@@ -135,7 +135,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash [--team-member <team-member>] <item-filename> --from-inbox:<member> [--exclude-incoming]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-note [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--standing yes|no] [--from-file <path>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--from-file <path>]
 📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsSession.fn.sh --append-transcript [--team-member <team-member>] [--of-session <session-id>] [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]
 📘 syntax: DistroAgentsItems.fn.sh --get-inbox-item [--team-member <member>] <item-filename> [--include-processed] [--start-line <N> --end-line <N>]
@@ -2243,7 +2243,7 @@
 			ordinary one. The rest of the content is as given; to change
 			the header alone give `--edit-patch-from-stdin` with `[]`.
 
-		--upsert-inbox-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>]
+		--upsert-inbox-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--from-file <path>]
 			Passes an inquiry into a member's own inbox -- the standard
 			hand-off mechanism. `<member>` must exist as a real skill
 			directory; `<item-filename>` a bare filename. Inbox created
@@ -2254,6 +2254,12 @@
 			`--from-member` names only that session's own member, and an
 			item already in the inbox is overwritten only when its
 			`from:` is the caller; a new item is always written.
+			`--from-reflection <reflection-file>` names the unprocessed
+			reflection of the filing member's own inbox the inquiry files
+			a lesson from: it is checked before anything is written, and
+			marked processed after the inquiry is written, in the same call
+			(`disposition: filed-as-inquiry`, `filed-as: <inquiry>`). That is
+			the reflection's exit; nothing else needs to handle it.
 
 		--upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) a reflection-type item into a

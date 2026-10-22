@@ -39,7 +39,7 @@ review-by: inherit
 ## Scope
 
 - Does: follow up the items whose `owner` is the human-owner or an external contact. Their content lives in `magic-coordinator`'s inbox, so only `magic-coordinator` runs this. Runs inline in the coordinator's work-duty session when its scan carries due items, or standalone when a specific owner needs checking sooner.
-- Doesn't: process `magic-coordinator`'s own mail. That is `magic-team.process-inbox.routine magic-coordinator`, run in the advance pass.
+- Doesn't: process `magic-coordinator`'s own mail. That is `magic-team.process-inbox.routine magic-coordinator`, run in the coordinator's work-duty session. An inbound message from a contact is the sweep's (`magic-coordinator.communication-sweep.routine`).
 
 # Opening steps
 
@@ -49,12 +49,12 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **work-the-loop**: For each such item, pick one action by its own history and urgency, never by rotation:
+1. **work-the-loop**: For each item in the due-items section of the duty's input scan when run inline, else the items the dispatch names, pick one action by its own history and urgency, never by rotation:
    - **Retry**: the last attempt may not have landed; try the same channel again.
    - **Communicate**: send a fresh status, to keep the item visibly alive.
    - **Remind**: nudge on something sent and not yet answered.
    - **Switch channels**: the current channel is not working after reasonable attempts; try another this owner uses.
-   - **Escalate**: last resort. Report the item to the human-owner on his direct channel.
+   - **Escalate**: last resort. Report the item to the human-owner on his direct channel. A report that needs his decision is asked with an ask tool, never sent as a plain message.
 
 # Closure steps
 
@@ -103,7 +103,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-team.work-duty.routine` — the coordinator's duty runs this routine at the due items of its scan.
+- `magic-coordinator.work-duty.routine` — the coordinator's duty runs this routine at the due items of its scan.
 - `magic-team.process-inbox.routine` — the acting-member counterpart.
 
 ### Conventions

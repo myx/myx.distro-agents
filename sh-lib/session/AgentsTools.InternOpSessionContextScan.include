@@ -1594,6 +1594,13 @@ case "$1" in
 
 			local sessionContextCapInbox=64
 			local sessionContextCapInboxItemBytes=8192
+			## A section shows its NEWEST items in full and says the rest in one line each
+			## (a count only for reflections, which are a pile by nature): the item that
+			## matters to a session is the one just filed, never the one filed first.
+			local sessionContextCapInboxReflections=5
+			local sessionContextCapInboxReflectionBytes=1024
+			local sessionContextCapInboxOlderListed=64
+			local inboxSectionCap inboxSectionBytes inboxOlderCount inboxOlderListed
 			local inboxDir
 			local inboxScanned inboxMatched=() inboxOrdered inboxScopeLine inboxFilterText inboxHeading inboxPrefix
 			local inboxSpec inboxWanted inboxWithProcessed inboxDeclined ii
@@ -1663,8 +1670,14 @@ case "$1" in
 					else
 						inboxFilterDesc="$inboxPrefix*"
 					fi
+					inboxSectionCap="$sessionContextCapInbox"
+					inboxSectionBytes="$sessionContextCapInboxItemBytes"
+					if [ "$inboxPrefix" = "reflection-" ] ; then
+						inboxSectionCap="$sessionContextCapInboxReflections"
+						inboxSectionBytes="$sessionContextCapInboxReflectionBytes"
+					fi
 					printf 'scope: %s\n' "$inboxScopeLine"
-					printf 'cap: %s\n' "$sessionContextCapInbox"
+					printf 'cap: %s\n' "$inboxSectionCap"
 
 					inboxScanned=0
 					inboxCandidates=()
@@ -1710,19 +1723,33 @@ case "$1" in
 						continue
 					fi
 
-					[ ${#inboxMatched[@]} -le "$sessionContextCapInbox" ] || printf '**NOTE:** truncated -- %s items found, capped at %s -- OLDEST kept, newest not shown\n' "${#inboxMatched[@]}" "$sessionContextCapInbox"
+					inboxOlderCount=$(( ${#inboxMatched[@]} - inboxSectionCap ))
+					[ "$inboxOlderCount" -le 0 ] || printf '**NOTE:** truncated -- %s items found, capped at %s -- NEWEST kept in full, %s older not shown in full\n' "${#inboxMatched[@]}" "$inboxSectionCap" "$inboxOlderCount"
 					printf '\n'
 					inboxOrdered="$( LC_ALL=C ls -tr "${inboxMatched[@]}" )" || inboxOrdered=""
 					inboxEmit=()
+					inboxOlderListed=0
 					ii=0
 					while IFS= read -r f ; do
 						[ -n "$f" ] || continue
 						ii=$(( ii + 1 ))
-						[ "$ii" -le "$sessionContextCapInbox" ] || break
+						if [ "$ii" -le "$inboxOlderCount" ] ; then
+							## Older than the newest cap: a header line, the name only, from the listing
+							## already in hand. Reflections get the count above and no names.
+							if [ "$inboxPrefix" != "reflection-" ] && [ "$inboxOlderListed" -lt "$sessionContextCapInboxOlderListed" ] ; then
+								inboxOlderListed=$(( inboxOlderListed + 1 ))
+								printf 'older: inbox/%s\n' "${f##*/}"
+							fi
+							continue
+						fi
 						inboxEmit+=( "$f" )
 					done <<< "$inboxOrdered"
+					if [ "$inboxOlderCount" -gt "$inboxOlderListed" ] && [ "$inboxPrefix" != "reflection-" ] ; then
+						printf 'older: (+%s more, not listed)\n' "$(( inboxOlderCount - inboxOlderListed ))"
+					fi
+					[ "$inboxOlderListed" -eq 0 ] || printf '\n'
 					[ ${#inboxEmit[@]} -eq 0 ] || LC_ALL=C awk \
-						-v bodyByteCap="$sessionContextCapInboxItemBytes" \
+						-v bodyByteCap="$inboxSectionBytes" \
 						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxItemBlockPrint.awk" \
 						"${inboxEmit[@]}"
 					## Named-item lookup below is the ACTING member's own inbox only, so

@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Retention.include -- the team data's retention, run by the main loop (AgentsTools.InternMainLoop.include) and by no agent:
+## the 35-day sweep of the reflections nobody handled (--intern-team-data-reflection-sweep) and, after it, the final GC of the processed
+## items (--intern-team-data-final-gc-deletion). Sourced for its function only; relies on DistroAgentsTools being the caller's own function,
+## as the main loop has it.
+##
+## AT MOST ONCE AN HOUR. The loop turns far more often, and the work is of days. The time of the last run is one epoch in
+## $MMDAPP/.local/agents/retention.stamp, written BEFORE the run: a run that fails or is killed is tried again in an hour, never on every
+## turn of the loop. MDAT_RETENTION_INTERVAL (seconds, default 3600) sets the hour, for the tests and for a rig that wants it otherwise.
+## The GC otherwise runs only at the close of a routine lock and from the console menu, so a rig that holds no lock for a day collected
+## nothing for that day; and the sweep has no other caller.
+##
+
+## Runs the retention when it is due; prints one line for each thing done on stdout, and says nothing when it is not due. Never fails:
+## each step is tried whatever the other did, and a step's own failure is a line. Returns 0 always.
+AgentsToolsRetentionRun(){
+	local retentionStamp="${MMDAPP:-.}/.local/agents/retention.stamp"
+	local retentionNow retentionLast="" retentionInterval="${MDAT_RETENTION_INTERVAL:-3600}"
+	retentionNow="$( date +%s )"
+	case "$retentionInterval" in ""|*[!0-9]*) retentionInterval=3600 ;; esac
+	[ ! -f "$retentionStamp" ] || read -r retentionLast < "$retentionStamp" || retentionLast=""
+	case "$retentionLast" in
+		""|*[!0-9]*) ;;
+		*) [ "$(( retentionNow - retentionLast ))" -ge "$retentionInterval" ] || return 0 ;;
+	esac
+	mkdir -p "${retentionStamp%/*}" 2> /dev/null && printf '%s\n' "$retentionNow" > "$retentionStamp" || :
+	local retentionOut retentionRc
+	retentionRc=0
+	retentionOut="$( DistroAgentsTools --intern-team-data-reflection-sweep magic-coordinator --context --intern-main-loop 2>&1 )" || retentionRc=$?
+	case "$retentionRc" in
+		0|2) ;;
+		*) printf 'retention: the reflection sweep failed (rc %s)\n' "$retentionRc" ;;
+	esac
+	[ -z "$retentionOut" ] || printf '%s\n' "$retentionOut" | tail -n 1
+	retentionRc=0
+	retentionOut="$( DistroAgentsTools --intern-team-data-final-gc-deletion magic-coordinator --context --intern-main-loop 2>&1 )" || retentionRc=$?
+	case "$retentionRc" in
+		0|2) ;;
+		*) printf 'retention: the final GC failed (rc %s)\n' "$retentionRc" ;;
+	esac
+	[ -z "$retentionOut" ] || printf '%s\n' "$retentionOut" | tail -n 1
+	return 0
+}

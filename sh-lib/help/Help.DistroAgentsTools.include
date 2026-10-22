@@ -326,7 +326,7 @@ echo "📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-reflection [--team-mem
 echo "📘 syntax: DistroAgentsItems.fn.sh --get-audit-item [--team-member <team-member>] <document-name> [--start-line <N> --end-line <N>]" >&2
 echo "📘 syntax: DistroAgentsItems.fn.sh --get-vault-item [--team-member <team-member>] <item-name> [--start-line <N> --end-line <N>]" >&2
 echo "📘 syntax: DistroAgentsItems.fn.sh --get-board-item [--team-member <team-member>] <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]" >&2
-echo "📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>]" >&2
+echo "📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--from-file <path>]" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --wait-for-input [--team-member <team-member>] [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop|--unwait <kind>:<target> --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>] [--wait-collect <seconds>]" >&2
 echo "📘 syntax: DistroAgentsSession.fn.sh --wait-for-input [--team-member <team-member>] --wait-list-sources" >&2
 echo "📘 syntax: DistroAgentsQuestions.fn.sh --read-escalation [--team-member <team-member>] <request-id>" >&2

@@ -47,6 +47,7 @@ agentsTeamDataGateOps="--intern-op-board-upsert-move-edit
 --intern-op-board-rename
 --intern-op-board-trash
 --intern-team-data-final-gc-deletion
+--intern-team-data-reflection-sweep
 --intern-op-inbox-to-processed
 --intern-op-member-inbox-upsert
 --append-transcript
