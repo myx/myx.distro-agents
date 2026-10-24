@@ -141,6 +141,34 @@ harnessProviderName="${HARNESS_PROVIDER_NAME:-}"
 harnessEndpoint="${HARNESS_ENDPOINT:-}"
 harnessHost="${HARNESS_HOST:-}"
 harnessWire="${HARNESS_WIRE:-}"
+## THE ENDPOINT A PRESET NAMES, IN THE TWO PATH STYLES OF THE PAIR (F10.1). The console reads PRESET_ENDPOINT_URL as
+## HARNESS_ENDPOINT_URL: a base URL, or a whole request URL. A base ending `/anthropic` speaks the Anthropic Messages
+## wire and gains `/v1/messages`; one ending `/v1` speaks the OpenAI chat wire and gains `/chat/completions`; any other
+## base gains the path its leg's wire asks for. A whole request URL is used as it is, and its wire is the leg's.
+if [ -n "${HARNESS_ENDPOINT_URL:-}" ] ; then
+	harnessEndpointUrl="${HARNESS_ENDPOINT_URL%/}"
+	case "$harnessEndpointUrl" in
+		*/v1/chat/completions|*/chat/completions|*/v1/messages|*/messages)
+			harnessEndpoint="$harnessEndpointUrl"
+		;;
+		*/anthropic)
+			harnessEndpoint="$harnessEndpointUrl/v1/messages"
+			harnessWire="AnthropicMessages"
+		;;
+		*/v1)
+			harnessEndpoint="$harnessEndpointUrl/chat/completions"
+			harnessWire="OpenAiChat"
+		;;
+		*)
+			case "${harnessWire:-OpenAiChat}" in
+				AnthropicMessages) harnessEndpoint="$harnessEndpointUrl/v1/messages" ;;
+				*) harnessEndpoint="$harnessEndpointUrl/v1/chat/completions" ; harnessWire="OpenAiChat" ;;
+			esac
+		;;
+	esac
+	harnessHost="${harnessEndpoint#*://}"
+	harnessHost="${harnessHost%%/*}"
+fi
 harnessCredentialNames="${HARNESS_CREDENTIAL_NAMES:-}"
 
 ## One tool, no model round: the MCP mirror serves the tool floor this file declares,

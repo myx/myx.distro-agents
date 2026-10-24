@@ -759,7 +759,7 @@ magic-team MDAT_WORKSPACE_MODE"
 		## a change to the engine. A domain's subject is its own name.
 		local setupDeclareArgs=()
 		case "$setupDomain" in
-			claude|claude-native|copilot|copilot-native|grok|scaleway)
+			claude|claude-native|copilot|copilot-native|grok|scaleway|deepseek)
 				## This belongs to the WORKSPACE rather than to this domain: which
 				## CLI the workspace starts. Declared shared, so an --apply here still
 				## takes it and the rendered command stays the syntax of THIS domain
@@ -813,6 +813,7 @@ magic-team MDAT_WORKSPACE_MODE"
 					copilot-native) ;;
 					grok)     setupDeclareArgs+=( --allow XAI_API_KEY ) ;;
 					scaleway) setupDeclareArgs+=( --allow SCALEWAY_DEEPSEEK --allow SCALEWAY_GEMMA ) ;;
+					deepseek) setupDeclareArgs+=( --allow DEEPSEEK_API_KEY ) ;;
 				esac
 			;;
 			slack)
@@ -1037,6 +1038,38 @@ magic-team MDAT_WORKSPACE_MODE"
 				else
 					[ "$setupOperation" != "--check" ] || echo "GROK_CREDENTIAL: OK"
 					AgentsToolsOwnerSetupRow "Grok credential" "configured"
+				fi
+			;;
+			deepseek)
+				local setupHere="${setupWorkspaceRoot:-${MMDAPP%/}}"
+				local setupToolPath="$setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+				if [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsDeepseekHarness.sh" ] ; then
+					[ "$setupOperation" != "--check" ] || echo "DEEPSEEK_HARNESS_INSTALLED: OK"
+					AgentsToolsOwnerSetupRow "DeepSeek harness" "installed"
+				else
+					[ "$setupOperation" != "--check" ] || {
+						echo "DEEPSEEK_HARNESS_INSTALLED: FAIL"
+						echo "  warn: sh-lib/harness/AgentsDeepseekHarness.sh is missing -- this release has not"
+						echo "        reached this workspace yet"
+						echo "  fix:  re-run this workspace's own myx.distro release/deploy step"
+					}
+					AgentsToolsOwnerSetupRow "DeepSeek harness" "NOT INSTALLED"
+					setupRc=1
+				fi
+				DistroAgentsTools --intern-op-check-configs magic-team \
+					--optional "DEEPSEEK_API_KEY:<key>" --expect-secret DEEPSEEK_API_KEY \
+					--context "--owner-setup-deepseek:$setupCtxTag" || true
+				if [ -z "$( DistroAgentsTools --agents-config-option magic-team --select DEEPSEEK_API_KEY 2>/dev/null )" ] ; then
+					[ "$setupOperation" != "--check" ] || {
+						echo "DEEPSEEK_CREDENTIAL: FAIL"
+						echo "  warn: DEEPSEEK_API_KEY is not set, and it is required"
+						echo "  fix:  $setupToolPath --owner-setup-deepseek --apply"
+					}
+					AgentsToolsOwnerSetupRow "DeepSeek credential" "NOT CONFIGURED"
+					setupRc=1
+				else
+					[ "$setupOperation" != "--check" ] || echo "DEEPSEEK_CREDENTIAL: OK"
+					AgentsToolsOwnerSetupRow "DeepSeek credential" "configured"
 				fi
 			;;
 			scaleway)

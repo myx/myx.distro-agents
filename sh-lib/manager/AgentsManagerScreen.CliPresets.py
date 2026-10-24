@@ -192,7 +192,7 @@ def askPresetNew(state, row):
     return ""
 
 
-PRESET_SERVICES = ("claude", "copilot", "grok", "gemini", "scaleway", "standard-v1", "claude-native", "copilot-native", "grok-native")
+PRESET_SERVICES = ("claude", "copilot", "grok", "gemini", "scaleway", "standard-v1", "deepseek", "claude-native", "copilot-native", "grok-native")
 
 
 def submitPresetNew(state, dialog, button):

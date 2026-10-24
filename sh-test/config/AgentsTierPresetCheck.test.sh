@@ -186,6 +186,9 @@ rigAssert "the credentials are the preset's (inherited), not the team's"        
 rigAssert "a credential the preset's CLI service does not read is answered empty, the team's old one not given" "$( rigHeld SCALEWAY_GEMMA )" empty
 rigAssert "the harness tier answered is the resolved one: a model name, tier asked none, is normal" "$( rigSelect SPAWN_HARNESS_TIER )" normal
 rigAssert "the model of the main tier is the preset's model name, the light one none"  "$( rigSelect HARNESS_MODEL_MAIN )|$( rigSelect HARNESS_MODEL_LIGHT )" "claude-sonnet-5-5|"
+rigAssert "the endpoint a preset inherits is answered for the spawn"               "$( rigPut preset-rig-claude PRESET_ENDPOINT_URL https://api.deepseek.com/anthropic ; rigSelect HARNESS_ENDPOINT_URL )" "0https://api.deepseek.com/anthropic"
+rigRun --agents-config-option preset-rig-claude --delete PRESET_ENDPOINT_URL
+rigAssert "and none named answers nothing: the leg keeps its own endpoint"         "$( rigSelect HARNESS_ENDPOINT_URL )" ""
 printf 'SPAWN_HARNESS_TIER=light\n' >> "$rigAgents/magic-team.agent.env"
 rigAssert "asked light: the haiku preset, macro low: tier light, and no model name to pass" "$( rigSelect SPAWN_HARNESS_TIER )|$( rigSelect HARNESS_MODEL_LIGHT )|$( rigSelect HARNESS_MODEL_MAIN )" "light||"
 printf 'SPAWN_HARNESS_TIER=heavy\n' >> "$rigAgents/magic-team.agent.env"

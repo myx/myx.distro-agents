@@ -3,8 +3,11 @@
 # Raw text on stdin -> JSON string body on stdout, without surrounding quotes.
 # Caller must set LC_ALL=C for byte safety.
 
+## The four controls JSON has a two-byte escape for use it: \u0009 costs six bytes for a tab, and
+## every line of a Read result carries one, so a 2000-line read paid 8 KB for nothing.
 BEGIN {
 	for (i = 1; i <= 31; i++) esc[sprintf("%c", i)] = sprintf("\\u%04x", i)
+	esc["\t"] = "\\t" ; esc["\r"] = "\\r" ; esc["\b"] = "\\b" ; esc["\f"] = "\\f"
 }
 {
 	if (NR > 1) printf "\\n"

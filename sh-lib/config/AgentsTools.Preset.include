@@ -16,6 +16,8 @@
 ##                            a key stands ahead of the inherited one, but for the CLI service: where a preset
 ##                            extends, the CLI service is the inherited one and is not editable.
 ##   PRESET_CLI_SERVICE       where a preset extends nothing, one of agentsPresetCliServices.
+##   PRESET_ENDPOINT_URL      optional: the endpoint its CLI service is reached at, an https URL. Unset is the
+##                            endpoint the CLI service's own harness leg states.
 ##   PRESET_MODEL_OR_MACRO    optional: a macro, low or easy, normal or default, high or hard; or a model name.
 ##   PRESET_EFFORT            optional: low, default or normal, high or hard. Not implemented in the CLIs yet.
 ##   PRESET_INPUT_CACHE_TIME  optional, one of agentsPresetCacheTimes (5m or 1h): the lifetime the cache markers of a harness run on the
@@ -36,9 +38,9 @@
 type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 
 ## The keys of a preset's block that are not credentials, in the order they are listed.
-agentsPresetKeys="PRESET_EXTEND PRESET_CLI_SERVICE PRESET_MODEL_OR_MACRO PRESET_EFFORT PRESET_INPUT_CACHE_TIME PRESET_CONTEXT_MAX_SIZE PRESET_EXTRA_SPAWN_LINE"
+agentsPresetKeys="PRESET_EXTEND PRESET_CLI_SERVICE PRESET_ENDPOINT_URL PRESET_MODEL_OR_MACRO PRESET_EFFORT PRESET_INPUT_CACHE_TIME PRESET_CONTEXT_MAX_SIZE PRESET_EXTRA_SPAWN_LINE"
 ## The CLI services a preset may name, the owner's list.
-agentsPresetCliServices="claude copilot grok gemini scaleway standard-v1 claude-native copilot-native grok-native"
+agentsPresetCliServices="claude copilot grok gemini scaleway standard-v1 deepseek claude-native copilot-native grok-native"
 ## The macros of the model, and the values of the effort.
 agentsPresetMacros="low easy normal default high hard"
 agentsPresetEfforts="low default normal high hard"
@@ -179,6 +181,7 @@ AgentsToolsPresetCredentialHolder(){ ## workspace root, preset spec
 ##     PRESET_EXTEND            the name of a preset that is there, not itself, and not one that extends this one;
 ##                              refused while this block holds a CLI service of its own;
 ##     PRESET_CLI_SERVICE       one of the nine; refused while this block extends a preset;
+##     PRESET_ENDPOINT_URL      an https URL, optional; unset is the endpoint the CLI service's own leg states;
 ##     PRESET_MODEL_OR_MACRO    a macro, or a model name of one word (letters, digits, '.', '_', ':', '-');
 ##     PRESET_EFFORT            one of the five;
 ##     PRESET_INPUT_CACHE_TIME  one of agentsPresetCacheTimes;
@@ -255,6 +258,15 @@ AgentsToolsPresetWriteCheck(){ ## workspace root, scope, operation, key, value (
 		PRESET_CLI_SERVICE)
 			AgentsToolsPresetIsOneOf "$checkValue" "$agentsPresetCliServices" || { AgentsToolsPresetRefuse "PRESET_CLI_SERVICE is one of: ${agentsPresetCliServices// /, }" ; return 1 ; }
 			[ -z "$( AgentsToolsPresetRead "$checkRoot" "$checkScope" PRESET_EXTEND )" ] || { AgentsToolsPresetRefuse "preset $checkName extends a preset, so its CLI service is the inherited one and is not editable" ; return 1 ; }
+		;;
+		PRESET_ENDPOINT_URL)
+			case "$checkValue" in
+				https://?*) ;;
+				*) AgentsToolsPresetRefuse "PRESET_ENDPOINT_URL is an https URL, and taking it off is a delete" ; return 1 ;;
+			esac
+			case "$checkValue" in
+				*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/._~%?\&=+@-]*) AgentsToolsPresetRefuse "PRESET_ENDPOINT_URL is an https URL of plain URL characters, one line, and nothing else" ; return 1 ;;
+			esac
 		;;
 		PRESET_MODEL_OR_MACRO)
 			case "$checkValue" in
@@ -478,6 +490,12 @@ AgentsToolsPresetOverlay(){ ## spawn setting key
 					esac
 				;;
 			esac
+		;;
+		HARNESS_ENDPOINT_URL)
+			## The endpoint the preset names for its CLI service, its own or the one it inherits: nothing printed is the
+			## endpoint the leg states.
+			ovValue="$( AgentsToolsPresetEffective "$ovRoot" "$ovName" PRESET_ENDPOINT_URL 2> /dev/null )" || ovValue=""
+			[ -z "$ovValue" ] || printf '%s\n' "$ovValue"
 		;;
 		HARNESS_INPUT_CACHE_TIME)
 			## The lifetime the cache markers of the run ask for, the preset's own or the one it inherits: nothing printed is the provider's.

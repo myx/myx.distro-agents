@@ -717,9 +717,20 @@ DagcHarnessCacheTimeExport(){
 	[ -z "$DAGC_CACHE_TIME" ] || export "HARNESS_INPUT_CACHE_TIME=$DAGC_CACHE_TIME"
 	return 0
 }
+## THE ENDPOINT THE PRESET NAMES (F10.1). A preset may name the endpoint its CLI service is reached at, PRESET_ENDPOINT_URL
+## an https URL: read as the models are, answered from the preset (AgentsToolsPresetOverlay) and exported for the leg, a
+## parent's endpoint dropped. Nothing exported leaves the leg its own endpoint.
+DagcHarnessEndpointUrlExport(){
+	local DAGC_ENDPOINT_URL
+	unset HARNESS_ENDPOINT_URL
+	DAGC_ENDPOINT_URL="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HARNESS_ENDPOINT_URL 2>/dev/null )" || DAGC_ENDPOINT_URL=""
+	[ -z "$DAGC_ENDPOINT_URL" ] || export "HARNESS_ENDPOINT_URL=$DAGC_ENDPOINT_URL"
+	return 0
+}
 if DagcCliIsLeg "$DAGC_CLI" ; then
 	DagcHarnessModelExport
 	DagcHarnessCacheTimeExport
+	DagcHarnessEndpointUrlExport
 fi
 
 ## claude-native: a signed-out spawn uses a configured key, else rc 6; an interactive console is only warned. MAGIC.md, "Claude sign-in".

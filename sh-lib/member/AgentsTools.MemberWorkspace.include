@@ -227,12 +227,12 @@ AgentsToolsScopeHoldsKeys(){ ## workspace, scope, key prefix
 ## may name in turn.
 
 ## Whether a key of the magic-team scope is a spawn setting: the CLI service, the harness
-## tier, the model of the light or main tier (F10.2), or a credential a harness leg declares for itself (HARNESS_CREDENTIAL_NAMES, the
+## tier, the model of the light or main tier (F10.2), the endpoint a preset names for its service (F10.1), or a credential a harness leg declares for itself (HARNESS_CREDENTIAL_NAMES, the
 ## names the console exports, which are the vendor CLI's own two as well).
 AgentsToolsSpawnSettingKey(){ ## key
 	local keyNames
 	case "$1" in
-		SPAWN_CLI_SERVICE|SPAWN_HARNESS_TIER|HARNESS_MODEL_LIGHT|HARNESS_MODEL_MAIN|HARNESS_INPUT_CACHE_TIME) return 0 ;;
+		SPAWN_CLI_SERVICE|SPAWN_HARNESS_TIER|HARNESS_MODEL_LIGHT|HARNESS_MODEL_MAIN|HARNESS_INPUT_CACHE_TIME|HARNESS_ENDPOINT_URL) return 0 ;;
 		''|SPAWN_*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_]*) return 1 ;;
 	esac
 	keyNames="$( LC_ALL=C sed -n 's/^HARNESS_CREDENTIAL_NAMES=//p' "${BASH_SOURCE[0]%/*}/../harness/"Agents*Harness.sh 2> /dev/null | LC_ALL=C tr -c 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' ' ' )" || keyNames=""

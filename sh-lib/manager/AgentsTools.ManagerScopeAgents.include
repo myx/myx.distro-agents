@@ -88,6 +88,7 @@ AgentsToolsManagerScopeAgentsKnown(){ ## the name of the scope of the agents
 			else
 				printf 'PRESET_CLI_SERVICE\tchoice\t%s\tThe_CLI_service_of_a_preset_that_extends_none.\n' "$knownList"
 			fi
+			printf 'PRESET_ENDPOINT_URL\ttext\t-\tThe_endpoint_the_CLI_service_is_reached_at,_https_only;_unset_is_the_service_own.\n'
 			printf 'PRESET_MODEL_OR_MACRO\ttext\t-\tThe_model,_or_a_macro:_%s.\n' "$( printf '%s' "$agentsPresetMacros" | LC_ALL=C tr ' ' ',' )"
 			knownList=""
 			for knownOne in $agentsPresetEfforts ; do knownList="$knownList${knownList:+,}$knownOne=$knownOne" ; done

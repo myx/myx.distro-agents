@@ -7,7 +7,7 @@
 ## credentials of the rig are made here, and the check fails on any whole value appearing on either stream.
 ## Held:
 ##   A. a preset is a block of its own, in the same file form, listed by the digest and read by the same reader
-##   B. the CLI service: the nine, no other; a refusal repeats nothing that was given
+##   B. the CLI service: the ten, no other; a refusal repeats nothing that was given
 ##   C. a preset's name is lower-case
 ##   D. extend: a preset that is there, not itself, no loop; and where a preset extends, its CLI service is not editable
 ##   E. what an extending preset inherits: the parent's CLI service, the parent's other keys unless its own stands ahead
@@ -92,12 +92,12 @@ rigAssert "the reader of the scopes reads its key"                              
 rigRun --manager-config-digest scopes
 rigAssert "the digest lists it as a scope of its own, with its key and value"      "$( LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "scopes" && $3 == "preset-mel-claude" && $4 == "PRESET_CLI_SERVICE" { print $5, $6 }' "$rigTmp/run.out" )" "set claude"
 
-echo "-- B. the CLI service: the nine, no other --"
+echo "-- B. the CLI service: the ten, no other --"
 rigNine=0
-for rigService in claude copilot grok gemini scaleway standard-v1 claude-native copilot-native grok-native ; do
+for rigService in claude copilot grok gemini scaleway standard-v1 deepseek claude-native copilot-native grok-native ; do
 	[ "$( rigSet "svc-$rigService" PRESET_CLI_SERVICE "$rigService" )" = 0 ] && [ "$( rigGet "svc-$rigService" PRESET_CLI_SERVICE )" = "$rigService" ] && rigNine=$(( rigNine + 1 ))
 done
-rigAssert "each of the nine is accepted and stored"                               "$rigNine" 9
+rigAssert "each of the ten is accepted and stored"                               "$rigNine" 10
 rigAssert "a word that is none of them is refused"                                "$( rigSet mel-bad PRESET_CLI_SERVICE chatgpt )" 1
 rigAssert "and nothing was written"                                               "$( rigHas mel-bad PRESET_CLI_SERVICE )" no
 rigSet mel-bad PRESET_CLI_SERVICE "RIGBOGUS-pasted-secret-Zq81" > /dev/null
@@ -127,10 +127,12 @@ echo "-- E. what an extending preset inherits --"
 rigSet mel-claude PRESET_EXTRA_SPAWN_LINE "Answer in short sentences; the tools are named as they are." > /dev/null
 rigSet mel-claude PRESET_INPUT_CACHE_TIME 1h > /dev/null
 rigSet mel-claude PRESET_MODEL_OR_MACRO normal > /dev/null
+rigSet mel-claude PRESET_ENDPOINT_URL https://api.deepseek.com/anthropic > /dev/null
 rigSet mel-claude-haiku PRESET_MODEL_OR_MACRO low > /dev/null
 rigSet mel-claude-micro PRESET_EXTEND mel-claude-haiku > /dev/null
 rigAssert "the CLI service is the parent's"                                       "$( rigEffective mel-claude-haiku PRESET_CLI_SERVICE )" "claude rc=0"
 rigAssert "a key the preset does not hold is the parent's"                        "$( rigEffective mel-claude-haiku PRESET_INPUT_CACHE_TIME )" "1h rc=0"
+rigAssert "the endpoint is inherited too"                                          "$( rigEffective mel-claude-haiku PRESET_ENDPOINT_URL )" "https://api.deepseek.com/anthropic rc=0"
 rigAssert "the extra spawn line is inherited too"                                 "$( rigEffective mel-claude-haiku PRESET_EXTRA_SPAWN_LINE )" "Answer in short sentences; the tools are named as they are. rc=0"
 rigAssert "a key the preset holds stands ahead of the parent's"                   "$( rigEffective mel-claude-haiku PRESET_MODEL_OR_MACRO )" "low rc=0"
 rigAssert "and the parent keeps its own"                                          "$( rigEffective mel-claude PRESET_MODEL_OR_MACRO )" "normal rc=0"
@@ -171,6 +173,11 @@ rigAs=""
 rigAssert "the other keys a member's session writes by the same operation are checked as any other" "$( rigAs=keeper-rig ; rigSet mel-model PRESET_EFFORT low )" 0
 rigAssert "the owner (no member's session) can write it"                          "$( rigSet mel-model PRESET_EXTRA_SPAWN_LINE 'the owner wrote this' )" 0
 
+## PRESET_ENDPOINT_URL (F10.1): the endpoint its CLI service is reached at, https only, inherited as its siblings are.
+rigAssert "the endpoint takes an https URL, and is stored whole"                  "$( rigSet mel-model PRESET_ENDPOINT_URL https://api.deepseek.com/anthropic )$( rigGet mel-model PRESET_ENDPOINT_URL )" "0https://api.deepseek.com/anthropic"
+rigAssert "anything else is refused: no scheme, http, a space, a quote, two lines, empty" "$( rigSet mel-model PRESET_ENDPOINT_URL api.deepseek.com/anthropic )$( rigSet mel-model PRESET_ENDPOINT_URL http://api.deepseek.com/anthropic )$( rigSet mel-model PRESET_ENDPOINT_URL 'https://api.deepseek.com/a b' )$( rigSet mel-model PRESET_ENDPOINT_URL 'https://api.deepseek.com/"' )$( rigSet mel-model PRESET_ENDPOINT_URL "$( printf 'https://a\ntwo' )" )$( rigSet mel-model PRESET_ENDPOINT_URL '' )" 111111
+rigAssert "the last good endpoint still stands"                                   "$( rigGet mel-model PRESET_ENDPOINT_URL )" https://api.deepseek.com/anthropic
+
 echo "-- G. the credentials of the selected CLI service, and no other; never printed --"
 rigAssert "claude: its two credentials are accepted"                              "$( rigSet mel-claude ANTHROPIC_API_KEY "$rigSecretA" )$( rigSet mel-claude CLAUDE_CODE_OAUTH_TOKEN "$rigSecretB" )" 00
 rigAssert "the credential is stored whole"                                        "$( LC_ALL=C grep -c -x -F -e "ANTHROPIC_API_KEY=$rigSecretA" "$rigAgents/preset-mel-claude.agent.env" )" 1
@@ -208,7 +215,7 @@ rigAssert "the extra spawn line from stdin is written whole"                    
 
 echo "-- J. the catalogue describes each key --"
 rigCatalogue(){ ( . "$rigPackage/sh-lib/config/AgentsTools.OwnerSetupOptionSpec.include" ; AgentsToolsOwnerSetupOptionSpec "$1" ) ; }
-rigAssert "each of the seven keys is in the catalogue, in no one scope, plain"     "$( for rigKey in PRESET_EXTEND PRESET_CLI_SERVICE PRESET_MODEL_OR_MACRO PRESET_EFFORT PRESET_INPUT_CACHE_TIME PRESET_CONTEXT_MAX_SIZE PRESET_EXTRA_SPAWN_LINE ; do rigCatalogue "$rigKey" | LC_ALL=C cut -d'|' -f1,3 ; done | LC_ALL=C sort | uniq -c | tr -s ' ' )" " 7 -|plain"
+rigAssert "each of the eight keys is in the catalogue, in no one scope, plain"    "$( for rigKey in PRESET_EXTEND PRESET_CLI_SERVICE PRESET_ENDPOINT_URL PRESET_MODEL_OR_MACRO PRESET_EFFORT PRESET_INPUT_CACHE_TIME PRESET_CONTEXT_MAX_SIZE PRESET_EXTRA_SPAWN_LINE ; do rigCatalogue "$rigKey" | LC_ALL=C cut -d'|' -f1,3 ; done | LC_ALL=C sort | uniq -c | tr -s ' ' )" " 8 -|plain"
 rigAssert "the model's text says a native CLI is passed no model"                 "$( rigCatalogue PRESET_MODEL_OR_MACRO | LC_ALL=C grep -c -e 'native CLI is passed no model' )" 1
 rigAssert "the extra line's text says the human-owner writes it and nobody else"   "$( rigCatalogue PRESET_EXTRA_SPAWN_LINE | LC_ALL=C grep -c -e 'human-owner writes it' )" 1
 rigAssert "the context size's text says stored only, the cache time's says the two lifetimes it takes"  "$( rigCatalogue PRESET_CONTEXT_MAX_SIZE | LC_ALL=C grep -c -e 'Stored only' )$( rigCatalogue PRESET_INPUT_CACHE_TIME | LC_ALL=C grep -c -e 'Stored only' )$( rigCatalogue PRESET_INPUT_CACHE_TIME | LC_ALL=C grep -c -e '5m' -e '1h' )" 101

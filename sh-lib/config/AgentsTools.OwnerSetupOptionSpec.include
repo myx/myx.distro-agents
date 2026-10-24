@@ -41,7 +41,10 @@ AgentsToolsOwnerSetupOptionSpec(){
 			printf '%s\n' '-|<preset-name>|plain|the preset whose parameters this one inherits, in a preset block preset-<name>. Its own value of a key stands ahead of the inherited one, but for the CLI service: where a preset extends, that is the one of the parent and cannot be edited.'
 		;;
 		PRESET_CLI_SERVICE)
-			printf '%s\n' '-|<cli-service>|plain|the CLI service of a preset that extends nothing: claude, copilot, grok, gemini, scaleway, standard-v1, claude-native, copilot-native or grok-native. The credentials the preset takes are those of that service, under the names its CLI reads.'
+			printf '%s\n' '-|<cli-service>|plain|the CLI service of a preset that extends nothing: claude, copilot, grok, gemini, scaleway, standard-v1, deepseek, claude-native, copilot-native or grok-native. The credentials the preset takes are those of that service, under the names its CLI reads.'
+		;;
+		PRESET_ENDPOINT_URL)
+			printf '%s\n' '-|<https-url>|plain|the endpoint the CLI service of the preset is reached at, optional: an https URL, such as one of a gateway or a provider that speaks the wire of that service. Left unset the endpoint is the one the harness leg of the service states.'
 		;;
 		PRESET_MODEL_OR_MACRO)
 			printf '%s\n' '-|<macro-or-model>|plain|the model of the preset, optional: a macro, low or easy, normal or default, high or hard, which picks the tier of the harness, or a model name, which is the model of that tier for a harness leg (claude, copilot, grok, scaleway). A native CLI is passed no model, so for it the model is stored and nothing uses it. Left unset the tier asked stands.'
