@@ -94,7 +94,7 @@ rigAssert "the digest lists it as a scope of its own, with its key and value"   
 
 echo "-- B. the CLI service: the ten, no other --"
 rigNine=0
-for rigService in claude copilot grok gemini scaleway standard-v1 deepseek claude-native copilot-native grok-native ; do
+for rigService in claude copilot grok gemini scaleway universal deepseek claude-native copilot-native grok-native ; do
 	[ "$( rigSet "svc-$rigService" PRESET_CLI_SERVICE "$rigService" )" = 0 ] && [ "$( rigGet "svc-$rigService" PRESET_CLI_SERVICE )" = "$rigService" ] && rigNine=$(( rigNine + 1 ))
 done
 rigAssert "each of the ten is accepted and stored"                               "$rigNine" 10

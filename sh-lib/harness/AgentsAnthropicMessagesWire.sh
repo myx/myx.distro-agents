@@ -46,6 +46,12 @@ agentsWireSystemSharedBytes=0
 ## cannot see a final newline, so a sentinel carries it through and is cut after.
 AgentsWireJsonEscape(){ ## raw text
 	local escapeOut
+	## An id or a tool name carries nothing JSON escapes, and choosing that in the shell
+	## saves a process per string: two per tool call, on every round.
+	case "$1" in
+		''|*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-]*) ;;
+		*) printf '%s' "$1" ; return 0 ;;
+	esac
 	escapeOut="$( printf '%sX' "$1" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
 	printf '%s' "${escapeOut%X}"
 }
@@ -283,7 +289,7 @@ AgentsWireStreamConsume(){
 ## drops a thinking block's trailing newline breaks its signature.
 AgentsWireSynthesizeResponse(){
 	local synthCount synthIdx=0 synthType synthBlocks="" synthCalls="" synthText="" synthBlock
-	local synthThinking synthSignature synthPart synthInput synthId synthName synthStop
+	local synthThinking synthSignature synthPart synthInput synthId synthName synthStop synthRaw
 	synthCount="$( cat "$harnessScratch/stream.block.count" 2>/dev/null )" || synthCount=0
 	while [ "$synthIdx" -lt "${synthCount:-0}" ] 2>/dev/null ; do
 		synthType="$( cat "$harnessScratch/stream.block.$synthIdx.type" 2>/dev/null )" || synthType=""
@@ -304,8 +310,9 @@ AgentsWireSynthesizeResponse(){
 			tool_use)
 				synthInput="$( cat "$harnessScratch/stream.block.$synthIdx.json" 2>/dev/null )" || synthInput=""
 				[ -n "$synthInput" ] || synthInput='{}'
-				synthId="$( AgentsWireEventField "$( cat "$harnessScratch/stream.block.$synthIdx.raw" )" id )"
-				synthName="$( AgentsWireEventField "$( cat "$harnessScratch/stream.block.$synthIdx.raw" )" name )"
+				synthRaw="$( cat "$harnessScratch/stream.block.$synthIdx.raw" 2>/dev/null )"
+				synthId="$( AgentsWireEventField "$synthRaw" id )"
+				synthName="$( AgentsWireEventField "$synthRaw" name )"
 				synthBlock="$( AgentsWireToolCallEntry "$synthId" "$synthName" "$synthInput" )"
 				synthCalls="${synthCalls}${synthCalls:+,}"'{"id":"'"$( AgentsWireJsonEscape "$synthId" )"'","name":"'"$( AgentsWireJsonEscape "$synthName" )"'","arguments":"'"$( AgentsWireJsonEscape "$synthInput" )"'"}'
 			;;

@@ -713,6 +713,14 @@ DagcHarnessModelExport(){
 DagcHarnessCacheTimeExport(){
 	local DAGC_CACHE_TIME
 	unset HARNESS_INPUT_CACHE_TIME
+	## Only the Anthropic Messages wire puts the lifetime into cache markers; another wire has
+	## nowhere to use it, so the read is skipped rather than paid for nothing.
+	## A leg with no wire of its own chooses one at run time from the endpoint (universal), so it
+	## is asked as well: skipping there could take the lifetime from the markers that use it.
+	case "$( LC_ALL=C sed -n 's/^HARNESS_WIRE="\([^"]*\)".*/\1/p' "$DAGC_CLI_EXEC" 2>/dev/null )" in
+		''|AnthropicMessages) ;;
+		*) return 0 ;;
+	esac
 	DAGC_CACHE_TIME="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HARNESS_INPUT_CACHE_TIME 2>/dev/null )" || DAGC_CACHE_TIME=""
 	[ -z "$DAGC_CACHE_TIME" ] || export "HARNESS_INPUT_CACHE_TIME=$DAGC_CACHE_TIME"
 	return 0
@@ -723,14 +731,35 @@ DagcHarnessCacheTimeExport(){
 DagcHarnessEndpointUrlExport(){
 	local DAGC_ENDPOINT_URL
 	unset HARNESS_ENDPOINT_URL
+	## A service whose leg states its own endpoint never takes one from a preset, so the read is
+	## skipped. Only a leg that takes its endpoint from the environment (universal) is asked.
+	case "$( LC_ALL=C sed -n 's/^HARNESS_ENDPOINT="\([^"]*\)".*/\1/p' "$DAGC_CLI_EXEC" 2>/dev/null )" in
+		''|'$'*) ;;
+		*) return 0 ;;
+	esac
 	DAGC_ENDPOINT_URL="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HARNESS_ENDPOINT_URL 2>/dev/null )" || DAGC_ENDPOINT_URL=""
 	[ -z "$DAGC_ENDPOINT_URL" ] || export "HARNESS_ENDPOINT_URL=$DAGC_ENDPOINT_URL"
+	return 0
+}
+## THE HARNESS'S OWN KNOBS (retry attempts, retry delay, parallel tool calls): settings of the
+## team, read for a spawn only where the scope holds one, so a workspace that never set them pays
+## a file test and no call. Each is exported as it is; the harness reads it from the environment.
+DagcHarnessKnobExport(){
+	local DAGC_KNOB DAGC_KNOB_VALUE DAGC_KNOB_FILE="${MMDAPP%/}/.local/.agents/magic-team.agent.env"
+	[ -f "$DAGC_KNOB_FILE" ] || return 0
+	for DAGC_KNOB in HARNESS_STREAM_ATTEMPTS HARNESS_RETRY_DELAY HARNESS_PARALLEL_TOOL_CALLS ; do
+		unset "$DAGC_KNOB"
+		LC_ALL=C grep -q "^$DAGC_KNOB=" "$DAGC_KNOB_FILE" 2> /dev/null || continue
+		DAGC_KNOB_VALUE="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select "$DAGC_KNOB" 2> /dev/null )" || DAGC_KNOB_VALUE=""
+		[ -z "$DAGC_KNOB_VALUE" ] || export "$DAGC_KNOB=$DAGC_KNOB_VALUE"
+	done
 	return 0
 }
 if DagcCliIsLeg "$DAGC_CLI" ; then
 	DagcHarnessModelExport
 	DagcHarnessCacheTimeExport
 	DagcHarnessEndpointUrlExport
+	DagcHarnessKnobExport
 fi
 
 ## claude-native: a signed-out spawn uses a configured key, else rc 6; an interactive console is only warned. MAGIC.md, "Claude sign-in".

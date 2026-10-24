@@ -40,7 +40,7 @@ type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distr
 ## The keys of a preset's block that are not credentials, in the order they are listed.
 agentsPresetKeys="PRESET_EXTEND PRESET_CLI_SERVICE PRESET_ENDPOINT_URL PRESET_MODEL_OR_MACRO PRESET_EFFORT PRESET_INPUT_CACHE_TIME PRESET_CONTEXT_MAX_SIZE PRESET_EXTRA_SPAWN_LINE"
 ## The CLI services a preset may name, the owner's list.
-agentsPresetCliServices="claude copilot grok gemini scaleway standard-v1 deepseek claude-native copilot-native grok-native"
+agentsPresetCliServices="claude copilot grok gemini scaleway universal deepseek claude-native copilot-native grok-native"
 ## The macros of the model, and the values of the effort.
 agentsPresetMacros="low easy normal default high hard"
 agentsPresetEfforts="low default normal high hard"

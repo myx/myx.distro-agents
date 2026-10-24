@@ -3953,8 +3953,9 @@
 			One of the console's own operations (see Notes). Applies the answers
 			of the CLI service's wizard: a preset and the team's three tiers. THE
 			ANSWERS ARE THE STANDARD INPUT, a line each, `<key> <TAB> <value>`, and
-			never an argument. The keys it writes are PRESET_CLI_SERVICE,
-			PRESET_MODEL_OR_MACRO and PRESET_EFFORT of the preset <name> (a block
+			never an argument. The keys it writes are PRESET_EXTEND,
+			PRESET_CLI_SERVICE, PRESET_ENDPOINT_URL, PRESET_MODEL_OR_MACRO and
+			PRESET_EFFORT of the preset <name> (a block
 			`preset-<name>`, made by the first write), the credentials of its CLI
 			service, and, in the team's scope, SPAWN_TIER_LOW, SPAWN_TIER_NORMAL,
 			SPAWN_TIER_HIGH (`<preset>[:<effort>]`); there is no team CLI service beside

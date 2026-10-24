@@ -83,6 +83,10 @@ AgentsToolsManagerWizardCredentials(){
 AgentsToolsManagerWizardKey(){ ## key
 	wizardScope="" ; wizardRank=0
 	case "$1" in
+		## The extension is written first: a preset that extends has its service and its
+		## credentials from the parent, so those checks must see the extension already.
+		PRESET_EXTEND) wizardScope=preset ; wizardRank=0 ;;
+		PRESET_ENDPOINT_URL) wizardScope=preset ; wizardRank=0 ;;
 		PRESET_CLI_SERVICE) wizardScope=preset ; wizardRank=1 ;;
 		PRESET_MODEL_OR_MACRO) wizardScope=preset ; wizardRank=2 ;;
 		PRESET_EFFORT) wizardScope=preset ; wizardRank=3 ;;
@@ -155,7 +159,7 @@ case "$1" in
 					[ -n "$readPreset" ] || continue
 					printf 'option\tpreset\t%s\t%s\n' "$readPreset" "$readPreset"
 					for readKey in $agentsPresetKeys ; do
-						case "$readKey" in PRESET_CLI_SERVICE|PRESET_MODEL_OR_MACRO|PRESET_EFFORT|PRESET_EXTEND) ;; *) continue ;; esac
+						case "$readKey" in PRESET_EXTEND|PRESET_ENDPOINT_URL|PRESET_CLI_SERVICE|PRESET_MODEL_OR_MACRO|PRESET_EFFORT) ;; *) continue ;; esac
 						AgentsToolsManagerWizardRow preset "preset-$readPreset" "$readKey" | LC_ALL=C awk -F'\t' -v presetName="$readPreset" '$3 != "missing" { print $1 "\t" presetName "\t" $2 "\t" $3 "\t" $4 }'
 					done
 					AgentsToolsManagerWizardCredentials | while IFS=$'\t' read -r readRow readService readKey ; do

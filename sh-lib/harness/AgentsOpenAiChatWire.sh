@@ -52,6 +52,13 @@ harnessToolsJson='[
 ## client builds this run's own from it. The envelope is this wire's shape, which is
 ## why it lives here and not beside the catalogue it describes; the schema is the
 ## server's own bytes, passed through rather than rebuilt from them.
+## A call id or a tool name carries nothing JSON escapes; choosing that in the shell saves
+## one process per string. Two or three of these are built on every tool call.
+AgentsWireEscapeBare(){ ## text
+	case "$1" in ''|*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-]*) return 1 ;; esac
+	return 0
+}
+
 AgentsWireToolDeclaration(){ ## declared name, description, input schema JSON
 	printf '%s' '{"type":"function","function":{"name":"'"$1"'","description":"'"$( printf '%s' "$2" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","parameters":'"$3"'}}'
 }
@@ -90,8 +97,10 @@ AgentsWireAssistantToolCallsRecord(){
 
 AgentsWireToolCallEntry(){
 	local entryId="$1" entryName="$2" entryArgs="$3" entryIdEsc entryNameEsc entryArgsEsc
-	entryIdEsc="$( printf '%s' "$entryId" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
-	entryNameEsc="$( printf '%s' "$entryName" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
+	entryIdEsc="$entryId"
+	AgentsWireEscapeBare "$entryId" > /dev/null || entryIdEsc="$( printf '%s' "$entryId" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
+	entryNameEsc="$entryName"
+	AgentsWireEscapeBare "$entryName" > /dev/null || entryNameEsc="$( printf '%s' "$entryName" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
 	entryArgsEsc="$( printf '%s' "$entryArgs" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
 	printf '%s' "{\"id\":\"$entryIdEsc\",\"type\":\"function\",\"function\":{\"name\":\"$entryNameEsc\",\"arguments\":\"$entryArgsEsc\"}}"
 }
@@ -100,7 +109,8 @@ AgentsWireToolCallEntry(){
 ## (the reply layer's, AgentsTranscriptReplyDate) the content is two text parts, the result and the date.
 AgentsWireToolResultRecord(){ ## call id, result text, date line (optional)
 	local resultCallId="$1" resultText="$2" resultDate="${3:-}" resultCallIdEsc resultTextEsc
-	resultCallIdEsc="$( printf '%s' "$resultCallId" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
+	resultCallIdEsc="$resultCallId"
+	AgentsWireEscapeBare "$resultCallId" > /dev/null || resultCallIdEsc="$( printf '%s' "$resultCallId" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
 	resultTextEsc="$( printf '%s' "$resultText" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"
 	if [ -n "$resultDate" ] ; then
 		printf '%s' '{"role":"tool","tool_call_id":"'"$resultCallIdEsc"'","content":[{"type":"text","text":"'"$resultTextEsc"'"},{"type":"text","text":"'"$( printf '%s' "$resultDate" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}]}'
@@ -149,6 +159,12 @@ AgentsWireRequestBody(){
 	fi
 	bodyMessagesJson="$( IFS=, ; echo "[${harnessMessages[*]}]" )"
 	bodyOut='{"model":"'"$harnessModel"'","messages":'"$bodyMessagesJson"',"tools":'"${harnessToolsJson%]}${harnessMcpToolsJson:-}"'],"tool_choice":"'"${harnessToolChoice:-auto}"'"'"${harnessOutputTokens:+,\"max_tokens\":$harnessOutputTokens}"',"stream":true,"stream_options":{"include_usage":true}'
+	## A server that takes parallel tool calls is told so, and one that does not is not asked:
+	## HARNESS_PARALLEL_TOOL_CALLS=on is the leg's own declaration, never inferred.
+	case "${HARNESS_PARALLEL_TOOL_CALLS:-}" in
+		on|true|1) bodyOut="$bodyOut"',"parallel_tool_calls":true' ;;
+		off|false|0) bodyOut="$bodyOut"',"parallel_tool_calls":false' ;;
+	esac
 	[ -z "$agentsWirePromptCacheKey" ] || bodyOut="$bodyOut"',"prompt_cache_key":"'"$agentsWirePromptCacheKey"'"'
 	[ -z "$harnessReasoningEffort" ] || bodyOut="$bodyOut"',"reasoning_effort":"'"$harnessReasoningEffort"'"'
 	bodyOut="$bodyOut"'}'

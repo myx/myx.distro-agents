@@ -57,7 +57,7 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 	rigRow line cli workspace SPAWN_CLI_SERVICE set claude Spawn_CLI_Service 'The_agent_CLI.' 'no:set_at_deployment:_a_wizard_will_change_it' - - - - - configuration
 } > "$rigF/rows.--manager-config-digest --full"
 rigCli(){ ## the rows the CLI wizard's read prints, the tiers given as arguments: low normal high
-	for rigOne in claude copilot grok gemini scaleway standard-v1 claude-native copilot-native grok-native ; do rigRow option cli-service "$rigOne" "$rigOne" ; done
+	for rigOne in claude copilot grok gemini scaleway universal deepseek claude-native copilot-native grok-native ; do rigRow option cli-service "$rigOne" "$rigOne" ; done
 	for rigOne in low default normal high hard ; do rigRow option effort "$rigOne" "$rigOne" ; done
 	rigRow credential claude ANTHROPIC_API_KEY ; rigRow credential claude CLAUDE_CODE_OAUTH_TOKEN ; rigRow credential grok XAI_API_KEY
 	rigRow option preset base base ; rigRow option preset ext ext
@@ -185,22 +185,21 @@ rigAssert "the wizard ends in the output dialog, which closes on OK; the presets
 rigCase cli3
 rigScript <<RIGSCRIPT
 $rigToCli
-keys c
+keys n
+turn
+get chooser
+keys DOWN DOWN SPACE
+keys ENTER
 turn
 wait plan 30
 turn
-keys DOWN SPACE
-keys ENTER
-turn
 get ext
-keys ENTER
-turn
-get third
 keys ESC
 turn
 get esc
 RIGSCRIPT
-rigAssert "a preset that extends another has no service to choose: its step says it extends, and offers the model and the effort alone" "$( rigVal ext.dialogTitle ) / $( rigVal ext.dialogHolds | LC_ALL=C grep -c -F 'extends base' )" "Configure CLI Service: ext / 1"
+rigAssert "n offers the three forms apart, and choosing the extending one opens that form" "$( rigVal chooser.dialogTitle ) / $( rigVal chooser.dialogHolds | LC_ALL=C grep -c -F 'extending' ) / $( rigVal ext.dialogTitle )" "New preset / 1 / Configure CLI Service: the extending preset"
+rigAssert "its pages ask for the preset it extends, the model and the effort, and no service and no credential" "$( rigVal ext.dialog | LC_ALL=C cut -d: -f1-2 )" "wizard:cli-service-extend"
 rigAssert "Esc leaves the wizard: no dialog is left, nothing is applied" "[$( rigVal esc.dialog )] $( rigApplied )" "[] 0"
 rigCase cli4
 rigScript <<RIGSCRIPT

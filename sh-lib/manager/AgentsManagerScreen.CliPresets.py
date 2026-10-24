@@ -14,7 +14,6 @@ PRESET_FIELDS = ("extends", "service", "model", "effort", "used")
 TIER_FIELDS = ("low", "normal", "high")
 ## the order and the titles the screen shows the three tiers by (the keys they are stored in are unchanged)
 TIER_KEYS = (("SPAWN_TIER_NORMAL", "normal", "Default / Normal"), ("SPAWN_TIER_HIGH", "high", "High / Heavy"), ("SPAWN_TIER_LOW", "low", "Low / Easy"))
-CALLS["preset-new"] = ["--manager-preset-new"]
 
 
 def parsePresetRows(readKey, level, text):
@@ -171,47 +170,55 @@ def tiersSummary(state, path, row, form):
 
 ## ---- a preset made ----
 
-DIALOGS["preset-new"] = {"title": "New preset", "feeds": "presetnew", "first": "name",
-                         "controls": ({"name": "about", "kind": "text"},
-                                      {"name": "name", "kind": "input", "label": "Its name (lower case)"},
-                                      {"name": "extends", "kind": "radios", "label": "It extends"},
-                                      {"name": "service", "kind": "radios", "label": "Its CLI service, where it extends none"}),
-                         "buttons": (("ok", "Make"), ("cancel", "Cancel"))}
-PRESET_NONE = "-"
+## The three forms are three wizards, alike in shape and separate in what they ask: the service
+## form, the universal form and the extension form. A new preset is made by choosing one of them,
+## and nothing here offers a service beside an extension.
+CLI_FORM_WIZARDS = {"service": "cli-service", "universal": "cli-service-universal", "extend": "cli-service-extend"}
+CLI_FORMS = (("service", "a service preset: one of the services, with its key"),
+             ("universal", "a universal preset: any server that speaks the same wire, by URL"),
+             ("extend", "an extending preset: takes the service and the key of a preset that is there"))
+
+
+## The form a preset belongs to, from what its row holds: one that extends, the universal service,
+## or a service of its own.
+def presetForm(row):
+    preset = row.get("preset") if row else None
+    if preset is None:
+        return "service"
+    if absent(preset.get("extends")):
+        return "extend"
+    if preset.get("service") == "universal":
+        return "universal"
+    return "service"
+
+
+DIALOGS["preset-form"] = {"title": "New preset", "feeds": "presetform", "first": "form",
+                          "controls": ({"name": "about", "kind": "text"},
+                                       {"name": "form", "kind": "radios", "label": "The form"}),
+                          "buttons": (("ok", "Next"), ("cancel", "Cancel"))}
 
 
 def askPresetNew(state, row):
-    names = [held["preset"]["name"] for held in (state.rows.get(pluginLevel("presets")) or ()) if held.get("preset")]
     state.answer = None
-    openDialog(state, "preset-new", {"about": {"lines": ["A preset extends another, and has that one's CLI service and what it does not set itself; or it extends none, and holds a CLI service of its own.",
-                                                         "The rest of its parameters are set in its variables, once it is made."]},
-                                     "name": {"value": ""},
-                                     "extends": {"options": [(PRESET_NONE, "none: its own CLI service")] + [(name, name) for name in names], "value": PRESET_NONE},
-                                     "service": {"options": [(service, service) for service in PRESET_SERVICES], "value": PRESET_SERVICES[0]}},
+    openDialog(state, "preset-form", {"about": {"lines": ["Each form is set up on its own pages and asks only what its own kind needs.",
+                                                         "A service preset: one of the services this release carries, and its key.",
+                                                         "A universal preset: any server by URL, and the key its wire reads.",
+                                                         "An extending preset: a preset that is there, and its model and effort; its key is inherited."]},
+                                     "form": {"options": list(CLI_FORMS), "value": "service"}},
                {"viewKey": viewKeyOf(state)}, "New preset")
     return ""
 
 
-PRESET_SERVICES = ("claude", "copilot", "grok", "gemini", "scaleway", "standard-v1", "deepseek", "claude-native", "copilot-native", "grok-native")
-
-
-def submitPresetNew(state, dialog, button):
-    name = dialogValue(dialog, "name").strip()
-    extends = dialogValue(dialog, "extends")
-    service = dialogValue(dialog, "service")
-    if not name:
-        return "the preset has no name yet"
-    words = callWords("preset-new") + [name] + (["--extend", extends] if extends != PRESET_NONE else ["--cli-service", service])
-    askCall(state, "scope", "preset-new/%s" % name, words, None, {"viewKey": dialog["about"]["viewKey"], "says": "made the preset %s" % name})
-    state.notice = "the preset is asked of the tooling: %s" % name
-    state.noticeOf = None
-    return None
+def submitPresetForm(state, dialog, button):
+    form = dialogValue(dialog, "form")
+    closeDialog(state)
+    return startWizard(state, CLI_FORM_WIZARDS.get(form, "cli-service"), None)
 
 
 ACTION_HANDLERS["presetnew"] = askPresetNew
 ACTION_FITS["presetnew"] = lambda state, row: True
 ACTION_REFUSALS["presetnew"] = lambda state, row: ""
-DIALOG_HANDLERS["preset-new"] = submitPresetNew
+DIALOG_HANDLERS["preset-form"] = submitPresetForm
 
 
 ## ---- the tasks: use a preset for a member, assign a tier ----
@@ -293,7 +300,8 @@ ACTION_REFUSALS["tierslot"] = lambda state, row: "select a tier"
 
 
 def askCliConfigure(state, row):
-    return startWizard(state, "cli-service", {"preset": row["preset"]["name"]} if row and row.get("preset") else None)
+    form = presetForm(row)
+    return startWizard(state, CLI_FORM_WIZARDS[form], {"preset": row["preset"]["name"]} if row and row.get("preset") else None)
 
 
 ACTION_HANDLERS["cliconfigure"] = askCliConfigure
@@ -323,7 +331,7 @@ registerPlugin({
     },
     "commands": (
         {"name": "clinew", "keys": ("n",), "menu": ("view", 3), "label": "~N~ew preset", "status": "New", "window": "list",
-         "views": ("clipresets", "@configuration"), "for": "a preset", "on": ("clipresets:section", "@configuration:section"), "only": True, "says": "new", "does": ("action", "clinew"), "calls": ("preset-new",)},
+         "views": ("clipresets", "@configuration"), "for": "a preset", "on": ("clipresets:section", "@configuration:section"), "only": True, "says": "new", "does": ("action", "clinew")},
         {"name": "cliassign", "keys": ("a",), "menu": ("view", 3), "label": "~A~ssign a tier", "status": "Assign", "window": "list",
          "views": ("clipresets", "@configuration"), "for": "a tier", "on": ("clipresets:section", "@configuration:section"), "only": True, "says": "assign", "does": ("action", "cliassign"), "calls": ("scope-set",)},
     ),
@@ -341,7 +349,7 @@ registerPlugin({
     },
     "commands": scopeKeyCommands("presets") + (
         {"name": "presetnew", "keys": ("n",), "menu": ("view", 3), "label": "~N~ew preset", "status": "New", "window": "list",
-         "views": ("presets",), "for": "a preset", "on": ("presets:preset", "presets:up"), "only": True, "says": "new", "does": ("action", "presetnew"), "calls": ("preset-new",)},
+         "views": ("presets",), "for": "a preset", "on": ("presets:preset", "presets:up"), "only": True, "says": "new", "does": ("action", "presetnew")},
         {"name": "presetconfigure", "keys": ("c",), "menu": ("view", 3), "label": "~C~onfigure the preset", "status": "Configure", "window": "list",
          "views": ("presets",), "for": "a preset", "on": ("presets:preset",), "only": True, "says": "configure", "does": ("action", "cliconfigure")},
         {"name": "presetuse", "keys": ("f",), "menu": ("view", 3), "label": "Use the preset ~f~or a member", "status": "Use", "window": "list",

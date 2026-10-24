@@ -702,7 +702,15 @@ AgentsTranscriptReplyLong(){ ## tool name, result text, the file a Read read (op
 	local LC_ALL=C longDir longTool longFile=""
 	[ "${#2}" -gt "$agentsReplyLongBytes" ] || { printf '%s\n' "$2" ; return 0 ; }
 	if ! longDir="$( AgentsTranscriptSessionDir "$( AgentsTranscriptSessionKey )" )" || ! mkdir -p "$longDir/results" 2>/dev/null ; then
-		printf '%s\n' "$2" ; return 0
+		## A run with no session still has somewhere to put a long result: its own
+		## sandbox, which its tools may already read. Without one, the result stays inline.
+		longDir=""
+		if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -d "${MDAT_SPAWN_SANDBOX_ROOT%/}" ] ; then
+			longDir="${MDAT_SPAWN_SANDBOX_ROOT%/}"
+		fi
+		if [ -z "$longDir" ] || ! mkdir -p "$longDir/results" 2>/dev/null ; then
+			printf '%s\n' "$2" ; return 0
+		fi
 	fi
 	longTool="$( AgentsTranscriptBaseTool "$1" | tr -c 'A-Za-z0-9_.-' '_' )"
 	longFile="$( mktemp "$longDir/results/$( date -u +%Y%m%dT%H%M%SZ )-${longTool:-tool}.XXXXXX" 2>/dev/null )" || longFile=""

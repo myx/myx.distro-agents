@@ -91,7 +91,7 @@ rigLeak(){ ## -- how many times the credential stands whole in all that the call
 echo "-- 1. the read of the CLI service's wizard --"
 rigRun --manager-wizard-read cli-service
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
-rigAssert "the nine services of a preset, in the owner's order" "$( LC_ALL=C awk -F'\t' '$1 == "option" && $2 == "cli-service" { printf "%s ", $3 }' "$rigTmp/out" )" "claude copilot grok gemini scaleway standard-v1 claude-native copilot-native grok-native "
+rigAssert "the ten services of a preset, in the owner's order" "$( LC_ALL=C awk -F'\t' '$1 == "option" && $2 == "cli-service" { printf "%s ", $3 }' "$rigTmp/out" )" "claude copilot grok gemini scaleway universal deepseek claude-native copilot-native grok-native "
 rigAssert "the five efforts, and the presets there are" "$( LC_ALL=C awk -F'\t' '$1 == "option" && $2 == "effort" { printf "%s ", $3 }' "$rigTmp/out" ) / $( LC_ALL=C awk -F'\t' '$1 == "option" && $2 == "preset" { printf "%s ", $3 }' "$rigTmp/out" )" "low default normal high hard  / base ext "
 rigAssert "the credentials each service reads, from its harness leg" "$( rigRows '^credential (claude|grok) ' )" "credential claude ANTHROPIC_API_KEY/credential claude CLAUDE_CODE_OAUTH_TOKEN/credential grok XAI_API_KEY/"
 rigAssert "what a preset holds: its service, its model, a credential in its one form; and what an extending preset holds" "$( rigRows '^preset (base|ext) ' | LC_ALL=C tr '/' '\n' | LC_ALL=C sort | LC_ALL=C tr '\n' '/' )" "preset base ANTHROPIC_API_KEY secret-set $( rigMask "$rigSecret" )/preset base PRESET_CLI_SERVICE set claude/preset base PRESET_MODEL_OR_MACRO set normal/preset ext PRESET_EXTEND set base/"

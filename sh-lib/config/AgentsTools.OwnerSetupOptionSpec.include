@@ -26,6 +26,15 @@ AgentsToolsOwnerSetupOptionSpec(){
 		WEB_DENY_PREFIXES)
 			printf '%s\n' 'magic-team|<url-prefix>[ <url-prefix>...]|plain|URL prefixes WebFetch never fetches, even under an allowed or built-in prefix. Space-separated, matched as WEB_ALLOW_PREFIXES is. A WebSearch result under one of them is no longer kept outside allowed_domains.'
 		;;
+		HARNESS_STREAM_ATTEMPTS)
+			printf '%s\n' 'magic-team|<attempts>|plain|how many attempts one round of a harness run may make before it gives up, in whole numbers from 1 to 10. A round that fails on a temporary refusal (HTTP 429, 500, 502, 503, 504, 529, or an error type that says the same) is retried with a backoff; a final refusal ends the round at once. Unset is 3.'
+		;;
+		HARNESS_RETRY_DELAY)
+			printf '%s\n' 'magic-team|<seconds>|plain|how long a harness run waits before its first retry of a round, in whole seconds from 0 to 30. Each later wait doubles, never past 30. Unset is 1. Zero retries at once.'
+		;;
+		HARNESS_PARALLEL_TOOL_CALLS)
+			printf '%s\n' 'magic-team|<on|off>|plain|whether a spawn tells its server that the server may take parallel tool calls, on the OpenAI chat wire. Unset asks for nothing, so a server that does not take the field is never asked it. Set it only where the service is known to accept it.'
+		;;
 		## The one override of the wait round every CLI service has a number of its own for
 		## (AgentsTools.CliService.include).
 		WAIT_ROUND_SECONDS)
@@ -41,7 +50,7 @@ AgentsToolsOwnerSetupOptionSpec(){
 			printf '%s\n' '-|<preset-name>|plain|the preset whose parameters this one inherits, in a preset block preset-<name>. Its own value of a key stands ahead of the inherited one, but for the CLI service: where a preset extends, that is the one of the parent and cannot be edited.'
 		;;
 		PRESET_CLI_SERVICE)
-			printf '%s\n' '-|<cli-service>|plain|the CLI service of a preset that extends nothing: claude, copilot, grok, gemini, scaleway, standard-v1, deepseek, claude-native, copilot-native or grok-native. The credentials the preset takes are those of that service, under the names its CLI reads.'
+			printf '%s\n' '-|<cli-service>|plain|the CLI service of a preset that extends nothing: claude, copilot, grok, gemini, scaleway, universal, deepseek, claude-native, copilot-native or grok-native. The credentials the preset takes are those of that service, under the names its CLI reads.'
 		;;
 		PRESET_ENDPOINT_URL)
 			printf '%s\n' '-|<https-url>|plain|the endpoint the CLI service of the preset is reached at, optional: an https URL, such as one of a gateway or a provider that speaks the wire of that service. Left unset the endpoint is the one the harness leg of the service states.'

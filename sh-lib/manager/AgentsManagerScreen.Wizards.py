@@ -174,65 +174,74 @@ def presetHeld(held, preset, key):
 ## The preset the wizard is on: the one picked, else the new one named.
 def wizardPreset(held):
     picked = wizardAnswer(held, 0, "preset")
+    if picked == "+new":
+        return wizardAnswer(held, 0, "name").strip()
     return picked or wizardAnswer(held, 0, "name").strip()
 
 
-## The CLI service the preset has: the one the second step chose, else the one it holds, else the one the preset it extends has.
-def wizardService(held):
-    preset = wizardPreset(held)
-    seen = 0
-    while preset and seen < 8:
-        service = wizardAnswer(held, 1, "service") if seen == 0 else ""
-        service = service or presetHeld(held, preset, "PRESET_CLI_SERVICE")
-        if service:
-            return service
-        preset = presetHeld(held, preset, "PRESET_EXTEND")
-        seen += 1
-    return ""
+## THE THREE FORMS, KEPT APART. Each is a wizard of its own — the service form, the universal
+## form, the extension form — and they are alike in shape: which preset or a new name, the form's
+## own fields with the model and the effort, and the credentials where the form takes any. None of
+## them shows another's fields. A new preset declares no kind: the wizard it was started in is it.
+def cliWrite(preset, pairs):
+    lines = []
+    for key, answer, now in pairs:
+        if answer != now:
+            lines.append("%s\t%s\n" % (key, answer))
+    return "Configure CLI Service: %s" % preset, ["--manager-wizard-apply", "cli-service", "--preset", preset], "".join(lines)
 
 
-def cliStepPreset(state, held):
-    data = held["data"]
-    options = [(name, name) for name in data["presets"]] + [("", "a new preset")]
-    return {"title": "Configure CLI Service: the preset", "first": "preset", "check": "cliCheckPreset",
+## The form a preset belongs to: the one extending, the universal one, or a service of its own.
+def cliPresetKind(held, name):
+    if presetHeld(held, name, "PRESET_EXTEND"):
+        return "extend"
+    if presetHeld(held, name, "PRESET_CLI_SERVICE") == "universal":
+        return "universal"
+    return "service"
+
+
+def cliKindPresets(held, kind):
+    return [name for name in held["data"]["presets"] if cliPresetKind(held, name) == kind]
+
+
+## The first page of every form: the presets of its own kind, or a new one.
+def cliNameStep(state, held, kind, title, about):
+    names = cliKindPresets(held, kind)
+    picked = held["context"].get("preset")
+    value = picked if picked in names else (names[0] if names else "+new")
+    return {"title": title, "first": "preset", "check": "cliCheckName",
             "controls": ({"name": "about", "kind": "text"},
                          {"name": "preset", "kind": "radios", "label": "Preset"},
                          {"name": "name", "kind": "input", "label": "Name of the new preset, lower case"}),
-            "fill": {"about": {"lines": ["A preset is a block of settings for a CLI service: the service, its model or macro, its effort and the credentials of the service. Pick the preset to configure, or make a new one."]},
-                     "preset": {"options": options, "value": held["context"].get("preset") or (data["presets"][0] if data["presets"] else "")}}}
+            "fill": {"about": {"lines": about},
+                     "preset": {"options": [(name, name) for name in names] + [("+new", "a new one")], "value": value}}}
 
 
-def cliCheckPreset(state, held, answers):
-    if not answers["preset"] and not answers["name"].strip():
+def cliCheckName(state, held, answers):
+    if answers["preset"] == "+new" and not answers["name"].strip():
         return "nothing is configured: a new preset needs a name"
     return ""
 
 
-def cliStepSettings(state, held):
-    data = held["data"]
-    preset = wizardPreset(held)
-    extends = presetHeld(held, preset, "PRESET_EXTEND")
-    controls = [{"name": "about", "kind": "text"}]
-    fill = {}
-    lines = ["Preset: %s." % preset]
-    if extends:
-        lines.append("It extends %s, so its CLI service is the inherited one and is not edited here." % extends)
-    else:
-        controls.append({"name": "service", "kind": "radios", "label": "CLI service"})
-        fill["service"] = {"options": [(name, name) for name in data["services"]], "value": presetHeld(held, preset, "PRESET_CLI_SERVICE") or data["services"][0]}
-    controls.append({"name": "model", "kind": "input", "label": "Model or macro (low or easy, normal or default, high or hard, or a model name), or none"})
-    controls.append({"name": "effort", "kind": "radios", "label": "Effort"})
-    fill["about"] = {"lines": lines}
-    fill["model"] = {"value": presetHeld(held, preset, "PRESET_MODEL_OR_MACRO")}
-    fill["effort"] = {"options": [("", "not set")] + [(name, name) for name in data["efforts"]], "value": presetHeld(held, preset, "PRESET_EFFORT")}
-    return {"title": "Configure CLI Service: %s" % preset, "first": "service" if not extends else "model", "controls": controls, "fill": fill}
+## The model and the effort, which every form sets for itself.
+def cliModelFill(held, preset):
+    return {"model": {"value": presetHeld(held, preset, "PRESET_MODEL_OR_MACRO")},
+            "effort": {"options": [("", "not set")] + [(name, name) for name in held["data"]["efforts"]],
+                       "value": presetHeld(held, preset, "PRESET_EFFORT")}}
 
 
-def cliStepCredentials(state, held):
-    data = held["data"]
-    preset = wizardPreset(held)
-    service = wizardService(held)
-    keys = data["credentials"].get(service, [])
+def cliModelControls():
+    return ({"name": "model", "kind": "input", "label": "Model or macro (low or easy, normal or default, high or hard, or a model name), or none"},
+            {"name": "effort", "kind": "radios", "label": "Effort"})
+
+
+def cliModelPairs(held, preset):
+    return [("PRESET_MODEL_OR_MACRO", wizardAnswer(held, 1, "model").strip(), presetHeld(held, preset, "PRESET_MODEL_OR_MACRO")),
+            ("PRESET_EFFORT", wizardAnswer(held, 1, "effort"), presetHeld(held, preset, "PRESET_EFFORT"))]
+
+
+## The credentials of a service: shown in their one form, kept where a field is left as it is.
+def cliCredentialStep(held, preset, service, keys):
     if not keys:
         return {"skip": True}
     controls = [{"name": "about", "kind": "text"}]
@@ -243,27 +252,108 @@ def cliStepCredentials(state, held):
     return {"title": "Configure CLI Service: the credentials of %s" % service, "first": keys[0], "controls": controls, "fill": fill}
 
 
-## What the wizard asks of the tooling, from the answers: each key whose answer is not what it held, one line `<key> <TAB> <value>` of the standard input of
-## `--manager-wizard-apply cli-service --preset <name>`, which writes them in the order its checks need and refuses what they refuse.
-def cliApply(state, held):
+## ---- the service form ----
+
+def cliStepServiceName(state, held):
+    return cliNameStep(state, held, "service", "Configure CLI Service: the preset",
+                       ["A service preset takes one of the services this release carries, and that service's key.",
+                        "Its endpoint is the service's own and is not asked for here."])
+
+
+def cliStepServiceFields(state, held):
     data = held["data"]
     preset = wizardPreset(held)
-    lines = []
-
-    def ask(key, answer, now):
-        if answer != now:
-            lines.append("%s\t%s\n" % (key, answer))
-
-    if not presetHeld(held, preset, "PRESET_EXTEND"):
-        ask("PRESET_CLI_SERVICE", wizardAnswer(held, 1, "service"), presetHeld(held, preset, "PRESET_CLI_SERVICE"))
-    ask("PRESET_MODEL_OR_MACRO", wizardAnswer(held, 1, "model").strip(), presetHeld(held, preset, "PRESET_MODEL_OR_MACRO"))
-    ask("PRESET_EFFORT", wizardAnswer(held, 1, "effort"), presetHeld(held, preset, "PRESET_EFFORT"))
-    service = wizardService(held)
-    for key in data["credentials"].get(service, []):
-        ask(key, wizardAnswer(held, 2, key, presetHeld(held, preset, key)), presetHeld(held, preset, key))
-    return "Configure CLI Service: %s" % preset, ["--manager-wizard-apply", "cli-service", "--preset", preset], "".join(lines)
+    fill = {"about": {"lines": ["Preset: %s." % preset]},
+            "service": {"options": [(name, name) for name in data["services"]],
+                        "value": presetHeld(held, preset, "PRESET_CLI_SERVICE") or data["services"][0]}}
+    fill.update(cliModelFill(held, preset))
+    return {"title": "Configure CLI Service: %s" % preset, "first": "service",
+            "controls": ({"name": "about", "kind": "text"},
+                         {"name": "service", "kind": "radios", "label": "CLI service"}) + cliModelControls(),
+            "fill": fill}
 
 
+def cliStepServiceCredentials(state, held):
+    preset = wizardPreset(held)
+    service = wizardAnswer(held, 1, "service", presetHeld(held, preset, "PRESET_CLI_SERVICE"))
+    return cliCredentialStep(held, preset, service, held["data"]["credentials"].get(service, []))
+
+
+def cliApplyService(state, held):
+    preset = wizardPreset(held)
+    service = wizardAnswer(held, 1, "service", presetHeld(held, preset, "PRESET_CLI_SERVICE"))
+    pairs = [("PRESET_CLI_SERVICE", service, presetHeld(held, preset, "PRESET_CLI_SERVICE"))] + cliModelPairs(held, preset)
+    for key in held["data"]["credentials"].get(service, []):
+        pairs.append((key, wizardAnswer(held, 2, key, presetHeld(held, preset, key)), presetHeld(held, preset, key)))
+    return cliWrite(preset, pairs)
+
+
+## ---- the universal form ----
+
+def cliStepUniversalName(state, held):
+    return cliNameStep(state, held, "universal", "Configure CLI Service: the universal preset",
+                       ["A universal preset takes any server that speaks one of the two wires, by its URL.",
+                        "The path names the wire: a base ending /v1 speaks the OpenAI chat wire, one ending /anthropic the Anthropic Messages wire."])
+
+
+def cliStepUniversalFields(state, held):
+    preset = wizardPreset(held)
+    fill = {"about": {"lines": ["Preset: %s." % preset]},
+            "endpoint": {"value": presetHeld(held, preset, "PRESET_ENDPOINT_URL")}}
+    fill.update(cliModelFill(held, preset))
+    return {"title": "Configure CLI Service: %s" % preset, "first": "endpoint",
+            "controls": ({"name": "about", "kind": "text"},
+                         {"name": "endpoint", "kind": "input", "label": "The endpoint URL: https, ending /v1 or /anthropic"}) + cliModelControls(),
+            "fill": fill}
+
+
+## The key the universal form asks for: the one its wire reads, chosen by the endpoint's path.
+def cliUniversalKey(held):
+    endpoint = wizardAnswer(held, 1, "endpoint", presetHeld(held, wizardPreset(held), "PRESET_ENDPOINT_URL"))
+    return "ANTHROPIC_API_KEY" if "/anthropic" in endpoint else "OPENAI_API_KEY"
+
+
+def cliStepUniversalCredential(state, held):
+    preset = wizardPreset(held)
+    return cliCredentialStep(held, preset, "universal", [cliUniversalKey(held)])
+
+
+def cliApplyUniversal(state, held):
+    preset = wizardPreset(held)
+    endpoint = wizardAnswer(held, 1, "endpoint", presetHeld(held, preset, "PRESET_ENDPOINT_URL")).strip()
+    pairs = [("PRESET_CLI_SERVICE", "universal", presetHeld(held, preset, "PRESET_CLI_SERVICE")),
+             ("PRESET_ENDPOINT_URL", endpoint, presetHeld(held, preset, "PRESET_ENDPOINT_URL"))] + cliModelPairs(held, preset)
+    key = cliUniversalKey(held)
+    pairs.append((key, wizardAnswer(held, 2, key, presetHeld(held, preset, key)), presetHeld(held, preset, key)))
+    return cliWrite(preset, pairs)
+
+
+## ---- the extension form ----
+
+def cliStepExtendName(state, held):
+    return cliNameStep(state, held, "extend", "Configure CLI Service: the extending preset",
+                       ["An extending preset takes the service and the credentials of a preset that is there.",
+                        "It sets only its model and its effort; its CLI service and its key are inherited."])
+
+
+def cliStepExtendFields(state, held):
+    data = held["data"]
+    preset = wizardPreset(held)
+    fill = {"about": {"lines": ["Preset: %s." % preset]},
+            "extends": {"options": [(name, name) for name in data["presets"]],
+                        "value": presetHeld(held, preset, "PRESET_EXTEND") or (data["presets"][0] if data["presets"] else "")}}
+    fill.update(cliModelFill(held, preset))
+    return {"title": "Configure CLI Service: %s" % preset, "first": "extends",
+            "controls": ({"name": "about", "kind": "text"},
+                         {"name": "extends", "kind": "radios", "label": "It extends"}) + cliModelControls(),
+            "fill": fill}
+
+
+def cliApplyExtend(state, held):
+    preset = wizardPreset(held)
+    pairs = [("PRESET_EXTEND", wizardAnswer(held, 1, "extends", presetHeld(held, preset, "PRESET_EXTEND")),
+              presetHeld(held, preset, "PRESET_EXTEND"))] + cliModelPairs(held, preset)
+    return cliWrite(preset, pairs)
 ## ---- the wizard of the git settings ----
 
 ## What `--manager-wizard-read git-settings` printed: the three settings as they stand, and the private keys git may be told to connect with.
@@ -465,7 +555,11 @@ registerPlugin({
     "name": "wizards",
     "integrates": {"configuration": {"wizards": (
         {"name": "cli-service", "title": "Configure CLI Service", "read": ["--manager-wizard-read", "cli-service"], "parse": "parseCliWizard",
-         "steps": ("cliStepPreset", "cliStepSettings", "cliStepCredentials"), "apply": "cliApply"},
+         "steps": ("cliStepServiceName", "cliStepServiceFields", "cliStepServiceCredentials"), "apply": "cliApplyService"},
+        {"name": "cli-service-universal", "title": "Configure CLI Service: universal", "read": ["--manager-wizard-read", "cli-service"], "parse": "parseCliWizard",
+         "steps": ("cliStepUniversalName", "cliStepUniversalFields", "cliStepUniversalCredential"), "apply": "cliApplyUniversal"},
+        {"name": "cli-service-extend", "title": "Configure CLI Service: extending", "read": ["--manager-wizard-read", "cli-service"], "parse": "parseCliWizard",
+         "steps": ("cliStepExtendName", "cliStepExtendFields"), "apply": "cliApplyExtend"},
         {"name": "git-settings", "title": "Configure Git Settings", "read": ["--manager-wizard-read", "git-settings"], "parse": "parseGitWizard",
          "steps": ("gitStepSettings",), "apply": "gitApply"},
         {"name": "server-key-generate", "title": "Generate Server Key", "steps": ("keyStepGenerate",), "apply": "keyApplyGenerate"},

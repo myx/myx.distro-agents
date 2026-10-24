@@ -88,7 +88,32 @@ AgentsToolsManagerScopeAgentsKnown(){ ## the name of the scope of the agents
 			else
 				printf 'PRESET_CLI_SERVICE\tchoice\t%s\tThe_CLI_service_of_a_preset_that_extends_none.\n' "$knownList"
 			fi
-			printf 'PRESET_ENDPOINT_URL\ttext\t-\tThe_endpoint_the_CLI_service_is_reached_at,_https_only;_unset_is_the_service_own.\n'
+			## The endpoint is inherited by every preset that extends, and the service's own
+			## wherever its leg states one. Neither is a choice the form offers: those rows are
+			## locked, and a preset that must point elsewhere is edited by hand. Only a service
+			## with no endpoint of its own (universal) takes one, in its own form.
+			knownParent="$( AgentsToolsPresetRead "$MMDAPP" "$knownName" PRESET_EXTEND )"
+			knownService=""
+			[ -z "$( AgentsToolsPresetRead "$MMDAPP" "$knownName" PRESET_EXTEND )" ] || knownService="$( AgentsToolsPresetEffective "$MMDAPP" "${knownName#preset-}" PRESET_CLI_SERVICE 2> /dev/null )" || knownService=""
+			[ -n "$knownService" ] || knownService="$( AgentsToolsPresetRead "$MMDAPP" "$knownName" PRESET_CLI_SERVICE )"
+			knownList=""
+			for knownFile in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/"Agents*Harness.sh ; do
+				[ -f "$knownFile" ] || continue
+				knownOne="${knownFile##*/Agents}" ; knownOne="${knownOne%Harness.sh}"
+				knownOne="$( printf '%s' "$knownOne" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+				[ "$knownOne" = "$knownService" ] || continue
+				knownList="$( LC_ALL=C sed -n 's/^HARNESS_ENDPOINT="\([^"]*\)".*/\1/p' "$knownFile" 2> /dev/null )"
+				## An endpoint the leg takes from the environment is the preset's to give, not the service's own.
+				case "$knownList" in '$'*) knownList="" ;; esac
+				break
+			done
+			if [ -n "$knownParent" ] ; then
+				printf 'PRESET_ENDPOINT_URL\tlocked\tit_extends_%s:_the_endpoint_is_inherited,_and_edited_by_hand_where_it_must_differ\tThe_endpoint_of_the_service.\n' "$knownParent"
+			elif [ -n "$knownList" ] ; then
+				printf 'PRESET_ENDPOINT_URL\tlocked\t%s_states_its_own_endpoint,_so_the_form_does_not_offer_one._Edited_by_hand_where_it_must_differ.\tThe_endpoint_of_the_service.\n' "$knownService"
+			else
+				printf 'PRESET_ENDPOINT_URL\ttext\t-\tThe_endpoint_this_service_is_reached_at,_https_only._Unset_leaves_it_to_the_service.\n'
+			fi
 			printf 'PRESET_MODEL_OR_MACRO\ttext\t-\tThe_model,_or_a_macro:_%s.\n' "$( printf '%s' "$agentsPresetMacros" | LC_ALL=C tr ' ' ',' )"
 			knownList=""
 			for knownOne in $agentsPresetEfforts ; do knownList="$knownList${knownList:+,}$knownOne=$knownOne" ; done
@@ -120,6 +145,10 @@ AgentsToolsManagerScopeAgentsKnown(){ ## the name of the scope of the agents
 			printf 'SPAWN_TIER_LOW\ttier\t%s\tThe_preset_(and_its_effort)_of_the_low_tier.\n' "$knownList"
 			printf 'SPAWN_TIER_NORMAL\ttier\t%s\tThe_preset_(and_its_effort)_of_the_normal_tier.\n' "$knownList"
 			printf 'SPAWN_TIER_HIGH\ttier\t%s\tThe_preset_(and_its_effort)_of_the_high_tier.\n' "$knownList"
+			## The harness's own knobs, read by every spawn of this workspace that runs on a leg.
+			printf 'HARNESS_STREAM_ATTEMPTS\tnumber\t1..10\tHow_many_attempts_one_round_may_make_before_it_gives_up.\n'
+			printf 'HARNESS_RETRY_DELAY\tnumber\t0..30\tSeconds_before_the_first_retry;_each_later_one_doubles_up_to_30.\n'
+			printf 'HARNESS_PARALLEL_TOOL_CALLS\tchoice\ton=on,off=off\tWhether_a_server_that_takes_parallel_tool_calls_is_told_so.\n'
 		;;
 	esac
 	return 0

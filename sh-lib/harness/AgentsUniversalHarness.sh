@@ -22,6 +22,18 @@ case "$BASH" in /*/bash) command -v bash > /dev/null 2>&1 || { PATH="${PATH:+$PA
 
 harnessHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 
+## THE FULL MANUAL TYPE. This file is also the leg `universal`, and the one way to run it with no
+## thin stub in front: every value comes from the environment its preset supplies. A stub still
+## wins, because each of these is filled only where it is empty. The endpoint, the wire and the
+## host come from HARNESS_ENDPOINT_URL, which the console reads out of PRESET_ENDPOINT_URL: a base
+## ending /v1 speaks the OpenAI chat wire, one ending /anthropic the Anthropic Messages wire.
+HARNESS_PROVIDER_NAME="${HARNESS_PROVIDER_NAME:-Universal}"
+HARNESS_SELF_NAME="${HARNESS_SELF_NAME:-AgentsUniversalHarness.sh}"
+HARNESS_CREDENTIAL_NAMES="${HARNESS_CREDENTIAL_NAMES:-ANTHROPIC_API_KEY OPENAI_API_KEY}"
+HARNESS_TOKEN_LIGHT="${HARNESS_TOKEN_LIGHT:-${ANTHROPIC_API_KEY:-${OPENAI_API_KEY:-}}}"
+HARNESS_TOKEN_MAIN="${HARNESS_TOKEN_MAIN:-${ANTHROPIC_API_KEY:-${OPENAI_API_KEY:-}}}"
+export HARNESS_PROVIDER_NAME HARNESS_SELF_NAME HARNESS_CREDENTIAL_NAMES HARNESS_TOKEN_LIGHT HARNESS_TOKEN_MAIN
+
 ## Set before the HARNESS_* validation below, whose own messages use these.
 harnessDim=""
 harnessTool=""
@@ -228,7 +240,7 @@ harnessMissing=""
 [ -n "${HARNESS_MODEL_LIGHT:-}" ] || harnessMissing="$harnessMissing HARNESS_MODEL_LIGHT"
 [ -n "${HARNESS_MODEL_MAIN:-}" ]  || harnessMissing="$harnessMissing HARNESS_MODEL_MAIN"
 if [ -n "$harnessMissing" ] && [ -z "$harnessToolOnly" ] ; then
-	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: this is the universal core and is never run directly -- a provider stub sets these and execs it. Not set:$harnessMissing" >&2
+	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: a value this run needs is not set. A thin stub sets these and execs the core; run as the universal type, the preset supplies them. Not set:$harnessMissing" >&2
 	exit 1
 fi
 
@@ -7429,9 +7441,17 @@ while : ; do
 	AgentsWireRequestBody > "$harnessScratch/request.json"
 
 	## Every attempt starts from a clean accumulator, and a retry here never touches
-	## $harnessRound above.
+	## $harnessRound above. The count is per leg (HARNESS_STREAM_ATTEMPTS), and a failed
+	## attempt waits before the next: HARNESS_RETRY_DELAY seconds, doubled each time. A
+	## test or a provider that wants none sets it to 0.
 	harnessStreamAttempt=0
-	harnessStreamMaxAttempts=3
+	harnessStreamMaxAttempts="${HARNESS_STREAM_ATTEMPTS:-3}"
+	case "$harnessStreamMaxAttempts" in ''|*[!0123456789]*|0) harnessStreamMaxAttempts=3 ;; esac
+	[ "$harnessStreamMaxAttempts" -le 10 ] || harnessStreamMaxAttempts=10
+	harnessRetryDelay="${HARNESS_RETRY_DELAY:-1}"
+	case "$harnessRetryDelay" in ''|*[!0123456789]*) harnessRetryDelay=1 ;; esac
+	harnessRetryWait=0
+	harnessStatus=""
 	harnessStreamOk=0
 	while [ "$harnessStreamAttempt" -lt "$harnessStreamMaxAttempts" ] ; do
 		harnessStreamAttempt=$(( harnessStreamAttempt + 1 ))
@@ -7451,6 +7471,7 @@ while : ; do
 		curl -N -sS --connect-timeout 10 --speed-limit 1 --speed-time 45 -X POST "$harnessEndpoint" \
 			-H @- \
 			-H "Content-type: application/json" \
+			-D "$harnessScratch/stream.headers" \
 			--data-binary "@$harnessScratch/request.json" <<< "$harnessAuthHeader" 2>"$harnessScratch/stream.curlerr" \
 			| AgentsWireStreamConsume
 		harnessCurlRc="${PIPESTATUS[0]}"
@@ -7461,26 +7482,53 @@ while : ; do
 			break
 		fi
 
-		## A complete, non-streaming error body is not a disconnect: no retry. The one
-		## exception is an auth-class refusal on a leg that exchanges its bearer, which is
-		## what a bearer dying mid-round looks like from here. No exchange, no carve-out.
+		## The status line, when the transport gave one: a body alone cannot say whether a
+		## refusal is temporary. A leg whose transport writes no headers reads an empty one.
+		harnessStatus=""
+		[ ! -s "$harnessScratch/stream.headers" ] || harnessStatus="$( LC_ALL=C awk 'NR == 1 { print $2 }' "$harnessScratch/stream.headers" 2>/dev/null )" || harnessStatus=""
+
+		## A complete, non-streaming error body is a refusal, not a disconnect. Two things
+		## can make it worth another attempt: an auth-class refusal on a leg that exchanges
+		## its bearer, an HTTP status the provider uses for a temporary condition, or a
+		## refusal body whose own type is one of those. Everything else ends the round.
 		if [ -s "$harnessScratch/stream.rawother" ] && [ ! -f "$harnessScratch/stream.done" ] ; then
-			if [ -z "$harnessTokenExchange" ] || [ "$harnessStreamAttempt" -ge "$harnessStreamMaxAttempts" ] ; then
+			harnessRetryable=0
+			case "$harnessStatus" in
+				429|500|502|503|504|529) harnessRetryable=1 ;;
+			esac
+			if [ "$harnessRetryable" = 0 ] ; then
+				case "$( cat "$harnessScratch/stream.rawother" )" in
+					*rate_limit*|*overloaded*|*server_error*|*api_error*|*timeout*|*unavailable*) harnessRetryable=1 ;;
+				esac
+			fi
+			harnessAuthRefusal=0
+			if [ -n "$harnessTokenExchange" ] ; then
+				case "$( cat "$harnessScratch/stream.rawother" )" in
+					*401*|*nauthorized*|*nvalid_token*|*xpired*) harnessAuthRefusal=1 ;;
+				esac
+			fi
+			if [ "$harnessRetryable" = 0 ] && [ "$harnessAuthRefusal" = 0 ] ; then
 				break
 			fi
-			## Read off the refusal body: this curl hands back no HTTP status to read.
-			## Each spelling drops its own leading letter, so one pattern matches both cases.
-			case "$( cat "$harnessScratch/stream.rawother" )" in
-				*401*|*nauthorized*|*nvalid_token*|*xpired*) ;;
-				*) break ;;
-			esac
-			harnessBearer=""
-			echo "${harnessWarn}🔁 RETRY:${harnessOff} stream attempt $harnessStreamAttempt/$harnessStreamMaxAttempts was refused as an auth failure -- dropping the cached bearer, re-exchanging and retrying the whole round" >&2
-			continue
+			if [ "$harnessStreamAttempt" -ge "$harnessStreamMaxAttempts" ] ; then
+				break
+			fi
+			if [ "$harnessAuthRefusal" = 1 ] ; then
+				harnessBearer=""
+				echo "${harnessWarn}🔁 RETRY:${harnessOff} stream attempt $harnessStreamAttempt/$harnessStreamMaxAttempts was refused as an auth failure${harnessStatus:+ (HTTP $harnessStatus)} -- dropping the cached bearer, re-exchanging and retrying the whole round" >&2
+			else
+				echo "${harnessWarn}🔁 RETRY:${harnessOff} stream attempt $harnessStreamAttempt/$harnessStreamMaxAttempts was refused${harnessStatus:+ with HTTP $harnessStatus} as a temporary condition -- retrying the whole round after the backoff" >&2
+			fi
+		else
+			echo "${harnessWarn}🔁 RETRY:${harnessOff} stream attempt $harnessStreamAttempt/$harnessStreamMaxAttempts disconnected mid-stream (curl rc=$harnessCurlRc$( [ ! -s "$harnessScratch/stream.curlerr" ] || printf ': %s' "$( cat "$harnessScratch/stream.curlerr" )" )) -- discarding partial output and retrying the whole round" >&2
 		fi
-
-		echo "${harnessWarn}🔁 RETRY:${harnessOff} stream attempt $harnessStreamAttempt/$harnessStreamMaxAttempts disconnected mid-stream (curl rc=$harnessCurlRc$( [ ! -s "$harnessScratch/stream.curlerr" ] || printf ': %s' "$( cat "$harnessScratch/stream.curlerr" )" )) -- discarding partial output and retrying the whole round" >&2
-	done
+		## Backoff before the next attempt: the base, doubled each time, capped at 30 seconds.
+		if [ "$harnessRetryDelay" -gt 0 ] ; then
+			harnessRetryWait=$(( harnessRetryWait > 0 ? harnessRetryWait * 2 : harnessRetryDelay ))
+			[ "$harnessRetryWait" -le 30 ] || harnessRetryWait=30
+			sleep "$harnessRetryWait" 2>/dev/null || :
+		fi
+		done
 
 	## Give stderr a clean line break after any accumulated live text.
 	[ ! -s "$harnessScratch/stream.content" ] || printf '\n' >&2
