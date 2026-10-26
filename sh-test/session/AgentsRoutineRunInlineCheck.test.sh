@@ -77,7 +77,7 @@ rigCall(){ ## name, kind, args...
 	esac
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigData" ${callEnv[@]+"${callEnv[@]}"} \
-		perl -e 'alarm 120 ; exec @ARGV' bash "$rigSession" --routine-run-inline "$@" ) > "$rigTmp/$callName.out" 2> "$rigTmp/$callName.err" < /dev/null || callRc=$?
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigSession" --routine-run-inline "$@" ) > "$rigTmp/$callName.out" 2> "$rigTmp/$callName.err" < /dev/null || callRc=$?
 	printf '%s' "$callRc" > "$rigTmp/$callName.rc"
 }
 rigHas(){ ## name, fixed string -- how many lines of the output hold it

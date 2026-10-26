@@ -16,13 +16,17 @@
 ##                            a key stands ahead of the inherited one, but for the CLI service: where a preset
 ##                            extends, the CLI service is the inherited one and is not editable.
 ##   PRESET_CLI_SERVICE       where a preset extends nothing, one of agentsPresetCliServices.
-##   PRESET_ENDPOINT_URL      optional: the endpoint its CLI service is reached at, an https URL. Unset is the
+##   PRESET_ENDPOINT_URL      optional: the endpoint its CLI service is reached at, an https URL (http for 127.0.0.1, [::1] and localhost only). Unset is the
 ##                            endpoint the CLI service's own harness leg states.
 ##   PRESET_MODEL_OR_MACRO    optional: a macro, low or easy, normal or default, high or hard; or a model name.
-##   PRESET_EFFORT            optional: low, default or normal, high or hard. Not implemented in the CLIs yet.
+##   PRESET_EFFORT            optional: unset, none, low, normal or high. unset sends no effort (the model's default); none is a
+##                            level of its own, no reasoning, sent as each service expresses it (the wrapper's family table).
 ##   PRESET_INPUT_CACHE_TIME  optional, one of agentsPresetCacheTimes (5m or 1h): the lifetime the cache markers of a harness run on the
 ##                            Anthropic wire ask for (F10.7). Unset is 5m, the provider's own, which puts nothing in a marker.
-##   PRESET_CONTEXT_MAX_SIZE  optional, whole tokens. STORED ONLY: its use is a later feature's.
+##   PRESET_CONTEXT_MAX_SIZE  optional, whole tokens: the restart threshold. A harness leg whose last round
+##                            reaches this many tokens has the model write a handover and starts a fresh leg
+##                            from the original task plus that handover. Unset is the service's own window
+##                            less its output maximum; the core warns at start when this is far below it.
 ##   PRESET_EXTRA_SPAWN_LINE  optional, one line the human-owner writes, which the spawner puts into the dispatch
 ##                            it crafts (AgentsToolsPresetExtraSpawnLine). No member and no routine writes it,
 ##                            and no member is shown where it came from.
@@ -40,10 +44,13 @@ type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distr
 ## The keys of a preset's block that are not credentials, in the order they are listed.
 agentsPresetKeys="PRESET_EXTEND PRESET_CLI_SERVICE PRESET_ENDPOINT_URL PRESET_MODEL_OR_MACRO PRESET_EFFORT PRESET_INPUT_CACHE_TIME PRESET_CONTEXT_MAX_SIZE PRESET_EXTRA_SPAWN_LINE"
 ## The CLI services a preset may name, the owner's list.
-agentsPresetCliServices="claude copilot grok gemini scaleway universal deepseek claude-native copilot-native grok-native"
-## The macros of the model, and the values of the effort.
+agentsPresetCliServices="claude copilot grok gemini scaleway standard-v1 deepseek local claude-native copilot-native grok-native"
+## The macros of the model, and the ONE list of the values of the effort: `unset` is the service's own default, and it is
+## what a person is offered in place of a macro's name. The wizard and the Settings editor both walk this list, and no other
+## list of efforts stands anywhere: a setting written before the list was narrowed may still hold `default` or `hard`,
+## which name normal and high, and a write of one of those is still taken (AgentsToolsPresetEffortTaken).
 agentsPresetMacros="low easy normal default high hard"
-agentsPresetEfforts="low default normal high hard"
+agentsPresetEfforts="unset none low normal high"
 ## The lifetimes a preset may ask of the input token cache: the provider's default, and the hour.
 agentsPresetCacheTimes="5m 1h"
 ## How long a chain of PRESET_EXTEND may be before it is taken for a loop.
@@ -58,6 +65,18 @@ AgentsToolsPresetRefuse(){ ## the reason
 ## Whether a word is one of a list: rc 0 when it is.
 AgentsToolsPresetIsOneOf(){ ## word, list (blank separated)
 	case " $2 " in *" $1 "*) [ -n "$1" ] ;; *) return 1 ;; esac
+}
+
+## Whether a word is taken for the effort: one of agentsPresetEfforts, or one of the two older names a setting written
+## before the list was narrowed may hold -- `default` for normal, `hard` for high. rc 0 when it is.
+## Nothing is printed: the caller refuses in its own words and never repeats what was given.
+AgentsToolsPresetEffortTaken(){ ## word
+	AgentsToolsPresetIsOneOf "$1" "$agentsPresetEfforts" && return 0
+	case "$1" in
+		default) AgentsToolsPresetIsOneOf normal "$agentsPresetEfforts" ;;
+		hard) AgentsToolsPresetIsOneOf high "$agentsPresetEfforts" ;;
+		*) return 1 ;;
+	esac
 }
 
 ## Who uses a preset: the presets that extend it and the scopes whose tiers name it (`<preset>` or `<preset>:<effort>`), as scope names, blank separated; nothing where none does.
@@ -78,6 +97,37 @@ AgentsToolsPresetUsers(){ ## the name of the preset, without `preset-`
 AgentsToolsPresetNameCheck(){ ## name
 	AgentsToolsAssertBareName "$1" "a preset name" preset 2> /dev/null || return 1
 	case "$1" in *[ABCDEFGHIJKLMNOPQRSTUVWXYZ]*) return 1 ;; esac
+	return 0
+}
+
+## Rewrite every scope that names a preset, `<old>` to `<new>`, in place: a preset that extends it (PRESET_EXTEND) and a tier of the
+## team or of a member (SPAWN_TIER_LOW, _NORMAL, _HIGH, `<preset>[:<effort>]`), the effort kept. The helper of the rename and of the
+## delete with a switch; each file is written in place, so its mode and its ownership stand. rc 1, silent, where one could not be.
+AgentsToolsPresetRepoint(){ ## old name, new name
+	local repointOld="$1" repointNew="$2" repointScope repointTmp repointOldEsc
+	repointOldEsc="${repointOld//./[.]}"
+	for repointScope in "${MMDAPP%/}/.local/.agents"/*.agent.env ; do
+		[ -f "$repointScope" ] || continue
+		repointTmp="$( mktemp "$repointScope.XXXXXX" )" || return 1
+		LC_ALL=C sed -E -e "s/^PRESET_EXTEND=$repointOldEsc\$/PRESET_EXTEND=$repointNew/" \
+			-e "s/^(SPAWN_TIER_LOW|SPAWN_TIER_NORMAL|SPAWN_TIER_HIGH)=$repointOldEsc(:[a-z]*)?\$/\1=$repointNew\2/" \
+			"$repointScope" > "$repointTmp" && cat "$repointTmp" > "$repointScope" && rm -f -- "$repointTmp" || { rm -f -- "$repointTmp" ; return 1 ; }
+	done
+	return 0
+}
+
+## Rename a preset: its file moved to the new name, and every scope that names it -- a preset that extends it, a tier of the team or of
+## a member, `<preset>[:<effort>]` -- is updated to the new name, in one go, so no reader sees a name half changed. The old name must be
+## there and the new one free and a preset's.
+AgentsToolsPresetRename(){ ## old name, new name
+	local renameOld="$1" renameNew="$2" renameFile
+	renameFile="${MMDAPP%/}/.local/.agents/preset-$renameOld.agent.env"
+	[ -f "$renameFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: --manager-preset-rename: the preset to rename is not there, a block preset-$renameOld -- nothing was renamed" >&2 ; return 1 ; }
+	AgentsToolsPresetNameCheck "$renameNew" || { echo "$MDSC_CMD: ⛔ ERROR: --manager-preset-rename: the new name is no preset's: lower-case letters, digits, '.', '_' and '-' -- nothing was renamed" >&2 ; return 1 ; }
+	[ ! -e "${MMDAPP%/}/.local/.agents/preset-$renameNew.agent.env" ] || { echo "$MDSC_CMD: ⛔ ERROR: --manager-preset-rename: a preset of the new name is there already -- nothing was renamed" >&2 ; return 1 ; }
+	mv -- "$renameFile" "${MMDAPP%/}/.local/.agents/preset-$renameNew.agent.env" || { echo "$MDSC_CMD: ⛔ ERROR: --manager-preset-rename: the preset file could not be renamed -- nothing was renamed" >&2 ; return 1 ; }
+	AgentsToolsPresetRepoint "$renameOld" "$renameNew" || { echo "$MDSC_CMD: ⛔ ERROR: --manager-preset-rename: a scope that names the preset could not be updated -- the rename is half done" >&2 ; return 1 ; }
+	printf 'renamed\tpreset-%s\tpreset-%s\n' "$renameOld" "$renameNew"
 	return 0
 }
 
@@ -180,10 +230,10 @@ AgentsToolsPresetCredentialHolder(){ ## workspace root, preset spec
 ##   its selected CLI service (with none selected, none is taken); and its value is one the key takes:
 ##     PRESET_EXTEND            the name of a preset that is there, not itself, and not one that extends this one;
 ##                              refused while this block holds a CLI service of its own;
-##     PRESET_CLI_SERVICE       one of the nine; refused while this block extends a preset;
-##     PRESET_ENDPOINT_URL      an https URL, optional; unset is the endpoint the CLI service's own leg states;
+##     PRESET_CLI_SERVICE       one of the ten; refused while this block extends a preset;
+##     PRESET_ENDPOINT_URL      an https URL (http for 127.0.0.1, [::1] and localhost only), optional; unset is the endpoint the CLI service's own leg states;
 ##     PRESET_MODEL_OR_MACRO    a macro, or a model name of one word (letters, digits, '.', '_', ':', '-');
-##     PRESET_EFFORT            one of the five;
+##     PRESET_EFFORT            one of agentsPresetEfforts (and an older name of one of them, AgentsToolsPresetEffortTaken);
 ##     PRESET_INPUT_CACHE_TIME  one of agentsPresetCacheTimes;
 ##     PRESET_CONTEXT_MAX_SIZE  a whole number from 1;
 ##     PRESET_EXTRA_SPAWN_LINE  one line; and the human-owner's: no write or delete of it from a member's session,
@@ -262,10 +312,12 @@ AgentsToolsPresetWriteCheck(){ ## workspace root, scope, operation, key, value (
 		PRESET_ENDPOINT_URL)
 			case "$checkValue" in
 				https://?*) ;;
-				*) AgentsToolsPresetRefuse "PRESET_ENDPOINT_URL is an https URL, and taking it off is a delete" ; return 1 ;;
+				## a server on this machine takes no certificate: http is allowed for the loopback hosts alone, the host ended by a port, a path or the end
+				http://127.0.0.1|http://127.0.0.1:*|http://127.0.0.1/*|http://localhost|http://localhost:*|http://localhost/*|'http://[::1]'|'http://[::1]:'*|'http://[::1]/'*) ;;
+				*) AgentsToolsPresetRefuse "PRESET_ENDPOINT_URL is an https URL (http only for 127.0.0.1, [::1] and localhost), and taking it off is a delete" ; return 1 ;;
 			esac
 			case "$checkValue" in
-				*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/._~%?\&=+@-]*) AgentsToolsPresetRefuse "PRESET_ENDPOINT_URL is an https URL of plain URL characters, one line, and nothing else" ; return 1 ;;
+				*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:/._~%?\&=+@\[\]-]*) AgentsToolsPresetRefuse "PRESET_ENDPOINT_URL is an https URL of plain URL characters, one line, and nothing else" ; return 1 ;;
 			esac
 		;;
 		PRESET_MODEL_OR_MACRO)
@@ -273,7 +325,7 @@ AgentsToolsPresetWriteCheck(){ ## workspace root, scope, operation, key, value (
 				''|*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-]*) AgentsToolsPresetRefuse "PRESET_MODEL_OR_MACRO is a macro (${agentsPresetMacros// /, }) or a model name of one word" ; return 1 ;; esac
 		;;
 		PRESET_EFFORT)
-			AgentsToolsPresetIsOneOf "$checkValue" "$agentsPresetEfforts" || { AgentsToolsPresetRefuse "PRESET_EFFORT is one of: ${agentsPresetEfforts// /, }" ; return 1 ; }
+			AgentsToolsPresetEffortTaken "$checkValue" || { AgentsToolsPresetRefuse "PRESET_EFFORT is one of: ${agentsPresetEfforts// /, }" ; return 1 ; }
 		;;
 		PRESET_INPUT_CACHE_TIME)
 			AgentsToolsPresetIsOneOf "$checkValue" "$agentsPresetCacheTimes" || { AgentsToolsPresetRefuse "PRESET_INPUT_CACHE_TIME is one of: ${agentsPresetCacheTimes// /, }" ; return 1 ; }
@@ -308,7 +360,8 @@ AgentsToolsPresetWriteCheck(){ ## workspace root, scope, operation, key, value (
 ## read of a spawn setting then comes from that preset (AgentsToolsPresetOverlay, asked by --agents-config-option for the
 ## scope magic-team, which is where the spawn settings are read): the CLI service, the credentials of that service
 ## and none other, the harness tier, and the model of the tier where the preset names one. A workspace with no tier
-## setting reads its spawn settings as ever. The presets and the tier settings of the team are the paying workspace's
+## setting reads its spawn settings as ever, but for the CLI service, which has no scope reading: the spawn is refused
+## naming SPAWN_TIER_NORMAL (AgentsToolsPresetSpawnCli). The presets and the tier settings of the team are the paying workspace's
 ## (SPAWN_SETTINGS_WORKSPACE, AgentsTools.MemberWorkspace.include); a member's own are its scope's here.
 ##
 
@@ -324,7 +377,8 @@ AgentsToolsPresetPayRoot(){
 
 ## What a value of a tier setting is, `<preset>[:<effort>]`, checked as the write check asks it: a tier setting is
 ## SPAWN_TIER_LOW, _NORMAL or _HIGH, stands in magic-team or in a member's scope and in no preset's, and names a
-## preset that is there (here or in the workspace that pays) and, after a colon, one effort of the five.
+## preset that is there (here or in the workspace that pays) and, after a colon, one effort of the four (or an older name
+## of one of them).
 AgentsToolsPresetTierCheck(){ ## workspace root, scope, operation, key, value (may be empty)
 	local tierValue="${5:-}" tierName tierEffort="" tierPay
 	case "$4" in
@@ -344,7 +398,7 @@ AgentsToolsPresetTierCheck(){ ## workspace root, scope, operation, key, value (m
 	case "$tierValue" in
 		*:*)
 			tierEffort="${tierValue#*:}"
-			AgentsToolsPresetIsOneOf "$tierEffort" "$agentsPresetEfforts" || { AgentsToolsPresetRefuse "a tier setting is <preset>[:<effort>], and the effort is one of: ${agentsPresetEfforts// /, }" ; return 1 ; }
+			AgentsToolsPresetEffortTaken "$tierEffort" || { AgentsToolsPresetRefuse "a tier setting is <preset>[:<effort>], and the effort is one of: ${agentsPresetEfforts// /, }" ; return 1 ; }
 		;;
 	esac
 	AgentsToolsPresetNameCheck "$tierName" || { AgentsToolsPresetRefuse "a tier setting is <preset>[:<effort>], and a preset's name is lower-case" ; return 1 ; }
@@ -357,7 +411,7 @@ AgentsToolsPresetTierCheck(){ ## workspace root, scope, operation, key, value (m
 
 ## The harness tier of a preset, light, normal or heavy, from its model or macro, its effort and the tier asked:
 ## a macro gives its tier (low or easy light, normal or default normal, high or hard heavy); any other value, a model
-## name or none, leaves the tier asked (none is normal); and the effort high or hard lifts a normal tier to heavy,
+## name or none, leaves the tier asked (none is normal); and the effort high lifts a normal tier to heavy,
 ## which is the main model with effort high, as the harness has it. A light tier has no effort to lift.
 AgentsToolsPresetTier(){ ## model or macro (may be empty), effort (may be empty), tier asked (may be empty)
 	local tierOut
@@ -372,12 +426,25 @@ AgentsToolsPresetTier(){ ## model or macro (may be empty), effort (may be empty)
 }
 
 ## The preset a spawn is given, `<preset>[:<effort>]`, and nothing where no tier setting applies. The tier asked is
-## SPAWN_HARNESS_TIER of the team (none is normal); the setting is the member's of that tier, else the team's, else
-## the member's of the default tier, else the team's. No member (empty) asks the team's alone.
-AgentsToolsPresetChosen(){ ## member (may be empty)
-	local chosenRoot chosenSuffix chosenOne chosenValue
+## the second argument (light, normal or heavy) or, with none, SPAWN_HARNESS_TIER of the team (none is normal); the
+## setting is the member's of that tier, else the team's, else the member's of the default tier, else the team's. No
+## member (empty) asks the team's alone.
+AgentsToolsPresetChosen(){ ## member (may be empty), tier asked (may be empty)
+	local chosenLine
+	chosenLine="$( AgentsToolsPresetChosenLine "$@" )" || return 1
+	printf '%s' "${chosenLine%%$'\t'*}"
+}
+
+## The same choice, and how it was made, tab-separated: `set`, `inherits the team's`, `uses its normal tier`,
+## `uses the team's normal tier`, `uses the normal tier, used for all tiers`, or `nothing is set` with no value.
+## ONE implementation of the fallback: the console reads this answer (--manager-preset-tiers) rather than making
+## its own, so a tier shown in effect is the tier a spawn gets.
+AgentsToolsPresetChosenLine(){ ## member (may be empty), tier asked (may be empty)
+	local chosenRoot chosenTier chosenSuffix chosenOne chosenValue chosenHow="nothing is set" chosenOwner="${1:-}"
 	chosenRoot="$( AgentsToolsPresetPayRoot )" || return 1
-	case "$( AgentsToolsPresetRead "$chosenRoot" magic-team SPAWN_HARNESS_TIER )" in
+	chosenTier="${2:-}"
+	[ -n "$chosenTier" ] || chosenTier="$( AgentsToolsPresetRead "$chosenRoot" magic-team SPAWN_HARNESS_TIER )"
+	case "$chosenTier" in
 		light) chosenSuffix="LOW" ;;
 		heavy) chosenSuffix="HIGH" ;;
 		*) chosenSuffix="NORMAL" ;;
@@ -386,14 +453,66 @@ AgentsToolsPresetChosen(){ ## member (may be empty)
 		case "${chosenOne%%:*}" in
 			member)
 				[ -n "${1:-}" ] || continue
-				AgentsToolsAssertBareName "$1" "the member" preset 2> /dev/null || continue
-				chosenValue="$( AgentsToolsPresetRead "${MMDAPP%/}" "$1" "SPAWN_TIER_${chosenOne#*:}" )"
+				if [ "$1" = "magic-team" ] ; then
+					chosenValue="$( AgentsToolsPresetRead "$chosenRoot" magic-team "SPAWN_TIER_${chosenOne#*:}" )"
+				else
+					AgentsToolsAssertBareName "$1" "the member" preset 2> /dev/null || continue
+					chosenValue="$( AgentsToolsPresetRead "${MMDAPP%/}" "$1" "SPAWN_TIER_${chosenOne#*:}" )"
+				fi
 			;;
 			*) chosenValue="$( AgentsToolsPresetRead "$chosenRoot" magic-team "SPAWN_TIER_${chosenOne#*:}" )" ;;
 		esac
-		[ -z "$chosenValue" ] || { printf '%s' "$chosenValue" ; return 0 ; }
+		[ -z "$chosenValue" ] || {
+			case "$chosenOne" in
+				member:*)
+					if [ "${chosenOne#*:}" = "$chosenSuffix" ] ; then chosenHow="set"
+					elif [ "$chosenOwner" = "magic-team" ] ; then chosenHow="uses the normal tier, used for all tiers"
+					else chosenHow="uses its normal tier" ; fi
+				;;
+				team:*)
+					if [ "${chosenOne#*:}" = "$chosenSuffix" ] ; then
+						[ -n "$chosenOwner" ] && [ "$chosenOwner" != "magic-team" ] && chosenHow="inherits the team's" || chosenHow="set"
+					elif [ "$chosenOwner" = "magic-team" ] ; then chosenHow="uses the normal tier, used for all tiers"
+					elif [ -n "$chosenOwner" ] ; then chosenHow="uses the team's normal tier"
+					else chosenHow="uses the normal tier, used for all tiers" ; fi
+				;;
+			esac
+			printf '%s\t%s\n' "$chosenValue" "$chosenHow"
+			return 0
+		}
 	done
+	printf '\t%s\n' "$chosenHow"
 	return 0
+}
+
+## The CLI service a spawn runs on, resolved from the preset its tier names -- the one chosen for the spawn
+## (MDAT_SPAWN_PRESET), else the team's choice for a read with no spawn behind it. Prints the service. rc 1, with one
+## message naming SPAWN_TIER_NORMAL, where no tier is set; rc 2, said, where the preset or its CLI service cannot be read.
+AgentsToolsPresetSpawnCli(){ ## (nothing)
+	local spawnCliSpec spawnCliRoot spawnCliName spawnCliService
+	spawnCliSpec="${MDAT_SPAWN_PRESET:-}"
+	case "$spawnCliSpec" in
+		-*) printf '%s\n' "${spawnCliSpec#-}" ; return 0 ;;
+	esac
+	spawnCliRoot="$( AgentsToolsPresetPayRoot )" || return 2
+	if [ -z "$spawnCliSpec" ] ; then
+		spawnCliSpec="$( AgentsToolsPresetChosen "" )" || return 2
+		if [ -z "$spawnCliSpec" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: no tier is set in ${spawnCliRoot}, so no spawn settings name a CLI service: a spawn runs on the preset its tier names -- set SPAWN_TIER_NORMAL in the magic-team scope there to a preset (--manager-preset-new makes one), or let --owner-setup-claude --apply (or --owner-setup-copilot) set it; nothing was started" >&2
+			return 1
+		fi
+	fi
+	spawnCliName="${spawnCliSpec%%:*}"
+	if ! AgentsToolsPresetNameCheck "$spawnCliName" || [ ! -f "$spawnCliRoot/.local/.agents/preset-$spawnCliName.agent.env" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: a tier setting names preset $spawnCliName, which is no block preset-<name> of ${spawnCliRoot} -- nothing was started" >&2
+		return 2
+	fi
+	spawnCliService="$( AgentsToolsPresetEffective "$spawnCliRoot" "$spawnCliName" PRESET_CLI_SERVICE )" || return 2
+	if [ -z "$spawnCliService" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: preset $spawnCliName has no CLI service, its own or an inherited one -- set PRESET_CLI_SERVICE in it, or PRESET_EXTEND to a preset that has one; nothing was started" >&2
+		return 2
+	fi
+	printf '%s\n' "$spawnCliService"
 }
 
 ## The value of a credential of a CLI service from the first preset block of a workspace, in the order of their names, that has
@@ -459,7 +578,6 @@ AgentsToolsPresetOverlay(){ ## spawn setting key
 	ovRoot="$( AgentsToolsPresetPayRoot )" || return 2
 	ovSpec="${MDAT_SPAWN_PRESET:-}"
 	if [ -z "$ovSpec" ] ; then
-		LC_ALL=C grep -q -e '^SPAWN_TIER_' "$ovRoot/.local/.agents/magic-team.agent.env" 2> /dev/null || return 1
 		ovSpec="$( AgentsToolsPresetChosen "" )" || return 2
 		[ -n "$ovSpec" ] || return 1
 	fi
@@ -476,13 +594,18 @@ AgentsToolsPresetOverlay(){ ## spawn setting key
 	fi
 	case "$1" in
 		SPAWN_CLI_SERVICE) printf '%s\n' "$ovCli" ;;
-		SPAWN_HARNESS_TIER|HARNESS_MODEL_LIGHT|HARNESS_MODEL_MAIN)
+		SPAWN_HARNESS_TIER|HARNESS_MODEL_LIGHT|HARNESS_MODEL_MAIN|HARNESS_EFFORT)
 			[ -n "$ovEffort" ] || ovEffort="$( AgentsToolsPresetEffective "$ovRoot" "$ovName" PRESET_EFFORT 2> /dev/null )"
 			ovMacro="$( AgentsToolsPresetEffective "$ovRoot" "$ovName" PRESET_MODEL_OR_MACRO 2> /dev/null )"
 			ovAsked="$( AgentsToolsPresetRead "$ovRoot" magic-team SPAWN_HARNESS_TIER )"
 			ovTier="$( AgentsToolsPresetTier "$ovMacro" "$ovEffort" "$ovAsked" )"
 			case "$1" in
 				SPAWN_HARNESS_TIER) printf '%s\n' "$ovTier" ;;
+				## The effort the preset asks, in the list's words; nothing for unset, which sends none (an older name is read as its list word).
+				HARNESS_EFFORT)
+					case "$ovEffort" in default) ovEffort="normal" ;; hard) ovEffort="high" ;; esac
+					case "$ovEffort" in none|low|normal|high) printf '%s\n' "$ovEffort" ;; esac
+				;;
 				*)
 					AgentsToolsPresetIsOneOf "$ovMacro" "$agentsPresetMacros" && return 0
 					case "$1:$ovTier" in
@@ -500,6 +623,13 @@ AgentsToolsPresetOverlay(){ ## spawn setting key
 		HARNESS_INPUT_CACHE_TIME)
 			## The lifetime the cache markers of the run ask for, the preset's own or the one it inherits: nothing printed is the provider's.
 			ovValue="$( AgentsToolsPresetEffective "$ovRoot" "$ovName" PRESET_INPUT_CACHE_TIME 2> /dev/null )" || ovValue=""
+			[ -z "$ovValue" ] || printf '%s\n' "$ovValue"
+		;;
+		PRESET_CONTEXT_MAX_SIZE)
+			## The restart threshold the preset names, its own or the one it inherits: the console exports it
+			## to the harness, whose own reader takes it ahead of the tier's window (AgentsUniversalHarness.sh).
+			## Nothing printed leaves the harness to budget from its service's window less its output maximum.
+			ovValue="$( AgentsToolsPresetEffective "$ovRoot" "$ovName" PRESET_CONTEXT_MAX_SIZE 2> /dev/null )" || ovValue=""
 			[ -z "$ovValue" ] || printf '%s\n' "$ovValue"
 		;;
 		*)

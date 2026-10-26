@@ -20,16 +20,22 @@
 ##
 ## A session is the rows that carry one session-id; a row with none (an empty sandbox, a
 ## record with no header) is a session of its own under its tracking name. Nothing here
-## measures: live and state are the row's own, as the render derives them. A row that is
+## measures: live and state are the row's own, as the render derives them, and the state of a
+## session is nothing but those states, added up (the END block). A row that is
 ## not eighteen words, a sandbox folder named with a space, cannot be read and is left out;
 ## one of sixteen is a row of a caller that counts no state of a session, and reads `-` there.
 ## The state its control thread stored for a session stands at the end of its row beside the
 ## state derived here, each as it is: where the two differ, neither is changed.
-## THE TOKENS OF A SESSION are the last field of its row, one number: the four figures of each
-## of its runs, in, cache read, cache write and out, all added. A run whose figures are not
-## known is left out, and the number then ends with `+`: it is not the whole. `-` where no run
-## of the session has known figures. One small file of a run's store is read for it, where the
-## run has one; a spawn id that two records carry is one run.
+## THE TOKENS OF A SESSION are the last field but one of its row, one number: the four figures
+## of each of its runs, in, cache read, cache write and out, all added. A run whose figures
+## are not known is left out, and the number then ends with `+`: it is not the whole. `-` where
+## no run of the session has known figures. One small file of a run's store is read for it,
+## where the run has one; a spawn id that two records carry is one run.
+## THE USAGE-LIMIT FLAG of a session, the last field of its row, is the one wording the run's
+## own store keeps when the provider refused it for its API usage limit -- that it stopped on
+## the provider usage limit and the date it reopens (usageLimitOfRun, one more small file of a
+## run's store), `-` where no run of the session was refused. The last of its refused runs
+## wins, since a later refusal is the one that still holds.
 ##
 ## Every line goes out behind five sort keys and a TAB each, for
 ## `sort -t <TAB> -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n` and a cut of them: the session's
@@ -39,13 +45,30 @@
 ##
 
 ## Whether --active keeps a session of that state: one that is not finished, and with which
-## something can still be done from this host. `running`. `waiting`, no live process and an
-## ask of it still open: the ask can be answered or dismissed. `unclosed`, no live process
+## something can still be done from this host. `running`. `waiting`: no live process and a run
+## of it waiting on an answer, which can be answered or dismissed, or every live run of it in a
+## Wait, which is what it is doing. `unclosed`, no live process
 ## and a record still open: the record can be closed, the run started again. Not `finished`;
 ## and not `unknown-foreign`, which is another host's: nothing can be done with it from here. `starting`, a run the main
 ## loop is still starting (its start marker has no result yet), whose process is not seen yet.
 function activeState(stateWord) {
 	return ( stateWord == "running" || stateWord == "starting" || stateWord == "waiting" || stateWord == "unclosed" ) ;
+}
+
+## The usage-limit flag of one run, from its store: the first line of
+## sessions/<spawn id>/usage-limit, the one wording the close keeps there when the provider
+## refused the run because its API usage limit was reached -- that it stopped on the
+## provider usage limit, and the date the provider said it reopens
+## (AgentsTools.UsageLimit.include). One small file a run is opened for it, where the run has
+## one; empty where it has none. A run with no bare id opens nothing.
+function usageLimitOfRun(agentsDir, spawnId,    limitPath, limitText) {
+	limitText = "" ;
+	if (spawnId != "" && spawnId != "-" && spawnId != "." && spawnId != ".." && index(spawnId, "/") == 0) {
+		limitPath = agentsDir "/sessions/" spawnId "/usage-limit" ;
+		if (( getline limitText < limitPath ) < 1) limitText = "" ;
+		close(limitPath) ;
+	}
+	return limitText ;
 }
 
 BEGIN {
@@ -59,11 +82,12 @@ BEGIN {
 	}
 }
 
-## The pending-replies registry: key source session-id owner status blocked-on channel. An
-## ask is open by its status, a board item by standing here at all, as the render reads them.
+## The pending-replies registry: key source session-id owner status blocked-on channel. Read
+## for the counter of open asks, and for the asking id of each of them: that id is the session
+## itself or the run that asked, so an ask still open is a row's own fact wherever the row
+## stands, and the state of the session below counts it.
 FILENAME == ARGV[1] {
-	if ($2 == "ask" && $5 == "reply-pending") { openOf[$3] = 1 ; pendingAnswers++ ; }
-	else if ($2 == "board-item") { openOf[$3] = 1 ; }
+	if ($2 == "ask" && $5 == "reply-pending") { pendingAnswers++ ; openAsker[$3] = 1 ; }
 	next ;
 }
 
@@ -89,20 +113,29 @@ NF != 16 && NF != 18 { next ; }
 	runActivity[runTotal] = "-" ;
 	if ($12 == "running") {
 		sessionLive[sessionKey] = 1 ;
-		if (index(waitingSet, " " $8 " ") > 0) { runActivity[runTotal] = "waiting" ; agentsWaiting++ ; }
+		sessionLiveCount[sessionKey]++ ;
+		if (index(waitingSet, " " $8 " ") > 0) { runActivity[runTotal] = "waiting" ; agentsWaiting++ ; sessionLiveWaiting[sessionKey]++ ; }
 		else { runActivity[runTotal] = "working" ; agentsWorking++ ; }
 	}
-	## An ask of the session: one that names the session, or the run that asked it by its own id.
-	if ((sessionKey in openOf) || ($8 != "-" && ($8 in openOf)) || $13 == "waiting") sessionAsks[sessionKey] = 1 ;
 	if ($13 == "unknown-foreign") sessionForeign[sessionKey] = 1 ;
 	if ($13 == "unclosed" || $13 == "waiting") sessionOpen[sessionKey] = 1 ;
 	if ($13 == "starting") sessionStarting[sessionKey] = 1 ;
+	## AN ASK STILL WAITING IS THE SESSION'S OWN, whether its run still stands or not: it is counted by
+	## the asking id its row carries, the session's own id or the id of one of its runs.
+	if (($2 != "-" && ($2 in openAsker)) || ($8 != "-" && ($8 in openAsker))) sessionAsked[sessionKey] = 1 ;
 	sessionRuns[sessionKey]++ ;
 	## The tokens of the run, added to those of its session; a run with no known figures is counted apart.
 	if (agentsDir != "" && !( ( sessionKey, $8 ) in tokenTaken )) {
 		if ($8 != "-") tokenTaken[sessionKey, $8] = 1 ;
 		if (tokensOfRun(agentsDir, $8, tokenWords)) { sessionTokens[sessionKey] += tokenWords[1] + tokenWords[2] + tokenWords[3] + tokenWords[4] ; sessionTokenRuns[sessionKey]++ ; }
 		else sessionTokenUnknown[sessionKey]++ ;
+	}
+	## A run stopped on the provider's usage limit flags its session, with the date it reopens:
+	## the last of its runs that says so wins, since a later refusal is the one that still holds.
+	if (agentsDir != "" && !( ( sessionKey, $8 ) in limitTaken )) {
+		if ($8 != "-") limitTaken[sessionKey, $8] = 1 ;
+		limitText = usageLimitOfRun(agentsDir, $8) ;
+		if (limitText != "" && ( !( sessionKey in sessionUsageLimit ) || limitText > sessionUsageLimit[sessionKey] )) sessionUsageLimit[sessionKey] = limitText ;
 	}
 	sessionStates[sessionKey, $13]++ ;
 	if (sessionName[sessionKey] == "-") sessionName[sessionKey] = $16 ;
@@ -118,26 +151,41 @@ NF != 16 && NF != 18 { next ; }
 END {
 	for (sessionAt = 1 ; sessionAt <= sessionTotal ; sessionAt++) {
 		sessionKey = sessionOf[sessionAt] ;
-		if (sessionKey in sessionLive) sessionState[sessionKey] = "running" ;
+		## THE STATE OF THE SESSION IS THE STATE OF ITS AGENTS AND OF ITS QUESTIONS. Live runs make
+		## it running, or waiting where every one of them sits in a Wait. With none live, it is the
+		## state its runs themselves read: waiting where a run of it waits on an answer (its own
+		## measured `waiting`), then the states of their records -- of another host's, still open --
+		## and else finished. AND AN ASK THAT STILL WAITS IS WAITED ON: a question asked by the
+		## session or by one of its runs holds it waiting, whether that run still stands or not, so a
+		## session reads finished only once no question of it is open. Nothing is hidden here: a run
+		## settles its own asks when its record closes (AgentsToolsSpawnProxyWithdrawAsks, the one
+		## withdraw an asker has), so a session whose runs have ended has none left behind.
+		if (sessionKey in sessionLive) {
+			sessionState[sessionKey] = ( sessionLiveWaiting[sessionKey] == sessionLiveCount[sessionKey] ) ? "waiting" : "running" ;
+		}
 		else if (sessionKey in sessionStarting) sessionState[sessionKey] = "starting" ;
-		else if (sessionKey in sessionAsks) sessionState[sessionKey] = "waiting" ;
+		else if ((sessionKey, "waiting") in sessionStates || (sessionKey in sessionAsked)) sessionState[sessionKey] = "waiting" ;
 		else if (sessionKey in sessionForeign) sessionState[sessionKey] = "unknown-foreign" ;
 		else if (sessionKey in sessionOpen) sessionState[sessionKey] = "unclosed" ;
 		else sessionState[sessionKey] = "finished" ;
 		if (sessionState[sessionKey] == "running") sessionsRunning++ ;
 		if (activeOnly && !activeState(sessionState[sessionKey])) continue ;
+		if (learnOnly && sessionState[sessionKey] != "finished") continue ;
 		stateTally = "" ;
 		for (stateAt = 1 ; stateAt <= stateTotal ; stateAt++) {
 			if ((sessionKey, stateOrder[stateAt]) in sessionStates) stateTally = stateTally ( stateTally == "" ? "" : "," ) stateOrder[stateAt] "=" sessionStates[sessionKey, stateOrder[stateAt]] ;
 		}
 		## The date of a state is on record for a finished session alone: when its last run closed.
-		## Then, at the end of the row, what its control thread stored and whether that thread lives.
+		## Then, at the end of the row, what its control thread stored and whether that thread lives;
+		## its tokens; and, last, the usage-limit flag of its runs, `-` where none was refused.
 		print sessionStart[sessionKey], sessionAt, 0, 0, 0, "session", sessionKey, sessionName[sessionKey], sessionState[sessionKey], ( sessionStart[sessionKey] < 0 ? "-" : sessionStartText[sessionKey] ), ( sessionState[sessionKey] == "finished" && sessionEnd[sessionKey] >= 0 ? sessionEndText[sessionKey] : "-" ), sessionRuns[sessionKey], stateTally, sessionStored[sessionKey], sessionStoredAt[sessionKey], ( ( sessionKey in sessionById ) && ( sessionKey in controlOf ) ? controlOf[sessionKey] : "none" ), \
-			( ( sessionKey in sessionTokenRuns ) ? tokensFigure(sessionTokens[sessionKey]) ( ( sessionKey in sessionTokenUnknown ) ? "+" : "" ) : "-" ) ;
+			( ( sessionKey in sessionTokenRuns ) ? tokensFigure(sessionTokens[sessionKey]) ( ( sessionKey in sessionTokenUnknown ) ? "+" : "" ) : "-" ), \
+			( ( sessionKey in sessionUsageLimit ) ? sessionUsageLimit[sessionKey] : "-" ) ;
 	}
 	for (runAt = 1 ; runAt <= runTotal ; runAt++) {
 		sessionKey = runSession[runAt] ;
 		if (activeOnly && !activeState(sessionState[sessionKey])) continue ;
+		if (learnOnly && sessionState[sessionKey] != "finished") continue ;
 		## A run with no date stands after the dated ones of its session.
 		print sessionStart[sessionKey], sessionPlace[sessionKey], 1, ( runMinutes[runAt] < 0 ? 99999999999 : runMinutes[runAt] ), runAt, "run", sessionKey, runRow[runAt], runActivity[runAt] ;
 	}

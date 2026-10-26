@@ -38,7 +38,7 @@ The body of `# Maintainer Notes` in `magic-team.armed.md`. Read it when that fil
 - `reference/board-model.md` — board states and transitions.
 - `magic-team.conversations.md`, `magic-team.negotiations.md` — exchange mechanics.
 - `contracts/magic-team.authority.<type>.contract.md` — decision authority per member family.
-- `templates/` — contract and document formats.
+- `contracts/<kind>.contract.format.md` — the contract of each skillset file kind and team-data type. The document formats are the tooling's `myx.distro-agents/sh-lib/templates/`.
 
 ### Conventions
 

@@ -121,7 +121,7 @@ rigAssert "no progress frame is sent"                         "$( rigFrames obj 
 rigAssert "and the safe bound holds"                          "$( rigBoundOf obj )" safe
 
 echo "-- the client goes away mid-wait: the next frame fails, and the call is ended --"
-## The wire is closed after three lines (initialize, list_changed, the first frame). With a
+## The wire is closed after two lines (initialize, the first frame; no list_changed is ever sent). With a
 ## progress bound of 30s, a call that outlived its client would hold the server that long.
 rigGoneStart="$( date +%s )"
 {
@@ -132,7 +132,7 @@ rigGoneStart="$( date +%s )"
 	cd "$rigTmp/ws" && HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
 		MDAT_MCP_WAIT_BOUND_PROGRESS=30 MDAT_MCP_PROGRESS_SECONDS=1 MDAT_WAIT_POLL_SECONDS=1 \
 		bash "$rigTool" --intern-mcp-server --run 2> "$rigTmp/gone.err"
-) | head -n 3 > "$rigTmp/gone.wire"
+) | head -n 2 > "$rigTmp/gone.wire"
 rigGoneElapsed=$(( $( date +%s ) - rigGoneStart ))
 rigAssert "the first frame did reach the client"              "$( LC_ALL=C grep -c '"progressToken":"rig-gone"' "$rigTmp/gone.wire" | tr -d ' ' )" 1
 rigAssert "the call ended well before its 30s bound"          "$( [ "$rigGoneElapsed" -lt 15 ] && printf yes || printf "no-${rigGoneElapsed}s" )" yes

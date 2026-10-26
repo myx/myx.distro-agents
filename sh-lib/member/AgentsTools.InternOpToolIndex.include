@@ -12,8 +12,8 @@
 ## WHO MAY USE WHAT is read, never written here: for the three families a caller check is asked for (the coordinator's own operations,
 ## named in the table of the tool files, AgentsContext.FrontTable.include; --client- and --manager-, DistroAgentsTools.fn.sh), that
 ## check itself, asked for each member and for a call from no member's session; for the tools,
-## the grants index's tool rows, which carry the floor (AgentsToolsGrantsBuiltinText) and what
-## the projects declare in project.inf. A family no check is asked for, and a tool no row
+## the grants index's tool rows, which carry what the projects declare in project.inf, the
+## `--magic-team:` floor directives included. A family no check is asked for, and a tool no row
 ## names, is everyone's, gated per call.
 ##
 ## The same inputs give the same bytes: no date or time, members and files in byte order,

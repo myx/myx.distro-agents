@@ -10,13 +10,17 @@
 ## in their places. The filter is the list's own: the read that fills the level of one
 ## session is made without it, so that session stays in what is read whatever its state.
 def readWords(entry, state, values, filtered=True):
-    words = list(entry["operation"])
+    words = list(values.get("_operation") or entry["operation"])
     if state.activeOnly and filtered:
         words.extend(entry.get("active", ()))
     if rawShown(state):
         words.extend(entry.get("log", ()))
+    ## the words a feature's own switch adds: the name of its function in this namespace, asked of the state
+    if entry.get("extra"):
+        words.extend(globals()[entry["extra"]](state))
     return [word.replace("{id}", values.get("id", "")).replace("{level}", values.get("level", "")).replace("{parent}", values.get("parent", ""))
             .replace("{session}", values.get("session", "")).replace("{member}", values.get("member", "")).replace("{run}", values.get("run", ""))
+            .replace("{routine}", values.get("routine", ""))
             for word in words]
 
 
@@ -70,6 +74,7 @@ def shownReads(state):
         entry = viewReadOf(state, row, part)
         if entry and (part != "feed" or modeOf(state)["feed"]):
             values["id"] = row["id"]
+            values["routine"] = (row.get("routine") or {}).get("selector", "")
             wanted.append((part, part + ":" + viewKeyOf(state), readWords(entry, state, values)))
     return wanted
 
@@ -181,7 +186,7 @@ def dialogReads(state):
     for name in DIALOGS[state.dialog["name"]].get("reads", ()):
         key = dialogReadKey(name.replace("{kind}", target.get("kind", "")))
         if READS.get(key):
-            reads.append((key, {"id": target.get("id", ""), "level": target.get("level", "")} if "{kind}" in name else {}))
+            reads.append((key, {"id": target.get("id", ""), "level": target.get("level", ""), "_operation": target.get("read")} if "{kind}" in name else {}))
     return reads
 
 
@@ -398,6 +403,7 @@ def applyResult(state, result):
         if result["text"].strip().isdigit():
             state.counters[key[len("count:"):]] = result["text"].strip()
     else:
+        state.answered[key] = True
         row, entry = shownRead(state, key[:4])
         if entry.get("rows") == "session-read":
             state.view["info"] = parseSessionRead(result["text"])
@@ -409,12 +415,21 @@ def applyResult(state, result):
             state.view["info"] = parseMemberRead(result["text"])
         elif entry.get("rows") == "place-read":
             state.view["info"] = parsePlaceRead(result["text"])
+        elif entry.get("rows") == "routine-frontmatter":
+            state.view["front"] = parseRoutineFrontmatter(result["text"])
+        elif entry.get("rows") == "routine-history":
+            state.view["info"] = parseRoutineHistory(result["text"])
+        elif entry.get("rows") == "subsystem-read":
+            state.view["info"] = parseSubsystemRead(result["text"])
         elif entry.get("rows") == "transcript":
             state.view["feed"] = parseTranscriptRead(result["text"])
             buildFeed(state, row)
         else:
-            ## a text shown as it is, or rendered where it is Markdown: set out by followSelection
+            ## a text shown as it is, or rendered where it is Markdown: set out here at once, so a
+            ## checklist that has just answered is its lines and not an empty pane -- followSelection
+            ## sets it out too, whenever the selection moves.
             state.view["text"] = result["text"]
+            viewText(state, row)
 
 
 ## The one part of the screen that calls the tooling. An operation of the dispatcher runs

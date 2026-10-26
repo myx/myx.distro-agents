@@ -51,6 +51,8 @@ Not a member/routine contract — these are the fixed texts of the short lines t
   - learning-inquiry
 - Testing
   - tests-wanted
+- Inbox
+  - inquiry-reply
 - Librarian
   - update-request
   - update-reply
@@ -138,6 +140,12 @@ What the tooling says in a session's thread about the session itself, and what i
 
 ```
 💀 The run[[ `{{run}}`]] of {{member}} died: its process is gone, and nothing closed its record.[[ {{unrequested}}]]
+```
+
+## run-usage-limited
+
+```
+⏳ The run[[ `{{run}}`]] of {{member}} {{usage_limit}}.[[ {{unrequested}}]]
 ```
 
 ## death-resumed
@@ -338,6 +346,23 @@ Why: {{why}}
 The next batch takes the request, and its outcome is read with `--retest-result {{request}}`. What the queue cannot tell, such as a test that does not exist yet or one that needs a rig, is for you to take up with {{member}}.
 ```
 
+# Inbox
+
+What the tooling files into a requester's inbox when an inquiry it posted with `--reply` is marked processed by the member it was posted to.
+
+## inquiry-reply
+
+```
+---
+type: note
+from: {{owner}}
+owner: {{requester}}
+---
+# Note: your inquiry {{request}} is processed
+
+Your inquiry to {{owner}} ({{request}}) is processed.
+```
+
 # Librarian
 
 What the tooling files of a member's request to the librarian, in the librarian's inbox.
@@ -438,6 +463,12 @@ the session was killed from the console by {{by}}
 the run that asked it was killed from the console by {{by}}
 ```
 
+## asker-ended
+
+```
+the run that asked it ended, so no answer is needed any more
+```
+
 # Tasks
 
 What a member is told when the console joins it into a session (F11.6): the task it is given, and the line its joining says in the session's thread.
@@ -519,6 +550,7 @@ is stuck: a run of it is still open, and no process carries it
 - rule: `## chain-broken` under `# Schedule` is posted once to the event-alert channel by `--routine-due` (DistroAgentsDispatcher.fn.sh) when the last day a routine was to run has passed with the routine it follows, `{{predecessor}}`, not completed on it and the routine itself, `{{routine}}`, not run on it: `{{day}}`, that day as `YYYY-MM-DD`. The routine does not run, and the broken chain is put in front of a person: it neither runs late nor skips in silence. It is recorded per routine and day, so it is posted once.
 - rule: `## learning-inquiry` under `# Schedule` is the whole inquiry the main loop files into `magic-librarian`'s inbox (`--upsert-inbox-inquiry`) for a session that ended while learning was on: `{{session}}`, the session's id, and `{{members}}`, the members that took part. It is filed once for a session, and for none whose only member is `magic-librarian`.
 - rule: `## tests-wanted` under `# Testing` is the whole inquiry `--request-tests` (AgentTestingTools.fn.sh) files into `magic-tester`'s inbox (`--upsert-inbox-inquiry`) once the request is in the retest queue: `{{member}}`, the member that asks; `{{request}}`, the id the queue gave it; `{{priority}}`, `wait` or `no-wait`; `{{what}}`, the project, the tests and the changed files it asks for, in words; and `{{why}}`, the reason the member gave. It is filed once for a request.
+- rule: `## inquiry-reply` under `# Inbox` is the whole note the inbox operation files into the requester's inbox when an inquiry it posted with `--reply` is marked processed (`--mark-inbox-processed`, `--librarian-inbox-to-processed`), once: `{{owner}}`, the member whose inbox held it and who marked it processed; `{{requester}}`, the `from` of the inquiry; and `{{request}}`, the inquiry's name. A librarian update request is not told by it (`--queue-done` files its own note). An inquiry posted without `--reply` is told to nobody.
 - rule: `## update-request` under `# Librarian` is the whole head of the inquiry `--request-update` (AgentLibrarianTools.fn.sh) files into `magic-librarian`'s inbox (`--upsert-inbox-inquiry`): `{{member}}`, the member that asks; `{{kind}}`, `document`, `knowledge` or `skill`; `{{target}}`, the path or the topic, or `<team-member>:<pathname>` of a skill file; `{{form}}`, `message`, `text` or `edit`; `{{why}}`, the reason the member gave; and, left out with their lines where they have no value, `{{target-date}}` and `{{target-checksum}}`, which the tooling records of the target file and the requester never gives, and `{{reply}}`, `yes` where the requester asked for the outcome. What the member wrote of what is asked is added under it, as it was written. The `update-kind` of its frontmatter makes it a request of the queue (`--queue-list`, `--queue-take`, `--queue-done`).
 - rule: `## update-reply` under `# Librarian` is the whole note `--queue-done` files into the requester's inbox for a request made with `--reply`, once: `{{requester}}`, the member that asked; `{{request}}`, the request's name; `{{kind}}` and `{{target}}`, as the request had them; `{{outcome}}`, `applied`, `refused` or `closed`; and `{{result}}`, the librarian's result on one line. A request made without `--reply` is told to nobody.
 - rule: `## contacted-known`, `## contacted-unknown` and `## reaching` under `# Contacts` are what `--contacted-by` and `--reach-contact` (DistroAgentsContacts.fn.sh) print after the record: `{{id}}`, the contact; `{{access}}`, what the permission model says it holds standing, or that it holds nothing; `{{value}}`, what was searched; `{{name}}`, `{{organisation}}` and `{{how}}`, what the record says (each left out with its sentence where the record has none); `{{slack}}` and `{{email}}`, its coordinates by channel, a line left out where it has none.

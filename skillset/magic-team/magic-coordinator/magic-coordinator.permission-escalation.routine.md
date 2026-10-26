@@ -108,7 +108,7 @@ Used to check this file's own definitions against its own goals when it is updat
 ### Reference
 
 - `magic-team.work-duty.routine` — the coordinator's duty runs this routine at the permission asks of its scan.
-- `magic-team/templates/escalation.document.format.md` — the `permission` kind and its verdicts.
+- `myx.distro-agents/sh-lib/templates/request-permission.post.format.md` — the `permission` kind and its verdicts.
 
 ### Conventions
 

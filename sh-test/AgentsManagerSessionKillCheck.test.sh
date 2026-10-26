@@ -29,6 +29,7 @@
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
+export RIG_HOLD="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-hold.py"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigFixture="$rigPackage/sh-test/check-fixtures/slack-send-identity-check.curl.stub.sh"
@@ -84,7 +85,8 @@ export PATH
 [ "$( command -v ps )" = "$rigTmp/bin/ps" ] && [ "$( command -v id )" = "$rigTmp/bin/id" ] && [ "$( command -v curl )" = "$rigTmp/bin/curl" ] \
 	|| rigRefuse "the rig's own ps, id and curl are not first on PATH, so this check would read the host's process list or issue a real request"
 [ "$( id -un )" = "rig" ] || rigRefuse "the rig's own id does not answer as the user rig"
-printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSPAWN_TIER_NORMAL=rig-cli\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'PRESET_CLI_SERVICE=rig-cli\n' > "$rigWs/.local/.agents/preset-rig-cli.agent.env"
 for rigMember in rig-member-a magic-coordinator ; do
 	mkdir -p "$rigSkills/$rigMember"
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/$rigMember/$rigMember.basic.md"
@@ -319,7 +321,7 @@ rigAssert "a process of this host that runs as the id of such a run is not signa
 
 echo "-- 7. a run that ignores TERM is ended by KILL, after the polite time --"
 rm -f "$rigTmp/hard.ready"
-perl -e '$SIG{TERM} = "IGNORE" ; open( my $rigReady, ">", $ARGV[0] ) ; close( $rigReady ) ; sleep 300' "$rigTmp/hard.ready" > /dev/null 2>&1 < /dev/null &
+python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-hold.py" ignore-term-ready "$rigTmp/hard.ready" 300 > /dev/null 2>&1 < /dev/null &
 printf '%s\n' "$!" > "$rigTmp/pids/run-hard" ; rigKeep "$!" ; disown "$!" 2> /dev/null || :
 rigWaitFor 20 test -e "$rigTmp/hard.ready" || rigRefuse "the stand-in that ignores TERM did not start"
 rigList "$( rigPid run-hard )" "claude --verbose --session-id run-hard --agent rig-member the brief"
@@ -335,7 +337,7 @@ rigAssert "the hard kill came only after the polite time, two seconds" "$( [ "$r
 echo "-- 8. a run that neither signal ends is said not to be ended, and the call ends 1 --"
 ## A process that is gone and not yet collected by the one that started it: no signal changes it, and it is
 ## still there for as long as that one sleeps. It is this rig's own, as its starter is.
-perl -e 'my $rigChild = fork() ; if ( $rigChild == 0 ) { exit 0 } open( my $rigSaid, ">", $ARGV[0] ) ; print $rigSaid "$rigChild\n" ; close( $rigSaid ) ; sleep 300' "$rigTmp/pids/run-stuck.tmp" > /dev/null 2>&1 < /dev/null &
+python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-hold.py" zombie-child "$rigTmp/pids/run-stuck.tmp" 300 > /dev/null 2>&1 < /dev/null &
 rigKeep "$!" ; disown "$!" 2> /dev/null || :
 rigWaitFor 20 test -s "$rigTmp/pids/run-stuck.tmp" || rigRefuse "the stand-in that no signal ends did not start"
 sleep 1
@@ -386,7 +388,7 @@ cat > "$rigTmp/bin/rig-cli-tree" <<'RIGTREE'
 #!/usr/bin/env bash
 sleep 300 > /dev/null 2>&1 < /dev/null &
 echo "$!" > "$1/server"
-bash -c 'perl -e '\''$SIG{TERM} = "IGNORE" ; open( my $rigSaid, ">", $ARGV[0] ) ; print $rigSaid "$$\n" ; close( $rigSaid ) ; sleep 300'\'' "$1" ; :' rig-tool "$1/hung" > /dev/null 2>&1 < /dev/null &
+bash -c 'python3 -I -B "$RIG_HOLD" ignore-term-pid "$1" 300 ; :' rig-tool "$1/hung" > /dev/null 2>&1 < /dev/null &
 echo "$!" > "$1/tool"
 bash -c 'sleep 300 > /dev/null 2>&1 < /dev/null & echo "$!" > "$1" ; wait' rig-supervisor "$1/brought" > /dev/null 2>&1 < /dev/null &
 echo "$!" > "$1/supervisor"
@@ -415,7 +417,7 @@ echo "-- 9c. what a stop left of a run is kept in the run's store, and a kill en
 ## A stand-in run whose tool command ignores TERM, stopped by the harness tool TaskStop without force: the run's
 ## own process ends, the command stays, and stands under no process of the run any more.
 rm -f "$rigTmp/left.tool"
-bash -c 'perl -e '"'"'$SIG{TERM} = "IGNORE" ; open( my $rigSaid, ">", $ARGV[0] ) ; print $rigSaid "$$\n" ; close( $rigSaid ) ; sleep 300'"'"' "$1" > /dev/null 2>&1 < /dev/null & wait' rig-left "$rigTmp/left.tool" > /dev/null 2>&1 < /dev/null &
+bash -c 'python3 -I -B "$RIG_HOLD" ignore-term-pid "$1" 300 > /dev/null 2>&1 < /dev/null & wait' rig-left "$rigTmp/left.tool" > /dev/null 2>&1 < /dev/null &
 printf '%s\n' "$!" > "$rigTmp/pids/left-run" ; rigKeep "$!" ; disown "$!" 2> /dev/null || :
 rigWaitFor 20 test -s "$rigTmp/left.tool" || rigRefuse "the stand-in run with a tool command that ignores TERM did not start"
 cp "$rigTmp/left.tool" "$rigTmp/pids/left-tool" ; rigKeep "$( rigPid left-tool )"
@@ -630,8 +632,14 @@ rigQuestion(){ ## the id that asked, a run's own or a session's -> rigPend, the 
 rigTroublesButPost(){
 	LC_ALL=C grep -E -- 'ERROR|WARNING' "$rigTmp/err" | LC_ALL=C grep -v -F -- 'SystemContext.SetInputSpec' | LC_ALL=C grep -c -v -F -- 'was not edited: its text could not be filled again from its record' || :
 }
-rigAsked(){ ## pending id, header -- its value in the record of that question
-	rigHeader "$rigAgents/pending/$1.md" "$2"
+rigAsked(){ ## pending id, header -- its value in the record of that question, open or closed
+	## RETENTION (T9): a withdrawn record moves to pending/closed/, so both places are read -- the
+	## same correction the glob readers took, and the reason this answered nothing after a kill.
+	if [ -f "$rigAgents/pending/$1.md" ] ; then
+		rigHeader "$rigAgents/pending/$1.md" "$2"
+	else
+		rigHeader "$rigAgents/pending/closed/$1.md" "$2"
+	fi
 }
 rigStateOf(){ ## session id, further words of the list -- the state its row of the list of sessions reads, `not-listed` where it has none
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" \
@@ -643,15 +651,18 @@ rigRowsOf(){ ## row kind -- the rows of that kind in the last stdout, TAB writte
 rigPosted(){ ## text -- how many bodies posted so far hold it
 	LC_ALL=C grep -c -F -- "$1" "$rigTmp/bodies" 2> /dev/null || :
 }
-## A WAITING SESSION, ITS ONE AGENT FINISHED: two questions of it still wait.
-rigRec fin-wait fin-wait fin-wait "$rigHost" magic-coordinator spawn-succeeded 40 "resolved-at: 2026-10-13 09:45 +0300"
+## A SESSION NOBODY IS LEFT TO CLOSE, WITH TWO QUESTIONS OF IT STILL WAITING: its record is open and no process
+## is behind it, its run's death already told, so the questions are the session's own and none is left behind by
+## a run that has ended.
+mkdir -p "$rigSp/fin-wait"
+printf -- '---\nsession-id: fin-wait\nspawn-id: fin-wait\ntracking-name: fin-wait\nhost: %s\nworkspace: rigws\nowner: magic-coordinator\nstatus: spawn-started\nstarted-at: 2026-10-13 09:40 +0300\nreports-to: %s\ndeath-told: 2026-10-13 09:41 +0300\n---\n\n# Spawn session: fin-wait\n' "$rigHost" "$rigConsoleUser" > "$rigSp/fin-wait/fin-wait.spawn.md"
 rigQuestion fin-wait ; rigAskOne="$rigPend"
 rigQuestion fin-wait ; rigAskTwo="$rigPend"
-rigAssert "control: a session whose one agent has finished and that has two questions waiting reads waiting, and is among the active ones" "$( rigStateOf fin-wait ) $( rigStateOf fin-wait --active ) $( rigAsked "$rigAskOne" status ) $( rigAsked "$rigAskTwo" status )" "waiting waiting reply-pending reply-pending"
+rigAssert "control: a session whose one record is open and nothing runs behind it reads waiting on the two questions of it, and is among the active ones" "$( rigStateOf fin-wait ) $( rigStateOf fin-wait --active ) $( rigAsked "$rigAskOne" status ) $( rigAsked "$rigAskTwo" status )" "waiting waiting reply-pending reply-pending"
 rigRun "$rigOp" --session-id fin-wait
-rigAssert "the kill of a session with nothing alive is no refusal: status 0, its run told as it stands, each question dismissed, and a last row that sums it: nothing ended, two dismissed, nothing closed, finished" \
+rigAssert "the kill of a session with nothing alive is no refusal: status 0, its run told as it stands, each question dismissed, its record closed, and a last row that sums it: nothing ended, two dismissed, one closed, finished" \
 	"$rigRc $( rigTroublesButPost ) $( rigRowsOf kill ) | $( LC_ALL=C awk -F'\t' '$1 == "dismiss" { gsub( /\t/, " " ) ; print }' "$rigTmp/out" | LC_ALL=C sed -e "s/$rigAskOne/ASK-ONE/" -e "s/$rigAskTwo/ASK-TWO/" | LC_ALL=C sort | LC_ALL=C tr '\n' '/' ) | $( rigRowsOf close ) | $( rigRowsOf finish )" \
-	"0 0 kill fin-wait fin-wait magic-coordinator no-process spawn-succeeded - - | dismiss fin-wait ASK-ONE fin-wait dismissed/dismiss fin-wait ASK-TWO fin-wait dismissed/ |  | finish fin-wait 0 2 0 finished"
+	"0 0 kill fin-wait fin-wait magic-coordinator no-process spawn-started - - | dismiss fin-wait ASK-ONE fin-wait dismissed/dismiss fin-wait ASK-TWO fin-wait dismissed/ | close fin-wait fin-wait magic-coordinator closed - | finish fin-wait 0 2 1 finished"
 rigAssert "each question is withdrawn through the one dismissal of the console: by console:rig, with the reason that its session was killed from the console and by whom, and its trace is in its thread" \
 	"$( rigAsked "$rigAskOne" status ) $( rigAsked "$rigAskTwo" status ) $( rigAsked "$rigAskOne" withdrawn-by ) [$( rigAsked "$rigAskTwo" withdraw-reason )] $( rigPosted 'the session was killed from the console by rig' )" \
 	"withdrawn withdrawn console:rig [the session was killed from the console by rig] 2"

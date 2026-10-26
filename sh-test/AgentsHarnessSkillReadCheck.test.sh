@@ -225,7 +225,7 @@ rigConsole(){
 	rigOut="$(
 		unset HARNESS_PROVIDER_NAME HARNESS_SELF_NAME HARNESS_ENDPOINT HARNESS_HOST HARNESS_WIRE \
 			HARNESS_CREDENTIAL_NAMES HARNESS_MODEL_LIGHT HARNESS_MODEL_MAIN HARNESS_TOKEN_MAIN \
-			SCALEWAY_DEEPSEEK SCALEWAY_GEMMA
+			SCALEWAY_API_KEY
 		HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDAT_SKILLSET_ROOT="$rigWsSkills" \
 			bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsConsoleShellScript.template.sh" \
 			--cli scaleway --non-interactive RIG-PROMPT 2>&1 < /dev/null

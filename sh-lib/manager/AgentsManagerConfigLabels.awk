@@ -67,6 +67,10 @@ $1 == "line" {
 	}
 	description = at ? worded( rowDescription[at], $4 ) : "-"
 	belongs = ( at && rowBelongs[at] != "" ) ? rowBelongs[at] : "-"
+	## A KEY OF A SCOPE IS NOT CHANGED FROM THE CONSOLE: the declaration carries the form of its line
+	## (it belongs to the settings, and the Scope Settings changes it), and the LINE itself is one of
+	## the configuration -- read here, changed by the scope's own operations.
+	if ( $2 == "scopes" ) belongs = "configuration"
 	## a line of the configuration that has the fields of a changeable one keeps them, and is not changed here either
 	if ( NF >= 11 ) {
 		reason = ( belongs == "configuration" ) ? deployed : ""

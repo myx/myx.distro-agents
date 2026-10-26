@@ -38,6 +38,9 @@ printf 'rig-line-1\nrig-line-2\nrig-line-3\nrig-line-4\nrig-line-5\n' > "$rigTmp
 printf 'rig-reference\n' > "$rigTmp/owners/rig-keeper/reference/shell.md"
 ln -s "$rigTmp/owners/rig-keeper" "$rigTmp/home/.claude/skills/rig-keeper"
 
+## The cap this reader applies, read from its own source, so the fixture follows a change of it.
+rigCap="$( LC_ALL=C sed -n 's/^agentsReadCapMcp=//p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessReadCap.include" 2> /dev/null )"
+[ -n "$rigCap" ] || rigRefuse "the read cap is not readable from AgentsHarnessReadCap.include"
 export HARNESS_PROVIDER_NAME="skill-range check rig"
 export HARNESS_SELF_NAME="AgentsHarnessSkillRangeCheck.test.sh"
 export HARNESS_ENDPOINT="https://harness-skill-range-check.invalid/v1/chat/completions"
@@ -83,21 +86,22 @@ rigAssert "an offset that is not a line number is refused" \
 	"ERROR: offset must be a whole line number counting from 1, got: 0"
 
 echo "-- a served whole-file read past the cap stays under the MCP client's limit --"
-## 1000 lines of 90 bytes: 90000 bytes, past the served cap and under the model-run one.
-LC_ALL=C awk 'BEGIN { for ( lineIndex = 1 ; lineIndex <= 1000 ; lineIndex++ ) printf "%089d\n", lineIndex ; }' > "$rigTmp/owners/rig-keeper/rig-keeper.big.md"
+## 90-byte lines, enough to pass the cap by 10000 bytes at the cap this tree carries.
+rigLines=$(( (rigCap + 10000) / 90 + 2 ))
+LC_ALL=C awk -v lineCount="$rigLines" 'BEGIN { for ( lineIndex = 1 ; lineIndex <= lineCount ; lineIndex++ ) printf "%089d\n", lineIndex ; }' > "$rigTmp/owners/rig-keeper/rig-keeper.big.md"
 rigBigOut="$( rigSkill '{"name":"rig-keeper","file":"rig-keeper.big.md"}' )"
-rigAssert "it returns at most 48000 bytes" \
-	"$( [ "$( printf '%s' "$rigBigOut" | wc -c | tr -d ' ' )" -le 48200 ] && printf under || printf over )" under
-rigAssert "it names the offset to continue from" \
-	"$( printf '%s\n' "$rigBigOut" | LC_ALL=C sed -n 's/.*; continue with offset \([0123456789]*\) \.\.\./\1/p' )" 534
+rigAssert "it returns at most $rigCap bytes" \
+	"$( [ "$( printf '%s' "$rigBigOut" | wc -c | tr -d ' ' )" -le $(( rigCap + 200 )) ] && printf under || printf over )" under
+rigOff="$( printf '%s\n' "$rigBigOut" | LC_ALL=C sed -n 's/.*; continue with offset \([0123456789]*\) \.\.\./\1/p' )"
+rigAssert "it names the offset to continue from" "$( [ -n "$rigOff" ] && [ "$rigOff" -gt 1 ] && printf yes || printf no )" yes
 rigAssert "that offset reads on from the next line" \
-	"$( rigSkill '{"name":"rig-keeper","file":"rig-keeper.big.md","offset":534,"limit":1}' | head -1 )" \
-	"$( printf '%089d' 534 )"
+	"$( rigSkill '{"name":"rig-keeper","file":"rig-keeper.big.md","offset":'"$rigOff"',"limit":1}' | head -1 )" \
+	"$( printf '%089d' "$rigOff" )"
 ## One line past the cap is named as unreturnable, never offered back as its own next offset.
-LC_ALL=C awk 'BEGIN { printf "short\n%049000d\nafter\n", 0 ; }' > "$rigTmp/owners/rig-keeper/rig-keeper.big.md"
+LC_ALL=C awk -v wide=$(( rigCap + 1000 )) 'BEGIN { printf "short\n%0*d\nafter\n", wide, 0 ; }' > "$rigTmp/owners/rig-keeper/rig-keeper.big.md"
 rigAssert "a line past the cap is named, not offered back" \
 	"$( rigSkill '{"name":"rig-keeper","file":"rig-keeper.big.md","offset":2}' | head -1 )" \
-	"... line 2 alone is over the 48000-byte cap of this reader, so it cannot be returned here ..."
+	"... line 2 alone is over the $rigCap-byte cap of this reader, so it cannot be returned here ..."
 rm -f "$rigTmp/owners/rig-keeper/rig-keeper.big.md"
 
 echo "-- section reads only the named headings --"

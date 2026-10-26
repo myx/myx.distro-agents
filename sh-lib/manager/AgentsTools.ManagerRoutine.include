@@ -23,18 +23,159 @@ type AgentsToolsRoutineRequirement > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.d
 
 ## The rows --manager-routine-list prints: one for each routine file, by owner, then by
 ## selector. Nothing is written by this operation. A value's own whitespace goes out as `_` and an absent one
-## as `-`, in one pass over the rows, so a row is always its twelve fields. The last two, the state of the routine
-## and when it last ran, are the Dispatcher's own rows of the runs (`--routine-stats`, the one reader of its
-## store; F11.11): this operation joins them to the routine by its file name and computes nothing of them.
+## as `-`, in one pass over the rows, so a row is always its seventeen fields. The eleventh and twelfth, the
+## state of the routine and when it last ran, are the Dispatcher's own rows of the runs (`--routine-stats`,
+## the one reader of its store; F11.11): this operation joins them to the routine by its file name and
+## computes nothing of them.
 ## STAGE TWO (F11.11) adds five fields, each asked of the one decider and decided nowhere here: `auto` and the two keys of the autorun
 ## (`runs-at`, `runs-after`) as the schedule reads them (AgentsToolsRoutineKeyOwn); `valid`, the validator of the routine contract
 ## (--intern-doc-validate routine, run as its arm runs it; a row of a report- rule refuses nothing); and `would`, whether a start now would be
 ## accepted: the spawner's own checks (`start`), the evaluator against a fresh spawn (AgentsToolsRoutineRequirement at the `spawn` site), and,
 ## for a routine with an autorun, the Dispatcher's own answer to --routine-due --read-only, asked as a console that only looks.
+## RESOLVED IN THIS SESSION (GS/GR): the list prints what the FRONTMATTER gives, in one pass, and
+## the heavy facts -- valid and would -- are asked for the row an operator selects, not for all 55
+## on every load. `--facts-only` is that list: no contract check, no validator, no roster, no due
+## answer. It still says `start`, `reason` and `needs` from the executors alone, so a console can
+## offer a routine that needs members named without the full list. The full list stays available
+## for the callers that need the contract, the resolver, the validator and the due answer.
+## What the Dispatcher says of the runs of every routine: its own rows (`--routine-stats`, the one reader
+## of its store), and nothing of them held here. Both lists take the state and the last run of a routine
+## from this one read, so the operation knows no row of a run itself.
+AgentsToolsManagerRoutineStats(){
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsDispatcher.fn.sh" --routine-stats 2> /dev/null < /dev/null || :
+}
+
+## A row of either list as its reader takes it: the Dispatcher's own state and last run put in their
+## places, and every field in the one form a row is read in -- its own whitespace as `_`, an absent
+## value as `-` -- so the fast list and the full list print the same seventeen fields, in the same
+## places, and a reader keeps its positions. stdin: the fifteen fields a row the list makes; `$1`: the
+## rows of the runs the Dispatcher printed (--routine-stats, the one reader of its store).
+AgentsToolsManagerRoutineRowPrint(){ ## the Dispatcher's rows of the runs; stdin: the list's fifteen fields a row
+	MDAT_ROUTINE_STATS="${1:-}" LC_ALL=C awk -F'\t' 'BEGIN {
+			OFS = "\t" ;
+			statCount = split( ENVIRON["MDAT_ROUTINE_STATS"], statLines, "\n" ) ;
+			for ( statAt = 1 ; statAt <= statCount ; statAt++ ) {
+				split( statLines[statAt], statWords, "\t" ) ;
+				if ( statWords[1] == "routine" && statWords[2] != "" ) { runningNow[statWords[2]] = statWords[6] + 0 ; lastRun[statWords[2]] = statWords[7] ; lastHow[statWords[2]] = statWords[8] ; ran[statWords[2]] = 1 ; }
+			}
+		} {
+			for ( fieldAt = 1 ; fieldAt <= 15 ; fieldAt++ ) {
+				gsub( /^[ \t]+|[ \t]+$/, "", $fieldAt ) ; gsub( /[ \t]+/, "_", $fieldAt ) ;
+				if ( $fieldAt == "" ) $fieldAt = "-" ;
+			}
+			state = "never" ; when = "-" ;
+			if ( $2 in ran ) {
+				when = lastRun[$2] ; gsub( /[ \t]+/, "_", when ) ; if ( when == "" ) when = "-" ;
+				state = ( runningNow[$2] > 0 ) ? "running" : lastHow[$2] ; sub( /^spawn-/, "", state ) ; if ( state == "" ) state = "never" ;
+			}
+			print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, state, when, $11, $12, $13, $14, $15 ;
+		}'
+}
+
+## THE FAST LIST (R2, settled): what the FRONTMATTER gives, read once for every routine file, with
+## none of the heavy facts. The verdicts -- valid, would -- are asked for the ROW AN OPERATOR
+## SELECTS, by the full operation, and those columns are not in the tables. `start`, `reason` and
+## `needs` come from the executors alone, which is what a console needs to offer a routine that asks
+## for members; a file whose contract is broken reads startable here and is refused at the start,
+## with the spawner's own reason. Prints the same seventeen fields, in the same places, as the full
+## list -- the kind of its session, its state and when it last ran among them -- so every reader
+## keeps its positions.
+AgentsToolsManagerRoutineFactsOnly(){ ## the operation as it was called
+	local factsOp="${1:-}" factsMember factsDir factsFile factsList factsRows factsStats
+	local factsFactsDir="$MMDAPP/.local/agents/stats"
+	mkdir -p "$factsFactsDir" 2> /dev/null
+	factsList="$factsFactsDir/routine-files.fast"
+	{
+		while IFS=$'\t' read -r factsMember factsDir ; do
+			[ -n "$factsDir" ] || continue
+			for factsFile in "$factsDir"/*.routine.md ; do
+				[ -f "$factsFile" ] || continue
+				printf '%s\t%s\n' "$factsMember" "$factsFile"
+			done
+		done <<< "$( AgentsToolsTeamMemberDirectoryText )"
+	} > "$factsList"
+	factsRows="$( LC_ALL=C awk -F'\t' '
+		function head( file, key,   line, held, inHead ) {
+			held = "" ; inHead = 0
+			while ( ( getline line < file ) > 0 ) {
+				if ( inHead == 0 ) { if ( line == "---" ) { inHead = 1 } ; continue }
+				if ( line == "---" ) { break }
+				if ( index( line, key ": " ) == 1 ) { held = substr( line, length( key ) + 3 ) ; break }
+			}
+			close( file )
+			return held
+		}
+		function titleOf( file,   line, inFront ) {
+			inFront = 0
+			while ( ( getline line < file ) > 0 ) {
+				if ( inFront == 0 ) {
+					if ( line == "---" ) { inFront = 1 ; continue }
+					if ( index( line, "# " ) == 1 ) { close( file ) ; return line == "# Summary" ? "" : substr( line, 3 ) }
+					continue
+				}
+				if ( line == "---" ) { inFront = 2 ; continue }
+				if ( inFront == 2 && index( line, "# " ) == 1 ) { close( file ) ; return line == "# Summary" ? "" : substr( line, 3 ) }
+			}
+			close( file )
+			return ""
+		}
+		{
+			name = $2 ; sub( /^.*\//, "", name )
+			execs = head( $2, "executors" ) ; gsub( /^[ \t]+|[ \t]+$/, "", execs )
+			kind = head( $2, "requires-session-kind" ) ; gsub( /^[ \t]+|[ \t]+$/, "", kind )
+			if ( kind == "coworking" ) { session = "coworking" } else { session = "" }
+			auto = head( $2, "runs-at" )
+			after = head( $2, "runs-after" )
+			if ( auto == "" || auto == "none" ) { autoField = "no" } else { autoField = "yes" }
+			## The start and what it needs, from the executors alone: the session spawner remains the
+			## decider at the start itself, so a file whose contract is broken reads startable here
+			## and is refused there with its own reason. The full list, which asks the contract, the
+			## resolver and the roster, is what a row an operator selects can ask for.
+			start = "startable" ; reason = "" ; needs = "-"
+			if ( execs == "" ) {
+				start = "broken" ; reason = "its executors is not in a frontmatter block"
+			} else if ( execs == "magic-team" || execs == "*" || execs == "all-present-members" ) {
+				start = "not-startable" ; needs = "members"
+				reason = "its executors, " execs ", is any member: the session spawner starts it only with members named"
+			} else {
+				## A <type>-* or <type>-? entry asks for members; so does a list that holds one.
+				entryCount = split( execs, entry, /,[ \t]*/ )
+				for ( entryAt = 1 ; entryAt <= entryCount ; entryAt++ ) {
+					if ( entry[entryAt] ~ /^[A-Za-z0-9_.-]+-[*?]$/ ) {
+						start = "not-startable" ; needs = "members"
+						reason = "its executors asks which members: the session spawner starts it only with members named"
+						break
+					}
+				}
+			}
+			printf "routine\t%s\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\t%s\t%s\t%s\t-\t-\n", name, $1, start, execs, session, titleOf( $2 ), reason, needs, autoField, auto, after
+		}' "$factsList" )"
+	## The state and the last run are the Dispatcher's own rows of the runs, joined to the routine by its
+	## file name as the full list joins them: one read of its store, and nothing computed here.
+	factsStats="$( AgentsToolsManagerRoutineStats )"
+	printf '%s' "$factsRows" | AgentsToolsManagerRoutineRowPrint "$factsStats"
+	return 0
+}
+
+## The line that stands between a routine's own text and the verdicts that follow it, so the
+## console keeps the text as the file has it and reads the verdicts beside it.
+MDAT_ROUTINE_VERDICT_MARK="# --- verdicts of the routine ---"
+
 AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 	local rowsOp="$1" rowsMember rowsDir rowsFile rowsName rowsTab=$'\t' rowsLine rowsText=""
-	local rowsStart rowsReason rowsExecutors rowsSession rowsTitle rowsContract rowsWhy rowsExecutor rowsNeeds rowsStats=""
+	local rowsStart rowsReason rowsExecutors rowsSession rowsTitle rowsContract rowsWhy rowsExecutor rowsNeeds rowsClash rowsStats=""
 	local rowsAuto rowsRunsAt rowsRunsAfter rowsValid rowsWould rowsFault rowsVerdict rowsDue
+	## EVERY ROUTINE FILE OF THE MACHINE, read once: the resolver only answers "which files hold
+	## this name", which is a filter of this list -- asking it per row cost 40 ms a row.
+	local rowsFiles="" rowsMemberDir="" rowsOneFile
+	while IFS=$'\t' read -r rowsMember rowsMemberDir ; do
+		[ -n "$rowsMemberDir" ] || continue
+		for rowsOneFile in "$rowsMemberDir"/*.routine.md ; do
+			[ -f "$rowsOneFile" ] || continue
+			rowsFiles="$rowsFiles$rowsOneFile
+"
+		done
+	done <<< "$( AgentsToolsTeamMemberDirectoryText 2> /dev/null )"
 	while IFS=$'\t' read -r rowsMember rowsDir ; do
 		[ -n "$rowsDir" ] || continue
 		for rowsFile in "$rowsDir"/*.routine.md ; do
@@ -59,9 +200,24 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 				rowsExecutors="${rowsContract%%$'\n'*}"
 				rowsExecutors="${rowsExecutors#executors: }"
 				! AgentsToolsSpawnRoutineIsCoworking "$rowsFile" || rowsSession="coworking"
-				if [ "$( AgentsToolsSpawnRoutineResolve "$rowsName" 2> /dev/null )" != "$rowsFile" ] ; then
+				## Selected by its own file name and no member, as a console start does: the spawner's
+				## own resolver decides, so a file whose name is part of another routine file's name
+				## reads not-startable with the spawner's refusal, and the longer name reads startable.
+				rowsClash="" rowsMatched=0
+				while IFS= read -r rowsOneFile ; do
+					[ -n "$rowsOneFile" ] || continue
+					case "${rowsOneFile##*/}" in
+						*"$rowsName"*) rowsMatched=$(( rowsMatched + 1 )) ; rowsClash="$rowsOneFile" ;;
+					esac
+				done <<< "$rowsFiles"
+				[ "$rowsMatched" -le 1 ] || rowsClash="matches more than one routine file"
+				if [ "$rowsMatched" != "1" ] || [ "$rowsClash" != "$rowsFile" ] ; then
 					rowsStart="not-startable"
-					rowsReason="more than one routine file answers to its name, so the session spawner cannot select it"
+					case "$rowsClash" in
+						*"matches more than one routine file"*)
+							rowsReason="more than one routine file answers to its name, so the session spawner cannot select it" ;;
+						*) rowsReason="the session spawner cannot select it by its own file name" ;;
+					esac
 				elif ! rowsWhy="$( AgentsToolsSpawnRoutineExecutorsRoster "$rowsExecutors" )" ; then
 					rowsStart="not-startable"
 					case "$rowsWhy" in
@@ -73,6 +229,9 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 							rowsNeeds="members"
 						;;
 						empty-name) rowsReason="its executors holds an empty name" ;;
+						none-of-type*) rowsReason="its executors names the type ${rowsWhy#*"$rowsTab"}, and no member of it is on this machine: name the members instead" ;;
+						choice-required*) rowsReason="its executors asks which ${rowsWhy#*"$rowsTab"} member, so the session spawner starts it only with members named" ; rowsNeeds="members" ;;
+						all-present-members) rowsReason="its executors is all-present-members, which only invitees take: name the members" ;;
 						*) rowsReason="its executor ${rowsWhy#*"$rowsTab"} is no member of any workspace of this machine" ;;
 					esac
 				else
@@ -137,27 +296,8 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 		return 0
 	fi
 	## What the Dispatcher says of the runs of each routine: nothing where it has no store or no run (every routine then reads `never`).
-	rowsStats="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsDispatcher.fn.sh" --routine-stats 2> /dev/null < /dev/null )" || rowsStats=""
-	printf '%s' "$rowsText" \
-		| MDAT_ROUTINE_STATS="$rowsStats" LC_ALL=C awk -F'\t' 'BEGIN {
-			OFS = "\t" ;
-			statCount = split( ENVIRON["MDAT_ROUTINE_STATS"], statLines, "\n" ) ;
-			for ( statAt = 1 ; statAt <= statCount ; statAt++ ) {
-				split( statLines[statAt], statWords, "\t" ) ;
-				if ( statWords[1] == "routine" && statWords[2] != "" ) { runningNow[statWords[2]] = statWords[6] + 0 ; lastRun[statWords[2]] = statWords[7] ; lastHow[statWords[2]] = statWords[8] ; ran[statWords[2]] = 1 ; }
-			}
-		} {
-			for ( fieldAt = 1 ; fieldAt <= 15 ; fieldAt++ ) {
-				gsub( /^[ \t]+|[ \t]+$/, "", $fieldAt ) ; gsub( /[ \t]+/, "_", $fieldAt ) ;
-				if ( $fieldAt == "" ) $fieldAt = "-" ;
-			}
-			state = "never" ; when = "-" ;
-			if ( $2 in ran ) {
-				when = lastRun[$2] ; gsub( /[ \t]+/, "_", when ) ; if ( when == "" ) when = "-" ;
-				state = ( runningNow[$2] > 0 ) ? "running" : lastHow[$2] ; sub( /^spawn-/, "", state ) ; if ( state == "" ) state = "never" ;
-			}
-			print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, state, when, $11, $12, $13, $14, $15 ;
-		}' \
+	rowsStats="$( AgentsToolsManagerRoutineStats )"
+	printf '%s' "$rowsText" | AgentsToolsManagerRoutineRowPrint "$rowsStats" \
 		| LC_ALL=C sort -t "$rowsTab" -k3,3 -k2,2
 }
 
@@ -165,14 +305,102 @@ case "$1" in
 
 	## Every routine file of every member's folder, one TAB-separated row each, with whether
 	## the session spawner would start it by itself. Its form is the help entry's.
-	--manager-routine-list)
-		local listOp="$1"
+	## THE VERDICTS OF ONE ROUTINE, asked for the routine an operator has selected (R15): what the
+	## validator says of its file, and what the spawner would say of a start now. The list itself
+	## carries neither, because asking them for every routine is what made it slow.
+	--manager-routine-verdict)
+		local verdictOp="$1" verdictPath=""
 		shift
+		[ $# -gt 0 ] || { echo "⛔ ERROR: $MDSC_CMD $verdictOp: syntax is <routine file>" >&2 ; set +e ; return 1 ; }
+		verdictPath="$1"
+		## a selector or a path, as the spawner resolves it: the console knows the routine by its
+		## selector, and the file is what the rules read.
+		if [ ! -f "$verdictPath" ] ; then
+			verdictPath="$( AgentsToolsSpawnRoutineResolve "$verdictPath" 2> /dev/null )" || verdictPath=""
+		fi
+		[ -n "$verdictPath" ] && [ -f "$verdictPath" ] || { echo "⛔ ERROR: $MDSC_CMD $verdictOp: no such routine: $1" >&2 ; set +e ; return 1 ; }
+		local verdictFault verdictContract verdictStart
+		verdictFault="$( set -- --intern-doc-validate routine "$verdictPath" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include" 2> /dev/null | LC_ALL=C grep -v -e '^[^ ]*:[0-9]*: report-' | LC_ALL=C sed -n '1s/^[^ ]*:[0-9]*: [^ ]*: //p' )" || verdictFault=""
+		if verdictContract="$( AgentsToolsSpawnRoutineContractCheck "$verdictPath" 2>&1 )" ; then
+			verdictStart="startable"
+		else
+			verdictStart="broken"
+		fi
+		printf 'valid\t%s\n' "$( [ -z "$verdictFault" ] && printf 'yes' || printf 'no: %s' "$verdictFault" )"
+		printf 'start\t%s\n' "$verdictStart"
+		printf 'reason\t%s\n' "$( [ -z "$verdictFault" ] && printf -- '-' || printf '%s' "${verdictFault}" )"
+		return 0
+	;;
+
+	--manager-routine-list)
+		local listOp="$1" listFast=""
+		shift
+		if [ $# -gt 0 ] && [ "$1" = "--facts-only" ] ; then listFast="yes" ; shift ; fi
 		if [ $# -gt 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is no argument, got: $1" >&2
 			set +e ; return 1
 		fi
+		if [ -n "$listFast" ] ; then
+			AgentsToolsManagerRoutineFactsOnly "$listOp" || { set +e ; return 1 ; }
+			return 0
+		fi
 		AgentsToolsManagerRoutineRows "$listOp" || { set +e ; return 1 ; }
+		return 0
+	;;
+
+	## The routine's own file, whole: its frontmatter (the contract its rows list by), its title line and its body, as the file holds them,
+	## nothing mixed in and nothing computed. The selector is resolved as the session spawner resolves a --routine selector
+	## (AgentsToolsSpawnRoutineResolve), so it is the one file --spawn-session given the same name would start.
+	--manager-routine-text)
+		local textOp="$1" textSelector textFile textVerdicts="no" textFault textContract
+		shift
+		if [ $# -ge 1 ] && [ "$1" = "--with-verdict" ] ; then textVerdicts="yes" ; shift ; fi
+		if [ $# -ne 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $textOp: syntax is [--with-verdict] <routine-selector>" >&2
+			set +e ; return 1
+		fi
+		textSelector="$1"
+		textFile="$( AgentsToolsSpawnRoutineResolve "$textSelector" )" || { set +e ; return 1 ; }
+		cat "$textFile"
+		## R15: the verdicts come WITH the routine the operator selected, in one read, after a
+		## marker the console splits off -- the file's own text stays the file's own text.
+		if [ "$textVerdicts" = "yes" ] ; then
+			textFault="$( set -- --intern-doc-validate routine "$textFile" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.InternDocValidate.include" 2> /dev/null | LC_ALL=C grep -v -e '^[^ ]*:[0-9]*: report-' | LC_ALL=C sed -n '1s/^[^ ]*:[0-9]*: [^ ]*: //p' )" || textFault=""
+			if textContract="$( AgentsToolsSpawnRoutineContractCheck "$textFile" 2>&1 )" ; then textContract="startable" ; else textContract="broken" ; fi
+			printf '\n%s\n' "$MDAT_ROUTINE_VERDICT_MARK"
+			printf 'valid\t%s\n' "$( [ -z "$textFault" ] && printf 'yes' || printf 'no: %s' "$textFault" )"
+			printf 'start\t%s\n' "$textContract"
+			printf 'reason\t%s\n' "$( [ -z "$textFault" ] && printf -- '-' || printf '%s' "$textFault" )"
+		fi
+		return 0
+	;;
+
+	## The frontmatter block of one routine, for the console to show as facts: each line of the
+	## `---` block as `fm<TAB>key<TAB>value`, in its order. Nothing is computed here.
+	--manager-routine-frontmatter)
+		local fmOp="$1" fmSelector fmFile
+		shift
+		if [ $# -ne 1 ] || [ -z "$1" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $fmOp: syntax is <routine selector>, got: $*" >&2
+			set +e ; return 1
+		fi
+		fmSelector="${1#*/}"
+		fmFile="$( AgentsToolsSpawnRoutineResolve "$fmSelector" 2> /dev/null )" || {
+			echo "⛔ ERROR: $MDSC_CMD $fmOp: no such routine: $fmSelector" >&2
+			set +e ; return 1
+		}
+		LC_ALL=C awk '
+			NR == 1 && $0 == "---" { fm = 1 ; next }
+			fm && $0 == "---" { exit }
+			fm {
+				at = index( $0, ": " )
+				if ( at == 0 ) next
+				key = substr( $0, 1, at - 1 )
+				value = substr( $0, at + 2 )
+				sub( /[ \t]+$/, "", value )
+				print "fm\t" key "\t" value
+			}
+		' "$fmFile"
 		return 0
 	;;
 

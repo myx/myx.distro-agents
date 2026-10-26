@@ -58,9 +58,9 @@ None.
 All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting.
 
 - This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
-- **Establish a tool's behaviour before choosing it.** Read its help (`--help`, its help pair, the package `README.md`/`MAGIC.md`); never assert semantics from memory, and never let a live run be what tells you what the tool does.
+- **Establish a tool's behaviour before choosing it** (**source-over-memory**). Read its help (`--help`, its help pair, the package `README.md`/`MAGIC.md`); never let a live run be what tells you what the tool does.
 - **Choose the narrowest tool that fits the job.** A tool that must resolve to exactly one target refuses an ambiguous selector instead of acting on all of it. What a selector resolves to is answered by a read-only listing call, never by reasoning.
-- A task about the tools' source content goes to the owning `keeper-*`.
+- The tools' source content belongs to the owning `keeper-*` (**routing-to-owner**).
 - Claude Code's own application state (`~/.claude/`, `~/.claude.json`, Claude-permission generators) is out of scope unless a task names it.
 - **Classify every operation that changes any state, by two questions in order.** Both must answer cleanly for Tier 1; a "no", or an answer needing investigation first, is Tier 2.
   1. **Loss** — name what this destroys or overwrites, and who holds it. Nothing of value to any holder: Tier 1, stop here.
@@ -69,7 +69,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - **What is classified is the payload, not the carrier** — `--execute-command`/`--execute-script`/`--execute-stdin` by what they run. An interactive session (`ShellTo.fn.sh`, `ScreenTo.fn.sh`) is not itself classified; every mutating command inside it is.
 - **Tier 2** fails either question. "Destructive and irreversible actions" below is a floor on top of the test. Genuinely unsure: Tier 2.
 - **Sanctioned means the dispatch names it** — the operation and its target set, or a class plainly containing both. Adjacent, obvious, harmless or prerequisite work is not sanctioned.
-- An unsanctioned mutation, or any Tier 2 operation, is escalated before it runs, per `magic-team/magic-team.armed.md`'s "Escalation and chain of command". Only an approval naming that operation and target set covers it; a broader or older one does not carry over.
+- An unsanctioned mutation, or any Tier 2 operation, is escalated before it runs (**escalate-before-acting**). Only an approval naming that operation and target set covers it; a broader or older one does not carry over.
 
 # Domain knowledge: myx.distro-* CDCI / fleet-execution command patterns, destructive-action classification
 

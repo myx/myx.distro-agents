@@ -4,11 +4,12 @@
 ## and the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh), which prints the rows the rig keeps for each operation.
 ## Held (F11.5, and the rulings of 2026-10-19 on it):
 ##   1. `Magic-Team (Agents)` is a root, after the Dashboard and `Pending Questions`, which stands second after the Dashboard; it holds `Activity`,
-##      `Pending Questions` (the same as in the root), `Team Members`, and `Team Data` where the team data is there; the old roots Sessions, Team Members
-##      and Team Data are gone from the root list
-##   2. `Activity` holds `Launch (Start)`, then `Active Sessions` (the sessions that are not closed), `Closed Sessions`, `Top Tokens` (the sessions whose
-##      tokens are known, the ones that ate most first), `Active Agents`, `Waiting Agents` and `Closed Agents`; the left pane on `Activity` is the table of
-##      the sessions, as the root had it, and each of the lists shows the table of its own rows
+##      `Launchpad`, `Team Members`, and `Team Data` where the team data is there; `Pending Questions` stands at the root alone, not under it; the old
+##      roots Sessions, Team Members and Team Data are gone from the root list
+##   2. `Launchpad` is a section of `Magic-Team` of its own, after `Activity` (20261021-refactorings.sketch.md, `Magic-Team` -> `Reorder`);
+##      `Activity` holds `Active Sessions` (the sessions that are not closed), `Closed Sessions`, `Top Tokens` (the sessions whose tokens are known, the ones
+##      that ate most first), `Active Agents`, `Waiting Agents` and `Closed Agents`; the left pane on `Activity` is the table of the sessions, as the root had
+##      it, and each of the lists shows the table of its own rows
 ##   3. diving into a session lists its participants; a participant shows a Summary, and an agent that sits in a Wait says what it waits on and for how long
 ##   4. a participant is a folder of `CheckList`, `Transcript` and `Permissions`: the same folder under a session of a list of sessions, of a member, and
 ##      in a list of agents
@@ -153,19 +154,22 @@ turn
 rowids team
 cells row1 3 85 119
 cells row2 4 85 119
-cells row3 5 85 119
-at @pending-in-team
+cells gap 5 85 119
+cells row3 6 85 119
+table list:pending --read-pending-reply magic-coordinator --any-owner
+at @pending
 wait list 30
 rowids pend
 RIGSCRIPT
 rigAssert "the roots, in order: the Dashboard, Pending Questions second, Magic-Team (Agents), and none of Sessions, Team Members, Team Data" \
 	"$( rigVal roots )" "dashboard pending magic-team places consoles workspace machine settings configuration manuals"
-rigAssert "Magic-Team (Agents) holds Activity, Pending Questions and Team Members, and Team Data only where the team data is there" \
-	"$( rigVal team )" ".. activity pending team routines"
-rigAssert "each shows by its name" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )]" "[ Activity                        ►][ Pending Questions               ►][ Team Members                    ►]"
-rigAssert "Pending Questions under it reads the questions, as the root does" "$( rigCalled "--read-pending-reply magic-coordinator --any-owner" )" "1"
+rigAssert "Magic-Team (Agents) holds Activity, Launchpad, Team Members and Routines, and Team Data only where the team data is there" \
+	"$( rigVal team )" ".. activity launch team routines"
+rigAssert "each shows by its name, and a spacer stands under Launchpad, setting it apart from the members (sketch 14.5)" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal gap | sed 's/ *$//' )][$( rigVal row3 )]" "[ Activity                        ►][ Launchpad                       ►][][ Team Members                    ►]"
+rigAssert "Pending Questions at the root reads the questions, and Magic-Team holds no copy of it" \
+	"$( rigCalled "--read-pending-reply magic-coordinator --any-owner" ) $( printf '%s\n' "$( rigVal team )" | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -- 'pending' )" "1 0"
 
-echo "-- 2. Activity: Launch (Start), then the lists; its left pane is the table of the sessions --"
+echo "-- 2. Activity: the lists; Launchpad stands above, under Magic-Team; its left pane is the table of the sessions --"
 rigCase activity
 rigScript <<'RIGSCRIPT'
 at @activity
@@ -177,14 +181,12 @@ cells row4 5 85 119
 cells row5 6 85 119
 cells row6 7 85 119
 cells row7 8 85 119
-cells row8 9 85 119
-cells row9 10 85 119
 cells head 2 1 83
 RIGSCRIPT
-rigAssert "Launch (Start) first, then Active Sessions, Closed Sessions, Top Tokens, Active Agents, Waiting Agents, Closed Agents" \
-	"$( rigVal act )" ".. launch active-sessions closed-sessions top-tokens active-agents waiting-agents closed-agents"
-rigAssert "they show by those names" "[$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )][$( rigVal row9 )]" \
-	"[ Launch (Start)                  ►][ Active Sessions                 ►][ Closed Sessions                 ►][ Top Tokens                      ►][ Active Agents                   ►][ Waiting Agents                  ►][ Closed Agents                   ►][]"
+rigAssert "Active Sessions, Closed Sessions, Top Tokens, Active Agents, Waiting Agents, Closed Agents, and no Launchpad of its own" \
+	"$( rigVal act )" ".. active-sessions closed-sessions top-tokens active-agents waiting-agents closed-agents"
+rigAssert "they show by those names" "[$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )]" \
+	"[ Active Sessions                 ►][ Closed Sessions                 ►][ Top Tokens                      ►][ Active Agents                   ►][ Waiting Agents                  ►][ Closed Agents                   ►]"
 rigAssert "the left pane on Activity is the table of the sessions, as the root had it" "[$( rigVal head )]" "[ SESSION                      STATE     AGE AGENTS TOKENS MEMBERS]"
 
 echo "-- 3. the lists of sessions --"

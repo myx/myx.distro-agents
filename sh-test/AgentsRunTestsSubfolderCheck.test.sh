@@ -48,6 +48,7 @@ for rigPart in sh-lib sh-scripts project.inf ; do
 	ln -s "$rigPackage/$rigPart" "$rigCopy/myx/myx.distro-agents/$rigPart" || rigRefuse "the copy could not link $rigPart"
 done
 cp "$rigRunner" "$rigTests/AgentsRunTests.sh" || rigRefuse "the runner could not be copied into the rig"
+mkdir -p "$rigTests/check-fixtures" && cp "$(dirname "$rigRunner")/check-fixtures"/runner-*.py "$rigTests/check-fixtures"/
 rigTiny(){ ## file
 	printf '#!/usr/bin/env bash\nprintf "RAN %%s\\n" "${0##*/}" >> "$RIG_SHARED/log"\necho "RIG_TINY: OK"\n' > "$1"
 }

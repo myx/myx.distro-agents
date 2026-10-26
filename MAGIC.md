@@ -58,7 +58,7 @@ that the code and docs do not readily tell you.
   `--magic-<routine>-*` → `AgentsTools.Magic<Routine>.include`, one explicit arm per op even where
   two arms are identical today. `--manager-*` → `sh-lib/manager/AgentsTools.Manager.include`, one further
   include per subject, `AgentsTools.Manager<Subject>.include`: `Session`, `Routine`, `Spawn`, `Config`,
-  `TeamMember`, `TeamData`, `PendingReply`, `Dashboard`, `Place`, `Console`, `Check`, `Keys`, `Command`,
+  `TeamMember`, `TeamData`, `PendingReply`, `Dashboard`, `Place`, `Console`, `Check`, `Keys`, `Command`, `Feature`,
   `Help`, `Manual`.
 - **One team, two organisations.** A call reaches our own organisation unless it is on the client
   side: a `--client-*` operation, or a `client:` address, of a `client-*` member
@@ -604,11 +604,14 @@ User steps are in [docs/installation.md](docs/installation.md).
   each acting member's own directory, magic-librarian's read of `source/**` and its write of the `.md`
   files of a team-member skill that is a real folder in the HOME skills folder or a link there into
   this workspace's own source tree (not one linked in from another workspace, still asked as today),
-  and the built-in grants of
-  the members this package carries (`AgentsToolsGrantsBuiltinText`, never declared, so no `source/` is
-  needed: magic-architect's WebFetch and WebSearch; magic-tester's read of `source/**/{sh-test,test,tests}/**`
-  and `.local/myx/**` in every tooling workspace and write of `**` in `*-testbed` ones; project.inf names
-  them as inert `--magic-team:` references); then `grants.index`,
+  and the floor directives of the members this package carries, `--magic-team:permissions:workspace:`
+  lines of its project.inf read from the declares index like the `magic-team:` ones (magic-architect's
+  WebFetch and WebSearch; magic-tester's read of `source/**/{sh-test,test,tests}/**` and `.local/myx/**`
+  in every tooling workspace and write of `**` in `*-testbed` ones). The same lines are read off the
+  `project.inf` of each package installed under the workspace's `.local/myx/`, so a rig with no `source/`
+  holds them too. A workspace with neither holds them only through the registry of one that has them;
+  `--make-agents-indices` says so. The `--magic-team:` lines of member `*`
+  are not read: they name the code floor (`agentsPermissionFloorTools`); then `grants.index`,
   every workspace's registry fully unrolled per member, with the floor (`.local/temp/**` write in every
   tooling workspace; where agents are installed, read `source/**/{MAGIC.md,README.md}` and
   `source/**/docs/**.md`, write `source/**/MAGIC.md`; the readable member directories and reference
@@ -616,6 +619,32 @@ User steps are in [docs/installation.md](docs/installation.md).
   (older than any registry it is made from) or missing rebuilds it the sibling way: the generator in a
   tested subshell into `<file>.$$.tmp`, then `mv -f`, the old file kept on a failure, in memory where
   `.local/agents` is not writable. `source/**` is in no floor: other members read it by namespace grants.
+
+### DeepSeek Harness
+
+The integrations step installs this workspace's MCP server into the DeepSeek Harness app and changes
+nothing else in the app: no preset is chosen, there is no default preset, and the app's own profile is
+not edited.
+
+- **`AgentsToolsInstallDshHomePatch`** is a step of `--install-vscode-integrations`; that command runs
+  in `--install-workspace-integrations`'s first part, which `--make-workspace-integrations` runs. It
+  writes one `- insert:` row to the DeepSeek Harness home's `cordis.patch.yml`, the home-level patch
+  DSH applies over every profile, so every chat of the app gets this workspace's tools: id
+  `myx-distro-mcp`, `name: '@deepseek-ai/dsh-mcp-client'`, `serverName: myx-distro`, transport
+  `stdio`, command the workspace's `.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh`,
+  args `--intern-mcp-server --run`, env `MMDAPP` only, `failOnStartupError: false`.
+- **One managed block keeps the write idempotent.** Begin and end marker comments bound the row. An
+  unchanged run leaves the file byte for byte and says it is current; changed values replace the block
+  whole; a markerless row the hand install left with our id is adopted, not duplicated. Other rows,
+  comments and file content are kept. It runs no YAML reader: the row is plain block YAML, values
+  single-quoted; a symlink, a non-regular file, a mapping or a non-empty flow list is refused with its
+  reason and left unchanged, and an empty flow list (`[]`) alone is replaced by the row.
+- **A machine with no DeepSeek Harness home is reported and skipped, never failed** -- the rest of the
+  integrations run completes and no file is created.
+- **Removing it is the row or the file.** Delete the row's managed block from `cordis.patch.yml` to
+  stop the app mounting this workspace's server; delete the file to drop the whole home patch. This is
+  the only thing the package writes into the harness home, and the next integrations run installs it
+  again.
 
 ## 9. Hooks and workspace restrictions
 
@@ -706,10 +735,13 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   It takes nothing after it, and is refused together with `--non-interactive`.
 - **`DistroAgentsTools.fn.sh --manager [--style <name>]`** is what the console's `--manager` runs, and
   has help. It is no `--manager-*` operation: its own arm of the caller check admits every caller. It
-  runs `sh-lib/manager/AgentsManagerScreen.py` with Python. The style is, in this order: `--style`, the environment's `MDAT_MANAGER_STYLE`, the
-  user's saved `MDAT_MANAGER_STYLE` (`<workspace>/.local/home/<user>/MDLT.settings.env`), the screen's
+  runs `sh-lib/manager/AgentsManagerScreen.py` with Python. The style is, in this order: `--style`, the environment's `MDLT_MANAGER_STYLE`, the
+  user's saved `MDLT_MANAGER_STYLE` (`<workspace>/.local/home/<user>/MDLT.settings.env`), the screen's
   default. It ends with status 1 and one plain line where Python, its `curses` module, or a terminal is
   missing; it ends with status 0 on Ctrl-X (or Alt-X). `AgentsManagerStartStyleCheck` is its test.
+  The interface settings are `.local`'s own: their declaration, the style with the mouse and the
+  spacers, stands in its `sh-lib/manager/LocalTools.ManagerInterface.include`, which the digest below
+  expands into its `interface` subject.
 - **`--manager-session-list [--active]`** is the `--manager-*` family's first operation: it lists the
   coworking sessions with their runs, ending with one row of counters. It is the only one of the three
   session operations that rebuilds the `spawned-sessions` and `pending-replies` registries at every
@@ -745,6 +777,28 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   of its own, and does not wait. The prompt comes on stdin or from a file, never as an argument. It
   brings no member itself: the spawn proxy brings it, and asks of it the same check every start asks.
   Its code is `sh-lib/manager/AgentsTools.ManagerSpawn.include`; `AgentsManagerSpawnMemberCheck` is its test.
+  The kinds of start the console's Launchpad offers are options of this one operation, not operations of
+  their own: `--kind coworking` (the default; `--also a,b` joins more members to the session), `standalone`
+  (the standalone routine), `work-duty` (the member's duty routine, refused while that member's duty
+  runs, by the scheduler's own `AgentsToolsScheduleWorkDutyRecord`) and `free` (a prompt and no routine);
+  `--goal <text>` gives the prompt as an option. Every member is asked before the first is started. A start
+  with no member at all is not offered: the spawn proxy starts no agent without one.
+- **`--manager-feature-*`** are the optional features of `mdci-packages-myx` (`setup.feature-*`), as the
+  console's `Optional Features` (in `Installed Subsystems`) and `Local AI` (in `This Machine`) work them,
+  drawn by `myx.distro-.local`'s `LocalManagerScreen.Features.py` (`sh-lib/manager/AgentsTools.ManagerFeature.include`;
+  `AgentsManagerFeatureCheck` is its test, `AgentsLocalAiCheckParse` the test of the `key: value` forms of
+  local AI). `-list` reads each feature's own check fragment (`MDCI_CHECK_PARSE=1` asks local AI for its
+  `key: value` report) and prints a row for each feature and each part, with state, bytes on disk and in
+  memory, running, and the install, update and uninstall commands that apply. `-part` prints a part's plan
+  first (needs, space, memory) and does the work only with `--yes`, by the feature's own fragment, never by
+  work of its own; `-ask`, `-stt-test` and `-preset` use what local AI installed (the preset is made by
+  `--manager-preset-new` and the setting reader). The preset names no endpoint: the `local` CLI service
+  defaults to `http://127.0.0.1:8181/v1`, where local AI serves its chat models (`AgentsLocalHarness.sh`).
+  `PRESET_ENDPOINT_URL` is an https URL, and http only for `127.0.0.1`, `[::1]` and `localhost`
+  (`AgentsTools.Preset.include`).
+- **`--token-stats` and `--manager-stats-tokens` take `--average` and `--share`**: the average of a run, and
+  the share of the `in` tokens of a key in the total and in the largest key, computed by the tooling
+  (`AgentsToolsStatsTokens`, `AgentsTools.DispatcherStats.include`); the console draws and computes none.
 - **No start starts an identity record.** A member whose `SKILL.md` says `status: reference-only` is
   never started, by any start: the spawn proxy refuses it before anything is made
   (`AgentsToolsTeamMemberStartCheck`). `--spawn-session` asks this check of every member before
@@ -841,24 +895,24 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   as data are its styles (`STYLES`), windows (`WINDOWS`), menus (`MENUS`), commands with their keys
   (`COMMANDS`), reads (`READS`), calls (`CALLS`), summaries (`SUMMARIES`) and dialogs (`DIALOGS`); a new root,
   key or dialog is a declaration. Its roots
-  are Dashboard (Monitor), Sessions (Activity), Pending Questions, Team Members, Team Data (where the
-  dashboard says it is there), Locations (Places), Consoles, Settings, Configuration (Config Checker and
-  Server Keys) and Manuals (Help); the number keys follow the list as it stands. The screen starts on
+  are Dashboard (Monitor), Pending Questions, Magic-Team (Agents), Locations (Places), Consoles,
+  Workspace (System) (with This Machine), Settings, Configuration and Manuals (Help); the number keys
+  follow the list as it stands. The screen starts on
   Manuals (Help) (`START_ROOT`), which holds User Manuals (the README.md of each project), Tooling
   Commands (moved from Configuration) and Maintainer Manuals (the MAGIC.md of each), the projects in the
   build order; in the two manual lists the key `a` shows them by name and back in the build order
   (`ALPHABETICAL`; the active filter has no `a` there, `COMMANDS` "except"). Every fact is a row of a
   `--manager-*` read or another operation, every action one.
 - **Spacers** part the groups of rows of a list: one blank line each, which the cursor, the number keys
-  and every count of rows pass by. At the root they part Dashboard to Team Data, Locations and
-  Consoles, Settings and Configuration, and Manuals (`SECTION_GROUPS`). Inside a folder one stands
+  and every count of rows pass by. At the root they part Dashboard and Pending Questions, Magic-Team,
+  Locations, Consoles and Workspace, Settings and Configuration, and Manuals (`SECTION_GROUPS`). Inside a folder one stands
   between its commands and its listed rows, so a folder with only one of the two has none. None
-  stands above the first row shown. `MDLT_CONSOLE_SPACERS=disable` turns them all off, and they are on
+  stands above the first row shown. `MDLT_MANAGER_SPACERS=disable` turns them all off, and they are on
   by default. It is a console setting of `.local`, the user's own, beside `MDLT_CONSOLE_HISTORY`, and
   no agents setting: `--manager` hands the saved one to the screen where the environment names none.
-- **The mouse** is reported to the screen unless `MDLT_CONSOLE_MOUSE=disable` leaves it to the terminal,
+- **The mouse** is reported to the screen unless `MDLT_MANAGER_MOUSE=disable` leaves it to the terminal,
   whose own selection then copies text. It is read as the spacers are: a console setting of `.local`, the
-  user's own, beside `MDLT_CONSOLE_SPACERS` and no agents setting, which `--manager` hands to the screen
+  user's own, beside `MDLT_MANAGER_SPACERS` and no agents setting, which `--manager` hands to the screen
   where the environment names none (`MOUSE_VARIABLE`, `AgentsManagerScreen.Terminal.py`).
 - **Its reads**: a folder is read while its row is selected, after a rest of a third of a second; a read
   may be `once`, on `demand` alone (its command asks for it), read `also` beside another list, and take
@@ -866,9 +920,10 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   opened.
 - **Its actions**, each an operation: `k` kills (`--manager-session-kill`, its plan read first with
   `--plan`, the word `yes` typed), `c` starts a control thread (`--manager-session-control-start`, no
-  confirmation), Launch (Start) starts a routine or a free prompt (`--spawn-session --routine
-  <selector>` or `--routine-default`, the prompt on standard input), `n` starts a member
-  (`--manager-spawn-member`, the prompt on standard input). An action the screen began is not ended with
+  confirmation), `Launchpad` starts work by hand: its four start forms (coworking, standalone, work-duty,
+  free prompt) each call `--manager-spawn-member --kind <kind>`, and Enter on a routine starts it
+  (`--spawn-session --routine <selector>`); `n` starts a member (`--manager-spawn-member`, the prompt on
+  standard input). An action the screen began is not ended with
   the screen. Pending Questions is read by `--read-pending-reply magic-coordinator --any-owner`.
   No pane shows a `keys:` line: the status line shows the keys.
 - **Paging.** In the content pane Space, PgDn, PgUp, Home and End page and jump. In the list, PgUp and
@@ -1204,7 +1259,8 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   of the spawn record. No such session means the console, which passes every check. `--member-*` ops
   whose member is a credential or identity refuse a session naming another member
   (`AgentsToolsActingMemberCheck`). `--magic-*` refuses any session acting as another member
-  (`AgentsToolsMagicCallerCheck`), with no exemption: `--magic-*` is `magic-coordinator`'s alone. `--client-*`
+  (`AgentsToolsMagicCallerCheck`), with no exemption: `--magic-*` is `magic-coordinator`'s alone. Its refusal
+  names that owner and says to ask the session's `magic-coordinator`, as the `--client-*` refusal names its way. `--client-*`
   naming a client runs only for that client in its own session -- nobody else, no exemption for
   `magic-coordinator`, checked once where the operation is dispatched. `--manager-*` is the console's
   own, nobody's member: refused from inside any member's session, the coordinator's included
@@ -1322,7 +1378,9 @@ contracts are here.
   `AgentsSessionControlDeathCheck` is the test. The `--death` call also does what is due about one
   death already told and asked, one thing a call: it reads the thread of its question, every
   `SESSION_CONTROL_ANSWER_READ_SECONDS` (default 60), and carries out the answer once one comes, started
-  with the signals the thread ignores at their defaults. `control/` also holds `post.<run id>.sent`; a
+  with the signals the thread ignores at their defaults: a shell cannot give back a signal it inherited
+  ignored, so the call starts through `python3 sh-lib/session/AgentsSignalReset.py`, which resets them and
+  execs it (`AgentsSignalResetCheck`); with no `python3` it starts as it is. `control/` also holds `post.<run id>.sent`; a
   line of `control/dead` is a history, and gains `answer=<option> answered=<moment>`, and
   `settled=<moment> how=resume|fresh|close|kill|withdrawn`; `asked=` and `answer=` may each stand more
   than once, read as they stand last. An answer that could not be carried out gains
@@ -1360,8 +1418,8 @@ contracts are here.
   the lock. A lock timeout drops or writes that one response; the server never exits on it.
 - **A message with no id is a notification** and is never answered.
 - **The floor is rendered on every `tools/list` and `tools/call`.** `initialize` declares
-  `tools.listChanged`; a call whose floor checksum differs from `floor.sum` sends
-  `notifications/tools/list_changed` first.
+  `tools.listChanged` false, and no `notifications/tools/list_changed` is sent: the list is fixed for the
+  run.
 - **A trailing `wait` drains in-flight handlers** before the scratch root
   (`$MMDAPP/.local/temp/agent-mcp.$$/`) is removed.
 - **`execute`**: `command` starts, `job` addresses an existing job (read first), so `required` is empty.
@@ -1388,16 +1446,59 @@ contracts are here.
   script's output; status is the script's. Never call it from a shell, routine or board item.
 - **A bare apostrophe in trailing argv breaks the outer `eval`** before any op parses it. There is nothing
   to fix inside the Slack includes. Callers send message bodies with `--from-stdin`.
+- **`RootSession`** is this server's own tool, beside `execute` and off the harness floor: the one
+  root-harness session a server instance carries. It serves `operation=mint`, `adopt` and `info`.
+  `mint` returns `SESSION: <id>` and `TOKEN: <token>`; `adopt` takes an id and the token mint
+  printed, and refuses an id without its token or one this workspace does not hold; `info` returns
+  the session the server carries. Every result also carries `USE:` -- where to use the id, named as
+  this server's session -- and never a filesystem path; a refusal is fixed text and never repeats
+  the operation, id or token a caller sent. The id is a bare lowercased UUID, the spawner's own
+  form; the session is registered in the session store every session of this
+  workspace keeps (`AgentsToolsSessionChatDir`), its token kept mode 600 there, so a later process
+  adopts it. The server's scratch root (`root-session`) holds the one it carries, so a second
+  `mint` in the same server returns the same id and token and creates nothing. The mint also records
+  the session's channel kind there, `root-session.kind`, from this workspace's
+  `ROOT_HARNESS_VERBOSITY` (F3.1, section 18); `adopt` reads it and never rewrites it. It writes no
+  transcript pointer, no Slack message, no board item and no team channel. Reached through
+  another server (`MDAT_MCP_SERVED_MARKER`), the WHOLE floor is withheld and only `execute` is
+  served: `RootSession` is absent there, and so are `CheckList`, every harness tool and the
+  secondary tools. Its contract lives in `sh-lib/mcp/AgentsTools.RootSession.include`.
+- **A served call carries the root session the server holds** (F1.2). Each `--intern-mcp-request`
+  reads the server's `root-session` store; where it holds one, the request exports
+  `MDAT_SPAWN_SESSION_ID` with its id -- what `AgentsHarnessSessionKey` reads ahead of the
+  client's `CLAUDE_CODE_SESSION_ID`. So `Wait`, `CheckList`, `Skill`, `execute` and every other
+  served call run as that session's member (`MDAT_SPAWN_AGENT`, else the root session's
+  `magic-coordinator`), with no console, no spawn record and no session thread behind them. An
+  `execute` script inherits `MDAT_SPAWN_SESSION_ID`; with no store the variable is unset there
+  too, nothing else is set, and every served call executes exactly as it did. `MDAT_SESSION_ID`,
+  the coworking session, is never set here.
+- **The served floor is static.** The same tool block is listed from the server's first
+  `tools/list` to its last, for the input cache the host keeps on it: a mint adds no tool and
+  sends no `list_changed`. `CheckList` is our basic tool: it is listed on the served floor,
+  declared in the model path and found by `ToolSearch` in every session; it refuses at execution
+  where the harness knows no member or no place for its list, with a hint naming the way out
+  (`RootSession operation=mint`, or `operation=adopt` for a session that already exists), never
+  a claim that the tool is absent and never the silence of a search that omitted it. The old
+  conditional listing, its `checklist.offered` cache, the model-path filter that dropped
+  `CheckList` from the declarations when no place was known, and the `ToolSearch` decline are
+  removed. `mcpUnservedToolNames` names the two tools only the harness serves, `Bash` and
+  `WorkspaceContextExecute`.
 - **A harness tool joins the served floor by default.** `mcpUnservedToolNames` is the only subtraction.
   A tool that takes a command, or returns a handle only its own process can resolve, belongs there.
-  `Bash` is unserved (callers use `execute`; native `Bash` is rerouted). The harness `Monitor` is
-  unserved because a `tools/call` runs in a fresh process and its job store dies with the call.
-  Unserved means absent from `tools/list`; `tools/call` still names the alternative.
-- **The served `Monitor` is this server's own pull twin**, declared beside `execute`, never in
-  `harnessToolsJson`. It is `execute`'s job store with the watch contract: stdout to `out`, stderr to
-  `err`, whole lines per poll, `timeout_ms` default 300000, cap 1800000, watchdog inside the job's group
-  (TERM, KILL after 5 s). Its deadline reads the pid through `AgentsMcpJobPid`. Pull only. Through
-  another server only `execute` is served.
+  `Bash` is unserved (callers use `execute`; native `Bash` is rerouted).
+  `WorkspaceContextExecute` is unserved beside `Bash` for the same reason: it runs a caller-supplied
+  script, and this server serves its own `execute` as the twin.
+  Unserved means listed, with a description that says where the tool runs, and refused on call, where
+  `tools/call` names the alternative. The harness and the MCP server list the same tools: a tool only one
+  side serves is listed on the other the same way (`AgentsHarnessUnserved.include`).
+- **The secondary tools are one tool per tool file that reaches outside the team's own process-flow.**
+  `agentsFrontSecondary` (`AgentsContext.FrontTable.include`) names the files, and
+  `AgentsMcpSecondaryMirror.sh` renders them from the same front table that routes their operations, so
+  the catalogue stays short: the operation is an argument, `operation`, with the operation's own
+  positional arguments in `args`, and the whole call runs through `DistroAgentsTools <operation> <args…>`
+  under its own watchdog. The board, inbox, dispatcher, questions, grants, session and testing files, and
+  `Knowledge` (whose own entry is a query engine), are never served. Through another server they are
+  withheld with the harness tools.
 - **The containment check reads the served set from the real `tools/list`** and also finds tools whose
   function runs `eval` or `bash -c` on a caller string, so renaming `command` does not evade it. The
   process-local-handle half is not instrumented.
@@ -1426,13 +1527,16 @@ contracts are here.
   OBSERVED, NOT DOCUMENTED") and the Copilot model ids live in their stubs. Grok models and context come
   from xAI's `/v1/models`; Scaleway publishes none, so its stub declares 256000.
 - **Copilot leg**: complete declarations, never exercised against the endpoint; blocked by
-  `COPILOT_GITHUB_TOKEN`. Whether a token exchange is needed is open; one real round decides it. No
-  context budget is set. That Copilot speaks OpenAI chat-completions is documented, not confirmed.
+  `COPILOT_GITHUB_TOKEN`. Whether a token exchange is needed is open; one real round decides it. It
+  declares the service's 128000-token context and 16384-token output ceiling, so the restart threshold
+  is 111616 rather than the core's 400000 fallback. That Copilot speaks OpenAI chat-completions is
+  documented, not confirmed.
 - **Scaleway facts**: OpenAI Chat-Completions with SSE, `tools`, `tool_choice`; no Responses API (so Codex
   CLI cannot target it). Never sent: `frequency_penalty`, `n`, `top_logprobs`, `logit_bias`, `user`. Ids
-  are bare. A key is scoped by Project and policy, not model, so `SCALEWAY_DEEPSEEK`/`SCALEWAY_GEMMA` are
-  preferences with mutual fallback. Tiers: `light` → `gemma-4-26b-a4b-it` (small active MoE), `normal` →
-  `deepseek-v4-flash-0731`, `heavy` → the same with `reasoning_effort:"high"`. Its error body is flat
+  are bare. Scaleway is a hosting provider, not a model: a key is scoped by Project and policy, never by
+  model, so there is one credential, `SCALEWAY_API_KEY`, and the model is the preset's
+  `PRESET_MODEL_OR_MACRO`. The stub names one model of its own, `deepseek-v4-flash-0731`, for both tiers --
+  a default, never a roster -- and `heavy` adds `reasoning_effort:"high"`. Its error body is flat
   `{"status","error","message"}` with no `ok` key, which is why `AgentsHarnessJsonField.awk` drops the
   Slack reader's `ok` gate and adds `<path>.__count` leaves.
 - **xAI facts**: `POST https://api.x.ai/v1/chat/completions`, `XAI_API_KEY`, no exchange. A refusal is
@@ -1447,10 +1551,11 @@ contracts are here.
   makes one closing request with `tool_choice` off (never removing `tools`, which some wires validate and
   which is in the cache prefix), prints the model's account, and exits 3. The closing round itself is
   unprotected.
-- **Context.** At `MDAT_HARNESS_CONTEXT_TOKENS` (default 64000, a policy value; 0 = off), or a stub's
-  per-tier window less `max_tokens`, the model writes its own handover and a fresh leg starts from the
-  original task plus that summary (`AgentsWireInitMessages` from unchanged `$harnessSystemText` and
-  `$harnessPrompt`). The signal is one round's `total_tokens`, not the running sum. An empty summary ends
+- **Context.** The threshold is the preset's `PRESET_CONTEXT_MAX_SIZE` (exported by the console) or the
+  operator's `MDAT_HARNESS_CONTEXT_TOKENS` (0 = off), else a stub's per-tier window less `max_tokens`.
+  At it the model writes its own handover and a fresh leg starts from the original task plus that summary
+  (`AgentsWireInitMessages` from unchanged `$harnessSystemText` and `$harnessPrompt`); a threshold less
+  than half that window is warned of at start, since it restarts the run early. The signal is one round's `total_tokens`, not the running sum. An empty summary ends
   at exit 1. `MDAT_HARNESS_MAX_RESTARTS` bounds restarts; a spent budget closes at exit 3. With no usage
   reported, round 1 warns once. One round can still overshoot. The Messages wire requires `max_tokens`;
   the chat wire omits it where undeclared.
@@ -1479,6 +1584,12 @@ contracts are here.
   `sleep` must redirect `>/dev/null`, or it holds the capture pipe for the whole timeout. Bound only
   where `MDAT_HARNESS_RUN_TIMEOUT` or the call's `timeout` sets one; Darwin has no `timeout` binary, so
   the shell watchdog is the live path.
+- **`WorkspaceContextExecute` tool**: the harness's own analog of the MCP `execute`, a foreground run of
+  one shell script with the myx.distro workspace context established (`Distro`, `Require`, `Action`,
+  `DistroSystemContext` defined, `MMDAPP`/`MDLT_ORIGIN` set). It runs `DistroAgentsTools --intern-mcp-execute`
+  in a fresh process, output to a file and the pid waited on, never `$( )`, and its watchdog ends the process
+  group, as `execute` ends its own. The MCP server serves its own `execute` instead, so this tool is in
+  `mcpUnservedToolNames` beside `Bash`.
 - **Wait bounds**: `MDAT_HARNESS_WAIT_TIMEOUT` caps a harness `Wait` (unset: wait until something
   arrives). A served call returns by `MDAT_MCP_WAIT_BOUND` (1700, under the native 1800 s idle cutoff),
   or `MDAT_MCP_WAIT_BOUND_PROGRESS` (14400) with progress notifications every
@@ -1544,11 +1655,11 @@ contracts are here.
 ## 15. Harness tools
 
 - **The set** (`harnessToolsJson` in `AgentsOpenAiChatWire.sh`): `Read`, `Write`, `Glob`, `Edit`, `Grep`,
-  `Bash`, `WebSearch`, `WebFetch`, `SendMessage`, `ListAgents`, `Wait`, `SubagentHandback`,
+  `Bash`, `WorkspaceContextExecute`, `WebSearch`, `WebFetch`, `SendMessage`, `ListAgents`, `Wait`, `SubagentHandback`,
   `ReportFindings`, `PushNotification`, `Artifact`, `AskQuestion`, `ConfirmReadback`,
   `EscalateDecision`, `RequestPermission`, `ProposeApprove`, `ListMcpResourcesTool`,
   `ReadMcpResourceTool`, `ReadMcpResourceDirTool`, `Skill`, `Agent`, `TaskStop`, `TaskOutput`,
-  `ToolSearch`, `SessionTranscriptAppend`, `CheckList`, `Monitor`, `BatchTools`. 32 tools. Each has four sites: the
+  `ToolSearch`, `SessionTranscriptAppend`, `CheckList`, `BatchTools`, `ThisSession`. 33 tools. Each has four sites: the
   declaration, and in the core the announce arm, the dispatch arm and the function.
 - **The tools literal is one bash single-quoted string.** An English possessive closes it
   (`HARNESS_PARSES` catches this; the site check does not). A missing comma between declarations passes
@@ -1596,7 +1707,9 @@ contracts are here.
   kept as a comment. `revise` there deletes the live proposal reply and posts the changed one under the
   same root -- only magic-coordinator may call it, and only while the root carries no verdict yet.
 - **Identity on a served call**: `MDAT_SPAWN_AGENT`, else `magic-coordinator` for a root session, kept only
-  if that `.basic.md` is readable; otherwise sending tools refuse. A model run without `--agent` refuses
+  if that `.basic.md` is readable; otherwise sending tools refuse. The session it acts in is
+  `MDAT_SPAWN_SESSION_ID`, which a request sets from the server's `root-session` store when it
+  holds one (section 13). A model run without `--agent` refuses
   to send. Text goes on stdin; no credential in argv.
 - **`NEXT:` lines.** A result the model must act on ends with one `NEXT:` line naming the call, added after
   the existing lines, in the core only (`Wait` stateful TIMEOUT/RECEIVED/DISMISSED, `SendMessage`
@@ -1690,8 +1803,8 @@ contracts are here.
   template `sh-lib/templates/tool-index.document.format.md` filled by `AgentsToolIndexFill.awk`. Who may use
   what is read there, never written: for the three families the dispatcher asks a caller check for (`--magic-`,
   `--client-`, `--manager-`), that check itself, asked for each member and for a call from no member's session;
-  for the tools, the tool rows of the grants index, which carry the floor (`AgentsToolsGrantsBuiltinText`) and
-  what the projects declare in `project.inf`. A family no check is asked for, and a tool no row names, is
+  for the tools, the tool rows of the grants index, which carry what the projects declare in `project.inf`,
+  the `--magic-team:` floor directives included. A family no check is asked for, and a tool no row names, is
   everyone's, gated per call. The same inputs give the same bytes: no date or time, members and files in byte
   order, operations in their help's order. It is rebuilt the way the grants index is. With no argument the op
   writes it, whatever it held, through a temp beside it and a rename; `--ensure` makes the grants index current,
@@ -1723,6 +1836,11 @@ contracts are here.
   nothing for ordinary multi-word questions. Whether that is acceptable is open.
 - **`SessionTranscriptAppend`** appends one NOTE line to the current session's transcript through
   `--append-transcript` with no `--transcript-name`.
+- **`ThisSession`** is the session's own channel as one tool, the operation its argument, like the
+  subsystem tools: `post` sends `message` to the session thread and nowhere else, `address_to` naming who
+  it is for, the message recorded in the session chat file first and posted after; `routine-run-inline`
+  runs a routine of this session. A session with no thread is refused with `ERROR`, and nothing is
+  posted. It has no read: every `Wait` already brings the thread's replies.
 - **`Artifact`** announces a `url` as it always did, ungated. With `file` (and `files`) it publishes
   first: `AgentsHarnessArtifactPublish` checks `AgentsHarnessGranted Artifact publish` (not on the
   floor: a standing `allow-tool` row or a task or session grant), runs the read gate on every file,
@@ -1957,12 +2075,24 @@ contracts are here.
   The board sections of the coordinator's work-duty scan (`--intern-op-work-duty-input-scan`, which the work-duty,
   the advance routine's manual start and the daily declare) are a pure read: they change nothing, post nothing, and
   never accept an item. The advance scan (`--intern-op-advance-input-scan`) is retired.
-- **The input-scan cache** (`AgentsTools.InputScanCache.include`, `AgentsToolsInputScanCached`; no scan is wired through it since the advance scan was retired). In a team session,
-  a scan run through it writes its report to
-  `.local/agents/sessions/<MDAT_SESSION_ID>/<operation>.md`
-  and replies with a reference to it, in the form of a kept result. For 300 s by that file's mtime, a further call of the same scan in that session, from
-  any run, replies with the same file and reads no source. A change in a source does not refresh it.
-  With no team session, or a scan that fails, the whole report is printed and nothing is kept.
+- **The input-scan cache is deleted (T2).** The predecessor (`AgentsTools.InputScanCache.include`,
+  `AgentsToolsInputScanCached`, the rewind's `AgentsHarnessScanCacheDrop`, the 300 s TTL text) had no scan wired through it since
+  the advance scan's retirement and was tested only directly; it is removed, never left unused, and the rewind no longer drops a
+  scan report. A member's own incoming is cached by source instead: see the incoming-sync bullet below.
+- **A member's own incoming is cached locally and refilled on a call when stale (T2)** — personal mail, tags and mentions, DMs,
+  and the session chat — each by its own TTL of the one table (`AgentsTools.SourceTtl.include`): the session chat short (`chat:*` 15),
+  the mail five minutes out of worktime and ten in it (`mail:*` 300, the 5–10 minute band; `AgentsToolsCollectTtlOf` stretches it by
+  worktime, `AgentsToolsScheduleWorktimeNow`), the tags and mentions one to five minutes (`tagged:*` stays the 15 s live Wait floor;
+  the schedule re-reads the team channel that feeds the tags at 60 s, `AgentsToolsScheduleTeamTags`), the DMs at 60 s within the flags
+  and 300 s out. There is no proactive pull where no main loop runs: the one background thread (`AgentsTools.CollectThread.include`)
+  is wanted by the main loop or a scan. A per-member command syncs at once: `--intern-op-member-incoming-sync <team-member>` refills
+  the member's mailbox and Trello now, and force-reads its tags and its DMs through the schedule's readers
+  (`AgentsToolsScheduleTeamTags`, `AgentsToolsScheduleDmTags`) and its session chat through the communications reader
+  (`AgentsToolsSessionCommsRead`), one line a source (`AgentsTools.Incoming.include`, `AgentsToolsIncomingSync`; the chat line of a
+  member in no live run says `no session`, never a count). A sync follows a
+  member's start: the spawner runs the sync's `start` scope (the personal mail alone, the tags, the DMs and the chat being read by the
+  schedule, the work-duty scan and the member's Wait, F4.2) before its input scans.
+  Each source keeps its own pointer per session and per member (the collect state, the schedule files, the session chat pointers).
 - **`--routine-run-inline <routine>` is a routine run in the calling session** (ThisSession,
   `AgentsTools.RoutineRunInline.include`): it hands back the routine's Steps, without its frontmatter and
   Maintainer Notes, with the Opening steps, Closure steps, local rules and tooling of
@@ -1971,9 +2101,9 @@ contracts are here.
   saved to `input/input-scan.<routine>.md` of the caller's sandbox, named in a line ahead of the steps
   (from no sandbox the result follows the steps); a scan that fails stops nothing, the file says so, and
   a call from no member's session for a routine that declares a scan is refused.
-- **A routine's keys are read by the tooling, and `templates/routine.contract.format.md` is the one list of
-  them.** The validator is `--intern-doc-validate routine`, which `--tester-skillset-validate-routine`
-  stubs. `requires-session-kind:` (mandatory, no default) names a kind of the list the tooling owns, and
+- **A routine's keys are read by the tooling, and `contracts/routine.contract.format.md` is the one list of
+  them.** The validator is `--intern-doc-validate routine`, which `DistroAgentsTesting.fn.sh
+  --skillset-validate-routine` stubs. `requires-session-kind:` (mandatory, no default) names a kind of the list the tooling owns, and
   with it the routine inherits from the kind's routine, one level and never a chain: the kind's Opening
   steps, then the routine's own; the routine's Closure steps, then the kind's; the kind's local rules and
   tooling block; any key the routine leaves out (`AgentsToolsSpawnRoutineMixText`, `AgentsRoutineMix.awk`).
@@ -1986,7 +2116,7 @@ contracts are here.
 
 ### `--intern-op-session-context-scan` (no help; essentials)
 
-The document format is the skillset's `session-context.document.format.md`. The flags are parsed in the
+The document format is `sh-lib/templates/session-context.document.format.md`. The flags are parsed in the
 op's own option arm.
 
 - **Call shape**: `<team-member> (--all-types|--type-prefix:<v>...)`, then section flags. `--do-*` requests a
@@ -2034,6 +2164,27 @@ op's own option arm.
   the two grammars are disjoint. The id is never trimmed or repaired. An addressee word is read as a
   Slack id only by that whole shape; a word that is neither a known member name nor one fails the send
   with one plain line, never a guess.
+- **The root-native printback kind is a channel-id, `printback:<session>`** (F2.2). A send operation
+  takes it ahead of any Slack grammar, so nothing of Slack stands behind it: the message is printed to
+  the operation's own output -- that output is its external copy -- and recorded in that session's one
+  chat file with the channel-id as the block's conversation and `printback` as its origin. No Slack
+  call, no thread, no send log and no outbox. A member reads it through `Wait`'s `chat:<session>` source
+  like every block of the session (a DISMISSED addressed to it dismisses through it), and a served call
+  prints the new block beside its result. The driver is
+  `sh-lib/comms/AgentsTools.CommsPrintback.include`; the kind is a service of the channel-id abstraction
+  (`AgentsToolsCommsChannelDrivers`), so a project may declare a channel on it.
+- **A background notice is recorded, then surfaced one line at a time (F3.3).** The spawn proxy's
+  notices about a run -- a member joined, a run ended with no handback or with its own question still
+  open, how a run ended -- are not messages, and a `none` session has no thread to carry them. They are
+  recorded in its one chat file as blocks whose origin is `notice` and whose conversation is
+  `printback:<session>` (`AgentsToolsCommsPrintbackNoticeRecord`); nothing is printed by the proxy and
+  nothing is posted. The next foreground call of that session carries the digest
+  `AgentsToolsCommsPrintbackNoticeDigest` as a content part beside its result: one line per notice, the
+  block's body joined to one line. Each notice the digest prints is marked in the chat index as
+  delivered to the member, before the line is printed, so it is never surfaced twice; the mark is in
+  the one chat file, not a buffer. The chat reader never delivers a `notice` block itself
+  (`AgentsSessionChatRead.awk`), so the digest is its only surface. `track` and `full` are unchanged: a
+  helper's join and a run's end are told as they were, and no notice block is written.
 - **Six built-in aliases name a place without a channel id**: `session-current`, `session-parent`,
   `magic-team`, `human-owner`, `event-track`, `event-alert`. Send, read, react, edit, delete, file-share,
   the four ask tools, the five posting tools and `Wait` sources all take any of them. `<alias>:<ts>` names
@@ -2059,13 +2210,56 @@ op's own option arm.
   to no recorded `<channel>:<ts>` is refused the same way, rc 3, with the one line naming why and that
   `<channel>:<ts>` is the way around it. On success both print `CHANNEL=` and `THREAD_TS=`;
   `session-parent` adds a third line, `PARENT_SESSION_ID=`, when it has one.
+- **A session's channel kind is its record's to say (F2.3, F3.1).** A root-harness session minted by
+  `RootSession` records its kind at mint, from this workspace's `ROOT_HARNESS_VERBOSITY`, in
+  `sessions/<session>/root-session.kind` beside the token: `none`, `track` or `full`, one line
+  (`AgentsTools.RootHarnessKind.include`; `--manager-config-set ROOT_HARNESS_VERBOSITY <value>`, a
+  magic-team setting of the workspace shown by the digest, `none` where nothing sets it, a value that
+  names no kind read as `none`). The kind is a channel, never a level, and it is read once, at mint;
+  adopting a session never rewrites it.
+  - `none`: the session's external side is the root-native printback channel -- `printback:<session>`,
+    no thread and no Slack call -- and both session addresses resolve to it
+    (`AgentsToolsCommsPrintbackSessionInUse`): `CHANNEL=printback:<session>` with an empty `THREAD_TS=`,
+    and no `:<ts>` taken (the kind holds one conversation, rc 3 with the line saying so). A send to
+    either goes by the printback driver like a send naming the channel-id, and a Wait of that session's
+    default sources is `chat:<session>` alone (`AgentsToolsWaitDefaultSources`, which decides the kind
+    BEFORE any thread or conversation is looked for).
+  - `track`: the external side is the session's tooling thread, the event-track thread every tracking
+    post already goes to (`sessions/<session>/event-track.thread`). No session thread is opened, no
+    session root post is made, and both session addresses resolve to that thread
+    (`AgentsToolsCommsPrintbackTrackThread`), so the copy of a message the session sends -- a helper's
+    handback, the root's DISMISSED -- is posted there and its one chat file still records it. A tracking
+    thread is never a session thread; here it is the session's external channel. The channel is read
+    back from the record, not from Slack: a bare Wait's only default source is `chat:<session>`
+    (`AgentsToolsWaitDefaultSources`, decided by the recorded kind before any thread or conversation, as
+    for printback), and the floor counts a block whose conversation is the tooling thread as the
+    session's own (`AgentsToolsSessionChatFloor`), so a report posted there reaches the root and a
+    dismissal reaches the helper.
+  - `full`: a session thread in the team channel, opened as for any session that brings a member in.
+  - A session with no kind record -- one minted before this feature -- is inferred by F2.3's mark: the
+    token in its folder and no session thread on record is the printback kind. An explicit kind always
+    decides over that inference, in either direction.
+  - The dispatch handed to a helper states the kind and the channel it is named by in its
+    `## Your session thread` section (`--intern-op-agent-spawn-proxy`). A message that names no address
+    goes on the session's own channel, by the same kind: `none` prints and records it on
+    `printback:<session>`, `track` posts it into the tooling thread and records it, `full` posts it into
+    the session thread and records it -- the one rule `AgentsToolsCommsPrintbackSessionOwnTarget`
+    applies to the served `SendMessage` and to the send operation's own default alike, so the message is
+    in the session's one chat file and never only in the model's context (F3.2). A message that names an
+    address is never gated by the setting: it goes to that address whatever the kind is, a thread, a
+    member's DM, a conversation or `printback:<session>`; the record's conversation and origin say which
+    way it went. A session on a recorded thread resolves as it always has; the printback channel is its
+    own beside it (F2.2).
 - **`<channel>:<ts>` needs a real Slack channel id and a real timestamp.** A malformed value is refused
   the same way as an unresolved name. A Slack error on a post is final, except a rate limit, which is
   retried (`AgentsToolsSlackRateLimitWait`).
 - **Identity selection is in `--intern-op-slack-call`, once.** No `--identity`: a member with
   `SLACK_USER_TOKEN` acts as itself, otherwise the bot; a `routine-*` author is always the bot. Passing
   `--identity user` turns the fallback into a hard error; use it only where acting as the bot is
-  unacceptable (profile ops).
+  unacceptable (profile ops). A read takes the same fallback: `--slack-read` under the user identity that
+  Slack answers `channel_not_found` or `not_in_channel` is read once more under the bot, so what a send
+  posted under the bot is read back (`MDAT_SLACK_READ_FALLBACK_DONE` stops a second try). `--identity-bot`
+  asked is final.
 - **Bot token**: the member's own `SLACK_BOT_TOKEN`, then `magic-team`'s (`AgentsToolsResolveSlackBotToken`,
   prints `member-bot-token|shared-bot-token <token>`). Never keep the team's token in a member's scope.
   `magic-team` is an identifier; read `magic-team/reference/skill-folder-model.md` "Identifier and identity" before renaming.
@@ -2324,12 +2518,10 @@ op's own option arm.
   breaks that baseline: the unchanging closed line of a by-operation close then reads as new on every
   such call. Settled, withdrawn and Decisions-closed questions set no floor and leave the Wait set.
   **Two more ways an `ask:` item leaves a stored wait, besides the session ending**: `--unwait
-  <kind>:<target>` (shorthand for `--wait-drop --wait-source <kind>:<target>`) drops it on demand, and an
-  answered one quiet five minutes past its own last update drops out of a `--wait-default` call's stored
-  sources on its own, said on `WAIT-DROPPED-EXPIRED`, never silently. "Its own last update" is the
-  newest kept clarification line, read off the record directly -- `follow-floor` stays fixed at the
-  close (above), so it is only the fallback where no clarification is kept yet. Neither this nor
-  `--unwait` blocks naming the same source again, explicitly, on a later call.
+  <kind>:<target>` (shorthand for `--wait-drop --wait-source <kind>:<target>`) drops it on demand, and
+  `--wait-drop` naming it does the same. An answered one is never dropped by age: however long it is quiet,
+  a later reply in its thread still arrives. Dropping never blocks naming the same source again,
+  explicitly, on a later call.
 - **One question, one thread of its own** (`AgentsTools.AskThread.include`). To a person or a
   conversation the question itself is one new top-level message, with no opener, in the member's DM or
   the bot's (`as_bot`); its thread is that question's whole conversation and is never joined by another
@@ -2342,7 +2534,12 @@ op's own option arm.
   member). A question asked with `to=<channel>:<ts>` naming the thread a question opened for itself is a
   follow-up on it and takes no new number (`AgentsToolsAskThreadRootTag`). A leading `Q<n>` in the question text is removed. A reply starting with a
   question's own number takes that form even where it is alone in its thread, the number and a
-  following mark stripped before what is read as the answer. In a thread several questions
+  following mark stripped before what is read as the answer. A question posted as one top-level
+  message of a **direct** conversation is answered where its person types there too: the messages
+  after it in the conversation, by the account it was addressed to, are read as its answer when its
+  own thread holds none (`AgentsToolsEscalationAskDirect`). A click under the post or a reply in its
+  thread answers first, as it always did, and a conversation several questions share is never read
+  that way: an unnumbered reply there belongs to no question it cannot be told from. In a thread several questions
   share (only one the asker named): a reply starting another `Q<n>` answers that one; an unnumbered reply answers
   the latest question above it while open, and none after it is closed (`resolved-epoch`). A reply that
   would answer one already closed, while another is still open, is set aside: every line of it, and the
@@ -2412,7 +2609,13 @@ op's own option arm.
   `withdrawn-by` and `withdraw-reason`, never a verdict), so it answers, grants and decides nothing;
   reminders stop, its Decisions line is `dismissed`, a note goes into its thread, and its `ask:` item
   leaves the Wait set. The escalation read reports it `closed withdrawn`. The same question asked again
-  after a withdraw is a new top-level post, never that thread's own reask.
+  after a withdraw is a new top-level post, never that thread's own reask. **A run that ends withdraws
+  what it still has open**, at the close of its record and through this one operation
+  (`AgentsToolsSpawnProxyWithdrawAsks`, `AgentsTools.SpawnSandbox.include`): nobody is left to hear the
+  answer, so the asker's own questions close as withdrawn, by the member that asked, with the reason of
+  the note template's `Reasons/asker-ended`; a question the tooling asked *about* the run (a review
+  prompt, kind `review`) is not the run's and stays open. A finished session therefore leaves no
+  `reply-pending` ask behind, and the session state counts any ask that still waits as waiting.
 - **Collect** (`--intern-op-pending-reply-collect`, `AgentsTools.PendingReplyCollect.include`), no model:
   reads each open plain question once with a zero-bound wait. Readbacks, decisions and permissions are
   never collected by default. Runs at `SubagentHandback`, at spawn close (marking `collect: ended`) and in
@@ -2467,6 +2670,14 @@ op's own option arm.
   refuses goes once more as plain text, cut at 4000 characters (Slack's `text` limit), with a warning. Its
   root, the spawn's `start` post, is posted once, after the CLI and the rest it names are resolved; no post
   is ever edited, and a later fact (a different CLI launched, the end) is a reply in its thread.
+- **One outbox paces every post into the event-track channel** (`AgentsTools.EventTrackSend.include`): each
+  post — the feed's collected lines, a start or end post, a refusal, a grant, a denial, a notice, a handback,
+  the activity lines of a batch — is queued under the channel's own append lock, numbered in the order it was
+  made, and drained by one sender at a time. The oldest goes first, never two messages closer than 7 s
+  (fixed in code), and what queued during that window is collected into the same post where the records agree
+  in member, kind, session, target, channel and thread and carry no fields, so only lines are joined. A post
+  over Slack's limit is still cut by the post op into ordered follow-ups, each paced the same way: nothing is
+  lost, nothing is reordered, and no immediate post jumps the queue.
 - **One event-track thread per coworking session, one record**: `sessions/<session-id>/event-track.thread`
   (`AgentsTools.EventTrackThread.include`), the only reader or writer of it; the first post to open it
   wins, the first record stands. A poster resolves the thread for the id it was given, a spawn's own or a
@@ -2710,7 +2921,7 @@ Each instrument states what it proves and its red recipe in its own header. What
   (four sites per tool; text match, so it misses syntax and JSON breaks), `AgentsHarnessToolsJsonCheck`
   (parsed vs text counts; reads through `AgentsHarnessJsonSlice.awk`, not the consuming reader),
   `AgentsHarnessAccessRootsCheck` (no-flag roots come from the include), `AgentsHarnessServedFloorCheck`
-  (served set and `Monitor` twin; a planted copy must be named as `MDLT_ORIGIN`), the leg checks
+  (served set; a planted copy must be named as `MDLT_ORIGIN`), the leg checks
   (`AgentsHarnessCopilotLegCheck`, `AgentsHarnessGrokLegCheck`: endpoint, host, credential pinned; models
   read from the leaf), `AgentsHarnessAnthropicWireCheck`, `AgentsHarnessRestartCheck`,
   `AgentsHarnessMcpCheck`, `AgentsHarnessWaitCheck`, `AgentsHarnessAwkAxiom.test.awk` (a statement and its

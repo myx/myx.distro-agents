@@ -147,6 +147,9 @@ while IFS= read -r rigOne ; do
 done <<< "$rigOthers"
 rigAssert "every other reroute still refuses there" "$rigOtherDeny of $rigOtherAll" "$rigOtherAll of $rigOtherAll"
 rigAssert "control: there are other reroutes"  "$( [ "$rigOtherAll" -gt 0 ] && printf yes || printf no )" yes
+## The client's own WebSearch runs: it is on no reroute list, and an install that still wires its entry is let through (no decision).
+rigAssert "WebSearch is not on the reroute list" "$( printf '%s\n' "$rigOthers" | LC_ALL=C grep -c -x WebSearch || : )" 0
+rigAssert "a native WebSearch is let through by the hook an older install still wires" "$( rigRerouteRun WebSearch "$( rigObj query rigquery )" )" none
 
 echo "-- 2b. a native TodoWrite goes to CheckList only where CheckList is offered, outside the Slack gate --"
 ## A tooled session: the member a root session is served as, magic-coordinator, in the members

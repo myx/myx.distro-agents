@@ -31,6 +31,15 @@ settings and help in one terminal screen. Ctrl-X (or Alt-X) leaves it. `--manage
 configured. A vendor's own CLI starts only where it is named, as `--cli claude-native`; `--cli` with one
 of this package's harnesses (`claude`, `copilot`, `grok`, `scaleway`) opens the manager screen too.
 
+In the manager screen:
+
+- `Launchpad` starts work by hand: a coworking, standalone or work-duty session, a free prompt to one
+  member, or a routine. The first four are forms, and nothing starts until you press Start.
+- `Installed Subsystems` > `Optional Features` installs, updates and uninstalls the parts of local AI and
+  LanceDB, showing each plan first.
+- `This Machine` > `Local AI` lists the local models, and sends a prompt, tests speech-to-text, or makes a
+  `local` preset from a chat model.
+
 With `--non-interactive` the console starts an agent CLI, not a shell. A line you pipe into it is a
 prompt: a model reads it and decides what to run. So even a read-only tooling call through the console
 costs a full model round trip. For a read, run the tool directly instead:

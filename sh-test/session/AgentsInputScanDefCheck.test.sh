@@ -162,6 +162,16 @@ rigAssert "and where the scan cannot be read by its name, no pointer is kept"   
 printf 'THE-KEPT-REPORT-OF-A-SESSION\n' > "$rigTmp/seed-kept.txt"
 rigAssert "a scan that printed the reference to its kept report: the sum of that report"             "$( rigSeedUnit 'permission-escalation' "a preview line
 ... KEPT: the whole result, 29 bytes in 1 lines, is in $rigTmp/seed-kept.txt -- all of it is shown above ..." )" "$( rigSumOf "$rigTmp/seed-kept.txt" )"
+## A report that carries the board token counters: the seed's sum leaves them out, as the wait's does (AgentsWaitProbeScan),
+## so the first --idle-wait compares content, not the counters the harness rewrites at every round.
+{
+	printf 'tokens: in=100 cache-read=10 cache-write=5 out=80\n'
+	printf 'tokens-total: in=1000 cache-read=100 cache-write=50 out=800 (incl. 2 sub-sessions)\n'
+	printf 'REAL-CONTENT\n'
+} > "$rigTmp/seed-tokens.txt"
+printf 'REAL-CONTENT\n' > "$rigTmp/seed-tokens.want"
+rigAssert "a report with token counters: the pointer is the sum of its content alone, the counters left out" \
+	"$( rigSeedUnit 'permission-escalation' "$( cat "$rigTmp/seed-tokens.txt" )" )" "$( rigSumOf "$rigTmp/seed-tokens.want" )"
 RIG_SESSION=""
 rigAssert "a start with no session keeps no pointer"                                                  "$( rigSeedUnit 'permission-escalation' 'OPTIONS-VIEW' )" "none"
 unset RIG_SESSION

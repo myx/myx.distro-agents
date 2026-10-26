@@ -57,12 +57,13 @@
 			is an error rather than a fallback. Every sub-operation takes
 			it. It names a target; it stores no value.
 
-		--spawn-cli-service <cli-name>
-			Which agent CLI this workspace starts. You are never asked for
-			it: an --apply on this domain writes `claude` into it, and
-			--set-as-default is what repoints an already-made selection.
-			It appears in --print-apply-command because that sub-operation
-			names every option the domain declares.
+		Which agent CLI this workspace starts. You are never asked for
+		it: an --apply on this domain makes a preset named `claude`
+		(its CLI service) and points SPAWN_TIER_NORMAL, the team's
+		default tier, at it, so the spawns start on `claude`.
+		--set-as-default is what repoints an already-made selection, and
+		without it an --apply fills the selection only where none is
+		made.
 
 		--anthropic-api-key <sk-ant-...>
 			An Anthropic API key, billed per use. Optional, and the
@@ -74,7 +75,9 @@
 
 			Stored as ANTHROPIC_API_KEY -- the name claude reads out of its
 			own environment, so what is stored and what the console exports
-			are one string -- in this workspace's magic-team config scope.
+			are one string -- in the preset-claude config scope, the preset
+			of claude's CLI service, which --apply makes where it is not
+			there yet and never overwrites.
 			A secret: it never travels on a command line, so supply it
 			through the stdin-fed form --print-apply-command writes.
 
@@ -88,8 +91,9 @@
 			that has a browser, and store what it prints.
 
 			Stored as CLAUDE_CODE_OAUTH_TOKEN -- claude's own environment
-			variable name -- in this workspace's magic-team config scope.
-			A secret, supplied the same stdin-fed way.
+			variable name -- in the preset-claude config scope, the preset
+			of claude's CLI service. A secret, supplied the same stdin-fed
+			way.
 
 ##  Sub-operations:
 

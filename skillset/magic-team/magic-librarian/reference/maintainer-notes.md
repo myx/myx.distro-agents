@@ -48,7 +48,7 @@ The authoritative definition every file's pair is authored and checked against.
 - `reference/messaging.md` — messaging platforms: size limits, silent truncation, composition.
 - `reference/project-inf.md` — `project.inf` install fragments and declared directives the shipped manuals do not carry.
 - `magic-developer/reference/` — per-language modules, the same shape as these.
-- `magic-team/reference/skill-folder-model.md` — the skill-folder model; `magic-team/templates/` — the contracts.
+- `magic-team/reference/skill-folder-model.md` — the skill-folder model; `magic-team/contracts/` — the contracts.
 
 ### Conventions
 

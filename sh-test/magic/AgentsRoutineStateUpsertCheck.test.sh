@@ -96,7 +96,7 @@ rigUpdate(){ ## result name, run id (or -), acting member, standard input text, 
 	[ "$callRun" = "-" ] || callEnv=( MDAT_SPAWN_SESSION_ID="$callRun" MDAT_SPAWN_AGENT="$callMember" )
 	( cd "$rigWs" && printf '%s' "$callIn" | env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" ${callEnv[@]+"${callEnv[@]}"} \
-		perl -e 'alarm 120 ; exec @ARGV' bash "$rigSession" --update-routine-state "$@" ) > "$rigTmp/$callName.out" 2> "$rigTmp/$callName.err" || callRc=$?
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigSession" --update-routine-state "$@" ) > "$rigTmp/$callName.out" 2> "$rigTmp/$callName.err" || callRc=$?
 	printf '%s' "$callRc" > "$rigTmp/$callName.rc"
 }
 rigCall(){ ## result name, operation words... -- one call of the tool as magic-coordinator's console run; rc in <name>.rc
@@ -104,7 +104,7 @@ rigCall(){ ## result name, operation words... -- one call of the tool as magic-c
 	shift
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=magic-coordinator \
-		perl -e 'alarm 120 ; exec @ARGV' bash "$rigTool" "$@" ) > "$rigTmp/$callName.out" 2> "$rigTmp/$callName.err" < /dev/null || callRc=$?
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigTool" "$@" ) > "$rigTmp/$callName.out" 2> "$rigTmp/$callName.err" < /dev/null || callRc=$?
 	printf '%s' "$callRc" > "$rigTmp/$callName.rc"
 }
 rigInvalid(){ ## result name, operation -- yes where the call answered `invalid option` naming it

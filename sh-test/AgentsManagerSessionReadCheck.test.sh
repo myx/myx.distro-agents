@@ -178,7 +178,7 @@ printf 'magic-coordinator (the daily is over)\n' > "$rigStores/run-c/dismissed"
 : > "$rigStores/run-c/ended"
 printf '%s\n' "$rigData/audit/gone.log" > "$rigStores/run-c/transcript"
 
-rigSessionRow="$( printf 'session\tsess-a\tdaily_of_Monday\trunning\t2026-10-13_09:00_+0300\t-\t3\trunning=2,finished=1\t-\t-\tnone\t88076795+' )"
+rigSessionRow="$( printf 'session\tsess-a\tdaily_of_Monday\trunning\t2026-10-13_09:00_+0300\t-\t3\trunning=2,finished=1\t-\t-\tnone\t88076795+\t-' )"
 rigControlRow="$( printf 'control\tsess-a\t-\t-\tnone\t-' )"
 ## The tokens of the session: the figures of its founder alone, the one run of the three whose figures are known,
 ## which runs still; the session runs, so it is a total so far, and two runs are left out of it.
@@ -226,7 +226,7 @@ rigAssert "each participant has its CLI, its model and its tokens: the CLI a hea
 rigAssert "what the session was started for is its founder's: the routine, the dispatch item, the session thread, the tracking thread, and the description, exact" \
 	"$( LC_ALL=C awk -F'\t' '$1 == "dispatch" { print $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }' "$rigTmp/out" )" 'record|magic-coordinator|magic-team.daily.routine|dispatch-20261013T060000Z-spawn-proxy-1|CSESS:2.000200|CTRACK:1.000100|Run the daily\tof Monday, and keep C:\\notes.'
 rigAssert "a free text is one field: the TAB of the description is written \\t and its backslash \\\\, so every row has the fields of its kind and no line is of another kind" \
-	"$( LC_ALL=C awk -F'\t' '{ want = ( $1 == "session" ) ? 12 : ( $1 == "dispatch" ) ? 9 : ( $1 == "control" ) ? 6 : ( $1 == "tokens" ) ? 10 : ( $1 == "run" ) ? 12 : ( $1 == "header" ) ? 4 : ( $1 == "store" ) ? 16 : -1 ; if ( NF != want ) bad++ ; } END { print NR ":" bad + 0 }' "$rigTmp/out" )" "50:0"
+	"$( LC_ALL=C awk -F'\t' '{ want = ( $1 == "session" ) ? 13 : ( $1 == "dispatch" ) ? 9 : ( $1 == "control" ) ? 6 : ( $1 == "tokens" ) ? 10 : ( $1 == "run" ) ? 12 : ( $1 == "header" ) ? 4 : ( $1 == "store" ) ? 16 : -1 ; if ( NF != want ) bad++ ; } END { print NR ":" bad + 0 }' "$rigTmp/out" )" "50:0"
 rigAssert "a dismissed run shows its mark, and who dismissed it" "$( LC_ALL=C awk -F'\t' '$1 == "store" && $2 == "run-c" { print $10 " | " $14 }' "$rigTmp/out" )" "dismissed,dismissed.handback,ended | magic-coordinator (the daily is over)"
 rigAssert "a run shows its last milestone with its time, what its stored wait waits on, and the ids of its open asks; a closed ask is none" \
 	"$( LC_ALL=C awk -F'\t' '$1 == "store" { printf "%s[%s|%s|%s|%s] ", $2, $11, $12, $13, $9 }' "$rigTmp/out" )" "sess-a[2026-10-13T07:15:19Z|wait going idle|slack:CSESS:2.000200:conversation inbox:magic-coordinator|ask-1] run-b[2026-10-13T07:20:00Z|message out|-|ask-2,ask-3] run-c[2026-10-13T06:39:58Z|end|-|-] "
@@ -256,7 +256,7 @@ $rigClosedRows"
 echo "-- 3. a session whose founder has no record --"
 rigRun "$rigOp" --session-id sess-desk
 rigAssert "it ends 0 and prints the members, and one line says that the founder has no record; the threads are those its members carry" "$rigRc $( rigRows session ) / $( rigRows dispatch ) / $( rigRows run | LC_ALL=C awk '{ printf "%s:%s:%s ", $3, $4, $7 }' )" \
-	"0 session sess-desk - unclosed 2026-10-11_10:00_+0300 - 2 unclosed=1,finished=1 - - none - / dispatch sess-desk no-record - - - CSESS:6.000600 CTRACK:5.000500 - / desk-b:keeper-rig:finished desk-c:magic-tester:unclosed "
+	"0 session sess-desk - unclosed 2026-10-11_10:00_+0300 - 2 unclosed=1,finished=1 - - none - - / dispatch sess-desk no-record - - - CSESS:6.000600 CTRACK:5.000500 - / desk-b:keeper-rig:finished desk-c:magic-tester:unclosed "
 rigRun "$rigOp" --session-id sess-desk --run
 rigAssert "its id is no run's own: with --run it names nothing, one error line and status 1" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: no record of this workspace carries 'sess-desk' as the own id of a run -- nothing is shown" ) $( rigTroubles )" "1 0 1 1"
 
@@ -265,7 +265,7 @@ rigRun "$rigOp" --session-id sess-n
 rigAssert "control: the record has no folder under sessions/" "$( [ -e "$rigStores/sess-n" ] && echo store || echo no-store )" "no-store"
 rigAssert "the fields of the record are printed, each header as it stands" "$rigRc $( rigRows header | LC_ALL=C awk '{ printf "%s=%s ", $3, $4 }' )" "0 session-id=sess-n spawn-id=sess-n host=$rigHost workspace=rigws owner=magic-librarian status=spawn-failed exit-code=3 started-at=2026-10-12 resolved-at=2026-10-12 "
 rigAssert "and - for the milestone, the sources of the wait and the marks, as for everything a store holds" "$( rigRows store )" "store sess-n no-store - - - - - - - - - - - - -"
-rigAssert "its session is itself, finished, and it has no founder but itself" "$( rigRows session ) / $( rigRows dispatch )" "session sess-n - finished 2026-10-12_08:00_+0300 2026-10-12_08:30_+0300 1 finished=1 - - none - / dispatch sess-n record magic-librarian - - - - -"
+rigAssert "its session is itself, finished, and it has no founder but itself" "$( rigRows session ) / $( rigRows dispatch )" "session sess-n - finished 2026-10-12_08:00_+0300 2026-10-12_08:30_+0300 1 finished=1 - - none - - / dispatch sess-n record magic-librarian - - - - -"
 
 echo "-- 5. an id that names nothing, and what the operation takes --"
 rigRun "$rigOp" --session-id no-such-id
@@ -308,17 +308,17 @@ rigNoneNewer(){ ## registry file, path... -- none-newer where no path is newer t
 	printf '%s\n' "$newerSeen"
 }
 ## A session started since the registry was built: a sandbox folder and an ask the registries do not hold.
-printf 'session-id: sess-late\nspawn-id: sess-late\nhost: %s\nworkspace: rigws\nowner: magic-coordinator\nstatus: spawn-succeeded\nstarted-at: 2026-10-07 06:00 +0300\nresolved-at: 2026-10-07 06:30 +0300\nsession-comment: late one\n' "$rigHost" | rigRecord sess-late sess-late
+printf 'session-id: sess-late\nspawn-id: sess-late\nhost: %s\nworkspace: rigws\nowner: magic-coordinator\nstatus: spawn-started\nstarted-at: 2026-10-07 06:00 +0300\nsession-comment: late one\n' "$rigHost" | rigRecord sess-late sess-late
 rigAsk ask-late sess-late reply-pending
 rigOld "$rigSp/sess-late/sess-late.spawn.md" "$rigSp/sess-late" "$rigSp" "$rigPend/ask-late.md" "$rigPend"
 rigAssert "control: nothing of the two stores is newer than its registry, and the registries hold no row of the new session or its ask" "$( rigNoneNewer "$rigAgents/spawned-sessions.registry" "$rigSp" "$rigSp/sess-late" "$rigSp/sess-late/sess-late.spawn.md" ) $( rigNoneNewer "$rigAgents/pending-replies.registry" "$rigPend" "$rigPend/ask-late.md" ) $( cat "$rigAgents/spawned-sessions.registry" "$rigAgents/pending-replies.registry" | LC_ALL=C grep -c -e 'sess-late' || : )" "none-newer none-newer 0"
 rigRun "$rigOp" --session-id sess-late
-rigAssert "a session started after the last rebuild is read: a registry that does not hold a sandbox folder the store has now is rebuilt first, and the asks' one that does not hold an ask, so the session waits on the ask written with it" "$rigRc $( rigRows session ) / $( rigRows store | LC_ALL=C awk '{ print $9 }' )" "0 session sess-late late_one waiting 2026-10-07_06:00_+0300 - 1 finished=1 - - none - / ask-late"
+rigAssert "a session started after the last rebuild is read: a registry that does not hold a sandbox folder the store has now is rebuilt first, and the asks' one that does not hold an ask, and a session whose one record is open and nothing runs behind it waits on the ask read with it" "$rigRc $( rigRows session ) / $( rigRows store | LC_ALL=C awk '{ print $9 }' )" "0 session sess-late late_one waiting 2026-10-07_06:00_+0300 - 1 waiting=1 - - none - - / ask-late"
 ## A registry that reads newer than everything, by a time years ahead, and still does not hold a folder.
 printf 'session-id: sess-missed\nspawn-id: sess-missed\nhost: %s\nworkspace: rigws\nowner: magic-coordinator\nstatus: spawn-succeeded\nstarted-at: 2026-10-06 06:00 +0300\nresolved-at: 2026-10-06 06:30 +0300\n' "$rigHost" | rigRecord sess-missed sess-missed
 TZ=UTC touch -t 203001010000.00 "$rigAgents/spawned-sessions.registry"
 rigRun "$rigOp" --session-id sess-missed
-rigAssert "a registry years newer than the store by its time is not taken for that: it does not hold the folder, so it is rebuilt, and the session is read" "$rigRc $( rigRows session ) $( LC_ALL=C grep -c -e 'sess-missed' "$rigAgents/spawned-sessions.registry" || : )" "0 session sess-missed - finished 2026-10-06_06:00_+0300 2026-10-06_06:30_+0300 1 finished=1 - - none - 1"
+rigAssert "a registry years newer than the store by its time is not taken for that: it does not hold the folder, so it is rebuilt, and the session is read" "$rigRc $( rigRows session ) $( LC_ALL=C grep -c -e 'sess-missed' "$rigAgents/spawned-sessions.registry" || : )" "0 session sess-missed - finished 2026-10-06_06:00_+0300 2026-10-06_06:30_+0300 1 finished=1 - - none - - 1"
 ## A MEMBER JOINS A RUNNING SESSION: its record is added to the sandbox folder the session already has, which is
 ## where a spawn that joins a session by its id keeps it. No folder is new, and the id has its rows already.
 printf 'session-id: sess-a\nspawn-id: run-j\nparent-spawn-id: sess-a\nhost: %s\nworkspace: rigws\ncli: claude-native\nowner: magic-librarian\nstatus: spawn-started\nstarted-at: 2026-10-13 09:20 +0300\n' "$rigHost" | rigRecord sess-a run-j
@@ -368,7 +368,7 @@ rigPre=()
 rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, in the one line of the family, and nothing was rebuilt" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "DistroAgentsTools: ${rigOp#--}: ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" ) $( rigPrint "$rigAgents/spawned-sessions.registry" ) $( rigPrint "$rigAgents/pending-replies.registry" )" "1 0 1 $rigRegBefore"
 rigAssert "the operation is one arm of the include of the sessions, and asks nobody who calls" "$( LC_ALL=C grep -c -x -e "	$rigOp)" "$rigHere/manager/AgentsTools.ManagerSession.include" || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -c -e 'AgentsToolsManagerCallerCheck' -e 'AgentsToolsActingMember' || : )" "1 0"
 rigAssert "the rows of the one session are measured in the one place a row's live and state are derived, once, and no run is found a second way: no process list, no rule of its own, and the store is listed by its names to hold the registry to it, never walked for a run" \
-	"$( LC_ALL=C awk '/^AgentsToolsManagerSessionScope\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'AgentsToolsRegistryMeasureRows "' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include "$rigHere/manager/AgentsManagerSessionRows.awk" "$rigHere/manager/AgentsManagerSessionRead.awk" "$rigHere/manager/AgentsManagerSessionScope.awk" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'ps -' -e 'spawned"/\*' -e 'RunWords' || : ) $( LC_ALL=C awk '/^AgentsToolsManagerSessionScope\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e ' -nt ' -e ' -ot ' || : )" "1 0 0"
+	"$( LC_ALL=C awk '/^AgentsToolsManagerSessionScope\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'AgentsToolsRegistryMeasureRows "' || : ) $( cat "$rigHere"/*/AgentsTools.Manager*.include "$rigHere/manager/AgentsManagerSessionRows.awk" "$rigHere/manager/AgentsManagerSessionRead.awk" "$rigHere/manager/AgentsManagerSessionScope.awk" | LC_ALL=C grep -v -e '^[[:space:]]*#' -e 'checklist' | LC_ALL=C grep -c -e 'ps -' -e 'spawned"/\*' -e 'RunWords' || : ) $( LC_ALL=C awk '/^AgentsToolsManagerSessionScope\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/manager/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e ' -nt ' -e ' -ot ' || : )" "1 0 0"
 
 echo "-- 9. the help pair --"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"
@@ -382,7 +382,7 @@ rigForm(){ ## row kind -- the form line of that row in the entry, its back quote
 	rigEntry | LC_ALL=C sed -n -e 's/^[[:space:]]*`\('"$1"' <.*>\)`$/\1/p'
 }
 rigAssert "its entry gives the form of each of the seven rows" "$( rigForm tokens ) | $( rigForm session ) | $( rigForm dispatch ) | $( rigForm control ) | $( rigForm run ) | $( rigForm header ) | $( rigForm store )" \
-	"tokens <session-id> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <runs-summed> <runs-running> <total> <runs-unknown> | session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> | dispatch <session-id> <founder> <member> <routine> <dispatch-item> <session-thread> <tracking-thread> <description> | control <session-id> <session-state> <session-state-at> <control-thread> <control-pid> | run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity> | header <spawn-id> <name> <value> | store <spawn-id> <store> <model> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <open-asks> <marks> <milestone-at> <milestone> <wait-sources> <dismissed-by> <session-log> <transcript>"
+	"tokens <session-id> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <runs-summed> <runs-running> <total> <runs-unknown> | session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> <usage-limit> | dispatch <session-id> <founder> <member> <routine> <dispatch-item> <session-thread> <tracking-thread> <description> | control <session-id> <session-state> <session-state-at> <control-thread> <control-pid> | run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity> | header <spawn-id> <name> <value> | store <spawn-id> <store> <model> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <open-asks> <marks> <milestone-at> <milestone> <wait-sources> <dismissed-by> <session-log> <transcript>"
 rigRun "$rigOp" --session-id sess-a
 rigAssert "and every row printed has exactly the fields its form names" "$( for rigKind in session dispatch control tokens run header store ; do LC_ALL=C awk -F'\t' -v wantKind="$rigKind" -v wantFields="$( rigForm "$rigKind" | LC_ALL=C awk '{ print NF }' )" '$1 == wantKind { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s ", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" ; done )" "rows:0 rows:0 rows:0 rows:0 rows:0 rows:0 rows:0 "
 rigAssert "the session and run rows have the forms the entry of the list gives them, word for word" "$( rigForm session ) | $( rigForm run )" "$( LC_ALL=C sed -n -e 's/^[[:space:]]*`\(session <.*>\)`$/\1/p' -e 's/^[[:space:]]*`\(run <.*>\)`$/\1/p' "$rigHelpMd" | LC_ALL=C awk 'NR == 1 { first = $0 } NR == 2 { print first " | " $0 }' )"
@@ -427,7 +427,7 @@ rigRun "$rigOp" --session-id run-b
 rigAssert "the read of one run of the session carries the control row of its session" "$rigRc $( rigControlRows )" "0 control sess-a running 2026-10-13_10:21_+0300 alive $rigLivePid / 1"
 printf 'state: finished\nstate-at: 2026-10-13 10:58 +0300\nreason: no run of the session is alive and every record of it is closed\n' > "$rigStores/sess-a/control/state.rig" && mv -f "$rigStores/sess-a/control/state.rig" "$rigStores/sess-a/control/state"
 rigRun "$rigOp" --session-id sess-a
-rigAssert "a state that moved is in the next read, beside the derived state, which is as it was: neither changes the other" "$( rigRows session | LC_ALL=C awk '{ print $4, $9, $10 }' ) / $( rigControlRows )" "running finished 2026-10-13_10:58_+0300 / control sess-a finished 2026-10-13_10:58_+0300 alive $rigLivePid / 1"
+rigAssert "a state that moved is in the next read, beside the derived state, which is as it was: neither changes the other" "$( rigRows session | LC_ALL=C awk '{ print $4, $9, $10 }' ) / $( rigControlRows )" "waiting finished 2026-10-13_10:58_+0300 / control sess-a finished 2026-10-13_10:58_+0300 alive $rigLivePid / 1"
 rigAssert "control: the stand-in of the thread is ended, and is no process any more" "$( rigGone "$rigLivePid" )" "gone"
 rigRun "$rigOp" --session-id sess-a
 rigAssert "a control thread that was killed reads gone, and the row still names the process its pid file names" "$rigRc $( rigControlRows )" "0 control sess-a finished 2026-10-13_10:58_+0300 gone $rigLivePid / 1"
@@ -458,8 +458,8 @@ rigTokRecord tok-part tok-part magic-coordinator spawn-succeeded '2026-10-02 09:
 rigTokRecord tok-part part-b keeper-rig spawn-succeeded '2026-10-02 09:01 +0300' '2026-10-02 09:30 +0300' '12 x 3 4'
 rigTokRecord tok-part part-c magic-tester spawn-succeeded '2026-10-02 09:02 +0300' '2026-10-02 09:20 +0300' ''
 rigLive tok-two two-b tok-mix
-rigTok(){ ## -- of the last output: its `tokens` rows, TAB written as a space, then the last field of its `session` row
-	printf '%s / %s' "$( rigRows tokens )" "$( rigRows session | LC_ALL=C awk '{ print $NF }' )"
+rigTok(){ ## -- of the last output: its `tokens` rows, TAB written as a space, then the tokens field of its `session` row
+	printf '%s / %s' "$( rigRows tokens )" "$( rigRows session | LC_ALL=C awk '{ print $(NF - 1) }' )"
 }
 rigRun "$rigOp" --session-id tok-two
 rigAssert "a session of two runs that both run: the four figures of the two added, two runs summed, two of them running, a total so far, none left out; and the session row ends with the four as one number" \

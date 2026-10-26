@@ -162,12 +162,6 @@ AgentsHarnessHooksRefusal(){
 		Glob)      hookInputJson='{"pattern":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" pattern )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","path":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" path )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		Grep)      hookInputJson='{"path":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" path )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		Bash)      hookInputJson='{"command":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" command )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
-		## Monitor runs a shell command, so it is shaped in Bash's own spelling: a hook
-		## written to guard `tool_input.command` must decide on this call exactly as it
-		## decides on that one, and a command that escaped the guard by arriving under a
-		## different field name would be a hole in it. The handle rides along, so a hook
-		## can tell a start from a read of one already running.
-		Monitor)   hookInputJson='{"command":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" command )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","cwd":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" cwd )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","handle":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" handle )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		WebSearch) hookInputJson='{"query":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" query )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		WebFetch)  hookInputJson='{"url":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" url )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		SendMessage) hookInputJson='{"to":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" to )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","message":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" message )" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;

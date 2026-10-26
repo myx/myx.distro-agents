@@ -77,16 +77,19 @@ rigCalls(){ ## method
 
 ## The number of pending-reply records, and the status each holds.
 rigRecords(){
-	local recordCount=0 recordFile
-	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
-		[ -f "$recordFile" ] || continue
-		recordCount=$(( recordCount + 1 ))
-	done
-	printf '%s' "$recordCount"
+	## The records of the store: the open ones, and the retained-closed ones under
+	## pending/closed/ (AgentsTools.InternOpPendingReply.include). Counted by their own id, so
+	## one record is one, whichever set holds it.
+	local recordFile
+	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
+		[ -f "$recordFile" ] && { printf '%s\n' "${recordFile##*/}" ; }
+	done | LC_ALL=C sort -u | LC_ALL=C awk 'END { print NR + 0 ; }'
 }
 rigRecordStatus(){
+	## Open first, then the retained-closed record: a record that closed is still the one
+	## record of the question, and its status is what the answer left on it.
 	local recordFile
-	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] || continue
 		LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$recordFile"
 		return 0
@@ -349,7 +352,7 @@ rigVerdict "a wait that cannot be performed -- posted, NOTHING known, record ope
 ##    control. The record stays open either way.
 ## ---------------------------------------------------------------------------
 rigStart thread-unreadable
-rigAsk 12 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"timeout\":\"1\"}"
+rigAsk 40 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"timeout\":\"1\"}"
 rigAssert "the thread was tried"                          "$( [ "$( rigCalls conversations.replies )" -ge 1 ] && printf yes || printf no )" yes
 rigAssert "it returned rather than re-waiting"            "$rigKilled" no
 rigAssert "the result says it WAS posted"                 "$( rigHolds "$rigScenarioDir/out" 'the question WAS posted' )" yes
@@ -364,8 +367,9 @@ rigVerdictLine(){
 	LC_ALL=C awk '/^VERDICT: / { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict-line" ; } }' "$rigScenarioDir/out"
 }
 rigRecordVerdict(){
+	## Open first, then the retained-closed record, where an answered one lives.
 	local recordFile
-	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] || continue
 		LC_ALL=C awk -F': ' '$1 == "verdict" { print $2 ; found = 1 ; exit ; } END { if ( ! found ) { print "no-verdict" ; } }' "$recordFile"
 		return 0

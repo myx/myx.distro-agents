@@ -30,10 +30,29 @@ HARNESS_CREDENTIAL_NAMES="COPILOT_GITHUB_TOKEN"
 ## THE ENDPOINT UNDER THIS SPELLING.
 ## A model an exported HARNESS_MODEL_LIGHT or HARNESS_MODEL_MAIN names stands ahead of the leg's own: the console
 ## exports the model name of the preset a spawn runs on (F10.2), and nothing else does. The default is the leg's.
+HARNESS_MODEL_FROM_LIGHT="${HARNESS_MODEL_LIGHT:+name}" ; HARNESS_MODEL_FROM_MAIN="${HARNESS_MODEL_MAIN:+name}"
 HARNESS_MODEL_LIGHT="${HARNESS_MODEL_LIGHT:-gpt-5.6-sol}"
 HARNESS_MODEL_MAIN="${HARNESS_MODEL_MAIN:-claude-fable-5}"
 HARNESS_TOKEN_LIGHT="${COPILOT_GITHUB_TOKEN:-}"
 HARNESS_TOKEN_MAIN="${COPILOT_GITHUB_TOKEN:-}"
+
+## --- the family table: each model family's own limits and effort none ---------
+## (AgentsHarnessLimits.include.) The macros low and normal or high resolve to the two models above; a model the
+## preset names resolves through this table, and one of no family here is refused at start.
+## Source: GitHub Copilot docs, models-and-pricing and supported-models (read 2026-10-26).
+## gpt-5.6-sol: its Default price tier covers up to 272,000 input tokens; above that is the
+## "Long context" tier, at twice the input price. So its context is the step, 272,000, not
+## the window, and the output is 32,768, which keeps the restart threshold (context minus
+## output, 239,232) under the price step.
+## claude-fable-5: no long-context tier ("Not applicable", one flat price), and the 1M
+## context is supported in Copilot CLI: 1,000,000 with a 65,536 output, the first restart
+## near 934,464 tokens.
+## A preset may still name a threshold of its own, PRESET_CONTEXT_MAX_SIZE, and the core
+## warns at start when that is far below these numbers.
+## The effort none: gpt-5.6-sol takes reasoning_effort none; a claude model behind this endpoint is sent its lowest,
+## low, because the endpoint's own spelling of none for it is not observed (the start line says so).
+HARNESS_MODEL_TABLE="gpt-5.6-sol*|272000|32768|effort:none|GitHub Copilot docs, models-and-pricing and supported-models, read 2026-10-26
+claude-fable*|1000000|65536|effort:low|GitHub Copilot docs, models-and-pricing and supported-models, read 2026-10-26"
 
 ## --- credential exchange, and extra headers: both declared empty ----------
 ## Empty spends the stored credential itself as the bearer and adds no header. That path is
@@ -50,9 +69,15 @@ HARNESS_EXTRA_HEADERS=""
 HARNESS_PROMPT_CACHE_KEY="${HARNESS_PROMPT_CACHE_KEY:-off}"
 
 export HARNESS_PROMPT_CACHE_KEY
+## The service's own web search (AgentsHarnessSearchNative): none. GitHub's docs read 2026-10-27 offer model web search in Copilot chat on github.com only (changelog), and the
+## Copilot SDK docs index (https://docs.github.com/en/copilot/how-tos/copilot-sdk) lists no search tool for the inference API; WebSearch is DuckDuckGo's.
+HARNESS_WEB_SEARCH="none"
+export HARNESS_WEB_SEARCH
+
 export HARNESS_PROVIDER_NAME HARNESS_SELF_NAME HARNESS_ENDPOINT HARNESS_HOST
 export HARNESS_WIRE HARNESS_CREDENTIAL_NAMES
 export HARNESS_MODEL_LIGHT HARNESS_MODEL_MAIN HARNESS_TOKEN_LIGHT HARNESS_TOKEN_MAIN
+export HARNESS_MODEL_TABLE HARNESS_MODEL_FROM_LIGHT HARNESS_MODEL_FROM_MAIN
 export HARNESS_TOKEN_EXCHANGE HARNESS_EXTRA_HEADERS
 
 ## exec, not source: the core becomes this process, so the console keeps one

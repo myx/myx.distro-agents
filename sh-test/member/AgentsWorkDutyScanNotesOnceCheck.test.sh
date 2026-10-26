@@ -54,7 +54,7 @@ rigWait(){ ## result name
 	local waitRc=0
 	( cd "$rigW" && env -u MDAT_SKILLSET_ROOT -u CLAUDE_CODE_SESSION_ID HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$rigW/source" MDAT_DATA_ROOT="$rigD" RIG_SCENARIO="$rigTmp" \
 		MDAT_SESSION_ID="$rigSession" MDAT_SPAWN_SESSION_ID="$rigRun" MDAT_SPAWN_AGENT=magic-coordinator MDAT_WAIT_REMIND=off \
-		perl -e 'alarm 120 ; exec @ARGV' bash "$rigW/source/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input magic-coordinator --wait-source scan:work-duty --wait-timeout 0 ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" < /dev/null 4> /dev/null || waitRc=$?
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigW/source/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input magic-coordinator --wait-source scan:work-duty --wait-timeout 0 ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" < /dev/null 4> /dev/null || waitRc=$?
 	printf '%s' "$waitRc" > "$rigTmp/$1.rc"
 }
 rigResult(){ ## result name -- the outcome word of its WAIT-RESULT line, or none
@@ -71,7 +71,7 @@ printf -- '---\ntype: note\nfrom: magic-coordinator\n---\n\n# Note: printed once
 echo "-- the scan prints a note once --"
 ( cd "$rigW" && env -u MDAT_SKILLSET_ROOT -u CLAUDE_CODE_SESSION_ID HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$rigW/source" MDAT_DATA_ROOT="$rigD" RIG_SCENARIO="$rigTmp" \
 	MDAT_SESSION_ID="$rigSession" MDAT_SPAWN_SESSION_ID="$rigRun" MDAT_SPAWN_AGENT=magic-coordinator MDAT_WAIT_REMIND=off \
-	perl -e 'alarm 120 ; exec @ARGV' bash "$rigW/source/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-work-duty-input-scan magic-coordinator ) > "$rigTmp/scan.out" 2> "$rigTmp/scan.err" < /dev/null || :
+	python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigW/source/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-work-duty-input-scan magic-coordinator ) > "$rigTmp/scan.out" 2> "$rigTmp/scan.err" < /dev/null || :
 rigAssert "the note's block is in the report once" "$( LC_ALL=C grep -c -x -F '## inbox/note-20261022T1900Z-printed-once.md' "$rigTmp/scan.out" )" 1
 rigAssert "the board digest is still there, with the running item" "$( LC_ALL=C grep -c -x -F '## board digest' "$rigTmp/scan.out" ):$( LC_ALL=C grep -c -F 'dispatch-rig-running.md' "$rigTmp/scan.out" )" "1:1"
 

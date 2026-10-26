@@ -2,24 +2,32 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.SourceTtl.include -- THE ONE TABLE of the TTLs of the sources (F3.3, F4.2). The timing of a source is a TTL and no
+## AgentsTools.SourceTtl.include -- THE ONE TABLE of the TTLs of the sources (F3.3, F4.2, T2). The timing of a source is a TTL and no
 ## interval: a source whose previous check is still inside its own TTL is skipped. Wait reads the table through AgentsWaitTtlOf, the
 ## collection of the sources a scan reads (AgentsTools.Collect.include) through the same function. The TTLs are hardcoded, in
 ## seconds, and no setting names them: an agent never needs them.
 ## Sourced, never run. Functions only.
 ##
-
-## Prints the seconds a source waits between its checks; 0 is every pass. <source> is `<kind>:<name>`.
-##   - the tags and mentions, and with them the team channel and the DMs they read: 15;
-##   - a scan, the age of its cache (AgentsTools.InputScanCache.include): 300;
-##   - the mailbox of a member: 60;
+## A source is timed here by the cadence at which it is READ. A member's own incoming is cached locally and refilled on a call when
+## stale, by these per-source TTLs (T2): the session chat short, the mail five minutes or more by worktime, the tags and mentions one
+## to five minutes. The one table holds both the cache TTLs and the live polling TTLs, which differ by source:
+##   - the session thread, read into the session chat file (`chat:<session>`): 15, short -- the Wait times its own top-up reads by
+##     the file's quietness (AgentsWaitChatTopUp), the table's value is the source's;
+##   - the mailbox of a member (`mail:<member>`): 300, five minutes -- email has no source of its own in Wait, so its TTL is the
+##     cache's alone; the collection stretches it to 600, ten minutes, in worktime (AgentsToolsCollectTtlOf, T2);
+##   - the tags and mentions (`tagged:<member>`): 15, the live Wait floor -- a mention ends a collect at once; the schedule re-reads
+##     the team channel that feeds the tags at its own cadence of one minute (AgentsToolsScheduleTeamTags, the 1-5 minute band);
+##   - a scan (`scan:<scan>`): 300, how long an unchanged scan is left to stand (AgentsWaitProbeScan). It is no floor on
+##     noticing a message: a wake marker runs the scan at once (THE SCAN IS WOKEN AND NOT ON ITS TTL, AgentsTools.MemberWait.include),
+##     and the TTL only keeps a scan with nothing to report from running again and again;
 ##   - the Trello notifications of a member: 120.
 ## The session thread, the replies and the file are timed where they are read (AgentsWaitChatTopUp, AgentsWaitRepliesLookRead).
 AgentsToolsSourceTtlOf(){ ## source
 	case "$1" in
+		chat:*) printf '15\n' ;;
 		tagged:*) printf '15\n' ;;
 		scan:*) printf '300\n' ;;
-		mail:*) printf '60\n' ;;
+		mail:*) printf '300\n' ;;
 		trello:*) printf '120\n' ;;
 		*) printf '0\n' ;;
 	esac

@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Incoming.include -- the per-member pre-cache (T2): the one reader of every incoming source of a member -- its
+## mailbox, its Trello notifications, the tagged team channel, its DMs and its live session thread -- so that a member's own
+## scan reads all of what came for it in one place. Sourced, never run. Functions only.
+##
+## A SOURCE IS READ THROUGH THE TOOLING THAT OWNS IT, never by this file: mail and trello through AgentsToolsCollectOne
+## (AgentsTools.Collect.include), the tagged channel and the DMs through AgentsToolsScheduleTeamTags and
+## AgentsToolsScheduleDmTags (AgentsTools.DispatcherLoop.include), and the live session thread through
+## AgentsToolsSessionCommsRead (AgentsTools.SessionComms.include). Each line it prints is a `collect:` line in the shape the
+## collection already uses: `collect: <kind>:<member>: N new` (`no session` for a chat of a member in no live run).
+##
+## THE ONE ENTRY POINT IS AgentsToolsIncomingSync: the `--intern-op-member-incoming-sync` arm of DistroAgentsTools.fn.sh
+## calls it for a member, and so does the spawner at a member's start (its `start` scope). One source at a time is
+## AgentsToolsIncomingOne, by kind.
+##
+
+type AgentsToolsScheduleDmTags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherLoop.include"
+type AgentsToolsCollectOne > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.Collect.include"
+
+## The kinds of the incoming sources a member pre-caches, in their order: the mailbox and the Trello notifications the
+## collection owns, the tagged team channel (mentions), the DMs, and the live session thread.
+AgentsToolsIncomingKinds(){
+	printf '%s\n' "mail trello tagged dm chat"
+}
+
+## The DMs of a member, read by force (however soon the last look was): AgentsToolsScheduleDmTags <member> "" yes. What the
+## look found is left by that function in the globals agentsScheduleDmNewest and agentsScheduleDmNew. Prints
+## `collect: dm:<member>: N new`, N being how many new DM messages the look found.
+AgentsToolsIncomingDms(){ ## member
+	agentsScheduleDmNewest="" agentsScheduleDmNew=0
+	AgentsToolsScheduleDmTags "$1" "" yes
+	printf 'collect: dm:%s: %s new\n' "$1" "${agentsScheduleDmNew:-0}"
+}
+
+## The live session thread of a member, read by force: the thread of its live work-duty run, read through
+## AgentsToolsSessionCommsRead, which brings what is new into the session chat file and leaves the count in commsReadAdded.
+## Prints `collect: chat:<member>: N new`. A member in no live run has no thread to read, and says
+## `collect: chat:<member>: no session ...` -- that is none, never a failure.
+AgentsToolsIncomingChat(){ ## member
+	local incomingChatRecord="" incomingChatSession="" incomingChatThread="" incomingChatAdded=0
+	type AgentsToolsSessionCommsRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionComms.include" 2> /dev/null || :
+	if incomingChatRecord="$( AgentsToolsScheduleWorkDutyRecord "$1" 2> /dev/null )" ; then
+		incomingChatSession="$( AgentsToolsSpawnSandboxRecordHeader "$incomingChatRecord" session-id 2> /dev/null )"
+		incomingChatThread="$( AgentsToolsSpawnSandboxRecordHeader "$incomingChatRecord" session-thread 2> /dev/null )"
+	fi
+	if [ -z "$incomingChatSession" ] || [ -z "$incomingChatThread" ] || [ "$incomingChatThread" = "-" ] ; then
+		printf 'collect: chat:%s: no session -- the member runs in none, so no live thread is read\n' "$1"
+		return 0
+	fi
+	AgentsToolsSessionCommsRead "$incomingChatSession" "$incomingChatThread" "$1" 2> /dev/null || :
+	case "${commsReadAdded:-0}" in ''|*[!0123456789]*) ;; *) incomingChatAdded="$commsReadAdded" ;; esac
+	printf 'collect: chat:%s: %s new\n' "$1" "$incomingChatAdded"
+	return 0
+}
+
+## One source of a member, by its kind. mail and trello go to the collection, whose TTL decides unless force is yes; tagged,
+## dm and chat are the pre-cache's own, and are read at once whatever their TTL. Prints the one `collect:` line of the source
+## read. rc 0 read (or fresh), non-zero failed.
+AgentsToolsIncomingOne(){ ## kind, member, [force: yes|no, no by default]
+	local incomingKind="$1" incomingMember="$2" incomingForce="${3:-no}" incomingRc=0
+	case "$incomingKind" in
+		mail|trello)
+			AgentsToolsCollectOne "$incomingKind" "$incomingMember" "$incomingForce" || incomingRc=$?
+			printf '%s\n' "$agentsCollectLine"
+			return "$incomingRc"
+		;;
+		tagged)
+			AgentsToolsScheduleTeamTags "$incomingMember" > /dev/null 2>&1 || :
+			## The tagged source is news exactly where the newest tag stands past the member's pointer
+			## (AgentsToolsScheduleTagNews): a mention is one call by name, as a DM is.
+			if AgentsToolsScheduleTagNews "$incomingMember" ; then
+				printf 'collect: tagged:%s: 1 new\n' "$incomingMember"
+			else
+				printf 'collect: tagged:%s: 0 new\n' "$incomingMember"
+			fi
+			return 0
+		;;
+		dm) AgentsToolsIncomingDms "$incomingMember" || incomingRc=$? ;;
+		chat) AgentsToolsIncomingChat "$incomingMember" || incomingRc=$? ;;
+		*)
+			echo "⛔ ERROR: $MDSC_CMD incoming: no such kind of incoming source: $incomingKind -- the kinds are $( AgentsToolsIncomingKinds )" >&2
+			return 1
+		;;
+	esac
+	return "$incomingRc"
+}
+
+## THE SYNC OF A MEMBER'S INCOMING (T2): every source of the member's incoming read at once, whatever its TTL, one `collect:`
+## line a source in the kinds' order. The `--intern-op-member-incoming-sync` arm calls it for a member, and the spawner at a
+## member's start. Two scopes: `all`, the default, reads the five kinds; `start` reads the personal mail alone, which is what
+## a start refills -- the tags, the DMs and the chat are read by the schedule, the work-duty scan and the member's Wait (F4.2:
+## a source is read once for all). Best-effort, as a start's sync must be: a source that fails is said in its own line and
+## stops no other, so the sync is rc 0 once it has read every kind of its scope, and rc 1 only where it cannot run at all.
+AgentsToolsIncomingSync(){ ## member, [scope: all|start]
+	local incomingMember="${1:-}" incomingScope="${2:-all}" incomingKinds="" incomingKind=""
+	if [ -z "$incomingMember" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD member-incoming-sync: syntax is <team-member> [start]" >&2
+		return 1
+	fi
+	case "$incomingScope" in
+		all|'') incomingKinds="$( AgentsToolsIncomingKinds )" ;;
+		start) incomingKinds="mail" ;;
+		*)
+			echo "⛔ ERROR: $MDSC_CMD member-incoming-sync: no such scope of the sync: $incomingScope -- the scopes are all start" >&2
+			return 1
+		;;
+	esac
+	for incomingKind in $incomingKinds ; do
+		AgentsToolsIncomingOne "$incomingKind" "$incomingMember" yes || :
+	done
+	return 0
+}

@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.WakeMarker.include -- THE WAKE MARKER of a member: one small file per member, written the moment a
+## message addressed to that member is posted, and watched by that member's waiting session, so the wait is woken
+## by the ARRIVAL instead of by its next look at a costly source.
+##
+## WHY IT EXISTS. A wait reads its local sources -- an inbox, a board state, the session chat file, this marker --
+## out of files, which costs nothing, so it can read them every second. A Slack source costs a request of the
+## team's own budget (about fifty a minute for the app, shared by every host and session of it), so a wait must
+## not read one that often; it looks at those on a gap that grows from five seconds to five minutes. Without a
+## marker that gap IS the wake latency of a message from one of our own members, which is what the owner
+## reported: a coordinator's direct message to a member sat unread for minutes. But that message is posted by
+## this host -- the send operation runs here -- so the arrival is known here at once. The sender writes this
+## marker, the recipient's wait sees it within a tick, and the wait reads its costly sources immediately
+## instead of at their next scheduled look.
+##
+## THE FILE IS ONE LINE: `<epoch> <seq> <who>`. The sequence is what makes two messages in one second two
+## wake-ups -- a wait compares the rendering of the source, and an unchanged line is no arrival. It lives under
+## the workspace's `.local/agents/`, never in the team data: it is a signal between this host's own processes,
+## and nothing another host, a clone or the manager should read as its own.
+##
+## IT IS NO ARRIVAL OF ITS OWN. What it says is not what a member is to read: the message itself is carried by
+## the source that reads that conversation, and a wait that returned the marker would return nothing a person
+## could read. So a wait takes it as read and reads its sources again (AgentsTools.MemberWait.include).
+## Sourced, never run. Functions only.
+##
+
+## The marker of a member: nothing for a name that is no member name, or for a workspace with no `.local`.
+AgentsToolsWakePath(){ ## team member
+	local wakeName="$1"
+	[ -n "${MMDAPP:-}" ] || return 1
+	case "$wakeName" in ''|.|..|*/*|*[[:space:]]*) return 1 ;; esac
+	printf '%s' "$MMDAPP/.local/agents/wake/$wakeName"
+}
+
+## Writes the marker of a member: one line, the moment, a sequence one past what the file held, and who wrote it.
+## Quiet and best effort, and never locked: a marker that cannot be written must not fail the message it follows
+## (the wait still finds that message at its next look of the costly sources), and two writers at once can only
+## lose one increment, which merges two wake-ups of one second into one -- the message they announce is still
+## there for the next look.
+AgentsToolsWakeTouch(){ ## team member, who wrote it (may be empty)
+	local wakeTarget="$1" wakeFrom="${2:-}" wakeFile wakeLine="" wakeAt wakeSeq wakeTemp
+	wakeFile="$( AgentsToolsWakePath "$wakeTarget" )" || return 0
+	mkdir -p "${wakeFile%/*}" 2> /dev/null || return 0
+	{ IFS= read -r wakeLine < "$wakeFile" ; } 2> /dev/null || wakeLine=""
+	wakeSeq="${wakeLine#* }" ; wakeSeq="${wakeSeq%% *}"
+	case "$wakeSeq" in ''|*[!0123456789]*) wakeSeq=0 ;; esac
+	wakeAt="$( date +%s )" || return 0
+	wakeTemp="$( mktemp "$wakeFile.tmp.XXXXXX" )" || return 0
+	{ printf '%s %s %s\n' "$wakeAt" "$(( wakeSeq + 1 ))" "$wakeFrom" > "$wakeTemp" && chmod 644 "$wakeTemp" && mv -f "$wakeTemp" "$wakeFile" ; } 2> /dev/null \
+		|| { rm -f "$wakeTemp" 2> /dev/null ; return 0 ; }
+	return 0
+}

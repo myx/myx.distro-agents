@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## The help of AgentLibrarianTools.fn.sh: the librarian's personal tool, and the queue of update requests any member
+## files. Every echo stays flush-left: --member-help cuts help files on a ^echo anchor.
+
+## The default syntax: the entry points a reader starts from. The expanded forms sit behind --help-syntax, the
+## manual behind --help.
+echo "📘 syntax: AgentLibrarianTools.fn.sh --request-update --kind document|knowledge|skill --target <target> --why <text> (--from-stdin|--from-file <path>) [--reply]" >&2
+echo "📘 syntax: AgentLibrarianTools.fn.sh --skillset-upsert [--team-member <team-member>] <pathname> (--from-stdin|--from-file <path>)" >&2
+echo "📘 syntax: AgentLibrarianTools.fn.sh --queue-list" >&2
+echo "📘 syntax: AgentLibrarianTools.fn.sh --queue-take" >&2
+echo "📘 syntax: AgentLibrarianTools.fn.sh --queue-done <name> (--apply|--refuse <reason>|--result <text>)" >&2
+echo "📘 syntax: AgentLibrarianTools.fn.sh --doc-drift [<path>...] [--queue]" >&2
+echo "📘 syntax: AgentLibrarianTools.fn.sh --request-result <name>" >&2
+echo "📘 syntax: AgentLibrarianTools.fn.sh --queue-ask <name>" >&2
+echo "📘 syntax: AgentLibrarianTools.fn.sh [--help-syntax]" >&2
+echo "📘 syntax: AgentLibrarianTools.fn.sh [--help]" >&2
+
+case "$1" in
+	--help-syntax)
+echo "📘 syntax: AgentLibrarianTools.fn.sh --request-update --kind skill --target <team-member>:<pathname> --why <text> --whole-text (--from-stdin|--from-file <path>) [--reply]" >&2
+echo "📘 syntax: AgentLibrarianTools.fn.sh --request-update --kind skill --target <team-member>:<pathname> --why <text> (--old <text>|--old-from-file <path>) (--new <text>|--new-from-file <path>) [--reply]" >&2
+echo "📘 syntax: AgentLibrarianTools.fn.sh --queue-done <name> (--apply|--refuse <reason>|--result <text>)" >&2
+		return 0
+	;;
+	--help)
+		myx.common lib/catMarkdown "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.AgentLibrarianTools.help.md" >&2
+		return 0
+	;;
+esac

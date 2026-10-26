@@ -115,7 +115,7 @@ rigRefusal(){ ## output file -> the refusal id it printed
 ## The pending-reply records of the scenario, oldest first by the post they stand at.
 rigRecordFiles(){
 	local recordFile
-	for recordFile in "$rigWs/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigWs/.local/agents/pending"/*.md "$rigWs/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] || continue
 		printf '%s\t%s\n' "$( LC_ALL=C sed -n 's/^question-ts: //p' "$recordFile" | head -1 )" "$recordFile"
 	done | LC_ALL=C sort | cut -f2-
@@ -220,6 +220,9 @@ rigWrites(){
 ## reported as such, never as a result. With settle the guard is a quiet time: it counts from
 ## the first thread read this call makes, and starts again at every post, edit or emoji, so the
 ## call is ended only once it does nothing but wait, however long its work took before that.
+## The ts this rig's fake Slack gives are years old, so every reminder of an ask would be due
+## at once, one post more than a scenario counts: MDAT_WAIT_REMIND=off sends none, as the test
+## runner sets it for every test (AgentsRunTests.sh).
 rigKilled=""
 rigCall(){ ## guard seconds, tool, argument object, optional settle
 	local callPid callLeft callStartLeft=120 callReads callWrites callNow
@@ -228,7 +231,7 @@ rigCall(){ ## guard seconds, tool, argument object, optional settle
 	callWrites="$( rigWrites )"
 	set -m
 	( cd "$rigWs" && printf '%s' "$3" | env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SESSION_THREAD \
-		MDAT_DATA_ROOT="$rigScenarioDir/data" MDAT_SPAWN_SESSION_ID="$rigSession" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigWs" MDAT_SPAWN_AGENT="$rigMember" MDAT_HARNESS_WAIT_TIMEOUT=1 \
+		MDAT_DATA_ROOT="$rigScenarioDir/data" MDAT_SPAWN_SESSION_ID="$rigSession" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigWs" MDAT_SPAWN_AGENT="$rigMember" MDAT_HARNESS_WAIT_TIMEOUT=1 MDAT_WAIT_REMIND=off \
 		bash "$rigHarness" --intern-tool "$2" --access-read-root "$rigWs" --access-write-root "$rigWs/IN" ) > "$rigScenarioDir/out" 2> "$rigScenarioDir/err" &
 	callPid=$!
 	set +m

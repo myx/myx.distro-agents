@@ -16,7 +16,9 @@
 ## resolution's own words, by the spawn proxy: the operation brings no member itself. A member started with no session id in the caller's environment outlives its starter: it
 ## leads a process group of its own, runs to its own end and records its close. The caller rule of the family holds,
 ## the operation's place in the family is one arm and one include, it starts through the spawn proxy and by no way
-## of its own, and its help pair gives the form the row is checked against. Offline; only the rig's own tree is read
+## of its own, and its help pair gives the form the row is checked against. The kinds of start the console's Launchpad offers (--kind coworking
+## with --also, standalone, work-duty, free, and --goal) are held in section 9b: the routine each runs under, a member that is none among
+## several starting nobody, and a work-duty refused while that member's duty runs. Offline; only the rig's own tree is read
 ## or written.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -25,7 +27,7 @@ rigPackage="${rigHere%/sh-lib}"
 rigTest="$rigPackage/sh-test"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigOp="--manager-spawn-member"
-rigSyntaxWords="<team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]"
+rigSyntaxWords="<team-member> [--kind coworking|standalone|work-duty|free] [--also <team-member>[,<team-member>]...] [--goal <text>] [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -78,6 +80,10 @@ rigTeam(){ ## member set root -- the team's own folder there, with the one routi
 	rigMember "$1" magic-team active
 	printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\ninvitees: magic-team\nrequires-session-kind: coworking\n---\n# rig coworking routine fixture\n' \
 		> "$1/magic-team/magic-team.coworking.routine.md"
+	printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\n---\n# rig standalone routine fixture\n' \
+		> "$1/magic-team/magic-team.standalone.routine.md"
+	printf -- '---\nexecutors: magic-team\nmaintainers: magic-coordinator\nrequires-session-kind: standalone\nreports-to: none\nreview-by: none\n---\n# rig work-duty routine fixture\n' \
+		> "$1/magic-team/magic-team.work-duty.routine.md"
 }
 rigTeam "$rigSkills"
 rigMember "$rigSkills" keeper-myx active
@@ -133,6 +139,20 @@ rigFirstError(){ ## file -- its first error line, but for that one
 rigWhole(){ ## file, text -- how many lines of the file are that text, whole
 	LC_ALL=C grep -c -x -F -- "$2" "$1" 2> /dev/null || :
 }
+rigMadeSettled(){ ## -- rigMade, taken once the runs started so far have closed and their board items have stopped coming: a close writes its items after its record says it
+	local madeLeft=90 madeSame=0 madeNow madeThen=""
+	while [ "$madeLeft" -gt 0 ] && [ "$madeSame" -lt 3 ] ; do
+		if LC_ALL=C grep -l -x 'status: spawn-started' "$rigWs"/.local/agents/spawned/*/*.spawn.md > /dev/null 2>&1 ; then
+			madeSame=0
+		else
+			madeNow="$( rigMade )"
+			if [ "$madeNow" = "$madeThen" ] ; then madeSame=$(( madeSame + 1 )) ; else madeSame=0 ; fi
+			madeThen="$madeNow"
+		fi
+		sleep 1 ; madeLeft=$(( madeLeft - 1 ))
+	done
+	rigMade
+}
 rigMade(){ ## -- what the starts so far have made: sandboxes, run stores, board items, consoles started
 	printf '%s %s %s %s\n' "$( ls "$rigWs/.local/agents/spawned" 2> /dev/null | LC_ALL=C grep -c . || : )" "$( ls "$rigWs/.local/agents/sessions" 2> /dev/null | LC_ALL=C grep -c . || : )" \
 		"$( find "$rigData/board" -type f 2> /dev/null | LC_ALL=C grep -c . || : )" "$( ls "$rigSc" | LC_ALL=C grep -c '^brief\.' || : )"
@@ -169,7 +189,7 @@ printf '  \n\t\n\n' > "$rigTmp/prompt.blank"
 printf '%s\n' '--routine "is no option here" and -x neither' "100% of it, a \\ and a \\n, 'single', \$HOME and \`tick\`" "a	tab, and a last line with trailing spaces  " > "$rigTmp/prompt.odd"
 
 echo "-- 1. the member gets the prompt, in a session of its own --"
-rigMadeBefore="$( rigMade )"
+rigMadeBefore="$( rigMadeSettled )"
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx
 rigFirst="$rigId"
 rigAssert "the start ends 0 with no error, and prints one line: a spawn row of five fields that names the member" "$rigRc $( rigErrors ) $( LC_ALL=C awk -F'\t' 'END { print NR }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '{ print $1, NF, $3 }' "$rigTmp/out" )" "0 0 1 spawn 5 keeper-myx"
@@ -211,7 +231,7 @@ rigOddFile="$rigId"
 rigWaitFor 30 test -s "$rigSc/done.$rigOddFile"
 rigPromptOf "$rigSc/brief.$rigOddFile" > "$rigTmp/prompt.odd.got" 2> /dev/null
 rigAssert "and from a file, with standard input empty: the same bytes" "$rigRc $( cmp -s "$rigTmp/prompt.odd" "$rigTmp/prompt.odd.got" && echo same || echo other )" "0 same"
-rigMadeBefore="$( rigMade )"
+rigMadeBefore="$( rigMadeSettled )"
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx the prompt as words
 rigAssert "a prompt is never an argument: words after the member are refused in one line with the syntax, and nothing is started" \
 	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: syntax is $rigSyntaxWords, got: the" ) $( rigErrors ) [$( rigMade )]" "1 0 1 1 [$rigMadeBefore]"
@@ -245,7 +265,7 @@ rigAssert "and so is a member with no SKILL.md at all: nothing says it is not to
 [ -z "$rigId" ] || rigWaitFor 30 test -s "$rigSc/done.$rigId"
 
 echo "-- 6. a name that is no member is refused --"
-rigMadeBefore="$( rigMade )"
+rigMadeBefore="$( rigMadeSettled )"
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-nowhere
 rigAssert "a name no workspace of the machine holds: rc 1, nothing on stdout, one error line, nothing started" \
 	"$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: no such team member: keeper-nowhere -- nothing was started" ) $( rigErrors ) [$( rigMade )]" "1 0 1 1 [$rigMadeBefore]"
@@ -263,7 +283,7 @@ rigAssert "by the console of the workspace it was asked from, as that member, on
 	"$( cat "$rigSc/where.$rigInvited" ) $( LC_ALL=C awk '{ print $1, $3 }' "$rigSc/who.$rigInvited" )" "$rigWs keeper-there $rigThereSkills"
 rigAssert "its record is in the workspace it was asked from, and names the member's own" "$( [ -f "$( rigRecord "$rigInvited" )" ] && echo here ) $( ls "$rigThere/.local/agents" | LC_ALL=C grep -c -x spawned || : ) $( rigHeader "$rigInvited" member-workspace )" "here 0 ws-there"
 rigAssert "it received the prompt, behind a brief block that names it" "$( head -1 "$rigSc/brief.$rigInvited" ) | $( rigPromptOf "$rigSc/brief.$rigInvited" | head -1 )" "SPAWN-PREPARE-BRIEF: keeper-there | first line of the prompt"
-rigMadeBefore="$( rigMade )"
+rigMadeBefore="$( rigMadeSettled )"
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-thereref
 rigAssert "a reference-only member of that workspace is refused by its SKILL.md, read where it is set up, and nothing is started" \
 	"$( [ -e "$rigSkills/keeper-thereref" ] && echo here || echo not-here ) $rigRc $( rigRefusedLine keeper-thereref ) $( rigErrors ) [$( rigMade )]" "not-here 1 1 1 [$rigMadeBefore]"
@@ -295,8 +315,70 @@ rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx --from-stdin
 rigAssert "--from-stdin says what the default is: the prompt is standard input" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $3 }' "$rigTmp/out" )" "0 spawn keeper-myx"
 [ -z "$rigId" ] || rigWaitFor 30 test -s "$rigSc/done.$rigId"
 
-echo "-- 10. the caller rule, and the place in the family --"
+echo "-- 9b. the kinds of start of the Launchpad --"
+rigRun /dev/null "$rigOp" keeper-myx --kind standalone --goal "land the index change" --session-name-or-comment "standalone one"
+rigStand="$rigId"
+rigAssert "standalone: rc 0, one row, the standalone routine on the record, and the goal is the prompt, with no standard input read" "$rigRc $( LC_ALL=C awk -F'\t' 'END { print NR }' "$rigTmp/out" ) $( rigHeader "$rigStand" routine ) $( rigHeader "$rigStand" owner )" "0 1 magic-team.standalone.routine.md keeper-myx"
+rigWaitFor 30 test -s "$rigSc/done.$rigStand"
+rigAssert "the member received the goal whole, behind the brief block of that routine" "$( rigPromptOf "$rigSc/brief.$rigStand" ) | $( head -1 "$rigSc/brief.$rigStand" )" "land the index change | SPAWN-PREPARE-BRIEF: keeper-myx"
+rigMadeBefore="$( rigMadeSettled )"
+rigRun /dev/null "$rigOp" keeper-myx --kind standalone --also magic-coordinator --goal "x"
+rigAssert "standalone is one member: --also is refused with nothing started" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: --also joins more members to a coworking session, and a standalone start has one member -- nothing was started" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
+rigRun /dev/null "$rigOp" keeper-myx --kind coworking --also magic-coordinator,keeper-there --goal "three of us" --session-name-or-comment "crew"
+rigCrew="$rigId"
+rigAssert "coworking with --also: rc 0 and one row each, the first member's, then the others', all of the one session" "$rigRc $( LC_ALL=C awk -F'\t' '{ printf "%s:%s:%s ", $1, $3, ( $2 == first ? "same" : ( NR == 1 ? "own" : "other" ) ) ; if ( NR == 1 ) { first = $2 } }' "$rigTmp/out" )" "0 spawn:keeper-myx:own spawn:magic-coordinator:same spawn:keeper-there:same "
+rigWaitFor 30 test -s "$rigSc/done.$rigCrew"
+rigAssert "the others joined the session by its id, none started one: three records carry it, one of each member, all of the routine of a coworking session" "$( LC_ALL=C grep -l -x "session-id: $rigCrew" "$rigWs"/.local/agents/spawned/*/*.spawn.md | while IFS= read -r rigJ ; do printf '%s/%s\n' "$( LC_ALL=C awk -F': ' '$1 == "owner" { print $2 ; exit }' "$rigJ" )" "$( LC_ALL=C awk -F': ' '$1 == "routine" { print $2 ; exit }' "$rigJ" )" ; done | LC_ALL=C sort | tr '\n' ' ' )" "keeper-myx/magic-team.coworking.routine.md keeper-there/magic-team.coworking.routine.md magic-coordinator/magic-team.coworking.routine.md "
+rigAssert "each of the three received the goal" "$( for rigWho in keeper-myx keeper-there magic-coordinator ; do rigJ="$( LC_ALL=C grep -l -x "session-id: $rigCrew" "$rigWs"/.local/agents/spawned/*/*.spawn.md | while IFS= read -r rigF ; do [ "$( LC_ALL=C awk -F': ' '$1 == "owner" { print $2 ; exit }' "$rigF" )" = "$rigWho" ] && basename "$rigF" .spawn.md ; done )" ; rigWaitFor 30 test -s "$rigSc/brief.$rigJ" ; rigPromptOf "$rigSc/brief.$rigJ" ; done | tr '\n' '|' )" "three of us|three of us|three of us|"
+rigMadeBefore="$( rigMadeSettled )"
+rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx --also keeper-nowhere
+rigAssert "a member that is none among the others starts nobody, the first member neither" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: no such team member: keeper-nowhere -- nothing was started" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
+rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx --also keeper-myx
+rigAssert "a member named twice is refused" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: keeper-myx is named twice -- nothing was started" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
+rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx --also human-owner
+rigAssert "an identity record among the others is refused by the one check of a start, and nothing is started" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: human-owner is an identity record, and an identity record is never started: its SKILL.md says status: reference-only -- nothing was started" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
+rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx --kind bogus
+rigAssert "a kind that is none is refused by name" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: --kind is coworking, standalone, work-duty or free, got: bogus" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
+rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx --goal "g" --from-stdin
+rigAssert "a goal and standard input together are refused: the prompt has one source" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: --goal is the prompt given as an option, and a coworking start takes its prompt from standard input or a file -- nothing was started" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
+rigRun /dev/null "$rigOp" keeper-myx --goal "   "
+rigAssert "a goal of blanks is an empty prompt" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: the prompt is empty -- nothing was started" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
+
+rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx --kind free
+rigFree="$rigId"
+rigAssert "free: rc 0, one row; no routine on the record and no brief block of a session kind: the prompt is the brief" "$rigRc $( LC_ALL=C awk -F'\t' 'END { print NR }' "$rigTmp/out" ) [$( rigHeader "$rigFree" routine )]" "0 1 []"
+rigWaitFor 30 test -s "$rigSc/done.$rigFree"
+rigAssert "the member got its prompt, whole, behind no SPAWN-PREPARE-BRIEF block" "$( LC_ALL=C grep -c -x -F -e 'first line of the prompt' -e 'second line of it' "$rigSc/brief.$rigFree" ) $( LC_ALL=C grep -c '^SPAWN-PREPARE-BRIEF: ' "$rigSc/brief.$rigFree" || : )" "2 0"
+rigMadeBefore="$( rigMadeSettled )"
+rigRun "$rigTmp/prompt.empty" "$rigOp" keeper-myx --kind free
+rigAssert "free needs a prompt, as any start does" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: the prompt is empty -- nothing was started" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
+rigRun /dev/null "$rigOp" keeper-myx --kind free --goal "g"
+rigAssert "free does not take --goal" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: --goal is the prompt given as an option, and a free start takes its prompt from standard input or a file -- nothing was started" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
+
+rm -f "$rigSc/release"
+rigPre=( "RIG_RUN=90" )
+rigRun /dev/null "$rigOp" keeper-myx --kind work-duty --session-name-or-comment "duty"
+rigPre=()
+rigDuty="$rigId"
+rigAssert "work-duty: rc 0 with standard input empty and no goal, one row, the duty routine of the team on the record" "$rigRc $( LC_ALL=C awk -F'\t' 'END { print NR }' "$rigTmp/out" ) $( rigHeader "$rigDuty" routine ) $( rigHeader "$rigDuty" owner )" "0 1 magic-team.work-duty.routine.md keeper-myx"
+rigWaitFor 30 test -s "$rigSc/who.$rigDuty" || rigRefuse "the stand-in console never ran for the work-duty: $( rigFirstError "$rigTmp/err" )"
 rigMadeBefore="$( rigMade )"
+rigRun /dev/null "$rigOp" keeper-myx --kind work-duty
+rigAssert "the duty of the member runs: a second one is refused, in one line that says whose, with nothing started" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "⛔ ERROR: DistroAgentsTools $rigOp: the work-duty of keeper-myx runs already (" "$rigTmp/err" || : ) [$( rigMade )]" "1 0 1 [$rigMadeBefore]"
+rigRun /dev/null "$rigOp" keeper-myx --kind work-duty --also magic-coordinator
+rigAssert "a work-duty is one member's: --also is refused" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: --also joins more members to a coworking session, and a work-duty start has one member -- nothing was started" )" "1 1"
+: > "$rigSc/release"
+rigWaitFor 30 test -s "$rigSc/done.$rigDuty"
+rigWaitFor 60 rigClosed "$rigDuty"
+rigRun /dev/null "$rigOp" keeper-myx --kind work-duty --goal "the scope: the board only"
+rigAssert "control: once that duty ended, a new one starts, with the goal as its comments or scope" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $3 }' "$rigTmp/out" )" "0 spawn keeper-myx"
+[ -z "$rigId" ] || rigWaitFor 30 test -s "$rigSc/done.$rigId"
+rigAssert "the start of a work-duty is the proxy's, as every start: the operation names no routine file but the standalone routine, and asks the duty routine of the scheduler's own function" \
+	"$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSpawn.include" | LC_ALL=C grep -c -e 'AgentsToolsScheduleDutyRoutine ' -e 'AgentsToolsScheduleWorkDutyRecord ' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/manager/AgentsTools.ManagerSpawn.include" | LC_ALL=C grep -c -e 'work-duty.routine.md' || : )" "3 0"
+rm -f "$rigSc/release"
+
+echo "-- 10. the caller rule, and the place in the family --"
+rigMadeBefore="$( rigMadeSettled )"
 rigPre=( "MDAT_SPAWN_AGENT=magic-coordinator" )
 rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx
 rigPre=()

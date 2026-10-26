@@ -7,11 +7,12 @@
 ##      one matching nothing gives no row and no warning), directory through the places,
 ##      project -- a write grant on a read-only place capped to read with one warning, an
 ##      unknown name kept as an unresolved row with one warning, and magic-librarian's read of
-##      source/**; the built-in grants of magic-architect and magic-tester with their tags, as
-##      the registry readers find them;
+##      source/**; the `--magic-team:` floor directives of magic-architect and magic-tester,
+##      declared as myx.distro-agents/project.inf declares them, with their tags, as the registry
+##      readers find them, and none of member `*`;
 ##   2. grants.index: fully unrolled per member, the ceilings deepest first, the floor (temp in
 ##      every tooling workspace, the source docs where agents are installed), unresolved rows,
-##      magic-tester's built-in grants, an allow-tool
+##      magic-tester's floor directive rows, an allow-tool
 ##      for `*` one standing tool row per member, held by each (the team tools stay the floor);
 ##   2b. the roots a member is granted, off that index: whole-directory rows only, the
 ##      globbed source rows none, read (a read-only place included) and write;
@@ -24,8 +25,10 @@
 ##   5. CLIENT_ACCESS_ROOTS_EXTRA is gone;
 ##   6. the team floor tools in code (agentsPermissionFloorTools) and the inert reference lines
 ##      in myx.distro-agents/project.inf name exactly the same tools, both ways; and so do the
-##      reference lines of magic-architect and magic-tester and their built-in rows;
-##   7. a workspace with no source/: no registry, the built-in grants all the same.
+##      directives of magic-architect and magic-tester and their registry rows;
+##   7. a workspace with no source/: no registry of its own, the floor directive rows through the
+##      registry of a workspace that declares them, and none under a HOME with no such registry, said;
+##   8. a rig, no source/ and myx.distro-agents installed under .local/myx: the same rows from there.
 ## Offline: HOME, every workspace, every registry and the team data are this rig's own; a fake
 ## curl is first on PATH.
 set -u
@@ -99,8 +102,10 @@ rigHelperScript(){ ## include, function, arguments...
 	printf '\n'
 }
 
-## magic-tester and magic-architect hold their grants built in (AgentsToolsGrantsBuiltinText):
-## nothing of theirs is declared in the rig.
+## The --magic-team: directives of the real package, declared by the rig project as the package declares them.
+rigFloorDirectives=()
+while IFS= read -r rigOne ; do rigFloorDirectives+=( "$rigOne" ) ; done < <( LC_ALL=C sed -n 's/^[[:space:]]*\(--magic-team:[^ ]*\) \\$/\1/p' "$rigPackage/project.inf" )
+[ "${#rigFloorDirectives[@]}" -gt 0 ] || rigRefuse "no --magic-team: directive in $rigPackage/project.inf"
 
 ## ws-main has agents installed; ws-side is a registered tooling workspace without agents; the
 ## two testbeds and ws-testbed-old are registered workspaces with no source, for the patterns.
@@ -121,7 +126,8 @@ rigWsMake ws-main \
 	"magic-team:permissions:directory:ro-dir:allow-write:keeper-d" \
 	"magic-team:permissions:directory:no-such-place:allow-read:keeper-d" \
 	"magic-team:permissions:workspace:no-such-ws:allow-read:keeper-d:x/**" \
-	"magic-team:permissions:project:.:allow-write:keeper-w:p/**"
+	"magic-team:permissions:project:.:allow-write:keeper-w:p/**" \
+	"${rigFloorDirectives[@]}"
 rigWsMake ws-side "magic-team:permissions:workspace:.:allow-write:keeper-two:mine/**"
 mkdir -p "$rigMain/.local/agents" "$rigMain/.local/temp" "$rigMain/shared"
 : > "$rigMain/.local/agents/members.registry"
@@ -136,6 +142,7 @@ rigRun ws-main --make-agents-indices
 [ "$rigRc" = 0 ] || rigRefuse "--make-agents-indices failed in the rig: $( LC_ALL=C grep -m3 -e ERROR -e WARNING "$rigTmp/err" )"
 cp "$rigTmp/err" "$rigTmp/build.err"
 rigReg="$rigMain/.local/agents/permissions.registry" rigIndex="$rigMain/.local/agents/grants.index"
+cp "$rigReg" "$rigTmp/build.reg" || rigRefuse "no permissions registry was written: $rigReg"
 
 echo "-- 1. the permissions registry: every selector kind unrolled --"
 rigRow(){ ## fixed text -- how many registry rows hold it
@@ -165,8 +172,9 @@ rigAssert "exact, . and * keep their tags"                      "$( rigN "$rigTa
 rigTag(){ ## exact tag line -- how many tag rows are it
 	LC_ALL=C grep -c -x -F -- "$1" "$rigTags" 2>/dev/null || :
 }
-rigAssert "built in: magic-architect's tools, one row each"     "$( rigRow "magic-architect:ws-main:tool:WebFetch" ):$( rigRow "magic-architect:ws-main:tool:WebSearch" )" "1:1"
-rigAssert "magic-tester's reads in every workspace, writes in the testbeds" "$( rigRow "magic-tester:ws-main:builtin:Read(/$rigSide/source/**/sh-test/**)" ):$( rigRow "magic-tester:ws-main:builtin:Read(/$rigDecoy/.local/myx/**)" ):$( rigRow "magic-tester:ws-main:builtin:Edit(/$rigTestbedA/**)" ):$( rigRow "magic-tester:ws-main:builtin:Edit(/$rigDecoy/**)" )" "1:1:1:0"
+rigAssert "floor directive: magic-architect's tools, one row each" "$( rigRow "magic-architect:ws-main:tool:WebFetch" ):$( rigRow "magic-architect:ws-main:tool:WebSearch" )" "1:1"
+rigAssert "magic-tester's reads in every workspace, writes in the testbeds" "$( rigRow "magic-tester:ws-main:workspace:Read(/$rigSide/source/**/sh-test/**)" ):$( rigRow "magic-tester:ws-main:workspace:Read(/$rigDecoy/.local/myx/**)" ):$( rigRow "magic-tester:ws-main:workspace:Edit(/$rigTestbedA/**)" ):$( rigRow "magic-tester:ws-main:workspace:Edit(/$rigDecoy/**)" )" "1:1:1:0"
+rigAssert "a floor directive of member * gives no row"         "$( rigRow ":tool:Skill" ):$( rigRow "*:ws-main:workspace:Edit(/$rigMain/.local/temp/**)" )" "0:0"
 rigAssert "tagged own here, wildcard elsewhere, as declared ones are" "$( rigTag "magic-tester:ws-main:own:$rigMain/.local/myx" ):$( rigTag "magic-tester:ws-main:wildcard:$rigSide/.local/myx" ):$( rigTag "magic-tester:ws-main:wildcard:$rigSide/source" ):$( rigTag "magic-tester:ws-main:wildcard:$rigTestbedA" )" "1:1:1:1"
 rigRegRoots(){ ## function, [member] -- the roots the registry readers give (AgentsTools.ClientAccessRoots.include)
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
@@ -326,10 +334,10 @@ rigFloorCode="$( LC_ALL=C sed -n 's/^agentsPermissionFloorTools=" *\(.*[^ ]\) *"
 rigFloorRef="$( LC_ALL=C sed -n 's/^[[:space:]]*--magic-team:permissions:workspace:\*:allow-tool:\*:\([^ ]*\) \\$/\1/p' "$rigPackage/project.inf" | LC_ALL=C sort )"
 rigAssert "every code floor tool has its reference line"        "$( LC_ALL=C comm -23 <( printf '%s\n' "$rigFloorCode" ) <( printf '%s\n' "$rigFloorRef" ) | LC_ALL=C tr '\n' ' ' )" ""
 rigAssert "every reference line names a code floor tool, once"  "$( LC_ALL=C comm -13 <( printf '%s\n' "$rigFloorCode" ) <( printf '%s\n' "$rigFloorRef" ) | LC_ALL=C tr '\n' ' ' )" ""
-## The members this package carries: each inert reference line turned into the rows it stands
-## for in this rig (a `*` every rig workspace, a pattern each one whose name matches, a tool one
-## row), against the built-in rows the registry of ws-main holds, both ways.
-rigBuiltinRef="$(
+## The members this package carries: each floor directive turned into the rows it stands for in
+## this rig (a `*` every rig workspace, a pattern each one whose name matches, a tool one row),
+## against the rows the registry of ws-main holds, both ways.
+rigMemberRef="$(
 	LC_ALL=C sed -n -E 's/^[[:space:]]*--magic-team:permissions:workspace:([^:]*):(allow-[a-z]*):(magic-architect|magic-tester):([^ ]*) \\$/\1 \2 \3 \4/p' "$rigPackage/project.inf" \
 	| while read -r refSel refVerb refMember refGlob ; do
 		case "$refVerb" in
@@ -339,23 +347,26 @@ rigBuiltinRef="$(
 			(*) printf 'unknown-verb:%s\n' "$refVerb" ; continue ;;
 		esac
 		for refRoot in "$rigMain" "$rigSide" "$rigTestbedA" "$rigTestbedB" "$rigDecoy" ; do
-			case "${refRoot##*/}" in ($refSel) printf '%s:ws-main:builtin:%s(/%s/%s)\n' "$refMember" "$refPerm" "$refRoot" "$refGlob" ;; esac
+			case "${refRoot##*/}" in ($refSel) printf '%s:ws-main:workspace:%s(/%s/%s)\n' "$refMember" "$refPerm" "$refRoot" "$refGlob" ;; esac
 		done
 	done | LC_ALL=C sort
 )"
-[ -n "$rigBuiltinRef" ] || rigRefuse "no --magic-team: reference line of magic-architect or magic-tester in $rigPackage/project.inf"
-rigBuiltinRows="$( LC_ALL=C grep -E '^(magic-architect|magic-tester):ws-main:(builtin|tool):' "$rigReg" | LC_ALL=C sort )"
-rigAssert "every embedded member reference has its built-in rows" "$( LC_ALL=C comm -23 <( printf '%s\n' "$rigBuiltinRef" ) <( printf '%s\n' "$rigBuiltinRows" ) | LC_ALL=C tr '\n' ' ' )" ""
-rigAssert "every built-in row has its reference line, once"     "$( LC_ALL=C comm -13 <( printf '%s\n' "$rigBuiltinRef" ) <( printf '%s\n' "$rigBuiltinRows" ) | LC_ALL=C tr '\n' ' ' )" ""
+[ -n "$rigMemberRef" ] || rigRefuse "no --magic-team: directive of magic-architect or magic-tester in $rigPackage/project.inf"
+rigMemberRows="$( LC_ALL=C grep -E '^(magic-architect|magic-tester):ws-main:(workspace|tool):' "$rigTmp/build.reg" | LC_ALL=C sort )"
+rigAssert "every member directive has its registry rows"        "$( LC_ALL=C comm -23 <( printf '%s\n' "$rigMemberRef" ) <( printf '%s\n' "$rigMemberRows" ) | LC_ALL=C tr '\n' ' ' )" ""
+rigAssert "every such registry row has its directive, once"     "$( LC_ALL=C comm -13 <( printf '%s\n' "$rigMemberRef" ) <( printf '%s\n' "$rigMemberRows" ) | LC_ALL=C tr '\n' ' ' )" ""
 
-echo "-- 7. a workspace with no source/: the built-in grants hold all the same --"
-## Its own HOME, so no registry of another workspace reaches it: what it holds is built in.
-rigHomeMain="$rigHome" rigHome="$rigTmp/home-nosrc"
+echo "-- 7. a workspace with no source/: the floor directive rows through a declaring workspace's registry --"
+## Registered by ws-main, whose registry unrolls the directives over it; the rig HOME points at that registry.
 rigNoSrc="$rigTmp/ws-nosrc" rigTestbedC="$rigTmp/ws-c-testbed"
-mkdir -p "$rigHome" "$rigNoSrc/.local/agents" "$rigNoSrc/.local/temp" "$rigTestbedC/.local"
+mkdir -p "$rigNoSrc/.local/agents" "$rigNoSrc/.local/temp" "$rigTestbedC/.local"
 : > "$rigNoSrc/.local/agents/members.registry"
-rigRun ws-nosrc --owner-workspace-upsert "$rigTestbedC"
-[ "$rigRc" = 0 ] || rigRefuse "the testbed could not be registered from the workspace with no source: $( head -3 "$rigTmp/err" )"
+for rigOne in "$rigNoSrc" "$rigTestbedC" ; do
+	rigRun ws-main --owner-workspace-upsert "$rigOne"
+	[ "$rigRc" = 0 ] || rigRefuse "the workspace $rigOne could not be registered: $( head -3 "$rigTmp/err" )"
+done
+rigRun ws-main --make-agents-indices
+[ "$rigRc" = 0 ] || rigRefuse "--make-agents-indices failed in ws-main: $( LC_ALL=C grep -m3 -e ERROR -e WARNING "$rigTmp/err" )"
 rigRun ws-nosrc --make-agents-indices
 [ "$rigRc" = 0 ] || rigRefuse "--make-agents-indices failed in the workspace with no source: $( LC_ALL=C grep -m3 -e ERROR -e WARNING "$rigTmp/err" )"
 rigIndex="$rigNoSrc/.local/agents/grants.index"
@@ -366,8 +377,36 @@ for rigOne in "$rigNoSrc" "$rigTestbedC" ; do
 done
 rigAssert "magic-tester reads the test trees and .local/myx"    "$rigTesterRows" "1111 1111 "
 rigAssert "and writes the testbed only"                         "$( rigIdx magic-tester write "$rigTestbedC/**" ):$( rigIdx magic-tester write "$rigNoSrc/**" )" "1:0"
-rigAssert "magic-architect holds WebFetch and WebSearch, standing" "$( LC_ALL=C awk -F'\t' '$1 == "magic-architect" && $2 == "tool" { print $3 ":" $5 }' "$rigIndex" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "WebFetch:standing WebSearch:standing "
+rigAssert "magic-architect holds WebFetch and WebSearch, standing" "$( LC_ALL=C awk -F'\t' '$1 == "magic-architect" && $2 == "tool" && $3 ~ /^Web/ { print $3 ":" $5 }' "$rigIndex" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "WebFetch:standing WebSearch:standing "
 rigAssert "as the holds check answers, and nobody else holds it" "$( rigRun ws-nosrc --intern-op-permission-holds magic-architect WebFetch https://docs.rig.example/a ; head -1 "$rigTmp/out" ):$( rigRun ws-nosrc --intern-op-permission-holds keeper-d WebFetch https://docs.rig.example/a ; head -1 "$rigTmp/out" )" "HOLDS standing:NOT-HOLDS"
+## Control: under a HOME that points at no registry, nothing is built in any more.
+rigHomeMain="$rigHome" rigHome="$rigTmp/home-nosrc"
+mkdir -p "$rigHome"
+rigRun ws-nosrc --make-agents-indices
+[ "$rigRc" = 0 ] || rigRefuse "--make-agents-indices failed in the workspace with no source, own HOME: $( LC_ALL=C grep -m3 -e ERROR -e WARNING "$rigTmp/err" )"
+rigAssert "control: with no declaring registry, no floor directive row, and it says why" "$( rigN "$rigTmp/err" 'no package under .local/myx with a --magic-team: floor directive' ):$( rigIdx magic-tester read "$rigNoSrc/.local/myx/**" ):$( rigRun ws-nosrc --intern-op-permission-holds magic-architect WebFetch https://docs.rig.example/a ; head -1 "$rigTmp/out" )" "1:0:NOT-HOLDS"
+rigHome="$rigHomeMain"
+
+echo "-- 8. a rig: no source/, myx.distro-agents installed under .local/myx, its own HOME --"
+## The installed package's project.inf is the real one: the rows come from its directives alone.
+rigHomeMain="$rigHome" rigHome="$rigTmp/home-rig"
+rigRig="$rigTmp/ws-rig" rigTestbedD="$rigTmp/ws-d-testbed"
+mkdir -p "$rigHome" "$rigRig/.local/agents" "$rigRig/.local/temp" "$rigRig/.local/myx/myx.distro-agents" "$rigTestbedD/.local"
+cp "$rigPackage/project.inf" "$rigRig/.local/myx/myx.distro-agents/project.inf" || rigRefuse "the package's project.inf could not be installed in the rig"
+: > "$rigRig/.local/agents/members.registry"
+rigRun ws-rig --owner-workspace-upsert "$rigTestbedD"
+[ "$rigRc" = 0 ] || rigRefuse "the testbed could not be registered from the rig: $( head -3 "$rigTmp/err" )"
+rigRun ws-rig --make-agents-indices
+[ "$rigRc" = 0 ] || rigRefuse "--make-agents-indices failed in the rig: $( LC_ALL=C grep -m3 -e ERROR -e WARNING "$rigTmp/err" )"
+rigIndex="$rigRig/.local/agents/grants.index"
+rigAssert "its permissions registry is written from .local/myx"   "$( LC_ALL=C grep -c '^magic-tester:ws-rig:workspace:' "$rigRig/.local/agents/permissions.registry" 2>/dev/null || : )" 9
+rigTesterRows=""
+for rigOne in "$rigRig" "$rigTestbedD" ; do
+	rigTesterRows="$rigTesterRows$( rigIdx magic-tester read "$rigOne/source/**/sh-test/**" )$( rigIdx magic-tester read "$rigOne/source/**/test/**" )$( rigIdx magic-tester read "$rigOne/source/**/tests/**" )$( rigIdx magic-tester read "$rigOne/.local/myx/**" ) "
+done
+rigAssert "magic-tester reads the test trees and .local/myx"    "$rigTesterRows" "1111 1111 "
+rigAssert "and writes the testbed only"                         "$( rigIdx magic-tester write "$rigTestbedD/**" ):$( rigIdx magic-tester write "$rigRig/**" )" "1:0"
+rigAssert "magic-architect holds WebFetch, nobody else does, no * directive row" "$( rigRun ws-rig --intern-op-permission-holds magic-architect WebFetch https://docs.rig.example/a ; head -1 "$rigTmp/out" ):$( rigRun ws-rig --intern-op-permission-holds keeper-d WebFetch https://docs.rig.example/a ; head -1 "$rigTmp/out" ):$( LC_ALL=C grep -c '^\*:' "$rigRig/.local/agents/permissions.registry" )" "HOLDS standing:NOT-HOLDS:0"
 rigHome="$rigHomeMain"
 
 if [ "$rigFail" -ne 0 ] ; then

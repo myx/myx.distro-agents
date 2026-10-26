@@ -151,7 +151,7 @@ rigPointedLine(){ ## operation with no leading -- -- how many lines of the last 
 	rigWhole "$rigTmp/err" "DistroAgentsTools: $1: ⛔ ERROR: this session acts as magic-coordinator, and $rigOwnOnly: magic-coordinator runs it with --client-operation-run magic-coordinator --$1 client-ndm"
 }
 rigMagicOnlyLine(){ ## the member the session acts as -- how many lines of the last run are the refusal every --magic-* operation gives that session, whole
-	rigWhole "$rigTmp/err" "AgentDispatcherTools: client-operation-run: ⛔ ERROR: this session acts as $1, and client-operation-run is magic-coordinator's only -- nothing was done"
+	rigWhole "$rigTmp/err" "AgentDispatcherTools: client-operation-run: ⛔ ERROR: this session acts as $1, and client-operation-run is magic-coordinator's only -- nothing was done: ask the session's magic-coordinator, which owns it, to run it"
 }
 rigKeep(){ ## label -- the last run kept under that label: its exit status, what it printed on each stream, and its calls
 	printf '%s\n' "$rigRc" > "$rigTmp/kept.$1.rc"

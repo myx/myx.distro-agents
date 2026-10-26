@@ -12,8 +12,8 @@
 ## state, the figures one under another, where a row has 34 cells, and not in a narrower list; a row without that
 ## field has no column. (The cut rule of the top line is held by AgentsManagerScreenChromeCheck.)
 ## Offline: no operation of the real tooling is called. The time zone is set here, so the times read the same anywhere.
-## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`; the spacer under
-## `Launch (Start)` moves each session row of the list one line down.
+## Reconciled for F11.0: `Launch / Spawn` is named `Launchpad`, `Consoles (Tools)` `Consoles`; the spacer under
+## `Launchpad` moves each session row of the list one line down.
 ## Reconciled for F11.5: the list of the sessions is Active Sessions of Activity, put at with `at @activity active-sessions`; its first session stands in the third line.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -153,10 +153,10 @@ rigAssert "its lines are being read"                                 "$( rigVal 
 rigAssert "under the head line the window says what it waits for, pale" "[$( rigVal lHead )][$( rigVal lWaits )][$( rigLook lr 3 1 83 )]" "[lines     the feed, not read yet][Populating Transcript...][D]"
 rigAssert "and no more once they have come"                          "[$( rigVal lLine )] $( rigHolds ls 'Populating' )" "[2026-10-13] 0"
 rigBare <<'RIGSCRIPT'
-rows magic-team/activity/launch a=alpha
-at @activity launch
+rows magic-team/launch a=alpha
+at @magic-team launch
 turn
-keys DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN
 turn
 get b
 show bs

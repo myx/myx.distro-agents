@@ -11,7 +11,7 @@
 ## carries a copy of the package's own kind routines.
 ## Held:
 ##   1. the package bundles both kind routines, each declaring its own kind
-##   2. the validator (F7.6's --tester-skillset-validate-routine) takes standalone and coworking, and refuses ad-hoc,
+##   2. the validator (F7.6's --skillset-validate-routine) takes standalone and coworking, and refuses ad-hoc,
 ##      root and standalone-coworking, naming requires-session-kind; the spawner refuses to start a routine of kind
 ##      ad-hoc, naming it, and starts nothing
 ##   3. inheritance: a coworking routine that sets no executors starts magic-coordinator, the default it inherits;
@@ -32,6 +32,7 @@ set -u
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigTest="$rigPackage/sh-test"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
+rigTesting="$rigPackage/sh-scripts/DistroAgentsTesting.fn.sh"
 rigTeam="$rigPackage/skillset/magic-team/magic-team"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -142,7 +143,7 @@ echo "-- 2. the two kinds, and nothing else --"
 rigValidate(){ ## routine file -- `0`, or `refused` and whether requires-session-kind is named
 	local validateRc=0
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigTool" --tester-skillset-validate-routine "$1" ) > "$rigTmp/validate" 2>&1 < /dev/null || validateRc=$?
+		MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigTesting" --skillset-validate-routine "$1" ) > "$rigTmp/validate" 2>&1 < /dev/null || validateRc=$?
 	if [ "$validateRc" -eq 0 ] ; then printf 0 ; return ; fi
 	if LC_ALL=C grep -q -F 'requires-session-kind' "$rigTmp/validate" ; then printf 'refused named' ; else printf 'refused unnamed' ; fi
 }

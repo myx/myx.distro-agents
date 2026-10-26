@@ -45,6 +45,7 @@ type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro
 dashboardSessions="" ; dashboardSize="" ; dashboardDeaths=0 ; dashboardSessionRows=""
 sessionsRunning=0 ; sessionsWaiting=0 ; sessionsUnclosed=0 ; sessionsPaused=0 ; agentsWorking=0 ; agentsWaiting=0 ; controlAlive=0 ; controlGone=0
 tokensRunning=0 ; tokensToday=0 ; tokensPartial=0 ; tokensRunningSessions=0 ; tokensTodaySessions=0 ; membersLive=0
+dashboardUsageLimited=0 ; dashboardUsageLimit=""
 
 
 ## For how long the size of the team data is kept once it was measured, in seconds.
@@ -142,10 +143,13 @@ AgentsToolsManagerDashboardSessionCounts(){
 		AgentsToolsManagerDashboardSessionMeasured 2> /dev/null )" || countsRows=""
 	[ -n "$countsRows" ] || return 0
 	dashboardSessionRows="$countsRows"
-	read -r dashboardSessions sessionsRunning sessionsWaiting sessionsUnclosed sessionsPaused agentsWorking agentsWaiting controlAlive controlGone tokensRunning tokensToday tokensPartial membersLive tokensRunningSessions tokensTodaySessions <<< "$( printf '%s\n' "$countsRows" | LC_ALL=C awk -F'\t' -v todayDate="$dashboardToday" '
+	read -r dashboardSessions sessionsRunning sessionsWaiting sessionsUnclosed sessionsPaused agentsWorking agentsWaiting controlAlive controlGone tokensRunning tokensToday tokensPartial membersLive tokensRunningSessions tokensTodaySessions dashboardUsageLimited dashboardUsageLimit <<< "$( printf '%s\n' "$countsRows" | LC_ALL=C awk -F'\t' -v todayDate="$dashboardToday" '
 		$1 == "session" {
 			sessionStates[$4]++ ;
 			if ($11 == "alive") controlAlive++ ; else if ($11 == "gone") controlGone++ ;
+			## The usage-limit flag of its runs, with the date the provider said it reopens: the
+			## last of its refused runs wins, as the session row itself says.
+			if ($13 != "-") { usageLimited++ ; if (usageLimit == "" || $13 > usageLimit) usageLimit = $13 ; }
 			## The tokens of a session that runs now, and of one whose last run closed today.
 			if ($4 == "running" || ( $4 == "finished" && substr($6, 1, 10) == todayDate )) {
 				tokenFigure = $12 ; tokenWhole = 1 ;
@@ -161,7 +165,7 @@ AgentsToolsManagerDashboardSessionCounts(){
 		$1 == "counters" { countersSeen = 1 ; sessionsPaused = $3 ; agentsWorking = $4 ; agentsWaiting = $5 ; next ; }
 		END {
 			if (!countersSeen) { print "none" ; exit ; }
-			printf "read %d %d %d %d %d %d %d %d %.0f %.0f %d %d %d %d\n", sessionStates["running"], sessionStates["waiting"], sessionStates["unclosed"], sessionsPaused, agentsWorking, agentsWaiting, controlAlive, controlGone, tokensRunning, tokensToday, tokensPartial, membersLive, runningSessions, todaySessions ;
+			printf "read %d %d %d %d %d %d %d %d %.0f %.0f %d %d %d %d %d %s\n", sessionStates["running"], sessionStates["waiting"], sessionStates["unclosed"], sessionsPaused, agentsWorking, agentsWaiting, controlAlive, controlGone, tokensRunning, tokensToday, tokensPartial, membersLive, runningSessions, todaySessions, usageLimited, ( usageLimit == "" ? "-" : usageLimit ) ;
 		}
 	' )" || dashboardSessions="none"
 	return 0
@@ -210,6 +214,10 @@ AgentsToolsManagerDashboardSessions(){
 	LocalToolsManagerDashboardFigure sessions control-gone "Control Threads Gone" "$controlGone" count "$sessionsLevel" ""
 	sessionsLevel="ok" ; [ "$dashboardDeaths" = 0 ] || sessionsLevel="warn"
 	LocalToolsManagerDashboardFigure sessions deaths-unanswered "Deaths Unanswered" "$dashboardDeaths" count "$sessionsLevel" ""
+	## A RUN STOPPED ON THE PROVIDER'S USAGE LIMIT, with the date it reopens: the flag of the
+	## sessions panel, the date taken from the one wording the run's own store keeps (a
+	## Dashboard value writes its blanks as `_`, as its labels do).
+	[ "$dashboardUsageLimited" = 0 ] || LocalToolsManagerDashboardFigure sessions usage-limit "Stopped On Provider Usage Limit Reopens" "${dashboardUsageLimit##*reopens }" - warn ""
 	return 0
 }
 

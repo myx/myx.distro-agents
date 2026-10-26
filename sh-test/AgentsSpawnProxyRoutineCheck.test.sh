@@ -76,6 +76,19 @@ rigSpawn(){ ## stdin content, then extra --intern-op-agent-spawn-proxy args...
 			cd "$MMDAPP" && exec bash "$RIG_FN" --intern-op-agent-spawn-proxy keeper-myx --dispatch-doc:none --wait --context rig-spawn-routine "$@"
 		' rig-spawn-wrapper "$@" <<< "$rigStdin" 2>&1
 }
+## A spawn made from inside a session: the same as rigSpawn, with the parent's own spawn id in the environment,
+## which is what the Agent tool hands the proxy (MDAT_SPAWN_SESSION_ID) when a member's session spawns a helper.
+rigSpawnFrom(){ ## parent spawn id, stdin content, then extra --intern-op-agent-spawn-proxy args...
+	local rigParentId="$1" rigStdin="$2" ; shift 2
+	: > "$rigTmp/brief"
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" MDAT_SPAWN_SESSION_ID="$rigParentId" \
+		bash -c '
+			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
+			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
+			cd "$MMDAPP" && exec bash "$RIG_FN" --intern-op-agent-spawn-proxy keeper-myx --dispatch-doc:none --wait --context rig-spawn-routine "$@"
+		' rig-spawn-from-wrapper "$@" <<< "$rigStdin" 2>&1
+}
 
 ## --intern-root-harness never reads external stdin itself -- it pipes its own static
 ## brief file into the spawn proxy internally -- so this helper gives none, unlike rigSpawn.
@@ -273,7 +286,7 @@ rigAssert "the old code's packet has no routine line, so the exact row above can
 rigAssert "and it differs from the expected packet"       "$( rigExpect "$rigModeNon" "$rigRoutineLine" ; cmp -s "$rigTmp/stub.stdin" "$rigTmp/stub.expect" && echo identical || echo different )" different
 
 echo "-- the caching policy of a routine, carried on the spawn record (F10.7) --"
-for rigCacheName in cachea:routine cacheb: cachec:armed ; do
+for rigCacheName in cachea:routine cacheb: cachec:armed cached:armed-extended ; do
 	rigCacheFile="$rigSkills/magic-team/magic-team.${rigCacheName%%:*}.routine.md"
 	{
 		printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator, magic-librarian\ninvitees: magic-team\nrequires-session-kind: coworking\n'
@@ -289,7 +302,34 @@ rigCacheRecord(){ ## the routine selector, or none -- the cache-prefix line of t
 rigAssert "a routine that says cache-prefix: routine has it on the record"    "$( rigCacheRecord cachea )" routine
 rigAssert "a routine that says nothing has armed, the default"                "$( rigCacheRecord cacheb )" armed
 rigAssert "a routine that says armed has it"                                  "$( rigCacheRecord cachec )" armed
+rigAssert "a routine that says the retired armed-extended falls back to armed" "$( rigCacheRecord cached )" armed
 rigAssert "a spawn of no routine has no such line on its record"              "$( rigCacheRecord none )" absent
+
+echo "-- T1 subtask inheritance: an ad-hoc helper of a routine-prefix session reuses its prefix --"
+printf -- '---\nexecutors: keeper-myx\nmaintainers: magic-coordinator, magic-librarian\ninvitees: magic-team\nrequires-session-kind: coworking\ncache-prefix: routine\n---\n# rig routine-prefix fixture\n' \
+	> "$rigSkills/magic-team/magic-team.rigworkduty.routine.md"
+rm -rf "$rigWs/.local/agents/spawned" ; mkdir -p "$rigWs/.local/agents/spawned"
+rigSpawn "RIG-TASK-TEXT" --routine magic-team.rigworkduty.routine.md > /dev/null
+rigParentRecord="$( ls "$rigWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | head -1 )"
+rigParentId="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigParentRecord" | head -1 )"
+rigAssert "the routine-prefix spawn carries routine on its record"  "$( LC_ALL=C sed -n 's/^cache-prefix: //p' "$rigParentRecord" )" routine
+rigSpawnFrom "$rigParentId" "RIG-TASK-TEXT" > /dev/null
+rigChildRecord="$( LC_ALL=C grep -l -x -F "prefix-routine: magic-team.rigworkduty.routine.md" "$rigWs/.local/agents/spawned"/*/*.spawn.md 2> /dev/null | head -1 )"
+rigAssert "its ad-hoc helper inherits the parent's prefix"  "$( [ -n "$rigChildRecord" ] && LC_ALL=C sed -n 's/^cache-prefix: //p' "$rigChildRecord" )" routine
+rigAssert "and names the routine the prefix mixes as prefix-routine, keeping no routine of its own"  "$( LC_ALL=C grep -c -x -F 'prefix-routine: magic-team.rigworkduty.routine.md' "$rigChildRecord" 2> /dev/null ):$( LC_ALL=C grep -c '^routine: ' "$rigChildRecord" 2> /dev/null )" 1:0
+
+echo "-- a work-duty spawn's dispatch: the routine and the member static guidance, then the variables --"
+mkdir -p "$rigSkills/keeper-myx/reference"
+printf '# rig reference\n\nRIG-REFERENCE-GUIDANCE\n' > "$rigSkills/keeper-myx/reference/static.md"
+printf -- '---\nexecutors: keeper-myx\nmaintainers: magic-coordinator\ninvitees: magic-team\nrequires-session-kind: coworking\n---\n# rig work-duty routine fixture\n\n# Summary\n\nRIG-WORK-DUTY-ROUTINE.\n' \
+	> "$rigSkills/magic-team/magic-team.rigworkduty.work-duty.routine.md"
+rigSpawn "RIG-TASK-TEXT" --routine magic-team.rigworkduty.work-duty.routine.md > /dev/null
+rigAssert "the dispatch opens with the work-duty static head"  "$( head -1 "$rigTmp/brief" )" "## Work-duty dispatch -- the routine and the member static guidance, the same bytes for every run of this member"
+rigAssert "the routine follows in it, once"                     "$( LC_ALL=C grep -c -x -F 'RIG-WORK-DUTY-ROUTINE.' "$rigTmp/brief" )" 1
+rigAssert "the member's reference guidance follows the routine" "$( LC_ALL=C grep -c -x -F 'RIG-REFERENCE-GUIDANCE' "$rigTmp/brief" )" 1
+rigAssert "and the run's variables are last, after both"        "$( LC_ALL=C awk '/^RIG-REFERENCE-GUIDANCE$/ { ref = NR } /^## This run -- its own variables$/ { vars = NR } END { print ( ref && vars && vars > ref ) ? "after" : "before" }' "$rigTmp/brief" )" after
+rigAssert "the variables name the session, the spawn and the start time"  "$( LC_ALL=C grep -c -E '^(session-id|spawn-id|started-at): ' "$rigTmp/brief" )" 3
+rigAssert "an ordinary routine spawn carries no work-duty dispatch"  "$( rigSpawn "RIG-TASK-TEXT" --routine magic-team.coworking.routine.md > /dev/null ; LC_ALL=C grep -c '^## Work-duty dispatch --' "$rigTmp/brief" )" 0
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ SPAWN PROXY ROUTINE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -2241,7 +2241,10 @@ case "$1" in
 			fi
 			singleHas="${singleFile##*/}"
 			singleFound="$singleFound$( AgentsToolsPermissionField "$singleFile" question-ts )"$'\t'"${singleHas%.md}"$'\n'
-		done <<< "$( LC_ALL=C grep -l -x -F -- "session-id: $singleSession" "$MMDAPP/.local/agents/pending"/*.md 2> /dev/null )"
+		## An answer closes its record, and a closed record is retained in pending/closed/
+		## (retention, T9): both stores are read, or a request he has answered is counted only
+		## until it is closed, and the one after it is posted as if it were the first.
+		done <<< "$( LC_ALL=C grep -l -x -F -- "session-id: $singleSession" "$MMDAPP/.local/agents/pending"/*.md "$MMDAPP/.local/agents/pending/closed"/*.md 2> /dev/null )"
 		singleFound="$( printf '%s' "$singleFound" | LC_ALL=C sort | LC_ALL=C cut -f2- )"
 		singleHas="$( printf '%s\n' "$singleFound" | LC_ALL=C grep -c . || : )"
 		printf 'SINGLE-ASKS: %s %s %s\n' "$( [ "$singleHas" -ge "$agentsPermissionSingleAsks" ] && printf 'stop' || printf 'go' )" "$singleHas" "$agentsPermissionSingleAsks"

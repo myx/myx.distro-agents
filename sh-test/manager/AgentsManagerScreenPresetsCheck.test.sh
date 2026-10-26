@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-## Behavioural check on `Presets` and `Tiers` in Settings of the manager screen (sh-lib/manager/AgentsManagerScreen.Presets.py; F10.1, F10.2, F11.7), run rather than read, through the stand-in terminal of the driver and a
-## stand-in for the dispatcher that prints the fixture. Held: both folders stand in Settings, ahead of its subjects; the presets are listed by name with what each extends at the end of its row, and the folder selected
-## shows them as one table (extends, CLI service, model, effort, used by); a preset opened lists its variables, those it does not hold as empty; Enter on a choice offers its list and its OK
-## saves through --manager-scope-set with the scope and the name as words and the value on the standard input alone; a number is asked as a number; the CLI service of a preset that extends is locked and says why;
-## `n` makes a preset (a name, what it extends or a CLI service of its own) through --manager-preset-new; the tiers list the team and the members, and Enter on a tier of the team offers the presets. Offline.
+## Behavioural check on `CLI Presets and Tiers` of the Configuration of the manager screen (sh-lib/manager/AgentsManagerScreen.CliPresets.py; F10.1, F10.2, F11.7), run rather than read, through the stand-in terminal
+## of the driver and a stand-in for the dispatcher that prints the fixture. Held: the feature stands in the Configuration, its two folders `CLI Service Presets` and `Member Tier Assignments` under it; the presets are
+## listed by name with what each extends at the end of its row, and the folder selected shows them as one table (extends, CLI service, model, effort, used by); the level of a preset's variables lists them, those it
+## does not hold as empty; Enter on a choice offers its list and its OK saves through --manager-scope-set with the scope and the name as words and the value on the standard input alone; a number is asked as a number;
+## the CLI service of a preset that extends is locked and says why; `n` makes a preset (a name, what it extends or a CLI service of its own) through the wizard of the form chosen; `e` and Enter on a preset EDIT IT, its
+## own name already in the name field and no choice of the preset, of its CLI service or of what it extends, and a name changed there renames the preset, its users following; the tiers list the team and the members,
+## and Enter on a tier of the team offers the presets. Offline.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -46,8 +48,8 @@ rigCase(){ ## name
 		rigKey PRESET_EXTRA_SPAWN_LINE missing - setting Line text "-"
 	} > "$MANAGER_SCREEN_RIG/rows.--manager-scope-read agents:preset-rig-ext"
 	{
-		printf 'tier\tagents:magic-team\tTeam\t3\tyes\tno\t/rig/magic-team.agent.env\trig-ext\trig-ext\t-\n'
-		printf 'tier\tagents:keeper-myx\tkeeper-myx\t0\tno\tno\t/rig/keeper-myx.agent.env\t-\t-\t-\n'
+		printf 'tier\tagents:magic-team\tTeam\t3\tyes\tno\t/rig/magic-team.agent.env\trig-ext\trig-ext\t-\trig-ext\tset\trig-ext\tset\trig-ext\tuses_the_normal_tier,_used_for_all_tiers\n'
+		printf 'tier\tagents:keeper-myx\tkeeper-myx\t0\tno\tno\t/rig/keeper-myx.agent.env\t-\t-\t-\trig-ext\tuses_the_team\x27s_normal_tier\trig-ext\tinherits_the_team\x27s\trig-ext\tuses_the_team\x27s_normal_tier\n'
 	} > "$MANAGER_SCREEN_RIG/rows.--manager-preset-tiers"
 	{
 		rigScope agents:magic-team Agents:_magic-team 3
@@ -55,6 +57,16 @@ rigCase(){ ## name
 		rigKey SPAWN_TIER_NORMAL set rig-ext setting Normal tier "rig-base,rig-ext/low,normal,high"
 		rigKey SPAWN_TIER_HIGH missing - setting High tier "rig-base,rig-ext/low,normal,high"
 	} > "$MANAGER_SCREEN_RIG/rows.--manager-scope-read agents:magic-team"
+	{
+		printf 'option\tpreset\trig-base\noption\tpreset\trig-ext\n'
+		printf 'option\tcli-service\tclaude\noption\tcli-service\tcopilot\n'
+		printf 'option\teffort\tlow\noption\teffort\tnormal\noption\teffort\thigh\n'
+		## what each preset holds now, as the wizard reads it: an edit fills its form from these, and says the service (or the parent) is not changed
+		printf 'preset\trig-base\tPRESET_CLI_SERVICE\tset\tclaude\n'
+		printf 'preset\trig-base\tPRESET_MODEL_OR_MACRO\tset\tsonnet\n'
+		printf 'preset\trig-ext\tPRESET_EXTEND\tset\trig-base\n'
+		printf 'preset\trig-ext\tPRESET_EFFORT\tset\tlow\n'
+	} > "$MANAGER_SCREEN_RIG/rows.--manager-wizard-read cli-service"
 	: > "$MANAGER_SCREEN_RIG/calls" ; : > "$MANAGER_SCREEN_RIG/words" ; echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ rigOut="$( { printf 'tools bash %s\nwall 2026-10-21 09:30 +0000\nsize 150 40\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" ; }
@@ -83,7 +95,7 @@ turn
 wait list 10
 rowids sub
 RIGSCRIPT
-rigAssert "the Configuration holds CLI Presets and Tiers, and the old item of the CLI services is gone" "$( rigVal top )" ".. checker keys clipresets git subsystems diagnostics"
+rigAssert "the Configuration holds CLI Presets and Tiers, and the old item of the CLI services is gone" "$( rigVal top )" ".. checker keys clipresets git harness subsystems diagnostics"
 rigAssert "selected, it shows two compact tables: the presets, and the tiers that are assigned (the team's, and the number of members that use the defaults)" "$( rigVal on.selectedLabel ) $( rigHolds summary 'CLI Service Presets' ) $( rigHolds summary 'Member Tier Assignments' ) $( rigHolds summary 'PRESET    CLI SERVICE' ) $( rigHolds summary 'MEMBER  DEFAULT' ) $( rigHolds summary '1 more member uses the defaults.' )" "CLI Presets and Tiers 1 1 1 1 1"
 rigAssert "the keys of its tasks stand in the status line: add a preset, assign a tier, configure, select the CLI" "$( rigHolds summary ' n New  a Assign  c Configure  s Auto-select' )" "1"
 rigAssert "opened, it holds its two folders" "$( rigVal sub )" ".. presets tiers"
@@ -192,7 +204,7 @@ turn
 get dialog
 show dialog
 RIGSCRIPT
-rigAssert "n opens the form of a new preset: its name, what it extends (none among them), its CLI service" "$( rigVal dialog.dialogTitle ) $( rigHolds dialog 'rig-base' ) $( rigHolds dialog 'none' ) $( rigHolds dialog 'claude' )" "New preset 4 3 5"
+rigAssert "n opens the chooser of the three forms a preset can take" "$( rigVal dialog.dialogTitle ) $( rigHolds dialog 'a service preset' ) $( rigHolds dialog 'a universal preset' ) $( rigHolds dialog 'an extending preset' )" "New preset 1 1 1"
 rigScript <<'RIGSCRIPT'
 turn
 at @clipresets presets
@@ -200,14 +212,98 @@ turn
 wait list 10
 keys n
 turn
-keys r i g - n e w TAB DOWN SPACE
+keys DOWN DOWN SPACE ENTER
+turn
+wait plan 30
+turn
+keys r i g - n e w
 turn
 keys ENTER
 turn
 wait action 30
 turn 2
 RIGSCRIPT
-rigAssert "its OK makes it through --manager-preset-new, the name, the way and what it extends as words" "$( rigWords '[--manager-preset-new][rig-new][--extend][rig-base]' )" "1"
+rigAssert "its OK applies through the wizard: the new name and the form as words" "$( rigWords '[--manager-wizard-apply][cli-service][--preset][rig-new]' )" "1"
+
+echo "-- the keys of a preset --"
+rigCase keys
+rigScript <<'RIGSCRIPT'
+turn
+at @clipresets presets
+turn
+wait list 10
+keys DOWN
+wait focus 10
+turn
+show keys
+RIGSCRIPT
+rigAssert "a preset's keys are n New and e Edit, and Enter edits it too, as the owner asked, not Enter opening it" "$( rigHolds keys ' n New  e Edit' ) $( rigHolds keys 'ENTER Edit' ) $( rigHolds keys 'ENTER Open' )" "1 1 0"
+
+echo "-- a preset edited --"
+## ON EDIT THE PRESET IS ALREADY THE SUBJECT (owner, 2026-10-21): no page asks which preset, the name field holds its own, and
+## neither the form it was made in nor what it extends is offered again, since neither can change on an edit.
+rigCase edit
+rigScript <<'RIGSCRIPT'
+turn
+at @clipresets presets
+turn
+wait list 10
+keys DOWN DOWN
+wait focus 10
+turn
+keys e
+turn
+wait plan 30
+turn
+get wiz
+keys TAB
+turn
+get next
+RIGSCRIPT
+rigAssert "e edits the preset selected, its own name already in the name field: no page asks which preset" "$( rigVal wiz.dialogTitle ) $( rigVal wiz.dialog | LC_ALL=C cut -d'|' -f2 )" "Configure CLI Service: rig-ext rig-ext"
+rigAssert "an extending preset's form offers neither a service nor what it extends: after its name comes its model, and it says the parent stays" "$( rigVal next.dialog | LC_ALL=C cut -d'|' -f1 ) $( rigVal wiz.dialogHolds | LC_ALL=C grep -c -F 'It extends rig-base: what a preset extends is not changed when it is edited.' )" "wizard:cli-service-extend:0:model 1"
+rigCase editenter
+rigScript <<'RIGSCRIPT'
+turn
+at @clipresets presets
+turn
+wait list 10
+keys DOWN
+wait focus 10
+turn
+keys ENTER
+turn
+wait plan 30
+turn
+get wiz
+keys TAB
+turn
+get next
+RIGSCRIPT
+rigAssert "Enter on a preset edits it as e does, its own name already in the name field" "$( rigVal wiz.dialogTitle ) $( rigVal wiz.dialog | LC_ALL=C cut -d'|' -f2 )" "Configure CLI Service: rig-base rig-base"
+rigAssert "a service preset's form offers no CLI service when it is edited: after its name comes its endpoint, and it says the service stays" "$( rigVal next.dialog | LC_ALL=C cut -d'|' -f1 ) $( rigVal wiz.dialogHolds | LC_ALL=C grep -c -F 'Its CLI service is claude: a service preset' )" "wizard:cli-service:0:endpoint 1"
+rigCase rename
+rigScript <<'RIGSCRIPT'
+turn
+at @clipresets presets
+turn
+wait list 10
+keys DOWN
+wait focus 10
+turn
+keys e
+turn
+wait plan 30
+turn
+keys BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE
+keys r i g - b a s e 2
+turn
+keys ENTER
+turn
+wait action 30
+turn 2
+RIGSCRIPT
+rigAssert "a name typed in the name field renames the preset, and the tooling is asked to take its users along" "$( rigWords '[--manager-wizard-apply][cli-service][--preset][rig-base2][--rename-from][rig-base]' )" "1"
 
 echo "-- the tasks: use a preset for a member, assign a tier --"
 rigCase use
@@ -256,21 +352,6 @@ wait action 30
 turn 2
 RIGSCRIPT
 rigAssert "a on the tiers asks for whom and which tier; the member and the tier chosen come to the two selectors, and the choice is saved as <preset>:<effort> in that member's scope" "[$( rigVal ask.dialogTitle )] [$( rigVal editor.dialogTitle )] $( rigWords '[--manager-scope-set][agents:keeper-myx][SPAWN_TIER_HIGH]' ) $( LC_ALL=C tr -d '\n' < "$MANAGER_SCREEN_RIG/stdin.--manager-scope-set" 2> /dev/null )" "[Assign a tier] [SPAWN_TIER_HIGH] 1 rig-ext:normal"
-rigCase configure
-rigScript <<'RIGSCRIPT'
-turn
-at @clipresets presets
-turn
-wait list 10
-keys DOWN DOWN
-wait focus 10
-turn
-keys c
-turn
-wait dialog 5
-get wiz
-RIGSCRIPT
-rigAssert "c on a preset starts the wizard of the CLI service: it reads what the form needs" "$( rigCalled '--manager-wizard-read cli-service' )" "1"
 
 echo "-- the tiers --"
 rigCase tiers
@@ -319,7 +400,7 @@ keys ENTER
 wait action 30
 turn 2
 RIGSCRIPT
-rigAssert "the effort offers unset, low, normal and high; the two chosen are saved as one value, <preset>:<effort>, alone on the standard input of --manager-scope-set" "$( rigHolds picked 'unset' ) $( rigHolds picked 'high' ) $( rigWords '[--manager-scope-set][agents:magic-team][SPAWN_TIER_HIGH]' ) $( LC_ALL=C tr -d '\n' < "$MANAGER_SCREEN_RIG/stdin.--manager-scope-set" 2> /dev/null )" "3 1 1 rig-ext:high"
+rigAssert "the effort offers unset, low, normal and high; the two chosen are saved as one value, <preset>:<effort>, alone on the standard input of --manager-scope-set" "$( rigHolds picked 'unset' ) $( rigHolds picked 'high' ) $( rigWords '[--manager-scope-set][agents:magic-team][SPAWN_TIER_HIGH]' ) $( LC_ALL=C tr -d '\n' < "$MANAGER_SCREEN_RIG/stdin.--manager-scope-set" 2> /dev/null )" "2 1 1 rig-ext:high"
 rigCase tier2
 rigScript <<'RIGSCRIPT'
 turn
@@ -358,6 +439,45 @@ wait action 30
 turn 2
 RIGSCRIPT
 rigAssert "a preset with no effort stays so: the effort selector on unset saves the preset alone" "$( LC_ALL=C tr -d '\n' < "$MANAGER_SCREEN_RIG/stdin.--manager-scope-set" 2> /dev/null )" "rig-ext"
+
+echo "-- deleting a preset --"
+rigCase delinuse
+rigScript <<'RIGSCRIPT'
+turn
+at @clipresets presets
+turn
+wait list 10
+keys DOWN
+wait focus 10
+turn
+keys D
+turn
+get sw
+show sw
+keys ENTER
+wait action 30
+turn 2
+RIGSCRIPT
+rigAssert "D on a preset still in use opens the switch, naming the preset, its users and the other presets to switch to" "$( rigVal sw.dialog | LC_ALL=C cut -d'|' -f1 ) [$( rigVal sw.dialogTitle )] $( rigVal sw.dialogHolds | LC_ALL=C grep -c -F 'used by: rig-ext' ) $( rigVal sw.dialogHolds | LC_ALL=C grep -c -F 'preset: rig-base' )" "preset-switch:switch [Delete: rig-base] 1 1"
+rigAssert "choosing the first other preset rewrites its users to it and deletes, in one operation" "$( rigCalled '--manager-preset-delete rig-base --switch rig-ext' ) $( rigWords '[--manager-preset-delete][rig-base][--switch][rig-ext]' )" "1 1"
+rigCase delfree
+printf 'preset\tagents:preset-rig-free\tAgents:_preset-rig-free\t1\tyes\tyes\t/rig/preset-rig-free.agent.env\t-\tgrok\t-\t-\t-\n' >> "$MANAGER_SCREEN_RIG/rows.--manager-preset-list"
+rigScript <<'RIGSCRIPT'
+turn
+at @clipresets presets
+turn
+wait list 10
+keys DOWN DOWN DOWN
+wait focus 10
+turn
+keys D
+turn
+get del
+keys y e s ENTER
+wait action 30
+turn 2
+RIGSCRIPT
+rigAssert "D on a preset nothing uses asks for the word, then deletes it in one operation" "$( rigVal del.dialog | LC_ALL=C cut -d'|' -f1 ) [$( rigVal del.dialogTitle )] $( rigCalled '--manager-preset-delete rig-free' ) $( rigWords '[--manager-preset-delete][rig-free]' )" "preset-delete:word [Delete: rig-free] 1 1"
 
 if [ "$rigFailCount" -ne 0 ] ; then echo "⛔ MANAGER SCREEN PRESETS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1 ; fi
 echo "MANAGER_SCREEN_PRESETS: OK ($rigPassCount assertions, offline, stand-in terminal and stand-in dispatcher)"

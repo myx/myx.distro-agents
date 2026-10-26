@@ -109,6 +109,21 @@ AgentsToolsRoutineLockMinutes(){
 	printf '%s\n' 120
 }
 
+## A LOCK THAT FAILED TO LAND IS DISCARDED LOCALLY, NOT KEPT. A lock is only a lock once the
+## remote carries it: kept here after a failed or unverifiable publish, it would block this host
+## for a session that never started, and leave the very commit the owner found stranded (the
+## lock's own note, committed locally and never merged). So every failure arm below removes the
+## note and commits the removal, and the start is refused with nothing held. No lock at all is
+## the honest state; a believed one is worse than none.
+AgentsToolsRoutineLockDiscard(){ ## the lock document path, the routine's short name
+	local discardPath="$1" discardShort="$2"
+	[ -n "$discardPath" ] || return 0
+	rm -f "$discardPath" 2> /dev/null || :
+	type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataCommit.include"
+	AgentsToolsTeamDataCommitPaths "$discardShort.routine: the lock was discarded, because it could not be published" "$discardPath" 2> /dev/null || :
+	return 0
+}
+
 ## The member and the note a `routine-lock-document:` value names: `<member><TAB><note>`; rc 1 for any other shape, a macro
 ## not yet filled included (AgentsToolsRoutineLockFill fills it).
 AgentsToolsRoutineLockParse(){ ## value
@@ -238,7 +253,8 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 			--commit-message "* $lockShort.routine: spawner lock" \
 			--context --intern-op-agent-spawn-proxy > /dev/null
 		then
-			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the locking document $lockNote of $lockMember could not be written, so the routine is not locked -- nothing was started" >&2
+			AgentsToolsRoutineLockDiscard "$lockPath" "$lockShort"
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the locking document $lockNote of $lockMember could not be written, so the routine is not locked and the lock was discarded -- nothing was started" >&2
 			return 1
 		fi
 	fi
@@ -246,12 +262,14 @@ AgentsToolsRoutineLockAcquireOne(){ ## one routine-lock-document value, the sess
 		local fetchOut="" fetchRc=0 publishedSession
 		fetchOut="$( git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )" || fetchRc=$?
 		if [ "$fetchRc" -ne 0 ] ; then
-			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: LOCK_UNCHECKABLE -- could not fetch origin/$lockBranch to verify the published lock: $fetchOut" >&2
+			AgentsToolsRoutineLockDiscard "$lockPath" "$lockShort"
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: LOCK_UNCHECKABLE -- could not fetch origin/$lockBranch to verify the published lock, so the lock was discarded: $fetchOut" >&2
 			return 1
 		fi
 		publishedSession="$( git -C "$repoRoot" show "FETCH_HEAD:$lockRelPath" 2> /dev/null | LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' )"
 		if [ "$publishedSession" != "$lockSession" ] ; then
-			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: LOCK_NOT_PUBLISHED -- origin/$lockBranch:$lockRelPath reads session-id '$publishedSession', not '$lockSession' -- the lock write did not actually land on the remote" >&2
+			AgentsToolsRoutineLockDiscard "$lockPath" "$lockShort"
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: LOCK_NOT_PUBLISHED -- origin/$lockBranch:$lockRelPath reads session-id '$publishedSession', not '$lockSession' -- the lock write did not land on the remote, so the lock was discarded" >&2
 			return 1
 		fi
 	fi
@@ -342,6 +360,49 @@ AgentsToolsRoutineLockRelease(){ ## spawn record, outcome, exit code
 		! AgentsToolsSessionRecordLive "$releaseOther" || return 0
 	done
 	AgentsToolsRoutineLockUnlock "$releaseValue" "$releaseSession" "${releaseThis%.spawn.md} ended $releaseOutcome, exit $releaseExit"
+	return 0
+}
+
+## THE CONSOLE'S RELEASE of a lock whose holder has no record (F6.2): the console read the document's state and session-id,
+## found no spawn record still naming that session as the holder of the document, and gives the lock back. A document already
+## finished, or holding no session-id, is refused; one whose holder still has a record is refused.
+AgentsToolsRoutineLockReleaseConsole(){ ## the routine-lock-document value, the reason (words, optional)
+	local relValue="$1" relReason="${2:-}" relPath relState relSession relOther relHeld="" relEnded
+	relPath="$( AgentsToolsRoutineLockPath "$relValue" )" || {
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-op-routine-lock-release: $relValue is not inbox:<member>:<note>.md" >&2
+		return 1
+	}
+	[ -f "$relPath" ] || {
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-op-routine-lock-release: the locking document ${relValue#inbox:} does not exist: $relPath" >&2
+		return 1
+	}
+	relState="$( AgentsToolsRoutineLockField "$relPath" state )"
+	relSession="$( AgentsToolsRoutineLockField "$relPath" session-id )"
+	case "$relState" in *-finished|'')
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-op-routine-lock-release: the lock on ${relValue#inbox:} is not held (state ${relState:-<none>}) -- nothing was released" >&2
+		return 1
+	;;
+	esac
+	[ -n "$relSession" ] || {
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-op-routine-lock-release: the lock on ${relValue#inbox:} holds no session-id -- nothing was released" >&2
+		return 1
+	}
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	for relOther in "$MMDAPP"/.local/agents/spawned/*/*.spawn.md ; do
+		[ -f "$relOther" ] || continue
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$relOther" session-id )" = "$relSession" ] || continue
+		case ",$( AgentsToolsSpawnSandboxRecordHeader "$relOther" routine-lock )," in
+			*",$relValue,"*) relHeld="$relOther" ; break ;;
+		esac
+	done
+	if [ -n "$relHeld" ] ; then
+		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools} --intern-op-routine-lock-release: the holder of ${relValue#inbox:} has a record (${relHeld##*/}) -- nothing was released" >&2
+		return 1
+	fi
+	relEnded="released by the console: the holder has no record"
+	[ -z "$relReason" ] || relEnded="$relEnded ($relReason)"
+	AgentsToolsRoutineLockUnlock "$relValue" "$relSession" "$relEnded"
+	printf '%s\n' "released: ${relValue#inbox:}"
 	return 0
 }
 

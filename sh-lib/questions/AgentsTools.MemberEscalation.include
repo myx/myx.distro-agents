@@ -374,11 +374,18 @@ AgentsToolsEscalationClaimAlive(){ ## holder, `<host>:<pid>:<start>`
 	[ -z "$aliveStart" ] || [ "$aliveStart" = "$aliveNow" ]
 }
 
+## The claim directory of a record: always in pending/, whether the record is still open or already closed to closed/
+## (the close leaves it, so the apply can still rename verdict to verdict.applied).
+AgentsToolsEscalationClaimDir(){ ## record file
+	local claimBase="${1##*/}"
+	printf '%s' "$MMDAPP/.local/agents/pending/${claimBase%.md}.answered"
+}
+
 ## Whether a claim on a record still has something to do: an answer to apply to an open
 ## record or, for a finish, a verdict noted there and not marked applied.
 AgentsToolsEscalationClaimOpen(){ ## record file, finish (non-empty|empty)
 	if [ -n "${2:-}" ] ; then
-		[ -f "${1%.md}.answered/verdict" ]
+		[ -f "$( AgentsToolsEscalationClaimDir "$1" )/verdict" ]
 	else
 		[ "$( AgentsToolsEscalationField "$1" status )" = "reply-pending" ]
 	fi
@@ -391,7 +398,7 @@ AgentsToolsEscalationClaimOpen(){ ## record file, finish (non-empty|empty)
 ## For a finish (second argument) it is the claim on a record already closed whose apply
 ## stopped before its end: taken while its verdict is noted and not marked applied.
 AgentsToolsEscalationClaim(){ ## record file, finish (non-empty|empty)
-	local claimDir="${1%.md}.answered" claimFinish="${2:-}" claimMade="" claimPid claimSelf claimGen claimName claimHolder claimKept claimWaited=0 claimLost=0
+	local claimDir="$( AgentsToolsEscalationClaimDir "$1" )" claimFinish="${2:-}" claimMade="" claimPid claimSelf claimGen claimName claimHolder claimKept claimWaited=0 claimLost=0
 	agentsEscalationClaimHolder=""
 	## The shell this runs in, a subshell included: $$ would name the script's first shell.
 	claimPid="$( exec sh -c 'echo "$PPID"' )"
@@ -477,7 +484,7 @@ AgentsToolsEscalationNoteSet(){ ## note file, key, value, ...
 ## follow floor -- and the verdict goes on the item's Decisions, where it is not written a
 ## second time. Then the note is marked applied. Run by the holder of the claim.
 AgentsToolsEscalationApplyFinish(){ ## record file, request id
-	local finishFile="$1" finishId="$2" finishNote="${1%.md}.answered/verdict" finishValue finishItem finishPath
+	local finishFile="$1" finishId="$2" finishNote="$( AgentsToolsEscalationClaimDir "$1" )/verdict" finishValue finishItem finishPath
 	[ -f "$finishNote" ] || return 0
 	## Kept on the record, so a later read reports the same result the answer did.
 	set --
@@ -514,7 +521,7 @@ AgentsToolsEscalationApplyFinish(){ ## record file, request id
 ## A closed record whose apply stopped before its end -- its verdict still noted, its holder
 ## gone -- is finished by the next read of it. A holder that is alive is left to finish.
 AgentsToolsEscalationApplyResume(){ ## record file, request id
-	[ -f "${1%.md}.answered/verdict" ] || return 0
+	[ -f "$( AgentsToolsEscalationClaimDir "$1" )/verdict" ] || return 0
 	AgentsToolsEscalationClaim "$1" finish || return 0
 	AgentsToolsEscalationApplyFinish "$1" "$2"
 }
@@ -527,8 +534,8 @@ AgentsToolsEscalationApplyResume(){ ## record file, request id
 ## behind it, and a grant is never written twice. An allow whose grant cannot be written is
 ## not applied: the request stays open, said as RETURNED with the reason, rc 5. Called with
 ## no verdict it only completes a noted one, rc 4 when none is. Prints the result lines.
-AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text, answered by, optional answering session, optional closed-by (readback), optional follow floor, optional: read in the forward's thread (non-empty)
-	local applyFile="$1" applyId="$2" applyVerdict="$3" applyText="$4" applyBy="$5" applyAnswerSession="${6:-}" applyClosedBy="${7:-}" applyFloor="${8:-}" applyFromForward="${9:-}" applyKind applySession applyRefusal applyGrant=""
+AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text, answered by, optional answering session, optional closed-by (readback), optional follow floor, optional: read in the forward's thread (non-empty), optional: ts of the answer message in the question's own thread
+	local applyFile="$1" applyId="$2" applyVerdict="$3" applyText="$4" applyBy="$5" applyAnswerSession="${6:-}" applyClosedBy="${7:-}" applyFloor="${8:-}" applyFromForward="${9:-}" applyAnswerTs="${10:-}" applyKind applySession applyRefusal applyGrant=""
 	## The folder answer of a single permission (allow-folder): what it grants is the folder of
 	## the refused file, worked out now from the refusal record. Where the request offered no
 	## folder, or none can be granted, the answer is not applied and the request stays open.
@@ -586,7 +593,7 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 	applyKind="$( AgentsToolsEscalationField "$applyFile" kind )"
 	## The note first: one left by a holder that is gone is the answer that was being applied,
 	## and it is completed as it stands, in place of the answer this call brought.
-	local applyNote="${applyFile%.md}.answered/verdict" applyOwn="$applyVerdict"$'\t'"$applyBy" applyStamp="" applyWhy=""
+	local applyNote="$( AgentsToolsEscalationClaimDir "$applyFile" )/verdict" applyOwn="$applyVerdict"$'\t'"$applyBy" applyStamp="" applyWhy=""
 	if [ -f "$applyNote" ] ; then
 		applyVerdict="$( AgentsToolsEscalationNoteField "$applyNote" verdict )"
 		applyBy="$( AgentsToolsEscalationNoteField "$applyNote" by )"
@@ -726,9 +733,12 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 			fi
 		fi
 	fi
-	## Its Decisions line is written below, once the verdict text is on the record too.
+	## Its Decisions line is written below, once the verdict text is on the record too. The answer
+	## message in the question's own thread goes with the close, so the :eyes: that acknowledges it
+	## lands on the message the person sent rather than on the question, which only takes the mark of
+	## the answer. A forward's own answer names no message of this channel's thread, so it passes none.
 	DistroAgentsTools --intern-op-pending-reply-close "$applyId" --status reply-received --verdict "$applyVerdict" --answered-by "$applyBy" \
-		--no-decision --context escalation > /dev/null 2>&1 || {
+		${applyAnswerTs:+--answer-ts "$applyAnswerTs"} --no-decision --context escalation > /dev/null 2>&1 || {
 		## The claim goes with the failed close, so the next answer is not kept out. With a
 		## grant written the note stays, so what that answer completes is this verdict.
 		[ -n "$applyGrant" ] || rm -f "$applyNote" 2>/dev/null
@@ -736,6 +746,8 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 		echo "$MDSC_CMD: ⛔ ERROR: the verdict $applyVerdict for $applyId could not be recorded, so it is not applied" >&2
 		return 1
 	}
+	## The close moved the now-closed record to closed/ (retention, T9): the rest reads its fields from there.
+	[ -f "$applyFile" ] || applyFile="$MMDAPP/.local/agents/pending/closed/$applyId.md"
 	if [ "$applyKind" = "permission" ] ; then
 		case "$applyVerdict" in
 			## A denial is said where the refusal was, in the asking session's tracking-thread, as
@@ -836,6 +848,9 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 ## (or the record names no thread to read); UNREADABLE, the thread could not be read, so
 ## nothing is known -- its third field names the conversation, the identity it was read with
 ## and Slack's own error.
+## WHERE THE ANSWER IS READ: the thread of the question. A question that is one top-level post
+## of a direct conversation is answered where its person types as well -- the conversation
+## itself -- and that is read too, when its thread holds nothing (AgentsToolsEscalationAskDirect).
 AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channel, question ts, thread ts, accepted authors, read as bot (true|empty), no verdict from this thread (non-empty|empty)
 	local threadMember="$1" threadFile="$2" threadPending="$3" threadChannel="$4" threadQuestion="$5" threadRoot="$6" threadAuthors="$7" threadAsBot="${8:-}" threadNoVerdict="${9:-}"
 	local threadWork threadRc=0 threadVerdict threadAuthor threadAsking threadOptions="" threadVerdictTs="" threadClarify=""
@@ -889,6 +904,28 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 		fi
 		[ -z "$threadSince" ] || threadAnswers="$( printf '%s\n' "$threadAnswers" | LC_ALL=C awk -v sinceTs="$threadSince" \
 			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackThreadAnswersSince.awk" 2>/dev/null )" || threadAnswers=""
+		## AN ANSWER TYPED IN THE CONVERSATION, where the question is one top-level post of a
+		## conversation of two people (a direct message). What the post asks is answered by a
+		## click under it or by a reply in its thread, and a person answering there does neither:
+		## he types in the conversation, where a reply is no reply to the post at all, so nothing
+		## a thread read returns ever carries it. What stands after the question there, from the
+		## account it was addressed to, is therefore read as its answer too -- but only where its
+		## own thread holds nothing at all, so a click or a reply that already answers keeps
+		## answering as it did, and only in a direct conversation, where no other question stands
+		## that an unnumbered reply could belong to. A conversation that cannot be read leaves
+		## the result exactly what the thread said: never an answer guessed at.
+		if ! printf '%s\n' "$threadAnswers" | LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: |UNMATCHED-REPLY )' \
+			&& AgentsToolsEscalationAskDirect "$threadFile" "$threadChannel" ; then
+			local threadDirect="" threadDirectRc=0
+			threadDirect="$( DistroAgentsTools --intern-op-comms-slack-read "$threadMember" "$threadChannel" --oldest "$threadLive" \
+				${threadAsBot:+--identity-bot} 2> /dev/null )" || threadDirectRc=$?
+			if [ "$threadDirectRc" = "0" ] ; then
+				threadAnswers="$( printf '%s\n' "$threadDirect" | LC_ALL=C awk 'NR == 1 && /^## target=/ { next ; } { print }' \
+					| LC_ALL=C awk -v rootTs="$threadLive" -v askingUsers="$( AgentsToolsEscalationField "$threadFile" asking-accounts )" -v fromUsers="$threadAuthors" \
+						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsDismissalMatch.awk" \
+						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackThreadAnswers.awk" 2>/dev/null )" || threadAnswers=""
+			fi
+		fi
 		## Nothing an accepted account wrote or clicked: the question is open, and nothing is returned.
 		printf '%s\n' "$threadAnswers" | LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: |UNMATCHED-REPLY )' || { printf 'OPEN\t\n' ; return 0 ; }
 		threadUntagged="$( printf '%s\n' "$threadAnswers" | LC_ALL=C grep -c '^UNMATCHED-REPLY ' )"
@@ -990,6 +1027,24 @@ AgentsToolsEscalationRecord(){ ## request id
 	}
 }
 
+## Whether an ask stands as ONE TOP-LEVEL POST of a conversation of two people (a direct
+## message), where the person answers by typing in the conversation rather than by opening the
+## thread under the post: rc 0 it does. Read from the record's own places -- the question is
+## the first message of its thread (its thread ts is its own), and Slack says the conversation
+## is a direct one. A conversation that cannot be read is not taken for a direct one, so
+## nothing is read from it and the answer is taken where it always was: never guessed at.
+AgentsToolsEscalationAskDirect(){ ## record file, channel
+	local directChannel="$2" directIdentity="" directInfo="" directIsIm=""
+	[ -n "$directChannel" ] || return 1
+	[ "$( AgentsToolsEscalationField "$1" thread-ts )" = "$( AgentsToolsEscalationField "$1" question-ts )" ] || return 1
+	[ "$( AgentsToolsEscalationField "$1" ask-identity )" != "bot" ] || directIdentity="bot"
+	directInfo="$( DistroAgentsTools --intern-op-slack-call "$( AgentsToolsEscalationField "$1" owner )" --api conversations.info \
+		--resolve-target "$directChannel" ${directIdentity:+--identity "$directIdentity"} --context "--intern-op-escalation-read" 2> /dev/null )" || return 1
+	directIsIm="$( printf '%s\n' "$directInfo" | LC_ALL=C awk -v path=channel.is_im -v dialect=slack \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null )" || return 1
+	[ "$directIsIm" = "true" ]
+}
+
 ## The verdict one line typed at a console gives for this record, by the one reader of a
 ## reply's first line (AgentsEscalationVerdict.awk), which is given that line as the one
 ## reply of an accepted account: a kind's own word, the number of an option, and whatever
@@ -1051,7 +1106,7 @@ case "$1" in
 		shift
 		MDSC_CMD="$MDSC_CMD --intern-op-escalation-read"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
-		local readMember="$1" readId="$2" readFile readStatus readKind readVerdict readText=""
+		local readMember="$1" readId="$2" readFile readStatus readKind readVerdict readText="" readAnswerTs=""
 		if [ -z "$readMember" ] || [ -z "$readId" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> <request-id>" >&2
 			set +e ; return 1
@@ -1092,13 +1147,15 @@ case "$1" in
 			type AgentsChangeSessionGone > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.InternOpChange.include"
 			if AgentsChangeSessionGone "$readFile" ; then
 				AgentsChangeDrop "$readFile" "$readId" tooling "the session that made it has ended"
+				## The drop closed the record, which moved to closed/ (retention, T9): its status reads from there.
+				[ -f "$readFile" ] || readFile="$MMDAPP/.local/agents/pending/closed/$readId.md"
 				printf 'ESCALATION: %s closed %s\n' "$readId" "$( AgentsToolsEscalationField "$readFile" status )"
 				return 0
 			fi
 		fi
 		## An apply that stopped before its record closed is completed first: the answer it noted
 		## stands, whatever its thread says now. A holder still alive is left to it.
-		if [ -f "${readFile%.md}.answered/verdict" ] ; then
+		if [ -f "$( AgentsToolsEscalationClaimDir "$readFile" )/verdict" ] ; then
 			local readResumed="" readResumeRc=0
 			readResumed="$( AgentsToolsEscalationApply "$readFile" "$readId" "" "" "" )" || readResumeRc=$?
 			case "$readResumeRc" in
@@ -1186,8 +1243,13 @@ case "$1" in
 		## verdict read from a forward's thread leaves it at the question.
 		local readFloor=""
 		[ -n "$readForward" ] || readFloor="$( AgentsToolsEscalationFloor "$readOut" )"
+		## The message he sent, taken as this answer: its ts rides with the verdict, so the close can
+		## acknowledge the answer ON that message (:eyes:) and not on the question's own post. A verdict
+		## read from a forward's thread names a message of another conversation, so the close is given
+		## none there -- a reaction in the question's channel on that ts would be in the wrong channel.
+		[ -n "$readForward" ] || readAnswerTs="$( printf '%s\n' "$readOut" | LC_ALL=C awk -F'\t' '$1 == "ANSWER-TS" { print $2 ; exit }' )"
 		local readApplied="" readApplyRc=0
-		readApplied="$( AgentsToolsEscalationApply "$readFile" "$readId" "${readVerdict%%$'\t'*}" "$readText" "${readVerdict#*$'\t'}" "" "" "$readFloor" "$readForward" )" || readApplyRc=$?
+		readApplied="$( AgentsToolsEscalationApply "$readFile" "$readId" "${readVerdict%%$'\t'*}" "$readText" "${readVerdict#*$'\t'}" "" "" "$readFloor" "$readForward" "$readAnswerTs" )" || readApplyRc=$?
 		case "$readApplyRc" in
 			0)
 				printf '%s\n' "$readApplied"
@@ -1411,8 +1473,17 @@ case "$1" in
 		## operation (AgentsWaitProbeAsk), and a question pinned to one session is no bar to it.
 		[ -z "$answerConsole" ] || answerSession="console:$answerConsole"
 		if [ -z "$answerSession" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: this caller carries no session id, so the answer cannot be bound to a session and is not applied; $answerId stays open" >&2
-			set +e ; return 1
+			## A console answers with no session of its own: a direct --answer-escalation, the raw
+			## answer op the manager's own answer reaches too, is applied without a session. A member's
+			## answer carries its session, and one without is refused.
+			## THE RAW OPERATION NAMES ITS MEMBER AS ITS FIRST ARGUMENT and carries no account, so an
+			## answer through it has no session to be bound to and is refused. The console's own arm
+			## (`--manager-pending-reply-answer`) carries its account — `console:<account>` — and is
+			## applied; the guard is never entered for it (proved: session=[console:myx], 15 calls).
+			if [ "$answerOp" = "--answer-escalation" ] || [ -n "$( AgentsToolsActingMember )" ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: this caller carries no session id, so the answer cannot be bound to a session and is not applied; $answerId stays open" >&2
+				set +e ; return 1
+			fi
 		fi
 		answerPinned="$( AgentsToolsEscalationField "$answerFile" answerer-session )"
 		if [ -z "$answerConsole" ] && [ -n "$answerPinned" ] && [ "$answerPinned" != "$answerSession" ] ; then
@@ -1493,6 +1564,8 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: the answer $answerVerdict for $answerId was not applied" >&2
 			set +e ; return 1
 		}
+		## The apply closed the record, which moved to closed/ (retention, T9): the console trace reads it there.
+		[ -f "$answerFile" ] || answerFile="$MMDAPP/.local/agents/pending/closed/$answerId.md"
 		[ -z "$answerConsole" ] || AgentsToolsEscalationConsoleTrace "$answerFile" "$answerId" "$answerBlock" "$answerConsole" "$answerVerdict" "$answerText"
 		return 0
 	;;

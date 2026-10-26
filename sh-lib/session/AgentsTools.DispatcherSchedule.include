@@ -121,6 +121,14 @@ AgentsToolsScheduleWorktime(){ ## weekday name, seconds into the day, epoch now 
 	esac
 }
 
+## Worktime now as one word: yes, or no with the reason in brackets. The collection reads this for the mail TTL stretch T2 asks
+## (AgentsTools.Collect.include, AgentsToolsCollectTtlOf), without the whole flags table.
+AgentsToolsScheduleWorktimeNow(){
+	local nowEpoch nowOffset nowDay nowSeconds
+	read -r nowEpoch nowOffset nowDay nowSeconds <<< "$( AgentsToolsScheduleClock )"
+	AgentsToolsScheduleWorktime "$( AgentsToolsScheduleDayName "$nowDay" )" "$nowSeconds" "$nowEpoch"
+}
+
 ## The next start of worktime after an instant, as an epoch; nothing where worktime is not set or cannot be decided.
 AgentsToolsScheduleNextWorkStart(){ ## epoch, offset seconds
 	local nextValue nextStart nextUntil nextDays nextStartSec nextDay nextCount=0 nextName nextAt

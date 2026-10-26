@@ -228,7 +228,8 @@ AgentsToolsManagerSessionControls(){ ## session id (every session of the workspa
 ## measured, then grouped, sorted and counted. Fails, printing nothing, where a registry
 ## cannot be rebuilt: a stale file is never listed as though it were fresh.
 AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for the active sessions only (may be empty)
-	local rowsOp="$1" rowsActive="${2:-}" rowsFile rowsPending rowsSpawn rowsWaiting=" " rowsStat="" rowsTab=$'\t'
+	local rowsOp="$1" rowsActive="${2:-}" rowsLearn="" rowsFile rowsPending rowsSpawn rowsWaiting=" " rowsStat="" rowsTab=$'\t'
+	[ "$rowsOp" != --schedule-learning ] || rowsLearn=1
 	local measuredRows="" measuredDated="" measuredAny="false"
 	rowsFile="$( AgentsToolsRegistryFile spawned-sessions )"
 	rowsPending="$( AgentsToolsRegistryFile pending-replies )"
@@ -251,7 +252,7 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 		[ "$( AgentsToolsManagerRunActivity "$rowsSpawn" "$rowsStat" )" != "waiting" ] || rowsWaiting="$rowsWaiting$rowsSpawn "
 	done <<< "$( printf '%s' "$measuredDated" | LC_ALL=C awk 'NF == 18 && $12 == "running" { print $8 ; }' )"
 	printf '%s' "$measuredDated" \
-		| MDAT_MANAGER_WAITING="$rowsWaiting" MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -v hostName="$( AgentsToolsManagerHostName )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$rowsPending" - \
+		| MDAT_MANAGER_WAITING="$rowsWaiting" MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v learnOnly="$rowsLearn" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -v hostName="$( AgentsToolsManagerHostName )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerDateMinutes.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerSessionRows.awk" "$rowsPending" - \
 		| LC_ALL=C sort -t "$rowsTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
 		| LC_ALL=C cut -f6-
 }
@@ -795,7 +796,11 @@ AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "r
 	## held to the store.
 	while read -r finishKey finishSource finishAsker finishOwner finishAskStatus finishRest ; do
 		[ "$finishSource" = "ask" ] && [ "$finishAskStatus" = "reply-pending" ] || continue
-		case "$finishIds" in *" $finishAsker "*) ;; *) continue ;; esac
+		## A QUESTION ASKED BY THE SESSION ITSELF, not by one of its runs: its asker is the
+		## session's id, so the session's own id is what the search must hold beside the runs',
+		## and only the kill of the WHOLE session may hold it: the kill of one run dismisses what
+		## that run asked, and leaves the questions of its session and of its other runs waiting.
+		case "$finishIds${finishWhole:+$finishSession }" in *" $finishAsker "*) ;; *) continue ;; esac
 		finishAsk="${finishKey%.md}"
 		if [ -n "$finishPlan" ] ; then
 			printf 'dismiss\t%s\t%s\t%s\twould-dismiss\n' "$finishSession" "$finishAsk" "$finishAsker"
@@ -1079,9 +1084,16 @@ case "$1" in
 		type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 		AgentsToolsAssertBareName "$checklistId" "the session id" "$checklistOp" || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$checklistMember" "the member" "$checklistOp" || { set +e ; return 1 ; }
-		## The sandbox root of a spawn is the folder of its own name, its record the file of that name in it: the session a spawn founded has its place there.
-		checklistRecord="$MMDAPP/.local/agents/spawned/$checklistId/$checklistId.spawn.md"
-		if [ -f "$checklistRecord" ] ; then checklistFolder="${checklistRecord%/*}" ; else checklistFolder="$MMDAPP/.local/agents/sessions/$checklistId" ; fi
+		## The record of a spawn is the file <id>.spawn.md, in the folder of spawned/ that holds it: that folder is the sandbox root of the spawn, and it
+		## is named by the id only where the spawn founded it there. So the folder of the id is asked first, and, holding no record of that name, every
+		## folder of spawned/, in their order. Only where no folder holds the record is the session store the place: a session that founded none keeps
+		## its checklist under sessions/<id>.
+		checklistFolder=""
+		for checklistRecord in "$MMDAPP/.local/agents/spawned/$checklistId/$checklistId.spawn.md" "$MMDAPP/.local/agents/spawned"/*/"$checklistId.spawn.md" ; do
+			[ -f "$checklistRecord" ] || continue
+			checklistFolder="${checklistRecord%/*}" ; break
+		done
+		[ -n "$checklistFolder" ] || checklistFolder="$MMDAPP/.local/agents/sessions/$checklistId"
 		[ ! -f "$checklistFolder/$checklistMember.checklist.md" ] || cat "$checklistFolder/$checklistMember.checklist.md"
 		return 0
 	;;
@@ -1167,14 +1179,14 @@ case "$1" in
 		local effortOp="$1" effortId effortValue effortDir effortTmp
 		shift
 		if [ $# -ne 2 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $effortOp: syntax is <session-id> <low|normal|high>, got $# argument(s)" >&2
+			echo "⛔ ERROR: $MDSC_CMD $effortOp: syntax is <session-id> <unset|none|low|normal|high>, got $# argument(s)" >&2
 			set +e ; return 1
 		fi
 		effortId="$1" ; effortValue="$2"
 		AgentsToolsAssertBareName "$effortId" "the session id" "$effortOp" || { set +e ; return 1 ; }
 		case "$effortValue" in
-			low|normal|high) ;;
-			*) echo "⛔ ERROR: $MDSC_CMD $effortOp: the effort is low, normal or high -- nothing was saved" >&2 ; set +e ; return 1 ;;
+			unset|none|low|normal|high) ;;
+			*) echo "⛔ ERROR: $MDSC_CMD $effortOp: the effort is unset, none, low, normal or high -- nothing was saved" >&2 ; set +e ; return 1 ;;
 		esac
 		effortDir="$MMDAPP/.local/agents/sessions/$effortId"
 		if [ ! -d "$effortDir" ] ; then

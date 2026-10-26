@@ -20,10 +20,12 @@
 ## they were not run, and which key runs them, and that key runs them from the row of the folder, after which the
 ## folder says how they ended and when. A folder whose read fails says so in the left window.
 ## Offline: no operation of the real tooling is called.
-## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`.
+## Reconciled for F11.0: `Launch / Spawn` is named `Launchpad`, `Consoles (Tools)` `Consoles`.
 ## Reconciled for F11.0, the table lines: two spaces between the columns of every table.
 ## Reconciled for the count of Pending Questions (owner, 2026-10-20): the root reads the count of the asks (`--count`) whatever is shown, and that start is no read of a folder: the helpers leave it out.
 ## Reconciled for F11.5: the roots are Dashboard, Pending Questions, Magic-Team (Agents), Locations, Consoles, Settings and Configuration, so the selection steps through those, and the sessions and the members are read inside Magic-Team (Agents) (Activity, Team Members); the asks, the places and the consoles keep their cases.
+## Reconciled for the removal of Pending Questions from Magic-Team (owner-approved: it is a root alone now, "we keep those in root and not duplicating it in Magic-Team"): the sections of Magic-Team are `.. activity launch team teamdata routines`, so the sessions are the first one after the row that goes up and every step inside Magic-Team is one nearer the top.
+## Reconciled for the subject `Configure Harness` of the configuration (the folder mounted after `Git Settings`): the digest of the configuration lists it among its folders, as AgentsManagerScreenConfigurationCheck does.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -196,44 +198,57 @@ rigScript <<'RIGSCRIPT'
 turn
 keys DOWN
 wait focus 5
+	wait view 5
 show Q
 keys DOWN
 wait focus 5
+	wait view 5
 show M
+## Reconciled for the removal of Pending Questions from Magic-Team (it is a root alone now): the sections
+## are `.. activity launch team teamdata routines`, so the sessions are the first section after the row
+## that goes up, and the members are two steps on from there
 keys ENTER DOWN
 wait sessions 5
 show S
+## R3 put Launchpad between Activity and Team Members, so the members are one step further on
 keys DOWN DOWN
 wait focus 5
+	wait view 5
 show T
 keys BACKSPACE DOWN
 wait focus 5
+	wait view 5
 show P
 keys DOWN
 wait focus 5
+	wait view 5
 show C
 keys DOWN
 wait focus 5
+	wait view 5
 show W
 keys DOWN
 wait focus 5
+	wait view 5
 show N
 keys DOWN
 wait focus 5
+	wait view 5
 show G
 keys DOWN
 wait focus 5
+	wait view 5
 show F
 get end
 RIGSCRIPT
 rigAssert "the sessions: every session as a table, nothing above it, its state with the mark of a control thread that is gone, its agents, tokens and members" "$( rigLeft S )" " SESSION             STATE     AGE AGENTS TOKENS MEMBERS /  daily of Monday     running   -   3      57.1M  magic-coordinator, keeper-myx /  review of the board x waiting -   1      1K+    magic-architect /  s-open              unclosed  -   0      0      - /  old work            finished  -   2      900    - /  older work          finished  -   1      100    -"
 rigAssert "the asks: every ask as a table, nothing above it, with how long it waits, its kind, who asks whom and the question" "$( rigLeft Q )" "    AGE KIND  FROM         TO               QUESTION /  ❓ 10m ques… keeper-myx   human-owner      Which of the two layouts stays? /  ❓ 2h  ques… keeper-acm   magic-           Who owns the template of the report? /                            coordinator /     3d  appr… magic-devops human-owner      May the old volume be removed now that /                                             the copy is proven on the second host?"
 rigAssert "the members: their table alone, numbered, and no line of a summary" "$( rigLeft T )" "$( printf ' %s  %-17s  %-7s  %-8s  %-6s  %s / ' '#' MEMBER RUN STATUS KIND WHERE 1 magic-coordinator running active lead - 2 keeper-myx - active keeper - 3 human-owner - ref-only human - 4 far-member - active keeper - | LC_ALL=C sed 's| / $||' )"
-rigAssert "the locations: every location as a table with its path, nothing above it" "$( rigLeft P )" "   PLACE     KIND     STATE   PATH                               SESSIONS CEILING /  • ws-one    workspa… present /rig/Workspaces/ws-one             2        read-wr… /    gone-work workspa… absent  /rig/Volumes/gone-work             0        read-wr… /    deep      directo… present /rig/Workspaces/ws-one/source/deep -        read-on…"
+rigAssert "the locations: every location as a table with its path, nothing above it" "$( rigLeft P )" "   PLACE     KIND     STATE   PATH                               SESSIONS CEILING /    gone-work workspa… absent  /rig/Volumes/gone-work             0        read-wr… /  • ws-one    workspa… present /rig/Workspaces/ws-one             2        read-wr… /    deep      directo… present /rig/Workspaces/ws-one/source/deep -        read-on…"
 rigAssert "what is to start: each as a table with its command, nothing above it" "$( rigLeft C )" " CONSOLE         GROUP   COMMAND /  Agents Console  Distro  bash DistroAgentsConsole.sh /  Source Console  Distro  bash DistroSourceConsole.sh /  Top             System  top"
 rigAssert "the workspace: its facts, the rows of the operation as it printed them, with no Enter" "$( rigLeft W )" " name  ws-one /  path  /rig/Workspaces/ws-one"
 rigAssert "the settings: its subjects in a table, with what each holds" "$( rigLeft G | sed 's/^.*while the workspace runs\. \/ //' )" " SUBJECT      LINES MISSING WHAT /  Interface    2     -       how this console looks, saved for the user who runs it /  Scope        -     -       every scope of settings of this workspace, each a /  Settings                   folder of its variables"
-rigAssert "the configuration: its subjects, how many lines each misses, and its folders" "$( rigLeft F | sed 's/^.*change it later\. \/ //' ) [$( rigLeft F | sed 's/ \/ .*$//' )]" " SUBJECT     LINES MISSING WHAT /  Slack       3     1       - /  Config      -     -       the read-only checks of the installation, run on demand /  Checker /  Server Keys -     -       the public keys of this server /  CLI Presets -     -       the CLI services you set up as presets, and the preset /  and Tiers                 and effort each member and the team use for their tiers /  Git         -     -       the global git settings of the account that runs the /  Settings                  tools /  Installed   -     -       the subsystems of the tool family, installed here or /  Subsystems                not, and the commands to install and uninstall them /  Diagnostics -     -       what the tooling sees, read-only: the context it /                            resolves [ SUBJECT     LINES MISSING WHAT]"
+rigAssert "the configuration: its subjects, how many lines each misses, and its folders" "$( rigLeft F | sed 's/^.*change it later\. \/ //' ) [$( rigLeft F | sed 's/ \/ .*$//' )]" " SUBJECT     LINES MISSING WHAT /  Slack       3     1       - /  Config      -     -       the read-only checks of the installation, run on demand /  Checker /  Server Keys -     -       the public keys of this server /  CLI Presets -     -       the CLI services you set up as presets, and the preset /  and Tiers                 and effort each member and the team use for their tiers /  Git         -     -       the global git settings of the account that runs the /  Settings                  tools /  Configure   -     -       - /  Harness /  Installed   -     -       the subsystems of the tool family, installed here or /  Subsystems                not, and the commands to install and uninstall them /  Diagnostics -     -       what the tooling sees, read-only: the context it /                            resolves [ SUBJECT     LINES MISSING WHAT]"
 rigAssert "nothing was entered, and each list was read once: the asks, the members, what is to start, and the digest for both its roots" "[$( rigVal end.path )] $( rigCalls --read-pending-reply ) $( rigCalls --manager-team-member-list ) $( rigCalls --manager-console-list ) $( rigCalls --manager-config-digest ) $( rigFolderCalls )" "[] 1 1 1 1 6"
 
 echo "-- until the rows have come the window says that it waits; the read starts when the selection has rested --"
@@ -253,6 +268,7 @@ turn
 show rested
 get rested
 wait focus 5
+	wait view 5
 show came
 RIGSCRIPT
 rigAssert "on the row at once: it waits by its name, and nothing of it is asked yet" "[$( rigLeft at )] [$( rigVal at.reading | tr ',' '\n' | LC_ALL=C grep -c -F pending )] $( rigVal at.restLeft )" "[Populating Pending Questions...] [0] 0.33"
@@ -279,6 +295,7 @@ copy $MANAGER_SCREEN_RIG/calls $MANAGER_SCREEN_RIG/calls.ran
 advance 0.4
 turn
 wait focus 5
+	wait view 5
 show stop
 RIGSCRIPT
 rigAssert "over four folders in half a second: no read of a folder was started on the way" "$( rigVal ran.selected ) $( LC_ALL=C grep -v -x -F -- "$rigAsksCount" "$MANAGER_SCREEN_RIG/calls.ran" | LC_ALL=C grep -c -e --read-pending-reply -e --manager-team-member-list -e --manager-console-list -e --manager-config-digest )" "consoles 0"
@@ -301,7 +318,9 @@ turn
 show other
 get other
 wait focus 5
+	wait view 5
 wait focus 5
+	wait view 5
 show later
 keys UP UP UP
 turn
@@ -318,27 +337,33 @@ rigScript <<RIGSCRIPT
 turn
 keys DOWN
 wait focus 5
+	wait view 5
 advance 10.5
 turn
 wait focus 5
+	wait view 5
 advance 10.5
 turn
 wait focus 5
+	wait view 5
 copy $MANAGER_SCREEN_RIG/calls $MANAGER_SCREEN_RIG/calls.stayed
 keys DOWN
 advance 0.1
 keys UP
 turn
 wait focus 5
+	wait view 5
 copy $MANAGER_SCREEN_RIG/calls $MANAGER_SCREEN_RIG/calls.back
 keys DOWN
 advance 0.1
 keys UP
 turn
 wait focus 5
+	wait view 5
 keys u
 turn
 wait focus 5
+	wait view 5
 RIGSCRIPT
 rigAssert "two periods on the row: read once; away and back after the period: once more; away and back at once: no more; and the key that reads now reads it" "$( rigCallsIn "$MANAGER_SCREEN_RIG/calls.stayed" --read-pending-reply ) $( rigCallsIn "$MANAGER_SCREEN_RIG/calls.back" --read-pending-reply ) $( rigCalls --read-pending-reply )" "1 2 3"
 
@@ -348,6 +373,7 @@ rigScript <<RIGSCRIPT
 turn
 keys DOWN
 wait focus 5
+	wait view 5
 keys ENTER
 turn
 wait list 5
@@ -360,15 +386,19 @@ get aged
 RIGSCRIPT
 rigAssert "entered: its rows are there and no second read was made; the period passed: one more" "[$( rigVal in.path )] $( rigVal in.rows ) $( rigCallsIn "$MANAGER_SCREEN_RIG/calls.in" --read-pending-reply ) $( rigCalls --read-pending-reply )" "[pending] 4 1 2"
 
-echo "-- inside the sessions and the configuration: Launch (Start), Server Keys, a subject; the checker is not run by the focus --"
+echo "-- inside the sessions and the configuration: Launchpad, Server Keys, a subject; the checker is not run by the focus --"
 rigCase inner
 rigScript <<'RIGSCRIPT'
+## R3: Launchpad is a section of Magic-Team of its own, so the list opens at it
+at @magic-team launch
 turn
-keys DOWN DOWN ENTER DOWN ENTER DOWN
+wait list 10
 wait focus 5
+	wait view 5
 show L
 keys BACKSPACE BACKSPACE BACKSPACE DOWN DOWN DOWN DOWN DOWN DOWN ENTER DOWN
 wait focus 5
+	wait view 5
 advance 11
 turn
 wait check 5
@@ -384,19 +414,22 @@ wait check 5
 show K1
 keys DOWN
 wait focus 5
+	wait view 5
 turn 2
 wait plan 5
 show Y
-keys DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN
 wait focus 5
+	wait view 5
 show U
 keys r
 get refused
 keys BACKSPACE UP ENTER DOWN DOWN
 wait focus 5
+	wait view 5
 show I
 RIGSCRIPT
-rigAssert "Launch (Start): every routine as a table, its start in a word, nothing above it" "$( rigLeft L )" " ROUTINE  START          OWNER              TITLE          SESSION /  daily    startable      magic-coordinator  Daily meeting  work /  retro    members        magic-coordinator  Retro          work /  sweep    broken         keeper-myx         Sweep          work /  audit    not-startable  keeper-myx         Audit          work"
+rigAssert "Launchpad: every routine as a table, its start in a word, nothing above it" "$( rigLeft L )" " ROUTINE  START          OWNER              TITLE          SESSION /  daily    startable      magic-coordinator  Daily meeting  work /  retro    members        magic-coordinator  Retro          work /  sweep    broken         keeper-myx         Sweep          work /  audit    not-startable  keeper-myx         Audit          work"
 rigAssert "the checker on its row, rested, the period passed and a read asked for: it was not run; the folder says so and names the key, which the status line offers" "[$( rigVal k0.selected )] [$( rigLeft K0 | sed 's/ \/ .*$//' )] $( rigHolds K0 'r runs them.' ) [$( rigVal k0s | LC_ALL=C grep -c -F 'r Run' )]" "[checker] [The checks were not run yet in this run of the screen.] 1 [1]"
 rigAssert "r on that row runs them, once, and the folder then holds every check as a table, the worst first, nothing above it" "[$( rigVal asked.notice )] $( rigCalls --manager-check-run ) [$( rigLeft K1 )]" "[Run the checks: asked of the tooling, it takes up to a minute] 1 [ CHECK  STATE  DOMAIN   REASON /  Token  fail   slack    the token is missing /  Bash   ok     install  fine]"
 rigAssert "Server Keys: its groups in one table, each public key whole and never its short form, the list read once and each key that can be read" "$( rigLeft Y ) $( rigHolds Y short-marker ) $( rigCalls --manager-keys-list ) $( rigCalls '--manager-keys-read deploy' ) $( rigCalls '--manager-keys-read host' )" " KEY         TYPE         PUBLIC LINE /  To add to git /  Deploy key  ssh-ed25519  ssh-ed25519 AAAAC3NzaWHOLEKEY rig@host /  To trust when connecting /  Host key    ssh-ed25519  absent: /rig/keys/host.pub 0 1 1 0"
@@ -411,6 +444,7 @@ rigScript <<'RIGSCRIPT'
 turn
 keys DOWN DOWN DOWN DOWN
 wait focus 5
+	wait view 5
 get box
 keys ESC
 turn

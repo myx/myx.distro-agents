@@ -9,7 +9,7 @@
 ## The key is `start-context:`, a flat, optional frontmatter key, and a key left out means `any` (rigContextLine below
 ## is the one place the line is written). There is no `requires:` line.
 ## Held:
-##   1. the validator (F7.6's --tester-skillset-validate-routine) takes inline, spawned and any, each with its closure
+##   1. the validator (F7.6's --skillset-validate-routine) takes inline, spawned and any, each with its closure
 ##      lines; it refuses joined and both, naming start-context
 ##   2. it refuses a declared mode whose closure line is missing: inline with no `Run inline:`, spawned with no
 ##      `Run as its own session:`, any with only one of the two, and a closure line that stands outside the Closure steps
@@ -25,6 +25,7 @@ set -u
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigTest="$rigPackage/sh-test"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
+rigTesting="$rigPackage/sh-scripts/DistroAgentsTesting.fn.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -84,7 +85,7 @@ rigAssert(){ ## what is asserted, got, want
 rigValidate(){ ## short name -- `0`, or `refused` and whether the answer names start-context or a closure line
 	local validateRc=0
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigTool" --tester-skillset-validate-routine "$rigTmp/routines/magic-team.$1.routine.md" ) > "$rigTmp/validate" 2>&1 < /dev/null || validateRc=$?
+		MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigTesting" --skillset-validate-routine "$rigTmp/routines/magic-team.$1.routine.md" ) > "$rigTmp/validate" 2>&1 < /dev/null || validateRc=$?
 	if [ "$validateRc" -eq 0 ] ; then printf 0 ; return ; fi
 	if LC_ALL=C grep -q -E 'start-context|Run inline|Run as its own session' "$rigTmp/validate" ; then printf 'refused named' ; else printf 'refused unnamed' ; fi
 }

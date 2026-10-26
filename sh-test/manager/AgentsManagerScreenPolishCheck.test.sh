@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 ## Behavioural check on the small console polish of F11.0 (the refactorings epic), the parts whose effect is named:
-## `Launch / Spawn` is renamed `Launch (Start)`, `Consoles (Tools)` is renamed `Consoles`, the obsolete pane line
+## `Launch / Spawn` is renamed `Launchpad`, `Consoles (Tools)` is renamed `Consoles`, the obsolete pane line
 ## `keys: k kill  c control` is gone (the status line already shows those keys), and a big window showing command
 ## output has bigger margins: at least one more line top and bottom and two more characters each side than before.
 ## Run rather than read: the screen's own code (sh-lib/manager/AgentsManagerScreen.py) draws through the stand-in terminal of
 ## the driver (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls the stand-in
 ## script (check-fixtures/manager-screen.tools.stub.sh), which prints the case's fixture.
 ## Held:
-##   1. the root list and the Go menu name `Launch (Start)` and `Consoles`, and neither old name
+##   1. the root list and the Go menu name `Launchpad` and `Consoles`, and neither old name
 ##   2. the pane of a session whose control thread is gone has no `keys:` line, and the status line still names k and c
 ##   5. spacers between groups of the root list: a spacer is one blank line between two root rows, and the cursor and
 ##      the number keys skip it (which groups get one is not settled, and is not asserted): at least one stands there;
@@ -16,7 +16,7 @@
 ##   7. the raw log, `g`: the run's session-*.log, whose writer's lines carry their ISO time, shows the time of each
 ##      line (no line of a session log but a body line lacks it today, so the case is that g shows them)
 ##   5b. a spacer stands in any folder between its commands (FIXED_ROWS) and its children, as in Sessions after Launch;
-##      MDLT_CONSOLE_SPACERS=disable, the console user's setting of .local, turns every spacer off
+##      MDLT_MANAGER_SPACERS=disable, the console user's setting of .local, turns every spacer off
 ##   6. summary mode (`b`) of the left window: a run in Wait shows `<what> for <duration>` on its `waits on` line, in
 ##      the screen's duration form (its wait taken from when its last milestone, the Wait, was reached)
 ##   4. the table colour rule, in every style and each of its colour schemes: the other rows of a table differ
@@ -29,7 +29,8 @@
 ## AgentsManagerScreenConsolesCheck assert the old names and the old keys line, and are reconciled in the same feature.
 ## Red before F11.0: the old names, the keys line and the old margins (every case but the status line fails).
 ## Offline: the only thing the screen calls here is the stand-in for the dispatcher.
-## Reconciled for F11.5: Activity and its `Launch (Start)` are put at with `at @activity`, and the root list shows Magic-Team (Agents) where it showed Team Members.
+## Reconciled for F11.5: `Launchpad` is a section of Magic-Team of its own, put at with `at @magic-team launch`, and the root list shows
+## Magic-Team (Agents) where it showed Team Members (20261021-refactorings.sketch.md, `Magic-Team` -> `Reorder`).
 ## Reconciled for the groups of the roots (owner, 2026-10-20): Pending Questions stands in a group with the Dashboard, and a spacer follows it, so the root holds four spacers.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -105,13 +106,13 @@ keys m
 turn
 show menu
 keys ESC
-at @activity
-wait sessions 30
+at @magic-team launch
+wait list 30
 turn
 show sessionsShown
 RIGSCRIPT
 [ "$( rigScreenHolds rootShown 'Magic-Team (Agents)' )" -ge 1 ] 2> /dev/null || rigRefuse "the root list was never drawn, so nothing below would be measured: $( printf '%s\n' "$rigOut" | LC_ALL=C grep -m2 -e DRIVER-FAILED -e Traceback -e Error )"
-rigAssert "Activity names Launch (Start), and not Launch / Spawn" "$( rigScreenHolds sessionsShown 'Launch (Start)' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "named" : "unnamed" }' ):$( rigScreenHolds sessionsShown 'Launch / Spawn' )" "named:0"
+rigAssert "Launchpad is named, and not Launch / Spawn" "$( rigScreenHolds sessionsShown 'Launchpad' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "named" : "unnamed" }' ):$( rigScreenHolds sessionsShown 'Launch / Spawn' )" "named:0"
 rigAssert "the root list names Consoles, and not Consoles (Tools)" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -c -E ' Consoles  ' ):$( rigScreenHolds rootShown 'Consoles (Tools)' )" "1:0"
 rigAssert "the menu names neither old name"                   "$( rigScreenHolds menu 'Launch / Spawn' ):$( rigScreenHolds menu 'Consoles (Tools)' )" "0:0"
 
@@ -199,7 +200,7 @@ keys 2
 get n3
 keys 5
 get n6
-at @activity launch
+at @magic-team launch
 turn
 wait list 30
 turn
@@ -235,19 +236,19 @@ rigAssert "a spacer between Magic-Team (Agents) and Locations"  "$( rigSpaceAfte
 rigAssert "a spacer between This Machine and Settings"            "$( rigSpaceAfter 'This Machine' 'Settings' )" spaced
 rigAssert "a spacer between Configuration and Manuals"         "$( rigSpaceAfter 'Configuration' 'Manuals' )" spaced
 rigAssert "and no other spacer at the root"                    "$( printf '%s\n' "$rigRootRows" | LC_ALL=C tr '|' '\n' | LC_ALL=C grep -c -x -- '-' )" 4
-## In any folder a spacer stands between its commands (FIXED_ROWS) and its children: in Launch (Start), after Free prompt.
-rigAssert "in Launch (Start), a spacer between the Free prompt and the routines" "$( rigListRows sessionsShown | "$rigPython" -I -c 'import sys
+## In any folder a spacer stands between its commands (FIXED_ROWS) and its children: in Launchpad, after Free prompt.
+rigAssert "in Launchpad, a spacer between the Free prompt and the routines" "$( rigListRows sessionsShown | "$rigPython" -I -c 'import sys
 rows = sys.stdin.read().strip().split("|")
 at = [ i for i, row in enumerate(rows) if row.startswith("Free") ]
 print("spaced" if at and len(rows) > at[0] + 2 and rows[ at[0] + 1 ] == "-" and rows[ at[0] + 2 ] != "-" else "|".join(rows))' )" spaced
 rigAssert "and no other spacer there"                          "$( rigListRows sessionsShown | LC_ALL=C tr '|' '\n' | LC_ALL=C grep -c -x -- '-' )" 1
 rigAssert "every step of the cursor selects a row, never a spacer" "$( for rigStep in 0 1 2 3 4 5 6 7 8 9 10 11 12 ; do [ -n "$( rigVal "r$rigStep.selected" )" ] || printf 'empty-at-%s ' "$rigStep" ; done )" ""
 rigAssert "the number keys go to the roots by their order in the list: 2 Pending Questions, 5 Consoles" "$( rigVal n3.path ) $( rigVal n6.path )" "pending consoles"
-## MDLT_CONSOLE_SPACERS, the console user's own setting of .local beside MDLT_CONSOLE_HISTORY: `disable` turns every
+## MDLT_MANAGER_SPACERS, the console user's own setting of .local beside MDLT_CONSOLE_HISTORY: `disable` turns every
 ## spacer off. Given here as the environment of the screen's start, as a console user's settings reach it.
 rigCase nospacers
-rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:magic-team/activity/active-sessions:record none\ntable view:magic-team/activity/active-sessions/*:record none\ntable view:magic-team/activity/active-sessions/*/*:transcript none\ntable feed:magic-team/activity/active-sessions/*/*:transcript none\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot magic-team\n' "$rigTools" ; printf 'turn\nwait sessions 30\nshow rootList\nat @activity launch\nturn\nwait list 30\nturn\nshow sessionsShown\n' ; } | MDLT_CONSOLE_SPACERS=disable "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
-rigAssert "with MDLT_CONSOLE_SPACERS=disable, no spacer at the root nor in Launch (Start)" "$( rigListRows rootList | LC_ALL=C tr '|' '\n' | LC_ALL=C grep -c -x -- '-' ):$( rigListRows sessionsShown | LC_ALL=C tr '|' '\n' | LC_ALL=C grep -c -x -- '-' )" "0:0"
+rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:magic-team/activity/active-sessions:record none\ntable view:magic-team/activity/active-sessions/*:record none\ntable view:magic-team/activity/active-sessions/*/*:transcript none\ntable feed:magic-team/activity/active-sessions/*/*:transcript none\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot magic-team\n' "$rigTools" ; printf 'turn\nwait sessions 30\nshow rootList\nat @magic-team launch\nturn\nwait list 30\nturn\nshow sessionsShown\n' ; } | MDLT_MANAGER_SPACERS=disable "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+rigAssert "with MDLT_MANAGER_SPACERS=disable, no spacer at the root nor in Launchpad" "$( rigListRows rootList | LC_ALL=C tr '|' '\n' | LC_ALL=C grep -c -x -- '-' ):$( rigListRows sessionsShown | LC_ALL=C tr '|' '\n' | LC_ALL=C grep -c -x -- '-' )" "0:0"
 rigAssert "control: the root list is drawn all the same"      "$( rigListRows rootList | LC_ALL=C tr '|' '\n' | LC_ALL=C grep -c '^Settings' )" 1
 
 echo "-- 6. summary mode: a run in Wait shows what it waits on, and for how long --"
@@ -259,7 +260,7 @@ rigCase summary
 	rigRow store "$rigS1" store rig-model 1 0 0 1 - - 2026-10-13T02:18:00Z Wait ask:Q12 - - -
 } > "$MANAGER_SCREEN_RIG/rows.--manager-session-read --session-id $rigS1"
 cp "$MANAGER_SCREEN_RIG/rows.--manager-session-read --session-id $rigS1" "$MANAGER_SCREEN_RIG/rows.--manager-session-read --session-id $rigS1 --run"
-rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot active-sessions\n' "$rigTools" ; printf 'keys ENTER\nwait sessions 30\nkeys DOWN\nkeys ENTER\nwait list 30\nkeys DOWN\nwait view 30\nturn\nget sumview\nshow sum\n' ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot active-sessions\n' "$rigTools" ; printf 'keys ENTER\nwait sessions 30\nkeys DOWN\nkeys ENTER\nwait list 30\nkeys DOWN DOWN DOWN DOWN DOWN\nwait view 30\nturn\nget sumview\nshow sum\n' ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 rigWaitsLine="$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^sum|' | LC_ALL=C grep -F 'waits on' | head -1 | LC_ALL=C sed -e 's/^sum|//' -e 's/  */ /g' )"
 rigAssert "control: the left window is in summary mode, b"   "$( rigVal sumview.viewMode )" summary
 rigAssert "control: its waits on line says what it waits on"  "$( printf '%s' "$rigWaitsLine" | LC_ALL=C grep -c -F 'waits on ask:Q12' )" 1
@@ -275,7 +276,7 @@ cp "$rigTmp/summary/rows.--manager-session-read --session-id $rigS1"* "$MANAGER_
 	rigRow log "$rigS1" magic-coordinator '> WAIT-RESULT: TIMEOUT'
 	rigRow log "$rigS1" magic-coordinator '2026-10-12T17:09:30Z TOOL SendMessage to=session-current -> ok'
 } > "$MANAGER_SCREEN_RIG/rows.--manager-session-transcript-read --session-id $rigS1 --run --log"
-rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot active-sessions\n' "$rigTools" ; printf 'keys ENTER\nwait sessions 30\nkeys DOWN\nkeys ENTER\nwait list 30\nkeys DOWN\nkeys ENTER\nwait list 30\nkeys DOWN DOWN\nwait view 30\nkeys g\nwait feed 30\nturn\nget raw\nshow rawShown\n' ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot active-sessions\n' "$rigTools" ; printf 'keys ENTER\nwait sessions 30\nkeys DOWN\nkeys ENTER\nwait list 30\nkeys DOWN DOWN DOWN DOWN DOWN\nkeys ENTER\nwait list 30\nkeys DOWN DOWN\nwait view 30\nkeys g\nwait feed 30\nturn\nget raw\nshow rawShown\n' ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 rigRawLine(){ ## fixed text -- the line of the raw log as g shows it that holds the text, its blanks squeezed
 	printf '%s\n' "$rigOut" | LC_ALL=C grep '^rawShown|' | LC_ALL=C grep -F -- "$1" | head -1 | LC_ALL=C sed -e 's/^rawShown|//' -e 's/  */ /g'
 }

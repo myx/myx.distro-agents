@@ -17,16 +17,22 @@
 ##
 
 type AgentsToolsEscalationTypedVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only
+## The one place that says who the human-owner is: by his name, his Slack account, or the account
+## at the console mapped to him. The verdicts that are his own are read against it here.
+type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
 
 ## WHOSE WORD an answer given at the console is: the member it stands as. The one place that
 ## says it. The person at the console, `user-<account>` (F6.10, Settled: "a console answers as
 ## user-<acct> under the authority rule, never as magic-coordinator"), for every question,
 ## whoever asked it and whoever it is addressed to: the answer is recorded, applied and
 ## confirmed under that name (`answered-by`, the grant's `by`, the line in the thread). WHO MAY
-## ANSWER is the authority rule's alone (AgentsToolsAuthorityGate, asked of every answer below);
-## the name is not what decides it. Where the system gives no account the console is nobody:
-## nothing is printed and the rc is 1, since an answer is never recorded under a made-up name
-## (AgentsToolsManagerPendingNobody says so).
+## ANSWER an answer that acts on another run is the authority rule's alone
+## (AgentsToolsAuthorityGate, asked of every such answer below); the name is not what decides it.
+## The verdicts that are the human-owner's own -- a review, a held change, a proposal -- are his
+## word, given at the console where the person there is the account mapped to him, and refused
+## from every other standing (AgentsToolsManagerPendingOwnVerdict). Where the system gives no
+## account the console is nobody: nothing is printed and the rc is 1, since an answer is never
+## recorded under a made-up name (AgentsToolsManagerPendingNobody says so).
 AgentsToolsManagerPendingStanding(){ ## record file
 	local standingName=""
 	standingName="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include" --definitions-only > /dev/null 2>&1 || :
@@ -60,7 +66,13 @@ AgentsToolsManagerPendingOutcome(){ ## record file, standing member, answer word
 	outcomeHolder="$( AgentsToolsManagerPendingHolder "$1" )"
 	[ "$2" != "human-owner" ] || { printf 'settles\n' ; return 0 ; }
 	case "$( AgentsToolsEscalationField "$1" kind ):$3" in
-		review:*|change:*|proposal:*) printf 'not-taken\n' ; return 0 ;;
+		## The human-owner's own verdict: his where the person at the console IS him (the account
+		## mapped to him), so it is taken; any other standing is refused it, and it stays open for
+		## him. One test, the one that says who the owner is, as the apply reads it too.
+		review:*|change:*|proposal:*)
+			AgentsToolsPermissionIsHumanOwner "$2" && printf 'settles\n' || printf 'not-taken\n'
+			return 0
+		;;
 		permission:allow-folder|permission:allow-project)
 			outcomeWide="$( AgentsToolsEscalationFolder "$1" "${3#allow-}" 2> /dev/null )" || outcomeWide=""
 			[ -n "$outcomeWide" ] || { printf 'up-the-chain\n' ; return 0 ; }
@@ -95,6 +107,16 @@ AgentsToolsManagerPendingReject(){ ## record file
 AgentsToolsManagerPendingPlain(){ ## record file
 	case "$( AgentsToolsEscalationField "$1" kind )" in ''|question) ;; *) return 1 ;; esac
 	[ -z "$( AgentsToolsEscalationField "$1" select )" ]
+}
+
+## Whether an answer with that standing is the human-owner's own verdict: a review, a held change
+## or a proposal, given where the person at the console is the account mapped to him. It is his
+## word alone -- nobody else may give it (AgentsToolsManagerPendingOutcome refuses every other
+## standing) -- so it needs no authority over the run that asked, and is applied as his answer in
+## the thread is. A question of any other kind is gated as it always was.
+AgentsToolsManagerPendingOwnVerdict(){ ## record file, standing member
+	case "$( AgentsToolsEscalationField "$1" kind )" in review|change|proposal) ;; *) return 1 ;; esac
+	AgentsToolsPermissionIsHumanOwner "$2"
 }
 
 ## The answers one question takes, a row each: `answer`, the number of an option or `-`,
@@ -284,7 +306,8 @@ case "$1" in
 			fi
 		fi
 		answerAs="$( AgentsToolsManagerPendingStanding "$managerPendingFile" )" || { AgentsToolsManagerPendingNobody "$answerOp" ; set +e ; return 1 ; }
-		## A verdict that is the human-owner's own is not given in another's name.
+		## A verdict that is the human-owner's own is not given in another's name: at the console it
+		## is his where the person there is the account mapped to him, and refused from any other.
 		answerWord="$answerTyped"
 		AgentsToolsManagerPendingPlain "$managerPendingFile" || answerWord="$( AgentsToolsEscalationTypedVerdict "$managerPendingFile" "$answerTyped" )"
 		if [ "$( AgentsToolsManagerPendingOutcome "$managerPendingFile" "$answerAs" "${answerWord%% -- *}" )" = "not-taken" ] ; then
@@ -292,8 +315,11 @@ case "$1" in
 			set +e ; return 1
 		fi
 		## THE AUTHORITY over the run that asked it (F6.10): its reports-to, the owners role, or a grant
-		## of it -- asked only of an answer the question takes, so a wrong one is refused as one.
-		if AgentsToolsManagerPendingPlain "$managerPendingFile" || [ -n "${answerWord%% -- *}" ] ; then
+		## of it -- asked only of an answer the question takes, so a wrong one is refused as one. The
+		## human-owner's own verdict is not an act in another's name: it is his word at the console as
+		## it is in his thread, and is applied without asking the authority over the run that asked.
+		if ! AgentsToolsManagerPendingOwnVerdict "$managerPendingFile" "$answerAs" \
+			&& { AgentsToolsManagerPendingPlain "$managerPendingFile" || [ -n "${answerWord%% -- *}" ] ; } ; then
 			local answerAsker="" answerAskerRecord=""
 			## A refusal is never gated (AgentsToolsAuthorityRefusing): the deny of a permission or a permission set, whoever it is asked of.
 			case "$( AgentsToolsEscalationField "$managerPendingFile" kind )" in
@@ -312,6 +338,10 @@ case "$1" in
 		answerOut="$( agentsEscalationCapacity="$( AgentsToolsManagerPendingHolder "$managerPendingFile" )"
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" \
 			--manager-pending-reply-answer "$answerAs" "$managerPendingId" "$answerTyped" "$answerWords" "$answerAccount" "$answerMode" )" || answerRc=$?
+		## An applied answer closes its record, and a close retires it to pending/closed/ (retention,
+		## T9): the path it was found at is stale then, so the row below reads the fields from
+		## whichever store it now lives in.
+		managerPendingFile="$( AgentsToolsPendingRecordPath "$managerPendingId" )" || :
 		case "$answerRc:$answerOut" in
 			0:*"ESCALATION: $managerPendingId answered"*)
 				answerWords="$( AgentsToolsEscalationField "$managerPendingFile" verdict-text )"

@@ -8,7 +8,8 @@
 ## fatal. The decisions are Dispatcher's (AgentsTools.DispatcherSchedule.include): the loop only asks, and starts through the spawner. The chain of routines propels itself: a successor is due in the first iteration after its predecessor closed.
 ##
 ## THE FILES of the steps are $MMDAPP/.local/agents/schedule/: team-channel (when the team channel was last read and how far), tags/<member>
-## (the newest message of the team channel that mentions that member) and duty/<member> (when its duty was last started), starting/<key>
+## (the newest message of the team channel that mentions that member), handed/<member> (the newest tag its duty was given) and handed-from/<member>
+## (the pointer its new duty resumes from, kept before the give moves handed/<member>), duty/<member> (when its duty was last started), starting/<key>
 ## (a start made apart), dismissed/<spawn id> (a work-duty run already told to go) and learned/<session id> (a session already looked at for
 ## the learning inquiry). A SOURCE IS READ ONCE FOR ALL: a mention of a member lands in a shared source, the team channel, so it is read once
 ## in each TTL of the one table (AgentsToolsSourceTtlOf), with the newest of it kept, and every member's demand is derived from that one read;
@@ -23,6 +24,11 @@ type AgentsToolsSessionChatMemberId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.
 type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 
 agentsScheduleWorkDutyRoutine="magic-team.work-duty.routine.md"
+## The cache-keep interval of the work-duty (T1): how long a member's duty may stand ended before its agent is started
+## again to warm the prefix cache, so a later arrival is a cheap spawn on the cached work-duty prefix. It sits inside
+## the input-cache's own five-minute floor (PRESET_INPUT_CACHE_TIME unset, F10.7), and is hardcoded, no setting names
+## it -- the one table's convention (AgentsTools.SourceTtl.include): an agent never needs it.
+agentsScheduleCacheKeepSeconds=240
 
 ## The work-duty routine of a member: its own `<member>.work-duty.routine.md` where its skill folder holds one (the coordinator's takes the advance rules), else the team's.
 AgentsToolsScheduleDutyRoutine(){ ## member, its skill folder
@@ -125,13 +131,18 @@ AgentsToolsScheduleWorkDutyRecord(){ ## member
 
 ## The team channel, read once for every member there is to look for: the messages after the last read, and for each member the newest that
 ## mentions it (`<@its Slack id>` or `@its name`), kept in tags/<member>. No read at all inside the TTL of the source, and none made for nobody.
-## The first look reads from now: what stood there before is not news. A read that fails is tried again after the TTL.
-AgentsToolsScheduleTeamTags(){ ## the members to look for, spaced
+## The first look reads from now: what stood there before is not news. A read that fails is tried again after the TTL. <force> yes is the
+## per-member sync's (AgentsTools.Incoming.include): the tags are read now, whatever the TTL, for the members given.
+AgentsToolsScheduleTeamTags(){ ## the members to look for, spaced; force (yes|no)
 	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TrackingDrop.include"
 	local teamStore="$MMDAPP/.local/agents/schedule" teamNow teamTtl teamAt="" teamFloor="" teamOut teamTemp teamMember teamId teamNewest teamHit teamIdList=""
 	[ -n "${1// /}" ] || return 0
 	teamNow="$( date +%s )"
-	teamTtl="$( AgentsToolsSourceTtlOf tagged:magic-team )"
+	## The cache TTL of the tags and mentions (T2): one minute, the low end of the 1-5 minute band. It is the schedule's own cadence,
+	## not the live Wait floor (AgentsToolsSourceTtlOf tagged:* stays 15): the team channel that feeds the tags is re-read at most once
+	## a minute for all the members, whatever the number of them.
+	teamTtl=60
+	[ "${2:-no}" != "yes" ] || teamTtl=0
 	[ ! -f "$teamStore/team-channel" ] || read -r teamAt teamFloor < "$teamStore/team-channel" || :
 	case "$teamAt" in ''|*[!0123456789]*) teamAt="" ;; esac
 	[ -z "$teamAt" ] || [ $(( teamNow - teamAt )) -ge "$teamTtl" ] || return 0
@@ -243,6 +254,16 @@ AgentsToolsScheduleTagGive(){ ## member
 	mkdir -p "$MMDAPP/.local/agents/schedule/handed" 2> /dev/null && printf '%s\n' "$giveTag" > "$MMDAPP/.local/agents/schedule/handed/$1"
 }
 
+## The pointer the new duty resumes from, kept for the duty's own scan (AgentsTools.InternOpWorkDuty.include) before the give moves the member's
+## pointer (handed/<member>) to the newest tag: the member's previous pointer, so a mention that arrived between the previous duty and this start is
+## read by the new duty rather than skipped as "before now". Run at each start, whatever the give then does.
+AgentsToolsScheduleTagCarry(){ ## member
+	local carryFrom=""
+	[ ! -f "$MMDAPP/.local/agents/schedule/handed/$1" ] || read -r carryFrom < "$MMDAPP/.local/agents/schedule/handed/$1" || :
+	case "${carryFrom%%.*}" in ''|*[!0123456789]*) return 0 ;; esac
+	mkdir -p "$MMDAPP/.local/agents/schedule/handed-from" 2> /dev/null && printf '%s\n' "$carryFrom" > "$MMDAPP/.local/agents/schedule/handed-from/$1"
+}
+
 ## Whether the tagged source of a member holds a tag newer than its pointer (AgentsToolsScheduleTagPointer) and than an instant (epoch seconds, optional): a
 ## tag is how the member is called, at any hour. An untagged message of the channel is read by the work-duty scan in worktime, and by nothing else.
 AgentsToolsScheduleTagNews(){ ## member, since (epoch seconds, may be empty), the duty's session id (may be empty)
@@ -258,9 +279,12 @@ AgentsToolsScheduleTagNews(){ ## member, since (epoch seconds, may be empty), th
 ## (the roster of its direct ones), each read from the member's DM floor, dms/<member>, the ts up to which they were read -- a member's first look reads
 ## from now, as the channel's does. At most once in a minute for a member within its flags, once in five minutes out of them (the Slack read budget: every
 ## standing member is looked at then). What the tooling posted itself and the member's own posts are none. The newest DM message goes into the member's
-## tagged source (AgentsToolsScheduleTagNote).
-AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spaced; the members out of them, spaced
+## tagged source (AgentsToolsScheduleTagNote). <force> yes is the per-member sync's (AgentsTools.Incoming.include): the DMs are read now, whatever the
+## TTL, for the members given.
+AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spaced; the members out of them, spaced; force (yes|no)
 	local dmStore="$MMDAPP/.local/agents/schedule" dmMember dmNow dmChecked dmFloor dmRoster dmLine dmConv dmKind dmIdentity dmArg dmSeen dmRead dmNewest dmId dmTtl
+	## agentsScheduleDmNewest is the newest DM this call found, empty for none: the per-member sync's line (AgentsTools.Incoming.include).
+	agentsScheduleDmNewest=""
 	[ -n "$1$2" ] || return 0
 	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TrackingDrop.include"
 	dmNow="$( date +%s )"
@@ -268,6 +292,7 @@ AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spac
 	for dmMember in $1 $2 ; do
 		dmTtl=60
 		case " $2 " in *" $dmMember "*) dmTtl=300 ;; esac
+		[ "${3:-no}" != "yes" ] || dmTtl=0
 		dmChecked=""
 		[ ! -f "$dmStore/dm-looked/$dmMember" ] || read -r dmChecked < "$dmStore/dm-looked/$dmMember" || :
 		case "$dmChecked" in ''|*[!0123456789]*) dmChecked="" ;; esac
@@ -306,6 +331,7 @@ AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spac
 			fi
 		done <<< "$dmRoster"
 		if [ -n "$dmNewest" ] ; then
+			agentsScheduleDmNewest="$dmNewest"
 			printf '%s\n' "$dmNewest" > "$dmStore/dms/$dmMember"
 			AgentsToolsScheduleTagNote "$dmMember" "$dmNewest"
 		elif [ ! -f "$dmStore/dms/$dmMember" ] ; then
@@ -420,6 +446,18 @@ AgentsToolsScheduleDutyLifetime(){ ## the duty's spawn record, member, whether t
 	AgentsToolsScheduleDismiss "$lifeRecord" "$lifeWhy"
 }
 
+## Whether a member's duty cache is due to be kept warm (T1): rc 0 where its last duty start is at least the cache-keep
+## interval old, so its agent is started again with no input to warm the prefix. <last start> is the duty/<member> epoch;
+## a member that never held a duty has none and is not warmed -- the lazy start stands (a member with nothing to work on
+## holds no duty until the first item starts it).
+AgentsToolsScheduleCacheKeep(){ ## member, last duty start (epoch seconds)
+	local keepAt="${2:-0}" keepNow
+	case "$keepAt" in ''|*[!0123456789]*) return 1 ;; esac
+	[ "$keepAt" -gt 0 ] || return 1
+	keepNow="$( date +%s )"
+	[ $(( keepNow - keepAt )) -ge "$agentsScheduleCacheKeepSeconds" ]
+}
+
 ## The work-duty sessions by the flags (epic 1758-1763): a standing member holds one during worktime, magic-coordinator during worktime,
 ## emergency and overtime. A standing member is every member of the roster but an identity record (human-owner) and the oncall and expert
 ## ones, who are no standing members. One is started when its member has something to work on (AgentsToolsScheduleDemand), the work-duty
@@ -428,19 +466,19 @@ AgentsToolsScheduleDutyLifetime(){ ## the duty's spawn record, member, whether t
 ## not; the team channel is read once in a TTL for all of them. What the flags do to a run that stands is not a dismissal at once:
 ## AgentsToolsScheduleDutyLifetime decides, at each iteration, how long it lives (a mention newer than its idle start keeps it, out of its flags too).
 AgentsToolsScheduleWorkDuty(){
-	local dutyFlags dutyWork=no dutyCoordinator=no dutyMember dutyDir dutyAllowed dutyRecord dutyLook="" dutyLookOut=""
+	local dutyFlags dutyWork=no dutyCoordinator=no dutyMember dutyDir dutyAllowed dutyRecord dutyLook="" dutyLookOut="" dutyWhy="" dutyWarmAt=""
 	dutyFlags="$( AgentsToolsScheduleCurrentFlags --current-flags 2> /dev/null )" || dutyFlags=""
 	case "$dutyFlags" in *"worktime: yes"*) dutyWork=yes ; dutyCoordinator=yes ;; esac
 	case "$dutyFlags" in *"emergency: yes"*|*"overtime: yes"*) dutyCoordinator=yes ;; esac
-	## The members whose mentions are looked for: those within their flags that have no duty running and nothing in the inbox (nothing else would start them
-	## otherwise), and every standing member out of its flags, for a mention starts or keeps its duty. The team channel is read once for all.
+	## The members whose mentions are looked for: those within their flags that have no duty running -- a member with inbox work is looked at too, so a
+	## mention that arrives while its work waits is kept for its duty -- and every standing member out of its flags, for a mention starts or keeps its
+	## duty. The team channel is read once for all.
 	while IFS=$'\t' read -r dutyMember dutyDir ; do
 		[ -n "$dutyDir" ] || continue
 		AgentsToolsScheduleStanding "$dutyMember" "$dutyDir" || continue
 		dutyAllowed="$dutyWork"
 		[ "$dutyMember" != magic-coordinator ] || dutyAllowed="$dutyCoordinator"
 		if [ "$dutyAllowed" = yes ] ; then
-			! AgentsToolsScheduleHasWork "$dutyMember" || continue
 			! AgentsToolsScheduleWorkDutyRecord "$dutyMember" > /dev/null || continue
 			dutyLook="$dutyLook $dutyMember"
 		else
@@ -459,18 +497,78 @@ AgentsToolsScheduleWorkDuty(){
 			AgentsToolsScheduleDutyLifetime "$dutyRecord" "$dutyMember" "$dutyAllowed"
 			continue
 		fi
+		dutyWhy="" dutyWarmAt=""
 		if [ "$dutyAllowed" = yes ] ; then
-			AgentsToolsScheduleDemand "$dutyMember" || continue
+			if ! AgentsToolsScheduleDemand "$dutyMember" ; then
+				## T1: with nothing to work on, a member in its flags whose duty has ended is started again to keep its
+				## prefix cache warm, so a later arrival is a cheap spawn on the cached work-duty prefix. A member that
+				## never held a duty has no marker and is not warmed: the lazy start stands.
+				dutyWarmAt=""
+				[ ! -f "$MMDAPP/.local/agents/schedule/duty/$dutyMember" ] || read -r dutyWarmAt < "$MMDAPP/.local/agents/schedule/duty/$dutyMember" || :
+				AgentsToolsScheduleCacheKeep "$dutyMember" "$dutyWarmAt" || continue
+				dutyWhy=" to keep its cache warm"
+			fi
 		else
 			## Out of its flags: a tag (a mention, a DM) newer than its pointer into the tagged source, and nothing else.
 			AgentsToolsScheduleTagNews "$dutyMember" || continue
 		fi
 		if AgentsToolsScheduleSpawn "work-duty.$dutyMember" --routine "$( AgentsToolsScheduleDutyRoutine "$dutyMember" "$dutyDir" )" "$dutyMember" ; then
 			mkdir -p "$MMDAPP/.local/agents/schedule/duty" 2> /dev/null && date +%s > "$MMDAPP/.local/agents/schedule/duty/$dutyMember"
+			AgentsToolsScheduleTagCarry "$dutyMember"
 			AgentsToolsScheduleTagGive "$dutyMember"
-			printf 'work-duty: started the duty of %s\n' "$dutyMember"
+			printf 'work-duty: started the duty of %s%s\n' "$dutyMember" "$dutyWhy"
 		fi
 	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
+	return 0
+}
+
+## --- important and emergency inputs (T3) ---
+
+## The coordinator's incoming checked for items marked important or emergency (T3 of the 20261021 refactorings epic): an item of
+## magic-coordinator's incoming/ whose frontmatter carries `mark: important` or `mark: emergency`. An important item is spawned for; an
+## emergency item is confirmed with the owner and sets the emergency flag. In worktime the work-duty step already starts the coordinator on its
+## inbox work; out of it the advance routine, the one-shot handling block, is started instead. Never fatal; one line for each thing done.
+AgentsToolsScheduleImportantEmergency(){
+	local markFlags markWork=no markFile markMark markImportant="" markEmergency="" markEmergencyItem=""
+	markFlags="$( AgentsToolsScheduleCurrentFlags --current-flags 2> /dev/null )" || markFlags=""
+	case "$markFlags" in *"worktime: yes"*) markWork=yes ;; esac
+	for markFile in "$( AgentsToolsInboxDir magic-coordinator )"/*.md ; do
+		[ -e "$markFile" ] || continue
+		case "${markFile##*/}" in note-*-state-and-lock.md) continue ;; esac
+		markMark="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrint.awk" "$markFile" 2> /dev/null | LC_ALL=C sed -n 's/^mark: //p' | LC_ALL=C tail -n 1 )"
+		case "$markMark" in
+			important) markImportant="yes" ;;
+			emergency) markEmergency="yes" ; markEmergencyItem="${markFile##*/}" ;;
+		esac
+	done
+	[ -n "$markImportant$markEmergency" ] || return 0
+	[ -z "$markEmergency" ] || AgentsToolsScheduleEmergencyConfirm "$markEmergencyItem"
+	if [ "$markWork" = no ] ; then
+		if AgentsToolsScheduleSpawn "advance.magic-coordinator" --routine "magic-coordinator.advance.routine.md" magic-coordinator ; then
+			printf 'important-emergency: started the advance routine of magic-coordinator\n'
+		fi
+	fi
+	return 0
+}
+
+## The emergency confirmation (T3): an emergency item is confirmed with the owner and the flag set in the same loop (notify-and-set, the
+## settled reading). The tooling posts the confirmation to the owner (once per item, in the owner's direct channel) and sets the flag
+## through the schedule's own override (AgentsToolsScheduleOverride), the one path to the MDAT_SCHEDULE_EMERGENCY setting; the emergency
+## TTL is a fixed 3600s.
+AgentsToolsScheduleEmergencyConfirm(){ ## the emergency item's file name
+	local confirmItem="$1" confirmStore="$MMDAPP/.local/agents/schedule/emergency-confirm" confirmTtl=3600
+	[ -n "$confirmItem" ] || return 0
+	mkdir -p "$confirmStore" 2> /dev/null || return 0
+	[ ! -e "$confirmStore/$confirmItem" ] || return 0
+	( set -C ; : > "$confirmStore/$confirmItem" ) 2> /dev/null || return 0
+	if ! printf 'An emergency item arrived in the coordinator%s incoming (%s). Confirm the emergency to set the emergency flag.\n' "'s" "$confirmItem" \
+		| DistroAgentsTools --intern-op-comms-slack-send-message magic-coordinator human-owner --identity-bot --from-stdin > /dev/null 2>&1 ; then
+		rm -f "$confirmStore/$confirmItem"
+		printf 'important-emergency: the emergency confirmation for %s could not be posted, tried again at the next iteration\n' "$confirmItem"
+		return 0
+	fi
+	AgentsToolsScheduleOverride --override-flag emergency "$confirmTtl" > /dev/null 2>&1 || :
+	printf 'important-emergency: emergency %s confirmed with the owner, the flag set for %ss\n' "$confirmItem" "$confirmTtl"
 	return 0
 }
 
@@ -528,6 +626,7 @@ AgentsToolsScheduleLoop(){
 	AgentsToolsScheduleSpawnReport
 	AgentsToolsScheduleAutorun
 	AgentsToolsScheduleWorkDuty
+	AgentsToolsScheduleImportantEmergency
 	AgentsToolsScheduleLearning
 	return 0
 }

@@ -20,7 +20,6 @@ Declares: \
 	--magic-team:permissions:workspace:*:allow-tool:*:ListAgents \
 	--magic-team:permissions:workspace:*:allow-tool:*:TaskOutput \
 	--magic-team:permissions:workspace:*:allow-tool:*:TaskStop \
-	--magic-team:permissions:workspace:*:allow-tool:*:Monitor \
 	--magic-team:permissions:workspace:*:allow-tool:*:PushNotification \
 	--magic-team:permissions:workspace:*:allow-tool:*:SessionTranscriptAppend \
 	--magic-team:permissions:workspace:*:allow-tool:*:ReportFindings \

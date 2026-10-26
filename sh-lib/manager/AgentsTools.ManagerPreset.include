@@ -39,6 +39,23 @@ AgentsToolsManagerPresetKeys(){ ## file
 	printf '%s' "${keysCount:-0}"
 }
 
+## Rewrites every scope that names a preset, the name alone in a reference, its effort kept: a preset that extends
+## it, and a scope whose tier names it. Nothing is printed; a file it does not change is left as it was.
+AgentsToolsManagerPresetRewrite(){ ## old, new
+	local rewriteOld="$1" rewriteNew="$2" rewriteFile rewriteSafe rewriteKept rewriteNow
+	rewriteSafe="$( printf '%s' "$rewriteOld" | LC_ALL=C sed 's/[.]/[.]/g' )"
+	for rewriteFile in "${MMDAPP%/}/.local/.agents"/*.agent.env ; do
+		[ -f "$rewriteFile" ] || continue
+		rewriteKept="$( mktemp "${MMDAPP%/}/.local/.agents/scratch/preset-rewrite.XXXXXX" 2> /dev/null )" || continue
+		if LC_ALL=C sed -E "s/^(PRESET_EXTEND|SPAWN_TIER_(LOW|NORMAL|HIGH))=([\"']?)${rewriteSafe}(:[a-z]+)?([\"']?)\$/\1=\3${rewriteNew}\4\5/" "$rewriteFile" > "$rewriteKept" 2> /dev/null && ! cmp -s "$rewriteFile" "$rewriteKept" ; then
+			cp -pf "$rewriteFile" "$rewriteFile.bak" && chmod 644 "$rewriteKept" && mv -f "$rewriteKept" "$rewriteFile" && rm -f "$rewriteFile.bak" || rm -f "$rewriteKept"
+		else
+			rm -f "$rewriteKept"
+		fi
+	done
+	return 0
+}
+
 case "$1" in
 
 	## The presets, one `preset` row each, by name: the scope row of its block (id, label, how many variables, whether it may be cleared, whether it may be deleted, its file),
@@ -89,18 +106,75 @@ case "$1" in
 		return 0
 	;;
 
+	## A preset renamed: `<old> <new>`, its file moved to the new name and every scope that names it -- a preset that extends it, a tier of the team or of a
+	## member -- updated to the new name (AgentsToolsPresetRename). Its row `renamed` names the two scopes.
+	--manager-preset-rename)
+		local renameOp="$1" renameOld renameNew
+		shift
+		if [ $# -ne 2 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $renameOp: syntax is $renameOp <old> <new>, got $# argument(s) -- nothing was renamed" >&2
+			set +e ; return 1
+		fi
+		renameOld="$1" ; renameNew="$2"
+		AgentsToolsPresetRename "$renameOld" "$renameNew" || { set +e ; return 1 ; }
+		return 0
+	;;
+
+	## A preset deleted: `<name>`, and, where a preset or a tier still names it, the preset to switch those users to, `--switch <preset>`, chosen from the other presets. Without
+	## the switch a preset still in use is refused, naming who uses it (the predecessor's delete): the tiers that name it and the presets that extend it. With it, every scope
+	## that names the preset is rewritten to the chosen one in one go (AgentsToolsPresetRepoint), then the block is deleted. Its row `deleted` names the scope.
+	--manager-preset-delete)
+		local deleteOp="$1" deleteName="" deleteSwitch="" deleteUsers deleteFile
+		shift
+		deleteName="${1:-}"
+		[ -n "$deleteName" ] || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: syntax is $deleteOp <name> [--switch <preset>], got no name -- nothing was deleted" >&2 ; set +e ; return 1 ; }
+		shift
+		if [ $# -gt 0 ] ; then
+			if [ $# -ne 2 ] || [ "$1" != "--switch" ] || [ -z "$2" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $deleteOp: syntax is $deleteOp <name> [--switch <preset>] -- nothing was deleted" >&2
+				set +e ; return 1
+			fi
+			deleteSwitch="$2"
+		fi
+		deleteFile="${MMDAPP%/}/.local/.agents/preset-$deleteName.agent.env"
+		[ -f "$deleteFile" ] || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: the preset to delete is not there, a block preset-$deleteName -- nothing was deleted" >&2 ; set +e ; return 1 ; }
+		deleteUsers="$( AgentsToolsPresetUsers "$deleteName" )"
+		if [ -n "$deleteUsers" ] && [ -z "$deleteSwitch" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $deleteOp: the preset is in use by ${deleteUsers} -- nothing was deleted. To switch its users, name the preset to switch them to with --switch" >&2
+			set +e ; return 1
+		fi
+		if [ -n "$deleteSwitch" ] ; then
+			AgentsToolsPresetNameCheck "$deleteSwitch" || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: the preset to switch to is no preset's: lower-case letters, digits, '.', '_' and '-' -- nothing was deleted" >&2 ; set +e ; return 1 ; }
+			[ "$deleteSwitch" != "$deleteName" ] || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: the preset to switch to is the one to delete -- nothing was deleted" >&2 ; set +e ; return 1 ; }
+			[ -f "${MMDAPP%/}/.local/.agents/preset-$deleteSwitch.agent.env" ] || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: the preset to switch to is not there -- nothing was deleted" >&2 ; set +e ; return 1 ; }
+			AgentsToolsPresetRepoint "$deleteName" "$deleteSwitch" || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: a scope that names the preset could not be updated -- nothing was deleted" >&2 ; set +e ; return 1 ; }
+		fi
+		rm -f -- "$deleteFile" || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: the file of the preset could not be removed -- nothing was deleted" >&2 ; set +e ; return 1 ; }
+		[ ! -e "$deleteFile" ] || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: the file of the preset is still there after the removal -- nothing was deleted" >&2 ; set +e ; return 1 ; }
+		printf 'deleted\tagents:preset-%s\n' "$deleteName"
+		return 0
+	;;
+
 	## The tiers, one `tier` row each, the team's first and then each member's: the id of the scope, its label, how many variables its file holds, whether it may be cleared,
-	## whether it may be deleted, its file, and what its three tiers are set to, low, normal and high, `-` where one is not.
+	## whether it may be deleted, its file, what its three tiers are set to, low, normal and high, `-` where one is not, and
+	## then what each resolves to and how (AgentsToolsPresetChosenLine, the spawner's own choice), six fields.
 	--manager-preset-tiers)
 		local tiersOp="$1" tiersMember tiersDir tiersFile tiersScope tiersLabel tiersKeys
 		shift
 		[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD $tiersOp: syntax is $tiersOp, got $# argument(s) -- nothing is shown" >&2 ; set +e ; return 1 ; }
 		tiersRow(){ ## scope name, label
+			local tiersLow tiersNormal tiersHigh
 			tiersFile="${MMDAPP%/}/.local/.agents/$1.agent.env"
 			tiersKeys="$( AgentsToolsManagerPresetKeys "$tiersFile" )"
-			printf 'tier\tagents:%s\t%s\t%s\t%s\tno\t%s\t%s\t%s\t%s\n' "$1" "$( AgentsToolsManagerPresetField "$2" )" "$tiersKeys" "$( [ "$tiersKeys" -gt 0 ] && echo yes || echo no )" \
+			tiersLow="$( AgentsToolsPresetChosenLine "$1" light )" || tiersLow=$'\t'
+			tiersNormal="$( AgentsToolsPresetChosenLine "$1" normal )" || tiersNormal=$'\t'
+			tiersHigh="$( AgentsToolsPresetChosenLine "$1" heavy )" || tiersHigh=$'\t'
+			printf 'tier\tagents:%s\t%s\t%s\t%s\tno\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$( AgentsToolsManagerPresetField "$2" )" "$tiersKeys" "$( [ "$tiersKeys" -gt 0 ] && echo yes || echo no )" \
 				"$( AgentsToolsManagerPresetField "$tiersFile" )" "$( AgentsToolsManagerPresetField "$( AgentsToolsPresetRead "$MMDAPP" "$1" SPAWN_TIER_LOW )" )" \
-				"$( AgentsToolsManagerPresetField "$( AgentsToolsPresetRead "$MMDAPP" "$1" SPAWN_TIER_NORMAL )" )" "$( AgentsToolsManagerPresetField "$( AgentsToolsPresetRead "$MMDAPP" "$1" SPAWN_TIER_HIGH )" )"
+				"$( AgentsToolsManagerPresetField "$( AgentsToolsPresetRead "$MMDAPP" "$1" SPAWN_TIER_NORMAL )" )" "$( AgentsToolsManagerPresetField "$( AgentsToolsPresetRead "$MMDAPP" "$1" SPAWN_TIER_HIGH )" )" \
+				"$( AgentsToolsManagerPresetField "${tiersLow%%$'\t'*}" )" "$( AgentsToolsManagerPresetField "${tiersLow#*$'\t'}" )" \
+				"$( AgentsToolsManagerPresetField "${tiersNormal%%$'\t'*}" )" "$( AgentsToolsManagerPresetField "${tiersNormal#*$'\t'}" )" \
+				"$( AgentsToolsManagerPresetField "${tiersHigh%%$'\t'*}" )" "$( AgentsToolsManagerPresetField "${tiersHigh#*$'\t'}" )"
 		}
 		tiersRow magic-team "Team"
 		while IFS=$'\t' read -r tiersMember tiersDir ; do

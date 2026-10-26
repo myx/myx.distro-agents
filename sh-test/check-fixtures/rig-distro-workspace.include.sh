@@ -54,5 +54,5 @@ rigDistroRun(){ ## workspace, home, words...
 	shift 2
 	distroPathText="$( rigDistroPath )" || { echo "rig-distro-workspace: no myx.common on PATH, which the source scan needs" >&2 ; return 97 ; }
 	( cd "$distroWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$distroHome" PATH="$distroPathText" MMDAPP="$distroWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		perl -e 'alarm 300 ; exec @ARGV' bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ) < /dev/null
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 300 -- bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ) < /dev/null
 }

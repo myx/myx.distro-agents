@@ -91,14 +91,16 @@ function flushSection(    line, text, cut) {
 	sectionLines = 0 ;
 } ;
 
-## A file read section by section.
-function scanFile(path,    rel, line, inFront, lineNo, inFence, fenceMark, mark, caption) {
+## A file read section by section. A path named in KNOWLEDGE_STORE_MAP (a store dumped to a scratch file) keeps the
+## MAGIC.md reference it was dumped from as its source, not the scratch path it was read through.
+function scanFile(path,    rel, line, inFront, lineNo, inFence, fenceMark, mark, caption, at) {
 	filePath = path ; fileStore = "docs" ; rel = path ;
 	if (dataRoot != "" && index(path, dataRoot) == 1) {
 		rel = substr(path, length(dataRoot) + 1) ;
 		fileStore = ( rel ~ /^board\// ) ? "board" : ( rel ~ /^vault\// ) ? "vault" : ( rel ~ /^inboxes\// ) ? "inbox" : "team" ;
 	} else if (wsRoot != "" && index(path, wsRoot) == 1) { rel = substr(path, length(wsRoot) + 1) ; } ;
 	fileRef = rel ;
+	for (at = 1 ; at <= storeMapCount ; at++) { if (path == storeMapPath[at]) { fileRef = storeMapRef[at] ; break ; } ; } ;
 	sectionLines = 0 ; sectionCaption = "" ; inFront = 0 ; lineNo = 0 ; inFence = 0 ; fenceMark = "" ;
 	while ((getline line < path) > 0) {
 		lineNo++ ;
@@ -130,6 +132,15 @@ BEGIN {
 		if (gap == 0) { kind[tokenCount] = queryLine[at] ; arg[tokenCount] = "" ; } else { kind[tokenCount] = substr(queryLine[at], 1, gap - 1) ; arg[tokenCount] = substr(queryLine[at], gap + 1) ; } ;
 		if (kind[tokenCount] == "kw") { needle[tokenCount] = tolower(arg[tokenCount]) ; } ;
 		if (kind[tokenCount] == "gl") { globRx[tokenCount] = globRegex(arg[tokenCount]) ; } ;
+	} ;
+	storeMapCount = 0 ;
+	if ("KNOWLEDGE_STORE_MAP" in ENVIRON) {
+		mapCount = split(ENVIRON["KNOWLEDGE_STORE_MAP"], mapLine, "\n") ;
+		for (at = 1 ; at <= mapCount ; at++) {
+			if (mapLine[at] == "") { continue ; } ;
+			gap = index(mapLine[at], "\t") ;
+			if (gap > 0) { storeMapCount++ ; storeMapPath[storeMapCount] = substr(mapLine[at], 1, gap - 1) ; storeMapRef[storeMapCount] = substr(mapLine[at], gap + 1) ; } ;
+		} ;
 	} ;
 	if (format == "json") { print "{\"entries\":[" ; } ;
 } ;

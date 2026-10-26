@@ -166,108 +166,10 @@ if [ "$runOwnFolder" != "$MDLT_ORIGIN" ] ; then runOwnFolder="${runOwnFolder%%/*
 ##     and becomes the command: the slot is held by the test's own pid from before it starts
 ##     until that process is gone.
 ##   give <dir> <pid>   gives that process's slot back at once, where the runner saw it end.
-runSlotKeeper="$( cat <<'RUNSLOTKEEPER'
-use strict ; use warnings ; use Fcntl qw( :flock ) ;
-my ( $mode, $dir ) = ( shift @ARGV, shift @ARGV ) ;
-sub locked {
-	my ( $code ) = @_ ;
-	open( my $lock, ">>", "$dir/lock" ) or die "AgentsRunTests.sh: cannot open $dir/lock: $!\n" ;
-	flock( $lock, LOCK_EX ) or die "AgentsRunTests.sh: cannot lock $dir/lock: $!\n" ;
-	my @out = $code->() ;
-	close( $lock ) ;
-	return @out ;
-}
-sub alive {
-	my ( $pid ) = @_ ;
-	return 1 if kill( 0, $pid ) ;
-	return $!{EPERM} ? 1 : 0 ;
-}
-sub load {
-	my ( @held, @asked ) ;
-	if ( open( my $in, "<", "$dir/state" ) ) {
-		while ( my $line = <$in> ) {
-			push @held, $1 if $line =~ /^H ([0-9]+)$/ ;
-			push @asked, $1 if $line =~ /^W ([0-9]+)$/ ;
-		}
-		close( $in ) ;
-	}
-	return ( [ grep { alive( $_ ) } @held ], [ grep { alive( $_ ) } @asked ] ) ;
-}
-sub save {
-	my ( $held, $asked ) = @_ ;
-	open( my $out, ">", "$dir/state.$$" ) or die "AgentsRunTests.sh: cannot write $dir/state.$$: $!\n" ;
-	print $out map( { "H $_\n" } @$held ), map( { "W $_\n" } @$asked ) ;
-	close( $out ) or die "AgentsRunTests.sh: cannot write $dir/state.$$: $!\n" ;
-	rename( "$dir/state.$$", "$dir/state" ) or die "AgentsRunTests.sh: cannot replace $dir/state: $!\n" ;
-}
-if ( $mode eq "give" ) {
-	my ( $pid ) = @ARGV ;
-	locked( sub {
-		my ( $held, $asked ) = load() ;
-		save( [ grep { $_ != $pid } @$held ], [ grep { $_ != $pid } @$asked ] ) ;
-		return () ;
-	} ) ;
-	exit 0 ;
-}
-my ( $default, $say, $said, $started, $hand, $own, $timeout, @command ) = @ARGV ;
-## The hand lock, where another session holds it: what that session wrote in it, on one line.
-## Held by no other: none held, one naming the folder this run starts from, or any at all for
-## a run that starts from no scratch folder and so cannot tell. (No apostrophe in this program:
-## it stands in a here-document inside a command substitution, which an old bash reads wrongly.)
-sub held_by_another {
-	return "" if $own eq "" || ! -d $hand ;
-	my $note = "" ;
-	for my $file ( glob( "$hand/*" ) ) { if ( open( my $in, "<", $file ) ) { local $/ ; my $text = <$in> ; close( $in ) ; $note .= " $text" if defined $text ; } }
-	$note =~ s/\s+/ /g ; $note =~ s/^ | $//g ;
-	return "" if grep { $_ eq $own } split( /[^A-Za-z0-9._-]+/, $note ) ;
-	return $note eq "" ? "(no owner written in it)" : substr( $note, 0, 200 ) ;
-}
-while ( 1 ) {
-	my ( $got, $used, $budget, $tell, $other ) = locked( sub {
-		my ( $held, $asked ) = load() ;
-		my $budget = $default ;
-		if ( open( my $in, "<", "$dir/budget" ) ) {
-			my $set = <$in> ;
-			close( $in ) ;
-			if ( defined $set ) { $set =~ s/\s+$// ; $budget = $set if $set =~ /^[1-9][0-9]*$/ ; }
-		}
-		push @$asked, $$ unless grep { $_ == $$ } @$asked ;
-		my ( $place ) = grep { $asked->[ $_ ] == $$ } 0 .. $#$asked ;
-		my ( $got, $tell ) = ( 0, 0 ) ;
-		my $other = held_by_another() ;
-		if ( $other eq "" && $place < $budget - @$held ) {
-			splice( @$asked, $place, 1 ) ;
-			push @$held, $$ ;
-			$got = 1 ;
-		} else {
-			## said once a minute at most for a whole run, whichever of its tests waits
-			my @mark = stat( $said ) ;
-			if ( ! @mark || time - $mark[ 9 ] >= 60 ) {
-				if ( open( my $mark, ">", $said ) ) { close( $mark ) ; }
-				$tell = 1 ;
-			}
-		}
-		save( $held, $asked ) ;
-		return ( $got, scalar( @$held ), $budget, $tell, $other ) ;
-	} ) ;
-	last if $got ;
-	if ( $tell && open( my $out, ">&", $say ) ) {
-		if ( $other ne "" ) {
-			print $out "# AgentsRunTests.sh: a test waits: another session holds $hand by hand ($other), and no test starts beside a run that holds it\n" ;
-		} else {
-			print $out "# AgentsRunTests.sh: a test waits for a worker slot: $used of $budget in use on this machine, the one budget every runner shares ($dir)\n" ;
-		}
-		close( $out ) ;
-	}
-	select( undef, undef, undef, 0.2 ) ;
-}
-if ( open( my $out, ">", $started ) ) { print $out time, "\n" ; close( $out ) ; }
-if ( open( my $drop, ">&=", $say ) ) { close( $drop ) ; }
-setpriority( 0, 0, 10 ) if getpriority( 0, 0 ) < 10 ;
-alarm( $timeout ) ;
-exec( @command ) or die "AgentsRunTests.sh: cannot start @command: $!\n" ;
-RUNSLOTKEEPER
-)"
+## The three keepers are programs beside the tests, in check-fixtures; a runner copied alone (a rig) takes them from the origin's package.
+runKeeperDir="$testDir/check-fixtures"
+[ -f "$runKeeperDir/runner-slot-keeper.py" ] || runKeeperDir="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
+runSlotKeeper="$runKeeperDir/runner-slot-keeper.py"
 
 runPassDir="${HOME:-}/.agents/magic-team/suite-results"
 runPassAge=$(( 7 * 86400 ))
@@ -292,77 +194,9 @@ runPassWith="bash $BASH_VERSION, $( uname -srm 2>/dev/null )"
 ##     links followed and .git left out, by its path below the root, whether it may be run,
 ##     and its content.
 ##   prune <dir> <age seconds>   removes every record older than the age, of every test.
-## (No apostrophe in this program either, for the reason the slot keeper gives.)
-runPassKeeper="$( cat <<'RUNPASSKEEPER'
-use strict ; use warnings ; use Digest::SHA ; use File::Find ; use Cwd qw( realpath ) ;
-my ( $mode, $dir, $age ) = ( shift @ARGV, shift @ARGV, shift @ARGV ) ;
-sub entries {
-	my ( $in ) = @_ ;
-	opendir( my $list, $in ) or return () ;
-	my @names = grep { $_ ne "." && $_ ne ".." } readdir( $list ) ;
-	closedir( $list ) ;
-	return @names ;
-}
-if ( $mode eq "prune" ) {
-	for my $test ( entries( $dir ) ) {
-		next unless -d "$dir/$test" ;
-		for my $file ( entries( "$dir/$test" ) ) {
-			my @at = stat( "$dir/$test/$file" ) ;
-			unlink( "$dir/$test/$file" ) if @at && time - $at[ 9 ] >= $age ;
-		}
-		rmdir( "$dir/$test" ) ;
-	}
-	exit 0 ;
-}
-sub digest {
-	my ( $root ) = @_ ;
-	my $real = realpath( $root ) ;
-	return "none" unless defined $real && -d $real ;
-	my %found ;
-	find( { follow_fast => 1, follow_skip => 2, no_chdir => 1, dangling_symlinks => 0, wanted => sub {
-		my $path = $File::Find::name ;
-		if ( -d $path ) { $File::Find::prune = 1 if $path =~ m{/\.git$} ; return ; }
-		$found{ substr( $path, length( $real ) + 1 ) } = $path ;
-	} }, $real ) ;
-	my $all = Digest::SHA->new( 256 ) ;
-	for my $name ( sort keys %found ) {
-		my @at = stat( $found{ $name } ) ;
-		my $content = ( @at && -f _ ) ? Digest::SHA->new( 256 )->addfile( $found{ $name } )->hexdigest : "gone" ;
-		$all->add( $name . "\0" . ( ( @at && ( $at[ 2 ] & 0111 ) ) ? "x" : "-" ) . "\0" . $content . "\n" ) ;
-	}
-	return $all->hexdigest ;
-}
-my ( $with, @rest ) = @ARGV ;
-my ( @roots, @tests ) ;
-while ( @rest ) {
-	my $word = shift @rest ;
-	if ( $word eq "--" ) { @tests = @rest ; last ; }
-	push @roots, $word ;
-}
-my $state = eval {
-	my $text = "AgentsRunTests.sh pass v1\n" ;
-	for my $root ( sort @roots ) {
-		my ( $name, $folder ) = split( /=/, $root, 2 ) ;
-		$text .= "$name " . digest( $folder ) . "\n" ;
-	}
-	$text . "with $with\n" ;
-} ;
-for my $test ( @tests ) {
-	my ( $key, $when ) = ( "-", "-" ) ;
-	if ( defined $state ) {
-		$key = Digest::SHA::sha256_hex( $state . "test $test\n" ) ;
-		my @at = stat( "$dir/$test/$key" ) ;
-		if ( @at && time - $at[ 9 ] < $age && open( my $in, "<", "$dir/$test/$key" ) ) {
-			while ( my $line = <$in> ) { $when = $1 if $line =~ /^passed=([0-9TZ:-]+)$/ ; }
-			close( $in ) ;
-		}
-	}
-	print "$test $key $when\n" ;
-}
-RUNPASSKEEPER
-)"
+runPassKeeper="$runKeeperDir/runner-pass-keeper.py"
 AgentsRunPassKey(){ ## test name... -- for each, on a line: the test, the key of the state it would run on now, when it passed on that state
-	perl -e "$runPassKeeper" key "$runPassDir" "$runPassAge" "$runPassWith" "${runPassRoots[@]}" -- "$@" 2>/dev/null
+	python3 -I -B "$runPassKeeper" key "$runPassDir" "$runPassAge" "$runPassWith" "${runPassRoots[@]}" -- "$@" 2>/dev/null
 }
 AgentsRunPassKeep(){ ## test name, key, seconds -- that pass on record, whole or not at all
 	mkdir -p "$runPassDir/$1" 2>/dev/null || return 1
@@ -438,7 +272,7 @@ AgentsRunQueueTurn(){ ## -- stands in the line and returns at this run's turn; s
 	mkdir -p "$runQueueDir" 2>/dev/null || {
 		echo "⛔ ERROR: AgentsRunTests.sh: cannot create the machine's line for full suites: $runQueueDir -- a full suite is not run outside its turn; name the tests to run some without one" >&2 ; exit 1
 	}
-	turnStamp="$( perl -MTime::HiRes=time -e 'printf "%017.6f", time' 2>/dev/null )" || turnStamp=""
+	turnStamp="$( python3 -I -B -c 'import time; print("%017.6f" % time.time(), end="")' 2>/dev/null )" || turnStamp=""
 	[ -n "$turnStamp" ] || turnStamp="$( date +%s ).000000"
 	runTicket="$turnStamp.$$.ticket"
 	trap AgentsRunQueueLeave EXIT
@@ -524,11 +358,11 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 		export MDAT_COLLECT_THREAD=off
 		export MDAT_WORKSPACE_MODE=team-rig
 		cd "$testDir" || exit 1
-		exec perl -e "$runSlotKeeper" take "$runSlotDir" "$runSlotDefault" 8 "$runDir/slot-wait.said" "$runDir/$oneName.started" "$runTestLock" "$runOwnFolder" "$oneTimeout" "$BASH" "$( AgentsRunTestPath "$oneName" )"
+		exec python3 -I -B "$runSlotKeeper" take "$runSlotDir" "$runSlotDefault" 8 "$runDir/slot-wait.said" "$runDir/$oneName.started" "$runTestLock" "$runOwnFolder" "$oneTimeout" "$BASH" "$( AgentsRunTestPath "$oneName" )"
 	) 8>&2 > "$runDir/$oneName.log" 2>&1 &
 	onePid=$!
 	wait "$onePid" || oneRc=$?
-	perl -e "$runSlotKeeper" give "$runSlotDir" "$onePid" 2>/dev/null || :
+	python3 -I -B "$runSlotKeeper" give "$runSlotDir" "$onePid" 2>/dev/null || :
 	## its time is counted from when it got its slot, not from when it asked
 	[ ! -s "$runDir/$oneName.started" ] || IFS= read -r oneStart < "$runDir/$oneName.started"
 	rm -f "$runDir/$oneName.started"
@@ -567,23 +401,8 @@ AgentsRunWorker(){ ## worker number -- one task line of the driver: the tests of
 
 ## The stall keeper: what the run folder holds now, on one line: the time of its newest entry,
 ## how many entries it has, and how many of them are receipts. The watch compares two of these
-## lines and nothing else. (No apostrophe in this program, for the reason the slot keeper gives.)
-runStallKeeper="$( cat <<'RUNSTALLKEEPER'
-use strict ; use warnings ;
-my ( $dir ) = @ARGV ;
-opendir( my $list, $dir ) or exit 1 ;
-my ( $newest, $entries, $receipts ) = ( 0, 0, 0 ) ;
-for my $name ( readdir( $list ) ) {
-	next if $name eq "." || $name eq ".." ;
-	my @at = stat( "$dir/$name" ) or next ;
-	$entries++ ;
-	$receipts++ if $name =~ /\.receipt$/ ;
-	$newest = $at[ 9 ] if $at[ 9 ] > $newest ;
-}
-closedir( $list ) ;
-print "$newest $entries $receipts\n" ;
-RUNSTALLKEEPER
-)"
+## lines and nothing else.
+runStallKeeper="$runKeeperDir/runner-stall-keeper.py"
 AgentsRunStallEnd(){ ## seconds the run has stood still -- the note of it, for the summary, and the driver ended with what is left under it
 	local endSelf endSignal endPid
 	## from here the watch is not told to go any more: it ends the run, and then itself
@@ -619,7 +438,7 @@ AgentsRunStallWatch(){ ## -- beside the run for as long as it lasts: once nothin
 		watchSleep=$! ; wait "$watchSleep" ; watchSleep=""
 		## a runner that is gone has nobody to tell
 		kill -0 "$$" 2>/dev/null || return 0
-		watchNow="$( perl -e "$runStallKeeper" "$runDir" 2>/dev/null )"
+		watchNow="$( python3 -I -B "$runStallKeeper" "$runDir" 2>/dev/null )"
 		[ -n "$watchNow" ] || continue
 		if [ "$watchNow" != "$watchSeen" ] ; then watchSeen="$watchNow" ; watchStill=0 ; continue ; fi
 		watchStill=$(( watchStill + watchEvery ))
@@ -674,7 +493,7 @@ fi
 	[ -z "$runStalled" ] || echo "STALLED  never ran $runNeverCount  never ended $runOpenCount"
 	echo "TOTAL $runCount  PASS $runPass  FAIL $(( runCount - runPass ))  WALL $(( $( date +%s ) - runStart ))s"
 } > "$runDir/summary.txt"
-perl -e "$runPassKeeper" prune "$runPassDir" "$runPassAge" 2>/dev/null || :
+python3 -I -B "$runPassKeeper" prune "$runPassDir" "$runPassAge" 2>/dev/null || :
 
 echo "---" >&2
 grep '^FAIL' "$runDir/summary.txt" || :

@@ -334,7 +334,7 @@ printf 'supervisor-process: %s Mon_Jan_1_00:00:00_2001\n' "$rigStandPid" >> "$ri
 rigAssert "a line of that name in the text under the frontmatter is no header: unknown" "$( rigAsk "$rigTmp/unit/body.spawn.md" )" "unknown rc=0"
 rigAssert "no file at all, and no name of one: unknown" "$( rigAsk "$rigTmp/unit/no-such-record.spawn.md" ):$( rigAsk "" )" "unknown rc=0:unknown rc=0"
 ## A process that has ended and that the process which started it has not collected yet is no process any more.
-perl -e '$| = 1 ; my $kid = fork ; defined $kid or exit 1 ; if ( ! $kid ) { sleep 2 ; exit 0 } print "$kid\n" ; close STDOUT ; sleep 120' > "$rigTmp/unit/ended.pid" 2> /dev/null &
+python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-hold.py" late-child 120 > "$rigTmp/unit/ended.pid" 2> /dev/null &
 rigHolder=$!
 rigProcNote "$rigHolder" ; rigKept="$rigKept $rigHolder"
 rigWaitFor 10 test -s "$rigTmp/unit/ended.pid" || rigRefuse "the stand-in that ends uncollected never started"

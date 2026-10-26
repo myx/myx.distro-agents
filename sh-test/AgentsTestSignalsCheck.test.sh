@@ -18,7 +18,7 @@
 ##      reason it is left as it is. A new one that is not on the list fails this check, and so does a line of the
 ##      list that no longer stands in the code as often as it says. A signal to a kept pid goes through the helper;
 ##      one is added to the list only with the reason its target cannot be gone and its number given again before
-##      the signal. Not read as a signal: a probe (`kill -0`, perl `kill( 0, ... )`), which sends nothing; a
+##      the signal. Not read as a signal: a probe (`kill -0`, python `os.kill(pid, 0)`), which sends nothing; a
 ##      comment line; the word inside other text (the manager's kill key and operation, a row it prints).
 ##   3. THE SAME GUARD OVER THE TOOLING. Every signal a file of sh-lib, sh-scripts or builders sends is on a list of
 ##      its own, each with where its target comes from and why that is the process meant, or, where it is not
@@ -237,6 +237,7 @@ rigList(){
 		'AgentsConsoleStreamTrapCheck.test.sh|1|kill(){|no signal of the check: the stand-in of the rig for the `kill` of the console under test, which keeps what is asked of it, hands a probe on as it came, and a signal only while the stub CLI of the rig has not ended' \
 		'AgentsConsoleStreamTrapCheck.test.sh|2|builtin kill "$@"|no signal of the check: the stand-in of the rig for the `kill` of the console under test, which keeps what is asked of it, hands a probe on as it came, and a signal only while the stub CLI of the rig has not ended' \
 		'AgentsConsoleStreamTrapCheck.test.sh|1|builtin kill -TERM "$$"|@self' \
+		'session/AgentsSignalResetCheck.test.sh|1|kill -s "$0" $$|@self' \
 		'AgentsConsoleStreamTrapCheck.test.sh|1|kill -TERM \"\$claudePid\"|@text' \
 		'AgentsEscalationVerdictFirstLineCheck.test.sh|1|kill -TERM -- "-$callPid"|@probed' \
 		'AgentsEscalationVerdictFirstLineCheck.test.sh|1|kill -KILL -- "-$callPid"|@probed' \
@@ -337,6 +338,7 @@ rigList(){
 		'member/AgentsWaitChatFloorCheck.test.sh|1|kill -TERM "$waitWatch"|@own-watch' \
 		'member/AgentsWaitSourceModeCheck.test.sh|1|kill -TERM "$waitPid"|@probed' \
 		'member/AgentsWaitSourceModeCheck.test.sh|1|kill -KILL "$waitPid"|@probed' \
+		'AgentsWaitWakeLatencyCheck.test.sh|1|kill -TERM "$waitPid"|@probed' \
 		'member/AgentsWaitSourceModeCheck.test.sh|1|kill -TERM "$waitWatch"|@own-watch'
 }
 rigToolingList(){
@@ -399,7 +401,7 @@ rigToolingList(){
 		'sh-lib/harness/AgentsUniversalHarness.sh|1|kill -KILL "$stopPid"|@walk-now'
 }
 ## THE READER. A signal is the word of a command that sends one, where it stands as a command: first of its line,
-## after what ends or opens a command, or after a word that takes a command; or a call of that name in perl or
+## after what ends or opens a command, or after a word that takes a command; or a call of that name in
 ## python. A probe sends nothing and is not one. What the list holds for the file is taken out of the line first;
 ## a signal that is left is not on the list.
 rigGuard(){ ## list file, then the files

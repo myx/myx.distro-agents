@@ -240,7 +240,7 @@ rigEnv(){ ## scenario folder, NAME=value words, then the command...
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$rigTmp/held:$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$envDir" RIG_HELPER="$rigHelper" RIG_REAL_AWK="$rigRealAwk" RIG_REAL_GIT="$rigRealGit" \
 		${envWords[@]+"${envWords[@]}"} \
-		perl -e '$SIG{HUP} = "DEFAULT" ; $SIG{INT} = "DEFAULT" ; $SIG{QUIT} = "DEFAULT" ; exec { $ARGV[0] } @ARGV or exit 127' "$@"
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --default-signals HUP,INT,QUIT -- "$@"
 }
 rigRunKept(){ [ -n "$( rigHeader "$rigRecord" run-process )" ] ; }
 rigRecordClosed(){ case "$( rigHeader "$rigRecord" status )" in spawn-started|'') return 1 ;; esac ; }

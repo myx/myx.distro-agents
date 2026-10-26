@@ -120,11 +120,6 @@ AgentsHarnessHooksRefusal(){
 				[ "$hookToolName" != Glob ] || harnessArgV_pattern="$( AgentsHarnessArgValue "$hookArgsRaw" pattern )"
 			;;
 			Bash) harnessArgV_command="$( AgentsHarnessArgValue "$hookArgsRaw" command )" ;;
-			Monitor)
-				harnessArgV_command="$( AgentsHarnessArgValue "$hookArgsRaw" command )"
-				harnessArgV_cwd="$( AgentsHarnessArgValue "$hookArgsRaw" cwd )"
-				harnessArgV_handle="$( AgentsHarnessArgValue "$hookArgsRaw" handle )"
-			;;
 			WebSearch) harnessArgV_query="$( AgentsHarnessArgValue "$hookArgsRaw" query )" ;;
 			WebFetch) harnessArgV_url="$( AgentsHarnessArgValue "$hookArgsRaw" url )" ;;
 			SendMessage)
@@ -157,12 +152,6 @@ AgentsHarnessHooksRefusal(){
 		Glob)      hookInputJson='{"pattern":"'"$( printf '%s' "${harnessArgV_pattern-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","path":"'"$( printf '%s' "${harnessArgV_path-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		Grep)      hookInputJson='{"path":"'"$( printf '%s' "${harnessArgV_path-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		Bash)      hookInputJson='{"command":"'"$( printf '%s' "${harnessArgV_command-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
-		## Monitor runs a shell command, so it is shaped in Bash's own spelling: a hook
-		## written to guard `tool_input.command` must decide on this call exactly as it
-		## decides on that one, and a command that escaped the guard by arriving under a
-		## different field name would be a hole in it. The handle rides along, so a hook
-		## can tell a start from a read of one already running.
-		Monitor)   hookInputJson='{"command":"'"$( printf '%s' "${harnessArgV_command-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","cwd":"'"$( printf '%s' "${harnessArgV_cwd-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","handle":"'"$( printf '%s' "${harnessArgV_handle-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		WebSearch) hookInputJson='{"query":"'"$( printf '%s' "${harnessArgV_query-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		WebFetch)  hookInputJson='{"url":"'"$( printf '%s' "${harnessArgV_url-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		SendMessage) hookInputJson='{"to":"'"$( printf '%s' "${harnessArgV_to-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'","message":"'"$( printf '%s' "${harnessArgV_message-}" | LC_ALL=C awk -f "$harnessHere/mcp/AgentsMcpJsonEscape.awk" )"'"}' ;;

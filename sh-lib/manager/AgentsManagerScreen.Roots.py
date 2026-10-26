@@ -10,7 +10,7 @@ START_ROOT = "manuals"
 ## the agents, that turns every spacer of the list off where it reads `disable`; the
 ## spacers are there where it names nothing else. Read from the environment of the start,
 ## where the start of the screen (`--manager`) puts what the user saved.
-SPACERS_VARIABLE = "MDLT_CONSOLE_SPACERS"
+SPACERS_VARIABLE = "MDLT_MANAGER_SPACERS"
 ## What the root `Team Data` shows, from two reads that give it: the blocks of the
 ## dashboard it holds as rows of its own, read with the dashboard ("blocks"); the block and the figure that say that its team data is there ("present",
 ## with that value), and the figure of its root; the prefix of the figures that count the
@@ -50,6 +50,12 @@ CLEANUPS = (
                   "needs": "rig"}),
     ("sync", {"label": "Sync The Team Data", "operation": ["--commit-pending", "magic-coordinator"],
               "does": "Commits everything pending under the team data in one commit, then syncs it with its remote by myx.common git/cloneSync: the remote's commits are pulled and merged in, what is ahead is pushed, and the remote is read back. It takes no lock: run it only while no routine holds the advance lock.",
+              "needs": "remote"}),
+    ("repair-keep-merged", {"label": "Keep Local Commits Merged", "operation": ["--repair-team-data-checkout", "magic-coordinator", "--keep-merged"],
+              "does": "Repairs a team-data checkout that has diverged from its remote, with local commits never pushed, in one operation: it shows the local-only commits and what the remote has, trial-merges in a throwaway copy, then merges the remote in keeping the local commits, moves any flat inbox item by its processed stamp, and pushes. It takes no lock: run it only while no routine holds the advance lock.",
+              "needs": "remote"}),
+    ("repair-take-remote", {"label": "Set Local Commits Aside, Take Remote", "operation": ["--repair-team-data-checkout", "magic-coordinator", "--take-remote"],
+              "does": "Repairs a team-data checkout that has diverged from its remote, with local commits never pushed, in one operation: it shows the local-only commits and what the remote has, trial-merges in a throwaway copy, then sets the local commits aside (kept reachable at a ref) and takes the remote, moves any flat inbox item by its processed stamp, and pushes. It takes no lock: run it only while no routine holds the advance lock.",
               "needs": "remote"}),
 )
 ## The stores of the team data that `Team Data` holds as folders, to browse their items, in

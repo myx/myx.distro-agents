@@ -11,6 +11,9 @@
 ##   --queue-list --queue-take --queue-done   the librarian's side of those requests, which are the inquiries of its inbox that carry an update-kind;
 ##                            --queue-done closes one with --apply, --refuse or --result
 ##   --request-result         where a request stands, for the member that made it
+##   --doc-drift [<path>...] [--queue]   detects, by dates and checksums, a package whose code changed after its MAGIC.md, README or
+##                            help files; with --queue, files the update request itself into magic-librarian's inbox
+##   --queue-ask <name>       the librarian poses a waiting concrete edit to a person in Pending Questions, as well as deciding it itself
 ## The queue is the librarian's inbox itself; there is no store of its own. The functions are in sh-lib/member/AgentsTools.LibrarianWork.include.
 ##
 ## NOTE:
@@ -50,6 +53,12 @@ AgentLibrarianTools(){
 	type AgentsToolsLibrarianSkillsetUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.LibrarianWork.include"
 	case "$1" in
 
+		''|--help|--help-syntax)
+			set +e
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.AgentLibrarianTools.include"
+			return $?
+		;;
+
 		## <team-member> <pathname> (--from-stdin|--from-file <path>): the whole text of a .md file of a member's skill, below the skill's folder.
 		--skillset-upsert)
 			AgentsToolsLibrarianSkillsetUpsert "$@"
@@ -84,6 +93,18 @@ AgentLibrarianTools(){
 		## <name> --apply | --refuse <reason> | --result <text>: one request decided and closed.
 		--queue-done)
 			AgentsToolsLibrarianQueueDone "$@"
+			return $?
+		;;
+
+		## [<path>...] [--queue]: the tooling detects a package whose code changed after its MAGIC.md, README or help, and, with --queue, queues the update itself.
+		--doc-drift)
+			AgentsToolsLibrarianDocDrift "$@"
+			return $?
+		;;
+
+		## <name>: the librarian poses a waiting concrete edit to a person in Pending Questions, as well as deciding it itself.
+		--queue-ask)
+			AgentsToolsLibrarianQueueAsk "$@"
 			return $?
 		;;
 

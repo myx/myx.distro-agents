@@ -49,8 +49,15 @@ rigHolds(){ ## file, text
 rigPosts(){
 	cat "$rigScenarioDir/posts" 2>/dev/null || echo 0
 }
+## A closed record is retained, not deleted: it moves into pending/closed/ (retention, T9), so
+## the live store is read first and the retained one after it.
+rigStatusFile(){ ## pending id -- its record's path, live or retained-closed
+	local rigStatusPath="$rigScenarioDir/ws/.local/agents/pending/$1.md"
+	[ -f "$rigStatusPath" ] || rigStatusPath="$rigScenarioDir/ws/.local/agents/pending/closed/$1.md"
+	printf '%s' "$rigStatusPath"
+}
 rigStatus(){ ## pending id
-	LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$1.md" 2>/dev/null
+	LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$( rigStatusFile "$1" )" 2>/dev/null
 }
 rigPendingOf(){ ## output file -> the pending id it names
 	LC_ALL=C sed -n 's/.*recorded as pending reply \([0-9a-f-]*\).*/\1/p' "$1" | head -1

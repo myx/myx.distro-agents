@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## The --help of DistroAgentsTrello.fn.sh: the manual, sh-lib/help/Help.DistroAgentsTrello.help.md. A bare call and --help-syntax are answered before this, by the operation list and by the table of the family.
+
+myx.common lib/catMarkdown "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTrello.help.md" >&2
+return 0

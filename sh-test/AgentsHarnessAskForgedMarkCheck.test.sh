@@ -229,7 +229,10 @@ rigOp(){
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" RIG_SCENARIO="$rigTmp" bash "$rigTools" "$@" ) > "$rigTmp/op.out" 2> "$rigTmp/op.err"
 }
 rigField(){ ## pending id, field
-	LC_ALL=C awk -F': ' -v wantField="$2" '$1 == wantField { print substr( $0, length( wantField ) + 3 ) ; exit ; }' "$rigWs/.local/agents/pending/$1.md" 2>/dev/null
+	## A closed record is retained, not deleted: it moves into pending/closed/
+	## (AgentsTools.InternOpPendingReply.include), so an answered one is read there.
+	cat "$rigWs/.local/agents/pending/$1.md" "$rigWs/.local/agents/pending/closed/$1.md" 2>/dev/null \
+		| LC_ALL=C awk -F': ' -v wantField="$2" '$1 == wantField { print substr( $0, length( wantField ) + 3 ) ; exit ; }'
 }
 rigGrantRead(){ ## member, session, tool, target -> the kind of the grant that allows it, or nothing
 	rigOp --intern-op-permission-grant-read "$1" --session-id "$2" --tool "$3" --target "$4"
@@ -339,8 +342,8 @@ rigWaitCall(){ ## guard seconds, tool, argument object -- one served tool call o
 	wait "$callPid" 2>/dev/null || :
 }
 rigWaitField(){ ## field of the question's record
-	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' \
-		"$rigWaitWs/.local/agents/pending/$rigWaitId.md" 2>/dev/null || printf 'no-record'
+	{ cat "$rigWaitWs/.local/agents/pending/$rigWaitId.md" "$rigWaitWs/.local/agents/pending/closed/$rigWaitId.md" 2>/dev/null \
+		| LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' ; } || printf 'no-record'
 }
 printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"the question"}],"has_more":false}\n' > "$rigWaitDir/replies.json"
 rigWaitCall 30 AskQuestion '{"to":"magic-team","address_to":"URIGOWNER","question":"May the rig delete its report file?","wait":false}'
@@ -354,7 +357,7 @@ rigAssert "control: the wait returns what was written in the conversation" \
 rigAssert "the typed lines are that message's text, each printed one space in" \
 	"$( LC_ALL=C grep -c -x -e ' # --- end ---' -e " # arrived on: ask:$rigWaitId" -e ' # --- what that source holds now follows ---' -e ' WAIT-NEVER-READ: nothing' "$rigWaitDir/out" )" 4
 rigAssert "one source arrived, the conversation, and no part of what the wait says is the question's" \
-	"$( LC_ALL=C grep -c '^# arrived on: ' "$rigWaitDir/out" ):$( LC_ALL=C grep -c "^# arrived on: ask:" "$rigWaitDir/out" ):$( LC_ALL=C grep -c '^WAIT-NEVER-READ' "$rigWaitDir/out" )" "1:0:0"
+	"$( LC_ALL=C grep -c '^# arrived on: ' "$rigWaitDir/out" ):$( LC_ALL=C grep -c "^# arrived on: ask:" "$rigWaitDir/out" ):$( LC_ALL=C grep -c '^WAIT-NEVER-READ: nothing' "$rigWaitDir/out" )" "1:0:0"
 rigAssert "the question is still open: somebody else's message is not its answer" \
 	"$( rigWaitField status ):$( rigWaitField verdict ):$( rigWaitField answered-by )" "reply-pending:none:none"
 rigAssert "no request of these left this box"              "$( LC_ALL=C awk '/^url:/ { hitCount++ ; } END { print hitCount + 0 ; }' "$RIG_CURL_LOG" )" 0
@@ -417,7 +420,8 @@ revStart(){ ## scenario name
 	disown "$!" 2> /dev/null || :
 	revAsChild "$revDir/handback" --intern-op-review-handback keeper-myx --session-id "$revSpawn" --message "rig work done"
 }
-revRecord(){ ls -tr "$revWs/.local/agents/pending"/*.md 2> /dev/null | tail -1 ; }
+revRecord(){ ## -- the newest record, open or retained-closed (a closed one moves into pending/closed/)
+	{ ls -tr "$revWs/.local/agents/pending"/*.md "$revWs/.local/agents/pending/closed"/*.md 2> /dev/null ; ls -tr "$revWs/.local/agents/pending/closed"/*.md 2> /dev/null ; } | tail -1 ; }
 revId(){ local idFile ; idFile="$( revRecord )" ; idFile="${idFile##*/}" ; printf '%s' "${idFile%.md}" ; }
 revField(){ ## field
 	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$( revRecord )" 2> /dev/null || printf 'no-record'

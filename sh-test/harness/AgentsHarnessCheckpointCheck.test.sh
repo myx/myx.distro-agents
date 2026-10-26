@@ -163,7 +163,7 @@ rigToolStream "$rigDir/res.1" Write "$( rigWorkJson one.txt )"
 rigToolStream "$rigDir/res.2" Bash "$( rigOp --executor-checkpoint-rewind armed )"
 rigTextStream "$rigDir/res.3" RIG-DONE ; rigRun
 rigAssert "the request after the rewind to armed is the first request, byte for byte"    "$( rigSame "$rigDir/req.1" "$rigDir/req.3" )" same
-rigAssert "so the prefetch block, and the cache marker at its end, are in it as they were"  "$( rigCount "$rigDir/req.3" 'RIG-A-ARMED-BODY' ):$( rigCount "$rigDir/req.3" '"cache_control":{"type":"ephemeral"}' )" 1:4
+rigAssert "so the prefetch block, and the cache marker at its end, are in it as they were"  "$( rigCount "$rigDir/req.3" 'RIG-A-ARMED-BODY' ):$( rigCount "$rigDir/req.3" '"cache_control":{"type":"ephemeral"}' )" 1:3
 rigAssert "the work is gone from it"                                                     "$( rigCount "$rigDir/req.3" 'RIG-WORK' ):$( rigCount "$rigDir/req.3" 'toolu_RIG' )" 0:0
 
 echo "-- 3. a run that was not prefetched is armed by its read --"
@@ -293,17 +293,17 @@ rigIdleSeq(){ ## the Wait's first answer, its second (| between the lines), the 
 		AgentsHarnessToolWait(){ local n=$( cat "'"$rigTmp"'/idle-count" 2> /dev/null || printf 0 ) ; n=$(( n + 1 )) ; printf "%s" "$n" > "'"$rigTmp"'/idle-count" ; printf "ask[%s;%s;%s] " "$1" "$2" "$7" >> "'"$rigTmp"'/idle-log" ; if [ "$n" = 1 ] ; then printf "%s\n" "'"$1"'" | tr "|" "\n" ; else printf "%s\n" "'"$2"'" | tr "|" "\n" ; fi ; }
 		AgentsHarnessReply(){ harnessReply="REPLY<$1:$( printf "%s" "$2" | tr "\n" "|" )>" ; }
 		AgentsHarnessSessionKey(){ printf k ; }
-		AgentsWireInitMessages(){ harnessMessages=( "x" ) ; }
+		AgentsWireInitMessages(){ harnessMessages=( "{\"role\":\"user\",\"content\":\"init:$( printf "%s" "$harnessPrompt" | tr "\n" "|" )\"}" ) ; }
 		'"$3"'
 		printf "%s:%s" "${#harnessMessages[@]}" "$( printf "%s" "${harnessMessages[$(( ${#harnessMessages[@]} - 1 ))]}" | tr "\n" "|" | cut -c1-60 )"'
 	cat "$rigTmp/idle-log" 2> /dev/null ; rm -f "$rigTmp/idle-log" "$rigTmp/idle-count"
 }
 rigQuiet='WAIT-RESULT: TIMEOUT (270s) NEXT: Wait mode=continue'
-rigAssert "a quiet round with no bound named goes on in the harness, by the stored wait, and the model is not woken by it"   "$( rigIdleSeq "$rigQuiet" "$rigGot" 'AgentsHarnessSnapshotTake armed init ; AgentsHarnessIdleWait - scan:a' )" '1:xask[scan:a;;default] ask[;;continue] '
+rigAssert "a quiet round with no bound named wakes the model with a keepalive, returned to the armed checkpoint"  "$( rigIdleSeq "$rigQuiet" "$rigGot" 'AgentsHarnessSnapshotTake armed init ; AgentsHarnessIdleWait - scan:a' | cut -c1-140 )" '1:{"role":"user","content":"init:T||Your --idle-wait made its ask[scan:a;;default] '
 rigAssert "a bound named by the call is the call's: a quiet round ends it, and the model is told"                          "$( rigIdleSeq "$rigQuiet" "$rigGot" 'AgentsHarnessSnapshotTake armed init ; AgentsHarnessIdleWait 5 scan:a' | cut -c1-120 )" '2:{"role":"user","content":"Your --idle-wait ended with no arrask[scan:a;5;default] '
 rigAssert "so is a quiet round that holds a source never read, whose silence means nothing"                              "$( rigIdleSeq "$rigQuiet|WAIT-NEVER-READ: [slack:x]" "$rigGot" 'AgentsHarnessSnapshotTake armed init ; AgentsHarnessIdleWait - scan:a' | cut -c1-120 )" '2:{"role":"user","content":"Your --idle-wait ended with no arrask[scan:a;;default] '
 rigAssert "and a bound set for the run (MDAT_HARNESS_WAIT_TIMEOUT) ends it too"                                           "$( rigIdleSeq "$rigQuiet" "$rigGot" 'harnessWaitTimeout=60 ; AgentsHarnessSnapshotTake armed init ; AgentsHarnessIdleWait - scan:a' | cut -c1-120 )" '2:{"role":"user","content":"Your --idle-wait ended with no arrask[scan:a;;default] '
-rigAssert "a dismissal after quiet rounds is the model's to read, and the conversation is not returned"                    "$( rigIdleSeq "$rigQuiet" 'WAIT-RESULT: DISMISSED|NEXT: end' 'AgentsHarnessSnapshotTake armed init ; AgentsHarnessIdleWait - scan:a' | cut -c1-120 )" '2:{"role":"user","content":"Your --idle-wait ended on a dismisask[scan:a;;default] ask[;;continue] '
+rigAssert "a dismissal after a keepalive round is the model's to read, and the conversation is not returned"  "$( rigIdleSeq 'WAIT-RESULT: DISMISSED|NEXT: end' "$rigGot" 'AgentsHarnessSnapshotTake armed init ; AgentsHarnessIdleWait - scan:a' | cut -c1-120 )" '2:{"role":"user","content":"Your --idle-wait ended on a dismisask[scan:a;;default] '
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ HARNESS CHECKPOINT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

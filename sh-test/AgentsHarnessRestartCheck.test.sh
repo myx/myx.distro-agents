@@ -75,12 +75,17 @@ rigTextStream(){ ## canned-stream file, content, finish_reason, this round's tot
 ## AgentsHarnessPathAllowed publishes $harnessResolvedPath.
 rigRunStatus=0
 rigRoundCount=0
+rigSpawnRoot="" rigSpawnId=""
 rigRun(){ ## MDAT_HARNESS_CONTEXT_TOKENS, MDAT_HARNESS_MAX_RESTARTS
 	rigRunStatus=0
 	## MMDAPP points at the scenario so the core's own PreToolUse hooks read no
 	## settings file and every tool call runs, which is what this rig is measuring.
-	RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir" \
-		MDAT_HARNESS_CONTEXT_TOKENS="$1" MDAT_HARNESS_MAX_RESTARTS="$2" \
+	## A scenario that sets rigSpawnRoot/rigSpawnId gives the run a sandbox and an id, so
+	## the restart marker it keeps beside the run record is written where this rig can read it.
+	rigEnv=( RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir" \
+		MDAT_HARNESS_CONTEXT_TOKENS="$1" MDAT_HARNESS_MAX_RESTARTS="$2" )
+	[ -z "$rigSpawnRoot" ] || rigEnv+=( MDAT_SPAWN_SANDBOX_ROOT="$rigSpawnRoot" MDAT_SPAWN_SESSION_ID="$rigSpawnId" )
+	env "${rigEnv[@]}" \
 		"$rigHarness" --access-root "$rigScenarioDir" RIG-TASK-MARKER \
 		> "$rigScenarioDir/out" 2> "$rigScenarioDir/err" || rigRunStatus=$?
 	rigRoundCount="$( cat "$rigScenarioDir/round" )"
@@ -144,6 +149,21 @@ rigAssert "the fresh leg dropped the old history"      "$( rigHolds "$rigScenari
 rigAssert "the fresh leg has its tools back"           "$( rigHolds "$rigScenarioDir/req.3" '"tool_choice":"auto"' )" yes
 rigVerdict "the threshold fires and the leg restarts"
 
+## The run record's own record of it: one line per restart, kept beside the record where
+## the closer reads it into `restarts:` (AgentsHarnessRestartKeep, and
+## AgentsToolsSpawnProxyCloseSandboxOnce). The marker is the harness's share of that; the
+## record header itself is the close's, tested beside the other record headers.
+rigStart restart-recorded
+rigSpawnRoot="$rigScenarioDir" rigSpawnId="rig-restart-run"
+rigToolStream "$rigScenarioDir/res.1" 5000
+rigTextStream "$rigScenarioDir/res.2" RIG-SUMMARY-MARKER stop 20
+rigTextStream "$rigScenarioDir/res.3" RIG-FINAL-MARKER stop 20
+rigRun 1000 3
+rigSpawnRoot="" rigSpawnId=""
+rigAssert "the restart was recorded beside the run record" "$( cat "$rigScenarioDir/rig-restart-run.restarts" 2>/dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 1
+rigAssert "with its number and the threshold it restarted at" "$( LC_ALL=C awk '{ print $1, $2 }' "$rigScenarioDir/rig-restart-run.restarts" 2>/dev/null )" "1 1000"
+rigVerdict "each restart is kept beside the run record"
+
 ## The negative control, and the reason a green run here cannot be a vacuous one:
 ## the same probes against the same canned rounds, with the threshold off.
 rigStart threshold-disabled
@@ -203,27 +223,48 @@ rigVerdict "no restart bound unless one is set"
 ## The Scaleway leaf's own declared window, 256000, reached through the real leaf: the fake
 ## curl first on PATH is what keeps its real endpoint unreached, and both credential names
 ## are literals so a real key in this environment never enters the process.
-rigScalewayRun(){ ## this round's total_tokens
+rigScalewayRun(){ ## this round's total_tokens, a preset threshold in PRESET_CONTEXT_MAX_SIZE (optional)
 	rigToolStream "$rigScenarioDir/res.1" "$1"
 	rigTextStream "$rigScenarioDir/res.2" RIG-SUMMARY-MARKER stop 20
 	rigTextStream "$rigScenarioDir/res.3" RIG-FINAL-MARKER stop 20
 	rigRunStatus=0
-	RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir" MDAT_HARNESS_CONTEXT_TOKENS="" \
-		SCALEWAY_DEEPSEEK="rig-not-a-credential" SCALEWAY_GEMMA="rig-not-a-credential" \
+	env RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir" MDAT_HARNESS_CONTEXT_TOKENS="" \
+		HARNESS_MODEL_LIGHT="" HARNESS_MODEL_MAIN="" \
+		SCALEWAY_API_KEY="rig-not-a-credential" ${2:+PRESET_CONTEXT_MAX_SIZE="$2"} \
 		"$rigHere/harness/AgentsScalewayHarness.sh" --access-root "$rigScenarioDir" RIG-TASK-MARKER \
 		> "$rigScenarioDir/out" 2> "$rigScenarioDir/err" || rigRunStatus=$?
 	rigRoundCount="$( cat "$rigScenarioDir/round" )"
 	[ "$rigRoundCount" != 0 ] || rigRefuse "the Scaleway leaf issued no request at all, so this scenario exercised nothing"
 }
 rigStart scaleway-under-window
-rigScalewayRun 255999
-rigAssert "a round just under 256000 does not trip"  "$( rigHolds "$rigScenarioDir/err" 'context threshold reached' )" no
+rigScalewayRun 223231
+rigAssert "a round just under 256000 less 32768 does not trip"  "$( rigHolds "$rigScenarioDir/err" 'context threshold reached' )" no
 rigAssert "the Scaleway leaf is the one that ran"    "$( rigHolds "$rigScenarioDir/err" 'Scaleway' )" yes
 rigStart scaleway-at-window
-rigScalewayRun 256000
-rigAssert "a round at 256000 trips the threshold"    "$( rigHolds "$rigScenarioDir/err" 'at or over 256000' )" yes
+rigScalewayRun 223232
+rigAssert "a round at 256000 less 32768 trips the threshold"    "$( rigHolds "$rigScenarioDir/err" 'at or over 223232' )" yes
 rigAssert "and the leg restarted onto its summary"   "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
 rigVerdict "the Scaleway leaf's own 256000 window governs, not a chosen 900000"
+
+## THE PRESET'S OWN NUMBER IS THE THRESHOLD. PRESET_CONTEXT_MAX_SIZE used to be STORED
+## ONLY: set here to 1000 on a leaf whose window is 256000, a round at 1000 must trip,
+## and the start must say both numbers because the run will restart early.
+rigStart scaleway-preset-threshold
+rigScalewayRun 1000 1000
+rigAssert "the preset's 1000, not the leaf's 256000, is the threshold" "$( rigHolds "$rigScenarioDir/err" 'at or over 1000' )" yes
+rigAssert "a round well under the window still restarts"              "$( rigHolds "$rigScenarioDir/err" 'original task verbatim plus the summary above' )" yes
+rigAssert "the early restart was warned of at start"                  "$( rigHolds "$rigScenarioDir/err" 'restart threshold far below the service' )" yes
+rigAssert "with both numbers named"                                   "$( rigHolds "$rigScenarioDir/err" '1000 tokens against 256000' )" yes
+rigAssert "and what it costs, in words"                               "$( rigHolds "$rigScenarioDir/err" 'will summarise-and-restart early' )" yes
+rigVerdict "the preset's context size is the restart threshold, and a far-below one is warned of"
+rigStart scaleway-preset-normal
+rigScalewayRun 100000 100000
+rigAssert "a preset threshold under half the window warns"            "$( rigHolds "$rigScenarioDir/err" 'restart threshold far below the service' )" yes
+rigVerdict "a preset threshold under half the window is warned of"
+rigStart scaleway-no-preset
+rigScalewayRun 223232
+rigAssert "with no preset value the leaf's window governs, and no warning" "$( rigHolds "$rigScenarioDir/err" 'restart threshold far below the service' )" no
+rigVerdict "with no preset value the leaf's window governs, and nothing warns"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ RESTART CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

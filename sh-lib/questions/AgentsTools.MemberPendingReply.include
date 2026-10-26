@@ -13,6 +13,7 @@
 
 ## One header field of a record, empty when absent. The header ends at its second `---`.
 AgentsToolsPendingReplyField(){ ## record file, field name
+	[ -f "$1" ] || return 0
 	LC_ALL=C awk -v key="$2" '
 		$0 == "---" { dashes++ ; if ( dashes == 2 ) { exit ; } next ; }
 		dashes == 1 && index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit ; }
@@ -221,9 +222,17 @@ case "$1" in
 		AgentsToolsAssertBareName "$settleMember" "<team-member>" pending-reply-settle || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$settleId" "<pending-id>" pending-reply-settle || { set +e ; return 1 ; }
 		AgentsToolsActingMemberCheck "$settleMember" "${settleOp#--}" || { set +e ; return 1 ; }
+		## A closed record lives in pending/closed/ (retention, T9): settling one says ALREADY-CLOSED, so it is found there.
 		settleFile="$MMDAPP/.local/agents/pending/$settleId.md"
+		[ -f "$settleFile" ] || settleFile="$MMDAPP/.local/agents/pending/closed/$settleId.md"
 		[ -f "$settleFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $settleId" >&2 ; set +e ; return 1 ; }
 		settleOwner="$( AgentsToolsPendingReplyField "$settleFile" owner )"
+		if [ -z "$settleOwner" ] ; then
+			## Another run's close moved a closed record to closed/ meanwhile (retention, T9): read it again where it is.
+			settleFile="$MMDAPP/.local/agents/pending/$settleId.md"
+			[ -f "$settleFile" ] || settleFile="$MMDAPP/.local/agents/pending/closed/$settleId.md"
+			settleOwner="$( AgentsToolsPendingReplyField "$settleFile" owner )"
+		fi
 		if [ -z "$settleConsole" ] && [ "$settleOwner" != "$settleMember" ] && { [ -n "$settleWithdraw" ] || [ "$settleMember" != "magic-coordinator" ] ; } ; then
 			echo "$MDSC_CMD: ⛔ ERROR: $settleId was asked by ${settleOwner:-nobody}, so $settleMember cannot $( [ -n "$settleWithdraw" ] && printf withdraw || printf settle ) it (the asker settles its own, and magic-coordinator another's); it stays as it is" >&2
 			set +e ; return 1
@@ -240,6 +249,8 @@ case "$1" in
 				3) return 0 ;;
 				*) set +e ; return 1 ;;
 			esac
+			## The close moved the now-withdrawn record to closed/ (retention, T9): read its post fields from there.
+			[ -f "$settleFile" ] || settleFile="$MMDAPP/.local/agents/pending/closed/$settleId.md"
 			## Said in the question's own thread, under the identity it was asked with, so the
 			## person knows it needs no answer. Best effort: the record is already closed.
 			local settleChannel settleThread settleNote
@@ -340,7 +351,9 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$amendId" "<pending-id>" pending-reply-amend || { set +e ; return 1 ; }
+		## It amends a closed record, which lives in pending/closed/ (retention, T9).
 		local amendFile="$MMDAPP/.local/agents/pending/$amendId.md" amendKind
+		[ -f "$amendFile" ] || amendFile="$MMDAPP/.local/agents/pending/closed/$amendId.md"
 		[ -f "$amendFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $amendId" >&2 ; set +e ; return 1 ; }
 		## A readback, decision or permission verdict may have written a grant at its close;
 		## amending the record alone would leave the grant disagreeing with it.

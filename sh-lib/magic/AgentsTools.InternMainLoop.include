@@ -55,7 +55,7 @@ case "$1" in
 		## PROBES presence here (every key --optional); the readiness report owns
 		## the floor policy -- which items gate, and how Basic comms is satisfied
 		## by any one transport -- and its own exit (PIPESTATUS[1]) is the gate.
-		## The floor is the team data root + Basic comms + SPAWN_CLI_SERVICE,
+		## The floor is the team data root + Basic comms + a tier setting, SPAWN_TIER_NORMAL,
 		## the last two read in one probe per catalogue scope; the event-track and
 		## event-alert channels are probed for the report but never gate.
 		## The report goes to STDERR, like the per-iteration lines below: this
@@ -69,7 +69,7 @@ case "$1" in
 			## gives the workspace's own store, so the floor reads that answer.
 			[ -z "${MDAT_DATA_ROOT:-}" ] || echo "TEAM_DATA_DIRECTORY: OK"
 			## One probe per distinct catalogue scope, each carrying the keys that scope holds.
-			local mainLoopReadyItems="SLACK_CHANNEL_MAGIC_TEAM:<channel-id> SLACK_CHANNEL_HUMAN_OWNER:<user-id> SLACK_CHANNEL_EVENT_TRACK:<channel-id> SLACK_CHANNEL_EVENT_ALERT:<channel-id> SPAWN_CLI_SERVICE:<cli-name>"
+			local mainLoopReadyItems="SLACK_CHANNEL_MAGIC_TEAM:<channel-id> SLACK_CHANNEL_HUMAN_OWNER:<user-id> SLACK_CHANNEL_EVENT_TRACK:<channel-id> SLACK_CHANNEL_EVENT_ALERT:<channel-id> SPAWN_TIER_NORMAL:<preset>[:<effort>]"
 			local mainLoopReadyScope mainLoopReadyItem mainLoopReadyArgs
 			for mainLoopReadyScope in $(
 				for mainLoopReadyItem in $mainLoopReadyItems ; do
@@ -100,8 +100,12 @@ case "$1" in
 			## ~0.3s once at startup, stdin closed so nothing can prompt; it
 			## answers loggedIn true for an API key and for a Bedrock/Vertex
 			## provider too, so those working setups are not misread as signed out.
-			mainLoopOptionSpec="$( AgentsToolsOwnerSetupOptionSpec SPAWN_CLI_SERVICE )"
-			case "$( DistroAgentsTools --agents-config-option "${mainLoopOptionSpec%%|*}" --select SPAWN_CLI_SERVICE 2>/dev/null )" in
+			local mainLoopCli=""
+			mainLoopCli="$(
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include"
+				AgentsReviewCliResolved ""
+			)"
+			case "$mainLoopCli" in
 				claude)
 					case "$(
 						for mainLoopAuthKey in ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN ; do
@@ -298,17 +302,6 @@ case "$1" in
 				&& mv -f "$MMDAPP/.local/agents/pending-remind.last.$$" "$MMDAPP/.local/agents/pending-remind.last" \
 				&& echo "# $MDSC_CMD --intern-main-loop: $( tail -1 "$MMDAPP/.local/agents/pending-remind.last" )" >&2 \
 				|| { rm -f "$MMDAPP/.local/agents/pending-remind.last.$$" ; echo "# $MDSC_CMD --intern-main-loop: the pending-reply reminders could not run" >&2 ; }
-			## The team data's retention, by script and no agent, at most once an hour (AgentsTools.Retention.include): the 35-day sweep of the
-			## reflections nobody handled, then the final GC of the processed items. A line for each thing done; never fatal.
-			local mainLoopRetention="" mainLoopRetentionLine
-			mainLoopRetention="$(
-				set +e
-				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Retention.include" > /dev/null 2>&1 || exit 1
-				AgentsToolsRetentionRun 2> /dev/null
-			)" || mainLoopRetention="retention: could not run"
-			while IFS= read -r mainLoopRetentionLine ; do
-				[ -z "$mainLoopRetentionLine" ] || echo "# $MDSC_CMD --intern-main-loop: $mainLoopRetentionLine" >&2
-			done <<< "$mainLoopRetention"
 			## The on-demand check of the health of the sessions, included here because the loop
 			## runs: the control thread of each session of this workspace that is not finished and
 			## has none alive is started, detached and never waited for

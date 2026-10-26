@@ -58,9 +58,10 @@ AgentsReviewRecord(){ ## who, item name, decisions kind, text, transcript event,
 	if [ -z "$recSpawn" ] && recPath="$( AgentsToolsDecisionsItemPath "$recItem" )" ; then
 		recSpawn="$( AgentsToolsDecisionsField "$recPath" spawn-id )"
 	fi
+	local recRc=0
 	AgentsReviewTools --intern-op-decisions-append "$recWho" "$recItem" --kind "$recKind" --text "$recText" \
-		--source "${recSpawn:-no-session}" --context "${MDSC_CMD:-review}" > /dev/null 2>&1 \
-		|| echo "⚠️ WARNING: ${MDSC_CMD:-review}: the $recKind of $recItem was not recorded in its Decisions" >&2
+		--source "${recSpawn:-no-session}" --context "${MDSC_CMD:-review}" > /dev/null 2>&1 || recRc=$?
+	[ "$recRc" = 0 ] || echo "⚠️ WARNING: ${MDSC_CMD:-review}: the $recKind of $recItem was not recorded in its Decisions" >&2
 	case "$recSpawn" in
 		''|-) ;;
 		*) AgentsTranscriptEvent "$recSpawn" "$recEvent" "" 0 item "$recItem" kind "$recKind" by "$recWho" text "$recText" 2> /dev/null || : ;;
@@ -226,19 +227,26 @@ AgentsReviewMoveWithSection(){ ## item name, from state, to state, section headi
 		--from-state:"$mvFrom" --edit-script-from-stdin:awk "$@" --context "${MDSC_CMD:-review}" --log-verb:updated
 }
 
-## The CLI a spawn resolves to: the service its caller named, else the workspace's
-## SPAWN_CLI_SERVICE (a spawn never scans PATH). Prints it, or `none`.
+## The CLI a spawn resolves to: the service its caller named, else the CLI service of the preset its tier names
+## (AgentsToolsPresetSpawnCli; a spawn never scans PATH). Prints it, or `none`.
 AgentsReviewCliResolved(){ ## service named by the caller (may be empty)
 	local cliName="${1:-}"
-	[ -n "$cliName" ] || cliName="$( AgentsReviewTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2> /dev/null )" || cliName=""
+	if [ -z "$cliName" ] ; then
+		type AgentsToolsPresetSpawnCli > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
+		cliName="$( AgentsToolsPresetSpawnCli 2> /dev/null )" || cliName=""
+	fi
 	printf '%s' "${cliName:-none}"
 }
 
-## What a resume compares beside the CLI: SPAWN_CLI_SERVICE as configured, `+`, a short
-## hash of the vendor binary's `--version` output (`-` for a CLI that is no vendor binary).
+## What a resume compares beside the CLI: the preset chosen for that spawn (`MDAT_SPAWN_PRESET`, else the CLI itself),
+## `+`, a short hash of the vendor binary's `--version` output (`-` for a CLI that is no vendor binary). The preset is
+## what the spawn settings come from, so a different preset is a different setting even on the same CLI.
 AgentsReviewCliSetting(){ ## resolved cli
 	local setValue setBin="" setHash="-"
-	setValue="$( AgentsReviewTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2> /dev/null )" || setValue=""
+	case "${MDAT_SPAWN_PRESET:-}" in
+		''|-*) setValue="${1:-}" ;;
+		*) setValue="$MDAT_SPAWN_PRESET" ;;
+	esac
 	case "$1" in
 		claude-native) setBin=claude ;;
 		copilot-native) setBin=copilot ;;
@@ -273,14 +281,16 @@ AgentsReviewRecordPaying(){ ## record path -- the name of the workspace that pai
 ## service it was started on by name. A paying workspace this machine no longer knows
 ## reads as none named: the restart's own spawn is what refuses it, by name.
 AgentsReviewRecordCliNow(){ ## record path
-	local nowName nowPaid="" nowCli
+	local nowName nowPaid="" nowCli nowPreset
 	nowName="$( AgentsReviewRecordPaying "$1" )"
+	nowPreset="$( AgentsToolsSpawnSandboxRecordHeader "$1" preset )"
+	case "$nowPreset" in ''|none|-) nowPreset="" ;; esac
 	if [ -n "$nowName" ] ; then
 		type AgentsToolsWorkspaceByName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 		nowPaid="$( AgentsToolsWorkspaceByName "$nowName" 2> /dev/null )" || nowPaid=""
 	fi
 	(
-		export MDAT_SPAWN_SETTINGS_WORKSPACE="$nowPaid"
+		export MDAT_SPAWN_SETTINGS_WORKSPACE="$nowPaid" MDAT_SPAWN_PRESET="$nowPreset"
 		nowCli="$( AgentsReviewCliResolved "$( AgentsReviewRecordCliAsked "$1" )" )"
 		printf '%s\t%s' "$nowCli" "$( AgentsReviewCliSetting "$nowCli" )"
 	)
@@ -706,6 +716,10 @@ AgentsReviewPromptClose(){ ## record file, pending id, who closes it, why
 	type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 	AgentsReviewTools --intern-op-pending-reply-close "$pcId" --if-open --status withdrawn --withdrawn-by "$pcWho" --withdraw-reason "$pcWhy" \
 		--no-decision --context "${MDSC_CMD:-review}" > /dev/null 2>&1 || return 0
+	## The close moves the record to pending/closed/ (retention, T9): its fields -- the thread it
+	## was posted in, who it was addressed to -- are read from there, or the post and the thread
+	## would be left as they were while the record says otherwise.
+	[ -f "$pcFile" ] || pcFile="$MMDAPP/.local/agents/pending/closed/$pcId.md"
 	pcOwner="$( AgentsToolsDecisionsField "$pcFile" owner )"
 	pcChannel="$( AgentsToolsDecisionsField "$pcFile" channel )"
 	pcTs="$( AgentsToolsDecisionsField "$pcFile" question-ts )"
@@ -734,7 +748,7 @@ AgentsReviewPromptSettle(){ ## who settled it, item file name, what was done, in
 		[ "$psId" != "${MDAT_REVIEW_PROMPT_GIVING:-}" ] || continue
 		[ "$( AgentsToolsDecisionsField "$psFile" kind )" = "review" ] && [ "$( AgentsToolsDecisionsField "$psFile" status )" = "reply-pending" ] || continue
 		AgentsReviewPromptClose "$psFile" "$psId" "$psWho" "$psItem was $psWord by $psWho" < /dev/null
-	done < <( LC_ALL=C grep -r -l -x -F --include='*.md' -- "item: $psItem" "$MMDAPP/.local/agents/pending" 2> /dev/null )
+	done < <( LC_ALL=C grep -l -x -F -- "item: $psItem" "$MMDAPP/.local/agents/pending"/*.md 2> /dev/null )
 	return 0
 }
 

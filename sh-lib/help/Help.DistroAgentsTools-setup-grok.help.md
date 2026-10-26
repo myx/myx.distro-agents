@@ -29,19 +29,24 @@
 			is an error rather than a fallback. Every sub-operation takes
 			it. It names a target; it stores no value.
 
-		--spawn-cli-service <cli-name>
-			Which agent CLI this workspace starts. You are never asked for
-			it: an --apply on this domain writes `grok` into it, and
-			--set-as-default is what repoints an already-made selection.
+		Which agent CLI this workspace starts. You are never asked for
+		it: an --apply on this domain makes a preset named `grok`
+		(its CLI service) and points SPAWN_TIER_NORMAL, the team's
+		default tier, at it, so the spawns start on `grok`.
+		--set-as-default is what repoints an already-made selection, and
+		without it an --apply fills the selection only where none is
+		made.
 
 		--xai-api-key <key>
 			An xAI API key, used for every tier. Required.
 
 			Stored as XAI_API_KEY -- the name AgentsGrokHarness.sh reads
 			out of its own environment, and xAI's own documented name -- in
-			this workspace's magic-team config scope. A secret: it never
-			travels on a command line, so supply it through the stdin-fed
-			form --print-apply-command writes.
+			the preset-grok config scope, the preset of grok's CLI service,
+			which --apply makes where it is not there yet and never
+			overwrites. A secret: it never travels on a command line, so
+			supply it through the stdin-fed form --print-apply-command
+			writes.
 
 ##  Sub-operations:
 

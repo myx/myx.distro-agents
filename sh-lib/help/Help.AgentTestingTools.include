@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## The help of AgentTestingTools.fn.sh: any member's personal tool for a testing need. Every echo stays flush-left:
+## --member-help cuts help files on a ^echo anchor.
+##
+## The default syntax is the one operation a reader starts from, in the shortest form that runs; the expanded options
+## sit behind --help-syntax, the manual behind --help.
+case "$1" in
+	'')
+echo "📘 syntax: AgentTestingTools.fn.sh --request-tests --why <text> [<test>...]" >&2
+echo "📘 syntax: AgentTestingTools.fn.sh [--help-syntax]" >&2
+echo "📘 syntax: AgentTestingTools.fn.sh [--help]" >&2
+		return 0
+	;;
+	--help-syntax)
+echo "📘 syntax: AgentTestingTools.fn.sh --request-tests --why <text> [--project <p>] [--file <changed-file>]... [--about <scratch-folder>] [--wait|--no-wait] [<test>...]" >&2
+echo "📘 syntax: AgentTestingTools.fn.sh [--help-syntax]" >&2
+echo "📘 syntax: AgentTestingTools.fn.sh [--help]" >&2
+		return 0
+	;;
+	--help)
+		myx.common lib/catMarkdown "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.AgentTestingTools.help.md" >&2
+		return 0
+	;;
+esac

@@ -162,7 +162,7 @@ cells firstLine 2 1 139
 keys ENTER
 get asked
 wait list 30
-keys LEFT
+keys BACKSPACE
 turn
 get on
 border title 1 0 140
@@ -175,7 +175,9 @@ get early
 advance 2
 wait list 30
 RIGSCRIPT
-rigAssert "at the root, before the selection has rested on the section, nothing of the asks is read, and the pane says that it waits for them" "$( rigVal first.selected ) [$( rigReading first )] [$( rigVal firstLine )]" "pending [] [Populating Pending Questions...]"
+## R16 (owner, 2026-10-26): the waiting word stands IN THE PANE ALONE and never in the notice, so what
+## this reads here is that nothing of the asks is read yet; the word itself is `Focus`'s to check.
+rigAssert "at the root, before the selection has rested on the section, nothing of the asks is read" "$( rigVal first.selected ) [$( rigReading first )]" "pending []"
 rigAssert "entering the section starts the read"                     "$( rigVal asked.path ) $( rigReading asked )" "pending list:pending"
 rigAssert "it is the read of every owner's asks, named for magic-coordinator" "[$( LC_ALL=C grep -v -x -e '--manager-place-list' -e "$rigRead --count" "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C sed -n '1p' )]" "[$rigRead]"
 rigAssert "back on the section itself the left pane is the table of the asks, nothing above it" "$( rigVal on.selected ) [$( rigVal title )] [$( rigVal line1 | LC_ALL=C tr -s ' ' )]" \
@@ -273,7 +275,7 @@ get typed
 keys RIGHT
 get dived
 RIGSCRIPT
-rigAssert "an ask is selected, and the left pane names no key for it" "$( rigVal on.selected ) [$( rigVal keysLine )]" "1f2e3d4c-0000-4000-8000-000000000003 []"
+rigAssert "an ask is selected, and the left pane names no key for it" "$( rigVal on.selected ) [$( rigVal keys.notice )]" "1f2e3d4c-0000-4000-8000-000000000003 []"
 rigAssert "its keys are pressed: no dialog opens, nothing is submitted, and the status line says why" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.quit )" "[] [Answer: what can be done with this question is still being read] no"
 rigAssert "Enter dives nowhere, nor does Right, which pages down"    "$( rigVal dived.path ) $( rigVal dived.selected )" "pending 0d7affda-0000-4000-8000-000000000001"
 rigAssert "no operation that changes an ask is called: every start is the read" "$( rigOtherCalls ) $( [ "$( rigCalls )" -ge 1 ] && printf read )" "0 read"
@@ -290,7 +292,7 @@ get a
 cells row1 2 85 119
 cells row2 3 85 119
 cells line1 2 1 83
-keys LEFT
+keys BACKSPACE
 turn
 cells rootLine1 2 1 83
 RIGSCRIPT
@@ -509,7 +511,7 @@ echo "-- a held change: its fields, and its whole diff as it is --"
 rigAssert "what its post was filled with stands under the names of its slots" "$( rigPaneHolds c ' act Edit' ) $( rigPaneHolds c ' file skillset/rig/rig.routine.md' ) $( rigPaneHolds c ' change store change-0005' )" "1 1 1"
 rigAssert "the diff stands as it is, line for line"                   "$( rigPaneHolds c ' the diff:' ) $( rigPaneHolds c ' --- a/skillset/rig/rig.routine.md' ) $( rigPaneHolds c ' @@ -3,2 +3,3 @@' ) $( rigPaneHolds c '  - step one' )" "1 1 1 1"
 rigAssert "a long line of it stays one line, cut where the pane ends, and a TAB keeps its place" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^c|' | LC_ALL=C sed -e 's/^c|│/c| /' -e 's/│.*$//' -e 's/▲.*$//' -e 's/▼.*$//' -e 's/▒.*$//' -e 's/■.*$//' -e 's/  *$//' | LC_ALL=C grep -c '^c| +- step two, a line of the diff that goes on well past the width of the pane .*…$' ) $( rigPaneHolds c ' stays one line there' ) $( rigPaneHolds c '     - step three' )" "1 0 1"
-rigAssert "the post itself comes after; the other fields of its record are left out" "$( rigPaneHolds c ' as posted:' ) $( rigPaneHolds c ' # ✏️ Change for approval' ) $( rigPaneHolds c ' its record:' ) $( rigPaneHolds c ' host rig-host' )" "1 1 0 0"
+rigAssert "the post itself comes after; the other fields of its record are left out" "$( rigPaneHolds c ' as posted:' ) $( rigPaneHolds c ' ✏️ Change for approval' ) $( rigPaneHolds c ' its record:' ) $( rigPaneHolds c ' host rig-host' )" "1 1 0 0"
 rigAssert "and no hint says where it is answered"                    "$( rigPaneHolds c ' an ask is answered where it was posted, or from here by its keys' )" 0
 
 echo "-- a permission set: its entries, numbered --"
@@ -522,7 +524,7 @@ rigAssert "what was refused, where and why, each under the name of its slot" "$(
 rigAssert "and what the tool said of the refused call"                "$( rigPaneHolds p ' refused text REFUSED: /rig/folder is outside what magic-librarian may read' )" 1
 
 echo "-- a decision asked before its slots were kept: its post is the question, its options are numbered --"
-rigAssert "the post stands as the question, whole, a long line broken to the pane" "$( rigPaneHolds d ' question, as posted:' ) $( rigPaneHolds d ' # 🧭 Decision Q11' ) $( rigPaneHolds d ' Fix B is approved as correct and urgent, and the developer is still silent here' ) $( rigPaneHolds d ' after a second round of asking. What next?' ) $( rigPaneHolds d ' as posted:' )" "1 1 1 1 0"
+rigAssert "the post stands as the question, whole, a long line broken to the pane" "$( rigPaneHolds d ' question, as posted:' ) $( rigPaneHolds d ' 🧭 Decision Q11' ) $( rigPaneHolds d ' Fix B is approved as correct and urgent, and the developer is still silent here' ) $( rigPaneHolds d ' after a second round of asking. What next?' ) $( rigPaneHolds d ' as posted:' )" "1 1 1 1 0"
 rigAssert "the options stand numbered as they were asked, a long one broken under itself" "$( rigPaneHolds d ' options:' ) $( rigPaneHolds d '  1. Proceed - land Fix B now on the review of the architect, with the consult rule' ) $( rigPaneHolds d '     of the asker still unmet, which is the longest of the three' ) $( rigPaneHolds d '  2. Keep waiting - one more bounded round' ) $( rigPaneHolds d '  3. Hold - do not land Fix B' )" "1 1 1 1 1"
 
 echo "-- the whole ask scrolls, and still no key answers it --"
@@ -548,7 +550,7 @@ turn
 get typed
 RIGSCRIPT
 rigAssert "the pane starts at the top of the ask, and does not follow its end" "$( rigVal c.viewTop ) $( rigVal c.follow ) [$( rigPane c 3 )]" "0 no [ ✏️ change waits 1h]"
-rigAssert "with the focus on it, PageDown shows its next page"        "$( rigVal paged.focus ) $( rigVal paged.viewTop ) $( rigPaneHolds paged ' as posted:' )" "view 10 1"
+rigAssert "with the focus on it, PageDown shows its next page"        "$( rigVal paged.focus ) $( rigVal paged.viewTop ) $( rigPaneHolds paged ' as posted:' )" "view 11 1"
 rigAssert "and reaches its last line"                                 "$( rigPaneHolds end '  ask       5c5c5c5c-0000-4000-8000-000000000005' ) $( rigVal end.spills )" "1 0"
 rigAssert "a text is typed and Enter is pressed: no line opens, nothing is submitted, nothing is dived into" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.path ) $( rigVal typed.selected )" "[] [Answer: what can be done with this question is still being read] pending 0d7affda-0000-4000-8000-000000000001"
 rigAssert "every call was a read of the asks: the list, or one ask by its id" "$( LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C grep -c -v -- '^--read-pending-reply magic-coordinator ' || : ) $( [ "$( rigReadOf "$rigC" )" -ge 1 ] && printf read )" "0 read"
@@ -599,10 +601,10 @@ keys ESC TAB
 turn
 cells sView 39 0 120
 RIGSCRIPT
-rigAssert "a plain question: Enter answers, d dismisses, o shows the link, and it takes no reject" "[$( rigVal s3 )]" "[ ENTER Answer  d Dismiss  o Link  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "a plain question: Enter answers, d dismisses, o shows the link, and it takes no reject" "[$( rigVal s3 )]" "[ ENTER Answer  d Dismiss  o Link  BSP Up  a Active  / Filter  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "the left window names no keys of its own: the status line alone names them" "[$( rigVal k3 | LC_ALL=C sed -n 's/^\(keys:\).*/\1/p' )]" "[]"
-rigAssert "a permission with no link: it takes a reject, and no key shows a link" "[$( rigVal s2 )]" "[ ENTER Answer  j Reject  d Dismiss  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
-rigAssert "a decision: no reject of its own"                          "[$( rigVal s1 )]" "[ ENTER Answer  d Dismiss  o Link  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "a permission with no link: it takes a reject, and no key shows a link" "[$( rigVal s2 )]" "[ ENTER Answer  j Reject  d Dismiss  BSP Up  a Active  / Filter  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "a decision: no reject of its own"                          "[$( rigVal s1 )]" "[ ENTER Answer  d Dismiss  o Link  BSP Up  a Active  / Filter  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "the menu Question holds the four, with their keys"         "$( rigVal menu.menu ) $( rigBoxHolds qm '│ Answer         ENTER │' ) $( rigBoxHolds qm '│ Reject             j │' ) $( rigBoxHolds qm '│ Dismiss            d │' ) $( rigBoxHolds qm '│ Show the link      o │' )" "question:answer 1 1 1 1"
 rigAssert "and the one that does not apply to this question is greyed there" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^qr|' | LC_ALL=C sed -n '4p' | LC_ALL=C cut -c18-23 )" "xxxxxx"
 rigAssert "with the keys in the left window the status line names none of them, and that window's own key" "[$( rigVal sView )]" "[ y Answer  d Dismiss  o Link  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
@@ -645,7 +647,7 @@ rigAssert "the status line names the keys of the dialog, the digits among them" 
 rigAssert "a digit chooses the answer of that number"                 "[$( rigVal two.dialog )]" "[answer:answers|2]"
 rigAssert "words are typed into the field"                            "[$( rigVal typed.dialog )]" "[answer:words|be sure]"
 rigAssert "Enter answers: the dialog closes, and the operation is called once, with the number chosen and the words" "[$( rigVal asked.dialog )] $( rigActCalls )" "[] [--manager-pending-reply-answer][--id][$rigAsk1][--answer][2][--text][be sure]"
-rigAssert "its success stands in the status line"                     "[$( rigVal doneSaid )] [$( rigVal done.dialog )]" "[answered: drop, as user-rig] []"
+rigAssert "its success stands in the status line"                     "[$( rigVal done.notice )] [$( rigVal done.dialog )]" "[answered: drop, as user-rig] []"
 rigAssert "and the list is read again after it"                       "$( LC_ALL=C sed -n '/^--manager-pending-reply-answer /,$p' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C grep -c -x -F -- "$rigRead" | LC_ALL=C sed -e 's/^[1-9][0-9]*$/read/' )" "read"
 
 echo "-- y on a plain question: its words are the answer, an empty one is refused inside; o shows its link --"
@@ -742,7 +744,8 @@ turn
 cells twoRoot 3 85 119
 at magic-team
 turn
-cells twoIn 4 85 119
+rowids twoInRows
+cells twoIn 3 85 119
 copy $MANAGER_SCREEN_RIG/zero $( rigCountFile )
 at
 advance 11
@@ -752,11 +755,14 @@ turn
 cells zeroRoot 3 85 119
 at magic-team
 turn
-cells zeroIn 4 85 119
+rowids zeroInRows
+cells zeroIn 3 85 119
 RIGSCRIPT
 rigAssert "before the count has come the row has none, at the root" "[$( rigVal unreadRoot )]" "[$( rigRowOf 'Pending Questions' )]"
-rigAssert "with two that wait it shows [2], at the root and under Magic-Team (Agents)" "[$( rigVal twoRoot )] [$( rigVal twoIn )]" "[$( rigRowOf 'Pending Questions [2]' )] [$( rigRowOf 'Pending Questions [2]' )]"
-rigAssert "when the count is read again it follows: none that wait, [0], in both places" "[$( rigVal zeroRoot )] [$( rigVal zeroIn )]" "[$( rigRowOf 'Pending Questions [0]' )] [$( rigRowOf 'Pending Questions [0]' )]"
+## R16 (owner, 2026-10-26): Pending Questions stands in the root alone, as the sketch has it: it is no child of
+## Magic-Team (Agents) any more, so the count is shown at the root, and its children there are as the sketch lists them.
+rigAssert "with two that wait the row shows [2] at the root; Magic-Team (Agents) holds Activity, Launchpad, Team Members and Routines, and no Pending Questions of its own" "[$( rigVal twoRoot )] [$( rigVal twoIn )] [$( rigVal twoInRows )]" "[$( rigRowOf 'Pending Questions [2]' )] [$( rigRowOf 'Activity' )] [.. activity launch team routines]"
+rigAssert "when the count is read again it follows at the root: none that wait, [0]; Magic-Team (Agents) has no row of it to carry the number" "[$( rigVal zeroRoot )] [$( rigVal zeroIn )] [$( rigVal zeroInRows )]" "[$( rigRowOf 'Pending Questions [0]' )] [$( rigRowOf 'Activity' )] [.. activity launch team routines]"
 rigAssert "the count is the operation of the list with --count, asked twice in all, and the list itself not at all" "$( LC_ALL=C grep -c -x -F -- "$rigRead --count" "$MANAGER_SCREEN_RIG/calls" ) $( LC_ALL=C grep -c -x -F -- "$rigRead" "$MANAGER_SCREEN_RIG/calls" || : )" "2 0"
 rigCase countbad no.asks rows
 printf 'not a number\n' > "$( rigCountFile )"

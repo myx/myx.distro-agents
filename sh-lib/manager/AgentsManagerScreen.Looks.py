@@ -394,6 +394,7 @@ STYLE_MARKS = {
     ## which joins the next line's with no gap, and the lower half block on the bottom edge of
     ## a cell under it draws what lies under; the corner under its left is left as it lies
     "magic": {"rule": " ─ ", "barUp": "↑", "barDown": "↓", "barTrack": " ", "barThumb": "▍", "barThumbOff": "▎",
+              "folder": "▶",
               "checks": ("✓ ", "· "), "radios": ("• ", "· "), "shadow": (" ", " ", "", "▄", "▄")},
     ## Turbo Vision: the shadow of a raised button (drawGroundShadow): ▅ beside its face, the
     ## shadow over the dialog, and ▅ under it from one cell after its left, the dialog over the
@@ -411,6 +412,9 @@ POPULATING = "Populating %s..."
 ## carries under "wide", a session the total of its tokens. Shown where a row has that
 ## many cells, and that many cells wide, its figures one under another.
 LIST_WIDE = {"from": 34, "cells": 6}
+## One column of padding at the right edge of a row of the right pane's list, in the Magic
+## (`nu`) style alone, so a row there never touches the frame (the sketch's 14.3).
+LIST_PAD = 1
 ## How a state shows where the left pane sets one out, in a cell of a table or as the value
 ## of a fact (stateLook): by the words the operations print, the look of what is well, of
 ## what to look at, of what is bad, and dim for what is over. A word not named here is

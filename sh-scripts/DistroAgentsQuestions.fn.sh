@@ -36,7 +36,7 @@ DistroAgentsQuestions(){
 			set +e ; return 1
 		;;
 		--help)
-			AgentsToolsFrontHelp DistroAgentsQuestions "every ask of the team" >&2
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsQuestions.include"
 			return 0
 		;;
 	esac

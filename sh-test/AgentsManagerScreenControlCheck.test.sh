@@ -14,17 +14,17 @@
 ## that prints no `control` row, what the list said; the status line names `c Control` under a session that is not
 ## finished and whose thread does not live, and under no other, and the left pane has no `keys:` line of its own (F11.0); `c` on a session asks for no confirmation and calls
 ## `--manager-session-control-start --session-id <id>` once, with the id of that session and nothing on its
-## standard input; the bottom line says the outcome in words from the row, started with its pid, alive already,
+## standard input; the notice says the outcome in words from the row, started with its pid, alive already,
 ## not needed and not started each with the reason the row gives, a TAB and a backslash of it read back; the same
 ## words stand at the head of the left pane; then the list is read again, and the mark goes with the thread that
 ## lives now; a start that fails after its row keeps the words of that row in the bottom line, with the error line
 ## of the operation under them in the pane, and the row keeps its mark; one that fails with no row shows its error
-## line; a row that is no session, a section, the row that goes up, `Launch (Start)` and an agent of a session,
+## line; a row that is no session, a section, the row that goes up, `Launchpad` and an agent of a session,
 ## says that there is nothing to control, and nothing is called; `c` pressed again before the answer has come asks
 ## nothing a second time; the key works with the focus on the left pane too; and rows of before, a `session` row of
 ## eight fields and a read with no `control` row, still draw: no mark, `-` in the line `control`, and no error.
 ## Reconciled for F11.0: the pane's `keys:` line is gone (its keys are read from the status line, rigKeysNamed), and
-## the spacer under `Launch (Start)` moves each session row of the list one line down; `a.rows` is taken to count
+## the spacer under `Launchpad` moves each session row of the list one line down; `a.rows` is taken to count
 ## no spacer.
 ## Offline: no operation of the real tooling is called, no process is started, and no session of this machine is read.
 ## Reconciled for F11.5: the sessions are Active Sessions of Activity: the list that is entered holds `..` and then the sessions, with no Launch row and no spacer, so each case moves one row less and reads its rows two lines higher.
@@ -277,10 +277,10 @@ cells afterRow 3 85 119
 cells afterKeys 37 1 83
 cells afterKeysStatus 39 0 120
 RIGSCRIPT
-rigAssert "c opens no line to type in: the start is asked of the tooling at once" "[$( rigVal asked.dialog )] $( rigVal asked.reading ) [$( rigVal askedLine )]" "[] action:control:$rigS1 [control thread asked of the tooling: the session daily of Monday]"
+rigAssert "c opens no line to type in: the start is asked of the tooling at once" "[$( rigVal asked.dialog )] $( rigVal asked.reading ) [$( rigVal asked.notice )]" "[] action:control:$rigS1 [control thread asked of the tooling: the session daily of Monday]"
 rigAssert "the operation is called once, with the id of that session and nothing more" "$( rigStarts ) [$( rigStartWords )]" "1 [[--manager-session-control-start][--session-id][$rigS1]]"
 rigAssert "nothing goes to its standard input, and nothing else is called" "$( [ -e "$MANAGER_SCREEN_RIG/stdin.--manager-session-control-start" ] && printf input || printf none ) $( rigElse )" "none 0"
-rigAssert "the bottom line says the outcome in words: started, with the pid" "[$( rigVal answeredLine )]" "[control: started, pid 4321]"
+rigAssert "the notice says the outcome in words: started, with the pid" "[$( rigVal answered.notice )]" "[control: started, pid 4321]"
 rigAssert "the same stands at the head of the left pane"             "[$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )] $( rigVal answered.answer )" "[ the control start, answered 02:30:00:][   started, pid 4321][] 2"
 rigAssert "then the list is read again"                              "$( rigCalled --manager-session-list )" 2
 rigAssert "and shows the session as it is now, still selected: the mark is gone, and the thread lives" "$( rigVal after.selected ) [$( rigVal afterRow )] [$( rigPane z 7 )][$( rigPane z 8 )]" \
@@ -403,7 +403,7 @@ get end
 RIGSCRIPT
 rigHere="Control thread: for a session, not for what is selected"
 rigAssert "on a section c is no key of the view; on the row that goes up the status line says what c is for, and no box opens" "[$( rigVal section.notice )][$( rigVal up.notice )] [$( rigVal section.dialog )$( rigVal up.dialog )]" "[][$rigHere] []"
-rigAssert "on Launch (Start) there is nothing to control"            "$( rigVal launch.selected ) [$( rigVal launch.notice )]" "launch [$rigHere]"
+rigAssert "on Launchpad there is nothing to control"            "$( rigVal launch.selected ) [$( rigVal launch.notice )]" "launch [$rigHere]"
 rigAssert "an agent of a session names no such key, and c on it says the same: the thread is its session's" "$( rigVal agent.path ) $( rigVal agent.selected ) [$( rigKeysNamed agentKeys )] [$( rigVal onAgent.notice )]" "magic-team/activity/active-sessions/$rigS1 $rigS1 [keys: k kill] [$rigHere]"
 rigAssert "the operation was never called"                           "$( rigStarts ) $( rigElse ) $( rigVal end.calls ) [$( rigVal end.reading )]" "0 0 0 []"
 

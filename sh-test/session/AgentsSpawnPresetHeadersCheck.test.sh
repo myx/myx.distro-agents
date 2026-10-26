@@ -45,7 +45,8 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'rigContext="$( cat )"' \
 	'case "$rigContext" in "Your previous run on this task ended without calling SubagentHandback."*) exit 0 ;; esac' \
 	'printf "%s\n" "$rigContext" > "$RIG_SCENARIO/brief"' \
-	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWs/DistroAgentsConsole.sh"
+	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' \
+	'[ -z "${RIG_RESTARTS:-}" ] || printf "1 1000 2026-10-26T00:00:00Z\n" >> "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.restarts"' > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
 printf '# rig armed\n' > "$rigSkills/keeper-myx/keeper-myx.armed.md"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
@@ -83,7 +84,7 @@ rigSpawn(){ ## content, member, the tier setting of the team (may be empty), the
 		if [ -n "${4:-}" ] ; then printf 'SPAWN_TIER_NORMAL=%s\n' "$3" > "$rigPayer/.local/.agents/magic-team.agent.env" ; else printf 'SPAWN_TIER_NORMAL=%s\n' "$3" >> "$rigWs/.local/.agents/magic-team.agent.env" ; fi
 	fi
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
+		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_TMP="$rigTmp" RIG_FN="$rigTool" RIG_RESTARTS="${RIG_RESTARTS:-}" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -107,12 +108,17 @@ rigSecrets(){ ## -- how many files of the rig, but the preset files themselves, 
 echo "-- 1. no preset chosen: neither header --"
 rigOut="$( rigSpawn "RIG-TASK-TEXT" keeper-myx "" )"
 grep -q 'RIG-TASK-TEXT' "$rigTmp/brief" || rigRefuse "the fake console never received the context: $( printf '%s\n' "$rigOut" | grep ERROR | head -1 )"
-rigAssert "the record has no preset: and no credential:" "$( rigHeader preset ) $( rigHeader credential )" "- -"
+rigAssert "the record has no preset:, no credential: and no restarts:" "$( rigHeader preset ) $( rigHeader credential ) $( rigHeader restarts )" "- - -"
 
 echo "-- 2. a preset that holds the key --"
 rigSpawn "RIG-TASK-TEXT" keeper-myx "rig-key" > /dev/null
 rigAssert "the preset, and the scope and the name of the key" "$( rigHeader preset ) $( rigHeader credential )" "rig-key preset-rig-key/ANTHROPIC_API_KEY"
 rigAssert "the value of the key is in no file but the preset's own, and in no output" "$( rigSecrets )" "0"
+
+echo "-- 2b. a run that restarted carries the count the harness kept --"
+RIG_RESTARTS=1 rigSpawn "RIG-TASK-TEXT" keeper-myx "rig-key" > /dev/null
+rigAssert "the run record carries restarts: 1"                                       "$( rigHeader restarts )" 1
+rigAssert "and the rest of the record is unchanged"                                  "$( rigHeader preset ) $( rigHeader credential )" "rig-key preset-rig-key/ANTHROPIC_API_KEY"
 
 echo "-- 3. an extension that holds none groups with the preset it extends --"
 rigSpawn "RIG-TASK-TEXT" keeper-myx "rig-ext:high" > /dev/null

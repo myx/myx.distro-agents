@@ -65,14 +65,14 @@ rigVerdictLine(){
 }
 rigRecordFile(){
 	local recordFile
-	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] && { printf '%s' "$recordFile" ; return 0 ; }
 	done
 	printf '%s' "$rigScenarioDir/no-record"
 }
 rigRecordCount(){
 	local recordCount=0 recordFile
-	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] && recordCount=$(( recordCount + 1 ))
 	done
 	printf '%s' "$recordCount"
@@ -676,7 +676,7 @@ rigPermissionAsk(){ ## the path of the refused write, the call's to and its othe
 }
 ## How many records of the scenario say one identity asked.
 rigRecordsAskedAs(){ ## bot|member
-	LC_ALL=C grep -l -x -F "ask-identity: $1" "$rigScenarioDir/ws/.local/agents/pending"/*.md 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }'
+	LC_ALL=C grep -l -x -F "ask-identity: $1" "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }'
 }
 ## The token one post of the scenario went out under: the fake curl keeps it beside the post.
 rigPostedAs(){ ## post number
@@ -751,7 +751,7 @@ rigPermissionAsk "$rigAgainFile" '"to":"human-owner"' 'the second task of the ri
 rigAssert "asked again after the bot asked it: the bot's reply in that question's own thread" \
 	"$( rigPostedAs "$rigAgainPost" ):$( rigHolds "$rigScenarioDir/post.$rigAgainPost" '"thread_ts":"1700000001.000101"' ):$( rigSeededAs "$rigBotToken" "000${rigAgainPost}01" ):$( rigRecordsAskedAs bot )" "$rigBotToken:yes:1:1:1:2"
 ## As records from before read: asked under the member's own account.
-for rigAgainRecord in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+for rigAgainRecord in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 	LC_ALL=C sed 's/^ask-identity: bot$/ask-identity: member/' "$rigAgainRecord" > "$rigAgainRecord.rig" && mv -f "$rigAgainRecord.rig" "$rigAgainRecord"
 done
 rigCall 60 Write "{\"path\":\"$rigAgainFile\",\"content\":\"x\"}"

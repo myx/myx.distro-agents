@@ -25,6 +25,7 @@ HARNESS_CREDENTIAL_NAMES="XAI_API_KEY"
 ## Both ids are listed by this API's own /v1/models; MAGIC.md carries the evidence.
 ## A model an exported HARNESS_MODEL_LIGHT or HARNESS_MODEL_MAIN names stands ahead of the leg's own: the console
 ## exports the model name of the preset a spawn runs on (F10.2), and nothing else does. The default is the leg's.
+HARNESS_MODEL_FROM_LIGHT="${HARNESS_MODEL_LIGHT:+name}" ; HARNESS_MODEL_FROM_MAIN="${HARNESS_MODEL_MAIN:+name}"
 HARNESS_MODEL_LIGHT="${HARNESS_MODEL_LIGHT:-grok-4.3}"
 HARNESS_MODEL_MAIN="${HARNESS_MODEL_MAIN:-grok-4.7}"
 HARNESS_TOKEN_LIGHT="${XAI_API_KEY:-}"
@@ -32,13 +33,21 @@ HARNESS_TOKEN_MAIN="${XAI_API_KEY:-}"
 
 ## Each model's own window, `context_length` in GET /v1/models/<id> on 2026-09-28. No
 ## output maximum is declared: that answer carries none, and one of 100000000 was accepted.
-HARNESS_CONTEXT_TOKENS_LIGHT="1000000"
-HARNESS_CONTEXT_TOKENS_MAIN="500000"
+## The family table (AgentsHarnessLimits.include): one row a version this leg serves, the outputs the budgets this leg
+## chose. The macros low and normal or high resolve to the two models above; a version of neither is refused at start.
+## The effort none: this service has no none observed, so its lowest, low, is sent and the start line says so.
+HARNESS_MODEL_TABLE="grok-4.3*|1000000|30000|effort:low|context_length in GET /v1/models/<id> on 2026-09-28
+grok-4.7*|500000|65536|effort:low|context_length in GET /v1/models/<id> on 2026-09-28"
+
+## The service's own web search (AgentsHarnessSearchNative). xAI's docs (read 2026-10-27) offer the web_search tool of the Responses API, POST https://api.x.ai/v1/responses
+## (https://docs.x.ai/developers/tools/web-search): filters allowed_domains or excluded_domains, 5 at most, never both; sources in citations. DuckDuckGo answers where it fails.
+HARNESS_WEB_SEARCH="xai:web_search"
+export HARNESS_WEB_SEARCH
 
 export HARNESS_PROVIDER_NAME HARNESS_SELF_NAME HARNESS_ENDPOINT HARNESS_HOST
 export HARNESS_WIRE HARNESS_CREDENTIAL_NAMES
 export HARNESS_MODEL_LIGHT HARNESS_MODEL_MAIN HARNESS_TOKEN_LIGHT HARNESS_TOKEN_MAIN
-export HARNESS_CONTEXT_TOKENS_LIGHT HARNESS_CONTEXT_TOKENS_MAIN
+export HARNESS_MODEL_TABLE HARNESS_MODEL_FROM_LIGHT HARNESS_MODEL_FROM_MAIN
 
 ## exec, not source: the core becomes this process, so the console keeps one
 ## invoker. The core resolves its own helper lookups from the origin, not from $0.

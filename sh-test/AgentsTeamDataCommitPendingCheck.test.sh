@@ -67,6 +67,7 @@ rigPending(){ ## store path
 rigOp(){ ## store path, result file, member, extra args...
 	local opStore="$1" opOut="$2" ; shift 2
 	( cd "$rigTmp/ws" && env -u CLAUDE_CODE_ENTRYPOINT MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$opStore" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		MDAT_WORKSPACE_MODE=team-rig \
 		bash "$rigFn" --commit-pending "$@" ) > "$opOut" 2> "$opOut.err"
 	printf '%s' "$?" > "$opOut.rc"
 }

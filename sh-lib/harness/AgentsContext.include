@@ -67,6 +67,17 @@ DistroAgentsContext(){
 			esac
 			return 0
 		;;
+		## The origin stays where --run-from-* put it: the agents tooling carries no pipeline tiers, so the
+		## distro index variables hold the console's own values (AgentsConsoleManager.fn.sh), filled here when
+		## the tool runs on its own. The family cascade moves the origin, which this tooling never does.
+		--distro-path-auto)
+			if [ -n "$MDSC_OPTION" ] && [ -n "$MDSC_INMODE" ] ; then
+				return 0
+			fi
+			export MDSC_INMODE=".local"
+			export MDSC_OPTION="--run-from-.local"
+			return 0
+		;;
 		## origin stays local: AgentsContext.SetInputSpec.include probes for this
 		## package's own presence, and carries no tier cascade. The rest delegates.
 		*)

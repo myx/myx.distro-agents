@@ -5,11 +5,13 @@
 ## all of them and a `system` that opens with the same bytes: the team's common instruction (magic-team.basic.md), MOVED there
 ## from the default skill bundle. Held:
 ##   1. the floor's tools are in the order of their names, and a cache marker ends them
-##   2. `system` is two blocks for a team member: the common instruction with a marker at its end, then the member's own text
-##   3. three markers a request, no more: the moving one at the top, the end of the floor, the end of the common block; none in
-##      a work message
-##   4. two members' requests are byte for byte the same through the end of the common block, and differ after it
-##   5. no agent, or magic-team itself, has no common block: `system` is one string, two markers
+##   2. `system` is one string for a team member: the team's identity/basic and the harness paragraph every run carries; the member
+##      layer is the first block of the first user message, with a marker of its own
+##   3. three markers a request, no more: the moving one at the top, the end of the floor, the end of the member block; none elsewhere
+##   4. two members' requests are byte for byte the same through the team layer and the whole tool floor, and differ at the member
+##      label in the first user message
+##   5. no agent has no team layer: `system` is one string, two markers; magic-team itself carries the team's instruction as its own
+##      basic, in a marked team block, and its member block names it
 ##   6. the default skill bundle of a harness run leaves the team's basic file out (the armed file stays); a served call, a native
 ##      client's, keeps it
 ##   7. round 1 says what became of the shared prefix
@@ -101,6 +103,12 @@ rigIn(){ ## text, needle -- yes where the text holds the needle
 		*) printf 'no' ;;
 	esac
 }
+rigEndsWith(){ ## text, tail -- yes where the text ends with the tail
+	case "$1" in
+		*"$2") printf 'yes' ;;
+		*) printf 'no' ;;
+	esac
+}
 rigMarkers(){ ## file -- how many cache markers the request carries
 	LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$1" | wc -l | tr -d ' '
 }
@@ -121,20 +129,23 @@ echo "-- two members: the same tools, the same opening of system --"
 rigStart member-a ; rigTextStream "$rigScenarioDir/res.1" RIG-DONE ; rigRun --agent rig-a ; rigA="$rigScenarioDir"
 rigStart member-b ; rigTextStream "$rigScenarioDir/res.1" RIG-DONE ; rigRun --agent rig-b ; rigB="$rigScenarioDir"
 rigAssert "the run ends normally"                                                  "$rigRunStatus" 0
-rigCommonBlock='{"type":"text","text":"RIG-TEAM-COMMON-LINE one two","cache_control":{"type":"ephemeral"}},{"type":"text","text":"RIG-'
-rigAssert "system is two blocks: the common instruction with its marker, then the member's"  "$( rigHolds "$rigA/req.1" '"system":['"$rigCommonBlock"'A-BASIC own words' )" yes
-rigAssert "the other member's own text follows the same first block"               "$( rigHolds "$rigB/req.1" '"system":['"$rigCommonBlock"'B-BASIC own words' )" yes
-rigAssert "three markers a request: the moving one, the end of the floor, the end of the common block" "$( rigMarkers "$rigA/req.1" )" 3
+rigTeamOpen='{"type":"text","text":"## Team-wide -- the same for every member and every session of this team\n\nRIG-TEAM-COMMON-LINE one two'
+rigAssert "system is one string: the team identity/basic, the team's armed floor and the harness paragraph every run carries"  "$( rigHolds "$rigA/req.1" '"system":"## Team-wide -- the same for every member and every session of this team\n\nRIG-TEAM-COMMON-LINE one two\n\nRIG-TEAM-ARMED-BODY\n\nUse the given tools to accomplish the request' )" yes
+rigAssert "the team's armed floor is in the system text, once, and no team+ layer follows the floor"  "$( LC_ALL=C grep -o 'RIG-TEAM-ARMED-BODY' "$rigA/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -c '## Team+' "$rigA/req.1" )" "1:0"
+rigAssert "the member layer is the first block of the first user message, with its own marker"  "$( rigHolds "$rigA/req.1" '"role":"user","content":[{"type":"text","text":"## Your role -- the same for every session of rig-a\n\nRIG-A-BASIC own words' )" yes
+rigAssert "the other member's label and own words are the same block, after the same system and tools"  "$( rigHolds "$rigB/req.1" '"role":"user","content":[{"type":"text","text":"## Your role -- the same for every session of rig-b\n\nRIG-B-BASIC own words' )" yes
+rigAssert "three markers a request: the moving one, the end of the floor, the end of the member block" "$( rigMarkers "$rigA/req.1" )" 3
 rigAssert "the marker of the floor ends its tools (no MCP tool follows here)"      "$( rigHolds "$rigA/req.1" '"cache_control":{"type":"ephemeral"}}],"tool_choice"' )" yes
-rigAssert "no marker stands in the messages"                                        "$( LC_ALL=C sed 's/.*"messages":\[//' "$rigA/req.1" | LC_ALL=C grep -c 'cache_control' )" 0
+rigAssert "one marker stands in the messages: the member's own block"               "$( LC_ALL=C sed 's/.*"messages":\[//' "$rigA/req.1" | LC_ALL=C grep -c 'cache_control' )" 1
 rigToolNames "$rigA/req.1" > "$rigTmp/names.a" ; rigToolNames "$rigB/req.1" > "$rigTmp/names.b"
 rigAssert "the floor's tools are in the order of their names"                       "$( LC_ALL=C sort -c "$rigTmp/names.a" 2>&1 && printf sorted )" sorted
 rigAssert "and there are many of them, the same in both requests"                   "$( [ "$( wc -l < "$rigTmp/names.a" | tr -d ' ' )" -gt 20 ] && cmp -s "$rigTmp/names.a" "$rigTmp/names.b" && printf same )" same
 rigDiffAt="$( cmp -l "$rigA/req.1" "$rigB/req.1" 2>/dev/null | head -1 | LC_ALL=C awk '{ print $1 }' )"
 rigCommonPart="$( head -c "$(( ${rigDiffAt:-1} - 1 ))" "$rigA/req.1" )"
-rigThrough="$( rigIn "$rigCommonPart" 'RIG-TEAM-COMMON-LINE one two","cache_control":{"type":"ephemeral"}},{"type":"text","text":"RIG-' )"
-rigAssert "two members' requests are the same bytes through the end of the common block" "$rigThrough" yes
-rigAssert "and differ after it: the first differing byte is the member's own text"  "$( tail -c +"${rigDiffAt:-1}" "$rigA/req.1" | head -c 1 )" "A"
+rigThrough="$( rigIn "$rigCommonPart" 'RIG-TEAM-COMMON-LINE one two' )$( rigIn "$rigCommonPart" 'Use the given tools to accomplish the request' )"
+rigAssert "two members' requests are the same bytes through the team layer and the whole tool floor" "$rigThrough" yesyes
+rigAssert "and differ after it: the first differing byte is the member's name in the role label"  "$( tail -c +"${rigDiffAt:-1}" "$rigA/req.1" | head -c 1 )" "a"
+rigAssert "the common part ends at the member label"                                "$( rigEndsWith "$rigCommonPart" '## Your role -- the same for every session of rig-' )" yes
 rigAssert "the common instruction is in the system and nowhere else"                "$( LC_ALL=C grep -o 'RIG-TEAM-COMMON-LINE' "$rigA/req.1" | wc -l | tr -d ' ' )" 1
 
 echo "-- no agent, and magic-team itself: no common block --"
@@ -142,8 +153,10 @@ rigStart no-agent ; rigTextStream "$rigScenarioDir/res.1" RIG-DONE ; rigRun
 rigAssert "a run with no agent has one string for system"                            "$( rigHolds "$rigScenarioDir/req.1" '"system":"' )" yes
 rigAssert "and two markers: the moving one and the end of the floor"                "$( rigMarkers "$rigScenarioDir/req.1" )" 2
 rigStart team-itself ; rigTextStream "$rigScenarioDir/res.1" RIG-DONE ; rigRun --agent magic-team
-rigAssert "magic-team itself carries its own basic as system, one string"            "$( rigHolds "$rigScenarioDir/req.1" '"system":"RIG-TEAM-COMMON-LINE one two' )" yes
-rigAssert "and two markers"                                                          "$( rigMarkers "$rigScenarioDir/req.1" )" 2
+rigAssert "magic-team itself carries the team's instruction as its own basic, in the team system string"  "$( rigHolds "$rigScenarioDir/req.1" '"system":"## Team-wide -- the same for every member and every session of this team\n\nRIG-TEAM-COMMON-LINE one two' )" yes
+rigAssert "and the team's armed floor as well: every member run, magic-team included"  "$( LC_ALL=C grep -o 'RIG-TEAM-ARMED-BODY' "$rigScenarioDir/req.1" | wc -l | tr -d ' ' )" 1
+rigAssert "and its member block names magic-team, with no second copy of the team file"  "$( rigHolds "$rigScenarioDir/req.1" '"role":"user","content":[{"type":"text","text":"## Your role -- the same for every session of magic-team' ):$( LC_ALL=C grep -o 'RIG-TEAM-COMMON-LINE' "$rigScenarioDir/req.1" | wc -l | tr -d ' ' )" yes:1
+rigAssert "three markers: the moving one, the end of the floor, the end of the member block"  "$( rigMarkers "$rigScenarioDir/req.1" )" 3
 
 echo "-- the default skill bundle --"
 rigStart bundle ; rigSkillStream "$rigScenarioDir/res.1" rig-a ; rigTextStream "$rigScenarioDir/res.2" RIG-DONE ; rigRun --agent rig-a

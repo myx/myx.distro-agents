@@ -456,13 +456,9 @@ AgentsToolsSessionControlSeconds(){ ## key, default
 AgentsToolsSessionControlDeathStart(){ ## run id, `quiet` for a start that is not said (may be empty)
 	local startRun="$1" startPid="" startBegan=""
 	(
-		## WHAT THE THREAD IGNORES, WHAT IT STARTS IGNORES TOO, and a shell that was started
-		## with a signal ignored cannot give it back its default. This call may start a member
-		## again, and that run must not live with an interrupt, a quit and an alarm ignored:
-		## so the call is started through perl, where there is one, with each of them at its
-		## default. It is the same process still, by exec.
-		if command -v perl > /dev/null 2>&1 ; then
-			exec perl -e 'for my $name ( qw( HUP INT QUIT TSTP TTIN TTOU ALRM VTALRM PROF PIPE USR1 USR2 TERM ) ) { $SIG{$name} = "DEFAULT" ; } exec { $ARGV[0] } @ARGV or exit 127' \
+		## A shell cannot give back a signal it inherited ignored, so the call starts through a python helper that resets them, then execs.
+		if command -v python3 > /dev/null 2>&1 ; then
+			exec python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSignalReset.py" \
 				"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-session-control --death --session-id "$controlSession" --spawn-id "$startRun"
 		fi
 		exec "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-session-control --death --session-id "$controlSession" --spawn-id "$startRun"

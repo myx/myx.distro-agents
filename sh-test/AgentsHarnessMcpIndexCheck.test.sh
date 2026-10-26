@@ -117,6 +117,29 @@ rigInstall "$rigEmpty" ""
 MMDAPP="$rigEmpty" ; harnessMcpLoadedFor=""
 rigAssert "a workspace with no server installed registers none" "$( rigAll )" "keys[0]=<>|not-registered:cmd[3]=<> args[0] env[0]X"
 
+echo "-- two packages, one nested differently: both found from the resolved root --"
+## The nesting is not the same for the two packages, and it is not what decides presence:
+## myx.common ships its tree six levels down, under os-myx.common/host/tarball/share, while
+## myx.distro-agents keeps its own at the package root. What must not decide it either is
+## the way a run spelled the workspace: a relative path, or one with a trailing slash, has
+## to yield the same two absolute commands -- a relative command is refused at launch, and
+## that refusal read as myx.distro missing while myx.common was there.
+rigSpelled="$rigTmp/spelled ws"
+rigInstall "$rigSpelled" "$rigTmp/stand-in"
+( cd "$rigTmp" && MMDAPP="spelled ws" ; harnessMcpLoadedFor=""
+	AgentsHarnessMcpKeys ; printf '%s\n' "$harnessMcpResKeys" > "$rigTmp/spelled.keys"
+	AgentsHarnessMcpResolve myx.distro ; printf '%s\n' "$harnessMcpResCmd" > "$rigTmp/spelled.distro"
+	AgentsHarnessMcpResolve myx.common ; printf '%s\n' "$harnessMcpResCmd" > "$rigTmp/spelled.common"
+) || rigRefuse "the composition failed outright on a relative workspace"
+rigAssert "both packages are found for a workspace named relatively" "$( cat "$rigTmp/spelled.keys" )" "myx.distro
+myx.common"
+rigAssert "myx.distro launches by an absolute path, at its own package depth" "$( cat "$rigTmp/spelled.distro" )" "$rigSpelled/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+rigAssert "myx.common launches by an absolute path, at the depth its release nests it" "$( cat "$rigTmp/spelled.common" )" "$rigSpelled/.local/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/agentMcpServer.Common"
+MMDAPP="$rigSpelled" ; harnessMcpLoadedFor=""
+AgentsHarnessMcpIndexWrite "$rigSpelled" || rigRefuse "the index writer failed outright"
+rigAssert "a trailing slash takes that index and answers exactly as the plain path does" \
+	"$( MMDAPP="$rigSpelled/" ; harnessMcpLoadedFor="" ; rigAll )" "$( MMDAPP="$rigSpelled" ; harnessMcpLoadedFor="" ; rigAll )"
+
 echo "-- awkward values survive the index whole --"
 MMDAPP="$rigWs" ; harnessMcpLoadedFor=""
 AgentsHarnessMcpSpecReset

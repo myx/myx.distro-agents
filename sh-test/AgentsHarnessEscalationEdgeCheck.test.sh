@@ -159,7 +159,7 @@ rigAsk(){ ## target path
 	rigPending=""
 	while [ -z "$rigPending" ] && [ "$waitLeft" -gt 0 ] ; do
 		sleep 1 ; waitLeft=$(( waitLeft - 1 ))
-		for rigPendingFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+		for rigPendingFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 			[ -f "$rigPendingFile" ] || continue
 			case "$rigBefore" in *" ${rigPendingFile##*/} "*) continue ;; esac
 			LC_ALL=C grep -q '^status: reply-pending$' "$rigPendingFile" || continue
@@ -291,19 +291,26 @@ rigAsk "$rigScenarioDir/ws/OUT/crash-granted"
 rigCrashRefusal="$( rigRefusalId "$rigScenarioDir/refused" )"
 rigPendingFile="$rigScenarioDir/ws/.local/agents/pending/$rigPending.md"
 rigClaimDir="${rigPendingFile%.md}.answered"
+rigAtRecord(){ ## the record is in pending/ while open and in closed/ once closed (retention); the claim directory stays in pending/
+	[ -f "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" ] && rigPendingFile="$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" || rigPendingFile="$rigScenarioDir/ws/.local/agents/pending/closed/$rigPending.md"
+}
 rigOp rig-coordinator "$rigScenarioDir/op" --answer-escalation magic-coordinator "$rigPending" allow-once
 rigAssert "control: a whole apply leaves its note applied, and one grant" \
 	"$( LC_ALL=C grep -c "^ESCALATION: $rigPending answered" "$rigScenarioDir/op" ):$( rigNoteState ):$( rigGrantCount "$rigCrashRefusal" )" "1:applied:1"
 rigCrashPosts="$( rigPostsWith 'permission granted' )"
+rigAtRecord
 mv "$rigClaimDir/verdict.applied" "$rigClaimDir/verdict"
 LC_ALL=C awk '$0 == "status: reply-received" && ! reopened { print "status: reply-pending" ; reopened = 1 ; next ; } { print ; }' "$rigPendingFile" > "$rigPendingFile.new" && mv "$rigPendingFile.new" "$rigPendingFile"
 rigRead
+rigAtRecord
 rigAssert "stopped after the grant, before the close: completed and closed, with no second grant line and no second post" \
 	"$( LC_ALL=C grep -c "^ESCALATION: $rigPending answered" "$rigScenarioDir/op" ):$( LC_ALL=C grep -c -x 'status: reply-received' "$rigPendingFile" ):$( rigNoteState ):$( rigGrantCount "$rigCrashRefusal" ):$(( $( rigPostsWith 'permission granted' ) - rigCrashPosts ))" "1:1:applied:1:0"
 ## Stopped after the close, before the rest of it was kept.
+rigAtRecord
 mv "$rigClaimDir/verdict.applied" "$rigClaimDir/verdict"
 LC_ALL=C awk 'index( $0, "grant: " ) != 1 { print ; }' "$rigPendingFile" > "$rigPendingFile.new" && mv "$rigPendingFile.new" "$rigPendingFile"
 rigRead
+rigAtRecord
 rigAssert "stopped after the close, before the rest: the read finishes it, the grant line back on the record, nothing granted twice" \
 	"$( LC_ALL=C grep -c "^ESCALATION: $rigPending answered" "$rigScenarioDir/op" ):$( LC_ALL=C grep -c -x "GRANT: once $rigCrashRefusal" "$rigScenarioDir/op" ):$( LC_ALL=C grep -c '^grant: once ' "$rigPendingFile" ):$( rigNoteState ):$( rigGrantCount "$rigCrashRefusal" )" "1:1:1:applied:1"
 rigAskStop
@@ -314,6 +321,7 @@ rigGoneHolderNew
 rigClaimSet "$rigGoneHolder"
 printf 'verdict: allow-once\nby: magic-coordinator\ntext: \nsession: rig-coordinator\nclosed-by: \nfloor: \n' > "$rigClaimDir/verdict"
 rigOp rig-coordinator "$rigScenarioDir/op" --answer-escalation magic-coordinator "$rigPending" deny
+rigAtRecord
 rigAssert "a deny that finds a stopped allow completes the allow that was noted, and is itself not applied" \
 	"$( LC_ALL=C grep -c -x 'verdict: allow-once' "$rigPendingFile" ):$( rigGrantCount "$rigCrashRefusal" ):$( LC_ALL=C grep -c 'was answered first by magic-coordinator, with allow-once, so this answer is not applied' "$rigScenarioDir/op.err" ):$( LC_ALL=C grep -c "the answer deny for $rigPending was not applied" "$rigScenarioDir/op.err" )" "1:1:1:1"
 rigAskStop

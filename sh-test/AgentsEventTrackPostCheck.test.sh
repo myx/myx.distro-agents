@@ -16,6 +16,10 @@
 ## short text beside its boxes; a post whose blocks Slack refuses goes once more as plain
 ## text, in posts of at most 4000 characters, with a warning; no line ends a post early
 ## (an error, a refusal or a session event included), the open post goes at its 7 s window or at the size limit,
+## every post of a channel waits in that channel's outbox and goes in its turn there, oldest first, never two
+## messages closer than 7 s, the ones that queued meanwhile collected into one post up to Slack's block limit
+## and cut in order when longer, the immediate posts (a start, an end, a refusal, a grant, a notice) included
+## and never jumping the queue, with the member and the bot identity unchanged,
 ## the feed sends its posts one at a time and in order, and never edits one;
 ## the op posts through the shared Slack call (a rate limit is waited out), threads the
 ## later parts of a post under the first, logs each post, and has no edit option; a spawn's
@@ -962,9 +966,17 @@ case "$rigMethod" in
 esac
 RIGEOF
 chmod +x "$rigTmp/bin/curl"
+## The op's own pace wait is a short one here, so this check spends no 7 s on every post it
+## makes: the pacing itself is asserted exactly, with a clock of its own, in the collector
+## section below. A short wait, not none, so the outbox's locks still yield to one another.
+## The feed's own runs keep the real sleep, which their windows need.
+mkdir -p "$rigTmp/opsleep"
+printf '%s\n' '#!/usr/bin/env bash' '/bin/sleep 0.05' > "$rigTmp/opsleep/sleep"
+chmod +x "$rigTmp/opsleep/sleep"
+rigOpPath="$rigTmp/bin:$rigTmp/opsleep:/usr/bin:/bin:/usr/sbin:/sbin"
 rigOp(){ ## stdin file, op arguments... -- stdout to op.out, stderr to op.err, rc to rigOpRc
 	local opIn="$1" ; shift
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigOpPath" \
 		MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_SESSION_ID=rig-sender-session RIG_SCENARIO="$rigTmp/scenario" RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
@@ -974,7 +986,7 @@ rigOp(){ ## stdin file, op arguments... -- stdout to op.out, stderr to op.err, r
 		' rig "$@" < "$opIn" > "$rigTmp/op.out" 2> "$rigTmp/op.err"
 	rigOpRc=$?
 }
-rigReset(){ rm -f "$rigTmp/scenario"/* ; }
+rigReset(){ rm -f "$rigTmp/scenario"/* ; rm -rf "$rigTmp/ws/.local/agents/event-track-send" ; }
 rigCalls(){ LC_ALL=C grep -c -x -F "$1" "$rigTmp/scenario/calls" 2>/dev/null || : ; }
 rigLog(){ cat "$rigTmp/ws/.local/agents"/comms-slack-send.*.log 2>/dev/null ; }
 rigLines="$rigTmp/lines"
@@ -1090,6 +1102,126 @@ rigAssert "the text refused as well: the op fails, said, after the one further t
 	"$rigOpRc:$( LC_ALL=C tr '\n' ' ' < "$rigTmp/scenario/kinds" ):$( LC_ALL=C grep -c '^⛔ ERROR: .*--intern-op-event-track-post: the feed post, part 1 of 1, was not posted' "$rigTmp/op.err" )" '1:blocks text :1'
 
 ## ---------------------------------------------------------------------------
+echo "-- one collector for every post into a thread: in order, one message per 7 s, a burst collected up to Slack's limit --"
+## ---------------------------------------------------------------------------
+## The outbox every post bound for one channel waits in (AgentsTools.EventTrackSend.include).
+## Driven here with a clock and a sender of this check's own, so the order, the pacing and
+## the collection are asserted exactly and without waiting a second. The post op above and
+## the spawn below go through this same outbox, with the real sender.
+. "$rigLib/session/AgentsTools.EventTrackSend.include"
+rigOutClock="$rigTmp/outbox.clock"
+rigOutSends="$rigTmp/outbox.sends"
+rigOutBox(){ ## channel
+	MMDAPP="$rigTmp/ws" AgentsToolsEventTrackSendDir "$1"
+}
+rigOutRecord(){ ## channel, member, kind, lines file, fields line (may be empty) -- the record's name
+	local outCh="$1" outMember="$2" outKind="$3" outLines="$4" outField="${5:-}" outBox="" outFields="" outRec=""
+	outBox="$( rigOutBox "$outCh" )" || return 1
+	mkdir -p "$rigTmp/outbox.src"
+	outFields="$rigTmp/outbox.src/fields"
+	: > "$outFields"
+	## As the post op writes them: name=value, each ended by a NUL.
+	[ -z "$outField" ] || printf '%s\0' "$outField" > "$outFields"
+	outRec="$( MMDAPP="$rigTmp/ws" AgentsToolsEventTrackSendAppend "$outBox" "$outMember" "$outKind" "abcdef01-2345" event-track "$outCh" "" "$outFields" "$outLines" )" || outRec=""
+	printf '%s' "${outRec##*/}"
+}
+## The sender of this check's own: each send records its moment, how many lines it carries
+## and the first of them, then the lines themselves, in order.
+rigOutSender(){ ## record dir
+	printf 'SEND %s %s %s %s\n' "${1##*/}" "$( cat "$rigOutClock" )" "$( LC_ALL=C awk 'END { print NR + 0 }' "$1/lines" )" "$( LC_ALL=C awk 'NR == 1 { print ; exit }' "$1/lines" )" >> "$rigOutSends"
+	LC_ALL=C awk '{ print "  | " $0 }' "$1/lines" >> "$rigOutSends"
+	return 0
+}
+rigOutSendsList(){ LC_ALL=C awk '/^SEND / { printf "%s ", $2 }' "$rigOutSends" ; }
+rigOutStamps(){ LC_ALL=C awk '/^SEND / { printf "%s ", $3 }' "$rigOutSends" ; }
+rigOutCounts(){ LC_ALL=C awk '/^SEND / { printf "%s ", $4 }' "$rigOutSends" ; }
+rigOutLines(){ LC_ALL=C awk '/^  \| / { sub( /^  \| /, "" ) ; printf "%s ", $0 }' "$rigOutSends" ; }
+printf '1000\n' > "$rigOutClock"
+: > "$rigOutSends"
+rigOutTmp="$rigTmp/outbox.src"
+mkdir -p "$rigOutTmp"
+printf 'line one\n' > "$rigOutTmp/a"
+printf 'line two\n' > "$rigOutTmp/b"
+printf 'line three\n' > "$rigOutTmp/c"
+printf 'line four\n' > "$rigOutTmp/d"
+rm -rf "$( rigOutBox C0RIGOUT )"
+date(){ cat "$rigOutClock" ; }
+sleep(){ printf '%s\n' "$(( $( cat "$rigOutClock" ) + ${1:-0} ))" > "$rigOutClock" ; }
+rigOutRec1="$( rigOutRecord C0RIGOUT magic-tester feed "$rigOutTmp/a" )"
+rigOutRec2="$( rigOutRecord C0RIGOUT magic-tester feed "$rigOutTmp/b" )"
+rigOutRec3="$( rigOutRecord C0RIGOUT magic-tester notice "$rigOutTmp/c" )"
+rigOutRec4="$( rigOutRecord C0RIGOUT magic-tester feed "$rigOutTmp/d" )"
+MMDAPP="$rigTmp/ws" AgentsToolsEventTrackSendDrain "$( rigOutBox C0RIGOUT )" rigOutSender
+unset -f date sleep
+rigAssert "four posts queued, numbered in the order they were made" "$rigOutRec1:$rigOutRec2:$rigOutRec3:$rigOutRec4" '0000001:0000002:0000003:0000004'
+rigAssert "the two feed lines of one member that queued together are collected into ONE post, the two of them, in order" \
+	"$( rigOutSendsList ):$( rigOutCounts )" '0000001 0000003 0000004 :2 1 1 '
+rigAssert "nothing jumps the queue: the notice queued third goes third, the feed line queued after it last" \
+	"$( rigOutSendsList )" '0000001 0000003 0000004 '
+rigAssert "every line queued is posted once, in the order it was queued, nothing lost or reordered" \
+	"$( rigOutLines )" 'line one line two line three line four '
+rigAssert "no two messages into the channel are closer than the 7 second window" "$( rigOutStamps )" '1000 1007 1014 '
+rigAssert "the records collected into one post share its outcome: later arrival, same post" \
+	"$( cat "$( rigOutBox C0RIGOUT )/done/0000001/group" ):$( cat "$( rigOutBox C0RIGOUT )/done/0000002/group" ):$( [ "$( cat "$( rigOutBox C0RIGOUT )/done/0000001/out" 2>/dev/null )" = "$( cat "$( rigOutBox C0RIGOUT )/done/0000002/out" 2>/dev/null )" ] && printf same || printf other )" \
+	"0000001 0000002:0000001 0000002:same"
+## A second window: a post with fields of its own is never joined with another, whatever its
+## member and kind, and the pacing carries over the window before.
+printf '2000\n' > "$rigOutClock"
+: > "$rigOutSends"
+rigOutRec5="$( rigOutRecord C0RIGOUT magic-tester feed "$rigOutTmp/a" 'what=one' )"
+rigOutRec6="$( rigOutRecord C0RIGOUT magic-tester feed "$rigOutTmp/b" 'what=two' )"
+date(){ cat "$rigOutClock" ; }
+sleep(){ printf '%s\n' "$(( $( cat "$rigOutClock" ) + ${1:-0} ))" > "$rigOutClock" ; }
+MMDAPP="$rigTmp/ws" AgentsToolsEventTrackSendDrain "$( rigOutBox C0RIGOUT )" rigOutSender
+unset -f date sleep
+rigAssert "a post with fields of its own is never collected with another: a message each, 7 s apart, in order" \
+	"$( rigOutSendsList ):$( rigOutCounts ):$( rigOutStamps )" '0000005 0000006 :1 1 :2000 2007 '
+
+## The post op is no second sender: every tracking post, the immediate ones too, is queued in
+## its channel's outbox and drained from there -- a start post, a refusal, a notice and the
+## feed's lines alike.
+rigAssert "the post op queues every post and drains the outbox, and has no post path of its own" \
+	"$( LC_ALL=C grep -c 'AgentsToolsEventTrackSendAppend "\$etpQueue"' "$rigLib/session/AgentsTools.InternOpEventTrackPost.include" ):$( LC_ALL=C grep -c 'AgentsToolsEventTrackSendDrain "\$etpQueue" AgentsEventTrackPostSend' "$rigLib/session/AgentsTools.InternOpEventTrackPost.include" ):$( LC_ALL=C grep -c 'chat.postMessage' "$rigLib/session/AgentsTools.InternOpEventTrackPost.include" )" 1:1:1
+rigAssert "the window is 7 s, fixed in code, and nothing configures it" \
+	"$( LC_ALL=C grep -c 'agentsEventTrackSendPaceSeconds=7' "$rigLib/session/AgentsTools.EventTrackSend.include" ):$( LC_ALL=C grep -r -l -e 'MDAT_EVENT_TRACK_PACE' -e 'EVENT_TRACK_PACE_SECONDS' "$rigLib" | LC_ALL=C awk 'END { print NR }' )" 1:0
+rigReset
+rigOp "$rigLines" --intern-op-event-track-post magic-tester event-track --kind feed --session-id abcdef01-2345 --from-stdin
+rigAssert "an op's post lands in its channel's outbox and notes the window it may go in" \
+	"$rigOpRc:$( ls "$rigTmp/ws/.local/agents/event-track-send/CRIGTRACK" 2>/dev/null | LC_ALL=C grep -c -x -e 'next' -e 'last-send' )" "0:2"
+
+## An oversized batch collected from two callers: the op's own burst arrives while the queued
+## one waits, and both go as one stream of posts, cut at Slack's limit, in order.
+rigReset
+rigOutBigA="$rigTmp/outbox.big-a"
+rigOutBigB="$rigTmp/outbox.big-b"
+rigOutBurst(){ ## marker letter -> its lines: a member's box, then the run's, so a post reaches Slack's block limit
+	LC_ALL=C awk -v part="$1" 'BEGIN { for ( n = 1 ; n <= 20 ; n++ ) {
+		printf "2030-01-01T04:%02d:%02dZ TOOL Read path=/a/collect/part-%s-%03d.md -> ok 10B/1L 1ms\n", int( n / 60 ), n % 60, part, n
+		printf "2030-01-01T04:%02d:%02dZ VERDICT item=rev-%s-%03d by=magic-tester text=\"accepted\"\n", int( n / 60 ), n % 60, part, n
+	} }'
+}
+rigOutBurst A > "$rigOutBigA"
+rigOutBurst B > "$rigOutBigB"
+rigOutQueued="$( rigOutRecord CRIGTRACK magic-tester feed "$rigOutBigA" )"
+rigLogBefore="$( rigLog | LC_ALL=C awk 'END { print NR }' )"
+rigOp "$rigOutBigB" --intern-op-event-track-post magic-tester event-track --kind feed --session-id abcdef01-2345 --from-stdin
+rigOutPosts="$( cat "$rigTmp/scenario/posts" 2>/dev/null || echo 0 )"
+rigCollectOrder(){ ## post count -> every marker, in the order the posts carry them
+	local collectN
+	for collectN in $( seq 1 "$1" ) ; do
+		LC_ALL=C grep -o -E '(part|rev)-[AB]-[0-9]+' "$rigTmp/scenario/post.$collectN" | LC_ALL=C awk '!seen[$0]++'
+	done | LC_ALL=C tr '\n' ' '
+}
+rigCollectWant(){ LC_ALL=C awk 'BEGIN { for ( m = 1 ; m <= 2 ; m++ ) { part = ( m == 1 ? "A" : "B" ) ; for ( n = 1 ; n <= 20 ; n++ ) printf "part-%s-%03d rev-%s-%03d ", part, n, part, n } }' ; }
+rigAssert "the queued burst and the op's own are collected into one stream, cut at Slack's limit into several posts" \
+	"$rigOpRc:$( [ "$rigOutPosts" -gt 1 ] && printf several || printf one ):$( LC_ALL=C grep -c -x 'blocks' "$rigTmp/scenario/kinds" )" "0:several:$rigOutPosts"
+rigAssert "nothing is lost or reordered: the queued burst's lines first, then the op's, each once, in order" \
+	"$( rigCollectOrder "$rigOutPosts" )" "$( rigCollectWant )"
+rigAssert "every post of the collected stream still names the member it is about in its text and boxes" \
+	"$( for collectN in $( seq 1 "$rigOutPosts" ) ; do LC_ALL=C grep -c -F '"sender":"magic-tester"' "$rigTmp/scenario/post.$collectN" ; done | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' ):$( for collectN in $( seq 1 "$rigOutPosts" ) ; do LC_ALL=C grep -c -F 'magic-tester' "$rigTmp/scenario/post.$collectN" | LC_ALL=C awk '{ print ( $1 >= 1 ? "named" : "missing" ) }' ; done | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" "1 :named "
+rigAssert "and the sender is the bot, as every tracking post's is" \
+	"$( rigLog | LC_ALL=C awk -F'\t' -v from="$rigLogBefore" 'NR > from && $6 == "ok" { if ( $5 == "bot" ) bot++ ; else other++ } END { print bot + 0 ":" other + 0 }' )" "$rigOutPosts:0"
+## ---------------------------------------------------------------------------
 echo "-- a spawn announces itself once, resolved first; what comes later is a reply --"
 ## ---------------------------------------------------------------------------
 ## The console the proxy starts: the strings its vintage guard looks for, then a launch on
@@ -1114,7 +1246,7 @@ rigSpawnArgs=( --dispatch-doc:none )
 rigSpawn(){ ## the CLI the stand-in launches[, parent spawn id, session id] -- stdout to op.out, stderr to op.err, rc to rigOpRc
 	local spawnThreadArg="--session-thread:event-track"
 	[ -z "${3:-}" ] || spawnThreadArg=""
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigOpPath" \
 		MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_SCENARIO="$rigTmp/scenario" RIG_TMP="$rigTmp" RIG_FN="$rigFn" RIG_LAUNCH_CLI="$1" \
 		RIG_THREAD_ARG="$spawnThreadArg" RIG_MEMBER="${rigSpawnMember:-magic-tester}" ${2:+"MDAT_SPAWN_SESSION_ID=$2"} ${3:+"MDAT_SESSION_ID=$3"} \

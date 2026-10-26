@@ -9,7 +9,7 @@
 ##   --standing-directives                                  the warnings, the coordinator notes and the orders in force, together
 ##   --directive-set, --directive-end                       an order of the human-owner entered, and taken out
 ##
-## From DistroAgentsTools.fn.sh (F1.4): --advance-sleep-run, --client-operation-run, --config-check, --daily-lock-refresh, --grooming-lock-refresh, --retro-lock-refresh, --roster-upsert, --state-note-lock-acquire, --state-note-read, --sweep-state-advance, --sweep-state-read, --sweep-state-upsert (sh-lib/harness/AgentsContext.FrontTable.include).
+## From DistroAgentsTools.fn.sh (F1.4): the names routed here are in sh-lib/harness/AgentsContext.FrontTable.include.
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -96,6 +96,14 @@ AgentDispatcherTools(){
 		AgentDispatcherToolsMoved "$@"
 		return $?
 	fi
+	## The three help forms, as DistroAgentsTools.fn.sh has them: no word the default syntax (the entry points a reader
+	## starts from), --help-syntax the syntax line of every operation of this file, --help the manual.
+	case "${1:-}" in
+		''|--help|--help-syntax)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.AgentDispatcherTools.include"
+			return $?
+		;;
+	esac
 	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,
 	## and the call is made again under what they resolve (sh-lib/common/AgentsTools.CommonOptions.include).
 	case "${agentsCommonFronted:-}:${2:-}" in
@@ -154,6 +162,12 @@ AgentDispatcherTools(){
 		## --id <id> [--wait <seconds>]: an order taken out.
 		--directive-end)
 			AgentsToolsSurfaceDirectiveEnd "$@"
+			return $?
+		;;
+
+		## The epic file's own edit (W1): --set-status and --add-settled, so no routine edits an epic by hand.
+		--epic-update)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicEpic.include"
 			return $?
 		;;
 

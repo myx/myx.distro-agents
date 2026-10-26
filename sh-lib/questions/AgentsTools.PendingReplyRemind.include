@@ -226,7 +226,7 @@ AgentsToolsPendingReplyRemindRun(){ ## optional: pending ids
 	: > "$remindWork/due"
 	## Which records are looked at: every open one, or those of the ids given.
 	if [ -z "$remindOnly" ] ; then
-		LC_ALL=C grep -r -l -x -F --include='*.md' "status: reply-pending" "$remindStore" > "$remindWork/records" 2>/dev/null || :
+		LC_ALL=C grep -l -x -F "status: reply-pending" "$remindStore"/*.md > "$remindWork/records" 2>/dev/null || :
 	else
 		for remindId in $remindOnly ; do
 			case "$remindId" in */*|.*) continue ;; esac

@@ -109,16 +109,24 @@ rigHolds(){ ## file, fixed string
 rigOp(){ ## output name, op, arguments...
 	local opOut="$1" ; shift
 	rigRc=0
-	## RIG_AGENT, when set, is the spawned session's own member (MDAT_SPAWN_AGENT); unset, the console.
+	## RIG_AGENT, when set, is the spawned session's own member (MDAT_SPAWN_AGENT); RIG_SESSION, when
+	## set, the session the call is given from (MDAT_SPAWN_SESSION_ID). With neither, the console: a
+	## caller carrying no session at all.
 	( cd "$rigTmp/ws" && env -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} \
+		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} ${RIG_SESSION:+MDAT_SPAWN_SESSION_ID="$RIG_SESSION"} \
 		bash "$rigTool" "$@" ) > "$rigTmp/$opOut" 2> "$rigTmp/$opOut.err" || rigRc=$?
 }
+## A record closed here lives in pending/closed/ (retention, T9): the helpers read either store.
+rigRecordFile(){ ## id
+	local rigRec="$rigStore/$1.md"
+	[ -f "$rigRec" ] || rigRec="$rigStore/closed/$1.md"
+	printf '%s' "$rigRec"
+}
 rigStatus(){ ## id
-	LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit }' "$rigStore/$1.md"
+	LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit }' "$( rigRecordFile "$1" )"
 }
 rigField(){ ## id, field
-	LC_ALL=C awk -v key="$2" 'index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit }' "$rigStore/$1.md"
+	LC_ALL=C awk -v key="$2" 'index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit }' "$( rigRecordFile "$1" )"
 }
 
 echo "-- read: the member's own open records --"
@@ -253,10 +261,16 @@ rigOp read9 --read-pending-reply magic-tester 11111111-0000-0000-0000-0000000000
 rigAssert "it reads as a permission-set"              "$( rigHolds "$rigTmp/read9" 'kind: permission-set' )" yes
 RIG_AGENT=magic-tester rigOp ans9a --answer-escalation magic-tester 11111111-0000-0000-0000-000000000009 allow-set
 rigAssert "a member it is not addressed to cannot answer it" "$( rigHolds "$rigTmp/ans9a.err" 'cannot answer it' ):$( rigStatus 11111111-0000-0000-0000-000000000009 )" "yes:reply-pending"
-rigOp ans9b --answer-escalation human-owner 11111111-0000-0000-0000-000000000009 allow-once
-rigAssert "a permission verdict is not a set's"       "$( rigHolds "$rigTmp/ans9b.err" 'is not a verdict of this permission-set' )" yes
-rigOp ans9c --answer-escalation human-owner 11111111-0000-0000-0000-000000000009 edit "drop WebSearch"
+## An answer is given from a session and bound to it: the asking run takes the answer from the
+## record by the session it carries, so one carrying none would never reach it, and is refused
+## before its verdict is looked at.
+rigOp ans9none --answer-escalation human-owner 11111111-0000-0000-0000-000000000009 edit "drop WebSearch"
+rigAssert "a caller carrying no session is refused"   "$( rigHolds "$rigTmp/ans9none.err" 'carries no session id' ):$( rigStatus 11111111-0000-0000-0000-000000000009 )" "yes:reply-pending"
+RIG_SESSION=rig-answerer rigOp ans9b --answer-escalation human-owner 11111111-0000-0000-0000-000000000009 allow-once
+rigAssert "a permission verdict is not a set's"       "$( rigHolds "$rigTmp/ans9b.err" 'is not a verdict of this permission-set' ):$( rigStatus 11111111-0000-0000-0000-000000000009 )" "yes:reply-pending"
+RIG_SESSION=rig-answerer rigOp ans9c --answer-escalation human-owner 11111111-0000-0000-0000-000000000009 edit "drop WebSearch"
 rigAssert "edit is the human-owner's, with its change" "$( rigStatus 11111111-0000-0000-0000-000000000009 ):$( rigField 11111111-0000-0000-0000-000000000009 verdict ):$( rigField 11111111-0000-0000-0000-000000000009 verdict-text )" "reply-received:edit:drop WebSearch"
+rigAssert "and is bound to the session it came from"  "$( rigField 11111111-0000-0000-0000-000000000009 answered-session )" rig-answerer
 rigAssert "and grants nothing"                        "$( rigHolds "$rigTmp/ans9c" 'GRANT:' )" no
 
 echo "-- a list brings the pending-replies registry up to date; a read of one record leaves it as it lies --"

@@ -1,0 +1,360 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CommsPrintback.include -- the root-native printback channel kind of the root-harness epic
+## (F2.2): the driver of the `printback` service of the communication-channel-id abstraction
+## (AgentsTools.CommsChannel.include). Sourced by the one send path every session's message takes, the
+## `printback:<session>` arm of --slack-send-message's operation, never run. Functions only.
+##
+## A printback channel-id is `printback:<session>`, the session whose one chat file
+## (AgentsTools.SessionChat.include) is the channel's record. The kind is root-native, so its external side
+## is no network: the message is PRINTED to the caller's output -- that output is the copy -- and recorded
+## in that session's chat file, the channel-id as the block's conversation and `printback` as its origin.
+## Nothing is posted, no session thread is opened, no send log is written and no second record is made.
+##
+## THE BLOCK IS THE SESSION'S OWN (F2.2). The one chat reader (AgentsSessionChatRead.awk) reads a
+## `printback:<session>` block as a message of the session, in role and addressee as every block of the
+## session is: a Wait on `chat:<session>` delivers it, so it prints to that member's tool output too, and a
+## report or a DISMISSED addressed to a member arrives through it no differently from a Slack message of
+## the session thread. A session's printback channel is named by its channel-id, never by a path.
+##
+## REFUSALS NAME WHAT WAS WRONG, and write nothing: a value that is no `printback:<session>` channel-id, a
+## session with no folder to keep a chat file in (a message makes no session), an empty message, a body option
+## used twice or beside trailing text, and an operation argument the kind does not take.
+##
+## THE KIND A SESSION IS ON (F2.3, F3.1). A session's external side is on one channel kind: its Slack thread
+## where one is on record for it, else the kind its own record names, else -- for a root-harness session
+## minted before the kind was recorded -- the root-native printback channel of the session RootSession minted
+## (its folder holds the token mint kept, AgentsTools.RootSession.include, and no session thread is on
+## record). THE EXPLICIT KIND DECIDES OVER THE INFERENCE (F3.1): a session whose folder holds
+## `root-session.kind` (AgentsTools.RootHarnessKind.include) is on that kind, `none`, `track` or `full`,
+## whatever the token and the session thread say; the token-and-no-thread mark is read only where no kind was
+## ever recorded. Both session addresses resolve to the channel the session is on, so a report or a DISMISSED
+## reaches a session that has no thread exactly as one that has. A session on neither kind names nowhere, as
+## it always did.
+##
+## AN UNADDRESSED MESSAGE GOES ON THE SESSION'S OWN CHANNEL (F3.2): the channel the session's recorded kind
+## names -- its session thread (`full`), its tooling thread (`track`), or its root-native printback channel
+## (`none`, and the F2.3 inference where no kind was ever recorded). `AgentsToolsCommsPrintbackSessionOwnTarget`
+## is that one rule: the served send and the send operation's own default both read it where the call names
+## no target, so the message is recorded on the session's channel and never left to the model's context
+## alone. It is a DEFAULT, never a gate: a call that names an address goes there, whatever the kind
+## (DistroAgentsToolsResolveTarget, which the printback channel is an address of too).
+##
+## BACKGROUND NOTICES (F3.3). A notice the spawn proxy emits about a run -- a member joined, a run that
+## ended with no handback or with its questions still open, a run's end -- is not a message and has no
+## caller to print to. For a session on this channel it is RECORDED in the session's one chat file by
+## `AgentsToolsCommsPrintbackNoticeRecord`: origin `notice`, the printback channel as its conversation, no
+## ts, and nothing printed. The record is not the surfaced copy: the next foreground call of the session
+## carries the digest `AgentsToolsCommsPrintbackNoticeDigest`, ONE LINE PER NOTICE, as a content part
+## beside its result (the MCP server, AgentsTools.InternMcpRequest.include). A notice the digest printed is
+## marked in the chat index as delivered to the member, so it is never surfaced twice; a reader of the chat
+## file still sees the one recorded block. The chat reader never delivers a notice block itself
+## (AgentsSessionChatRead.awk), so only the digest surfaces it. `track` and `full` sessions are untouched:
+## a notice is recorded on this channel alone.
+##
+
+## The channel-id of a session's printback channel: `printback:<session>`. rc 1, nothing printed, for a name
+## the session store chooses no folder by, so a channel-id always names one session.
+AgentsToolsCommsPrintbackChannelId(){ ## session
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
+	AgentsToolsSessionChatDir "$1" > /dev/null 2>&1 || return 1
+	printf 'printback:%s' "$1"
+}
+
+## The session a `printback:<session>` channel-id names: its address. rc 1, nothing printed, for a value
+## that is no printback channel-id, or names no session.
+AgentsToolsCommsPrintbackSession(){ ## channel-id
+	local printbackSession=""
+	case "${1:-}" in
+		printback:*) printbackSession="${1#*:}" ;;
+		*) return 1 ;;
+	esac
+	AgentsToolsCommsPrintbackChannelId "$printbackSession" > /dev/null 2>&1 || return 1
+	printf '%s' "$printbackSession"
+}
+
+## Whether a session's external side is its own printback channel: rc 0 it is, and nothing printed otherwise.
+## AN EXPLICIT KIND DECIDES FIRST (F3.1): the session's folder holding a kind record (AgentsTools.RootHarnessKind.include)
+## is the session's channel, `none` this one and `track`/`full` another, and no inference decides against it.
+## Where no kind was recorded, the mark F2.3 gave the root-harness session decides: its folder holds the token
+## the mint kept (F1.1) while no session thread is on record for it. Where a thread is, that Slack thread is the
+## kind in use, and the printback channel is the session's own beside it (F2.2). A session with neither names no
+## channel.
+AgentsToolsCommsPrintbackSessionInUse(){ ## session
+	local inUseDir="" inUseKind=""
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
+	inUseDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
+	[ -d "$inUseDir" ] || return 1
+	type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" 2> /dev/null || :
+	if type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 ; then
+		inUseKind="$( AgentsToolsRootHarnessKindRead "$1" 2> /dev/null )" || inUseKind=""
+		case "$inUseKind" in
+			none) return 0 ;;
+			track|full) return 1 ;;
+		esac
+	fi
+	[ -f "$inUseDir/root-session.token" ] || return 1
+	[ ! -s "$inUseDir/session.thread" ] || return 1
+	return 0
+}
+
+## The tooling thread of a session whose external side is the tooling thread -- the `track` kind of a
+## root-harness session (F3.1): `<channel>:<ts>`, the one event-track thread every participant's tracking posts
+## already go to (AgentsTools.EventTrackThread.include), which receives the copies of the session's messages.
+## rc 1, nothing printed, for a session on another kind, or a `track` session that has no tooling thread
+## recorded yet. A tracking thread is never a session thread; here it is the session's external channel, and the
+## session still keeps no session thread of its own.
+AgentsToolsCommsPrintbackTrackThread(){ ## session
+	local trackName="${1:-}" trackDir="" trackThread=""
+	type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" 2> /dev/null || return 1
+	[ "$( AgentsToolsRootHarnessKindRead "$trackName" 2> /dev/null )" = "track" ] || return 1
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
+	trackDir="$( AgentsToolsSessionChatDir "$trackName" 2> /dev/null )" || return 1
+	type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackThread.include" 2> /dev/null || return 1
+	trackThread="$( AgentsToolsEventTrackThreadRead "$trackDir" 2> /dev/null )" || trackThread=""
+	[ -n "$trackThread" ] || return 1
+	printf '%s' "$trackThread"
+}
+
+## The target an unaddressed send of a session goes to: the session's own channel, decided by the kind it
+## recorded (F3.2), the same order the wait's default sources decide it in:
+##   none   `printback:<session>`, the root-native printback channel;
+##   track  the tooling thread (`AgentsToolsCommsPrintbackTrackThread`);
+##   full   the session thread (`AgentsToolsSessionCurrentThreadFind`).
+## A session with no kind recorded -- one minted before F3.1 -- keeps the rule it had: its session thread
+## where one is on record, else F2.3's printback mark (`AgentsToolsCommsPrintbackSessionInUse`). Prints the
+## target a send takes, rc 1 and nothing printed where the session has no channel of its own: a session with
+## no thread and no kind names nowhere, as it always did. `session` may be left out, and this call's own
+## session is used, as every session reader finds it (AgentsToolsSessionCurrentId).
+AgentsToolsCommsPrintbackSessionOwnTarget(){ ## session (optional: this call's own)
+	local ownSession="${1:-}" ownKind="" ownTarget=""
+	if [ -z "$ownSession" ] ; then
+		type AgentsToolsSessionCurrentId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 1
+		ownSession="$( AgentsToolsSessionCurrentId 2> /dev/null )" || ownSession=""
+	fi
+	[ -n "$ownSession" ] || return 1
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
+	AgentsToolsSessionChatDir "$ownSession" > /dev/null 2>&1 || return 1
+	type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" 2> /dev/null || :
+	ownKind="$( AgentsToolsRootHarnessKindRead "$ownSession" 2> /dev/null )" || ownKind=""
+	case "$ownKind" in
+		none) ownTarget="$( AgentsToolsCommsPrintbackChannelId "$ownSession" 2> /dev/null )" || ownTarget="" ;;
+		track) ownTarget="$( AgentsToolsCommsPrintbackTrackThread "$ownSession" 2> /dev/null )" || ownTarget="" ;;
+		full)
+			type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+			ownTarget="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || ownTarget=""
+		;;
+	esac
+	if [ -z "$ownTarget" ] && [ -z "$ownKind" ] ; then
+		## No kind recorded: today's rule -- the session thread where one is on record, else F2.3's mark.
+		type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		ownTarget="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || ownTarget=""
+		if [ -z "$ownTarget" ] ; then
+			AgentsToolsCommsPrintbackSessionInUse "$ownSession" || return 1
+			ownTarget="$( AgentsToolsCommsPrintbackChannelId "$ownSession" 2> /dev/null )" || ownTarget=""
+		fi
+	fi
+	[ -n "$ownTarget" ] || return 1
+	printf '%s\n' "$ownTarget"
+}
+
+## One message on a printback channel: recorded in the named session's chat file, then printed. <from> is
+## the member, the addressees are its arguments, and the body is read from the standard input. Prints the
+## channel, the block and the message -- the external copy; rc 1, nothing written, where the channel names
+## no session or the message is empty.
+AgentsToolsCommsPrintbackSend(){ ## channel-id, from, addressee... -- the body on stdin
+	local printbackChannel="$1" printbackFrom="$2" printbackSession="" printbackDir="" printbackTo="" printbackBody="" printbackNo="" printbackCmd="${MDSC_CMD:-DistroAgentsTools}"
+	shift 2
+	printbackSession="$( AgentsToolsCommsPrintbackSession "$printbackChannel" )" || {
+		echo "⛔ ERROR: $printbackCmd: $printbackChannel is no printback:<session> channel-id -- the printback driver reaches printback:<session> alone. Nothing was sent." >&2
+		return 1
+	}
+	type AgentsToolsSessionChatTo > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
+	printbackDir="$( AgentsToolsSessionChatDir "$printbackSession" )" || printbackDir=""
+	[ -n "$printbackDir" ] && [ -d "$printbackDir" ] || {
+		echo "⛔ ERROR: $printbackCmd: session $printbackSession has no chat file to keep a message in -- the printback channel writes into a session that exists, and a message makes none. Nothing was sent." >&2
+		return 1
+	}
+	printbackTo="$( AgentsToolsSessionChatTo "$@" )"
+	printbackBody="$( cat )"
+	case "$printbackBody" in
+		*[![:space:]]*) ;;
+		*)
+			echo "⛔ ERROR: $printbackCmd: the message on $printbackChannel is empty -- nothing was sent" >&2
+			return 1
+		;;
+	esac
+	printbackNo="$( printf '%s' "$printbackBody" | AgentsToolsSessionChatAppend "$printbackSession" "$printbackFrom" "$printbackTo" - "$printbackChannel" printback )" || printbackNo=""
+	case "$printbackNo" in
+		''|*[!0123456789]*)
+			echo "⛔ ERROR: $printbackCmd: the chat file of session $printbackSession could not be written -- nothing was sent" >&2
+			return 1
+		;;
+	esac
+	printf '# printback: %s -- block %s of the session chat file; nothing is posted, and this output is its external copy\n' "$printbackChannel" "$printbackNo"
+	printf '%s -> %s:\n' "$printbackFrom" "$printbackTo"
+	printf '%s\n' "$printbackBody"
+	return 0
+}
+
+## A --slack-send-message call whose target is a printback channel-id: the arguments the send operation
+## accepts for this kind -- --from-stdin, --from-file <path>, --address-to <who> and trailing text -- are
+## read here, and the body is one of them and only one. rc 1, nothing sent, for any other argument: the
+## kind has no bot identity, no format, no metadata and no thread to edit.
+AgentsToolsCommsPrintbackSendMessage(){ ## channel-id, member, the send operation's arguments
+	local printbackChannel="$1" printbackMember="$2" printbackBodyFrom="argv" printbackFile="" printbackBody="" printbackText="" printbackTo=""
+	local printbackCmd="${MDSC_CMD:-DistroAgentsTools}"
+	shift 2
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--from-stdin|--message-from-stdin)
+				[ "$printbackBodyFrom" = "argv" ] || {
+					echo "⛔ ERROR: $printbackCmd: $printbackChannel takes one body, and this call names two -- nothing was sent on $printbackChannel" >&2
+					return 1
+				}
+				printbackBodyFrom="stdin" ; shift
+			;;
+			--from-file)
+				if [ $# -lt 2 ] || [ -z "$2" ] || [ ! -f "$2" ] ; then
+					echo "⛔ ERROR: $printbackCmd: --from-file needs a readable file -- nothing was sent on $printbackChannel" >&2
+					return 1
+				fi
+				[ "$printbackBodyFrom" = "argv" ] || {
+					echo "⛔ ERROR: $printbackCmd: $printbackChannel takes one body, and this call names two -- nothing was sent on $printbackChannel" >&2
+					return 1
+				}
+				printbackFile="$2" ; printbackBodyFrom="file" ; shift 2
+			;;
+			--address-to)
+				if [ $# -lt 2 ] || [ -z "$2" ] ; then
+					echo "⛔ ERROR: $printbackCmd: --address-to needs a participant -- nothing was sent on $printbackChannel" >&2
+					return 1
+				fi
+				printbackTo="$printbackTo $2" ; shift 2
+			;;
+			--)
+				shift
+				while [ $# -gt 0 ] ; do printbackText="$printbackText $1" ; shift ; done
+			;;
+			-*)
+				echo "⛔ ERROR: $printbackCmd: the printback channel takes --from-stdin, --from-file <path>, --address-to <who> and text; it has no Slack identity, format, metadata or thread to edit, so '$1' names nothing it can do. Nothing was sent on $printbackChannel." >&2
+				return 1
+			;;
+			*)
+				printbackText="$printbackText $1" ; shift
+			;;
+		esac
+	done
+	case "$printbackBodyFrom" in
+		stdin)
+			[ -z "${printbackText# }" ] || {
+				echo "⛔ ERROR: $printbackCmd: --from-stdin given alongside trailing body text -- use one or the other. Nothing was sent on $printbackChannel." >&2
+				return 1
+			}
+			printbackBody="$( cat )"
+		;;
+		file)
+			[ -z "${printbackText# }" ] || {
+				echo "⛔ ERROR: $printbackCmd: --from-file given alongside trailing body text -- use one or the other. Nothing was sent on $printbackChannel." >&2
+				return 1
+			}
+			printbackBody="$( cat "$printbackFile" )"
+		;;
+		*)
+			printbackBody="${printbackText# }"
+		;;
+	esac
+	printf '%s' "$printbackBody" | AgentsToolsCommsPrintbackSend "$printbackChannel" "$printbackMember" $printbackTo
+}
+
+## A notice the spawn proxy emits about a run, recorded on the session's printback channel and NOT printed
+## (F3.3): the next foreground call surfaces it as one line of the digest below, so recording prints nothing.
+## <channel-id> is `printback:<session>`, <from> the member the notice is about, and the third word whom it is
+## told, where the notice names one. The body is read from the standard input: the notice's one filled line.
+## The block's origin is `notice`, its conversation the channel-id, its ts `-`; it is written by the session's
+## one chat writer (AgentsToolsSessionChatAppend), so the one chat file stays the record. rc 1, nothing
+## written, for a value that is no channel-id of a session this workspace keeps, or an empty body.
+AgentsToolsCommsPrintbackNoticeRecord(){ ## channel-id, from, whom it is told (may be empty) -- the body on stdin
+	local recordChannel="$1" recordFrom="$2" recordSession="" recordBody=""
+	recordSession="$( AgentsToolsCommsPrintbackSession "$recordChannel" )" || return 1
+	type AgentsToolsSessionChatAppend > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
+	recordBody="$( cat )"
+	case "$recordBody" in
+		*[![:space:]]*) ;;
+		*) return 1 ;;
+	esac
+	shift 2
+	printf '%s' "$recordBody" | AgentsToolsSessionChatAppend "$recordSession" "$recordFrom" "$( AgentsToolsSessionChatTo "$@" )" - "$recordChannel" notice > /dev/null
+}
+
+## THE NOTICES THE NEXT FOREGROUND CALL SURFACES (F3.3): one line per notice recorded on the printback channel
+## of a session and not yet surfaced to the member reading it. Each block of the session's chat index whose
+## origin is `notice` and whose conversation is the session's printback channel is taken in order, its body
+## joined to one line, printed, and marked in the index as delivered to the member (its last field, the same
+## field a Wait marks) -- so a notice is never surfaced twice, by this digest or by any other reader. The mark
+## is written before the line is printed: a mark that cannot be written prints nothing and leaves the notice
+## for the next call. Silent for a session that is not on this channel (`track` and `full` are unchanged), one
+## with no chat file, and one with no new notice. Nothing here is a message: no Slack call, no printback print,
+## and no second record.
+AgentsToolsCommsPrintbackNoticeDigest(){ ## session, member
+	local digestSession="${1:-}" digestMember="${2:-}" digestDir="" digestIndex="" digestChat="" digestNew="" digestText="" digestRc=0 chatLock=""
+	[ -n "$digestSession" ] && [ -n "$digestMember" ] || return 0
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
+	AgentsToolsCommsPrintbackSessionInUse "$digestSession" || return 0
+	digestDir="$( AgentsToolsSessionChatDir "$digestSession" )" || return 0
+	digestIndex="$digestDir/$agentsSessionChatName.index"
+	digestChat="$digestDir/$agentsSessionChatName"
+	[ -s "$digestIndex" ] || return 0
+	AgentsToolsSessionChatLockTake "$digestSession"
+	## WITHOUT THE LOCK NOTHING IS TAKEN: two calls that read the same notice before either marks it would
+	## both print it. The notice stays for the next call, which is what "never twice" asks over "just now".
+	[ -n "$chatLock" ] || return 0
+	digestNew="$( mktemp "$digestIndex.digest.XXXXXX" 2> /dev/null )" || digestNew=""
+	if [ -n "$digestNew" ] ; then
+		digestText="$( LC_ALL=C awk -F'\t' -v OFS='\t' -v where="printback:$digestSession" -v member="$digestMember" -v newIndex="$digestNew" '
+			function hasSeen(list,   at, parts, count) {
+				count = split(list, parts, ",") ;
+				for (at = 1 ; at <= count ; at++) { if (parts[at] == member) { return 1 ; } }
+				return 0 ;
+			}
+			FILENAME == ARGV[1] {
+				count++ ;
+				no[count] = $1 ; ts[count] = $2 ; wh[count] = $3 ; org[count] = $4 ; line[count] = $5 ; sn[count] = $6 ;
+				next ;
+			}
+			{ body[FNR] = $0 ; if (FNR > last) { last = FNR } }
+			END {
+				for (at = 1 ; at <= count ; at++) {
+					if (wh[at] != where || org[at] != "notice" || hasSeen(sn[at])) {
+						print no[at], ts[at], wh[at], org[at], line[at], sn[at] > newIndex ;
+						continue ;
+					}
+					end = (at < count) ? line[at + 1] - 1 : last ;
+					text = "" ;
+					for (row = line[at] + 1 ; row <= end ; row++) {
+						v = body[row] ;
+						sub(/^[ \t\r]+/, "", v) ; sub(/[ \t\r]+$/, "", v) ;
+						if (v == "") { continue ; }
+						text = (text == "") ? v : text " " v ;
+					}
+					if (text == "") {
+						print no[at], ts[at], wh[at], org[at], line[at], sn[at] > newIndex ;
+						continue ;
+					}
+					print text ;
+					sn[at] = (sn[at] == "-" || sn[at] == "") ? member : sn[at] "," member ;
+					print no[at], ts[at], wh[at], org[at], line[at], sn[at] > newIndex ;
+				}
+			}
+		' "$digestIndex" "$digestChat" 2> /dev/null )" || digestRc=$?
+	fi
+	if [ "$digestRc" = "0" ] && [ -n "$digestNew" ] && [ -n "$digestText" ] && mv -f "$digestNew" "$digestIndex" 2> /dev/null ; then
+		printf '%s\n' "$digestText"
+	else
+		[ -z "$digestNew" ] || rm -f "$digestNew"
+	fi
+	AgentsToolsSessionChatLockGive
+	return 0
+}

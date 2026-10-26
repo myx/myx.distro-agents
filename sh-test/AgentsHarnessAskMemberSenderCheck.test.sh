@@ -181,7 +181,7 @@ rigOp(){ ## acting member (none: no session), operation and its arguments
 }
 rigRecordField(){ ## field of the scenario's one record
 	local recordFile
-	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] || continue
 		LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$recordFile"
 		return 0

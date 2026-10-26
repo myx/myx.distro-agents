@@ -78,7 +78,7 @@ rigCase(){ ## name -- a rig of its own, every fixture of this check in it
 	} > "rows.--manager-team-member-read --full keeper-rig"
 	printf 'file\tSKILL.md\t1889\tyes\nfile\tresources/icon.png\t1473\tno\n' > "rows.--manager-team-member-files keeper-rig"
 	printf -- '---\nname: keeper-rig\n---\n# The rig keeper\n' > "rows.--manager-team-member-files keeper-rig SKILL.md"
-	printf '📘 syntax: DistroAgentsKnowledge.fn.sh --member-help <team-member>\n📘 syntax: DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]\n\n\t\t--member-help <team-member>\n\t\t\tRead-only. Prints its help.\n\n\t\t--get-board-item <team-member> <item-name>\n\t\t--get-board-item <team-member> <item-name> --board-state <state>\n\t\t\tReads one item.\n\t\t\tIts second line.\n\n' > "rows.--member-help keeper-rig"
+	printf '📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>\n📘 syntax: DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]\n\n\t\t--member-help <team-member>\n\t\t\tRead-only. Prints its help.\n\n\t\t--member-board-item-read <team-member> <item-name>\n\t\t--member-board-item-read <team-member> <item-name> --board-state <state>\n\t\t\tReads one item.\n\t\t\tIts second line.\n\n' > "rows.--member-help keeper-rig"
 	: > "$MANAGER_SCREEN_RIG/calls"
 	: > "$MANAGER_SCREEN_RIG/words"
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
@@ -418,16 +418,16 @@ keys DOWN
 show none
 RIGSCRIPT
 rigAssert "Member Help selected shows the text of the help before its first option, the member's syntax lines, then the chapters after the options, in that order, and no block of an operation" \
-	"$( rigHolds whole '│📘 syntax: DistroAgentsKnowledge.fn.sh --member-help <team-member>' ) $( rigHolds whole 'HEAD-TEXT-OF-THE-HELP before the summary.' ) $( rigHolds whole 'FOOT-TEXT-OF-THE-HELP after the options.' ) $( rigHolds whole 'Read-only. Prints its help.' ) $( rigHolds whole 'Its second line.' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^whole|' | LC_ALL=C awk '/HEAD-TEXT/ { a = NR } /--console-list/ && !b { b = NR } /FOOT-TEXT/ { c = NR } END { print ( a && a < b && b < c ) ? "in-order" : "out-of-order" }' )" \
+	"$( rigHolds whole '│📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>' ) $( rigHolds whole 'HEAD-TEXT-OF-THE-HELP before the summary.' ) $( rigHolds whole 'FOOT-TEXT-OF-THE-HELP after the options.' ) $( rigHolds whole 'Read-only. Prints its help.' ) $( rigHolds whole 'Its second line.' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^whole|' | LC_ALL=C awk '/HEAD-TEXT/ { a = NR } /--console-list/ && !b { b = NR } /FOOT-TEXT/ { c = NR } END { print ( a && a < b && b < c ) ? "in-order" : "out-of-order" }' )" \
 	"1 1 1 0 0 in-order"
 rigAssert "the syntax lines are the member's, by --member-help, and the chapters are read by --manager-help-read" "$( rigWords '[--member-help][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigWords '[--manager-help-read]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "1 1"
 rigAssert "the examples of the help, a paragraph whose first line is a comment of the shell, show as they are written, as --help prints them: a comment is no heading, a fence and runs of blanks are kept" \
 	"$( rigHolds whole '│        # Start the rig,' ) $( rigHolds whole '│        # then stop it' ) $( rigHolds whole '│        ```' ) $( rigHolds whole '│        rig  --start   now' ) $( rigHolds whole '│        Start the rig,' ) $( rigHolds whole '━' )" "1 1 2 1 0 0"
 rigAssert "the chapters are Markdown: a heading without its marks, strong words without theirs, the text under a heading as a paragraph" "$( rigHolds whole '│ Summary:' ) $( rigHolds whole '│ Notes:' ) $( rigHolds whole '##' ) $( rigHolds whole '**' ) $( rigHolds whole '│        The rig tool, in short.' )" "1 1 0 0 1"
-rigAssert "inside, an item for each operation of the help, then each its syntax names with no block" "$( rigVal in.rows ) $( rigHolds entry ' --member-help ' ) $( rigHolds entry ' --get-board-item ' ) $( rigHolds entry ' --console-list ' )" "4 1 1 1"
-rigAssert "an operation selected shows its block alone: its syntax lines and its text" "$( rigHolds entry '│--get-board-item <team-member> <item-name> --board-state <state>' ) $( rigHolds entry '│    Reads one item.' ) $( rigHolds entry 'Prints its help.' )" "1 1 0"
+rigAssert "inside, an item for each operation of the help, then each its syntax names with no block" "$( rigVal in.rows ) $( rigHolds entry ' --member-help ' ) $( rigHolds entry ' --member-board-item-read ' ) $( rigHolds entry ' --console-list ' )" "4 1 1 1"
+rigAssert "an operation selected shows its block alone: its syntax lines and its text" "$( rigHolds entry '│--member-board-item-read <team-member> <item-name> --board-state <state>' ) $( rigHolds entry '│    Reads one item.' ) $( rigHolds entry 'Prints its help.' )" "1 1 0"
 rigAssert "one with no block in the help says so plainly" "$( rigHolds none '│It has no description block in the help.' )" "1"
-rigAssert "the help is Markdown: an operation's block rendered, its lines as --help prints them, and the titles say so" "$( rigHolds entry '│    Reads one item.' )$( rigHolds entry '│    Its second line.' ) $( rigHolds entry '--get-board-item [markdown]' ) $( rigHolds whole 'Member Help [markdown]' )" "11 1 1"
+rigAssert "the help is Markdown: an operation's block rendered, its lines as --help prints them, and the titles say so" "$( rigHolds entry '│    Reads one item.' )$( rigHolds entry '│    Its second line.' ) $( rigHolds entry '--member-board-item-read [markdown]' ) $( rigHolds whole 'Member Help [markdown]' )" "11 1 1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN BROWSE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

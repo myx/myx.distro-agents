@@ -122,7 +122,7 @@ rigOp(){ ## output basename, then the arguments of --intern-session-comms
 	shift
 	( cd "$rigDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_ID -u MDAT_SESSION_THREAD -u MDAT_COMMS_READER -u MDAT_COMMS_IDLE_SECONDS \
 		"PATH=$rigPath" "RIG_SCENARIO=$rigDir" "MMDAPP=$rigDir/ws" "MDAT_DATA_ROOT=$rigDir/data" "MDLT_ORIGIN=$MDLT_ORIGIN" "MDAT_SKILLSET_ROOT=$rigTmp/skills" $rigOpEnv \
-		perl -e 'alarm shift; exec @ARGV' 90 bash "$rigTool" --intern-session-comms "$@" ) > "$rigDir/$opName.out" 2> "$rigDir/$opName.err"
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 90 -- bash "$rigTool" --intern-session-comms "$@" ) > "$rigDir/$opName.out" 2> "$rigDir/$opName.err"
 	rigRc=$?
 }
 rigPass(){ ## output basename -- one pass over the scene's session
@@ -406,7 +406,7 @@ rigWaitOp(){ ## output basename -- a wait of keeper-exec on the session, bounded
 	( cd "$rigDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_WAIT_POLL_SECONDS -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_ID -u MDAT_SESSION_THREAD -u MDAT_CONVERSATION_THREADS \
 		"PATH=$rigPath" "RIG_SCENARIO=$rigDir" "MMDAPP=$rigDir/ws" "MDAT_DATA_ROOT=$rigDir/data" "MDLT_ORIGIN=$MDLT_ORIGIN" "MDAT_SKILLSET_ROOT=$rigTmp/skills" "MDAT_SESSION_ID=$rigSession" \
 		"MDAT_SPAWN_LAUNCH_MARKER=$rigSessDir/launch" MDAT_WAIT_POLL_SECONDS=1 MDAT_WAIT_SETTLE_SECONDS=1 MDAT_WAIT_REMIND=off \
-		perl -e 'alarm shift; exec @ARGV' 60 bash "$rigTool" --wait-for-input keeper-exec --wait-default --wait-session-id "$rigSession" --wait-timeout 2 --wait-source "file:$rigDir/none" ) > "$rigDir/$1.out" 2> "$rigDir/$1.err"
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 60 -- bash "$rigTool" --wait-for-input keeper-exec --wait-default --wait-session-id "$rigSession" --wait-timeout 2 --wait-source "file:$rigDir/none" ) > "$rigDir/$1.out" 2> "$rigDir/$1.err"
 }
 rigScene wait-fresh
 mkdir -p "$rigDir/ws/.local/agents/comms/looked"

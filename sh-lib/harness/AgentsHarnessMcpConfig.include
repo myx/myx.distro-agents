@@ -105,12 +105,20 @@ AgentsHarnessMcpSpecAdd(){ ## name, command, env pair count, key, value, ..., ar
 ## workspace when run from it ($MMDAPP), with the same command, args and env it writes,
 ## and under the same conditions -- each only where its server script is installed and
 ## executable.
+## BOTH PACKAGES COME FROM THE SAME RESOLVED ROOT, which is what decides whether a server
+## is present. The two nest their payloads differently -- myx.common ships its tree under
+## os-myx.common/host/tarball/share/myx.common, myx.distro-agents keeps its own at the
+## package root -- so each path below names its package's own depth. The workspace they
+## hang off does not: it is $primaryWs, the one path this function resolved, never the
+## string it was handed. A relative or unnormalized $1 must not make one server's command
+## relative while the other's stays absolute -- a relative command is refused when the
+## server is launched, which read as myx.distro missing while myx.common was there.
 AgentsHarnessMcpServersPrimary(){ ## workspace
 	local primaryWs primaryCommon primaryDistro
 	AgentsHarnessMcpSpecReset
 	[ -n "$1" ] && [ -d "$1" ] || return 0
 	primaryWs="$( cd "$1" && pwd )" || return 0
-	primaryDistro="$1/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	primaryDistro="$primaryWs/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	primaryCommon="$primaryWs/.local/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/agentMcpServer.Common"
 	[ ! -x "$primaryDistro" ] || AgentsHarnessMcpSpecAdd "myx.distro" "$primaryDistro" 1 MMDAPP "$primaryWs" --intern-mcp-server --run
 	[ ! -x "$primaryCommon" ] || AgentsHarnessMcpSpecAdd "myx.common" "$primaryCommon" 1 MMDAPP "$primaryWs" --run
@@ -118,13 +126,16 @@ AgentsHarnessMcpServersPrimary(){ ## workspace
 }
 
 ## What an index vouches for, into harnessMcpSum: the workspace, and this file's cksum.
+## The workspace is the resolved one, so an index written for this workspace vouches for it
+## whatever way a run spelled MMDAPP -- and what the installer writes is what a run reads.
 harnessMcpSum=""
 AgentsHarnessMcpSum(){ ## workspace
-	local sumCrc="" sumSize="" sumRest=""
+	local sumCrc="" sumSize="" sumRest="" sumWs="$1"
+	[ -z "$sumWs" ] || [ ! -d "$sumWs" ] || sumWs="$( cd "$sumWs" && pwd )" || return 1
 	harnessMcpSum=""
 	read -r sumCrc sumSize sumRest <<< "$( LC_ALL=C cksum "$agentsMcpConfigHere/harness/AgentsHarnessMcpConfig.include" 2>/dev/null )"
 	[ -n "$sumSize" ] || return 1
-	harnessMcpSum="workspace=$1"$'\n'"code=$sumCrc $sumSize"
+	harnessMcpSum="workspace=$sumWs"$'\n'"code=$sumCrc $sumSize"
 }
 
 ## The whole index for one workspace, on stdout: of the primary composition, or, given

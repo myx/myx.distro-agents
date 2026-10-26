@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.KnowledgeStore.include -- the librarian's spread and retire of the knowledge store (F8.3), built on
+## `--install-knowledge-store`. Sourced by the dispatcher, which hands over the operation word and its arguments.
+##
+##   --knowledge-store-spread <path> [--keep <glob>]...
+##       The buffer rule: the sections of the MAGIC.md whose caption matches a `--keep` glob stay in the file (what is
+##       currently important); every other section moves to the `MAGIC.LanceDB` beside it, one record a section (its
+##       caption and its body), and stays findable by the query, which searches the store with the text. The file is
+##       rewritten with the kept sections alone, over a transient backup. At least one `--keep` is required -- the
+##       librarian names what stays, nothing is moved by a silent default, and a run that would remove every section is
+##       refused.
+##   --knowledge-store-retire <path> --section <glob>...
+##       The records of the store beside the MAGIC.md whose section caption matches a `--section` glob are deleted, so
+##       they are no longer findable. The MAGIC.md is left as it is. At least one `--section` is required.
+##
+## Both refuse when the store is off or not installed, naming the installers; both are safe to run again (a spread
+## replaces a record already moved, a retire deletes what matches and keeps the rest). The record write and delete are
+## the one Python (AgentsKnowledgeStore.py) through the store's own Python.
+##
+
+AgentsToolsKnowledgeStoreRefuse(){ ## text -- why, on stderr; rc 1
+	echo "$MDSC_CMD: ⛔ ERROR: $1" >&2
+	return 1
+}
+
+AgentsToolsKnowledgeStoreAssertReady(){ ## -- the setting on and the store's Python standing; rc 1 with why otherwise
+	type AgentsToolsKnowledgeStoreSetting > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.InstallKnowledgeStore.include"
+	type AgentsToolsKnowledgeStorePython > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Knowledge.include"
+	if [ "$( AgentsToolsKnowledgeStoreSetting )" != "on" ] ; then
+		AgentsToolsKnowledgeStoreRefuse "the knowledge store is off (MDAT_KNOWLEDGE_STORE): turn it on with --manager-config-set MDAT_KNOWLEDGE_STORE on, then --install-knowledge-store"
+		return 1
+	fi
+	AgentsToolsKnowledgeStorePython > /dev/null 2>&1 || { AgentsToolsKnowledgeStoreRefuse "the knowledge store is not installed: run --install-knowledge-store first (which asks --install-embedded-python)" ; return 1 ; }
+	return 0
+}
+
+## The MAGIC.md named, resolved absolute, its store beside it and its reference below the workspace, as three lines.
+AgentsToolsKnowledgeStorePathOf(){ ## path -- <path>\n<store-dir>\n<ref>; rc 1 with why otherwise
+	local storePath="${1:-}"
+	case "$storePath" in /*) ;; *) storePath="$( cd "$( dirname "$storePath" )" && pwd -P )/$( basename "$storePath" )" ;; esac
+	[ -f "$storePath" ] || { AgentsToolsKnowledgeStoreRefuse "not a file: ${1:-<none>}" ; return 1 ; }
+	case "$storePath" in */MAGIC.md) ;; *) AgentsToolsKnowledgeStoreRefuse "not a MAGIC.md: $1" ; return 1 ;; esac
+	printf '%s\n%s\n%s\n' "$storePath" "${storePath%.md}.LanceDB" "${storePath#"${MMDAPP%/}/"}"
+}
+
+AgentsToolsKnowledgeStoreSpread(){ ## the arguments after the operation word
+	local spreadPath="" spreadKeep=() spreadScratch spreadKept spreadManifest spreadBackup spreadStore spreadRef spreadPython
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--keep)
+				[ $# -ge 2 ] || { AgentsToolsKnowledgeStoreRefuse "--keep takes a glob" ; return 1 ; }
+				spreadKeep+=( "$2" ) ; shift 2
+			;;
+			-*) AgentsToolsKnowledgeStoreRefuse "invalid option: $1" ; return 1 ;;
+			*)
+				if [ -n "$spreadPath" ] ; then AgentsToolsKnowledgeStoreRefuse "one MAGIC.md is spread at a time: already have $spreadPath, got $1" ; return 1 ; fi
+				spreadPath="$1" ; shift
+			;;
+		esac
+	done
+	[ -n "$spreadPath" ] || { AgentsToolsKnowledgeStoreRefuse "syntax: --knowledge-store-spread <path> --keep <glob>..." ; return 1 ; }
+	[ "${#spreadKeep[@]}" -gt 0 ] || { AgentsToolsKnowledgeStoreRefuse "at least one --keep <glob> is required: the librarian names what stays, nothing moves by default" ; return 1 ; }
+	AgentsToolsKnowledgeStoreAssertReady || return 1
+	{ IFS= read -r spreadPath && IFS= read -r spreadStore && IFS= read -r spreadRef ; } <<< "$( AgentsToolsKnowledgeStorePathOf "$spreadPath" )" || return 1
+	spreadPython="$( AgentsToolsKnowledgeStorePython )" || return 1
+	( ## the split, the record write and the rewrite, in a subshell whose trap takes the scratch with it
+		mkdir -p "$MMDAPP/.local/temp" || exit 1
+		spreadScratch="$( mktemp -d "$MMDAPP/.local/temp/knowledge-store-spread.XXXXXX" )" || exit 1
+		trap "rm -rf -- $( printf '%q' "$spreadScratch" )" EXIT
+		spreadKept="$spreadScratch/kept.md"
+		spreadManifest="$spreadScratch/manifest"
+		SPREAD_KEEP="$( printf '%s\n' "${spreadKeep[@]}" )" SPREAD_KEPT="$spreadKept" SPREAD_MANIFEST="$spreadManifest" SPREAD_DIR="$spreadScratch" \
+			LC_ALL=C awk -v file="$spreadPath" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeStoreSpread.awk" || exit 1
+		if [ ! -s "$spreadManifest" ] ; then
+			echo "$MDSC_CMD: --knowledge-store-spread: every section of $spreadRef is kept; nothing moved" >&2
+			exit 0
+		fi
+		LC_ALL=C grep -q '^[[:space:]]*#\{1,7\}[[:space:]]' "$spreadKept" 2> /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: --knowledge-store-spread: that would remove every section of $spreadRef -- name what stays with --keep, the title at least" >&2 ; exit 1 ; }
+		## the records, written before the file is touched: where the write fails, the MAGIC.md still holds every section
+		"$spreadPython" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeStore.py" add --store "$spreadStore" --source "$spreadRef" --manifest "$spreadManifest" >&2 || exit 1
+		## the file, rewritten with the kept sections alone, over a transient backup
+		spreadBackup="$spreadPath.bak"
+		cp -pf "$spreadPath" "$spreadBackup" || { echo "$MDSC_CMD: ⛔ ERROR: --knowledge-store-spread: cannot back up $spreadRef" >&2 ; exit 1 ; }
+		if ! cat "$spreadKept" > "$spreadPath" ; then
+			mv -f "$spreadBackup" "$spreadPath"
+			echo "$MDSC_CMD: ⛔ ERROR: --knowledge-store-spread: cannot rewrite $spreadRef; it is left as it was" >&2
+			exit 1
+		fi
+		rm -f "$spreadBackup"
+		echo "$MDSC_CMD: --knowledge-store-spread: moved $( LC_ALL=C wc -l < "$spreadManifest" | LC_ALL=C tr -d ' ' ) section(s) of $spreadRef to $spreadStore" >&2
+		printf '%s\n' "$spreadRef"
+	)
+	return $?
+}
+
+AgentsToolsKnowledgeStoreRetire(){ ## the arguments after the operation word
+	local retirePath="" retireSections=() retireScratch retireSectionsFile retireStore retirePython retireRemoved
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--section)
+				[ $# -ge 2 ] || { AgentsToolsKnowledgeStoreRefuse "--section takes a glob" ; return 1 ; }
+				retireSections+=( "$2" ) ; shift 2
+			;;
+			-*) AgentsToolsKnowledgeStoreRefuse "invalid option: $1" ; return 1 ;;
+			*)
+				if [ -n "$retirePath" ] ; then AgentsToolsKnowledgeStoreRefuse "one MAGIC.md is retired at a time: already have $retirePath, got $1" ; return 1 ; fi
+				retirePath="$1" ; shift
+			;;
+		esac
+	done
+	[ -n "$retirePath" ] || { AgentsToolsKnowledgeStoreRefuse "syntax: --knowledge-store-retire <path> --section <glob>..." ; return 1 ; }
+	[ "${#retireSections[@]}" -gt 0 ] || { AgentsToolsKnowledgeStoreRefuse "at least one --section <glob> is required" ; return 1 ; }
+	AgentsToolsKnowledgeStoreAssertReady || return 1
+	{ IFS= read -r retirePath && IFS= read -r retireStore ; } <<< "$( AgentsToolsKnowledgeStorePathOf "$retirePath" )" || return 1
+	[ -d "$retireStore" ] || { AgentsToolsKnowledgeStoreRefuse "no store stands beside $retirePath: nothing to retire" ; return 1 ; }
+	retirePython="$( AgentsToolsKnowledgeStorePython )" || return 1
+	( ## the delete, in a subshell whose trap takes the scratch with it
+		mkdir -p "$MMDAPP/.local/temp" || exit 1
+		retireScratch="$( mktemp -d "$MMDAPP/.local/temp/knowledge-store-retire.XXXXXX" )" || exit 1
+		trap "rm -rf -- $( printf '%q' "$retireScratch" )" EXIT
+		retireSectionsFile="$retireScratch/sections"
+		printf '%s\n' "${retireSections[@]}" > "$retireSectionsFile"
+		retireRemoved="$( "$retirePython" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeStore.py" remove --store "$retireStore" --sections "$retireSectionsFile" )" || exit 1
+		echo "$MDSC_CMD: --knowledge-store-retire: removed $retireRemoved record(s) of $retireStore" >&2
+		printf '%s\n' "$retireRemoved"
+	)
+	return $?
+}
+
+case "$1" in
+	--knowledge-store-spread)
+		shift
+		knowledgeStoreRc=0
+		( set +e ; AgentsToolsKnowledgeStoreSpread "$@" ) || knowledgeStoreRc=$?
+		[ "$knowledgeStoreRc" = 0 ] || { set +e ; return "$knowledgeStoreRc" ; }
+		return 0
+	;;
+	--knowledge-store-retire)
+		shift
+		knowledgeStoreRc=0
+		( set +e ; AgentsToolsKnowledgeStoreRetire "$@" ) || knowledgeStoreRc=$?
+		[ "$knowledgeStoreRc" = 0 ] || { set +e ; return "$knowledgeStoreRc" ; }
+		return 0
+	;;
+	*)
+		## sourced for its helpers alone: nothing to run for a name that is not its own
+		:
+	;;
+esac

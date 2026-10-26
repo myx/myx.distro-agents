@@ -204,7 +204,11 @@ rigToolsOf(){ ## request file
 	LC_ALL=C awk '
 		{ body = body $0 ; }
 		END {
-			endPos = index( body, "],\"tool_choice\":" )
+			## The wire now writes `tools` first and `messages` after it (a stable prefix for the provider cache), so the
+			## array ends where `],"messages":[` begins; the older order, `tools` right before `tool_choice`, still reads.
+			endPos = index( body, "}],\"messages\":[" )
+			if ( endPos ) endPos++
+			else endPos = index( body, "],\"tool_choice\":" )
 			if ( !endPos ) exit
 			head = substr( body, 1, endPos )
 			startPos = 0
@@ -319,8 +323,13 @@ rigToolResult(){ ## request file, tool call id -- that call's result content as 
 }
 rigAssert "the run ends normally"                           "$rigRunStatus" 0
 rigAssert "two rounds were requested"                       "$rigRoundCount" 2
-## Every built-in this rig session is offered: CheckList is not, the session has no team identity.
-rigAssert "every built-in declares the optional description" "$( rigToolsOf "$rigScenarioDir/req.1" | LC_ALL=C awk -v want="$rigIntentParam" '{ body = body $0 } END { while ( ( at = index( body, want ) ) > 0 ) { seen++ ; body = substr( body, at + length( want ) ) } ; print seen + 0 }' )" 31
+## Every built-in this rig session is offered, CheckList among them: the declarations are
+## unconditional, and a session without a place for a list refuses it at execution (F1.2).
+## One description for each built-in tool offered, and none on a tool of a served MCP server (mcp__<server>__<tool>, the rig's own among them). The
+## built-in count is read off the same request, so a built-in added or removed does not stale it.
+rigToolsDeclared="$( rigToolsOf "$rigScenarioDir/req.1" | LC_ALL=C grep -o '"type":"function","function":{"name":"[A-Za-z_]*"' | LC_ALL=C grep -v -c '"name":"mcp__' || : )"
+rigAssert "control: the built-ins offered were counted" "$( [ "$rigToolsDeclared" -gt 5 ] && printf yes || printf no )" yes
+rigAssert "every built-in declares the optional description" "$( rigToolsOf "$rigScenarioDir/req.1" | LC_ALL=C awk -v want="$rigIntentParam" '{ body = body $0 } END { while ( ( at = index( body, want ) ) > 0 ) { seen++ ; body = substr( body, at + length( want ) ) } ; print seen + 0 }' )" "$rigToolsDeclared"
 rigAssert "the server's own tool is declared as it sent it, no description added" \
 	"$( rigToolsOf "$rigScenarioDir/req.1" | LC_ALL=C awk -v want="$rigIntentParam" '{ body = body $0 } END { at = index( body, "\"name\":\"mcp__rigmcp__ping\"" ) ; if ( !at ) { print "absent" ; exit } ; print ( index( substr( body, at ), want ) ? "added" : "as sent" ) }' )" "as sent"
 rigAssert "a built-in called with one answers exactly as without" "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-intent )" "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-bare )"

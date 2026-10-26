@@ -184,10 +184,18 @@ AgentsToolsClientAccessWidenGrantRoot(){
 ## default differently.
 ##   $1 = the widened root path to look up.
 AgentsToolsClientAccessRootTag(){
-	type AgentsToolsTeamGrantRows >/dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" || return 1
+	## The tags registry is read ONCE and cached: a spawn classifies each of its
+	## wildcard roots through this function, and re-reading the registry for every
+	## one of them was the seconds-long slow start of a spawn (37 roots, each a
+	## subprocess read of the registry and the workspace list).
+	if [ -z "${__AgentsToolsClientAccessTagCached:-}" ] ; then
+		type AgentsToolsTeamGrantRows >/dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include" || return 1
+		__AgentsToolsClientAccessTagRows="$( AgentsToolsTeamGrantRows "${MMDAPP:-}" permissions-tags.registry )"
+		__AgentsToolsClientAccessTagCached=1
+	fi
 	## Field 4 taken whole by offset, same discipline as the main registry --
 	## a colon inside a path must never be read as a field separator.
-	AgentsToolsTeamGrantRows "${MMDAPP:-}" permissions-tags.registry | LC_ALL=C awk -F: -v wantRoot="$1" '
+	printf '%s\n' "$__AgentsToolsClientAccessTagRows" | LC_ALL=C awk -F: -v wantRoot="$1" '
 		NF >= 4 {
 			rowRoot = substr( $0, length($1) + length($2) + length($3) + 4 )
 			if ( rowRoot == wantRoot ) { print $3 ; exit ; }

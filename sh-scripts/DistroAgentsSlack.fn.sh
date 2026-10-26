@@ -36,7 +36,7 @@ DistroAgentsSlack(){
 			set +e ; return 1
 		;;
 		--help)
-			AgentsToolsFrontHelp DistroAgentsSlack "the team's Slack operations" >&2
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsSlack.include"
 			return 0
 		;;
 	esac

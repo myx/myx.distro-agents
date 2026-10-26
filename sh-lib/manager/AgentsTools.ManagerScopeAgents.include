@@ -115,13 +115,15 @@ AgentsToolsManagerScopeAgentsKnown(){ ## the name of the scope of the agents
 				printf 'PRESET_ENDPOINT_URL\ttext\t-\tThe_endpoint_this_service_is_reached_at,_https_only._Unset_leaves_it_to_the_service.\n'
 			fi
 			printf 'PRESET_MODEL_OR_MACRO\ttext\t-\tThe_model,_or_a_macro:_%s.\n' "$( printf '%s' "$agentsPresetMacros" | LC_ALL=C tr ' ' ',' )"
+			## The effort a person is offered is the one list agentsPresetEfforts, in its order: unset is the service's
+			## own default. A value already held is shown as it is, an older name (default, hard) among them.
 			knownList=""
 			for knownOne in $agentsPresetEfforts ; do knownList="$knownList${knownList:+,}$knownOne=$knownOne" ; done
 			printf 'PRESET_EFFORT\tchoice\t%s\tThe_effort,_optional.\n' "$knownList"
 			knownList=""
 			for knownOne in $agentsPresetCacheTimes ; do knownList="$knownList${knownList:+,}$knownOne=$knownOne" ; done
 			printf 'PRESET_INPUT_CACHE_TIME\tchoice\t%s\tHow_long_the_input_cache_of_a_spawn_lives.\n' "$knownList"
-			printf 'PRESET_CONTEXT_MAX_SIZE\tnumber\t1000..10000000\tThe_largest_context,_in_tokens.\n'
+			printf 'PRESET_CONTEXT_MAX_SIZE\tnumber\t1000..10000000\tThe_restart_threshold,_in_tokens:_a_run_that_reaches_it_summarises_and_starts_again._Unset_uses_the_service_window_less_its_output_maximum.\n'
 			printf 'PRESET_EXTRA_SPAWN_LINE\ttext\t-\tA_line_the_owner_adds_to_every_dispatch_of_this_preset.\n'
 			if [ -z "$( AgentsToolsPresetRead "$MMDAPP" "$knownName" PRESET_EXTEND )" ] ; then
 				knownService="$( AgentsToolsPresetRead "$MMDAPP" "$knownName" PRESET_CLI_SERVICE )"
@@ -138,17 +140,39 @@ AgentsToolsManagerScopeAgentsKnown(){ ## the name of the scope of the agents
 				knownPreset="${knownFile##*/preset-}" ; knownPreset="${knownPreset%.agent.env}"
 				knownList="$knownList${knownList:+,}$knownPreset"
 			done
-			[ -n "$knownList" ] || return 0
-			## The kind `tier`: two selectors, the preset and the effort. Its values are the presets, a slash, and the efforts a person is offered; the value itself stays
-			## `<preset>[:<effort>]`, and an effort of the five that a value already holds (default, hard) is shown by the screen with them.
-			knownList="$knownList/low,normal,high"
-			printf 'SPAWN_TIER_LOW\ttier\t%s\tThe_preset_(and_its_effort)_of_the_low_tier.\n' "$knownList"
-			printf 'SPAWN_TIER_NORMAL\ttier\t%s\tThe_preset_(and_its_effort)_of_the_normal_tier.\n' "$knownList"
-			printf 'SPAWN_TIER_HIGH\ttier\t%s\tThe_preset_(and_its_effort)_of_the_high_tier.\n' "$knownList"
+			## The kind `tier`: two selectors, the preset and the effort. Its values are the presets, a slash, and the efforts of the one list that
+			## lift a tier; unset is the form's own empty choice, so the list is walked without it. The value itself stays
+			## `<preset>[:<effort>]`, and an effort a value already holds (default, hard) is shown by the screen with them.
+			## A workspace with no preset still has its own settings: the tiers are then locked, with the reason, and the rows after them stand as they always did.
+			if [ -n "$knownList" ] ; then
+				knownEfforts=""
+				for knownOne in $agentsPresetEfforts ; do
+					[ "$knownOne" = unset ] && continue
+					knownEfforts="$knownEfforts${knownEfforts:+,}$knownOne"
+				done
+				knownList="$knownList/$knownEfforts"
+				printf 'SPAWN_TIER_LOW\ttier\t%s\tThe_preset_(and_its_effort)_of_the_low_tier.\n' "$knownList"
+				printf 'SPAWN_TIER_NORMAL\ttier\t%s\tThe_preset_(and_its_effort)_of_the_normal_tier.\n' "$knownList"
+				printf 'SPAWN_TIER_HIGH\ttier\t%s\tThe_preset_(and_its_effort)_of_the_high_tier.\n' "$knownList"
+			else
+				printf 'SPAWN_TIER_LOW\tlocked\tthere_is_no_preset_to_choose\tThe_preset_(and_its_effort)_of_the_low_tier;_made_with_the_first_preset.\n'
+				printf 'SPAWN_TIER_NORMAL\tlocked\tthere_is_no_preset_to_choose\tThe_preset_(and_its_effort)_of_the_normal_tier;_made_with_the_first_preset.\n'
+				printf 'SPAWN_TIER_HIGH\tlocked\tthere_is_no_preset_to_choose\tThe_preset_(and_its_effort)_of_the_high_tier;_made_with_the_first_preset.\n'
+			fi
 			## The harness's own knobs, read by every spawn of this workspace that runs on a leg.
 			printf 'HARNESS_STREAM_ATTEMPTS\tnumber\t1..10\tHow_many_attempts_one_round_may_make_before_it_gives_up.\n'
 			printf 'HARNESS_RETRY_DELAY\tnumber\t0..30\tSeconds_before_the_first_retry;_each_later_one_doubles_up_to_30.\n'
 			printf 'HARNESS_PARALLEL_TOOL_CALLS\tchoice\ton=on,off=off\tWhether_a_server_that_takes_parallel_tool_calls_is_told_so.\n'
+			## The account at the console that IS the human-owner: its answers are his own, and the
+			## authority gate confirms with him instead of asking a session's thread. Read by
+			## AgentsToolsAuthorityOwnerMapped, and until it was declared here it could be set NOWHERE.
+			if [ "$knownName" = magic-team ] ; then
+				printf 'HUMAN_OWNER_CONSOLE_ACCOUNT\ttext\t-\tThe_account_at_the_console_that_is_the_human-owner;_its_answers_are_his_own.\n'
+				## The owners role (epic T8): its members, and the quorum rule of each kind of decision.
+				## A console account is never a member; these rows name only authenticated accounts.
+				printf 'HUMAN_OWNER_MEMBERS\ttext\t-\tThe_owners_role_s_members,_authenticated_accounts,_space-separated.\n'
+				printf 'HUMAN_OWNER_QUORUM\ttext\t-\tThe_quorum_rule_of_each_kind_of_decision,_as_kind=rule_pairs.\n'
+			fi
 		;;
 	esac
 	return 0

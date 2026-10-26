@@ -117,8 +117,14 @@ rigOp --intern-op-permission-refusal-log "user-$rigAcct" --session-id rig-cow --
 rigGrantRefusal="$( LC_ALL=C grep -o -E 'refusal-[0-9a-f-]+' "$rigTmp/op.out" | head -1 )"
 rigOp --intern-op-permission-grant-open human-owner --session-id rig-cow --refusal-id "${rigGrantRefusal:-none}" --kind session
 LC_ALL=C grep -q '^GRANT: session ' "$rigTmp/op.out" || rigRefuse "the grant of the authority over rig-cow to the console was not written: $( head -2 "$rigTmp/op.err" | LC_ALL=C tr '\n' ' ' )"
+## A record closed here lives in pending/closed/ (retention, T9): the field reader resolves either store.
+rigFileResolve(){ ## file
+	local rigF="$1"
+	[ -f "$rigF" ] || rigF="${rigF%/*}/closed/${rigF##*/}"
+	printf '%s' "$rigF"
+}
 rigField(){ ## file, field
-	LC_ALL=C awk -F': ' -v wantField="$2" '$1 == wantField { print substr( $0, length( wantField ) + 3 ) ; exit ; }' "$1" 2>/dev/null
+	LC_ALL=C awk -F': ' -v wantField="$2" '$1 == wantField { print substr( $0, length( wantField ) + 3 ) ; exit ; }' "$( rigFileResolve "$1" )" 2>/dev/null
 }
 rigRow(){ ## first field, optional second field -> that row of the last output, tabs as |
 	LC_ALL=C awk -F'\t' -v one="$1" -v two="${2:-}" '$1 == one && ( two == "" || $3 == two || $2 == two ) { gsub( /\t/, "|" ) ; print ; exit ; }' "$rigTmp/op.out"
@@ -198,7 +204,7 @@ chmod +x "$rigTmp/noid/id"
 rigMark
 USER="" LOGNAME="" PATH="$rigTmp/noid:$PATH" rigOp --manager-pending-reply-answer --id "$rigPend" --answer 2
 rigAssert "an answer is refused with an error that says why" "$rigOpRc:$( rigHas "$rigTmp/op.err" 'no account for the person at the console' ):$( rigHas "$rigTmp/op.err" 'made-up name' )" "1:yes:yes"
-rigAssert "nothing is recorded, applied or posted: the question is as it was" "$( rigField "$rigFile" status ):$( rigField "$rigFile" verdict ):$( rigField "$rigFile" answered-by ):$( rigNew 'console' ):$( LC_ALL=C grep -c -F -e user-unknown "$rigFile" )" "reply-pending:::0:0"
+rigAssert "nothing is recorded, applied or posted: the question is as it was" "$( rigField "$rigFile" status ):$( rigField "$rigFile" verdict ):$( rigField "$rigFile" answered-by ):$( rigNew 'console' ):$( LC_ALL=C grep -c -F -e user-unknown "$( rigFileResolve "$rigFile" )" )" "reply-pending:::0:0"
 USER="" LOGNAME="" PATH="$rigTmp/noid:$PATH" rigOp --manager-pending-reply-read --id "$rigPend"
 rigAssert "a read is refused the same way, and prints no row that stands as user-unknown" "$rigOpRc:$( rigHas "$rigTmp/op.err" 'no account for the person at the console' ):$( LC_ALL=C grep -c -F -e user-unknown "$rigTmp/op.out" )" "1:yes:0"
 

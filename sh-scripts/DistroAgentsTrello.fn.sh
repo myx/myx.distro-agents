@@ -36,7 +36,7 @@ DistroAgentsTrello(){
 			set +e ; return 1
 		;;
 		--help)
-			AgentsToolsFrontHelp DistroAgentsTrello "the team's Trello operations" >&2
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTrello.include"
 			return 0
 		;;
 	esac

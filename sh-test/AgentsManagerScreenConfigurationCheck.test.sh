@@ -196,8 +196,9 @@ cells row2 3 85 119
 cells row3 4 85 119
 cells row4 5 85 119
 cells row5 6 85 119
-cells rowD 7 85 119
-cells row6 9 85 119
+cells rowH 7 85 119
+cells rowD 8 85 119
+cells row6 10 85 119
 keys DOWN
 turn
 show c
@@ -207,7 +208,7 @@ show k
 advance 11
 turn 3
 RIGSCRIPT
-rigAssert "Config Checker and Server Keys stand under the row that goes up, each a row that is entered, then the subjects" "$( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )][$( rigCell row5 )][$( rigCell rowD )][$( rigCell row6 )]" "8 [ Config Checker ~ ►][ Server Keys ~ ►][ CLI Presets and Tiers ~ ►][ Git Settings ~ ►][ Installed Subsystems ~ ►][]"
+rigAssert "Config Checker and Server Keys stand under the row that goes up, each a row that is entered, then the subjects" "$( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )][$( rigCell row5 )][$( rigCell rowH )][$( rigCell rowD )][$( rigCell row6 )]" "9 [ Config Checker ~ ►][ Server Keys ~ ►][ CLI Presets and Tiers ~ ►][ Git Settings ~ ►][ Configure Harness ~ ►][ Installed Subsystems ~ ►][]"
 rigAssert "on Config Checker the left window says that the checks were not run, and which key runs them" "[$( rigPane c 2 )][$( rigPane c 3 )][$( rigPane c 4 )]" "[ Config Checker [wrap]][ The checks were not run yet in this run of the screen.][ r runs them. It is the read-only diagnosis of each part of the installation: it]"
 rigAssert "the checks are not run before their folder is entered, whatever time passes; the keys are listed once the selection has rested on their folder" "$( rigCalled --manager-check-run ) $( rigCalled --manager-keys-list ) [$( rigPane k 2 )]" "0 1 [ Server Keys [wrap]]"
 
@@ -354,7 +355,7 @@ rigAssert "a group selected: the left window shows that group alone, and the key
 rigAssert "a key selected: what it is for, its type, its fingerprint, its file, its group as the row named it" "$( rigVal d.selected ) [$( rigPane d 2 )][$( rigPane d 3 )][$( rigPane d 5 )][$( rigPane d 6 )][$( rigPane d 7 )][$( rigPane d 8 )]" \
 	"deploy [ Deploy Key [wrap]][ the deploy key of this server, to list on each git repository it reads][  type         ssh-ed25519][  fingerprint  SHA256:abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ][  file         /rig/mdci/deploy-keys/mdci.pub][  group        Keys To Add To Git]"
 rigAssert "then its whole public line, as it is pasted, what goes on set further in" "[$( rigPane d 12 )][$( rigPane d 13 )] $( rigPane d 14 | LC_ALL=C grep -c '^       AAAAC3NzaC1lZDI1NTE5AAAAIabc' ) $( rigJoined d | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123mdci@rig-host' )" "[ Its public line, whole, as it is pasted:][   ssh-ed25519] 1 1"
-rigAssert "where it is to be registered; no sentence names the key that shows it alone: the status line names it" "$( rigPaneHolds d ' It is to be registered on each of these repositories:' ) $( rigPaneHolds d '   myx/myx.common git@github.com:myx/myx.common.git' ) $( rigPaneHolds d '   myx/myx.distro-agents git@github.com:myx/myx.distro-agents.git' ) $( rigPaneHolds d ' f shows it alone, in a box to copy.' ) [$( rigVal dStatus | sed 's/  *$//' )]" "1 1 1 0 [ f Full  R Regenerate  d Delete  ENTER Full  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "where it is to be registered; no sentence names the key that shows it alone: the status line names it" "$( rigPaneHolds d ' It is to be registered on each of these repositories:' ) $( rigPaneHolds d '   myx/myx.common git@github.com:myx/myx.common.git' ) $( rigPaneHolds d '   myx/myx.distro-agents git@github.com:myx/myx.distro-agents.git' ) $( rigPaneHolds d ' f shows it alone, in a box to copy.' ) [$( rigVal dStatus | sed 's/  *$//' )]" "1 1 1 0 [ f Full  R Regenerate  d Delete  ENTER Full  BSP Up  a Active  / Filter  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "it is whole in Basic B/W and in Magic too"                "$( rigJoined dbw | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123mdci@rig-host' ) $( rigJoined dmagic | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123mdci@rig-host' )" "1 1"
 rigAssert "the shortened key of a row is nowhere on the screen, and no line of the left window is cut" "$( rigScreenHolds u 'SHORT-never' ) $( rigScreenHolds g 'SHORT-never' ) $( rigScreenHolds d 'SHORT-never' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -e '^u|' -e '^d|' | LC_ALL=C sed -e 's/│║.*$//' | LC_ALL=C grep -c -F '…' )" "0 0 0 0"
 rigAssert "f opens the box of that key alone, which says that its line is being read" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] [$( rigVal asked.dialogHolds )]" "[keyline:ok|] [Deploy Key] [Its public line is being read.]"
@@ -606,9 +607,10 @@ rigAssert "its option heads its text, set in as the help sets it, plain as --hel
 rigAssert "g shows it as it is, b renders it again, and w cuts each line instead of breaking it" "$( rigVal raw.textMode ) $( rigPaneHolds r ' ##  Summary:' ) $( rigVal cut.textMode ) $( rigScreenHolds c 'What the option does, a long sentence that goes on and on, so that' ) $( rigScreenHolds c 'ENDWORD' ) $( rigScreenHolds c '[cut]' )" "raw 1 summary 1 0 1"
 rigAssert "a command whose help read gives nothing says plainly that it has no help file, and only the selected commands were read" "$( rigVal none.selected ) $( rigPaneHolds n ' JumpRig.fn.sh has no help file beside it.' ) $( LC_ALL=C grep -c -e '^--manager-help-read' "$MANAGER_SCREEN_RIG/calls" ) $( rigCalled '--manager-help-read ScreenTo.fn.sh' )" "JumpRig.fn.sh 1 2 0"
 
-echo "-- Diagnostics: the resolved context of the tooling, read-only, a name and a value (F11.7) --"
+echo "-- Diagnostics: the resolved context of the tooling, read-only, a name and a value, and the team-data checkout diagnosis (F11.7) --"
 rigCase diag
 printf 'team-member: user-rig\nsession-id: \nselect-workspace: /rig/ws_rig\nMDAT_SLACK_BOT_TOKEN: xoxb-12**********\nMDAT_DATA_ROOT: /rig/ws_rig/.local/team-data\n' > "$MANAGER_SCREEN_RIG/rows.--intern-context-show"
+printf 'TEAM-DATA-CHECKOUT: /rig/ws/team-data branch main is 3 local commit(s) ahead of origin/main and 1 behind it\nTEAM-DATA-LOCAL-COMMIT: 1a88232 local one\nTEAM-DATA-REMOTE-COMMIT: 9dd65d9 elsewhere\nTEAM-DATA-TRIAL-MERGE: clean\nTEAM-DATA-REPAIR-OFFER: to keep the local commits merged: DistroAgentsItems.fn.sh --repair-team-data-checkout magic-coordinator --keep-merged\nTEAM-DATA-REPAIR-OFFER: to set the local commits aside and take the remote: DistroAgentsItems.fn.sh --repair-team-data-checkout magic-coordinator --take-remote\n' > "$MANAGER_SCREEN_RIG/rows.--repair-team-data-checkout magic-coordinator"
 rigScript <<'RIGSCRIPT'
 at @configuration diagnostics
 wait list 30
@@ -618,6 +620,10 @@ rowids ids
 show up
 keys DOWN
 turn
+get co
+show co
+keys DOWN
+turn
 get one
 show one
 keys DOWN DOWN DOWN
@@ -625,7 +631,8 @@ turn
 get tok
 show tok
 RIGSCRIPT
-rigAssert "the folder lists each name of what the operation printed, one read of it, and it is a folder of the Configuration" "$( rigVal in.path ) / $( rigVal ids ) / $( rigCalled --intern-context-show )" "configuration/diagnostics / .. team-member session-id select-workspace MDAT_SLACK_BOT_TOKEN MDAT_DATA_ROOT / 1"
+rigAssert "the folder lists each name of what the operation printed, the checkout folder ahead of them, one read of it, and it is a folder of the Configuration" "$( rigVal in.path ) / $( rigVal ids ) / $( rigCalled --intern-context-show )" "configuration/diagnostics / .. checkout team-member session-id select-workspace MDAT_SLACK_BOT_TOKEN MDAT_DATA_ROOT / 1"
+rigAssert "the checkout folder stands ahead of the names, and nothing of it is read until it is asked" "$( rigVal co.selectedLabel ) $( rigCalled '--repair-team-data-checkout magic-coordinator' )" "Team Data Checkout 0"
 rigAssert "on the row that goes up the left pane is the table of name and value, a value left empty as a dash" "$( rigPaneHolds up '  team-member           user-rig' ) $( rigPaneHolds up '  session-id            -' ) $( rigPaneHolds up '  MDAT_DATA_ROOT        /rig/ws_rig/.local/team-data' )" "1 1 1"
 rigAssert "a name selected: its name and its value, as a parameter" "$( rigVal one.selected ) [$( rigPane one 3 )]" "team-member [ team-member = user-rig]"
 rigAssert "a credential is shown in the one form the operation printed it in, and nothing more" "$( rigVal tok.selected ) $( rigScreenHolds tok 'xoxb-12**********' ) $( rigScreenHolds tok 'xoxb-12345' )" "MDAT_SLACK_BOT_TOKEN 1 0"

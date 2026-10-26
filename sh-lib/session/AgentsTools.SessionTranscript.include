@@ -29,13 +29,9 @@ agentsTranscriptRoundText=""
 ## Set by the harness (AgentsHarnessContext.include) when its rounds are rendered from its kept context.
 agentsTranscriptFromLog=""
 
-## Milliseconds since the epoch: bash 3.2 has no EPOCHREALTIME, so perl where it is,
-## whole seconds otherwise.
+## Milliseconds since the epoch: whole seconds only (bash 3.2 has no EPOCHREALTIME, and no portable date prints more).
 AgentsTranscriptNowMs(){
-	local nowMs=""
-	nowMs="$( perl -MTime::HiRes=time -e 'printf("%d", time() * 1000)' 2>/dev/null )" || nowMs=""
-	case "$nowMs" in ''|*[!0123456789]*) nowMs="$( date +%s )000" ;; esac
-	printf '%s' "$nowMs"
+	printf '%s000' "$( date +%s )"
 }
 
 AgentsTranscriptStamp(){
@@ -447,7 +443,7 @@ AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcom
 	return 0
 }
 
-## The MCP request handler's own tools (execute, Monitor, a refused call): their tool line,
+## The MCP request handler's own tools (execute, a refused call): their tool line,
 ## from the raw request. A harness tool's line comes from the served harness itself.
 AgentsTranscriptMcpCallDone(){ ## tool name, raw request line, output, is error (true|false), error text
 	local mcpDoneArgs mcpDoneOutcome=""
@@ -660,7 +656,7 @@ agentsReplyLongBytes=8192
 ## result does (WAIT-RESULT:, ERROR:, OK: ...), then the file, its size and how to read the rest.
 ## The preview is the whole lines that fit in 2 KB, or the first 20, whichever is more, and never
 ## over 7 KB, so the reply stays under the threshold. Writes nothing: a caller with a file of its
-## own, such as an input-scan cache, names it here as it is. For a Read's result, the file the Read read
+## own, such as a kept report, names it here as it is. For a Read's result, the file the Read read
 ## is the second argument: the hint to read the rest names that file and the next line of it to read,
 ## and not the kept copy.
 AgentsTranscriptReplyRef(){ ## file, the file a Read read (optional)

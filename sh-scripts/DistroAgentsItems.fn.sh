@@ -36,7 +36,7 @@ DistroAgentsItems(){
 			set +e ; return 1
 		;;
 		--help)
-			AgentsToolsFrontHelp DistroAgentsItems "the items of the team's stores: board, inbox, audit and vault" >&2
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsItems.include"
 			return 0
 		;;
 	esac
@@ -56,6 +56,15 @@ DistroAgentsItems(){
 
 		--commit-pending)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicTeamData.include"
+			return $?
+		;;
+
+		## The coordinator repairs the team-data checkout that diverged from origin:
+		## <member> [--keep-merged|--take-remote]. The full repair: it trial-merges, applies
+		## the mode, moves the flat inbox items by their processed stamp and pushes. Sourced,
+		## it runs on this arm's own words.
+		--repair-team-data-checkout)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicTeamDataCheckoutRepair.include"
 			return $?
 		;;
 

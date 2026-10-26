@@ -1,0 +1,270 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RootSession.include -- the `RootSession` tool of the `myx.distro` MCP server: the
+## one root-harness session a server instance carries. It serves three operations -- mint, adopt
+## and info -- and its results name the system, never the filesystem (MAGIC.md, section 13).
+## Sourced by AgentsTools.InternMcpRequest.include for its functions only, in the one arm that
+## serves it; no `--` operation of its own.
+##
+## THE SESSION IS THE SERVER'S, for the life of the server, and the server's scratch root names it:
+## $MMDAPP/.local/temp/agent-mcp.<server pid>/root-session holds its id and token, one line. Every
+## request is a process of its own, so that file -- not the requesting process -- is what makes a
+## second mint the same session (F1.1 S3).
+##
+## A minted session is REGISTERED in the session store every session of this workspace keeps
+## (AgentsToolsSessionChatDir, the folder conventions of AgentsTools.SessionChat.include): its own
+## folder, and the token mint printed, kept there so a later process adopts the id it is given
+## with that token (F1.3). A minted id is a bare lowercased UUID, the spawner's own form
+## (AgentsTools.InternOpAgentSpawnProxy); the token is a second UUID and is written mode 600.
+## Neither a transcript pointer nor any team data is written: the operations' results carry no path,
+## and nothing here reaches Slack, the board or a team channel (S5).
+##
+## THE CHANNEL KIND IS SET AT MINT (F3.1): the session's external side is chosen once, from this workspace's
+## `ROOT_HARNESS_VERBOSITY` (AgentsTools.RootHarnessKind.include) -- `none`, `track` or `full`, `none` where
+## nothing sets it -- and recorded in the session's folder beside the token, so the inference F2.3 added for
+## a session whose kind was never recorded never decides against an explicit choice. Adopting a session
+## reads the record; it never rewrites it. The kind is a channel, never a path, and nothing of it reaches a
+## result.
+##
+## A REFUSAL NEVER REPEATS A CALLER'S VALUE. Every refusal is fixed text: the operation, the id and the
+## token a caller sent never reach a result, so nothing a caller sends can come back as a path-shaped
+## value -- the bare-name gate that chooses the folder is not what makes that true, and the one path
+## a result could carry is a minted id, which is printed only after it passes the gate.
+##
+
+## The instruction a result carries, the one wording every operation prints: where to use the id,
+## named as this server's session, and never a place on a disk.
+agentsRootSessionUse="root-harness session of this myx.distro MCP server; give its id and its token to RootSession operation=adopt."
+
+## The file holding this server instance's session, one line: its id, a space, its token. Nothing
+## for a pid that names no server scratch root.
+AgentsToolsRootSessionStore(){ ## server pid
+	[ -n "${MMDAPP:-}" ] || return 1
+	printf '%s' "$MMDAPP/.local/temp/agent-mcp.$1/root-session"
+}
+
+## The token kept for one session of this workspace, rc 1 where there is none: what a mint wrote,
+## and the only thing an adopt takes as proof of the id.
+AgentsToolsRootSessionTokenRead(){ ## session folder
+	local tokenReadFile="$1/root-session.token" tokenRead=""
+	[ -s "$tokenReadFile" ] || return 1
+	IFS= read -r tokenRead < "$tokenReadFile" || :
+	[ -n "$tokenRead" ] || return 1
+	printf '%s' "$tokenRead"
+}
+
+## The lock of that store: two RootSession calls of one server are two processes and may arrive
+## together, so the look-then-write is one at a time. Bounded, and never reclaimed from a holder.
+AgentsToolsRootSessionLockTake(){ ## lock dir
+	local rootLockSpin=0 rootLockWaited=0
+	while ! mkdir "$1" 2> /dev/null ; do
+		rootLockSpin=$(( rootLockSpin + 1 ))
+		[ 20 -le "$rootLockSpin" ] || continue
+		sleep 1
+		rootLockSpin=0
+		rootLockWaited=$(( rootLockWaited + 1 ))
+		[ 10 -le "$rootLockWaited" ] && return 1
+	done
+	return 0
+}
+
+AgentsToolsRootSessionLockGive(){ ## lock dir
+	rmdir "$1" 2> /dev/null || :
+	return 0
+}
+
+## Writes the id and token where the server keeps them, whole, by one rename. rc 1 when it cannot.
+AgentsToolsRootSessionStoreSet(){ ## store, id, token
+	local storeTemp=""
+	storeTemp="$( mktemp "$1.XXXXXX" 2> /dev/null )" || storeTemp=""
+	[ -n "$storeTemp" ] || return 1
+	if printf '%s %s\n' "$2" "$3" > "$storeTemp" 2> /dev/null && mv -f "$storeTemp" "$1" 2> /dev/null ; then
+		return 0
+	fi
+	rm -f -- "$storeTemp" 2> /dev/null || :
+	return 1
+}
+
+## A folder this very call made, removed again where the session could not be finished. Only a
+## folder under the session records of this workspace: nothing else is ever removed.
+AgentsToolsRootSessionDiscard(){ ## folder
+	case "$1" in
+		''|/|.|..) return 1 ;;
+		"${MMDAPP%/}/.local/agents/sessions/"*) [ -d "$1" ] && rm -rf -- "$1" || : ;;
+		*) return 1 ;;
+	esac
+	return 0
+}
+
+## The facts of one session: its id, its token where this call minted or re-served it, and the
+## instruction. No other value, and never a path.
+AgentsToolsRootSessionFacts(){ ## id, token (empty: omit it)
+	printf 'SESSION: %s\n' "$1"
+	[ -z "$2" ] || printf 'TOKEN: %s\n' "$2"
+	printf 'USE: %s\n' "$agentsRootSessionUse"
+}
+
+## Serves one RootSession call: prints the facts, rc 0. Prints `ERROR: ...`, rc 1, where the
+## operation or its arguments are wrong, where the id is unknown, where the token is missing or
+## does not match, or where a session cannot be made. A refusal writes nothing.
+AgentsToolsRootSessionServe(){ ## server pid, operation, id given, token given
+	local rootPid="$1" rootOp="$2" rootGiven="$3" rootTokenGiven="$4"
+	local rootStore rootLock rootHeld="" rootHeldToken="" rootDir="" rootId="" rootToken="" rootKind=""
+	rootStore="$( AgentsToolsRootSessionStore "$rootPid" )" || {
+		printf 'ERROR: RootSession: the workspace is not set, so there is nowhere to keep a session.\n'
+		return 1
+	}
+	[ -d "${rootStore%/*}" ] || {
+		printf 'ERROR: RootSession: this server has no scratch root, so it has nowhere to keep a session.\n'
+		return 1
+	}
+	rootLock="$rootStore.lock"
+	AgentsToolsRootSessionLockTake "$rootLock" || {
+		printf 'ERROR: RootSession: another call holds the session lock of this server; nothing was changed.\n'
+		return 1
+	}
+	## The one folder convention of a session, and the gate every id is held to.
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+	if ! type AgentsToolsSessionChatDir > /dev/null 2>&1 ; then
+		AgentsToolsRootSessionLockGive "$rootLock"
+		printf 'ERROR: RootSession: the session store of this package is missing, so no session can be resolved.\n'
+		return 1
+	fi
+	[ ! -s "$rootStore" ] || read -r rootHeld rootHeldToken < "$rootStore" || :
+
+	case "$rootOp" in
+		mint)
+			## The session this server already carries: the same id and token, nothing made.
+			if [ -n "$rootHeld" ] ; then
+				rootDir="$( AgentsToolsSessionChatDir "$rootHeld" )" || rootDir=""
+				rootToken=""
+				[ -z "$rootDir" ] || rootToken="$( AgentsToolsRootSessionTokenRead "$rootDir" )" || rootToken=""
+				if [ -z "$rootDir" ] || [ -z "$rootToken" ] ; then
+					AgentsToolsRootSessionLockGive "$rootLock"
+					printf 'ERROR: RootSession: the session this server carries has no record any more; nothing was made.\n'
+					return 1
+				fi
+				AgentsToolsRootSessionLockGive "$rootLock"
+				AgentsToolsRootSessionFacts "$rootHeld" "$rootToken"
+				return 0
+			fi
+			rootId="$( uuidgen 2> /dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )" || rootId=""
+			rootToken="$( uuidgen 2> /dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )" || rootToken=""
+			case "$rootId:$rootToken" in
+				*[!0123456789abcdef:-]*|:*|*:)
+					AgentsToolsRootSessionLockGive "$rootLock"
+					printf 'ERROR: RootSession: uuidgen produced no session id or no token, so nothing was made.\n'
+					return 1
+				;;
+			esac
+			rootDir="$( AgentsToolsSessionChatDir "$rootId" )" || rootDir=""
+			if [ -z "$rootDir" ] ; then
+				AgentsToolsRootSessionLockGive "$rootLock"
+				printf 'ERROR: RootSession: uuidgen produced an id that is no bare session name, so nothing was made.\n'
+				return 1
+			fi
+			if ! mkdir -p "$rootDir" 2> /dev/null ; then
+				AgentsToolsRootSessionLockGive "$rootLock"
+				printf 'ERROR: RootSession: the session record folder could not be made, so no session was made.\n'
+				return 1
+			fi
+			## THE CHANNEL KIND (F3.1), read from this workspace's setting and kept before the token: a session
+			## whose kind could not be recorded is not made, since the inference would then decide against the
+			## choice the workspace made. The value names a channel, never a path.
+			type AgentsToolsRootHarnessKindSetting > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" 2> /dev/null || :
+			if ! type AgentsToolsRootHarnessKindSetting > /dev/null 2>&1 ; then
+				AgentsToolsRootSessionDiscard "$rootDir" || :
+				AgentsToolsRootSessionLockGive "$rootLock"
+				printf 'ERROR: RootSession: the session kind of this package is missing, so no session was made.\n'
+				return 1
+			fi
+			rootKind="$( AgentsToolsRootHarnessKindSetting )" || rootKind="none"
+			if ! AgentsToolsRootHarnessKindWrite "$rootDir" "${rootKind:-none}" ; then
+				AgentsToolsRootSessionDiscard "$rootDir" || :
+				AgentsToolsRootSessionLockGive "$rootLock"
+				printf 'ERROR: RootSession: the channel kind of the session could not be kept, so no session was made.\n'
+				return 1
+			fi
+			if ! ( umask 077 ; printf '%s\n' "$rootToken" > "$rootDir/root-session.token" ) 2> /dev/null ; then
+				AgentsToolsRootSessionDiscard "$rootDir" || :
+				AgentsToolsRootSessionLockGive "$rootLock"
+				printf 'ERROR: RootSession: the session token could not be kept, so no session was made.\n'
+				return 1
+			fi
+			if ! AgentsToolsRootSessionStoreSet "$rootStore" "$rootId" "$rootToken" ; then
+				AgentsToolsRootSessionDiscard "$rootDir" || :
+				AgentsToolsRootSessionLockGive "$rootLock"
+				printf 'ERROR: RootSession: the new session could not be kept for this server, so no session was made.\n'
+				return 1
+			fi
+			AgentsToolsRootSessionLockGive "$rootLock"
+			AgentsToolsRootSessionFacts "$rootId" "$rootToken"
+			return 0
+		;;
+		adopt)
+			if [ -z "$rootGiven" ] ; then
+				AgentsToolsRootSessionLockGive "$rootLock"
+				printf 'ERROR: RootSession: adopt takes the session id that mint printed; none was given.\n'
+				return 1
+			fi
+			if [ -z "$rootTokenGiven" ] ; then
+				AgentsToolsRootSessionLockGive "$rootLock"
+				printf 'ERROR: RootSession: adopt takes the token mint printed with that id; an id without its token is refused.\n'
+				return 1
+			fi
+			rootDir="$( AgentsToolsSessionChatDir "$rootGiven" )" || rootDir=""
+			[ -z "$rootDir" ] || rootToken="$( AgentsToolsRootSessionTokenRead "$rootDir" )" || rootToken=""
+			if [ -z "$rootDir" ] || [ ! -d "$rootDir" ] || [ -z "$rootToken" ] ; then
+				AgentsToolsRootSessionLockGive "$rootLock"
+				printf 'ERROR: RootSession: that session id names no session this server can adopt.\n'
+				return 1
+			fi
+			if [ "$rootToken" != "$rootTokenGiven" ] ; then
+				AgentsToolsRootSessionLockGive "$rootLock"
+				printf 'ERROR: RootSession: the token given does not match the one mint printed; nothing was adopted.\n'
+				return 1
+			fi
+			if [ -n "$rootHeld" ] && [ "$rootHeld" != "$rootGiven" ] ; then
+				AgentsToolsRootSessionLockGive "$rootLock"
+				printf 'ERROR: RootSession: this server already carries a session, so it will not adopt another; a new server adopts the other one.\n'
+				return 1
+			fi
+			if [ -z "$rootHeld" ] && ! AgentsToolsRootSessionStoreSet "$rootStore" "$rootGiven" "$rootTokenGiven" ; then
+				AgentsToolsRootSessionLockGive "$rootLock"
+				printf 'ERROR: RootSession: that session exists, but where this server keeps it could not be written, so it was not adopted.\n'
+				return 1
+			fi
+			AgentsToolsRootSessionLockGive "$rootLock"
+			AgentsToolsRootSessionFacts "$rootGiven" ""
+			return 0
+		;;
+		info)
+			if [ -z "$rootHeld" ] ; then
+				AgentsToolsRootSessionLockGive "$rootLock"
+				printf 'ERROR: RootSession: this server carries no session yet; mint one first.\n'
+				return 1
+			fi
+			rootDir="$( AgentsToolsSessionChatDir "$rootHeld" )" || rootDir=""
+			if [ -z "$rootDir" ] || [ ! -d "$rootDir" ] ; then
+				AgentsToolsRootSessionLockGive "$rootLock"
+				printf 'ERROR: RootSession: the session this server carries has no record any more; nothing was read.\n'
+				return 1
+			fi
+			AgentsToolsRootSessionLockGive "$rootLock"
+			AgentsToolsRootSessionFacts "$rootHeld" ""
+			return 0
+		;;
+		'')
+			AgentsToolsRootSessionLockGive "$rootLock"
+			printf 'ERROR: RootSession: operation is required: mint, adopt or info.\n'
+			return 1
+		;;
+		*)
+			AgentsToolsRootSessionLockGive "$rootLock"
+			printf 'ERROR: RootSession: the operation is not one of mint, adopt, info.\n'
+			return 1
+		;;
+	esac
+}

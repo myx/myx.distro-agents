@@ -5,7 +5,7 @@
 ## `Pending Questions`, `Team Members`, `Consoles`, `Settings` and `Configuration` in that order, the first one selected; Enter
 ## dives into a row, the first row below the root goes up, and so does Backspace from any row, back onto the row that was
 ## dived into; in the list Right pages down as PageDown does, and Left pages up, on the first row climbs a level and at the root does nothing more,
-## and neither dives; inside `Sessions (Activity)` the first item is `Launch (Start)`, a level of its own; Up and Down stop at the
+## and neither dives; inside `Sessions (Activity)` the first item is `Launchpad`, a level of its own; Up and Down stop at the
 ## first and at the last row and never wrap; PageDown and PageUp move the selection by the height of the pane, and
 ## the rows in view with it; Tab moves the focus, and the same keys then scroll the left pane while the selection of
 ## the list stays; `a` switches all and active only while the list has the focus; rows that come again in another
@@ -17,7 +17,10 @@
 ## Reconciled for F11.0: a spacer stands between the groups of the roots, and the left pane has no `keys:` line any more
 ## (the status line names those keys), so its content takes its last line too.
 ## Reconciled for F11.10: Workspace (System) stands at the end of the places, so the root holds nine sections and Manuals (Help) is the ninth.
-## Reconciled for F11.5: the root holds eight sections, and Magic-Team (Agents) is the one that holds Activity, Pending Questions, Team Members and Team Data; the level a case enters is Magic-Team (Agents), and the first item of Activity is Launch (Start).
+## Reconciled for F11.5: the root holds eight sections, and Magic-Team (Agents) is the one that holds Activity, Pending Questions, Team Members and Team Data; the level a case enters is Magic-Team (Agents), and the first item of Activity is Launchpad.
+## Reconciled for the Magic-Team reorder (20261021 sketch): Pending Questions stood first under Magic-Team (Agents), ahead of Activity.
+## Reconciled for the removal of Pending Questions from Magic-Team (owner-approved: it is a root alone now): its sections are
+## `.. activity launch team teamdata routines`, so Activity stands first and Launchpad after it.
 ## Reconciled for F11.5, the lists of Activity: the key `a` (all or only the active) is not offered there, as it has nothing to take: not in the status line, and not in the menu View.
 ## Reconciled for F11.6: the status line of a session names the send-message key too, `M Message`, between `k Kill` and `u Read`.
 set -u
@@ -80,6 +83,7 @@ get in
 border inTitle 1 84 120
 cells inRow1 2 85 119
 cells inRow2 3 85 119
+cells inRow3 4 85 119
 border inLeft 1 0 84
 keys ENTER
 get out
@@ -93,17 +97,20 @@ RIGSCRIPT
 rigAssert "Enter shows the level of that section"                    "$( rigVal in.path ) [$( rigVal inTitle )]" "magic-team [Magic-Team (Agents)]"
 rigAssert "its first row is the row that goes up, and it is selected" "[$( rigVal inRow1 )] $( rigVal in.selected )" "[>..] .."
 rigAssert "inside Magic-Team (Agents) the first item is Activity" "[$( rigVal inRow2 )]" "[ Activity                        ►]"
+rigAssert "and Launchpad stands after it" "[$( rigVal inRow3 )]" "[ Launchpad                       ►]"
 rigAssert "the left pane names what it shows: on the row that goes up, the section itself"                     "[$( rigVal inLeft )]" "[Magic-Team (Agents) [wrap]]"
 rigAssert "Enter on the row that goes up shows the root again"       "[$( rigVal out.path )] $( rigVal out.selected )" "[] magic-team"
 rigAssert "Enter dives into the third section"                       "$( rigVal third.path ) $( rigVal third.selected )" "consoles .."
 rigAssert "Backspace goes up and returns to the row it came from"    "[$( rigVal back.path )] $( rigVal back.selected )" "[] consoles"
 rigAssert "Backspace at the root stays at the root, and says why"    "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigVal root.notice )]" "[] consoles [Up one level: this is the top level]"
 
-echo "-- Launch (Start) is a level of its own --"
+echo "-- Launchpad is a level of its own --"
 rigScript <<'RIGSCRIPT'
 size 120 40
-root activity
-keys ENTER DOWN
+## Reconciled for the removal of Pending Questions from Magic-Team: Launch is Magic-Team's second
+## section now (`.. activity launch team teamdata routines`), so it is two steps from the row that goes up
+at magic-team
+keys DOWN DOWN
 get on
 border onLeft 1 0 84
 keys ENTER
@@ -112,9 +119,9 @@ border inTitle 1 84 120
 keys LEFT
 get back
 RIGSCRIPT
-rigAssert "it can be selected, and the left pane follows"            "$( rigVal on.selected ) [$( rigVal onLeft )]" "launch [Launch (Start) [wrap]]"
-rigAssert "Enter dives into it, and it holds the free prompt under the row that goes up" "$( rigVal in.path ) $( rigVal in.rows ) $( rigVal in.selected ) [$( rigVal inTitle )]" "magic-team/activity/launch 2 .. [Launch (Start)]"
-rigAssert "Left returns to it"                                       "$( rigVal back.path ) $( rigVal back.selected )" "magic-team/activity launch"
+rigAssert "it can be selected, and the left pane follows"            "$( rigVal on.selected ) [$( rigVal onLeft )]" "launch [Launchpad [wrap]]"
+rigAssert "Enter dives into it, and it holds the four starts under the row that goes up" "$( rigVal in.path ) $( rigVal in.rows ) $( rigVal in.selected ) [$( rigVal inTitle )]" "magic-team/launch 5 .. [Launchpad]"
+rigAssert "Left stays in the level it is in: it never climbs" "$( rigVal back.path ) $( rigVal back.selected )" "magic-team/launch .."
 
 echo "-- Up and Down stop at the ends --"
 rigScript <<'RIGSCRIPT'
@@ -205,7 +212,7 @@ get f
 RIGSCRIPT
 rigAssert "Right pages down, Left in the middle pages up, and Left short of the first row ends on it, all in the level" "$lrSteps $lrPaths" "[19 19][38 38][21 19][2 0][0 0] [pending][pending][pending][pending][pending]"
 rigAssert "each exactly as PageDown and PageUp do"                   "$lrSteps" "[$( rigVal b.index ) $( rigVal b.top )][$( rigVal c.index ) $( rigVal c.top )][$( rigVal d.index ) $( rigVal d.top )][$( rigVal e.index ) $( rigVal e.top )][$( rigVal f.index ) $( rigVal f.top )]"
-rigAssert "Left on the first row goes up a level, onto the row dived into; at the root it pages up to the first row, and there it does nothing more: no level above, no notice, the keys stay in the list" "$lrGone" "[] pending [] dashboard [] dashboard list []"
+rigAssert "Left never climbs: on the first row it stays in the level, the keys stay in the list, and no notice is given" "$lrGone" "[pending] .. [pending] .. [pending] .. list []"
 
 echo "-- Right opens nothing, Backspace goes up from any row, Enter goes down --"
 rigScript <<'RIGSCRIPT'
@@ -269,7 +276,7 @@ rigAssert "Tab gives the focus back to the list, and Down moves its selection ag
 echo "-- a, all or active --"
 rigScript <<'RIGSCRIPT'
 size 120 40
-table list:magic-team/activity/launch --rig +active --active
+table list:magic-team/launch --rig +active --active
 root launch
 keys ENTER
 get a
@@ -283,8 +290,8 @@ keys a
 get d
 RIGSCRIPT
 rigAssert "all are shown first"                             "$( rigVal a.filter )" all
-rigAssert "a is a button, so it works while the left pane has the focus: it switches to the active ones"  "$( rigVal b.focus ) $( rigVal b.filter ) [$( rigVal bTitle )]" "view active [Launch (Start)  [active]]"
-rigAssert "with the focus on the list it switches back to all" "$( rigVal c.focus ) $( rigVal c.filter ) [$( rigVal cTitle )]" "list all [Launch (Start)  [all]]"
+rigAssert "a is a button, so it works while the left pane has the focus: it switches to the active ones"  "$( rigVal b.focus ) $( rigVal b.filter ) [$( rigVal bTitle )]" "view active [Launchpad  [active]]"
+rigAssert "with the focus on the list it switches back to all" "$( rigVal c.focus ) $( rigVal c.filter ) [$( rigVal cTitle )]" "list all [Launchpad  [all]]"
 rigAssert "and once more to the active ones"                         "$( rigVal d.filter )" active
 
 echo "-- rows that come again --"
@@ -403,12 +410,12 @@ cells memberKeys 37 1 83
 cells memberBottom 39 0 120
 RIGSCRIPT
 rigAssert "a session is selected: with no handler of an action built the pane names no key, and its last line is its content's" "$( rigVal none.selected ) [$( rigVal noneKeys )]" "s1 []"
-rigAssert "the status line names the keys that act on the session, and after them those of every window"             "[$( rigVal noneBottom )]" "[ ENTER Open  BSP Up  k Kill  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "the status line names the keys that act on the session, and after them those of every window"             "[$( rigVal noneBottom )]" "[ ENTER Open  BSP Up  / Filter  k Kill  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "with handlers built, the pane still names no key: its last line is its content's, and the status line names the key that acts on a session" "[$( rigVal builtKeys )] $( rigVal builtBottom | LC_ALL=C grep -c -F ' k Kill ' )" "[] 1"
-rigAssert "Launch (Start) has no such key"                           "$( rigVal launch.selected ) [$( rigVal launchKeys )]" "launch []"
+rigAssert "Launchpad has no such key"                           "$( rigVal launch.selected ) [$( rigVal launchKeys )]" "launch []"
 rigAssert "an ask has none: no key answers it"                       "$( rigVal ask.path ) $( rigVal ask.selected ) [$( rigVal askKeys )]" "pending a1 []"
 rigAssert "a team member: no line of the pane names the key that starts it" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal memberKeys )]" "magic-team/team m1 []"
-rigAssert "on a team member the status line names the key that starts it"                "[$( rigVal memberBottom )]" "[ ENTER Start  BSP Up  a Active  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "on a team member the status line names the key that starts it"                "[$( rigVal memberBottom )]" "[ ENTER Start  BSP Up  a Active  / Filter  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN LIST CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

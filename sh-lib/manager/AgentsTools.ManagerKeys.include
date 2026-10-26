@@ -259,6 +259,54 @@ AgentsToolsManagerKeysDone(){ ## what happened, key, private file
 	printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$( AgentsToolsManagerKeysField "$3" )" "$doneType" "${doneFinger:--}"
 }
 
+## THE KEYS THIS ACCOUNT TRUSTS, ADDED AND REMOVED (C1): the native `authorized_keys` in the ssh home of the one who
+## runs the tools, one line a public key, options, comments and blanks left as they stand. A key is added by its whole
+## public line, as it is pasted, and removed by its name in the list, `trusted-<n>`. Nothing is reached, and nothing but
+## that file is written: a public key is public, and the file holds no secret.
+
+## The one public key line to trust, read whole from the standard input, and what it is: its type, its key, its
+## comment. Sets keysLine (the line as it was read), keysType, keysText and keysComment; rc 1, all four empty, where
+## the input is not exactly one such line: a key type, then the key in the letters of base64, then anything, with no
+## control character and no second line.
+AgentsToolsManagerKeysTrustedLine(){
+	keysLine="" ; keysType="" ; keysText="" ; keysComment=""
+	local trustAll
+	## Read from the standard input with the shell itself: no unbounded reader is used here, and
+	## the include opens no file of its own for it.
+	trustAll="$( < /dev/stdin )" || return 1
+	[ -n "$trustAll" ] || return 1
+	## a command substitution ends where the line ends; any line end that is left is a second line
+	case "$trustAll" in *$'\n'*) return 1 ;; esac
+	case "$trustAll" in *[[:cntrl:]]*) return 1 ;; esac
+	keysType="${trustAll%% *}" ; keysLine="$trustAll"
+	[ "$keysType" != "$trustAll" ] || return 1
+	keysText="${trustAll#* }"
+	case "$keysText" in
+		*' '*) keysComment="${keysText#* }" ; keysText="${keysText%% *}" ;;
+		*) keysComment="" ;;
+	esac
+	case "$keysType" in ssh-*|ecdsa-*|sk-*) ;; *) return 1 ;; esac
+	case "$keysText" in ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=]*) return 1 ;; esac
+	return 0
+}
+
+## The fingerprint of a public key given by its type and its key, as ssh-keygen gives it; `-` where it cannot.
+AgentsToolsManagerKeysTrustedFinger(){ ## type, key
+	local fingerPrint
+	fingerPrint="$( printf '%s %s\n' "$1" "$2" | ssh-keygen -l -f - 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit }' )" || fingerPrint=""
+	printf '%s' "${fingerPrint:--}"
+}
+
+## The row that says a key was added to or removed from the authorized keys: what happened, its number among them,
+## the file, its type and its fingerprint.
+AgentsToolsManagerKeysTrustedDone(){ ## what happened, n, file, type, fingerprint
+	printf '%s\ttrusted-%s\t%s\t%s\t%s\n' "$1" "$2" "$( AgentsToolsManagerKeysField "$3" )" "$4" "$5"
+}
+
+## The mode of a file, to put it back after a write: BSD and GNU stat both.
+AgentsToolsManagerKeysMode(){ ## file
+	stat -f '%Lp' "$1" 2> /dev/null || stat -c '%a' "$1"
+}
 case "$1" in
 
 	## The public keys of this server, one row each: TAB-separated rows a screen reads. Their
@@ -398,6 +446,87 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsManagerKeysDone deleted "$2" "$keysPrivate"
+		return 0
+	;;
+
+	## A public key line put into the account's own authorized keys: whoever holds its private key may then log in
+	## here as the account. The line is read whole from the standard input, one line, a key type, then the key, then
+	## anything; it is appended with a line end of its own. Refused where the input is not one such line, the key is
+	## trusted already, or the file cannot be written. One row `added`.
+	--manager-keys-trust-add)
+		local addOp="$1" keysLine keysType keysText keysComment addFile addDir addCount addFinger addN addType addText addComment addFound="" addNew=""
+		shift
+		[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD $addOp: syntax is $addOp, the public key line on the standard input, got $# argument(s) -- nothing was added" >&2 ; set +e ; return 1 ; }
+		if ! AgentsToolsManagerKeysTrustedLine ; then
+			echo "⛔ ERROR: $MDSC_CMD $addOp: the standard input is not one public key line to trust, a key type, then the key, then anything -- nothing was added" >&2
+			set +e ; return 1
+		fi
+		addFile="$( AgentsToolsManagerKeysTrustedFile )" ; addDir="${addFile%/*}"
+		[ -f "$addFile" ] || addNew="yes"
+		if [ ! -d "$addDir" ] ; then { mkdir -p "$addDir" && chmod 700 "$addDir" ; } || { echo "⛔ ERROR: $MDSC_CMD $addOp: the folder of the authorized keys could not be made -- nothing was added" >&2 ; set +e ; return 1 ; } ; fi
+		if [ -f "$addFile" ] ; then
+			[ -w "$addFile" ] || { echo "⛔ ERROR: $MDSC_CMD $addOp: the authorized keys file cannot be written: $addFile -- nothing was added" >&2 ; set +e ; return 1 ; }
+			while IFS='|' read -r addN addType addText addComment ; do
+				[ "$addType" != "$keysType" ] || [ "$addText" != "$keysText" ] || addFound="yes"
+			done <<< "$( AgentsToolsManagerKeysTrusted 2> /dev/null )"
+			[ -z "$addFound" ] || { echo "⛔ ERROR: $MDSC_CMD $addOp: that key is trusted already -- nothing was added" >&2 ; set +e ; return 1 ; }
+			## the line goes on a line of its own: where the file does not end in a line end, one is put first
+			[ -z "$( tail -c 1 "$addFile" 2> /dev/null )" ] || printf '\n' >> "$addFile" || { echo "⛔ ERROR: $MDSC_CMD $addOp: the authorized keys file could not be written: $addFile -- nothing was added" >&2 ; set +e ; return 1 ; }
+		fi
+		printf '%s\n' "$keysLine" >> "$addFile" || { echo "⛔ ERROR: $MDSC_CMD $addOp: the authorized keys file could not be written: $addFile -- nothing was added" >&2 ; set +e ; return 1 ; }
+		## the account's own authorized keys, made with mode 600 where it was not there
+		[ -z "$addNew" ] || chmod 600 "$addFile" 2> /dev/null
+		addCount="$( AgentsToolsManagerKeysTrusted | LC_ALL=C grep -c . )"
+		addFinger="$( AgentsToolsManagerKeysTrustedFinger "$keysType" "$keysText" )"
+		AgentsToolsManagerKeysTrustedDone added "$addCount" "$addFile" "$keysType" "$addFinger"
+		return 0
+	;;
+
+	## A trusted key removed: the one line that holds it is taken out of the account's authorized keys, and every
+	## other line, options, comments and blanks, stays as it stands. It is named `trusted-<n>`, as --manager-keys-list
+	## prints it, n counting from 1. Refused where the file is not there, holds no such key, or cannot be written.
+	## One row `deleted`.
+	--manager-keys-trust-delete)
+		local deleteOp="$1" deleteKey="${2:-}" deleteN="" deleteFile deleteMode deleteTmp deleteFound="" deleteType deleteText deleteComment deleteFinger delN delType delText delComment
+		shift
+		[ $# -eq 1 ] || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: syntax is $deleteOp <trusted-<n>>, got $# argument(s) -- nothing was done" >&2 ; set +e ; return 1 ; }
+		case "$deleteKey" in
+			trusted-[0123456789]*) deleteN="${deleteKey#trusted-}" ;;
+			*) echo "⛔ ERROR: $MDSC_CMD $deleteOp: the word given is no trusted key, which --manager-keys-list names trusted-<n> -- nothing was done" >&2 ; set +e ; return 1 ;;
+		esac
+		case "$deleteN" in 0*|'') echo "⛔ ERROR: $MDSC_CMD $deleteOp: the word given is no trusted key, which --manager-keys-list names trusted-<n>, n counting from 1 -- nothing was done" >&2 ; set +e ; return 1 ;; esac
+		deleteFile="$( AgentsToolsManagerKeysTrustedFile )"
+		[ -f "$deleteFile" ] && [ -r "$deleteFile" ] || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: no authorized keys file stands at $deleteFile -- nothing was done" >&2 ; set +e ; return 1 ; }
+		while IFS='|' read -r delN deleteType deleteText deleteComment ; do
+			[ "$delN" = "$deleteN" ] || continue
+			deleteFound="yes" ; break
+		done <<< "$( AgentsToolsManagerKeysTrusted )"
+		[ -n "$deleteFound" ] || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: the file holds no trusted key $deleteKey -- nothing was done" >&2 ; set +e ; return 1 ; }
+		[ -w "$deleteFile" ] || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: the authorized keys file cannot be written: $deleteFile -- nothing was done" >&2 ; set +e ; return 1 ; }
+		deleteFinger="$( AgentsToolsManagerKeysTrustedFinger "$deleteType" "$deleteText" )"
+		deleteMode="$( AgentsToolsManagerKeysMode "$deleteFile" )"
+		deleteTmp="$( mktemp "$deleteFile.delete.XXXXXX" 2> /dev/null )" || { echo "⛔ ERROR: $MDSC_CMD $deleteOp: a file for the new authorized keys could not be made beside it -- nothing was changed" >&2 ; set +e ; return 1 ; }
+		if ! LC_ALL=C awk -v n="$deleteN" '
+			/^[ \t]*(#|$)/ { print ; next }
+			{
+				for ( at = 1 ; at < NF ; at++ ) { if ( $at ~ /^(ssh-|ecdsa-|sk-)/ ) { break } }
+				if ( at < NF && $at ~ /^(ssh-|ecdsa-|sk-)/ && $(at + 1) ~ /^[A-Za-z0-9+\/=]+$/ ) {
+					total++
+					if ( total == n ) { next }
+				}
+				print
+			}' "$deleteFile" > "$deleteTmp" ; then
+			rm -f -- "$deleteTmp"
+			echo "⛔ ERROR: $MDSC_CMD $deleteOp: the authorized keys could not be read -- nothing was changed" >&2
+			set +e ; return 1
+		fi
+		[ -n "$deleteMode" ] && chmod "$deleteMode" "$deleteTmp" 2> /dev/null
+		if ! mv -f -- "$deleteTmp" "$deleteFile" ; then
+			rm -f -- "$deleteTmp"
+			echo "⛔ ERROR: $MDSC_CMD $deleteOp: the new authorized keys could not be put in place -- nothing was changed" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsManagerKeysTrustedDone deleted "$deleteN" "$deleteFile" "$deleteType" "$deleteFinger"
 		return 0
 	;;
 

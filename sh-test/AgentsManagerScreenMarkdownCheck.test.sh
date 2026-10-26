@@ -65,7 +65,7 @@ description: A keeper of the rig.
 ---
 # The rig keeper
 
-Keeps the **rig** in order: calls `mcp__myx_distro__Wait` and reads *MDAT_MANAGER_STYLE* and snake_case_words.
+Keeps the **rig** in order: calls `mcp__myx_distro__Wait` and reads *MDLT_MANAGER_STYLE* and snake_case_words.
 
 ## Lists
 
@@ -165,7 +165,7 @@ rigAssert "the file is read by the member and its path, and its title says it is
 rigAssert "its front matter shows as its lines, in the look of the front matter" "$( rigHolds md '│name: keeper-rig' ) $( rigHolds md '│---' ) $( rigLookOf md mdr 'name: keeper-rig' )" "1 0 DDDDDDDDDDDDDDDD"
 rigAssert "a heading shows without its marks, a line under it, in the look of its level" "$( rigHolds md '│The rig keeper ' ) $( rigHolds md '│# The rig keeper' ) $( rigHolds md '│━━━━━━━━━━━━━━ ' ) $( rigLookOf md mdr 'The rig keeper' ) $( rigHolds md '│Lists ' ) $( rigHolds md '│───── ' )" "1 0 1 eeeeeeeeeeeeee 1 1"
 rigAssert "an emoji in a heading is one character of two cells: the line under it is as long as that" "$( rigHolds md '│┄┄┄┄┄┄┄ ' ) $( rigHolds md '│┄┄┄┄┄┄┄┄' )" "1 0"
-rigAssert "strong and emphasized words show without their marks, in their looks" "$( rigHolds md 'Keeps the rig in order' ) $( rigLookOf md mdr 'rig in' ) $( rigLookOf md mdr 'MDAT_MANAGER_STYLE' ) $( rigHolds md '**' )" "1 BBB... kkkkkkkkkkkkkkkkkk 0"
+rigAssert "strong and emphasized words show without their marks, in their looks" "$( rigHolds md 'Keeps the rig in order' ) $( rigLookOf md mdr 'rig in' ) $( rigLookOf md mdr 'MDLT_MANAGER_STYLE' ) $( rigHolds md '**' )" "1 BBB... kkkkkkkkkkkkkkkkkk 0"
 rigAssert "an underscore inside a word and in code is kept, the code in its look and without its marks" "$( rigHolds md 'mcp__myx_distro__Wait' ) $( rigHolds md 'snake_case_words.' ) $( rigLookOf md mdr 'mcp__myx_distro__Wait' ) $( rigHolds md '`' )" "1 1 DDDDDDDDDDDDDDDDDDDDD 0"
 rigAssert "the items of a list have their marks, a nested one set in, a numbered one its number" "$( rigHolds md '│➤ first item' ) $( rigLookOf md mdr '➤ first' ) $( rigHolds md '│  ➤ nested item' ) $( rigHolds md '│1. numbered one' )" "1 e...... 1 1"
 rigAssert "a long item wraps under its own text, and a link shows as its text" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^md|' | LC_ALL=C grep -c -E '│  [a-z].*WRAPEND' ) $( rigHolds md 'with a link to the spec inside' ) $( rigHolds md 'example.invalid' )" "1 1 0"

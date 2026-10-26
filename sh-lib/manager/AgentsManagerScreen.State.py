@@ -88,7 +88,7 @@ DIALOGS = {
                              {"name": "task", "kind": "input", "label": "What the session is to work on"},
                              {"name": "name", "kind": "input", "label": "Name of the session, or none"}),
                 "buttons": (("start", "Start"), ("cancel", "Cancel"))},
-    ## a prompt and who runs it: the free prompt of `Launch (Start)`, and the start of one
+    ## a prompt and who runs it: the free prompt of `Launchpad`, and the start of one
     ## member; the keys are on the prompt first
     "prompt": {"title": "Free prompt", "feeds": ("prompt", "start"), "reads": ("list:team",), "first": "prompt",
                "controls": ({"name": "about", "kind": "text"},
@@ -238,10 +238,10 @@ ACTION_HANDLERS = {
     "resume": None,
     "stop": None,
     "restart": None,
-    ## Enter on a routine of `Launch (Start)`, and on its free prompt: askLaunch and askPrompt, set where they are defined
+    ## Enter on a routine of `Launchpad`, and on its free prompt: askLaunch and askPrompt, set where they are defined
     "launch": None,
     "prompt": None,
-    ## Enter and Right on a routine of `Launch (Start)` that cannot be started: askUnstarted, set where it is defined
+    ## Enter and Right on a routine of `Launchpad` that cannot be started: askUnstarted, set where it is defined
     "unstarted": None,
     ## starts the selected team member with a prompt: askStart, set where it is defined
     "start": None,
@@ -294,6 +294,13 @@ class ManagerState:
         self.activeOnly = False
         ## whether the lists of ALPHABETICAL show their rows by name, not in the order of the operation
         self.alphabetical = False
+        ## the filter of the list typed with `/` (F11.12): the words that narrow the rows
+        ## already read, and whether its line is open
+        self.listFilter = ""
+        self.listFilterOpen = False
+        ## whether the left window shows the full table of the level instead of the selected
+        ## row's own view (F11.12)
+        self.fullTable = False
         ## the rows the last answer of a list gave when it was asked with what its filter
         ## adds: level key -> ids
         self.activeOf = {}
@@ -346,6 +353,9 @@ class ManagerState:
         self.viewHeight = 0
         ## the levels the last good answer of each list read filled: read key -> level keys
         self.levelsOf = {}
+        ## The reads of views that have answered, by their read key: the wait and the empty state ask
+        ## this, not a slot that may be empty or stale.
+        self.answered = {}
         ## the calls that act, asked for and not started yet, in their order, and what each
         ## call that was asked for is about, by its key (askCall)
         self.calls = []
@@ -377,5 +387,10 @@ class ManagerState:
         self.focusSeen = None
         ## what the last frame was drawn as: its size, its style and its split; the dialog or the menu over it (drawScreen)
         self.drawnAs = None
+        ## D5 (--filter/--dialog of a start): the filter a start names, applied once the first turn
+        ## has built the left window (runScreen); the one dialog a start shows, and the words it holds.
+        self.startFilter = ""
+        self.singleDialog = None
+        self.singleText = ""
         self.quit = False
 

@@ -30,7 +30,7 @@ The body of `# Maintainer Notes` in `human-owner.armed.md`. Read it when that fi
 - `human-owner.basic.md` — the unconditionally loaded statement of the impersonation rule.
 - `magic-coordinator/TEAM-ORGANIZATION-VISION.md`, "When the human-owner is actually needed" — the authority model.
 - `magic-team/magic-team.armed.md`, "Anything needing the human-owner to act reaches him on his own direct channel" — the rule this procedure carries out.
-- `magic-team/templates/escalation.document.format.md` — the `ConfirmReadback`, `EscalateDecision`, `RequestPermission` and `ProposeApprove` kinds.
+- `myx.distro-agents/sh-lib/templates/*.post.format.md` — the ask templates of the `ConfirmReadback`, `EscalateDecision`, `RequestPermission` and `ProposeApprove` kinds.
 
 ### Conventions
 

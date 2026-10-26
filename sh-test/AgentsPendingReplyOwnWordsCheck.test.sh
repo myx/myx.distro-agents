@@ -143,7 +143,7 @@ rigVerdictLine(){
 ## lines hold a text.
 rigRecordFile(){
 	local recordFile
-	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] && { printf '%s' "$recordFile" ; return 0 ; }
 	done
 	printf '%s' "$rigScenarioDir/no-record"

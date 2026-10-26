@@ -69,6 +69,7 @@ rigPackage(){ ## session, how many tests -- that copy: the runner under test, an
 	local packageTests packageIndex ; packageTests="$( rigRoot "$1" )/myx/myx.distro-agents/sh-test"
 	mkdir -p "$packageTests"
 	cp "$rigRunner" "$packageTests/AgentsRunTests.sh"
+	mkdir -p "$packageTests/check-fixtures" && cp "$(dirname "$rigRunner")/check-fixtures"/runner-*.py "$packageTests/check-fixtures"/
 	cat > "$packageTests/RigTiny.test.sh" <<'RIGTINY'
 #!/usr/bin/env bash
 rigTinyId="${0##*/RigTiny}" ; rigTinyId="${rigTinyId%.test.sh}"

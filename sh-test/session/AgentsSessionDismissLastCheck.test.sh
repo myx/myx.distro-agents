@@ -98,7 +98,7 @@ rigRun(){ ## variable to set, session, member, start-context, parent-spawn-id, r
 		"$2" "$runId" "$5" "$4" "$6" "$2" "$rigHost" "$3" "$rigRunNo" "$( rigThreadOf "$2" )" "$runItem" > "$rigDir/ws/.local/agents/spawned/$2/$runId.spawn.md"
 	printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: %s\nreview-reason: handback\nreview-since-epoch: %s\n---\n\n# rig dispatch\n\n## Decisions\n\n' \
 		"$3" "$runId" "$rigSince" > "$rigDir/data/board/review/$runItem.md"
-	perl -e 'sleep 600' -- --session-id "$runId" > /dev/null 2>&1 &
+	python3 -I -B -c 'import time; time.sleep(600)' -- --session-id "$runId" > /dev/null 2>&1 &
 	eval "${1}Pid=\$!"
 	rigRunPids="$rigRunPids $!" ; rigProcNote "$!" ; disown "$!" 2> /dev/null || :
 	eval "$1=\$runId"
@@ -116,7 +116,7 @@ rigChildRun(){ ## variable to set, session, member, parent session, reports-to, 
 		"$2" "$runId" "$4" "$5" "$2" "$rigHost" "$3" "$rigRunNo" "$( rigThreadOf "$2" )" "$runItem" > "$rigDir/ws/.local/agents/spawned/$2/$runId.spawn.md"
 	printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: %s\nreview-by: %s\n---\n\n# rig dispatch of a child session\n\n## Decisions\n\n' \
 		"$3" "$runId" "$6" > "$rigDir/data/board/running/$runItem.md"
-	perl -e 'sleep 600' -- --session-id "$runId" > /dev/null 2>&1 &
+	python3 -I -B -c 'import time; time.sleep(600)' -- --session-id "$runId" > /dev/null 2>&1 &
 	eval "${1}Pid=\$!"
 	rigRunPids="$rigRunPids $!" ; rigProcNote "$!" ; disown "$!" 2> /dev/null || :
 	eval "$1=\$runId"
@@ -129,7 +129,7 @@ rigEnd(){ ## pid -- the run ends by itself
 rigWaits(){ ## run id, member, session
 	local waitOut="$rigDir/$1.wait.out"
 	( cd "$rigDir/ws" && printf '%s' '{"sources":"slack:session-current","since_utime":"1700000100","timeout":2}' | env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u MDAT_SPAWN_CALLER_WAITS \
-		PATH="$rigTmp/served:/usr/bin:/bin" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigDir/data" \
+		PATH="$rigTmp/served:/usr/bin:/bin" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" MMDAPP="$rigDir/ws" MDAT_WORKSPACE_MODE=team-rig MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigDir/data" \
 		MDAT_SESSION_ID="$3" MDAT_SESSION_THREAD="$( rigThreadOf "$3" )" MDAT_SPAWN_SESSION_ID="$1" MDAT_SPAWN_AGENT="$2" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
 		bash "$rigHarness" --intern-tool Wait > "$waitOut" 2> "$waitOut.err" )
 	LC_ALL=C grep -q -x -F 'WAIT-RESULT: DISMISSED' "$waitOut" && printf dismissed || printf waits

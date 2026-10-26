@@ -341,21 +341,23 @@ rigAssert "control: the tool ran and the file exists"  "$( rigExists "$rigScenar
 rigVerdict "a PreToolUse hook denies a write -- and without it that same write lands"
 
 ## ---------------------------------------------------------------------------
-## F. The absent context budget. This leaf sets no context-token value of its own, so
-##    the core's own floor is what governs -- two legs either side of it. It says
-##    nothing about whether that floor SUITS these models, which stays open.
+## F. The context budget is the leaf's own declaration, never the core's 400000 fallback:
+##    1000000 of context less 65536 of output, so the threshold is 934464. Two legs either
+##    side of that number; the old fallback would sit at 400000 and miss it entirely.
 ## ---------------------------------------------------------------------------
-rigStart f-under-floor
+rigAssert "the leaf's family table gives the main model's context ceiling and the output maximum that comes off it" "$( LC_ALL=C grep -c '^claude-fable\*|1000000|65536|' "$rigLeaf" )" 1
+rigAssert "and the light model's ceiling is the step of its price tier, its output keeping the threshold under the step" "$( LC_ALL=C grep -c -e '^HARNESS_MODEL_TABLE="gpt-5.6-sol\*|272000|32768|' "$rigLeaf" )" 1
+rigStart f-under-threshold
 printf 'RIG-TOOLRESULT-MARKER\n' > "$rigScenarioDir/read.txt"
-rigReadStream "$rigScenarioDir/res.1" "$rigScenarioDir/read.txt" 399999
+rigReadStream "$rigScenarioDir/res.1" "$rigScenarioDir/read.txt" 934463
 rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
 rigRun --access-write-root "$rigScenarioDir"
 rigAssert "a round just under it does not trip"        "$( rigHolds "$rigScenarioDir/err" 'context threshold reached' )" no
 rigAssert "so the leg ran straight to its answer"      "$rigRoundCount" 2
 
-rigStart f-at-floor
+rigStart f-at-threshold
 printf 'RIG-TOOLRESULT-MARKER\n' > "$rigScenarioDir/read.txt"
-rigReadStream "$rigScenarioDir/res.1" "$rigScenarioDir/read.txt" 400000
+rigReadStream "$rigScenarioDir/res.1" "$rigScenarioDir/read.txt" 934464
 rigTextStream "$rigScenarioDir/res.2" RIG-SUMMARY-MARKER 20
 rigTextStream "$rigScenarioDir/res.3" RIG-FINAL-MARKER 20
 rigRun --access-write-root "$rigScenarioDir"
@@ -363,7 +365,7 @@ rigAssert "a round at it trips the threshold"          "$( rigHolds "$rigScenari
 rigAssert "and the leg restarted onto its summary"     "$( rigHolds "$rigScenarioDir/err" 'original task verbatim plus the summary above' )" yes
 rigAssert "three rounds were requested"                "$rigRoundCount" 3
 rigAssert "the fresh leg's own answer is the result"   "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
-rigVerdict "the core's own context floor governs a leaf that declares none"
+rigVerdict "the leaf's own 1000000/65536 pair governs, not the core's 400000 fallback"
 
 ## ---------------------------------------------------------------------------
 ## G. The offline claim, asserted rather than stated, and last so the whole run is in

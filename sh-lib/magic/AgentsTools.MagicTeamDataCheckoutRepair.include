@@ -1,0 +1,335 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MagicTeamDataCheckoutRepair.include -- the
+## --repair-team-data-checkout operation of DistroAgentsItems.fn.sh: repairs a
+## team-data checkout that has diverged from its remote, with local commits never
+## pushed, by one tooling operation. Sourced lazily from the arm of the tool file
+## that owns its names (sh-lib/harness/AgentsContext.FrontTable.include).
+## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
+##
+## The whole flow runs through the team-data tooling: a person or an agent calls
+## this one operation, never raw git. It shows the local-only commits and what the
+## remote has, trial-merges in a throwaway copy under $MMDAPP/.local/temp, and, with
+## a mode given, applies the repair: --keep-merged merges the remote in keeping the
+## local commits (myx.common git/cloneSync, which pulls and pushes, never rebased),
+## --take-remote sets the local commits aside (a ref keeps them reachable) and takes
+## the remote, then either way runs the F4.3 move of any inbox item that still lies
+## flat at its inbox root, and pushes. With no mode it diagnoses and offers the two
+## modes, and changes nothing.
+##
+
+## Moves any inbox item that lies flat at the root of a member's inbox (the pre-F4.3
+## form, outside incoming/ and processed/) into the folder its processed stamp names:
+## processed/ where it carries `processed-at`, incoming/ where it does not. Prints the
+## count and the moved paths, one a line. rc 0, or 1 on a failed move.
+AgentsToolsTeamDataRepairMoveFlatItems(){
+	local flatMemberDir="" flatMember="" flatFile="" flatStamped="" flatTarget="" flatMoved=0
+	local flatBase="" flatItems=()
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	[ -d "$MDAT_DATA_ROOT/inboxes" ] || return 0
+	flatBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || return 0
+	for flatMemberDir in "$flatBase"/*/ ; do
+		[ -d "$flatMemberDir" ] || continue
+		flatMember="${flatMemberDir%/}" ; flatMember="${flatMember##*/}"
+		[ -n "$flatMember" ] || continue
+		for flatFile in "$flatMemberDir"*.md ; do
+			[ -f "$flatFile" ] || continue
+			flatStamped=""
+			if [ -n "$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/inbox/AgentsInboxProcessedAtList.awk" "$flatFile" 2>/dev/null )" ] ; then
+				flatStamped="yes"
+			fi
+			if [ "$flatStamped" = "yes" ] ; then
+				flatTarget="$flatMemberDir/processed"
+			else
+				flatTarget="$flatMemberDir/incoming"
+			fi
+			mkdir -p "$flatTarget" || return 1
+			mv -f -- "$flatFile" "$flatTarget/" || return 1
+			flatItems+=( "$flatTarget/${flatFile##*/}" )
+			flatMoved=$(( flatMoved + 1 ))
+		done
+	done
+	if [ "$flatMoved" -gt 0 ] ; then
+		echo "TEAM-DATA-FLAT-MOVED: $flatMoved flat item(s) moved by processed"
+		printf '%s\n' "${flatItems[@]}"
+	else
+		echo "TEAM-DATA-FLAT-MOVED: 0 flat item(s)"
+	fi
+	return 0
+}
+
+case "$1" in
+
+	--repair-team-data-checkout)
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: syntax is <team-member> [--keep-merged|--take-remote]" >&2
+			set +e ; return 1
+		fi
+		## A team-wide write: one owner, and a caller passing any other name fails loud.
+		if [ "$callingMember" != "magic-coordinator" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: <team-member> must be magic-coordinator -- this repairs the whole team-data checkout and has no other owner (got: $callingMember)" >&2
+			set +e ; return 1
+		fi
+		local repairMode=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--keep-merged)
+					[ -z "$repairMode" ] || {
+						echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: --keep-merged and --take-remote are mutually exclusive" >&2
+						set +e ; return 1
+					}
+					repairMode="keep-merged" ; shift
+				;;
+				--take-remote)
+					[ -z "$repairMode" ] || {
+						echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: --keep-merged and --take-remote are mutually exclusive" >&2
+						set +e ; return 1
+					}
+					repairMode="take-remote" ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: unrecognized argument: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		[ -n "${MDAT_DATA_ROOT:-}" ] && [ -d "$MDAT_DATA_ROOT" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: MDAT_DATA_ROOT is not set or is not a directory: ${MDAT_DATA_ROOT:-<unset>}" >&2
+			set +e ; return 1
+		}
+
+		local repoRoot="" originUrl="" gitOut="" gitRc=0
+		set +e
+		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
+		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
+		set -e
+		if [ -z "$repoRoot" ] ; then
+			gitOut="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>&1 >/dev/null | head -n 1 )" || gitOut=""
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: $MDAT_DATA_ROOT is not in a git repository git can use (git: ${gitOut:-no message}), so there is nothing to repair" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$originUrl" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: no TEAM_DATA_GIT_REMOTE is configured, so there is no remote to repair against" >&2
+			set +e ; return 1
+		fi
+		## A reset or a merge reaches the whole branch, so the repair is scoped the
+		## same way the commit-pending push is: only when the store is its repository's
+		## own root, and only to team-data's remote.
+		local storeRoot="" repoOrigin=""
+		storeRoot="$( cd "$MDAT_DATA_ROOT" && pwd -P )" || storeRoot=""
+		if [ -z "$storeRoot" ] || [ "$storeRoot" != "$( cd "$repoRoot" && pwd -P )" ] ; then
+			echo "TEAM-DATA-REFUSED: the store is inside $repoRoot, whose branch is not team-data's alone to repair"
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: $MDAT_DATA_ROOT is inside the larger repository $repoRoot, which is never reset or merged here" >&2
+			set +e ; return 1
+		fi
+		repoOrigin="$( git -C "$repoRoot" remote get-url origin 2>/dev/null )" || repoOrigin=""
+		if [ "$repoOrigin" != "$originUrl" ] ; then
+			echo "TEAM-DATA-REFUSED: origin of $repoRoot is '${repoOrigin:-<none>}', not TEAM_DATA_GIT_REMOTE '$originUrl'"
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: the checkout's origin is not TEAM_DATA_GIT_REMOTE, so nothing is repaired here" >&2
+			set +e ; return 1
+		fi
+
+		## An interrupted operation is reported and left for a person: nothing here repairs it.
+		local gitDir="" interrupted=""
+		gitDir="$( git -C "$repoRoot" rev-parse --absolute-git-dir 2>/dev/null )" || gitDir=""
+		if [ -z "$gitDir" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: could not locate the repository's .git directory, nothing repaired" >&2
+			set +e ; return 1
+		fi
+		[ ! -e "$gitDir/index.lock" ] || interrupted="$interrupted index.lock"
+		[ ! -e "$gitDir/MERGE_HEAD" ] || interrupted="$interrupted merge"
+		[ ! -e "$gitDir/CHERRY_PICK_HEAD" ] || interrupted="$interrupted cherry-pick"
+		[ ! -e "$gitDir/REVERT_HEAD" ] || interrupted="$interrupted revert"
+		[ ! -d "$gitDir/rebase-merge" ] && [ ! -d "$gitDir/rebase-apply" ] || interrupted="$interrupted rebase"
+		if [ -n "$interrupted" ] ; then
+			echo "TEAM-DATA-REFUSED: the repository shows an interrupted operation:$interrupted -- it is not repaired here, and nothing was changed"
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: interrupted operation in $gitDir:$interrupted" >&2
+			set +e ; return 1
+		fi
+
+		## The branch, fetched so that origin/<branch> is the remote's own state, read
+		## locally only. A detached HEAD is no branch to repair.
+		local headBranch=""
+		headBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )" || headBranch=""
+		if [ -z "$headBranch" ] || [ "$headBranch" = "HEAD" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: the checkout is on no branch (detached HEAD), so there is no branch to repair" >&2
+			set +e ; return 1
+		fi
+		set +e
+		gitOut="$( git -C "$repoRoot" fetch -q origin "$headBranch" 2>&1 )"
+		gitRc=$?
+		set -e
+		if [ "$gitRc" -ne 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: git fetch of origin/$headBranch failed, nothing repaired: $gitOut" >&2
+			set +e ; return 1
+		fi
+		if ! git -C "$repoRoot" rev-parse --verify --quiet "refs/remotes/origin/$headBranch" > /dev/null 2>&1 ; then
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: origin has no branch $headBranch, so there is nothing to repair against" >&2
+			set +e ; return 1
+		fi
+
+		local aheadCount="" behindCount=""
+		aheadCount="$( git -C "$repoRoot" rev-list --count "refs/remotes/origin/$headBranch..HEAD" 2>/dev/null )" || aheadCount="0"
+		behindCount="$( git -C "$repoRoot" rev-list --count "HEAD..refs/remotes/origin/$headBranch" 2>/dev/null )" || behindCount="0"
+
+		echo "TEAM-DATA-CHECKOUT: $MDAT_DATA_ROOT branch $headBranch is $aheadCount local commit(s) ahead of origin/$headBranch and $behindCount behind it"
+		if [ "$aheadCount" != "0" ] ; then
+			git -C "$repoRoot" log --format='TEAM-DATA-LOCAL-COMMIT: %h %s' "refs/remotes/origin/$headBranch..HEAD" 2>/dev/null
+		fi
+		if [ "$behindCount" != "0" ] ; then
+			git -C "$repoRoot" log --format='TEAM-DATA-REMOTE-COMMIT: %h %s' "HEAD..refs/remotes/origin/$headBranch" 2>/dev/null
+		fi
+
+		if [ "$aheadCount" = "0" ] && [ "$behindCount" = "0" ] ; then
+			echo "TEAM-DATA-NOTHING-TO-REPAIR: $MDAT_DATA_ROOT is in step with origin/$headBranch"
+			return 0
+		fi
+
+		## The trial merge: a throwaway copy under the workspace's own temp, which holds
+		## both the local HEAD and the fetched origin/<branch>, merged with no commit, to
+		## see whether keeping the local commits would be a clean merge or conflicts. It
+		## touches nothing of the real checkout.
+		local trialDir="" trialRc=0 trialConflicts="" trialErr=""
+		mkdir -p "$MMDAPP/.local/temp" || {
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: could not make $MMDAPP/.local/temp for the trial merge" >&2
+			set +e ; return 1
+		}
+		trialDir="$( mktemp -d "$MMDAPP/.local/temp/mdat-team-data-checkout-repair.XXXXXX" 2>/dev/null )" || trialDir=""
+		[ -n "$trialDir" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: could not make a throwaway copy for the trial merge" >&2
+			set +e ; return 1
+		}
+		(
+			cp -a "$repoRoot/." "$trialDir/" || exit 1
+			trap 'rm -rf "$trialDir"' EXIT
+			set +e
+			git -C "$trialDir" merge --no-commit --no-ff "refs/remotes/origin/$headBranch" > /dev/null 2>&1
+			trialRc=$?
+			set -e
+			if [ "$trialRc" -eq 0 ] ; then
+				echo "TEAM-DATA-TRIAL-MERGE: clean"
+			else
+				trialConflicts="$( git -C "$trialDir" diff --name-only --diff-filter=U 2>/dev/null | LC_ALL=C tr '\n' ' ' )"
+				if [ -n "$trialConflicts" ] ; then
+					echo "TEAM-DATA-TRIAL-MERGE: conflicts:$trialConflicts"
+				else
+					echo "TEAM-DATA-TRIAL-MERGE: failed:$( git -C "$trialDir" status --porcelain 2>/dev/null | head -n 1 )"
+				fi
+			fi
+		)
+
+		## No mode: the diagnosis above stands, and the two ways are offered. Nothing
+		## is applied.
+		if [ -z "$repairMode" ] ; then
+			echo "TEAM-DATA-REPAIR-OFFER: to keep the local commits merged: DistroAgentsItems.fn.sh --repair-team-data-checkout magic-coordinator --keep-merged"
+			echo "TEAM-DATA-REPAIR-OFFER: to set the local commits aside and take the remote: DistroAgentsItems.fn.sh --repair-team-data-checkout magic-coordinator --take-remote"
+			return 0
+		fi
+
+		## Applying needs a clean checkout: uncommitted paths are not part of the
+		## divergence, and a merge or reset would overwrite them.
+		if [ -n "$( git -C "$repoRoot" status --porcelain --untracked-files=all -- . 2>/dev/null )" ] ; then
+			echo "TEAM-DATA-REFUSED: the checkout holds uncommitted paths -- commit them with --commit-pending first, then repair"
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: uncommitted paths under $MDAT_DATA_ROOT, nothing repaired" >&2
+			set +e ; return 1
+		fi
+		[ -n "${MYXROOT:-}" ] && [ -f "$MYXROOT/bin/git/cloneSync.Common" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: myx.common git/cloneSync is unreachable, so the checkout cannot be merged or pushed" >&2
+			set +e ; return 1
+		}
+
+		if [ "$repairMode" = "keep-merged" ] ; then
+			## The merge, never a rebase: origin's commits are merged in, the local
+			## commits kept, and nothing is pushed yet -- the F4.3 move and one push
+			## come after, below.
+			set +e
+			GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=pull.rebase GIT_CONFIG_VALUE_0=false \
+				"$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$headBranch" >&2
+			gitRc=$?
+			set -e
+			if [ "$gitRc" -ne 0 ] ; then
+				[ ! -e "$gitDir/MERGE_HEAD" ] || git -C "$repoRoot" merge --abort > /dev/null 2>&1
+				echo "TEAM-DATA-NOT-MERGED: the merge failed; the trial above showed it, and nothing was changed"
+				echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: merging origin/$headBranch failed (rc $gitRc); the local commits are kept, nothing was changed" >&2
+				set +e ; return 1
+			fi
+			echo "TEAM-DATA-KEPT-MERGED: origin/$headBranch merged into $headBranch, local commits kept"
+		else
+			## The local commits are set aside, kept reachable at a ref, and the branch
+			## takes the remote. Nothing of them is lost, and nothing is pushed yet.
+			local asideRef=""
+			asideRef="refs/heads/team-data-checkout-set-aside-$( date +%Y%m%dT%H%M%SZ 2>/dev/null )"
+			if ! git -C "$repoRoot" update-ref "$asideRef" HEAD 2>/dev/null ; then
+				echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: could not set the local commits aside at $asideRef, nothing was changed" >&2
+				set +e ; return 1
+			fi
+			echo "TEAM-DATA-SET-ASIDE: the local commits stay reachable at $asideRef ($( git -C "$repoRoot" rev-parse --short HEAD 2>/dev/null ))"
+			set +e
+			gitOut="$( git -C "$repoRoot" reset --hard "refs/remotes/origin/$headBranch" 2>&1 )"
+			gitRc=$?
+			set -e
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: taking the remote failed, nothing was changed: $gitOut" >&2
+				set +e ; return 1
+			fi
+			echo "TEAM-DATA-TOOK-REMOTE: $headBranch reset to origin/$headBranch ($( git -C "$repoRoot" rev-parse --short HEAD 2>/dev/null ))"
+		fi
+
+		## The F4.3 move: any inbox item that still lies flat at its inbox root moves
+		## into incoming/ or processed/ by its processed stamp, then the whole repair is
+		## committed and pushed.
+		AgentsToolsTeamDataRepairMoveFlatItems
+		gitOut="$( git -C "$repoRoot" status --porcelain --untracked-files=all -- . 2>/dev/null )" || gitOut=""
+		if [ -n "$gitOut" ] ; then
+			set +e
+			gitOut="$( git -C "$repoRoot" add -A -- . 2>&1 )"
+			gitRc=$?
+			set -e
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: git add failed after the F4.3 move: $gitOut" >&2
+				set +e ; return 1
+			fi
+			set +e
+			gitOut="$( git -C "$repoRoot" commit -m "* team-data checkout repair" -m "F4.3 move of flat items" -- . 2>&1 )"
+			gitRc=$?
+			set -e
+			if [ "$gitRc" -ne 0 ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: git commit failed after the F4.3 move: $gitOut" >&2
+				set +e ; return 1
+			fi
+			echo "TEAM-DATA-COMMITTED: $( git -C "$repoRoot" rev-parse --short HEAD 2>/dev/null ) F4.3 move of flat item(s)"
+		fi
+
+		## The push, and its read-back, as --commit-pending does it.
+		local headFull="" remoteHead="" syncRc=0
+		set +e
+		GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=pull.rebase GIT_CONFIG_VALUE_0=false \
+			"$MYXROOT/bin/git/cloneSync.Common" "$repoRoot" "$originUrl" "$headBranch" >&2
+		syncRc=$?
+		set -e
+		if [ "$syncRc" -ne 0 ] ; then
+			echo "TEAM-DATA-NOT-PUSHED: the push failed after the repair; the checkout is repaired locally, not pushed"
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: the repair is done locally but git/cloneSync failed (rc $syncRc), its output is above" >&2
+			set +e ; return 1
+		fi
+		headFull="$( git -C "$repoRoot" rev-parse HEAD 2>/dev/null )" || headFull=""
+		remoteHead="$( git -C "$repoRoot" ls-remote origin "refs/heads/$headBranch" 2>/dev/null | LC_ALL=C awk 'NR == 1 { print $1 ; }' )" || remoteHead=""
+		if [ -z "$headFull" ] || [ "$remoteHead" != "$headFull" ] ; then
+			echo "TEAM-DATA-NOT-PUSHED: the push reported success but origin's $headBranch reads back '${remoteHead:-<nothing>}', not $headFull"
+			echo "⛔ ERROR: $MDSC_CMD --repair-team-data-checkout: the repair was not confirmed by read-back" >&2
+			set +e ; return 1
+		fi
+		echo "TEAM-DATA-REPAIRED: $headBranch is repaired and pushed, read back as origin/$headBranch = $headFull"
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

@@ -6,11 +6,10 @@ allows: magic-librarian:skillset-upsert
 requires-session-kind: standalone
 routine-lock-document: inbox:{{team-member}}:note-20261020T000000Z-work-duty-state-and-lock.md
 input-scan-def: work-duty --session-id {{session-id}}
-wait-sources: inbox:{{team-member}} tagged:{{team-member}} board:pending board:running board:review board:blocked board:parked
+wait-sources: inbox:{{team-member}} tagged:{{team-member}} board:backlog board:pending board:running board:review board:blocked board:parked
 includes: magic-coordinator.advance.routine.md: Steps, Routine's local procedures, Routine's local rules, Routine-specific tooling
 reports-to: none
 review-by: none
-cache-prefix: routine
 runs-at: none
 ---
 # magic-coordinator.work-duty.routine — the actual procedure
@@ -30,8 +29,9 @@ None of its own: the Opening steps of its session kind run first.
    - the due items of the human-owner and the external contacts: `magic-coordinator.external-inbox-handle-loop.routine`, inline (`--routine-run-inline magic-coordinator.external-inbox-handle-loop.routine`);
    - the permission asks: `magic-coordinator.permission-escalation.routine`, inline (`--routine-run-inline magic-coordinator.permission-escalation.routine`);
    - the board and what is tagged to you: the Steps of `magic-coordinator.advance.routine` below, from the second on (the first is the inbox, done above), against the scan's sections.
-2. **post-the-round**: post one line into the session thread (`--post-session-channel`): what this round started, moved or flagged, or that it found nothing.
-3. **wait-for-more**: run `DistroAgentsSession.fn.sh --idle-wait`. On an arrival, go to step 1. It returns nothing until one comes; a `DISMISSED` ends the duty.
+2. **decide-inline**: for each item of this round, decide inline which it is, and move on: work it at once here (an inline routine, `--routine-run-inline`); or, for anything larger, prepare its brief, record it and spawn a sub-task (the Agent tool) that reuses this session's cached prefix, so its first round is cheap.
+3. **post-the-round**: post one line into the session thread (`--post-session-channel`): what this round started, moved or flagged, or that it found nothing.
+4. **wait-for-more**: run `DistroAgentsSession.fn.sh --idle-wait`. On an arrival, go to step 1. It returns nothing until one comes; a `DISMISSED` ends the duty.
 
 # Closure steps
 
@@ -44,7 +44,7 @@ None of its own: the local procedures of `magic-coordinator.advance.routine` fol
 # Routine's local rules
 
 - Work the input before you wait; never wait with input unworked.
-- A round is one run through steps 1 and 2. Where a rule below says "pass" or "round", it means that.
+- A round is one run through steps 1 to 3. Where a rule below says "pass" or "round", it means that.
 - The housekeeping the advance Steps speak of (closing dead spawns, moving their items to review, starting missing control threads) and the dependency edges are the tooling's, done by the main loop before the scan; the lock of this session is refreshed by its wait and its state writes.
 
 # Routine-specific tooling

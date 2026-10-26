@@ -91,7 +91,7 @@ rigAssert "the checksum of a cached text knows the file of the advance routine" 
 
 echo "-- 5. the duty waits on its inbox, and the coordinator's on the board too --"
 rigAssert "the team's duty: its own inbox and its tags" "$( LC_ALL=C sed -n 's/^wait-sources: //p' "$rigTeamDuty" )" "inbox:{{team-member}} tagged:{{team-member}}"
-rigAssert "the coordinator's: its own inbox, its tags and the five active states of the board" "$( LC_ALL=C sed -n 's/^wait-sources: //p' "$rigDuty" )" "inbox:{{team-member}} tagged:{{team-member}} board:pending board:running board:review board:blocked board:parked"
+rigAssert "the coordinator's: its own inbox, its tags and the six active states of the board" "$( LC_ALL=C sed -n 's/^wait-sources: //p' "$rigDuty" )" "inbox:{{team-member}} tagged:{{team-member}} board:backlog board:pending board:running board:review board:blocked board:parked"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ ROUTINE INCLUDES CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -7,7 +7,7 @@
 ## credentials shown as F11.8 defines), and set the team's three tiers to presets with an optional :effort; SPAWN_CLI_SERVICE only where
 ## no tier is set. WAIT_ROUND_SECONDS is a plain setting, edited in Scope Settings. Git settings ... each destructive step behind its
 ## warning and the typed confirm"):
-##   1. the read of the CLI wizard gives the choices (the nine services, the five efforts, the presets there are), the credentials each
+##   1. the read of the CLI wizard gives the choices (the ten services, the six efforts, the presets there are), the credentials each
 ##      service reads, what each preset holds with a credential in its one form, and what the team holds of its tiers and its service;
 ##      never a credential whole
 ##   2. the apply writes a new preset and the team's tiers, each key by the dispatcher's own writer, so the checks of a preset and of
@@ -91,8 +91,8 @@ rigLeak(){ ## -- how many times the credential stands whole in all that the call
 echo "-- 1. the read of the CLI service's wizard --"
 rigRun --manager-wizard-read cli-service
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
-rigAssert "the ten services of a preset, in the owner's order" "$( LC_ALL=C awk -F'\t' '$1 == "option" && $2 == "cli-service" { printf "%s ", $3 }' "$rigTmp/out" )" "claude copilot grok gemini scaleway universal deepseek claude-native copilot-native grok-native "
-rigAssert "the five efforts, and the presets there are" "$( LC_ALL=C awk -F'\t' '$1 == "option" && $2 == "effort" { printf "%s ", $3 }' "$rigTmp/out" ) / $( LC_ALL=C awk -F'\t' '$1 == "option" && $2 == "preset" { printf "%s ", $3 }' "$rigTmp/out" )" "low default normal high hard  / base ext "
+rigAssert "the ten services of a preset, in the owner's order" "$( LC_ALL=C awk -F'\t' '$1 == "option" && $2 == "cli-service" { printf "%s ", $3 }' "$rigTmp/out" )" "claude copilot grok gemini scaleway standard-v1 deepseek local claude-native copilot-native grok-native "
+rigAssert "the five efforts, and the presets there are" "$( LC_ALL=C awk -F'\t' '$1 == "option" && $2 == "effort" { printf "%s ", $3 }' "$rigTmp/out" ) / $( LC_ALL=C awk -F'\t' '$1 == "option" && $2 == "preset" { printf "%s ", $3 }' "$rigTmp/out" )" "unset none low normal high  / base ext "
 rigAssert "the credentials each service reads, from its harness leg" "$( rigRows '^credential (claude|grok) ' )" "credential claude ANTHROPIC_API_KEY/credential claude CLAUDE_CODE_OAUTH_TOKEN/credential grok XAI_API_KEY/"
 rigAssert "what a preset holds: its service, its model, a credential in its one form; and what an extending preset holds" "$( rigRows '^preset (base|ext) ' | LC_ALL=C tr '/' '\n' | LC_ALL=C sort | LC_ALL=C tr '\n' '/' )" "preset base ANTHROPIC_API_KEY secret-set $( rigMask "$rigSecret" )/preset base PRESET_CLI_SERVICE set claude/preset base PRESET_MODEL_OR_MACRO set normal/preset ext PRESET_EXTEND set base/"
 rigAssert "what the team holds: its three tiers (none), and no CLI service of its own" "$( rigRows '^current|^team ' )" "team SPAWN_TIER_LOW missing -/team SPAWN_TIER_NORMAL missing -/team SPAWN_TIER_HIGH missing -/"

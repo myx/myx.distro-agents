@@ -54,6 +54,11 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 	rigRow subsystem agents installed console no no yes
 } > "$rigF/rows.--manager-subsystem-list"
 rigRow counters 0 0 0 0 0 0.42 > "$rigF/rows"
+{
+	rigRow repository git@github.com:myx/myx.distro-deploy.git
+	rigRow readme /none/myx.distro-deploy/README.md
+	printf '%s\n' '# deploy manual' '' 'The deploy side'
+} > "$rigF/rows.--manager-subsystem-read deploy"
 rigCase(){ ## name
 	export MANAGER_SCREEN_RIG="$rigTmp/$1"
 	mkdir -p "$MANAGER_SCREEN_RIG"
@@ -94,7 +99,7 @@ at @configuration
 rowids ids
 RIGSCRIPT
 rigScreen="$rigRealScreen"
-rigAssert "a screen whose .local has no such part has no such folder, and fails nowhere" "$( rigVal ids )" ".. checker keys clipresets git diagnostics"
+rigAssert "a screen whose .local has no such part has no such folder, and fails nowhere" "$( rigVal ids )" ".. checker keys clipresets git harness diagnostics"
 
 echo "-- 2. entered: the subsystems, each with its state, and its commands under it --"
 rigCase entered
@@ -106,17 +111,17 @@ wait list 30
 turn
 get in
 rowids ids
-cells r1 3 85 119
-cells r2 4 85 119
-cells r3 7 85 119
-cells r4 6 85 119
-cells r5 8 85 119
-cells r6 9 85 119
-cells r7 10 85 119
-cells r10 14 85 119
+cells r1 5 85 119
+cells r2 6 85 119
+cells r3 9 85 119
+cells r4 8 85 119
+cells r5 10 85 119
+cells r6 11 85 119
+cells r7 12 85 119
+cells r10 16 85 119
 RIGSCRIPT
 rigAssert "the operation was asked for the list, once, and nothing else of the operations of this folder" "$( rigCalled --manager-subsystem-list ) $( LC_ALL=C grep -c -F -e 'subsystem-run' "$MANAGER_SCREEN_RIG/calls" || : )" "1 0"
-rigAssert "in the order of the operation, Update All first, a command under each subsystem that is offered one (Update for an installed one, the console's own among them), none under .local and system" "$( rigVal ids )" ".. all:update .local system deploy deploy:update deploy:uninstall source source:install remote remote:update remote:uninstall agents agents:update"
+rigAssert "in the order of the operation, Update All first, a command under each subsystem that is offered one (Update for an installed one, the console's own among them), none under .local and system" "$( rigVal ids )" ".. features all:update .local system deploy deploy:update deploy:uninstall source source:install remote remote:update remote:uninstall agents agents:update"
 rigAssert "each subsystem shows its state at the end of its row" "[$( rigVal r2 | sed 's/  */ /g' )][$( rigVal r4 | sed 's/  */ /g' )][$( rigVal r6 | sed 's/  */ /g' )][$( rigVal r10 | sed 's/  */ /g' )]" "[ .local installed][ deploy installed][ source not installed][ agents installed]"
 rigAssert "a command stands set in by two under its subsystem" "[$( rigVal r5 | sed 's/ *$//' )][$( rigVal r7 | sed 's/ *$//' )] [$( rigVal r1 | sed 's/^ *//; s/ *$//' )][$( rigVal r3 | sed 's/ *$//' )]" "[   Uninstall...][   Install...] [Update All...][   Update...]"
 
@@ -131,7 +136,9 @@ show f
 keys ENTER
 wait list 30
 turn
-keys DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN
+turn
+wait view 30
 turn
 show s
 keys DOWN DOWN
@@ -141,6 +148,8 @@ RIGSCRIPT
 rigAssert "the folder selected, before it is entered: the table of the subsystems under its head, and for each the command it is offered or why it has none" "[$( rigPane f 3 | LC_ALL=C tr -s ' ' )][$( rigPane f 5 | LC_ALL=C tr -s ' ' )][$( rigPane f 11 | LC_ALL=C tr -s ' ' )][$( rigPane f 13 | LC_ALL=C tr -s ' ' )][$( rigPane f 15 | LC_ALL=C tr -s ' ' )]" \
 	"[ SUBSYSTEM STATE WHAT COMMAND][ .local installed local tool management: it installs the the base that][ deploy installed deploy-side operations update, uninstall][ source not installed source sync, prepare and ingest install][ remote installed remote operations update, uninstall]"
 rigAssert "a subsystem selected: what it is, its state, what it is offered" "$( rigScreenHolds s 'deploy-side operations' ) $( rigScreenHolds s 'update, uninstall' )" "1 1"
+rigAssert "the read of the subsystem is asked for once, by its name" "$( rigCalled '--manager-subsystem-read deploy' )" "1"
+rigAssert "a subsystem selected shows its repository and its README" "$( rigScreenHolds s 'git@github.com:myx/myx.distro-deploy.git' ) $( rigScreenHolds s 'The deploy side' )" "1 1"
 rigAssert "a command selected: the command line it runs" "$( rigScreenHolds c 'DistroLocalTools.fn.sh --uninstall-distro-deploy' )" "1"
 
 echo "-- 4. Enter on a command asks first; Cancel and Esc do nothing; Run runs it in the output dialog --"
@@ -150,7 +159,7 @@ root subsystems
 turn
 keys ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 get on
 keys ENTER
@@ -174,7 +183,7 @@ root subsystems
 turn
 keys ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 keys ENTER
 turn
@@ -195,7 +204,7 @@ root subsystems
 turn
 keys ENTER
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 get on
 keys ENTER
@@ -215,7 +224,7 @@ root subsystems
 turn
 keys ENTER
 wait list 30
-keys DOWN
+keys DOWN DOWN
 turn
 get on
 keys ENTER
@@ -236,13 +245,30 @@ root subsystems
 turn
 keys ENTER
 wait list 30
-keys DOWN DOWN
+keys DOWN DOWN DOWN
 turn
 keys ENTER
 turn
 get on
 RIGSCRIPT
 rigAssert "Enter on .local, which has no command, opens no dialog and runs nothing" "[$( rigVal on.dialog )] $( rigVal on.selected ) $( LC_ALL=C grep -c -F -e 'subsystem-run' "$MANAGER_SCREEN_RIG/calls" || : )" "[] .local 0"
+
+echo "-- 6. a subsystem selected shows its repository and its README (C1) --"
+rigCase read
+rigScript <<'RIGSCRIPT'
+root subsystems
+turn
+keys ENTER
+wait list 30
+turn
+keys DOWN DOWN DOWN DOWN DOWN
+turn
+wait view 30
+turn
+show s
+RIGSCRIPT
+rigAssert "selecting a subsystem reads it whole: --manager-subsystem-read deploy, once, and no command was run" "$( rigCalled '--manager-subsystem-read deploy' ) $( LC_ALL=C grep -c -F -e 'subsystem-run' "$MANAGER_SCREEN_RIG/calls" || : )" "1 0"
+rigAssert "the left pane then holds the repository it is pulled from, and the README rendered" "$( rigScreenHolds s 'git@github.com:myx/myx.distro-deploy.git' ) $( rigScreenHolds s 'The deploy side' )" "1 1"
 
 printf '\nTOTAL: %d passed, %d failed\n' "$rigPassCount" "$rigFailCount"
 [ "$rigFailCount" = 0 ]

@@ -42,6 +42,12 @@ AgentTestingTools(){
 	esac
 	case "$1" in
 
+		''|--help|--help-syntax)
+			set +e
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.AgentTestingTools.include"
+			return $?
+		;;
+
 		## A testing need of the calling member: --why <text> and the queue's options, [--project <p>] [--file <changed-file>]... [--about <scratch-folder>]
 		## [--wait|--no-wait] [<test>...]. The tests go into the retest queue, and one inquiry into magic-tester's inbox says who asked, why and for what.
 		## With --wait the call stays until the batch has run them, and says how they came out. The outcome is read by the request's id, with

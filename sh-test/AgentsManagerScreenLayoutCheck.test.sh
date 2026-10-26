@@ -127,13 +127,13 @@ said mostSaid
 cells bottom 29 0 31
 RIGSCRIPT
 rigAssert "until it is moved the list takes the share its place declares, and no ratio is kept" "$( rigWide first )" "69 70 30 []"
-rigAssert "[ makes the list a step wider, and the status line says how wide it is now" "$( rigWide one ) [$( rigVal oneSaid )]" "64 65 35 [0.3500] [the list takes 35 of 100 cells]"
+rigAssert "[ makes the list a step wider, and the notice says how wide it is now" "$( rigWide one ) [$( rigVal one.notice )]" "64 65 35 [0.3500] [the list takes 35 of 100 cells]"
 rigAssert "it works in the left window too, a step a press"          "$( rigVal half.focus ) $( rigWide half )" "view 49 50 50 [0.5000]"
 rigAssert "the largest the right window is drawn is 80 cells, and the ratio that is kept is not rewritten" "$( rigWide wide )" "119 120 80 [0.5000]"
 rigAssert "so at the old width the split stands where it stood"       "$( rigWide back )" "49 50 50 [0.5000]"
-rigAssert "] makes it narrower, down to its smallest, 20 cells"       "$( rigWide least ) [$( rigVal leastSaid )]" "79 80 20 [0.2000] [the list is at its narrowest: 20 cells]"
+rigAssert "] makes it narrower, down to its smallest, 20 cells"       "$( rigWide least ) [$( rigVal least.notice )]" "79 80 20 [0.2000] [the list is at its narrowest: 20 cells]"
 rigAssert "at the limit a press keeps the ratio as it is"             "$( rigWide stays )" "79 80 20 [0.2000]"
-rigAssert "the left window keeps what a window needs, half of the smallest terminal" "$( rigWide most ) [$( rigVal mostSaid )]" "19 20 60 [0.7500] [the list is at its widest: 60 cells]"
+rigAssert "the left window keeps what a window needs, half of the smallest terminal" "$( rigWide most ) [$( rigVal most.notice )]" "19 20 60 [0.7500] [the list is at its widest: 60 cells]"
 rigAssert "the keys of the split are not in the status line"          "[$( rigVal bottom )]" "[ a Active  / Filter  u Read  m]"
 
 echo "-- the limits are absolute, whatever the width of the terminal, and hold in every style --"
@@ -200,7 +200,7 @@ RIGSCRIPT
 rigAssert "the first button going down is a press"                   "$( rigVal mousekey )" "MOUSE:press:5:7"
 rigAssert "pressed on the border, it takes hold of it"               "$( rigVal pressed.splitHeld ) $( rigWide pressed )" "pressed 69 70 30 []"
 rigAssert "let go in another column, the border is put there: a drag" "[$( rigVal dragged.splitHeld )] $( rigWide dragged ) [$( rigVal dragged.notice )]" "[] 54 55 45 [0.4500] [the list takes 45 of 100 cells]"
-rigAssert "a click on the border takes hold of it, and the status line says so" "$( rigVal held.splitHeld ) $( rigWide held ) [$( rigVal heldSaid )]" "held 54 55 45 [0.4500] [the border is held: click where it goes, or on it to let it go]"
+rigAssert "a click on the border takes hold of it, and the status line says so" "$( rigVal held.splitHeld ) $( rigWide held ) [$( rigVal held.notice )]" "held 54 55 45 [0.4500] [the border is held: click where it goes, or on it to let it go]"
 rigAssert "a held border is drawn in another look, and no more once it is put" "[$( rigColumn heldRoles 55 5 7 )] [$( rigColumn putRoles 30 5 7 )]" "[RRR] [FFF]"
 rigAssert "the next click in a window puts it there"                 "[$( rigVal put.splitHeld )] $( rigWide put )" "[] 29 30 70 [0.7000]"
 rigAssert "a click on a held border lets it go where it was"          "[$( rigVal letGo.splitHeld )] $( rigWide letGo )" "[] 29 30 70 [0.7000]"
@@ -282,7 +282,7 @@ rigAssert "and Left back to its start"                               "$( rigVal 
 rigAssert "the choice is kept when the selection moves, and the place sideways is the item's" "$( rigVal moved.wrap ) $( rigVal moved.selected ) $( rigVal moved.viewLeft )" "no transcript 0"
 rigAssert "and inside the folder of an agent, where Left and Right in the list are the list's own: Left pages up there" "$( rigVal dived.wrap ) $( rigVal dived.path ) [$( rigVal up.path )] $( rigVal up.selected ) $( rigVal up.wrap )" "no magic-team/activity/active-sessions/$rigS1/$rigS1 [magic-team/activity/active-sessions/$rigS1/$rigS1] .. no"
 rigAssert "w wraps them again"                                       "$( rigVal again.wrap ) $( rigVal again.viewLines ) [$( rigVal againTitle )]" "yes 7 [Transcript [log] [wrap]]"
-rigAssert "wrapped, nothing stands to the side: Left says so"         "$( rigVal refused.viewLeft ) [$( rigVal refusedSaid )]" "0 [Scroll: the lines are wrapped, none is cut]"
+rigAssert "wrapped, nothing stands to the side: Left says so"         "$( rigVal refused.viewLeft ) [$( rigVal refused.notice )]" "0 [Scroll: the lines are wrapped, none is cut]"
 
 echo "-- a character of two cells at the edge, and a table --"
 rigCase table

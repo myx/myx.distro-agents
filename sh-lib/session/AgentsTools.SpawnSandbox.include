@@ -136,13 +136,20 @@ AgentsToolsSessionThreadFind(){
 ## always has, and beside them the thread recorded here (--wait-for-input).
 AgentsToolsSessionCurrentThreadFind(){
 	AgentsToolsSessionThreadFind && return 0
-	local currentSession="${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" currentLine=""
+	local currentSession="" currentLine=""
+	currentSession="$( AgentsToolsSessionCurrentId )"
 	case "$currentSession" in ''|*/*|.|..) return 1 ;; esac
 	[ -n "${MMDAPP:-}" ] || return 1
 	[ -f "$MMDAPP/.local/agents/sessions/$currentSession/session.thread" ] && IFS= read -r currentLine < "$MMDAPP/.local/agents/sessions/$currentSession/session.thread" || return 1
 	[ -n "$currentLine" ] || return 1
 	printf '%s\n' "$currentLine"
 	return 0
+}
+
+## The session this call belongs to, by the chain every session reader keeps: the coworking session of a
+## run, else the run's own, else the client's (AgentsToolsSessionChatKey's own chain). Empty for none.
+AgentsToolsSessionCurrentId(){
+	printf '%s' "${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 }
 
 ## WHERE A RUN REPORTS TO: the one address its handback goes to, its questions and
@@ -309,6 +316,29 @@ AgentsToolsSessionSeatFile(){ ## session, member
 }
 
 ## The spawn record of a run, by its spawn id: printed, rc 0; rc 1 where none is found here.
+## THE RECORD FILE OF A SPAWN, found the one way: a file named <spawn-id>.spawn.md in whatever
+## folder of spawned/ holds it -- the folder's own name is NOT the id (a relocated or renamed
+## sandbox keeps its record's name). Nothing where no such file is there, or where the record's
+## own spawn-id says otherwise. Both readers use it: the harness that writes a run's files, and
+## the manager that reads them, so the two cannot look in different places.
+AgentsToolsSpawnRecordPath(){ ## spawn id
+	local recordPath
+	case "$1" in
+		''|*/*|*..*) return 0 ;;
+	esac
+	[ -n "${MMDAPP:-}" ] || return 0
+	for recordPath in "$MMDAPP/.local/agents/spawned"/*/"$1.spawn.md" ; do
+		[ -f "$recordPath" ] || continue
+		case "$( LC_ALL=C sed -n 's/^spawn-id: //p' "$recordPath" 2> /dev/null | head -1 )" in
+			''|"$1") ;;
+			*) continue ;;
+		esac
+		printf '%s' "$recordPath"
+		return 0
+	done
+	return 0
+}
+
 AgentsToolsSessionRunRecord(){ ## spawn id
 	local runRecord
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
@@ -336,6 +366,25 @@ AgentsToolsSessionSeatHolder(){ ## session, member
 	holderRecord="$( AgentsToolsSessionRunRecord "$holderId" )" || return 1
 	AgentsToolsSessionRecordLive "$holderRecord" || return 1
 	printf '%s\n' "$holderId"
+}
+
+## Whether a member's instance is present in a session: a spawn record of that session is the member's and still says
+## `spawn-started`, which is the one rule the tooling tells a run that is over by -- a closed record no longer says it. The
+## process is not asked for: a start's record is written and its seat taken before the run's own process exists, so a scan that
+## start runs would otherwise not see the instance it is starting. A record of a run that ended is no presence, and a message of
+## that session's thread is work again. One grep over the records, then the owners of the few the session has. rc 0 it is present;
+## rc 1 it is not, and nothing is printed.
+AgentsToolsSessionMemberPresent(){ ## session, member
+	local presentRecord presentRecords
+	presentRecords="$( LC_ALL=C grep -l -x -F "session-id: $1" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null )" || return 1
+	[ -n "$presentRecords" ] || return 1
+	while IFS= read -r presentRecord ; do
+		[ -n "$presentRecord" ] && [ -f "$presentRecord" ] || continue
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$presentRecord" owner )" = "$2" ] || continue
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$presentRecord" status )" = spawn-started ] || continue
+		return 0
+	done <<< "$presentRecords"
+	return 1
 }
 
 ## The seat's lock, a folder beside it (mkdir is the lock primitive), for one read and write:
@@ -636,8 +685,37 @@ AgentsToolsConversationThreadsFind(){
 ## A bare Wait's default sources, space-separated: this session's own thread and every
 ## conversation thread it continues, each as slack:<channel>:<ts>:conversation, no repeats.
 ## Prints nothing and returns 1 when there is neither (the solo default then applies).
+## THE CHANNEL KIND IS DECIDED FIRST (F2.3, F3.1): a session whose external side is the root-native printback
+## channel, or the tooling thread -- `none` or `track` on the session's own record -- has one default source,
+## that session's `chat:<session>` read, and it is answered before a thread or a conversation is looked for.
+## A conversation thread is a Slack source, and such a session is on no Slack channel of its own, so a Wait of
+## it must not watch one even where the spawn handed some down: what the tooling thread received is recorded in
+## the one chat file, and the chat file is what is read back. Only a session on another kind -- `full`, a
+## session on a recorded thread, one with no kind recorded -- reaches the Slack sources, exactly as it always
+## did.
 AgentsToolsWaitDefaultSources(){
-	local defaultThread defaultList="" defaultSeen=" "
+	local defaultThread defaultList="" defaultSeen=" " defaultChat="" defaultKind=""
+	type AgentsToolsCommsPrintbackSessionInUse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include" 2> /dev/null || :
+	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+	type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" 2> /dev/null || :
+	defaultChat="$( AgentsToolsSessionChatKey 2> /dev/null )" || defaultChat=""
+	if [ -n "$defaultChat" ] ; then
+		## THE KIND THE SESSION RECORDED (F3.1), before any thread or conversation: `none` and `track` are read
+		## from the one chat file, and only another kind reaches the Slack sources.
+		defaultKind="$( AgentsToolsRootHarnessKindRead "$defaultChat" 2> /dev/null )" || defaultKind=""
+		case "$defaultKind" in
+			none|track)
+				printf 'chat:%s\n' "$defaultChat"
+				return 0
+			;;
+		esac
+		## A session with no kind recorded keeps the F2.3 mark's decision: the printback channel is read from the
+		## chat file, and one on a thread (or on no channel) reaches the Slack sources as it always did.
+		if AgentsToolsCommsPrintbackSessionInUse "$defaultChat" ; then
+			printf 'chat:%s\n' "$defaultChat"
+			return 0
+		fi
+	fi
 	for defaultThread in $( AgentsToolsSessionThreadFind 2>/dev/null ) $( AgentsToolsConversationThreadsFind 2>/dev/null ) ; do
 		case "$defaultSeen" in *" $defaultThread "*) continue ;; esac
 		defaultSeen="$defaultSeen$defaultThread "
@@ -732,6 +810,9 @@ AgentsToolsSpawnProxyCloseDispatch(){
 	local itemTargetState="${7:-$itemState}"
 	## Why a running item enters review here: a child that ended with no handback, by default.
 	local reviewReason="${8:-ended-without-handback}"
+	## Why the child ended, where its harness recorded one (a refused request): shown on the
+	## Result the reviewer reads, never left to the log alone.
+	local childEndReason="${9:-}"
 	local currentBody resultBody actualState reviewHeaders=()
 	## The close moves only an item still where the caller left it, and the one move it makes
 	## is running -> review. An item a handback, a verdict or an ending already moved is never
@@ -766,6 +847,7 @@ AgentsToolsSpawnProxyCloseDispatch(){
 		"status: $outcome" \
 		"exit-code: $childExit" \
 		"output-file: $childOutputFile" \
+		${childEndReason:+"reason: $childEndReason"} \
 		"completed-at: $( date -u +%Y-%m-%dT%H:%M:%SZ )" )"
 	mkdir -p "$MDAT_DATA_ROOT/board/$itemTargetState" || {
 		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: can't create board state directory $MDAT_DATA_ROOT/board/$itemTargetState, so dispatch item $itemName was not closed" >&2
@@ -933,7 +1015,7 @@ AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
 ## does whoever comes after a closer that was ended half way; never a record cut short.
 ## rc 0 closed; rc 1 where this try could not close it, the record as it was.
 AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code
-	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxOps sandboxBody sandboxAside
+	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxOps sandboxBody sandboxAside sandboxReason="" sandboxRestarts=""
 	[ -f "$sandboxFile" ] || return 1
 	mkdir -p "$MMDAPP/.local/temp" || return 1
 	## A temp file of this close's own, by mktemp and never by $$: the members one call
@@ -962,6 +1044,24 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code
 		else
 			printf 'upsert\tarmed\tunknown\n'
 		fi
+		## Why a run that refused to run went no further, as the harness kept it beside this
+		## file when it ended on a refused request (an API usage cap and the like). One line,
+		## newlines and tabs already collapsed by the writer; kept so the session's own record
+		## carries the reason, never only the log. Absent for a run that ended for another
+		## reason, or one the harness could not name.
+		if [ -s "${sandboxFile%.spawn.md}.refused" ] ; then
+			sandboxReason="$( head -1 "${sandboxFile%.spawn.md}.refused" | LC_ALL=C tr '\t' ' ' )"
+			printf 'upsert\tend-reason\t%s\n' "$sandboxReason"
+		fi
+		## How many summarise-and-restarts this run made, from the marker the harness appends
+		## beside this file, one line per restart (AgentsHarnessRestartKeep). A run that never
+		## restarted, or one no harness ran, carries no such header. The count is a header, so
+		## the session read prints it with the record's other headers; each restart's own time
+		## and threshold stay in the marker, and the transcript keeps its RESTART line.
+		if [ -s "${sandboxFile%.spawn.md}.restarts" ] ; then
+			sandboxRestarts="$( LC_ALL=C awk 'NF { counted++ } END { print counted + 0 }' "${sandboxFile%.spawn.md}.restarts" 2> /dev/null )"
+			case "$sandboxRestarts" in ''|0|*[!0123456789]*) ;; *) printf 'upsert\trestarts\t%s\n' "$sandboxRestarts" ;; esac
+		fi
 	} > "$sandboxOps" || { rm -f "$sandboxOps" ; return 1 ; }
 	sandboxBody="$( LC_ALL=C awk -v opsFile="$sandboxOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk" < "$sandboxFile" )" || sandboxBody=""
 	rm -f "$sandboxOps"
@@ -971,6 +1071,74 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code
 	sandboxAside="$( mktemp "$sandboxFile.close.XXXXXX" 2> /dev/null )" || return 1
 	{ cp -p "$sandboxFile" "$sandboxAside" && printf '%s\n' "$sandboxBody" > "$sandboxAside" && mv -f "$sandboxAside" "$sandboxFile" ; } 2> /dev/null \
 		|| { rm -f "$sandboxAside" ; return 1 ; }
+	## A RUN STOPPED ON THE PROVIDER'S USAGE LIMIT is flagged in its own store, from the same
+	## reason the record keeps: the one wording the session list, the Dashboard and the end
+	## notice show, with the date the provider said it reopens. Never fails the close.
+	if [ -n "$sandboxReason" ] ; then
+		type AgentsToolsUsageLimitMark > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.UsageLimit.include" 2> /dev/null || :
+		AgentsToolsUsageLimitMark "$( AgentsToolsSpawnSandboxRecordHeader "$sandboxFile" spawn-id )" "$sandboxReason" 2> /dev/null || :
+	fi
+	return 0
+}
+
+## THE QUESTIONS A RUN ASKED ARE ITS OWN TO SETTLE, AND IT SETTLES THEM WHEN IT ENDS: nobody is left
+## to hear an answer once its record closes, so the close withdraws every question that run still has
+## open, through the one withdraw an asker has (--settle-pending-reply --withdraw): the record closes
+## as withdrawn, with the reason, and the person who was asked is told in the question's own thread by
+## that same operation. THE ASKER IS READ FROM THE ASK: an ask carries the id of the run that asked it
+## in `session-id`, which is that run's own spawn id (a run that founded its session has the two equal),
+## and its `owner` is the member that asked. A question the TOOLING asked ABOUT a run is not the run's
+## and is left as it is: a review prompt carries that run's id as its asking session and must still be
+## answered, so `kind: review` is not withdrawn here. The live store alone is read, since a record that
+## already closed is no question of anybody's. Never fails the close: one warning at most, and the
+## record is closed whatever came of its questions.
+AgentsToolsSpawnProxyWithdrawAsks(){ ## tracking file
+	local askRun askFile askList askId askOwner askReason="" askRc=0 askWarned=""
+	[ -f "${1:-}" ] || return 0
+	[ "$( AgentsToolsSpawnSandboxRecordHeader "$1" status )" = "spawn-started" ] || return 0
+	## The run's own id: its spawn-id, and for a record written without one the session it names,
+	## which is the same id for a run that founded its session.
+	askRun="$( AgentsToolsSpawnSandboxRecordHeader "$1" spawn-id )"
+	case "$askRun" in ''|'-') askRun="$( AgentsToolsSpawnSandboxRecordHeader "$1" session-id )" ;; esac
+	case "$askRun" in ''|-|.|..|*/*) return 0 ;; esac
+	local askFiles=()
+	while IFS= read -r askFile ; do
+		[ -z "$askFile" ] || [ ! -f "$askFile" ] || askFiles[${#askFiles[@]}]="$askFile"
+	done <<< "$( LC_ALL=C grep -l -x -F "session-id: $askRun" "$MMDAPP/.local/agents/pending"/*.md 2> /dev/null )"
+	[ "${#askFiles[@]}" -gt 0 ] || return 0
+	## The open ones, with the member that asked each: its record read once, its header fields only.
+	askList="$( LC_ALL=C awk '
+		FNR == 1 { dashes = 0 ; status = "" ; kind = "" ; owner = "" ; name = FILENAME ; sub( /^.*\//, "", name ) ; sub( /\.md$/, "", name ) }
+		$0 == "---" {
+			if ( ++dashes == 2 ) {
+				sub( /[[:space:]]+$/, "", owner ) ;
+				sub( /[[:space:]]+$/, "", status ) ;
+				sub( /[[:space:]]+$/, "", kind ) ;
+				if ( status == "reply-pending" && kind != "review" ) printf "%s\t%s\n", name, owner ;
+			}
+			next ;
+		}
+		dashes == 1 && index( $0, "status: " ) == 1 { status = substr( $0, 9 ) }
+		dashes == 1 && index( $0, "kind: " ) == 1 { kind = substr( $0, 7 ) }
+		dashes == 1 && index( $0, "owner: " ) == 1 { owner = substr( $0, 8 ) }
+	' "${askFiles[@]}" 2> /dev/null )" || askList=""
+	[ -n "$askList" ] || return 0
+	## Why a question is withdrawn: a line of the note template's `# Reasons`, never a text written here.
+	type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
+	askReason="$( ASKP_BLOCK="Reasons/asker-ended" AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || askReason=""
+	[ -n "$askReason" ] || echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the reason of a withdrawal could not be filled from its template (tooling-note.post.format.md, Reasons), so the questions of run $askRun are withdrawn with none" >&2
+	while IFS=$'\t' read -r askId askOwner ; do
+		[ -n "$askId" ] && [ -n "$askOwner" ] && [ "$askOwner" != "-" ] || continue
+		askRc=0
+		## The asker's own withdraw, done in the asker's name: the member that asked is what this
+		## call acts as, so the one gate every withdraw has sees the run that asked it and nobody else.
+		if type DistroAgentsTools > /dev/null 2>&1 ; then
+			( export MDAT_SPAWN_AGENT="$askOwner" ; DistroAgentsTools --settle-pending-reply "$askOwner" "$askId" --reason "$askReason" --withdraw ) > /dev/null 2>&1 || askRc=$?
+		else
+			( export MDAT_SPAWN_AGENT="$askOwner" ; "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --settle-pending-reply "$askOwner" "$askId" --reason "$askReason" --withdraw ) > /dev/null 2>&1 || askRc=$?
+		fi
+		[ "$askRc" = 0 ] || [ -n "$askWarned" ] || { askWarned="yes" ; echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the question $askId that run $askRun asked was not withdrawn (rc $askRc), so it stays as it was" >&2 ; }
+	done <<< "$askList"
 	return 0
 }
 
@@ -981,6 +1149,9 @@ AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code
 ## said, and a later advance pass closes it. Never fails its caller.
 AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code
 	[ -f "$1" ] || return 0
+	## The run's own questions are settled first, while its record still says it was started: a question
+	## of a run that has ended is withdrawn by it, and never left waiting for an answer nobody hears.
+	AgentsToolsSpawnProxyWithdrawAsks "$1" || :
 	## A run whose session holds a routine's lock gives it back when it is the last of its session (F6.2).
 	if [ -n "$( AgentsToolsSpawnSandboxRecordHeader "$1" routine-lock )" ] ; then
 		type AgentsToolsRoutineLockRelease > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include"
@@ -1033,9 +1204,30 @@ AgentsToolsSpawnProxySessionNotice(){ ## thread or conversation, the member it i
 		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: the $noticeName line could not be filled from sh-lib/templates/tooling-note.post.format.md, so $noticeThread was not told" >&2
 		return 0
 	fi
+	## A SESSION ON THE PRINTBACK CHANNEL HAS NO THREAD (F3.3): its notice is RECORDED there, never printed,
+	## and the next foreground call of that session surfaces it as one line of its digest. Nothing is sent
+	## through the member send, and the printback channel's own rule -- a message prints -- does not apply:
+	## a notice is not a message and has no caller to print to. The record is the session's one chat file.
+	case "$noticeThread" in
+		printback:*)
+			type AgentsToolsCommsPrintbackNoticeRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include" 2> /dev/null || :
+			if printf '%s\n' "$noticeText" | AgentsToolsCommsPrintbackNoticeRecord "$noticeThread" "$noticeMember" "$noticeTell" ; then
+				agentsSpawnProxyNoticePosted="yes"
+			else
+				echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: the $noticeName line was not recorded on $noticeThread, so the run ${noticeRun:0:8} of $noticeMember was not told of it" >&2
+			fi
+			return 0
+		;;
+	esac
 	local noticeOut="" noticeInbox
 	mkdir -p "${MMDAPP:-/nonexistent}/.local/temp" 2> /dev/null && noticeOut="$( mktemp "${MMDAPP:-/nonexistent}/.local/temp/mdat-session-notice.XXXXXX" 2> /dev/null )" || noticeOut=""
 	[ -n "$noticeOut" ] || noticeOut="/dev/null"
+	## NO SEND FLOOR HERE: a notice is the tooling's own fixed line, never a member's own text, and
+	## the plain-language floor holds back only a member's own Slack send (MDAT_SEND_FLOOR=hold, set
+	## by the member stub): the tooling's own sends pass gating predicates of `none`, measured and
+	## recorded but never held (MAGIC.md). A line of tooling-note.post.format.md cannot be rewritten
+	## to answer a CORRECTION, so a held notice would never be posted at all -- `## run-closed` is 30
+	## words against a cap of 25, and the run it is about would go untold.
 	if printf '%s\n' "$noticeText" | DistroAgentsTools --intern-op-comms-slack-send-message "${noticeArgs[@]}" --from-stdin > "$noticeOut" 2>&1 ; then
 		agentsSpawnProxyNoticePosted="yes"
 	## The send refuses with rc 1 for every fault, so its words are all there is: the one exact line
@@ -1120,6 +1312,10 @@ AgentsToolsSpawnProxyHandbacks(){ ## the run, by its own spawn id; its output fi
 ##   handback-missing  it ended by itself, and no handback of it was seen, after its one retry.
 ##   run-ended         it ended by itself and handed back, and none of its handbacks went to
 ##                     where its end is told.
+##   run-usage-limited it stopped on the provider's API usage limit: the notice says so, and
+##                     the date the provider gave for it reopening, as the run's own store
+##                     keeps it (AgentsTools.UsageLimit.include). This is told whatever else
+##                     is recorded of its ending: the refusal is why it stopped.
 ## A run that was killed, stopped or bounded is told as that, whatever it had handed back,
 ## and never as a run that posted no handback. A run that ended by itself and whose handback
 ## stands where its end would be told gets no message: the handback said it. Nor does one
@@ -1143,7 +1339,7 @@ AgentsToolsSpawnProxyHandbacks(){ ## the run, by its own spawn id; its output fi
 ## stderr, which is the run's log for a run that is not waited for.
 AgentsToolsSpawnProxyEndNotice(){ ## the run's record, what its closer saw of a handback (`missing` or `seen`; read from the run's log where not given; `died` for a death, which the control thread of its session tells), the bound in seconds where the tooling's bound ended it (may be empty), `caller-waits` for a start its caller waits on (may be empty)
 	local endRecord="${1:-}" endSeen="${2:-}" endBound="${3:-}" endWaits="${4:-}"
-	local endRun endMember endOwn endRoute endRouted="" endTo="" endTell="" endLine="" endBy="" endAt="" endUnrequested="" endSession=""
+	local endRun endMember endOwn endRoute endRouted="" endTo="" endTell="" endLine="" endBy="" endAt="" endUnrequested="" endSession="" endLimit=""
 	local endParts endPart endEvents="" endStop endWent endHeld="" endGave=""
 	agentsSpawnProxyEndNoticeSaid="none"
 	[ -n "$endRecord" ] && [ -f "$endRecord" ] || return 0
@@ -1151,6 +1347,12 @@ AgentsToolsSpawnProxyEndNotice(){ ## the run's record, what its closer saw of a 
 	endRun="${endRecord##*/}" ; endRun="${endRun%.spawn.md}"
 	endMember="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" owner )"
 	[ -n "$endMember" ] || return 0
+	## Whether it stopped on the provider's usage limit, and the one wording of it with the
+	## date it reopens: the run's own store first, then the reason the record keeps, for a run
+	## closed before the store held one. A run that was refused for another reason has none.
+	type AgentsToolsUsageLimitRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.UsageLimit.include" 2> /dev/null || :
+	endLimit="$( AgentsToolsUsageLimitRun "$endRun" 2> /dev/null )" || endLimit=""
+	[ -n "$endLimit" ] || endLimit="$( AgentsToolsUsageLimitText "$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" end-reason )" 2> /dev/null )" || endLimit=""
 	endOwn="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" session-thread )"
 	AgentsToolsSpawnConversationThreadValid "$endOwn" || endOwn=""
 	## Where it is told, and to whom: where it reports to, and where its handback went is held against that.
@@ -1164,6 +1366,15 @@ AgentsToolsSpawnProxyEndNotice(){ ## the run's record, what its closer saw of a 
 			AgentsToolsSpawnConversationThreadValid "$endRouted" || endRouted=""
 			endTo="${endRouted:-$endOwn}"
 			endTell="$( AgentsToolsRunRouteMember "$endRoute" 2> /dev/null )" || endTell=""
+			## A SESSION ON THE PRINTBACK CHANNEL HAS NO THREAD (F3.3): its notice is recorded there and the
+			## next foreground call of it surfaces the line. Where a thread was found above -- a session
+			## that keeps one -- the Slack route is what it was, and nothing changes.
+			if [ -z "$endTo" ] ; then
+				type AgentsToolsCommsPrintbackSessionInUse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include" 2> /dev/null || :
+				if AgentsToolsCommsPrintbackSessionInUse "${endRoute%%:*}" ; then
+					endTo="$( AgentsToolsCommsPrintbackChannelId "${endRoute%%:*}" 2> /dev/null )" || endTo=""
+				fi
+			fi
 		;;
 		member)
 			endRouted="$endRoute" ; endTo="$endRoute" ; endTell="$endRoute"
@@ -1192,7 +1403,10 @@ AgentsToolsSpawnProxyEndNotice(){ ## the run's record, what its closer saw of a 
 		$2 == "ENDING" && index( $0, " text=\"taskstop: " ) > 0 { stopBy = "" ; if ( match( $0, / by=[^ ]+/ ) ) { stopBy = substr( $0, RSTART + 4, RLENGTH - 4 ) ; } stopLine = $1 " " stopBy ; }
 		END { if ( stopLine != "" ) { print stopLine ; } }
 	' )" || endStop=""
-	if [ "$endSeen" = "died" ] ; then
+	if [ -n "$endLimit" ] ; then
+		## A refusal is why it stopped, whatever else its record or transcript holds.
+		endLine="run-usage-limited" ; endAt="" ; endBy=""
+	elif [ "$endSeen" = "died" ] ; then
 		endAt=""
 	elif [ -n "$endAt" ] ; then
 		endLine="run-killed"
@@ -1236,7 +1450,7 @@ AgentsToolsSpawnProxyEndNotice(){ ## the run's record, what its closer saw of a 
 		type AgentsToolsSlackDateToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SlackDate.include" 2> /dev/null || :
 		endAt="$( AgentsToolsSlackDateToken "$endAt" date-time 2> /dev/null || printf '%s' "$endAt" )"
 	fi
-	AgentsToolsSpawnProxySessionNotice "$endTo" "$endMember" "$endTell" "$endLine" "" "$endRun" by "$endBy" at "$endAt" seconds "$endBound" unrequested "$endUnrequested"
+	AgentsToolsSpawnProxySessionNotice "$endTo" "$endMember" "$endTell" "$endLine" "" "$endRun" by "$endBy" at "$endAt" seconds "$endBound" unrequested "$endUnrequested" usage_limit "$endLimit"
 	agentsSpawnProxyEndNoticeSaid="failed" ; [ -z "$agentsSpawnProxyNoticePosted" ] || agentsSpawnProxyEndNoticeSaid="posted"
 	return 0
 }

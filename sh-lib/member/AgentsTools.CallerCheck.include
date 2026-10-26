@@ -67,12 +67,12 @@ fi
 
 if ! type AgentsToolsMagicCallerCheck >/dev/null 2>&1 ; then
 	## An operation of the coordinator's own is magic-coordinator's: refused from a spawned session acting as
-	## another member. A call from no such session is the console's, and accepted.
+	## another member, with who owns it and how to ask, as the --client-* refusal below does. A call from no such session is the console's, and accepted.
 	AgentsToolsMagicCallerCheck(){ ## operation
 		local checkActing
 		checkActing="$( AgentsToolsActingMember )"
 		[ -n "$checkActing" ] && [ "$checkActing" != magic-coordinator ] || return 0
-		echo "$MDSC_CMD: $1: ⛔ ERROR: this session acts as $checkActing, and $1 is magic-coordinator's only -- nothing was done" >&2
+		echo "$MDSC_CMD: $1: ⛔ ERROR: this session acts as $checkActing, and $1 is magic-coordinator's only -- nothing was done: ask the session's magic-coordinator, which owns it, to run it" >&2
 		return 1
 	}
 fi

@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsConsole.HelpViewer.fn.include -- the help viewer of the console completion (F12.1):
+## a command's help in a scrollable view, not a dump to stderr. Sourced by the completion
+## helper (AgentsConsole.CompletionHelperAgents.fn.include), loaded on demand and in place, so
+## no path but the completion pays for it. The help is read by the command's own `--help`,
+## which myx.common lib/catMarkdown renders (the one Markdown renderer); it is read once and
+## never run twice.
+##
+## THE BEST WAY THE TERMINAL ALLOWS, in order: the console-styled viewer, where python is
+## present and the terminal can save and restore its screen; else `less` on the terminal's
+## alternate screen, reading and writing the terminal directly; else the plain dump to stderr,
+## which is what the completion did before this viewer.
+##
+## The viewer is shown on the terminal's alternate screen and the buffer is given back when it
+## is left, so a completion returns to the prompt intact, as full-screen pickers inside bash
+## completion already do. `--find <prefix>` scrolls to the first line that begins with the
+## option being typed and holds it highlighted for a moment.
+##
+
+AgentsConsoleHelpShow(){ ## <command> [<option-prefix>]
+	local helpCommand="${1:?⛔ ERROR: AgentsConsoleHelpShow: command is required}" helpPrefix="${2:-}"
+	local helpText helpPython helpViewer
+	set +e
+	helpText="$( ( "$helpCommand" --help 2>&1 </dev/null || : ) 2>/dev/null )"
+	set -e
+	[ -n "$helpText" ] || return 0
+	helpPython="$( command -v python3 2>/dev/null )" || helpPython=""
+	helpViewer="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsConsoleHelpViewer.py"
+
+	## The console-styled viewer: python, the terminal can save and restore its screen, and the
+	## screen is shown on the terminal itself (stderr is the terminal in a completion).
+	if [ -t 2 ] && [ -n "$helpPython" ] && [ -r "$helpViewer" ] \
+		&& "$helpPython" -c 'import curses' 2>/dev/null \
+		&& command -v tput >/dev/null 2>&1 \
+		&& tput smcup >/dev/null 2>&1 && tput rmcup >/dev/null 2>&1 ; then
+		if [ -n "$helpPrefix" ] ; then
+			printf '%s\n' "$helpText" | "$helpPython" "$helpViewer" --find "$helpPrefix"
+		else
+			printf '%s\n' "$helpText" | "$helpPython" "$helpViewer"
+		fi
+		return 0
+	fi
+
+	## Else `less` on the alternate screen, reading and writing the terminal directly.
+	if [ -t 2 ] && command -v less >/dev/null 2>&1 ; then
+		printf '%s\n' "$helpText" | less -R 1>&2
+		return 0
+	fi
+
+	## Else the plain dump, as the completion did before.
+	printf '%s\n' "$helpText" >&2
+	return 0
+}

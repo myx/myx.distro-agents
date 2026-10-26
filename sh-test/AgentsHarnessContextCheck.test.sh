@@ -224,9 +224,10 @@ rigAssert "the kept context continues: 6 messages, now this session's, the 4 loa
 rigAssert "a later restart would carry the task and the corrections" "$( head -1 "$rigCtx" | LC_ALL=C awk -v path=task -f "$rigHere/harness/AgentsHarnessJsonField.awk" | tr '\n' '|' )" "RIG-TASK-MARKER||RIG-CORRECTIONS|"
 
 echo "-- 3b. a resume replays the system as the blocks it was sent as --"
-## A member's system text goes as two blocks, the common instruction with a cache marker at its end and the member's own text (F10.7). The context keeps
-## it as the one string it also is, and the size of the first block's text; the resumed request has the same two blocks and the same marker, so it is the
-## original through the common block's marker, byte for byte, and never one string.
+## A member's system text is the team layer: two blocks, the team's identity/basic with a cache marker at its end and the harness paragraph
+## after it; the member layer is the first block of the first user message (F10.7). The context keeps the system as the one string it also is,
+## and the size of the first block's text; the resumed request has the same two blocks and the same marker, so it is the original through the
+## team block's marker, byte for byte, and never one string.
 rigSk="$rigTmp/skills"
 mkdir -p "$rigSk/magic-team" "$rigSk/rig-a"
 printf 'RIG-TEAM-COMMON-LINE one two\n' > "$rigSk/magic-team/magic-team.basic.md"
@@ -240,22 +241,22 @@ rigRun "$rigS4" "dddd4444-0000-4000-8000-0000000000a1" MDAT_SKILLSET_ROOT="$rigS
 rigOrigStatus="$rigRunStatus"
 rigRun "$rigS5" "dddd4444-0000-4000-8000-0000000000a2" MDAT_SKILLSET_ROOT="$rigSk" MDAT_HARNESS_RESUME_CONTEXT="$rigSandbox/context.jsonl" MDAT_HARNESS_RESUME_MARKER="$rigTmp/resume4.mark" -- --agent rig-a RIG-CORRECTIONS
 rigAssert "the original and the resumed run end normally, in one request each"  "$rigOrigStatus:$rigRunStatus:$( cat "$rigS4/round" ):$( cat "$rigS5/round" ):$( [ -e "$rigTmp/resume4.mark" ] && echo marked )" 0:0:1:1:marked
-rigBlocks='"system":[{"type":"text","text":"RIG-TEAM-COMMON-LINE one two","cache_control":{"type":"ephemeral"}},{"type":"text","text":"'
-rigAssert "the original sends the system as two blocks, the common instruction with its marker first"  "$( LC_ALL=C grep -c -F -- "$rigBlocks" "$rigS4/req.1" )" 1
-rigAssert "the resumed request sends the same two blocks, not one string"  "$( LC_ALL=C grep -c -F -- "$rigBlocks" "$rigS5/req.1" ):$( LC_ALL=C grep -c -F -- '"system":"' "$rigS5/req.1" )" 1:0
+rigBlocks='"system":"## Team-wide -- the same for every member and every session of this team\n\nRIG-TEAM-COMMON-LINE one two'
+rigAssert "the original sends the system as one string, the team layer with the paragraph every run carries"  "$( LC_ALL=C grep -c -F -- "$rigBlocks" "$rigS4/req.1" ):$( LC_ALL=C grep -c -F -- 'Use the given tools to accomplish the request' "$rigS4/req.1" ):$( LC_ALL=C grep -c -F -- '"system":[' "$rigS4/req.1" )" 1:1:0
+rigAssert "the resumed request sends the same system string"  "$( LC_ALL=C grep -c -F -- "$rigBlocks" "$rigS5/req.1" ):$( LC_ALL=C grep -c -F -- '"system":[' "$rigS5/req.1" )" 1:0
 rigSysOf(){ ## request file -- the system field as sent
 	LC_ALL=C sed -e 's/.*"system"://' -e 's/,"tools":\[.*//' "$1"
 }
 rigAssert "the system field of the resumed request is the original's, byte for byte"  "$( [ "$( rigSysOf "$rigS4/req.1" )" = "$( rigSysOf "$rigS5/req.1" )" ] && echo same || echo differ )" same
-rigMarkEnd=$(( $( LC_ALL=C awk 'BEGIN { RS = "\001" ; mark = "\"cache_control\":{\"type\":\"ephemeral\"}}" } { m = index( $0, "\"system\":[" ) ; k = index( substr( $0, m ), mark ) ; print m + k - 1 + length( mark ) - 1 }' "$rigS4/req.1" ) ))
+rigMarkEnd=$(( $( LC_ALL=C awk 'BEGIN { RS = "\001" ; mark = "\"cache_control\":{\"type\":\"ephemeral\"}" } { m = index( $0, "\"role\":\"user\"" ) ; k = index( substr( $0, m ), mark ) ; print m + k - 1 + length( mark ) - 1 }' "$rigS4/req.1" ) ))
 head -c "$rigMarkEnd" "$rigS4/req.1" > "$rigTmp/orig.head" ; head -c "$rigMarkEnd" "$rigS5/req.1" > "$rigTmp/resumed.head"
-rigAssert "the resumed request is the original through the common block's marker, byte for byte (the body's opening and the system's first block)"  "$( cmp -s "$rigTmp/orig.head" "$rigTmp/resumed.head" && [ "$rigMarkEnd" -gt 150 ] && echo same || echo differ )" same
+rigAssert "the resumed request is the original through the member block's marker, byte for byte (the body's opening, system, tools and member)"  "$( cmp -s "$rigTmp/orig.head" "$rigTmp/resumed.head" && [ "$rigMarkEnd" -gt 150 ] && echo same || echo differ )" same
 rigToolsOf(){ ## request file -- the tools field as sent
 	LC_ALL=C sed -e 's/.*,"tools"://' -e 's/,"tool_choice":.*//' "$1"
 }
 rigAssert "and its tools, which the API caches ahead of the system, are the original's byte for byte"  "$( [ "$( rigToolsOf "$rigS4/req.1" )" = "$( rigToolsOf "$rigS5/req.1" )" ] && echo same || echo differ )" same
-rigAssert "and has the same markers: the moving one, the end of the floor, the end of the common block"  "$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$rigS4/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$rigS5/req.1" | wc -l | tr -d ' ' )" 3:3
-rigAssert "the context keeps the size of the first block, so a resume of the resumed context replays it too"  "$( head -1 "$rigSandbox/context.jsonl" | LC_ALL=C awk -v path=system_shared -f "$rigHere/harness/AgentsHarnessJsonField.awk" )" 28
+rigAssert "and has the same markers: the moving one, the end of the floor, the end of the member block"  "$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$rigS4/req.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$rigS5/req.1" | wc -l | tr -d ' ' )" 3:3
+rigAssert "the context keeps no split system: system_shared is 0"  "$( head -1 "$rigSandbox/context.jsonl" | LC_ALL=C awk -v path=system_shared -f "$rigHere/harness/AgentsHarnessJsonField.awk" )" 0
 ## The same with the hour asked of the cache (F10.7): the resumed system carries the same markers, each with its ttl.
 rigSandbox="$rigTmp/sb5" ; mkdir -p "$rigSandbox"
 rigS6="$rigTmp/s5a" ; rigS7="$rigTmp/s5b" ; mkdir -p "$rigS6" "$rigS7"

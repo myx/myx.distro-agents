@@ -4,8 +4,10 @@
 ## skillset/magic-team/magic-team/contracts/ and not flat in the member folder, and every citation of them in this
 ## package was swept in the same change.
 ## Held:
-##   1. the six are in contracts/, none stays flat in the member folder, and contracts/ holds nothing else
-##   2. the seven `*.contract.format.md` shapes of templates/ are not moved
+##   1. the six are in contracts/, none stays flat in the member folder, and contracts/ holds those six and the `*.contract.format.md`
+##      shapes and nothing else
+##   2. the seven shapes the authority contracts rest on (basic, human-owner, keeper-warden, oncall-expert, partner-client, routine,
+##      team-member) are in contracts/ too, and no templates/ folder is left in the member folder (epic S8.1: one folder of contracts)
 ##   3. no citation names the old flat place: every spelling of an authority contract in the package is in `contracts/`,
 ##      as `magic-team/contracts/magic-team.authority.<type>.contract.md`, or relative to the member folder as
 ##      `contracts/...` (the <type> patterns too)
@@ -51,14 +53,16 @@ for rigType in $rigTypes ; do
 done
 rigAssert "all six in magic-team/contracts/" "$rigIn" "6"
 rigAssert "none flat in the member folder" "$rigFlat" "0"
-rigAssert "contracts/ holds those six and nothing else" "$( ls "$rigMember/contracts" 2> /dev/null | LC_ALL=C tr '\n' ' ' )" "magic-team.authority.client.contract.md magic-team.authority.expert.contract.md magic-team.authority.keeper.contract.md magic-team.authority.oncall.contract.md magic-team.authority.partner.contract.md magic-team.authority.warden.contract.md "
+rigAssert "contracts/ holds the six and the *.contract.format.md shapes, and nothing else" "$( ls "$rigMember/contracts" 2> /dev/null | LC_ALL=C grep -v -c -E '^(magic-team[.]authority[.](client|expert|keeper|oncall|partner|warden)[.]contract[.]md|[a-z-]+([.][a-z]+)?[.]contract[.]format[.]md)$' || : )" "0"
 
-echo "-- 2. the shapes of templates/ stay --"
+echo "-- 2. the shapes are in contracts/, and templates/ is gone --"
 rigShapes=0
 for rigShape in basic human-owner keeper-warden oncall-expert partner-client routine team-member ; do
-	[ ! -f "$rigMember/templates/$rigShape.contract.format.md" ] || rigShapes=$(( rigShapes + 1 ))
+	[ ! -f "$rigMember/contracts/$rigShape.contract.format.md" ] || rigShapes=$(( rigShapes + 1 ))
 done
-rigAssert "the seven *.contract.format.md shapes are still in templates/" "$rigShapes" "7"
+rigAssert "the seven shapes are in contracts/" "$rigShapes" "7"
+rigAssert "no *.contract.format.md stays anywhere else in the skillset" "$( find -L "$rigPackage/skillset" -name '*.contract.format.md' ! -path "$rigMember/contracts/*" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" "0"
+rigAssert "no templates/ folder is left in the member folder" "$( [ -e "$rigMember/templates" ] && echo present || echo gone )" "gone"
 
 echo "-- 3. no citation names the old place --"
 rigSpell(){ ## the spellings of an authority contract in the files of the package, one a line, with the folder before it where it has one

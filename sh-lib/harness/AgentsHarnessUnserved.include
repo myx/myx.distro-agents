@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsHarnessUnserved.include -- the tools one side does not serve, which that side still LISTS, so the harness and the MCP server list the same
+## tools (S2.1): the harness floor is the MCP list less Bash and WorkspaceContextExecute, which only the harness serves, and the MCP list is the
+## harness floor plus execute, RootSession and the secondary tools, which only the MCP server serves. Each such tool carries a description that says
+## where it runs, and an input schema that takes the optional intent description only, as every listed tool does. Sourced; declarations and functions only.
+##
+
+agentsUnservedSchema='{"type":"object","properties":{"description":{"type":"string","description":"Optional. One short sentence: why this call is made, what you expect from it. Recorded as your stated intent in the transcript and the tracking feed; it does not change what the tool does."}},"required":[]}'
+
+## The tools the MCP server does not serve and the harness does, one name a line.
+agentsUnservedOnMcp='Bash
+WorkspaceContextExecute'
+
+## The tools the harness does not serve and the MCP server does, one name a line: RootSession and the secondary tools (agentsFrontSecondary).
+AgentsToolsUnservedInHarness(){
+	printf '%s\n' RootSession
+	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include" || return 1
+	printf '%s\n' "$agentsFrontSecondary"
+}
+
+## What a tool unserved on a side says: the one sentence of its description. $1 = the side that does not serve it, `mcp` or `harness`; $2 = the tool.
+AgentsToolsUnservedSays(){
+	case "$1" in
+		mcp) printf '%s' "Not served over MCP: $2 runs in the harness only. Over MCP, run a shell script with execute instead. Pass description to give a short description of why." ;;
+		*) printf '%s' "Not served in the harness: $2 runs over MCP only, as the tool of the same name of the myx.distro server. From the harness, run its operations through mcp__myx_distro__execute. Pass description to give a short description of why." ;;
+	esac
+}
+
+## The MCP entries of the tools it does not serve, comma-ended, to stand in the tools/list array: {"name","description","inputSchema"}.
+AgentsToolsUnservedMcpEntries(){
+	local unservedName
+	while IFS= read -r unservedName ; do
+		[ -n "$unservedName" ] || continue
+		printf '{"name":"%s","description":"%s","inputSchema":%s},' "$unservedName" "$( AgentsToolsUnservedSays mcp "$unservedName" )" "$agentsUnservedSchema"
+	done <<< "$agentsUnservedOnMcp"
+}

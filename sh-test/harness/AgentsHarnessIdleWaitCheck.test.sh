@@ -12,11 +12,13 @@
 ##      byte, then the arrival as a user message; the work between is not in the conversation, the file it wrote is still there
 ##   3. the task block is the task itself and the one input of this cycle: a second return does not carry the first's (the new dispatch
 ##      of a rewind, `--executor-checkpoint-rewind --from-stdin`, given twice), for the init kind and for the count kind
-##   4. a wait that comes back with no arrival (a TIMEOUT) returns nothing: the model is told so, and its conversation stays
+##   4. a wait that comes back with no arrival because the CALL named a bound (a TIMEOUT) returns nothing: the model is told so, and
+##      its conversation stays (the keepalive of no bound is item 8)
 ##   5. so does a wait that could not be made, and a wait of a session that is dismissed (the DISMISSED is the model's to read)
 ##   6. a run with no declared scan waits on the floor alone; a run with a scan waits on the floor and the scan
 ##   7. a run that holds no snapshot (after `exit`) takes the arrival as a message, and is told nothing was returned
-##   8. a quiet round of the session's wait does not wake the model: the harness waits on, and the model is woken once
+##   8. a quiet round of the session's wait wakes the model with a keepalive: the conversation returns to the armed prefix and the
+##      next turn is the first request through that prefix plus the keepalive, so the input cache stays alive
 ##   9. the spawner has given the run the report of its declared scan (it keeps the scan's pointer at that report): the first --idle-wait
 ##      does not wake on it. Without the pointer (1 to 7) the first --idle-wait wakes on the report the scan has
 ##  10. the prompt-cache line of round 1 (F10.7) is printed for round 1 of each leg -- the run's first, and the first after each rewind or wake --
@@ -152,7 +154,7 @@ rigRun(){ ## further harness arguments
 		HARNESS_ENDPOINT="https://harness-idle-wait.invalid/v1/messages" HARNESS_HOST="harness-idle-wait.invalid" HARNESS_EXTRA_HEADERS="anthropic-version: 2023-06-01" \
 		HARNESS_MODEL_LIGHT="rig-light" HARNESS_MODEL_MAIN="rig-main" HARNESS_TOKEN_LIGHT="rig-not-a-credential" HARNESS_TOKEN_MAIN="rig-not-a-credential" \
 		HARNESS_OUTPUT_TOKENS_LIGHT="4101" HARNESS_OUTPUT_TOKENS_MAIN="4202" MDAT_HARNESS_CONTEXT_TOKENS=0 MDAT_HARNESS_MAX_RESTARTS=1 \
-		perl -e 'alarm 240 ; exec @ARGV' bash "$rigHarness" --agent rig-a --access-root "$rigDir" "$@" RIG-TASK-MARKER ) > "$rigDir/out" 2> "$rigDir/err"
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 240 -- bash "$rigHarness" --agent rig-a --access-root "$rigDir" "$@" RIG-TASK-MARKER ) > "$rigDir/out" 2> "$rigDir/err"
 	rigRunStatus=$?
 	[ "$( cat "$rigDir/round" )" != 0 ] || rigRefuse "the harness issued no request at all -- its stderr: $( head -5 "$rigDir/err" )"
 }
@@ -171,7 +173,7 @@ rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun
 rigAssert "the run ends normally, in two requests"                                       "$rigRunStatus:$( cat "$rigDir/round" )" 0:2
 rigAssert "the arrival is the scan's report, and it is in the request after the return"   "$( rigCount "$rigDir/req.1" "$rigArrival" ):$( rigCount "$rigDir/req.2" "$rigArrival" )" 0:1
 rigAssert "the request after the return is the first request, through the prefetch block, and has the arrival" "$( rigUpTo "$rigDir/req.1" RIG-TASK-MARKER ):$( rigUpTo "$rigDir/req.2" RIG-TASK-MARKER ):$( rigCount "$rigDir/req.2" "$rigArrival" )" "$( rigUpTo "$rigDir/req.1" RIG-TASK-MARKER ):$( rigUpTo "$rigDir/req.1" RIG-TASK-MARKER ):1"
-rigAssert "the prefetch block, and the cache marker at its end, are in it as they were"    "$( rigCount "$rigDir/req.2" 'RIG-A-ARMED-BODY' ):$( rigCount "$rigDir/req.2" '"cache_control":{"type":"ephemeral"}' ):$( rigCount "$rigDir/req.2" 'toolu_RIG' )" 1:4:0
+rigAssert "the prefetch block, and the cache marker at its end, are in it as they were"    "$( rigCount "$rigDir/req.2" 'RIG-A-ARMED-BODY' ):$( rigCount "$rigDir/req.2" '"cache_control":{"type":"ephemeral"}' ):$( rigCount "$rigDir/req.2" 'toolu_RIG' )" 1:3:0
 rigAssert "the task is in it once, and nothing of the call that waited"                    "$( rigCount "$rigDir/req.2" RIG-TASK-MARKER ):$( rigCount "$rigDir/req.2" 'toolu_RIG' ):$( rigCount "$rigDir/req.2" 'OK: --idle-wait' )" 1:0:0
 rigAssert "it says where the run is, and that the files are as the work left them"         "$( rigIn "$( cat "$rigDir/req.2" )" 'returned to its checkpoint armed' ):$( rigIn "$( cat "$rigDir/req.2" )" 'files' )" yes:yes
 rigAssert "the Wait tool's own next step is not carried: it is not a Wait that goes on"     "$( rigCount "$rigDir/req.2" 'if this is not what you are waiting for' ):$( rigCount "$rigDir/req.2" 'WAIT-RESULT: RECEIVED' )" 0:1
@@ -247,16 +249,20 @@ rigAssert "the arrival comes as a message; the conversation holds the calls befo
 rigAssert "and the model is told no snapshot is held and nothing was returned"            "$( rigIn "$( cat "$rigDir/req.3" )" 'no snapshot is held' ):$( rigIn "$( cat "$rigDir/req.3" )" 'not returned' )" yes:yes
 rigAssert "an arrival with no conversation returned is a wake too: the cache line of round 1 is printed again after it (10)" "$( rigCount "$rigDir/err" 'shared prefix -- round 1 ' )" 2
 
-echo "-- 8. a quiet round does not wake the model --"
+echo "-- 8. a quiet round wakes the model with a keepalive, and returns it to the armed prefix --"
 rigScene loop rigquiet
 printf 'WAIT_ROUND_SECONDS=2\n' > "$rigWs/.local/.agents/magic-team.agent.env"
-( sleep 9 ; mkdir -p "$rigStore" ; printf 'rig-boss\n' > "$rigStore/dismissed" ) &
+( sleep 5 ; mkdir -p "$rigStore" ; printf 'rig-boss\n' > "$rigStore/dismissed" ) &
 rigLater=$!
 rigToolStream "$rigDir/res.1" Bash "$( rigOp --idle-wait )"
-rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun
+rigToolStream "$rigDir/res.2" Bash "$( rigOp --idle-wait )"
+rigToolStream "$rigDir/res.3" Bash "$( rigOp --idle-wait )"
+rigTextStream "$rigDir/res.4" RIG-DONE ; rigRun
 wait "$rigLater" 2> /dev/null
-rigAssert "the wait comes back quiet every round of the service (2s here), the harness waits on, and the model is woken once"    "$rigRunStatus:$( cat "$rigDir/round" ):$( [ "$( rigCount "$rigDir/err" 'nothing yet, still waiting' )" -ge 1 ] && printf waited || printf 'not-waited' )" 0:2:waited
-rigAssert "the quiet rounds are not in the conversation; the dismissal that ended the wait is"                                   "$(( $( rigCount "$rigDir/req.2" 'WAIT-RESULT: TIMEOUT' ) - $( rigCount "$rigDir/req.1" 'WAIT-RESULT: TIMEOUT' ) )):$( rigCount "$rigDir/req.2" 'WAIT-RESULT: DISMISSED' ):$( rigCount "$rigDir/req.2" 'toolu_RIG0' )" 0:1:2
+rigAssert "two quiet service rounds wake the model with a keepalive; the dismissal then ends the wait and the run"  "$rigRunStatus:$( cat "$rigDir/round" ):$( rigCount "$rigDir/err" 'waking the model with a keepalive' ):$( rigIn "$( cat "$rigDir/req.2" )" 'made its keepalive round' ):$( rigIn "$( cat "$rigDir/req.3" )" 'made its keepalive round' ):$( rigIn "$( cat "$rigDir/req.4" )" 'WAIT-RESULT: DISMISSED' )" "0:4:2:yes:yes:yes"
+rigAssert "each keepalive returns the conversation to armed: the request is the first through the armed prefix, the task above it"  "$( rigUpTo "$rigDir/req.2" 'RIG-TASK-MARKER' ):$( rigUpTo "$rigDir/req.1" 'RIG-TASK-MARKER' ):$( rigCount "$rigDir/req.2" 'tool_result' ):$( rigIn "$( cat "$rigDir/req.2" )" 'task above is the one you already worked' )" "$( rigUpTo "$rigDir/req.1" 'RIG-TASK-MARKER' ):$( rigUpTo "$rigDir/req.1" 'RIG-TASK-MARKER' ):0:yes"
+rigAssert "the quiet TIMEOUT is not in the conversation; the keepalive text is"  "$(( $( rigCount "$rigDir/req.2" 'WAIT-RESULT: TIMEOUT' ) - $( rigCount "$rigDir/req.1" 'WAIT-RESULT: TIMEOUT' ) )):$( rigCount "$rigDir/req.2" 'keepalive round' )" "0:1"
+rigAssert "each keepalive wake prints the cache line of a new leg (round 1)"    "$( [ "$( rigCount "$rigDir/err" 'shared prefix -- round 1 ' )" -ge 3 ] && printf yes )" yes
 
 echo "-- 9. the first idle-wait does not wake on the report the spawner already gave --"
 rigScene seeded rigduty

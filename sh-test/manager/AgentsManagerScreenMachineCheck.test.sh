@@ -66,13 +66,13 @@ turn
 wait list 10
 rowids rows
 show r
-keys DOWN DOWN
+keys DOWN DOWN DOWN
 wait focus 10
 turn
 get second
 show s
 RIGSCRIPT
-rigAssert "the root holds a row for each panel, The Machine then Disk Space" "$( rigVal rows )" ".. machine disk"
+rigAssert "the root holds the folder of the Local AI, then a row for each panel, The Machine then Disk Space" "$( rigVal rows )" ".. local-ai machine disk"
 rigAssert "the section shows both panels, each by its label with its figures" "$( rigHolds r 'The Machine' ) $( rigHolds r 'Disk Space' ) $( rigHolds r 'Load One Minute' ) $( rigHolds r 'Processors Online' ) $( rigHolds r 'Workspace Volume Used' )" "2 2 1 1 1"
 rigAssert "a panel selected shows that panel alone" "$( rigVal second.selectedLabel ) $( rigHolds s 'Workspace Volume Used' ) $( rigHolds s 'Load One Minute' )" "Disk Space 1 0"
 rigAssert "the two panels were read by the one operation of the Dashboard, by their names, once" "$( rigCalled '--manager-dashboard-read machine disk' )" "1"

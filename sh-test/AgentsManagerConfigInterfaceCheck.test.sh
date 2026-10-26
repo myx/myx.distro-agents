@@ -22,9 +22,12 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigScreen="$rigHere/manager/AgentsManagerScreen.py"
+## The interface settings are .local's own: their declaration, the rows of the labels, the settings and the other
+## names, stands in its manager include, and the digest expands it.
+rigInterfaceInclude="${rigHere%/myx.distro-agents/sh-lib}/myx.distro-.local/sh-lib/manager/LocalTools.ManagerInterface.include"
 rigRead="--manager-config-digest"
 rigWrite="--manager-config-set"
-rigKey="MDAT_MANAGER_STYLE"
+rigKey="MDLT_MANAGER_STYLE"
 rigChoices="nu-system=Magic_-_System,nu-blue=Magic_-_Dark/Blue,nu-gray=Magic_-_Light/Gray,tv-system=Turbo_Vision_-_System,tv-blue=Turbo_Vision_-_Dark/Blue,tv-gray=Turbo_Vision_-_Light/Gray,bw-system=Basic_B/W_-_System,bw-dark=Basic_B/W_-_Dark/Blue,bw-light=Basic_B/W_-_Light/Gray"
 
 rigRefuse(){
@@ -32,6 +35,7 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 [ -f "$rigScreen" ] || rigRefuse "the screen is not at the origin this workspace resolves: $rigScreen"
+[ -f "$rigInterfaceInclude" ] || rigRefuse "the declaration of the interface settings is not at the origin this workspace resolves: $rigInterfaceInclude"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsManagerConfigInterfaceCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
@@ -104,7 +108,7 @@ rigOtherBefore="$( rigSum "$rigOther" )"
 echo "-- 1. the subject of the interface, with nothing saved --"
 rigRun "$rigRead" interface
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
-rigAssert "the subject has three lines, the interface style first, then the mouse and the spacers: its key, the default as its value, where the value comes from, and the values to choose from with their labels, its two own fields after the value; and each row ends with its label" "$( cat "$rigTmp/out" )" "$( printf 'subject\tinterface\t3\tInterface_Settings\nline\tinterface\tstyle\t%s\tset\ttv-system\tdefault\t%s\tInterface_Style\nline\tinterface\tmouse\tMDLT_CONSOLE_MOUSE\tset\t-\tdefault\t=Enabled,disable=Disabled\tMouse_Support\nline\tinterface\tspacers\tMDLT_CONSOLE_SPACERS\tset\t-\tdefault\t=Enabled,disable=Disabled\tList_Spacers' "$rigKey" "$rigChoices" )"
+rigAssert "the subject has three lines, the interface style first, then the mouse and the spacers: its key, the default as its value, where the value comes from, and the values to choose from with their labels, its two own fields after the value; and each row ends with its label" "$( cat "$rigTmp/out" )" "$( printf 'subject\tinterface\t3\tInterface_Settings\nline\tinterface\tstyle\t%s\tset\ttv-system\tdefault\t%s\tInterface_Style\nline\tinterface\tmouse\tMDLT_MANAGER_MOUSE\tset\t-\tdefault\t=Enabled,disable=Disabled\tMouse_Support\nline\tinterface\tspacers\tMDLT_MANAGER_SPACERS\tset\t-\tdefault\t=Enabled,disable=Disabled\tList_Spacers' "$rigKey" "$rigChoices" )"
 rigAssert "reading made nothing: the user has no settings file and no folder, and the rig is as it was" "$( rigSum "$rigOwn" ) $( [ -e "${rigOwn%/*}" ] && echo folder || echo no-folder ) $( rigTree )" "absent no-folder $rigTreeBefore"
 rigAssert "control: the workspace's own settings file holds the key, and another user has saved one: neither is the user's own" "$( LC_ALL=C grep -c -x -e "$rigKey=bw" "$rigShared" ) $( LC_ALL=C grep -c -x -e "$rigKey=magic" "$rigOther" )" "1 1"
 cp "$rigTmp/out" "$rigTmp/alone"
@@ -134,7 +138,7 @@ done
 rigAssert "the row of the writer has exactly the fields of its form, TAB between them" "$( rigRun "$rigWrite" "$rigKey" tv ; LC_ALL=C awk -F'\t' '{ print NR, NF, $1 }' "$rigTmp/out" )" "1 5 saved"
 printf '# a note of the user\nMDLT_CONSOLE_HISTORY=workspace-shared\n' >> "$rigOwn"
 rigRun "$rigWrite" "$rigKey" magic
-rigAssert "another setting of the user and a comment stay as they were, and the key stands once, with the new value: a style named as it was before saved as the value it means" "$rigRc $( LC_ALL=C sort "$rigOwn" | LC_ALL=C tr '\n' '|' )" "0 # a note of the user|$rigKey=nu-gray|MDLT_CONSOLE_HISTORY=workspace-shared|"
+rigAssert "another setting of the user and a comment stay as they were, and the key stands once, with the new value: a style named as it was before saved as the value it means" "$rigRc $( LC_ALL=C sort "$rigOwn" | LC_ALL=C tr '\n' '|' )" "0 # a note of the user|MDLT_CONSOLE_HISTORY=workspace-shared|$rigKey=nu-gray|"
 rigRun "$rigWrite" "$rigKey" nu-light
 rigAssert "saving the value that is saved already, by another name of it, is no error and leaves one line" "$rigRc [$( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" )] $( LC_ALL=C grep -c -e "^$rigKey=" "$rigOwn" )" "0 [saved $rigKey nu-gray user $rigOwn] 1"
 rigAssert "no temp file is left beside the user's file" "$( ls -A "${rigOwn%/*}" | LC_ALL=C tr '\n' ' ' )" "MDLT.settings.env "
@@ -172,7 +176,7 @@ rigAssert "each is refused, rc 1, nothing on stdout, in one line that lists the 
 rigAssert "nothing that was given is repeated in a refusal: the pasted secret stands nowhere in what any call printed" "$( LC_ALL=C grep -c -F -e 'RIGSECRET' "$rigTmp/all" || : )" "0"
 
 echo "-- 6. a key that is no interface setting is refused, and so is a wrong count of arguments --"
-rigNoKey="⛔ ERROR: DistroAgentsTools $rigWrite: the key given is none of the changeable settings -- nothing was saved. Its keys: $rigKey, MDLT_CONSOLE_MOUSE, MDLT_CONSOLE_SPACERS, MDLT_CONSOLE_HISTORY, MDLT_CONSOLE_ORIGIN, MDLT_CONSOLE_DETAIL, SESSION_CONTROL_REQUEST_SECONDS, SESSION_CONTROL_KILL_SECONDS, MDAT_KNOWLEDGE_STORE"
+rigNoKey="⛔ ERROR: DistroAgentsTools $rigWrite: the key given is none of the changeable settings -- nothing was saved. Its keys: $rigKey, MDLT_MANAGER_MOUSE, MDLT_MANAGER_SPACERS, MDLT_CONSOLE_HISTORY, MDLT_CONSOLE_ORIGIN, MDLT_CONSOLE_DETAIL, SESSION_CONTROL_REQUEST_SECONDS, SESSION_CONTROL_KILL_SECONDS, ROOT_HARNESS_VERBOSITY, MDAT_KNOWLEDGE_STORE"
 rigBad=""
 for rigOne in MDSC_DETAIL SLACK_BOT_TOKEN style mdat_manager_style "$rigKey=bw" "$rigKey " "*" "" ; do
 	rigRun "$rigWrite" "$rigOne" bw
@@ -217,7 +221,7 @@ spec.loader.exec_module(module)
 print(",".join("%s-%s=%s - %s" % (name, scheme, style["label"], module.COLOURS[place][1])
                for name, style in module.STYLES for place, (scheme, changes) in enumerate(style["schemes"])).replace(" ", "_"))
 ' "$rigScreen" )" "$rigChoices"
-rigAssert "a changeable setting cannot come without its label and its description: each row of the declaration of the settings has a row of its own in the one declaration of the labels" "$( rigLacking="" ; rigCount=0 ; while IFS='|' read -r rigOwner rigGroup rigOne rigRest ; do [ -n "$rigOne" ] || continue ; rigCount=$(( rigCount + 1 )) ; LC_ALL=C sed -n '/^agentsManagerConfigLabels="/,/"$/p' "$rigHere/manager/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -q -e "^$rigOwner|$rigGroup|$rigOne|[A-Z][^|]*|[^|]*|[A-Z]" || rigLacking="$rigLacking $rigOne" ; done <<< "$( LC_ALL=C sed -n '/^agentsManagerConfigSettings="/,/"$/p' "$rigHere/manager/AgentsTools.ManagerConfig.include" | LC_ALL=C sed -e 's/^agentsManagerConfigSettings="//' -e 's/"$//' )" ; printf '%s%s' "$rigCount" "${rigLacking:- none-lacking}" )" "9 none-lacking"
+rigAssert "a changeable setting cannot come without its label and its description: each row of the declaration of the settings, its own and the interface settings' of .local, has a row of its own in the declaration of the labels" "$( rigLacking="" ; rigCount=0 ; while IFS='|' read -r rigOwner rigGroup rigOne rigRest ; do [ -n "$rigOne" ] || continue ; rigCount=$(( rigCount + 1 )) ; { LC_ALL=C sed -n '/^agentsManagerConfigLabels="/,/"$/p' "$rigHere/manager/AgentsTools.ManagerConfig.include" ; LC_ALL=C sed -n '/^localManagerInterfaceLabels="/,/"$/p' "$rigInterfaceInclude" ; } | LC_ALL=C grep -q -e "^$rigOwner|$rigGroup|$rigOne|[A-Z][^|]*|[^|]*|[A-Z]" || rigLacking="$rigLacking $rigOne" ; done <<< "$( { LC_ALL=C sed -n '/^agentsManagerConfigSettings="/,/"$/p' "$rigHere/manager/AgentsTools.ManagerConfig.include" | LC_ALL=C sed -e 's/^agentsManagerConfigSettings="//' -e 's/"$//' ; LC_ALL=C sed -n '/^localManagerInterfaceSettings="/,/"$/p' "$rigInterfaceInclude" | LC_ALL=C sed -e 's/^localManagerInterfaceSettings="//' -e 's/"$//' ; } | LC_ALL=C grep -v '^\$' )" ; printf '%s%s' "$rigCount" "${rigLacking:- none-lacking}" )" "10 none-lacking"
 rigAssert "the default is the style the screen starts in, and the key is the variable of the environment the screen reads" "$( LC_ALL=C sed -n 's/^STYLE_FIRST = "\(.*\)"$/\1/p' "${rigScreen%.py}.Styles.py" ) $( LC_ALL=C sed -n 's/^STYLE_VARIABLE = "\(.*\)"$/\1/p' "${rigScreen%.py}.Styles.py" )" "tv-system $rigKey"
 
 echo "-- 10. the help pair --"

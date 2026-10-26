@@ -29,7 +29,7 @@ Not a member/routine contract — this is the fixed text of every post the tooli
   - activity
   - feed
 - Operations
-  - Read, Grep, Glob, Edit, Write, NotebookEdit, execute, Bash, Monitor, Skill, WebFetch, WebSearch, ToolSearch, TaskOutput
+  - Read, Grep, Glob, Edit, Write, NotebookEdit, execute, Bash, Skill, WebFetch, WebSearch, ToolSearch, TaskOutput
   - SendMessage, ReportFindings, PushNotification, Artifact, Wait, AskQuestion, ConfirmReadback, EscalateDecision, RequestPermission, ProposeApprove, Agent, SubagentHandback
   - tool, tool error, tool refused
   - ROUND, RESULT, MODEL, START, RESTART, END, FINAL, NOTE, REVIEW, VERDICT, DISMISSED, ERROR
@@ -53,7 +53,7 @@ A post is one or more boxes. A box is one subject's block: its title says what i
 - Does: fix the text and the slots of every tracking post, its boxes' titles and subtitles and every operation's line.
 - Doesn't: shape a member's own message, or the DISMISSED or RETURNED a reviewer sends to a child. Those are messages to a member, and keep the member send.
 - Doesn't: shape a session thread's root post. That is another thread's, the participants' own, and has its own template (`session-thread.root.format.md`).
-- Doesn't: decide when a post goes. The event-track feed decides that (`AgentsTools.EventTrackFeed.include`).
+- Doesn't: decide when a post goes. The event-track feed collects one participant's lines (`AgentsTools.EventTrackFeed.include`), and the channel's outbox paces, orders and collects every post into it, the feed's and the immediate ones alike (`AgentsTools.EventTrackSend.include`).
 
 # Subjects
 
@@ -249,12 +249,6 @@ One line per operation, chosen as `# Contract` says.
 
 ```
 💻 [[{{comment}} — ]]Bash[[ `{{cmd}}`]][[ · {{background}}]][[ → exit {{exit}}]][[ · {{duration}}]]
-```
-
-## Monitor
-
-```
-📡 [[{{comment}} — ]]Monitor[[ `{{cmd}}`]][[ job {{job}}]][[ → {{outcome}}]][[ · {{duration}}]]
 ```
 
 ## Skill

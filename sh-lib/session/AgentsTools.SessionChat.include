@@ -25,7 +25,13 @@
 ## conversation until Slack has taken it (AgentsToolsSessionChatStamp). The origin says how the block came in: `own` for a
 ## message the run's own tools sent, `slack` for one read from the thread, `history` for one that was there before the
 ## run began (there for whoever reads the thread, never new to a floor), `reply:<member>` for a reply to a post of that
-## member. <seen> is the members whose own Wait delivered the block itself, comma-joined, `-` for none.
+## member, `console` for the console's message to a session with no thread, `printback` for the root-native
+## printback channel's (F2.2, AgentsTools.CommsPrintback.include), whose conversation is the channel-id
+## `printback:<session>` and which never opens a thread, and `notice` for a background notice the spawn proxy
+## recorded on that channel (F3.3, AgentsToolsCommsPrintbackNoticeRecord): the floor never delivers a notice
+## block, and the next foreground call surfaces it as one line of the digest. <seen> is the members whose own
+## Wait delivered the block itself, comma-joined, `-` for none; the notice digest marks a notice it printed in
+## that same field, so a notice is surfaced once.
 ##
 ## THE POINTERS, session.chat.pointers, `<reader><TAB><value>` a line, are the one place a session keeps where a reader
 ## has got to: `read:<member>` is a member's own floor (the number of the last block read), and `import:<conversation>:<thread>`
@@ -33,13 +39,18 @@
 ## first read: what was there is not new to it.
 ##
 ## THE FLOOR, AgentsToolsSessionChatFloor, is what a run's tool returns and its Wait deliver of the file, from the pointer
-## forward (AgentsSessionChatRead.awk): the executor of the session every message of its thread, a participant the ones that
-## tag or mention it, every run the replies to its own posts. It reads the file and no network. The file is filled by the
-## write path (AgentsToolsSessionChatSend) and by whoever reads the thread or a reply from Slack
+## forward (AgentsSessionChatRead.awk): the executor of the session every message of its thread (and, in a session with no
+## thread, its `local` console message), a participant the ones that tag or mention it, every run the replies to its own
+## posts, and the session's own printback channel's message (F2.2) either way. It reads the file and no network. The file is
+## filled by the write path (AgentsToolsSessionChatSend), by the root-native printback kind
+## (AgentsTools.CommsPrintback.include) and by whoever reads the thread or a reply from Slack
 ## (AgentsToolsSessionChatImport): the Wait of a run, and the communications reader of F9.3 (AgentsTools.SessionComms.include),
 ## which also posts what could not be posted when it was sent. A block that has no ts yet is a post that is not yet: the floor of
 ## a reader does not pass it (AgentsSessionChatRead.awk), for five minutes at most, until it has one or is given up, when its
-## conversation in the index reads `refused` or `unknown` instead.
+## conversation in the index reads `refused` or `unknown` instead. A printback block has no ts and is no post: its
+## conversation is its channel-id, so it is read at once. A `notice` block is no message of the floor's at all: it
+## is a background notice (F3.3), and the next foreground call's digest alone surfaces it, one line, marking it in
+## the index's seen field so it is never surfaced twice (AgentsToolsCommsPrintbackNoticeDigest).
 ##
 ## A write takes the one local lock of the session's file for the length of one append, one stamp, one import or one pointer,
 ## so the number of a block and the line of its header are what they say, however many runs and waits of the session write at once.
@@ -198,6 +209,33 @@ AgentsToolsSessionChatPointerSet(){ ## session, reader, value, max (optional)
 	return 0
 }
 
+## Removes a reader's pointer line, where one is kept. Quiet, and no error where there is none.
+AgentsToolsSessionChatPointerUnset(){ ## session, reader
+	local unsetDir unsetFile unsetTmp chatLock=""
+	unsetDir="$( AgentsToolsSessionChatDir "$1" )" || return 1
+	unsetFile="$unsetDir/$agentsSessionChatName.pointers"
+	[ -f "$unsetFile" ] || return 0
+	AgentsToolsSessionChatLockTake "$1"
+	unsetTmp="$( mktemp "$unsetFile.XXXXXX" 2> /dev/null )" || unsetTmp=""
+	if [ -n "$unsetTmp" ] ; then
+		LC_ALL=C awk -F'\t' -v OFS='\t' -v want="$2" '$1 != want { print ; }' "$unsetFile" >| "$unsetTmp" 2> /dev/null \
+			&& mv -f "$unsetTmp" "$unsetFile" 2> /dev/null || rm -f "$unsetTmp"
+	fi
+	AgentsToolsSessionChatLockGive
+	return 0
+}
+
+## A member's delivery floor, removed for a while as the member asked: `remove:<member>` keeps the deadline (epoch
+## seconds). While it is ahead, the floor is consumed silently (AgentsToolsSessionChatFloor); an expired deadline is
+## cleared there. Explicit, so nothing else removes it, and timed, so it comes back by itself.
+AgentsToolsSessionChatFloorRemove(){ ## session, member, seconds
+	local removeNow removeDeadline
+	case "$3" in ''|*[!0123456789]*) return 1 ;; esac
+	removeNow="$( date +%s )" || return 1
+	removeDeadline=$(( removeNow + $3 ))
+	AgentsToolsSessionChatPointerSet "$1" "remove:$2" "$removeDeadline"
+}
+
 ## The thread of the session, `<channel>:<ts>`: the one a run is given, else the one the session keeps. rc 1, nothing printed, for none.
 AgentsToolsSessionChatThread(){ ## session
 	local threadLine="" threadDir
@@ -248,11 +286,33 @@ agentsSessionChatNewest=""
 agentsSessionChatFilter=""
 agentsSessionChatSeen=""
 AgentsToolsSessionChatFloor(){ ## session, member, covered (optional), `deliver` (optional: the pointer moves as the blocks are printed)
-	local floorDir floorCount floorPointer floorSide floorThread
+	local floorDir floorCount floorPointer floorSide floorThread floorRemove="" floorNow=""
 	agentsSessionChatNewest="" agentsSessionChatSeen=""
 	floorDir="$( AgentsToolsSessionChatDir "$1" )" || return 0
 	[ -n "$2" ] && [ -d "$floorDir" ] || return 0
 	AgentsToolsSessionChatReaderInit "$1" "$2"
+	## A floor removed for a while (AgentsToolsSessionChatFloorRemove): while its deadline is ahead, nothing is delivered and
+	## the pointer moves past what is there, so messages of that while are never delivered later. An expired deadline is
+	## cleared and the floor reads as ever.
+	floorRemove="$( AgentsToolsSessionChatPointer "$1" "remove:$2" )" || floorRemove=""
+	if [ -n "$floorRemove" ] ; then
+		floorNow="$( date +%s )"
+		case "$floorRemove" in
+			*[!0123456789]*)
+				AgentsToolsSessionChatPointerUnset "$1" "remove:$2"
+			;;
+			*)
+				if [ "$floorRemove" -gt "$floorNow" ] ; then
+					[ -s "$floorDir/$agentsSessionChatName.index" ] || return 0
+					floorCount="$( { LC_ALL=C wc -l < "$floorDir/$agentsSessionChatName.index" ; } 2> /dev/null | LC_ALL=C tr -d ' ' )"
+					case "$floorCount" in ''|*[!0123456789]*) return 0 ;; esac
+					AgentsToolsSessionChatPointerSet "$1" "read:$2" "$floorCount" max
+					return 0
+				fi
+				AgentsToolsSessionChatPointerUnset "$1" "remove:$2"
+			;;
+		esac
+	fi
 	[ -s "$floorDir/$agentsSessionChatName.index" ] || return 0
 	floorCount="$( { LC_ALL=C wc -l < "$floorDir/$agentsSessionChatName.index" ; } 2> /dev/null | LC_ALL=C tr -d ' ' )"
 	case "$floorCount" in ''|*[!0123456789]*) return 0 ;; esac
@@ -260,8 +320,17 @@ AgentsToolsSessionChatFloor(){ ## session, member, covered (optional), `deliver`
 	case "$floorPointer" in ''|*[!0123456789]*) return 0 ;; esac
 	[ "$floorCount" -gt "$floorPointer" ] || return 0
 	floorThread="$( AgentsToolsSessionChatThread "$1" )" || floorThread=""
+	## THE TOOLING-THREAD KIND (F3.1): a session whose external side is the tooling thread -- the `track` kind of a
+	## root-harness session -- keeps no session thread, and records what it sends with that thread as the block's
+	## conversation. Those blocks are the session's own as a printed one is, so a bare Wait of it reads them back
+	## from the one chat file (AgentsSessionChatRead.awk's own-thread rule, given that thread here). No other
+	## reader of a session's thread asks for this: the tooling thread is its external channel, never its record.
+	if [ -z "$floorThread" ] ; then
+		type AgentsToolsCommsPrintbackTrackThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include" 2> /dev/null || :
+		floorThread="$( AgentsToolsCommsPrintbackTrackThread "$1" 2> /dev/null )" || floorThread=""
+	fi
 	floorSide="$( mktemp "$floorDir/floor.XXXXXX" 2> /dev/null )" || return 0
-	LC_ALL=C awk -v after="$floorPointer" -v member="$2" -v role="$( AgentsToolsSessionChatRole "$1" )" -v thread="$floorThread" -v memberId="$( AgentsToolsSessionChatMemberId "$2" )" \
+	LC_ALL=C awk -v after="$floorPointer" -v session="$1" -v member="$2" -v role="$( AgentsToolsSessionChatRole "$1" )" -v thread="$floorThread" -v memberId="$( AgentsToolsSessionChatMemberId "$2" )" \
 		-v covered="${3:-}" -v replySource="replies:$1" -v side="$floorSide" -v filter="${agentsSessionChatFilter:-}" -v pendingBefore="$( AgentsToolsSessionChatPendingCutoff )" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsSessionChatRead.awk" "$floorDir/$agentsSessionChatName.index" "$floorDir/$agentsSessionChatName" 2> /dev/null || :
 	agentsSessionChatNewest="$( LC_ALL=C sed -n 's/^newest //p' "$floorSide" 2> /dev/null | head -1 )"

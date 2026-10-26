@@ -53,6 +53,7 @@ rigTests(){ ## copy, test... -- that copy's tests: the runner under test and the
 	local testsDir testsName ; testsDir="$( rigRoot "$1" )/myx/myx.distro-agents/sh-test" ; shift
 	rm -rf "$testsDir" ; mkdir -p "$testsDir"
 	cp "$rigPackage/sh-test/AgentsRunTests.sh" "$testsDir/AgentsRunTests.sh"
+	mkdir -p "$testsDir/check-fixtures" && cp "$rigPackage/sh-test/check-fixtures"/runner-*.py "$testsDir/check-fixtures"/
 	for testsName in "$@" ; do
 		cat > "$testsDir/$testsName.test.sh" <<'RIGTINY'
 #!/usr/bin/env bash

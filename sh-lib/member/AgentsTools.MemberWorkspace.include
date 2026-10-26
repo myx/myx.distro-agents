@@ -20,7 +20,7 @@ AgentsToolsWorkspaceSkillsetRoot(){ ## workspace path
 ## Moves this process to another workspace root. The tooling origin stays, and everything
 ## derived from the previous root is dropped so it is derived again from the new one.
 AgentsToolsWorkspaceSwitch(){ ## workspace path
-	local switchStale
+	local switchStale switchOrigin="${MDLT_ORIGIN:-}" switchOption="${MDLT_OPTION:-}" switchInmode="${MDLC_INMODE:-}"
 	## the member set root, worked out against the previous root before MMDAPP moves
 	MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$1" )"
 	export MMDAPP="$1"
@@ -38,6 +38,12 @@ AgentsToolsWorkspaceSwitch(){ ## workspace path
 	if type DistroSystemContext >/dev/null 2>&1 ; then
 		DistroSystemContext --distro-path-auto 2>/dev/null || :
 	fi
+	## ...and THE TOOLING ORIGIN STAYS, said above: the derivation reads the new root's own origin, which is
+	## what its distro index wants (the MDSC_* variables, kept), and is no origin at all for the tooling that
+	## runs this operation -- a root whose .local holds no myx/ would leave the call with nothing to source.
+	[ -z "$switchOrigin" ] || export MDLT_ORIGIN="$switchOrigin"
+	[ -z "$switchOption" ] || export MDLT_OPTION="$switchOption"
+	[ -z "$switchInmode" ] || export MDLC_INMODE="$switchInmode"
 }
 
 ## THE THREE WORKSPACES OF A RUN. EXECUTES: the workspace an operation is run from -- its
@@ -227,12 +233,13 @@ AgentsToolsScopeHoldsKeys(){ ## workspace, scope, key prefix
 ## may name in turn.
 
 ## Whether a key of the magic-team scope is a spawn setting: the CLI service, the harness
-## tier, the model of the light or main tier (F10.2), the endpoint a preset names for its service (F10.1), or a credential a harness leg declares for itself (HARNESS_CREDENTIAL_NAMES, the
+## tier, the model of the light or main tier (F10.2), the restart threshold a preset names
+## (PRESET_CONTEXT_MAX_SIZE), the lifetime of the input cache, or a credential a harness leg declares for itself (HARNESS_CREDENTIAL_NAMES, the
 ## names the console exports, which are the vendor CLI's own two as well).
 AgentsToolsSpawnSettingKey(){ ## key
 	local keyNames
 	case "$1" in
-		SPAWN_CLI_SERVICE|SPAWN_HARNESS_TIER|HARNESS_MODEL_LIGHT|HARNESS_MODEL_MAIN|HARNESS_INPUT_CACHE_TIME|HARNESS_ENDPOINT_URL) return 0 ;;
+		SPAWN_CLI_SERVICE|SPAWN_HARNESS_TIER|HARNESS_MODEL_LIGHT|HARNESS_MODEL_MAIN|HARNESS_EFFORT|HARNESS_INPUT_CACHE_TIME|PRESET_CONTEXT_MAX_SIZE) return 0 ;;
 		''|SPAWN_*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_]*) return 1 ;;
 	esac
 	keyNames="$( LC_ALL=C sed -n 's/^HARNESS_CREDENTIAL_NAMES=//p' "${BASH_SOURCE[0]%/*}/../harness/"Agents*Harness.sh 2> /dev/null | LC_ALL=C tr -c 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_' ' ' )" || keyNames=""

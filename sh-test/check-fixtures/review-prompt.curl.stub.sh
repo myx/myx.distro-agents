@@ -45,7 +45,22 @@ case "$rigMethod" in
 			"$rigPostTs" "$rigPostTs" "$rigUser" "${rigThread:+,\"thread_ts\":\"$rigThread\"}"
 	;;
 	conversations.info)
-		printf '{"ok":true,"channel":{"id":"CRIG00001","is_im":false,"is_mpim":false}}\n'
+		## A scenario that answers as a direct conversation of two says so here; the default is
+		## the shared channel the posts above name.
+		if [ -f "$RIG_SCENARIO/channel.info" ] ; then
+			cat "$RIG_SCENARIO/channel.info"
+		else
+			printf '{"ok":true,"channel":{"id":"CRIG00001","is_im":false,"is_mpim":false}}\n'
+		fi
+	;;
+	conversations.history)
+		## The conversation's own messages, one page: a scenario that puts an answer typed in
+		## the conversation rather than in a thread answers here.
+		if [ -f "$RIG_SCENARIO/history.json" ] ; then
+			cat "$RIG_SCENARIO/history.json"
+		else
+			printf '{"ok":true,"messages":[],"has_more":false}\n'
+		fi
 	;;
 	conversations.replies)
 		if [ -n "$rigTs" ] && [ -f "$RIG_SCENARIO/replies.$rigTs.json" ] ; then

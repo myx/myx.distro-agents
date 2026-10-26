@@ -36,7 +36,7 @@
 ##
 
 ## THE TEAM FLOOR'S TOOLS: the one place they are named.
-agentsPermissionFloorTools=" Skill SendMessage Wait SubagentHandback AskUserQuestion AskQuestion ConfirmReadback EscalateDecision RequestPermission ProposeApprove ToolSearch ListAgents TaskOutput TaskStop Monitor PushNotification SessionTranscriptAppend ReportFindings ListMcpResourcesTool ReadMcpResourceTool ReadMcpResourceDirTool "
+agentsPermissionFloorTools=" Skill SendMessage Wait SubagentHandback AskUserQuestion AskQuestion ConfirmReadback EscalateDecision RequestPermission ProposeApprove ToolSearch ListAgents TaskOutput TaskStop PushNotification SessionTranscriptAppend ReportFindings ListMcpResourcesTool ReadMcpResourceTool ReadMcpResourceDirTool "
 ## The file tools a path permission speaks for, and the ones of them that only read.
 agentsPermissionFileTools=" Read Edit Write Execute Grep Glob "
 agentsPermissionReadTools=" Read Grep Glob "
@@ -69,12 +69,23 @@ AgentsToolsPermissionEntryToolKnown(){ ## tool name
 	return 1
 }
 
-## True for the human-owner, by name or by his configured Slack account.
+## True for the human-owner, by name, by his configured Slack account, or by the account at the
+## console mapped to him (HUMAN_OWNER_CONSOLE_ACCOUNT): the person at that console IS the owner
+## there, so a verdict only he gives -- a review, a held change, a proposal -- is his own, and
+## what he holds is everything, as his own name holds.
 AgentsToolsPermissionIsHumanOwner(){ ## who
 	local ownerAccount
 	case "$1" in
 		human-owner) return 0 ;;
 		''|magic-*|keeper-*|partner-*|client-*) return 1 ;;
+	esac
+	## The console mapping, read by the one reader of it. A person's name is `user-<account>`,
+	## so only such a name asks it; no member name ever does.
+	case "$1" in
+		user-*)
+			type AgentsToolsAuthorityOwnerNamed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+			AgentsToolsAuthorityOwnerNamed "$1" && return 0
+		;;
 	esac
 	ownerAccount="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2>/dev/null )" || ownerAccount=""
 	[ -n "$ownerAccount" ] && [ "$ownerAccount" = "$1" ] && return 0
@@ -541,6 +552,109 @@ AgentsToolsPermissionRoutineHolds(){ ## member, tool, natural target, session id
 	return 1
 }
 
+## The routine layer's denial: while a session runs a routine, that routine's frontmatter `denies:`
+## denies its participants the named tools, comma-separated tool names, a tool denied to every
+## participant of the session. It wins over every grant: the routine's own word to its members,
+## as its allows is its own word. No maintainer's approval is asked of a deny, which grants
+## nothing. Prints "routine-denies <routine-name>" and returns 0, or returns 1.
+AgentsToolsPermissionRoutineDenies(){ ## member, tool, session id
+	local rdMember="$1" rdTool="$2" rdSession="$3" rdRoutine rdFile="" rdMember2 rdDir rdLine
+	local rdDenies="" rdParticipants=""
+	[ -n "$rdMember" ] && [ -n "$rdTool" ] && [ -n "$rdSession" ] && [ -n "${MMDAPP:-}" ] || return 1
+	rdRoutine="$( AgentsToolsPermissionSessionRoutine "$rdSession" )"
+	[ -n "$rdRoutine" ] || return 1
+	## The routine file by its exact name, in every member's folder, as the allows layer reads it.
+	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	while IFS=$'\t' read -r rdMember2 rdDir ; do
+		[ -n "$rdDir" ] && [ -f "$rdDir/$rdRoutine" ] || continue
+		rdFile="$rdDir/$rdRoutine"
+		break
+	done <<< "$( AgentsToolsTeamMemberDirectoryText 2>/dev/null )"
+	[ -n "$rdFile" ] || return 1
+	while IFS= read -r rdLine ; do
+		case "$rdLine" in
+			'denies: '*) rdDenies="${rdLine#denies: }" ;;
+		esac
+	done <<< "$( LC_ALL=C awk -v headers="denies" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$rdFile" 2>/dev/null )"
+	[ -n "$rdDenies" ] || return 1
+	## A tool named by the denies line is denied, named as a whole word.
+	rdDenies=" $( printf '%s' "$rdDenies" | LC_ALL=C tr ',\t' '  ' ) "
+	case "$rdDenies" in
+		*" $rdTool "*) ;;
+		*) return 1 ;;
+	esac
+	## Only a participant of the session is denied: a routine's denies bind its own session.
+	rdParticipants="$( AgentsToolsPermissionParticipants "$rdSession" "" )"
+	printf '%s\n' "$rdParticipants" | LC_ALL=C grep -q -x -F -- "$rdMember" || return 1
+	printf 'routine-denies %s' "${rdRoutine%.md}"
+	return 0
+}
+
+## The routine layer's DENY: while a session runs a routine, that routine's frontmatter `denies:` revokes from its
+## participants, comma-separated <member|executors|participants>:<tool>[:<target>] entries, the same shape as `allows:`
+## (AgentsToolsPermissionRoutineHolds). A deny wins over every allow, the routine's own included: a member the routine
+## names in a denies: entry that covers the call does not hold it, whatever another layer grants. Prints
+## "routine-deny <routine-name>" and returns 0 where denied, else 1.
+AgentsToolsPermissionRoutineDenies(){ ## member, tool, natural target, session id
+	local dnMember="$1" dnTool="$2" dnWant="$3" dnSession="$4" dnRoutine dnFile="" dnMember2 dnDir dnLine
+	local dnExecutors="" dnDenies="" dnEntry dnWho dnRest dnEntryTool dnEntryTarget dnParticipants=""
+	[ -n "$dnMember" ] && [ -n "$dnTool" ] && [ -n "$dnSession" ] && [ -n "${MMDAPP:-}" ] || return 1
+	dnRoutine="$( AgentsToolsPermissionSessionRoutine "$dnSession" )"
+	[ -n "$dnRoutine" ] || return 1
+	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
+	type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.Grants.include"
+	while IFS=$'\t' read -r dnMember2 dnDir ; do
+		[ -n "$dnDir" ] && [ -f "$dnDir/$dnRoutine" ] || continue
+		dnFile="$dnDir/$dnRoutine"
+		break
+	done <<< "$( AgentsToolsTeamMemberDirectoryText 2>/dev/null )"
+	[ -n "$dnFile" ] || return 1
+	while IFS= read -r dnLine ; do
+		case "$dnLine" in
+			'executors: '*) dnExecutors="${dnLine#executors: }" ;;
+			'denies: '*) dnDenies="${dnLine#denies: }" ;;
+		esac
+	done <<< "$( LC_ALL=C awk -v headers="executors"$'\034'"denies" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$dnFile" 2>/dev/null )"
+	[ -n "$dnDenies" ] || return 1
+	dnExecutors=" $( printf '%s' "$dnExecutors" | LC_ALL=C tr ',\t' '  ' ) "
+	while [ -n "$dnDenies" ] ; do
+		dnEntry="${dnDenies%%,*}"
+		if [ "$dnEntry" != "$dnDenies" ] ; then dnDenies="${dnDenies#*,}" ; else dnDenies="" ; fi
+		dnEntry="${dnEntry#"${dnEntry%%[![:space:]]*}"}" ; dnEntry="${dnEntry%"${dnEntry##*[![:space:]]}"}"
+		case "$dnEntry" in *:*) ;; *) continue ;; esac
+		dnWho="${dnEntry%%:*}" ; dnRest="${dnEntry#*:}"
+		dnEntryTool="${dnRest%%:*}" ; dnEntryTarget=""
+		case "$dnRest" in *:*) dnEntryTarget="$( AgentsToolsPermissionUnescape "${dnRest#*:}" )" ;; esac
+		AgentsToolsGrantsToolCovers "$dnEntryTool" "$dnTool" || continue
+		case "$agentsPermissionFileTools" in
+			*" $dnEntryTool "*)
+				case "$dnEntryTarget" in
+					''|'*'|'**'|/*) ;;
+					*) dnEntryTarget="${MMDAPP%/}/$dnEntryTarget" ;;
+				esac
+			;;
+		esac
+		AgentsToolsPermissionCovers "$dnEntryTarget" "$dnWant" || continue
+		case "$dnWho" in
+			participants) ;;
+			executors)
+				case "$dnExecutors" in
+					*" $dnMember "*|*" magic-team "*|*" * "*) ;;
+					*) continue ;;
+				esac
+			;;
+			*) [ "$dnWho" = "$dnMember" ] || continue ;;
+		esac
+		[ -n "$dnParticipants" ] || dnParticipants="$( AgentsToolsPermissionParticipants "$dnSession" "" )"
+		printf '%s\n' "$dnParticipants" | LC_ALL=C grep -q -x -F -- "$dnMember" || continue
+		printf 'routine-deny %s' "${dnRoutine%.md}"
+		return 0
+	done
+	return 1
+}
+
 ## Whether <member> holds <tool> <target>, and through which layer: prints the layer and
 ## returns 0, or returns 1. With a session, its grants count too: the session's own store
 ## and the store of the coworking session it joined.
@@ -552,6 +666,10 @@ AgentsToolsPermissionHolds(){ ## member, tool, natural target, session id (optio
 		printf 'human-owner'
 		return 0
 	fi
+	## A routine's denies: wins over every layer below, the routine's allows and the session grants included.
+	! AgentsToolsPermissionRoutineDenies "$holdMember" "$holdTool" "$holdTarget" "$holdSession" || return 1
+	## The routine this session runs denies the tool to its participants: a deny wins over every grant below it.
+	AgentsToolsPermissionRoutineDenies "$holdMember" "$holdTool" "$holdSession" > /dev/null 2>&1 && return 1
 	## A read-only place is written by nobody else, through any layer: its ceiling caps them all.
 	case " Edit Write Execute " in
 		*" $holdTool "*)

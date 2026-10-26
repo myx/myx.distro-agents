@@ -27,7 +27,7 @@
 ## frame (two empty lines under its top, one more under its buttons, three blank cells at each side), so its box is
 ## four cells wider and two lines taller and what it holds stands where it stood.
 ## Reconciled for F11.0, the table lines: two spaces between the columns of the tables of the left window and of the list, whose rows are in the look of their ground (here underlined: l).
-## Reconciled for F11.5: Locations (Places) is the fourth root, key 4, and the list a case gives a generic list is that of `Launch (Start)` under Activity (`at @activity launch`).
+## Reconciled for F11.5: Locations (Places) is the fourth root, key 4, and the list a case gives a generic list is that of `Launchpad` under Activity (`at @magic-team launch`).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -172,14 +172,14 @@ get in
 show t
 roles tr
 border inTitle 1 0 140
-keys DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN
 turn
 wait view 5
 get deep
 show d
 looks dl
 border deepTitle 1 0 140
-keys DOWN DOWN
+keys DOWN
 turn
 wait view 5
 get odd
@@ -236,13 +236,13 @@ turn
 show dash
 roles dashr
 wait sessions 5
-table list:magic-team/activity/launch none
-rows magic-team/activity/launch s1=one
+table list:magic-team/launch none
+rows magic-team/launch s1=one
 rows settings workspace=Workspace_Paths other=Other_Subject
 rows consoles c1=A_Console
-at @activity launch
+at @magic-team launch
 turn
-keys DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN
 turn
 viewline $rigSaid
 turn
@@ -317,7 +317,8 @@ advance 11
 turn
 wait places 5
 get aged
-keys LEFT DOWN
+## LEFT is `pan` (it scrolls), not a way out of the level: the root list is one level UP.
+keys BACKSPACE DOWN
 turn
 advance 11
 turn
@@ -469,11 +470,11 @@ keys 4
 turn
 show e
 wait sessions 5
-table list:magic-team/activity/launch none
-rows magic-team/activity/launch s1=one
-at @activity launch
+table list:magic-team/launch none
+rows magic-team/launch s1=one
+at @magic-team launch
 turn
-keys DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN
 turn
 viewline $rigSaid
 turn

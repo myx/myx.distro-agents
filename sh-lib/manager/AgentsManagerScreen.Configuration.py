@@ -492,16 +492,82 @@ def contextFocus(state, row):
     return parameterLines({"name": held["name"], "value": held["value"] or "-"}, state.viewWidth)
 
 
+## ---- the team-data checkout repair, diagnosed under `Diagnostics` ----
+
+## What `--repair-team-data-checkout` with no mode printed, a line each, shown as it is:
+## the checkout's divergence, its local-only commits and the remote's, the trial merge in a
+## throwaway copy, and the two ways offered. The screen shows what it printed and changes
+## nothing -- the repair itself runs next to Team Data Sync, under Team Data > Operations.
+def parseCheckoutRows(readKey, level, text):
+    rows = []
+    for printed in text.split("\n"):
+        if not printed.strip():
+            continue
+        row = newRow(printed, printed, "checkout", False)
+        row["checkout"] = {"line": printed}
+        rows.append(row)
+    return {level: rows}
+
+
+ROW_FORMS["checkout"] = parseCheckoutRows
+
+
+## The folder for the left pane: every line as the operation printed it. None until the read has answered.
+def checkoutSummary(state, path, row, form):
+    rows = state.rows.get(levelKey(path))
+    if rows is None:
+        return None
+    if not rows:
+        return [looked("The checkout is in step with its remote, or the operation printed nothing.", BOLD)]
+    return [held["checkout"]["line"] for held in rows]
+
+
+## A line of it, as the operation printed it, or the folder's summary on the row that runs the diagnosis.
+def checkoutFocus(state, row):
+    held = row.get("checkout")
+    if held is not None:
+        return [held["line"]]
+    return checkoutSummary(state, state.path, row, None) if row["kind"] == "checkout-run" else None
+
+
+## The row `Run The Checkout Diagnosis...` of the folder asks for the read on demand, as the Config Checker's run row does:
+## it fetches origin and trial-merges, so it is not read on the period.
+def askCheckoutRun(state, row):
+    shown = demandRead(state)
+    if not shown:
+        return ""
+    state.noticeOf = shown[0]
+    if shown[0] in state.reading.values() or shown[0] in state.forced:
+        return "Run the checkout diagnosis: it is reading"
+    state.forced.add(shown[0])
+    return "Run the checkout diagnosis: asked of the tooling%s" % (", " + shown[1]["said"] if shown[1].get("said") else "")
+
+
+ACTION_HANDLERS["checkoutrun"] = askCheckoutRun
+
+
 ## Registered after the parts of `.local`, so that its folder stands after the others the Configuration holds (loadParts).
 def registerDiagnostics():
     registerPlugin({
         "name": "diagnostics",
         "mount": "configuration",
         "root": {"id": "diagnostics", "label": "Diagnostics"},
-        "focus": {"diagnostics": "contextFocus"},
-        "summaries": {"diagnostics": {"lines": "contextSummary"}},
+        "rows": {
+            "diagnostics": (("checkout", "Team Data Checkout", "checkout", True),),
+            "diagnostics/checkout": (("run", "Run The Checkout Diagnosis", "checkout-run", False),),
+        },
+        "focus": {"diagnostics": "contextFocus", "diagnostics/checkout": "checkoutFocus"},
+        "summaries": {"diagnostics": {"lines": "contextSummary"}, "diagnostics/checkout": {"lines": "checkoutSummary"}},
         "reads": {
             ## The context the call resolves, read on entering and when it is asked for: it does not change by itself.
             "list:diagnostics": {"operation": ["--intern-context-show"], "rows": "context", "once": True},
+            ## The checkout's own diagnosis, made on demand alone: it fetches origin and trial-merges in a throwaway copy.
+            "list:diagnostics/checkout": {"operation": ["--repair-team-data-checkout", "magic-coordinator"], "rows": "checkout", "demand": True,
+                                           "said": "it fetches origin and trial-merges in a throwaway copy"},
         },
+        "commands": (
+            {"name": "checkoutrun", "keys": ("ENTER",), "menu": ("view", 3), "label": "Run The Checkout Diagnosis", "status": "Run",
+             "views": ("diagnostics/checkout",), "for": "the checkout diagnosis", "on": ("diagnostics/checkout:checkout-run",), "only": True, "enters": True, "says": "run",
+             "does": ("action", "checkoutrun")},
+        ),
     })

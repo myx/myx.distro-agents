@@ -35,7 +35,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
-			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: syntax is <member> <item-filename> [--from-member <member>] [--include-processed] [--standing yes|no] [--no-commit] -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
+			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: syntax is <member> <item-filename> [--from-member <member>] [--include-processed] [--standing yes|no] [--no-commit] -- content via stdin, --from-file <path>, --upsert-from-slots, or --edit-patch-from-stdin" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<member>" member-inbox-upsert || { set +e ; return 1 ; }
@@ -49,7 +49,7 @@ case "$1" in
 			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local includeProcessed="no" existingPath="" noCommit="no" standingValue=""
+		local includeProcessed="no" existingPath="" noCommit="no" standingValue="" replyRequested="" replyValue=""
 		local target=""
 		local content contentFromFile="false" bodyMode="" bodyModeCount=0
 		## Who is writing: the `from` a new item is stamped with when its content names none.
@@ -70,6 +70,11 @@ case "$1" in
 				;;
 				--edit-patch-from-stdin)
 					bodyMode="patch"
+					bodyModeCount=$(( bodyModeCount + 1 ))
+					shift
+				;;
+				--upsert-from-slots)
+					bodyMode="slots"
 					bodyModeCount=$(( bodyModeCount + 1 ))
 					shift
 				;;
@@ -108,6 +113,17 @@ case "$1" in
 					esac
 					shift 2
 				;;
+				## An inquiry only: sets the header `reply-requested: yes`, so the member it asks for asks back for a note with the outcome.
+				--reply-requested)
+					replyRequested="yes"
+					shift
+				;;
+				## An inquiry only (K2): --reply sets `reply-requested: yes`, so marking the inquiry processed
+				## sends one note with the outcome to its requester. Mirrors --request-update --reply.
+				--reply)
+					replyValue="yes"
+					shift
+				;;
 				*)
 					echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: unrecognized argument: $1" >&2
 					set +e ; return 1
@@ -118,8 +134,12 @@ case "$1" in
 			:*|*:note-*) ;;
 			*) echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --standing is for a note (note-*), and this is $itemName -- nothing was written" >&2 ; set +e ; return 1 ;;
 		esac
+		case "$replyValue:$itemName" in
+			:*|*:inquiry-*) ;;
+			*) echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --reply is for an inquiry (inquiry-*), and this is $itemName -- nothing was written" >&2 ; set +e ; return 1 ;;
+		esac
 		if [ "$bodyModeCount" -gt 1 ] ; then
-			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --from-file and --edit-patch-from-stdin are mutually exclusive" >&2
+			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --from-file, --upsert-from-slots and --edit-patch-from-stdin are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 		## The item as it is now, where a read finds it, a processed one only with
@@ -136,6 +156,24 @@ case "$1" in
 			patchJson="$( cat )"
 			if [ -f "$target" ] ; then existingContent="$( cat "$target" )" ; else existingContent="" ; fi
 			content="$( printf '%s%s' "$patchJson" "$existingContent" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemPatchApply.py" "$opContext" )" || { set +e ; return 1 ; }
+		elif [ "$bodyMode" = "slots" ] ; then
+			## --upsert-from-slots: the member gives only the slot values; the writer renders the document's
+			## body from its template (sh-lib/templates/inbox-item.<type>.document.format.md), and the
+			## front matter is stamped by the creation defaults below, as on any create.
+			type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
+			type AgentsToolsItemNameType > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.ItemNameShape.include"
+			local slotsBlock slotsType slotsFile
+			slotsBlock="$( cat )"
+			slotsType="$( AgentsToolsItemNameType "$itemName" )"
+			[ -n "$slotsType" ] || { echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --upsert-from-slots: the item name names no type: $itemName" >&2 ; set +e ; return 1 ; }
+			[ -f "$( AgentsToolsToolingTemplate "inbox-item.$slotsType.document.format.md" )" ] || { echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --upsert-from-slots: no document template for the inbox type $slotsType (inbox-item.$slotsType.document.format.md)" >&2 ; set +e ; return 1 ; }
+			mkdir -p "$MMDAPP/.local/temp" || { echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --upsert-from-slots: the temp folder could not be made" >&2 ; set +e ; return 1 ; }
+			slotsFile="$( mktemp "$MMDAPP/.local/temp/mdat-intern-op-inbox-slots.XXXXXX" )" || { echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --upsert-from-slots: a slots temp file could not be made" >&2 ; set +e ; return 1 ; }
+			printf '%s\n' "$slotsBlock" > "$slotsFile" || { rm -f "$slotsFile" ; set +e ; return 1 ; }
+			content="$( IDS_SLOTS="$slotsFile" AgentsToolsToolingTemplateFill "inbox-item.$slotsType.document.format.md" inbox/AgentsInboxItemDocumentFill.awk )" \
+				|| { rm -f "$slotsFile" ; echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --upsert-from-slots: the document for inbox type $slotsType could not be filled from its template" >&2 ; set +e ; return 1 ; }
+			rm -f "$slotsFile"
+			[ -n "$content" ] || { echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --upsert-from-slots: the slots fill to an empty document -- nothing was written" >&2 ; set +e ; return 1 ; }
 		else
 			[ "$contentFromFile" = "true" ] || content="$( cat )"
 			## Measured, never refused: this tier reports and the write proceeds.
@@ -204,6 +242,32 @@ case "$1" in
 				mkdir -p "$MMDAPP/.local/temp" && headerOpsFile="$( mktemp "$MMDAPP/.local/temp/mdat-intern-op-inbox-standing.XXXXXX" )" || exit 1
 				trap 'rm -f "$headerOpsFile"' EXIT
 				printf 'upsert\tstanding\t%s\n' "$standingValue" > "$headerOpsFile" || exit 1
+				printf '%s\n' "$content" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk"
+			)" || { set +e ; return 1 ; }
+		fi
+		## --reply: the `reply-requested: yes` header set on the content, over a value it has; the rest as it is.
+		if [ -n "$replyValue" ] ; then
+			if [ "$openFrontmatter" = "true" ] ; then
+				echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --reply: the content opens a frontmatter block it never closes -- nothing was written" >&2
+				set +e ; return 1
+			fi
+			content="$(
+				mkdir -p "$MMDAPP/.local/temp" && headerOpsFile="$( mktemp "$MMDAPP/.local/temp/mdat-intern-op-inbox-reply.XXXXXX" )" || exit 1
+				trap 'rm -f "$headerOpsFile"' EXIT
+				printf 'upsert\treply-requested\tyes\n' > "$headerOpsFile" || exit 1
+				printf '%s\n' "$content" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk"
+			)" || { set +e ; return 1 ; }
+		fi
+		## --reply-requested: the header `reply-requested: yes` on the content as it would be written, over a value it has; the rest as it is.
+		if [ -n "$replyRequested" ] ; then
+			if [ "$openFrontmatter" = "true" ] ; then
+				echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --reply-requested: the content opens a frontmatter block it never closes -- nothing was written" >&2
+				set +e ; return 1
+			fi
+			content="$(
+				mkdir -p "$MMDAPP/.local/temp" && headerOpsFile="$( mktemp "$MMDAPP/.local/temp/mdat-intern-op-inbox-reply.XXXXXX" )" || exit 1
+				trap 'rm -f "$headerOpsFile"' EXIT
+				printf 'upsert\treply-requested\tyes\n' > "$headerOpsFile" || exit 1
 				printf '%s\n' "$content" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemHeaderOpsApply.awk"
 			)" || { set +e ; return 1 ; }
 		fi

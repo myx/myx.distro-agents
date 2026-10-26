@@ -111,7 +111,7 @@ rigLineOf(){ ## prefix
 ## The record of the scenario's one ask of a kind, and one field of a record.
 rigRecordOf(){ ## kind
 	local recordFile
-	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] && LC_ALL=C grep -q -x -F "kind: $1" "$recordFile" || continue
 		recordFile="${recordFile##*/}"
 		printf '%s' "${recordFile%.md}"
@@ -119,8 +119,16 @@ rigRecordOf(){ ## kind
 	done
 	printf 'no-%s-record' "$1"
 }
+rigFieldFile(){ ## pending id -- its record's path, live or retained-closed
+	## A closed record is retained, not deleted: it moves into pending/closed/ (retention, T9),
+	## so the live store is read first and the retained one after it; where neither exists the
+	## live path is returned, so a missing record reads exactly as before.
+	local rigFieldPath="$rigScenarioDir/ws/.local/agents/pending/$1.md"
+	[ -f "$rigFieldPath" ] || rigFieldPath="$rigScenarioDir/ws/.local/agents/pending/closed/$1.md"
+	printf '%s' "$rigFieldPath"
+}
 rigField(){ ## pending id, field
-	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$rigScenarioDir/ws/.local/agents/pending/$1.md" 2>/dev/null || printf 'no-record'
+	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$( rigFieldFile "$1" )" 2>/dev/null || printf 'no-record'
 }
 rigRefusal(){ ## output file -> the refusal id it printed
 	LC_ALL=C sed -n 's/^REFUSAL-ID: \(refusal-[0-9a-f-]*\)$/\1/p' "$1" | head -1
@@ -288,10 +296,10 @@ rigRoundSet 2
 : > "$rigScenarioDir/quiet.txt"
 rigCall 45 Wait "{\"sources\":\"file:$rigScenarioDir/quiet.txt\",\"timeout\":14400}"
 rigAssert "one line and no more: nothing arrived, and Wait mode=continue goes on" \
-	"$rigKilled:$( LC_ALL=C awk 'END { print NR ; }' "$rigScenarioDir/out" ):$( LC_ALL=C sed -n 's/^WAIT-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: Wait mode=continue$/the-line/p' "$rigScenarioDir/out" )" "no:1:the-line"
+	"$rigKilled:$( LC_ALL=C awk '! /^WAIT-NEVER-READ: / { n++ } END { print n + 0 ; }' "$rigScenarioDir/out" ):$( LC_ALL=C sed -n 's/^WAIT-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: Wait mode=continue$/the-line/p' "$rigScenarioDir/out" )" "no:1:the-line"
 rigCall 45 Wait '{"mode":"continue"}'
 rigAssert "and going on is the same one line again" \
-	"$rigKilled:$( LC_ALL=C awk 'END { print NR ; }' "$rigScenarioDir/out" ):$( LC_ALL=C sed -n 's/^WAIT-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: Wait mode=continue$/the-line/p' "$rigScenarioDir/out" )" "no:1:the-line"
+	"$rigKilled:$( LC_ALL=C awk '! /^WAIT-NEVER-READ: / { n++ } END { print n + 0 ; }' "$rigScenarioDir/out" ):$( LC_ALL=C sed -n 's/^WAIT-RESULT: TIMEOUT ([0-9][0-9]*s) NEXT: Wait mode=continue$/the-line/p' "$rigScenarioDir/out" )" "no:1:the-line"
 printf 'RIG-ARRIVAL\n' > "$rigScenarioDir/quiet.txt"
 rigCall 45 Wait '{"mode":"continue"}'
 rigAssert "an arrival is returned as before, whatever the round" "$rigKilled:$( rigFirstLine "$rigScenarioDir/out" ):$( rigHolds "$rigScenarioDir/out" 'RIG-ARRIVAL' )" "no:WAIT-RESULT: RECEIVED:yes"

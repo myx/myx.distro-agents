@@ -10,6 +10,9 @@
 ## repository) and HOME are fixtures; the model rounds come from a fake curl first on
 ## PATH; nothing is posted and the real store is never reached.
 set -u
+## These rigs keep a tracking item and a transcript, which only a team rig keeps (AgentsTools.TeamDataGate.include); the runner gives every
+## test that mode, and a run by hand takes the same default, so the result is the same either way.
+: "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
@@ -354,8 +357,13 @@ rigAssert "the loop: a call without one carries the model's text" "$( LC_ALL=C g
 rigAssert "the loop: a call with one carries its description instead" "$( LC_ALL=C grep -F " TOOL Glob pattern=read.txt path=$rigLoop2 -> ok" "$rigLoopT2" | LC_ALL=C grep -c ' | "Look for the rig file"$' )" 1
 rigAssert "the loop: the call with one ran as without, its result back to the model" \
 	"$( rigReplyBare < "$rigLoop2/req.2" | LC_ALL=C grep -o '"tool_call_id":"c2","content":"[^"]*"' )" "\"tool_call_id\":\"c2\",\"content\":\"$rigLoop2/read.txt\""
-## Every built-in this rig session is offered: CheckList is not, the session has no team identity.
-rigAssert "the request declared the description to the model" "$( LC_ALL=C grep -o -F '"description":{"type":"string","description":"Optional. One short sentence: why this call is made' "$rigLoop2/req.1" | LC_ALL=C wc -l | tr -d ' ' )" 31
+## Every built-in this rig session is offered, CheckList among them: the declarations are
+## unconditional, and a session without a place for a list refuses it at execution (F1.2).
+## One description property for each tool the request offers (the count of tools is read off the same request, so a
+## tool added to the harness does not stale this row; a tool that lost it fails it).
+rigToolsOffered="$( LC_ALL=C grep -o -E '"type":"function","function":\{"name":"' "$rigLoop2/req.1" | LC_ALL=C wc -l | tr -d ' ' )"
+rigAssert "the request declared the description to the model, on every tool it offers (and offers some)" "$( LC_ALL=C grep -o -F '"description":{"type":"string","description":"Optional. One short sentence: why this call is made' "$rigLoop2/req.1" | LC_ALL=C wc -l | tr -d ' ' ) of $rigToolsOffered" "$rigToolsOffered of $rigToolsOffered"
+rigAssert "control: the tools offered were counted" "$( [ "$rigToolsOffered" -gt 5 ] && echo yes || echo no )" yes
 
 echo "-- a native spawn: model text redacted, a provider or CLI error kept before the first tool --"
 rigErrSid="dddd4444-0000-4000-8000-000000000004"

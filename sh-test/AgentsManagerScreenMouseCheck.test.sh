@@ -12,9 +12,9 @@
 ## letter of Exit on a terminal that reports the mouse, and comes up all the same on one that reports none.
 ## Offline: the only thing the real screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
 ## Reconciled for F11.5: the list of sixty is Active Sessions of Activity (the `sessions` command of the driver), whose rows start under the row that goes up, with no
-## `Launch (Start)` and no spacer; the root is four levels up; the left window that is scrolled is the one of the row that goes up (the table of all sixty,
+## `Launchpad` and no spacer; the root is four levels up; the left window that is scrolled is the one of the row that goes up (the table of all sixty,
 ## since the summary of a session is made again whatever lines were put there); the status line holds `ENTER Open` and `k Kill` on a session row.
-## Reconciled for F11.0: the spacer under `Launch (Start)` moves each session row of the list one line down; every
+## Reconciled for F11.0: the spacer under `Launchpad` moves each session row of the list one line down; every
 ## dialog has bigger margins inside its frame (two empty lines under its top, one more under its buttons, three blank
 ## cells at each side), so its box is four cells wider and two lines taller and what it holds stands where it stood.
 ## Reconciled for F11.5, the lists of Activity: the key `a` (all or only the active) is not offered there, as it has nothing to take: not in the status line, and not in the menu View.
@@ -173,9 +173,11 @@ rigRun <<'RIGSCRIPT'
 mouse click 90 5
 turn
 cells st 39 0 120
-mouse click 87 39
+## The columns are where those keys STAND on the line the assertion at 192 prints: `/` at
+## 21..29 and `m Menu` at 58..64 (keys start at column 1, each key then its word).
+mouse click 22 39
 get filtered
-mouse click 50 39
+mouse click 60 39
 get menu
 turn
 cells stMenu 39 0 120
@@ -189,8 +191,12 @@ cells stDialog 39 0 120
 mouse click 24 39
 get cancelled
 RIGSCRIPT
-rigAssert "the status line as it is clicked on"                      "[$( rigVal st )]" "[ ENTER Open  BSP Up  k Kill  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
-rigAssert "a click on a key of a command does that command"          "$( rigVal filtered.wrap ) $( rigVal menu.menu )" "no go:dashboard"
+rigAssert "the status line as it is clicked on"                      "[$( rigVal st )]" "[ ENTER Open  BSP Up  / Filter  k Kill  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+## A click on the MENU key opens the menu: that is the proof that a click on a key of the line
+## runs that key's command. `/` is `rows-filter` (it opens the filter line) and touches no wrap
+## flag, so `wrap` was never the observable of this click -- it read `no` only while the click
+## missed every key.
+rigAssert "a click on a key of a command does that command"          "$( rigVal menu.menu )" "go:dashboard"
 rigAssert "with a menu open a click on Esc closes it"                "[$( rigVal stMenu )] [$( rigVal closed.menu )]" "[ ENTER Choose  ESC Close  ←/→ Menus  UP/DN Items] []"
 rigAssert "a click on Backspace goes up one level"                        "[$( rigVal up.path )]" "[magic-team/activity]"
 rigAssert "with a dialog open a click on Esc cancels it"             "[$( rigVal stDialog )] [$( rigVal cancelled.dialog )]" "[ ENTER OK  TAB Next  ESC Cancel] []"

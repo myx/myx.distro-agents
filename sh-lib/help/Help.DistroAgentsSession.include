@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## The help of DistroAgentsSession.fn.sh: ThisSession, your own session: post to its thread with --post-session-channel, and run its routine.
+## The three forms are DistroAgentsTools.fn.sh's: no word the default syntax, the entry points a reader starts from;
+## --help-syntax the syntax line of every operation of the file, read from the one table of the family,
+## sh-lib/help/Help.DistroAgentsTools.include; --help the manual, sh-lib/help/Help.DistroAgentsSession.help.md.
+## Every echo stays flush-left: --member-help cuts help files on a ^echo anchor.
+
+## The default syntax: the entry points a reader starts from. Every other operation's syntax sits behind
+## --help-syntax, and the manual behind --help.
+echo "📘 syntax: DistroAgentsSession.fn.sh --append-transcript [--team-member <team-member>] [--of-session <session-id>] [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]" >&2
+echo "📘 syntax: DistroAgentsSession.fn.sh --wait-for-input [--team-member <team-member>] [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop|--unwait <kind>:<target> --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>] [--wait-collect <seconds>]" >&2
+echo "📘 syntax: DistroAgentsSession.fn.sh --wait-for-input [--team-member <team-member>] --wait-list-sources" >&2
+echo "📘 syntax: DistroAgentsSession.fn.sh --post-session-channel [--team-member <team-member>] [--address-to <team-member>]... [--identity-bot] (<text...>|--from-stdin)" >&2
+echo "📘 syntax: DistroAgentsSession.fn.sh --wait-session-channel [--team-member <team-member>] [--to-@me] [--to-@here] [--to-@any] [--wait-timeout <seconds>]" >&2
+echo "📘 syntax: DistroAgentsSession.fn.sh [--help-syntax [<op>]]" >&2
+echo "📘 syntax: DistroAgentsSession.fn.sh [--help]" >&2
+
+case "$1" in
+
+	--help-syntax)
+		type AgentsToolsFrontSyntax > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+		AgentsToolsFrontSyntax "${MDSC_CMD:-DistroAgentsSession}" "${2:-}"
+		return $?
+	;;
+
+	--help)
+		myx.common lib/catMarkdown "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsSession.help.md" >&2
+		return 0
+	;;
+
+esac

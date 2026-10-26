@@ -4,7 +4,7 @@
 ## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a stand-in script
 ## (check-fixtures/manager-screen.tools.stub.sh), which notes each start with its arguments and then prints rows,
 ## sleeps or fails as the case says. Time is a number the case moves, so no case waits for a period to pass.
-## Held: the root asks for nothing; a level of the list (here `Launch (Start)`, which the case gives a plain list in the stand-in's form) asks `--manager-session-list` once, as a
+## Held: the root asks for nothing; a level of the list (here `Launchpad`, which the case gives a plain list in the stand-in's form) asks `--manager-session-list` once, as a
 ## process of its own, and what it printed becomes rows, a record a line, its fields split at each TAB; `a` asks
 ## again at once with `--active`; a call that sleeps five seconds does not hold a key: the selection moves while it
 ## runs, and the title carries the mark of a read; a call that fails shows its first error line, not the line of
@@ -19,9 +19,9 @@
 ## that is made whatever is shown, are held by AgentsManagerScreenSessionsCheck, AgentsManagerScreenStatusCheck and
 ## AgentsManagerScreenPendingCheck.
 ## Offline: no operation of the real tooling is called.
-## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`; the spacer under
-## `Launch (Start)` moves each session row of the list one line down.
-## Reconciled for F11.5: the list read through its operation is that of `Launch (Start)` under Activity, which the case gives a plain list in the stand-in's form; Active Sessions and the others of Activity are made of the session list read at Activity.
+## Reconciled for F11.0: `Launch / Spawn` is named `Launchpad`, `Consoles (Tools)` `Consoles`; the spacer under
+## `Launchpad` moves each session row of the list one line down.
+## Reconciled for F11.5: the list read through its operation is that of `Launchpad` under Activity, which the case gives a plain list in the stand-in's form; Active Sessions and the others of Activity are made of the session list read at Activity.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py"
@@ -64,7 +64,7 @@ rigCase(){ ## name, what the stand-in does at every start, then what it does at 
 	done
 }
 rigScript(){ ## the commands of the driver on standard input, after the one that names the stand-in; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable list:magic-team/activity none\ntable list:magic-team/activity/launch --manager-session-list +active --active\nroot launch\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable list:magic-team/activity none\ntable list:magic-team/launch --manager-session-list +active --active\nroot launch\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -90,18 +90,22 @@ get a
 border title 1 84 120
 cells row1 2 85 119
 cells row2 3 85 119
-cells row3 5 85 119
-cells row4 6 85 119
-cells row5 7 85 119
-cells row6 8 85 119
+cells row3 4 85 119
+cells row4 5 85 119
+cells row5 6 85 119
+cells row6 7 85 119
+cells row7 8 85 119
+cells row8 9 85 119
+cells row9 10 85 119
+cells row10 11 85 119
 RIGSCRIPT
 rigAssert "the root asks the tooling for nothing"                    "[$( rigVal root.reading )]" "[]"
-rigAssert "the level asks at once, and the call runs beside the screen" "$( rigVal asked.path ) $( rigVal asked.reading )" "magic-team/activity/launch list:magic-team/activity/launch"
+rigAssert "the level asks at once, and the call runs beside the screen" "$( rigVal asked.path ) $( rigVal asked.reading )" "magic-team/launch list:magic-team/launch"
 rigAssert "the operation is --manager-session-list, started once"    "$( rigCalls ) [$( rigCall 1 )]" "1 [--manager-session-list]"
-rigAssert "what it printed is rows under the Free prompt, a record a line, its fields split at each TAB" \
-	"[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )]" \
-	"[>..][ Free prompt][ s1  alpha  running][ s2  beta  finished][ s3  gamma  finished][]"
-rigAssert "nothing is read any more, and nothing is marked"          "$( rigVal a.rows ) [$( rigVal a.reading )] [$( rigVal a.failed )] [$( rigVal title )]" "5 [] [] [Launch (Start)  [all]]"
+rigAssert "what it printed is rows under the four starts, a record a line, its fields split at each TAB" \
+	"[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row5 )][$( rigVal row7 )][$( rigVal row8 )][$( rigVal row9 )][$( rigVal row10 )]" \
+	"[>..][ Start Coworking Session...][ Free Prompt...][ s1  alpha  running][ s2  beta  finished][ s3  gamma  finished][]"
+rigAssert "nothing is read any more, and nothing is marked"          "$( rigVal a.rows ) [$( rigVal a.reading )] [$( rigVal a.failed )] [$( rigVal title )]" "8 [] [] [Launchpad  [all]]"
 
 echo "-- a: the active ones are asked for, at once --"
 rigCase active rows
@@ -117,9 +121,9 @@ border title 1 84 120
 turn 3
 get later
 RIGSCRIPT
-rigAssert "a starts a read at once"                                  "$( rigVal asked.filter ) $( rigVal asked.reading )" "active list:magic-team/activity/launch"
+rigAssert "a starts a read at once"                                  "$( rigVal asked.filter ) $( rigVal asked.reading )" "active list:magic-team/launch"
 rigAssert "with --active after the operation"                        "$( rigCalls ) [$( rigCall 2 )]" "2 [--manager-session-list --active]"
-rigAssert "and the title says which are shown"                       "[$( rigVal title )]" "[Launch (Start)  [active]]"
+rigAssert "and the title says which are shown"                       "[$( rigVal title )]" "[Launchpad  [active]]"
 
 echo "-- a slow call does not hold a key --"
 rigCase slow "sleep 5"
@@ -136,10 +140,10 @@ keys TAB TAB UP
 get again
 RIGSCRIPT
 rigSecondsTaken=$(( SECONDS - rigSecondsBefore ))
-rigAssert "the call was started, and runs"                           "$( rigCalls ) $( rigVal started.reading ) $( rigVal started.index )" "1 list:magic-team/activity/launch 0"
-rigAssert "Down moves the selection at once, while it runs"          "$( rigVal moved.index ) $( rigVal moved.selected ) $( rigVal moved.reading ) [$( rigVal row2 )]" "1 free list:magic-team/activity/launch [>Free prompt]"
-rigAssert "the title carries the mark of a read, over what is known so far" "[$( rigVal title )]" "[~ Launch (Start)  [all]]"
-rigAssert "every other key goes on working too"                      "$( rigVal again.index ) $( rigVal again.focus ) $( rigVal again.reading )" "0 list list:magic-team/activity/launch"
+rigAssert "the call was started, and runs"                           "$( rigCalls ) $( rigVal started.reading ) $( rigVal started.index )" "1 list:magic-team/launch 0"
+rigAssert "Down moves the selection at once, while it runs"          "$( rigVal moved.index ) $( rigVal moved.selected ) $( rigVal moved.reading ) [$( rigVal row2 )]" "1 coworking list:magic-team/launch [>Start Coworking Session...]"
+rigAssert "the title carries the mark of a read, over what is known so far" "[$( rigVal title )]" "[~ Launchpad  [all]]"
+rigAssert "every other key goes on working too"                      "$( rigVal again.index ) $( rigVal again.focus ) $( rigVal again.reading )" "0 list list:magic-team/launch"
 rigAssert "none of that waited for the five seconds of the call"     "$( [ "$rigSecondsTaken" -lt 4 ] && printf yes || printf 'no (%s seconds)' "$rigSecondsTaken" )" yes
 
 echo "-- a failed call shows its error and keeps the old rows --"
@@ -148,14 +152,14 @@ rigScript <<'RIGSCRIPT'
 size 120 40
 keys ENTER
 wait list 30
-keys DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN
 get good
 advance 11
 wait list 30
 get bad
 border badTitle 1 84 120
-cells badRow3 5 85 119
-cells badRow5 7 85 119
+cells badRow3 8 85 119
+cells badRow5 10 85 119
 keys ESC
 advance 11
 wait list 30
@@ -166,13 +170,13 @@ get mended
 border mendedTitle 1 84 120
 said mendedLine
 RIGSCRIPT
-rigAssert "the first call gave three rows"                           "$( rigVal good.rows ) $( rigVal good.selected ) [$( rigVal good.failed )]" "5 s1 []"
-rigAssert "the second call failed, after the period"                 "$( rigCalls ) [$( rigVal bad.failed )]" "4 [list:magic-team/activity/launch]"
-rigAssert "the three rows stay, and the selection with them"         "$( rigVal bad.rows ) $( rigVal bad.selected ) [$( rigVal badRow3 )][$( rigVal badRow5 )]" "5 s1 [>s1  alpha  running][ s3  gamma  finished]"
-rigAssert "they are marked as old"                                   "[$( rigVal badTitle )]" "[! Launch (Start)  [all]]"
+rigAssert "the first call gave three rows"                           "$( rigVal good.rows ) $( rigVal good.selected ) [$( rigVal good.failed )]" "8 s1 []"
+rigAssert "the second call failed, after the period"                 "$( rigCalls ) [$( rigVal bad.failed )]" "4 [list:magic-team/launch]"
+rigAssert "the three rows stay, and the selection with them"         "$( rigVal bad.rows ) $( rigVal bad.selected ) [$( rigVal badRow3 )][$( rigVal badRow5 )]" "8 s1 [>s1  alpha  running][ s3  gamma  finished]"
+rigAssert "they are marked as old"                                   "[$( rigVal badTitle )]" "[! Launchpad  [all]]"
 rigAssert "what the read wrote is shown in a box, whole, with its operation" "[$( rigVal bad.dialogTitle )] [$( rigVal bad.dialogHolds )]" "[A read failed] [operation: --manager-session-list / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
-rigAssert "a second failure keeps them still"                        "$( rigVal worse.rows ) [$( rigVal worse.failed )]" "5 [list:magic-team/activity/launch]"
-rigAssert "a good call takes the mark and the error line away"       "$( rigVal mended.rows ) [$( rigVal mended.failed )] [$( rigVal mendedTitle )] [$( rigVal mendedLine )]" "5 [] [Launch (Start)  [all]] []"
+rigAssert "a second failure keeps them still"                        "$( rigVal worse.rows ) [$( rigVal worse.failed )]" "8 [list:magic-team/launch]"
+rigAssert "a good call takes the mark and the error line away"       "$( rigVal mended.rows ) [$( rigVal mended.failed )] [$( rigVal mendedTitle )] [$( rigVal mendedLine )]" "8 [] [Launchpad  [all]] []"
 
 echo "-- a second read is not started while the first runs --"
 rigCase once "sleep 5"
@@ -187,7 +191,7 @@ keys F5
 turn
 get a
 RIGSCRIPT
-rigAssert "the period passed twice, and the key that checks now was pressed: the stand-in was started once" "$( rigCalls ) $( rigVal a.reading )" "1 list:magic-team/activity/launch"
+rigAssert "the period passed twice, and the key that checks now was pressed: the stand-in was started once" "$( rigCalls ) $( rigVal a.reading )" "1 list:magic-team/launch"
 
 echo "-- the period, and the key that checks now --"
 rigCase now rows
@@ -215,7 +219,7 @@ get after
 advance 9
 wait list 30
 RIGSCRIPT
-rigAssert "the key that checks now starts a read at once"            "$( rigVal pressed.reading ) [$( rigCall 2 )]" "list:magic-team/activity/launch [--manager-session-list]"
+rigAssert "the key that checks now starts a read at once"            "$( rigVal pressed.reading ) [$( rigCall 2 )]" "list:magic-team/launch [--manager-session-list]"
 rigAssert "the period counts from that read"                         "[$( rigVal after.reading )]" "[]"
 rigAssert "and when it has passed the list is read again by itself"  "$( rigCalls )" 3
 
@@ -228,9 +232,9 @@ get a
 wait list 30
 get b
 RIGSCRIPT
-rigAssert "a was pressed while the read for all still ran"           "$( rigVal a.reading ) $( rigVal a.filter ) $( rigVal a.rows )" "list:magic-team/activity/launch active 2"
+rigAssert "a was pressed while the read for all still ran"           "$( rigVal a.reading ) $( rigVal a.filter ) $( rigVal a.rows )" "list:magic-team/launch active 5"
 rigAssert "the read with the new words starts when the one that runs has ended" "$( rigCalls ) [$( rigCall 1 )] [$( rigCall 2 )]" "2 [--manager-session-list] [--manager-session-list --active]"
-rigAssert "what the first one printed, for all, is not shown as the active ones" "$( rigVal b.rows ) [$( rigVal b.failed )]" "2 [list:magic-team/activity/launch]"
+rigAssert "what the first one printed, for all, is not shown as the active ones" "$( rigVal b.rows ) [$( rigVal b.failed )]" "5 [list:magic-team/launch]"
 
 echo "-- the left pane reads what is selected, and a late answer for another item is dropped --"
 rigCase view rows
@@ -238,10 +242,10 @@ printf 'the first line of the item\nits second line\n' > "$MANAGER_SCREEN_RIG/ro
 rigScript <<'RIGSCRIPT'
 size 120 40
 table list:magic-team/activity none
-table view:magic-team/activity/launch:record --rig-view {id}
-table list:magic-team/activity/launch none
-rows magic-team/activity/launch s1=one
-keys ENTER DOWN DOWN
+table view:magic-team/launch:record --rig-view {id}
+table list:magic-team/launch none
+rows magic-team/launch s1=one
+keys ENTER DOWN DOWN DOWN DOWN DOWN
 advance 1
 turn
 get asked
@@ -250,11 +254,11 @@ get a
 cells line1 2 1 83
 cells line2 3 1 83
 border title 1 0 84
-keys UP UP
+keys UP UP UP UP UP
 get up
 cells upLine1 2 1 83
 RIGSCRIPT
-rigAssert "the operation of that view is asked with the id of the row" "$( rigVal asked.reading ) $( rigCalls ) [$( rigCall 1 )]" "view:magic-team/activity/launch|record:s1 1 [--rig-view s1]"
+rigAssert "the operation of that view is asked with the id of the row" "$( rigVal asked.reading ) $( rigCalls ) [$( rigCall 1 )]" "view:magic-team/launch|record:s1 1 [--rig-view s1]"
 rigAssert "the pane shows what it printed"                           "$( rigVal a.viewLines ) [$( rigVal line1 )][$( rigVal line2 )] [$( rigVal title )]" "2 [the first line of the item][its second line] [one [wrap]]"
 rigAssert "moving the selection replaces the pane"                   "$( rigVal up.selected ) $( rigVal up.viewLines ) [$( rigVal upLine1 )]" ".. 1 [No routines.]"
 rigCase late "sleep 2"
@@ -262,26 +266,26 @@ printf 'a line of the item that was left\n' > "$MANAGER_SCREEN_RIG/rows"
 rigScript <<'RIGSCRIPT'
 size 120 40
 table list:magic-team/activity none
-table view:magic-team/activity/launch:record --rig-view {id}
-table list:magic-team/activity/launch none
-rows magic-team/activity/launch s1=one
-keys ENTER DOWN DOWN
+table view:magic-team/launch:record --rig-view {id}
+table list:magic-team/launch none
+rows magic-team/launch s1=one
+keys ENTER DOWN DOWN DOWN DOWN DOWN
 advance 1
 turn
 get asked
-keys UP UP
+keys UP UP UP UP UP
 wait view 30
 get a
 cells line1 2 1 83
 RIGSCRIPT
-rigAssert "the read for one item is slow, and the selection moves on before it ends" "$( rigVal asked.reading ) $( rigCalls )" "view:magic-team/activity/launch|record:s1 1"
+rigAssert "the read for one item is slow, and the selection moves on before it ends" "$( rigVal asked.reading ) $( rigCalls )" "view:magic-team/launch|record:s1 1"
 rigAssert "when the answer comes, the pane still shows the item that is selected now" "$( rigVal a.selected ) $( rigVal a.viewLines ) [$( rigVal line1 )] [$( rigVal a.reading )]" ".. 1 [No routines.] []"
 
 echo "-- a dispatcher that cannot be started --"
 rigCase gone rows
-rigOut="$( printf '%s\n' "tools $rigTmp/no-such-dispatcher" "table list:pending none" "table list:magic-team/activity none" "table list:magic-team/activity/launch --manager-session-list +active --active" "table list:places none" "size 120 40" "root launch" "keys ENTER" "turn" "get a" "said line" | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
+rigOut="$( printf '%s\n' "tools $rigTmp/no-such-dispatcher" "table list:pending none" "table list:magic-team/activity none" "table list:magic-team/launch --manager-session-list +active --active" "table list:places none" "size 120 40" "root launch" "keys ENTER" "turn" "get a" "said line" | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
 ## the list of the locations is read by no operation here: it would fail the same way, and its box would stand in front of this one
-rigAssert "it is shown as a failed call, and the screen goes on"     "[$( rigVal a.failed )] $( rigVal a.quit ) $( rigVal a.dialogHolds | LC_ALL=C grep -c -- 'operation: --manager-session-list / could not be started: ' )" "[list:magic-team/activity/launch] no 1"
+rigAssert "it is shown as a failed call, and the screen goes on"     "[$( rigVal a.failed )] $( rigVal a.quit ) $( rigVal a.dialogHolds | LC_ALL=C grep -c -- 'operation: --manager-session-list / could not be started: ' )" "[list:magic-team/launch] no 1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN READ CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

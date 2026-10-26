@@ -74,9 +74,9 @@ printf '%s\n' "$rigSecret" > "$rigF/rows.--manager-scope-reveal agents:magic-tea
 	rigRow subject workspace 1
 	rigConf workspace paths workspace-root set /rig/ws
 	rigRow subject scopes 1
-	rigConf scopes magic-team SPAWN_CLI_SERVICE set claude
+	rigRow line scopes magic-team SPAWN_CLI_SERVICE set claude - - no:set_at_deployment:_a_wizard_will_change_it - - - - - settings
 	rigRow subject interface 1 Interface_Settings
-	rigRow line interface style MDAT_MANAGER_STYLE set tv-system Interface_Style 'How_the_manager_screen_is_drawn.' yes choice user default 'nu-system=Magic_-_System,tv-system=Turbo_Vision_-_System' /rig/ws/.local/home/rig/MDLT.settings.env settings
+	rigRow line interface style MDLT_MANAGER_STYLE set tv-system Interface_Style 'How_the_manager_screen_is_drawn.' yes choice user default 'nu-system=Magic_-_System,tv-system=Turbo_Vision_-_System' /rig/ws/.local/home/rig/MDLT.settings.env settings
 } > "$rigF/rows.--manager-config-digest --full"
 rigRow counters 0 0 0 0 0 0.42 > "$rigF/rows"
 rigCase(){ ## name
@@ -119,8 +119,8 @@ at @configuration scopes
 rowids lids
 RIGSCRIPT
 rigAssert "Settings holds Scope Settings among the rows it always holds, ahead of its subjects" "$( rigVal sids )" ".. scopes interface"
-rigAssert "Configuration holds no folder of the scopes: its rows are its folders and its other subjects" "$( rigVal cids | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x scopes || : ) / $( rigVal cids )" "0 / .. checker keys clipresets git subsystems diagnostics workspace"
-rigAssert "the lines of the scopes of the digest are still the level Member Settings reads" "$( rigVal lids )" ".. magic-team SPAWN_CLI_SERVICE"
+rigAssert "Configuration holds no folder of the scopes: its rows are its folders and its other subjects" "$( rigVal cids | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x scopes || : ) / $( rigVal cids )" "0 / .. checker keys clipresets git harness subsystems diagnostics workspace"
+rigAssert "the raw settings of a scope are no level of the Configuration: they stand in Settings, read by Member Settings" "$( rigVal lids )" ".."
 
 echo "-- 2, 3. entered, and what the left pane shows --"
 rigCase entered

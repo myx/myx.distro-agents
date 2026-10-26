@@ -54,7 +54,7 @@ rigScan(){ ## name, then env words
 	shift
 	( cd "$rigW" && env -u MDAT_SKILLSET_ROOT -u CLAUDE_CODE_SESSION_ID HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$rigW/source" MDAT_DATA_ROOT="$rigD" RIG_SCENARIO="$rigTmp" \
 		MDAT_SESSION_ID="$rigSession" MDAT_SPAWN_SESSION_ID="$rigRun" MDAT_SPAWN_AGENT=magic-coordinator MDAT_WAIT_REMIND=off "$@" \
-		perl -e 'alarm 120 ; exec @ARGV' bash "$rigW/source/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-work-duty-input-scan magic-coordinator ) > "$rigTmp/$scanName.out" 2> "$rigTmp/$scanName.err" < /dev/null || :
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigW/source/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-work-duty-input-scan magic-coordinator ) > "$rigTmp/$scanName.out" 2> "$rigTmp/$scanName.err" < /dev/null || :
 }
 echo "-- traced --"
 rigScan traced MDAT_SCAN_TRACE=1

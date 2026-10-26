@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 ## Behavioural check on the presets and the tiers of the console (F10.1, F10.2, F11.7: "not configurable means not working"), run rather than read, against a rig workspace: --manager-preset-list,
-## --manager-preset-new, --manager-preset-tiers, and the variables of a preset and of a tier as --manager-scope-read gives them and --manager-scope-set and --manager-scope-delete change them.
+## --manager-preset-new, --manager-preset-delete, --manager-preset-tiers, and the variables of a preset and of a tier as --manager-scope-read gives them and --manager-scope-set and --manager-scope-delete change them.
 ## Held:
 ##   1. the list: each preset with what it extends, what it comes to with what it inherits (CLI service, model, effort) and by whom it is used
-##   2. the variables of a preset by their kinds: the CLI service a choice from the nine, locked where the preset extends, with why; the effort, the lifetime of the input cache choices; the largest context
+##   2. the variables of a preset by their kinds: the CLI service a choice from the ten, locked where the preset extends, with why; the effort, the lifetime of the input cache choices; the largest context
 ##      a number in a range; the model and the extra spawn line texts; the credentials of the service; every parameter the file does not hold offered as missing; extend a choice of the other presets
 ##   3. the tiers of the team and of a member that holds no file of settings: three choices each, from the presets alone and each with an effort; the tiers listed for the team and each member
 ##   4. the writes: through the setting reader of the dispatcher, so a value that is none of the list is refused and nothing changes; an extending preset takes no CLI service
 ##   5. a preset made: extending one, or with a CLI service of its own; a name taken, a name with a capital, a parent that is not there and a service that is none are refused and leave no file
-##   6. a preset in use is not deleted: not one a preset extends, not one a tier names; one nothing uses is
+##   6. a preset in use is not deleted: not one a preset extends, not one a tier names; one nothing uses is; the delete of one in use offers a switch of its users to another preset
 ##   7. END TO END: a tier chosen from the console's operations is the preset a spawn gets: the spawner's own choice (AgentsToolsPresetChosen) answers the member's own tier ahead of the team's, by the
 ##      tier asked, and what that preset comes to (AgentsToolsPresetEffective) is what it inherits
 ## Offline; only the rig's own tree is written.
@@ -64,22 +64,23 @@ echo "-- 2. the variables of a preset by their kinds --"
 rigRun --manager-scope-read agents:preset-rig-ext
 rigAssert "a preset that extends: the CLI service is locked, with why; the parent a choice of the others; the effort, the cache lifetime, the context, the extra line offered as missing" \
 	"$( rigKeyRow PRESET_CLI_SERVICE ) $( rigKeyRow PRESET_EXTEND ) $( rigKeyRow PRESET_EFFORT ) $( rigKeyRow PRESET_INPUT_CACHE_TIME ) $( rigKeyRow PRESET_CONTEXT_MAX_SIZE ) $( rigKeyRow PRESET_EXTRA_SPAWN_LINE )" \
-	"missing|locked|it_extends_a_preset:_the_CLI_service_is_ set|choice|rig-base=rig-base,rig-opus=rig-opus missing|choice|low=low,default=default,normal=normal,hi missing|choice|5m=5m,1h=1h missing|number|1000..10000000 missing|text|-"
+	"missing|locked|it_extends_a_preset:_the_CLI_service_is_ set|choice|rig-base=rig-base,rig-opus=rig-opus missing|choice|unset=unset,none=none,low=low,normal=nor missing|choice|5m=5m,1h=1h missing|number|1000..10000000 missing|text|-"
 rigRun --manager-scope-read agents:preset-rig-base
-rigAssert "a preset that extends none: the CLI service a choice of the nine, no credential locked; the credentials of claude offered; the model a text" "$( rigKeyRow PRESET_CLI_SERVICE | LC_ALL=C cut -c1-60 ) $( rigKeyRow ANTHROPIC_API_KEY ) $( rigKeyRow PRESET_MODEL_OR_MACRO )" \
+rigAssert "a preset that extends none: the CLI service a choice of the ten, no credential locked; the credentials of claude offered; the model a text" "$( rigKeyRow PRESET_CLI_SERVICE | LC_ALL=C cut -c1-60 ) $( rigKeyRow ANTHROPIC_API_KEY ) $( rigKeyRow PRESET_MODEL_OR_MACRO )" \
 	"set|choice|claude=claude,copilot=copilot,grok=grok, missing|text|- missing|text|-"
 rigAssert "a credential offered is one, by its type" "$( LC_ALL=C awk -F'\t' '$1 == "key" && $2 == "ANTHROPIC_API_KEY" { print $5 }' "$rigTmp/out" )" "credential"
 
 echo "-- 3. the tiers --"
 rigRun --manager-scope-read agents:magic-team
-rigAssert "the team's three tiers: set or missing, each of the kind tier, taking the presets, then after a slash the efforts" "$( LC_ALL=C awk -F'\t' '$1 == "key" && $2 ~ /^SPAWN_TIER_/ { efforts = $8 ; sub( /^[^\/]*\//, "", efforts ) ; presets = $8 ; sub( /\/.*$/, "", presets ) ; printf "%s:%s:%s:%s ", $2, $3, $7, efforts ; if ( presets ~ /rig-base/ && presets !~ /:/ ) held++ } END { print held + 0 }' "$rigTmp/out" )" "SPAWN_TIER_LOW:set:tier:low,normal,high SPAWN_TIER_NORMAL:set:tier:low,normal,high SPAWN_TIER_HIGH:missing:tier:low,normal,high 3"
+rigAssert "the team's three tiers: set or missing, each of the kind tier, taking the presets, then after a slash the efforts" "$( LC_ALL=C awk -F'\t' '$1 == "key" && $2 ~ /^SPAWN_TIER_/ { efforts = $8 ; sub( /^[^\/]*\//, "", efforts ) ; presets = $8 ; sub( /\/.*$/, "", presets ) ; printf "%s:%s:%s:%s ", $2, $3, $7, efforts ; if ( presets ~ /rig-base/ && presets !~ /:/ ) held++ } END { print held + 0 }' "$rigTmp/out" )" "SPAWN_TIER_LOW:set:tier:none,low,normal,high SPAWN_TIER_NORMAL:set:tier:none,low,normal,high SPAWN_TIER_HIGH:missing:tier:none,low,normal,high 3"
 rigRun --manager-scope-read agents:keeper-myx
-rigAssert "a member that holds no file of settings is a scope for its tiers: three missing tiers; the id is none of the listed scopes" "$( rigKeyRow SPAWN_TIER_NORMAL ) $( rigRun --manager-scope-list ; LC_ALL=C grep -c 'keeper-myx' "$rigTmp/out" || : )" "missing|tier|rig-base,rig-ext,rig-opus/low,normal,hig 0"
+rigAssert "a member that holds no file of settings is a scope for its tiers: three missing tiers; the id is none of the listed scopes" "$( rigKeyRow SPAWN_TIER_NORMAL ) $( rigRun --manager-scope-list ; LC_ALL=C grep -c 'keeper-myx' "$rigTmp/out" || : )" "missing|tier|rig-base,rig-ext,rig-opus/none,low,norma 0"
 rigRun --manager-preset-tiers
 rigAssert "the tiers listed: the team first with its three, then each member to start" "$( LC_ALL=C awk -F'\t' '{ printf "%s %s %s %s %s / ", $2, $3, $8, $9, $10 }' "$rigTmp/out" )" "agents:magic-team Team rig-ext rig-ext - / agents:keeper-myx keeper-myx - - - / agents:magic-coordinator magic-coordinator - - - / "
+rigAssert "each tier row carries what the shell's AgentsToolsPresetChosenLine answered, so the console computes no fallback" "$( LC_ALL=C awk -F'\t' '$1 == "tier" && $2 == "agents:magic-team" { printf "%s %s %s %s %s %s", $11, $12, $13, $14, $15, $16 }' "$rigTmp/out" )" "rig-ext set rig-ext set rig-ext uses_the_normal_tier,_used_for_all_tiers"
 printf '# a note, no variable\n' > "$rigAgents/keeper-myx.agent.env"
 rigRun --manager-preset-tiers
-rigAssert "a member whose file holds no variable has the count 0 on one line, one row each, and no complaint on the error stream" "$( LC_ALL=C awk -F'\t' '$2 == "agents:keeper-myx" { printf "%s/%s/%s", NF, $4, $5 }' "$rigTmp/out" ) $( wc -l < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F 'integer expression' "$rigTmp/err" || : )" "10/0/no 3 0"
+rigAssert "a member whose file holds no variable has the count 0 on one line, one row each, and no complaint on the error stream" "$( LC_ALL=C awk -F'\t' '$2 == "agents:keeper-myx" { printf "%s/%s/%s", NF, $4, $5 }' "$rigTmp/out" ) $( wc -l < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F 'integer expression' "$rigTmp/err" || : )" "16/0/no 3 0"
 rm -f "$rigAgents/keeper-myx.agent.env"
 
 echo "-- 4. the writes go through the setting reader --"
@@ -122,6 +123,42 @@ rigAssert "a member with no tier of its own gets the team's, for the same tier" 
 printf 'SPAWN_TIER_LOW=rig-ext\nSPAWN_TIER_NORMAL=rig-ext\nSPAWN_TIER_HIGH=rig-opus:high\nSPAWN_HARNESS_TIER=heavy\n' > "$rigAgents/magic-team.agent.env"
 rigAssert "asked for the heavy tier: the team's high tier, with its effort, for a member that has none of its own" "$( rigChosen magic-coordinator )" "rig-opus:high"
 rigAssert "what the preset chosen comes to is what it inherits: its CLI service from its parent, its own model and effort" "$( rigEffective rig-opus PRESET_CLI_SERVICE ) $( rigEffective rig-opus PRESET_MODEL_OR_MACRO ) $( rigEffective rig-opus PRESET_EFFORT )" "claude high high"
+
+echo "-- 8. a preset renamed --"
+rigRun --manager-preset-new rig-rename --cli-service grok
+rigInput="rig-rename:high" ; rigRun --manager-scope-set agents:magic-team SPAWN_TIER_HIGH
+rigInput="" ; rigRun --manager-preset-rename rig-rename rig-renamed
+rigAssert "renamed: its file moved, and the tier of the team that names it follows, effort and all" "$rigRc $( LC_ALL=C cat "$rigTmp/out" ) $( [ -f "$rigAgents/preset-rig-renamed.agent.env" ] && echo moved || echo gone ) $( LC_ALL=C grep -c '^SPAWN_TIER_HIGH=rig-renamed:high$' "$rigAgents/magic-team.agent.env" )" "0 renamed	preset-rig-rename	preset-rig-renamed moved 1"
+rigRun --manager-preset-new rig-child --extend rig-renamed
+rigInput="" ; rigRun --manager-preset-rename rig-renamed rig-rebase
+rigAssert "a preset that extends the renamed one follows too" "$rigRc $( LC_ALL=C grep -c '^PRESET_EXTEND=rig-rebase$' "$rigAgents/preset-rig-child.agent.env" )" "0 1"
+rigBad=""
+for rigOne in "rig-nowhere --extend rig-x" "rig-rebase --cli-service claude" "Rig-Cap --cli-service claude" ; do
+	# shellcheck disable=SC2086
+	rigRun --manager-preset-rename $rigOne ; [ "$rigRc" = 1 ] && [ ! -s "$rigTmp/out" ] || rigBad="$rigBad [$rigOne]"
+done
+rigAssert "a preset not there, a new name taken, and a name with a capital are refused, print nothing, and leave the file" "${rigBad:- all refused} $( [ -f "$rigAgents/preset-rig-rebase.agent.env" ] && echo kept )" " all refused kept"
+
+echo "-- 9. a preset deleted, its users switched --"
+rigRun --manager-preset-new rig-src --cli-service claude
+rigRun --manager-preset-new rig-dst --cli-service grok
+rigRun --manager-preset-new rig-kid --extend rig-src
+rigInput="rig-src:high" ; rigRun --manager-scope-set agents:keeper-myx SPAWN_TIER_HIGH
+rigInput="" ; rigRun --manager-preset-delete rig-src
+rigAssert "one a preset extends and a tier names: the plain delete is refused, naming both" "$rigRc $( LC_ALL=C grep -c -F 'in use by' "$rigTmp/err" ) $( LC_ALL=C grep -c -F 'preset-rig-kid' "$rigTmp/err" ) $( LC_ALL=C grep -c -F 'keeper-myx' "$rigTmp/err" ) $( [ -f "$rigAgents/preset-rig-src.agent.env" ] && echo kept )" "1 1 1 1 kept"
+rigRun --manager-preset-delete rig-src --switch rig-dst
+rigAssert "with the switch, the extending preset and the tier follow, the effort kept, and the block is deleted" "$rigRc $( LC_ALL=C grep -c '^PRESET_EXTEND=rig-dst$' "$rigAgents/preset-rig-kid.agent.env" ) $( LC_ALL=C grep -c '^SPAWN_TIER_HIGH=rig-dst:high$' "$rigAgents/keeper-myx.agent.env" ) $( [ -f "$rigAgents/preset-rig-src.agent.env" ] && echo kept || echo gone )" "0 1 1 gone"
+rigRun --manager-preset-delete rig-dst
+rigAssert "the switch target, now in use by the moved users, is refused the same way" "$rigRc $( LC_ALL=C grep -c -F 'in use by' "$rigTmp/err" ) $( LC_ALL=C grep -c -F 'preset-rig-kid' "$rigTmp/err" ) $( [ -f "$rigAgents/preset-rig-dst.agent.env" ] && echo kept )" "1 1 1 kept"
+rigRun --manager-preset-new rig-lone --cli-service grok
+rigRun --manager-preset-delete rig-lone
+rigAssert "one nothing uses: deleted" "$rigRc $( [ -f "$rigAgents/preset-rig-lone.agent.env" ] && echo kept || echo gone )" "0 gone"
+rigBad=""
+for rigOne in "rig-nowhere" "rig-dst --switch rig-dst" "rig-dst --switch rig-nowhere" "rig-dst --switch" "rig-dst --bogus rig-kid" ; do
+	# shellcheck disable=SC2086
+	rigRun --manager-preset-delete $rigOne ; [ "$rigRc" = 1 ] && [ ! -s "$rigTmp/out" ] || rigBad="$rigBad [$rigOne]"
+done
+rigAssert "a preset not there, the switch to itself, to one not there, and a wrong count are refused, print nothing, and leave the preset" "${rigBad:- all refused} $( [ -f "$rigAgents/preset-rig-dst.agent.env" ] && echo kept )" " all refused kept"
 
 printf '\nTOTAL: %d passed, %d failed\n' "$rigPasses" "$rigFails"
 [ "$rigFails" = 0 ]

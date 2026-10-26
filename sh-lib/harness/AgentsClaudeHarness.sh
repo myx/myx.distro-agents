@@ -59,24 +59,32 @@ HARNESS_CREDENTIAL_NAMES="ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN"
 ## and this is a proposal, not a decision taken here.
 ## A model an exported HARNESS_MODEL_LIGHT or HARNESS_MODEL_MAIN names stands ahead of the leg's own: the console
 ## exports the model name of the preset a spawn runs on (F10.2), and nothing else does. The default is the leg's.
-HARNESS_MODEL_LIGHT="${HARNESS_MODEL_LIGHT:-claude-haiku-4-5}"
-HARNESS_MODEL_MAIN="${HARNESS_MODEL_MAIN:-claude-opus-5}"
+## The macros low and normal or high resolve to the two models below; a name the preset gives resolves through the table.
+HARNESS_MODEL_FROM_LIGHT="${HARNESS_MODEL_LIGHT:+name}" ; HARNESS_MODEL_FROM_MAIN="${HARNESS_MODEL_MAIN:+name}"
+HARNESS_MODEL_LIGHT="${HARNESS_MODEL_LIGHT:-claude-sonnet-5-5}"
+HARNESS_MODEL_MAIN="${HARNESS_MODEL_MAIN:-claude-opus-5-5}"
 
-## Each model's own limits, per tier, as GET /v1/models/<id> returns them on
-## 2026-09-28: max_input_tokens is the context window, max_tokens the output maximum.
-## A model moved to another tier takes its own two numbers with it.
-HARNESS_CONTEXT_TOKENS_LIGHT="200000"
-HARNESS_OUTPUT_TOKENS_LIGHT="64000"
-HARNESS_CONTEXT_TOKENS_MAIN="1000000"
-HARNESS_OUTPUT_TOKENS_MAIN="128000"
+## The family table (AgentsHarnessLimits.include): the limits and the effort none of every model family this leg serves.
+## sonnet and opus: max_input_tokens is the context window, max_tokens the output maximum, as GET /v1/models/<id>
+## returned them on 2026-09-28. fable: GitHub Copilot's supported-models page of 2026-10-26 (its 1M context, and the
+## output the Copilot leg uses for it), the API's own figure not read. haiku: 200000 and 64000 as Anthropic's models
+## overview gave them when last read, NOT re-read for this table. The effort none is the thinking switched off.
+HARNESS_MODEL_TABLE="*haiku*|200000|64000|thinking:disabled|Anthropic models overview, not re-read for this table
+*sonnet*|1000000|128000|thinking:disabled|GET /v1/models/<id> on 2026-09-28
+*opus*|1000000|128000|thinking:disabled|GET /v1/models/<id> on 2026-09-28
+*fable*|1000000|65536|thinking:disabled|GitHub Copilot supported-models on 2026-10-26"
 
 HARNESS_TOKEN_LIGHT="${ANTHROPIC_API_KEY:-${CLAUDE_CODE_OAUTH_TOKEN:-}}"
 HARNESS_TOKEN_MAIN="${ANTHROPIC_API_KEY:-${CLAUDE_CODE_OAUTH_TOKEN:-}}"
 
+## The service's own web search (AgentsHarnessSearchNative): the Messages API server-side web search tool; WebSearch uses it, and DuckDuckGo answers where it fails.
+HARNESS_WEB_SEARCH="anthropic:web_search_20250305"
+export HARNESS_WEB_SEARCH
+
 export HARNESS_PROVIDER_NAME HARNESS_SELF_NAME HARNESS_ENDPOINT HARNESS_HOST
 export HARNESS_WIRE HARNESS_CREDENTIAL_NAMES HARNESS_EXTRA_HEADERS
 export HARNESS_MODEL_LIGHT HARNESS_MODEL_MAIN HARNESS_TOKEN_LIGHT HARNESS_TOKEN_MAIN
-export HARNESS_CONTEXT_TOKENS_LIGHT HARNESS_OUTPUT_TOKENS_LIGHT HARNESS_CONTEXT_TOKENS_MAIN HARNESS_OUTPUT_TOKENS_MAIN
+export HARNESS_MODEL_TABLE HARNESS_MODEL_FROM_LIGHT HARNESS_MODEL_FROM_MAIN
 
 ## exec, not source: the core becomes this process, so the console keeps one
 ## invoker. The core resolves its own helper lookups from the origin, not from $0.

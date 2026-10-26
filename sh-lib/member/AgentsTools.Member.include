@@ -34,6 +34,7 @@ case "$1" in
 			case "$inquiryArg" in
 				--from-member) inquiryNext=1 ; inquiryArgs+=( "$inquiryArg" ) ;;
 				--from-reflection) inquiryReflectionNext=1 ;;
+				--reply) inquiryArgs+=( "--reply-requested" ) ;;
 				*) inquiryArgs+=( "$inquiryArg" ) ;;
 			esac
 		done
@@ -274,9 +275,11 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --append-transcript: transcript does not exist (pass --create to allow creation): $target" >&2
 			set +e ; return 1
 		fi
-		## A new transcript opens with the frontmatter that names its contract (audit-item.transcript), as `type` is named.
+		## A new transcript opens with the frontmatter that names its contract (audit-item.transcript), as `type` is named,
+		## filled from the tool-side template (sh-lib/templates/audit-item.transcript.document.format.md).
 		if [ ! -f "$target" ] ; then
-			printf '%s\n' '---' 'document-contract: audit-item.transcript' 'type: transcript' '---' '' > "$target" || {
+			type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
+			AgentsToolsToolingTemplateFill "audit-item.transcript.document.format.md" team-data/AgentsVaultAuditDocumentFill.awk > "$target" || {
 				echo "⛔ ERROR: $MDSC_CMD --append-transcript: failed to create transcript: $target" >&2
 				set +e ; return 1
 			}

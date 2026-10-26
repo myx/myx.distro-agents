@@ -114,7 +114,6 @@ rigCase "Edit via path alias, no decision field"     Edit '{"path":"/e","old_str
 rigCase "Glob, silent allow"                          Glob '{"pattern":"*","path":"/g"}' - 0 1 ""
 rigCase "Grep, separator bytes inside the reason"    Grep '{"pattern":"x","path":"/gr"}' "$rigSepInside" 0 1 ""
 rigCase "Bash, deny"                                  Bash '{"cwd":"/","command":"echo \"hi\" \\\\ there\n"}' "$rigDeny" 0 1 ""
-rigCase "Monitor, deny"                               Monitor '{"command":"sleep 1","cwd":"/m","handle":"h1"}' "$rigDeny" 0 1 ""
 rigCase "WebSearch, allow"                            WebSearch '{"query":"bhyve"}' "$rigAllow" 0 1 ""
 rigCase "WebFetch, deny"                              WebFetch '{"url":"https://example.invalid/?a=\"b\""}' "$rigDeny" 0 1 ""
 rigCase "SendMessage, ask"                            SendMessage '{"to":"magic-team","message":"line\nline2"}' "$rigAsk" 0 1 ""

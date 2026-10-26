@@ -134,7 +134,8 @@ AgentsToolsAskThreadFind(){ ## to, address_to, question key, asking member
 	local dupId="" dupOwner="" dupSession=""
 	local sameId="" sameChannel="" sameThread="" sameTag="" sameTs="" sameIdentity="" sameStatus=""
 	local fileStatus fileAddress fileKey fileOwner fileSession fileChannel fileThread fileTag fileTs fileIdentity
-	for findFile in "$MMDAPP/.local/agents/pending"/*.md ; do
+	## A closed record lives in pending/closed/ (retention, T9): SAME finds one there to ask it again.
+	for findFile in "$MMDAPP/.local/agents/pending"/*.md "$MMDAPP/.local/agents/pending/closed"/*.md ; do
 		[ -f "$findFile" ] || continue
 		fileStatus="" fileAddress="" fileKey="" fileOwner="" fileSession="" fileChannel="" fileThread="" fileTag="" fileTs="" fileIdentity=""
 		while IFS= read -r findLine ; do

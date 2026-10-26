@@ -69,6 +69,11 @@ exec "${0%/*}/ps.real" "$@"
 RIGPS
 chmod +x "$rigTmp/bin/ps"
 rigHost="$( hostname -s 2> /dev/null )" || rigHost="unknown"
+## The account at the console this check runs as, and the name an answer from it stands as
+## (F6.10): `user-<account>` in the small letters, digits and hyphens a member name takes.
+rigAcct="$( id -un 2> /dev/null )" || rigAcct="unknown"
+rigAcct="$( printf '%s' "$rigAcct" | LC_ALL=C tr -s ' \t\r\n' '_' )"
+rigConsole="user-$( printf '%s' "$rigAcct" | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C tr -c 'a-z0-9\n' '-' | LC_ALL=C sed -e 's/--*/-/g' -e 's/^-//' -e 's/-$//' )"
 
 rigPassCount=0
 rigFailCount=0
@@ -170,10 +175,12 @@ rigDecisions(){ ## pattern -- matching Decisions lines of the item
 	LC_ALL=C grep -c -E "^- [0-9TZ:-]+ $1" "$( rigItemFile )" 2> /dev/null || :
 }
 rigPosts(){ cat "$rigDir/posts" 2> /dev/null || printf '0' ; }
-## The pending-reply records of the scenario, oldest first, and the n-th of them.
+## The pending-reply records of the scenario, oldest first, and the n-th of them. A closed one
+## is kept in pending/closed/ (retention, T9) and belongs to the record of the review as the open
+## ones do: a prompt that was answered, or settled another way, is read from there after it closes.
 rigRecords(){
 	local recordFile
-	for recordFile in $( ls -tr "$rigWs/.local/agents/pending"/*.md 2> /dev/null ) ; do printf '%s\n' "$recordFile" ; done
+	for recordFile in $( ls -tr "$rigWs/.local/agents/pending"/*.md "$rigWs/.local/agents/pending/closed"/*.md 2> /dev/null ) ; do printf '%s\n' "$recordFile" ; done
 }
 rigRecordCount(){ rigRecords | LC_ALL=C awk 'END { print NR + 0 ; }' ; }
 rigRecord(){ ## n (default: the newest)
@@ -445,6 +452,53 @@ rigTool "$rigDir/wait2" Wait '{"mode":"continue","timeout":30}'
 rigAssert "his click arrives on the next Wait as the verdict" "$( LC_ALL=C grep -c -x -e 'ASK-RESULT: RECEIVED' -e 'VERDICT: accept' "$rigDir/wait2" )" 2
 rigAssert "applied: the item is processed, signed human-owner" "$( rigLoc ):$( rigDecisions 'human-owner verdict: accepted' )" "processed:1"
 rigAssert "and DISMISSED is in the session thread for its next Wait" "$( LC_ALL=C grep -l -F 'DISMISSED' "$rigDir"/post.[0-9] 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 1
+
+echo "-- 12. the owner's own verdict from the console: the account mapped to him answers his review --"
+## THE SAME PERSON, THE OTHER WAY IN. The account at the console that is the human-owner
+## (HUMAN_OWNER_CONSOLE_ACCOUNT, the setting the authority gate already reads) types the verdict
+## at the console instead of clicking it in the prompt's thread. His word is his own there, so it
+## is applied as the click is; any other console account is refused it, and the review stays open.
+rigStart console-accept
+rigWork human-owner
+printf 'HUMAN_OWNER_CONSOLE_ACCOUNT=%s\n' "${rigConsole#user-}" >> "$rigWs/.local/.agents/magic-team.agent.env"
+rigHandback "rig work done"
+rigPendId="$( rigId )"
+rigOp "$rigDir/read" --manager-pending-reply-read --id "$rigPendId"
+rigAssert "the read says beforehand that only his own verdicts are taken, each of them" \
+	"$( LC_ALL=C awk -F'\t' '$1 == "answer" { printf "%s=%s ", $3, $4 }' "$rigDir/read" )" "accept=settles return=settles reject=settles "
+rigOp "$rigDir/answer" --manager-pending-reply-answer --id "$rigPendId" --answer accept
+rigAssert "his accept, typed at the console, is applied"     "$( cat "$rigDir/answer.rc" ):$( rigLoc ):$( rigField status ):$( rigField verdict ):$( rigField answered-by )" \
+	"0:processed:reply-received:accept:$rigConsole"
+rigAssert "and the review flow takes it as his, signed human-owner" "$( rigDecisions 'human-owner verdict: accepted' )" 1
+
+rigStart console-reject
+rigWork human-owner
+printf 'HUMAN_OWNER_CONSOLE_ACCOUNT=%s\n' "${rigConsole#user-}" >> "$rigWs/.local/.agents/magic-team.agent.env"
+rigHandback "rig work done"
+rigPendId="$( rigId )"
+## A reject is not given without what to change, as the prompt says: a bare one is refused for
+## that, which is the review's own rule, and never as a verdict that stands in another's name.
+rigOp "$rigDir/bare" --manager-pending-reply-answer --id "$rigPendId" --reject
+rigAssert "a reject with nothing to change is refused for that, and the review stays open" \
+	"$( cat "$rigDir/bare.rc" ):$( LC_ALL=C grep -c -F 'wrote nothing with it' "$rigDir/bare" ):$( rigField status )" "1:1:reply-pending"
+rigOp "$rigDir/answer" --manager-pending-reply-answer --id "$rigPendId" --reject --text "wrong approach"
+rigAssert "his reject, typed at the console with what to change, is applied" \
+	"$( cat "$rigDir/answer.rc" ):$( rigLoc ):$( rigField status ):$( rigField verdict ):$( rigField answered-by )" \
+	"0:pending:reply-received:reject:$rigConsole"
+rigAssert "the item is pending, marked rejected, and the verdict signed human-owner" \
+	"$( LC_ALL=C grep -c -x 'status: review-rejected' "$( rigItemFile )" ):$( rigDecisions 'human-owner verdict: rejected: wrong approach' )" "1:1"
+
+rigStart console-not-owner
+rigWork human-owner
+printf 'HUMAN_OWNER_CONSOLE_ACCOUNT=rig-owner-elsewhere\n' >> "$rigWs/.local/.agents/magic-team.agent.env"
+rigHandback "rig work done"
+rigPendId="$( rigId )"
+rigOp "$rigDir/read" --manager-pending-reply-read --id "$rigPendId"
+rigAssert "the read says it is not taken from a console account that is not his" \
+	"$( LC_ALL=C awk -F'\t' '$1 == "answer" { printf "%s=%s ", $3, $4 }' "$rigDir/read" )" "accept=not-taken return=not-taken reject=not-taken "
+rigOp "$rigDir/answer" --manager-pending-reply-answer --id "$rigPendId" --answer accept
+rigAssert "an answer from any other account is refused, and the review stays open for him" \
+	"$( cat "$rigDir/answer.rc" ):$( LC_ALL=C grep -c -F "is the human-owner's own" "$rigDir/answer" ):$( rigField status ):$( rigField verdict )" "1:1:reply-pending:none"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ REVIEW PROMPT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

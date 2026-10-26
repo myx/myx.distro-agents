@@ -26,10 +26,25 @@ AgentsToolsClientCommsSnapshotBeforeWrite(){ ## actingMember, writeOp, system, r
 		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$snapWriteOp: could not create the snapshot scratch directory -- refusing the write" >&2
 		return 1
 	}
-	{
-		printf '%s\n' "---" "document-contract: audit-item.snapshot" "type: snapshot" "system: $snapSystem" "resource-type: $snapResourceType" "resource-id: $snapResourceId" "write-op: $snapWriteOp" "captured-by: $snapMember" "captured-at: $snapTime" "---" ""
-		printf '%s\n' "$snapBody"
-	} > "$snapTmp"
+	## The frontmatter is filled from the tool-side template (sh-lib/templates/audit-item.snapshot.document.format.md)
+	## by the one shared filler; the body, the resource's content, is appended after it byte for byte.
+	type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
+	local snapSlotsFile
+	snapSlotsFile="$( mktemp "$MMDAPP/.local/temp/mdat-snapshot-slots.XXXXXX" )" || { rm -f "$snapTmp" ; printf '%s\n' "⛔ ERROR: $MDSC_CMD --$snapWriteOp: could not create the snapshot slots scratch file -- refusing the write" >&2 ; return 1 ; }
+	printf '%s' \
+		"system: $snapSystem"$'\n' \
+		"resource-type: $snapResourceType"$'\n' \
+		"resource-id: $snapResourceId"$'\n' \
+		"write-op: $snapWriteOp"$'\n' \
+		"captured-by: $snapMember"$'\n' \
+		"captured-at: $snapTime"$'\n' > "$snapSlotsFile" || { rm -f "$snapTmp" "$snapSlotsFile" ; return 1 ; }
+	VDS_SLOTS="$snapSlotsFile" AgentsToolsToolingTemplateFill "audit-item.snapshot.document.format.md" team-data/AgentsVaultAuditDocumentFill.awk > "$snapTmp" || {
+		rm -f "$snapTmp" "$snapSlotsFile"
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$snapWriteOp: the snapshot frontmatter could not be filled -- refusing the write" >&2
+		return 1
+	}
+	rm -f "$snapSlotsFile"
+	printf '%s\n' "$snapBody" >> "$snapTmp"
 	AgentsToolsItemUpsert "$snapMember" --from-audit "$snapName" --from-file "$snapTmp" --context "$snapWriteOp-snapshot" --commit-message "audit snapshot: $snapName"
 	snapRc=$?
 	rm -f "$snapTmp"

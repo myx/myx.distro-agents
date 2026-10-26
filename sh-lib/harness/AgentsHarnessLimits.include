@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsHarnessLimits.include -- the ONE place a harness run judges its limits and its effort for the
+## model it actually runs. Sourced by AgentsUniversalHarness.sh; the thin wrappers (Agents*Harness.sh) supply
+## only their family table and exec the core, so a function cannot travel with them: the table travels as
+## HARNESS_MODEL_TABLE, one row a line, fields separated by `|`:
+##
+##   <glob of the lower-cased model name>|<context window>|<output maximum>|<none form>|<source and date>
+##
+## The first row whose glob matches the model chosen is the model's family. The none form says how the effort
+## `none` is sent to this family: `effort:<word>` is the reasoning effort field with that word (a word that
+## is not `none` is the service's lowest, because it has no none, and the start line says so),
+## `thinking:disabled` is the thinking switched off, `omit` is nothing to send (the model does not reason).
+## A source holds no `|`.
+##
+## THE MODEL IS ALWAYS KNOWN: the preset gives a macro (low or easy, normal or default, high or hard), which the
+## wrapper maps to the concrete model of its service (HARNESS_MODEL_LIGHT, HARNESS_MODEL_MAIN), or an explicit
+## model name, which maps through the family table. A name no family holds is refused at start, with the
+## families listed, and is never guessed.
+##
+## THE ORDER of the restart threshold: MDAT_HARNESS_CONTEXT_TOKENS, an operator's own override; then the
+## preset's PRESET_CONTEXT_MAX_SIZE; then the limits of the model chosen: its window less its output maximum.
+## The window and the output maximum come from the family; the preset's size sets the threshold only.
+## A leg that declares no table (HARNESS_MODEL_TABLE empty) keeps the pair it declares for the tier
+## (the fallback arguments), as such a leg always has.
+
+## Sets harnessWindowTokens, harnessOutputTokens, harnessContextTokens (the restart threshold), harnessNoneForm,
+## harnessLimitsSource (where the window and the output came from) and harnessThresholdSource (where the
+## threshold came from). rc 1, with the reason said, for a model of no family of a leg that declares a table.
+AgentsHarnessLimitsResolve(){ ## model, fallback window (may be empty), fallback output (may be empty)
+	local limLower limGlob limWindow limOutput limNone limSource limFound="" limKnown=""
+	limLower="$( printf '%s' "${1:-}" | LC_ALL=C tr 'A-Z' 'a-z' )"
+	harnessWindowTokens="${2:-}"
+	harnessOutputTokens="${3:-}"
+	harnessNoneForm="${HARNESS_NONE_FORM:-effort:low}"
+	harnessLimitsSource="the pair this leg declares"
+	while IFS='|' read -r limGlob limWindow limOutput limNone limSource ; do
+		[ -n "$limGlob" ] || continue
+		limKnown="${limKnown}${limKnown:+, }$limGlob"
+		[ -z "$limFound" ] || continue
+		case "$limLower" in
+			$limGlob)
+				limFound=1
+				harnessWindowTokens="$limWindow"
+				harnessOutputTokens="$limOutput"
+				[ -z "$limNone" ] || harnessNoneForm="$limNone"
+				harnessLimitsSource="family $limGlob, $limSource"
+			;;
+		esac
+	done <<< "${HARNESS_MODEL_TABLE:-}"
+	if [ -z "$limFound" ] && [ -n "$limKnown" ] ; then
+		echo "${harnessBad:-}⛔ ERROR:${harnessOff:-} ${harnessSelfName:-the harness}: the model '${1:-}' is of no family this service's leg knows, so its limits cannot be judged. Name a macro (low, normal, high) or a model of one of these families: $limKnown" >&2
+		return 1
+	fi
+	if [ -n "${MDAT_HARNESS_CONTEXT_TOKENS:-}" ] ; then
+		harnessContextTokens="$MDAT_HARNESS_CONTEXT_TOKENS"
+		harnessThresholdSource="the operator's MDAT_HARNESS_CONTEXT_TOKENS"
+	elif [ -n "${PRESET_CONTEXT_MAX_SIZE:-}" ] ; then
+		harnessContextTokens="$PRESET_CONTEXT_MAX_SIZE"
+		harnessThresholdSource="the preset's PRESET_CONTEXT_MAX_SIZE"
+	else
+		harnessContextTokens="$(( ${harnessWindowTokens:-400000} - ${harnessOutputTokens:-0} ))"
+		harnessThresholdSource="the window less the output"
+	fi
+	return 0
+}
+
+## The effort of a run: harnessEffort, one of unset none low normal high, becomes what the wire sends:
+## harnessReasoningEffort (the reasoning effort field, empty omits it), harnessThinkingOff (1 where the thinking is
+## switched off), and harnessEffortNote (a few words for the start line).
+## unset sends nothing: the model's default. normal is the middle level, medium on the wires. none is a level
+## of its own, sent as the none form of the model's family (AgentsHarnessLimitsResolve).
+AgentsHarnessEffortApply(){
+	local effortWord
+	harnessReasoningEffort="" ; harnessThinkingOff="" ; harnessEffortNote=""
+	case "${harnessEffort:-unset}" in
+		low|high)
+			harnessReasoningEffort="$harnessEffort"
+			harnessEffortNote="effort $harnessEffort"
+		;;
+		normal)
+			harnessReasoningEffort="medium"
+			harnessEffortNote="effort normal, sent as medium"
+		;;
+		none)
+			case "${harnessNoneForm:-effort:low}" in
+				effort:*)
+					effortWord="${harnessNoneForm#effort:}"
+					harnessReasoningEffort="$effortWord"
+					if [ "$effortWord" = none ] ; then
+						harnessEffortNote="effort none, sent as none"
+					else
+						harnessEffortNote="effort none, sent as $effortWord: this service has no none, so its lowest"
+					fi
+				;;
+				thinking:disabled)
+					harnessThinkingOff=1
+					harnessEffortNote="effort none, the thinking is off"
+				;;
+				*)
+					harnessEffortNote="effort none, nothing to send: this model does not reason"
+				;;
+			esac
+		;;
+		*)
+			harnessEffortNote="effort unset, the model's default"
+		;;
+	esac
+}
+
+## THE OPEN CHAT MODELS this estate serves from a server it cannot ask (the standard-v1 leg) or runs itself (the local leg):
+## the family table of both, stated once. The popular families by name, in the sizes of the three machine profiles --
+## 1. a normal CPU with constrained or shared RAM (about 4b), 2. a dedicated or bigger CPU with more RAM (about 8b), 3. the
+## GPU machine (about 14b). A name carries its size after a `-`, `:` or `_`, as qwen3-8b, qwen3:8b or Qwen3_8B-Instruct. The
+## first row that matches wins, so a size stands ahead of its family's own row. The figures are the families' published ones
+## as the author knows them, NOT re-read for this table (2026-10-26): qwen (the Qwen3 line: 32768 of native context, hybrid
+## thinking, so the effort none switches it off), gemma (Gemma 3: 131072 of context from 4b up, does not reason), deepseek
+## (the R1 distills and the open V3 line: 131072, thinking switched off for none), llama (Llama 3.1 and after: 131072, does
+## not reason). The output is a budget per size, not the maximum: it comes off the window for the restart threshold. A small
+## machine cannot hold a large window in RAM, so a preset for profile 1 sets PRESET_CONTEXT_MAX_SIZE to the size it can carry,
+## which stands ahead.
+AgentsHarnessOpenModelTable(){
+	printf '%s\n' \
+		"qwen*[-:_]9b*|262144|32768|thinking:disabled|Qwen/Qwen3.5-9B config.json max_position_embeddings and card output length, read 2026-10-26" \
+		"qwen*[-:_]27b*|262144|131072|thinking:disabled|Qwen/Qwen3.8-27B config.json max_position_embeddings and card final-response length, read 2026-10-26" \
+		"qwen*[-:_]4b*|32768|4096|thinking:disabled|Qwen3 model cards, not re-read for this table" \
+		"qwen*[-:_]8b*|32768|8192|thinking:disabled|Qwen3 model cards, not re-read for this table" \
+		"qwen*[-:_]14b*|32768|8192|thinking:disabled|Qwen3 model cards, not re-read for this table" \
+		"qwen*|32768|8192|thinking:disabled|Qwen3 model cards, not re-read for this table" \
+		"gemma*[-:_]4b*|131072|4096|omit|Gemma 3 model card, not re-read for this table" \
+		"gemma*[-:_]12b*|131072|8192|omit|Gemma 3 model card, not re-read for this table" \
+		"gemma*|131072|8192|omit|Gemma 3 model card, not re-read for this table" \
+		"deepseek*[-:_]8b*|131072|16384|thinking:disabled|DeepSeek-R1 distill model cards, not re-read for this table" \
+		"deepseek*[-:_]14b*|131072|16384|thinking:disabled|DeepSeek-R1 distill model cards, not re-read for this table" \
+		"deepseek*|131072|32768|thinking:disabled|DeepSeek open-weights model cards, not re-read for this table" \
+		"llama*[-:_]8b*|131072|8192|omit|Llama 3.1 model card, not re-read for this table" \
+		"llama*|131072|8192|omit|Llama 3.x model cards, not re-read for this table"
+}
+
+## The machine profile a model's size suits, 1, 2 or 3 as above, or - where the name carries no size: 4b and smaller are
+## profile 1, 7b to 12b profile 2, 14b and larger profile 3.
+AgentsHarnessOpenModelProfile(){ ## model name
+	local profileLower
+	profileLower="$( printf '%s' "${1:-}" | LC_ALL=C tr 'A-Z' 'a-z' )"
+	case "$profileLower" in
+		*[-:_]0.6b*|*[-:_]1b*|*[-:_]1.5b*|*[-:_]1.7b*|*[-:_]3b*|*[-:_]4b*) printf '1' ;;
+		*[-:_]7b*|*[-:_]8b*|*[-:_]9b*|*[-:_]12b*) printf '2' ;;
+		*[-:_]14b*|*[-:_]2[0-9]b*|*[-:_]3[0-9]b*|*[-:_][4-9][0-9]b*|*[-:_]1[0-9][0-9]b*) printf '3' ;;
+		*) printf '%s' '-' ;;
+	esac
+}

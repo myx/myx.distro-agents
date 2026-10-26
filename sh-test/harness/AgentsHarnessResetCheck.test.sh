@@ -2,15 +2,12 @@
 ## Behavioural check on the agent reset of the model path (F10.6 of the refactorings epic), run through the real core and the
 ## Anthropic Messages wire against a fake `curl` replaying canned streams that records each request body, and through the real
 ## ThisSession operations (--executor-checkpoint-rewind, --idle-wait). The reset is INTERNAL: the run is returned to its armed state
-## (F10.5) and nothing a member is told changes. What F10.6 adds to the return is that the scan cache of the run's session is dropped
-## with it (the epic, F3.2: "when an agent is reset and rewinds into a work-duty session the tooling drops that session's scan cache
-## itself, so the next scan gathers afresh"), and what it promises is that the member's NEXT run starts armed from the cached entry.
+## (F10.5) and nothing a member is told changes, and what it promises is that the member's NEXT run starts armed from the cached entry.
 ## Held:
-##   1. a rewind (the executor's own) drops the scan cache of the run's session -- the report files of the scans that are cached, grooming
-##      and the others -- and only those: another file of the session, and the caches of another session, stay
+##   1. a rewind (the executor's own) returns the run to its armed state
 ##   2. so does the return of an `--idle-wait` that an arrival ends
-##   3. a run with no team session (MDAT_SESSION_ID unset) has no scan cache, and a rewind touches no file of the kind
-##   4. a rewind that is refused (no snapshot of the name) drops nothing; the function alone refuses a session name that is no folder name
+##   3. a run with no team session (MDAT_SESSION_ID unset) still returns on a rewind
+##   4. a rewind that is refused (no snapshot of the name) returns nothing
 ##   5. DONE WHEN: the member's next run, a second spawn in the same workspace, starts armed from the cached entry: its armed file is
 ##      served from the stamped entry the first spawn left (1 from the cache, 0 built) and untouched, it acts in its first round with no
 ##      read round, and nothing it is told mentions the reset, a cache, or a parked agent
@@ -139,69 +136,36 @@ rigRun(){ ## further harness arguments -- the run, as the team session rigSessId
 		HARNESS_ENDPOINT="https://harness-idle-wait.invalid/v1/messages" HARNESS_HOST="harness-idle-wait.invalid" HARNESS_EXTRA_HEADERS="anthropic-version: 2023-06-01" \
 		HARNESS_MODEL_LIGHT="rig-light" HARNESS_MODEL_MAIN="rig-main" HARNESS_TOKEN_LIGHT="rig-not-a-credential" HARNESS_TOKEN_MAIN="rig-not-a-credential" \
 		HARNESS_OUTPUT_TOKENS_LIGHT="4101" HARNESS_OUTPUT_TOKENS_MAIN="4202" MDAT_HARNESS_CONTEXT_TOKENS=0 MDAT_HARNESS_MAX_RESTARTS=1 \
-		perl -e 'alarm 240 ; exec @ARGV' bash "$rigHarness" --agent rig-a --access-root "$rigDir" "$@" RIG-TASK-MARKER ) > "$rigDir/out" 2> "$rigDir/err"
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 240 -- bash "$rigHarness" --agent rig-a --access-root "$rigDir" "$@" RIG-TASK-MARKER ) > "$rigDir/out" 2> "$rigDir/err"
 	rigRunStatus=$?
 	[ "$( cat "$rigDir/round" )" != 0 ] || rigRefuse "the harness issued no request at all -- its stderr: $( head -5 "$rigDir/err" )"
 }
-rigCacheName1="magic-grooming-input-scan.md" rigCacheName2="magic-work-duty-input-scan.md"
-rigPlaceCaches(){ ## session folder name -- the two report files a scan cache keeps, another file of the session, in its folder
-	local placeDir="$rigWs/.local/agents/sessions/$1"
-	mkdir -p "$placeDir"
-	printf 'REPORT-GROOMING\n' > "$placeDir/$rigCacheName1"
-	printf 'REPORT-WORK-DUTY\n' > "$placeDir/$rigCacheName2"
-	printf 'NOT-A-REPORT\n' > "$placeDir/keep-notes.md"
-}
-rigCaches(){ ## session folder name -- what of those files is there, as three words
-	local cachesDir="$rigWs/.local/agents/sessions/$1"
-	printf '%s %s %s' "$( rigPresent "$cachesDir/$rigCacheName1" )" "$( rigPresent "$cachesDir/$rigCacheName2" )" "$( rigPresent "$cachesDir/keep-notes.md" )"
-}
-
-echo "-- 1. the executor's rewind drops the scan cache of the run's session --"
+echo "-- 1. the executor's rewind returns the run to its armed state --"
 rigSessId="$rigSpawn" rigWsShared=""
 rigScene rewind rigquiet
-rigPlaceCaches "$rigSpawn" ; rigPlaceCaches rig-other-session
 rigToolStream "$rigDir/res.1" Bash "$( rigOp --executor-checkpoint-rewind armed )"
 rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun
 rigAssert "the run ends normally, in two requests, and returned to armed"                  "$rigRunStatus:$( cat "$rigDir/round" ):$( LC_ALL=C grep -c 'rewound' "$rigDir/err" )" 0:2:1
-rigAssert "the two report files of its session are gone, its other file stays"              "$( rigCaches "$rigSpawn" )" "gone gone there"
-rigAssert "another session's caches stay as they were"                                      "$( rigCaches rig-other-session )" "there there there"
 
 echo "-- 2. so does the return of an idle-wait that an arrival ends --"
 rigScene idle rigduty
-rigPlaceCaches "$rigSpawn" ; rigPlaceCaches rig-other-session
 rigToolStream "$rigDir/res.1" Bash "$( rigOp --idle-wait )"
 rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun
 rigAssert "the arrival returned the run (the scan's report is in the request after it)"      "$( rigCount "$rigDir/req.2" 'state-and-lock (routine-grooming)' ):$( LC_ALL=C grep -c 'rewound' "$rigDir/err" )" 1:1
-rigAssert "and the two report files of its session are gone, its other file stays"          "$( rigCaches "$rigSpawn" )" "gone gone there"
-rigAssert "another session's caches stay as they were"                                      "$( rigCaches rig-other-session )" "there there there"
 
-echo "-- 3. a run with no team session has no scan cache to drop --"
+echo "-- 3. a run with no team session still returns on a rewind --"
 rigSessId=""
 rigScene nosession rigquiet
-rigPlaceCaches "$rigSpawn"
 rigToolStream "$rigDir/res.1" Bash "$( rigOp --executor-checkpoint-rewind armed )"
 rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun
-rigAssert "the rewind is made, and no file of the kind is touched (a scan cache is keyed by MDAT_SESSION_ID)"  "$( LC_ALL=C grep -c 'rewound' "$rigDir/err" ):$( rigCaches "$rigSpawn" )" "1:there there there"
+rigAssert "the rewind is made"                                                              "$( LC_ALL=C grep -c 'rewound' "$rigDir/err" )" 1
 rigSessId="$rigSpawn"
 
-echo "-- 4. a refused rewind drops nothing; the function alone keeps to folder names --"
+echo "-- 4. a refused rewind returns nothing --"
 rigScene refused rigquiet
-rigPlaceCaches "$rigSpawn"
 rigToolStream "$rigDir/res.1" Bash "$( rigOp --executor-checkpoint-rewind nosuch )"
 rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun
-rigAssert "no snapshot of that name: refused in the call's answer, no return, the caches stay"  "$( LC_ALL=C grep -c 'rewound' "$rigDir/err" ):$( rigCaches "$rigSpawn" )" "0:there there there"
-rigUnit(){ ## session name, then the call -- the include alone, its words stubbed, MDAT_SESSION_ID as given
-	mkdir -p "$rigTmp/unit-ws/.local/agents/sessions/rig-unit-session" "$rigTmp/unit-ws/.local/agents/sessions/other"
-	printf 'R\n' > "$rigTmp/unit-ws/.local/agents/sessions/rig-unit-session/$rigCacheName1" ; printf 'R\n' > "$rigTmp/unit-ws/.local/agents/sessions/other/$rigCacheName1"
-	env -i PATH="/usr/bin:/bin" MMDAPP="$rigTmp/unit-ws" ${1:+MDAT_SESSION_ID="$1"} bash -c '
-		harnessWarn="" harnessOff="" harnessDim="" harnessSelfName=unit harnessMcpToolsJson="" harnessSystemText="s"
-		. "$1" ; AgentsHarnessScanCacheDrop' unit "$rigHere/harness/AgentsHarnessCheckpoint.include" > /dev/null 2>&1
-	printf '%s %s' "$( rigPresent "$rigTmp/unit-ws/.local/agents/sessions/rig-unit-session/$rigCacheName1" )" "$( rigPresent "$rigTmp/unit-ws/.local/agents/sessions/other/$rigCacheName1" )"
-}
-rigAssert "a session name: its files go, another folder's stay"                             "$( rigUnit rig-unit-session )" "gone there"
-rigAssert "no session name: nothing goes"                                                   "$( rigUnit '' )" "there there"
-rigAssert "a name that climbs out of the sessions folder names no folder: nothing goes"      "$( rigUnit '../sessions/other' )" "there there"
-rigAssert "a name with a slash or a space: nothing goes"                                    "$( rigUnit 'rig-unit-session/x' ):$( rigUnit 'rig unit' )" "there there:there there"
+rigAssert "no snapshot of that name: refused in the call's answer, no return"              "$( LC_ALL=C grep -c 'rewound' "$rigDir/err" )" 0
 
 echo "-- 5. done when: the member's next run starts armed from the cached entry --"
 rigWsShared="$rigTmp/ws-shared" ; rigSessId=""

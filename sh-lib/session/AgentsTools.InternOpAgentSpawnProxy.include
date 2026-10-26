@@ -591,11 +591,11 @@ case "$1" in
 		case "$callerName" in
 			'') ;;
 			*)
-				## An invited member, set up only in another workspace on this machine: its session starts here, on this workspace's settings, and reads its skillset from the workspace it is set up in, and those of its own settings this workspace holds none of. The root holds for the rest of this spawn and for the session it starts.
+				## An invited member set up only elsewhere starts here, on this workspace settings, with its skillset read from where it is set up.
 				local spawnBrought
 				spawnBrought="$( AgentsToolsMemberSkillsetBring "$callerName" "--intern-op-agent-spawn-proxy" )" || { set +e ; return 1 ; }
 				[ -z "$spawnBrought" ] || local -x MDAT_SKILLSET_ROOT="${spawnBrought%%$'\t'*}"
-				## NOTHING RUNS AS AN IDENTITY RECORD. A member whose SKILL.md says `status: reference-only`, the record of a person (human-owner is one), is refused here, in the one place every start goes through, whoever asks and in whatever form: before its brief is read and before anything is made, so no record, no item and no thread is left (AgentsToolsTeamMemberStartCheck, AgentsTools.TeamRegistry.include).
+				## A reference-only member (a person record) is refused here, before anything is made (AgentsToolsTeamMemberStartCheck).
 				type AgentsToolsTeamMemberStartCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 				AgentsToolsTeamMemberStartCheck "$callerName" "${MDAT_SKILLSET_ROOT:-}/$callerName" "--intern-op-agent-spawn-proxy" || { set +e ; return 1 ; }
 				## Said once for this spawn: which of its own settings are read from the workspace it is set up in.
@@ -688,7 +688,7 @@ case "$1" in
 		## spawn context, below -- a selector (full routine filename or part of one)
 		## or the standing default. Never both; neither is the default behaviour of
 		## every caller before these options existed.
-		local routineSelector="" routineDefault="false"
+		local routineSelector="" routineDefault="false" prefixRoutineSelector=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-file)
@@ -795,8 +795,20 @@ case "$1" in
 					routineDefault="true"
 					shift
 				;;
+				## The parent routine of an ad-hoc child: the child inherits that routine's
+				## cache-prefix and its name goes on the record as `prefix-routine:`, so the
+				## child's cacheable prefix matches its parent's (a token-cache hit, F10.7).
+				## Not a routine the child runs: no requirement, allow or lock of it binds here.
+				--prefix-routine)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --prefix-routine requires <selector>" >&2
+						set +e ; return 1
+					fi
+					prefixRoutineSelector="$2"
+					shift 2
+				;;
 				## The spelling this package already uses for the same thing: the
-				## owner-setup option that writes SPAWN_CLI_SERVICE is spelled
+				## owner-setup option that writes SPAWN_TIER_NORMAL is spelled
 				## --spawn-cli-service, so a per-spawn override of that same setting
 				## is not given a second name.
 				--spawn-cli-service)
@@ -1001,7 +1013,7 @@ case "$1" in
 		## is not a preset's spawn. Never taken over from the session this spawn is made from. Every read of a spawn setting
 		## then comes from that preset (AgentsToolsPresetOverlay). The models a leg exports for its own run are not handed on
 		## to this one: the console gives its leg the model of its tier, and a stub takes an exported one ahead of its own.
-		local -x MDAT_SPAWN_PRESET="" HARNESS_MODEL_LIGHT="" HARNESS_MODEL_MAIN=""
+		local -x MDAT_SPAWN_PRESET="" HARNESS_MODEL_LIGHT="" HARNESS_MODEL_MAIN="" HARNESS_EFFORT=""
 		type AgentsToolsPresetChosen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
 		if [ -n "$spawnCliService" ] ; then
 			MDAT_SPAWN_PRESET="-$spawnCliService"
@@ -1042,11 +1054,15 @@ case "$1" in
 				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include"
 				AgentsToolsRegistrySpawnedSessionsRebuild > /dev/null 2>&1 || exit 1
 				LC_ALL=C awk -v want="$joinSessionId" '
-					$2 == want && $10 != "-" { print $10 ; found = 1 ; exit ; }
+					## A row for the session is enough to join it: it hands its thread down where it
+					## has one, and none where it has not -- the joined-session branch below opens the
+					## thread then. Only an id that no row carries refuses, never a session started
+					## without a thread.
+					$2 == want { print ( $10 != "-" ? $10 : "" ) ; found = 1 ; exit ; }
 					END { exit ( found ? 0 : 1 ) ; }
 				' "$( AgentsToolsRegistryFile spawned-sessions )"
 			)" || {
-				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --session-id $joinSessionId: no spawned-sessions registry row carries this session with a thread -- refusing to join rather than starting a new session silently" >&2
+				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --session-id $joinSessionId: no spawned-sessions registry row carries this session -- refusing to join rather than starting a new session silently" >&2
 				set +e ; return 1
 			}
 		fi
@@ -1115,7 +1131,7 @@ case "$1" in
 		## caller's own hand-carried text. Refusing here (a bad selector, a routine
 		## file that fails its own contract) refuses the whole spawn, the same as any
 		## other malformed input this far in.
-		local routineRecorded="" routineReportsTo="" routineFilePath="" startWarnings="" routineOverrides=""
+		local routineRecorded="" routineReportsTo="" routineFilePath="" startWarnings="" routineOverrides="" workDutyDispatchFile=""
 		if [ -n "$routineSelector" ] || [ "$routineDefault" = "true" ] ; then
 			local routineBriefArgs=( --intern-op-spawn-prepare-brief "$callerName" )
 			if [ "$routineDefault" = "true" ] ; then
@@ -1140,6 +1156,36 @@ case "$1" in
 			[ ! -f "$routineRecorded" ] || [ "$( AgentsToolsSpawnSandboxRecordHeader "$routineRecorded" "$agentsRunRouteField" )" != none ] || routineReportsTo="none"
 			routineFilePath="$routineRecorded"
 			routineRecorded="${routineRecorded##*/}"
+			## A work-duty's routine is `cache-prefix: armed` now, so the harness does not preload it: the routine and the member's
+			## static reference guidance are put at the head of that run's dispatch instead (AgentsTools.WorkDutyDispatch.include),
+			## where they are the same bytes on every work-duty run of the member and cache after the first.
+			if [ -n "$routineFilePath" ] && [ -f "$routineFilePath" ] ; then
+				type AgentsToolsWorkDutyDispatchIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.WorkDutyDispatch.include"
+				AgentsToolsWorkDutyDispatchIs "$routineFilePath" && workDutyDispatchFile="$routineFilePath" || workDutyDispatchFile=""
+			fi
+			if [ -n "$workDutyDispatchFile" ] ; then
+				local workDutyDispatchHead
+				workDutyDispatchHead="$( AgentsToolsWorkDutyDispatchHead "$workDutyDispatchFile" "$spawnSkillsetRoot" "$callerName" )" || workDutyDispatchHead=""
+				[ -z "$workDutyDispatchHead" ] || spawnContext="$( printf '%s\n\n%s\n' "$workDutyDispatchHead" "$spawnContext" )"
+			fi
+		fi
+		## The inherited prefix of an ad-hoc child (F10.7): the parent routine's own name and
+		## cache-prefix, resolved the same way a routine is, but held apart from `routine` so
+		## none of the routine's requirements, allows or locks bind this spawn.
+		local prefixRoutineRecorded="" prefixCachePrefix=""
+		if [ -n "$prefixRoutineSelector" ] ; then
+			prefixRoutineRecorded="$(
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include"
+				AgentsToolsSpawnRoutineResolve "$prefixRoutineSelector"
+			)" 2>/dev/null || prefixRoutineRecorded=""
+			if [ ! -f "$prefixRoutineRecorded" ] ; then
+				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --prefix-routine $prefixRoutineSelector: matches no routine file" >&2
+				set +e ; return 1
+			fi
+			type AgentsToolsRoutineKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include"
+			prefixCachePrefix="$( AgentsToolsRoutineKey "$prefixRoutineRecorded" cache-prefix 2> /dev/null )"
+			case "$prefixCachePrefix" in armed|routine) ;; *) prefixCachePrefix="armed" ;; esac
+			prefixRoutineRecorded="${prefixRoutineRecorded##*/}"
 		fi
 		## A board-tracked spawn reads its item's Decisions before anything else: they bind it.
 		if [ "$sourceMode" = "board" ] ; then
@@ -1245,7 +1291,7 @@ case "$1" in
 		fi
 
 		## Configured-only: an agent-initiated spawn starts the CLI named by
-		## SPAWN_CLI_SERVICE or it starts none. A console without the --cli-configured
+		## the preset's CLI service or it starts none. A console without the --cli-configured
 		## arm cannot answer that -- it breaks out of its own option loop, runs its
 		## hardcoded default interactively and still prints the success sentinel -- so
 		## it is refused here rather than invoked.
@@ -1502,6 +1548,32 @@ case "$1" in
 			fi
 		fi
 
+		## A SYNC FOLLOWS A MEMBER'S START (T2): the member's own incoming -- the personal mail of its `start` scope -- is refilled at
+		## once, into its inbox, so the input scans below read fresh incoming. The sync is the tooling's own and best-effort: a member
+		## with no mailbox or a failed source is no fault of the start, and nothing it says stops the spawn. It runs only where this
+		## workspace keeps team data (the inbox it refills), and never for a start with no member. The `start` scope is the personal mail
+		## alone: the tags and mentions are read by the schedule and the work-duty scan (F4.2: a source is read once for all).
+		## A sync that cannot run is one warning on stderr, never silence: a missing function or a broken include is what made a
+		## start with no sync at all, and neither the include's own error nor the sync's is thrown away here.
+		if [ -n "$callerName" ] && [ "$teamDataKept" = "yes" ] ; then
+			## The include is checked to exist before it is sourced: a `source` of a missing file ends a non-interactive shell,
+			## so a start must not reach one at all.
+			local incomingSyncInclude="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Incoming.include" incomingSyncOk="yes"
+			if ! type AgentsToolsIncomingSync > /dev/null 2>&1 ; then
+				if [ -f "$incomingSyncInclude" ] ; then
+					. "$incomingSyncInclude" || incomingSyncOk="no"
+				else
+					incomingSyncOk="no"
+				fi
+			fi
+			type AgentsToolsIncomingSync > /dev/null 2>&1 || incomingSyncOk="no"
+			if [ "$incomingSyncOk" != "yes" ] ; then
+				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the incoming sync of $callerName did not run: $incomingSyncInclude defines no AgentsToolsIncomingSync, or could not be sourced -- this start reads only the incoming already in the inbox, and the spawn goes on" >&2
+			elif ! AgentsToolsIncomingSync "$callerName" start > /dev/null ; then
+				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the incoming sync of $callerName failed -- this start reads only the incoming already in the inbox, and the spawn goes on" >&2
+			fi
+		fi
+
 		## The session transcript (AgentsTools.SessionTranscript.include), named now so the
 		## dispatch item and the tracking file below carry its `transcript:` from the start.
 		type AgentsTranscriptStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionTranscript.include" 2>/dev/null || :
@@ -1548,15 +1620,10 @@ case "$1" in
 		local dispatchItemName="" dispatchBriefBody=""
 		if [ "$dispatchDocMode" = "create" ] ; then
 			dispatchItemName="dispatch-$timestamp-spawn-proxy-$$-${MDAT_SPAWN_SESSION_ID:0:8}.md"
-			dispatchBriefBody="$( printf '%s\n' \
-				"---" \
-				"---" \
-				"" \
-				"# Spawn-proxy dispatch: $callerName" \
-				"" \
-				"## Brief" \
-				"" \
-				"$spawnContext" )"
+			## The dispatch body is the board writer's own template (sh-lib/templates/board-item.dispatch.document.format.md),
+			## filled from the caller and the brief; the front matter is stamped by the move primitive below.
+			dispatchBriefBody="$( type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
+				BDS_caller="$callerName" BDS_brief="$spawnContext" AgentsToolsToolingTemplateFill board-item.dispatch.document.format.md board/AgentsBoardItemDocumentFill.awk )" || dispatchBriefBody=""
 			## The team data directory is created on first use, and the move primitive refuses a missing state directory.
 			mkdir -p "$MDAT_DATA_ROOT/board/running" || {
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create board state directory: $MDAT_DATA_ROOT/board/running" >&2
@@ -1697,16 +1764,30 @@ case "$1" in
 		## the session id.
 		## sessionId itself is already settled, above, before the dispatch item was
 		## created -- only its thread is decided here.
-		## A TRACKING THREAD IS NEVER A SESSION THREAD (AgentsToolsEventTrackThreadIs): no handback,
-		## question or message of a member goes into one. A session started before that rule may
-		## still hand its tracking thread down as its session thread, or carry it on its records:
-		## here that names no session thread, and the session's own is looked for, and opened, as
-		## for any session joined that has none.
+		## A TRACKING THREAD IS NEVER A SESSION THREAD (AgentsToolsEventTrackThreadIs): a session started before
+		## that rule may still hand its tracking thread down as its session thread, or carry it on its records:
+		## here that names no session thread, and the session's own is looked for, and opened, as for any
+		## session joined that has none. A session whose own record names the `track` kind (F3.1) keeps its
+		## external side on that tooling thread instead of a session thread; the session still has no session
+		## thread, and the copies of its messages go there.
 		local sessionThread="" sessionThreadLock="" sessionThreadRecord="$MMDAPP/.local/agents/sessions/$sessionId/session.thread"
-		local sessionJoined="" sessionTrackChannel=""
+		local sessionJoined="" sessionTrackChannel="" sessionPrintback="" sessionTrack=""
 		[ "$sessionId" = "$MDAT_SPAWN_SESSION_ID" ] || sessionJoined="true"
 		type AgentsToolsEventTrackThreadIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackThread.include"
 		sessionTrackChannel="$( AgentsToolsEventTrackChannel )"
+		## THE CHANNEL KIND IN USE (F2.3): a session whose external side is its own root-native printback
+		## channel opens no thread -- no root post, no joined line, no Slack call -- and its dispatch names
+		## that channel instead of a thread. The kind is the session's own record's to say
+		## (AgentsToolsCommsPrintbackSessionInUse), never a caller's opinion of it.
+		type AgentsToolsCommsPrintbackSessionInUse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include" 2> /dev/null || :
+		AgentsToolsCommsPrintbackSessionInUse "$sessionId" && sessionPrintback="$( AgentsToolsCommsPrintbackChannelId "$sessionId" 2> /dev/null )" || sessionPrintback=""
+		## THE TOOLING-THREAD KIND (F3.1): a session whose external side is the tooling thread -- the `track` kind
+		## of a root-harness session -- opens no session thread either: no root post, no joined line, no Slack
+		## call for a session thread. The tooling thread its copies go to is the event-track thread the start
+		## post below opens, and the dispatch names it. The kind is the session's own record's to say
+		## (AgentsToolsRootHarnessKindRead), never a caller's opinion of it.
+		type AgentsToolsRootHarnessKindRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" 2> /dev/null || :
+		[ "$( AgentsToolsRootHarnessKindRead "$sessionId" 2> /dev/null )" = "track" ] && sessionTrack="true" || sessionTrack=""
 		if [ -n "$joinSessionId" ] ; then
 			sessionThread="$joinSessionThread"
 		elif [ "$sessionThreadMode" = "event-track" ] ; then
@@ -1716,7 +1797,8 @@ case "$1" in
 			sessionThread="$inheritedSessionThread"
 		fi
 		[ -z "$sessionThread" ] || ! AgentsToolsEventTrackThreadIs "$sessionThread" "$sessionTrackChannel" || sessionThread=""
-		if [ -z "$sessionThread" ] && [ -n "$sessionJoined" ] ; then
+		[ -z "$sessionTrack" ] || sessionThread=""
+		if [ -z "$sessionThread" ] && [ -z "$sessionPrintback" ] && [ -z "$sessionTrack" ] && [ -n "$sessionJoined" ] ; then
 			## A session joined that hands no thread down: the caller's own, a native client's; one
 			## that started alone; one whose opening post failed. Its thread is the one the first
 			## member brought in opened. Looked for, and opened below where there is none, in one
@@ -1737,7 +1819,7 @@ case "$1" in
 				' "$( AgentsToolsRegistryFile spawned-sessions )"
 			)" || sessionThread=""
 		fi
-		if [ -z "$sessionThread" ] && { [ -n "$sessionJoined" ] || [ "$sessionThreadMode" != "event-track" ] ; } ; then
+		if [ -z "$sessionThread" ] && [ -z "$sessionPrintback" ] && [ -z "$sessionTrack" ] && { [ -n "$sessionJoined" ] || [ "$sessionThreadMode" != "event-track" ] ; } ; then
 			## Human-owner's own correction: the team-channel root is not the tooling
 			## thread. One short human line, titled by --session-name-or-comment or
 			## else the routine's name and the member -- no id block, no host, no timestamps. That detail
@@ -1776,8 +1858,11 @@ case "$1" in
 		## A member brought into a session says so in its thread, as a reply, with what it was
 		## brought in for: every spawn but the one whose own session the thread is. The result
 		## is never assigned to sessionThread. Its text is the note template's
-		## (sh-lib/templates/tooling-note.post.format.md, `# Session`, joined).
-		if [ "$sessionId" != "$MDAT_SPAWN_SESSION_ID" ] ; then
+		## (sh-lib/templates/tooling-note.post.format.md, `# Session`, joined). A session whose
+		## external side is its tooling thread says nothing (F3.1). A session whose external side
+		## is its printback channel has no thread either, and what it says is RECORDED there as a
+		## notice, not posted: the next foreground call of that session surfaces the line (F3.3).
+		if [ "$sessionId" != "$MDAT_SPAWN_SESSION_ID" ] && [ -z "$sessionTrack" ] ; then
 			## It is said to the member that makes this spawn call, where the send can address
 			## it, and to nobody where there is none: never to the member that joined.
 			local joinedArgs=( "$callerName" "$sessionThread" --identity-bot ) joinedTo="" joinedLine=""
@@ -1790,10 +1875,16 @@ case "$1" in
 			type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 			joinedLine="$( ASKP_BLOCK="Session/joined" ASKP_F_member="$callerName" ASKP_F_description="$spawnDescriptionKept" ASKP_F_address_to="$joinedTo" \
 				AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || joinedLine=""
-			if [ -z "$sessionThread" ] ; then
+			if [ -n "$sessionPrintback" ] ; then
+				## Recorded on the printback channel and never printed here: a notice is the next
+				## foreground call's to surface, one line (AgentsToolsCommsPrintbackNoticeDigest).
+				type AgentsToolsCommsPrintbackNoticeRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include" 2> /dev/null || :
+				printf '%s\n' "$joinedLine" | AgentsToolsCommsPrintbackNoticeRecord "$sessionPrintback" "$callerName" "$joinedTo" \
+					|| echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the start line was not recorded on $sessionPrintback" >&2
+			elif [ -z "$sessionThread" ] ; then
 				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: no session thread to post the start line in" >&2
 			elif [ "$( printf '%s' "$joinedLine" \
-				| DistroAgentsTools --intern-op-comms-slack-send-message "${joinedArgs[@]}" --from-stdin 2>&1 > /dev/null \
+				| MDAT_SEND_FLOOR=hold DistroAgentsTools --intern-op-comms-slack-send-message "${joinedArgs[@]}" --from-stdin 2>&1 > /dev/null \
 				| LC_ALL=C awk -F= '$1 == "SENT_MESSAGE_TS" { tsSeen = 1 ; } END { print tsSeen + 0 ; }' )" != "1" ] ; then
 				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the start line was not posted in $sessionThread" >&2
 			fi
@@ -1802,7 +1893,8 @@ case "$1" in
 		## The CLI this spawn starts, resolved before the start post that names it, by the
 		## one function the session record and a later resume compare (AgentsReviewCliResolved,
 		## which the console's own --cli-configured arm calls too): the service the caller
-		## named, else SPAWN_CLI_SERVICE, read in the workspace the console runs in. With it,
+		## named, else the CLI service of the preset its tier names (AgentsToolsPresetSpawnCli,
+		## in the workspace that pays for it). With it,
 		## whether it runs in this package's harness or natively, and the harness tier that
 		## workspace asks for (SPAWN_HARNESS_TIER, which the console passes as --tier).
 		local spawnCliResolved="none" spawnCliSetting="none+-" spawnCliKind="none" spawnCliTier=""
@@ -1946,6 +2038,24 @@ case "$1" in
 			spawnCachePrefix="$( AgentsToolsRoutineKey "$routineFilePath" cache-prefix 2> /dev/null )"
 			case "$spawnCachePrefix" in armed|routine) ;; *) spawnCachePrefix="armed" ;; esac
 		fi
+		## A spawn with no routine of its own -- an ad-hoc helper the handling decides to prepare, record and spawn (the Agent
+		## tool's case) -- made from a session whose routine declares `cache-prefix: routine` reuses the parent's routine prefix
+		## and the routine that prefix mixes, so its first round is a cache hit on the parent's prefix. A spawn that carries a
+		## routine of its own keeps that routine's own policy, whatever the parent's. A work-duty is `cache-prefix: armed` now,
+		## so its subtasks start on the bare armed floor.
+		local prefixRoutine=""
+		if [ -z "$spawnCachePrefix" ] && [ -n "$parentSessionId" ] ; then
+			for parentPrefixRecord in "$MMDAPP"/.local/agents/spawned/*/"$parentSessionId.spawn.md" ; do
+				[ -f "$parentPrefixRecord" ] || continue
+				case "$( AgentsToolsSpawnSandboxRecordHeader "$parentPrefixRecord" cache-prefix )" in
+					routine)
+						spawnCachePrefix="$( AgentsToolsSpawnSandboxRecordHeader "$parentPrefixRecord" cache-prefix )"
+						prefixRoutine="$( AgentsToolsSpawnSandboxRecordHeader "$parentPrefixRecord" routine )"
+					;;
+				esac
+				break
+			done
+		fi
 		{
 			printf '%s\n' "---"
 			## `session-id` is the coworking session's own shared identifier now,
@@ -1967,8 +2077,12 @@ case "$1" in
 			printf 'start-context: %s\n' "$startContext"
 			## The locking document this run's session holds for its routine, given back where the last run of the session closes (F6.2).
 			[ -z "$routineLockDoc" ] || printf 'routine-lock: %s\n' "$routineLockDoc"
-			## How far the cacheable prefix of this spawn reaches (F10.7), the routine's `cache-prefix:` (armed or routine), for F10.8 to read.
+			## How far the cacheable prefix of this spawn reaches (F10.7), the routine's `cache-prefix:` (armed or routine),
+			## for F10.8 to read.
 			[ -z "$spawnCachePrefix" ] || printf 'cache-prefix: %s\n' "$spawnCachePrefix"
+			## A subtask of a `routine`-prefix session carries the parent's prefix and the routine that prefix mixes, so its
+			## first round is cheap; its own routine, where it has one, stays `routine:`.
+			[ -z "$prefixRoutine" ] || printf 'prefix-routine: %s\n' "$prefixRoutine"
 			## What the start warned of (the help verb), one line each, counted from the records.
 			[ -z "$startWarnings" ] || printf '%s' "$startWarnings"
 			## A refusal a permission overrode (AgentsToolsRoutineOverride), one line each.
@@ -2008,6 +2122,9 @@ case "$1" in
 			printf 'owner: %s\n' "$callerName"
 			## The routine this session runs, whose allows hold for it.
 			[ -z "$routineRecorded" ] || printf 'routine: %s\n' "$routineRecorded"
+			## The parent routine an ad-hoc child inherited its prefix from (F10.7), read by the
+			## harness prefetch in place of `routine` so the child's prefix matches its parent's.
+			[ -z "$prefixRoutineRecorded" ] || printf 'prefix-routine: %s\n' "$prefixRoutineRecorded"
 			printf 'status: %s\n' "spawn-started"
 			printf 'started-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
 			printf 'execution-receipt: %s\n' "$receiptId"
@@ -2109,6 +2226,13 @@ case "$1" in
 				}
 			fi
 		fi
+		## THE VARIABLES OF A WORK-DUTY RUN, LAST IN ITS DISPATCH (F10.7): session id, spawn id, started-at and the scan's
+		## result. Everything above them -- the routine, the member's static guidance and the mechanical brief -- is the same
+		## bytes on every work-duty run of the member, so it caches after the first; the sandbox block before them is this run's
+		## own roots and opens the variable tail.
+		if [ -n "$workDutyDispatchFile" ] ; then
+			spawnContext="$( printf '%s\n\n%s\n' "$spawnContext" "$( AgentsToolsWorkDutyDispatchVariables "$sessionId" "$MDAT_SPAWN_SESSION_ID" "$timestamp" "$inputScanFile" )" )"
+		fi
 		AgentsToolsSpawnSandboxFillInput "$sandboxRoot" "$spawnContext" "$sandboxItem" "$callerName" "$conversationThreads" "$inputScanFile"
 
 		## Tooling's own standing text for every spawn, beside the sandbox lines: a spawned
@@ -2145,9 +2269,22 @@ case "$1" in
 		## working unchanged. A failed post is one stderr warning above, the spawn
 		## goes on, and the brief says no thread was opened. A session that starts
 		## alone has none by its own rule, and its brief says that instead.
+		## THE CHANNEL KIND IN USE (F2.3, F3.1): a session on its root-native printback channel, or on its
+		## tooling thread, has no session thread, and the dispatch states the kind and the channel it is named
+		## by, so the run knows where its report, its waits and its dismissal travel -- the same section the
+		## Slack kind states its thread in.
 		local sessionThreadNone="none -- the opening post failed, so post a new thread in magic-team yourself"
 		[ -n "$sessionJoined" ] || [ "$sessionThreadMode" != "event-track" ] \
 			|| sessionThreadNone="none -- this session starts alone, so it has no session thread yet: one is opened in magic-team when it brings a member in, and session-current names it from then on. Its tracking thread in event-track is the tooling's own record of this run, and takes no message of yours"
+		[ -z "$sessionPrintback" ] \
+			|| sessionThreadNone="none -- this session's external side is the root-native printback channel, $sessionPrintback (channel kind: printback): report and wait there, and address a dismissal to the member it is for. It opens no Slack thread and takes no Slack call."
+		## THE TOOLING-THREAD KIND (F3.1): the session's external side is the tooling thread its copies go to,
+		## named by the record the start post above opened, and no session thread is opened for it.
+		if [ -n "$sessionTrack" ] ; then
+			local sessionTrackThread=""
+			sessionTrackThread="$( AgentsToolsCommsPrintbackTrackThread "$sessionId" 2> /dev/null )" || sessionTrackThread=""
+			sessionThreadNone="none -- this session's external side is the tooling thread, ${sessionTrackThread:-the event-track thread of this session, which is not recorded yet} (channel kind: track): what the session sends is copied there, so report and wait there, and address a dismissal to the member it is for. It opens no session thread."
+		fi
 		spawnContext="$( printf '%s\n' \
 			"$spawnContext" \
 			"" \
@@ -2310,14 +2447,16 @@ case "$1" in
 			## is posted follows, in the order it always had, so a network that does not answer
 			## delays what is said about the end and never the close.
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$spawnOutcome" "$exitCode" || :
+			local spawnEndReason=""
+			spawnEndReason="$( AgentsToolsSpawnSandboxRecordHeader "$sandboxTracking" end-reason 2>/dev/null )" || spawnEndReason=""
 			if [ "$dispatchDocMode" = "create" ] ; then
-				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome" running review wait-pass-ended || :
+				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome" running review wait-pass-ended "${spawnEndReason:-}" || :
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
 				## The item's own state, never `running`: closing a spawn must not move
 				## a caller's backlog or parked item into the running column. A running
 				## one enters review, as a created dispatch item does.
 				AgentsToolsSpawnProxyCloseDispatch "$trackedItemName" "$spawnContext" "$exitCode" "$outputFile" "$spawnOutcome" "$trackedItemState" \
-					"$( [ "$trackedItemState" = running ] && echo review || echo "$trackedItemState" )" wait-pass-ended || :
+					"$( [ "$trackedItemState" = running ] && echo review || echo "$trackedItemState" )" wait-pass-ended "${spawnEndReason:-}" || :
 			fi
 			## The session's tokens onto its item, so the closing post sums what is there now.
 			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
@@ -2347,6 +2486,7 @@ case "$1" in
 			esac
 			echo "STATUS=$spawnOutcome"
 			echo "EXIT_CODE=$exitCode"
+			[ -z "${spawnEndReason:-}" ] || echo "REASON=$spawnEndReason"
 			## The spawn's questions nobody waited on: answers collected now, and the ones
 			## still open marked for the main loop, since this session is over. Tooling only.
 			local spawnCollected=""
@@ -2355,7 +2495,7 @@ case "$1" in
 			echo "PENDING_ANSWERED=$( printf '%s\n' "$spawnCollected" | LC_ALL=C grep -c '^ANSWERED ' )"
 			echo "PENDING_OPEN=$( printf '%s\n' "$spawnCollected" | LC_ALL=C grep -c -E '^(OPEN|UNMATCHED|UNREADABLE) ' )"
 			printf '%s\n' "$spawnCollected" | LC_ALL=C grep -E '^(ANSWERED|OPEN|UNMATCHED|UNREADABLE) ' | LC_ALL=C sed 's/^/PENDING_REPLY=/' || :
-			AgentsToolsSpawnProxyOpenQuestionWarn "$sessionThread" "$callerName" "$spawnCollected" "$eventTrackThread" "$spawnerMember"
+			AgentsToolsSpawnProxyOpenQuestionWarn "${sessionThread:-$sessionPrintback}" "$callerName" "$spawnCollected" "$eventTrackThread" "$spawnerMember"
 			## Kept beside the status, never folded into it: this is what separates a real failure from a silent no-op.
 			echo "LAUNCHED=$( AgentsToolsSpawnProxySawSentinel "$MDAT_SPAWN_LAUNCH_MARKER" && echo true || echo false )"
 			## rc 5 from the console is its one structured answer: no external CLI
@@ -2492,11 +2632,13 @@ case "$1" in
 			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$sessionId" "$eventTrackThread" "$spawnerMember" "${spawnCliArgs[@]}" || :
 			## THE RECORD IS CLOSED FIRST, and then the item, as in the waiting branch: what is posted follows.
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$bgOutcome" "$bgExitCode" || :
+			local bgEndReason=""
+			bgEndReason="$( AgentsToolsSpawnSandboxRecordHeader "$sandboxTracking" end-reason 2>/dev/null )" || bgEndReason=""
 			if [ "$dispatchDocMode" = "create" ] ; then
-				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome" running review || :
+				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome" running review ended-without-handback "${bgEndReason:-}" || :
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$trackedItemName" "$spawnContext" "$bgExitCode" "$outputFile" "$bgOutcome" "$trackedItemState" \
-					"$( [ "$trackedItemState" = running ] && echo review || echo "$trackedItemState" )" || :
+					"$( [ "$trackedItemState" = running ] && echo review || echo "$trackedItemState" )" ended-without-handback "${bgEndReason:-}" || :
 			fi
 			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
 			## A launch the poller had no time to see, said now, before the end post.
@@ -2510,7 +2652,7 @@ case "$1" in
 			local spawnCollected=""
 			spawnCollected="$( DistroAgentsTools --intern-op-pending-reply-collect --session-id "$MDAT_SPAWN_SESSION_ID" --mark-ended \
 				--context --intern-op-agent-spawn-proxy 2>/dev/null )" || spawnCollected=""
-			AgentsToolsSpawnProxyOpenQuestionWarn "$sessionThread" "$callerName" "$spawnCollected" "$eventTrackThread" "$spawnerMember" || :
+			AgentsToolsSpawnProxyOpenQuestionWarn "${sessionThread:-$sessionPrintback}" "$callerName" "$spawnCollected" "$eventTrackThread" "$spawnerMember" || :
 			## Its close is done: the hold is taken off. What is left has no bound of its own.
 			trap - TERM INT QUIT
 			AgentsTranscriptSpawnEnd "$MDAT_SPAWN_SESSION_ID" "$bgOutcome" "$bgExitCode" 2>/dev/null || :

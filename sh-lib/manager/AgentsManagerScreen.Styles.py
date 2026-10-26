@@ -80,7 +80,7 @@ STYLE_FORMER = {"magic": "nu"}
 ## The style a screen starts in where nothing names another, with its colours, and the
 ## variable of the environment that names one for a start.
 STYLE_FIRST = "tv-system"
-STYLE_VARIABLE = "MDAT_MANAGER_STYLE"
+STYLE_VARIABLE = "MDLT_MANAGER_STYLE"
 ## The style the screen is drawn in now: its entry of STYLES with what its colours change
 ## in it, under "name" the name of the style, under "scheme" the name of its colours, and
 ## under "value" the two as the setting names them.

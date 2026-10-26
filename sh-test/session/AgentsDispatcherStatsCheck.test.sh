@@ -112,6 +112,11 @@ rigAssert "by day" "$( rigTok "$rigTmp/t1" --by day )" "2026-10-18 1 100 50 10 2
 rigAssert "by member, by routine" "$( rigTok "$rigTmp/t2" --by member ) $( rigTok "$rigTmp/t3" --by routine )" "keeper-x 2 5 5 5 5|magic-coordinator 1 1000 900 100 200|magic-tester 3 111 52 13 29| - 1 0 0 0 0|ra.routine.md 4 116 57 18 34|rb.routine.md 1 1000 900 100 200|"
 rigAssert "by preset, by credential: the runs with none under -" "$( rigTok "$rigTmp/t4" --by preset ) $( rigTok "$rigTmp/t5" --by credential )" "- 1 0 0 0 0|p1 3 111 52 13 29|p2 2 1005 905 105 205| - 1 0 0 0 0|key-a 4 116 57 18 34|key-b 1 1000 900 100 200|"
 rigAssert "within --since and --until, and the other keys" "$( rigTok "$rigTmp/t6" --by member --since 2026-10-19 --until 2026-10-19 ) $( rigTok "$rigTmp/t7" --by day --member magic-tester --routine ra.routine.md --preset p1 --credential key-a ) $( rigTok "$rigTmp/t8" --by routine --since 2026-10-20 )" "magic-tester 1 10 0 0 5| 2026-10-18 1 100 50 10 20|2026-10-19 1 10 0 0 5|2026-10-20 1 1 2 3 4| - 1 0 0 0 0|ra.routine.md 2 6 7 8 9|rb.routine.md 1 1000 900 100 200|"
+rigAssert "--average: the four token fields are the average of a run, whole tokens; the runs stay" "$( rigTok "$rigTmp/t9" --by member --average )" "keeper-x 2 2 2 2 2|magic-coordinator 1 1000 900 100 200|magic-tester 3 37 17 4 9|"
+rigAssert "--share: two fields after out, the share of the in tokens in the total of all keys and in the largest key, whole percent" "$( rigTok "$rigTmp/t10" --by member --share )" "keeper-x 2 5 5 5 5 0 1|magic-coordinator 1 1000 900 100 200 90 100|magic-tester 3 111 52 13 29 10 11|"
+rigAssert "--average --share: the shares are of the averages" "$( rigTok "$rigTmp/t11" --by member --average --share )" "keeper-x 2 2 2 2 2 0 0|magic-coordinator 1 1000 900 100 200 96 100|magic-tester 3 37 17 4 9 4 4|"
+rigAssert "the options stand anywhere among the others, and the weekday bins (all seven, empty ones too) take them: a day with no run is 0 and 0" "$( rigTok "$rigTmp/t12" --share --by weekday --since 2026-10-19 --until 2026-10-19 | LC_ALL=C cut -d'|' -f1,2,7 )" "Mon 1 10 0 0 5 100 100|Tue 0 0 0 0 0 0 0|Sun 0 0 0 0 0 0 0"
+rigAssert "a key with no run is 0 on --average, never a division by zero; and a filter that matches nothing prints nothing and ends 0" "$( rigTok "$rigTmp/t13" --by weekday --average | LC_ALL=C cut -d'|' -f4 ) $( rigRun "$rigTmp/t14" --token-stats --by member --member nobody --average --share ; echo "$rigRc $( LC_ALL=C grep -c . "$rigTmp/t14.out" )" )" "Thu 0 0 0 0 0 0 0"
 
 echo "-- 5. up to date on read --"
 sleep 1
@@ -156,7 +161,7 @@ rigRun "$rigTmp/x3" --token-stats
 rigRun "$rigTmp/x4" --token-stats --by day --soon
 rigRun "$rigTmp/x5" --rebuild-stats now
 rigRun "$rigTmp/x6" --run-stats --member
-rigAssert "a date that is none, a key that is none, no key, an option it does not know, a word after --rebuild-stats, an option with no value: each refused with its reason" "$( rigHas 'a date is YYYY-MM-DD: 20261020' "$rigTmp/x1.err" ) $( rigHas '--by is day, member, routine, preset or credential: nothing' "$rigTmp/x2.err" ) $( rigHas '--by is day, member, routine, preset or credential: <nothing>' "$rigTmp/x3.err" ) $( rigHas 'unknown option: --soon' "$rigTmp/x4.err" ) $( rigHas 'takes no option: now' "$rigTmp/x5.err" ) $( rigHas '--member takes a value' "$rigTmp/x6.err" )" "1 1 1 1 1 1"
+rigAssert "a date that is none, a key that is none, no key, an option it does not know, a word after --rebuild-stats, an option with no value: each refused with its reason" "$( rigHas 'a date is YYYY-MM-DD: 20261020' "$rigTmp/x1.err" ) $( rigHas '--by is day, weekday, hour, member, routine, preset or credential: nothing' "$rigTmp/x2.err" ) $( rigHas '--by is day, weekday, hour, member, routine, preset or credential: <nothing>' "$rigTmp/x3.err" ) $( rigHas 'unknown option: --soon' "$rigTmp/x4.err" ) $( rigHas 'takes no option: now' "$rigTmp/x5.err" ) $( rigHas '--member takes a value' "$rigTmp/x6.err" )" "1 1 1 1 1 1"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ DISPATCHER STATS CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

@@ -310,7 +310,7 @@ AgentsToolsRegistryAgentsIndicesBuild(){ ## the operation as it was called, regi
 ##
 ## started-at, resolved-at and session-comment are the record's own headers of those names: when the run started, when its closed state was recorded, and how its session was named. A date reads `2026-10-12_16:57_+0300`, its spaces written `_` like any value's.
 ##
-## session-state and session-state-at are the state of the row's session and when it was set, as the control thread of that session keeps them in the session's own folder, sessions/<session-id>/control/state (AgentsTools.InternSessionControl.include): the word that file holds, whatever state it names, and `-` in both for a session with no such file, or with one that cannot be read. Every row of a session carries the same two. They are what the file said at this rebuild. Whether that thread is alive is no column: liveness is measured live.
+## session-state and session-state-at: the state word of the row session control thread (AgentsTools.InternSessionControl.include) and when it was set; `-` in both where there is none. Liveness is measured live.
 ##
 ## workspace is a basename, never a path -- same convention as team-members' own workspace column (AgentsTools.Install.include).
 ##
@@ -906,7 +906,8 @@ AgentsToolsRegistryPendingRepliesRows(){
 		## Closed records stay listed rather than being dropped: a received reply is
 		## what resumes the work and a timed-out one is what a re-ask is posted from,
 		## so both are still wanted here. The status column is what tells them apart.
-		for askFile in "$MMDAPP/.local/agents/pending"/*.md ; do
+		## Closed records live in pending/closed/ (retention, T9) and stay listed: both stores feed the rows.
+		for askFile in "$MMDAPP/.local/agents/pending"/*.md "$MMDAPP/.local/agents/pending/closed"/*.md ; do
 			[ -f "$askFile" ] || continue
 			AgentsToolsRegistryRowsEntry A "$askFile"
 		done

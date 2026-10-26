@@ -41,9 +41,9 @@ AgentsToolsCommsEmailMarkSeen(){ ## <team-member> <uid>
 	fi
 
 	local imapHost imapUser imapPass
-	imapHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_IMAP_HOST )"
-	imapUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"
-	imapPass="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_APP_PASSWORD )"
+	imapHost="${EMAIL_IMAP_HOST:-}" ; [ -n "$imapHost" ] || imapHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_IMAP_HOST )" || imapHost=""
+	imapUser="${EMAIL_USER:-}" ; [ -n "$imapUser" ] || imapUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )" || imapUser=""
+	imapPass="${EMAIL_APP_PASSWORD:-}" ; [ -n "$imapPass" ] || imapPass="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_APP_PASSWORD )" || imapPass=""
 	if [ -z "$imapHost" ] || [ -z "$imapUser" ] || [ -z "$imapPass" ] ; then
 		echo "⛔ ERROR: $MDSC_CMD --email-mark-seen: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in ${memberName}'s own scope in .local/.agents" >&2
 		set +e ; return 1
@@ -122,9 +122,9 @@ case "$1" in
 			esac
 			AgentsToolsCommsOwnSideCheck "$memberName" mail email-check || { set +e ; return 1 ; }
 			local imapHost imapUser imapPass
-			imapHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_IMAP_HOST )"
-			imapUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"
-			imapPass="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_APP_PASSWORD )"
+			imapHost="${EMAIL_IMAP_HOST:-}" ; [ -n "$imapHost" ] || imapHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_IMAP_HOST )" || imapHost=""
+			imapUser="${EMAIL_USER:-}" ; [ -n "$imapUser" ] || imapUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )" || imapUser=""
+			imapPass="${EMAIL_APP_PASSWORD:-}" ; [ -n "$imapPass" ] || imapPass="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_APP_PASSWORD )" || imapPass=""
 			if [ -z "$imapHost" ] || [ -z "$imapUser" ] || [ -z "$imapPass" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --email-check: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in ${memberName}'s own scope in .local/.agents" >&2
 				set +e ; return 1
@@ -191,9 +191,9 @@ case "$1" in
 			done
 
 			local imapHost imapUser imapPass
-			imapHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_IMAP_HOST )"
-			imapUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"
-			imapPass="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_APP_PASSWORD )"
+			imapHost="${EMAIL_IMAP_HOST:-}" ; [ -n "$imapHost" ] || imapHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_IMAP_HOST )" || imapHost=""
+			imapUser="${EMAIL_USER:-}" ; [ -n "$imapUser" ] || imapUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )" || imapUser=""
+			imapPass="${EMAIL_APP_PASSWORD:-}" ; [ -n "$imapPass" ] || imapPass="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_APP_PASSWORD )" || imapPass=""
 			if [ -z "$imapHost" ] || [ -z "$imapUser" ] || [ -z "$imapPass" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --email-read: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in ${memberName}'s own scope in .local/.agents" >&2
 				set +e ; return 1
@@ -404,10 +404,10 @@ case "$1" in
 			done
 
 			local emailUser emailPass smtpHost smtpPort
-			emailUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"
-			emailPass="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_APP_PASSWORD )"
-			smtpHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_SMTP_HOST )"
-			smtpPort="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_SMTP_PORT )"
+			emailUser="${EMAIL_USER:-}" ; [ -n "$emailUser" ] || emailUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )" || emailUser=""
+			emailPass="${EMAIL_APP_PASSWORD:-}" ; [ -n "$emailPass" ] || emailPass="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_APP_PASSWORD )" || emailPass=""
+			smtpHost="${EMAIL_SMTP_HOST:-}" ; [ -n "$smtpHost" ] || smtpHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_SMTP_HOST )" || smtpHost=""
+			smtpPort="${EMAIL_SMTP_PORT:-}" ; [ -n "$smtpPort" ] || smtpPort="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_SMTP_PORT )" || smtpPort=""
 
 			if [ -z "$emailUser" ] || [ -z "$emailPass" ] || [ -z "$smtpHost" ] || [ -z "$smtpPort" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --email-send: EMAIL_USER/EMAIL_APP_PASSWORD/EMAIL_SMTP_HOST/EMAIL_SMTP_PORT not fully set in ${memberName}'s own scope in .local/.agents" >&2

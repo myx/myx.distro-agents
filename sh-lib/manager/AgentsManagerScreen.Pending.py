@@ -114,6 +114,16 @@ def readCounters(form, text):
     return {}
 
 
+## A question's text as the left pane shows it: Markdown rendered by catMarkdown
+## (markdownLines), each line with the looks catMarkdown gives its parts, or the text as it
+## is where Markdown cannot be rendered. Nothing of the source is shown where it can be
+## drawn (the sketch's 14.3, the Question form).
+def questionLines(texts, width):
+    text = "\n".join(texts) if not isinstance(texts, str) else texts
+    lines, spans = markdownLines(text, width)
+    return [lookedAt(line, spans.get(number)) for number, line in enumerate(lines)]
+
+
 ## The selected ask, whole, for the left pane: its kind and how long it waits as its head;
 ## its question first, as far as the read of the list prints it, which is its first line;
 ## then as facts who asks and of whom, since when, whether its asker is alive, in its
@@ -134,7 +144,7 @@ def askLines(ask, width, stored=None):
         lines.extend(storedLines(stored["stored"], width))
     else:
         lines.append(looked("question, its first line:", TABLE_LOOKS["heading"]))
-        lines.extend(wrapToCells(values.get("question", ""), max(10, width - 1)))
+        lines.extend(questionLines(values.get("question", ""), width))
     live = values.get("asker-live", "")
     lines.append("")
     lines.extend(factLines([
@@ -187,10 +197,13 @@ def storedLines(stored, width):
     for name, texts in stored:
         held.setdefault(name, []).extend(texts)
 
-    def block(title, texts, numbered=False, exact=False):
+    def block(title, texts, numbered=False, exact=False, rendered=False):
         if lines and lines[-1] != "":
             lines.append("")
         lines.append(looked(title + ":", TABLE_LOOKS["heading"]))
+        if rendered:
+            lines.extend(questionLines(texts, room))
+            return
         for number, text in enumerate(texts, 1):
             if exact:
                 lines.append(text.expandtabs(4))
@@ -215,9 +228,9 @@ def storedLines(stored, width):
                 part(shown + name[len(prefix):], texts)
 
     if "field-question" in held:
-        block("question", held["field-question"])
+        block("question", held["field-question"], rendered=True)
     elif "posted" in held:
-        block("question, as posted", held["posted"])
+        block("question, as posted", held["posted"], rendered=True)
     if "option" in held:
         block("options", held["option"], numbered=True)
     if lines:
@@ -237,7 +250,7 @@ def storedLines(stored, width):
     parts("first-field-", "first ")
     parts("answer-noted-", "answer noted ")
     if "field-question" in held and "posted" in held:
-        block("as posted", held["posted"])
+        block("as posted", held["posted"], rendered=True)
     return lines
 
 
@@ -583,24 +596,17 @@ registerPlugin({
     "reads": dict(PENDING_READS, **{"list:pending": dict(PENDING_READS["list:pending"], count="asks")}),
     "commands": (
         {"name": "answer", "keys": ("ENTER", "y"), "menu": ("question", 1), "label": "~A~nswer", "status": "Answer", "window": "list",
-         "views": ("pending", "@pending-in-team"), "for": "a question", "on": ("pending:record", "@pending-in-team:record"), "only": True, "says": "answer",
+         "views": ("pending",), "for": "a question", "on": ("pending:record",), "only": True, "says": "answer",
          "does": ("action", "answer"), "calls": ("answer",)},
         {"name": "reject", "keys": ("j",), "menu": ("question", 1), "label": "Re~j~ect", "status": "Reject", "window": "list",
-         "views": ("pending", "@pending-in-team"), "for": "a question", "on": ("pending:record", "@pending-in-team:record"), "does": ("action", "reject"), "calls": ("reject",)},
+         "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "reject"), "calls": ("reject",)},
         {"name": "dismiss", "keys": ("d",), "menu": ("question", 1), "label": "~D~ismiss", "status": "Dismiss", "window": "list",
-         "views": ("pending", "@pending-in-team"), "for": "a question", "on": ("pending:record", "@pending-in-team:record"), "does": ("action", "dismiss"), "calls": ("dismiss",)},
+         "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "dismiss"), "calls": ("dismiss",)},
         {"name": "link", "keys": ("o",), "menu": ("question", 2), "label": "Show the ~l~ink", "status": "Link", "window": "list",
-         "views": ("pending", "@pending-in-team"), "for": "a question", "on": ("pending:record", "@pending-in-team:record"), "does": ("action", "link")},
+         "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "link")},
     ),
 })
-registerPlugin({
-    "name": "pending-in-team",
-    "mount": "magic-team",
-    "root": {"id": "pending", "label": "Pending Questions"},
-    "focus": {"pending": "pendingFocus"},
-    "counted": {"pending": "pendingCount"},
-    "summaries": {
-        "pending": {"lines": "pendingSummary"},
-    },
-    "reads": PENDING_READS,
-})
+## PENDING QUESTIONS IS ONE LEVEL, AT THE ROOT: the sketch's note under `Magic-Team` -> `Reorder`
+## says *"if we really finished moving `Pending Questions` to global (.local, pun intended) system
+## for all/any escalations - then we keep those in root and not duplicating it in `Magic-Team`"*.
+## It is global -- the root above is registered -- so the copy mounted on Magic-Team is gone.

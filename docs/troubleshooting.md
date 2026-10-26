@@ -43,7 +43,7 @@ A mistyped or missing sub-command can create an empty configuration before it re
 
 ## A claude-native spawn reports cli-not-authenticated
 
-The machine is signed out of `claude`, and no key is configured. Sign in with `claude auth login`, or store `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` in the magic-team scope.
+The machine is signed out of `claude`, and no key is configured. Sign in with `claude auth login`, or store `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` in the `preset-claude` scope, the preset of claude's CLI service (`--owner-setup-claude --apply` writes it there).
 
 - A signed-in machine never uses a configured key. Claude Code prefers a key over a sign-in, and that would move spawns onto API billing.
 - A signed-out machine uses the first configured key, for `--non-interactive` runs only, and says which one.

@@ -66,8 +66,10 @@ agentsTeamDataGateOps="--intern-op-board-upsert-move-edit
 --daily-*
 --retro-*
 --commit-pending
+--repair-team-data-checkout
 --intern-op-routine-lock-take
 --intern-op-routine-lock-close
+--intern-op-routine-lock-release
 --intern-main-loop"
 
 ## The mode of this workspace, `<mode> <source>`: the mode the settings of the team set, `workspace`; else the one MDAT_WORKSPACE_MODE

@@ -146,6 +146,10 @@ if ! type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 ; then
 	## failed). rc 0 posted; rc 1 not posted; rc 2 no event-track channel is configured, so
 	## nothing was tried. Prints nothing: each caller words its own warning. The post's lines,
 	## where it takes them from stdin, are the caller's stdin.
+	## The post itself is not sent here: it is queued in the outbox of its channel and goes in
+	## its turn, in order with every other post there, at most one message every 7 seconds
+	## (AgentsTools.EventTrackSend.include). This call returns once that post went, so an
+	## immediate post is still reported at once -- it just never jumps the queue.
 	AgentsToolsEventTrackThreadPost(){ ## member, session dir, --intern-op-event-track-post arguments...
 		local postMember="$1" postDir="$2" postStore postLock="" postOut postRc=0
 		shift 2

@@ -8,7 +8,7 @@
 ##
 ## Same gate as the board ops: .git presence under $MDAT_DATA_ROOT, presence only
 ## and independent of TEAM_DATA_GIT_REMOTE, and it never pushes -- the board ops
-## commit locally and item-upsert is the op that pushes. A failed commit warns on
+## commit locally and a later close pushes them. A failed commit warns on
 ## stderr and never fails the write that came before it: the write has happened,
 ## and the dirty-store warning at a spawn close names what is left.
 ##
@@ -61,19 +61,78 @@ AgentsToolsTeamDataCommitPaths(){ ## context, path...
 ## TEAM_DATA_GIT_REMOTE is set to it first (AgentsToolsTeamDataRemoteAlign), where before
 ## it returned there and said nothing. Always returns 0.
 ## One pusher at a time on this host: every close can call this, async spawn closes
-## concurrently, so the body runs under the package's local lock. A busy lock skips
-## with a warning -- the holder is pushing the same branch, and the next close retries.
+## concurrently, so the body runs under the package's local lock. A BUSY LOCK IS A PUSH
+## OWED, NEVER A SKIP: the holder's `git push origin HEAD` may have resolved HEAD before
+## this process committed, so returning quietly leaves this process's commits local with
+## nothing recorded to bring them out -- which is how five commits sat local and unmerged
+## from August to October. So a call that finds the lock busy records the debt and goes;
+## the NEXT push waits the holder out (a push is bounded) and carries the debt to the
+## remote, and the debt goes only where the store is verified not ahead. A debt left
+## unpaid is therefore re-attempted on every later push instead of being re-forgotten.
 AgentsToolsTeamDataPushIfAhead(){ ## where
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
-	local pushLock=""
-	if ! AgentsToolsLocalLockTake "team-data-push" 30 "the team-data push" ; then
-		echo "⚠️ WARNING: $MDSC_CMD: $1: another team-data push holds the lock; skipped, and the next close retries" >&2
+	local pushLock="" pushOwed="" pushTries=30
+	pushOwed="$( AgentsToolsTeamDataPushOwedPath )" || pushOwed=""
+	## A store already owed a push does not skip again: it waits the lock out, and the state
+	## check below clears the debt only when the store is not ahead any more.
+	[ -z "$pushOwed" ] || [ ! -e "$pushOwed" ] || pushTries=330
+	if ! AgentsToolsLocalLockTake "team-data-push" "$pushTries" "the team-data push" ; then
+		AgentsToolsTeamDataPushOwedMark
+		echo "⚠️ WARNING: $MDSC_CMD: $1: another team-data push holds the lock; the store's commits stay local and the push is OWED, marked ${pushOwed:-<no workspace>}, so the next one waits the lock out instead of skipping" >&2
 		return 0
 	fi
 	pushLock="$agentsLocalLockPath"
 	AgentsToolsTeamDataPushIfAheadLocked "$1"
 	AgentsToolsLocalLockGive "$pushLock"
+	## The debt is the store being ahead: a push that failed, or one this configuration could
+	## not make, records it too, so the next call is patient rather than quick to give up. It
+	## goes only where the store is verified not ahead, or where nothing can be told.
+	case "$( AgentsToolsTeamDataPushAheadState )" in
+		ahead) AgentsToolsTeamDataPushOwedMark ;;
+		*) [ -z "$pushOwed" ] || rm -f "$pushOwed" 2>/dev/null || : ;;
+	esac
+	return 0
+}
+
+## Where the store's owed push is recorded: one marker in the workspace's own local state.
+## rc 1, printing nothing, where there is no workspace to keep it in.
+AgentsToolsTeamDataPushOwedPath(){
+	[ -n "${MMDAPP:-}" ] || return 1
+	printf '%s\n' "${MMDAPP%/}/.local/agents/team-data-push.owed"
+}
+
+## Records that the store holds a commit no push has published, so that the next push waits
+## the lock out rather than skipping. Idempotent, silent, and it never fails its caller.
+AgentsToolsTeamDataPushOwedMark(){
+	local owedFile=""
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	owedFile="$( AgentsToolsTeamDataPushOwedPath )" || return 0
+	[ ! -e "$owedFile" ] || return 0
+	mkdir -p "${owedFile%/*}" 2>/dev/null || return 0
+	: > "$owedFile" 2>/dev/null || :
+	return 0
+}
+
+## Whether the store's branch is still ahead of its origin ref: prints `ahead`, `in-step` or
+## `unknown`, reading only and never failing. A branch whose origin ref is absent counts as
+## ahead, because nothing yet proves it published.
+AgentsToolsTeamDataPushAheadState(){
+	local stateRoot="" stateBranch="" stateAhead=""
+	[ -n "${MDAT_DATA_ROOT:-}" ] || { printf 'unknown\n' ; return 0 ; }
+	stateRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || stateRoot=""
+	[ -n "$stateRoot" ] || { printf 'unknown\n' ; return 0 ; }
+	stateBranch="$( git -C "$stateRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )" || stateBranch=""
+	case "$stateBranch" in ''|HEAD) printf 'unknown\n' ; return 0 ;; esac
+	if ! git -C "$stateRoot" rev-parse --verify --quiet "refs/remotes/origin/$stateBranch" > /dev/null 2>&1 ; then
+		printf 'ahead\n' ; return 0
+	fi
+	stateAhead="$( git -C "$stateRoot" rev-list --count "refs/remotes/origin/$stateBranch..HEAD" 2>/dev/null )" || stateAhead=""
+	case "$stateAhead" in
+		''|*[!0123456789]*) printf 'unknown\n' ;;
+		0) printf 'in-step\n' ;;
+		*) printf 'ahead\n' ;;
+	esac
 	return 0
 }
 
@@ -313,5 +372,76 @@ AgentsToolsTeamDataDirtyWarning(){ ## where
 			echo "⚠️ WARNING: $MDSC_CMD: $1: the team-data branch $dirtyBranch is $aheadCount commit(s) ahead of origin/$dirtyBranch (rev-list --count against the last fetch) -- not pushed yet" >&2
 		fi
 	fi
+	return 0
+}
+
+## --repair-team-data-checkout <member> [--keep-merged|--take-remote]: the coordinator repairs a member's team-data checkout
+## that has diverged from origin. With no mode it SHOWS the checkout, its branch and its local and remote commits, read-only.
+## --keep-merged trial-merges origin into a throwaway copy and, where that succeeds, merges it in place, keeping the local
+## commits. --take-remote sets the local checkout aside (a flat move beside it) and resets to a fresh clone of origin, so
+## nothing is ever discarded -- the set-aside copy keeps it. Never a lossy reset and never a push.
+AgentsToolsTeamDataCheckoutRepair(){ ## operation, member, [mode]
+	local repairOp="$1" repairMember="${2:-}" repairMode="${3:-}" repairDir repairBranch repairLocal repairRemote repairTmp repairAsided
+	[ -n "$repairMember" ] && [ $# -le 3 ] || { echo "⛔ ERROR: $MDSC_CMD $repairOp: syntax is $repairOp <member> [--keep-merged|--take-remote]" >&2 ; return 1 ; }
+	case "$repairMode" in ''|--keep-merged|--take-remote) ;; *) echo "⛔ ERROR: $MDSC_CMD $repairOp: unknown mode: $repairMode -- syntax is $repairOp <member> [--keep-merged|--take-remote]" >&2 ; return 1 ;; esac
+	type AgentsToolsMagicCallerCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	AgentsToolsMagicCallerCheck "${repairOp#--}" || return 1
+	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
+	AgentsToolsAssertBareName "$repairMember" "<member>" "${repairOp#--}" || return 1
+	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD $repairOp: MDAT_DATA_ROOT is not set" >&2 ; return 1 ; }
+	repairDir="$MDAT_DATA_ROOT"
+	[ -e "$repairDir/.git" ] || { echo "⛔ ERROR: $MDSC_CMD $repairOp: $repairDir is no git checkout (no .git) -- nothing was done" >&2 ; return 1 ; }
+	repairBranch="$( git -C "$repairDir" rev-parse --abbrev-ref HEAD 2>/dev/null )" || repairBranch=""
+	[ -n "$repairBranch" ] && [ "$repairBranch" != "HEAD" ] || { echo "⛔ ERROR: $MDSC_CMD $repairOp: the checkout's branch could not be read -- nothing was done" >&2 ; return 1 ; }
+	git -C "$repairDir" fetch -q origin "$repairBranch" > /dev/null 2>&1 || :
+	repairLocal="$( git -C "$repairDir" rev-parse HEAD 2>/dev/null )" || repairLocal=""
+	repairRemote="$( git -C "$repairDir" rev-parse --verify --quiet "refs/remotes/origin/$repairBranch" 2>/dev/null )" || repairRemote=""
+	[ -n "$repairLocal" ] && [ -n "$repairRemote" ] || { echo "⛔ ERROR: $MDSC_CMD $repairOp: the checkout's local or remote head could not be read -- nothing was done" >&2 ; return 1 ; }
+	printf 'CHECKOUT: %s\nMEMBER: %s\nBRANCH: %s\nLOCAL: %s\nREMOTE: %s\n' "$repairDir" "$repairMember" "$repairBranch" "$repairLocal" "$repairRemote"
+	git -C "$repairDir" log --oneline -5 "refs/remotes/origin/$repairBranch..HEAD" 2>/dev/null | LC_ALL=C sed 's/^/LOCAL-COMMIT: /'
+	git -C "$repairDir" log --oneline -5 "HEAD..refs/remotes/origin/$repairBranch" 2>/dev/null | LC_ALL=C sed 's/^/REMOTE-COMMIT: /'
+	if [ "$repairLocal" = "$repairRemote" ] ; then
+		printf 'IN-SYNC: local and remote are the same commit; nothing to repair.\n'
+		return 0
+	fi
+	if [ -z "$repairMode" ] ; then
+		printf 'DIVERGED: name a mode (--keep-merged to merge, or --take-remote to set the local aside and reset).\n'
+		return 0
+	fi
+	## A trial merge in a throwaway copy, before anything is touched.
+	repairTmp="$( mktemp -d "$MMDAPP/.local/temp/mdat-team-data-checkout.XXXXXX" )" || { echo "⛔ ERROR: $MDSC_CMD $repairOp: a throwaway copy could not be made -- nothing was done" >&2 ; return 1 ; }
+	if ! git -C "$repairDir" worktree add --detach "$repairTmp" HEAD > /dev/null 2>&1 ; then
+		rm -rf "$repairTmp"
+		echo "⛔ ERROR: $MDSC_CMD $repairOp: the throwaway copy could not be checked out -- nothing was done" >&2 ; return 1
+	fi
+	if ! git -C "$repairTmp" merge --no-edit "refs/remotes/origin/$repairBranch" > /dev/null 2>&1 ; then
+		git -C "$repairTmp" merge --abort > /dev/null 2>&1 || :
+		git -C "$repairDir" worktree remove --force "$repairTmp" > /dev/null 2>&1 || :
+		echo "⛔ ERROR: $MDSC_CMD $repairOp: the trial merge conflicts, so nothing was changed; resolve the checkout by hand" >&2
+		return 1
+	fi
+	git -C "$repairDir" worktree remove --force "$repairTmp" > /dev/null 2>&1 || :
+	case "$repairMode" in
+		--keep-merged)
+			if git -C "$repairDir" merge --no-edit "refs/remotes/origin/$repairBranch" > /dev/null 2>&1 ; then
+				printf 'MERGED: origin/%s is merged into the local checkout; the local commits are kept.\n' "$repairBranch"
+			else
+				git -C "$repairDir" merge --abort > /dev/null 2>&1 || :
+				echo "⛔ ERROR: $MDSC_CMD $repairOp: the merge failed -- nothing was changed" >&2 ; return 1
+			fi
+		;;
+		--take-remote)
+			repairAsided="$repairDir.set-aside.$( date -u +%Y%m%dT%H%MZ )"
+			[ ! -e "$repairAsided" ] || { echo "⛔ ERROR: $MDSC_CMD $repairOp: the set-aside name already exists: $repairAsided -- nothing was changed" >&2 ; return 1 ; }
+			if ! mv "$repairDir" "$repairAsided" ; then
+				echo "⛔ ERROR: $MDSC_CMD $repairOp: the checkout could not be set aside -- nothing was changed" >&2 ; return 1
+			fi
+			if ! git clone -q -b "$repairBranch" "$( git -C "$repairAsided" remote get-url origin 2>/dev/null )" "$repairDir" > /dev/null 2>&1 ; then
+				mv "$repairAsided" "$repairDir"
+				echo "⛔ ERROR: $MDSC_CMD $repairOp: the remote could not be re-cloned; the local checkout is restored -- nothing was changed" >&2 ; return 1
+			fi
+			printf 'TAKEN-REMOTE: the local checkout is set aside at %s, and %s is reset to origin/%s.\n' "$repairAsided" "$repairDir" "$repairBranch"
+		;;
+	esac
 	return 0
 }

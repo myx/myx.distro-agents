@@ -28,7 +28,7 @@
 ## of another conversation, and a reply to a post of the run are not of the thread.
 ##
 
-thisSessionMember="" thisSessionKey="" thisSessionThread=""
+thisSessionMember="" thisSessionKey="" thisSessionThread="" thisSessionRecord=""
 
 ## The member the call is made by: the spawned member of this run. rc 1, with a plain line, for a call from no member's session.
 AgentsToolsThisSessionNeedMember(){ ## operation
@@ -319,9 +319,81 @@ AgentsToolsThisSessionCheckpoint(){ ## push|rewind|exit, then the operation's ar
 	esac
 }
 
+## --session-floor-remove <seconds>: the explicit timed removal of the run's delivery floor -- the read:<member> pointer the
+## session chat floor reads past and the run's own last post. Bound to the session of the call (ThisSession); the floor is
+## removed after the whole seconds given (0 removes it now), so a later wait reads the session channel from the start again.
+AgentsToolsThisSessionFloorRemove(){ ## the operation's arguments
+	local floorOp="$1" floorSeconds="${2:-}" floorDir floorPointers floorMember floorTemp
+	if [ $# -ne 2 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --session-floor-remove: syntax is --session-floor-remove <seconds>" >&2
+		return 1
+	fi
+	case "$floorSeconds" in
+		''|*[!0123456789]*)
+			echo "⛔ ERROR: $MDSC_CMD --session-floor-remove: <seconds> is whole seconds, got: ${floorSeconds:-nothing}" >&2
+			return 1
+		;;
+	esac
+	AgentsToolsThisSessionNeedMember --session-floor-remove || return 1
+	AgentsToolsThisSessionNeedSession --session-floor-remove || return 1
+	floorMember="$thisSessionMember"
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	floorDir="$( AgentsToolsSessionChatDir "$thisSessionKey" )" || floorDir=""
+	if [ -z "$floorDir" ] || [ ! -d "$floorDir" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --session-floor-remove: the session has no chat directory to hold a floor -- nothing was done" >&2
+		return 1
+	fi
+	[ "$floorSeconds" -le 0 ] || sleep "$floorSeconds"
+	floorPointers="$floorDir/$agentsSessionChatName.pointers"
+	if [ -f "$floorPointers" ] ; then
+		floorTemp="$( mktemp "$floorPointers.tmp.XXXXXX" )" || floorTemp=""
+		LC_ALL=C awk -F'\t' -v member="$floorMember" '$1 != "read:" member { print }' "$floorPointers" > "$floorTemp" 2>/dev/null && chmod 644 "$floorTemp" && mv -f "$floorTemp" "$floorPointers"
+		[ -z "$floorTemp" ] || rm -f -- "$floorTemp"
+	fi
+	rm -f "$MMDAPP/.local/agents/sessions/${thisSessionKey}/last-own-post" 2>/dev/null || :
+	printf 'OK: --session-floor-remove: the delivery floor is removed.\n'
+}
+
+## --session-floor-remove <seconds>: the explicit timed removal of the run's delivery floor -- the read:<member> pointer the
+## session chat floor reads past and the run's own last post. Bound to the session of the call (ThisSession); the floor is
+## removed after the whole seconds given (0 removes it now), so a later wait reads the session channel from the start again.
+AgentsToolsThisSessionFloorRemove(){ ## the operation's arguments
+	local floorOp="$1" floorSeconds="${2:-}" floorDir floorPointers floorMember floorTemp
+	if [ $# -ne 2 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --session-floor-remove: syntax is --session-floor-remove <seconds>" >&2
+		return 1
+	fi
+	case "$floorSeconds" in
+		''|*[!0123456789]*)
+			echo "⛔ ERROR: $MDSC_CMD --session-floor-remove: <seconds> is whole seconds, got: ${floorSeconds:-nothing}" >&2
+			return 1
+		;;
+	esac
+	AgentsToolsThisSessionNeedMember --session-floor-remove || return 1
+	AgentsToolsThisSessionNeedSession --session-floor-remove || return 1
+	floorMember="$thisSessionMember"
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	floorDir="$( AgentsToolsSessionChatDir "$thisSessionKey" )" || floorDir=""
+	if [ -z "$floorDir" ] || [ ! -d "$floorDir" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --session-floor-remove: the session has no chat directory to hold a floor -- nothing was done" >&2
+		return 1
+	fi
+	[ "$floorSeconds" -le 0 ] || sleep "$floorSeconds"
+	floorPointers="$floorDir/$agentsSessionChatName.pointers"
+	if [ -f "$floorPointers" ] ; then
+		floorTemp="$( mktemp "$floorPointers.tmp.XXXXXX" )" || floorTemp=""
+		LC_ALL=C awk -F'\t' -v member="$floorMember" '$1 != "read:" member { print }' "$floorPointers" > "$floorTemp" 2>/dev/null && chmod 644 "$floorTemp" && mv -f "$floorTemp" "$floorPointers"
+		[ -z "$floorTemp" ] || rm -f -- "$floorTemp"
+	fi
+	rm -f "$MMDAPP/.local/agents/sessions/${thisSessionKey}/last-own-post" 2>/dev/null || :
+	printf 'OK: --session-floor-remove: the delivery floor is removed.\n'
+}
+
 ## ---- --idle-wait (F10.5 gate B) ----
 ## Wait for new input and, on an arrival, return to the run's checkpoint with the arrival as the next input: the work-duty behaviour of a
-## run that stays, so that the rounds of each piece of work do not pile up in its conversation. It WRITES A REQUEST as the checkpoint
+## run that stays, so that the rounds of each piece of work do not pile up in its conversation. With nothing arrived it makes a KEEPALIVE
+## round before the input cache expires: it returns to the checkpoint with a keepalive text and the model is woken, so the next turn is
+## read from the cached prefix (the work-duty's cache keepalive). It WRITES A REQUEST as the checkpoint
 ## operations do (`idle <timeout or -> [<source> ...]`), and the harness makes the wait at the end of the round, because only it holds the
 ## conversation (AgentsHarnessIdleWait). It waits on what the routine the session runs waits on: the floor, and the scans the routine itself
 ## declares with `input-scan-def:`, by name, as `scan:` sources (F3.3), so a work-duty run wakes on its work-duty input, and the sources it declares with
@@ -401,6 +473,14 @@ AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
 			idleSources="$idleSources${idleSources:+ }$idleWord"
 		done
 	fi
+	## THE WAKE MARKER (AgentsTools.WakeMarker.include): every message one of our own members sends this one writes the
+	## marker the wait reads on its tick, so a message addressed to it wakes it in about a second instead of at the
+	## wait's next look at the costly Slack source -- whether the message is bare, tagged, a reply, or a direct
+	## message. Named here, by the run's own member, so a duty always watches it and no routine has to declare it.
+	case " $idleSources " in
+		*" wake:${MDAT_SPAWN_AGENT:-} "*) ;;
+		*) [ -z "${MDAT_SPAWN_AGENT:-}" ] || idleSources="$idleSources${idleSources:+ }wake:$MDAT_SPAWN_AGENT" ;;
+	esac
 	idleStore="$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID"
 	mkdir -p "$idleStore" 2> /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: --idle-wait: $idleStore could not be made. Nothing was done." >&2 ; return 1 ; }
 	## The checkpoint it returns to: `opening` where the run holds it, else `armed`, else none.
@@ -416,6 +496,311 @@ AgentsToolsThisSessionIdleWait(){ ## the operation's arguments
 	else
 		idleTail="no snapshot is held, so an arrival comes as a message and the conversation is not returned"
 	fi
-	[ -z "$idleBound" ] || idleQuiet="; with nothing in $idleBound seconds the wait ends with a TIMEOUT, and nothing is returned"
+	if [ -n "$idleBound" ] ; then
+		idleQuiet="; with nothing in $idleBound seconds the wait ends with a TIMEOUT, and nothing is returned"
+	else
+		idleQuiet="; with nothing arrived, a keepalive round returns the conversation to its checkpoint before the input cache expires, and you call --idle-wait again to keep waiting"
+	fi
 	printf 'OK: --idle-wait: at the end of this round the harness waits on %s; %s%s.\n' "$idleShown" "$idleTail" "$idleQuiet"
+}
+
+## ---- --set-session-topic / --set-session-chapter ----
+## The session's title (topic) and its one-line chapter. The topic is the session-comment header on every
+## record of the session -- the title the thread shows -- and the thread's root post is edited to carry it;
+## the chapter is a one-line file, sessions/<id>/chapter, and a one-line announcement in the thread. The
+## executor of the session sets them directly; anyone else's bare call is refused (rc 3) with the escalation
+## options, through the authority gate (AgentsToolsAuthorityGate/AgentsToolsAuthorityExit).
+
+## The shared guard: rc 0 where the caller may set (the executor, or a granted/escalated authority). A bare
+## call by anyone else is refused (rc 3) and the escalation options are said; the exit code is agentsAuthorityExit.
+AgentsToolsThisSessionSetGuard(){ ## operation words
+	local guardOp="$1"
+	AgentsToolsThisSessionNeedMember "$guardOp" || return 1
+	AgentsToolsThisSessionNeedSession "$guardOp" || return 1
+	type AgentsToolsAuthorityGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	type AgentsToolsSessionRunExecutor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	AgentsToolsAuthorityCaller
+	if [ -n "$agentsAuthorityCallerRecord" ] && AgentsToolsSessionRunExecutor "$agentsAuthorityCallerRecord" ; then
+		return 0
+	fi
+	local guardFounder=""
+	guardFounder="$( AgentsToolsAuthorityFounder "$thisSessionKey" )" || guardFounder=""
+	AgentsToolsAuthorityGate "$guardOp" "$thisSessionKey" "${guardFounder:-}" "" tool
+	AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
+	return 0
+}
+
+## --set-session-topic <text...>: the title, on every record of the session and on the thread's root post.
+AgentsToolsThisSessionSetTopic(){ ## the operation's arguments: <text...>
+	if [ $# -eq 0 ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --set-session-topic: syntax is --set-session-topic <text>. Nothing was done." >&2
+		return 1
+	fi
+	AgentsToolsThisSessionSetGuard --set-session-topic || return $?
+	local setTopicText="$*" setTopicRecord setTopicFounder="" setTopicBy="" setTopicRoot=""
+	## The title on every record of the session (the session-comment header).
+	for setTopicRecord in $( LC_ALL=C grep -l -x -F "session-id: $thisSessionKey" "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2> /dev/null ) ; do
+		[ -f "$setTopicRecord" ] || continue
+		AgentsToolsAuthorityFieldSet "$setTopicRecord" session-comment "$setTopicText" || :
+	done
+	## The thread's root post, edited to carry the new title. Best-effort: no thread or no fill leaves the records set.
+	if AgentsToolsThisSessionNeedThread --set-session-topic ; then
+		setTopicFounder="$( AgentsToolsAuthorityFounder "$thisSessionKey" )" || setTopicFounder=""
+		[ -z "$setTopicFounder" ] || setTopicBy="$( AgentsToolsAuthorityField "$setTopicFounder" owner )"
+		type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include" 2> /dev/null || :
+		if type AgentsToolsToolingTemplateFill > /dev/null 2>&1 ; then
+			setTopicRoot="$( STR_SESSION_NAME="$setTopicText" STR_STARTED_BY="$setTopicBy" AgentsToolsToolingTemplateFill session-thread.root.format.md session/AgentsSessionThreadRootFill.awk 2> /dev/null )" || setTopicRoot=""
+		fi
+		[ -z "$setTopicRoot" ] || DistroAgentsTools --slack-edit-message "$thisSessionMember" "$thisSessionThread" "$setTopicRoot" > /dev/null 2>&1 || :
+	fi
+	printf 'OK: --set-session-topic: the session title is now "%s".\n' "$setTopicText"
+}
+
+## --set-session-chapter <text...>: a one-line file, sessions/<id>/chapter, and a one-line announcement in the thread.
+AgentsToolsThisSessionSetChapter(){ ## the operation's arguments: <text...>
+	if [ $# -eq 0 ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --set-session-chapter: syntax is --set-session-chapter <text>. Nothing was done." >&2
+		return 1
+	fi
+	AgentsToolsThisSessionSetGuard --set-session-chapter || return $?
+	local setChapterText="$*" setChapterStore="$MMDAPP/.local/agents/sessions/$thisSessionKey"
+	mkdir -p "$setChapterStore" 2> /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: --set-session-chapter: $setChapterStore could not be made. Nothing was done." >&2 ; return 1 ; }
+	printf '%s\n' "$setChapterText" > "$setChapterStore/chapter" || { echo "$MDSC_CMD: ⛔ ERROR: --set-session-chapter: the chapter could not be written. Nothing was done." >&2 ; return 1 ; }
+	if AgentsToolsThisSessionNeedThread --set-session-chapter ; then
+		AgentsToolsThisSessionPost "Session chapter: $setChapterText" > /dev/null 2>&1 || :
+	fi
+	printf 'OK: --set-session-chapter: the session chapter is now "%s".\n' "$setChapterText"
+}
+
+## The intern-op dispatch: DistroAgentsTools --intern-op-set-session-topic|--intern-op-set-session-chapter.
+## Sourced with $@ intact; matches only these names, so a source from DistroAgentsSession.fn.sh is a no-op here.
+case "$1" in
+	--intern-op-set-session-topic)
+		shift
+		local internSessionId="" internFounderRecord=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) internSessionId="$2" ; shift 2 ;;
+				*) break ;;
+			esac
+		done
+		if [ -n "$internSessionId" ] ; then
+			MDAT_SESSION_ID="$internSessionId"
+			if [ -z "${MDAT_SPAWN_AGENT:-}" ] ; then
+				type AgentsToolsAuthorityFounder > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+				internFounderRecord="$( AgentsToolsAuthorityFounder "$internSessionId" )" || internFounderRecord=""
+				if [ -n "$internFounderRecord" ] ; then
+					MDAT_SPAWN_AGENT="$( AgentsToolsAuthorityField "$internFounderRecord" owner )"
+					MDAT_SPAWN_SESSION_ID="$( AgentsToolsAuthorityField "$internFounderRecord" spawn-id )"
+				fi
+			fi
+		fi
+		AgentsToolsThisSessionSetTopic "$@"
+		return $?
+	;;
+	--intern-op-set-session-chapter)
+		shift
+		AgentsToolsThisSessionSetChapter "$@"
+		return $?
+	;;
+esac
+
+## ---- --set-session-topic and --set-session-chapter (T4) ----
+## The topic, what the session is about: the title in lists and statuses (the `session-comment`
+## header of its records) and the thread's root post edited to match. The chapter, what the
+## session does now: kept in the session's own store (sessions/<id>/chapter) and announced in
+## the session thread. Set together or apart. Anyone who sees the session reads them; the
+## executor of the session sets them, and a change by another participant goes as an escalation
+## to the executor and up its chain; the person at the console sets them under the authority
+## rule (F6.10, AgentsTools.Authority.include). Nothing is logged beyond the transcript, the
+## chat and the event-track.
+
+## The member and the session the call belongs to, and the record the authority over the session
+## is asked of (its founding run's, AgentsToolsAuthoritySessionRecord). rc 1, with a plain line,
+## where the call has no member or no session. The record may be empty: a session with no run
+## here is still gated, against the owners role.
+AgentsToolsThisSessionSetRecord(){ ## operation
+	AgentsToolsThisSessionNeedMember "$1" || return 1
+	AgentsToolsThisSessionNeedSession "$1" || return 1
+	type AgentsToolsAuthoritySessionRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	thisSessionRecord="$( AgentsToolsAuthoritySessionRecord "$thisSessionKey" )" || thisSessionRecord=""
+	return 0
+}
+
+## Whether the caller is the executor of the session it belongs to: a member whose run founded it
+## (its run's `session-id` is the session and the run is the executor, AgentsToolsSessionRunExecutor).
+## rc 0 it is. The executor sets the topic and the chapter itself; anyone else is gated below.
+AgentsToolsThisSessionIsExecutor(){
+	type AgentsToolsAuthorityCaller > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	type AgentsToolsSessionRunExecutor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	AgentsToolsAuthorityCaller
+	[ "$agentsAuthorityCallerKind" = member ] || return 1
+	[ -n "$agentsAuthorityCallerRecord" ] || return 1
+	[ "$( AgentsToolsAuthorityField "$agentsAuthorityCallerRecord" session-id )" = "$thisSessionKey" ] || return 1
+	AgentsToolsSessionRunExecutor "$agentsAuthorityCallerRecord"
+}
+
+## Whether the caller is the executor of the session it belongs to: a member whose run founded it
+## (its run's `session-id` is the session and the run is the executor, AgentsToolsSessionRunExecutor).
+## rc 0 it is. The executor sets the topic and the chapter itself; anyone else is gated below.
+AgentsToolsThisSessionIsExecutor(){
+	type AgentsToolsAuthorityCaller > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	type AgentsToolsSessionRunExecutor > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	AgentsToolsAuthorityCaller
+	[ "$agentsAuthorityCallerKind" = member ] || return 1
+	[ -n "$agentsAuthorityCallerRecord" ] || return 1
+	[ "$( AgentsToolsAuthorityField "$agentsAuthorityCallerRecord" session-id )" = "$thisSessionKey" ] || return 1
+	AgentsToolsSessionRunExecutor "$agentsAuthorityCallerRecord"
+}
+
+## The write of --set-session-topic, the intern operation DistroAgentsTools runs (--session-id <id>
+## <text>): the session-comment header of every record of the session is set to the topic (the title
+## in lists and statuses), and the thread's root post is edited to match, as the bot that posted it.
+## The title is the change; the root edit is best-effort and never undoes the title.
+AgentsToolsThisSessionTopicSet(){ ## --session-id <id> <text>
+	local topicSession="" topicText="" topicBy="" topicFile topicThread="" topicRoot="" topicRc=0 topicWritten=""
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--session-id) topicSession="${2:-}" ; shift 2 ;;
+			*) topicText="${topicText:+$topicText }$1" ; shift ;;
+		esac
+	done
+	[ -n "$topicSession" ] && [ -n "$topicText" ] || { echo "$MDSC_CMD: ⛔ ERROR: --intern-op-set-session-topic: syntax is --session-id <id> <text>. Nothing was set." >&2 ; return 1 ; }
+	type AgentsToolsAuthorityFieldSet > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	for topicFile in $( LC_ALL=C grep -l -x -F "session-id: $topicSession" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ) ; do
+		AgentsToolsAuthorityFieldSet "$topicFile" session-comment "$topicText" 2> /dev/null && topicWritten="yes" || topicRc=1
+	done
+	if [ -z "$topicWritten" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --intern-op-set-session-topic: session $topicSession has no record here to hold its title. Nothing was set." >&2
+		return 1
+	fi
+	topicThread="$( LC_ALL=C sed -n '1p' "${MMDAPP:-/nonexistent}"/.local/agents/sessions/$topicSession/session.thread 2> /dev/null )" || topicThread=""
+	type AgentsToolsRunRouteMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	topicBy="$( AgentsToolsRunRouteMember "$topicSession" )" || topicBy=""
+	if [ -n "$topicThread" ] && [ -n "$topicBy" ] ; then
+		type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
+		topicRoot="$( STR_SESSION_NAME="$topicText" STR_STARTED_BY="$topicBy" AgentsToolsToolingTemplateFill session-thread.root.format.md session/AgentsSessionThreadRootFill.awk 2> /dev/null )" || topicRoot=""
+		if [ -n "$topicRoot" ] ; then
+			DistroAgentsTools --slack-edit-message "$topicBy" "$topicThread" --identity-bot "$topicRoot" > /dev/null 2>&1 || :
+		fi
+	fi
+	[ "$topicRc" = 0 ] || { echo "$MDSC_CMD: ⛔ ERROR: --intern-op-set-session-topic: one of the session's records could not be updated. Nothing more was changed." >&2 ; return 1 ; }
+	printf 'OK: --set-session-topic: session %s is about: %s\n' "$topicSession" "$topicText"
+}
+
+## The write of --set-session-chapter, the intern operation DistroAgentsTools runs (--session-id
+## <id> <text>): the chapter kept in the session's own store (sessions/<id>/chapter, one line), and
+## announced in the session thread. The keep is the change; the announce is best-effort.
+AgentsToolsThisSessionChapterSet(){ ## --session-id <id> <text>
+	local chapterSession="" chapterText="" chapterBy="" chapterDir="" chapterTmp="" chapterThread=""
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--session-id) chapterSession="${2:-}" ; shift 2 ;;
+			*) chapterText="${chapterText:+$chapterText }$1" ; shift ;;
+		esac
+	done
+	[ -n "$chapterSession" ] && [ -n "$chapterText" ] || { echo "$MDSC_CMD: ⛔ ERROR: --intern-op-set-session-chapter: syntax is --session-id <id> <text>. Nothing was set." >&2 ; return 1 ; }
+	chapterDir="${MMDAPP:-/nonexistent}/.local/agents/sessions/$chapterSession"
+	mkdir -p "$chapterDir" 2> /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: --intern-op-set-session-chapter: $chapterDir could not be made. Nothing was set." >&2 ; return 1 ; }
+	chapterTmp="$( mktemp "$chapterDir/.chapter.XXXXXX" 2> /dev/null )" || chapterTmp=""
+	{ [ -n "$chapterTmp" ] && printf '%s\n' "$chapterText" > "$chapterTmp" && mv -f "$chapterTmp" "$chapterDir/chapter" ; } 2> /dev/null || {
+		[ -z "$chapterTmp" ] || rm -f "$chapterTmp" 2> /dev/null
+		echo "$MDSC_CMD: ⛔ ERROR: --intern-op-set-session-chapter: the chapter could not be saved in $chapterDir. Nothing was set." >&2
+		return 1
+	}
+	chapterThread="$( LC_ALL=C sed -n '1p' "$chapterDir/session.thread" 2> /dev/null )" || chapterThread=""
+	type AgentsToolsRunRouteMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	chapterBy="$( AgentsToolsRunRouteMember "$chapterSession" )" || chapterBy=""
+	if [ -n "$chapterThread" ] && [ -n "$chapterBy" ] ; then
+		DistroAgentsTools --slack-send-message "$chapterBy" "$chapterThread" "📖 Session chapter: $chapterText" > /dev/null 2>&1 || :
+	fi
+	printf 'OK: --set-session-chapter: session %s does now: %s\n' "$chapterSession" "$chapterText"
+}
+
+## --set-session-topic <text>: the title of the session, set by its executor, or by an escalation
+## of a participant's change to the executor and up its chain, or by the person at the console
+## under the authority rule. The escalation words (--escalate-wait [--timeout <s>] | --escalate-enqueue)
+## are the authority rule's own (F6.10).
+AgentsToolsThisSessionSetTopic(){ ## the operation's arguments
+	local topicText="" topicKept=""
+	AgentsToolsThisSessionSetRecord --set-session-topic || return 1
+	type AgentsToolsAuthorityFlags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	AgentsToolsAuthorityFlags "$@" || return 1
+	topicText="$( IFS=' ' ; printf '%s' "${agentsAuthorityRest[*]}" )"
+	[ -n "$topicText" ] || { echo "$MDSC_CMD: ⛔ ERROR: --set-session-topic: syntax is --set-session-topic <text> [--escalate-wait [--timeout <s>]|--escalate-enqueue]. Nothing was set." >&2 ; return 1 ; }
+	type AgentsToolsTaskTextKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
+	topicKept="$( AgentsToolsTaskTextKept "$topicText" )"
+	[ -n "$topicKept" ] || { echo "$MDSC_CMD: ⛔ ERROR: --set-session-topic: the topic names nothing. Nothing was set." >&2 ; return 1 ; }
+	## The executor of the session sets it itself; anyone else is gated (a participant's change
+	## escalates to the executor and up its chain; the console person is under the authority rule).
+	if AgentsToolsThisSessionIsExecutor ; then
+		AgentsToolsThisSessionTopicSet --session-id "$thisSessionKey" "$topicKept"
+		return $?
+	fi
+	type AgentsToolsAuthoritySessionWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	AgentsToolsAuthorityGate "set the topic of session $( AgentsToolsAuthoritySessionWords "$thisSessionKey" ) to '$topicKept'" \
+		"$thisSessionKey" "$thisSessionRecord" "" tool --intern-op-set-session-topic --session-id "$thisSessionKey" "$topicKept"
+	AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
+	AgentsToolsThisSessionTopicSet --session-id "$thisSessionKey" "$topicKept"
+}
+
+## --set-session-chapter <text>: what the session does now, set by its executor, or by an escalation
+## of a participant's change to the executor and up its chain, or by the person at the console under
+## the authority rule. The escalation words are the authority rule's own (F6.10).
+AgentsToolsThisSessionSetChapter(){ ## the operation's arguments
+	local chapterText="" chapterKept=""
+	AgentsToolsThisSessionSetRecord --set-session-chapter || return 1
+	type AgentsToolsAuthorityFlags > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	AgentsToolsAuthorityFlags "$@" || return 1
+	chapterText="$( IFS=' ' ; printf '%s' "${agentsAuthorityRest[*]}" )"
+	[ -n "$chapterText" ] || { echo "$MDSC_CMD: ⛔ ERROR: --set-session-chapter: syntax is --set-session-chapter <text> [--escalate-wait [--timeout <s>]|--escalate-enqueue]. Nothing was set." >&2 ; return 1 ; }
+	type AgentsToolsTaskTextKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TaskText.include"
+	chapterKept="$( AgentsToolsTaskTextKept "$chapterText" )"
+	[ -n "$chapterKept" ] || { echo "$MDSC_CMD: ⛔ ERROR: --set-session-chapter: the chapter names nothing. Nothing was set." >&2 ; return 1 ; }
+	## The executor of the session sets it itself; anyone else is gated (a participant's change
+	## escalates to the executor and up its chain; the console person is under the authority rule).
+	if AgentsToolsThisSessionIsExecutor ; then
+		AgentsToolsThisSessionChapterSet --session-id "$thisSessionKey" "$chapterKept"
+		return $?
+	fi
+	type AgentsToolsAuthoritySessionWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.Authority.include"
+	AgentsToolsAuthorityGate "set the chapter of session $( AgentsToolsAuthoritySessionWords "$thisSessionKey" ) to '$chapterKept'" \
+		"$thisSessionKey" "$thisSessionRecord" "" tool --intern-op-set-session-chapter --session-id "$thisSessionKey" "$chapterKept"
+	AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
+	AgentsToolsThisSessionChapterSet --session-id "$thisSessionKey" "$chapterKept"
+}
+
+## ---- --list-session-runs (T5) ----
+## The runs bound to this session, as the manager list prints them (the rows the Dispatcher lists), and
+## nothing else: this session's own runs and its sub-sessions (the run tree's descendants), the public
+## (coworking) sessions of the team, and the member's own ones (every run it owns -- its own private
+## sessions among them). magic-coordinator, called in to a stuck session, has a run of its own there and
+## so sees it through the same rule; a private session of another member is never listed to a member
+## that is not in it. The rows are the manager list's own, the one function every reader of the runs calls.
+AgentsToolsThisSessionRuns(){ ## the operation's arguments (none)
+	if [ $# -gt 0 ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: --list-session-runs: syntax is --list-session-runs, and takes no argument" >&2
+		return 1
+	fi
+	AgentsToolsThisSessionNeedMember --list-session-runs || return 1
+	AgentsToolsThisSessionNeedSession --list-session-runs || return 1
+	local runsSession="$thisSessionKey" runsMember="$thisSessionMember" runsRows runsKinds runsBound runsPublic runsOwn runsKept
+	type AgentsToolsDispatcherManager > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.Dispatcher.include"
+	AgentsToolsDispatcherManager || return 1
+	runsRows="$( AgentsToolsManagerSessionRows --all-sessions "" )" || return 1
+	runsKinds="$( AgentsToolsDispatcherKinds "$runsRows" )"
+	runsBound="$( AgentsToolsDispatcherSubSessions "$runsSession" | LC_ALL=C sort -u )"
+	runsPublic="$( printf '%s\n' "$runsKinds" | LC_ALL=C awk -F'\t' '$2 == "coworking" { print $1 }' )"
+	runsOwn="$( printf '%s\n' "$runsRows" | LC_ALL=C awk -F'\t' -v who="$runsMember" '$1 == "run" && $4 == who { print $2 }' )"
+	runsKept="$( { printf '%s\n' "$runsBound" "$runsPublic" "$runsOwn" ; } | LC_ALL=C sort -u )"
+	printf '%s\n' "$runsRows" | DISPATCH_KEPT="$runsKept" LC_ALL=C awk -F'\t' '
+		BEGIN {
+			keptCount = split( ENVIRON["DISPATCH_KEPT"], keptList, "\n" ) ;
+			for (keptAt = 1 ; keptAt <= keptCount ; keptAt++) if (keptList[keptAt] != "") keptOf[keptList[keptAt]] = 1 ;
+		}
+		$1 == "session" { if ($2 in keptOf) { keptSession[$2] = 1 ; print ; } next ; }
+		$1 == "run" { if ($2 in keptSession) print ; next ; }
+		{ print ; }
+	'
+	return 0
 }

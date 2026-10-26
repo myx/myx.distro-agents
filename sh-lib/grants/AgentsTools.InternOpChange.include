@@ -156,6 +156,9 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 		type AgentsToolsAskPostField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 		DistroAgentsTools --intern-op-pending-reply-close "$dropId" --if-open --status withdrawn --withdrawn-by "$dropWho" --withdraw-reason "$dropWhy" \
 			--no-decision --context "${MDSC_CMD:-change}" > /dev/null 2>&1 || return 0
+		## The close moved the now-withdrawn record to closed/ (retention, T9): its post fields, and
+		## the prompt closed below, are read from there, or a drop would never tell its thread.
+		[ -f "$dropFile" ] || dropFile="$MMDAPP/.local/agents/pending/closed/$dropId.md"
 		dropOwner="$( AgentsToolsAskPostField "$dropFile" owner )"
 		dropChannel="$( AgentsToolsAskPostField "$dropFile" channel )"
 		dropThread="$( AgentsToolsAskPostField "$dropFile" thread-ts )"

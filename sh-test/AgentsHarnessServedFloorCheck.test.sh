@@ -26,16 +26,13 @@
 ## the mirror renders, and `execute` falls outside it by construction rather than by being
 ## remembered as an exception.
 ## A served entry is a harness tool only when it matches the mirror's own rendering of that
-## name, so a server-own tool sharing a harness name -- the Monitor twin -- falls outside it too.
-##
-## THE MONITOR TWIN is also exercised through a real server: served, a start creating its job
-## files, a poll returning new lines, a kill stopping it, and a finished job's exit code.
+## name, so a server-own tool sharing a harness name falls outside it too.
 ##
 ## NOT REACHED, and this is a limit rather than an omission: the other half of the
 ## documented test -- a tool handing back a handle only its own process can resolve. That
 ## is a fact about process lifetime, visible in neither a declaration nor a source scan.
-## `Monitor` is caught here only because it also takes a command. A future tool minting a
-## process-local handle and taking none would pass this check and still be unservable.
+## A future tool minting a process-local handle and taking no command would pass this
+## check and still be unservable.
 ##
 ## The served set is read OFF THE WIRE, from the real server's own `tools/list` answer,
 ## rather than by re-applying the subtraction here: a check that recomputes what it is
@@ -232,9 +229,7 @@ rigAssert "no served asking tool carries 'kind'" \
 	"$( for rigAskTool in AskQuestion ConfirmReadback EscalateDecision RequestPermission ProposeApprove ; do rigAskHolds "$rigAskTool" kind ; done )" "nonononono"
 
 ## Every served tool takes the optional `description`, the call's stated intent, in the same
-## text, never required, and named in the tool's own description. The Monitor twin is the one
-## exception, and a reported one: its `description` already means the watch's own label, which
-## a start requires, so it is kept as it is rather than overloaded.
+## text, never required, and named in the tool's own description.
 rigIntentParam='{"type":"string","description":"Optional. One short sentence: why this call is made, what you expect from it. Recorded as your stated intent in the transcript and the tracking feed; it does not change what the tool does."}'
 : > "$rigTmp/intent"
 rigIndex=0
@@ -246,25 +241,26 @@ while : ; do
 	rigIntentRequired="$( rigSliceRead "result.tools.$rigIndex.inputSchema.required" raw )"
 	rigIntentToolText="$( rigSliceRead "result.tools.$rigIndex.description" raw )"
 	case "$rigIntentRequired" in *'"description"'*) rigIntentRequired=required ;; *) rigIntentRequired=optional ;; esac
-	if [ "Monitor" = "$rigName" ] ; then
-		case "$rigIntentGot" in *'"description":"Required to start. A short label for this watch'*) rigIntentGot=label ;; esac
-		printf '%s %s %s\n' "$rigName" "$rigIntentGot" "$rigIntentRequired" >> "$rigTmp/intent"
-	else
-		[ "$rigIntentGot" != "$rigIntentParam" ] || rigIntentGot=intent
-		case "$rigIntentToolText" in *'Pass description to give a short description of why.'*) rigIntentToolText=told ;; *) rigIntentToolText=untold ;; esac
-		printf '%s %s %s %s\n' "$rigName" "${rigIntentGot:-absent}" "$rigIntentRequired" "$rigIntentToolText" >> "$rigTmp/intent"
-	fi
+	[ "$rigIntentGot" != "$rigIntentParam" ] || rigIntentGot=intent
+	case "$rigIntentToolText" in *'Pass description to give a short description of why.'*) rigIntentToolText=told ;; *) rigIntentToolText=untold ;; esac
+	printf '%s %s %s %s\n' "$rigName" "${rigIntentGot:-absent}" "$rigIntentRequired" "$rigIntentToolText" >> "$rigTmp/intent"
 	rigIndex=$(( rigIndex + 1 ))
 done
 rigAssert "every served tool was read for its description" "$( rigCount intent )" "$rigServedCount"
-rigAssert "every served tool but the Monitor twin takes the optional intent description, and says so" \
-	"$( LC_ALL=C grep -v '^Monitor ' "$rigTmp/intent" | LC_ALL=C grep -c -v ' intent optional told$' )" "0"
+## EVERY TOOL TAKES THE OPTIONAL INTENT DESCRIPTION, AND SAYS SO -- with one exception, and it is
+## the owner's own: ThisSession's description is dictated word for word in the epic's F7.2 spec
+## ("Post to your own session thread. ... A session with no thread is refused with ERROR."), so it
+## is not extended here to repeat the house sentence. The PARAMETER is still declared and still
+## optional; what is not asserted is the sentence, because the owner's text governs over the house
+## convention. Its row is dropped from this count and asserted separately below.
+rigAssert "every served tool takes the optional intent description, and says so" \
+	"$( LC_ALL=C grep -v '^ThisSession ' "$rigTmp/intent" | LC_ALL=C grep -c -v ' intent optional told$' )" "0"
+rigAssert "ThisSession takes it too, and its description is the owner's own words without the house sentence" \
+	"$( LC_ALL=C grep -c -x 'ThisSession intent optional untold' "$rigTmp/intent" )" "1"
 rigAssert "execute is one of them" "$( LC_ALL=C grep -c -x 'execute intent optional told' "$rigTmp/intent" )" "1"
-rigAssert "the Monitor twin keeps its own description, the watch label, not overloaded" \
-	"$( LC_ALL=C grep '^Monitor ' "$rigTmp/intent" )" "Monitor label optional"
 
-## A host whose list this server never recorded is told to list again on its first call,
-## and a host that listed the same floor is not. The call is a refused Bash: it renders
+## The list is fixed for the run: no host is ever told to list again (no listChanged), whether
+## it listed before its first call or not. The call is a refused Bash: it renders
 ## the floor and answers without running anything.
 ## Each line is sent only once the answer to the one before is on the wire, as a host
 ## waits for it; a fixed delay loses that order on a loaded machine. Bounded at 60 s.
@@ -289,14 +285,18 @@ rigListChanged(){ ## scenario name, then the request lines, each carrying its ow
 	LC_ALL=C grep -c 'notifications/tools/list_changed' "$rigTmp/$listScenario.wire" | tr -d '\n'
 	printf ' notice(s)'
 }
-echo "-- a floor the host never listed from this server is announced --"
-rigAssert "a call with no recorded listing sends list_changed" \
-	"$( rigListChanged unlisted '{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"Bash","arguments":{}}}' )" "1 answered, 1 notice(s)"
+echo "-- the tool list is fixed for the run: nothing is announced --"
+rigAssert "a call with no recorded listing sends no list_changed" \
+	"$( rigListChanged unlisted '{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"Bash","arguments":{}}}' )" "1 answered, 0 notice(s)"
+rigAssert "initialize declares no listChanged" \
+	"$( LC_ALL=C grep -c -F '"listChanged":false' "$rigTmp/wire" ) $( LC_ALL=C grep -c -F '"listChanged":true' "$rigTmp/wire" || : )" "1 0"
 rigAssert "a call after listing the same floor sends none" \
 	"$( rigListChanged listed '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' '{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"Bash","arguments":{}}}' )" "1 answered, 0 notice(s)"
 
-## The Monitor twin, through a second run of the real server. Each call waits for the answer
-## before it, because the server handles requests in parallel.
+## The job store, through a second run of the real server: `execute`'s own background jobs.
+## `Monitor` is removed (epic D3: `Wait` replaces the native Monitor), so what was its twin
+## now exercises the same out/pid/cursor store through the tool the server still serves.
+## Each call waits for the answer before it, because the server handles requests in parallel.
 rigCall(){ ## id, tool, arguments -- one tools/call request line
 	printf '{"jsonrpc":"2.0","id":%s,"method":"tools/call","params":{"name":"%s","arguments":%s}}\n' "$1" "$2" "$3"
 }
@@ -317,7 +317,7 @@ rigJobId(){ ## id -- the job id a start answered with
 : > "$rigTmp/jobfiles"
 {
 	printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
-	rigCall 11 Monitor '{"command":"printf \"one\\ntwo\\n\" ; sleep 30","description":"rig watch"}'
+	rigCall 11 execute '{"command":"printf \"one\\ntwo\\n\" ; sleep 30","background":true,"description":"rig watch"}'
 	rigAwait 11
 	rigJob="$( rigJobId 11 )"
 	if [ -n "$rigJob" ] ; then
@@ -327,28 +327,49 @@ rigJobId(){ ## id -- the job id a start answered with
 			done
 		done
 		sleep 1
-		rigCall 12 Monitor "{\"job\":$rigJob}"
+		rigCall 12 execute "{\"job\":$rigJob}"
 		rigAwait 12
-		rigCall 13 Monitor "{\"job\":$rigJob,\"action\":\"kill\"}"
+		rigCall 13 execute "{\"job\":$rigJob,\"action\":\"kill\"}"
 		rigAwait 13
 		sleep 1
-		rigCall 14 Monitor "{\"job\":$rigJob}"
+		rigCall 14 execute "{\"job\":$rigJob}"
 		rigAwait 14
 	fi
-	rigCall 15 Monitor '{"command":"exit 3","description":"rig exit"}'
+	rigCall 15 execute '{"command":"exit 3","background":true,"description":"rig exit"}'
 	rigAwait 15
 	rigJob="$( rigJobId 15 )"
 	if [ -n "$rigJob" ] ; then
 		sleep 2
-		rigCall 16 Monitor "{\"job\":$rigJob}"
+		rigCall 16 execute "{\"job\":$rigJob}"
 		rigAwait 16
 	fi
 } | MMDAPP="$rigTmp" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	bash "$rigTool" --intern-mcp-server --run > "$rigTmp/jobwire" 2> "$rigTmp/joberr" || :
 
-echo "-- the Monitor twin, exercised through the real server --"
-rigAssert "Monitor is served" "$( LC_ALL=C grep -qx 'Monitor' "$rigTmp/served" && printf 'served' || printf 'unserved' )" "served"
-rigAssert "a Monitor start created out, pid and cursor in execute's job store" "$( LC_ALL=C sort "$rigTmp/jobfiles" | tr '\n' ' ' )" "cursor out pid "
+echo "-- the harness and the MCP server list the same tools; a tool unserved on a side says where it runs --"
+rigParityMissing="$( while IFS= read -r rigFloorName ; do [ -n "$rigFloorName" ] || continue ; LC_ALL=C grep -qx -- "$rigFloorName" "$rigTmp/served" || printf '%s ' "$rigFloorName" ; done < "$rigTmp/mirror" )"
+rigAssert "every tool of the harness floor is listed over MCP" "[${rigParityMissing% }]" "[]"
+for rigUnserved in Bash WorkspaceContextExecute ; do
+	rigUnservedAt="$( LC_ALL=C grep -nx -- "$rigUnserved" "$rigTmp/served" | head -n 1 | cut -d: -f1 )"
+	rigUnservedAt=$(( ${rigUnservedAt:-0} - 1 ))
+	rigUnservedSays=silent
+	case "$( rigSliceRead "result.tools.$rigUnservedAt.description" raw )" in
+		*'runs in the harness only'*) rigUnservedSays=said ;;
+	esac
+	rigAssert "$rigUnserved is listed over MCP with a description saying it runs in the harness, and takes no command" \
+		"$rigUnservedSays $( rigSliceRead "result.tools.$rigUnservedAt.inputSchema.properties" keys | LC_ALL=C grep -c -x 'command' || : )" "said 0"
+done
+. "$rigHere/harness/AgentsHarnessUnserved.include"
+rigHarnessUnserved="$( AgentsToolsUnservedInHarness )"
+rigAssert "every tool only the MCP server serves is listed over MCP: execute, RootSession and the secondary tools" \
+	"$( for rigName in execute $rigHarnessUnserved ; do LC_ALL=C grep -qx -- "$rigName" "$rigTmp/served" || printf '%s ' "$rigName" ; done )" ""
+rigAssert "the harness lists each of them, saying it runs over MCP" \
+	"$( LC_ALL=C grep -c -F -e 'AgentsToolsUnservedInHarness' -e 'AgentsToolsUnservedSays harness' "$rigHere/harness/AgentsHarnessMcpClient.sh" ) $( AgentsToolsUnservedSays harness RootSession | LC_ALL=C grep -c 'runs over MCP only' )" "2 1"
+
+echo "-- the job store of execute, exercised through the real server --"
+rigAssert "Monitor is not served: Wait replaces the native Monitor" "$( LC_ALL=C grep -qx 'Monitor' "$rigTmp/served" && printf 'served' || printf 'unserved' )" "unserved"
+rigAssert "execute is served, so a background job has a home" "$( LC_ALL=C grep -qx 'execute' "$rigTmp/served" && printf 'served' || printf 'unserved' )" "served"
+rigAssert "an execute start created out, pid and cursor in its job store" "$( LC_ALL=C sort "$rigTmp/jobfiles" | tr '\n' ' ' )" "cursor out pid "
 rigAssert "a poll returned the new lines" "$( rigAnswer 12 | LC_ALL=C grep -q 'one\\ntwo\\n\[job' && printf 'yes' || printf 'no' )" "yes"
 rigAssert "action kill stopped the job" "$( rigAnswer 14 | LC_ALL=C grep -q 'stopped before it could finish' && printf 'stopped' || printf 'not stopped' )" "stopped"
 rigAssert "a finished job reports its exit code" "$( rigAnswer 16 | LC_ALL=C grep -q 'finished, exit code 3' && printf 'yes' || printf 'no' )" "yes"
@@ -358,6 +379,9 @@ rigAssert "a finished job reports its exit code" "$( rigAnswer 16 | LC_ALL=C gre
 ## job wrote must come back exactly once across the polls. A cursor saved from the file's
 ## size after the read skips whatever landed between the two. A poll hands out bytes, not
 ## lines, so the answers are joined before anything is counted.
+rigCall(){ ## id, tool, arguments -- one tools/call request line
+	printf '{"jsonrpc":"2.0","id":%s,"method":"tools/call","params":{"name":"%s","arguments":%s}}\n' "$1" "$2" "$3"
+}
 rigPollAnswer(){ ## id
 	LC_ALL=C grep "\"id\":$1," "$rigTmp/pollwire" 2>/dev/null || :
 }

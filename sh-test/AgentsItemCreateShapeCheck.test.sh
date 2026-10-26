@@ -46,7 +46,7 @@ rigFieldCount(){ ## file, field
 ## set, becomes MDAT_SPAWN_AGENT -- the spawned session's own member.
 rigOp(){ ## result file, op and arguments...
 	local opOut="$1" ; shift
-	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="${RIG_PATH:-/usr/bin:/bin}" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} \
 		RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
@@ -79,8 +79,13 @@ printf -- '---\n---\nbody three\n' | rigOp "$rigTmp/b3" --intern-op-board-upsert
 rigAssert "another shape is still created, rc 0"            "$( cat "$rigTmp/b3.rc" ):$( [ -f "$rigData/board/pending/task-2026-09-29-legacy.md" ] && echo created )" "0:created"
 rigAssert "with the warning quoting the naming Rule"        "$( rigHolds "$rigTmp/b3" 'WARNING: --create: task-2026-09-29-legacy.md does not follow the naming Rule' )" yes
 rigAssert "from and owner are the acting member"            "$( rigField "$rigData/board/pending/task-2026-09-29-legacy.md" from ):$( rigField "$rigData/board/pending/task-2026-09-29-legacy.md" owner )" "rig-member:rig-member"
-printf -- '---\n---\nbody none\n' | rigOp "$rigTmp/b3n" --intern-op-board-upsert-move-edit pending task-20261006T0930Z-noactor.md --create --upsert-from-stdin --context rig
-rigAssert "with no acting member, a create is refused, nothing written" "$( cat "$rigTmp/b3n.rc" ):$( [ -f "$rigData/board/pending/task-20261006T0930Z-noactor.md" ] && echo written || echo absent ):$( rigHolds "$rigTmp/b3n" 'the key owner is required and absent' )" "1:absent:yes"
+## A person at a console with no spawned session is user-<account> (the account is the one `id -un` names): the create is made as that person.
+printf -- '---\n---\nbody person\n' | rigOp "$rigTmp/b3p" --intern-op-board-upsert-move-edit pending task-20261006T0930Z-person.md --create --upsert-from-stdin --context rig
+rigAssert "with no acting member and an account, the create is made as user-<account>" "$( cat "$rigTmp/b3p.rc" ):$( rigField "$rigData/board/pending/task-20261006T0930Z-person.md" from ):$( rigField "$rigData/board/pending/task-20261006T0930Z-person.md" owner )" "0:user-$( id -un ):user-$( id -un )"
+## With not even an account (the rig's `id` fails and no USER, LOGNAME or SUDO_USER is set) there is no acting member, and the create is refused.
+mkdir -p "$rigTmp/noid" ; printf '#!/bin/sh\nexit 1\n' > "$rigTmp/noid/id" ; chmod +x "$rigTmp/noid/id"
+printf -- '---\n---\nbody none\n' | RIG_PATH="$rigTmp/noid:/usr/bin:/bin" rigOp "$rigTmp/b3n" --intern-op-board-upsert-move-edit pending task-20261006T0930Z-noactor.md --create --upsert-from-stdin --context rig
+rigAssert "with no acting member and no account, a create is refused, nothing written" "$( cat "$rigTmp/b3n.rc" ):$( [ -f "$rigData/board/pending/task-20261006T0930Z-noactor.md" ] && echo written || echo absent ):$( rigHolds "$rigTmp/b3n" 'the key owner is required and absent' )" "1:absent:yes"
 
 printf -- '---\nopen\n' | rigOp "$rigTmp/b4" --intern-op-board-upsert-move-edit pending task-20261006T0930Z-open.md --create --upsert-from-stdin --context rig
 rigAssert "an unclosed frontmatter is written as before"    "$( cat "$rigTmp/b4.rc" ):$( cat "$rigData/board/pending/task-20261006T0930Z-open.md" 2>/dev/null | tr '\n' '|' )" "0:---|open|"

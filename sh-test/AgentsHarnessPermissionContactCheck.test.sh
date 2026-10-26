@@ -112,7 +112,7 @@ rigRefusal(){ ## output file -> the refusal id it printed
 ## The pending-reply records of the scenario, oldest first by the post they stand at.
 rigRecordFiles(){
 	local recordFile
-	for recordFile in "$rigWs/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigWs/.local/agents/pending"/*.md "$rigWs/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] || continue
 		printf '%s\t%s\n' "$( LC_ALL=C sed -n 's/^question-ts: //p' "$recordFile" | head -1 )" "$recordFile"
 	done | LC_ALL=C sort | cut -f2-

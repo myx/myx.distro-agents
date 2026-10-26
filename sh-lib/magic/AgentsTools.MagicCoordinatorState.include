@@ -151,13 +151,16 @@ case "$1" in
 			--expect-secret SLACK_BOT_TOKEN \
 			--resolve-slack-workspace-into SLACK_WORKSPACE_DOMAIN \
 			--context --config-check || true
-		## The main loop's readiness floor, applied the same way here: the schedule starts sessions.
-		if [ -z "$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2>/dev/null )" ] ; then
-			echo "SPAWN_CLI_SERVICE: FAIL"
-			echo "  fail: Agent CLI service is not set, so its spawns cannot start -- set it with DistroAgentsTools.fn.sh --owner-setup-claude --apply (or --owner-setup-copilot --apply)"
+		## The main loop's readiness floor, applied the same way here: the schedule starts sessions. The CLI service is
+		## the preset's of the tier, so a tier setting is what stands; the resolved CLI itself is shown beside it.
+		local stateCli=""
+		stateCli="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" ; AgentsReviewCliResolved "" )"
+		if [ -z "$stateCli" ] || [ "$stateCli" = "none" ] ; then
+			echo "SPAWN_TIER_NORMAL: FAIL"
+			echo "  fail: no tier is set, so no preset names the agent CLI a spawn runs on -- set SPAWN_TIER_NORMAL with DistroAgentsTools.fn.sh --owner-setup-claude --apply (or --owner-setup-copilot --apply)"
 			configRc=1
 		else
-			echo "SPAWN_CLI_SERVICE: OK"
+			echo "SPAWN_TIER_NORMAL: OK"
 		fi
 		## The team posts to Slack: with none of the tokens a coordinator send can
 		## resolve to, every send it makes fails, so having none is a FAIL.

@@ -153,9 +153,15 @@ AgentsToolsRoutineClosureLines(){ ## mode (inline, spawned or any)
 ## `requires-session-kind`, `tracking-item` and `start-context` are the requirements. The fact
 ## a site knows is its fourth word: at `spawn`, `item=attached|none` for tracking-item, and
 ## `context=spawned|inline|joined` for start-context (a joined start counts as spawned).
-AgentsToolsRoutineRequirement(){ ## requirement, site (save|spawn|start), routine file path, [fact]
+## A caller that has already read the requirement's key from the file passes its value as the
+## fifth word, and the key is not read again; an absent fifth word reads it here as always.
+AgentsToolsRoutineRequirement(){ ## requirement, site (save|spawn|start), routine file path, [fact], [pre-read value]
 	local reqName="$1" reqSite="$2" reqFile="$3" reqFact="${4:-}" reqValue reqLine reqMissing=""
-	reqValue="$( AgentsToolsRoutineKeyOwn "$reqFile" "$reqName" )"
+	if [ $# -ge 5 ] ; then
+		reqValue="$5"
+	else
+		reqValue="$( AgentsToolsRoutineKeyOwn "$reqFile" "$reqName" )"
+	fi
 	case "$reqName" in
 
 		requires-session-kind)

@@ -11,8 +11,8 @@
 ## SPAWN_CLI_SERVICE only where no tier is set ... Git settings and the server-key wizards ... each destructive step behind its warning and the typed confirm"):
 ##   1. the wizards are declared by the features that have them, in a registry of the configuration; `Git Settings` is a folder of the configuration, its three settings its rows
 ##   2. the CLI service's wizard: `c` on the CLI services (or on a line of them) reads its form once, and opens the steps in order: the preset (one there is, or a new one named),
-##      its service, model and effort (no service for a preset that extends one), the credentials of its service in their one form (no step for a service with none), and the
-##      tiers (the team's CLI service only where no tier is set); Back goes back, Cancel and Esc leave nothing applied; Finish runs
+##      its service and the endpoint URL of that service, model and effort (no service for a preset that extends one), the credentials of its service in their one form
+##      (no step for a service with none), and the tiers (the team's CLI service only where no tier is set); Back goes back, Cancel and Esc leave nothing applied; Finish runs
 ##      `--manager-wizard-apply cli-service --preset <name>` in the output dialog with the changed answers alone, a line `<key> <TAB> <value>` each, on its standard input
 ##   2b. F13.4: `s`, Auto-select CLI..., on the item of the CLI services runs `--owner-setup-cli-auto --check` in the output dialog, the one a command of a workspace runs in, and
 ##      the screen computes nothing of it; where it ended with status 0 the dialog offers `Apply` beside OK, which runs `--owner-setup-cli-auto --apply` in a dialog of its own,
@@ -50,6 +50,8 @@ rigAssert(){ ## what is asserted, got, want
 }
 rigRow(){ local rowText="$1" ; shift ; while [ $# -gt 0 ] ; do rowText="$rowText"$'\t'"$1" ; shift ; done ; printf '%s\n' "$rowText" ; }
 rigSecret="Hd3mTyRIGSECRET31Vq7zKe"
+## the endpoint a service with no leg of its own is reached at, typed whole in the form
+rigEndpoint="https://api.rig.example/v1"
 rigShown="Hd3mT******************"
 rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 {
@@ -62,6 +64,7 @@ rigCli(){ ## the rows the CLI wizard's read prints, the tiers given as arguments
 	rigRow credential claude ANTHROPIC_API_KEY ; rigRow credential claude CLAUDE_CODE_OAUTH_TOKEN ; rigRow credential grok XAI_API_KEY
 	rigRow option preset base base ; rigRow option preset ext ext
 	rigRow preset base PRESET_CLI_SERVICE set claude
+	rigRow preset base PRESET_ENDPOINT_URL set "$rigEndpoint"
 	rigRow preset base PRESET_MODEL_OR_MACRO set normal
 	rigRow preset base ANTHROPIC_API_KEY secret-set "$rigShown"
 	rigRow preset ext PRESET_EXTEND set base
@@ -71,6 +74,10 @@ rigCli(){ ## the rows the CLI wizard's read prints, the tiers given as arguments
 }
 rigCli > "$rigF/rows.--manager-wizard-read cli-service"
 rigCli set base > "$rigTmp/cli-with-tier"
+{
+	rigRow preset agents:preset-base Agents:_preset-base 2 yes yes /rig/preset-base.agent.env - claude normal - preset-ext
+	rigRow preset agents:preset-ext Agents:_preset-ext 1 yes yes /rig/preset-ext.agent.env base claude - - -
+} > "$rigF/rows.--manager-preset-list"
 {
 	rigRow current user.name Rig_Person
 	rigRow current user.email rig@rig.example
@@ -133,7 +140,7 @@ turn
 rowids kids
 get in
 RIGSCRIPT
-rigAssert "the folder stands in the configuration, after CLI Presets and Tiers and ahead of the subsystems; entered, its rows are the three settings" "$( rigVal ids ) / $( rigVal kids )" ".. checker keys clipresets git subsystems diagnostics / .. user.name user.email ssh-key"
+rigAssert "the folder stands in the configuration, after CLI Presets and Tiers and ahead of the subsystems; entered, its rows are the three settings" "$( rigVal ids ) / $( rigVal kids )" ".. checker keys clipresets git harness subsystems diagnostics / .. user.name user.email ssh-key"
 
 echo "-- 2. the CLI service's wizard --"
 rigCase cli1
@@ -146,7 +153,7 @@ wait plan 30
 turn
 get s1
 RIGSCRIPT
-rigAssert "c on the CLI services reads the form of the wizard once, by the operation, and opens its first step: the presets there are and a new one, the first chosen" "$( rigVal row.selected ) / $( rigCalled '--manager-wizard-read cli-service' ) / $( rigVal s1.dialogTitle ) / $( rigVal s1.dialog )" "presets / 1 / Configure CLI Service: the preset / wizard:cli-service:0:preset|base"
+rigAssert "c on the CLI services reads the form of the wizard once, by the operation, and opens the service form of a new preset: the name field first, empty" "$( rigVal row.selected ) / $( rigCalled '--manager-wizard-read cli-service' ) / $( rigVal s1.dialogTitle ) / $( rigVal s1.dialog )" "presets / 1 / Configure CLI Service: a new preset / wizard:cli-service:0:name|"
 rigCase cli2
 rigScript <<RIGSCRIPT
 $rigToCli
@@ -154,15 +161,18 @@ keys c
 turn
 wait plan 30
 turn
-keys DOWN DOWN SPACE TAB f r e s h
+keys f r e s h
 turn
-get named
-keys ENTER
+keys TAB
+keys DOWN DOWN SPACE
 turn
-get s2
-keys DOWN DOWN SPACE TAB TAB DOWN DOWN DOWN DOWN SPACE
+keys TAB
+get endpoint
+keys $(printf '%s' "$rigEndpoint" | LC_ALL=C sed 's/./& /g')
 turn
-get s2set
+keys TAB TAB
+keys DOWN DOWN DOWN DOWN SPACE
+turn
 keys ENTER
 turn
 get s3
@@ -176,10 +186,10 @@ wait follow 30
 turn
 get ended
 RIGSCRIPT
-rigAssert "a new preset is named in the first step, and Next opens the second: the service (claude first), the model, the effort, titled by the preset" "$( rigVal named.dialog | LC_ALL=C cut -d'|' -f1 ) / $( rigVal s2.dialogTitle )" "wizard:cli-service:0:name / Configure CLI Service: fresh"
-rigAssert "the service and the effort are chosen (grok, high); Next opens the credentials of that service, the key it reads" "$( rigVal s2set.dialog | LC_ALL=C cut -d'|' -f1 ) / $( rigVal s3.dialogTitle ) / $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^s3screen|' | LC_ALL=C grep -c -F XAI_API_KEY )" "wizard:cli-service:1:effort / Configure CLI Service: the credentials of grok / 1"
+rigAssert "a new preset is named in its one form, and Next opens the credentials of the service chosen: the key it reads" "$( rigVal s3.dialogTitle ) / $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^s3screen|' | LC_ALL=C grep -c -F XAI_API_KEY )" "Configure CLI Service: the credentials of grok / 1"
+rigAssert "the service's own form asks for the endpoint of that service, the field after it: the service URL the preset is reached at, as the universal form asks for its own" "$( rigVal endpoint.dialog | LC_ALL=C cut -d'|' -f1 )" "wizard:cli-service:0:endpoint"
 rigAssert "the last step is the credentials; Finish runs the operation with the preset's name as its words, in the output dialog" "$( rigVal applying.dialogTitle ) / $( rigCalled '--manager-wizard-apply cli-service --preset fresh' )" "Configure CLI Service: fresh / 1"
-rigAssert "what is changed is on its standard input, a line a key: the service, the effort, the credential; the tiers are assigned elsewhere" "$( rigInput --manager-wizard-apply )" "PRESET_CLI_SERVICE grok/PRESET_EFFORT high/XAI_API_KEY $rigSecret/"
+rigAssert "what is changed is on its standard input, a line a key: the service, that service's endpoint, the effort, the credential; the tiers are assigned elsewhere" "$( rigInput --manager-wizard-apply )" "PRESET_CLI_SERVICE grok/PRESET_ENDPOINT_URL $rigEndpoint/PRESET_EFFORT high/XAI_API_KEY $rigSecret/"
 rigAssert "no value of an answer is a word of any call, and the credential is in the standard input alone" "$( LC_ALL=C grep -c -F -e "$rigSecret" -e 'fresh:high' "$MANAGER_SCREEN_RIG/calls" || : ) $( LC_ALL=C grep -c -F -- "$rigSecret" "$MANAGER_SCREEN_RIG/words" || : )" "0 0"
 rigAssert "the wizard ends in the output dialog, which closes on OK; the presets are read again afterwards" "$( [ "$( rigCalled '--manager-preset-list' )" -ge 3 ] && echo again || echo once )" "again"
 rigCase cli3
@@ -188,7 +198,26 @@ $rigToCli
 keys n
 turn
 get chooser
+keys DOWN SPACE
+turn
+keys ENTER
+turn
+wait plan 30
+turn
+get uni
+keys TAB
+turn
+get endpoint
+RIGSCRIPT
+rigAssert "n offers the three forms apart; choosing the universal one opens its form, the name field first" "$( rigVal chooser.dialogTitle ) / $( rigVal chooser.dialogHolds | LC_ALL=C grep -c -F 'universal preset' ) / $( rigVal uni.dialogTitle ) / $( rigVal uni.dialog | LC_ALL=C cut -d'|' -f1 )" "New preset / 1 / Configure CLI Service: a new preset / wizard:cli-service-universal:0:name"
+rigAssert "the next field of the universal form is the endpoint URL: the service URL the preset is reached at" "$( rigVal endpoint.dialog | LC_ALL=C cut -d'|' -f1 )" "wizard:cli-service-universal:0:endpoint"
+rigCase cli4
+rigScript <<RIGSCRIPT
+$rigToCli
+keys n
+turn
 keys DOWN DOWN SPACE
+turn
 keys ENTER
 turn
 wait plan 30
@@ -198,46 +227,29 @@ keys ESC
 turn
 get esc
 RIGSCRIPT
-rigAssert "n offers the three forms apart, and choosing the extending one opens that form" "$( rigVal chooser.dialogTitle ) / $( rigVal chooser.dialogHolds | LC_ALL=C grep -c -F 'extending' ) / $( rigVal ext.dialogTitle )" "New preset / 1 / Configure CLI Service: the extending preset"
-rigAssert "its pages ask for the preset it extends, the model and the effort, and no service and no credential" "$( rigVal ext.dialog | LC_ALL=C cut -d: -f1-2 )" "wizard:cli-service-extend"
+rigAssert "choosing the extending form opens it: a name and the preset it extends, and no service and no credential" "$( rigVal ext.dialogTitle ) / $( rigVal ext.dialog | LC_ALL=C cut -d: -f1-2 )" "Configure CLI Service: a new preset / wizard:cli-service-extend"
 rigAssert "Esc leaves the wizard: no dialog is left, nothing is applied" "[$( rigVal esc.dialog )] $( rigApplied )" "[] 0"
-rigCase cli4
+rigCase cli5
 rigScript <<RIGSCRIPT
-$rigToCli
-keys c
+at @clipresets presets
+turn
+wait list 30
+turn
+keys DOWN
+turn
+get on
+keys e
 turn
 wait plan 30
 turn
-keys ENTER
+get edit
+keys TAB
 turn
-get second
-keys ENTER
-turn
-get third
-keys ENTER
-turn 2
-get applying
-wait follow 30
-turn
+get ep
 RIGSCRIPT
-rigAssert "an existing preset left as it is: Next goes through, the credential shown in its one form, and Finish applies nothing but what changed, which is nothing: the standard input is empty" "$( rigVal second.dialogTitle ) / $( rigVal third.dialogTitle ) / $( rigCalled '--manager-wizard-apply cli-service --preset base' ) / [$( rigInput --manager-wizard-apply )]" \
-	"Configure CLI Service: base / Configure CLI Service: the credentials of claude / 1 / []"
-rigAssert "the credential of the preset stands in its field in its one form, the value whole being nowhere" "$( LC_ALL=C grep -c -F -- "$rigSecret" "$MANAGER_SCREEN_RIG/calls" || : )" "0"
-rigCase back
-rigScript <<RIGSCRIPT
-$rigToCli
-keys c
-turn
-wait plan 30
-turn
-keys ENTER
-turn
-keys TAB TAB TAB TAB
-keys ENTER
-turn
-get back
-RIGSCRIPT
-rigAssert "Back returns to the step before" "$( rigVal back.dialogTitle )" "Configure CLI Service: the preset"
+rigAssert "e on a preset opens its form directly: the name in its field, and no preset to pick again" "$( rigVal on.selected ) / $( rigVal edit.dialogTitle ) / $( rigVal edit.dialog | LC_ALL=C cut -d'|' -f1-2 )" "agents:preset-base / Configure CLI Service: base / wizard:cli-service:0:name|base"
+rigAssert "the endpoint a preset that is there holds stands in its field, so the preset of a service with no leg of its own is pointed at one by editing it" "$( rigVal ep.dialog )" "wizard:cli-service:0:endpoint|$rigEndpoint"
+rigAssert "its CLI service is said in the form, and is not asked again" "$( rigVal edit.dialogHolds | LC_ALL=C grep -c -F 'Its CLI service is claude' )" "1"
 
 echo "-- 2b. Auto-select CLI... (F13.4): the owner's check in the output dialog, and the apply offered from it --"
 rigCase auto1

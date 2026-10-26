@@ -30,7 +30,7 @@ agentsCliServiceWaitRoundSafe=270
 
 ## THE CLI THAT WORKS (F13.4). Of the vendor CLIs this machine may carry, claude-native and copilot-native, in that order, the first that is installed and
 ## works is the one the setup selects (--owner-setup-cli-auto). It is asked here, of the CLI itself, when a person or the console asks the setup: a
-## spawn never asks, it resolves SPAWN_CLI_SERVICE and scans no PATH (AgentsReviewCliResolved), so this is called from the setup alone.
+## spawn never asks, it resolves the CLI service of the preset its tier names and scans no PATH (AgentsReviewCliResolved), so this is called from the setup alone.
 ##   claude-native    `claude` is in PATH and `claude auth status --json` says someone is signed in: the test the setup's own check makes
 ##                    of it (SPAWN_CLI_AUTHENTICATED).
 ##   copilot-native   `copilot` is in PATH and `copilot --version` ends well: copilot carries no sign-in to ask of, so this is all there is to ask.

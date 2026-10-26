@@ -20,11 +20,11 @@ CURSES_KEYS = {
     curses.KEY_BACKSPACE: "BACKSPACE", curses.KEY_RESIZE: "RESIZE", curses.KEY_BTAB: "BACKTAB",
     curses.KEY_F1: "F1", curses.KEY_F5: "F5", curses.KEY_F6: "F6", curses.KEY_F9: "F9", curses.KEY_F10: "F10",
 } if curses else {}
-## The console user's own setting of .local, beside MDLT_CONSOLE_SPACERS and no setting of the agents, that
+## The console user's own setting of .local, beside MDLT_MANAGER_SPACERS and no setting of the agents, that
 ## leaves the mouse to the terminal where it reads `disable`, so that the terminal's own selection copies
 ## text; the mouse is reported to the screen where it names nothing else. Read from the environment of the
 ## start, where the start of the screen (`--manager`) puts what the user saved.
-MOUSE_VARIABLE = "MDLT_CONSOLE_MOUSE"
+MOUSE_VARIABLE = "MDLT_MANAGER_MOUSE"
 
 
 ## How many reads in a row that gave nothing, with the descriptor readable, are the end of the input, and how the screen ends then:
@@ -300,7 +300,9 @@ class CursesSurface:
         for at, cluster, width in apart:
             self.apart.setdefault(line, {})[column + at] = (cluster, width, look)
         try:
-            self.window.addstr(line, column, handed, self.looks()[look])
+            ## A cell put with no look of its own takes the plain one: `None` is "no look",
+            ## not an index, and a terminal that indexes it with `None` dies on the frame.
+            self.window.addstr(line, column, handed, self.looks()[look if look is not None else 0])
         except curses.error:
             ## the last cell of the screen: it is written, and the cursor has nowhere to go
             pass

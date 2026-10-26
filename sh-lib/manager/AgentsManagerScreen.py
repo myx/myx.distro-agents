@@ -57,6 +57,28 @@ REFRESH_SECONDS = 10.0
 ## a key is held and the selection runs down a list, nothing is read for the rows it passes.
 REST_SECONDS = 1.0 / 3
 
+## The apps the manager screen starts as (F12.2 of the refactorings epic): the agents console
+## and the four sibling consoles. The app is read from `--app <name>` of the start, before the
+## parts load, since which plugins are kept is decided there. `agents` (the default) keeps every
+## plugin; a sibling keeps only the plugins of its day-one scope: the Dashboard and the Manuals.
+APP_NAMES = ("agents", "local", "source", "deploy", "remote")
+
+
+def appOf(arguments):
+    for at, word in enumerate(arguments):
+        if word == "--app" and at + 1 < len(arguments) and arguments[at + 1] in APP_NAMES:
+            return arguments[at + 1]
+    return "agents"
+
+
+SCREEN_APP = appOf(sys.argv[1:])
+## The plugins an app keeps, set before the parts load and read by the plugin mechanism (Plugins.py):
+## None keeps every plugin. A sibling keeps its two day-one roots, the Dashboard and the Manuals,
+## and the plugins that hold no root of their own but offer what those two and the engine's
+## commands integrate into: `list` (alphabetical/unfiltered), `markdown` (on/help) and `glance`
+## (the list filter). The agents app keeps every one.
+APP_PLUGINS = None if SCREEN_APP == "agents" else frozenset(("list", "markdown", "glance", "dashboard", "manuals"))
+
 ## The parts of the screen, in the order they are loaded: each is executed here, in the namespace of this file, so the
 ## screen stays one module whatever its files are -- a declaration names a function by its name (globals()[name]), and a
 ## test replaces a function of the screen by assigning it to the module. The declarations come first, with the plugin
@@ -77,8 +99,9 @@ PARTS = (
     "AgentsManagerScreen.ViewFeed.py",
     "AgentsManagerScreen.ViewMarkdown.py",
     "AgentsManagerScreen.ViewKinds.py",
-    "AgentsManagerScreen.Sessions.py",
     "AgentsManagerScreen.Pending.py",
+    "AgentsManagerScreen.Sessions.py",
+    "AgentsManagerScreen.Launch.py",
     "AgentsManagerScreen.MagicTeam.py",
     "AgentsManagerScreen.Members.py",
     "AgentsManagerScreen.TeamData.py",
@@ -98,6 +121,7 @@ PARTS = (
     "AgentsManagerScreen.Mouse.py",
     "AgentsManagerScreen.Menus.py",
     "AgentsManagerScreen.Reads.py",
+    "AgentsManagerScreen.Glance.py",
     "AgentsManagerScreen.Draw.py",
     "AgentsManagerScreen.Terminal.py",
 )
@@ -109,11 +133,12 @@ LOCAL_PARTS_FOLDER = os.path.join("..", "..", "..", "myx.distro-.local", "sh-lib
 LOCAL_PARTS = (
     "LocalManagerScreen.Subsystems.py",
     "LocalManagerScreen.Scopes.py",
+    "LocalManagerScreen.Features.py",
 )
 ## A part of `.local` that stands in the order of the list of roots, since the roots stand in the order they were registered in (Plugins): it is loaded
-## ahead of the part of the screen it is named under, the Dashboard ahead of the sessions, `Locations (Places)` (F11.10) ahead of the tokens, where it stood, and `Workspace (System)` (F11.10) at the end of the places, after the consoles, ahead of the settings.
+## ahead of the part of the screen it is named under, the Dashboard ahead of the pending questions, `Locations (Places)` (F11.10) ahead of the tokens, where it stood, and `Workspace (System)` (F11.10) at the end of the places, after the consoles, ahead of the settings.
 LOCAL_PARTS_BEFORE = {
-    "AgentsManagerScreen.Sessions.py": ("LocalManagerScreen.Dashboard.py",),
+    "AgentsManagerScreen.Pending.py": ("LocalManagerScreen.Dashboard.py",),
     "AgentsManagerScreen.Tokens.py": ("LocalManagerScreen.Places.py",),
     "AgentsManagerScreen.Settings.py": ("LocalManagerScreen.Workspace.py", "LocalManagerScreen.Machine.py"),
 }
@@ -146,14 +171,22 @@ pluginsReady()
 
 
 ## The screen until it is left, by its key or by anything that ends it: it leaves nothing of
-## itself on the terminal either way (CursesSurface.wipe).
+## itself on the terminal either way (CursesSurface.wipe). In single-dialog mode (D5) one
+## dialog is opened first, and the screen ends when it is closed.
 def runScreen(window, state, reader):
     surface = CursesSurface(window)
     key = None
     try:
+        if state.singleDialog is not None:
+            fill = None
+            if state.singleText:
+                fill = {"text": {"lines": [state.singleText]}, "about": {"lines": [state.singleText]}}
+            openDialog(state, state.singleDialog, fill)
         while True:
             screenTurn(surface, state, reader, time.monotonic(), key)
             if state.quit:
+                return
+            if state.singleDialog is not None and state.dialog is None:
                 return
             key = surface.key(keyWait(state, time.monotonic()))
     finally:
@@ -183,21 +216,48 @@ def toolsCommandOf(toolsPath):
     return [toolsPath]
 
 
+## D5: what a start names beside --workspace/--tools/--style, applied to the fresh state before
+## the screen runs: --component <path> takes the list to that level (its ids, `/` between them);
+## --view <list|view> gives one window the keys; --filter <text> narrows the table of the left
+## window and gives it the keys; --dialog <name> shows that one dialog and ends the screen when
+## it is closed (single-dialog mode), --text <text> the words it holds. Gives False where a name
+## is not one the screen has.
+def applyStartOptions(state, options):
+    if options["--component"]:
+        state.path = [step for step in options["--component"].split("/") if step]
+        state.focus = "list"
+    if options["--view"]:
+        if options["--view"] not in ("list", "view"):
+            sys.stderr.write("%s --view takes list or view, got: %s\n" % (PREFIX, options["--view"]))
+            return False
+        state.focus = options["--view"]
+    if options["--filter"]:
+        state.startFilter = options["--filter"]
+        state.focus = "view"
+    if options["--dialog"]:
+        if options["--dialog"] not in DIALOGS:
+            sys.stderr.write("%s --dialog takes one of: %s, got: %s\n" % (PREFIX, " ".join(sorted(DIALOGS)), options["--dialog"]))
+            return False
+        state.singleDialog = options["--dialog"]
+        state.singleText = options["--text"]
+    return True
+
+
 def main(arguments):
-    options = {"--workspace": "", "--tools": "", "--style": ""}
+    options = {"--workspace": "", "--tools": "", "--style": "", "--app": "",
+               "--component": "", "--filter": "", "--view": "", "--dialog": "", "--text": ""}
     position = 0
     while position < len(arguments):
         if arguments[position] not in options or position + 1 >= len(arguments):
-            sys.stderr.write("%s expects: --workspace <path> --tools <dispatcher> [--style <name>], got: %s\n" % (PREFIX, " ".join(arguments)))
+            sys.stderr.write("%s expects: --workspace <path> --tools <dispatcher> [--style <name>] [--app <name>] [--component <path>] [--view <list|view>] [--filter <text>] [--dialog <name>] [--text <text>], got: %s\n" % (PREFIX, " ".join(arguments)))
             return 1
         options[arguments[position]] = arguments[position + 1]
         position += 2
     if not options["--tools"]:
         sys.stderr.write("%s expects: --workspace <path> --tools <dispatcher>\n" % PREFIX)
         return 1
-    refusal = screenRefusal()
-    if refusal is not None:
-        sys.stderr.write("%s %s\n" % (PREFIX, refusal))
+    if options["--app"] and options["--app"] not in APP_NAMES:
+        sys.stderr.write("%s --app takes one of: %s, got: %s\n" % (PREFIX, " ".join(APP_NAMES), options["--app"]))
         return 1
     try:
         locale.setlocale(locale.LC_ALL, "")
@@ -220,6 +280,14 @@ def main(arguments):
     reader = OperationReader(toolsCommandOf(options["--tools"]), options["--workspace"])
     signal.signal(signal.SIGTERM, endOnSignal)
     signal.signal(signal.SIGHUP, endOnSignal)
+    ## D5: --component/--view/--filter/--dialog of the start, on the fresh state; a name that is
+    ## not one the screen has is refused here, before anything is started.
+    if not applyStartOptions(state, options):
+        return 1
+    refusal = screenRefusal()
+    if refusal is not None:
+        sys.stderr.write("%s %s\n" % (PREFIX, refusal))
+        return 1
     ## curses.wrapper gives the terminal back as it was before anything else happens, on
     ## every way out: the quit key, a signal, a failure.
     try:

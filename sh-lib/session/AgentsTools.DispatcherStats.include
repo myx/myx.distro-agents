@@ -176,9 +176,42 @@ AgentsToolsStatsRoutines(){ ## the operation, [routine]
 	[ -z "$routinesRows" ] || printf '%s\n' "$routinesRows"
 }
 
-## --token-stats --by day|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>]:
+## --token-stats --by day|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share]:
 ## the tokens summed by the one key asked for, a row `tokens <key> <runs> <in> <cache-read> <cache-write> <out>`, by key. The views of the console read this.
+## --average: the four token fields are the average of a run (whole tokens, 0 for a key with no run). --share: two fields after them, the share of the `in` tokens
+## (the average with --average) of the key in the total of all keys, and in the largest of them, each in whole percent. The console draws what is printed and computes nothing.
 AgentsToolsStatsTokens(){ ## the operation, its arguments...
+	local tokensOp="$1" tokensArgs=() tokensAverage="" tokensShare="" tokensRows tokensRc=0
+	shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--average) tokensAverage="yes" ; shift ;;
+			--share) tokensShare="yes" ; shift ;;
+			*) tokensArgs+=( "$1" ) ; shift ;;
+		esac
+	done
+	tokensRows="$( AgentsToolsStatsTokensRows "$tokensOp" ${tokensArgs[@]+"${tokensArgs[@]}"} )" || tokensRc=$?
+	[ "$tokensRc" = 0 ] || return "$tokensRc"
+	[ -n "$tokensRows" ] || return 0
+	if [ -z "$tokensAverage" ] && [ -z "$tokensShare" ] ; then
+		printf '%s\n' "$tokensRows"
+		return 0
+	fi
+	printf '%s\n' "$tokensRows" | LC_ALL=C awk -F'\t' -v OFS='\t' -v average="$tokensAverage" -v share="$tokensShare" '
+		{
+			if ( average != "" ) { for ( field = 4 ; field <= 7 ; field++ ) { $field = ( $3 + 0 > 0 ) ? int( ( $field + 0 ) / ( $3 + 0 ) ) : 0 } }
+			rows[NR] = $0 ; held[NR] = $4 + 0 ; total += $4 ; if ( $4 + 0 > peak ) { peak = $4 + 0 }
+		}
+		END {
+			for ( row = 1 ; row <= NR ; row++ ) {
+				if ( share == "" ) { print rows[row] ; continue }
+				printf "%s\t%d\t%d\n", rows[row], ( total > 0 ) ? int( ( held[row] * 100 + total / 2 ) / total ) : 0, ( peak > 0 ) ? int( ( held[row] * 100 + peak / 2 ) / peak ) : 0
+			}
+		}'
+}
+
+## The rows of --token-stats before --average and --share: the options of the store's own filters.
+AgentsToolsStatsTokensRows(){ ## the operation, its arguments...
 	local tokensOp="$1" tokensBy="" tokensSince="" tokensUntil="" tokensMember="" tokensRoutine="" tokensPreset="" tokensCredential="" tokensColumn
 	shift
 	while [ $# -gt 0 ] ; do
@@ -188,17 +221,70 @@ AgentsToolsStatsTokens(){ ## the operation, its arguments...
 				case "$1" in --by) tokensBy="$2" ;; --since) tokensSince="$2" ;; --until) tokensUntil="$2" ;; --member) tokensMember="$2" ;; --routine) tokensRoutine="$2" ;; --preset) tokensPreset="$2" ;; --credential) tokensCredential="$2" ;; esac
 				shift 2
 			;;
-			*) echo "$MDSC_CMD: ⛔ ERROR: $tokensOp: unknown option: $1 -- syntax is --by day|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>]" >&2 ; return 1 ;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: $tokensOp: unknown option: $1 -- syntax is --by day|weekday|hour|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share]" >&2 ; return 1 ;;
 		esac
 	done
+	## `--by weekday` groups the days by the day of the week: a DISTRIBUTION over seven bins, all
+	## seven always printed -- a Sunday with no runs is a fact of the distribution, not an absence.
+	local tokensWeekday=""
 	case "$tokensBy" in day) tokensColumn=1 ;; member) tokensColumn=2 ;; routine) tokensColumn=3 ;; preset) tokensColumn=4 ;; credential) tokensColumn=5 ;;
-		*) echo "$MDSC_CMD: ⛔ ERROR: $tokensOp: --by is day, member, routine, preset or credential: ${tokensBy:-<nothing>}" >&2 ; return 1 ;;
+		weekday|hour) tokensColumn=1 ; tokensWeekday="$tokensBy" ;;
+		*) echo "$MDSC_CMD: ⛔ ERROR: $tokensOp: --by is day, weekday, hour, member, routine, preset or credential: ${tokensBy:-<nothing>}" >&2 ; return 1 ;;
 	esac
 	AgentsToolsStatsDatesCheck "$tokensOp" "$tokensSince" "$tokensUntil" || return 1
 	AgentsToolsStatsEnsure || return 1
-	tail -n +2 "$MMDAPP/.local/agents/stats/tokens.index" | LC_ALL=C awk -F'\t' -v col="$tokensColumn" -v since="$tokensSince" -v until="$tokensUntil" -v member="$tokensMember" -v routine="$tokensRoutine" -v preset="$tokensPreset" -v credential="$tokensCredential" '
-		( since == "" || $1 >= since ) && ( until == "" || ( $1 != "-" && $1 <= until ) ) && ( member == "" || $2 == member ) && ( routine == "" || $3 == routine ) && ( preset == "" || $4 == preset ) && ( credential == "" || $5 == credential ) {
-			runs[$col] += $6 ; tin[$col] += $7 ; tcr[$col] += $8 ; tcw[$col] += $9 ; tout[$col] += $10
+	## A TIME GROUPING IS ROLLED FROM THE RUNS STORE: it carries the moment each run started, which
+	## is what a weekday or an hour is read from; the tokens index is the DAY aggregation of the
+	## same rows and holds no hour at all. Every bin is printed, the empty ones too.
+	if [ -n "$tokensWeekday" ] ; then
+		tail -n +2 "$MMDAPP/.local/agents/stats/runs.index" | LC_ALL=C awk -F'\t' -v by="$tokensWeekday" -v since="$tokensSince" -v until="$tokensUntil" -v member="$tokensMember" -v routine="$tokensRoutine" -v preset="$tokensPreset" -v credential="$tokensCredential" '
+			function weekdayOf( day,   year, month, date, century, short, held ) {
+				year = substr( day, 1, 4 ) + 0 ; month = substr( day, 6, 2 ) + 0 ; date = substr( day, 9, 2 ) + 0
+				if ( month < 3 ) { month += 12 ; year -= 1 }
+				short = year % 100 ; century = int( year / 100 )
+				held = ( date + int( 13 * ( month + 1 ) / 5 ) + short + int( short / 4 ) + int( century / 4 ) + 5 * century ) % 7
+				split( "Sat Sun Mon Tue Wed Thu Fri", names, " " )
+				return names[held + 1]
+			}
+			{
+				day = $8 ; started = $6
+				if ( !( ( since == "" || day >= since ) && ( until == "" || day <= until ) && ( member == "" || $3 == member ) && ( routine == "" || $4 == routine ) && ( preset == "" || $12 == preset ) && ( credential == "" || $13 == credential ) ) ) { next }
+				key = by == "weekday" ? weekdayOf( day ) : substr( started, 12, 2 )
+				runs[key] += 1 ; tin[key] += $14 + 0 ; tcr[key] += $15 + 0 ; tcw[key] += $16 + 0 ; tout[key] += $17 + 0
+			}
+			END {
+				if ( by == "weekday" ) {
+					split( "Mon Tue Wed Thu Fri Sat Sun", order, " " )
+					for ( bin = 1 ; bin <= 7 ; bin++ ) { key = order[bin] ; printf "tokens\t%s\t%d\t%d\t%d\t%d\t%d\n", key, runs[key], tin[key], tcr[key], tcw[key], tout[key] }
+				} else {
+					for ( bin = 0 ; bin <= 23 ; bin++ ) { key = sprintf( "%02d", bin ) ; printf "tokens\t%s\t%d\t%d\t%d\t%d\t%d\n", key, runs[key], tin[key], tcr[key], tcw[key], tout[key] }
+				}
+			}'
+		return 0
+	fi
+	tail -n +2 "$MMDAPP/.local/agents/stats/tokens.index" | LC_ALL=C awk -F'\t' -v col="$tokensColumn" -v weekday="$tokensWeekday" -v since="$tokensSince" -v until="$tokensUntil" -v member="$tokensMember" -v routine="$tokensRoutine" -v preset="$tokensPreset" -v credential="$tokensCredential" '
+		## THE DAY OF THE WEEK by arithmetic, not by strftime: BSD awk has neither strftime nor
+		## mktime, and this file must read the same on every machine (Zeller, for the Gregorian
+		## calendar: 0 = Saturday, 1 = Sunday, and so on).
+		function weekdayOf( day,   year, month, date, century, short, held ) {
+			year = substr( day, 1, 4 ) + 0 ; month = substr( day, 6, 2 ) + 0 ; date = substr( day, 9, 2 ) + 0
+			if ( month < 3 ) { month += 12 ; year -= 1 }
+			short = year % 100 ; century = int( year / 100 )
+			held = ( date + int( 13 * ( month + 1 ) / 5 ) + short + int( short / 4 ) + int( century / 4 ) + 5 * century ) % 7
+			split( "Sat Sun Mon Tue Wed Thu Fri", names, " " )
+			return names[held + 1]
 		}
-		END { for ( key in runs ) { printf "tokens\t%s\t%d\t%d\t%d\t%d\t%d\n", key, runs[key], tin[key], tcr[key], tcw[key], tout[key] } }' | LC_ALL=C sort -t "$( printf '\t' )" -k2,2
+		( since == "" || $1 >= since ) && ( until == "" || ( $1 != "-" && $1 <= until ) ) && ( member == "" || $2 == member ) && ( routine == "" || $3 == routine ) && ( preset == "" || $4 == preset ) && ( credential == "" || $5 == credential ) {
+			key = weekday == "" ? $col : weekdayOf( $1 )
+			runs[key] += $6 ; tin[key] += $7 ; tcr[key] += $8 ; tcw[key] += $9 ; tout[key] += $10
+		}
+		END {
+			## all seven bins, in the order of the week, each printed even where nothing ran
+			if ( weekday != "" ) {
+				split( "Mon Tue Wed Thu Fri Sat Sun", order, " " )
+				for ( bin = 1 ; bin <= 7 ; bin++ ) { key = order[bin] ; printf "tokens\t%s\t%d\t%d\t%d\t%d\t%d\n", key, runs[key], tin[key], tcr[key], tcw[key], tout[key] }
+			} else {
+				for ( key in runs ) { printf "tokens\t%s\t%d\t%d\t%d\t%d\t%d\n", key, runs[key], tin[key], tcr[key], tcw[key], tout[key] }
+			}
+		}' | { if [ -n "$tokensWeekday" ] ; then cat ; else LC_ALL=C sort -t "$( printf '\t' )" -k2,2 ; fi }
 }

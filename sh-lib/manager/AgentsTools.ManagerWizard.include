@@ -90,6 +90,8 @@ AgentsToolsManagerWizardKey(){ ## key
 		PRESET_CLI_SERVICE) wizardScope=preset ; wizardRank=1 ;;
 		PRESET_MODEL_OR_MACRO) wizardScope=preset ; wizardRank=2 ;;
 		PRESET_EFFORT) wizardScope=preset ; wizardRank=3 ;;
+		PRESET_INPUT_CACHE_TIME) wizardScope=preset ; wizardRank=4 ;;
+		PRESET_CONTEXT_MAX_SIZE) wizardScope=preset ; wizardRank=4 ;;
 		SPAWN_TIER_LOW) wizardScope=team ; wizardRank=5 ;;
 		SPAWN_TIER_NORMAL) wizardScope=team ; wizardRank=6 ;;
 		SPAWN_TIER_HIGH) wizardScope=team ; wizardRank=7 ;;
@@ -154,12 +156,15 @@ case "$1" in
 				for readKey in $agentsPresetEfforts ; do
 					printf 'option\teffort\t%s\t%s\n' "$readKey" "$readKey"
 				done
+				for readKey in $agentsPresetCacheTimes ; do
+					printf 'option\tcache\t%s\t%s\n' "$readKey" "$readKey"
+				done
 				AgentsToolsManagerWizardCredentials
 				while IFS= read -r readPreset ; do
 					[ -n "$readPreset" ] || continue
 					printf 'option\tpreset\t%s\t%s\n' "$readPreset" "$readPreset"
 					for readKey in $agentsPresetKeys ; do
-						case "$readKey" in PRESET_EXTEND|PRESET_ENDPOINT_URL|PRESET_CLI_SERVICE|PRESET_MODEL_OR_MACRO|PRESET_EFFORT) ;; *) continue ;; esac
+						case "$readKey" in PRESET_EXTEND|PRESET_ENDPOINT_URL|PRESET_CLI_SERVICE|PRESET_MODEL_OR_MACRO|PRESET_EFFORT|PRESET_INPUT_CACHE_TIME|PRESET_CONTEXT_MAX_SIZE) ;; *) continue ;; esac
 						AgentsToolsManagerWizardRow preset "preset-$readPreset" "$readKey" | LC_ALL=C awk -F'\t' -v presetName="$readPreset" '$3 != "missing" { print $1 "\t" presetName "\t" $2 "\t" $3 "\t" $4 }'
 					done
 					AgentsToolsManagerWizardCredentials | while IFS=$'\t' read -r readRow readService readKey ; do
@@ -196,11 +201,12 @@ case "$1" in
 
 	## The answers of a wizard, applied. Its form is the help entry's.
 	--manager-wizard-apply)
-		local applyOp="$1" applyName="${2:-}" applyPreset="" applyField applyValue applyList="" applyRank applyScope applyRc=0 wizardScope wizardRank
+		local applyOp="$1" applyName="${2:-}" applyPreset="" applyRename="" applyField applyValue applyList="" applyRank applyScope applyRc=0 wizardScope wizardRank
 		if [ $# -ge 2 ] ; then shift 2 ; else shift ; fi
 		case "$applyName" in
 			cli-service)
 				if [ "${1:-}" = "--preset" ] && [ -n "${2:-}" ] ; then applyPreset="$2" ; shift 2 ; fi
+				if [ "${1:-}" = "--rename-from" ] && [ -n "${2:-}" ] ; then applyRename="$2" ; shift 2 ; fi
 				;;
 		esac
 		if [ $# -ne 0 ] ; then
@@ -211,6 +217,11 @@ case "$1" in
 			cli-service)
 				[ -n "$applyPreset" ] || { echo "⛔ ERROR: $MDSC_CMD $applyOp: cli-service takes --preset <name> -- nothing was applied" >&2 ; set +e ; return 1 ; }
 				AgentsToolsPresetNameCheck "$applyPreset" || { echo "⛔ ERROR: $MDSC_CMD $applyOp: a preset's name is lower-case letters, digits, '.', '_' and '-', and the name given is not -- nothing was applied" >&2 ; set +e ; return 1 ; }
+				## A rename asked by the form: the preset is renamed and whoever names it (the presets that extend it, the tiers) follows, before
+				## anything is written to it under its new name.
+				if [ -n "$applyRename" ] && [ "$applyRename" != "$applyPreset" ] ; then
+					AgentsToolsPresetRename "$applyRename" "$applyPreset" || { set +e ; return 1 ; }
+				fi
 				## the lines, checked whole before one is applied: a key the wizard writes, once, one line each
 				while IFS=$'\t' read -r applyField applyValue || [ -n "$applyField" ] ; do
 					[ -n "$applyField" ] || continue

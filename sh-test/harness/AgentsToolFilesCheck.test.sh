@@ -46,7 +46,7 @@ rigCall(){ ## tool file, then the arguments -- the output in call.out; RIG_ENV h
 	env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigTmp/ws" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_WAIT_REMIND=off RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" RIG_FN="$rigPackage/sh-scripts/$rigFile.fn.sh" \
 		${RIG_ENV:-RIG_NONE=1} \
-		perl -e 'alarm 20 ; exec @ARGV' bash -c '
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 20 -- bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			cd "$MMDAPP" && exec bash "$RIG_FN" "$@"
 		' rig "$@" > "$rigTmp/call.out" 2>&1 < /dev/null
@@ -71,7 +71,7 @@ done < "$rigTmp/table"
 rigAssert "each name has a syntax line that names its tool file" "[${rigNoSyntax# }]" "[]"
 rigHelpWrong=""
 for rigKey in $( LC_ALL=C cut -f1 "$rigTmp/table" | LC_ALL=C sort -u ) ; do
-	case "$rigKey" in AgentDispatcherTools|DistroAgentsSession|DistroAgentsKnowledge|DistroAgentsDispatcher|DistroAgentsTesting|DistroAgentsContacts) continue ;; esac
+	case "$rigKey" in AgentDispatcherTools|DistroAgentsSession|DistroAgentsKnowledge|DistroAgentsDispatcher|DistroAgentsTesting|DistroAgentsContacts|DistroAgentsAtlassian|DistroAgentsGoogle|DistroAgentsGrants|DistroAgentsItems|DistroAgentsMail|DistroAgentsQuestions|DistroAgentsSlack|DistroAgentsTrello) continue ;; esac
 	rigCall "$rigKey" --help
 	[ "$( LC_ALL=C grep -c -E '^  --' "$rigTmp/call.out" )" = "$( LC_ALL=C awk -F'\t' -v k="$rigKey" '$1 == k' "$rigTmp/table" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" ] || rigHelpWrong="$rigHelpWrong $rigKey"
 done

@@ -79,9 +79,9 @@ rigScene(){ ## scenario name, who the DISMISSED in the thread is addressed to (e
 		> "$rigDir/replies.${rigThread#*:}.json"
 	## The run, and beside it a process that only quotes the id: the first is the session, the second is not.
 	## Neither is a job of this shell, so the shell says nothing when one is ended.
-	perl -e 'sleep 600' -- --session-id "$rigSpawn" > /dev/null 2>&1 &
+	python3 -I -B -c 'import time; time.sleep(600)' -- --session-id "$rigSpawn" > /dev/null 2>&1 &
 	rigRunPid=$! ; rigRunPids="$rigRunPids $rigRunPid" ; rigProcNote "$rigRunPid" ; disown "$rigRunPid" 2> /dev/null || :
-	perl -e 'sleep 600' -- --note "$rigSpawn" > /dev/null 2>&1 &
+	python3 -I -B -c 'import time; time.sleep(600)' -- --note "$rigSpawn" > /dev/null 2>&1 &
 	rigQuotePid=$! ; rigRunPids="$rigRunPids $rigQuotePid" ; rigProcNote "$rigQuotePid" ; disown "$rigQuotePid" 2> /dev/null || :
 }
 rigAlive(){ ## pid
@@ -182,7 +182,7 @@ rigScene noWord "$rigMember"
 ## started. The process that only quotes the id is still there, and is still no run.
 rigProcSignal KILL "$rigRunPid"
 rigGoneWithin "$rigRunPid" 5 > /dev/null
-perl -e 'sleep 600' > /dev/null 2>&1 &
+python3 -I -B -c 'import time; time.sleep(600)' > /dev/null 2>&1 &
 rigRecordedPid=$! ; rigRunPids="$rigRunPids $rigRecordedPid" ; rigProcNote "$rigRecordedPid" ; disown "$rigRecordedPid" 2> /dev/null || :
 rigRecordedStart="$( LC_ALL=C ps -o lstart= -p "$rigRecordedPid" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }' )"
 [ -n "$rigRecordedStart" ] || rigRefuse "the stand-in of the run with no session word did not start, so its ending could not be measured"

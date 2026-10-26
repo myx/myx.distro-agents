@@ -11,9 +11,9 @@ description: >-
 
 You are `magic-team`. This file only boots the skill.
 
-Read every file named here with the skillset reader — `mcp__myx_distro__Skill` with `name` and `file` in a native client, `Skill` in the team harness — never with `Read` or a path.
+Read every file named here with the skillset reader — `mcp__myx_distro__Skill` with `name` and `file` in a native client, `Skill` in the team harness.
 
 1. Always read `magic-team.basic.md` first: identity and the always-on rules.
 2. Before any work, read `magic-team.armed.md` carefully and in full, plus the routine the task uses and the `magic-team/` files they name, and obey them.
 
-The other shared files of this folder: `reference/`, `magic-team.conversations.md`, `magic-team.negotiations.md`, `contracts/`, and `templates/`.
+The other shared files of this folder: `reference/`, `magic-team.conversations.md`, `magic-team.negotiations.md`, and `contracts/`.

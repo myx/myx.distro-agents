@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CommsTelegram.include -- the Telegram driver of the channel-id abstraction (F7.1): what reaches a
+## `telegram:<chat-id>` channel. It sits behind the registry (AgentsTools.CommsChannel.include) and is reached
+## through the channel-id parse. Functions only, sourced, never run.
+##
+## A channel-id of the `telegram` service is `telegram:<chat-id>`; the chat-id is the destination the team's bot
+## writes to. The bot token is read from the team's own settings (TELEGRAM_BOT_TOKEN, magic-team scope) and the
+## send is one call of the Telegram Bot API `sendMessage` method through curl.
+##
+
+type AgentsToolsCommsChannelParse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsChannel.include"
+
+## The chat id a `telegram:` channel-id names: its <address>, or nothing (rc 1) for a channel-id of another service.
+AgentsToolsCommsTelegramChatId(){ ## channel-id
+	local telegramParts telegramService telegramChatId
+	telegramParts="$( AgentsToolsCommsChannelParse "$1" )" || return 1
+	telegramService="${telegramParts%%$'\t'*}" ; telegramChatId="${telegramParts#*$'\t'}" ; telegramChatId="${telegramChatId%%$'\t'*}"
+	[ "$telegramService" = telegram ] || return 1
+	[ -n "$telegramChatId" ] || return 1
+	printf '%s\n' "$telegramChatId"
+}
+
+## Send a text to a `telegram:<chat-id>` channel: one call of the Telegram Bot API sendMessage, with the text on
+## standard input. Prints the API's own JSON response on stdout. rc 0 sent, rc 1 refused (nothing sent).
+AgentsToolsCommsTelegramSend(){ ## channel-id
+	local telegramChannel="$1" telegramChatId telegramToken telegramText telegramOut telegramRc=0
+	telegramChatId="$( AgentsToolsCommsTelegramChatId "$telegramChannel" )" || {
+		echo "⛔ ERROR: $MDSC_CMD: $telegramChannel is no telegram:<chat-id> channel-id -- the Telegram driver reaches telegram:<chat-id> alone. Nothing was sent." >&2
+		return 1
+	}
+	telegramToken="$( DistroAgentsTools --agents-config-option magic-team --select TELEGRAM_BOT_TOKEN )" || telegramToken=""
+	if [ -z "$telegramToken" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD: no TELEGRAM_BOT_TOKEN is set in magic-team scope, so the Telegram driver cannot send. Nothing was sent." >&2
+		return 1
+	fi
+	telegramText="$( cat )"
+	if [ -z "$telegramText" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD: no text on standard input -- the Telegram driver sends the text it is given, and none was. Nothing was sent." >&2
+		return 1
+	fi
+	telegramOut="$( curl -sS --data-urlencode "chat_id=$telegramChatId" --data-urlencode "text=$telegramText" "https://api.telegram.org/bot$telegramToken/sendMessage" 2>&1 )" || telegramRc=$?
+	if [ "$telegramRc" != "0" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD: the Telegram send did not complete: $telegramOut" >&2
+		return 1
+	fi
+	printf '%s\n' "$telegramOut"
+}

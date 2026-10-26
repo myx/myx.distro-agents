@@ -11,7 +11,8 @@
 ##      to Wait, so a loop on the call cannot spin
 ##   4. what it waits on: the floor, and the scans the routine itself declares (`input-scan-def:`), by name, as `scan:` sources; `none`
 ##      declares none, an option of a scan is not carried, a scan named twice is named once; then the sources it declares with `wait-sources:`,
-##      the macro {{team-member}} being the member of the run, a source named twice once
+##      the macro {{team-member}} being the member of the run, a source named twice once; and last the run's own wake marker
+##      (`wake:<member>`), which every one of these waits watches, so a message a member sends wakes a duty in about a second
 ##   5. the answer names the checkpoint the run returns to: `opening` where the run holds it, else `armed`, else none
 ##   6. the new dispatch of a rewind: `--from-stdin` keeps the text, whole, for the harness to give as the next input; with no text it is refused
 ## Offline: every path under one temp tree, no model, no network.
@@ -125,27 +126,27 @@ rigAssert "a standalone routine with an invitee"                                
 rigBind teamwide ; rigOp --idle-wait
 rigAssert "a routine whose executors are the whole team"                                "$rigRc:$( rigIn "$rigOut" 'single-participant' ):$( rigRequests )" "0:yes:"
 rigBind "" ; rigOp --idle-wait
-rigAssert "a separate spawn, with no routine, has it"                                   "$rigRc:$( rigRequests )" "0:idle -"
+rigAssert "a separate spawn, with no routine, has it"                                   "$rigRc:$( rigRequests )" "0:idle - wake:rig-a"
 rigBind soloquiet ; rigOp --idle-wait
-rigAssert "a single-participant routine has it"                                         "$rigRc:$( rigRequests )" "0:idle -"
+rigAssert "a single-participant routine has it"                                         "$rigRc:$( rigRequests )" "0:idle - wake:rig-a"
 
 echo "-- 4. what it waits on --"
 rigBind solonone ; rigOp --idle-wait
-rigAssert "input-scan-def: none declares no scan: the floor alone"                      "$rigRc:$( rigRequests ):$( rigIn "$rigOut" 'waits on the floor' ):$( rigIn "$rigOut" 'scan:' )" "0:idle -:yes:no"
+rigAssert "input-scan-def: none declares no scan: the floor alone"                      "$rigRc:$( rigRequests ):$( rigIn "$rigOut" 'waits on the floor' ):$( rigIn "$rigOut" 'scan:' )" "0:idle - wake:rig-a:yes:no"
 rigBind soloduty ; rigOp --idle-wait
-rigAssert "a declared scan is a source, by name"                                        "$rigRc:$( rigRequests ):$( rigIn "$rigOut" 'the floor and scan:work-duty' )" "0:idle - scan:work-duty:yes"
+rigAssert "a declared scan is a source, by name"                                        "$rigRc:$( rigRequests ):$( rigIn "$rigOut" 'the floor and scan:work-duty' )" "0:idle - scan:work-duty wake:rig-a:yes"
 rigBind solomany ; rigOp --idle-wait
-rigAssert "several: in order, an option of a scan not carried, a scan once"             "$( rigRequests )" "idle - scan:grooming scan:work-duty"
+rigAssert "several: in order, an option of a scan not carried, a scan once"             "$( rigRequests )" "idle - scan:grooming scan:work-duty wake:rig-a"
 rigBind soloduty ; rigOp --idle-wait --wait-timeout 30
-rigAssert "a timeout is carried, and the answer says what a quiet wait does"            "$( rigRequests ):$( rigIn "$rigOut" '30 seconds' )" "idle 30 scan:work-duty:yes"
+rigAssert "a timeout is carried, and the answer says what a quiet wait does"            "$( rigRequests ):$( rigIn "$rigOut" '30 seconds' )" "idle 30 scan:work-duty wake:rig-a:yes"
 rigBind soloduty ; rigOp --idle-wait --wait-timeout 0
-rigAssert "a timeout of 0 is one: read once and return"                                 "$rigRc:$( rigRequests )" "0:idle 0 scan:work-duty"
+rigAssert "a timeout of 0 is one: read once and return"                                 "$rigRc:$( rigRequests )" "0:idle 0 scan:work-duty wake:rig-a"
 rigBind solowait ; rigOp --idle-wait
-rigAssert "the sources a routine declares are added after its scans: its own inbox by the macro, the board states, none twice" "$( rigRequests ):$( rigIn "$rigOut" 'inbox:rig-a, board:running, board:pending' )" "idle - scan:work-duty inbox:rig-a board:running board:pending:yes"
+rigAssert "the sources a routine declares are added after its scans: its own inbox by the macro, the board states, none twice" "$( rigRequests ):$( rigIn "$rigOut" 'inbox:rig-a, board:running, board:pending' )" "idle - scan:work-duty inbox:rig-a board:running board:pending wake:rig-a:yes"
 rigBind soloplus ; rigOp --executor-checkpoint-push a ; rigOp --idle-wait
-rigAssert "in the order of the calls of the round, after the snapshot asked before it"  "$( rigRequests )" "push a;idle - scan:work-duty"
+rigAssert "in the order of the calls of the round, after the snapshot asked before it"  "$( rigRequests )" "push a;idle - scan:work-duty wake:rig-a"
 rigBind soloduty ; rigOp --executor-checkpoint-push a ; rigOp --idle-wait
-rigAssert "it needs no allows: of its own: the wait is asked where the snapshot was a notice" "$( rigRequests )" "idle - scan:work-duty"
+rigAssert "it needs no allows: of its own: the wait is asked where the snapshot was a notice" "$( rigRequests )" "idle - scan:work-duty wake:rig-a"
 
 echo "-- 5. the answer names the checkpoint the run returns to --"
 rigBind soloduty ; rigOp --idle-wait

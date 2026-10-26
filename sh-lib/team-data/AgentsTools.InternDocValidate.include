@@ -8,12 +8,12 @@
 ## needs no store, no model and no decision. Sourced from its arm of DistroAgentsTools.fn.sh, so
 ## $1 is the operation and `local` is the operation's own; the functions below are the rule sets,
 ## one for each kind. Kinds built so far: `routine`, the contract of a `*.routine.md` skillset file
-## (magic-team/templates/routine.contract.format.md); and `document`, the self-check of any document
+## (magic-team/contracts/routine.contract.format.md); and `document`, the self-check of any document
 ## against itself (F5.7): what it cites, counts, adds up and says twice; and every team-data type, `<store>-item.<type>`
 ## (`board-item.task`), whose rule set is its contract (AgentsTools.DocValidate.include, F5.3). The rules of `routine`
 ## refuse; the rules of `document` arrive REPORTING, rows of a `report-` rule that refuse nothing; each rule of a
 ## type has its disposition in the one table, per rule and call site.
-## The thin stubs of other surfaces, such as --tester-skillset-validate-routine, call this and carry
+## The thin stubs of other surfaces, such as DistroAgentsTesting.fn.sh --skillset-validate-routine, call this and carry
 ## no logic of their own.
 ##
 
@@ -81,72 +81,178 @@ AgentsToolsDocValidateRunsAfter(){ ## routine file, file as shown, its runs-afte
 
 ## The rule set of the `routine` kind: the frontmatter keys, the requirements, the sections.
 AgentsToolsDocValidateRoutine(){ ## file, file as shown
-	local routineFile="$1" routineShown="$2" routineFirst="" routineType routineKeyName routineVerdict routineWhy routineRows routineHeading routineLine
-	local routineKindPath routineEffective routineEffectiveLine routineLockValue routineLockOne routineScanValue routineScanWhy routineScanOne routineScanAt routineScanCount
-	local routineRunsAt routineRunsDays routineRunsTime routineRunsOk routineRunsAfter routineCachePrefix routineIncName routineIncSection routineIncFile routineIncWord
+	local routineFile="$1" routineShown="$2" routineFirst="" routineType routineTypeLine routineKeyName routineKeyLine routineVerdict routineWhy routineHeading routineLine headingAt
+	local routineKindPath routineKindName routineKindRaw routineKindTrim routineKindLine routineEffectiveExec routineEffectiveMaint routineEffectiveInv
+	local routineExecRaw routineMaintRaw routineInvRaw routineExecLine routineMaintLine
+	local routineTrack routineTrackLine routineCtx routineCtxLine routineReview routineReviewLine
+	local routineCache routineCacheLine routineAllowsLine routineOpsLine routineLockValue routineLockOne routineLockLine routineScanWhy routineScanOne routineScanAt routineScanCount
+	local routineRunsAt routineRunsAtLine routineRunsDays routineRunsTime routineRunsOk routineRunsAfter routineRunsAfterLine routineCachePrefix routineIncName routineIncSection routineIncFile routineIncWord
 	local routineAllowsValue routineAllowsEntry routineAllowsTool routineAllowsNamed="" routineAllowsExecutors routineAllowsInvitees
+	local routineWaitLine routineIncludesLine routineOpenCount routineOpenFirst routineStepsCount routineStepsFirst routineCloseCount routineCloseFirst routineLocalCount routineLocalFirst
+	local kindExecRaw kindMaintRaw kindInvRaw kindCache routineBlock routineKindBlock scanTag scanA scanB scanC scanD scanIdx
+	local routineIncNames=() routineIncSections=() routineWaitLines=() routineScanLines=() routineScanExact=()
 	IFS= read -r routineFirst < "$routineFile" 2> /dev/null || :
 	if [ "$routineFirst" != "---" ] ; then
 		AgentsToolsDocValidateRow "$routineShown" 1 frontmatter "the file does not open with a frontmatter block"
 		return 0
 	fi
+	## One read of the file: every frontmatter key and the root headings, into one block, then consumed here.
+	routineBlock="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidateRoutineScan.awk" "$routineFile" )"
+	while IFS=$'\034' read -r scanTag scanA scanB scanC scanD ; do
+		case "$scanTag" in
+			K)
+				case "$scanA" in
+					type) routineType="$scanC" ; routineTypeLine="$scanD" ;;
+					requires-session-kind) routineKindRaw="$scanB" ; routineKindTrim="$scanC" ; routineKindLine="$scanD" ;;
+					executors) routineExecRaw="$scanB" ; routineExecLine="$scanD" ;;
+					maintainers) routineMaintRaw="$scanB" ; routineMaintLine="$scanD" ;;
+					invitees) routineInvRaw="$scanB" ;;
+					tracking-item) routineTrack="$scanC" ; routineTrackLine="$scanD" ;;
+					start-context) routineCtx="$scanC" ; routineCtxLine="$scanD" ;;
+					review-by) routineReview="$scanC" ; routineReviewLine="$scanD" ;;
+					cache-prefix) routineCache="$scanC" ; routineCacheLine="$scanD" ;;
+					allows) routineAllowsValue="$scanC" ; routineAllowsLine="$scanD" ;;
+					operations) routineOpsLine="$scanD" ;;
+					routine-lock-document) routineLockValue="$scanC" ; routineLockLine="$scanD" ;;
+					runs-at) routineRunsAt="$scanC" ; routineRunsAtLine="$scanD" ;;
+					runs-after) routineRunsAfter="$scanC" ; routineRunsAfterLine="$scanD" ;;
+					includes) routineIncludesLine="$scanD" ;;
+					wait-sources) routineWaitLine="$scanD" ;;
+				esac
+			;;
+			I) routineIncNames+=( "$scanA" ) ; routineIncSections+=( "$scanB" ) ;;
+			W) routineWaitLines+=( "$scanA" ) ;;
+			S) routineScanLines+=( "$scanA" ) ; routineScanExact+=( "$scanB" ) ;;
+			H)
+				case "$scanC" in
+					"Opening steps") routineOpenCount="$scanA" ; routineOpenFirst="$scanB" ;;
+					"Steps") routineStepsCount="$scanA" ; routineStepsFirst="$scanB" ;;
+					"Closure steps") routineCloseCount="$scanA" ; routineCloseFirst="$scanB" ;;
+					"Routine's local procedures") routineLocalCount="$scanA" ; routineLocalFirst="$scanB" ;;
+				esac
+			;;
+		esac
+	done <<< "$routineBlock"
+	routineIncludesLine="${routineIncludesLine:-1}" ; routineWaitLine="${routineWaitLine:-1}"
 	## type: routine, so a routine is told from any other document by what it says of itself.
-	routineType="$( AgentsToolsRoutineKeyOwn "$routineFile" type )"
-	[ "$routineType" = "routine" ] || AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" type )" type "type: routine is required, found '${routineType:-<absent>}'"
+	[ "$routineType" = "routine" ] || AgentsToolsDocValidateRow "$routineShown" "$routineTypeLine" type "type: routine is required, found '${routineType:-<absent>}'"
 	## executors and maintainers: set by the routine, or by the default settings of its kind routine.
-	routineKindPath="$( AgentsToolsSpawnRoutineKindPath "$routineFile" )"
-	routineEffective="$( AgentsToolsSpawnRoutineFrontmatter "$routineFile" "$routineKindPath" )"
+	## The kind routine is a deeper resolve (the bundled routine of the kind the file names), asked of the
+	## spawner's own functions; only its executors/maintainers/invitees and cache-prefix are read back, once.
+	routineKindPath=""
+	if routineKindName="$( AgentsToolsSpawnRoutineKindRoutine "$routineKindRaw" )" ; then
+		if [ "${routineFile##*/}" != "$routineKindName" ] ; then
+			routineKindPath="$( AgentsToolsSpawnRoutineResolve "$routineKindName" 2> /dev/null )" || routineKindPath=""
+		fi
+	fi
+	if [ -n "$routineKindPath" ] ; then
+		routineKindBlock="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.DocValidateRoutineScan.awk" "$routineKindPath" )"
+		while IFS=$'\034' read -r scanTag scanA scanB scanC scanD ; do
+			[ "$scanTag" = K ] || continue
+			case "$scanA" in
+				executors) kindExecRaw="$scanB" ;;
+				maintainers) kindMaintRaw="$scanB" ;;
+				invitees) kindInvRaw="$scanB" ;;
+				cache-prefix) kindCache="$scanC" ;;
+			esac
+		done <<< "$routineKindBlock"
+	fi
+	routineEffectiveExec="$routineExecRaw" ; [ -n "$routineEffectiveExec" ] || routineEffectiveExec="$kindExecRaw"
+	routineEffectiveMaint="$routineMaintRaw" ; [ -n "$routineEffectiveMaint" ] || routineEffectiveMaint="$kindMaintRaw"
+	routineEffectiveInv="$routineInvRaw" ; [ -n "$routineEffectiveInv" ] || routineEffectiveInv="$kindInvRaw"
 	for routineKeyName in executors maintainers ; do
-		routineEffectiveLine="$( printf '%s\n' "$routineEffective" | LC_ALL=C grep -m 1 "^$routineKeyName: " )"
-		[ -n "${routineEffectiveLine#"$routineKeyName: "}" ] || AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" "$routineKeyName" )" "$routineKeyName" "$routineKeyName: is empty, and the routine's kind routine sets none"
+		if [ "$routineKeyName" = executors ] ; then routineLine="$routineEffectiveExec" ; routineKeyLine="$routineExecLine" ; else routineLine="$routineEffectiveMaint" ; routineKeyLine="$routineMaintLine" ; fi
+		[ -n "$routineLine" ] || AgentsToolsDocValidateRow "$routineShown" "$routineKeyLine" "$routineKeyName" "$routineKeyName: is empty, and the routine's kind routine sets none"
 	done
-	## The requirements, asked of the one evaluator at this site.
+	## The team-member contract tokens of executors and invitees (the `<type>-*`/`<type>-?` expansion, and
+	## `all-present-members` in invitees alone): each entry is read as the spawner reads it, so a `<type>-*` or a
+	## `<type>-?` that names no member (fail on NONE) is said here, before a start would fail on it, and
+	## `all-present-members` is refused where it is no participants' word.
+	local routineEntry routineEntryRoster routineEntryReason routineEntryType routineInvKeyLine
+	for routineKeyName in executors invitees ; do
+		if [ "$routineKeyName" = executors ] ; then
+			routineLine="$routineEffectiveExec" ; routineKeyLine="$routineExecLine"
+		else
+			routineLine="$routineEffectiveInv" ; routineKeyLine="$( AgentsToolsDocValidateKeyLine "$routineFile" invitees )"
+		fi
+		[ -n "$routineLine" ] || continue
+		case "$routineLine" in ''|none) continue ;; esac
+		for routineEntry in ${routineLine//,/ } ; do
+			case "$routineEntry" in ''|'*'|'magic-team') continue ;; esac
+			if [ "$routineEntry" = "all-present-members" ] ; then
+				[ "$routineKeyName" = "invitees" ] || AgentsToolsDocValidateRow "$routineShown" "$routineKeyLine" "$routineKeyName" "$routineKeyName: all-present-members is a participants' word, and executors names members -- name the members, or <type>-* for all of a type"
+				continue
+			fi
+			case "$routineEntry" in
+				*-'*'|*-'?') ;;
+				*) continue ;;
+			esac
+			routineEntryReason="$( AgentsToolsSpawnRoutineEntryMembers "$routineEntry" )" && continue
+			## A `<type>-*` with no member fails on NONE (the sketch's word): the row names the type the star
+			## stands for, and the two things a writer can pass instead -- the members by name, or a type that
+			## has some -- so an agent reading it knows what to do rather than only that the file is refused.
+			case "$routineEntryReason" in
+				none-of-type*)
+					routineEntryType="${routineEntryReason#none-of-type$'\t'}"
+					AgentsToolsDocValidateRow "$routineShown" "$routineKeyLine" "$routineKeyName" "$routineKeyName: $routineEntry names no member of the type $routineEntryType on any workspace of this machine (fail on NONE) -- name the members instead, or write a <type>-* whose type has members"
+				;;
+			esac
+		done
+	done
+	## The requirements, asked of the one evaluator at this site, its key already read above.
 	for routineKeyName in requires-session-kind tracking-item start-context review-by ; do
-		routineVerdict="$( AgentsToolsRoutineRequirement "$routineKeyName" save "$routineFile" )" && continue
+		case "$routineKeyName" in
+			requires-session-kind) routineLine="$routineKindTrim" ; routineKeyLine="$routineKindLine" ;;
+			tracking-item) routineLine="$routineTrack" ; routineKeyLine="$routineTrackLine" ;;
+			start-context) routineLine="$routineCtx" ; routineKeyLine="$routineCtxLine" ;;
+			review-by) routineLine="$routineReview" ; routineKeyLine="$routineReviewLine" ;;
+		esac
+		routineVerdict="$( AgentsToolsRoutineRequirement "$routineKeyName" save "$routineFile" "" "$routineLine" )" && continue
 		routineWhy="${routineVerdict#*$'\t'}"
-		AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" "$routineKeyName" )" "$routineKeyName" "$routineWhy"
+		AgentsToolsDocValidateRow "$routineShown" "$routineKeyLine" "$routineKeyName" "$routineWhy"
 	done
 	## The caching policy (F10.7): `cache-prefix: armed | routine`, how far the cacheable prefix of a spawn of this routine reaches.
 	## `armed`, which a routine that says nothing has, is the member's armed floor alone (a routine that runs rarely, as the
 	## retro does); `routine` adds the routine's own instruction and reference, so a routine that runs often, as the advance does,
-	## shares it between its runs. The routine's own line, else its kind routine's.
-	routineCachePrefix="$( AgentsToolsRoutineKey "$routineFile" cache-prefix )"
+	## shares it between its runs. A work-duty is `armed` and carries its routine in its dispatch instead. The routine's own line,
+	## else its kind routine's.
+	routineCachePrefix="$routineCache" ; [ -n "$routineCachePrefix" ] || routineCachePrefix="$kindCache"
 	case "$routineCachePrefix" in
 		''|armed|routine) ;;
-		*) AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" cache-prefix )" cache-prefix "cache-prefix: $routineCachePrefix is not armed or routine" ;;
+		*) AgentsToolsDocValidateRow "$routineShown" "$routineCacheLine" cache-prefix "cache-prefix: $routineCachePrefix is not armed or routine" ;;
 	esac
 	## The sections of another routine this one takes in whole (`includes: <routine file name>: <section>, <section>`, one line for each routine): the mix-in
 	## engine puts them into the text where it is read (AgentsToolsSpawnRoutineMixIncluded). The routine must be one file of the skillset, the section one of
 	## the Steps, the local procedures, the local rules or the tooling block, and the routine must hold it.
-	while IFS=$'\t' read -r routineIncName routineIncSection ; do
+	for (( scanIdx = 0 ; scanIdx < ${#routineIncNames[@]} ; scanIdx++ )) ; do
+		routineIncName="${routineIncNames[$scanIdx]}" ; routineIncSection="${routineIncSections[$scanIdx]}"
 		[ -n "$routineIncName" ] || continue
 		case "$routineIncSection" in
 			"Steps"|"Routine's local procedures"|"Routine's local rules"|"Routine-specific tooling") ;;
-			*) AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" includes )" includes "includes: $routineIncSection is none of Steps, Routine's local procedures, Routine's local rules, Routine-specific tooling"
+			*) AgentsToolsDocValidateRow "$routineShown" "$routineIncludesLine" includes "includes: $routineIncSection is none of Steps, Routine's local procedures, Routine's local rules, Routine-specific tooling"
 				continue ;;
 		esac
 		routineIncFile="$( AgentsToolsSpawnRoutineResolve "$routineIncName" 2> /dev/null )" || routineIncFile=""
 		if [ -z "$routineIncFile" ] || [ ! -f "$routineIncFile" ] ; then
-			AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" includes )" includes "includes: $routineIncName names no one routine"
+			AgentsToolsDocValidateRow "$routineShown" "$routineIncludesLine" includes "includes: $routineIncName names no one routine"
 		elif ! LC_ALL=C grep -q -x -F -- "# $routineIncSection" "$routineIncFile" ; then
-			AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" includes )" includes "includes: $routineIncName has no section $routineIncSection"
+			AgentsToolsDocValidateRow "$routineShown" "$routineIncludesLine" includes "includes: $routineIncName has no section $routineIncSection"
 		fi
-	done <<< "$( AgentsToolsSpawnRoutineIncludes "$routineFile" )"
+	done
 	## The sources a run of the routine waits on besides its scans (`wait-sources: <source> ...`, read by --idle-wait): `inbox:{{team-member}}`, the own inbox,
 	## `tagged:{{team-member}}`, what is for the member by name, and `board:<state>`, one state of the board.
-	while IFS= read -r routineIncSection ; do
+	for routineIncSection in "${routineWaitLines[@]}" ; do
 		for routineIncWord in $routineIncSection ; do
 			case "$routineIncWord" in
 				"inbox:{{team-member}}"|"tagged:{{team-member}}"|board:backlog|board:pending|board:running|board:review|board:blocked|board:parked|board:processed|board:archived|board:retained) ;;
-				*) AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" wait-sources )" wait-sources "wait-sources: $routineIncWord is none of inbox:{{team-member}}, tagged:{{team-member}} and board:<state>" ;;
+				*) AgentsToolsDocValidateRow "$routineShown" "$routineWaitLine" wait-sources "wait-sources: $routineIncWord is none of inbox:{{team-member}}, tagged:{{team-member}} and board:<state>" ;;
 			esac
 		done
-	done <<< "$( AgentsToolsRoutineKeyLinesOwn "$routineFile" wait-sources )"
+	done
 	## The checkpoint operations (F10.5): `allows:` may name --executor-checkpoint-push, --executor-checkpoint-rewind and
 	## --executor-checkpoint-exit (`<who>:<operation>`), and no other operation of the --executor- family. A routine that names one is a
 	## single-participant routine: its kind is standalone, it has one executor and no invitee. A rewind returns ONE member's conversation,
 	## so the operations are not given to a session of several.
-	routineAllowsValue="$( AgentsToolsRoutineKeyOwn "$routineFile" allows )"
 	while [ -n "$routineAllowsValue" ] ; do
 		routineAllowsEntry="${routineAllowsValue%%,*}"
 		if [ "$routineAllowsEntry" != "$routineAllowsValue" ] ; then routineAllowsValue="${routineAllowsValue#*,}" ; else routineAllowsValue="" ; fi
@@ -155,52 +261,48 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 		routineAllowsTool="${routineAllowsEntry#*:}" ; routineAllowsTool="${routineAllowsTool%%:*}"
 		case "$routineAllowsTool" in
 			--executor-checkpoint-push|--executor-checkpoint-rewind|--executor-checkpoint-exit) routineAllowsNamed=1 ;;
-			--executor-*) AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" allows )" allows "allows: $routineAllowsTool is no operation of the --executor- family; they are --executor-checkpoint-push, --executor-checkpoint-rewind and --executor-checkpoint-exit" ;;
+			--executor-*) AgentsToolsDocValidateRow "$routineShown" "$routineAllowsLine" allows "allows: $routineAllowsTool is no operation of the --executor- family; they are --executor-checkpoint-push, --executor-checkpoint-rewind and --executor-checkpoint-exit" ;;
 		esac
 	done
 	if [ -n "$routineAllowsNamed" ] ; then
-		routineAllowsExecutors="$( printf '%s\n' "$routineEffective" | LC_ALL=C sed -n 's/^executors: //p' | head -1 )"
-		routineAllowsInvitees="$( printf '%s\n' "$routineEffective" | LC_ALL=C sed -n 's/^invitees: //p' | head -1 )"
-		[ "$( AgentsToolsSpawnRoutineKindOwn "$routineFile" )" = "standalone" ] || AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" allows )" allows "allows: the --executor-checkpoint operations are for a single-participant routine, and this routine's kind is not standalone"
+		routineAllowsExecutors="$routineEffectiveExec" ; routineAllowsInvitees="$routineEffectiveInv"
+		[ "$routineKindRaw" = "standalone" ] || AgentsToolsDocValidateRow "$routineShown" "$routineAllowsLine" allows "allows: the --executor-checkpoint operations are for a single-participant routine, and this routine's kind is not standalone"
 		case "$routineAllowsExecutors" in
-			''|*[[:space:],*]*|magic-team) AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" allows )" allows "allows: the --executor-checkpoint operations are for a single-participant routine, and this routine's executors are not one member (${routineAllowsExecutors:-empty})" ;;
+			''|*[[:space:],*]*|magic-team) AgentsToolsDocValidateRow "$routineShown" "$routineAllowsLine" allows "allows: the --executor-checkpoint operations are for a single-participant routine, and this routine's executors are not one member (${routineAllowsExecutors:-empty})" ;;
 		esac
 		case "$routineAllowsInvitees" in
 			''|none) ;;
-			*) AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" allows )" allows "allows: the --executor-checkpoint operations are for a single-participant routine, and this routine has invitees ($routineAllowsInvitees)" ;;
+			*) AgentsToolsDocValidateRow "$routineShown" "$routineAllowsLine" allows "allows: the --executor-checkpoint operations are for a single-participant routine, and this routine has invitees ($routineAllowsInvitees)" ;;
 		esac
 	fi
 	## `operations:` is REPORTED, NEVER ENFORCED: its findings are rows of the rule report-operations, which refuse nothing.
 	routineVerdict="$( AgentsToolsRoutineRequirement operations save "$routineFile" )" || :
 	while IFS=$'\t' read -r routineLine routineWhy ; do
-		case "$routineLine" in reject|help) AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" operations )" report-operations "$routineWhy" ;; esac
+		case "$routineLine" in reject|help) AgentsToolsDocValidateRow "$routineShown" "$routineOpsLine" report-operations "$routineWhy" ;; esac
 	done <<< "$routineVerdict"
 	## The lock the spawner takes for the routine's session: `routine-lock-document: inbox:<member>:<note>.md`.
-	routineLockValue="$( AgentsToolsRoutineKeyOwn "$routineFile" routine-lock-document )"
 	if [ -n "$routineLockValue" ] ; then
 		type AgentsToolsRoutineLockParse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include"
-		for routineLockOne in $( printf '%s' "$routineLockValue" | LC_ALL=C tr ',' ' ' ) ; do
-			AgentsToolsRoutineLockShape "$routineLockOne" > /dev/null || AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" routine-lock-document )" routine-lock-document "routine-lock-document: $routineLockOne is not inbox:<member>:<note>.md, a note in the inbox of a named member or of the member of the start ({{team-member}}); several, separated by commas"
+		for routineLockOne in ${routineLockValue//,/ } ; do
+			AgentsToolsRoutineLockShape "$routineLockOne" > /dev/null || AgentsToolsDocValidateRow "$routineShown" "$routineLockLine" routine-lock-document "routine-lock-document: $routineLockOne is not inbox:<member>:<note>.md, a note in the inbox of a named member or of the member of the start ({{team-member}}); several, separated by commas"
 		done
 	fi
 	## The routine's own input scans: one line for each, `<scan> [--option value ...]` (macros among the five names of the common
 	## option set), or `none` alone. The line form is read by the one parser the spawner reads it with.
-	routineScanValue="$( AgentsToolsRoutineKeyLinesOwn "$routineFile" input-scan-def )"
-	if [ -n "$routineScanValue" ] ; then
+	routineScanCount="${#routineScanLines[@]}"
+	if [ "$routineScanCount" -gt 0 ] ; then
 		type AgentsToolsInputScanDefWords > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InputScanDef.include"
-		routineScanCount="$( printf '%s\n' "$routineScanValue" | LC_ALL=C grep -c . )"
-		while IFS= read -r routineScanOne ; do
-			routineScanAt="$( AgentsToolsDocValidateKeyLineOf "$routineFile" input-scan-def "$routineScanOne" )"
+		for (( scanIdx = 0 ; scanIdx < routineScanCount ; scanIdx++ )) ; do
+			routineScanOne="${routineScanLines[$scanIdx]}" ; routineScanAt="${routineScanExact[$scanIdx]}"
 			if [ "$routineScanOne" = "none" ] ; then
 				[ "$routineScanCount" -le 1 ] || AgentsToolsDocValidateRow "$routineShown" "$routineScanAt" input-scan-def "input-scan-def: none stands alone, and the routine declares other scans"
 				continue
 			fi
 			routineScanWhy="$( AgentsToolsInputScanDefWords "$routineScanOne" member session spawn 2>&1 > /dev/null )" || AgentsToolsDocValidateRow "$routineShown" "$routineScanAt" input-scan-def "${routineScanWhy#*input-scan-def: }"
-		done <<< "$routineScanValue"
+		done
 	fi
 	## The autorun keys: `runs-at: <days> <HH:MM>` or `none`, days being workdays, weekend, daily or a list such as mon,thu; and
 	## `runs-after: <routine>`, one routine, kept apart from it.
-	routineRunsAt="$( AgentsToolsRoutineKeyOwn "$routineFile" runs-at )"
 	if [ -n "$routineRunsAt" ] && [ "$routineRunsAt" != "none" ] ; then
 		routineRunsDays="${routineRunsAt%% *}" ; routineRunsTime="${routineRunsAt#* }"
 		routineRunsOk="yes"
@@ -210,20 +312,21 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 			*) printf '%s\n' "$routineRunsDays" | LC_ALL=C grep -q -E '^(mon|tue|wed|thu|fri|sat|sun)(,(mon|tue|wed|thu|fri|sat|sun))*$' || routineRunsOk="no" ;;
 		esac
 		printf '%s\n' "$routineRunsTime" | LC_ALL=C grep -q -E '^([01][0-9]|2[0-3]):[0-5][0-9]$' || routineRunsOk="no"
-		[ "$routineRunsOk" = "yes" ] || AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" runs-at )" runs-at "runs-at: $routineRunsAt is not none or <days> <HH:MM>, days being workdays, weekend, daily or a list such as mon,thu"
+		[ "$routineRunsOk" = "yes" ] || AgentsToolsDocValidateRow "$routineShown" "$routineRunsAtLine" runs-at "runs-at: $routineRunsAt is not none or <days> <HH:MM>, days being workdays, weekend, daily or a list such as mon,thu"
 	fi
-	routineRunsAfter="$( AgentsToolsRoutineKeyOwn "$routineFile" runs-after )"
 	case "$routineRunsAfter" in
-		''|*[[:space:]]*|*,*) [ -z "$routineRunsAfter" ] || AgentsToolsDocValidateRow "$routineShown" "$( AgentsToolsDocValidateKeyLine "$routineFile" runs-after )" runs-after "runs-after: $routineRunsAfter is not one routine" ;;
+		''|*[[:space:]]*|*,*) [ -z "$routineRunsAfter" ] || AgentsToolsDocValidateRow "$routineShown" "$routineRunsAfterLine" runs-after "runs-after: $routineRunsAfter is not one routine" ;;
 		*) AgentsToolsDocValidateRunsAfter "$routineFile" "$routineShown" "$routineRunsAfter" ;;
 	esac
 	## The sections: # Opening steps, # Steps and # Closure steps, each once, in that order; and the local procedures.
-	routineRows="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsRoutineHeadings.awk" "$routineFile" )"
-	local headingAt
 	for routineHeading in "Opening steps" "Steps" "Closure steps" "Routine's local procedures" ; do
-		routineLine="$( printf '%s\n' "$routineRows" | LC_ALL=C awk -F'\t' -v want="$routineHeading" '$2 == want { n++ ; if ( n == 1 ) first = $1 ; } END { printf "%d %d", n, first ; }' )"
-		headingAt="${routineLine#* }"
-		case "${routineLine%% *}" in
+		case "$routineHeading" in
+			"Opening steps") routineLine="$routineOpenCount" ; headingAt="$routineOpenFirst" ;;
+			"Steps") routineLine="$routineStepsCount" ; headingAt="$routineStepsFirst" ;;
+			"Closure steps") routineLine="$routineCloseCount" ; headingAt="$routineCloseFirst" ;;
+			"Routine's local procedures") routineLine="$routineLocalCount" ; headingAt="$routineLocalFirst" ;;
+		esac
+		case "$routineLine" in
 			0) AgentsToolsDocValidateRow "$routineShown" 1 sections "the section # $routineHeading is missing" ;;
 			1) ;;
 			*) AgentsToolsDocValidateRow "$routineShown" "$headingAt" sections "the section # $routineHeading stands more than once" ;;
@@ -232,10 +335,14 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 	## In order: the three steps headings, as found, ascend.
 	local orderPrev=0 orderBad=""
 	for routineHeading in "Opening steps" "Steps" "Closure steps" ; do
-		routineLine="$( printf '%s\n' "$routineRows" | LC_ALL=C awk -F'\t' -v want="$routineHeading" '$2 == want { print $1 ; exit ; }' )"
-		[ -n "$routineLine" ] || continue
-		[ "$routineLine" -gt "$orderPrev" ] || orderBad="$orderBad${orderBad:+ }# $routineHeading"
-		orderPrev="$routineLine"
+		case "$routineHeading" in
+			"Opening steps") routineLine="$routineOpenCount" ; headingAt="$routineOpenFirst" ;;
+			"Steps") routineLine="$routineStepsCount" ; headingAt="$routineStepsFirst" ;;
+			"Closure steps") routineLine="$routineCloseCount" ; headingAt="$routineCloseFirst" ;;
+		esac
+		[ "$routineLine" -gt 0 ] || continue
+		[ "$headingAt" -gt "$orderPrev" ] || orderBad="$orderBad${orderBad:+ }# $routineHeading"
+		orderPrev="$headingAt"
 	done
 	[ -z "$orderBad" ] || AgentsToolsDocValidateRow "$routineShown" 1 sections "the sections stand out of order, # Opening steps then # Steps then # Closure steps: $orderBad"
 	return 0
@@ -328,6 +435,19 @@ case "$1" in
 	--intern-doc-validate)
 		shift
 		local validateKind="${1:-}" validateInput="${2:-}" validateFile validateShown validateTemp="" validateDoc="" validateAs=""
+		## `routine --many`: EVERY FILE ON STDIN, validated in this one process. The validator was
+		## called once per file, and each call paid for starting a shell and reading its own rule
+		## sets -- 55 times for a list. The rules are the same functions, called here in place.
+		if [ "$validateKind" = "routine" ] && [ "$validateInput" = "--many" ] ; then
+			local validateOne validateSaid
+			while IFS= read -r validateOne ; do
+				[ -n "$validateOne" ] || continue
+				[ -f "$validateOne" ] || continue
+				validateSaid="$( AgentsToolsDocValidateRoutine "$validateOne" "$validateOne" )" || validateSaid="$validateOne:1: validator: the rule set itself failed"
+				[ -z "$validateSaid" ] || printf '%s\n' "$validateSaid"
+			done
+			set +e ; return 0
+		fi
 		## `--from-stdin --as <path>`: the text on stdin is the document that will stand at that path (F7.7: a skillset file checked before it
 		## is saved), so it is shown by that path and its citations are looked for from there, as for the file itself.
 		if [ $# -eq 4 ] && [ "$validateInput" = "--from-stdin" ] && [ "${3:-}" = "--as" ] && [ -n "${4:-}" ] ; then

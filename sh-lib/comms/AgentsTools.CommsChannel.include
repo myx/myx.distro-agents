@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CommsChannel.include -- the channel-id abstraction (F7.1): the comms driver registry, the single
+## Slack alias -> SLACK_CHANNEL_* map, the parse of a channel-id, and the Declares: reader for comms-channel
+## declarations. Functions only. Sourced by the comms drivers (Slack, email, Telegram, printback) and by whoever
+## resolves a channel-id, never run.
+##
+## A channel-id names a channel on one comms service in one value, `<service>:<address>[:<ts>]`:
+##   slack:<channel>(:<ts>)   a Slack conversation, or one message in it by its ts
+##   email:<address>          an email address
+##   telegram:<chat-id>       a Telegram chat
+##   printback:<session>      the root-native printback channel of that session: no network at all, the
+##                            session's own chat file is the record and the caller's output is the copy
+## The <service> picks the driver (AgentsToolsCommsChannelDrivers, order = preference), and the driver reads its own
+## part of the address. A named channel of the team is declared in a project's `Declares:` as
+## `magic-team:comms-channel:<name>:<service>:<address>` (AgentsToolsCommsChannelDeclares).
+##
+
+## The drivers, in order of preference: a channel-id's <service> picks the driver that reaches it.
+AgentsToolsCommsChannelDrivers(){
+	printf '%s\n' slack email telegram printback
+}
+
+## rc 0 where the word names a comms driver.
+AgentsToolsCommsChannelDriverOk(){ ## service
+	case "$1" in
+		slack|email|telegram|printback) return 0 ;;
+	esac
+	return 1
+}
+
+## The single alias -> SLACK_CHANNEL_* map. The Slack drivers read every channel alias through this one function,
+## so no SLACK_CHANNEL_* literal stands anywhere in AgentsTools.CommsSlack.include or AgentsTools.MemberCommsSlack.include.
+## Prints the setting key, nothing for an alias that maps nowhere.
+AgentsToolsCommsChannelSlackKey(){ ## alias
+	case "$1" in
+		event-track) printf 'SLACK_CHANNEL_EVENT_TRACK\n' ;;
+		event-alert) printf 'SLACK_CHANNEL_EVENT_ALERT\n' ;;
+		magic-team)  printf 'SLACK_CHANNEL_MAGIC_TEAM\n' ;;
+		human-owner) printf 'SLACK_CHANNEL_HUMAN_OWNER\n' ;;
+	esac
+}
+
+## The parse of a channel-id, `<service>:<address>[:<ts>]`: prints `<service>\t<address>\t<ts>` (the ts empty where
+## none). rc 1, nothing printed, for a value that is no channel-id.
+AgentsToolsCommsChannelParse(){ ## channel-id
+	local parseId="$1" parseService="" parseRest="" parseAddress="" parseTs=""
+	case "$parseId" in
+		*:*) parseService="${parseId%%:*}" ; parseRest="${parseId#*:}" ;;
+		*) return 1 ;;
+	esac
+	case "$parseRest" in
+		client:*) parseAddress="$parseRest" ; parseTs="" ;;
+		*:*)
+			parseAddress="${parseRest%%:*}" ; parseTs="${parseRest#*:}"
+			## a ts is one message in the conversation; a trailing segment that is no ts stays in the address
+			case "$parseTs" in
+				''|*[!0-9.]*) parseAddress="$parseRest" ; parseTs="" ;;
+			esac
+		;;
+		*) parseAddress="$parseRest" ; parseTs="" ;;
+	esac
+	AgentsToolsCommsChannelServiceKnown "$parseService" || return 1
+	[ -n "$parseService" ] && [ -n "$parseAddress" ] || return 1
+	printf 'SERVICE=%s\n' "$parseService"
+	printf 'ADDRESS=%s\n' "$parseAddress"
+	[ -z "$parseTs" ] || printf 'THREAD_TS=%s\n' "$parseTs"
+}
+
+## The Declares: reader for `magic-team:comms-channel:<name>:<service>:<address>` lines of the selected projects
+## (the same `Distro ListDistroDeclares` read the permissions and testing directives use). Prints one row a line,
+## `<name>:<service>:<address>`. rc 1 where the declares read failed.
+AgentsToolsCommsChannelDeclares(){ ## [selected project ids]
+	local declLines declLine declRest
+	declLines="$( MDSC_SELECT_PROJECTS="${1:-}" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:comms-channel' )" || return $?
+	while IFS= read -r declLine ; do
+		[ -n "$declLine" ] || continue
+		declRest="${declLine#* }"
+		printf '%s\n' "$declRest"
+	done <<< "$declLines"
+}
+
+
+## The drivers as the channel-id reads them: `Services` is the current name, `Drivers` the earlier one, kept as its alias.
+AgentsToolsCommsChannelServices(){ AgentsToolsCommsChannelDrivers ; }
+## rc 0 where the word names a service: `ServiceKnown` is the current name, `DriverOk` the earlier one.
+AgentsToolsCommsChannelServiceKnown(){ AgentsToolsCommsChannelDriverOk "$1" ; }
+## The preference rank of a service, 1-based, empty for a word that is no service.
+AgentsToolsCommsChannelServiceRank(){ ## service
+	local service rank=0
+	for service in $( AgentsToolsCommsChannelDrivers ) ; do
+		rank=$(( rank + 1 ))
+		[ "$service" = "$1" ] && { printf '%s\n' "$rank" ; return 0 ; }
+	done
+	return 0
+}
+## The channel-ids one name declares, in the driver preference order: rows `<name><TAB><service><TAB><address>` on stdin,
+## the name as the argument; one `<service>:<address>` a line, nothing for a name with none (the pure core of the ordering).
+AgentsToolsCommsChannelOrderDeclares(){ ## name
+	local want="$1" rows="" rowLine rowName rowService rowAddress service
+	rows="$( cat )"
+	for service in $( AgentsToolsCommsChannelDrivers ) ; do
+		while IFS= read -r rowLine ; do
+			[ -n "$rowLine" ] || continue
+			rowName="${rowLine%%$'\t'*}"
+			rowLine="${rowLine#*$'\t'}"
+			rowService="${rowLine%%$'\t'*}"
+			rowAddress="${rowLine#*$'\t'}"
+			[ "$rowName" = "$want" ] && [ "$rowService" = "$service" ] || continue
+			printf '%s:%s\n' "$rowService" "$rowAddress"
+		done <<< "$rows"
+	done
+	return 0
+}

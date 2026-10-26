@@ -17,10 +17,16 @@
 ## AgentsSessionChatRead.awk). A session with neither a folder nor a thread has nowhere to keep it, and is refused.
 ##
 ## THE JOIN is a start of magic-coordinator through the spawn proxy (--intern-op-agent-spawn-proxy), unchanged, with --session-id:
-## the member joins the session it is named for, in its thread, and does not start one. Offered for the sessions the list reads
+## the member joins the session it is named for and does not start one. Offered for the sessions the list reads
 ## as finished (every participant has finished), waiting (a question of it is open) and unclosed (a run still open, and no
 ## process that carries it: stuck); refused for one that runs, which its participants work on, and for one of another host.
 ## Its task is a block of the tooling-note template (`Tasks`, sh-lib/templates/tooling-note.post.format.md), never a text here.
+## A THREAD IS WHERE THE JOINING IS ANNOUNCED, NEVER WHAT MAKES IT POSSIBLE: a session that never posted in Slack, whose
+## conversation is not Slack, or whose external side is its printback or tooling channel has no thread and is still a
+## session, and is exactly the session a person at the console has most need to bring the coordinator into. It is joined
+## either way: the spawn proxy opens the thread a joined session has none of, under the session's own lock and by its own
+## rule, or announces nothing in a session that is never announced in a thread -- and where this operation found no thread,
+## it says on standard error where the join was recorded instead of refusing it.
 ##
 
 type AgentsToolsManagerSessionScope > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSession.include" --definitions-only > /dev/null 2>&1 || :
@@ -167,12 +173,10 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
-		## The join is into the session's thread: the spawn proxy joins nobody into a session that has none.
+		## The thread the joining line would go into: read to say where the join was recorded, never as a condition of it. A
+		## session with none is joined all the same -- the proxy opens one where the session can have it (AgentsTools.
+		## InternOpAgentSpawnProxy.include), and a session that has no thread by kind posts nothing there by design.
 		joinThread="$( MDAT_SESSION_THREAD="" AgentsToolsSessionChatThread "$scopeSession" )" || joinThread=""
-		if [ -z "$joinThread" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $joinOp: session $scopeSession has no Slack thread, and a member is joined into a session by its thread -- nothing was started" >&2
-			set +e ; return 1
-		fi
 		type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include"
 		joinBy="$( AgentsToolsManagerConsoleUser )"
 		joinWhy="$( ASKP_BLOCK="Tasks/assess-session-why" AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || joinWhy=""
@@ -186,6 +190,18 @@ case "$1" in
 		joinOut="$( printf '%s\n' "$joinTask" | DistroAgentsTools --intern-op-agent-spawn-proxy magic-coordinator --from-stdin --dispatch-doc:create --session-id "$scopeSession" --routine-default \
 			--description "$joinWhy" --context "$joinOp" )" || { set +e ; return 1 ; }
 		joinItem="$( printf '%s\n' "$joinOut" | LC_ALL=C awk -F= '$1 == "DISPATCH_ITEM" { print $2 ; exit ; }' )"
+		## The row names the join and no place it was announced, which a session with no thread has not got: this reads the
+		## thread once more, after the start that opens a joined session's thread where it has none, and says which of the
+		## two happened -- a thread opened to announce the joining in, or none at all -- instead of guessing. A note, as the
+		## message operation says its own, and never a refusal: the join is made.
+		if [ -z "$joinThread" ] ; then
+			joinThread="$( MDAT_SESSION_THREAD="" AgentsToolsSessionChatThread "$scopeSession" )" || joinThread=""
+			if [ -n "$joinThread" ] ; then
+				echo "# $MDSC_CMD $joinOp: session $scopeSession had no Slack thread, so its start opened one ($joinThread) and the line its joining says is there; its join is recorded in the record of its run and in its dispatch item (${joinItem:--})" >&2
+			else
+				echo "# $MDSC_CMD $joinOp: session $scopeSession has no Slack thread, and none was opened: nothing was posted for it, and its join is recorded in the record of its run and in its dispatch item (${joinItem:--})" >&2
+			fi
+		fi
 		printf 'join\t%s\t%s\t%s\n' "$scopeSession" "magic-coordinator" "${joinItem:--}"
 		return 0
 	;;

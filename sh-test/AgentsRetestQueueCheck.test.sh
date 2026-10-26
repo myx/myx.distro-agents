@@ -66,6 +66,7 @@ rigTests(){ ## copy, test... -- that copy's tests: the runner under test and the
 	local testsDir testsName ; testsDir="$( rigRoot "$1" )/myx/myx.distro-agents/sh-test" ; shift
 	rm -rf "$testsDir" ; mkdir -p "$testsDir"
 	cp "$rigPackage/sh-test/AgentsRunTests.sh" "$testsDir/AgentsRunTests.sh"
+	mkdir -p "$testsDir/check-fixtures" && cp "$rigPackage/sh-test/check-fixtures"/runner-*.py "$testsDir/check-fixtures"/
 	for testsName in "$@" ; do
 		cat > "$testsDir/$testsName.test.sh" <<'RIGTINY'
 #!/usr/bin/env bash
@@ -232,7 +233,7 @@ rigAssert "a changed fixture below sh-test, named by its type, is kept as the fi
 rigOp "$rigTmp/d6c" --retest-drain
 rigAssert "the batch runs for it every test of the copy, whose state the changed fixture moved, each once more, and the request does not read as failed for a test that was never one" \
 	"$rigRc $( rigBegins RigOne ) $( rigBegins RigTwo ) $( rigBegins RigThree ) $( rigLine "$rigTmp/d6c" "$rigIdC" )" "0 2 2 2 RETEST <id> PASS -- asked by rig-third about live: 3 passed -- a fixture of the tests was changed"
-rm -rf "$rigFixtures"
+rm -f "$rigFixtures/rig-tool.curl.stub.sh"
 
 echo "-- 7. with nothing waiting, --rest runs only what has not passed on the state the copy is in --"
 rigFresh
@@ -279,7 +280,7 @@ rigAssert "the next drain takes the lock over and the request into its own batch
 rigOp "$rigTmp/d8b" --retest-drain
 rigAssert "and it is never run twice: a drain after that finds nothing" "$rigRc [$( rigBegun )] $( LC_ALL=C grep -c '^RETEST ' "$rigTmp/d8b.out" )" "0 [live:RigTwo] 0"
 rigDone="$( ls "$rigQueue/done" | LC_ALL=C sed -n 1p )"
-perl -e 'my $then = time - 9 * 86400 ; utime( $then, $then, @ARGV ) or exit 1' "$rigQueue/done/$rigDone" || rigRefuse "the finished request could not be aged"
+python3 -I -B -c 'import os, sys, time; then = time.time() - 9 * 86400; [os.utime(p, (then, then)) for p in sys.argv[1:]]' "$rigQueue/done/$rigDone" || rigRefuse "the finished request could not be aged"
 rigAsk "$rigTmp/q8c" --by rig-first --why 'a later request' RigOne ; rigIdC="$rigId"
 rigOp "$rigTmp/d8c" --retest-drain
 rigAssert "a finished request is kept seven days: one nine days old is gone after the next drain, the one just finished is kept" "$rigRc $( rigStands "$rigIdA" ) $( rigStands "$rigIdC" )" "0 UNKNOWN PASS"

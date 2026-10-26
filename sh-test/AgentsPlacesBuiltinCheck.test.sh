@@ -145,7 +145,7 @@ rigAssert "a row of another workspace's registry does not take the name" "$( rig
 rigRun --owner-workspace-list
 rigAssert "the list holds no such row, and says each refused"   "$( LC_ALL=C grep -c -e '^\.planted' -e 'elsewhere' "$rigTmp/out" ):$( rigN "$rigTmp/err" 'place .planted is refused' ):$( rigN "$rigTmp/err" 'place .skillset-.local is refused' )" "0:1:1"
 rigRun --list-places
-rigAssert "the members' list still holds two dot names, both read-write" "$( LC_ALL=C grep '^\.' "$rigTmp/out" | LC_ALL=C tr '\t\n' ' |' )" ".skillset-shared directory read-write|.skillset-.local directory read-write|"
+rigAssert "the members' list still holds two dot names, both read-write" "$( LC_ALL=C grep '^\.' "$rigTmp/out" | LC_ALL=C tr '\t\n' ' |' )" ".skillset-.local directory read-write|.skillset-shared directory read-write|"
 
 ## ---------------------------------------------------------------- a link and its target
 echo "-- 4. a link and its target give the same answer --"

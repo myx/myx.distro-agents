@@ -67,6 +67,9 @@ done
 rigAssert "within --since and for one member, as the Dispatcher gives it" "$( rigSame --manager-stats-tokens --token-stats --by day --since 2026-10-19 --member magic-coordinator )" "0 0 same 1"
 rigRun "$rigTools" "$rigTmp/t" --manager-stats-tokens --by member
 rigAssert "a row is what it was told to be: tokens, the key, the runs and the four kinds of tokens, TAB-separated" "$( LC_ALL=C grep '^tokens	magic-tester	' "$rigTmp/t.out" | LC_ALL=C tr '\t' ' ' )" "tokens magic-tester 2 110 50 10 25"
+rigAssert "--average and --share go to the Dispatcher as they come, and its rows come back byte for byte" "$( rigSame --manager-stats-tokens --token-stats --by member --average --share )" "0 0 same 3"
+rigRun "$rigTools" "$rigTmp/t" --manager-stats-tokens --by member --average --share
+rigAssert "the average and the shares are the tooling's: tester has 2 runs, 110 in, so 55 an average; the total of the averages is 55+1000+0, so 5 and 6 percent" "$( LC_ALL=C grep '^tokens	magic-tester	' "$rigTmp/t.out" | LC_ALL=C tr '\t' ' ' )" "tokens magic-tester 2 55 25 5 12 5 6"
 
 echo "-- the routines --"
 rigAssert "every routine: the Dispatcher's rows, byte for byte" "$( rigSame --manager-stats-routines --routine-stats )" "0 0 same 3"
@@ -76,7 +79,7 @@ echo "-- what the Dispatcher refuses, it refuses here, with its status --"
 rigAssert "a key that is none ends 1, nothing on stdout" "$( rigSame --manager-stats-tokens --token-stats --by nothing )" "1 1 same 0"
 rigAssert "a routine with no run ends 1, nothing on stdout" "$( rigSame --manager-stats-routines --routine-stats nothing.routine.md )" "1 1 same 0"
 rigRun "$rigTools" "$rigTmp/n" --manager-stats-tokens --by nothing
-rigAssert "and the error line says what was wrong" "$( LC_ALL=C grep -c -F -- '--by is day, member, routine, preset or credential' "$rigTmp/n.err" || : )" "1"
+rigAssert "and the error line says what was wrong" "$( LC_ALL=C grep -c -F -- '--by is day, weekday, hour, member, routine, preset or credential' "$rigTmp/n.err" || : )" "1"
 
 echo "-- the help pair --"
 rigHelpInclude="$rigPackage/sh-lib/help/Help.DistroAgentsTools.include"

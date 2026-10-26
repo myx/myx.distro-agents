@@ -36,6 +36,13 @@ chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"
 
+## The sender's own identity, under this rig's skillset root: `--email-send keeper-myx` reads
+## the member's folder there, and the rig is the only place that member exists. Exported, so
+## every call this check makes resolves it the same way.
+mkdir -p "$rigWs/.local/agents/members/keeper-myx"
+printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigWs/.local/agents/members/keeper-myx/keeper-myx.basic.md"
+MDAT_SKILLSET_ROOT="$rigWs/.local/agents/members" ; export MDAT_SKILLSET_ROOT
+
 printf 'EMAIL_USER=rig@example.com\nEMAIL_APP_PASSWORD=rig-app-password\nEMAIL_SMTP_HOST=smtp.rig.invalid\nEMAIL_SMTP_PORT=587\n' \
 	> "$rigWs/.local/.agents/keeper-myx.agent.env"
 

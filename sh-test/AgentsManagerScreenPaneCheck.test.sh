@@ -414,7 +414,7 @@ show loneLog
 RIGSCRIPT
 rigAssert "a running session is selected: the pane names the key that acts on it, kill; the keys of the modes stand in the status line alone" "$( rigVal session.selected ) [$( rigKeysNamed sessionKeys )]" "$rigS1 [keys: k kill]"
 rigAssert "and the same with another handler in the place of the kill" "[$( rigKeysNamed builtKeys )]" "[keys: k kill]"
-rigAssert "Launch (Start) has neither"                               "$( rigVal launch.selected ) [$( rigVal launchKeys )]" "launch []"
+rigAssert "Launchpad has neither"                               "$( rigVal launch.selected ) [$( rigVal launchKeys )]" "launch []"
 rigAssert "a session a client founded says that its founder left no record, and the Transcript of its agent that it has no lines" "$( rigVal lone.selected ) $( rigPaneHolds lone 'founded  by a client, whose founder left no record' ) $( rigPaneHolds loneLog 'lines     none: this run has neither a transcript nor a session log' )" "$rigS2 1 1"
 rigAssert "a finished session shows the total of the tokens it has eaten" "$( rigPaneHolds lone 'tokens   in 90, cache read 0, cache write 0, out 10, total' )" "1"
 

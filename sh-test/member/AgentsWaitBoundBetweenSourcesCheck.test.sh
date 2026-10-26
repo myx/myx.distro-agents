@@ -60,7 +60,7 @@ rigWait(){ ## result name, bound seconds, slow (yes or no), floor (a number, or 
 	rm -f "$rigTmp/slow"
 	[ "$3" != yes ] || : > "$rigTmp/slow"
 	( cd "$rigW" && env -u MDAT_SKILLSET_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT HOME="$rigH" MMDAPP="$rigW" MDLT_ORIGIN="$rigW/source" MDAT_DATA_ROOT="$rigD" RIG_SCENARIO="$rigTmp" MDAT_WAIT_REMIND=off \
-		perl -e 'alarm 120 ; exec @ARGV' bash "$rigW/source/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input magic-coordinator --wait-source inbox:magic-coordinator --wait-source board:pending --wait-timeout "$2" --wait-poll-interval 1 ${4:+--wait-since-utime "$4"} ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" < /dev/null 4> /dev/null || waitRc=$?
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigW/source/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --wait-for-input magic-coordinator --wait-source inbox:magic-coordinator --wait-source board:pending --wait-timeout "$2" --wait-poll-interval 1 ${4:+--wait-since-utime "$4"} ) > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" < /dev/null 4> /dev/null || waitRc=$?
 	printf '%s' "$waitRc" > "$rigTmp/$1.rc"
 }
 rigResult(){ ## result name -- the outcome word of its WAIT-RESULT line, or none

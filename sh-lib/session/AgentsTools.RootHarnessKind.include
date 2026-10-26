@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RootHarnessKind.include -- the channel kind of a root-harness session (F3.1 of the
+## root-harness epic): which external side the one chat file of a session minted by `RootSession` keeps,
+## set from the workspace's `ROOT_HARNESS_VERBOSITY` when the session is minted, and kept in the session's
+## own folder. Sourced by the mint (AgentsTools.RootSession.include) and by whoever reads the kind
+## (AgentsTools.CommsPrintback.include, which the send path, the wait's default sources and the spawn
+## proxy ask). Functions only; no `--` operation of its own.
+##
+## THE SETTING IS A CHANNEL, NOT A LEVEL (the epic's Settled lines). `ROOT_HARNESS_VERBOSITY` is a magic-team
+## setting of this workspace -- set per workspace, shown by the config digest, declared with the other
+## changeable settings -- whose three values are the three channels a root-harness session may keep its
+## external copy on:
+##   none   the root-native printback channel of the session, `printback:<session>`: no thread, no Slack
+##          call (F2.2, F2.3);
+##   track  the tooling thread of the session, the event-track thread every participant's tracking posts
+##          already go to: the copies of the session's messages are posted there, and the session opens
+##          no session thread of its own;
+##   full   a session thread in the team channel, as a session with a thread always had.
+## `none` where nothing sets it, and a value that is none of the three counts as not given: it reads as
+## `none`, the workspace's default. The manager refuses to save any other value.
+##
+## THE KIND IS SET AT MINT AND KEPT IN THE SESSION'S FOLDER, `root-session.kind`, one line of `none`,
+## `track` or `full`, beside the token the mint keeps (`root-session.token`). It is read once, by the mint
+## that makes the session; adopting a session does not change it, and nothing else writes it. A session
+## minted before this feature has no such file: its kind is INFERRED by the mark F2.3 gave it -- the token
+## in its folder and no `session.thread` on record is the printback kind -- and an explicit kind always
+## decides over that inference, in either direction (AgentsToolsCommsPrintbackSessionInUse).
+##
+## NOT A PATH ANY RESULT CARRIES: the kind names a channel; a tool's result never names the file
+## (MAGIC.md, section 13).
+##
+
+## The three values, in the order the setting offers them, and the name of the record in the session folder.
+agentsRootHarnessKinds="none track full"
+agentsRootHarnessKindName="root-session.kind"
+
+## The kind a setting value names: one of the three, else `none`. Never fails: a value that names no kind
+## is the default, as a value a setting does not take counts as not given wherever it is read.
+AgentsToolsRootHarnessKindOf(){ ## value
+	case "${1:-}" in
+		track|full) printf '%s\n' "$1" ;;
+		*) printf '%s\n' "none" ;;
+	esac
+}
+
+## The workspace's `ROOT_HARNESS_VERBOSITY`, by the setting reader of the sibling package, in the scope of the
+## team (the magic-team settings of this workspace): `none` where it is unset or names no kind. Prints only a
+## kind, never a refusal and never the value as given, so a hand-edited word cannot reach a session's record.
+AgentsToolsRootHarnessKindSetting(){
+	local kindSetting=""
+	kindSetting="$( {
+		set -- --agents-config-option magic-team --select ROOT_HARNESS_VERBOSITY
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+	} 2> /dev/null )" || kindSetting=""
+	AgentsToolsRootHarnessKindOf "${kindSetting%%$'\n'*}"
+}
+
+## The kind recorded for one session: one of the three, rc 1 with nothing printed where the session has no
+## record of its own (a session minted before this feature, or no session at all). Never a path.
+AgentsToolsRootHarnessKindRead(){ ## session
+	local kindDir="" kindLine=""
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
+	kindDir="$( AgentsToolsSessionChatDir "${1:-}" 2> /dev/null )" || return 1
+	[ -n "$kindDir" ] && [ -f "$kindDir/$agentsRootHarnessKindName" ] || return 1
+	IFS= read -r kindLine < "$kindDir/$agentsRootHarnessKindName" || :
+	case "$kindLine" in
+		none|track|full) printf '%s\n' "$kindLine" ;;
+		*) return 1 ;;
+	esac
+}
+
+## Records the kind of one session, whole or not at all, by one rename: a write cut short must never read as
+## a session of another kind, or as one of no kind at all. rc 1 where the folder is not there or the write
+## fails; the caller discards the session it was making.
+AgentsToolsRootHarnessKindWrite(){ ## session dir, kind
+	local kindPath="${1%/}/$agentsRootHarnessKindName" kindTemp=""
+	case "${2:-}" in
+		none|track|full) ;;
+		*) return 1 ;;
+	esac
+	[ -n "${1:-}" ] && [ -d "$1" ] || return 1
+	kindTemp="$( mktemp "$kindPath.XXXXXX" 2> /dev/null )" || return 1
+	if printf '%s\n' "$2" > "$kindTemp" 2> /dev/null && mv -f "$kindTemp" "$kindPath" 2> /dev/null ; then
+		return 0
+	fi
+	rm -f -- "$kindTemp" 2> /dev/null || :
+	return 1
+}

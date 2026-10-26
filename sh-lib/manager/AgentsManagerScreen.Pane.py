@@ -10,7 +10,7 @@
 ## but while the selection stands on the row that goes up, or on nothing, inside a
 ## container, it is the level above, with the row of that container: the left window then
 ## shows the container itself, as its own row showed it one level up, and the commands
-## that act on it apply. One rule for every level: a section at the root, `Launch (Start)`,
+## that act on it apply. One rule for every level: a section at the root, `Launchpad`,
 ## a session.
 def shownPath(state):
     if not state.path:
@@ -80,7 +80,7 @@ def viewKeyOf(state):
 ## cell in view while its lines are cut and it is scrolled sideways.
 def newView(viewKey, feeds):
     return {"key": viewKey, "head": [], "lines": [], "top": 0, "feeds": feeds, "follow": feeds,
-            "info": None, "feed": None, "acts": None, "lineKeys": [], "built": None, "looks": {}, "left": 0, "table": {}}
+            "info": None, "feed": None, "acts": None, "front": None, "lineKeys": [], "built": None, "looks": {}, "left": 0, "table": {}}
 
 
 ## The left pane follows the selection: another item is shown from its first line, and
@@ -94,6 +94,11 @@ def followSelection(state):
     row = selectedRow(state)
     if viewKey != state.view["key"]:
         state.view = newView(viewKey, logShown(state, row))
+        ## D5: the filter a start names (--filter), applied once the pane of this item is built,
+        ## ahead of the lines it shows, so the first frame is already narrowed.
+        if state.startFilter:
+            state.view["table"]["filter"] = state.startFilter
+            state.startFilter = ""
         ## a pane that is made new holds nothing of its item: its reads are due again,
         ## whenever they were last made
         for part in VIEW_PARTS:
@@ -173,6 +178,11 @@ def localView(state, row):
     summary = folderSummary(state, row)
     if summary is not None:
         return summary
+    if state.fullTable:
+        ## the key of the glance list: the full table of the level in place of the row's own view
+        table = glanceFullTable(state)
+        if table is not None:
+            return table
     handler = FOCUS.get(levelPattern(state.path))
     if handler is not None:
         content = globals()[handler](state, row)

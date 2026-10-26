@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-## Behavioural check on the testbed of the testing system (F7.6 of the refactorings epic): DistroAgentsTesting.fn.sh and the `--tester-*` stubs of
-## DistroAgentsTools.fn.sh, over the project metadata of the tests (sh-lib/member/AgentsTools.Testbed.include), kept in .local/agents/testing/tests/.
+## Behavioural check on the testbed of the testing system (F7.6 of the refactorings epic): DistroAgentsTesting.fn.sh,
+## over the project metadata of the tests (sh-lib/member/AgentsTools.Testbed.include), kept in .local/agents/testing/tests/.
 ## Run rather than read, on the machine of check-fixtures/rig-retest-machine.include.sh: a HOME with the one retest queue, a workspace whose tree is a
 ## copy of the tooling with three tiny tests in place of the package's. Held:
 ##   1. REGISTER. A test is registered with its project, script, functionality, keywords, rig, documents, resources and the nightly flag, and the file
@@ -19,7 +19,8 @@
 ##      6b. Both runs are of the tests in a sh-test folder that a testing directive of a project.inf names (F13.5, the reader the grants use): with no directive,
 ##      one for another folder or one for another host nothing is put in the queue and each says so, and the directive adds the folder; a test registered
 ##      in a folder no directive names is registered, and says on stderr that it is not eligible for system runs.
-##   7. STUBS. --tester-test-* and --tester-run-* of DistroAgentsTools.fn.sh give what the operations of DistroAgentsTesting.fn.sh give.
+##   7. NAMES. The canonical --test-* and --run-* names are the operations' only names: each does what it says, and an unknown --test- word is
+##      refused as an invalid option.
 ## Offline, rig tree only: nothing here reaches Slack or any endpoint.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -219,23 +220,22 @@ rigTesting "$rigTmp/z2" --run-all-nightly-regressions
 rigTesting "$rigTmp/z3" --test-list
 rigAssert "with nothing registered neither run is possible, and the list is only its count" "$rigRc $( rigHas 'no test is registered in the testbed' "$rigTmp/z1.err" ) $( rigHas 'no test is registered in the testbed' "$rigTmp/z2.err" ) $( LC_ALL=C tr '\t' '|' < "$rigTmp/z3.out" )" "0 1 1 tests|0|0|0"
 
-echo "-- 7. the stubs --"
+echo "-- 7. the canonical names --"
 rigFresh
-rigTools "$rigTmp/s1" --tester-test-register RigOne --project "$rigProject" --script sh-test/RigOne.test.sh --keyword stub
-rigAssert "--tester-test-register registers as --test-register does" "$rigRc $( cat "$rigTmp/s1.out" ) $( rigKey RigOne keywords )" "0 registered: RigOne stub"
-rigTools "$rigTmp/s2" --tester-test-update RigOne --nightly yes
-rigTools "$rigTmp/s3" --tester-test-list
-rigTesting "$rigTmp/s3b" --test-list
-rigAssert "--tester-test-update changes it, and --tester-test-list lists what --test-list lists" "$rigRc $( rigKey RigOne nightly ) $( cmp -s "$rigTmp/s3.out" "$rigTmp/s3b.out" && printf same )" "0 yes same"
-rigTools "$rigTmp/s4" --tester-run-oldest-untested
-rigAssert "--tester-run-oldest-untested puts the test in the queue" "$rigRc $( rigField "$rigQueue/waiting/$( LC_ALL=C sed -n 1p "$rigTmp/s4.out" ).request" test )" "0 RigOne"
-rigTools "$rigTmp/s5" --tester-run-all-nightly-regressions
-rigAssert "--tester-run-all-nightly-regressions puts the eligible tests in it" "$rigRc $( rigHolds waiting )" "0 2"
-rigTools "$rigTmp/s6" --tester-test-invalidate RigOne
-rigTools "$rigTmp/s7" --tester-test-unregister RigOne
-rigAssert "--tester-test-invalidate and --tester-test-unregister do as theirs" "$rigRc $( cat "$rigTmp/s6.out" ) $( cat "$rigTmp/s7.out" ) $( rigTestCount )" "0 invalidated: RigOne unregistered: RigOne 0"
-rigTools "$rigTmp/s8" --tester-test-bogus
-rigAssert "a --tester- word of an operation that does not exist is refused as an invalid option" "$rigRc $( rigHas 'invalid option' "$rigTmp/s8.err" )" "1 1"
+rigTesting "$rigTmp/s1" --test-register RigOne --project "$rigProject" --script sh-test/RigOne.test.sh --keyword canonical
+rigAssert "--test-register registers, its keyword kept" "$rigRc $( cat "$rigTmp/s1.out" ) $( rigKey RigOne keywords )" "0 registered: RigOne canonical"
+rigTesting "$rigTmp/s2" --test-update RigOne --nightly yes
+rigTesting "$rigTmp/s3" --test-list
+rigAssert "--test-update changes it, and --test-list lists it" "$rigRc $( rigKey RigOne nightly ) $( rigRow "$rigTmp/s3.out" RigOne 6 )" "0 yes yes"
+rigTesting "$rigTmp/s4" --run-oldest-untested
+rigAssert "--run-oldest-untested puts the test in the queue" "$rigRc $( rigField "$rigQueue/waiting/$( LC_ALL=C sed -n 1p "$rigTmp/s4.out" ).request" test )" "0 RigOne"
+rigTesting "$rigTmp/s5" --run-all-nightly-regressions
+rigAssert "--run-all-nightly-regressions puts the eligible tests in it" "$rigRc $( rigHolds waiting )" "0 2"
+rigTesting "$rigTmp/s6" --test-invalidate RigOne
+rigTesting "$rigTmp/s7" --test-unregister RigOne
+rigAssert "--test-invalidate and --test-unregister do as theirs" "$rigRc $( cat "$rigTmp/s6.out" ) $( cat "$rigTmp/s7.out" ) $( rigTestCount )" "0 invalidated: RigOne unregistered: RigOne 0"
+rigTesting "$rigTmp/s8" --test-bogus
+rigAssert "a --test- word of an operation that does not exist is refused as an invalid option" "$rigRc $( rigHas 'invalid option' "$rigTmp/s8.err" )" "1 1"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ TESTBED CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

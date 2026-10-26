@@ -107,18 +107,24 @@ rigReplies(){ ## later messages
 }
 rigEnv(){ ## command... -- run under the scenario's workspace, with no model key
 	( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY \
-		RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_WORKSPACE_MODE=team-rig \
 		MDAT_DATA_ROOT="$rigScenarioDir/data" "$@" )
 }
 rigCollect(){ ## output name, collect arguments...
 	local collectOut="$1" ; shift
 	rigEnv bash "$rigTool" --intern-op-pending-reply-collect "$@" > "$rigScenarioDir/$collectOut" 2> "$rigScenarioDir/$collectOut.err"
 }
+## A record closed here lives in pending/closed/ (retention, T9): the helpers read either store.
+rigRecordFile(){ ## id
+	local rigRec="$rigScenarioDir/ws/.local/agents/pending/$1.md"
+	[ -f "$rigRec" ] || rigRec="$rigScenarioDir/ws/.local/agents/pending/closed/$1.md"
+	printf '%s' "$rigRec"
+}
 rigStatus(){ ## id
-	LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$1.md"
+	LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$( rigRecordFile "$1" )"
 }
 rigField(){ ## id, field
-	LC_ALL=C awk -v key="$2" 'index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$1.md"
+	LC_ALL=C awk -v key="$2" 'index($0, key ": ") == 1 { print substr($0, length(key) + 3) ; exit ; }' "$( rigRecordFile "$1" )"
 }
 rigReacted(){ ## "<ts> <name>" -- how many times that reaction was asked for
 	LC_ALL=C grep -c -x -F -- "$1" "$rigScenarioDir/reactions" 2>/dev/null || :
@@ -138,6 +144,21 @@ rigAssert "with the answer as its verdict"                "$( rigField "$rigQ1" 
 rigAssert "answered by the addressee"                     "$( rigField "$rigQ1" answered-by )" URIGOWNER
 rigAssert ":eyes: on the reply taken"                     "$( rigReacted '1700000001.000200 eyes' )" 1
 rigAssert ":white_check_mark: once on the question, its own thread root" "$( rigReacted '1700000001.000101 white_check_mark' )" 1
+
+## THE TYPED QUESTION (readback, decision, permission): its answer is applied by the escalation
+## read, whose `ANSWER-TS` is the message the person sent. That acknowledgement is the one that
+## goes missing when the answer's ts is not carried into the close -- the question gets its mark,
+## and the message he actually wrote gets nothing. So this holds both targets and the account.
+echo "-- a typed question answered in its thread: the read acknowledges HIS message --"
+rigStart readback-ack
+rigRecord "$rigQ1" 1700000001.000101 Q1 rig-sess-rb readback 1700000001.000101
+rigOwnReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"yes","thread_ts":"1700000001.000101"}'
+rigCollect readback --ended
+rigAssert "the readback is answered and closed"            "$( rigStatus "$rigQ1" )" reply-received
+rigAssert ":eyes: on the reply he sent, not on the question" "$( rigReacted '1700000001.000200 eyes' ):$( rigReacted '1700000001.000101 eyes' )" "1:0"
+rigAssert ":white_check_mark: on the question, once"       "$( rigReacted '1700000001.000101 white_check_mark' )" 1
+rigAssert "the acknowledgement is placed by his own member's account, not the bot's" \
+	"$( LC_ALL=C grep -c -x -F '1700000001.000200 eyes rig-user-token-TESTER' "$rigScenarioDir/reactions.account" )" 1
 
 echo "-- a thread from before questions were their own roots: one answered and one open --"
 rigStart ended

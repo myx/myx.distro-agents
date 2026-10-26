@@ -38,12 +38,15 @@ AgentsToolsClientToolPolicyClaudeAllowJson(){
 ## spawned sessions too, with no escape. The hooks.PreToolUse entry for Bash already
 ## denies-with-reroute for a genuine native-harness session and allows a spawned one
 ## through -- see deny-native-tool-reroute.sh. Shell commands still run through
-## mcp__myx_distro__execute, its mcp__myx_distro__Monitor twin, myx.common's
-## lib_execShStdin, and the native Monitor tool, which is neither denied nor rerouted.
-## Native Slack MCP tool, hard-blocked -- separate path from the team's own sanctioned
-## --slack-* ops, which this cannot reach.
+## mcp__myx_distro__execute, myx.common's
+## lib_execShStdin, and the native Bash tool, which is neither denied nor rerouted.
+## Every claude.ai connector of the native client (mcp__claude_ai_*: Slack, Atlassian, Google,
+## Mail, Trello and the rest), hard-blocked -- separate path from the team's own sanctioned
+## ops, which this cannot reach. Where a redirect exists the reroute hook says it
+## (deny-native-tool-reroute.sh, the claude_ai name below); it cannot reach a spawned session,
+## which this static entry still blocks.
 AgentsToolsClientToolPolicyClaudeDenyJson(){
-	printf '%s\n' '["mcp__claude_ai_Slack"]'
+	printf '%s\n' '["mcp__claude_ai_*"]'
 }
 
 ## The vendor copilot CLI's own memory tools, one comma-separated value for its
@@ -89,13 +92,17 @@ AgentsToolsClientToolPolicyClaudeMcpServersJson(){
 ## than the same job done elsewhere. NotebookEdit is native with no served
 ## counterpart at all, so there is nothing to route it to.
 ##
+## claude_ai stands for every claude.ai connector tool at once: its matcher is the pattern
+## AgentsToolsClientToolPolicyRerouteMatcher states, and the hook reads the tool called
+## from its input.
+##
 ## An empty list would install no reroute while still succeeding, so it is refused.
 AgentsToolsClientToolPolicyRerouteToolNames(){
 	local policyToolNames="" policyToolName
-	for policyToolName in Bash AskUserQuestion Read Write Edit Glob Grep WebFetch WebSearch PushNotification TodoWrite ; do
+	for policyToolName in Bash AskUserQuestion Read Write Edit Glob Grep WebFetch PushNotification TodoWrite claude_ai ; do
 		case "$policyToolName" in
-			""|*[!A-Za-z]*)
-				echo "⛔ ERROR: AgentsToolsClientToolPolicyRerouteToolNames: '$policyToolName' is not a bare tool name, and a PreToolUse matcher is written from it verbatim" >&2
+			""|*[!A-Za-z_]*)
+				echo "⛔ ERROR: AgentsToolsClientToolPolicyRerouteToolNames: '$policyToolName' is not a bare tool name, and a PreToolUse matcher is written from it" >&2
 				return 1
 			;;
 		esac
@@ -106,6 +113,15 @@ AgentsToolsClientToolPolicyRerouteToolNames(){
 		return 1
 	fi
 	printf '%s' "$policyToolNames"
+}
+
+## The PreToolUse matcher of one rerouted name ($1): the name itself, but for claude_ai,
+## which matches every tool of every claude.ai connector.
+AgentsToolsClientToolPolicyRerouteMatcher(){
+	case "$1" in
+		claude_ai) printf '%s\n' 'mcp__claude_ai_.*' ;;
+		*) printf '%s\n' "$1" ;;
+	esac
 }
 
 ## The script every reroute entry runs, as one path relative to the workspace root.
@@ -215,7 +231,7 @@ AgentsToolsClientToolPolicyHookRecords(){
 	recordOut="${recordOut}SessionEnd	native	.claude/hooks/native-transcript-keep.sh end		native-transcript-keep.sh	end	5"$'\n'
 	while IFS= read -r recordTool ; do
 		[ -n "$recordTool" ] || continue
-		recordOut="${recordOut}PreToolUse	reroute	$recordScript $recordTool	$recordTool	${recordScript##*/}	$recordTool"$'\n'
+		recordOut="${recordOut}PreToolUse	reroute	$recordScript $recordTool	$( AgentsToolsClientToolPolicyRerouteMatcher "$recordTool" )	${recordScript##*/}	$recordTool"$'\n'
 	done <<< "$recordTools"
 	printf '%s' "$recordOut"
 }

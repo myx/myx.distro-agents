@@ -14,12 +14,16 @@
 type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
 type AgentsToolsManagerPlaceSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerPlaceBlocks.include"
 type AgentsToolsManagerPlaceMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerPlaceMembers.include"
+type AgentsToolsConsoleAccount > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
 
 ## The agents' mode of this workspace and whether it keeps team data: `team-rig`, `just-agents` or `rig-client`, and `yes` for a team rig, else `no`.
+## And the person who entered this console, the one place that says it (AgentsToolsConsoleAccount): SUDO_USER where the launcher
+## re-entered as the owner, else the account itself, so `Workspace (System)` shows both who it runs as and who entered it.
 AgentsToolsManagerWorkspaceAgents(){
 	local agentsMode="" agentsSource="" agentsSessions=0
 	read -r agentsMode agentsSource <<< "$( AgentsToolsWorkspaceMode )" || :
 	LocalToolsManagerWorkspaceFact mode "${agentsMode:-just-agents}"
+	LocalToolsManagerWorkspaceFact entered-by "$( AgentsToolsConsoleAccount 2> /dev/null || : )"
 	if AgentsToolsTeamDataGateOpen ; then LocalToolsManagerWorkspaceFact team-data yes ; else LocalToolsManagerWorkspaceFact team-data no ; fi
 	LocalToolsManagerWorkspaceItem mode setting "${agentsMode:-just-agents}" "the settings of the team" "@scopes/agents:magic-team"
 	if AgentsToolsTeamDataGateOpen ; then LocalToolsManagerWorkspaceItem team-data store yes "the team data" "@teamdata" ; else LocalToolsManagerWorkspaceItem team-data store no "the team data" "@teamdata" ; fi

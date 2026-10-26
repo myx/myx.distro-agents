@@ -95,7 +95,7 @@ rigSecretA="sk-RIGtierCRED-Qw7ZpL3xV9tR2mBk4Hs8NfD1"
 rigSecretB="oauth-RIGtierCRED-5yTgHn0LcX6aVu3PqZ8w"
 rigSecretC="scwRIGtierCRED-9aB3cD5eF7gH1jKdeepseek"
 rigOldKey="sk-RIGOLDteamCRED-1a2b3c4d5e6f7g8h9i0j"
-rigOldScw="scwRIGOLDgemmaCRED-0j9i8h7g6f5e4d3c"
+rigOldDeep="sk-RIGOLDdeepCRED-0j9i8h7g6f5e4d3c"
 rigBlock(){ ## preset, lines... -- writes a preset block directly
 	local blockName="$1" ; shift
 	printf '%s\n' "$@" > "$rigAgents/preset-$blockName.agent.env"
@@ -104,10 +104,10 @@ rigBlock rig-claude "PRESET_CLI_SERVICE=claude" "ANTHROPIC_API_KEY=$rigSecretA" 
 rigBlock rig-haiku "PRESET_EXTEND=rig-claude" "PRESET_MODEL_OR_MACRO=low"
 rigBlock rig-sonnet "PRESET_EXTEND=rig-claude" "PRESET_MODEL_OR_MACRO=claude-sonnet-5-5"
 rigBlock rig-opus "PRESET_EXTEND=rig-claude" "PRESET_MODEL_OR_MACRO=high"
-rigBlock rig-scw "PRESET_CLI_SERVICE=scaleway" "SCALEWAY_DEEPSEEK=$rigSecretC" "PRESET_MODEL_OR_MACRO=normal"
+rigBlock rig-scw "PRESET_CLI_SERVICE=scaleway" "SCALEWAY_API_KEY=$rigSecretC" "PRESET_MODEL_OR_MACRO=normal"
 rigBlock rig-nocli "PRESET_MODEL_OR_MACRO=low"
 ## The old way: the team's own spawn settings, which no tier setting yet replaces.
-printf 'SPAWN_CLI_SERVICE=claude-native\nANTHROPIC_API_KEY=%s\nSCALEWAY_GEMMA=%s\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nWAIT_ROUND_SECONDS=120\n' "$rigOldKey" "$rigOldScw" > "$rigAgents/magic-team.agent.env"
+printf 'SPAWN_CLI_SERVICE=claude-native\nANTHROPIC_API_KEY=%s\nDEEPSEEK_API_KEY=%s\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nWAIT_ROUND_SECONDS=120\n' "$rigOldKey" "$rigOldDeep" > "$rigAgents/magic-team.agent.env"
 printf '# member\n' > "$rigAgents/keeper-rig.agent.env"
 chmod 770 "$rigAgents" ; chmod 660 "$rigAgents"/*.agent.env
 
@@ -123,7 +123,7 @@ rigAssert "with an effort, <preset>:<effort>"                                   
 rigAssert "the three tier names are SPAWN_TIER_LOW, _NORMAL and _HIGH"            "$( rigPut magic-team SPAWN_TIER_LOW rig-haiku )" 0
 rigAssert "a member's scope takes them too"                                        "$( rigPut keeper-rig SPAWN_TIER_NORMAL rig-scw )" 0
 rigAssert "a preset that is not there is refused"                                  "$( rigPut magic-team SPAWN_TIER_NORMAL rig-nothing )" 1
-rigAssert "an effort that is none of the five is refused"                          "$( rigPut magic-team SPAWN_TIER_NORMAL rig-sonnet:max )" 1
+rigAssert "an effort that is none of the six is refused"                          "$( rigPut magic-team SPAWN_TIER_NORMAL rig-sonnet:max )" 1
 rigAssert "an empty effort, two efforts, and no preset are refused"                "$( rigPut magic-team SPAWN_TIER_NORMAL rig-sonnet: )$( rigPut magic-team SPAWN_TIER_NORMAL rig-sonnet:low:high )$( rigPut magic-team SPAWN_TIER_NORMAL :high )" 111
 rigAssert "a fourth tier name is refused"                                          "$( rigPut magic-team SPAWN_TIER_URGENT rig-sonnet )" 1
 rigAssert "a tier setting stands in no preset's block"                             "$( rigPut preset-rig-haiku SPAWN_TIER_NORMAL rig-sonnet )" 1
@@ -169,6 +169,8 @@ rigPut keeper-rig SPAWN_TIER_HIGH rig-scw:low > /dev/null
 rigAssert "a member's setting of the tier asked stands ahead of the team's"        "$( rigChosen keeper-rig )" "rig-scw:low rc=0"
 printf 'SPAWN_HARNESS_TIER=normal\n' >> "$rigAgents/magic-team.agent.env"
 rigAssert "asked normal: the member's normal tier, not its high one"               "$( rigChosen keeper-rig )" "rig-scw rc=0"
+rigAssert "asked light by the argument itself: the team's low tier, the member's high one not used" "$( rigChosen keeper-rig light )" "rig-haiku rc=0"
+rigAssert "asked heavy by the argument itself: the member's high tier, with its effort" "$( rigChosen keeper-rig heavy )" "rig-scw:low rc=0"
 printf 'SPAWN_HARNESS_TIER=light\n' >> "$rigAgents/magic-team.agent.env"
 rigAssert "asked light, where the member sets none: the team's low tier, not the member's normal" "$( rigChosen keeper-rig )" "rig-haiku rc=0"
 rigRun --agents-config-option magic-team --delete SPAWN_TIER_LOW
@@ -183,12 +185,9 @@ echo "-- E. the spawn settings, answered from the preset --"
 rigRun --agents-config-option magic-team --delete SPAWN_HARNESS_TIER
 rigAssert "asked none: the CLI service is the preset's, inherited from rig-claude"  "$( rigSelect SPAWN_CLI_SERVICE )" claude
 rigAssert "the credentials are the preset's (inherited), not the team's"           "$( rigSame ANTHROPIC_API_KEY "$rigSecretA" )$( rigSame CLAUDE_CODE_OAUTH_TOKEN "$rigSecretB" )" samesame
-rigAssert "a credential the preset's CLI service does not read is answered empty, the team's old one not given" "$( rigHeld SCALEWAY_GEMMA )" empty
+rigAssert "a credential the preset's CLI service does not read is answered empty, the team's old one not given" "$( rigHeld DEEPSEEK_API_KEY )" empty
 rigAssert "the harness tier answered is the resolved one: a model name, tier asked none, is normal" "$( rigSelect SPAWN_HARNESS_TIER )" normal
 rigAssert "the model of the main tier is the preset's model name, the light one none"  "$( rigSelect HARNESS_MODEL_MAIN )|$( rigSelect HARNESS_MODEL_LIGHT )" "claude-sonnet-5-5|"
-rigAssert "the endpoint a preset inherits is answered for the spawn"               "$( rigPut preset-rig-claude PRESET_ENDPOINT_URL https://api.deepseek.com/anthropic ; rigSelect HARNESS_ENDPOINT_URL )" "0https://api.deepseek.com/anthropic"
-rigRun --agents-config-option preset-rig-claude --delete PRESET_ENDPOINT_URL
-rigAssert "and none named answers nothing: the leg keeps its own endpoint"         "$( rigSelect HARNESS_ENDPOINT_URL )" ""
 printf 'SPAWN_HARNESS_TIER=light\n' >> "$rigAgents/magic-team.agent.env"
 rigAssert "asked light: the haiku preset, macro low: tier light, and no model name to pass" "$( rigSelect SPAWN_HARNESS_TIER )|$( rigSelect HARNESS_MODEL_LIGHT )|$( rigSelect HARNESS_MODEL_MAIN )" "light||"
 printf 'SPAWN_HARNESS_TIER=heavy\n' >> "$rigAgents/magic-team.agent.env"
@@ -199,7 +198,7 @@ rigAssert "the effort after the preset lifts a normal tier to heavy"            
 rigPut magic-team SPAWN_TIER_NORMAL rig-sonnet > /dev/null
 rigPreset="rig-scw"
 rigAssert "a spawn's own preset (MDAT_SPAWN_PRESET) is the one answered: its CLI service" "$( rigSelect SPAWN_CLI_SERVICE )" scaleway
-rigAssert "its credential, and none of the team's or of the preset it was not"      "$( rigSame SCALEWAY_DEEPSEEK "$rigSecretC" )|$( rigHeld SCALEWAY_GEMMA )|$( rigHeld ANTHROPIC_API_KEY )" "same|empty|empty"
+rigAssert "its credential, and none of the team's or of the preset it was not"      "$( rigSame SCALEWAY_API_KEY "$rigSecretC" )|$( rigHeld DEEPSEEK_API_KEY )|$( rigHeld ANTHROPIC_API_KEY )" "same|empty|empty"
 rigAssert "its macro normal gives the tier normal, and no model name"               "$( rigSelect SPAWN_HARNESS_TIER )|$( rigSelect HARNESS_MODEL_MAIN )" "normal|"
 rigRun --agents-config-option magic-team --select-default SPAWN_CLI_SERVICE fallback
 rigAssert "--select-default is answered the same way"                              "$( cat "$rigTmp/run.out" )" scaleway
@@ -224,10 +223,11 @@ rigAssert "a Claude credential is the first claude block's, the team's old one n
 rigPreset="-claude-native"
 rigAssert "a native service has the credentials of its leg"                         "$( rigSame ANTHROPIC_API_KEY "$rigSecretA" )" same
 rigPreset="-scaleway"
-rigAssert "a Scaleway credential is the scaleway block's"                          "$( rigSame SCALEWAY_DEEPSEEK "$rigSecretC" )" same
-rigAssert "one no block holds is the scope's own, as ever"                          "$( rigSame SCALEWAY_GEMMA "$rigOldScw" )" same
+rigAssert "a Scaleway credential is the scaleway block's"                          "$( rigSame SCALEWAY_API_KEY "$rigSecretC" )" same
+rigPreset="-deepseek"
+rigAssert "one no block holds is the scope's own, as ever"                          "$( rigSame DEEPSEEK_API_KEY "$rigOldDeep" )" same
 rigPreset="-claude"
-rigAssert "a credential the named service does not read is the scope's: none here"  "$( rigHeld SCALEWAY_DEEPSEEK )" empty
+rigAssert "a credential the named service does not read is the scope's: none here"  "$( rigHeld SCALEWAY_API_KEY )" empty
 rigBlock rig-aaa-claude "PRESET_CLI_SERVICE=claude" "ANTHROPIC_API_KEY=$rigSecretF"
 rigAssert "the first block by name that holds it is the one"                        "$( rigSame ANTHROPIC_API_KEY "$rigSecretF" )" same
 rm -f "$rigAgents/preset-rig-aaa-claude.agent.env"
@@ -249,11 +249,11 @@ rigPreset=""
 rigPreset="-grok"
 rigAssert "a named service finds its credential in the paying workspace's block first"  "$( rigSame XAI_API_KEY "$rigSecretC" )" same
 rigPreset="-scaleway"
-rigAssert "and, where that has none, in this workspace's own"                       "$( rigSame SCALEWAY_DEEPSEEK "$rigSecretC" )" same
+rigAssert "and, where that has none, in this workspace's own"                       "$( rigSame SCALEWAY_API_KEY "$rigSecretC" )" same
 rigPreset=""
 
 echo "-- guard: no whole secret on any stream; the real workspace untouched --"
-rigAssert "no whole credential of the rig appears in any output"                   "$( LC_ALL=C grep -c -F -e "$rigSecretA" -e "$rigSecretB" -e "$rigSecretC" -e "$rigOldKey" -e "$rigOldScw" "$rigTmp/all.out" )" 0
+rigAssert "no whole credential of the rig appears in any output"                   "$( LC_ALL=C grep -c -F -e "$rigSecretA" -e "$rigSecretB" -e "$rigSecretC" -e "$rigOldKey" -e "$rigOldDeep" "$rigTmp/all.out" )" 0
 rigAssert "the real workspace holds no setting made by this check"                 "$( LC_ALL=C grep -l -e 'rig-sonnet' -e 'rig-haiku' "${MMDAPP%/}/.local/.agents"/*.agent.env 2> /dev/null | wc -l | tr -d ' ' )" 0
 
 if [ "$rigFailCount" -ne 0 ] ; then

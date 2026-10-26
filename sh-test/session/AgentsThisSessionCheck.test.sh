@@ -116,7 +116,7 @@ rigCall(){ ## name, member (empty: none), role, operation and its arguments...
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" "PATH=$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" \
 		"MDAT_SKILLSET_ROOT=$rigTmp/skills" "MDAT_DATA_ROOT=$rigScn/data" "RIG_SCENARIO=$rigScn" "RIG_CHAT=$rigChat/session.chat" \
 		MDAT_WAIT_POLL_SECONDS=1 MDAT_WAIT_SETTLE_SECONDS=1 MDAT_WAIT_REMIND=off ${callEnv[@]+"${callEnv[@]}"} \
-		perl -e 'alarm 90 ; exec @ARGV' bash "$rigSessionFn" "$@" ) > "$rigOut" 2> "$rigErr" < "${rigStdin:-/dev/null}" || callRc=$?
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 90 -- bash "$rigSessionFn" "$@" ) > "$rigOut" 2> "$rigErr" < "${rigStdin:-/dev/null}" || callRc=$?
 	rigRc="$callRc"
 }
 rigMarks(){ ## the RIG- marks the last output holds, comma-joined, in order
@@ -144,7 +144,7 @@ for rigOld in --slack-send-message --slack-read ; do
 done
 rigScene names2
 ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" "PATH=$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_SKILLSET_ROOT=$rigTmp/skills" \
-	perl -e 'alarm 60 ; exec @ARGV' bash "$rigTool" --wait-for-input rig-member --wait-list-sources ) > "$rigScn/list.out" 2> "$rigScn/list.err" < /dev/null
+	python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 60 -- bash "$rigTool" --wait-for-input rig-member --wait-list-sources ) > "$rigScn/list.out" 2> "$rigScn/list.err" < /dev/null
 rigAssert "Wait still answers as it did, with the chat source"      "$( LC_ALL=C sed -n '1p' "$rigScn/list.out" ):$( LC_ALL=C grep -c '^chat	' "$rigScn/list.out" )" "WAIT-RESULT: RECEIVED:1"
 
 echo "-- 2. --get-session-channel-id --"
@@ -328,14 +328,14 @@ rigAssert "the conversation, the pointers, the MAGIC copy and an inline scan are
 rigSandbox="" ; mkdir -p "$rigWs/.local/agents/spawned/rig-spawn/input"
 printf '# Brief\n\nRIG-FALLBACK found by the spawn id.\n' > "$rigWs/.local/agents/spawned/rig-spawn/input/dispatch.md"
 ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_SPAWN_AGENT=rig-member" "MDAT_SPAWN_SESSION_ID=rig-spawn" \
-	perl -e 'alarm 60 ; exec @ARGV' bash "$rigSessionFn" --get-dispatch-text ) > "$rigScn/d-3.out" 2> "$rigScn/d-3.err" < /dev/null
+	python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 60 -- bash "$rigSessionFn" --get-dispatch-text ) > "$rigScn/d-3.out" 2> "$rigScn/d-3.err" < /dev/null
 rigAssert "with no sandbox variable, the sandbox of the spawn id"   "$( LC_ALL=C grep -c 'RIG-FALLBACK' "$rigScn/d-3.out" )" 1
 rm -f "$rigWs/.local/agents/spawned/rig-spawn/input/dispatch.md"
 ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" "MDAT_SPAWN_AGENT=rig-member" "MDAT_SPAWN_SESSION_ID=rig-spawn" \
-	perl -e 'alarm 60 ; exec @ARGV' bash "$rigSessionFn" --get-dispatch-text ) > "$rigScn/d-4.out" 2> "$rigScn/d-4.err" < /dev/null
+	python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 60 -- bash "$rigSessionFn" --get-dispatch-text ) > "$rigScn/d-4.out" 2> "$rigScn/d-4.err" < /dev/null
 rigAssert "a sandbox with no dispatch: a plain line, nothing printed" "$?:$( wc -c < "$rigScn/d-4.out" | LC_ALL=C tr -d ' ' ):$( LC_ALL=C grep -c 'no dispatch' "$rigScn/d-4.err" )" "1:0:1"
 ( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "MMDAPP=$rigWs" "MDLT_ORIGIN=$rigOrigin" "MDLT_OPTION=--run-from-path $rigOrigin" \
-	perl -e 'alarm 60 ; exec @ARGV' bash "$rigSessionFn" --get-dispatch-text ) > "$rigScn/d-5.out" 2> "$rigScn/d-5.err" < /dev/null
+	python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 60 -- bash "$rigSessionFn" --get-dispatch-text ) > "$rigScn/d-5.out" 2> "$rigScn/d-5.err" < /dev/null
 rigD5Rc=$?
 rigAssert "from no spawned session: a plain line"                   "$rigD5Rc:$( LC_ALL=C grep -c 'no spawned session' "$rigScn/d-5.err" )" "1:1"
 

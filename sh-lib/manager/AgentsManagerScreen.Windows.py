@@ -228,9 +228,9 @@ ENGINE_COMMANDS = (
     {"name": "page-down", "keys": ("PGDN", " "), "does": ("move", 0, 1)},
     {"name": "go-top", "keys": ("HOME",), "does": ("move", -MOVE_ALL, 0)},
     {"name": "go-bottom", "keys": ("END",), "does": ("move", MOVE_ALL, 0)},
-    ## the list's own Left and Right: Left pages up as PgUp does and, on the first row of the list, climbs
-    ## one level (climb), which at the root does nothing, so that it never leaves the pane; Right pages down as PgDn does
-    {"name": "page-left", "keys": ("LEFT",), "does": ("move", 0, -1, "climb")},
+    ## the list's own Left and Right: Left pages up as PgUp does, and on the first row of the list it
+    ## stays there -- it never climbs a level, which is Backspace's alone; Right pages down as PgDn does
+    {"name": "page-left", "keys": ("LEFT",), "does": ("move", 0, -1)},
     {"name": "climb", "keys": (), "does": ("climb",)},
     {"name": "page-right", "keys": ("RIGHT",), "does": ("move", 0, 1)},
 )
@@ -274,6 +274,8 @@ REFUSALS = {
     "absent": "%s: %s",
     "wrapped": "%s: the lines are wrapped, none is cut",
     "table": "%s: the left window holds no table",
+    "listFilter": "%s: this level holds no rows to filter",
+    "fullTable": "%s: this level has no full table",
 }
 
 ## The commands of the engine stand in COMMANDS from here, before any plugin is registered.

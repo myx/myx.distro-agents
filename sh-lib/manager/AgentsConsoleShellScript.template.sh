@@ -328,11 +328,11 @@ if [ "$1" != "--non-interactive" ] && [ "$DAGC_CLI_GIVEN" != "true" ] && [ -t 0 
 	fi
 	exec "$BASH" "$DAGC_MANAGER_TOOLS" --manager
 fi
-# --cli-auto takes magic-team's own SPAWN_CLI_SERVICE where it is set, else the first installed known CLI.
-# --cli-configured takes the same setting and stops there: an unset setting means no external CLI was chosen,
-# which is a different answer from "none could be started" and is reported as rc=5 so a caller can branch on it.
+# --cli-auto takes the CLI service of the preset the tier names, where a tier is set, else the first installed known CLI.
+# --cli-configured takes the same preset and stops there: no tier, or no CLI service in its preset, means no external CLI
+# was chosen, which is a different answer from "none could be started" and is reported as rc=5 so a caller can branch on it.
 ## An explicit --cli on an interactive start is the person's own choice and is honoured: it skips this block,
-## which would otherwise replace it with SPAWN_CLI_SERVICE or the scan whenever --cli-auto came first
+## which would otherwise replace it with the tier's preset or the scan whenever --cli-auto came first
 ## (Agents --start-console always puts it first). A spawn (--non-interactive) takes the block as before.
 if { [ "$DAGC_CLI_AUTO" = "true" ] || [ "$DAGC_CLI_GIVEN" != "true" ] ; } && ! { [ "$DAGC_CLI_GIVEN" = "true" ] && [ "$1" != "--non-interactive" ] ; } ; then
 	DAGC_CLI_GIVEN="false"
@@ -347,13 +347,13 @@ if { [ "$DAGC_CLI_AUTO" = "true" ] || [ "$DAGC_CLI_GIVEN" != "true" ] ; } && ! {
 		# Its name, its non-interactive capability and its presence in PATH are each checked below, at their own use site.
 		DAGC_CLI="$DAGC_CLI_SERVICE"
 		DAGC_CLI_GIVEN="true"
-		DAGC_CLI_BY="SPAWN_CLI_SERVICE"
+		DAGC_CLI_BY="SPAWN_TIER_NORMAL"
 	elif [ "$DAGC_CLI_CONFIGURED" = "true" ] ; then
 		## Every spawn service is named, not one of them. This error reaches a
 		## workspace that has chosen NOTHING yet, so naming a single flag steers
 		## that choice by whichever name an error string happened to carry --
 		## a policy nobody decided, expressed as an example. The reader picks.
-		echo "⛔ ERROR: DistroAgentsConsole: no tier is set in this workspace (SPAWN_TIER_NORMAL names no preset), so no external agent CLI is selected here. rc=5 means exactly this -- nothing was chosen to start, which is distinct from rc=1 (something was chosen and could not be started). Spawn an internal agent instead, or choose one of the spawn services, which makes a preset named for it and points SPAWN_TIER_NORMAL at it, with --apply: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-claude --apply (this package's own Claude harness), or --owner-setup-claude-native (the vendor claude CLI as installed on this machine), or --owner-setup-copilot, or --owner-setup-copilot-native (the vendor copilot CLI as installed on this machine), or --owner-setup-grok (this package's own xAI Grok harness), or --owner-setup-scaleway." >&2
+		echo "⛔ ERROR: DistroAgentsConsole: no tier is set in this workspace (SPAWN_TIER_NORMAL), so no preset names the CLI service a spawn runs on. rc=5 means exactly this -- nothing was chosen to start, which is distinct from rc=1 (something was chosen and could not be started). Spawn an internal agent instead, or choose one of the spawn services and select it with --apply: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --owner-setup-claude --apply (this package's own Claude harness), or --owner-setup-claude-native (the vendor claude CLI as installed on this machine), or --owner-setup-copilot, or --owner-setup-copilot-native (the vendor copilot CLI as installed on this machine), or --owner-setup-grok (this package's own xAI Grok harness), or --owner-setup-scaleway." >&2
 		exit 5
 	else
 		for DAGC_AUTO_CLI in $DAGC_SELECTABLE_CLIS ; do
@@ -392,7 +392,7 @@ case " $DAGC_SELECTABLE_CLIS " in
 	;;
 esac
 ## An interactive launch (no --non-interactive) of a harness leg (claude, copilot, grok,
-## scaleway) starts the manager screen, however the leg was chosen: by SPAWN_CLI_SERVICE,
+## scaleway) starts the manager screen, however the leg was chosen: by the tier's preset,
 ## by --cli or by the PATH scan. A leg has no interactive shape of its own, and every
 ## session is interactive through Slack, so the console keeps no interactive root session:
 ## the root session is one more session, started from the screen as any other. The screen
@@ -429,7 +429,7 @@ if [ "$1" == "--non-interactive" ] ; then
 fi
 if [ "$DAGC_CLI_GIVEN" = "true" ] ; then
 	DagcCliPresent "$DAGC_CLI" || {
-		echo "⛔ ERROR: DistroAgentsConsole: '$DAGC_CLI' CLI not found in PATH -- install it first; it was selected explicitly (--cli, or magic-team's SPAWN_CLI_SERVICE), so this does not fall back to a bash session." >&2
+		echo "⛔ ERROR: DistroAgentsConsole: '$DAGC_CLI' CLI not found in PATH -- install it first; it was selected explicitly (--cli, or the preset SPAWN_TIER_NORMAL names), so this does not fall back to a bash session." >&2
 		exit 1
 	}
 elif ! DagcCliPresent "$DAGC_CLI" ; then
@@ -567,16 +567,13 @@ if [ -n "$DAGC_ACCESS_WRITE_FLAG" ] ; then
 	while IFS= read -r DAGC_ACCESS_LINE ; do
 		case "$DAGC_ACCESS_LINE" in /*) DagcAccessAppend "$DAGC_ACCESS_WRITE_FLAG" "$DAGC_ACCESS_LINE" ;; esac
 	done <<< "$DAGC_ACCESS_WRITE_ROOTS"
-	## This spawn's own sandbox, per-spawn and named by its tracking id: input/ is
-	## readable and output/ is writable. ADDED to the two sets above rather than
-	## replacing them, which is the whole reason the write set is rendered on its own
-	## flag -- one write root passed alone would take every other write away.
-	## The sandbox ROOT itself is granted on neither side on purpose: the session
-	## tracking file lives there, and a record the session can reach is one it can forge.
-	if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
-		DagcAccessAppend "$DAGC_ACCESS_FLAG" "$MDAT_SPAWN_SANDBOX_ROOT/input"
-		DagcAccessAppend "$DAGC_ACCESS_WRITE_FLAG" "$MDAT_SPAWN_SANDBOX_ROOT/output"
-	fi
+	## This spawn's own sandbox is NOT named on the flags here. The universal harness appends it to the run's roots itself, AFTER it
+	## has taken the roots the system text names (AgentsUniversalHarness.sh, the block after harnessSystemRoots): the sandbox's input/
+	## is readable and its output/ writable there, and the task block of the first message names them (harnessRunNotes). Passed here it
+	## would enter the system text, and a path of this run alone in the system text ends the input token cache at it: measured, two
+	## identical spawns' requests first differed inside the system message, at this path (F10.7). The sandbox ROOT itself is granted on
+	## neither side on purpose: the session tracking file lives there, and a record the session can reach is one it can forge.
+	## The non-leg branch below still names it, because a client CLI has no harness of ours to append it.
 	## Said because a partial set is otherwise silent: the member roots drop out
 	## where the skillset root is unresolved, and a narrower grant then looks
 	## exactly like a full one.
@@ -658,7 +655,7 @@ if DagcCliIsLeg "$DAGC_CLI" ; then
 	## per provider is how the two drift, and a leg whose key is never exported
 	## fails at the gate for a reason that is true of the console, not of the key.
 	## Only upper-case tokens are taken, so a declaration reading
-	## "SCALEWAY_DEEPSEEK or SCALEWAY_GEMMA" yields the two names and not the word.
+	## "ANTHROPIC_API_KEY OPENAI_API_KEY" yields the two names and not the words.
 	DAGC_CLI_CREDENTIALS="$( LC_ALL=C awk -F= '
 		$1 == "HARNESS_CREDENTIAL_NAMES" {
 			sub( /^[^=]*=/, "", $0 )
@@ -713,53 +710,37 @@ DagcHarnessModelExport(){
 DagcHarnessCacheTimeExport(){
 	local DAGC_CACHE_TIME
 	unset HARNESS_INPUT_CACHE_TIME
-	## Only the Anthropic Messages wire puts the lifetime into cache markers; another wire has
-	## nowhere to use it, so the read is skipped rather than paid for nothing.
-	## A leg with no wire of its own chooses one at run time from the endpoint (universal), so it
-	## is asked as well: skipping there could take the lifetime from the markers that use it.
-	case "$( LC_ALL=C sed -n 's/^HARNESS_WIRE="\([^"]*\)".*/\1/p' "$DAGC_CLI_EXEC" 2>/dev/null )" in
-		''|AnthropicMessages) ;;
-		*) return 0 ;;
-	esac
 	DAGC_CACHE_TIME="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HARNESS_INPUT_CACHE_TIME 2>/dev/null )" || DAGC_CACHE_TIME=""
 	[ -z "$DAGC_CACHE_TIME" ] || export "HARNESS_INPUT_CACHE_TIME=$DAGC_CACHE_TIME"
 	return 0
 }
-## THE ENDPOINT THE PRESET NAMES (F10.1). A preset may name the endpoint its CLI service is reached at, PRESET_ENDPOINT_URL
-## an https URL: read as the models are, answered from the preset (AgentsToolsPresetOverlay) and exported for the leg, a
-## parent's endpoint dropped. Nothing exported leaves the leg its own endpoint.
-DagcHarnessEndpointUrlExport(){
-	local DAGC_ENDPOINT_URL
-	unset HARNESS_ENDPOINT_URL
-	## A service whose leg states its own endpoint never takes one from a preset, so the read is
-	## skipped. Only a leg that takes its endpoint from the environment (universal) is asked.
-	case "$( LC_ALL=C sed -n 's/^HARNESS_ENDPOINT="\([^"]*\)".*/\1/p' "$DAGC_CLI_EXEC" 2>/dev/null )" in
-		''|'$'*) ;;
-		*) return 0 ;;
-	esac
-	DAGC_ENDPOINT_URL="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HARNESS_ENDPOINT_URL 2>/dev/null )" || DAGC_ENDPOINT_URL=""
-	[ -z "$DAGC_ENDPOINT_URL" ] || export "HARNESS_ENDPOINT_URL=$DAGC_ENDPOINT_URL"
+## THE RESTART THRESHOLD (F10.2). The context size the preset of this spawn names, PRESET_CONTEXT_MAX_SIZE,
+## is the number of tokens at which a harness leg summarises its work and starts a fresh leg. Read as the
+## models are, answered from the preset (AgentsToolsPresetOverlay) and exported for the leg, a parent's
+## dropped; nothing exported leaves the core to budget from the service's own window less its output
+## maximum, and the core warns at start when a preset's number is far below that window.
+DagcHarnessContextExport(){
+	local DAGC_CONTEXT_SIZE
+	unset PRESET_CONTEXT_MAX_SIZE
+	DAGC_CONTEXT_SIZE="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select PRESET_CONTEXT_MAX_SIZE 2>/dev/null )" || DAGC_CONTEXT_SIZE=""
+	[ -z "$DAGC_CONTEXT_SIZE" ] || export "PRESET_CONTEXT_MAX_SIZE=$DAGC_CONTEXT_SIZE"
 	return 0
 }
-## THE HARNESS'S OWN KNOBS (retry attempts, retry delay, parallel tool calls): settings of the
-## team, read for a spawn only where the scope holds one, so a workspace that never set them pays
-## a file test and no call. Each is exported as it is; the harness reads it from the environment.
-DagcHarnessKnobExport(){
-	local DAGC_KNOB DAGC_KNOB_VALUE DAGC_KNOB_FILE="${MMDAPP%/}/.local/.agents/magic-team.agent.env"
-	[ -f "$DAGC_KNOB_FILE" ] || return 0
-	for DAGC_KNOB in HARNESS_STREAM_ATTEMPTS HARNESS_RETRY_DELAY HARNESS_PARALLEL_TOOL_CALLS ; do
-		unset "$DAGC_KNOB"
-		LC_ALL=C grep -q "^$DAGC_KNOB=" "$DAGC_KNOB_FILE" 2> /dev/null || continue
-		DAGC_KNOB_VALUE="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select "$DAGC_KNOB" 2> /dev/null )" || DAGC_KNOB_VALUE=""
-		[ -z "$DAGC_KNOB_VALUE" ] || export "$DAGC_KNOB=$DAGC_KNOB_VALUE"
-	done
+## THE EFFORT (F10.2). The effort the preset of this spawn names, PRESET_EFFORT: unset, none, low, normal or high. Read as the
+## models are, answered from the preset (AgentsToolsPresetOverlay) and exported for the leg as HARNESS_EFFORT, a parent's dropped;
+## nothing exported is unset, no effort sent.
+DagcHarnessEffortExport(){
+	local DAGC_EFFORT
+	unset HARNESS_EFFORT
+	DAGC_EFFORT="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HARNESS_EFFORT 2>/dev/null )" || DAGC_EFFORT=""
+	[ -z "$DAGC_EFFORT" ] || export "HARNESS_EFFORT=$DAGC_EFFORT"
 	return 0
 }
 if DagcCliIsLeg "$DAGC_CLI" ; then
 	DagcHarnessModelExport
 	DagcHarnessCacheTimeExport
-	DagcHarnessEndpointUrlExport
-	DagcHarnessKnobExport
+	DagcHarnessContextExport
+	DagcHarnessEffortExport
 fi
 
 ## claude-native: a signed-out spawn uses a configured key, else rc 6; an interactive console is only warned. MAGIC.md, "Claude sign-in".

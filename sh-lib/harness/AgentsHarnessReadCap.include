@@ -11,7 +11,7 @@
 ##
 
 agentsReadCapWire=200000
-agentsReadCapMcp=48000
+agentsReadCapMcp=131072
 
 ## Fills the placeholder in the declarations on stdin with <cap>.
 AgentsReadCapFill(){ ## cap in bytes

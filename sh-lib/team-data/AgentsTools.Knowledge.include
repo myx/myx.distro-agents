@@ -6,7 +6,8 @@
 ## snippets with their sources. Sourced for its functions only.
 ##
 ## THE STORES the query reads, each added by an option: --add-source-docs (MAGIC.md, README.md and docs/**.md of the projects selected, of each one's
-## repository util.repository-*, and of the workspace's util.workspace-*), --add-board-items, --add-vault-items (any text file of the team data root's
+## repository util.repository-*, and of the workspace's util.workspace-*, and the MAGIC.LanceDB store beside each MAGIC.md, F8.2, the store off, uninstalled
+## or absent meaning the text alone), --add-board-items, --add-vault-items (any text file of the team data root's
 ## vault/), --add-inbox-items (the acting member's own inbox, incoming/ and processed/; the console reads every member's). A query reads only what is added.
 ##
 ## THE SELECTOR of the projects is the ListDistroProjects one (--select-*, --filter-*, --remove-*), taken as it stands and read from the workspace's source;
@@ -78,6 +79,37 @@ AgentsToolsKnowledgeFiles(){ ## sources, -- selector words...
 	} | LC_ALL=C awk '!seen[$0]++'
 }
 
+## The store's own Python: the environment of the feature setup.feature-lancedb that `--install-knowledge-store` installs, in
+## $LANCEDB_HOME, else $MMDAPP/.local/lancedb. It stands only where the feature wrote lancedb.env, which it writes last.
+## Nothing when it does not stand; rc 1 then.
+AgentsToolsKnowledgeStorePython(){ ## -- the venv Python on stdout; rc 1 when it does not stand
+	local storeHome="${LANCEDB_HOME:-$MMDAPP/.local/lancedb}"
+	local storePy="$storeHome/venv/bin/python"
+	[ -f "$storeHome/lancedb.env" ] && [ -x "$storePy" ] || return 1
+	printf '%s\n' "$storePy"
+}
+
+## The LanceDB stores beside the MAGIC.md files, one pair a line `<store-dir><TAB><magic-ref>`: only a store that stands is
+## read, and a MAGIC.md with no store beside it is searched as its text alone.
+AgentsToolsKnowledgeStoreList(){ ## MAGIC.md files on stdin; store pairs on stdout
+	local storeFile storeDir
+	while IFS= read -r storeFile ; do
+		case "$storeFile" in */MAGIC.md) ;; *) continue ;; esac
+		storeDir="${storeFile%.md}.LanceDB"
+		[ -d "$storeDir" ] || continue
+		printf '%s\t%s\n' "$storeDir" "${storeFile#"${MMDAPP%/}/"}"
+	done
+}
+
+## The one store, dumped to a scratch file as markdown: the sections it holds, each its caption as a `#` heading, for the
+## scanner to read and merge with the MAGIC.md text. rc 1, nothing written, when the store cannot be read.
+AgentsToolsKnowledgeStoreDump(){ ## store-dir, out-file
+	local dumpStore="$1" dumpOut="$2" dumpPython
+	dumpPython="$( AgentsToolsKnowledgeStorePython )" || return 1
+	"$dumpPython" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeStore.py" dump --store "$dumpStore" > "$dumpOut" 2> "$dumpOut.err" || { rm -f "$dumpOut" ; return 1 ; }
+	return 0
+}
+
 ## The query: the --add-* options, the selector and the query terms, as the tool is called, after the output format (md or json). rc 1, a line on stderr, for
 ## anything refused, with nothing read.
 AgentsToolsKnowledgeRun(){ ## format (md|json), arguments...
@@ -124,41 +156,76 @@ AgentsToolsKnowledgeRun(){ ## format (md|json), arguments...
 		;;
 	esac
 	local knowFiles knowRows knowGroups knowArgs=() knowPath knowRef knowPre knowCaps knowCaption
+	local knowStoreMap="" knowStoreList="" knowStoreScratch="" knowStoreDir knowStoreRef knowStoreCount=0 knowStoreOut
 	knowFiles="$( AgentsToolsKnowledgeFiles $knowSources -- ${knowSelector[@]+"${knowSelector[@]}"} )" || return 1
 	if [ -z "$knowFiles" ] ; then
 		[ "$knowFormat" != json ] || printf '{"entries":[\n\n]}\n'
 		echo "# $knowOp: the sources added hold no file to read" >&2
 		return 0
 	fi
-	if [ "$knowFormat" = json ] ; then
-		printf '%s\n' "$knowFiles" | KNOWLEDGE_QUERY="$knowQuery" LC_ALL=C awk -v wsRoot="${MMDAPP%/}/" -v dataRoot="${MDAT_DATA_ROOT:+${MDAT_DATA_ROOT%/}/}" -v format=json \
-			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeScan.awk"
-		return $?
-	fi
-	knowRows="$( printf '%s\n' "$knowFiles" | KNOWLEDGE_QUERY="$knowQuery" LC_ALL=C awk -v wsRoot="${MMDAPP%/}/" -v dataRoot="${MDAT_DATA_ROOT:+${MDAT_DATA_ROOT%/}/}" -v format=list \
-		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeScan.awk" )" || return 1
-	if [ -z "$knowRows" ] ; then
-		echo "# $knowOp: no section answers the query" >&2
-		return 0
-	fi
-	## One source after the other, in the order read: a mixin for the lines ahead of its first heading (every headed section left out), and one for the captions
-	## that answer. A caption is a glob to the engine, so its own `*`, `?` and `[` become `?`.
-	knowGroups="$( printf '%s\n' "$knowRows" | LC_ALL=C awk -F'\t' '
-		!seenPath[$1]++ { order[++count] = $1 ; ref[$1] = $2 }
-		$4 == "" { pre[$1] = 1 ; next }
-		!seenCaption[$1, $4]++ { caps[$1] = caps[$1] ( caps[$1] == "" ? "" : "\037" ) $4 }
-		END { for ( at = 1 ; at <= count ; at++ ) { path = order[at] ; printf "%s\t%s\t%d\t%s\n", path, ref[path], ( path in pre ), caps[path] } }' )"
-	while IFS=$'\t' read -r knowPath knowRef knowPre knowCaps ; do
-		[ -n "$knowPath" ] || continue
-		[ "$knowPre" != 1 ] || knowArgs+=( --mixin --section-exclude '*' "$knowPath" "$knowRef" )
-		if [ -n "$knowCaps" ] ; then
-			knowArgs+=( --mixin )
-			while IFS= read -r knowCaption ; do
-				knowArgs+=( --section-include "$( printf '%s' "$knowCaption" | LC_ALL=C tr '*?[' '???' )" )
-			done <<< "$( printf '%s' "$knowCaps" | LC_ALL=C tr '\037' '\n' )"
-			knowArgs+=( "$knowPath" "$knowRef" )
+	## F8.2: the LanceDB store beside each MAGIC.md is searched with the text (the buffer rule: what moved to the store stays findable). The store off,
+	## uninstalled, or no store standing, the text alone answers, exactly as before.
+	type AgentsToolsKnowledgeStoreSetting > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.InstallKnowledgeStore.include"
+	case "$knowSources" in
+		*" --add-source-docs"*)
+			if [ "$( AgentsToolsKnowledgeStoreSetting )" = "on" ] && AgentsToolsKnowledgeStorePython > /dev/null 2>&1 ; then
+				knowStoreList="$( printf '%s\n' "$knowFiles" | AgentsToolsKnowledgeStoreList )" || knowStoreList=""
+			fi
+		;;
+	esac
+	## The store dumps are scratch files the scanner reads, labeled back to their MAGIC.md (AgentsKnowledgeScan.awk reads KNOWLEDGE_STORE_MAP), in a
+	## subshell whose own EXIT trap takes the scratch folder with it.
+	(
+		if [ -n "$knowStoreList" ] ; then
+			mkdir -p "$MMDAPP/.local/temp" || exit 1
+			knowStoreScratch="$( mktemp -d "$MMDAPP/.local/temp/knowledge-store-query.XXXXXX" )" || exit 1
+			trap "rm -rf -- $( printf '%q' "$knowStoreScratch" )" EXIT
+			while IFS=$'\t' read -r knowStoreDir knowStoreRef ; do
+				[ -n "$knowStoreDir" ] || continue
+				knowStoreCount=$(( knowStoreCount + 1 ))
+				knowStoreOut="$knowStoreScratch/$knowStoreCount.md"
+				if AgentsToolsKnowledgeStoreDump "$knowStoreDir" "$knowStoreOut" ; then
+					knowFiles="$knowFiles
+$knowStoreOut"
+					knowStoreMap="$knowStoreMap$knowStoreOut	$knowStoreRef
+"
+				else
+					## a store that cannot be read is left out: the MAGIC.md text still answers, and the query goes on
+					rm -f "$knowStoreOut" "$knowStoreOut.err"
+				fi
+			done <<< "$knowStoreList"
 		fi
-	done <<< "$knowGroups"
-	type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
-	AgentsToolsMergeMdFiles --section-limit 6 "${knowArgs[@]}"
+		if [ "$knowFormat" = json ] ; then
+			printf '%s\n' "$knowFiles" | KNOWLEDGE_QUERY="$knowQuery" KNOWLEDGE_STORE_MAP="$knowStoreMap" LC_ALL=C awk -v wsRoot="${MMDAPP%/}/" -v dataRoot="${MDAT_DATA_ROOT:+${MDAT_DATA_ROOT%/}/}" -v format=json \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeScan.awk"
+			exit $?
+		fi
+		knowRows="$( printf '%s\n' "$knowFiles" | KNOWLEDGE_QUERY="$knowQuery" KNOWLEDGE_STORE_MAP="$knowStoreMap" LC_ALL=C awk -v wsRoot="${MMDAPP%/}/" -v dataRoot="${MDAT_DATA_ROOT:+${MDAT_DATA_ROOT%/}/}" -v format=list \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsKnowledgeScan.awk" )" || exit 1
+		if [ -z "$knowRows" ] ; then
+			echo "# $knowOp: no section answers the query" >&2
+			exit 0
+		fi
+		## One source after the other, in the order read: a mixin for the lines ahead of its first heading (every headed section left out), and one for the captions
+		## that answer. A caption is a glob to the engine, so its own `*`, `?` and `[` become `?`.
+		knowGroups="$( printf '%s\n' "$knowRows" | LC_ALL=C awk -F'\t' '
+			!seenPath[$1]++ { order[++count] = $1 ; ref[$1] = $2 }
+			$4 == "" { pre[$1] = 1 ; next }
+			!seenCaption[$1, $4]++ { caps[$1] = caps[$1] ( caps[$1] == "" ? "" : "\037" ) $4 }
+			END { for ( at = 1 ; at <= count ; at++ ) { path = order[at] ; printf "%s\t%s\t%d\t%s\n", path, ref[path], ( path in pre ), caps[path] } }' )"
+		while IFS=$'\t' read -r knowPath knowRef knowPre knowCaps ; do
+			[ -n "$knowPath" ] || continue
+			[ "$knowPre" != 1 ] || knowArgs+=( --mixin --section-exclude '*' "$knowPath" "$knowRef" )
+			if [ -n "$knowCaps" ] ; then
+				knowArgs+=( --mixin )
+				while IFS= read -r knowCaption ; do
+					knowArgs+=( --section-include "$( printf '%s' "$knowCaption" | LC_ALL=C tr '*?[' '???' )" )
+				done <<< "$( printf '%s' "$knowCaps" | LC_ALL=C tr '\037' '\n' )"
+				knowArgs+=( "$knowPath" "$knowRef" )
+			fi
+		done <<< "$knowGroups"
+		type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include"
+		AgentsToolsMergeMdFiles --section-limit 6 "${knowArgs[@]}"
+	)
+	return $?
 }

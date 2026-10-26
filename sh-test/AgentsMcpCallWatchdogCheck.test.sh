@@ -30,19 +30,17 @@
 ##      leader's own child that did, still run when the answer is out, and are ended by the hard one, by their own
 ##      pids. A WATCHDOG THAT HAS NOT FIRED IS ENDED WITH ITS CALL: when a call that came back in time is answered,
 ##      nothing of its watchdog is left.
-##      THE QUESTION WHETHER CHECKLIST IS OFFERED, which a server asks the harness once before its floor, is
-##      bounded as a call is: not answered in time, it is ended at its bound, the request is answered, and
-##      CheckList is not served; nothing is kept, so the next request asks again, and an answer in time serves it.
+##      THE QUESTION WHETHER CHECKLIST IS OFFERED used to be asked of the harness before the floor, and
+##      is no longer: the floor is static and CheckList is always listed (F1.2). That scenario and its
+##      ten-second watchdog were removed with the ask; the watchdog scenarios below are the ones left.
 ##   3. THE KILL ACTION OF A JOB. The pid file of a job holds `<pid> <start>`. A running job is polled, and
 ##      killed as a group. A job whose number another process has taken reads as finished and nothing is
 ##      signalled. A pid file with no start, as jobs were kept before, is not signalled by the number alone: the
-##      caller is told so, as an error. A Monitor job is still ended at its deadline.
+##      caller is told so, as an error.
 ## Red: with the watchdog and the kill action as they were (a probe of the number, then the group signalled), the
 ## taken numbers of 2 and 3 are signalled: the processes that have them are ended, and a timeout is said. With a
 ## handler that ends its watchdog whether that has fired or not, what ignored the polite end runs to its own end
 ## while its caller is told that it was killed.
-## With the question whether CheckList is offered unbounded, a harness that does not answer it holds the
-## request, and its late answer serves CheckList.
 ## Offline: one mktemp tree, the watched processes lines of shell that wait, no endpoint and no console started.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -91,15 +89,8 @@ rigTool="$rigTmp/origin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh
 ## above the shell it runs under), stays for the seconds given, says that it came to its own end, and answers.
 ## With RIG_CALL=deaf-member it first leaves a member of its group that ignores the polite end; with
 ## RIG_CALL=deaf-harness it ignores the polite end itself, the leader's own child, and so does what it starts.
-## The one question a server asks the harness before its floor, whether CheckList is offered there
-## (--intern-checklist-place), is no served call: it is answered at once, as the harness answers where a list has
-## no place, and leaves none of the scenario's marks.
-## With RIG_CALL=place-hangs it stays for the seconds given first, as a harness that does not answer it, says
-## that it came to its own end, and then names a place. Asked again, it names the place at once.
 cat > "$rigTmp/origin/myx/myx.distro-agents/sh-lib/harness/AgentsUniversalHarness.sh" <<'RIGHARNESS'
 #!/usr/bin/env bash
-[ "${1:-}/${RIG_CALL:-}" != --intern-checklist-place/place-hangs ] || { [ -e "$RIG_DIR/place.pid" ] || { sleep "$RIG_STAYS" & echo "$!" > "$RIG_DIR/place.pid" ; wait "$!" ; : > "$RIG_DIR/place.ended" ; } ; echo "CHECKLIST-PLACE: $RIG_DIR" ; exit 0 ; }
-[ "${1:-}" != --intern-checklist-place ] || { echo "ERROR: the rig keeps no checklist" ; exit 0 ; }
 [ "${RIG_CALL:-}" != deaf-harness ] || trap '' TERM
 cat > /dev/null
 echo "$$" > "$RIG_DIR/harness.pid"
@@ -128,22 +119,15 @@ cat > "$rigTmp/bin/sleep" <<'RIGSLEEP'
 exec "$RIG_REAL_SLEEP" "$@"
 RIGSLEEP
 ## THE RIG'S OWN PROCESS LIST, for the one reading a process is kept by. Each such reading of a scenario is
-## counted. RIG_PS=taken: the first is the host's own, and every later one says that the same pids began at
-## another time, as they read once their numbers have been given to other processes; RIG_PS=taken-late: the
-## first two are the host's own. The same from the moment the scenario's folder holds ps.lie. Every other call,
-## and every reading with RIG_PS=host and no such file, is the host's ps.
-## A reading made before the server has its answer whether CheckList is offered is that question's own
-## watchdog's: the host's, and not counted. From the first reading after it, every one is counted, the server's
-## scratch root gone or not (ps.counting).
+## counted: every lstart reading while a server of the rig runs is one of its watchdogs', the ask that used to
+## come before the floor being gone (F1.2). RIG_PS=taken: the first is the host's own, and every later one says
+## that the same pids began at another time, as they read once their numbers have been given to other processes;
+## RIG_PS=taken-late: the first two are the host's own. The same from the moment the scenario's folder holds
+## ps.lie. Every other call, and every reading with RIG_PS=host and no such file, is the host's ps.
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh
 case "$*" in
 	*lstart=*)
-		if [ ! -e "$RIG_DIR/ps.counting" ] ; then
-			for rigOffered in "$RIG_DIR"/ws/.local/temp/agent-mcp.*/checklist.offered ; do : ; done
-			[ -e "$rigOffered" ] || exec "$RIG_REAL_PS" "$@"
-			: > "$RIG_DIR/ps.counting"
-		fi
 		echo reading >> "$RIG_DIR/ps.readings"
 		case "${RIG_PS:-host}" in taken) rigOwn=1 ;; taken-late) rigOwn=2 ;; *) rigOwn="" ;; esac
 		if [ -e "$RIG_DIR/ps.lie" ] || { [ -n "$rigOwn" ] && [ "$( grep -c . "$RIG_DIR/ps.readings" )" -gt "$rigOwn" ] ; } ; then
@@ -303,25 +287,6 @@ rigFeedJob(){ ## scenario folder, kept or taken or bare
 	esac
 	printf '%s\n' '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"execute","arguments":{"job":2,"action":"kill"}}}'
 }
-## A Monitor job with a deadline of one second, polled once the deadline and its two ends are past.
-rigFeedMonitor(){ ## scenario folder
-	rigInit
-	printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"Monitor","arguments":{"command":": > $RIG_DIR/job.began ; sleep $RIG_STAYS & echo $! > $RIG_DIR/job.pid ; wait $! ; : > $RIG_DIR/job.ended","description":"rig watch","timeout_ms":1000}}}'
-	rigWaitFile "$1/job.pid" || return 0
-	"$rigRealSleep" 5
-	printf '%s\n' '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"Monitor","arguments":{"job":2}}}'
-}
-## tools/list, and whether its answer was on the wire within twenty seconds of the request; once it is, a second.
-rigFeedPlace(){ ## scenario folder
-	local placeTurns=250 placeFrom
-	rigInit
-	placeFrom="$( date +%s )"
-	printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
-	while ! LC_ALL=C grep -q '"id":2,' "$1/wire" 2> /dev/null && [ "$placeTurns" -gt 0 ] ; do "$rigRealSleep" 0.2 ; placeTurns=$(( placeTurns - 1 )) ; done
-	if [ $(( $( date +%s ) - placeFrom )) -le 20 ] ; then echo in-time ; else echo late ; fi > "$1/answer.when"
-	LC_ALL=C grep -q '"id":2,' "$1/wire" 2> /dev/null || return 0
-	printf '%s\n' '{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{}}'
-}
 rigServed='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"Read","arguments":{"path":"/nonexistent/rig"}}}'
 rigScript='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute","arguments":{"command":"sleep $RIG_STAYS & echo $! > $RIG_DIR/watched.pid ; wait $! ; : > $RIG_DIR/watched.ended ; echo RIG-SCRIPT-OUTPUT","timeout":2}}}'
 ## The same script with a timeout it comes back well within, and one that ignores the polite end, with what it starts.
@@ -347,8 +312,6 @@ rigServe script-deaf        host       plain        11 ""   3  2    rigFeedAnswe
 rigServe job-kept           host       plain        12 ""   3  3600 rigFeedJob kept &
 rigServe job-taken          host       plain        7  ""   3  3600 rigFeedJob taken &
 rigServe job-bare           host       plain        7  ""   3  3600 rigFeedJob bare &
-rigServe job-monitor        host       plain        12 ""   3  3600 rigFeedMonitor &
-rigServe place-hangs        host       place-hangs  25 ""   3  3600 rigFeedPlace &
 wait
 
 echo "-- 2a. a served call: answered as before, ended at its bound where it hangs, never by a number another process has taken --"
@@ -399,12 +362,6 @@ rigAssert "the leader's own child ignores the polite end while the leader ends a
 rigAssert "a script that ignores the polite end: the caller is answered while it still runs, told what is known then, and the script is ended by the hard one" \
 	"script-$( rigAt script-deaf watched ) watchdog-$( rigAt script-deaf grace ) $( rigSaid script-deaf 2 '[timed out after 2s and was asked to end; whatever of it is left is killed five seconds after that; partial output above is kept at: ' ) $( rigBecame script-deaf watched )" "script-runs watchdog-runs 1 ended-before-its-time"
 
-echo "-- 2e. the server's question whether CheckList is offered: bounded as a call is, no place where it is not answered in time --"
-rigAssert "a harness that does not answer whether CheckList is offered is ended at the bound of that question, tools/list is answered within twenty seconds, and CheckList is not served" \
-	"$( rigBecame place-hangs place ) $( cat "$rigTmp/place-hangs/answer.when" 2> /dev/null ) $( rigSaid place-hangs 2 '"name":"CheckList"' ) $( rigSaid place-hangs 2 '"name":"execute"' )" "ended-before-its-time in-time 0 1"
-rigAssert "nothing is kept of a question not answered in time: the next tools/list asks again, and the answer given in time then serves CheckList" \
-	"$( rigSaid place-hangs 3 '"name":"CheckList"' ) $( rigSaid place-hangs 3 '"name":"execute"' )" "1 1"
-
 echo "-- 3. the kill action of a job: by the group, only while its leader is still the process its pid file names --"
 rigJobPid="$( LC_ALL=C sed 's/ .*//' "$rigTmp/job-kept/pid.kept" 2> /dev/null )"
 rigAssert "the pid file of a job holds one line, its pid and when it began, as the tooling keeps a process" "$( LC_ALL=C grep -c -E '^[0-9]+ [A-Z][a-z]{2}_[A-Z][a-z]{2}_[0-9]{1,2}_[0-9:]{8}_[0-9]{4}$' "$rigTmp/job-kept/pid.kept" 2> /dev/null || : ) $( wc -l < "$rigTmp/job-kept/pid.kept" 2> /dev/null | LC_ALL=C tr -d ' ' )" "1 1"
@@ -415,12 +372,10 @@ rigAssert "the number of a job taken by another process: it reads as finished, n
 	"$( rigSaid job-taken 4 '[job 2: already finished, nothing to kill]' ) $( rigIsError job-taken 4 ) $( rigBecame job-taken job )" "1 false ended-by-itself"
 rigAssert "a pid file with no start, as jobs were kept before: nothing is signalled by the number alone, the caller is told so as an error, and the process runs to its own end" \
 	"$( rigSaid job-bare 4 '[job 2: NOT signalled. Its pid file names pid ' ) $( rigSaid job-bare 4 'with no start time, and a process has that number now: nothing shows that it is this job, so nothing is signalled by the number alone.' ) $( rigIsError job-bare 4 ) $( rigBecame job-bare job )" "1 1 true ended-by-itself"
-rigAssert "a Monitor job is still ended at its deadline, its group read from the same file, and the poll says that it timed out" \
-	"$( rigBecame job-monitor job ) $( rigSaid job-monitor 3 '[job 2 (rig watch): timed out after 1000ms and was killed]' )" "ended-before-its-time 1"
 
 echo "-- the request keeps each process it ends by the one reading the tooling keeps a process by --"
 rigAssert "the include probes no call by its number before it ends a group, both watchdogs are the one function, each handler ends its watchdog only where that has not fired, and a job is kept and read with when it began through AgentsToolsRegistryProcessesBegan" \
-	"$( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'kill -0 "\$mcpCmdPid"' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e '^[[:space:]]*AgentsMcpCallWatch "\$mcp[A-Za-z]*" "\$mcpCmdPid" "\$mcpKillFile" 3>&- &$' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -x -e '[[:space:]]*if \[ ! -f "\$mcpKillFile" \] ; then' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -F '"$mcpJobPid" | AgentsToolsRegistryProcessesBegan' )" "0 2 2 2"
+	"$( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'kill -0 "\$mcpCmdPid"' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e '^[[:space:]]*AgentsMcpCallWatch "\$mcp[A-Za-z]*" "\$mcpCmdPid" "\$mcpKillFile" 3>&- &$' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -x -e '[[:space:]]*if \[ ! -f "\$mcpKillFile" \] ; then' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -F '"$mcpJobPid" | AgentsToolsRegistryProcessesBegan' )" "0 2 3 2"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ MCP CALL WATCHDOG CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

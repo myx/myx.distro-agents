@@ -6,10 +6,11 @@
 ## the sources added (--add-source-docs, --add-board-items, --add-vault-items, --add-inbox-items) and a query that starts with AND (--query-keyword,
 ## --query-pattern, --query-glob, and --query-open-and/--query-open-or ... --query-close for a group); its result is the text snippets that answer, each
 ## with its source: markdown, merged by the one nesting engine (--intern-merge-md-files), or under `--mdat-output-format json` before the first word, JSON.
-## The three stores of the team, a project's, the workspace's and the team's own, are read as sources of one query. No vector store: the query reads the
-## texts themselves (F8.2 and F8.3 are of the next epic). The functions are in sh-lib/team-data/AgentsTools.Knowledge.include.
+## The three stores of the team, a project's, the workspace's and the team's own, are read as sources of one query. A LanceDB store beside each MAGIC.md
+## (MAGIC.LanceDB, F8.2) is searched with the text, the store off, uninstalled or absent meaning the text alone. The functions are in
+## sh-lib/team-data/AgentsTools.Knowledge.include.
 ##
-## From DistroAgentsTools.fn.sh (F1.4): --get-path-history, --get-place-path, --get-roster, --list-namespaces, --list-places, --member-help (sh-lib/harness/AgentsContext.FrontTable.include).
+## From DistroAgentsTools.fn.sh (F1.4): --get-path-history, --get-place-path, --get-roster, --list-namespaces, --list-places, --local-models-list, --member-help (sh-lib/harness/AgentsContext.FrontTable.include).
 ##
 ## NOTE:
 ## Designed to be able to run without distro context. Starts console sessions.
@@ -56,6 +57,16 @@ DistroAgentsKnowledgeMoved(){
 			return $?
 		;;
 
+		## The models the local server has installed: the local leg's own read, passed through with its rc.
+		--local-models-list)
+			if [ $# -ne 1 ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: --local-models-list takes no arguments" >&2
+				set +e ; return 1
+			fi
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsLocalHarness.sh" --list-models
+			return $?
+		;;
+
 		--member-help)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"
 			return $?
@@ -76,6 +87,14 @@ DistroAgentsKnowledge(){
 		DistroAgentsKnowledgeMoved "$@"
 		return $?
 	fi
+	## The three help forms, as DistroAgentsTools.fn.sh has them: no word the query's own syntax (the entry points a
+	## reader starts from), --help-syntax the syntax line of every operation of this file, --help the manual.
+	case "${1:-}" in
+		''|--help|--help-syntax)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsKnowledge.include"
+			return $?
+		;;
+	esac
 	## The output format, before the first word: kept in a variable of the shell, since the common options below make the call again without it.
 	[ -n "${agentsCommonFronted:-}" ] || agentsKnowledgeFormat=md
 	if [ "${1:-}" = "--mdat-output-format" ] ; then
@@ -97,10 +116,6 @@ DistroAgentsKnowledge(){
 	## The data root, the skillset root and the bare-name gate, as every operation of the tooling settles them.
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.UseAgentsTools.include"
 	type AgentsToolsKnowledgeRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Knowledge.include"
-	if [ $# -eq 0 ] ; then
-		echo "$MDSC_CMD: ⛔ ERROR: syntax is [--mdat-output-format json] [<project selector>] --add-source-docs|--add-board-items|--add-vault-items|--add-inbox-items... --query-keyword|--query-pattern|--query-glob|--query-open-and|--query-open-or|--query-close..." >&2
-		set +e ; return 1
-	fi
 	AgentsToolsKnowledgeRun "${agentsKnowledgeFormat:-md}" "$@"
 	return $?
 }

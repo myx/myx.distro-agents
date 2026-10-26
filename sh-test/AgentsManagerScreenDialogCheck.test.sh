@@ -26,7 +26,7 @@
 ## the keys, the cursor shows, where what is typed goes, an emoji typed too, and stays there as the screen draws
 ## again; while a button has them it shows nowhere; at the end it shows again.
 ## Offline: nothing but the screen's own code runs, and no operation of the tooling is called.
-## Reconciled for F11.5: the list of two sessions that run is Active Sessions of Activity (the `sessions` command of the driver; `Launch (Start)`, the team and the participants are levels
+## Reconciled for F11.5: the list of two sessions that run is Active Sessions of Activity (the `sessions` command of the driver; `Launchpad`, the team and the participants are levels
 ## of their own, put at with `at`); a session opens with Enter; the toggles of a view (the raw log, the log, all or active) are those of the transcript of a participant, the only thing
 ## that has a log now; the roots are numbered 1 Dashboard, 2 Pending Questions, 3 Magic-Team (Agents); the menu View is one cell narrower.
 ## Reconciled for F11.0: every dialog has bigger margins inside its frame (two empty lines under its top, one more
@@ -138,7 +138,36 @@ rigAssert "Right goes around to the first button, and Shift-Tab back to the cont
 rigAssert "no key of a window, of a menu or of the screen works while the dialog is open" "$( rigVal held.dialog ) $( rigVal held.quit ) [$( rigVal held.menu )] $( rigVal held.filter ) $( rigVal held.focus ) [$( rigVal held.notice )]" "rig:pick|p3 no [] all list []"
 rigAssert "the dialog shows what was chosen"                         "$( rigHas d2 '║   [X] alpha ' ) $( rigHas d2 '║   (•) one way ' ) $( rigHas d2 '║   > third ' ) $( rigHas d2 '║   b ' )" "1 1 1 1"
 rigAssert "Enter presses the first button: the dialog closes, and its handler has what every control holds" "[$( rigVal done.dialog )] [$( rigVal done.notice )]" "[] [pressed ok: name=typed notes=a\\nb who=b,a,c how=x pick=p3]"
-rigAssert "and the status line says it, as a short confirmation does" "[$( rigVal doneLine )]" "[pressed ok: name=typed notes=a\\nb who=b,a,c how=x pick=p3]"
+## The bottom line is the COMMAND LINE (the keys that act now); what a dialog's OK pressed
+## said is the screen's NOTICE, and that is where the assertion reads it.
+rigAssert "and the notice says it, as a short confirmation does" "[$( rigVal done.notice )]" "[pressed ok: name=typed notes=a\\nb who=b,a,c how=x pick=p3]"
+
+echo "-- a field of one line has a cursor, and Home, End, Left and Right move it: what is typed goes where it stands, Backspace takes the character before it --"
+rigRun <<'RIGSCRIPT'
+rigdialog What the rig asks.
+turn
+get atStart
+keys HOME
+turn
+get atHome
+keys X
+turn
+get inserted
+keys END Y
+turn
+get appended
+keys LEFT LEFT BACKSPACE
+turn
+get erased
+keys HOME RIGHT RIGHT
+turn
+get moved
+RIGSCRIPT
+rigAssert "the cursor stands after what the field holds when it opens" "$( rigVal atStart.dialog ) $( rigVal atStart.cursor )" "rig:name|typed 10,39"
+rigAssert "Home takes it to the start, where what is typed goes before the text" "$( rigVal atHome.cursor ) $( rigVal inserted.dialog ) $( rigVal inserted.cursor )" "10,34 rig:name|Xtyped 10,35"
+rigAssert "End takes it to the end, where what is typed goes after the text" "$( rigVal appended.dialog ) $( rigVal appended.cursor )" "rig:name|XtypedY 10,41"
+rigAssert "Left moves it back, and Backspace takes the character before it" "$( rigVal erased.dialog ) $( rigVal erased.cursor )" "rig:name|XtypdY 10,38"
+rigAssert "Right moves it forward again" "$( rigVal moved.dialog ) $( rigVal moved.cursor )" "rig:name|XtypdY 10,36"
 
 echo "-- what a dialog refuses stays in it; Esc, Cancel and Space on a button --"
 rigRun <<'RIGSCRIPT'
@@ -208,7 +237,7 @@ handler kill
 handler control
 handler log
 handler start
-at @activity launch
+at @magic-team launch
 turn
 keys DOWN
 turn
@@ -241,12 +270,12 @@ cells onMember 39 0 120
 keys k
 get wrongKey
 RIGSCRIPT
-rigAssert "the list active on Launch (Start): what the list takes there, which Enter starts, then the keys of every window" "$( rigVal launch.selected ) [$( rigVal onLaunch )]" "free [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
-rigAssert "on a session: the keys that act on a session, and Enter, which opens it" "$( rigVal session.selected ) [$( rigVal onSession )]" "s1 [ ENTER Open  BSP Up  k Kill  c Control  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "the list active on Launchpad: what the list takes there, which Enter starts, then the keys of every window" "$( rigVal launch.selected ) [$( rigVal onLaunch )]" "coworking [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "on a session: the keys that act on a session, and Enter, which opens it" "$( rigVal session.selected ) [$( rigVal onSession )]" "s1 [ ENTER Open  BSP Up  / Filter  k Kill  c Control  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "the left window active: the list's own keys are gone, those that act on the selected session stay" "$( rigVal left.focus ) [$( rigVal onLeft )]" "view [ k Kill  c Control  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "a menu open: the keys of the menu alone"                  "[$( rigVal onMenu )]" "[ ENTER Choose  ESC Close  ←/→ Menus  UP/DN Items]"
-rigAssert "a line too short for all: the keys of every window are the first left out" "[$( rigVal narrow )]" "[ ENTER Open  BSP Up  k Kill  c Control]"
-rigAssert "on a member: the key that starts one, and none of a session's" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal onMember )]" "magic-team/team m1 [ ENTER Start  BSP Up  a Active  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "a line too short for all: the keys of every window are the first left out" "[$( rigVal narrow )]" "[ ENTER Open  BSP Up  / Filter  k Kill]"
+rigAssert "on a member: the key that starts one, and none of a session's" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal onMember )]" "magic-team/team m1 [ ENTER Start  BSP Up  a Active  / Filter  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 
 echo "-- the keys every terminal delivers: a plain key, or Esc and then a letter; no function key and no Alt --"
 rigRun <<'RIGSCRIPT'
@@ -305,12 +334,24 @@ border inside 1 0 84
 cells st 39 0 120
 keys k
 get onUp
+## R3-era tree: the session holds its participants, and a participant holds its items, so the
+## transcript is two levels in: the participant, then its Transcript
+keys DOWN
+turn
+keys ENTER
+turn
+keys DOWN
+turn
 keys DOWN
 turn
 border child 1 0 84
+## back out of the item to the participant it belongs to, which is what the next capture shows
+keys BACKSPACE
+turn
+border participant 1 0 84
 keys k
 get onChild
-at @activity launch
+at @magic-team launch
 turn
 get launch
 border launchTitle 1 0 84
@@ -325,9 +366,10 @@ turn
 border settingsTitle 1 0 84
 RIGSCRIPT
 rigAssert "a session opened, the selection on the row that goes up: the left window still shows that session" "[$( rigVal outside )] [$( rigVal inside )] $( rigVal in.path ) $( rigVal in.selected )" "[one [wrap]] [one [wrap]] magic-team/activity/active-sessions/s1 .."
-rigAssert "the keys that act on the session stand in the status line there, and act on it" "[$( rigVal st )] [$( rigVal onUp.notice )]" "[ ENTER Open  BSP Up  a Active  k Kill  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut] [handled kill on s1]"
-rigAssert "moving to a child shows the child, and the keys act on the child" "[$( rigVal child )] [$( rigVal onChild.notice )]" "[magic-coordinator [wrap]] [handled kill on s1]"
-rigAssert "Launch (Start) and the roots, entered with the selection on the row that goes up, show themselves" "$( rigVal launch.path ) [$( rigVal launchTitle )] [$( rigVal teamTitle )] [$( rigVal pendingTitle )] [$( rigVal settingsTitle )]" "magic-team/activity/launch [Launch (Start) [wrap]] [Team Members [wrap]] [Pending Questions [wrap]] [Settings [wrap]]"
+rigAssert "the keys that act on the session stand in the status line there, and act on it" "[$( rigVal st )] [$( rigVal onUp.notice )]" "[ ENTER Open  BSP Up  a Active  / Filter  k Kill  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut] [handled kill on s1]"
+rigAssert "moving to a child shows the child: the session's Transcript first, then its participant" "[$( rigVal child )] [$( rigVal participant )]" "[Transcript [summary] [wrap]] [magic-coordinator [wrap]]"
+rigAssert "the keys act on the child: kill on the participant" "[$( rigVal onChild.notice )]" "[handled kill on s1]"
+rigAssert "Launchpad and the roots, entered with the selection on the row that goes up, show themselves" "$( rigVal launch.path ) [$( rigVal launchTitle )] [$( rigVal teamTitle )] [$( rigVal pendingTitle )] [$( rigVal settingsTitle )]" "magic-team/launch [Launchpad [wrap]] [Team Members [wrap]] [Pending Questions [wrap]] [Settings [wrap]]"
 
 echo "-- the mode of the left window and a toggle of a view are kept for the run: the raw log, all or active --"
 rigRun <<'RIGSCRIPT'
@@ -550,7 +592,7 @@ rigCursor(){ ## tag -- whether the cursor shows, the field it stands in, what st
 }
 for rigOne in nu-blue tv-system bw-system ; do
 	printf '%s\n' "$rigSteps" > "$rigTmp/steps"
-	rigOut="$( env MANAGER_SCREEN_RIG="$rigTmp/rig" MANAGER_SCREEN_VT_DIALOGS=all MDAT_MANAGER_STYLE="$rigOne" "$rigPython" -I -B "$rigVt" "$rigScreen" run 120 40 "$rigTmp/dump.json" -- \
+	rigOut="$( env MANAGER_SCREEN_RIG="$rigTmp/rig" MANAGER_SCREEN_VT_DIALOGS=all MDLT_MANAGER_STYLE="$rigOne" "$rigPython" -I -B "$rigVt" "$rigScreen" run 120 40 "$rigTmp/dump.json" -- \
 		"$rigPython" -I -B "$rigVt" "$rigScreen" inner "$rigTmp/dump.json" -- --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" < "$rigTmp/steps" 2>&1 )"
 	rigAssert "$rigOne: no cursor on the message box's button; in the Free prompt's prompt, of several lines, it shows after what was typed" \
 		"$( rigVal await.Dialog_prompt ) [$( rigCursor message )] [$( rigCursor area )]" "yes [no none  0] [yes 2 ab None]"

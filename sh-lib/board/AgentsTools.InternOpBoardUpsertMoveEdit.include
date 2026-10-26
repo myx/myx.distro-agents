@@ -30,7 +30,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$toState" ] || [ -z "$itemName" ] ; then
-			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: syntax is <to-state> <item-filename> (--from-state:<state>|--create [--acting-member:<member>]) [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: syntax is <to-state> <item-filename> (--from-state:<state>|--create [--acting-member:<member>]) [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--upsert-from-slots|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		## A state is a word of the one list (AgentsTools.BoardStates.include), and nothing else.
@@ -124,6 +124,11 @@ case "$1" in
 					bodyModeCount=$(( bodyModeCount + 1 ))
 					shift
 				;;
+				--upsert-from-slots)
+					bodyMode="slots"
+					bodyModeCount=$(( bodyModeCount + 1 ))
+					shift
+				;;
 				--edit-script-from-stdin:*)
 					scriptLang="${1#--edit-script-from-stdin:}"
 					case "$scriptLang" in
@@ -195,7 +200,7 @@ case "$1" in
 		fi
 
 		if [ "$bodyModeCount" -gt 1 ] ; then
-			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --upsert-from-stdin, --edit-script-from-stdin, and --edit-patch-from-stdin are mutually exclusive" >&2
+			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --upsert-from-stdin, --upsert-from-slots, --edit-script-from-stdin, and --edit-patch-from-stdin are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 
@@ -234,6 +239,26 @@ case "$1" in
 			## told who called it, so the acting member is left empty rather than
 			## guessed, and the row carries the calling operation instead.
 			printf '%s' "$body" | AgentsToolsOutputStyleRefusal "" "" "$itemName via $opContext" "" none || :
+		elif [ "$bodyMode" = "slots" ] ; then
+			## --upsert-from-slots: the member gives only the slot values; the writer renders the document's
+			## body from its template (sh-lib/templates/board-item.<type>.document.format.md), and the
+			## front matter is stamped by the header ops below, as on any create.
+			type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include"
+			local slotsBlock slotsType slotsFile blocksSlot
+			slotsBlock="$( cat )"
+			slotsType="$( AgentsToolsItemNameType "$itemName" )"
+			[ -n "$slotsType" ] || { echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --upsert-from-slots: the item name names no type: $itemName" >&2 ; set +e ; return 1 ; }
+			[ -f "$( AgentsToolsToolingTemplate "board-item.$slotsType.document.format.md" )" ] || { echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --upsert-from-slots: no document template for the board type $slotsType (board-item.$slotsType.document.format.md)" >&2 ; set +e ; return 1 ; }
+			## A member-supplied front-matter key, `blocks` (an approval), is a header op, never a body slot.
+			blocksSlot="$( printf '%s\n' "$slotsBlock" | LC_ALL=C sed -n 's/^blocks:[[:space:]]*\(..*\)$/\1/p' | LC_ALL=C sed -n 1p )"
+			[ -z "$blocksSlot" ] || headerOps="${headerOps}upsert"$'\t'"blocks"$'\t'"$blocksSlot"$'\n'
+			mkdir -p "$MMDAPP/.local/temp" || { echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --upsert-from-slots: the temp folder could not be made" >&2 ; set +e ; return 1 ; }
+			slotsFile="$( mktemp "$MMDAPP/.local/temp/mdat-intern-op-board-slots.XXXXXX" )" || { echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --upsert-from-slots: a slots temp file could not be made" >&2 ; set +e ; return 1 ; }
+			printf '%s\n' "$slotsBlock" > "$slotsFile" || { rm -f "$slotsFile" ; set +e ; return 1 ; }
+			body="$( BDS_SLOTS="$slotsFile" AgentsToolsToolingTemplateFill "board-item.$slotsType.document.format.md" board/AgentsBoardItemDocumentFill.awk )" \
+				|| { rm -f "$slotsFile" ; echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --upsert-from-slots: the document for board type $slotsType could not be filled from its template" >&2 ; set +e ; return 1 ; }
+			rm -f "$slotsFile"
+			[ -n "$body" ] || { echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --upsert-from-slots: the slots fill to an empty document -- nothing was written" >&2 ; set +e ; return 1 ; }
 		elif [ "$bodyMode" = "patch" ] ; then
 			local patchJson existingContent
 			patchJson="$( cat )"

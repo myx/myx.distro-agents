@@ -2,11 +2,11 @@
 ## Behavioural check on the effort changed while a run goes on (F10.7 of the refactorings epic, Constraint 12): a harness run
 ## reads `sessions/<key>/effort` before every request (the run's own store, else its coworking session's), and the effort of the
 ## request is that; and, because a change of effort in the middle of a conversation is a known silent invalidator of the input
-## token cache, the run SAYS so when it reads a change. --manager-session-effort <session-id> <low|normal|high> writes the file.
+## token cache, the run SAYS so when it reads a change. --manager-session-effort <session-id> <unset|none|low|normal|high> writes the file.
 ## Run through the real core and the Anthropic Messages wire against a fake `curl` replaying canned streams; the file is written
 ## by the fake curl's hook while round 1 is answered, so round 2 is the first to see it. Held:
 ##   1. the tier's own effort (heavy: high) stands where nothing is asked
-##   2. low, high, normal asked between rounds: the next request carries low, high, or none (normal is the model's default),
+##   2. low, high, normal asked between rounds: the next request carries low, high, or medium (normal); unset sends none, and the effort none is a level of its own,
 ##      and one `input cache` line names the old effort and the new; asking what already stands says nothing
 ##   3. an effort asked before the first request is the starting one, and says nothing
 ##   4. a value that is none of the three is ignored; the coworking session's store is read where the run's own has none
@@ -112,12 +112,23 @@ rigAssert "round 2 carries low"                                              "$(
 rigAssert "the run says the input cache is discarded, naming both efforts"   "$( rigHolds "$rigScenarioDir/err" 'input cache -- effort changed from high to low: the cached prefix of this session is discarded' )" yes
 rigStart to-normal ; rigStreams
 RIG_AFTER_ROUND_1="printf 'normal\\n' > '$rigScenarioDir/.local/agents/sessions/rig-run/effort'" rigRun --tier heavy
-rigAssert "normal is the model's default: round 2 sends no effort"           "$( rigEffortOf "$rigScenarioDir/req.2" )" none
-rigAssert "and the line says from high to default"                           "$( rigHolds "$rigScenarioDir/err" 'effort changed from high to default' )" yes
+rigAssert "normal is a level of its own: round 2 sends medium"               "$( rigEffortOf "$rigScenarioDir/req.2" )" medium
+rigAssert "and the line says from high to normal"                            "$( rigHolds "$rigScenarioDir/err" 'effort changed from high to normal' )" yes
+rigStart to-unset ; rigStreams
+RIG_AFTER_ROUND_1="printf 'unset\\n' > '$rigScenarioDir/.local/agents/sessions/rig-run/effort'" rigRun --tier heavy
+rigAssert "unset is the model's default: round 2 sends no effort"            "$( rigEffortOf "$rigScenarioDir/req.2" )" none
+rigAssert "and the line says from high to unset"                             "$( rigHolds "$rigScenarioDir/err" 'effort changed from high to unset' )" yes
+rigStart to-none ; rigStreams
+RIG_AFTER_ROUND_1="printf 'none\\n' > '$rigScenarioDir/.local/agents/sessions/rig-run/effort'" rigRun --tier heavy
+rigAssert "none is a level of its own: a service with no none gets its lowest"  "$( rigEffortOf "$rigScenarioDir/req.2" )" low
+rigAssert "and the line says from high to none"                              "$( rigHolds "$rigScenarioDir/err" 'effort changed from high to none' )" yes
+rigStart to-none-thinking ; rigStreams
+RIG_AFTER_ROUND_1="printf 'none\\n' > '$rigScenarioDir/.local/agents/sessions/rig-run/effort'" HARNESS_NONE_FORM=thinking:disabled rigRun --tier heavy
+rigAssert "none of a family that switches its thinking off: the thinking is off and no effort is sent"  "$( rigHolds "$rigScenarioDir/req.2" '"thinking":{"type":"disabled"}' ) $( rigEffortOf "$rigScenarioDir/req.2" )" "yes none"
 rigStart to-high ; rigStreams
 RIG_AFTER_ROUND_1="printf 'high\\n' > '$rigScenarioDir/.local/agents/sessions/rig-run/effort'" rigRun
-rigAssert "from the default to high: round 1 sends none, round 2 high"       "$( rigEffortOf "$rigScenarioDir/req.1" ) $( rigEffortOf "$rigScenarioDir/req.2" )" "none high"
-rigAssert "and the line says from default to high"                           "$( rigHolds "$rigScenarioDir/err" 'effort changed from default to high' )" yes
+rigAssert "from unset to high: round 1 sends none, round 2 high"             "$( rigEffortOf "$rigScenarioDir/req.1" ) $( rigEffortOf "$rigScenarioDir/req.2" )" "none high"
+rigAssert "and the line says from unset to high"                            "$( rigHolds "$rigScenarioDir/err" 'effort changed from unset to high' )" yes
 rigStart same-as-it-stands ; rigStreams
 RIG_AFTER_ROUND_1="printf 'high\\n' > '$rigScenarioDir/.local/agents/sessions/rig-run/effort'" rigRun --tier heavy
 rigAssert "asking what already stands changes nothing"                       "$( rigEffortOf "$rigScenarioDir/req.2" )" high
@@ -139,7 +150,7 @@ RIG_AFTER_ROUND_1="printf 'low\\n' > '$rigScenarioDir/.local/agents/sessions/rig
 rigAssert "the coworking session's store is read where the run's own has none"  "$( rigEffortOf "$rigScenarioDir/req.2" )" low
 rigStart own-ahead ; rigStreams
 RIG_AFTER_ROUND_1="printf 'low\\n' > '$rigScenarioDir/.local/agents/sessions/rig-cowork/effort' ; printf 'normal\\n' > '$rigScenarioDir/.local/agents/sessions/rig-run/effort'" rigRun --tier heavy
-rigAssert "and the run's own store is ahead of it"                           "$( rigEffortOf "$rigScenarioDir/req.2" )" none
+rigAssert "and the run's own store is ahead of it"                           "$( rigEffortOf "$rigScenarioDir/req.2" )" medium
 
 echo "-- 5. --manager-session-effort --"
 rigWs="$rigTmp/ws"
@@ -155,9 +166,16 @@ rigAssert "it saves low and prints one row: the id, the effort, the file"    "$r
 rigAssert "the file holds that one line"                                      "$( cat "$rigWs/.local/agents/sessions/rig-session-1/effort" )" low
 rigOp rig-session-1 high
 rigAssert "a second write replaces it"                                       "$rigRc $( cat "$rigWs/.local/agents/sessions/rig-session-1/effort" )" "0 high"
+rigOp rig-session-1 none
+rigAssert "none is a level of its own and is saved like the others"             "$rigRc $( cat "$rigWs/.local/agents/sessions/rig-session-1/effort" )" "0 none"
+rigOp rig-session-1 unset
+rigAssert "unset is saved like the others"                                    "$rigRc $( cat "$rigWs/.local/agents/sessions/rig-session-1/effort" )" "0 unset"
+rigOp rig-session-1 normal
+rigAssert "normal is saved like the others"                                   "$rigRc $( cat "$rigWs/.local/agents/sessions/rig-session-1/effort" )" "0 normal"
+rigOp rig-session-1 high
 rigAssert "no temp file is left in the store"                                "$( ls -A "$rigWs/.local/agents/sessions/rig-session-1" | tr '\n' ' ' )" "effort "
 rigOp rig-session-1 maximum
-rigAssert "an effort that is none of the three is refused, and the file stands"  "$rigRc $( cat "$rigWs/.local/agents/sessions/rig-session-1/effort" )" "1 high"
+rigAssert "an effort that is none of the five is refused, and the file stands"  "$rigRc $( cat "$rigWs/.local/agents/sessions/rig-session-1/effort" )" "1 high"
 rigOp rig-session-9 low
 rigAssert "an id that names no store is refused"                             "$rigRc $( [ -e "$rigWs/.local/agents/sessions/rig-session-9" ] && printf made || printf none )" "1 none"
 rigOp '../escape' low
@@ -168,8 +186,8 @@ rigAs=keeper-rig
 rigOp rig-session-1 low
 rigAssert "a member's session is refused, as the console's other operations refuse it"  "$rigRc $( cat "$rigWs/.local/agents/sessions/rig-session-1/effort" )" "1 high"
 rigAs=""
-rigAssert "the help carries it, and says the per-message trial is not built"  "$( LC_ALL=C grep -c -e '--manager-session-effort <session-id> <low|normal|high>' -e 'needs a measured trial against the real API' "$rigPackage/sh-lib/help/Help.DistroAgentsTools.help.md" )" 3
-rigAssert "and so does the syntax list of the help"                           "$( LC_ALL=C grep -c -e '--manager-session-effort <session-id> <low|normal|high>' "$rigPackage/sh-lib/help/Help.DistroAgentsTools.include" )" 1
+rigAssert "the help carries it, and says the per-message trial is not built"  "$( LC_ALL=C grep -c -e '--manager-session-effort <session-id> <unset|none|low|normal|high>' -e 'needs a measured trial against the real API' "$rigPackage/sh-lib/help/Help.DistroAgentsTools.help.md" )" 3
+rigAssert "and so does the syntax list of the help"                           "$( LC_ALL=C grep -c -e '--manager-session-effort <session-id> <unset|none|low|normal|high>' "$rigPackage/sh-lib/help/Help.DistroAgentsTools.include" )" 1
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ EFFORT WHILE RUNNING CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

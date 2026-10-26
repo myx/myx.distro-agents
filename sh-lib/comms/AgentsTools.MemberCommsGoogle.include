@@ -27,9 +27,12 @@ AgentsToolsGoogleResolveMember() {
 	esac
 
 	AgentsToolsCommsOwnSideCheck "$memberName" Google "$opName" || return 1
-	googleClientId="$( DistroAgentsTools --agents-config-option "$memberName" --select GOOGLE_CLIENT_ID )"
-	googleClientSecret="$( DistroAgentsTools --agents-config-option "$memberName" --select GOOGLE_CLIENT_SECRET )"
-	googleRefreshToken="$( DistroAgentsTools --agents-config-option "$memberName" --select GOOGLE_REFRESH_TOKEN )"
+	## THE CREDENTIALS FROM THE ENVIRONMENT (D4): the platform tool stands alone, with
+	## its keys in the environment, before it asks any scope. The same names the config
+	## store holds, so a caller that exports them needs no team data at all.
+	googleClientId="${GOOGLE_CLIENT_ID:-}" ; [ -n "$googleClientId" ] || googleClientId="$( DistroAgentsTools --agents-config-option "$memberName" --select GOOGLE_CLIENT_ID )" || googleClientId=""
+	googleClientSecret="${GOOGLE_CLIENT_SECRET:-}" ; [ -n "$googleClientSecret" ] || googleClientSecret="$( DistroAgentsTools --agents-config-option "$memberName" --select GOOGLE_CLIENT_SECRET )" || googleClientSecret=""
+	googleRefreshToken="${GOOGLE_REFRESH_TOKEN:-}" ; [ -n "$googleRefreshToken" ] || googleRefreshToken="$( DistroAgentsTools --agents-config-option "$memberName" --select GOOGLE_REFRESH_TOKEN )" || googleRefreshToken=""
 	if [ -z "$googleClientId" ] || [ -z "$googleClientSecret" ] || [ -z "$googleRefreshToken" ] ; then
 		echo "⛔ ERROR: $MDSC_CMD --$opName: GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
 		return 1

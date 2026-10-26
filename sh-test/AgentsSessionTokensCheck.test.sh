@@ -6,6 +6,9 @@
 ## real proxy, whose fake console streams canned stream-json through the real writer.
 ## Offline: a temp git store and workspace; nothing is posted and the real store is never reached.
 set -u
+## These rigs keep a tracking item and a transcript, which only a team rig keeps (AgentsTools.TeamDataGate.include); the runner gives every
+## test that mode, and a run by hand takes the same default, so the result is the same either way.
+: "${MDAT_WORKSPACE_MODE:=team-rig}" ; export MDAT_WORKSPACE_MODE
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"

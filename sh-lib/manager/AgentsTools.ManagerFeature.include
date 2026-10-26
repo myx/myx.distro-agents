@@ -1,0 +1,375 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerFeature.include -- the --manager-feature-* operations: the optional features of mdci-packages-myx
+## (setup.feature-*) as the console's `Optional Features` shows and works them. Sourced from the `--manager-feature-*)` arm of
+## AgentsTools.Manager.include; who may call was asked where the family is dispatched.
+##
+## THE FEATURES DO THEIR OWN WORK. A feature is a folder $MDLT_ORIGIN/myx/mdci-packages-myx/setup.feature-<name>/ with its fragments in
+## host/install/ (*.install.txt, *.uninstall.txt, *.check.txt). What a feature is, is what its own check fragment says, run as it is with
+## the workspace, the origin and MDCI_FILES_PATH (its data/) handed over, and MDCI_CHECK_PARSE=1 for the key: value form of a check that
+## has a human report as well (setup.feature-local-ai). Its first line is `<feature>: installed | not installed | broken | not supported here`.
+## An install, an update or an uninstall is the feature's own install or uninstall fragment, never a copy of its work here. What is
+## the tooling's, and the console renders and computes nothing of it: the state of each part, the sizes, what an action needs and
+## whether the space and the memory allow it.
+##
+## A part of setup.feature-local-ai is a row of its models.tsv (a model, which a chat or speech engine serves); setup.feature-lancedb has
+## one part, itself, named lancedb. A free prompt, a speech test and a `local` preset ask what the feature installed and nothing else.
+##
+
+## The folder of the features, and the fragments of one.
+AgentsToolsManagerFeatureRoot(){
+	printf '%s\n' "$MDLT_ORIGIN/myx/mdci-packages-myx"
+}
+AgentsToolsManagerFeatureNames(){ ## the features, one a line: the folders setup.feature-* that have a check fragment
+	local namesDir
+	for namesDir in "$( AgentsToolsManagerFeatureRoot )"/setup.feature-* ; do
+		[ -d "$namesDir/host/install" ] || continue
+		AgentsToolsManagerFeatureFragment "${namesDir##*/}" check > /dev/null || continue
+		printf '%s\n' "${namesDir##*/}"
+	done
+}
+AgentsToolsManagerFeatureFragment(){ ## feature, install|uninstall|check -- the path of that fragment, rc 1 where the feature has none
+	local fragmentFile
+	for fragmentFile in "$( AgentsToolsManagerFeatureRoot )/$1"/host/install/*."$2".txt "$( AgentsToolsManagerFeatureRoot )/$1"/host/install/*."$2".sh ; do
+		[ -f "$fragmentFile" ] || continue
+		printf '%s\n' "$fragmentFile"
+		return 0
+	done
+	return 1
+}
+
+## A feature's check, as its fragment prints it; its status is the fragment's, and what it says on stderr is not the reader's.
+AgentsToolsManagerFeatureCheck(){ ## feature
+	local checkFile
+	checkFile="$( AgentsToolsManagerFeatureFragment "$1" check )" || return 2
+	env MMDAPP="$MMDAPP" MDLT_ORIGIN="$MDLT_ORIGIN" MDCI_FILES_PATH="$( AgentsToolsManagerFeatureRoot )/$1/data" MDCI_CHECK_PARSE=1 sh "$checkFile" 2> /dev/null < /dev/null
+}
+
+## The rows of one feature's check, on standard input: `feature` first, then a `part` for each part. The fields are the same in both:
+##   <feature|part> <feature> <part|-> <state> <disk-bytes> <memory-bytes> <running> <install> <update> <uninstall> <detail>
+## <state> is installed, not-installed, broken or unsupported; an absent value reads `-`, and the whitespace of a value reads `_`.
+AgentsToolsManagerFeatureRows(){ ## feature
+	LC_ALL=C awk -v feature="$1" -v command="DistroAgentsTools.fn.sh --manager-feature-part" '
+		function norm( text ) {
+			if ( text == "installed" ) { return "installed" }
+			if ( text == "not installed" ) { return "not-installed" }
+			if ( text == "broken" ) { return "broken" }
+			if ( text == "not supported here" ) { return "unsupported" }
+			return "broken"
+		}
+		function field( text ) { gsub( /[ \t]+/, "_", text ) ; return ( text == "" ) ? "-" : text }
+		## the three commands of a row by its state: an install of what is not there, an update of what is there or broken (its install again), an uninstall of what is there or broken
+		function commands( state, part,   target ) {
+			target = feature " " part
+			if ( state == "not-installed" ) { return command " install " target "\t-\t-" }
+			if ( state == "installed" || state == "broken" ) { return "-\t" command " update " target "\t" command " uninstall " target }
+			return "-\t-\t-"
+		}
+		{
+			at = index( $0, ": " )
+			if ( at == 0 ) { next }
+			key = substr( $0, 1, at - 1 ) ; value = substr( $0, at + 2 )
+			if ( ++lines == 1 ) { first = value ; next }
+			values[key] = value
+			if ( key ~ /^part\..*\.part$/ ) { id = substr( key, 6, length( key ) - 10 ) ; ids[++count] = id }
+			if ( key ~ /^detail/ || key == "profile" || key == "platform" || key == "home" || key == "versions" || key == "model" || key == "why" || key == "query" || key == "host.profile" || key == "host.os" ) { detail = detail ( detail == "" ? "" : "; " ) key "=" value }
+		}
+		END {
+			if ( lines == 0 ) { first = "broken" ; detail = "the check printed nothing" }
+			state = norm( first )
+			disk = "-" ; memory = "-" ; running = "-"
+			if ( ( "disk_bytes" in values ) ) { disk = values["disk_bytes"] }
+			if ( ( "size" in values ) ) { size = values["size"] ; sub( / MB$/, "", size ) ; if ( size ~ /^[0-9]+$/ ) { disk = size * 1048576 } }
+			if ( count > 0 ) {
+				running = "no" ; memory = 0
+				for ( n = 1 ; n <= count ; n++ ) { if ( values["part." ids[n] ".running"] == "yes" ) { running = "yes" ; memory += values["part." ids[n] ".memory_bytes"] } }
+				if ( running == "no" ) { memory = "-" }
+				printf "feature\t%s\t-\t%s\t%s\t%s\t%s\t-\t-\t-\t%s\n", feature, state, disk, memory, running, field( detail )
+				for ( n = 1 ; n <= count ; n++ ) {
+					id = ids[n] ; pstate = norm( values["part." id ".state"] )
+					pdetail = "part=" values["part." id ".part"] ( ( "part." id ".why" ) in values ? "; why=" values["part." id ".why"] : "" )
+					printf "part\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", feature, id, pstate, values["part." id ".disk_bytes"], values["part." id ".memory_bytes"], values["part." id ".running"], commands( pstate, id ), field( pdetail )
+				}
+			} else {
+				## a feature of one part, itself: its commands are on its row, and its part is named for the feature
+				part = feature ; sub( /^setup\.feature-/, "", part )
+				printf "feature\t%s\t-\t%s\t%s\t%s\t%s\t%s\t%s\n", feature, state, disk, memory, running, ( lines == 0 ) ? "-\t-\t-" : commands( state, part ), field( detail )
+			}
+		}'
+}
+
+## The state of one part of a feature in a check's text, on standard input; rc 1 where the feature has no such part.
+AgentsToolsManagerFeaturePartState(){ ## feature, part
+	LC_ALL=C awk -v feature="$1" -v part="$2" '
+		function norm( text ) {
+			if ( text == "installed" ) { return "installed" }
+			if ( text == "not installed" ) { return "not-installed" }
+			if ( text == "not supported here" ) { return "unsupported" }
+			return "broken"
+		}
+		{
+			at = index( $0, ": " ) ; if ( at == 0 ) { next }
+			key = substr( $0, 1, at - 1 ) ; value = substr( $0, at + 2 )
+			if ( ++lines == 1 ) { first = value ; next }
+			if ( key ~ /^part\..*\.part$/ ) { parts[substr( key, 6, length( key ) - 10 )] = value ; anyparts = 1 }
+			if ( key == "part." part ".state" ) { found = norm( value ) }
+		}
+		END {
+			if ( anyparts ) { if ( found == "" ) { exit 1 } print found ; exit 0 }
+			one = feature ; sub( /^setup\.feature-/, "", one )
+			if ( part != one || lines == 0 ) { exit 1 }
+			print norm( first )
+		}'
+}
+
+## The value of one key of a check or plan text, on standard input: the first line that has it.
+AgentsToolsManagerFeatureValue(){ ## key
+	LC_ALL=C awk -v wanted="$1" '{ at = index( $0, ": " ) ; if ( at > 0 && substr( $0, 1, at - 1 ) == wanted ) { print substr( $0, at + 2 ) ; found = 1 ; exit } } END { exit ( found ? 0 : 1 ) }'
+}
+
+## One refusal line, rc 1: nothing was done.
+AgentsToolsManagerFeatureRefuse(){ ## operation, text
+	echo "⛔ ERROR: $MDSC_CMD $1: $2 -- nothing was done" >&2
+	return 1
+}
+
+## The reply text of a chat answer (the server's JSON) and the text of a transcription: python3 where there is one; the JSON as it is where there is none.
+AgentsToolsManagerFeatureJsonText(){ ## chat|stt, the JSON on standard input
+	local jsonKind="$1" jsonRaw
+	jsonRaw="$( cat )"
+	if command -v python3 > /dev/null 2>&1 ; then
+		printf '%s' "$jsonRaw" | python3 -I -c '
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    print(data["choices"][0]["message"]["content"] if sys.argv[1] == "chat" else data["text"])
+except Exception:
+    sys.exit(3)
+' "$jsonKind" && return 0
+		return 1
+	fi
+	printf '%s\n' "$jsonRaw"
+}
+
+case "$1" in
+
+	## The features and their parts, one row each: state, size on disk and in memory, whether it runs, and the three commands. Each feature is asked
+	## of its own check fragment. Nothing is changed.
+	--manager-feature-list)
+		local listOp="$1" listFeature listText
+		shift
+		[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is $listOp, got $# argument(s) -- nothing is shown" >&2 ; set +e ; return 1 ; }
+		while IFS= read -r listFeature ; do
+			[ -n "$listFeature" ] || continue
+			listText="$( AgentsToolsManagerFeatureCheck "$listFeature" )" || :
+			printf '%s\n' "$listText" | AgentsToolsManagerFeatureRows "$listFeature"
+		done <<< "$( AgentsToolsManagerFeatureNames )"
+		return 0
+	;;
+
+	## One part installed, updated or uninstalled: the needs and the space first, as rows, and then, only with --yes, the work, which is the feature's own fragment.
+	--manager-feature-part)
+		local partOp="$1" partAction="${2:-}" partFeature="${3:-}" partPart="${4:-}" partYes="" partForce="" partDir partCheck partState partTool partTokens partPlan="" partNeed=""
+		local partDownload="-" partReclaim="-" partFree="-" partRamNeed="-" partRam="-" partBlocked="no" partWhy="-" partRc=0 partFragment partEach partHome
+		local partSyntax="(install|update|uninstall) <feature> <part> [--yes] [--force]"
+		if [ $# -lt 4 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $partOp: syntax is $partSyntax, got $(( $# - 1 )) argument(s) -- nothing was done" >&2
+			set +e ; return 1
+		fi
+		shift 4
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--yes) partYes="yes" ; shift ;;
+				--force) partForce="yes" ; shift ;;
+				*) echo "⛔ ERROR: $MDSC_CMD $partOp: syntax is $partSyntax, got: $1" >&2 ; set +e ; return 1 ;;
+			esac
+		done
+		case "$partAction" in
+			install|update|uninstall) ;;
+			*) echo "⛔ ERROR: $MDSC_CMD $partOp: syntax is $partSyntax, got: ${partAction:-no action}" >&2 ; set +e ; return 1 ;;
+		esac
+		AgentsToolsManagerFeatureNames | LC_ALL=C grep -q -x -F -- "$partFeature" || { AgentsToolsManagerFeatureRefuse "$partOp" "no such feature: $partFeature" ; set +e ; return 1 ; }
+		partDir="$( AgentsToolsManagerFeatureRoot )/$partFeature"
+		partCheck="$( AgentsToolsManagerFeatureCheck "$partFeature" )" || :
+		partState="$( printf '%s\n' "$partCheck" | AgentsToolsManagerFeaturePartState "$partFeature" "$partPart" )" || { AgentsToolsManagerFeatureRefuse "$partOp" "$partFeature has no part $partPart" ; set +e ; return 1 ; }
+		case "$partAction:$partState" in
+			*:unsupported) AgentsToolsManagerFeatureRefuse "$partOp" "$partPart of $partFeature is not supported on this machine" ; set +e ; return 1 ;;
+			install:installed|install:broken) AgentsToolsManagerFeatureRefuse "$partOp" "$partPart of $partFeature is $partState already; an update installs it again" ; set +e ; return 1 ;;
+			update:not-installed|uninstall:not-installed) AgentsToolsManagerFeatureRefuse "$partOp" "$partPart of $partFeature is not installed" ; set +e ; return 1 ;;
+		esac
+
+		## THE NEEDS, from the feature: for local-ai the tool's own dry run (its packages, the models, the space and the memory of the host), for another feature what it says in its check.
+		case "$partFeature" in
+			setup.feature-local-ai)
+				partTool="$partDir/data/local-ai/mdci-local-ai"
+				[ -f "$partTool" ] || { AgentsToolsManagerFeatureRefuse "$partOp" "the command of the feature is not here ($partTool)" ; set +e ; return 1 ; }
+				case "$( printf '%s\n' "$partCheck" | AgentsToolsManagerFeatureValue "part.$partPart.part" )" in
+					stt) partTokens="stt-engine $partPart" ;;
+					*) partTokens="chat-engine $partPart" ;;
+				esac
+				[ -z "$partForce" ] || partTokens="--force $partTokens"
+				case "$partAction" in
+					install) partPlan="$( sh "$partTool" install --dry-run --parse $partTokens 2> /dev/null < /dev/null )" || { AgentsToolsManagerFeatureRefuse "$partOp" "the plan of the install could not be made" ; set +e ; return 1 ; } ;;
+					uninstall) partPlan="$( sh "$partTool" uninstall --dry-run --parse "$partPart" 2> /dev/null < /dev/null )" || { AgentsToolsManagerFeatureRefuse "$partOp" "the plan of the uninstall could not be made" ; set +e ; return 1 ; } ;;
+					update)
+						## an update fetches the model again: what it takes is the file once more, and what it frees first is the file it has
+						partDownload="$( printf '%s\n' "$partCheck" | AgentsToolsManagerFeatureValue "part.$partPart.expected_bytes" )" || partDownload=0
+						partReclaim="$( printf '%s\n' "$partCheck" | AgentsToolsManagerFeatureValue "part.$partPart.disk_bytes" )" || partReclaim=0
+						partFree="$( printf '%s\n' "$partCheck" | AgentsToolsManagerFeatureValue host.free_bytes )" || partFree=0
+						partPlan="$( printf 'plan.download_bytes: %s\nplan.reclaim_bytes: %s\nplan.free_bytes: %s\nplan.ram_bytes: %s\nplan.ram_need_bytes: %s\nplan.model: %s %s\n' "$partDownload" "$partReclaim" "$partFree" \
+							"$( printf '%s\n' "$partCheck" | AgentsToolsManagerFeatureValue host.ram_bytes )" "$( printf '%s\n' "$partCheck" | AgentsToolsManagerFeatureValue "part.$partPart.memory_bytes" )" "$partPart" "$partDownload" )"
+						if [ "$partFree" -le "$(( partDownload - partReclaim ))" ] ; then
+							partPlan="$partPlan"$'\nplan.blocked: yes\nplan.why: not enough free space'
+						else
+							partPlan="$partPlan"$'\nplan.blocked: no'
+						fi
+					;;
+				esac
+				partDownload="$( printf '%s\n' "$partPlan" | AgentsToolsManagerFeatureValue plan.download_bytes )" || partDownload="-"
+				partReclaim="$( printf '%s\n' "$partPlan" | AgentsToolsManagerFeatureValue plan.reclaim_bytes )" || partReclaim="-"
+				partFree="$( printf '%s\n' "$partPlan" | AgentsToolsManagerFeatureValue plan.free_bytes )" || partFree="-"
+				partRamNeed="$( printf '%s\n' "$partPlan" | AgentsToolsManagerFeatureValue plan.ram_need_bytes )" || partRamNeed="-"
+				partRam="$( printf '%s\n' "$partPlan" | AgentsToolsManagerFeatureValue plan.ram_bytes )" || partRam="-"
+				[ "$( printf '%s\n' "$partPlan" | AgentsToolsManagerFeatureValue plan.blocked )" != "yes" ] || { partBlocked="yes" ; partWhy="$( printf '%s\n' "$partPlan" | AgentsToolsManagerFeatureValue plan.why )" ; }
+				partNeed="$( printf '%s\n' "$partPlan" | LC_ALL=C awk -F': ' '$1 ~ /^plan\.(package|model|remove|present)$/ { printf "%s %s\n", substr( $1, 6 ), substr( $0, length( $1 ) + 3 ) }' )"
+			;;
+			*)
+				partHome="$( printf '%s\n' "$partCheck" | AgentsToolsManagerFeatureValue home )" || partHome="$MMDAPP"
+				## the space is that of the nearest folder that exists, for the home of a feature that is not installed is not there yet
+				partEach="${partHome:-$MMDAPP}"
+				while [ ! -d "$partEach" ] && [ "$partEach" != "/" ] && [ "$partEach" != "." ] ; do partEach="$( dirname "$partEach" )" ; done
+				partFree="$( df -Pk "$partEach" 2> /dev/null | LC_ALL=C awk 'NR == 2 { print $4 * 1024 }' )" || partFree="-"
+				case "$partAction" in
+					uninstall)
+						partReclaim="$( printf '%s\n' "$partCheck" | AgentsToolsManagerFeatureValue size | LC_ALL=C awk '{ print $1 * 1048576 }' )"
+						partNeed="remove the folder of the feature: ${partHome:-unknown}"
+					;;
+					*) partNeed="the feature's own install fragment, which asks the embedded Python of the local tools and fetches the packages and the model it pins; what stands at the pinned versions is kept" ;;
+				esac
+			;;
+		esac
+		printf 'plan\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$partAction" "$partFeature" "$partPart" "${partDownload:--}" "${partReclaim:--}" "${partFree:--}" "${partRamNeed:--}" "${partRam:--}" "$partBlocked" "$( printf '%s' "$partWhy" | LC_ALL=C tr ' \t' '__' )"
+		while IFS= read -r partEach ; do
+			[ -n "$partEach" ] || continue
+			printf 'need\t%s\n' "$( printf '%s' "$partEach" | LC_ALL=C tr ' \t' '__' )"
+		done <<< "$partNeed"
+		if [ "$partBlocked" = "yes" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $partOp: $partAction of $partPart of $partFeature is not possible here: $partWhy -- nothing was done" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$partYes" ] ; then
+			echo "$MDSC_CMD $partOp: that is the plan; nothing was done. Add --yes to $partAction $partPart of $partFeature" >&2
+			return 0
+		fi
+
+		## THE WORK is the feature's fragment, as its deploy runs it; what it says goes to standard error, so the rows stay the operation's.
+		case "$partFeature" in
+			setup.feature-local-ai)
+				if [ "$partAction" = "uninstall" ] || [ "$partAction" = "update" ] ; then
+					partFragment="$( AgentsToolsManagerFeatureFragment "$partFeature" uninstall )" || { AgentsToolsManagerFeatureRefuse "$partOp" "the feature has no uninstall fragment" ; set +e ; return 1 ; }
+					env MDCI_FILES_PATH="$partDir/data" MDCI_LOCAL_AI_REMOVE="$partPart" sh "$partFragment" 1>&2 < /dev/null || partRc=$?
+				fi
+				if [ "$partRc" = 0 ] && { [ "$partAction" = "install" ] || [ "$partAction" = "update" ] ; } ; then
+					partFragment="$( AgentsToolsManagerFeatureFragment "$partFeature" install )" || { AgentsToolsManagerFeatureRefuse "$partOp" "the feature has no install fragment" ; set +e ; return 1 ; }
+					env MDCI_FILES_PATH="$partDir/data" MDCI_LOCAL_AI_PARTS="$partTokens" sh "$partFragment" 1>&2 < /dev/null || partRc=$?
+				fi
+			;;
+			*)
+				partFragment="$( AgentsToolsManagerFeatureFragment "$partFeature" "$( [ "$partAction" = "uninstall" ] && echo uninstall || echo install )" )" || { AgentsToolsManagerFeatureRefuse "$partOp" "the feature has no fragment for $partAction" ; set +e ; return 1 ; }
+				env MMDAPP="$MMDAPP" MDLT_ORIGIN="$MDLT_ORIGIN" sh "$partFragment" 1>&2 < /dev/null || partRc=$?
+			;;
+		esac
+		partCheck="$( AgentsToolsManagerFeatureCheck "$partFeature" )" || :
+		partState="$( printf '%s\n' "$partCheck" | AgentsToolsManagerFeaturePartState "$partFeature" "$partPart" )" || partState="unknown"
+		printf 'done\t%s\t%s\t%s\t%s\n' "$partAction" "$partFeature" "$partPart" "$partState"
+		case "$partAction:$partState" in
+			uninstall:not-installed|install:installed|update:installed) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD $partOp: $partAction of $partPart of $partFeature ended with the part $partState (the fragment ended $partRc)" >&2
+				set +e ; return 1
+			;;
+		esac
+		return 0
+	;;
+
+	## A free prompt to one installed chat model of the local AI feature: the reply, as text, on standard output.
+	--manager-feature-ask)
+		local askOp="$1" askModel="${2:-}" askSource="" askFile="" askPrompt askTool askState askJson askKind
+		local askSyntax="<model-id> [--from-stdin|--from-file <path>]"
+		case "$askModel" in ''|-*) echo "⛔ ERROR: $MDSC_CMD $askOp: syntax is $askSyntax, got: ${askModel:-no model}" >&2 ; set +e ; return 1 ;; esac
+		shift 2
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-stdin|--from-file)
+					[ -z "$askSource" ] || { echo "⛔ ERROR: $MDSC_CMD $askOp: use only one of --from-stdin | --from-file <path>" >&2 ; set +e ; return 1 ; }
+					askSource="${1#--from-}" ; shift
+					if [ "$askSource" = "file" ] ; then
+						[ -n "${1:-}" ] && [ -f "$1" ] || { echo "⛔ ERROR: $MDSC_CMD $askOp: --from-file: file not found: ${1:-}" >&2 ; set +e ; return 1 ; }
+						askFile="$1" ; shift
+					fi
+				;;
+				*) echo "⛔ ERROR: $MDSC_CMD $askOp: syntax is $askSyntax, got: $1" >&2 ; set +e ; return 1 ;;
+			esac
+		done
+		askState="$( AgentsToolsManagerFeatureCheck setup.feature-local-ai | AgentsToolsManagerFeaturePartState setup.feature-local-ai "$askModel" )" || { AgentsToolsManagerFeatureRefuse "$askOp" "$askModel is no model of the local AI feature" ; set +e ; return 1 ; }
+		[ "$askState" = "installed" ] || { AgentsToolsManagerFeatureRefuse "$askOp" "$askModel is $askState" ; set +e ; return 1 ; }
+		askKind="$( AgentsToolsManagerFeatureCheck setup.feature-local-ai | AgentsToolsManagerFeatureValue "part.$askModel.part" )" || askKind=""
+		[ "$askKind" = "chat" ] || { AgentsToolsManagerFeatureRefuse "$askOp" "$askModel is a $askKind model, and a prompt goes to a chat model" ; set +e ; return 1 ; }
+		if [ "$askSource" = "file" ] ; then askPrompt="$( cat < "$askFile" )" || askPrompt="" ; else askPrompt="$( cat )" || askPrompt="" ; fi
+		case "$askPrompt" in *[![:space:]]*) ;; *) AgentsToolsManagerFeatureRefuse "$askOp" "the prompt is empty" ; set +e ; return 1 ;; esac
+		askTool="$( AgentsToolsManagerFeatureRoot )/setup.feature-local-ai/data/local-ai/mdci-local-ai"
+		askJson="$( printf '%s\n' "$askPrompt" | sh "$askTool" ask "$askModel" )" || { echo "⛔ ERROR: $MDSC_CMD $askOp: the model did not answer" >&2 ; set +e ; return 1 ; }
+		printf '%s\n' "$askJson" | AgentsToolsManagerFeatureJsonText chat || { echo "⛔ ERROR: $MDSC_CMD $askOp: the answer holds no reply" >&2 ; set +e ; return 1 ; }
+		return 0
+	;;
+
+	## A speech-to-text test: a file, or one second of silence, to the speech endpoint of the local AI feature; the text it gives, on standard output.
+	--manager-feature-stt-test)
+		local sttOp="$1" sttWav="" sttTool sttJson
+		shift
+		if [ $# -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $sttOp: syntax is $sttOp [<wav-file>], got $# argument(s) -- nothing was done" >&2 ; set +e ; return 1
+		fi
+		sttWav="${1:-}"
+		[ -z "$sttWav" ] || [ -f "$sttWav" ] || { echo "⛔ ERROR: $MDSC_CMD $sttOp: not a file: $sttWav" >&2 ; set +e ; return 1 ; }
+		sttTool="$( AgentsToolsManagerFeatureRoot )/setup.feature-local-ai/data/local-ai/mdci-local-ai"
+		[ -f "$sttTool" ] || { AgentsToolsManagerFeatureRefuse "$sttOp" "the command of the feature is not here ($sttTool)" ; set +e ; return 1 ; }
+		sttJson="$( sh "$sttTool" transcribe ${sttWav:+"$sttWav"} < /dev/null )" || { echo "⛔ ERROR: $MDSC_CMD $sttOp: the speech endpoint did not answer" >&2 ; set +e ; return 1 ; }
+		printf '%s\n' "$sttJson" | AgentsToolsManagerFeatureJsonText stt || { echo "⛔ ERROR: $MDSC_CMD $sttOp: the answer holds no text" >&2 ; set +e ; return 1 ; }
+		return 0
+	;;
+
+	## A preset for the local CLI service, from one installed chat model: the existing preset writer makes it (--manager-preset-new) and the setting reader of the dispatcher
+	## writes its model, so the write checks of a preset are asked as for any preset. Its row `created` names the scope and the model.
+	--manager-feature-preset)
+		local presetOp="$1" presetModel="${2:-}" presetName="local" presetState presetPart presetCheck
+		case "$presetModel" in ''|-*) echo "⛔ ERROR: $MDSC_CMD $presetOp: syntax is $presetOp <model-id> [--name <preset>], got: ${presetModel:-no model}" >&2 ; set +e ; return 1 ;; esac
+		shift 2
+		if [ $# -gt 0 ] ; then
+			if [ $# -ne 2 ] || [ "$1" != "--name" ] || [ -z "$2" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $presetOp: syntax is $presetOp <model-id> [--name <preset>] -- nothing was made" >&2 ; set +e ; return 1
+			fi
+			presetName="$2"
+		fi
+		presetCheck="$( AgentsToolsManagerFeatureCheck setup.feature-local-ai )" || :
+		presetState="$( printf '%s\n' "$presetCheck" | AgentsToolsManagerFeaturePartState setup.feature-local-ai "$presetModel" )" || { AgentsToolsManagerFeatureRefuse "$presetOp" "$presetModel is no model of the local AI feature" ; set +e ; return 1 ; }
+		presetPart="$( printf '%s\n' "$presetCheck" | AgentsToolsManagerFeatureValue "part.$presetModel.part" )" || presetPart=""
+		[ "$presetState" = "installed" ] || { AgentsToolsManagerFeatureRefuse "$presetOp" "$presetModel is $presetState" ; set +e ; return 1 ; }
+		[ "$presetPart" = "chat" ] || { AgentsToolsManagerFeatureRefuse "$presetOp" "$presetModel is a $presetPart model, and a preset speaks to a chat model" ; set +e ; return 1 ; }
+		DistroAgentsTools --manager-preset-new "$presetName" --cli-service local > /dev/null || { set +e ; return 1 ; }
+		printf '%s\n' "$presetModel" | DistroAgentsTools --agents-config-option "preset-$presetName" --upsert-from-stdin PRESET_MODEL_OR_MACRO > /dev/null || {
+			echo "⛔ ERROR: $MDSC_CMD $presetOp: the setting reader refused the model of the preset -- the preset was taken out again" >&2
+			rm -f -- "${MMDAPP%/}/.local/.agents/preset-$presetName.agent.env"
+			set +e ; return 1
+		}
+		printf 'created\tagents:preset-%s\t%s\n' "$presetName" "$presetModel"
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

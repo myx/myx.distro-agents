@@ -128,7 +128,7 @@ cells row5 6 85 119
 cells row6 7 85 119
 show u
 cells upStatus 39 0 120
-keys LEFT
+keys BACKSPACE
 turn
 get root
 keys 5
@@ -150,7 +150,7 @@ rigAssert "the rows stand in the order of the operation, each by its label with 
 rigAssert "a line that is no row of a console, and one too short to hold a command, is left out" "$( rigVal in.rows ) [$( rigVal row6 )]" "5 []"
 rigAssert "on the row that goes up the left window shows the folder itself: every one as a table, nothing above it, and no sentence of what Enter does" "[$( rigPane u 2 )][$( rigPane u 3 | LC_ALL=C sed 's/  */ /g' )]" \
 	"[ Consoles [wrap]][ CONSOLE GROUP COMMAND]"
-rigAssert "the menu Console is in the bar in this view"              "[$( rigVal bar )] [$( rigVal upStatus )]" "[ ≡  Go  Console  View  Help] [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut  t Sort]"
+rigAssert "the menu Console is in the bar in this view"              "[$( rigVal bar )] [$( rigVal upStatus )]" "[ ≡  Go  Console  View  Help] [ ENTER Open  BSP Up  a Active  / Filter  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut  t Sort]"
 rigAssert "Left goes back to the root, onto its row, and 5 goes there from anywhere" "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigVal six.path )]" "[] consoles [consoles]"
 rigAssert "the Go menu holds it with its key"                        "$( rigScreenHolds g '│ Consoles                 5 │' )" 1
 
@@ -179,7 +179,7 @@ rigAssert "the folder it is started in, as it is written"            "[$( rigPan
 rigAssert "its command as it will be run, word by word: a word with a blank stands between quotes" "[$( rigPane c 7 )][$( rigPane c 8 )][$( rigPane c 9 )]" \
 	"[  command    /usr/bin/env 'MMDAPP=/rig/ws rig' 'REASON=the shell of the workspace,][             by its own name.' /rig/sh_x --rcfile '/rig/ws rig/rc_file' -i][  terminal   yes, on its input and its output]"
 rigAssert "no sentence of what Enter does: its key stands in the status line, and the pane has no keys line of its own" "[$( rigPane c 10 )][$( rigPane c 11 )] [$( rigVal cKeys )] [$( rigVal cStatus )]" \
-	"[][] [] [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+	"[][] [] [ ENTER Start  BSP Up  a Active  / Filter  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "nothing was read for it but the list, and nothing spills" "$( rigCalled --manager-console-list ) $( rigOthers ) $( rigVal c.spills )" "1 0 0"
 rigAssert "the menu Console holds the start, with its key"           "$( rigScreenHolds m '│ Start  ENTER │' )" 1
 rigAssert "one that needs no terminal says so, and its words stand as they are" "[$( rigPane p 7 )][$( rigPane p 8 )]" "[  command    /rig/tool_x - _][  terminal   no]"
@@ -205,7 +205,7 @@ rigAssert "until Enter no child is started"                          "$( rigVal 
 rigAssert "Enter starts one child, from the words as they were printed: a word with a blank is one word" "$( rigVal a.children ) $( rigVal a.childWords )" \
 	"1 [/usr/bin/env][MMDAPP=/rig/ws rig][REASON=the shell of the workspace, by its own name.][/rig/sh_x][--rcfile][/rig/ws rig/rc_file][-i]"
 rigAssert "in the folder of the row, as it was printed"              "[$( rigVal a.childDirectory )]" "[/rig/ws rig]"
-rigAssert "the status line says how it ended, by its status"         "[$( rigVal aLine )] [$( rigVal a.dialog )]" "[Bash Shell: ended with status 3] []"
+rigAssert "how it ended stands above the command line, by its status" "[$( rigVal a.notice )] [$( rigVal a.dialog )]" "[Bash Shell: ended with status 3] []"
 rigAssert "the selection stays, and the list is read again"          "$( rigVal after.selected ) $( rigCalled --manager-console-list ) $( rigOthers )" "bash 2 0"
 rigCase ends
 rigScript <<'RIGSCRIPT'
@@ -223,8 +223,8 @@ keys ENTER
 get b
 said bLine
 RIGSCRIPT
-rigAssert "words that are - and _ are given as they are"             "$( rigVal plain.childWords ) [$( rigVal plainLine )]" "[/rig/tool_x][-][_] [Plain Tool: ended with status 0]"
-rigAssert "a child that a signal ended: the status line says which, and the screen lives on" "$( rigVal b.children ) [$( rigVal bLine )] $( rigVal b.quit )" "2 [Claude Native Console: ended by signal 15 (SIGTERM)] no"
+rigAssert "words that are - and _ are given as they are"             "$( rigVal plain.childWords ) [$( rigVal plain.notice )]" "[/rig/tool_x][-][_] [Plain Tool: ended with status 0]"
+rigAssert "a child that a signal ended: the outcome says which, and the screen lives on" "$( rigVal b.children ) [$( rigVal b.notice )] $( rigVal b.quit )" "2 [Claude Native Console: ended by signal 15 (SIGTERM)] no"
 
 echo "-- a command that cannot be started says why in a box; the size the terminal has afterwards is taken --"
 rigCase fails
@@ -250,7 +250,7 @@ RIGSCRIPT
 rigAssert "a box says it whole: what, where, the command, and why"   "[$( rigVal m.dialogTitle )] [$( rigVal m.dialogHolds )]" \
 	"[It did not start] [console: Claude Native Console / directory: /rig/ws rig / command: '/rig/ws rig/DistroAgentsConsole.sh' --cli claude-native / [Errno 2] No such file or directory: '/rig/ws rig/DistroAgentsConsole.sh']"
 rigAssert "and the status line says nothing of an end"               "[$( rigVal m.notice )] [$( rigVal closed.dialog )]" "[] []"
-rigAssert "the terminal was resized while the child ran: the screen is drawn in the size it has now" "$( rigVal sized.columns )x$( rigVal sized.lines ) $( rigVal sized.layout ) $( rigVal sized.spills ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c '^s|' ) [$( rigVal sLine )]" \
+rigAssert "the terminal was resized while the child ran: the screen is drawn in the size it has now" "$( rigVal sized.columns )x$( rigVal sized.lines ) $( rigVal sized.layout ) $( rigVal sized.spills ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c '^s|' ) [$( rigVal sized.notice )]" \
 	"90x24 ok 0 24 [Claude Native Console: ended with status 0]"
 rigAssert "with the keys on the left window Enter starts nothing"    "$( rigVal sized.children ) $( rigVal tab.children ) $( rigVal tab.focus )" "2 2 view"
 

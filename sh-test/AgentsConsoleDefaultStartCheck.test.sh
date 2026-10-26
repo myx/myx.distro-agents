@@ -275,6 +275,11 @@ rigAssert "a plain start opens the manager screen"                      "$( rigM
 rigEntryPty - - --cli claude-native
 rigAssert "a vendor CLI that is named and not installed is an error, status 1, and the screen does not start in its place" "$rigRc $( rigManager ) $( rigPtyVal error | LC_ALL=C grep -c -F -- "'claude-native' CLI not found in PATH" || : )" "1 0 [] 1"
 
+echo "-- 6. a spawn with no tier is refused, naming SPAWN_TIER_NORMAL --"
+rigScenario bare-spawn ""
+rigEntry --cli-configured --non-interactive RIG-PROMPT
+rigAssert "no tier: status 5, the reason names SPAWN_TIER_NORMAL, and no CLI is started" "$rigRc $( LC_ALL=C grep -c 'SPAWN_TIER_NORMAL' "$rigDir/err" ) $( rigVendor )" "5 1 0"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ CONSOLE DEFAULT START CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

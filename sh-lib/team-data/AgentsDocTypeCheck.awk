@@ -72,7 +72,7 @@ function formFault(formWord, formArg, valueIn,   misfit, enumParts, enumN, idx, 
 		return (misfit == "" ? "" : "is not bare item names, comma-separated, no folder, no .md, no brackets") ;
 	}
 	if (formWord == "flag") return (valueIn == "true" ? "" : "is not the word true") ;
-	if (formWord == "channel-id") return (valueIn ~ /^(slack:[^: ]+(:[^: ]+)?|email:.+)$/ ? "" : "is not slack:<channel>, slack:<channel>:<ts> or email:<..>") ;
+	if (formWord == "channel-id") return (valueIn ~ /^(slack:[^: ]+(:[^: ]+)?|email:.+|telegram:.+)$/ ? "" : "is not slack:<channel>, slack:<channel>:<ts>, email:<..> or telegram:<..>") ;
 	if (formWord == "session-id") return (valueIn ~ /^[A-Za-z0-9][A-Za-z0-9._-]*$/ ? "" : "is not one session id") ;
 	if (formWord == "members") {
 		misfit = listMisfit(valueIn, "^[A-Za-z][A-Za-z0-9._-]*$") ;

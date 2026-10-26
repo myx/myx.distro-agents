@@ -18,6 +18,7 @@ DistroAgentsKnowledge	--get-place-path	member
 DistroAgentsKnowledge	--get-roster	coordinator
 DistroAgentsKnowledge	--list-namespaces	member
 DistroAgentsKnowledge	--list-places	member
+DistroAgentsKnowledge	--local-models-list	member
 DistroAgentsKnowledge	--member-help	member
 DistroAgentsDispatcher	--shutdown-runs	coordinator
 DistroAgentsDispatcher	--spawn-prompt	coordinator
@@ -58,6 +59,7 @@ DistroAgentsItems	--move-to-parked	coordinator
 DistroAgentsItems	--move-to-pending	coordinator
 DistroAgentsItems	--move-to-processed	coordinator
 DistroAgentsItems	--reject-review	member
+DistroAgentsItems	--repair-team-data-checkout	coordinator
 DistroAgentsItems	--request-review	member
 DistroAgentsItems	--return-review	member
 DistroAgentsItems	--trash-inbox-item	member
@@ -363,7 +365,7 @@ AgentsToolsFrontNamesOf(){ ## audience
 }
 
 ## What each tool file is, in a sentence: the first line the tool index shows under it.
-agentsFrontSummary='DistroAgentsSession	What a running session asks of its own session: its channel, its routine, its waits and its transcript.
+agentsFrontSummary='DistroAgentsSession	ThisSession, your own session: post to its thread with --post-session-channel, and run its routine. Every wait already brings its thread replies.
 DistroAgentsKnowledge	What the team has written, searched; and the registries of projects, places, namespaces and members, read.
 DistroAgentsDispatcher	The runs of the team and everything about them: sessions, spawns, flags and the schedule.
 DistroAgentsTesting	The testing system: tests, retests and the report.
@@ -377,6 +379,22 @@ DistroAgentsAtlassian	The Jira and Confluence operations of the team.
 DistroAgentsGoogle	The Google operations of the team.
 DistroAgentsMail	The mail operations of the team.
 DistroAgentsTrello	The Trello operations of the team.'
+
+## The tool files the myx.distro MCP serves as one tool each, the operation as the argument, so the
+## served catalogue stays short. Only the subsystems whose operations reach outside the team's own
+## process-flow are served: the external services, and the contacts the team reaches. The board,
+## inbox, dispatcher, questions, grants and testing files are the team's own coordination and are
+## never served; neither is Knowledge, whose own entry is a query engine rather than an operation
+## dispatcher. ThisSession is the exception among them, and only ThisSession: it is a tool of the
+## harness floor, declared in AgentsOpenAiChatWire.sh and served as ThisSession by the mirror, so a
+## session posts to its own thread and runs its routine there rather than through a secondary entry
+## of this table.
+agentsFrontSecondary='DistroAgentsSlack
+DistroAgentsAtlassian
+DistroAgentsGoogle
+DistroAgentsMail
+DistroAgentsTrello
+DistroAgentsContacts'
 
 AgentsToolsFrontSummary(){ ## entry function name
 	printf '%s\n' "$agentsFrontSummary" | LC_ALL=C awk -F'\t' -v key="$1" '$1 == key { print $2 ; exit }'

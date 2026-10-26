@@ -97,7 +97,7 @@ BEGIN {
 ## consuming N lines still expects `## ` or EOF.
 ##
 ## `item-empty:` IS THE RATIFIED KEY, QUOTED FROM THE CONTRACT CHARACTER FOR
-## CHARACTER -- magic-team/templates/session-context.document.format.md,
+## CHARACTER -- sh-lib/templates/session-context.document.format.md,
 ## where it is ASCII throughout. Deliberately NOT a `body-` prefix:
 ## nothing here is a body fact, the whole file is empty, frontmatter included,
 ## so a `body-` name would misname it and collide with the framing keys. It is

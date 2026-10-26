@@ -1,17 +1,17 @@
 #!/usr/bin/env awk
 # Where the event-track feed's posts end (AgentsTools.EventTrackFeed.include). stdin: the
 # lines of the open post, then the new ones, in the order they happened. ETF_ALL=1 ends the
-# open post. Prints the post to send, as a mark line `\001POST` and its lines, then
-# `\001OPEN` and the lines the open post keeps. Run with LC_ALL=C.
+# open post too. Prints each post to send, in order, as a mark line `\001POST` and its lines,
+# then `\001OPEN` and the lines the open post keeps. Run with LC_ALL=C.
 #
 # Fixed here, never configured:
-# - No line ends a post, an error, a refusal or a session event included: the open post goes
-#   at its window's end (7 s, the poster's) or at the size limit (the post op's cut), so a
-#   channel is not asked for a post at every error. With ETF_ALL=1 the open post is sent.
 # - A unit is one line with its `> ` body lines. A TOOL line and the message events of the
 #   same call next to it (MSG-OUT, HANDBACK, WAIT-RESULT, DISMISSED, ASK, ANSWER, SPAWN) are
 #   one unit, so one call is never cut between two posts.
-# - Every unit joins the open post, whoever it regards: the post's blocks say that.
+# - NO kind of line ends a post: errors, refusals and session events included. Every unit
+#   joins the open post, whoever it regards and whatever it says: the post's blocks say that.
+#   Only the run's own window ends it -- 7 seconds after the open post's first line, fixed in
+#   code in AgentsEventTrackFeedRun -- or ETF_ALL=1, the post the run makes as it ends.
 
 BEGIN {
 	postAll = ( ENVIRON["ETF_ALL"] == "1" ) ;
@@ -56,6 +56,7 @@ function baseTool( toolName,    restName, cutAt ) {
 		unitText[unitCount] = $0 ;
 		unitTool[unitCount] = tool ;
 		unitTo[unitCount] = "" ;
+		unitNow[unitCount] = 0 ;
 	}
 	if ( word != "" ) { unitHas[unitCount, word] = 1 ; }
 	if ( toText != "" ) { unitTo[unitCount] = toText ; }
@@ -66,10 +67,14 @@ END {
 	for ( unitNo = 1 ; unitNo <= unitCount ; unitNo++ ) {
 		postText = postText ( postText == "" ? "" : "\n" ) unitText[unitNo] ;
 	}
-	if ( postAll && postText != "" ) {
-		printf "\001POST\n%s\n", postText ;
-		postText = "" ;
+	## ETF_ALL=1: the run is ending, so what is open goes now, and the OPEN mark after it
+	## leaves the caller holding nothing. Otherwise the one OPEN mark and the lines after it
+	## ARE the open post, and nothing follows them.
+	if ( postAll ) {
+		if ( postText != "" ) { printf "\001POST\n%s\n", postText ; }
+		printf "\001OPEN\n" ;
+	} else {
+		printf "\001OPEN\n" ;
+		if ( postText != "" ) { print postText ; }
 	}
-	printf "\001OPEN\n" ;
-	if ( postText != "" ) { print postText ; }
 }

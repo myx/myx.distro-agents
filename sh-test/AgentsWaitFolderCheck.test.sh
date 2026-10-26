@@ -128,7 +128,7 @@ rigStart(){ ## scenario directory name
 	rigScenarioName="$1"
 	rigScenarioDir="$rigTmp/$1"
 	mkdir -p "$rigScenarioDir/ws/.local/.agents" "$rigScenarioDir/ws/.local/agents" "$rigScenarioDir/ws/.local/temp" "$rigScenarioDir/data"
-	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=%s\n' "$rigBotToken" \
+	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=DRIG0OWNER1\nSLACK_BOT_TOKEN=%s\n' "$rigBotToken" \
 		> "$rigScenarioDir/ws/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=%s\n' "$rigOwnToken" > "$rigScenarioDir/ws/.local/.agents/$rigMember.agent.env"
 	RIG_CURL_LOG="$rigScenarioDir/curl.log"
@@ -350,10 +350,10 @@ rigLostDir="$( rigFolderOfNew "" )" || rigLostDir="$rigScenarioDir/no-directory-
 rigAnswer 1
 rigWaitEnd 1
 rigAssert "the render of the settle pass gone as it is written: status 1, ERROR, one error line of the wait, and it names that file" \
-	"${rigWaitRc[1]}:$( rigFirstLine "$rigScenarioDir/wait.1.out" ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*--wait-for-input: ' ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*/settle[.]2[.]rendered, which a step of this wait wrote, is not there' )" \
+	"${rigWaitRc[1]}:$( rigFirstLine "$rigScenarioDir/wait.1.out" ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*--wait-for-input: ' ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*/settle[.][0-9][0-9]*[.]rendered, which a step of this wait wrote, is not there' )" \
 	"1:WAIT-RESULT: ERROR:1:1"
 rigAssert "its directory is kept as it stands, says what was missed, and is named in that line" \
-	"$( rigIsDir "$rigLostDir" ):$( rigCount "$rigLostDir/kept" '^missed: .*/settle[.]2[.]rendered$' ):$( rigCount "$rigScenarioDir/wait.1.err" "kept as it stands.*${rigLostDir##*/}" )" "stands:1:1"
+	"$( rigIsDir "$rigLostDir" ):$( rigCount "$rigLostDir/kept" '^missed: .*/settle[.][0-9][0-9]*[.]rendered$' ):$( rigCount "$rigScenarioDir/wait.1.err" "kept as it stands.*${rigLostDir##*/}" )" "stands:1:1"
 rigQuickWait
 rigAssert "the next wait of that member leaves the kept directory, though the wait that made it is gone" "$( rigFirstLine "$rigScenarioDir/op.out" ):$( rigIsDir "$rigLostDir" )" "WAIT-RESULT: RECEIVED:stands"
 rigStart lost-now
@@ -362,7 +362,7 @@ rigThread 1 ""
 rigWait 1 "$rigTmp/bin-loseawk"
 rigWaitEnd 1
 rigAssert "the rendering of a round gone as it is written is no arrival: status 1, ERROR, one error line of the wait and it names that file, nothing said to have arrived, no file opened that is not there" \
-	"${rigWaitRc[1]}:$( rigFirstLine "$rigScenarioDir/wait.1.out" ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*--wait-for-input: ' ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*/now[.]2, which a step of this wait wrote, is not there' ):$( rigCount "$rigScenarioDir/wait.1.out" 'arrived on' ):$( rigCount "$rigScenarioDir/wait.1.err" 'can.t open file' )" \
+	"${rigWaitRc[1]}:$( rigFirstLine "$rigScenarioDir/wait.1.out" ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*--wait-for-input: ' ):$( rigCount "$rigScenarioDir/wait.1.err" 'ERROR: .*/now[.][0-9][0-9]*, which a step of this wait wrote, is not there' ):$( rigCount "$rigScenarioDir/wait.1.out" 'arrived on' ):$( rigCount "$rigScenarioDir/wait.1.err" 'can.t open file' )" \
 	"1:WAIT-RESULT: ERROR:1:1:0:0"
 
 rigUnknown="$( cat "$rigTmp"/*/curl.log 2>/dev/null | LC_ALL=C awk '$0 ~ /^url:/ || $0 == "no-method" { hitCount++ ; } END { print hitCount + 0 ; }' )"

@@ -60,29 +60,38 @@ AgentsWireToolDeclaration(){ ## declared name, description, input schema JSON
 	printf '%s' '{"name":"'"$1"'","description":"'"$( AgentsWireJsonEscape "$2" )"'","input_schema":'"$3"'}'
 }
 
-## `system` is a top-level field on this wire, so it is rendered here once per leg and
-## replayed by AgentsWireRequestBody rather than rebuilt per round.
-## Where the system text opens with the team's common instruction (harnessSystemShared, F10.7) it goes as two blocks, that
-## instruction first with a cache marker at its end and the member's own text after: the first block is one in every member's
-## request, behind the same tools, and so is cached once for all of them. Otherwise it is one string, as it was.
+## `system` is a top-level field on this wire, so it is rendered here once per leg and replayed by AgentsWireRequestBody rather than
+## rebuilt per round. The system holds the TEAM layer only (F10.7), as one string: the team's identity/basic, the team's armed
+## file -- the armed floor of every session kind -- and the harness paragraph every run carries. The tools' cache marker covers it
+## together with the floor. The first user message then carries the member layer and the prefetch (one block, with a marker), then
+## the task: no + layer stands between the floor and the member layer any more.
 AgentsWireInitMessages(){
-	local initRest initShared initTask="$harnessPrompt"
-	## The task block opens with the text of this run alone (harnessRunNotes, F10.7): what only this run has -- its sandbox, its results folder -- is
-	## the task's side of the marker, so the system text and the prefetch block are the same bytes for every spawn of a member.
-	[ -z "${harnessRunNotes:-}" ] || printf -v initTask '%s\n\n%s' "$harnessRunNotes" "$harnessPrompt"
+	local initTask="$harnessPrompt" initMember initWorkDuty=""
+	## The task block carries the text of this run alone (harnessRunNotes, F10.7): what only this run has -- its sandbox, its results
+	## folder. It opens the task block, except on a work-duty run: there the dispatch is the head of the task block and the run notes
+	## come last, after its own variables, so every byte before them is the same on every work-duty run of the member.
+	case "$harnessPrompt" in "## Work-duty dispatch --"*) initWorkDuty=1 ;; esac
+	if [ -n "${harnessRunNotes:-}" ] ; then
+		if [ -n "$initWorkDuty" ] ; then
+			printf -v initTask '%s\n\n%s' "$harnessPrompt" "$harnessRunNotes"
+		else
+			printf -v initTask '%s\n\n%s' "$harnessRunNotes" "$harnessPrompt"
+		fi
+	fi
 	agentsWireSystemJson="$( AgentsWireJsonEscape "$harnessSystemText" )"
 	agentsWireSystemBlocks="" agentsWireSystemSharedBytes=0
-	if [ -n "${harnessSystemShared:-}" ] && [ "${harnessSystemText#"$harnessSystemShared"$'\n\n'}" != "$harnessSystemText" ] ; then
-		initRest="${harnessSystemText#"$harnessSystemShared"$'\n\n'}"
-		initShared="$( AgentsWireJsonEscape "$harnessSystemShared" )"
-		agentsWireSystemBlocks='[{"type":"text","text":"'"$initShared"'","cache_control":'"$agentsWireCacheControl"'},{"type":"text","text":"'"$( AgentsWireJsonEscape "$initRest" )"'"}]'
-		agentsWireSystemSharedBytes="$( printf '%s' "$initShared" | LC_ALL=C wc -c | tr -d ' ' )"
+	## The member layer, then the prefetch where the run carries one: one block with a marker at its end, caching the member's own prefix
+	## for every session of that member.
+	initMember=""
+	if [ -n "${harnessMemberText:-}" ] ; then
+		initMember="$harnessMemberText"
+		[ -z "${harnessPrefetch:-}" ] || printf -v initMember '%s\n\n%s' "$initMember" "$harnessPrefetch"
+	elif [ -n "${harnessPrefetch:-}" ] ; then
+		initMember="$harnessPrefetch"
 	fi
-	## Where the run has a prefetch (harnessPrefetch, F10.8) the first message is two blocks, the prefetch with a cache marker at its end
-	## and the task after it: the text of a member's skill is the same for its runs and the task is not, so it is a prefix of its own.
-	if [ -n "${harnessPrefetch:-}" ] ; then
+	if [ -n "$initMember" ] ; then
 		harnessMessages=(
-			'{"role":"user","content":[{"type":"text","text":"'"$( AgentsWireJsonEscape "$harnessPrefetch" )"'","cache_control":'"$agentsWireCacheControl"'},{"type":"text","text":"'"$( AgentsWireJsonEscape "$initTask" )"'"}]}'
+			'{"role":"user","content":[{"type":"text","text":"'"$( AgentsWireJsonEscape "$initMember" )"'","cache_control":'"$agentsWireCacheControl"'},{"type":"text","text":"'"$( AgentsWireJsonEscape "$initTask" )"'"}]}'
 		)
 		return 0
 	fi
@@ -92,9 +101,9 @@ AgentsWireInitMessages(){
 }
 
 ## A resumed leg's system (AgentsHarnessContextResume), from the bytes the context kept: the escaped text as it was sent, and the bytes of the escaped
-## first block (the header's, 0 or none where the system went as one string, and for a context kept before it was written). Split there, with the
-## marker at the end of the first block, it is the two blocks it was sent as; never rendered again from the skillset as it is now, so the resumed
-## request is the original through the common block's marker, byte for byte.
+## first block (0 where the system went as one string, which is what this build sends, and for a context kept before it was written). Where an older
+## context kept a split system, it is the two blocks it was sent as, never rendered again from the skillset as it is now, so the resumed request is
+## the original through the team block's marker, byte for byte.
 AgentsWireSystemReplay(){ ## escaped system text, bytes of its escaped first block
 	local replayFirst replayJoin replaySecond
 	agentsWireSystemJson="$1" agentsWireSystemBlocks="" agentsWireSystemSharedBytes=0
@@ -139,10 +148,10 @@ AgentsWireToolResultRecord(){ ## call id, result text, date line (optional)
 
 ## Appends in a fixed order, for the prompt cache. The top-level cache_control caches
 ## the whole prefix up to the last message and moves with it, round after round, and stays:
-## it is what keeps a long session cheap. Two markers more stand on the prefix every member
-## shares, one at the end of the floor's tools and one at the end of the common instruction in
-## `system` (F10.7); none stands on a work message. A fourth stands at the end of the prefetch block that opens the first message
-## of a spawned member's run (F10.8), so a request carries three or four, and never more than the four the API allows.
+## it is what keeps a long session cheap. Two markers more stand on the prefix a member shares: one at the end of the floor's tools (which
+## covers the system team layer and the whole floor) and one at the end of the member block -- the member layer, and the prefetch behind it
+## where one is carried (F10.7/F10.8). A request of a member carries three, and never more than the four the API allows; a run with no
+## agent carries the moving one and the floor's.
 ## max_tokens is required on this wire, so a stub declaring none is refused rather than
 ## given a number nobody chose. An empty $harnessReasoningEffort omits output_config
 ## entirely, and an empty $harnessToolChoice is `auto`.
@@ -156,6 +165,8 @@ AgentsWireRequestBody(){
 	bodyMessagesJson="$( IFS=, ; echo "[${harnessMessages[*]}]" )"
 	bodyOut='{"model":"'"$harnessModel"'","max_tokens":'"$harnessOutputTokens"',"stream":true,"cache_control":'"$agentsWireCacheControl"',"system":'"$bodySystem"',"tools":'"${agentsWireToolsJson%]}${harnessMcpToolsJson:-}"'],"tool_choice":{"type":"'"${harnessToolChoice:-auto}"'"},"messages":'"$bodyMessagesJson"
 	[ -z "$harnessReasoningEffort" ] || bodyOut="$bodyOut"',"output_config":{"effort":"'"$harnessReasoningEffort"'"}'
+	## The effort none: the thinking off (AgentsHarnessEffortApply).
+	[ -z "${harnessThinkingOff:-}" ] || bodyOut="$bodyOut"',"thinking":{"type":"disabled"}'
 	printf '%s' "$bodyOut}"
 }
 

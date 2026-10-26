@@ -57,14 +57,14 @@ rigCalls(){ ## method
 }
 rigRecordFile(){
 	local recordFile
-	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] && { printf '%s' "$recordFile" ; return 0 ; }
 	done
 	printf '%s' "$rigScenarioDir/no-record"
 }
 rigRecordCount(){
 	local recordCount=0 recordFile
-	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] && recordCount=$(( recordCount + 1 ))
 	done
 	printf '%s' "$recordCount"
@@ -91,14 +91,17 @@ rigStart(){ ## scenario directory name
 	export RIG_CURL_LOG
 	: > "$RIG_CURL_LOG"
 }
-## One served call of a tool, which must end on its own: none here waits for an answer.
+## One served call of a tool, which must end on its own: only the last revise waits for an
+## answer, which nobody gives, so it is stopped once its post is up. The rig's posts are of
+## 2023, so every reminder of an ask would be due at once: MDAT_WAIT_REMIND=off sends none,
+## and each post counted is the call's own.
 rigKilled=""
 rigCall(){ ## guard seconds, tool, argument object
 	local callPid callLeft="$1"
 	rigKilled="no"
 	set -m
 	( cd "$rigScenarioDir/ws" && printf '%s' "$3" | env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT \
-		MDAT_SPAWN_SESSION_ID="rig-options-$rigScenarioName" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" MDAT_HARNESS_WAIT_TIMEOUT=1 \
+		MDAT_SPAWN_SESSION_ID="rig-options-$rigScenarioName" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" MDAT_HARNESS_WAIT_TIMEOUT=1 MDAT_WAIT_REMIND=off \
 		bash "$rigHarness" --intern-tool "$2" --access-read-root "$rigScenarioDir/ws" --access-write-root "$rigScenarioDir/ws/IN" ) > "$rigScenarioDir/out" 2> "$rigScenarioDir/err" &
 	callPid=$!
 	set +m

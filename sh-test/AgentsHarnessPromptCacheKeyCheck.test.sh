@@ -39,8 +39,8 @@ rigOnPath(){
 
 ## Every credential name a leaf reads, forced to a literal.
 export XAI_API_KEY="rig-not-a-credential"
-export SCALEWAY_DEEPSEEK="rig-not-a-credential"
-export SCALEWAY_GEMMA="rig-not-a-credential"
+## One credential for scaleway, the key: the leg reads SCALEWAY_API_KEY alone.
+export SCALEWAY_API_KEY="rig-not-a-credential"
 export COPILOT_GITHUB_TOKEN="rig-not-a-credential"
 ## The switch under test is set per run, never inherited from this environment.
 unset HARNESS_PROMPT_CACHE_KEY

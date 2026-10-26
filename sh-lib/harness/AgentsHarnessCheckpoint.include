@@ -20,8 +20,7 @@
 ## process's array. The requests are read here, in order, at the end of each round (AgentsHarnessCheckpointRound), after the dismissed-end
 ## check, and taken whole.
 ##
-## A REWIND puts the array back to the snapshot, adds the dispatch it was given as the next input, drops the scan cache of the run's session
-## (AgentsHarnessScanCacheDrop, F10.6), opens a new leg of the kept context
+## A REWIND puts the array back to the snapshot, adds the dispatch it was given as the next input, opens a new leg of the kept context
 ## (as a restart does: the transcript has rendered the old rounds already) and says so in the transcript. The tools and the system text are
 ## not touched, so the prefix is the one the input token cache holds. Only the CONVERSATION returns: the files and the sandbox are what the
 ## run made of them (the backlog's "prepared state is larger than the message array"). A snapshot whose tools or system text differ from
@@ -36,12 +35,14 @@
 ## --idle-wait (F10.5 gate B) is a request too: `idle <timeout or -> [<source> ...]`, the sources being the scans the routine itself
 ## declares, as `scan:` sources (F3.3), or none. The wait is made HERE, at the end of the round, in this process and through the Wait
 ## tool's own function (AgentsHarnessToolWait), so a dismissal, the seat of the run and the limit of a review are the Wait tool's, and the
-## model spends nothing while nothing happens: a quiet round of the session's wait (the service's round, which is shorter than the model's
-## prompt cache) goes on in this process, where the call named no bound and none is set for the run. An arrival returns the run to its
-## checkpoint -- `opening` where the run holds it, else `armed` -- with the arrival as the input (above). What is not an arrival (a bound
-## named by the call that ran out, an error, a dismissal, a source never read) returns nothing: the model is given it as a message and its
-## conversation stays. A run that holds no snapshot is given the arrival the same way. Any request after an idle one, in the same round,
-## is dropped: it was made for a conversation that is no more.
+## model spends nothing while nothing happens. A quiet round of the session's wait (the service's round, which is shorter than the model's
+## prompt cache), where the call named no bound and none is set for the run, is the KEEPALIVE: the run is woken and returned to its
+## checkpoint -- `opening` where the run holds it, else `armed` -- with a keepalive text as the input, so its next turn is read from the
+## cached prefix and the cache stays alive (the work-duty's Wait keepalive). An arrival returns the run to its checkpoint the same way,
+## with the arrival as the input (above). What is not an arrival (a bound named by the call that ran out, an error, a dismissal, a source
+## never read) returns nothing: the model is given it as a message and its conversation stays. A run that holds no snapshot is given the
+## arrival or the keepalive the same way. Any request after an idle one, in the same round, is dropped: it was made for a conversation
+## that is no more.
 ##
 ## Files, in the run's own store (sessions/<spawn id>/): `snapshots` (the stack as it stands now, a line each: name, kind, count, tools
 ## checksum, system checksum, time, tab-separated), `checkpoint.request` (what the executor asked, a line each: push <name>, rewind
@@ -117,27 +118,6 @@ AgentsHarnessSnapshotHeld(){ ## name
 	return 1
 }
 
-## THE SCAN CACHE OF A RESET (F10.6). A return of the conversation is the agent's reset: the run starts a new cycle from its armed state,
-## and what a scan reported inside the cycle before is not what the next one should be given. The scans that are cached (advance and
-## the others, AgentsToolsInputScanCached) keep their report in the folder of the team session for five minutes, whatever changes in their
-## sources, so a return drops those reports itself and the next scan gathers afresh. No operation is involved and no member is told. The
-## cache is keyed by the team session (MDAT_SESSION_ID): a run with none has no cache, and a name that is no folder name is no session.
-AgentsHarnessScanCacheDrop(){
-	local dropSession="${MDAT_SESSION_ID:-}" dropDir dropFile dropCount=0
-	case "$dropSession" in
-		''|.|..|*/*|*[[:space:]]*) return 0 ;;
-	esac
-	[ -n "${MMDAPP:-}" ] || return 0
-	dropDir="$MMDAPP/.local/agents/sessions/$dropSession"
-	[ -d "$dropDir" ] || return 0
-	for dropFile in "$dropDir"/*-input-scan.md ; do
-		[ -f "$dropFile" ] || continue
-		rm -f "$dropFile" 2> /dev/null && dropCount=$(( dropCount + 1 ))
-	done
-	[ "$dropCount" -eq 0 ] || printf '%s\n' "${harnessDim}🧹 scan cache dropped -- $dropCount report(s) of the session; the next scan gathers afresh${harnessOff}" >&2
-	return 0
-}
-
 ## The conversation put back to the snapshot of that name (the newest where none is named), with the input given, if any, as the next one.
 AgentsHarnessRewindTo(){ ## name, dispatch text ('' for none)
 	local rewindName="$1" rewindInput="${2:-}" rewindRow rewindLine="" rewindKept="" rewindKind rewindCount rewindTools rewindSystem rewindTime rewindDropped nowSum
@@ -176,7 +156,6 @@ AgentsHarnessRewindTo(){ ## name, dispatch text ('' for none)
 	esac
 	harnessSnapshots="$rewindKept"
 	AgentsHarnessCheckpointWrite
-	AgentsHarnessScanCacheDrop
 	## A new leg of the kept context holds the array as it is, as a restart does; the old rounds are in the transcript already.
 	AgentsHarnessContextBegin 0
 	harnessRoundTotal=0
@@ -186,12 +165,26 @@ AgentsHarnessRewindTo(){ ## name, dispatch text ('' for none)
 	return 0
 }
 
+## The seed sum of the conversation for the first --idle-wait: a cksum of the messages with the `tokens:` and `tokens-total:`
+## counters left out, so a quiet round that only moved the counters reads as no change. The caller compares this sum to know
+## whether the run made progress since the wait began.
+AgentsHarnessIdleSeedSum(){ ## the messages text
+	printf '%s' "$1" | LC_ALL=C grep -v -E '^tokens:|^tokens-total:' | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 }'
+}
+
 ## The wait of `--idle-wait`, made here as the Wait tool makes it, and what comes of it. The sources are the scans the routine declares
 ## (`scan:<scan>`), or none. A session's wait always holds its floor, the replies to the run's own posts and the messages of its session
 ## thread that are for it (`chat:<session>`), and the sources named are added to it. A wait that names none would be given the defaults of
 ## a bare Wait -- the team channels, for a session with no thread -- so with no scan the floor is named, as the one source: the floor alone.
+## THE KEEPALIVE. A session's wait comes back quiet at the round of its service, a little before the model's prompt cache expires. A call
+## with no bound named and none set for the run does not wait on through it: the run is woken, as the Wait tool would wake it, and the
+## conversation is returned to its checkpoint (`opening` where held, else `armed`) with the keepalive text as the next input, so the next
+## turn is read from the cached prefix and the cache stays alive. That is the work-duty's Wait keepalive: a cheap round every service
+## round while nothing arrives, never a full history paid again after it expired. A bound named by the call, a run's own wait timeout, an
+## error and a source never read return as they did, with the conversation kept; an arrival returns to the checkpoint with the arrival
+## (F10.5).
 AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources
-	local idleTimeout="${1:--}" idleSources idleShown idleOut idleHead idleTarget="" idleArrival idleText idleWaitSources idleKey
+	local idleTimeout="${1:--}" idleSources idleShown idleOut idleHead idleTarget="" idleArrival idleText idleWaitSources idleKey idleKeepalive=0
 	[ $# -eq 0 ] || shift
 	idleSources="$*"
 	[ "$idleTimeout" != "-" ] || idleTimeout=""
@@ -201,11 +194,14 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources
 		idleKey="$( AgentsHarnessSessionKey )"
 		[ -z "$idleKey" ] || idleWaitSources="chat:$idleKey"
 	fi
+	## The checkpoint the run returns to, where it holds one: `opening` first, else `armed`. Taken before the wait, for an arrival and for
+	## the keepalive alike.
+	if AgentsHarnessSnapshotHeld opening ; then idleTarget=opening ; elif AgentsHarnessSnapshotHeld armed ; then idleTarget=armed ; fi
 	printf '%s\n' "${harnessDim}💤 idle-wait -- waiting on $idleShown${harnessOff}" >&2
 	## A session's wait comes back quiet at the round of its service, a little before the model's prompt cache would expire, so that the
-	## model's next turn is read from the cache (AgentsTools.MemberWait.include). The model is not the one waiting here: with no bound
-	## named by the call, and none set for the run, a quiet round goes on in this process (the stored wait, mode continue), and the model
-	## is woken by an arrival, a dismissal, an error, or a source that was never read, whose silence means nothing.
+	## model's next turn is read from the cache (AgentsTools.MemberWait.include). Where the call named no bound and none is set for the
+	## run, that quiet round is the KEEPALIVE: the wait stops there, the conversation is returned to its checkpoint and the model is woken
+	## with the keepalive text, so its next turn refreshes the cache from the cached prefix instead of paying the whole history again.
 	local idleMode=default
 	while : ; do
 		idleOut="$( AgentsHarnessToolWait "$idleWaitSources" "$idleTimeout" "" "" "" "" "$idleMode" )"
@@ -213,10 +209,9 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources
 		case "$idleHead" in
 			"WAIT-RESULT: TIMEOUT"*)
 				if [ -z "$idleTimeout" ] && [ -z "${harnessWaitTimeout:-}" ] && ! printf '%s\n' "$idleOut" | LC_ALL=C grep -q '^WAIT-NEVER-READ: ' ; then
-					printf '%s\n' "${harnessDim}💤 idle-wait -- nothing yet, still waiting on $idleShown${harnessOff}" >&2
-					idleMode=continue ; idleWaitSources=""
-					sleep 1
-					continue
+					idleKeepalive=1
+					printf '%s\n' "${harnessDim}💤 idle-wait -- the quiet round of the service, before the input cache expires: waking the model with a keepalive${harnessOff}" >&2
+					break
 				fi
 			;;
 		esac
@@ -224,7 +219,6 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources
 	done
 	case "$idleHead" in
 		"WAIT-RESULT: RECEIVED")
-			if AgentsHarnessSnapshotHeld opening ; then idleTarget=opening ; elif AgentsHarnessSnapshotHeld armed ; then idleTarget=armed ; fi
 			## The Wait tool's own last line says to go on with Wait: not a Wait that goes on here, so that line is left off.
 			idleArrival="$( printf '%s\n' "$idleOut" | LC_ALL=C awk '{ idleLine[NR] = $0 } END { idleLast = NR ; if ( idleLine[idleLast] ~ /^NEXT: / ) { idleLast-- } ; for ( idleAt = 1 ; idleAt <= idleLast ; idleAt++ ) { print idleLine[idleAt] } }' )"
 			## What arrived is given as a Wait result is: a long report is kept in the session's results/ and named (the one reply layer).
@@ -241,7 +235,20 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources
 			printf -v idleText '%s\n\n%s' "Something arrived while this run was idle, and no snapshot is held, so your conversation was not returned. What arrived:" "$idleArrival"
 		;;
 		"WAIT-RESULT: TIMEOUT"*)
-			printf -v idleText '%s\n\n%s' "Your --idle-wait ended with no arrival, and your conversation was not returned. Call --idle-wait again to keep waiting." "${idleOut/ NEXT: Wait mode=continue/}"
+			if [ "$idleKeepalive" = 1 ] ; then
+				## The keepalive: return to the checkpoint with a text that says the task was already worked, so the next turn is a cheap
+				## request over the cached prefix (the model spends a little to refresh the cache, never the whole history).
+				if [ -n "$idleTarget" ] ; then
+					printf -v idleText '%s' "Your --idle-wait made its keepalive round before the input cache expired: nothing arrived. The task above is the one you already worked. The conversation is returned to its checkpoint $idleTarget so the next turn is read from the cache. Do not redo that work: call --idle-wait again to keep waiting."
+					if AgentsHarnessRewindTo "$idleTarget" "$idleText" ; then
+						return 0
+					fi
+				fi
+				harnessLegRound=0
+				printf -v idleText '%s' "Your --idle-wait made its keepalive round before the input cache expired: nothing arrived. The task above is the one you already worked; no snapshot is held, so your conversation was not returned. Do not redo that work: call --idle-wait again to keep waiting."
+			else
+				printf -v idleText '%s\n\n%s' "Your --idle-wait ended with no arrival, and your conversation was not returned. Call --idle-wait again to keep waiting." "${idleOut/ NEXT: Wait mode=continue/}"
+			fi
 		;;
 		"WAIT-RESULT: DISMISSED")
 			printf -v idleText '%s\n\n%s' "Your --idle-wait ended on a dismissal, and your conversation was not returned." "$idleOut"

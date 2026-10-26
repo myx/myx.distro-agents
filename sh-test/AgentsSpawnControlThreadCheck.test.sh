@@ -188,7 +188,7 @@ rigEnv(){ ## scenario folder, NAME=value words, then the command...
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$envDir" \
 		${envWords[@]+"${envWords[@]}"} \
-		perl -e '$SIG{HUP} = "DEFAULT" ; $SIG{INT} = "DEFAULT" ; $SIG{QUIT} = "DEFAULT" ; exec { $ARGV[0] } @ARGV or exit 127' "$@"
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --default-signals HUP,INT,QUIT -- "$@"
 }
 ## THE THREAD OF A SESSION, read as the list of sessions reads it and as the host shows it.
 rigHolder(){ ## session id -- the pid its pid file names, where that is a process that began when the file says

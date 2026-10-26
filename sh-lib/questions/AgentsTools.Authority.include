@@ -13,9 +13,12 @@
 ## permission: a refusal of this rule, logged (tool `authority`), and granted with
 ## --intern-op-permission-grant-open. Never by a built-in equality.
 ## WHO CALLS. A spawned member's run is that member in its session; anyone else is the person at
-## the console, `user-<account>`, and never the owners role: a console account mapped to an owner
-## (HUMAN_OWNER_CONSOLE_ACCOUNT, scope magic-team) only sends a confirmation to that owner's own
-## channel, a second factor, and only the owner's answer there acts.
+## the console, `user-<account>`, and never the owners role: for THIS authority a console account
+## mapped to an owner (HUMAN_OWNER_CONSOLE_ACCOUNT, scope magic-team) only sends a confirmation to
+## that owner's own channel, a second factor, and only the owner's answer there acts. The same
+## mapping is how a verdict only the owner gives -- a review, a held change, a proposal -- is
+## recognized as his own when he gives it at that console (AgentsToolsPermissionIsHumanOwner): the
+## person there IS the owner, and that is no grant of authority over another run.
 ## WITHOUT IT nothing is disabled: a bare call fails, naming the authority it needs and its two
 ## options. --escalate-wait [--timeout <s>] asks and waits, with no timeout by default: exit 0
 ## approved and acted, 1 denied, 124 at the timeout, where the request is withdrawn and its record
@@ -46,7 +49,8 @@ AgentsToolsPendingRecordPath(){ ## pending id
 	local pathStore
 	type AgentsToolsAssertBareName > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.BareName.include"
 	AgentsToolsAssertBareName "$1" "<pending-id>" pending-record 2> /dev/null || return 1
-	for pathStore in "${MMDAPP:-/nonexistent}/.local/agents/pending" "$( AgentsToolsQuestionsStore )" ; do
+	## A closed record lives in pending/closed/ (retention, T9): the live store first, then the closed one, then the questions store.
+	for pathStore in "${MMDAPP:-/nonexistent}/.local/agents/pending" "${MMDAPP:-/nonexistent}/.local/agents/pending/closed" "$( AgentsToolsQuestionsStore )" ; do
 		[ ! -f "$pathStore/$1.md" ] || { printf '%s' "$pathStore/$1.md" ; return 0 ; }
 	done
 	return 1
@@ -172,12 +176,187 @@ AgentsToolsAuthorityHolds(){ ## holder, session of the run acted on
 	AgentsToolsAuthorityAddressHeld "$1" || AgentsToolsAuthorityGranted "$2"
 }
 
+## The account at the console that is the human-owner (HUMAN_OWNER_CONSOLE_ACCOUNT, scope
+## magic-team): printed, rc 0; rc 1 where the console is mapped to no owner. THE ONE READ of it.
+AgentsToolsAuthorityOwnerAccount(){
+	local ownerAccount=""
+	ownerAccount="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HUMAN_OWNER_CONSOLE_ACCOUNT 2> /dev/null )" || ownerAccount=""
+	[ -n "$ownerAccount" ] || return 1
+	printf '%s\n' "$ownerAccount"
+}
+
+## Whether a name is the person at the console mapped to the human-owner, `user-<account>`: that
+## person IS the owner there, so a verdict only he gives is his own. rc 0 it is. One account is
+## mapped, and unset maps none.
+AgentsToolsAuthorityOwnerNamed(){ ## member name
+	local ownerAccount=""
+	case "$1" in user-*) ;; *) return 1 ;; esac
+	ownerAccount="$( AgentsToolsAuthorityOwnerAccount )" || return 1
+	[ "user-$ownerAccount" = "$1" ]
+}
+
 ## Whether the person at the console is mapped to an owner (HUMAN_OWNER_CONSOLE_ACCOUNT). rc 0 it is.
 AgentsToolsAuthorityOwnerMapped(){
-	local mappedTo=""
 	[ "$agentsAuthorityCallerKind" = person ] || return 1
-	mappedTo="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HUMAN_OWNER_CONSOLE_ACCOUNT 2> /dev/null )" || mappedTo=""
-	[ -n "$mappedTo" ] && [ "user-$mappedTo" = "$agentsAuthorityCallerId" ]
+	AgentsToolsAuthorityOwnerNamed "$agentsAuthorityCallerId"
+}
+
+## The authenticated accounts of the owners role (HUMAN_OWNER_MEMBERS, T8), one per line. A console account
+## (user-*) is never a member of the role, so those are dropped here; the role's own single answer channel
+## (SLACK_CHANNEL_HUMAN_OWNER) is added by the caller beside them, never in place of them.
+AgentsToolsAuthorityOwnerMembers(){
+	local membersList="" membersLine
+	membersList="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HUMAN_OWNER_MEMBERS 2> /dev/null )" || membersList=""
+	while IFS= read -r membersLine ; do
+		[ -n "$membersLine" ] || continue
+		case "$membersLine" in user-*) continue ;; esac
+		printf '%s\n' "$membersLine"
+	done <<< "$membersList"
+}
+
+## The quorum rule of a question kind (HUMAN_OWNER_QUORUM, T8): the <kind>=<rule> pair for the kind, one of
+## all, first, any-approves, any-rejects or majority. Prints the rule, or `first` where none is set for the kind.
+AgentsToolsAuthorityOwnerQuorum(){ ## question kind
+	local quorumText="" quorumLine quorumRule
+	quorumText="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HUMAN_OWNER_QUORUM 2> /dev/null )" || quorumText=""
+	while IFS= read -r quorumLine ; do
+		case "$quorumLine" in
+			"$1="*)
+				quorumRule="${quorumLine#*=}"
+				case "$quorumRule" in all|first|any-approves|any-rejects|majority) printf '%s\n' "$quorumRule" ; return 0 ;; esac
+			;;
+		esac
+	done <<< "$quorumText"
+	printf 'first\n'
+}
+
+## THE OWNERS ROLE (epic T8, the predecessor's F6.11). human-owner is a role with members, each
+## an authenticated account, Slack or mail. Its members are HUMAN_OWNER_MEMBERS, one a line; a
+## console account is never a member, so a `user-*` word is dropped. Unset, the role is the one
+## SLACK_CHANNEL_HUMAN_OWNER account, as it always was. The console mapping above only routes a
+## confirmation, never membership.
+AgentsToolsOwnerRoleMembers(){
+	local roleSetting="" roleMember roleList=""
+	roleSetting="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HUMAN_OWNER_MEMBERS 2> /dev/null )" || roleSetting=""
+	roleSetting="$( printf '%s' "$roleSetting" | LC_ALL=C tr -s ' \t\r\n' ' ' )"
+	for roleMember in $roleSetting ; do
+		case "$roleMember" in ''|user-*) continue ;; esac
+		roleList="$roleList${roleList:+$'\n'}$roleMember"
+	done
+	if [ -n "$roleList" ] ; then
+		printf '%s\n' "$roleList"
+		return 0
+	fi
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null
+}
+
+## The quorum rule of one kind of decision the owners role answers, from HUMAN_OWNER_QUORUM
+## (`<kind>=<rule>` pairs): all, first, any-approves, any-rejects or majority. `first` where
+## the setting names none for the kind, which is the single-owner rule and the old behaviour.
+AgentsToolsOwnerQuorumRule(){ ## kind
+	local quorumSetting="" quorumPair quorumKind quorumRule
+	quorumSetting="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select HUMAN_OWNER_QUORUM 2> /dev/null )" || quorumSetting=""
+	for quorumPair in $quorumSetting ; do
+		quorumKind="${quorumPair%%=*}" ; quorumRule="${quorumPair#*=}"
+		[ "$quorumKind" = "$1" ] || continue
+		case "$quorumRule" in all|first|any-approves|any-rejects|majority) printf '%s\n' "$quorumRule" ; return 0 ;; esac
+	done
+	printf 'first\n'
+}
+
+## THE QUORUM DECISION of the owners role: the answers of its members, one vote per member, decided
+## by the rule of the kind. Votes are `<member>=<verdict>` lines; a verdict is approving
+## (AgentsToolsAuthorityApproving, or a decision's chosen option and a question's text, which are
+## the member's own non-refusal answer) or refusing (AgentsToolsAuthorityRefusing). The rules are
+## the access-control combines: first (the old path, not evaluated here), any-approves (permit
+## overrides), any-rejects (deny overrides), all (unanimous, a reject vetoes) and majority (more
+## than half). Prints `APPROVED <verdict> <member>`, `DENIED <verdict> <member>` or `OPEN`; the
+## verdict carried is the first approving or refusing member's, in member order.
+AgentsToolsOwnerQuorumDecide(){ ## rule, members (one a line), votes (one a line)
+	local decRule="$1" decMembers="$2" decVotes="$3" decVote decMember decVerdict decWord
+	local decFirstApprove="" decFirstReject="" decApproves=0 decRejects=0 decTotal=0
+	decTotal="$( printf '%s\n' "$decMembers" | LC_ALL=C grep -c . )"
+	while IFS= read -r decVote ; do
+		[ -n "$decVote" ] || continue
+		decMember="${decVote%%=*}" ; decVerdict="${decVote#*=}"
+		decWord="$( printf '%s' "$decVerdict" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+		if AgentsToolsAuthorityApproving "$decWord" ; then
+			decApproves=$(( decApproves + 1 ))
+			[ -n "$decFirstApprove" ] || decFirstApprove="$decVerdict $decMember"
+		elif AgentsToolsAuthorityRefusing "$decWord" ; then
+			decRejects=$(( decRejects + 1 ))
+			[ -n "$decFirstReject" ] || decFirstReject="$decVerdict $decMember"
+		else
+			decApproves=$(( decApproves + 1 ))
+			[ -n "$decFirstApprove" ] || decFirstApprove="$decVerdict $decMember"
+		fi
+	done <<< "$decVotes"
+	case "$decRule" in
+		any-approves)
+			[ -z "$decFirstApprove" ] || { printf 'APPROVED %s\n' "$decFirstApprove" ; return 0 ; }
+			[ -z "$decFirstReject" ] || { printf 'DENIED %s\n' "$decFirstReject" ; return 0 ; }
+		;;
+		any-rejects)
+			[ -z "$decFirstReject" ] || { printf 'DENIED %s\n' "$decFirstReject" ; return 0 ; }
+			[ -z "$decFirstApprove" ] || { printf 'APPROVED %s\n' "$decFirstApprove" ; return 0 ; }
+		;;
+		all)
+			[ -z "$decFirstReject" ] || { printf 'DENIED %s\n' "$decFirstReject" ; return 0 ; }
+			[ "$decApproves" -lt "$decTotal" ] || { printf 'APPROVED %s\n' "$decFirstApprove" ; return 0 ; }
+		;;
+		majority)
+			[ "$decRejects" -le $(( decTotal / 2 )) ] || { printf 'DENIED %s\n' "$decFirstReject" ; return 0 ; }
+			[ "$decApproves" -le $(( decTotal / 2 )) ] || { printf 'APPROVED %s\n' "$decFirstApprove" ; return 0 ; }
+		;;
+	esac
+	printf 'OPEN\n'
+	return 0
+}
+
+## The role-aware read of one request: where it asks the owners role with more than one member and
+## a rule that is not `first`, each member's answer is read on its own and the rule decides them.
+## rc 0, nothing printed, when this is no role case -- the caller then uses the single-answer path.
+AgentsToolsAuthorityQuorumCase(){ ## request record, out: agentsAuthorityQuorumMembers, _Rule
+	agentsAuthorityQuorumMembers="" agentsAuthorityQuorumRule=""
+	[ "$( AgentsToolsAuthorityField "$1" address-to )" = human-owner ] || return 1
+	agentsAuthorityQuorumMembers="$( AgentsToolsOwnerRoleMembers )" || agentsAuthorityQuorumMembers=""
+	[ "$( printf '%s\n' "$agentsAuthorityQuorumMembers" | LC_ALL=C grep -c . )" -gt 1 ] || return 1
+	agentsAuthorityQuorumRule="$( AgentsToolsOwnerQuorumRule "$( AgentsToolsAuthorityField "$1" kind )" )"
+	[ "$agentsAuthorityQuorumRule" != first ] || return 1
+	return 0
+}
+
+## Reads the answers of the owners role's members to one request, applies the kind's quorum rule,
+## and settles the request where it is met. Prints one line for what it did; rc 2 where this is no
+## role case, so the caller falls through to the single-answer path; rc 0 where it read and acted
+## (settled it, or found it still open).
+AgentsToolsAuthorityQuorumRead(){ ## request record
+	local qFile="$1" qMember qOut qVerdict qVotes="" qDecide qWin qWinVerdict qWinAuthor
+	AgentsToolsAuthorityQuorumCase "$qFile" || return 2
+	type AgentsToolsEscalationThreadVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only 2> /dev/null || return 2
+	for qMember in $agentsAuthorityQuorumMembers ; do
+		qOut="$( AgentsToolsEscalationThreadVerdict "$( AgentsToolsAuthorityField "$qFile" owner )" "$qFile" "$( basename "$qFile" .md )" \
+			"$( AgentsToolsAuthorityField "$qFile" channel )" "$( AgentsToolsAuthorityField "$qFile" question-ts )" "$( AgentsToolsAuthorityField "$qFile" thread-ts )" \
+			"$qMember" true 2> /dev/null )" || qOut=""
+		qVerdict="$( printf '%s\n' "$qOut" | head -1 )"
+		case "${qVerdict%%$'\t'*}" in ''|OPEN|RETURNED|UNREADABLE) continue ;; esac
+		qVerdict="${qVerdict%%$'\t'*}"
+		case $'\n'"$qVotes"$'\n' in *$'\n'"$qMember="*) continue ;; esac
+		qVotes="$qVotes$qMember=$qVerdict"$'\n'
+	done
+	qDecide="$( AgentsToolsOwnerQuorumDecide "$agentsAuthorityQuorumRule" "$agentsAuthorityQuorumMembers" "$qVotes" )" || qDecide=""
+	qWin="${qDecide#* }"
+	case "${qDecide%% *}" in
+		APPROVED|DENIED)
+			qWinVerdict="${qWin% *}" ; qWinAuthor="${qWin##* }"
+			AgentsToolsAuthorityRequestSettle "$qFile" "$qWinVerdict" "${qWinAuthor:-the owners role}"
+		;;
+		*)
+			## Not met yet: the request stays open, said as nothing, as the single-answer path's
+			## OPEN is -- the waiter's own progress line says how long it has waited.
+			return 0
+		;;
+	esac
 }
 
 ## Where the caller's request goes: from the console, to the holder; from a member's run, to where
@@ -288,13 +467,15 @@ AgentsToolsAuthorityRefuse(){ ## what is asked (words), holder, session of the r
 }
 
 ## A request for the authority: posted to whom it asks and kept as a pending question in the
-## questions store, the action it lets run beside it. Prints `PENDING <id> <to>`; rc 0; rc 1 where
-## it could not be made (said on stderr).
+## questions store, the action it lets run beside it. A session with no thread of its own is no
+## reason to refuse it: the request is asked of the owners role, which is reached without one.
+## Prints `PENDING <id> <to>`; rc 0; rc 1 where it could not be made (said on stderr).
 AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|empty), to, session of the run acted on, original, what (words), original question record (or empty), action words...
 	local openMode="$1" openConfirm="$2" openTo="$3" openSession="$4" openOriginal="$5" openWhat="$6" openQuestion="$7"
 	shift 7
 	local openKind="permission" openOptions="" openSender="magic-coordinator" openTarget="" openAddress="" openThread="" openFounder=""
-	local openOut openChannel openTs openThreadTs openAddressees openAsking openId openLine openText="" openRefusal openForm openReason openTaskText openOperation openSlotText="" openSlotChoices="" openFields="" openNames=""
+	local openThreadSession="" openUnthreaded="" openUnasked=""
+	local openOut openChannel openTs openThreadTs openAddressees openAsking openId openLine openText="" openRefusal openForm openReason openTaskText openOperation openSlotText="" openSlotChoices="" openFields="" openNames="" openMember
 	## A choice among answers goes as a choice: its options, beside an allow and a deny of the one proposed.
 	if [ -n "$openQuestion" ] && [ "$( AgentsToolsAuthorityField "$openQuestion" kind )" = decision ] && [ -s "${openQuestion%.md}.options" ] ; then
 		openKind="decision"
@@ -316,6 +497,7 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 			person|none) openTarget="human-owner" ; openAddress="human-owner" ;;
 			member)
 				openAddress="$openTo"
+				openThreadSession="$openSession"
 				openThread="$( LC_ALL=C sed -n '1p' "${MMDAPP:-/nonexistent}/.local/agents/sessions/$openSession/session.thread" 2> /dev/null )"
 			;;
 			session)
@@ -323,15 +505,23 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 					*:*) openAddress="${openTo#*:}" ;;
 					*) openFounder="$( AgentsToolsAuthorityFounder "$openTo" )" && openAddress="$( AgentsToolsAuthorityField "$openFounder" owner )" ;;
 				esac
+				openThreadSession="${openTo%%:*}"
 				openThread="$( LC_ALL=C sed -n '1p' "${MMDAPP:-/nonexistent}/.local/agents/sessions/${openTo%%:*}/session.thread" 2> /dev/null )"
 			;;
 		esac
 		## Asked as the ask tools ask a member: a reply in the session's thread, addressed to it.
 		[ -n "$openTarget" ] || openTarget="$openThread"
-	fi
-	if [ -z "$openTarget" ] ; then
-		echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: the request to $openTo could not be posted: no thread of its session is known, so nothing was asked" >&2
-		return 1
+		## A SESSION WITH NO THREAD OF ITS OWN IS STILL ASKED. A session that never had a thread,
+		## or whose thread was not kept, has nowhere of its own to be asked in; refusing here is
+		## what left a kill of such a session undone. The request goes to the owners role instead,
+		## which tops every chain and is reached without a session thread, and once it is recorded
+		## one warning says the session it could not be asked in and the request it was recorded
+		## as, so whoever asked knows where its answer stands.
+		if [ -z "$openTarget" ] ; then
+			openUnthreaded="$openThreadSession" ; [ -n "$openUnthreaded" ] || openUnthreaded="$openSession"
+			openUnasked="$openTo"
+			openTo="human-owner" ; openTarget="human-owner" ; openAddress="human-owner"
+		fi
 	fi
 	## Its text, in the form of a permission request (request-permission.post.format.md, with its `# Authority` words): the refused call said
 	## plainly, why it is asked, how to answer, and the refusal this request logs by its id, which an `allow-session` is granted from.
@@ -365,8 +555,9 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 	openTs="$( printf '%s\n' "$openOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
 	openThreadTs="$( printf '%s\n' "$openOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' | head -1 )"
 	openAddressees="$( printf '%s\n' "$openOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 ) $( printf '%s\n' "$openOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEE_MEMBERS=//p' | head -1 )"
-	## The owners role tops every chain: its own account answers any request.
-	openAddressees="$openAddressees $( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )"
+	## The owners role tops every chain: its members' accounts answer any request (epic T8). Where
+	## the role is the one SLACK_CHANNEL_HUMAN_OWNER account, this is that account alone, as before.
+	openAddressees="$openAddressees $( AgentsToolsOwnerRoleMembers 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
 	openAddressees="$( printf '%s' "$openAddressees" | LC_ALL=C tr -s ' ' ' ' | LC_ALL=C sed -e 's/^ //' -e 's/ $//' )"
 	openAsking="$( printf '%s\n' "$openOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessJsonField.awk" 2> /dev/null | head -1 )"
 	[ -n "$openAsking" ] || openAsking="the-team-bot"
@@ -379,6 +570,8 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 		return 1
 	fi
 	AgentsToolsAuthorityFieldSet "$( AgentsToolsQuestionsStore )/$openId.md" refusal-id "$openRefusal" || :
+	[ -z "$openUnthreaded" ] || printf '⚠️ WARNING: %s: no thread of its session is known (session %s), so the request to %s is asked of the owners role instead -- it is recorded as %s in the questions store, and answered in the owners-role conversation\n' \
+		"${MDSC_CMD:-DistroAgentsTools}" "${openUnthreaded:-none}" "${openUnasked:-$openTo}" "$openId" >&2
 	## The answer emoji go under the post, as the identity that posted it: the form's own, but for a request that asks for a text or a choice.
 	if [ -z "$openSlotText$openSlotChoices" ] && [ -n "$openChannel" ] && [ -n "$openTs" ] ; then
 		openNames="$( ASKP_F_text="" ASKP_F_choices="" AgentsToolsAskPostFill reactions request-permission.post.format.md "$openForm" 2> /dev/null )" || openNames=""
@@ -481,14 +674,29 @@ AgentsToolsAuthorityRequestAct(){ ## request record
 AgentsToolsAuthorityRequestWait(){ ## request id, bound in seconds (empty: none)
 	local waitRc=0
 	agentsAuthorityStopSaid=""
-	if [ -n "${agentsAuthorityStop:-}" ] ; then
-		trap 'agentsAuthorityStopSaid=withdraw' TERM INT HUP
-		trap 'agentsAuthorityStopSaid=enqueue' USR1
-	fi
+	## An interrupted or killed wait discards its request whatever else: TERM, INT and HUP
+	## always withdraw it, so a wait ended without --escalate-stop cannot leave an open
+	## request for a later sweep to act on. USR1, the --escalate-stop feature, leaves it
+	## pending for the sweep instead.
+	trap 'agentsAuthorityStopSaid=withdraw' TERM INT HUP
+	[ -z "${agentsAuthorityStop:-}" ] || trap 'agentsAuthorityStopSaid=enqueue' USR1
 	AgentsToolsAuthorityRequestWaitLoop "$@" || waitRc=$?
-	[ -z "${agentsAuthorityStop:-}" ] || trap - TERM INT HUP USR1
+	trap - TERM INT HUP
+	[ -z "${agentsAuthorityStop:-}" ] || trap - USR1
 	return "$waitRc"
 }
+## The Slack post of a request the tooling itself discarded (a wait interrupted or killed):
+## marked cancelled and edited away its How-to-answer part, as the asker's own withdraw does.
+## Best effort, and after the record is already closed, so a failed post never undoes the close.
+AgentsToolsAuthorityRequestDiscardPost(){ ## request record
+	local discFile="$1" discChannel discTs
+	discChannel="$( AgentsToolsAuthorityField "$discFile" channel )"
+	discTs="$( AgentsToolsAuthorityField "$discFile" question-ts )"
+	[ -n "$discChannel" ] && [ -n "$discTs" ] || return 0
+	type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.AskPost.include" 2> /dev/null || return 0
+	AgentsToolsAskPostClose "$discFile" "$discTs" cancelled edit
+}
+
 AgentsToolsAuthorityRequestWaitLoop(){ ## request id, bound in seconds (empty: none)
 	local waitFile waitBegan waitReadAt=0 waitNow waitChecks=0 waitErrors=0 waitProgressAt waitProgressEvery="${MDAT_AUTHORITY_WAIT_PROGRESS_SECONDS:-300}"
 	case "$waitProgressEvery" in ''|*[!0-9]*) waitProgressEvery=300 ;; esac
@@ -505,6 +713,7 @@ AgentsToolsAuthorityRequestWaitLoop(){ ## request id, bound in seconds (empty: n
 		case "${agentsAuthorityStopSaid:-}" in
 			withdraw)
 				AgentsToolsAuthorityFieldSet "$waitFile" status withdrawn withdrawn-by "tooling (the wait was cancelled)" withdrawn-at "$( date +"%Y-%m-%d %H:%M %z" )" || :
+				AgentsToolsAuthorityRequestDiscardPost "$waitFile" || :
 				return 130
 			;;
 			enqueue)
@@ -687,6 +896,12 @@ AgentsToolsAuthorityRequestRead(){ ## request record
 	local readFile="$1" readOut readVerdict readAuthor readText readStamp
 	[ "$( AgentsToolsAuthorityField "$readFile" status )" = reply-pending ] || return 0
 	[ -n "$( AgentsToolsAuthorityField "$readFile" request-of )" ] || return 0
+	## THE OWNERS ROLE (epic T8): a request to the role is answered by its members' conversation,
+	## and the kind's quorum rule decides their answers. A single member, or the `first` rule, is
+	## the single-answer path below, unchanged.
+	if AgentsToolsAuthorityQuorumRead "$readFile" ; then
+		return 0
+	fi
 	type AgentsToolsEscalationThreadVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/questions/AgentsTools.MemberEscalation.include" --definitions-only 2> /dev/null || return 0
 	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
 	readOut="$( AgentsToolsEscalationThreadVerdict "$( AgentsToolsAuthorityField "$readFile" owner )" "$readFile" "$( basename "$readFile" .md )" \
@@ -730,6 +945,20 @@ AgentsToolsAuthorityRequestUnthreaded(){ ## request record
 		| LC_ALL=C awk -v authors=" $( AgentsToolsAuthorityField "$unFile" addressees ) " -v after="$unTs" '
 			/^[0-9]+\.[0-9]+ \| / { split( $0, part, " \\| " ) ; if ( index( authors, " " part[2] " " ) > 0 && part[1] != after && part[1] > after ) { newest = part[1] ; } }
 			END { print newest ; }'
+}
+
+## The post that says a request was withdrawn before an answer: a plain line to the request's thread, so the person who was
+## asked knows the asker's wait ended (a signal, or its bound) and nothing acts on the request. Nothing is posted where the
+## record names no thread. One line, WITHDREW.
+AgentsToolsAuthorityRequestWithdrawn(){ ## request record
+	local wdFile="$1" wdChannel wdTs wdTo
+	wdChannel="$( AgentsToolsAuthorityField "$wdFile" channel )" ; wdTs="$( AgentsToolsAuthorityField "$wdFile" thread-ts )"
+	[ -n "$wdChannel" ] && [ -n "$wdTs" ] || return 0
+	wdTo="$( AgentsToolsAuthorityField "$wdFile" address-to )"
+	printf '🙋 this request was withdrawn before an answer: the asker'"'"'s wait ended (a signal, or its bound), and nothing acts on it.\n' \
+		| "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-send-message "$( AgentsToolsAuthorityField "$wdFile" owner )" \
+		"$wdChannel:$wdTs" --from-stdin --identity-bot ${wdTo:+--address-to "$wdTo"} > /dev/null 2>&1 || :
+	printf 'WITHDREW %s\n' "$( basename "$wdFile" .md )"
 }
 
 ## Tells the person, once for what it answers, what to reply to a request that was not answered: a post in the request's thread by the team bot, from the block

@@ -194,10 +194,12 @@ rigFirst(){ ## result name -- the first line of the tool's own result
 }
 rigPosts(){ cat "$rigDir/posts" 2> /dev/null || printf '0' ; }
 ## The pending-reply records of the scenario, in the order their prompts were posted, and
-## the n-th of them. Never by file time: a record that closes is written again.
+## the n-th of them. Never by file time: a record that closes is written again. A record
+## closed here lives in pending/closed/ (retention, T9) and stays the scenario's record, so
+## both stores are read: the question-ts order keeps them in the order their prompts were posted.
 rigRecords(){
 	local recordFile
-	for recordFile in "$rigWs/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigWs/.local/agents/pending"/*.md "$rigWs/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] || continue
 		printf '%s\t%s\n' "$( LC_ALL=C sed -n 's/^question-ts: //p' "$recordFile" | head -1 )" "$recordFile"
 	done | LC_ALL=C sort | LC_ALL=C cut -f2-

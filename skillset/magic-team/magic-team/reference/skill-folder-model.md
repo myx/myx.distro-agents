@@ -90,17 +90,17 @@ A step the tooling cannot yet do is a tooling gap: close it in the tooling, neve
 
 ## Armed & Routine contracts
 
-Every `.basic.md`, `.armed.md` and `.routine.md` follows the contract for its kind, stated in full in its template's `# Contract`:
+Every `.basic.md`, `.armed.md` and `.routine.md` follows the contract for its kind, stated in full in its contract file's `# Contract`:
 
-- Basic — `templates/basic.contract.format.md`
-- Routine — `templates/routine.contract.format.md`
-- Team-member (`magic-*`) — `templates/team-member.contract.format.md`
-- Keeper / Warden — `templates/keeper-warden.contract.format.md`
-- Partner / Client — `templates/partner-client.contract.format.md`
-- Oncall / Expert — `templates/oncall-expert.contract.format.md`
-- Human-owner — `templates/human-owner.contract.format.md`
+- Basic — `contracts/basic.contract.format.md`
+- Routine — `contracts/routine.contract.format.md`
+- Team-member (`magic-*`) — `contracts/team-member.contract.format.md`
+- Keeper / Warden — `contracts/keeper-warden.contract.format.md`
+- Partner / Client — `contracts/partner-client.contract.format.md`
+- Oncall / Expert — `contracts/oncall-expert.contract.format.md`
+- Human-owner — `contracts/human-owner.contract.format.md`
 
-Document formats: `templates/escalation.document.format.md` (the `ConfirmReadback`, `EscalateDecision`, `RequestPermission` and `ProposeApprove` kinds), `templates/session-context.document.format.md` (the generated session sweep report), `templates/no-quorum.document.format.md` (the agreed-and-dissent document "The ladder: one rung at a time" names). The templates of messages the tooling produces automatically, the spawn brief block and the tooling's own tracking posts, are the tooling's own (`myx.distro-agents/sh-lib/templates/`), not the skillset's.
+Document formats: the ask templates of the `ConfirmReadback`, `EscalateDecision`, `RequestPermission` and `ProposeApprove` kinds, `session-context.document.format.md` (the generated session sweep report) and `no-quorum.document.format.md` (the agreed-and-dissent document "The ladder: one rung at a time" names) are all the tooling's own (`myx.distro-agents/sh-lib/templates/`), not the skillset's.
 
 Every section a contract names is present, in contract order, with its lead-in, even when empty: write "none". Fix a gap when the file is next touched.
 
@@ -127,10 +127,10 @@ A list of one kind drops the prefixes and declares the kind on the parent line (
 
 ## Access facts, maintainers and quorum
 
-- **Who runs it**: an acting member states it in `Scope` and Local rules; a routine in its `executors:` frontmatter (`*` or `magic-team` means any member).
+- **Who runs it**: an acting member states it in `Scope` and Local rules; a routine in its `executors:` frontmatter. A `executors:` entry is a member name, or a team-member contract token: `<type>-*` (all members of that type — selected, fail on none) or `<type>-?` (one of that type — selected or specified). `*` or `magic-team` means any member. A `<type>-*` partitions the run into one session per member under one agent-less parent session.
 - **Who changes it**: `maintainers:` — always a group. Default `magic-coordinator`, `magic-librarian`, `magic-architect`, adding the domain's keeper or partner where it fits. A change lands by the rule in `magic-team.armed.md`'s "Rule/instruction/definition/description conventions": `quorum-all-agree`, in one coworking session.
 - **Owner-guaranteed**: a file stating a rule that protects the human-owner's identity, consent and channel, or credential boundary carries `human-owner` in `maintainers:`.
-- **Invitees**: routines with multi-member sessions declare `invitees:` — a floor, not a cap. Acting members never declare it.
+- **Invitees**: routines with multi-member sessions declare `invitees:` — a floor, not a cap. Acting members never declare it. Its entries take the same member-name and `<type>-*`/`<type>-?` tokens as `executors:`, plus the standing-members keyword `all-present-members`, which extends to every member whose `.basic.md` `attendance:` is `present` (every `magic-*` member where it says nothing).
 - A routine's own executor notes and roster live in that routine's file. Which routines exist: each owner's `.armed.md` Domain knowledge index.
 
 ## Doc/disk mismatch repair loop

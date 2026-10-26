@@ -307,7 +307,7 @@ def subjectLines(state, subject, missingFirst=False):
 ## A subject of the digest as a folder: its lines, as its row shows them, in the form its
 ## root declares.
 def subjectSummary(state, path, row, form):
-    return subjectLines(state, row["subject"], form.get("missingFirst", False)) if row.get("subject") else None
+    return subjectLines(state, row["subject"], form.get("missingFirst", False)) if row and row.get("subject") else None
 
 
 ## A group of the lines of a subject for the left pane, while its heading is selected in

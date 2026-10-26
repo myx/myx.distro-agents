@@ -8,7 +8,7 @@
 ## THE KINDS. `routine` and `document` (the self-check) have their rule sets in AgentsTools.InternDocValidate.include. Every
 ## team-data type is a kind, `<store>-item.<type>` (`board-item.task`, `inbox-item.note`, `audit-item.transcript`), and its rule
 ## set is its contract: ONE reader (AgentsDocTypeCheck.awk) reads the contract's Keys table and unmarked Rules in
-## magic-team/templates/<kind>.contract.format.md, and the document with them. A document names its kind in `document-contract`.
+## magic-team/contracts/<kind>.contract.format.md, and the document with them. A document names its kind in `document-contract`.
 ##
 ## THE DISPOSITION belongs to the rule and the call site (AgentsToolsDocValidateDisposition): `check` is the validator called,
 ## `write` is a writer's gate. A refusing rule's row stands as it is and refuses; a reporting rule's row is a row of a
@@ -37,7 +37,7 @@ AgentsToolsDocValidateContractFile(){ ## kind
 		*) return 1 ;;
 	esac
 	for contractBase in "${MDAT_SKILLSET_ROOT:-}/magic-team" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team" ; do
-		[ ! -f "$contractBase/templates/$1.contract.format.md" ] || { printf '%s\n' "$contractBase/templates/$1.contract.format.md" ; return 0 ; }
+		[ ! -f "$contractBase/contracts/$1.contract.format.md" ] || { printf '%s\n' "$contractBase/contracts/$1.contract.format.md" ; return 0 ; }
 	done
 	return 1
 }
@@ -45,7 +45,7 @@ AgentsToolsDocValidateContractFile(){ ## kind
 ## The kinds built, one a line: routine, document, and every type that has a contract.
 AgentsToolsDocValidateKinds(){
 	printf '%s\n' routine document
-	ls "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/templates" 2> /dev/null | LC_ALL=C sed -n 's/^\(.*-item\..*\)\.contract\.format\.md$/\1/p' | LC_ALL=C sort
+	ls "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/contracts" 2> /dev/null | LC_ALL=C sed -n 's/^\(.*-item\..*\)\.contract\.format\.md$/\1/p' | LC_ALL=C sort
 }
 
 ## Whether the row of a rule refuses or reports at a site: `check` (the validator called) or `write` (a writer's gate). The

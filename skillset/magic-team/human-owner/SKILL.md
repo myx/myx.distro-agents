@@ -11,7 +11,7 @@ description: >-
 
 This file only boots the record.
 
-Read every file named here with the skillset reader — `mcp__myx_distro__Skill` with `name` and `file` in a native client, `Skill` in the team harness — never with `Read` or a path.
+Read every file named here with the skillset reader — `mcp__myx_distro__Skill` with `name` and `file` in a native client, `Skill` in the team harness.
 
 1. Always read `human-owner.basic.md` first, even for the most casual reference: it carries the impersonation rule.
 2. Only where deeper context is needed, read `human-owner.armed.md`.

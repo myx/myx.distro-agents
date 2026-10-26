@@ -216,8 +216,8 @@ rigAssert "the request went to the pinned endpoint"    "$( rigHolds "$rigScenari
 rigAssert "the diagnostics name the leaf's provider"   "$( rigHolds "$rigScenarioDir/err" "$( rigDecl provider )" )" yes
 rigAssert "THE MODEL IS TOLD THE LEAF'S PROVIDER"      "$( rigHolds "$rigScenarioDir/req.1" "bespoke $( rigDecl provider ) harness" )" yes
 rigAssert "the normal tier carries the main model"     "$( rigHolds "$rigScenarioDir/req.1" "\"model\":\"$( rigDecl modelMain )\"" )" yes
-## xAI publishes no output maximum and measured none, so none is sent and the model's own applies.
-rigAssert "no max_tokens caps the model's own output"  "$( rigHolds "$rigScenarioDir/req.1" '"max_tokens"' )" no
+## xAI publishes no output maximum; the leg's family table budgets one for the model (65536 for grok-4.7), and the wire sends it.
+rigAssert "the table's output budget is the max_tokens sent"  "$( rigHolds "$rigScenarioDir/req.1" '"max_tokens":65536' )" yes
 rigAssert "the bearer is on stdin, and is all of it"   "$( cat "$rigScenarioDir/stdin.1" )" "Authorization: Bearer rig-not-a-credential"
 rigAssert "stdin carries one header and no extra"      "$( rigLineCount "$rigScenarioDir/stdin.1" )" 1
 rigAssert "the bearer is nowhere in argv"              "$( rigHolds "$rigScenarioDir/argv.1" 'rig-not-a-credential' )" no
@@ -400,12 +400,13 @@ rigAssert "control: the tool ran and the file exists"  "$( rigExists "$rigScenar
 rigVerdict "a PreToolUse hook denies a write -- and without it that same write lands"
 
 ## ---------------------------------------------------------------------------
-## F. The context budget is each tier model's own window, as xAI lists it: 500000 for
-##    the main model, 1000000 for the light one -- never the core's 400000 fallback.
+## F. The context budget is each tier model's own family row: the window less the output,
+##    500000 - 65536 = 434464 for the main model, 1000000 - 30000 = 970000 for the light one --
+##    never the core's 400000 fallback.
 ## ---------------------------------------------------------------------------
 rigStart f-over-core-fallback
 printf 'RIG-TOOLRESULT-MARKER\n' > "$rigScenarioDir/read.txt"
-rigReadStream "$rigScenarioDir/res.1" "$rigScenarioDir/read.txt" 499999
+rigReadStream "$rigScenarioDir/res.1" "$rigScenarioDir/read.txt" 434463
 rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
 rigRun --access-write-root "$rigScenarioDir"
 rigAssert "the core fallback no longer governs"        "$( rigHolds "$rigScenarioDir/err" 'context threshold reached' )" no
@@ -413,14 +414,14 @@ rigAssert "so the leg ran straight to its answer"      "$rigRoundCount" 2
 
 rigStart f-light-window
 printf 'RIG-TOOLRESULT-MARKER\n' > "$rigScenarioDir/read.txt"
-rigReadStream "$rigScenarioDir/res.1" "$rigScenarioDir/read.txt" 999999
+rigReadStream "$rigScenarioDir/res.1" "$rigScenarioDir/read.txt" 969999
 rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
 rigRun --tier light --access-write-root "$rigScenarioDir"
 rigAssert "the light tier has its own larger window"   "$( rigHolds "$rigScenarioDir/err" 'context threshold reached' )" no
 
 rigStart f-at-main-window
 printf 'RIG-TOOLRESULT-MARKER\n' > "$rigScenarioDir/read.txt"
-rigReadStream "$rigScenarioDir/res.1" "$rigScenarioDir/read.txt" 500000
+rigReadStream "$rigScenarioDir/res.1" "$rigScenarioDir/read.txt" 434464
 rigTextStream "$rigScenarioDir/res.2" RIG-SUMMARY-MARKER 20
 rigTextStream "$rigScenarioDir/res.3" RIG-FINAL-MARKER 20
 rigRun --access-write-root "$rigScenarioDir"

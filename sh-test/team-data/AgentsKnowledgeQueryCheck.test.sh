@@ -142,7 +142,7 @@ if rigDistroPath > /dev/null && rigDistroWorkspace "$rigDws" rig && rigDistroPro
 		local docsName="$1" docsRc=0
 		shift
 		( cd "$rigDws" && env -i HOME="$rigTmp/home" PATH="$( rigDistroPath )" MMDAPP="$rigDws" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
-			perl -e 'alarm 300 ; exec @ARGV' bash "$rigKnowledge" "$@" ) > "$rigTmp/$docsName.out" 2> "$rigTmp/$docsName.err" < /dev/null || docsRc=$?
+			python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 300 -- bash "$rigKnowledge" "$@" ) > "$rigTmp/$docsName.out" 2> "$rigTmp/$docsName.err" < /dev/null || docsRc=$?
 		printf '%s' "$docsRc" > "$rigTmp/$docsName.rc"
 	}
 	rigDocs docs --add-source-docs --query-keyword RIGDOCWORD

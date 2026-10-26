@@ -36,7 +36,7 @@ DistroAgentsGoogle(){
 			set +e ; return 1
 		;;
 		--help)
-			AgentsToolsFrontHelp DistroAgentsGoogle "the team's Google operations" >&2
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsGoogle.include"
 			return 0
 		;;
 	esac

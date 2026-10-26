@@ -84,6 +84,14 @@ DistroAgentsDispatcher(){
 		DistroAgentsDispatcherMoved "$@"
 		return $?
 	fi
+	## The three help forms, as DistroAgentsTools.fn.sh has them: no word the default syntax (the entry points a reader
+	## starts from), --help-syntax the syntax line of every operation of this file, --help the manual.
+	case "${1:-}" in
+		''|--help|--help-syntax)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsDispatcher.include"
+			return $?
+		;;
+	esac
 	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,
 	## and the call is made again under what they resolve (sh-lib/common/AgentsTools.CommonOptions.include).
 	case "${agentsCommonFronted:-}:${2:-}" in
@@ -109,6 +117,25 @@ DistroAgentsDispatcher(){
 			shift
 			DistroAgentsDispatcherTools
 			AgentsToolsDispatcherSessions "$sessionsOp" "$@"
+			return $?
+		;;
+
+		## The runs this session may see, bound to the session of the call (ThisSession): its sub-sessions, the public
+		## coworking sessions and the caller's own -- never another member's private session, unless the call is made in it.
+		--list-session-runs)
+			local runsOp="$1"
+			shift
+			DistroAgentsDispatcherTools
+			AgentsToolsDispatcherListRuns "$runsOp" "$@"
+			return $?
+		;;
+
+		## The BPMN/DMN diagrams older than the newest definition file: <definitions-dir> <diagrams-dir>, read-only.
+		--camunda-diagram-sync-stale)
+			local camundaOp="$1"
+			shift
+			DistroAgentsDispatcherTools
+			AgentsToolsCamundaDiagramSyncStale "$camundaOp" "$@"
 			return $?
 		;;
 

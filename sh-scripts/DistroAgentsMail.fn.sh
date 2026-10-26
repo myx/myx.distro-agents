@@ -36,7 +36,7 @@ DistroAgentsMail(){
 			set +e ; return 1
 		;;
 		--help)
-			AgentsToolsFrontHelp DistroAgentsMail "the team's mail operations" >&2
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsMail.include"
 			return 0
 		;;
 	esac

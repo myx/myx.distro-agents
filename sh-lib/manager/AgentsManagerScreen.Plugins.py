@@ -52,6 +52,8 @@ class PluginError(Exception):
 
 ## The groups the roots of the list fall in, in their order: a spacer stands between two groups (spacersAt). A root names its group.
 ROOT_GROUPS = ("watch", "team", "places", "setup", "manuals")
+## The ids of the roots a spacer stands under, inside the folder they are mounted in (a root names it by "spaceAfter"): the Launchpad is set apart from the members under it (spacersAt).
+SPACED_AFTER = []
 
 ## The plugins as they were registered, in order.
 PLUGIN_RECORDS = []
@@ -114,12 +116,11 @@ COUNTED = {}
 ## beside the list shown, and once for each time the selection comes to rest there: while it stays, the period reads that list no
 ## more, and coming back reads it again only when its period has passed since. "peek" is read with no rest, and on the period.
 ## One that is read on "demand" alone is never started by the focus: its command asks for it there too.
-VIEW_PARTS = ("view", "feed", "acts")
+VIEW_PARTS = ("view", "feed", "acts", "fact")
 READS = {"view::section": None}
 ## The commands of the engine, declared in Windows.py; COMMANDS is built from them and from every command of the plugins, in the
 ## order they stand in, with a command of the Go menu for each root. The levels, besides the roots, that have a number key and a
 ## command of the Go menu (the plugins' "go").
-ENGINE_COMMANDS = ()
 COMMANDS = []
 GO_MORE = []
 ## The registries the engine's own features offer. `alphabetical`: the lists whose rows the user may have by name instead of in the
@@ -210,7 +211,7 @@ def pluginReadKeyOf(steps, key, bases):
     if kind in ("list", "each"):
         level = pluginPathOf(steps, rest, bases)
         return None if level is None else kind + colon + level
-    if kind in ("view", "feed", "acts") and rest.partition(":")[0]:
+    if kind in ("view", "feed", "acts", "fact") and rest.partition(":")[0]:
         place = pluginPlaceOf(steps, rest, bases)
         return None if place is None else kind + colon + place
     return key
@@ -241,7 +242,7 @@ def pluginsOrdered():
 ## no plugin offers, leave what names them out of the build and are said in PLUGIN_NOTES.
 def pluginsBuilt():
     ordered, bases, stepsOf, unmounted = pluginsOrdered()
-    built = {"bases": bases, "unmounted": unmounted, "notes": [], "sections": [], "groups": dict((group, []) for group in ROOT_GROUPS),
+    built = {"bases": bases, "unmounted": unmounted, "notes": [], "spaced": [], "sections": [], "groups": dict((group, []) for group in ROOT_GROUPS),
              "when": {}, "rows": {}, "summaries": {}, "focus": {}, "counted": {}, "derived": {}, "reads": {}, "goMore": [], "registries": {}, "kinds": {}}
     notes = built["notes"]
     kinds = built["kinds"]
@@ -263,6 +264,8 @@ def pluginsBuilt():
                 built["groups"][root["group"]].append(root["id"])
             else:
                 built["rows"]["/".join(steps)] = built["rows"].get("/".join(steps), ()) + ((root["id"], root["label"], "section", True),)
+            if root.get("spaceAfter"):
+                built["spaced"].append(root["id"])
             if root.get("when"):
                 built["when"]["/".join(bases[name])] = root["when"]
             if root.get("go"):
@@ -357,6 +360,7 @@ def pluginsApplied(built):
     SECTION_GROUPS = tuple(tuple(built["groups"][group]) for group in ROOT_GROUPS if built["groups"][group])
     SECTIONS_WHEN.clear()
     SECTIONS_WHEN.update(built["when"])
+    SPACED_AFTER[:] = built["spaced"]
     FIXED_ROWS.clear()
     FIXED_ROWS.update(built["rows"])
     SUMMARIES.clear()
@@ -397,6 +401,11 @@ def pluginsApplied(built):
 def registerPlugin(plugin):
     if not plugin.get("name"):
         raise PluginError("a plugin has a name")
+    ## The app of this start keeps only the plugins it names (APP_PLUGINS, set by the screen
+    ## before the parts load): a sibling console keeps the Dashboard and the Manuals alone, so a
+    ## part that loads but is no plugin of the app registers nothing. `agents` keeps every one.
+    if APP_PLUGINS is not None and plugin["name"] not in APP_PLUGINS:
+        return
     if any(record["name"] == plugin["name"] for record in PLUGIN_RECORDS):
         raise PluginError("plugin %s is registered already" % plugin["name"])
     PLUGIN_RECORDS.append(plugin)

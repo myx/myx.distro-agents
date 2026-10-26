@@ -35,6 +35,8 @@ case "$1" in
 
 	## The settings of this workspace, as they are, and the interface settings of the user
 	## who runs the console, which one operation saves.
+
+
 	--manager-config-*)
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerConfig.include"
 		return $?
@@ -52,6 +54,20 @@ case "$1" in
 	--manager-dashboard-*)
 		local managerConsoleSubsystem="agents" managerConsoleDashboardList="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/dashboard-panels.list"
 		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerDashboard.include"
+		return $?
+	;;
+
+	## The optional features of mdci-packages-myx (setup.feature-*): which are installed, and a part of one installed, updated or removed; the local AI feature's
+	## free prompt, speech test and `local` preset.
+	--manager-feature-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerFeature.include"
+		return $?
+	;;
+
+	## The harness's own settings: how a round is retried, and whether a server is told it may take
+	## parallel tool calls. The Configure Harness forms read and apply these.
+	--manager-harness-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerHarness.include"
 		return $?
 	;;
 
@@ -73,9 +89,18 @@ case "$1" in
 		return $?
 	;;
 
-	## The public keys this server shows to others: those to add to git, those to trust.
+	## The keys of this server, in the two subjects they make: the public keys it shows to others, which are the ones to add to
+	## git and the ones to trust (AgentsTools.ManagerKeys.include), and the state machine of the server keys it serves
+	## (AgentsTools.ManagerKeysState.include).
 	--manager-keys-*)
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerKeys.include"
+		case "$1" in
+			--manager-keys-state|--manager-keys-add|--manager-keys-approve|--manager-keys-revoke|--manager-keys-remove)
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerKeysState.include"
+			;;
+			*)
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerKeys.include"
+			;;
+		esac
 		return $?
 	;;
 

@@ -57,7 +57,7 @@ rigAssert(){ ## what is asserted, got, want
 rigCaller=()
 rigCall(){ ## operation -- one call with no argument, as the console unless rigCaller names a member; both streams in $rigTmp/said
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" USER=rigacct PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
-		MDAT_SKILLSET_ROOT="$rigTmp/skills" ${rigCaller[@]+"${rigCaller[@]}"} perl -e 'alarm 30 ; exec @ARGV' bash "$rigTool" "$1" ) > "$rigTmp/said" 2>&1 < /dev/null
+		MDAT_SKILLSET_ROOT="$rigTmp/skills" ${rigCaller[@]+"${rigCaller[@]}"} python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 30 -- bash "$rigTool" "$1" ) > "$rigTmp/said" 2>&1 < /dev/null
 }
 rigInvalid(){ ## operation -- yes where the last call answered `invalid option` naming it
 	if LC_ALL=C grep -q -F -- "invalid option: $1" "$rigTmp/said" ; then printf 'yes' ; else printf 'no' ; fi

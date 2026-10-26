@@ -36,7 +36,7 @@ DistroAgentsAtlassian(){
 			set +e ; return 1
 		;;
 		--help)
-			AgentsToolsFrontHelp DistroAgentsAtlassian "the team's Jira and Confluence operations" >&2
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsAtlassian.include"
 			return 0
 		;;
 	esac

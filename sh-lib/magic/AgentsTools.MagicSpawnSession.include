@@ -10,6 +10,69 @@
 ## "--spawn-session: starting a routine's own initial members".
 ##
 
+## THE AGENT-LESS PARENT of a partitioned spawn (a `<type>-*` in the routine's own executors, or
+## several executors selected for one spawn): it runs no agent of its own -- no CLI is launched --
+## watches the member sessions it spawned, and finishes itself once all of them are done. Their
+## handbacks and escalations reach it as their parent session (each child's --parent-session names
+## it), and it posts to the session's Slack threads as it closes. Called detached by --spawn-session,
+## so it outlives the call that started it, as a session does.
+AgentsToolsSpawnSessionParent(){ ## parent session id, children (space-separated), routine name, member (for Slack), session thread (may be empty)
+	local parentId="$1" parentChildren="$2" parentRoutine="$3" parentMember="$4" parentThread="$5"
+	local parentRecordDir="$MMDAPP/.local/agents/spawned/$parentId" parentRecord parentTemp parentChild parentOutcome="succeeded" parentClosed=""
+	parentRecord="$parentRecordDir/$parentId.spawn.md"
+	mkdir -p "$parentRecordDir" || return 1
+	## Its own record, written by the tooling and never by an agent: the session the children hand
+	## back to, and the place a reader finds who they were. `agent-less:` says it on the record.
+	{
+		printf '%s\n' "---"
+		printf 'session-id: %s\n' "$parentId"
+		printf 'spawn-id: %s\n' "$parentId"
+		printf 'owner: %s\n' "$parentMember"
+		printf 'start-context: %s\n' "spawned"
+		printf 'parent-spawn-id: %s\n' "${MDAT_SPAWN_SESSION_ID:-none}"
+		[ -z "$parentRoutine" ] || printf 'routine: %s\n' "$parentRoutine"
+		[ -z "$parentThread" ] || printf 'session-thread: %s\n' "$parentThread"
+		printf 'agent-less: %s\n' "true"
+		printf 'children: %s\n' "$parentChildren"
+		printf 'status: %s\n' "spawn-started"
+		printf 'started-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+		printf '%s\n' "---"
+		printf '\n# Agent-less parent session: %s\n' "$parentId"
+	} > "$parentRecord"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+	## Waits for every child's own record to close, then closes its own with an outcome summed from
+	## theirs: all succeeded reads succeeded, any other close reads failed. A child whose record is
+	## nowhere keeps it waiting, so a stuck start is a stuck parent, never a silently-lost one.
+	while : ; do
+		parentClosed="yes"
+		for parentChild in $parentChildren ; do
+			[ -e "$MMDAPP/.local/agents/spawned/$parentChild/$parentChild.spawn.md" ] || { parentClosed="" ; break ; }
+			case "$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/spawned/$parentChild/$parentChild.spawn.md" status 2>/dev/null )" in
+				''|spawn-started) parentClosed="" ; break ;;
+				spawn-succeeded) ;;
+				*) parentOutcome="failed" ;;
+			esac
+		done
+		[ -z "$parentClosed" ] || break
+		sleep 2
+	done
+	## Close: the summed outcome and the resolved-at stamp, written in place.
+	parentTemp="$( mktemp "$parentRecord.tmp.XXXXXX" )" || parentTemp=""
+	LC_ALL=C awk -v outcome="$parentOutcome" -v stamp="$( date +"%Y-%m-%d %H:%M %z" )" '
+		NR == 1 { print ; next ; }
+		$0 == "---" { print "resolved-at: " stamp ; print ; next ; }
+		$0 == "status: spawn-started" { print "status: spawn-" outcome ; next ; }
+		{ print ; }
+	' "$parentRecord" > "$parentTemp" && chmod 644 "$parentTemp" && mv -f "$parentTemp" "$parentRecord"
+	[ -z "$parentTemp" ] || rm -f -- "$parentTemp"
+	## One line in the session's thread, where the parent has one: its own end, said as the tooling
+	## says a run's end. Best-effort, never the parent's outcome.
+	[ -n "$parentThread" ] || return 0
+	DistroAgentsTools --intern-op-event-track-post "$parentMember" "$parentThread" --kind notice --session-id "$parentId" \
+		--field what="agent-less parent: all spawned sessions are done ($parentOutcome)" < /dev/null 2>&1 > /dev/null || :
+	return 0
+}
+
 case "$1" in
 
 	--spawn-session)
@@ -108,26 +171,46 @@ case "$1" in
 		routineContract="$( AgentsToolsSpawnRoutineContractCheck "$resolvedRoutineFile" )" || { set +e ; return 1 ; }
 		local resolvedRoutineName="${resolvedRoutineFile##*/}"
 
+		## The routine's own executors and invitees lines, read once and kept: the roster the
+		## executors name starts the routine when no member is named, and a `<type>-*` among them
+		## partitions the run into one session per member under an agent-less parent.
+		local routineExecutorsLine routineInviteesLine
+		{
+			IFS= read -r routineExecutorsLine
+			IFS= read -r routineInviteesLine
+		} <<< "$( AgentsToolsSpawnRoutineContractExecutorsInvitees "$routineContract" )"
+
 		## No positional members: fall back to the routine's own executors line. A
-		## value that is not a plain comma-separated list of existing members --
+		## value that is not a comma-separated list of existing members --
 		## "magic-team"/"*" (this file's own "any member" shorthand, per
 		## magic-team/reference/skill-folder-model.md) or prose -- names no spawnable roster and is
 		## refused, asking for explicit members instead of guessing one.
+		local rosterExpanded="false"
 		if [ ${#spawnMembers[@]} -eq 0 ] ; then
-			local routineExecutorsLine routineInviteesLine execCandidate execRoster=""
-			{
-				IFS= read -r routineExecutorsLine
-				IFS= read -r routineInviteesLine
-			} <<< "$( AgentsToolsSpawnRoutineContractExecutorsInvitees "$routineContract" )"
+			local execCandidate execRoster="" execRosterWhy=""
 			## The one rule of what a routine starts by itself (AgentsToolsSpawnRoutineExecutorsRoster),
 			## which --manager-routine-list prints for a console.
 			if execRoster="$( AgentsToolsSpawnRoutineExecutorsRoster "$routineExecutorsLine" )" ; then
 				while IFS= read -r execCandidate ; do
 					[ -z "$execCandidate" ] || spawnMembers+=( "$execCandidate" )
 				done <<< "$execRoster"
+				rosterExpanded="true"
+			else
+				execRosterWhy="$execRoster"
 			fi
 			if [ ${#spawnMembers[@]} -eq 0 ] ; then
-				echo "$MDSC_CMD: spawn-session: ⛔ ERROR: $resolvedRoutineName's own executors ('$routineExecutorsLine') is not a plain comma-separated list of existing members -- pass explicit <team-member>... instead" >&2
+				case "$execRosterWhy" in
+					choice-required*)
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: $resolvedRoutineName's own executors ('$routineExecutorsLine') names a choice (<type>-?): name the one member to start, or select it -- nothing was started" >&2 ;;
+					none-of-type*)
+						## The star stands for a type, and fail on NONE: the hint names the type the caller wrote
+						## and the two things they can pass instead, as the validator's row does.
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: $resolvedRoutineName's own executors ('$routineExecutorsLine') names no member of the type ${execRosterWhy#none-of-type$'\t'} on any workspace of this machine -- name the members to start instead, or write a <type>-* whose type has members; nothing was started" >&2 ;;
+					all-present-members)
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: $resolvedRoutineName's own executors ('$routineExecutorsLine') names the participants-only word all-present-members -- name the members to start instead" >&2 ;;
+					*)
+						echo "$MDSC_CMD: spawn-session: ⛔ ERROR: $resolvedRoutineName's own executors ('$routineExecutorsLine') is not a plain comma-separated list of existing members -- pass explicit <team-member>... instead" >&2 ;;
+				esac
 				set +e ; return 1
 			fi
 		fi
@@ -152,12 +235,35 @@ case "$1" in
 			AgentsToolsTeamMemberStartCheck "$spawnCheckMember" "$spawnCheckFolder" "--spawn-session" || { set +e ; return 1 ; }
 		done
 
+		## A `<type>-*` among the routine's own executors (not a caller's explicit members) partitions
+		## the run: one session per expanded member, under one agent-less parent session (the tooling's
+		## own new session) that proxies their handbacks and escalations, watches them, posts to Slack,
+		## and finishes itself once all are done. A concrete list of executors is one coworking session
+		## of all of them, as it always was.
+		local partitionRoster="false" execEntry
+		if [ "$rosterExpanded" = "true" ] ; then
+			for execEntry in ${routineExecutorsLine//,/ } ; do
+				case "$execEntry" in *-'*') partitionRoster="true" ;; esac
+			done
+		fi
+
 		## The first spawn starts the session; every further one joins it by the
 		## session id the first spawn's own output reports. An executor commands
 		## only the members it spawned itself (magic-team.coworking.routine's own
 		## rule), which is why this call never spawns the routine's invitees.
 		local spawnSessionId="" spawnMember spawnOut
 		local spawnFirst="true"
+		local partitionParentId="" partitionChildren=""
+		if [ "$partitionRoster" = "true" ] ; then
+			## The parent session is minted here, agent-less, and the members are its children, each its
+			## own session (the same routine run on each, with its own scope), so their handbacks and
+			## escalations reach the parent and nobody's work blocks another's.
+			partitionParentId="$( uuidgen 2>/dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )"
+			if [ -z "$partitionParentId" ] ; then
+				echo "$MDSC_CMD: spawn-session: ⛔ ERROR: uuidgen produced no session id for the agent-less parent -- refusing to partition" >&2
+				set +e ; return 1
+			fi
+		fi
 		for spawnMember in "${spawnMembers[@]}" ; do
 			local spawnArgs=( "$spawnMember" --dispatch-doc:create )
 			if [ "$routineDefault" = "true" ] ; then
@@ -169,7 +275,16 @@ case "$1" in
 			[ -z "$sessionDescription" ] || spawnArgs+=( --description "$sessionDescription" )
 			[ -z "$sessionCliService" ] || spawnArgs+=( --spawn-cli-service "$sessionCliService" )
 			[ -z "$sessionSettingsWorkspace" ] || spawnArgs+=( --spawn-settings-workspace "$sessionSettingsWorkspace" )
-			if [ "$spawnFirst" = "true" ] ; then
+			if [ "$partitionRoster" = "true" ] ; then
+				spawnOut="$( printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --session-new --parent-session "$partitionParentId" --context --spawn-session )" || { set +e ; return 1 ; }
+				local partitionChildId
+				partitionChildId="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
+				if [ -z "$partitionChildId" ] ; then
+					echo "$MDSC_CMD: spawn-session: ⛔ ERROR: a spawn of $spawnMember reported no SESSION_ID -- refusing to leave the partition half-started" >&2
+					set +e ; return 1
+				fi
+				partitionChildren="$partitionChildren${partitionChildren:+ }$partitionChildId"
+			elif [ "$spawnFirst" = "true" ] ; then
 				## This operation starts a session, so its first spawn asks for one of its own:
 				## otherwise it would be brought into the calling session's.
 				spawnOut="$( printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --session-new --context --spawn-session )" || { set +e ; return 1 ; }
@@ -184,6 +299,16 @@ case "$1" in
 				printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --context --spawn-session > /dev/null || { set +e ; return 1 ; }
 			fi
 		done
+		if [ "$partitionRoster" = "true" ] ; then
+			## The parent watches and closes itself, detached: it outlives this call, as a session does.
+			mkdir -p "$MMDAPP/.local/agents/sessions" 2>/dev/null || :
+			( AgentsToolsSpawnSessionParent "$partitionParentId" "$partitionChildren" "$resolvedRoutineName" "${spawnMembers[0]:-magic-team}" "" ) >> "$MMDAPP/.local/agents/sessions/$partitionParentId.log" 2>&1 &
+			echo "SESSION_ID=$partitionParentId"
+			echo "ROUTINE=$resolvedRoutineName"
+			echo "MEMBERS=${spawnMembers[*]}"
+			echo "CHILDREN=$partitionChildren"
+			return 0
+		fi
 		echo "SESSION_ID=$spawnSessionId"
 		echo "ROUTINE=$resolvedRoutineName"
 		echo "MEMBERS=${spawnMembers[*]}"

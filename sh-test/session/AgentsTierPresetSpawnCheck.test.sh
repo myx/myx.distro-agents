@@ -132,15 +132,12 @@ rigAssert "it reads no CLI service from the team scope"                       "$
 rigAssert "and the credential of the service named, from the first block that has it" "$( rigSeen key )" held
 
 echo "-- 6. a parent's preset and models are not handed on --"
-rigTeam
+rigTeam "SPAWN_TIER_NORMAL=rig-ext"
 rigOuter="MDAT_SPAWN_PRESET=rig-grok HARNESS_MODEL_MAIN=leak-main HARNESS_MODEL_LIGHT=leak-light"
 rigSpawn keeper-myx > /dev/null
-rigAssert "the parent's preset is gone"                                      "$( rigSeen preset )" ""
+rigAssert "the parent's preset is replaced by the member's own choice"        "$( rigSeen preset )" rig-ext
 rigAssert "so are its models, as empty values the leg stubs read as none"    "$( rigSeen light )|$( rigSeen main )" "|"
-rigAssert "and the console reads none from the team scope"                    "$( rigSeen cli )" ""
-rigTeam "SPAWN_TIER_NORMAL=rig-ext"
-rigSpawn keeper-myx > /dev/null
-rigAssert "with a tier setting the parent's preset is replaced by the member's own choice"  "$( rigSeen preset )" rig-ext
+rigAssert "and the console reads the tier's CLI service, not the parent's"    "$( rigSeen cli )" claude
 rigOuter=""
 
 echo "-- 7. the extra spawn line, from the tiers --"

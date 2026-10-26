@@ -25,22 +25,38 @@ function AgentsConsoleCompletionHelperAgents(){
 	case "${COMP_WORDS[0]}" in
 		*.fn.sh)
 			local cmd="${COMP_WORDS[0]}"
-			if [ "$compPrompt" = "$cmd " ] && command -v "$cmd" >/dev/null 2>&1; then
-				if [ "$COMP_CWORD" -eq 1 ]; then
-					(
-						COMP_CWORD= COMP_WORDS=
+			if [ "$compPrompt" = "$cmd " ] && [ "$COMP_CWORD" -eq 1 ] && command -v "$cmd" >/dev/null 2>&1; then
+				## The help viewer (F12.1): a *.fn.sh command typed whole, followed by a space,
+				## shows its help in a scrollable view where the terminal allows it, and falls
+				## back to the plain dump where it does not.
+				(
+					COMP_CWORD= COMP_WORDS=
 
-						echo >&2
-						( set +e ; $cmd --help 1>&2 </dev/null || : )
-						echo >&2
+					echo >&2
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsConsole.HelpViewer.fn.include"
+					AgentsConsoleHelpShow "$cmd"
+					echo >&2
 
-						. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.EchoBashPrompt.include"
-						DistroLocalEchoBashPrompt "$COMP_LINE" >&2
-					)
-					return 0
-				fi
-				COMPREPLY=()
-				set +e ; return 1
+					. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.EchoBashPrompt.include"
+					DistroLocalEchoBashPrompt "$COMP_LINE" >&2
+				)
+				return 0
+			fi
+			## An option of the help typed as the completion prefix: the help opens scrolled to
+			## that option's declaration, highlighted for a moment (F12.1).
+			if [ "$COMP_CWORD" -eq 1 ] && [ "${cur:-}" != "${cur#-}" ] && command -v "$cmd" >/dev/null 2>&1; then
+				(
+					COMP_CWORD= COMP_WORDS=
+
+					echo >&2
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsConsole.HelpViewer.fn.include"
+					AgentsConsoleHelpShow "$cmd" "$cur"
+					echo >&2
+
+					. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.EchoBashPrompt.include"
+					DistroLocalEchoBashPrompt "$COMP_LINE" >&2
+				)
+				return 0
 			fi
 			set +e ; return 1
 		;;
@@ -121,7 +137,8 @@ function AgentsConsoleCompletionHelperAgents(){
 				COMP_CWORD= COMP_WORDS=
 
 				echo >&2
-				"$sub.fn.sh" --help 1>&2 || :
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsConsole.HelpViewer.fn.include"
+				AgentsConsoleHelpShow "$sub.fn.sh"
 				echo >&2
 
 				. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.EchoBashPrompt.include"

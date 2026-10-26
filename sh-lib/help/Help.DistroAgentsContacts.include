@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## The help of DistroAgentsContacts.fn.sh: The people subsystem: contacts, organisations and what a contact may ask for.
+## The three forms are DistroAgentsTools.fn.sh's: no word the default syntax, the entry points a reader starts from;
+## --help-syntax the syntax line of every operation of the file, read from the one table of the family,
+## sh-lib/help/Help.DistroAgentsTools.include; --help the manual, sh-lib/help/Help.DistroAgentsContacts.help.md.
+## Every echo stays flush-left: --member-help cuts help files on a ^echo anchor.
+
+## The default syntax: the entry points a reader starts from. Every other operation's syntax sits behind
+## --help-syntax, and the manual behind --help.
+echo "📘 syntax: DistroAgentsContacts.fn.sh --send-contact-digest [--team-member <team-member>] [<origin team-member>] (--resolved|--needs-ruling) <text...>" >&2
+echo "📘 syntax: DistroAgentsContacts.fn.sh --collect-contact [--team-member <team-member>] --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct]" >&2
+echo "📘 syntax: DistroAgentsContacts.fn.sh --find-contact [--team-member <team-member>] <value> [--team <scope>] [--reached-by <member>]" >&2
+echo "📘 syntax: DistroAgentsContacts.fn.sh --contact-access [--team-member <team-member>] <id> [--tool <tool> --target <target>] [--session-id <id>]" >&2
+echo "📘 syntax: DistroAgentsContacts.fn.sh [--help-syntax [<op>]]" >&2
+echo "📘 syntax: DistroAgentsContacts.fn.sh [--help]" >&2
+
+case "$1" in
+
+	--help-syntax)
+		type AgentsToolsFrontSyntax > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+		AgentsToolsFrontSyntax "${MDSC_CMD:-DistroAgentsContacts}" "${2:-}"
+		return $?
+	;;
+
+	--help)
+		myx.common lib/catMarkdown "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsContacts.help.md" >&2
+		return 0
+	;;
+
+esac

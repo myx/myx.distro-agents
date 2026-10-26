@@ -82,6 +82,8 @@ printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n
 	printf 'magic-developer:ws:workspace:Edit(/%s/DEV/**)\n' "$rigWs"
 	printf 'keeper-myx:ws:namespace:Edit(/%s/KEEP/**)\n' "$rigWs"
 	printf 'keeper-myx:ws:tool:WebFetch:https://docs.rig.example/*\n'
+	## magic-architect's rows as its --magic-team: floor directives in myx.distro-agents/project.inf write them
+	printf 'magic-architect:ws:tool:WebFetch\n'
 	printf 'magic-architect:ws:tool:WebSearch\n'
 } > "$rigWs/.local/agents/permissions.registry"
 ## Running sessions: a session grant ends when its session closes (AgentsToolsGrantsSessionEnded).
@@ -179,7 +181,7 @@ rigAssert "nobody else's domain is held by it"             "$( rigHolds keeper-m
 rigAssert "a .. out of a domain is never covered"          "$( rigHolds keeper-myx Write "$rigWs/KEEP/../ELSE/x" )" "NOT-HOLDS"
 rigAssert "a standing tool row holds its prefix"           "$( rigHolds keeper-myx WebFetch https://docs.rig.example/a/b )" "HOLDS standing"
 ## Rows are machine-wide (every workspace HOME's pointers name), and magic-architect holds any
-## URL built in: the prefix row is a keeper's, read off the rig's own rows alone, under a rig HOME.
+## URL by its bare row: the prefix row is a keeper's, read off the rig's own rows alone, under a rig HOME.
 rigAssert "and not beyond it"                              "$( HOME="$rigTmp" rigHolds keeper-myx WebFetch https://other.rig.example/ )" "NOT-HOLDS"
 rigAssert "a bare tool row holds any target"               "$( rigHolds magic-architect WebSearch 'any query' )" "HOLDS standing"
 rigAssert "another member does not hold WebFetch"          "$( rigHolds magic-developer WebFetch https://docs.rig.example/a )" "NOT-HOLDS"

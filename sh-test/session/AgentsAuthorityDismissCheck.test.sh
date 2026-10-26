@@ -13,6 +13,10 @@
 ##   1. the console caller who is the founding run's reports-to ends the session at once
 ##   2. a console caller who is not: the bare call fails, naming the authority and both options; every run lives
 ##   3. --escalate-enqueue: PENDING, a request to the founding run's reports-to; every run lives
+##   3b. a session with no thread of its own: the request is still made -- recorded in the questions store and
+##      asked of the owners role, with one warning saying which session had no thread and which request it was
+##      recorded as -- and the kill lands when the owners role answers it. Held for a member holder and for one
+##      named `<session>:<member>`, the form of the reported failure
 ##   4. --run of one run that reports to the owners role: enqueued, the request goes to human-owner; the run lives
 ##   5. a console account mapped to an owner: the run lives until the owner confirms in its own channel, then it ends
 ##   6. --escalate-wait: approved by the holder, exit 0 and the run is gone; at --timeout, exit 124 and the run lives
@@ -93,7 +97,21 @@ rigRun(){ ## variable to set, session, member, start-context, reports-to (empty:
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\nstart-context: %s\n%shost: %s\nowner: %s\nstatus: spawn-started\nsession-thread: %s\n---\n' \
 		"$2" "$runId" "$4" "${5:+reports-to: $5$'\n'}" "$rigHost" "$3" "$( rigThreadOf "$2" )" > "$rigWs/.local/agents/spawned/$2/$runId.spawn.md"
 	rigThreadOf "$2" > "$rigWs/.local/agents/sessions/$2/session.thread"
-	perl -e 'sleep 600' -- --session-id "$runId" > /dev/null 2>&1 &
+	python3 -I -B -c 'import time; time.sleep(600)' -- --session-id "$runId" > /dev/null 2>&1 &
+	eval "${1}Pid=\$!"
+	rigRunPids="$rigRunPids $!" ; rigProcNote "$!" ; disown "$!" 2> /dev/null || :
+	eval "$1=\$runId"
+}
+rigRunSilent(){ ## variable to set, session, member, start-context, reports-to (empty: none) -- a run of a session that never had a Slack thread of its own
+	local runId
+	rigRunNo=$(( rigRunNo + 1 ))
+	runId="rig-auth-run-$rigTag-$rigRunNo-$RANDOM"
+	mkdir -p "$rigWs/.local/agents/spawned/$2" "$rigWs/.local/agents/sessions/$2"
+	## No `session-thread` header and no sessions/<id>/session.thread: the session was never posted
+	## about, so it has nowhere of its own to be asked in, and no address of its own to send to.
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\nstart-context: %s\n%shost: %s\nowner: %s\nstatus: spawn-started\n---\n' \
+		"$2" "$runId" "$4" "${5:+reports-to: $5$'\n'}" "$rigHost" "$3" > "$rigWs/.local/agents/spawned/$2/$runId.spawn.md"
+	python3 -I -B -c 'import time; time.sleep(600)' -- --session-id "$runId" > /dev/null 2>&1 &
 	eval "${1}Pid=\$!"
 	rigRunPids="$rigRunPids $!" ; rigProcNote "$!" ; disown "$!" 2> /dev/null || :
 	eval "$1=\$runId"
@@ -211,6 +229,39 @@ rigOp --manager-session-kill --session-id "$rigS2" --escalate-enqueue
 rigSettle
 rigAssert "PENDING, exit 0, a request to magic-coordinator"   "$rigOpRc:$( rigAddressed "$( rigPendingId )" )" "0:magic-coordinator"
 rigAssert "both runs live"                                    "$( rigAlive "$rigFounderPid" ):$( rigAlive "$rigMemberPid" )" "alive:alive"
+
+echo "-- 3b. a session with no thread of its own: the request is still made, to the owners role --"
+## A session that never had a Slack thread. The kill of it must not be lost to that: the request is
+## recorded in the questions store and asked of the owners role, which is reached without one.
+rigS3b="rig-auth-silent-$rigTag"
+rigRunSilent rigSilent "$rigS3b" keeper-myx spawned magic-coordinator
+rigAssert "control: the session has no thread of its own to be asked in" "$( [ -e "$rigWs/.local/agents/sessions/$rigS3b/session.thread" ] && echo thread || echo no-thread ) $( [ -n "$( rigField "$rigWs/.local/agents/spawned/$rigS3b/$rigSilent.spawn.md" session-thread )" ] && echo names-a-thread || echo names-none )" "no-thread names-none"
+rigSeenMark
+rigOp --manager-session-kill --session-id "$rigS3b" --escalate-enqueue
+rigSettle
+rigSilentAsk="$( rigNewRequest )"
+rigAssert "enqueued: PENDING to the owners role, one warning that says which session had no thread and the request it was recorded as, and the run lives" \
+	"$rigOpRc:$( rigPendingId ):$( rigAddressed "$rigSilentAsk" ):$( LC_ALL=C grep -c -F -- "no thread of its session is known (session $rigS3b)" "$rigTmp/op.err" ):$( LC_ALL=C grep -c -F -- "it is recorded as $rigSilentAsk" "$rigTmp/op.err" ):$( rigAlive "$rigSilentPid" )" \
+	"0:$rigSilentAsk:human-owner:1:1:alive"
+rigSilentTs="$( rigField "$( rigRecordOf "$rigSilentAsk" )" question-ts 2> /dev/null )"
+[ -n "$rigSilentTs" ] || rigRefuse "the request of the silent session was recorded with no post to read, so its answer could not be measured"
+printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"Allow?"},{"ts":"1700000600.000003","user":"URIGOWNER","text":"allow-once","thread_ts":"%s"}],"has_more":false}\n' "$rigSilentTs" "$rigSilentTs" > "$rigTmp/replies.$rigSilentTs.json"
+rigOp --intern-op-pending-reply-collect --ended --context rig-authority
+rigSettle
+rigAssert "the owners role answers it: the request was no dead end, and the kill lands -- the run is gone" "$( rigAlive "$rigSilentPid" )" gone
+## THE ADDRESS OF THE REPORTED FAILURE: a holder named as a member in a session of its own,
+## `<session>:magic-coordinator`, whose session has no thread. That branch reads the thread of the
+## session it names, and must fall back the same way -- this is the exact form the kill could not
+## be posted to.
+rigS3c="rig-auth-silent2-$rigTag"
+rigRunSilent rigSilent2 "$rigS3c" keeper-myx spawned "$rigS3b:magic-coordinator"
+rigSeenMark
+rigOp --manager-session-kill --session-id "$rigS3c" --escalate-enqueue
+rigSettle
+rigSilentAsk2="$( rigNewRequest )"
+rigAssert "a holder named <session>:magic-coordinator whose session has no thread either: the request is made to the owners role all the same, said of the session it could not be asked in, and the run lives" \
+	"$rigOpRc:$( rigAddressed "$rigSilentAsk2" ):$( LC_ALL=C grep -c -F -- "no thread of its session is known (session $rigS3b)" "$rigTmp/op.err" ):$( rigAlive "$rigSilent2Pid" )" \
+	"0:human-owner:1:alive"
 
 echo "-- 4. --run of a run that reports to the owners role: the request goes to human-owner --"
 rigS4="rig-auth-owner-$rigTag"

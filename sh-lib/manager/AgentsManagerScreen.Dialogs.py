@@ -29,6 +29,12 @@ def openDialog(state, name, fill=None, about=None, title=None):
             if held["value"] not in ids:
                 held["value"] = ids[0]
             held["at"] = ids.index(held["value"])
+        elif control["kind"] == "input":
+            ## the cursor starts at the end of what the field holds (the sketch's 14.3); `seen`
+            ## says what the field held when it was last drawn or typed in, so a value a fill
+            ## puts there after it is open takes the cursor to its end, and typing does not
+            held.setdefault("caret", len(held["value"]))
+            held.setdefault("seen", held["value"])
         controls.append(held)
     dialog = {"name": name, "title": title or declared["title"], "controls": controls,
               "buttons": list(declared["buttons"]), "about": about or {}, "says": "", "focus": 0, "plan": None,
@@ -140,14 +146,22 @@ def pressButton(state, buttonName):
         closeDialog(state)
 
 
+## The place of the cursor in a field of one line, within what the field holds: where the
+## keys left it, never outside the text.
+def inputCaret(control):
+    return max(0, min(control.get("caret", len(control["value"])), len(control["value"])))
+
+
 ## One key while a dialog is open. Tab and Shift-Tab move between its controls and its
 ## buttons, around at the ends. Enter presses its first button, or the button the keys are
 ## on; in a field of several lines it is a new line. Esc closes it and does nothing. Space
 ## toggles a box, chooses a radio button and presses the button the keys are on; Up and
 ## Down move among boxes and radio buttons and pick in a list; Left and Right go from
-## button to button. In a field what is typed is added and Backspace takes the last of it
-## away. PgUp and PgDn scroll a text longer than its room, and so do Up and Down wherever
-## they mean nothing else. No key of a window, of a menu or of the screen works here.
+## button to button, and in a field of one line they move its cursor, where Home and End
+## take it to the ends. In a field what is typed is added where the cursor stands and
+## Backspace takes the character before it away. PgUp and PgDn scroll a text longer than
+## its room, and so do Up and Down wherever they mean nothing else. No key of a window, of
+## a menu or of the screen works here.
 def dialogKey(state, key):
     dialog = state.dialog
     extra = DIALOG_KEYS.get(dialog["name"])
@@ -168,9 +182,25 @@ def dialogKey(state, key):
         pressButton(state, dialog["buttons"][index if what == "button" else dialogDefaultIndex(dialog)][0])
     elif what == "button" and key in ("LEFT", "RIGHT"):
         dialog["focus"] = len(stops) - len(dialog["buttons"]) + (index + (1 if key == "RIGHT" else -1)) % len(dialog["buttons"])
-    elif what in ("input", "area") and key == "BACKSPACE":
+    elif what == "input" and key in ("LEFT", "RIGHT", "HOME", "END"):
+        caret = inputCaret(control)
+        control["caret"] = {"LEFT": max(0, caret - 1), "RIGHT": min(len(control["value"]), caret + 1),
+                            "HOME": 0, "END": len(control["value"])}[key]
+    elif what == "input" and key == "BACKSPACE":
+        caret = inputCaret(control)
+        if caret:
+            control["value"] = control["value"][:caret - 1] + control["value"][caret:]
+            control["caret"] = caret - 1
+            control["seen"] = control["value"]
+    elif what == "area" and key == "BACKSPACE":
         control["value"] = control["value"][:-1]
-    elif what in ("input", "area") and len(key) == 1:
+    elif what == "input" and len(key) == 1:
+        ## a key that has a name is longer than one character: this one was typed
+        caret = inputCaret(control)
+        control["value"] = control["value"][:caret] + key + control["value"][caret:]
+        control["caret"] = caret + 1
+        control["seen"] = control["value"]
+    elif what == "area" and len(key) == 1:
         ## a key that has a name is longer than one character: this one was typed
         control["value"] += key
     elif what in ("radios", "list") and control.get("digits") and key.isdigit() and key in [option[0] for option in control["options"]]:
@@ -442,10 +472,34 @@ def drawDialog(surface, state, columns, lines):
             continue
         if kind == "input":
             ## in a style with bracketed fields, between its brackets, what is typed in the look of
-            ## the keys where it has them, the rest of its room filled
+            ## the keys where it has them, the rest of its room filled; the cursor stands where the
+            ## keys left it, and the field scrolls to keep it in view (the sketch's 14.3)
             ends = MARKS["field"] if STYLE.get("fields") == "bracketed" else ""
-            room = inner - 2 if ends else inner
-            typed, typedWidth = tailToCells(control["value"], room - 1)
+            room = max(1, inner - 2 if ends else inner)
+            value = control["value"]
+            if control.get("seen") != value:
+                ## a fill put a value there after the field was open: the cursor goes to its end
+                control["caret"] = len(value)
+                control["seen"] = value
+            caret = inputCaret(control)
+            caretCell = textWidth(value[:caret])
+            ## the column of the text that stands first: moved only to keep the cursor in view
+            pan = max(0, control.get("caretLeft", 0))
+            if caretCell < pan:
+                pan = caretCell
+            if caretCell - pan >= room:
+                pan = caretCell - room + 1
+            control["caretLeft"] = pan
+            ## what the field shows of its text, from that column, in no more than its room: the
+            ## rest of a bracketed field keeps what fills it
+            shown = []
+            used = 0
+            for cluster, clusterWidth in textCells(splitAtCell(value, pan)[1]):
+                if used + clusterWidth > room:
+                    break
+                shown.append(cluster)
+                used += clusterWidth
+            typed = "".join(shown)
             if ends:
                 surface.put(part["line"], column, ends[0] + ends[1] * room + ends[2], BOX_FIELD)
                 if typed:
@@ -454,7 +508,7 @@ def drawDialog(surface, state, columns, lines):
                 surface.put(part["line"], column, cutToCells(typed, inner), BOX_ON if on else BOX_FIELD)
             spot(state, column, part["line"], inner, 1, ("field", part["index"]))
             if on:
-                surface.cursor(part["line"], column + (1 if ends else 0) + typedWidth)
+                surface.cursor(part["line"], column + (1 if ends else 0) + (caretCell - pan))
             continue
         if kind == "area":
             held = areaLines(control["value"], inner - 1)[-rows:]

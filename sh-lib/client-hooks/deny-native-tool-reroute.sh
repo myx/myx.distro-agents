@@ -68,7 +68,8 @@ esac
 
 ## CheckList is pointed to only where it is offered to this session, spawned or not: where the
 ## harness knows the member and the place of its list. The harness is asked that itself
-## (--intern-checklist-place, AgentsHarnessCheckListPlace, which also decides the MCP floor),
+## (--intern-checklist-place, AgentsHarnessCheckListPlace; CheckList is listed on the MCP
+## floor whether or not a place is known, and refuses at execution where there is none),
 ## with the session id this call's input names, this session's own environment, and the
 ## workspace and tooling the myx.distro server runs for, so the member is resolved from the
 ## skillset folder that server reads; nothing is run, logged or written by the asking. Anywhere
@@ -140,7 +141,8 @@ WebFetch)
 ;;
 
 WebSearch)
-	denyWith "use the myx.distro MCP instead, method mcp__myx_distro__WebSearch -- one search path for this estate, under its own settings, rather than the client own"
+	## The client's own WebSearch runs; an install that still carries this entry lets it through.
+	exit 0
 ;;
 
 PushNotification)
@@ -149,6 +151,26 @@ PushNotification)
 
 TodoWrite)
 	denyWith "use the myx.distro MCP instead, method mcp__myx_distro__CheckList -- the checklist of session tasks of this session, with the same input, kept in the session state of this estate rather than the client own"
+;;
+
+claude_ai)
+	## Every claude.ai connector tool arrives under this one name; which connector it is
+	## comes from the tool_name of the input, read by builtins alone.
+	hookCalled="${hookInput#*\"tool_name\"}"
+	hookCalled="${hookCalled#*\"}"
+	hookCalled="${hookCalled%%\"*}"
+	case "$hookCalled" in
+		mcp__claude_ai_*[Ss]lack*) hookTwin="DistroAgentsSlack" ;;
+		mcp__claude_ai_*[Aa]tlassian*|mcp__claude_ai_*[Jj]ira*|mcp__claude_ai_*[Cc]onfluence*) hookTwin="DistroAgentsAtlassian" ;;
+		mcp__claude_ai_*[Tt]rello*) hookTwin="DistroAgentsTrello" ;;
+		mcp__claude_ai_*[Gg]mail*|mcp__claude_ai_*[Mm]ail*) hookTwin="DistroAgentsMail" ;;
+		mcp__claude_ai_*[Gg]oogle*|mcp__claude_ai_*[Cc]alendar*|mcp__claude_ai_*[Dd]rive*) hookTwin="DistroAgentsGoogle" ;;
+		*) hookTwin="" ;;
+	esac
+	if [ -n "$hookTwin" ] ; then
+		denyWith "use the myx.distro MCP instead, method mcp__myx_distro__$hookTwin -- this estate own tool for that platform, under its own team identity and settings"
+	fi
+	denyWith "this tool is not reachable from this session, and this estate serves no tool for that platform over the myx.distro MCP. Report that rather than retrying."
 ;;
 
 *)

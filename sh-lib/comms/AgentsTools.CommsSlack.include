@@ -20,6 +20,10 @@
 ## dot-sourced for $1/$@/$MDSC_CMD. No --help entry: internal plumbing.
 ##
 
+## The one alias -> channel-setting map (F7.1): every channel alias below resolves through it, so no
+## channel-setting literal stands in this file.
+type AgentsToolsCommsChannelSlackKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsChannel.include"
+
 ## ===========================================================================
 ## SHARED HELPERS -- definitions only. Nothing below this line until `case`
 ## dispatches on anything, tests $1, or runs an operation.
@@ -268,6 +272,12 @@ AgentsToolsSlackFormatPagedConversation(){
 ## own, under the names the Slack code asks them by.
 type AgentsToolsCommsOwnSideCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsSide.include"
 
+## The communication-channel-id abstraction (epic T7): the drivers (slack, email, telegram) in
+## preference order, and the Slack driver's own name-to-setting map, single-sourced in
+## AgentsToolsCommsChannelSlackKey below. Slack is this driver; email and telegram are
+## AgentsTools.CommsEmail.include and AgentsTools.CommsTelegram.include.
+type AgentsToolsCommsChannelServices > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsChannel.include"
+
 ## rc 0 when the named member's own Slack settings are the ones this call reads.
 AgentsToolsSlackOwnSettingsApply(){ ## member
 	AgentsToolsCommsOwnSettingsApply "$@"
@@ -353,19 +363,19 @@ DistroAgentsToolsResolveTarget(){ ## address, acting member (optional)
 	fi
 	case "$target" in
 		event-track|event-track:*)
-			channel="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_EVENT_TRACK )"
+			channel="$( DistroAgentsTools --agents-config-option magic-team --select "$( AgentsToolsCommsChannelSlackKey event-track )" )"
 			case "$target" in *:*) threadTs="${target#*:}" ;; esac
 		;;
 		event-alert|event-alert:*)
-			channel="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_EVENT_ALERT )"
+			channel="$( DistroAgentsTools --agents-config-option magic-team --select "$( AgentsToolsCommsChannelSlackKey event-alert )" )"
 			case "$target" in *:*) threadTs="${target#*:}" ;; esac
 		;;
 		magic-team|magic-team:*)
-			channel="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_MAGIC_TEAM )"
+			channel="$( DistroAgentsTools --agents-config-option magic-team --select "$( AgentsToolsCommsChannelSlackKey magic-team )" )"
 			case "$target" in *:*) threadTs="${target#*:}" ;; esac
 		;;
 		human-owner|human-owner:*)
-			channel="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER )"
+			channel="$( DistroAgentsTools --agents-config-option magic-team --select "$( AgentsToolsCommsChannelSlackKey human-owner )" )"
 			case "$target" in *:*) threadTs="${target#*:}" ;; esac
 		;;
 		## The two virtual session addresses, each one thread: session-current is the session thread of the
@@ -374,24 +384,59 @@ DistroAgentsToolsResolveTarget(){ ## address, acting member (optional)
 		## the one line printed says why and what to pass instead, for the caller to show as it is.
 		## With :<ts> the name is the message with that ts in the conversation that thread is in, as
 		## <alias>:<ts> is for every alias above: one message, with no conversation id to know.
+		## THE ROOT-NATIVE PRINTBACK KIND (F2.3): a session whose external side is its own printback channel
+		## has no thread, and the address names that channel -- `printback:<session>`, with no ts to add. It
+		## is read from the session's own record (AgentsToolsCommsPrintbackSessionInUse), so a session the
+		## root-harness minted resolves to it and one on a Slack thread resolves as it always did.
+		## THE TOOLING-THREAD KIND (F3.1): a session whose external side is the tooling thread -- the `track`
+		## kind of a root-harness session -- has no session thread either, and the address names that thread,
+		## `<channel>:<ts>`, read from the session's one event-track record
+		## (AgentsToolsCommsPrintbackTrackThread), which receives the copies of the session's messages. A
+		## `:<ts>` after the name is a message in it, as for any thread.
 		session-current|session-current:*|session-parent|session-parent:*)
-			local sessionName="${target%%:*}" sessionMessage="" sessionFound="" sessionRc=0 sessionWhy=""
+			local sessionName="${target%%:*}" sessionMessage="" sessionFound="" sessionRc=0 sessionWhy="" sessionChannelSession="" sessionPrintback="" sessionTooling=""
 			type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
 			case "$target" in *:*) sessionMessage="${target#*:}" ;; esac
 			case "$sessionName" in
 				session-current)
 					sessionFound="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || sessionRc=$?
 					sessionWhy="this session has no session thread"
+					## A thread the caller was handed is its kind in use, whatever the session's own record holds.
+					[ "$sessionRc" = "0" ] || sessionChannelSession="$( AgentsToolsSessionCurrentId )"
 				;;
 				session-parent)
 					sessionFound="$( AgentsToolsSessionParentThreadFind 2> /dev/null )" || sessionRc=$?
 					case "$sessionRc" in
 						0) sessionParent="${sessionFound#* }" ; sessionFound="${sessionFound%% *}" ; sessionWhy="the parent session $sessionParent has no recorded thread" ;;
-						2) sessionWhy="the parent session $sessionFound has no recorded thread" ;;
+						2) sessionParent="$sessionFound" ; sessionWhy="the parent session $sessionFound has no recorded thread" ;;
 						*) sessionWhy="this session has no recorded parent session" ;;
 					esac
+					sessionChannelSession="$sessionParent"
 				;;
 			esac
+			if [ -n "$sessionChannelSession" ] ; then
+				type AgentsToolsCommsPrintbackSessionInUse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsPrintback.include" 2> /dev/null || :
+				AgentsToolsCommsPrintbackSessionInUse "$sessionChannelSession" && sessionPrintback="true" || sessionPrintback=""
+			fi
+			if [ -n "$sessionPrintback" ] ; then
+				if [ -n "$sessionMessage" ] ; then
+					printf "'%s' names no message: %s is the root-native printback channel of session %s, which holds one conversation and no message ts. Pass printback:%s as it is, with no :<ts> after it.\n" "$1" "printback:$sessionChannelSession" "$sessionChannelSession" "$sessionChannelSession"
+					return 3
+				fi
+				printf 'CHANNEL=printback:%s\nTHREAD_TS=\n' "$sessionChannelSession"
+				[ -z "$sessionParent" ] || printf 'PARENT_SESSION_ID=%s\n' "$sessionParent"
+				return 0
+			fi
+			## The tooling thread, where the session's own record names that kind: the copy of a message
+			## addressed to the session goes there, and no session thread stands behind it.
+			if [ -n "$sessionChannelSession" ] ; then
+				sessionTooling="$( AgentsToolsCommsPrintbackTrackThread "$sessionChannelSession" 2> /dev/null )" || sessionTooling=""
+			fi
+			if [ -n "$sessionTooling" ] ; then
+				printf 'CHANNEL=%s\nTHREAD_TS=%s\n' "${sessionTooling%%:*}" "${sessionMessage:-${sessionTooling#*:}}"
+				[ -z "$sessionParent" ] || printf 'PARENT_SESSION_ID=%s\n' "$sessionParent"
+				return 0
+			fi
 			## A recorded value that is no <channel>:<ts> names no thread either.
 			case "$sessionRc:$sessionFound" in
 				0:?*:?*) ;;
@@ -447,12 +492,7 @@ DistroAgentsToolsResolveTarget(){ ## address, acting member (optional)
 		## thread does: refused, rc 3, by one line saying why and what to pass instead. Any other
 		## address with no channel in it is rc 1, as it always was.
 		local aliasSetting=""
-		case "${target%%:*}" in
-			event-track) aliasSetting="SLACK_CHANNEL_EVENT_TRACK" ;;
-			event-alert) aliasSetting="SLACK_CHANNEL_EVENT_ALERT" ;;
-			magic-team) aliasSetting="SLACK_CHANNEL_MAGIC_TEAM" ;;
-			human-owner) aliasSetting="SLACK_CHANNEL_HUMAN_OWNER" ;;
-		esac
+		aliasSetting="$( AgentsToolsCommsChannelSlackKey "${target%%:*}" )" || aliasSetting=""
 		[ -n "$aliasSetting" ] || return 1
 		printf 'the setting %s is not set in this workspace, so %s names nowhere. Pass the conversation by its id instead.\n' "$aliasSetting" "${target%%:*}"
 		return 3
@@ -483,6 +523,13 @@ DistroAgentsToolsResolveTarget(){ ## address, acting member (optional)
 AgentsToolsResolveSlackBotToken(){
 	local memberName="$1"
 	local resolvedToken=""
+	## THE CREDENTIAL FROM THE ENVIRONMENT (D4): the platform tool stands alone, with
+	## its key in the environment, before it asks any scope. The same name the config
+	## store holds, so a caller that exports it needs no team data at all.
+	if [ -n "${SLACK_BOT_TOKEN:-}" ] ; then
+		printf 'environment-bot-token %s\n' "$SLACK_BOT_TOKEN"
+		return 0
+	fi
 	## magic-team's own scope IS the shared scope -- labelling it `member` would lie.
 	if [ -n "$memberName" ] && [ "$memberName" != "magic-team" ] && AgentsToolsSlackOwnSettingsApply "$memberName" ; then
 		resolvedToken="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_BOT_TOKEN 2>/dev/null )" || resolvedToken=""
@@ -741,12 +788,7 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 		;;
 		*)
 			local targetKey=""
-			case "${target%%:*}" in
-				event-track)	targetKey="SLACK_CHANNEL_EVENT_TRACK" ;;
-				event-alert)	targetKey="SLACK_CHANNEL_EVENT_ALERT" ;;
-				magic-team)	targetKey="SLACK_CHANNEL_MAGIC_TEAM" ;;
-				human-owner)	targetKey="SLACK_CHANNEL_HUMAN_OWNER" ;;
-			esac
+			targetKey="$( AgentsToolsCommsChannelSlackKey "${target%%:*}" )" || targetKey=""
 			if [ -n "$targetKey" ] ; then
 				echo "$MDSC_CMD: slack-check: ⛔ ERROR: could not resolve a channel for target '$target' -- check $targetKey in .local/.agents" >&2
 			else
@@ -1270,7 +1312,8 @@ case "$1" in
 		## Identity selection -- one rule, applied here for every Slack op. The member's own
 		## token is read by the side of the call (AgentsToolsSlackOwnSettingsApply).
 		local memberUserToken="" sendIdentity="bot"
-		memberUserToken="$( AgentsToolsSlackOwnSettingsApply "$callerMember" && DistroAgentsTools --agents-config-option "$callerMember" --select SLACK_USER_TOKEN )" || memberUserToken=""
+		memberUserToken="${SLACK_USER_TOKEN:-}"
+		[ -n "$memberUserToken" ] || memberUserToken="$( AgentsToolsSlackOwnSettingsApply "$callerMember" && DistroAgentsTools --agents-config-option "$callerMember" --select SLACK_USER_TOKEN )" || memberUserToken=""
 		local routineAuthored="false"
 		case "$callerMember" in
 			routine-*) routineAuthored="true" ;;

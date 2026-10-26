@@ -13,8 +13,11 @@
 ##   2. --manager-session-join brings magic-coordinator into a session that has finished, waits or is stuck (a record still open with no
 ##      process behind it), through the spawn proxy and with --session-id, so that it joins the session and starts none: the task it
 ##      starts on is the `assess-session` block of the tooling-note template, filled, and the line its joining says in the thread is the
-##      `assess-session-why` block. A session that runs, one of another host, one with no thread and one that is none are refused, with
-##      nothing started.
+##      `assess-session-why` block. A session that runs, one of another host and one that is none are refused, with nothing started. A
+##      session with no Slack thread is joined all the same, and the member is in it: its thread is where the joining is announced, never
+##      what makes the join possible, so the start opens one in the team's channel where the session can have it, and the operation says
+##      on standard error where the join was recorded instead of refusing it. A session that announces its joining in its printback or
+##      tooling channel has no thread by kind, and is joined with nothing posted there.
 ##   3. The caller rule of the family, the place of the operations (one arm, one include, ahead of the family's own arm), no text of the
 ##      task written in code, and their help pair, which gives the two row forms.
 ## Offline; only the rig's own tree is read or written.
@@ -240,6 +243,8 @@ rigRun /dev/null "$rigJoinOp" --session-id s-thread
 rigAssert "a finished session with a thread: ends 0 with no error and one join row, of the session, the coordinator and the dispatch item" \
 	"$rigRc $( rigErrors ) $( LC_ALL=C awk -F'\t' 'END { print NR }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '{ print $1, NF, $2, $3 }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '{ print $4 }' "$rigTmp/out" | LC_ALL=C grep -c '^dispatch-.*spawn-proxy.*\.md$' )" "0 0 1 join 4 s-thread magic-coordinator 1"
 rigWaitFor 30 test "$( ls "$rigSc" | LC_ALL=C grep -c '^done\.' )" -ge 1
+rigAssert "a session that has the thread needs no note: the joining is announced in it, and nothing is said of a place instead" \
+	"$( LC_ALL=C grep -c -e '# DistroAgentsTools --manager-session-join' -e 'WARNING: no session thread' "$rigTmp/err" )" "0"
 rigNewRec="$( LC_ALL=C grep -l -x 'start-context: joined' "$rigAgents"/spawned/*/*.spawn.md 2> /dev/null | head -1 )"
 rigBrief="$( ls "$rigSc"/brief.* 2> /dev/null | head -1 )"
 rigAssert "one console was started more, as magic-coordinator, in the session it was joined into: it joined, and did not start a session of its own" "$( rigMade ) / $( LC_ALL=C awk '{ print $1, $2 }' "${rigBrief/brief./who.}" 2> /dev/null )" "${rigMadeBefore% *} 1 / magic-coordinator s-thread"
@@ -265,8 +270,33 @@ rigRun /dev/null "$rigJoinOp" --session-id s-run
 rigAssert "a session that runs: refused in one line, nothing started" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigJoinOp: session s-run runs: its participants work on it, so nobody is joined into it to assess it -- nothing was started" ) $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) [$( rigMade )]" "1 1 0 [$rigMadeBefore]"
 rigRun /dev/null "$rigJoinOp" --session-id s-foreign
 rigAssert "one of another host: refused, and says what it reads" "$rigRc $( LC_ALL=C grep -c 'session s-foreign reads unknown-foreign, which is none of finished, waiting and unclosed, the states it is offered for -- nothing was started' "$rigTmp/err" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
+rigJoinedBefore="$( LC_ALL=C grep -c -F 'assess the session, unblock it interactively and report' "$rigSc/bodies" 2> /dev/null || : )"
 rigRun /dev/null "$rigJoinOp" --session-id s-nothread
-rigAssert "one with no Slack thread: refused, since a member is joined into a session by its thread" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigJoinOp: session s-nothread has no Slack thread, and a member is joined into a session by its thread -- nothing was started" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
+rigAssert "one with no Slack thread: joined all the same, on the session's own id" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3 }' "$rigTmp/out" )" "0 join s-nothread magic-coordinator"
+rigWaitFor 30 test "$( ls "$rigSc" | LC_ALL=C grep -c '^done\.' )" -ge 4
+## The member IS in the session, thread or none: a record of its run, in the session's own sandbox, that names s-nothread, names
+## magic-coordinator and says that it joined. Its console was started in s-nothread, never in a session of its own.
+rigNothreadRec=""
+for rigOne in "$rigAgents"/spawned/*/*.spawn.md ; do
+	LC_ALL=C grep -q -x -F 'owner: magic-coordinator' "$rigOne" 2> /dev/null && LC_ALL=C grep -q -x -F 'session-id: s-nothread' "$rigOne" 2> /dev/null && rigNothreadRec="$rigOne"
+done
+rigAssert "the member is in the session: a record of its run names s-nothread, names magic-coordinator and says that it joined" \
+	"$( LC_ALL=C grep -c -x -e 'session-id: s-nothread' -e 'start-context: joined' -e 'owner: magic-coordinator' "${rigNothreadRec:-/nonexistent}" 2> /dev/null || : )" "3"
+rigNothreadSpawn="${rigNothreadRec##*/}" ; rigNothreadSpawn="${rigNothreadSpawn%.spawn.md}"
+rigAssert "its console was started in s-nothread, and not in a session of its own" \
+	"$( LC_ALL=C awk '{ print $1, $2 }' "${rigSc:?}/who.${rigNothreadSpawn:?}" 2> /dev/null )" "magic-coordinator s-nothread"
+## The announcement: the start opens the thread the session had none of, in the team's channel, and says the joining there as a reply --
+## exactly as it does for a session that already had one. Neither is a post of the joining line on its own.
+rigAssert "the session now keeps a thread its start opened in the team's channel, the place the joining is announced" \
+	"$( LC_ALL=C awk -F: 'NF == 2 && $1 != "" && $2 != "" { print "thread" ; exit }' "$rigAgents/sessions/s-nothread/session.thread" 2> /dev/null )" "thread"
+rigAssert "the joining line is announced in that opened thread: one more joined line than before, a reply, not a post on its own" \
+	"$( LC_ALL=C awk -v before="$rigJoinedBefore" -v text='assess the session, unblock it interactively and report' \
+		'index($0, text) { n++ ; if (index($0, "\"thread_ts\":\"1.000001\"")) reply = 1 } END { printf "%d %s", n - before, ( reply ? "reply" : "not-a-reply" ) }' "$rigSc/bodies" )" "1 reply"
+rigAssert "and a note on standard error says the session had no thread, that the start opened one, and where the join was recorded" \
+	"$( LC_ALL=C grep -c -e 'session s-nothread had no Slack thread, so its start opened one (DRIG00001:' "$rigTmp/err" ) $( LC_ALL=C grep -c -e 'its join is recorded in the record of its run and in its dispatch item (dispatch-' "$rigTmp/err" ) $( rigErrors )" "1 1 0"
+## The thread the proxy opened for the joined threadless session is written after the join returns; let it land before the next baseline.
+sleep 1
+rigMadeBefore="$( rigMade )"
 rigRun /dev/null "$rigJoinOp" --session-id s-no-such-session
 rigAssert "an id that is none is refused" "$rigRc $( LC_ALL=C grep -c "no record of this workspace carries 's-no-such-session'" "$rigTmp/err" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
 rigRun /dev/null "$rigJoinOp"

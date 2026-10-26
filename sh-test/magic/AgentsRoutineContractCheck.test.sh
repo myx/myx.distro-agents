@@ -3,7 +3,7 @@
 ## template only; the 47-file edit is F6.7's sweep (AgentsRoutineSweepCheck). Read over the package's skillset, and
 ## run once: `--manager-routine-list` over a rig skillset.
 ## Held:
-##   1. templates/routine.contract.format.md, its Frontmatter line: names type:, requires-session-kind:, the optional
+##   1. contracts/routine.contract.format.md, its Frontmatter line: names type:, requires-session-kind:, the optional
 ##      tracking-item:, operations: and start-context: (F6.1: flat keys, a key left out meaning any), and the autorun
 ##      keys `runs-at:` (an explicit `none` where a routine never auto-runs) and `runs-after:` (open-names 22, 23: no
 ##      one-word key);
@@ -24,7 +24,7 @@ set -u
 rigOrigin="$( cd "$MDLT_ORIGIN" && pwd -P )" || exit 1
 rigPackage="$rigOrigin/myx/myx.distro-agents"
 rigSkillset="$rigPackage/skillset"
-rigContract="$rigSkillset/magic-team/magic-team/templates/routine.contract.format.md"
+rigContract="$rigSkillset/magic-team/magic-team/contracts/routine.contract.format.md"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1

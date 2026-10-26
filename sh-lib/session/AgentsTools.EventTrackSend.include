@@ -1,0 +1,292 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.EventTrackSend.include -- the one collector every post into a coworking
+## session's event-track thread goes through before it reaches Slack: one outbox per
+## channel, one sender at a time, at most one message every 7 seconds, with everything that
+## queued meanwhile collected into a post up to Slack's size limit, in the order it arrived.
+## Function-only. Sourced by the tooling's tracking post
+## (AgentsTools.InternOpEventTrackPost.include), which queues every post it is asked for and
+## drains the outbox afterwards, whatever asked for it: a start post, an end post, a
+## refusal, a grant, a denial, a notice, a handback, the housekeeping report, the feed's
+## collected lines and the activity lines of a batch.
+##
+## WHY. Slack rate-limits a channel -- about one message a second -- and the tooling's
+## tracking posts come in bursts: a feed poster's window, a start post, a refusal, a grant,
+## a notice and a batch of activity lines can all be due at once, from processes that know
+## nothing of one another. Each used to post the moment it was ready, so a burst went out as
+## a burst, and a post ready later could overtake one that was ready earlier. The feed had
+## its own 7 second collection and the immediate posts had none: this is that collection and
+## that pacing, in one place, for all of them.
+##
+## THE OUTBOX: $MMDAPP/.local/agents/event-track-send/<channel>/<seq>/, one directory per
+## post that waits:
+##   meta    member, kind, session id, target, channel and thread, one tab-separated line
+##   fields  the post's name=value fields, each ended by a NUL (empty when it has none)
+##   lines   what the post is about, as the caller gave it (may be empty)
+## The number is given under the outbox's own append lock, so two posts are numbered in the
+## order they arrived, and every reader takes them in that order. A record is written in a
+## scratch directory and renamed into place, so a half-written record is never seen, and a
+## record already there is never overwritten.
+##
+## THE DRAIN, one sender at a time under the outbox's send lock:
+##   1. the oldest record, and every record after it that may go as one Slack message with
+##      it -- the same member, kind, session, target, channel and thread, and no fields,
+##      so only lines travel: their lines are joined, in order, into the oldest one's;
+##   2. the window is waited out BEFORE the group is chosen, so what queued during the wait
+##      is collected too, not left for the next window;
+##   3. the sender renders and posts the record, cutting it at Slack's own limits when it is
+##      too long, and pacing every one of those posts the same way.
+## The outcome is left in <outbox>/done/<seq>/ (rc, out, err, group), for the caller that
+## queued it; the record itself goes once it went. A post that fails is not retried and not
+## kept: the tracking posts have always posted each once, and a failure is the caller's to
+## report, as before. An outcome whose caller never came back is reaped by age.
+##
+## WHAT DOES NOT CHANGE, and must not: the sender is the bot, the identity every tracking
+## post has always used, and the member a post is about is in its text and its boxes, as the
+## template writes it. This file joins and orders lines; it never renders one.
+##
+
+if ! type AgentsToolsEventTrackSendDir > /dev/null 2>&1 ; then
+
+	## Fixed in code, never configured: the shortest gap between two messages into one
+	## channel -- and so the window a post waits in before its group is taken, so that what
+	## arrives meanwhile travels with it.
+	agentsEventTrackSendPaceSeconds=7
+
+	## The outbox of a channel, in this workspace's own state, made when it is first used.
+	## rc 1 with no workspace, or for a channel that is no bare name.
+	AgentsToolsEventTrackSendDir(){ ## channel
+		local sendChannel="${1:-}"
+		[ -n "${MMDAPP:-}" ] && [ -d "$MMDAPP/.local" ] || return 1
+		case "$sendChannel" in ''|.|..|*/*|*' '*) return 1 ;; esac
+		printf '%s' "$MMDAPP/.local/agents/event-track-send/$sendChannel"
+	}
+
+	AgentsToolsEventTrackSendLockLib(){
+		type AgentsToolsLocalLockTake > /dev/null 2>&1 && return 0
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include" 2> /dev/null || return 1
+	}
+
+	## The append lock, held for as long as it takes to number one record and write it.
+	AgentsToolsEventTrackSendAppendLockTake(){ ## outbox, what it is
+		local sendLockOut="$1" sendLockWhat="${2:-$1}"
+		AgentsToolsEventTrackSendLockLib || return 1
+		AgentsToolsLocalLockTake "event-track-send-append-${sendLockOut##*/}" 30 "the event-track outbox of $sendLockWhat"
+	}
+
+	## The send lock, held by the one sender of that outbox: the window's wait, the group and
+	## the send, so two senders never post into one channel at once.
+	AgentsToolsEventTrackSendSendLockTake(){ ## outbox, what it is
+		local sendLockOut="$1" sendLockWhat="${2:-$1}"
+		AgentsToolsEventTrackSendLockLib || return 1
+		AgentsToolsLocalLockTake "event-track-send-${sendLockOut##*/}" 30 "the event-track outbox of $sendLockWhat"
+	}
+
+	## The oldest record of the outbox, or nothing; the one named is skipped, so a drain can
+	## walk past the group it is building. `done` and anything not numbered is never a record.
+	AgentsToolsEventTrackSendOldest(){ ## outbox, record to skip (its directory or its name)
+		local sendCandidate sendDir sendSkip="${2:-}"
+		[ -n "${1:-}" ] && [ -d "$1" ] || return 0
+		case "$sendSkip" in */*) sendSkip="${sendSkip##*/}" ;; esac
+		for sendCandidate in "$1"/[0-9]*/meta ; do
+			[ -f "$sendCandidate" ] || continue
+			sendDir="${sendCandidate%/meta}"
+			[ "${sendDir##*/}" != "$sendSkip" ] || continue
+			printf '%s' "$sendDir"
+			return 0
+		done
+		return 0
+	}
+
+	## One record, numbered and written under the append lock: prints the record's directory.
+	## rc 1 when it could not be written, and then nothing is queued.
+	AgentsToolsEventTrackSendAppend(){ ## outbox, member, kind, session id, target, channel, thread, fields file, lines file
+		local sendOut="$1" sendMember="$2" sendKind="$3" sendSession="$4" sendTarget="$5" sendChannel="$6" sendThread="$7" sendFields="$8" sendLines="$9"
+		local sendRc=0 sendSeq=0 sendTry=0 sendName="" sendTmp="" sendLock=""
+		[ -n "$sendOut" ] || return 1
+		mkdir -p "$sendOut/done" 2>/dev/null || return 1
+		AgentsToolsEventTrackSendAppendLockTake "$sendOut" "$sendChannel" || {
+			echo "⚠️ WARNING: ${MDSC_CMD:-event-track}: the event-track outbox of $sendChannel is busy, so this post could not be queued" >&2
+			return 1
+		}
+		sendLock="$agentsLocalLockPath"
+		sendSeq="$( cat "$sendOut/next" 2>/dev/null )" || sendSeq=0
+		case "$sendSeq" in ''|*[!0-9]*) sendSeq=0 ;; esac
+		sendTmp="$( mktemp -d "$sendOut/.queued.XXXXXX" 2>/dev/null )" || sendRc=1
+		[ "$sendRc" = "0" ] || sendTmp=""
+		[ "$sendRc" != "0" ] || printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$sendMember" "$sendKind" "$sendSession" "$sendTarget" "$sendChannel" "$sendThread" > "$sendTmp/meta" 2>/dev/null || sendRc=1
+		[ "$sendRc" != "0" ] || { : > "$sendTmp/fields" && : > "$sendTmp/lines" ; } 2>/dev/null || sendRc=1
+		[ "$sendRc" != "0" ] || [ -z "$sendFields" ] || cat "$sendFields" >> "$sendTmp/fields" 2>/dev/null || sendRc=1
+		[ "$sendRc" != "0" ] || [ -z "$sendLines" ] || cat "$sendLines" >> "$sendTmp/lines" 2>/dev/null || sendRc=1
+		## A number never taken twice, even where the counter file was lost: the directory is
+		## made with mkdir, which fails over an existing one, and the next free number wins. A
+		## hundred tries, never a scan of the number space: a place that cannot be written is
+		## said as such, not waited on.
+		while [ "$sendRc" = "0" ] ; do
+			[ "$sendTry" -lt 100 ] || { sendRc=1 ; break ; }
+			[ "$sendSeq" -lt 9999999 ] || { sendRc=1 ; break ; }
+			sendTry=$(( sendTry + 1 ))
+			sendSeq=$(( sendSeq + 1 ))
+			sendName="$( printf '%07d' "$sendSeq" )"
+			mkdir "$sendOut/$sendName" 2>/dev/null && break
+			sendName=""
+		done
+		## Into place by rename, both the record and the counter: a drain never reads a record
+		## that is still being written, and no reader sees a number twice.
+		[ "$sendRc" != "0" ] || printf '%s\n' "$sendSeq" > "$sendTmp/next" 2>/dev/null || sendRc=1
+		[ "$sendRc" != "0" ] || mv "$sendTmp/meta" "$sendTmp/fields" "$sendTmp/lines" "$sendOut/$sendName/" 2>/dev/null || sendRc=1
+		[ "$sendRc" != "0" ] || [ ! -d "$sendOut/$sendName" ] || mv -f "$sendTmp/next" "$sendOut/next" 2>/dev/null
+		if [ "$sendRc" != "0" ] ; then
+			[ -z "$sendTmp" ] || rm -rf "$sendTmp" 2>/dev/null
+			[ -z "$sendName" ] || rm -rf "$sendOut/$sendName" 2>/dev/null
+			AgentsToolsLocalLockGive "$sendLock"
+			echo "⚠️ WARNING: ${MDSC_CMD:-event-track}: the event-track outbox of $sendChannel could not be written, so this post was not queued" >&2
+			return 1
+		fi
+		rm -rf "$sendTmp" 2>/dev/null
+		AgentsToolsLocalLockGive "$sendLock"
+		printf '%s' "$sendOut/$sendName"
+		return 0
+	}
+
+	## Whether a record holds fields of its own. Its fields file is name=value, each ended by a
+	## NUL, so it is empty exactly when the post has none -- and a post with none may be joined
+	## with another.
+	AgentsToolsEventTrackSendHasFields(){ ## record
+		[ -n "${1:-}" ] && [ -s "$1/fields" ]
+	}
+
+	## Whether two records may go as ONE Slack message: the same member, kind, session,
+	## target, channel and thread, and no fields on either, so nothing but lines travels and
+	## nothing is lost or overwritten by the joining. rc 0 when they may.
+	AgentsToolsEventTrackSendSame(){ ## record A, record B
+		local sendSameA="$1" sendSameB="$2" sameM1 sameK1 sameS1 sameT1 sameC1 sameH1 sameM2 sameK2 sameS2 sameT2 sameC2 sameH2
+		[ -n "$sendSameA" ] && [ -f "$sendSameA/meta" ] && [ -n "$sendSameB" ] && [ -f "$sendSameB/meta" ] || return 1
+		AgentsToolsEventTrackSendHasFields "$sendSameA" && return 1
+		AgentsToolsEventTrackSendHasFields "$sendSameB" && return 1
+		IFS=$'\t' read -r sameM1 sameK1 sameS1 sameT1 sameC1 sameH1 < "$sendSameA/meta" || :
+		IFS=$'\t' read -r sameM2 sameK2 sameS2 sameT2 sameC2 sameH2 < "$sendSameB/meta" || :
+		[ "$sameM1" = "$sameM2" ] && [ "$sameK1" = "$sameK2" ] && [ "$sameS1" = "$sameS2" ] && [ "$sameT1" = "$sameT2" ] \
+			&& [ "$sameC1" = "$sameC2" ] && [ "$sameH1" = "$sameH2" ]
+	}
+
+	## The moment of the last message into the outbox's channel, or nothing.
+	AgentsToolsEventTrackSendLastAt(){ ## outbox
+		local sendLastAt=""
+		[ -n "${1:-}" ] && [ -s "$1/last-send" ] || return 0
+		IFS= read -r sendLastAt < "$1/last-send" || :
+		case "$sendLastAt" in ''|*[!0-9]*) sendLastAt="" ;; esac
+		printf '%s' "$sendLastAt"
+	}
+
+	## Waits out the window since the last message into that channel: the collection window,
+	## which also is where everything that arrives meanwhile becomes part of the same group.
+	AgentsToolsEventTrackSendPace(){ ## outbox
+		local sendPaceNow sendPaceLast sendPaceWait
+		[ -n "${1:-}" ] || return 0
+		sendPaceNow="$( date +%s )"
+		sendPaceLast="$( AgentsToolsEventTrackSendLastAt "$1" )"
+		if [ -n "$sendPaceLast" ] ; then
+			sendPaceWait=$(( sendPaceLast + agentsEventTrackSendPaceSeconds - sendPaceNow ))
+			[ "$sendPaceWait" -le "$agentsEventTrackSendPaceSeconds" ] || sendPaceWait="$agentsEventTrackSendPaceSeconds"
+			[ "$sendPaceWait" -le 0 ] || sleep "$sendPaceWait"
+		fi
+		return 0
+	}
+
+	## Notes now as the moment of the last message into that channel; the sender calls it
+	## right after every post it makes, its own parts included. Written under a name of its own
+	## by mktemp and renamed into place, never by $$: two senders in subshells of one shell
+	## share one $$, and neither may read the other's half-written moment.
+	AgentsToolsEventTrackSendNote(){ ## outbox
+		local sendNoteTmp=""
+		[ -n "${1:-}" ] && [ -d "$1" ] || return 0
+		sendNoteTmp="$( mktemp "$1/.last-send.XXXXXX" 2>/dev/null )" || sendNoteTmp=""
+		if [ -z "$sendNoteTmp" ] ; then
+			printf '%s\n' "$( date +%s )" > "$1/last-send" 2>/dev/null
+			return 0
+		fi
+		if printf '%s\n' "$( date +%s )" > "$sendNoteTmp" 2>/dev/null ; then
+			mv -f "$sendNoteTmp" "$1/last-send" 2>/dev/null || rm -f "$sendNoteTmp" 2>/dev/null
+		else
+			rm -f "$sendNoteTmp" 2>/dev/null
+		fi
+		return 0
+	}
+
+	## Waits for the outcome of one record, up to <tries> seconds: for a caller whose drain
+	## found the send lock taken by another, which posts the record for it. rc 0 once it went.
+	AgentsToolsEventTrackSendWait(){ ## outbox, seq, tries
+		local sendWaitOut="$1" sendWaitSeq="$2" sendWaitTries="${3:-60}" sendWaitTry=0
+		[ -n "$sendWaitOut" ] && [ -n "$sendWaitSeq" ] || return 1
+		while [ "$sendWaitTry" -lt "$sendWaitTries" ] ; do
+			[ ! -s "$sendWaitOut/done/$sendWaitSeq/rc" ] || return 0
+			sendWaitTry=$(( sendWaitTry + 1 ))
+			sleep 1
+		done
+		[ -s "$sendWaitOut/done/$sendWaitSeq/rc" ]
+	}
+
+	## Reaps the outcomes of callers that never came back, and of records whose sender died
+	## before it posted them: an hour old, and neither is of use to anyone.
+	AgentsToolsEventTrackSendReap(){ ## outbox
+		local sendReapOut="$1"
+		[ -n "$sendReapOut" ] && [ -d "$sendReapOut" ] || return 0
+		find "$sendReapOut/done" -mindepth 1 -maxdepth 1 -type d -mmin +60 -exec rm -rf {} + 2>/dev/null || :
+		find "$sendReapOut" -mindepth 1 -maxdepth 1 -type d -name '[0-9]*' -mmin +60 -exec rm -rf {} + 2>/dev/null || :
+		return 0
+	}
+
+	## One drain: the outbox's posts, oldest first, one message every 7 seconds, what queued
+	## meanwhile collected with the message it belongs to. <sender> is called as
+	## `<sender> <record dir>`, the outbox in agentsEventTrackSendQueue, and posts one record:
+	## its output on stdout and stderr, its rc its own. The outcome of every record in a group
+	## is left in done/<seq>/ for each of them, so a caller that waited for its own finds it
+	## sent, and the record itself goes. rc 0 when every record was sent, 1 when the send lock
+	## could not be taken or a record failed (the rest still go).
+	AgentsToolsEventTrackSendDrain(){ ## outbox, sender function
+		local drainOut="$1" drainSender="$2" drainRc=0 drainLock="" drainLead="" drainNext="" drainMerged="" drainSeq="" drainGroup="" drainDone="" drainOne=""
+		[ -n "$drainOut" ] && [ -d "$drainOut" ] && [ -n "$drainSender" ] || return 0
+		AgentsToolsEventTrackSendSendLockTake "$drainOut" "${drainOut##*/}" || {
+			echo "⚠️ WARNING: ${MDSC_CMD:-event-track}: the event-track outbox of ${drainOut##*/} is sending, so this drain left its posts to that sender" >&2
+			return 1
+		}
+		drainLock="$agentsLocalLockPath"
+		agentsEventTrackSendQueue="$drainOut"
+		while : ; do
+			drainLead="$( AgentsToolsEventTrackSendOldest "$drainOut" )"
+			[ -n "$drainLead" ] || break
+			## The window first: what arrives in it is collected into this very post.
+			AgentsToolsEventTrackSendPace "$drainOut"
+			drainMerged="" ; drainGroup="${drainLead##*/}"
+			while : ; do
+				drainNext="$( AgentsToolsEventTrackSendOldest "$drainOut" "$drainLead" )"
+				[ -n "$drainNext" ] && [ "$drainNext" != "$drainLead" ] || break
+				AgentsToolsEventTrackSendSame "$drainLead" "$drainNext" || break
+				drainSeq="${drainNext##*/}"
+				cat "$drainNext/lines" >> "$drainLead/lines" 2>/dev/null || :
+				drainMerged="$drainMerged $drainSeq"
+				drainGroup="$drainGroup $drainSeq"
+				rm -rf "$drainNext"
+			done
+			"$drainSender" "$drainLead" > "$drainLead/out" 2> "$drainLead/err" ; drainDone=$?
+			## Noted here too, whatever the sender did: a group that went paces the next one,
+			## even where the sender is a caller's own (a check's) and notes nothing.
+			AgentsToolsEventTrackSendNote "$drainOut"
+			printf '%s\n' "$drainDone" > "$drainLead/rc" 2>/dev/null || :
+			printf '%s\n' "${drainGroup# }" > "$drainLead/group" 2>/dev/null || :
+			for drainOne in "$drainLead" $drainMerged ; do
+				drainSeq="${drainOne##*/}"
+				mkdir -p "$drainOut/done/$drainSeq" 2>/dev/null || continue
+				cp "$drainLead/rc" "$drainLead/out" "$drainLead/err" "$drainLead/group" "$drainOut/done/$drainSeq/" 2>/dev/null || :
+			done
+			[ "$drainDone" = "0" ] || drainRc=1
+			rm -rf "$drainLead"
+		done
+		AgentsToolsLocalLockGive "$drainLock"
+		return "$drainRc"
+	}
+
+fi

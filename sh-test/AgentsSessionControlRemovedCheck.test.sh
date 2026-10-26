@@ -32,7 +32,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
-command -v perl > /dev/null 2>&1 || rigRefuse "no perl on PATH to start a process with its signals at their defaults"
+command -v python3 > /dev/null 2>&1 || rigRefuse "no python3 on PATH to start a process with its signals at their defaults"
 ## The one way this check ends a thread: by its note, `<pid> <start>`, while its pid is still that process.
 . "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the fixture that ends the control threads of a rig is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
@@ -94,7 +94,7 @@ rigThreadPid=""
 rigThreads=""
 rigThread(){ ## session id
 	env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
-		perl -e '$SIG{$_} = "DEFAULT" for qw( HUP INT QUIT PIPE TERM USR1 USR2 ) ; chdir $ENV{MMDAPP} or exit 98 ; exec @ARGV or exit 99' \
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --default-signals HUP,INT,QUIT,PIPE,TERM,USR1,USR2 --chdir-env MMDAPP -- \
 		bash "$rigTool" "$rigOp" --run --session-id "$1" > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" < /dev/null &
 	rigThreadPid=$!
 	rigThreads="$rigThreads $rigThreadPid"

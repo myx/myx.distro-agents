@@ -84,7 +84,7 @@ BEGIN {
 	# floor itself does not change.
 	addItem("Team data directory",  "floor",      "TEAM_DATA_DIRECTORY")
 	addItem("Basic comms",          "floor",      "SLACK_CHANNEL_MAGIC_TEAM,SLACK_CHANNEL_HUMAN_OWNER")
-	addItem("Agent CLI service",    "floor",      "SPAWN_CLI_SERVICE")
+	addItem("Agent CLI service",    "floor",      "SPAWN_TIER_NORMAL")
 	addItem("Agent CLI sign-in",    "diagnosed",  "SPAWN_CLI_AUTHENTICATED")
 	addItem("Activity-log channel", "optional",   "SLACK_CHANNEL_EVENT_TRACK")
 	addItem("Alert channel",        "optional",   "SLACK_CHANNEL_EVENT_ALERT")
@@ -92,11 +92,11 @@ BEGIN {
 	# The `--owner-setup-<domain>` that owns fixing each floor key -- a fix hint
 	# never prints a raw --agents-config-option --upsert command, it points here
 	# instead, so the reader gets that domain's own Block1/Block2 report.
-	# SPAWN_CLI_SERVICE is owned by either of two domains, so both are named.
+	# SPAWN_TIER_NORMAL is the preset the spawn runs on, and it is owned by the CLI domains, so both are named.
 	keyDomain["TEAM_DATA_DIRECTORY"]       = "storage"
 	keyDomain["SLACK_CHANNEL_MAGIC_TEAM"]  = "slack"
 	keyDomain["SLACK_CHANNEL_HUMAN_OWNER"] = "slack"
-	keyDomain["SPAWN_CLI_SERVICE"]         = "claude|copilot"
+	keyDomain["SPAWN_TIER_NORMAL"]         = "claude|copilot"
 }
 
 /^[A-Z_]+:[ \t]+(OK|WARN|FAIL|SKIP)$/ {

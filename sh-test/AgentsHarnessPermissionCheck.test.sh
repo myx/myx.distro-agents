@@ -484,7 +484,7 @@ RIG_OP_SESSION="rig-coordinator-session"
 ## The one pending record of this scenario, once it exists.
 rigPendingId(){
 	local pendingFile
-	for pendingFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+	for pendingFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$pendingFile" ] || continue
 		pendingFile="${pendingFile##*/}"
 		printf '%s' "${pendingFile%.md}"
@@ -690,7 +690,7 @@ export HOME="$rigScenarioDir/home"
 mkdir -p "$HOME"
 rigPendingIdOf(){ ## refusal id -- the pending record asking for it
 	local pendingFile
-	for pendingFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+	for pendingFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$pendingFile" ] && LC_ALL=C grep -q -x -F "refusal-id: $1" "$pendingFile" || continue
 		pendingFile="${pendingFile##*/}"
 		printf '%s' "${pendingFile%.md}"

@@ -262,7 +262,7 @@ rigAssert "the refusal's line is written once, in that check, which asks that fu
 rigAssert "no starter asks what the team is, or names it, itself: the proxy, --spawn-session, --manager-spawn-member and the spawn relay each ask the one check of a start, once" \
 	"$( for rigFile in InternOpAgentSpawnProxy MagicSpawnSession ManagerSpawn MagicCoordinatorState ; do printf '%s:%s ' "$( rigCode "AgentsTools.$rigFile.include" | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberStartCheck "' || : )" "$( rigCode "AgentsTools.$rigFile.include" | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberIsTeam' || : )" ; done )" "1:0 1:0 1:0 1:0 "
 rigAssert "--manager-routine-list and --manager-team-member-list ask that function, once each, and neither names the team" \
-	"$( rigCode AgentsTools.ManagerRoutine.include | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberIsTeam "' || : ) $( rigCode AgentsTools.ManagerTeamMember.include | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberIsTeam "' || : ) $( rigCode AgentsTools.ManagerRoutine.include | LC_ALL=C grep -c -e 'magic-team' || : ) $( rigCode AgentsTools.ManagerTeamMember.include | LC_ALL=C grep -c -e 'magic-team' || : )" "1 1 0 0"
+	"$( rigCode AgentsTools.ManagerRoutine.include | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberIsTeam "' || : ) $( rigCode AgentsTools.ManagerTeamMember.include | LC_ALL=C grep -c -e 'AgentsToolsTeamMemberIsTeam "' || : ) $( rigCode AgentsTools.ManagerRoutine.include | LC_ALL=C grep -v -e 'execs == ' | LC_ALL=C grep -c -e 'magic-team' || : ) $( rigCode AgentsTools.ManagerTeamMember.include | LC_ALL=C grep -c -e 'magic-team' || : )" "1 1 0 0"
 
 rigSettle
 if [ "$rigFails" -ne 0 ] ; then

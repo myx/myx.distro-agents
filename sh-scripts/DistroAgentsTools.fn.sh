@@ -81,9 +81,9 @@ DistroAgentsTools(){
 		;;
 	esac
 	type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
-	## WE RUN FROM HERE: an operation naming a team member uses the workspace it is run from, for everything, and is carried to no other. A member set up only in another workspace on this machine is invited: only its skillset is read from there (AgentsToolsMemberSkillsetBring), and those of its own settings this workspace holds none of (AgentsToolsConfigOptionElsewhere), and it is stopped only when its skillset cannot be brought. A client-* member is invited like any other: which organisation its operation reaches is said by the operation's prefix and its address, never by a workspace. The spawn operations make the same check themselves, before they start anything.
+	## We run from here: a member named by an operation uses this workspace; one set up elsewhere only has its skillset brought (AgentsToolsMemberSkillsetBring).
 	case "$1:${2:-}" in
-		--intern-op-agent-spawn-proxy:*|--intern-op-routine-lock-*:*|--intern-merge-md-files:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--owner-workspace-*:*|--make-*:*|--manager-*:*|*:|*:-*) ;;
+		--intern-op-agent-spawn-proxy:*|--intern-op-routine-lock-*:*|--intern-merge-md-files:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--owner-workspace-*:*|--make-*:*|--manager-*:*|--session-floor-remove:*|--camunda-diagram-sync-stale:*|*:|*:-*) ;;
 		--*:*)
 			## An invited member, set up only in another workspace on this machine: its operation runs here, and only its skillset, and those of its own settings this workspace holds none of, are read from the workspace it is set up in. The root is set for this one call, and a call that already reads that root goes on as it is.
 			local memberBrought memberBroughtFrom
@@ -183,7 +183,7 @@ DistroAgentsTools(){
 					fi
 				;;
 				--upsert|--upsert-from-stdin|--upsert-if)
-					## A write is this workspace's own, always, and is made as it was. Where it is the first setting of a system this workspace holds for an invited member, that system is read here alone from then on, and what the workspace the member is set up in holds of it is no longer read: said in one line, once the write is made (AgentsToolsMemberSettingsBorrowEndedSay). The reader shifts the arguments, so what the line needs is kept first.
+					## A write is this workspace's own; the first setting of a borrowed system ends the borrowing, said once (AgentsToolsMemberSettingsBorrowEndedSay).
 					local optionScope="$2" optionKey="${4:-}" optionThere="" optionRc=0
 					case "$optionScope" in
 						magic-team) ;;
@@ -196,7 +196,7 @@ DistroAgentsTools(){
 					fi
 				;;
 				--delete|--delete-if)
-					## The mirror. Where the setting deleted is the last one of a system this workspace held for an invited member, that system is read from the workspace the member is set up in again, from then on: said in one line, once the delete is made (AgentsToolsMemberSettingsBorrowBegunSay). The reader shifts the arguments, so what the line needs is kept first.
+					## The mirror: the last setting of a system deleted begins the borrowing again, said once (AgentsToolsMemberSettingsBorrowBegunSay).
 					local optionScope="$2" optionKey="${4:-}" optionPrefix="" optionRc=0
 					case "$optionScope" in
 						magic-team) ;;
@@ -248,6 +248,14 @@ DistroAgentsTools(){
 
 		--intern-op-session-context-scan)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.InternOpSessionContextScan.include"
+			return $?
+		;;
+
+		## The session's title and chapter (F7.2): the implementation behind DistroAgentsSession.fn.sh's
+		## --set-session-topic / --set-session-chapter. Lives in AgentsTools.ThisSession.include, same as the
+		## other ThisSession operations.
+		--intern-op-set-session-topic|--intern-op-set-session-chapter)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.ThisSession.include"
 			return $?
 		;;
 
@@ -316,6 +324,15 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## K2's stub of the librarian's queue close, with no logic of its own: --queue-done is AgentLibrarianTools.fn.sh --queue-done, so a pending
+		## question's allow answer applies the edit through AgentsToolsAuthorityRequestAct (the action it keeps beside it).
+		--queue-done)
+			shift
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/AgentLibrarianTools.fn.sh"
+			AgentLibrarianTools --queue-done "$@"
+			return $?
+		;;
+
 		--librarian-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Librarian.include"
 			return $?
@@ -370,6 +387,12 @@ DistroAgentsTools(){
 		## The installer of the knowledge store's Python environment, beside the other installs.
 		--install-knowledge-store)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.InstallKnowledgeStore.include"
+			return $?
+		;;
+
+		## The librarian's spread and retire of the knowledge store (F8.3), beside the installer.
+		--knowledge-store-spread|--knowledge-store-retire)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.KnowledgeStore.include"
 			return $?
 		;;
 
@@ -552,23 +575,6 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		## F7.6's stub of the routine kind of that validator, with no logic of its own.
-		--tester-skillset-validate-routine)
-			shift
-			DistroAgentsTools --intern-doc-validate routine "$@"
-			return $?
-		;;
-
-		## F7.6's stubs of the testing system's operations (the `--tester-*` kind, approved in the refactorings epic), with no logic of their own:
-		## --tester-<operation> is DistroAgentsTesting.fn.sh --<operation>.
-		--tester-test-register|--tester-test-update|--tester-test-unregister|--tester-test-invalidate|--tester-test-list|--tester-run-oldest-untested|--tester-run-all-nightly-regressions)
-			local testerOp="${1#--tester-}"
-			shift
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTesting.fn.sh"
-			DistroAgentsTesting "--$testerOp" "$@"
-			return $?
-		;;
-
 		## The tool index, .local/agents/tool-index.md: every tool, and who may use what. A
 		## member's Skill read of its own skill serves that member's section of it.
 		--intern-op-tool-index)
@@ -664,6 +670,49 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## A member's own delivery floor, removed for a while (timed): while the seconds last, the session chat floor is not delivered
+		## (AgentsToolsSessionChatFloorRemove, AgentsTools.SessionChat.include). The member is the run's own, as the served harness takes
+		## it; a native root caller is magic-coordinator's. Prints `FLOOR-REMOVED <member> <seconds>`.
+		--session-floor-remove)
+			shift
+			local floorRemoveSeconds="${1:-}" floorRemoveMember floorRemoveKey
+			shift 2>/dev/null || shift $#
+			case "$floorRemoveSeconds" in
+				''|*[!0123456789]*|0|0[0123456789]*)
+					echo "$MDSC_CMD: ⛔ ERROR: --session-floor-remove takes whole seconds, 1 or more, got: ${floorRemoveSeconds:-<none>}" >&2
+					set +e ; return 1
+				;;
+			esac
+			type AgentsToolsSessionChatFloorRemove > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+			floorRemoveKey="$( AgentsToolsSessionChatKey )"
+			floorRemoveMember="${harnessAgent:-${MDAT_SPAWN_AGENT:-magic-coordinator}}"
+			if [ -z "$floorRemoveKey" ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: --session-floor-remove: the call belongs to no session, so there is no floor to remove" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsSessionChatFloorRemove "$floorRemoveKey" "$floorRemoveMember" "$floorRemoveSeconds" || { set +e ; return 1 ; }
+			printf 'FLOOR-REMOVED %s %s\n' "$floorRemoveMember" "$floorRemoveSeconds"
+			return 0
+		;;
+
+		## partner-ndm-camunda's diagram sync (routine-camunda-diagram-sync), made mechanical: the newest team-definition
+		## mtime against each diagram's, the stale diagrams printed. <definitions-dir> <diagrams-dir>. The agent only decides.
+		--camunda-diagram-sync-stale)
+			shift
+			local camundaDefs="${1:-}" camundaDiagrams="${2:-}"
+			shift 2 2>/dev/null || shift $#
+			if [ -z "$camundaDefs" ] || [ -z "$camundaDiagrams" ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: --camunda-diagram-sync-stale: syntax is <definitions-dir> <diagrams-dir>" >&2
+				set +e ; return 1
+			fi
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CamundaDiagramSync.include"
+			AgentsToolsCamundaDiagramSyncStale "$camundaDefs" "$camundaDiagrams" || {
+				echo "$MDSC_CMD: ⛔ ERROR: --camunda-diagram-sync-stale: both arguments must be directories: $camundaDefs, $camundaDiagrams" >&2
+				set +e ; return 1
+			}
+			return 0
+		;;
+
 		## The take and the giving back of the standing lock of a routine (advance, daily, grooming or retro) are the spawner's own: its functions, and these two
 		## operations for the shell and the checks. <routine word> <team-member> [<owner label>].
 		--intern-op-routine-lock-take|--intern-op-routine-lock-close)
@@ -675,6 +724,15 @@ DistroAgentsTools(){
 				*) routineLockFn=AgentsToolsRoutineLockCloseOwn ;;
 			esac
 			"$routineLockFn" "$@"
+			return $?
+		;;
+
+		## The console's release of a lock whose holder has no record (F6.2): <value> [<reason>]. Refuses where the lock
+		## is finished or holds no session, or where a spawn record still names its holder; else gives the lock back.
+		--intern-op-routine-lock-release)
+			shift
+			type AgentsToolsRoutineLockReleaseConsole > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.RoutineLock.include"
+			AgentsToolsRoutineLockReleaseConsole "$@"
 			return $?
 		;;
 
@@ -691,6 +749,27 @@ DistroAgentsTools(){
 		## magic-librarian.morning-review.routine: its input scan. The cut-off is the routine's own state, updated with --update-routine-state.
 		--intern-op-morning-review-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.InternOpMorningReview.include"
+			return $?
+		;;
+
+		## The per-member sync of a member's own incoming (T2): its mailbox and Trello refilled at once into its inbox, and its tags, its
+		## DMs and its session chat force-read through their readers, whatever their TTLs, one line a source. The tooling's own; the
+		## spawner calls it at a member's start (the `start` scope, the personal mail alone), and a member or the console can call it to
+		## sync at once. Takes the member first.
+		--intern-op-member-incoming-sync)
+			shift
+			local incomingMember="${1:-}"
+			if [ -z "$incomingMember" ] ; then
+				echo "$MDSC_CMD: member-incoming-sync: ⛔ ERROR: syntax is <team-member>" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsAssertBareName "$incomingMember" "<team-member>" member-incoming-sync || { set +e ; return 1 ; }
+			if [ ! -d "$MDAT_SKILLSET_ROOT/$incomingMember" ] ; then
+				echo "$MDSC_CMD: member-incoming-sync: ⛔ ERROR: no such member skill directory: $MDAT_SKILLSET_ROOT/$incomingMember" >&2
+				set +e ; return 1
+			fi
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Incoming.include"
+			AgentsToolsIncomingSync "$incomingMember"
 			return $?
 		;;
 
@@ -760,10 +839,15 @@ case "$0" in
 		fi
 
 		## A bare call takes the default syntax, not --help-syntax: the whole
-		## operation list is what --help-syntax is asked for by name.
-		if [ -z "$1" ] || [ "$1" = "--help" ] ; then
-			DistroAgentsTools "${1:-}"
+		## operation list is what --help-syntax is asked for by name. A bare call
+		## names no operation, so it ends 1; --help asked for the manual, so it ends 0.
+		if [ -z "$1" ] ; then
+			DistroAgentsTools
 			exit 1
+		fi
+		if [ "$1" = "--help" ] ; then
+			DistroAgentsTools --help
+			exit 0
 		fi
 
 		DistroAgentsTools "$@"

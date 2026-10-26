@@ -161,7 +161,7 @@ printf '%s\n' '#!/usr/bin/env bash' '## cli-configured MDAT_SPAWN_LAUNCH_MARKER 
 	'echo started >> "$RIG_SCENARIO/session.events"' 'sleep 25' 'echo finished >> "$RIG_SCENARIO/session.events"' > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
 ## A terminal foreground job: its own process group, SIGINT at its default, which a background start here would not have.
-perl -e '$SIG{INT} = "DEFAULT" ; $SIG{QUIT} = "DEFAULT" ; setpgrp( 0, 0 ) ; exec @ARGV' \
+python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --default-signals INT,QUIT --setpgrp -- \
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigPath" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigSkills" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" bash -c 'cd "$MMDAPP" && exec bash "$0" --intern-root-harness' "$rigTool" \
 	> "$rigTmp/root.out" 2>&1 < /dev/null &

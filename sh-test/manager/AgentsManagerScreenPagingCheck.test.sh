@@ -12,7 +12,7 @@
 ##      none of them changes the mode of the text; the keys of the screen's key help name them
 ##   3. in the list on the right, as the left window has them: Space pages the selection down as PgDn does, Home is its first row and
 ##      End its last
-##   4. the mouse is on unless MDLT_CONSOLE_MOUSE says `disable`, the console user's setting of .local beside MDLT_CONSOLE_SPACERS: the
+##   4. the mouse is on unless MDLT_MANAGER_MOUSE says `disable`, the console user's setting of .local beside MDLT_MANAGER_SPACERS: the
 ##      screen then asks the terminal to report none, so the terminal's own selection copies text; it is asked to report none whenever
 ##      the terminal is another's, whatever the setting says
 ## Red before F11.0's paging and mouse lines: Space, Home and End are no key of the screen, and the mouse is always reported.
@@ -58,9 +58,15 @@ def say(name, value):
     print("%s=%s" % (name, value))
 
 
-## 1. who has each key: the names of the commands that take it
+## 1. who has each key in the pane where the keys of the left window act: the folder of a participant's transcript. A key another
+## feature takes in a view of its own is no key of this pane, so the pane's keys are asked for where the pane binds them.
+pane = screen.ManagerState("")
+pane.path = ["magic-team", "activity", "active-sessions", "session-id", "run-id"]
+
+
 def owners(key):
-    return ",".join(command["name"] for command in screen.COMMANDS if key in screen.commandKeys(command))
+    return ",".join(command["name"] for command in screen.COMMANDS
+                     if key in screen.commandKeys(command) and screen.commandInView(pane, command))
 
 
 for label, key in (("space", " "), ("pgdn", "PGDN"), ("pgup", "PGUP"), ("home", "HOME"), ("end", "END"), ("up", "UP"), ("down", "DOWN"),
@@ -80,9 +86,9 @@ screen.curses = stand
 
 
 def mouse(setting, reported):
-    os.environ.pop("MDLT_CONSOLE_MOUSE", None)
+    os.environ.pop("MDLT_MANAGER_MOUSE", None)
     if setting is not None:
-        os.environ["MDLT_CONSOLE_MOUSE"] = setting
+        os.environ["MDLT_MANAGER_MOUSE"] = setting
     del asked[:]
     screen.CursesSurface.mouse(None, reported)
     return asked[-1] if asked else "none"
@@ -260,7 +266,7 @@ rigAssert "Space pages the selection down as PgDn does" "$( rigVal space.index )
 rigAssert "End is the last row, PgUp a page up from it, Home the first row" "$( rigVal end.index ) $( rigVal back.index ) $( rigVal home.index )" "$(( $( rigVal top.rows ) - 1 )) $(( $( rigVal top.rows ) - 1 - rigListPage )) 0"
 rigAssert "the arrows move a row" "$( rigVal lines.index )" "2"
 
-echo "-- 3a. the left arrow in the right pane: pages up the list; on a list's first row it climbs a level; on the root's first row it does nothing more --"
+echo "-- 3a. the left arrow in the right pane: pages up the list; on a list's first row it stays there, and climbs nowhere --"
 rigCase climb 3 100
 rigScript "120 36" <<'RIGSCRIPT'
 turn
@@ -286,9 +292,11 @@ keys HOME LEFT
 get up2
 keys HOME LEFT
 get up3
-keys LEFT
-get root1
+keys BACKSPACE BACKSPACE BACKSPACE BACKSPACE
+wait list 10
 keys DOWN DOWN LEFT
+get root1
+keys LEFT
 get root2
 keys LEFT LEFT LEFT
 get root5
@@ -298,8 +306,8 @@ rigDepth(){ ## path -- how many levels it has
 }
 rigAssert "control: the list stands four levels down (Magic-Team, Team Members, the member, its folder), on a row in the middle of its page, not on its first row" "$( rigDepth "$( rigVal deep.path )" ) $( [ "$( rigVal deep.index )" -gt 1 ] && echo middle || echo "first: $( rigVal deep.index )" ) $( rigVal deep.focus )" "4 middle list"
 rigAssert "Left from the middle of the list pages it up, as PgUp does, and climbs nowhere" "$( rigDepth "$( rigVal paged.path )" ) $( [ "$( rigVal paged.index )" -lt "$( rigVal deep.index )" ] && echo up || echo "not up: $( rigVal paged.index ) of $( rigVal deep.index )" ) $( rigVal paged.focus )" "4 up list"
-rigAssert "on the first row of a list it climbs a level a press, onto the row it came from, and the list keeps the keys" "$( rigDepth "$( rigVal up1.path )" ) $( rigDepth "$( rigVal up2.path )" ) $( rigDepth "$( rigVal up3.path )" ) $( rigVal up1.focus ) $( rigVal up3.focus ) $( rigVal up3.selected ) $( rigVal up2.selected ) $( rigVal up1.selected )" "2 1 0 list list $( rigVal up2.path | LC_ALL=C awk -F/ '{ print $NF }' ) $( rigVal up1.path | LC_ALL=C awk -F/ '{ print $NF }' ) $( rigVal up0.path | LC_ALL=C awk -F/ '{ print $NF }' )"
-rigAssert "at the root, off its first row, Left pages up to it" "[$( rigVal root1.path )] $( rigVal root1.index ) $( rigVal root2.index )" "[] 0 0"
+rigAssert "on the first row of a list Left stays there: the level, the row and the keys do not change" "$( rigDepth "$( rigVal up1.path )" ) $( rigDepth "$( rigVal up2.path )" ) $( rigDepth "$( rigVal up3.path )" ) $( rigVal up1.focus ) $( rigVal up3.focus ) $( rigVal up1.index ) $( rigVal up2.index ) $( rigVal up3.index )" "4 4 4 list list 0 0 0"
+rigAssert "Left never leaves the list: at the root, off the first row it pages up to it, and on that row it stays" "$( rigDepth "$( rigVal root1.path )" ) $( rigDepth "$( rigVal root5.path )" ) $( rigVal root1.index ) $( rigVal root2.index ) $( rigVal root5.index ) $( rigVal root5.focus )" "0 0 0 0 0 list"
 rigAssert "and on the root's first row it does nothing more: the level, the selection, the keys and the status line are as they were, and it never dives out of the pane" \
 	"$( rigVal root5.path )|$( rigVal root5.index )|$( rigVal root5.selected )|$( rigVal root5.focus )|$( rigVal root5.notice )" "|0|$( rigVal root1.selected )|list|"
 
@@ -316,7 +324,7 @@ rigAssert "the box of the keys names the arrows by a line, the page keys with Sp
 echo "-- 4. the mouse --"
 rigAssert "on by default: the screen asks the terminal to report the first button and the wheel" "$( rigGot mouse.default )" "31"
 rigAssert "a setting that names nothing is the default" "$( rigGot mouse.empty )" "31"
-rigAssert "MDLT_CONSOLE_MOUSE=disable: the screen asks the terminal to report none" "$( rigGot mouse.disable )" "0"
+rigAssert "MDLT_MANAGER_MOUSE=disable: the screen asks the terminal to report none" "$( rigGot mouse.disable )" "0"
 rigAssert "a setting that is not disable is the default" "$( rigGot mouse.other )" "31"
 rigAssert "while the terminal is another's it is reported none, whatever the setting says" "$( rigGot mouse.disableLeave ) $( rigGot mouse.leave )" "0 0"
 

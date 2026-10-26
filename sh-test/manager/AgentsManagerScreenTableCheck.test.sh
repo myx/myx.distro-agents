@@ -456,9 +456,9 @@ rigAssert "a table inside a summary stays tight" "$( rigGot between.inside )" "0
 rigAssert "a heading of a group stands against its rows: the empty line is between two rows, never next to a heading" "$( rigGot between.headings )" "[ NAME  KIND][ group one][ a     1][][ b     2][ group two][ c     3][][ d     4]"
 
 echo "-- 3b. the tables of the list on the right: drawn by the same renderer, the same gaps and the same looks of rows --"
-rigAssert "two spaces between the columns where the pane has the room, the mark of the location ahead of the first column too" "$( rigGot list.200 )" "[   PLACE   KIND       CEILING     STATE    SESSIONS][•  ws-rig  workspace  read-write  present  1][   ws-far  workspace  read-write  present  0]"
-rigAssert "one where it has not" "$( rigGot list.47 )" "[  PLACE  KIND      CEILING    STATE   SESSIONS][• ws-rig workspace read-write present 1][  ws-far workspace read-write present 0]"
-rigAssert "a column that does not fit is left out whole, the last first" "$( rigGot list.17 )" "[   PLACE][•  ws-rig][   ws-far]"
+rigAssert "two spaces between the columns where the pane has the room, the mark of the location ahead of the first column too" "$( rigGot list.200 )" "[   PLACE   KIND       CEILING     STATE    SESSIONS][   ws-far  workspace  read-write  present  0][•  ws-rig  workspace  read-write  present  1]"
+rigAssert "one where it has not" "$( rigGot list.47 )" "[  PLACE  KIND      CEILING    STATE   SESSIONS][  ws-far workspace read-write present 0][• ws-rig workspace read-write present 1]"
+rigAssert "a column that does not fit is left out whole, the last first" "$( rigGot list.17 )" "[   PLACE][   ws-far][•  ws-rig]"
 rigAssert "in every style and colour scheme the rows take turns in the look of a row and of every other row where the colours name a ground, else all are the look of a row: a row of the list is cut to a line, never wrapped, so none is underlined" "[$( rigGot list.looks )]" "[]"
 
 echo "-- 4. the real screen: the table of the members has them --"
@@ -596,7 +596,7 @@ for number, line in enumerate(shown):
 ' "$1" "$2" "$3"
 }
 rigLetters(){ ## shown tag, roles tag -- the letters of the first cell of each of the four locations of the list, in their order
-	for rigPlace in ws-rig ws-far deep far ; do rigLetterAt "$1" "$2" "$rigPlace" ; done | LC_ALL=C tr -d '\n'
+	for rigPlace in ws-rig ws-far deep " far " ; do rigLetterAt "$1" "$2" "$rigPlace" ; done | LC_ALL=C tr -d '\n'
 }
 rigCase locations
 rigSize="200 40"
@@ -617,7 +617,7 @@ turn
 show sys
 roles sysRoles
 RIGSCRIPT
-rigAssert "the list of the locations on the real screen: where the colours name a ground for every other row its rows take turns (the one the console runs in standing out), each in the look of its ground" "$( rigLetters blue blueRoles )" "Bjcj"
+rigAssert "the list of the locations on the real screen: where the colours name a ground for every other row its rows take turns (the one the console runs in standing out), each in the look of its ground" "$( rigLetters blue blueRoles )" "Bccj"
 rigAssert "where they name none, no row is marked, for a row of the list is cut to a line and never wraps: the one that stands out stands out, the others are rows" "$( rigLetters sys sysRoles )" "Bccc"
 rigAssert "its header is drawn in the look of the header of a table" "$( rigLetterAt blue blueRoles PLACE )" "u"
 

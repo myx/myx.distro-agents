@@ -215,7 +215,9 @@ rigToolCall(){ ## guard seconds, tool, argument object
 }
 rigToolField(){ ## field of the scenario's one record
 	local recordFile
-	for recordFile in "$rigToolWs/.local/agents/pending"/*.md ; do
+	## A closed record is retained, not deleted: it moves with its sidecars into
+	## pending/closed/ (AgentsTools.InternOpPendingReply.include), so both are read here.
+	for recordFile in "$rigToolWs/.local/agents/pending"/*.md "$rigToolWs/.local/agents/pending/closed"/*.md "$rigToolWs/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] || continue
 		LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$recordFile"
 		return 0

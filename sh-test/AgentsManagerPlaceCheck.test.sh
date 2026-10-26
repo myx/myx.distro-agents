@@ -5,8 +5,8 @@
 ## consoles, its team data and its registry of sessions, a second workspace with a registry of its own, and a
 ## third the pointers name whose registry is not there.
 ## Held: the list is the merged list of the places' own reader (LocalToolsPlacesMergedText, what
-## --owner-workspace-list prints), a `place` row each, in its order: the two built-in places, this workspace's,
-## then each other workspace's; a name two workspaces give two paths is written <name>@<workspace> for the other.
+## --owner-workspace-list prints), a `place` row each, in its order: the workspaces first, then the
+## directories, alphabetical within each; a name two workspaces give two paths is written <name>@<workspace> for the other.
 ## Each row has the key, a label of the words of the key, capitalised, the kind, the ceiling, the path with its
 ## blanks written _, and three things measured at the call: whether the path is there and can be entered from
 ## here (present, unreadable, absent, unknown where no path is known), whether it is the workspace the call runs
@@ -133,7 +133,7 @@ rigRun "$rigList"
 cp "$rigTmp/out" "$rigTmp/list"
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
 rigAssert "every row is a place row of nine fields, none empty and none with a blank" "$( LC_ALL=C awk -F'\t' '{ rows++ ; if ( $1 != "place" || NF != 9 ) bad++ ; for ( at = 1 ; at <= NF ; at++ ) if ( $at == "" || $at ~ / / ) bad++ ; } END { print rows + 0 ":" bad + 0 }' "$rigTmp/out" )" "11:0"
-rigAssert "the keys come in the order of the merged list: the two built-in places, this workspace's own, then each other workspace's; a name with another path there is written with its workspace" "$( LC_ALL=C awk -F'\t' '{ printf "%s ", $2 }' "$rigTmp/out" )" ".skillset-shared .skillset-.local ws-here docs gone closed my.notes_2 ws-far docs@ws-far ws-lost lost "
+rigAssert "the keys come in the order of the merged list: the workspaces first, then the directories, each alphabetical; a name with another path there is written with its workspace" "$( LC_ALL=C awk -F'\t' '{ printf "%s ", $2 }' "$rigTmp/out" )" "ws-far ws-here ws-lost .skillset-.local .skillset-shared closed docs docs@ws-far gone lost my.notes_2 "
 rigAssert "they are the keys --owner-workspace-list prints, in its order: the one reader of the places" "$( LC_ALL=C awk -F'\t' '{ printf "%s ", $2 }' "$rigTmp/out" )" "$( rigRun --owner-workspace-list ; LC_ALL=C awk -F'\t' '{ printf "%s ", $1 }' "$rigTmp/out" )"
 cp "$rigTmp/list" "$rigTmp/out"
 rigAssert "the workspace the call runs in: its label, its kind and ceiling, its path, there, the one that is here, and the two sessions of the registry that name it, one of them by two runs" "$( rigPlace ws-here )" "place ws-here Ws_Here workspace read-write $rigWs present yes 2"
@@ -146,7 +146,7 @@ rigAssert "the two built-in places: the machine's skillset in HOME, not there in
 rigAssert "exactly one place is the one the call runs in" "$( LC_ALL=C awk -F'\t' '$8 == "yes" { here++ } $8 != "yes" && $8 != "no" { bad++ } END { print here + 0 ":" bad + 0 }' "$rigTmp/out" )" "1:0"
 mv "$rigWs/.local/agents/spawned-sessions.registry" "$rigTmp/sessions.kept"
 rigRun "$rigList"
-rigAssert "where the registry of sessions is not there no count is given, and it is not built: every workspace reads -" "$rigRc $( LC_ALL=C awk -F'\t' '$4 == "workspace" { printf "%s=%s ", $2, $9 }' "$rigTmp/out" ) $( [ -e "$rigWs/.local/agents/spawned-sessions.registry" ] && echo built || echo not-built )" "0 ws-here=- ws-far=- ws-lost=-  not-built"
+rigAssert "where the registry of sessions is not there no count is given, and it is not built: every workspace reads -" "$rigRc $( LC_ALL=C awk -F'\t' '$4 == "workspace" { printf "%s=%s ", $2, $9 }' "$rigTmp/out" ) $( [ -e "$rigWs/.local/agents/spawned-sessions.registry" ] && echo built || echo not-built )" "0 ws-far=- ws-here=- ws-lost=-  not-built"
 mv "$rigTmp/sessions.kept" "$rigWs/.local/agents/spawned-sessions.registry"
 rigAssert "control: the registry of sessions names the session second and the workspace eleventh of its columns, as the tooling's own render of it says" "$( LC_ALL=C sed -n 's/^.*columns: \(tracking-name session-id .* workspace\) live state.$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.Registries.include" | LC_ALL=C awk '{ print $2, $11, NF }' )" "session-id workspace 11"
 

@@ -54,12 +54,12 @@ rigNow=1791892800
 printf '%s\n' "$rigNow" > "$rigTmp/now"
 
 ## THE SESSIONS, as an earlier call left their registry. s-run runs, by two runs, one of them in a Wait. s-ask
-## is closed and an ask of its run is open. s-open has an open record and no process. s-today closed today, s-old
+## is open, and an ask of its run is open: it waits on it. s-open has an open record and no process. s-today closed today, s-old
 ## long ago, and s-linger long ago too, with a process still running as its closed record.
 {
 	printf 't-run s-run - %s keeper-rig spawn-started - sp-run - - ws-here 2026-10-13_10:00_+0000 - run-one - -\n' "$rigHost"
 	printf 't-run2 s-run - %s magic-rig spawn-started - sp-run2 - - ws-here 2026-10-13_10:05_+0000 - - - -\n' "$rigHost"
-	printf 't-ask s-ask - %s keeper-rig spawn-succeeded 0 sp-ask - - ws-here 2026-10-12_10:00_+0000 2026-10-12_11:00_+0000 - - -\n' "$rigHost"
+	printf 't-ask s-ask - %s keeper-rig spawn-started - sp-ask - - ws-here 2026-10-12_10:00_+0000 - - - -\n' "$rigHost"
 	printf 't-open s-open - %s keeper-rig spawn-started - sp-open - - ws-here 2026-10-13_09:00_+0000 - - - -\n' "$rigHost"
 	printf 't-today s-today - %s magic-rig spawn-succeeded 0 sp-today - - ws-here 2026-10-13_08:00_+0000 2026-10-13_09:00_+0000 - - -\n' "$rigHost"
 	printf 't-old s-old - %s keeper-rig spawn-succeeded 0 sp-old - - ws-here 2026-10-01_08:00_+0000 2026-10-01_09:00_+0000 - - -\n' "$rigHost"
@@ -71,6 +71,12 @@ for rigOne in "sp-run 100 200 300 400" "sp-linger 5 5 5 5" "sp-today 10 20 30 40
 	mkdir -p "$rigAgents/sessions/${rigOne%% *}" && printf '%s\n' "${rigOne#* }" > "$rigAgents/sessions/${rigOne%% *}/tokens"
 done
 mkdir -p "$rigAgents/sessions/sp-run2" "$rigAgents/sessions/s-run/control" "$rigAgents/sessions/s-ask/control" "$rigAgents/sessions/s-open/control" "$rigAgents/sessions/s-today/control" "$rigAgents/sessions/s-old/control"
+## A RUN THAT STOPPED ON THE PROVIDER'S USAGE LIMIT: the provider's own message, kept as the
+## one wording with the date it reopens, in the store of the run (AgentsTools.UsageLimit.include).
+rigLimitFixture="$rigPackage/sh-test/check-fixtures/provider-usage-limit.refused.txt"
+[ -f "$rigLimitFixture" ] || rigRefuse "the usage-limit fixture is missing: $rigLimitFixture"
+( MMDAPP="$rigWs" ; . "$rigPackage/sh-lib/session/AgentsTools.UsageLimit.include" ; AgentsToolsUsageLimitMark sp-today "$( cat "$rigLimitFixture" )" ) \
+	|| rigRefuse "the usage-limit flag could not be kept in the store of sp-today"
 printf '2026-10-13T11:00:00Z wait going idle\n' > "$rigAgents/sessions/sp-run2/milestones"
 printf '5151 Tue_Oct_13_10:00:00_2026\n' > "$rigAgents/sessions/s-run/control/pid"
 printf '6161 Tue_Oct_13_09:00:00_2026\n' > "$rigAgents/sessions/s-ask/control/pid"
@@ -86,8 +92,8 @@ printf 'sp-old member=keeper-rig role=executor found=2026-10-01T08:30:00Z told=2
 	printf '4245 bash /rig/DistroAgentsKnowledge.fn.sh --member-help keeper-rig --session-id sp-open\n'
 } > "$rigTmp/ps.list"
 
-## THE QUESTIONS: three open, one answered. ask-1 is for the human-owner and its asker has a closed record and no
-## process; ask-2 is the oldest, its asker runs; ask-3 was asked on another host; ask-4 is answered.
+## THE QUESTIONS: three open, one answered. ask-1 is for the human-owner and its asker has an open record and no
+## process, so its session waits; ask-2 is the oldest, its asker runs; ask-3 was asked on another host; ask-4 is answered.
 {
 	printf 'ask-1.md ask sp-ask keeper-rig reply-pending reply_from_human-owner slack:human-owner\n'
 	printf 'ask-2.md ask sp-run keeper-rig reply-pending reply_from_magic-coordinator slack:magic-coordinator\n'
@@ -101,7 +107,7 @@ rigAsk ask-1 reply-pending "$rigHost" sp-ask human-owner "2026-10-13 08:00 +0000
 rigAsk ask-2 reply-pending "$rigHost" sp-run magic-coordinator "2026-10-12 12:00 +0000"
 rigAsk ask-3 reply-pending far-host sp-far magic-coordinator "2026-10-13 11:00 +0000"
 rigAsk ask-4 reply-received "$rigHost" sp-old human-owner "2026-10-01 08:00 +0000"
-printf -- '---\nstatus: spawn-succeeded\nhost: %s\n---\n' "$rigHost" > "$rigAgents/spawned/t-ask/sp-ask.spawn.md"
+printf -- '---\nstatus: spawn-started\nhost: %s\n---\n' "$rigHost" > "$rigAgents/spawned/t-ask/sp-ask.spawn.md"
 
 ## THE MEMBERS: two that can be started, an identity record, and the team itself.
 for rigOne in keeper-rig magic-rig human-owner magic-team ; do
@@ -218,8 +224,8 @@ echo "-- 1. every block, by known stores --"
 rigRun "$rigRead"
 cp "$rigTmp/out" "$rigTmp/whole" ; cp "$rigTmp/err" "$rigTmp/whole.err"
 rigAssert "the read ends rc 0 with no error and no warning, and prints its nine blocks in the declared order" "$rigRc $( rigTroubles ) $( rigBlocks )" "0 0 sessions pending tokens team team-data loop machine disk testing"
-rigAssert "sessions: one runs, one waits on an ask, one is unclosed, and a process left behind a closed record makes none run; one agent works and one waits; a control thread alive and two gone, one of them of a session that ended long ago; one death unanswered" "$( rigBlock sessions )" \
-	"block sessions Sessions_And_Agents 9/figure sessions sessions-running Sessions_Running 1 count - -/figure sessions sessions-waiting Sessions_Waiting 1 count - -/figure sessions sessions-unclosed Sessions_Unclosed 1 count warn -/figure sessions sessions-paused Sessions_Paused 0 count - -/figure sessions agents-working Agents_Working 1 count - 50/figure sessions agents-waiting Agents_Waiting 1 count - 50/figure sessions control-alive Control_Threads_Alive 1 count - -/figure sessions control-gone Control_Threads_Gone 2 count warn -/figure sessions deaths-unanswered Deaths_Unanswered 1 count warn -/"
+rigAssert "sessions: one runs, one waits on an ask, one is unclosed, and a process left behind a closed record makes none run; one agent works and one waits; a control thread alive and two gone, one of them of a session that ended long ago; one death unanswered; a run stopped on the provider usage limit, with the date it reopens" "$( rigBlock sessions )" \
+	"block sessions Sessions_And_Agents 10/figure sessions sessions-running Sessions_Running 1 count - -/figure sessions sessions-waiting Sessions_Waiting 1 count - -/figure sessions sessions-unclosed Sessions_Unclosed 1 count warn -/figure sessions sessions-paused Sessions_Paused 0 count - -/figure sessions agents-working Agents_Working 1 count - 50/figure sessions agents-waiting Agents_Waiting 1 count - 50/figure sessions control-alive Control_Threads_Alive 1 count - -/figure sessions control-gone Control_Threads_Gone 2 count warn -/figure sessions deaths-unanswered Deaths_Unanswered 1 count warn -/figure sessions usage-limit Stopped_On_Provider_Usage_Limit_Reopens 2026-11-01_00:00_UTC - warn -/"
 rigAssert "pending: three open, the answered one not counted; one asker gone, the ask of another host not measured; one for the human-owner; the oldest a day old, by its header and not by its text" "$( rigBlock pending )" \
 	"block pending Pending_Questions 4/figure pending open Questions_Open 3 count - -/figure pending asker-gone Asker_Is_Gone 1 count warn 33/figure pending human-owner For_The_Human_Owner 1 count - 33/figure pending oldest-age Oldest_Question_Age 86400 seconds - -/"
 rigAssert "tokens: the running session, today's finished one, and one session not whole; the sessions that ended long ago are in no total" "$( rigBlock tokens )" \

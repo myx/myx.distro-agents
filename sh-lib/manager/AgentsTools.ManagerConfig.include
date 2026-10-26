@@ -36,6 +36,11 @@ type LocalToolsPlacesListText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro
 type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.CliService.include"
 type AgentsToolsScopeKeyNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.MemberWorkspace.include"
 
+## THE CONSOLE INTERFACE SETTINGS are .local's own: the style of the manager screen, its mouse and the spacers
+## of its lists are declared in its LocalTools.ManagerInterface.include, and the `interface` subject below is
+## built from that declaration, with no row of its own.
+. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/manager/LocalTools.ManagerInterface.include"
+
 ## The subjects of the digest, in the order a person looks for them, which is the order
 ## they are printed in whatever the order they are asked in.
 agentsManagerConfigSubjects="workspace cli systems loop scopes interface console control knowledge"
@@ -81,7 +86,7 @@ workspace|paths|settings|Scope Settings Folder|configuration|The folder that hol
 workspace|mode|MDAT_WORKSPACE_MODE|Workspace Mode|configuration|What this workspace is to the team. Just agents: it works inline and can start sessions with the native consoles of this computer, but keeps no documents, no reflections and the like. Remote rig client: it will start sessions on a remote rig or dispatch documents to it; that is not built yet, so it acts as just agents for now. Team rig: it is a rig itself, which uses and maintains the team data here, with a shared persistence for it or none. The installer of the workspace sets it in the settings of the team, and where nothing sets it the workspace is just agents.
 workspace|mode|full-team-rig|Full Team Rig|configuration|Whether this workspace is a full team rig: a team rig whose team data has a shared persistence configured, today a git remote. Only a full team rig checks the team data and the main loop and judges them. It is measured at the call.
 workspace|places|*|Registered Place {name}|configuration|The path of the place registered under this name. A place is registered and forgotten by the owner's own operations, or declared by a project.
-cli|||CLI Services||
+cli|||CLI Presets and Tiers||
 cli|workspace||Workspace Defaults||
 cli|*||{name}||
 cli|workspace|SPAWN_HARNESS_TIER|Spawn Harness Tier|configuration|The tier a harness leg is asked for at a start. What it may be is each leg's own, so it is set by the owner setup.
@@ -108,14 +113,8 @@ loop|main-loop|state-file|Main Loop State File|configuration|The file the main l
 loop|main-loop|MAIN_LOOP_*|{words}|configuration|What the last iteration of the main loop left in its state file. The loop writes it, and nothing reads a change made by hand.
 scopes|||Scope Settings||
 scopes|*||{name}||
-scopes|*|*|{words}|configuration|A setting of this scope, saved in its own settings file. The owner setup saves it, and a credential among them shows its first quarter and masks the rest.
-interface|||Interface Settings||
-interface|style||Screen Style||
-interface|style|MDAT_MANAGER_STYLE|Interface Style|settings|How the manager screen is drawn: its windows, its frames and its colours. A change is the look of the screen at its next start, for this user in this workspace.
-interface|mouse||Mouse Support||
-interface|mouse|MDLT_CONSOLE_MOUSE|Mouse Support|settings|Whether the manager screen takes the mouse. Disabled, the mouse is left to the terminal, whose own selection then copies text. A change is read by the screen at its next start, for this user.
-interface|spacers||List Spacers||
-interface|spacers|MDLT_CONSOLE_SPACERS|List Spacers|settings|Whether the lists of the manager screen keep a blank line between their groups. Disabled, they do not. A change is read by the screen at its next start, for this user.
+scopes|*|*|{words}|settings|A setting of this scope, saved in its own settings file. It is changed inline in the scope's Scope Settings, and a credential among them shows its first quarter and masks the rest.
+$localManagerInterfaceLabels
 console|||Console Behaviour||
 console|history||Shell History||
 console|origin||Tooling Origin||
@@ -126,8 +125,10 @@ console|detail|MDLT_CONSOLE_DETAIL|Console Verbosity|settings|How much the tools
 control|||Session Control||
 control|request||Control Request||
 control|kill||Control Kill||
+control|channel||Root Harness Channel||
 control|request|SESSION_CONTROL_REQUEST_SECONDS|Control Request Seconds|settings|How many seconds a console waits for the control thread of a session to take a request. After that the console takes the request back and carries it out itself, and a change is read at the next request.
 control|kill|SESSION_CONTROL_KILL_SECONDS|Control Kill Seconds|settings|How many seconds the carrying out of a kill request may take before it ends its own work. A change is read at the next request, by the console and by the control thread.
+control|channel|ROOT_HARNESS_VERBOSITY|Root Harness Verbosity|settings|Which external channel the copy of a root-harness session lives on: nothing beyond its own printback output, the tooling's own event-track thread, or a session thread in the team channel. It is read when a session is minted, so a change is the next session's, and it never changes where a message that names an address goes.
 knowledge|||Knowledge Store||
 knowledge|store||Store Switch||
 knowledge|store|MDAT_KNOWLEDGE_STORE|Knowledge Store Switch|settings|Whether this workspace keeps a vector store of what the team knows, in addition to its MAGIC.md files. It is off unless it is turned on. The installer of the knowledge store makes the environment the store needs, from binary packages, and where that cannot be done the store stays off and the Knowledge tool reads MAGIC.md alone. A change is read at the next use."
@@ -561,10 +562,9 @@ AgentsToolsManagerConfigScopes(){
 ## writer saves nothing but a value that a row takes, so no text of a caller's reaches a file.
 ## EACH IS HERE BECAUSE the tooling reads it at its next use, a wrong value cannot be saved,
 ## and no running session is broken by a change:
-##   MDAT_MANAGER_STYLE   the user's own: the look of the manager screen at its next start,
-##       `<style>-<colours>` (the styles and the colours the screen declares, STYLES and
-##       COLOURS in AgentsManagerScreen.py, which AgentsManagerConfigInterfaceCheck holds
-##       against this row).
+##   THE INTERFACE SETTINGS, the style of the manager screen with its mouse and the spacers of its lists   .local's
+##       own, declared with their labels and their other names in its LocalTools.ManagerInterface.include. Their
+##       rows are read from there, and none stands here.
 ##   MDLT_CONSOLE_HISTORY   the user's own: which history file a console takes at its next
 ##       start. Every console's rc reads it, the user's own first. An unknown value stops a
 ##       console, so only its six are taken.
@@ -578,6 +578,11 @@ AgentsToolsManagerConfigScopes(){
 ##       is saved in the workspace's own settings file, which its row names after its other
 ##       fields. The detail is the user's own, what MDSC_DETAIL is in a console the user
 ##       starts: today the agents console alone reads it (console-agents-bashrc.rc).
+##   ROOT_HARNESS_VERBOSITY   the workspace's own, in the settings of the team: which external channel
+##       a root-harness session's copy lives on -- `none` its printback output, `track` the tooling
+##       thread, `full` a session thread in the team channel (F3.1 of the root-harness epic). Read only
+##       when a session is minted and recorded in that session's folder, so a change is the next
+##       session's and no running session is broken by it; a value that names no kind reads as `none`.
 ## AN EMPTY VALUE IS NO VALUE: the writer never saves one. Given an empty value it takes the
 ## key out of the file, by the reader's own operation that removes one, and the setting is
 ## its default again. A setting whose default is that nothing is set has an empty default
@@ -587,24 +592,19 @@ AgentsToolsManagerConfigScopes(){
 ## round of the workspace (deployed; a round longer than a CLI allows ends the waits of
 ## running sessions). The tick and the other seconds of a control thread are no line at all:
 ## a running thread reads them.
-agentsManagerConfigSettings="interface|style|MDAT_MANAGER_STYLE|choice|environment user|tv-system|nu-system=Magic - System,nu-blue=Magic - Dark/Blue,nu-gray=Magic - Light/Gray,tv-system=Turbo Vision - System,tv-blue=Turbo Vision - Dark/Blue,tv-gray=Turbo Vision - Light/Gray,bw-system=Basic B/W - System,bw-dark=Basic B/W - Dark/Blue,bw-light=Basic B/W - Light/Gray
-interface|mouse|MDLT_CONSOLE_MOUSE|choice|user system||=Enabled,disable=Disabled
-interface|spacers|MDLT_CONSOLE_SPACERS|choice|user system||=Enabled,disable=Disabled
+agentsManagerConfigSettings="$localManagerInterfaceSettings
 console|history|MDLT_CONSOLE_HISTORY|choice|user system|workspace-personal|workspace-personal=Per User In This Workspace,workspace-separate=Per User And Per Console,workspace-shared=Shared By All Users,local-machine-home=In The Home Of The User,bash-default=The File Bash Uses,user-default=As The User Has It
 console|origin|MDLT_CONSOLE_ORIGIN|choice|user system||@origins|system
 console|detail|MDLT_CONSOLE_DETAIL|choice|user||=<default> (none),true=true (track),full=full (debug)
 control|request|SESSION_CONTROL_REQUEST_SECONDS|number|team|5|1..60
 control|kill|SESSION_CONTROL_KILL_SECONDS|number|team|30|5..600
+control|channel|ROOT_HARNESS_VERBOSITY|choice|team|none|none=Printback,track=Tooling Thread,full=Team Thread
 knowledge|store|MDAT_KNOWLEDGE_STORE|choice|environment team|off|off=Off,on=On"
 
 ## THE OTHER NAMES of a value of a changeable setting: a name it had before, or a second name
 ## of it, each with the value it means, which it is read as and saved as. One row a setting,
-## `<key>|<name>=<value>,...`.
-##   MDAT_MANAGER_STYLE   a style alone, from before a style had its colours: each the one it
-##       was drawn in then (the screen's STYLES "bare"), Magic by its name of then; and the
-##       colours of Turbo Vision and of Magic by the names of every style, dark for blue and
-##       light for gray (the screen's COLOURS).
-agentsManagerConfigFormer="MDAT_MANAGER_STYLE|tv=tv-system,bw=bw-system,magic=nu-gray,tv-dark=tv-blue,tv-light=tv-gray,nu-dark=nu-blue,nu-light=nu-gray,magic-system=nu-system,magic-blue=nu-blue,magic-dark=nu-blue,magic-gray=nu-gray,magic-light=nu-gray"
+## `<key>|<name>=<value>,...`. The interface settings' other names are .local's own, with their rows.
+agentsManagerConfigFormer="$localManagerInterfaceFormer"
 
 ## The subjects whose changeable lines keep, where the digest is not asked in full, the form
 ## they had first: where the value comes from and what it takes ahead of the label.

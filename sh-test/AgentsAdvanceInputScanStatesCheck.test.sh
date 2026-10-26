@@ -752,17 +752,6 @@ rigCheck "background with false: the job finished"                         "$( p
 rigCheck "background with false: the stderr is on the server's own stderr" "$( LC_ALL=C grep -c -x 'errbgfalse' "$rigMd/server.err" || : )" 1
 rigBgTrue="$( rigMcpBg 21 true errbgtrue )"
 rigCheck "control, background with true: the job's output has the stderr"  "$( printf '%s' "$rigBgTrue" | LC_ALL=C grep -c -F errbgtrue || : )" 1
-echo "   Monitor is unchanged"
-rigMcpCall 30 Monitor '{"command":"echo rigout ; echo errmon >&2 ; sleep 1","description":"rig monitor","timeout_ms":20000,"merge_stderr":false}'
-rigMonErr="$( rigMcpText 30 | LC_ALL=C sed -n 's/.*\[stderr file: \([^]]*\)\].*/\1/p' )"
-rigMonOut="$( rigMcpText 30 | LC_ALL=C sed -n 's/.*\[log file: \([^]]*\)\].*/\1/p' )"
-[ -n "$rigMonErr" ] && [ -n "$rigMonOut" ] || rigRefuse "the Monitor start reply names no stderr or log file: $( rigMcpText 30 )"
-rigMonLoop=0
-while [ "$rigMonLoop" -lt 50 ] && ! LC_ALL=C grep -q -x errmon "$rigMonErr" 2> /dev/null ; do sleep 0.2 ; rigMonLoop=$(( rigMonLoop + 1 )) ; done
-rigCheck "Monitor, whatever merge_stderr says: its stderr is kept in its own stderr file" "$( LC_ALL=C grep -c -x errmon "$rigMonErr" || : )" 1
-rigCheck "Monitor: its log file has the stdout"                           "$( LC_ALL=C grep -c -x rigout "$rigMonOut" || : )" 1
-rigCheck "Monitor: its log file has no stderr"                            "$( LC_ALL=C grep -c errmon "$rigMonOut" || : )" 0
-rigCheck "Monitor: nothing of it on the server's own stderr"              "$( LC_ALL=C grep -c -x errmon "$rigMd/server.err" || : )" 0
 rigMcpClose
 
 echo "-- stage 2: the daemon line, exit codes in both merge modes, and the withdrawn filter's names --"

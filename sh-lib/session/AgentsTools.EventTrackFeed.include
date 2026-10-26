@@ -34,10 +34,15 @@
 ##     blocks, a box's children counted too, Slack's limit for a message.
 ## No line ends a post early, an error, a refusal or a session event included: Slack takes about
 ## one post a second to a channel, and every session posts into one, so they all wait for their window.
+## The window here collects ONE participant's lines into one post; what paces, orders and
+## collects the posts of a channel -- the feed's, the immediate ones and every other
+## participant's alike -- is the channel's outbox (AgentsTools.EventTrackSend.include), which
+## every post goes through once, so two posters of one session never send at once.
 ## When the poster ends (TERM) it posts what is open, so no line is left behind.
 ## The feed is polled every 4 seconds, so a line waits at most 4 s to be read, then at most
 ## 7 s more (just under 8 on the whole-second clock) before its post goes: under 12 s from
-## the line to the send call.
+## the line to the feed's send call. The channel's outbox may hold that send for its own
+## window too, so a line of a busy channel waits longer -- no line is ever dropped for it.
 ## Posts go one at a time, in the order of their lines, each once: none is ever edited. Each
 ## goes through --intern-op-event-track-post --kind feed, the tooling's own post path, never
 ## a member's message: no addressee, no @here. It sends through --intern-op-slack-call, so the
@@ -61,7 +66,9 @@ AgentsEventTrackFeedOpen(){ ## the participant's own session id, the session's t
 }
 
 ## One post to the thread, its lines on stdin. Through the tooling's own post op only, which
-## renders it as boxes and cuts it at Slack's limits; never --update.
+## queues it in its channel's outbox, renders it as boxes, cuts it at Slack's limits and sends
+## it in its turn (AgentsTools.EventTrackSend.include); never --update. It returns once its
+## post went, so the poster's next window starts from the send, not from this call.
 AgentsEventTrackFeedSend(){ ## member, thread, session id
 	"$BASH" "$agentsEventTrackFeedTools" --intern-op-event-track-post "$1" "$2" --kind feed ${3:+--session-id "$3"} --from-stdin > /dev/null 2>&1 || :
 }

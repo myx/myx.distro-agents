@@ -47,7 +47,7 @@ def startWizard(state, name, context=None):
     if wizard.get("read"):
         state.plans.pop(WIZARD_READ, None)
         state.forced.add(WIZARD_READ)
-        openDialog(state, "wizard-wait", {"about": {"lines": [WIZARD_SAYS["reading"]]}}, {"target": {"kind": "wizard", "id": wizard["name"]}}, wizard["title"])
+        openDialog(state, "wizard-wait", {"about": {"lines": [WIZARD_SAYS["reading"]]}}, {"target": {"kind": "wizard", "id": wizard["name"], "read": wizard.get("read")}}, wizard["title"])
     else:
         state.wizard["data"] = {}
         wizardStep(state, 1)
@@ -62,7 +62,7 @@ def fillWizardWait(state, dialog):
         return
     wizard = wizardNamed(held["name"])
     plan = state.plans.get(WIZARD_READ)
-    if plan is None or plan["words"] != readWords(READS[WIZARD_READ], state, {"id": held["name"], "level": ""}, False):
+    if plan is None or plan["words"] != readWords({"operation": wizard["read"]}, state, {"id": held["name"], "level": ""}, False):
         return
     state.plans.pop(WIZARD_READ, None)
     if plan["error"]:
@@ -91,6 +91,29 @@ def wizardStepAt(state, direction):
 
 ## Opens the next or the previous step. The steps are the dialogs `wizard:<name>:<step>`, declared here, each with the buttons its place among the steps
 ## that are not skipped has.
+## The answers a step already holds are put back into it when it opens again, over what its
+## fill says stands now: going back to a step and on again applies what was answered there.
+## Without this a step re-opened is filled from the tooling as it stands, the answers given
+## to it before are gone, and the wizard applies nothing at all when they were the only
+## change (`back` to look at the name, then Finish: the edit was never sent).
+def wizardRestore(dialog, answers):
+    for control in dialog["controls"]:
+        if control["name"] not in answers:
+            continue
+        value = answers[control["name"]]
+        if control["kind"] == "checks":
+            control["value"] = list(value) if isinstance(value, list) else [value]
+        elif control["kind"] in ("radios", "list"):
+            ids = [option[0] for option in control["options"]]
+            if value in ids:
+                control["value"] = value
+                control["at"] = ids.index(value)
+        elif control["kind"] in ("input", "area"):
+            control["value"] = value
+            control["caret"] = len(value)
+            control["seen"] = value
+
+
 def wizardStep(state, direction):
     held = state.wizard
     step, made = wizardStepAt(state, direction)
@@ -108,7 +131,7 @@ def wizardStep(state, direction):
     buttons.append(("cancel", "Cancel"))
     DIALOGS[name] = {"title": made["title"], "feeds": "wizard", "first": made.get("first"), "controls": tuple(made["controls"]), "buttons": tuple(buttons)}
     DIALOG_HANDLERS[name] = submitWizardStep
-    openDialog(state, name, made.get("fill"), {"wizard": held["name"], "step": step}, made["title"])
+    wizardRestore(openDialog(state, name, made.get("fill"), {"wizard": held["name"], "step": step}, made["title"]), held["answers"].get(step, {}))
     return True
 
 
@@ -150,11 +173,11 @@ def wizardAnswer(held, step, name, default=""):
 ## What `--manager-wizard-read cli-service` printed: the choices (option rows), the credentials each service reads, what each preset holds (preset rows) and
 ## what the team holds (team rows). A credential is in its one form.
 def parseCliWizard(text):
-    data = {"services": [], "efforts": [], "presets": [], "credentials": {}, "held": {}, "team": {}}
+    data = {"services": [], "efforts": [], "caches": [], "presets": [], "credentials": {}, "held": {}, "team": {}}
     for printed in text.split("\n"):
         fields = printed.split("\t")
         if fields[0] == "option" and len(fields) >= 4:
-            key = {"cli-service": "services", "effort": "efforts", "preset": "presets"}.get(fields[1])
+            key = {"cli-service": "services", "effort": "efforts", "cache": "caches", "preset": "presets"}.get(fields[1])
             if key:
                 data[key].append(fields[2])
         elif fields[0] == "credential" and len(fields) >= 3:
@@ -171,73 +194,106 @@ def presetHeld(held, preset, key):
     return held["data"]["held"].get(preset, {}).get(key, ("missing", ""))[1]
 
 
-## The preset the wizard is on: the one picked, else the new one named.
+## The preset the wizard is on: the one it was started on (edit), else the new one named in the form.
 def wizardPreset(held):
-    picked = wizardAnswer(held, 0, "preset")
-    if picked == "+new":
-        return wizardAnswer(held, 0, "name").strip()
-    return picked or wizardAnswer(held, 0, "name").strip()
+    return held["context"].get("preset") or wizardAnswer(held, 0, "name").strip()
 
 
-## THE THREE FORMS, KEPT APART. Each is a wizard of its own — the service form, the universal
-## form, the extension form — and they are alike in shape: which preset or a new name, the form's
-## own fields with the model and the effort, and the credentials where the form takes any. None of
-## them shows another's fields. A new preset declares no kind: the wizard it was started in is it.
-def cliWrite(preset, pairs):
+## The name the preset is written under: the name typed in the form, which on edit renames it, else the one it already has.
+def wizardName(held):
+    return wizardAnswer(held, 0, "name").strip() or wizardPreset(held)
+
+
+## Whether the wizard edits a preset that is there rather than makes one: its context names the preset.
+def cliEditing(held):
+    return bool(held["context"].get("preset"))
+
+
+## The input of the apply, from the answers that changed: a line `<key> <TAB> <value>` each.
+def cliWriteInput(pairs):
     lines = []
     for key, answer, now in pairs:
         if answer != now:
             lines.append("%s\t%s\n" % (key, answer))
-    return "Configure CLI Service: %s" % preset, ["--manager-wizard-apply", "cli-service", "--preset", preset], "".join(lines)
+    return "".join(lines)
 
 
-## The form a preset belongs to: the one extending, the universal one, or a service of its own.
+## The words and the input of the apply: the preset's name, a rename where the name changed, and the changed answers alone.
+def cliApply(held, pairs):
+    preset = wizardName(held)
+    words = ["--manager-wizard-apply", "cli-service", "--preset", preset]
+    if cliEditing(held) and wizardName(held) != wizardPreset(held):
+        words += ["--rename-from", wizardPreset(held)]
+    return "Configure CLI Service: %s" % preset, words, cliWriteInput(pairs)
+
+
+## What a step of the CLI wizard titles itself: the preset's name, or a new one while it is not named yet.
+def cliTitle(preset):
+    return "Configure CLI Service: %s" % (preset or "a new preset")
+
+
+## The form a preset belongs to: the one extending, the universal one, or a service of its own. The universal form writes
+## the `standard-v1` service, which is the one the tooling carries for a server reached by URL; `universal` names the form alone.
 def cliPresetKind(held, name):
     if presetHeld(held, name, "PRESET_EXTEND"):
         return "extend"
-    if presetHeld(held, name, "PRESET_CLI_SERVICE") == "universal":
+    if presetHeld(held, name, "PRESET_CLI_SERVICE") == "standard-v1":
         return "universal"
     return "service"
 
 
-def cliKindPresets(held, kind):
-    return [name for name in held["data"]["presets"] if cliPresetKind(held, name) == kind]
+## The name field of every form: the new preset's name, or, on edit, its own, which renames it.
+def cliNameControl():
+    return {"name": "name", "kind": "input", "label": "Name of the preset, lower case",
+            "required": "nothing is done: a preset needs a name"}
 
 
-## The first page of every form: the presets of its own kind, or a new one.
-def cliNameStep(state, held, kind, title, about):
-    names = cliKindPresets(held, kind)
-    picked = held["context"].get("preset")
-    value = picked if picked in names else (names[0] if names else "+new")
-    return {"title": title, "first": "preset", "check": "cliCheckName",
-            "controls": ({"name": "about", "kind": "text"},
-                         {"name": "preset", "kind": "radios", "label": "Preset"},
-                         {"name": "name", "kind": "input", "label": "Name of the new preset, lower case"}),
-            "fill": {"about": {"lines": about},
-                     "preset": {"options": [(name, name) for name in names] + [("+new", "a new one")], "value": value}}}
+## The endpoint of the service, which the universal form and a service's own form both ask for: a service states no endpoint of its own
+## where its leg reads one from the environment (the standard v1 service does not, and refuses to run without it), so a preset that names
+## such a service is only ever pointed at one by this field, and Configuration has no other input for it. Asked in its one place, so that
+## the two forms cannot come to ask it differently.
+def cliEndpointControl():
+    return {"name": "endpoint", "kind": "input", "label": "The endpoint URL: https, ending /v1 or /anthropic"}
 
 
-def cliCheckName(state, held, answers):
-    if answers["preset"] == "+new" and not answers["name"].strip():
-        return "nothing is configured: a new preset needs a name"
-    return ""
+def cliEndpointFill(held, preset):
+    return {"endpoint": {"value": presetHeld(held, preset, "PRESET_ENDPOINT_URL")}}
 
 
-## The model and the effort, which every form sets for itself.
+## The options of a choice of a preset, and what it holds: a value the tooling's choices do not
+## name is an option of its own, shown as it stands. The apply still takes a value an older
+## release wrote (`default`, `hard` and `none` for the effort; a cache lifetime that is no
+## longer offered), and a form that cannot show it falls back to its first option, which is
+## "not set" -- so an edit that never touched it would send nothing for it, and nothing there
+## takes the setting out. A person's own value is never taken out by an edit that left it alone.
+def cliChoiceFill(held, preset, key, choices):
+    options = [("", "not set")] + [(name, name) for name in choices]
+    value = presetHeld(held, preset, key)
+    if value and value not in [name for name, label in options]:
+        options.append((value, "%s, as it is set" % value))
+    return {"options": options, "value": value}
+
+
+## The model, the effort, the input cache lifetime and the context, which every form sets for itself.
 def cliModelFill(held, preset):
     return {"model": {"value": presetHeld(held, preset, "PRESET_MODEL_OR_MACRO")},
-            "effort": {"options": [("", "not set")] + [(name, name) for name in held["data"]["efforts"]],
-                       "value": presetHeld(held, preset, "PRESET_EFFORT")}}
+            "effort": cliChoiceFill(held, preset, "PRESET_EFFORT", [name for name in held["data"]["efforts"] if name != "unset"]),
+            "cache": cliChoiceFill(held, preset, "PRESET_INPUT_CACHE_TIME", held["data"]["caches"]),
+            "context": {"value": presetHeld(held, preset, "PRESET_CONTEXT_MAX_SIZE")}}
 
 
 def cliModelControls():
     return ({"name": "model", "kind": "input", "label": "Model or macro (low or easy, normal or default, high or hard, or a model name), or none"},
-            {"name": "effort", "kind": "radios", "label": "Effort"})
+            {"name": "effort", "kind": "radios", "label": "Effort"},
+            {"name": "cache", "kind": "radios", "label": "Input cache lifetime"},
+            {"name": "context", "kind": "input", "label": "Restart threshold (context size), whole tokens, or none"})
 
 
 def cliModelPairs(held, preset):
-    return [("PRESET_MODEL_OR_MACRO", wizardAnswer(held, 1, "model").strip(), presetHeld(held, preset, "PRESET_MODEL_OR_MACRO")),
-            ("PRESET_EFFORT", wizardAnswer(held, 1, "effort"), presetHeld(held, preset, "PRESET_EFFORT"))]
+    return [("PRESET_MODEL_OR_MACRO", wizardAnswer(held, 0, "model").strip(), presetHeld(held, preset, "PRESET_MODEL_OR_MACRO")),
+            ("PRESET_EFFORT", wizardAnswer(held, 0, "effort"), presetHeld(held, preset, "PRESET_EFFORT")),
+            ("PRESET_INPUT_CACHE_TIME", wizardAnswer(held, 0, "cache"), presetHeld(held, preset, "PRESET_INPUT_CACHE_TIME")),
+            ("PRESET_CONTEXT_MAX_SIZE", wizardAnswer(held, 0, "context").strip(), presetHeld(held, preset, "PRESET_CONTEXT_MAX_SIZE"))]
 
 
 ## The credentials of a service: shown in their one form, kept where a field is left as it is.
@@ -254,106 +310,105 @@ def cliCredentialStep(held, preset, service, keys):
 
 ## ---- the service form ----
 
-def cliStepServiceName(state, held):
-    return cliNameStep(state, held, "service", "Configure CLI Service: the preset",
-                       ["A service preset takes one of the services this release carries, and that service's key.",
-                        "Its endpoint is the service's own and is not asked for here."])
-
-
 def cliStepServiceFields(state, held):
     data = held["data"]
     preset = wizardPreset(held)
-    fill = {"about": {"lines": ["Preset: %s." % preset]},
-            "service": {"options": [(name, name) for name in data["services"]],
-                        "value": presetHeld(held, preset, "PRESET_CLI_SERVICE") or data["services"][0]}}
+    editing = cliEditing(held)
+    about = ["Preset: %s." % preset]
+    controls = [{"name": "about", "kind": "text"}, cliNameControl()]
+    fill = {"name": {"value": held["context"].get("preset", "")}}
+    if editing:
+        about.append("Its CLI service is %s: a service preset's own is not changed when it is edited." % presetHeld(held, preset, "PRESET_CLI_SERVICE"))
+    else:
+        controls.append({"name": "service", "kind": "radios", "label": "CLI service"})
+        fill["service"] = {"options": [(name, name) for name in data["services"]], "value": data["services"][0]}
+    ## The endpoint belongs to the service chosen just above, and is asked for on edit too, where the service itself is not: the preset
+    ## that made the owner ask ("IF THERE IS NO INPUT FOR SERVICE URL?") is the one already there, pointed at a service with no leg.
+    controls.append(cliEndpointControl())
+    fill.update(cliEndpointFill(held, preset))
+    controls += cliModelControls()
+    fill["about"] = {"lines": about}
     fill.update(cliModelFill(held, preset))
-    return {"title": "Configure CLI Service: %s" % preset, "first": "service",
-            "controls": ({"name": "about", "kind": "text"},
-                         {"name": "service", "kind": "radios", "label": "CLI service"}) + cliModelControls(),
-            "fill": fill}
+    return {"title": cliTitle(preset), "first": "name", "controls": controls, "fill": fill}
 
 
 def cliStepServiceCredentials(state, held):
     preset = wizardPreset(held)
-    service = wizardAnswer(held, 1, "service", presetHeld(held, preset, "PRESET_CLI_SERVICE"))
+    service = wizardAnswer(held, 0, "service", presetHeld(held, preset, "PRESET_CLI_SERVICE"))
     return cliCredentialStep(held, preset, service, held["data"]["credentials"].get(service, []))
 
 
 def cliApplyService(state, held):
     preset = wizardPreset(held)
-    service = wizardAnswer(held, 1, "service", presetHeld(held, preset, "PRESET_CLI_SERVICE"))
-    pairs = [("PRESET_CLI_SERVICE", service, presetHeld(held, preset, "PRESET_CLI_SERVICE"))] + cliModelPairs(held, preset)
+    service = wizardAnswer(held, 0, "service", presetHeld(held, preset, "PRESET_CLI_SERVICE"))
+    endpoint = wizardAnswer(held, 0, "endpoint", presetHeld(held, preset, "PRESET_ENDPOINT_URL")).strip()
+    pairs = [("PRESET_CLI_SERVICE", service, presetHeld(held, preset, "PRESET_CLI_SERVICE")),
+             ("PRESET_ENDPOINT_URL", endpoint, presetHeld(held, preset, "PRESET_ENDPOINT_URL"))] + cliModelPairs(held, preset)
     for key in held["data"]["credentials"].get(service, []):
-        pairs.append((key, wizardAnswer(held, 2, key, presetHeld(held, preset, key)), presetHeld(held, preset, key)))
-    return cliWrite(preset, pairs)
+        pairs.append((key, wizardAnswer(held, 1, key, presetHeld(held, preset, key)), presetHeld(held, preset, key)))
+    return cliApply(held, pairs)
 
 
 ## ---- the universal form ----
 
-def cliStepUniversalName(state, held):
-    return cliNameStep(state, held, "universal", "Configure CLI Service: the universal preset",
-                       ["A universal preset takes any server that speaks one of the two wires, by its URL.",
-                        "The path names the wire: a base ending /v1 speaks the OpenAI chat wire, one ending /anthropic the Anthropic Messages wire."])
-
-
 def cliStepUniversalFields(state, held):
     preset = wizardPreset(held)
+    controls = [{"name": "about", "kind": "text"}, cliNameControl(), cliEndpointControl()]
     fill = {"about": {"lines": ["Preset: %s." % preset]},
-            "endpoint": {"value": presetHeld(held, preset, "PRESET_ENDPOINT_URL")}}
+            "name": {"value": held["context"].get("preset", "")}}
+    fill.update(cliEndpointFill(held, preset))
+    controls += cliModelControls()
     fill.update(cliModelFill(held, preset))
-    return {"title": "Configure CLI Service: %s" % preset, "first": "endpoint",
-            "controls": ({"name": "about", "kind": "text"},
-                         {"name": "endpoint", "kind": "input", "label": "The endpoint URL: https, ending /v1 or /anthropic"}) + cliModelControls(),
-            "fill": fill}
+    return {"title": cliTitle(preset), "first": "name", "controls": controls, "fill": fill}
 
 
 ## The key the universal form asks for: the one its wire reads, chosen by the endpoint's path.
 def cliUniversalKey(held):
-    endpoint = wizardAnswer(held, 1, "endpoint", presetHeld(held, wizardPreset(held), "PRESET_ENDPOINT_URL"))
+    endpoint = wizardAnswer(held, 0, "endpoint", presetHeld(held, wizardPreset(held), "PRESET_ENDPOINT_URL"))
     return "ANTHROPIC_API_KEY" if "/anthropic" in endpoint else "OPENAI_API_KEY"
 
 
 def cliStepUniversalCredential(state, held):
     preset = wizardPreset(held)
-    return cliCredentialStep(held, preset, "universal", [cliUniversalKey(held)])
+    return cliCredentialStep(held, preset, "standard-v1", [cliUniversalKey(held)])
 
 
 def cliApplyUniversal(state, held):
     preset = wizardPreset(held)
-    endpoint = wizardAnswer(held, 1, "endpoint", presetHeld(held, preset, "PRESET_ENDPOINT_URL")).strip()
-    pairs = [("PRESET_CLI_SERVICE", "universal", presetHeld(held, preset, "PRESET_CLI_SERVICE")),
+    endpoint = wizardAnswer(held, 0, "endpoint", presetHeld(held, preset, "PRESET_ENDPOINT_URL")).strip()
+    pairs = [("PRESET_CLI_SERVICE", "standard-v1", presetHeld(held, preset, "PRESET_CLI_SERVICE")),
              ("PRESET_ENDPOINT_URL", endpoint, presetHeld(held, preset, "PRESET_ENDPOINT_URL"))] + cliModelPairs(held, preset)
     key = cliUniversalKey(held)
-    pairs.append((key, wizardAnswer(held, 2, key, presetHeld(held, preset, key)), presetHeld(held, preset, key)))
-    return cliWrite(preset, pairs)
+    pairs.append((key, wizardAnswer(held, 1, key, presetHeld(held, preset, key)), presetHeld(held, preset, key)))
+    return cliApply(held, pairs)
 
 
 ## ---- the extension form ----
 
-def cliStepExtendName(state, held):
-    return cliNameStep(state, held, "extend", "Configure CLI Service: the extending preset",
-                       ["An extending preset takes the service and the credentials of a preset that is there.",
-                        "It sets only its model and its effort; its CLI service and its key are inherited."])
-
-
 def cliStepExtendFields(state, held):
     data = held["data"]
     preset = wizardPreset(held)
-    fill = {"about": {"lines": ["Preset: %s." % preset]},
-            "extends": {"options": [(name, name) for name in data["presets"]],
-                        "value": presetHeld(held, preset, "PRESET_EXTEND") or (data["presets"][0] if data["presets"] else "")}}
+    editing = cliEditing(held)
+    about = ["Preset: %s." % preset]
+    controls = [{"name": "about", "kind": "text"}, cliNameControl()]
+    fill = {"name": {"value": held["context"].get("preset", "")}}
+    if editing:
+        about.append("It extends %s: what a preset extends is not changed when it is edited." % presetHeld(held, preset, "PRESET_EXTEND"))
+    else:
+        controls.append({"name": "extends", "kind": "radios", "label": "It extends"})
+        fill["extends"] = {"options": [(name, name) for name in data["presets"]],
+                           "value": data["presets"][0] if data["presets"] else ""}
+    controls += cliModelControls()
+    fill["about"] = {"lines": about}
     fill.update(cliModelFill(held, preset))
-    return {"title": "Configure CLI Service: %s" % preset, "first": "extends",
-            "controls": ({"name": "about", "kind": "text"},
-                         {"name": "extends", "kind": "radios", "label": "It extends"}) + cliModelControls(),
-            "fill": fill}
+    return {"title": cliTitle(preset), "first": "name", "controls": controls, "fill": fill}
 
 
 def cliApplyExtend(state, held):
     preset = wizardPreset(held)
-    pairs = [("PRESET_EXTEND", wizardAnswer(held, 1, "extends", presetHeld(held, preset, "PRESET_EXTEND")),
+    pairs = [("PRESET_EXTEND", wizardAnswer(held, 0, "extends", presetHeld(held, preset, "PRESET_EXTEND")),
               presetHeld(held, preset, "PRESET_EXTEND"))] + cliModelPairs(held, preset)
-    return cliWrite(preset, pairs)
+    return cliApply(held, pairs)
 ## ---- the wizard of the git settings ----
 
 ## What `--manager-wizard-read git-settings` printed: the three settings as they stand, and the private keys git may be told to connect with.
@@ -430,6 +485,43 @@ for keyWhat in KEY_WIZARDS:
     globals()["keyApply" + keyWhat.capitalize()] = keyApply(keyWhat)
 
 
+## ---- the wizards of the keys this account trusts: added and removed in its authorized keys (C1) ----
+
+## What each of the two says before it is done, and the word that confirms what cannot be undone.
+TRUST_KEY_WIZARDS = {
+    "trust-add": {"title": "Add Trusted Key", "word": None, "finish": "Add",
+                  "says": "The whole public key line is put into the account's own authorized_keys, so whoever holds its private key may then log in here as this account. Add only a key you trust."},
+    "trust-delete": {"title": "Delete Trusted Key", "word": "delete", "finish": "Delete",
+                     "says": "WARNING: the key is taken out of the account's authorized_keys, and whoever holds its private key can no longer log in here with it."},
+}
+
+
+def keyTrustAddStep(state, held):
+    return {"title": "Add Trusted Key", "first": "line",
+            "controls": ({"name": "about", "kind": "text"},
+                         {"name": "line", "kind": "input", "label": "The whole public key line, as one pastes it"}),
+            "fill": {"about": {"lines": [TRUST_KEY_WIZARDS["trust-add"]["says"]]},
+                     "line": {"value": ""}}}
+
+
+def keyTrustDeleteStep(state, held):
+    context = held["context"]
+    kind = TRUST_KEY_WIZARDS["trust-delete"]
+    return {"title": "%s: %s" % (kind["title"], context["label"]), "first": "word", "finish": kind["finish"],
+            "controls": ({"name": "about", "kind": "text"},
+                         {"name": "word", "kind": "input", "label": "Type %s to go on" % kind["word"], "exactly": kind["word"],
+                          "required": "nothing is done: the word typed is not %s" % kind["word"]}),
+            "fill": {"about": {"lines": [("key", context["label"]), ("file", context["file"]), kind["says"]]}}}
+
+
+def keyTrustAddApply(state, held):
+    return "Add Trusted Key", ["--manager-keys-trust-add"], wizardAnswer(held, 0, "line").strip() + "\n"
+
+
+def keyTrustDeleteApply(state, held):
+    return "Delete Trusted Key: %s" % held["context"]["label"], ["--manager-keys-trust-delete", held["context"]["key"]], None
+
+
 ## ---- the folder `Git Settings` of the configuration ----
 
 ## What `--manager-wizard-read git-settings` printed, as the rows of the folder: the three settings as they stand, each by its name, its value at the end of its row.
@@ -477,6 +569,128 @@ registerPlugin({
 })
 
 
+## ---- Configure Harness: two forms, each its own concern ----
+
+## What `--manager-harness-read` printed: the three settings as they stand, `<key> <TAB> <value>`.
+def parseHarnessSettings(text):
+    values = {}
+    for printed in text.split("\n"):
+        fields = printed.split("\t")
+        if fields[0]:
+            values[fields[0]] = absent(fields[1]) if len(fields) > 1 else ""
+    return {"values": values}
+
+
+## The folder's two rows, each with what its form holds now at the end of the row. The folder's
+## read is the same one the forms read, so what it says and what a form opens on cannot differ.
+def parseHarnessForms(readKey, level, text):
+    values = parseHarnessSettings(text)["values"]
+    retries = "%s attempts, %s s before the first retry" % (values.get("HARNESS_STREAM_ATTEMPTS") or "3", values.get("HARNESS_RETRY_DELAY") or "1")
+    protocol = "parallel tool calls %s" % (values.get("HARNESS_PARALLEL_TOOL_CALLS") or "off")
+    rows = []
+    for formId, label, tail in (("retries", "Retries", retries), ("protocol", "Protocol", protocol)):
+        ## A form is no folder: Enter on it runs its wizard, as `c` does (the main action of a row that dives nowhere).
+        row = newRow(formId, label, "harness-form", False)
+        row["tail"] = tail
+        rows.append(row)
+    return {level: rows}
+
+
+ROW_FORMS["harness-forms"] = parseHarnessForms
+
+
+def harnessFocus(state, row):
+    held = row.get("harness-form")
+    return None
+
+
+def harnessSummary(state, path, row, form):
+    rows = state.rows.get(pluginLevel("harness")) or ()
+    if not rows:
+        return None
+    return tableSummaryLines(state, ("FORM", "HOLDS NOW"), [[one["label"], one["tail"]] for one in rows], ("key", "text"))
+
+
+## The settings a form changes, and the words it writes them with.
+def harnessFormSettings(formId):
+    return ("HARNESS_STREAM_ATTEMPTS", "HARNESS_RETRY_DELAY") if formId == "retries" else ("HARNESS_PARALLEL_TOOL_CALLS",)
+
+
+def harnessStepRetries(state, held):
+    values = held["data"]["values"]
+    return {"title": "Configure Harness: retries", "first": "attempts",
+            "controls": ({"name": "about", "kind": "text"},
+                         {"name": "attempts", "kind": "input", "label": "Attempts of one round, 1 to 10"},
+                         {"name": "delay", "kind": "input", "label": "Seconds before the first retry, 0 to 30; each later one doubles"}),
+            "fill": {"about": {"lines": ["A round that fails on a temporary refusal is retried; a final refusal ends it at once.",
+                                         "The delay doubles after every failed attempt, never past 30 seconds."]},
+                     "attempts": {"value": values.get("HARNESS_STREAM_ATTEMPTS", "")},
+                     "delay": {"value": values.get("HARNESS_RETRY_DELAY", "")}}}
+
+
+def harnessStepProtocol(state, held):
+    values = held["data"]["values"]
+    return {"title": "Configure Harness: protocol", "first": "parallel",
+            "controls": ({"name": "about", "kind": "text"},
+                         {"name": "parallel", "kind": "radios", "label": "Parallel tool calls"}),
+            "fill": {"about": {"lines": ["Only a server known to take parallel tool calls should be told so.",
+                                         "Unset asks for nothing, so a server that does not take the field is never asked it."]},
+                     "parallel": {"options": [("off", "off: ask for nothing"), ("on", "on: the server may take several calls at once")],
+                                  "value": values.get("HARNESS_PARALLEL_TOOL_CALLS") or "off"}}}
+
+
+def harnessApplyCommon(state, held, formId):
+    values = held["data"]["values"]
+    lines = []
+
+    def ask(key, answer):
+        if answer != values.get(key, ""):
+            lines.append("%s\t%s\n" % (key, answer))
+
+    if formId == "retries":
+        ask("HARNESS_STREAM_ATTEMPTS", wizardAnswer(held, 0, "attempts").strip())
+        ask("HARNESS_RETRY_DELAY", wizardAnswer(held, 0, "delay").strip())
+        title = "Configure Harness: retries"
+    else:
+        ask("HARNESS_PARALLEL_TOOL_CALLS", wizardAnswer(held, 0, "parallel"))
+        title = "Configure Harness: protocol"
+    return title, ["--manager-harness-apply"], "".join(lines)
+
+
+def harnessApplyRetries(state, held):
+    return harnessApplyCommon(state, held, "retries")
+
+
+def harnessApplyProtocol(state, held):
+    return harnessApplyCommon(state, held, "protocol")
+
+
+## ---- the folder `Configure Harness` of the configuration ----
+
+## The settings of the harness form two subjects, `Retries` and `Protocol`, each a row of this
+## folder by what its read gives (parseHarnessForms): it is one folder and not two, since the
+## read is the one read of the three settings and no form owns a setting alone. Enter enters
+## the folder and shows what each form holds now; `c` on the folder starts the retries form,
+## and Enter on a form, like `c`, starts that form's wizard, which this file declares in the
+## wizards registry of the configuration (wizardOfRow, and the `configure` command below,
+## which names this folder's rows so that its key reaches them). Mounted after `Git Settings`
+## and registered here, so that its folder stands after it and ahead of the folders of
+## `.local` (Plugins.py).
+registerPlugin({
+    "name": "harness",
+    "mount": "configuration",
+    "root": {"id": "harness", "label": "Configure Harness"},
+    "focus": {"harness": "harnessFocus"},
+    "summaries": {"harness": {"lines": "harnessSummary"}},
+    "reads": {
+        ## The three settings as they stand, read on entering the folder and when it is asked
+        ## for, never on the period: a form that opens says what the folder says, since this
+        ## is the read the forms fill themselves from too (WIZARDS).
+        "list:harness": {"operation": ["--manager-harness-read"], "rows": "harness-forms", "once": True},
+    },
+})
+
+
 ## ---- the keys that start a wizard ----
 
 ## The wizard a row starts: the CLI service's on the subject of the CLI services of the configuration and on its lines, the git settings' on their folder and its lines.
@@ -489,6 +703,10 @@ def wizardOfRow(state, row):
         return "git-settings"
     if level == pluginLevel("clipresets") or (level == here and row["id"] == "clipresets"):
         return "cli-service"
+    if level == pluginLevel("harness"):
+        return {"retries": "harness-retries", "protocol": "harness-protocol"}.get(row["id"])
+    if level == here and row["id"] == "harness":
+        return "harness-retries"
     return None
 
 
@@ -545,8 +763,39 @@ for keyWhat in KEY_WIZARDS:
     ACTION_HANDLERS["key" + keyWhat] = askKeyWizard(keyWhat)
     ACTION_FITS["key" + keyWhat] = keyWizardFits(keyWhat)
     ACTION_REFUSALS["key" + keyWhat] = (lambda what: lambda state, row: (
-        "a host key of the server is the system's: it is not made, replaced or removed here" if row and row.get("serverKey") and not keyMine(row)
+        "a key this account trusts is read-only: it is not made, replaced or removed here" if keyTrustedKey(row)
+        else "a host key of the server is the system's: it is not made, replaced or removed here" if row and row.get("serverKey") and not keyMine(row)
         else "there is no key to replace or remove there: it is generated" if what != "generate" else "the key is there already: it is replaced"))(keyWhat)
+
+
+## The keys this account trusts, which the wizards add and remove in its authorized keys: the group `trusted` of the list
+## is where a key is added, and a key of it is where one is removed. The account's own keys and the host keys are not.
+def keyTrustedGroup(row):
+    return bool(row and row.get("keyGroup")) and row["keyGroup"]["key"] == "trusted"
+
+
+def keyTrustedKey(row):
+    held = row.get("serverKey") if row else None
+    return held is not None and held["key"].startswith("trusted-")
+
+
+def askKeyTrustAdd(state, row):
+    group = row["keyGroup"] if row else None
+    return startWizard(state, "server-key-trust-add", {"key": "trusted", "label": group["label"] if group else "Keys We Trust"})
+
+
+def askKeyTrustDelete(state, row):
+    held = row["serverKey"]
+    return startWizard(state, "server-key-trust-delete", {"key": held["key"], "label": unspaced(held["label"]) or held["key"], "file": absent(held["file"])})
+
+
+ACTION_HANDLERS["keytrustadd"] = askKeyTrustAdd
+ACTION_FITS["keytrustadd"] = lambda state, row: keyTrustedGroup(row)
+ACTION_REFUSALS["keytrustadd"] = lambda state, row: "this is not the keys we trust"
+
+ACTION_HANDLERS["keytrustdelete"] = askKeyTrustDelete
+ACTION_FITS["keytrustdelete"] = lambda state, row: keyTrustedKey(row)
+ACTION_REFUSALS["keytrustdelete"] = lambda state, row: "this is not a key we trust"
 
 
 ## ---- the plugin: the wizards ----
@@ -554,17 +803,23 @@ for keyWhat in KEY_WIZARDS:
 registerPlugin({
     "name": "wizards",
     "integrates": {"configuration": {"wizards": (
+        {"name": "harness-retries", "title": "Configure Harness: retries", "read": ["--manager-harness-read"], "parse": "parseHarnessSettings",
+         "steps": ("harnessStepRetries",), "apply": "harnessApplyRetries"},
+        {"name": "harness-protocol", "title": "Configure Harness: protocol", "read": ["--manager-harness-read"], "parse": "parseHarnessSettings",
+         "steps": ("harnessStepProtocol",), "apply": "harnessApplyProtocol"},
         {"name": "cli-service", "title": "Configure CLI Service", "read": ["--manager-wizard-read", "cli-service"], "parse": "parseCliWizard",
-         "steps": ("cliStepServiceName", "cliStepServiceFields", "cliStepServiceCredentials"), "apply": "cliApplyService"},
+         "steps": ("cliStepServiceFields", "cliStepServiceCredentials"), "apply": "cliApplyService"},
         {"name": "cli-service-universal", "title": "Configure CLI Service: universal", "read": ["--manager-wizard-read", "cli-service"], "parse": "parseCliWizard",
-         "steps": ("cliStepUniversalName", "cliStepUniversalFields", "cliStepUniversalCredential"), "apply": "cliApplyUniversal"},
+         "steps": ("cliStepUniversalFields", "cliStepUniversalCredential"), "apply": "cliApplyUniversal"},
         {"name": "cli-service-extend", "title": "Configure CLI Service: extending", "read": ["--manager-wizard-read", "cli-service"], "parse": "parseCliWizard",
-         "steps": ("cliStepExtendName", "cliStepExtendFields"), "apply": "cliApplyExtend"},
+         "steps": ("cliStepExtendFields",), "apply": "cliApplyExtend"},
         {"name": "git-settings", "title": "Configure Git Settings", "read": ["--manager-wizard-read", "git-settings"], "parse": "parseGitWizard",
          "steps": ("gitStepSettings",), "apply": "gitApply"},
         {"name": "server-key-generate", "title": "Generate Server Key", "steps": ("keyStepGenerate",), "apply": "keyApplyGenerate"},
         {"name": "server-key-regenerate", "title": "Regenerate Server Key", "steps": ("keyStepRegenerate",), "apply": "keyApplyRegenerate"},
         {"name": "server-key-delete", "title": "Delete Server Key", "steps": ("keyStepDelete",), "apply": "keyApplyDelete"},
+        {"name": "server-key-trust-add", "title": "Add Trusted Key", "steps": ("keyTrustAddStep",), "apply": "keyTrustAddApply"},
+        {"name": "server-key-trust-delete", "title": "Delete Trusted Key", "steps": ("keyTrustDeleteStep",), "apply": "keyTrustDeleteApply"},
     )}},
     "reads": {
         ## What the form of a wizard needs, read when its dialog waits for it by the name of the wizard, and never before.
@@ -572,8 +827,8 @@ registerPlugin({
     },
     "commands": (
         {"name": "configure", "keys": ("c",), "menu": ("view", 3), "label": "~C~onfigure", "status": "Configure", "window": "list",
-         "views": ("@configuration", "@clipresets", "@configuration/git"),
-         "for": "a feature that is configured by a wizard", "on": ("@configuration:record", "@configuration:section", "@clipresets:section", "@configuration/git:record"),
+         "views": ("@configuration", "@clipresets", "@configuration/git", "@configuration/harness"),
+         "for": "a feature that is configured by a wizard", "on": ("@configuration:record", "@configuration:section", "@clipresets:section", "@configuration/git:record", "@configuration/harness:harness-form"),
          "only": True, "says": "configure", "does": ("action", "wizard")},
         {"name": "cliauto", "keys": ("s",), "menu": ("view", 3), "label": "Auto-~s~elect CLI...", "status": "Auto-select", "window": "list",
          "views": ("@configuration", "@clipresets"),
@@ -588,5 +843,11 @@ registerPlugin({
         {"name": "keydelete", "keys": ("d",), "menu": ("view", 3), "label": "~D~elete the key", "status": "Delete", "window": "list",
          "views": ("@configuration/keys",), "for": "a key that is there", "on": ("@configuration/keys:record",), "only": True, "says": "delete",
          "does": ("action", "keydelete")},
+        {"name": "keytrustadd", "keys": ("A",), "menu": ("view", 3), "label": "~A~dd a key to trust", "status": "Add", "window": "list",
+         "views": ("@configuration/keys",), "for": "the keys we trust", "on": ("@configuration/keys:group",), "only": True, "says": "add",
+         "does": ("action", "keytrustadd")},
+        {"name": "keytrustdelete", "keys": ("D",), "menu": ("view", 3), "label": "~D~elete the trusted key", "status": "Delete", "window": "list",
+         "views": ("@configuration/keys",), "for": "a key we trust", "on": ("@configuration/keys:record",), "only": True, "says": "delete",
+         "does": ("action", "keytrustdelete")},
     ),
 })

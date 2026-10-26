@@ -324,6 +324,19 @@ AgentsToolsCollectSinceOf(){ ## member
 	return 0
 }
 
+## THE TTL OF A COLLECTED SOURCE, with the worktime stretch T2 asks for a member's mailbox: ten minutes while the team is in
+## worktime, five out of it (the 5-10 minute band) -- email has no Wait source, so the cache TTL is the only cadence the mailbox is
+## read at, and a duty in worktime wants its mail fresh but not hammered every five minutes. The other sources keep their table's
+## TTL (AgentsToolsSourceTtlOf), and the one table stays the one place a source's base TTL is written.
+AgentsToolsCollectTtlOf(){ ## kind, member
+	local collectTtl
+	collectTtl="$( AgentsToolsSourceTtlOf "$1:$2" )"
+	[ "$1" = "mail" ] || { printf '%s\n' "$collectTtl" ; return 0 ; }
+	type AgentsToolsScheduleWorktimeNow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherSchedule.include" 2> /dev/null || :
+	[ "$( AgentsToolsScheduleWorktimeNow 2> /dev/null )" = "yes" ] && collectTtl=600
+	printf '%s\n' "$collectTtl"
+}
+
 ## ONE SOURCE, if it is due: takes its lock, looks at its TTL, collects, keeps the state. Leaves the line it says in
 ## agentsCollectLine and the count in agentsCollectNew. rc 0 collected, fresh, or busy; 3 failed; 4 not
 ## configured; 5 not ours to read here.
@@ -341,7 +354,7 @@ AgentsToolsCollectOne(){ ## kind, member, force (yes|no), since (dd-Mon-yyyy, or
 		return 0
 	fi
 	oneLockPath="$agentsLocalLockPath"
-	oneTtl="$( AgentsToolsSourceTtlOf "$oneSource" )"
+	oneTtl="$( AgentsToolsCollectTtlOf "$oneKind" "$oneMember" )"
 	oneChecked="$( AgentsToolsCollectStateGet "$oneKind" "$oneMember" checked-at )"
 	case "$oneChecked" in ''|*[!0123456789]*) oneChecked=0 ;; esac
 	oneNow="$( date +%s )"

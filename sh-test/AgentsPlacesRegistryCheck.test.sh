@@ -176,7 +176,7 @@ rigAssert "the * grant expansion walks the known workspace roots, this workspace
 rigRoots(){ ## workspace name -- LocalToolsPlacesWorkspaceRoots from there under rigRunHome
 	env -i HOME="$rigRunHome" PATH=/usr/bin:/bin MMDAPP="$rigTmp/$1" bash -c '. "$1/LocalTools.Places.include" ; LocalToolsPlacesWorkspaceRoots "$MMDAPP"' rig "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places" | rigCut | LC_ALL=C tr '\n' ' '
 }
-rigAssert "the known workspace roots: this one first, then the workspace rows, then the pointer roots" "$( rigRoots ws-main )" "T/ws-main T/ws-side T/ws-two T/ws-three "
+rigAssert "the known workspace roots: this one first, then the workspace rows, then the pointer roots" "$( rigRoots ws-main )" "T/ws-main T/ws-side T/ws-three T/ws-two "
 ## The earlier list, under a HOME of its own: a trailing slash, a comment, a relative line,
 ## the importing workspace itself, and a workspace no place names.
 rigRunHome="$rigTmp/legacy-home" ; mkdir -p "$rigRunHome/.agents/magic-team"

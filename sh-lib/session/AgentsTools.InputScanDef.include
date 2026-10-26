@@ -93,8 +93,10 @@ AgentsToolsInputScanDefWait(){ ## definition line
 }
 
 ## Whether a scan's report holds nothing to work: rc 0 where every line of it is blank, a heading (`#`), a section's `scope:` or `cap:` line, `(none)`, a
-## `**NOTE:** no new ...` line or `Nothing new ...`. Any other line is input, so a scan that words its emptiness in another way starts the run, and a report is
-## never taken for empty on a guess: the mistake can only be a start.
+## `**NOTE:** no new ...` line or `Nothing new ...`. An FYI row is no work either: a row whose head line carries the `[fyi: ...]` mark right after its sender
+## (AgentsWaitTaggedPart, sh-lib/member/AgentsTools.MemberWait.include) is a message of a session chat thread where the member's own instance is present,
+## returned for knowledge only, and a report of nothing else starts nothing. Any other line is input, so a scan that words its emptiness in another way
+## starts the run, and a report is never taken for empty on a guess: the mistake can only be a start.
 AgentsToolsInputScanReportEmpty(){ ## the report file
 	LC_ALL=C awk '
 		/^[[:space:]]*$/ { next }
@@ -104,6 +106,7 @@ AgentsToolsInputScanReportEmpty(){ ## the report file
 		/^cap: / { next }
 		/^\*\*NOTE:\*\* no new / { next }
 		/^Nothing new/ { next }
+		/^[0-9]+\.[0-9]+ \| [^|]*\|\[fyi: / { next }
 		{ found = 1 ; exit }
 		END { exit ( found ? 1 : 0 ) }' "$1" 2> /dev/null
 }
@@ -186,7 +189,9 @@ AgentsToolsInputScanDefSeed(){ ## definition line, scan, team member, session id
 	## A scan called in a team session prints the reference to its kept report, and the report is that file (AgentsWaitProbeScan reads it so).
 	seedKept="$( LC_ALL=C sed -n 's/^\.\.\. KEPT: .* is in \(.*\) -- .*\.\.\.$/\1/p' "$seedFile" | head -1 )"
 	[ -z "$seedKept" ] || [ ! -f "$seedKept" ] || seedFile="$seedKept"
-	seedSum="$( LC_ALL=C cksum < "$seedFile" | LC_ALL=C awk '{ print $1 "-" $2 ; }' )"
+	## The same sum a wait keeps of a report, less its token counters (AgentsWaitProbeScan), so the first
+	## --idle-wait compares content, not the counters the harness rewrites at every round.
+	seedSum="$( LC_ALL=C awk '/^tokens(-total)?: in=[0-9]+ cache-read=[0-9]+ cache-write=[0-9]+ out=[0-9]+( \(incl\. [0-9]+ sub-sessions?\))?$/ { next ; } { print ; }' "$seedFile" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 ; }' )"
 	[ "$1" = "$2" ] || rm -f "$5.seed"
 	[ -n "$seedSum" ] && AgentsToolsSessionChatPointerSet "$4" "scan:$2:$3" "$seedSum" || :
 	return 0

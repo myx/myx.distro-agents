@@ -9,9 +9,9 @@
 ## written; a call with no todos reading the caller's own list, with member another
 ## participant's, with `*` every participant's under its member name, an empty one shown as empty
 ## and never a row with no member name, a name that is no participant refused; no list of
-## another session; a session whose member or place the harness does not know neither offered
-## the tool, on the MCP floor or in a ToolSearch, nor served by it; the declaration's shape and
-## words, and a ToolSearch finding it.
+## another session; a session whose member or place the harness does not know still offered
+## the tool on the MCP floor, in the model declarations and in a ToolSearch, and refused by it
+## at execution with a hint; the declaration's shape and words, and a ToolSearch finding it.
 ## Offline: MMDAPP, HOME and the skillset are this check's own temp tree; nothing reaches a host.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -97,6 +97,9 @@ rigStarts(){ ## text, prefix
 rigHolds(){ ## text, fragment
 	case "$1" in *"$2"*) printf 'yes' ;; *) printf 'no: %s' "$( rigFirst "$1" )" ;; esac
 }
+rigLacks(){ ## text, fragment -- absent when the text does not hold it
+	case "$1" in *"$2"*) printf 'present: %s' "$( rigFirst "$1" )" ;; *) printf 'absent' ;; esac
+}
 rigKept(){ ## file under the rig workspace -- the list as kept, or the word none
 	[ -f "$rigWs/$1" ] || { printf 'none' ; return 0 ; }
 	cat "$rigWs/$1"
@@ -132,7 +135,7 @@ echo "-- 1. a session a root session founded keeps its lists in the session fold
 rigOut="$( rigCall root '{"todos":'"$rigList1"'}' )"
 rigAssert "the call is answered OK" "$( rigStarts "$rigOut" 'OK: ' )" "yes"
 rigAssert "the answer names the member, the session and the count" "$( rigHolds "$rigOut" 'checklist of magic-coordinator in session rig-root now holds 3 item(s): 1 pending, 1 in progress, 1 completed' )" "yes"
-rigAssert "the answer names where it is kept" "$( rigHolds "$rigOut" "$rigRootPlace/magic-coordinator.checklist.md" )" "yes"
+rigAssert "the answer names no path" "$( rigLacks "$rigOut" "$rigRootPlace" )" "absent"
 rigAssert "the list is kept as Markdown, byte for byte" "$( rigKept "$rigRootPlace/magic-coordinator.checklist.md" )" "$rigMd1"
 rigAssert "no temporary file is left beside it" "$( rigLeftovers )" "0"
 
@@ -143,13 +146,13 @@ rigAssert "the list kept is the new one alone" "$( rigKept "$rigRootPlace/magic-
 
 echo "-- 3. a participant writes its own list, in the session's place, and no other --"
 rigOut="$( rigCall keeper '{"todos":'"$rigList3"'}' )"
-rigAssert "the call is answered OK, naming its list" "$( rigHolds "$rigOut" "checklist of keeper-myx in session rig-root now holds 2 item(s): 1 pending, 0 in progress, 1 completed. Kept in $rigRootPlace/keeper-myx.checklist.md" )" "yes"
+rigAssert "the call is answered OK, naming its member and session and no path" "$( rigHolds "$rigOut" "checklist of keeper-myx in session rig-root now holds 2 item(s): 1 pending, 0 in progress, 1 completed." ):$( rigLacks "$rigOut" "$rigRootPlace" )" "yes:absent"
 rigAssert "its list is kept in the session's place, a line an item" "$( rigKept "$rigRootPlace/keeper-myx.checklist.md" )" "$rigMd3"
 rigAssert "the list of the root session is untouched" "$( rigKept "$rigRootPlace/magic-coordinator.checklist.md" )" "$rigMd2"
 rigAssert "nothing is kept in its own sandbox" "$( find "$rigSpawned/sp-k" -type f ! -name 'sp-k.spawn.md' | LC_ALL=C grep -c . )" "0"
 
 echo "-- 4. one member, one list: every run of a member reads and writes the same one --"
-rigAssert "a second run of keeper-myx reads the list the first wrote" "$( rigCall keeper2 '{}' )" "CHECKLIST of keeper-myx in session rig-root ($rigRootPlace/keeper-myx.checklist.md):
+rigAssert "a second run of keeper-myx reads the list the first wrote" "$( rigCall keeper2 '{}' )" "CHECKLIST of keeper-myx in session rig-root:
 $rigMd3"
 rigOut="$( rigCall keeper2 '{"todos":'"$rigList5"'}' )"
 rigAssert "its write replaces that one list" "$( rigKept "$rigRootPlace/keeper-myx.checklist.md" )" "$rigMd5"
@@ -183,23 +186,23 @@ rigAssert "every bad input was tried" "$rigBad" "8"
 
 echo "-- 6. a read: the caller's own list, another participant's, or every participant's --"
 rigBefore="$( rigLists )"
-rigAssert "with no member, a participant reads its own list" "$( rigCall keeper '{}' )" "CHECKLIST of keeper-myx in session rig-root ($rigRootPlace/keeper-myx.checklist.md):
+rigAssert "with no member, a participant reads its own list" "$( rigCall keeper '{}' )" "CHECKLIST of keeper-myx in session rig-root:
 $rigMd3"
-rigAssert "and the root session its own" "$( rigCall root '{"description":"rig read"}' )" "CHECKLIST of magic-coordinator in session rig-root ($rigRootPlace/magic-coordinator.checklist.md):
+rigAssert "and the root session its own" "$( rigCall root '{"description":"rig read"}' )" "CHECKLIST of magic-coordinator in session rig-root:
 $rigMd2"
-rigAssert "a participant reads another's by its member name" "$( rigCall tester '{"member":"magic-coordinator"}' )" "CHECKLIST of magic-coordinator in session rig-root ($rigRootPlace/magic-coordinator.checklist.md):
+rigAssert "a participant reads another's by its member name" "$( rigCall tester '{"member":"magic-coordinator"}' )" "CHECKLIST of magic-coordinator in session rig-root:
 $rigMd2"
-rigAssert "a participant that kept no list reads as empty" "$( rigCall keeper '{"member":"magic-tester"}' )" "CHECKLIST of magic-tester in session rig-root ($rigRootPlace/magic-tester.checklist.md):
+rigAssert "a participant that kept no list reads as empty" "$( rigCall keeper '{"member":"magic-tester"}' )" "CHECKLIST of magic-tester in session rig-root:
 (empty)"
 rigWant="CHECKLISTS of session rig-root: 3 participant(s), each under its member name.
 
-## keeper-myx ($rigRootPlace/keeper-myx.checklist.md)
+## keeper-myx
 $rigMd3
 
-## magic-coordinator ($rigRootPlace/magic-coordinator.checklist.md)
+## magic-coordinator
 $rigMd2
 
-## magic-tester ($rigRootPlace/magic-tester.checklist.md)
+## magic-tester
 (empty)"
 rigAssert "with *, a participant reads every participant's list" "$( rigCall keeper '{"member":"*"}' )" "$rigWant"
 rigAssert "the root session reads the same" "$( rigCall root '{"member":"*"}' )" "$rigWant"
@@ -214,14 +217,14 @@ rigOut="$( rigCall architect '{"todos":'"$rigList4"'}' )"
 rigAssert "the founder's list is kept in its sandbox root" "$( rigKept "$rigOtherPlace/magic-architect.checklist.md" )" "$rigMd4"
 rigOut="$( rigCall developer '{"todos":'"$rigList6"'}' )"
 rigAssert "a participant with a sandbox of its own keeps it there too" "$( rigKept "$rigOtherPlace/magic-developer.checklist.md" )" "$rigMd6"
-rigAssert "a run the proxy named no session for finds it by its own record" "$( rigCall developer-unnamed '{}' )" "CHECKLIST of magic-developer in session rig-other ($rigOtherPlace/magic-developer.checklist.md):
+rigAssert "a run the proxy named no session for finds it by its own record" "$( rigCall developer-unnamed '{}' )" "CHECKLIST of magic-developer in session rig-other:
 $rigMd6"
 rigAssert "it reads its own session alone" "$( rigCall architect '{"member":"*"}' )" "CHECKLISTS of session rig-other: 2 participant(s), each under its member name.
 
-## magic-architect ($rigOtherPlace/magic-architect.checklist.md)
+## magic-architect
 $rigMd4
 
-## magic-developer ($rigOtherPlace/magic-developer.checklist.md)
+## magic-developer
 $rigMd6"
 rigAssert "rig-root does not read it" "$( rigCall root '{"member":"*"}' )" "$rigWant"
 rigAssert "nothing is kept in input/ or output/ of any sandbox" "$( find "$rigSpawned"/*/input "$rigSpawned"/*/output -type f | LC_ALL=C grep -c . )" "0"
@@ -230,22 +233,32 @@ echo "-- 8. an empty list is a valid list, shown as empty --"
 rigOut="$( rigCall keeper '{"todos":[]}' )"
 rigAssert "it is answered OK, with no item" "$( rigHolds "$rigOut" 'now holds 0 item(s)' )" "yes"
 rigAssert "the list kept is empty" "$( rigKept "$rigRootPlace/keeper-myx.checklist.md" )" ""
-rigAssert "a read shows it as empty" "$( rigHolds "$( rigCall root '{"member":"*"}' )" "## keeper-myx ($rigRootPlace/keeper-myx.checklist.md)
+rigAssert "a read shows it as empty" "$( rigHolds "$( rigCall root '{"member":"*"}' )" "## keeper-myx
 (empty)" )" "yes"
 
-echo "-- 9. no team identity, no session, or a session id that is no bare name: no tool --"
+echo "-- 9. no team identity, no session, or a session id that is no bare name: refused at execution --"
 rigBefore="$( rigLists )"
 for rigWho in nobody session= session=../escape session=.. ; do
 	for rigArgs in '{"todos":'"$rigList2"'}' '{}' ; do
 		rigOut="$( rigCall "$rigWho" "$rigArgs" )"
 		rigAssert "$rigWho $rigArgs: refused" "$( rigStarts "$rigOut" 'ERROR: ' )" "yes"
-		rigAssert "$rigWho $rigArgs: it says the tool is not offered" "$( rigHolds "$rigOut" 'CheckList is not offered' )" "yes"
+		rigAssert "$rigWho $rigArgs: the refusal is no denial that the tool is unoffered" "$( rigLacks "$rigOut" 'not offered' )" "absent"
 	done
+done
+## The hint names the way out, and each caller's own: with no member, the skillset the served
+## member is read from; with no session, the RootSession operation that makes or joins one.
+for rigArgs in '{"todos":'"$rigList2"'}' '{}' ; do
+	rigAssert "nobody $rigArgs: the hint names the skillset the member is read from" \
+		"$( rigHolds "$( rigCall nobody "$rigArgs" )" 'MDAT_SKILLSET_ROOT' )" "yes"
+	rigAssert "no session $rigArgs: the hint names RootSession operation=mint" \
+		"$( rigHolds "$( rigCall session= "$rigArgs" )" 'RootSession operation=mint' )" "yes"
+	rigAssert "no session $rigArgs: the hint names operation=adopt too" \
+		"$( rigHolds "$( rigCall session= "$rigArgs" )" 'operation=adopt' )" "yes"
 done
 rigAssert "none of them wrote anything" "$( rigLists )" "$rigBefore"
 rigAssert "no todos.json is kept anywhere: there is one store" "$( find "$rigWs" -name 'todos.json*' | LC_ALL=C grep -c . )" "0"
 
-echo "-- 10. offered only where the harness knows the member and the place, on the MCP floor --"
+echo "-- 10. listed everywhere on the MCP floor, served only where the harness knows the place --"
 rigServed(){ ## caller -- yes when the server's tools/list offers CheckList, then a call's first line
 	{
 		printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
@@ -259,15 +272,15 @@ rigLists > "$rigTmp/lists.before"
 rigAssert "the root session of rig-root is offered it, and served" "$( rigServed root )" "offered served"
 rigAssert "a participant is offered it, and served" "$( rigServed tester )" "offered served"
 rigLists > "$rigTmp/lists.served"
-rigAssert "no team identity: not offered, and a call is refused" "$( rigServed nobody )" "not-offered refused"
-rigAssert "no session: not offered, and a call is refused" "$( rigServed session= )" "not-offered refused"
-rigAssert "a session id that is no bare name: not offered" "$( rigServed session=../escape )" "not-offered refused"
+rigAssert "no team identity: still listed, and the call is refused" "$( rigServed nobody )" "offered refused"
+rigAssert "no session: still listed, and the call is refused" "$( rigServed session= )" "offered refused"
+rigAssert "a session id that is no bare name: still listed, and the call is refused" "$( rigServed session=../escape )" "offered refused"
 rigAssert "the refused calls wrote nothing" "$( rigLists )" "$( cat "$rigTmp/lists.served" )"
-rigAssert "a run whose own record names no bare session id: not offered, and a call is refused" "$( rigServed developer-badrecord )" "not-offered refused"
-rigAssert "the server asks once for its life: a second request is answered the same" "$( rigServed root )" "offered served"
+rigAssert "a run whose own record names no bare session id: still listed, and the call is refused" "$( rigServed developer-badrecord )" "offered refused"
+rigAssert "the floor is static: a second request is answered the same" "$( rigServed root )" "offered served"
 
 echo "-- 11. the declaration: the native item shape, todos optional, and what it is --"
-rigFloor="$( bash "$rigHere/harness/AgentsHarnessMcpMirror.sh" "" "Bash Monitor" 2> /dev/null )" || rigFloor=""
+rigFloor="$( bash "$rigHere/harness/AgentsHarnessMcpMirror.sh" "" "Bash" 2> /dev/null )" || rigFloor=""
 rigFloor='{"t":'"$rigFloor"'}'
 rigSchema="" rigText="" rigIndex=0
 while : ; do
@@ -289,7 +302,7 @@ for rigWord in TodoWrite checklist 'session tasks' 'NOT the team board' 'NOT an 
 	rigAssert "its description says: $rigWord" "$( rigHolds "$rigText" "$rigWord" )" "yes"
 done
 
-echo "-- 12. a ToolSearch finds it by the words a member reaches for, where it is offered --"
+echo "-- 12. a ToolSearch finds it by the words a member reaches for, whether or not a place is known --"
 rigSearch(){ ## caller, query -- the names of the tools found, in order
 	printf '{"query":"%s"}' "$2" | rigEnv "$1" "$BASH" "$rigHarness" --intern-tool ToolSearch 2>> "$rigTmp/stderr" \
 		| LC_ALL=C grep -o '"name":"[A-Za-z_]*","parameters":' | sed 's/^"name":"//; s/".*$//' | tr '\n' ' '
@@ -300,7 +313,14 @@ rigFound(){ ## names found, name
 rigAssert "TodoWrite finds it first" "$( rigSearch root TodoWrite | cut -d' ' -f1 )" "CheckList"
 rigAssert "checklist finds it first" "$( rigSearch root checklist | cut -d' ' -f1 )" "CheckList"
 rigAssert "session tasks finds it" "$( rigFound "$( rigSearch root 'session tasks' )" CheckList )" "found"
-rigAssert "with no team identity, no search finds it" "$( rigFound "$( rigSearch nobody TodoWrite )" CheckList )" "not found: "
+## F1.2 / D5: search is a way of offering it. With no team identity the search still finds
+## CheckList -- and the call refuses at execution with the hint, never with silence.
+rigAssert "with no team identity, the search still finds it" "$( rigFound "$( rigSearch nobody TodoWrite )" CheckList )" "found"
+rigAssert "with no team identity, the call refuses with the hint" \
+	"$( rigHolds "$( rigCall nobody '{}' )" 'MDAT_SKILLSET_ROOT' )" "yes"
+rigAssert "with no session, the search still finds it" "$( rigFound "$( rigSearch session= TodoWrite )" CheckList )" "found"
+rigAssert "with no session, the call refuses with the hint, not silence" \
+	"$( rigHolds "$( rigCall session= '{}' )" 'RootSession operation=mint' )" "yes"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ CHECKLIST CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2

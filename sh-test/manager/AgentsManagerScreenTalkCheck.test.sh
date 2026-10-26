@@ -162,7 +162,7 @@ keys ENTER
 wait list 30
 turn
 rowids kids
-keys DOWN
+keys DOWN DOWN DOWN DOWN DOWN
 turn
 get row
 keys M

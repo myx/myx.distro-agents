@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ConsoleOwner.include -- the account owning the workspace, and the re-entry of the console launcher into it.
+## The console and everything it runs execute as the account that owns the workspace (mdci on a rig), entered as by sudo, so
+## SUDO_USER names the person who entered, which AgentsToolsConsoleAccount (sh-lib/member/AgentsTools.CallerCheck.include)
+## reads. Two functions, and nothing else here; sourced, never run.
+##
+## AgentsToolsConsoleOwnerAccount -- the account the workspace root belongs to, by stat, one word; nothing and rc 1 where
+## the system cannot say it. The one place the owner is read.
+## AgentsToolsConsoleOwnerReentry -- re-enters the launcher as that account when the caller is someone else: it runs the
+## script it is given (its own path) with the arguments, under sudo -u <owner> -H, so the caller stays known as SUDO_USER.
+## Nothing where the owner cannot be read, the caller is already the owner, the path holds no slash, or sudo is absent.
+##
+
+if ! type AgentsToolsConsoleOwnerAccount >/dev/null 2>&1 ; then
+	AgentsToolsConsoleOwnerAccount(){
+		local ownerName=""
+		if stat -c '%U' "$MMDAPP" > /dev/null 2>&1 ; then
+			ownerName="$( stat -c '%U' "$MMDAPP" 2> /dev/null )" || ownerName=""
+		elif stat -f '%Su' "$MMDAPP" > /dev/null 2>&1 ; then
+			ownerName="$( stat -f '%Su' "$MMDAPP" 2> /dev/null )" || ownerName=""
+		fi
+		[ -n "$ownerName" ] || return 1
+		printf '%s\n' "$ownerName"
+	}
+fi
+
+if ! type AgentsToolsConsoleOwnerReentry >/dev/null 2>&1 ; then
+	AgentsToolsConsoleOwnerReentry(){ ## the launcher's own path, then its arguments
+		local reentryPath="$1" reentryOwner="" reentryEffective="" ; shift
+		case "$reentryPath" in */*) ;; *) return 0 ;; esac
+		reentryOwner="$( AgentsToolsConsoleOwnerAccount )" || return 0
+		reentryEffective="$( id -un 2> /dev/null )" || reentryEffective=""
+		[ -n "$reentryEffective" ] || return 0
+		[ "$reentryEffective" != "$reentryOwner" ] || return 0
+		command -v sudo > /dev/null 2>&1 || return 0
+		exec sudo -u "$reentryOwner" -H "${BASH:-bash}" "$reentryPath" "$@"
+	}
+fi

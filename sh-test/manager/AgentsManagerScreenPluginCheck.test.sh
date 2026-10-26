@@ -30,7 +30,9 @@
 ## Red before F11.2: no plugin mechanism, the roots declared in the tables of Roots.py, wrap the left window's alone.
 ## Offline: no operation of the real tooling is called.
 ## Reconciled for F11.4: the Dashboard is registered by the part of the local tools, LocalManagerScreen.Dashboard.py.
-## Reconciled for F11.5: the plugins now include magic-team, activity and pending-in-team, with Pending Questions second after the Dashboard, and each is registered by its own part.
+## Reconciled for F11.5: the plugins now include magic-team, activity and launch, with Pending Questions second after the Dashboard and standing at
+## the root alone (20261021-refactorings.sketch.md, `Magic-Team` -> `Reorder`), and each is registered by its own part. The stand-in button takes
+## `q`: the screen's own glance key `e` (full-table) is a command of every level, and a plugin may not take a key its view already has.
 ## Reconciled for the groups of the roots (owner, 2026-10-20): the stand-in root of the group `team` stands with Magic-Team (Agents); the Dashboard is in a group with Pending Questions.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -114,9 +116,9 @@ def commandNames():
 ## ---- 9. the ten roots are plugins, declared by their own parts
 def parts():
     names = [plugin["name"] for plugin in screen.PLUGIN_RECORDS]
-    say("ten", " ".join(name for name in ("dashboard", "pending", "magic-team", "activity", "pending-in-team", "team", "teamdata", "places", "consoles", "settings", "configuration", "manuals") if name in names))
+    say("ten", " ".join(name for name in ("dashboard", "pending", "magic-team", "activity", "launch", "team", "teamdata", "places", "consoles", "settings", "configuration", "manuals") if name in names))
     say("sections", " ".join(sectionId for sectionId, label in screen.SECTIONS))
-    owned = {"dashboard": "Dashboard", "activity": "Sessions", "pending": "Pending", "pending-in-team": "Pending", "magic-team": "MagicTeam", "team": "Members", "teamdata": "TeamData", "places": "Places",
+    owned = {"dashboard": "Dashboard", "activity": "Sessions", "launch": "Launch", "pending": "Pending", "magic-team": "MagicTeam", "team": "Members", "teamdata": "TeamData", "places": "Places",
              "consoles": "Consoles", "settings": "Settings", "configuration": "Configuration", "manuals": "Manuals"}
     registered = []
     for name, part in sorted(owned.items()):
@@ -316,7 +318,7 @@ def anyButton():
         "name": "rigbutton", "root": {"id": "rigbutton", "label": "Rig Button", "group": "team"},
         "rows": {"rigbutton": (("r1", "Row One", "rigrow", False),)},
         "commands": (
-            {"name": "rigbtn", "keys": ("e",), "menu": ("question", 3), "label": "R~e~ig button", "status": "Btn", "window": "list",
+            {"name": "rigbtn", "keys": ("q",), "menu": ("question", 3), "label": "R~q~ig button", "status": "Btn", "window": "list",
              "views": ("rigbutton",), "does": ("action", "rigzed")},
             {"name": "rigentry", "keys": ("ENTER",), "label": "Ent~r~y", "status": "Entry", "window": "list", "views": ("rigbutton",),
              "on": ("rigbutton:rigrow",), "only": True, "does": ("action", "rigentered")},
@@ -326,9 +328,9 @@ def anyButton():
     selectRow(state, ["rigbutton"], "r1")
     turn("TAB")
     say("btnFocus", state.focus)
-    say("btnStatusLeft", "e Btn" in statusLine())
+    say("btnStatusLeft", "q Btn" in statusLine())
     say("btnEntryStatusLeft", "Entry" in statusLine())
-    turn("e")
+    turn("q")
     say("btnLeft", state.notice)
     state.notice = ""
     turn("ENTER")
@@ -336,7 +338,7 @@ def anyButton():
     turn("TAB", "ENTER")
     say("btnEnterList", "%s %s" % (state.focus, state.notice))
     state.notice = ""
-    turn("e")
+    turn("q")
     say("btnList", state.notice)
     say("btnMenuLeft", "rigbtn" in [command["name"] for command in screen.menuItems(state, "question") if command and screen.commandApplies(state, command)])
 
@@ -429,8 +431,8 @@ rigAssert "a command that is only on rows of its own, with a key the generic com
 rigAssert "a name registered twice is refused" "$( rigVal twice )" "PluginError"
 
 echo "-- 9. every app feature is a plugin --"
-rigAssert "the features are registered as plugins: the roots in the order of the list, Pending Questions second after the Dashboard, and the plugins that stand under Magic-Team (Agents)" "$( rigVal ten ) / $( rigVal sections | cut -d' ' -f1-10 )" "dashboard pending magic-team activity pending-in-team team teamdata places consoles settings configuration manuals / dashboard pending magic-team places consoles workspace machine settings configuration manuals"
-rigAssert "each is registered by its own part, once" "$( rigVal ownParts )" "activity:True configuration:True consoles:True dashboard:True magic-team:True manuals:True pending:True pending-in-team:True places:True settings:True team:True teamdata:True"
+rigAssert "the features are registered as plugins: the roots in the order of the list, Pending Questions second after the Dashboard, and the plugins that stand under Magic-Team (Agents), Launchpad among them" "$( rigVal ten ) / $( rigVal sections | cut -d' ' -f1-10 )" "dashboard pending magic-team activity launch team teamdata places consoles settings configuration manuals / dashboard pending magic-team places consoles workspace machine settings configuration manuals"
+rigAssert "each is registered by its own part, once" "$( rigVal ownParts )" "activity:True configuration:True consoles:True dashboard:True launch:True magic-team:True manuals:True pending:True places:True settings:True team:True teamdata:True"
 rigAssert "no table of the roots, the rows, the summaries, the reads, the Markdown places or the Go levels is left in Roots.py or Windows.py" "$( rigVal noTables )" "none"
 
 if [ "$rigFailCount" -ne 0 ] ; then

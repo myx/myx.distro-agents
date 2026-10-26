@@ -10,9 +10,12 @@
 ## It collects what is for the member to work on at the start of its duty:
 ##   - the inbox items not yet processed -- the member's incoming/ alone (F4.3), invitations and sub-tasks for handling and joining
 ##     among them, being items of their own types;
-##   - for magic-coordinator alone, the items of the human-owner and the external contacts that are due, the open permission asks, and the board (its items of the active states, the review items, the registries of sessions, the rechecks due, the dependencies) for the rules of the advance routine (F7.12);
+##   - for magic-coordinator alone: the human-owner and contact items due, the open permission asks, and the board (F7.12);
 ##   - the Slack that is tagged to the member -- a mention of it in the team channel or in its session thread, and any DM -- and the
-##     team channel besides, over a collect window.
+##     team channel besides, over a collect window. A message of a session thread where the member's instance is present is no item
+##     for the duty: it is returned for knowledge only, its row marked `[fyi: ...]` and a `# fyi: ... -- for your knowledge, not yours
+##     to answer` line before it, and a report holding nothing else is no input for a start (AgentsWaitProbeTagged,
+##     AgentsToolsInputScanReportEmpty).
 ## THE COLLECT IS A WAIT, NOT A SLEEP, and the same one the session chat file is read by (AgentsTools.MemberWait.include,
 ## --wait-collect): it keeps a pointer at the last message already seen, in the session's pointers (session.chat.pointers), watches
 ## from it, and returns everything accumulated when EITHER the window elapses OR an immediate message appears, whichever comes first.
@@ -25,7 +28,7 @@ case "$1" in
 
 	--intern-op-work-duty-input-scan)
 		shift
-		local workMember="${1:-}" workSession="${MDAT_SESSION_ID:-}" workWindow workWork workOut workInboxRc=0
+		local workMember="${1:-}" workSession="${MDAT_SESSION_ID:-}" workWindow workWork workOut workInboxRc=0 workSeed
 		if [ -z "$workMember" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --intern-op-work-duty-input-scan: syntax is <team-member> [--session-id <id>]" >&2
 			set +e ; return 1
@@ -115,6 +118,18 @@ case "$1" in
 		fi
 
 		## Slack: the tags immediately, the team channel over the window.
+		## The new duty's tagged collect resumes from the member's previous pointer (the scheduler's handed/<member>, kept for it in
+		## schedule/handed-from/<member>), not from now, so a mention posted between the previous duty and this start is read. A session
+		## that already keeps its own pointer into the tagged source is not seeded.
+		if [ -n "$workSession" ] ; then
+			type AgentsToolsSessionChatPointer > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+			if ! AgentsToolsSessionChatPointer "$workSession" "collect:$workMember:tagged:$workMember" > /dev/null 2>&1 ; then
+				workSeed=""
+				[ ! -f "$MMDAPP/.local/agents/schedule/handed-from/$workMember" ] || read -r workSeed < "$MMDAPP/.local/agents/schedule/handed-from/$workMember" || :
+				case "${workSeed%%.*}" in ''|*[!0123456789]*) workSeed="" ;; esac
+				[ -z "$workSeed" ] || AgentsToolsSessionChatPointerSet "$workSession" "collect:$workMember:tagged:$workMember" "$workSeed"
+			fi
+		fi
 		printf '\n## Slack: tagged to %s, and the team channel over %ss\n\n' "$workMember" "$workWindow"
 		( [ -z "$workSession" ] || export MDAT_SESSION_ID="$workSession" ; DistroAgentsTools --intern-op-wait-for-input "$workMember" --wait-collect "$workWindow" --wait-source "tagged:$workMember" --wait-source slack:magic-team ) > "$workWork/collect.out" 2> "$workWork/collect.err" || :
 		if LC_ALL=C grep -q '^# arrived on: ' "$workWork/collect.out" ; then

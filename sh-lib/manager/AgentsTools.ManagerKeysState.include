@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerKeysState.include -- the server keys the console serves (C1 of the refactorings epic): the key state
+## machine, kept in this workspace's own registry, `<workspace>/.local/agents/keys.registry`, one key a line -- its name, its
+## state and the material it serves, TAB-separated, the whitespace of a value `_` and an empty one `-`. A key is added as
+## `pending`, is approved to `served` and is live from then on, and is `revoked` when it is deactivated; a revoked key is kept
+## until it is removed. A served (active) key is never removed -- it is revoked first ("leave active keys"). THE REGISTRY IS
+## THE STATE: nothing else holds it, and a read never makes the file.
+##
+## IT IS A SUBJECT OF ITS OWN, beside AgentsTools.ManagerKeys.include, which is the PUBLIC keys this server shows to others
+## and opens public key files alone: nothing here reads, derives or asks anything of a key file, and no ssh-keygen is run.
+## Sourced from the `--manager-keys-*)` arm of AgentsTools.Manager.include, which hands these five operations to it; who may
+## call was asked where the family is dispatched.
+##
+## The operations: --manager-keys-state [<key>], --manager-keys-add <key> (the material on the standard input, never an
+## argument), --manager-keys-approve <key>, --manager-keys-revoke <key> and --manager-keys-remove <key>.
+##
+AgentsToolsManagerKeysRegistry(){
+	printf '%s\n' "${MMDAPP%/}/.local/agents/keys.registry"
+}
+
+## One value as the registry and a row keep it: its whitespace `_`, an empty one `-`.
+AgentsToolsManagerKeysStateField(){ ## text
+	local stateField="${1//[[:space:]]/_}"
+	printf '%s' "${stateField:--}"
+}
+
+## Whether a word is the name of a key: lower-case letters, digits and `-`.
+AgentsToolsManagerKeysStateName(){ ## word
+	case "$1" in ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) return 1 ;; esac
+	return 0
+}
+
+## One key of the registry by its name: sets keysState and keysMaterial; rc 1, both empty, where no key of that name stands.
+AgentsToolsManagerKeysStateFind(){ ## key
+	local findFile findName findState findMaterial
+	keysState="" ; keysMaterial=""
+	findFile="$( AgentsToolsManagerKeysRegistry )"
+	[ -f "$findFile" ] || return 1
+	while IFS=$'\t' read -r findName findState findMaterial ; do
+		[ "$findName" = "$1" ] || continue
+		keysState="$findState" ; keysMaterial="$findMaterial"
+		return 0
+	done < "$findFile"
+	return 1
+}
+
+## The registry rewritten with one key's state put in its place, every other line as it stands; the new file is made beside
+## the old one and put in place by a rename. rc 1 where it cannot be read or written, and the registry is then as it was.
+AgentsToolsManagerKeysStateSet(){ ## key, state
+	local setFile setNew setRc=0 setName setState setMaterial
+	setFile="$( AgentsToolsManagerKeysRegistry )"
+	setNew="$( mktemp "${setFile}.set.XXXXXX" 2> /dev/null )" || return 1
+	while IFS=$'\t' read -r setName setState setMaterial ; do
+		[ -n "$setName" ] || continue
+		if [ "$setName" = "$1" ] ; then printf '%s\t%s\t%s\n' "$setName" "$2" "$setMaterial"
+		else printf '%s\t%s\t%s\n' "$setName" "$setState" "$setMaterial" ; fi
+	done < "$setFile" > "$setNew" || setRc=1
+	if [ "$setRc" -eq 0 ] ; then chmod 600 "$setNew" 2> /dev/null ; mv -f -- "$setNew" "$setFile" || setRc=1 ; fi
+	[ "$setRc" -eq 0 ] || rm -f -- "$setNew"
+	return "$setRc"
+}
+
+## The registry rewritten with one key's line taken out, every other line as it stands, by the same making beside it and
+## rename. rc 1 where it cannot be read or written, and the registry is then as it was.
+AgentsToolsManagerKeysStateDrop(){ ## key
+	local dropFile dropNew dropRc=0 dropName dropState dropMaterial
+	dropFile="$( AgentsToolsManagerKeysRegistry )"
+	dropNew="$( mktemp "${dropFile}.drop.XXXXXX" 2> /dev/null )" || return 1
+	while IFS=$'\t' read -r dropName dropState dropMaterial ; do
+		[ -n "$dropName" ] || continue
+		[ "$dropName" = "$1" ] && continue
+		printf '%s\t%s\t%s\n' "$dropName" "$dropState" "$dropMaterial"
+	done < "$dropFile" > "$dropNew" || dropRc=1
+	if [ "$dropRc" -eq 0 ] ; then chmod 600 "$dropNew" 2> /dev/null ; mv -f -- "$dropNew" "$dropFile" || dropRc=1 ; fi
+	[ "$dropRc" -eq 0 ] || rm -f -- "$dropNew"
+	return "$dropRc"
+}
+
+
+case "$1" in
+
+	## The state of the server keys the console serves: one `key` row each, in the registry's order, or the one row of a key
+	## named. It only reads: a registry that is not there is no state, and no file is made by the read. One row `key`: the
+	## key, its state and the material it serves.
+	--manager-keys-state)
+		local stateOp="$1" stateFile stateName stateState stateMaterial
+		shift
+		[ $# -le 1 ] || { echo "⛔ ERROR: $MDSC_CMD $stateOp: syntax is $stateOp [<key>], got $# argument(s) -- nothing is shown" >&2 ; set +e ; return 1 ; }
+		stateFile="$( AgentsToolsManagerKeysRegistry )"
+		if [ $# -eq 0 ] ; then
+			[ -f "$stateFile" ] || return 0
+			while IFS=$'\t' read -r stateName stateState stateMaterial ; do
+				[ -n "$stateName" ] || continue
+				printf 'key\t%s\t%s\t%s\n' "$stateName" "$stateState" "$stateMaterial"
+			done < "$stateFile"
+			return 0
+		fi
+		AgentsToolsManagerKeysStateName "$1" || { echo "⛔ ERROR: $MDSC_CMD $stateOp: syntax is $stateOp [<key>], and the word given is no name of a key -- nothing is shown" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerKeysStateFind "$1" || { echo "⛔ ERROR: $MDSC_CMD $stateOp: no key of that name stands in the registry -- nothing is shown. --manager-keys-state with no key lists the keys there are" >&2 ; set +e ; return 1 ; }
+		printf 'key\t%s\t%s\t%s\n' "$1" "$keysState" "$keysMaterial"
+		return 0
+	;;
+
+	## A key added to the registry as `pending`, the material it serves read whole from the standard input, one line: it is
+	## never an argument and never printed back, but as the `added` row has it. A key of that name that stands already is
+	## refused -- a key is added once. One row `added`: the key, its state and its material.
+	--manager-keys-add)
+		local addOp="$1" addFile addDir addName addMaterial
+		shift
+		[ $# -eq 1 ] || { echo "⛔ ERROR: $MDSC_CMD $addOp: syntax is $addOp <key>, the material on the standard input, got $# argument(s) -- nothing was added" >&2 ; set +e ; return 1 ; }
+		addName="$1"
+		AgentsToolsManagerKeysStateName "$addName" || { echo "⛔ ERROR: $MDSC_CMD $addOp: syntax is $addOp <key>, and the word given is no name of a key: lower-case letters, digits and - -- nothing was added" >&2 ; set +e ; return 1 ; }
+		if AgentsToolsManagerKeysStateFind "$addName" ; then
+			echo "⛔ ERROR: $MDSC_CMD $addOp: a key of that name stands in the registry already, and a key is added once -- nothing was added" >&2
+			set +e ; return 1
+		fi
+		IFS= read -r addMaterial || addMaterial=""
+		[ -n "$addMaterial" ] || { echo "⛔ ERROR: $MDSC_CMD $addOp: the standard input holds no material for the key -- nothing was added" >&2 ; set +e ; return 1 ; }
+		addFile="$( AgentsToolsManagerKeysRegistry )" ; addDir="${addFile%/*}"
+		[ -d "$addDir" ] || { mkdir -p "$addDir" && chmod 700 "$addDir" ; } || { echo "⛔ ERROR: $MDSC_CMD $addOp: the folder of the registry could not be made -- nothing was added" >&2 ; set +e ; return 1 ; }
+		addMaterial="$( AgentsToolsManagerKeysStateField "$addMaterial" )"
+		printf '%s\tpending\t%s\n' "$addName" "$addMaterial" >> "$addFile" || { echo "⛔ ERROR: $MDSC_CMD $addOp: the registry cannot be written -- nothing was added" >&2 ; set +e ; return 1 ; }
+		printf 'added\t%s\tpending\t%s\n' "$addName" "$addMaterial"
+		return 0
+	;;
+
+	## A `pending` key approved: it is `served`, live at once. A key that is none, or that is not pending, is refused. One row
+	## `approved`: the key and the state it is in now.
+	--manager-keys-approve)
+		local approveOp="$1"
+		shift
+		[ $# -eq 1 ] || { echo "⛔ ERROR: $MDSC_CMD $approveOp: syntax is $approveOp <key>, got $# argument(s) -- nothing was done" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerKeysStateName "$1" || { echo "⛔ ERROR: $MDSC_CMD $approveOp: syntax is $approveOp <key>, and the word given is no name of a key -- nothing was done" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerKeysStateFind "$1" || { echo "⛔ ERROR: $MDSC_CMD $approveOp: no key of that name stands in the registry -- nothing was done. --manager-keys-state lists the keys there are" >&2 ; set +e ; return 1 ; }
+		[ "$keysState" = "pending" ] || { echo "⛔ ERROR: $MDSC_CMD $approveOp: the key is $keysState, not pending, and only a pending key is approved -- nothing was done" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerKeysStateSet "$1" "served" || { echo "⛔ ERROR: $MDSC_CMD $approveOp: the registry cannot be written -- nothing was done" >&2 ; set +e ; return 1 ; }
+		printf 'approved\t%s\tserved\n' "$1"
+		return 0
+	;;
+
+	## A `served` key revoked: it is `revoked`, deactivated at once, and kept until it is removed. A key that is none, or that
+	## is not served, is refused. One row `revoked`: the key and the state it is in now.
+	--manager-keys-revoke)
+		local revokeOp="$1"
+		shift
+		[ $# -eq 1 ] || { echo "⛔ ERROR: $MDSC_CMD $revokeOp: syntax is $revokeOp <key>, got $# argument(s) -- nothing was done" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerKeysStateName "$1" || { echo "⛔ ERROR: $MDSC_CMD $revokeOp: syntax is $revokeOp <key>, and the word given is no name of a key -- nothing was done" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerKeysStateFind "$1" || { echo "⛔ ERROR: $MDSC_CMD $revokeOp: no key of that name stands in the registry -- nothing was done. --manager-keys-state lists the keys there are" >&2 ; set +e ; return 1 ; }
+		[ "$keysState" = "served" ] || { echo "⛔ ERROR: $MDSC_CMD $revokeOp: the key is $keysState, not served, and only a served key is revoked -- nothing was done" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerKeysStateSet "$1" "revoked" || { echo "⛔ ERROR: $MDSC_CMD $revokeOp: the registry cannot be written -- nothing was done" >&2 ; set +e ; return 1 ; }
+		printf 'revoked\t%s\trevoked\n' "$1"
+		return 0
+	;;
+
+	## A key taken out of the registry entirely -- a pending or a revoked one. A SERVED (active) key is refused, and says that
+	## it is revoked first: leave active keys. A key that is none is refused. One row `removed`: the key.
+	--manager-keys-remove)
+		local removeOp="$1"
+		shift
+		[ $# -eq 1 ] || { echo "⛔ ERROR: $MDSC_CMD $removeOp: syntax is $removeOp <key>, got $# argument(s) -- nothing was done" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerKeysStateName "$1" || { echo "⛔ ERROR: $MDSC_CMD $removeOp: syntax is $removeOp <key>, and the word given is no name of a key -- nothing was done" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerKeysStateFind "$1" || { echo "⛔ ERROR: $MDSC_CMD $removeOp: no key of that name stands in the registry -- nothing was removed. --manager-keys-state lists the keys there are" >&2 ; set +e ; return 1 ; }
+		[ "$keysState" != "served" ] || { echo "⛔ ERROR: $MDSC_CMD $removeOp: the key is served, live, and an active key is never removed -- revoke it first -- nothing was removed" >&2 ; set +e ; return 1 ; }
+		AgentsToolsManagerKeysStateDrop "$1" || { echo "⛔ ERROR: $MDSC_CMD $removeOp: the registry cannot be written -- nothing was removed" >&2 ; set +e ; return 1 ; }
+		printf 'removed\t%s\n' "$1"
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

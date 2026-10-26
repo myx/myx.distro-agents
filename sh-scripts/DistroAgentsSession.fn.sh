@@ -87,6 +87,14 @@ DistroAgentsSession(){
 		DistroAgentsSessionMoved "$@"
 		return $?
 	fi
+	## The three help forms, as DistroAgentsTools.fn.sh has them: no word the default syntax (the entry points a reader
+	## starts from), --help-syntax the syntax line of every operation of this file, --help the manual.
+	case "${1:-}" in
+		''|--help|--help-syntax)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsSession.include"
+			return $?
+		;;
+	esac
 	## The common option set (F2.2): a run of --team-member, --session-id, --spawn-id, --select-workspace and --tooling-origin after the operation is taken here,
 	## and the call is made again under what they resolve (sh-lib/common/AgentsTools.CommonOptions.include).
 	case "${agentsCommonFronted:-}:${2:-}" in
@@ -209,6 +217,34 @@ DistroAgentsSession(){
 			shift
 			DistroAgentsSessionThis
 			AgentsToolsThisSessionIdleWait "$@"
+			return $?
+		;;
+
+		## The explicit timed removal of the run's delivery floor: <seconds>, after which the session channel is read from the start again.
+		--session-floor-remove)
+			shift
+			DistroAgentsSessionThis
+			AgentsToolsThisSessionFloorRemove "$@"
+			return $?
+		;;
+
+		## The title of the session, what it is about (T4): the title in lists and statuses, and the thread's root post edited to
+		## match. Set by the session's executor; a participant's change escalates to the executor and up its chain; the person at
+		## the console sets it under the authority rule. [--escalate-wait [--timeout <s>]|--escalate-enqueue] are the rule's own.
+		--set-session-topic)
+			shift
+			DistroAgentsSessionTools
+			DistroAgentsSessionThis
+			AgentsToolsThisSessionSetTopic "$@"
+			return $?
+		;;
+
+		## What the session does now (T4): kept in its own store and announced in the session thread. The same authority as the topic.
+		--set-session-chapter)
+			shift
+			DistroAgentsSessionTools
+			DistroAgentsSessionThis
+			AgentsToolsThisSessionSetChapter "$@"
 			return $?
 		;;
 

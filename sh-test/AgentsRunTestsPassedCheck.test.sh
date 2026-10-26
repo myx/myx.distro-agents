@@ -56,6 +56,7 @@ rigPackage(){ ## session -- that copy: the runner under test, two tiny tests, a 
 	local packageDir packageTest ; packageDir="$( rigPkg "$1" )"
 	mkdir -p "$packageDir/sh-test/check-fixtures" "$packageDir/sh-lib" "$( rigRoot "$1" )/myx/myx.distro-system/sh-lib" "$( rigRoot "$1" )/myx/rig-other"
 	cp "$rigRunner" "$packageDir/sh-test/AgentsRunTests.sh"
+	mkdir -p "$packageDir/sh-test/check-fixtures" && cp "$(dirname "$rigRunner")/check-fixtures"/runner-*.py "$packageDir/sh-test/check-fixtures"/
 	for packageTest in RigOne RigTwo ; do
 		cat > "$packageDir/sh-test/$packageTest.test.sh" <<'RIGTINY'
 #!/usr/bin/env bash
@@ -188,7 +189,7 @@ rigFresh
 rigDo a RigOne
 rigOld="$( ls "$rigRecord/RigOne" | LC_ALL=C sed -n 1p )"
 mkdir -p "$rigRecord/RigGone" ; printf 'passed=2026-01-01T00:00:00Z\n' > "$rigRecord/RigGone/old" ; printf 'passed=2026-01-01T00:00:00Z\n' > "$rigRecord/RigGone/young"
-perl -e 'my $then = time - 8 * 86400 ; utime( $then, $then, @ARGV ) or exit 1' "$rigRecord/RigOne/$rigOld" "$rigRecord/RigGone/old" || rigRefuse "the records could not be aged"
+python3 -I -B -c 'import os, sys, time; then = time.time() - 8 * 86400; [os.utime(p, (then, then)) for p in sys.argv[1:]]' "$rigRecord/RigOne/$rigOld" "$rigRecord/RigGone/old" || rigRefuse "the records could not be aged"
 rigAssert "a pass recorded eight days ago is no pass" "$( rigPassed a RigOne )" "-"
 rigDo a RigTwo
 rigAssert "the next run of anything removes every record older than seven days, of every test, and keeps the younger" "$rigRc $( [ -e "$rigRecord/RigOne/$rigOld" ] && printf kept || printf gone ) $( [ -e "$rigRecord/RigGone/old" ] && printf kept || printf gone ) $( [ -e "$rigRecord/RigGone/young" ] && printf kept || printf gone ) $( rigPassed a RigTwo )" "0 gone gone kept passed"

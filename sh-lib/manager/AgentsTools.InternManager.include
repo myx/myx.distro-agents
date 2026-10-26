@@ -21,6 +21,12 @@ case "$1" in
 	--manager)
 		shift
 
+		## THE OWNER RE-ENTRY: where the caller is someone else, this start runs again as the account that owns the
+		## workspace, entered as by sudo, so the screen and every operation it runs execute as the owner, while SUDO_USER
+		## keeps the person who entered known (AgentsToolsConsoleAccount reads it).
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ConsoleOwner.include"
+		AgentsToolsConsoleOwnerReentry "$0" --manager "$@"
+
 		## Its one option: the interface style of this start alone, handed on as it is given.
 		local managerStyle=""
 		if [ "${1:-}" = "--style" ] && [ $# -eq 2 ] && [ -n "$2" ] ; then
@@ -48,36 +54,38 @@ case "$1" in
 		fi
 
 		## THE STYLE OF THIS START, the first of these that is there: the one named on the
-		## command; the one the environment names (MDAT_MANAGER_STYLE), which the screen reads
+		## command; the one the environment names (MDLT_MANAGER_STYLE), which the screen reads
 		## itself, so nothing is handed on for it; the one the user saved, handed on as --style;
 		## else the screen's own default. The saved one is asked of the digest of the settings,
 		## whose line of the style says where its value comes from: it reads `user` only where
-		## the environment names no style and the user saved one. So what the digest shows is
-		## what a start takes. Where the digest cannot be read, nothing is handed on.
+		## the environment names no style and the user saved one. The style is a console interface
+		## setting of .local, declared with the mouse and the spacers in its
+		## LocalTools.ManagerInterface.include, which the digest reads: the value here and what the
+		## settings screen shows are one. Where the digest cannot be read, nothing is handed on.
 		if [ -z "$managerStyle" ] ; then
-			managerStyle="$( DistroAgentsTools --manager-config-digest interface 2> /dev/null < /dev/null | LC_ALL=C awk -F'\t' '$1 == "line" && $4 == "MDAT_MANAGER_STYLE" && $7 == "user" { print $6 ; exit ; }' )" || managerStyle=""
+			managerStyle="$( DistroAgentsTools --manager-config-digest interface 2> /dev/null < /dev/null | LC_ALL=C awk -F'\t' '$1 == "line" && $4 == "MDLT_MANAGER_STYLE" && $7 == "user" { print $6 ; exit ; }' )" || managerStyle=""
 		fi
 
-		## THE SPACERS OF THIS START: MDLT_CONSOLE_SPACERS, a console setting of .local, the
+		## THE SPACERS OF THIS START: MDLT_MANAGER_SPACERS, a console setting of .local, the
 		## user's own, beside MDLT_CONSOLE_HISTORY, and no setting of the agents. `disable`
 		## turns off the blank lines between the groups of the screen's lists. The one the
 		## environment names first, which the screen reads itself; else the one the user saved,
 		## read by the reader every console's rc asks, handed on in the screen's environment
 		## alone, and only where there is one.
-		if [ -z "${MDLT_CONSOLE_SPACERS:-}" ] ; then
+		if [ -z "${MDLT_MANAGER_SPACERS:-}" ] ; then
 			local managerSpacers
-			managerSpacers="$( set -- --.local-config-option-select-default MDLT_CONSOLE_SPACERS "" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" 2> /dev/null < /dev/null )" || managerSpacers=""
-			[ -z "$managerSpacers" ] || local -x MDLT_CONSOLE_SPACERS="$managerSpacers"
+			managerSpacers="$( set -- --.local-config-option-select-default MDLT_MANAGER_SPACERS "" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" 2> /dev/null < /dev/null )" || managerSpacers=""
+			[ -z "$managerSpacers" ] || local -x MDLT_MANAGER_SPACERS="$managerSpacers"
 		fi
 
-		## THE MOUSE OF THIS START: MDLT_CONSOLE_MOUSE, beside the spacers and read the same way,
+		## THE MOUSE OF THIS START: MDLT_MANAGER_MOUSE, beside the spacers and read the same way,
 		## a console setting of .local, the user's own, and no setting of the agents. `disable`
 		## leaves the mouse to the terminal, whose own selection then copies text; it is on
 		## where nothing is saved.
-		if [ -z "${MDLT_CONSOLE_MOUSE:-}" ] ; then
+		if [ -z "${MDLT_MANAGER_MOUSE:-}" ] ; then
 			local managerMouse
-			managerMouse="$( set -- --.local-config-option-select-default MDLT_CONSOLE_MOUSE "" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" 2> /dev/null < /dev/null )" || managerMouse=""
-			[ -z "$managerMouse" ] || local -x MDLT_CONSOLE_MOUSE="$managerMouse"
+			managerMouse="$( set -- --.local-config-option-select-default MDLT_MANAGER_MOUSE "" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" 2> /dev/null < /dev/null )" || managerMouse=""
+			[ -z "$managerMouse" ] || local -x MDLT_MANAGER_MOUSE="$managerMouse"
 		fi
 
 		set -- --workspace "$MMDAPP" --tools "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"

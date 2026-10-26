@@ -236,7 +236,7 @@ function stlToolArgs(toolName, jsonText,   baseName, outText, listCount) {
 		outText = stlKv("pattern", stlJsonStr(jsonText, "pattern"), 200) stlKv("path", stlJsonStr(jsonText, "path"), 300) stlKv("glob", stlJsonStr(jsonText, "glob")) stlKv("type", stlJsonStr(jsonText, "type")) stlKv("mode", stlJsonStr(jsonText, "output_mode")) stlKv("head_limit", stlJsonScalar(jsonText, "head_limit"))
 	} else if (baseName == "Glob") {
 		outText = stlKv("pattern", stlJsonStr(jsonText, "pattern"), 200) stlKv("path", stlJsonStr(jsonText, "path"), 300)
-	} else if (baseName == "Bash" || baseName == "execute" || baseName == "Monitor") {
+	} else if (baseName == "Bash" || baseName == "execute") {
 		outText = stlKv("cmd", stlOneLine(stlFirstLine(stlJsonStr(jsonText, "command")), 200), 220) stlKv("cwd", stlJsonStr(jsonText, "cwd"), 300) stlKv("workspace", stlJsonStr(jsonText, "workspace"), 300) stlKv("background", stlJsonScalar(jsonText, "background")) stlKv("timeout", stlJsonScalar(jsonText, "timeout")) stlKv("job", stlJsonScalar(jsonText, "job")) stlKv("handle", stlJsonStr(jsonText, "handle")) stlKv("action", stlJsonStr(jsonText, "action"))
 	} else if (baseName == "SendMessage") {
 		## The message's first line, so a send that failed, and so wrote no MSG-OUT, still says what it was.

@@ -199,11 +199,13 @@ rigHinted(){ ## the --client- operation that was run, the address refused, its a
 rigSent(){ ## name -- that SENT_MESSAGE_ field of the last send
 	LC_ALL=C sed -n "s/^SENT_MESSAGE_$1=//p" "$rigTmp/err" "$rigTmp/out" 2> /dev/null | head -1
 }
-rigPendingId(){ ## -- the id of the one pending reply ws-here holds
-	ls "$rigWork/ws-here/.local/agents/pending" 2> /dev/null | LC_ALL=C sed -n 's/\.md$//p' | head -1
+rigPendingId(){ ## -- the id of the one pending reply ws-here holds, open or just closed
+	## A closed record is retained, not deleted: it moves into pending/closed/
+	## (AgentsTools.InternOpPendingReply.include), so an answered one is found there.
+	{ ls "$rigWork/ws-here/.local/agents/pending" 2> /dev/null ; ls "$rigWork/ws-here/.local/agents/pending/closed" 2> /dev/null ; } | LC_ALL=C sed -n 's/\.md$//p' | head -1
 }
 rigPendingField(){ ## pending id, field
-	LC_ALL=C sed -n "s/^$2: //p" "$rigWork/ws-here/.local/agents/pending/$1.md" 2> /dev/null | head -1
+	cat "$rigWork/ws-here/.local/agents/pending/$1.md" "$rigWork/ws-here/.local/agents/pending/closed/$1.md" 2> /dev/null | LC_ALL=C sed -n "s/^$2: //p" | head -1
 }
 rigPendingDrop(){ ## -- every pending reply and wait state of ws-here, removed
 	rm -rf "$rigWork/ws-here/.local/agents/pending" "$rigWork/ws-here/.local/agents/sessions" "$rigWork/ws-here/.local/agents/ask-counters"

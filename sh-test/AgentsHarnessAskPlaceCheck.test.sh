@@ -91,7 +91,7 @@ rigVerdictLine(){
 }
 rigRecordFile(){
 	local recordFile
-	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] && { printf '%s' "$recordFile" ; return 0 ; }
 	done
 	printf '%s' "$rigScenarioDir/no-record"
@@ -263,7 +263,7 @@ rigCall 60 AskQuestion '{"to":"human-owner","question":"What should the rig do n
 rigAssert "asked again: posted, as a new message of its own in the owner's conversation, never under the withdrawn one" \
 	"$( rigFirstLine "$rigScenarioDir/out" ):$( rigPostedTo "$(( rigPostsBefore + 1 ))" ):$( cat "$rigScenarioDir/posts" 2>/dev/null )" "ASK-RESULT: POSTED:URIGOWNER:top:$(( rigPostsBefore + 1 ))"
 rigAssert "and it is a record of its own, open, beside the withdrawn one" \
-	"$( LC_ALL=C grep -l -x 'status: reply-pending' "$rigScenarioDir/ws/.local/agents/pending"/*.md 2>/dev/null | LC_ALL=C grep -c . ):$( LC_ALL=C grep -l -x 'status: withdrawn' "$rigScenarioDir/ws/.local/agents/pending"/*.md 2>/dev/null | LC_ALL=C grep -c . )" "1:1"
+	"$( LC_ALL=C grep -l -x 'status: reply-pending' "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md 2>/dev/null | LC_ALL=C grep -c . ):$( LC_ALL=C grep -l -x 'status: withdrawn' "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md 2>/dev/null | LC_ALL=C grep -c . )" "1:1"
 
 rigStart reask-after-answer
 rigSession="rig-askplace-first"

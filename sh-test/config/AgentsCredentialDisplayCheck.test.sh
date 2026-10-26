@@ -49,7 +49,10 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigValue(){ ## a head, a length, an offset -- that many characters: the head, then letters and digits that are the rig's own, from that place of them
-	perl -e 'my ( $head, $length, $offset ) = @ARGV ; my $text = $head ; my $n = $offset ; while ( length( $text ) < $length ) { $text .= substr( "qwertzuiopasdfghjklyxcvbnm0123456789QWERTZUIOPASDFGHJKLYXCVBNM", $n++ % 62, 1 ) } print substr( $text, 0, $length )' "$1" "$2" "$3"
+	python3 -I -B -c 'import sys; head, length, offset = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]); text = head; chars = "qwertzuiopasdfghjklyxcvbnm0123456789QWERTZUIOPASDFGHJKLYXCVBNM"
+while len(text) < length:
+    text += chars[offset % 62]; offset += 1
+sys.stdout.write(text[:length])' "$1" "$2" "$3"
 }
 rigMask(){ ## value -- the F11.8 form: the first quarter, 4 to 20 characters, then a `*` for each character after it
 	local maskValue="$1" maskLength maskShown
@@ -76,8 +79,8 @@ rigUrlPassword="$( rigValue urlpwRIGh 40 5 )"
 	printf 'CLAUDE_CODE_OAUTH_TOKEN=%s\n' "$rigOauth"
 	printf 'COPILOT_GITHUB_TOKEN=%s\n' "$rigCopilot"
 	printf 'SLACK_APP_TOKEN=%s\n' "$rigSlackApp"
-	printf 'SCALEWAY_DEEPSEEK=ab\n'
-	printf 'SCALEWAY_GEMMA=xyz\n'
+	printf 'SCALEWAY_API_KEY=ab\n'
+	printf 'SLACK_USER_TOKEN=xyz\n'
 	printf 'WEB_ALLOW_PREFIXES=https://rigbot:%s@docs.rig.example/api/ https://plain.rig.example/\n' "$rigUrlPassword"
 	printf 'SPAWN_CLI_SERVICE=claude\n'
 } > "$rigWs/.local/.agents/magic-team.agent.env"
@@ -106,7 +109,10 @@ echo "-- 6. a CLI's own line shows the same form --"
 rigAssert "claude's ANTHROPIC_API_KEY and grok's XAI_API_KEY"    "$( rigShown cli claude ANTHROPIC_API_KEY ) $( rigShown cli grok XAI_API_KEY )" "$( rigMask "$rigAnthropic" ) $( rigMask "$rigXai" )"
 
 echo "-- 7. a value of fewer than 4 characters is all * --"
-rigAssert "2 characters read **, 3 read ***: in the scope, and on the CLI's own line" "$( rigShown scopes magic-team SCALEWAY_DEEPSEEK ) $( rigShown scopes magic-team SCALEWAY_GEMMA ) $( rigShown cli scaleway SCALEWAY_DEEPSEEK ) $( rigShown cli scaleway SCALEWAY_GEMMA )" "** *** ** ***"
+rigAssert "2 characters read **, 3 read *** in the scope"        "$( rigShown scopes magic-team SCALEWAY_API_KEY ) $( rigShown scopes magic-team SLACK_USER_TOKEN )" "** ***"
+## One credential name for scaleway -- the key, never one per model -- so its CLI's own
+## line is that name and no second one.
+rigAssert "and the same form on the CLI's own line, under the one scaleway credential" "$( rigShown cli scaleway SCALEWAY_API_KEY )" "**"
 
 echo "-- 8. a password inside a URL: that part alone is masked, in the digest in full --"
 rigAssert "not in full, the mask is per key: a key that is no credential shows its value as it is, the password with it, and reads set" "$( rigShown scopes magic-team WEB_ALLOW_PREFIXES ) $( LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "scopes" && $4 == "WEB_ALLOW_PREFIXES" { print $5 }' "$rigTmp/out" )" "https://rigbot:$rigUrlPassword@docs.rig.example/api/_https://plain.rig.example/ set"

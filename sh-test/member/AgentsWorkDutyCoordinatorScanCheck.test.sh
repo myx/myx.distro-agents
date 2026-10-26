@@ -53,7 +53,7 @@ rigItem(){ ## folder below the data root, name, owner, recheck-date (may be empt
 }
 rigScan(){ ## member -- the scan of that member
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
-		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_WAIT_REMIND=off MDAT_WAIT_POLL_SECONDS=1 perl -e 'alarm 120 ; exec @ARGV' bash "$rigTool" --intern-op-work-duty-input-scan "$1" --session-id rig-session 2> /dev/null < /dev/null )
+		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_WAIT_REMIND=off MDAT_WAIT_POLL_SECONDS=1 python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigTool" --intern-op-work-duty-input-scan "$1" --session-id rig-session 2> /dev/null < /dev/null )
 }
 rigSection(){ ## text -- the lines of the external owners' section
 	printf '%s\n' "$1" | LC_ALL=C awk '/^## External owners/ { on = 1 ; next } /^## / { on = 0 } on && NF'

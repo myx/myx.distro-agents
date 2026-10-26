@@ -164,7 +164,7 @@ case "$1" in
 			local -x MDAT_SPAWN_PRESET=""
 			type AgentsToolsPresetChosen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include"
 			MDAT_SPAWN_PRESET="$( AgentsToolsPresetChosen "$targetMember" )" || MDAT_SPAWN_PRESET=""
-			briefCliService="$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2>/dev/null )" || briefCliService=""
+			briefCliService="$( AgentsToolsPresetSpawnCli 2>/dev/null )" || briefCliService=""
 		fi
 		local briefHarness="own"
 		case "$briefCliService" in *-native) briefHarness="native" ;; esac

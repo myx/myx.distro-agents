@@ -2,7 +2,9 @@
 ## Slack-shaped fake curl for AgentsHarnessAskCheck.test.sh. Logs each method, keeps
 ## each posted body, and answers from the scenario directory. Opens no socket.
 set -u
-cat > /dev/null
+## The auth header is on stdin (the token never rides argv): kept, so a scenario can assert
+## WHICH account a reaction was placed under, not merely that one was.
+rigAuth="$( cat )"
 rigMethod="no-method"
 rigBody=""
 rigTs=""
@@ -66,6 +68,9 @@ case "$rigMethod" in
 	reactions.add)
 		## Each reaction asked for, as "<ts> <name>"; a scenario can have every one refused.
 		printf '%s %s\n' "$rigReactTs" "$rigReactName" >> "$RIG_SCENARIO/reactions"
+		## And the account it was asked under, beside it: "<ts> <name> <token>". A separate
+		## file, so the checks that compare the two-field lines above are untouched.
+		printf '%s %s %s\n' "$rigReactTs" "$rigReactName" "${rigAuth#*Bearer }" >> "$RIG_SCENARIO/reactions.account"
 		if [ -f "$RIG_SCENARIO/react-refuse" ] ; then
 			printf '{"ok":false,"error":"missing_scope"}\n'
 		else

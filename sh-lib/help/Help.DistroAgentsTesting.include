@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## The help of DistroAgentsTesting.fn.sh: The testing system: tests, retests and the report.
+## The three forms are DistroAgentsTools.fn.sh's: no word the default syntax, the entry points a reader starts from;
+## --help-syntax the syntax line of every operation of the file, read from the one table of the family,
+## sh-lib/help/Help.DistroAgentsTools.include; --help the manual, sh-lib/help/Help.DistroAgentsTesting.help.md.
+## Every echo stays flush-left: --member-help cuts help files on a ^echo anchor.
+
+## The default syntax: the entry points a reader starts from. Every other operation's syntax sits behind
+## --help-syntax, and the manual behind --help.
+echo "📘 syntax: DistroAgentsTesting.fn.sh --retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--project <p>] [--file <changed-file>]... [--wait|--no-wait] [<test>...]" >&2
+echo "📘 syntax: DistroAgentsTesting.fn.sh --retest-drain [--rest [--about <scratch-folder>]]" >&2
+echo "📘 syntax: DistroAgentsTesting.fn.sh --retest-result <request-id>..." >&2
+echo "📘 syntax: DistroAgentsTesting.fn.sh --apply-tool <mark|level|plan|apply> [--repository <repository-path>] [--scratch <scratch-path>] [mark: <package>/<relative-path>...]" >&2
+echo "📘 syntax: DistroAgentsTesting.fn.sh --test-list [--team-member <team-member>] [--project <p>] [--namespace <n>] [--keyword <k>]" >&2
+echo "📘 syntax: DistroAgentsTesting.fn.sh [--help-syntax [<op>]]" >&2
+echo "📘 syntax: DistroAgentsTesting.fn.sh [--help]" >&2
+
+case "$1" in
+
+	--help-syntax)
+		type AgentsToolsFrontSyntax > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+		AgentsToolsFrontSyntax "${MDSC_CMD:-DistroAgentsTesting}" "${2:-}"
+		return $?
+	;;
+
+	--help)
+		myx.common lib/catMarkdown "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTesting.help.md" >&2
+		return 0
+	;;
+
+esac

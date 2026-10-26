@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 ## Behavioural check on the routine validator's operation (F7.6 of the refactorings epic, and the rejection F6.7
 ## requires): `DistroAgentsTesting.fn.sh --skillset-validate-routine <routine-file|--from-stdin>` checks frontmatter
-## and required headers and reports what is missing or wrong; `DistroAgentsTools.fn.sh
-## --tester-skillset-validate-routine` is its stub. The validator rejects, not warns, a routine missing
+## and required headers and reports what is missing or wrong. The validator rejects, not warns, a routine missing
 ## requires-session-kind: (F6.7), the one mandatory key of F6.1. `tracking-item:`, `operations:` and `start-context:`
 ## are flat, optional keys, a key left out meaning `any`; there is no `requires:` line.
 ## Held:
-##   1. a routine complete by the contract (F5.4's keys and sections) passes, exit 0, through the stub and through the
-##      Testing file alike
+##   1. a routine complete by the contract (F5.4's keys and sections) passes, exit 0
 ##   2. it rejects, exit non-zero, naming what is missing: no requires-session-kind:; no `# Opening steps`; no
 ##      `# Closure steps`; and a routine missing the key and a heading has both named
 ##   2b. the optional keys: a routine that leaves out tracking-item:, operations: and start-context: is complete
@@ -23,12 +21,11 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigOrigin="$( cd "$MDLT_ORIGIN" && pwd -P )" || exit 1
 rigScripts="$rigOrigin/myx/myx.distro-agents/sh-scripts"
-rigTool="$rigScripts/DistroAgentsTools.fn.sh"
 rigTesting="$rigScripts/DistroAgentsTesting.fn.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigTool" ] || rigRefuse "the dispatcher is not at the origin this workspace resolves: $rigTool"
+[ -f "$rigTesting" ] || rigRefuse "the testing file is not at the origin this workspace resolves: $rigTesting"
 rigTmp="$( mkdir -p "${MMDAPP:?⛔ ERROR: MMDAPP is not set}/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsSkillsetValidateRoutineCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -71,13 +68,10 @@ rigRoutine(){ ## name, what to leave out...
 	} > "$rigTmp/routines/magic-tester.$routineName.routine.md"
 }
 rigCaller=()
-rigRun(){ ## stub|testing, then the words after the operation -- one call; rc in rigRc, both streams in $rigTmp/said
-	local runWhich="$1" ; shift
-	local runScript="$rigTool" runOp="--tester-skillset-validate-routine"
-	[ "$runWhich" = stub ] || { runScript="$rigTesting" ; runOp="--skillset-validate-routine" ; }
+rigRun(){ ## the words after the operation -- one call; rc in rigRc, both streams in $rigTmp/said
 	rigRc=0
 	( cd "$rigWs" && env -i HOME="$rigTmp/home" USER=rigacct PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
-		MDAT_SKILLSET_ROOT="$rigTmp/skills" ${rigCaller[@]+"${rigCaller[@]}"} bash "$runScript" "$runOp" "$@" ) > "$rigTmp/said" 2>&1 < "${rigStdin:-/dev/null}" || rigRc=$?
+		MDAT_SKILLSET_ROOT="$rigTmp/skills" ${rigCaller[@]+"${rigCaller[@]}"} bash "$rigTesting" --skillset-validate-routine "$@" ) > "$rigTmp/said" 2>&1 < "${rigStdin:-/dev/null}" || rigRc=$?
 }
 rigVerdict(){ ## fixed strings the answer must name... -- `0` where it passed, else `refused` and each string named or not
 	local verdictText verdictName
@@ -96,31 +90,29 @@ rigRoutine no-two requires-session-kind opening
 rigFile(){ printf '%s' "$rigTmp/routines/magic-tester.$1.routine.md" ; }
 
 echo "-- 1. a complete routine passes --"
-rigRun stub "$( rigFile complete )"
-rigAssert "through the stub, exit 0"                            "$rigRc" "0"
-rigRun testing "$( rigFile complete )"
-rigAssert "through the Testing file, exit 0"                    "$rigRc" "0"
+rigRun "$( rigFile complete )"
+rigAssert "a complete routine, exit 0"                          "$rigRc" "0"
 
 echo "-- 2. it rejects, naming what is missing --"
-rigRun stub "$( rigFile no-kind )"
+rigRun "$( rigFile no-kind )"
 rigAssert "no requires-session-kind:"                           "$( rigVerdict requires-session-kind )" "refused requires-session-kind"
-rigRun stub "$( rigFile no-opening )"
+rigRun "$( rigFile no-opening )"
 rigAssert "no # Opening steps"                                  "$( rigVerdict 'Opening steps' )" "refused Opening steps"
-rigRun stub "$( rigFile no-closure )"
+rigRun "$( rigFile no-closure )"
 rigAssert "no # Closure steps"                                  "$( rigVerdict 'Closure steps' )" "refused Closure steps"
-rigRun stub "$( rigFile no-two )"
+rigRun "$( rigFile no-two )"
 rigAssert "the key and a heading missing: both named"           "$( rigVerdict requires-session-kind 'Opening steps' )" "refused requires-session-kind Opening steps"
 
 echo "-- 2b. the optional keys may be left out --"
 rigAssert "the complete routine carries none of tracking-item:, operations:, start-context:, nor requires:, and passes" \
-	"$( LC_ALL=C grep -c -E '^(tracking-item|operations|start-context|requires):' "$( rigFile complete )" ):$( rigRun stub "$( rigFile complete )" ; printf '%s' "$rigRc" )" "0:0"
+	"$( LC_ALL=C grep -c -E '^(tracking-item|operations|start-context|requires):' "$( rigFile complete )" ):$( rigRun "$( rigFile complete )" ; printf '%s' "$rigRc" )" "0:0"
 
 ## The complete routine with extra frontmatter lines (a line a key, `\n` between them), as a routine of the given name.
 rigWith(){ ## name, frontmatter lines
 	EXTRA="$2" LC_ALL=C awk '{ print } $0 == "requires-session-kind: coworking" { printf "%s\n", ENVIRON["EXTRA"] }' "$( rigFile complete )" > "$rigTmp/routines/magic-tester.$1.routine.md"
 }
-rigWithRun(){ ## name, frontmatter lines -- one stub run of it
-	rigWith "$1" "$2" ; rigRun stub "$( rigFile "$1" )"
+rigWithRun(){ ## name, frontmatter lines -- one run of it
+	rigWith "$1" "$2" ; rigRun "$( rigFile "$1" )"
 }
 
 echo "-- 2c. input-scan-def: one repeatable line a scan, or none alone --"
@@ -180,24 +172,26 @@ for rigCache in armed routine ; do
 done
 rigWithRun cache-bad 'cache-prefix: always'
 rigAssert "cache-prefix: always: refused, named"                "$( rigVerdict cache-prefix 'is not armed or routine' )" "refused cache-prefix is not armed or routine"
-rigAssert "a routine that leaves it out passes (armed)"         "$( rigRun stub "$( rigFile complete )" ; printf '%s' "$rigRc" )" "0"
+rigWithRun cache-extended 'cache-prefix: armed-extended'
+rigAssert "cache-prefix: armed-extended: refused, the retired marker"  "$( rigVerdict cache-prefix 'is not armed or routine' )" "refused cache-prefix is not armed or routine"
+rigAssert "a routine that leaves it out passes (armed)"         "$( rigRun "$( rigFile complete )" ; printf '%s' "$rigRc" )" "0"
 
 echo "-- 3. --from-stdin gives the same verdicts --"
-rigStdin="$( rigFile complete )" rigRun stub --from-stdin
+rigStdin="$( rigFile complete )" rigRun --from-stdin
 rigAssert "the complete routine on standard input passes"       "$rigRc" "0"
-rigStdin="$( rigFile no-kind )" rigRun stub --from-stdin
+rigStdin="$( rigFile no-kind )" rigRun --from-stdin
 rigAssert "one missing requires-session-kind: on standard input is refused, named" "$( rigVerdict requires-session-kind )" "refused requires-session-kind"
 
 echo "-- 4. magic-tester's session may call it --"
 rigCaller=( MDAT_SPAWN_AGENT=magic-tester MDAT_SPAWN_SESSION_ID=rig-run-tester )
-rigRun stub "$( rigFile complete )"
+rigRun "$( rigFile complete )"
 rigCaller=()
 rigAssert "the complete routine passes for magic-tester"        "$rigRc" "0"
 
 echo "-- 5. read-only --"
 ( cd "$rigTmp/routines" && cksum ./* ) > "$rigTmp/before"
-rigRun stub "$( rigFile no-two )"
-rigRun testing "$( rigFile complete )"
+rigRun "$( rigFile no-two )"
+rigRun "$( rigFile complete )"
 ( cd "$rigTmp/routines" && cksum ./* ) > "$rigTmp/after"
 rigAssert "the routine files are unchanged, and the operation ran" "$( cmp -s "$rigTmp/before" "$rigTmp/after" && echo unchanged || echo changed ) $rigRc" "unchanged 0"
 

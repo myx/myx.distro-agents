@@ -17,6 +17,10 @@
 ##      the window, with what was accumulated before it
 ##   6. any DM ends it at once; a mention in the session thread does
 ##   7. the pointer: a second scan of the session does not repeat what the first returned
+##   9. a tagged message of a session chat thread where the member's own instance is present is no work: it is returned for
+##      knowledge only, its row marked `[fyi: ...]` and a `# fyi: ... -- for your knowledge, not yours to answer` line before it,
+##      and it starts nothing (the scan is no input for a start, no duty is started and the tags name no news). The same message in
+##      that thread with the instance gone -- its run ended -- is a normal item, unmarked, and the scan is input.
 ## Offline: a Slack-shaped fake curl first on PATH; every tree is this rig's own.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -76,7 +80,7 @@ rigCall(){ ## result name, op words... -- one call from the rig workspace; rc, o
 	shift
 	callStart="$( date +%s )"
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
-		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_SCENARIO="$rigDir" MDAT_WAIT_REMIND=off MDAT_WAIT_POLL_SECONDS=1 perl -e 'alarm 120 ; exec @ARGV' bash "$rigTool" "$@" ) > "$rigDir/$callName.out" 2> "$rigDir/$callName.err" < /dev/null || callRc=$?
+		MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_SCENARIO="$rigDir" MDAT_WAIT_REMIND=off MDAT_WAIT_POLL_SECONDS=1 python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 120 -- bash "$rigTool" "$@" ) > "$rigDir/$callName.out" 2> "$rigDir/$callName.err" < /dev/null || callRc=$?
 	printf '%s' "$callRc" > "$rigDir/$callName.rc"
 	printf '%s' "$(( $( date +%s ) - callStart ))" > "$rigDir/$callName.took"
 }
@@ -87,6 +91,20 @@ rigScan(){ ## result name
 	rigCall "$1" --intern-op-work-duty-input-scan keeper-rig --session-id "$rigSession"
 }
 rigTook(){ cat "$rigDir/$1.took" ; }
+## The run of the member in the rig's session, as the spawner records it: `spawn-started` until the tooling closes it, which is the one rule
+## a run is over by; `spawn-succeeded` is a run that ended, and so no presence.
+rigInstance(){ ## spawn id, status, host
+	mkdir -p "$rigWs/.local/agents/spawned/$1"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: rig-parent\nparent-member: keeper-rig\nstart-context: spawned\nowner: keeper-rig\nhost: %s\nstatus: %s\n---\n\n# Spawn session: %s\n' \
+		"$rigSession" "$1" "$3" "$2" "$1" > "$rigWs/.local/agents/spawned/$1/$1.spawn.md"
+}
+rigSeat(){ ## spawn id -- the member's seat in the rig's session, naming that run, as a start takes it
+	mkdir -p "$rigWs/.local/agents/sessions/$rigSession/seats"
+	printf '%s\n' "$1" > "$rigWs/.local/agents/sessions/$rigSession/seats/keeper-rig"
+}
+rigReportEmpty(){ ## result name -- rc 0 where the report holds nothing to start on (AgentsToolsInputScanReportEmpty)
+	bash -c '. "$1/myx/myx.distro-agents/sh-lib/session/AgentsTools.InputScanDef.include" ; AgentsToolsInputScanReportEmpty "$2"' rig "$rigOrigin" "$rigDir/$1.out" 2> /dev/null && printf empty || printf input
+}
 
 echo "-- 1. the scan runs for the member, and is one of the tooling's scans --"
 rigScene run 3
@@ -135,9 +153,14 @@ rigAssert "a DM message, no mention in it, ends the collect at once"  "$( [ "$( 
 rigAssert "behind the conversation it is of"                          "$( rigHolds dm '# in DRIGDM001' )" 1
 rigScene thread 25
 printf 'CRIGSES01:%s.000001\n' "$(( rigNow - 400 ))" > "$rigWs/.local/agents/sessions/$rigSession/session.thread"
+## The member's instance in that session: its run and the seat it holds. The thread is where that instance is present, so its messages are FYI.
+rigInstance rig-run-instance spawn-started rig-elsewhere
+rigSeat rig-run-instance
 printf '{"ok":true,"messages":[%s,%s],"has_more":false}\n' "$( rigMsg "$(( rigNow - 400 )).000001" URIGOTHER RIG-THREAD-ROOT )" "$( rigMsg "$(( rigNow - 30 )).000001" URIGOTHER 'RIG-THREAD-MENTION @keeper-rig' "$(( rigNow - 400 )).000001" )" > "$rigDir/replies.CRIGSES01.$(( rigNow - 400 )).000001.json"
 rigScan thread
 rigAssert "a mention in the session thread ends it at once"           "$( [ "$( rigTook thread )" -lt 20 ] && echo quick || echo "took:$( rigTook thread )" ):$( rigHolds thread '# returned: immediate' ):$( rigHolds thread RIG-THREAD-MENTION ):$( rigHolds thread RIG-THREAD-ROOT )" "quick:1:1:0"
+rigAssert "the session-thread mention is for its knowledge, not to answer"  "$( rigHolds thread 'for your knowledge, not yours to answer' )" 1
+rigAssert "the row itself says it is FYI, right after its sender"       "$( rigHolds thread '[fyi: the session chat thread of keeper-rig' )" 1
 
 echo "-- 7. the pointer --"
 rigScene pointer 3
@@ -176,6 +199,27 @@ rigScene toolchat 25
 rigHistory CRIG00001 "$( rigMsg "$(( rigNow - 40 )).000001" URIGOTHER 'RIG-PERSON-TAG @keeper-rig look' )"
 rigScan toolchat
 rigAssert "control: a person's tag in the same rig still ends it at once" "$( [ "$( rigTook toolchat )" -lt 20 ] && echo quick || echo "took:$( rigTook toolchat )" ):$( rigHolds toolchat '# returned: immediate' )" "quick:1"
+
+echo "-- 9. a session thread where the member's instance is present is FYI, not work --"
+rigScene fyi 3
+rm -f "$rigData/inboxes/keeper-rig/incoming/"*.md
+printf 'CRIGSES01:%s.000001\n' "$(( rigNow - 400 ))" > "$rigWs/.local/agents/sessions/$rigSession/session.thread"
+## A scan at a start runs before the run's own process exists: what is there is its record, spawn-started, and nothing to ask of a process.
+rigInstance rig-run-live spawn-started rig-elsewhere
+printf '{"ok":true,"messages":[%s],"has_more":false}\n' "$( rigMsg "$(( rigNow - 30 )).000001" URIGOTHER 'RIG-FYI-MENTION @keeper-rig' "$(( rigNow - 400 )).000001" )" > "$rigDir/replies.CRIGSES01.$(( rigNow - 400 )).000001.json"
+rigScan fyi
+rigAssert "the message is returned, marked FYI in its row and said to be for knowledge only" "$( rigHolds fyi RIG-FYI-MENTION ):$( rigHolds fyi '[fyi: the session chat thread of keeper-rig' ):$( rigHolds fyi 'for your knowledge, not yours to answer' )" "1:1:1"
+rigAssert "an FYI is no input for a start: the scan counts as empty"        "$( rigReportEmpty fyi )" empty
+rigAssert "and the member is left no work and nothing to wait on: no duty started, no tag news" "$( [ -e "$rigWs/.local/agents/schedule/duty/keeper-rig" ] && echo duty || echo noduty ):$( [ -e "$rigWs/.local/agents/schedule/tags/keeper-rig" ] && echo tag || echo notag )" "noduty:notag"
+rigScene fyiabsent 25
+rm -f "$rigData/inboxes/keeper-rig/incoming/"*.md
+printf 'CRIGSES01:%s.000001\n' "$(( rigNow - 400 ))" > "$rigWs/.local/agents/sessions/$rigSession/session.thread"
+## The same session thread with the member's run ended: no instance is present there, so the mention is work again.
+rigInstance rig-run-ended spawn-succeeded rig-elsewhere
+printf '{"ok":true,"messages":[%s],"has_more":false}\n' "$( rigMsg "$(( rigNow - 30 )).000001" URIGOTHER 'RIG-ABSENT-MENTION @keeper-rig' "$(( rigNow - 400 )).000001" )" > "$rigDir/replies.CRIGSES01.$(( rigNow - 400 )).000001.json"
+rigScan fyiabsent
+rigAssert "no instance present there: the message is a normal item, unmarked" "$( rigHolds fyiabsent RIG-ABSENT-MENTION ):$( rigHolds fyiabsent '[fyi:' )" "1:0"
+rigAssert "and the scan is input for a start"                              "$( rigReportEmpty fyiabsent )" input
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ WORK DUTY INPUT SCAN CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

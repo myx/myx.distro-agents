@@ -13,6 +13,12 @@ AgentsToolsOwnerSetupRow(){
 	printf '  %s %s %s\n' "$rowLabel" "${rowDots:${#rowLabel}}" "$rowStatus"
 }
 
+## The CLI a spawn of a workspace resolves to, as the spawner resolves it (the preset its tier names,
+## AgentsToolsPresetSpawnCli), and nothing where no tier is set. Read-only; a subshell, so nothing it sources stays.
+AgentsToolsOwnerSpawnCli(){ ## workspace root
+	( MMDAPP="$1" MDAT_SPAWN_PRESET="" ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/config/AgentsTools.Preset.include" && AgentsToolsPresetSpawnCli 2> /dev/null )
+}
+
 ## True when a generated console differs from the template --make-console-command
 ## would rewrite it from. The marker greps beside each call test named tokens and
 ## so cannot see any other drift; --make-console-command is a plain `cat`, so a
@@ -620,7 +626,7 @@ magic-team MDAT_WORKSPACE_MODE"
 		## What a spawn resolves is `now` (the reader every spawn uses: the CLI service of the preset its tier names, and none where no tier is set).
 		autoNow=""
 		if [ -f "${MMDAPP%/}/.local/.agents/magic-team.agent.env" ] ; then
-			autoNow="$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2> /dev/null )" || autoNow=""
+			autoNow="$( AgentsToolsOwnerSpawnCli "${MMDAPP%/}" )" || autoNow=""
 		fi
 		if [ -z "$autoPick" ] ; then
 			if [ "$autoOperation" = "--check" ] ; then
@@ -645,7 +651,7 @@ magic-team MDAT_WORKSPACE_MODE"
 		( DistroAgentsTools "--owner-setup-$autoPick" --set-as-default --apply ) || autoRc=$?
 		[ "$autoRc" = 0 ] || echo "⛔ ERROR: $MDSC_CMD --owner-setup-cli-auto --apply: --owner-setup-$autoPick --set-as-default --apply did not end well, what it says is above" >&2
 		## Written is not in effect: asked again as a spawn asks it, and said plainly where a tier preset stands ahead of the setting just written.
-		autoNow="$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2> /dev/null )" || autoNow=""
+		autoNow="$( AgentsToolsOwnerSpawnCli "${MMDAPP%/}" )" || autoNow=""
 		if [ "$autoNow" != "$autoPick" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --owner-setup-cli-auto --apply: SPAWN_TIER_NORMAL was pointed at the preset $autoPick, but a spawn still resolves ${autoNow:-nothing} -- look at the preset it names" >&2
 			autoRc=1
@@ -812,7 +818,10 @@ magic-team MDAT_WORKSPACE_MODE"
 					copilot)  setupDeclareArgs+=( --allow COPILOT_GITHUB_TOKEN ) ;;
 					copilot-native) ;;
 					grok)     setupDeclareArgs+=( --allow XAI_API_KEY ) ;;
-					scaleway) setupDeclareArgs+=( --allow SCALEWAY_DEEPSEEK --allow SCALEWAY_GEMMA ) ;;
+					## One name, the key: a Scaleway key reaches every model its Project
+					## carries, so the model is the preset's and no credential name
+					## stands for one.
+					scaleway) setupDeclareArgs+=( --allow SCALEWAY_API_KEY ) ;;
 					deepseek) setupDeclareArgs+=( --allow DEEPSEEK_API_KEY ) ;;
 				esac
 			;;
@@ -1024,10 +1033,20 @@ magic-team MDAT_WORKSPACE_MODE"
 					AgentsToolsOwnerSetupRow "Grok harness" "NOT INSTALLED"
 					setupRc=1
 				fi
-				DistroAgentsTools --intern-op-check-configs magic-team \
-					--optional "XAI_API_KEY:<key>" --expect-secret XAI_API_KEY \
-					--context "--owner-setup-grok:$setupCtxTag" || true
-				if [ -z "$( DistroAgentsTools --agents-config-option magic-team --select XAI_API_KEY 2>/dev/null )" ] ; then
+				## The credential stands in preset-grok, the preset of this CLI
+				## service, and in no other scope: that is where the spawn's preset
+				## chain reads it (AgentsToolsPresetOverlay), so a key left in the
+				## team scope is one no spawn is ever given. A --select through
+				## --agents-config-option makes the file it reads, so this scope is
+				## read only where the preset already exists: a --check writes nothing.
+				local setupCredValue=""
+				if [ -f "$setupHere/.local/.agents/preset-grok.agent.env" ] ; then
+					DistroAgentsTools --intern-op-check-configs preset-grok \
+						--optional "XAI_API_KEY:<key>" --expect-secret XAI_API_KEY \
+						--context "--owner-setup-grok:$setupCtxTag" || true
+					setupCredValue="$( DistroAgentsTools --agents-config-option preset-grok --select XAI_API_KEY 2>/dev/null )"
+				fi
+				if [ -z "$setupCredValue" ] ; then
 					[ "$setupOperation" != "--check" ] || {
 						echo "GROK_CREDENTIAL: FAIL"
 						echo "  warn: XAI_API_KEY is not set, and it is required"
@@ -1056,10 +1075,17 @@ magic-team MDAT_WORKSPACE_MODE"
 					AgentsToolsOwnerSetupRow "DeepSeek harness" "NOT INSTALLED"
 					setupRc=1
 				fi
-				DistroAgentsTools --intern-op-check-configs magic-team \
-					--optional "DEEPSEEK_API_KEY:<key>" --expect-secret DEEPSEEK_API_KEY \
-					--context "--owner-setup-deepseek:$setupCtxTag" || true
-				if [ -z "$( DistroAgentsTools --agents-config-option magic-team --select DEEPSEEK_API_KEY 2>/dev/null )" ] ; then
+				## The credential stands in preset-deepseek, the preset of this CLI
+				## service, and in no other scope -- the same rule as grok's above,
+				## and the same read-only guard around it.
+				local setupCredValue=""
+				if [ -f "$setupHere/.local/.agents/preset-deepseek.agent.env" ] ; then
+					DistroAgentsTools --intern-op-check-configs preset-deepseek \
+						--optional "DEEPSEEK_API_KEY:<key>" --expect-secret DEEPSEEK_API_KEY \
+						--context "--owner-setup-deepseek:$setupCtxTag" || true
+					setupCredValue="$( DistroAgentsTools --agents-config-option preset-deepseek --select DEEPSEEK_API_KEY 2>/dev/null )"
+				fi
+				if [ -z "$setupCredValue" ] ; then
 					[ "$setupOperation" != "--check" ] || {
 						echo "DEEPSEEK_CREDENTIAL: FAIL"
 						echo "  warn: DEEPSEEK_API_KEY is not set, and it is required"
@@ -1501,20 +1527,23 @@ magic-team MDAT_WORKSPACE_MODE"
 						setupRc=1
 					fi
 				fi
-				DistroAgentsTools --intern-op-check-configs magic-team \
-					--optional "SCALEWAY_DEEPSEEK:<key>" --expect-secret SCALEWAY_DEEPSEEK \
-					--context "--owner-setup-scaleway:$setupCtxTag" || true
-				DistroAgentsTools --intern-op-check-configs magic-team \
-					--optional "SCALEWAY_GEMMA:<key>" --expect-secret SCALEWAY_GEMMA \
-					--context "--owner-setup-scaleway:$setupCtxTag" || true
-				## Either key alone reaches every model -- Scaleway scopes by
-				## Project+policy, not by model, confirmed live -- so the gate is
-				## "at least one", never "both".
-				if [ -z "$( DistroAgentsTools --agents-config-option magic-team --select SCALEWAY_DEEPSEEK 2>/dev/null )" ] \
-					&& [ -z "$( DistroAgentsTools --agents-config-option magic-team --select SCALEWAY_GEMMA 2>/dev/null )" ] ; then
+				## The credential stands in preset-scaleway, the preset of this CLI
+				## service, and in no other scope -- the same rule as grok's above, and
+				## the same read-only guard around it. One name, SCALEWAY_API_KEY: a key
+				## is scoped by Project and policy, never by model, so the model a run
+				## uses is the preset's PRESET_MODEL_OR_MACRO and never a credential's
+				## name. A preset called mel-scaleway-deepseek is only a name.
+				local setupCredValue=""
+				if [ -f "$setupHere/.local/.agents/preset-scaleway.agent.env" ] ; then
+					DistroAgentsTools --intern-op-check-configs preset-scaleway \
+						--optional "SCALEWAY_API_KEY:<key>" --expect-secret SCALEWAY_API_KEY \
+						--context "--owner-setup-scaleway:$setupCtxTag" || true
+					setupCredValue="$( DistroAgentsTools --agents-config-option preset-scaleway --select SCALEWAY_API_KEY 2>/dev/null )"
+				fi
+				if [ -z "$setupCredValue" ] ; then
 					[ "$setupOperation" != "--check" ] || {
 						echo "SCALEWAY_CREDENTIAL: FAIL"
-						echo "  warn: neither SCALEWAY_DEEPSEEK nor SCALEWAY_GEMMA is set, and one is required"
+						echo "  warn: SCALEWAY_API_KEY is not set in the preset 'scaleway', and it is required"
 						echo "  fix:  $setupToolPath --owner-setup-scaleway --apply"
 					}
 					AgentsToolsOwnerSetupRow "Scaleway credential" "NOT CONFIGURED"
@@ -1623,28 +1652,28 @@ magic-team MDAT_WORKSPACE_MODE"
 				## Read only where the scope file already exists: a --select creates the file it reads.
 				setupCliValue=""
 				if [ -f "$setupHere/.local/.agents/magic-team.agent.env" ] ; then
-					setupCliValue="$( MMDAPP="$setupHere" ; DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE || : )"
+					setupCliValue="$( AgentsToolsOwnerSpawnCli "$setupHere" )" || setupCliValue=""
 				fi
 				if [ -z "$setupCliValue" ] ; then
 					[ "$setupOperation" != "--check" ] || {
-						echo "SPAWN_CLI_SERVICE: FAIL"
-						echo "  warn: unset here, so a spawn exits rc=5 without choosing a CLI and its"
-						echo "        caller falls back to an internal agent rather than starting claude"
-						echo "  why:  the setting lives in $setupHere/.local/.agents/, so"
+						echo "SPAWN_TIER_NORMAL: FAIL"
+						echo "  warn: no tier is set here, so a spawn is refused naming SPAWN_TIER_NORMAL"
+						echo "        before it starts rather than falling back to another CLI"
+						echo "  why:  the tier lives in $setupHere/.local/.agents/, so"
 						echo "        selecting claude-native in one workspace does nothing for any other"
 						echo "  fix:  $setupToolPath --owner-setup-claude-native --apply"
 					}
-					AgentsToolsOwnerSetupRow "CLI selection" "NOT SET (spawn fails)"
+					AgentsToolsOwnerSetupRow "CLI selection" "NOT SET (spawn refused)"
 					setupNeedsApply="yes"
-					setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
+					setupBlockers="$setupBlockers SPAWN_TIER_NORMAL"
 					setupRc=1
 				elif [ "$setupCliValue" = "claude-native" ] ; then
-					[ "$setupOperation" != "--check" ] || echo "SPAWN_CLI_SERVICE: OK"
+					[ "$setupOperation" != "--check" ] || echo "SPAWN_TIER_NORMAL: OK"
 					AgentsToolsOwnerSetupRow "CLI selection" "claude-native"
 				else
 					[ "$setupOperation" != "--check" ] || {
-						echo "SPAWN_CLI_SERVICE: WARN"
-						echo "  warn: set to '$setupCliValue', so this workspace runs $setupCliValue, not claude-native"
+						echo "SPAWN_TIER_NORMAL: WARN"
+						echo "  warn: the tier's preset runs $setupCliValue, not claude-native"
 						echo "  fix:  $setupToolPath --owner-setup-claude-native --set-as-default --apply"
 					}
 					AgentsToolsOwnerSetupRow "CLI selection" "$setupCliValue"
@@ -1773,7 +1802,8 @@ magic-team MDAT_WORKSPACE_MODE"
 			copilot)
 				## What a spawn actually needs: the proxy runs
 				## DistroAgentsConsole.sh --cli-configured --non-interactive, which
-				## takes SPAWN_CLI_SERVICE, refuses to guess when it is unset, and
+				## takes the CLI service of the preset SPAWN_TIER_NORMAL names, refuses
+				## to guess when no tier is set, and
 				## execs copilot with --allow-all-tools and the member roots off
 				## grants.index as --add-dir, the access fragment as their fallback.
 				## Each of those is a subject below. Authentication
@@ -1821,9 +1851,14 @@ magic-team MDAT_WORKSPACE_MODE"
 				## flow, so a read-only diagnosis cannot run it. An interactive login
 				## already done on this machine is equally unreadable here, which is why
 				## an absent token WARNs rather than fails.
+				## The token stands in preset-copilot, the preset of this CLI service,
+				## and in no other scope: that is where the spawn's preset chain reads
+				## it, and where the console's own export finds it. Read only where the
+				## preset exists: a --select through --agents-config-option makes the
+				## file it reads, so a --check writes nothing.
 				setupCredential=""
-				if [ -f "$setupHere/.local/.agents/magic-team.agent.env" ] ; then
-					setupCredential="$( MMDAPP="$setupHere" ; DistroAgentsTools --agents-config-option magic-team --select COPILOT_GITHUB_TOKEN || : )"
+				if [ -f "$setupHere/.local/.agents/preset-copilot.agent.env" ] ; then
+					setupCredential="$( MMDAPP="$setupHere" ; DistroAgentsTools --agents-config-option preset-copilot --select COPILOT_GITHUB_TOKEN || : )"
 				fi
 				if [ -n "$setupCredential" ] ; then
 					[ "$setupOperation" != "--check" ] || {
@@ -1856,33 +1891,33 @@ magic-team MDAT_WORKSPACE_MODE"
 				## --agents-config-option creates the file it reads.
 				setupCliValue=""
 				if [ -f "$setupHere/.local/.agents/magic-team.agent.env" ] ; then
-					setupCliValue="$( MMDAPP="$setupHere" ; DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE || : )"
+					setupCliValue="$( AgentsToolsOwnerSpawnCli "$setupHere" )" || setupCliValue=""
 				fi
 				if [ -z "$setupCliValue" ] ; then
 					[ "$setupOperation" != "--check" ] || {
-						echo "SPAWN_CLI_SERVICE: FAIL"
-						echo "  warn: unset here, so a spawn exits rc=5 without choosing a CLI and its"
-						echo "        caller falls back to an internal agent rather than starting copilot"
-						echo "  why:  the setting lives in $setupHere/.local/.agents/, so"
+						echo "SPAWN_TIER_NORMAL: FAIL"
+						echo "  warn: no tier is set here, so a spawn is refused naming SPAWN_TIER_NORMAL"
+						echo "        before it starts rather than falling back to another CLI"
+						echo "  why:  the tier lives in $setupHere/.local/.agents/, so"
 						echo "        selecting copilot in one workspace does nothing for any other"
 						echo "  fix:  $setupToolPath --owner-setup-copilot --apply"
 					}
-					AgentsToolsOwnerSetupRow "CLI selection" "NOT SET (spawn fails)"
+					AgentsToolsOwnerSetupRow "CLI selection" "NOT SET (spawn refused)"
 					## --apply closes this one itself: the domain declares
 					## --service-key SPAWN_CLI_SERVICE, and the engine's service
-					## selection writes it wherever nothing is selected. So it is a
+					## selection writes SPAWN_TIER_NORMAL wherever nothing is selected. So it is a
 					## needs-apply blocker rather than a value the reader supplies,
 					## and the what-is-missing command below never names it.
 					setupNeedsApply="yes"
-					setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
+					setupBlockers="$setupBlockers SPAWN_TIER_NORMAL"
 					setupRc=1
 				elif [ "$setupCliValue" = "copilot" ] ; then
-					[ "$setupOperation" != "--check" ] || echo "SPAWN_CLI_SERVICE: OK"
+					[ "$setupOperation" != "--check" ] || echo "SPAWN_TIER_NORMAL: OK"
 					AgentsToolsOwnerSetupRow "CLI selection" "copilot"
 				else
 					[ "$setupOperation" != "--check" ] || {
-						echo "SPAWN_CLI_SERVICE: WARN"
-						echo "  warn: set to '$setupCliValue', so this workspace runs $setupCliValue and never copilot"
+						echo "SPAWN_TIER_NORMAL: WARN"
+						echo "  warn: the tier's preset runs $setupCliValue and never copilot"
 						echo "  fix:  $setupToolPath --owner-setup-copilot --set-as-default --apply"
 					}
 					AgentsToolsOwnerSetupRow "CLI selection" "$setupCliValue"
@@ -2248,63 +2283,62 @@ magic-team MDAT_WORKSPACE_MODE"
 					## operation applies nothing.
 					setupCliValue=""
 					if [ -f "$setupRoot/.local/.agents/magic-team.agent.env" ] ; then
-						setupCliValue="$( MMDAPP="$setupRoot" ; DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE || : )"
+						setupCliValue="$( AgentsToolsOwnerSpawnCli "$setupRoot" )" || setupCliValue=""
 					fi
 					setupWillRun="$setupCliValue"
 					if [ -z "$setupCliValue" ] ; then
 						setupWillRun="${setupAutoCli:-nothing}"
 						[ "$setupOperation" != "--check" ] || {
-							echo "SPAWN_CLI_SERVICE: FAIL"
-							echo "  warn: unset here, so an agent-initiated spawn in this workspace fails"
-							echo "        rather than choosing a CLI, and its caller falls back to an"
-							echo "        internal spawn -- --cli-auto still scans, but only for a console"
-							echo "        the human-owner starts himself"
-							echo "  why:  the setting lives in $setupRoot/.local/.agents/, so setting it in"
+							echo "SPAWN_TIER_NORMAL: FAIL"
+							echo "  warn: no tier is set here, so an agent-initiated spawn is refused naming"
+							echo "        SPAWN_TIER_NORMAL before it starts; --cli-auto still scans, but only"
+							echo "        for a console the human-owner starts himself"
+							echo "  why:  the tier lives in $setupRoot/.local/.agents/, so setting it in"
 							echo "        one workspace does nothing for any other"
 							echo "  fix:  $setupToolPath --owner-setup-claude --apply"
 						}
-						AgentsToolsOwnerSetupRow "CLI selection" "NOT SET (spawn fails)"
+						AgentsToolsOwnerSetupRow "CLI selection" "NOT SET (spawn refused)"
 						## --apply closes this one itself: the domain declares
 						## --service-key SPAWN_CLI_SERVICE, and the engine's service
-						## selection writes it wherever nothing is selected. So it is a
+						## selection writes SPAWN_TIER_NORMAL wherever nothing is selected. So it is a
 						## needs-apply blocker rather than a value the reader supplies,
 						## and the what-is-missing command below never names it.
 						setupNeedsApply="yes"
-						setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
+						setupBlockers="$setupBlockers SPAWN_TIER_NORMAL"
 						setupRc=1
 					else
 						setupCliName=""
 						case " $setupKnownClis " in *" $setupCliValue "*) setupCliName="known" ;; esac
 						if [ -z "$setupCliName" ] ; then
 							[ "$setupOperation" != "--check" ] || {
-								echo "SPAWN_CLI_SERVICE: FAIL"
-								echo "  warn: set to '$setupCliValue', which the console does not accept -- it"
+								echo "SPAWN_TIER_NORMAL: FAIL"
+								echo "  warn: the tier's preset runs '$setupCliValue', which the console does not accept -- it"
 								echo "        exits on an unsupported CLI rather than choosing another"
 								echo "  fix:  $setupToolPath --owner-setup-claude --set-as-default --apply"
 							}
 							AgentsToolsOwnerSetupRow "CLI selection" "REJECTED ($setupCliValue)"
 							setupNeedsApply="yes" ; setupApplyDefault="yes"
-							setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
+							setupBlockers="$setupBlockers SPAWN_TIER_NORMAL"
 							setupRc=1
 						elif ! AgentsToolsSpawnCliPresent "$setupCliValue" ; then
 							[ "$setupOperation" != "--check" ] || {
-								echo "SPAWN_CLI_SERVICE: FAIL"
-								echo "  warn: set to '$setupCliValue', which is not in PATH -- an explicitly"
+								echo "SPAWN_TIER_NORMAL: FAIL"
+								echo "  warn: the tier's preset runs '$setupCliValue', which is not in PATH -- an explicitly"
 								echo "        selected CLI is never substituted, so the console exits instead"
 								echo "        of falling back to another one or to a shell"
 								echo "  fix:  myx.common install/$setupCliValue"
 							}
 							AgentsToolsOwnerSetupRow "CLI selection" "$setupCliValue NOT INSTALLED"
 							setupNeedsApply="yes" ; setupApplyDefault="yes"
-							setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
+							setupBlockers="$setupBlockers SPAWN_TIER_NORMAL"
 							setupRc=1
 						else
 							setupCliName=""
 							case " $setupSpawnClis " in *" $setupCliValue "*) setupCliName="spawnable" ;; esac
 							if [ -z "$setupCliName" ] ; then
 								[ "$setupOperation" != "--check" ] || {
-									echo "SPAWN_CLI_SERVICE: WARN"
-									echo "  warn: set to '$setupCliValue', which runs interactively but not for a"
+									echo "SPAWN_TIER_NORMAL: WARN"
+									echo "  warn: the tier's preset runs '$setupCliValue', which runs interactively but not for a"
 									echo "        spawned agent -- those are launched non-interactively, where the"
 									echo "        console accepts only '$setupSpawnClis'"
 									echo "  fix:  $setupToolPath --owner-setup-claude --set-as-default --apply"
@@ -2313,15 +2347,15 @@ magic-team MDAT_WORKSPACE_MODE"
 								## A selection no spawn can use blocks the thing this domain
 								## exists for, so it carries a step like any other blocker.
 								setupNeedsApply="yes" ; setupApplyDefault="yes"
-								setupBlockers="$setupBlockers SPAWN_CLI_SERVICE"
+								setupBlockers="$setupBlockers SPAWN_TIER_NORMAL"
 								setupRc=1
 							elif [ "$setupCliValue" = "claude" ] ; then
-								[ "$setupOperation" != "--check" ] || echo "SPAWN_CLI_SERVICE: OK"
+								[ "$setupOperation" != "--check" ] || echo "SPAWN_TIER_NORMAL: OK"
 								AgentsToolsOwnerSetupRow "CLI selection" "claude"
 							else
 								[ "$setupOperation" != "--check" ] || {
-									echo "SPAWN_CLI_SERVICE: WARN"
-									echo "  warn: set to '$setupCliValue', so this workspace runs $setupCliValue, not claude"
+									echo "SPAWN_TIER_NORMAL: WARN"
+									echo "  warn: the tier's preset runs '$setupCliValue', not claude"
 									echo "  fix:  $setupToolPath --owner-setup-claude --set-as-default --apply"
 								}
 								AgentsToolsOwnerSetupRow "CLI selection" "$setupCliValue"
@@ -2344,8 +2378,8 @@ magic-team MDAT_WORKSPACE_MODE"
 						setupAuthLine="$(
 							MMDAPP="$setupRoot"
 							for setupAuthKey in ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN ; do
-								[ -f "$setupRoot/.local/.agents/magic-team.agent.env" ] || continue
-								setupAuthValue="$( DistroAgentsTools --agents-config-option magic-team --select "$setupAuthKey" 2>/dev/null || : )"
+								[ -f "$setupRoot/.local/.agents/preset-claude.agent.env" ] || continue
+								setupAuthValue="$( DistroAgentsTools --agents-config-option preset-claude --select "$setupAuthKey" 2>/dev/null || : )"
 								[ -n "$setupAuthValue" ] || continue
 								export "$setupAuthKey=$setupAuthValue"
 							done
@@ -2423,10 +2457,10 @@ magic-team MDAT_WORKSPACE_MODE"
 						setupWillRun="unknown"
 						setupBlockers="$setupBlockers AGENTS_CONSOLE_SCRIPT"
 						setupRc=1
-					elif ! grep -q 'SPAWN_CLI_SERVICE' "$setupConsole" 2>/dev/null || ! grep -q 'DISTRO_CONSOLE_EXEC' "$setupConsole" 2>/dev/null || ! grep -q 'cli-configured' "$setupConsole" 2>/dev/null || ! grep -q 'DAGC_CLI_CREDENTIALS' "$setupConsole" 2>/dev/null ; then
+					elif ! grep -q 'SPAWN_TIER_NORMAL' "$setupConsole" 2>/dev/null || ! grep -q 'DISTRO_CONSOLE_EXEC' "$setupConsole" 2>/dev/null || ! grep -q 'cli-configured' "$setupConsole" 2>/dev/null || ! grep -q 'DAGC_CLI_CREDENTIALS' "$setupConsole" 2>/dev/null ; then
 						[ "$setupOperation" != "--check" ] || {
 							echo "AGENTS_CONSOLE_SCRIPT: FAIL"
-							echo "  warn: generated before the console could read SPAWN_CLI_SERVICE, announce"
+							echo "  warn: generated before the console could read SPAWN_TIER_NORMAL, announce"
 							echo "        DISTRO_CONSOLE_EXEC, refuse a spawn with no CLI selected, or export"
 							echo "        this workspace's stored credential into the CLI it starts, so an"
 							echo "        agent-initiated spawn here scans PATH and starts whichever CLI it"

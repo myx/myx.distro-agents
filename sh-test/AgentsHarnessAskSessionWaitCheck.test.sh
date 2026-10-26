@@ -113,7 +113,7 @@ rigLineOf(){ ## prefix
 ## The record of the scenario's one ask of a kind, and one field of a record.
 rigRecordOf(){ ## kind
 	local recordFile
-	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md "$rigScenarioDir/ws/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] && LC_ALL=C grep -q -x -F "kind: $1" "$recordFile" || continue
 		recordFile="${recordFile##*/}"
 		printf '%s' "${recordFile%.md}"
@@ -122,7 +122,10 @@ rigRecordOf(){ ## kind
 	printf 'no-%s-record' "$1"
 }
 rigField(){ ## pending id, field
-	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$rigScenarioDir/ws/.local/agents/pending/$1.md" 2>/dev/null || printf 'no-record'
+	## A closed record leaves the live store for pending/closed/ (AgentsTools.InternOpPendingReply.include).
+	local fieldRecord="$rigScenarioDir/ws/.local/agents/pending/$1.md"
+	[ -f "$fieldRecord" ] || fieldRecord="$rigScenarioDir/ws/.local/agents/pending/closed/$1.md"
+	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$fieldRecord" 2>/dev/null || printf 'no-record'
 }
 rigRefusal(){ ## output file -> the refusal id it printed
 	LC_ALL=C sed -n 's/^REFUSAL-ID: \(refusal-[0-9a-f-]*\)$/\1/p' "$1" | head -1

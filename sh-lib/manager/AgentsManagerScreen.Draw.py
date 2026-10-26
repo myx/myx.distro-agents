@@ -42,6 +42,17 @@ def demandWaits(state, read):
     return bool(read[1].get("demand")) and read[0] not in state.forced and read[0] not in state.reading.values()
 
 
+## Whether the read that fills the list has answered with nothing: answered, empty, and no failure.
+def listAnswered(state):
+    shown = listReadOf(state.path)
+    return bool(shown) and shown[0] in state.levelsOf
+
+
+## Whether the read of what the left window shows has answered, whatever slot it filled.
+def viewAnswered(state):
+    return bool(state.reads) and bool(state.answered.get("view:" + (viewKeyOf(state) or "")))
+
+
 ## What the left window says while it waits for its first rows (POPULATING), or "": it
 ## holds no line yet, a read that fills it has not answered, and none of them has failed.
 ## Its lines come from the read of the selected item, of its log in a mode that shows
@@ -55,9 +66,9 @@ def viewWaits(state):
     viewKey = viewKeyOf(state) or ""
     waits = []
     if logShown(state, row):
-        waits.append(("feed:" + viewKey, view["feed"] is None))
+        waits.append(("feed:" + viewKey, not state.answered.get("feed:" + viewKey)))
     elif viewReadOf(state, row, "view") is not None:
-        waits.append(("view:" + viewKey, view["info"] is None))
+        waits.append(("view:" + viewKey, not state.answered.get("view:" + viewKey)))
     opened = listReadOf(state.path + [row["id"]]) if row["dive"] else None
     if opened and not demandWaits(state, opened):
         waits.append((opened[0], opened[0] not in state.levelsOf))
@@ -255,13 +266,13 @@ def listTableOf(state):
 def listTableLines(state, rows, table, columns):
     head, blocks = paneTable(table["heads"], [row["cells"][1:] if row.get("table") else row["label"] for row in rows], columns,
                              icons=[row["cells"][0] if row.get("table") else "" for row in rows], wrap=state.wrap, kinds=table["kinds"],
-                             indent="", cut=table["cut"])
+                             indent="", cut=table["cut"], looks=[row.get("tableLooks") if row.get("table") else None for row in rows])
     return head[0], [block[0] for block in blocks]
 
 
-## How many lines the rows of the list have: the pane's, less the one a header takes.
+## How many lines the rows of the list have: the pane's, less the one a header takes and the one a filter line takes.
 def listRowsHeight(state, layout):
-    return layout["listHeight"] - (1 if listTableOf(state) else 0)
+    return layout["listHeight"] - (1 if listTableOf(state) else 0) - (1 if listFilterLineShown(state) else 0)
 
 
 ## Whether Enter enters a row, which is then drawn as a folder: it dives into a level of
@@ -272,6 +283,14 @@ def rowEnters(state, row):
     place = placeOf(state, row)
     return any(command.get("enters") and place in command.get("on", ()) and actionShown(state, row, command["does"][1])
                for command in COMMANDS)
+
+
+## Whether the right pane's list is drawn in the Magic (`nu`) style, which alone marks no
+## selection at the left of a row, draws ▶ at its right and keeps a column of padding there
+## (the sketch's 14.3). Every other style draws what it drew before.
+def magicListLook():
+    ## a terminal that is not UTF-8 keeps the marks of one byte, and draws as Basic B/W does
+    return STYLE.get("name") == "nu" and not MARKS["plain"]
 
 
 ## How many cells at the right edge of a row the mark of a folder takes, with the blank
@@ -301,7 +320,9 @@ def listRowParts(row, chosen, width, enters=False, dives=False, position=0, tabl
         columns = width - 1
     width -= edge
     shown = tableAt(columns)[1][position].rstrip() if table else " " * row.get("indent", 0) + row.get("lead", "") + row["label"] + countedText(row)
-    head = (MARK_SELECTED if chosen else " ") + shown
+    ## no mark of the selection at the left in the Magic style: the bar itself says which row
+    ## is on (the sketch's 14.3); every other style keeps its `>`
+    head = (MARK_SELECTED if chosen and not magicListLook() else " ") + shown
     tail = row.get("tail", "")
     if row.get("wide") and width + edge >= LIST_WIDE["from"]:
         ## the narrow column after the tail
@@ -391,8 +412,7 @@ def statusItems(state):
 ## chips each key is a chip of its own colour, the blank at each side of it in the chip.
 def drawStatusLine(surface, state, line, columns):
     surface.put(line, 0, " " * columns, BAR)
-    notice = state.notice if state.dialog is None else ""
-    reserved = min(textWidth(notice) + 4, columns * 2 // 3) if notice else 0
+    reserved = 0
     column = 1
     for key, word in statusItems(state):
         width = textWidth(key) + 1 + textWidth(word)
@@ -405,8 +425,27 @@ def drawStatusLine(surface, state, line, columns):
         surface.put(line, column + textWidth(key) + 1, word, BAR)
         spot(state, column, line, width, 1, ("key", key))
         column += width + 2
-    if notice and columns - column > 2:
-        surface.put(line, column, MARKS["separator"] + " " + cutToCells(notice, columns - column - 2), BAR)
+    ## A COMMAND LINE IS NEVER BLANK: where not one key fits whole, the first still stands, its
+    ## word cut to the room that is left.
+    if column == 1:
+        held = statusItems(state)
+        if held:
+            key, word = held[0]
+            surface.put(line, 1, key, BAR_HOT)
+            surface.put(line, 2 + textWidth(key), cutToCells(word, max(1, columns - textWidth(key) - 3)), BAR)
+    ## THE LINE IS THE COMMAND LINE AND NOTHING ELSE: the keys that act now, each with its word,
+    ## as many as fit. What the screen last did is NOT drawn here -- a notice would push an action
+    ## out of the line, which is what this line exists for.
+    ##
+    ## WHAT THE SCREEN DID STANDS ON THE LINE ABOVE IT: it is where a child's ending is read from,
+    ## and the command line cannot carry both.
+    ## …and only where an outcome belongs to what is shown: a CONSOLE says how its child ended,
+    ## and that is the one screen whose last line a child's ending is part of. Everywhere else the
+    ## command line stands alone (Tokens and Settings read their own lines to the cell).
+    if state.notice and line > 0 and levelPattern(state.path).startswith("consoles"):
+        surface.put(line - 1, 0, " " * columns, PLAIN)
+        surface.put(line - 1, 1, cutToCells(state.notice, max(1, columns - 2)), DIM)
+
 
 
 ## A title in the middle of the top border of a box that many cells wide, in the look of its
@@ -660,6 +699,10 @@ def drawLinesBody(surface, state, layout, box):
         putViewLine(surface, state, top + headHeight + offset, column, state.view["top"] + offset, room, placing, marked)
     if contentHeight > headHeight and viewWaits(state):
         surface.put(top + headHeight, column, cutToCells(viewWaits(state), room), DIM)
+
+
+    elif contentHeight > headHeight and not state.view["lines"] and viewAnswered(state):
+        surface.put(top + headHeight, column, cutToCells("no data", room), DIM)
     if filterLineShown(state):
         ## the line of the filter, on the last line of the window; the cursor stands after what is typed while the line is open
         typed = filterLine(state)
@@ -699,13 +742,23 @@ def drawRowsBody(surface, state, layout, box):
             continue
         spaced = False
         if position < len(rows):
-            putListRow(surface, state, top + offset, column, rows[position], position == cursor["index"], room, position, tableAt)
+            putListRow(surface, state, top + offset, column, rows[position], position == cursor["index"],
+                       max(1, room - (LIST_PAD if magicListLook() else 0)), position, tableAt)
             spot(state, column, top + offset, room, 1, ("row", position))
         elif position == len(rows) and listWaits(state):
             surface.put(top + offset, column, cutToCells(" " + listWaits(state), room), DIM)
+        elif position == len(rows) and not rows and listAnswered(state):
+            ## Nothing came back and nothing is being waited for: say so, palely, rather than an empty pane.
+            surface.put(top + offset, column, cutToCells(" no data", room), DIM)
         else:
             surface.put(top + offset, column, " " * room, PLAIN)
         position += 1
+    if listFilterLineShown(state):
+        ## the line of the filter of the list, on the last line of the window; the cursor stands after what is typed while the line is open
+        typed = listFilterLine(state)
+        surface.put(box[1] + box[3] - 2, column, cutToCells(typed, room), BOLD)
+        if state.listFilterOpen and state.focus == "list" and state.dialog is None and state.menu is None:
+            surface.cursor(box[1] + box[3] - 2, column + min(textWidth(typed), room - 1))
     if not rows:
         return (0, 0, rowsHeight)
     return (rowLinesBetween(spacers, 0, len(rows) - 1), rowLinesBetween(spacers, 0, cursor["top"]) - 1, rowsHeight)

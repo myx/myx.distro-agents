@@ -20,17 +20,46 @@
 ## members (AgentsTools.TeamRegistry.include): a name it does not hold is refused, and
 ## everything else about where a member is set up is the proxy's to settle and to say.
 ##
+## The kinds of start the console's Launchpad offers are options of the one operation:
+## --kind coworking (the default; --also joins more members to the session), standalone
+## (one member, the standalone routine), work-duty (one member, its duty routine, refused
+## while that member's duty runs) and free (one member, a prompt and no routine: only the
+## basic floor of the member loads). --goal <text> is the prompt given as an option.
+##
 
 type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
 type AgentsToolsTeamMemberStartCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
 
+## One member asked before anything is started: a bare name, a member of this machine (its folder, where it has one here, is left in spawnFolder of the caller), and no
+## identity record. The refusal is one line carrying the name of the operation, and nothing was started.
+AgentsToolsManagerSpawnMemberCheck(){ ## operation, member
+	local checkOp="$1" checkMember="$2"
+	spawnFolder=""
+	## Names a folder, so the shared bare-name gate decides it before any path is made of it.
+	AgentsToolsAssertBareName "$checkMember" "<team-member>" "${checkOp#--}" || return 1
+	## The member: one this workspace holds, else one the machine's directory of members names, with its folder where that is on this machine. A name the directory does not hold
+	## is no member. One it names with no folder here is left to the spawn proxy, which brings a member of another workspace and says what cannot be brought.
+	if ! spawnFolder="$( AgentsToolsTeamMemberDirectory "$checkMember" )" ; then
+		spawnFolder=""
+		if ! AgentsToolsTeamMemberDirectoryText | LC_ALL=C awk -F'\t' -v wantMember="$checkMember" '$1 == wantMember { known = 1 ; } END { exit ( known ? 0 : 1 ) ; }' ; then
+			echo "⛔ ERROR: $MDSC_CMD $checkOp: no such team member: $checkMember -- nothing was started" >&2
+			return 1
+		fi
+	fi
+	## Nothing runs as an identity record: the check every start makes, which the spawn proxy asks again (AgentsToolsTeamMemberStartCheck). Asked here first, so the refusal
+	## carries this operation's name and the prompt is not read for it.
+	AgentsToolsTeamMemberStartCheck "$checkMember" "$spawnFolder" "$checkOp" || return 1
+	return 0
+}
+
 case "$1" in
 
-	## One member started with a prompt, in a new coworking session of its own, and not waited
-	## for: one TAB-separated row of what was started. Its form is the help entry's.
+	## One member started with a prompt, by default in a new coworking session of its own, and
+	## not waited for: one TAB-separated row of what was started for each member. Its form is
+	## the help entry's.
 	--manager-spawn-member)
-		local spawnOp="$1" spawnMember="${2:-}" spawnSource="" spawnFile="" spawnName="" spawnDescription=""
-		local spawnSyntax="<team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]"
+		local spawnOp="$1" spawnMember="${2:-}" spawnSource="" spawnFile="" spawnName="" spawnDescription="" spawnKind="coworking" spawnAlso="" spawnGoal="" spawnGoalSet="" spawnFolder=""
+		local spawnSyntax="<team-member> [--kind coworking|standalone|work-duty|free] [--also <team-member>[,<team-member>]...] [--goal <text>] [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]"
 		case "$spawnMember" in
 			''|-*)
 				echo "⛔ ERROR: $MDSC_CMD $spawnOp: syntax is $spawnSyntax, got: ${spawnMember:-no member}" >&2
@@ -58,14 +87,26 @@ case "$1" in
 						shift
 					fi
 				;;
-				--session-name-or-comment|--description)
+				--session-name-or-comment|--description|--goal|--also)
 					if [ -z "${2:-}" ] ; then
 						echo "⛔ ERROR: $MDSC_CMD $spawnOp: $1 requires <text>" >&2
 						set +e ; return 1
 					fi
 					case "$1" in
 						--description) spawnDescription="$2" ;;
+						--goal) spawnGoal="$2" ; spawnGoalSet="yes" ;;
+						--also) spawnAlso="${spawnAlso:+$spawnAlso,}$2" ;;
 						*) spawnName="$2" ;;
+					esac
+					shift 2
+				;;
+				--kind)
+					case "${2:-}" in
+						coworking|standalone|work-duty|free) spawnKind="$2" ;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD $spawnOp: --kind is coworking, standalone, work-duty or free, got: ${2:-no kind}" >&2
+							set +e ; return 1
+						;;
 					esac
 					shift 2
 				;;
@@ -76,58 +117,95 @@ case "$1" in
 			esac
 		done
 
-		## The member: one this workspace holds, else one the machine's directory of members
-		## names, with its folder where that is on this machine. A name the directory does not
-		## hold is no member. One it names with no folder here is left to the spawn proxy,
-		## which brings a member of another workspace and says what cannot be brought.
-		local spawnFolder=""
-		if ! spawnFolder="$( AgentsToolsTeamMemberDirectory "$spawnMember" )" ; then
-			spawnFolder=""
-			if ! AgentsToolsTeamMemberDirectoryText | LC_ALL=C awk -F'\t' -v wantMember="$spawnMember" '$1 == wantMember { known = 1 ; } END { exit ( known ? 0 : 1 ) ; }' ; then
-				echo "⛔ ERROR: $MDSC_CMD $spawnOp: no such team member: $spawnMember -- nothing was started" >&2
-				set +e ; return 1
-			fi
+		## The kind decides what the options may be, said before any member is looked at.
+		if [ -n "$spawnAlso" ] && [ "$spawnKind" != "coworking" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $spawnOp: --also joins more members to a coworking session, and a $spawnKind start has one member -- nothing was started" >&2
+			set +e ; return 1
 		fi
-		## Nothing runs as an identity record: the check every start makes, which the spawn
-		## proxy asks again (AgentsToolsTeamMemberStartCheck). Asked here first, so the
-		## refusal carries this operation's name and the prompt is not read for it.
-		AgentsToolsTeamMemberStartCheck "$spawnMember" "$spawnFolder" "$spawnOp" || { set +e ; return 1 ; }
+		if [ -n "$spawnGoalSet" ] && { [ -n "$spawnSource" ] || [ "$spawnKind" = "free" ] ; } ; then
+			echo "⛔ ERROR: $MDSC_CMD $spawnOp: --goal is the prompt given as an option, and a $spawnKind start takes its prompt from standard input or a file -- nothing was started" >&2
+			set +e ; return 1
+		fi
+
+		## Every member is asked before the first is started, so a name that is wrong starts nobody.
+		local spawnMembers=( "$spawnMember" ) spawnAlsoOne spawnAlsoList=()
+		[ -z "$spawnAlso" ] || IFS=, read -r -a spawnAlsoList <<< "$spawnAlso"
+		for spawnAlsoOne in ${spawnAlsoList[@]+"${spawnAlsoList[@]}"} ; do
+			case " ${spawnMembers[*]} " in
+				*" $spawnAlsoOne "*)
+					echo "⛔ ERROR: $MDSC_CMD $spawnOp: $spawnAlsoOne is named twice -- nothing was started" >&2
+					set +e ; return 1
+				;;
+			esac
+			spawnMembers+=( "$spawnAlsoOne" )
+		done
+		local spawnEach spawnDutyRoutine="" spawnDutyRecord=""
+		for spawnEach in "${spawnMembers[@]}" ; do
+			AgentsToolsManagerSpawnMemberCheck "$spawnOp" "$spawnEach" || { set +e ; return 1 ; }
+			## A work-duty is one a member: where the member's duty runs already, no second is started.
+			if [ "$spawnKind" = "work-duty" ] ; then
+				type AgentsToolsScheduleWorkDutyRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.DispatcherLoop.include"
+				if spawnDutyRecord="$( AgentsToolsScheduleWorkDutyRecord "$spawnEach" )" ; then
+					echo "⛔ ERROR: $MDSC_CMD $spawnOp: the work-duty of $spawnEach runs already (${spawnDutyRecord##*/}) -- nothing was started" >&2
+					set +e ; return 1
+				fi
+				spawnDutyRoutine="$( AgentsToolsScheduleDutyRoutine "$spawnEach" "$spawnFolder" )"
+			fi
+		done
 
 		## The prompt, read whole before anything is started. The brief block the spawn puts
-		## ahead of it is never empty, so an empty prompt is refused here and not there.
+		## ahead of it is never empty, so an empty prompt is refused here and not there. A
+		## work-duty has none of its own (its input is what its scan finds): it reads standard
+		## input or a file only where asked to, and --goal is its comments or scope.
 		local spawnPrompt=""
-		if [ "$spawnSource" = "file" ] ; then
+		if [ -n "$spawnGoalSet" ] ; then
+			spawnPrompt="$spawnGoal"
+		elif [ "$spawnSource" = "file" ] ; then
 			spawnPrompt="$( cat < "$spawnFile" )" || spawnPrompt=""
-		else
+		elif [ "$spawnKind" != "work-duty" ] || [ "$spawnSource" = "stdin" ] ; then
 			spawnPrompt="$( cat )" || spawnPrompt=""
 		fi
 		case "$spawnPrompt" in
 			*[![:space:]]*) ;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD $spawnOp: the prompt is empty -- nothing was started" >&2
-				set +e ; return 1
+				if [ "$spawnKind" != "work-duty" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD $spawnOp: the prompt is empty -- nothing was started" >&2
+					set +e ; return 1
+				fi
 			;;
 		esac
 
-		## A session of its own (--session-new), under the standing default routine of a
-		## coworking session, whose spawn brief block goes ahead of the prompt as
-		## --spawn-session --routine-default gives it; a dispatch item, which is what
-		## lists, reads and stops the run; and no wait.
-		local spawnArgs=( "$spawnMember" --from-stdin --dispatch-doc:create --session-new --routine-default )
-		[ -z "$spawnName" ] || spawnArgs+=( --session-name-or-comment "$spawnName" )
-		[ -z "$spawnDescription" ] || spawnArgs+=( --description "$spawnDescription" )
-		local spawnOut spawnSession spawnItem spawnKept
-		spawnOut="$( printf '%s\n' "$spawnPrompt" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --context "$spawnOp" )" || { set +e ; return 1 ; }
-		spawnSession="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
-		spawnItem="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "DISPATCH_ITEM" { print $2 ; exit ; }' )"
-		if [ -z "$spawnSession" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $spawnOp: the start of $spawnMember reported no SESSION_ID, so what was started cannot be named" >&2
-			set +e ; return 1
-		fi
-		## The session's name as its record keeps it, which is what a list of sessions shows.
-		spawnKept="$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/spawned/$spawnSession/$spawnSession.spawn.md" session-comment \
-			| LC_ALL=C awk '{ gsub( /^[ \t]+|[ \t]+$/, "" ) ; gsub( /[ \t]+/, "_" ) ; print ; exit ; }' )"
-		printf 'spawn\t%s\t%s\t%s\t%s\n' "$spawnSession" "$spawnMember" "${spawnKept:--}" "${spawnItem:--}"
+		## A session of its own (--session-new) for the first member, and the others join it by
+		## its id. The routine is the kind's: the standing default of a coworking session, whose
+		## spawn brief block goes ahead of the prompt as --spawn-session --routine-default gives
+		## it; the standalone routine; the member's duty routine; or none for a free prompt, which
+		## loads the floor of the member and no instruction of a session kind. A dispatch item is
+		## what lists, reads and stops the run; and no wait.
+		local spawnRoutineArgs=( --routine-default )
+		case "$spawnKind" in
+			standalone) spawnRoutineArgs=( --routine magic-team.standalone.routine.md ) ;;
+			work-duty) spawnRoutineArgs=( --routine "$spawnDutyRoutine" ) ;;
+			free) spawnRoutineArgs=() ;;
+		esac
+		local spawnArgs spawnOut spawnSession="" spawnItem spawnKept
+		for spawnEach in "${spawnMembers[@]}" ; do
+			spawnArgs=( "$spawnEach" --from-stdin --dispatch-doc:create )
+			if [ -z "$spawnSession" ] ; then spawnArgs+=( --session-new ) ; else spawnArgs+=( --session-id "$spawnSession" ) ; fi
+			spawnArgs+=( ${spawnRoutineArgs[@]+"${spawnRoutineArgs[@]}"} )
+			[ -z "$spawnName" ] || spawnArgs+=( --session-name-or-comment "$spawnName" )
+			[ -z "$spawnDescription" ] || spawnArgs+=( --description "$spawnDescription" )
+			spawnOut="$( printf '%s\n' "$spawnPrompt" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --context "$spawnOp" )" || { set +e ; return 1 ; }
+			[ -n "$spawnSession" ] || spawnSession="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
+			spawnItem="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "DISPATCH_ITEM" { print $2 ; exit ; }' )"
+			if [ -z "$spawnSession" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $spawnOp: the start of $spawnEach reported no SESSION_ID, so what was started cannot be named" >&2
+				set +e ; return 1
+			fi
+			## The session's name as its record keeps it, which is what a list of sessions shows.
+			spawnKept="$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/spawned/$spawnSession/$spawnSession.spawn.md" session-comment \
+				| LC_ALL=C awk '{ gsub( /^[ \t]+|[ \t]+$/, "" ) ; gsub( /[ \t]+/, "_" ) ; print ; exit ; }' )"
+			printf 'spawn\t%s\t%s\t%s\t%s\n' "$spawnSession" "$spawnEach" "${spawnKept:--}" "${spawnItem:--}"
+		done
 		return 0
 	;;
 

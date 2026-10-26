@@ -29,7 +29,7 @@
 ## the start is shown.
 ## Offline: no operation of the real tooling is called, no CLI is started, and no member of this machine is read.
 ## Reconciled for F11.0: the left pane has no `keys:` line any more, so the keys of a row are read from the status
-## line (rigKeysNamed); the spacer under `Launch (Start)` moves each session row of the list one line down; every
+## line (rigKeysNamed); the spacer under `Launchpad` moves each session row of the list one line down; every
 ## dialog has bigger margins inside its frame (two empty lines under its top, one more under its buttons, three blank
 ## cells at each side), so its box is four cells wider and two lines taller and what it holds stands where it stood.
 ## Reconciled for F11.0, the table lines: two spaces between the columns of the members' table, and an empty line between its rows while the window holds them.
@@ -397,10 +397,10 @@ rigAssert "and says where the prompt goes, and that no secret belongs in it" "$(
 rigAssert "the prompt is typed, and Tab goes on to the name of the session" "[$( rigVal typed.dialog )] [$( rigVal name.dialog )] $( rigBoxHas n '║   fix the index, please ' )" "[prompt:prompt|fix the index, please] [prompt:name|] 1"
 
 rigAssert "until the name is entered nothing is started"             "[$( rigVal waiting.dialog )] $( rigVal waiting.calls ) [$( rigVal waiting.reading )]" "[prompt:name|] 0 []"
-rigAssert "Enter starts it, beside the screen"                       "[$( rigVal started.dialog )] $( rigVal started.reading ) [$( rigVal startedLine )]" "[] action:start:keeper-myx [start asked of the tooling: the member keeper-myx, named the index]"
+rigAssert "Enter starts it, beside the screen"                       "[$( rigVal started.dialog )] $( rigVal started.reading ) [$( rigVal started.notice )]" "[] action:start:keeper-myx [start asked of the tooling: the member keeper-myx, named the index]"
 rigAssert "the operation is called once, for that member, with the name as one word and no word of the prompt" "$( rigStarts ) [$( rigStartWords 1 )]" "1 [[--manager-spawn-member][keeper-myx][--session-name-or-comment][the index]]"
 rigAssert "the prompt is on its standard input, whole, with a line end" "$( rigInput 'fix the index, please' ) $( rigOthers )" "same 0"
-rigAssert "what the operation printed is shown: the session, the member, the name, the item" "[$( rigVal answeredLine )] [$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )][$( rigPane a 6 )][$( rigPane a 7 )][$( rigPane a 8 )]" \
+rigAssert "what the operation printed is shown: the session, the member, the name, the item" "[$( rigVal answered.notice )] [$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )][$( rigPane a 6 )][$( rigPane a 7 )][$( rigPane a 8 )]" \
 	"[started: keeper-myx, session $rigNew] [ the start, answered 02:30:00:][ session   $rigNew][ member    keeper-myx][ name      the index][ item      dispatch-20261013T023000Z-spawn-proxy-1][]"
 rigAssert "the list of the sessions is read again, and the new session is among its rows" "$( rigCalled --manager-session-list ) $( rigVal up.path ) [$( rigVal upRow3 )][$( rigVal upRow4 )]" "2 magic-team/activity/active-sessions [ the index               running ►][ daily of Monday         running ►]"
 

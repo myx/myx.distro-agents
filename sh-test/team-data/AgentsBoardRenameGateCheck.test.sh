@@ -39,7 +39,7 @@ rigRename(){ ## old, new, options...
 	local renameOld="$1" renameNew="$2"
 	shift 2
 	( cd "$rigWs" && env -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_ID MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDAT_SKILLSET_ROOT="$rigTmp/skills" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		perl -e 'alarm shift; exec @ARGV' 90 bash "$rigTool" --intern-op-board-rename "$renameOld" "$renameNew" "$@" ) > "$rigTmp/rename.out" 2> "$rigTmp/rename.err"
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 90 -- bash "$rigTool" --intern-op-board-rename "$renameOld" "$renameNew" "$@" ) > "$rigTmp/rename.out" 2> "$rigTmp/rename.err"
 	rigRc=$?
 }
 rigKey(){ ## file, key -- the first value of a frontmatter key

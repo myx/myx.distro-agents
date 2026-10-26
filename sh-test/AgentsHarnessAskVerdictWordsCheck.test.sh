@@ -260,7 +260,7 @@ rigToolCall(){ ## guard seconds, tool, argument object
 }
 rigToolRecord(){
 	local recordFile
-	for recordFile in "$rigToolWs/.local/agents/pending"/*.md ; do
+	for recordFile in "$rigToolWs/.local/agents/pending"/*.md "$rigToolWs/.local/agents/pending/closed"/*.md ; do
 		[ -f "$recordFile" ] && { printf '%s' "$recordFile" ; return 0 ; }
 	done
 	printf '%s' "$rigToolDir/no-record"
@@ -406,7 +406,7 @@ revStart(){ ## scenario name
 	disown "$!" 2> /dev/null || :
 	revAsChild "$revDir/handback" --intern-op-review-handback keeper-myx --session-id "$revSpawn" --message "rig work done"
 }
-revRecord(){ ls -tr "$revWs/.local/agents/pending"/*.md 2> /dev/null | tail -1 ; }
+revRecord(){ ls -tr "$revWs/.local/agents/pending"/*.md "$revWs/.local/agents/pending/closed"/*.md 2> /dev/null | tail -1 ; }
 revId(){ local idFile ; idFile="$( revRecord )" ; idFile="${idFile##*/}" ; printf '%s' "${idFile%.md}" ; }
 revField(){ ## field
 	LC_ALL=C awk -v key="$1" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' "$( revRecord )" 2> /dev/null || printf 'no-record'

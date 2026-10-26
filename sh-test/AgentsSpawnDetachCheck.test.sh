@@ -187,7 +187,7 @@ rigSpawnAndHangUp(){ ## scenario, parent session id or empty, console seconds
 	mkdir -p "$rigDir"
 	set -m
 	( cd "$rigWs" && exec env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID ${2:+MDAT_SPAWN_SESSION_ID="$2"} RIG_SCENARIO="$rigDir" RIG_RUN="$3" RIG_HANDBACK=yes MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		perl -e '$SIG{HUP} = "DEFAULT" ; exec @ARGV' bash -c 'bash "$1" --intern-op-agent-spawn-proxy keeper-myx --dispatch-doc:none --context rig-spawn-detach <<< "RIG-BRIEF" > "$2/proxy.out" 2>&1 ; exec sleep 120' rig-console "$rigTool" "$rigDir" ) &
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --default-signals HUP -- bash -c 'bash "$1" --intern-op-agent-spawn-proxy keeper-myx --dispatch-doc:none --context rig-spawn-detach <<< "RIG-BRIEF" > "$2/proxy.out" 2>&1 ; exec sleep 120' rig-console "$rigTool" "$rigDir" ) &
 	rigPassPid=$!
 	rigPassGroup="$rigPassPid"
 	set +m
@@ -337,7 +337,7 @@ echo "-- control: a poster started where the hangup is not ignored still ends on
 rigDir="$rigTmp/poster-hup"
 mkdir -p "$rigDir" "$rigWs/.local/agents/sessions/rig-poster-hup"
 ( cd "$rigWs" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID RIG_SCENARIO="$rigDir" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-	perl -e '$SIG{HUP} = "DEFAULT" ; exec @ARGV' bash -c '
+	python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --default-signals HUP -- bash -c '
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.EventTrackFeed.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || { echo "RIG-GUARD: the process helper of the rig is missing from the package" >&2 ; exit 99 ; }
 		rigFeed="$MMDAPP/.local/agents/sessions/rig-poster-hup/feed"

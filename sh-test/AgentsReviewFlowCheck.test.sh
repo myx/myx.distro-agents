@@ -15,6 +15,7 @@
 ## rig's own temp tree, guarded on every call. Never the live team data or .local/agents.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
+export RIG_HOLD="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-hold.py"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 rigHarness="$rigLib/harness/AgentsUniversalHarness.sh"
@@ -70,7 +71,8 @@ esac
 exec "${0%/*}/ps.real" "$@"
 RIGPS
 chmod +x "$rigTmp/bin/ps"
-printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSPAWN_TIER_NORMAL=claude-native\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'PRESET_CLI_SERVICE=claude-native\n' > "$rigWs/.local/.agents/preset-claude-native.agent.env"
 for rigMember in magic-coordinator keeper-myx magic-tester ; do
 	mkdir -p "$rigWs/.local/agents/members/$rigMember"
 	printf -- '---\nname: %s\ndescription: rig member\n---\n' "$rigMember" > "$rigWs/.local/agents/members/$rigMember/SKILL.md"
@@ -516,10 +518,11 @@ routine: magic-team.work-duty.routine.md
 "
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-duty-9i-$$ MDAT_SESSION_THREAD=CDUT9I001:1700000000.000940 )
 rigTool "$rigTmp/h9i1" SubagentHandback '{"outcome":"the first input is worked"}'
+cp "$rigTmp/bodies" "$rigTmp/h9i1.bodies"
 rigTool "$rigTmp/h9i2" SubagentHandback '{"outcome":"the second input is worked"}'
 rigEnv=()
 rigAssert "both reports are posted in its one session thread, and neither ends it: no dismissal, no end told" \
-	"$( LC_ALL=C grep -c '"channel": *"CDUT9I001"' "$rigTmp/bodies" ):$( [ -f "$rigWs/.local/agents/sessions/rig-duty-9i-$$/dismissed" ] && printf ended || printf waits ):$( cat "$rigTmp/h9i1" "$rigTmp/h9i2" | LC_ALL=C grep -c 'end your run now' )" "2:waits:0"
+	"$( cat "$rigTmp/h9i1.bodies" "$rigTmp/bodies" | LC_ALL=C grep -c '"channel": *"CDUT9I001"' ):$( [ -f "$rigWs/.local/agents/sessions/rig-duty-9i-$$/dismissed" ] && printf ended || printf waits ):$( cat "$rigTmp/h9i1" "$rigTmp/h9i2" | LC_ALL=C grep -c 'end your run now' )" "2:waits:0"
 rigAssert "it stays one session: one record, the same session id" "$( ls "$rigSpawned"/*/rig-duty-9i-*.spawn.md 2> /dev/null | wc -l | tr -d ' ' ):$( LC_ALL=C sed -n 's/^session-id: //p' "$rigSpawned/rig-duty-9i-$$/rig-duty-9i-$$.spawn.md" )" "1:rig-duty-9i-$$"
 
 echo "-- 10. reject: -> pending, the child dismissed, corrections in Decisions for the fresh spawn --"
@@ -889,7 +892,7 @@ rigProcSignal TERM "$rigKidsOther" "$rigKidsSuper"
 rigStandInHung(){ ## spawn id -- a stand-in run whose tool command ignores TERM; sets rigHungPid and rigHungTool
 	local hungLeft=40
 	rm -f "$rigTmp/hung.tool"
-	bash -c 'perl -e '"'"'$SIG{TERM} = "IGNORE" ; open( my $rigSaid, ">", $ARGV[0] ) ; print $rigSaid "$$\n" ; close( $rigSaid ) ; sleep 300'"'"' "$1" > /dev/null 2>&1 < /dev/null & wait' rig-hung "$rigTmp/hung.tool" > /dev/null 2>&1 < /dev/null &
+	bash -c 'python3 -I -B "$RIG_HOLD" ignore-term-pid "$1" 300 > /dev/null 2>&1 < /dev/null & wait' rig-hung "$rigTmp/hung.tool" > /dev/null 2>&1 < /dev/null &
 	rigHungPid=$!
 	rigLivePids="$rigLivePids $!" ; rigProcNote "$!"
 	disown "$!" 2> /dev/null || :

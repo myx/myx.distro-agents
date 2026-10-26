@@ -6,8 +6,8 @@
 		The scaleway domain makes this workspace able to run
 		AgentsScalewayHarness.sh -- this package's own bespoke tool-calling
 		harness against Scaleway's Serverless Generative APIs -- as its
-		spawned agent: the harness present in this release, and at least
-		one of its two credentials configured.
+		spawned agent: the harness present in this release, and its
+		credential configured.
 
 		There is no `scaleway` binary. Where `claude`/`copilot` install and
 		authenticate a real CLI, this domain's whole subject is a script
@@ -22,13 +22,11 @@
 
 		Create a Scaleway API secret key: console.scaleway.com, IAM, API
 		Keys, a Project-scoped key carrying the GenerativeApisFullAccess
-		policy. Store it with --scaleway-deepseek or --scaleway-gemma
-		below -- either name reaches every model Scaleway serves under
-		that Project (confirmed live: a key is scoped by Project+policy,
-		not by model), so one is enough. The two names exist because the
-		harness's light tier prefers one and its normal/heavy tiers prefer
-		the other, falling back to whichever is set when its own preferred
-		name is not -- not because they are exclusive.
+		policy. Store it with --scaleway-api-key below -- or in the
+		stdin-fed form, which keeps it out of argv. ONE key reaches every
+		model Scaleway serves under that Project (confirmed live: a key is
+		scoped by Project+policy, not by model), and which model a run uses
+		is the model its preset names, never a name of the key's.
 
 ##  Options:
 
@@ -38,30 +36,29 @@
 			is an error rather than a fallback. Every sub-operation takes
 			it. It names a target; it stores no value.
 
-		--spawn-cli-service <cli-name>
-			Which agent CLI this workspace starts. You are never asked for
-			it: an --apply on this domain writes `scaleway` into it, and
-			--set-as-default is what repoints an already-made selection.
-			Setting it to `scaleway` here does not by itself make a spawn
-			run non-interactively -- see the Notes below.
+		Which agent CLI this workspace starts. You are never asked for
+		it: an --apply on this domain makes a preset named `scaleway`
+		(its CLI service) and points SPAWN_TIER_NORMAL, the team's
+		default tier, at it, so the spawns start on `scaleway`.
+		--set-as-default is what repoints an already-made selection, and
+		without it an --apply fills the selection only where none is
+		made. Setting it to `scaleway` here does not by itself make a
+		spawn run non-interactively -- see the Notes below.
 
-		--scaleway-deepseek <key>
-			A Scaleway API secret key, preferred for the normal/heavy
-			tiers (deepseek-v4-flash-0731). Optional, and either this or
-			--scaleway-gemma is enough -- at least one is required.
+		--scaleway-api-key <key>
+			A Scaleway API secret key, used for every tier. Required.
 
-			Stored as SCALEWAY_DEEPSEEK -- the name AgentsScalewayHarness.sh
+			Stored as SCALEWAY_API_KEY -- the name AgentsScalewayHarness.sh
 			reads out of its own environment -- in this workspace's
-			magic-team config scope. A secret: it never travels on a
-			command line, so supply it through the stdin-fed form
-			--print-apply-command writes.
+			preset-scaleway config scope, the preset of scaleway's CLI
+			service, which --apply makes where it is not there yet and
+			never overwrites. A secret: it never travels on a command line,
+			so supply it through the stdin-fed form --print-apply-command
+			writes.
 
-		--scaleway-gemma <key>
-			A Scaleway API secret key, preferred for the light tier
-			(gemma-4-26b-a4b-it). Optional, and either this or
-			--scaleway-deepseek is enough -- at least one is required.
-
-			Stored as SCALEWAY_GEMMA, the same way, also a secret.
+			The model is the preset's PRESET_MODEL_OR_MACRO, so a preset
+			named for one model -- mel-scaleway-deepseek, say -- is just a
+			name, and the same key serves every one of them.
 
 ##  Sub-operations:
 
@@ -125,7 +122,7 @@
 		# Store one key and apply, with no secret in argv
 		```
 		printf '%s\n' \
-		  SCALEWAY_DEEPSEEK='<key>' \
+		  SCALEWAY_API_KEY='<key>' \
 		  | DistroAgentsTools.fn.sh --owner-setup-scaleway --values-from-stdin --apply
 		```
 

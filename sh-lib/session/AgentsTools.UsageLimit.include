@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.UsageLimit.include -- a run that the provider refused because its API usage
+## limit was reached, and the date it reopens. Sourced, never run. Functions only.
+##
+## THE PROVIDER'S MESSAGE CARRIES THE DATE. When the harness ends a run on a refused request
+## it keeps the reason beside the record, in `<spawn-id>.refused`
+## (AgentsHarnessRefusalKeep); for a usage limit that reason holds the provider's own words,
+## `You have reached your specified API usage limits. You will regain access on
+## <date> at <time> <zone>.` The record keeps it as `end-reason`
+## (AgentsToolsSpawnProxyCloseSandboxOnce), and that one wording is written to the run's
+## store, `sessions/<spawn-id>/usage-limit`, so the session list, the Dashboard and the
+## end notice all show the same two facts and the same date: that the run stopped on the
+## provider usage limit, and when it reopens. A usage limit with no readable date is still
+## flagged, saying that the time is not known.
+##
+## The store file is the one place the wording is made; every surface prints its line as
+## it stands. No record and no transcript is opened by a reader of it.
+##
+
+## The one wording of a usage-limit flag, from the provider's reason: `stopped on the
+## provider usage limit: reopens <date>`, or `... reopens at a known time` where the
+## message carries no date. Nothing, rc 1, for a reason that is no usage limit.
+AgentsToolsUsageLimitText(){ ## the reason, one line
+	local limitReason="${1:-}" limitDate=""
+	case "$limitReason" in
+		*"reached your specified API usage limits"*) ;;
+		*) return 1 ;;
+	esac
+	## The provider writes `<date> at <time> <zone>` after `regain access on`. A zone is
+	## kept where it is given, since the date is the provider's own and is never re-read.
+	limitDate="$( printf '%s' "$limitReason" | LC_ALL=C sed -n 's/.*regain access on \([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\) at \([0-9][0-9]:[0-9][0-9]\)[ ]*\([A-Za-z][A-Za-z0-9+:-]*\).*/\1 \2 \3/p' | head -n 1 )" || limitDate=""
+	[ -n "$limitDate" ] || limitDate="$( printf '%s' "$limitReason" | LC_ALL=C sed -n 's/.*regain access on \([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\) at \([0-9][0-9]:[0-9][0-9]\).*/\1 \2/p' | head -n 1 )" || limitDate=""
+	if [ -n "$limitDate" ] ; then
+		printf 'stopped on the provider usage limit: reopens %s' "$limitDate"
+	else
+		printf 'stopped on the provider usage limit: reopens at a time the provider did not give'
+	fi
+	return 0
+}
+
+## The store file that keeps one run's usage-limit flag, printed. rc 1 for a run that has no
+## bare id to name a store folder with.
+AgentsToolsUsageLimitFile(){ ## spawn id
+	case "${1:-}" in ''|.|..|*/*) return 1 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	printf '%s' "$MMDAPP/.local/agents/sessions/$1/usage-limit"
+}
+
+## Keeps a run's usage-limit flag in its store, from the provider's reason: the one wording
+## above, one line, put in place by a rename. rc 1, nothing written, for a reason that is no
+## usage limit, or a store that cannot be written.
+AgentsToolsUsageLimitMark(){ ## spawn id, the reason
+	local markSpawn="${1:-}" markReason="${2:-}" markText markFile markTemp
+	markText="$( AgentsToolsUsageLimitText "$markReason" )" || return 1
+	[ -n "$markText" ] || return 1
+	markFile="$( AgentsToolsUsageLimitFile "$markSpawn" )" || return 1
+	mkdir -p "${markFile%/*}" 2> /dev/null || return 1
+	markTemp="$( mktemp "$markFile.tmp.XXXXXX" 2> /dev/null )" || return 1
+	{ printf '%s\n' "$markText" > "$markTemp" 2> /dev/null && chmod 644 "$markTemp" && mv -f "$markTemp" "$markFile" ; } 2> /dev/null \
+		|| { rm -f "$markTemp" ; return 1 ; }
+	return 0
+}
+
+## The flag of one run, printed as its store keeps it. rc 1 where the run has none.
+AgentsToolsUsageLimitRun(){ ## spawn id
+	local limitFile limitLine=""
+	limitFile="$( AgentsToolsUsageLimitFile "${1:-}" )" || return 1
+	[ -s "$limitFile" ] || return 1
+	IFS= read -r limitLine < "$limitFile" || :
+	[ -n "$limitLine" ] || return 1
+	printf '%s' "$limitLine"
+	return 0
+}

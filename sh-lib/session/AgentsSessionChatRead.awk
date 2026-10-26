@@ -6,6 +6,8 @@
 # that differ, and the index is not empty.
 #
 #   -v after        the pointer: only a block with a number past it is read
+#   -v session      the session whose chat file this is, for its own channel kinds: a block recorded on its
+#                   printback channel (`printback:<session>`, F2.2) is its own as a block of its thread is
 #   -v member       the reading run's member: its own posts are never its floor
 #   -v role         executor: every message of the session thread; participant: the ones that tag or mention the member
 #   -v thread       <channel>:<thread> of the session's thread, empty for none
@@ -25,11 +27,15 @@
 # A block is delivered when it is not history, not already delivered to the member (the index's last field), not the member's
 # own, and: a reply to the member's own post (origin reply:<member>) is the floor of that member alone; a message of the
 # session thread is the floor of the executor, and of a participant when it names it (in a session with no thread, a message recorded `local`
-# is that, and no `local` message is of a session that has a thread); nothing else is. A message not posted
+# is that, and no `local` message is of a session that has a thread); a message recorded on the session's printback channel
+# (`printback:<session>`, F2.2) is the session's own in a session with a thread or without one, the root-native kind having no
+# thread to be the session's own by; nothing else is. A message not posted
 # (no ts yet) is nobody's, and a post of another member that is not yet is not passed: the blocks behind it wait, and `newest` stays
 # the block before it, until it has a ts, or is given up (`refused`, `unknown` in the place of its conversation), or its header
 # is older than pendingBefore (F9.3: a post the writer will still deliver reaches every floor once it is delivered). A post of
-# the reading member's own stops nothing. Every closing brace is preceded by a `;`.
+# the reading member's own stops nothing. A block whose origin is `notice` is never the floor: it is a notice the spawn proxy
+# recorded for the session (F3.3, AgentsTools.CommsPrintback.include), and the next foreground call's digest alone surfaces it,
+# one line, so the reader passes it and moves on. Every closing brace is preceded by a `;`.
 
 BEGIN {
 	delivered = 0 ;
@@ -72,8 +78,19 @@ function isCovered(whereValue,   at) {
 
 # Whether a block's conversation is the session's own: its thread, else, for a session that has none, `local` -- what the console left
 # for the chat file alone (F11.6): recorded with no ts and nothing posted, and the floor of a session with no thread is that file.
+# The session's printback channel is its own in either case: the root-native kind has no thread, and a message on it is the
+# session's whatever else the session keeps (F2.2).
 function ownThread(whereValue) {
+	if ( whereValue == "printback:" session ) { return 1 ; }
 	return ( thread != "" ) ? ( whereValue == thread ) : ( whereValue == "local" ) ;
+}
+
+# Where a block of the session's own came from, as the `# via` line names it: `local` for the console's, `printback` for the
+# root-native kind's, `slack:<conversation>:<thread>` for the session thread's.
+function sourceOf(whereValue) {
+	if ( whereValue == "local" ) { return "local" ; }
+	if ( whereValue ~ /^printback:/ ) { return "printback" ; }
+	return "slack:" whereValue ;
 }
 
 function listHas(listValue, wanted,   items, itemCount, at) {
@@ -103,7 +120,7 @@ END {
 			stopAt = at ;
 			break ;
 		}
-		if ( origin == "history" || idxWhere[at] == "-" ) {
+		if ( origin == "history" || origin == "notice" || idxWhere[at] == "-" ) {
 			take = 0 ;
 		} else if ( listHas(idxSeen[at], member) || from == member ) {
 			take = 0 ;
@@ -111,7 +128,7 @@ END {
 			take = ( origin == "reply:" member ) ;
 			source = replySource ;
 		} else if ( ownThread(idxWhere[at]) ) {
-			source = ( idxWhere[at] == "local" ) ? "local" : "slack:" idxWhere[at] ;
+			source = sourceOf(idxWhere[at]) ;
 			if ( role == "executor" ) { take = 1 ; }
 			else {
 				take = listHas(to, member) ;
@@ -126,7 +143,7 @@ END {
 			floorOwed = ( take && ! isCovered(idxWhere[at]) ) ;
 			sel = 0 ;
 			if ( ! ( origin == "history" || idxWhere[at] == "-" || listHas(idxSeen[at], member) || from == member || origin ~ /^reply:/ ) && ownThread(idxWhere[at]) && ! isCovered(idxWhere[at]) ) {
-				source = ( idxWhere[at] == "local" ) ? "local" : "slack:" idxWhere[at] ;
+				source = sourceOf(idxWhere[at]) ;
 				if ( wantAny ) { sel = 1 ; }
 				if ( wantHere && listHas(to, "all") ) { sel = 1 ; }
 				if ( wantMe && listHas(to, member) ) { sel = 1 ; }

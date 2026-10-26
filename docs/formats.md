@@ -28,3 +28,21 @@ A project declares a member in its `project.inf`, with one `Declares` entry per 
 		magic-team:team-member:skillset/<member-name>:<host-glob> \
 
 [Extension](extension.md) shows how to add one. The [project.inf manual](https://github.com/myx/myx.distro-.local/blob/main/sh-lib/help/Man.Project.Inf.file.help.md) describes the file format.
+
+## Channel declaration
+
+A project registers a communication channel in its `project.inf`, with one `Declares` entry per
+channel. The entry names the channel, the driver that reaches it (`slack`, `email`, `telegram` or
+`printback`), and that driver's address:
+
+	Declares: \
+		magic-team:comms-channel:<channel-name>:<service>:<channel-address> \
+
+The whole workspace can then address the channel by `<channel-name>`, resolved through the
+communication-channel-id abstraction (`sh-lib/comms/AgentsTools.CommsChannel.include`). Several
+drivers are plugged at once and their order is the preference; a name declared on more than one
+service resolves to the first driver in that order. The built-in Slack aliases (`magic-team`,
+`human-owner`, `event-track`, `event-alert`) keep their `SLACK_CHANNEL_*` settings; a declared
+channel only adds names beside them. `printback` is the root-native kind: its address is a session
+id, its message is printed to the tool's output and recorded in that session's one chat file, and
+it opens no network call.

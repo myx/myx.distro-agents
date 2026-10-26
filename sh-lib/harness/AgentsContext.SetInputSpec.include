@@ -15,6 +15,15 @@ case "$1" in
 		return 0
 	;;
 	''|--run-from-detect|--init-variables)
+		if [ -n "$MDLT_ORIGIN" ] && [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include" ] \
+			&& [ ! -f "$MMDAPP/.local/myx/myx.distro-agents/sh-lib/harness/AgentsContext.include" ] ; then
+			## An origin already resolved to a working tree stands, where the workspace's own .local carries
+			## no tooling of its own (a rig's exported MDLT_ORIGIN): kept as an external origin.
+			export MDLC_INMODE="extern"
+			export MDLT_OPTION="--run-from-path $MDLT_ORIGIN"
+			echo "AgentsContext.SetInputSpec: mode: $MDLC_INMODE, spec: $MDLT_OPTION" >&2
+			return 0
+		fi
 		MDLC_INMODE="$(
 			ReadConfig(){ . "${MDLT_ORIGIN:-"$MMDAPP/.local"}/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ; }
 			ReadConfig --.local-config-option-select-default MDLT_CONSOLE_ORIGIN .local

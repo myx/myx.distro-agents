@@ -147,7 +147,6 @@ rigList(){
 		'sh-lib/session/AgentsTools.SpawnSandbox.include|3|$runFile.run.$$|beside one spawn record, written by the launches of that spawn, which come one after another in its own proxy' \
 		'sh-lib/harness/AgentsUniversalHarness.sh|1|.mdat-write.$$|under the write lock of that one target' \
 		'sh-lib/harness/AgentsUniversalHarness.sh|1|.mdat-edit.$$|under the write lock of that one target' \
-		'sh-lib/harness/AgentsUniversalHarness.sh|2|$keepFile.$$.tmp|the dismissal of one session, kept by its one harness process' \
 		'sh-lib/harness/AgentsUniversalHarness.sh|3|$harnessToolSearchFloorFile.$$|inside the scratch folder this harness process made for itself by mktemp'
 }
 ## Reads the list, then the files named after it: prints a line for every $$ the list does not hold, and for every
@@ -369,8 +368,7 @@ rigNoTmpList(){
 		"myx.distro-agents/sh-test/AgentsHarnessPermissionCheck.test.sh|1|rm -rf $rigNoTmpRoot/rig x|data: the text of a command the permission hook records, never run" \
 		"myx.distro-agents/sh-test/AgentsWireStreamDiffCheck.test.sh|1|\"input_json_delta\",\"partial_json\"|data: a path inside a streamed tool call of a fixture, never a place written" \
 		"myx.distro-agents/sh-test/AgentsRunRuleReadersCheck.test.sh|1|rig-sw-ended-\$\$$rigNoTmpRoot|data: the tmp folder inside a spawn sandbox of the rig, a path of the rig and never the system's" \
-		"myx.distro-.local/sh-lib/python/LocalTools.EmbeddedPython.include|1|$rigNoTmpVar=\"\$embeddedBase/tmp\"|data: the temp-dir variable handed to uv's own process, set to the tmp folder of .local/embedded-python so that uv never writes in the system's" \
-		"myx.distro-agents/sh-lib/config/AgentsTools.InstallKnowledgeStore.include|1|$rigNoTmpVar=\"\$storeDir/tmp\"|data: the temp-dir variable handed to the process of pip and of the Python that makes the environment, set to the tmp folder of .local/knowledge-store so that they never write in the system's"
+		"myx.distro-.local/sh-lib/python/LocalTools.EmbeddedPython.include|1|$rigNoTmpVar=\"\$embeddedBase/tmp\"|data: the temp-dir variable handed to uv's own process, set to the tmp folder of .local/embedded-python so that uv never writes in the system's"
 }
 ## Rule 1: the root temp folder as a path of its own -- at the start, or after anything that ends no other path (not a
 ## letter, digit, `_`, `.`, `}` or `)`), and not followed by a letter, digit or `_` -- or under /private or /var; or
@@ -380,31 +378,7 @@ rigNoTmpPattern="(^|[^A-Za-z0-9_.})])$rigNoTmpRoot([^A-Za-z0-9_]|\$)|/private$ri
 ## `&`, `=`, `then`, `do` or `exec` -- read to the end of its command, its words split at blanks. A site where a word
 ## ahead of the template is an option holding `t`, where there is no template, or where the template holds no `/` and
 ## starts at no variable. Comment lines are prose, and are not read for it. The files are given after the word.
-printf '%s\n' \
-	'my $word = shift @ARGV ;' \
-	'for my $file ( @ARGV ) {' \
-	'	open( my $in, "<", $file ) or next ;' \
-	'	my $number = 0 ;' \
-	'	while ( my $line = <$in> ) {' \
-	'		$number++ ; chomp $line ;' \
-	'		next if $line =~ m@^\s*#@ ;' \
-	'		my $rest = $line ;' \
-	'		while ( $rest =~ m@(?:^\s*|[\$\(`;|&=]\s*|\bthen\s+|\bdo\s+|\bexec\s+)\Q$word\E\b([^\)\|;&`]*)(.*)$@ ) {' \
-	'			my ( $call, $after ) = ( $1, $2 ) ; $rest = $after ;' \
-	'			my ( $bad, $template ) = ( "", undef ) ;' \
-	'			for my $one ( grep { length } split( /\s+/, $call ) ) {' \
-	'				if ( !defined $template && $one =~ m@^-@ ) { $bad = "it takes -t" if $one =~ m@^-[A-Za-z]*t@ ; next ; }' \
-	'				$template = $one unless defined $template ;' \
-	'			}' \
-	'			if ( !$bad ) {' \
-	'				if ( !defined $template ) { $bad = "it has no template" ; }' \
-	'				else { ( my $plain = $template ) =~ s@^["\x27]@@ ; $bad = "its template is a bare name" unless $plain =~ m@/@ || $plain =~ m@^\$@ ; }' \
-	'			}' \
-	'			print "$file:$number: [$bad] $line\n" if $bad ;' \
-	'		}' \
-	'	}' \
-	'	close $in ;' \
-	'}' > "$rigTmp/notmp-mk.pl"
+rigNoTmpMkReader="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-mktemp-sites.py"
 ## Rule 3: a python tempfile call with no `dir=` on its line.
 rigNoTmpPy="tempfile\.(gettempdir|mkstemp|mkdtemp|$rigNoTmpMk|NamedTemporaryFile|TemporaryFile|TemporaryDirectory|SpooledTemporaryFile)\("
 ## The files read, as package/path: every file of every myx.distro-* package that is code by its name or its shebang, and
@@ -420,7 +394,7 @@ rigNoTmpOrigin="$MDLT_ORIGIN/myx"
 	done
 done > "$rigTmp/notmp-files"
 ( cd "$rigNoTmpOrigin" && LC_ALL=C tr '\n' '\0' < "$rigTmp/notmp-files" | xargs -0 grep -n -H -E -- "$rigNoTmpPattern" 2> /dev/null ) > "$rigTmp/notmp-root"
-( cd "$rigNoTmpOrigin" && LC_ALL=C tr '\n' '\0' < "$rigTmp/notmp-files" | xargs -0 perl "$rigTmp/notmp-mk.pl" "$rigNoTmpMk" 2> /dev/null ) > "$rigTmp/notmp-mktemp"
+( cd "$rigNoTmpOrigin" && LC_ALL=C tr '\n' '\0' < "$rigTmp/notmp-files" | xargs -0 python3 -I -B "$rigNoTmpMkReader" "$rigNoTmpMk" 2> /dev/null ) > "$rigTmp/notmp-mktemp"
 ( cd "$rigNoTmpOrigin" && LC_ALL=C tr '\n' '\0' < "$rigTmp/notmp-files" | xargs -0 grep -n -H -E -- "$rigNoTmpPy" 2> /dev/null | LC_ALL=C grep -v -F 'dir=' ) > "$rigTmp/notmp-python"
 ## The sites of the three rules against the second list: each site a line of the list takes is no site; every line of the
 ## list that takes another number of sites than it says is said.
@@ -454,7 +428,7 @@ printf '%s\n' "x=\$rigTmp/a" "y=\"\$dir$rigNoTmpRoot\"" "z=\${base}$rigNoTmpRoot
 printf '%s\n' "a=\"\$( $rigNoTmpMk -d -t RigName )\"" "b=\$($rigNoTmpMk)" "c=\"\$( $rigNoTmpMk -d )\"" "$rigNoTmpMk -dt RigName" "d=\"\$( $rigNoTmpMk rig.XXXXXX )\"" > "$rigTmp/notmp-probe.mk"
 printf '%s\n' "a=\"\$( $rigNoTmpMk -d \"\$MMDAPP/.local/temp/RigName.XXXXXX\" )\"" "b=\"\$( $rigNoTmpMk \"\$target.XXXXXX\" )\"" "c=\$($rigNoTmpMk -d \"\${rigTmp}/x.XXXX\")" "## made by $rigNoTmpMk -t in prose" "echo \"$rigNoTmpMk failed\"" > "$rigTmp/notmp-probe.mkclean"
 rigAssert "control: each matcher finds the five sites of a probe that has them, and none in one that has not" \
-	"$( LC_ALL=C grep -c -E -- "$rigNoTmpPattern" "$rigTmp/notmp-probe.sites" ):$( LC_ALL=C grep -c -E -- "$rigNoTmpPattern" "$rigTmp/notmp-probe.clean" ) $( perl "$rigTmp/notmp-mk.pl" "$rigNoTmpMk" "$rigTmp/notmp-probe.mk" | LC_ALL=C grep -c . ):$( perl "$rigTmp/notmp-mk.pl" "$rigNoTmpMk" "$rigTmp/notmp-probe.mkclean" | LC_ALL=C grep -c . )" "5:0 5:0"
+	"$( LC_ALL=C grep -c -E -- "$rigNoTmpPattern" "$rigTmp/notmp-probe.sites" ):$( LC_ALL=C grep -c -E -- "$rigNoTmpPattern" "$rigTmp/notmp-probe.clean" ) $( python3 -I -B "$rigNoTmpMkReader" "$rigNoTmpMk" "$rigTmp/notmp-probe.mk" | LC_ALL=C grep -c . ):$( python3 -I -B "$rigNoTmpMkReader" "$rigNoTmpMk" "$rigTmp/notmp-probe.mkclean" | LC_ALL=C grep -c . )" "5:0 5:0"
 printf '%s\n' "rig/Probe.sh|1|probe text|a reason long enough to stand in a control" > "$rigTmp/notmp-probe.list"
 printf '%s\n' "rig/Probe.sh:3:a line of the probe text" "rig/Probe.sh:4:a line the list does not hold" > "$rigTmp/notmp-probe.found"
 rigAssert "control: a site the list holds is no site, one it does not hold is said, and a line of the list that takes no site is said" \

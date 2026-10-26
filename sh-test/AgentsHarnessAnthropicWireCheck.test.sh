@@ -221,6 +221,7 @@ rigClaudeRun(){ ## round 1 input_tokens
 	rigTextStream "$rigScenarioDir/res.3" RIG-FINAL-MARKER
 	rigRunStatus=0
 	RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir" MDAT_HARNESS_CONTEXT_TOKENS="" \
+		HARNESS_MODEL_LIGHT="" HARNESS_MODEL_MAIN="" HARNESS_OUTPUT_TOKENS_LIGHT="" HARNESS_OUTPUT_TOKENS_MAIN="" \
 		ANTHROPIC_API_KEY="rig-not-a-credential" \
 		"$rigHere/harness/AgentsClaudeHarness.sh" --access-root "$rigScenarioDir" RIG-TASK-MARKER \
 		> "$rigScenarioDir/out" 2> "$rigScenarioDir/err" || rigRunStatus=$?

@@ -45,7 +45,7 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
-command -v perl > /dev/null 2>&1 || rigRefuse "no perl on PATH to start a process with its signals at their defaults"
+command -v python3 > /dev/null 2>&1 || rigRefuse "no python3 on PATH to start a process with its signals at their defaults"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
 . "$rigPackage/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
@@ -142,7 +142,7 @@ rigOne(){ ## session id -- one tick
 rigThreadPid=""
 rigThread(){ ## name of its output files, session id
 	env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" ${rigPre[@]+"${rigPre[@]}"} \
-		perl -e '$SIG{$_} = "DEFAULT" for qw( HUP INT QUIT PIPE TERM USR1 USR2 ) ; chdir $ENV{MMDAPP} or exit 98 ; exec @ARGV or exit 99' \
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --default-signals HUP,INT,QUIT,PIPE,TERM,USR1,USR2 --chdir-env MMDAPP -- \
 		bash "$rigTool" "$rigOp" --run --session-id "$2" > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" < /dev/null &
 	rigThreadPid=$!
 	rigProcNote "$rigThreadPid" ; rigStarted="$rigStarted $rigThreadPid"
@@ -150,7 +150,7 @@ rigThread(){ ## name of its output files, session id
 ## A process started as a thread is, with no care for any signal: the control of section 4.
 rigBarePid=""
 rigBare(){
-	perl -e '$SIG{$_} = "DEFAULT" for qw( HUP INT QUIT PIPE TERM USR1 USR2 ) ; exec @ARGV or exit 99' sleep 600 > /dev/null 2>&1 < /dev/null &
+	python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --default-signals HUP,INT,QUIT,PIPE,TERM,USR1,USR2 -- sleep 600 > /dev/null 2>&1 < /dev/null &
 	rigBarePid=$!
 	rigProcNote "$rigBarePid" ; rigStarted="$rigStarted $rigBarePid"
 	disown "$rigBarePid" 2> /dev/null || :
@@ -339,7 +339,7 @@ cat > "$rigTmp/starter.sh" <<'RIGSTARTER'
 cd "$RIG_STARTER_DIR" || exit 97
 exec 5>&1
 if [ "$RIG_STARTS" = "thread" ] ; then
-	perl -e '$SIG{$_} = "DEFAULT" for qw( HUP INT QUIT PIPE TERM USR1 USR2 ) ; exec @ARGV or exit 99' bash "$RIG_TOOL" --intern-session-control --run --session-id "$RIG_SESSION" &
+	python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --default-signals HUP,INT,QUIT,PIPE,TERM,USR1,USR2 -- bash "$RIG_TOOL" --intern-session-control --run --session-id "$RIG_SESSION" &
 else
 	sleep 600 &
 fi

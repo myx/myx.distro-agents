@@ -2,7 +2,7 @@
 
 # Turns one comms API response (stdin, one line, LC_ALL=C) into the
 # session-context document's own per-item block shape, defined by
-# magic-team/templates/session-context.document.format.md.
+# sh-lib/templates/session-context.document.format.md.
 #
 # `-v kind=slack|trello`; Slack additionally takes `-v source=<watched-target-name>`
 # and `-v channel=<channel-id>`.

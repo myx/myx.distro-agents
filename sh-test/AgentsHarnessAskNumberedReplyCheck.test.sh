@@ -146,9 +146,19 @@ rigVerdictLine(){
 rigWaitId(){ ## -> the pending id the last call left to wait on
 	LC_ALL=C sed -n 's/^WAIT-ID: ask://p' "$rigScenarioDir/out" | head -1
 }
+rigRecordFile(){ ## pending id -- its record's path, open or retained-closed
+	## A closed record is retained, not deleted: it moves into pending/closed/
+	## (AgentsTools.InternOpPendingReply.include), so both are tried; where neither exists the
+	## open path is returned, so a missing record reads exactly as before.
+	local recordFile
+	for recordFile in "$rigScenarioDir/ws/.local/agents/pending/$1.md" "$rigScenarioDir/ws/.local/agents/pending/closed/$1.md" ; do
+		[ -f "$recordFile" ] && { printf '%s' "$recordFile" ; return 0 ; }
+	done
+	printf '%s' "$rigScenarioDir/ws/.local/agents/pending/$1.md"
+}
 rigFieldOf(){ ## pending id, field
 	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; found = 1 ; exit ; } END { if ( ! found ) { print "none" ; } }' \
-		"$rigScenarioDir/ws/.local/agents/pending/$1.md" 2>/dev/null || printf 'no-record'
+		"$( rigRecordFile "$1" )" 2>/dev/null || printf 'no-record'
 }
 
 rigScenarioDir=""
@@ -168,6 +178,10 @@ rigStart(){ ## scenario directory name
 ## One served call of AskQuestion. A question nobody answers is re-waited without end by
 ## design, so the guard is the scenario's: a killed run is reported as such, never as a
 ## result. With from-read the guard counts from the first thread read this call makes.
+## The bound is well past one round of this rig's sources: since a round with an arrival in
+## hand now ends before the next source once the bound has passed (MemberWait, "THE BOUND IS
+## KEPT BETWEEN SOURCES"), a bound of 1 s cut the round between the two questions' own
+## sources, and a real wait's bound is minutes, never as short as its round.
 rigKilled=""
 rigCall(){ ## guard seconds, argument object, optional from-read
 	local callPid callLeft callStartLeft=120 callReads
@@ -175,7 +189,7 @@ rigCall(){ ## guard seconds, argument object, optional from-read
 	callReads="$( rigCalls conversations.replies )"
 	set -m
 	( cd "$rigScenarioDir/ws" && printf '%s' "$2" | env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT \
-		MDAT_SPAWN_SESSION_ID="rig-numbered-$rigScenarioName" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" MDAT_HARNESS_WAIT_TIMEOUT=1 \
+		MDAT_SPAWN_SESSION_ID="rig-numbered-$rigScenarioName" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" MDAT_HARNESS_WAIT_TIMEOUT=10 \
 		bash "$rigHarness" --intern-tool AskQuestion --access-read-root "$rigScenarioDir/ws" --access-write-root "$rigScenarioDir/ws/IN" ) > "$rigScenarioDir/out" 2> "$rigScenarioDir/err" &
 	callPid=$!
 	set +m

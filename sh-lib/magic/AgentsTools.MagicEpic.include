@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MagicEpic.include -- the coordinator's epic-file operations (W1 of the refactorings epic). One
+## operation, `--epic-update`, edits an epic file, so no routine edits one by hand:
+##   --epic-update <epic-file> --set-status <feature-id> <status>
+##   --epic-update <epic-file> --add-settled <feature-id> [--date <YYYY-MM-DD>] [--owner <name>] <text...>
+## `--set-status` writes the `Status:` line that stands under the `## <feature-id>` heading (it replaces the line
+## where one stands, else inserts it after the heading); `--add-settled` adds a `**Settled <date> (<owner>).**
+## <text>` line under the same heading, after its `Status:` line. Both refuse where the feature is not there or
+## stands more than once. The file is a plain source file (the backlog folder), edited in place and never
+## committed: the owner commits what is applied. Sourced from AgentDispatcherTools.fn.sh's arm for the name;
+## relies on $1/$@/$MDSC_CMD.
+##
+
+## How many `## <feature-id> ` headings stand in an epic file.
+AgentsToolsMagicEpicFeatureCount(){ ## file, feature-id
+	LC_ALL=C awk -v want="## $2 " 'index( $0, want ) == 1 { n++ } END { print n + 0 }' "$1"
+}
+
+## The call runs only as magic-coordinator: the epic is the coordinator's to write.
+AgentsToolsMagicEpicCaller(){ ## the operation
+	type AgentsToolsSurfaceCaller > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CoordinatorSurface.include"
+	AgentsToolsSurfaceCaller "$1" write
+}
+
+## The edit is made against a scratch copy and moved over the file, so a failed write never leaves a half file.
+AgentsToolsMagicEpicTemp(){ ## prints a fresh scratch path under .local/temp
+	mkdir -p "$MMDAPP/.local/temp" || return 1
+	mktemp "$MMDAPP/.local/temp/AgentsEpic.XXXXXX"
+}
+
+case "$1" in
+
+	--epic-update)
+		shift
+		local epicFile="${1:-}" epicMode="${2:-}"
+		shift 2 || true
+		if [ -z "$epicFile" ] || [ -z "$epicMode" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --epic-update: syntax is <epic-file> (--set-status <feature-id> <status>|--add-settled <feature-id> [--date <YYYY-MM-DD>] [--owner <name>] <text...>)" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsMagicEpicCaller "--epic-update" || { set +e ; return 1 ; }
+		if [ ! -f "$epicFile" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --epic-update: no such epic file: $epicFile" >&2
+			set +e ; return 1
+		fi
+		case "$epicMode" in
+
+			--set-status)
+				local featureId="${1:-}" featureStatus="${2:-}" statusTemp
+				shift 2 || true
+				if [ -z "$featureId" ] || [ -z "$featureStatus" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: syntax is <feature-id> <status>" >&2
+					set +e ; return 1
+				fi
+				[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: invalid option: $1 -- the status is one line, passed as one argument" >&2 ; set +e ; return 1 ; }
+				[ "$( AgentsToolsMagicEpicFeatureCount "$epicFile" "$featureId" )" -eq 1 ] || {
+					echo "⛔ ERROR: $MDSC_CMD --epic-update --set-status: feature $featureId must stand exactly once in $epicFile" >&2
+					set +e ; return 1
+				}
+				statusTemp="$( AgentsToolsMagicEpicTemp )" || { set +e ; return 1 ; }
+				LC_ALL=C awk -v want="## $featureId " -v new="Status: $featureStatus" '
+					BEGIN { inFeature = 0 ; placed = 0 }
+					{
+						if ( ! inFeature ) {
+							if ( index( $0, want ) == 1 ) { inFeature = 1 ; print ; next }
+							print ; next
+						}
+						if ( $0 ~ /^## / || $0 ~ /^# / ) { inFeature = 0 ; print ; next }
+						if ( ! placed && $0 ~ /^Status: / ) { print new ; placed = 1 ; next }
+						print
+					}
+					END { if ( ! placed && inFeature ) { print "" ; print new } }
+				' "$epicFile" > "$statusTemp" || { rm -f -- "$statusTemp" ; set +e ; return 1 ; }
+				mv -f -- "$statusTemp" "$epicFile" || { rm -f -- "$statusTemp" ; set +e ; return 1 ; }
+				printf 'EPIC: %s: %s status set to %s\n' "${epicFile##*/}" "$featureId" "$featureStatus"
+			;;
+
+			--add-settled)
+				local featureId="${1:-}" settledDate="" settledOwner="owner" settledTemp
+				shift || true
+				if [ -z "$featureId" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --epic-update --add-settled: syntax is <feature-id> [--date <YYYY-MM-DD>] [--owner <name>] <text...>" >&2
+					set +e ; return 1
+				fi
+				while [ $# -gt 0 ] ; do
+					case "$1" in
+						--date|--owner)
+							[ -n "${2:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --epic-update --add-settled: $1 takes a value" >&2 ; set +e ; return 1 ; }
+							if [ "$1" = --date ] ; then settledDate="$2" ; else settledOwner="$2" ; fi
+							shift 2
+						;;
+						*) break ;;
+					esac
+				done
+				local settledText settledLine
+				settledText="$( printf '%s ' "$@" | LC_ALL=C sed 's/ $//' )"
+				[ -n "$settledText" ] || { echo "⛔ ERROR: $MDSC_CMD --epic-update --add-settled: the settled text is needed" >&2 ; set +e ; return 1 ; }
+				[ -n "$settledDate" ] || settledDate="$( date +%Y-%m-%d )"
+				[ "$( AgentsToolsMagicEpicFeatureCount "$epicFile" "$featureId" )" -eq 1 ] || {
+					echo "⛔ ERROR: $MDSC_CMD --epic-update --add-settled: feature $featureId must stand exactly once in $epicFile" >&2
+					set +e ; return 1
+				}
+				settledLine="**Settled $settledDate ($settledOwner).** $settledText"
+				settledTemp="$( AgentsToolsMagicEpicTemp )" || { set +e ; return 1 ; }
+				LC_ALL=C awk -v want="## $featureId " -v line="$settledLine" '
+					BEGIN { inFeature = 0 ; placed = 0 }
+					{
+						if ( ! inFeature ) {
+							if ( index( $0, want ) == 1 ) { inFeature = 1 ; print ; next }
+							print ; next
+						}
+						if ( $0 ~ /^## / || $0 ~ /^# / ) { inFeature = 0 ; print ; next }
+						if ( ! placed && $0 ~ /^Status: / ) { print $0 ; print "" ; print line ; placed = 1 ; next }
+						print
+					}
+					END { if ( ! placed && inFeature ) { print "" ; print line } }
+				' "$epicFile" > "$settledTemp" || { rm -f -- "$settledTemp" ; set +e ; return 1 ; }
+				mv -f -- "$settledTemp" "$epicFile" || { rm -f -- "$settledTemp" ; set +e ; return 1 ; }
+				printf 'EPIC: %s: %s settled: %s\n' "${epicFile##*/}" "$featureId" "$settledText"
+			;;
+
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --epic-update: $epicMode is not --set-status or --add-settled" >&2
+				set +e ; return 1
+			;;
+		esac
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

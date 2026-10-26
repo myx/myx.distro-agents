@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on F5.3 of the refactorings epic, the type kinds of the ONE validator,
 ## `--intern-doc-validate <store>-item.<type> <file|--from-stdin>` (sh-lib/team-data/AgentsTools.DocValidate.include and
-## AgentsDocTypeCheck.awk): the rule set of a team-data type IS its contract (magic-team/templates/<kind>.contract.format.md),
+## AgentsDocTypeCheck.awk): the rule set of a team-data type IS its contract (magic-team/contracts/<kind>.contract.format.md),
 ## read by one reader. A row is `<file>:<line>: <rule>: <text>`; the rule of a reporting row starts `report-` and refuses
 ## nothing (exit 0); a refusing row exits non-zero. The disposition is the one table, per rule and call site.
 ## Held:
@@ -22,7 +22,7 @@ set -u
 rigOrigin="$( cd "$MDLT_ORIGIN" && pwd -P )" || exit 1
 rigPackage="$rigOrigin/myx/myx.distro-agents"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigTemplates="$rigPackage/skillset/magic-team/magic-team/templates"
+rigTemplates="$rigPackage/skillset/magic-team/magic-team/contracts"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -174,8 +174,8 @@ rigTable="$( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/
 rigAssert "the contract refuses, at both sites; what is only said is said at both" "$rigTable" "contract-key=refuse/refuse contract-form=refuse/refuse contract-type=refuse/refuse contract-references=refuse/refuse contract-unknown-key=report/report contract-pair=report/report contract-frontmatter=report/report contract-body=report/report contract-filename=report/report contract-rule-unread=report/report contract-name=report/report contract-store=report/report "
 
 echo "-- 7. the contract is the rule set --"
-mkdir -p "$rigSkills/magic-team/templates"
-LC_ALL=C sed 's/^| `owner` | required |/| `owner` | optional |/' "$rigTemplates/board-item.task.contract.format.md" > "$rigSkills/magic-team/templates/board-item.task.contract.format.md"
+mkdir -p "$rigSkills/magic-team/contracts"
+LC_ALL=C sed 's/^| `owner` | required |/| `owner` | optional |/' "$rigTemplates/board-item.task.contract.format.md" > "$rigSkills/magic-team/contracts/board-item.task.contract.format.md"
 rigCheck board-item.task task-20261001T1000Z-no-owner.md
 rigAssert "a task with no owner passes where the contract of the skillset root makes owner optional" "$rigRc:$( rigRules )" "0:"
 rigSkillsRoot="$rigTmp/none"
@@ -188,7 +188,7 @@ rigOwners=0 rigShapes=0
 for rigContract in "$rigTemplates"/board-item.*.contract.format.md ; do
 	LC_ALL=C grep -q -E '^\| `owner` \| required \| (either|tooling) \| `owner-name` \|' "$rigContract" && rigOwners=$(( rigOwners + 1 ))
 done
-for rigShape in "$rigTemplates"/board-item.*.document.format.md ; do
+for rigShape in "$rigPackage/sh-lib/templates"/board-item.*.document.format.md ; do
 	LC_ALL=C grep -q -E '^owner: <[^>]*optional' "$rigShape" || rigShapes=$(( rigShapes + 1 ))
 done
 rigAssert "the owner is required in all 9 board contracts, and no board shape shows it optional" "$rigOwners:$rigShapes" "9:9"

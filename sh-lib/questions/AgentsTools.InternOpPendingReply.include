@@ -21,6 +21,21 @@
 ## performed leaves the record open rather than closing it as unanswered.
 ##
 
+## The closed records are retained, not deleted: a record that closes moves with its sidecars into `pending/closed/`, and a
+## reader that finds no live record resolves the id there (AgentsToolsPendingReplyResolve). A saved reply and an unanswered
+## question stay readable after the fact.
+AgentsToolsPendingReplyClosedDir(){ ## the closed folder of the pending store
+	printf '%s' "${MMDAPP%/}/.local/agents/pending/closed"
+}
+## The record a pending id names, live first then closed: the path, or nothing and rc 1 for none.
+AgentsToolsPendingReplyResolve(){ ## pending id
+	local resolveRoot="${MMDAPP%/}/.local/agents/pending" resolveId="$1"
+	case "$resolveId" in ''|*/*|.|..) return 1 ;; esac
+	[ ! -f "$resolveRoot/$resolveId.md" ] || { printf '%s' "$resolveRoot/$resolveId.md" ; return 0 ; }
+	[ ! -f "$resolveRoot/closed/$resolveId.md" ] || { printf '%s' "$resolveRoot/closed/$resolveId.md" ; return 0 ; }
+	return 1
+}
+
 ## One resolved mark on one message: under the identity the question was posted with, the
 ## one its record names (`ask-identity`), first, then the other one, since which identity
 ## may react differs by conversation. One the bot asked may stand where the member's own
@@ -44,7 +59,7 @@ AgentsToolsPendingReplyThreadHasOpen(){ ## channel, thread ts
 	local openFile
 	while IFS= read -r openFile ; do
 		LC_ALL=C grep -q -x -F "channel: $1" "$openFile" && LC_ALL=C grep -q -x -F "status: reply-pending" "$openFile" && return 0
-	done < <( LC_ALL=C grep -r -l -x -F --include='*.md' "thread-ts: $2" "$MMDAPP/.local/agents/pending" 2>/dev/null )
+	done < <( LC_ALL=C grep -l -x -F "thread-ts: $2" "$MMDAPP/.local/agents/pending"/*.md 2>/dev/null )
 	return 1
 }
 
@@ -210,6 +225,12 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: can't put the pending-reply record in place: $pendingRoot/$pendingId.md" >&2
 			set +e ; return 1
 		}
+		## The question joins its session's stored wait now, so an answer is collected even when the asking call is cut off.
+		if [ -n "$pendingSession" ] && [ -n "$pendingOwner" ] ; then
+			DistroAgentsTools --intern-op-wait-for-input "$pendingOwner" --wait-add --wait-session-id "$pendingSession" --wait-source "ask:$pendingId" > /dev/null 2> "$pendingRoot/.$pendingId.wait-add.$$" \
+				|| { echo "$MDSC_CMD: ⛔ ERROR: $pendingId is asked, but it could not join the stored wait of session $pendingSession, so a cut-off call loses its answer until a Wait names it:" >&2 ; cat "$pendingRoot/.$pendingId.wait-add.$$" >&2 ; }
+			rm -f "$pendingRoot/.$pendingId.wait-add.$$"
+		fi
 		## The id on stdout, because the caller closes this record by it and has no
 		## other way to learn it.
 		printf '%s\n' "$pendingId"
@@ -327,9 +348,11 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+		## A closed record lives in pending/closed/ (retention, T9): --amend corrects one there, a close of a live one finds it in pending/.
 		local pendingFile="$MMDAPP/.local/agents/pending/$pendingId.md"
+		[ -f "$pendingFile" ] || pendingFile="$MMDAPP/.local/agents/pending/closed/$pendingId.md"
 		if [ ! -f "$pendingFile" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record: $pendingFile" >&2
+			echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record: $pendingId" >&2
 			set +e ; return 1
 		fi
 		## Every close holds the record's own lock across its read and its write, so two
@@ -341,8 +364,10 @@ case "$1" in
 			set +e ; return 1
 		fi
 		pendingLock="$agentsLocalLockPath"
+		## Another closer's close moved the record to closed/ while this one waited on the lock (retention, T9): read it again where it is.
+		[ -f "$pendingFile" ] || pendingFile="$MMDAPP/.local/agents/pending/closed/$pendingId.md"
 		if [ -n "$pendingAmend" ] ; then
-			pendingNow="$( LC_ALL=C awk -F': ' 'NR > 1 && $0 == "---" { exit ; } $1 == "status" { print substr($0, 9) ; exit ; }' "$pendingFile" )"
+			pendingNow="$( LC_ALL=C awk -F': ' 'NR > 1 && $0 == "---" { exit ; } $1 == "status" { print substr($0, 9) ; exit ; }' "$pendingFile" 2>/dev/null || : )"
 			if [ "$pendingNow" = "reply-pending" ] || [ -z "$pendingAmendedBy" ] || [ -z "$pendingAmendReason" ] || [ -z "$pendingVerdict" ] ; then
 				AgentsToolsLocalLockGive "$pendingLock"
 				echo "$MDSC_CMD: ⛔ ERROR: --amend corrects a closed record only, and needs --verdict, --amended-by and --amend-reason; $pendingId is ${pendingNow:-unknown}, left as it is" >&2
@@ -350,7 +375,7 @@ case "$1" in
 			fi
 		fi
 		if [ -n "$pendingIfOpen" ] ; then
-			pendingNow="$( LC_ALL=C awk -F': ' 'NR > 1 && $0 == "---" { exit ; } $1 == "status" { print substr($0, 9) ; exit ; }' "$pendingFile" )"
+			pendingNow="$( LC_ALL=C awk -F': ' 'NR > 1 && $0 == "---" { exit ; } $1 == "status" { print substr($0, 9) ; exit ; }' "$pendingFile" 2>/dev/null || : )"
 			if [ "$pendingNow" != "reply-pending" ] ; then
 				AgentsToolsLocalLockGive "$pendingLock"
 				printf 'ALREADY-CLOSED %s %s\n' "$pendingId" "${pendingNow:-unknown}"
@@ -462,6 +487,18 @@ case "$1" in
 				esac
 			fi
 		fi
+		## Retention (T9): a record closed here leaves the live store for pending/closed/, its sidecars (.options, .fields and the rest) with it, so
+		## a scan of the store opens only the live ones. The record is already closed and read whole above; a failed move leaves it in place, still closed.
+		if [ "$pendingStatus" != "reply-pending" ] && [ -f "$pendingFile" ] ; then
+			mkdir -p "$MMDAPP/.local/agents/pending/closed" 2>/dev/null || :
+			for pendingMove in "$pendingFile" "${pendingFile%.md}".* ; do
+				## The .options, .fields and .set sidecars move with the record. The .answered claim directory stays in pending/
+				## until the escalation apply has finished, and moves after that (AgentsToolsEscalationApplyFinish).
+				[ -e "$pendingMove" ] || continue
+				case "$pendingMove" in *.answered) continue ;; esac
+				mv -f "$pendingMove" "$MMDAPP/.local/agents/pending/closed/$( basename "$pendingMove" )" 2>/dev/null || :
+			done
+		fi
 		return 0
 	;;
 
@@ -494,8 +531,10 @@ case "$1" in
 		done
 		[ -n "$clarId" ] || { echo "$MDSC_CMD: ⛔ ERROR: syntax is <pending-reply-id> --from-stdin" >&2 ; set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$clarId" "<pending-reply-id>" pending-reply-clarify || { set +e ; return 1 ; }
+		## Open or closed records alike, so a closed one is found in pending/closed/ (retention, T9).
 		clarFile="$MMDAPP/.local/agents/pending/$clarId.md"
-		[ -f "$clarFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record: $clarFile" >&2 ; set +e ; return 1 ; }
+		[ -f "$clarFile" ] || clarFile="$MMDAPP/.local/agents/pending/closed/$clarId.md"
+		[ -f "$clarFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record: $clarId" >&2 ; set +e ; return 1 ; }
 		clarIn="$( cat )"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
 		AgentsToolsLocalLockTake "pending-reply-$clarId" 30 || { echo "$MDSC_CMD: ⛔ ERROR: the lock on $clarId could not be taken, so nothing was kept" >&2 ; set +e ; return 1 ; }
@@ -690,10 +729,10 @@ case "$1" in
 			[ ! -f "$collectStore/$collectId.md" ] || collectFiles=( "$collectStore/$collectId.md" )
 		elif [ -n "$collectSession" ] ; then
 			while IFS= read -r collectFile ; do collectFiles+=( "$collectFile" ) ; done \
-				< <( LC_ALL=C grep -r -l -x -F --include='*.md' "session-id: $collectSession" "$collectStore" 2>/dev/null )
+				< <( LC_ALL=C grep -l -x -F "session-id: $collectSession" "$collectStore"/*.md 2>/dev/null )
 		else
 			while IFS= read -r collectFile ; do collectFiles+=( "$collectFile" ) ; done \
-				< <( LC_ALL=C grep -r -l -x -F --include='*.md' "collect: ended" "$collectStore" 2>/dev/null )
+				< <( LC_ALL=C grep -l -x -F "collect: ended" "$collectStore"/*.md 2>/dev/null )
 			## Only a spawn's own close marks its records ended, so an ask from any other session
 			## (a native or console one) was never collected and stayed pending for good. Every
 			## open one asked over MDAT_PENDING_COLLECT_STALE_MINUTES ago (default 120) is
@@ -703,7 +742,7 @@ case "$1" in
 			case "$collectStaleMinutes" in ''|*[!0-9]*) collectStaleMinutes=120 ;; esac
 			case "$collectStaleMax" in ''|*[!0-9]*) collectStaleMax=40 ;; esac
 			while IFS= read -r collectFile ; do collectFiles+=( "$collectFile" ) ; done < <(
-				LC_ALL=C grep -r -l -x -F --include='*.md' "status: reply-pending" "$collectStore" 2>/dev/null \
+				LC_ALL=C grep -l -x -F "status: reply-pending" "$collectStore"/*.md 2>/dev/null \
 					| while IFS= read -r collectFile ; do
 						LC_ALL=C grep -q -x -F "collect: ended" "$collectFile" && continue
 						LC_ALL=C awk -v file="$collectFile" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, "question-ts: " ) == 1 { split( substr( $0, 14 ), part, "." ) ; print part[1] "\t" file ; exit ; }' "$collectFile" 2>/dev/null
@@ -733,6 +772,8 @@ case "$1" in
 			fi
 			collectLine="$( AgentsToolsPendingReplyCollectOne "$collectFile" )"
 			collectOutcome="${collectLine%% *}"
+			## The collect closed the record, which moved to closed/ (retention, T9): the note below reads it there.
+			[ -f "$collectFile" ] || collectFile="$MMDAPP/.local/agents/pending/closed/${collectFile##*/}"
 			[ -z "$collectTyped" ] || [ ! -f "$collectFile" ] || touch "$collectFile" 2>/dev/null || :
 			case "$collectOutcome" in
 				''|SKIPPED) continue ;;

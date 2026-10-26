@@ -214,7 +214,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - `magic-coordinator.coordination-session.routine` — the `coordination-session` cycle, run at **run-operating-mode-cycle**.
 - `magic-team/dispatches/root-harness-session-start.prompt-packet.verbatim.md` — the brief `--intern-root-harness` sends, after its `INTERACTION-MODE:` and `ROUTINE:` lines.
-- `magic-team/templates/routine.contract.format.md` — the frontmatter keys.
+- `magic-team/contracts/routine.contract.format.md` — the frontmatter keys.
 
 ### Conventions
 

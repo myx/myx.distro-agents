@@ -285,7 +285,7 @@ check magicSmaller
 keys \x18
 end end'
 for rigEmulation in narrow wide ; do
-	rigVt "$rigEmulation" "$rigMagicSteps" MDAT_MANAGER_STYLE=magic
+	rigVt "$rigEmulation" "$rigMagicSteps" MDLT_MANAGER_STYLE=magic
 	rigAssert "$rigEmulation, Magic: the screen comes up in Magic, the team comes up, and it ends by its key" \
 		"$( rigVal 'await.Magic-Team_(Agents)' ) $( rigVal await.magic-devops ) $( rigVal end.rc )" "yes yes 0"
 	rigAssert "$rigEmulation, Magic: after every step every cell of the terminal is what the screen drew last" "$( rigClean )" "none"

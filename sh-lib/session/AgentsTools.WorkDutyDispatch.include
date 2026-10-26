@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.WorkDutyDispatch.include -- the dispatch of a work-duty run (F10.7, the input token cache).
+##
+## A work-duty routine declares `cache-prefix: armed`, so the harness preloads its armed floor and the reads its brief
+## names, and NOT its procedure: the routine is put here, at the head of its dispatch, instead. The dispatch then carries,
+## in the owner's order:
+##   1. the routine's text, mixed with the routine of its kind, so the run has its procedure without a read;
+##   2. no team-static block: magic-team.armed.md is in the system prefix of every member run (the same bytes for every
+##      member and every session), so a section the brief names is read from there and the slot stays empty;
+##      static guidance -- the Markdown files of its reference/ folder, one heading each, exactly as the
+##      retired static-reference layer carried them; SKILL.md is excluded, being the boot note that would tell an armed run to arm;
+##   4. this run's variables -- session id, spawn id, started-at and the input scan's result -- and, after these, the
+##      run's own sandbox roots. They are the only per-run bytes: everything above them is the same on every work-duty
+##      run of the member, so it caches after the first.
+## A member whose reference/ holds no Markdown file has no member-static block; the routine and the variables still come.
+##
+## The harness places its run notes after the dispatch (they repeat the sandbox the dispatch names, and a per-run path
+## before the static text would end the shared prefix): it recognises the dispatch by the heading
+## `## Work-duty dispatch --`, which this file writes first and nothing else does.
+##
+
+## Whether a routine file is one of the work-duty routines: its short name is `work-duty`.
+AgentsToolsWorkDutyDispatchIs(){ ## routine file path
+	case "${1:-}" in *.work-duty.routine.md) return 0 ;; esac
+	return 1
+}
+
+## 1. The routine's text, mixed with its kind's (AgentsToolsSpawnRoutineMixText), under the dispatch's heading and the
+## call that serves the same bytes on demand. Read fresh from the skillset on every spawn, so a changed procedure is in
+## the very next run.
+AgentsToolsWorkDutyDispatchRoutine(){ ## routine file path
+	local dutyRoutine="$1" dutyMix=""
+	type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include"
+	dutyMix="$( AgentsToolsSpawnRoutineMixText "$dutyRoutine" )" || return 1
+	[ -n "$dutyMix" ] || return 1
+	printf '## Work-duty dispatch -- the routine and the member static guidance, the same bytes for every run of this member\n\n'
+	printf '## The routine -- carried here, never read again\n\n'
+	printf 'DistroAgentsSession.fn.sh --get-routine-text %s prints the same text on demand.\n\n' "${dutyRoutine##*/}"
+	printf '%s\n' "$dutyMix"
+}
+
+## 3. The member's static guidance: its reference/*.md files, sorted by path, each whole under a `### <path>` heading
+## and its size. No cap: the largest member reference is under the tool floor, and the text is paid once and cached.
+## A member with no reference file has no block.
+AgentsToolsWorkDutyDispatchMemberStatic(){ ## skillset root, member
+	local dutyRoot="$1" dutyMember="$2" dutyDir="$1/$2" dutyFile dutyFiles=()
+	[ -n "$dutyRoot" ] && [ -n "$dutyMember" ] && [ -d "$dutyDir/reference" ] || return 0
+	while IFS= read -r dutyFile ; do
+		[ -n "$dutyFile" ] && dutyFiles+=( "$dutyFile" )
+	done <<< "$( find "$dutyDir/reference" -maxdepth 1 -type f -name '*.md' 2> /dev/null | LC_ALL=C sort )"
+	[ "${#dutyFiles[@]}" -gt 0 ] || return 0
+	printf '## The member'\''s static guidance -- the same for every work-duty run of %s\n\n' "$dutyMember"
+	printf 'Its reference files, carried here so the duty reads one set of bytes on every run. SKILL.md is not among them: it is the boot note, and this run is already armed.\n'
+	for dutyFile in "${dutyFiles[@]}" ; do
+		printf '\n### %s (%s bytes)\n\n%s\n' "${dutyFile#"$dutyDir"/}" "$( wc -c < "$dutyFile" | tr -d ' ' )" "$( cat "$dutyFile" )"
+	done
+	return 0
+}
+
+## The static head of a work-duty dispatch: the routine, then the member's reference files, then nothing for the team
+## (magic-team.armed.md is in the system prefix). Byte-identical on every work-duty run of the member.
+AgentsToolsWorkDutyDispatchHead(){ ## routine file path, skillset root, member
+	local dutyHead="" dutyHeadStatic=""
+	dutyHead="$( AgentsToolsWorkDutyDispatchRoutine "$1" )" || return 1
+	dutyHeadStatic="$( AgentsToolsWorkDutyDispatchMemberStatic "$2" "$3" )" || dutyHeadStatic=""
+	[ -z "$dutyHeadStatic" ] || dutyHead="$dutyHead"$'\n\n'"$dutyHeadStatic"
+	printf '%s\n' "$dutyHead"
+}
+
+## 4. The variables of this run, last: session id, spawn id, started-at and the input scan's result. A scan result is
+## named by its file, its size and its line count -- never by its content, which the run reads by line range itself.
+AgentsToolsWorkDutyDispatchVariables(){ ## session id, spawn id, started-at, scan file (may be empty)
+	local dutySession="$1" dutySpawn="$2" dutyStarted="$3" dutyScan="${4:-}" dutyBytes="" dutyLines=""
+	printf '## This run -- its own variables\n\n'
+	printf 'session-id: %s\n' "$dutySession"
+	printf 'spawn-id: %s\n' "$dutySpawn"
+	printf 'started-at: %s\n' "$dutyStarted"
+	if [ -n "$dutyScan" ] && [ -f "$dutyScan" ] ; then
+		dutyBytes="$( wc -c < "$dutyScan" | tr -d ' ' )" ; dutyLines="$( wc -l < "$dutyScan" | tr -d ' ' )"
+		printf 'scan-result: input/input-scan.md (%s bytes, %s lines)\n' "$dutyBytes" "$dutyLines"
+	else
+		printf 'scan-result: none\n'
+	fi
+}
+
+## The whole dispatch, for a caller that has the scan already; the spawner calls the head and the variables around the
+## mechanical brief, so the brief's own per-run slots stay at its end, where the brief contract puts them.
+AgentsToolsWorkDutyDispatchText(){ ## routine file path, skillset root, member, session id, spawn id, started-at, scan file
+	local dutyText=""
+	dutyText="$( AgentsToolsWorkDutyDispatchHead "$1" "$2" "$3" )" || return 1
+	dutyText="$dutyText"$'\n\n'"$( AgentsToolsWorkDutyDispatchVariables "$4" "$5" "$6" "${7:-}" )"
+	printf '%s\n' "$dutyText"
+}

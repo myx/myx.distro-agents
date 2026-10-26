@@ -295,6 +295,21 @@ case "$1" in
 			fi
 		fi
 
+		## The preset that carries this domain's credentials: preset-<service>. A
+		## credential is written into its CLI service's preset and into no other
+		## scope -- the writer refuses a credential a preset's service does not
+		## read, and one written into a preset with no CLI service at all -- so
+		## that block is made here, before the values below reach the writer, and
+		## the service selection further down finds it already there. Made the way
+		## that selection would make it, and an existing block is left exactly as
+		## it stands: nothing here overwrites a preset.
+		if [ -n "$setupServiceKey" ] && [ ! -f "$setupWorkspace/.local/.agents/preset-$setupServiceValue.agent.env" ] ; then
+			printf '%s' "$setupServiceValue" | ( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "preset-$setupServiceValue" --upsert-from-stdin PRESET_CLI_SERVICE ) || {
+				echo "$MDSC_CMD: owner-setup: ⛔ ERROR: could not make the preset $setupServiceValue in $setupWorkspace" >&2
+				set +e ; return 1
+			}
+		fi
+
 		while IFS= read -r setupLine ; do
 			[ -n "$setupLine" ] || continue
 			setupKey="${setupLine%%=*}"
@@ -351,14 +366,10 @@ case "$1" in
 			elif [ -z "$setupForceDefault" ] && [ -n "$setupCurrent" ] ; then
 				echo "# $MDSC_CMD --owner-setup-$setupDomain --apply: the spawns start '$setupCurrent' -- pass --set-as-default to point SPAWN_TIER_NORMAL at the preset '$setupServiceValue' instead"
 			else
-				## The selection is a tier: a preset named as the CLI (made here where there is none) and the team's SPAWN_TIER_NORMAL
-				## pointing at it. SPAWN_CLI_SERVICE is no setting, so nothing is written under that name.
-				if [ ! -f "$setupWorkspace/.local/.agents/preset-$setupServiceValue.agent.env" ] ; then
-					printf '%s' "$setupServiceValue" | ( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "preset-$setupServiceValue" --upsert-from-stdin PRESET_CLI_SERVICE ) || {
-						echo "$MDSC_CMD: owner-setup: ⛔ ERROR: could not make the preset $setupServiceValue in $setupWorkspace" >&2
-						set +e ; return 1
-					}
-				fi
+				## The selection is a tier: the preset named as the CLI -- made above,
+				## before the values, so that a credential has its block to be written
+				## in -- and the team's SPAWN_TIER_NORMAL pointing at it. SPAWN_CLI_SERVICE
+				## is no setting, so nothing is written under that name.
 				printf '%s' "$setupServiceValue" | ( MMDAPP="$setupWorkspace" ; DistroAgentsTools --agents-config-option "$setupScope" --upsert-from-stdin SPAWN_TIER_NORMAL ) || {
 					echo "$MDSC_CMD: owner-setup: ⛔ ERROR: could not write SPAWN_TIER_NORMAL into the $setupScope scope of $setupWorkspace" >&2
 					set +e ; return 1

@@ -36,7 +36,7 @@ DistroAgentsGrants(){
 			set +e ; return 1
 		;;
 		--help)
-			AgentsToolsFrontHelp DistroAgentsGrants "the permission registry, its management and its bookkeeping" >&2
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsGrants.include"
 			return 0
 		;;
 	esac

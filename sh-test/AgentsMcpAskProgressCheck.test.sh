@@ -98,7 +98,7 @@ rigRequests '{"progressToken":"rig-ask-gone"}' | (
 	cd "$rigTmp/ws" && HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
 		MDAT_MCP_WAIT_BOUND_PROGRESS=30 MDAT_MCP_PROGRESS_SECONDS=1 MDAT_WAIT_POLL_SECONDS=1 \
 		bash "$rigTool" --intern-mcp-server --run 2> "$rigTmp/gone.err"
-) | head -n 3 > "$rigTmp/gone.wire"
+) | head -n 2 > "$rigTmp/gone.wire"
 rigGoneElapsed=$(( $( date +%s ) - rigGoneStart ))
 rigAssert "the first frame did reach the client"                "$( LC_ALL=C grep -c '"progressToken":"rig-ask-gone"' "$rigTmp/gone.wire" | tr -d ' ' )" 1
 rigAssert "the call ended well before its 30s bound"            "$( [ "$rigGoneElapsed" -lt 15 ] && printf yes || printf "no-${rigGoneElapsed}s" )" yes

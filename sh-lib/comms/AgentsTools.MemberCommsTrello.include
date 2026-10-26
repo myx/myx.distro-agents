@@ -33,8 +33,13 @@ AgentsToolsCommsTrelloCheck(){ ## <team-member>
 	esac
 	AgentsToolsCommsOwnSideCheck "$memberName" Trello trello-check || { set +e ; return 1 ; }
 	local trelloKey trelloToken
-	trelloKey="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_KEY )"
-	trelloToken="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_TOKEN )"
+	## THE CREDENTIAL FROM THE ENVIRONMENT (D4): the platform tool stands alone, with
+	## its key in the environment, before it asks any scope. The same name the config
+	## store holds, so a caller that exports it needs no team data at all.
+	trelloKey="${TRELLO_KEY:-}"
+	[ -n "$trelloKey" ] || trelloKey="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_KEY )" || trelloKey=""
+	trelloToken="${TRELLO_TOKEN:-}"
+	[ -n "$trelloToken" ] || trelloToken="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_TOKEN )" || trelloToken=""
 	if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
 		echo "⛔ ERROR: $MDSC_CMD --trello-check: TRELLO_KEY/TRELLO_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
 		set +e ; return 1
@@ -181,8 +186,13 @@ case "$1" in
 			fi
 
 			local trelloKey trelloToken
-			trelloKey="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_KEY )"
-			trelloToken="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_TOKEN )"
+			## THE CREDENTIAL FROM THE ENVIRONMENT (D4): the platform tool stands alone,
+			## with its key in the environment, before it asks any scope. The same name the
+			## config store holds, so a caller that exports it needs no team data at all.
+			trelloKey="${TRELLO_KEY:-}"
+			[ -n "$trelloKey" ] || trelloKey="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_KEY )" || trelloKey=""
+			trelloToken="${TRELLO_TOKEN:-}"
+			[ -n "$trelloToken" ] || trelloToken="$( DistroAgentsTools --agents-config-option "$memberName" --select TRELLO_TOKEN )" || trelloToken=""
 			if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --trello-read: TRELLO_KEY/TRELLO_TOKEN not fully set in ${memberName}'s own scope in .local/.agents" >&2
 				set +e ; return 1
@@ -316,8 +326,13 @@ case "$1" in
 			fi
 
 			local trelloKey trelloToken
-			trelloKey="$( DistroAgentsTools --agents-config-option "$callingMember" --select TRELLO_KEY )"
-			trelloToken="$( DistroAgentsTools --agents-config-option "$callingMember" --select TRELLO_TOKEN )"
+			## THE CREDENTIAL FROM THE ENVIRONMENT (D4): the platform tool stands alone,
+			## with its key in the environment, before it asks any scope. The same name the
+			## config store holds, so a caller that exports it needs no team data at all.
+			trelloKey="${TRELLO_KEY:-}"
+			[ -n "$trelloKey" ] || trelloKey="$( DistroAgentsTools --agents-config-option "$callingMember" --select TRELLO_KEY )" || trelloKey=""
+			trelloToken="${TRELLO_TOKEN:-}"
+			[ -n "$trelloToken" ] || trelloToken="$( DistroAgentsTools --agents-config-option "$callingMember" --select TRELLO_TOKEN )" || trelloToken=""
 			if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD $postOp: TRELLO_KEY/TRELLO_TOKEN not fully set in ${callingMember}'s own scope in .local/.agents" >&2
 				set +e ; return 1

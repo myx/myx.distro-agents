@@ -517,6 +517,16 @@ AgentsHarnessMcpEnumerate(){
 		## The declarations in the order of their declared names (F10.7), whatever order the servers and their lists came in: the
 		## MCP tools stand after the floor in every request, and the same set is then the same bytes from one run to the next.
 		## A declaration is one line (its newlines are escaped) and holds no raw tab.
+		## The tools only the MCP server serves are listed here too, in the same order, saying where they run, so the harness and the server list the same tools (S2.1).
+		if [ -z "${harnessToolOnly:-}" ] && [ -z "${MDAT_MCP_SERVED_MARKER:-}" ] && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessUnserved.include" 2> /dev/null ; then
+			while IFS= read -r harnessMcpUnservedName ; do
+				[ -n "$harnessMcpUnservedName" ] || continue
+				## Named as the server's tools are in the harness, mcp__<server>__<tool>.
+				harnessMcpDeclared="mcp__myx_distro__${harnessMcpUnservedName}"
+				harnessMcpDeclaration="$( AgentsWireToolDeclaration "$harnessMcpDeclared" "$( AgentsToolsUnservedSays harness "$harnessMcpUnservedName" | LC_ALL=C sed 's/ Pass description to give a short description of why\.$//' )" '{"type":"object","properties":{},"required":[]}' )" || continue
+				harnessMcpDeclList="${harnessMcpDeclList}${harnessMcpDeclared}"$'\t'"${harnessMcpDeclaration}"$'\n'
+			done <<< "$( AgentsToolsUnservedInHarness )"
+		fi
 		harnessMcpToolsJson="$( printf '%s' "$harnessMcpDeclList" | LC_ALL=C sort -t $'\t' -k1,1 -s | LC_ALL=C awk -F'\t' '{ printf ",%s", substr( $0, length( $1 ) + 2 ) ; }' )"
 	fi
 }

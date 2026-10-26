@@ -119,7 +119,8 @@ export PATH
 	|| rigRefuse "the rig's own ps, id and curl are not first on PATH, so this check would read the host's process list or issue a real request"
 [ "$( id -un )" = "rig" ] || rigRefuse "the rig's own id does not answer as the user rig"
 rigConfig(){ ## more lines of the team's settings (may be empty)
-	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\n%s' "${1:-}" > "$rigWs/.local/.agents/magic-team.agent.env"
+	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSPAWN_TIER_NORMAL=rig-cli\n%s' "${1:-}" > "$rigWs/.local/.agents/magic-team.agent.env"
+	printf 'PRESET_CLI_SERVICE=rig-cli\n' > "$rigWs/.local/.agents/preset-rig-cli.agent.env"
 }
 rigConfig ""
 for rigMember in rig-member-a rig-member-b magic-coordinator human-owner ; do
@@ -193,7 +194,7 @@ rigEnv(){ ## scenario folder, NAME=value words, then the command...
 	env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigSkills" RIG_TMP="$rigTmp" RIG_SCENARIO="$envDir" RIG_HELPER="$rigHelper" \
 		${envWords[@]+"${envWords[@]}"} \
-		perl -e '$SIG{HUP} = "DEFAULT" ; $SIG{INT} = "DEFAULT" ; $SIG{QUIT} = "DEFAULT" ; exec { $ARGV[0] } @ARGV or exit 127' "$@"
+		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --default-signals HUP,INT,QUIT -- "$@"
 }
 rigRunKept(){ [ -n "$( rigHeader "$rigRecord" run-process )" ] ; }
 rigRecordClosed(){ case "$( rigHeader "$rigRecord" status )" in spawn-started|'') return 1 ;; esac ; }
@@ -392,6 +393,39 @@ printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTool
 	| rigEnv "$rigTmp/s4c" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4c/out" 2>&1
 rigAssert "nothing said, nothing posted, nothing left in an inbox" \
 	"$( LC_ALL=C grep -c -x 'SAID=none' "$rigTmp/s4c/out" ):$( rigNoteCount "$rigTmp/s4c" "${rigToNone:0:8}" ):$( LC_ALL=C grep -l -F -- "${rigToNone:0:8}" "$rigData"/inboxes/*/incoming/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "1:0:0"
+
+echo "-- 4d. a run stopped on the provider's usage limit is told with the date it reopens --"
+## The provider's own message is the fixture (AgentsHarnessRefusalKeep keeps it beside the record),
+## and the close turns it into the same one wording the session list and the Dashboard show.
+rigLimitFixture="$rigPackage/sh-test/check-fixtures/provider-usage-limit.refused.txt"
+rigLimitText="stopped on the provider usage limit: reopens 2026-11-01 00:00 UTC"
+rigLimitRun="rtl4d$$x"
+[ -f "$rigLimitFixture" ] || rigRefuse "the usage-limit fixture is missing: $rigLimitFixture"
+mkdir -p "$rigSp/$rigLimitRun" "$rigTmp/s4d"
+printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: rig-member-b\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-started\nsession-thread: CRIGOWN4D:1700000004.000400\n---\n' \
+	"$rigLimitRun" "$rigLimitRun" "$rigReportsTo" "$rigLimitRun" "$rigHost" > "$rigSp/$rigLimitRun/$rigLimitRun.spawn.md"
+cp "$rigLimitFixture" "$rigSp/$rigLimitRun/$rigLimitRun.refused"
+printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyCloseSandbox '$rigSp/$rigLimitRun/$rigLimitRun.spawn.md' failed 1 ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigLimitRun/$rigLimitRun.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
+	| rigEnv "$rigTmp/s4d" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4d/out" 2>&1
+rigAssert "the close keeps the provider's reason on the record, and the one wording with the date in the run's store" \
+	"$( rigHeader "$rigSp/$rigLimitRun/$rigLimitRun.spawn.md" end-reason ):$( cat "$rigWs/.local/agents/sessions/$rigLimitRun/usage-limit" 2> /dev/null )" \
+	"$( cat "$rigLimitFixture" ):$rigLimitText"
+rigAssert "the end is told once, in the inbox of the member the run reports to" \
+	"$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4d/out" ):$( LC_ALL=C grep -l -F -- "${rigLimitRun:0:8}" "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' )" "1:1"
+rigAssert "its words: that it stopped on the provider usage limit, and the date it reopens, as the template's line" \
+	"$( LC_ALL=C grep -h -F -- "The run \`${rigLimitRun:0:8}\` of rig-member-a $rigLimitText." "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | head -1 )" \
+	"⏳ The run \`${rigLimitRun:0:8}\` of rig-member-a $rigLimitText."
+
+echo "-- 4e. a record closed before the store held a flag is still told: the record's own reason is read --"
+rigLimitOld="rtl4e$$x"
+mkdir -p "$rigSp/$rigLimitOld" "$rigTmp/s4e"
+printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: rig-member-b\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-failed\nend-reason: %s\nsession-thread: CRIGOWN4E:1700000004.000500\n---\n' \
+	"$rigLimitOld" "$rigLimitOld" "$rigReportsTo" "$rigLimitOld" "$rigHost" "$( cat "$rigLimitFixture" )" > "$rigSp/$rigLimitOld/$rigLimitOld.spawn.md"
+printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigLimitOld/$rigLimitOld.spawn.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
+	| rigEnv "$rigTmp/s4e" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4e/out" 2>&1
+rigAssert "the record's reason alone is enough: the same two facts, read from the record" \
+	"$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4e/out" ):$( LC_ALL=C grep -h -F -- "The run \`${rigLimitOld:0:8}\` of rig-member-a $rigLimitText." "$rigData/inboxes/rig-member-b/incoming"/inquiry-*.md 2> /dev/null | head -1 )" \
+	"1:⏳ The run \`${rigLimitOld:0:8}\` of rig-member-a $rigLimitText."
 
 echo "-- 5. a killed run is told as killed, and by whom --"
 ## One call of the console in the rig workspace, as a bare console makes it.

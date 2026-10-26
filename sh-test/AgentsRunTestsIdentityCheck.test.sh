@@ -42,6 +42,7 @@ rigAssert(){ ## what is asserted, got, want
 ## ---- the fixture ----
 ## The copy: the runner under test, and its tiny test, which writes down every variable of the tooling it finds.
 cp "$rigRunner" "$rigTests/AgentsRunTests.sh"
+mkdir -p "$rigTests/check-fixtures" && cp "$(dirname "$rigRunner")/check-fixtures"/runner-*.py "$rigTests/check-fixtures"/
 cat > "$rigTests/RigEnv.test.sh" <<'RIGTINY'
 #!/usr/bin/env bash
 env | LC_ALL=C grep -E '^(MDAT_[A-Z_]*|harness[A-Za-z]*|CLAUDE_CODE_SESSION_ID)=' > "$RIG_SHARED/found.$RIG_HOW"

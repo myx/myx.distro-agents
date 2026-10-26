@@ -280,16 +280,83 @@ AgentsToolsSpawnRoutineContractExecutorsInvitees(){ ## contract-check output (it
 	printf '%s\n' "${ceInviteesLine#invitees: }"
 }
 
+## The members a `<type>-*` or `<type>-?` token names: every member of the team whose name
+## begins with `<type>-`, the team itself (magic-team) excepted -- it is no member of a roster.
+## One a line, in the directory order of AgentsToolsTeamMemberDirectoryText, across every
+## workspace of the machine. Nothing for a type no member carries. `<type>` is the member prefix
+## group (client, partner, keeper, warden, magic, oncall, expert, human), the same rule
+## AgentsToolsTeamMemberKindIcon groups by.
+AgentsToolsSpawnRoutineTypeMembers(){ ## the `<type>-*`/`<type>-?` token
+	local typePrefix="${1%%-*}"
+	AgentsToolsTeamMemberDirectoryText | LC_ALL=C awk -F'\t' -v prefix="$typePrefix-" \
+		'$1 != "magic-team" && index( $1, prefix ) == 1 { print $1 }'
+}
+
+## Whether a member is among `all-present-members`: a default work-duty doer, and one who
+## attends retro and daily not by special invitation. Its own `.basic.md` says so in its
+## `attendance:` frontmatter (`present`|`invited`); where it says nothing, the standing rule is
+## that every `magic-*` member is present and every other member attends by invitation only.
+## rc 0 present, rc 1 invited. The team itself is never a member of the roster.
+AgentsToolsTeamMemberPresent(){ ## member
+	case "$1" in ''|magic-team) return 1 ;; esac
+	local presentDir presentValue=""
+	if presentDir="$( AgentsToolsTeamMemberDirectory "$1" )" ; then
+		presentValue="$( LC_ALL=C awk -v headers="attendance" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$presentDir/$1.basic.md" 2> /dev/null )"
+		presentValue="${presentValue#attendance: }"
+		presentValue="$( printf '%s' "$presentValue" | LC_ALL=C awk '{ gsub(/^[ \t]+|[ \t]+$/, "") ; print ; }' )"
+	fi
+	case "$presentValue" in present) return 0 ;; invited) return 1 ;; esac
+	case "$1" in magic-*) return 0 ;; *) return 1 ;; esac
+}
+
+## The members `all-present-members` names, one a line, in directory order.
+AgentsToolsSpawnRoutinePresentMembers(){
+	while IFS=$'\t' read -r presentName presentDir ; do
+		[ -n "$presentDir" ] || continue
+		AgentsToolsTeamMemberPresent "$presentName" && printf '%s\n' "$presentName"
+	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
+	return 0
+}
+
+## One roster entry expanded to the members it names, one a line. `<type>-*` names all members of
+## that type (rc 1, reason `none-of-type<TAB><type>`, where it names none -- fail on NONE);
+## `<type>-?` names a choice, not a roster (rc 1, reason `choice-required<TAB><type>`, selected or
+## specified by the caller, even where exactly one is available now); any other entry names the one
+## member it is (rc 1, reason `no-member<TAB><name>`, where no workspace holds it).
+AgentsToolsSpawnRoutineEntryMembers(){ ## entry
+	local entryName="$1" entryMembers=""
+	case "$entryName" in
+		*-\*)
+			entryMembers="$( AgentsToolsSpawnRoutineTypeMembers "$entryName" )"
+			[ -n "$entryMembers" ] || { printf 'none-of-type\t%s\n' "${entryName%??}" ; return 1 ; }
+			;;
+		*-\?)
+			[ -n "$( AgentsToolsSpawnRoutineTypeMembers "$entryName" )" ] || { printf 'none-of-type\t%s\n' "${entryName%??}" ; return 1 ; }
+			printf 'choice-required\t%s\n' "${entryName%??}" ; return 1
+			;;
+		*)
+			AgentsToolsTeamMemberDirectory "$entryName" > /dev/null || { printf 'no-member\t%s\n' "$entryName" ; return 1 ; }
+			entryMembers="$entryName"
+			;;
+	esac
+	printf '%s\n' "$entryMembers"
+	return 0
+}
+
 ## The roster a routine's own executors value names, for a start with no member named: one
-## member on a line, where the value is a plain comma-separated list of existing members,
-## each name trimmed. Anything else names no spawnable roster: rc 1, and one line that says
-## why -- `any-member` for an empty value and for the "any member" shorthand (`magic-team`,
-## `*`, per magic-team/reference/skill-folder-model.md), `empty-name` for a list with an empty place, and
+## member on a line, where the value is a comma-separated list of existing members, each name
+## trimmed, with `<type>-*` expanded to all members of that type (fail on NONE). Anything else
+## names no spawnable roster: rc 1, and one line that says why -- `any-member` for an empty value
+## and for the "any member" shorthand (`magic-team`, `*`, per
+## magic-team/reference/skill-folder-model.md), `empty-name` for a list with an empty place,
 ## `no-member<TAB><name>` for the first name no workspace of this machine holds a member of
-## (AgentsToolsTeamMemberDirectory), prose among them. THE ONE RULE of what a routine starts
-## by itself: --spawn-session starts by it, and --manager-routine-list prints it.
+## (AgentsToolsTeamMemberDirectory), `none-of-type<TAB><type>` for a `<type>-*` that names none,
+## `choice-required<TAB><type>` for a `<type>-?` (a choice, never auto-selected), and
+## `all-present-members` for the participants-only keyword that names the present members. THE ONE RULE of
+## what a routine starts by itself: --spawn-session starts by it, and --manager-routine-list prints it.
 AgentsToolsSpawnRoutineExecutorsRoster(){ ## executors value
-	local rosterValue rosterList rosterName rosterNames=""
+	local rosterValue rosterList rosterName rosterNames="" rosterEntry rosterOut=""
 	rosterValue="$( printf '%s' "$1" | LC_ALL=C awk '{ gsub(/^[ \t]+|[ \t]+$/, "") ; print ; }' )"
 	case "$rosterValue" in
 		''|'*'|'magic-team')
@@ -305,11 +372,46 @@ AgentsToolsSpawnRoutineExecutorsRoster(){ ## executors value
 			printf 'empty-name\n'
 			return 1
 		fi
-		if ! AgentsToolsTeamMemberDirectory "$rosterName" > /dev/null ; then
-			printf 'no-member\t%s\n' "$rosterName"
+		if [ "$rosterName" = "all-present-members" ] ; then
+			printf 'all-present-members\n'
 			return 1
 		fi
-		rosterNames="$rosterNames$rosterName"$'\n'
+		rosterOut="$( AgentsToolsSpawnRoutineEntryMembers "$rosterName" )" || { printf '%s\n' "$rosterOut" ; return 1 ; }
+		while IFS= read -r rosterEntry ; do
+			[ -z "$rosterEntry" ] || rosterNames="$rosterNames$rosterEntry"$'\n'
+		done <<< "$rosterOut"
+	done
+	printf '%s' "$rosterNames"
+	return 0
+}
+
+## The roster a routine's own invitees (its participants) value names, the same expansion the
+## executors roster makes, plus the `all-present-members` keyword: every member
+## AgentsToolsTeamMemberPresent holds (rc 1, reason `none-present`, where none is). `none`, the
+## word a routine writes for "no invitees", and an empty value both name no roster and are no
+## fault. Otherwise the reasons are the executors roster's own.
+AgentsToolsSpawnRoutineInviteesRoster(){ ## invitees value
+	local rosterValue rosterList rosterName rosterNames="" rosterEntry rosterOut=""
+	rosterValue="$( printf '%s' "$1" | LC_ALL=C awk '{ gsub(/^[ \t]+|[ \t]+$/, "") ; print ; }' )"
+	case "$rosterValue" in ''|none) return 0 ;; esac
+	case "$rosterValue" in '*'|'magic-team') printf 'any-member\n' ; return 1 ;; esac
+	IFS=',' read -r -a rosterList <<< "$rosterValue"
+	for rosterName in "${rosterList[@]}" ; do
+		rosterName="${rosterName#"${rosterName%%[![:space:]]*}"}"
+		rosterName="${rosterName%"${rosterName##*[![:space:]]}"}"
+		if [ -z "$rosterName" ] ; then
+			printf 'empty-name\n'
+			return 1
+		fi
+		if [ "$rosterName" = "all-present-members" ] ; then
+			rosterOut="$( AgentsToolsSpawnRoutinePresentMembers )"
+			[ -n "$rosterOut" ] || { printf 'none-present\n' ; return 1 ; }
+		else
+			rosterOut="$( AgentsToolsSpawnRoutineEntryMembers "$rosterName" )" || { printf '%s\n' "$rosterOut" ; return 1 ; }
+		fi
+		while IFS= read -r rosterEntry ; do
+			[ -z "$rosterEntry" ] || rosterNames="$rosterNames$rosterEntry"$'\n'
+		done <<< "$rosterOut"
 	done
 	printf '%s' "$rosterNames"
 	return 0

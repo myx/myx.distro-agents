@@ -4,18 +4,10 @@
 📘 syntax: DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <entity-id> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>
-📘 syntax: DistroAgentsSlack.fn.sh --slack-send-message [--team-member <team-member>] <magic-team|human-owner|event-track|event-alert|session-current|session-parent|<alias>:<ts>|<conversation-id>|<channel>:<ts>|<team-member>[:<ts>]> [--identity-bot] [--metadata <json>] [text...]
-📘 syntax: DistroAgentsSlack.fn.sh --slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
-📘 syntax: DistroAgentsSlack.fn.sh --slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
-📘 syntax: DistroAgentsMail.fn.sh --email-send [--team-member <team-member>] <email@address>... -- <subject> -- <body...> [--format markdown|text] [--in-reply-to <message-id>]
-📘 syntax: DistroAgentsMail.fn.sh --email-send [--team-member <team-member>] <email@address>... -- <subject> -- --from-stdin [--format markdown|text] [--in-reply-to <message-id>]
-📘 syntax: DistroAgentsMail.fn.sh --email-send [--team-member <team-member>] <email@address>... -- <subject> -- --from-file <path> [--format markdown|text] [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-search-messages [--team-member <team-member>] <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-react [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent <emoji-name> [--identity-bot] [--remove]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-delete-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [<channel>:<ts>...] [--identity-bot]
-📘 syntax: DistroAgentsSlack.fn.sh --slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] [text...]
-📘 syntax: DistroAgentsSlack.fn.sh --slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] --from-stdin
-📘 syntax: DistroAgentsSlack.fn.sh --slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] --from-file <path>
+📘 syntax: DistroAgentsSlack.fn.sh --slack-edit-message [--team-member <team-member>] <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] [<text...>|--from-stdin|--from-file <path>] [--text-group report|brief|relay]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-file-info [--team-member <team-member>] <file-id> [--identity-bot] [--raw]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-file-fetch [--team-member <team-member>] <file-id> <destination-path> [--identity-bot] [--overwrite]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-profile-get [--team-member <team-member>] [--raw]
@@ -28,23 +20,18 @@
 📘 syntax: DistroAgentsSlack.fn.sh --slack-socket-stop [--team-member <team-member>]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-resolve-ids [--team-member <team-member>] [--user-name <name>]... [--channel-name <name>]... [--raw]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-conversations-roster [--team-member <team-member>] [--identity user|bot|both] [--types <csv>]
-📘 syntax: DistroAgentsSlack.fn.sh --slack-read [--team-member <team-member>] (<channel>:<ts> [--thread]|<channel>|<conversation-id> [--oldest <ts>]) [--identity-bot]
-📘 syntax: DistroAgentsSlack.fn.sh --slack-send-message [--team-member <team-member>] <target> [--identity-bot] [--address-to <who>]... (<text...>|--from-stdin|--from-file <path>)
-📘 syntax: DistroAgentsSlack.fn.sh --slack-react [--team-member <team-member>] <channel>:<ts> <emoji-name> [--identity-bot] [--remove]
-📘 syntax: DistroAgentsMail.fn.sh --email-send [--team-member <team-member>] <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>)
+📘 syntax: DistroAgentsSlack.fn.sh --slack-send-message [--team-member <team-member>] <magic-team|human-owner|event-track|event-alert|session-current|session-parent|<alias>:<ts>|<conversation-id>|<channel>:<ts>|<team-member>[:<ts>]> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... [<text...>|--from-stdin|--from-file <path>] [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]
+📘 syntax: DistroAgentsMail.fn.sh --email-send [--team-member <team-member>] <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>) [--format markdown|text] [--in-reply-to <message-id>] [--text-group report|brief|relay]
 📘 syntax: DistroAgentsMail.fn.sh --email-mark-seen [--team-member <team-member>] <uid>
 📘 syntax: AgentDispatcherTools.fn.sh --client-operation-run <magic-coordinator> --client-<operation> <client-member-name> [<argument>...]
 📘 syntax: DistroAgentsMail.fn.sh --email-check [--team-member <team-member>]
 📘 syntax: DistroAgentsTrello.fn.sh --trello-check [--team-member <team-member>]
-📘 syntax: DistroAgentsTrello.fn.sh --trello-post-comment [--team-member <team-member>] <card-id> [text...]
-📘 syntax: DistroAgentsTrello.fn.sh --trello-post-comment [--team-member <team-member>] <card-id> --from-stdin
-📘 syntax: DistroAgentsTrello.fn.sh --trello-post-comment [--team-member <team-member>] <card-id> --from-file <path>
+📘 syntax: DistroAgentsTrello.fn.sh --trello-post-comment [--team-member <team-member>] <card-id> [<text...>|--from-stdin|--from-file <path>]
 📘 syntax: DistroAgentsSlack.fn.sh --slack-read [--team-member <team-member>] (<channel>:<ts>|<alias>:<ts>|session-current|session-parent [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]
 📘 syntax: DistroAgentsMail.fn.sh --email-read [--team-member <team-member>] <uid> [--seen]
 📘 syntax: DistroAgentsTrello.fn.sh --trello-read [--team-member <team-member>] <notification-id>
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-space-list [--team-member <team-member>] [--cursor <value>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format] [--version <n>]
-📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-read [--team-member <team-member>] <page-id> [--format storage|atlas_doc_format]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-search [--team-member <team-member>] <cql> [--limit <n>]
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-comment-read [--team-member <team-member>] <page-id>
 📘 syntax: DistroAgentsAtlassian.fn.sh --confluence-page-create [--team-member <team-member>] (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
@@ -105,17 +92,12 @@
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-check [--team-member <team-member>]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-read [--team-member <team-member>] <uid> [--seen]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-mark-seen [--team-member <team-member>] <uid>
-📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- <body...> [--format markdown|text] [--in-reply-to <message-id>]
-📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- --from-stdin [--format markdown|text] [--in-reply-to <message-id>]
-📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- --from-file <path> [--format markdown|text] [--in-reply-to <message-id>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-send [--team-member <team-member>] <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>) [--format markdown|text] [--in-reply-to <message-id>] [--text-group report|brief|relay]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-check [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-post-comment [--team-member <team-member>] <card-id> [text...]
-📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-post-comment [--team-member <team-member>] <card-id> --from-stdin
-📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-post-comment [--team-member <team-member>] <card-id> --from-file <path>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-post-comment [--team-member <team-member>] <card-id> [<text...>|--from-stdin|--from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-read [--team-member <team-member>] <notification-id>
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-whoami [--team-member <team-member>]
-📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-file-find [--team-member <team-member>] <search-term> [--full-text] [--include-trashed] [--limit <n>]
-📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-file-find [--team-member <team-member>] <drive-query> --raw-query [--limit <n>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-file-find [--team-member <team-member>] (<search-term> [--full-text] [--include-trashed]|<drive-query> --raw-query) [--limit <n>]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-comment-post [--team-member <team-member>] <file-id> (<text...>|--from-stdin|--from-file <path>)
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-comment-read [--team-member <team-member>] <file-id>
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-doc-read [--team-member <team-member>] <doc-id>
@@ -134,9 +116,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash [--team-member <team-member>] <item-filename> --from-inbox:<member> [--exclude-incoming]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed [--team-member <team-member>] <item-filename> [--include-processed] [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-note [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--standing yes|no] [--from-file <path>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--from-file <path>]
-📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-note [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--standing yes|no] [--from-file <path>|--edit-patch-from-stdin|--upsert-from-slots]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]
+📘 syntax: DistroAgentsItems.fn.sh --upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin|--upsert-from-slots]
 📘 syntax: DistroAgentsSession.fn.sh --append-transcript [--team-member <team-member>] [--of-session <session-id>] [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]
 📘 syntax: DistroAgentsItems.fn.sh --get-inbox-item [--team-member <member>] <item-filename> [--include-processed] [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsItems.fn.sh --trash-inbox-item [--team-member <member>] <item-filename> [--exclude-incoming]
@@ -150,6 +132,7 @@
 📘 syntax: DistroAgentsKnowledge.fn.sh --list-places
 📘 syntax: DistroAgentsKnowledge.fn.sh --get-place-path <name>[/<relative>]
 📘 syntax: DistroAgentsKnowledge.fn.sh --list-namespaces [<namespace>]
+📘 syntax: DistroAgentsKnowledge.fn.sh --local-models-list
 📘 syntax: DistroAgentsTools.fn.sh --install-claude-permissions [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-workspace-restrictions [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
@@ -167,6 +150,11 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-config-set <key> <value>
 📘 syntax: DistroAgentsTools.fn.sh --manager-console-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-dashboard-read [--group <group>] [<block>...]
+📘 syntax: DistroAgentsTools.fn.sh --manager-feature-list
+📘 syntax: DistroAgentsTools.fn.sh --manager-feature-part (install|update|uninstall) <feature> <part> [--yes] [--force]
+📘 syntax: DistroAgentsTools.fn.sh --manager-feature-ask <model-id> [--from-stdin|--from-file <path>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-feature-stt-test [<wav-file>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-feature-preset <model-id> [--name <preset>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-help-read
 📘 syntax: DistroAgentsTools.fn.sh --manager-help-read <Name>.fn.sh
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-list
@@ -174,19 +162,24 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-generate <key>
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-regenerate <key>
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-delete <key>
+📘 syntax: DistroAgentsTools.fn.sh --manager-keys-trust-add
+📘 syntax: DistroAgentsTools.fn.sh --manager-keys-trust-delete <trusted-<n>>
 📘 syntax: DistroAgentsTools.fn.sh --manager-manual-read <user|maintainer> [<project>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-read <place>
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-command-list <place>
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-command-run <place> <command>
 📘 syntax: DistroAgentsTools.fn.sh --manager-routine-list
-📘 syntax: DistroAgentsTools.fn.sh --manager-stats-tokens --by day|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-routine-text <selector>
+📘 syntax: DistroAgentsTools.fn.sh --manager-stats-tokens --by day|weekday|hour|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share]
 📘 syntax: DistroAgentsTools.fn.sh --manager-stats-routines [<routine>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-read --id <pending-id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-answer --id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-dismiss --id <pending-id> [--reason <text>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-preset-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-preset-new <name> (--extend <preset>|--cli-service <service>)
+📘 syntax: DistroAgentsTools.fn.sh --manager-preset-delete <name> [--switch <preset>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-preset-rename <old> <new>
 📘 syntax: DistroAgentsTools.fn.sh --manager-preset-tiers
 📘 syntax: DistroAgentsTools.fn.sh --manager-scope-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-scope-read <scope-id>
@@ -204,13 +197,14 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-checklist-read --session-id <id> <member>
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run] [--plan]
-📘 syntax: DistroAgentsTools.fn.sh --manager-session-effort <session-id> <low|normal|high>
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-effort <session-id> <unset|none|low|normal|high>
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-control-start (--session-id <id>|--all)
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-message --session-id <id> [--to <participant>]...
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-join --session-id <id>
-📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--kind coworking|standalone|work-duty|free] [--also <team-member>[,<team-member>]...] [--goal <text>] [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-run (install|uninstall|update) <subsystem>
+📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-read <subsystem>
 📘 syntax: DistroAgentsTools.fn.sh --manager-workspace-read
 📘 syntax: DistroAgentsTools.fn.sh --manager-workspace-command-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-workspace-command-run <command>
@@ -237,6 +231,7 @@
 📘 syntax: AgentDispatcherTools.fn.sh --roster-upsert [--team-member <team-member>] [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsKnowledge.fn.sh --get-roster [--team-member <team-member>]
 📘 syntax: DistroAgentsItems.fn.sh --commit-pending [--team-member <team-member>] [--commit-message <message>] [--no-push]
+📘 syntax: DistroAgentsItems.fn.sh --repair-team-data-checkout [--team-member <team-member>] [--keep-merged|--take-remote]
 📘 syntax: DistroAgentsSession.fn.sh --wait-for-input [--team-member <team-member>] [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop|--unwait <kind>:<target> --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>] [--wait-collect <seconds>]
 📘 syntax: DistroAgentsSession.fn.sh --wait-for-input [--team-member <team-member>] --wait-list-sources
 📘 syntax: DistroAgentsQuestions.fn.sh --read-escalation [--team-member <team-member>] <request-id>
@@ -278,14 +273,14 @@
 📘 syntax: DistroAgentsTesting.fn.sh --send-report [--team-member <team-member>]
 📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-prompt [--team-member <team-member>] [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]
 📘 syntax: DistroAgentsDispatcher.fn.sh --spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]
-📘 syntax: DistroAgentsTools.fn.sh --tester-skillset-validate-routine <routine-file|--from-stdin>
-📘 syntax: DistroAgentsTools.fn.sh --tester-test-register (<test-id> --project <p> --script <path>|--from-folder <dir> --project <p>) [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
-📘 syntax: DistroAgentsTools.fn.sh --tester-test-update <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
-📘 syntax: DistroAgentsTools.fn.sh --tester-test-unregister <test-id>
-📘 syntax: DistroAgentsTools.fn.sh --tester-test-invalidate <test-id>
-📘 syntax: DistroAgentsTools.fn.sh --tester-test-list [--project <p>] [--namespace <n>] [--keyword <k>]
-📘 syntax: DistroAgentsTools.fn.sh --tester-run-oldest-untested [--wait|--no-wait]
-📘 syntax: DistroAgentsTools.fn.sh --tester-run-all-nightly-regressions [--wait|--no-wait]
+📘 syntax: DistroAgentsTesting.fn.sh --skillset-validate-routine <routine-file|--from-stdin>
+📘 syntax: DistroAgentsTesting.fn.sh --test-register [--team-member <team-member>] (<test-id> --project <p> --script <path>|--from-folder <dir> --project <p>) [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
+📘 syntax: DistroAgentsTesting.fn.sh --test-update <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
+📘 syntax: DistroAgentsTesting.fn.sh --test-unregister <test-id>
+📘 syntax: DistroAgentsTesting.fn.sh --test-invalidate <test-id>
+📘 syntax: DistroAgentsTesting.fn.sh --test-list [--project <p>] [--namespace <n>] [--keyword <k>]
+📘 syntax: DistroAgentsTesting.fn.sh --run-oldest-untested [--wait|--no-wait]
+📘 syntax: DistroAgentsTesting.fn.sh --run-all-nightly-regressions [--wait|--no-wait]
 📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge
 📘 syntax: DistroAgentsTools.fn.sh --owner-clear-just-agents [--check|--apply]
 📘 syntax: DistroAgentsKnowledge.fn.sh --member-help [--team-member <team-member>]
@@ -293,6 +288,8 @@
 📘 syntax: DistroAgentsTools.fn.sh [--help-syntax [<op>]]
 📘 syntax: DistroAgentsTools.fn.sh [--help]
 📘 syntax: DistroAgentsTools.fn.sh --intern-context-show [--team-member <team-member>] [--session-id <session-id>] [--spawn-id <spawn-id>] [--select-workspace <place-name|absolute-path>] [--tooling-origin <spec|absolute-path>]
+📘 syntax: DistroAgentsTools.fn.sh --knowledge-store-spread <path> [--keep <glob>]...
+📘 syntax: DistroAgentsTools.fn.sh --knowledge-store-retire <path> --section <glob>...
 
 **IMPORTANT -- for `mcp__myx_distro__execute` and team-harness `Bash` callers:** call every operation as the bare `DistroAgentsTools <op> [args...]` function form -- never `DistroAgentsTools.fn.sh <op> [args...]`. Those execution contexts already have `DistroAgentsTools` defined as a shell function before your command runs (except a harness `Bash` command run under a timeout); every other context (a console session, a plain shell) still needs the full `.fn.sh` invocation shown throughout the rest of this file.
 
@@ -465,14 +462,18 @@
 			is sent (unrun: read from the code, not from a run).
 
 			session-current and session-parent are the two session
-			addresses, each one thread: session-current is the
+			addresses, each one channel: session-current is the
 			session thread of the coworking session the caller
 			works in, session-parent the thread of the session that
-			started it. Every operation and
+			started it -- and, where a session's external side is
+			the root-native printback channel, that channel,
+			printback:<session>, which has no thread and takes no
+			:<ts>. Every operation and
 			tool that takes an address resolves them in the same one
 			place. A name that names nowhere -- no session thread,
-			no recorded parent -- is refused with one line saying
-			why, and nothing is sent: pass the thread as
+			no recorded parent, and no printback channel -- is
+			refused with one line saying why, and nothing is sent:
+			pass the thread as
 			<channel>:<ts> instead. In <channel>:<ts> the
 			conversation is its Slack id and the ts a message ts,
 			as Slack gives both: a word that is no id, such as the
@@ -2198,7 +2199,7 @@
 			name ending `.md`. `--header:*` and the three body-input
 			modes behave as on the `--move-to-*` family.
 
-		--upsert-inbox-note [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--standing yes|no] [--from-file <path>|--edit-patch-from-stdin]
+		--upsert-inbox-note [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--standing yes|no] [--from-file <path>|--edit-patch-from-stdin|--upsert-from-slots]
 			Writes (creates or overwrites) a note into `<member>`'s own
 			inbox. An inbox is split (`incoming/` and `processed/`, the item's processed stamp, `processed-at`, deciding its folder); readers never see the folders. The item lands in
 			the folder its processed stamp picks, `incoming/` or
@@ -2218,6 +2219,15 @@
 			substring match-and-replace -- a patch whose `old` isn't
 			found, or matches more than once without `replace_all`,
 			fails loud before anything is written.
+
+			`--upsert-from-slots`: the member gives only the slot values, and
+			the writer renders the document's body from the type's template
+			(`sh-lib/templates/inbox-item.<type>.document.format.md`); the front
+			matter is completed as above. The slot values come on stdin, one
+			`key: value` line a single-line slot, a `key:` line alone opening a
+			multi-line slot whose value is the indented lines that follow. The
+			slots, for every inbox type (`note`, `reflection`, `inquiry`):
+			`matter` (the one-line title) and `body`.
 
 			A NEW item (no file of that name in the inbox yet):
 			- Name: written exactly as given. A name off the naming
@@ -2243,7 +2253,7 @@
 			ordinary one. The rest of the content is as given; to change
 			the header alone give `--edit-patch-from-stdin` with `[]`.
 
-		--upsert-inbox-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--from-file <path>]
+		--upsert-inbox-inquiry [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-reflection <reflection-file>] [--reply] [--from-file <path>|--upsert-from-slots]
 			Passes an inquiry into a member's own inbox -- the standard
 			hand-off mechanism. `<member>` must exist as a real skill
 			directory; `<item-filename>` a bare filename. Inbox created
@@ -2260,8 +2270,12 @@
 			marked processed after the inquiry is written, in the same call
 			(`disposition: filed-as-inquiry`, `filed-as: <inquiry>`). That is
 			the reflection's exit; nothing else needs to handle it.
+			`--reply` sets the header `reply-requested: yes`, so marking
+			the inquiry processed sends one note with the outcome to its
+			`from:` member, as `--request-update --reply` does for a
+			librarian update request.
 
-		--upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin]
+		--upsert-inbox-reflection [--team-member <member>] <item-filename> [--from-member <member>] [--include-processed] [--from-file <path>|--edit-patch-from-stdin|--upsert-from-slots]
 			Writes (creates or overwrites) a reflection-type item into a
 			member's own inbox, own inbox only as for
 			`--upsert-inbox-note`. Same arguments, lazy inbox creation,
@@ -2418,6 +2432,17 @@
 			that namespace's only. Names only, to name the namespaces a
 			dispatch or a task needs.
 
+		--local-models-list
+			Prints the models the local server really has installed (the
+			`local` CLI service, AgentsLocalHarness.sh --list-models), one
+			per line, TAB-separated: model, machine profile (1 a normal
+			CPU with constrained or shared RAM, 2 a dedicated or bigger
+			CPU with more RAM, 3 the GPU machine, - where the name carries
+			no size), context window, output budget and the form of the
+			effort none of its family; a model of no known family has -
+			in the last three. Reads only. Prints nothing and ends 1 where
+			the local server cannot be reached. Takes no arguments.
+
 		--owner-setup-<domain> [<config-option>...] [--all-workspaces] [--set-as-default] [--check|--apply|--print-apply-command|--wizard]
 			Reports, and where supported carries out, setup of one
 			macro part of an installation. <domain> is open-ended;
@@ -2544,9 +2569,10 @@
 
 			Upserts the fixed grants (`mcp__myx_common`,
 			`mcp__myx_distro`, `Agent`, `Task`, `SendMessage`) and
-			denies the native Slack MCP server
-			(`mcp__claude_ai_Slack`) unconditionally -- route Slack
-			through the team's own `--slack-*` ops.
+			denies every claude.ai connector of the native client
+			(`mcp__claude_ai_*`) unconditionally -- route Slack
+			through the team's own `--slack-*` ops, and the other
+			platforms through their own `DistroAgents*` tools.
 			Sets `enabledMcpjsonServers` to `myx.common` and
 			`myx.distro`.
 
@@ -2682,43 +2708,51 @@
 			`~/.claude.json` is a warning only. Prints an OK/FAIL
 			checklist plus Command Palette trust/restart guidance.
 
+			Also installs the DeepSeek Harness integration: one
+			`@deepseek-ai/dsh-mcp-client` row, `serverName`
+			`myx-distro`, stdio, running this workspace's
+			`DistroAgentsTools.fn.sh --intern-mcp-server --run`
+			with `MMDAPP` in its environment, in the harness home's
+			`cordis.patch.yml`. DSH applies that home patch over every
+			profile, so every chat of the app mounts this workspace's
+			tools with no preset chosen and no default preset. Safe to run
+			again: the row is one managed block, and an unchanged run
+			leaves the file alone. A machine with no harness home is
+			reported and skipped, not failed. Remove the row (between
+			its two marker comments), or the file, to remove the
+			integration; the next run installs it again.
+
 		--install-knowledge-store [--from-folder <folder>]
 			Installs the Python environment the knowledge store
-			(LanceDB) needs, in `.local/knowledge-store/` of the
-			workspace, from binary packages alone. The store is optional
-			and off unless the setting `MDAT_KNOWLEDGE_STORE` is `on` (the
-			environment first, then the settings of the team;
-			`--manager-config-set` saves it): with it off the call
-			refuses, says so and how to turn it on, and installs nothing.
-			With it on, it asks the embedded Python of the local tools
-			(`DistroLocalTools.fn.sh --install-embedded-python`) for its
-			Python, which that makes where it stands not yet; where that
-			refuses, this refuses with its reason. There is no other
-			Python and no system package, on any system. It downloads
-			LanceDB, pinned, and what it needs as binary packages
-			(`pip --only-binary=:all:`) into `wheelhouse/`, or, with
-			`--from-folder`, takes the wheels of a folder downloaded
-			once elsewhere (the `wheelhouse/` of an online run, copied)
-			and downloads nothing. A host with no internet takes two
-			copied folders: the `downloads/` of `--install-embedded-python`
-			first, by its own `--from-folder`, then this `wheelhouse/`.
-			Before anything is placed it lists
-			every package with its version and its licence, read from its
-			wheel. Then it makes the environment `venv/` with that Python
-			and installs LanceDB into it from those files alone
-			(`--no-index`); the environment must import `lancedb`. The
-			licence files and the NOTICE of every package are copied into
-			`licenses/<name>-<version>/`, and the list is kept in
-			`packages.txt`. pip keeps no cache, its temporary folder is
-			`tmp/` of the store, and nothing is written outside the
-			workspace's `.local`. Where pip finds no binary package for
-			the system, or the environment cannot import `lancedb`, it
-			says so, leaves nothing, exits 1, and the store stays off: the
-			Knowledge tool reads `MAGIC.md` alone. On standard output it
-			prints the Python of the environment, one line; everything
-			else is on standard error. Safe to run again: an environment
-			that imports the pinned LanceDB is left as it is. Nothing
-			reads the store yet.
+			(LanceDB) needs. The store is optional and off unless the
+			setting `MDAT_KNOWLEDGE_STORE` is `on` (the environment
+			first, then the settings of the team; `--manager-config-set`
+			saves it): with it off the call refuses, says so and how to
+			turn it on, and installs nothing. With it on, this is a thin
+			call of the feature `setup.feature-lancedb`, its fragment
+			`host/install/feature-lancedb.install.txt`, which does the
+			install: the environment `venv/` in `$LANCEDB_HOME`, else
+			`.local/lancedb/` of the workspace, made with the embedded
+			Python of the local tools, the pinned LanceDB and the
+			embedding model, installed from binary packages alone, with
+			the licence of every package listed before anything is placed
+			and carried into `licenses/`; `lancedb.env` is written last,
+			and its presence is what says the install is whole. This call
+			keeps the option parse, the gate of the setting and
+			`--from-folder`: a folder downloaded once elsewhere (the
+			`wheelhouse/` of an online run and the model, copied), which
+			the feature installs from without downloading; a folder that
+			is not there is refused before the feature is asked. The
+			output of the feature is passed through unchanged, its
+			standard output the Python of the environment, one line,
+			everything else standard error, and its exit code is this
+			call's: 0 installed (or already), 1 refused or failed with
+			nothing left, 3 this platform is not covered, nothing
+			written and the store stays off: the Knowledge tool reads
+			`MAGIC.md` alone. Safe to run again. The
+			Knowledge tool reads the store with the `MAGIC.md` text
+			once it stands; the librarian's `--knowledge-store-spread`
+			and `--knowledge-store-retire` write and delete its records.
 
 		--install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
 			Runs, in order: `--install-vscode-integrations`,
@@ -2736,8 +2770,9 @@
 			Registers the workspace's places, makes the console command,
 			then installs in two parts with the one build of the indices
 			between them: the part of --install-workspace-integrations
-			the indices are made from (the MCP registration and the
-			member links), the members' homes, --make-harness-indices
+			the indices are made from (the MCP registration, the
+			member links and the DeepSeek Harness home patch), the
+			members' homes, --make-harness-indices
 			with no name, then the part that reads the indices (the
 			trust, the permissions, the settings, the copilot access),
 			and --install-workspace-restrictions (only where restrictions
@@ -2867,18 +2902,21 @@
 			operations below, which are the shell console user's fallback
 			and what the screen reads and acts through. `--style <name>`
 			is the interface style of this start alone; with none, the
-			style the environment names (MDAT_MANAGER_STYLE), else the one
+			style the environment names (MDLT_MANAGER_STYLE), else the one
 			the user saved (--manager-config-set), else the screen's own.
-			`MDLT_CONSOLE_SPACERS`, a console setting of `.local` and the
+			`MDLT_MANAGER_SPACERS`, a console setting of `.local` and the
 			user's own, read from the environment and else from the
 			user's settings: `disable` starts the screen with no blank
-			line between the groups of its lists. `MDLT_CONSOLE_MOUSE`,
+			line between the groups of its lists. `MDLT_MANAGER_MOUSE`,
 			beside it and read the same way: `disable` leaves the mouse
 			to the terminal, whose own selection then copies text; the
-			mouse is on where nothing is saved. Needs python3 and a
-			terminal: where the screen cannot start, it says why in one
-			line. Exit: the screen's own status. Exit 1, nothing started,
-			for any other word.
+			mouse is on where nothing is saved. These three interface
+			settings are the local tools' own, declared in
+			`sh-lib/manager/LocalTools.ManagerInterface.include` of
+			`myx.distro-.local`, with their labels and their other names.
+			Needs python3 and a terminal: where the screen cannot start,
+			it says why in one line. Exit: the screen's own status. Exit
+			1, nothing started, for any other word.
 
 		--manager-check-run [--local] [--seconds <n>] [<domain>...]
 			One of the console's own operations (see Notes). Shows what
@@ -2952,7 +2990,7 @@
 			last field of every row: capitalised words, more than one,
 			their blanks written `_`. <subject> and <key> stay the names
 			a call takes. The labels have one declaration. The subjects
-			are `Workspace Paths`, `CLI Services`, `Outside Systems`,
+			are `Workspace Paths`, `CLI Presets and Tiers`, `Outside Systems`,
 			`Main Loop`, `Scope Settings`,
 			`Interface Settings`, `Console Behaviour`,
 			`Session Control` and `Knowledge Store`. A line the tooling prints under a key
@@ -3073,9 +3111,12 @@
 			environment comes first, and a name that is no value of the
 			setting counts as not given, wherever it stands. <choices>
 			are the values that may be chosen, in the order they are
-			offered, joined by commas, each `<value>=<label>`. One
-			setting now, the interface style of the manager screen:
-			group `style`, key `MDAT_MANAGER_STYLE`, value
+			offered, joined by commas, each `<value>=<label>`. The
+			interface settings are the local tools' own, declared in
+			`sh-lib/manager/LocalTools.ManagerInterface.include` of
+			`myx.distro-.local`, with their labels and their other names.
+			The style of the manager screen:
+			group `style`, key `MDLT_MANAGER_STYLE`, value
 			`<style>-<colours>`: `nu-system`, `nu-blue`, `nu-gray`
 			(Magic), `tv-system`, `tv-blue`, `tv-gray` (Turbo Vision),
 			`bw-system`, `bw-dark`, `bw-light` (Basic B/W); `tv-system`
@@ -3103,7 +3144,12 @@
 			of a session, in seconds, each what is saved for the team or
 			else its default: group `request`, key
 			`SESSION_CONTROL_REQUEST_SECONDS`; group `kill`, key
-			`SESSION_CONTROL_KILL_SECONDS`.
+			`SESSION_CONTROL_KILL_SECONDS`. Group `channel`, key
+			`ROOT_HARNESS_VERBOSITY`, which external channel a root-harness
+			session's copy lives on, saved for the team: `none` its own
+			printback output, `track` the tooling thread, `full` a session
+			thread in the team channel; read when a session is minted, and
+			`none` where nothing sets it.
 			`knowledge`: the switch of the knowledge store, one line:
 			group `store`, key `MDAT_KNOWLEDGE_STORE`, `off` where nothing
 			sets it, or `on`, from the environment or from what is saved
@@ -3115,11 +3161,15 @@
 			changeable setting, and nothing else: the one operation of
 			the settings that writes. <key> is the key of a line that
 			`--manager-config-digest --full` says can be changed, a line
-			of the `settings`, and <value> one that line takes. Seven are
-			declared. `MDAT_MANAGER_STYLE`, a `choice`, the user's own:
+			of the `settings`, and <value> one that line takes. Ten are
+			declared. `MDLT_MANAGER_STYLE`, a `choice`, the user's own:
 			the interface style of the manager screen at its next start,
 			`<style>-<colours>`; another name of one is saved as the one
 			it means, `tv-dark` as `tv-blue`, `magic` as `nu-gray`.
+			The interface settings, that style with the mouse and the
+			spacers of the screen, are declared by the local tools in
+			`sh-lib/manager/LocalTools.ManagerInterface.include` of
+			`myx.distro-.local`.
 			`MDLT_CONSOLE_HISTORY`, a `choice`, the user's own: where a
 			console keeps the shell history of the user, read at its next
 			start. `MDLT_CONSOLE_ORIGIN`, a `choice`, the workspace's:
@@ -3140,7 +3190,12 @@
 			control thread, read at the next request.
 			`MDAT_KNOWLEDGE_STORE`, a `choice` of `off` and `on`, the
 			workspace's: whether the workspace wants the knowledge store,
-			read at the next use, `off` where nothing sets it. A setting of scope
+			read at the next use, `off` where nothing sets it.
+			`ROOT_HARNESS_VERBOSITY`, a `choice` of `none`, `track` and
+			`full`, the workspace's: which external channel a root-harness
+			session's copy lives on, its printback output, the tooling
+			thread or a session thread in the team channel, read when a
+			session is minted, `none` where nothing sets it. A setting of scope
 			`user` is saved in the user's own settings of this workspace,
 			`.local/home/<user>/MDLT.settings.env` under its root, by the
 			setting reader of the local tools in its scope of the current
@@ -3169,6 +3224,46 @@
 			one a declared setting takes is ever saved, so no secret
 			reaches a file. Exit 1 too where the file does not hold the
 			value after the write.
+
+			One of the console's own operations (see Notes). Checks the
+			declarations of the `board:backlog` items, which the folder
+			`Config Checker` of the root `Configuration` shows. A backlog
+			item declares a team member in its frontmatter under `owner:`
+			(its root) and `from:` (the member that handed it on, its
+			role); the two other categories the verdicts name are the
+			active and the arrived declarations: `actives` the `owner:` of
+			an item of the active states (`running`, `review`), `arrived`
+			the `owner:` of an item whose `groomed-from:` is `backlog`.
+			For each declared member it says, in the order the items and
+			their fields stand, one finding a line on stdout, TAB-separated:
+			`not-in-registry <item> <member> <category>`
+			(the member is a member but has no permission row of its own in
+			the permissions registry)
+			`wrong-permission <item> <member> <category>`
+			(a permission row of the member is not the shape
+			`<member>:<workspace>:<kind>:<tool>(<glob>)`, or its <kind> is
+			none of namespace, workspace, project, member, builtin, tool);
+			after such a line a `permission-grants <member> <rows>` block
+			lists the member's rows, each as `<kind>:<tool>(<glob>)`, so
+			a reader sees the grants that stand beside the one that is
+			wrong. A member that is in no members
+			registry is a warning on standard error, `no-member`, and is
+			not a verdict. A member that is in the registry and whose
+			permission rows are right says nothing. `--verify` (the
+			default) and `--run` both make this read-only check; `--run` is
+			the "do it" form and is the only one `--fix-config` follows.
+			`--wait <no>` sleeps that many whole seconds first; `--wait
+			<path>` waits until that path stands first, a bound of 30
+			seconds. `--kibana-regex <expr>` keeps only the items whose
+			file name matches the expression. `--fix-config [<path>]`
+			(under `--run` alone) writes a missing `member:Edit` grant for
+			each `not-in-registry` member into the permissions registry at
+			<path>, else the workspace's own, one row `fixed <member>` a
+			line, and ends with status 1 where it wrote any: a fix is not
+			a clean check. It prints no finding of the check then, being
+			the fixer; the caller that wants them asks for the plain check
+			again. Exit 1, nothing checked, for a backlog that is
+			not there, and for an option it does not take.
 
 		--manager-console-list
 			One of the console's own operations (see Notes). Lists the
@@ -3263,9 +3358,13 @@
 			`running`, `waiting` and `unclosed`, and those paused, the
 			agents working and waiting, as `--manager-session-list`
 			counts them, by its own code; the control threads that are
-			`alive` and `gone`; and `deaths-unanswered`, the sessions
+			`alive` and `gone`; `deaths-unanswered`, the sessions
 			whose control thread keeps a death that is not settled and
-			whose question has no answer yet. The two registries of the
+			whose question has no answer yet; and `usage-limit`, the
+			date one of whose runs the provider refused for its API usage
+			limit reopens, as the run's own store keeps it, with `warn`,
+			and left out where no run of the workspace was refused. The
+			two registries of the
 			sessions are read as they lie, and which runs are alive is
 			measured at the call. Only the sessions that can count are
 			measured: those with a record still open, an open ask, an
@@ -3356,6 +3455,95 @@
 			whether a CLI service is set up.
 			Everything else is read at the call. Where that folder
 			cannot be written the size is not measured at all.
+
+		--manager-feature-list
+			One of the console's own operations (see Notes). Lists the optional
+			features of the packages of this tool family (`setup.feature-*` of
+			`mdci-packages-myx`, now `setup.feature-local-ai` and `setup.feature-lancedb`)
+			and their parts, which the console's `Optional Features` shows. A feature
+			is what its own check fragment (`host/install/*.check.txt`) says, run as it
+			is, never a copy of its logic: `setup.feature-local-ai` prints a `key: value`
+			report for it (`MDCI_CHECK_PARSE=1`; its human report is unchanged), and
+			`setup.feature-lancedb` prints one by itself. A part of local AI is a model of
+			its `models.tsv`; LanceDB has one part, itself, `lancedb`. It changes nothing.
+			Prints one row each on stdout, TAB-separated, features first and each
+			followed by its parts:
+			`<feature|part> <feature> <part> <state> <disk-bytes> <memory-bytes> <running> <install> <update> <uninstall> <detail>`
+			<part> is `-` on a feature row. <state> is `installed`, `not-installed`,
+			`broken` (a model of the wrong size, a file with no verified marker or a marker
+			with no file; LanceDB not working) or `unsupported` (this machine is not covered).
+			<disk-bytes> is what is on disk, and <memory-bytes> what a part takes in
+			memory when it runs, an estimate (a chat model its file and a sixth, a speech
+			model its file), of a feature the memory of its parts that run. <running> is
+			`yes` or `no`, `-` for a feature that has no server (LanceDB is a library).
+			<install>, <update> and <uninstall> are the commands to run for that row, those
+			that apply to its state: an install of what is not installed, an update (its
+			install again) and an uninstall of what is installed or broken. An absent value
+			reads `-`, and the whitespace of a value reads `_`. Exit 1 with one error line
+			and nothing on stdout for an argument.
+
+		--manager-feature-part (install|update|uninstall) <feature> <part> [--yes] [--force]
+			One of the console's own operations (see Notes). Installs, updates or
+			uninstalls one part that `--manager-feature-list` lists. First its needs
+			and the space, as rows on stdout, and nothing is changed until `--yes` is
+			given: without it the plan is all there is, and the exit is 0. With `--yes`
+			the work is the feature's own fragment, as its deploy runs it (what it says
+			goes to stderr): for local AI the engine package (`chat-engine` or
+			`stt-engine`) and the model, through `MDCI_LOCAL_AI_PARTS` and
+			`MDCI_LOCAL_AI_REMOVE`, for LanceDB its install or uninstall fragment. An
+			update takes the part out and installs it again (a model is fetched again,
+			and its checksum asked); LanceDB's is its install again. Packages and
+			services want the root of the machine: where the fragment is refused that,
+			the exit is its. `--force` lets a chat model be installed on a host with less
+			memory than it wants. Nothing is done, and the exit is 1 with one error line,
+			for a feature or part that is none, an install of what is there, an update
+			or uninstall of what is not, a part this machine is not covered for, and a
+			plan that is blocked.
+			`plan <action> <feature> <part> <download-bytes> <reclaim-bytes> <free-bytes> <ram-need-bytes> <ram-bytes> <blocked> <why>`
+			`need <what>`
+			<download-bytes> is what is fetched and <reclaim-bytes> what is freed, `-`
+			where it is not known (LanceDB downloads packages whose size the feature does
+			not say). <free-bytes> is the free space where the data goes, <ram-need-bytes>
+			the memory the part wants to run and <ram-bytes> the memory of the host.
+			<blocked> is `yes` where the space or the memory does not allow it (the exit is
+			then 1), with <why>. A `need` row is a package, a model or a file the work
+			touches, once each. With `--yes` the plan is followed by
+			`done <action> <feature> <part> <state>`, <state> being the part as the check
+			finds it after the work; the exit is 1, with the state, where it is not what
+			the action should leave.
+
+		--manager-feature-ask <model-id> [--from-stdin|--from-file <path>]
+			One of the console's own operations (see Notes). A free prompt to one
+			installed chat model of `setup.feature-local-ai`, through the chat server
+			it runs (`mdci-local-ai ask`; the prompt reaches curl on its standard
+			input, never on a command line). The prompt is stdin (default) or
+			`--from-file`, and an empty one is refused. Prints the reply, as text, on
+			stdout. Exit 1 with one error line, nothing on stdout, for a model that is
+			none of the feature's or is not installed, a model that is not a chat
+			model, a server that does not answer, or an answer with no reply.
+			**Hazard: no secret belongs in the prompt.**
+
+		--manager-feature-stt-test [<wav-file>]
+			One of the console's own operations (see Notes). A speech-to-text test:
+			the file given, or one second of silence, to the speech server of
+			`setup.feature-local-ai` (`mdci-local-ai transcribe`). Prints the text it
+			gives, on stdout (silence gives no words). Exit 1 with one error line for a
+			file that is none, a server that does not answer or an answer with no text.
+
+		--manager-feature-preset <model-id> [--name <preset>]
+			One of the console's own operations (see Notes). Makes a preset for the
+			`local` CLI service from one installed chat model of `setup.feature-local-ai`:
+			the preset writer of the console makes it (`--manager-preset-new <name>
+			--cli-service local`) and the setting reader of the dispatcher writes its
+			model, `PRESET_MODEL_OR_MACRO`, so the write checks of a preset are asked as
+			for any preset. <preset> is `local` unless `--name` gives another. A name
+			that is taken is refused, as the writer does. The preset names no
+			endpoint: the `local` CLI service reaches `http://127.0.0.1:8181/v1`
+			by default, where the feature serves its chat models. Prints one row
+			on stdout:
+			`created agents:preset-<preset> <model-id>`
+			Exit 1 with one error line, and no preset left, for a model that is not
+			installed, is none of the feature's or is not a chat model.
 
 		--manager-help-read
 		--manager-help-read <Name>.fn.sh
@@ -3494,6 +3682,85 @@
 			`deleted`, its type and fingerprint `-`. Exit 1, with one error line,
 			nothing removed: for the refusals of generate but a file being there,
 			and where no file of the key is there.
+
+		--manager-keys-trust-add
+			One of the console's own operations (see Notes). Puts one public
+			key line into the account's own authorized keys (`.ssh/authorized_keys`
+			in the home of the one who runs the tools), so whoever holds its
+			private key may then log in here as this account. The line is read
+			whole from the standard input, nothing as an argument: one line, a
+			key type, then the key, then anything (its comment). It is appended
+			with a line end of its own; the folder is made with mode 700 where
+			it is not there. Prints one row on stdout, TAB-separated, a value's
+			whitespace `_`:
+			`added trusted-<n> <file> <type> <fingerprint>`
+			<n> is its number among the trusted keys after it is added, and
+			<fingerprint> ssh-keygen's of the line. Exit 1, with one error line,
+			nothing added: where the standard input is not one such line, the
+			key is trusted already, or the file cannot be written.
+
+		--manager-keys-trust-delete <trusted-<n>>
+			One of the console's own operations (see Notes). Removes a trusted
+			key, named `trusted-<n>` as `--manager-keys-list` prints it, n
+			counting from 1: the one line that holds it is taken out of the
+			account's authorized keys, and every other line, options, comments
+			and blanks, stays as it stands. Prints one row on stdout like that
+			of trust-add, its first field `deleted`. Exit 1, with one error
+			line, nothing removed: where the file is not there, holds no such
+			key, or cannot be written.
+
+		--manager-keys-state [<key>]
+			One of the console's own operations (see Notes). Gives the
+			state of the server keys this workspace serves, which it keeps
+			in its own registry, `.local/agents/keys.registry`: one key a
+			line, the key, its state and the material it serves. With a
+			key it prints that one key alone. It only reads: a registry
+			that is not there is no key at all, and the read makes no
+			file. Prints one row a key, TAB-separated, on stdout, in the
+			registry's order, a value's whitespace `_`:
+			`key <key> <state> <material>`
+			<state> is `pending` (added, not yet approved), `served`
+			(approved, and live from then on) or `revoked` (deactivated,
+			and kept until it is removed). Exit 1, nothing printed, for a
+			second word, and for a key of that name that stands not.
+
+		--manager-keys-add <key>
+			One of the console's own operations (see Notes). Adds a key
+			to this workspace's keys registry as `pending`, the material
+			it serves read whole from the standard input, one line: the
+			material is never an argument, and it is given back only as
+			the row has it. A key of that name that stands already is
+			refused, since a key is added once. Prints one row on stdout,
+			TAB-separated: `added <key> pending <material>`. Exit 1, with
+			one error line, nothing added, for a second word, a name that
+			is not a key's (lower-case letters, digits and `-`), no
+			material on the standard input, a key of that name that
+			stands, or a registry that cannot be written.
+
+		--manager-keys-approve <key>
+			One of the console's own operations (see Notes). Approves a
+			`pending` key: it is `served`, and live from then on. Prints
+			one row on stdout, TAB-separated: `approved <key> served`.
+			Exit 1, with one error line, nothing done, for a second word,
+			a key that is none, and for one that is not pending.
+
+		--manager-keys-revoke <key>
+			One of the console's own operations (see Notes). Revokes a
+			`served` key: it is `revoked`, and deactivated at once; the
+			key is kept until it is removed. Prints one row on stdout,
+			TAB-separated: `revoked <key> revoked`. Exit 1, with one
+			error line, nothing done, for a second word, a key that is
+			none, and for one that is not served.
+
+		--manager-keys-remove <key>
+			One of the console's own operations (see Notes). Takes a key
+			out of the registry entirely, a `pending` or a `revoked` one.
+			A `served` (active) key is never removed: it is revoked
+			first, so that no active key leaves without being deactivated
+			on purpose. Prints one row on stdout, TAB-separated:
+			`removed <key>`. Exit 1, with one error line, nothing
+			removed, for a second word, a key that is none, and for one
+			that is served.
 
 		--manager-manual-read <user|maintainer> [<project>]
 			One of the console's own operations (see Notes). Gives the
@@ -3698,7 +3965,19 @@
 			routine outside its window is valid and would not start. With no
 			routine file at all, a note on stderr and no row.
 
-		--manager-stats-tokens --by day|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>]
+		--manager-routine-text <selector>
+			One of the console's own operations (see Notes). Prints the
+			whole file of one routine, as it stands: its frontmatter (the
+			contract its rows list by), its title line and its body,
+			nothing mixed in and nothing computed. <selector> is the
+			routine's file name, or part of one, exactly one file, as
+			`--spawn-session --routine <selector>` takes it: it is resolved
+			by the session spawner's own resolver, so it is the one file
+			that operation would start. Exit 1, nothing printed, with the
+			resolver's own error line, for a selector that matches no file
+			or more than one. It writes nothing.
+
+		--manager-stats-tokens --by day|weekday|hour|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share]
 			One of the console's own operations (see Notes). The tokens of the
 			runs of this workspace summed by one key: it calls the Dispatcher's
 			`--token-stats` with these arguments, as they come, and prints
@@ -3710,7 +3989,13 @@
 			YYYY-MM-DD) and the other four narrow the runs it sums. One
 			row a key, TAB-separated, on stdout, ordered by key:
 			`tokens <key> <runs> <in> <cache-read> <cache-write> <out>`
-			A run with no routine, preset or credential is under `-`. The
+			A run with no routine, preset or credential is under `-`.
+			`--average` prints the four token fields as the average of a run
+			(whole tokens, 0 for a key with no run); `--share` adds two fields,
+			`<share> <peak-share>`, the share of the `in` tokens of the key in
+			the total of all keys and in the largest key, each in whole
+			percent (of the averages with `--average`), so the console draws
+			them and computes none. The
 			views of the tokens in the console read this. Exit 1, with its
 			error line, for a `--by` that is none, a date that is none or an
 			option it does not know.
@@ -3826,6 +4111,30 @@
 			none, a parent that is not there, a service that is none, or a wrong
 			count of words. The other parameters are set with `--manager-scope-set`.
 
+		--manager-preset-rename <old> <new>
+			One of the console's own operations (see Notes). Renames a preset: its
+			block `preset-<old>` is moved to `preset-<new>`, and every scope that
+			names it follows, in one go: a preset that extends it (PRESET_EXTEND)
+			and a tier of the team or of a member (SPAWN_TIER_LOW, _NORMAL, _HIGH,
+			`<preset>[:<effort>]`). Prints `renamed preset-<old> preset-<new>`. Exit
+			1, with one error line, for a name that is not there, a new name that is
+			taken or is no preset's, or a wrong count of words.
+
+		--manager-preset-delete <name> [--switch <preset>]
+			One of the console's own operations (see Notes). Deletes a preset, its
+			block `preset-<name>`. A preset nothing uses is deleted as it stands.
+			One that a preset extends or a tier names, and no `--switch` is given,
+			is refused, naming who uses it (the presets that extend it and the
+			scopes whose tiers name it), as the delete always did. With
+			`--switch <preset>`, the one to switch those users to, chosen from the
+			other presets, every scope that names the deleted preset is rewritten
+			to it in one go -- a preset that extends it (PRESET_EXTEND) and a tier
+			of the team or of a member (`<preset>[:<effort>]`, the effort kept) --
+			and then the block is deleted. Prints `deleted agents:preset-<name>`.
+			Exit 1, with one error line and nothing deleted, for a name that is
+			not there, a switch that names no other preset that is there, and a
+			wrong count of words.
+
 		--manager-preset-tiers
 			One of the console's own operations (see Notes). Lists the tiers (F10.2),
 			the team's first and then each member's that is a member to start, one row
@@ -3937,8 +4246,8 @@
 			whitespace `_`, a credential in its one form:
 			`option <field> <value> <label>`
 			`current <key> <state> <value>`
-			For `cli-service`: the options `cli-service` (the nine services of a
-			preset), `effort` (the five efforts) and `preset` (each preset block
+			For `cli-service`: the options `cli-service` (the ten services of a
+			preset), `effort` (the six efforts) and `preset` (each preset block
 			there is); `credential <service> <key>` for the credentials each
 			service reads; `preset <name> <key> <state> <value>` for each key a
 			preset holds of its service, its model or macro, its effort, its
@@ -3993,7 +4302,7 @@
 			TAB-separated fields on stdout, the first naming the row. An
 			absent value reads `-`, and a value's own whitespace reads `_`,
 			as in a registry: a date reads `2026-10-12_16:57_+0300`.
-			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens>`
+			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> <usage-limit>`
 			`run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity>`
 			`counters <sessions-running> <sessions-paused> <agents-working> <agents-waiting> <pending-answers> <load-average> <host>`
 			A session row is followed by its runs, the earliest started
@@ -4001,12 +4310,18 @@
 			no date last. The one `counters` row is the last line, always.
 			<name> is the first `session-comment` of the session's runs. A
 			row with no session id is a session under its tracking name.
-			A session's <state> is `running` while a run of it has a live
-			process, else `waiting` while an ask of it or of one of its
-			runs is open, else `unknown-foreign` with an open record of
-			another host, else `unclosed` with any open record, else
-			`finished`. <state-at> is the date its last run closed, for a
-			`finished` session only. <state-tally> reads
+			A session's <state> is what its runs' own states add up to,
+			and the questions of it that still wait:
+			`running` while a run of it has a live process and not every
+			live one sits in a `Wait`; `waiting` while every live one
+			does, or while a run of it waits on an answer, or while a
+			question it or a run of it asked is still open; else
+			`unknown-foreign` with an open record of another host, else
+			`unclosed` with any open record, else `finished`. An ask that
+			is still open is waited on, whoever asked it: a run withdraws
+			its own questions when its record closes, so a finished
+			session has none left behind. <state-at> is the date its last
+			run closed, for a `finished` session only. <state-tally> reads
 			`running=1,finished=2`. <session-state> and <session-state-at>
 			are the state the control thread of the session stored for it
 			and when, as `spawned-sessions` holds them after this rebuild:
@@ -4021,8 +4336,13 @@
 			cache write and out of each of its runs, all added, as the
 			store of each run holds them. A run whose figures are not
 			known is left out, and the number then ends with `+`; `-`
-			where none is known. A reader takes a row that ends before
-			<tokens> as one of an earlier form.
+			where none is known. <usage-limit> is the flag of a session
+			one of whose runs the provider refused for its API usage
+			limit: `stopped on the provider usage limit: reopens
+			<date> <time> <zone>`, the date the provider's own message
+			gave, with `-` where no run of it was refused. The last of
+			its refused runs wins. A reader takes a row that ends before
+			<usage-limit> as one of an earlier form.
 			A run's <live> and <state> are those
 			`ListAgents` shows. <activity> of a live run is `waiting`
 			inside a `Wait` call and `working` otherwise. `--active` keeps
@@ -4073,7 +4393,7 @@
 			measured in the same call. It writes nothing else. Prints
 			rows of TAB-separated fields on stdout, the first naming the
 			row. An absent value reads `-`.
-			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens>`
+			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> <usage-limit>`
 			`dispatch <session-id> <founder> <member> <routine> <dispatch-item> <session-thread> <tracking-thread> <description>`
 			`control <session-id> <session-state> <session-state-at> <control-thread> <control-pid>`
 			`tokens <session-id> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <runs-summed> <runs-running> <total> <runs-unknown>`
@@ -4287,16 +4607,18 @@
 			`would-close`, and in the `finish` row the three counts of
 			what would be done and the state the session reads now.
 
-		--manager-session-effort <session-id> <low|normal|high>
+		--manager-session-effort <session-id> <unset|none|low|normal|high>
 			One of the console's own operations (see Notes). Changes the
 			effort a running session asks of its model, while it runs. It
-			writes one line, low, normal or high, to `effort` in the store
+			writes one line, unset, none, low, normal or high, to `effort` in the store
 			of the session or of the run that <session-id> names, under
 			`.local/agents/sessions/`; it signals nothing, and no agent is
 			asked anything. A harness run reads that file before every
 			request: the run's own store first, else the store of its
-			coworking session. `normal` is the model's default effort, so
-			none is sent. An effort asked before the run's first request is
+			coworking session. `unset` is the model's default effort, so
+			nothing is sent; `none` is a level of its own, sent as the model's
+			family in the wrapper's table says: the effort `none`, the thinking
+			switched off, or the service's lowest where it has no none. An effort asked before the run's first request is
 			its starting one. CHANGING EFFORT IN THE MIDDLE OF A CONVERSATION
 			DISCARDS THE INPUT TOKEN CACHE of that session, and the run says
 			so when it reads the change: one `input cache` line in its log,
@@ -4309,7 +4631,7 @@
 			file. Prints one row, TAB-separated: `effort`, the id, the effort
 			saved, the path of the file. Exit 1, nothing saved, with one error
 			line, where the id is no bare name or names no store of this
-			workspace, or the effort is none of the three.
+			workspace, or the effort is none of the five.
 
 		--manager-session-control-start (--session-id <id>|--all)
 			One of the console's own operations (see Notes). Starts the
@@ -4404,13 +4726,19 @@
 			`finished`, `waiting` and `unclosed` of `--manager-session-list`: every
 			participant has finished; a question of the session is open; a run of
 			it is still open and no process carries it. A session that runs, whose
-			participants work on it, one of another host, one that has no Slack
-			thread and an id no record carries are refused, in one line and with
-			nothing started. The join needs the thread of the session: the spawn
-			proxy joins a member into a session by its thread and into none that
-			has none, which is its own rule, so a workspace with no Slack joins
-			nobody. The start is the spawn proxy's, unchanged, with `--session-id`: the
-			coordinator joins that session, in its thread, and starts none, as a
+			participants work on it, one of another host and an id no record
+			carries are refused, in one line and with nothing started. A session
+			with no Slack thread is joined all the same: a thread is where the
+			joining is announced, never what makes the join possible. A session
+			that never posted, or whose conversation is not Slack, or whose
+			external side is its printback or tooling channel, has no thread and is
+			still a session, and the start opens the thread it has none of, in the
+			team's channel, under the session's own lock -- or announces nothing in
+			a session that is never announced in a thread. Where the session had no
+			thread, a note on standard error says so and says where the join was
+			recorded: in the record of the run and in its dispatch item. The start
+			is the spawn proxy's, unchanged, with `--session-id`: the
+			coordinator joins that session and starts none, as a
 			run that outlives the console, with a dispatch item. The task it starts
 			on and the line its joining says in the thread are blocks of the
 			tooling-note template (`Tasks`, `assess-session` and
@@ -4421,12 +4749,29 @@
 			`join <session-id> <member> <dispatch-item>`
 			<member> is `magic-coordinator`, <dispatch-item> the item the start made.
 
-		--manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
+		--manager-spawn-member <team-member> [--kind coworking|standalone|work-duty|free] [--also <team-member>[,<team-member>]...] [--goal <text>] [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
 			One of the console's own operations (see Notes). Starts one
 			member with a prompt, in a new coworking session of its own,
 			and does not wait for it. The prompt is stdin (default) or
 			`--from-file`, never an argument, and an empty one is
-			refused. The member gets it as its brief, behind the spawn
+			refused. `--goal <text>` is the one way to give it as an
+			option: the goal of a session, instead of standard input.
+			`--kind` is the kind of start the console's Launchpad offers.
+			`coworking`, the default, is what is described here, and
+			`--also <team-member>[,<team-member>]...` joins more members to
+			its session, each started with the same prompt (one `spawn` row
+			each, all of the one session). `standalone` is one member in
+			the standalone routine (`magic-team.standalone.routine.md`),
+			with the goal as its task. `work-duty` is the duty session of
+			the member, by its duty routine: no prompt is read unless
+			`--from-stdin`, `--from-file` or `--goal` give the comments or
+			scope, and it is refused, with nothing started, where that
+			member's duty runs already. `free` is a prompt to one member
+			with no routine: the floor of the member loads and no
+			instruction of a session kind. `--also` is for `coworking`
+			alone, and `--goal` is not for `free`, which takes its prompt
+			from stdin or a file. Every member is asked before the first
+			is started. The member gets it as its brief, behind the spawn
 			brief block of the standing default routine, as
 			`--spawn-session --routine-default`
 			puts it ahead of a task text. The start makes a `dispatch-*`
@@ -4448,11 +4793,12 @@
 			**Hazard: no secret belongs in the prompt** -- the console
 			puts a brief on the CLI's own command line, visible in `ps`
 			on the host.
-			Prints one row of TAB-separated fields on stdout. An absent
+			Prints one row of TAB-separated fields on stdout, for each
+			member started. An absent
 			value reads `-`, and a value's own whitespace reads `_`.
 			`spawn <session-id> <member> <name> <dispatch-item>`
 			<session-id> is the id of the new session and of the
-			member's run in it, as `--manager-session-list` lists them.
+			first member's run in it, as `--manager-session-list` lists them.
 			<name> is the session's name as its record keeps it.
 			<dispatch-item> is the item the start made. Exit 1 with one
 			error line, and nothing on stdout, where nothing was started.
@@ -4492,6 +4838,22 @@
 			subsystem (`.local`, `system`, the console's own to uninstall, a toolset
 			that is already installed or not installed), for a subsystem or a command
 			that is none, and for a wrong count of words.
+
+		--manager-subsystem-read <subsystem>
+			One of the console's own operations (see Notes). Gives one subsystem's
+			repository and its user manual, the README.md of its package, read from
+			its installed copy in `.local/myx` of the workspace where that stands,
+			else from the source tree of the origin. The repository is the address
+			its project.inf declares under `distro-image-sync:source-prepare-pull:repo:`,
+			which is what the package is pulled from; a package that declares none
+			has none. Prints two rows on stdout, TAB-separated, then the manual as
+			it is written:
+			`repository <address>`
+			`readme <file>`
+			<address> reads `-` where none is declared, and nothing of the manual
+			is printed where no README.md stands. Nothing is reached, and nothing
+			is written. Exit 1, nothing printed, for a name that is no subsystem
+			and for a wrong count of words.
 
 		--manager-workspace-read
 			One of the console's own operations (see Notes). Prints the workspace the
@@ -4870,6 +5232,49 @@
 			holds the advance lock, or a file another op
 			is writing could be committed half-written.
 
+		--repair-team-data-checkout [--team-member <team-member>] [--keep-merged|--take-remote]
+			Repairs a team-data checkout that has diverged from its
+			remote, with local commits never pushed, by this one
+			operation -- never raw git. It fetches origin, shows the
+			local-only commits and what the remote has, and
+			trial-merges in a throwaway copy under
+			$MMDAPP/.local/temp, then with a mode applies the repair
+			and ends with the F4.3 move of any inbox item that still
+			lies flat at its inbox root (into incoming/ or processed/
+			by its processed-at stamp). <team-member> must be
+			magic-coordinator.
+
+			With no mode it only diagnoses: it prints
+			`TEAM-DATA-CHECKOUT: <store> branch <branch> is <ahead>
+			local commit(s) ahead of origin/<branch> and <behind>
+			behind it`, then a `TEAM-DATA-LOCAL-COMMIT: <short>
+			<subject>` line per local-only commit and a
+			`TEAM-DATA-REMOTE-COMMIT: <short> <subject>` line per
+			remote-only commit, then `TEAM-DATA-TRIAL-MERGE: clean`,
+			or `TEAM-DATA-TRIAL-MERGE: conflicts: <paths>`, then the
+			two `TEAM-DATA-REPAIR-OFFER:` lines naming the modes, and
+			changes nothing. When the checkout is in step it prints
+			`TEAM-DATA-NOTHING-TO-REPAIR: <store>`.
+
+			`--keep-merged` merges origin into the branch keeping the
+			local commits (myx.common git/cloneSync, never a rebase),
+			then moves the flat items, commits and pushes.
+			`--take-remote` sets the local commits aside (they stay
+			reachable at a `team-data-checkout-set-aside-*` ref), takes
+			the remote, then moves the flat items, commits and pushes.
+			Both end with `TEAM-DATA-REPAIRED: <branch> is repaired and
+			pushed, read back as origin/<branch> = <full-sha>`, and
+			exit 1 where the push is not confirmed by read-back.
+			Refused: a store not in a git repository, no
+			TEAM_DATA_GIT_REMOTE, a store inside a larger repository,
+			an origin that is not TEAM_DATA_GIT_REMOTE, an interrupted
+			operation (index.lock, merge/cherry-pick/revert/rebase in
+			progress), a detached HEAD, or uncommitted paths (commit
+			them with --commit-pending first) -- `TEAM-DATA-REFUSED:`
+			and exits 1, repairs nothing. A merge that conflicts is
+			aborted and reported, the local commits kept, nothing
+			changed.
+
 		--wait-for-input [--team-member <team-member>] [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>] [--wait-collect <seconds>]
 		--wait-for-input [--team-member <team-member>] --wait-list-sources
 			Waits on a list of input sources, returns as soon as one
@@ -5060,15 +5465,25 @@
 			and a stored wait older than 7 days is removed when
 			any mode call starts. With no mode the call keeps no
 			state.
-			--wait-default: waits on the sources given (else the
-			default above), and stores the wait when it returns
-			RECEIVED or TIMEOUT. It keeps every stored floor: a
-			slack source resumes after the last message a wait
-			returned on it, so nothing posted between two calls
-			is skipped. An explicit --wait-since-utime replaces
-			the floor of a plain question thread, and on any
-			other slack source the older of the two is used.
-			A stored ask: item whose record exists stays in it.
+			--wait-default: waits on the default above, always,
+			and on the sources given and the sources of the stored
+			wait beside it: a named source is added to the
+			defaults and to the stored wait, never put in their
+			place, and the stored wait never shrinks but by
+			--unwait, --wait-drop or --wait-close. It stores the
+			wait when it returns RECEIVED or TIMEOUT. A floor lives
+			for a source of the stored wait and advances at every
+			wait that watches it: a slack source resumes after the
+			last message a wait returned on it, so nothing posted
+			between two calls is skipped. A floor stored for a
+			source that is no longer in the stored wait is dropped,
+			and a source that comes back starts at the wait's
+			start: what came in the gap is not replayed. An
+			explicit --wait-since-utime replaces the floor of a
+			plain question thread, and on any other slack source
+			the older of the two is used. The header's
+			`# session thread:` line says which thread is on record
+			for the session, or that none is.
 			On a slack arrival the wait re-reads after
 			MDAT_WAIT_SETTLE_SECONDS (default 3, 0 is off), up to
 			MDAT_WAIT_SETTLE_ROUNDS (default 3) times while more
@@ -5100,24 +5515,17 @@
 			answer as a clarification; a question withdrawn or
 			settled leaves it.
 
-			An answered `ask:` source quiet five minutes past its
-			own last update leaves a `--wait-default` call's
-			stored sources on its own. That update is the newest
-			kept clarification line, read off the record directly;
-			`follow-floor` stays fixed at the close, so it is only
-			the fallback where none is kept yet. Said, never silent:
-			`WAIT-DROPPED-EXPIRED: ask:<pending-id> ... -- quiet 5
-			minutes past its last update; name it again
-			explicitly to keep watching it`, right after
-			WAIT-NEVER-READ if any. Only a default call reaching
-			for it on its own is affected; naming it again with
-			--wait-source, any mode, is not.
+			An answered `ask:` source is never dropped by age: it
+			stays in the stored sources however long it has been
+			quiet, so a later reply in its thread still arrives.
+			It leaves only when its question is withdrawn or
+			settled, or when `--unwait` or `--wait-drop` names it.
 
 			--unwait <kind>:<target> is the same as --wait-drop
 			--wait-source <kind>:<target>, nothing more -- one
 			flag, its source inline, returning the same
 			`WAIT-RESULT: DROPPED`. Dropping a source, by either
-			of them or by expiry above, is never blocking it: a
+			of them, is never blocking it: a
 			later call naming it explicitly reaches it exactly as
 			if it had never been dropped.
 
@@ -5898,6 +6306,20 @@
 			  are added where neither the body nor a `--header:*`
 			  gives them. `started-at` is stamped as before.
 
+			`--upsert-from-slots`: the member gives only the slot values, and the
+			writer renders the document's body from the type's template
+			(`sh-lib/templates/board-item.<type>.document.format.md`); the front
+			matter is stamped as above. The slot values come on stdin, one
+			`key: value` line a single-line slot, a `key:` line alone opening a
+			multi-line slot whose value is the indented lines that follow. The
+			slots: `matter` (the one-line title, every type) and, by type --
+			`idea`/`task`/`project`/`warning`/`approval`: `body`; `approval` also:
+			`blocks` (front-matter, comma-separated); `change`: `what-changed`,
+			`why`, `needs`, `files-touched`; `proposal`: `goal`, `approaches`,
+			`recommendation`, `open-questions`; `interview`: `plan`,
+			`verbatim-intents`, `verbatim-benchmarks`, `corrections`,
+			`settled-facts`, `sub-parts`.
+
 		--grooming-lock-refresh [--team-member <team-member>]
 		--daily-lock-refresh [--team-member <team-member>]
 		--retro-lock-refresh [--team-member <team-member>]
@@ -6028,7 +6450,15 @@
 			--thread. If the opening post failed, it says so and
 			asks the session to post its own thread. A session
 			that starts alone is told it has none yet, and that
-			one is opened when it brings a member in.
+			one is opened when it brings a member in. A session
+			whose external side is the root-native printback
+			channel opens no thread, and the same section states
+			the channel kind in use and the channel-id it is named
+			by: `none -- this session's external side is the
+			root-native printback channel, printback:<session>
+			(channel kind: printback) ...`, so the run reports and
+			waits there and a dismissal is addressed to the member
+			it is for.
 
 		--spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]
 			Starts a coworking session and spawns its initial members
@@ -6129,8 +6559,9 @@
 			for it. Any other state is carried over untouched.
 
 		--get-session-thread [--own]
-			ThisSession's operation (DistroAgentsSession.fn.sh). The session thread,
-			read from the session's one store of its messages, the session chat file:
+			Reads the calling session's own thread. ThisSession's operation
+			(DistroAgentsSession.fn.sh): the thread is read from the session's one
+			store of its messages, the session chat file:
 			all of it, history included, in the order of the file, each message as
 			the file holds it (`<time> <from> -> <to>:` and its body). With `--own`
 			only the caller's own traffic: the messages it sent, the ones addressed
@@ -6142,13 +6573,13 @@
 			`--own` from no member's session.
 
 		--get-session-channel-id
-			ThisSession's operation (DistroAgentsSession.fn.sh). Prints the thread of
-			the calling session, `<channel>:<ts>`: the one the `session-current` alias
-			names. Refused with a plain line where the session has none.
+			Prints the thread of the calling session, `<channel>:<ts>`: the one the
+			`session-current` alias names. ThisSession's operation
+			(DistroAgentsSession.fn.sh). Refused with a plain line where the session has none.
 
 		--post-session-channel [--address-to <team-member>]... (<text...>|--from-stdin)
-			ThisSession's operation (DistroAgentsSession.fn.sh). A post to the
-			session thread, and to nowhere else: the team's Slack send
+			Posts to the calling session's own thread, and to nowhere else.
+			ThisSession's operation (DistroAgentsSession.fn.sh): the team's Slack send
 			(`--slack-send-message`) as the calling member, with no
 			target, so the first word is text. The send's other options pass
 			(`--address-to`, `--from-stdin`, `--identity-bot`); the message is recorded
@@ -6157,8 +6588,8 @@
 			session or no session, a session with no thread, and a call with no text.
 
 		--wait-session-channel [--to-@me] [--to-@here] [--to-@any] [--wait-timeout <seconds>]
-			ThisSession's operation (DistroAgentsSession.fn.sh). Wait, on the session
-			channel alone: the session thread as the session chat file holds it, read
+			Waits on the calling session's own thread alone. ThisSession's operation
+			(DistroAgentsSession.fn.sh): the session thread as the session chat file holds it, read
 			by the caller's own floor pointer, the one Wait's floor and every tool
 			return use. Prints what Wait prints. With no option it waits for the
 			caller's floor: the executor of the session is given every message of the
@@ -6234,6 +6665,33 @@
 			The wait is made by the harness of the run at the end of the round, so the
 			answer of the call is only read where nothing was returned.
 
+		--set-session-topic <text> [--escalate-wait [--timeout <seconds>]|--escalate-enqueue]
+			ThisSession's operation (DistroAgentsSession.fn.sh). Sets the topic of the
+			calling session, what it is about: the title in lists and statuses (the
+			`session-comment` header of its records), and the thread's root post edited
+			to match. Anyone who sees the session reads it. The executor of the session
+			sets it; a change by another participant goes as an escalation to the
+			executor and up its chain, and the person at the console sets it under the
+			authority rule (F6.10), with the escalation words the rule's own. Refused,
+			and nothing set, from a call of no member's session or no session, and with
+			no text.
+
+		--set-session-chapter <text> [--escalate-wait [--timeout <seconds>]|--escalate-enqueue]
+			ThisSession's operation (DistroAgentsSession.fn.sh). Sets the chapter of the
+			calling session, what it does now: kept in the session's own store and
+			announced in the session thread. The same authority as `--set-session-topic`.
+			Nothing is logged beyond the transcript, the chat and the event-track.
+			Refused, and nothing set, from a call of no member's session or no session,
+			and with no text.
+
+		--list-session-runs
+			ThisSession's operation (DistroAgentsSession.fn.sh). The runs bound to the
+			calling session, the rows `--manager-session-list` prints: this session's own
+			runs and its sub-sessions, the public (coworking) sessions of the team, and the
+			member's own ones. Nothing of another member's private session is listed, unless
+			the caller is in it. Refused, and nothing listed, from a call of no member's
+			session or no session.
+
 		--send-report [--team-member <team-member>]
 			Sends the hourly test report, run by hand or from a console; nothing
 			schedules it. <team-member> must be
@@ -6262,7 +6720,7 @@
 			verbatim. Outputs `NO_STATE` if nothing is stored yet.
 			Read-only.
 
-		--all-sessions [--kind standalone|coworking|ad-hoc]
+		--all-sessions [--kind standalone|coworking|ad-hoc] [--scope this-session|own|member <team-member>|all]
 			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh), for agent tools, the
 			shell console and shell automation alike. The sessions of this workspace with
 			their runs, the rows `--manager-session-list` prints (TAB-separated rows, their
@@ -6271,19 +6729,25 @@
 			sessions of one kind and their runs (the counters row stays): the kind of the
 			routine the session's run records, `requires-session-kind:` of that routine's
 			file, or `ad-hoc` for a start whose run records no routine. A word that is no
-			kind is refused, rc 1, with the three named, and nothing is printed.
+			kind is refused, rc 1, with the three named, and nothing is printed. `--scope`
+			keeps the sessions of one owner: `this-session` the caller's session and its
+			sub-sessions, `own` every run the caller owns, `member <team-member>` one user's
+			(no member may hold its own), and `all` any user's (the coordinator's and the
+			console's, and their default). A member's session with no `--scope` lists its own
+			runs; the coordinator and the console, all. A routine whose `denies:` names `list`
+			denies listing to its participants.
 
-		--active-sessions [--kind standalone|coworking|ad-hoc]
+		--active-sessions [--kind standalone|coworking|ad-hoc] [--scope this-session|own|member <team-member>|all]
 			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). The rows of
 			`--all-sessions` for the sessions that are not finished and can be acted on from
 			this host (running, waiting or unclosed), as `--manager-session-list --active`
-			prints them; `--kind` as there.
+			prints them; `--kind` and `--scope` as there.
 
-		--waiting-sessions [--kind standalone|coworking|ad-hoc]
+		--waiting-sessions [--kind standalone|coworking|ad-hoc] [--scope this-session|own|member <team-member>|all]
 			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). The rows of
 			`--all-sessions` for the sessions the list reads as `waiting`: no live process,
 			and an ask of the session or of one of its runs still open. Each session with its
-			runs, and the counters row; `--kind` as there.
+			runs, and the counters row; `--kind` and `--scope` as there.
 
 		--session-record <session-id> [--run]
 			TeamDispatcher's operation (DistroAgentsDispatcher.fn.sh). One session in full:
@@ -6399,7 +6863,7 @@
 		--run-stats [--member <m>] [--routine <r>] [--status <s>] [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>]
 		--run-history [--member <m>] [--routine <r>] [--since <YYYY-MM-DD>] [--limit <n>]
 		--routine-stats [<routine>]
-		--token-stats --by day|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>]
+		--token-stats --by day|weekday|hour|member|routine|preset|credential [--since <date>] [--until <date>] [--member <m>] [--routine <r>] [--preset <p>] [--credential <c>] [--average] [--share]
 			TeamDispatcher's operations (DistroAgentsDispatcher.fn.sh), reading the stats
 			store, which each brings up to date first: the records and token files changed since
 			the index are read again and the rows of those runs replaced, the rest stay (a
@@ -6413,7 +6877,9 @@
 			success); rc 1 and a line on stderr for a routine with no run. `--token-stats`: the
 			tokens summed by the one key asked for, as `tokens <key> <runs> <in> <cache-read>
 			<cache-write> <out>`, by key, within the dates and the other keys given; a run
-			with no preset or credential is under `-`. A date is YYYY-MM-DD, as the record
+			with no preset or credential is under `-`. `--average` prints the four token fields as the
+			average of a run, and `--share` adds the share of the key in the total of all keys and in the
+			largest, in whole percent. A date is YYYY-MM-DD, as the record
 			writes the day of `started-at`. The stats are of this workspace: every member's
 			runs recorded here, with the workspace each executed and was paid in.
 
@@ -6423,7 +6889,8 @@
 			has written, in markdown, or in JSON under `--mdat-output-format json` before
 			the first word. The sources, each added by its option: `--add-source-docs`,
 			MAGIC.md, README.md and docs/**.md of the projects selected, of each one's
-			repository `util.repository-*` and of the workspace's `util.workspace-*`;
+			repository `util.repository-*` and of the workspace's `util.workspace-*`,
+			and the `MAGIC.LanceDB` store beside each MAGIC.md;
 			`--add-board-items`; `--add-vault-items`, any text file of the team data
 			root's `vault/`; `--add-inbox-items`, the acting member's own inbox, incoming
 			and processed, the console reads every member's. The selector is that of
@@ -6440,7 +6907,31 @@
 			workspace, or below the team data root), merged by `--intern-merge-md-files`;
 			in JSON, `{"entries":[{"source","store","section","snippet"}]}`. A call with
 			no source, no term, a group not closed, a close that closes none or an
-			option it does not know is refused, rc 1, with nothing read. No vector store.
+			option it does not know is refused, rc 1, with nothing read. The store is
+			searched only when `--add-source-docs` is added and the setting
+			`MDAT_KNOWLEDGE_STORE` is `on` and the store's environment stands: otherwise
+			the text alone answers, exactly as it always did.
+
+		--knowledge-store-spread <path> [--keep <glob>]...
+			The librarian's spread step (the buffer rule): the sections of the
+			MAGIC.md named by `<path>` whose caption matches a `--keep` glob stay in the
+			file (what is currently important); every other section moves to the
+			`MAGIC.LanceDB` beside it, one record a section, and stays findable by the
+			query, which searches the store with the text. The file is rewritten with
+			the kept sections alone, over a transient backup; the records are written
+			before the file is touched, so a failed write leaves the file whole. At
+			least one `--keep` is required -- the librarian names what stays, nothing
+			moves by a silent default, and a run that would remove every section is
+			refused. Refuses, rc 1, when the store is off or not installed, naming
+			`--install-knowledge-store`. On success it prints the MAGIC.md reference.
+
+		--knowledge-store-retire <path> --section <glob>...
+			The librarian's retire step: the records of the store beside the MAGIC.md
+			named by `<path>` whose section caption matches a `--section` glob are
+			deleted, so they are no longer findable. The MAGIC.md is left as it is. At
+			least one `--section` is required. Refuses, rc 1, when the store is off or
+			not installed, or no store stands beside the file. On success it prints how
+			many records were removed.
 
 		--collect-contact --id <slug> [--name <text>] [--organisation <slug>] [--role <text>] [--relationship <text>] [--how-to-meet <text>] [--owner yes|no] [--slack <team>:<id>]... [--slack-handle <team>:@<handle>]... [--slack-conversation <team>:<id>]... [--email <address>]... [--drop <coordinate>]... [--note <text>] [--correct] [--reached-by <member>]
 			Contacts' operation (DistroAgentsContacts.fn.sh), the people subsystem: every
@@ -6534,14 +7025,13 @@
 			permission request. Refused, rc 1, for a refusal that is not recorded for that
 			contact, a kind that is neither, and a call from no member's session.
 
-		--tester-skillset-validate-routine <routine-file|--from-stdin>
-			Checks a routine file against the routine contract
-			(`magic-team/templates/routine.contract.format.md`) and prints one
-			row for each fault, `<file>:<line>: <rule>: <text>`, exit non-zero
-			where there is any. It is the thin stub of the one validator,
-			`--intern-doc-validate routine`, and has no logic of its own;
-			`DistroAgentsTesting.fn.sh --skillset-validate-routine` is the
-			same. Read-only. It rejects, and does not warn, a routine that has
+		--skillset-validate-routine <routine-file|--from-stdin>
+			DistroAgentsTesting.fn.sh's operation. Checks a routine file against
+			the routine contract (`magic-team/contracts/routine.contract.format.md`)
+			and prints one row for each fault, `<file>:<line>: <rule>: <text>`,
+			exit non-zero where there is any. It is the thin stub of the one
+			validator, `--intern-doc-validate routine`, and has no logic of its
+			own. Read-only. It rejects, and does not warn, a routine that has
 			no `requires-session-kind:` naming a session kind (`standalone` or
 			`coworking`), no `type: routine`, no `executors:` or `maintainers:`
 			(its kind routine's defaults counted), or lacks `# Opening steps`,
@@ -6553,10 +7043,9 @@
 			rule `report-operations`: it is said and refuses nothing.
 			`--from-stdin` reads the routine from standard input.
 
-		--tester-test-register (<test-id> --project <p> --script <path>|--from-folder <dir> --project <p>) [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
-			The thin stub of `DistroAgentsTesting.fn.sh --test-register`, which has the
-			logic; every `--tester-<operation>` below is the `--<operation>` of that file.
-			Registers a test in the testbed, the project metadata of the tests, kept in
+		--test-register (<test-id> --project <p> --script <path>|--from-folder <dir> --project <p>) [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
+			DistroAgentsTesting.fn.sh's operation. Registers a test in the
+			testbed, the project metadata of the tests, kept in
 			`$MMDAPP/.local/agents/testing/tests/<test-id>.md`, one file for each test:
 			its `--project` (such as `myx/myx.distro-agents`), its `--script` (an
 			absolute path, or one below the project's folder in `source/`, or below the
@@ -6564,7 +7053,7 @@
 			about, the `--rig`, `--document`s and `--resource`s it needs, and `--nightly
 			yes` to be one of the nightly regressions (the default is `no`). A test is
 			known by its id, which for the tests of a package is the runner's name for it.
-			One registered already is refused (`--tester-test-update`). With
+			One registered already is refused (`--test-update`). With
 			`--from-folder`, every `*.test.sh` of the folder and of the folders one level
 			below it is registered for the project by its file name, its script kept
 			below the workspace; one registered already is left as it is, and said.
@@ -6574,38 +7063,36 @@
 			Whether a test has passed, and its runs, are not kept here: the test runner
 			keeps them (`AgentsRunTests.sh --passed`), and the testbed reads them.
 
-		--tester-test-update <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
-			The stub of `DistroAgentsTesting.fn.sh --test-update`. Changes the metadata
-			of a registered test: only what is named, a list (`--keyword`, `--document`,
-			`--resource`) replaced whole, the date of registration kept and the date of
-			the update set. A test not registered, nothing to change and a script that is
-			not there are refused, and the test is left as it was.
+		--test-update <test-id> [--project <p>] [--script <path>] [--functionality <f>] [--keyword <k>]... [--rig <path>] [--document <path>]... [--resource <path>]... [--nightly yes|no]
+			Changes the metadata of a registered test: only what is named, a list
+			(`--keyword`, `--document`, `--resource`) replaced whole, the date of
+			registration kept and the date of the update set. A test not registered,
+			nothing to change and a script that is not there are refused, and the
+			test is left as it was.
 
-		--tester-test-unregister <test-id>
-			The stub of `DistroAgentsTesting.fn.sh --test-unregister`. Takes the test out
-			of the testbed: its metadata goes, and the test, its script and its pass
-			record stay.
+		--test-unregister <test-id>
+			Takes the test out of the testbed: its metadata goes, and the test,
+			its script and its pass record stay.
 
-		--tester-test-invalidate <test-id>
-			The stub of `DistroAgentsTesting.fn.sh --test-invalidate`. Drops the pass
-			record of a registered test, so that the next batch runs it whatever state
-			it passed on, and keeps when it was invalidated in its metadata.
+		--test-invalidate <test-id>
+			Drops the pass record of a registered test, so that the next batch
+			runs it whatever state it passed on, and keeps when it was invalidated
+			in its metadata.
 
-		--tester-test-list [--project <p>] [--namespace <n>] [--keyword <k>]
-			The stub of `DistroAgentsTesting.fn.sh --test-list`. Read-only. The
-			registered tests, those of a project, a namespace (the first word of the
-			project) and a keyword where given, as tab-separated rows: `test`, the id,
+		--test-list [--project <p>] [--namespace <n>] [--keyword <k>]
+			Read-only. The registered tests, those of a project, a namespace
+			(the first word of the project) and a keyword where given, as tab-separated rows: `test`, the id,
 			project, functionality, keywords, the nightly flag, when it passed on the
 			state it would run on now (`-` where it has not), when it was invalidated,
 			and the runs, passes and fails of the last forty run folders; after each
 			test its last runs, `run`, the id, the run folder, `PASS` or `FAIL`, and the
 			seconds; and a last row, `tests`, the number listed, passed and not passed.
 
-		--tester-run-oldest-untested [--wait|--no-wait]
-		--tester-run-all-nightly-regressions [--wait|--no-wait]
-			The stubs of `DistroAgentsTesting.fn.sh --run-oldest-untested` and
-			`--run-all-nightly-regressions`. They put tests of the testbed into the one
-			retest queue of the machine (`--retest-queue`), as the acting member
+		--run-oldest-untested [--wait|--no-wait]
+		--run-all-nightly-regressions [--wait|--no-wait]
+			The two run operations of `DistroAgentsTesting.fn.sh`: they put tests
+			of the testbed into the one retest queue of the machine
+			(`--retest-queue`), as the acting member
 			or the console user, and print the request's id: the registered test that
 			was registered first of those that have not passed on the state they would
 			run on now, or every test registered `--nightly yes`. Only a test whose
@@ -6683,6 +7170,26 @@
 			(<outcome>) -- ...` with the outcome (`applied`, `refused` or `closed`) and the
 			result the librarian closed it with (`wrote <file>`, its reason, or its own
 			words), `UNKNOWN` (exit 1) for a name that is no update request.
+
+		--doc-drift [<path>...] [--queue]
+			AgentLibrarianTools.fn.sh. Detects, by dates and checksums, a package whose
+			code changed after its MAGIC.md, README or help files: a package is a directory
+			that holds a `project.inf`, the ones named, or else every one of the source. A
+			doc whose change time is before the newest change time of the package's code is
+			stale. Read-only without `--queue`: one `STALE <path>` line per stale doc, the
+			path relative to the source. With `--queue` (the librarian only), each stale doc
+			is filed as an update request into magic-librarian's inbox (kind document, why
+			"code changed after this document"), its date and checksum recorded by the
+			tooling, and each request's name is printed.
+
+		--queue-ask <name>
+			AgentLibrarianTools.fn.sh, the librarian only. Poses a waiting concrete edit (a
+			`--request-update` of kind skill and form edit) to a person in Pending Questions,
+			as well as deciding it itself: one pending question is opened in the questions
+			store, whose `allow` applies the edit (`--queue-done --apply`) and whose `deny`
+			refuses it, and its id is recorded on the request. Whichever decides first wins:
+			`--queue-done` withdraws an open question for the request, and an answer to a
+			request already closed does nothing. Prints `ASKED <id> <who>`.
 
 		--queue-list
 		--queue-take
@@ -6815,7 +7322,11 @@
 			own index; this reads the conversation directly.
 
 			Same credential resolution as --slack-send-message;
-			--identity-bot reads as the team bot. A direct conversation
+			--identity-bot reads as the team bot, and is final. Read
+			as the user, a conversation Slack answers with
+			`channel_not_found` or `not_in_channel` is read once more
+			as the bot, said on stderr, so what a send posted under
+			the bot is read back. A direct conversation
 			belongs to one identity -- the bot's DM with someone and a
 			member's own are different conversations, neither readable
 			from the other. Channels are unaffected.

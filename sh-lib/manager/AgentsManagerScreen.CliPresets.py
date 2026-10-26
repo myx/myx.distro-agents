@@ -2,11 +2,12 @@
 ## AgentsManagerScreen.CliPresets.py -- `CLI Presets and Tiers` of the root Configuration (F10.1, F10.2): the feature that says which CLI service each member of the team starts on, as a use
 ## case and not as variables. It replaces the item of the CLI services there, and the wizard of the CLI service stands in it. The summary shows two compact tables, the presets (the services you
 ## set up) and the tiers that are assigned (which preset, and which effort, each member and the team use for their low, normal and high tier); the two folders under it, `CLI Service Presets`
-## and `Member Tier Assignments`, show each more of its own when selected. The tasks are the keys: `n` adds a preset, `c` configures one (the wizard, which makes, extends, sets the model, the
-## effort, the cache and the credentials), `u` uses a preset for a member, `a` assigns a tier (who, which tier, then the two selectors, the preset and the effort), `D` deletes a preset, `s` selects
-## the CLI the machine has. Enter on a preset or an owner goes into its variables, where each is changed by its kind: that is Scope Settings' (LocalManagerScreen.Scopes.py of `.local`), which stays as it was.
+## and `Member Tier Assignments`, show each more of its own when selected. The tasks are the keys: `n` adds a preset, `e` edits one (the wizard, which makes, extends, sets the model, the
+## effort, the cache and the credentials), `f` uses a preset for a member, `a` assigns a tier (who, which tier, then the two selectors, the preset and the effort), `D` deletes a preset, `s` selects
+## the CLI the machine has. Enter on a preset edits it, as `e` does; an edit starts on the preset selected, its own name in the name field, and offers neither its CLI service nor what it extends,
+## which an edit cannot change. The variables of a preset are Scope Settings' (LocalManagerScreen.Scopes.py of `.local`), which stays as it was.
 ## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the order of its PARTS, and it is never run by itself. The part is plain text of the screen.
-## The screen writes no file: --manager-scope-set, --manager-preset-new, --manager-scope-delete and the wizard's --manager-wizard-apply do, by the setting reader of the dispatcher.
+## The screen writes no file: --manager-scope-set, --manager-preset-delete and the wizard's --manager-wizard-apply do, by the setting reader of the dispatcher.
 ##
 
 ## The fields of a `preset` row of `--manager-preset-list` after the six of a scope's, and of a `tier` row.
@@ -25,7 +26,7 @@ def parsePresetRows(readKey, level, text):
         scope = dict(zip(SCOPE_FIELDS, fields[1:1 + len(SCOPE_FIELDS)]))
         preset = dict(zip(PRESET_FIELDS, fields[1 + len(SCOPE_FIELDS):]))
         name = unspaced(scope["label"]).replace("Agents: preset-", "", 1)
-        row = newRow(scope["id"], name, "preset", True, fields)
+        row = newRow(scope["id"], name, "preset", False, fields)
         row["scope"] = scope
         row["preset"] = dict(preset, name=name)
         row["tail"] = ("extends " + preset["extends"]) if absent(preset["extends"]) else absent(preset["service"])
@@ -33,20 +34,11 @@ def parsePresetRows(readKey, level, text):
     return {level: rows}
 
 
-## What a tier of an owner resolves to, as the spawner chooses (AgentsToolsPresetChosen): its own setting; else, for a member, the team's of that tier; else the member's normal, else the team's
-## normal. Returns (value, how): how is "set", "inherits the team's" or "uses the normal tier".
+## What a tier of an owner resolves to, as the shell's AgentsToolsPresetChosen chose it: --manager-preset-tiers
+## answers the value and how for each tier (AgentsToolsPresetChosenLine), so the console renders that one answer
+## and keeps no second implementation of the fallback.
 def tierResolved(owners, owner, tier):
-    team = next((one for one in owners if one["scope"]["id"] == "agents:magic-team"), None)
-    own = absent(owner["tiers"][tier])
-    if own:
-        return own, "set"
-    if owner is not team and team is not None and absent(team["tiers"][tier]):
-        return absent(team["tiers"][tier]), "inherits the team's"
-    if tier != "normal" and absent(owner["tiers"]["normal"]):
-        return absent(owner["tiers"]["normal"]), "uses its normal tier"
-    if team is not None and absent(team["tiers"]["normal"]):
-        return absent(team["tiers"]["normal"]), ("uses the team's normal tier" if owner is not team else "uses the normal tier, used for all tiers")
-    return "", "nothing is set"
+    return (owner.get("tierChosen") or {}).get(tier) or ("", "nothing is set")
 
 
 def tierSlotText(owners, owner, tier):
@@ -63,10 +55,18 @@ def parseTierRows(readKey, level, text):
         if fields[0] != "tier" or len(fields) < 1 + len(SCOPE_FIELDS) + len(TIER_FIELDS):
             continue
         scope = dict(zip(SCOPE_FIELDS, fields[1:1 + len(SCOPE_FIELDS)]))
-        tiers = dict(zip(TIER_FIELDS, fields[1 + len(SCOPE_FIELDS):]))
+        tiers = dict(zip(TIER_FIELDS, fields[1 + len(SCOPE_FIELDS):1 + len(SCOPE_FIELDS) + len(TIER_FIELDS)]))
+        ## the six fields after them are what the shell's AgentsToolsPresetChosenLine answered for low, normal and high
+        chosenFields = fields[1 + len(SCOPE_FIELDS) + len(TIER_FIELDS):]
+        chosen = {}
+        for index, tier in enumerate(TIER_FIELDS):
+            value = chosenFields[2 * index] if len(chosenFields) > 2 * index else "-"
+            how = chosenFields[2 * index + 1] if len(chosenFields) > 2 * index + 1 else ""
+            chosen[tier] = (absent(value), unspaced(how) or "nothing is set")
         row = newRow(scope["id"], unspaced(scope["label"]), "tier", True, fields)
         row["scope"] = scope
         row["tiers"] = tiers
+        row["tierChosen"] = chosen
         rows.append(row)
     held = {level: rows}
     for row in rows:
@@ -179,15 +179,15 @@ CLI_FORMS = (("service", "a service preset: one of the services, with its key"),
              ("extend", "an extending preset: takes the service and the key of a preset that is there"))
 
 
-## The form a preset belongs to, from what its row holds: one that extends, the universal service,
-## or a service of its own.
+## The form a preset belongs to, from what its row holds: one that extends, the universal one (the `standard-v1`
+## service, which is what the universal form writes), or a service of its own.
 def presetForm(row):
     preset = row.get("preset") if row else None
     if preset is None:
         return "service"
     if absent(preset.get("extends")):
         return "extend"
-    if preset.get("service") == "universal":
+    if preset.get("service") == "standard-v1":
         return "universal"
     return "service"
 
@@ -271,6 +271,71 @@ ACTION_REFUSALS["tieruse"] = lambda state, row: "select a preset first"
 DIALOG_HANDLERS["tier-who"] = submitTierWho
 
 
+## ---- a preset deleted ----
+
+## Deleting a preset that nothing uses asks for the word, as a kill does; one that a preset extends or a tier names offers instead to
+## switch those users to another preset chosen from the list of the others, and, declined, the delete refuses naming them, as the operation
+## does (the predecessor's). The switch rewrites those scopes then deletes, in one operation, --manager-preset-delete.
+DIALOGS["preset-delete"] = {"title": "Delete", "feeds": "presetdelete",
+                            "controls": ({"name": "about", "kind": "text"},
+                                          {"name": "word", "kind": "input", "label": "Type %s to delete" % KILL_WORD, "exactly": KILL_WORD,
+                                           "required": "nothing is deleted: the word typed is not %s" % KILL_WORD}),
+                            "buttons": (("ok", "Delete"), ("cancel", "Cancel"))}
+DIALOGS["preset-switch"] = {"title": "Switch and delete", "feeds": "presetdelete", "first": "switch",
+                            "controls": ({"name": "about", "kind": "text"},
+                                          {"name": "switch", "kind": "radios", "label": "Switch them to"}),
+                            "buttons": (("ok", "Switch and delete"), ("cancel", "Cancel"))}
+
+
+def askPresetDelete(state, row):
+    preset = row.get("preset") if row else None
+    if preset is None:
+        return "select a preset first"
+    name = preset["name"]
+    used = unspaced(absent(preset["used"])).replace("preset-", "")
+    others = [held["preset"]["name"] for held in state.rows.get(pluginLevel("presets")) or () if held.get("preset") and held["preset"]["name"] != name]
+    state.answer = None
+    if used and others:
+        openDialog(state, "preset-switch",
+                   {"about": {"lines": [("preset", name), ("used by", used),
+                                        "It is still in use. Choose the preset to switch its users to, then it is deleted; Esc leaves it, and the delete refuses naming them."]},
+                    "switch": {"options": [(one, one) for one in others], "value": others[0]}},
+                   {"preset": name, "used": used, "viewKey": viewKeyOf(state)}, "Delete: %s" % name)
+    else:
+        openDialog(state, "preset-delete",
+                   {"about": {"lines": [("preset", name), ("used by", used or "nothing"),
+                                        "The preset is deleted: its block, the preset-<name> scope, is removed."]},
+                    "word": {"value": ""}},
+                   {"preset": name, "viewKey": viewKeyOf(state)}, "Delete: %s" % name)
+    return ""
+
+
+def submitPresetDelete(state, dialog, button):
+    about = dialog["about"]
+    askCall(state, "scope", "delete/%s" % about["preset"], ["--manager-preset-delete", about["preset"]], None,
+            {"viewKey": about["viewKey"], "says": "deleted %s" % about["preset"]})
+    state.notice = "deletion asked of the tooling: %s" % about["preset"]
+    state.noticeOf = None
+    return None
+
+
+def submitPresetSwitch(state, dialog, button):
+    about = dialog["about"]
+    chosen = dialogValue(dialog, "switch")
+    askCall(state, "scope", "delete/%s" % about["preset"], ["--manager-preset-delete", about["preset"], "--switch", chosen], None,
+            {"viewKey": about["viewKey"], "says": "deleted %s, its users switched to %s" % (about["preset"], chosen)})
+    state.notice = "switch and delete asked of the tooling: %s" % about["preset"]
+    state.noticeOf = None
+    return None
+
+
+ACTION_HANDLERS["presetdelete"] = askPresetDelete
+ACTION_FITS["presetdelete"] = lambda state, row: bool(row and row.get("preset"))
+ACTION_REFUSALS["presetdelete"] = lambda state, row: "select a preset first"
+DIALOG_HANDLERS["preset-delete"] = submitPresetDelete
+DIALOG_HANDLERS["preset-switch"] = submitPresetSwitch
+
+
 ## The tasks on the feature itself, the row of it selected in the Configuration or the folder of it opened: they are those of the presets and of the tiers, with no row of theirs selected.
 def cliHere(state, row):
     level = levelKey(state.path)
@@ -283,7 +348,8 @@ ACTION_REFUSALS["clinew"] = lambda state, row: "it is a task of the CLI presets"
 ACTION_HANDLERS["cliassign"] = lambda state, row: askTierWho(state, None)
 ACTION_FITS["cliassign"] = cliHere
 ACTION_REFUSALS["cliassign"] = lambda state, row: "it is a task of the CLI presets"
-## Configure the preset selected: the wizard of the CLI service, on that preset.
+
+
 def askTierSlot(state, row):
     slot = row.get("tierSlot") if row else None
     if slot is None:
@@ -299,6 +365,8 @@ ACTION_FITS["tierslot"] = lambda state, row: bool(row and row.get("tierSlot"))
 ACTION_REFUSALS["tierslot"] = lambda state, row: "select a tier"
 
 
+## Edit the preset selected: Enter and `e` come here, and the form of the preset's own kind opens on it -- never a choice of which preset, and
+## never what an edit cannot change, since the wizard is told the preset it is on in its context.
 def askCliConfigure(state, row):
     form = presetForm(row)
     return startWizard(state, CLI_FORM_WIZARDS[form], {"preset": row["preset"]["name"]} if row and row.get("preset") else None)
@@ -350,12 +418,12 @@ registerPlugin({
     "commands": scopeKeyCommands("presets") + (
         {"name": "presetnew", "keys": ("n",), "menu": ("view", 3), "label": "~N~ew preset", "status": "New", "window": "list",
          "views": ("presets",), "for": "a preset", "on": ("presets:preset", "presets:up"), "only": True, "says": "new", "does": ("action", "presetnew")},
-        {"name": "presetconfigure", "keys": ("c",), "menu": ("view", 3), "label": "~C~onfigure the preset", "status": "Configure", "window": "list",
-         "views": ("presets",), "for": "a preset", "on": ("presets:preset",), "only": True, "says": "configure", "does": ("action", "cliconfigure")},
+        {"name": "presetconfigure", "keys": ("e",), "menu": ("view", 3), "label": "~E~dit the preset", "status": "Edit", "window": "list",
+         "views": ("presets",), "for": "a preset", "on": ("presets:preset",), "only": True, "says": "edit", "does": ("action", "cliconfigure")},
         {"name": "presetuse", "keys": ("f",), "menu": ("view", 3), "label": "Use the preset ~f~or a member", "status": "Use", "window": "list",
          "views": ("presets",), "for": "a preset", "on": ("presets:preset",), "only": True, "says": "use", "does": ("action", "tieruse"), "calls": ("scope-set",)},
         {"name": "presetdelete", "keys": ("D",), "menu": ("view", 3), "label": "~D~elete the preset", "status": "Delete", "window": "list",
-         "views": ("presets",), "for": "a preset", "on": ("presets:preset",), "only": True, "says": "delete", "does": ("action", "scopedelete"), "calls": ("scope-delete",)},
+         "views": ("presets",), "for": "a preset", "on": ("presets:preset",), "only": True, "says": "delete", "does": ("action", "presetdelete"), "calls": ("preset-delete",)},
     ),
 })
 

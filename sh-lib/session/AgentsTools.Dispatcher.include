@@ -61,12 +61,82 @@ AgentsToolsDispatcherKinds(){ ## the list's rows, as text
 	done <<< "$kindsAll"
 }
 
+## The session's own id and the ids of its sub-sessions, one a line: a sub-session is a session
+## whose founding run was spawned by a run of this session, read from the spawn records' run tree
+## (parent-spawn-id), to any depth. Prints the session itself first, then its sub-sessions.
+AgentsToolsDispatcherSubSessions(){ ## session id
+	local subSession="$1" subSpawned="$MMDAPP/.local/agents/spawned"
+	case "$subSession" in ''|.|..|*/*) return 1 ;; esac
+	[ -d "$subSpawned" ] || return 1
+	local subFiles=( "$subSpawned"/*/*.spawn.md )
+	[ ${#subFiles[@]} -gt 0 ] || return 1
+	printf '%s\n' "$subSession"
+	LC_ALL=C awk -v wantSession="$subSession" '
+		FNR == 1 { inFront = 0 ; recSession = "" ; recSpawn = "" ; recParent = "" ; }
+		$0 == "---" {
+			inFront++ ;
+			if ( inFront == 2 && recSpawn != "" ) { spawnSession[recSpawn] = recSession ; spawnParent[recSpawn] = recParent ; }
+			next ;
+		}
+		inFront == 1 && index( $0, "session-id: " ) == 1 { recSession = substr( $0, 13 ) ; }
+		inFront == 1 && index( $0, "spawn-id: " ) == 1 { recSpawn = substr( $0, 11 ) ; }
+		inFront == 1 && index( $0, "parent-spawn-id: " ) == 1 { recParent = substr( $0, 18 ) ; }
+		END {
+			for (s in spawnSession) if (spawnSession[s] == wantSession) roots[s] = 1 ;
+			changed = 1 ;
+			while ( changed ) {
+				changed = 0 ;
+				for (s in spawnParent) if ( !( s in roots ) && ( spawnParent[s] in roots ) ) { roots[s] = 1 ; changed = 1 ; }
+			}
+			printed[wantSession] = 1 ;
+			for (s in roots) if ( spawnSession[s] != "" && !( spawnSession[s] in printed ) ) printed[spawnSession[s]] = 1 ;
+			for (ses in printed) if (ses != wantSession) print ses ;
+		}
+	' "${subFiles[@]}"
+}
+
+## A file's change time in whole seconds since the epoch, portable; nothing and rc 1 where it cannot be read.
+AgentsToolsDispatcherMtime(){ ## file
+	local mtimeEpoch
+	mtimeEpoch="$( stat -f '%m' "$1" 2> /dev/null )" || mtimeEpoch=""
+	case "$mtimeEpoch" in ''|*[!0123456789]*) mtimeEpoch="$( stat -c '%Y' "$1" 2> /dev/null )" || mtimeEpoch="" ;; esac
+	case "$mtimeEpoch" in ''|*[!0123456789]*) return 1 ;; esac
+	printf '%s' "$mtimeEpoch"
+}
+
+## --camunda-diagram-sync-stale <definitions-dir> <diagrams-dir>: the BPMN/DMN diagrams older than the newest definition file.
+## The newest mtime of every file under the definitions directory (recursively) is the bar, and each diagram file under the
+## diagrams directory (a .bpmn or a .dmn) older than it is printed, one path a line, rc 0 with none. Read-only, nothing changed.
+AgentsToolsCamundaDiagramSyncStale(){ ## the operation, its arguments...
+	local camOp="$1" camDefs="${2:-}" camDiags="${3:-}" camFile camM camDefNew=""
+	shift 3
+	[ $# -eq 0 ] || { echo "⛔ ERROR: $MDSC_CMD $camOp: syntax is $camOp <definitions-dir> <diagrams-dir>, got a stray argument: $1" >&2 ; return 1 ; }
+	[ -d "$camDefs" ] || { echo "⛔ ERROR: $MDSC_CMD $camOp: no such definitions directory: ${camDefs:-<nothing>}" >&2 ; return 1 ; }
+	[ -d "$camDiags" ] || { echo "⛔ ERROR: $MDSC_CMD $camOp: no such diagrams directory: ${camDiags:-<nothing>}" >&2 ; return 1 ; }
+	while IFS= read -r camFile ; do
+		[ -n "$camFile" ] || continue
+		camM="$( AgentsToolsDispatcherMtime "$camFile" )" || continue
+		[ -n "$camDefNew" ] && [ "$camDefNew" -ge "$camM" ] || camDefNew="$camM"
+	done <<< "$( find -L "$camDefs" -type f 2>/dev/null | LC_ALL=C sort )"
+	[ -n "$camDefNew" ] || { echo "⛔ ERROR: $MDSC_CMD $camOp: $camDefs holds no file to take a definition mtime from -- nothing is printed" >&2 ; return 1 ; }
+	while IFS= read -r camFile ; do
+		[ -n "$camFile" ] || continue
+		case "$camFile" in *.bpmn|*.dmn) ;; *) continue ;; esac
+		camM="$( AgentsToolsDispatcherMtime "$camFile" )" || continue
+		[ "$camM" -lt "$camDefNew" ] && printf '%s\n' "$camFile"
+	done <<< "$( find -L "$camDiags" -type f 2>/dev/null | LC_ALL=C sort )"
+	return 0
+}
+
 ## --all-sessions, --active-sessions and --waiting-sessions: the rows --manager-session-list prints, the sessions of
 ## the workspace with their runs and the counters row; those not finished with --active-sessions, those the list
 ## reads as `waiting` (no live process, an ask of theirs open) with --waiting-sessions. [--kind standalone|coworking|ad-hoc]
-## keeps the sessions of that kind and their runs. With no filter the rows are the function's, unchanged.
+## keeps the sessions of that kind and their runs. [--scope this-session|own|member <team-member>|all] keeps the sessions of
+## one owner (T5): each executor its own runs -- this session and its sub-sessions, or all its own; the coordinator also
+## one user's or any user's. A member's session, with no --scope, lists its own runs; the coordinator and the console, all.
 AgentsToolsDispatcherSessions(){ ## the operation as it was called, its arguments...
 	local sessionsOp="$1" sessionsKind="" sessionsWaiting="" sessionsActive="" sessionsRows sessionsKept=""
+	local sessionsScope="" sessionsScopeMember="" keptKind="" keptScope="" scopeAll="" scopeActing scopeCoordinator scopeSession
 	shift
 	while [ $# -gt 0 ] ; do
 		case "$1" in
@@ -79,8 +149,21 @@ AgentsToolsDispatcherSessions(){ ## the operation as it was called, its argument
 					;;
 				esac
 			;;
+			--scope)
+				case "${2:-}" in
+					this-session|own|all) sessionsScope="$2" ; shift 2 ;;
+					member)
+						[ -n "${3:-}" ] || { echo "⛔ ERROR: $MDSC_CMD $sessionsOp: --scope member needs a team member -- syntax is --scope member <team-member>" >&2 ; return 1 ; }
+						sessionsScope="member" ; sessionsScopeMember="$3" ; shift 3
+					;;
+					*)
+						echo "⛔ ERROR: $MDSC_CMD $sessionsOp: --scope takes this-session, own, member <team-member> or all, got: ${2:-nothing}" >&2
+						return 1
+					;;
+				esac
+			;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD $sessionsOp: syntax is [--kind standalone|coworking|ad-hoc], got: $1" >&2
+				echo "⛔ ERROR: $MDSC_CMD $sessionsOp: syntax is [--kind standalone|coworking|ad-hoc] [--scope this-session|own|member <team-member>|all], got: $1" >&2
 				return 1
 			;;
 		esac
@@ -89,23 +172,62 @@ AgentsToolsDispatcherSessions(){ ## the operation as it was called, its argument
 		--active-sessions) sessionsActive="active" ;;
 		--waiting-sessions) sessionsWaiting="waiting" ;;
 	esac
+	## The caller: the member a member's session acts as (empty for the console), and whether that is
+	## the coordinator -- the wider scopes are its, and the console's.
+	type AgentsToolsActingMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.CallerCheck.include"
+	scopeActing="$( AgentsToolsActingMember )"
+	scopeCoordinator=""
+	if [ -n "$scopeActing" ] ; then
+		[ "$scopeActing" != magic-coordinator ] || scopeCoordinator=yes
+	else
+		scopeCoordinator=yes
+	fi
+	scopeSession="$( AgentsToolsActingSession )"
+	## The scope, given or default: a member's own runs, else any user's.
+	[ -n "$sessionsScope" ] || sessionsScope="$([ -n "$scopeCoordinator" ] && printf all || printf own)"
+	case "$sessionsScope" in
+		member|all)
+			[ -n "$scopeCoordinator" ] || { echo "⛔ ERROR: $MDSC_CMD $sessionsOp: --scope $sessionsScope is the coordinator's (or the console's): a member's session lists its own runs (--scope own) or its session and its sub-sessions (--scope this-session) -- nothing was listed" >&2 ; return 1 ; }
+		;;
+		this-session)
+			[ -n "$scopeSession" ] || { echo "⛔ ERROR: $MDSC_CMD $sessionsOp: --scope this-session needs a session, and the call belongs to none -- nothing was listed" >&2 ; return 1 ; }
+		;;
+	esac
+	## A routine may deny listing to its participants (T5): the permission chain reads its `denies:` key.
+	if [ -n "$scopeActing" ] && [ -n "$scopeSession" ] ; then
+		type AgentsToolsPermissionRoutineDenies > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
+		AgentsToolsPermissionRoutineDenies "$scopeActing" list "$scopeSession" > /dev/null 2>&1 && {
+			echo "⛔ ERROR: $MDSC_CMD $sessionsOp: the routine this session runs denies listing -- nothing was listed" >&2
+			return 1
+		}
+	fi
 	AgentsToolsDispatcherManager || return 1
-	if [ -z "$sessionsKind$sessionsWaiting" ] ; then
+	if [ -z "$sessionsKind$sessionsWaiting" ] && [ "$sessionsScope" = all ] ; then
 		AgentsToolsManagerSessionRows "$sessionsOp" "$sessionsActive"
 		return $?
 	fi
 	sessionsRows="$( AgentsToolsManagerSessionRows "$sessionsOp" "$sessionsActive" )" || return 1
 	if [ -n "$sessionsKind" ] ; then
-		sessionsKept="$( AgentsToolsDispatcherKinds "$sessionsRows" | LC_ALL=C awk -F'\t' -v wantKind="$sessionsKind" '$2 == wantKind { printf "%s\n", $1 ; }' )"
+		keptKind="$( AgentsToolsDispatcherKinds "$sessionsRows" | LC_ALL=C awk -F'\t' -v wantKind="$sessionsKind" '$2 == wantKind { printf "%s\n", $1 ; }' )"
 	fi
-	printf '%s\n' "$sessionsRows" | DISPATCH_STATE="$sessionsWaiting" DISPATCH_KIND="$sessionsKind" DISPATCH_KEPT="$sessionsKept" LC_ALL=C awk -F'\t' '
+	case "$sessionsScope" in
+		all) scopeAll=yes ;;
+		own) keptScope="$( printf '%s\n' "$sessionsRows" | LC_ALL=C awk -F'\t' -v who="$scopeActing" '$1 == "run" && $4 == who { print $2 }' | LC_ALL=C sort -u )" ;;
+		member) keptScope="$( printf '%s\n' "$sessionsRows" | LC_ALL=C awk -F'\t' -v who="$sessionsScopeMember" '$1 == "run" && $4 == who { print $2 }' | LC_ALL=C sort -u )" ;;
+		this-session) keptScope="$( AgentsToolsDispatcherSubSessions "$scopeSession" | LC_ALL=C sort -u )" ;;
+	esac
+	sessionsKept="$keptKind"
+	printf '%s\n' "$sessionsRows" | DISPATCH_STATE="$sessionsWaiting" DISPATCH_KIND="$sessionsKind" DISPATCH_KEPT="$sessionsKept" DISPATCH_SCOPE_ALL="$scopeAll" DISPATCH_SCOPE_KEPT="$keptScope" LC_ALL=C awk -F'\t' '
 		BEGIN {
 			wantState = ENVIRON["DISPATCH_STATE"] ; wantKind = ENVIRON["DISPATCH_KIND"] ;
+			scopeAll = ENVIRON["DISPATCH_SCOPE_ALL"] ;
 			keptCount = split( ENVIRON["DISPATCH_KEPT"], keptList, "\n" ) ;
 			for (keptAt = 1 ; keptAt <= keptCount ; keptAt++) if (keptList[keptAt] != "") kindOf[keptList[keptAt]] = 1 ;
+			scopeCount = split( ENVIRON["DISPATCH_SCOPE_KEPT"], scopeList, "\n" ) ;
+			for (scopeAt = 1 ; scopeAt <= scopeCount ; scopeAt++) if (scopeList[scopeAt] != "") scopeOf[scopeList[scopeAt]] = 1 ;
 		}
 		$1 == "session" {
-			sessionKept = ( ( wantState == "" || $4 == wantState ) && ( wantKind == "" || ( $2 in kindOf ) ) ) ;
+			sessionKept = ( ( wantState == "" || $4 == wantState ) && ( wantKind == "" || ( $2 in kindOf ) ) && ( scopeAll == "yes" || ( $2 in scopeOf ) ) ) ;
 			if (sessionKept) { keptSession[$2] = 1 ; print ; }
 			next ;
 		}

@@ -133,7 +133,7 @@ rigAssert "a second take of either held note refuses" "$rigTake3:$rigTake4" "1:1
 rigAssert "each note holds its own session" "$( rigField "$rigCoordInbox/$rigAdvance" session-id ):$( rigField "$rigKeeperInbox/$rigAdvance" session-id )" "rig-session-one:rig-session-two"
 
 echo "-- 6. the contract's scan list and lock form --"
-rigContract="$rigPackage/skillset/magic-team/magic-team/templates/routine.contract.format.md"
+rigContract="$rigPackage/skillset/magic-team/magic-team/contracts/routine.contract.format.md"
 rigAssert "routine-lock-document: states the {{team-member}} macro" "$( LC_ALL=C grep -A2 -F -e '- `routine-lock-document:` (optional)' "$rigContract" | LC_ALL=C grep -c -F -e '{{team-member}}' || : )" "1"
 rigAssert "input-scan-def: lists work-duty among the scans" "$( LC_ALL=C grep -A2 -F -e '- `input-scan-def:` (optional)' "$rigContract" | LC_ALL=C grep -c -F -e '`work-duty`' || : )" "1"
 

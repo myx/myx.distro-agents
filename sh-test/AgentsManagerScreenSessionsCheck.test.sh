@@ -4,7 +4,7 @@
 ## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a stand-in script
 ## (check-fixtures/manager-screen.tools.stub.sh), which notes each start and prints the case's fixture: rows in the
 ## form `--manager-session-list` prints, TAB between the fields, a `session` row, its `run` rows, and one last
-## `counters` row. Held: `Launch (Start)` is the first row under the row that goes up, also when there is no
+## `counters` row. Held: `Launchpad` is the first row under the row that goes up, also when there is no
 ## session; then comes every session the operation gives, in its order, the newest first, each by its name with the
 ## spaces the registry wrote as `_`, or by its id where it has none, with its state at the end of its row; a session
 ## that is one lone run with no name shows plainer: dimmed, by the member that ran and the head of its id; `a` asks
@@ -24,8 +24,8 @@
 ## for cell as from rows without them. AgentsManagerScreenControlCheck holds what is shown of the control thread.
 ## The reads of one selected session or agent are taken out of the table here: AgentsManagerScreenPaneCheck holds them.
 ## Offline: no operation of the real tooling is called, and no session of this machine is read.
-## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`; the spacer under
-## `Launch (Start)` moves each session row of the list one line down.
+## Reconciled for F11.0: `Launch / Spawn` is named `Launchpad`, `Consoles (Tools)` `Consoles`; the spacer under
+## `Launchpad` moves each session row of the list one line down.
 ## Reconciled for F11.0, the table lines: two spaces between the columns, an empty line between the rows of the sessions' table, and the columns reassessed for the fewest lines.
 ## Reconciled for F11.5: the body of the case is rewritten: the sessions are Active Sessions, Closed Sessions and Top Tokens of Activity, the agents Active, Waiting and Closed Agents; a session opens to its participants.
 set -u
@@ -171,7 +171,9 @@ cells row1 2 85 119
 cells row2 3 85 119
 cells line1 2 1 83
 RIGSCRIPT
-rigAssert "Activity holds Launch (Start) first, also when there is no session"  "$( rigVal act.rows ) [$( rigVal actRow2 )][$( rigVal actRow3 )]" "8 [ Launch (Start)                  ►][>Active Sessions                 ►]"
+## R3 (sketch, `Magic-Team` -> `Reorder`): Launchpad is Magic-Team's own third section now, not
+## a row of Activity -- so Activity holds its session lists alone.
+rigAssert "Activity holds its session lists alone, also when there is no session"  "$( rigVal act.rows ) [$( rigVal actRow2 )][$( rigVal actRow3 )]" "7 [>Active Sessions                 ►][ Closed Sessions                 ►]"
 rigAssert "the list shows the row that goes up and nothing more"     "$( rigVal a.rows ) [$( rigVal row1 )][$( rigVal row2 )]" "1 [>..][]"
 rigAssert "and the left pane says that there is none"                "[$( rigVal line1 )]" "[No sessions.]"
 
@@ -296,7 +298,10 @@ get few
 RIGSCRIPT
 rigPutsFew="$( rigVal few.puts )"
 rigCase many many.rows
-rigSecondsBefore="$SECONDS"
+## the time is the processor time the run took (its children's, from `times`, which only the shell itself can ask: not in a substitution), not the wall clock: a machine that is
+## busy with other work takes the same run longer on the clock and no longer on the processor
+rigCpuMark(){ times > "$rigTmp/cpu.$1" ; }
+rigCpuMark before
 rigScript <<RIGSCRIPT
 size 120 33
 at @activity closed-sessions
@@ -313,14 +318,15 @@ get in
 keys LEFT$( rigKeys PGUP 20 )
 get first
 RIGSCRIPT
-rigSecondsTaken=$(( SECONDS - rigSecondsBefore ))
+rigCpuMark after
+rigSecondsTaken="$( LC_ALL=C awk 'function sec( word,   part ) { split( word, part, /[ms]/ ) ; return part[1] * 60 + part[2] } FNR == 2 { total[ FILENAME ] = sec( $1 ) + sec( $2 ) } END { print int( total[ ARGV[ 2 ] ] - total[ ARGV[ 1 ] ] ) }' "$rigTmp/cpu.before" "$rigTmp/cpu.after" )"
 rigAssert "the pane has thirty lines, and the level five hundred sessions under its first row" "$( rigVal a.listHeight ) $( rigVal a.rows )" "29 501"
 rigAssert "four hundred times Down moves the selection four hundred rows, with its row in view" "$( rigVal moved.index ) $( rigVal moved.top ) [$( rigVal movedRow )]" "400 372 [>session 101            finished ►]"
 rigAssert "PageDown reaches the last one"                            "$( rigVal last.index ) $( rigVal last.top ) [$( rigVal lastRow )]" "500 472 [>session 001            finished ►]"
 rigAssert "it can be dived into like the first"                      "$( rigVal in.path ) $( rigVal in.rows )" "magic-team/activity/closed-sessions/00000001-0000-4000-8000-000000000000 3"
 rigAssert "PageUp returns to the first row"                          "$( rigVal first.index ) $( rigVal first.top )" "0 0"
 rigAssert "a drawing writes no more than with five sessions, but for the mark of a folder on each row in view beyond the few of that small list, and three writes at most for each line of the left pane, whose table of the sessions fills it: only the rows in view" "$( [ "$( rigVal first.puts )" -le "$(( rigPutsFew + $( rigVal first.listHeight ) + 3 * $( rigVal first.viewLines ) ))" ] && echo within || echo "over: $( rigVal first.puts )" ) $( rigVal last.spills )" "within 0"
-rigAssert "all those keys were taken in a few seconds"               "$( [ "$rigSecondsTaken" -lt 15 ] && printf yes || printf 'no (%s seconds)' "$rigSecondsTaken" )" yes
+rigAssert "all those keys were taken in a few seconds"               "$( [ "$rigSecondsTaken" -lt 15 ] && printf yes || printf 'no (%s processor seconds)' "$rigSecondsTaken" )" yes
 
 echo "-- a session row of eight fields still draws, and the three more fields change nothing else that is drawn --"
 ## The same five sessions, each `session` row with three more fields after its eight, as the operation prints them
@@ -372,6 +378,35 @@ rigAssert "from the eight fields the pane of a session says - of its control thr
 rigAssert "with the three more fields it says what they tell: a thread that lives, one that ended in order, and what each stored" "$( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 's|│ control  alive; stored running, set 2026-10-12 16:58 +0300 (9h ago)  ' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'u|│ control  none; stored finished, set 2026-10-11 14:51 +0300 (35h ago)  ' )" "1 1"
 rigAssert "the list marks the one session whose thread is gone, on each of the two screens that show the list of the sessions, and no other row differs; the table of the sessions in the left pane marks it too" "$( diff <( rigListOf "$rigDrawnEight" ) <( rigListOf "$rigDrawnEleven" ) | LC_ALL=C grep -c '^> ' ) $( diff <( rigListOf "$rigDrawnEight" ) <( rigListOf "$rigDrawnEleven" ) | LC_ALL=C grep -c -F -e '| 22222222-0000-4000-…... x waiting' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -E -e '^l\|│ 22222222-0000-4000-[0-9-]* +x waiting ' )" "2 0 1"
 rigAssert "everything else is read by position as before: but for what it says of the control thread, the screen draws and reports cell for cell what it draws from the eight" "$( [ "$( rigLeftOf "$rigDrawnEleven" )" = "$( rigLeftOf "$rigDrawnEight" )" ] && echo same || { echo differs ; diff <( rigLeftOf "$rigDrawnEight" ) <( rigLeftOf "$rigDrawnEleven" ) | head -6 ; } )" "same"
+
+echo "-- a session one of whose runs the provider refused for its usage limit --"
+## The same five sessions, each `session` row carrying the two fields after the control thread that
+## the operation prints now: its tokens, and the usage-limit flag -- the one wording with the date
+## it reopens, on the session of the waiting run, `-` on every other. The `run` rows are as they were.
+LC_ALL=C awk -F'\t' '
+	$1 != "session" { print ; next }
+	{ sessionNo++ ; print $0 "\t" ( sessionNo == 2 ? "100\tstopped on the provider usage limit: reopens 2026-11-01 00:00 UTC" : "-\t-" ) }
+' "$rigTmp/wide.rows" > "$rigTmp/limit.rows"
+rigAssert "control: the one flagged session row has thirteen fields, and every other row is as it was" "$( LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 13 && $13 != "-" ) flagged++ } END { print rows + 0 ":" flagged + 0 }' "$rigTmp/limit.rows" ) $( LC_ALL=C grep -v '^session' "$rigTmp/limit.rows" | cmp -s - <( LC_ALL=C grep -v '^session' "$rigTmp/wide.rows" ) && echo same )" "5:1 same"
+rigCase limit limit.rows
+rigScript <<'RIGSCRIPT'
+size 120 40
+keys ENTER
+wait sessions 30
+get a
+cells row2 3 85 119
+cells row3 4 85 119
+keys DOWN DOWN
+turn
+get session
+show s
+RIGSCRIPT
+rigAssert "the list marks the session whose run was refused, ahead of its state, and leaves the one with no flag as it was" \
+	"$( rigVal row3 | LC_ALL=C grep -c -F -e '⏳' ):$( rigVal row2 | LC_ALL=C grep -c -F -e '⏳' )" "1:0"
+rigAssert "the mark stands ahead of the state of that session, and of the mark of its control thread" \
+	"$( rigVal row3 | LC_ALL=C grep -c -F -e '⏳ x waiting' )" "1"
+rigAssert "and the left pane says the two facts with the date, the one wording of the row" \
+	"$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F -e 'stopped on the provider usage limit: reopens 2026-11-01 00:00 UTC' )" "1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN SESSIONS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

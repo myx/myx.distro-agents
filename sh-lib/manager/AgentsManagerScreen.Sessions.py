@@ -1,5 +1,5 @@
 ##
-## AgentsManagerScreen.Sessions.py -- the root Sessions (Activity): the sessions, their agents, Launch (Start), and the kill, the control and the start.
+## AgentsManagerScreen.Sessions.py -- the root Sessions (Activity): the sessions, their agents, Launchpad, and the kill, the control and the start.
 ## A part of the manager screen (AgentsManagerScreen.py): that file executes it, in its own namespace and in the
 ## order of its PARTS, and it is never run by itself. The part is plain text of the screen, moved whole.
 ##
@@ -32,6 +32,11 @@ def registryDate(value):
     return unspaced(value) + (" (%s ago)" % age if age else "")
 
 
+## The mark of a session one of whose runs the provider refused for its API usage limit: the
+## row keeps the one wording of it, and its date, in its last field.
+MARK_LIMIT = "⏳"
+
+
 ## What `--manager-session-list` printed, as the rows of its sessions: rows of TAB-separated
 ## fields, the first naming the row. A `session` row is followed by its `run` rows, which are
 ## the runs of that session, its agents, and the one `counters` row is the last line
@@ -44,6 +49,10 @@ def registryDate(value):
 ## whether it is `alive`, `gone` or `none`. A session whose thread is gone carries the mark
 ## of a process that is gone (MARK_GONE) ahead of its state; one whose thread lives, or that
 ## has none, carries no mark. A row of the eight fields alone says nothing of it: `-`.
+## The last field is the usage-limit flag of its runs, where the provider refused one: the
+## mark of it (MARK_LIMIT) stands ahead of the state, so the session list shows that a run
+## stopped on the provider usage limit; the wording with the date it reopens is kept in the
+## session (usageLimit) for the pane and for whoever asks.
 def parseSessionRows(text):
     rows = []
     sessions = {}
@@ -51,11 +60,13 @@ def parseSessionRows(text):
         fields = line.split("\t")
         if fields[0] == "session" and len(fields) >= 8:
             session = {"id": fields[1], "name": unspaced(fields[2]), "state": fields[3], "started": fields[4],
-                       "stateAt": fields[5], "count": fields[6], "tally": fields[7], "runs": [], "lone": False}
+                       "stateAt": fields[5], "count": fields[6], "tally": fields[7], "runs": [], "lone": False,
+                       "usageLimit": fields[12] if len(fields) >= 13 else "-"}
             session["stored"], session["storedAt"], session["control"] = fields[8:11] if len(fields) >= 11 else ("-", "-", "-")
             row = newRow(fields[1], session["name"] or fields[1], "record", True, fields)
             row["session"] = session
-            row["tail"] = (MARK_GONE + " " if session["control"] == "gone" else "") + session["state"]
+            limitMark = MARK_LIMIT + " " if session["usageLimit"] != "-" else ""
+            row["tail"] = limitMark + (MARK_GONE + " " if session["control"] == "gone" else "") + session["state"]
             row["look"] = BOLD if session["state"] == "running" else PLAIN
             if len(fields) >= 12:
                 ## the total of its tokens, the last field of its row: the narrow column of the list
@@ -164,6 +175,10 @@ def sessionLines(session, width, info=None, limit=0, wrap=True):
         ("ended", registryDate(session["stateAt"])),
         ("tokens", tokensText(info["tokens"]) if info and info.get("tokens") else ""),
     ]
+    ## A RUN STOPPED ON THE PROVIDER'S USAGE LIMIT: the one wording its row keeps, with the date
+    ## it reopens, under the facts of its session. A session without one has no such line.
+    if session.get("usageLimit", "-") != "-":
+        pairs.append(("flag", session["usageLimit"], stateLook("waiting")))
     dispatch = info["dispatch"] if info else None
     if dispatch:
         if dispatch["founder"] == "no-record":
@@ -330,7 +345,7 @@ def agentsSummary(state, path, row, form):
         ("key", "enum", "text", "text"), looks=[[None, stateLook(one["tail"]), None, None] for one in held])
 
 
-## ---- the routines to start by hand: `Launch (Start)` ----
+## ---- the routines to start by hand: `Launchpad` ----
 
 ROUTINE_SUFFIX = ".routine.md"
 
@@ -412,7 +427,7 @@ def freePromptLines(width):
     return lines
 
 
-## What `Launch (Start)` holds, for the left pane while the row that goes up is selected
+## What `Launchpad` holds, for the left pane while the row that goes up is selected
 ## there, or its own row in the list of the sessions: as its caption how many routines, how
 ## many of them are started here, how many once members are named, and how many are not;
 ## then every routine of the list, in its order, as a table (tableSummaryLines): its name,
@@ -647,10 +662,25 @@ def killSays(target, rows=None, note=""):
     return lines
 
 
+## The field of a row of a plan that says nothing of what the kill would do: the processes
+## it would signal, as the walk of the run finds them at that very moment. A run that works
+## starts and ends its tool commands all the while, so two reads of its plan name other pids
+## and almost never the same ones; what would be ended is the run, which its own id names.
+KILL_PLAN_VOLATILE = ("pids",)
+
+
+## One row of a plan without what a walk says differently at each read.
+def killPlanRow(row):
+    return dict((field, value) for field, value in row.items() if field not in KILL_PLAN_VOLATILE)
+
+
 ## What a plan is known by, where the one a confirmation showed is held against the one
-## read when it was confirmed: its rows, and whether its read failed.
+## read when it was confirmed: its rows, and whether its read failed. The pids of a row are
+## left out (KILL_PLAN_VOLATILE): held against each other they would refuse the word at every
+## confirmation of a run that works, for ever, and no word typed again could ever be taken --
+## the refusal is there to make a person see the plan as it now stands, not to be unanswerable.
 def killPlanSeen(plan):
-    return (plan["rows"], bool(plan["error"]))
+    return (dict((name, [killPlanRow(row) for row in held]) for name, held in plan["rows"].items()), bool(plan["error"]))
 
 
 ## A confirmation whose button was pressed, at a turn of the screen: its plan is read once
@@ -809,7 +839,7 @@ def killAnswer(text):
 
 
 ## The session `c` acts on at that row, or None where the row is no session: the control
-## thread is a session's, so an agent of one, a section and `Launch (Start)` have none.
+## thread is a session's, so an agent of one, a section and `Launchpad` have none.
 def controlTargetOf(state, row):
     if row is None or not row.get("session"):
         return None
@@ -871,7 +901,7 @@ def controlAnswer(text, width):
     return lines, "control: " + ("; ".join(said) if said else "the operation named no session")
 
 
-## Enter on a routine of `Launch (Start)`. One the session spawner would not start gets
+## Enter on a routine of `Launchpad`. One the session spawner would not start gets
 ## the information box: the routine, who executes it, and why it is not started; nothing
 ## is asked. One that is started only with members named gets the dialog of its members.
 ## For another its dialog opens: what the session is to work on, and the name the session
@@ -1027,7 +1057,7 @@ def fillPrompt(state, dialog):
     dialogControl(dialog, "who")["options"].extend(options)
 
 
-## Enter on the free prompt of `Launch (Start)`: its dialog opens, who runs it, the prompt,
+## Enter on the free prompt of `Launchpad`: its dialog opens, who runs it, the prompt,
 ## and the name of the session.
 def askPrompt(state, row):
     return openPrompt(state, "", "Free prompt")
@@ -1116,7 +1146,7 @@ def participantFocus(state, row):
     return runLines(run, state.viewWidth, state.view["info"])
 
 
-## ... of the row selected in `Launch (Start)`: the routine, or the free prompt.
+## ... of the row selected in `Launchpad`: the routine, or the free prompt.
 def launchFocus(state, row):
     if row.get("routine"):
         return routineLines(row["routine"], state.viewWidth)
@@ -1216,6 +1246,7 @@ def participantRows(state, path):
                 break
     if found is None:
         return None if listedRows(state, path[:-1]) is None else []
+    ## EVERY run of the session is one of its agents, spawned or not.
     return [participantRow(run, run["spawn"] if run["spawn"] != "-" else "-%d" % index, run["member"])
             for index, run in enumerate(found["session"]["runs"])]
 
@@ -1266,7 +1297,7 @@ def participantValues(state, path):
 
 ## ---- the plugin: `Activity` ----
 
-## The lists `Activity` holds besides `Launch (Start)`, in their order: the id, what it shows as, and the function that gives its rows
+## The lists `Activity` holds besides `Launchpad`, in their order: the id, what it shows as, and the function that gives its rows
 ## from the sessions of the list read (derived).
 ACTIVITY_SESSION_LISTS = (
     ("active-sessions", "Active Sessions", "activeSessionRows"),
@@ -1314,18 +1345,13 @@ def activityParticipants(tree, level):
 
 ## The plugin's declaration of its levels, from the lists above.
 def activityTree():
-    tree = {"rows": {"activity": (("launch", "Launch (Start)", "launch", True),)
-                     + tuple((name, label, "sessions", True) for name, label, function in ACTIVITY_SESSION_LISTS)
-                     + tuple((name, label, "agents", True) for name, label, function in ACTIVITY_AGENT_LISTS),
-                     "activity/launch": (("free", "Free prompt", "free", False),)},
-            "summaries": {"activity": {"lines": "activitySummary", "counted": ("running", "waiting", "unclosed")},
-                          "activity/launch": {"lines": "routinesSummary"}},
-            "focus": {"activity/launch": "launchFocus"}, "derived": {},
+    tree = {"rows": {"activity": tuple((name, label, "sessions", True) for name, label, function in ACTIVITY_SESSION_LISTS)
+                     + tuple((name, label, "agents", True) for name, label, function in ACTIVITY_AGENT_LISTS)},
+            "summaries": {"activity": {"lines": "activitySummary", "counted": ("running", "waiting", "unclosed")}},
+            "focus": {}, "derived": {},
             "reads": {
                 ## The coworking sessions with their runs, and last the row of counters of the status lines. Every list below is made of them.
                 "list:activity": {"operation": ["--manager-session-list"], "rows": "sessions", "kind": "sessions", "always": True},
-                ## The routines the members carry, each with whether the session spawner would start it.
-                "list:activity/launch": {"operation": ["--manager-routine-list"], "rows": "routines"},
                 ## What the kill of a session, and of one agent, would do, and nothing is done: the rows of the kill itself, each with what
                 ## would become of it (KILL_ROWS). Read when the confirmation of that kill opens, and once more when it is confirmed
                 ## (submitKill), by the id it names, as a kind of its own; never on the period, so what the confirmation says does not
@@ -1386,14 +1412,11 @@ registerPlugin({
     "summaries": ACTIVITY_TREE["summaries"],
     "derived": ACTIVITY_TREE["derived"],
     "reads": ACTIVITY_TREE["reads"],
-    "go": ({"name": "spawn", "path": "activity/launch", "label": "~L~aunch (Start)"},),
     "commands": (
         {"name": "unstarted", "keys": ("ENTER",),
-         "views": ("activity/launch",), "for": "a routine that cannot be started", "on": ("activity/launch:record",), "only": True, "tells": True, "does": ("action", "unstarted")},
+         "views": ("launch",), "for": "a routine that cannot be started", "on": ("launch:record",), "only": True, "tells": True, "does": ("action", "unstarted")},
         {"name": "launch", "keys": ("ENTER",), "menu": ("session", 2), "label": "Start the ro~u~tine", "status": "Start", "window": "list",
-         "views": ("activity/launch",), "for": "a routine", "on": ("activity/launch:record",), "only": True, "does": ("action", "launch"), "calls": ("launch",)},
-        {"name": "prompt", "keys": ("ENTER",), "menu": ("session", 2), "label": "~F~ree prompt", "status": "Start", "window": "list",
-         "views": ("activity/launch",), "for": "the free prompt", "on": ("activity/launch:free",), "only": True, "does": ("action", "prompt"), "calls": ("prompt",)},
+         "views": ("launch",), "for": "a routine", "on": ("launch:record",), "only": True, "does": ("action", "launch"), "calls": ("launch",)},
         activityActs(name="kill", keys=("k",), menu=("session", 1), label="~K~ill", status="Kill", after="colours",
                      **{"for": "a session or an agent", "does": ("action", "kill"), "calls": ("kill:session", "kill:run")}),
         {"name": "control", "keys": ("c",), "menu": ("session", 1), "label": "~C~ontrol thread", "status": "Control", "after": "colours",

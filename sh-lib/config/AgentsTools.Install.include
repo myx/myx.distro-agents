@@ -261,6 +261,321 @@ AgentsToolsInstallSlotClaim(){ ## scope, workspace, slot, this workspace's own c
 	return 0
 }
 
+## Whether a link this workspace does not own is still the RIG's own skillset (item 22). A rig is ONE workspace
+## per machine -- the mode AgentsToolsWorkspaceMode reads, `team-rig` -- so a link that leaves both this workspace
+## and its origin has no second workspace on the machine to belong to. That is exactly what the foreign branch
+## below would separate, and on a rig there is nothing there to separate: what such a link reaches is the rig's
+## own skillset, through an install prefix or a name the one workspace carried before it moved. Recognised by what
+## it is, a `<...>/skillset/<member>` copy of this family's own; a target of any other shape points elsewhere and
+## stays foreign, rig or no rig. Off a rig this is always false, so nothing changes there.
+AgentsToolsInstallRigOwnSkillset(){ ## resolved link target, the member or rules-file name it should hold
+	local rigOwnTarget="${1%/}" rigOwnName="$2" rigOwnMode=""
+	case "$rigOwnTarget" in
+		*/skillset/*) ;;
+		*) return 1 ;;
+	esac
+	[ "${rigOwnTarget##*/}" = "$rigOwnName" ] || return 1
+	type AgentsToolsWorkspaceMode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamDataGate.include"
+	read -r rigOwnMode _ <<< "$( AgentsToolsWorkspaceMode )" || return 1
+	[ "$rigOwnMode" = "team-rig" ]
+}
+
+## The DeepSeek Harness home patch (F4.2): one `- insert:` row in $HOME/.dsh/cordis.patch.yml,
+## the file DSH applies over every profile, so every chat of this workspace reaches the
+## myx-distro server with no preset chosen and no default. A machine with no DSH home is not
+## an error. No YAML reader is run -- a tool that may be absent must not decide the result:
+## the row is plain block YAML, values single-quoted, and a row of ours already there is
+## found by its id and replaced whole, so a second run leaves the bytes the first one wrote.
+agentsDshPatchBegin='# >>> myx.distro-agents: myx-distro MCP client row for DeepSeek Harness -- managed block, replaced on update >>>'
+agentsDshPatchEnd='# <<< myx.distro-agents: myx-distro MCP client row for DeepSeek Harness <<<'
+
+## One YAML scalar, single-quoted: a single quote is doubled, every other byte is itself.
+## Sets agentsDshValue.
+AgentsToolsInstallDshPatchValue(){ ## text
+	agentsDshValue="'$( printf '%s' "$1" | LC_ALL=C sed "s/'/''/g" )'"
+}
+
+## Writes the row, marker comments included, to a file. The `- insert:` item is the shape
+## DSH's own hand install used and the shape the brief fixes.
+AgentsToolsInstallDshPatchRow(){ ## workspace, file
+	local rowWorkspace="$1" rowFile="$2" rowCommand rowRoot
+	AgentsToolsInstallDshPatchValue "$rowWorkspace/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	rowCommand="$agentsDshValue"
+	AgentsToolsInstallDshPatchValue "$rowWorkspace"
+	rowRoot="$agentsDshValue"
+	{
+		printf '%s\n' "$agentsDshPatchBegin"
+		printf '%s\n' '- insert:'
+		printf '%s\n' '    - id: myx-distro-mcp'
+		printf '%s\n' "      name: '@deepseek-ai/dsh-mcp-client'"
+		printf '%s\n' '      config:'
+		printf '%s\n' '        serverName: myx-distro'
+		printf '%s\n' '        transport: stdio'
+		printf '%s\n' "        command: $rowCommand"
+		printf '%s\n' '        args:'
+		printf '%s\n' '          - --intern-mcp-server'
+		printf '%s\n' '          - --run'
+		printf '%s\n' '        env:'
+		printf '%s\n' "          MMDAPP: $rowRoot"
+		printf '%s\n' '        failOnStartupError: false'
+		printf '%s\n' "$agentsDshPatchEnd"
+	} > "$rowFile"
+}
+
+## Whether one line of a patch file is an `id:` line at all; when it is, agentsDshRowId is
+## its value, quotes taken off. Used only for this file's own two-space block style, which
+## is what an install of ours writes and what the hand install that preceded it wrote.
+AgentsToolsInstallDshPatchId(){ ## line
+	local idLine="$1" idTrim idValue
+	idTrim="${idLine#"${idLine%%[![:space:]]*}"}"
+	## The id of an insert row sits on a sequence item of its own: `- id: ...`, and the
+	## indentation is the only thing between the two forms of the same row.
+	case "$idTrim" in
+		-\ *) idTrim="${idTrim#- }" ; idTrim="${idTrim#"${idTrim%%[![:space:]]*}"}" ;;
+	esac
+	case "$idTrim" in
+		id:*) ;;
+		*) return 1 ;;
+	esac
+	idValue="${idTrim#id:}"
+	idValue="${idValue#"${idValue%%[![:space:]]*}"}"
+	idValue="${idValue%"${idValue##*[![:space:]]}"}"
+	case "$idValue" in
+		\'*\') idValue="${idValue#\'}" ; idValue="${idValue%\'}" ;;
+		\"*\") idValue="${idValue#\"}" ; idValue="${idValue%\"}" ;;
+	esac
+	agentsDshRowId="$idValue"
+	return 0
+}
+
+## The DSH home-patch write, called by --install-vscode-integrations itself: no name of its
+## own and no option of its own. One argument, the workspace whose MCP server the row mounts.
+AgentsToolsInstallDshHomePatch(){ ## workspace
+	local patchWorkspace="${1:-$MMDAPP}" patchDsHome patchFile
+	local patchBeginAt patchEndAt patchCount patchIdx patchLine patchAction patchMode patchTemp
+	local patchTrim patchFirst patchSignificant patchBlockStart patchBlockEnd patchBlockScan patchBlockIds patchBlockMine patchFound
+	local patchLines
+
+	if [ ! -d "$patchWorkspace" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: the workspace does not resolve to a directory -- nothing was installed" >&2
+		return 1
+	fi
+	patchWorkspace="$( cd "$patchWorkspace" && pwd )"
+	case "$patchWorkspace" in
+		*$'\n'*)
+			echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: the workspace path carries a newline, which the harness patch cannot hold -- nothing was installed" >&2
+			return 1
+		;;
+	esac
+	if [ ! -x "$patchWorkspace/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: the workspace is not a set-up myx.distro workspace, so its MCP server cannot be named -- nothing was installed" >&2
+		return 1
+	fi
+
+	## No DSH home: the harness is not installed for this user. Not an error, and no file:
+	## a machine without the app gets the rest of the integrations and no harness patch.
+	if [ -z "${HOME:-}" ] || [ ! -d "$HOME/.dsh" ] ; then
+		echo "# $MDSC_CMD --install-vscode-integrations: DeepSeek Harness is not installed there -- its home patch is unchanged" >&2
+		return 0
+	fi
+	patchDsHome="$HOME/.dsh"
+	patchFile="$patchDsHome/cordis.patch.yml"
+
+	(
+		umask 022
+		mkdir -p "$MMDAPP/.local/temp" || { echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: cannot make the step's scratch folder -- nothing was changed" >&2 ; exit 1 ; }
+		patchTmp="$( mktemp -d "$MMDAPP/.local/temp/dsh-home-patch.XXXXXX" )" || { echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: cannot make the step's scratch folder -- nothing was changed" >&2 ; exit 1 ; }
+		trap 'rm -rf "$patchTmp"' EXIT
+		AgentsToolsInstallDshPatchRow "$patchWorkspace" "$patchTmp/want" || { echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: cannot write the row this step installs -- nothing was changed" >&2 ; exit 1 ; }
+
+		if [ -L "$patchFile" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: the DeepSeek Harness home patch is a symbolic link, and installing would put a file where the link is -- left unchanged" >&2
+			exit 1
+		fi
+		if [ -e "$patchFile" ] && [ ! -f "$patchFile" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: the DeepSeek Harness home patch is not a regular file -- left unchanged" >&2
+			exit 1
+		fi
+		if [ -f "$patchFile" ] && [ ! -r "$patchFile" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: the DeepSeek Harness home patch cannot be read -- left unchanged" >&2
+			exit 1
+		fi
+
+		patchCount=0
+		if [ -f "$patchFile" ] ; then
+			while IFS= read -r patchLine || [ -n "$patchLine" ] ; do
+				patchLines[$patchCount]="$patchLine"
+				patchCount=$(( patchCount + 1 ))
+			done < "$patchFile"
+		fi
+
+		patchBeginAt=0
+		patchIdx=0
+		while [ "$patchIdx" -lt "$patchCount" ] ; do
+			[ "${patchLines[$patchIdx]}" != "$agentsDshPatchBegin" ] || { patchBeginAt=$(( patchIdx + 1 )) ; break ; }
+			patchIdx=$(( patchIdx + 1 ))
+		done
+		patchEndAt=0
+		if [ "$patchBeginAt" -gt 0 ] ; then
+			patchIdx="$patchBeginAt"
+			while [ "$patchIdx" -lt "$patchCount" ] ; do
+				[ "${patchLines[$patchIdx]}" != "$agentsDshPatchEnd" ] || { patchEndAt=$(( patchIdx + 1 )) ; break ; }
+				patchIdx=$(( patchIdx + 1 ))
+			done
+			if [ "$patchEndAt" = "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: the managed block in the DeepSeek Harness home patch has no closing marker, so nothing tells a writer what it may replace -- left unchanged" >&2
+				exit 1
+			fi
+		fi
+
+		if [ "$patchBeginAt" -gt 0 ] ; then
+			patchIdx=$(( patchBeginAt - 1 ))
+			: > "$patchTmp/have"
+			while [ "$patchIdx" -lt "$patchEndAt" ] ; do
+				printf '%s\n' "${patchLines[$patchIdx]}" >> "$patchTmp/have"
+				patchIdx=$(( patchIdx + 1 ))
+			done
+			if cmp -s "$patchTmp/have" "$patchTmp/want" ; then
+				echo "✅ $MDSC_CMD --install-vscode-integrations: DeepSeek Harness home patch already current -- nothing changed" >&2
+				exit 0
+			fi
+			patchAction="updated"
+			patchBlockStart=$(( patchBeginAt - 1 ))
+			patchBlockEnd="$patchEndAt"
+		else
+			## No marker of ours: adopt a row the hand install wrote, one top-level
+			## `- insert:` item holding exactly one id, ours. Anything else is another
+			## row's and is never touched.
+			patchFound=0
+			patchBlockStart=0
+			while [ "$patchBlockStart" -lt "$patchCount" ] ; do
+				case "${patchLines[$patchBlockStart]}" in
+					-|-\ *) ;;
+					*) patchBlockStart=$(( patchBlockStart + 1 )) ; continue ;;
+				esac
+				case "${patchLines[$patchBlockStart]}" in
+					"- insert:"*) ;;
+					*) patchBlockStart=$(( patchBlockStart + 1 )) ; continue ;;
+				esac
+				patchBlockEnd=$(( patchBlockStart + 1 ))
+				while [ "$patchBlockEnd" -lt "$patchCount" ] ; do
+					case "${patchLines[$patchBlockEnd]}" in
+						-|-\ *) break ;;
+					esac
+					patchBlockEnd=$(( patchBlockEnd + 1 ))
+				done
+				patchBlockIds=0 ; patchBlockMine=0 ; patchBlockScan="$patchBlockStart"
+				while [ "$patchBlockScan" -lt "$patchBlockEnd" ] ; do
+					if AgentsToolsInstallDshPatchId "${patchLines[$patchBlockScan]}" ; then
+						patchBlockIds=$(( patchBlockIds + 1 ))
+						[ "$agentsDshRowId" != "myx-distro-mcp" ] || patchBlockMine=$(( patchBlockMine + 1 ))
+					fi
+					patchBlockScan=$(( patchBlockScan + 1 ))
+				done
+				if [ "$patchBlockIds" = "1" ] && [ "$patchBlockMine" = "1" ] ; then
+					patchFound=1 ; break
+				fi
+				patchBlockStart="$patchBlockEnd"
+			done
+			if [ "$patchFound" = "1" ] ; then
+				patchAction="updated"
+			else
+				patchAction="installed"
+			fi
+		fi
+
+		: > "$patchTmp/new"
+		if [ "$patchBeginAt" -gt 0 ] || [ "$patchFound" = "1" ] ; then
+			patchIdx=0
+			while [ "$patchIdx" -lt "$patchBlockStart" ] ; do
+				printf '%s\n' "${patchLines[$patchIdx]}" >> "$patchTmp/new"
+				patchIdx=$(( patchIdx + 1 ))
+			done
+			cat "$patchTmp/want" >> "$patchTmp/new"
+			patchIdx="$patchBlockEnd"
+			while [ "$patchIdx" -lt "$patchCount" ] ; do
+				printf '%s\n' "${patchLines[$patchIdx]}" >> "$patchTmp/new"
+				patchIdx=$(( patchIdx + 1 ))
+			done
+		else
+			## An existing block list is kept as it is, comments included, and the row
+			## appended after it. An empty flow list (`[]`, comments around it allowed)
+			## is the one shape an appended block item would make invalid, so it alone is
+			## replaced by the row. Any other first shape -- a non-empty flow list, a
+			## mapping -- is refused rather than made into a file that is not YAML: this
+			## writer knows a block sequence, and it runs no YAML reader.
+			patchFirst="" ; patchSignificant=0
+			patchIdx=0
+			while [ "$patchIdx" -lt "$patchCount" ] ; do
+				patchTrim="${patchLines[$patchIdx]}"
+				patchTrim="${patchTrim#"${patchTrim%%[![:space:]]*}"}"
+				patchTrim="${patchTrim%"${patchTrim##*[![:space:]]}"}"
+				patchIdx=$(( patchIdx + 1 ))
+				case "$patchTrim" in
+					""|"#"*) continue ;;
+				esac
+				patchSignificant=$(( patchSignificant + 1 ))
+				[ -n "$patchFirst" ] || patchFirst="$patchTrim"
+			done
+			case "$patchFirst" in
+				"") ;;
+				"[]")
+					[ "$patchSignificant" = "1" ] || {
+						echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: the DeepSeek Harness home patch is a flow-style list this step cannot extend without a YAML reader -- left unchanged" >&2
+						exit 1
+					}
+				;;
+				-|-\ *) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: the DeepSeek Harness home patch is not a block list this step can extend without a YAML reader -- left unchanged" >&2
+					exit 1
+				;;
+			esac
+			if [ -z "$patchFirst" ] || [ "$patchFirst" = "[]" ] ; then
+				: # the row alone
+			else
+				patchIdx=0
+				while [ "$patchIdx" -lt "$patchCount" ] ; do
+					printf '%s\n' "${patchLines[$patchIdx]}" >> "$patchTmp/new"
+					patchIdx=$(( patchIdx + 1 ))
+				done
+			fi
+			cat "$patchTmp/want" >> "$patchTmp/new"
+		fi
+
+		patchMode="644"
+		if [ -f "$patchFile" ] ; then
+			patchMode="$( stat -c '%a' "$patchFile" 2> /dev/null || stat -f '%Lp' "$patchFile" 2> /dev/null )"
+			if [ -z "$patchMode" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: cannot read the mode of the DeepSeek Harness home patch, so a replacement could not be given the same one -- left unchanged" >&2
+				exit 1
+			fi
+		fi
+		patchTemp="$( mktemp "$patchDsHome/cordis.patch.yml.XXXXXX" )" || { echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: cannot write beside the DeepSeek Harness home patch -- nothing was changed" >&2 ; exit 1 ; }
+		if ! cat "$patchTmp/new" > "$patchTemp" ; then
+			rm -f "$patchTemp"
+			echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: cannot write the DeepSeek Harness home patch -- nothing was changed" >&2
+			exit 1
+		fi
+		if ! chmod "$patchMode" "$patchTemp" ; then
+			rm -f "$patchTemp"
+			echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: cannot give the DeepSeek Harness home patch its mode -- nothing was changed" >&2
+			exit 1
+		fi
+		if ! mv -f "$patchTemp" "$patchFile" ; then
+			rm -f "$patchTemp"
+			echo "⛔ ERROR: $MDSC_CMD --install-vscode-integrations: cannot install the DeepSeek Harness home patch -- nothing was changed" >&2
+			exit 1
+		fi
+
+		case "$patchAction" in
+			installed) echo "🧩 $MDSC_CMD --install-vscode-integrations: DeepSeek Harness home patch installed -- the myx-distro MCP client row" >&2 ;;
+			updated) echo "🧩 $MDSC_CMD --install-vscode-integrations: DeepSeek Harness home patch updated -- the myx-distro MCP client row" >&2 ;;
+		esac
+		exit 0
+	)
+}
+
 case "$1" in
 
 	--install-skillset-symlinks)
@@ -777,14 +1092,22 @@ case "$1" in
 									fi
 								;;
 							esac
+							if [ "$regVerdict" = "foreign" ] && AgentsToolsInstallRigOwnSkillset "$regResolved" "$regName" ; then
+								## The rig's own link: kept where it is and registered below, with no warning.
+								regVerdict="rigown"
+							fi
 							case "$regVerdict" in
-								same)
+								same|rigown)
 									## A member/rules entry this workspace itself bundles, reached
 									## through a foreign workspace's identical-content link: presence
 									## here is what AgentsToolsMemberWorkspaceResolve reads, so this
 									## workspace still registers its own row, from its own bundled
 									## path -- the slot itself is left exactly as found, not relinked
 									## (human-owner, 2026-10-06).
+									## `rigown` reaches the same answer for another reason: a rig has ONE workspace per
+									## machine, so a link outside this workspace and its origin is not another
+									## workspace's copy -- it is the rig's own skillset (AgentsToolsInstallRigOwnSkillset),
+									## kept as found and registered from the rig's own copy, not warned about.
 									case " $rulesNames " in
 										*" $regName "*)
 											regType="rules-symlink" ; regRel="${regBundled#$originRoot/}"
@@ -825,7 +1148,7 @@ case "$1" in
 					esac
 				fi
 				regDir="$regResolved"
-				[ "$regVerdict" != "same" ] || regDir="$regBundled"
+				case "$regVerdict" in same|rigown) regDir="$regBundled" ;; esac
 				regLine="$regName"$'\t'"$workspace"$'\t'"$regType"$'\t'"$regRel"$'\t'"$regDir"
 
 				case "$regContent" in *$'\n'"$regLine"$'\n'*) continue ;; esac
@@ -2367,6 +2690,11 @@ case "$1" in
 				done
 			fi
 		fi
+
+		## DeepSeek Harness reads one home-level patch over every profile: the same MCP
+		## server this step mounts for the other harnesses on the machine, in that file.
+		## A machine with no DSH home is not an error: the writer says so and changes nothing.
+		AgentsToolsInstallDshHomePatch "$workspace" || failed=1
 
 		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
 		Require DistroSourceTools || :

@@ -33,10 +33,10 @@ rigAssert(){ ## what is asserted, got, want
 ## Every whole path spelled after $MDLT_ORIGIN, as `<file below the origin's packages>|<path>`, one a line.
 ( cd "$MDLT_ORIGIN/myx" && find -L myx.distro-* -name .git -prune -o -type f -print 2> /dev/null ) | LC_ALL=C sort > "$rigTmp/files"
 [ "$( LC_ALL=C grep -c . "$rigTmp/files" )" -ge 100 ] 2> /dev/null || rigRefuse "too few files of the packages were found to be read right"
-rigReader='while ( m{\$\{?MDLT_ORIGIN\}?/(myx/[A-Za-z0-9._/-]+)(?![A-Za-z0-9._/\$\{\*\?\[\(-])(?!["\x27][\*\$\{])}g ) { my $path = $1 ; $path =~ s{[.]+$}{} ; next if $path =~ m{[-/]$} ; print "$ARGV|$path\n" }'
+rigPathsReader="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-origin-paths.py"
 while IFS= read -r rigFile ; do
 	[ "${rigFile##*/}" != "${0##*/}" ] || continue
-	perl -ne "$rigReader" -- "$MDLT_ORIGIN/myx/$rigFile" 2> /dev/null
+	python3 -I -B "$rigPathsReader" "$MDLT_ORIGIN/myx/$rigFile" 2> /dev/null
 done < "$rigTmp/files" | LC_ALL=C sort -u > "$rigTmp/paths"
 rigCount="$( LC_ALL=C grep -c . "$rigTmp/paths" )"
 rigAssert "control: the packages spell such paths, and the reader finds them" "$( [ "$rigCount" -ge 100 ] && printf found || printf "only $rigCount" )" found
@@ -47,10 +47,10 @@ done < "$rigTmp/paths"
 rigAssert "every \$MDLT_ORIGIN/myx/... path the packages spell names a file that exists" "[${rigMissing# }]" "[]"
 ## The reader is not blind: a path to no file, as a package would spell it, is found missing.
 printf '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsRigNoSuchFile.include"\n' > "$rigTmp/probe.sh"
-rigProbe="$( perl -ne "$rigReader" -- "$rigTmp/probe.sh" | LC_ALL=C sed 's/^[^|]*|//' )"
+rigProbe="$( python3 -I -B "$rigPathsReader" "$rigTmp/probe.sh" | LC_ALL=C sed 's/^[^|]*|//' )"
 rigAssert "control: the reader takes a spelled path whole, and it names no file" "$rigProbe:$( [ -e "$MDLT_ORIGIN/$rigProbe" ] && printf exists || printf missing )" "myx/myx.distro-agents/sh-lib/AgentsRigNoSuchFile.include:missing"
 printf 'for f in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.Rig-setup-"*.help.md ; do : ; done\n' > "$rigTmp/pattern.sh"
-rigAssert "control: a path that goes on past its quote into a glob is a pattern, not asked about" "[$( perl -ne "$rigReader" -- "$rigTmp/pattern.sh" )]" "[]"
+rigAssert "control: a path that goes on past its quote into a glob is a pattern, not asked about" "[$( python3 -I -B "$rigPathsReader" "$rigTmp/pattern.sh" )]" "[]"
 
 ## THE ONE FORM of an include of a file of a myx.distro-* package's sh-lib: a statement `. <target>` or `source
 ## <target>` in a shell file of a package (its sh-lib, sh-scripts and builders: *.sh, *.include, *.rc), outside a
@@ -60,13 +60,13 @@ rigAssert "control: a path that goes on past its quote into a glob is a pattern,
 ## $HOME, $MMDAPP, $BUILDER) is out of the rule's scope.
 ( cd "$MDLT_ORIGIN/myx" && find -L myx.distro-*/sh-lib -name .git -prune -o -type f -print 2> /dev/null ) | LC_ALL=C sed 's|.*/||' | LC_ALL=C sort -u > "$rigTmp/shlib-names"
 export RIG_SHLIB_NAMES="$rigTmp/shlib-names"
-rigFormReader='BEGIN { open( my $names, "<", $ENV{RIG_SHLIB_NAMES} ) or die ; while ( <$names> ) { chomp ; $shlib{$_} = 1 } } next if /^\s*#/ ; while ( m@(?:^|[;&|({]|\bthen|\bdo|\belse)\s*(?:\.|source)\s+("[^"]*"|\x27[^\x27]*\x27|[^\s;&|)]+)@g ) { my $target = $1 ; my $bare = $target ; $bare =~ s{^["\x27]|["\x27]$}{}g ; next if $bare =~ m@^(?:\$MDLT_ORIGIN|\$\{MDLT_ORIGIN(?::[-=][^}]*)?\})/myx/[A-Za-z0-9._-]+/sh-lib/[A-Za-z0-9._/-]+$@ ; my $name = $bare ; $name =~ s{.*/}{} ; next unless $name =~ m{^[A-Za-z0-9._-]+$} && $shlib{$name} ; print "$ARGV:$.: $target\n" } close ARGV if eof'
+rigFormsReader="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-origin-forms.py"
 ( cd "$MDLT_ORIGIN/myx" && find -L myx.distro-*/sh-lib myx.distro-*/sh-scripts myx.distro-*/builders -name .git -prune -o -type f \( -name '*.sh' -o -name '*.include' -o -name '*.rc' \) -print 2> /dev/null ) | LC_ALL=C sort > "$rigTmp/shells"
-( cd "$MDLT_ORIGIN/myx" && while IFS= read -r rigShell ; do perl -ne "$rigFormReader" -- "$rigShell" 2> /dev/null ; done < "$rigTmp/shells" ) > "$rigTmp/forms"
+( cd "$MDLT_ORIGIN/myx" && while IFS= read -r rigShell ; do python3 -I -B "$rigFormsReader" "$rigShell" 2> /dev/null ; done < "$rigTmp/shells" ) > "$rigTmp/forms"
 rigAssert "control: the shell files of the packages are read"  "$( LC_ALL=C grep -c . "$rigTmp/shells" | LC_ALL=C awk '{ print ( $1 >= 100 ) ? "read" : "only " $1 }' )" read
 rigAssert "every include of a package's sh-lib file spells myx/<package>/sh-lib/<file> after \$MDLT_ORIGIN: the sites in another form ($( LC_ALL=C grep -c . "$rigTmp/forms" ))" "[$( LC_ALL=C tr '\n' '|' < "$rigTmp/forms" | LC_ALL=C sed 's/|$//' )]" "[]"
 printf '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"\n. "$rigLib/AgentsTools.Member.include"\n## . "$rigLib/AgentsTools.Member.include"\n. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/member/AgentsTools.Member.include"\n. "$MYXROOT/bin/lib/parallel.Common"\n. "$( dirname $0 )/../sh-lib/member/AgentsTools.Member.include"\n' > "$rigTmp/forms-probe.sh"
-rigAssert "control: the reader passes the one form and its default, lists a variable-built and a script-relative include, and no comment and no other file" "$( perl -ne "$rigFormReader" -- "$rigTmp/forms-probe.sh" | LC_ALL=C sed 's/^[^:]*://' | LC_ALL=C tr '\n' '|' )" '2: "$rigLib/AgentsTools.Member.include"|6: "$( dirname $0 )/../sh-lib/member/AgentsTools.Member.include"|'
+rigAssert "control: the reader passes the one form and its default, lists a variable-built and a script-relative include, and no comment and no other file" "$( python3 -I -B "$rigFormsReader" "$rigTmp/forms-probe.sh" | LC_ALL=C sed 's/^[^:]*://' | LC_ALL=C tr '\n' '|' )" '2: "$rigLib/AgentsTools.Member.include"|6: "$( dirname $0 )/../sh-lib/member/AgentsTools.Member.include"|'
 
 ## The one broken path of before: LocalContext.include sources LocalConsole.CompletionFunction.include when bash asks
 ## `Local` for its completions, and F1.1 adds that file, modelled on the agents console's own. So tab completion of

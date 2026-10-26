@@ -107,6 +107,7 @@ def fixedRowsShown(state, path):
 ## The listed rows of a level in the order the user chose: by name where the level is one of ALPHABETICAL
 ## and the choice is on, else as the operation gave them.
 def orderedRows(state, path, rows):
+    rows = glanceFiltered(state, rows) if state.listFilter else rows
     if state.alphabetical and levelPattern(path) in ALPHABETICAL:
         return sorted(rows, key=lambda row: row["label"].lower())
     return rows
@@ -127,7 +128,10 @@ def spacersAt(state, rows):
         return frozenset(position for position in range(1, len(rows))
                          if groupOf.get(rows[position]["id"]) != groupOf.get(rows[position - 1]["id"]))
     fixed = len(fixedRowsShown(state, state.path))
-    return frozenset((1 + fixed,)) if fixed and len(rows) > 1 + fixed else frozenset()
+    apart = set((1 + fixed,)) if fixed and len(rows) > 1 + fixed else set()
+    ## and under a root that asks for one (SPACED_AFTER), where another row follows it
+    apart.update(position for position in range(1, len(rows)) if rows[position - 1]["id"] in SPACED_AFTER and rows[position - 1]["kind"] == "section")
+    return frozenset(apart)
 
 
 ## How many lines the rows from one place to another take, both shown, the spacers between

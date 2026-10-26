@@ -6,9 +6,10 @@
 ## task, as a block of its own in the first message with a cache marker at its end, so the prefix is cached for the member's runs and
 ## the model needs no round to fetch it. The skillset stays the one source: the content is the Skill tool's own answers, kept in an
 ## internal cache that is stamped with every source file and rebuilt on any change. Held:
-##   1. the first message of a spawned member on the Anthropic wire is two blocks, the reads with a marker at its end and the task;
-##      four markers a request; exactly the armed file where the task names no sections, and the named sections beside it where it
-##      does -- never the whole team file, the basic file again, or the tool index; the reads are the ones the Skill tool serves
+##   1. the first message of a spawned member on the Anthropic wire is two blocks: the member layer and the reads, with a marker at
+##      its end, and the task; three markers a request; exactly the armed file where the task names no sections, and the named sections beside it where it
+##      does -- never the whole team file, the basic file again, or the tool index; the reads are the ones the Skill tool serves. The
+##      team's armed file is in the system text now too, so a section of it appears once there and once beside the armed file.
 ##   2. the run is armed at its start, so its first acting call is not redirected
 ##   3. the same read asked later (the armed file whole, the same sections) answers with one line; a changed source, a range, other
 ##      sections, another file, and the whole bundle of a default Skill load are served as they were
@@ -16,17 +17,18 @@
 ##   5. `cache-prefix: routine` of the spawn record adds the routine's mixed text; `armed`, and no record, do not; a later read of that
 ##      routine (its file, its kind's file, and --get-routine-text run by the member) is answered by the one line while the mixed text
 ##      is unchanged, and served as it was when a range is asked, when it changed, or when it was not read in
-##   5c. the system text of a run that carries a prefetch says what it read on its way to armed is in the first message and that it
-##      is armed, in place of asking for the read, and mentions no cache; with no prefetch it is as it was
+##   5c. the member layer of a run that carries a prefetch says what it read on its way to armed is in the first message and that it
+##      is armed, in place of asking for the read, and mentions no cache; with no prefetch it is the same conditional sentence
 ##   6. no prefetch for a run that is not a spawned session, for a member with no armed file, for a served call, or for a run started
 ##      with MDAT_HARNESS_PREFETCH=off; nothing of it in the sandbox's input/ or in the spawn record
 ##   7. the chat-completions wire carries the same text as one string
 ##   9. the lifetime the cache markers ask for (F10.7): unset and 5m send the bytes they always did, 1h puts its ttl in every marker of the run and changes nothing else,
 ##      another lifetime is refused before any request, and a served call is not asked
-##  10. magic-team.work-duty: its `cache-prefix: routine` is read from the file as the spawn reads it, and a run of it carries the text of its routine mixed with its kind's
+##  10. magic-team.work-duty: its routine declares no `cache-prefix` line, so it is `armed` and the harness does NOT preload the routine;
+##      the dispatch carries it (AgentsTools.WorkDutyDispatch.include, and the layer check); a `routine`-policy subtask still preloads it.
 ##   8. two spawns of one member, in sessions, sandboxes and zones of their own, send requests that are byte for byte the same through the marker
-##      that ends the prefetch block, and differ in the task block alone: what is of one run (its sandbox and results roots, the sentence of a
-##      spawned session) opens that block, and is in the system text nowhere (F10.7, the input token cache)
+##      that ends the first user block, and differ in the task block alone: what is of one run (its sandbox and results roots, the sentence of a
+##      spawned session) opens that block, and is in the member layer and the system text nowhere (F10.7, the input token cache)
 ## Offline by construction: no socket, no credential.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -70,19 +72,34 @@ rigCount(){ ## file, text -- how many times the file holds the text
 	[ -f "$1" ] || { printf 'no-such-file' ; return 0 ; }
 	LC_ALL=C grep -o -F -- "$2" "$1" | wc -l | tr -d ' '
 }
+rigOffset(){ ## file, literal text -- the byte offset of its first occurrence, 0-based; empty where it is absent
+	LC_ALL=C grep -b -o -F -- "$2" "$1" 2>/dev/null | head -1 | LC_ALL=C cut -d: -f1
+}
 rigEndsWith(){ ## text, tail -- yes where the text ends with the tail
 	case "$1" in
 		*"$2") printf 'yes' ;;
 		*) printf 'no' ;;
 	esac
 }
-## The first message of a run that carries no prefetch: one string, as it was, and the task its last words (a run with a sandbox, as every scene
-## here has, opens it with the text of its own roots: F10.7).
+## The first message of a run that carries no prefetch: the member layer is its own block with the cache marker at its end, and the task
+## block follows it (a run with a sandbox, as every scene here has, has the member's own roots in that first block: F10.7).
 rigStringTask(){ ## messages text -- yes where the first message is one string that ends with the task
 	case "$1" in
 		'{"role":"user","content":"'*'RIG-TASK-MARKER"}]}') printf 'yes' ;;
 		*) printf 'no' ;;
 	esac
+}
+rigTwoBlockTask(){ ## request file -- yes where the first user record is two blocks and the task block is last
+	case "$( cat "$1" )" in
+		*'{"role":"user","content":[{"type":"text","text":"'*'","cache_control":{"type":"ephemeral"}},{"type":"text","text":"'*'RIG-TASK-MARKER"}]}'*) printf 'yes' ;;
+		*) printf 'no' ;;
+	esac
+}
+rigFirstUserBlock(){ ## request file -- the escaped text of the first user content block
+	LC_ALL=C sed -e 's/.*"role":"user","content":\[{"type":"text","text":"//' -e 's/","cache_control".*//' "$1"
+}
+rigMemberLayer(){ ## request file -- the member layer at the start of the first user block, before the prefetch block; rig path neutralised
+	rigFirstUserBlock "$1" | LC_ALL=C awk '{ at = index( $0, "\\n\\n## Your role" ) ; if ( at > 0 ) $0 = substr( $0, 1, at - 1 ) ; print }' | LC_ALL=C sed -e "s#$rigTmp#<rig>#g"
 }
 rigMarkers(){ ## file -- how many cache markers the request carries
 	LC_ALL=C grep -o '"cache_control":{"type":"ephemeral"}' "$1" | wc -l | tr -d ' '
@@ -141,6 +158,14 @@ rigRecord(){ ## cache-prefix, routine -- the spawn record in the root of the san
 		printf -- '---\nspawn-id: %s\nparent-spawn-id: none\n' "$rigSpawn"
 		[ -z "$1" ] || printf 'cache-prefix: %s\n' "$1"
 		[ -z "$2" ] || printf 'routine: %s\n' "$2"
+		printf 'status: spawn-started\n---\n\n# Spawn session: %s\n' "$rigSpawn"
+	} > "$rigSandbox/$rigSpawn.spawn.md"
+}
+rigRecordInherited(){ ## cache-prefix, prefix-routine -- a subtask record: the parent's prefix and the routine the prefix mixes, and no routine of its own
+	{
+		printf -- '---\nspawn-id: %s\nparent-spawn-id: none\n' "$rigSpawn"
+		[ -z "$1" ] || printf 'cache-prefix: %s\n' "$1"
+		[ -z "$2" ] || printf 'prefix-routine: %s\n' "$2"
 		printf 'status: spawn-started\n---\n\n# Spawn session: %s\n' "$rigSpawn"
 	} > "$rigSandbox/$rigSpawn.spawn.md"
 }
@@ -226,7 +251,7 @@ rigServedDir="$rigDir"
 rigAssert "the run ends normally"                                                         "$rigRunStatus" 0
 rigAssert "the first message is two text blocks, the read with a marker at its end and the task block after it, the task its last words" \
 	"$( rigIn "$( rigReq 1 )" '{"role":"user","content":[{"type":"text","text":"' ):$( rigIn "$( rigReq 1 )" '","cache_control":{"type":"ephemeral"}},{"type":"text","text":"' ):$( rigEndsWith "$( rigReq 1 )" 'RIG-TASK-MARKER"}]}]}' )" yes:yes:yes
-rigAssert "four markers a request: the moving one, the floor, the common instruction, the read"  "$( rigMarkers "$rigDir/req.1" )" 4
+rigAssert "three markers a request: the moving one, the floor, the member+prefetch block"  "$( rigMarkers "$rigDir/req.1" )" 3
 rigAssert "the read is the member's armed file, as the Skill tool serves it, front matter and all"  "$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' ):$( rigIn "$( rigReq 1 )" 'status: rig' )" yes:yes
 rigAssert "and nothing else: no basic file again, no team file, no tool index"             "$( rigCount "$rigDir/req.1" 'RIG-A-ARMED-BODY' ):$( rigCount "$rigDir/req.1" 'RIG-A-BASIC own words' ):$( rigIn "$( rigReq 1 )" 'RIG-TEAM-' ):$( rigIn "$( rigReq 1 )" 'Tool index' )" 1:1:no:no
 rigAssert "the team's basic file is in the system text alone, once"                        "$( rigCount "$rigDir/req.1" 'RIG-TEAM-COMMON-LINE' )" 1
@@ -236,7 +261,7 @@ echo "-- 1b. it is what the Skill read serves --"
 rigScene read shared ; rigToolStream "$rigDir/res.1" Skill "$( rigSkillCall rig-a rig-a.armed.md )" ; rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun rig-a no
 rigEscaped="$( rigEscapedResult "$rigDir/req.2" )"
 rigAssert "control: a run that is no spawned session reads the armed file itself"           "$( rigIn "$rigEscaped" 'RIG-A-ARMED-BODY' )" yes
-rigAssert "and its first message is one string with the task its last words, three markers as before"     "$( rigStringTask "$( rigReq 1 )" ):$( rigMarkers "$rigDir/req.1" )" yes:3
+rigAssert "and its first message is the member block then the task, three markers"     "$( rigTwoBlockTask "$rigDir/req.1" ):$( rigMarkers "$rigDir/req.1" )" yes:3
 rigFirstBlock="$( LC_ALL=C sed 's/.*"messages":\[{"role":"user","content":\[{"type":"text","text":"//' "$rigServedDir/req.1" | LC_ALL=C sed 's/","cache_control".*//' )"
 rigAssert "the first block of the spawned run holds that very text, byte for byte"          "$( [ -n "$rigEscaped" ] && rigIn "$rigFirstBlock" "$rigEscaped" )" yes
 
@@ -244,9 +269,9 @@ echo "-- 1c. the sections the brief names come with it, and only those --"
 rigTask="$rigBrief"$'\n'"RIG-TASK-MARKER"
 rigScene brief brief ; rigRecord "" "" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
 rigBriefDir="$rigDir"
-rigAssert "the armed file and both named sections are in the first block"                   "$( rigCount "$rigDir/req.1" 'RIG-A-ARMED-BODY' ):$( rigCount "$rigDir/req.1" 'RIG-TEAM-SECTION-ONE' ):$( rigCount "$rigDir/req.1" 'RIG-TEAM-SECTION-TWO' )" 1:1:1
-rigAssert "a section the brief does not name is not, nor the team's basic file again"       "$( rigCount "$rigDir/req.1" 'RIG-TEAM-SECTION-ONE' ):$( rigIn "$( rigReq 1 )" 'RIG-TEAM-UNNAMED' ):$( rigCount "$rigDir/req.1" 'RIG-TEAM-COMMON-LINE' )" 1:no:1
-rigAssert "still four markers: the reads are one block"                                      "$( rigMarkers "$rigDir/req.1" )" 4
+rigAssert "the armed file is in the first block; both named sections are in the system text and preloaded beside it" "$( rigCount "$rigDir/req.1" 'RIG-A-ARMED-BODY' ):$( rigCount "$rigDir/req.1" 'RIG-TEAM-SECTION-ONE' ):$( rigCount "$rigDir/req.1" 'RIG-TEAM-SECTION-TWO' )" 1:2:2
+rigAssert "a section the brief does not name is not read into the session block: it is in the system text alone" "$( rigCount "$rigDir/req.1" 'RIG-TEAM-SECTION-ONE' ):$( rigIn "$( rigReq 1 )" 'RIG-TEAM-UNNAMED' ):$( rigCount "$rigDir/req.1" 'RIG-TEAM-COMMON-LINE' )" 2:no:1
+rigAssert "still three markers: the reads are one block"                                      "$( rigMarkers "$rigDir/req.1" )" 3
 rigAssert "the task block is the brief and the task, after them"                             "$( rigCount "$rigDir/req.1" 'RIG-A-ARMED-BODY' ):$( rigIn "$( rigReq 1 )" 'SPAWN-PREPARE-BRIEF: rig-a' ):$( rigIn "$( rigReq 1 )" 'RIG-TASK-MARKER"}]}' )" 1:yes:yes
 rigAssert "the prefetch says it carried two reads"                                          "$( rigIn "$( cat "$rigDir/err" )" 'prefetched the reads of the rig-a skill' )" yes
 rigScene read-sec brief ; rigToolStream "$rigDir/res.1" Skill "$( rigSkillCall magic-team magic-team.armed.md "\"section\":\"$rigSecJson\"" )" ; rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun rig-a no
@@ -270,14 +295,14 @@ rigAssert "a range of it is served as it was"                                   
 rigScene again-basic shared ; rigRecord "" "" ; rigToolStream "$rigDir/res.1" Skill "$( rigSkillCall rig-a rig-a.basic.md )" ; rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun rig-a yes
 rigAssert "the basic file, which the run is not told to read and which its system text holds, is served as it was"  "$( rigCount "$rigDir/req.1" 'RIG-A-ARMED-BODY' ):$( rigIn "$( rigReq 2 )" "$rigOneLine" ):$( rigCount "$rigDir/req.2" 'RIG-A-BASIC own words' )" 1:no:2
 rigScene again-bundle shared ; rigRecord "" "" ; rigToolStream "$rigDir/res.1" Skill '{"skill":"rig-a"}' ; rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun rig-a yes
-rigAssert "a default Skill load is the whole bundle, as it was: the team file whole, the member's files, no one line"  "$( rigIn "$( rigReq 2 )" "$rigOneLine" ):$( rigCount "$rigDir/req.2" 'RIG-TEAM-UNNAMED' ):$( rigCount "$rigDir/req.2" 'RIG-A-ARMED-BODY' )" no:1:2
+rigAssert "a default Skill load is the whole bundle, as it was: the team file whole, the member's files, no one line"  "$( rigIn "$( rigReq 2 )" "$rigOneLine" ):$( rigCount "$rigDir/req.2" 'RIG-TEAM-UNNAMED' ):$( rigCount "$rigDir/req.2" 'RIG-A-ARMED-BODY' )" no:2:2
 rigScene again-team shared ; rigRecord "" "" ; rigToolStream "$rigDir/res.1" Skill "$( rigSkillCall magic-team magic-team.armed.md )" ; rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun rig-a yes
-rigAssert "another file, the team's armed file whole, is served whole"                    "$( rigCount "$rigDir/req.1" 'RIG-A-ARMED-BODY' ):$( rigIn "$( rigReq 2 )" "$rigOneLine" ):$( rigCount "$rigDir/req.2" 'RIG-TEAM-UNNAMED' )" 1:no:1
+rigAssert "another file, the team's armed file whole, is served whole"                    "$( rigCount "$rigDir/req.1" 'RIG-A-ARMED-BODY' ):$( rigIn "$( rigReq 2 )" "$rigOneLine" ):$( rigCount "$rigDir/req.2" 'RIG-TEAM-UNNAMED' )" 1:no:2
 rigTask="$rigBrief"$'\n'"RIG-TASK-MARKER"
 rigScene again-sec brief ; rigRecord "" "" ; rigToolStream "$rigDir/res.1" Skill "$( rigSkillCall magic-team magic-team.armed.md "\"section\":\"$rigSecJson\"" )" ; rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun rig-a yes
-rigAssert "the sections the brief names, asked as it names them: one line, and the text is in the context once"  "$( rigIn "$( rigReq 2 )" "$rigOneLine" ):$( rigCount "$rigDir/req.1" 'RIG-TEAM-SECTION-ONE' ):$( rigCount "$rigDir/req.2" 'RIG-TEAM-SECTION-ONE' )" yes:1:1
+rigAssert "the sections the brief names, asked as it names them: one line, and the text is in the context once"  "$( rigIn "$( rigReq 2 )" "$rigOneLine" ):$( rigCount "$rigDir/req.1" 'RIG-TEAM-SECTION-ONE' ):$( rigCount "$rigDir/req.2" 'RIG-TEAM-SECTION-ONE' )" yes:2:2
 rigScene again-sec1 brief ; rigRecord "" "" ; rigToolStream "$rigDir/res.1" Skill "$( rigSkillCall magic-team magic-team.armed.md "\"section\":\"$rigSectionA\"" )" ; rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun rig-a yes
-rigAssert "one of them alone is another read, and is served as it was"                    "$( rigCount "$rigDir/req.1" 'RIG-TEAM-SECTION-ONE' ):$( rigIn "$( rigReq 2 )" "$rigOneLine" ):$( rigCount "$rigDir/req.2" 'RIG-TEAM-SECTION-ONE' )" 1:no:2
+rigAssert "one of them alone is another read, and is served as it was"                    "$( rigCount "$rigDir/req.1" 'RIG-TEAM-SECTION-ONE' ):$( rigIn "$( rigReq 2 )" "$rigOneLine" ):$( rigCount "$rigDir/req.2" 'RIG-TEAM-SECTION-ONE' )" 2:no:3
 rigScene again-other brief ; rigRecord "" "" ; rigToolStream "$rigDir/res.1" Skill '{"skill":"rig-c"}' ; rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun rig-a yes
 rigAssert "another member's skill is served as it was"                                    "$( rigCount "$rigDir/req.1" 'RIG-A-ARMED-BODY' ):$( rigIn "$( rigReq 2 )" "$rigOneLine" ):$( rigIn "$( rigReq 2 )" 'member skill' )" 1:no:yes
 rigTask="RIG-TASK-MARKER"
@@ -318,7 +343,7 @@ echo "-- 5. the routine's text, where the spawn record asks for the routine's pr
 rigTask="RIG-TASK-MARKER"
 rigScene routine1 routine ; rigRecord routine magic-team.rigroutine.routine.md ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
 rigAssert "cache-prefix: routine: the first message holds the routine mixed with its kind routine, after the armed file"  "$( rigIn "$( rigReq 1 )" 'RIG-ROUTINE-OPENING' ):$( rigIn "$( rigReq 1 )" 'rig-own-work' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" yes:yes:yes
-rigAssert "in the same block, so four markers still"                                       "$( rigMarkers "$rigDir/req.1" )" 4
+rigAssert "in the same block, so three markers still"                                       "$( rigMarkers "$rigDir/req.1" )" 3
 rigAssert "the routine text is kept in an entry of its own"                                "$( [ -f "$rigWs/.local/agents/prefetch/routine.magic-team.rigroutine.routine.md" ] && printf kept || printf missing )" kept
 ## Reproducible, for the cache (Constraint 3): the same routine built again, in another workspace and another session some seconds later, is the same bytes,
 ## in the entry and in the block of the first message.
@@ -371,31 +396,37 @@ rigToolStream "$rigDir/res.3" Skill "$( rigSkillCall magic-team magic-team.rigro
 rigAssert "the routine changed after the prefetch: --get-routine-text prints its text, with the change"  "$( rigIn "$( rigReq 3 )" "$rigOneLine" ):$( rigCount "$rigDir/req.3" 'RIG-ROUTINE-CHANGED' )" no:2
 rigAssert "and the file read too"                                                          "$( rigIn "$( rigReq 4 )" "$rigOneLine" ):$( rigCount "$rigDir/req.4" 'RIG-ROUTINE-CHANGED' )" no:3
 
-echo "-- 5c. the system text says what it read is in the first message and the run is armed, where a prefetch is carried --"
-rigSystemOf(){ ## request file -- the system part of the request, the markers left out
-	LC_ALL=C sed -e 's/.*"system":\[//' -e 's/\],"tools":.*//' -e 's/"cache_control":{"type":"ephemeral"}//g' "$1"
+echo "-- 5c. the member layer, at the start of the first user block, says what it read is in the first message and the run is armed --"
+rigSystemOf(){ ## request file -- the team system of the request (one string), the rig's own path neutralised
+	LC_ALL=C sed -e 's/.*"system":"//' -e 's/","tools":.*//' -e "s#$rigTmp#<rig>#g" "$1"
 }
+rigRoot="$rigWs"
 rigScene sys shared ; rigRecord "" "" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
 rigSys="$( rigSystemOf "$rigDir/req.1" )"
-rigAssert "a prefetch is carried: the system text says what was read is in the first message, ahead of the task, and that the run is armed"  "$( rigIn "$rigSys" 'What you read on your way to armed -- your own rig-a.armed.md -- is already in your first message, ahead of your task, and you are armed' )" yes
-rigAssert "it no longer asks for the read, and names no sections where none are carried"  "$( rigIn "$rigSys" 'read your own rig-a.armed.md' ):$( rigIn "$rigSys" 'sections' )" no:no
-rigAssert "it names no routine where none is carried, and does not mention a cache or a prefetch"  "$( rigIn "$rigSys" 'your routine' ):$( rigIn "$rigSys" 'cache' ):$( rigIn "$rigSys" 'prefetch' )" no:no:no
+rigMember="$( rigMemberLayer "$rigDir/req.1" )"
+rigAssert "the team system carries the team's basic; the member layer carries the one conditional sentence: prefetched means armed, otherwise read it"  "$( rigIn "$rigSys" 'RIG-TEAM-COMMON-LINE' ):$( rigIn "$rigMember" 'Your own rig-a.armed.md is what arms you. Where the tooling has already put what that read would give you into your first message, ahead of your task, you are armed and do not read it again. Otherwise read it with the Skill tool, name rig-a and file rig-a.armed.md, before your first acting call.' )" yes:yes
+rigAssert "it names no sections where none are carried, and no longer says the file is not included"  "$( rigIn "$rigMember" 'sections' ):$( rigIn "$rigMember" 'not included here' )" no:no
+rigAssert "it names no routine where none is carried, and does not mention a cache or a prefetch"  "$( rigIn "$rigMember" 'your routine' ):$( rigIn "$rigMember" 'cache' ):$( rigIn "$rigMember" 'prefetch' )" no:no:no
+rigMemberPlain="$rigMember"
 rigTask="$rigBrief"$'\n'"RIG-TASK-MARKER"
-rigScene sys-brief brief ; rigRecord "" "" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
-rigAssert "with the sections carried, it says so"                                          "$( rigIn "$( rigSystemOf "$rigDir/req.1" )" 'your own rig-a.armed.md, the sections of the team'"'"'s files that your task tells you to read -- is already in your first message' )" yes
+rigScene sys-brief shared ; rigRecord "" "" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
+rigMemberBrief="$( rigMemberLayer "$rigDir/req.1" )"
+rigAssert "with the sections carried, the member layer still names none of them: it is the plain run's byte for byte"  "$( [ -n "$rigMemberPlain" ] && [ "$rigMemberPlain" = "$rigMemberBrief" ] && printf same || printf differ ):$( rigIn "$( cat "$rigDir/req.1" )" 'RIG-TEAM-SECTION-ONE' )" same:yes
 rigTask="RIG-TASK-MARKER"
-rigScene sys-routine routine ; rigRecord routine magic-team.rigroutine.routine.md ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
-rigAssert "with the routine's text carried, it says so"                                    "$( rigIn "$( rigSystemOf "$rigDir/req.1" )" 'your own rig-a.armed.md, the text of your routine mixed with the routine of its kind -- is already in your first message' )" yes
+rigScene sys-routine shared ; rigRecord routine magic-team.rigroutine.routine.md ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
+rigMemberRoutine="$( rigMemberLayer "$rigDir/req.1" )"
+rigAssert "with the routine's text carried, the member layer still names no routine: the plain run's byte for byte"  "$( [ "$rigMemberPlain" = "$rigMemberRoutine" ] && printf same || printf differ ):$( rigIn "$rigMemberRoutine" 'your routine' )" same:no
 rigPrefetch="off" ; rigScene sys-off shared ; rigRecord "" "" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes ; rigPrefetch="on"
-rigAssert "no prefetch: the sentence is as it was, asking for the read"                    "$( rigIn "$( rigSystemOf "$rigDir/req.1" )" 'Before your first acting call, read your own rig-a.armed.md with the Skill tool, name rig-a and file rig-a.armed.md -- it is not included here.' )" yes
+rigAssert "no prefetch: the member layer is the same conditional sentence, not a different one"  "$( [ "$rigMemberPlain" = "$( rigMemberLayer "$rigDir/req.1" )" ] && printf same || printf differ )" same
 rigScene sys-nospawn shared ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a no
-rigAssert "a run that is no spawned session: as it was"                                    "$( rigIn "$( rigSystemOf "$rigDir/req.1" )" 'Before your first acting call, read your own rig-a.armed.md' )" yes
+rigAssert "a run that is no spawned session: the member layer is the spawned run's byte for byte -- it is shared by every session"  "$( [ "$rigMemberPlain" = "$( rigMemberLayer "$rigDir/req.1" )" ] && printf same || printf differ )" same
+rigRoot=""
 
 echo "-- 6. where there is no prefetch, and where nothing else is touched --"
 rigScene nofile shared ; rigRecord "" "" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-c yes
-rigAssert "a member with no armed file: one string, the task its last words"                "$( rigStringTask "$( rigReq 1 )" )" yes
+rigAssert "a member with no armed file: the member block then the task"                "$( rigTwoBlockTask "$rigDir/req.1" )" yes
 rigPrefetch="off" ; rigScene off shared ; rigRecord "" "" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes ; rigPrefetch="on"
-rigAssert "started with MDAT_HARNESS_PREFETCH=off: one string, the task its last words, three markers, and not armed"  "$( rigStringTask "$( rigReq 1 )" ):$( rigMarkers "$rigDir/req.1" ):$( [ -e "$rigSandbox/$rigSpawn.armed" ] && printf armed || printf unarmed )" yes:3:unarmed
+rigAssert "started with MDAT_HARNESS_PREFETCH=off: the member block then the task, three markers, and not armed"  "$( rigTwoBlockTask "$rigDir/req.1" ):$( rigMarkers "$rigDir/req.1" ):$( [ -e "$rigSandbox/$rigSpawn.armed" ] && printf armed || printf unarmed )" yes:3:unarmed
 rigScene served-call shared ; rigRecord "" ""
 rigServedOut="$( printf '%s' '{"skill":"rig-a"}' | ( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 	MDAT_SKILLSET_ROOT="$rigSkills" MDAT_SPAWN_SESSION_ID="$rigSpawn" MDAT_SPAWN_SANDBOX_ROOT="$rigSandbox" MDAT_SPAWN_AGENT=rig-a bash "$rigHarness" --intern-tool Skill ) 2> /dev/null )"
@@ -409,8 +440,8 @@ echo "-- 7. the chat-completions wire: the same text as one string --"
 rigWire="OpenAiChat"
 rigScene chat shared ; rigRecord "" "" ; rigChatTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
 rigAssert "the user message is one string: the read, then the task"                        "$( rigIn "$( cat "$rigDir/req.1" )" 'RIG-A-ARMED-BODY' ):$( rigIn "$( cat "$rigDir/req.1" )" 'RIG-TASK-MARKER"}' ):$( rigCount "$rigDir/req.1" 'cache_control' )" yes:yes:0
-rigAssert "in that order"                                                                  "$( LC_ALL=C awk '{ a = index( $0, "RIG-A-ARMED-BODY" ) ; b = index( $0, "RIG-TASK-MARKER" ) ; print ( a > 0 && b > a ) ? "ordered" : "not" ; exit }' "$rigDir/req.1" )" ordered
-rigAssert "the run's own roots are in the user message between the read and the task, and the system message names neither the sandbox nor the spawn"  "$( LC_ALL=C awk '{ u = index( $0, "\"role\":\"user\"" ) ; a = index( $0, "RIG-A-ARMED-BODY" ) ; r = index( $0, "sessions/rig-spawn-one/results" ) ; b = index( $0, "RIG-TASK-MARKER" ) ; print ( u > 0 && a > u && r > a && b > r && index( substr( $0, 1, u ), "rig-spawn-one" ) == 0 && index( substr( $0, 1, u ), "/sandbox" ) == 0 ) ? "ordered" : "not" ; exit }' "$rigDir/req.1" )" ordered
+rigAssert "in that order"                                                                  "$( LC_ALL=C awk 'BEGIN { RS = "\001" } { a = index( $0, "RIG-A-ARMED-BODY" ) ; b = index( $0, "RIG-TASK-MARKER" ) ; print ( a > 0 && b > a ) ? "ordered" : "not" }' "$rigDir/req.1" )" ordered
+rigAssert "the run's own roots are in the user message between the read and the task, and the system message names neither the sandbox nor the spawn"  "$( LC_ALL=C awk 'BEGIN { RS = "\001" } { u = index( $0, "\"role\":\"user\"" ) ; a = index( $0, "RIG-A-ARMED-BODY" ) ; r = index( $0, "sessions/rig-spawn-one/results" ) ; b = index( $0, "RIG-TASK-MARKER" ) ; print ( u > 0 && a > u && r > a && b > r && index( substr( $0, 1, u ), "rig-spawn-one" ) == 0 && index( substr( $0, 1, u ), "/sandbox" ) == 0 ) ? "ordered" : "not" }' "$rigDir/req.1" )" ordered
 rigAssert "the team's basic file is in the system message once"                            "$( rigCount "$rigDir/req.1" 'RIG-TEAM-COMMON-LINE' )" 1
 rigWire="AnthropicMessages"
 
@@ -433,7 +464,7 @@ head -c "$rigPfEndOne" "$rigTwinOne/req.1" > "$rigTmp/twin.head.1" ; head -c "$r
 tail -c +"$(( rigPfEndOne + 1 ))" "$rigTwinOne/req.1" > "$rigTmp/twin.task.1" ; tail -c +"$(( rigPfEndTwo + 1 ))" "$rigTwinTwo/req.1" > "$rigTmp/twin.task.2"
 rigDiffAt="$( cmp -l "$rigTwinOne/req.1" "$rigTwinTwo/req.1" 2> /dev/null | head -1 | LC_ALL=C awk '{ print $1 }' )"
 rigAssert "both runs end normally, and each is a spawned session of its own: not the same session, sandbox or zone"  "$rigRunStatus:$rigTwoStatus:$( [ "$rigTwinOne/sandbox" != "$rigTwinTwo/sandbox" ] && printf apart )" 0:0:apart
-rigAssert "the first message is two blocks with four markers, the same in both"                  "$( rigMarkers "$rigTwinOne/req.1" ):$( rigMarkers "$rigTwinTwo/req.1" ):$( [ "$rigPfEndOne" = "$rigPfEndTwo" ] && printf same )" 4:4:same
+rigAssert "the first message is two blocks with three markers, the same in both"                  "$( rigMarkers "$rigTwinOne/req.1" ):$( rigMarkers "$rigTwinTwo/req.1" ):$( [ "$rigPfEndOne" = "$rigPfEndTwo" ] && printf same )" 3:3:same
 rigAssert "the two requests are the same bytes through the marker that ends the prefetch block"  "$( cmp -s "$rigTmp/twin.head.1" "$rigTmp/twin.head.2" && printf same || printf differ )" same
 rigAssert "what is the same is the tools, the common block, the member's own text and the reads: it holds the armed file, once"  "$( LC_ALL=C grep -o -F 'RIG-TEAM-COMMON-LINE' "$rigTmp/twin.head.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F 'RIG-A-BASIC own words' "$rigTmp/twin.head.1" | wc -l | tr -d ' ' ):$( LC_ALL=C grep -o -F 'RIG-A-ARMED-BODY' "$rigTmp/twin.head.1" | wc -l | tr -d ' ' )" 1:1:1
 rigAssert "the first byte that differs is in the task block, after the marker"                  "$( [ -n "$rigDiffAt" ] && [ "$rigDiffAt" -gt "$rigPfEndOne" ] && printf after )" after
@@ -456,10 +487,10 @@ rigTtl ttl-five 5m ; rigTtlFive="$rigDir"
 rigTtl ttl-hour 1h ; rigTtlHour="$rigDir"
 rigPlain='"cache_control":{"type":"ephemeral"}'
 rigHourly='"cache_control":{"type":"ephemeral","ttl":"1h"}'
-rigAssert "unset: four markers, each the plain one, and no ttl anywhere in the request"  "$( rigCount "$rigTtlNone/req.1" "$rigPlain" ):$( rigCount "$rigTtlNone/req.1" '"ttl"' )" 4:0
+rigAssert "unset: three markers, each the plain one, and no ttl anywhere in the request"  "$( rigCount "$rigTtlNone/req.1" "$rigPlain" ):$( rigCount "$rigTtlNone/req.1" '"ttl"' )" 3:0
 rigAssert "5m is the provider's own and says nothing: the request is the unset one's through the prefetch marker, byte for byte"  "$( head -c "$( rigPfEnd "$rigTtlNone/req.1" )" "$rigTtlNone/req.1" | cksum ):$( head -c "$( rigPfEnd "$rigTtlFive/req.1" )" "$rigTtlFive/req.1" | cksum )" "$( head -c "$( rigPfEnd "$rigTtlNone/req.1" )" "$rigTtlNone/req.1" | cksum ):$( head -c "$( rigPfEnd "$rigTtlNone/req.1" )" "$rigTtlNone/req.1" | cksum )"
-rigAssert "and has no ttl either"                                                         "$( rigCount "$rigTtlFive/req.1" '"ttl"' ):$( rigCount "$rigTtlFive/req.1" "$rigPlain" )" 0:4
-rigAssert "1h: all four markers of the run carry the ttl -- the moving one, the end of the floor, the end of the common block, the end of the prefetch -- and none is plain"  "$( rigCount "$rigTtlHour/req.1" "$rigHourly" ):$( rigCount "$rigTtlHour/req.1" "$rigPlain" ):$( rigCount "$rigTtlHour/req.1" '"cache_control":{' )" 4:0:4
+rigAssert "and has no ttl either"                                                         "$( rigCount "$rigTtlFive/req.1" '"ttl"' ):$( rigCount "$rigTtlFive/req.1" "$rigPlain" )" 0:3
+rigAssert "1h: all three markers of the run carry the ttl -- the moving one, the end of the floor, the end of the member+prefetch block -- and none is plain"  "$( rigCount "$rigTtlHour/req.1" "$rigHourly" ):$( rigCount "$rigTtlHour/req.1" "$rigPlain" ):$( rigCount "$rigTtlHour/req.1" '"cache_control":{' )" 3:0:3
 rigAssert "the end of the floor's tools is one of them"                                   "$( rigHolds "$rigTtlHour/req.1" "$rigHourly"'}],"tool_choice"' )" yes
 rigAssert "nothing else of the request changes: without the ttl it is the unset request through the prefetch marker"  "$( LC_ALL=C sed 's/,"ttl":"1h"//g' "$rigTtlHour/req.1" | head -c "$( rigPfEnd "$rigTtlNone/req.1" )" | cksum )" "$( head -c "$( rigPfEnd "$rigTtlNone/req.1" )" "$rigTtlNone/req.1" | cksum )"
 rigNoRequest="yes" ; rigTtl ttl-bad 2h ; rigNoRequest=""
@@ -475,18 +506,28 @@ rigAssert "the chat-completions wire has no markers to say it in: the same reque
 rigWire="AnthropicMessages"
 rigSpawn="rig-spawn-one"
 
-echo "-- 10. magic-team.work-duty: its runs cache the text of the routine --"
+echo "-- 10. magic-team.work-duty: armed, so the harness does not preload the routine --"
 rigWorkDuty="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team"
-rigAssert "the routine says cache-prefix: routine, read as the spawn reads it (AgentsToolsRoutineKey)"  "$( . "$rigHere/session/AgentsTools.RoutineRequirements.include" ; AgentsToolsRoutineKey "$rigWorkDuty/magic-team.work-duty.routine.md" cache-prefix )" routine
+rigAssert "the routine declares no cache-prefix line: it is armed, the default (AgentsToolsRoutineKey)"  "$( . "$rigHere/session/AgentsTools.RoutineRequirements.include" ; AgentsToolsRoutineKey "$rigWorkDuty/magic-team.work-duty.routine.md" cache-prefix )" ""
 rigAssert "and the validator takes the file"                                              "$( MDLT_ORIGIN="$MDLT_ORIGIN" bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-doc-validate routine "$rigWorkDuty/magic-team.work-duty.routine.md" > /dev/null 2>&1 ; printf 'rc=%s' "$?" )" rc=0
 rigWdPolicy="$( . "$rigHere/session/AgentsTools.RoutineRequirements.include" ; AgentsToolsRoutineKey "$rigWorkDuty/magic-team.work-duty.routine.md" cache-prefix )"
 rigScene wd wd ; rigRecord "$rigWdPolicy" magic-team.work-duty.routine.md
 cp "$rigWorkDuty/magic-team.work-duty.routine.md" "$rigWorkDuty/magic-team.standalone.routine.md" "$rigSkills/magic-team/"
 rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
-rigAssert "a run of it carries the routine's text in its first message, once, after the armed file: its own steps, and the opening steps of the kind it requires, mixed"  "$( rigCount "$rigDir/req.1" '**work-the-input**' ):$( rigCount "$rigDir/req.1" '### session-start' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" 1:1:yes
-rigAssert "in the block of the prefetch, behind its marker, the task after it"            "$( rigMarkers "$rigDir/req.1" ):$( rigHolds "$rigDir/req.1" 'read for you before your task:' )" 4:yes
+rigAssert "a run of it carries the armed file and NOT the routine: the dispatch carries the routine instead"  "$( rigCount "$rigDir/req.1" '**work-the-input**' ):$( rigCount "$rigDir/req.1" '### session-start' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" 0:0:yes
+rigAssert "three markers a request, no team+ and no member+ block"                        "$( rigMarkers "$rigDir/req.1" ):$( rigCount "$rigDir/req.1" '## Team+' ):$( rigCount "$rigDir/req.1" '## Member+' )" 3:0:0
 rigScene wd-none wd ; rigRecord "" magic-team.work-duty.routine.md ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
-rigAssert "control: a record without the policy carries none of it, the armed file alone"  "$( rigCount "$rigDir/req.1" '**work-the-input**' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" 0:yes
+rigAssert "control: a record with no policy carries no routine either, the armed file alone"  "$( rigCount "$rigDir/req.1" '**work-the-input**' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" 0:yes
+rigScene wd-inherit wd ; rigRecordInherited routine magic-team.work-duty.routine.md ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
+rigAssert "a routine-policy subtask names the routine as prefix-routine, and the harness preloads its mixed text"  "$( rigCount "$rigDir/req.1" '**work-the-input**' ):$( rigCount "$rigDir/req.1" '### session-start' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" 1:1:yes
+
+echo "-- 11. a work-duty dispatch keeps its run notes last, after its variables --"
+rigTask=$'## Work-duty dispatch -- rig\n\nRIG-WD-BODY\n\n## This run -- its own variables\n\nRIG-WD-VARS\n\nRIG-TASK-MARKER'
+rigSpawn="rig-spawn-one"
+rigScene wdnotes wd ; rigRecord armed "" ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
+rigAssert "the run notes follow the dispatch, after its variables"  "$( [ "$( rigOffset "$rigDir/req.1" '## This session -- what is yours for this run alone' )" -gt "$( rigOffset "$rigDir/req.1" 'RIG-WD-VARS' )" ] && printf after )" after
+rigAssert "and the dispatch's head is still ahead of them"  "$( [ "$( rigOffset "$rigDir/req.1" 'RIG-WD-BODY' )" -lt "$( rigOffset "$rigDir/req.1" '## This session -- what is yours for this run alone' )" ] && printf before )" before
+rigTask="RIG-TASK-MARKER"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ PROMPT PREFETCH CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

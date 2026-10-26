@@ -4,8 +4,8 @@
 ## of its Skill read, merged by --intern-merge-md-files (F2.1). It covers the shell operations of every DistroAgents*
 ## and Agent*Tools file and the harness and MCP tools. For the reading member, an operation it may call is listed with
 ## its one-line description; every other one only by its family, with its owner and a hint: ask that owner, or read
-## `--help-syntax <op>`. Who may use what comes from the grants floor (AgentsToolsGrantsBuiltinText) and the project.inf
-## permissions. It serves the input token cache: two generations are byte-identical, in a deterministic order, with no
+## `--help-syntax <op>`. Who may use what comes from the grants floor and the project.inf
+## permissions, the `--magic-team:` floor directives included. It serves the input token cache: two generations are byte-identical, in a deterministic order, with no
 ## timestamps.
 ## Held:
 ##   1. the generator exits 0 and writes .local/agents/tool-index.md
@@ -45,6 +45,8 @@ for rigName in magic-coordinator magic-tester magic-architect ; do
 	printf -- '---\nname: %s\ndescription: rig member\n---\n# %s\n\nRIG-SKILL-LINE\n' "$rigName" "$rigName" > "$rigTmp/skills/$rigName/SKILL.md"
 	printf '# Basic\n\nRIG-BASIC-LINE\n' > "$rigTmp/skills/$rigName/$rigName.basic.md"
 done
+## magic-architect's rows as its --magic-team: floor directives in myx.distro-agents/project.inf write them
+printf 'magic-architect:ws:tool:WebFetch\nmagic-architect:ws:tool:WebSearch\n' > "$rigWs/.local/agents/permissions.registry"
 
 rigPassCount=0
 rigFailCount=0
@@ -88,7 +90,7 @@ for rigFile in "$rigPackage"/sh-scripts/DistroAgents*.fn.sh "$rigPackage"/sh-scr
 	[ -f "$rigFile" ] || continue
 	LC_ALL=C grep -q -F -- "${rigFile##*/}" "$rigTmp/index.1" || rigMissing="$rigMissing ${rigFile##*/}"
 done
-for rigName in $( LC_ALL=C grep -o '"name":"[A-Za-z]*"' "$rigHere/harness/AgentsOpenAiChatWire.sh" | LC_ALL=C sed 's/"name":"\(.*\)"/\1/' | LC_ALL=C sort -u ) execute Monitor ; do
+for rigName in $( LC_ALL=C grep -o '"name":"[A-Za-z]*"' "$rigHere/harness/AgentsOpenAiChatWire.sh" | LC_ALL=C sed 's/"name":"\(.*\)"/\1/' | LC_ALL=C sort -u ) execute ; do
 	LC_ALL=C grep -q -w -- "$rigName" "$rigTmp/index.1" || rigMissing="$rigMissing $rigName"
 done
 rigAssert "every tool file and every harness and MCP tool is named" "[${rigMissing# }]" "[]"

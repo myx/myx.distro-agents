@@ -14,8 +14,8 @@
 ## leaves neither the child nor the screen stopped: the child reads on, ends in order, and the screen is back.
 ## Offline: no operation of the real tooling is called.
 ## Reconciled for F11.5: the roots are Dashboard, Pending Questions, Magic-Team (Agents), Locations, Consoles, Settings, Configuration and Manuals, keys 1 to 8 (9 is
-## Launch (Start) of Activity, as before the one level besides the roots), the Go menu numbers those and the levels mounted on them have no other number; a thing that has a log is the transcript of a participant of a session, reached with `at`.
-## Reconciled for F11.0: `Launch / Spawn` is named `Launch (Start)`, `Consoles (Tools)` `Consoles`.
+## Launchpad of Activity, as before the one level besides the roots), the Go menu numbers those and the levels mounted on them have no other number; a thing that has a log is the transcript of a participant of a session, reached with `at`.
+## Reconciled for F11.0: `Launch / Spawn` is named `Launchpad`, `Consoles (Tools)` `Consoles`.
 ## Reconciled for F11.0, the table lines: the table of the consoles wraps `Rig Child` in its column where the command wraps in fewer lines for it, so the child's row is waited for by `Child`.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -276,7 +276,7 @@ keys m
 turn
 show go
 RIGSCRIPT
-rigAssert "1 to 9 go to the roots in the order of the list, the ninth Manuals (Help); Alt with a number does the same (Launch (Start) of Activity, the one level named besides the roots, has no digit left since F11.10)" "$( rigVal k1.path ) $( rigVal k2.path ) $( rigVal k3.path ) $( rigVal k4.path ) $( rigVal k5.path ) $( rigVal k6.path ) $( rigVal k7.path ) $( rigVal k8.path ) $( rigVal k9.path ) $( rigVal a4.path )" "dashboard pending magic-team places consoles workspace machine settings configuration places"
+rigAssert "1 to 9 go to the roots in the order of the list, the ninth Manuals (Help); Alt with a number does the same (Launchpad of Activity, the one level named besides the roots, has no digit left since F11.10)" "$( rigVal k1.path ) $( rigVal k2.path ) $( rigVal k3.path ) $( rigVal k4.path ) $( rigVal k5.path ) $( rigVal k6.path ) $( rigVal k7.path ) $( rigVal k8.path ) $( rigVal k9.path ) $( rigVal a4.path )" "dashboard pending magic-team places consoles workspace machine settings configuration places"
 rigAssert "the menu Go names them so, top to bottom" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Dashboard (Monitor)  *1 ' -e 'Pending Questions  *2 ' -e 'Magic-Team (Agents)  *3 ' -e 'Locations (Places)  *4 ' -e 'Consoles  *5 ' -e 'Workspace (System)  *6 ' -e 'Settings  *7 ' -e 'Configuration  *8 ' -e 'Manuals (Help)  *9 ' | LC_ALL=C sed 's/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Dashboard (Monitor) 1|Pending Questions 2|Magic-Team (Agents) 3|Locations (Places) 4|Consoles 5|Workspace (System) 6|"
 
 echo "-- the real screen on a pseudo-terminal it controls: an interrupt, a quit and a stop typed while a child has the terminal are the child's alone --"

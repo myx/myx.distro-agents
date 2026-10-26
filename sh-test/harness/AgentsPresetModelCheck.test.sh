@@ -9,6 +9,8 @@
 ##   2. the console's DagcHarnessModelExport, run as the console runs it: a parent's exported models are dropped; the model the
 ##      spawn's preset names for the main tier is exported; a macro names none; with no tier setting none is exported
 ##   3. the console calls it for a harness leg only, after the credentials; and it passes a vendor CLI no model option
+##   5. the console's DagcHarnessContextExport: the preset's PRESET_CONTEXT_MAX_SIZE is exported for a harness leg,
+##      a parent's is dropped, an extending preset inherits it, and the call sits beside the models and the cache time
 ## Red before F10.2: all fail. Offline: the rig workspace alone.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -42,7 +44,7 @@ rigModels(){ ## leg, then env assignments -- `<light>|<main>` as the lines of th
 	local legName="$1" ; shift
 	env -i PATH="/usr/bin:/bin" "$@" bash -c 'eval "$( LC_ALL=C grep -e "^HARNESS_MODEL_LIGHT=" -e "^HARNESS_MODEL_MAIN=" "$1" )" ; printf "%s|%s" "$HARNESS_MODEL_LIGHT" "$HARNESS_MODEL_MAIN"' rig "$rigPackage/sh-lib/harness/Agents${legName}Harness.sh"
 }
-rigDefaults="Claude=claude-haiku-4-5|claude-opus-5 Scaleway=gemma-4-26b-a4b-it|deepseek-v4-flash-0731 Grok=grok-4.3|grok-4.7 Copilot=gpt-5.6-sol|claude-fable-5"
+rigDefaults="Claude=claude-sonnet-5-5|claude-opus-5-5 Scaleway=gemma-4-26b-a4b-it|deepseek-v4-flash-0731 Grok=grok-4.3|grok-4.7 Copilot=gpt-5.6-sol|claude-fable-5"
 for rigPair in $rigDefaults ; do
 	rigLeg="${rigPair%%=*}" ; rigWant="${rigPair#*=}"
 	rigAssert "$rigLeg: its own models where nothing is exported"            "$( rigModels "$rigLeg" X=1 )" "$rigWant"
@@ -104,6 +106,30 @@ rigAssert "a caller-named service is no preset's: none"                        "
 printf 'SPAWN_TIER_NORMAL=rig-hour\n' >> "$rigAgents/magic-team.agent.env"
 rigAssert "the team's tier setting is the preset where the spawn names none"   "$( rigTimeExport )" "time=1h"
 rigAssert "the call is for a harness leg, in the console, once, beside the models" "$( LC_ALL=C awk '/^if DagcCliIsLeg "\$DAGC_CLI" ; then$/ { gate = NR } /^\tDagcHarnessCacheTimeExport$/ { if ( gate > 0 && gate == NR - 2 ) found ++ ; else stray ++ } END { print found + 0 " " stray + 0 }' "$rigTemplate" )" "1 0"
+
+echo "-- 5. the console's export of the restart threshold the preset names --"
+rigFunction="$( LC_ALL=C awk '/^DagcHarnessContextExport\(\)\{/ { on = 1 } on { print } on && /^}/ { exit }' "$rigTemplate" )"
+rigAssert "the console defines it"                                          "$( printf '%s' "$rigFunction" | LC_ALL=C grep -c -e '^DagcHarnessContextExport(){' )" 1
+rigContextExport(){ ## env assignments for the call -- `context=<value|unset>` after the function ran
+	( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" MDAT_SKILLSET_ROOT="$rigTmp/skills" "$@" \
+		bash -c "$rigFunction"'
+			DagcHarnessContextExport
+			printf "context=%s" "${PRESET_CONTEXT_MAX_SIZE-unset}"
+		' 2> /dev/null )
+}
+printf 'SPAWN_CLI_SERVICE=claude-native\n' > "$rigAgents/magic-team.agent.env"
+printf 'PRESET_CLI_SERVICE=claude\nPRESET_CONTEXT_MAX_SIZE=200000\n' > "$rigAgents/preset-rig-context.agent.env"
+printf 'PRESET_EXTEND=rig-context\n' > "$rigAgents/preset-rig-context-ext.agent.env"
+printf 'PRESET_CLI_SERVICE=claude\n' > "$rigAgents/preset-rig-bare.agent.env"
+chmod 770 "$rigAgents" ; chmod 660 "$rigAgents"/*.agent.env
+rigAssert "no tier setting: none is exported, and a parent's is dropped"      "$( rigContextExport PRESET_CONTEXT_MAX_SIZE=1 )" "context=unset"
+rigAssert "the spawn's own preset: its context size is the threshold"        "$( rigContextExport MDAT_SPAWN_PRESET=rig-context )" "context=200000"
+rigAssert "one that extends it inherits the size"                             "$( rigContextExport MDAT_SPAWN_PRESET=rig-context-ext )" "context=200000"
+rigAssert "a preset that names none: none, a parent's dropped"                "$( rigContextExport MDAT_SPAWN_PRESET=rig-bare PRESET_CONTEXT_MAX_SIZE=1 )" "context=unset"
+rigAssert "a caller-named service is no preset's: none"                       "$( rigContextExport MDAT_SPAWN_PRESET=-claude PRESET_CONTEXT_MAX_SIZE=1 )" "context=unset"
+printf 'SPAWN_TIER_NORMAL=rig-context\n' >> "$rigAgents/magic-team.agent.env"
+rigAssert "the team's tier setting is the preset where the spawn names none"   "$( rigContextExport )" "context=200000"
+rigAssert "the call is for a harness leg, in the console, once, beside the models and the cache" "$( LC_ALL=C awk '/^if DagcCliIsLeg "\$DAGC_CLI" ; then$/ { gate = NR } /^\tDagcHarnessContextExport$/ { if ( gate > 0 && gate == NR - 3 ) found ++ ; else stray ++ } END { print found + 0 " " stray + 0 }' "$rigTemplate" )" "1 0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ PRESET MODEL CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

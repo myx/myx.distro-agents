@@ -24,6 +24,7 @@ set -u
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigTest="$rigPackage/sh-test"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
+rigTesting="$rigPackage/sh-scripts/DistroAgentsTesting.fn.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -85,7 +86,7 @@ rigAssert(){ ## what is asserted, got, want
 rigValidate(){ ## short name -- the validator's exit, then its rows of the rule report-operations
 	local validateRc=0
 	( cd "$rigWs" && env -i MDAT_WORKSPACE_MODE=team-rig HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigTool" --tester-skillset-validate-routine "$rigTmp/routines/magic-team.$1.routine.md" ) > "$rigTmp/validate" 2> "$rigTmp/validate.err" < /dev/null || validateRc=$?
+		MDAT_SKILLSET_ROOT="$rigSkills" bash "$rigTesting" --skillset-validate-routine "$rigTmp/routines/magic-team.$1.routine.md" ) > "$rigTmp/validate" 2> "$rigTmp/validate.err" < /dev/null || validateRc=$?
 	rigRc="$validateRc"
 	rigRows="$( LC_ALL=C grep -c -F ': report-operations: ' "$rigTmp/validate" || : )"
 }

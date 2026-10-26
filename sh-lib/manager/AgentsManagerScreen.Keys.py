@@ -29,6 +29,9 @@ def handleKey(state, key, layout):
     if state.focus == "view" and state.view["table"].get("filterOpen") and filterKey(state, key):
         ## the line of the filter of a table is open: what is typed is its
         return
+    if state.focus == "list" and state.listFilterOpen and listFilterKey(state, key):
+        ## the line of the filter of the list is open: what is typed is its
+        return
     if key == "ESC" and state.focus == "view" and state.view.get("rowCursor") is not None:
         ## the row cursor of a table is left, back to reading it
         state.view["rowCursor"] = None
@@ -37,6 +40,10 @@ def handleKey(state, key, layout):
         ## with no cursor and no line open, Esc clears the filter that narrows the table
         state.view["table"]["filter"] = ""
         state.view["top"] = 0
+        return
+    if key == "ESC" and state.focus == "list" and state.listFilter:
+        ## with no line open, Esc clears the filter that narrows the list
+        state.listFilter = ""
         return
     if key == "ESC":
         state.metaAt = state.now
@@ -203,6 +210,12 @@ def commandRefusal(state, command):
     if does[0] in ("tablesort", "tablefilter"):
         ## the keys of a table act on a table that is all of the left window
         return "" if tableShown(state) else REFUSALS["table"] % said
+    if does[0] == "listfilter":
+        ## the filter of the list narrows rows already read: nothing to narrow where the level holds none
+        return "" if (listedRows(state, state.path) or ()) else REFUSALS["listFilter"] % said
+    if does[0] == "fulltable":
+        ## the full table is the summary the level declares: none where the level declares none
+        return "" if SUMMARIES.get(levelPattern(state.path)) is not None else REFUSALS["fullTable"] % said
     if does[0] == "up":
         return "" if state.path else REFUSALS["up"] % said
     if does[0] == "open":
@@ -247,6 +260,10 @@ def runCommand(state, command, layout, key=None):
     elif does[0] == "filter":
         state.activeOnly = not state.activeOnly
         readNow(state)
+    elif does[0] == "listfilter":
+        listFilterOpen(state)
+    elif does[0] == "fulltable":
+        state.fullTable = not state.fullTable
     elif does[0] == "alphabetical":
         state.alphabetical = not state.alphabetical
     elif does[0] == "menu":

@@ -82,7 +82,7 @@ AgentsToolsOutputStyleRefusal(){ ## acting member, declared group, destination, 
 		## most of these rows is the next one to come out of the machine.
 		if [ -d "$MDAT_DATA_ROOT/audit" ] ; then
 			local refusalLog="$MDAT_DATA_ROOT/audit/refusal-$( date -u +%Y%m%dT0000Z )-output-style.md"
-			[ -f "$refusalLog" ] || printf '%s\n' '---' 'document-contract: audit-item.refusal' 'type: refusal' 'topic: output-style refusals, per predicate' '---' '' '# Refusals: text the floor stopped' '' 'date-time	kind	member	group	destination	predicate	detail' >> "$refusalLog"
+			[ -f "$refusalLog" ] || { type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include" ; AgentsToolsToolingTemplateFill "audit-item.refusal.document.format.md" team-data/AgentsVaultAuditDocumentFill.awk >> "$refusalLog" ; }
 			## The kind separates what was stopped from what was only reported.
 			## Promotion asks whether a predicate has produced a false REFUSAL, so
 			## the two must never be counted together.
@@ -121,7 +121,7 @@ AgentsToolsOutputStyleRefusal(){ ## acting member, declared group, destination, 
 			echo "⛔ ERROR: $MDSC_CMD: THE DECLARATION QUEUE IS FULL at 1000 entries, so this declared send was refused and NOTHING WAS SENT. This is NOT a style refusal and the text passed the floor. magic-librarian drains the queue; until it does, a --text-group send cannot be recorded, and recording it is what makes the declaration real. An ordinary message-group send is unaffected." >&2
 			return 1
 		fi
-		[ -f "$declarationLog" ] || printf '%s\n' '---' 'document-contract: audit-item.declaration' 'type: declaration' 'topic: output-style text-group declarations' '---' '' '# Declarations: text sent as not message group' '' 'date-time	kind	member	group	destination	text' >> "$declarationLog"
+		[ -f "$declarationLog" ] || { type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.ToolingTemplate.include" ; AgentsToolsToolingTemplateFill "audit-item.declaration.document.format.md" team-data/AgentsVaultAuditDocumentFill.awk >> "$declarationLog" ; }
 		## The text goes in whole: the reader judges whether the declared group
 		## matches what was actually written, and a prefix cannot answer that.
 		## Its newlines and tabs collapse so one declaration stays one row.

@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CommsEmail.include -- the email driver of the channel-id abstraction (F7.1): what reaches an
+## `email:<address>` channel. It sits behind the registry (AgentsTools.CommsChannel.include) and is reached
+## through the channel-id parse, never as a member's own surface -- a member's own email is
+## AgentsTools.MemberCommsEmail.include. Functions only, sourced, never run.
+##
+## A channel-id of the `email` service is `email:<address>`; the address is the destination the team's own
+## send writes to. The send itself is the one real email send the tooling already has
+## (`--intern-op-comms-email-send`), reached here with the address the channel-id names.
+##
+
+type AgentsToolsCommsChannelParse > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.CommsChannel.include"
+
+## The address an `email:` channel-id names: its <address>, or nothing (rc 1) for a channel-id of another service.
+AgentsToolsCommsEmailAddress(){ ## channel-id
+	local emailParts emailService emailAddress
+	emailParts="$( AgentsToolsCommsChannelParse "$1" )" || return 1
+	emailService="${emailParts%%$'\t'*}" ; emailAddress="${emailParts#*$'\t'}" ; emailAddress="${emailAddress%%$'\t'*}"
+	[ "$emailService" = email ] || return 1
+	[ -n "$emailAddress" ] || return 1
+	printf '%s\n' "$emailAddress"
+}
+
+## Send a text to an `email:<address>` channel: the team's own email send, to the address the channel-id names,
+## acting as magic-coordinator. The subject and the body are the trailing arguments, the body on standard input.
+## Prints the send's own output; rc 0 sent, rc 1 refused (nothing sent).
+AgentsToolsCommsEmailSend(){ ## channel-id, subject, then the body on stdin
+	local emailChannel="$1" emailSubject="$2" emailAddress
+	emailAddress="$( AgentsToolsCommsEmailAddress "$emailChannel" )" || {
+		echo "⛔ ERROR: $MDSC_CMD: $emailChannel is no email:<address> channel-id -- the email driver reaches email:<address> alone. Nothing was sent." >&2
+		return 1
+	}
+	[ -n "$emailSubject" ] || {
+		echo "⛔ ERROR: $MDSC_CMD: an email needs a subject. Nothing was sent." >&2
+		return 1
+	}
+	DistroAgentsTools --intern-op-comms-email-send magic-coordinator "$emailAddress" -- "$emailSubject" "$( cat )"
+}

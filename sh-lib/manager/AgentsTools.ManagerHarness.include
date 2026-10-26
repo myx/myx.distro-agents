@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerHarness.include -- the harness's own settings, as the console's Harness
+## Configuration forms read and apply them. Sourced from the `--manager-harness-*)` arm of
+## AgentsTools.Manager.include, and from nowhere else.
+##
+## The settings are the team scope's: HARNESS_STREAM_ATTEMPTS, HARNESS_RETRY_DELAY and
+## HARNESS_PARALLEL_TOOL_CALLS, the three the scope editor offers (AgentsTools.ManagerScopeAgents.include)
+## and a spawn exports for its leg. These two operations are the forms' own: one read of the whole
+## set, and one apply of it. An apply writes nothing at all where any line of it is refused, so a
+## form that sets several values sets them together or not at all.
+##
+
+agentsHarnessSettings="HARNESS_STREAM_ATTEMPTS HARNESS_RETRY_DELAY HARNESS_PARALLEL_TOOL_CALLS"
+
+## One refusal, under the operation's own heading, repeating nothing that was given.
+AgentsHarnessRefuse(){ ## the reason
+	echo "$MDSC_CMD: ⛔ ERROR: --manager-harness-apply: $1 -- nothing was written" >&2
+	return 1
+}
+
+## Whether a value is one the setting takes, rc 0 when it is: a whole number in its own bounds,
+## or one of the two words the choice takes.
+AgentsHarnessValueCheck(){ ## key, value
+	case "$1" in
+		HARNESS_STREAM_ATTEMPTS)
+			case "$2" in ''|*[!0123456789]*) return 1 ;; esac
+			[ "$2" -ge 1 ] && [ "$2" -le 10 ] || return 1
+		;;
+		HARNESS_RETRY_DELAY)
+			case "$2" in ''|*[!0123456789]*) return 1 ;; esac
+			[ "$2" -ge 0 ] && [ "$2" -le 30 ] || return 1
+		;;
+		HARNESS_PARALLEL_TOOL_CALLS)
+			case "$2" in on|off) ;; *) return 1 ;; esac
+		;;
+		*) return 1 ;;
+	esac
+	return 0
+}
+
+case "$1" in
+
+	## The three settings as they stand, one row each: `<key> <TAB> <value>`, and an empty value
+	## where the scope holds none. The form fills its fields from these rows.
+	--manager-harness-read)
+		local readKey readValue
+		for readKey in $agentsHarnessSettings ; do
+			readValue="$( DistroAgentsTools --agents-config-option magic-team --select "$readKey" 2> /dev/null )" || readValue=""
+			printf '%s\t%s\n' "$readKey" "$readValue"
+		done
+		return 0
+	;;
+
+	## The answers of the form, one line each, `<key> <TAB> <value>`: every line is checked first, and
+	## an empty value takes the setting out. Nothing is written where any line is refused, and each
+	## line written prints `set <key>` or `removed <key>`, or `unchanged <key>` where it already held it.
+	--manager-harness-apply)
+		local applyKeys=() applyValues=() applyKey applyValue applyIndex applyNow applyRc=0
+		while IFS=$'\t' read -r applyKey applyValue || [ -n "$applyKey" ] ; do
+			[ -n "$applyKey" ] || continue
+			case " $agentsHarnessSettings " in *" $applyKey "*) ;; *) AgentsHarnessRefuse "$applyKey is no setting of the harness" ; return 1 ;; esac
+			if [ -n "$applyValue" ] ; then
+				AgentsHarnessValueCheck "$applyKey" "$applyValue" || {
+					case "$applyKey" in
+						HARNESS_STREAM_ATTEMPTS) AgentsHarnessRefuse "$applyKey is a whole number from 1 to 10" ;;
+						HARNESS_RETRY_DELAY) AgentsHarnessRefuse "$applyKey is a whole number of seconds from 0 to 30" ;;
+						HARNESS_PARALLEL_TOOL_CALLS) AgentsHarnessRefuse "$applyKey is on or off" ;;
+						*) AgentsHarnessRefuse "$applyKey does not take that value" ;;
+					esac
+					return 1
+				}
+			fi
+			applyKeys+=( "$applyKey" ) ; applyValues+=( "$applyValue" )
+		done
+		[ "${#applyKeys[@]}" -gt 0 ] || return 0
+		applyIndex=0
+		while [ "$applyIndex" -lt "${#applyKeys[@]}" ] ; do
+			applyKey="${applyKeys[$applyIndex]}" ; applyValue="${applyValues[$applyIndex]}" ; applyIndex=$(( applyIndex + 1 ))
+			applyNow="$( DistroAgentsTools --agents-config-option magic-team --select "$applyKey" 2> /dev/null )" || applyNow=""
+			if [ "$applyNow" = "$applyValue" ] ; then
+				printf 'unchanged\t%s\n' "$applyKey"
+				continue
+			fi
+			if [ -z "$applyValue" ] ; then
+				DistroAgentsTools --agents-config-option magic-team --delete "$applyKey" > /dev/null 2>&1 || { echo "$MDSC_CMD: ⛔ ERROR: $applyKey could not be taken out -- the rows above were applied, this and the rest were not" >&2 ; return 1 ; }
+				printf 'removed\t%s\n' "$applyKey"
+			else
+				DistroAgentsTools --agents-config-option magic-team --upsert "$applyKey" "$applyValue" > /dev/null 2>&1 || { echo "$MDSC_CMD: ⛔ ERROR: $applyKey was not written -- the rows above were applied, this and the rest were not" >&2 ; return 1 ; }
+				printf 'set\t%s\n' "$applyKey"
+			fi
+		done
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid harness operation: $1" >&2
+		return 1
+	;;
+esac
