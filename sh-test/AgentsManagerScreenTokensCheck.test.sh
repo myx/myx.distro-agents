@@ -145,6 +145,7 @@ rigAssert "the view OPENS on the chart of what it groups: the DISTRIBUTION alone
 	"$( rigHolds ch 'Distribution of the tokens (in)' ):$( rigHolds ch 'Trend of the tokens (in)' ):$( [ "$( rigHolds ch '█' )" -gt 0 ] && printf 1 || printf 0 ):$( [ "$( rigHolds ch '▒' )" -eq 0 ] && printf 1 || printf 0 )" "1:0:1:1"
 rigAssert "the second view is that one chart STACKED by token kind: its columns are made of more than one glyph" \
 	"$( rigHolds st 'Distribution of the tokens (in)' ):$( rigHolds st 'Trend of the tokens (in)' ):$( [ "$( rigHolds st '█' )" -gt 0 ] && printf 1 || printf 0 ):$( [ "$( rigHolds st '▒' )" -gt 0 ] && printf 1 || printf 0 )" "1:0:1:1"
+rigAssert "the stacked chart has a short legend below it, one line saying which glyph is which kind of token, and the plain chart has none" "$( rigHolds st '█ in  ▓ cache read  ▒ cache write  ░ out' ) $( rigHolds ch '█ in  ▓ cache read' )" "1 0"
 rigAssert "a row shows its runs, and the view as a table: the keys, the runs and the tokens short for the eye, summed, and no total of its own (the screen sums nothing)" \
 	"$( rigHolds d '2026-10-19  6     3K  6.0M' ) $( rigHolds d 'summed over its runs' ) $( rigHolds d ' all ' )" "1 1 0"
 

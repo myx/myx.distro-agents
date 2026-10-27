@@ -1088,11 +1088,15 @@ case "$1" in
 			esac
 
 			local identityAsBot="false"
+			local bulkConfirmed="false"
 			local deleteTargets=()
 			while [ $# -gt 0 ] ; do
 				case "$1" in
 					--identity-bot)
 						identityAsBot="true" ; shift
+					;;
+					--bulk-confirmed)
+						bulkConfirmed="true" ; shift
 					;;
 					--*)
 						echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: invalid option: $1" >&2
@@ -1107,6 +1111,20 @@ case "$1" in
 			if [ "${#deleteTargets[@]}" -eq 0 ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: <channel>:<ts> missing" >&2
 				set +e ; return 1
+			fi
+
+			## A HANDFUL IS A REPAIR; A SWEEP IS AN INCIDENT. On 2026-10-27 a loop over a TEXT
+			## PATTERN called this operation 126 times and emptied a client's channel: every message
+			## whose text matched a word was deleted, threads and all, and Slack cannot restore a
+			## deleted message -- chat.update answers message_not_found. So a single call deletes at
+			## most five targets. More than five needs --bulk-confirmed, which is a deliberate second
+			## word in the command, and the count and the targets are still printed before anything
+			## is touched. A deletion is chosen from a reviewed list of ts's, never derived by a match.
+			if [ "${#deleteTargets[@]}" -gt 5 ] ; then
+				if [ "$bulkConfirmed" != "true" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD --slack-delete-message: ${#deleteTargets[@]} targets in one call -- at most five are deleted without --bulk-confirmed, and this is not a call to sweep with. Nothing was deleted." >&2
+					set +e ; return 1
+				fi
 			fi
 
 			## BOTH the response and the diagnostic are needed as values here -- the
@@ -2558,10 +2576,20 @@ blocks|verbatim|caller|stdin file"
 				;;
 			esac
 		done
-		## No named addressee: the message is for whoever the conversation holds.
+		## No named addressee: the message is for whoever the conversation holds -- EXCEPT IN A
+		## THREAD. A thread reply already reaches the people in that thread and nobody else, so an
+		## "@here" there is at best noise and at worst a channel-wide ping from a message that was
+		## only ever meant for a handful: on 2026-10-27 ninety-seven thread replies carried
+		## "→ @here" into a client's channel because this default applied to them. A reply says who
+		## it is for in its own words, or names them, and gets no default addressee.
 		if [ -z "$addressToList" ] ; then
-			addressedText="@here"
-			addressedElems="{\"type\":\"text\",\"text\":\"@here\"},"
+			if [ -n "${threadTs:-}" ] ; then
+				addressedText=""
+				addressedElems=""
+			else
+				addressedText="@here"
+				addressedElems="{\"type\":\"text\",\"text\":\"@here\"},"
+			fi
 		fi
 
 

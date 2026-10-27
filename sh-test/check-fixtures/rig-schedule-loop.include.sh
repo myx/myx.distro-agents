@@ -22,8 +22,8 @@ rigScheduleSetup(){ ## number of keepers (01 up)
 	rigRealPs="$( command -v ps )" || rigRefuse "no ps on PATH"
 	rigHost="$( hostname -s 2> /dev/null )" ; [ -n "$rigHost" ] || rigHost="unknown"
 	mkdir -p "$rigWs/.local/.agents" "$rigData" "$rigDir/bin" "$rigScn" "$rigSp" "$rigStores" "$rigSkills/magic-team" "$rigSkills/magic-coordinator" \
-		"$rigSkills/magic-librarian" "$rigSkills/human-owner" "$rigSkills/oncall-rig"
-	for rigMember in magic-coordinator magic-librarian oncall-rig ; do
+		"$rigSkills/magic-librarian" "$rigSkills/magic-architect" "$rigSkills/human-owner" "$rigSkills/oncall-rig"
+	for rigMember in magic-coordinator magic-librarian magic-architect oncall-rig ; do
 		printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/$rigMember/$rigMember.basic.md" ; printf '# rig armed\n' > "$rigSkills/$rigMember/$rigMember.armed.md"
 		printf '# %s\n' "$rigMember" > "$rigSkills/$rigMember/SKILL.md"
 	done

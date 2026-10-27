@@ -57,6 +57,8 @@ rigCase(){ ## name -- a fresh rig whose listing holds four routines
 		rigRoutineRow keeper-myx.fresh.routine.md keeper-myx startable keeper-myx - Not_yet_run - - never - no none - yes yes
 	} > "$MANAGER_SCREEN_RIG/rows.--manager-routine-list"
 	## the frontmatter of the daily routine, as `--manager-routine-frontmatter` prints it: a value is kept as printed (an underscore in it is no space)
+	## the routine's own text, with the verdicts after the marker, as `--manager-routine-text <selector> --with-verdict` prints it
+	printf '%s\n' '# Daily meeting' '' 'The team meets and a **bold** step comes first.' '' '- first item' '- second item' '' '# --- verdicts of the routine ---' 'valid	yes' > "$MANAGER_SCREEN_RIG/rows.--manager-routine-text magic-coordinator.daily.routine.md --with-verdict"
 	mkdir -p "$MANAGER_SCREEN_RIG/rows.--manager-routine-frontmatter magic-coordinator"
 	printf 'fm\ttype\troutine\nfm\truns-at\tworkdays 10:00\nfm\tinput-scan-def\twork_duty_def\n' > "$MANAGER_SCREEN_RIG/rows.--manager-routine-frontmatter magic-coordinator/magic-coordinator.daily.routine.md"
 	: > "$MANAGER_SCREEN_RIG/calls" ; : > "$MANAGER_SCREEN_RIG/words" ; echo rows > "$MANAGER_SCREEN_RIG/mode"
@@ -91,8 +93,13 @@ keys DOWN
 wait focus 10
 	wait acts 10
 wait fact 10
+wait view 10
 turn
 show s
+keys ENTER
+wait plan 30
+turn
+get started
 RIGSCRIPT
 rigAssert "Magic-Team (Agents) holds Routines, and Routines a row for each routine, by its name as the listing gave it" "$( printf '%s' "$( rigVal team )" | LC_ALL=C grep -c -w routines ) | $( rigVal rows )" "1 | .. magic-coordinator/magic-coordinator.daily.routine.md magic-team/magic-team.coworking.routine.md keeper-myx/keeper-myx.nightly.routine.md keeper-myx/keeper-myx.fresh.routine.md"
 ## The table's own words, as the owner's sketch gives them: routine, executors, kind, state, last run
@@ -104,6 +111,8 @@ rigAssert "every routine of the listing is a row of that table, and its STARTABL
 	"$( [ "$( rigHolds r 'magic-coordinator.daily' )" -gt 0 ] && printf 1 || printf 0 ):$( [ "$( rigHolds r 'magic-team.coworking' )" -gt 0 ] && printf 1 || printf 0 ):$( [ "$( rigHolds r 'keeper-myx.nightly' )" -gt 0 ] && printf 1 || printf 0 ):$( [ "$( rigHolds r 'keeper-myx.fresh' )" -gt 0 ] && printf 1 || printf 0 ):$( [ "$( rigHolds r 'yes' )" -gt 0 ] && printf 1 || printf 0 )" "1:1:1:1:1"
 rigAssert "a routine selected shows its title and its facts, its state and its last run among them, its autorun and its STARTABLE verdict" \
 	"$( [ "$( rigHolds s 'Daily of the team' )" -gt 0 ] && printf 1 || printf 0 ):$( [ "$( rigHolds s 'state' )" -gt 0 ] && printf 1 || printf 0 ):$( [ "$( rigHolds s '2026-10-20 09:00' )" -gt 0 ] && printf 1 || printf 0 ):$( [ "$( rigHolds s 'magic-coordinator' )" -gt 0 ] && printf 1 || printf 0 ):$( [ "$( rigHolds s 'succeeded' )" -gt 0 ] && printf 1 || printf 0 ):$( [ "$( rigHolds s 'startable' )" -gt 0 ] && printf 1 || printf 0 ):$( [ "$( rigHolds s 'valid' )" -gt 0 ] && printf 1 || printf 0 )" "1:1:1:1:1:1:1"
+rigAssert "the routine itself is shown rendered under its facts and its frontmatter: its heading, the Markdown of its text without its marks, and not the verdicts the read carries" "$( rigHolds s 'The routine' ) $( rigHolds s 'Daily meeting' ) $( rigHolds s 'bold' ) $( rigHolds s '**' ) $( rigHolds s 'verdicts of the routine' )" "1 1 1 0 0"
+rigAssert "Enter starts the routine, as s does: the slots of the routine are asked first, then its launch form opens" "$( rigCalled '--manager-routine-slots magic-coordinator.daily.routine.md' ) [$( rigVal started.dialog )]" "1 [routine:task|]"
 rigAssert "the frontmatter of the routine selected is read through the tooling, once, and shown as facts under its own heading: the screen parses no text of the file; a value stays as printed" \
 	"$( rigCalled '--manager-routine-frontmatter magic-coordinator/magic-coordinator.daily.routine.md' ):$( rigHolds s 'frontmatter' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ):$( rigHolds s 'runs-at' ):$( rigHolds s 'workdays 10:00' ):$( rigHolds s 'work_duty_def' )" "1:1:1:1:1"
 rigAssert "the listing was read once for it, the frontmatter's own facts" "$( rigCalled '--manager-routine-list --facts-only' )" "1"

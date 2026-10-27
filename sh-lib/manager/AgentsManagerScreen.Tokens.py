@@ -9,6 +9,19 @@
 ## Dispatcher's `--token-stats` (AgentsTools.ManagerStats.include), its rows `tokens <key> <runs> <in> <cache-read> <cache-write> <out>`.
 ##
 
+## The four kinds of tokens a stacked column is divided by, the order they stand in, each with its glyph and its look (the legend below the chart says which is which).
+TOKEN_KINDS = (("in", "\u2588", BOLD), ("cache read", "\u2593", LEVEL_OK), ("cache write", "\u2592", LEVEL_WARN), ("out", "\u2591", LEVEL_BAD))
+
+
+## The short legend of a stacked chart, one line: each kind with its glyph in its look.
+def tokenKindsLegend():
+    text, spans = "", []
+    for name, glyph, look in TOKEN_KINDS:
+        spans.append((len(text), 1, look))
+        text += "%s %s  " % (glyph, name)
+    return lookedAt(text.rstrip(), spans)
+
+
 ## The id of the group of the Dashboard (the agents' `dashboard-panels.list`) these views stand in.
 TOKEN_GROUP = "tokens"
 ## The views: the id of each, what it shows as, and the key of the Dispatcher's `--by` it is read by.
@@ -112,7 +125,7 @@ def tokensChart(state, tokens, label, view=None):
             return (text[:col - 1] + "~") if col > 1 else text[:col]
         ## A BAR IS NARROW: at most three cells of block inside its column's band, centred, so a
         ## chart reads as bars with air around them and not as a wall of blocks.
-        KIND_GLYPHS = ("\u2588", "\u2593", "\u2592", "\u2591")
+        KIND_GLYPHS = tuple(glyph for name, glyph, look in TOKEN_KINDS)
         def stackedCells(amounts, top):
             total = sum(amounts)
             glyphs = [" "] * height
@@ -147,7 +160,7 @@ def tokensChart(state, tokens, label, view=None):
                 ## A SEGMENT OF A STACK CARRIES ITS OWN COLOUR: the shade glyph of a kind maps to a
                 ## look of its own, so `in`, `cache read`, `cache write` and `out` are four colours
                 ## as well as four shades, and a reader who cannot tell the shades still sees them.
-                KIND_LOOK = {"\u2588": BOLD, "\u2593": LEVEL_OK, "\u2592": LEVEL_WARN, "\u2591": LEVEL_BAD}
+                KIND_LOOK = dict((glyph, look) for name, glyph, look in TOKEN_KINDS)
                 pieces, spans, at = [], [], 0
                 for index in range(len(numbers)):
                     glyphs = kindCells[index][level - 1]
@@ -235,6 +248,8 @@ def tokensChart(state, tokens, label, view=None):
     wantTrend = view == "trendview"
     if wantDistribution:
         chart += columns("Distribution of the tokens (in)", names, numbers, labels, ["%s%%" % token.get("share", "0") for token in tokens], room, kinds=kinds)
+        if TOKENS_STACK[0]:
+            chart.append(tokenKindsLegend())
     ## THE TREND IS OVER ITS DAY BUCKETS, not over the view's keys: the `trend` read of every
     ## view is the same `--by day` rows (trendLevel), so the second chart shows the tokens moving
     ## over the days even when the first one splits them by preset, credential, member or routine.

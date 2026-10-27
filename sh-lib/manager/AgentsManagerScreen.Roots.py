@@ -120,6 +120,10 @@ CALLS = {
     ## a setting is saved by its key, the value chosen or typed being the word after it,
     ## as it was chosen or typed; whom it is saved for is the operation's to say
     "set": ["--manager-config-set", "{id}"],
+    ## clearing one key of a scope: the tier assignment of a member is a key of its own scope, and until
+    ## this existed the screen had no way to take it back -- a member pinned to a preset could not be
+    ## returned to inheriting the team's. The operation deletes the key; the caller names the scope bare.
+    "clear": ["--agents-config-option", "{id}", "--delete"],
 }
 ## What each of those is given the words typed beside it with, where any were typed.
 CALL_WORDS = {"answer": "--text", "reject": "--text", "dismiss": "--reason"}

@@ -172,9 +172,11 @@ rigAssert "it came once, in the body of its source's part"             "$( rigCo
 rigAssert "the thread was read once for the wait, into the file"       "$( [ "$( rigReads conversations.replies CRIGSES01 "$(( rigNow - 400 )).000001" )" -le 2 ] && echo ok || echo more )" ok
 rigAssert "the root is in the file as history, the reply as new"       "$( rigIndexOf "$(( rigNow - 400 )).000001" ) / $( rigIndexOf "$(( rigNow - 100 )).000001" )" "history $rigMember / slack $rigMember"
 rigAssert "the wait delivered it itself, so the member's read pointer has nothing left to give" "$( rigPointer read:$rigMember )" 0
+rigTopupBefore="$( rigReads conversations.replies CRIGSES01 "$(( rigNow - 400 )).000001" )"
 rigPlain topup-2 2 --wait-source "file:$rigDir/none"
 rigAssert "the next wait: nothing new, the message is returned once"  "$( rigFirstLine ):$( rigHolds RIG-NEW-ONE )" "WAIT-RESULT: TIMEOUT:no"
-rigAssert "and the next wait reads the thread as a default source, once more" "$( rigReads conversations.replies CRIGSES01 "$(( rigNow - 400 )).000001" )" 3
+## once per poll round, and how many 1 s rounds fit in the 2 s bound is the machine's: at least one
+rigAssert "and the next wait reads the thread as a default source again" "$( [ "$( rigReads conversations.replies CRIGSES01 "$(( rigNow - 400 )).000001" )" -gt "$rigTopupBefore" ] && echo yes || echo no )" yes
 
 echo "-- 3. both paths run together --"
 rigScene both

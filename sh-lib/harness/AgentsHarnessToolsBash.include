@@ -91,6 +91,8 @@ AgentsHarnessProcessReporter(){ ## processes dir, handle, wrapper pid, thread, a
 			break
 		fi
 		sleep "$repPoll"
+		## a stop made during the sleep ends the reporter before it posts
+		[ ! -f "$repDir/$repHandle.closed" ] || return 0
 		repNow="$( date +%s )"
 		repBytes="$( cat "$repDir/$repHandle.out" "$repDir/$repHandle.err" 2> /dev/null | wc -c | tr -d ' ' )"
 		if [ "$repBytes" != "$repSize" ] ; then repSize="$repBytes" ; repGrew="$repNow" ; repAsked="" ; fi

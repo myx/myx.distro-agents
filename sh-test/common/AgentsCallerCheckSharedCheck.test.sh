@@ -106,6 +106,15 @@ echo "-- 4. --manager-* --"
 rigAs g1 console "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck manager-session-list
 rigAs g2 magic-coordinator "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck manager-session-list
 rigAs g3 keeper-myx "$rigTmp/RigStandIn.fn.sh" AgentsToolsManagerCallerCheck manager-session-list
+rigRedirect(){ ## refusal text -> whether it says who owns the operation and how to ask: yes|no
+	case "$1" in *"ask the session's magic-coordinator, which owns it, to run it"*) printf yes ;; *) printf no ;; esac
+}
+rigAssert "the refusal of a coordinator's operation says who owns it and how to ask, as the --client-* refusal does" "$( rigRedirect "$( rigRefusalOf m3 )" ):$( rigRedirect "$( rigRefusalOf c3 )" )" "yes:no"
+rigAssert "control: a refusal with no redirect, as the line was before, does not pass for one" "$( rigRedirect "AgentsToolsMagicCallerCheck: x: ⛔ ERROR: this session acts as keeper-myx, and x is magic-coordinator's only -- nothing was done" )" "no"
+rigClientWay(){ ## refusal text -> whether it names the coordinator that can run the operation as the client: yes|no
+	case "$1" in *"ask the session's magic-coordinator, which can run it as "*) printf yes ;; *) printf no ;; esac
+}
+rigAssert "the --client-* refusal names its own way (the coordinator that can run it as the client)" "$( rigClientWay "$( rigRefusalOf c3 )" )" "yes"
 rigAssert "the console passes; a member's session, the coordinator's among them, is refused" "$( rigRc g1 ):$( [ "$( rigRc g2 )" -ne 0 ] && printf refused || printf passed ):$( [ "$( rigRc g3 )" -ne 0 ] && printf refused || printf passed )" "0:refused:refused"
 
 echo "-- 5. each refusal is the dispatcher's own, word for word --"

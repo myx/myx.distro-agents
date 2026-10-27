@@ -24,6 +24,7 @@
 ##  10. the prompt-cache line of round 1 (F10.7) is printed for round 1 of each leg -- the run's first, and the first after each rewind or wake --
 ##      and not for the rounds between, so that the last such line of a run's log is the cache's figure at its last wake: the work-duty's lifetime
 ##      reads it (a wake that read nothing from the cache ends the duty after 20 idle minutes, AgentsToolsScheduleDutyCache)
+##  11. a message for the run in its session thread, with the wake marker its sender writes, wakes the idle-wait at once (within 5 s)
 ## Offline by construction: no socket, no credential; a call to anything but the model is refused and logged.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -285,6 +286,23 @@ rigToolStream "$rigDir/res.1" Bash "$( rigOp --idle-wait --wait-timeout 3 )"
 rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun
 rigAssert "the first idle-wait finds nothing new: it ends quiet, and the model is told so"     "$rigRunStatus:$( cat "$rigDir/round" ):$( rigIn "$( cat "$rigDir/req.2" )" 'ended with no arrival' )" 0:2:yes
 rigAssert "the report already given did not wake it: no arrival, nothing returned"             "$( rigCount "$rigDir/req.2" "$rigArrival" ):$( rigCount "$rigDir/req.2" 'toolu_RIG0' ):$( rigCount "$rigDir/req.2" 'OK: --idle-wait' )" 0:2:1
+
+echo "-- 11. a watched message wakes the idle-wait at once --"
+rigScene message rigquiet
+## Two seconds after the wait's reader is set up, a member posts to the run in its session thread and writes its wake marker, as the send operation does.
+( rigTries=0 ; until [ -s "$rigStore/session.chat.pointers" ] || [ "$rigTries" -ge 120 ] ; do sleep 1 ; rigTries=$(( rigTries + 1 )) ; done ; sleep 2 ; cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.WakeMarker.include"
+	printf "RIG-WATCHED-MESSAGE for rig-a" | AgentsToolsSessionChatAppend "$1" magic-coordinator rig-a "$( date +%s ).000100" local slack > /dev/null
+	AgentsToolsWakeTouch rig-a magic-coordinator
+	date +%s > "$2/posted"' rig-post "$rigSpawn" "$rigDir" ) &
+rigLater=$!
+rigToolStream "$rigDir/res.1" Bash "$( rigOp --idle-wait --wait-timeout 30 )"
+rigTextStream "$rigDir/res.2" RIG-DONE ; rigRun
+wait "$rigLater" 2> /dev/null
+rigWoke="$( date -r "$rigDir/req.2" +%s 2> /dev/null )"
+rigAssert "the message is the arrival: the run returns to armed with it"                       "$rigRunStatus:$( cat "$rigDir/round" ):$( rigCount "$rigDir/req.2" 'RIG-WATCHED-MESSAGE' ):$( rigIn "$( cat "$rigDir/req.2" )" 'returned to its checkpoint armed' )" 0:2:1:yes
+rigAssert "it woke within 5 s of the post, not at the 30 s bound"                               "$( [ -n "$rigWoke" ] && [ -s "$rigDir/posted" ] && [ $(( rigWoke - $( cat "$rigDir/posted" ) )) -le 5 ] && printf yes )" yes
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ HARNESS IDLE WAIT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

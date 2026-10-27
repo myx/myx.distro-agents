@@ -342,7 +342,7 @@ wait list 10
 keys a
 turn
 get ask
-keys DOWN SPACE TAB DOWN SPACE
+keys DOWN DOWN SPACE TAB DOWN SPACE
 turn
 keys ENTER
 turn
@@ -394,7 +394,8 @@ wait focus 10
 turn
 keys ENTER
 turn
-keys DOWN SPACE TAB DOWN DOWN DOWN SPACE
+## the preset list now starts with "unset — inherit the team's", so rig-ext is one step further
+keys DOWN DOWN SPACE TAB DOWN DOWN DOWN SPACE
 turn
 get picked
 show picked
@@ -402,7 +403,7 @@ keys ENTER
 wait action 30
 turn 2
 RIGSCRIPT
-rigAssert "the effort offers unset, low, normal and high; the two chosen are saved as one value, <preset>:<effort>, alone on the standard input of --manager-scope-set" "$( rigHolds picked 'unset' ) $( rigHolds picked 'high' ) $( rigWords '[--manager-scope-set][agents:magic-team][SPAWN_TIER_HIGH]' ) $( LC_ALL=C tr -d '\n' < "$MANAGER_SCREEN_RIG/stdin.--manager-scope-set" 2> /dev/null )" "2 1 1 rig-ext:high"
+rigAssert "the effort offers unset, low, normal and high; the two chosen are saved as one value, <preset>:<effort>, alone on the standard input of --manager-scope-set" "$( rigHolds picked 'unset' ) $( rigHolds picked 'high' ) $( rigWords '[--manager-scope-set][agents:magic-team][SPAWN_TIER_HIGH]' ) $( LC_ALL=C tr -d '\n' < "$MANAGER_SCREEN_RIG/stdin.--manager-scope-set" 2> /dev/null )" "3 1 1 rig-ext:high"
 rigCase tier2
 rigScript <<'RIGSCRIPT'
 turn

@@ -1,6 +1,6 @@
 ##
 ## AgentsManagerScreen.CliPresets.py -- `CLI Presets and Tiers` of the root Configuration (F10.1, F10.2): the feature that says which CLI service each member of the team starts on, as a use
-## case and not as variables. It replaces the item of the CLI services there, and the wizard of the CLI service stands in it. The summary shows two compact tables, the presets (the services you
+## case and not as variables. It replaces the old item of the CLI services there; the wizard of the CLI service stands in it. The summary shows two compact tables, the presets (the services you
 ## set up) and the tiers that are assigned (which preset, and which effort, each member and the team use for their low, normal and high tier); the two folders under it, `CLI Service Presets`
 ## and `Member Tier Assignments`, show each more of its own when selected. The tasks are the keys: `n` adds a preset, `e` edits one (the wizard, which makes, extends, sets the model, the
 ## effort, the cache and the credentials), `f` uses a preset for a member, `a` assigns a tier (who, which tier, then the two selectors, the preset and the effort), `D` deletes a preset, `s` selects

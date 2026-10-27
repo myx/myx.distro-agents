@@ -693,7 +693,7 @@ registerPlugin({
 
 ## ---- the keys that start a wizard ----
 
-## The wizard a row starts: the CLI service's on the subject of the CLI services of the configuration and on its lines, the git settings' on their folder and its lines.
+## The wizard a row starts: the CLI service's on `CLI Presets and Tiers` of the configuration and on its lines, the git settings' on their folder and its lines.
 def wizardOfRow(state, row):
     if row is None or row["kind"] == "up":
         return None
@@ -720,7 +720,7 @@ ACTION_FITS["wizard"] = lambda state, row: wizardOfRow(state, row) is not None
 ACTION_REFUSALS["wizard"] = lambda state, row: "it has no wizard"
 
 
-## `Auto-select CLI...` (F13.4), on the item of the CLI services in the configuration, where the wizard of the CLI service is: it runs the owner's check of which vendor CLI works here, in the big output dialog
+## `Auto-select CLI...` (F13.4), on `CLI Presets and Tiers` in the configuration, where the wizard of the CLI service is: it runs the owner's check of which vendor CLI works here, in the big output dialog
 ## that a command of a workspace runs in, and where that ended with status 0 the dialog offers the apply as a button of its own. The screen computes nothing: which CLI works is what
 ## the check says, and whether the apply is offered is the status it ended with.
 CLI_AUTO_CHECK = ["--owner-setup-cli-auto", "--check"]
@@ -832,7 +832,7 @@ registerPlugin({
          "only": True, "says": "configure", "does": ("action", "wizard")},
         {"name": "cliauto", "keys": ("s",), "menu": ("view", 3), "label": "Auto-~s~elect CLI...", "status": "Auto-select", "window": "list",
          "views": ("@configuration", "@clipresets"),
-         "for": "the CLI services", "on": ("@configuration:section", "@clipresets:section"),
+         "for": "the CLI presets", "on": ("@configuration:section", "@clipresets:section"),
          "only": True, "says": "auto-select", "does": ("action", "cliauto")},
         {"name": "keygenerate", "keys": ("n",), "menu": ("view", 3), "label": "~N~ew key, generate it", "status": "Generate", "window": "list",
          "views": ("@configuration/keys",), "for": "a key that is not there", "on": ("@configuration/keys:record",), "only": True, "says": "generate",

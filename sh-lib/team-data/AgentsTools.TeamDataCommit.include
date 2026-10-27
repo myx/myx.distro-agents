@@ -32,10 +32,68 @@ AgentsToolsTeamDataCommitPaths(){ ## context, path...
 			*) echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: not under the team-data store, not committed: $commitPath" >&2 ;;
 		esac
 	done
+## A COMMIT THAT COULD NOT BE MADE IS OWED, LIKE A PUSH. This system runs unattended: a lock,
+## a full disk or a concurrent writer must not leave a write that "warned" and never landed. The
+## paths are recorded here, and the NEXT commit call of any kind picks them up and commits them
+## with this one, so the store heals itself on the next run instead of waiting for a person to
+## read a warning. A path is dropped from the debt only once a commit has actually carried it.
+AgentsToolsTeamDataCommitOwedPath(){
+	[ -n "${MMDAPP:-}" ] || return 1
+	printf '%s\n' "${MMDAPP%/}/.local/agents/team-data-commit.owed"
+}
+
+AgentsToolsTeamDataCommitOwedAdd(){ ## the paths that could not be committed
+	local owedFile="" owedOne=""
+	owedFile="$( AgentsToolsTeamDataCommitOwedPath )" || return 0
+	[ -n "$owedFile" ] || return 0
+	mkdir -p "${owedFile%/*}" 2> /dev/null || return 0
+	for owedOne in "$@" ; do
+		grep -F -x -q -- "$owedOne" "$owedFile" 2> /dev/null || printf '%s\n' "$owedOne" >> "$owedFile" 2> /dev/null || :
+	done
+	return 0
+}
+
+AgentsToolsTeamDataCommitOwedTake(){
+	local owedFile=""
+	owedFile="$( AgentsToolsTeamDataCommitOwedPath )" || return 0
+	[ -f "$owedFile" ] || return 0
+	cat "$owedFile" 2> /dev/null || :
+	rm -f "$owedFile" 2> /dev/null || :
+	return 0
+}
+
+	## THE DEBT IS PAID FIRST: paths a previous run could not commit are carried with this one.
+	local owedPath=""
+	while IFS= read -r owedPath ; do
+		[ -n "$owedPath" ] || continue
+		case " ${commitPaths[*]} " in *" $owedPath "*) ;; *) commitPaths+=( "$owedPath" ) ;; esac
+	done <<< "$( AgentsToolsTeamDataCommitOwedTake )"
 	[ "${#commitPaths[@]}" -gt 0 ] || return 0
+	## A STALE index.lock IS NOT A FAILED WRITE, IT IS A LOCK NOBODY HOLDS. An index upsert that
+	## was killed leaves one behind, and every commit after it fails "Unable to create .git/index.lock"
+	## -- the write lands on disk and NEVER reaches the branch, which is how items sat uncommitted
+	## for days while each tool run reported a warning nobody could act on. So when the add fails
+	## and the lock is there, ask whether a live git holds it: if none does, the lock is stale, it is
+	## removed and the add is tried ONCE more. A live holder is never touched.
+	gitAddStale(){
+		local lockFile="$1" holder=""
+		[ -e "$lockFile" ] || return 1
+		holder="$( pgrep -f "git.*$( printf '%s' "$repoRoot" | sed 's/[][\.*^$/]/\\&/g' )" 2> /dev/null | head -1 )" || holder=""
+		[ -z "$holder" ] || return 1
+		echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: a stale index.lock was found with no git holding it, removed: $lockFile" >&2
+		rm -f "$lockFile" 2> /dev/null || return 1
+		return 0
+	}
 	gitOut="$( git -C "$repoRoot" add -A -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
 	if [ "$gitRc" -ne 0 ] ; then
-		echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: git add failed, left uncommitted (${commitPaths[*]}): $gitOut" >&2
+		if gitAddStale "$gitDir/index.lock" ; then
+			gitRc=0
+			gitOut="$( git -C "$repoRoot" add -A -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
+		fi
+	fi
+	if [ "$gitRc" -ne 0 ] ; then
+		AgentsToolsTeamDataCommitOwedAdd "${commitPaths[@]}"
+		echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: git add failed, so the commit is OWED and the next run carries it (${commitPaths[*]}): $gitOut" >&2
 		return 0
 	fi
 	## Nothing staged for these paths -- the write changed nothing -- is not a commit.
@@ -44,7 +102,8 @@ AgentsToolsTeamDataCommitPaths(){ ## context, path...
 	fi
 	gitOut="$( git -C "$repoRoot" commit -m "* $commitContext" -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
 	if [ "$gitRc" -ne 0 ] ; then
-		echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: git commit failed, left uncommitted (${commitPaths[*]}): $gitOut" >&2
+		AgentsToolsTeamDataCommitOwedAdd "${commitPaths[@]}"
+		echo "# $MDSC_CMD: team-data commit: ⚠️ WARNING: git commit failed, so the commit is OWED and the next run carries it (${commitPaths[*]}): $gitOut" >&2
 		return 0
 	fi
 	echo "# $MDSC_CMD: team-data commit: committed ${#commitPaths[@]} path(s), $commitContext" >&2

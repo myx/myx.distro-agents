@@ -185,7 +185,7 @@ def fillRoutineSlotsWait(state, dialog):
         return
     slots = parseRoutineSlots(plan["rows"])
     closeDialog(state)
-    if not [slot for slot in slots if slot["how"] == "choose" or slot["how"] == "none"]:
+    if not [slot for slot in slots if slot["side"] == "executors" and slot["how"] in ("choose", "none")]:
         askLaunchPlain(state, about["row"])
         return
     openRoutineSlotsForm(state, about["row"], slots)
@@ -204,7 +204,11 @@ def openRoutineSlotsForm(state, row, slots):
     chooses = []
     for slot in slots:
         label = "%s %s" % (slot["side"], slot["entry"])
-        if slot["how"] == "choose":
+        if slot["how"] == "choose" and slot["side"] != "executors":
+            ## the spawner starts the members that are named after the routine and nobody else, and spawns the routine's invitees never (--spawn-session): a choice for the participants
+            ## has nowhere to go in the call, so it is shown, with its candidates, and not asked for
+            lines.append((label, "chosen in the session, not by this start: " + ", ".join(slot["members"])))
+        elif slot["how"] == "choose":
             name = "choose%d" % len(chooses)
             chooses.append((name, slot))
             controls.append({"name": name, "kind": "list", "label": "%s: choose one" % label, "required": "nothing is started: %s asks which member, and none is chosen" % label})
@@ -224,7 +228,7 @@ def openRoutineSlotsForm(state, row, slots):
     DIALOGS["routine-slots"] = {"title": "Start the routine", "feeds": "launch", "first": chooses[0][0] if chooses else "task",
                                 "controls": tuple(controls), "buttons": (("start", "Start"), ("cancel", "Cancel"))}
     openDialog(state, "routine-slots", fill, {"routine": routine, "viewKey": viewKeyOf(state), "chooses": [name for name, slot in chooses],
-                                              "blocked": [slot["entry"] for slot in slots if slot["how"] == "none"]})
+                                              "blocked": [slot["entry"] for slot in slots if slot["how"] == "none" and slot["side"] == "executors"]})
 
 
 ## Start: only with a member chosen in each select, and with no entry that nothing can take. The routine is started through the operation, once: the members chosen come after the routine, in the

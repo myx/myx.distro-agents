@@ -6,6 +6,7 @@
 ##   3. the end is reported in the session thread: the handle, the exit status and the last lines of its output
 ##   4. a process the caller stops is not reported as ended, and its reporter posts nothing more
 ##   5. a session with no thread says so when the process starts, and posts nothing
+##   6. the end is handed back to the caller: the end post in the session thread tags the member the run reports to
 ## Offline: the fake curl is the only network there is.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -106,6 +107,18 @@ rigCall "{\"cwd\":\"$rigTmp/work\",\"command\":\"echo RIG-QUICK\",\"detach\":tru
 sleep 4
 rigAssert "the start says no progress will be posted" "$( LC_ALL=C grep -c 'no session thread' "$rigTmp/start3.out" )" 1
 rigAssert "nothing was posted" "$( rigPosts )" 0
+
+echo "-- 6. the end is handed back to the caller, in the session thread --"
+rigSession rig-report-four "CRIG00001:1760000000.000400"
+mkdir -p "$rigTmp/skills/rig-boss" "$rigTmp/ws/.local/agents/spawned/rig"
+printf -- '---\nname: rig-boss\n---\nmember skill\n' > "$rigTmp/skills/rig-boss/SKILL.md"
+## the cache's first line is its generation, the checksum of the lock notes: none here
+{ printf '' | LC_ALL=C cksum ; printf 'rig-boss=URIGBOSS1=b=B=B=d\n' ; } > "$rigTmp/ws/.local/.agents/slack-mention-ids.cache"
+printf -- '---\nspawn-id: rig-report-four\nsession-id: rig-report-four\nowner: %s\nreports-to: rig-boss\nstatus: spawn-started\n---\n' "$rigMember" > "$rigTmp/ws/.local/agents/spawned/rig/rig-report-four.spawn.md"
+rigCall "{\"cwd\":\"$rigTmp/work\",\"command\":\"echo RIG-FOUR-LAST\",\"detach\":true}" rig-report-four start4
+rigHandle4="$( LC_ALL=C sed -n 's/^Process handle: //p' "$rigTmp/start4.out" | LC_ALL=C head -1 )"
+rigAssert "control: the end is posted" "$( rigAwaitPost "$rigHandle4 ended with exit status 0" 20 )" yes
+rigAssert "the end post tags the caller, in the session thread" "$( rigPostsHold '<@URIGBOSS1>' ):$( LC_ALL=C grep -l -F '"thread_ts":"1760000000.000400"' "$rigScenario"/post.* 2> /dev/null | LC_ALL=C wc -l | tr -d ' ' )" "1:$( rigPosts )"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ DETACHED PROCESS REPORT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

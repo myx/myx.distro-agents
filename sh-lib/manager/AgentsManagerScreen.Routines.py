@@ -170,6 +170,16 @@ def routineFrontmatterLines(state):
     return headingLines("frontmatter") + factLines(pairs, state.viewWidth)
 
 
+## The routine itself, rendered as the Markdown it is (catMarkdown, through markdownLines), under a heading of its own, after its facts and its frontmatter: its text as the read of the
+## routine gave it, without the verdicts the same read carries. While that read has not answered, nothing is added (the frontmatter says it is being read).
+def routineRenderedLines(state):
+    text = routineTextOnly(state.view.get("text"))
+    if text is None or not text.strip():
+        return []
+    lines, spans = markdownLines(text, state.viewWidth)
+    return headingLines("The routine") + [lookedAt(line, spans.get(number)) for number, line in enumerate(lines)]
+
+
 ## ... of a routine selected: its title, then as facts what the listing says of it, what the Dispatcher says of its runs, what its autorun declares and the verdict with its reason,
 ## and the frontmatter of its file; or, where the `text` or the `run history` action was pressed, the routine's own text or its run history in their place.
 def routinesStateFocus(state, row):
@@ -205,6 +215,7 @@ def routinesStateFocus(state, row):
         ("why", "" if routine["start"] == "startable" else routine["reason"]),
     ], state.viewWidth)
     lines.extend(routineFrontmatterLines(state))
+    lines.extend(routineRenderedLines(state))
     return lines
 
 
@@ -261,7 +272,7 @@ registerPlugin({
         "acts:routines:record": {"operation": ["--manager-stats-routines"], "rows": "routine-history", "needs": "historyShown"},
     },
     "commands": (
-        {"name": "routine-start", "keys": ("s",), "menu": ("session", 2), "label": "Start the ro~u~tine", "status": "Start",
+        {"name": "routine-start", "keys": ("ENTER", "s"), "menu": ("session", 2), "label": "Start the ro~u~tine", "status": "Start",
          "views": ("routines",), "for": "a routine", "on": ("routines:record",), "only": True, "does": ("action", "launch"), "calls": ("launch",)},
         {"name": "routine-text", "keys": ("x",), "menu": ("view", 2), "label": "Show the te~x~t", "status": "Text",
          "views": ("routines",), "for": "a routine", "on": ("routines:record",), "only": True, "does": ("action", "routinetext")},

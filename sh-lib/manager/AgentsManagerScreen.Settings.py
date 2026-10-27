@@ -407,7 +407,13 @@ def submitSetting(state, dialog, button):
     elif kind["values"] == "tier":
         ## the preset and its effort, one value: <preset>[:<effort>]
         if not dialogValue(dialog, "preset"):
-            return "nothing is saved: no preset is chosen"
+            ## clearing it: the key goes, and the member inherits again
+            scopeBare = dialog["about"]["scopeId"].partition(":")[2] or dialog["about"]["scopeId"]
+            askCall(state, "clear", "%s %s" % (scopeBare, line["key"]), callWords("clear", scopeBare) + [line["key"]], None,
+                    {"viewKey": dialog["about"]["viewKey"], "says": "cleared %s in %s" % (line["key"], dialog["about"]["scopeLabel"])})
+            state.notice = "clear asked of the tooling: %s in %s" % (line["key"], dialog["about"]["scopeLabel"])
+            state.noticeOf = None
+            return None
         value = dialogValue(dialog, "preset") + (":" + dialogValue(dialog, "effort") if dialogValue(dialog, "effort") else "")
     else:
         value = dialogValue(dialog, kind["control"])
@@ -481,7 +487,10 @@ def askScopeDeclared(state, key, valueNow, scopeId, scopeLabel, declared):
         ## two selectors: the preset, and the effort (unset, or one of those offered, with the one the value holds if it is another)
         presetNow, colon, effortNow = valueNow.partition(":")
         efforts = [(effort, effort) for effort in line["efforts"]] + ([(effortNow, effortNow)] if effortNow and effortNow not in line["efforts"] else [])
-        fill["preset"] = {"options": list(line["choices"]), "value": presetNow}
+        ## "unset" first: a member's tier is an OVERRIDE of the team's, and an override must be
+        ## removable in the place that set it. Without this the console could assign and never clear,
+        ## which is how a member stayed pinned to another provider nobody meant to keep paying.
+        fill["preset"] = {"options": [("", "unset — inherit the team's")] + list(line["choices"]), "value": presetNow}
         fill["effort"] = {"options": [("", "unset")] + efforts, "value": effortNow}
         fill["about"] = {"lines": [("now", valueNow), ("key", key), ("scope", scopeLabel), "The preset, and how hard it thinks. OK saves them as one value in that scope. Space chooses, Tab goes to the other."]}
     else:

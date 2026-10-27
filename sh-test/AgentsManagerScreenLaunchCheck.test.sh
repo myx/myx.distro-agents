@@ -139,8 +139,8 @@ rigStarts(){ ## how many times the operation that starts a session was started, 
 rigStartWords(){ ## number -- the arguments of that start of the operation that starts a session, each between brackets
 	LC_ALL=C grep -F -- '[--spawn-session]' "$MANAGER_SCREEN_RIG/words" | LC_ALL=C sed -n "${1}p"
 }
-rigOthers(){ ## how many starts were none of the four operations this screen may call here: the list of the team is read while a dialog that offers members is open. The list of the locations, which every start of the screen reads, is not counted.
-	LC_ALL=C grep -c -v -e '^--manager-session-list' -e '^--manager-routine-list --facts-only$' -e '^--spawn-session' -e '^--manager-team-member-list$' -e '^--manager-place-list$' "$MANAGER_SCREEN_RIG/calls" || :
+rigOthers(){ ## how many starts were none of the five operations this screen may call here (the slots of a routine are asked before its form): the list of the team is read while a dialog that offers members is open. The list of the locations, which every start of the screen reads, is not counted.
+	LC_ALL=C grep -c -v -e '^--manager-session-list' -e '^--manager-routine-list --facts-only$' -e '^--spawn-session' -e '^--manager-routine-slots ' -e '^--manager-team-member-list$' -e '^--manager-place-list$' "$MANAGER_SCREEN_RIG/calls" || :
 }
 rigType(){ ## text -- the keys that type it, one a character
 	local typeText="$1" typeKeys="" typeChar
@@ -257,6 +257,8 @@ wait list 30
 keys DOWN DOWN DOWN DOWN DOWN DOWN
 copy $rigTmp/start/after.rows $rigTmp/start/rows
 keys ENTER
+wait plan 30
+turn
 get asked
 box d
 cells askedLine 38 1 83
@@ -300,18 +302,30 @@ rigScript <<RIGSCRIPT
 keys DOWN DOWN ENTER
 wait list 30
 keys DOWN DOWN DOWN DOWN DOWN DOWN
-keys ENTER TAB$( rigType ' of Monday' )
+keys ENTER
+wait plan 30
+turn
+keys TAB$( rigType ' of Monday' )
 get typed
 keys ENTER
 wait action 30
-keys ENTER TAB BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE$( rigType 'stand up' ) ENTER
+keys ENTER
+wait plan 30
+turn
+keys TAB BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE$( rigType 'stand up' ) ENTER
 wait action 30
-keys ENTER TAB BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE
+keys ENTER
+wait plan 30
+turn
+keys TAB BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE
 get emptied
 keys ENTER
 get none
 wait action 30
-keys ENTER TAB BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE SPACE SPACE ENTER
+keys ENTER
+wait plan 30
+turn
+keys TAB BACKSPACE BACKSPACE BACKSPACE BACKSPACE BACKSPACE SPACE SPACE ENTER
 wait action 30
 RIGSCRIPT
 rigAssert "the name is typed on after the default"                   "[$( rigVal typed.dialog )]" "[routine:name|daily of Monday]"
@@ -326,7 +340,10 @@ rigScript <<'RIGSCRIPT'
 keys DOWN DOWN ENTER
 wait list 30
 keys DOWN DOWN DOWN DOWN DOWN DOWN
-keys ENTER x ESC
+keys ENTER
+wait plan 30
+turn
+keys x ESC
 turn
 get esc
 said escLine
@@ -376,7 +393,10 @@ rigScript <<'RIGSCRIPT'
 keys DOWN DOWN ENTER
 wait list 30
 keys DOWN DOWN DOWN DOWN DOWN DOWN
-keys ENTER ENTER
+keys ENTER
+wait plan 30
+turn
+keys ENTER
 wait action 30
 get failed
 show f
@@ -420,6 +440,8 @@ cells onKeys 37 1 83
 cells onKeysStatus 39 0 120
 cells onStatus 39 0 120
 keys ENTER
+wait plan 30
+turn
 get opened
 wait list 30
 turn
@@ -452,12 +474,15 @@ rigScript <<'RIGSCRIPT'
 keys DOWN DOWN ENTER
 wait list 30
 keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN ENTER
+wait plan 30
 wait list 30
 keys SPACE ESC
 get esc
 turn 3
 get quiet
 keys ENTER
+wait plan 30
+turn
 get again
 keys DOWN SPACE ENTER
 wait action 30
@@ -571,6 +596,7 @@ rigSlotsCase(){ ## name -- a fresh rig whose list holds one routine that asks `k
 		rigRow slot executors "keeper-?" choose keeper-a keeper-b
 		rigRow slot executors "partner-?" choose partner-c
 		rigRow slot participants "magic-*" all magic-x magic-y
+		rigRow slot participants "magic-?" choose magic-x magic-y
 	} > "$MANAGER_SCREEN_RIG/rows.--manager-routine-slots magic-team.gap.routine.md"
 }
 rigSlotsCase slots
@@ -593,6 +619,7 @@ get one
 RIGSCRIPT
 rigAssert "Enter reads the slots of the routine from the tooling, once, before any form opens" "$( rigCalled '--manager-routine-slots magic-team.gap.routine.md' )" "1"
 rigAssert "the form has a select for each entry that asks which member, and the read-only members of an entry that takes all" "[$( rigVal form.dialog )] $( rigBoxHas f 'keeper-?: choose one' ) $( rigBoxHas f 'partner-?: choose one' ) $( rigBoxHas f 'magic-x, magic-y' ) $( rigBoxHas f 'choose one' )" "[routine-slots:choose0|] 1 1 1 4"
+rigAssert "a choice among the participants is shown with its candidates and not asked for: the spawner starts only the members named after the routine, and never its invitees" "$( rigBoxHas f 'chosen in the session' )" "1"
 rigAssert "Start with nothing chosen starts nothing: the form says which entry asks, and the operation is not called" "[$( rigVal none.dialogSays )] $( rigStarts )" "[nothing is started: executors keeper-? asks which member, and none is chosen] 0"
 rigAssert "one chosen is not enough: the entry that has a single candidate is chosen too" "[$( rigVal one.dialogSays )] $( rigStarts )" "[nothing is started: executors partner-? asks which member, and none is chosen] 0"
 rigSlotsCase slotsrun

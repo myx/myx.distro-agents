@@ -1931,7 +1931,21 @@ case "$1" in
 		## always watched, so their floors advance at every Wait, and what the call names, and what the stored wait holds, comes beside them.
 		local waitNamedSources=""
 		## A client-* member names what it reads: our team's conversations are never added beside it, so its call never reads under our team's identities.
-		if [ "$waitMode" = "default" ] && [ -n "$waitSources" ] ; then
+		## A call naming only its own floor (replies:<session>, chat:<own key>, wake:<own member>) asks for the floor alone: no defaults beside it.
+		local waitFloorOnly="" floorOnlyOne floorOnlyKey=""
+		if [ "$waitMode" = "default" ] && [ -n "$waitSources" ] && [ -n "$waitSessionId" ] ; then
+			type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
+			floorOnlyKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || floorOnlyKey=""
+			waitFloorOnly="true"
+			for floorOnlyOne in $waitSources ; do
+				case "$floorOnlyOne" in
+					"replies:$waitSessionId"|"wake:$memberName") ;;
+					"chat:$floorOnlyKey") [ -n "$floorOnlyKey" ] || waitFloorOnly="" ;;
+					*) waitFloorOnly="" ;;
+				esac
+			done
+		fi
+		if [ "$waitMode" = "default" ] && [ -n "$waitSources" ] && [ -z "$waitFloorOnly" ] ; then
 			case "$memberName" in
 				client-*) ;;
 				*) waitNamedSources="$waitSources" ; waitSources="" ;;

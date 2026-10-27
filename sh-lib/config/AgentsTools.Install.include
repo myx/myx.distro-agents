@@ -85,8 +85,20 @@ AgentsToolsInstallScanMembers(){
 			## ListDistroProjects exits non-zero then, and the arm above reports it.
 			## An empty set is still never read as 'every member disappeared', so
 			## removal stays suppressed.
-			echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: workspace $scanWorkspace selects no distro projects, so none declares a team-member -- the bundled members are linked and nothing is removed" >&2
-			scanDiscoveryTrusted="false"
+			## A RIG HAS NO DISTRO PROJECTS TO SELECT, AND THAT IS NOT A DEFECT TO REPORT. A deployed
+			## workspace carries its tooling in .local and its members in the BUNDLED skillset beside
+			## it: `source` holds no project.inf at all (measured on both rigs), so the selection is
+			## empty by construction, not by failure. Warning here made every install print the same
+			## pair of warnings in four directories -- a warning on a successful install is an error,
+			## and it trains the reader to ignore the line that matters. The bundled skillset IS the
+			## declared member set on such a workspace, so discovery is TRUSTED from it, and removal
+			## still only ever takes what a scan positively found.
+			if [ -d "$scanBundleRoot" ] ; then
+				scanDiscoveryTrusted="true"
+			else
+				echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: workspace $scanWorkspace selects no distro projects and carries no bundled skillset, so none declares a team-member -- the bundled members are linked and nothing is removed" >&2
+				scanDiscoveryTrusted="false"
+			fi
 		elif [ "$declaredStatus" != "0" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: ListDistroDeclares --filter-and-cut exited $declaredStatus for workspace $scanWorkspace" >&2
 			scanDiscoveryError="true" ; scanDiscoveryTrusted="false"
@@ -1140,6 +1152,26 @@ case "$1" in
 									continue
 								;;
 								*)
+									## THE SAME MEMBER'S SKILLSET, REACHED THROUGH AN OLD ROOT OF THIS MACHINE, IS
+									## A STALE LINK AND NOT A FOREIGN ONE. A rig that once had its tooling at a
+									## shorter prefix leaves links whose tail is `skillset/magic-team/<member>`
+									## while the tree moved: warning about them and keeping them leaves an install
+									## that never converges -- the owner sees a wall of warnings on every run, and
+									## a warning on a successful install is an error. So a target that ends in this
+									## member's own skillset path is RELINKED to the bundled copy, exactly as an
+									## `ours` link is; anything else still warns, because that is another member's
+									## copy and not ours to claim.
+									case "$regResolved" in
+										*/skillset/magic-team/"$regName")
+											if rm -f "$regSlot" && ln -s "$regBundled" "$regSlot" ; then
+												newLinks="${newLinks}${regName} "
+											else
+												echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to relink a stale link: $regSlot -> $regBundled" >&2
+												errorMembers="${errorMembers}${regName} " ; hadError="true"
+											fi
+											continue
+										;;
+									esac
 									echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: not registered, points outside both workspace $workspace and origin $originRoot (pre-existing link kept, not ours to claim): $regName -> $regResolved" >&2
 									continue
 								;;

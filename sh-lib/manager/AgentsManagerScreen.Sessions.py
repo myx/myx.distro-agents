@@ -856,11 +856,9 @@ def askLaunch(state, row):
         return ""
     if routine["start"] != "startable" and not routineAsksMembers(routine):
         return ""
-    ## an executors entry `<type>-?` asks which member (the listing prints the executors as the routine declares them): the members each entry can take are asked of the tooling first
-    ## (askRoutineSlots, Launch.py), and the choice is made in a form of its own; any other routine goes on to the dialogs below (askLaunchPlain)
-    if "-?" in routine["executors"]:
-        return askRoutineSlots(state, row)
-    return askLaunchPlain(state, row)
+    ## the members each entry of the routine can take are asked of the tooling first, for every start (askRoutineSlots, Launch.py): a `<type>-?` of its executors is chosen in a form
+    ## of its own, and a routine with none goes on to the dialogs below (askLaunchPlain)
+    return askRoutineSlots(state, row)
 
 
 ## The dialogs of a routine that asks no choice of a member: its members to check where any member may take it, else its task and its name.
