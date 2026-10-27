@@ -164,11 +164,12 @@ rigRefusal(){ ## authority it must name, exit status to read (default: rigOpRc)
 		"$( printf '%s' "$refusalText" | LC_ALL=C grep -q -F -- '--escalate-enqueue' && printf enqueue || printf no-enqueue )"
 }
 rigSeen=""
-rigSeenMark(){ rigSeen=" $( find "$rigWs/.local" -type f -name '*.md' 2> /dev/null | LC_ALL=C tr '\n' ' ' )" ; }
+## By the record's id, its file name: a record the tooling moves (a closed one into pending/closed/) is no new one.
+rigSeenMark(){ rigSeen=" $( find "$rigWs/.local" -type f -name '*.md' 2> /dev/null | LC_ALL=C sed 's|.*/||' | LC_ALL=C tr '\n' ' ' )" ; }
 rigNewRequest(){ ## -- the id of a request record made since rigSeenMark, whose address-to is set
 	local newFile
 	for newFile in $( find "$rigWs/.local" -type f -name '*.md' 2> /dev/null ) ; do
-		case "$rigSeen" in *" $newFile "*) continue ;; esac
+		case "$rigSeen" in *" ${newFile##*/} "*) continue ;; esac
 		[ -n "$( rigField "$newFile" address-to )" ] || continue
 		basename "$newFile" .md ; return 0
 	done
@@ -254,6 +255,9 @@ rigAssert "the owners role answers it: the request was no dead end, and the kill
 ## session it names, and must fall back the same way -- this is the exact form the kill could not
 ## be posted to.
 rigS3c="rig-auth-silent2-$rigTag"
+## The holder runs there: a reports-to `<session>:<member>` is taken only while that member runs in that session
+## (AgentsToolsRunRoute), else the route falls back to the owners role before any thread is looked for.
+rigRunSilent rigSilentHolder "$rigS3b" magic-coordinator joined
 rigRunSilent rigSilent2 "$rigS3c" keeper-myx spawned "$rigS3b:magic-coordinator"
 rigSeenMark
 rigOp --manager-session-kill --session-id "$rigS3c" --escalate-enqueue
@@ -271,21 +275,16 @@ rigSettle
 rigAssert "PENDING, a request to human-owner"                 "$rigOpRc:$( rigAddressed "$( rigPendingId )" )" "0:human-owner"
 rigAssert "the run lives"                                     "$( rigAlive "$rigOwnedPid" )" alive
 
-echo "-- 5. a console account mapped to an owner: the run ends only once the owner confirms in its own channel --"
+echo "-- 5. a console account mapped to the owner: the kill ends the run at the first try (sketch 5.4), with no confirmation --"
+## The control of a console not mapped to the owner, whose bare kill is refused, is section 2 above.
 rigMapOwnerTo "$rigAcct"
 rigRun rigOwned5 "$rigS4" keeper-myx spawned human-owner
 rm -f "$rigTmp"/post.* "$rigTmp/posts"
 rigSeenMark
 rigOp --manager-session-kill --session-id "$rigOwned5" --run
 rigSettle
-rigConfirm="$( rigNewRequest )"
-rigAssert "not at once: the run lives"                        "$( rigAlive "$rigOwned5Pid" )" alive
-rigAssert "a confirmation is made and posted to the owner's own channel" "$( [ -n "$rigConfirm" ] && printf made || printf none ):$( cat "$rigTmp"/post.* 2> /dev/null | LC_ALL=C grep -c -F 'URIGOWNER' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "posted" : "not-posted" }' )" "made:posted"
-rigConfirmTs="$( rigField "$( rigRecordOf "$rigConfirm" )" question-ts 2> /dev/null )"
-[ -z "$rigConfirmTs" ] || printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"Confirm?"},{"ts":"1700000600.000001","user":"URIGOWNER","text":"yes","thread_ts":"%s"}],"has_more":false}\n' "$rigConfirmTs" "$rigConfirmTs" > "$rigTmp/replies.$rigConfirmTs.json"
-rigOp --intern-op-pending-reply-collect --ended --context rig-authority
-rigSettle
-rigAssert "the owner confirms in Slack: then the run is gone" "$( rigAlive "$rigOwned5Pid" )" gone
+rigAssert "at once: exit 0, no PENDING, and the run is gone"   "$rigOpRc:$( rigPendingId ):$( rigAlive "$rigOwned5Pid" )" "0::gone"
+rigAssert "no confirmation is asked, and nothing is posted to the owner" "$( [ -n "$( rigNewRequest )" ] && printf asked || printf none ):$( cat "$rigTmp"/post.* 2> /dev/null | LC_ALL=C grep -c -F 'URIGOWNER' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "posted" : "not-posted" }' )" "none:not-posted"
 rigMapOwnerTo rig-owner-account
 
 echo "-- 6. --escalate-wait: approved by the holder, or the timeout --"
@@ -302,8 +301,8 @@ rigSettle
 rigAssert "and acted: the run is gone"                        "$( rigAlive "$rigWaitedPid" )" gone
 rigRun rigWaited2 "$rigS6" keeper-myx spawned magic-coordinator
 rigSeenMark
-rigBg --manager-session-kill --session-id "$rigWaited2" --run --escalate-wait --timeout 4
-sleep 2
+rigBg --manager-session-kill --session-id "$rigWaited2" --run --escalate-wait --timeout 20
+rigWaitFor 15 rigHasNew
 rigAssert "it waits, its request made"                        "$( [ -n "$( rigNewRequest )" ] && [ -n "$( rigProcStill "$rigBgPid" )" ] && printf waiting || printf not-waiting )" waiting
 rigAssert "no answer: exit 124 at the timeout"                "$( rigBgEnd "$rigBgPid" 30 )" 124
 rigAssert "and the run lives"                                 "$( rigAlive "$rigWaited2Pid" )" alive

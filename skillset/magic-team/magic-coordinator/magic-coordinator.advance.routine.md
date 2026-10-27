@@ -76,7 +76,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - trivial: apply `magic-team.handback-review.routine` to it, inline (`--routine-run-inline magic-team.handback-review.routine`)
    - anything else: leave it in `board-review` for the item's own parent, per "The ladder: one rung at a time"
 5. **advance-process-comms**: Run `magic-coordinator.communication-sweep.routine`'s Steps inline (`--routine-run-inline magic-coordinator.communication-sweep.routine`), against this round's board read.
-6. **advance-run-process-board**: Run `check-process-board` (`magic-coordinator.armed.md`) against this round's read.
+6. **advance-run-process-board**: Run `check-process-board` against this round's read.
 7. **advance-run-execute-board**: Run `check-execute-board` (below) against this round's read.
 
 # Closure steps

@@ -55,7 +55,7 @@ rather than measured here; the rule stands independently of the count.
 
 ## Establish the failing case before the passing one
 
-Reinforces `magic-team/magic-team.armed.md`'s "Engineering & operating
+Reinforces "Engineering & operating
 discipline" rule — a check you would act on is not a result until it has been
 shown able to fail — with the ordering that makes it operational:
 

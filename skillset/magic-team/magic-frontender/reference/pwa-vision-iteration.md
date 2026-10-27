@@ -1,6 +1,6 @@
 # `pwa-vision-iteration` — build the running PWA-architecture vision one facet at a time
 
-The body of the section of the same name in `magic-frontender.armed.md`.
+The body of the section of the same name in this member's armed content.
 
 Steps:
 1. Pick one facet not yet iterated:

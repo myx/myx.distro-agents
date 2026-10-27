@@ -1,6 +1,6 @@
 # Engineering and operating discipline: further rules
 
-Rules of `magic-team.armed.md`'s "Engineering & operating discipline" that a member needs only on occasion.
+Rules of "Engineering & operating discipline" that a member needs only on occasion.
 
 ## Contents
 
@@ -10,7 +10,7 @@ Rules of `magic-team.armed.md`'s "Engineering & operating discipline" that a mem
 
 Git, scope and finishing:
 - The floor: the team tools, its session sandbox (read `input/`, write `output/`), writing `.local/temp/**`, and under `source/` reading every `MAGIC.md`, `README.md` and `docs/**.md` and writing `MAGIC.md`. Anything else under `source/` needs a grant. A member's own file may hold a wider standing grant tied to a place: magic-librarian's `.md`-edit of a team-member skill under `.skillset-shared` or `.skillset-.local` is one (`magic-librarian.armed.md`). Nobody approves what it does not hold: tooling routes that ask up, to a holder in the session or task, then to the human-owner. A holder may pass a permission on (`--pass-permission`) to a participant or a member it spawned for the work, never wider or longer than its own.
-- A routine may allow its participants permissions for its run (`allows:` in its frontmatter).
+- A routine may grant or refuse its participants permissions for its run (`access-control:` in its frontmatter, rows such as `participants:allow-tool:<tool>`).
 
 Evidence:
 - A check you would act on is shown able to fail: its positive control runs in the same call. A count states its unit. A published number carries the instrument that produced it and any exclusion.

@@ -65,7 +65,14 @@ AgentsToolsWorkDutyDispatchMemberStatic(){ ## skillset root, member
 AgentsToolsWorkDutyDispatchHead(){ ## routine file path, skillset root, member
 	local dutyHead="" dutyHeadStatic=""
 	dutyHead="$( AgentsToolsWorkDutyDispatchRoutine "$1" )" || return 1
-	dutyHeadStatic="$( AgentsToolsWorkDutyDispatchMemberStatic "$2" "$3" )" || dutyHeadStatic=""
+	## A routine that declares `cache-prefix: extended` has the member's reference files in the Member+ layer of its prefix (AgentsHarnessMemberPlusText),
+	## one copy: the dispatch then carries the routine alone.
+	type AgentsToolsRoutineKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RoutineRequirements.include" 2> /dev/null || :
+	if [ "$( AgentsToolsRoutineKey "$1" cache-prefix 2> /dev/null )" = extended ] ; then
+		dutyHeadStatic=""
+	else
+		dutyHeadStatic="$( AgentsToolsWorkDutyDispatchMemberStatic "$2" "$3" )" || dutyHeadStatic=""
+	fi
 	[ -z "$dutyHeadStatic" ] || dutyHead="$dutyHead"$'\n\n'"$dutyHeadStatic"
 	printf '%s\n' "$dutyHead"
 }

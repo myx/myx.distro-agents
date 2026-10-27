@@ -14,10 +14,11 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigPackage/sh-lib/team-data/AgentsTools.Retention.include" ] || rigRefuse "the retention include is missing from the package"
+. "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1
 . "$rigPackage/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsRetentionRunCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/ws"
 export MMDAPP="$rigTmp/ws"
 rigCalls="$rigTmp/calls.log"

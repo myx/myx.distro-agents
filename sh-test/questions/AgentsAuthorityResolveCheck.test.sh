@@ -197,11 +197,12 @@ rigRequestsTo(){ ## addressee
 	done | LC_ALL=C grep -c . || :
 }
 rigSeen=""
-rigSeenMark(){ rigSeen=" $( find "$rigWs/.local" -type f -name '*.md' 2> /dev/null | LC_ALL=C tr '\n' ' ' )" ; }
+## By the record's id, its file name: a record the tooling moves (a closed one into pending/closed/) is no new one.
+rigSeenMark(){ rigSeen=" $( find "$rigWs/.local" -type f -name '*.md' 2> /dev/null | LC_ALL=C sed 's|.*/||' | LC_ALL=C tr '\n' ' ' )" ; }
 rigNewRequest(){ ## -- the id of a request record made since rigSeenMark, whose address-to is set
 	local newFile
 	for newFile in $( find "$rigWs/.local" -type f -name '*.md' 2> /dev/null ) ; do
-		case "$rigSeen" in *" $newFile "*) continue ;; esac
+		case "$rigSeen" in *" ${newFile##*/} "*) continue ;; esac
 		[ -n "$( rigField "$newFile" address-to )" ] || continue
 		basename "$newFile" .md ; return 0
 	done
@@ -391,8 +392,8 @@ rigHolderAnswers "$( rigNewRequest )" deny
 rigAssert "denied: exit 1"                                    "$( rigBgEnd "$rigBgPid" 30 )" 1
 rigAssert "and the original untouched"                        "$( rigStatus "$rigPend" )" "reply-pending:"
 rigSeenMark
-rigBg "$rigTmp/w3" --manager-pending-reply-answer --id "$rigPend" --answer keep --escalate-wait --timeout 4
-sleep 2
+rigBg "$rigTmp/w3" --manager-pending-reply-answer --id "$rigPend" --answer keep --escalate-wait --timeout 20
+rigWaitFor 15 rigHasNew
 rigAssert "it waits, its request made"                        "$( rigWaiting "$rigBgPid" )" waiting
 rigAssert "no answer: exit 124 at the timeout"                "$( rigBgEnd "$rigBgPid" 30 )" 124
 rigAssert "and the original untouched"                        "$( rigStatus "$rigPend" )" "reply-pending:"
@@ -587,6 +588,8 @@ rigToldCount(){ ## text -- how many posts made since this section began hold it
 	done
 	printf '%s' "$toldCount"
 }
+## The waits below are for that post, not for a fixed time: on a loaded host the waiter's looks come later.
+rigToldOnce(){ [ "$( rigToldCount "$1" )" -ge 1 ] ; } ## text
 rigThreadOpen(){ ## request id -- its thread read, with nobody having answered yet
 	local openFile openThread
 	openFile="$( rigRecordOf "$1" )" ; openThread="$( rigField "$openFile" thread-ts )"
@@ -595,7 +598,7 @@ rigThreadOpen(){ ## request id -- its thread read, with nobody having answered y
 rigWaitAsk "$rigTmp/x4" rig-asks-p keeper-myx
 rigX4Pend="$rigPend" ; rigX4Req="$rigWReq" ; rigX4Pid="$rigBgPid"
 rigThreadReply "$rigX4Req" "sure, go ahead and do it"
-sleep 6
+rigWaitFor 40 rigToldOnce 'names none of the answers'
 rigAssert "a free-text reply names no answer: the wait goes on, the request stays open, and the person is told once in the thread what to reply" "$( rigAlive "$rigX4Pid" ):$( rigOf "$rigX4Req" status ):$( rigToldCount 'names none of the answers' )" "alive:reply-pending:1"
 rigThreadReply "$rigX4Req" allow-once
 rigBgDone 40
@@ -607,7 +610,7 @@ rigThreadOpen "$rigX5Req"
 rigX5Ts="$( rigOf "$rigX5Req" question-ts )"
 sed -i.bak "s/^channel: .*/channel: DRIG00001/" "$( rigRecordOf "$rigX5Req" )" && rm -f "$( rigRecordOf "$rigX5Req" ).bak"
 printf '{"ok":true,"messages":[{"ts":"1700000700.000200","user":"URIGOWNER","text":"allow-once"},{"ts":"%s","user":"URIGBOT01","text":"the ask"}],"has_more":false}\n' "$rigX5Ts" > "$rigTmp/history.json"
-sleep 6
+rigWaitFor 40 rigToldOnce 'outside this thread'
 rigAssert "a message the owner wrote in the direct conversation outside the thread is not an answer: the wait goes on and the person is told once to reply in the thread" "$( rigAlive "$rigX5Pid" ):$( rigOf "$rigX5Req" status ):$( rigToldCount 'outside this thread' )" "alive:reply-pending:1"
 rm -f "$rigTmp/history.json"
 rigThreadReply "$rigX5Req" allow-once
@@ -618,7 +621,9 @@ echo "-- 17b. the waiter says it is alive; the second and third request post at 
 rigWaitAsk "$rigTmp/y1" rig-asks-p keeper-myx
 rigY1Pend="$rigPend" ; rigY1Req="$rigWReq" ; rigY1Pid="$rigBgPid"
 rigThreadOpen "$rigY1Req"
-sleep 10
+## Two progress lines are waited for, not a fixed time: on a loaded host the looks between them take longer.
+rigProgressTwice(){ [ "$( LC_ALL=C grep -c -E "^waiting [0-9]+s, [0-9]+ checks, 0 errors \(request $rigY1Req\)" "$rigTmp/y1.err" 2> /dev/null )" -ge 2 ] ; }
+rigWaitFor 60 rigProgressTwice
 rigAssert "it prints a progress line now and then: how long it has waited, how many looks it made, how many failed" "$( LC_ALL=C grep -c -E "^waiting [0-9]+s, [0-9]+ checks, 0 errors \(request $rigY1Req\)" "$rigTmp/y1.err" | LC_ALL=C awk '{ print ( $1 >= 2 ) ? "repeated" : "only " $1 }' )" "repeated"
 ## the first wait is pending; a second request for another session, and a third, are posted at once: nothing is held across a wait
 rigPosts1="$( cat "$rigTmp/posts" 2> /dev/null || echo 0 )"
@@ -633,7 +638,7 @@ rigBgPid="$rigY2Pid" ; rigBgDone 40 ; rigBgPid="$rigY3Pid" ; rigBgDone 40
 rigSeenMark
 rigBgOwn "$rigTmp/y4" --manager-pending-reply-answer --id "$rigY1Pend" --answer yes --escalate-wait
 rigY4Pid="$rigBgPid"
-sleep 4
+rigWaitFor 40 LC_ALL=C grep -q -F "already asked as $rigY1Req, waiting" "$rigTmp/y4.out"
 rigAssert "a repeat for the same target says it plainly, makes no new request, and waits on that one" "$( LC_ALL=C grep -c -F "already asked as $rigY1Req, waiting" "$rigTmp/y4.out" ):$( rigNewRequest ):$( rigAlive "$rigY4Pid" )" "1::alive"
 rigThreadReply "$rigY1Req" allow-once
 rigBgPid="$rigY1Pid" ; rigBgDone 40 ; rigY1Rc="$rigBgStatus"
@@ -647,7 +652,7 @@ rigOp --manager-pending-reply-answer --id "$rigZPend" --answer yes --escalate-en
 rigZReq="$( rigPendingId )"
 rigBgOwn "$rigTmp/z1" --manager-pending-reply-answer --id "$rigZPend" --answer yes --escalate-wait
 rigZPid="$rigBgPid"
-sleep 4
+rigWaitFor 40 LC_ALL=C grep -q -F "already asked as $rigZReq, waiting" "$rigTmp/z1.out"
 rigAssert "a repeat of an enqueued call joins it: said plainly, the request becomes a waited one, and no new request is made" "$( LC_ALL=C grep -c -F "already asked as $rigZReq, waiting" "$rigTmp/z1.out" ):$( rigOf "$rigZReq" request-mode ):$( rigAlive "$rigZPid" )" "1:wait:alive"
 rigThreadReply "$rigZReq" allow-once
 rigBgDone 40

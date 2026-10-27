@@ -1,6 +1,6 @@
 # `doc-gap-pipeline` — doc-gap and knowledge-improvement work sequence
 
-The body of the section of the same name in `magic-coordinator.armed.md`.
+The body of the section of the same name in this member's armed content.
 
 Applies to `MAGIC.md`/`README.md` content, Trello cards, and team board and skillset content.
 

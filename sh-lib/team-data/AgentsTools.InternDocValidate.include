@@ -219,15 +219,15 @@ AgentsToolsDocValidateRoutine(){ ## file, file as shown
 		routineWhy="${routineVerdict#*$'\t'}"
 		AgentsToolsDocValidateRow "$routineShown" "$routineKeyLine" "$routineKeyName" "$routineWhy"
 	done
-	## The caching policy (F10.7): `cache-prefix: armed | routine`, how far the cacheable prefix of a spawn of this routine reaches.
+	## The caching policy (F10.7): `cache-prefix: armed | routine | extended`, how far the cacheable prefix of a spawn of this routine reaches.
 	## `armed`, which a routine that says nothing has, is the member's armed floor alone (a routine that runs rarely, as the
 	## retro does); `routine` adds the routine's own instruction and reference, so a routine that runs often, as the advance does,
 	## shares it between its runs. A work-duty is `armed` and carries its routine in its dispatch instead. The routine's own line,
 	## else its kind routine's.
 	routineCachePrefix="$routineCache" ; [ -n "$routineCachePrefix" ] || routineCachePrefix="$kindCache"
 	case "$routineCachePrefix" in
-		''|armed|routine) ;;
-		*) AgentsToolsDocValidateRow "$routineShown" "$routineCacheLine" cache-prefix "cache-prefix: $routineCachePrefix is not armed or routine" ;;
+		''|armed|routine|extended) ;;
+		*) AgentsToolsDocValidateRow "$routineShown" "$routineCacheLine" cache-prefix "cache-prefix: $routineCachePrefix is not armed, routine or extended" ;;
 	esac
 	## The sections of another routine this one takes in whole (`includes: <routine file name>: <section>, <section>`, one line for each routine): the mix-in
 	## engine puts them into the text where it is read (AgentsToolsSpawnRoutineMixIncluded). The routine must be one file of the skillset, the section one of

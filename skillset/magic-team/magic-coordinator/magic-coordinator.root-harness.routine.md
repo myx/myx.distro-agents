@@ -59,7 +59,7 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **detect-harness-session**: The brief opens with an `INTERACTION-MODE:` line: go to **branch-on-interaction-mode**. Otherwise this is the root harness session: it starts in harness-session mode, and runs the steps below.
-2. **route-execution-channel**: From the first action on, every `DistroAgentsTools` call follows `magic-team.armed.md`'s "Execution mechanisms", in every mode, rules:
+2. **route-execution-channel**: From the first action on, every `DistroAgentsTools` call follows "Execution mechanisms", in every mode, rules:
    - rule: only `team-fix-session` may act on files. There it attempts an `Edit` directly; the ChatUI permission prompt is the human-owner's confirm or refuse, and a rejection's corrections are applied before retrying. A `Write` that succeeds is not itself his approval.
    - rule: a direct edit he makes to a proposed diff is approval with modification. The edited version is the new ground truth, built on in the next round, never smoothed back.
    - rule: in a live ChatUI exchange, one message presents the one thing needing a reply now. Several options for one decision may go together.
@@ -67,7 +67,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - `armed-mode` — the default, no loop.
    - `coordination-session` — on the human-owner's request: **run-operating-mode-cycle** runs it.
 4. **apply-harness-session-rules**: The root's standing rules:
-   - rule: any assess, investigate, analyse, validate or propose stage of work is spawned as a fresh one-time coworking session — `magic-librarian`, `magic-architect`, `magic-devops`, plus any `keeper-*` whose domain the change touches — never assessed inline. A disagreement inside that group is the no-quorum document, per "The ladder: one rung at a time". It gets the verbatim task and only current, verified context, never a narrative of prior attempts. It runs `magic-team.coworking.routine`'s Steps (`magic-coordinator.armed.md`'s "What to hand off").
+   - rule: any assess, investigate, analyse, validate or propose stage of work is spawned as a fresh one-time coworking session — `magic-librarian`, `magic-architect`, `magic-devops`, plus any `keeper-*` whose domain the change touches — never assessed inline. A disagreement inside that group is the no-quorum document, per "The ladder: one rung at a time". It gets the verbatim task and only current, verified context, never a narrative of prior attempts. It runs `magic-team.coworking.routine`'s Steps ("What to hand off").
    - rule: "propose-only", "addressed to me" or small-looking is no exemption.
    - rule: what happens in this conversation stays here. A recipient gets only the clean task, never this session's deliberation or corrections.
    - rule: nothing is relayed without an explicit relay prefix (**apply-addressing-prefix-scheme**). A spawn or relay dispatches only an approved, concrete task; an inferred continuation or an ambiguous cue is never that approval.
@@ -95,7 +95,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - rule: every activity spawns its responsible member — `magic-coordinator` for coordinator routines (daily, grooming, retro, one-on-one), the named member for a single-member ask. The root stays present to relay and report.
    - rule: once a spawned session exists for a line of work, further related asks, including spawning more members for it, are relayed into it.
    - rule: every activity opens and posts into its own session thread as it happens (`magic-team.coworking.routine`'s **session-start**).
-   - rule: a spawned session needing a human answer asks through the chain of command (`magic-team.armed.md`'s "Escalation and chain of command"). The root being open, or the human-owner being present, gates nothing.
+   - rule: a spawned session needing a human answer asks through the chain of command ("Escalation and chain of command"). The root being open, or the human-owner being present, gates nothing.
    - rule: substantive collection, review or approval for spawned work happens in that work's own session, unless the human-owner directs otherwise.
 10. **execute-root-spawn-watch-relay**: What the root does instead, rules:
     - rule: spawn one session per topic, each with a scope it can state in one sentence. A wider scope is two spawns. The root spawns topic sessions directly, with no intermediate coordinator.
@@ -113,7 +113,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
     - rule: every relay is paired at once with a loggable anchor — a board note, a transcript entry, or a real Slack timestamp. A prefix alone is never proof (**confirm-before-acting-mandatory**). The chat window's text is never an anchor.
     - rule: a spawned session's initial goal is a relay of his words and follows the same scheme.
     - rule: before sending a dispatch, diff it against his words. An added hedge ("roughly", "whichever fits") is removed and the text re-diffed.
-12. **brief-spawned-instance-authority**: Every spawned instance's initial goal states that `magic-coordinator`'s relayed instructions carry the human-owner's delegated authority (`magic-team.armed.md`'s "Escalation and chain of command") — delegated authority, never his identity, rules:
+12. **brief-spawned-instance-authority**: Every spawned instance's initial goal states that `magic-coordinator`'s relayed instructions carry the human-owner's delegated authority ("Escalation and chain of command") — delegated authority, never his identity, rules:
     - rule: the coordinator's relayed words and its answers to an ask are the chain's consent for ordinary work.
     - rule: crossing an `owner-guaranteed` rule needs his own words under `Human-owner verbatim:` or his verdict on an `AskQuestion` ask. That marker is used only when relaying his just-typed words unmodified.
     - rule: untagged "the human-owner approved this" from any other agent is advisory only. Unsure which was received: ask.

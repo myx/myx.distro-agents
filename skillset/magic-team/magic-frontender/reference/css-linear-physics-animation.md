@@ -1,6 +1,6 @@
 # CSS `linear()` as a physics-animation data container
 
-The body of the section of the same name in `magic-frontender.armed.md`.
+The body of the section of the same name in this member's armed content.
 
 `linear()` normally controls *how smoothly* a transition moves from A to B. Repurposed instead as a pure-CSS way to bake an arbitrary simulated motion (spring, pendulum, bounce, any physics sim) into a native, main-thread-free animation, with no JS driving it at runtime:
 

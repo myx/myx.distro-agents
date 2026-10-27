@@ -18,10 +18,13 @@ PAD_STARTS = (
      "Comments/Scope", "who"),
     ("routine", "Start Routine Session...", "A routine of the team, chosen here; its next page asks the members its entries take and its other fields.",
      "Comments/Scope", "routine"),
-    ("free", "Free Prompt...", "A prompt to one member, with no routine: only the floor of the member loads, no instruction of a session kind.",
+    ("free", "Free Prompt...", "A prompt to one member, or to none, with no routine: only the floor of the member loads, no instruction of a session kind.",
      "Prompt", "who"),
 )
 PAD_NAMES = tuple(held[0] for held in PAD_STARTS)
+## A free prompt may be to no member at all (sketch 14.5: "we may select member or none"): the first choice of its list, a plain agent with the tools of the workspace.
+FREE_NO_MEMBER = ("", "none: a plain agent with our tools, no team member")
+CALLS["start-agent"] = ["--manager-spawn-agent"]
 
 
 ## The routines of the Launchpad's list that can be started from here, as the rows the list gave; None while the list is being read.
@@ -73,6 +76,8 @@ def askPad(state, row):
     state.answer = None
     kind, label, says, goal, whoKind = held
     options = memberOptions(state)
+    if kind == "free" and options is not None:
+        options = [FREE_NO_MEMBER] + options
     fill = {"about": {"lines": [says, "No secret belongs in it: a goal shows on the command line of the CLI." if kind != "free" else
                                 "No secret belongs in it: a brief shows on the command line of the CLI."]}}
     if kind == "routine":
@@ -86,6 +91,14 @@ def askPad(state, row):
 
 ## The members of the list of the team into the dialog of a start, once it was read.
 def fillPad(state, dialog):
+    if dialog["about"]["padKind"] == "free":
+        freeOptions = memberOptions(state)
+        if not dialog["about"]["filled"] and freeOptions is not None:
+            dialog["about"]["filled"] = True
+            control = dialogControl(dialog, "who")
+            control["options"] = [FREE_NO_MEMBER] + list(freeOptions)
+            control["value"], control["at"] = "", 0
+        return
     if dialog["about"]["padKind"] == "routine":
         options = routineOptions(state)
         if not dialog["about"]["filled"] and options is not None:
@@ -120,6 +133,13 @@ def submitPad(state, dialog, button):
     name = dialogValue(dialog, "name").strip()
     options = (dialogControl(dialog, "members") or {}).get("options", [])
     members = [one for one, label in options if one in dialogValue(dialog, "members")] if kind == "coworking" else [dialogValue(dialog, "who")]
+    if kind == "free" and not members[0]:
+        ## no member: the bare agent, through its own operation; the prompt on its standard input; no session, so no name
+        typed = (dialogValue(dialog, "prompt") or "").strip()
+        askCall(state, "start-agent", "agent", callWords("start-agent"), typed + "\n", {"viewKey": dialog["about"]["viewKey"]})
+        state.notice = "start asked of the tooling: a plain agent"
+        state.noticeOf = None
+        return None
     if not members or not members[0]:
         return "no member is chosen"
     words = callWords("start", members[0], name) + ["--kind", kind]

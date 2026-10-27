@@ -1,6 +1,6 @@
 # Board-state procedures: `check-process-board` and `check-pending-comms-actions`
 
-The steps of two local procedures of `magic-coordinator.armed.md`.
+The steps of two of this member's local procedures.
 
 ## Contents
 
@@ -29,7 +29,7 @@ Steps:
    - `interview-*`: nothing here. `magic-team.interview.routine` owns its state changes.
    - `dispatch-*`, `change-*`, `warning-*`: nothing here. `check-execute-board` handles them.
    - `idea-*`: not expected in `board-running` → flag for grooming.
-   - Any type outside the board types (`magic-team.armed.md`'s entity model): misfiled → flag once for grooming.
+   - Any type outside the board types (entity model): misfiled → flag once for grooming.
 6. **board-reopen-signaled-items**: An in-scope item that explicitly says a `board-processed`/`board-archived` item needs reopening → move that item to `board-backlog` (`--move-to-backlog`), noting the trigger.
 7. **board-reassess-parked-blocked**: `board-parked`/`board-blocked` items whose `recheck-date` has arrived, or which carry none, from this pass's data only:
    - An external check is needed: file an `inquiry-*` for it (`post-inquiry`), reference it on the item, with `--recheck-in 17`.

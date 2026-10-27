@@ -1,6 +1,6 @@
 # magic-tester — Maintainer Notes
 
-The body of `# Maintainer Notes` in `magic-tester.armed.md`. Read it when that file is updated, assessed or tested.
+The body of this member's armed `# Maintainer Notes`. Read it when that file is updated, assessed or tested.
 
 ## Contents
 
@@ -27,7 +27,7 @@ The body of `# Maintainer Notes` in `magic-tester.armed.md`. Read it when that f
 ### Reference
 
 - `reference/evidence-discipline.md`, `reference/live-side-effect-verification.md` — methodology modules.
-- `magic-team/magic-team.armed.md`'s "Recheck before reporting" — the validity check before a first failure is reported.
+- "Recheck before reporting" — the validity check before a first failure is reported.
 - `magic-team.grooming.routine`'s `rice-scoring` block — the model findings are triaged against.
 - `magic-architect` — security-by-design cross-check.
 

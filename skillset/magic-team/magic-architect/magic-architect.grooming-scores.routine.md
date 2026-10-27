@@ -104,7 +104,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-architect.armed.md`'s `## Idle-Tasks` — when this routine fires.
+- `## Idle-Tasks` — when this routine fires.
 - `magic-team.grooming.routine`'s `rice-scoring` block — the scoring model.
 
 ### Conventions

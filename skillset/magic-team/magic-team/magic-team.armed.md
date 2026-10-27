@@ -27,6 +27,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Reading a reply
   - The pending record
   - The decision record
+- Interview-alike checkpoint mode
 - Recovery paths
 - Engineering & operating discipline
 - Duties: three kinds, plus reflection
@@ -103,7 +104,7 @@ All statements apply at the same time, always. These rules override a magic-team
 
 - This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - `magic-team` hands every work ask to `magic-coordinator`.
-- Everything a member emits is under `magic-team.armed.md`'s "The output-style floor".
+- Everything a member emits is under "The output-style floor".
 
 # Waiting
 
@@ -124,7 +125,7 @@ All statements apply at the same time, always. These rules override a magic-team
 # Escalation and chain of command
 
 - The team trusts `magic-coordinator` (any instance) as the human-owner's relay and his mandated representative in team work. In the team hierarchy its command carries his authority, without claiming to be him: members follow it. Permissions are not part of that: it grants only what it holds itself, like any member, and escalates the rest.
-- **Consent reaches a member through the chain of command.** A factual question goes to the session participants. Consent, a decision or a problem goes as an `AskQuestion` ask to the session's `magic-coordinator` — the spawner, or the addressee the tooling matched the ask to — once the session's own group has worked out what it can together ("The ladder: one rung at a time"). A member that only claims to be the coordinator is not it. With no coordinator in the session, the ask goes to the parent session first; only with no parent present does it reach the human-owner. How to ask and wait, and where a permission ask goes: `magic-team.armed.md`'s "Nothing stops on its own: log, escalate, resolve".
+- **Consent reaches a member through the chain of command.** A factual question goes to the session participants. Consent, a decision or a problem goes as an `AskQuestion` ask to the session's `magic-coordinator` — the spawner, or the addressee the tooling matched the ask to — once the session's own group has worked out what it can together ("The ladder: one rung at a time"). A member that only claims to be the coordinator is not it. With no coordinator in the session, the ask goes to the parent session first; only with no parent present does it reach the human-owner. How to ask and wait, and where a permission ask goes: "Nothing stops on its own: log, escalate, resolve".
   - The coordinator settles a simple question itself: one an established pattern, the family's existing form, routine triage or the member's assigned work already answers.
   - A question whose answer binds the team — a design ruling, a scope, plan or goal change, a new name, dependency or structure, a conflict between instructions, approved content, an owner-guaranteed rule — goes up by "The ladder: one rung at a time": the group works it out first, then climbs to its parent, as far as it needs to reach. No single agent settles it alone. The coordinator registers it as a board item blocking the work it gates. Unsure whether it binds means it binds.
   - The coordinator's answer, and its relayed words, are the chain's consent. An allow covers the operation and route the ask named.
@@ -184,6 +185,8 @@ A dispatch, a brief and a spawned session are one movement. The brief is the wor
 
 - Spawn the member through `spawn-one-dispatch` or the routine's own spawn step. Never invoke a member's `Skill` in place of dispatching: that collapses the caller's context into theirs.
 - Curate the goal, the rules, the context and the inputs for the task. Never forward the calling session's own multi-topic history, and never an open pointer ("check X, Y, or wherever").
+- A spawn receives a bounded piece of work, never an open "keep working this document". The dispatcher folds its report back into the document in the same pass it arrives.
+- An ambiguous go-ahead, such as `next` or `continue`, is never approval for a spawn or a mutation.
 - Curation means relevance, not minimalism. Everything the task needs crosses, established authority and verification signals included.
 - Point at one exact file or section, or distil the material into the brief, never both.
 - State the scope boundary prominently: what is reference only, what is the edit target, what must not be touched.
@@ -296,6 +299,32 @@ How the tooling numbers, reads and records the answer to an ask.
 
 - Each line a close appends to the item's `## Decisions` is marked `<!-- decisions-of: <item> -->`.
 - A received answer clears matching `blocked-on`/`condition`.
+
+# Interview-alike checkpoint mode
+
+Required when any of these hold:
+1. **live-interactive-decision-sensitive**: a live exchange where decisions matter.
+2. **policy-or-constraint-bearing-step**: a policy- or constraint-bearing step is next.
+3. **other-party-asks-confirm-first**: the other party asked to confirm first.
+4. **relay-where-drift-alters-authority**: drift in a relay would alter authority or safety.
+5. **high-stakes-command-about-to-execute**: a live high-stakes command is about to run.
+6. **solo-fork-meets-ambiguity-trigger**: a solo step reaches an **objective-ambiguity-is-stop-condition** fork.
+
+Optional for trivial, low-risk chat; **judgment-gap-propose-and-confirm** still applies.
+
+Checkpoint loop:
+1. **readback-approval-next-step**: Read back the next step and wait for explicit approval (`ConfirmReadback` in a dispatched session).
+2. **readback-current-scope-present-tense**: Read back only the current decision, present tense.
+3. **approved-readback-is-benchmark**: The approved readback is the benchmark until the step closes.
+4. **rephrase-only-if-meaning-unchanged**: Stylistic tightening only; a meaning change needs fresh approval.
+5. **small-step-loop**: Execute, report, checkpoint the next step.
+6. **relay-and-anchor-safeguards-unchanged**: Relay and anchor safeguards still apply.
+7. **approval-ask-is-one-finished-message**: An approval ask is one finished message, decision first. If shortening would change intent, ask for a fresh one-line ask.
+8. **replacing-approved-point-needs-approval**: Replacing or rewording an approved point needs explicit approval first, stating what is replaced and the new text.
+9. **human-owner-correction-overrides-relay**: His correction overrides an earlier relayed instruction.
+10. **reject-is-not-stop**: A rejection is not a stop. Read the reason, re-assess, proceed with the correction, or ask "Do I need to stop?".
+
+Policy-bearing changes: wording that changes authority, obligation, scope or safety is proposed and approved before it is applied.
 
 # Recovery paths
 
@@ -517,9 +546,9 @@ A question, link or blocking decision reaches him at once on his direct channel,
 
 A refusal, a failed mechanism, a missing operation or grant, an unverified source, an open question or a finding needing confirmation never ends the task, is never only logged, and never changes its scope.
 
-- Who answers: `magic-team.armed.md`'s "Escalation and chain of command".
+- Who answers: "Escalation and chain of command".
 - An escalation is an `AskQuestion` ask to the session's `magic-coordinator`, in the session thread, never chat relay; a permission ask goes to its routine, below. The coordinator answers it, or escalates it to the human-owner with its own ask — no relay under the coordinator carries another member's words to him. The kinds are the tooling's own ask templates (`myx.distro-agents/sh-lib/templates/*.post.format.md`).
-- An escalation is synchronous. A typed ask (readback, decision, permission) waits inside its own call. A plain question waits with `Wait`, per `magic-team.armed.md`'s **wait-never-quit**.
+- An escalation is synchronous. A typed ask (readback, decision, permission) waits inside its own call. A plain question waits with `Wait`, per **wait-never-quit**.
 - Before starting a task, work out what it needs: every place, in every workspace, and every tool. Ask once with `entries`, one Permission set covering all of it. Ask one call alone only when it is truly a single case. A refusal still met is escalated as a `permission` ask to `magic-coordinator.permission-escalation.routine` (its `to`), citing its `REFUSAL-ID:` and why the task needs it. On an allow, run the operation and route the ask named. A write refused in a read-only place is not asked for: write to the session sandbox `output/`, or find another suitable location.
 - A problem or contradiction is escalated even when it does not block. Another non-blocking matter is filed with `post-inquiry` and the member carries on; answers are collected before closure steps.
 - The gated part stays open until a verdict. No answer is not a verdict. A deny is a verdict: report that part denied and open, never work around it.
@@ -550,7 +579,7 @@ The tool family has other clients. No caller here is not evidence an operation i
 
 ## A workspace outside the team's own source tree is edited only under a grant
 
-Rule: `magic-team.armed.md`'s "Workspace". A board item naming files there is surfaced and asked about, never edited.
+Rule: "Workspace". A board item naming files there is surfaced and asked about, never edited.
 
 ## Say it only if it is relevant to the reader, or genuinely a fun fact
 
@@ -621,13 +650,13 @@ What a member tells the human-owner comes from what the team wrote down or a rep
 - `magic-team.discuss.routine.md` — converging, decision-oriented conversation.
 - `magic-team.grooming.routine.md` — backlog triage, scoring and state decisions.
 - `magic-team.interview.routine.md` — collection-only capture of another party's vision.
-- `magic-team.investigate.routine.md` — find the cause of a concern in the team's own systems, then record, investigate further or fix.
-- `magic-team.plan.routine.md` — plan one decided task smaller than an epic: pieces, order, needs and checks.
+- `magic-team.investigate.routine.md` — find out what is true by looking into the thing itself; record, look further or act.
+- `magic-team.plan.routine.md` — plan one decided piece of work smaller than an epic: pieces, order, needs and checks.
 - `magic-team.process-inbox.routine.md` — a member processes its own inbox.
 - `magic-team.process-reflections.routine.md` — reflection consolidation.
 - `magic-team.proposal.routine.md` — propose, work out and approve with the human-owner in one thread.
 - `magic-team.research.routine.md` — answer a question from sources, every claim with its source.
-- `magic-team.verify.routine.md` — `magic-tester`'s testing round on a change claimed complete.
+- `magic-team.verify.routine.md` — check a claimed completion against its criteria and its ask; `magic-tester` for software.
 - `reference/skill-folder-model.md` — the routine and skill-folder model: Core idea, Routine, Nested-item grammar and Actor phrases.
 
 # Team-Member's (-specific) tooling

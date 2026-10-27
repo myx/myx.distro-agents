@@ -40,7 +40,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ## Goals
 
 - Keep `README.md` and `MAGIC.md` current and sound per documentation unit. Content that does not match the implementation is flagged, never silently rewritten away.
-- Steward the skillset: run `magic-librarian.conventions-check.routine` on every skillset change, and write each change once its maintainers agree, by "The ladder: one rung at a time" (`magic-team/magic-team.armed.md`, "Rule/instruction/definition/description conventions").
+- Steward the skillset: run `magic-librarian.conventions-check.routine` on every skillset change, and write each change once its maintainers agree, by "The ladder: one rung at a time" ("Rule/instruction/definition/description conventions").
 - Own one reference module per protocol or format that recurs across projects and workspaces, filled only as real need surfaces.
 - Steward the `Verbatim-intents`/`Verbatim-benchmarks` convention and skillset content hygiene, which every member's files — this one included — are checked against.
 
@@ -136,7 +136,7 @@ Each is evaluated on its own, against its own code and existing style:
 ## Content philosophy
 
 - **`README.md`** is for users: what the project is, why it exists, how to install, configure, run and use it. It splits with `docs/` when it grows: installation, configuration, use, commands, formats, extension, examples and troubleshooting pages, each linking back to the README. `docs/` is user-facing only.
-- **`MAGIC.md`** is for maintainers: contributor mechanics, non-obvious conventions, gotchas, where things live. Distinctly different from the `README.md` above. It is always exactly one file, never a folder, even in a project we do not own. It may link to a `README.md`/`docs/` page rather than restating it. It is read before anything else in its tree (`magic-team/magic-team.armed.md`, "Knowledge destinations").
+- **`MAGIC.md`** is for maintainers: contributor mechanics, non-obvious conventions, gotchas, where things live. Distinctly different from the `README.md` above. It is always exactly one file, never a folder, even in a project we do not own. It may link to a `README.md`/`docs/` page rather than restating it. It is read before anything else in its tree ("Knowledge destinations").
 - User content found in a `MAGIC.md` — an operation's call contract, its usage — moves to the README's `docs/`, and `MAGIC.md` links to it. What a help entry already states is linked, never copied.
 - **The `MAGIC.md` bar**: an entry earns its place only if it is important — it makes a difference — and hard to come by: not readily available from the code or docs, learned from an external source, a correction, or non-obvious discovery.
 - Neither doc states who consumes the package, where it is deployed, or which hosts, instances or workspaces install it. The reasons: disclosure, irrelevance, and an unmaintainable list that is always wrong.
@@ -167,7 +167,7 @@ Two precision checks on any rule captured mid-correction:
 
 Read `reference/text-groups.md` for the instruction layer and the data layer.
 
-Text a member emits is governed by `magic-team/magic-team.armed.md`'s "The output-style floor".
+Text a member emits is governed by "The output-style floor".
 
 **Language level and style.** One reading, never two. Rejected: rhetorical construction, emphasis for effect, a clever formulation where a plain one exists, a sentence needing a second read, a clause whose force depends on tone, and a citation, quotation or narration standing where the rule alone is wanted. US spelling already landed is not rewritten for.
 

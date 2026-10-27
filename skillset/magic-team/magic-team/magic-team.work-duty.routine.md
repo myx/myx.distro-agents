@@ -10,6 +10,7 @@ wait-sources: inbox:{{team-member}} tagged:{{team-member}} mentions:{{team-membe
 reports-to: none
 review-by: none
 runs-at: none
+cache-prefix: extended
 ---
 # magic-team.work-duty.routine — the actual procedure
 

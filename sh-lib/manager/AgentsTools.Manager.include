@@ -178,6 +178,12 @@ case "$1" in
 		return $?
 	;;
 
+	## A bare agent started by hand: a prompt to a CLI service, no member (ahead of the arm of the member starts).
+	--manager-spawn-agent)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSpawnAgent.include"
+		return $?
+	;;
+
 	## What is started by hand from the console: one member, with a prompt.
 	--manager-spawn-*)
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/manager/AgentsTools.ManagerSpawn.include"

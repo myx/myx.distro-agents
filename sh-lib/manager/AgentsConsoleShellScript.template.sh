@@ -541,8 +541,16 @@ DagcAccessAppend(){
 		;;
 	esac
 }
-: "${MDAT_SPAWN_AGENT:=magic-coordinator}"
-if [ -n "$DAGC_ACCESS_WRITE_FLAG" ] ; then
+## A start that is bare (MDAT_SPAWN_BARE=true, --manager-spawn-agent) is no member's: it names none, and no roots of one are computed. Any other start without a member is the
+## coordinator's, as it was.
+if [ "${MDAT_SPAWN_BARE:-}" = "true" ] ; then
+	MDAT_SPAWN_AGENT=""
+else
+	: "${MDAT_SPAWN_AGENT:=magic-coordinator}"
+fi
+if [ "${MDAT_SPAWN_BARE:-}" = "true" ] ; then
+	echo "# console: $DAGC_CLI is a bare run: no member, so no roots of one are added" >&2
+elif [ -n "$DAGC_ACCESS_WRITE_FLAG" ] ; then
 	## The tooling by name, as every other caller of the access-root include has it.
 	if ! type DistroAgentsTools >/dev/null 2>&1 ; then
 		DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }

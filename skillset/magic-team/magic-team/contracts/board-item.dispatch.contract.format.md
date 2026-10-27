@@ -83,7 +83,7 @@ The brief given to one spawned session, carried exactly, with a dated log of its
 
 - `literal` — exactly the text shown after it.
 - `member` — one team member name, or `human-owner`.
-- `date-time` — `YYYY-MM-DD HH:MM ±HHMM`, numeric offset, never a zone abbreviation (`magic-team/magic-team.armed.md`'s Terminology `date-time`).
+- `date-time` — `YYYY-MM-DD HH:MM ±HHMM`, numeric offset, never a zone abbreviation (Terminology `date-time`).
 - `owner-name` — a `member`, or a non-acting owner such as an external contact.
 - `item-names` — bare item names, no folder, no `.md`, comma-separated, no brackets.
 - `approval-ref` — `<member> (<session-id>, <iso-utc>)`.

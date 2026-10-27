@@ -130,7 +130,7 @@ up does not substitute for that test.
 
 ## A detection check with only negative results, run for real against live traffic
 
-Applies `magic-team/magic-team.armed.md`'s "Engineering & operating discipline"
+Applies "Engineering & operating discipline"
 rule — a check you would act on is not a result until it has been shown able to
 fail — including its positive-control-alongside-the-result requirement.
 

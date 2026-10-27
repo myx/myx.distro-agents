@@ -7,7 +7,7 @@ This is **not a team member an agent invokes and becomes** — it is an identity
 
 For the rest of what this reference record covers (authority model, contact-data pointer, the reach-out procedure for when the human-owner isn't directly present), read `human-owner.armed.md`.
 
-Every team member reads `magic-team/magic-team.armed.md` unconditionally, simply by being on the team.
+Every team member carries the team's armed content unconditionally, simply by being on the team.
 
 ## Contents
 

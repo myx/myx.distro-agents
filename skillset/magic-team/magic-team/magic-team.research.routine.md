@@ -43,6 +43,7 @@ review-by: inherit
 - Does:
   - Frame a question, search and read sources, weigh them against each other, and report. Any member runs it, on request.
 - Doesn't:
+  - Look into a thing itself. That is `magic-team.investigate.routine`: finding out what is true by looking into the thing, its records and its behaviour. This routine answers a question from sources.
   - Generate ideas (`magic-team.brainstorm.routine`), decide (`magic-team.discuss.routine`), or capture one party's vision (`magic-team.interview.routine`).
   - Act on its own findings. A finding that calls for a change goes through the task-creation lifecycle.
 
@@ -67,10 +68,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
 5. **split-and-assign**: split the question into parts that can be researched apart. Give each part to one participant, by domain, and post the split in the session thread.
 6. **search-and-read**: each participant researches its part, steps:
    - search with `WebSearch`, then read the pages that matter with `WebFetch`. Read the source itself, never only a search snippet.
-   - trace each claim to its origin: the specification, the code, the release note, the dataset, the person who observed it. A page that repeats a claim is not its source.
+   - trace each claim to its origin: the specification, the standard, the law, the code, the release note, the dataset, the person who observed it. A page that repeats a claim is not its source.
    - check the source from outside: who publishes it, why, and what other sources say about it. Its own description of itself is not that check.
    - prefer a primary source to an account of it. Use a secondary source to find the primary one, or where none can be reached, and say so.
-   - record each finding with its source: the URL or the file and line, the date it was read, the version or date it covers, and whether it is primary or secondary.
+   - record each finding with its source: the URL or the file and line, the date it was read, the version or the date it covers, and whether it is primary or secondary.
    - post each finding into the session thread as it lands, one finding a post.
 7. **weigh-the-evidence**: weigh the findings against the candidate answers, steps:
    - test each piece of evidence against every candidate answer, not one answer against all the evidence. Evidence that fits every answer settles nothing.
@@ -84,12 +85,16 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - say how likely the answer is, in words, and use the same word for the same degree throughout one report.
    - name what the uncertainty comes from: a missing source, a conflict, an old date, a single source.
    - name the linchpins: the findings the answer rests on, and what changes if one of them is wrong.
-9. **report-findings**: post the report into the session thread with `ReportFindings`, steps:
+9. **report-and-route**: post the report into the session thread with `ReportFindings`, then name the next flow step, steps:
    - the answer first, with its confidence, in one or two sentences.
    - the evidence next: each finding with its source, as recorded at **search-and-read**.
    - the candidate answers rejected, and why each was rejected.
    - what stays open: the gaps, the unreachable sources, and what would settle them.
-   - a handback to the session's own parent follows, carrying what was agreed, per "The ladder: one rung at a time".
+   - the next flow step, by outcome:
+     - **answered** — back to the step that asked: `magic-team.discuss.routine` when the answer feeds a choice, `magic-team.plan.routine` when it feeds a plan.
+     - **open, and the thing itself can show it** — `magic-team.investigate.routine`.
+     - **open otherwise** — recorded as open where its reader reads it; the handback closes the research.
+   - a handback to the session's own parent follows, carrying the answer and the next step, per "The ladder: one rung at a time".
 
 # Closure steps
 
@@ -122,7 +127,7 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-Harness tools: `WebSearch` and `WebFetch`, granted to every participant by this routine's `allows:` while it runs. `ReportFindings` posts the report.
+Harness tools: `WebSearch` and `WebFetch`, granted to every participant by this routine's `access-control:` while it runs. `ReportFindings` posts the report.
 
 ## Tooling operations
 
@@ -156,4 +161,4 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Conventions
 
-- **frame-the-question**, **weigh-the-evidence** and **state-the-uncertainty** are the steps other routines may cite by name.
+- **frame-the-question**, **weigh-the-evidence**, **state-the-uncertainty** and **report-and-route** are the steps other routines may cite by name.

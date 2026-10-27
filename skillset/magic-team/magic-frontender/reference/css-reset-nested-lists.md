@@ -1,6 +1,6 @@
 # Universal CSS resets can break nested-list indentation
 
-The body of the section of the same name in `magic-frontender.armed.md`.
+The body of the section of the same name in this member's armed content.
 
 A blanket `* { padding: 0 }` (or `margin: 0`) reset zeros every element's box-model spacing, including `ul`/`ol` — whose nested-list indentation comes from the browser's own default `padding-left` on those elements. Zeroing it flattens every nesting depth to the same visual indent, with no depth-based offset.
 

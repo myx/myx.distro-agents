@@ -74,7 +74,7 @@ The member runs `magic-team.process-inbox.routine <own-name>` inline (`--routine
 
 ## opening-checkpoint
 
-The last Opening step, only where this routine's `allows:` names `--executor-checkpoint-push` (a single-participant routine): run `DistroAgentsSession.fn.sh --executor-checkpoint-push opening`. A routine that does not name it does not run this step, and that is no skipped step.
+The last Opening step, only where this routine's `access-control:` carries `executors:allow-tool:--executor-checkpoint-push` (a single-participant routine): run `DistroAgentsSession.fn.sh --executor-checkpoint-push opening`. A routine that does not name it does not run this step, and that is no skipped step.
 
 # Steps
 

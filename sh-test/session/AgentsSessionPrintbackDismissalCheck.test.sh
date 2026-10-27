@@ -78,9 +78,10 @@ for rigFile in "$rigTool" "$rigHarness" "$rigField" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
+. "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1
 . "$rigFixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsSessionPrintbackDismissalCheck )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 
 ## THE RIG ORIGIN: a COPY of the tree under test, and read-only links to the real siblings.

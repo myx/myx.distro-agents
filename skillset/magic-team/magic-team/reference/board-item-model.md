@@ -1,6 +1,6 @@
 # Board item model: types, fields, vault and audit items
 
-Read this when creating, moving or reading board, audit and vault items. The inbox types and the inbox frontmatter fields are in `magic-team.armed.md`.
+Read this when creating, moving or reading board, audit and vault items. The inbox types and the inbox frontmatter fields are in "Board & Inbox board-items entity model".
 
 ## Contents
 

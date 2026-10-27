@@ -165,15 +165,15 @@ rigAssert "runs-after: one routine passes"                      "$rigRc" "0"
 rigWithRun after-bad 'runs-after: magic-coordinator.daily.routine, magic-team.grooming.routine'
 rigAssert "runs-after: two: refused, named"                     "$( rigVerdict runs-after )" "refused runs-after"
 
-echo "-- 2e. cache-prefix: armed or routine (F10.7) --"
-for rigCache in armed routine ; do
+echo "-- 2e. cache-prefix: armed, routine or extended (F10.7, sketch 8) --"
+for rigCache in armed routine extended ; do
 	rigWithRun cache-ok "cache-prefix: $rigCache"
 	rigAssert "cache-prefix: $rigCache passes"                      "$rigRc" "0"
 done
 rigWithRun cache-bad 'cache-prefix: always'
-rigAssert "cache-prefix: always: refused, named"                "$( rigVerdict cache-prefix 'is not armed or routine' )" "refused cache-prefix is not armed or routine"
+rigAssert "cache-prefix: always: refused, named"                "$( rigVerdict cache-prefix 'is not armed, routine or extended' )" "refused cache-prefix is not armed, routine or extended"
 rigWithRun cache-extended 'cache-prefix: armed-extended'
-rigAssert "cache-prefix: armed-extended: refused, the retired marker"  "$( rigVerdict cache-prefix 'is not armed or routine' )" "refused cache-prefix is not armed or routine"
+rigAssert "cache-prefix: armed-extended: refused, the retired marker"  "$( rigVerdict cache-prefix 'is not armed, routine or extended' )" "refused cache-prefix is not armed, routine or extended"
 rigAssert "a routine that leaves it out passes (armed)"         "$( rigRun "$( rigFile complete )" ; printf '%s' "$rigRc" )" "0"
 
 echo "-- 3. --from-stdin gives the same verdicts --"

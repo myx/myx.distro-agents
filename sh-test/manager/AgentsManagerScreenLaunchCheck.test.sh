@@ -236,7 +236,7 @@ show o
 cells oddKeys 37 1 83
 RIGSCRIPT
 rigAssert "the free prompt says what a prompt to a member starts"      "$( rigVal free.selected ) [$( rigPane f 3 )][$( rigPane f 4 )][$( rigPane f 5 )]" \
-	"free [ A prompt to one member, with no routine: only the floor of the member loads, no][ instruction of a session kind.][ Enter opens its dialog: who runs it, the prompt, the name of the session.]"
+	"free [ A prompt to one member, or to none, with no routine: only the floor of the member][ loads, no instruction of a session kind.][ Enter opens its dialog: who runs it, the prompt, the name of the session.]"
 rigAssert "and the left pane names Enter as its key"                 "[$( rigKeysNamed freeKeys )]" "[keys: ENTER start]"
 rigAssert "a routine: its title as its head, then its file, its owner, its executors" "$( rigVal daily.selected ) [$( rigPane d 3 )][$( rigPane d 4 )][$( rigPane d 5 )][$( rigPane d 6 )]" \
 	"magic-coordinator/$rigDaily [ magic-coordinator.daily.routine — the daily meeting][  routine    $rigDaily][  owner      magic-coordinator][  executors  magic-coordinator]"
@@ -599,8 +599,24 @@ rigPadStart padDutyEmpty "DOWN DOWN DOWN" none
 rigAssert "work-duty with nothing typed: no --goal at all" "[$( rigPadWords )]" "[[--manager-spawn-member][magic-coordinator][--kind][work-duty]]"
 rigPadStart padDuty "DOWN DOWN DOWN" 'review the week'
 rigAssert "work-duty with comments: they go as --goal" "[$( rigPadWords )]" "[[--manager-spawn-member][magic-coordinator][--kind][work-duty][--goal][review the week]]"
-rigPadStart padFree "DOWN DOWN DOWN DOWN DOWN" 'look at the index'
-rigAssert "free: --kind free and no --goal; the prompt goes on the standard input, whole" "[$( rigPadWords )] $( printf '%s\n' 'look at the index' | cmp -s - "$MANAGER_SCREEN_RIG/stdin.--manager-spawn-member" && echo same )" "[[--manager-spawn-member][magic-coordinator][--kind][free]] same"
+## the list of a free prompt opens on "none" (sketch 14.5: member or none); a member is one step down from it
+rigMembersCase padFree
+rigScript <<RIGSCRIPT
+keys DOWN DOWN ENTER
+wait list 30
+keys DOWN DOWN DOWN DOWN DOWN ENTER
+wait list 30
+get fl
+box fl
+keys BACKTAB DOWN TAB$( rigType 'look at the index' ) TAB ENTER
+wait action 30
+RIGSCRIPT
+rigAssert "the member list of a free prompt starts with none, a plain agent, and then the members" "[$( rigVal fl.dialog )] $( rigBoxHas fl 'none: a plain agent with our tools' ) $( rigBoxHas fl 'magic-coordinator' )" "[pad-free:prompt|] 1 1"
+rigAssert "free with a member: --kind free and no --goal; the prompt goes on the standard input, whole" "[$( rigPadWords )] $( printf '%s\n' 'look at the index' | cmp -s - "$MANAGER_SCREEN_RIG/stdin.--manager-spawn-member" && echo same )" "[[--manager-spawn-member][magic-coordinator][--kind][free]] same"
+
+echo "-- a free prompt to no member: a plain agent, through its own operation, the prompt on its standard input --"
+rigPadStart padFreeNone "DOWN DOWN DOWN DOWN DOWN" 'look at the index'
+rigAssert "free with none chosen: --manager-spawn-agent and no word of a member, no --kind; the prompt on standard input, whole" "[$( LC_ALL=C grep -F -- '[--manager-spawn-agent]' "$MANAGER_SCREEN_RIG/words" )] $( printf '%s\n' 'look at the index' | cmp -s - "$MANAGER_SCREEN_RIG/stdin.--manager-spawn-agent" && echo same ) $( LC_ALL=C grep -c -- '^--manager-spawn-member' "$MANAGER_SCREEN_RIG/calls" || : )" "[[--manager-spawn-agent]] same 0"
 
 echo "-- a second work-duty of a member: the tooling refuses it, and the screen shows the refusal and starts nothing else --"
 ## one duty session a member is the tooling's rule (--manager-spawn-member checks the member's duty record); the form draws the refusal and does not decide it

@@ -21,7 +21,7 @@ A raw suggestion, below a proposal's bar.
 # Contract
 
 - Kind `board-item.idea`: store board, type word `idea`.
-- Filename: `idea-<date>-<matter>.md`. `<date>` is `YYYYMMDD'T'HHmm'Z'` (UTC), per `magic-team/magic-team.armed.md`'s Terminology.
+- Filename: `idea-<date>-<matter>.md`. `<date>` is `YYYYMMDD'T'HHmm'Z'` (UTC), per Terminology.
 - A document names this contract in `document-contract`, with the value `board-item.idea`. The writer fills it where missing.
 - A key the Keys table does not name is not part of this contract. How a stored document that does not match is treated is set by the validator's per-rule disposition, not here.
 - The validator reads the Keys table, the Body and the unmarked Rules. A rule marked `[store]` needs more than the file to check: the item's board state, its inbox, its writer or its authority. A rule marked `[judged]` is for a reader to judge.
@@ -80,7 +80,7 @@ A raw suggestion, below a proposal's bar.
 
 - `literal` — exactly the text shown after it.
 - `member` — one team member name, or `human-owner`.
-- `date-time` — `YYYY-MM-DD HH:MM ±HHMM`, numeric offset, never a zone abbreviation (`magic-team/magic-team.armed.md`'s Terminology `date-time`).
+- `date-time` — `YYYY-MM-DD HH:MM ±HHMM`, numeric offset, never a zone abbreviation (Terminology `date-time`).
 - `owner-name` — a `member`, or a non-acting owner such as an external contact.
 - `item-names` — bare item names, no folder, no `.md`, comma-separated, no brackets.
 - `approval-ref` — `<member> (<session-id>, <iso-utc>)`.

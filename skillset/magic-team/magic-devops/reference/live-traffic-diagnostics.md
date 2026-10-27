@@ -59,4 +59,4 @@ Reachability from a guest sharing the target's physical hypervisor (or rack/loca
 ## Cross-reference
 
 - Fleet-execution/parallelism/console mechanics for the SSH plumbing around a sweep like this: `reference/myxdistro-pipeline.md`, "`ShellTo` for remote diagnosis" section.
-- A denied/rejected tool call not being proof nothing executed: `magic-team/magic-team.armed.md`'s "Engineering & operating discipline" section (shared baseline rule, not repeated here).
+- A denied/rejected tool call not being proof nothing executed: "Engineering & operating discipline" section (shared baseline rule, not repeated here).

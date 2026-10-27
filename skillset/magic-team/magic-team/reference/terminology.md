@@ -1,6 +1,6 @@
 # Team terminology: further terms
 
-Terms of `magic-team.armed.md`'s "Terminology: Team terminology" that a member needs only on occasion.
+Terms of "Terminology: Team terminology" that a member needs only on occasion.
 
 - `audit-item` — a document under `audit/`: `transcript-*`, `incident-*`.
 - `authenticated-channel` — a channel whose participant identity is structurally verifiable: a known Slack user, a known email sender.

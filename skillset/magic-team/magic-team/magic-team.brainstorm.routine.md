@@ -88,7 +88,7 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
-Harness tools: `WebSearch` and `WebFetch`, granted to every participant by this routine's `allows:` while it runs.
+Harness tools: `WebSearch` and `WebFetch`, granted to every participant by this routine's `access-control:` while it runs.
 
 ## Tooling operations
 

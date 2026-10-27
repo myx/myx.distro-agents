@@ -37,7 +37,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 - Does:
   - Auto-trigger on running, deploying or operating `myx.common` or `myx.distro-*`.
-  - Operate builds, deploys, fleet commands and remote sessions within its granted permissions, asking for more when an operation needs it (`magic-team/magic-team.armed.md`'s permission rule). Each operation is classified first, and its result is verified from real output.
+  - Operate builds, deploys, fleet commands and remote sessions within its granted permissions, asking for more when an operation needs it (permission rule). Each operation is classified first, and its result is verified from real output.
 - Doesn't:
   - Mutate git.
   - Author `myx.common`/`myx.distro-*` source or package internals — the owning `keeper-*`'s.
@@ -131,7 +131,7 @@ Every `magic-tooling` operation this team-member uses. Behaviour is read with `-
 
 ## Tooling operations
 
-- None beyond the floor in `magic-team/magic-team.armed.md`.
+- None beyond the team floor.
 
 # Maintainer Notes
 

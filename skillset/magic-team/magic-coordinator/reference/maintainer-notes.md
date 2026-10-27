@@ -1,6 +1,6 @@
 # magic-coordinator — Maintainer Notes
 
-The body of `# Maintainer Notes` in `magic-coordinator.armed.md`. Read it when that file is updated, assessed or tested.
+The body of this member's armed `# Maintainer Notes`. Read it when that file is updated, assessed or tested.
 
 ## Contents
 

@@ -58,7 +58,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 2. **advance-on-update**: Something new was found: run `magic-coordinator.advance.routine` now, inline (`--routine-run-inline magic-coordinator.advance.routine`).
 3. **drive-session-goal**: Keep driving the session's goal: dispatch, follow through, see real changes land.
 4. **goal-gap-toward-empty**: Ask small, minimal-assumption questions that narrow the gap to the goal. Resuming a tracked interview, this is `magic-team.interview.routine`'s **resume-review**.
-5. **wait-between-cycles**: Wait on the session thread and the sources this session watches (`Wait`, per `magic-team.armed.md`'s **wait-never-quit**). A `TIMEOUT` is a normal result.
+5. **wait-between-cycles**: Wait on the session thread and the sources this session watches (`Wait`, per **wait-never-quit**). A `TIMEOUT` is a normal result.
 6. **repeat-from-sweep**: The goal gap is empty: go to **conclude-or-ask-input**. Otherwise repeat from **sweep-comms**.
 7. **conclude-or-ask-input**: The goal gap is empty: say so, and ask for new input. On the human-owner's word to close, the session closes: its Closure steps run.
 
@@ -83,7 +83,7 @@ All statements apply at the same time, always. These rules override a participan
 - Nothing substantive is done inline. Every real edit, investigation or fix is dispatched (`spawn-one-dispatch`), and its result relayed back.
 - Already-approved work is spawned out by default, never executed in this session's own context.
 - Every 20 completed cycles, or on notice that a loaded skill file changed, reload the skill fresh at the top of the next **sweep-comms**, never mid-step. A reload re-reads every file, never a partial set.
-- This instance holds its own Slack channel to the human-owner. An unverifiable relayed message is resolved there, not through another coordinator instance. This is the trust-chain check (`magic-team.armed.md`'s narrowed "Anything needing the human-owner to act reaches him..."), not a general bypass of the ladder for ordinary asks.
+- This instance holds its own Slack channel to the human-owner. An unverifiable relayed message is resolved there, not through another coordinator instance. This is the trust-chain check (narrowed "Anything needing the human-owner to act reaches him..."), not a general bypass of the ladder for ordinary asks.
 - The main loop is not a mode: the host runs it, and no session starts, relays into or stops it. A stopped host loop explains why nothing advances on its own; it changes nothing about this loop.
 - Re-pinging a visibly stalled spawned session, or restarting it where prior work is safely preserved, is this member's own call. Escalate only when the stall makes prior output untrustworthy or risks a duplicated side effect.
 

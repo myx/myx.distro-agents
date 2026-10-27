@@ -54,10 +54,10 @@ None of its own: the Opening steps of the routine it inherits from run first (it
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **identify-target-and-analog**: Identify what is reviewed and its closest real analog — a sibling operation, a sibling file of the same type. Read the analog directly. In a batch, resolve the analog per finding.
-2. **compare-against-analog**: Compare the proposal with the analog: naming, error-message shape, placement, shape and verbosity, and style rules stated in the analog itself, including `magic-librarian/magic-librarian.armed.md`'s "Two writing modes".
+2. **compare-against-analog**: Compare the proposal with the analog: naming, error-message shape, placement, shape and verbosity, and style rules stated in the analog itself, including "Two writing modes".
    - rule: shape and verbosity means how much the analog carries — lead-in length, prose around the substance, element count. A proposal several times more elaborate than its analog fails here alone.
-   - rule: a `MAGIC.md` or `README.md` change is also measured against the `MAGIC.md` bar (`magic-librarian/magic-librarian.armed.md`'s "Content philosophy") and the no-narration floor (`magic-team/magic-team.armed.md`'s "Rule/instruction/definition/description conventions"), not only against a sibling file.
-   - rule: emitted text is compared against `magic-team/magic-team.armed.md`'s "The output-style floor", as `magic-librarian/magic-librarian.armed.md`'s "Applying the output-style floor" applies it. Carried spans are not measured.
+   - rule: a `MAGIC.md` or `README.md` change is also measured against the `MAGIC.md` bar ("Content philosophy") and the no-narration floor ("Rule/instruction/definition/description conventions"), not only against a sibling file.
+   - rule: emitted text is compared against "The output-style floor", as "Applying the output-style floor" applies it. Carried spans are not measured.
 3. **structure-the-output**: Structure every output in labelled sections, with before and after where relevant.
 4. **classify-each-finding**: Classify each finding: genuine violation, judgement call worth flagging, or clean. A formulation is a genuine finding when it is not easily understood, when a readback drops an intent, detail or benchmark the original had, or when a better candidate exists.
 5. **cite-real-evidence**: Cite the file and line each finding is checked against. An output-style finding cites the clause number and the measured value. A clause carrying no number is a judgement call.
@@ -102,7 +102,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- **Who runs it**: `magic-librarian` on every skillset change (`magic-team/magic-team.armed.md`, "Rule/instruction/definition/description conventions"); any armed member on its own proposed work before landing it; `magic-coordinator` and the human-owner on anything.
+- **Who runs it**: `magic-librarian` on every skillset change ("Rule/instruction/definition/description conventions"); any armed member on its own proposed work before landing it; `magic-coordinator` and the human-owner on anything.
 - **A change is the only trigger — never a run.** An instruction already in force is not re-checked because something is about to execute it.
 - A change to a member's or routine's rules is assessed against that file's `Verbatim-goals (intents)`/`Verbatim-tests (benchmarks)`. Where assessment cannot settle it, a concrete testing request goes to `magic-coordinator` for a `magic-tester` round.
 - **Blocking model**: a genuine finding blocks the change until addressed, except for the human-owner, for whom it is advisory — the one ground only he holds. `magic-coordinator` overriding alone still files the finding as the no-quorum document, briefly: not blocked, but not silent either. A cosmetic finding never blocks. Unsure: surface it.

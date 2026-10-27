@@ -24,7 +24,8 @@
 ##   7. the chat-completions wire carries the same text as one string
 ##   9. the lifetime the cache markers ask for (F10.7): unset and 5m send the bytes they always did, 1h puts its ttl in every marker of the run and changes nothing else,
 ##      another lifetime is refused before any request, and a served call is not asked
-##  10. magic-team.work-duty: its routine declares no `cache-prefix` line, so it is `armed` and the harness does NOT preload the routine;
+##  10. magic-team.work-duty: its routine declares `cache-prefix: extended`, so the harness does NOT preload the routine (it preloads the Member+ layer of the member's
+##      reference files, which a member with none lacks);
 ##      the dispatch carries it (AgentsTools.WorkDutyDispatch.include, and the layer check); a `routine`-policy subtask still preloads it.
 ##   8. two spawns of one member, in sessions, sandboxes and zones of their own, send requests that are byte for byte the same through the marker
 ##      that ends the first user block, and differ in the task block alone: what is of one run (its sandbox and results roots, the sentence of a
@@ -508,16 +509,16 @@ rigAssert "the chat-completions wire has no markers to say it in: the same reque
 rigWire="AnthropicMessages"
 rigSpawn="rig-spawn-one"
 
-echo "-- 10. magic-team.work-duty: armed, so the harness does not preload the routine --"
+echo "-- 10. magic-team.work-duty: extended, so the harness does not preload the routine --"
 rigWorkDuty="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team"
-rigAssert "the routine declares no cache-prefix line: it is armed, the default (AgentsToolsRoutineKey)"  "$( . "$rigHere/session/AgentsTools.RoutineRequirements.include" ; AgentsToolsRoutineKey "$rigWorkDuty/magic-team.work-duty.routine.md" cache-prefix )" ""
+rigAssert "the routine declares cache-prefix: extended (AgentsToolsRoutineKey)"  "$( . "$rigHere/session/AgentsTools.RoutineRequirements.include" ; AgentsToolsRoutineKey "$rigWorkDuty/magic-team.work-duty.routine.md" cache-prefix )" extended
 rigAssert "and the validator takes the file"                                              "$( MDLT_ORIGIN="$MDLT_ORIGIN" bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-doc-validate routine "$rigWorkDuty/magic-team.work-duty.routine.md" > /dev/null 2>&1 ; printf 'rc=%s' "$?" )" rc=0
 rigWdPolicy="$( . "$rigHere/session/AgentsTools.RoutineRequirements.include" ; AgentsToolsRoutineKey "$rigWorkDuty/magic-team.work-duty.routine.md" cache-prefix )"
 rigScene wd wd ; rigRecord "$rigWdPolicy" magic-team.work-duty.routine.md
 cp "$rigWorkDuty/magic-team.work-duty.routine.md" "$rigWorkDuty/magic-team.standalone.routine.md" "$rigSkills/magic-team/"
 rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
 rigAssert "a run of it carries the armed file and NOT the routine: the dispatch carries the routine instead"  "$( rigCount "$rigDir/req.1" '**work-the-input**' ):$( rigCount "$rigDir/req.1" '### session-start' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" 0:0:yes
-rigAssert "three markers a request, no team+ and no member+ block"                        "$( rigMarkers "$rigDir/req.1" ):$( rigCount "$rigDir/req.1" '## Team+' ):$( rigCount "$rigDir/req.1" '## Member+' )" 3:0:0
+rigAssert "three markers a request, no team+ block, and no member+ block: the rig member has no reference file"                        "$( rigMarkers "$rigDir/req.1" ):$( rigCount "$rigDir/req.1" '## Team+' ):$( rigCount "$rigDir/req.1" '## Member+' )" 3:0:0
 rigScene wd-none wd ; rigRecord "" magic-team.work-duty.routine.md ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes
 rigAssert "control: a record with no policy carries no routine either, the armed file alone"  "$( rigCount "$rigDir/req.1" '**work-the-input**' ):$( rigIn "$( rigReq 1 )" 'RIG-A-ARMED-BODY' )" 0:yes
 rigScene wd-inherit wd ; rigRecordInherited routine magic-team.work-duty.routine.md ; rigTextStream "$rigDir/res.1" RIG-DONE ; rigRun rig-a yes

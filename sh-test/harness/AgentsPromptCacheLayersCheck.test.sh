@@ -86,7 +86,7 @@ printf 'RIG-TEAM-COMMON-LINE one two\n' > "$rigSkills/magic-team/magic-team.basi
 } > "$rigSkills/magic-team/magic-team.armed.md"
 printf '# Negotiations\n\n# %s\n\nRIG-TEAM-NEGOTIATIONS-SECTION\n' "$rigSectionA" > "$rigSkills/magic-team/magic-team.negotiations.md"
 printf -- '---\nname: magic-team\n---\nteam skill\n' > "$rigSkills/magic-team/SKILL.md"
-printf -- '---\nrequires-session-kind: standalone\n---\n# magic-team.work-duty.routine — the actual procedure\n\n# Summary\n\nThe rig duty.\n\n# Opening steps\n\n1. **rig-own-open**: RIG-ROUTINE-OPENING.\n\n# Steps\n\n1. **rig-own-work**: work.\n\n# Closure steps\n\n1. **rig-own-close**: close.\n' > "$rigSkills/magic-team/magic-team.work-duty.routine.md"
+printf -- '---\nrequires-session-kind: standalone\ncache-prefix: extended\n---\n# magic-team.work-duty.routine — the actual procedure\n\n# Summary\n\nThe rig duty.\n\n# Opening steps\n\n1. **rig-own-open**: RIG-ROUTINE-OPENING.\n\n# Steps\n\n1. **rig-own-work**: work.\n\n# Closure steps\n\n1. **rig-own-close**: close.\n' > "$rigSkills/magic-team/magic-team.work-duty.routine.md"
 printf -- '---\nrequires-session-kind: coworking\n---\n# magic-team.standalone.routine — the kind routine\n\n# Opening steps\n\n1. **rig-kind-open**: RIG-KIND-OPENING.\n' > "$rigSkills/magic-team/magic-team.standalone.routine.md"
 printf -- '---\nrequires-session-kind: coworking\ncache-prefix: routine\n---\n# magic-team.rigroutine.routine — the actual procedure\n\n# Summary\n\nA rig routine that preloads its own text.\n\n# Opening steps\n\n1. **rig-routine-open**: RIG-ROUTINE-POLICY-OPENING.\n' > "$rigSkills/magic-team/magic-team.rigroutine.routine.md"
 printf -- '---\nrequires-session-kind: coworking\n---\n# magic-team.epic.routine — the actual procedure\n\n# Opening steps\n\n1. **RIG-EPIC-OPENING**: the epic procedure, the same file for every epic.\n' > "$rigSkills/magic-team/magic-team.epic.routine.md"
@@ -249,9 +249,9 @@ echo "-- 3. work-duty: the routine and the member static guidance are the dispat
 rigWorkDutyDispatch a-wd-1 rig-a > "$rigTmp/wd-dispatch.1"
 rigWorkDutyDispatch a-wd-2 rig-a > "$rigTmp/wd-dispatch.2"
 rigWorkDutyDispatch b-wd-1 rig-b > "$rigTmp/wd-dispatch.b"
-rigSpawn a-wd-1 rig-a armed "" "$( cat "$rigTmp/wd-dispatch.1" )"
-rigSpawn a-wd-2 rig-a armed "" "$( cat "$rigTmp/wd-dispatch.2" )"
-rigSpawn b-wd-1 rig-b armed "" "$( cat "$rigTmp/wd-dispatch.b" )"
+rigSpawn a-wd-1 rig-a extended "" "$( cat "$rigTmp/wd-dispatch.1" )"
+rigSpawn a-wd-2 rig-a extended "" "$( cat "$rigTmp/wd-dispatch.2" )"
+rigSpawn b-wd-1 rig-b extended "" "$( cat "$rigTmp/wd-dispatch.b" )"
 rigWd1="$rigTmp/spawn.a-wd-1/req.1" ; rigWd2="$rigTmp/spawn.a-wd-2/req.1" ; rigWdBs="$rigTmp/spawn.b-wd-1/req.1"
 rigWorkDutyHead a > "$rigTmp/wd-head.a1"
 rigWorkDutyHead a > "$rigTmp/wd-head.a2"
@@ -259,11 +259,11 @@ rigSessionWd="$( rigSessionAt "$rigWd1" )"
 rigWdVars="$( rigOffset "$rigWd1" '## This run -- its own variables' )"
 rigAssert "the dispatch's static head is byte-identical across two work-duty runs of one member" \
 	"$( cmp -s "$rigTmp/wd-head.a1" "$rigTmp/wd-head.a2" && printf same || printf differ )" same
-rigAssert "the dispatch carries the routine first, then the member's static reference guidance" \
-	"$( rigCount "$rigWd1" 'RIG-ROUTINE-OPENING' ):$( rigCount "$rigWd1" 'RIG-A-REFERENCE' ):$( [ "$( rigOffset "$rigWd1" 'RIG-ROUTINE-OPENING' )" -lt "$( rigOffset "$rigWd1" 'RIG-A-REFERENCE' )" ] && printf ordered )" "1:1:ordered"
-rigAssert "the routine is the dispatch's, not a prefetched block: the harness adds no routine for cache-prefix: armed" \
+rigAssert "the dispatch carries the routine alone, and the member's reference is one copy, in the Member+ layer before the session layer (cache-prefix: extended)" \
+	"$( rigCount "$rigWd1" 'RIG-ROUTINE-OPENING' ):$( rigCount "$rigWd1" 'RIG-A-REFERENCE' ):$( [ "$( rigOffset "$rigWd1" 'RIG-A-REFERENCE' )" -lt "$rigSessionWd" ] && printf before )" "1:1:before"
+rigAssert "the routine is the dispatch's, not a prefetched block: the harness adds no routine for cache-prefix: extended" \
 	"$( rigCount "$rigWd1" '## This session -- the routine' ):$( rigCount "$rigWd1" '## The routine -- carried here' )" "0:1"
-rigAssert "the member static guidance is before the variables, and the variables are last" \
+rigAssert "the member's reference is before the variables, and the variables are last" \
 	"$( [ -n "$rigWdVars" ] && [ "$( rigOffset "$rigWd1" 'RIG-A-REFERENCE' )" -lt "$rigWdVars" ] && [ "$( rigOffset "$rigWd1" 'RIG-ROUTINE-OPENING' )" -lt "$rigWdVars" ] && printf ordered )" ordered
 rigAssert "two work-duty runs share the whole prefix, the routine and the guidance before their variables" \
 	"$( { [ -n "$( rigDiffAt "$rigWd1" "$rigWd2" )" ] && [ "$( rigDiffAt "$rigWd1" "$rigWd2" )" -ge "$rigWdVars" ] ; } && printf shared || printf differ )" shared
@@ -273,34 +273,34 @@ rigAssert "a work-duty's run notes come after its variables, so no per-run root 
 	"$( [ "$( rigOffset "$rigWd1" '## This session -- what is yours for this run alone' )" -gt "$rigWdVars" ] && printf after )" after
 rigAssert "two work-duty sessions of different members share the whole team layer and differ at the member label" \
 	"$( { [ -n "$( rigDiffAt "$rigWd1" "$rigWdBs" )" ] && [ "$( rigDiffAt "$rigWd1" "$rigWdBs" )" -ge "$( rigTeamEnd "$rigWd1" )" ] ; } && printf team-plus || printf more )" team-plus
-rigAssert "a work-duty and a plain spawn of one member differ at the work-duty dispatch, not in the team layer" \
-	"$( [ "$( rigDiffAt "$rigA1" "$rigWd1" )" -ge "$rigSessionWd" ] && printf session || printf earlier )" session
-rigAssert "no team+ or member+ layer and no extended marker on a work-duty" "$( rigNoTeamPlus "$rigWd1" )" 1
+rigAssert "a work-duty and a plain spawn of one member differ at the Member+ layer, after the team layer and the member's armed content" \
+	"$( [ "$( rigDiffAt "$rigA1" "$rigWd1" )" -ge "$( rigOffset "$rigWd1" '## Member+ -- ' )" ] && printf member-plus || printf earlier )" member-plus
+rigAssert "a work-duty of cache-prefix: extended carries the Member+ layer once and no Team+ layer (it has no content), and no armed-extended marker" \
+	"$( rigCount "$rigWd1" '## Member+ -- ' ):$( rigCount "$rigWd1" '## Team+' ):$( rigCount "$rigWd1" 'armed-extended' )" "1:0:0"
 
-echo "-- 3b. the + layers: a work-duty carries the team's and its member's extended files after the team and member layers; no other session does --"
+echo "-- 3b. the + layers: a work-duty carries the team's extended file and its member's reference files after the team and member layers; no other session does --"
 ## The extended files are optional skillset files: magic-team/magic-team.armed-extended.md after the team layer, <member>/<member>.armed-extended.md after the
 ## member's armed content. Written here, after the sections above, so none of them sees one.
 printf 'RIG-TEAM-PLUS-LINE the team static knowledge only a work-duty preloads\n' > "$rigSkills/magic-team/magic-team.armed-extended.md"
-printf 'RIG-A-PLUS-LINE the member static knowledge only its work-duty preloads\n' > "$rigSkills/rig-a/rig-a.armed-extended.md"
 rigWdRoutine=magic-team.work-duty.routine.md
 rigSpawn a-plain-plus rig-a "" "" 'DISPATCH-A-PLAIN-PLUS
 RIG-TASK-APP'
-rigSpawn a-wdplus-1 rig-a armed "" "$( rigWorkDutyDispatch a-wdplus-1 rig-a )" "$rigWdRoutine"
-rigSpawn a-wdplus-2 rig-a armed "" "$( rigWorkDutyDispatch a-wdplus-2 rig-a )" "$rigWdRoutine"
-rigSpawn b-wdplus-1 rig-b armed "" "$( rigWorkDutyDispatch b-wdplus-1 rig-b )" "$rigWdRoutine"
+rigSpawn a-wdplus-1 rig-a extended "" "$( rigWorkDutyDispatch a-wdplus-1 rig-a )" "$rigWdRoutine"
+rigSpawn a-wdplus-2 rig-a extended "" "$( rigWorkDutyDispatch a-wdplus-2 rig-a )" "$rigWdRoutine"
+rigSpawn b-wdplus-1 rig-b extended "" "$( rigWorkDutyDispatch b-wdplus-1 rig-b )" "$rigWdRoutine"
 rigPlain="$rigTmp/spawn.a-plain-plus/req.1" ; rigWp1="$rigTmp/spawn.a-wdplus-1/req.1" ; rigWp2="$rigTmp/spawn.a-wdplus-2/req.1" ; rigWpB="$rigTmp/spawn.b-wdplus-1/req.1"
-rigAssert "a plain spawn carries neither extended file, though both stand in the skillset" "$( rigCount "$rigPlain" 'RIG-TEAM-PLUS-LINE' ):$( rigCount "$rigPlain" 'RIG-A-PLUS-LINE' ):$( rigCount "$rigPlain" '## Team+' ):$( rigCount "$rigPlain" '## Member+' )" "0:0:0:0"
+rigAssert "a plain spawn carries neither the team's extended file nor the member's reference, though both stand in the skillset" "$( rigCount "$rigPlain" 'RIG-TEAM-PLUS-LINE' ):$( rigCount "$rigPlain" 'RIG-A-REFERENCE' ):$( rigCount "$rigPlain" '## Team+' ):$( rigCount "$rigPlain" '## Member+' )" "0:0:0:0"
 rigAssert "a work-duty carries the team's extended file once, under its own label, and its member's once" \
-	"$( rigCount "$rigWp1" '## Team+ -- ' ):$( rigCount "$rigWp1" 'RIG-TEAM-PLUS-LINE' ):$( rigCount "$rigWp1" '## Member+ -- ' ):$( rigCount "$rigWp1" 'RIG-A-PLUS-LINE' )" "1:1:1:1"
+	"$( rigCount "$rigWp1" '## Team+ -- ' ):$( rigCount "$rigWp1" 'RIG-TEAM-PLUS-LINE' ):$( rigCount "$rigWp1" '## Member+ -- ' ):$( rigCount "$rigWp1" 'RIG-A-REFERENCE' )" "1:1:1:1"
 rigAssert "the order is team, team+, member, member armed content, member+, then the session layer" \
-	"$( [ "$( rigOffset "$rigWp1" 'RIG-TEAM-ARMED-LINE-059' )" -lt "$( rigOffset "$rigWp1" 'RIG-TEAM-PLUS-LINE' )" ] && [ "$( rigOffset "$rigWp1" 'RIG-TEAM-PLUS-LINE' )" -lt "$( rigOffset "$rigWp1" '## Your role -- the same for every session of rig-a' )" ] && [ "$( rigOffset "$rigWp1" 'RIG-A-BASIC own words' )" -lt "$( rigOffset "$rigWp1" 'RIG-A-ARMED-LINE-119' )" ] && [ "$( rigOffset "$rigWp1" 'RIG-A-ARMED-LINE-119' )" -lt "$( rigOffset "$rigWp1" 'RIG-A-PLUS-LINE' )" ] && [ "$( rigOffset "$rigWp1" 'RIG-A-PLUS-LINE' )" -lt "$( rigSessionAt "$rigWp1" )" ] && printf ordered )" ordered
+	"$( [ "$( rigOffset "$rigWp1" 'RIG-TEAM-ARMED-LINE-059' )" -lt "$( rigOffset "$rigWp1" 'RIG-TEAM-PLUS-LINE' )" ] && [ "$( rigOffset "$rigWp1" 'RIG-TEAM-PLUS-LINE' )" -lt "$( rigOffset "$rigWp1" '## Your role -- the same for every session of rig-a' )" ] && [ "$( rigOffset "$rigWp1" 'RIG-A-BASIC own words' )" -lt "$( rigOffset "$rigWp1" 'RIG-A-ARMED-LINE-119' )" ] && [ "$( rigOffset "$rigWp1" 'RIG-A-ARMED-LINE-119' )" -lt "$( rigOffset "$rigWp1" 'RIG-A-REFERENCE' )" ] && [ "$( rigOffset "$rigWp1" 'RIG-A-REFERENCE' )" -lt "$( rigSessionAt "$rigWp1" )" ] && printf ordered )" ordered
 rigAssert "the system message is the team layer still: neither + layer is in it, and it is byte for byte a plain spawn's" \
 	"$( rigCount "$rigWp1" '## Team+ -- ' ) $( [ "$( rigSystemBytes "$rigWp1" )" = "$( rigSystemBytes "$rigPlain" )" ] && printf same || printf differ )" "1 same"
 rigAssert "two work-duty runs of one member share the + layers whole and first differ in the session layer" \
-	"$( [ "$( rigDiffAt "$rigWp1" "$rigWp2" )" -ge "$( rigSessionAt "$rigWp1" )" ] && [ "$( rigDiffAt "$rigWp1" "$rigWp2" )" -gt "$( rigOffset "$rigWp1" 'RIG-A-PLUS-LINE' )" ] && printf shared || printf earlier )" shared
+	"$( [ "$( rigDiffAt "$rigWp1" "$rigWp2" )" -ge "$( rigSessionAt "$rigWp1" )" ] && [ "$( rigDiffAt "$rigWp1" "$rigWp2" )" -gt "$( rigOffset "$rigWp1" 'RIG-A-REFERENCE' )" ] && printf shared || printf earlier )" shared
 rigAssert "two work-duty runs of different members share the team layer and the team+ layer, and first differ at the member label" \
 	"$( [ "$( rigDiffAt "$rigWp1" "$rigWpB" )" -ge "$( rigTeamEnd "$rigWp1" )" ] && [ "$( rigDiffAt "$rigWp1" "$rigWpB" )" -gt "$( rigOffset "$rigWp1" 'RIG-TEAM-PLUS-LINE' )" ] && printf at-member || printf earlier )" at-member
-rigAssert "a member with no extended file has the team+ layer and no member+ layer" "$( rigCount "$rigWpB" 'RIG-TEAM-PLUS-LINE' ):$( rigCount "$rigWpB" '## Member+ -- ' )" "1:0"
+rigAssert "another member has the team+ layer and its own Member+ layer: its reference, not the first member's" "$( rigCount "$rigWpB" 'RIG-TEAM-PLUS-LINE' ):$( rigCount "$rigWpB" '## Member+ -- ' ):$( rigCount "$rigWpB" 'RIG-B-REFERENCE' ):$( rigCount "$rigWpB" 'RIG-A-REFERENCE' )" "1:1:1:0"
 
 echo "-- 4. epic and routine: the same team prefix; only the routine policy preloads a routine --"
 rigSpawn a-epic-1 rig-a "" magic-team.epic.routine.md 'DISPATCH-EPIC-ONE
@@ -387,7 +387,7 @@ echo "-- the Team+ and Member+ layers are real: the harness says so, and reads t
 ## The comment at the layers said there is no + layer, against the code beside it. The files are the librarian's: they are optional, and a skillset without them has no such layer.
 rigAssert "the harness does not say there is no + layer" "$( LC_ALL=C grep -c -F 'There is no + layer' "$rigHere/harness/AgentsUniversalHarness.sh" || : )" 0
 rigAssert "the Team+ file is read beside magic-team.armed.md, where the skillset keeps the team's files" "$( LC_ALL=C grep -c -F '/magic-team/magic-team.armed-extended.md' "$rigHere/harness/AgentsUniversalHarness.sh" ):$( [ -f "${rigHere%/sh-lib}/skillset/magic-team/magic-team/magic-team.armed.md" ] && echo beside )" "2:beside"
-rigAssert "the Member+ file is read beside the member's armed file" "$( LC_ALL=C grep -c -F '$pfRoot/$pfMember/$pfMember.armed-extended.md' "$rigHere/harness/AgentsHarnessSkills.include" )" 2
+rigAssert "the Member+ layer is built from the member's reference files and reads no armed-extended file" "$( LC_ALL=C grep -c -F 'armed-extended' "$rigHere/harness/AgentsHarnessSkills.include" || : ):$( LC_ALL=C grep -c -F 'AgentsHarnessMemberPlusText' "$rigHere/harness/AgentsHarnessSkills.include" )" "0:2"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ PROMPT CACHE LAYERS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

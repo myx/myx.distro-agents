@@ -98,9 +98,10 @@ for rigFile in "$rigTool" "$rigField" "$rigFixtures/root-harness-verbosity.curl.
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
+. "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1
 . "$rigFixtures/rig-temp.include.sh" || exit 1
 rigTmp="$( rigTempDir AgentsRootHarnessVerbosityCheck )" || exit 1
-trap 'chmod -R u+w -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigControlThreadsEnd "$rigTmp" ; chmod -R u+w -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 
 ## THE RIG ORIGIN: a COPY of the tree under test, and read-only links to the real siblings.

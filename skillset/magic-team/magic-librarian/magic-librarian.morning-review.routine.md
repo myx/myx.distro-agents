@@ -60,7 +60,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **read-board-shape**: `magic-librarian` reads this run's input scan result (`input/input-scan.md`).
 2. **check-state-shape-drift**: Check the state model itself, not only content, from the scan's state shape — for example `board-blocked` and `board-parked` items collapsed into `board-running` or `board-archived`, losing the difference between "stalled on something external" and "deliberately deferred".
-   - step: check the skillset files the scan lists as changed for accreted dated narration, per `magic-librarian/magic-librarian.armed.md`'s "Skillset content hygiene"; a rewrite is proposed for the skillset change rule.
+   - step: check the skillset files the scan lists as changed for accreted dated narration, per "Skillset content hygiene"; a rewrite is proposed for the skillset change rule.
 3. **check-cross-file-consistency**: Check status claims in one file against the current content of another, starting from the skillset files the scan lists as changed.
 
 # Closure steps

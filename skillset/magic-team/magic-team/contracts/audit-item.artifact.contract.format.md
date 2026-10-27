@@ -49,7 +49,7 @@ The record of one published document, rewritten whole at each of its states. Wri
 - `text` — free text on one line.
 - `url` — one URL, or `-` while none exists.
 - `member` — one team member name, or `human-owner`.
-- `date-time` — `YYYY-MM-DD HH:MM ±HHMM`, numeric offset, never a zone abbreviation (`magic-team/magic-team.armed.md`'s Terminology `date-time`).
+- `date-time` — `YYYY-MM-DD HH:MM ±HHMM`, numeric offset, never a zone abbreviation (Terminology `date-time`).
 - `enum` — one of the values listed after it.
 
 ## Body

@@ -207,6 +207,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-message --session-id <id> [--to <participant>]...
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-join --session-id <id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--kind coworking|standalone|work-duty|free] [--also <team-member>[,<team-member>]...] [--goal <text>] [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-agent [--cli-service <cli-name>] [--goal <text>] [--from-stdin|--from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-run (install|uninstall|update) <subsystem>
 📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-read <subsystem>
@@ -4908,6 +4909,29 @@
 			<name> is the session's name as its record keeps it.
 			<dispatch-item> is the item the start made. Exit 1 with one
 			error line, and nothing on stdout, where nothing was started.
+
+		--manager-spawn-agent [--cli-service <cli-name>] [--goal <text>] [--from-stdin|--from-file <path>]
+			One of the console's own operations (see Notes). Starts a bare
+			agent: a prompt to a CLI service with the tools of this
+			workspace, with no team member, no session and no routine
+			(sketch 5.1: a simple ad-hoc spawn, up to zero folders and
+			documents, the fact only logged). The prompt is stdin (default)
+			or `--from-file`, or `--goal <text>` as an option; an empty one
+			is refused. `--cli-service <cli-name>` names the CLI; without it
+			the service configured for the workspace decides. The run is
+			detached and not waited for. It is started through the
+			console (`DistroAgentsConsole.sh --non-interactive`), the layer
+			below the spawn proxy, by the one function that starts the
+			console for every spawn (`AgentsToolsSpawnConsoleLaunch`), with
+			`MDAT_SPAWN_BARE=true` and no member name; the environment of any
+			session this call is inside is taken off. Nothing is made for it
+			but one line in `.local/agents/bare-spawn.log` at its start and
+			one at its end.
+			**Hazard: no secret belongs in the prompt** -- it reaches the
+			CLI's own command line, visible in `ps` on the host.
+			Prints one row on stdout, TAB-separated: `spawn-agent <pid> <cli>`
+			<cli> is the name given, or `configured`. Exit 1 with one error
+			line, and nothing on stdout, where nothing was started.
 
 		--manager-subsystem-list
 			One of the console's own operations (see Notes). Lists the subsystems

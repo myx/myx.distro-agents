@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SpawnConsoleLaunch.include -- the one place that starts the agent console for a spawn: the layer
+## below the spawn proxy (--intern-op-agent-spawn-proxy) and below the bare start of the manager
+## (--manager-spawn-agent). A member's spawn and a bare agent are the same launch with a different environment.
+##
+
+## Replaces the calling process with the console started non-interactively: `AgentsToolsSpawnConsoleLaunch [<env
+## word>...] -- [<console argument>...]`. An env word is anything `env` takes before a command (NAME=value, -u NAME); the
+## `-u NAME` words go before every NAME=value word, as `env` reads its options first;
+## MMDAPP is always set to this workspace's. The console arguments are the CLI selection (--cli-configured, or --cli <name>);
+## `--non-interactive` is added after them. The prompt is the standard input of the call, the output is the caller's to
+## redirect. It is called where the caller wants the process to be the console's own (a background job, a subshell),
+## because it does not return.
+AgentsToolsSpawnConsoleLaunch(){
+	local launchEnv=()
+	while [ $# -gt 0 ] && [ "$1" != "--" ] ; do
+		launchEnv+=( "$1" )
+		shift
+	done
+	shift || true
+	exec env ${launchEnv[@]+"${launchEnv[@]}"} MMDAPP="$MMDAPP" "$BASH" "$MMDAPP/DistroAgentsConsole.sh" "$@" --non-interactive
+}

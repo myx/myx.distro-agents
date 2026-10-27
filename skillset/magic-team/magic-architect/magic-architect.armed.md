@@ -61,7 +61,7 @@ Named procedure blocks. Steps below call them by name. Not separate routines —
 ## `grooming-scores-review` — select and run this member's idle-run scoring routine
 
 Steps:
-1. Select one eligible entry from this file's `## Idle-Tasks`, per `magic-team/magic-team.armed.md`'s "Duties: three kinds, plus reflection".
+1. Select one eligible entry from this file's `## Idle-Tasks`, per "Duties: three kinds, plus reflection".
 2. Run it, Steps and Closure steps.
 
 # Team-Member's (-specific) local rules

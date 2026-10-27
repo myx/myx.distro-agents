@@ -29,7 +29,7 @@ review-by: inherit
 
 # Summary
 
-`magic-team.plan.routine` turns one decided task, smaller than an epic, into a plan the team can approve and run: its pieces, their order, who and what each needs, and how each is verified.
+`magic-team.plan.routine` turns one decided piece of work, smaller than an epic, into a plan the team can approve and run: its pieces, their order, who and what each needs, and how each is verified.
 
 ## Goals
 
@@ -65,26 +65,31 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - the pieces together cover the whole scope, and nothing outside it.
    - no two pieces overlap. Each piece has one owner.
    - split a piece again only while it is too big for one work session.
-5. **order-the-pieces**: put the pieces in an order that keeps the system working, steps:
-   - what others build on comes first: a definition before its callers.
-   - after each piece, the system still works. A piece that breaks it until a later one lands is split or reordered.
+5. **order-the-pieces**: put the pieces in an order that keeps the work usable, steps:
+   - what others build on comes first. In software, a definition comes before its callers.
+   - after each piece, the work stays usable. A piece that breaks it until a later one lands is split or reordered.
    - record each dependency as `blocks`/`blocked-by` between the pieces.
 6. **name-what-each-piece-needs**: for each piece, make the best guess its dispatch can carry, steps:
    - the members and expertise, the access permissions, and the tools, worked out from its targets: paths, pages, any text.
-   - its verification: the check that proves it done, and its failing case, agreed with `magic-tester`.
+   - its verification: the check that proves it done, and the case it must fail on, agreed with the member who will verify it (`magic-tester` for software).
    - a destructive or irreversible step inside it, marked for confirmation before it runs.
 7. **imagine-it-failed**: assume the plan was carried out and failed, steps:
    - each participant names what went wrong, without debate.
    - for each cause worth acting on: add a check, a mitigation or a fallback to the piece it hits, or record the risk as accepted.
 8. **check-the-plan**: put the plan to the members whose lens it needs, steps:
    - `magic-architect` for a new structure, dependency or contract.
-   - `magic-tester` for the verification of each piece.
+   - the verifier of each piece for its check: `magic-tester` for software, else the domain owner.
    - `magic-librarian` for the plan's text.
    - a disagreement becomes the no-quorum document, per "The ladder: one rung at a time".
-9. **propose-the-plan**: write the plan into the task's tracking document, and put it up for approval, steps:
+9. **propose-and-route**: write the plan into the task's tracking document, put it up for approval, and name the next flow step, steps:
    - the outcome and done criteria, the pieces in order, each piece's needs and checks, and the accepted risks.
    - a plan that binds the team, or needs the human-owner's go, goes through `magic-team.proposal.routine`.
    - otherwise the session's own parent approves it, per "The ladder: one rung at a time".
+   - the next flow step, by outcome:
+     - **approved** — each piece goes to the board for its implementation dispatch, then `magic-team.verify.routine` on each piece claimed complete.
+     - **returned with a choice to make** — `magic-team.discuss.routine`.
+     - **returned because the ask is unclear** — `magic-team.interview.routine`.
+     - **a fact missing** — `magic-team.investigate.routine` for the thing itself, `magic-team.research.routine` for outside sources.
 
 # Closure steps
 
@@ -106,7 +111,7 @@ All statements apply at the same time, always. These rules override a participan
 - **Plan, never build.** No piece starts during planning. An experiment the plan needs is filed as `magic-team.investigate.routine` work.
 - **Every piece is checkable.** A piece with no check that can fail is not ready for the plan.
 - **The whole scope, and only it.** A piece outside the stated scope is filed as a proposal, never planned in.
-- **A gap is asked, not filled.** A fact the plan needs and nobody holds goes to `magic-team.research.routine` or to the owner, never into a guess.
+- **A gap is asked, not filled.** A fact the plan needs and nobody holds goes to `magic-team.investigate.routine`, `magic-team.research.routine` or the owner, never into a guess.
 - Every exchange that decides something is kept as a `transcript-*` with `--append-transcript`. Waiting follows **wait-never-quit**.
 - Goal-directedness: plan the stated task. Other work found on the way is recorded quickly, not planned now.
 
@@ -132,7 +137,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-tests (benchmarks)
 
-- (draft) A piece would leave the tooling broken until the next piece lands. The plan splits or reorders it, so each step leaves the system working.
+- (draft) A piece would leave the work unusable until the next piece lands. The plan splits or reorders it, so each step leaves the system working.
 - (draft) A piece has no check that can fail. The plan is not proposed until the piece has one.
 - (draft) The plan is approved. Nothing is built until a dispatch is given the go.
 
@@ -146,4 +151,4 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Conventions
 
-- **state-the-outcome**, **order-the-pieces** and **imagine-it-failed** are the steps other routines may cite by name.
+- **state-the-outcome**, **order-the-pieces**, **imagine-it-failed** and **propose-and-route** are the steps other routines may cite by name.

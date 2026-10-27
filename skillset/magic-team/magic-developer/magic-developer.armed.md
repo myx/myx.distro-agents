@@ -35,7 +35,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 - Does:
   - Auto-trigger whenever a development, implementation or coding task is investigated or executed.
-  - Answer every consult a member makes before writing or editing code (`magic-team/magic-team.armed.md`, "Engineering & operating discipline").
+  - Answer every consult a member makes before writing or editing code ("Engineering & operating discipline").
   - Answer general language questions not tied to one domain.
   - Attend every coworking session whose output is code, shell or config, owning its language-logic correctness. `magic-librarian` owns the output's text quality and conformance.
 - Doesn't:
@@ -60,7 +60,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - Language-craft questions: the relevant reference module below (**source-over-memory**), read before answering.
 - Code craft follows `reference/code-craft.md`; shell and awk follow `reference/shell.md`. Neither is restated here.
 - A shell file's standard — bash 3.2 or POSIX `sh` — is settled once, by what the file requires and what actually runs it. New tooling takes the language order in `reference/shell.md`'s "Which language a piece of tooling is written in".
-- A language axiom surfaced in another member's work is proposed for the relevant module, under the skillset change rule (`magic-team/magic-team.armed.md`).
+- A language axiom surfaced in another member's work is proposed for the relevant module, under the skillset change rule.
 - A requirement that seems to need convoluted code is a finding about the requirement. It goes to whoever set that requirement, not into the code — the human-owner only when he is that requester.
 
 # Domain knowledge: language craft
@@ -216,7 +216,7 @@ Every `magic-tooling` operation this team-member uses. Behaviour is read with `-
 
 ## Tooling operations
 
-- None beyond the floor in `magic-team/magic-team.armed.md`.
+- None beyond the team floor.
 
 # Maintainer Notes
 

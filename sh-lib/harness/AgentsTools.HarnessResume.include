@@ -11,6 +11,8 @@
 ##
 
 agentsHarnessResumeLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+## The one function that starts the console for every spawn, loaded with this file.
+type AgentsToolsSpawnConsoleLaunch > /dev/null 2>&1 || . "$agentsHarnessResumeLib/session/AgentsTools.SpawnConsoleLaunch.include"
 
 ## Whether a context file parses as one the harness can load. rc 0 and its message count;
 ## rc 1 and the reason.
@@ -66,9 +68,9 @@ AgentsToolsSpawnProxyHarnessResumeRun(){ ## session id, session thread, conversa
 	runFrom="$( head -1 "$runContext" 2>/dev/null | LC_ALL=C awk -v path=session -v optional=1 -f "$agentsHarnessResumeLib/harness/AgentsHarnessJsonField.awk" 2>/dev/null )" || runFrom=""
 	runMark="${MDAT_SPAWN_LAUNCH_MARKER:-$MMDAPP/.local/temp/mdat-$MDAT_SPAWN_SESSION_ID.launch}.resume-context"
 	rm -f "$runMark"
-	env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
+	AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
 		MDAT_HARNESS_RESUME_CONTEXT="$runContext" MDAT_HARNESS_RESUME_MARKER="$runMark" \
-		"$BASH" "$MMDAPP/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runResume" &
+		-- "$@" <<< "$runResume" &
 	runPid=$!
 	AgentsToolsSpawnProxyRunRecord "$runPid"
 	## Recorded as soon as the harness says it loaded, so the line precedes the run's own.
@@ -94,8 +96,8 @@ AgentsToolsSpawnProxyHarnessResumeRun(){ ## session id, session thread, conversa
 	## kept on the spawn's record (AgentsToolsSpawnProxyRunRecord). Nothing else of the run
 	## changes: its stdin and its streams are the same, its exit status is what this returns,
 	## and the wait lasts until that process has ended.
-	env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
-		"$BASH" "$MMDAPP/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runFull" &
+	AgentsToolsSpawnConsoleLaunch MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
+		-- "$@" <<< "$runFull" &
 	runPid=$!
 	AgentsToolsSpawnProxyRunRecord "$runPid"
 	runRc=0

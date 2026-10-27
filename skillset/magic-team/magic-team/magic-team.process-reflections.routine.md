@@ -87,7 +87,7 @@ All statements apply at the same time, always. These rules override a participan
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
 - Every lesson goes through **agree-with-maintainers**, however small, and whatever was processed elsewhere before.
 - A lesson is incorporated only by a real change to a real skillset file, never by content invented to close the item.
-- A lesson lands where `magic-team.armed.md`'s "Knowledge destinations" says.
+- A lesson lands where "Knowledge destinations" says.
 - Waiting for maintainers follows **wait-never-quit**.
 - Goal-directedness: work toward the session's goal. Off-goal items are recorded quickly, not acted on now.
 

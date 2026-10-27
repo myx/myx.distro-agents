@@ -286,7 +286,7 @@ rigAssert "the old code's packet has no routine line, so the exact row above can
 rigAssert "and it differs from the expected packet"       "$( rigExpect "$rigModeNon" "$rigRoutineLine" ; cmp -s "$rigTmp/stub.stdin" "$rigTmp/stub.expect" && echo identical || echo different )" different
 
 echo "-- the caching policy of a routine, carried on the spawn record (F10.7) --"
-for rigCacheName in cachea:routine cacheb: cachec:armed cached:armed-extended ; do
+for rigCacheName in cachea:routine cacheb: cachec:armed cached:armed-extended cachee:extended ; do
 	rigCacheFile="$rigSkills/magic-team/magic-team.${rigCacheName%%:*}.routine.md"
 	{
 		printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator, magic-librarian\ninvitees: magic-team\nrequires-session-kind: coworking\n'
@@ -303,6 +303,7 @@ rigAssert "a routine that says cache-prefix: routine has it on the record"    "$
 rigAssert "a routine that says nothing has armed, the default"                "$( rigCacheRecord cacheb )" armed
 rigAssert "a routine that says armed has it"                                  "$( rigCacheRecord cachec )" armed
 rigAssert "a routine that says the retired armed-extended falls back to armed" "$( rigCacheRecord cached )" armed
+rigAssert "a routine that says extended (armed and the Member+ layer, sketch 8) has it on the record" "$( rigCacheRecord cachee )" extended
 rigAssert "a spawn of no routine has no such line on its record"              "$( rigCacheRecord none )" absent
 
 echo "-- T1 subtask inheritance: an ad-hoc helper of a routine-prefix session reuses its prefix --"

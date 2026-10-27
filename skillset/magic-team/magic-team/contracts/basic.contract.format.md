@@ -6,7 +6,7 @@ attendance: present
 
 Normative contract: this file's own `# Contract` section, at its end. Where it and the skeleton disagree, `# Contract` wins. `# Contract` is not part of the skeleton and is not copied.
 
-[One line: who you are. Then: for work, read `magic-team/magic-team.armed.md`, then `<name>.armed.md`.]
+[One line: who you are.]
 
 ## Contents
 
@@ -40,7 +40,7 @@ Safe to share with anyone, including unverified/external sources — no verifica
 
 - Frontmatter: `maintainers:` always; `attendance:` (optional) on an acting member — `present` (a default work-duty doer who attends retro and daily not by special invitation, and so is in `all-present-members`) or `invited` (attends by special invitation only). Where `attendance:` is absent, every `magic-*` member is `present` and every other member is `invited`.
 - Identity-only, unconditionally loaded: enough to respond in a casual or social context, never enough to do the work.
-- Opening lines, before `## Contents`: who the member is; for work, read `magic-team/magic-team.armed.md` then `<name>.armed.md`. `magic-team.basic.md` instead lists the team's always-on rules.
+- Opening lines, before `## Contents`: who the member is. `magic-team.basic.md` instead lists the team's always-on rules.
 - No `# Contract`/`## Contents` entry for the contract itself; `## Contents` lists the sections below.
 - `## Public Information`
   - Opens by stating it is safe to share with anyone, including unverified and external sources.

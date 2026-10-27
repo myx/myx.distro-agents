@@ -35,7 +35,7 @@ review-by: inherit
 ## Goals
 
 - Give genuinely shared work a named shape: members react to each other in real time on the same task, with `magic-coordinator` keeping the shared goal on track.
-- Anchor the session to the workspace it is started in, its default for everything in it (`magic-team.armed.md`'s "Workspace"); every participant talks in its one session thread, and its automatic trace runs in its own tracking-thread in `event-track`.
+- Anchor the session to the workspace it is started in, its default for everything in it ("Workspace"); every participant talks in its one session thread, and its automatic trace runs in its own tracking-thread in `event-track`.
 - Own the opening group (**session-start**) and closing group (**close-session**) that every session runs, and the session-type taxonomy they key off.
 
 ## Scope
@@ -79,7 +79,7 @@ All participants: each runs `magic-team.process-inbox.routine <own-name>` inline
 
 ## opening-checkpoint
 
-The last Opening step, only where this routine's `allows:` names `--executor-checkpoint-push` (a single-participant routine): run `DistroAgentsSession.fn.sh --executor-checkpoint-push opening`. A routine that does not name it does not run this step, and that is no skipped step.
+The last Opening step, only where this routine's `access-control:` carries `executors:allow-tool:--executor-checkpoint-push` (a single-participant routine): run `DistroAgentsSession.fn.sh --executor-checkpoint-push opening`. A routine that does not name it does not run this step, and that is no skipped step.
 
 # Steps
 

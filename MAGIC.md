@@ -773,6 +773,14 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   row, such a routine started by `--spawn-session --routine <selector> <team-member>...`. Its code
   is `sh-lib/manager/AgentsTools.ManagerRoutine.include`; `AgentsManagerRoutineListCheck` is
   its test.
+- **`--manager-spawn-agent [--cli-service <cli>]`** starts a bare agent: a prompt, on stdin, a file or `--goal`, to a CLI
+  service with the tools of the workspace, with no team member, no session and no record (sketch 5.1, "logged the fact
+  only": one start line and one end line in `.local/agents/bare-spawn.log`). It starts the console
+  (`DistroAgentsConsole.sh --non-interactive`), the layer below the spawn proxy, by the one function that starts the console
+  for every spawn, `AgentsToolsSpawnConsoleLaunch` (`sh-lib/session/AgentsTools.SpawnConsoleLaunch.include`; the proxy, its
+  retry and both resumes use it too), with `MDAT_SPAWN_BARE=true` and an empty `MDAT_SPAWN_AGENT`; the console's template skips
+  the coordinator default and the roots of a member for it. Its code is `sh-lib/manager/AgentsTools.ManagerSpawnAgent.include`;
+  `AgentsManagerSpawnAgentCheck` is its test. The Launchpad's Free Prompt calls it where no member is chosen.
 - **`--manager-spawn-member <team-member>`** starts one member with a prompt, in a new coworking session
   of its own, and does not wait. The prompt comes on stdin or from a file, never as an argument. It
   brings no member itself: the spawn proxy brings it, and asks of it the same check every start asks.
@@ -2128,8 +2136,24 @@ contracts are here.
   The spawn proxy keeps one duty per member: the session id is recorded under `work-duty-session-<member>`'s lock, and a start racing another's is refused.
   An executor of any routine (a member spawned or joined into a session) is not dismissed unless it is the last one running (sketch 5.3): its
   plain reply makes the idle-wait while another run of its session is going (`AgentsHarnessOthersRunning`), and the quiet round asks again.
-  The Team+ and Member+ layers of a work-duty are real: `magic-team/magic-team.armed-extended.md` and `<member>/<member>.armed-extended.md` are read
-  when the skillset holds them (sketch 8). They are the librarian's text: static, the same bytes on every duty, and what a duty reads on most runs.
+  The Member+ layer of a work-duty (sketch 8: "`Memeber+ layer` - `-extended` (for work-duty sessions) - more preloaded member static skill/knowledge") is
+  real and built from the skillset's existing text: the member's `reference/*.md`, in the order of their names, merged by `--intern-merge-md-files` with
+  `--section-limit 3` (a file reference for what lies deeper), right after the member's armed content and before the session layer
+  (`AgentsHarnessMemberPlusText`). A routine asks for it with `cache-prefix: extended`, the sibling of `armed` (the default) and `routine`: both
+  work-duty routines declare it, and the harness reads the key and no file name. The dispatch then carries the routine alone, and the member's reference
+  has one copy. The Team+ layer is as it was (the optional file `magic-team/magic-team.armed-extended.md`, empty).
+  The size of each member's Member+ text, in bytes, is what the skillset-size instrument (S7.2) tracks: human-owner 2,198, magic-architect 2,081,
+  magic-frontender 5,276, magic-coordinator 11,288, magic-team 33,163, magic-tester 37,693, magic-librarian 42,355, magic-devops 54,882 and
+  magic-developer 68,597 (2026-10-27). The text grows with the reference files; a member whose figure passes the owner's bound is told to the owner.
+- **The floor after a compaction.** Our harness keeps its layers: the team layer is the system message of every request, and a summarise-and-restart builds the first
+  message again (`AgentsWireInitMessages`) with the member layer, the prefetch and the task, the summary after them. A restart comes near the service's real window
+  (the threshold is the window less the output limit, `AgentsUniversalHarness.sh`, and a threshold under half the window is warned of). A native client's compaction
+  replaces the history with a summary, so the floor a spawned member loaded may be gone. `client-hooks/floor-after-compact.sh` tells it to load the floor again:
+  - Claude Code: a SessionStart hook with the matcher `compact` (a native record of the client tool policy, installed with the others) prints a pointer on stdout.
+  - Grok Build: PostCompact has no output, so `mark` keeps a marker in the session's store, and the next PreToolUse (`grok`) answers once with `additionalContext`.
+  - Copilot CLI: preCompact marks, and the next postToolUse (`copilot`) answers once with `additionalContext`.
+  - The hook files for the last two are printed by `floor-after-compact.sh config grok|copilot`, for the owner to put in `~/.grok/hooks/` or `~/.copilot/hooks/`; nothing writes them.
+  - DeepSeek and Scaleway have no native client: they run in our harness. `AgentsFloorAfterCompactCheck` holds the hook, `AgentsClaudeSettingsHooksCheck` its wiring.
 - **A member's own incoming is cached locally and refilled on a call when stale (T2)** — personal mail, tags and mentions, DMs,
   and the session chat — each by its own TTL of the one table (`AgentsTools.SourceTtl.include`): the session chat short (`chat:*` 15),
   the mail five minutes out of worktime and ten in it (`mail:*` 300, the 5–10 minute band; `AgentsToolsCollectTtlOf` stretches it by

@@ -175,7 +175,7 @@ shape".
   - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
-    - Only where this member lists the console operations: "Console sessions batch several commands in this member's workspace; a single call goes direct." `magic-team.armed.md`'s "Execution mechanisms" governs.
+    - Only where this member lists the console operations: "Console sessions batch several commands in this member's workspace; a single call goes direct." "Execution mechanisms" governs.
     - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team/contracts/magic-team.authority.<type>.contract.md` (`keeper` or `warden`), never restated in full.
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`

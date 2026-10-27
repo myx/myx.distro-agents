@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerSpawnAgent.include -- the --manager-spawn-agent operation: a bare agent started by hand from the
+## console, a prompt to a CLI service with the tools of this workspace and no team member. Sourced from its own arm of
+## AgentsTools.Manager.include, ahead of the arm of the member starts (AgentsTools.ManagerSpawn.include), which starts
+## through the spawn proxy and names no console: this one is the layer below it. Who may call was asked where the
+## family is dispatched.
+##
+
+case "$1" in
+
+	## A bare agent: a prompt to the CLI service with our tools, no team member, no session (sketch 5.1: "simple ad-hoc spawn ... up to zero folders and documents, logged the fact only").
+	## The console is the layer below the spawn proxy, started by the same function the proxy starts it by (AgentsToolsSpawnConsoleLaunch): it resolves the CLI service, the credentials and the model, and starts the CLI on the prompt from standard input. It is told the
+	## run is bare (MDAT_SPAWN_BARE), so it names no member and computes no roots of one, and the environment of a session this call may be inside is taken off, so the run is no part of it.
+	## Nothing is made but one line in the log of the tooling: the start, and the end when it comes.
+	--manager-spawn-agent)
+		local agentOp="$1" agentSyntax="[--cli-service <cli-name>] [--goal <text>] [--from-stdin|--from-file <path>]" agentCli="" agentSource="" agentFile="" agentGoal="" agentGoalSet="" agentPrompt="" agentConsole="" agentLog="" agentPid=""
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--cli-service|--goal|--from-file)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $agentOp: $1 requires a value -- syntax is $agentSyntax" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--cli-service) agentCli="$2" ;;
+						--goal) agentGoal="$2" ; agentGoalSet="yes" ;;
+						--from-file)
+							[ -f "$2" ] || { echo "⛔ ERROR: $MDSC_CMD $agentOp: --from-file: file not found: $2" >&2 ; set +e ; return 1 ; }
+							agentSource="file" ; agentFile="$2"
+						;;
+					esac
+					shift 2
+				;;
+				--from-stdin) agentSource="stdin" ; shift ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $agentOp: syntax is $agentSyntax, got: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -n "$agentGoalSet" ] && [ -n "$agentSource" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $agentOp: --goal is the prompt given as an option, and --from-stdin and --from-file give it another way -- nothing was started" >&2
+			set +e ; return 1
+		fi
+		case "$agentCli" in
+			*[!abcdefghijklmnopqrstuvwxyz0123456789-]*)
+				echo "⛔ ERROR: $MDSC_CMD $agentOp: --cli-service is a CLI name of lower-case letters, digits and dashes, got: $agentCli -- nothing was started" >&2
+				set +e ; return 1
+			;;
+		esac
+		if [ -n "$agentGoalSet" ] ; then agentPrompt="$agentGoal"
+		elif [ "$agentSource" = "file" ] ; then agentPrompt="$( cat < "$agentFile" )" || agentPrompt=""
+		else agentPrompt="$( cat )" || agentPrompt=""
+		fi
+		case "$agentPrompt" in
+			*[![:space:]]*) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD $agentOp: the prompt is empty -- nothing was started" >&2
+				set +e ; return 1
+			;;
+		esac
+		agentConsole="$MMDAPP/DistroAgentsConsole.sh"
+		if [ ! -x "$agentConsole" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $agentOp: $agentConsole is not executable, so no CLI can be started -- nothing was started" >&2
+			set +e ; return 1
+		fi
+		agentLog="$MMDAPP/.local/agents/bare-spawn.log"
+		mkdir -p "${agentLog%/*}" 2> /dev/null || :
+		local agentCliArgs=( --cli-configured )
+		[ -z "$agentCli" ] || agentCliArgs=( --cli "$agentCli" )
+		type AgentsToolsSpawnConsoleLaunch > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnConsoleLaunch.include"
+		(
+			agentRc=0
+			printf '%s\n' "$agentPrompt" | (
+				AgentsToolsSpawnConsoleLaunch -u MDAT_SPAWN_SESSION_ID -u MDAT_SESSION_ID -u MDAT_SPAWN_SANDBOX_ROOT -u MDAT_SESSION_THREAD -u MDAT_SPAWN_RESUME -u MDAT_SPAWN_RESUME_FROM \
+					-u MDAT_CONVERSATION_THREADS -u MDAT_SKILLSET_ROOT -u MDAT_SPAWN_LAUNCH_MARKER -u MDAT_SPAWN_RESUME_EVENT_MARKER -u MDAT_HARNESS_RESUME_CONTEXT -u MDAT_HARNESS_RESUME_MARKER \
+					MDAT_SPAWN_BARE=true MDAT_SPAWN_AGENT= -- "${agentCliArgs[@]}"
+			) > /dev/null 2>&1 || agentRc=$?
+			printf '%s bare-spawn ended %s exit %s\n' "$( date +"%Y-%m-%d %H:%M %z" )" "${agentCli:-configured}" "$agentRc" >> "$agentLog" 2> /dev/null
+		) > /dev/null 2>&1 < /dev/null &
+		agentPid="$!"
+		disown "$agentPid" 2> /dev/null || :
+		printf '%s bare-spawn started %s pid %s prompt %s bytes\n' "$( date +"%Y-%m-%d %H:%M %z" )" "${agentCli:-configured}" "$agentPid" "${#agentPrompt}" >> "$agentLog" 2> /dev/null || :
+		printf 'spawn-agent\t%s\t%s\n' "$agentPid" "${agentCli:-configured}"
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

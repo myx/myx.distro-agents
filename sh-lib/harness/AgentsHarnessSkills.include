@@ -133,9 +133,23 @@ AgentsHarnessPrefetchRecordKey(){ ## record file, key -- the value of a line of 
 	LC_ALL=C awk -v key="$2" 'NR == 1 { if ( $0 != "---" ) exit ; next } $0 == "---" { exit } index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit }' "$1" 2> /dev/null
 }
 
+## The text of the Member+ layer: the member's reference files (reference/*.md, in the order of their names), merged into one text with
+## AgentsToolsMergeMdFiles -- each file a section under its name, to the third level of headings and a file reference for what lies deeper. Nothing
+## where the member has no reference file. The same bytes on every call while the files stand.
+AgentsHarnessMemberPlusText(){ ## skillset root, member
+	local plusDir="$1/$2/reference" plusFile plusArgs=()
+	[ -n "$1" ] && [ -n "$2" ] && [ -d "$plusDir" ] || return 0
+	type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.InternMergeMdFiles.include" 2> /dev/null || return 0
+	while IFS= read -r plusFile ; do
+		[ -n "$plusFile" ] && plusArgs+=( --mixin "$plusFile" "${plusFile##*/}" )
+	done <<< "$( find "$plusDir" -maxdepth 1 -type f -name '*.md' 2> /dev/null | LC_ALL=C sort )"
+	[ "${#plusArgs[@]}" -gt 0 ] || return 0
+	AgentsToolsMergeMdFiles --section-prefix 3 --section-limit 3 "${plusArgs[@]}" 2> /dev/null
+}
+
 AgentsHarnessPrefetchBuild(){
 	local pfRoot="${MDAT_SKILLSET_ROOT:-}" pfMember="$harnessAgent" pfCacheDir pfStamp pfHow pfBody="$harnessScratch/prefetch.body" pfRoutineBody="$harnessScratch/prefetch.routine"
-	local pfRecord pfPolicy="" pfRoutine="" pfKindFile pfText="" pfReads="" pfWhat pfHits=0 pfBuilt=0 pfCount=0 pfArmed="" pfName pfFile pfSections pfWanted pfPath pfTask=0 pfBlank=$'\n\n'
+	local pfPlus pfRecord pfPolicy="" pfRoutine="" pfKindFile pfText="" pfReads="" pfWhat pfHits=0 pfBuilt=0 pfCount=0 pfArmed="" pfName pfFile pfSections pfWanted pfPath pfTask=0 pfBlank=$'\n\n'
 	local pfMemberText="" pfSessionReads="" pfRead pfRoutineText=""
 	[ "${MDAT_HARNESS_PREFETCH:-on}" != "off" ] || return 0
 	[ -z "$harnessToolOnly" ] && [ -n "$pfMember" ] && [ -n "$harnessSystemShared" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -z "${MDAT_HARNESS_RESUME_CONTEXT:-}" ] || return 0
@@ -172,11 +186,6 @@ AgentsHarnessPrefetchBuild(){
 	done <<< "$pfWanted"
 	[ "$pfCount" -gt 0 ] || return 0
 	pfText="## Your role's armed content -- the same for every session of $pfMember"$'\n\n'"$pfMemberText"
-	## THE MEMBER+ LAYER (S7.1), a work-duty's alone: the member's extended text, right after its armed content and before everything of the session, so every
-	## work-duty session of the member shares it. The optional skillset file <member>/<member>.armed-extended.md; without it there is no such layer.
-	if [ -r "$pfRoot/$pfMember/$pfMember.armed-extended.md" ] && AgentsHarnessWorkDuty ; then
-		printf -v pfText '%s\n\n%s\n\n%s' "$pfText" "## Member+ -- more of the text of $pfMember, the same for every work-duty session of $pfMember" "$( cat "$pfRoot/$pfMember/$pfMember.armed-extended.md" )"
-	fi
 	pfWhat="your own $pfMember.armed.md"
 	[ "$pfCount" -le 1 ] || pfWhat="$pfWhat, the sections of the team's files that your task tells you to read"
 	## The routine's text too, where the spawn record asks for the prefix of the routine (`cache-prefix: routine`,
@@ -190,6 +199,14 @@ AgentsHarnessPrefetchBuild(){
 		## The four layers: team, member, session, and the tool floor before them; a work-duty has the team+ and member+ layers too (S7.1),
 		## each of an optional extended skillset file. The session layer has the rest: the routine of every session whose policy carries one, its dispatch,
 		## its task and its per-task reads.
+	fi
+	## THE MEMBER+ LAYER (sketch 8: "`Memeber+ layer` - `-extended` (for work-duty sessions) - more preloaded member static skill/knowledge"), of the routines that
+	## declare `cache-prefix: extended` (a work-duty's): the member's reference files, each by its sections to the third level and a file reference for the
+	## rest (--intern-merge-md-files), right after its armed content and before everything of the session, so every such session of the member shares it. It is
+	## built from the skillset's existing text and no file of its own, in the sorted order of the files, so its bytes are the same on every run.
+	if [ "$pfPolicy" = extended ] ; then
+		pfPlus="$( AgentsHarnessMemberPlusText "$pfRoot" "$pfMember" )" || pfPlus=""
+		[ -z "$pfPlus" ] || printf -v pfText '%s\n\n%s\n\n%s' "$pfText" "## Member+ -- more of the text of $pfMember, the same for every session of $pfMember that declares cache-prefix: extended" "$pfPlus"
 	fi
 	if [ "$pfPolicy" = routine ] && [ -n "$pfRoutine" ] && AgentsHarnessSkillSegmentOk "$pfRoutine" ; then
 		type AgentsToolsSpawnRoutineMixText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnRoutine.include" 2> /dev/null || :

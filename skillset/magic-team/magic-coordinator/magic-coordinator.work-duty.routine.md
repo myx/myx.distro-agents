@@ -11,6 +11,7 @@ includes: magic-coordinator.advance.routine.md: Steps, Routine's local procedure
 reports-to: none
 review-by: none
 runs-at: none
+cache-prefix: extended
 ---
 # magic-coordinator.work-duty.routine — the actual procedure
 

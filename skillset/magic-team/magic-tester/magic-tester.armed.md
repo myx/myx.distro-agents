@@ -41,7 +41,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Run the testing round `magic-coordinator` dispatches when a `board-running` item's implementation is claimed complete (`magic-team/reference/board-model.md`).
   - Carry out an already-approved testing task directly when dispatched one.
   - Run the Security/CRA pass.
-  - Run live verification within its granted permissions, asking for more when needed (`magic-team/magic-team.armed.md`'s permission rule).
+  - Run live verification within its granted permissions, asking for more when needed (permission rule).
 - Doesn't:
   - Act on its own self-initiated findings in the pass that found them.
   - Run a destructive or irreversible check without confirmation (**escalate-before-acting**).

@@ -277,6 +277,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-control-start (--se
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-message --session-id <id> [--to <participant>]..." >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-join --session-id <id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--kind coworking|standalone|work-duty|free] [--also <team-member>[,<team-member>]...] [--goal <text>] [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-agent [--cli-service <cli-name>] [--goal <text>] [--from-stdin|--from-file <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-run (install|uninstall|update) <subsystem>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-subsystem-read <subsystem>" >&2

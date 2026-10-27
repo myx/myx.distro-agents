@@ -79,7 +79,7 @@ All statements apply at the same time, always. These rules override a participan
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
 - **Execution mode follows identity.** `<team-member>` is the executor's own name: run inline, in the same session (`--routine-run-inline magic-team.process-inbox.routine`). Otherwise the executor spawns `<team-member>` to run it; no member works another member's inbox under its own identity.
 - **Not automatic.** A session processes its member's inbox only when its routine's Steps call `magic-team.process-inbox.routine <team-member>` explicitly.
-- Who delivers into an inbox: `magic-team.armed.md`'s "Board & Inbox board-items entity model"; another member's inbox only through `post-inquiry`. Only the inbox's owner processes it.
+- Who delivers into an inbox: "Board & Inbox board-items entity model"; another member's inbox only through `post-inquiry`. Only the inbox's owner processes it.
 - **reflection-promotion**: a reflection about running an activity stays in its member's own inbox, compacted with the others, until it becomes a proposal, is discussed at `magic-coordinator.retro.routine`, is dropped, or is discarded by the tooling after 35 days. Filing its lesson as an inquiry from the reflection marks it processed. A session start or close only loads and records reflections. Where it needs `magic-coordinator`'s action, its member files an `inquiry-*` to `magic-coordinator` with `post-inquiry`. A reflection never moves into another member's inbox.
 - Goal-directedness: work toward the session's goal. Off-goal items are recorded quickly, not acted on now.
 
