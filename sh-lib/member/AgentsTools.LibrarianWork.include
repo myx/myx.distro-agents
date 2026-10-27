@@ -19,7 +19,7 @@
 ## THE WRITE OF A SKILLSET FILE is the librarian's own tool, apart from the rules of Skill, Read and Write: it names a member and a file in that
 ## member's skill, resolves the skill to its SOURCE COPY through the member registry (an install under .local, and the HOME skills folder, are never
 ## written), and saves the text itself once it has been validated. Only magic-librarian calls it. It asks the permission chain for the permission
-## `skillset-upsert` over `<member>:<pathname>`, the way a harness tool is asked: a routine whose `allows:` names it
+## `skillset-upsert` over `<member>:<pathname>`, the way a harness tool is asked: a routine whose `access-control:` names it
 ## (`magic-librarian:skillset-upsert`) or a grant of the session holds it, and a call that does not hold it is refused with a REFUSAL-ID and the
 ## way to ask for it with RequestPermission. And it changes the skillset only while learning is on.
 ##
@@ -121,7 +121,7 @@ AgentsToolsLibrarianEpoch(){ ## file
 ## ---- the permission, the skill, the save ----
 
 ## The permission chain's gate, asked as the harness asks it of any tool it gates: the permission `skillset-upsert` over `<member>:<pathname>`, held by
-## the routine the run is in (`allows: magic-librarian:skillset-upsert`) or granted for the session, the task or the one call
+## the routine the run is in (`access-control: magic-librarian:allow-tool:skillset-upsert`) or granted for the session, the task or the one call
 ## (--intern-op-permission-grant-read). A call that holds none is refused as a tool call is: the refusal is recorded (--intern-op-permission-refusal-log),
 ## its REFUSAL-ID said with the way to ask for it, RequestPermission, and rc 1; a granted call is retried exactly as it was made.
 AgentsToolsLibrarianPermission(){ ## op, target (<team-member>:<pathname>)
@@ -139,7 +139,7 @@ AgentsToolsLibrarianPermission(){ ## op, target (<team-member>:<pathname>)
 		fi
 	fi
 	{
-		printf '%s: ⛔ ERROR: %s: this run holds no permission for it: the routine it is in does not name skillset-upsert in its allows: key (an entry such as magic-librarian:skillset-upsert), and no grant covers %s -- nothing was saved\n' "$MDSC_CMD" "$1" "$2"
+		printf '%s: ⛔ ERROR: %s: this run holds no permission for it: the routine it is in does not name skillset-upsert in its access-control: key (a row such as magic-librarian:allow-tool:skillset-upsert), and no grant covers %s -- nothing was saved\n' "$MDSC_CMD" "$1" "$2"
 		if [ -z "$permSession" ] ; then
 			printf 'REFUSAL-ID: none -- this call has no session id, so the refusal was not recorded and cannot be escalated by id.\n'
 		else

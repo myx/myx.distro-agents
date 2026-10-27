@@ -12,9 +12,9 @@
 ## The pending-reply store is the tooling's, reached the way this harness reaches all
 ## tooling: through an intern op, never by writing that store's files from here. One
 ## place records a posted question for every path that can ask one -- this harness's own
-## tools that ask (AskQuestion, ConfirmReadback, EscalateDecision, RequestPermission, and
-## their second name AskUserQuestion), their stubs in the myx.distro MCP, and a claude-native
-## AskUserQuestion the hook reroutes to them -- because they all arrive at this function.
+## tools that ask (AskQuestion, ConfirmReadback, EscalateDecision, RequestPermission), their
+## stubs in the myx.distro MCP, and the vendor call a client hook reroutes to them -- because
+## they all arrive at this function.
 ##
 ## Neither helper can fail this tool. A question that was genuinely asked must be
 ## reported as asked even where recording it did not work, so a failure here degrades

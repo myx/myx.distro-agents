@@ -22,6 +22,11 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Handing back, review and dismissal
   - State and liveness
 - Records and their readers
+- Asks and their answers
+  - Threads
+  - Reading a reply
+  - The pending record
+  - The decision record
 - Recovery paths
 - Engineering & operating discipline
 - Duties: three kinds, plus reflection
@@ -125,7 +130,7 @@ All statements apply at the same time, always. These rules override a magic-team
   - The coordinator's answer, and its relayed words, are the chain's consent. An allow covers the operation and route the ask named.
 - An agent's own claim of approval is never consent. Crossing an `owner-guaranteed` rule needs the human-owner's own verdict on an `AskQuestion` ask, or his just-typed words relayed under a `Human-owner verbatim:` line. Untagged relay from any agent is advisory.
 - A Slack reply is his consent only when the tooling matched it to his account, as an `AskQuestion` verdict is.
-- A relayed instruction states its `routing-origin`/`routing-relay` and `routing-target`. Unclear routing: `magic-team.conversations.md`'s **anchor-refusal-safeguard**.
+- A relayed instruction states its `routing-origin`/`routing-relay` and `routing-target`. Unclear routing: **anchor-refusal-safeguard**.
 - His stated judgement, preferences and objections outweigh a member's own conclusions. He accepts or rejects the result of what he asked for, per "The ladder: one rung at a time".
 - A constraint handed down as a boundary is restated as a question — what it forbids, what it permits — and confirmed before anything is designed under it.
 - A procedure is private to its routine or member. Another member runs it only when the owner's instructions name it, or when asked; asked, it complies, refuses or escalates.
@@ -261,6 +266,37 @@ What to read before acting, in order:
 - History lives in processed items. A skillset file states current, settled content.
 - A file whose content moves elsewhere leaves a short stub with a pointer, never a copy.
 
+# Asks and their answers
+
+How the tooling numbers, reads and records the answer to an ask.
+
+## Threads
+
+- One question, one thread of its own. An identical open question returns `ALREADY-OPEN` and posts nothing. The pending one is the one to wait on.
+- A question posted inside an existing thread is numbered `Q<n>` per addressee. A top-level question carries no number. A leading `Q<n>` in the question text is removed.
+- A reply starting with a question's own number answers that one. An unnumbered reply answers the latest open question above it.
+
+## Reading a reply
+
+- A reply's first line is its answer or verdict: its first line that is no quote of the question. The rest of that reply, and every later reply from the person in its thread, are kept as clarifications.
+- A verdict-bearing reply's own words are returned too, never only the verdict.
+- Plain affirmations — ok, okay, yes, agree, agreed, confirm, confirmed, or a `+1`, `ok_hand` or `white_check_mark` reaction — are yes for a readback. For a decision, they mean the option marked "Recommended". Never for a permission or a proposal: there, only the literal answering word is a verdict.
+- A reply that names no option returns `RETURNED`, not a decision.
+- A click is read only ahead of the addressee's first reply. A later click is not a verdict.
+- A readback by the asker closes a decision whose reply named no option. A later objection arrives as `CLARIFIED`.
+- A withdrawal closes the question with no verdict. It answers, grants and decides nothing.
+
+## The pending record
+
+- The ask's wait is the session's `Wait`; the item joins the stored wait.
+- An answered question keeps its thread watched. A later message arrives as `CLARIFIED`.
+- The record is the thing to read. The chat is not.
+
+## The decision record
+
+- Each line a close appends to the item's `## Decisions` is marked `<!-- decisions-of: <item> -->`.
+- A received answer clears matching `blocked-on`/`condition`.
+
 # Recovery paths
 
 A failure is a step, not an ending. The order below is the common one; the member's own file carries its domain-specific path.
@@ -310,7 +346,7 @@ Git, scope and finishing:
 - **A member acts within its granted permissions.** Each member holds standing grants for its own scope; a `keeper-*` reads, writes and executes in its own domain by default. An action beyond them is refused with a `REFUSAL-ID:`. The member asks once for what the task needs, as one Permission set (`RequestPermission` with `entries`, "Nothing stops on its own"); a single-call ask is for a truly single case only. The grant is `allow-once`, `allow-session`, `allow-folder`, `allow-project` or `allow-task`.
 - What a member holds is computed by tooling only, and `--list-permissions <own-name>` lists it: the floor, its standing grants (declared for it by namespace, workspace or place), its session's or task's permission set, and grants received; `cred:` and `spend:` start with the human-owner.
 - Read `reference/engineering-discipline.md` for how a member's permission set is composed and for the `allows:` note.
-- A destructive or irreversible action is confirmed through the chain of command before it runs, even inside a grant; a high-stakes one reaches the human-owner every time (`magic-team.conversations.md`'s **anchor-refusal-safeguard**).
+- A destructive or irreversible action is confirmed through the chain of command before it runs, even inside a grant; a high-stakes one reaches the human-owner every time (**anchor-refusal-safeguard**).
 - **A human's checkout and git identity are never the team's.** In a checkout the team does not own, a member never commits, resets, stashes, discards or pushes, and never uses the human's account or key, unless explicitly tasked. Git state there is never evidence: other sessions and the human share the same uncommitted tree, so a member may look but never relies on it. Git work happens only in a dedicated checkout of the member's own. Team-data commits are the tooling's. Source work ends at a correct, uncommitted tree, checked by reading the files.
 - Which directory is a repository, or whether two checkouts are one, is answered by a tooling op or the human-owner, never inferred. A working-tree status in a shared checkout is not evidence about one task.
 - A task's scope is exactly what was approved. Growth is filed as a proposal while the approved scope continues. A narrowing is final: never re-expanded, never re-asked.
@@ -403,7 +439,7 @@ Read `reference/board-item-model.md` for vault-items, audit-items, referencing a
 # Knowledge destinations
 
 - A rule, convention or contract change → the skillset, through the change rule above.
-- A ruling on one piece of work → that work's own document (`magic-team.conversations.md`'s **decision-lands-in-the-document-it-binds**).
+- A ruling on one piece of work → that work's own document (**decision-lands-in-the-document-it-binds**).
 - **Decisions in a tracking document are binding context; tooling records them.** Its `## Decisions` lines (answers and verdicts, written as each ask closes) are read before acting and never asked again; record a clarification with `--record-decision`.
 - A member's own small lesson → a `reflection-*` in its own inbox. Once it binds anyone else, it is a convention.
 - **A repo- or workspace-relevant finding that passes the `MAGIC.md` bar (`magic-librarian/magic-librarian.armed.md`'s "Content philosophy") is written into a `MAGIC.md` at once**, where everyone reads it, never parked in an inbox or backlog nobody reads: the touched repo's root `MAGIC.md` (under `## For <team-member>` if new), else the `util.repository-<namespace>/MAGIC.md`, else the owning `keeper-*`/`partner-*`/`client-*` member's domain knowledge when its files live in a repository we own. Below the bar: not recorded — git keeps it.
@@ -545,6 +581,21 @@ All emitted text — messages, reports, board items, briefs, skillset prose, com
 
 Named shapes: **message**, **report**, **brief**, **relay**. Only `relay` — text carrying someone else's words — is an exception, and its quoted words are marked. Which clauses are measured is stated in `magic-librarian/magic-librarian.armed.md`. Bringing an existing document to the floor is commissioned work, never done in passing.
 
+Worked pairs. They are illustrative and carry no fact about the estate.
+
+- "It should be noted that the operation was executed successfully." → "The operation ran; exit 0."
+- "In order to verify the change, it is necessary to run the suite." → "Run the suite to verify the change."
+- "The tests are green." → "The suite passed: 42 of 42 rows, at 14:10."
+- "There may possibly be an issue with the cache." → "The cache returned a stale row at 14:10; expected the new value."
+- "We should consider whether to use the existing helper." → "Use the existing helper; it already owns this case."
+- "The previous session had already established that the file was missing." → "The file is missing (read at 14:10)."
+- "This is a very important change that will significantly improve performance." → "This change removes one query per request (measured: 3 to 2)."
+- "As mentioned earlier, the board item is blocked." → "The board item is blocked on the permission ask."
+- "I have investigated and determined that the cause is the stale index." → "The cause is the stale index: the index was built before the last edit."
+- "Please be advised that the following action is required." → "Run the check."
+- "The result was not unsuccessful." → "The check passed."
+- "Both options are viable, but option B is better." → "Option B costs one query less; option A needs no new dependency. I recommend B."
+
 ## Never mention local-cache sync staleness
 
 Never raise whether an installed or local tooling copy is stale, or whether a sync is needed. A spawned report carrying such a note has it dropped.
@@ -570,9 +621,13 @@ What a member tells the human-owner comes from what the team wrote down or a rep
 - `magic-team.discuss.routine.md` — converging, decision-oriented conversation.
 - `magic-team.grooming.routine.md` — backlog triage, scoring and state decisions.
 - `magic-team.interview.routine.md` — collection-only capture of another party's vision.
+- `magic-team.investigate.routine.md` — find the cause of a concern in the team's own systems, then record, investigate further or fix.
+- `magic-team.plan.routine.md` — plan one decided task smaller than an epic: pieces, order, needs and checks.
 - `magic-team.process-inbox.routine.md` — a member processes its own inbox.
 - `magic-team.process-reflections.routine.md` — reflection consolidation.
 - `magic-team.proposal.routine.md` — propose, work out and approve with the human-owner in one thread.
+- `magic-team.research.routine.md` — answer a question from sources, every claim with its source.
+- `magic-team.verify.routine.md` — `magic-tester`'s testing round on a change claimed complete.
 - `reference/skill-folder-model.md` — the routine and skill-folder model: Core idea, Routine, Nested-item grammar and Actor phrases.
 
 # Team-Member's (-specific) tooling
@@ -587,9 +642,9 @@ The team's shared tooling floor. Behaviour is read with `--member-help <own-name
 
 - `--member-help`
 - `--help`
-- `--slack-read`
-- `--slack-react`
-- `--send-contact-digest`
+- `--slack-read` (`DistroAgentsSlack`)
+- `--slack-react` (`DistroAgentsSlack`)
+- `--send-contact-digest` (`DistroAgentsContacts`)
 - `--read-escalation`
 - `--answer-escalation`
 - `--read-pending-reply`
@@ -603,7 +658,7 @@ The team's shared tooling floor. Behaviour is read with `--member-help <own-name
 - `--get-board-item`
 - `--get-audit-item`
 - `--get-vault-item`
-- `--append-transcript`
+- `SessionTranscriptAppend` (harness tool): one note line in the own session's transcript. A routine that keeps a `transcript-*` lists `--append-transcript --transcript-name` itself.
 - `--list-permissions`
 - `--pass-permission --to <member> --tool <tool> --target <target> --kind once|session|task`
 - `--list-places` / `--get-place-path <name>[/<relative>]`
@@ -613,6 +668,7 @@ The team's shared tooling floor. Behaviour is read with `--member-help <own-name
 ## Execution mechanisms
 
 - Every command, `DistroAgentsTools` calls included, runs on the session's own shell tool (`Bash` in the team harness, which already carries the workspace environment). `DistroAgentsTools` is called by its bare name; a shell that does not define it uses `"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"`.
+- The Slack, Mail, Trello, Google, Atlassian and Contacts operations run through their own harness tools (`DistroAgentsSlack`, `DistroAgentsMail`, `DistroAgentsTrello`, `DistroAgentsGoogle`, `DistroAgentsAtlassian`, `DistroAgentsContacts`), not through a shell.
 - **Two MCP execute tools exist, and neither is mandated: a member understands the difference and chooses.** `mcp__myx_distro__execute` runs a tooled command inside the calling workspace's own tooling environment, `Distro`/`Require` already set up -- for example `Require ListDistroProjects ; Distro ListDistroProjects --select-all`. `mcp__myx_common__lib_execShStdin` runs a plain shell snippet, with no tooling environment -- for example `ls -la /tmp`. `myx.common` is part of the tooling and of the standard skillset, the same as `myx.distro`.
 - A session with no shell tool at all escalates, never works around it.
 - A member that is not `DistroAgentsTools`'s owner never edits it. A board item describing a change to it carries `restart-session:` with the owning `keeper-*`, `magic-architect`, `magic-developer`, `magic-tester` and `magic-librarian`.

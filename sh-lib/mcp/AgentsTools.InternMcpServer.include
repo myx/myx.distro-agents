@@ -68,6 +68,11 @@ case "$1" in
 		while IFS= read -r mcpLine || [ -n "$mcpLine" ] ; do
 			[ -n "$mcpLine" ] || continue
 			AGENTS_MCP_REQ_SEQ=$(( AGENTS_MCP_REQ_SEQ + 1 ))
+			## A mint of the root-harness session is marked pending from the moment its line is read, here, one line at a time, before any later request starts: a request
+			## that arrives while it is pending waits for it (AgentsTools.InternMcpRequest.include), so none runs ahead of the session's profile (epic S18.3, fail closed).
+			case "$mcpLine" in
+				*'"RootSession"'*) case "$mcpLine" in *'"mint"'*) : > "$MMDAPP/.local/temp/agent-mcp.$$/mint-pending.$AGENTS_MCP_REQ_SEQ" ;; esac ;;
+			esac
 			## One process per message, so a slow request delays only its own response
 			## and the next message is read at once. What this shell derived at start
 			## from configuration is dropped first -- the team-data root, MYXROOT and

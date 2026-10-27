@@ -65,7 +65,7 @@ rigRoutine soloquiet standalone rig-a none
 rigRoutine solowait standalone rig-a none 'input-scan-def: work-duty' 'wait-sources: inbox:{{team-member}} board:running board:pending' 'wait-sources: board:running'
 rigRoutine soloduty standalone rig-a none 'input-scan-def: work-duty'
 rigRoutine solomany standalone rig-a none 'input-scan-def: grooming --select-workspace somewhere' 'input-scan-def: work-duty' 'input-scan-def: grooming'
-rigRoutine soloplus standalone rig-a none 'input-scan-def: work-duty' 'allows: executors:--executor-checkpoint-push,executors:--executor-checkpoint-rewind'
+rigRoutine soloplus standalone rig-a none 'input-scan-def: work-duty' 'access-control: executors:allow-tool:--executor-checkpoint-push,executors:allow-tool:--executor-checkpoint-rewind'
 rigRoutine cowork coworking rig-a rig-b 'input-scan-def: routine-coworking-session'
 rigRoutine twoexec standalone 'rig-a, rig-b' none 'input-scan-def: work-duty'
 rigRoutine invited standalone rig-a rig-b 'input-scan-def: work-duty'
@@ -146,7 +146,7 @@ rigAssert "the sources a routine declares are added after its scans: its own inb
 rigBind soloplus ; rigOp --executor-checkpoint-push a ; rigOp --idle-wait
 rigAssert "in the order of the calls of the round, after the snapshot asked before it"  "$( rigRequests )" "push a;idle - scan:work-duty wake:rig-a"
 rigBind soloduty ; rigOp --executor-checkpoint-push a ; rigOp --idle-wait
-rigAssert "it needs no allows: of its own: the wait is asked where the snapshot was a notice" "$( rigRequests )" "idle - scan:work-duty wake:rig-a"
+rigAssert "it needs no access-control: of its own: the wait is asked where the snapshot was a notice" "$( rigRequests )" "idle - scan:work-duty wake:rig-a"
 
 echo "-- 5. the answer names the checkpoint the run returns to --"
 rigBind soloduty ; rigOp --idle-wait

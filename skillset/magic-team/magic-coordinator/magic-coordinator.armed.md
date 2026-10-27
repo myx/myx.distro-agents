@@ -91,8 +91,9 @@ Steps:
    - `held-context:` — the messages and relays the calling session holds that the spawn needs, or `none`.
    - `checked:` — what this brief did on both points above, so a brief that looked and found nothing differs from one that never looked.
    - `access:` — the places and tools this work needs, worked out before launch, so the spawned member asks once with `entries` rather than call by call.
+   Make the dispatch the best guess you can. Work out the tools, access permissions and expertise it needs from what is tasked and its targets: paths, Confluence pages, any text. That tells whom to invite.
    Re-read the drafted brief for the block before sending.
-3. **spawn-launch**: Spawn with the team `Agent` tool (`mcp__myx_distro__Agent` in a native client), never a client's in-process subagent. Further members join by the session id the first spawn printed. To start a routine's own session with its executors in one call, use `--spawn-session`.
+3. **spawn-launch**: Spawn with the team `Agent` tool (`mcp__myx_distro__Agent` in a native client), never a client's in-process subagent. Further members join by the session id the first spawn printed. To start a routine's own session with its executors in one call, use `--spawn-session`. Name the likely members, permissions and tools on it with `--participants`, `--likely-permission` and `--likely-tool`.
 4. **spawn-record-dispatch**: Board-tracked work: move the tracked item to `board-running` if it is not there, and record the spawn's receipt as its `execution-receipt`.
 5. **spawn-dismiss**: A spawned member never ends on its own: it hands back, then waits (`magic-team.armed.md`'s **wait-never-quit**). Its handback puts its item into `board-review`; settle it with `magic-team.handback-review.routine`, whose verdicts end or continue the session. A session spawned with `--wait` ends on its own when its pass is done. `TaskStop` only for one that does not respond. The routine that spawned it names when. By hand: `SendMessage` its session thread, `address_to` naming it, message `DISMISSED`; with no `address_to` it dismisses no one. The tooling also posts, in that same thread, a fact-only note of how the run ended, death included; a `TaskStop` or a console kill of a member's run is told there too, naming who did it. For a death, the control thread asks the item's reviewer a decision instead (`resume`, `fresh`, `close`, `kill`); no reviewer, no question. `kill` ends every live run of that session; `resume`/`fresh` start the member again in the same session. An answer that fails asks the reviewer again, once per failure; an item a failed restart left running with no run goes back to review.
 
@@ -141,7 +142,6 @@ The human-owner's word:
 - A correction he repeats was never applied. Stop that behaviour first, then find what still permits it. A first violation of a governing rule carries the same duty.
 - Restating his words keeps their exact scope: never widen a precise term ("Edit" into "Edit/Write").
 - A relay of his words carries no framing: no summary label, no count, no ranking, no remark on what his ask means. A relay of his reply to a session carries his words and the caption only.
-- A relay of anyone else's words keeps them verbatim; an added remark is labelled and separate (`magic-team.conversations.md`'s **labeled-annotation-not-rephrasing**).
 - Tag an `EscalateDecision` option "Recommended" only when it was independently vetted.
 - Every example he gives in a design conversation is an acceptance test. Keep a growing "the proper solution will have/allow" list, marked non-exhaustive.
 
@@ -273,9 +273,9 @@ Every `magic-tooling` operation this member's own procedures and rules use. Beha
 
 ## Tooling operations
 
-- `--slack-react <channel>:<ts> <emoji-name>`
+- `--slack-react <channel>:<ts> <emoji-name>` (`DistroAgentsSlack`)
 - `--client-operation-run --client-<operation> [<argument>...]` — this member's own way to a `client-*` member's operation; the named member is the client, dispatched in its own session.
-- `--trello-post-comment <card-id> [text...]`
+- `--trello-post-comment <card-id> [text...]` (`DistroAgentsTrello`)
 - `--move-to-pending <item-filename> --from-state:<state> [--header:...]...`
 - `--move-to-blocked <item-filename> --from-state:<state> [--header:...]...`
 - `--move-to-backlog <item-filename> --from-state:<state> [--header:...]...`
@@ -283,7 +283,7 @@ Every `magic-tooling` operation this member's own procedures and rules use. Beha
 - `--move-to-processed <item-filename> --from-state:<state> [--header:...]...`
 - `--create-running <item-filename> [--header:...]...`
 - `--advance-to-running <item-filename> --from-state:<state> [--header:...]...`
-- `--spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--spawn-settings-workspace <name>] [--spawn-cli-service <name>] [<team-member>...]`
+- `--spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--spawn-settings-workspace <name>] [--spawn-cli-service <name>] [--participants <entry>[,<entry>...]|none] [--likely-permission <tool>:<target>]... [--likely-tool <tool>]... [<team-member>...]`
 - `--upsert-inbox-note <team-member> <item-filename>`
 - `--upsert-inbox-inquiry <member> <item-filename>`
 - `--get-roster`

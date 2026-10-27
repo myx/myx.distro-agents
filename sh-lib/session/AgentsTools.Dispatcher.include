@@ -193,10 +193,10 @@ AgentsToolsDispatcherSessions(){ ## the operation as it was called, its argument
 			[ -n "$scopeSession" ] || { echo "⛔ ERROR: $MDSC_CMD $sessionsOp: --scope this-session needs a session, and the call belongs to none -- nothing was listed" >&2 ; return 1 ; }
 		;;
 	esac
-	## A routine may deny listing to its participants (T5): the permission chain reads its `denies:` key.
+	## A routine may deny listing to its participants (T5): the permission chain reads its deny rows (`access-control:`).
 	if [ -n "$scopeActing" ] && [ -n "$scopeSession" ] ; then
 		type AgentsToolsPermissionRoutineDenies > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
-		AgentsToolsPermissionRoutineDenies "$scopeActing" list "$scopeSession" > /dev/null 2>&1 && {
+		AgentsToolsPermissionRoutineDenies "$scopeActing" list "" "$scopeSession" > /dev/null 2>&1 && {
 			echo "⛔ ERROR: $MDSC_CMD $sessionsOp: the routine this session runs denies listing -- nothing was listed" >&2
 			return 1
 		}

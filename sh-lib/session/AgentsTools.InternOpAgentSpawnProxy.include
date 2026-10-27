@@ -558,7 +558,12 @@ AgentsToolsSpawnProxyEventTrackLaunchedPost(){ ## thread, member, marker file, t
 ## itself, for a launch this had no time to see; once posting, it ignores that kill.
 AgentsToolsSpawnProxyEventTrackLaunched(){ ## thread, member, marker file, the CLI the start post names
 	[ -n "$1" ] || return 0
+	## Its starter, the proxy whose kill ends it, read once: once its parent is no longer that shell, it ends by itself.
+	local launchedSelf launchedStarter
+	launchedSelf="$( exec sh -c 'echo "$PPID"' )"
+	launchedStarter="$( ps -o ppid= -p "$launchedSelf" 2> /dev/null | tr -d ' ' )"
 	while ! AgentsToolsSpawnProxySawSentinel "$3" ; do
+		[ "${launchedStarter:-1}" != 1 ] && [ "$( ps -o ppid= -p "$launchedSelf" 2> /dev/null | tr -d ' ' )" = "$launchedStarter" ] || return 0
 		sleep 1 < /dev/null > /dev/null 2>&1 &
 		wait $! 2>/dev/null || :
 	done
@@ -1045,6 +1050,24 @@ case "$1" in
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: use only one of --parent-session <session-id> | --parent-none" >&2
 			set +e ; return 1
 		fi
+		## A WORK-DUTY IS ONE INSTANCE PER MEMBER, IN ONE SESSION (sketch 14.5: "can only start one instance of such session per member"; 7.3). The
+		## session a member's duty keeps (schedule/duty-session/<member>) is joined by every later start of its duty, from whichever caller
+		## makes it, the schedule's or a console's; a kept id no record knows is dropped. The first start records its session under a lock,
+		## below, where its session is settled.
+		local dutyKeptFile="" dutyKeptId=""
+		case "$routineSelector" in
+			*.work-duty.routine.md)
+				dutyKeptFile="$MMDAPP/.local/agents/schedule/duty-session/$callerName"
+				if [ -z "$joinSessionId" ] && [ -s "$dutyKeptFile" ] ; then
+					IFS= read -r dutyKeptId < "$dutyKeptFile" || dutyKeptId=""
+					case "$dutyKeptId" in ''|*[!A-Za-z0-9._-]*) dutyKeptId="" ;; esac
+					if [ -n "$dutyKeptId" ] && ! LC_ALL=C grep -q -x -F "session-id: $dutyKeptId" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null ; then
+						rm -f "$dutyKeptFile" ; dutyKeptId=""
+					fi
+					if [ -n "$dutyKeptId" ] ; then joinSessionId="$dutyKeptId" ; sessionNew="" ; fi
+				fi
+			;;
+		esac
 		if [ -n "$joinSessionId" ] && [ -n "$sessionNew" ] ; then
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: use only one of --session-id <session-id> | --session-new: one joins a session, the other starts one" >&2
 			set +e ; return 1
@@ -1391,6 +1414,26 @@ case "$1" in
 		elif [ -n "$parentSessionId" ] && AgentsToolsAssertBareName "$parentSessionId" "the calling session's id" agent-spawn-proxy 2> /dev/null ; then
 			sessionId="$parentSessionId"
 			sessionOfCaller="true"
+		fi
+		## The session of a work-duty is recorded under the member's lock, in the one step that reads and writes it: of two starts racing, the first
+		## records its session and the second finds another's and is refused, so the member never holds two duties. A start that joined the kept
+		## session finds its own id there and goes on.
+		if [ -n "$dutyKeptFile" ] ; then
+			local dutyLockHeld="" dutyRecordedId=""
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.LocalLock.include"
+			! AgentsToolsLocalLockTake "work-duty-session-$callerName" 60 || dutyLockHeld="$agentsLocalLockPath"
+			[ -n "$dutyLockHeld" ] || echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the lock on the work-duty session of $callerName could not be taken, so two starts at once may each open a session" >&2
+			[ ! -s "$dutyKeptFile" ] || IFS= read -r dutyRecordedId < "$dutyKeptFile" || dutyRecordedId=""
+			if [ -n "$dutyRecordedId" ] && [ "$dutyRecordedId" != "$sessionId" ] ; then
+				[ -z "$dutyLockHeld" ] || AgentsToolsLocalLockGive "$dutyLockHeld"
+				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: the work-duty of $callerName is in session $dutyRecordedId already, and one instance is all a member has -- nothing was started" >&2
+				set +e ; return 1
+			fi
+			if [ -z "$dutyRecordedId" ] ; then
+				{ mkdir -p "${dutyKeptFile%/*}" && printf '%s\n' "$sessionId" > "$dutyKeptFile.$$.tmp" && mv -f "$dutyKeptFile.$$.tmp" "$dutyKeptFile" ; } 2> /dev/null \
+					|| echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the work-duty session $sessionId of $callerName could not be recorded" >&2
+			fi
+			[ -z "$dutyLockHeld" ] || AgentsToolsLocalLockGive "$dutyLockHeld"
 		fi
 		## HOW THIS RUN IS STARTED, WHICH SESSION STARTED IT, and WHERE IT REPORTS TO, kept on its
 		## record from its first write (`start-context:`, `parent-session-id:`, `reports-to:`), read
@@ -2371,7 +2414,9 @@ case "$1" in
 			## missed. Only where outputFile hid the child's own stream -- the two
 			## branches above with no outputFile already write straight to &2.
 			if [ -n "$outputFile" ] ; then
-				tail -n +1 -f "$outputFile" >&2 4>&- &
+				## The follow ends by itself once this shell is gone, as a plain tail -f never would (AgentsToolsSpawnProxyFollow).
+				type AgentsToolsSpawnProxyFollow > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include"
+				AgentsToolsSpawnProxyFollow "$outputFile" >&2 4>&- &
 				tailPid=$!
 				tailBegan="$( AgentsToolsSpawnProxyHelperBegan "$tailPid" )"
 				## The event-track thread is the session's debug feed (AgentsTools.EventTrackFeed.include).

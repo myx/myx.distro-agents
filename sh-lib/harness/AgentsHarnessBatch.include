@@ -18,10 +18,10 @@ AgentsHarnessToolBatchTools(){ ## raw arguments
 	AgentsToolsBatchRun AgentsHarnessBatchCall AgentsHarnessBatchServes "$1"
 }
 
-## A tool this harness serves: one it declares, the second name of the tools that ask, or an MCP server's own.
+## A tool this harness serves: one it declares, or an MCP server's own.
 AgentsHarnessBatchServes(){ ## tool name
 	case "$1" in
-		AskUserQuestion|mcp__?*__?*) return 0 ;;
+		mcp__?*__?*) return 0 ;;
 	esac
 	LC_ALL=C grep -q -F -- "{\"type\":\"function\",\"function\":{\"name\":\"$1\"," "$harnessWireFile"
 }

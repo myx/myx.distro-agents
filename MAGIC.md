@@ -2124,6 +2124,12 @@ contracts are here.
   A duty is also never ended to be started again: the schedule no longer restarts an ended duty to keep its cache warm (the cache is kept
   inside the running session by the keepalive of `--idle-wait`), and a work-duty's plain-text reply no longer ends a harness run (the harness
   makes the idle-wait itself and asks the model again). Only a dismissal ends it. `AgentsHarnessDutyNoQuitCheck` and `AgentsDutyCacheKeepCheck` hold it.
+  After each working loop the duty's wait returns the conversation to the held checkpoint, also when the run bounds its waits (sketch 7.3).
+  The spawn proxy keeps one duty per member: the session id is recorded under `work-duty-session-<member>`'s lock, and a start racing another's is refused.
+  An executor of any routine (a member spawned or joined into a session) is not dismissed unless it is the last one running (sketch 5.3): its
+  plain reply makes the idle-wait while another run of its session is going (`AgentsHarnessOthersRunning`), and the quiet round asks again.
+  The Team+ and Member+ layers of a work-duty are real: `magic-team/magic-team.armed-extended.md` and `<member>/<member>.armed-extended.md` are read
+  when the skillset holds them (sketch 8). They are the librarian's text: static, the same bytes on every duty, and what a duty reads on most runs.
 - **A member's own incoming is cached locally and refilled on a call when stale (T2)** — personal mail, tags and mentions, DMs,
   and the session chat — each by its own TTL of the one table (`AgentsTools.SourceTtl.include`): the session chat short (`chat:*` 15),
   the mail five minutes out of worktime and ten in it (`mail:*` 300, the 5–10 minute band; `AgentsToolsCollectTtlOf` stretches it by
@@ -2441,7 +2447,7 @@ op's own option arm.
   the send. The origin is any member, carried in `--address-to`. `--needs-ruling` goes to the human-owner's
   DM under the user identity; `--resolved` to the bot's conversation with him (`--identity-bot`). Public
   wrappers: `--send-contact-digest` (origin given) and `--send-contact-digest` (origin is the
-  caller). See `non-owner-contact-tiers-and-escalation` in `magic-team.conversations.md`.
+  caller). See the floor rule `non-owner-contact-tiers-and-escalation`.
 
 ## 19. Email, Trello, Atlassian
 

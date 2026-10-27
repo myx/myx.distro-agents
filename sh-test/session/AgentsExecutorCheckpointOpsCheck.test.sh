@@ -49,18 +49,18 @@ printf 'rig\n' > "$rigSkills/magic-team/magic-team.basic.md" ; printf 'rig\n' > 
 rigRoutine(){ ## short name, executors, allows
 	{
 		printf -- '---\ntype: routine\nexecutors: %s\nmaintainers: magic-coordinator\ninvitees: none\nrequires-session-kind: standalone\n' "$2"
-		[ -z "$3" ] || printf 'allows: %s\n' "$3"
+		[ -z "$3" ] || printf 'access-control: %s\n' "$3"
 		printf -- '---\n# magic-team.%s.routine\n' "$1"
 	} > "$rigSkills/magic-team/magic-team.$1.routine.md"
 }
-rigRoutine viaexec rig-a "executors:--executor-checkpoint-push,executors:--executor-checkpoint-rewind,executors:--executor-checkpoint-exit"
-rigRoutine viaparts rig-a "participants:--executor-checkpoint-push,participants:--executor-checkpoint-rewind,participants:--executor-checkpoint-exit"
-rigRoutine vianame rig-a "rig-a:--executor-checkpoint-push,rig-a:--executor-checkpoint-rewind,rig-a:--executor-checkpoint-exit"
-rigRoutine forother rig-a "rig-b:--executor-checkpoint-push,rig-b:--executor-checkpoint-rewind"
-rigRoutine pushonly rig-a "executors:--executor-checkpoint-push"
-rigRoutine otherexec rig-b "executors:--executor-checkpoint-push,executors:--executor-checkpoint-rewind"
+rigRoutine viaexec rig-a "executors:allow-tool:--executor-checkpoint-push,executors:allow-tool:--executor-checkpoint-rewind,executors:allow-tool:--executor-checkpoint-exit"
+rigRoutine viaparts rig-a "participants:allow-tool:--executor-checkpoint-push,participants:allow-tool:--executor-checkpoint-rewind,participants:allow-tool:--executor-checkpoint-exit"
+rigRoutine vianame rig-a "rig-a:allow-tool:--executor-checkpoint-push,rig-a:allow-tool:--executor-checkpoint-rewind,rig-a:allow-tool:--executor-checkpoint-exit"
+rigRoutine forother rig-a "rig-b:allow-tool:--executor-checkpoint-push,rig-b:allow-tool:--executor-checkpoint-rewind"
+rigRoutine pushonly rig-a "executors:allow-tool:--executor-checkpoint-push"
+rigRoutine otherexec rig-b "executors:allow-tool:--executor-checkpoint-push,executors:allow-tool:--executor-checkpoint-rewind"
 rigRoutine nothing rig-a ""
-rigRoutine unrelated rig-a "executors:Read:/some/where,executors:--executor-checkpoint-pushy"
+rigRoutine unrelated rig-a "executors:Read:/some/where,executors:allow-tool:--executor-checkpoint-pushy"
 
 rigBind(){ ## routine short name, or empty for a spawn record with no routine
 	{

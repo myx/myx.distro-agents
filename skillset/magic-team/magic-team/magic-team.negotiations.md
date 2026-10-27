@@ -3,7 +3,7 @@ maintainers: magic-librarian, magic-coordinator, magic-architect, human-owner
 ---
 # Negotiation mechanics
 
-Managing several open topics across a multi-round exchange. The shared base for interview-like and convergence routines; `magic-team.conversations.md` governs single messages. A consuming routine states that it inherits this file and names any override (for example, next-question mode only).
+Managing several open topics across a multi-round exchange. The shared base for interview-like and convergence routines. A consuming routine states that it inherits this file and names any override (for example, next-question mode only).
 
 ## Contents
 
@@ -46,4 +46,4 @@ Open topics form a queue, re-sorted each round: quick-to-close and urgent topics
 
 ## Check-restart procedure
 
-After inactivity or interruption, resume per `magic-team.conversations.md`'s **dormancy-nudge-once-then-escalate**, measured from the other party's last activity. It ends in exactly one state: `running`, `finished` or `blocked`.
+After inactivity or interruption, resume per **dormancy-nudge-once-then-escalate**, measured from the other party's last activity. It ends in exactly one state: `running`, `finished` or `blocked`.

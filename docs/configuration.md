@@ -34,6 +34,18 @@ Check that the credential store stays locked down:
 - Read with `DistroAgentsTools.fn.sh --agents-config-option <member> --select-all`. Look for the key you need, not only for the member.
 - Check that the member exists before the first configuration call.
 
+## The mode of a workspace
+
+A workspace holds its mode, `MDAT_WORKSPACE_MODE`, among its settings. A mode is one of three:
+
+- `just-agents` — work on this computer alone, with no team data. The operations that write a board, inbox, audit or contact item are refused, and no team-data store is cloned.
+- `team-rig` — a rig: the team data is used and maintained here.
+- `rig-client` — dispatch to a remote rig. Not built yet, and it acts as `just-agents`.
+
+A rig's installer writes the mode into the workspace settings. Where nothing sets it, the mode is `just-agents`, and a setting stands ahead of a value given in the environment.
+
+`full-team-rig` is not a fourth mode. It is a `team-rig` whose team data has a shared persistence configured, today a git remote, and the tooling measures it at the call.
+
 ## Remove a setting
 
 Two forms remove a setting, and they mean the same request:

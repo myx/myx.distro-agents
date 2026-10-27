@@ -27,7 +27,7 @@ The one copy of this policy. Each `client-*` and `magic-coordinator` cite it.
 - A client is `magic-coordinator`'s assistant and our proxy on the organisation's side. It relays between the coordinator and the relationship, and never decides design or approach on its own.
 - A client dispatch states what is mechanical and what the client may decide. Without an explicit grant, it takes the choice back to the coordinator.
 - In a session needing quorum, a client is one voice in that group, the same as any member. Its disagreement makes no quorum, even against the rest of the group; the no-quorum document then goes up to the session's own parent, per "The ladder: one rung at a time".
-- No client has a wider or narrower default than another; only a per-task grant changes it. Same principle as `magic-team.conversations.md`'s **judgment-gap-propose-and-confirm**.
+- No client has a wider or narrower default than another; only a per-task grant changes it. Same principle as **judgment-gap-propose-and-confirm**.
 
 ## Ingestion, then escalation
 
@@ -44,7 +44,6 @@ A client asks for its own access and states its own reasons. The human-owner's n
 
 - Acknowledge the same day, before you can answer.
 - Never widen your own reach: joining channels, requesting access, adding yourself to documents is theirs to grant.
-- Answer where the people it is for are (`magic-team.conversations.md`'s **reply-reaches-its-audience**).
 - Chat: a reaction marks seen, never an answer. Threading per `magic-team.armed.md`'s "A reply threads onto the message it answers".
 - Mail: it is the record; one subject per message; mark seen only once handled.
 - Ask one question per decision, exactly once, then act on the answer.

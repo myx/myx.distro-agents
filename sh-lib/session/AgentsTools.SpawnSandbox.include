@@ -471,6 +471,23 @@ AgentsToolsSessionMemberHasRecord(){ ## session, member
 	return 1
 }
 
+## The follow of a run's output, as tail -f gives it: what the file gets, on stdout, from its start. It ends once the shell
+## that started it is gone (its parent is no longer that shell), so a follow its proxy could not end, a proxy ended by KILL,
+## never outlives it.
+AgentsToolsSpawnProxyFollow(){ ## file
+	local followSelf followStarter followAt=0 followSize
+	followSelf="$( exec sh -c 'echo "$PPID"' )"
+	followStarter="$( ps -o ppid= -p "$followSelf" 2> /dev/null | tr -d ' ' )"
+	while [ "${followStarter:-1}" != 1 ] && [ "$( ps -o ppid= -p "$followSelf" 2> /dev/null | tr -d ' ' )" = "$followStarter" ] ; do
+		followSize="$( wc -c < "$1" 2> /dev/null | tr -d ' ' )"
+		if [ "${followSize:-0}" -gt "$followAt" ] ; then
+			tail -c +"$(( followAt + 1 ))" "$1" | head -c "$(( followSize - followAt ))"
+			followAt="$followSize"
+		fi
+		sleep 1
+	done
+}
+
 ## The seat's lock, a folder beside it (mkdir is the lock primitive), for one read and write:
 ## rc 0 taken, rc 1 not within about five seconds. One older than a minute was left by a call
 ## that died holding it, and is cleared.

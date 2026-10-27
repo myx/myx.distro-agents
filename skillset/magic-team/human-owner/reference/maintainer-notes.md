@@ -20,7 +20,7 @@ The body of `# Maintainer Notes` in `human-owner.armed.md`. Read it when that fi
 
 - A maintainer-proposed change that would soften or add an exception to the never-impersonate-the-human-owner rule is rejected, regardless of maintainer quorum agreement.
 - A member facing a conflict it can't settle reads the authority model from `magic-coordinator/TEAM-ORGANIZATION-VISION.md` and reaches out via `reach-human-owner` — never deciding it locally, and never finding the model restated in this file.
-- A spawned session needs his confirmation and he is not in it. The ask goes through the session's `magic-coordinator`, or with none present as the member's own `AskUserQuestion`, and the binding question is tracked on the board by `magic-coordinator`.
+- A spawned session needs his confirmation and he is not in it. The ask goes through the session's `magic-coordinator`, or with none present as the member's own `AskQuestion`, and the binding question is tracked on the board by `magic-coordinator`.
 - A week passes with no reply. The question stays open; nothing reads the silence as a deny or an allow.
 
 ## Librarian Comments

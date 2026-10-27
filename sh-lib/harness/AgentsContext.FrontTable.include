@@ -147,6 +147,7 @@ AgentDispatcherTools	--state-note-lock-acquire	coordinator
 AgentDispatcherTools	--state-note-read	coordinator
 AgentDispatcherTools	--sweep-state-advance	coordinator
 AgentDispatcherTools	--sweep-state-read	coordinator
+AgentDispatcherTools	--spawn-run	member
 AgentDispatcherTools	--sweep-state-upsert	coordinator'
 
 agentsFrontRetired='--magic-advance-batch-outcome	DistroAgentsItems.fn.sh --advance-batch-outcome
@@ -381,20 +382,22 @@ DistroAgentsMail	The mail operations of the team.
 DistroAgentsTrello	The Trello operations of the team.'
 
 ## The tool files the myx.distro MCP serves as one tool each, the operation as the argument, so the
-## served catalogue stays short. Only the subsystems whose operations reach outside the team's own
-## process-flow are served: the external services, and the contacts the team reaches. The board,
-## inbox, dispatcher, questions, grants and testing files are the team's own coordination and are
-## never served; neither is Knowledge, whose own entry is a query engine rather than an operation
-## dispatcher. ThisSession is the exception among them, and only ThisSession: it is a tool of the
+## served catalogue stays short. The subsystems whose operations reach outside the team's own
+## process-flow are served: the external services, and the contacts the team reaches. The one coordination file served
+## is AgentDispatcherTools, the coordinator's role surface (sketch 10.5), whose spawn is the way a root-harness session
+## starts sessions (epic S18.3); the rest of the board, inbox, dispatcher, questions, grants and testing files
+## are the team's own coordination and are not served; neither is Knowledge, whose own entry is a query engine rather than an
+## operation dispatcher. ThisSession is the exception among them, and only ThisSession: it is a tool of the
 ## harness floor, declared in AgentsOpenAiChatWire.sh and served as ThisSession by the mirror, so a
 ## session posts to its own thread and runs its routine there rather than through a secondary entry
-## of this table.
+## of this table. A tool is listed for everyone; who may use it is decided at call time (S18.1).
 agentsFrontSecondary='DistroAgentsSlack
 DistroAgentsAtlassian
 DistroAgentsGoogle
 DistroAgentsMail
 DistroAgentsTrello
-DistroAgentsContacts'
+DistroAgentsContacts
+AgentDispatcherTools'
 
 AgentsToolsFrontSummary(){ ## entry function name
 	printf '%s\n' "$agentsFrontSummary" | LC_ALL=C awk -F'\t' -v key="$1" '$1 == key { print $2 ; exit }'

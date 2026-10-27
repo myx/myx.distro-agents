@@ -257,6 +257,15 @@ AgentsHarnessIdleWait(){ ## timeout ('-' for none), then the sources
 			printf -v idleText '%s\n\n%s' "Your --idle-wait could not be made, and your conversation was not returned. What the wait said:" "$idleOut"
 		;;
 	esac
+	## A WORK-DUTY REWINDS AFTER EACH WORKING LOOP (sketch 7.3: "we want it rewind after each working loop"): the wait made for a plain reply
+	## (harnessIdleForce, AgentsUniversalHarness.sh) returns the conversation to the held checkpoint whatever the wait came to, a bound the run
+	## named or an error included, so every loop ends on the same cached prefix. A dismissal alone is the end and is not returned.
+	if [ -n "${harnessIdleForce:-}" ] && [ -n "$idleTarget" ] && [ "$idleHead" != "WAIT-RESULT: DISMISSED" ] ; then
+		printf -v idleText '%s\n\n%s' "Your --idle-wait ended with no arrival. The conversation is returned to its checkpoint $idleTarget, so the next turn is read from the cache and none of the work after it is in front of you. Call --idle-wait again to keep waiting." "${idleOut/ NEXT: Wait mode=continue/}"
+		if AgentsHarnessRewindTo "$idleTarget" "$idleText" ; then
+			return 0
+		fi
+	fi
 	harnessMessages+=( "$( AgentsWireUserRecord "$idleText" )" )
 	return 0
 }

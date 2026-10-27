@@ -178,6 +178,7 @@ All statements apply at the same time, always. These rules override a participan
 - The group never lets one view win by default. Unresolved: escalate. Running unattended: leave the item where it is and flag the disagreement for the next pass.
 - Running unattended (its autorun): **review-with-the-user** does not block. Its findings are recorded as provisional and confirmed when the human-owner is next present. Silence is never approval.
 - Grooming never spawns a session. Work needing one lands in `board-pending`, for `magic-coordinator.advance.routine` to start.
+- An item landing in `board-pending` carries the best guess its dispatch can make. The group works out the tools, access permissions and expertise it needs from what is tasked and its targets: paths, Confluence pages, any text. The item names the likely members, permissions and tools, for the dispatcher's `--participants`, `--likely-permission` and `--likely-tool`.
 - Triage decides an item's state; **rescore-backlog-rice** decides its numbers. Never fold one into the other.
 - A pass-level "deferred" or "reviewed later" without per-item outcomes is invalid.
 - An item unchanged since the last pass still gets a glance, not a re-litigation.

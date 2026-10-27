@@ -13,7 +13,7 @@
 # the trimmed value is the raw value with leading and trailing blanks off.
 
 BEGIN {
-	nk = split("type\034requires-session-kind\034executors\034maintainers\034invitees\034tracking-item\034start-context\034review-by\034cache-prefix\034allows\034operations\034routine-lock-document\034runs-at\034runs-after\034includes\034wait-sources", keyOrder, "\034")
+	nk = split("type\034requires-session-kind\034executors\034maintainers\034invitees\034tracking-item\034start-context\034review-by\034cache-prefix\034access-control\034allows\034denies\034operations\034routine-lock-document\034runs-at\034runs-after\034includes\034wait-sources", keyOrder, "\034")
 	for (i = 1 ; i <= nk ; i++) keyWant[keyOrder[i]] = 1
 	nh = split("Opening steps\034Steps\034Closure steps\034Routine's local procedures", headOrder, "\034")
 	for (i = 1 ; i <= nh ; i++) headWant[headOrder[i]] = 1

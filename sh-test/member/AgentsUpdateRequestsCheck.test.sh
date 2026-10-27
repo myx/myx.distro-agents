@@ -96,7 +96,7 @@ rigStand="$!" ; rigStarted="$rigStarted $rigStand" ; rigProcNote "$rigStand" ; d
 ## the librarian's sessions: one in a routine that allows the write, one in no routine
 for rigDir in "$rigSkills/magic-librarian" "$rigData/members/magic-librarian" ; do
 	mkdir -p "$rigDir"
-	printf -- '---\ntype: routine\nexecutors: magic-librarian\nmaintainers: human-owner\nrequires-session-kind: standalone\nallows: magic-librarian:skillset-upsert\n---\n# rig allowed\n' > "$rigDir/magic-librarian.rig-allowed.routine.md"
+	printf -- '---\ntype: routine\nexecutors: magic-librarian\nmaintainers: human-owner\nrequires-session-kind: standalone\naccess-control: magic-librarian:allow-tool:skillset-upsert\n---\n# rig allowed\n' > "$rigDir/magic-librarian.rig-allowed.routine.md"
 done
 rigSession(){ ## session id, routine file name (may be empty)
 	mkdir -p "$rigData/spawned/$1" "$rigData/sessions/$1"

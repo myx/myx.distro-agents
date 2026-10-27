@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ## rig-mktemp-sites.py <word> <file>... -- each call of <word> (the name of the temp-file command) in the place of a command in the files, as `<file>:<line>: [<why>] <line>` where it
-## takes the option t, has no template, or has a template that holds no `/` and starts at no variable (sh-test/AgentsTempNamesCheck.test.sh, rule 2).
+## takes the option t, has no template, or has a template that holds no `/` and starts at no variable (sh-test/config/AgentsTempNamesCheck.test.sh, rule 2).
 ## A comment line is prose and is not read. A line is read call by call, to the end of each command.
 import re
 import sys

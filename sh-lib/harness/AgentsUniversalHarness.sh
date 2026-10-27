@@ -1055,7 +1055,7 @@ checkListMember="" checkListSession="" checkListFolder="" checkListWhy=""
 
 ## The name the ask tool was called by, which every message of it carries: one of the names
 ## in AgentsTools.AskPost.include, which all run the one ask function below.
-harnessAskName="AskUserQuestion"
+harnessAskName="AskQuestion"
 
 
 
@@ -1120,9 +1120,11 @@ harnessToolSearchFloorFile="$harnessScratch/toolsearch.floor"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsTools.PrefetchRoutine.include"
 harnessPrefetch="" harnessPrefetchWhat="" harnessPrefetchReads="" harnessPrefetchRoutineSum="" harnessPrefetchRoutineFiles="" harnessSkillWhole=""
 ## The prefix layers are the team layer (the team's basic and armed files in the system text), the tool floor, the member
-## layer, and the session layer. There is no + layer and no `-extended` marker: `magic-team.armed.md` is in the team layer
-## of every member run, and a work-duty's routine and member static guidance are carried by its dispatch (the session
-## layer) instead. The routine's own `cache-prefix: routine` remains the one policy that preloads a routine.
+## layer, and the session layer. A work-duty has two more (sketch 8: "Team+ layer ... -extended (for work-duty sessions) - more preloaded team
+## static skill/knowledge", the same for the member): the Team+ layer, the optional skillset file magic-team/magic-team.armed-extended.md, after
+## the team layer, and the Member+ layer, <member>/<member>.armed-extended.md, after the member's armed content. A skillset without those files
+## has no such layer, and a run that is no work-duty never has one. A work-duty's routine and member static guidance are carried by its
+## dispatch (the session layer). The routine's own `cache-prefix: routine` remains the one policy that preloads a routine.
 harnessPrefetchOneLine="$( AgentsToolsPrefetchOneLine )"
 ## One read as the Skill tool answers it: the file of a skill, or the sections of it, whole whatever the cap of a result.
 agentsPrefetchReadName="" agentsPrefetchReadFile="" agentsPrefetchReadSections=""
@@ -1824,14 +1826,19 @@ while : ; do
 		fi
 		AgentsHarnessEmitAnswer "$harnessFinal"
 		AgentsHarnessContextReply
+		## AN EXECUTOR IS NOT DISMISSED UNLESS IT IS THE LAST ONE RUNNING (sketch 5.3), and a work-duty is not at all: a run whose session has another run
+		## still going does not end on its plain reply either (AgentsHarnessOthersRunning). It waits as a duty does, and the quiet round of its wait
+		## asks the question again.
 		## A WORK-DUTY IS A LOOP IN ONE SESSION AND ONLY A DISMISSAL ENDS IT: a plain-text reply is its model thinking it is done, not an end.
 		## The idle-wait is made here as the model would have made it, the conversation is returned to its checkpoint where one is held, and the
 		## model is asked again. A dismissed run, a run that is no work-duty and a run that answers plain ten times in a row without a tool call
 		## in between (a wait that cannot be made) end as before.
-		if [ -z "$harnessDismissedEnd" ] && [ "${harnessDutyPlainRuns:-0}" -lt 10 ] && AgentsHarnessWorkDuty \
+		if [ -z "$harnessDismissedEnd" ] && [ "${harnessDutyPlainRuns:-0}" -lt 10 ] && { AgentsHarnessWorkDuty || AgentsHarnessOthersRunning ; } \
 			&& [ ! -e "$MMDAPP/.local/agents/sessions/${MDAT_SPAWN_SESSION_ID:-/}/dismissed" ] ; then
 			harnessDutyPlainRuns=$(( ${harnessDutyPlainRuns:-0} + 1 ))
+			harnessIdleForce=1
 			AgentsHarnessIdleWait -
+			harnessIdleForce=""
 			continue
 		fi
 		AgentsTranscriptHarnessFinal "$harnessFinal" || :

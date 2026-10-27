@@ -17,6 +17,8 @@
 if [ -z "$MMDAPP" ] ; then
 	set -e
 	export MMDAPP="$( ( cd "$( dirname "$0" )/../../../.." && pwd ) )"
+	## Derived from the place of this file, not given: --spawn-run then needs a workspace by --select-workspace (AgentsTools.CoordinatorSpawn.include).
+	export MDAT_MMDAPP_IMPLIED=1
 	echo "$0: Working in: $MMDAPP"  >&2
 	[ -d "$MMDAPP/.local" ] || ( echo "⛔ ERROR: expecting '.local' directory." >&2 && exit 1 )
 fi
@@ -75,6 +77,13 @@ AgentDispatcherToolsMoved(){
 			return $?
 		;;
 
+		## One session spawned, through DistroAgentsDispatcher --spawn-session; a root-harness session names its place (gate in AgentDispatcherTools below).
+		--spawn-run)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CoordinatorSpawn.include"
+			AgentsToolsCoordinatorSpawn "$@"
+			return $?
+		;;
+
 		--sweep-state-advance|--sweep-state-read|--sweep-state-upsert)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/magic/AgentsTools.MagicSweep.include"
 			return $?
@@ -91,6 +100,11 @@ AgentDispatcherTools(){
 	local MDSC_CMD='AgentDispatcherTools'
 	## F1.4: a name that came here from DistroAgentsTools.fn.sh runs its operation in the function below.
 	type AgentsToolsFrontKnows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsContext.FrontTable.include"
+	## A root-harness session names the place of a spawn (epic S18.3), asked before the common options take --select-workspace out and run the call again in it.
+	if [ "${1:-}" = "--spawn-run" ] && [ -z "${agentsCommonFronted:-}" ] ; then
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.CoordinatorSpawn.include"
+		AgentsToolsCoordinatorSpawnGate "$@" || { set +e ; return 1 ; }
+	fi
 	if AgentsToolsFrontKnows AgentDispatcherTools "$@" ; then
 		AgentDispatcherToolsMoved "$@"
 		return $?

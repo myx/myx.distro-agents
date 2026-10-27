@@ -433,6 +433,7 @@ echo "📘 syntax: DistroAgentsTesting.fn.sh --skillset-validate-routine [--team
 echo "📘 syntax: AgentDispatcherTools.fn.sh --spawns [--team-member <team-member>] [--active|--waiting|--all]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --flags [--team-member <team-member>]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --tasks [--team-member <team-member>]" >&2
+echo "📘 syntax: AgentDispatcherTools.fn.sh --spawn-run [--select-workspace <place-name>] (--routine <selector>|--routine-default) [<DistroAgentsDispatcher.fn.sh --spawn-session options>]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --contacts [--team-member <team-member>] [--organisation <slug>] [--reached-by <member>]" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --contact [--team-member <team-member>] <id>" >&2
 echo "📘 syntax: AgentDispatcherTools.fn.sh --standing-directives [--team-member <team-member>] [--all]" >&2

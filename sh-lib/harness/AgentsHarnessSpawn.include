@@ -609,6 +609,27 @@ AgentsHarnessWorkDuty(){
 	return 1
 }
 
+## Whether another run of this run's session is still going (sketch 5.3: "Same for any executor of any routine - whatever it is done - it is not
+## dismissed unless he is last one running!"): a spawn record of this run's session, another run's, that still says `spawn-started` and is live by
+## the one rule the tooling tells a run by (AgentsReviewChildLive). rc 0 another is going; rc 1 this run is the last one.
+AgentsHarnessOthersRunning(){
+	local othersRecord othersSession othersRecords othersFile
+	othersRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$othersRecord" ] || return 1
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 1
+	## An executor is a member spawned or joined into a session; a helper brought in under its caller (`inline`) hands back and may end.
+	case "$( AgentsToolsSpawnSandboxRecordHeader "$othersRecord" start-context )" in spawned|joined) ;; *) return 1 ;; esac
+	othersSession="$( AgentsToolsSpawnSandboxRecordHeader "$othersRecord" session-id )"
+	[ -n "$othersSession" ] || return 1
+	type AgentsReviewChildLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsTools.ReviewFlow.include" 2> /dev/null || return 1
+	othersRecords="$( LC_ALL=C grep -l -x -F "session-id: $othersSession" "$MMDAPP"/.local/agents/spawned/*/*.spawn.md 2> /dev/null )" || return 1
+	while IFS= read -r othersFile ; do
+		[ -n "$othersFile" ] && [ -f "$othersFile" ] || continue
+		[ "${othersFile##*/}" != "${MDAT_SPAWN_SESSION_ID:-/}.spawn.md" ] || continue
+		AgentsReviewChildLive "$othersFile" > /dev/null 2>&1 && return 0
+	done <<< "$othersRecords"
+	return 1
+}
+
 ## Who a handback is for where its call names nobody: the caller, the member that made the
 ## spawn call this session was started by, as the spawn records name it (AgentsToolsSessionParentMember). Prints
 ## nothing where no record names it, where it is this member itself, or where the member

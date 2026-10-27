@@ -188,7 +188,7 @@ DistroAgentsTesting(){
 ## to it; `apply` takes $MMDAPP/.local/temp/live-apply.lock, stages each file beside its live place (a moved file only as a clean three-way merge
 ## whose change equals this work's), compares live with its snapshot again right before each rename, puts the work in place, and gives the lock
 ## back leaving no temp behind. A repository outside the workspace applies the same, one repository per call. The self-test
-## sh-test/AgentsApplyToolCheck.test.sh is its test; MDAT_APPLY_BEFORE_PUT and MDAT_APPLY_BEFORE_CHECK are that test's alone.
+## sh-test/common/AgentsApplyToolCheck.test.sh is its test; MDAT_APPLY_BEFORE_PUT and MDAT_APPLY_BEFORE_CHECK are that test's alone.
 DistroAgentsTestingApplyChange(){ ## from, to -- the +/- lines of a diff, as one comparison text (nothing of the hunk headers)
 	diff -u "$1" "$2" 2> /dev/null | LC_ALL=C grep -e '^[+-]' | LC_ALL=C grep -v -e '^+++' -e '^---' || :
 }
@@ -255,7 +255,8 @@ DistroAgentsTestingApplyMark(){ ## repository, scratch, package/relative...
 
 ## level: brings the scratch packages level with live for every file this work has NOT marked. A file live changed and this work changed too is a
 ## conflict, never overwritten. A file that is NOT marked and differs from live is overwritten from live only if it is still what the last level left
-## in it: a file somebody edited without marking it is refused and left alone. A file gone from live is removed from the scratch (not mine). Ends
+## in it: a file somebody edited without marking it is refused and left alone. A file gone from live is removed from the scratch (not mine) only
+## where a level put it there and it is unchanged; any other unmarked file live does not hold is a builder's new one, said and kept. Ends
 ## LEVEL: OK, or LEVEL: CONFLICT (rc 1).
 DistroAgentsTestingApplyLevel(){ ## repository, scratch
 	local levelRepo="$1" levelScratch="$2" levelPkg levelF levelL levelP levelConflict=0 levelKept levelSum
@@ -301,8 +302,11 @@ DistroAgentsTestingApplyLevel(){ ## repository, scratch
 			[ ! -f "$levelL/$levelF" ] || continue
 			if LC_ALL=C grep -Fxq -- "$levelPkg/$levelF" "$levelScratch/changed-files.txt" ; then
 				[ -f "$levelScratch/base/$levelPkg/$levelF" ] || echo "mine, new in the scratch: $levelPkg/$levelF"
-			else
+			## Removed only where a level put it there and it is still what that level left: else it is a builder's new file, and is kept.
+			elif [ "$( LC_ALL=C awk -v key="$levelPkg/$levelF" '$1 == key { print $2 }' "$levelScratch/levelled.sums" | LC_ALL=C tail -1 )" = "$( DistroAgentsTestingApplySum "$levelP/$levelF" )" ] ; then
 				rm -f -- "$levelP/$levelF" 2> /dev/null && echo "gone from live, removed from the scratch (not mine): $levelPkg/$levelF"
+			else
+				echo "new, unmarked: $levelPkg/$levelF -- kept; mark it before it is applied"
 			fi
 		done < <( cd "$levelP" && find . -type f ! -path './.git/*' | LC_ALL=C sort )
 	done < "$levelScratch/packages.txt"
@@ -422,7 +426,7 @@ DistroAgentsTestingApplyDo(){ ## repository, scratch
 	local applyRepo="$1" applyScratch="$2" applyOrder="$2/apply-order.txt"
 	local applyLock="$MMDAPP/.local/temp/live-apply.lock" applyStageDir="$2/stage.apply" applyTries=0 applyLists=( "$2/changed-files.txt" )
 	local applyF applyPkg applyRel applyLive applyBase applyMine applyN applyBad applyRole applyPass applyRecord="$2/applied-steps.txt"
-	local applyCand applyKind applyStopped applyDoneList applyStill
+	local applyCand applyKind applyStopped applyDoneList applyStill applySyntax=""
 	[ -f "$applyOrder" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool apply: $applyOrder is not there" >&2 ; return 1 ; }
 	[ -f "$applyScratch/packages.txt" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool apply: $applyScratch/packages.txt is not there" >&2 ; return 1 ; }
 	if [ "$( LC_ALL=C sort "$applyOrder" 2> /dev/null )" != "$( LC_ALL=C sort "$applyScratch/changed-files.txt" 2> /dev/null )" ] ; then
@@ -553,10 +557,11 @@ DistroAgentsTestingApplyDo(){ ## repository, scratch
 			remove) if [ -e "$applyLive" ] ; then echo "STILL ON LIVE: $applyF" ; applyStill=1 ; else echo "live no longer holds: $applyF" ; fi ; continue ;;
 			done) [ -e "$applyMine" ] || continue ;;
 		esac
-		DistroAgentsTestingApplyParses "$applyF" "$applyLive" || echo "SYNTAX AFTER APPLY: $applyF"
+		DistroAgentsTestingApplyParses "$applyF" "$applyLive" || { echo "SYNTAX AFTER APPLY: $applyF" ; applySyntax=1 ; }
 		if cmp -s "$applyLive" "$applyMine" ; then echo "live == this work's file: $applyF" ; else echo "live holds this work's file with another's hunks merged in: $applyF" ; fi
 	done < "$applyStageDir/order"
 	[ -z "$applyStill" ] || exit 6
+	[ -z "$applySyntax" ] || exit 7
 	date -u +%Y-%m-%dT%H:%M:%SZ > "$applyScratch/applied-at.txt" 2> /dev/null
 	exit 0
 	)

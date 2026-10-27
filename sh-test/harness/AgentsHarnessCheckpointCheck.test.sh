@@ -75,12 +75,12 @@ printf -- '---\nname: rig-a\n---\nmember skill\n' > "$rigSkills/rig-a/SKILL.md"
 rigRoutine(){ ## short name, allows value
 	{
 		printf -- '---\ntype: routine\nexecutors: rig-a\nmaintainers: magic-coordinator\ninvitees: none\nrequires-session-kind: standalone\n'
-		[ -z "$2" ] || printf 'allows: %s\n' "$2"
+		[ -z "$2" ] || printf 'access-control: %s\n' "$2"
 		printf -- '---\n# magic-team.%s.routine — the actual procedure\n\n# Summary\n\nA rig routine.\n\n# Opening steps\n\n1. **rig-open**: open.\n\n# Steps\n\n1. **rig-work**: work.\n\n# Closure steps\n\n1. **rig-close**: close.\n\n' "$1"
 		printf "# Routine's local procedures\n\nNone.\n\n# Routine's local rules\n\nNone.\n\n# Routine-specific tooling\n\nNone.\n\n# Maintainer Notes\n\nNone.\n"
 	} > "$rigSkills/magic-team/magic-team.$1.routine.md"
 }
-rigRoutine rigsolo 'executors:--executor-checkpoint-push,executors:--executor-checkpoint-rewind,executors:--executor-checkpoint-exit'
+rigRoutine rigsolo 'executors:allow-tool:--executor-checkpoint-push,executors:allow-tool:--executor-checkpoint-rewind,executors:allow-tool:--executor-checkpoint-exit'
 rigRoutine rigdeny ''
 
 rigSpawn="rig-spawn-cp"

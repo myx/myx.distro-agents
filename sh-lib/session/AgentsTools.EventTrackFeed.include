@@ -101,7 +101,7 @@ AgentsEventTrackFeedDrop(){ ## taken feed, bytes read from it
 	rm -f "$1"
 }
 
-## The poster: runs until killed, then posts what is still open. Polls the feed every 4
+## The poster: runs until killed, or until the shell that started it is gone, then posts what is still open. Polls the feed every 4
 ## seconds, fixed in code, and never sleeps past the open post's 7 seconds, so that post goes
 ## on time with no further line; reads whole lines only. 4, not 5: a line read just after it
 ## was written waits a poll, then the 7 s window, which the whole-second clock can stretch to
@@ -121,7 +121,15 @@ AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the sess
 	local runHangup="HUP"
 	case "$( trap -p HUP )" in "trap -- '' "*) runHangup="" ;; esac
 	trap 'AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 > /dev/null ; AgentsEventTrackFeedDrop "$runTaken" "$runOffset" ; exit 0' TERM INT $runHangup
+	## Its starter, the shell whose TERM ends it, read once. Once its parent is no longer that shell (a proxy ended by KILL),
+	## nothing would end it: it posts what is open and ends by itself.
+	local runSelf runStarter
+	runSelf="$( exec sh -c 'echo "$PPID"' )"
+	runStarter="$( ps -o ppid= -p "$runSelf" 2> /dev/null | tr -d ' ' )"
 	while : ; do
+		if [ "${runStarter:-1}" = 1 ] || [ "$( ps -o ppid= -p "$runSelf" 2> /dev/null | tr -d ' ' )" != "$runStarter" ] ; then
+			AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 > /dev/null ; AgentsEventTrackFeedDrop "$runTaken" "$runOffset" ; exit 0
+		fi
 		## The feed taken at the last poll goes once all of it is read. A poll later, never at
 		## once: a write that opened the feed just before it was taken has landed by then.
 		! AgentsEventTrackFeedDrop "$runTaken" "$runOffset" || runOffset=0

@@ -30,6 +30,18 @@ AgentsMcpWireLockAcquire(){
 	return 0
 }
 
+## Whether a mint of the root-harness session, read before this request, has not ended: its marker (AgentsTools.InternMcpServer.include) is there.
+AgentsMcpMintPending(){
+	local pendingMarker pendingSeq
+	for pendingMarker in "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid"/mint-pending.* ; do
+		[ -e "$pendingMarker" ] || continue
+		pendingSeq="${pendingMarker##*.}"
+		case "$pendingSeq" in ''|*[!0123456789]*) continue ;; esac
+		[ "$pendingSeq" -lt "$AGENTS_MCP_REQ_SEQ" ] && return 0
+	done
+	return 1
+}
+
 AgentsMcpSendResult(){
 	[ -n "$1" ] || return 0
 	if ! AgentsMcpWireLockAcquire ; then
@@ -259,6 +271,15 @@ case "$1" in
 		## carries no session answers exactly as it did before this block existed. The id is
 		## held to a bare name, the gate every session folder is chosen by; the token is not
 		## read, since serving that session proves nothing about adopting it.
+		## A mint of the root-harness session read before this request is still pending: this request waits for it, so its profile binds this call too (epic S18.3).
+		## Bounded at a minute; a mint that has not ended by then leaves the call refused (fail closed), never run ungated.
+		mcpMintStuck=''
+		mcpMintLeft=300
+		while [ "$mcpMintLeft" -gt 0 ] && AgentsMcpMintPending ; do
+			sleep 0.2
+			mcpMintLeft=$(( mcpMintLeft - 1 ))
+		done
+		! AgentsMcpMintPending || mcpMintStuck=1
 		mcpRootSessionId=''
 		if [ -s "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/root-session" ] ; then
 			IFS=' ' read -r mcpRootSessionId mcpRootSessionHeldToken < "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/root-session" || :
@@ -451,7 +472,18 @@ case "$1" in
 				## Bash is listed, described as harness-only, but not served: a call that
 				## names it is told where to run commands instead of being refused with
 				## nothing to go on.
-				if [ "Bash" = "$mcpToolName" ] ; then
+				## The deny rows of the routine the session runs (epic S18.3, S18.5; AgentsTools.PermissionHolds.include): the tool list is the same for everyone, and a tool a row
+				## denies is refused here, at call time, with the hint that names the owner and how to ask. The root-harness session's profile is that routine's rows.
+				mcpRootRefusal=''
+				if [ -n "${mcpRootSessionId:-}" ] && [ "RootSession" != "$mcpToolName" ] ; then
+					type AgentsToolsPermissionDenyRefusal > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" 2> /dev/null || :
+					mcpRootRefusal="$( AgentsToolsPermissionDenyRefusal "${MDAT_SPAWN_AGENT:-magic-coordinator}" "$mcpToolName" "" "$mcpRootSessionId" 2> /dev/null )" || mcpRootRefusal=''
+				fi
+				if [ -n "${mcpMintStuck:-}" ] && [ "RootSession" != "$mcpToolName" ] ; then
+					AgentsMcpSendError "$mcpId" -32602 "The root-harness session of this server is still being minted, so no tool is run until its profile binds; nothing was run. Call again once RootSession has answered."
+				elif [ -n "$mcpRootRefusal" ] ; then
+					AgentsMcpSendError "$mcpId" -32602 "$mcpRootRefusal"
+				elif [ "Bash" = "$mcpToolName" ] ; then
 					AgentsMcpSendError "$mcpId" -32602 "Bash is not served by this server. Use your own client's shell tool; where that is refused, use this server's own 'execute', which evaluates a shell script with the myx.distro workspace context already established."
 
 				## BatchTools, by the one engine (AgentsTools.BatchTools.include): each call a request of its own, as
@@ -647,6 +679,7 @@ case "$1" in
 					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/mcp/AgentsTools.RootSession.include"
 					mcpRootSessionRc=0
 					mcpOutput="$( AgentsToolsRootSessionServe "$mcpServerPid" "$mcpRootSessionOp" "$mcpRootSessionGiven" "$mcpRootSessionToken" )" || mcpRootSessionRc=$?
+					rm -f "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/mint-pending.$AGENTS_MCP_REQ_SEQ"
 					mcpIsError='false'
 					[ 0 -eq "$mcpRootSessionRc" ] || mcpIsError='true'
 					[ -n "$mcpOutput" ] || mcpOutput='ERROR: RootSession returned nothing, so whether the session was made is unknown.'

@@ -76,6 +76,9 @@
 			`.local/temp/live-apply.lock`: mark records a file's base, level brings
 			the scratch packages level with live, plan is the dry run, and apply
 			writes the work back.
+			Level never removes a file a builder made: an unmarked file live does not
+			hold is removed only where a level put it there and it is unchanged;
+			any other reads `new, unmarked` and is kept.
 			A file is removed when the scratch lists it in `removals.txt`, a path a
 			line, and renamed when it lists `<old><TAB><new>` in `renames.txt`. The
 			old path and a removed one are marked, with their base, and deleted from
@@ -94,7 +97,8 @@
 			Exit status of apply: 0 done; 1 a fault of the call or the scratch;
 			2 the apply order is not the changed list; 3 the lock stays taken;
 			4 refused, nothing done; 5 stopped part way; 6 a removed file is still
-			on live; 129, 130 or 143 ended by a hangup, an interrupt or TERM.
+			on live; 7 a shell file put in place does not parse on live; 129, 130
+			or 143 ended by a hangup, an interrupt or TERM.
 
 ##  Examples:
 

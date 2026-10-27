@@ -27,7 +27,7 @@ The one copy of this policy. Each `partner-*` and `magic-coordinator` cite it.
 - A partner dispatch states what is mechanical and what the partner may decide. Without an explicit grant, it takes the choice back to the coordinator.
 - In a session needing quorum, a partner is one voice in that group, the same as any member. Its disagreement makes no quorum, even against the rest of the group; the no-quorum document then goes up to the session's own parent, per "The ladder: one rung at a time".
 - It never asserts our team's authority inside the counterpart's systems.
-- No partner has a wider or narrower default than another; only a per-task grant changes it. Same principle as `magic-team.conversations.md`'s **judgment-gap-propose-and-confirm**.
+- No partner has a wider or narrower default than another; only a per-task grant changes it. Same principle as **judgment-gap-propose-and-confirm**.
 
 ## Two origins in a member's file set
 

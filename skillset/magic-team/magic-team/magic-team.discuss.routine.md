@@ -56,6 +56,9 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **process-own-inbox**: run `magic-team.process-inbox.routine <own-name>` inline (`--routine-run-inline magic-team.process-inbox.routine`), collecting items that ask for a decision.
 2. **frame-the-decision**: state what must be decided by the end. One topic, one thread: an unrelated topic is forked into its own thread.
 3. **surface-options-and-tradeoffs**: lay out the real alternatives, never one answer dressed as a discussion, steps:
+   - list every option before weighing any, the unlikely ones included.
+   - weigh each piece of evidence against all the options at once, not one option against all the evidence. Evidence that fits every option settles nothing.
+   - name the linchpin assumption each leading option rests on, and what changes if it is wrong.
    - bring in `magic-architect` for a structural question, `magic-librarian` for docs or conventions, the owning `keeper-*`/`partner-*` for a domain question.
    - work the sub-points as small questions or statements to approve, per **collect-dont-converge** in `magic-team.interview.routine` and `magic-team.negotiations.md`'s topic mechanics.
 4. **converge-explicitly**: state the resolution plainly. Running out of time or information: say the session did not converge, and write it up as the no-quorum document — the agreed part, and each member's own argument — sent up by "The ladder: one rung at a time".

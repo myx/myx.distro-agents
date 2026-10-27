@@ -383,6 +383,12 @@ rigLegBranch="$( [ -n "$rigLegStart" ] && [ -n "$rigLegEnd" ] && [ "$rigLegEnd" 
 rigAssert "the leg branch of the console names no sandbox path on the access flags"  "$( printf '%s' "$rigLegBranch" | LC_ALL=C grep -c 'MDAT_SPAWN_SANDBOX_ROOT' )" 0
 rigAssert "the console still names it for a non-leg client CLI, which has no harness of ours"  "$( LC_ALL=C grep -c 'DagcAccessAppend .*MDAT_SPAWN_SANDBOX_ROOT/' "$rigConsoleTemplate" )" 2
 
+echo "-- the Team+ and Member+ layers are real: the harness says so, and reads the files where the skillset keeps them (sketch 8) --"
+## The comment at the layers said there is no + layer, against the code beside it. The files are the librarian's: they are optional, and a skillset without them has no such layer.
+rigAssert "the harness does not say there is no + layer" "$( LC_ALL=C grep -c -F 'There is no + layer' "$rigHere/harness/AgentsUniversalHarness.sh" || : )" 0
+rigAssert "the Team+ file is read beside magic-team.armed.md, where the skillset keeps the team's files" "$( LC_ALL=C grep -c -F '/magic-team/magic-team.armed-extended.md' "$rigHere/harness/AgentsUniversalHarness.sh" ):$( [ -f "${rigHere%/sh-lib}/skillset/magic-team/magic-team/magic-team.armed.md" ] && echo beside )" "2:beside"
+rigAssert "the Member+ file is read beside the member's armed file" "$( LC_ALL=C grep -c -F '$pfRoot/$pfMember/$pfMember.armed-extended.md' "$rigHere/harness/AgentsHarnessSkills.include" )" 2
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ PROMPT CACHE LAYERS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

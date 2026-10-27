@@ -208,8 +208,8 @@ AgentsToolsThisSessionDispatchText(){ ## the operation's arguments (none)
 ## the step a kind routine's Opening steps end on (`--executor-checkpoint-push opening`) is harmless wherever it does not apply: a run of
 ## a native client (whose conversation only the client keeps), and a session whose routine does not allow the operation to its member.
 
-## rc 0 when the routine the session runs allows the operation to its member: an entry of the routine's own `allows:` that names it for
-## the member, for the routine's executors or for its participants (<who>:<operation>). The operations are not a file or a spend, and they
+## rc 0 when the routine the session runs allows the operation to its member: an allow-tool row of the routine's own `access-control:` that names it for
+## the member, for the routine's executors or for its participants (<who>:allow-tool:<operation>). The operations are not a file or a spend, and they
 ## return nothing but the run's own conversation, so no maintainer's holding is asked, as it is for a tool of the team (AgentsToolsPermissionRoutineHolds).
 AgentsToolsThisSessionRoutineAllows(){ ## operation
 	local allowsRoutine allowsFile="" allowsOwner allowsDir allowsLine allowsAllows="" allowsExecutors="" allowsEntry allowsWho allowsRest
@@ -226,9 +226,9 @@ AgentsToolsThisSessionRoutineAllows(){ ## operation
 	while IFS= read -r allowsLine ; do
 		case "$allowsLine" in
 			'executors: '*) allowsExecutors="${allowsLine#executors: }" ;;
-			'allows: '*) allowsAllows="${allowsLine#allows: }" ;;
+			'access-control: '*) allowsAllows="$( AgentsToolsPermissionAccessEntries "${allowsLine#access-control: }" allow )" ;;
 		esac
-	done <<< "$( LC_ALL=C awk -v headers="executors"$'\034'"allows" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$allowsFile" 2> /dev/null )"
+	done <<< "$( LC_ALL=C awk -v headers="executors"$'\034'"access-control" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$allowsFile" 2> /dev/null )"
 	allowsExecutors=" $( printf '%s' "$allowsExecutors" | LC_ALL=C tr ',\t' '  ' ) "
 	while [ -n "$allowsAllows" ] ; do
 		allowsEntry="${allowsAllows%%,*}"
@@ -295,7 +295,7 @@ AgentsToolsThisSessionCheckpoint(){ ## push|rewind|exit, then the operation's ar
 		return 0
 	fi
 	if ! AgentsToolsThisSessionRoutineAllows "$checkpointWord" ; then
-		printf 'NOTICE: %s: no checkpoint was made -- the routine this session runs does not allow it to its member (its allows: names it, for a single-participant routine). The session goes on.\n' "$checkpointWord"
+		printf 'NOTICE: %s: no checkpoint was made -- the routine this session runs does not allow it to its member (its access-control: names it, for a single-participant routine). The session goes on.\n' "$checkpointWord"
 		return 0
 	fi
 	checkpointStore="$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID"

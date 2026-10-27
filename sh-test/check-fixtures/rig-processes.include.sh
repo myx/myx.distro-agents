@@ -53,7 +53,7 @@
 ##
 ## What is left unproved, and is not signalled: a group whose noted members are all gone while
 ## others it started remain; a process that was gone before it could be noted.
-## sh-test/AgentsTestSignalsCheck.test.sh is the check of this file, and the guard over every
+## sh-test/common/AgentsTestSignalsCheck.test.sh is the check of this file, and the guard over every
 ## signal of sh-test that does not go through it.
 
 rigProcNoted="${rigProcNoted:-}"

@@ -48,7 +48,7 @@ Normative contract: this file's own `# Contract` section, at its end. Where it a
 ### External representation
 
 - `partner-*`: holds the subject [named external party]'s counterpart works in — our interface to that counterpart, never a stand-in for them and never their representative among us.
-- `client-*`: our own avatar inside [named external party]'s own systems — `magic-team/contracts/magic-team.authority.client.contract.md`'s "Relationship shape". What an incoming contact gets is `magic-team/magic-team.conversations.md`'s **non-owner-contact-tiers-and-escalation**.
+- `client-*`: our own avatar inside [named external party]'s own systems — `magic-team/contracts/magic-team.authority.client.contract.md`'s "Relationship shape". What an incoming contact gets is **non-owner-contact-tiers-and-escalation**.
 - Communication with the external entity: a `client-*` acts directly; a `partner-*` goes through the `client-*` for that organisation, else through `magic-coordinator`.
 - Generic role operations run through the shared `magic-tooling` baseline; any external-system tooling specific to this partner/client (their own Jira/Slack/Google, etc.) is documented in this file's own `Team-Member's (-specific) tooling` section below.
 

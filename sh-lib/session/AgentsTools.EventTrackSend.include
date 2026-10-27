@@ -256,17 +256,29 @@ if ! type AgentsToolsEventTrackSendDir > /dev/null 2>&1 ; then
 		drainLock="$agentsLocalLockPath"
 		agentsEventTrackSendQueue="$drainOut"
 		while : ; do
+			## A drain never outlives its outbox: one that is gone ends it, whatever is left.
+			[ -d "$drainOut" ] || break
 			drainLead="$( AgentsToolsEventTrackSendOldest "$drainOut" )"
 			[ -n "$drainLead" ] || break
 			## The window first: what arrives in it is collected into this very post.
 			AgentsToolsEventTrackSendPace "$drainOut"
+			[ -d "$drainOut" ] && [ -d "$drainLead" ] || break
 			drainMerged="" ; drainGroup="${drainLead##*/}"
 			while : ; do
 				drainNext="$( AgentsToolsEventTrackSendOldest "$drainOut" "$drainLead" )"
 				[ -n "$drainNext" ] && [ "$drainNext" != "$drainLead" ] || break
+				## A record is never merged into itself, however its path is spelt (a link, another name of one directory):
+				## the same file read and appended to never ends. Such a second name is dropped, the record kept.
+				if [ "$drainNext" -ef "$drainLead" ] || [ "$drainNext/lines" -ef "$drainLead/lines" ] ; then
+					rm -f "$drainNext" 2> /dev/null || :
+					[ ! -e "$drainNext" ] && [ ! -L "$drainNext" ] || break
+					continue
+				fi
 				AgentsToolsEventTrackSendSame "$drainLead" "$drainNext" || break
 				drainSeq="${drainNext##*/}"
-				cat "$drainNext/lines" >> "$drainLead/lines" 2>/dev/null || :
+				## Read whole before it is appended: a bounded copy, so the append ends whatever the two files are.
+				drainOne="$( cat "$drainNext/lines" 2> /dev/null ; printf x )" ; drainOne="${drainOne%x}"
+				printf '%s' "$drainOne" >> "$drainLead/lines" 2>/dev/null || :
 				drainMerged="$drainMerged $drainSeq"
 				drainGroup="$drainGroup $drainSeq"
 				rm -rf "$drainNext"

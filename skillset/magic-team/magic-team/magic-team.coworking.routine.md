@@ -88,8 +88,10 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **frame-the-shared-goal**: state what the session must achieve together. Once the goal names this session's tracking documents, steps:
    - read them from this run's input scan result (`input/input-scan.md`) before working from them.
    - re-read any inbox item naming the same board items.
-2. **invite-participants-visibly**: invite each participant as it joins, at the start or mid-session, steps:
-   - post `Inviting <alias>...` into the session thread, the alias from the member's own Public Information.
+2. **invite-participants-visibly**: invite each participant with an `Agent` call, at the start or later in the session, steps:
+   - take the default list from `DistroAgentsSession.fn.sh --get-uninvited-participants`. Any other member may be invited as well.
+   - post `Inviting <alias>...` into the session thread, the alias from the member's own Public Information, then make the `Agent` call.
+   - read the `PARTICIPANTS_UNINVITED=` line of the `Agent` result: it names the participants still left to invite.
    - the member loads its own `Skill` and posts its armed confirmation into the same thread, in its own voice.
    - no confirmation: wait per **wait-never-quit**, then re-invite once. Still none: say so in the thread, then continue without the member if the task allows, or escalate per "The ladder: one rung at a time".
 3. **orchestrate-the-shared-task**: the executor leads the work as a participant, rules:
@@ -160,6 +162,7 @@ All statements apply at the same time, always. These rules override a participan
 - An executor that cannot spawn its members applies each participant's `Skill` itself, and says so in the session thread and the report.
 - A member joining mid-session does not replay missed steps. It loads its `Skill`, is announced, and starts from the current state. The executor commands any re-run it judges needed.
 - A participant's own words are its own; only steps are constrained.
+- Each Slack coworking message names its speaker: `@<alias> (<verb>):`, then the message.
 - Every wait in this routine follows **wait-never-quit**.
 - A gap in understanding follows `magic-team.negotiations.md`'s "Gap surfacing": ask about intent, investigate facts.
 - **Sessions sharing a file edit it by turns.** Declare your region to the other session first, re-read the file before every edit, anchor each edit on text unique to your region, and hand the file back explicitly.
@@ -190,6 +193,7 @@ Contacts, the people you meet and reach, are kept by tooling and not by hand: Di
 - `--upsert-inbox-inquiry <member> <item-filename> [--include-processed] [--from-file <path>]`
 - `--routine-run-inline <routine>`
 - `--get-session-thread [--own]`
+- `--get-uninvited-participants`
 - `--executor-checkpoint-push [<name>]`
 
 # Maintainer Notes

@@ -592,6 +592,8 @@ AgentsToolsAuthorityRequestOpen(){ ## mode (enqueue|wait), confirmation (yes|emp
 AgentsToolsAuthorityRequestSettle(){ ## request record, verdict, answered by
 	local settleFile="$1" settleVerdict settleBy="$3" settleChosen="" settleOption settleGrantOut=""
 	settleVerdict="$( printf '%s' "$2" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+	## The word is the answer; a comment after it (`yes, go on` is read as `yes -- go on`) is not part of it.
+	settleVerdict="${settleVerdict%% -- *}"
 	if ! AgentsToolsAuthorityApproving "$settleVerdict" ; then
 		case "$settleVerdict" in
 			deny|no) ;;
@@ -795,6 +797,8 @@ AgentsToolsAuthorityGate(){ ## what (words), original (pending id or spawn id), 
 	[ -z "$gateQuestion" ] || ! AgentsToolsAuthorityAddressHeld "$( AgentsToolsAuthorityField "$gateQuestion" address-to )" || return 0
 	## A console account mapped to an owner: the owner confirms, in its own channel.
 	! AgentsToolsAuthorityOwnerMapped || gateConfirm="yes"
+	## A verdict only the human-owner gives (agentsAuthorityForceConfirm, set by the caller for one call): whoever is at the console, it goes to him as a confirmation, never as a refusal.
+	[ -z "${agentsAuthorityForceConfirm:-}" ] || gateConfirm="yes"
 	if [ -z "${agentsAuthorityMode:-}" ] && [ -z "$gateConfirm" ] ; then
 		agentsAuthorityOutcome="refused"
 		AgentsToolsAuthorityRefuse "$gateWhat" "$gateHolder" "$gateSession" "$gateNamed"

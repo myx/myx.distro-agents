@@ -137,7 +137,7 @@ All statements apply at the same time, always. These rules override a participan
 - Nothing is filed mid-interview unilaterally: propose the piece, type and goal, and wait for the session's own parent to confirm it, per "The ladder: one rung at a time", unless the human-owner asked for that filing himself.
 - **Unattended rounds.** `magic-coordinator.advance.routine` runs one round per pass on an open interview, with nobody present. The round runs **resume-review** for pieces whose approval is already recorded, then **reassess-before-next-message**, sending at most one message. It never creates an interview item, never approves, files or dispatches anything not already approved, and never reads silence as an answer.
 - `GOOD`/`BAD INTERVIEW`, or `GOOD`/`BAD ASSESSMENT` pinned to a quoted statement: read back the understood lesson and record it per **quality-marker-creates-reflection**. This file changes only by the skillset change rule.
-- **Scope-steering keywords.** Each is read back and confirmed before it counts. Its topic stays on the record, unlike content under `magic-team.conversations.md`'s `DETOUR:` marker (**detour-offtopic-marker**):
+- **Scope-steering keywords.** Each is read back and confirmed before it counts. Its topic stays on the record, unlike content under the `DETOUR:` marker (**detour-offtopic-marker**):
   - `detour:` — the topic goes to the top of this interview's plan.
   - `later:` — the topic goes to the end of the plan.
   - `next:` — the topic becomes the current item.
@@ -185,7 +185,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - `magic-team.discuss.routine` — convergence; `magic-team.brainstorm.routine` — idea generation.
 - `magic-coordinator.advance.routine` — runs the unattended rounds.
-- `magic-team/magic-team.conversations.md`, `magic-team/magic-team.negotiations.md` — the mechanics the steps cite.
+- `magic-team/magic-team.negotiations.md` — the mechanics the steps cite.
 
 ### Conventions
 

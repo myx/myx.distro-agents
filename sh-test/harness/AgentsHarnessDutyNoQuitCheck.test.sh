@@ -72,7 +72,7 @@ rigRoutine(){ ## short name, scan line ('' for none declared)
 	{
 		printf -- '---\ntype: routine\nexecutors: rig-a\nmaintainers: magic-coordinator\ninvitees: none\nrequires-session-kind: standalone\n'
 		[ -z "$2" ] || printf 'input-scan-def: %s\n' "$2"
-		printf 'allows: executors:--executor-checkpoint-push,executors:--executor-checkpoint-rewind,executors:--executor-checkpoint-exit\n'
+		printf 'access-control: executors:allow-tool:--executor-checkpoint-push,executors:allow-tool:--executor-checkpoint-rewind,executors:allow-tool:--executor-checkpoint-exit\n'
 		printf -- '---\n# magic-team.%s.routine — the actual procedure\n\n# Summary\n\nA rig routine.\n\n# Opening steps\n\n1. **rig-open**: open.\n\n# Steps\n\n1. **rig-work**: work.\n\n# Closure steps\n\n1. **rig-close**: close.\n\n' "$1"
 		printf "# Routine's local procedures\n\nNone.\n\n# Routine's local rules\n\nNone.\n\n# Routine-specific tooling\n\nNone.\n\n# Maintainer Notes\n\nNone.\n"
 	} > "$rigSkills/magic-team/magic-team.$1.routine.md"
@@ -133,7 +133,7 @@ rigRun(){ ## further harness arguments
 		HARNESS_PROVIDER_NAME="idle-wait rig" HARNESS_SELF_NAME="AgentsHarnessDutyNoQuitCheck.test.sh" HARNESS_WIRE="AnthropicMessages" HARNESS_CREDENTIAL_NAMES="none" \
 		HARNESS_ENDPOINT="https://harness-idle-wait.invalid/v1/messages" HARNESS_HOST="harness-idle-wait.invalid" HARNESS_EXTRA_HEADERS="anthropic-version: 2023-06-01" \
 		HARNESS_MODEL_LIGHT="rig-light" HARNESS_MODEL_MAIN="rig-main" HARNESS_TOKEN_LIGHT="rig-not-a-credential" HARNESS_TOKEN_MAIN="rig-not-a-credential" \
-		HARNESS_OUTPUT_TOKENS_LIGHT="4101" HARNESS_OUTPUT_TOKENS_MAIN="4202" MDAT_HARNESS_CONTEXT_TOKENS=0 MDAT_HARNESS_MAX_RESTARTS=1 \
+		HARNESS_OUTPUT_TOKENS_LIGHT="4101" HARNESS_OUTPUT_TOKENS_MAIN="4202" MDAT_HARNESS_CONTEXT_TOKENS=0 MDAT_HARNESS_MAX_RESTARTS=1 MDAT_HARNESS_WAIT_TIMEOUT="${rigWaitTimeout:-}" \
 		python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-exec.py" --alarm 240 -- bash "$rigHarness" --agent rig-a --access-root "$rigDir" "$@" RIG-TASK-MARKER ) > "$rigDir/out" 2> "$rigDir/err"
 	rigRunStatus=$?
 	[ "$( cat "$rigDir/round" )" != 0 ] || rigRefuse "the harness issued no request at all -- its stderr: $( head -5 "$rigDir/err" )"
@@ -146,8 +146,8 @@ rigHeld(){ ## the names of the snapshots the run's store holds, in order, space-
 echo "-- a plain-text reply of a work-duty does not end it: the idle-wait is made, and the model is asked again --"
 rigScene duty work-duty
 printf 'WAIT_ROUND_SECONDS=2\n' > "$rigWs/.local/.agents/magic-team.agent.env"
-## The dismissal comes once the model was asked the second time, so the order is the check's and not the machine's speed.
-( rigWaited=0 ; while [ ! -f "$rigDir/req.2" ] && [ "$rigWaited" -lt 120 ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done ; sleep 1 ; mkdir -p "$rigStore" ; printf 'rig-boss\n' > "$rigStore/dismissed" ) &
+## The dismissal comes once the second idle-wait has begun, so the order is the check's and not the machine's speed.
+( rigWaited=0 ; while [ "$( LC_ALL=C grep -c -F 'idle-wait -- waiting on' "$rigDir/err" 2> /dev/null )" -lt 2 ] && [ "$rigWaited" -lt 240 ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done ; sleep 1 ; mkdir -p "$rigStore" ; printf 'rig-boss\n' > "$rigStore/dismissed" ) &
 rigLater=$!
 rigTextStream "$rigDir/res.1" RIG-DUTY-THINKS-IT-IS-DONE
 rigTextStream "$rigDir/res.2" RIG-DUTY-STILL-THINKS-IT-IS-DONE
@@ -158,6 +158,34 @@ wait "$rigLater" 2> /dev/null
 rigAssert "the run did not end on its plain replies: the model was asked a second and a third time, and the dismissal ended it" "$rigRunStatus:$( cat "$rigDir/round" )" "0:3"
 rigAssert "the harness made the idle-wait itself, after each of the two replies before the dismissal" "$( rigCount "$rigDir/err" 'idle-wait -- waiting on' )" "2"
 rigAssert "and the model is woken with the keepalive text, the conversation returned to its checkpoint" "$( rigIn "$( cat "$rigDir/req.2" )" 'made its keepalive round' ):$( rigIn "$( cat "$rigDir/req.2" )" 'returned to its checkpoint armed' )" "yes:yes"
+
+echo "-- every plain reply of a work-duty lands on the held checkpoint, also when the run bounds its waits --"
+## The run names a wait bound, so the wait comes back at it with no arrival and no keepalive: the conversation is returned all the same (sketch 7.3: "we want it rewind after each working loop").
+rigScene bound work-duty
+rigWaitTimeout=2
+( rigWaited=0 ; while [ "$( LC_ALL=C grep -c -F 'idle-wait -- waiting on' "$rigDir/err" 2> /dev/null )" -lt 2 ] && [ "$rigWaited" -lt 240 ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done ; sleep 1 ; mkdir -p "$rigStore" ; printf 'rig-boss\n' > "$rigStore/dismissed" ) &
+rigLater=$!
+rigTextStream "$rigDir/res.1" RIG-BOUND-DONE
+rigTextStream "$rigDir/res.2" RIG-BOUND-DONE-AGAIN
+rigRun
+wait "$rigLater" 2> /dev/null
+rigWaitTimeout=""
+rigAssert "the wait ended at the run's bound with no arrival, and the conversation went back to its checkpoint all the same" "$( rigIn "$( cat "$rigDir/req.2" )" 'returned to its checkpoint armed' ):$( rigCount "$rigDir/req.2" 'RIG-BOUND-DONE' )" "yes:0"
+
+echo "-- an executor is not dismissed unless it is the last one running (sketch 5.3) --"
+## A member spawned into a session with another member's run still going: its plain reply does not end it. When the other run has ended, the next plain reply does.
+rigScene exec rigquiet
+printf 'WAIT_ROUND_SECONDS=2\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+sed -i.bak 's/^status: spawn-started$/status: spawn-started\nstart-context: spawned/' "$rigWs/.local/agents/spawned/rig/$rigSpawn.spawn.md" && rm -f "$rigWs/.local/agents/spawned/rig/$rigSpawn.spawn.md.bak"
+printf -- '---\nspawn-id: rig-other\nsession-id: %s\nowner: rig-b\nhost: another-host\nstart-context: joined\nroutine: magic-team.rigquiet.routine.md\nstatus: spawn-started\n---\n\n# Spawn session: rig-other\n' "$rigSpawn" > "$rigWs/.local/agents/spawned/rig/rig-other.spawn.md"
+( rigWaited=0 ; while [ "$( LC_ALL=C grep -c -F 'idle-wait -- waiting on' "$rigDir/err" 2> /dev/null )" -lt 1 ] && [ "$rigWaited" -lt 240 ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
+  sed -i.bak 's/^status: spawn-started$/status: spawn-succeeded/' "$rigWs/.local/agents/spawned/rig/rig-other.spawn.md" ) &
+rigLater=$!
+rigTextStream "$rigDir/res.1" RIG-EXEC-DONE
+rigTextStream "$rigDir/res.2" RIG-EXEC-DONE-AGAIN
+rigRun
+wait "$rigLater" 2> /dev/null
+rigAssert "while the other run was going the executor did not end; once it had ended, the next plain reply did" "$rigRunStatus:$( cat "$rigDir/round" ):$( rigCount "$rigDir/err" 'idle-wait -- waiting on' )" "0:2:1"
 
 echo "-- a run that is not a work-duty ends on its plain-text reply --"
 rigScene plain rigquiet

@@ -2,7 +2,7 @@
 type: routine
 executors: magic-librarian
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
-allows: magic-librarian:skillset-upsert
+access-control: magic-librarian:allow-tool:skillset-upsert
 reports-to: none
 requires-session-kind: standalone
 runs-at: workdays 09:00

@@ -20,7 +20,7 @@
 ##                file tool on its glob; a read row (allow-read) the read tools only; a tool
 ##                row is <tool>[:<target>].
 ##   ceiling      no file tool writes in a read-only place, through any layer.
-##   routine      the `allows:` of the routine the session runs, for that session only
+##   routine      the `access-control:` of the routine the session runs, for that session only
 ##                (AgentsToolsPermissionRoutineHolds).
 ##   set, planned, passed, granted -- (c), (d), (e): grants of a session or a task in the
 ##                session store (AgentsToolsPermissionGrantScan), never `once` ones.
@@ -436,6 +436,11 @@ AgentsToolsPermissionSessionRoutine(){ ## session id
 		srCow="$( AgentsToolsPermissionField "$srRecord" session-id )"
 		break
 	done
+	## A root-harness session RootSession minted has no spawn record: the routine its mint kept in its folder is the one it runs (epic S18.5).
+	if [ -z "$srRoutine" ] && [ -z "$srCow" ] ; then
+		type AgentsToolsRootHarnessRoutineRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" 2> /dev/null || :
+		srRoutine="$( AgentsToolsRootHarnessRoutineRead "$srSession" 2> /dev/null )" || srRoutine=""
+	fi
 	if [ -z "$srRoutine" ] && [ -n "$srCow" ] && [ "$srCow" != "$srSession" ] ; then
 		case "$srCow" in
 			*/*|.|..) ;;
@@ -456,9 +461,37 @@ AgentsToolsPermissionSessionRoutine(){ ## session id
 	printf '%s' "$srRoutine"
 }
 
-## The routine layer: while a session runs a routine, that routine's frontmatter `allows:`
-## grants its participants, comma-separated <member|executors|participants>:<tool>[:<target>]
-## entries, a target escaped as a tracking document's is and a relative path taken from the
+## THE ROUTINE'S ACCESS-CONTROL (epic S18.5; one grant grammar, the project.inf verbs): the frontmatter line `access-control:` is comma-separated rows
+## `<member|executors|participants>:<verb>:<value>`. The verbs are allow-read, allow-write, allow-tool and their twins deny-read, deny-write, deny-tool. A path value
+## (read, write) is a glob, relative to the workspace or absolute; a tool value is `<tool>[:<target>]`. A write row speaks for every file tool, a read row for the read
+## tools only, as the standing rows do. A write row is the entries of Edit and Write, a read row those of Read, Grep and Glob; a deny row takes away exactly the tools
+## its verb names (deny-write the two write tools, not the read tools). The keys `allows:` and `denies:` of a routine are gone, with no alias (the routine validator refuses them). All denies together
+## override all allows together (AgentsToolsPermissionHolds).
+## The rows of one kind in the shape the layers below read, `<who>:<tool>[:<target>]`, comma-joined: allow-write is `Edit:<glob>`, allow-read `Read:<glob>`, allow-tool the
+## value as it stands; deny-* the same for the denies. A row of a wrong shape, or of the other kind, is left out here (the validator refuses the shape).
+AgentsToolsPermissionAccessEntries(){ ## access-control value, allow|deny
+	local accRest="${1:-}" accKind="${2:-}" accRow accWho accVerb accValue accEntry accOut=""
+	while [ -n "$accRest" ] ; do
+		accRow="${accRest%%,*}"
+		if [ "$accRow" != "$accRest" ] ; then accRest="${accRest#*,}" ; else accRest="" ; fi
+		accRow="${accRow#"${accRow%%[![:space:]]*}"}" ; accRow="${accRow%"${accRow##*[![:space:]]}"}"
+		case "$accRow" in *:*:*) ;; *) continue ;; esac
+		accWho="${accRow%%:*}" ; accRow="${accRow#*:}"
+		accVerb="${accRow%%:*}" ; accValue="${accRow#*:}"
+		[ -n "$accWho" ] && [ -n "$accValue" ] || continue
+		case "$accVerb" in
+			"$accKind"-tool) accEntry="$accWho:$accValue" ;;
+			"$accKind"-write) accEntry="$accWho:Edit:$accValue,$accWho:Write:$accValue" ;;
+			"$accKind"-read) accEntry="$accWho:Read:$accValue,$accWho:Grep:$accValue,$accWho:Glob:$accValue" ;;
+			*) continue ;;
+		esac
+		accOut="$accOut${accOut:+,}$accEntry"
+	done
+	printf '%s' "$accOut"
+}
+
+## The routine layer: while a session runs a routine, that routine's frontmatter `access-control:` allow rows
+## grant its participants (AgentsToolsPermissionAccessEntries), a target escaped as a tracking document's is and a relative path taken from the
 ## workspace. Only a participant of the session is granted; `executors` are the routine's
 ## own executors among them (magic-team or * there: every participant). A routine changes
 ## only with all its maintainers agreeing, so its allows count as approved by them: with
@@ -485,9 +518,9 @@ AgentsToolsPermissionRoutineHolds(){ ## member, tool, natural target, session id
 		case "$rhLine" in
 			'executors: '*) rhExecutors="${rhLine#executors: }" ;;
 			'maintainers: '*) rhMaintainers="${rhLine#maintainers: }" ;;
-			'allows: '*) rhAllows="${rhLine#allows: }" ;;
+			'access-control: '*) rhAllows="$( AgentsToolsPermissionAccessEntries "${rhLine#access-control: }" allow )" ;;
 		esac
-	done <<< "$( LC_ALL=C awk -v headers="executors"$'\034'"maintainers"$'\034'"allows" \
+	done <<< "$( LC_ALL=C awk -v headers="executors"$'\034'"maintainers"$'\034'"access-control" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$rhFile" 2>/dev/null )"
 	[ -n "$rhAllows" ] || return 1
 	rhExecutors=" $( printf '%s' "$rhExecutors" | LC_ALL=C tr ',\t' '  ' ) "
@@ -530,7 +563,7 @@ AgentsToolsPermissionRoutineHolds(){ ## member, tool, natural target, session id
 			*)
 				case "$rhEntryTool" in
 					cred|spend)
-						echo "⚠️ WARNING: routine ${rhRoutine%.md}: allows entry $rhEntry is ignored: a $rhEntryTool entry needs human-owner among its maintainers" >&2
+						echo "⚠️ WARNING: routine ${rhRoutine%.md}: access-control row $rhEntry is ignored: a $rhEntryTool row needs human-owner among its maintainers" >&2
 						continue
 					;;
 				esac
@@ -541,7 +574,7 @@ AgentsToolsPermissionRoutineHolds(){ ## member, tool, natural target, session id
 					break
 				done
 				if [ -z "$rhApproved" ] ; then
-					echo "⚠️ WARNING: routine ${rhRoutine%.md}: allows entry $rhEntry is ignored: none of its maintainers holds it" >&2
+					echo "⚠️ WARNING: routine ${rhRoutine%.md}: access-control row $rhEntry is ignored: none of its maintainers holds it" >&2
 					continue
 				fi
 			;;
@@ -552,50 +585,10 @@ AgentsToolsPermissionRoutineHolds(){ ## member, tool, natural target, session id
 	return 1
 }
 
-## The routine layer's denial: while a session runs a routine, that routine's frontmatter `denies:`
-## denies its participants the named tools, comma-separated tool names, a tool denied to every
-## participant of the session. It wins over every grant: the routine's own word to its members,
-## as its allows is its own word. No maintainer's approval is asked of a deny, which grants
-## nothing. Prints "routine-denies <routine-name>" and returns 0, or returns 1.
-AgentsToolsPermissionRoutineDenies(){ ## member, tool, session id
-	local rdMember="$1" rdTool="$2" rdSession="$3" rdRoutine rdFile="" rdMember2 rdDir rdLine
-	local rdDenies="" rdParticipants=""
-	[ -n "$rdMember" ] && [ -n "$rdTool" ] && [ -n "$rdSession" ] && [ -n "${MMDAPP:-}" ] || return 1
-	rdRoutine="$( AgentsToolsPermissionSessionRoutine "$rdSession" )"
-	[ -n "$rdRoutine" ] || return 1
-	## The routine file by its exact name, in every member's folder, as the allows layer reads it.
-	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/team-data/AgentsTools.TeamRegistry.include"
-	while IFS=$'\t' read -r rdMember2 rdDir ; do
-		[ -n "$rdDir" ] && [ -f "$rdDir/$rdRoutine" ] || continue
-		rdFile="$rdDir/$rdRoutine"
-		break
-	done <<< "$( AgentsToolsTeamMemberDirectoryText 2>/dev/null )"
-	[ -n "$rdFile" ] || return 1
-	while IFS= read -r rdLine ; do
-		case "$rdLine" in
-			'denies: '*) rdDenies="${rdLine#denies: }" ;;
-		esac
-	done <<< "$( LC_ALL=C awk -v headers="denies" \
-		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$rdFile" 2>/dev/null )"
-	[ -n "$rdDenies" ] || return 1
-	## A tool named by the denies line is denied, named as a whole word.
-	rdDenies=" $( printf '%s' "$rdDenies" | LC_ALL=C tr ',\t' '  ' ) "
-	case "$rdDenies" in
-		*" $rdTool "*) ;;
-		*) return 1 ;;
-	esac
-	## Only a participant of the session is denied: a routine's denies bind its own session.
-	rdParticipants="$( AgentsToolsPermissionParticipants "$rdSession" "" )"
-	printf '%s\n' "$rdParticipants" | LC_ALL=C grep -q -x -F -- "$rdMember" || return 1
-	printf 'routine-denies %s' "${rdRoutine%.md}"
-	return 0
-}
-
-## The routine layer's DENY: while a session runs a routine, that routine's frontmatter `denies:` revokes from its
-## participants, comma-separated <member|executors|participants>:<tool>[:<target>] entries, the same shape as `allows:`
-## (AgentsToolsPermissionRoutineHolds). A deny wins over every allow, the routine's own included: a member the routine
-## names in a denies: entry that covers the call does not hold it, whatever another layer grants. Prints
-## "routine-deny <routine-name>" and returns 0 where denied, else 1.
+## The routine layer's DENY: while a session runs a routine, the deny rows of its frontmatter `access-control:` (deny-read, deny-write, deny-tool,
+## AgentsToolsPermissionAccessEntries) revoke from its participants. A deny wins over every allow, the routine's own and any other layer's included: a member
+## a deny row names, with a target that covers the call, does not hold it, whatever another layer grants (AgentsToolsPermissionHolds). The human-owner is
+## never refused. Prints "routine-deny <routine-name>" and returns 0 where denied, else 1.
 AgentsToolsPermissionRoutineDenies(){ ## member, tool, natural target, session id
 	local dnMember="$1" dnTool="$2" dnWant="$3" dnSession="$4" dnRoutine dnFile="" dnMember2 dnDir dnLine
 	local dnExecutors="" dnDenies="" dnEntry dnWho dnRest dnEntryTool dnEntryTarget dnParticipants=""
@@ -613,9 +606,9 @@ AgentsToolsPermissionRoutineDenies(){ ## member, tool, natural target, session i
 	while IFS= read -r dnLine ; do
 		case "$dnLine" in
 			'executors: '*) dnExecutors="${dnLine#executors: }" ;;
-			'denies: '*) dnDenies="${dnLine#denies: }" ;;
+			'access-control: '*) dnDenies="$( AgentsToolsPermissionAccessEntries "${dnLine#access-control: }" deny )" ;;
 		esac
-	done <<< "$( LC_ALL=C awk -v headers="executors"$'\034'"denies" \
+	done <<< "$( LC_ALL=C awk -v headers="executors"$'\034'"access-control" \
 		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/board/AgentsBoardItemFrontmatterPrintSelected.awk" "$dnFile" 2>/dev/null )"
 	[ -n "$dnDenies" ] || return 1
 	dnExecutors=" $( printf '%s' "$dnExecutors" | LC_ALL=C tr ',\t' '  ' ) "
@@ -627,7 +620,7 @@ AgentsToolsPermissionRoutineDenies(){ ## member, tool, natural target, session i
 		dnWho="${dnEntry%%:*}" ; dnRest="${dnEntry#*:}"
 		dnEntryTool="${dnRest%%:*}" ; dnEntryTarget=""
 		case "$dnRest" in *:*) dnEntryTarget="$( AgentsToolsPermissionUnescape "${dnRest#*:}" )" ;; esac
-		AgentsToolsGrantsToolCovers "$dnEntryTool" "$dnTool" || continue
+		[ "$dnEntryTool" = "$dnTool" ] || continue
 		case "$agentsPermissionFileTools" in
 			*" $dnEntryTool "*)
 				case "$dnEntryTarget" in
@@ -655,6 +648,16 @@ AgentsToolsPermissionRoutineDenies(){ ## member, tool, natural target, session i
 	return 1
 }
 
+## The refusal of a call a routine's deny rows cover: rc 0 and the hint printed (the tool, the routine whose rows deny it, who owns the limit and how to ask),
+## rc 1 and nothing printed where no deny row covers the call. The name of the tool is the caller's own word and is printed back only if it is a plain name.
+AgentsToolsPermissionDenyRefusal(){ ## member, tool, natural target, session id
+	local denyLayer denyName denyTool="${2:-}"
+	denyLayer="$( AgentsToolsPermissionRoutineDenies "${1:-}" "$denyTool" "${3:-}" "${4:-}" 2> /dev/null )" || return 1
+	denyName="${denyLayer#routine-deny }"
+	case "$denyTool" in ''|*[!A-Za-z0-9_]*) denyTool="this call" ;; esac
+	printf 'ERROR: %s is denied to this session by the access-control rows of its routine %s. The owner of the limit is the human-owner; to ask for it, call RequestPermission naming the tool and why, or hand the work to a session that has it. Nothing was done.\n' "$denyTool" "$denyName"
+}
+
 ## Whether <member> holds <tool> <target>, and through which layer: prints the layer and
 ## returns 0, or returns 1. With a session, its grants count too: the session's own store
 ## and the store of the coworking session it joined.
@@ -666,10 +669,8 @@ AgentsToolsPermissionHolds(){ ## member, tool, natural target, session id (optio
 		printf 'human-owner'
 		return 0
 	fi
-	## A routine's denies: wins over every layer below, the routine's allows and the session grants included.
+	## A routine's deny rows win over every layer below, the routine's allows and the session grants included.
 	! AgentsToolsPermissionRoutineDenies "$holdMember" "$holdTool" "$holdTarget" "$holdSession" || return 1
-	## The routine this session runs denies the tool to its participants: a deny wins over every grant below it.
-	AgentsToolsPermissionRoutineDenies "$holdMember" "$holdTool" "$holdSession" > /dev/null 2>&1 && return 1
 	## A read-only place is written by nobody else, through any layer: its ceiling caps them all.
 	case " Edit Write Execute " in
 		*" $holdTool "*)
@@ -786,6 +787,11 @@ AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (ma
 				front == 1 && index( $0, "parent-spawn-id: " ) == 1 { recParent = substr( $0, 18 ) ; }
 				front == 1 && index( $0, "owner: " ) == 1 { recOwner = substr( $0, 8 ) ; }
 			' "$MMDAPP/.local/agents/spawned"/*/*.spawn.md 2>/dev/null || :
+		fi
+		## The root-harness session RootSession minted has no spawn record: it is the coordinator's own, the one participant (epic S18.5).
+		if [ -n "$partSession" ] && [ -n "${MMDAPP:-}" ] ; then
+			type AgentsToolsRootHarnessRoutineRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.RootHarnessKind.include" 2> /dev/null || :
+			! AgentsToolsRootHarnessRoutineRead "$partSession" > /dev/null 2>&1 || printf 'magic-coordinator\n'
 		fi
 		if [ -n "$partTask" ] && [ -n "${MDAT_DATA_ROOT:-}" ] ; then
 			partItem="${partTask##*/}" ; partItem="${partItem%.md}"

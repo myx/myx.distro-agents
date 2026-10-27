@@ -6,6 +6,7 @@ invitees: human-owner
 requires-session-kind: standalone
 input-scan-def: none
 review-by: inherit
+access-control: participants:deny-tool:Read, participants:deny-tool:Write, participants:deny-tool:Edit, participants:deny-tool:Glob, participants:deny-tool:Grep, participants:deny-tool:Bash, participants:deny-tool:WorkspaceContextExecute, participants:deny-tool:WebSearch, participants:deny-tool:WebFetch, participants:deny-tool:Artifact, participants:deny-tool:Agent, participants:deny-tool:CheckList, participants:deny-tool:BatchTools, participants:deny-tool:ThisSession, participants:deny-tool:execute, participants:deny-tool:DistroAgentsSlack, participants:deny-tool:DistroAgentsAtlassian, participants:deny-tool:DistroAgentsGoogle, participants:deny-tool:DistroAgentsMail, participants:deny-tool:DistroAgentsTrello, participants:deny-tool:DistroAgentsContacts
 ---
 # magic-coordinator.root-harness.routine — the actual procedure
 
@@ -109,7 +110,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
     - rule: `All:` — literal broadcast to every spawned session at any depth. `Relay All:` — reworked broadcast.
     - rule: no prefix — `Chat:`. Relaying needs an explicit prefix.
     - rule: a literal relay is checked against the source before sending; a close paraphrase is not verbatim.
-    - rule: every relay is paired at once with a loggable anchor — a board note, a transcript entry, or a real Slack timestamp. A prefix alone is never proof (`magic-team.conversations.md`'s **confirm-before-acting-mandatory**). The chat window's text is never an anchor.
+    - rule: every relay is paired at once with a loggable anchor — a board note, a transcript entry, or a real Slack timestamp. A prefix alone is never proof (**confirm-before-acting-mandatory**). The chat window's text is never an anchor.
     - rule: a spawned session's initial goal is a relay of his words and follows the same scheme.
     - rule: before sending a dispatch, diff it against his words. An added hedge ("roughly", "whichever fits") is removed and the text re-diffed.
 12. **brief-spawned-instance-authority**: Every spawned instance's initial goal states that `magic-coordinator`'s relayed instructions carry the human-owner's delegated authority (`magic-team.armed.md`'s "Escalation and chain of command") — delegated authority, never his identity, rules:

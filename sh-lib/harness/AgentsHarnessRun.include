@@ -246,10 +246,6 @@ AgentsHarnessAnnounceTool(){
 		ProposeApprove)
 			AgentsHarnessAskAnnounce
 		;;
-		## Their second name, declared nowhere and still taken.
-		AskUserQuestion|mcp__*__AskUserQuestion)
-			AgentsHarnessAskAnnounce
-		;;
 		## server is optional here, so a bare call states what it will actually do rather
 		## than announcing an empty detail that reads as a stall.
 		ListMcpResourcesTool)
@@ -353,7 +349,7 @@ AgentsHarnessAnnounceTool(){
 AgentsHarnessArmGate(){ ## tool name -- prints the redirect when the call must wait for arming
 	[ -z "$harnessToolOnly" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "$harnessAgent" ] && [ -z "$harnessArmedAt" ] || return 0
 	case "$1" in
-		Write|Edit|Bash|WorkspaceContextExecute|SendMessage|AskUserQuestion|AskQuestion|ConfirmReadback|EscalateDecision|RequestPermission|ProposeApprove|Agent|mcp__*__execute|mcp__*__Write|mcp__*__Edit|mcp__*__SendMessage|mcp__*__AskUserQuestion|mcp__*__AskQuestion|mcp__*__ConfirmReadback|mcp__*__EscalateDecision|mcp__*__RequestPermission|mcp__*__ProposeApprove|mcp__*__Agent) ;;
+		Write|Edit|Bash|WorkspaceContextExecute|SendMessage|AskQuestion|ConfirmReadback|EscalateDecision|RequestPermission|ProposeApprove|Agent|mcp__*__execute|mcp__*__Write|mcp__*__Edit|mcp__*__SendMessage|mcp__*__AskQuestion|mcp__*__ConfirmReadback|mcp__*__EscalateDecision|mcp__*__RequestPermission|mcp__*__ProposeApprove|mcp__*__Agent) ;;
 		*) return 0 ;;
 	esac
 	printf 'ERROR: read your duty file first: Skill name=%s file=%s.armed.md -- then retry this call. Nothing was done.\n' "$harnessAgent" "$harnessAgent"
@@ -448,13 +444,14 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		EscalateDecision) harnessResult="$( AgentsHarnessToolEscalateDecision )" ;;
 		RequestPermission) harnessResult="$( AgentsHarnessToolRequestPermission )" ;;
 		ProposeApprove) harnessResult="$( AgentsHarnessToolProposeApprove )" ;;
-		## The second name of the tools that ask: accepted wherever a call is taken, declared nowhere.
-		AskUserQuestion) harnessResult="$( AgentsHarnessAskCall AskUserQuestion )" ;;
 		ListMcpResourcesTool) harnessResult="$( AgentsHarnessToolListMcpResourcesTool "${harnessArgV_server}" )" ;;
 		ReadMcpResourceTool) harnessResult="$( AgentsHarnessToolReadMcpResourceTool "${harnessArgV_server}" "${harnessArgV_uri}" )" ;;
 		ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "${harnessArgV_server}" "${harnessArgV_uri_prefix}" "${harnessArgV_limit}" )" ;;
 		Skill)     harnessResult="$( AgentsHarnessToolSkill "${harnessArgV_name}" "${harnessArgV_file}" "${harnessArgV_list}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_skill}" "${harnessArgV_args}" "${harnessArgV_section}" )" ;;
-		Agent)     harnessResult="$( AgentsHarnessToolAgent "${harnessArgV_agent}" "${harnessArgV_prompt}" "${harnessArgV_cli_service}" "${harnessArgV_session_name_or_comment}" "${harnessArgV_session_id}" "${harnessArgV_conversation}" "${harnessArgV_description}" "${harnessArgV_new_session:-}" "${harnessArgV_settings_workspace:-}" )" ;;
+		## Agent has moved (epic S18.3): one way to start a session, AgentDispatcherTools operation=--spawn-run. This tool is the stub until callers move: it makes the same
+		## spawn, through the same function, and says where it went.
+		Agent)     harnessResult="$( AgentsHarnessToolAgent "${harnessArgV_agent}" "${harnessArgV_prompt}" "${harnessArgV_cli_service}" "${harnessArgV_session_name_or_comment}" "${harnessArgV_session_id}" "${harnessArgV_conversation}" "${harnessArgV_description}" "${harnessArgV_new_session:-}" "${harnessArgV_settings_workspace:-}" )"$'\n'"MOVED: Agent is replaced by AgentDispatcherTools operation=--spawn-run (a member name and the prompt on stdin, or --routine <selector>); this tool is kept as a stub until its callers move."
+		;;
 		TaskStop)  harnessResult="$( AgentsHarnessToolTaskStop "${harnessArgV_handle}" "${harnessArgV_force}" "${harnessArgV_task_id}" "${harnessArgV_shell_id}" )" ;;
 		TaskOutput) harnessResult="$( AgentsHarnessToolTaskOutput "${harnessArgV_handle}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_output_file}" )" ;;
 		ToolSearch) harnessResult="$( AgentsHarnessToolToolSearch "${harnessArgV_query}" "${harnessArgV_max_results}" )" ;;

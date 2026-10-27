@@ -4,9 +4,8 @@ Read this when sending, reading, or storing messages through any chat/messaging 
 composing a message that asks the human-owner for something, and when writing or revising the
 conventions that govern how the team reaches him and how it composes messages.
 
-This module carries the **evidence and reasoning**. The **operative rules** members follow live in
-`magic-team/magic-team.conversations.md`, "Message and reaction discipline" — **message-shape-is-correctness**,
-**one-message-one-speech-act**, and **human-owner-action-to-slack-dm** — written platform-neutrally on
+This module carries the **evidence and reasoning**. The **operative rules** members follow are **message-shape-is-correctness** and
+**one-message-one-speech-act**, written platform-neutrally on
 purpose, and self-sufficient on their own. Read those for what to do; read this for why it is true and
 what was actually measured. Keep the two layers cross-referenced, never duplicated: a rule stated twice
 drifts.
@@ -134,6 +133,5 @@ rule that survives is "platforms impose limits and may truncate silently".
 
 ## Reading list
 
-- `magic-team/magic-team.conversations.md`'s **message-shape-is-correctness** — the operative message-structure rule.
 - `magic-librarian/magic-librarian.armed.md` — this module's owner and the reference-module role generally.
 - `reference/mcp.md` — the sibling protocol module; same axis, different protocol.

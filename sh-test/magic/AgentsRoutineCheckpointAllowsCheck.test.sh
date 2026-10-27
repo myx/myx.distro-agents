@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-## Behavioural check on the validator's rule for the checkpoint operations in a routine's `allows:` (F10.5 of the refactorings epic):
+## Behavioural check on the validator's rule for the checkpoint operations in a routine's `access-control:` (F10.5 of the refactorings epic):
 ## `DistroAgentsTesting.fn.sh --skillset-validate-routine <routine-file>` (the stub of the one validator, --intern-doc-validate routine).
-## The routine's frontmatter allows --executor-checkpoint-push, --executor-checkpoint-rewind and --executor-checkpoint-exit, as `<who>:<operation>`,
+## The routine's frontmatter access-control allow-tool rows allow --executor-checkpoint-push, --executor-checkpoint-rewind and --executor-checkpoint-exit, as `<who>:allow-tool:<operation>`,
 ## only to a single-participant session -- a standalone one, of one executor and no invitee -- since a rewind returns one member's conversation.
 ## Held:
 ##   1. a standalone routine of one executor and no invitee passes, with the operations allowed to executors, to participants and by name
-##   2. the rule refuses, on the `allows` row, a routine whose kind is not standalone, whose executors are not one member (two members, the
+##   2. the rule refuses, on the `access-control` row, a routine whose kind is not standalone, whose executors are not one member (two members, the
 ##      team, or none) and that has invitees; and an operation of the --executor- family that is not one of the three
-##   3. the rule touches nothing else: other entries in allows:, and a routine with no allows:, pass as they did
+##   3. the rule touches nothing else: other entries in access-control:, and a routine with no access-control:, pass as they did
 ##   4. the two kind routines of the package, which carry the mandated Opening step and the tooling line, pass
 ## Offline: rig files only; the validator is read-only.
 set -u
@@ -28,6 +28,8 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/.local/agents" "$rigTmp/home" "$rigTmp/skills/magic-team" "$rigTmp/skills/rig-a" "$rigTmp/skills/rig-b"
 cp "$rigKinds/magic-team.standalone.routine.md" "$rigKinds/magic-team.coworking.routine.md" "$rigTmp/skills/magic-team/" || rigRefuse "the kind routines could not be copied into the rig"
+## The members the package's own kind routines name (section 4), beside the rig's: the validator takes a name that is no member as a fault.
+for rigMember in magic-coordinator magic-librarian magic-architect ; do mkdir -p "$rigTmp/skills/$rigMember" ; printf 'rig\n' > "$rigTmp/skills/$rigMember/$rigMember.basic.md" ; printf 'rig\n' > "$rigTmp/skills/$rigMember/$rigMember.armed.md" ; done
 for rigMember in rig-a rig-b ; do printf 'rig\n' > "$rigTmp/skills/$rigMember/$rigMember.basic.md" ; printf 'rig\n' > "$rigTmp/skills/$rigMember/$rigMember.armed.md" ; done
 
 rigPassCount=0
@@ -42,10 +44,10 @@ rigAssert(){ ## what is asserted, got, want
 ## A routine of the rig: its kind, executors, invitees (empty: no line) and allows (empty: no line).
 rigRoutine(){ ## name, kind, executors, invitees, allows
 	{
-		printf -- '---\ntype: routine\nexecutors: %s\nmaintainers: magic-coordinator\n' "$3"
+		printf -- '---\ntype: routine\nexecutors: %s\nmaintainers: human-owner\n' "$3"
 		[ -z "$4" ] || printf 'invitees: %s\n' "$4"
 		printf 'requires-session-kind: %s\n' "$2"
-		[ -z "$5" ] || printf 'allows: %s\n' "$5"
+		[ -z "$5" ] || printf 'access-control: %s\n' "$5"
 		printf -- '---\n# magic-team.%s.routine — the actual procedure\n\n# Summary\n\nA rig routine.\n\n# Opening steps\n\n1. **open**: open.\n\n# Steps\n\n1. **work**: work.\n\n# Closure steps\n\n1. **close**: close.\n\n' "$1"
 		printf "# Routine's local procedures\n\nNone.\n\n# Routine's local rules\n\nNone.\n\n# Routine-specific tooling\n\nNone.\n\n# Maintainer Notes\n\nNone.\n"
 	} > "$rigTmp/skills/magic-team/magic-team.$1.routine.md"
@@ -65,39 +67,39 @@ rigVerdict(){ ## fixed string the answer must name... -- `0` where it passed, el
 	printf '%s' "$verdictText"
 }
 rigFile(){ printf '%s' "$rigTmp/skills/magic-team/magic-team.$1.routine.md" ; }
-rigAllThree='executors:--executor-checkpoint-push,executors:--executor-checkpoint-rewind,executors:--executor-checkpoint-exit'
+rigAllThree='executors:allow-tool:--executor-checkpoint-push,executors:allow-tool:--executor-checkpoint-rewind,executors:allow-tool:--executor-checkpoint-exit'
 
 echo "-- 1. a single-participant routine passes --"
 rigRoutine solo standalone rig-a "" "$rigAllThree" ; rigValidate "$( rigFile solo )"
 rigAssert "standalone, one executor, no invitees line, the three allowed to executors"  "$rigRc" 0
 rigRoutine solonone standalone rig-a none "$rigAllThree" ; rigValidate "$( rigFile solonone )"
 rigAssert "with invitees: none said"                                                    "$rigRc" 0
-rigRoutine soloparts standalone rig-a "" 'participants:--executor-checkpoint-push,participants:--executor-checkpoint-exit' ; rigValidate "$( rigFile soloparts )"
+rigRoutine soloparts standalone rig-a "" 'participants:allow-tool:--executor-checkpoint-push,participants:allow-tool:--executor-checkpoint-exit' ; rigValidate "$( rigFile soloparts )"
 rigAssert "allowed to participants"                                                     "$rigRc" 0
-rigRoutine soloname standalone rig-a "" 'rig-a:--executor-checkpoint-rewind' ; rigValidate "$( rigFile soloname )"
+rigRoutine soloname standalone rig-a "" 'rig-a:allow-tool:--executor-checkpoint-rewind' ; rigValidate "$( rigFile soloname )"
 rigAssert "allowed to the member by name"                                               "$rigRc" 0
 
-echo "-- 2. what it refuses, on the allows row --"
+echo "-- 2. what it refuses, on the access-control row --"
 rigRoutine cow coworking rig-a "" "$rigAllThree" ; rigValidate "$( rigFile cow )"
-rigAssert "a coworking routine"                                                         "$( rigVerdict ': allows:' 'kind is not standalone' )" "refused : allows: kind is not standalone"
+rigAssert "a coworking routine"                                                         "$( rigVerdict ': access-control:' 'kind is not standalone' )" "refused : access-control: kind is not standalone"
 rigRoutine two standalone 'rig-a, rig-b' "" "$rigAllThree" ; rigValidate "$( rigFile two )"
-rigAssert "two executors"                                                               "$( rigVerdict ': allows:' 'executors are not one member' )" "refused : allows: executors are not one member"
+rigAssert "two executors"                                                               "$( rigVerdict ': access-control:' 'executors are not one member' )" "refused : access-control: executors are not one member"
 rigRoutine team standalone magic-team "" "$rigAllThree" ; rigValidate "$( rigFile team )"
 rigAssert "the team as executor"                                                        "$( rigVerdict 'executors are not one member (magic-team)' )" "refused executors are not one member (magic-team)"
 rigRoutine inv standalone rig-a rig-b "$rigAllThree" ; rigValidate "$( rigFile inv )"
-rigAssert "an invitee"                                                                  "$( rigVerdict ': allows:' 'has invitees (rig-b)' )" "refused : allows: has invitees (rig-b)"
+rigAssert "an invitee"                                                                  "$( rigVerdict ': access-control:' 'has invitees (rig-b)' )" "refused : access-control: has invitees (rig-b)"
 rigRoutine both coworking 'rig-a, rig-b' rig-b "$rigAllThree" ; rigValidate "$( rigFile both )"
-rigAssert "all three faults are said, one row each"                                     "$( LC_ALL=C grep -c ': allows: ' "$rigTmp/said" )" 3
-rigRoutine other standalone rig-a "" 'executors:--executor-checkpoint-pause' ; rigValidate "$( rigFile other )"
+rigAssert "all three faults are said, one row each"                                     "$( LC_ALL=C grep -c ': access-control: ' "$rigTmp/said" )" 3
+rigRoutine other standalone rig-a "" 'executors:allow-tool:--executor-checkpoint-pause' ; rigValidate "$( rigFile other )"
 rigAssert "an operation of the --executor- family that is not one of the three"         "$( rigVerdict '--executor-checkpoint-pause is no operation of the --executor- family' '--executor-checkpoint-push' )" "refused --executor-checkpoint-pause is no operation of the --executor- family --executor-checkpoint-push"
-rigAssert "and it names the line of allows:, the sixth of the file"                     "$( LC_ALL=C grep -c "magic-team.other.routine.md:[0-9]*: allows: " "$rigTmp/said" ):$( LC_ALL=C sed -n 's/.*routine.md:\([0-9]*\): allows: .*/\1/p' "$rigTmp/said" | head -1 )" "1:6"
+rigAssert "and it names the line of access-control:, the sixth of the file"                     "$( LC_ALL=C grep -c "magic-team.other.routine.md:[0-9]*: access-control: " "$rigTmp/said" ):$( LC_ALL=C sed -n 's/.*routine.md:\([0-9]*\): access-control: .*/\1/p' "$rigTmp/said" | head -1 )" "1:6"
 
 echo "-- 3. it touches nothing else --"
-rigRoutine plain coworking 'rig-a, rig-b' rig-b 'executors:Read:/some/where,rig-b:Write:/other' ; rigValidate "$( rigFile plain )"
-rigAssert "a coworking routine with other entries in allows:"                           "$rigRc" 0
+rigRoutine plain coworking 'rig-a, rig-b' rig-b 'executors:allow-read:/some/where,rig-b:allow-write:/other' ; rigValidate "$( rigFile plain )"
+rigAssert "a coworking routine with other entries in access-control:"                           "$rigRc" 0
 rigRoutine none coworking 'rig-a, rig-b' rig-b "" ; rigValidate "$( rigFile none )"
-rigAssert "a routine with no allows:"                                                   "$rigRc" 0
-rigRoutine pushy coworking rig-a "" 'executors:--executor-checkpoint-pushy' ; rigValidate "$( rigFile pushy )"
+rigAssert "a routine with no access-control:"                                                   "$rigRc" 0
+rigRoutine pushy coworking rig-a "" 'executors:allow-tool:--executor-checkpoint-pushy' ; rigValidate "$( rigFile pushy )"
 rigAssert "an operation whose name only begins like one of the three is the family's other"  "$( rigVerdict 'is no operation of the --executor- family' )" "refused is no operation of the --executor- family"
 
 echo "-- 4. the two kind routines of the package --"

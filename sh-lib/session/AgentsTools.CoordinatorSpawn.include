@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CoordinatorSpawn.include -- AgentDispatcherTools --spawn-run (epic S18.3; sketch 10.5: the role surface "owns no state, delegates
+## everything"). One spawn of a session, delegated whole to DistroAgentsDispatcher --spawn-session with the arguments given. Functions only.
+##
+## THE WORKSPACE RULE is the team members' (owner 2026-10-27): a set `$MMDAPP` is explicit, and the tool works with or without a workspace argument; with none set
+## (the tool file derived it from its own place, which its header block marks with MDAT_MMDAPP_IMPLIED) it requires a workspace by --select-workspace, a place
+## name the places API resolves (listed by --manager-place-list) or a path. A name that does not resolve is refused. No session kind is special-cased: the root
+## harness has no MMDAPP of its own, so the rule applies to it by itself. The gate runs ahead of the common option set (AgentsContext.FrontDoor.include), which
+## takes --select-workspace out and runs the call again in the workspace it names.
+##
+
+## The refusal of a place: one line that says what a spawn names where no workspace is set and where the places are listed. rc 1.
+AgentsToolsCoordinatorSpawnRefuse(){ ## reason
+	echo "AgentDispatcherTools: ⛔ ERROR: --spawn-run: $1. With no MMDAPP set the spawn names its workspace by --select-workspace <place-name or path>; list the places with --manager-place-list. Nothing was done." >&2
+	return 1
+}
+
+## Whether a --select-workspace value is a place name the places API resolves, or a path: rc 0, or rc 1 with the refusal said.
+AgentsToolsCoordinatorSpawnPlace(){ ## value of --select-workspace
+	local placeName="${1:-}" placePath=""
+	case "$placeName" in
+		'') AgentsToolsCoordinatorSpawnRefuse "no workspace is named" ; return 1 ;;
+		/*) [ -d "$placeName" ] || { AgentsToolsCoordinatorSpawnRefuse "the path is no directory" ; return 1 ; } ; return 0 ;;
+		*/*) AgentsToolsCoordinatorSpawnRefuse "a workspace is named by a place name or by an absolute path" ; return 1 ;;
+	esac
+	type LocalToolsPlacesResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/places/LocalTools.Places.include" 2> /dev/null || :
+	placePath="$( LocalToolsPlacesResolve "${MMDAPP%/}" "$placeName" 2> /dev/null )" || placePath=""
+	[ -n "$placePath" ] || { AgentsToolsCoordinatorSpawnRefuse "the place is not one the places API resolves" ; return 1 ; }
+	return 0
+}
+
+## The gate of a call: the arguments, the operation first. Returns 0 where the call goes on, 1 (said) where it is refused.
+AgentsToolsCoordinatorSpawnGate(){ ## operation, arguments...
+	local gateTake="" gateWord gatePlace="" gateGiven=""
+	shift
+	for gateWord in "$@" ; do
+		if [ -n "$gateTake" ] ; then gatePlace="$gateWord" ; gateTake="" ; continue ; fi
+		case "$gateWord" in
+			--select-workspace) gateTake=1 ; gateGiven=1 ;;
+			--select-workspace=*) gatePlace="${gateWord#--select-workspace=}" ; gateGiven=1 ;;
+		esac
+	done
+	## A given place is checked whoever calls; none is asked of only where no MMDAPP was set.
+	if [ -n "$gateGiven" ] ; then
+		AgentsToolsCoordinatorSpawnPlace "$gatePlace"
+		return $?
+	fi
+	[ -n "${MDAT_MMDAPP_IMPLIED:-}" ] || return 0
+	AgentsToolsCoordinatorSpawnRefuse "no workspace is named"
+}
+
+## WHICH FORM a call is: a routine given first (--routine <selector> or --routine-default) starts a coworking session, the `--spawn-session` form; a member named
+## first (a bare name) starts that member with a prompt on stdin, the `--spawn-prompt` form (the `Agent` tool's, which this operation replaces). Prints `session` or
+## `prompt`; rc 1, nothing printed, where the call is neither.
+AgentsToolsCoordinatorSpawnForm(){ ## operation, arguments...
+	shift
+	case "${1:-}" in
+		--routine|--routine-default) printf 'session' ;;
+		''|-*) return 1 ;;
+		*) printf 'prompt' ;;
+	esac
+}
+
+## Whether the member this call is made as may use the tool: a run of a member needs an `allow-tool:AgentDispatcherTools` row (the coordinator has one standing in
+## the package's project.inf, any other member from a routine's access-control: or a project.inf row); a call with no member (the console) and the human-owner are not asked.
+AgentsToolsCoordinatorSpawnAllowed(){ ## operation
+	local allowedMember="${MDAT_SPAWN_AGENT:-}"
+	[ -n "$allowedMember" ] || return 0
+	type AgentsToolsPermissionHolds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include" 2> /dev/null || return 0
+	AgentsToolsPermissionHolds "$allowedMember" AgentDispatcherTools "${1:-}" "${MDAT_SPAWN_SESSION_ID:-}" > /dev/null 2>&1 && return 0
+	echo "AgentDispatcherTools: ⛔ ERROR: ${1:-}: $allowedMember holds no allow-tool row for AgentDispatcherTools. The owner of the limit is the human-owner; to ask for it, call RequestPermission naming the tool and why, or hand the work to a member that has it. Nothing was done." >&2
+	return 1
+}
+
+## The spawn: one way to start a session. The `--spawn-session` form is delegated whole to DistroAgentsDispatcher; the `--spawn-prompt` form (a member and its prompt on
+## stdin: `<member> [--cli-service <name>] [--session-name-or-comment <text>] [--session-id <id>] [--conversation <channel:ts>]... [--description <text>] [--new-session]
+## [--settings-workspace <name>]`) is the one function that always spawned a member by prompt, AgentsHarnessToolAgent (AgentsHarnessSpawn.include), made here with the
+## member this call is made as.
+AgentsToolsCoordinatorSpawn(){ ## operation, arguments...
+	local spawnForm spawnMember spawnCli="" spawnName="" spawnSession="" spawnConversation="" spawnDescription="" spawnNew="" spawnSettings="" spawnPrompt spawnOut
+	spawnForm="$( AgentsToolsCoordinatorSpawnForm "$@" )" || { echo "AgentDispatcherTools: ⛔ ERROR: --spawn-run: give --routine <selector> (or --routine-default) to start a coworking session, or a member name with the prompt on stdin to start a member -- nothing was done" >&2 ; return 1 ; }
+	AgentsToolsCoordinatorSpawnAllowed "$1" || return 1
+	shift
+	if [ "$spawnForm" = session ] ; then
+		"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsDispatcher.fn.sh" --spawn-session "$@"
+		return $?
+	fi
+	spawnMember="$1" ; shift
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--cli-service) spawnCli="${2:-}" ; shift 2 ;;
+			--session-name-or-comment) spawnName="${2:-}" ; shift 2 ;;
+			--session-id) spawnSession="${2:-}" ; shift 2 ;;
+			--conversation) spawnConversation="$spawnConversation${spawnConversation:+ }${2:-}" ; shift 2 ;;
+			--description) spawnDescription="${2:-}" ; shift 2 ;;
+			--new-session) spawnNew="true" ; shift ;;
+			--settings-workspace) spawnSettings="${2:-}" ; shift 2 ;;
+			*) echo "AgentDispatcherTools: ⛔ ERROR: --spawn-run: invalid option: $1 -- nothing was done" >&2 ; return 1 ;;
+		esac
+	done
+	[ -t 0 ] && { echo "AgentDispatcherTools: ⛔ ERROR: --spawn-run: the prompt of the member goes in on stdin -- nothing was done" >&2 ; return 1 ; }
+	IFS= read -r -d '' spawnPrompt || :
+	type AgentsHarnessToolAgent > /dev/null 2>&1 || {
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSkills.include" && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/harness/AgentsHarnessSpawn.include" || {
+			echo "AgentDispatcherTools: ⛔ ERROR: --spawn-run: the spawn function is missing from this package -- nothing was done" >&2 ; return 1 ; }
+	} > /dev/null 2>&1
+	harnessAgent="${MDAT_SPAWN_AGENT:-magic-coordinator}"
+	harnessScratch="$( mktemp -d "${TMPDIR:-${MMDAPP:-/nonexistent}/.local/temp}/spawn-run.XXXXXX" )" || return 1
+	spawnOut="$( AgentsHarnessToolAgent "$spawnMember" "$spawnPrompt" "$spawnCli" "$spawnName" "$spawnSession" "$spawnConversation" "$spawnDescription" "$spawnNew" "$spawnSettings" )"
+	rm -rf "$harnessScratch"
+	printf '%s\n' "$spawnOut"
+	case "$spawnOut" in ERROR:*) return 1 ;; esac
+	return 0
+}

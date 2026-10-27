@@ -89,3 +89,44 @@ AgentsToolsRootHarnessKindWrite(){ ## session dir, kind
 	rm -f -- "$kindTemp" 2> /dev/null || :
 	return 1
 }
+
+## ---------------------------------------------------------------------------------------------------------------------
+## THE ROUTINE OF A ROOT-HARNESS SESSION (epic S18.3, S18.5; sketch 3.1: "every tool ban is only a real access check in the tooling, with a real
+## redirection or rejection"). A root-harness session is one RootSession minted: the mint keeps its token and the routine it runs,
+## `magic-coordinator.root-harness.routine`, in its folder (`root-session.routine`). That routine's `access-control:` rows are the session's profile: the
+## tools it may not use are named there as deny-tool rows, and the one permission chain refuses them (AgentsToolsPermissionRoutineDenies), in the MCP request
+## and in the harness alike. The tool list a server serves does not change: every tool is listed for everyone and refused where a row denies it (S18.1).
+## ---------------------------------------------------------------------------------------------------------------------
+
+agentsRootHarnessRoutine="magic-coordinator.root-harness.routine.md"
+agentsRootHarnessRoutineName="root-session.routine"
+
+## Records the routine of one session, whole or not at all, by one rename. rc 1 where the folder is not there or the write fails.
+AgentsToolsRootHarnessRoutineWrite(){ ## session dir
+	local routinePath="${1%/}/$agentsRootHarnessRoutineName" routineTemp=""
+	[ -d "${1:-}" ] || return 1
+	routineTemp="$( mktemp "$routinePath.XXXXXX" 2> /dev/null )" || return 1
+	printf '%s\n' "$agentsRootHarnessRoutine" > "$routineTemp" 2> /dev/null && mv -f "$routineTemp" "$routinePath" 2> /dev/null || { rm -f "$routineTemp" ; return 1 ; }
+	return 0
+}
+
+## The routine recorded for one session, a routine file's name; rc 1, nothing printed, where there is none. Never a path.
+AgentsToolsRootHarnessRoutineRead(){ ## session
+	local routineDir="" routineLine=""
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
+	routineDir="$( AgentsToolsSessionChatDir "${1:-}" 2> /dev/null )" || return 1
+	[ -n "$routineDir" ] && [ -f "$routineDir/$agentsRootHarnessRoutineName" ] || return 1
+	IFS= read -r routineLine < "$routineDir/$agentsRootHarnessRoutineName" || :
+	case "$routineLine" in
+		*.routine.md) case "$routineLine" in */*|*[[:space:]]*) return 1 ;; esac ; printf '%s\n' "$routineLine" ;;
+		*) return 1 ;;
+	esac
+}
+
+## Whether a session is a root-harness session: its folder holds the token its mint kept. rc 0 it is. Never a path.
+AgentsToolsRootHarnessSessionIs(){ ## session
+	local profileDir=""
+	type AgentsToolsSessionChatDir > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 1
+	profileDir="$( AgentsToolsSessionChatDir "${1:-}" 2> /dev/null )" || return 1
+	[ -n "$profileDir" ] && [ -s "$profileDir/root-session.token" ]
+}

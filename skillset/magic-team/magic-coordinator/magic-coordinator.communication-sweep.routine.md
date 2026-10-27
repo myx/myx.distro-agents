@@ -83,7 +83,6 @@ Exact instructions. Execute in order, every step, literally as written — not l
       - Email, and any reply into an external party's conversation: the human-owner's go first (`AskQuestion`; running unattended, `wait: false`, and the reply waits for it).
       - In the coordinator's own Slack or Trello threads, lead the dialogue directly, but pause before anything reading as a commitment or decision on the human-owner's behalf.
       - Never impersonate: nobody passes off words that are not their own. The source settles who sends: team sources send as the coordinator, a member's source as that member.
-      - A reply the addressee must act on tags them (`magic-team.conversations.md`'s **address-messages-clearly**).
       - A question goes standalone. Distinct points go as threaded replies under one root message, never one long message (**one-message-one-speech-act**).
       - Mark it read on every platform (`--email-mark-seen` for email). Slack: react per `slack-reaction-tracking`'s reply stage.
    5. **advance-pointer**: Only now is this message swept. Move this member's pointer to it (`--sweep-state-advance <ts>`) before the next message.
@@ -103,7 +102,7 @@ Named procedure blocks, called by name from `# Steps`. Not separate routines —
 
 ## `slack-reaction-tracking` — the reaction ladder on each Slack message
 
-Slack only. Reactions add up, per `magic-team.conversations.md`'s **react-at-each-stage**, and use the `Wait` sets:
+Slack only. Reactions add up, per **react-at-each-stage**, and use the `Wait` sets:
 - 👀 seen — at **analyze**, once understood.
 - ✍️ noted — at **act**, when the message is routed or filed for later.
 - ✅ done — at **reply-if-warranted**, when it is resolved this sweep.

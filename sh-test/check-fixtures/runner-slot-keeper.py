@@ -4,7 +4,8 @@
 ## itself when its holder dies, and an entry whose process no longer exists is dropped at every read.
 ##   take <dir> <default budget> <fd to say it on> <said marker> <started file> <hand lock> <own folder> <timeout> <command...>
 ##     asks for a slot as this very process, waits its place in the line, and while another session holds the hand lock, then lowers its priority,
-##     sets the test's own time limit and becomes the command: the slot is held by the test's own pid from before it starts until that process is gone.
+##     runs the command as its child, the leader of a process group of its own, ends it at its time limit, and ends what it left in that group:
+##     the slot is held by this keeper's pid from before the test starts until it is gone.
 ##   give <dir> <pid>   gives that process's slot back at once, where the runner saw it end.
 import errno
 import fcntl
@@ -174,8 +175,65 @@ try:
         os.setpriority(os.PRIO_PROCESS, 0, 10)
 except OSError:
     pass
-signal.alarm(timeout)
+## THE TEST'S WHOLE PROCESS GROUP ENDS WITH IT. The test runs as a child of this keeper, the leader of a group of its own;
+## the keeper waits for it, ends it at its time limit, at a signal to the keeper, or once the runner is gone, and then ends
+## whatever the test left in its group. The leader is waited for without being reaped (WNOWAIT), so the group id stays
+## this test's own, never another's, until the group has been signalled.
 try:
-    os.execvp(command[0], command)
+    child = os.fork()
 except OSError as error:
     die("cannot start %s: %s" % (" ".join(command), error.strerror))
+if child == 0:
+    os.setpgid(0, 0)
+    try:
+        os.execvp(command[0], command)
+    except OSError as error:
+        sys.stderr.write("AgentsRunTests.sh: cannot start %s: %s\n" % (" ".join(command), error.strerror))
+        os._exit(127)
+try:
+    os.setpgid(child, child)
+except OSError:
+    pass
+def end_group(group_signal):
+    ## The group is signalled only while its leader is this keeper's own child, alive or not yet reaped.
+    try:
+        os.killpg(child, group_signal)
+    except OSError:
+        pass
+
+
+stop_reason = []
+for stop_signal in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+    signal.signal(stop_signal, lambda signum, frame: stop_reason.append(signum))
+runner_pid = os.getppid()
+deadline = time.time() + timeout if timeout > 0 else None
+while True:
+    if os.waitid(os.P_PID, child, os.WEXITED | os.WNOWAIT | os.WNOHANG) is not None:
+        break
+    if stop_reason or (deadline is not None and time.time() >= deadline) or os.getppid() != runner_pid:
+        if not stop_reason and deadline is not None and time.time() >= deadline:
+            stop_reason.append(signal.SIGALRM)
+        end_group(signal.SIGTERM)
+        for leader_wait in range(50):
+            if os.waitid(os.P_PID, child, os.WEXITED | os.WNOWAIT | os.WNOHANG) is not None:
+                break
+            time.sleep(0.1)
+        else:
+            end_group(signal.SIGKILL)
+        os.waitid(os.P_PID, child, os.WEXITED | os.WNOWAIT)
+        break
+    time.sleep(0.2)
+## The leader has ended and is not yet reaped: what is left in its group is this test's, and ends now.
+left_over = [line.split()[0] for line in os.popen("ps -A -o pid= -o pgid=").read().splitlines() if line.split()[1:2] == [str(child)] and line.split()[0] != str(child)]
+if left_over:
+    end_group(signal.SIGTERM)
+    time.sleep(1)
+    end_group(signal.SIGKILL)
+    sys.stdout.write("# AgentsRunTests.sh: the test left %d process(es) in its process group, ended at its end\n" % len(left_over))
+    sys.stdout.flush()
+status = os.waitpid(child, 0)[1]
+if stop_reason and stop_reason[0] == signal.SIGALRM:
+    sys.exit(128 + signal.SIGALRM)
+if os.WIFSIGNALED(status):
+    sys.exit(128 + os.WTERMSIG(status))
+sys.exit(os.WEXITSTATUS(status))

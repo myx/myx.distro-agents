@@ -2,11 +2,11 @@
 type: routine
 executors: magic-team
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
-allows: magic-librarian:skillset-upsert
+access-control: magic-librarian:allow-tool:skillset-upsert
 requires-session-kind: standalone
 routine-lock-document: inbox:{{team-member}}:note-20261020T000000Z-work-duty-state-and-lock.md
 input-scan-def: work-duty --session-id {{session-id}}
-wait-sources: inbox:{{team-member}} tagged:{{team-member}}
+wait-sources: inbox:{{team-member}} tagged:{{team-member}} mentions:{{team-member}}
 reports-to: none
 review-by: none
 runs-at: none

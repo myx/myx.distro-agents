@@ -97,7 +97,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-goals (intents)
 
-- Runs inline when the coordinator is told to in coworking, or on its schedule. Asks may wait for days; the requester waits with the existing `Wait`. Inside, the coordinator uses `AskUserQuestion` and `Wait` as today.
+- Runs inline when the coordinator is told to in coworking, or on its schedule. Asks may wait for days; the requester waits with the existing `Wait`. Inside, the coordinator uses `AskQuestion` and `Wait` as today.
 
 ## Verbatim-tests (benchmarks)
 

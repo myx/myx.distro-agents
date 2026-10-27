@@ -72,6 +72,14 @@
 			The coordinator's read of the team: the runs (active, waiting, or all),
 			the worktime flags now, and the board's counts with the active items.
 
+		--spawn-run [--select-workspace <place-name>] (--routine <selector>|--routine-default) [<--spawn-session options>]
+			One session spawned, handed whole to DistroAgentsDispatcher.fn.sh
+			--spawn-session. A root-harness session (the one RootSession minted) spawns
+			only, and each call names its place: a name the places API resolves,
+			listed by --manager-place-list, never a path; a spawn without one, or naming
+			one that does not resolve, is refused. The coordinator's own spawn takes
+			--select-workspace as an option (the workspace it is in is implied).
+
 		--contacts [--organisation <slug>] [--reached-by <member>]
 		--contact <id>
 			The contacts as the coordinator reads them, a row each; `--contact` one,

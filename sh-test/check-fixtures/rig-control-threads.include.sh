@@ -14,7 +14,7 @@
 ## is then removed never ends by itself: at its next tick it makes its folder again, finds no record to watch,
 ## and stays. So a check that calls one of those operations ends what they started before it removes its tree:
 ##   trap 'rigControlThreadsEnd "$rigTmp" ; ... ; rm -rf -- "$rigTmp"' EXIT
-## sh-test/AgentsSessionControlStartCheck.test.sh holds this file, and is the guard over every check of sh-test
+## sh-test/session/AgentsSessionControlStartCheck.test.sh holds this file, and is the guard over every check of sh-test
 ## that names one of those operations.
 ##
 ## HOW. A start writes the process it made, with when it began, into the log of the thread, control/log of the

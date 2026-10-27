@@ -264,7 +264,7 @@ case "$1" in
 	## the thread are the one answer operation's; so is the line that says it came from here.
 	--manager-pending-reply-answer)
 		local answerOp="$1" answerSyntax="--id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]"
-		local answerTyped="" answerWords="" answerMode="" answerAs answerAccount answerOut="" answerRc=0 answerWord
+		local answerTyped="" answerWords="" answerMode="" answerAs answerAccount answerOut="" answerRc=0 answerWord answerOwn
 		shift
 		AgentsToolsManagerPendingRecord "$answerOp" "$answerSyntax" "$@" || { set +e ; return 1 ; }
 		## The escalation words (F6.10, AgentsTools.Authority.include), taken out wherever they stand.
@@ -305,14 +305,45 @@ case "$1" in
 				set +e ; return 1
 			fi
 		fi
-		answerAs="$( AgentsToolsManagerPendingStanding "$managerPendingFile" )" || { AgentsToolsManagerPendingNobody "$answerOp" ; set +e ; return 1 ; }
+		answerAs="$( AgentsToolsManagerPendingStanding "$managerPendingFile" )" || answerAs=""
 		## A verdict that is the human-owner's own is not given in another's name: at the console it
-		## is his where the person there is the account mapped to him, and refused from any other.
+		## is his where the person there is the account mapped to him. From any other account it goes
+		## to him as a confirmation, a yes or no in his own conversation naming the account, the verdict, the item and the
+		## text; his yes gives the verdict as typed, his no leaves the review open. Never just a refusal.
 		answerWord="$answerTyped"
 		AgentsToolsManagerPendingPlain "$managerPendingFile" || answerWord="$( AgentsToolsEscalationTypedVerdict "$managerPendingFile" "$answerTyped" )"
-		if [ "$( AgentsToolsManagerPendingOutcome "$managerPendingFile" "$answerAs" "${answerWord%% -- *}" )" = "not-taken" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $answerOp: $managerPendingId is a $( AgentsToolsEscalationField "$managerPendingFile" kind ), whose verdict is the human-owner's own, and an answer from the console stands as $answerAs's -- nothing was done; it stays open for $( AgentsToolsEscalationField "$managerPendingFile" address-to )" >&2
-			set +e ; return 1
+		answerOwn=""
+		case "$( AgentsToolsEscalationField "$managerPendingFile" kind )" in review|change|proposal) answerOwn="yes" ;; esac
+		if [ -z "$answerAs" ] && [ -n "$answerOwn" ] ; then
+			## No account at the console (the sweep that acts on his confirmation runs with none): only his own confirmation of this very answer lets it go on.
+			answerAs="not-taken"
+		fi
+		if [ -z "$answerAs" ] ; then
+			AgentsToolsManagerPendingNobody "$answerOp" ; set +e ; return 1
+		fi
+		if [ "$answerAs" = "not-taken" ] || [ "$( AgentsToolsManagerPendingOutcome "$managerPendingFile" "$answerAs" "${answerWord%% -- *}" )" = "not-taken" ] ; then
+			## His confirmation of this very answer, given in his own channel: the answer is then his, as he gave it, under the account he answered with.
+			## (AgentsToolsAuthorityApproved marks it acted on, so it lets one answer go.)
+			if AgentsToolsAuthorityApproved "$managerPendingId" ; then
+				answerAs="$( AgentsToolsAuthorityField "$( AgentsToolsQuestionsStore )/$MDAT_AUTHORITY_REQUEST.md" answered-by )"
+				[ -n "$answerAs" ] || { AgentsToolsManagerPendingNobody "$answerOp" ; set +e ; return 1 ; }
+			else
+				[ "$answerAs" != "not-taken" ] || { AgentsToolsManagerPendingNobody "$answerOp" ; set +e ; return 1 ; }
+				local answerAsk=() answerWhat answerGateOut answerGateRc=0
+				answerAsk=( --manager-pending-reply-answer --id "$managerPendingId" )
+				if [ -n "$answerMode" ] ; then answerAsk+=( --reject ) ; else answerAsk+=( --answer "$answerTyped" ) ; fi
+				[ -z "$answerWords" ] || answerAsk+=( --text "$answerWords" )
+				answerWhat="the ${answerWord%% -- *} of the $( AgentsToolsEscalationField "$managerPendingFile" kind ) of $( AgentsToolsEscalationField "$managerPendingFile" item ) as your own verdict, typed at the console${answerWords:+, with the words: $answerWords}"
+				agentsAuthorityForceConfirm=yes
+				answerGateOut="$( AgentsToolsAuthorityGate "$answerWhat" "$managerPendingId" "" "$managerPendingFile" console "${answerAsk[@]}" )" || answerGateRc=$?
+				agentsAuthorityForceConfirm=""
+				[ -z "$answerGateOut" ] || printf '%s\n' "$answerGateOut"
+				if [ "$answerGateRc" != 0 ] ; then
+					echo "⛔ ERROR: $MDSC_CMD $answerOp: $managerPendingId is a $( AgentsToolsEscalationField "$managerPendingFile" kind ), whose verdict is the human-owner's own, and the confirmation asked of him could not be posted -- nothing was done; it stays open for $( AgentsToolsEscalationField "$managerPendingFile" address-to )" >&2
+					set +e ; return 1
+				fi
+				return 0
+			fi
 		fi
 		## THE AUTHORITY over the run that asked it (F6.10): its reports-to, the owners role, or a grant
 		## of it -- asked only of an answer the question takes, so a wrong one is refused as one. The
