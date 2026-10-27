@@ -140,7 +140,7 @@ rigAssert "the bottom borders of the two windows are plain, but for the count of
 rigAssert "the last line names the keys that work now, each key in the look of a hot letter" "[$( rigVal status )] $( rigRole r 40 1 16 )" "[ ENTER Open  BSP Up  / Filter  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut  t Sort] mhhhhhmmmmmmmhhh"
 rigAssert "Tab makes the other window the active one: the frames change places" "$( rigVal t.focus ) [$( rigVal cornersT )]" "view [╔═[■]═════════════════════════ Active Sessions [wrap] ═════════════════════════[↕]═╗┌──────── Active Sessions ─────────┐]"
 rigAssert "and the status line names the keys of that window"        "[$( rigVal statusT )]" "[ / Filter  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut  t Sort]"
-rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r002 [ ENTER Open  BSP Up  / Filter  k Kill  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r002 [ ENTER Open  BSP Up  / Filter  k Kill  M Message  J Join  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 
 echo "-- Magic's right pane: no > at the left of the selected row, ▶ at its right, and one column of padding --"
 rigRun <<'RIGSCRIPT'

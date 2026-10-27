@@ -290,7 +290,7 @@ keys J
 turn
 get run
 RIGSCRIPT
-rigAssert "on a session that runs the key opens nothing and the status line says why; nothing is called" "[$( rigVal run.dialog )] [$( rigVal run.notice )] $( rigCalls )" "[] [Join the coordinator: it runs: its participants work on it] 0"
+rigAssert "on a session that runs the key asks first too (sketch 5.4: any session): its box opens, and nothing is called until OK" "[$( rigVal run.dialog )] [$( rigVal run.notice )] $( rigCalls )" "[join:ok|] [] 0"
 rigCase joinfin
 rigScript <<'RIGSCRIPT'
 root closed-sessions

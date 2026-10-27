@@ -73,6 +73,8 @@ Not a member/routine contract — these are the fixed texts of the short lines t
   - state-finished
   - state-waiting
   - state-unclosed
+  - state-running
+  - state-starting
 - Contract
 
 # Summary
@@ -519,6 +521,18 @@ is waiting: a question of it is open
 
 ```
 is stuck: a run of it is still open, and no process carries it
+```
+
+## state-running
+
+```
+reads running: it may be stuck, since a run that is stuck keeps its process
+```
+
+## state-starting
+
+```
+is starting: its runs have not yet reported
 ```
 
 # Contract

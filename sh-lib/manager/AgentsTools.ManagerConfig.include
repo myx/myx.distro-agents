@@ -92,6 +92,7 @@ cli|*||{name}||
 cli|workspace|SPAWN_HARNESS_TIER|Spawn Harness Tier|configuration|The tier a harness leg is asked for at a start. What it may be is each leg's own, so it is set by the owner setup.
 cli|workspace|WAIT_ROUND_SECONDS|Wait Round Seconds|configuration|How long a wait that brings nothing runs before it comes back, for every CLI service. A round longer than a CLI allows ends the waits of running sessions, so it is set by the owner setup.
 cli|workspace|WAIT_COLLECT_SECONDS|Wait Collect Seconds|configuration|How long the work-duty input scan collects the team channel before it returns, in seconds. A tagged message ends the collect at once. A minute when it is not set.
+cli|workspace|WAIT_MENTIONS_SEARCHER|Wait Mentions Searcher|configuration|The team member whose user token searches the mentions of a member that may not search them itself. The team coordinator searches when it is not set.
 cli|workspace|spawn-settings-workspace|Spawn Settings Workspace|configuration|The workspace the spawn settings are read from. It is found at the call, from the settings of the team.
 cli|*|present|CLI Present|configuration|Whether this vendor CLI is on the machine, with the path of its binary. It is measured at the call.
 cli|*|usable|CLI Usable|configuration|Whether a start on this CLI can work: a harness leg with one of its credentials set, a vendor CLI where its binary is. It is measured at the call.
@@ -367,7 +368,7 @@ AgentsToolsManagerConfigMode(){
 ## is, since it works off the sign-in of the machine; and its wait round.
 AgentsToolsManagerConfigCli(){
 	local cliHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib" cliKnown cliVendor cliLegs="" cliLeg cliName cliFile cliKey cliKeys cliValue cliPath cliUsable
-	for cliKey in SPAWN_HARNESS_TIER WAIT_ROUND_SECONDS WAIT_COLLECT_SECONDS ; do
+	for cliKey in SPAWN_HARNESS_TIER WAIT_ROUND_SECONDS WAIT_COLLECT_SECONDS WAIT_MENTIONS_SEARCHER ; do
 		cliValue="$( DistroAgentsTools --agents-config-option magic-team --select "$cliKey" 2> /dev/null )" || cliValue=""
 		if [ -n "$cliValue" ] ; then
 			AgentsToolsManagerConfigLine cli workspace "$cliKey" set "$cliValue"

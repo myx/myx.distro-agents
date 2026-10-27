@@ -3,15 +3,20 @@
 ## from replies.<channel>.<ts>.json, a conversation from history.<channel>.json (empty where the scenario has none), the direct
 ## conversations of the account from dms.json (a conversations.list `channels` array; none where the scenario has none), and logs
 ## every call as "<method> <channel> <ts>" in api.log.
+## A search is answered by the token it is made with: search.<token>.json, else a refusal of the scope; it is logged as
+## "search.messages <token> <query>" in search.log.
 set -u
-cat > /dev/null
+rigStdin="$( cat )"
 rigMethod="no-method"
 rigChannel=""
 rigTs=""
+rigQuery=""
 for rigArg in "$@" ; do
 	case "$rigArg" in
 		channel@*) rigChannel="$( cat "${rigArg#channel@}" 2>/dev/null )" ;;
 		ts@*) rigTs="$( cat "${rigArg#ts@}" 2>/dev/null )" ;;
+		query@*) rigQuery="$( cat "${rigArg#query@}" 2>/dev/null )" ;;
+		query=*) rigQuery="${rigArg#query=}" ;;
 		https://slack.com/api/*) rigMethod="${rigArg#https://slack.com/api/}" ; rigMethod="${rigMethod%%\?*}" ;;
 	esac
 done
@@ -46,6 +51,15 @@ case "$rigMethod" in
 			cat "$RIG_SCENARIO/history.$rigChannel.json"
 		else
 			printf '{"ok":true,"messages":[],"has_more":false}\n'
+		fi
+	;;
+	search.messages)
+		rigToken="$( printf '%s\n' "$rigStdin" | sed -n 's/^Authorization: Bearer //p' | head -1 )"
+		printf 'search.messages %s %s\n' "${rigToken:--}" "$rigQuery" >> "$RIG_SCENARIO/search.log"
+		if [ -n "$rigToken" ] && [ -f "$RIG_SCENARIO/search.$rigToken.json" ] ; then
+			cat "$RIG_SCENARIO/search.$rigToken.json"
+		else
+			printf '{"ok":false,"error":"missing_scope","needed":"search:read"}\n'
 		fi
 	;;
 	*)

@@ -100,6 +100,18 @@ rigHome="$rigKeptHome"
 rigAssert "a HOME with .ssh/id_ed25519.pub and no ssh command in the git configuration shows the key for git present, as the key of the account, its file under that HOME" "$( rigRow deploy )" "$( rigWant deploy Deploy_Key_To_Add_To_Git ours "$rigDeployFor" "$rigOnly/.ssh/id_ed25519.pub" )"
 rigAssert "and its whole public line stands in its last field" "$( LC_ALL=C awk -F'\t' '$2 == "deploy" { print $NF }' "$rigTmp/out" )" "$( LC_ALL=C tr ' ' '_' < "$rigOnly/.ssh/id_ed25519.pub" )"
 
+echo "-- 1c. on a team rig the home is the home of the rig's account, not the caller's HOME (sketch 14.10) --"
+## A sysrc that names an account which exists here (the one running this check), so that its home is a folder the machine knows; the caller's HOME is another folder.
+rigSysrcBin="$rigTmp/sysrc-bin" ; rigRigUser="$( id -un )"
+mkdir -p "$rigSysrcBin"
+printf '#!/bin/sh\necho %s\n' "$rigRigUser" > "$rigSysrcBin/sysrc" ; chmod +x "$rigSysrcBin/sysrc"
+rigAccountHome="$( eval "printf '%s' ~$rigRigUser" )"
+rigKeptPath="$rigPath" ; rigPath="$rigSysrcBin:$rigPath"
+rigKeptHome="$rigHome" ; rigHome="$rigOnly"
+rigPre=( "MDAT_WORKSPACE_MODE=team-rig" ) ; rigRun "$rigList" ; rigPre=()
+rigHome="$rigKeptHome" ; rigPath="$rigKeptPath"
+rigAssert "with the caller's HOME elsewhere, the key for git is looked for under the home of the rig's account" "$( rigRow deploy | LC_ALL=C awk -F'\t' '{ print $NF }' | LC_ALL=C grep -c -F "$rigAccountHome" || : ) $( rigRow deploy | LC_ALL=C grep -c -F "$rigOnly" || : )" "1 0"
+
 echo "-- 2. the read of one key --"
 rigRun "$rigRead" deploy
 rigAssert "the key for git: its row, the public key line as its file has it, blanks kept, and the repository of the rig's list, the one with a password in its address left out" "$rigRc $( LC_ALL=C sed -n '2,$p' "$rigTmp/out" | LC_ALL=C tr '\t' '|' | LC_ALL=C tr '\n' '/' ) $( LC_ALL=C sed -n '1p' "$rigTmp/out" | LC_ALL=C tr '\t' '|' )" "0 paste|$( cat "$rigMdci/deploy-keys/$rigAccount.pub" )/register|rig/project-one|git@git.rig.invalid:rig/project-one.git/ $( rigWant deploy Deploy_Key_To_Add_To_Git ours "$rigDeployFor" "$rigMdci/deploy-keys/$rigAccount.pub" )"

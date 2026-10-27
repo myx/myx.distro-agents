@@ -267,13 +267,15 @@ rigWaitFor 30 test "$( ls "$rigSc" | LC_ALL=C grep -c '^done\.' )" -ge 3
 echo "-- 6. a session it is not offered for --"
 rigMadeBefore="$( rigMade )"
 rigRun /dev/null "$rigJoinOp" --session-id s-run
-rigAssert "a session that runs: refused in one line, nothing started" "$rigRc $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigJoinOp: session s-run runs: its participants work on it, so nobody is joined into it to assess it -- nothing was started" ) $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) [$( rigMade )]" "1 1 0 [$rigMadeBefore]"
+rigAssert "a session that reads running is joined too (sketch 5.4: any session; a stuck one keeps its process): one join row" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3 }' "$rigTmp/out" )" "0 join s-run magic-coordinator"
+rigWaitFor 30 test "$( ls "$rigSc" | LC_ALL=C grep -c '^done\.' )" -ge 4
+rigMadeBefore="$( rigMade )"
 rigRun /dev/null "$rigJoinOp" --session-id s-foreign
-rigAssert "one of another host: refused, and says what it reads" "$rigRc $( LC_ALL=C grep -c 'session s-foreign reads unknown-foreign, which is none of finished, waiting and unclosed, the states it is offered for -- nothing was started' "$rigTmp/err" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
+rigAssert "one of another host: refused, and says what it reads" "$rigRc $( LC_ALL=C grep -c 'session s-foreign reads unknown-foreign, which is none of finished, running, starting, waiting and unclosed, the states it is offered for -- nothing was started' "$rigTmp/err" ) [$( rigMade )]" "1 1 [$rigMadeBefore]"
 rigJoinedBefore="$( LC_ALL=C grep -c -F 'assess the session, unblock it interactively and report' "$rigSc/bodies" 2> /dev/null || : )"
 rigRun /dev/null "$rigJoinOp" --session-id s-nothread
 rigAssert "one with no Slack thread: joined all the same, on the session's own id" "$rigRc $( LC_ALL=C awk -F'\t' '{ print $1, $2, $3 }' "$rigTmp/out" )" "0 join s-nothread magic-coordinator"
-rigWaitFor 30 test "$( ls "$rigSc" | LC_ALL=C grep -c '^done\.' )" -ge 4
+rigWaitFor 30 test "$( ls "$rigSc" | LC_ALL=C grep -c '^done\.' )" -ge 5
 ## The member IS in the session, thread or none: a record of its run, in the session's own sandbox, that names s-nothread, names
 ## magic-coordinator and says that it joined. Its console was started in s-nothread, never in a session of its own.
 rigNothreadRec=""

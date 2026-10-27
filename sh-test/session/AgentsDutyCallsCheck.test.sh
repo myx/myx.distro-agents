@@ -160,18 +160,18 @@ rigAt $(( rigMon18 + 1000 ))
 rigNowTs=$(( rigMon18 + 995 ))
 rigMentionCache ; rigOneRun tag3 ; rigWaitStarts
 rigAssert "five minutes on, the DM from a person to keeper-rig-11 starts its duty out of worktime; keeper-rig-18, with none, still has none" "$( rigDutyCount keeper-rig-11 ):$( rigDutyCount keeper-rig-18 ):$( rigSaid tag3 'work-duty: started the duty of keeper-rig-11' )" "1:0:1"
-## S11.2: the loop gives the seen reaction (eyes) itself, when it first notices a call by name, with no Wait running; one store, keyed by the message's ts, so the Wait does not give it again.
+## S11.2, sketch 12.3 (settled): the seen reaction goes on when the member is handed the message
+## (its Wait, or the work-duty scan's collect: AgentsWaitOwnerDmsCheck), never when the loop only notices it. The loop reads the DM and starts the duty; it reacts to nothing.
 rigEyesOn(){ ## ts -- how many eyes reactions the fake curl logged on that message
 	LC_ALL=C grep -F -- "$1" "$rigScn/reactions" 2> /dev/null | LC_ALL=C grep -c -F eyes || :
 }
-rigAssert "the DM of the person to keeper-rig-11 got one eyes reaction from the loop, in its own conversation" "$( rigEyesOn "$(( rigMon18 + 695 )).000700" ):$( LC_ALL=C grep -c -F DRIGDM011 "$rigScn/reactions" 2> /dev/null || : )" "1:1"
-rigAssert "...and the store holds it, keyed by the message: the Wait finds it done" "$( [ -e "$rigWs/.local/agents/schedule/seen/keeper-rig-11/$(( rigMon18 + 695 )).000700" ] && echo yes || echo no )" "yes"
+rigAssert "the loop noticed the DM to keeper-rig-11 and started its duty, and gave no eyes at all (the other reactions in the rig are none of this row's): none yet" "$( rigEyesOn "$(( rigMon18 + 695 )).000700" ):$( LC_ALL=C grep -c -F eyes "$rigScn/reactions" 2> /dev/null || : ):$( [ -e "$rigWs/.local/agents/schedule/seen/keeper-rig-11" ] && echo store || echo none )" "0:0:none"
 rigAt $(( rigMon18 + 1100 ))
 rigNowTs=$(( rigMon18 + 1095 ))
 rigHistory "$( rigMsg "$rigNowTs.000100" U1 "@keeper-rig-18 are you there" )"
 rigMentionCache ; rigOneRun tag4 ; rigWaitStarts
 rigAssert "a person's tag of keeper-rig-18 starts its duty; and keeper-rig-11's, given its DM, is not started a second time" "$( rigDutyCount keeper-rig-18 ):$( rigDutyCount keeper-rig-11 )" "1:1"
-rigAssert "the person's tag of keeper-rig-18 got one eyes reaction from the loop; the DM, read before, none again" "$( rigEyesOn "$rigNowTs.000100" ):$( rigEyesOn "$(( rigMon18 + 695 )).000700" )" "1:1"
+rigAssert "the person's tag of keeper-rig-18 starts its duty and gets no eyes from the loop either" "$( rigEyesOn "$rigNowTs.000100" )" "0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ DUTY CALLS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

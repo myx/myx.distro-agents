@@ -1797,6 +1797,14 @@ contracts are here.
   after that for a mention of the run alone; reactions to a post and mentions of the run are always
   watched. A bare conversation source (`slack:<id>`) returns its arrivals: its read is already formatted,
   and the JSON formatter is applied to a thread's read only.
+- **`mentions:<member>` is one `search.messages` call** (`AgentsWaitProbeMentions`, `AgentsTools.MemberWait.include`):
+  the member's mentions in any conversation, thread replies included, from the session's pointer
+  `mentions:<member>`, with a TTL of 60 seconds the session keeps across Waits (`mentions-checked:<member>`),
+  so a Wait start inside it makes no call. A member with a Slack account is searched by `<@id>`, one with
+  none by the text `"@<member>"`. The member's own user token searches; where it may not, the team identity
+  `WAIT_MENTIONS_SEARCHER` names (default `magic-coordinator`). Where neither may, the source is never read
+  and the Wait header says so. LIMIT: the text search is for the handle alone, not its aliases, until an OR
+  of Slack search is confirmed live: one call cannot ask for several texts.
 - **A dismissal ends the run.** The session keeps its own dismissed mark, so every later `Wait` on it
   returns `DISMISSED` at once with no further read. The tooling ends the session once its handback is
   given, or at once if it had already handed back.

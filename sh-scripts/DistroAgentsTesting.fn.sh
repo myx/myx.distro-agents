@@ -188,7 +188,7 @@ DistroAgentsTesting(){
 ## to it; `apply` takes $MMDAPP/.local/temp/live-apply.lock, stages each file beside its live place (a moved file only as a clean three-way merge
 ## whose change equals this work's), compares live with its snapshot again right before each rename, puts the work in place, and gives the lock
 ## back leaving no temp behind. A repository outside the workspace applies the same, one repository per call. The self-test
-## sh-test/AgentsApplyToolCheck.test.sh is its test; MDAT_APPLY_BEFORE_PUT is that test's alone.
+## sh-test/AgentsApplyToolCheck.test.sh is its test; MDAT_APPLY_BEFORE_PUT and MDAT_APPLY_BEFORE_CHECK are that test's alone.
 DistroAgentsTestingApplyChange(){ ## from, to -- the +/- lines of a diff, as one comparison text (nothing of the hunk headers)
 	diff -u "$1" "$2" 2> /dev/null | LC_ALL=C grep -e '^[+-]' | LC_ALL=C grep -v -e '^+++' -e '^---' || :
 }
@@ -289,12 +289,18 @@ DistroAgentsTestingApplyLevel(){ ## repository, scratch
 			{ LC_ALL=C awk -v key="$levelPkg/$levelF" '$1 != key' "$levelScratch/levelled.sums" ; printf '%s %s\n' "$levelPkg/$levelF" "$levelSum" ; } > "$levelScratch/levelled.sums.new" 2> /dev/null && mv -f "$levelScratch/levelled.sums.new" "$levelScratch/levelled.sums" 2> /dev/null || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool level: could not keep the checksum of $levelPkg/$levelF" >&2 ; return 1 ; }
 			echo "levelled from live: $levelPkg/$levelF"
 		done < <( cd "$levelL" && find . -type f ! -path './.git/*' | LC_ALL=C sort )
+		## A file this work marked with its base and live no longer holds: another builder removed or renamed it.
+		while IFS= read -r levelF ; do
+			case "$levelF" in "$levelPkg"/*) ;; *) continue ;; esac
+			[ -f "$levelScratch/base/$levelF" ] && [ ! -e "$levelRepo/source/myx/$levelF" ] || continue
+			echo "🙋 WARNING: CONFLICT: GONE on live: $levelF" ; levelConflict=1
+		done < "$levelScratch/changed-files.txt"
 		[ -d "$levelP" ] || continue
 		while IFS= read -r levelF ; do
 			levelF="${levelF#./}"
 			[ ! -f "$levelL/$levelF" ] || continue
 			if LC_ALL=C grep -Fxq -- "$levelPkg/$levelF" "$levelScratch/changed-files.txt" ; then
-				echo "mine, new in the scratch: $levelPkg/$levelF"
+				[ -f "$levelScratch/base/$levelPkg/$levelF" ] || echo "mine, new in the scratch: $levelPkg/$levelF"
 			else
 				rm -f -- "$levelP/$levelF" 2> /dev/null && echo "gone from live, removed from the scratch (not mine): $levelPkg/$levelF"
 			fi
@@ -305,25 +311,88 @@ DistroAgentsTestingApplyLevel(){ ## repository, scratch
 	return 0
 }
 
+## The path rules, at plan, stage and put: inside a package of packages.txt, relative, with no `.` or `..` part and no blank, and no symlink on
+## live from the package down. Prints the reason; rc 0 where the path is refused.
+DistroAgentsTestingApplyPathRefused(){ ## repository, scratch, <package>/<relative-path>
+	local pathWalk="$1/source/myx/$3"
+	case "$3" in
+		/*|*/../*|../*|*/..|..|*/./*|./*|*/.|.) printf 'PATH REFUSED: %s -- absolute, or with a . or .. part\n' "$3" ; return 0 ;;
+		*[[:space:]]*) printf 'PATH REFUSED: %s -- it holds a blank\n' "$3" ; return 0 ;;
+	esac
+	LC_ALL=C grep -Fxq -- "${3%%/*}" "$2/packages.txt" 2> /dev/null || { printf 'PATH REFUSED: %s -- not inside a package of packages.txt\n' "$3" ; return 0 ; }
+	while [ "$pathWalk" != "$1/source/myx" ] ; do
+		[ ! -L "$pathWalk" ] || { printf 'PATH REFUSED: %s -- a symlink on live\n' "$3" ; return 0 ; }
+		pathWalk="${pathWalk%/*}"
+	done
+	return 1
+}
+## The faults of renames.txt (`<old><TAB><new>` a line) and removals.txt (a path a line): a line that is no pair, a case-only rename on macOS,
+## a path changed-files.txt does not list. Prints each; rc 0 where there is one.
+DistroAgentsTestingApplyListsRefused(){ ## scratch, the list files there are
+	[ $# -gt 1 ] || return 1
+	APPLY_CHANGED="$1/changed-files.txt" LC_ALL=C awk -F'\t' -v darwin="$( [ "$( uname -s )" = Darwin ] && printf 1 )" '
+		BEGIN { changed = ENVIRON["APPLY_CHANGED"] ; while ( ( getline listedLine < changed ) > 0 ) listed[listedLine] = 1 ; }
+		FILENAME ~ /renames\.txt$/ && $0 != "" {
+			if ( NF != 2 || $1 == "" || $2 == "" ) { print "REFUSED: renames.txt: not <old><TAB><new>: " $0 ; bad = 1 ; next ; }
+			if ( darwin && $1 != $2 && tolower( $1 ) == tolower( $2 ) ) { print "REFUSED: renames.txt: a case-only rename, which macOS cannot tell apart: " $0 ; bad = 1 ; }
+			if ( !( $1 in listed ) || !( $2 in listed ) ) { print "REFUSED: renames.txt: a path changed-files.txt does not list: " $0 ; bad = 1 ; }
+			next ;
+		}
+		FILENAME ~ /removals\.txt$/ && $0 != "" && !( $0 in listed ) { print "REFUSED: removals.txt: a path changed-files.txt does not list: " $0 ; bad = 1 ; }
+		END { exit ( bad ? 0 : 1 ) ; }
+	' "${@:2}"
+}
+## What a listed file is to this work: `remove`, `from<TAB><new>` (a rename's source), `to<TAB><old>` (a rename's new path), or nothing.
+DistroAgentsTestingApplyRole(){ ## <package>/<relative-path>, the list files there are
+	[ $# -gt 1 ] || return 0
+	APPLY_WANT="$1" LC_ALL=C awk -F'\t' '
+		BEGIN { want = ENVIRON["APPLY_WANT"] ; }
+		FILENAME ~ /removals\.txt$/ && $0 == want { print "remove" ; exit ; }
+		FILENAME ~ /renames\.txt$/ && NF == 2 && $1 == want { print "from\t" $2 ; exit ; }
+		FILENAME ~ /renames\.txt$/ && NF == 2 && $2 == want { print "to\t" $1 ; exit ; }
+	' "${@:2}"
+}
+
 ## plan: the dry run, read-only. For each file: new, live at its base, or live moved -- and whether the merge is clean and exact now -- with the
-## lines this work removes of its base and adds to it. rc 4 where a file does not merge, so a hunk it would take from somebody else is seen before
-## the apply.
+## lines this work removes of its base and adds to it; each removal and rename. rc 4 where a file does not merge, a path or a list is refused,
+## or a marked file is gone on live, so a hunk it would take from somebody else is seen before the apply.
 DistroAgentsTestingApplyPlan(){ ## repository, scratch
-	local planRepo="$1" planScratch="$2" planOrder="$2/apply-order.txt" planBad=0
-	local planF planPkg planRel planLive planBase planMine planChanged planMerged
+	local planRepo="$1" planScratch="$2" planOrder="$2/apply-order.txt" planBad=0 planLists=( "$2/changed-files.txt" )
+	local planF planPkg planRel planLive planBase planMine planChanged planMerged planRole
 	[ -f "$planOrder" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool plan: $planOrder is not there" >&2 ; return 1 ; }
+	[ -f "$planScratch/packages.txt" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool plan: $planScratch/packages.txt is not there" >&2 ; return 1 ; }
 	if [ "$( LC_ALL=C sort "$planOrder" 2> /dev/null )" != "$( LC_ALL=C sort "$planScratch/changed-files.txt" 2> /dev/null )" ] ; then
 		echo "⛔ ERROR: the apply order is not the changed list" >&2 ; return 2
 	fi
+	[ ! -f "$planScratch/renames.txt" ] || planLists+=( "$planScratch/renames.txt" )
+	[ ! -f "$planScratch/removals.txt" ] || planLists+=( "$planScratch/removals.txt" )
+	! DistroAgentsTestingApplyListsRefused "$planScratch" "${planLists[@]:1}" || planBad=1
 	while IFS= read -r planF ; do
 		[ -n "$planF" ] || continue
 		planPkg="${planF%%/*}" ; planRel="${planF#*/}"
 		planLive="$planRepo/source/myx/$planPkg/$planRel"
 		planBase="$planScratch/base/$planPkg/$planRel"
 		planMine="$planScratch/source/myx/$planPkg/$planRel"
+		if DistroAgentsTestingApplyPathRefused "$planRepo" "$planScratch" "$planF" ; then planBad=1 ; continue ; fi
+		planRole="$( DistroAgentsTestingApplyRole "$planF" "${planLists[@]:1}" )"
+		## A removal or a rename's source: marked with its base, gone from the scratch, and live still at its base. Never merged, by design.
+		case "$planRole" in
+			remove|from*)
+				if [ ! -f "$planBase" ] || [ -e "$planMine" ] ; then echo "🙋 WARNING: NOT A SOURCE: $planF -- a removal or a rename source is marked with its base and gone from the scratch" ; planBad=1
+				elif [ ! -e "$planLive" ] ; then echo "🙋 WARNING: GONE on live: $planF" ; planBad=1
+				elif ! cmp -s "$planLive" "$planBase" ; then echo "🙋 WARNING: MOVED on live, and a removal or a rename source is never merged: $planF" ; planBad=1
+				elif [ "$planRole" = remove ] ; then echo "remove: $planF"
+				fi
+				continue
+			;;
+		esac
 		if [ ! -f "$planBase" ] ; then
 			if [ -e "$planLive" ] ; then echo "EXISTS on live, though new in this work: $planF" ; planBad=1
+			elif [ ! -f "$planMine" ] ; then echo "🙋 WARNING: NOT IN THE SCRATCH: $planF" ; planBad=1 ; continue
+			elif [ -n "$planRole" ] ; then echo "rename: ${planRole#to?} -> $planF (this work: $( DistroAgentsTestingApplyCount "$planScratch/base/${planRole#to?}" "$planMine" ))"
 			else echo "new: $planF" ; fi
+		elif [ ! -e "$planLive" ] ; then
+			echo "🙋 WARNING: GONE on live: $planF" ; planBad=1 ; continue
 		else
 			planChanged="$( DistroAgentsTestingApplyCount "$planBase" "$planMine" )"
 			if cmp -s "$planLive" "$planBase" ; then
@@ -346,45 +415,79 @@ DistroAgentsTestingApplyPlan(){ ## repository, scratch
 }
 
 ## apply: takes the lock, stages, puts in place, verifies. Nothing of the gate's own check is trusted: every file is looked at again, under the lock,
-## at the moment it is put in place.
+## at the moment it is put in place. Every write first, the removals last. Each step lands in applied-steps.txt as it is made, so an apply that
+## stopped is run again and takes what the record and live both show as done. The whole runs in a subshell whose EXIT trap takes the staged temps
+## and gives the lock back, whatever ends it; the lock holds an `owner` file, the process and the time.
 DistroAgentsTestingApplyDo(){ ## repository, scratch
 	local applyRepo="$1" applyScratch="$2" applyOrder="$2/apply-order.txt"
-	local applyLock="$MMDAPP/.local/temp/live-apply.lock" applyStageDir="$2/stage.apply" applyTries=0
-	local applyF applyPkg applyRel applyLive applyBase applyMine applyN applyBad
-	local applyCand applyKind applyStopped applyDoneList
+	local applyLock="$MMDAPP/.local/temp/live-apply.lock" applyStageDir="$2/stage.apply" applyTries=0 applyLists=( "$2/changed-files.txt" )
+	local applyF applyPkg applyRel applyLive applyBase applyMine applyN applyBad applyRole applyPass applyRecord="$2/applied-steps.txt"
+	local applyCand applyKind applyStopped applyDoneList applyStill
 	[ -f "$applyOrder" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool apply: $applyOrder is not there" >&2 ; return 1 ; }
+	[ -f "$applyScratch/packages.txt" ] || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool apply: $applyScratch/packages.txt is not there" >&2 ; return 1 ; }
 	if [ "$( LC_ALL=C sort "$applyOrder" 2> /dev/null )" != "$( LC_ALL=C sort "$applyScratch/changed-files.txt" 2> /dev/null )" ] ; then
 		echo "⛔ ERROR: the apply order is not the changed list" >&2 ; return 2
 	fi
+	[ ! -f "$applyScratch/renames.txt" ] || applyLists+=( "$applyScratch/renames.txt" )
+	[ ! -f "$applyScratch/removals.txt" ] || applyLists+=( "$applyScratch/removals.txt" )
+	## The work a record line belongs to: the checksum of its order and its lists, so a line of another work never reads as done.
+	local applyRun
+	applyRun="$( cat "$applyOrder" "${applyLists[@]:1}" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 "-" $2 ; }' )"
+	if DistroAgentsTestingApplyListsRefused "$applyScratch" "${applyLists[@]:1}" ; then echo "ABORT: nothing put in place" ; return 4 ; fi
 	mkdir -p "$( dirname "$applyLock" )" 2> /dev/null || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool apply: could not make the lock folder" >&2 ; return 1 ; }
+	(
 	until mkdir "$applyLock" 2> /dev/null ; do
-		applyTries=$(( applyTries + 1 )) ; [ "$applyTries" -le 120 ] || { echo "⛔ ERROR: the lock stays taken: $applyLock" >&2 ; return 3 ; }
+		applyTries=$(( applyTries + 1 )) ; [ "$applyTries" -le 120 ] || { echo "⛔ ERROR: the lock stays taken: $applyLock" >&2 ; exit 3 ; }
 		sleep 5
 	done
+	trap "for applyTrapCand in $( printf '%q' "$applyStageDir" )/cand.* ; do [ ! -s \"\$applyTrapCand\" ] || rm -f -- \"\$( cat \"\$applyTrapCand\" )\" ; done 2> /dev/null ; rm -rf -- $( printf '%q %q' "$applyStageDir" "$applyLock" ) 2> /dev/null ; echo 'lock released'" EXIT
+	trap 'exit 129' HUP ; trap 'exit 130' INT ; trap 'exit 143' TERM
+	printf 'pid %s at %s by %s\n' "$$" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "${USER:-?}" > "$applyLock/owner"
 	echo "lock taken $( date -u +%Y-%m-%dT%H:%M:%SZ )"
-	rm -rf "$applyStageDir" 2> /dev/null ; mkdir -p "$applyStageDir" 2> /dev/null || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool apply: could not make the stage folder" >&2 ; rmdir "$applyLock" 2> /dev/null || : ; return 1 ; }
-	## 1. stage every file beside its live place, a snapshot of live as staged against kept.
-	applyBad=0 ; applyN=0
+	rm -rf "$applyStageDir" 2> /dev/null ; mkdir -p "$applyStageDir" 2> /dev/null || { echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTesting} --apply-tool apply: could not make the stage folder" >&2 ; exit 1 ; }
+	## 1. stage every file beside its live place, a snapshot of live as staged against kept: the writes in the order, then the removals.
+	applyBad=0 ; applyN=0 ; : > "$applyStageDir/order"
+	for applyPass in write remove ; do
 	while IFS= read -r applyF ; do
 		[ -n "$applyF" ] || continue
-		applyN=$(( applyN + 1 ))
+		applyRole="$( DistroAgentsTestingApplyRole "$applyF" "${applyLists[@]:1}" )"
+		case "$applyPass:$applyRole" in write:remove|write:from*|remove:|remove:to*) continue ;; esac
+		applyN=$(( applyN + 1 )) ; printf '%s\n' "$applyF" >> "$applyStageDir/order"
 		applyPkg="${applyF%%/*}" ; applyRel="${applyF#*/}"
 		applyLive="$applyRepo/source/myx/$applyPkg/$applyRel"
 		applyBase="$applyScratch/base/$applyPkg/$applyRel"
 		applyMine="$applyScratch/source/myx/$applyPkg/$applyRel"
-		mkdir -p "$( dirname "$applyLive" )" 2> /dev/null || { echo "CANNOT STAGE beside $applyF" ; applyBad=1 ; break ; }
+		: > "$applyStageDir/cand.$applyN"
+		if DistroAgentsTestingApplyPathRefused "$applyRepo" "$applyScratch" "$applyF" ; then applyBad=1 ; break 2 ; fi
+		## A step is recorded before it is made: recorded, and live already as it would leave it, it is done.
+		if { [ "$applyPass" = remove ] && [ ! -e "$applyLive" ] && LC_ALL=C grep -Fxq -- "removed"$'\t'"$applyF"$'\t'"$applyRun" "$applyRecord" 2> /dev/null ; } \
+			|| { [ "$applyPass" = write ] && cmp -s "$applyLive" "$applyMine" && LC_ALL=C grep -Fxq -- "put"$'\t'"$applyF"$'\t'"$applyRun" "$applyRecord" 2> /dev/null ; } ; then
+			printf 'done\n' > "$applyStageDir/kind.$applyN" ; echo "done already (record): $applyF" ; continue
+		fi
+		if [ "$applyPass" = remove ] ; then
+			## A removal or a rename's source is taken only at its base: no merge, by design.
+			if [ ! -f "$applyBase" ] || [ -e "$applyMine" ] ; then echo "NOT A SOURCE: $applyF -- a removal or a rename source is marked with its base and gone from the scratch" ; applyBad=1 ; break 2 ; fi
+			[ -e "$applyLive" ] || { echo "GONE on live: $applyF" ; applyBad=1 ; break 2 ; }
+			cmp -s "$applyLive" "$applyBase" || { echo "MOVED on live, and a removal or a rename source is never merged: $applyF" ; applyBad=1 ; break 2 ; }
+			cp -p "$applyLive" "$applyStageDir/snap.$applyN" 2> /dev/null || { echo "cannot snapshot $applyF" ; applyBad=1 ; break 2 ; }
+			printf 'remove\n' > "$applyStageDir/kind.$applyN"
+			continue
+		fi
+		[ -f "$applyMine" ] || { echo "NOT IN THE SCRATCH: $applyF" ; applyBad=1 ; break 2 ; }
+		[ ! -f "$applyBase" ] || [ -e "$applyLive" ] || { echo "GONE on live: $applyF" ; applyBad=1 ; break 2 ; }
+		mkdir -p "$( dirname "$applyLive" )" 2> /dev/null || { echo "CANNOT STAGE beside $applyF" ; applyBad=1 ; break 2 ; }
 		applyCand="$( mktemp "$applyLive.XXXXXX" 2> /dev/null )"
-		if [ -z "$applyCand" ] ; then echo "CANNOT STAGE beside $applyF" ; applyBad=1 ; break ; fi
+		if [ -z "$applyCand" ] ; then echo "CANNOT STAGE beside $applyF" ; applyBad=1 ; break 2 ; fi
 		printf '%s\n' "$applyCand" > "$applyStageDir/cand.$applyN"
 		if [ ! -f "$applyBase" ] ; then
-			[ ! -e "$applyLive" ] || { echo "EXISTS on live, though new in this work: $applyF" ; applyBad=1 ; break ; }
+			[ ! -e "$applyLive" ] || { echo "EXISTS on live, though new in this work: $applyF" ; applyBad=1 ; break 2 ; }
 			: > "$applyStageDir/snap.$applyN" ; printf 'new\n' > "$applyStageDir/kind.$applyN"
-			cp -p "$applyMine" "$applyCand" 2> /dev/null || { echo "cannot copy $applyF" ; applyBad=1 ; break ; }
+			cp -p "$applyMine" "$applyCand" 2> /dev/null || { echo "cannot copy $applyF" ; applyBad=1 ; break 2 ; }
 		else
 			cp -p "$applyLive" "$applyStageDir/snap.$applyN" 2> /dev/null
 			if cmp -s "$applyLive" "$applyBase" ; then
 				printf 'base\n' > "$applyStageDir/kind.$applyN"
-				cp -p "$applyMine" "$applyCand" 2> /dev/null || { echo "cannot copy $applyF" ; applyBad=1 ; break ; }
+				cp -p "$applyMine" "$applyCand" 2> /dev/null || { echo "cannot copy $applyF" ; applyBad=1 ; break 2 ; }
 			else
 				if diff3 -m "$applyMine" "$applyBase" "$applyLive" > "$applyCand.merge" 2> /dev/null && [ "$( DistroAgentsTestingApplyChange "$applyBase" "$applyMine" )" = "$( DistroAgentsTestingApplyChange "$applyLive" "$applyCand.merge" )" ] ; then
 					printf 'merged\n' > "$applyStageDir/kind.$applyN"
@@ -392,59 +495,71 @@ DistroAgentsTestingApplyDo(){ ## repository, scratch
 					chmod --reference="$applyLive" "$applyCand" 2> /dev/null || chmod "$( stat -f '%Lp' "$applyLive" 2> /dev/null )" "$applyCand" 2> /dev/null
 				else
 					rm -f "$applyCand.merge"
-					echo "MOVED since the base and not mergeable cleanly and exactly now: $applyF" ; applyBad=1 ; break
+					echo "MOVED since the base and not mergeable cleanly and exactly now: $applyF" ; applyBad=1 ; break 2
 				fi
 			fi
 		fi
-		DistroAgentsTestingApplyParses "$applyF" "$applyCand" || { echo "SYNTAX of what would be put in place: $applyF" ; applyBad=1 ; break ; }
+		DistroAgentsTestingApplyParses "$applyF" "$applyCand" || { echo "SYNTAX of what would be put in place: $applyF" ; applyBad=1 ; break 2 ; }
 	done < "$applyOrder"
-	if [ "$applyBad" != 0 ] ; then
-		for applyCand in "$applyStageDir"/cand.* ; do [ -f "$applyCand" ] && rm -f "$( cat "$applyCand" )" 2> /dev/null ; done
-		echo "ABORT: nothing put in place" ; rm -rf "$applyStageDir" 2> /dev/null ; rmdir "$applyLock" 2> /dev/null || : ; return 4
-	fi
-	## 2. put in place one file at a time, each compared with its snapshot right before its rename.
+	done
+	if [ "$applyBad" != 0 ] ; then echo "ABORT: nothing put in place" ; exit 4 ; fi
+	## 2. put in place one file at a time, each compared with its snapshot right before its rename or its removal, the path rules asked again.
 	[ -z "${MDAT_APPLY_BEFORE_PUT:-}" ] || eval "$MDAT_APPLY_BEFORE_PUT"
 	applyN=0 ; applyDoneList="" ; applyStopped=""
 	while IFS= read -r applyF ; do
-		[ -n "$applyF" ] || continue
 		applyN=$(( applyN + 1 ))
 		applyPkg="${applyF%%/*}" ; applyRel="${applyF#*/}"
 		applyLive="$applyRepo/source/myx/$applyPkg/$applyRel"
 		applyCand="$( cat "$applyStageDir/cand.$applyN" )" ; applyKind="$( cat "$applyStageDir/kind.$applyN" )"
+		[ "$applyKind" != done ] || continue
 		if [ -z "$applyStopped" ] ; then
-			if [ "$applyKind" = new ] ; then
+			if DistroAgentsTestingApplyPathRefused "$applyRepo" "$applyScratch" "$applyF" ; then
+				applyStopped="the path of $applyF is refused now"
+			elif [ "$applyKind" = new ] ; then
 				[ ! -e "$applyLive" ] || applyStopped="$applyF appeared on live after it was staged"
 			else
 				cmp -s "$applyLive" "$applyStageDir/snap.$applyN" || applyStopped="$applyF moved on live after it was staged"
 			fi
 		fi
-		if [ -n "$applyStopped" ] ; then rm -f "$applyCand" 2> /dev/null ; continue ; fi
-		if mv -f "$applyCand" "$applyLive" 2> /dev/null ; then
-			applyDoneList="$applyDoneList $applyF ($applyKind)"
-			echo "put in place ($applyKind): $applyF"
+		if [ -n "$applyStopped" ] ; then [ -z "$applyCand" ] || rm -f "$applyCand" 2> /dev/null ; continue ; fi
+		if [ "$applyKind" = remove ] ; then
+			printf 'removed\t%s\t%s\n' "$applyF" "$applyRun" >> "$applyRecord"
+			if rm -f -- "$applyLive" 2> /dev/null ; then
+				applyDoneList="$applyDoneList $applyF (removed)" ; echo "removed: $applyF"
+			else
+				applyStopped="the removal of $applyF failed"
+			fi
+		elif printf 'put\t%s\t%s\n' "$applyF" "$applyRun" >> "$applyRecord" && mv -f "$applyCand" "$applyLive" 2> /dev/null ; then
+			applyDoneList="$applyDoneList $applyF ($applyKind)" ; echo "put in place ($applyKind): $applyF"
 		else
 			applyStopped="the rename of $applyF failed" ; rm -f "$applyCand" 2> /dev/null
 		fi
-	done < "$applyOrder"
+	done < "$applyStageDir/order"
 	if [ -n "$applyStopped" ] ; then
 		echo "STOPPED: $applyStopped"
-		echo "put in place before it:${applyDoneList:- none}"
-		echo "NOT put in place: the files of apply-order.txt from that one on -- level, re-derive and run the plan again"
-		rm -rf "$applyStageDir" 2> /dev/null ; rmdir "$applyLock" 2> /dev/null || : ; return 5
+		echo "done before it:${applyDoneList:- none}"
+		echo "NOT done: the files of the stage order from that one on -- level, re-derive and run the plan again; applied-steps.txt keeps what was done"
+		exit 5
 	fi
-	## 3. what is on live is what was staged, and it parses.
+	## 3. what is on live is what was staged, and it parses; a removal is gone, else rc 6.
+	[ -z "${MDAT_APPLY_BEFORE_CHECK:-}" ] || eval "$MDAT_APPLY_BEFORE_CHECK"
+	applyN=0 ; applyStill=""
 	while IFS= read -r applyF ; do
-		[ -n "$applyF" ] || continue
+		applyN=$(( applyN + 1 ))
 		applyPkg="${applyF%%/*}" ; applyRel="${applyF#*/}"
 		applyLive="$applyRepo/source/myx/$applyPkg/$applyRel"
 		applyMine="$applyScratch/source/myx/$applyPkg/$applyRel"
+		case "$( cat "$applyStageDir/kind.$applyN" )" in
+			remove) if [ -e "$applyLive" ] ; then echo "STILL ON LIVE: $applyF" ; applyStill=1 ; else echo "live no longer holds: $applyF" ; fi ; continue ;;
+			done) [ -e "$applyMine" ] || continue ;;
+		esac
 		DistroAgentsTestingApplyParses "$applyF" "$applyLive" || echo "SYNTAX AFTER APPLY: $applyF"
 		if cmp -s "$applyLive" "$applyMine" ; then echo "live == this work's file: $applyF" ; else echo "live holds this work's file with another's hunks merged in: $applyF" ; fi
-	done < "$applyOrder"
+	done < "$applyStageDir/order"
+	[ -z "$applyStill" ] || exit 6
 	date -u +%Y-%m-%dT%H:%M:%SZ > "$applyScratch/applied-at.txt" 2> /dev/null
-	rm -rf "$applyStageDir" 2> /dev/null
-	if rmdir "$applyLock" 2> /dev/null ; then echo "lock released" ; fi
-	return 0
+	exit 0
+	)
 }
 
 case "$0" in

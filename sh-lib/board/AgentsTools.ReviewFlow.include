@@ -757,8 +757,8 @@ AgentsReviewPromptSettle(){ ## who settled it, item file name, what was done, in
 ## A review prompt's verdict, given through the review flow as the reviewer's own typed
 ## operation gives it, signed human-owner: who answered is the person the prompt was
 ## addressed to. rc 0: given. rc 1, with the reason printed as one line (`# Returned` of the
-## template): not given -- a return or a reject with no text yet, one the review flow did not
-## take, or a review that is no longer open, whose prompt is then closed.
+## template): not given -- one the review flow did not take, or a review that is no longer
+## open, whose prompt is then closed.
 AgentsReviewPromptVerdict(){ ## record file, pending id, verdict (accept|return|reject), its text (may be empty), answered by (his account, or his name)
 	local pvFile="$1" pvId="$2" pvVerdict="$3" pvText="${4:-}" pvBy="$5" pvItem pvPath pvState="" pvOut pvRc=0 pvWhy
 	type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/grants/AgentsTools.PermissionHolds.include"
@@ -777,12 +777,9 @@ AgentsReviewPromptVerdict(){ ## record file, pending id, verdict (accept|return|
 	fi
 	case "$pvVerdict" in
 		accept) ;;
-		return|reject)
-			if [ -z "$pvText" ] ; then
-				ASKP_F_by="$pvBy" ASKP_F_verdict="$pvVerdict" ASKP_F_item="$pvItem" AgentsReviewPromptFill block "Returned/no-text" || :
-				return 1
-			fi
-		;;
+		## A return or a reject given with no text beside it (a click alone, or the bare word) is taken at once, with a fixed text: the review operations need one.
+		return) [ -n "$pvText" ] || pvText="returned, no text given" ;;
+		reject) [ -n "$pvText" ] || pvText="rejected, no text given" ;;
 		*)
 			ASKP_F_by="$pvBy" ASKP_F_verdict="$pvVerdict" ASKP_F_item="$pvItem" ASKP_F_reason="it is no verdict of a review" AgentsReviewPromptFill block "Returned/not-applied" || :
 			return 1

@@ -799,6 +799,20 @@ rigRun "$rigOp" --session-id old-ns
 rigAssert "its kill, on the registry as the earlier build left it: status 0 and nothing else said, the sum of zeros, finished" \
 	"$rigRc $( rigTroubles ) | $( rigRowsOf close ) | $( rigRowsOf finish )" "0 0 |  | finish old-ns 0 0 0 finished"
 
+echo "-- 19. the owner's own console ends a session at the first try, though the session does not report to him (sketch 5.4) --"
+## A run that reports to another member, not to the console's user: the authority gate asks the owner's confirmation in its own channel for a console that is mapped to the owner,
+## and refuses a console that is mapped to none. The owner who types the word at his console has confirmed it.
+rigRec own-ns own-run own-ns "$rigHost" magic-coordinator spawn-started 50 ""
+LC_ALL=C sed -i.bak "s/^reports-to: .*/reports-to: keeper-other/" "$rigSp/own-ns/own-run.spawn.md" && rm -f "$rigSp/own-ns/own-run.spawn.md.bak"
+rigLive own-run
+rigCallsBefore="$( wc -l < "$rigTmp/calls" | LC_ALL=C tr -d ' ' )"
+rigRun "$rigOp" --session-id own-ns
+rigAssert "control: a console mapped to no owner is refused for a session that reports to another: nothing is ended" "$( rigAlive own-run ) $( [ "$rigRc" != 0 ] && echo refused )" "1 refused"
+printf 'HUMAN_OWNER_CONSOLE_ACCOUNT=%s\n' "${rigConsoleUser#user-}" >> "$rigWs/.local/.agents/magic-team.agent.env"
+rigRun "$rigOp" --session-id own-ns
+rigAssert "the console mapped to the owner ends it at the first try: status 0, the run ended, its process gone" "$rigRc $( rigRowOf own-run | LC_ALL=C awk '{ print $5 }' ) $( rigAlive own-run )" "0 ended 0"
+rigAssert "and nobody was asked: no request was opened, nothing said PENDING, no Slack call was made" "$( LC_ALL=C grep -c 'PENDING' "$rigTmp/out" || : ) $(( $( wc -l < "$rigTmp/calls" | LC_ALL=C tr -d ' ' ) - rigCallsBefore ))" "0 0"
+
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ MANAGER SESSION KILL CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1
 fi

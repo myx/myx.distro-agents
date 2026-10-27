@@ -271,8 +271,8 @@ keys k
 get wrongKey
 RIGSCRIPT
 rigAssert "the list active on Launchpad: what the list takes there, which Enter starts, then the keys of every window" "$( rigVal launch.selected ) [$( rigVal onLaunch )]" "coworking [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
-rigAssert "on a session: the keys that act on a session, and Enter, which opens it" "$( rigVal session.selected ) [$( rigVal onSession )]" "s1 [ ENTER Open  BSP Up  / Filter  k Kill  c Control  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
-rigAssert "the left window active: the list's own keys are gone, those that act on the selected session stay" "$( rigVal left.focus ) [$( rigVal onLeft )]" "view [ k Kill  c Control  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "on a session: the keys that act on a session, and Enter, which opens it" "$( rigVal session.selected ) [$( rigVal onSession )]" "s1 [ ENTER Open  BSP Up  / Filter  k Kill  c Control  M Message  J Join  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "the left window active: the list's own keys are gone, those that act on the selected session stay" "$( rigVal left.focus ) [$( rigVal onLeft )]" "view [ k Kill  c Control  M Message  J Join  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 rigAssert "a menu open: the keys of the menu alone"                  "[$( rigVal onMenu )]" "[ ENTER Choose  ESC Close  ←/→ Menus  UP/DN Items]"
 rigAssert "a line too short for all: the keys of every window are the first left out" "[$( rigVal narrow )]" "[ ENTER Open  BSP Up  / Filter  k Kill]"
 rigAssert "on a member: the key that starts one, and none of a session's" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal onMember )]" "magic-team/team m1 [ ENTER Start  BSP Up  a Active  / Filter  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
@@ -366,7 +366,7 @@ turn
 border settingsTitle 1 0 84
 RIGSCRIPT
 rigAssert "a session opened, the selection on the row that goes up: the left window still shows that session" "[$( rigVal outside )] [$( rigVal inside )] $( rigVal in.path ) $( rigVal in.selected )" "[one [wrap]] [one [wrap]] magic-team/activity/active-sessions/s1 .."
-rigAssert "the keys that act on the session stand in the status line there, and act on it" "[$( rigVal st )] [$( rigVal onUp.notice )]" "[ ENTER Open  BSP Up  a Active  / Filter  k Kill  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut] [handled kill on s1]"
+rigAssert "the keys that act on the session stand in the status line there, and act on it" "[$( rigVal st )] [$( rigVal onUp.notice )]" "[ ENTER Open  BSP Up  a Active  / Filter  k Kill  M Message  J Join  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut] [handled kill on s1]"
 rigAssert "moving to a child shows the child: the session's Transcript first, then its participant" "[$( rigVal child )] [$( rigVal participant )]" "[Transcript [summary] [wrap]] [magic-coordinator [wrap]]"
 rigAssert "the keys act on the child: kill on the participant" "[$( rigVal onChild.notice )]" "[handled kill on s1]"
 rigAssert "Launchpad and the roots, entered with the selection on the row that goes up, show themselves" "$( rigVal launch.path ) [$( rigVal launchTitle )] [$( rigVal teamTitle )] [$( rigVal pendingTitle )] [$( rigVal settingsTitle )]" "magic-team/launch [Launchpad [wrap]] [Team Members [wrap]] [Pending Questions [wrap]] [Settings [wrap]]"

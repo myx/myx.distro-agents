@@ -163,13 +163,11 @@ case "$1" in
 		done <<< "$scopeListed"
 		[ "$joinName" != "-" ] || joinName=""
 		case "$joinState" in
-			finished|waiting|unclosed) ;;
-			running)
-				echo "⛔ ERROR: $MDSC_CMD $joinOp: session $scopeSession runs: its participants work on it, so nobody is joined into it to assess it -- nothing was started" >&2
-				set +e ; return 1
-			;;
+			## ANY SESSION on this host (sketch 5.4): one that reads running may be a stuck one, since a stuck run keeps its process. A coordinator run that still holds its seat in it
+			## is the proxy's to refuse, in its own words.
+			finished|waiting|unclosed|running|starting) ;;
 			*)
-				echo "⛔ ERROR: $MDSC_CMD $joinOp: session $scopeSession reads ${joinState:-unknown}, which is none of finished, waiting and unclosed, the states it is offered for -- nothing was started" >&2
+				echo "⛔ ERROR: $MDSC_CMD $joinOp: session $scopeSession reads ${joinState:-unknown}, which is none of finished, running, starting, waiting and unclosed, the states it is offered for -- nothing was started" >&2
 				set +e ; return 1
 			;;
 		esac

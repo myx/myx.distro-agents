@@ -673,6 +673,13 @@ def fillKill(state, dialog):
     rows, note = killPlanOf(state, target)
     key, words = killPlanRead(state, target)
     plan = state.plans.get(key)
+    ## THE FIRST PRESS STANDS (sketch 5.4: the kill is at the first try): a press that came while the plan was still being read waits for it, and the kill is asked once the plan has
+    ## answered, with no second press.
+    if dialog["about"].get("pressed") and words is not None and plan is not None and plan["words"] == words and not plan["error"] and state.dialog is dialog:
+        dialog["about"]["pressed"] = False
+        killAsked(state, dialog)
+        closeDialog(state)
+        return
     if words is not None and plan is not None and plan["words"] == words and plan["error"]:
         ## its plan could not be read: the kill is not asked for. The dialog says so, takes
         ## no word, and offers nothing but to leave it
@@ -723,6 +730,7 @@ def submitKill(state, dialog, button):
     if words is not None:
         plan = state.plans.get(key)
         if plan is None or plan["words"] != words:
+            dialog["about"]["pressed"] = True
             return KILL_SAYS["unread"]
     killAsked(state, dialog)
     return None

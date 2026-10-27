@@ -148,9 +148,8 @@ AgentsToolsScheduleWorkDutyRecord(){ ## member
 ## The first look reads from now: what stood there before is not news. A read that fails is tried again after the TTL. <force> yes is the
 ## per-member sync's (AgentsTools.Incoming.include): the tags are read now, whatever the TTL, for the members given.
 AgentsToolsScheduleTeamTags(){ ## the members to look for, spaced; force (yes|no)
-	type AgentsToolsSeenReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SeenReaction.include"
 	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TrackingDrop.include"
-	local teamStore="$MMDAPP/.local/agents/schedule" teamNow teamTtl teamAt="" teamFloor="" teamOut teamTemp teamMember teamId teamNewest teamHit teamOne teamIdList=""
+	local teamStore="$MMDAPP/.local/agents/schedule" teamNow teamTtl teamAt="" teamFloor="" teamOut teamTemp teamMember teamId teamNewest teamHit teamIdList=""
 	[ -n "${1// /}" ] || return 0
 	teamNow="$( date +%s )"
 	## The cache TTL of the tags and mentions (T2): one minute, the low end of the 1-5 minute band. It is the schedule's own cadence,
@@ -174,13 +173,10 @@ AgentsToolsScheduleTeamTags(){ ## the members to look for, spaced; force (yes|no
 			/^[0-9]+\.[0-9]+ \| / {
 				own = ( index( $0, "[sender: " ENVIRON["MEMBER"] "]" ) > 0 )
 				if ( $1 + 0 <= ENVIRON["FLOOR"] + 0 || own ) next
-				if ( ENVIRON["MEMBER_ID"] != "" && index( $0, "<@" ENVIRON["MEMBER_ID"] ">" ) > 0 ) { hit = $1 ; all = all " " $1 }
-				else if ( index( $0, "@" ENVIRON["MEMBER"] ) > 0 ) { hit = $1 ; all = all " " $1 }
+				if ( ENVIRON["MEMBER_ID"] != "" && index( $0, "<@" ENVIRON["MEMBER_ID"] ">" ) > 0 ) { hit = $1 }
+				else if ( index( $0, "@" ENVIRON["MEMBER"] ) > 0 ) { hit = $1 }
 			}
-			END { print hit "|" all }' )"
-		## Every mention found is read the moment it is noticed: the seen reaction is the tooling's (AgentsTools.SeenReaction.include).
-		for teamOne in ${teamHit#*|} ; do AgentsToolsSeenReact "$teamMember" "magic-team:$teamOne" || : ; done
-		teamHit="${teamHit%%|*}"
+			END { print hit }' )"
 		AgentsToolsScheduleTagNote "$teamMember" "$teamHit"
 	done
 	if teamTemp="$( mktemp "$teamStore/team-channel.XXXXXX" 2> /dev/null )" ; then
@@ -300,12 +296,11 @@ AgentsToolsScheduleTagNews(){ ## member, since (epoch seconds, may be empty), th
 ## tagged source (AgentsToolsScheduleTagNote). <force> yes is the per-member sync's (AgentsTools.Incoming.include): the DMs are read now, whatever the
 ## TTL, for the members given.
 AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spaced; the members out of them, spaced; force (yes|no)
-	local dmStore="$MMDAPP/.local/agents/schedule" dmMember dmNow dmChecked dmFloor dmRoster dmLine dmConv dmKind dmIdentity dmArg dmSeen dmRead dmNewest dmId dmTtl dmOne
+	local dmStore="$MMDAPP/.local/agents/schedule" dmMember dmNow dmChecked dmFloor dmRoster dmLine dmConv dmKind dmIdentity dmArg dmSeen dmRead dmNewest dmId dmTtl
 	## agentsScheduleDmNewest is the newest DM this call found, empty for none: the per-member sync's line (AgentsTools.Incoming.include).
 	agentsScheduleDmNewest=""
 	[ -n "$1$2" ] || return 0
 	type AgentsToolsTrackingDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.TrackingDrop.include"
-	type AgentsToolsSeenReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SeenReaction.include"
 	dmNow="$( date +%s )"
 	mkdir -p "$dmStore/dms" "$dmStore/dm-looked" 2> /dev/null || return 0
 	for dmMember in $1 $2 ; do
@@ -343,12 +338,8 @@ AgentsToolsScheduleDmTags(){ ## the members within their flags to look for, spac
 					if ( index( $0, "[sender: " ENVIRON["DM_MEMBER"] "]" ) > 0 ) next
 					if ( ENVIRON["DM_ID"] != "" && index( $0, $1 " | " ENVIRON["DM_ID"] " |" ) == 1 ) next
 					if ( $1 + 0 > newest + 0 ) newest = $1
-					all = all " " $1
 				}
-				END { print newest "|" all }' )"
-			## Every DM found is read the moment it is noticed: the seen reaction is the tooling's (AgentsTools.SeenReaction.include).
-			for dmOne in ${dmRead#*|} ; do AgentsToolsSeenReact "$dmMember" "$dmConv:$dmOne" || : ; done
-			dmRead="${dmRead%%|*}"
+				END { print newest }' )"
 			if [ -n "$dmRead" ] ; then
 				if [ -z "$dmNewest" ] || [ "${dmRead%%.*}" -gt "${dmNewest%%.*}" ] ; then dmNewest="$dmRead" ; fi
 			fi

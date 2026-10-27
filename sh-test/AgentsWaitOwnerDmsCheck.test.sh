@@ -97,6 +97,26 @@ rigAssert "the caller took the first line of the result and was gone (a client t
 rigDefault rig-owner-dms
 rigAssert "the next Wait of the session does not return that message again: its floor was committed before the result was said" "$( rigHas RIG-COMMITTED )" "0"
 
+echo "-- the work-duty scan's collect hands messages over too: eyes on them, and one eyes for a message handed over twice --"
+## The collect is a call of its own (--wait-collect): the scan of the work duty reads a member's sources through it, and its result is what the duty is handed.
+rigCollect(){ ## session -- one collect over the member's own DM with the owner
+	: > "$rigScenario/calls"
+	( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
+		RIG_SCENARIO="$rigScenario" MDAT_WAIT_REMIND=off MMDAPP="$rigWs" MDAT_SESSION_ID="$1" \
+		bash "$rigTools" --wait-for-input "$rigMember" --wait-collect 3 --wait-source slack:DOWNERUSER1 ) > "$rigTmp/out" 2> "$rigTmp/err"
+}
+rigEyesCount(){ ## ts -- the eyes the fake curl logged on that message
+	LC_ALL=C awk -v ts="$1" '$3 == ts && $4 == "eyes" { n++ } END { print n + 0 }' "$rigScenario/reactions" 2> /dev/null || printf 0
+}
+rigCollectTs="$(( $( date +%s ) + 11 )).000101"
+printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGOWNER","text":"RIG-COLLECTED"}],"has_more":false}\n' "$rigCollectTs" > "$rigScenario/history.DOWNERUSER1.json"
+rigCollect rig-collect-1
+rigAssert "the collect returns the message" "$( rigHas RIG-COLLECTED )" "1"
+rigAssert "...and the message it handed over got its eyes, without the agent asking" "$( rigEyesCount "$rigCollectTs" )" "1"
+rigDefault rig-collect-2
+rigAssert "a Wait of another session hands the same message over again" "$( rigHas RIG-COLLECTED )" "1"
+rigAssert "...and it still has one eyes: the store of seen messages keeps it from a second" "$( rigEyesCount "$rigCollectTs" )" "1"
+
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ WAIT OWNER DMS CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1
 fi

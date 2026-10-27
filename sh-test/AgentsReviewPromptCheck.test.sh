@@ -305,30 +305,27 @@ rigAssert "the record closes with the verdict and who gave it" "$( rigField stat
 rigRead
 rigAssert "a second read reports the same, and applies nothing again" "$( rigReadLine 'VERDICT: ' ):$( rigPosts ):$( rigDecisions 'human-owner verdict: accepted' )" "VERDICT: accept:3:1"
 
-echo "-- 4. return by click: taken once he has written what to change; then the next handback asks again --"
+echo "-- 4. return by click: taken at once, with the fixed text when he wrote none; then the next handback asks again --"
 rigStart click-return
 rigWork human-owner
 rigHandback "rig work done"
 rigThread "$( rigClick leftwards_arrow_with_hook URIGOWNER )" ""
 rigRead
-rigAssert "a return clicked with no text is not applied"   "$( rigLoc ):$( rigField status ):$( rigReadLine 'VERDICT: ' )" "review:reply-pending:VERDICT: RETURNED"
-rigAssert "and the member is told why"                     "$( rigReadLine 'VERDICT-REASON: ' )" \
-	"VERDICT-REASON: human-owner clicked return under the review prompt of $rigItem and wrote nothing with it. A return takes what to change from a reply there, so nothing is applied yet. The click is taken once that reply is written"
-rigThread "$( rigClick leftwards_arrow_with_hook URIGOWNER )" "$( rigReply 000250 URIGOWNER 'fix the rig widget' )"
-rigRead
-rigAssert "with his reply beside the click it is a return" "$( rigReadLine 'VERDICT: ' ):$( rigReadLine 'VERDICT-TEXT: ' )" "VERDICT: return:VERDICT-TEXT: fix the rig widget"
-rigAssert "the item is running again"                      "$( rigLoc )" running
-rigAssert "his text is in the item, under the returned heading signed human-owner" \
-	"$( LC_ALL=C grep -c -E '^## Review: returned \([0-9TZ:-]+, human-owner\)$' "$( rigItemFile )" ):$( LC_ALL=C grep -c -x 'fix the rig widget' "$( rigItemFile )" )" "1:1"
-rigAssert "Decisions: returned, signed human-owner"        "$( rigDecisions 'human-owner verdict: returned: fix the rig widget' )" 1
-## Four posts: the prompt; the reply under it saying the bare click is not applied yet; the
-## return delivered to the member; the confirmation reply of the return that was taken.
-rigAssert "delivered in the session thread, to the member" "$( rigPosts ):$( LC_ALL=C grep -c '"channel": *"CSES00001"' "$rigDir/post.3" 2> /dev/null ):$( rigHas "$rigDir/post.3" 'RETURNED for corrections' ):$( rigHas "$rigDir/post.3" 'fix the rig widget' )" "4:1:yes:yes"
-rigAssert "the bare click was answered under the prompt, once: not applied, and why" "$( LC_ALL=C grep -c -F 'Read: `return` by human-owner, and it is not applied.' "$rigDir/post.2" 2> /dev/null ):$( rigHas "$rigDir/post.2" 'The click is taken once that reply is written' )" "1:yes"
-rigAssert "and the return that was taken is confirmed under the prompt" "$( LC_ALL=C grep -c -F 'Read: `return` by human-owner. It is given as the verdict of this review.' "$rigDir/post.4" 2> /dev/null )" 1
-rigAssert "the record closes with return"                  "$( rigField status ):$( rigField verdict )" "reply-received:return"
+rigAssert "a return clicked with no text is taken at once, with the fixed text" "$( rigLoc ):$( rigField status ):$( rigReadLine 'VERDICT: ' ):$( rigDecisions 'human-owner verdict: returned: returned, no text given' )" "running:reply-received:VERDICT: return:1"
+rigAssert "the fixed text is in the item, under the returned heading signed human-owner" \
+	"$( LC_ALL=C grep -c -E '^## Review: returned \([0-9TZ:-]+, human-owner\)$' "$( rigItemFile )" ):$( LC_ALL=C grep -c -x 'returned, no text given' "$( rigItemFile )" )" "1:1"
+rigAssert "Decisions: returned, signed human-owner"        "$( rigDecisions 'human-owner verdict: returned: returned, no text given' )" 1
+rigAssert "no post says the click is held: the prompt, the return to the member and the one confirmation are all" "$( rigPosts ):$( LC_ALL=C grep -l -F 'is not applied' "$rigDir"/post.* 2> /dev/null | wc -l | tr -d ' ' )" "3:0"
+rigAssert "the record is closed, so no reminder follows it"  "$( rigField status ):$( rigField verdict )" "reply-received:return"
 rigHandback "fixed"
 rigAssert "the next handback is in review again, with a prompt of its own" "$( rigLoc ):$( rigRecordCount ):$( rigField status 1 ):$( rigField status 2 ):$( rigHas "$( rigRecord 2 )" $'**📦 Outcome**\nfixed' )" "review:2:reply-received:reply-pending:yes"
+rigStart click-return-text
+rigWork human-owner
+rigHandback "rig work done"
+rigThread "$( rigClick leftwards_arrow_with_hook URIGOWNER )" "$( rigReply 000250 URIGOWNER 'fix the rig widget' )"
+rigRead
+rigAssert "with his reply beside the click, the reply is the text" "$( rigReadLine 'VERDICT: ' ):$( rigReadLine 'VERDICT-TEXT: ' ):$( rigLoc )" "VERDICT: return:VERDICT-TEXT: fix the rig widget:running"
+rigAssert "Decisions: returned, with his text"             "$( rigDecisions 'human-owner verdict: returned: fix the rig widget' )" 1
 
 echo "-- 5. reject by click, his text beside it --"
 rigStart click-reject
@@ -367,7 +364,7 @@ rigWork human-owner
 rigHandback "rig work done"
 rigThread "" "$( rigReply 000250 URIGOWNER 'return' )"
 rigRead
-rigAssert "a return with nothing after the word is not applied" "$( rigLoc ):$( rigField status ):$( rigReadLine 'VERDICT: ' )" "review:reply-pending:VERDICT: RETURNED"
+rigAssert "a return with nothing after the word is taken at once, with the fixed text" "$( rigLoc ):$( rigField status ):$( rigReadLine 'VERDICT: ' ):$( rigDecisions 'human-owner verdict: returned: returned, no text given' )" "running:reply-received:VERDICT: return:1"
 
 echo "-- 7. a comment: back to the member as RETURNED, the review open; the answer after it is the verdict --"
 rigStart comment
@@ -476,11 +473,15 @@ rigWork human-owner
 printf 'HUMAN_OWNER_CONSOLE_ACCOUNT=%s\n' "${rigConsole#user-}" >> "$rigWs/.local/.agents/magic-team.agent.env"
 rigHandback "rig work done"
 rigPendId="$( rigId )"
-## A reject is not given without what to change, as the prompt says: a bare one is refused for
-## that, which is the review's own rule, and never as a verdict that stands in another's name.
+## A reject with nothing to change is taken at once with the fixed text, as a reply or a click is.
 rigOp "$rigDir/bare" --manager-pending-reply-answer --id "$rigPendId" --reject
-rigAssert "a reject with nothing to change is refused for that, and the review stays open" \
-	"$( cat "$rigDir/bare.rc" ):$( LC_ALL=C grep -c -F 'wrote nothing with it' "$rigDir/bare" ):$( rigField status )" "1:1:reply-pending"
+rigAssert "a reject with nothing to change is taken at once, with the fixed text" \
+	"$( cat "$rigDir/bare.rc" ):$( rigLoc ):$( rigField status ):$( rigDecisions 'human-owner verdict: rejected: rejected, no text given' )" "0:pending:reply-received:1"
+rigStart console-reject-text
+rigWork human-owner
+printf 'HUMAN_OWNER_CONSOLE_ACCOUNT=%s\n' "${rigConsole#user-}" >> "$rigWs/.local/.agents/magic-team.agent.env"
+rigHandback "rig work done"
+rigPendId="$( rigId )"
 rigOp "$rigDir/answer" --manager-pending-reply-answer --id "$rigPendId" --reject --text "wrong approach"
 rigAssert "his reject, typed at the console with what to change, is applied" \
 	"$( cat "$rigDir/answer.rc" ):$( rigLoc ):$( rigField status ):$( rigField verdict ):$( rigField answered-by )" \

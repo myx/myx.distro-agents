@@ -100,15 +100,81 @@ rigLate tagged 6 'RIG-DM-LATE-TAGGED @keeper-rig look' ; rigTagged="$rigLateTook
 rigAssert "a DM that tags the member: the same" "$( [ "$rigTagged" -le 25 ] && echo within || echo "took:$rigTagged" ):$( rigHolds tagged RIG-DM-LATE-TAGGED ):$( rigHolds tagged '# returned: immediate' )" "within:1:1"
 printf '  measured: a DM landing 6 s into the collect, read and returned in %ss (bare) and %ss (tagged)\n' "$rigBare" "$rigTagged"
 
-echo "-- a mention in another channel the member is in, not the team channel: read by the wider sweep --"
-rigScene wide 60
-printf '[{"id":"CRIGGEN01","is_im":false,"is_mpim":false,"user":"","is_user_deleted":false,"is_member":true},{"id":"CRIGNOTIN","is_im":false,"is_mpim":false,"user":"","is_user_deleted":false,"is_member":false}]\n' > "$rigDir/dms.json"
-rigHistory CRIGGEN01 "$( rigMsg "$(( rigNow - 30 )).000001" URIGFRIEND 'RIG-WIDE-MENTION @keeper-rig in general' )" "$( rigMsg "$(( rigNow - 20 )).000001" URIGFRIEND 'RIG-WIDE-PLAIN no mention here' )"
-rigHistory CRIGNOTIN "$( rigMsg "$(( rigNow - 25 )).000001" URIGFRIEND 'RIG-NOT-IN @keeper-rig where the member is not' )"
-rigScan wide
-rigAssert "the mention in a channel the member is in is returned at once, and only it" \
-	"$( [ "$( rigTook wide )" -le 25 ] && echo within || echo "took:$( rigTook wide )" ):$( rigHolds wide RIG-WIDE-MENTION ):$( rigHolds wide RIG-WIDE-PLAIN ):$( rigHolds wide RIG-NOT-IN )" "within:1:0:0"
-rigAssert "a channel the member is not in is not read" "$( LC_ALL=C grep -c '^conversations.history CRIGNOTIN ' "$rigDir/api.log" )" 0
+## THE MENTIONS SOURCE (mentions:<member>): one search.messages call, its TTL kept by the session across Waits.
+## A search answer: one match, a reply in a thread of another conversation, the text given.
+rigSearch(){ ## file, ts, text
+	printf '{"ok":true,"messages":{"total":1,"paging":{"count":100,"total":1,"page":1,"pages":1},"matches":[{"ts":"%s","user":"URIGFRIEND","text":"%s","permalink":"https://rig.slack.com/archives/CRIGOTHER/p1?thread_ts=%s.000001&cid=CRIGOTHER","channel":{"id":"CRIGOTHER"}}]}}\n' "$2" "$3" "$(( rigNow - 5000 ))" > "$1"
+}
+rigNoMatch(){ ## file
+	printf '{"ok":true,"messages":{"total":0,"paging":{"count":100,"total":0,"page":1,"pages":1},"matches":[]}}\n' > "$1"
+}
+## The session's pointer of the source, where the last Wait left it: a little behind now.
+rigMentionsPointer(){ printf 'mentions:keeper-rig\t%s.000000\n' "$(( rigNow - 100 ))" >> "$rigWs/.local/agents/sessions/$rigSession/session.chat.pointers" ; }
+rigSearches(){ ## scene -- how many searches were made
+	LC_ALL=C grep -c '^search.messages ' "$rigTmp/$1/search.log" 2> /dev/null || printf 0
+}
+mkdir -p "$rigTmp/skills/magic-coordinator" && printf 'rig\n' > "$rigTmp/skills/magic-coordinator/magic-coordinator.basic.md"
+
+echo "-- a mention in a thread reply of any conversation: found by the member's own search --"
+rigScene mention 60
+rigMentionsPointer
+printf 'SLACK_USER_TOKEN=rig-user-KEEPER\n' > "$rigWs/.local/.agents/keeper-rig.agent.env"
+printf 'keeper-rig=URIGKEEP1=k=K=K=d\n' > "$rigWs/.local/.agents/slack-mention-ids.cache"
+rigSearch "$rigDir/search.rig-user-KEEPER.json" "$(( rigNow - 10 )).000003" 'RIG-THREAD-MENTION <@URIGKEEP1> in a thread'
+rigScan mention
+rigAssert "the reply that mentions it is returned at once, its conversation and thread named, by one search for its id" \
+	"$( [ "$( rigTook mention )" -le 25 ] && echo within || echo "took:$( rigTook mention )" ):$( rigHolds mention RIG-THREAD-MENTION ):$( rigHolds mention '# in CRIGOTHER' )$( rigHolds mention '[thread-reply of' ):$( rigSearches mention ):$( LC_ALL=C grep -c -F 'search.messages rig-user-KEEPER <@URIGKEEP1>' "$rigDir/search.log" )" "within:1:11:1:1"
+
+echo "-- the member's own Wait gives the mention it returns the seen reaction, in the mention's conversation --"
+rigScene seen 60
+printf 'SLACK_USER_TOKEN=rig-user-KEEPER\n' > "$rigWs/.local/.agents/keeper-rig.agent.env"
+printf 'keeper-rig=URIGKEEP1=k=K=K=d\n' > "$rigWs/.local/.agents/slack-mention-ids.cache"
+rigSearch "$rigDir/search.rig-user-KEEPER.json" "$(( rigNow - 10 )).000005" 'RIG-SEEN-MENTION <@URIGKEEP1>'
+rigCall seen --intern-op-wait-for-input keeper-rig --wait-default --wait-session-id "$rigSession" --wait-source mentions:keeper-rig --wait-since-utime "$(( rigNow - 100 ))" --wait-timeout 10
+rigAssert "the mention is returned, and an eyes reaction is asked for in its conversation" \
+	"$( rigHolds seen RIG-SEEN-MENTION ):$( [ "$( LC_ALL=C grep -c '^reactions.add CRIGOTHER' "$rigDir/api.log" )" -ge 1 ] && echo reacted || echo none )" "1:reacted"
+
+echo "-- the TTL holds across Waits: one search per expired check, none at a Wait start inside it --"
+rigScene ttl 20
+rigMentionsPointer
+printf 'SLACK_USER_TOKEN=rig-user-KEEPER\n' > "$rigWs/.local/.agents/keeper-rig.agent.env"
+printf 'keeper-rig=URIGKEEP1=k=K=K=d\n' > "$rigWs/.local/.agents/slack-mention-ids.cache"
+rigNoMatch "$rigDir/search.rig-user-KEEPER.json"
+rigTtlStart="$( date +%s )"
+rigScan ttl-1
+rigTtlOne="$( rigSearches ttl )"
+rigScan ttl-2
+rigTtlTwo="$( rigSearches ttl )"
+rigTtlLeft=$(( rigTtlStart + 62 - $( date +%s ) )) ; [ "$rigTtlLeft" -le 0 ] || sleep "$rigTtlLeft"
+rigScan ttl-3
+rigAssert "a 20 s collect searches once; a second Wait inside the 60 s does not; one after it does, once" "$rigTtlOne:$rigTtlTwo:$( rigSearches ttl )" "1:1:2"
+
+echo "-- a member with no Slack account: a text search for @<member>, by the team identity that may search --"
+rigScene text 60
+rigMentionsPointer
+printf 'SLACK_USER_TOKEN=rig-user-COORD\n' > "$rigWs/.local/.agents/magic-coordinator.agent.env"
+rigSearch "$rigDir/search.rig-user-COORD.json" "$(( rigNow - 10 )).000004" 'RIG-TEXT-MENTION @keeper-rig look at this'
+rigScan text
+rigAssert "the text mention is returned, found by the coordinator's search for the text @keeper-rig" \
+	"$( rigHolds text RIG-TEXT-MENTION ):$( LC_ALL=C grep -c -F 'search.messages rig-user-COORD "@keeper-rig"' "$rigDir/search.log" )" "1:1"
+
+echo "-- the team identity that searches is the magic-team setting WAIT_MENTIONS_SEARCHER --"
+rigScene searcher 60
+rigMentionsPointer
+mkdir -p "$rigTmp/skills/magic-rig-searcher" && printf 'rig\n' > "$rigTmp/skills/magic-rig-searcher/magic-rig-searcher.basic.md"
+printf 'WAIT_MENTIONS_SEARCHER=magic-rig-searcher\n' >> "$rigWs/.local/.agents/magic-team.agent.env"
+printf 'SLACK_USER_TOKEN=rig-user-SEARCHER\n' > "$rigWs/.local/.agents/magic-rig-searcher.agent.env"
+printf 'SLACK_USER_TOKEN=rig-user-COORD\n' > "$rigWs/.local/.agents/magic-coordinator.agent.env"
+rigSearch "$rigDir/search.rig-user-SEARCHER.json" "$(( rigNow - 10 )).000006" 'RIG-SET-MENTION @keeper-rig'
+rigScan searcher
+rigAssert "the setting's member searches, not the coordinator" \
+	"$( rigHolds searcher RIG-SET-MENTION ):$( LC_ALL=C grep -c '^search.messages rig-user-SEARCHER ' "$rigDir/search.log" ):$( LC_ALL=C grep -c '^search.messages rig-user-COORD ' "$rigDir/search.log" )" "1:1:0"
+
+echo "-- no identity may search: an error in the Wait's header, never an empty result --"
+rigScene noscope 60
+rigCall noscope --intern-op-wait-for-input keeper-rig --wait-source mentions:keeper-rig --wait-timeout 2
+rigAssert "the source is named never read, and why is said" \
+	"$( LC_ALL=C grep -c '^WAIT-NEVER-READ: .*\[mentions:keeper-rig\]' "$rigDir/noscope.out" ):$( LC_ALL=C grep -c -F 'no identity may search its mentions' "$rigDir/noscope.err" )" "1:1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ DM WAKE LATENCY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

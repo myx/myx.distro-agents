@@ -25,7 +25,6 @@ Not a member/routine contract — this is the fixed text of the one prompt a han
   - cancelled
 - Returned
   - hint
-  - no-text
   - not-applied
   - closed
 - Notes
@@ -137,12 +136,6 @@ This is the review prompt of your handback. What the person wrote or clicked und
 Read it, and answer where it asks something: {{explain-call}}. The next reply or click there is read as the verdict.
 ```
 
-## no-text
-
-```
-{{by}} clicked {{verdict}} under the review prompt of {{item}} and wrote nothing with it. A {{verdict}} takes what to change from a reply there, so nothing is applied yet. The click is taken once that reply is written
-```
-
 ## not-applied
 
 ```
@@ -192,10 +185,10 @@ The one reply the tooling posts in the prompt's own thread once an answer is rea
 - rule: The emoji placed under the post are the block under `# Reactions` named `verdict`, one Slack name each, in that order: `+1` accepts, `leftwards_arrow_with_hook` returns, `x` rejects. They are placed by the identity that posted, and a reaction by that identity is never an answer: only a click by the one the post is addressed to is. None of them is `white_check_mark`, the mark the tooling itself puts on a question once it is answered.
 - rule: A name placed here must be one the verdict reader takes for a review (`AgentsEscalationVerdict.awk`). Two of them held by one account name no verdict.
 - rule: A reply answers by its first line, as the verdict reader takes it (`AgentsEscalationVerdict.awk`): `accept`, `return` or `reject` alone, or the word, a punctuation mark and then words. What follows the mark, the rest of that reply and every later reply are the text of the verdict. For a click, every reply of the person in the thread is. The text is kept as one line, its parts joined by ` / `.
-- rule: A return and a reject need a text, as the reviewer's own operations do. One clicked with no reply beside it is not applied until that reply is written. An accept needs none.
+- rule: A verdict is taken at once, by a click or by a reply. A return and a reject carry the text beside them; with none they carry the fixed text `returned, no text given` or `rejected, no text given`, because the reviewer's own operations need one. An accept needs none. No reminder follows a verdict, as the record is closed with it.
 - rule: The verdict is applied by the review flow as the reviewer's own operation applies it, signed `human-owner`. The record of the prompt closes with it.
 - rule: A reply that names no verdict is not an answer. It goes back to the member that handed back as `RETURNED`, the review stays open, and a later reply or click is the verdict.
-- rule: `## hint` under `# Returned` is what that member is told then. `{{explain-call}}` is the exact call, given by the tool. `## no-text`, `## not-applied` and `## closed` are the reason it is given where a verdict was read and not applied: `{{by}}` who answered, `{{verdict}}`, `{{item}}`, and `{{reason}}` where there is one.
+- rule: `## hint` under `# Returned` is what that member is told then. `{{explain-call}}` is the exact call, given by the tool. `## not-applied` and `## closed` are the reason it is given where a verdict was read and not applied: `{{by}}` who answered, `{{verdict}}`, `{{item}}`, and `{{reason}}` where there is one.
 - rule: A post that no longer takes an answer is this same text without its `How to answer` group: the prompt of a review that was settled another way, by a reviewer's typed verdict or by the item being archived or trashed. The tooling edits the post to it, takes its own answer emoji off it, puts on it the reaction under `# Marks` named `cancelled`, and says `## settled` under `# Notes` in its thread, `{{reason}}` being what was done and by whom.
 - rule: Every value comes from records on disk: the item, the spawn record, the handback itself. Nothing is looked up over the network for this post.
 - rule: Once an answer is read, the tooling says so with one reply in the prompt's own thread, as the identity that posted the prompt: the block under `# Confirmations` named `taken` for a verdict the review flow took, with the verdict, who gave it (`{{by}}`, as a name) and what was written with it; and `not-applied` for one it did not take, with `{{reason}}`. It is posted once for an answer, never again on a later read. It is a reply, never an emoji.

@@ -174,10 +174,10 @@ mouse click 90 5
 turn
 cells st 39 0 120
 ## The columns are where those keys STAND on the line the assertion at 192 prints: `/` at
-## 21..29 and `m Menu` at 58..64 (keys start at column 1, each key then its word).
+## 21..29 and `m Menu` at 66..72 (keys start at column 1, each key then its word).
 mouse click 22 39
 get filtered
-mouse click 60 39
+mouse click 68 39
 get menu
 turn
 cells stMenu 39 0 120
@@ -191,7 +191,7 @@ cells stDialog 39 0 120
 mouse click 24 39
 get cancelled
 RIGSCRIPT
-rigAssert "the status line as it is clicked on"                      "[$( rigVal st )]" "[ ENTER Open  BSP Up  / Filter  k Kill  M Message  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
+rigAssert "the status line as it is clicked on"                      "[$( rigVal st )]" "[ ENTER Open  BSP Up  / Filter  k Kill  M Message  J Join  u Read  m Menu  ^X Exit  TAB Window  ? Help  w Cut]"
 ## A click on the MENU key opens the menu: that is the proof that a click on a key of the line
 ## runs that key's command. `/` is `rows-filter` (it opens the filter line) and touches no wrap
 ## flag, so `wrap` was never the observable of this click -- it read `no` only while the click

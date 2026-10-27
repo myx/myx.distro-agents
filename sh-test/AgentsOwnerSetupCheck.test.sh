@@ -132,11 +132,11 @@ rigUntrustedRc=0
 rigUntrustedOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT HOME="$rigInstallHome" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	bash "$rigTool" --make-agents-indices 2>&1 )" || rigUntrustedRc=$?
 rigExpect "control: this rig really has no source folder, so the note is printed" \
-	"$rigUntrustedOut" "has no source folder, so none declares a grant"
+	"$rigUntrustedOut" "so none declares a grant"
 rigExpect "a workspace with no source ends with exit 0" \
 	"rc=$rigUntrustedRc" "rc=0"
 rigExpect "and its note opens with the note mark, not a warning or an error mark" \
-	"$( printf '%s\n' "$rigUntrustedOut" | grep 'has no source folder' | head -1 | cut -c1-1 )" "#"
+	"$( printf '%s\n' "$rigUntrustedOut" | grep 'so none declares a grant' | head -1 | cut -c1-1 )" "#"
 rigExpect "and the grants step reports no error" \
 	"$( printf '%s\n' "$rigUntrustedOut" | grep -c 'ERROR.*make-agents-indices' )" "0"
 rigExpect "and the registry is kept as it stood, none" \

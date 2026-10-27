@@ -76,6 +76,25 @@
 			`.local/temp/live-apply.lock`: mark records a file's base, level brings
 			the scratch packages level with live, plan is the dry run, and apply
 			writes the work back.
+			A file is removed when the scratch lists it in `removals.txt`, a path a
+			line, and renamed when it lists `<old><TAB><new>` in `renames.txt`. The
+			old path and a removed one are marked, with their base, and deleted from
+			the scratch; the new path is marked with no base. Apply writes every file
+			first and removes last. A removal or a rename source is taken only at
+			its base: where live changed it, it is refused, and never merged. That
+			is deliberate.
+			A marked file that live no longer holds reads GONE on live, in level,
+			plan and apply. A path outside packages.txt, with a `.` or `..` part, a
+			blank or a symlink on live, and a case-only rename on macOS, are refused.
+			Each step is added to `applied-steps.txt` in the scratch before it is
+			made, tagged with a checksum of this work's order and lists. An apply
+			that stopped is run again and skips a step of the same work that is
+			recorded and already true on live. The lock holds an `owner` file, and
+			every exit gives it back. plan and apply need `packages.txt`.
+			Exit status of apply: 0 done; 1 a fault of the call or the scratch;
+			2 the apply order is not the changed list; 3 the lock stays taken;
+			4 refused, nothing done; 5 stopped part way; 6 a removed file is still
+			on live; 129, 130 or 143 ended by a hangup, an interrupt or TERM.
 
 ##  Examples:
 

@@ -47,6 +47,10 @@ AgentsToolsOwnerSetupOptionSpec(){
 		WAIT_COLLECT_SECONDS)
 			printf '%s\n' 'magic-team|<seconds>|plain|how long the work-duty input scan collects the team channel before it returns, in whole seconds, for every session of this workspace. A message tagged to the member, in the team channel or its session thread, and any direct message end the collect at once. A minute when it is not set.'
 		;;
+		## The team identity that searches the mentions of a member that may not search them itself (AgentsWaitProbeMentions).
+		WAIT_MENTIONS_SEARCHER)
+			printf '%s\n' 'magic-team|<team-member>|plain|the team member whose user token searches the mentions of a member that has no Slack account, or whose own token may not search (search:read). magic-coordinator where it is not set.'
+		;;
 		## The keys of a preset (AgentsTools.Preset.include), which stand in a block of their own, preset-<name>, and so in
 		## no one scope of the catalogue: scope `-`. Their text is what a person editing a preset reads.
 		PRESET_EXTEND)

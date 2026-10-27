@@ -1154,9 +1154,14 @@ case "$1" in
 			else
 				killRecord="$( AgentsToolsAuthoritySessionRecord "$killId" )" || killRecord="$( AgentsToolsSessionRunRecord "$killId" )" || killRecord=""
 			fi
-			AgentsToolsAuthorityGate "end $( [ -n "$killOwn" ] && printf 'run %s' "$killId" || printf 'session %s' "$( AgentsToolsAuthoritySessionWords "$killId" )" )" "$killId" "$killRecord" "" console \
-				"$killOp" --session-id "$killId" ${killOwn:+--run} || :
-			AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
+			## THE OWNER AT HIS OWN CONSOLE needs no second confirmation (sketch 5.4: a kill ends a running session at the first try): the console is mapped to the human-owner,
+			## and the screen asked for the word before it called. Any other console is gated as before.
+			AgentsToolsAuthorityCaller
+			if ! AgentsToolsAuthorityOwnerMapped ; then
+				AgentsToolsAuthorityGate "end $( [ -n "$killOwn" ] && printf 'run %s' "$killId" || printf 'session %s' "$( AgentsToolsAuthoritySessionWords "$killId" )" )" "$killId" "$killRecord" "" console \
+					"$killOp" --session-id "$killId" ${killOwn:+--run} || :
+				AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
+			fi
 		fi
 		## THEN THE SESSION IS FINISHED: its questions dismissed, its open records closed, and
 		## rows that say so after the rows of the kill (AgentsToolsManagerSessionFinish). With

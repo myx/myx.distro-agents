@@ -40,7 +40,7 @@ rigBaseD="$rigScratch/base/p/d"
 ## One run of the operation, in its own bash, with the workspace and the repository it applies to. Output and rc captured.
 rigOp(){ ## result file, the operation's verb and arguments...
 	local res="$1" ; shift
-	env MMDAPP="$rigWs" MDAT_APPLY_BEFORE_PUT="${MDAT_APPLY_BEFORE_PUT:-}" "$BASH" -c '
+	env MMDAPP="$rigWs" MDAT_APPLY_BEFORE_PUT="${MDAT_APPLY_BEFORE_PUT:-}" MDAT_APPLY_BEFORE_CHECK="${MDAT_APPLY_BEFORE_CHECK:-}" "$BASH" -c '
 		. "$1" ; shift
 		DistroAgentsTesting --apply-tool "$@"
 	' _ "$rigFn" "$@" > "$res" 2>&1
@@ -60,7 +60,22 @@ rigFresh(){
 	printf 'alpha\nbeta MINE\n' > "$rigMineD/b.txt"
 	printf 'p/d/a.sh\np/d/b.txt\n' > "$rigScratch/changed-files.txt"
 	cp -p "$rigScratch/changed-files.txt" "$rigScratch/apply-order.txt"
+	printf 'p\n' > "$rigScratch/packages.txt"
 }
+
+## The rename and removal scenario: on top of the base one, live holds c.txt too; this work removes b.txt and renames
+## d/c.txt to e/c.txt. Both sources are marked with their base, the new path is listed with none.
+rigRename(){
+	rigFresh
+	printf 'gamma\n' > "$rigLiveD/c.txt" ; cp -p "$rigLiveD/c.txt" "$rigBaseD/c.txt"
+	rm -f "$rigMineD/b.txt"
+	mkdir -p "$rigScratch/source/myx/p/e" ; cp -p "$rigLiveD/c.txt" "$rigScratch/source/myx/p/e/c.txt"
+	printf 'p/d/b.txt\np/d/c.txt\np/e/c.txt\n' > "$rigScratch/changed-files.txt"
+	cp -p "$rigScratch/changed-files.txt" "$rigScratch/apply-order.txt"
+	printf 'p/d/b.txt\n' > "$rigScratch/removals.txt"
+	printf 'p/d/c.txt\tp/e/c.txt\n' > "$rigScratch/renames.txt"
+}
+rigLiveE="$rigRepo/source/myx/p/e"
 
 echo "-- live at its base --"
 rigFresh ; rigOp "$rigTmp/base.out" apply --repository "$rigRepo" --scratch "$rigScratch"
@@ -142,6 +157,104 @@ printf 'p\n' > "$rigScratch/packages.txt" ; : > "$rigScratch/changed-files.txt" 
 rigOp "$rigTmp/leveldel.out" level --repository "$rigRepo" --scratch "$rigScratch"
 rigAssert "removed, and said so" "$( LC_ALL=C grep -c 'gone from live, removed from the scratch (not mine): p/d/c.txt' "$rigTmp/leveldel.out" ):$( [ -f "$rigMineD/c.txt" ] && printf kept || printf gone )" 1:gone
 rigAssert "the level ends well" "$( cat "$rigTmp/leveldel.out.rc" )" 0
+
+rigTempLeft(){ ls "$rigWs/.local/temp" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ; }
+
+echo "-- a rename and a removal at their base: written first, removed last, each step recorded --"
+rigRename ; rigOp "$rigTmp/ren.out" apply --repository "$rigRepo" --scratch "$rigScratch"
+rigAssert "the new path stands, both sources are gone" \
+	"$( [ -f "$rigLiveE/c.txt" ] && printf new )$( [ -e "$rigLiveD/c.txt" ] || printf '%s' -old )$( [ -e "$rigLiveD/b.txt" ] || printf '%s' -removed )" "new-old-removed"
+rigAssert "the removals come after every write" \
+	"$( LC_ALL=C awk '/^put in place/ { p = NR } /^removed:/ && !r { r = NR } END { print ( p && r && p < r ) ? "after" : "before" }' "$rigTmp/ren.out" )" after
+rigAssert "each step is in the record" \
+	"$( LC_ALL=C awk -F'\t' 'NF == 3 && ( $1 " " $2 == "put p/e/c.txt" || $1 " " $2 == "removed p/d/b.txt" || $1 " " $2 == "removed p/d/c.txt" ) { n++ ; } END { print n + 0 ; }' "$rigScratch/applied-steps.txt" 2> /dev/null )" 3
+
+echo "-- a record line of another work is no step of this one --"
+rigRename ; printf 'put\tp/e/c.txt\tsome-other-work\n' > "$rigScratch/applied-steps.txt" ; mkdir -p "$rigLiveE" ; cp -p "$rigScratch/source/myx/p/e/c.txt" "$rigLiveE/c.txt"
+rigOp "$rigTmp/stale.out" apply --repository "$rigRepo" --scratch "$rigScratch"
+rigAssert "not taken as done: the new path is already on live, and the apply refuses" \
+	"$( LC_ALL=C grep -c 'done already' "$rigTmp/stale.out" ):$( LC_ALL=C grep -c 'EXISTS on live, though new in this work: p/e/c.txt' "$rigTmp/stale.out" ):$( cat "$rigTmp/stale.out.rc" )" 0:1:4
+
+echo "-- a removed file back on live by the check: STILL ON LIVE, and not ended well --"
+rigRename ; MDAT_APPLY_BEFORE_CHECK="printf 'back\n' > \"$rigLiveD/b.txt\""
+rigOp "$rigTmp/still.out" apply --repository "$rigRepo" --scratch "$rigScratch"
+unset MDAT_APPLY_BEFORE_CHECK
+rigAssert "said, and the apply ends 6 with the lock given back" "$( LC_ALL=C grep -c 'STILL ON LIVE: p/d/b.txt' "$rigTmp/still.out" ):$( cat "$rigTmp/still.out.rc" ):$( rigTempLeft )" 1:6:0
+
+echo "-- plan and apply with no packages.txt: an error, rc 1 --"
+rigRename ; rm -f "$rigScratch/packages.txt"
+rigOp "$rigTmp/nopkg.plan" plan --repository "$rigRepo" --scratch "$rigScratch"
+rigOp "$rigTmp/nopkg.out" apply --repository "$rigRepo" --scratch "$rigScratch"
+rigAssert "both refuse, naming packages.txt" "$( LC_ALL=C grep -c 'packages.txt is not there' "$rigTmp/nopkg.plan" "$rigTmp/nopkg.out" | LC_ALL=C awk -F: '{ n += $NF ; } END { print n + 0 ; }' ):$( cat "$rigTmp/nopkg.plan.rc" ):$( cat "$rigTmp/nopkg.out.rc" )" 2:1:1
+rigAssert "the lock is given back, the unmarked a.sh untouched" "$( rigTempLeft ):$( LC_ALL=C grep -c MINE "$rigLiveD/a.sh" )" 0:0
+rigAssert "the apply ends well" "$( cat "$rigTmp/ren.out.rc" )" 0
+
+echo "-- plan of a rename and a removal: named, read-only --"
+rigRename ; rigOp "$rigTmp/renplan.out" plan --repository "$rigRepo" --scratch "$rigScratch"
+rigAssert "the rename and the removal are named, nothing changed" \
+	"$( LC_ALL=C grep -c -x -e 'rename: p/d/c.txt -> p/e/c.txt (this work: 0 removed, 0 added)' -e 'remove: p/d/b.txt' "$rigTmp/renplan.out" ):$( [ -f "$rigLiveD/b.txt" ] && [ ! -e "$rigLiveE/c.txt" ] && printf same )" 2:same
+rigAssert "the plan ends well" "$( cat "$rigTmp/renplan.out.rc" )" 0
+
+echo "-- a removal source live changed since its base: never merged, refused --"
+rigRename ; printf 'alpha\nbeta\ngamma THEIRS\n' > "$rigLiveD/b.txt"
+rigOp "$rigTmp/remmoved.plan" plan --repository "$rigRepo" --scratch "$rigScratch"
+rigOp "$rigTmp/remmoved.out" apply --repository "$rigRepo" --scratch "$rigScratch"
+rigAssert "the plan and the apply refuse it, and nothing is put or removed" \
+	"$( LC_ALL=C grep -c 'never merged: p/d/b.txt' "$rigTmp/remmoved.plan" ):$( LC_ALL=C grep -c 'never merged: p/d/b.txt' "$rigTmp/remmoved.out" ):$( [ -f "$rigLiveD/c.txt" ] && [ ! -e "$rigLiveE/c.txt" ] && printf untouched )" 1:1:untouched
+rigAssert "both end not-ready, the lock given back" "$( cat "$rigTmp/remmoved.plan.rc" ):$( cat "$rigTmp/remmoved.out.rc" ):$( rigTempLeft )" 4:4:0
+
+echo "-- a marked file gone on live: level, plan and apply say so --"
+rigRename ; rm -f "$rigLiveD/b.txt" "$rigLiveD/a.sh"
+printf 'p/d/a.sh\np/d/b.txt\np/d/c.txt\np/e/c.txt\n' > "$rigScratch/changed-files.txt" ; cp -p "$rigScratch/changed-files.txt" "$rigScratch/apply-order.txt"
+rigOp "$rigTmp/gone.level" level --repository "$rigRepo" --scratch "$rigScratch"
+rigOp "$rigTmp/gone.plan" plan --repository "$rigRepo" --scratch "$rigScratch"
+rigOp "$rigTmp/gone.out" apply --repository "$rigRepo" --scratch "$rigScratch"
+rigAssert "level: a conflict naming each" "$( LC_ALL=C grep -c -e 'GONE on live: p/d/a.sh' -e 'GONE on live: p/d/b.txt' "$rigTmp/gone.level" ):$( cat "$rigTmp/gone.level.rc" )" 2:1
+rigAssert "plan: gone on live, naming each" "$( LC_ALL=C grep -c -e 'GONE on live: p/d/a.sh' -e 'GONE on live: p/d/b.txt' "$rigTmp/gone.plan" ):$( cat "$rigTmp/gone.plan.rc" )" 2:4
+rigAssert "apply: gone on live, nothing done" "$( LC_ALL=C grep -c 'GONE on live: p/d/' "$rigTmp/gone.out" ):$( cat "$rigTmp/gone.out.rc" ):$( [ -f "$rigLiveD/c.txt" ] && printf kept )" 1:4:kept
+
+echo "-- a removal source moves between the staging and its removal --"
+rigRename ; MDAT_APPLY_BEFORE_PUT="printf 'alpha\nbeta\ngamma THEIRS\n' > \"$rigLiveD/b.txt\""
+rigOp "$rigTmp/remlate.out" apply --repository "$rigRepo" --scratch "$rigScratch"
+unset MDAT_APPLY_BEFORE_PUT
+rigAssert "the write is done, the moved file is not removed, and the apply says so" \
+	"$( [ -f "$rigLiveE/c.txt" ] && printf put ):$( LC_ALL=C grep -c 'gamma THEIRS' "$rigLiveD/b.txt" ):$( LC_ALL=C grep -c 'p/d/b.txt moved on live after it was staged' "$rigTmp/remlate.out" )" put:1:1
+rigAssert "the apply ends stopped, the lock given back" "$( cat "$rigTmp/remlate.out.rc" ):$( rigTempLeft )" 5:0
+
+echo "-- resume: the same apply again, once live is back at the base, finishes from the record --"
+printf 'alpha\nbeta\n' > "$rigLiveD/b.txt"
+rigOp "$rigTmp/resume.out" apply --repository "$rigRepo" --scratch "$rigScratch"
+rigAssert "the recorded write is taken as done, the removals are made" \
+	"$( LC_ALL=C grep -c 'done already (record): p/e/c.txt' "$rigTmp/resume.out" ):$( [ -e "$rigLiveD/b.txt" ] || printf gone )$( [ -e "$rigLiveD/c.txt" ] || printf '%s' -gone ):$( cat "$rigTmp/resume.out.rc" )" "1:gone-gone:0"
+
+echo "-- the path rules --"
+rigRename ; printf 'p/d/c.txt p/e/c.txt\n' > "$rigScratch/renames.txt"
+rigOp "$rigTmp/path.tab" apply --repository "$rigRepo" --scratch "$rigScratch"
+rigAssert "a renames line not parted by one tab is refused" "$( LC_ALL=C grep -c 'renames.txt: not <old><TAB><new>' "$rigTmp/path.tab" ):$( cat "$rigTmp/path.tab.rc" ):$( [ -f "$rigLiveD/b.txt" ] && printf kept )" 1:4:kept
+rigRename ; printf 'p/d/../d/b.txt\n' > "$rigScratch/removals.txt"
+printf 'p/d/../d/b.txt\np/d/c.txt\np/e/c.txt\n' > "$rigScratch/changed-files.txt" ; cp -p "$rigScratch/changed-files.txt" "$rigScratch/apply-order.txt"
+rigOp "$rigTmp/path.dots" apply --repository "$rigRepo" --scratch "$rigScratch"
+rigAssert "a path with .. is refused" "$( LC_ALL=C grep -c 'PATH REFUSED: p/d/../d/b.txt' "$rigTmp/path.dots" ):$( cat "$rigTmp/path.dots.rc" ):$( [ -f "$rigLiveD/b.txt" ] && printf kept )" 1:4:kept
+rigRename ; printf 'q\n' > "$rigScratch/packages.txt"
+rigOp "$rigTmp/path.pkg" apply --repository "$rigRepo" --scratch "$rigScratch"
+rigAssert "a path outside the listed packages is refused" "$( LC_ALL=C grep -c 'PATH REFUSED: p/' "$rigTmp/path.pkg" ):$( cat "$rigTmp/path.pkg.rc" ):$( [ -f "$rigLiveD/b.txt" ] && printf kept )" 1:4:kept
+rigRename ; mv "$rigLiveD/b.txt" "$rigTmp/b.real" ; ln -s "$rigTmp/b.real" "$rigLiveD/b.txt"
+rigOp "$rigTmp/path.link" apply --repository "$rigRepo" --scratch "$rigScratch"
+rigAssert "a symlink on live is refused and left" "$( LC_ALL=C grep -c 'PATH REFUSED: p/d/b.txt' "$rigTmp/path.link" ):$( cat "$rigTmp/path.link.rc" ):$( [ -L "$rigLiveD/b.txt" ] && printf kept )" 1:4:kept
+if [ "$( uname -s )" = Darwin ] ; then
+	rigRename ; printf 'p/d/c.txt\tp/d/C.txt\n' > "$rigScratch/renames.txt" ; mv "$rigScratch/source/myx/p/e/c.txt" "$rigMineD/C.txt"
+	printf 'p/d/b.txt\np/d/c.txt\np/d/C.txt\n' > "$rigScratch/changed-files.txt" ; cp -p "$rigScratch/changed-files.txt" "$rigScratch/apply-order.txt"
+	rigOp "$rigTmp/path.case" apply --repository "$rigRepo" --scratch "$rigScratch"
+	rigAssert "a case-only rename is refused on macOS" "$( LC_ALL=C grep -c 'case-only rename' "$rigTmp/path.case" ):$( cat "$rigTmp/path.case.rc" )" 1:4
+fi
+
+echo "-- the lock: an owner file inside it, and given back on any exit --"
+rigRename ; MDAT_APPLY_BEFORE_PUT="cat \"$rigWs/.local/temp/live-apply.lock/owner\" > \"$rigTmp/owner.seen\" ; exit 7"
+rigOp "$rigTmp/lockexit.out" apply --repository "$rigRepo" --scratch "$rigScratch"
+unset MDAT_APPLY_BEFORE_PUT
+rigAssert "the owner file names the process and the time" "$( LC_ALL=C grep -c -E '^pid [0-9]+ at [0-9T:Z-]+' "$rigTmp/owner.seen" 2> /dev/null )" 1
+rigAssert "an abrupt exit gives the lock back and leaves no staged temp beside live" \
+	"$( rigTempLeft ):$( ls "$rigLiveD" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ):$( ls "$rigLiveE" 2> /dev/null | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 0:3:0
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ APPLY TOOL CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -33,9 +33,24 @@
 ## public file says so. Nothing is written, and nothing reaches another host.
 ##
 
-## The home of the rig's account, and the account, as mdci-public-keys takes them. The home is the HOME of
-## the one who runs the tools: on mdci that is /usr/local/mdci, the home of its console account.
+## The home of the rig's account, and the account, as mdci-public-keys takes them. On a team rig the home is
+## the home of the rig's mdci user, as the mdci daemons have it (sketch 14.10), whoever runs the tools: on mdci that is
+## /usr/local/mdci. Anywhere else, or where the account has no home on this machine, it is the HOME of the one who runs the tools.
 AgentsToolsManagerKeysHome(){
+	local homeAccount homeOf
+	if [ "${MDAT_WORKSPACE_MODE:-}" = "team-rig" ] ; then
+		homeAccount="$( AgentsToolsManagerKeysAccount )"
+		case "$homeAccount" in
+			''|-*|*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-]*) ;;
+			*)
+				homeOf="$( eval "printf '%s' ~$homeAccount" 2> /dev/null )" || homeOf=""
+				if [ -n "$homeOf" ] && [ "$homeOf" != "~$homeAccount" ] && [ -d "$homeOf" ] ; then
+					printf '%s\n' "$homeOf"
+					return 0
+				fi
+			;;
+		esac
+	fi
 	printf '%s\n' "$HOME"
 }
 AgentsToolsManagerKeysAccount(){

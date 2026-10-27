@@ -243,6 +243,30 @@ keys ENTER$( rigType 'mine' ) ENTER
 wait action 30
 RIGSCRIPT
 rigAssert "a name typed goes as --name" "[$( LC_ALL=C grep -F -- '[--manager-feature-preset]' "$MANAGER_SCREEN_RIG/words" )]" "[[--manager-feature-preset][qwen3-4b-q4_k_m][--name][mine]]"
+echo "-- a new preset of the local service has its own form: its model is chosen from the installed chat models (sketch 13.4) --"
+rigCase localform
+rigScript <<'RIGSCRIPT'
+at @clipresets presets
+turn
+wait list 10
+keys n
+turn
+get forms
+box fm
+keys DOWN DOWN DOWN SPACE ENTER
+wait plan 30
+turn
+get lf
+box lf
+keys DOWN ENTER
+wait action 30
+turn
+get made
+RIGSCRIPT
+rigAssert "the forms to choose from name the local one" "$( rigBoxHas fm 'a local preset' )" "1"
+rigAssert "the local form lists the chat models that are installed, and no model that is not, no speech model, and no other service" "[$( rigVal lf.dialog )] $( rigBoxHas lf 'qwen3-4b-q4_k_m' ) $( rigBoxHas lf 'qwen3-8b-q4_k_m' ) $( rigBoxHas lf 'stt-whisper' ) $( rigBoxHas lf 'choose one' )" "[preset-local:model|] 1 0 0 1"
+rigAssert "with the model chosen, Make asks the operation of the local preset with that model alone, and the form is closed" "[$( rigVal made.dialog )] [$( LC_ALL=C grep -F -- '[--manager-feature-preset]' "$MANAGER_SCREEN_RIG/words" )]" "[] [[--manager-feature-preset][qwen3-4b-q4_k_m]]"
+
 rigCase voice
 rigScript <<'RIGSCRIPT'
 at @machine local-ai

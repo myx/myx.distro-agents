@@ -14,9 +14,8 @@
 CALLS["talk"] = ["--manager-session-message", "--session-id", "{id}"]
 CALLS["join"] = ["--manager-session-join", "--session-id", "{id}"]
 ## The states of a session the join is offered for, and what the key says at a row where it is not.
-JOIN_STATES = ("finished", "waiting", "unclosed")
+JOIN_STATES = ("finished", "waiting", "unclosed", "running", "starting")
 JOIN_SAYS = {
-    "running": "it runs: its participants work on it",
     "unknown-foreign": "it is another host's: nothing can be done with it from here",
 }
 TALK_ALL = ("", "everybody in the session")
@@ -98,7 +97,7 @@ def joinRefusal(state, row):
     target = talkTargetOf(state, row)
     if target is None:
         return "that is no session"
-    return JOIN_SAYS.get(target["session"]["state"], "it reads %s, and the join is for a session that has finished, waits or is stuck" % target["session"]["state"])
+    return JOIN_SAYS.get(target["session"]["state"], "it reads %s, and the join is for a session on this host" % target["session"]["state"])
 
 
 ## `J`: asks first, in a box that says what the join does. OK joins magic-coordinator into the session through the operation.

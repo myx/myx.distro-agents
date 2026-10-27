@@ -185,8 +185,8 @@
 
 ## The kinds this build carries. One word per adapter, in the order they are
 ## offered to a caller that asks.
-agentsWaitSourceKinds="slack file inbox board ask replies chat scan tagged process wake"
-agentsWaitKindEvery="slack:1 file:1 inbox:1 board:1 ask:1 replies:1 chat:1 scan:1 tagged:1 process:1 wake:1"
+agentsWaitSourceKinds="slack file inbox board ask replies chat scan tagged mentions process wake"
+agentsWaitKindEvery="slack:1 file:1 inbox:1 board:1 ask:1 replies:1 chat:1 scan:1 tagged:1 mentions:1 process:1 wake:1"
 ## THE TICK AND THE SLOW LOOK. A wait reads a source out of a file every second -- an inbox listing, a board
 ## state, the session chat file, the own wake marker -- and that is what makes it wake within a second of an
 ## arrival in one of them. A source that costs a request must not be read that often (about fifty a minute for
@@ -201,14 +201,12 @@ agentsWaitTickSeconds=1
 ## Kinds whose rendering holds arrivals only, never a standing state, so a source of one with no
 ## stored baseline starts from an empty one: an arrival already there returns at once, as a
 ## --wait-since-utime does for a thread. Every other kind takes its first probe as the baseline.
-agentsWaitKindEmptyBaseline="ask replies chat scan tagged"
+agentsWaitKindEmptyBaseline="ask replies chat scan tagged mentions"
 ## The kinds of THE FLOOR: delivered ahead of every other source of a return, and by every plain Wait.
 agentsWaitKindFloor="replies chat"
 ## Kinds whose rendering is a list of arrivals from a floor, so only a line the baseline lacks
 ## is an arrival: an item taken away (an inbox item marked handled, moved out of incoming/) is none.
 agentsWaitKindArrivalsOnly="inbox"
-## The tags' wider sweep, every channel the member is in beside the team channel, its session thread and its DMs: once in this many seconds.
-agentsWaitTaggedWideSeconds=60
 ## How far a floor (--wait-since-utime) may lead this host's clock, in seconds. The ts of a
 ## message just posted is another clock's "now", so a floor that close ahead is still a
 ## moment that has passed; one further ahead is not, and is refused before anything is waited on.
@@ -1271,8 +1269,104 @@ AgentsWaitScanCommit(){ ## member, scan, the file holding the report's sum
 	return 0
 }
 
+## THE MENTIONS (sketch 3.2): `mentions:<member>`, a mention of the member in any conversation, thread replies included, by ONE
+## search.messages call from the session's pointer of the source (`mentions:<member>`, the newest mention returned). Its TTL holds
+## across Wait calls: the session keeps when it was last checked (`mentions-checked:<member>`), and a check inside the TTL reads
+## nothing, so a Wait start never calls it unless the TTL has run out. A member with a Slack account is searched for its `<@id>`;
+## one with none, by text, for `@<member>`. The call is made with the member's own user token where it may search, else with the
+## team identity that may: the magic-team setting WAIT_MENTIONS_SEARCHER, magic-coordinator where it is not set. Where neither may,
+## the source is unreadable, said on stderr and in the Wait header (WAIT-NEVER-READ), never an empty result. Each mention stands
+## behind a `# in <conversation>` line, so the seen reaction finds its conversation (AgentsWaitSeenIds).
+AgentsWaitProbeMentions(){
+	local probeMember="$1" probeTarget="$2" probeFloor="$3" probeOut="$4" probeKey="" probeNow probeChecked="" probeTtl probePointer="" probeId probeQuery probeAfter probeJson probeRc=1 probeAs probeErr="" probeStored=""
+	[ "$probeTarget" = "$probeMember" ] || return 2
+	: > "$probeOut" || return 2
+	rm -f "$probeOut.newest"
+	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 2
+	probeKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || probeKey=""
+	[ -n "$probeKey" ] && [ -d "$MMDAPP/.local/agents/sessions/$probeKey" ] || probeKey=""
+	probeNow="$( date +%s )"
+	probeTtl="$( AgentsWaitTtlOf "mentions:$probeMember" )"
+	## The TTL across calls: a check inside it is no check now.
+	if [ -n "$probeKey" ] ; then
+		probeChecked="$( AgentsToolsSessionChatPointer "$probeKey" "mentions-checked:$probeMember" 2> /dev/null )" || probeChecked=""
+	else
+		{ IFS= read -r probeChecked < "$probeOut.checked" ; } 2> /dev/null || probeChecked=""
+	fi
+	case "$probeChecked" in ''|*[!0123456789]*) probeChecked=0 ;; esac
+	[ $(( probeNow - probeChecked )) -ge "$probeTtl" ] || return 0
+	if [ -n "$probeKey" ] ; then
+		AgentsToolsSessionChatPointerSet "$probeKey" "mentions-checked:$probeMember" "$probeNow" 2> /dev/null || :
+	else
+		printf '%s\n' "$probeNow" > "$probeOut.checked" 2> /dev/null || :
+	fi
+	## From the pointer, else the wait's floor, else now: a first check returns no backlog.
+	if [ -n "$probeKey" ] ; then
+		probeStored="$( AgentsToolsSessionChatPointer "$probeKey" "mentions:$probeMember" 2> /dev/null )" || probeStored=""
+	else
+		{ IFS= read -r probeStored < "$probeOut.pointer" ; } 2> /dev/null || probeStored=""
+	fi
+	probePointer="${probeStored:-${probeFloor:-$probeNow.000000}}"
+	case "$probePointer" in ''|*[!0123456789.]*) probePointer="$probeNow.000000" ;; esac
+	local probeSearcher=""
+	probeSearcher="$( DistroAgentsTools --agents-config-option magic-team --select WAIT_MENTIONS_SEARCHER 2> /dev/null )" || probeSearcher=""
+	AgentsToolsAssertBareName "${probeSearcher:-magic-coordinator}" WAIT_MENTIONS_SEARCHER mentions > /dev/null 2>&1 || probeSearcher=""
+	probeSearcher="${probeSearcher:-magic-coordinator}"
+	probeId="$( AgentsToolsSessionChatMemberId "$probeMember" 2> /dev/null )" || probeId=""
+	if [ -n "$probeId" ] ; then probeQuery="<@$probeId>" ; else probeQuery="\"@$probeMember\"" ; fi
+	probeAfter="$( printf '%s\n' "$(( ${probePointer%%.*} - 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/output/LocalEpochToIsoDate.awk" 2> /dev/null )" || probeAfter=""
+	## ONE call that answers: the member's own user token, else the team identity that may search.
+	for probeAs in "$probeMember" "$probeSearcher" ; do
+		probeRc=0
+		probeJson="$( DistroAgentsTools --intern-op-slack-call "$probeAs" --api search.messages --identity user \
+			--form "query=$probeQuery${probeAfter:+ after:$probeAfter}" --form sort=timestamp --form sort_dir=desc --form count=100 \
+			--context "wait: the mentions of $probeMember" 2> "$probeOut.err" )" || probeRc=$?
+		if [ "$probeRc" = 0 ] ; then
+			printf '%s\n' "$probeJson" | LC_ALL=C awk -v cutoff="$probePointer" -v channelMark=1 \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsSlackSearchMatches.awk" > "$probeOut.found" 2>> "$probeOut.err" || probeRc=$?
+			case "$probeRc" in 0|3) break ;; esac
+		fi
+		probeErr="$probeErr${probeErr:+; }$probeAs: $( LC_ALL=C grep -m 1 -o -E 'missing_scope|not_allowed_token_type|invalid_auth|not_authed|no (SLACK_USER_TOKEN|user token)[^.]*' "$probeOut.err" 2> /dev/null || printf 'the search was refused' )"
+		[ "$probeAs" != "$probeSearcher" ] && [ "$probeMember" != "$probeSearcher" ] || break
+	done
+	case "$probeRc" in
+		0|3) ;;
+		*)
+			echo "⛔ ERROR: mentions:$probeMember: no identity may search its mentions (search.messages needs a user token with search:read) -- $probeErr. This is NOT an empty result: its mentions are unknown." >&2
+			return 2
+		;;
+	esac
+	## Strictly newer than the pointer: the one returned last is not returned again. The conversation of each goes on a `# in` line before it.
+	LC_ALL=C awk -v after="$probePointer" '
+		match( $0, /^[0-9]+\.[0-9]+ \| / ) {
+			split( $0, head, " " ) ; keep = ( head[1] + 0 > after + 0 )
+			if ( keep && match( $0, / \[in [A-Z0-9]+\]/ ) ) {
+				where = substr( $0, RSTART + 5, RLENGTH - 6 ) ; $0 = substr( $0, 1, RSTART - 1 ) substr( $0, RSTART + RLENGTH )
+				if ( where != last ) { print "# in " where ; last = where }
+			}
+		}
+		keep { print }' "$probeOut.found" > "$probeOut" 2> /dev/null || return 2
+	AgentsWaitOwnFile "$probeOut" || return 2
+	LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 } END { if ( ts != "" ) print ts }' "$probeOut" > "$probeOut.newest" 2> /dev/null || :
+	return 0
+}
+## Keeps the newest mention a wait has returned as the session's pointer of the source (else the call's own, with no session).
+AgentsWaitMentionsCommit(){ ## member, the file holding the newest ts
+	local commitTs="" commitKey
+	[ -f "$2" ] && IFS= read -r commitTs < "$2" || return 0
+	[ -n "$commitTs" ] || return 0
+	type AgentsToolsSessionChatKey > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || return 0
+	commitKey="$( AgentsToolsSessionChatKey 2> /dev/null )" || commitKey=""
+	if [ -n "$commitKey" ] && [ -d "$MMDAPP/.local/agents/sessions/$commitKey" ] ; then
+		AgentsToolsSessionChatPointerSet "$commitKey" "mentions:$1" "$commitTs"
+	else
+		printf '%s\n' "$commitTs" > "${2%.newest}.pointer" 2> /dev/null || :
+	fi
+	return 0
+}
+
 ## THE TAGS, for a collect (F4.1): `tagged:<member>`, what is for the member by name -- a mention of it in the team channel or in
-## its session thread, any message of any DM, and (the wider sweep) a mention in any other channel it is in -- from the floor forward. Each part behind a `# in <where>` line. It is
+## its session thread, and any message of any DM -- from the floor forward. Each part behind a `# in <where>` line. It is
 ## immediate: in a collect an arrival here ends the window. A part that cannot be read is said on stderr; the source is
 ## unreadable only where every part was. A message of a session thread where the member's instance is present is no work: it is
 ## returned for knowledge only, its rows marked FYI, which no duty takes as an item (AgentsWaitTaggedPart,
@@ -1342,39 +1436,6 @@ AgentsWaitProbeTagged(){
 		done <<< "$probeRoster"
 	else
 		probeFailed=$(( probeFailed + 1 ))
-	fi
-	## THE WIDER SWEEP: every other channel one of the member's identities is in, read for a mention of the member. It costs a
-	## read per channel, so it runs at the first round of the call and then once every agentsWaitTaggedWideSeconds, not every round.
-	local probeWideAt="" probeWideNow probeWideRoster probeWideLine probeWideConv probeWideKind probeWideIdentity probeWideArg probeWideSeen=""
-	probeWideNow="$( date +%s )"
-	{ IFS= read -r probeWideAt < "$probeOut.wide.at" ; } 2> /dev/null || probeWideAt=""
-	case "$probeWideAt" in ''|*[!0123456789]*) probeWideAt=0 ;; esac
-	if [ "$probeWideAt" -eq 0 ] || [ $(( probeWideNow - probeWideAt )) -ge "$agentsWaitTaggedWideSeconds" ] ; then
-		printf '%s\n' "$probeWideNow" > "$probeOut.wide.at" 2> /dev/null || :
-		probeParts=$(( probeParts + 1 ))
-		probeWideRoster="$( AgentsToolsCommsSlackConversationsRoster "$probeMember" --types public_channel,private_channel 2> /dev/null )" || :
-		if [ -n "$probeWideRoster" ] ; then
-			while IFS= read -r probeWideLine ; do
-				case "$probeWideLine" in "CONV|"*) ;; *) continue ;; esac
-				probeWideConv="" probeWideKind="" probeWideIdentity=""
-				for probeWideArg in $( printf '%s\n' "$probeWideLine" | LC_ALL=C tr '|' ' ' ) ; do
-					case "$probeWideArg" in
-						id=*) probeWideConv="${probeWideArg#id=}" ;;
-						kind=*) probeWideKind="${probeWideArg#kind=}" ;;
-						identity=*) probeWideIdentity="${probeWideArg#identity=}" ;;
-					esac
-				done
-				## A channel the roster lists is one the identity is in (AgentsToolsCommsSlackConversationsRoster); the team channel is read above.
-				[ -n "$probeWideConv" ] && [ "$probeWideKind" = other ] && [ "$probeWideConv" != "$probeTeamChannel" ] || continue
-				case " $probeWideSeen " in *" $probeWideConv "*) continue ;; esac
-				probeWideSeen="$probeWideSeen $probeWideConv"
-				if MDAT_WAIT_READ_AS_BOT="$( [ "$probeWideIdentity" = "bot" ] && printf true )" AgentsWaitReadRendered "$probeMember" "$probeWideConv" conversation "$probeFloor" "$probeOut.wide" ; then
-					AgentsWaitTaggedPart "$probeMember" "$probeWideConv" mentions "$probeFloor" "$probeOut.wide" "$probeOut" || :
-				fi
-			done <<< "$probeWideRoster"
-		else
-			probeFailed=$(( probeFailed + 1 ))
-		fi
 	fi
 	## A client-* member: the human-owner conversations its own scope names on the other organisation's side are its DMs there.
 	local probeClientConvs="" probeClientConv
@@ -2200,6 +2261,13 @@ case "$1" in
 						set +e ; return 1
 					fi
 				;;
+				mentions:*)
+					if [ "$checkTarget" != "$memberName" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --wait-for-input: --wait-source '$checkSource' names nothing this build can wait on: mentions:<own member name> is the own mentions only. Nothing was waited on." >&2
+						set +e ; return 1
+					fi
+				;;
 				chat:*)
 					AgentsToolsAssertBareName "$checkTarget" "<session-id>" wait-for-input || {
 						echo "WAIT-RESULT: ERROR"
@@ -2610,7 +2678,7 @@ case "$1" in
 				## pass. The first round reads every source, so a quiet wait still reads each once.
 				if [ "$waitRound" != "1" ] ; then
 					case "$roundKind" in
-						tagged|scan)
+						tagged|scan|mentions)
 							roundTtl="$( AgentsWaitTtlOf "$roundSource" )"
 							[ "$roundTtl" = "0" ] || [ $(( roundNow - ${waitProbedAt[$roundIndex]:-0} )) -ge "$roundTtl" ] || continue
 						;;
@@ -2708,7 +2776,7 @@ case "$1" in
 						*" $roundKind "*) LC_ALL=C awk 'FILENAME == ARGV[1] { seen[$0] = 1 ; next } !( $0 in seen ) { added = 1 ; exit } END { exit !added }' "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" ;;
 						*) true ;;
 					esac ; then
-					if [ -n "$waitCollect" ] && [ "$roundKind" != "tagged" ] ; then
+					if [ -n "$waitCollect" ] && [ "$roundKind" != "tagged" ] && [ "$roundKind" != "mentions" ] ; then
 						## In a collect only the tags are immediate: every other source accumulates until the window ends.
 						case " $waitDeferred" in *" $roundIndex=$roundSource "*) ;; *) waitDeferred="$waitDeferred$roundIndex=$roundSource " ;; esac
 					else
@@ -2876,6 +2944,7 @@ case "$1" in
 					replies:*) AgentsWaitRepliesCommit "${commitHit#*=replies:}" "$waitDir/now.$commitIndex.advance" ;;
 					chat:*) AgentsWaitChatCommit "${commitHit#*=chat:}" "$memberName" "$waitDir/now.$commitIndex.newest" ;;
 					scan:*) AgentsWaitScanCommit "$memberName" "${commitHit#*=scan:}" "$waitDir/now.$commitIndex.sum" ;;
+					mentions:*) AgentsWaitMentionsCommit "$memberName" "$waitDir/now.$commitIndex.newest" ;;
 					slack:*)
 						commitTs="$( LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1; } END { if (ts != "") print ts; }' "$waitDir/now.$commitIndex" )"
 						[ -z "$commitTs" ] || waitFloorNew[$commitIndex]="$commitTs"
@@ -2887,18 +2956,19 @@ case "$1" in
 
 		local seenIds="" seenOk=0 seenFailed="" seenOne seenFile seenKind seenSource seenOwnId=""
 		## Not for a call that reacts to what it takes itself (an asking call, MDAT_WAIT_SEEN_OWN), nor for a call that keeps no state (the tooling's own internal waits).
-		if [ "$waitOutcome" = "RECEIVED" ] && [ -n "$waitMode" ] && [ -z "${MDAT_WAIT_SEEN_OWN:-}" ] ; then
+		## A collect is a delivery too: the work-duty scan reads a member's sources through it, and what it returns is what the duty is handed. Sketch 12.3 (settled): eyes goes on when the member is handed the message.
+		if [ "$waitOutcome" = "RECEIVED" ] && { [ -n "$waitMode" ] || [ -n "$waitCollect" ] ; } && [ -z "${MDAT_WAIT_SEEN_OWN:-}" ] ; then
 			type AgentsToolsSeenReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/comms/AgentsTools.SeenReaction.include"
 			type AgentsToolsSessionChatMemberId > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/session/AgentsTools.SessionChat.include" 2> /dev/null || :
 			seenOwnId="$( AgentsToolsSessionChatMemberId "$memberName" 2> /dev/null )" || seenOwnId=""
 			for seenOne in $waitHits ; do
 				seenSource="${seenOne#*=}" ; seenKind="${seenSource%%:*}" ; seenFile="$waitDir/now.${seenOne%%=*}"
-				case "$seenKind" in slack|ask|replies|tagged) ;; *) continue ;; esac
+				case "$seenKind" in slack|ask|replies|tagged|mentions) ;; *) continue ;; esac
 				[ -f "$seenFile" ] || continue
 				seenIds="$seenIds$( AgentsWaitSeenIds "$memberName" "$seenSource" "$seenFile" "$seenOwnId" ) "
 			done
 			for seenOne in $( printf '%s\n' $seenIds | LC_ALL=C sort -u ) ; do
-				## The store the loop shares (AgentsTools.SeenReaction.include): a message it gave the reaction to already is not reacted to again.
+				## The store of seen messages (AgentsTools.SeenReaction.include): a message handed over before, by a Wait or a collect, is not reacted to again.
 				if AgentsToolsSeenReact "$memberName" "$seenOne" ; then
 					seenOk=$(( seenOk + 1 ))
 				else
@@ -2990,6 +3060,7 @@ case "$1" in
 						replies:*) AgentsWaitRepliesCommit "${waitHit#*=replies:}" "$waitDir/now.$waitHitIndex.advance" ;;
 						chat:*) AgentsWaitChatCommit "${waitHit#*=chat:}" "$memberName" "$waitDir/now.$waitHitIndex.newest" ;;
 						scan:*) AgentsWaitScanCommit "$memberName" "${waitHit#*=scan:}" "$waitDir/now.$waitHitIndex.sum" ;;
+						mentions:*) AgentsWaitMentionsCommit "$memberName" "$waitDir/now.$waitHitIndex.newest" ;;
 					esac
 					## A slack rendering carries one "<ts> | ..." message head per line, in ts
 					## order; that newest ts is named, and is the floor a continued wait takes.

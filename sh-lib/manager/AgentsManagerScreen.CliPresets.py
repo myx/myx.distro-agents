@@ -220,9 +220,16 @@ def askPresetNew(state, row):
     return ""
 
 
+## The forms that are no wizard of this part: a form name to the function that opens it. A part that knows a service of its own (the local AI) registers its form here, and
+## names it in CLI_FORMS.
+CLI_FORM_OPENERS = {}
+
+
 def submitPresetForm(state, dialog, button):
     form = dialogValue(dialog, "form")
     closeDialog(state)
+    if form in CLI_FORM_OPENERS:
+        return CLI_FORM_OPENERS[form](state)
     return startWizard(state, CLI_FORM_WIZARDS.get(form, "cli-service"), None)
 
 

@@ -211,7 +211,7 @@ mkdir -p "$rigSp/box-empty"
 rigAsk ask-1 sess-ask reply-pending
 rigAsk ask-2 run-asker reply-received
 rigAsk ask-3 root-with-no-record reply-pending
-rigAsk ask-4 sess-fin reply-received
+rigAsk ask-4 sess-fin reply-pending
 rigAsk ask-5 sess-unclosed withdrawn
 rigAsk ask-6 fin-b reply-unknown
 rigAsk ask-7 sess-run reply-received
@@ -255,7 +255,7 @@ rigWant="$( {
 	printf 'run\tsess-unclosed\tsess-unclosed\tmagic-coordinator\tspawn-started\tno-process\tunclosed\t2026-10-08_07:00_+0300\t-\t%s\trigws\t-\n' "$rigHost"
 	printf 'session\tbox-empty\t-\tunclosed\t-\t-\t1\tunclosed=1\n'
 	printf 'run\tbox-empty\t-\t-\tno-session-record\tno-spawn-id\tunclosed\t-\t-\t-\t-\t-\n'
-	printf 'counters\t2\t0\t3\t2\t2\t3.25\t%s\n' "$rigFull"
+	printf 'counters\t2\t0\t3\t2\t3\t3.25\t%s\n' "$rigFull"
 } )"
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
 rigStepOne(){ ## -- the last output with each `session` row cut to the eight fields step one printed, and every other row as it is
@@ -264,7 +264,7 @@ rigStepOne(){ ## -- the last output with each `session` row cut to the eight fie
 rigAssert "the fields of step one stand where they stood: the first eight fields of each session row, and every run row and the counters row, byte for byte -- each session with its runs, the sessions by start date, the newest first, and the counters last" "$( rigStepOne )" "$rigWant"
 rigAssert "each session row ends with three more fields: the stored state and its date, - in both for a session with no state file, and its control thread, none where it never had one" "$( LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 13 && $9 == "-" && $10 == "-" && $11 == "none" ) plain++ } END { print rows + 0 ":" plain + 0 }' "$rigTmp/out" )" "9:9"
 rigAssert "a session with one running run reads running: its row, with a count of 3, and its run rows read running, running and finished" "$( rigRowOf session sess-run | LC_ALL=C awk '{ print $4, $7 }' ) $( rigRows run | LC_ALL=C awk '$2 == "sess-run" { printf "%s ", $7 }' )" "running 3 running running finished "
-rigAssert "a session whose runs are all closed reads finished: its start is the earliest of its runs and the date of its state the latest closing, by their times and not by their text" "$( rigRowOf session sess-fin | LC_ALL=C awk '{ print $4, $5, $6 }' )" "finished 2026-10-12_16:57_+0300 2026-10-12_17:30_+0200"
+rigAssert "a session whose runs are all closed reads finished, an open ask of it or not (sketch 5.4, never waiting): its start is the earliest of its runs and the date of its state the latest closing, by their times and not by their text" "$( rigRowOf session sess-fin | LC_ALL=C awk '{ print $4, $5, $6 }' )" "finished 2026-10-12_16:57_+0300 2026-10-12_17:30_+0200"
 rigAssert "a session shows its name, the first session-comment among its records, and one with none shows -" "$( rigRowOf session sess-run | LC_ALL=C awk '{ print $3 }' ) $( rigRowOf session sess-fin | LC_ALL=C awk '{ print $3 }' )" "daily_of_Monday -"
 rigAssert "a session with an open ask and no live process reads waiting, its run waiting too; and one whose runs have finished and whose ask was closed with them reads finished" "$( rigRowOf session sess-ask | LC_ALL=C awk '{ print $4 }' ) $( rigRowOf run sess-ask | LC_ALL=C awk '{ print $7 }' ) $( rigRowOf session sess-askrun | LC_ALL=C awk '{ print $4 }' )" "waiting waiting finished"
 rigAssert "a session of another host is not called finished: it reads unknown-foreign, and so does each of its runs" "$( rigRowOf session sess-foreign | LC_ALL=C awk '{ print $4 }' ) $( rigRows run | LC_ALL=C awk '$2 == "sess-foreign" { printf "%s ", $7 }' )" "unknown-foreign unknown-foreign unknown-foreign "
@@ -278,7 +278,7 @@ rigAssert "a live run whose wait has ended counts as working: its wait/state is 
 rigAssert "a live run with no milestones counts as working" "$( [ -e "$rigStores/sess-run/milestones" ] && echo has-milestones || echo no-milestones ) $( rigRowOf run sess-run | LC_ALL=C awk '{ print $NF }' )" "no-milestones working"
 rigAssert "a live run whose wait going idle has no wait/state yet counts as waiting, and one whose last line is another counts as working" "$( rigRowOf run run-d | LC_ALL=C awk '{ print $NF }' ) $( rigRowOf run run-e | LC_ALL=C awk '{ print $NF }' )" "waiting working"
 rigAssert "the counters of working and waiting agents count the live runs, and an ended run with the store of a wait is neither" "$( rigRows counters | LC_ALL=C awk '{ print $4, $5 }' ) $( rigRowOf run run-b | LC_ALL=C awk '{ print $6, $NF }' )" "3 2 no-process -"
-rigAssert "the counter of open asks agrees with the store: two records are reply-pending and five are closed" "$( rigRows counters | LC_ALL=C awk '{ print $6 }' ) $( LC_ALL=C grep -l -x 'status: reply-pending' "$rigPend"/*.md | LC_ALL=C awk 'END { print NR + 0 }' ) $( ls "$rigPend" | LC_ALL=C awk 'END { print NR + 0 }' )" "2 2 7"
+rigAssert "the counter of open asks agrees with the store: three records are reply-pending and four are closed (one is of a finished session)" "$( rigRows counters | LC_ALL=C awk '{ print $6 }' ) $( LC_ALL=C grep -l -x 'status: reply-pending' "$rigPend"/*.md | LC_ALL=C awk 'END { print NR + 0 }' ) $( ls "$rigPend" | LC_ALL=C awk 'END { print NR + 0 }' )" "3 3 7"
 ## EVERY LIVE AGENT IN A WAIT MAKES THE SESSION WAIT: the state follows the agents, not the other way.
 rigStore run-e '2026-10-13T07:15:19Z wait going idle' 202610130715.18
 rigRun "$rigOp"
@@ -311,11 +311,11 @@ rigAssert "--active ends 0 and keeps every session that is not finished and can 
 rigAssert "each kept session has all its runs, the ended ones among them, and the rows of those runs are as they are without --active" "$( rigRows run | LC_ALL=C awk '{ printf "%s ", $3 }' )/ $( [ "$( rigRows run )" = "$rigPlainRuns" ] && echo same-rows || echo other-rows )" \
 	"sess-run2 run-e run-d sess-run run-c run-b sess-ask sess-unclosed - / same-rows"
 rigAssert "it leaves out the sessions that have finished, and the one of another host, with which nothing can be done from here" "$( rigRows session | LC_ALL=C awk '$4 == "finished" || $4 == "unknown-foreign" || $2 == "sess-fin" || $2 == "sess-nospawn" || $2 == "sess-foreign" { n++ } END { print n + 0 }' )" "0"
-rigAssert "the counters count the whole workspace either way" "$( rigRows counters )" "counters 2 0 3 2 2 3.25 $rigFull"
+rigAssert "the counters count the whole workspace either way" "$( rigRows counters )" "counters 2 0 3 2 3 3.25 $rigFull"
 : > "$rigTmp/ps.list"
 rigRun "$rigOp" --active
 rigAssert "with no live process at all no session reads running, and --active still keeps those that wait or were left unclosed, the two that ran among them; the counters are those of the whole list" "$rigRc $( rigStates )/ $( rigRows counters )" \
-	"0 sess-run2=unclosed sess-run=unclosed sess-ask=waiting sess-unclosed=unclosed box-empty=unclosed / counters 0 0 0 0 2 3.25 $rigFull"
+	"0 sess-run2=unclosed sess-run=unclosed sess-ask=waiting sess-unclosed=unclosed box-empty=unclosed / counters 0 0 0 0 3 3.25 $rigFull"
 rigRun "$rigOp"
 rigAssert "and the sessions that were running read unclosed, their runs with no process: a session is active by its processes alone" "$( rigRowOf session sess-run | LC_ALL=C awk '{ print $4, $8 }' ) $( rigRowOf session sess-run2 | LC_ALL=C awk '{ print $4, $8 }' )" "unclosed unclosed=2,finished=1 unclosed unclosed=3"
 rigLive sess-run sess-run2 run-c run-d run-e
@@ -331,7 +331,7 @@ rigAsk ask-late sess-late reply-pending
 rigAssert "control: a record and an ask are newer than the registries, which hold no row of them" "$( [ "$rigSp/sess-late/sess-late.spawn.md" -nt "$rigAgents/spawned-sessions.registry" ] && echo newer ) $( LC_ALL=C grep -c -e 'sess-late' "$rigAgents/spawned-sessions.registry" "$rigAgents/pending-replies.registry" | LC_ALL=C tr '\n' ' ' )" "newer $rigAgents/spawned-sessions.registry:0 $rigAgents/pending-replies.registry:0 "
 rigRun "$rigOp"
 rigAssert "a record written after the last rebuild has its row in the output: its one run is open with nothing behind it, and the ask written with it is an open ask of that run, so the session waits on it" "$( rigRowOf session sess-late )" "session sess-late late_one waiting 2026-10-07_06:00_+0300 - 1 waiting=1 - - none - -"
-rigAssert "and in the registry files, which the call rebuilt: the row with its start and its comment, the ask, and the counter of open asks one more" "$( LC_ALL=C awk '$2 == "sess-late" { print $12, $13, $14 }' "$rigAgents/spawned-sessions.registry" ) $( LC_ALL=C awk '$1 == "ask-late.md" { print $5 }' "$rigAgents/pending-replies.registry" ) $( rigRows counters | LC_ALL=C awk '{ print $6 }' )" "2026-10-07_06:00_+0300 - late_one reply-pending 3"
+rigAssert "and in the registry files, which the call rebuilt: the row with its start and its comment, the ask, and the counter of open asks one more" "$( LC_ALL=C awk '$2 == "sess-late" { print $12, $13, $14 }' "$rigAgents/spawned-sessions.registry" ) $( LC_ALL=C awk '$1 == "ask-late.md" { print $5 }' "$rigAgents/pending-replies.registry" ) $( rigRows counters | LC_ALL=C awk '{ print $6 }' )" "2026-10-07_06:00_+0300 - late_one reply-pending 4"
 
 echo "-- 5. a workspace with no session store --"
 rigBare="$rigTmp/ws-bare" ; mkdir -p "$rigBare/.local/.agents"

@@ -55,6 +55,7 @@
 #                      applied. See the op's own arm for that reasoning.
 #   -v mode=lines      Default. One line per in-range match, oldest first.
 #   -v mode=meta       That page's own counters instead, as `KEY=value` lines.
+#   -v channelMark=1   Each line marks its match's conversation, `[in <id>]`, ahead of any thread mark (a search over every conversation).
 #
 # `mode=lines` output, one line per match:
 #     <ts> | <user> | <text>
@@ -208,6 +209,15 @@ function parseString(   c, out, hex, code, hex2, code2, cp) {
 ## so a future parameter named e.g. `parent_thread_ts` can never be mistaken for
 ## this one. Returns "" when the permalink carries no such parameter, which is
 ## the normal shape for a message that is not in a thread at all.
+## The conversation a permalink is in: the id after `/archives/`, empty where the link names none.
+function permalinkChannel(link,   at, rest, slash) {
+	at = index(link, "/archives/")
+	if (at == 0) return ""
+	rest = substr(link, at + 10)
+	slash = index(rest, "/")
+	return (slash > 0) ? substr(rest, 1, slash - 1) : ""
+}
+
 function permalinkThreadTs(link,   qs, qmark, count, pairs, i, eq, name) {
 	qmark = index(link, "?")
 	if (qmark == 0) return ""
@@ -412,8 +422,10 @@ END {
 		## The mark goes ahead of the text, and text that starts with one goes one
 		## space in: what stands in the mark's place is this reader's word only.
 		annotations = ""
+		## -v channelMark=1: the conversation of the match ahead of the rest, `[in <id>]`, for a search over every conversation.
+		if (channelMark == "1" && (i in linkOf) && permalinkChannel(linkOf[i]) != "") annotations = sprintf(" [in %s]", permalinkChannel(linkOf[i]))
 		if (parentOf[i] != "" && parentOf[i] != tsOf[i]) {
-			annotations = sprintf(" [thread-reply of %s]", parentOf[i])
+			annotations = annotations sprintf(" [thread-reply of %s]", parentOf[i])
 		}
 		if (index(text, "[thread-reply of ") == 1) text = " " text
 		print sprintf("%s | %s |%s %s", tsOf[i], (i in userOf ? userOf[i] : "?"), annotations, text)

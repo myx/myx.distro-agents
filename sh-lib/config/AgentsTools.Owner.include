@@ -1480,7 +1480,7 @@ magic-team MDAT_WORKSPACE_MODE"
 					## which is the form a renamed argument cannot evade. Offline, and its own
 					## MMDAPP is its fixture, on the same terms as the checks above.
 					local setupServedFloorOut="" setupServedFloorRc=0
-					setupServedFloorOut="$( bash "$setupTestDir/AgentsHarnessServedFloorCheck.test.sh" 2>&1 )" || setupServedFloorRc=$?
+					setupServedFloorOut="$( bash "$setupTestDir/mcp/AgentsHarnessServedFloorCheck.test.sh" 2>&1 )" || setupServedFloorRc=$?
 					printf '%s\n' "$setupServedFloorOut"
 					if [ "$setupServedFloorRc" != "0" ] ; then
 						echo "  warn: a tool that runs arbitrary code is served over MCP, around"

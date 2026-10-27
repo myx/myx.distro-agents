@@ -130,6 +130,13 @@ case "$1" in
 				case "${workSeed%%.*}" in ''|*[!0123456789]*) workSeed="" ;; esac
 				[ -z "$workSeed" ] || AgentsToolsSessionChatPointerSet "$workSession" "collect:$workMember:tagged:$workMember" "$workSeed"
 			fi
+			## The mentions source resumes from the same handed pointer where the session keeps none of its own.
+			if ! AgentsToolsSessionChatPointer "$workSession" "mentions:$workMember" > /dev/null 2>&1 ; then
+				workSeed=""
+				[ ! -f "$MMDAPP/.local/agents/schedule/handed-from/$workMember" ] || read -r workSeed < "$MMDAPP/.local/agents/schedule/handed-from/$workMember" || :
+				case "${workSeed%%.*}" in ''|*[!0123456789]*) workSeed="" ;; esac
+				[ -z "$workSeed" ] || AgentsToolsSessionChatPointerSet "$workSession" "mentions:$workMember" "$workSeed"
+			fi
 		fi
 		printf '\n## Slack: tagged to %s, and the team channel over %ss\n\n' "$workMember" "$workWindow"
 		## MDAT_SCAN_SEED_QUIET=1 (the spawner's seed of the Wait baseline, AgentsToolsInputScanDefSeed): the collect is not run. The baseline is the
@@ -137,7 +144,7 @@ case "$1" in
 		if [ -n "${MDAT_SCAN_SEED_QUIET:-}" ] ; then
 			: > "$workWork/collect.out" ; : > "$workWork/collect.err"
 		else
-			( [ -z "$workSession" ] || export MDAT_SESSION_ID="$workSession" ; DistroAgentsTools --intern-op-wait-for-input "$workMember" --wait-collect "$workWindow" --wait-source "tagged:$workMember" --wait-source slack:magic-team ) > "$workWork/collect.out" 2> "$workWork/collect.err" || :
+			( [ -z "$workSession" ] || export MDAT_SESSION_ID="$workSession" ; DistroAgentsTools --intern-op-wait-for-input "$workMember" --wait-collect "$workWindow" --wait-source "tagged:$workMember" --wait-source "mentions:$workMember" --wait-source slack:magic-team ) > "$workWork/collect.out" 2> "$workWork/collect.err" || :
 		fi
 		if LC_ALL=C grep -q '^# arrived on: ' "$workWork/collect.out" ; then
 			## A message of the team channel that names someone (`<@id>`) and not this member is kept, for the member to know of it, and labelled by the

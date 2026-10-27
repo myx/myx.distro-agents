@@ -529,12 +529,11 @@ keys DOWN
 keys k y e s ENTER
 get early
 wait plan 30
-keys ENTER
-get pressed
 wait action 30
+get pressed
 RIGSCRIPT
-rigAssert "a press while the plan is still being read does nothing, and the dialog says so" "[$( rigVal early.dialog )] [$( rigVal early.dialogSays )] $( rigVal early.calls )" "[kill:word|yes] [nothing is done yet: its plan is still being read] 0"
-rigAssert "the next press, once the plan was read, asks the kill: once, and the plan was read once" "[$( rigVal pressed.dialog )] [$( rigVal pressed.notice )] $( rigKills ) $( rigPlans )" "[] [kill asked of the tooling: the session daily of Monday] 1 1"
+rigAssert "the first press while the plan is still being read waits for it, and the dialog says so (sketch 5.4: the first try)" "[$( rigVal early.dialog )] [$( rigVal early.dialogSays )] $( rigVal early.calls )" "[kill:word|yes] [nothing is done yet: its plan is still being read, and the kill follows when it has been read] 0"
+rigAssert "once the plan was read the kill is asked with no second press: the dialog is closed, the operation was called once, and the plan was read once" "[$( rigVal pressed.dialog )] $( rigKills ) $( rigPlans )" "[] 1 1"
 
 echo "-- a kill that fails shows its error line --"
 rigCase fail

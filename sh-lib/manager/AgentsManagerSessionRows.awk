@@ -155,16 +155,14 @@ END {
 		## it running, or waiting where every one of them sits in a Wait. With none live, it is the
 		## state its runs themselves read: waiting where a run of it waits on an answer (its own
 		## measured `waiting`), then the states of their records -- of another host's, still open --
-		## and else finished. AND AN ASK THAT STILL WAITS IS WAITED ON: a question asked by the
-		## session or by one of its runs holds it waiting, whether that run still stands or not, so a
-		## session reads finished only once no question of it is open. Nothing is hidden here: a run
-		## settles its own asks when its record closes (AgentsToolsSpawnProxyWithdrawAsks, the one
-		## withdraw an asker has), so a session whose runs have ended has none left behind.
+		## and else finished. ALL AGENTS FINISHED MAKE THE SESSION FINISHED, NEVER WAITING (sketch 5.4): a
+		## question still open does not hold a session whose runs have all ended; the count of open asks
+		## is the counters row's, and the question is answered in Pending Questions.
 		if (sessionKey in sessionLive) {
 			sessionState[sessionKey] = ( sessionLiveWaiting[sessionKey] == sessionLiveCount[sessionKey] ) ? "waiting" : "running" ;
 		}
 		else if (sessionKey in sessionStarting) sessionState[sessionKey] = "starting" ;
-		else if ((sessionKey, "waiting") in sessionStates || (sessionKey in sessionAsked)) sessionState[sessionKey] = "waiting" ;
+		else if ((sessionKey, "waiting") in sessionStates) sessionState[sessionKey] = "waiting" ;
 		else if (sessionKey in sessionForeign) sessionState[sessionKey] = "unknown-foreign" ;
 		else if (sessionKey in sessionOpen) sessionState[sessionKey] = "unclosed" ;
 		else sessionState[sessionKey] = "finished" ;

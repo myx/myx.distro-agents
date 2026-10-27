@@ -5469,6 +5469,14 @@
 			was last given. `tagged:<own member>` on what is for the
 			member by name: a mention in the team channel or its session
 			thread, and any message of any DM, TTL 15 seconds.
+			`mentions:<own member>` on a mention of the member anywhere,
+			thread replies included: one search.messages call from the
+			session's pointer, TTL 60 seconds kept by the session across
+			Waits. A member with a Slack account is searched by its id,
+			one with none by the text `@<member>`; the member's own user
+			token searches, else the team identity that may. Where none
+			may (no user token with search:read), the source is never read
+			and the header says so: its mentions are unknown, not none.
 			--wait-collect <seconds> makes the call a collect (the
 			work-duty input scan): the window is its bound, it returns at
 			its end with everything the sources brought, or at once on an

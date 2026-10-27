@@ -138,7 +138,7 @@ SESSION_FINISHED = "finished"
 ## and, in the text of the confirmation itself, what it says where the plan could not be
 ## read at all.
 KILL_SAYS = {
-    "unread": "nothing is done yet: its plan is still being read",
+    "unread": "nothing is done yet: its plan is still being read, and the kill follows when it has been read",
     "unreadable": "So it is not asked for: nothing is killed, dismissed or closed. Cancel and Esc close this. The key of the kill asks again, and reads its plan anew.",
 }
 
